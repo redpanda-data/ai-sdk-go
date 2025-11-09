@@ -1,0 +1,35 @@
+name: "Lint"
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '**.go'
+      - '.golangci.yaml'
+      - '.github/workflows/golangci-lint.yaml'
+  pull_request:
+    paths:
+      - '**.go'
+      - '.golangci.yaml'
+      - '.github/workflows/golangci-lint.yaml'
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  golangci:
+    name: Golangci Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: 'stable'
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.6
