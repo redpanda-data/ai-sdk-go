@@ -1,4 +1,4 @@
-package openai_test
+package conformance
 
 import (
 	"context"
@@ -12,79 +12,50 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
-	"github.com/redpanda-data/ai-sdk-go/providers/openai"
-	"github.com/redpanda-data/ai-sdk-go/providers/openai/openaitest"
 )
 
 const (
-	// Test timeout for API calls.
+	// testTimeout is the timeout for API calls.
 	testTimeout = 30 * time.Second
-	// Longer timeout for reasoning models which can take more time.
+	// reasoningTestTimeout is a longer timeout for reasoning models which can take more time.
 	reasoningTestTimeout = 5 * 60 * time.Second
 )
 
-// IntegrationTestSuite provides a test suite for OpenAI provider integration tests.
-type IntegrationTestSuite struct {
+// Suite provides generic conformance tests for any provider implementing the llm.Model interface.
+// Provider implementations should create their own test file that instantiates this suite with a
+// provider-specific fixture.
+//
+// Usage:
+//
+//	func TestProviderConformance(t *testing.T) {
+//	    fixture := NewMyProviderFixture(t)
+//	    suite.Run(t, conformance.NewSuite(fixture))
+//	}
+type Suite struct {
 	suite.Suite
 
-	provider *openai.Provider
-	apiKey   string
+	fixture Fixture
 }
 
-//nolint:paralleltest // Test suite manages its own lifecycle
-func TestOpenAIIntegrationSuite(t *testing.T) {
-	suite.Run(t, &IntegrationTestSuite{})
-}
-
-func (s *IntegrationTestSuite) SetupSuite() {
-	s.apiKey = openaitest.GetAPIKeyOrSkipTest(s.T())
-
-	provider, err := openai.NewProvider(s.apiKey)
-	s.Require().NoError(err)
-	s.provider = provider
-}
-
-func (s *IntegrationTestSuite) TestProviderCreation() {
-	tests := []struct {
-		name     string
-		apiKey   string
-		options  []openai.ProviderOption
-		validate func(t *testing.T, provider *openai.Provider, err error)
-	}{
-		{
-			name:   "valid API key",
-			apiKey: s.apiKey,
-			validate: func(t *testing.T, provider *openai.Provider, err error) {
-				t.Helper()
-				require.NoError(t, err)
-				assert.NotNil(t, provider)
-				assert.Equal(t, s.apiKey, provider.APIKey)
-			},
-		},
-		{
-			name:   "with custom timeout",
-			apiKey: s.apiKey,
-			options: []openai.ProviderOption{
-				openai.WithTimeout(45 * time.Second),
-			},
-			validate: func(t *testing.T, provider *openai.Provider, err error) {
-				t.Helper()
-				require.NoError(t, err)
-				assert.NotNil(t, provider)
-				assert.Equal(t, 45*time.Second, provider.Timeout)
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		s.Run(tt.name, func() {
-			provider, err := openai.NewProvider(tt.apiKey, tt.options...)
-			tt.validate(s.T(), provider, err)
-		})
+// NewSuite creates a new conformance test suite with the given fixture.
+func NewSuite(fixture Fixture) *Suite {
+	return &Suite{
+		fixture: fixture,
 	}
 }
 
-func (s *IntegrationTestSuite) TestGenerate() {
+func (s *Suite) SetupSuite() {
+	if s.fixture.ShouldSkip() {
+		s.T().Skip(s.fixture.SkipReason())
+	}
+}
+
+func (s *Suite) TestGenerate() {
+	model := s.fixture.StandardModel()
+	if model == nil {
+		s.T().Skip("No standard model available")
+	}
+
 	tests := []struct {
 		name     string
 		request  *llm.Request
@@ -188,16 +159,23 @@ func (s *IntegrationTestSuite) TestGenerate() {
 			ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 			defer cancel()
 
-			model, err := s.provider.NewModel(openaitest.TestModelName)
-			s.Require().NoError(err)
-
 			response, err := model.Generate(ctx, tt.request)
 			tt.validate(s.T(), response, err)
 		})
 	}
 }
 
-func (s *IntegrationTestSuite) TestGenerateEvents() {
+func (s *Suite) TestGenerateEvents() {
+	model := s.fixture.StandardModel()
+	if model == nil {
+		s.T().Skip("No standard model available")
+	}
+
+	caps := model.Capabilities()
+	if !caps.Streaming {
+		s.T().Skip("Model does not support streaming")
+	}
+
 	tests := []struct {
 		name     string
 		request  *llm.Request
@@ -240,7 +218,6 @@ func (s *IntegrationTestSuite) TestGenerateEvents() {
 						t.Fatalf("Received error event: %s (code: %s)", e.Message, e.Code)
 					}
 				}
-				// Cleanup happens automatically!
 
 				// Verify we received content
 				assert.NotEmpty(t, textParts, "Should receive text content")
@@ -356,28 +333,25 @@ func (s *IntegrationTestSuite) TestGenerateEvents() {
 			ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 			defer cancel()
 
-			model, err := s.provider.NewModel(openaitest.TestModelName)
-			s.Require().NoError(err)
-
 			tt.validate(s.T(), model, ctx, tt.request)
 		})
 	}
 }
 
-func (s *IntegrationTestSuite) TestGenerateWithReasoning() {
+func (s *Suite) TestGenerateWithReasoning() {
+	model := s.fixture.ReasoningModel()
+	if model == nil {
+		s.T().Skip("No reasoning model available")
+	}
+
+	caps := model.Capabilities()
+	if !caps.Reasoning {
+		s.T().Skip("Model does not support reasoning")
+	}
+
 	s.Run("complex reasoning question", func() {
 		ctx, cancel := context.WithTimeout(context.Background(), reasoningTestTimeout)
 		defer cancel()
-
-		model, err := s.provider.NewModel(openaitest.TestReasoningModelName,
-			openai.WithReasoningEffort(openai.ReasoningEffortHigh),
-			openai.WithReasoningSummary(openai.ReasoningSummaryDetailed),
-		)
-		s.Require().NoError(err)
-
-		// Verify the model has reasoning capability
-		caps := model.Capabilities()
-		s.Require().True(caps.Reasoning, "Test model should support reasoning")
 
 		request := &llm.Request{
 			Messages: []llm.Message{
@@ -430,20 +404,24 @@ func (s *IntegrationTestSuite) TestGenerateWithReasoning() {
 	})
 }
 
-func (s *IntegrationTestSuite) TestGenerateEventsWithReasoning() {
+func (s *Suite) TestGenerateEventsWithReasoning() {
+	model := s.fixture.ReasoningModel()
+	if model == nil {
+		s.T().Skip("No reasoning model available")
+	}
+
+	caps := model.Capabilities()
+	if !caps.Reasoning {
+		s.T().Skip("Model does not support reasoning")
+	}
+
+	if !caps.Streaming {
+		s.T().Skip("Model does not support streaming")
+	}
+
 	s.Run("streaming with reasoning traces", func() {
 		ctx, cancel := context.WithTimeout(context.Background(), reasoningTestTimeout)
 		defer cancel()
-
-		model, err := s.provider.NewModel(openaitest.TestReasoningModelName,
-			openai.WithReasoningEffort(openai.ReasoningEffortHigh),
-			openai.WithReasoningSummary(openai.ReasoningSummaryDetailed),
-		)
-		s.Require().NoError(err)
-
-		// Verify the model has reasoning capability
-		caps := model.Capabilities()
-		s.Require().True(caps.Reasoning, "Test model should support reasoning")
 
 		request := &llm.Request{
 			Messages: []llm.Message{
@@ -485,7 +463,6 @@ func (s *IntegrationTestSuite) TestGenerateEventsWithReasoning() {
 				s.T().Fatalf("Received error event: %s (code: %s)", e.Message, e.Code)
 			}
 		}
-		// Cleanup happens automatically!
 
 		// Verify we received events
 		s.Positive(eventCount, "Should receive stream events")
@@ -493,19 +470,17 @@ func (s *IntegrationTestSuite) TestGenerateEventsWithReasoning() {
 		// Verify we got text content
 		s.NotEmpty(textParts, "Should receive text content chunks")
 
-		// Combine text parts and check content quality (same as sync test)
-		allText := ""
-
-		var allTextSb502 strings.Builder
+		// Combine text parts and check content quality
+		var allTextSb strings.Builder
 		for _, part := range textParts {
-			allTextSb502.WriteString(part)
+			allTextSb.WriteString(part)
 		}
 
-		allText += allTextSb502.String()
+		allText := allTextSb.String()
 
 		s.Greater(len(allText), 200, "Should provide detailed technical analysis")
 
-		// Should mention relevant concepts (same check as sync test)
+		// Should mention relevant concepts
 		lowerText := strings.ToLower(allText)
 		s.True(
 			strings.Contains(lowerText, "consensus") ||
@@ -513,18 +488,16 @@ func (s *IntegrationTestSuite) TestGenerateEventsWithReasoning() {
 				strings.Contains(lowerText, "partition"),
 			"Should discuss relevant distributed systems concepts")
 
-		// Verify reasoning content (should be present for complex question with high effort)
+		// Verify reasoning content (should be present for complex question)
 		s.NotEmpty(reasoningParts, "Should receive reasoning traces for complex question")
 
 		// Combine reasoning parts to check total content
-		allReasoning := ""
-
-		var allReasoningSb520 strings.Builder
+		var allReasoningSb strings.Builder
 		for _, part := range reasoningParts {
-			allReasoningSb520.WriteString(part)
+			allReasoningSb.WriteString(part)
 		}
 
-		allReasoning += allReasoningSb520.String()
+		allReasoning := allReasoningSb.String()
 
 		s.Greater(len(allReasoning), 50, "Should have substantial reasoning content")
 
@@ -532,55 +505,24 @@ func (s *IntegrationTestSuite) TestGenerateEventsWithReasoning() {
 		s.True(hasEndEvent, "Should receive stream end event")
 		s.Equal(llm.FinishReasonStop, endEvent.Response.FinishReason)
 
-		// Verify usage information (same as sync test)
+		// Verify usage information
 		s.Require().NotNil(endEvent.Response.Usage)
 		s.Greater(endEvent.Response.Usage.TotalTokens, 200, "Complex reasoning should use many tokens")
 	})
 }
 
-func (s *IntegrationTestSuite) TestAllSupportedModels() {
-	t := s.T()
+func (s *Suite) TestStructuredOutputs() {
+	model := s.fixture.StandardModel()
+	if model == nil {
+		s.T().Skip("No standard model available")
+	}
 
-	t.Run("basic generation works for all supported models", func(t *testing.T) {
-		models := s.provider.Models()
+	caps := model.Capabilities()
+	if !caps.StructuredOutput {
+		s.T().Skip("Model does not support structured output")
+	}
 
-		for _, m := range models {
-			modelName := m.Name
-			t.Run("model_"+modelName, func(t *testing.T) {
-				model, err := s.provider.NewModel(modelName)
-				if err != nil {
-					t.Skipf("Skipping model %s due to creation error: %v", modelName, err)
-					return
-				}
-
-				reqObj := &llm.Request{
-					Messages: []llm.Message{{
-						Role:    llm.RoleUser,
-						Content: []*llm.Part{llm.NewTextPart("Say 'Hello' in one word")},
-					}},
-				}
-
-				resp, err := model.Generate(t.Context(), reqObj)
-				require.NoError(t, err)
-
-				require.NotNil(t, resp)
-				assert.NotEmpty(t, resp.Message.Content)
-				assert.NotEmpty(t, resp.TextContent())
-				assert.NotEmpty(t, resp.FinishReason)
-
-				if resp.Usage != nil {
-					assert.Positive(t, resp.Usage.TotalTokens)
-				}
-			})
-		}
-	})
-}
-
-func (s *IntegrationTestSuite) TestStructuredOutputs() {
 	s.Run("JSON Schema structured output", func() {
-		model, err := s.provider.NewModel(openaitest.TestModelName)
-		s.Require().NoError(err)
-
 		// Define a JSON schema for a simple person object
 		schema := `{
 			"type": "object",
@@ -608,7 +550,10 @@ func (s *IntegrationTestSuite) TestStructuredOutputs() {
 			},
 		}
 
-		resp, err := model.Generate(s.T().Context(), req)
+		ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+		defer cancel()
+
+		resp, err := model.Generate(ctx, req)
 		s.Require().NoError(err)
 		s.Require().NotNil(resp)
 
@@ -634,11 +579,18 @@ func (s *IntegrationTestSuite) TestStructuredOutputs() {
 	})
 }
 
-func (s *IntegrationTestSuite) TestJSONObjectOutput() {
-	s.Run("JSON Object mode", func() {
-		model, err := s.provider.NewModel(openaitest.TestModelName)
-		s.Require().NoError(err)
+func (s *Suite) TestJSONObjectOutput() {
+	model := s.fixture.StandardModel()
+	if model == nil {
+		s.T().Skip("No standard model available")
+	}
 
+	caps := model.Capabilities()
+	if !caps.StructuredOutput {
+		s.T().Skip("Model does not support structured output")
+	}
+
+	s.Run("JSON Object mode", func() {
 		req := &llm.Request{
 			Messages: []llm.Message{{
 				Role:    llm.RoleUser,
@@ -649,7 +601,10 @@ func (s *IntegrationTestSuite) TestJSONObjectOutput() {
 			},
 		}
 
-		resp, err := model.Generate(s.T().Context(), req)
+		ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+		defer cancel()
+
+		resp, err := model.Generate(ctx, req)
 		s.Require().NoError(err)
 		s.Require().NotNil(resp)
 
@@ -665,7 +620,21 @@ func (s *IntegrationTestSuite) TestJSONObjectOutput() {
 	})
 }
 
-func (s *IntegrationTestSuite) TestGenerateEventsWithTools() {
+func (s *Suite) TestGenerateEventsWithTools() {
+	model := s.fixture.StandardModel()
+	if model == nil {
+		s.T().Skip("No standard model available")
+	}
+
+	caps := model.Capabilities()
+	if !caps.Tools {
+		s.T().Skip("Model does not support tools")
+	}
+
+	if !caps.Streaming {
+		s.T().Skip("Model does not support streaming")
+	}
+
 	tests := []struct {
 		name     string
 		request  *llm.Request
@@ -729,7 +698,6 @@ func (s *IntegrationTestSuite) TestGenerateEventsWithTools() {
 						t.Fatalf("Received error event: %s (code: %s)", e.Message, e.Code)
 					}
 				}
-				// Cleanup happens automatically!
 
 				// Verify we received exactly one tool request
 				assert.Len(t, toolRequests, 1, "Should receive exactly one tool request")
@@ -837,7 +805,6 @@ func (s *IntegrationTestSuite) TestGenerateEventsWithTools() {
 						t.Fatalf("Received error event: %s (code: %s)", e.Message, e.Code)
 					}
 				}
-				// Cleanup happens automatically!
 
 				// Verify we received multiple tool requests
 				assert.Greater(t, len(toolRequests), 1, "Should receive multiple tool requests")
@@ -892,10 +859,427 @@ func (s *IntegrationTestSuite) TestGenerateEventsWithTools() {
 			ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 			defer cancel()
 
-			model, err := s.provider.NewModel(openaitest.TestModelName)
-			s.Require().NoError(err)
-
 			tt.validate(s.T(), model, ctx, tt.request)
 		})
 	}
+}
+
+func (s *Suite) TestToolExecutionLoop() {
+	model := s.fixture.StandardModel()
+	if model == nil {
+		s.T().Skip("No standard model available")
+	}
+
+	caps := model.Capabilities()
+	if !caps.Tools {
+		s.T().Skip("Model does not support tools")
+	}
+
+	s.Run("tool execution with result feedback", func() {
+		ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+		defer cancel()
+
+		// Step 1: Initial request that should trigger tool call
+		initialRequest := &llm.Request{
+			Messages: []llm.Message{
+				{
+					Role: llm.RoleUser,
+					Content: []*llm.Part{
+						llm.NewTextPart("What is the weather in San Francisco?"),
+					},
+				},
+			},
+			Tools: []llm.ToolDefinition{
+				{
+					Name:        "get_weather",
+					Description: "Get the current weather in a given location",
+					Parameters: json.RawMessage(`{
+						"type": "object",
+						"properties": {
+							"location": {
+								"type": "string",
+								"description": "The city and state, e.g. San Francisco, CA"
+							}
+						},
+						"required": ["location"]
+					}`),
+				},
+			},
+		}
+
+		// Get initial response with tool call
+		response, err := model.Generate(ctx, initialRequest)
+		s.Require().NoError(err)
+		s.Require().NotNil(response)
+		s.Equal(llm.FinishReasonToolCalls, response.FinishReason, "Should request tool call")
+
+		// Extract tool requests
+		var toolRequests []*llm.ToolRequest
+		for _, part := range response.Message.Content {
+			if part.IsToolRequest() {
+				toolRequests = append(toolRequests, part.ToolRequest)
+			}
+		}
+		s.Require().NotEmpty(toolRequests, "Should have at least one tool request")
+		s.Equal("get_weather", toolRequests[0].Name, "Should request get_weather tool")
+
+		// Step 2: Simulate tool execution and send result back
+		followUpRequest := &llm.Request{
+			Messages: []llm.Message{
+				{
+					Role: llm.RoleUser,
+					Content: []*llm.Part{
+						llm.NewTextPart("What is the weather in San Francisco?"),
+					},
+				},
+				response.Message, // Add the assistant's tool call message
+				{
+					Role: llm.RoleUser,
+					Content: []*llm.Part{
+						llm.NewToolResponsePart(&llm.ToolResponse{
+							ID:     toolRequests[0].ID,
+							Name:   toolRequests[0].Name,
+							Result: json.RawMessage(`{"temperature": 72, "condition": "sunny", "unit": "fahrenheit"}`),
+						}),
+					},
+				},
+			},
+			Tools: initialRequest.Tools, // Keep tool definitions
+		}
+
+		// Step 3: Get final response with tool result incorporated
+		finalResponse, err := model.Generate(ctx, followUpRequest)
+		s.Require().NoError(err)
+		s.Require().NotNil(finalResponse)
+
+		// Verify final response
+		s.Equal(llm.FinishReasonStop, finalResponse.FinishReason, "Should complete after tool result")
+
+		// Verify response contains information from tool result
+		finalText := finalResponse.TextContent()
+		s.NotEmpty(finalText, "Should have text response")
+
+		// Check that the response mentions the weather data
+		lowerText := strings.ToLower(finalText)
+		s.True(
+			strings.Contains(lowerText, "72") || strings.Contains(lowerText, "sunny") || strings.Contains(lowerText, "san francisco"),
+			"Response should incorporate tool result data")
+
+		// Verify usage information
+		s.Require().NotNil(finalResponse.Usage)
+		s.Positive(finalResponse.Usage.TotalTokens)
+	})
+
+	s.Run("multi-turn tool execution streaming", func() {
+		ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+		defer cancel()
+
+		// Skip if streaming not supported
+		if !caps.Streaming {
+			s.T().Skip("Model does not support streaming")
+		}
+
+		// Step 1: Initial request that should trigger tool call
+		initialRequest := &llm.Request{
+			Messages: []llm.Message{
+				{
+					Role: llm.RoleUser,
+					Content: []*llm.Part{
+						llm.NewTextPart("What is the current time in Tokyo?"),
+					},
+				},
+			},
+			Tools: []llm.ToolDefinition{
+				{
+					Name:        "get_time",
+					Description: "Get the current time in a given timezone",
+					Parameters: json.RawMessage(`{
+						"type": "object",
+						"properties": {
+							"timezone": {
+								"type": "string",
+								"description": "The timezone, e.g. Asia/Tokyo"
+							}
+						},
+						"required": ["timezone"]
+					}`),
+				},
+			},
+		}
+
+		// Collect tool requests from stream
+		var toolRequests []*llm.ToolRequest
+		var assistantMessage llm.Message
+
+		for event, err := range model.GenerateEvents(ctx, initialRequest) {
+			s.Require().NoError(err)
+
+			switch e := event.(type) {
+			case llm.ContentPartEvent:
+				if e.Part.IsToolRequest() {
+					toolRequests = append(toolRequests, e.Part.ToolRequest)
+					assistantMessage.Content = append(assistantMessage.Content, e.Part)
+				}
+			case llm.StreamEndEvent:
+				s.Equal(llm.FinishReasonToolCalls, e.Response.FinishReason)
+				assistantMessage.Role = llm.RoleAssistant
+			}
+		}
+
+		s.Require().NotEmpty(toolRequests, "Should have tool requests")
+		s.Equal("get_time", toolRequests[0].Name)
+
+		// Step 2: Send tool result and get final response via streaming
+		followUpRequest := &llm.Request{
+			Messages: []llm.Message{
+				{
+					Role: llm.RoleUser,
+					Content: []*llm.Part{
+						llm.NewTextPart("What is the current time in Tokyo?"),
+					},
+				},
+				assistantMessage,
+				{
+					Role: llm.RoleUser,
+					Content: []*llm.Part{
+						llm.NewToolResponsePart(&llm.ToolResponse{
+							ID:     toolRequests[0].ID,
+							Name:   toolRequests[0].Name,
+							Result: json.RawMessage(`{"time": "14:30", "timezone": "Asia/Tokyo", "date": "2025-11-10"}`),
+						}),
+					},
+				},
+			},
+			Tools: initialRequest.Tools,
+		}
+
+		var finalText strings.Builder
+		var finalFinishReason llm.FinishReason
+
+		for event, err := range model.GenerateEvents(ctx, followUpRequest) {
+			s.Require().NoError(err)
+
+			switch e := event.(type) {
+			case llm.ContentPartEvent:
+				if e.Part.IsText() {
+					finalText.WriteString(e.Part.Text)
+				}
+			case llm.StreamEndEvent:
+				finalFinishReason = e.Response.FinishReason
+				s.Require().NotNil(e.Response.Usage)
+				s.Positive(e.Response.Usage.TotalTokens)
+			}
+		}
+
+		s.Equal(llm.FinishReasonStop, finalFinishReason, "Should complete after tool result")
+		s.NotEmpty(finalText.String(), "Should have text response")
+
+		// Verify response mentions the time data
+		lowerText := strings.ToLower(finalText.String())
+		s.True(
+			strings.Contains(lowerText, "tokyo") || strings.Contains(lowerText, "14:30") || strings.Contains(lowerText, "time"),
+			"Response should incorporate tool result data")
+	})
+
+	s.Run("sequential tool calls with dependency", func() {
+		ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+		defer cancel()
+
+		// Step 1: Ask for weather in current location (requires two tools: location, then weather)
+		initialRequest := &llm.Request{
+			Messages: []llm.Message{
+				{
+					Role: llm.RoleUser,
+					Content: []*llm.Part{
+						llm.NewTextPart("What's the weather like in my current location?"),
+					},
+				},
+			},
+			Tools: []llm.ToolDefinition{
+				{
+					Name:        "get_current_location",
+					Description: "Get the user's current location",
+					Parameters:  json.RawMessage(`{"type": "object", "properties": {}}`),
+				},
+				{
+					Name:        "get_weather",
+					Description: "Get the current weather in a given location",
+					Parameters: json.RawMessage(`{
+						"type": "object",
+						"properties": {
+							"location": {
+								"type": "string",
+								"description": "The city and state, e.g. San Francisco, CA"
+							}
+						},
+						"required": ["location"]
+					}`),
+				},
+			},
+		}
+
+		// Get first response - should request get_current_location
+		response1, err := model.Generate(ctx, initialRequest)
+		s.Require().NoError(err)
+		s.Require().NotNil(response1)
+		s.Equal(llm.FinishReasonToolCalls, response1.FinishReason, "Should request first tool")
+
+		// Extract first tool request
+		var toolRequests1 []*llm.ToolRequest
+		for _, part := range response1.Message.Content {
+			if part.IsToolRequest() {
+				toolRequests1 = append(toolRequests1, part.ToolRequest)
+			}
+		}
+		s.Require().NotEmpty(toolRequests1, "Should have tool request")
+		s.Equal("get_current_location", toolRequests1[0].Name, "Should request location first")
+
+		// Step 2: Provide location result
+		request2 := &llm.Request{
+			Messages: []llm.Message{
+				{
+					Role: llm.RoleUser,
+					Content: []*llm.Part{
+						llm.NewTextPart("What's the weather like in my current location?"),
+					},
+				},
+				response1.Message,
+				{
+					Role: llm.RoleUser,
+					Content: []*llm.Part{
+						llm.NewToolResponsePart(&llm.ToolResponse{
+							ID:     toolRequests1[0].ID,
+							Name:   toolRequests1[0].Name,
+							Result: json.RawMessage(`{"city": "San Francisco", "state": "CA", "country": "USA"}`),
+						}),
+					},
+				},
+			},
+			Tools: initialRequest.Tools,
+		}
+
+		// Get second response - should now request get_weather with location
+		response2, err := model.Generate(ctx, request2)
+		s.Require().NoError(err)
+		s.Require().NotNil(response2)
+		s.Equal(llm.FinishReasonToolCalls, response2.FinishReason, "Should request second tool")
+
+		// Extract second tool request
+		var toolRequests2 []*llm.ToolRequest
+		for _, part := range response2.Message.Content {
+			if part.IsToolRequest() {
+				toolRequests2 = append(toolRequests2, part.ToolRequest)
+			}
+		}
+		s.Require().NotEmpty(toolRequests2, "Should have second tool request")
+		s.Equal("get_weather", toolRequests2[0].Name, "Should request weather with location")
+
+		// Verify the weather request includes location from first tool
+		var weatherArgs map[string]any
+		err = json.Unmarshal(toolRequests2[0].Arguments, &weatherArgs)
+		s.Require().NoError(err)
+		s.Contains(weatherArgs, "location", "Should have location argument")
+
+		location := weatherArgs["location"].(string)
+		s.True(
+			strings.Contains(strings.ToLower(location), "san francisco") || strings.Contains(strings.ToLower(location), "sf"),
+			"Location should reference San Francisco from first tool result")
+
+		// Step 3: Provide weather result
+		request3 := &llm.Request{
+			Messages: []llm.Message{
+				{
+					Role: llm.RoleUser,
+					Content: []*llm.Part{
+						llm.NewTextPart("What's the weather like in my current location?"),
+					},
+				},
+				response1.Message,
+				{
+					Role: llm.RoleUser,
+					Content: []*llm.Part{
+						llm.NewToolResponsePart(&llm.ToolResponse{
+							ID:     toolRequests1[0].ID,
+							Name:   toolRequests1[0].Name,
+							Result: json.RawMessage(`{"city": "San Francisco", "state": "CA", "country": "USA"}`),
+						}),
+					},
+				},
+				response2.Message,
+				{
+					Role: llm.RoleUser,
+					Content: []*llm.Part{
+						llm.NewToolResponsePart(&llm.ToolResponse{
+							ID:     toolRequests2[0].ID,
+							Name:   toolRequests2[0].Name,
+							Result: json.RawMessage(`{"temperature": 65, "condition": "foggy", "humidity": 85}`),
+						}),
+					},
+				},
+			},
+			Tools: initialRequest.Tools,
+		}
+
+		// Get final response with weather answer
+		finalResponse, err := model.Generate(ctx, request3)
+		s.Require().NoError(err)
+		s.Require().NotNil(finalResponse)
+		s.Equal(llm.FinishReasonStop, finalResponse.FinishReason, "Should complete after all tools")
+
+		// Verify final response mentions both location and weather
+		finalText := finalResponse.TextContent()
+		s.NotEmpty(finalText, "Should have final text response")
+
+		lowerText := strings.ToLower(finalText)
+		s.True(
+			strings.Contains(lowerText, "65") || strings.Contains(lowerText, "foggy") || strings.Contains(lowerText, "san francisco"),
+			"Response should mention weather and location from tool results")
+
+		s.Require().NotNil(finalResponse.Usage)
+		s.Positive(finalResponse.Usage.TotalTokens)
+	})
+}
+
+func (s *Suite) TestAllSupportedModels() {
+	t := s.T()
+
+	models := s.fixture.Models()
+	if len(models) == 0 {
+		t.Skip("No models available for testing")
+	}
+
+	t.Run("basic generation works for all supported models", func(t *testing.T) {
+		for _, m := range models {
+			modelName := m.Name
+			t.Run("model_"+modelName, func(t *testing.T) {
+				model, err := s.fixture.NewModel(modelName)
+				if err != nil {
+					t.Skipf("Skipping model %s due to creation error: %v", modelName, err)
+					return
+				}
+
+				reqObj := &llm.Request{
+					Messages: []llm.Message{{
+						Role:    llm.RoleUser,
+						Content: []*llm.Part{llm.NewTextPart("Say 'Hello' in one word")},
+					}},
+				}
+
+				ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+				defer cancel()
+
+				resp, err := model.Generate(ctx, reqObj)
+				require.NoError(t, err)
+
+				require.NotNil(t, resp)
+				assert.NotEmpty(t, resp.Message.Content)
+				assert.NotEmpty(t, resp.TextContent())
+				assert.NotEmpty(t, resp.FinishReason)
+
+				if resp.Usage != nil {
+					assert.Positive(t, resp.Usage.TotalTokens)
+				}
+			})
+		}
+	})
 }
