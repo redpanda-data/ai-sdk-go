@@ -33,10 +33,12 @@ jobs:
 
       - uses: actions/cache@v4
         with:
-          path: build/bin
-          key: ${{ runner.os }}-bin-${{ hashFiles('Taskfile.yaml', 'taskfiles/install.yaml') }}
+          path: |
+            build/bin
+            build/go1.25.4
+          key: ${{ runner.os }}-build-${{ hashFiles('Taskfile.yaml', 'taskfiles/install.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-bin-
+            ${{ runner.os }}-build-
 
       - uses: go-task/setup-task@v1
 
