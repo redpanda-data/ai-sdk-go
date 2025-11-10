@@ -69,14 +69,14 @@ func TestCallLogging_Stream(t *testing.T) {
 		},
 	}
 
-	stream, err := model.GenerateStream(context.Background(), req)
-	require.NoError(t, err)
-
-	defer func() { _ = stream.Close() }()
+	// Consume the iterator to trigger the call
+	for _, err := range model.GenerateEvents(context.Background(), req) {
+		require.NoError(t, err)
+	}
 
 	calls := model.Calls()
 	assert.Len(t, calls, 1)
-	assert.Equal(t, llmtesting.CallGenerateStream, calls[0].Kind)
+	assert.Equal(t, llmtesting.CallGenerateEvents, calls[0].Kind)
 	assert.Equal(t, "stream-rule", calls[0].RuleName)
 	assert.NoError(t, calls[0].Err)
 }
@@ -226,10 +226,10 @@ func TestAssertStreamCalled(t *testing.T) {
 		},
 	}
 
-	stream, err := model.GenerateStream(context.Background(), req)
-	require.NoError(t, err)
-
-	defer func() { _ = stream.Close() }()
+	// Consume the iterator to trigger the call
+	for _, err := range model.GenerateEvents(context.Background(), req) {
+		require.NoError(t, err)
+	}
 
 	// Should not panic
 	model.AssertStreamCalled(t)

@@ -1,6 +1,9 @@
 package llm
 
-import "context"
+import (
+	"context"
+	"iter"
+)
 
 // ModelInfo provides metadata about a model.
 //
@@ -84,54 +87,93 @@ type Generator interface {
 	Generate(ctx context.Context, req *Request) (*Response, error)
 }
 
-// StreamGenerator provides streaming text generation capabilities.
+// EventsGenerator provides streaming text generation capabilities.
 //
-// Use StreamGenerator when you need real-time response streaming, such as for
+// Use EventsGenerator when you need real-time response streaming, such as for
 // interactive chat applications, live content generation, or when you want to
 // display partial results to users as they become available.
-type StreamGenerator interface {
-	// GenerateStream performs a streaming request and returns an EventStream for real-time results.
+type EventsGenerator interface {
+	// GenerateEvents returns an iterator for streaming LLM responses.
+	// Iteration ends naturally after a final StreamEndEvent, or early if the consumer
+	// breaks out of the loop. Resource cleanup is automatic in both cases.
 	//
-	// The returned EventStream follows standard Go streaming patterns (similar to sql.Rows):
-	//   - Call Recv() repeatedly until io.EOF or an error
-	//   - Always call Close() to release resources (use defer)
-	//   - Context cancellation will close the stream and return context.Canceled
-	//
+	// The iterator yields (event, nil) for successful events or (nil, err) for fatal
+	// transport/mapping failures. Always check err on each iteration.
 	//
 	// Error Handling:
 	//
-	// GenerateStream initialization errors:
-	//   - ErrRequestMapping: Request conversion failed
-	//   - ErrUnsupportedFeature: Provider/model doesn't support streaming
-	//   - ErrInvalidConfig: Provider configuration is invalid
+	// Three types of errors are communicated through the iterator:
 	//
-	// StreamEndEvent.Error contains provider errors (same as Generate):
-	//   - ErrRateLimitExceeded: Retryable with backoff
-	//   - ErrInvalidInput: Not retryable, fix input
-	//   - ErrContentPolicyViolation: Not retryable, policy violation
-	//   - ErrServerError: Retryable, transient issue
-	//   - ErrResponseMapping: Response parsing failed
+	// 1. Recoverable warnings (ErrorEvent):
+	//   - Yielded as (ErrorEvent{...}, nil)
+	//   - Non-terminal, streaming continues
+	//   - Log or handle as appropriate for your application
 	//
-	// ErrorEvent during streaming represents recoverable warnings (non-terminal).
-	// See StreamEndEvent documentation for error handling examples.
+	// 2. Terminal provider errors (StreamEndEvent.Error):
+	//   - Yielded as (StreamEndEvent{Error: err}, nil)
+	//   - Final event, indicates completion with error
+	//   - Check with errors.Is():
+	//     * ErrRateLimitExceeded: Retryable with backoff
+	//     * ErrInvalidInput: Not retryable, fix input
+	//     * ErrContentPolicyViolation: Not retryable, policy violation
+	//     * ErrServerError: Retryable, transient issue
 	//
-	//	stream, err := model.GenerateStream(ctx, request)
-	//	if err != nil {
-	//		return err
+	// 3. Fatal transport/mapping errors:
+	//   - Yielded as (nil, err)
+	//   - Stops iteration immediately
+	//   - Check with errors.Is():
+	//     * ErrRequestMapping: Request conversion failed
+	//     * ErrResponseMapping: Response parsing failed
+	//     * ErrAPICall: Network or transport failure
+	//     * context.Canceled: Context was cancelled
+	//
+	// Example usage:
+	//
+	//	for event, err := range model.GenerateEvents(ctx, request) {
+	//		if err != nil {
+	//			return fmt.Errorf("stream failed: %w", err)
+	//		}
+	//
+	//		switch e := event.(type) {
+	//		case llm.ContentPartEvent:
+	//			// Handle streaming content (text, tool calls, reasoning)
+	//			fmt.Print(e.Part.Text())
+	//
+	//		case llm.ErrorEvent:
+	//			// Handle recoverable warnings
+	//			log.Printf("warning [%s]: %s", e.Code, e.Message)
+	//
+	//		case llm.StreamEndEvent:
+	//			// Handle completion
+	//			if e.Error != nil {
+	//				// Provider returned an error
+	//				if errors.Is(e.Error, llm.ErrRateLimitExceeded) {
+	//					return retryWithBackoff(ctx, model, request)
+	//				}
+	//				return e.Error
+	//			}
+	//			// Success - e.Response contains usage stats and finish reason
+	//			log.Printf("usage: %+v", e.Response.Usage)
+	//		}
 	//	}
-	//	defer stream.Close()
+	//	// Cleanup happens automatically, even on early break/return!
+	//
+	// For advanced use cases requiring fine-grained control, use iter.Pull2:
+	//
+	//	next, stop := iter.Pull2(model.GenerateEvents(ctx, request))
+	//	defer stop()
 	//
 	//	for {
-	//		event, err := stream.Recv()
-	//		if err == io.EOF {
-	//			break // Stream completed successfully
+	//		event, err, ok := next()
+	//		if !ok {
+	//			break
 	//		}
 	//		if err != nil {
-	//			return err // Stream error
+	//			return err
 	//		}
-	//		// Handle event (see StreamEndEvent docs for error handling)
+	//		// Handle event with fine-grained control
 	//	}
-	GenerateStream(ctx context.Context, req *Request) (EventStream, error)
+	GenerateEvents(ctx context.Context, req *Request) iter.Seq2[Event, error]
 }
 
 // Model represents the complete interface for interacting with AI models.
@@ -160,5 +202,5 @@ type StreamGenerator interface {
 type Model interface {
 	ModelInfo
 	Generator
-	StreamGenerator
+	EventsGenerator
 }

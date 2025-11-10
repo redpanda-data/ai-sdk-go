@@ -98,21 +98,24 @@ func TestErrorHelperMethods(t *testing.T) {
 
 		model := NewFakeModel().MidStreamError(2, llm.ErrStreamClosed)
 
-		stream, err := model.GenerateStream(context.Background(), req)
-		require.NoError(t, err)
+		eventCount := 0
 
-		defer func() { _ = stream.Close() }()
+		var lastErr error
 
-		// Read a couple chunks successfully
-		_, err = stream.Recv()
-		require.NoError(t, err)
-		_, err = stream.Recv()
-		require.NoError(t, err)
+		// Read events using range loop
+		for _, err := range model.GenerateEvents(context.Background(), req) {
+			if err != nil {
+				lastErr = err
+				break
+			}
 
-		// Next recv should hit the error
-		_, err = stream.Recv()
-		require.Error(t, err)
-		require.ErrorIs(t, err, llm.ErrStreamClosed, "Should return llm.ErrStreamClosed")
+			eventCount++
+		}
+
+		// Should have read 2 events before the error
+		require.Equal(t, 2, eventCount, "Should receive 2 events before error")
+		require.Error(t, lastErr)
+		require.ErrorIs(t, lastErr, llm.ErrStreamClosed, "Should return llm.ErrStreamClosed")
 	})
 
 	t.Run("ErrorAfterNCalls", func(t *testing.T) {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
+	"iter"
 	"sync"
 	"testing"
 	"time"
@@ -75,8 +76,8 @@ const (
 	// CallGenerate indicates Generate was called.
 	CallGenerate CallKind = iota
 
-	// CallGenerateStream indicates GenerateStream was called.
-	CallGenerateStream
+	// CallGenerateEvents indicates GenerateEvents was called.
+	CallGenerateEvents
 )
 
 // String returns a human-readable representation of the CallKind.
@@ -84,8 +85,8 @@ func (k CallKind) String() string {
 	switch k {
 	case CallGenerate:
 		return "Generate"
-	case CallGenerateStream:
-		return "GenerateStream"
+	case CallGenerateEvents:
+		return "GenerateEvents"
 	default:
 		return fmt.Sprintf("CallKind(%d)", k)
 	}
@@ -96,7 +97,7 @@ type Call struct {
 	// When is the time this call was made
 	When time.Time
 
-	// Kind indicates whether Generate or GenerateStream was called
+	// Kind indicates whether Generate or GenerateEvents was called
 	Kind CallKind
 
 	// Request is the request that was passed
@@ -112,7 +113,7 @@ type Call struct {
 	RuleName string
 }
 
-// CallContext provides context about the current Generate/GenerateStream call.
+// CallContext provides context about the current Generate/GenerateEvents call.
 // This is passed to matchers and actions for stateful decision-making.
 type CallContext struct {
 	// TotalCalls is the total number of calls to this model across all conversations
@@ -134,10 +135,10 @@ type CallContext struct {
 type Matcher func(req *llm.Request, ctx *CallContext) error
 
 // action defines what to do when a rule matches.
-// Exactly one of Generate or GenerateStream should be non-nil.
+// Exactly one of Generate or GenerateEvents should be non-nil.
 type action struct {
 	Generate       func(ctx context.Context, req *llm.Request, cc *CallContext) (*llm.Response, error)
-	GenerateStream func(ctx context.Context, req *llm.Request, cc *CallContext) (llm.EventStream, error)
+	GenerateEvents func(ctx context.Context, req *llm.Request, cc *CallContext) iter.Seq2[llm.Event, error]
 }
 
 // defaults configures fallback behavior when no rules match.
@@ -245,71 +246,64 @@ func (m *FakeModel) Generate(ctx context.Context, req *llm.Request) (*llm.Respon
 	return resp, err
 }
 
-// GenerateStream performs streaming generation following the configured rules.
-func (m *FakeModel) GenerateStream(ctx context.Context, req *llm.Request) (llm.EventStream, error) {
+// GenerateEvents performs streaming generation following the configured rules.
+func (m *FakeModel) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[llm.Event, error] {
 	// Enforce capability constraints
 	if !m.caps.Streaming {
-		return nil, llm.ErrUnsupportedFeature
+		return func(yield func(llm.Event, error) bool) {
+			yield(nil, llm.ErrUnsupportedFeature)
+		}
 	}
 
 	cc := m.beginCall(req)
 
-	var (
-		stream   llm.EventStream
-		err      error
-		ruleName string
-	)
-
 	// Find and execute matching rule
-
-	if action, name := m.findMatchingAction(req, cc); action != nil && action.GenerateStream != nil {
-		ruleName = name
-
-		stream, err = action.GenerateStream(ctx, req, cc)
-		if err != nil {
-			m.endCall(cc)
-			// Log the call
-			m.logCall(Call{
-				When:     time.Now(),
-				Kind:     CallGenerateStream,
-				Request:  req,
-				Err:      err,
-				RuleName: ruleName,
-			})
-
-			return nil, err
-		}
-		// Wrap stream to call endCall on close
-		wrapped := &streamWrapper{
-			EventStream: stream,
-			onClose: func() {
-				m.endCall(cc)
-			},
-		}
+	if action, name := m.findMatchingAction(req, cc); action != nil && action.GenerateEvents != nil {
+		ruleName := name
 
 		// Log the call (successful stream start)
 		m.logCall(Call{
 			When:     time.Now(),
-			Kind:     CallGenerateStream,
+			Kind:     CallGenerateEvents,
 			Request:  req,
 			RuleName: ruleName,
 		})
 
-		return wrapped, nil
+		// Get the iterator from the action
+		seq := action.GenerateEvents(ctx, req, cc)
+
+		// Wrap it to call endCall when done
+		return func(yield func(llm.Event, error) bool) {
+			defer m.endCall(cc)
+
+			for event, err := range seq {
+				if !yield(event, err) {
+					return
+				}
+			}
+		}
 	}
 
 	// Fallback: stream the deterministic response
-	stream, err = m.generateStreamFallback(ctx, req, cc)
+	seq := m.generateEventsFallback(ctx, req, cc)
 
 	// Log the call
 	m.logCall(Call{
 		When:    time.Now(),
-		Kind:    CallGenerateStream,
+		Kind:    CallGenerateEvents,
 		Request: req,
-		Err:     err,
 	})
 
-	return stream, err
+	// Wrap to call endCall
+	return func(yield func(llm.Event, error) bool) {
+		defer m.endCall(cc)
+
+		for event, err := range seq {
+			if !yield(event, err) {
+				return
+			}
+		}
+	}
 }
 
 // When starts building a new rule with the given matchers.
@@ -491,23 +485,38 @@ func (m *FakeModel) generateFallback(ctx context.Context, req *llm.Request, cc *
 	return m.addUsageAndLatency(ctx, req, response, text)
 }
 
-// generateStreamFallback creates a streaming fallback response.
-//
-//nolint:unparam // error return kept for consistency with other generators
-func (m *FakeModel) generateStreamFallback(ctx context.Context, req *llm.Request, cc *CallContext) (llm.EventStream, error) {
+// generateEventsFallback creates a streaming fallback response.
+func (m *FakeModel) generateEventsFallback(ctx context.Context, req *llm.Request, _ *CallContext) iter.Seq2[llm.Event, error] {
 	text, finishReason := m.fallbackContent(req)
 
 	events := m.textToStreamEvents(text, finishReason)
 
-	stream := newFakeStream(ctx, events, m.latency.PerChunk)
+	// Return an iterator that yields events with optional delays
+	return func(yield func(llm.Event, error) bool) {
+		for i, event := range events {
+			// Simulate inter-chunk delay
+			if m.latency.PerChunk > 0 && i > 0 {
+				select {
+				case <-ctx.Done():
+					yield(nil, ctx.Err())
+					return
+				case <-time.After(m.latency.PerChunk):
+				}
+			}
 
-	// Wrap to call endCall on close
-	return &streamWrapper{
-		EventStream: stream,
-		onClose: func() {
-			m.endCall(cc)
-		},
-	}, nil
+			// Check context before yielding
+			select {
+			case <-ctx.Done():
+				yield(nil, ctx.Err())
+				return
+			default:
+			}
+
+			if !yield(event, nil) {
+				return
+			}
+		}
+	}
 }
 
 // fallbackContent generates deterministic content based on the request.
@@ -575,10 +584,10 @@ func (m *FakeModel) countInputTokens(req *llm.Request) int {
 }
 
 // textToStreamEvents converts text into streaming events with chunking.
-func (m *FakeModel) textToStreamEvents(text string, finishReason llm.FinishReason) []llm.StreamEvent {
+func (m *FakeModel) textToStreamEvents(text string, finishReason llm.FinishReason) []llm.Event {
 	chunks := chunkText(text, m.defaults.ChunkSize)
 
-	events := make([]llm.StreamEvent, 0, len(chunks)+1)
+	events := make([]llm.Event, 0, len(chunks)+1)
 	for i, chunk := range chunks {
 		events = append(events, llm.ContentPartEvent{
 			Index: i,
@@ -602,9 +611,9 @@ func (m *FakeModel) textToStreamEvents(text string, finishReason llm.FinishReaso
 }
 
 // responseToStreamEvents converts a Response into streaming events.
-// This is used to make ThenRespondWith work for both Generate and GenerateStream.
-func (m *FakeModel) responseToStreamEvents(req *llm.Request, resp *llm.Response) []llm.StreamEvent {
-	events := make([]llm.StreamEvent, 0, len(resp.Message.Content)+1)
+// This is used to make ThenRespondWith work for both Generate and GenerateEvents.
+func (m *FakeModel) responseToStreamEvents(req *llm.Request, resp *llm.Response) []llm.Event {
+	events := make([]llm.Event, 0, len(resp.Message.Content)+1)
 
 	// Emit each content part as a separate event
 	for i, part := range resp.Message.Content {
@@ -722,7 +731,7 @@ func (rb *RuleBuilder) ThenRespondText(text string, opts ...ResponseOption) *Fak
 }
 
 // ThenRespondWith configures the rule to return a custom-built response.
-// This configures both Generate and GenerateStream so the response works regardless
+// This configures both Generate and GenerateEvents so the response works regardless
 // of which method the caller uses.
 func (rb *RuleBuilder) ThenRespondWith(builder func(req *llm.Request, cc *CallContext) (*llm.Response, error)) *FakeModel {
 	// Configure non-streaming Generate
@@ -743,22 +752,39 @@ func (rb *RuleBuilder) ThenRespondWith(builder func(req *llm.Request, cc *CallCo
 		return rb.model.addUsageAndLatency(ctx, req, resp, outputText)
 	}
 
-	// Configure streaming GenerateStream to return the same response
-	rb.rule.action.GenerateStream = func(ctx context.Context, req *llm.Request, cc *CallContext) (llm.EventStream, error) {
-		resp, err := builder(req, cc)
-		if err != nil {
-			return nil, err
+	// Configure streaming GenerateEvents to return the same response
+	rb.rule.action.GenerateEvents = func(ctx context.Context, req *llm.Request, cc *CallContext) iter.Seq2[llm.Event, error] {
+		return func(yield func(llm.Event, error) bool) {
+			resp, err := builder(req, cc)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			// Ensure finish reason is set
+			if resp.FinishReason == "" {
+				resp.FinishReason = llm.FinishReasonStop
+			}
+
+			// Convert response to streaming events
+			events := rb.model.responseToStreamEvents(req, resp)
+
+			// Yield events with optional delays
+			for i, event := range events {
+				if rb.model.latency.PerChunk > 0 && i > 0 {
+					select {
+					case <-ctx.Done():
+						yield(nil, ctx.Err())
+						return
+					case <-time.After(rb.model.latency.PerChunk):
+					}
+				}
+
+				if !yield(event, nil) {
+					return
+				}
+			}
 		}
-
-		// Ensure finish reason is set
-		if resp.FinishReason == "" {
-			resp.FinishReason = llm.FinishReasonStop
-		}
-
-		// Convert response to streaming events
-		events := rb.model.responseToStreamEvents(req, resp)
-
-		return newFakeStream(ctx, events, rb.model.latency.PerChunk), nil
 	}
 
 	rb.commit()
@@ -793,7 +819,7 @@ func (rb *RuleBuilder) ThenRespondWithToolCall(toolName string, arguments map[st
 
 // ThenRespondJSON configures the rule to return a structured JSON response.
 // The value is marshaled to JSON and returned as text content.
-// Works for both Generate and GenerateStream.
+// Works for both Generate and GenerateEvents.
 //
 // Example:
 //
@@ -848,57 +874,79 @@ func (rb *RuleBuilder) ThenStreamText(text string, config StreamConfig) *FakeMod
 		return rb.model.addUsageAndLatency(ctx, req, resp, text)
 	}
 
-	// Configure streaming GenerateStream
-	rb.rule.action.GenerateStream = func(ctx context.Context, req *llm.Request, _ *CallContext) (llm.EventStream, error) {
-		chunkSize := config.ChunkSize
-		if chunkSize <= 0 {
-			chunkSize = rb.model.defaults.ChunkSize
-		}
+	// Configure streaming GenerateEvents
+	rb.rule.action.GenerateEvents = func(ctx context.Context, req *llm.Request, _ *CallContext) iter.Seq2[llm.Event, error] {
+		return func(yield func(llm.Event, error) bool) {
+			chunkSize := config.ChunkSize
+			if chunkSize <= 0 {
+				chunkSize = rb.model.defaults.ChunkSize
+			}
 
-		chunks := chunkText(text, chunkSize)
-		events := make([]llm.StreamEvent, 0, len(chunks)+1)
+			chunks := chunkText(text, chunkSize)
+			events := make([]llm.Event, 0, len(chunks)+1)
 
-		// Add text chunks
-		for i, chunk := range chunks {
-			events = append(events, llm.ContentPartEvent{
-				Index: i,
-				Part:  llm.NewTextPart(chunk),
+			// Add text chunks
+			for i, chunk := range chunks {
+				events = append(events, llm.ContentPartEvent{
+					Index: i,
+					Part:  llm.NewTextPart(chunk),
+				})
+			}
+
+			// Add finish event
+			inputTokens := rb.model.countInputTokens(req)
+			outputTokens := rb.model.tokenizer.Count(text)
+			events = append(events, llm.StreamEndEvent{
+				Response: &llm.Response{
+					Message: llm.Message{
+						Role:    llm.RoleAssistant,
+						Content: []*llm.Part{llm.NewTextPart(text)},
+					},
+					FinishReason: finishReason,
+					Usage: &llm.TokenUsage{
+						InputTokens:  inputTokens,
+						OutputTokens: outputTokens,
+						TotalTokens:  inputTokens + outputTokens,
+					},
+				},
 			})
+
+			delay := config.InterChunkDelay
+			if delay == 0 {
+				delay = rb.model.latency.PerChunk
+			}
+
+			// Yield events with delays and optional error injection
+			for i, event := range events {
+				// Check for mid-stream error
+				if config.ErrorAfterChunks > 0 && i >= config.ErrorAfterChunks && config.MidStreamError != nil {
+					yield(nil, config.MidStreamError)
+					return
+				}
+
+				// Simulate inter-chunk delay
+				if delay > 0 && i > 0 {
+					select {
+					case <-ctx.Done():
+						yield(nil, ctx.Err())
+						return
+					case <-time.After(delay):
+					}
+				}
+
+				// Check context before yielding
+				select {
+				case <-ctx.Done():
+					yield(nil, ctx.Err())
+					return
+				default:
+				}
+
+				if !yield(event, nil) {
+					return
+				}
+			}
 		}
-
-		// Add finish event
-		inputTokens := rb.model.countInputTokens(req)
-		outputTokens := rb.model.tokenizer.Count(text)
-		events = append(events, llm.StreamEndEvent{
-			Response: &llm.Response{
-				Message: llm.Message{
-					Role:    llm.RoleAssistant,
-					Content: []*llm.Part{llm.NewTextPart(text)},
-				},
-				FinishReason: finishReason,
-				Usage: &llm.TokenUsage{
-					InputTokens:  inputTokens,
-					OutputTokens: outputTokens,
-					TotalTokens:  inputTokens + outputTokens,
-				},
-			},
-		})
-
-		delay := config.InterChunkDelay
-		if delay == 0 {
-			delay = rb.model.latency.PerChunk
-		}
-
-		baseStream := newFakeStream(ctx, events, delay)
-
-		// Wrap with error-after-N if configured
-		if config.ErrorAfterChunks > 0 && config.MidStreamError != nil {
-			// MidStreamError is embedded in the stream, not returned as the function error
-			wrappedStream := newErrorAfterStream(baseStream, config.ErrorAfterChunks, config.MidStreamError)
-			return wrappedStream, nil //nolint:nilerr // MidStreamError is embedded in stream, not returned
-		}
-
-		return baseStream, nil
 	}
 
 	rb.commit()
@@ -912,8 +960,10 @@ func (rb *RuleBuilder) ThenError(err error) *FakeModel {
 		return nil, err
 	}
 
-	rb.rule.action.GenerateStream = func(_ context.Context, _ *llm.Request, _ *CallContext) (llm.EventStream, error) {
-		return nil, err
+	rb.rule.action.GenerateEvents = func(_ context.Context, _ *llm.Request, _ *CallContext) iter.Seq2[llm.Event, error] {
+		return func(yield func(llm.Event, error) bool) {
+			yield(nil, err)
+		}
 	}
 
 	rb.commit()

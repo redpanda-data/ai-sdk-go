@@ -2,8 +2,6 @@ package fakellm_test
 
 import (
 	"context"
-	"errors"
-	"io"
 	"strings"
 	"testing"
 	"time"
@@ -121,22 +119,12 @@ func TestFakeModel_Streaming(t *testing.T) {
 		},
 	}
 
-	stream, err := model.GenerateStream(context.Background(), req)
-	require.NoError(t, err)
-
-	defer func() { _ = stream.Close() }()
-
 	var (
 		chunks      []string
 		finishEvent llm.StreamEndEvent
 	)
 
-	for {
-		event, err := stream.Recv()
-		if errors.Is(err, io.EOF) {
-			break
-		}
-
+	for event, err := range model.GenerateEvents(context.Background(), req) {
 		require.NoError(t, err)
 
 		switch e := event.(type) {
@@ -322,18 +310,14 @@ func TestFakeModel_MidStreamError(t *testing.T) {
 		},
 	}
 
-	stream, err := model.GenerateStream(context.Background(), req)
-	require.NoError(t, err)
-
-	defer func() { _ = stream.Close() }()
-
 	chunkCount := 0
 
-	for {
-		_, err := stream.Recv()
+	var lastErr error
+
+	for _, err := range model.GenerateEvents(context.Background(), req) {
 		if err != nil {
 			// Should error after 2 chunks
-			require.ErrorIs(t, err, llm.ErrStreamClosed)
+			lastErr = err
 			break
 		}
 
@@ -342,6 +326,7 @@ func TestFakeModel_MidStreamError(t *testing.T) {
 
 	// Should receive exactly 2 chunks before the error
 	assert.Equal(t, 2, chunkCount, "stream should emit 2 chunks before erroring")
+	require.ErrorIs(t, lastErr, llm.ErrStreamClosed)
 }
 
 func TestFakeModel_FallbackBehavior(t *testing.T) {

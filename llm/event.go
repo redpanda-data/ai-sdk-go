@@ -1,25 +1,10 @@
 package llm
 
-// EventStream provides iterator-style streaming following Go idioms.
-// Similar to sql.Rows, bufio.Scanner, and grpc.ClientStream patterns.
-// All provider implementations return the same EventStream interface,
-// ensuring consistent behavior regardless of the underlying AI service.
-type EventStream interface {
-	// Recv blocks and returns the next event, or io.EOF when the stream is complete.
-	// This follows the standard Go streaming pattern used by gRPC and other libraries.
-	Recv() (StreamEvent, error)
-
-	// Close aborts the underlying stream and releases resources.
-	// It's safe to call multiple times and from different goroutines.
-	// Users should always call Close() or use defer to prevent resource leaks.
-	Close() error
-}
-
-// StreamEvent represents all possible events that can occur during streaming.
+// Event represents all possible events that can occur during streaming.
 // This is a discriminated union implemented using Go interfaces.
 // The isStreamEvent() method is a type constraint that prevents external types
 // from accidentally implementing this interface, ensuring type safety.
-type StreamEvent interface {
+type Event interface {
 	// isStreamEvent is an unexported method that acts as a type constraint.
 	// Only types defined in this package can implement StreamEvent,
 	// which prevents external code from accidentally satisfying the interface
@@ -62,7 +47,7 @@ type ErrorEvent struct {
 func (ErrorEvent) isStreamEvent() {}
 
 // StreamEndEvent signals completion of a stream (success or failure).
-// This event is always the final event before io.EOF.
+// This event is always the final event in the iterator sequence.
 //
 // Exactly one of Response or Error will be set:
 //   - Response != nil: Generation succeeded (check Response.FinishReason for completeness)

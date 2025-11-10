@@ -3,8 +3,6 @@ package openai_test
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"io"
 	"strings"
 	"testing"
 	"time"
@@ -199,11 +197,11 @@ func (s *IntegrationTestSuite) TestGenerate() {
 	}
 }
 
-func (s *IntegrationTestSuite) TestGenerateStream() {
+func (s *IntegrationTestSuite) TestGenerateEvents() {
 	tests := []struct {
 		name     string
 		request  *llm.Request
-		validate func(t *testing.T, stream llm.EventStream, err error)
+		validate func(t *testing.T, model llm.Model, ctx context.Context, request *llm.Request)
 	}{
 		{
 			name: "simple streaming",
@@ -217,12 +215,8 @@ func (s *IntegrationTestSuite) TestGenerateStream() {
 					},
 				},
 			},
-			validate: func(t *testing.T, stream llm.EventStream, _ error) {
+			validate: func(t *testing.T, model llm.Model, ctx context.Context, request *llm.Request) {
 				t.Helper()
-
-				require.NotNil(t, stream)
-
-				defer func() { _ = stream.Close() }()
 
 				var (
 					textParts   []string
@@ -230,15 +224,9 @@ func (s *IntegrationTestSuite) TestGenerateStream() {
 					hasEndEvent bool
 				)
 
-				// Collect all stream events
-
-				for {
-					event, streamErr := stream.Recv()
-					if errors.Is(streamErr, io.EOF) {
-						break
-					}
-
-					require.NoError(t, streamErr)
+				// Collect all stream events using range loop
+				for event, err := range model.GenerateEvents(ctx, request) {
+					require.NoError(t, err)
 
 					switch e := event.(type) {
 					case llm.ContentPartEvent:
@@ -252,6 +240,7 @@ func (s *IntegrationTestSuite) TestGenerateStream() {
 						t.Fatalf("Received error event: %s (code: %s)", e.Message, e.Code)
 					}
 				}
+				// Cleanup happens automatically!
 
 				// Verify we received content
 				assert.NotEmpty(t, textParts, "Should receive text content")
@@ -279,12 +268,8 @@ func (s *IntegrationTestSuite) TestGenerateStream() {
 					},
 				},
 			},
-			validate: func(t *testing.T, stream llm.EventStream, _ error) {
+			validate: func(t *testing.T, model llm.Model, ctx context.Context, request *llm.Request) {
 				t.Helper()
-
-				require.NotNil(t, stream)
-
-				defer func() { _ = stream.Close() }()
 
 				eventCount := 0
 
@@ -293,13 +278,8 @@ func (s *IntegrationTestSuite) TestGenerateStream() {
 					hasEndEvent bool
 				)
 
-				for {
-					event, streamErr := stream.Recv()
-					if errors.Is(streamErr, io.EOF) {
-						break
-					}
-
-					require.NoError(t, streamErr)
+				for event, err := range model.GenerateEvents(ctx, request) {
+					require.NoError(t, err)
 
 					eventCount++
 
@@ -340,25 +320,16 @@ func (s *IntegrationTestSuite) TestGenerateStream() {
 					},
 				},
 			},
-			validate: func(t *testing.T, stream llm.EventStream, _ error) {
+			validate: func(t *testing.T, model llm.Model, ctx context.Context, request *llm.Request) {
 				t.Helper()
-
-				require.NotNil(t, stream)
-
-				defer func() { _ = stream.Close() }()
 
 				var (
 					hasContent bool
 					endEvent   llm.StreamEndEvent
 				)
 
-				for {
-					event, streamErr := stream.Recv()
-					if errors.Is(streamErr, io.EOF) {
-						break
-					}
-
-					require.NoError(t, streamErr)
+				for event, err := range model.GenerateEvents(ctx, request) {
+					require.NoError(t, err)
 
 					switch e := event.(type) {
 					case llm.ContentPartEvent:
@@ -388,8 +359,7 @@ func (s *IntegrationTestSuite) TestGenerateStream() {
 			model, err := s.provider.NewModel(openaitest.TestModelName)
 			s.Require().NoError(err)
 
-			stream, err := model.GenerateStream(ctx, tt.request)
-			tt.validate(s.T(), stream, err)
+			tt.validate(s.T(), model, ctx, tt.request)
 		})
 	}
 }
@@ -460,7 +430,7 @@ func (s *IntegrationTestSuite) TestGenerateWithReasoning() {
 	})
 }
 
-func (s *IntegrationTestSuite) TestGenerateStreamWithReasoning() {
+func (s *IntegrationTestSuite) TestGenerateEventsWithReasoning() {
 	s.Run("streaming with reasoning traces", func() {
 		ctx, cancel := context.WithTimeout(context.Background(), reasoningTestTimeout)
 		defer cancel()
@@ -486,13 +456,6 @@ func (s *IntegrationTestSuite) TestGenerateStreamWithReasoning() {
 			},
 		}
 
-		stream, err := model.GenerateStream(ctx, request)
-		s.Require().NoError(err)
-
-		s.Require().NotNil(stream)
-
-		defer func() { _ = stream.Close() }()
-
 		var (
 			textParts      []string
 			reasoningParts []string
@@ -502,13 +465,8 @@ func (s *IntegrationTestSuite) TestGenerateStreamWithReasoning() {
 
 		eventCount := 0
 
-		// Collect all stream events
-		for {
-			event, streamErr := stream.Recv()
-			if errors.Is(streamErr, io.EOF) {
-				break
-			}
-
+		// Collect all stream events using range loop
+		for event, streamErr := range model.GenerateEvents(ctx, request) {
 			s.Require().NoError(streamErr)
 
 			eventCount++
@@ -527,6 +485,7 @@ func (s *IntegrationTestSuite) TestGenerateStreamWithReasoning() {
 				s.T().Fatalf("Received error event: %s (code: %s)", e.Message, e.Code)
 			}
 		}
+		// Cleanup happens automatically!
 
 		// Verify we received events
 		s.Positive(eventCount, "Should receive stream events")
@@ -706,11 +665,11 @@ func (s *IntegrationTestSuite) TestJSONObjectOutput() {
 	})
 }
 
-func (s *IntegrationTestSuite) TestGenerateStreamWithTools() {
+func (s *IntegrationTestSuite) TestGenerateEventsWithTools() {
 	tests := []struct {
 		name     string
 		request  *llm.Request
-		validate func(t *testing.T, stream llm.EventStream, err error)
+		validate func(t *testing.T, model llm.Model, ctx context.Context, request *llm.Request)
 	}{
 		{
 			name: "single tool call in stream",
@@ -745,12 +704,8 @@ func (s *IntegrationTestSuite) TestGenerateStreamWithTools() {
 					},
 				},
 			},
-			validate: func(t *testing.T, stream llm.EventStream, _ error) {
+			validate: func(t *testing.T, model llm.Model, ctx context.Context, request *llm.Request) {
 				t.Helper()
-
-				require.NotNil(t, stream)
-
-				defer func() { _ = stream.Close() }()
 
 				var (
 					toolRequests []*llm.ToolRequest
@@ -758,15 +713,9 @@ func (s *IntegrationTestSuite) TestGenerateStreamWithTools() {
 					hasEndEvent  bool
 				)
 
-				// Collect all stream events
-
-				for {
-					event, streamErr := stream.Recv()
-					if errors.Is(streamErr, io.EOF) {
-						break
-					}
-
-					require.NoError(t, streamErr)
+				// Collect all stream events using range loop
+				for event, err := range model.GenerateEvents(ctx, request) {
+					require.NoError(t, err)
 
 					switch e := event.(type) {
 					case llm.ContentPartEvent:
@@ -780,6 +729,7 @@ func (s *IntegrationTestSuite) TestGenerateStreamWithTools() {
 						t.Fatalf("Received error event: %s (code: %s)", e.Message, e.Code)
 					}
 				}
+				// Cleanup happens automatically!
 
 				// Verify we received exactly one tool request
 				assert.Len(t, toolRequests, 1, "Should receive exactly one tool request")
@@ -856,12 +806,8 @@ func (s *IntegrationTestSuite) TestGenerateStreamWithTools() {
 					},
 				},
 			},
-			validate: func(t *testing.T, stream llm.EventStream, _ error) {
+			validate: func(t *testing.T, model llm.Model, ctx context.Context, request *llm.Request) {
 				t.Helper()
-
-				require.NotNil(t, stream)
-
-				defer func() { _ = stream.Close() }()
 
 				var (
 					toolRequests []*llm.ToolRequest
@@ -871,14 +817,9 @@ func (s *IntegrationTestSuite) TestGenerateStreamWithTools() {
 
 				toolRequestsByName := make(map[string][]*llm.ToolRequest)
 
-				// Collect all stream events
-				for {
-					event, streamErr := stream.Recv()
-					if errors.Is(streamErr, io.EOF) {
-						break
-					}
-
-					require.NoError(t, streamErr)
+				// Collect all stream events using range loop
+				for event, err := range model.GenerateEvents(ctx, request) {
+					require.NoError(t, err)
 
 					switch e := event.(type) {
 					case llm.ContentPartEvent:
@@ -896,6 +837,7 @@ func (s *IntegrationTestSuite) TestGenerateStreamWithTools() {
 						t.Fatalf("Received error event: %s (code: %s)", e.Message, e.Code)
 					}
 				}
+				// Cleanup happens automatically!
 
 				// Verify we received multiple tool requests
 				assert.Greater(t, len(toolRequests), 1, "Should receive multiple tool requests")
@@ -953,8 +895,7 @@ func (s *IntegrationTestSuite) TestGenerateStreamWithTools() {
 			model, err := s.provider.NewModel(openaitest.TestModelName)
 			s.Require().NoError(err)
 
-			stream, err := model.GenerateStream(ctx, tt.request)
-			tt.validate(s.T(), stream, err)
+			tt.validate(s.T(), model, ctx, tt.request)
 		})
 	}
 }

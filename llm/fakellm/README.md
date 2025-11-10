@@ -65,12 +65,9 @@ model := fakellm.NewFakeModel().
         InterChunkDelay: 50 * time.Millisecond,
     })
 
-stream, _ := model.GenerateStream(ctx, req)
-defer stream.Close()
-
-for {
-    event, err := stream.Recv()
-    if errors.Is(err, io.EOF) {
+for event, err := range model.GenerateEvents(ctx, req) {
+    if err != nil {
+        // Handle error
         break
     }
     // Handle event...
@@ -366,13 +363,9 @@ func TestStreamingErrorRecovery(t *testing.T) {
             MidStreamError:   fakellm.ErrConnectionDrop,
         })
 
-    stream, _ := mockLLM.GenerateStream(ctx, req)
-    defer stream.Close()
-
     // Verify partial content before error
     chunks := 0
-    for {
-        _, err := stream.Recv()
+    for _, err := range mockLLM.GenerateEvents(ctx, req) {
         if err != nil {
             // Check against llm package error (matches production code)
             assert.ErrorIs(t, err, llm.ErrStreamClosed)
