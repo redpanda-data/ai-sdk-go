@@ -35,3 +35,5 @@ jobs:
 
       - name: Run CI checks
         run: task test
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
