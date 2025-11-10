@@ -34,10 +34,10 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: |
-            build/bin
-            build/go1.25.4
+            build
+            ~/go/pkg/mod
             ~/.cache/go-build
-          key: ${{ runner.os }}-build-${{ hashFiles('Taskfile.yaml', 'taskfiles/install.yaml', '**/*.go') }}
+          key: ${{ runner.os }}-build-${{ hashFiles('**/go.sum', 'Taskfile.yaml', 'taskfiles/install.yaml') }}
           restore-keys: |
             ${{ runner.os }}-build-
 
