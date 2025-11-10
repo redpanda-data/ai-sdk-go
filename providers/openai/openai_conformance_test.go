@@ -14,9 +14,6 @@ import (
 // OpenAIFixture implements the conformance.Fixture interface for OpenAI provider.
 type OpenAIFixture struct {
 	provider       *openai.Provider
-	apiKey         string
-	shouldSkip     bool
-	skipReason     string
 	standardModel  llm.Model
 	reasoningModel llm.Model
 }
@@ -25,31 +22,20 @@ type OpenAIFixture struct {
 func NewOpenAIFixture(t *testing.T) *OpenAIFixture {
 	t.Helper()
 
-	fixture := &OpenAIFixture{}
-
-	// Check for API key - use fixture skip mechanism for better reporting
+	// Check for API key (skips test if not set)
 	apiKey := openaitest.GetAPIKeyOrSkipTest(t)
-	fixture.apiKey = apiKey
 
 	// Create provider
 	provider, err := openai.NewProvider(apiKey)
 	if err != nil {
-		fixture.shouldSkip = true
-		fixture.skipReason = "Failed to create provider: " + err.Error()
-		return fixture
+		t.Fatalf("Failed to create provider: %v", err)
 	}
-
-	fixture.provider = provider
 
 	// Create standard model
 	standardModel, err := provider.NewModel(openaitest.TestModelName)
 	if err != nil {
-		fixture.shouldSkip = true
-		fixture.skipReason = "Failed to create standard model: " + err.Error()
-		return fixture
+		t.Fatalf("Failed to create standard model: %v", err)
 	}
-
-	fixture.standardModel = standardModel
 
 	// Create reasoning model
 	reasoningModel, err := provider.NewModel(openaitest.TestReasoningModelName,
@@ -59,11 +45,13 @@ func NewOpenAIFixture(t *testing.T) *OpenAIFixture {
 	if err != nil {
 		// Reasoning model is optional, just log but don't skip
 		t.Logf("Failed to create reasoning model: %v", err)
-	} else {
-		fixture.reasoningModel = reasoningModel
 	}
 
-	return fixture
+	return &OpenAIFixture{
+		provider:       provider,
+		standardModel:  standardModel,
+		reasoningModel: reasoningModel,
+	}
 }
 
 func (f *OpenAIFixture) Name() string {
@@ -78,25 +66,11 @@ func (f *OpenAIFixture) ReasoningModel() llm.Model {
 	return f.reasoningModel
 }
 
-func (f *OpenAIFixture) ShouldSkip() bool {
-	return f.shouldSkip
-}
-
-func (f *OpenAIFixture) SkipReason() string {
-	return f.skipReason
-}
-
 func (f *OpenAIFixture) Models() []llm.ModelDiscoveryInfo {
-	if f.provider == nil {
-		return nil
-	}
 	return f.provider.Models()
 }
 
 func (f *OpenAIFixture) NewModel(modelName string) (llm.Model, error) {
-	if f.provider == nil {
-		return nil, nil
-	}
 	return f.provider.NewModel(modelName)
 }
 
