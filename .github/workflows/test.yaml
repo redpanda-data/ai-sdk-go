@@ -31,9 +31,7 @@ jobs:
           go-version: 'stable'
           cache: true
 
-      - uses: arduino/setup-task@v2
-        with:
-          version: 3.x
+      - uses: go-task/setup-task@v1
 
       - name: Run tests
         run: task test:unit
