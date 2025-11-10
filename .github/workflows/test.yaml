@@ -33,5 +33,5 @@ jobs:
 
       - uses: go-task/setup-task@v1
 
-      - name: Run tests
-        run: task test:unit
+      - name: Run CI checks
+        run: task ci
