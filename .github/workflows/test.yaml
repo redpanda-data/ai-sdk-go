@@ -34,7 +34,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: build/bin
-          key: ${{ runner.os }}-bin-${{ hashFiles('taskfiles/install.yaml') }}
+          key: ${{ runner.os }}-bin-${{ hashFiles('Taskfile.yaml', 'taskfiles/install.yaml') }}
           restore-keys: |
             ${{ runner.os }}-bin-
 
