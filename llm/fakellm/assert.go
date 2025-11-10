@@ -210,18 +210,18 @@ func (m *FakeModel) AssertGenerateCalled(tb testing.TB) {
 	tb.Fatalf("Generate was never called (out of %d total calls)", len(calls))
 }
 
-// AssertStreamCalled fails the test if GenerateStream was never called.
+// AssertStreamCalled fails the test if GenerateEvents was never called.
 func (m *FakeModel) AssertStreamCalled(tb testing.TB) {
 	tb.Helper()
 
 	calls := m.Calls()
 	for _, call := range calls {
-		if call.Kind == CallGenerateStream {
+		if call.Kind == CallGenerateEvents {
 			return
 		}
 	}
 
-	tb.Fatalf("GenerateStream was never called (out of %d total calls)", len(calls))
+	tb.Fatalf("GenerateEvents was never called (out of %d total calls)", len(calls))
 }
 
 // CallsMatching returns all calls that match the given matcher.
