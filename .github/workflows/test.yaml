@@ -31,6 +31,13 @@ jobs:
           go-version: 'stable'
           cache: true
 
+      - uses: actions/cache@v4
+        with:
+          path: build/bin
+          key: ${{ runner.os }}-bin-${{ hashFiles('taskfiles/install.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-bin-
+
       - uses: go-task/setup-task@v1
 
       - name: Run CI checks
