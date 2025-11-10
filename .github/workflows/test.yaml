@@ -31,12 +31,9 @@ jobs:
           go-version: 'stable'
           cache: true
 
-      - name: Run tests
-        run: go test -v -race -coverprofile=coverage.out ./...
-
-      - name: Upload coverage
-        uses: codecov/codecov-action@v4
-        if: github.event_name == 'push'
+      - uses: arduino/setup-task@v2
         with:
-          file: ./coverage.out
-          fail_ci_if_error: false
+          version: 3.x
+
+      - name: Run tests
+        run: task test:unit
