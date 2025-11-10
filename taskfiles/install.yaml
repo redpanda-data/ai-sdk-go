@@ -1,0 +1,42 @@
+version: '3'
+
+vars:
+  GOLANGCI_LINT_VERSION: 2.6.1
+  TPARSE_VERSION: 0.18.0
+
+tasks:
+  go:
+    desc: Install Go locally
+    run: once
+    vars:
+      GOLANG_URL_DEFAULT: https://go.dev/dl/go{{.GO_VERSION}}.{{OS}}-{{ARCH}}.tar.gz
+      GOLANG_URL: '{{default .GOLANG_URL_DEFAULT .GOLANG_URL}}'
+    cmds:
+      - rm -rf {{.GO_ROOT}}
+      - mkdir -p {{.GO_ROOT}}
+      - curl -sSLf --retry 3 --retry-connrefused --retry-delay 2 '{{.GOLANG_URL}}' | tar -xz -C {{.GO_ROOT}} --strip 1
+    status:
+      - test -f {{.GO_BIN}}
+      - '[[ $(GOTOOLCHAIN=local {{.GO_BIN}} version) == *"go{{.GO_VERSION}}"* ]]'
+
+  golangci-lint:
+    desc: Install golangci-lint (built from source with local Go)
+    deps:
+      - go
+    cmds:
+      - mkdir -p {{.BIN_DIR}}
+      - GOBIN={{.BIN_DIR}} {{.GO_BIN}} install github.com/golangci/golangci-lint/cmd/golangci-lint@v{{.GOLANGCI_LINT_VERSION}}
+    status:
+      - test -f {{.BIN_DIR}}/golangci-lint
+      - '[[ $({{.BIN_DIR}}/golangci-lint --version) == *"{{.GOLANGCI_LINT_VERSION}}"* ]]'
+
+  tparse:
+    desc: Install tparse
+    deps:
+      - go
+    cmds:
+      - mkdir -p {{.BIN_DIR}}
+      - GOBIN={{.BIN_DIR}} {{.GO_BIN}} install github.com/mfridman/tparse@v{{.TPARSE_VERSION}}
+    status:
+      - test -f {{.BIN_DIR}}/tparse
+      - '[[ $({{.BIN_DIR}}/tparse --version 2>&1) == *"{{.TPARSE_VERSION}}"* ]]'

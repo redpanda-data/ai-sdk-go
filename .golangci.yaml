@@ -1,0 +1,80 @@
+version: "2"
+run:
+  allow-parallel-runners: true
+linters:
+  default: all
+  disable:
+    - cyclop # covered by gocyclo
+    - depguard # we don't maintain a guard list yet, may be added later
+    - exhaustruct # not always desired, can clutter code a lot
+    - funlen  # rely on code review to limit function length
+    - gochecknoglobals
+    - gocognit # dubious "cognitive overhead" quantification
+    - inamedparam # convention is not followed
+    - ireturn # don't think it's an idiomatic practice
+    - lll # don't want hard limits for line length
+    - maintidx # covered by gocyclo
+    - mnd # status codes are clearer than constants
+    - nlreturn # overly opinionated to enforce empty lines before return
+    - noinlineerr # inline errors are idiomatic and can improve readability
+    - protogetter # too many false positives
+    - testpackage # internal tests are fine
+    - varnamelen # oftentimes short varnames are fine
+    - wrapcheck # we don't always have to wrap errors
+    - wsl # too much enforced whitespace
+  settings:
+    errcheck:
+      check-type-assertions: true
+    forbidigo:
+      forbid:
+        - pattern: ^fmt\.Print
+        - pattern: ^log\.
+        - pattern: ^print$
+        - pattern: ^println$
+        - pattern: ^panic$
+    godox:
+      keywords:
+        - FIXME
+    importas:
+      no-unaliased: true
+    varnamelen:
+      ignore-decls:
+        - T any
+        - i int
+        - wg sync.WaitGroup
+    tagliatelle:
+      case:
+        rules:
+          json: snake
+          yaml: snake
+          xml: snake
+          bson: snake
+          avro: snake
+          mapstructure: snake
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - "^build/"
+    rules:
+      - path: (.+)\.go$
+        text: 'do not define dynamic errors, use wrapped static errors instead: .*'
+issues:
+  max-same-issues: 0
+formatters:
+  enable:
+    - gci
+    - goimports
+    - gofumpt
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - localmodule
+    goimports:
+      local-prefixes: ["github.com/redpanda-data/ai-sdk-go"]
