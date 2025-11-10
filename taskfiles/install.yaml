@@ -1,7 +1,7 @@
 version: '3'
 
 vars:
-  GOLANGCI_LINT_VERSION: 2.6.1
+  GOLANGCI_LINT_VERSION: 1.62.2
   TPARSE_VERSION: 0.18.0
 
 tasks:
