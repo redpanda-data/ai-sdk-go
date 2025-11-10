@@ -44,12 +44,6 @@ func NewSuite(fixture Fixture) *Suite {
 	}
 }
 
-func (s *Suite) SetupSuite() {
-	if s.fixture.ShouldSkip() {
-		s.T().Skip(s.fixture.SkipReason())
-	}
-}
-
 func (s *Suite) TestGenerate() {
 	model := s.fixture.StandardModel()
 	if model == nil {
@@ -915,11 +909,13 @@ func (s *Suite) TestToolExecutionLoop() {
 
 		// Extract tool requests
 		var toolRequests []*llm.ToolRequest
+
 		for _, part := range response.Message.Content {
 			if part.IsToolRequest() {
 				toolRequests = append(toolRequests, part.ToolRequest)
 			}
 		}
+
 		s.Require().NotEmpty(toolRequests, "Should have at least one tool request")
 		s.Equal("get_weather", toolRequests[0].Name, "Should request get_weather tool")
 
@@ -1008,8 +1004,10 @@ func (s *Suite) TestToolExecutionLoop() {
 		}
 
 		// Collect tool requests from stream
-		var toolRequests []*llm.ToolRequest
-		var assistantMessage llm.Message
+		var (
+			toolRequests     []*llm.ToolRequest
+			assistantMessage llm.Message
+		)
 
 		for event, err := range model.GenerateEvents(ctx, initialRequest) {
 			s.Require().NoError(err)
@@ -1022,6 +1020,7 @@ func (s *Suite) TestToolExecutionLoop() {
 				}
 			case llm.StreamEndEvent:
 				s.Equal(llm.FinishReasonToolCalls, e.Response.FinishReason)
+
 				assistantMessage.Role = llm.RoleAssistant
 			}
 		}
@@ -1053,8 +1052,10 @@ func (s *Suite) TestToolExecutionLoop() {
 			Tools: initialRequest.Tools,
 		}
 
-		var finalText strings.Builder
-		var finalFinishReason llm.FinishReason
+		var (
+			finalText         strings.Builder
+			finalFinishReason llm.FinishReason
+		)
 
 		for event, err := range model.GenerateEvents(ctx, followUpRequest) {
 			s.Require().NoError(err)
@@ -1126,11 +1127,13 @@ func (s *Suite) TestToolExecutionLoop() {
 
 		// Extract first tool request
 		var toolRequests1 []*llm.ToolRequest
+
 		for _, part := range response1.Message.Content {
 			if part.IsToolRequest() {
 				toolRequests1 = append(toolRequests1, part.ToolRequest)
 			}
 		}
+
 		s.Require().NotEmpty(toolRequests1, "Should have tool request")
 		s.Equal("get_current_location", toolRequests1[0].Name, "Should request location first")
 
@@ -1166,21 +1169,25 @@ func (s *Suite) TestToolExecutionLoop() {
 
 		// Extract second tool request
 		var toolRequests2 []*llm.ToolRequest
+
 		for _, part := range response2.Message.Content {
 			if part.IsToolRequest() {
 				toolRequests2 = append(toolRequests2, part.ToolRequest)
 			}
 		}
+
 		s.Require().NotEmpty(toolRequests2, "Should have second tool request")
 		s.Equal("get_weather", toolRequests2[0].Name, "Should request weather with location")
 
 		// Verify the weather request includes location from first tool
 		var weatherArgs map[string]any
+
 		err = json.Unmarshal(toolRequests2[0].Arguments, &weatherArgs)
 		s.Require().NoError(err)
 		s.Contains(weatherArgs, "location", "Should have location argument")
 
-		location := weatherArgs["location"].(string)
+		location, ok := weatherArgs["location"].(string)
+		s.Require().True(ok, "location should be a string")
 		s.True(
 			strings.Contains(strings.ToLower(location), "san francisco") || strings.Contains(strings.ToLower(location), "sf"),
 			"Location should reference San Francisco from first tool result")
