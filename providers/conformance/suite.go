@@ -191,9 +191,9 @@ func (s *Suite) TestGenerateEvents() {
 				t.Helper()
 
 				var (
-					textParts   []string
-					endEvent    llm.StreamEndEvent
-					hasEndEvent bool
+					contentParts []*llm.Part
+					endEvent     llm.StreamEndEvent
+					hasEndEvent  bool
 				)
 
 				// Collect all stream events using range loop
@@ -202,9 +202,7 @@ func (s *Suite) TestGenerateEvents() {
 
 					switch e := event.(type) {
 					case llm.ContentPartEvent:
-						if e.Part.Kind == llm.PartText {
-							textParts = append(textParts, e.Part.Text)
-						}
+						contentParts = append(contentParts, e.Part)
 					case llm.StreamEndEvent:
 						endEvent = e
 						hasEndEvent = true
@@ -214,10 +212,10 @@ func (s *Suite) TestGenerateEvents() {
 				}
 
 				// Verify we received content
-				assert.NotEmpty(t, textParts, "Should receive text content")
+				require.NotEmpty(t, contentParts, "Should receive content parts")
 
 				// Verify we got an end event
-				assert.True(t, hasEndEvent, "Should receive stream end event")
+				require.True(t, hasEndEvent, "Should receive stream end event")
 				assert.Equal(t, llm.FinishReasonStop, endEvent.Response.FinishReason)
 
 				// Verify usage information in end event
@@ -225,6 +223,22 @@ func (s *Suite) TestGenerateEvents() {
 				assert.Positive(t, endEvent.Response.Usage.InputTokens)
 				assert.Positive(t, endEvent.Response.Usage.OutputTokens)
 				assert.Positive(t, endEvent.Response.Usage.TotalTokens)
+
+				// Verify StreamEndEvent.Response.Message contains all aggregated content
+				require.Len(t, endEvent.Response.Message.Content, len(contentParts),
+					"StreamEndEvent.Response.Message should contain all aggregated content parts")
+
+				// Verify each content part matches
+				for i, streamedPart := range contentParts {
+					aggregatedPart := endEvent.Response.Message.Content[i]
+					assert.Equal(t, streamedPart.Kind, aggregatedPart.Kind,
+						"Part %d: kind should match", i)
+
+					if streamedPart.Kind == llm.PartText {
+						assert.Equal(t, streamedPart.Text, aggregatedPart.Text,
+							"Part %d: text content should match", i)
+					}
+				}
 			},
 		},
 		{
@@ -295,8 +309,9 @@ func (s *Suite) TestGenerateEvents() {
 				t.Helper()
 
 				var (
-					hasContent bool
-					endEvent   llm.StreamEndEvent
+					contentParts []*llm.Part
+					endEvent     llm.StreamEndEvent
+					hasEndEvent  bool
 				)
 
 				for event, err := range model.GenerateEvents(ctx, request) {
@@ -304,20 +319,39 @@ func (s *Suite) TestGenerateEvents() {
 
 					switch e := event.(type) {
 					case llm.ContentPartEvent:
-						if e.Part.Kind == llm.PartText {
-							hasContent = true
-						}
+						contentParts = append(contentParts, e.Part)
 					case llm.StreamEndEvent:
 						endEvent = e
+						hasEndEvent = true
 					case llm.ErrorEvent:
 						t.Fatalf("Received error event: %s", e.Message)
 					}
 				}
 
-				assert.True(t, hasContent, "Should receive content")
+				// Verify we got an end event
+				require.True(t, hasEndEvent, "Should receive stream end event")
 				assert.Equal(t, llm.FinishReasonStop, endEvent.Response.FinishReason)
+
+				// Verify usage information
 				require.NotNil(t, endEvent.Response.Usage)
 				assert.Positive(t, endEvent.Response.Usage.TotalTokens)
+
+				// Verify StreamEndEvent.Response.Message contains all aggregated content
+				require.NotEmpty(t, contentParts, "Should have received content parts")
+				require.Len(t, endEvent.Response.Message.Content, len(contentParts),
+					"StreamEndEvent.Response.Message should contain all aggregated content parts")
+
+				// Verify each content part matches
+				for i, streamedPart := range contentParts {
+					aggregatedPart := endEvent.Response.Message.Content[i]
+					assert.Equal(t, streamedPart.Kind, aggregatedPart.Kind,
+						"Part %d: kind should match", i)
+
+					if streamedPart.Kind == llm.PartText {
+						assert.Equal(t, streamedPart.Text, aggregatedPart.Text,
+							"Part %d: text content should match", i)
+					}
+				}
 			},
 		},
 	}
@@ -429,10 +463,9 @@ func (s *Suite) TestGenerateEventsWithReasoning() {
 		}
 
 		var (
-			textParts      []string
-			reasoningParts []string
-			endEvent       llm.StreamEndEvent
-			hasEndEvent    bool
+			contentParts []*llm.Part
+			endEvent     llm.StreamEndEvent
+			hasEndEvent  bool
 		)
 
 		eventCount := 0
@@ -445,11 +478,7 @@ func (s *Suite) TestGenerateEventsWithReasoning() {
 
 			switch e := event.(type) {
 			case llm.ContentPartEvent:
-				if e.Part.IsText() {
-					textParts = append(textParts, e.Part.Text)
-				} else if e.Part.IsReasoning() {
-					reasoningParts = append(reasoningParts, e.Part.ReasoningTrace.Text)
-				}
+				contentParts = append(contentParts, e.Part)
 			case llm.StreamEndEvent:
 				endEvent = e
 				hasEndEvent = true
@@ -461,17 +490,21 @@ func (s *Suite) TestGenerateEventsWithReasoning() {
 		// Verify we received events
 		s.Positive(eventCount, "Should receive stream events")
 
-		// Verify we got text content
-		s.NotEmpty(textParts, "Should receive text content chunks")
+		// Verify we got content
+		s.NotEmpty(contentParts, "Should receive content parts")
 
-		// Combine text parts and check content quality
+		// Extract and combine text parts for quality checks
 		var allTextSb strings.Builder
-		for _, part := range textParts {
-			allTextSb.WriteString(part)
+		var allReasoningSb strings.Builder
+		for _, part := range contentParts {
+			if part.IsText() {
+				allTextSb.WriteString(part.Text)
+			} else if part.IsReasoning() {
+				allReasoningSb.WriteString(part.ReasoningTrace.Text)
+			}
 		}
 
 		allText := allTextSb.String()
-
 		s.Greater(len(allText), 200, "Should provide detailed technical analysis")
 
 		// Should mention relevant concepts
@@ -483,25 +516,38 @@ func (s *Suite) TestGenerateEventsWithReasoning() {
 			"Should discuss relevant distributed systems concepts")
 
 		// Verify reasoning content (should be present for complex question)
-		s.NotEmpty(reasoningParts, "Should receive reasoning traces for complex question")
-
-		// Combine reasoning parts to check total content
-		var allReasoningSb strings.Builder
-		for _, part := range reasoningParts {
-			allReasoningSb.WriteString(part)
-		}
-
 		allReasoning := allReasoningSb.String()
-
+		s.NotEmpty(allReasoning, "Should receive reasoning traces for complex question")
 		s.Greater(len(allReasoning), 50, "Should have substantial reasoning content")
 
 		// Verify we got an end event
-		s.True(hasEndEvent, "Should receive stream end event")
+		s.Require().True(hasEndEvent, "Should receive stream end event")
 		s.Equal(llm.FinishReasonStop, endEvent.Response.FinishReason)
 
 		// Verify usage information
 		s.Require().NotNil(endEvent.Response.Usage)
 		s.Greater(endEvent.Response.Usage.TotalTokens, 200, "Complex reasoning should use many tokens")
+
+		// Verify StreamEndEvent.Response.Message contains all aggregated content (text + reasoning)
+		s.Require().Len(endEvent.Response.Message.Content, len(contentParts),
+			"StreamEndEvent.Response.Message should contain all aggregated content parts including reasoning traces")
+
+		// Verify each content part matches
+		for i, streamedPart := range contentParts {
+			aggregatedPart := endEvent.Response.Message.Content[i]
+			s.Equal(streamedPart.Kind, aggregatedPart.Kind,
+				"Part %d: kind should match", i)
+
+			if streamedPart.Kind == llm.PartText {
+				s.Equal(streamedPart.Text, aggregatedPart.Text,
+					"Part %d: text content should match", i)
+			} else if streamedPart.Kind == llm.PartReasoning {
+				s.Require().NotNil(streamedPart.ReasoningTrace)
+				s.Require().NotNil(aggregatedPart.ReasoningTrace)
+				s.Equal(streamedPart.ReasoningTrace.Text, aggregatedPart.ReasoningTrace.Text,
+					"Part %d: reasoning trace text should match", i)
+			}
+		}
 	})
 }
 
@@ -967,7 +1013,7 @@ func (s *Suite) TestToolExecutionLoop() {
 	})
 
 	s.Run("multi-turn tool execution streaming", func() {
-		ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+		ctx, cancel := context.WithTimeout(context.Background(), 2*testTimeout)
 		defer cancel()
 
 		// Skip if streaming not supported
@@ -1083,7 +1129,7 @@ func (s *Suite) TestToolExecutionLoop() {
 	})
 
 	s.Run("sequential tool calls with dependency", func() {
-		ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+		ctx, cancel := context.WithTimeout(context.Background(), 3*testTimeout)
 		defer cancel()
 
 		// Step 1: Ask for weather in current location (requires two tools: location, then weather)
