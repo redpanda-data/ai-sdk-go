@@ -5,20 +5,12 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
-)
-
-const (
-	// testTimeout is the timeout for API calls.
-	testTimeout = 30 * time.Second
-	// reasoningTestTimeout is a longer timeout for reasoning models which can take more time.
-	reasoningTestTimeout = 5 * 60 * time.Second
 )
 
 // Suite provides generic conformance tests for any provider implementing the llm.Model interface.
@@ -150,10 +142,7 @@ func (s *Suite) TestGenerate() {
 
 	for _, tt := range tests {
 		s.Run(tt.name, func() {
-			ctx, cancel := context.WithTimeout(s.T().Context(), testTimeout)
-			defer cancel()
-
-			response, err := model.Generate(ctx, tt.request)
+			response, err := model.Generate(s.T().Context(), tt.request)
 			tt.validate(s.T(), response, err)
 		})
 	}
@@ -361,10 +350,7 @@ func (s *Suite) TestGenerateEvents() {
 
 	for _, tt := range tests {
 		s.Run(tt.name, func() {
-			ctx, cancel := context.WithTimeout(s.T().Context(), testTimeout)
-			defer cancel()
-
-			tt.validate(s.T(), model, ctx, tt.request)
+			tt.validate(s.T(), model, s.T().Context(), tt.request)
 		})
 	}
 }
@@ -381,9 +367,6 @@ func (s *Suite) TestGenerateWithReasoning() {
 	}
 
 	s.Run("complex reasoning question", func() {
-		ctx, cancel := context.WithTimeout(s.T().Context(), reasoningTestTimeout)
-		defer cancel()
-
 		request := &llm.Request{
 			Messages: []llm.Message{
 				{
@@ -395,7 +378,7 @@ func (s *Suite) TestGenerateWithReasoning() {
 			},
 		}
 
-		response, err := model.Generate(ctx, request)
+		response, err := model.Generate(s.T().Context(), request)
 		s.Require().NoError(err)
 		s.Require().NotNil(response)
 		s.Require().NotEmpty(response.Message.Content)
@@ -451,9 +434,6 @@ func (s *Suite) TestGenerateEventsWithReasoning() {
 	}
 
 	s.Run("streaming with reasoning traces", func() {
-		ctx, cancel := context.WithTimeout(s.T().Context(), reasoningTestTimeout)
-		defer cancel()
-
 		request := &llm.Request{
 			Messages: []llm.Message{
 				{
@@ -474,7 +454,7 @@ func (s *Suite) TestGenerateEventsWithReasoning() {
 		eventCount := 0
 
 		// Collect all stream events using range loop
-		for event, streamErr := range model.GenerateEvents(ctx, request) {
+		for event, streamErr := range model.GenerateEvents(s.T().Context(), request) {
 			s.Require().NoError(streamErr)
 
 			eventCount++
@@ -616,10 +596,7 @@ func (s *Suite) TestStructuredOutputs() {
 			},
 		}
 
-		ctx, cancel := context.WithTimeout(s.T().Context(), testTimeout)
-		defer cancel()
-
-		resp, err := model.Generate(ctx, req)
+		resp, err := model.Generate(s.T().Context(), req)
 		s.Require().NoError(err)
 		s.Require().NotNil(resp)
 
@@ -667,10 +644,7 @@ func (s *Suite) TestJSONObjectOutput() {
 			},
 		}
 
-		ctx, cancel := context.WithTimeout(s.T().Context(), testTimeout)
-		defer cancel()
-
-		resp, err := model.Generate(ctx, req)
+		resp, err := model.Generate(s.T().Context(), req)
 		s.Require().NoError(err)
 		s.Require().NotNil(resp)
 
@@ -922,10 +896,7 @@ func (s *Suite) TestGenerateEventsWithTools() {
 
 	for _, tt := range tests {
 		s.Run(tt.name, func() {
-			ctx, cancel := context.WithTimeout(s.T().Context(), testTimeout)
-			defer cancel()
-
-			tt.validate(s.T(), model, ctx, tt.request)
+			tt.validate(s.T(), model, s.T().Context(), tt.request)
 		})
 	}
 }
@@ -942,9 +913,6 @@ func (s *Suite) TestToolExecutionLoop() {
 	}
 
 	s.Run("tool execution with result feedback", func() {
-		ctx, cancel := context.WithTimeout(s.T().Context(), testTimeout)
-		defer cancel()
-
 		// Step 1: Initial request that should trigger tool call
 		initialRequest := &llm.Request{
 			Messages: []llm.Message{
@@ -974,7 +942,7 @@ func (s *Suite) TestToolExecutionLoop() {
 		}
 
 		// Get initial response with tool call
-		response, err := model.Generate(ctx, initialRequest)
+		response, err := model.Generate(s.T().Context(), initialRequest)
 		s.Require().NoError(err)
 		s.Require().NotNil(response)
 		s.Equal(llm.FinishReasonToolCalls, response.FinishReason, "Should request tool call")
@@ -1016,7 +984,7 @@ func (s *Suite) TestToolExecutionLoop() {
 		}
 
 		// Step 3: Get final response with tool result incorporated
-		finalResponse, err := model.Generate(ctx, followUpRequest)
+		finalResponse, err := model.Generate(s.T().Context(), followUpRequest)
 		s.Require().NoError(err)
 		s.Require().NotNil(finalResponse)
 
@@ -1039,9 +1007,6 @@ func (s *Suite) TestToolExecutionLoop() {
 	})
 
 	s.Run("multi-turn tool execution streaming", func() {
-		ctx, cancel := context.WithTimeout(s.T().Context(), 2*testTimeout)
-		defer cancel()
-
 		// Skip if streaming not supported
 		if !caps.Streaming {
 			s.T().Skip("Model does not support streaming")
@@ -1081,7 +1046,7 @@ func (s *Suite) TestToolExecutionLoop() {
 			assistantMessage llm.Message
 		)
 
-		for event, err := range model.GenerateEvents(ctx, initialRequest) {
+		for event, err := range model.GenerateEvents(s.T().Context(), initialRequest) {
 			s.Require().NoError(err)
 
 			switch e := event.(type) {
@@ -1129,7 +1094,7 @@ func (s *Suite) TestToolExecutionLoop() {
 			finalFinishReason llm.FinishReason
 		)
 
-		for event, err := range model.GenerateEvents(ctx, followUpRequest) {
+		for event, err := range model.GenerateEvents(s.T().Context(), followUpRequest) {
 			s.Require().NoError(err)
 
 			switch e := event.(type) {
@@ -1155,9 +1120,6 @@ func (s *Suite) TestToolExecutionLoop() {
 	})
 
 	s.Run("sequential tool calls with dependency", func() {
-		ctx, cancel := context.WithTimeout(s.T().Context(), 3*testTimeout)
-		defer cancel()
-
 		// Step 1: Ask for weather in current location (requires two tools: location, then weather)
 		initialRequest := &llm.Request{
 			Messages: []llm.Message{
@@ -1192,7 +1154,7 @@ func (s *Suite) TestToolExecutionLoop() {
 		}
 
 		// Get first response - should request get_current_location
-		response1, err := model.Generate(ctx, initialRequest)
+		response1, err := model.Generate(s.T().Context(), initialRequest)
 		s.Require().NoError(err)
 		s.Require().NotNil(response1)
 		s.Equal(llm.FinishReasonToolCalls, response1.FinishReason, "Should request first tool")
@@ -1234,7 +1196,7 @@ func (s *Suite) TestToolExecutionLoop() {
 		}
 
 		// Get second response - should now request get_weather with location
-		response2, err := model.Generate(ctx, request2)
+		response2, err := model.Generate(s.T().Context(), request2)
 		s.Require().NoError(err)
 		s.Require().NotNil(response2)
 		s.Equal(llm.FinishReasonToolCalls, response2.FinishReason, "Should request second tool")
@@ -1300,7 +1262,7 @@ func (s *Suite) TestToolExecutionLoop() {
 		}
 
 		// Get final response with weather answer
-		finalResponse, err := model.Generate(ctx, request3)
+		finalResponse, err := model.Generate(s.T().Context(), request3)
 		s.Require().NoError(err)
 		s.Require().NotNil(finalResponse)
 		s.Equal(llm.FinishReasonStop, finalResponse.FinishReason, "Should complete after all tools")
@@ -1344,16 +1306,7 @@ func (s *Suite) TestAllSupportedModels() {
 					}},
 				}
 
-				// Use longer timeout for reasoning models (o1, o3, etc.)
-				timeout := testTimeout
-				if model.Capabilities().Reasoning {
-					timeout = reasoningTestTimeout
-				}
-
-				ctx, cancel := context.WithTimeout(t.Context(), timeout)
-				defer cancel()
-
-				resp, err := model.Generate(ctx, reqObj)
+				resp, err := model.Generate(t.Context(), reqObj)
 				require.NoError(t, err)
 
 				require.NotNil(t, resp)
