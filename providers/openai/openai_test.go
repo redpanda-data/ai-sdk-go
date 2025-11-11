@@ -627,3 +627,156 @@ func TestMessageMappingWithToolParts(t *testing.T) {
 		})
 	}
 }
+
+func TestMessageRoleValidation(t *testing.T) {
+	t.Parallel()
+
+	provider, err := NewProvider("sk-test-key")
+	require.NoError(t, err)
+
+	model, err := provider.NewModel(ModelGPT4OMini)
+	require.NoError(t, err)
+
+	m, _ := model.(*Model) // Type assertion for testing internal methods
+
+	tests := []struct {
+		name        string
+		messages    []llm.Message
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name: "tool response with wrong role (RoleUser)",
+			messages: []llm.Message{
+				{
+					Role: llm.RoleUser,
+					Content: []*llm.Part{
+						llm.NewToolResponsePart(&llm.ToolResponse{
+							ID:     "call_123",
+							Name:   "get_weather",
+							Result: json.RawMessage(`{"temp": 72}`),
+						}),
+					},
+				},
+			},
+			wantErr:     true,
+			errContains: "tool response parts require RoleTool",
+		},
+		{
+			name: "tool response with wrong role (RoleAssistant)",
+			messages: []llm.Message{
+				{
+					Role: llm.RoleAssistant,
+					Content: []*llm.Part{
+						llm.NewToolResponsePart(&llm.ToolResponse{
+							ID:     "call_123",
+							Name:   "get_weather",
+							Result: json.RawMessage(`{"temp": 72}`),
+						}),
+					},
+				},
+			},
+			wantErr:     true,
+			errContains: "tool response parts require RoleTool",
+		},
+		{
+			name: "text part in RoleTool message",
+			messages: []llm.Message{
+				{
+					Role: llm.RoleTool,
+					Content: []*llm.Part{
+						llm.NewTextPart("Here's the result"),
+					},
+				},
+			},
+			wantErr:     true,
+			errContains: "RoleTool messages cannot contain text parts",
+		},
+		{
+			name: "tool request with wrong role (RoleUser)",
+			messages: []llm.Message{
+				{
+					Role: llm.RoleUser,
+					Content: []*llm.Part{
+						llm.NewToolRequestPart(&llm.ToolRequest{
+							ID:        "call_123",
+							Name:      "get_weather",
+							Arguments: json.RawMessage(`{"location": "Paris"}`),
+						}),
+					},
+				},
+			},
+			wantErr:     true,
+			errContains: "tool request parts require RoleAssistant",
+		},
+		{
+			name: "multiple tool responses in RoleTool message (valid)",
+			messages: []llm.Message{
+				{
+					Role: llm.RoleTool,
+					Content: []*llm.Part{
+						llm.NewToolResponsePart(&llm.ToolResponse{
+							ID:     "call_123",
+							Name:   "get_weather",
+							Result: json.RawMessage(`{"temp": 72}`),
+						}),
+						llm.NewToolResponsePart(&llm.ToolResponse{
+							ID:     "call_456",
+							Name:   "get_time",
+							Result: json.RawMessage(`{"time": "12:00"}`),
+						}),
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "tool response in correct role (valid)",
+			messages: []llm.Message{
+				{
+					Role: llm.RoleTool,
+					Content: []*llm.Part{
+						llm.NewToolResponsePart(&llm.ToolResponse{
+							ID:     "call_123",
+							Name:   "get_weather",
+							Result: json.RawMessage(`{"temp": 72}`),
+						}),
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "tool request in correct role (valid)",
+			messages: []llm.Message{
+				{
+					Role: llm.RoleAssistant,
+					Content: []*llm.Part{
+						llm.NewToolRequestPart(&llm.ToolRequest{
+							ID:        "call_123",
+							Name:      "get_weather",
+							Arguments: json.RawMessage(`{"location": "Paris"}`),
+						}),
+					},
+				},
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := m.requestMapper.mapMessagesToInputItems(tt.messages)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errContains)
+				assert.ErrorIs(t, err, llm.ErrRequestMapping)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
