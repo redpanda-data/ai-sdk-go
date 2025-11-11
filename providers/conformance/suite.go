@@ -1344,7 +1344,13 @@ func (s *Suite) TestAllSupportedModels() {
 					}},
 				}
 
-				ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+				// Use longer timeout for reasoning models (o1, o3, etc.)
+				timeout := testTimeout
+				if model.Capabilities().Reasoning {
+					timeout = reasoningTestTimeout
+				}
+
+				ctx, cancel := context.WithTimeout(t.Context(), timeout)
 				defer cancel()
 
 				resp, err := model.Generate(ctx, reqObj)
