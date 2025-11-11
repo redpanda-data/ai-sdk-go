@@ -231,6 +231,7 @@ func (s *Suite) TestGenerateEvents() {
 
 				// Aggregate streamed text and compare with final response text
 				var streamedText strings.Builder
+
 				for _, part := range contentParts {
 					if part.Kind == llm.PartText {
 						streamedText.WriteString(part.Text)
@@ -344,6 +345,7 @@ func (s *Suite) TestGenerateEvents() {
 
 				// Aggregate streamed text and compare with final response text
 				var streamedText strings.Builder
+
 				for _, part := range contentParts {
 					if part.Kind == llm.PartText {
 						streamedText.WriteString(part.Text)
@@ -544,10 +546,12 @@ func (s *Suite) TestGenerateEventsWithReasoning() {
 		)
 
 		for _, part := range contentParts {
-			if part.Kind == llm.PartText {
+			switch part.Kind {
+			case llm.PartText:
 				streamedTextSb.WriteString(part.Text)
-			} else if part.Kind == llm.PartReasoning {
+			case llm.PartReasoning:
 				streamedReasoningSb.WriteString(part.ReasoningTrace.Text)
+			case llm.PartToolRequest, llm.PartToolResponse:
 			}
 		}
 
@@ -560,6 +564,7 @@ func (s *Suite) TestGenerateEventsWithReasoning() {
 		s.NotEmpty(streamedReasoning, "Should have streamed reasoning content")
 
 		var finalReasoningSb strings.Builder
+
 		for _, part := range endEvent.Response.Message.Content {
 			if part.Kind == llm.PartReasoning && part.ReasoningTrace != nil {
 				finalReasoningSb.WriteString(part.ReasoningTrace.Text)
