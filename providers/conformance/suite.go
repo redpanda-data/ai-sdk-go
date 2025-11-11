@@ -224,21 +224,22 @@ func (s *Suite) TestGenerateEvents() {
 				assert.Positive(t, endEvent.Response.Usage.OutputTokens)
 				assert.Positive(t, endEvent.Response.Usage.TotalTokens)
 
-				// Verify StreamEndEvent.Response.Message contains all aggregated content
-				require.Len(t, endEvent.Response.Message.Content, len(contentParts),
-					"StreamEndEvent.Response.Message should contain all aggregated content parts")
+				// Verify StreamEndEvent.Response.Message contains aggregated content
+				// Streaming may send many small text chunks, but final response combines them
+				require.NotEmpty(t, endEvent.Response.Message.Content,
+					"StreamEndEvent.Response.Message should contain content")
 
-				// Verify each content part matches
-				for i, streamedPart := range contentParts {
-					aggregatedPart := endEvent.Response.Message.Content[i]
-					assert.Equal(t, streamedPart.Kind, aggregatedPart.Kind,
-						"Part %d: kind should match", i)
-
-					if streamedPart.Kind == llm.PartText {
-						assert.Equal(t, streamedPart.Text, aggregatedPart.Text,
-							"Part %d: text content should match", i)
+				// Aggregate streamed text and compare with final response text
+				var streamedText strings.Builder
+				for _, part := range contentParts {
+					if part.Kind == llm.PartText {
+						streamedText.WriteString(part.Text)
 					}
 				}
+
+				finalText := endEvent.Response.TextContent()
+				assert.Equal(t, streamedText.String(), finalText,
+					"StreamEndEvent aggregated text should match all streamed text chunks")
 			},
 		},
 		{
@@ -336,22 +337,22 @@ func (s *Suite) TestGenerateEvents() {
 				require.NotNil(t, endEvent.Response.Usage)
 				assert.Positive(t, endEvent.Response.Usage.TotalTokens)
 
-				// Verify StreamEndEvent.Response.Message contains all aggregated content
+				// Verify StreamEndEvent.Response.Message contains aggregated content
 				require.NotEmpty(t, contentParts, "Should have received content parts")
-				require.Len(t, endEvent.Response.Message.Content, len(contentParts),
-					"StreamEndEvent.Response.Message should contain all aggregated content parts")
+				require.NotEmpty(t, endEvent.Response.Message.Content,
+					"StreamEndEvent.Response.Message should contain content")
 
-				// Verify each content part matches
-				for i, streamedPart := range contentParts {
-					aggregatedPart := endEvent.Response.Message.Content[i]
-					assert.Equal(t, streamedPart.Kind, aggregatedPart.Kind,
-						"Part %d: kind should match", i)
-
-					if streamedPart.Kind == llm.PartText {
-						assert.Equal(t, streamedPart.Text, aggregatedPart.Text,
-							"Part %d: text content should match", i)
+				// Aggregate streamed text and compare with final response text
+				var streamedText strings.Builder
+				for _, part := range contentParts {
+					if part.Kind == llm.PartText {
+						streamedText.WriteString(part.Text)
 					}
 				}
+
+				finalText := endEvent.Response.TextContent()
+				assert.Equal(t, streamedText.String(), finalText,
+					"StreamEndEvent aggregated text should match all streamed text chunks")
 			},
 		},
 	}
@@ -531,30 +532,43 @@ func (s *Suite) TestGenerateEventsWithReasoning() {
 		s.Require().NotNil(endEvent.Response.Usage)
 		s.Greater(endEvent.Response.Usage.TotalTokens, 200, "Complex reasoning should use many tokens")
 
-		// Verify StreamEndEvent.Response.Message contains all aggregated content (text + reasoning)
-		s.Require().Len(endEvent.Response.Message.Content, len(contentParts),
-			"StreamEndEvent.Response.Message should contain all aggregated content parts including reasoning traces")
+		// Verify StreamEndEvent.Response.Message contains aggregated content
+		// Streaming may send many small chunks, but final response combines them
+		s.Require().NotEmpty(endEvent.Response.Message.Content,
+			"StreamEndEvent.Response.Message should contain content")
 
-		// Verify each content part matches
-		for i, streamedPart := range contentParts {
-			aggregatedPart := endEvent.Response.Message.Content[i]
-			s.Equal(streamedPart.Kind, aggregatedPart.Kind,
-				"Part %d: kind should match", i)
+		// Aggregate streamed text and reasoning, compare with final response
+		var (
+			streamedTextSb      strings.Builder
+			streamedReasoningSb strings.Builder
+		)
 
-			switch streamedPart.Kind {
-			case llm.PartText:
-				s.Equal(streamedPart.Text, aggregatedPart.Text,
-					"Part %d: text content should match", i)
-			case llm.PartReasoning:
-				s.Require().NotNil(streamedPart.ReasoningTrace)
-				s.Require().NotNil(aggregatedPart.ReasoningTrace)
-				s.Equal(streamedPart.ReasoningTrace.Text, aggregatedPart.ReasoningTrace.Text,
-					"Part %d: reasoning trace text should match", i)
-			case llm.PartToolRequest, llm.PartToolResponse:
-				// Tool parts shouldn't appear in reasoning streaming responses
-				// but are valid part kinds, so handle them gracefully
+		for _, part := range contentParts {
+			if part.Kind == llm.PartText {
+				streamedTextSb.WriteString(part.Text)
+			} else if part.Kind == llm.PartReasoning {
+				streamedReasoningSb.WriteString(part.ReasoningTrace.Text)
 			}
 		}
+
+		finalText := endEvent.Response.TextContent()
+		s.Equal(streamedTextSb.String(), finalText,
+			"StreamEndEvent aggregated text should match all streamed text chunks")
+
+		// Verify reasoning traces are present in final response
+		streamedReasoning := streamedReasoningSb.String()
+		s.NotEmpty(streamedReasoning, "Should have streamed reasoning content")
+
+		var finalReasoningSb strings.Builder
+		for _, part := range endEvent.Response.Message.Content {
+			if part.Kind == llm.PartReasoning && part.ReasoningTrace != nil {
+				finalReasoningSb.WriteString(part.ReasoningTrace.Text)
+			}
+		}
+
+		finalReasoning := finalReasoningSb.String()
+		s.Equal(streamedReasoning, finalReasoning,
+			"StreamEndEvent aggregated reasoning should match all streamed reasoning chunks")
 	})
 }
 
