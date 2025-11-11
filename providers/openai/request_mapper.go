@@ -329,9 +329,11 @@ func (*RequestMapper) mapRoleToAPI(role llm.MessageRole) (responses.EasyInputMes
 		return responses.EasyInputMessageRoleAssistant, nil
 	case llm.RoleSystem:
 		return responses.EasyInputMessageRoleSystem, nil
-	default:
+	case llm.RoleTool:
 		// RoleTool is not a direct input message role in the same way.
 		// Tool responses are handled via specific tool output items.
+		return "", fmt.Errorf("unsupported message role for OpenAI Responses API: %s", role)
+	default:
 		return "", fmt.Errorf("unsupported message role for OpenAI Responses API: %s", role)
 	}
 }
