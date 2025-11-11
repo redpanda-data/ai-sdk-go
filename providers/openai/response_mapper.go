@@ -43,6 +43,9 @@ func (m *ResponseMapper) FromProvider(r *responses.Response) (*llm.Response, err
 			Code:    string(r.Status),
 			Message: "non-final provider status",
 		}
+
+	case responses.ResponseStatusCompleted, responses.ResponseStatusCancelled, responses.ResponseStatusIncomplete:
+		// Final statuses - continue processing
 	}
 
 	// 2. Defensive: API response may stuff Error even if Status != failed.

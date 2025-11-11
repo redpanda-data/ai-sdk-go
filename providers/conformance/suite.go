@@ -494,8 +494,11 @@ func (s *Suite) TestGenerateEventsWithReasoning() {
 		s.NotEmpty(contentParts, "Should receive content parts")
 
 		// Extract and combine text parts for quality checks
-		var allTextSb strings.Builder
-		var allReasoningSb strings.Builder
+		var (
+			allTextSb      strings.Builder
+			allReasoningSb strings.Builder
+		)
+
 		for _, part := range contentParts {
 			if part.IsText() {
 				allTextSb.WriteString(part.Text)
@@ -538,14 +541,18 @@ func (s *Suite) TestGenerateEventsWithReasoning() {
 			s.Equal(streamedPart.Kind, aggregatedPart.Kind,
 				"Part %d: kind should match", i)
 
-			if streamedPart.Kind == llm.PartText {
+			switch streamedPart.Kind {
+			case llm.PartText:
 				s.Equal(streamedPart.Text, aggregatedPart.Text,
 					"Part %d: text content should match", i)
-			} else if streamedPart.Kind == llm.PartReasoning {
+			case llm.PartReasoning:
 				s.Require().NotNil(streamedPart.ReasoningTrace)
 				s.Require().NotNil(aggregatedPart.ReasoningTrace)
 				s.Equal(streamedPart.ReasoningTrace.Text, aggregatedPart.ReasoningTrace.Text,
 					"Part %d: reasoning trace text should match", i)
+			case llm.PartToolRequest, llm.PartToolResponse:
+				// Tool parts shouldn't appear in reasoning streaming responses
+				// but are valid part kinds, so handle them gracefully
 			}
 		}
 	})
