@@ -2,6 +2,7 @@ package openai_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/suite"
 
@@ -26,7 +27,7 @@ func NewOpenAIFixture(t *testing.T) *OpenAIFixture {
 	apiKey := openaitest.GetAPIKeyOrSkipTest(t)
 
 	// Create provider
-	provider, err := openai.NewProvider(apiKey)
+	provider, err := openai.NewProvider(apiKey, openai.WithTimeout(time.Minute*2))
 	if err != nil {
 		t.Fatalf("Failed to create provider: %v", err)
 	}
