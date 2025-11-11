@@ -115,6 +115,11 @@ func (rm *RequestMapper) mapMessagesToInputItems(messages []llm.Message) ([]resp
 		for _, part := range msg.Content {
 			switch {
 			case part.IsText():
+				// Text parts cannot be in RoleTool messages
+				if msg.Role == llm.RoleTool {
+					return nil, fmt.Errorf("%w: RoleTool messages cannot contain text parts", llm.ErrRequestMapping)
+				}
+
 				item, err := rm.mapTextMessage(part, msg.Role)
 				if err != nil {
 					return nil, err
@@ -123,6 +128,11 @@ func (rm *RequestMapper) mapMessagesToInputItems(messages []llm.Message) ([]resp
 				items = append(items, item)
 
 			case part.IsToolRequest():
+				// Tool requests must be in RoleAssistant messages
+				if msg.Role != llm.RoleAssistant {
+					return nil, fmt.Errorf("%w: tool request parts require RoleAssistant, got %s", llm.ErrRequestMapping, msg.Role)
+				}
+
 				item, err := rm.mapToolRequestMessage(part)
 				if err != nil {
 					return nil, err
@@ -131,6 +141,11 @@ func (rm *RequestMapper) mapMessagesToInputItems(messages []llm.Message) ([]resp
 				items = append(items, item)
 
 			case part.IsToolResponse():
+				// Tool responses must be in RoleTool messages
+				if msg.Role != llm.RoleTool {
+					return nil, fmt.Errorf("%w: tool response parts require RoleTool, got %s", llm.ErrRequestMapping, msg.Role)
+				}
+
 				item, err := rm.mapToolResponseMessage(part)
 				if err != nil {
 					return nil, err

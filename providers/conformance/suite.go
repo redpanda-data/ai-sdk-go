@@ -930,7 +930,7 @@ func (s *Suite) TestToolExecutionLoop() {
 				},
 				response.Message, // Add the assistant's tool call message
 				{
-					Role: llm.RoleUser,
+					Role: llm.RoleTool,
 					Content: []*llm.Part{
 						llm.NewToolResponsePart(&llm.ToolResponse{
 							ID:     toolRequests[0].ID,
@@ -1039,7 +1039,7 @@ func (s *Suite) TestToolExecutionLoop() {
 				},
 				assistantMessage,
 				{
-					Role: llm.RoleUser,
+					Role: llm.RoleTool,
 					Content: []*llm.Part{
 						llm.NewToolResponsePart(&llm.ToolResponse{
 							ID:     toolRequests[0].ID,
@@ -1148,7 +1148,7 @@ func (s *Suite) TestToolExecutionLoop() {
 				},
 				response1.Message,
 				{
-					Role: llm.RoleUser,
+					Role: llm.RoleTool,
 					Content: []*llm.Part{
 						llm.NewToolResponsePart(&llm.ToolResponse{
 							ID:     toolRequests1[0].ID,
@@ -1203,7 +1203,7 @@ func (s *Suite) TestToolExecutionLoop() {
 				},
 				response1.Message,
 				{
-					Role: llm.RoleUser,
+					Role: llm.RoleTool,
 					Content: []*llm.Part{
 						llm.NewToolResponsePart(&llm.ToolResponse{
 							ID:     toolRequests1[0].ID,
@@ -1214,7 +1214,7 @@ func (s *Suite) TestToolExecutionLoop() {
 				},
 				response2.Message,
 				{
-					Role: llm.RoleUser,
+					Role: llm.RoleTool,
 					Content: []*llm.Part{
 						llm.NewToolResponsePart(&llm.ToolResponse{
 							ID:     toolRequests2[0].ID,
