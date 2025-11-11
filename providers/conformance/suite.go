@@ -150,7 +150,7 @@ func (s *Suite) TestGenerate() {
 
 	for _, tt := range tests {
 		s.Run(tt.name, func() {
-			ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+			ctx, cancel := context.WithTimeout(s.T().Context(), testTimeout)
 			defer cancel()
 
 			response, err := model.Generate(ctx, tt.request)
@@ -361,7 +361,7 @@ func (s *Suite) TestGenerateEvents() {
 
 	for _, tt := range tests {
 		s.Run(tt.name, func() {
-			ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+			ctx, cancel := context.WithTimeout(s.T().Context(), testTimeout)
 			defer cancel()
 
 			tt.validate(s.T(), model, ctx, tt.request)
@@ -381,7 +381,7 @@ func (s *Suite) TestGenerateWithReasoning() {
 	}
 
 	s.Run("complex reasoning question", func() {
-		ctx, cancel := context.WithTimeout(context.Background(), reasoningTestTimeout)
+		ctx, cancel := context.WithTimeout(s.T().Context(), reasoningTestTimeout)
 		defer cancel()
 
 		request := &llm.Request{
@@ -451,7 +451,7 @@ func (s *Suite) TestGenerateEventsWithReasoning() {
 	}
 
 	s.Run("streaming with reasoning traces", func() {
-		ctx, cancel := context.WithTimeout(context.Background(), reasoningTestTimeout)
+		ctx, cancel := context.WithTimeout(s.T().Context(), reasoningTestTimeout)
 		defer cancel()
 
 		request := &llm.Request{
@@ -616,7 +616,7 @@ func (s *Suite) TestStructuredOutputs() {
 			},
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+		ctx, cancel := context.WithTimeout(s.T().Context(), testTimeout)
 		defer cancel()
 
 		resp, err := model.Generate(ctx, req)
@@ -667,7 +667,7 @@ func (s *Suite) TestJSONObjectOutput() {
 			},
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+		ctx, cancel := context.WithTimeout(s.T().Context(), testTimeout)
 		defer cancel()
 
 		resp, err := model.Generate(ctx, req)
@@ -922,7 +922,7 @@ func (s *Suite) TestGenerateEventsWithTools() {
 
 	for _, tt := range tests {
 		s.Run(tt.name, func() {
-			ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+			ctx, cancel := context.WithTimeout(s.T().Context(), testTimeout)
 			defer cancel()
 
 			tt.validate(s.T(), model, ctx, tt.request)
@@ -942,7 +942,7 @@ func (s *Suite) TestToolExecutionLoop() {
 	}
 
 	s.Run("tool execution with result feedback", func() {
-		ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+		ctx, cancel := context.WithTimeout(s.T().Context(), testTimeout)
 		defer cancel()
 
 		// Step 1: Initial request that should trigger tool call
@@ -1039,7 +1039,7 @@ func (s *Suite) TestToolExecutionLoop() {
 	})
 
 	s.Run("multi-turn tool execution streaming", func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*testTimeout)
+		ctx, cancel := context.WithTimeout(s.T().Context(), 2*testTimeout)
 		defer cancel()
 
 		// Skip if streaming not supported
@@ -1155,7 +1155,7 @@ func (s *Suite) TestToolExecutionLoop() {
 	})
 
 	s.Run("sequential tool calls with dependency", func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 3*testTimeout)
+		ctx, cancel := context.WithTimeout(s.T().Context(), 3*testTimeout)
 		defer cancel()
 
 		// Step 1: Ask for weather in current location (requires two tools: location, then weather)
