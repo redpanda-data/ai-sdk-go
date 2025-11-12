@@ -42,10 +42,10 @@ var (
 	// This could be due to API errors, rate limits, invalid input, or model errors.
 	ErrModelGeneration = errors.New("agent: model generation failed")
 
-	// ErrToolExecution indicates a tool execution failed systemically.
-	// Individual tool errors are captured in ToolResponse.Error, but this
-	// sentinel is used for systemic tool execution failures (e.g., context cancellation
-	// during tool execution, or failure to communicate with tool registry).
+	// ErrToolExecution is deprecated and no longer used.
+	// Tool execution errors (including context cancellation, timeouts, etc.) are now
+	// sent to the LLM as error tool responses, allowing the LLM to handle failures
+	// gracefully. See ToolResponse.Error for individual tool errors.
 	ErrToolExecution = errors.New("agent: tool execution failed")
 
 	// ErrToolRegistry indicates tools were requested but no tool registry is configured.

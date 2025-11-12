@@ -44,19 +44,30 @@ type Agent interface {
 	//
 	// # Error Handling
 	//
-	// Run uses iter.Seq2[Event, error] to distinguish two failure modes:
+	// Run uses iter.Seq2[Event, error] following the principle:
+	// "errors in events are data, errors in iterators are control flow"
 	//
 	// Terminal Errors - yield(nil, error):
-	//   - Execution cannot proceed (config invalid, auth failed, infra unavailable)
-	//   - Stream terminates immediately, no InvocationEndEvent emitted
-	//   - Examples: ErrToolRegistry, ErrSessionLoad, context.Canceled
+	//   System failures that prevent continuation (control flow)
+	//   Examples: ErrToolRegistry, authentication failures, session store down
 	//
-	// Graceful Failures - ErrorEvent + InvocationEndEvent(FinishReasonError):
-	//   - Execution completes with error outcome (rate limit, content filter, max turns)
-	//   - Stream ends normally with InvocationEndEvent for observability
-	//   - Examples: rate limits, content policy violations, model timeouts
+	// Observable Errors - ErrorEvent + InvocationEndEvent (both with nil error):
+	//   Application-level errors visible to users (data)
+	//   Examples: rate limits, content filters, max turns reached
 	//
-	// On success, the stream always ends with InvocationEndEvent.
+	// Consumer pattern:
+	//   for evt, err := range agent.Run(invCtx) {
+	//       if err != nil {
+	//           // CONTROL FLOW: Fatal error, system can't continue
+	//           return
+	//       }
+	//       switch e := evt.(type) {
+	//       case agent.ErrorEvent:
+	//           // DATA: Observable error for logging/display
+	//       case agent.InvocationEndEvent:
+	//           // Completion (check FinishReason)
+	//       }
+	//   }
 	Run(ctx *InvocationContext) iter.Seq2[Event, error]
 
 	// InputSchema returns the expected input schema for this agent.
