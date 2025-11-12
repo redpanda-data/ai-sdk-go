@@ -403,18 +403,19 @@ func TestExecuteTools_NoToolRegistry(t *testing.T) {
 	}
 	invCtx := agent.NewInvocationContext(context.Background(), sess)
 
-	// Execute
-	events := collectEvents(t, ag.Run(invCtx))
+	// Execute - expect TERMINAL error (system failure)
+	var terminalErr error
 
-	// Assert: Should have error event
-	errorEvents := filterEvents[agent.ErrorEvent](events)
-	require.NotEmpty(t, errorEvents)
-	require.ErrorIs(t, errorEvents[0].Err, agent.ErrToolRegistry)
+	for _, err := range ag.Run(invCtx) {
+		if err != nil {
+			terminalErr = err
+			break
+		}
+	}
 
-	// Assert: Should end with error finish reason
-	endEvent := findInvocationEndEvent(events)
-	require.NotNil(t, endEvent)
-	assert.Equal(t, agent.FinishReasonError, endEvent.FinishReason)
+	// Assert: Should have terminal error with ErrToolRegistry
+	require.Error(t, terminalErr)
+	require.ErrorIs(t, terminalErr, agent.ErrToolRegistry)
 }
 
 // TestExecuteTools_ToolError verifies individual tool errors are handled gracefully.
