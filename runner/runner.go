@@ -89,12 +89,47 @@ func New(ag agent.Agent, sessionStore session.Store, opts ...Option) (*Runner, e
 //   - ErrorEvent (recoverable errors)
 //   - InvocationEndEvent (terminal event)
 //
+// # Error Handling
+//
+// Run uses iter.Seq2[Event, error] following the principle:
+// "errors in events are data, errors in iterators are control flow"
+//
+// Terminal Errors - yield(nil, error):
+//
+//	Runner-level failures that prevent execution (control flow)
+//	Examples: ErrSessionLoad (session store unreachable), ErrSessionSave (persistence failed)
+//
+// Forwarded Errors - yield(nil, error):
+//
+//	Terminal errors from agent are forwarded upstream for handling
+//	Examples: All agent terminal errors (ErrToolRegistry, auth failures, etc.)
+//
+// Observable Errors - ErrorEvent (forwarded from agent):
+//
+//	Application-level errors visible to users (data)
+//	Examples: rate limits, content filters, individual tool failures
+//
+// Consumer pattern:
+//
+//	for evt, err := range runner.Run(ctx, userID, sessionID, userMsg) {
+//	    if err != nil {
+//	        // CONTROL FLOW: Fatal error, system can't continue
+//	        return
+//	    }
+//	    switch e := evt.(type) {
+//	    case agent.ErrorEvent:
+//	        // DATA: Observable error for logging/display
+//	    case agent.InvocationEndEvent:
+//	        // Completion (check FinishReason)
+//	    }
+//	}
+//
 // # Example
 //
-//	for evt, err := range runner.Run(ctx, "session-123", userMsg) {
+//	for evt, err := range runner.Run(ctx, "user-123", "session-123", userMsg) {
 //	    if err != nil {
 //	        log.Printf("Error: %v", err)
-//	        continue
+//	        return
 //	    }
 //
 //	    switch e := evt.(type) {
@@ -162,55 +197,6 @@ func (r *Runner) Run(
 			return
 		}
 	}
-}
-
-// RunBlocking is a convenience wrapper that blocks until execution completes.
-//
-// This method consumes the event stream from Run() and returns the final
-// usage and finish reason. Any errors encountered during execution are returned.
-//
-// Note: This discards all intermediate events (status, messages, tools).
-// Use Run() directly if you need real-time progress updates.
-//
-// # Example
-//
-//	finishReason, usage, err := runner.RunBlocking(ctx, "session-123", userMsg)
-//	if err != nil {
-//	    log.Fatal(err)
-//	}
-//	fmt.Printf("Completed: %s, tokens: %d\n", finishReason, usage.TotalTokens)
-func (r *Runner) RunBlocking(
-	ctx context.Context,
-	userID string,
-	sessionID string,
-	userMessage llm.Message,
-) (agent.FinishReason, *llm.TokenUsage, error) {
-	var finishReason agent.FinishReason
-	var usage *llm.TokenUsage
-	var lastErr error
-
-	for evt, err := range r.Run(ctx, userID, sessionID, userMessage) {
-		if err != nil {
-			lastErr = err
-			continue
-		}
-
-		// Extract final result from InvocationEndEvent
-		if endEvt, ok := evt.(agent.InvocationEndEvent); ok {
-			finishReason = endEvt.FinishReason
-			usage = endEvt.Usage
-		}
-	}
-
-	if lastErr != nil {
-		return "", nil, lastErr
-	}
-
-	if finishReason == "" {
-		return "", nil, errors.New("no completion event received")
-	}
-
-	return finishReason, usage, nil
 }
 
 // loadOrCreateSession loads an existing session or creates a new one.
