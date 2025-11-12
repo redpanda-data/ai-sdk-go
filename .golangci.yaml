@@ -51,6 +51,9 @@ linters:
           bson: snake
           avro: snake
           mapstructure: snake
+    wsl_v5:
+      disable:
+        - decl # Defining n vars line by line should be allowed, no extra whitespace needed.
   exclusions:
     generated: lax
     presets:
