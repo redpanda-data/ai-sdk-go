@@ -107,6 +107,11 @@ func WithTimeout(timeout time.Duration) ProviderOption {
 
 // NewModel creates a new Anthropic model instance with the specified configuration.
 func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error) {
+	// Resolve alias to canonical name if it exists
+	if canonical, ok := modelAliases[modelName]; ok {
+		modelName = canonical
+	}
+
 	modelDef, ok := supportedModels[modelName]
 	if !ok {
 		return nil, fmt.Errorf("unsupported Anthropic model: %s", modelName)

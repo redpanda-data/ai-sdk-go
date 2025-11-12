@@ -1,6 +1,7 @@
 package anthropic
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 
@@ -24,6 +25,9 @@ type Config struct {
 
 	// Extended thinking configuration
 	EnableThinking bool // Enable extended thinking for reasoning models
+
+	// Custom model name override (inherits base model capabilities)
+	CustomModelName string
 
 	// Track which options have been set for conflict detection with model constraints
 	setOptions map[string]bool
@@ -151,6 +155,30 @@ func WithStop(sequences ...string) Option {
 func WithThinking(enabled bool) Option {
 	return func(cfg *Config) error {
 		cfg.EnableThinking = enabled
+		return nil
+	}
+}
+
+// WithCustomModelName allows overriding the model name sent to the API while
+// inheriting the base model's capabilities and constraints. This is useful for:
+//   - Using newly released models before SDK updates (e.g., "claude-opus-4-2" using claude-opus-4-1 constraints)
+//   - Testing beta/experimental model variants
+//   - Using timestamped versions not yet in the SDK
+//
+// The custom name will be sent to Anthropic's API, but validation and constraints
+// are inherited from the base model specified in NewModel().
+//
+// Example:
+//
+//	provider.NewModel("claude-opus-4-1", WithCustomModelName("claude-opus-4-2-beta"))
+func WithCustomModelName(customName string) Option {
+	return func(cfg *Config) error {
+		if customName == "" {
+			return errors.New("custom model name cannot be empty")
+		}
+
+		cfg.CustomModelName = customName
+
 		return nil
 	}
 }

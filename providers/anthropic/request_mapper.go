@@ -28,9 +28,15 @@ func NewRequestMapper(config *Config) *RequestMapper {
 
 // ToProvider converts our unified Request to Anthropic Beta Messages API format.
 func (rm *RequestMapper) ToProvider(req *llm.Request) (anthropic.BetaMessageNewParams, error) {
+	// Determine which model name to use (custom override if set, otherwise the configured model)
+	modelName := rm.config.ModelName
+	if rm.config.CustomModelName != "" {
+		modelName = rm.config.CustomModelName
+	}
+
 	// Create base request for Beta Messages API
 	apiReq := anthropic.BetaMessageNewParams{
-		Model: anthropic.Model(rm.config.ModelName),
+		Model: anthropic.Model(modelName),
 	}
 
 	// MaxTokens is required by Anthropic

@@ -17,6 +17,20 @@ type ModelDefinition struct {
 	Constraints  llm.ModelConstraints
 }
 
+// modelAliases maps common model name aliases to their canonical timestamped versions.
+// Supports both claude-{family}-{version} and claude-{version}-{family} formats.
+var modelAliases = map[string]string{
+	// Sonnet 4.5 aliases
+	"claude-sonnet-4-5": ModelClaudeSonnet45,
+	"claude-4-sonnet":   ModelClaudeSonnet45,
+
+	// Haiku 4.5 aliases
+	"claude-haiku-4-5": ModelClaudeHaiku45,
+
+	// Opus 4.1 aliases
+	"claude-opus-4-1": ModelClaudeOpus41,
+}
+
 // supportedModels defines all Claude models with their capabilities and constraints.
 // Based on Anthropic API documentation and model specifications.
 var supportedModels = map[string]ModelDefinition{
