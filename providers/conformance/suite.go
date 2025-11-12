@@ -629,8 +629,8 @@ func (s *Suite) TestJSONObjectOutput() {
 	}
 
 	caps := model.Capabilities()
-	if !caps.StructuredOutput {
-		s.T().Skip("Model does not support structured output")
+	if !caps.JSONMode {
+		s.T().Skip("Model does not support JSON mode")
 	}
 
 	s.Run("JSON Object mode", func() {

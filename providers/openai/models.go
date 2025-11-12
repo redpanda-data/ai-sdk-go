@@ -21,6 +21,7 @@ var supportedModels = map[string]ModelDefinition{
 		Capabilities: llm.ModelCapabilities{
 			Streaming:        true,
 			Tools:            true,
+			JSONMode:         true,
 			StructuredOutput: true,
 			Vision:           true,
 			Audio:            true,
@@ -41,6 +42,7 @@ var supportedModels = map[string]ModelDefinition{
 		Capabilities: llm.ModelCapabilities{
 			Streaming:        true,
 			Tools:            true,
+			JSONMode:         true,
 			StructuredOutput: true,
 			Vision:           true,
 			Audio:            true,
@@ -61,6 +63,7 @@ var supportedModels = map[string]ModelDefinition{
 		Capabilities: llm.ModelCapabilities{
 			Streaming:        true,
 			Tools:            true,
+			JSONMode:         true,
 			StructuredOutput: true,
 			Vision:           false, // Nano typically has reduced capabilities
 			Audio:            false,
@@ -83,6 +86,7 @@ var supportedModels = map[string]ModelDefinition{
 		Capabilities: llm.ModelCapabilities{
 			Streaming:        true,
 			Tools:            true,
+			JSONMode:         true,
 			StructuredOutput: true,
 			Vision:           true,
 			MultiTurn:        true,
@@ -101,6 +105,7 @@ var supportedModels = map[string]ModelDefinition{
 		Capabilities: llm.ModelCapabilities{
 			Streaming:        true,
 			Tools:            true,
+			JSONMode:         true,
 			StructuredOutput: true,
 			Vision:           true,
 			MultiTurn:        true,
@@ -159,6 +164,7 @@ var supportedModels = map[string]ModelDefinition{
 		Capabilities: llm.ModelCapabilities{
 			Streaming:        true,
 			Tools:            true,
+			JSONMode:         true,
 			StructuredOutput: true,
 			Vision:           true,
 			Audio:            true,
@@ -185,6 +191,7 @@ var supportedModels = map[string]ModelDefinition{
 		Capabilities: llm.ModelCapabilities{
 			Streaming:        true,
 			Tools:            true,
+			JSONMode:         true,
 			StructuredOutput: true,
 			Vision:           true,
 			MultiTurn:        true,
@@ -205,6 +212,7 @@ var supportedModels = map[string]ModelDefinition{
 		Capabilities: llm.ModelCapabilities{
 			Streaming:        true,
 			Tools:            true,
+			JSONMode:         true,
 			StructuredOutput: true,
 			Vision:           true,
 			MultiTurn:        true,
@@ -223,6 +231,7 @@ var supportedModels = map[string]ModelDefinition{
 		Capabilities: llm.ModelCapabilities{
 			Streaming:        true,
 			Tools:            true,
+			JSONMode:         true,
 			StructuredOutput: true,
 			MultiTurn:        true,
 			SystemPrompts:    true,

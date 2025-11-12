@@ -76,9 +76,10 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 		var (
 			accumulatedContent   strings.Builder
 			accumulatedReasoning strings.Builder
-			toolCalls            = make(map[int]*openai.ChatCompletionChunkChoiceDeltaToolCall)
-			finalResponse        *openai.ChatCompletion
-			usage                *openai.CompletionUsage
+			toolCalls            = make(map[int]*llm.ToolRequest)
+			finishReason         llm.FinishReason
+			responseID           string
+			usage                *llm.TokenUsage
 		)
 
 		// Process streaming events
@@ -88,7 +89,12 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 			// Accumulate usage from any chunk that has it
 			// OpenAI sends usage in the last chunk (which has empty choices) when stream_options.include_usage is true
 			if chunk.Usage.JSON.TotalTokens.Valid() && chunk.Usage.TotalTokens > 0 {
-				usage = &chunk.Usage
+				usage = &llm.TokenUsage{
+					InputTokens:     int(chunk.Usage.PromptTokens),
+					OutputTokens:    int(chunk.Usage.CompletionTokens),
+					TotalTokens:     int(chunk.Usage.TotalTokens),
+					ReasoningTokens: int(chunk.Usage.CompletionTokensDetails.ReasoningTokens),
+				}
 			}
 
 			// Skip further processing if no choices
@@ -132,9 +138,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 				// Initialize or get existing tool call
 				if _, exists := toolCalls[idx]; !exists {
-					toolCalls[idx] = &openai.ChatCompletionChunkChoiceDeltaToolCall{
-						Index: toolCallDelta.Index,
-					}
+					toolCalls[idx] = &llm.ToolRequest{}
 				}
 
 				tc := toolCalls[idx]
@@ -144,24 +148,30 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 					tc.ID = toolCallDelta.ID
 				}
 
-				// Accumulate type
-				if toolCallDelta.Type != "" {
-					tc.Type = toolCallDelta.Type
-				}
-
-				// Accumulate function name and arguments
+				// Accumulate function name
 				if toolCallDelta.Function.Name != "" {
-					tc.Function.Name = toolCallDelta.Function.Name
+					tc.Name = toolCallDelta.Function.Name
 				}
 
+				// Accumulate arguments
 				if toolCallDelta.Function.Arguments != "" {
-					tc.Function.Arguments += toolCallDelta.Function.Arguments
+					tc.Arguments = append(tc.Arguments, []byte(toolCallDelta.Function.Arguments)...)
 				}
 			}
 
 			// Check for finish reason
 			if choice.FinishReason != "" {
-				finalResponse = m.buildFinalResponse(&chunk, choice.FinishReason, accumulatedReasoning.String(), accumulatedContent.String(), toolCalls)
+				// Store response ID
+				responseID = chunk.ID
+
+				// Map finish reason to llm type
+				mappedReason, err := m.responseMapper.mapFinishReason(choice.FinishReason, len(toolCalls) > 0)
+				if err != nil {
+					yield(nil, fmt.Errorf("%w: %w", llm.ErrResponseMapping, err))
+					return
+				}
+
+				finishReason = mappedReason
 
 				// Emit tool calls if present
 				if !m.emitToolCalls(toolCalls, yield) {
@@ -181,155 +191,79 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 		}
 
 		// Emit final StreamEndEvent
-		if finalResponse != nil {
-			// Add final accumulated usage to response
-			if usage != nil {
-				finalResponse.Usage = *usage
-			}
-
-			// Build the final unified response with accumulated reasoning
-			resp, err := m.buildStreamEndResponse(finalResponse, accumulatedReasoning.String())
-			if err != nil {
-				yield(nil, fmt.Errorf("%w: %w", llm.ErrResponseMapping, err))
-				return
-			}
+		if finishReason != "" {
+			// Build the final unified response from accumulated data
+			resp := m.buildStreamEndResponse(
+				responseID,
+				accumulatedReasoning.String(),
+				accumulatedContent.String(),
+				toolCalls,
+				finishReason,
+				usage,
+			)
 
 			yield(llm.StreamEndEvent{Response: resp}, nil)
 		} else {
-			// No final response - stream ended without finish reason
+			// No finish reason received - stream ended unexpectedly
 			yield(nil, fmt.Errorf("%w: stream ended without finish reason", llm.ErrResponseMapping))
 		}
 	}
 }
 
-// buildFinalResponse constructs the final ChatCompletion response from accumulated data.
-func (*Model) buildFinalResponse(chunk *openai.ChatCompletionChunk, finishReason, reasoningContent, content string, toolCalls map[int]*openai.ChatCompletionChunkChoiceDeltaToolCall) *openai.ChatCompletion {
-	resp := &openai.ChatCompletion{
-		ID:      chunk.ID,
-		Object:  "openai.completion",
-		Created: chunk.Created,
-		Model:   chunk.Model,
-		Choices: []openai.ChatCompletionChoice{
-			{
-				Index: 0,
-				Message: openai.ChatCompletionMessage{
-					Role:    "assistant",
-					Content: content,
-				},
-				FinishReason: finishReason,
-			},
-		},
-	}
-
-	// Add accumulated tool calls to final message
-	if len(toolCalls) > 0 {
-		var tcArray []openai.ChatCompletionMessageToolCallUnion
-
-		for i := range len(toolCalls) {
-			if tc, ok := toolCalls[i]; ok {
-				tcArray = append(tcArray, openai.ChatCompletionMessageToolCallUnion{
-					ID:   tc.ID,
-					Type: tc.Type,
-					Function: openai.ChatCompletionMessageFunctionToolCallFunction{
-						Name:      tc.Function.Name,
-						Arguments: tc.Function.Arguments,
-					},
-				})
-			}
-		}
-
-		resp.Choices[0].Message.ToolCalls = tcArray
-	}
-
-	return resp
-}
-
-// buildStreamEndResponse constructs the final unified response for StreamEndEvent,
-// including accumulated reasoning content that was streamed separately.
-func (m *Model) buildStreamEndResponse(apiResp *openai.ChatCompletion, accumulatedReasoning string) (*llm.Response, error) {
-	if apiResp == nil || len(apiResp.Choices) == 0 {
-		return nil, fmt.Errorf("%w: invalid final response", llm.ErrResponseMapping)
-	}
-
-	choice := apiResp.Choices[0]
-	message := choice.Message
-
+// buildStreamEndResponse constructs the final unified response for StreamEndEvent
+// from accumulated streaming data.
+func (*Model) buildStreamEndResponse(
+	id string,
+	reasoning, content string,
+	toolCalls map[int]*llm.ToolRequest,
+	finishReason llm.FinishReason,
+	usage *llm.TokenUsage,
+) *llm.Response {
 	// Build content parts: reasoning + text + tool calls
-	content := make([]*llm.Part, 0, 2+len(message.ToolCalls))
+	parts := make([]*llm.Part, 0, 2+len(toolCalls))
 
 	// Add accumulated reasoning if present
-	if accumulatedReasoning != "" {
-		content = append(content, llm.NewReasoningPart(&llm.ReasoningTrace{
-			Text: accumulatedReasoning,
+	if reasoning != "" {
+		parts = append(parts, llm.NewReasoningPart(&llm.ReasoningTrace{
+			Text: reasoning,
 		}))
 	}
 
 	// Add text content if present
-	if message.Content != "" {
-		content = append(content, llm.NewTextPart(message.Content))
+	if content != "" {
+		parts = append(parts, llm.NewTextPart(content))
 	}
 
-	// Add tool calls if present
-	for _, toolCall := range message.ToolCalls {
-		if toolCall.Type != "function" {
-			continue
+	// Add tool calls in index order
+	for i := range len(toolCalls) {
+		if tc, ok := toolCalls[i]; ok {
+			parts = append(parts, llm.NewToolRequestPart(tc))
 		}
-
-		content = append(content, &llm.Part{
-			Kind: llm.PartToolRequest,
-			ToolRequest: &llm.ToolRequest{
-				ID:        toolCall.ID,
-				Name:      toolCall.Function.Name,
-				Arguments: json.RawMessage(toolCall.Function.Arguments),
-			},
-		})
 	}
 
-	// Map finish reason
-	finishReason, err := m.responseMapper.mapFinishReason(choice.FinishReason, len(message.ToolCalls) > 0)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %w", llm.ErrResponseMapping, err)
-	}
-
-	// Extract usage statistics
-	var usage *llm.TokenUsage
-	if apiResp.Usage.TotalTokens > 0 {
-		usage = &llm.TokenUsage{
-			InputTokens:     int(apiResp.Usage.PromptTokens),
-			OutputTokens:    int(apiResp.Usage.CompletionTokens),
-			TotalTokens:     int(apiResp.Usage.TotalTokens),
-			ReasoningTokens: int(apiResp.Usage.CompletionTokensDetails.ReasoningTokens),
-		}
-	} else {
+	// Ensure usage is not nil
+	if usage == nil {
 		usage = &llm.TokenUsage{}
 	}
 
 	return &llm.Response{
+		ID: id,
 		Message: llm.Message{
 			Role:    llm.RoleAssistant,
-			Content: content,
+			Content: parts,
 		},
 		FinishReason: finishReason,
 		Usage:        usage,
-		ID:           apiResp.ID,
-	}, nil
+	}
 }
 
 // emitToolCalls emits ContentPartEvent for each accumulated tool call.
-func (*Model) emitToolCalls(toolCalls map[int]*openai.ChatCompletionChunkChoiceDeltaToolCall, yield func(llm.Event, error) bool) bool {
+func (*Model) emitToolCalls(toolCalls map[int]*llm.ToolRequest, yield func(llm.Event, error) bool) bool {
 	for i := range len(toolCalls) {
 		if tc, ok := toolCalls[i]; ok {
-			toolPart := llm.Part{
-				Kind: llm.PartToolRequest,
-				ToolRequest: &llm.ToolRequest{
-					ID:        tc.ID,
-					Name:      tc.Function.Name,
-					Arguments: json.RawMessage(tc.Function.Arguments),
-				},
-			}
 			if !yield(llm.ContentPartEvent{
 				Index: i,
-				Part:  &toolPart,
+				Part:  llm.NewToolRequestPart(tc),
 			}, nil) {
 				return false
 			}

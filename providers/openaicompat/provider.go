@@ -133,9 +133,15 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 		return nil, fmt.Errorf("configuration validation failed for %s: %w", modelName, err)
 	}
 
-	// Use default capabilities for dynamic models
-	capabilities := getDefaultCapabilities()
-	// Override reasoning capability if configured
+	// Use custom capabilities if provided, otherwise use defaults
+	var capabilities llm.ModelCapabilities
+	if cfg.CustomCapabilities != nil {
+		capabilities = *cfg.CustomCapabilities
+	} else {
+		capabilities = getDefaultCapabilities()
+	}
+
+	// Override reasoning capability if configured (for backward compatibility)
 	if cfg.SupportsReasoning {
 		capabilities.Reasoning = true
 	}
