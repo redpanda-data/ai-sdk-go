@@ -60,7 +60,7 @@ var (
 	// This is not an error per se, but a normal termination condition.
 	ErrMaxTurnsReached = errors.New("agent: maximum turns reached")
 
-	// ErrCanceled is returned when execution is canceled via context.
+	// ErrInterrupted is returned when execution is canceled via context.
 	// This is not an error per se, but indicates the caller canceled the operation.
-	ErrCanceled = errors.New("agent: execution canceled")
+	ErrInterrupted = errors.New("agent: execution canceled")
 )

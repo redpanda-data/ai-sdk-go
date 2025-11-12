@@ -144,7 +144,7 @@ func (a *LLMAgent) Run(invCtx *agent.InvocationContext) iter.Seq2[agent.Event, e
 			if invCtx.Err() != nil {
 				yieldEvent(agent.InvocationEndEvent{
 					Envelope:     makeEnvelope(),
-					FinishReason: agent.FinishReasonCanceled,
+					FinishReason: agent.FinishReasonInterrupted,
 					Usage:        ptr(invCtx.TotalUsage()),
 				})
 
@@ -553,7 +553,7 @@ func mapLLMFinishReason(reason llm.FinishReason) (agent.FinishReason, error) {
 		return agent.FinishReasonError, llm.ErrContentPolicyViolation
 
 	case llm.FinishReasonInterrupted:
-		return agent.FinishReasonCanceled, context.Canceled
+		return agent.FinishReasonInterrupted, context.Canceled
 
 	case llm.FinishReasonUnknown:
 		return agent.FinishReasonError, errors.New("model returned unknown finish reason")
@@ -568,7 +568,7 @@ func mapLLMFinishReason(reason llm.FinishReason) (agent.FinishReason, error) {
 // returns FinishReasonError.
 func mapErrorToFinishReason(err error) agent.FinishReason {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		return agent.FinishReasonCanceled
+		return agent.FinishReasonInterrupted
 	}
 
 	return agent.FinishReasonError

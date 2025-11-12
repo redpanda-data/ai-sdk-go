@@ -533,7 +533,7 @@ func TestRun_ContextCancellation(t *testing.T) {
 		if !gotError {
 			endEvent := findInvocationEndEvent(events)
 			if endEvent != nil {
-				assert.Equal(t, agent.FinishReasonCanceled, endEvent.FinishReason)
+				assert.Equal(t, agent.FinishReasonInterrupted, endEvent.FinishReason)
 			}
 		}
 	})
@@ -563,7 +563,7 @@ func TestRun_ContextCancellation(t *testing.T) {
 		// Assert: Should get canceled finish reason
 		endEvent := findInvocationEndEvent(events)
 		require.NotNil(t, endEvent)
-		assert.Equal(t, agent.FinishReasonCanceled, endEvent.FinishReason)
+		assert.Equal(t, agent.FinishReasonInterrupted, endEvent.FinishReason)
 	})
 }
 

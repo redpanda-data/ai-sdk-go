@@ -42,7 +42,21 @@ type Agent interface {
 	// updates it as execution progresses. Events are yielded during
 	// execution to provide real-time progress updates.
 	//
-	// The stream always ends with an InvocationEndEvent indicating completion.
+	// # Error Handling
+	//
+	// Run uses iter.Seq2[Event, error] to distinguish two failure modes:
+	//
+	// Terminal Errors - yield(nil, error):
+	//   - Execution cannot proceed (config invalid, auth failed, infra unavailable)
+	//   - Stream terminates immediately, no InvocationEndEvent emitted
+	//   - Examples: ErrToolRegistry, ErrSessionLoad, context.Canceled
+	//
+	// Graceful Failures - ErrorEvent + InvocationEndEvent(FinishReasonError):
+	//   - Execution completes with error outcome (rate limit, content filter, max turns)
+	//   - Stream ends normally with InvocationEndEvent for observability
+	//   - Examples: rate limits, content policy violations, model timeouts
+	//
+	// On success, the stream always ends with InvocationEndEvent.
 	Run(ctx *InvocationContext) iter.Seq2[Event, error]
 
 	// InputSchema returns the expected input schema for this agent.

@@ -70,15 +70,15 @@ type StatusStage string
 // Preferred names use snake_case for clarity. Old names are provided as
 // aliases for backward compatibility but are deprecated.
 const (
-	StatusStageRunStarting   StatusStage = "run_starting"
-	StatusStageModelCall     StatusStage = "model_call"
-	StatusStageToolExec      StatusStage = "tool_exec"
-	StatusStageInputRequired StatusStage = "input_required"
-	StatusStageRunCompleted  StatusStage = "run_completed"
-	StatusStageRunFailed     StatusStage = "run_failed"
-	StatusStageRunCanceled   StatusStage = "run_canceled"
-	StatusStageTurnStarted   StatusStage = "turn_started"
-	StatusStageTurnCompleted StatusStage = "turn_completed"
+	StatusStageRunStarting    StatusStage = "run_starting"
+	StatusStageModelCall      StatusStage = "model_call"
+	StatusStageToolExec       StatusStage = "tool_exec"
+	StatusStageInputRequired  StatusStage = "input_required"
+	StatusStageRunCompleted   StatusStage = "run_completed"
+	StatusStageRunFailed      StatusStage = "run_failed"
+	StatusStageRunInterrupted StatusStage = "run_canceled"
+	StatusStageTurnStarted    StatusStage = "turn_started"
+	StatusStageTurnCompleted  StatusStage = "turn_completed"
 )
 
 // MessageEvent carries an assistant message from the LLM.
@@ -203,9 +203,9 @@ const (
 	// The agent encountered an unrecoverable error during execution.
 	FinishReasonError FinishReason = "error"
 
-	// FinishReasonCanceled indicates execution was canceled.
+	// FinishReasonInterrupted indicates execution was canceled.
 	// The context was canceled before the agent could complete.
-	FinishReasonCanceled FinishReason = "canceled"
+	FinishReasonInterrupted FinishReason = "interrupted"
 
 	// FinishReasonTransfer indicates execution was transferred to another agent.
 	// Used for agent handoffs (future feature).
