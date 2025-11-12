@@ -79,8 +79,8 @@ func TestCustomModelName(t *testing.T) {
 	// Custom name should be set
 	assert.Equal(t, "claude-opus-4-2-beta", m.config.CustomModelName)
 
-	// Check that constraints are inherited from base model
-	assert.Equal(t, int(32000), m.config.Constraints.MaxTokensLimit)
+	// Check that constraints are inherited from base model (200K context window)
+	assert.Equal(t, int(200000), m.config.Constraints.MaxTokensLimit)
 }
 
 func TestUnsupportedModelRejected(t *testing.T) {
