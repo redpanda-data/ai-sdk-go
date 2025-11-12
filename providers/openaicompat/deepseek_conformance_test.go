@@ -44,16 +44,35 @@ func NewDeepSeekFixture(t *testing.T) *DeepSeekFixture {
 		t.Fatalf("Failed to create DeepSeek provider: %v", err)
 	}
 
+	// DeepSeek-specific capabilities
+	// DeepSeek supports JSON mode (json_object) but not Structured Outputs (json_schema)
+	deepseekCaps := llm.ModelCapabilities{
+		Streaming:        true,
+		Tools:            true,
+		JSONMode:         true,  // Supports json_object
+		StructuredOutput: false, // Does NOT support json_schema
+		Vision:           true,
+		Audio:            false,
+		MultiTurn:        true,
+		SystemPrompts:    true,
+		Reasoning:        false, // Set per-model below
+	}
+
 	// Standard model (non-reasoning)
-	standardModel, err := provider.NewModel("deepseek-chat")
+	standardModel, err := provider.NewModel("deepseek-chat",
+		openaicompat.WithCapabilities(deepseekCaps),
+	)
 	if err != nil {
 		t.Fatalf("Failed to create standard model: %v", err)
 	}
 
 	// Reasoning model with reasoning capability enabled
+	reasoningCaps := deepseekCaps
+	reasoningCaps.Reasoning = true
+
 	reasoningModel, err := provider.NewModel(
 		"deepseek-reasoner",
-		openaicompat.WithReasoning(),
+		openaicompat.WithCapabilities(reasoningCaps),
 	)
 	if err != nil {
 		t.Fatalf("Failed to create reasoning model: %v", err)

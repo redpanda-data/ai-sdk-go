@@ -16,7 +16,8 @@ type Config struct {
 	Constraints llm.ModelConstraints
 
 	// Capability flags
-	SupportsReasoning bool
+	SupportsReasoning  bool
+	CustomCapabilities *llm.ModelCapabilities // Override default capabilities if set
 
 	// OpenAI-specific parameters
 	Temperature      *float64
@@ -30,6 +31,15 @@ type Config struct {
 
 	// Track which options have been set for conflict detection with model constraints
 	setOptions map[string]bool
+}
+
+// WithCapabilities overrides the default model capabilities.
+// Use this to specify exact capabilities for models with known limitations.
+func WithCapabilities(caps llm.ModelCapabilities) Option {
+	return func(cfg *Config) error {
+		cfg.CustomCapabilities = &caps
+		return nil
+	}
 }
 
 // WithReasoning marks this model as supporting extended reasoning capabilities.

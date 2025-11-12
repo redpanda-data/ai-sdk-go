@@ -8,7 +8,8 @@ func getDefaultCapabilities() llm.ModelCapabilities {
 	return llm.ModelCapabilities{
 		Streaming:        true,
 		Tools:            true,
-		StructuredOutput: true,
+		JSONMode:         true, // Most OpenAI-compatible APIs support json_object
+		StructuredOutput: true, // Most support json_schema, but not all (e.g., DeepSeek)
 		Vision:           true,
 		Audio:            false, // Not commonly supported in Chat API
 		MultiTurn:        true,

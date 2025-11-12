@@ -85,7 +85,8 @@ const (
 type ModelCapabilities struct {
 	Streaming        bool // Supports streaming responses
 	Tools            bool // Supports function/tool calling
-	StructuredOutput bool // Supports JSON schema output
+	JSONMode         bool // Supports JSON mode (response_format: json_object) - ensures valid JSON output
+	StructuredOutput bool // Supports Structured Outputs (response_format: json_schema) - ensures schema adherence
 	Vision           bool // Supports image inputs
 	Audio            bool // Supports audio inputs
 	MultiTurn        bool // Supports conversation history
