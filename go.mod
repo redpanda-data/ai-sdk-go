@@ -3,7 +3,7 @@ module github.com/redpanda-data/ai-sdk-go
 go 1.25.4
 
 require (
-	github.com/openai/openai-go/v2 v2.7.1
+	github.com/openai/openai-go/v3 v3.8.1
 	github.com/stretchr/testify v1.11.1
 	github.com/twmb/go-cache v1.2.1
 	golang.org/x/oauth2 v0.30.0

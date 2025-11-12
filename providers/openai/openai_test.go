@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openai/openai-go/v2/responses"
+	"github.com/openai/openai-go/v3/responses"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -506,7 +506,7 @@ func TestMessageMappingWithToolParts(t *testing.T) {
 
 				require.NotNil(t, items[0].OfFunctionCallOutput)
 				assert.Equal(t, "call_123", items[0].OfFunctionCallOutput.CallID)
-				assert.JSONEq(t, `{"temperature": "22°C", "condition": "sunny"}`, items[0].OfFunctionCallOutput.Output)
+				assert.JSONEq(t, `{"temperature": "22°C", "condition": "sunny"}`, items[0].OfFunctionCallOutput.Output.OfString.Value)
 			},
 		},
 		{
@@ -529,7 +529,7 @@ func TestMessageMappingWithToolParts(t *testing.T) {
 
 				require.NotNil(t, items[0].OfFunctionCallOutput)
 				assert.Equal(t, "call_123", items[0].OfFunctionCallOutput.CallID)
-				assert.Contains(t, items[0].OfFunctionCallOutput.Output, "API rate limit exceeded")
+				assert.Contains(t, items[0].OfFunctionCallOutput.Output.OfString.Value, "API rate limit exceeded")
 			},
 		},
 		{
