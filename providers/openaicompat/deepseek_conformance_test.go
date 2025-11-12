@@ -1,7 +1,6 @@
 package openaicompat_test
 
 import (
-	"os"
 	"testing"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/providers/conformance"
 	"github.com/redpanda-data/ai-sdk-go/providers/openaicompat"
+	"github.com/redpanda-data/ai-sdk-go/providers/openaicompat/openaicompattest"
 )
 
 // DeepSeekFixture implements the conformance.Fixture interface for DeepSeek API.
@@ -24,15 +24,8 @@ type DeepSeekFixture struct {
 func NewDeepSeekFixture(t *testing.T) *DeepSeekFixture {
 	t.Helper()
 
-	apiKey := os.Getenv("DEEPSEEK_API_KEY")
-	if apiKey == "" {
-		t.Skip("DEEPSEEK_API_KEY not set, skipping DeepSeek conformance tests")
-	}
-
-	baseURL := os.Getenv("DEEPSEEK_BASE_URL")
-	if baseURL == "" {
-		baseURL = "https://api.deepseek.com"
-	}
+	apiKey := openaicompattest.GetDeepSeekAPIKeyOrSkipTest(t)
+	baseURL := openaicompattest.GetDeepSeekBaseURL()
 
 	// Create provider with DeepSeek base URL and extended timeout for reasoning
 	provider, err := openaicompat.NewProvider(
@@ -59,7 +52,8 @@ func NewDeepSeekFixture(t *testing.T) *DeepSeekFixture {
 	}
 
 	// Standard model (non-reasoning)
-	standardModel, err := provider.NewModel("deepseek-chat",
+	standardModel, err := provider.NewModel(
+		openaicompattest.DeepSeekDefaultStandardModel,
 		openaicompat.WithCapabilities(deepseekCaps),
 	)
 	if err != nil {
@@ -71,7 +65,7 @@ func NewDeepSeekFixture(t *testing.T) *DeepSeekFixture {
 	reasoningCaps.Reasoning = true
 
 	reasoningModel, err := provider.NewModel(
-		"deepseek-reasoner",
+		openaicompattest.DeepSeekDefaultReasoningModel,
 		openaicompat.WithCapabilities(reasoningCaps),
 	)
 	if err != nil {
@@ -94,7 +88,6 @@ func (f *DeepSeekFixture) StandardModel() llm.Model {
 }
 
 func (f *DeepSeekFixture) ReasoningModel() llm.Model {
-	// Unlike OpenAI, DeepSeek exposes reasoning traces in the Chat Completions API
 	return f.reasoningModel
 }
 

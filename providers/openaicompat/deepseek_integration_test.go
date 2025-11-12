@@ -2,7 +2,6 @@ package openaicompat_test
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/providers/openaicompat"
+	"github.com/redpanda-data/ai-sdk-go/providers/openaicompat/openaicompattest"
 )
 
 // TestDeepSeekMultiTurnReasoning verifies that reasoning traces work correctly
@@ -27,20 +27,9 @@ import (
 func TestDeepSeekMultiTurnReasoning(t *testing.T) {
 	t.Parallel()
 
-	apiKey := os.Getenv("DEEPSEEK_API_KEY")
-	if apiKey == "" {
-		t.Skip("DEEPSEEK_API_KEY not set, skipping integration test")
-	}
-
-	baseURL := os.Getenv("DEEPSEEK_BASE_URL")
-	if baseURL == "" {
-		baseURL = "https://api.deepseek.com"
-	}
-
-	modelName := os.Getenv("DEEPSEEK_MODEL")
-	if modelName == "" {
-		modelName = "deepseek-reasoner"
-	}
+	apiKey := openaicompattest.GetDeepSeekAPIKeyOrSkipTest(t)
+	baseURL := openaicompattest.GetDeepSeekBaseURL()
+	modelName := openaicompattest.GetDeepSeekModel(openaicompattest.DeepSeekDefaultReasoningModel)
 
 	// Create provider
 	provider, err := openaicompat.NewProvider(
