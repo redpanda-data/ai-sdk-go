@@ -121,64 +121,48 @@ func (a *LLMAgent) Run(invCtx *agent.InvocationContext) iter.Seq2[agent.Event, e
 			}
 		}
 
-		// Helper: yield event (returns false if consumer stopped)
-		yieldEvent := func(evt agent.Event) bool {
-			return yield(evt, nil)
-		}
-
 		// Ensure system prompt is present
 		messages := a.ensureSystemPrompt(sess.Messages)
 
 		// Execute turn loop
 		for invCtx.Turn() < a.config.maxTurns {
 			// Emit turn started
-			if !yieldEvent(agent.StatusEvent{
+			if !yield(agent.StatusEvent{
 				Envelope: makeEnvelope(),
 				Stage:    agent.StatusStageTurnStarted,
 				Details:  fmt.Sprintf("turn %d started", invCtx.Turn()),
-			}) {
+			}, nil) {
 				return
 			}
 
 			// Check context cancellation
 			if invCtx.Err() != nil {
-				yieldEvent(agent.InvocationEndEvent{
+				yield(agent.InvocationEndEvent{
 					Envelope:     makeEnvelope(),
 					FinishReason: agent.FinishReasonInterrupted,
 					Usage:        ptr(invCtx.TotalUsage()),
-				})
+				}, nil)
 
 				return
 			}
 
 			// Emit model call status
-			if !yieldEvent(agent.StatusEvent{
+			if !yield(agent.StatusEvent{
 				Envelope: makeEnvelope(),
 				Stage:    agent.StatusStageModelCall,
 				Details:  "invoking model",
-			}) {
+			}, nil) {
 				return
 			}
 
 			// Generate response from LLM (with streaming support if available)
-			resp, err := a.generate(invCtx, messages, makeEnvelope, yieldEvent)
+			resp, err := a.generate(invCtx, messages, makeEnvelope, yield)
 			if err != nil {
-				// Determine finish reason based on error type
-				reason := mapErrorToFinishReason(err)
-
-				// Emit error event
-				yieldEvent(agent.ErrorEvent{
-					Envelope: makeEnvelope(),
-					Err:      err,
-					Message:  err.Error(), // Error is already wrapped with ErrModelGeneration
-				})
-				// Emit terminal event
-				yieldEvent(agent.InvocationEndEvent{
-					Envelope:     makeEnvelope(),
-					FinishReason: reason,
-					Usage:        ptr(invCtx.TotalUsage()),
-				})
-
+				// TERMINAL ERROR: System failure (auth, connection, protocol violation)
+				// Observable errors (rate limits, content filters) come through:
+				// - FinishReason from model (handled in terminal finish reasons block below)
+				// - ErrorEvent in stream (non-terminal, handled in generateWithStreaming)
+				yield(nil, err)
 				return
 			}
 
@@ -190,10 +174,10 @@ func (a *LLMAgent) Run(invCtx *agent.InvocationContext) iter.Seq2[agent.Event, e
 			messages = append(messages, resp.Message)
 
 			// Emit message event
-			if !yieldEvent(agent.MessageEvent{
+			if !yield(agent.MessageEvent{
 				Envelope: makeEnvelope(),
 				Response: *resp,
-			}) {
+			}, nil) {
 				return
 			}
 
@@ -203,27 +187,27 @@ func (a *LLMAgent) Run(invCtx *agent.InvocationContext) iter.Seq2[agent.Event, e
 				// Terminal finish reason - handle completion
 				if terminalErr != nil {
 					// Emit error for terminal error conditions (content filter, interrupted, unknown)
-					yieldEvent(agent.ErrorEvent{
+					yield(agent.ErrorEvent{
 						Envelope: makeEnvelope(),
 						Err:      terminalErr,
 						Message:  terminalErr.Error(),
-					})
+					}, nil)
 				} else if agentReason == agent.FinishReasonLength {
 					// Emit status event for length limit (non-error terminal case)
-					yieldEvent(agent.StatusEvent{
+					yield(agent.StatusEvent{
 						Envelope: makeEnvelope(),
 						Stage:    agent.StatusStageTurnCompleted,
 						Details:  fmt.Sprintf("turn %d completed - length limit", invCtx.Turn()),
 						Usage:    resp.Usage,
-					})
+					}, nil)
 				}
 
 				// Emit terminal event
-				yieldEvent(agent.InvocationEndEvent{
+				yield(agent.InvocationEndEvent{
 					Envelope:     makeEnvelope(),
 					FinishReason: agentReason,
 					Usage:        ptr(invCtx.TotalUsage()),
-				})
+				}, nil)
 
 				return
 			}
@@ -234,75 +218,61 @@ func (a *LLMAgent) Run(invCtx *agent.InvocationContext) iter.Seq2[agent.Event, e
 			if len(toolReqs) == 0 {
 				// No tools requested - natural completion
 				// Emit turn completed
-				yieldEvent(agent.StatusEvent{
+				yield(agent.StatusEvent{
 					Envelope: makeEnvelope(),
 					Stage:    agent.StatusStageTurnCompleted,
 					Details:  fmt.Sprintf("turn %d completed", invCtx.Turn()),
 					Usage:    resp.Usage,
-				})
+				}, nil)
 				// Emit terminal event
-				yieldEvent(agent.InvocationEndEvent{
+				yield(agent.InvocationEndEvent{
 					Envelope:     makeEnvelope(),
 					FinishReason: agent.FinishReasonStop,
 					Usage:        ptr(invCtx.TotalUsage()),
-				})
+				}, nil)
 
 				return
 			}
 
 			// Emit tool call events
 			for _, toolReq := range toolReqs {
-				if !yieldEvent(agent.ToolCallEvent{
+				if !yield(agent.ToolCallEvent{
 					Envelope: makeEnvelope(),
 					Request:  *toolReq,
-				}) {
+				}, nil) {
 					return
 				}
 			}
 
 			// Emit tool execution status
-			if !yieldEvent(agent.StatusEvent{
+			if !yield(agent.StatusEvent{
 				Envelope: makeEnvelope(),
 				Stage:    agent.StatusStageToolExec,
 				Details:  fmt.Sprintf("executing %d tools", len(toolReqs)),
-			}) {
+			}, nil) {
 				return
 			}
 
 			// Execute tools and collect results
-			toolMessages, err := a.executeTools(invCtx, toolReqs, makeEnvelope, yieldEvent)
-			if err != nil {
-				// Determine finish reason based on error type
-				reason := mapErrorToFinishReason(err)
-
-				// Emit error event
-				yieldEvent(agent.ErrorEvent{
-					Envelope: makeEnvelope(),
-					Err:      err,
-					Message:  err.Error(), // Error is already wrapped with ErrToolExecution or ErrToolRegistry
-				})
-				// Emit terminal event
-				yieldEvent(agent.InvocationEndEvent{
-					Envelope:     makeEnvelope(),
-					FinishReason: reason,
-					Usage:        ptr(invCtx.TotalUsage()),
-				})
-
+			if a.config.tools == nil {
+				yield(nil, agent.ErrToolRegistry)
 				return
 			}
 
-			// Add tool results to conversation
+			toolMessages := a.executeTools(invCtx, toolReqs, makeEnvelope, yield)
+
+			// Add tool results to conversation (including errors - LLM handles them gracefully)
 			for _, msg := range toolMessages {
 				sess.Messages = append(sess.Messages, msg)
 				messages = append(messages, msg)
 			}
 
 			// Emit turn completed
-			if !yieldEvent(agent.StatusEvent{
+			if !yield(agent.StatusEvent{
 				Envelope: makeEnvelope(),
 				Stage:    agent.StatusStageTurnCompleted,
 				Details:  fmt.Sprintf("turn %d completed", invCtx.Turn()),
-			}) {
+			}, nil) {
 				return
 			}
 
@@ -311,11 +281,11 @@ func (a *LLMAgent) Run(invCtx *agent.InvocationContext) iter.Seq2[agent.Event, e
 		}
 
 		// Max turns reached
-		yieldEvent(agent.InvocationEndEvent{
+		yield(agent.InvocationEndEvent{
 			Envelope:     makeEnvelope(),
 			FinishReason: agent.FinishReasonMaxTurns,
 			Usage:        ptr(invCtx.TotalUsage()),
-		})
+		}, nil)
 	}
 }
 
@@ -344,7 +314,7 @@ func (a *LLMAgent) generate(
 	invCtx *agent.InvocationContext,
 	messages []llm.Message,
 	makeEnvelope func() agent.EventEnvelope,
-	yieldEvent func(agent.Event) bool,
+	yield func(agent.Event, error) bool,
 ) (*llm.Response, error) {
 	req := &llm.Request{
 		Messages: messages,
@@ -356,7 +326,7 @@ func (a *LLMAgent) generate(
 
 	// Use streaming if model supports it (provides better UX with real-time updates)
 	if eg, ok := a.config.model.(llm.EventsGenerator); ok {
-		return a.generateWithStreaming(invCtx, eg, req, makeEnvelope, yieldEvent)
+		return a.generateWithStreaming(invCtx, eg, req, makeEnvelope, yield)
 	}
 
 	// Fall back to non-streaming generation
@@ -370,7 +340,7 @@ func (a *LLMAgent) generateWithStreaming(
 	eg llm.EventsGenerator,
 	req *llm.Request,
 	makeEnvelope func() agent.EventEnvelope,
-	yieldEvent func(agent.Event) bool,
+	yield func(agent.Event, error) bool,
 ) (*llm.Response, error) {
 	var response *llm.Response
 
@@ -382,10 +352,10 @@ func (a *LLMAgent) generateWithStreaming(
 		switch evt := event.(type) {
 		case llm.ContentPartEvent:
 			// Emit real-time delta for streaming consumers
-			if !yieldEvent(agent.AssistantDeltaEvent{
+			if !yield(agent.AssistantDeltaEvent{
 				Envelope: makeEnvelope(),
 				Delta:    evt,
-			}) {
+			}, nil) {
 				return nil, errors.New("consumer stopped iteration")
 			}
 
@@ -402,11 +372,11 @@ func (a *LLMAgent) generateWithStreaming(
 			// The LLM SDK may emit recoverable errors (rate limits, warnings, etc.)
 			// that should be passed through to callers without terminating the stream.
 			// The stream ends naturally with StreamEndEvent or a transport error from the iterator.
-			if !yieldEvent(agent.ErrorEvent{
+			if !yield(agent.ErrorEvent{
 				Envelope: makeEnvelope(),
 				Err:      fmt.Errorf("%w: %s", agent.ErrModelGeneration, evt.Message),
 				Message:  evt.Message,
-			}) {
+			}, nil) {
 				return nil, errors.New("consumer stopped iteration")
 			}
 
@@ -426,8 +396,12 @@ func (a *LLMAgent) generateWithStreaming(
 // executeTools runs tool calls concurrently.
 //
 // Tool execution is limited by toolConcurrency. Individual tool errors
-// are captured and returned as error messages, allowing the LLM to
-// handle failures gracefully.
+// (including context cancellation, timeouts, etc.) are captured and sent
+// to the LLM as error tool responses, allowing the LLM to handle failures
+// gracefully (acknowledge, retry, use different tool, etc.).
+//
+// This follows the pattern from ADK and other SDKs: tool errors are NEVER
+// terminal - they're always sent to the LLM as part of the conversation.
 //
 // ToolResultEvents are yielded as tools complete.
 //
@@ -439,12 +413,8 @@ func (a *LLMAgent) executeTools(
 	invCtx *agent.InvocationContext,
 	toolReqs []*llm.ToolRequest,
 	makeEnvelope func() agent.EventEnvelope,
-	yieldEvent func(agent.Event) bool,
-) ([]llm.Message, error) {
-	if a.config.tools == nil {
-		return nil, agent.ErrToolRegistry
-	}
-
+	yield func(agent.Event, error) bool,
+) []llm.Message {
 	// Execute tools concurrently with limited parallelism
 	g, ctx := errgroup.WithContext(invCtx)
 	g.SetLimit(min(a.config.toolConcurrency, len(toolReqs)))
@@ -477,10 +447,8 @@ func (a *LLMAgent) executeTools(
 	}
 
 	// Wait for all tools to complete
-	if err := g.Wait(); err != nil {
-		close(results)
-		return nil, fmt.Errorf("%w: %w", agent.ErrToolExecution, err)
-	}
+	// Note: g.Wait() should never return an error since goroutines always return nil
+	_ = g.Wait()
 
 	close(results)
 
@@ -506,29 +474,29 @@ func (a *LLMAgent) executeTools(
 			msg = llm.NewMessage(llm.RoleTool, llm.NewToolResponsePart(errResp))
 
 			// Yield error tool result event
-			if !yieldEvent(agent.ToolResultEvent{
+			if !yield(agent.ToolResultEvent{
 				Envelope: makeEnvelope(),
 				Response: *errResp,
-			}) {
-				return messages, nil // Consumer stopped listening
+			}, nil) {
+				return messages // Consumer stopped listening
 			}
 		} else {
 			// Tool execution succeeded
 			msg = llm.NewMessage(llm.RoleTool, llm.NewToolResponsePart(result.response))
 
 			// Yield tool result event
-			if !yieldEvent(agent.ToolResultEvent{
+			if !yield(agent.ToolResultEvent{
 				Envelope: makeEnvelope(),
 				Response: *result.response,
-			}) {
-				return messages, nil // Consumer stopped listening
+			}, nil) {
+				return messages // Consumer stopped listening
 			}
 		}
 
 		messages = append(messages, msg)
 	}
 
-	return messages, nil
+	return messages
 }
 
 // mapLLMFinishReason converts an llm.FinishReason to an agent.FinishReason.
@@ -561,17 +529,6 @@ func mapLLMFinishReason(reason llm.FinishReason) (agent.FinishReason, error) {
 	default:
 		return agent.FinishReasonError, fmt.Errorf("unhandled finish reason: %v", reason)
 	}
-}
-
-// mapErrorToFinishReason determines the appropriate finish reason for an error.
-// Returns FinishReasonCanceled for context cancellation/deadline, otherwise
-// returns FinishReasonError.
-func mapErrorToFinishReason(err error) agent.FinishReason {
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		return agent.FinishReasonInterrupted
-	}
-
-	return agent.FinishReasonError
 }
 
 // ptr is a helper to get a pointer to a value.
