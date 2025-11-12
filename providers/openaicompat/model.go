@@ -7,7 +7,7 @@ import (
 	"iter"
 	"strings"
 
-	"github.com/openai/openai-go/v2"
+	"github.com/openai/openai-go/v3"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )

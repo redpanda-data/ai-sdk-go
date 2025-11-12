@@ -1,8 +1,8 @@
 package openai
 
 import (
-	"github.com/openai/openai-go/v2/shared"
-	"github.com/openai/openai-go/v2/shared/constant"
+	"github.com/openai/openai-go/v3/shared"
+	"github.com/openai/openai-go/v3/shared/constant"
 )
 
 // Model name constants for commonly used OpenAI models.

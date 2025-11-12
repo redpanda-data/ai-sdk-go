@@ -5,11 +5,11 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/openai/openai-go/v2"
-	"github.com/openai/openai-go/v2/packages/param"
-	"github.com/openai/openai-go/v2/responses"
-	"github.com/openai/openai-go/v2/shared"
-	"github.com/openai/openai-go/v2/shared/constant"
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/packages/param"
+	"github.com/openai/openai-go/v3/responses"
+	"github.com/openai/openai-go/v3/shared"
+	"github.com/openai/openai-go/v3/shared/constant"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
@@ -234,8 +234,10 @@ func (*RequestMapper) mapToolResponseMessage(part *llm.Part) (responses.Response
 
 	functionOutput := &responses.ResponseInputItemFunctionCallOutputParam{
 		CallID: part.ToolResponse.ID,
-		Output: output,
-		Type:   constant.FunctionCallOutput(""),
+		Output: responses.ResponseInputItemFunctionCallOutputOutputUnionParam{
+			OfString: param.NewOpt(output),
+		},
+		Type: constant.FunctionCallOutput(""),
 	}
 
 	return responses.ResponseInputItemUnionParam{
