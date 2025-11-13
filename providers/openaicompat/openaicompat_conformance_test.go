@@ -80,10 +80,10 @@ func (f *OpenAICompatFixture) NewModel(modelName string) (llm.Model, error) {
 	return f.provider.NewModel(modelName)
 }
 
-// TestOpenAICompatConformance runs the generic conformance test suite for the OpenAI-compatible provider.
+// TestOpenAICompatConformance_Integration runs the generic conformance test suite for the OpenAI-compatible provider.
 //
 //nolint:paralleltest // Test suite manages its own lifecycle
-func TestOpenAICompatConformance(t *testing.T) {
+func TestOpenAICompatConformance_Integration(t *testing.T) {
 	fixture := NewOpenAICompatFixture(t)
 	suite.Run(t, conformance.NewSuite(fixture))
 }

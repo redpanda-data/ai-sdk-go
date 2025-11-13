@@ -99,18 +99,18 @@ func (f *DeepSeekFixture) NewModel(modelName string) (llm.Model, error) {
 	return f.provider.NewModel(modelName)
 }
 
-// TestDeepSeekConformance runs the generic conformance test suite against DeepSeek API.
+// TestDeepSeekConformance_Integration runs the generic conformance test suite against DeepSeek API.
 //
 // Set DEEPSEEK_API_KEY to run these tests:
 //
-//	DEEPSEEK_API_KEY=sk-xxx go test -v -run TestDeepSeekConformance
+//	DEEPSEEK_API_KEY=sk-xxx go test -v -run TestDeepSeekConformance_Integration
 //
 // Optional environment variables:
 //
 //	DEEPSEEK_BASE_URL - API base URL (default: https://api.deepseek.com)
 //
 //nolint:paralleltest // Test suite manages its own lifecycle
-func TestDeepSeekConformance(t *testing.T) {
+func TestDeepSeekConformance_Integration(t *testing.T) {
 	fixture := NewDeepSeekFixture(t)
 	suite.Run(t, conformance.NewSuite(fixture))
 }
