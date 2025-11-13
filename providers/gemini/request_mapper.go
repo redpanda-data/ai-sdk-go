@@ -76,7 +76,7 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) ([]*genai.Content, *genai.
 		config.FrequencyPenalty = rm.config.FrequencyPenalty
 	}
 
-	// Apply response format from request (takes precedence over config)
+	// Apply response format from request
 	//nolint:nestif // Response format handling requires nested structure
 	if req.ResponseFormat != nil {
 		switch req.ResponseFormat.Type {
@@ -94,15 +94,6 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) ([]*genai.Content, *genai.
 
 				config.ResponseJsonSchema = schemaMap
 			}
-		}
-	} else {
-		// Fallback to config-based settings if no request format specified
-		if rm.config.ResponseMimeType != nil {
-			config.ResponseMIMEType = *rm.config.ResponseMimeType
-		}
-
-		if rm.config.ResponseSchema != nil {
-			config.ResponseJsonSchema = *rm.config.ResponseSchema
 		}
 	}
 

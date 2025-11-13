@@ -24,8 +24,6 @@ type Config struct {
 	Stop             []string
 	PresencePenalty  *float32
 	FrequencyPenalty *float32
-	ResponseMimeType *string // For JSON mode: "application/json"
-	ResponseSchema   *string // JSON schema for structured output
 
 	// Extended thinking configuration
 	EnableThinking bool // Enable thinking for reasoning models
@@ -199,33 +197,6 @@ func WithFrequencyPenalty(penalty float32) Option {
 func WithThinking(enabled bool) Option {
 	return func(cfg *Config) error {
 		cfg.EnableThinking = enabled
-		return nil
-	}
-}
-
-// WithJSONMode enables JSON mode output.
-// Sets the response MIME type to application/json.
-func WithJSONMode() Option {
-	return func(cfg *Config) error {
-		mimeType := mimeTypeJSON
-		cfg.ResponseMimeType = &mimeType
-
-		return nil
-	}
-}
-
-// WithResponseSchema sets a JSON schema for structured output.
-// Automatically enables JSON mode.
-func WithResponseSchema(schema string) Option {
-	return func(cfg *Config) error {
-		if schema == "" {
-			return errors.New("response schema cannot be empty")
-		}
-
-		mimeType := mimeTypeJSON
-		cfg.ResponseMimeType = &mimeType
-		cfg.ResponseSchema = &schema
-
 		return nil
 	}
 }
