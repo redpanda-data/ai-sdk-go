@@ -192,7 +192,6 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 					}
 
 				default:
-					// Skip unsupported part types
 					continue
 				}
 
@@ -236,6 +235,5 @@ func (m *Model) marshalFunctionArgs(args map[string]any) ([]byte, error) {
 		return []byte("{}"), nil
 	}
 
-	// Use json.Marshal from encoding/json package
 	return json.Marshal(args)
 }
