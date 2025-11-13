@@ -19,41 +19,6 @@ type ResponseMapper struct{}
 // Zero value is also valid; this exists for callers that prefer constructors.
 func NewResponseMapper() *ResponseMapper { return &ResponseMapper{} }
 
-// stripMarkdownCodeFence removes markdown code fences from JSON responses.
-// Gemini sometimes wraps JSON in ```json ... ``` even in JSON mode.
-//
-//nolint:nestif // Fence parsing requires nested structure
-func stripMarkdownCodeFence(text string) string {
-	// Remove ```json\n at start and \n``` at end
-	if len(text) > 7 && text[0:3] == "```" {
-		// Find first newline after opening fence
-		start := 3
-		for start < len(text) && text[start] != '\n' {
-			start++
-		}
-
-		if start < len(text) {
-			start++ // skip the newline
-		}
-
-		// Find closing fence
-		end := len(text)
-		if end > 3 && text[end-3:] == "```" {
-			end -= 3
-			// Also trim trailing newline before fence
-			if end > 0 && text[end-1] == '\n' {
-				end--
-			}
-		}
-
-		if start < end {
-			return text[start:end]
-		}
-	}
-
-	return text
-}
-
 // FromProvider converts a Gemini GenerateContentResponse into llm.Response.
 func (m *ResponseMapper) FromProvider(r *genai.GenerateContentResponse) (*llm.Response, error) {
 	if r == nil {
@@ -123,10 +88,8 @@ func (m *ResponseMapper) mapParts(parts []*genai.Part) ([]*llm.Part, bool, error
 					Text: part.Text,
 				}))
 			} else {
-				// Regular text part - strip markdown code fences if present
-				// (Gemini sometimes wraps JSON in ```json...``` even in JSON mode)
-				text := stripMarkdownCodeFence(part.Text)
-				content = append(content, llm.NewTextPart(text))
+				// Regular text part
+				content = append(content, llm.NewTextPart(part.Text))
 			}
 
 		case part.FunctionCall != nil:
@@ -149,8 +112,6 @@ func (m *ResponseMapper) mapParts(parts []*genai.Part) ([]*llm.Part, bool, error
 			}))
 
 		case part.FunctionResponse != nil:
-			// Tool response (function response)
-			// Convert response to JSON
 			responseJSON, err := json.Marshal(part.FunctionResponse.Response)
 			if err != nil {
 				return nil, false, fmt.Errorf("failed to marshal function response: %w", err)
@@ -179,8 +140,6 @@ func (m *ResponseMapper) mapParts(parts []*genai.Part) ([]*llm.Part, bool, error
 }
 
 // mapFinishReason converts Gemini's finish reason to our unified finish reason.
-//
-
 func (m *ResponseMapper) mapFinishReason(reason genai.FinishReason, hasToolCalls bool) llm.FinishReason {
 	// If there are tool calls, the finish reason should be ToolCalls
 	if hasToolCalls {
