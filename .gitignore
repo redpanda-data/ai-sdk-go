@@ -31,3 +31,5 @@ go.work.sum
 # IDE directories
 .vscode
 .idea
+.build
+.bin
