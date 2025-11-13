@@ -9,10 +9,6 @@ vars:
   GO_ROOT: "{{.BUILD_ROOT}}/go{{.GO_VERSION}}"
   GO_BIN: "{{.GO_ROOT}}/bin/go"
   MODULE_PATH: github.com/redpanda-data/ai-sdk-go
-  LINT_DIRS:
-    sh: find . -name "*.go" -not -path "./build/*" -not -path "./.git/*" | cut -d/ -f2 | sort -u | awk '{print "./" $0 "/..."}' | tr '\n' ' '
-  TEST_DIRS:
-    sh: find . -name "*.go" -not -path "./build/*" -not -path "./.git/*" | cut -d/ -f2 | sort -u | awk '{print "./" $0 "/..."}' | tr '\n' ' '
 
 includes:
   install: taskfiles/install.yaml
@@ -23,7 +19,7 @@ tasks:
     deps:
       - install:golangci-lint
     cmds:
-      - '{{.BIN_DIR}}/golangci-lint run --fix --timeout 10m {{.LINT_DIRS}}'
+      - '{{.BIN_DIR}}/golangci-lint run --fix --timeout 10m ./...'
 
   test:
     desc: Run all tests with coverage
@@ -31,7 +27,7 @@ tasks:
       - install:go
       - install:tparse
     cmds:
-      - '{{.GO_BIN}} test -json -cover -parallel 10 {{.TEST_DIRS}} | {{.BIN_DIR}}/tparse -follow -all'
+      - '{{.GO_BIN}} test -json -cover -parallel 10 ./... | {{.BIN_DIR}}/tparse -follow -all'
 
   test:unit:
     desc: Run unit tests only with coverage (excludes integration tests)
@@ -39,7 +35,7 @@ tasks:
       - install:go
       - install:tparse
     cmds:
-      - '{{.GO_BIN}} test -json -cover -short -parallel 10 {{.TEST_DIRS}} | {{.BIN_DIR}}/tparse -follow -all'
+      - '{{.GO_BIN}} test -json -cover -short -parallel 10 ./... | {{.BIN_DIR}}/tparse -follow -all'
 
   test:integration:
     desc: Run integration tests with coverage (requires OPENAI_API_KEY)
@@ -47,7 +43,7 @@ tasks:
       - install:go
       - install:tparse
     cmds:
-      - '{{.GO_BIN}} test -json -cover -parallel 10 -run Integration {{.TEST_DIRS}} | {{.BIN_DIR}}/tparse -follow -all'
+      - '{{.GO_BIN}} test -json -cover -parallel 10 -run Integration ./... | {{.BIN_DIR}}/tparse -follow -all'
 
   ci:
     desc: Run all CI checks (lint, test:unit)
