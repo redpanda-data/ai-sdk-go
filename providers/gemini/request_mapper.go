@@ -77,7 +77,6 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) ([]*genai.Content, *genai.
 	}
 
 	// Apply response format from request
-	//nolint:nestif // Response format handling requires nested structure
 	if req.ResponseFormat != nil {
 		switch req.ResponseFormat.Type {
 		case llm.ResponseFormatJSONObject:
