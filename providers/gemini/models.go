@@ -18,21 +18,6 @@ type ModelDefinition struct {
 	Constraints  llm.ModelConstraints
 }
 
-// modelAliases maps common model name aliases to their canonical versions.
-var modelAliases = map[string]string{
-	// 2.5 Pro aliases
-	"gemini-2.5-pro-latest": ModelGemini25Pro,
-	"gemini-pro":            ModelGemini25Pro,
-
-	// 2.5 Flash aliases
-	"gemini-2.5-flash-latest": ModelGemini25Flash,
-	"gemini-flash":            ModelGemini25Flash,
-
-	// 2.5 Flash Lite aliases
-	"gemini-2.5-flash-lite-latest": ModelGemini25FlashLite,
-	"gemini-flash-lite":            ModelGemini25FlashLite,
-}
-
 // supportedModels defines all Gemini models with their capabilities and constraints.
 // Based on https://ai.google.dev/gemini-api/docs/models
 var supportedModels = map[string]ModelDefinition{
