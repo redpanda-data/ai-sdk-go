@@ -1,0 +1,385 @@
+package anthropic
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+
+	"github.com/anthropics/anthropic-sdk-go"
+	"github.com/anthropics/anthropic-sdk-go/packages/param"
+	"github.com/anthropics/anthropic-sdk-go/shared/constant"
+
+	"github.com/redpanda-data/ai-sdk-go/llm"
+)
+
+// RequestMapper handles conversion from unified Request to Anthropic API format.
+type RequestMapper struct {
+	config       *Config
+	schemaMapper *SchemaMapper
+}
+
+// NewRequestMapper creates a new RequestMapper with the given configuration.
+func NewRequestMapper(config *Config) *RequestMapper {
+	return &RequestMapper{
+		config:       config,
+		schemaMapper: NewSchemaMapper(),
+	}
+}
+
+// ToProvider converts our unified Request to Anthropic Beta Messages API format.
+func (rm *RequestMapper) ToProvider(req *llm.Request) (anthropic.BetaMessageNewParams, error) {
+	// Determine which model name to use (custom override if set, otherwise the configured model)
+	modelName := rm.config.ModelName
+	if rm.config.CustomModelName != "" {
+		modelName = rm.config.CustomModelName
+	}
+
+	// Create base request for Beta Messages API
+	apiReq := anthropic.BetaMessageNewParams{
+		Model: anthropic.Model(modelName),
+	}
+
+	// MaxTokens is required by Anthropic
+	maxTokens := 4096 // default
+	if rm.config.MaxTokens != nil {
+		maxTokens = *rm.config.MaxTokens
+	}
+
+	apiReq.MaxTokens = int64(maxTokens)
+
+	// Map messages and system prompt
+	messages, systemPrompt, err := rm.mapMessages(req.Messages)
+	if err != nil {
+		return apiReq, fmt.Errorf("%w: message mapping failed: %w", llm.ErrRequestMapping, err)
+	}
+
+	apiReq.Messages = messages
+	if len(systemPrompt) > 0 {
+		apiReq.System = systemPrompt
+	}
+
+	// Apply configuration parameters
+	if rm.config.Temperature != nil {
+		apiReq.Temperature = param.NewOpt(*rm.config.Temperature)
+	}
+
+	if rm.config.TopP != nil {
+		apiReq.TopP = param.NewOpt(*rm.config.TopP)
+	}
+
+	if rm.config.TopK != nil {
+		apiReq.TopK = param.NewOpt(int64(*rm.config.TopK))
+	}
+
+	if len(rm.config.Stop) > 0 {
+		apiReq.StopSequences = rm.config.Stop
+	}
+
+	// Apply tool definitions if provided
+	// Note: Anthropic doesn't support response_format (JSON mode or structured output)
+	// Users should use tool calling directly for structured output
+	if len(req.Tools) > 0 {
+		tools, err := rm.mapToolDefinitions(req.Tools)
+		if err != nil {
+			return apiReq, fmt.Errorf("%w: tool mapping failed: %w", llm.ErrRequestMapping, err)
+		}
+
+		apiReq.Tools = tools
+
+		// Apply tool choice if specified
+		if req.ToolChoice != nil {
+			toolChoice, err := rm.mapToolChoice(req.ToolChoice)
+			if err != nil {
+				return apiReq, fmt.Errorf("%w: tool choice mapping failed: %w", llm.ErrRequestMapping, err)
+			}
+
+			apiReq.ToolChoice = toolChoice
+		}
+	}
+
+	// Enable extended thinking if configured
+	if rm.config.EnableThinking {
+		apiReq.Thinking = anthropic.BetaThinkingConfigParamUnion{
+			OfEnabled: &anthropic.BetaThinkingConfigEnabledParam{
+				Type:         constant.Enabled(""),
+				BudgetTokens: int64(maxTokens / 4), // Use 25% of max tokens for thinking
+			},
+		}
+	}
+
+	return apiReq, nil
+}
+
+// mapMessages converts our unified messages to Anthropic format.
+// It separates system messages from user/assistant messages.
+func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]anthropic.BetaMessageParam, []anthropic.BetaTextBlockParam, error) {
+	apiMessages := make([]anthropic.BetaMessageParam, 0, len(messages))
+
+	var systemBlocks []anthropic.BetaTextBlockParam
+
+	for _, msg := range messages {
+		switch msg.Role {
+		case llm.RoleSystem:
+			// System messages go into the separate system parameter
+			for _, part := range msg.Content {
+				if part.IsText() {
+					systemBlocks = append(systemBlocks, anthropic.BetaTextBlockParam{
+						Type: constant.Text(""),
+						Text: part.Text,
+					})
+				}
+			}
+
+		case llm.RoleUser:
+			apiMsg, err := rm.mapUserMessage(msg)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			apiMessages = append(apiMessages, apiMsg)
+
+		case llm.RoleAssistant:
+			apiMsg, err := rm.mapAssistantMessage(msg)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			apiMessages = append(apiMessages, apiMsg)
+
+		case llm.RoleTool:
+			// Tool responses are embedded in the content of user messages in Anthropic's format
+			// We need to append them to the previous user message or create a new user message
+			if len(apiMessages) == 0 || apiMessages[len(apiMessages)-1].Role != anthropic.BetaMessageParamRoleUser {
+				// Create a new user message for tool results
+				apiMessages = append(apiMessages, anthropic.BetaMessageParam{
+					Role: anthropic.BetaMessageParamRoleUser,
+				})
+			}
+
+			// Append tool result blocks to the last user message
+			lastMsg := &apiMessages[len(apiMessages)-1]
+
+			for _, part := range msg.Content {
+				if part.IsToolResponse() {
+					block, err := rm.mapToolResultBlock(part)
+					if err != nil {
+						return nil, nil, err
+					}
+
+					lastMsg.Content = append(lastMsg.Content, block)
+				}
+			}
+
+		default:
+			return nil, nil, fmt.Errorf("unsupported message role: %s", msg.Role)
+		}
+	}
+
+	return apiMessages, systemBlocks, nil
+}
+
+// mapUserMessage converts a user message to Anthropic format.
+func (rm *RequestMapper) mapUserMessage(msg llm.Message) (anthropic.BetaMessageParam, error) {
+	apiMsg := anthropic.BetaMessageParam{
+		Role: anthropic.BetaMessageParamRoleUser,
+	}
+
+	for _, part := range msg.Content {
+		if part.IsText() {
+			apiMsg.Content = append(apiMsg.Content, anthropic.BetaContentBlockParamUnion{
+				OfText: &anthropic.BetaTextBlockParam{
+					Type: constant.Text(""),
+					Text: part.Text,
+				},
+			})
+		} else {
+			return apiMsg, fmt.Errorf("unsupported part type in user message: %s", part.Kind)
+		}
+	}
+
+	return apiMsg, nil
+}
+
+// mapAssistantMessage converts an assistant message to Anthropic format.
+func (rm *RequestMapper) mapAssistantMessage(msg llm.Message) (anthropic.BetaMessageParam, error) {
+	apiMsg := anthropic.BetaMessageParam{
+		Role: anthropic.BetaMessageParamRoleAssistant,
+	}
+
+	for _, part := range msg.Content {
+		switch {
+		case part.IsText():
+			apiMsg.Content = append(apiMsg.Content, anthropic.BetaContentBlockParamUnion{
+				OfText: &anthropic.BetaTextBlockParam{
+					Type: constant.Text(""),
+					Text: part.Text,
+				},
+			})
+
+		case part.IsToolRequest():
+			if part.ToolRequest == nil {
+				return apiMsg, errors.New("tool request part has nil ToolRequest")
+			}
+
+			// Parse arguments as map for input field
+			var input map[string]any
+			if err := json.Unmarshal(part.ToolRequest.Arguments, &input); err != nil {
+				return apiMsg, fmt.Errorf("failed to parse tool arguments: %w", err)
+			}
+
+			apiMsg.Content = append(apiMsg.Content, anthropic.BetaContentBlockParamUnion{
+				OfToolUse: &anthropic.BetaToolUseBlockParam{
+					Type:  constant.ToolUse(""),
+					ID:    part.ToolRequest.ID,
+					Name:  part.ToolRequest.Name,
+					Input: input,
+				},
+			})
+
+		case part.IsReasoning():
+			// Map reasoning to thinking block
+			apiMsg.Content = append(apiMsg.Content, anthropic.BetaContentBlockParamUnion{
+				OfThinking: &anthropic.BetaThinkingBlockParam{
+					Type:     constant.Thinking(""),
+					Thinking: part.Text,
+				},
+			})
+
+		default:
+			return apiMsg, fmt.Errorf("unsupported part type in assistant message: %s", part.Kind)
+		}
+	}
+
+	return apiMsg, nil
+}
+
+// mapToolResultBlock converts a tool response to Anthropic's tool_result format.
+func (rm *RequestMapper) mapToolResultBlock(part *llm.Part) (anthropic.BetaContentBlockParamUnion, error) {
+	if part.ToolResponse == nil {
+		return anthropic.BetaContentBlockParamUnion{}, errors.New("tool response part has nil ToolResponse")
+	}
+
+	var (
+		isError bool
+		content []anthropic.BetaToolResultBlockParamContentUnion
+	)
+
+	if part.ToolResponse.Error != "" {
+		// If there was an error, include it in the content
+		isError = true
+		content = []anthropic.BetaToolResultBlockParamContentUnion{
+			{OfText: &anthropic.BetaTextBlockParam{
+				Type: constant.Text(""),
+				Text: part.ToolResponse.Error,
+			}},
+		}
+	} else {
+		// Use the successful result
+		content = []anthropic.BetaToolResultBlockParamContentUnion{
+			{OfText: &anthropic.BetaTextBlockParam{
+				Type: constant.Text(""),
+				Text: string(part.ToolResponse.Result),
+			}},
+		}
+	}
+
+	return anthropic.BetaContentBlockParamUnion{
+		OfToolResult: &anthropic.BetaToolResultBlockParam{
+			Type:      constant.ToolResult(""),
+			ToolUseID: part.ToolResponse.ID,
+			Content:   content,
+			IsError:   param.NewOpt(isError),
+		},
+	}, nil
+}
+
+// mapToolDefinitions converts our tool definitions to Anthropic format.
+func (rm *RequestMapper) mapToolDefinitions(tools []llm.ToolDefinition) ([]anthropic.BetaToolUnionParam, error) {
+	apiTools := make([]anthropic.BetaToolUnionParam, 0, len(tools))
+
+	for _, tool := range tools {
+		// Parse the JSON schema
+		var schemaMap map[string]any
+		if err := json.Unmarshal(tool.Parameters, &schemaMap); err != nil {
+			return nil, fmt.Errorf("failed to parse tool schema for %s: %w", tool.Name, err)
+		}
+
+		// Adapt the schema for Anthropic
+		schema := rm.schemaMapper.AdaptSchemaForAnthropic(schemaMap)
+
+		// Build the input schema param
+		inputSchema := anthropic.BetaToolInputSchemaParam{
+			Type:        constant.Object(""),
+			ExtraFields: schema,
+		}
+
+		if props, ok := schema["properties"]; ok {
+			inputSchema.Properties = props
+		}
+
+		if req, ok := schema["required"].([]any); ok {
+			required := make([]string, 0, len(req))
+			for _, r := range req {
+				if s, ok := r.(string); ok {
+					required = append(required, s)
+				}
+			}
+
+			inputSchema.Required = required
+		}
+
+		apiTool := anthropic.BetaToolUnionParam{
+			OfTool: &anthropic.BetaToolParam{
+				Name:        tool.Name,
+				Description: param.NewOpt(tool.Description),
+				InputSchema: inputSchema,
+			},
+		}
+
+		apiTools = append(apiTools, apiTool)
+	}
+
+	return apiTools, nil
+}
+
+// mapToolChoice converts our tool choice to Anthropic format.
+func (rm *RequestMapper) mapToolChoice(choice *llm.ToolChoice) (anthropic.BetaToolChoiceUnionParam, error) {
+	switch choice.Type {
+	case llm.ToolChoiceAuto:
+		return anthropic.BetaToolChoiceUnionParam{
+			OfAuto: &anthropic.BetaToolChoiceAutoParam{
+				Type:                   constant.Auto(""),
+				DisableParallelToolUse: param.NewOpt(false),
+			},
+		}, nil
+
+	case llm.ToolChoiceRequired:
+		// Map "required" to "any" in Anthropic
+		return anthropic.BetaToolChoiceUnionParam{
+			OfAny: &anthropic.BetaToolChoiceAnyParam{
+				Type:                   constant.Any(""),
+				DisableParallelToolUse: param.NewOpt(false),
+			},
+		}, nil
+
+	case llm.ToolChoiceNone:
+		// Anthropic doesn't have an explicit "none" - we handle this by not passing tools
+		return anthropic.BetaToolChoiceUnionParam{}, errors.New("ToolChoiceNone should be handled by not passing tools")
+
+	case llm.ToolChoiceSpecific:
+		if choice.Name == nil || *choice.Name == "" {
+			return anthropic.BetaToolChoiceUnionParam{}, errors.New("tool name required for ToolChoiceSpecific")
+		}
+
+		return anthropic.BetaToolChoiceUnionParam{
+			OfTool: &anthropic.BetaToolChoiceToolParam{
+				Type:                   constant.Tool(""),
+				Name:                   *choice.Name,
+				DisableParallelToolUse: param.NewOpt(true),
+			},
+		}, nil
+
+	default:
+		return anthropic.BetaToolChoiceUnionParam{}, fmt.Errorf("unsupported tool choice type: %s", choice.Type)
+	}
+}
