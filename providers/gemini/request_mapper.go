@@ -10,6 +10,10 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
+const (
+	mimeTypeJSON = "application/json"
+)
+
 // RequestMapper handles conversion from unified Request to Gemini API format.
 type RequestMapper struct {
 	config       *Config
@@ -73,19 +77,21 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) ([]*genai.Content, *genai.
 	}
 
 	// Apply response format from request (takes precedence over config)
+	//nolint:nestif // Response format handling requires nested structure
 	if req.ResponseFormat != nil {
 		switch req.ResponseFormat.Type {
 		case llm.ResponseFormatJSONObject:
-			config.ResponseMIMEType = "application/json"
+			config.ResponseMIMEType = mimeTypeJSON
 
 		case llm.ResponseFormatJSONSchema:
 			if req.ResponseFormat.JSONSchema != nil {
-				config.ResponseMIMEType = "application/json"
+				config.ResponseMIMEType = mimeTypeJSON
 				// Convert JSONSchema.Schema (json.RawMessage) to interface{}
 				var schemaMap map[string]any
 				if err := json.Unmarshal(req.ResponseFormat.JSONSchema.Schema, &schemaMap); err != nil {
 					return nil, nil, fmt.Errorf("%w: failed to parse response schema: %w", llm.ErrRequestMapping, err)
 				}
+
 				config.ResponseJsonSchema = schemaMap
 			}
 		}

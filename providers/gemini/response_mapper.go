@@ -21,6 +21,8 @@ func NewResponseMapper() *ResponseMapper { return &ResponseMapper{} }
 
 // stripMarkdownCodeFence removes markdown code fences from JSON responses.
 // Gemini sometimes wraps JSON in ```json ... ``` even in JSON mode.
+//
+//nolint:nestif // Fence parsing requires nested structure
 func stripMarkdownCodeFence(text string) string {
 	// Remove ```json\n at start and \n``` at end
 	if len(text) > 7 && text[0:3] == "```" {
@@ -29,6 +31,7 @@ func stripMarkdownCodeFence(text string) string {
 		for start < len(text) && text[start] != '\n' {
 			start++
 		}
+
 		if start < len(text) {
 			start++ // skip the newline
 		}
@@ -47,6 +50,7 @@ func stripMarkdownCodeFence(text string) string {
 			return text[start:end]
 		}
 	}
+
 	return text
 }
 
@@ -176,7 +180,7 @@ func (m *ResponseMapper) mapParts(parts []*genai.Part) ([]*llm.Part, bool, error
 
 // mapFinishReason converts Gemini's finish reason to our unified finish reason.
 //
-//nolint:exhaustive // Additional Gemini finish reasons are handled by default case
+
 func (m *ResponseMapper) mapFinishReason(reason genai.FinishReason, hasToolCalls bool) llm.FinishReason {
 	// If there are tool calls, the finish reason should be ToolCalls
 	if hasToolCalls {

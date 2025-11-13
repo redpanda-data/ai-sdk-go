@@ -207,7 +207,7 @@ func WithThinking(enabled bool) Option {
 // Sets the response MIME type to application/json.
 func WithJSONMode() Option {
 	return func(cfg *Config) error {
-		mimeType := "application/json"
+		mimeType := mimeTypeJSON
 		cfg.ResponseMimeType = &mimeType
 
 		return nil
@@ -222,7 +222,7 @@ func WithResponseSchema(schema string) Option {
 			return errors.New("response schema cannot be empty")
 		}
 
-		mimeType := "application/json"
+		mimeType := mimeTypeJSON
 		cfg.ResponseMimeType = &mimeType
 		cfg.ResponseSchema = &schema
 
