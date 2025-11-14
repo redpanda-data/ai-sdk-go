@@ -146,30 +146,6 @@ func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]anthropic.BetaMe
 
 			apiMessages = append(apiMessages, apiMsg)
 
-		case llm.RoleTool:
-			// Tool responses are embedded in the content of user messages in Anthropic's format
-			// We need to append them to the previous user message or create a new user message
-			if len(apiMessages) == 0 || apiMessages[len(apiMessages)-1].Role != anthropic.BetaMessageParamRoleUser {
-				// Create a new user message for tool results
-				apiMessages = append(apiMessages, anthropic.BetaMessageParam{
-					Role: anthropic.BetaMessageParamRoleUser,
-				})
-			}
-
-			// Append tool result blocks to the last user message
-			lastMsg := &apiMessages[len(apiMessages)-1]
-
-			for _, part := range msg.Content {
-				if part.IsToolResponse() {
-					block, err := rm.mapToolResultBlock(part)
-					if err != nil {
-						return nil, nil, err
-					}
-
-					lastMsg.Content = append(lastMsg.Content, block)
-				}
-			}
-
 		default:
 			return nil, nil, fmt.Errorf("unsupported message role: %s", msg.Role)
 		}
@@ -192,6 +168,13 @@ func (rm *RequestMapper) mapUserMessage(msg llm.Message) (anthropic.BetaMessageP
 					Text: part.Text,
 				},
 			})
+		} else if part.IsToolResponse() {
+			block, err := rm.mapToolResultBlock(part)
+			if err != nil {
+				return apiMsg, err
+			}
+
+			apiMsg.Content = append(apiMsg.Content, block)
 		} else {
 			return apiMsg, fmt.Errorf("unsupported part type in user message: %s", part.Kind)
 		}

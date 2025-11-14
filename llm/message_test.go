@@ -57,7 +57,7 @@ func TestNewMessage(t *testing.T) {
 		},
 		{
 			name:      "tool response message",
-			role:      llm.RoleTool,
+			role:      llm.RoleUser,
 			parts:     []*llm.Part{llm.NewToolResponsePart(toolResp)},
 			wantParts: 1,
 			wantText:  "",

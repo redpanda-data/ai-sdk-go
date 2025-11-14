@@ -183,17 +183,6 @@ func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]openai.ChatCompl
 				apiMessages = append(apiMessages, apiMsg)
 			}
 
-		case llm.RoleTool:
-			// Tool responses become separate tool messages
-			for _, part := range toolResponses {
-				apiMsg, err := rm.mapToolMessage(&part)
-				if err != nil {
-					return nil, err
-				}
-
-				apiMessages = append(apiMessages, apiMsg)
-			}
-
 		default:
 			return nil, fmt.Errorf("unsupported message role: %q", msg.Role)
 		}

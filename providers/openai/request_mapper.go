@@ -115,11 +115,6 @@ func (rm *RequestMapper) mapMessagesToInputItems(messages []llm.Message) ([]resp
 		for _, part := range msg.Content {
 			switch {
 			case part.IsText():
-				// Text parts cannot be in RoleTool messages
-				if msg.Role == llm.RoleTool {
-					return nil, fmt.Errorf("%w: RoleTool messages cannot contain text parts", llm.ErrRequestMapping)
-				}
-
 				item, err := rm.mapTextMessage(part, msg.Role)
 				if err != nil {
 					return nil, err
@@ -141,9 +136,9 @@ func (rm *RequestMapper) mapMessagesToInputItems(messages []llm.Message) ([]resp
 				items = append(items, item)
 
 			case part.IsToolResponse():
-				// Tool responses must be in RoleTool messages
-				if msg.Role != llm.RoleTool {
-					return nil, fmt.Errorf("%w: tool response parts require RoleTool, got %s", llm.ErrRequestMapping, msg.Role)
+				// Tool responses must be in RoleUser messages
+				if msg.Role != llm.RoleUser {
+					return nil, fmt.Errorf("%w: tool response parts require RoleUser, got %s", llm.ErrRequestMapping, msg.Role)
 				}
 
 				item, err := rm.mapToolResponseMessage(part)
@@ -331,10 +326,6 @@ func (*RequestMapper) mapRoleToAPI(role llm.MessageRole) (responses.EasyInputMes
 		return responses.EasyInputMessageRoleAssistant, nil
 	case llm.RoleSystem:
 		return responses.EasyInputMessageRoleSystem, nil
-	case llm.RoleTool:
-		// RoleTool is not a direct input message role in the same way.
-		// Tool responses are handled via specific tool output items.
-		return "", fmt.Errorf("unsupported message role for OpenAI Responses API: %s", role)
 	default:
 		return "", fmt.Errorf("unsupported message role for OpenAI Responses API: %s", role)
 	}

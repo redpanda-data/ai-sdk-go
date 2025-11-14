@@ -221,7 +221,7 @@ func TestTodoTools_Integration(t *testing.T) {
 		conversationHistory = append(conversationHistory, addResponse.Message)
 		if lastToolResponse != nil {
 			conversationHistory = append(conversationHistory, llm.Message{
-				Role: llm.RoleTool,
+				Role: llm.RoleUser,
 				Content: []*llm.Part{
 					llm.NewToolResponsePart(lastToolResponse),
 				},
@@ -265,7 +265,7 @@ func TestTodoTools_Integration(t *testing.T) {
 					// Continue conversation after tool execution to get final response
 					conversationHistory = append(conversationHistory, updateResponse.Message)
 					conversationHistory = append(conversationHistory, llm.Message{
-						Role: llm.RoleTool,
+						Role: llm.RoleUser,
 						Content: []*llm.Part{
 							llm.NewToolResponsePart(toolResp),
 						},

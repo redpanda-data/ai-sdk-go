@@ -26,7 +26,7 @@ func NewOpenAIFixture(t *testing.T) *OpenAIFixture {
 	// Check for API key (skips test if not set)
 	apiKey := openaitest.GetAPIKeyOrSkipTest(t)
 
-	// Create provider
+	// Create provider with standard timeout for regular models
 	provider, err := openai.NewProvider(apiKey, openai.WithTimeout(time.Minute*2))
 	if err != nil {
 		t.Fatalf("Failed to create provider: %v", err)
@@ -38,8 +38,13 @@ func NewOpenAIFixture(t *testing.T) *OpenAIFixture {
 		t.Fatalf("Failed to create standard model: %v", err)
 	}
 
-	// Create reasoning model
-	reasoningModel, err := provider.NewModel(openaitest.TestReasoningModelName,
+	// Create reasoning model with extended timeout since reasoning can take longer
+	reasoningProvider, err := openai.NewProvider(apiKey, openai.WithTimeout(time.Minute*5))
+	if err != nil {
+		t.Fatalf("Failed to create reasoning provider: %v", err)
+	}
+
+	reasoningModel, err := reasoningProvider.NewModel(openaitest.TestReasoningModelName,
 		openai.WithReasoningEffort(openai.ReasoningEffortHigh),
 		openai.WithReasoningSummary(openai.ReasoningSummaryDetailed),
 	)

@@ -153,7 +153,7 @@ func TestContext7Integration_EndToEnd(t *testing.T) { //nolint:paralleltest // c
 
 		// Add tool results to conversation
 		messages = append(messages, llm.Message{
-			Role:    llm.RoleTool,
+			Role:    llm.RoleUser,
 			Content: toolResults,
 		})
 	}

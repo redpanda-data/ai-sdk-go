@@ -490,7 +490,7 @@ func TestMessageMappingWithToolParts(t *testing.T) {
 			name: "tool response message",
 			messages: []llm.Message{
 				{
-					Role: llm.RoleTool,
+					Role: llm.RoleUser,
 					Content: []*llm.Part{
 						llm.NewToolResponsePart(&llm.ToolResponse{
 							ID:     "call_123",
@@ -513,7 +513,7 @@ func TestMessageMappingWithToolParts(t *testing.T) {
 			name: "tool response with error",
 			messages: []llm.Message{
 				{
-					Role: llm.RoleTool,
+					Role: llm.RoleUser,
 					Content: []*llm.Part{
 						llm.NewToolResponsePart(&llm.ToolResponse{
 							ID:    "call_123",
@@ -575,7 +575,7 @@ func TestMessageMappingWithToolParts(t *testing.T) {
 					},
 				},
 				{
-					Role: llm.RoleTool,
+					Role: llm.RoleUser,
 					Content: []*llm.Part{
 						llm.NewToolResponsePart(&llm.ToolResponse{
 							ID:     "call_456",
@@ -646,23 +646,6 @@ func TestMessageRoleValidation(t *testing.T) {
 		errContains string
 	}{
 		{
-			name: "tool response with wrong role (RoleUser)",
-			messages: []llm.Message{
-				{
-					Role: llm.RoleUser,
-					Content: []*llm.Part{
-						llm.NewToolResponsePart(&llm.ToolResponse{
-							ID:     "call_123",
-							Name:   "get_weather",
-							Result: json.RawMessage(`{"temp": 72}`),
-						}),
-					},
-				},
-			},
-			wantErr:     true,
-			errContains: "tool response parts require RoleTool",
-		},
-		{
 			name: "tool response with wrong role (RoleAssistant)",
 			messages: []llm.Message{
 				{
@@ -677,20 +660,7 @@ func TestMessageRoleValidation(t *testing.T) {
 				},
 			},
 			wantErr:     true,
-			errContains: "tool response parts require RoleTool",
-		},
-		{
-			name: "text part in RoleTool message",
-			messages: []llm.Message{
-				{
-					Role: llm.RoleTool,
-					Content: []*llm.Part{
-						llm.NewTextPart("Here's the result"),
-					},
-				},
-			},
-			wantErr:     true,
-			errContains: "RoleTool messages cannot contain text parts",
+			errContains: "tool response parts require RoleUser",
 		},
 		{
 			name: "tool request with wrong role (RoleUser)",
@@ -710,10 +680,10 @@ func TestMessageRoleValidation(t *testing.T) {
 			errContains: "tool request parts require RoleAssistant",
 		},
 		{
-			name: "multiple tool responses in RoleTool message (valid)",
+			name: "multiple tool responses in RoleUser message (valid)",
 			messages: []llm.Message{
 				{
-					Role: llm.RoleTool,
+					Role: llm.RoleUser,
 					Content: []*llm.Part{
 						llm.NewToolResponsePart(&llm.ToolResponse{
 							ID:     "call_123",
@@ -734,7 +704,7 @@ func TestMessageRoleValidation(t *testing.T) {
 			name: "tool response in correct role (valid)",
 			messages: []llm.Message{
 				{
-					Role: llm.RoleTool,
+					Role: llm.RoleUser,
 					Content: []*llm.Part{
 						llm.NewToolResponsePart(&llm.ToolResponse{
 							ID:     "call_123",
