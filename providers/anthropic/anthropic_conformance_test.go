@@ -39,8 +39,10 @@ func NewAnthropicFixture(t *testing.T) *AnthropicFixture {
 	}
 
 	// Create reasoning model (Opus 4.1 with thinking enabled)
+	// Set explicit MaxTokens for reasoning to allow adequate space for complex reasoning
 	reasoningModel, err := provider.NewModel(anthropictest.TestReasoningModelName,
 		anthropic.WithThinking(true),
+		anthropic.WithMaxTokens(8192),
 	)
 	if err != nil {
 		// Reasoning model is optional, just log but don't skip
