@@ -6,18 +6,22 @@ import (
 	"encoding/json"
 
 	"github.com/a2aproject/a2a-go/a2a"
+
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
-// MessageToLLM converts an a2a-go message to LLM SDK message
+// MessageToLLM converts an a2a-go message to LLM SDK message.
 func MessageToLLM(msg *a2a.Message) llm.Message {
 	// Map role
 	var role llm.MessageRole
+
 	switch msg.Role {
 	case a2a.MessageRoleUser:
 		role = llm.RoleUser
 	case a2a.MessageRoleAgent:
 		role = llm.RoleAssistant
+	case a2a.MessageRoleUnspecified:
+		role = llm.RoleUser // fallback
 	default:
 		role = llm.RoleUser // fallback
 	}
@@ -34,19 +38,21 @@ func MessageToLLM(msg *a2a.Message) llm.Message {
 	return llm.NewMessage(role, parts...)
 }
 
-// MessagesToLLM converts a slice of a2a-go messages to LLM SDK messages
+// MessagesToLLM converts a slice of a2a-go messages to LLM SDK messages.
 func MessagesToLLM(a2aMessages []*a2a.Message) []llm.Message {
 	llmMessages := make([]llm.Message, 0, len(a2aMessages))
 	for _, msg := range a2aMessages {
 		llmMessages = append(llmMessages, MessageToLLM(msg))
 	}
+
 	return llmMessages
 }
 
-// MessageFromLLM converts an LLM SDK message to a2a-go message
+// MessageFromLLM converts an LLM SDK message to a2a-go message.
 func MessageFromLLM(llmMsg llm.Message) *a2a.Message {
 	// Map role
 	var role a2a.MessageRole
+
 	switch llmMsg.Role {
 	case llm.RoleUser:
 		role = a2a.MessageRoleUser
@@ -61,9 +67,10 @@ func MessageFromLLM(llmMsg llm.Message) *a2a.Message {
 	// Convert parts
 	parts := make([]a2a.Part, 0, len(llmMsg.Content))
 	for _, part := range llmMsg.Content {
-		if part.IsText() {
+		switch {
+		case part.IsText():
 			parts = append(parts, a2a.TextPart{Text: part.Text})
-		} else if part.IsToolRequest() && part.ToolRequest != nil {
+		case part.IsToolRequest() && part.ToolRequest != nil:
 			// Convert tool request to DataPart with structured content
 			var args map[string]any
 			if err := json.Unmarshal(part.ToolRequest.Arguments, &args); err == nil {
@@ -76,7 +83,7 @@ func MessageFromLLM(llmMsg llm.Message) *a2a.Message {
 					},
 				})
 			}
-		} else if part.IsToolResponse() && part.ToolResponse != nil {
+		case part.IsToolResponse() && part.ToolResponse != nil:
 			// Convert tool response to DataPart
 			var result map[string]any
 			if err := json.Unmarshal(part.ToolResponse.Result, &result); err == nil {
@@ -89,6 +96,7 @@ func MessageFromLLM(llmMsg llm.Message) *a2a.Message {
 				if part.ToolResponse.Error != "" {
 					data["error"] = part.ToolResponse.Error
 				}
+
 				parts = append(parts, a2a.DataPart{
 					Data: data,
 				})
@@ -99,11 +107,12 @@ func MessageFromLLM(llmMsg llm.Message) *a2a.Message {
 	return a2a.NewMessage(role, parts...)
 }
 
-// MessagesFromLLM converts a slice of LLM SDK messages to a2a-go messages
+// MessagesFromLLM converts a slice of LLM SDK messages to a2a-go messages.
 func MessagesFromLLM(llmMessages []llm.Message) []*a2a.Message {
 	a2aMessages := make([]*a2a.Message, 0, len(llmMessages))
 	for _, msg := range llmMessages {
 		a2aMessages = append(a2aMessages, MessageFromLLM(msg))
 	}
+
 	return a2aMessages
 }
