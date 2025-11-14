@@ -24,10 +24,6 @@ const (
 	// RoleSystem indicates the message provides system-level context or instructions.
 	// Only used if the model supports system prompts (check Capabilities.SystemPrompts).
 	RoleSystem MessageRole = "system"
-
-	// RoleTool indicates the message contains the result of a tool execution.
-	// These messages are responses to tool requests from the assistant.
-	RoleTool MessageRole = "tool"
 )
 
 // NewMessage creates a message with the specified role and parts.
@@ -44,9 +40,9 @@ const (
 //	    llm.NewToolRequestPart(toolReq),
 //	)
 //
-// For tool responses, use the tool role:
+// For tool responses, use the user role:
 //
-//	msg := llm.NewMessage(llm.RoleTool, llm.NewToolResponsePart(resp))
+//	msg := llm.NewMessage(llm.RoleUser, llm.NewToolResponsePart(resp))
 func NewMessage(role MessageRole, parts ...*Part) Message {
 	return Message{
 		Role:    role,

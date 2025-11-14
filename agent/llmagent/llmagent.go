@@ -471,7 +471,7 @@ func (a *LLMAgent) executeTools(
 				Name:  result.name,
 				Error: result.err.Error(),
 			}
-			msg = llm.NewMessage(llm.RoleTool, llm.NewToolResponsePart(errResp))
+			msg = llm.NewMessage(llm.RoleUser, llm.NewToolResponsePart(errResp))
 
 			// Yield error tool result event
 			if !yield(agent.ToolResultEvent{
@@ -482,7 +482,7 @@ func (a *LLMAgent) executeTools(
 			}
 		} else {
 			// Tool execution succeeded
-			msg = llm.NewMessage(llm.RoleTool, llm.NewToolResponsePart(result.response))
+			msg = llm.NewMessage(llm.RoleUser, llm.NewToolResponsePart(result.response))
 
 			// Yield tool result event
 			if !yield(agent.ToolResultEvent{

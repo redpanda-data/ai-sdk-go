@@ -273,7 +273,7 @@ func TestFakeModel_Scenario_ToolCalling(t *testing.T) {
 			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("What's the weather in SF?")}},
 			resp1.Message, // Include tool request
 			{
-				Role: llm.RoleTool,
+				Role: llm.RoleUser,
 				Content: []*llm.Part{
 					llm.NewToolResponsePart(&llm.ToolResponse{
 						ID:     resp1.ToolRequests()[0].ID,
@@ -504,7 +504,7 @@ func TestFakeModel_ToolCallingLoop(t *testing.T) {
 		Messages: []llm.Message{
 			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("What is 2 + 2?")}},
 			resp1.Message,
-			{Role: llm.RoleTool, Content: []*llm.Part{llm.NewToolResponsePart(&llm.ToolResponse{
+			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewToolResponsePart(&llm.ToolResponse{
 				ID:     resp1.ToolRequests()[0].ID,
 				Name:   "calculate",
 				Result: []byte(`{"result": 4}`),

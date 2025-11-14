@@ -456,7 +456,7 @@ func TestRegistry_WebfetchToolWithLLM_Integration(t *testing.T) {
 				Content: response.Message.Content, // Include the original tool requests
 			},
 			{
-				Role: llm.RoleTool,
+				Role: llm.RoleUser,
 				Content: []*llm.Part{
 					llm.NewToolResponsePart(toolResponse),
 				},

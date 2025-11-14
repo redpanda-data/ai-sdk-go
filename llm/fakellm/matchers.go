@@ -297,7 +297,7 @@ func LastMessageHasToolResponse(toolName string) Matcher {
 		}
 
 		lastMsg := req.Messages[len(req.Messages)-1]
-		if lastMsg.Role != llm.RoleTool {
+		if lastMsg.Role != llm.RoleUser {
 			return fmt.Errorf("last message is not a tool response (role: %s)", lastMsg.Role)
 		}
 

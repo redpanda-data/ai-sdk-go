@@ -457,7 +457,7 @@ func TestMessageMappingWithToolParts(t *testing.T) {
 			name: "tool response message",
 			messages: []llm.Message{
 				{
-					Role: llm.RoleTool,
+					Role: llm.RoleUser,
 					Content: []*llm.Part{
 						llm.NewToolResponsePart(&llm.ToolResponse{
 							ID:     "call_123",
@@ -480,7 +480,7 @@ func TestMessageMappingWithToolParts(t *testing.T) {
 			name: "tool response with error",
 			messages: []llm.Message{
 				{
-					Role: llm.RoleTool,
+					Role: llm.RoleUser,
 					Content: []*llm.Part{
 						llm.NewToolResponsePart(&llm.ToolResponse{
 							ID:    "call_123",
@@ -540,7 +540,7 @@ func TestMessageMappingWithToolParts(t *testing.T) {
 					},
 				},
 				{
-					Role: llm.RoleTool,
+					Role: llm.RoleUser,
 					Content: []*llm.Part{
 						llm.NewToolResponsePart(&llm.ToolResponse{
 							ID:     "call_456",
