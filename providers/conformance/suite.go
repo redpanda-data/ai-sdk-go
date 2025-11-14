@@ -921,7 +921,7 @@ func (s *Suite) TestToolExecutionLoop() {
 				{
 					Role: llm.RoleUser,
 					Content: []*llm.Part{
-						llm.NewTextPart("What is the weather in San Francisco?"),
+						llm.NewTextPart("What is the weather in San Francisco, CA?"),
 					},
 				},
 			},
@@ -967,7 +967,7 @@ func (s *Suite) TestToolExecutionLoop() {
 				{
 					Role: llm.RoleUser,
 					Content: []*llm.Part{
-						llm.NewTextPart("What is the weather in San Francisco?"),
+						llm.NewTextPart("What is the weather in San Francisco, CA?"),
 					},
 				},
 				response.Message, // Add the assistant's tool call message
