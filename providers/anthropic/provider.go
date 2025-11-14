@@ -120,6 +120,7 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 	cfg := &Config{
 		ModelName:   modelName,
 		Constraints: modelDef.Constraints,
+		MaxTokens:   4096, // Default required by Anthropic API
 		setOptions:  make(map[string]bool),
 	}
 

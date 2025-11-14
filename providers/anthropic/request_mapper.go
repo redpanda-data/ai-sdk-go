@@ -39,13 +39,8 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) (anthropic.BetaMessageNewP
 		Model: anthropic.Model(modelName),
 	}
 
-	// MaxTokens is required by Anthropic
-	maxTokens := 4096 // default
-	if rm.config.MaxTokens != nil {
-		maxTokens = *rm.config.MaxTokens
-	}
-
-	apiReq.MaxTokens = int64(maxTokens)
+	// MaxTokens is set by provider config (required by Anthropic API)
+	apiReq.MaxTokens = int64(rm.config.MaxTokens)
 
 	// Map messages and system prompt
 	messages, systemPrompt, err := rm.mapMessages(req.Messages)
@@ -99,10 +94,17 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) (anthropic.BetaMessageNewP
 
 	// Enable extended thinking if configured
 	if rm.config.EnableThinking {
+		// Use 25% of max tokens for thinking budget
+		budgetTokens := int64(rm.config.MaxTokens / 4)
+		// Ensure minimum budget of 1024 tokens (API requirement)
+		if budgetTokens < 1024 {
+			budgetTokens = 1024
+		}
+
 		apiReq.Thinking = anthropic.BetaThinkingConfigParamUnion{
 			OfEnabled: &anthropic.BetaThinkingConfigEnabledParam{
 				Type:         constant.Enabled(""),
-				BudgetTokens: int64(maxTokens / 4), // Use 25% of max tokens for thinking
+				BudgetTokens: budgetTokens,
 			},
 		}
 	}

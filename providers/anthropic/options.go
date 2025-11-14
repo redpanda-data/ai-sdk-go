@@ -20,7 +20,7 @@ type Config struct {
 	Temperature *float64
 	TopP        *float64
 	TopK        *int
-	MaxTokens   *int
+	MaxTokens   int // Required by Anthropic API, defaults to 4096
 	Stop        []string
 
 	// Extended thinking configuration
@@ -125,7 +125,7 @@ func WithMaxTokens(tokens int) Option {
 			return fmt.Errorf("%s: max_tokens %d exceeds limit %d", cfg.ModelName, tokens, cfg.Constraints.MaxTokensLimit)
 		}
 
-		cfg.MaxTokens = &tokens
+		cfg.MaxTokens = tokens
 		cfg.setOptions["max_tokens"] = true
 
 		return nil
