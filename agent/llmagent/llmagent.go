@@ -236,7 +236,7 @@ func (a *LLMAgent) Run(invCtx *agent.InvocationContext) iter.Seq2[agent.Event, e
 
 			// Emit tool call events
 			for _, toolReq := range toolReqs {
-				if !yield(agent.ToolCallEvent{
+				if !yield(agent.ToolRequestEvent{
 					Envelope: makeEnvelope(),
 					Request:  *toolReq,
 				}, nil) {
@@ -403,7 +403,7 @@ func (a *LLMAgent) generateWithStreaming(
 // This follows the pattern from ADK and other SDKs: tool errors are NEVER
 // terminal - they're always sent to the LLM as part of the conversation.
 //
-// ToolResultEvents are yielded as tools complete.
+// ToolResponseEvents are yielded as tools complete.
 //
 // Returns tool result messages to be added to the conversation.
 //
@@ -474,7 +474,7 @@ func (a *LLMAgent) executeTools(
 			msg = llm.NewMessage(llm.RoleUser, llm.NewToolResponsePart(errResp))
 
 			// Yield error tool result event
-			if !yield(agent.ToolResultEvent{
+			if !yield(agent.ToolResponseEvent{
 				Envelope: makeEnvelope(),
 				Response: *errResp,
 			}, nil) {
@@ -485,7 +485,7 @@ func (a *LLMAgent) executeTools(
 			msg = llm.NewMessage(llm.RoleUser, llm.NewToolResponsePart(result.response))
 
 			// Yield tool result event
-			if !yield(agent.ToolResultEvent{
+			if !yield(agent.ToolResponseEvent{
 				Envelope: makeEnvelope(),
 				Response: *result.response,
 			}, nil) {
