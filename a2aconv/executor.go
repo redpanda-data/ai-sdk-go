@@ -10,18 +10,19 @@ import (
 	"github.com/a2aproject/a2a-go/a2a"
 	"github.com/a2aproject/a2a-go/a2asrv"
 	"github.com/a2aproject/a2a-go/a2asrv/eventqueue"
+
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/runner"
 )
 
-// Executor implements the a2asrv.AgentExecutor interface, bridging AI SDK agents with A2A protocol
+// Executor implements the a2asrv.AgentExecutor interface, bridging AI SDK agents with A2A protocol.
 type Executor struct {
 	log    *slog.Logger
 	agent  agent.Agent
 	runner *runner.Runner
 }
 
-// NewExecutor creates a new A2A executor
+// NewExecutor creates a new A2A executor.
 func NewExecutor(
 	agent agent.Agent,
 	runner *runner.Runner,
@@ -30,6 +31,7 @@ func NewExecutor(
 	if logger == nil {
 		logger = slog.Default()
 	}
+
 	return &Executor{
 		log:    logger,
 		agent:  agent,
@@ -37,8 +39,8 @@ func NewExecutor(
 	}
 }
 
-// Execute implements a2asrv.AgentExecutor
-// This is called for each message/send or message/stream request
+// Execute implements a2asrv.AgentExecutor.
+// This is called for each message/send or message/stream request.
 func (e *Executor) Execute(ctx context.Context, reqCtx *a2asrv.RequestContext, queue eventqueue.Queue) error {
 	// Helper closure to write events to queue with error logging
 	write := func(event a2a.Event) {
@@ -57,24 +59,37 @@ func (e *Executor) Execute(ctx context.Context, reqCtx *a2asrv.RequestContext, q
 	// Run the agent and process events
 	events := e.runner.Run(ctx, "", reqCtx.ContextID, MessageToLLM(reqCtx.Message))
 	e.log.InfoContext(ctx, "Runner started, processing events")
+
 	return e.processEvents(ctx, reqCtx, queue, events)
 }
 
-// eventToMetadata converts an agent event to gob-safe metadata by marshaling to JSON and back to map
+// Cancel implements a2asrv.AgentExecutor.
+func (e *Executor) Cancel(ctx context.Context, reqCtx *a2asrv.RequestContext, _ eventqueue.Queue) error {
+	e.log.InfoContext(ctx, "Executor.Cancel called", "task_id", reqCtx.TaskID)
+
+	// TODO: Implement cancellation logic here
+
+	return nil
+}
+
+// eventToMetadata converts an agent event to gob-safe metadata by marshaling to JSON and back to map.
 func eventToMetadata(ev any) map[string]any {
 	// Marshal to JSON and unmarshal to map[string]any to make it gob-safe
 	data, err := json.Marshal(ev)
 	if err != nil {
 		return nil
 	}
+
 	var result map[string]any
+
 	if err := json.Unmarshal(data, &result); err != nil {
 		return nil
 	}
+
 	return map[string]any{"event": result}
 }
 
-// processEvents handles the event stream from the runner and writes appropriate A2A events to the queue
+// processEvents handles the event stream from the runner and writes appropriate A2A events to the queue.
 func (e *Executor) processEvents(
 	ctx context.Context,
 	reqCtx *a2asrv.RequestContext,
@@ -104,9 +119,11 @@ func (e *Executor) processEvents(
 			event = a2a.NewArtifactUpdateEvent(reqCtx, currentArtifactID, parts...)
 			event.Append = shallAppend
 		}
+
 		if metadata != nil {
 			event.Artifact.Metadata = metadata
 		}
+
 		return event
 	}
 
@@ -123,10 +140,12 @@ func (e *Executor) processEvents(
 			statusEvent := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateFailed, nil)
 			statusEvent.Final = true
 			write(statusEvent)
+
 			return err
 		}
 
 		e.log.DebugContext(ctx, "Processing event", "type", fmt.Sprintf("%T", event))
+
 		switch ev := event.(type) {
 		case agent.StatusEvent:
 			e.log.DebugContext(ctx, "Status event", "stage", ev.Stage)
@@ -178,8 +197,8 @@ func (e *Executor) processEvents(
 
 			// Add token usage to metadata if available
 			if ev.Usage != nil {
-				statusEvent.Metadata = map[string]interface{}{
-					"usage": map[string]interface{}{
+				statusEvent.Metadata = map[string]any{
+					"usage": map[string]any{
 						"input_tokens":     ev.Usage.InputTokens,
 						"output_tokens":    ev.Usage.OutputTokens,
 						"total_tokens":     ev.Usage.TotalTokens,
@@ -191,6 +210,7 @@ func (e *Executor) processEvents(
 
 			write(statusEvent)
 			e.log.InfoContext(ctx, "Returning from InvocationEndEvent")
+
 			return nil
 
 		default:
@@ -200,18 +220,10 @@ func (e *Executor) processEvents(
 
 	// If we exit the loop without receiving InvocationEndEvent, write a completion status anyway
 	e.log.WarnContext(ctx, "Event loop ended without InvocationEndEvent")
+
 	statusEvent := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateCompleted, nil)
 	statusEvent.Final = true
 	write(statusEvent)
-
-	return nil
-}
-
-// Cancel implements a2asrv.AgentExecutor
-func (e *Executor) Cancel(ctx context.Context, reqCtx *a2asrv.RequestContext, queue eventqueue.Queue) error {
-	e.log.InfoContext(ctx, "Executor.Cancel called", "task_id", reqCtx.TaskID)
-
-	// TODO: Implement cancellation logic here
 
 	return nil
 }

@@ -8,16 +8,19 @@ import (
 	"github.com/a2aproject/a2a-go/a2a"
 	"github.com/a2aproject/a2a-go/a2asrv"
 	"github.com/a2aproject/a2a-go/a2asrv/eventqueue"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/redpanda-data/ai-sdk-go/agent/llmagent"
 	"github.com/redpanda-data/ai-sdk-go/providers/openai"
 	"github.com/redpanda-data/ai-sdk-go/providers/openai/openaitest"
 	"github.com/redpanda-data/ai-sdk-go/runner"
 	"github.com/redpanda-data/ai-sdk-go/store/session"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestExecutor_Integration_OpenAI(t *testing.T) {
+	t.Parallel()
+
 	apiKey := openaitest.GetAPIKeyOrSkipTest(t)
 
 	// Create OpenAI provider
@@ -60,16 +63,20 @@ func TestExecutor_Integration_OpenAI(t *testing.T) {
 	// Collect events in background
 	events := []a2a.Event{}
 	eventsDone := make(chan struct{})
+
 	go func() {
 		defer close(eventsDone)
+
 		for {
 			event, err := queue.Read(ctx)
 			if err != nil {
 				return // Queue closed or error
 			}
+
 			events = append(events, event)
 		}
 	}()
+
 	err = executor.Execute(ctx, reqCtx, queue)
 	require.NoError(t, err)
 
@@ -95,25 +102,35 @@ func TestExecutor_Integration_OpenAI(t *testing.T) {
 		switch ev := event.(type) {
 		case *a2a.TaskStatusUpdateEvent:
 			t.Logf("  Status: %s, Final: %v", ev.Status.State, ev.Final)
+
 			if ev.Status.State == a2a.TaskStateSubmitted {
 				hasSubmitted = true
 			}
+
 			if ev.Status.State == a2a.TaskStateCompleted && ev.Final {
 				hasCompleted = true
 				// Check for usage metadata
-				if ev.Metadata != nil {
-					if usage, ok := ev.Metadata["usage"].(map[string]interface{}); ok {
-						t.Logf("  Token usage: %+v", usage)
-						if totalTokens, ok := usage["total_tokens"].(int); ok {
-							assert.Greater(t, totalTokens, 0, "Should have token usage")
-						}
-					}
+				if ev.Metadata == nil {
+					continue
+				}
+
+				usage, ok := ev.Metadata["usage"].(map[string]any)
+				if !ok {
+					continue
+				}
+
+				t.Logf("  Token usage: %+v", usage)
+
+				if totalTokens, ok := usage["total_tokens"].(int); ok {
+					assert.Positive(t, totalTokens, "Should have token usage")
 				}
 			}
 
 		case *a2a.TaskArtifactUpdateEvent:
 			hasArtifact = true
+
 			t.Logf("  Artifact ID: %s, Append: %v, LastChunk: %v", ev.Artifact.ID, ev.Append, ev.LastChunk)
+
 			if len(ev.Artifact.Parts) > 0 {
 				for j, part := range ev.Artifact.Parts {
 					if textPart, ok := part.(a2a.TextPart); ok {
@@ -139,15 +156,19 @@ func TestExecutor_Integration_OpenAI(t *testing.T) {
 
 	// Verify we got a text response
 	foundText := false
+
 	for _, event := range events {
 		if artifactEvent, ok := event.(*a2a.TaskArtifactUpdateEvent); ok {
 			for _, part := range artifactEvent.Artifact.Parts {
 				if textPart, ok := part.(a2a.TextPart); ok && len(textPart.Text) > 0 {
 					foundText = true
+
 					t.Logf("Response text found: %s", textPart.Text)
+
 					break
 				}
 			}
+
 			if foundText {
 				break
 			}
