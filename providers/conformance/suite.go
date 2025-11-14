@@ -1270,6 +1270,7 @@ func (s *Suite) TestToolExecutionLoop() {
 				s.T().Logf("Request that failed:\n%s", reqJSON)
 			}
 		}
+
 		s.Require().NoError(err)
 		s.Require().NotNil(finalResponse)
 		s.Equal(llm.FinishReasonStop, finalResponse.FinishReason, "Should complete after all tools")

@@ -95,11 +95,9 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) (anthropic.BetaMessageNewP
 	// Enable extended thinking if configured
 	if rm.config.EnableThinking {
 		// Use 25% of max tokens for thinking budget
-		budgetTokens := int64(rm.config.MaxTokens / 4)
-		// Ensure minimum budget of 1024 tokens (API requirement)
-		if budgetTokens < 1024 {
-			budgetTokens = 1024
-		}
+		budgetTokens := max(
+			// Ensure minimum budget of 1024 tokens (API requirement)
+			int64(rm.config.MaxTokens/4), 1024)
 
 		apiReq.Thinking = anthropic.BetaThinkingConfigParamUnion{
 			OfEnabled: &anthropic.BetaThinkingConfigEnabledParam{
