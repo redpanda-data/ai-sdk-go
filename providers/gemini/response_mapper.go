@@ -111,25 +111,6 @@ func (m *ResponseMapper) mapParts(parts []*genai.Part) ([]*llm.Part, bool, error
 				Arguments: argsJSON,
 			}))
 
-		case part.FunctionResponse != nil:
-			responseJSON, err := json.Marshal(part.FunctionResponse.Response)
-			if err != nil {
-				return nil, false, fmt.Errorf("failed to marshal function response: %w", err)
-			}
-
-			content = append(content, llm.NewToolResponsePart(&llm.ToolResponse{
-				ID:     part.FunctionResponse.ID,
-				Result: responseJSON,
-			}))
-
-		case part.ExecutableCode != nil:
-			// Code execution - treat as text
-			content = append(content, llm.NewTextPart(part.ExecutableCode.Code))
-
-		case part.CodeExecutionResult != nil:
-			// Code execution result - treat as text
-			content = append(content, llm.NewTextPart(part.CodeExecutionResult.Output))
-
 		default:
 			// Skip unsupported part types (file data, inline data, etc.)
 			continue

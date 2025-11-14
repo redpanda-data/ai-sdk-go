@@ -158,39 +158,6 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 						}),
 					}
 
-				case part.FunctionResponse != nil:
-					// Function response event (should not typically appear in streaming)
-					responseJSON, err := m.marshalFunctionArgs(part.FunctionResponse.Response)
-					if err != nil {
-						yield(llm.ErrorEvent{
-							Message: fmt.Sprintf("failed to marshal function response: %v", err),
-						}, nil)
-
-						return
-					}
-
-					event = llm.ContentPartEvent{
-						Index: idx,
-						Part: llm.NewToolResponsePart(&llm.ToolResponse{
-							ID:     part.FunctionResponse.ID,
-							Result: responseJSON,
-						}),
-					}
-
-				case part.ExecutableCode != nil:
-					// Code execution - treat as text
-					event = llm.ContentPartEvent{
-						Index: idx,
-						Part:  llm.NewTextPart(part.ExecutableCode.Code),
-					}
-
-				case part.CodeExecutionResult != nil:
-					// Code execution result - treat as text
-					event = llm.ContentPartEvent{
-						Index: idx,
-						Part:  llm.NewTextPart(part.CodeExecutionResult.Output),
-					}
-
 				default:
 					continue
 				}
