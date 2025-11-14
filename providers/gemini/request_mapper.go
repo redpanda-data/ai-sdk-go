@@ -168,18 +168,6 @@ func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]*genai.Content, 
 				Parts: parts,
 			})
 
-		case llm.RoleTool:
-			// Tool responses are added to the conversation with RoleUser
-			parts, err := rm.mapParts(msg.Content)
-			if err != nil {
-				return nil, nil, err
-			}
-
-			contents = append(contents, &genai.Content{
-				Role:  genai.RoleUser,
-				Parts: parts,
-			})
-
 		default:
 			return nil, nil, fmt.Errorf("unsupported message role: %s", msg.Role)
 		}
