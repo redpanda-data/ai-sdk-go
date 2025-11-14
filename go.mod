@@ -5,6 +5,7 @@ go 1.25.4
 ignore ./build
 
 require (
+	github.com/a2aproject/a2a-go v0.3.2
 	github.com/anthropics/anthropic-sdk-go v1.17.0
 	github.com/google/uuid v1.6.0
 	github.com/openai/openai-go/v3 v3.8.1
