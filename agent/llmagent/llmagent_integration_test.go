@@ -115,8 +115,8 @@ func TestLLMAgent_Integration_ToolCalling(t *testing.T) {
 	events := collectEvents(t, ag.Run(invCtx))
 
 	// Collect different event types
-	toolCallEvents := filterEvents[agent.ToolCallEvent](events)
-	toolResultEvents := filterEvents[agent.ToolResultEvent](events)
+	toolCallEvents := filterEvents[agent.ToolRequestEvent](events)
+	toolResultEvents := filterEvents[agent.ToolResponseEvent](events)
 	messageEvents := filterEvents[agent.MessageEvent](events)
 	endEvent := findInvocationEndEvent(events)
 

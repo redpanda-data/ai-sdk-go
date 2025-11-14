@@ -85,7 +85,7 @@ func New(ag agent.Agent, sessionStore session.Store, opts ...Option) (*Runner, e
 //   - StatusEvent (turn started, model call, tool exec, etc.)
 //   - MessageEvent (assistant responses)
 //   - AssistantDeltaEvent (streaming tokens, if supported)
-//   - ToolCallEvent, ToolResultEvent (tool execution)
+//   - ToolRequestEvent, ToolResponseEvent (tool execution)
 //   - ErrorEvent (recoverable errors)
 //   - InvocationEndEvent (terminal event)
 //

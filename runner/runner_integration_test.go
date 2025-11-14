@@ -115,10 +115,10 @@ func TestRunner_Integration_WithTools(t *testing.T) {
 	events := collectEventsIntegration(t, r.Run(ctx, "", "test-session-tools", userMsg))
 
 	// Verify tool was called
-	toolCallEvents := filterEventsIntegration[agent.ToolCallEvent](events)
+	toolCallEvents := filterEventsIntegration[agent.ToolRequestEvent](events)
 	require.NotEmpty(t, toolCallEvents, "should have called the calculator tool")
 
-	toolResultEvents := filterEventsIntegration[agent.ToolResultEvent](events)
+	toolResultEvents := filterEventsIntegration[agent.ToolResponseEvent](events)
 	require.NotEmpty(t, toolResultEvents, "should have tool result")
 
 	// Verify completion

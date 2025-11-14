@@ -312,8 +312,8 @@ func TestRun_MultiTurnWithTools(t *testing.T) {
 	assert.Equal(t, 1, maxTurn, "expected 2 turns (0 and 1)")
 
 	// Assert: Should have tool call and tool result events
-	toolCallEvents := filterEvents[agent.ToolCallEvent](events)
-	toolResultEvents := filterEvents[agent.ToolResultEvent](events)
+	toolCallEvents := filterEvents[agent.ToolRequestEvent](events)
+	toolResultEvents := filterEvents[agent.ToolResponseEvent](events)
 
 	assert.Len(t, toolCallEvents, 1)
 	assert.Len(t, toolResultEvents, 1)
@@ -468,7 +468,7 @@ func TestExecuteTools_ToolError(t *testing.T) {
 	events := collectEvents(t, ag.Run(invCtx))
 
 	// Assert: Should have tool result with error
-	toolResultEvents := filterEvents[agent.ToolResultEvent](events)
+	toolResultEvents := filterEvents[agent.ToolResponseEvent](events)
 	require.Len(t, toolResultEvents, 1)
 	assert.NotEmpty(t, toolResultEvents[0].Response.Error)
 	assert.Contains(t, toolResultEvents[0].Response.Error, "tool execution failed")
@@ -832,7 +832,7 @@ func TestRun_EventOrdering(t *testing.T) {
 		events := collectEvents(t, ag.Run(invCtx))
 
 		// Verify canonical sequence:
-		// StatusEvent → MessageEvent (tool calls) → ToolCallEvent → ToolResultEvent → MessageEvent (final) → InvocationEndEvent
+		// StatusEvent → MessageEvent (tool calls) → ToolRequestEvent → ToolResponseEvent → MessageEvent (final) → InvocationEndEvent
 		require.GreaterOrEqual(t, len(events), 6, "should have status, message, tool call, tool result, message, and end events")
 
 		// Find event indices
@@ -850,11 +850,11 @@ func TestRun_EventOrdering(t *testing.T) {
 				}
 
 				finalMessageIdx = i // Keep updating to get last message
-			case agent.ToolCallEvent:
+			case agent.ToolRequestEvent:
 				if toolCallIdx == -1 {
 					toolCallIdx = i
 				}
-			case agent.ToolResultEvent:
+			case agent.ToolResponseEvent:
 				if toolResultIdx == -1 {
 					toolResultIdx = i
 				}
@@ -866,16 +866,16 @@ func TestRun_EventOrdering(t *testing.T) {
 		// Assert all events present
 		require.NotEqual(t, -1, statusIdx, "should have StatusEvent")
 		require.NotEqual(t, -1, firstMessageIdx, "should have first MessageEvent")
-		require.NotEqual(t, -1, toolCallIdx, "should have ToolCallEvent")
-		require.NotEqual(t, -1, toolResultIdx, "should have ToolResultEvent")
+		require.NotEqual(t, -1, toolCallIdx, "should have ToolRequestEvent")
+		require.NotEqual(t, -1, toolResultIdx, "should have ToolResponseEvent")
 		require.NotEqual(t, -1, finalMessageIdx, "should have final MessageEvent")
 		require.NotEqual(t, -1, endIdx, "should have InvocationEndEvent")
 
 		// Assert canonical ordering
 		assert.Less(t, statusIdx, firstMessageIdx, "StatusEvent should come before first MessageEvent")
-		assert.Less(t, firstMessageIdx, toolCallIdx, "MessageEvent should come before ToolCallEvent")
-		assert.Less(t, toolCallIdx, toolResultIdx, "ToolCallEvent should come before ToolResultEvent")
-		assert.Less(t, toolResultIdx, finalMessageIdx, "ToolResultEvent should come before final MessageEvent")
+		assert.Less(t, firstMessageIdx, toolCallIdx, "MessageEvent should come before ToolRequestEvent")
+		assert.Less(t, toolCallIdx, toolResultIdx, "ToolRequestEvent should come before ToolResponseEvent")
+		assert.Less(t, toolResultIdx, finalMessageIdx, "ToolResponseEvent should come before final MessageEvent")
 		assert.Less(t, finalMessageIdx, endIdx, "Final MessageEvent should come before InvocationEndEvent")
 	})
 }

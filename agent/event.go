@@ -106,27 +106,27 @@ func (AssistantDeltaEvent) isEvent() {}
 // GetEnvelope returns the event envelope containing observability metadata.
 func (e AssistantDeltaEvent) GetEnvelope() EventEnvelope { return e.Envelope }
 
-// ToolCallEvent represents a tool invocation request from the LLM.
-type ToolCallEvent struct {
+// ToolRequestEvent represents a tool invocation request from the LLM.
+type ToolRequestEvent struct {
 	Envelope EventEnvelope   `json:"envelope"`
 	Request  llm.ToolRequest `json:"request"`
 }
 
-func (ToolCallEvent) isEvent() {}
+func (ToolRequestEvent) isEvent() {}
 
 // GetEnvelope returns the event envelope containing observability metadata.
-func (e ToolCallEvent) GetEnvelope() EventEnvelope { return e.Envelope }
+func (e ToolRequestEvent) GetEnvelope() EventEnvelope { return e.Envelope }
 
-// ToolResultEvent carries the result of a tool execution.
-type ToolResultEvent struct {
+// ToolResponseEvent carries the result of a tool execution.
+type ToolResponseEvent struct {
 	Envelope EventEnvelope    `json:"envelope"`
 	Response llm.ToolResponse `json:"response"`
 }
 
-func (ToolResultEvent) isEvent() {}
+func (ToolResponseEvent) isEvent() {}
 
 // GetEnvelope returns the event envelope containing observability metadata.
-func (e ToolResultEvent) GetEnvelope() EventEnvelope { return e.Envelope }
+func (e ToolResponseEvent) GetEnvelope() EventEnvelope { return e.Envelope }
 
 // ErrorEvent is NON-TERMINAL at the runtime layer.
 // It reports a recoverable or fatal problem, but the stream only ends
@@ -166,7 +166,7 @@ type InvocationEndEvent struct {
 	Usage *llm.TokenUsage `json:"usage,omitempty"`
 	// InputRequiredToolIDs lists tool call IDs that require external input.
 	// Only populated when FinishReason is FinishReasonInputRequired.
-	// These IDs correspond to ToolCallEvent.Request.ID from earlier in the stream.
+	// These IDs correspond to ToolRequestEvent.Request.ID from earlier in the stream.
 	InputRequiredToolIDs []string `json:"input_required_tool_ids,omitempty"`
 }
 
