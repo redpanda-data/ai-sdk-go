@@ -1265,6 +1265,11 @@ func (s *Suite) TestToolExecutionLoop() {
 
 		// Get final response with weather answer
 		finalResponse, err := model.Generate(s.T().Context(), request3)
+		if err != nil {
+			if reqJSON, _ := json.MarshalIndent(request3, "", "  "); reqJSON != nil {
+				s.T().Logf("Request that failed:\n%s", reqJSON)
+			}
+		}
 		s.Require().NoError(err)
 		s.Require().NotNil(finalResponse)
 		s.Equal(llm.FinishReasonStop, finalResponse.FinishReason, "Should complete after all tools")
