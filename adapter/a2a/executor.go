@@ -2,6 +2,7 @@ package a2a
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"iter"
 	"log/slog"
@@ -11,7 +12,6 @@ import (
 	"github.com/a2aproject/a2a-go/a2asrv/eventqueue"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
-	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/runner"
 )
 
@@ -55,6 +55,11 @@ func (e *Executor) Execute(ctx context.Context, reqCtx *a2asrv.RequestContext, q
 		write(event)
 		e.log.InfoContext(ctx, "Wrote submitted status")
 	}
+
+	// Emit working status before starting runner
+	workingEvent := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateWorking, nil)
+	write(workingEvent)
+	e.log.InfoContext(ctx, "Wrote working status")
 
 	// Run the agent and process events
 	events := e.runner.Run(ctx, "", reqCtx.ContextID, MessageToLLM(reqCtx.Message))
@@ -109,21 +114,10 @@ func (e *Executor) processEvents(
 			if ev.Stage == agent.StatusStageModelCall {
 				currentArtifactID = ""
 			}
-
 		case agent.ToolRequestEvent:
-			e.log.InfoContext(ctx, "Tool request event", "tool", ev.Request.Name)
-			// Tool request is already in message history, no need for separate artifact
-
+			// Already handled by generic MessageEvent
 		case agent.ToolResponseEvent:
-			e.log.InfoContext(ctx, "Tool response event", "tool", ev.Response.Name)
-
-			// Add tool response to history as a user message
-			// Convert to llm.Message first, then to A2A format
-			llmMsg := llm.NewMessage(llm.RoleUser, llm.NewToolResponsePart(&ev.Response))
-			a2amsg := MessageFromLLM(llmMsg)
-			historyStatus := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateWorking, a2amsg)
-			write(historyStatus)
-
+			// Already handled by generic MessageEvent
 		case agent.MessageEvent:
 			// Mark the streaming artifact as complete if we were streaming
 			if currentArtifactID != "" {
@@ -149,12 +143,10 @@ func (e *Executor) processEvents(
 					},
 				}
 			}
-
 			write(historyStatus)
 
 			// Reset artifactID so next model_call creates a new one
 			currentArtifactID = ""
-
 		case agent.AssistantDeltaEvent:
 			// Stream delta updates as incremental artifact chunks
 			if ev.Delta.Part != nil && ev.Delta.Part.IsText() {
@@ -168,10 +160,8 @@ func (e *Executor) processEvents(
 					artifact = a2a.NewArtifactUpdateEvent(reqCtx, currentArtifactID, a2a.TextPart{Text: ev.Delta.Part.Text})
 					artifact.Append = true
 				}
-
 				write(artifact)
 			}
-
 		case agent.InvocationEndEvent:
 			e.log.InfoContext(ctx, "Invocation end event", "finish_reason", ev.FinishReason)
 			// Write final completion status - this is required to signal task completion
@@ -190,12 +180,9 @@ func (e *Executor) processEvents(
 					},
 				}
 			}
-
 			write(statusEvent)
 			e.log.InfoContext(ctx, "Returning from InvocationEndEvent")
-
 			return nil
-
 		default:
 			e.log.DebugContext(ctx, "Received unhandled event", "type", fmt.Sprintf("%T", event))
 		}
@@ -208,5 +195,5 @@ func (e *Executor) processEvents(
 	statusEvent.Final = true
 	write(statusEvent)
 
-	return nil
+	return errors.New("incomplete agent call: missing InvocationEndEvent")
 }
