@@ -68,7 +68,6 @@ type InvocationResult struct {
 	Error error
 }
 
-
 // HookBeforeTurn is called at the start of each agentic loop turn.
 //
 // This hook can be used for:
@@ -221,9 +220,9 @@ type HookAfterToolExecution interface {
 	) (*llm.ToolResponse, error)
 }
 
-// implementsAnyHook checks if hook h implements at least one hook interface.
+// ImplementsAnyHook checks if hook h implements at least one hook interface.
 // Used during hook registration to catch mistakes early.
-func implementsAnyHook(h Hook) bool {
+func ImplementsAnyHook(h Hook) bool {
 	switch h.(type) {
 	case HookBeforeInvocation,
 		HookAfterInvocation,
@@ -235,5 +234,6 @@ func implementsAnyHook(h Hook) bool {
 		HookAfterToolExecution:
 		return true
 	}
+
 	return false
 }

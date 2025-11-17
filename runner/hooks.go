@@ -24,6 +24,7 @@ func (r *Runner) executeBeforeInvocationHooks(
 			}
 		}
 	}
+
 	return nil
 }
 

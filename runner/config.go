@@ -23,6 +23,13 @@ func (c *runnerConfig) validate() error {
 		return agent.ErrNoSessionStore
 	}
 
+	// Validate that all registered hooks implement at least one hook interface
+	for _, h := range c.hooks {
+		if !hooks.ImplementsAnyHook(h) {
+			return agent.ErrInvalidHook
+		}
+	}
+
 	return nil
 }
 

@@ -25,6 +25,10 @@ var (
 	// This is a configuration error, not a transient error.
 	ErrNoSessionStore = errors.New("agent: no session store provided")
 
+	// ErrInvalidHook is returned when a registered hook doesn't implement any hook interfaces.
+	// This is a configuration error, not a transient error.
+	ErrInvalidHook = errors.New("agent: hook must implement at least one hook interface")
+
 	// ErrSessionLoad indicates a failure to load session state from storage.
 	// This may be a transient error (network, database connection) that can be retried.
 	ErrSessionLoad = errors.New("agent: failed to load session")

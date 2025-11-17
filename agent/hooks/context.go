@@ -61,7 +61,8 @@ type HookContext interface {
 
 // hookContext is the internal implementation of HookContext.
 type hookContext struct {
-	context.Context
+	context.Context //nolint:containedctx // Embedding Context is intentional for ergonomic interface implementation
+
 	invocationID string
 	sessionID    string
 	turn         int
