@@ -90,12 +90,6 @@ func (e *Executor) processEvents(
 
 	for event, err := range events {
 		if err != nil {
-			// Check if this is a context cancellation - this is expected when client disconnects
-			if ctx.Err() != nil {
-				e.log.InfoContext(ctx, "Runner stopped due to context cancellation", "error", ctx.Err())
-				return ctx.Err()
-			}
-
 			e.log.ErrorContext(ctx, "Runner returned error", "error", err)
 			// Write a failed status event and return
 			statusEvent := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateFailed, nil)
