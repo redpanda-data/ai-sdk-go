@@ -10,8 +10,10 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"time"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
+	"github.com/redpanda-data/ai-sdk-go/agent/hooks"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/store/session"
 )
@@ -155,17 +157,38 @@ func (r *Runner) Run(
 			return
 		}
 
-		// 2. Add user message to session
-		sess.Messages = append(sess.Messages, userMessage)
-
-		// 3. Create invocation context
+		// 2. Create invocation context (needed for hook context)
 		invCtx := agent.NewInvocationContext(ctx, sess)
 
-		// 4. Execute agent and forward events
+		// 3. Execute BeforeInvocation hooks
+		if len(r.config.hooks) > 0 {
+			hookCtx := hooks.NewHookContext(
+				invCtx,
+				invCtx.InvocationID(),
+				sess.ID,
+				0, // turn starts at 0
+				time.Now().UTC(),
+				sess,
+			)
+
+			if err := r.executeBeforeInvocationHooks(hookCtx, userMessage); err != nil {
+				yield(nil, fmt.Errorf("before invocation hook: %w", err))
+				return
+			}
+		}
+
+		// 4. Add user message to session
+		sess.Messages = append(sess.Messages, userMessage)
+
+		// 5. Execute agent and collect events
 		var completed bool
+		var finalMessage *llm.Message
+		var allEvents []agent.Event
+		var invocationErr error
 
 		for evt, err := range r.config.agent.Run(invCtx) {
 			if err != nil {
+				invocationErr = err
 				// Forward error
 				if !yield(nil, err) {
 					return
@@ -174,9 +197,18 @@ func (r *Runner) Run(
 				continue
 			}
 
+			// Collect events for AfterInvocation hooks
+			allEvents = append(allEvents, evt)
+
+			// Track final message
+			if msgEvt, ok := evt.(agent.MessageEvent); ok {
+				finalMessage = &msgEvt.Response.Message
+			}
+
 			// Check if this is the terminal event
-			if _, ok := evt.(agent.InvocationEndEvent); ok {
-				completed = true
+			var endEvt agent.InvocationEndEvent
+			if evt != nil {
+				endEvt, completed = evt.(agent.InvocationEndEvent)
 			}
 
 			// Forward event to caller
@@ -184,13 +216,35 @@ func (r *Runner) Run(
 				return
 			}
 
-			// If completed, save session and exit
-			if completed {
+			// If completed, execute AfterInvocation hooks
+			if completed && len(r.config.hooks) > 0 {
+				hookCtx := hooks.NewHookContext(
+					invCtx,
+					invCtx.InvocationID(),
+					sess.ID,
+					invCtx.Turn(),
+					time.Now().UTC(),
+					sess,
+				)
+
+				result := hooks.InvocationResult{
+					FinishReason: endEvt.FinishReason,
+					FinalMessage: finalMessage,
+					TotalUsage:   invCtx.TotalUsage(),
+					Events:       allEvents,
+					Error:        invocationErr,
+				}
+
+				if err := r.executeAfterInvocationHooks(hookCtx, result); err != nil {
+					yield(nil, fmt.Errorf("after invocation hook: %w", err))
+					return
+				}
+
 				break
 			}
 		}
 
-		// 5. Save session
+		// 6. Save session
 		//nolint:contextcheck // invCtx embeds the original ctx and maintains its cancellation
 		if err := r.config.sessionStore.Save(invCtx, sess); err != nil {
 			yield(nil, fmt.Errorf("%w: %w", agent.ErrSessionSave, err))
