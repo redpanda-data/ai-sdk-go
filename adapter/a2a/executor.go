@@ -12,6 +12,7 @@ import (
 	"github.com/a2aproject/a2a-go/a2asrv/eventqueue"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
+	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/runner"
 )
 
@@ -115,9 +116,17 @@ func (e *Executor) processEvents(
 				currentArtifactID = ""
 			}
 		case agent.ToolRequestEvent:
-			// Already handled by generic MessageEvent
+			// Tool request is already in MessageEvent, no separate handling needed
+
 		case agent.ToolResponseEvent:
-			// Already handled by generic MessageEvent
+			e.log.InfoContext(ctx, "Tool response event", "tool", ev.Response.Name)
+
+			// Add tool response to history as a user message
+			llmMsg := llm.NewMessage(llm.RoleUser, llm.NewToolResponsePart(&ev.Response))
+			a2amsg := MessageFromLLM(llmMsg)
+			historyStatus := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateWorking, a2amsg)
+			write(historyStatus)
+
 		case agent.MessageEvent:
 			// Mark the streaming artifact as complete if we were streaming
 			if currentArtifactID != "" {

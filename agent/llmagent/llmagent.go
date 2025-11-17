@@ -480,17 +480,6 @@ func (a *LLMAgent) executeTools(
 			}, nil) {
 				return messages // Consumer stopped listening
 			}
-
-			// Emit MessageEvent for tool response (symmetry with tool requests)
-			if !yield(agent.MessageEvent{
-				Envelope: makeEnvelope(),
-				Response: llm.Response{
-					Message: msg,
-					Usage:   nil,
-				},
-			}, nil) {
-				return messages
-			}
 		} else {
 			// Tool execution succeeded
 			msg = llm.NewMessage(llm.RoleUser, llm.NewToolResponsePart(result.response))
@@ -501,17 +490,6 @@ func (a *LLMAgent) executeTools(
 				Response: *result.response,
 			}, nil) {
 				return messages // Consumer stopped listening
-			}
-
-			// Emit MessageEvent for tool response (symmetry with tool requests)
-			if !yield(agent.MessageEvent{
-				Envelope: makeEnvelope(),
-				Response: llm.Response{
-					Message: msg,
-					Usage:   nil,
-				},
-			}, nil) {
-				return messages
 			}
 		}
 
