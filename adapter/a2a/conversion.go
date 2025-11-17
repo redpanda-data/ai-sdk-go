@@ -1,6 +1,6 @@
-// Package a2aconv provides utilities for converting between A2A protocol messages
+// Package a2a provides utilities for converting between A2A protocol messages
 // and the AI SDK's LLM message format.
-package a2aconv
+package a2a
 
 import (
 	"encoding/json"
