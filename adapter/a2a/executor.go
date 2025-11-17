@@ -131,6 +131,13 @@ func (e *Executor) processEvents(
 			write(historyStatus)
 
 		case agent.MessageEvent:
+			// Mark the streaming artifact as complete if we were streaming
+			if currentArtifactID != "" {
+				finalArtifact := a2a.NewArtifactUpdateEvent(reqCtx, currentArtifactID)
+				finalArtifact.LastChunk = true
+				write(finalArtifact)
+			}
+
 			// Add agent's message to history via a status update
 			// Convert LLM response to A2A message format
 			a2amsg := MessageFromLLM(ev.Response.Message)
