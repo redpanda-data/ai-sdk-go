@@ -2,7 +2,6 @@ package a2a
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"iter"
 	"log/slog"
@@ -12,6 +11,7 @@ import (
 	"github.com/a2aproject/a2a-go/a2asrv/eventqueue"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
+	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/runner"
 )
 
@@ -72,23 +72,6 @@ func (e *Executor) Cancel(ctx context.Context, reqCtx *a2asrv.RequestContext, _ 
 	return nil
 }
 
-// eventToMetadata converts an agent event to gob-safe metadata by marshaling to JSON and back to map.
-func eventToMetadata(ev any) map[string]any {
-	// Marshal to JSON and unmarshal to map[string]any to make it gob-safe
-	data, err := json.Marshal(ev)
-	if err != nil {
-		return nil
-	}
-
-	var result map[string]any
-
-	if err := json.Unmarshal(data, &result); err != nil {
-		return nil
-	}
-
-	return map[string]any{"event": result}
-}
-
 // processEvents handles the event stream from the runner and writes appropriate A2A events to the queue.
 func (e *Executor) processEvents(
 	ctx context.Context,
@@ -102,30 +85,8 @@ func (e *Executor) processEvents(
 		}
 	}
 
-	// Rolling current artifact ID that is being streamed out.
-	// One LLM response = one artifact
+	// Rolling current artifact ID for streaming text deltas
 	var currentArtifactID a2a.ArtifactID
-
-	// Helper closure to create or update artifactEvent with given parts and optional metadata
-	// Returns the artifactEvent event and updates artifactID if it was created
-	artifactEvent := func(shallAppend bool, metadata map[string]any, parts ...a2a.Part) *a2a.TaskArtifactUpdateEvent {
-		var event *a2a.TaskArtifactUpdateEvent
-		if currentArtifactID == "" {
-			// Create new artifact
-			event = a2a.NewArtifactEvent(reqCtx, parts...)
-			currentArtifactID = event.Artifact.ID
-		} else {
-			// Update existing artifact
-			event = a2a.NewArtifactUpdateEvent(reqCtx, currentArtifactID, parts...)
-			event.Append = shallAppend
-		}
-
-		if metadata != nil {
-			event.Artifact.Metadata = metadata
-		}
-
-		return event
-	}
 
 	for event, err := range events {
 		if err != nil {
@@ -157,27 +118,37 @@ func (e *Executor) processEvents(
 
 		case agent.ToolRequestEvent:
 			e.log.InfoContext(ctx, "Tool request event", "tool", ev.Request.Name)
-			// Emit artifact for tool request with event metadata
-			write(artifactEvent(false, eventToMetadata(ev), a2a.TextPart{Text: "Tool request: " + ev.Request.Name}))
+			// Tool request is already in message history, no need for separate artifact
 
 		case agent.ToolResponseEvent:
 			e.log.InfoContext(ctx, "Tool response event", "tool", ev.Response.Name)
-			// Emit artifact for tool response with event metadata
-			write(artifactEvent(false, eventToMetadata(ev), a2a.TextPart{Text: "Tool response: " + ev.Response.Name}))
+
+			// Add tool response to history as a user message
+			// Convert to llm.Message first, then to A2A format
+			llmMsg := llm.NewMessage(llm.RoleUser, llm.NewToolResponsePart(&ev.Response))
+			a2amsg := MessageFromLLM(llmMsg)
+			historyStatus := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateWorking, a2amsg)
+			write(historyStatus)
 
 		case agent.MessageEvent:
-			e.log.DebugContext(ctx, "Message event", "parts", len(ev.Response.Message.Content))
-			a2amsg := MessageFromLLM(ev.Response.Message)
-
-			// Replace the entire artifact (append=false) with the full message.
-			// This makes the artifact easier to consume if downloaded later.
-			artifact := artifactEvent(false, eventToMetadata(ev), a2amsg.Parts...)
-			artifact.LastChunk = true
-			write(artifact)
-
 			// Add agent's message to history via a status update
-			// This is important for input_required flow where history shows the conversation
+			// Convert LLM response to A2A message format
+			a2amsg := MessageFromLLM(ev.Response.Message)
 			historyStatus := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateWorking, a2amsg)
+
+			// Attach token usage if available
+			if ev.Response.Usage != nil {
+				historyStatus.Metadata = map[string]any{
+					"usage": map[string]any{
+						"input_tokens":     ev.Response.Usage.InputTokens,
+						"output_tokens":    ev.Response.Usage.OutputTokens,
+						"total_tokens":     ev.Response.Usage.TotalTokens,
+						"cached_tokens":    ev.Response.Usage.CachedTokens,
+						"reasoning_tokens": ev.Response.Usage.ReasoningTokens,
+					},
+				}
+			}
+
 			write(historyStatus)
 
 			// Reset artifactID so next model_call creates a new one
@@ -186,7 +157,18 @@ func (e *Executor) processEvents(
 		case agent.AssistantDeltaEvent:
 			// Stream delta updates as incremental artifact chunks
 			if ev.Delta.Part != nil && ev.Delta.Part.IsText() {
-				write(artifactEvent(true, nil, a2a.TextPart{Text: ev.Delta.Part.Text}))
+				var artifact *a2a.TaskArtifactUpdateEvent
+				if currentArtifactID == "" {
+					// Create new artifact for streaming
+					artifact = a2a.NewArtifactEvent(reqCtx, a2a.TextPart{Text: ev.Delta.Part.Text})
+					currentArtifactID = artifact.Artifact.ID
+				} else {
+					// Append to existing artifact
+					artifact = a2a.NewArtifactUpdateEvent(reqCtx, currentArtifactID, a2a.TextPart{Text: ev.Delta.Part.Text})
+					artifact.Append = true
+				}
+
+				write(artifact)
 			}
 
 		case agent.InvocationEndEvent:

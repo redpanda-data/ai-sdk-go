@@ -1,18 +1,71 @@
 // Package a2a provides utilities for converting between A2A protocol messages
 // and the AI SDK's LLM message format.
+//
+// # Conversion Architecture
+//
+// This package provides conversion at the protocol adapter boundary:
+//   - Incoming A2A messages → LLM format (for SDK processing)
+//   - Outgoing LLM responses → A2A format (for protocol responses)
+//
+// State tracking is expected to be done internally via the session store using
+// llm.Message format, NOT through A2A message history. The conversions are
+// one-directional at each boundary and do NOT support lossless round-trip
+// conversion (A2A → LLM → A2A).
+//
+// # Type Discrimination
+//
+// DataPart uses Metadata["data_type"] to identify the LLM part type:
+//   - "tool_request" - Contains llm.ToolRequest
+//   - "tool_response" - Contains llm.ToolResponse
+//
+// # Serialization Safety
+//
+// All complex types stored in A2A Metadata are converted to JSON-safe
+// map[string]any to ensure compatibility with A2A's gob-based task state
+// persistence. Only these types are allowed in Metadata:
+// nil, bool, int, float, string, []any, map[string]any.
 package a2a
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/a2aproject/a2a-go/a2a"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
-// MessageToLLM converts an a2a-go message to LLM SDK message.
+// toJSONSafe converts a value to a JSON-safe map[string]any representation.
+// This ensures compatibility with A2A's task state persistence (gob encoding)
+// which only supports: nil, bool, int, float, string, []any, map[string]any.
+func toJSONSafe(v any) (map[string]any, error) {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal to JSON: %w", err)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal to map: %w", err)
+	}
+
+	return result, nil
+}
+
+// MessageToLLM converts an A2A message to LLM SDK message format.
+//
+// This is used at the ingress boundary when A2A client messages enter the SDK.
+// The resulting llm.Message is passed to the runner and stored in the session.
+//
+// Conversion mapping:
+//   - a2a.TextPart → llm.PartText
+//   - a2a.DataPart with Metadata["data_type"]="tool_request" → llm.PartToolRequest
+//   - a2a.DataPart with Metadata["data_type"]="tool_response" → llm.PartToolResponse
+//   - a2a.DataPart without data_type → ignored
+//
+// Note: This conversion is one-directional. State tracking should use the session
+// store's llm.Message format, not A2A message history.
 func MessageToLLM(msg *a2a.Message) llm.Message {
-	// Map role
 	var role llm.MessageRole
 
 	switch msg.Role {
@@ -21,34 +74,74 @@ func MessageToLLM(msg *a2a.Message) llm.Message {
 	case a2a.MessageRoleAgent:
 		role = llm.RoleAssistant
 	case a2a.MessageRoleUnspecified:
-		role = llm.RoleUser // fallback
+		role = llm.RoleAssistant // Default to assistant for unspecified role
 	default:
-		role = llm.RoleUser // fallback
+		role = llm.RoleAssistant
 	}
 
-	// Convert parts
 	parts := make([]*llm.Part, 0, len(msg.Parts))
 	for _, part := range msg.Parts {
-		if p, ok := part.(a2a.TextPart); ok {
+		switch p := part.(type) {
+		case a2a.TextPart:
+			// TextPart → Text part
 			parts = append(parts, llm.NewTextPart(p.Text))
+
+		case a2a.DataPart:
+			// DataPart → use metadata to determine type
+			if llmPart := dataPartToLLMPart(p); llmPart != nil {
+				parts = append(parts, llmPart)
+			}
 		}
-		// TODO: Add support for tool calls, data parts, etc. when needed
 	}
 
 	return llm.NewMessage(role, parts...)
 }
 
-// MessagesToLLM converts a slice of a2a-go messages to LLM SDK messages.
-func MessagesToLLM(a2aMessages []*a2a.Message) []llm.Message {
-	llmMessages := make([]llm.Message, 0, len(a2aMessages))
-	for _, msg := range a2aMessages {
-		llmMessages = append(llmMessages, MessageToLLM(msg))
+// dataPartToLLMPart converts a DataPart back to the appropriate LLM Part type.
+// It uses the Metadata["data_type"] field to determine the type, then unmarshals
+// the Data accordingly.
+func dataPartToLLMPart(part a2a.DataPart) *llm.Part {
+	// Check metadata for data_type
+	dataType, ok := part.Metadata["data_type"].(string)
+	if !ok {
+		return nil // No data_type, can't determine type
 	}
 
-	return llmMessages
+	// Marshal Data back to JSON for unmarshaling into specific struct
+	dataJSON, err := json.Marshal(part.Data)
+	if err != nil {
+		return nil
+	}
+
+	switch dataType {
+	case "tool_request":
+		var req llm.ToolRequest
+		if err := json.Unmarshal(dataJSON, &req); err == nil {
+			return llm.NewToolRequestPart(&req)
+		}
+
+	case "tool_response":
+		var resp llm.ToolResponse
+		if err := json.Unmarshal(dataJSON, &resp); err == nil {
+			return llm.NewToolResponsePart(&resp)
+		}
+	}
+
+	return nil
 }
 
-// MessageFromLLM converts an LLM SDK message to a2a-go message.
+// MessageFromLLM converts an LLM SDK message to A2A message format.
+//
+// This is used at the egress boundary when LLM responses exit the SDK to A2A clients.
+//
+// Conversion mapping:
+//   - llm.PartText → a2a.TextPart
+//   - llm.PartToolRequest → a2a.DataPart with Metadata["data_type"]="tool_request"
+//   - llm.PartToolResponse → a2a.DataPart with Metadata["data_type"]="tool_response"
+//   - llm.PartReasoning → a2a.TextPart (reasoning text only, type information lost)
+//
+// All complex types (ToolRequest, ToolResponse) are converted to JSON-safe map[string]any
+// for gob-compatibility. The data_type metadata field enables reverse conversion.
 func MessageFromLLM(llmMsg llm.Message) *a2a.Message {
 	// Map role
 	var role a2a.MessageRole
@@ -69,50 +162,36 @@ func MessageFromLLM(llmMsg llm.Message) *a2a.Message {
 	for _, part := range llmMsg.Content {
 		switch {
 		case part.IsText():
+			// Text part: store directly as TextPart
 			parts = append(parts, a2a.TextPart{Text: part.Text})
+
 		case part.IsToolRequest() && part.ToolRequest != nil:
-			// Convert tool request to DataPart with structured content
-			var args map[string]any
-			if err := json.Unmarshal(part.ToolRequest.Arguments, &args); err == nil {
+			// Tool request: convert to JSON-safe DataPart with data_type metadata
+			if data, err := toJSONSafe(part.ToolRequest); err == nil {
 				parts = append(parts, a2a.DataPart{
-					Data: map[string]any{
-						"type":      "tool_request",
-						"id":        part.ToolRequest.ID,
-						"name":      part.ToolRequest.Name,
-						"arguments": args,
+					Data: data,
+					Metadata: map[string]any{
+						"data_type": "tool_request",
 					},
 				})
 			}
-		case part.IsToolResponse() && part.ToolResponse != nil:
-			// Convert tool response to DataPart
-			var result map[string]any
-			if err := json.Unmarshal(part.ToolResponse.Result, &result); err == nil {
-				data := map[string]any{
-					"type":   "tool_response",
-					"id":     part.ToolResponse.ID,
-					"name":   part.ToolResponse.Name,
-					"result": result,
-				}
-				if part.ToolResponse.Error != "" {
-					data["error"] = part.ToolResponse.Error
-				}
 
+		case part.IsToolResponse() && part.ToolResponse != nil:
+			// Tool response: convert to JSON-safe DataPart with data_type metadata
+			if data, err := toJSONSafe(part.ToolResponse); err == nil {
 				parts = append(parts, a2a.DataPart{
 					Data: data,
+					Metadata: map[string]any{
+						"data_type": "tool_response",
+					},
 				})
 			}
+
+		case part.IsReasoning() && part.ReasoningTrace != nil:
+			// Reasoning trace: store text as TextPart (like regular text)
+			parts = append(parts, a2a.TextPart{Text: part.ReasoningTrace.Text})
 		}
 	}
 
 	return a2a.NewMessage(role, parts...)
-}
-
-// MessagesFromLLM converts a slice of LLM SDK messages to a2a-go messages.
-func MessagesFromLLM(llmMessages []llm.Message) []*a2a.Message {
-	a2aMessages := make([]*a2a.Message, 0, len(llmMessages))
-	for _, msg := range llmMessages {
-		a2aMessages = append(a2aMessages, MessageFromLLM(msg))
-	}
-
-	return a2aMessages
 }
