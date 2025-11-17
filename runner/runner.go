@@ -162,6 +162,7 @@ func (r *Runner) Run(
 
 		// 3. Execute BeforeInvocation hooks
 		if len(r.config.hooks) > 0 {
+			//nolint:contextcheck // hookCtx wraps invCtx which properly propagates the parent context
 			hookCtx := hooks.NewHookContext(
 				invCtx,
 				invCtx.InvocationID(),
@@ -186,6 +187,7 @@ func (r *Runner) Run(
 		var allEvents []agent.Event
 		var invocationErr error
 
+		//nolint:contextcheck // invCtx properly wraps the parent context and propagates cancellation
 		for evt, err := range r.config.agent.Run(invCtx) {
 			if err != nil {
 				invocationErr = err
