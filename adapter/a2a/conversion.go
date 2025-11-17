@@ -58,10 +58,13 @@ func toJSONSafe(v any) (map[string]any, error) {
 // The resulting llm.Message is passed to the runner and stored in the session.
 //
 // Conversion mapping:
-//   - a2a.TextPart → llm.PartText
-//   - a2a.DataPart with Metadata["data_type"]="tool_request" → llm.PartToolRequest
-//   - a2a.DataPart with Metadata["data_type"]="tool_response" → llm.PartToolResponse
-//   - a2a.DataPart without data_type → ignored
+//   - a2a.TextPart → llm.PartText (text content)
+//   - a2a.DataPart → llm.PartText (JSON-serialized data)
+//   - a2a.FilePart → llm.PartText (JSON-serialized file metadata and content)
+//
+// DataPart and FilePart are converted to JSON strings since the LLM SDK does not
+// have native support for structured data or file parts yet. This preserves all
+// information while maintaining compatibility.
 //
 // Note: This conversion is one-directional. State tracking should use the session
 // store's llm.Message format, not A2A message history.
@@ -73,8 +76,6 @@ func MessageToLLM(msg *a2a.Message) llm.Message {
 		role = llm.RoleUser
 	case a2a.MessageRoleAgent:
 		role = llm.RoleAssistant
-	case a2a.MessageRoleUnspecified:
-		role = llm.RoleAssistant // Default to assistant for unspecified role
 	default:
 		role = llm.RoleAssistant
 	}
@@ -86,48 +87,15 @@ func MessageToLLM(msg *a2a.Message) llm.Message {
 			// TextPart → Text part
 			parts = append(parts, llm.NewTextPart(p.Text))
 
-		case a2a.DataPart:
-			// DataPart → use metadata to determine type
-			if llmPart := dataPartToLLMPart(p); llmPart != nil {
-				parts = append(parts, llmPart)
+		case a2a.DataPart, a2a.FilePart:
+			// DataPart/FilePart → JSON text (LLM doesn't have native support for these)
+			if jsonBytes, err := json.Marshal(p); err == nil {
+				parts = append(parts, llm.NewTextPart(string(jsonBytes)))
 			}
 		}
 	}
 
 	return llm.NewMessage(role, parts...)
-}
-
-// dataPartToLLMPart converts a DataPart back to the appropriate LLM Part type.
-// It uses the Metadata["data_type"] field to determine the type, then unmarshals
-// the Data accordingly.
-func dataPartToLLMPart(part a2a.DataPart) *llm.Part {
-	// Check metadata for data_type
-	dataType, ok := part.Metadata["data_type"].(string)
-	if !ok {
-		return nil // No data_type, can't determine type
-	}
-
-	// Marshal Data back to JSON for unmarshaling into specific struct
-	dataJSON, err := json.Marshal(part.Data)
-	if err != nil {
-		return nil
-	}
-
-	switch dataType {
-	case "tool_request":
-		var req llm.ToolRequest
-		if err := json.Unmarshal(dataJSON, &req); err == nil {
-			return llm.NewToolRequestPart(&req)
-		}
-
-	case "tool_response":
-		var resp llm.ToolResponse
-		if err := json.Unmarshal(dataJSON, &resp); err == nil {
-			return llm.NewToolResponsePart(&resp)
-		}
-	}
-
-	return nil
 }
 
 // MessageFromLLM converts an LLM SDK message to A2A message format.
