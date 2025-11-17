@@ -1,4 +1,4 @@
-package a2aconv
+package a2a
 
 import (
 	"context"
