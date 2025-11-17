@@ -76,6 +76,8 @@ func MessageToLLM(msg *a2a.Message) llm.Message {
 		role = llm.RoleUser
 	case a2a.MessageRoleAgent:
 		role = llm.RoleAssistant
+	case a2a.MessageRoleUnspecified:
+		role = llm.RoleAssistant
 	default:
 		role = llm.RoleAssistant
 	}
