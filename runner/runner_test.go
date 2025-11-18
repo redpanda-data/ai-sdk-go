@@ -11,7 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
+	"github.com/redpanda-data/ai-sdk-go/agent/hooks"
+	"github.com/redpanda-data/ai-sdk-go/agent/llmagent"
 	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/llm/fakellm"
 	"github.com/redpanda-data/ai-sdk-go/runner"
 	"github.com/redpanda-data/ai-sdk-go/store/session"
 )
@@ -543,4 +546,122 @@ func (m *mockSessionStore) Delete(ctx context.Context, sessionID string) error {
 	}
 
 	return nil
+}
+
+// TestRunner_WithHooks_Complete is an end-to-end test demonstrating the full hooks lifecycle.
+func TestRunner_WithHooks_Complete(t *testing.T) {
+	t.Parallel()
+
+	t.Run("hooks can reject invocation", func(t *testing.T) {
+		t.Parallel()
+
+		// Create agent with fakellm (won't be called due to rejection)
+		model := fakellm.NewFakeModel()
+		model.When(fakellm.Any()).ThenStreamText("Should not be called", fakellm.StreamConfig{})
+
+		ag, err := llmagent.New("test-agent", "You are helpful", model)
+		require.NoError(t, err)
+
+		// Hook that rejects invocation
+		rejectionHook := &testBeforeHook{
+			onBefore: func(ctx hooks.HookContext, msg llm.Message) error {
+				return errors.New("invocation rejected by policy")
+			},
+		}
+
+		store := session.NewInMemoryStore()
+		r, err := runner.New(ag, store, runner.WithHook(rejectionHook))
+		require.NoError(t, err)
+
+		// Execute
+		ctx := context.Background()
+		userMsg := llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hello"))
+
+		var runErr error
+
+		for _, err := range r.Run(ctx, "", "test-session", userMsg) {
+			if err != nil {
+				runErr = err
+				break
+			}
+		}
+
+		// Verify invocation was rejected
+		assert.Error(t, runErr)
+		assert.Contains(t, runErr.Error(), "invocation rejected by policy")
+	})
+
+	t.Run("complete hooks lifecycle", func(t *testing.T) {
+		t.Parallel()
+
+		// Create agent with fakellm
+		model := fakellm.NewFakeModel()
+		model.When(fakellm.Any()).ThenStreamText("Hello! How can I help you today?", fakellm.StreamConfig{})
+
+		ag, err := llmagent.New("test-agent", "You are helpful", model)
+		require.NoError(t, err)
+
+		// Track hook execution
+		var beforeCalled, afterCalled bool
+		var capturedResult hooks.InvocationResult
+
+		// BeforeInvocation hook
+		beforeHook := &testBeforeHook{
+			onBefore: func(ctx hooks.HookContext, msg llm.Message) error {
+				beforeCalled = true
+				return nil
+			},
+		}
+
+		// AfterInvocation hook verifies result
+		afterHook := &testAfterHook{
+			onAfter: func(ctx hooks.HookContext, result hooks.InvocationResult) error {
+				afterCalled = true
+				capturedResult = result
+
+				// Verify invocation result
+				assert.Equal(t, agent.FinishReasonStop, result.FinishReason)
+				assert.NotNil(t, result.FinalMessage)
+				assert.GreaterOrEqual(t, result.TotalUsage.TotalTokens, 0)
+				assert.NotEmpty(t, result.Events)
+				assert.NoError(t, result.Error)
+
+				return nil
+			},
+		}
+
+		store := session.NewInMemoryStore()
+		r, err := runner.New(ag, store,
+			runner.WithHook(beforeHook),
+			runner.WithHook(afterHook),
+		)
+		require.NoError(t, err)
+
+		// Execute
+		ctx := context.Background()
+		userMsg := llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hello"))
+
+		events := collectEvents(t, r.Run(ctx, "", "test-session", userMsg))
+
+		// Verify hooks were called
+		assert.True(t, beforeCalled, "BeforeInvocation hook should have been called")
+		assert.True(t, afterCalled, "AfterInvocation hook should have been called")
+
+		// Verify events were emitted
+		assert.NotEmpty(t, events)
+		endEvent := findInvocationEndEvent(events)
+		require.NotNil(t, endEvent)
+		assert.Equal(t, agent.FinishReasonStop, endEvent.FinishReason)
+
+		// Verify session was saved
+		sess, err := store.Load(ctx, "test-session")
+		require.NoError(t, err)
+		assert.Len(t, sess.Messages, 2) // User + Assistant
+		assert.Equal(t, llm.RoleUser, sess.Messages[0].Role)
+		assert.Equal(t, llm.RoleAssistant, sess.Messages[1].Role)
+
+		// Verify captured result
+		assert.Equal(t, agent.FinishReasonStop, capturedResult.FinishReason)
+		assert.NotNil(t, capturedResult.FinalMessage)
+	})
 }
