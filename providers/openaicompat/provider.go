@@ -152,7 +152,7 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 		capabilities:   capabilities,
 		client:         p.client,
 		requestMapper:  NewRequestMapper(cfg),
-		responseMapper: NewResponseMapper(),
+		responseMapper: NewResponseMapper(cfg.Constraints),
 	}, nil
 }
 

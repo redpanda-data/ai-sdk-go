@@ -146,6 +146,10 @@ func TestExecutor_Integration_OpenAI(t *testing.T) {
 				if totalTokens, ok := usage["total_tokens"].(int); ok {
 					assert.Positive(t, totalTokens, "Should have token usage")
 				}
+
+				if maxInputTokens, ok := usage["max_input_tokens"].(int); ok {
+					assert.Positive(t, maxInputTokens, "Should have max_input_tokens")
+				}
 			}
 
 		case *a2a.TaskArtifactUpdateEvent:

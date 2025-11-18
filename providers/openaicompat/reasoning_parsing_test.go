@@ -15,7 +15,7 @@ import (
 func TestReasoningContentParsing(t *testing.T) {
 	t.Parallel()
 
-	mapper := NewResponseMapper()
+	mapper := NewResponseMapper(getDefaultConstraints())
 
 	t.Run("parse reasoning_content from non-streaming response", func(t *testing.T) {
 		t.Parallel()

@@ -212,6 +212,16 @@ func (m *FakeModel) Capabilities() llm.ModelCapabilities {
 	return m.caps
 }
 
+// Constraints returns the model's constraints.
+func (m *FakeModel) Constraints() llm.ModelConstraints {
+	return llm.ModelConstraints{
+		TemperatureRange:  [2]float64{0.0, 2.0},
+		MaxTokensLimit:    128000, // Default 128K context window
+		SupportedParams:   []string{"temperature", "max_tokens", "top_p"},
+		MutuallyExclusive: [][]string{},
+	}
+}
+
 // Generate performs non-streaming generation following the configured rules.
 func (m *FakeModel) Generate(ctx context.Context, req *llm.Request) (*llm.Response, error) {
 	cc := m.beginCall(req)

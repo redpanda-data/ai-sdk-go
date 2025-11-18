@@ -20,6 +20,10 @@ type TokenUsage struct {
 	// ReasoningTokens is the number of tokens used for reasoning (thinking) by reasoning models.
 	// Only available for models that support reasoning (OpenAI o-series, GPT-5 series).
 	ReasoningTokens int `json:"reasoning_tokens,omitempty"`
+
+	// MaxInputTokens is the maximum number of tokens the model can accept as input.
+	// This represents the model's context window size.
+	MaxInputTokens int `json:"max_input_tokens,omitempty"`
 }
 
 // SumUsage aggregates multiple TokenUsage values into a single cumulative result.
@@ -43,12 +47,17 @@ func SumUsage(usages ...*TokenUsage) *TokenUsage {
 			result = &val
 		} else {
 			// Accumulate into result
+			maxInputTokens := result.MaxInputTokens
+			if u.MaxInputTokens > maxInputTokens {
+				maxInputTokens = u.MaxInputTokens
+			}
 			result = &TokenUsage{
 				InputTokens:     u.InputTokens + result.InputTokens,
 				OutputTokens:    u.OutputTokens + result.OutputTokens,
 				TotalTokens:     u.TotalTokens + result.TotalTokens,
 				CachedTokens:    u.CachedTokens + result.CachedTokens,
 				ReasoningTokens: u.ReasoningTokens + result.ReasoningTokens,
+				MaxInputTokens:  maxInputTokens,
 			}
 		}
 	}

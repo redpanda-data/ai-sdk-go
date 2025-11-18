@@ -25,6 +25,11 @@ type simpleModel struct{}
 
 func (simpleModel) Name() string                        { return "test-model" }
 func (simpleModel) Capabilities() llm.ModelCapabilities { return llm.ModelCapabilities{} }
+func (simpleModel) Constraints() llm.ModelConstraints {
+	return llm.ModelConstraints{
+		MaxTokensLimit: 128000,
+	}
+}
 func (simpleModel) Generate(context.Context, *llm.Request) (*llm.Response, error) {
 	return nil, errors.New("not implemented")
 }
