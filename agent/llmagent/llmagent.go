@@ -259,13 +259,12 @@ func (a *LLMAgent) Run(invCtx *agent.InvocationContext) iter.Seq2[agent.Event, e
 				return
 			}
 
-			toolMessages := a.executeTools(invCtx, toolReqs, makeEnvelope, yield)
+			toolParts := a.executeTools(invCtx, toolReqs, makeEnvelope, yield)
 
-			// Add tool results to conversation (including errors - LLM handles them gracefully)
-			for _, msg := range toolMessages {
-				sess.Messages = append(sess.Messages, msg)
-				messages = append(messages, msg)
-			}
+			// Build single message with all tool response parts
+			toolMsg := llm.NewMessage(llm.RoleUser, toolParts...)
+			sess.Messages = append(sess.Messages, toolMsg)
+			messages = append(messages, toolMsg)
 
 			// Emit turn completed
 			if !yield(agent.StatusEvent{
@@ -405,7 +404,7 @@ func (a *LLMAgent) generateWithStreaming(
 //
 // ToolResponseEvents are yielded as tools complete.
 //
-// Returns tool result messages to be added to the conversation.
+// Returns tool response parts in the order they were requested.
 //
 // Future: Will also return list of tool IDs requiring input for
 // StatusStageInputRequired / FinishReasonInputRequired support.
@@ -414,7 +413,7 @@ func (a *LLMAgent) executeTools(
 	toolReqs []*llm.ToolRequest,
 	makeEnvelope func() agent.EventEnvelope,
 	yield func(agent.Event, error) bool,
-) []llm.Message {
+) []*llm.Part {
 	// Execute tools concurrently with limited parallelism
 	g, ctx := errgroup.WithContext(invCtx)
 	g.SetLimit(min(a.config.toolConcurrency, len(toolReqs)))
@@ -446,23 +445,11 @@ func (a *LLMAgent) executeTools(
 		})
 	}
 
-	// Wait for all tools to complete
-	// Note: g.Wait() should never return an error since goroutines always return nil
-	_ = g.Wait()
+	// Collect tool response parts and yield events as they arrive
+	parts := make([]*llm.Part, 0, len(toolReqs))
 
-	close(results)
-
-	// Collect results in original request order for deterministic transcripts
-	ordered := make([]toolResult, len(toolReqs))
-	for result := range results {
-		ordered[result.idx] = result
-	}
-
-	// Build messages and yield events in request order
-	messages := make([]llm.Message, 0, len(toolReqs))
-
-	for _, result := range ordered {
-		var msg llm.Message
+	for range toolReqs {
+		result := <-results
 
 		if result.err != nil {
 			// Tool execution failed - create error response
@@ -471,32 +458,30 @@ func (a *LLMAgent) executeTools(
 				Name:  result.name,
 				Error: result.err.Error(),
 			}
-			msg = llm.NewMessage(llm.RoleUser, llm.NewToolResponsePart(errResp))
+			parts = append(parts, llm.NewToolResponsePart(errResp))
 
 			// Yield error tool result event
 			if !yield(agent.ToolResponseEvent{
 				Envelope: makeEnvelope(),
 				Response: *errResp,
 			}, nil) {
-				return messages // Consumer stopped listening
+				return parts // Consumer stopped listening
 			}
 		} else {
 			// Tool execution succeeded
-			msg = llm.NewMessage(llm.RoleUser, llm.NewToolResponsePart(result.response))
+			parts = append(parts, llm.NewToolResponsePart(result.response))
 
 			// Yield tool result event
 			if !yield(agent.ToolResponseEvent{
 				Envelope: makeEnvelope(),
 				Response: *result.response,
 			}, nil) {
-				return messages // Consumer stopped listening
+				return parts // Consumer stopped listening
 			}
 		}
-
-		messages = append(messages, msg)
 	}
 
-	return messages
+	return parts
 }
 
 // mapLLMFinishReason converts an llm.FinishReason to an agent.FinishReason.
