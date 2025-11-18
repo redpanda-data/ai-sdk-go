@@ -84,6 +84,7 @@ func (rm *ResponseMapper) FromProvider(apiResp *openai.ChatCompletion) (*llm.Res
 			InputTokens:     int(apiResp.Usage.PromptTokens),
 			OutputTokens:    int(apiResp.Usage.CompletionTokens),
 			TotalTokens:     int(apiResp.Usage.TotalTokens),
+			CachedTokens:    int(apiResp.Usage.PromptTokensDetails.CachedTokens),
 			ReasoningTokens: int(apiResp.Usage.CompletionTokensDetails.ReasoningTokens),
 		}
 	} else {
@@ -93,6 +94,7 @@ func (rm *ResponseMapper) FromProvider(apiResp *openai.ChatCompletion) (*llm.Res
 			InputTokens:     0,
 			OutputTokens:    0,
 			TotalTokens:     0,
+			CachedTokens:    0,
 			ReasoningTokens: 0,
 		}
 	}

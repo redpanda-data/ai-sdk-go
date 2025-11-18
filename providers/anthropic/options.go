@@ -26,6 +26,9 @@ type Config struct {
 	// Extended thinking configuration
 	EnableThinking bool // Enable extended thinking for reasoning models
 
+	// Prompt caching configuration
+	EnableCaching bool // Enable prompt caching by setting cache_control markers
+
 	// Custom model name override (inherits base model capabilities)
 	CustomModelName string
 
