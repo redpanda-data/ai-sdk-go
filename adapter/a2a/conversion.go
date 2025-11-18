@@ -137,7 +137,13 @@ func MessageFromLLM(llmMsg llm.Message) *a2a.Message {
 
 		case part.IsToolRequest() && part.ToolRequest != nil:
 			// Tool request: convert to JSON-safe DataPart with data_type metadata
-			if data, err := toJSONSafe(part.ToolRequest); err == nil {
+			data, err := toJSONSafe(part.ToolRequest)
+			if err != nil {
+				// Fallback: encode error as text to preserve visibility
+				errMsg := fmt.Sprintf("[ERROR: Failed to serialize tool request '%s': %v]",
+					part.ToolRequest.Name, err)
+				parts = append(parts, a2a.TextPart{Text: errMsg})
+			} else {
 				parts = append(parts, a2a.DataPart{
 					Data: data,
 					Metadata: map[string]any{
@@ -145,10 +151,15 @@ func MessageFromLLM(llmMsg llm.Message) *a2a.Message {
 					},
 				})
 			}
-
 		case part.IsToolResponse() && part.ToolResponse != nil:
 			// Tool response: convert to JSON-safe DataPart with data_type metadata
-			if data, err := toJSONSafe(part.ToolResponse); err == nil {
+			data, err := toJSONSafe(part.ToolResponse)
+			if err != nil {
+				// Fallback: encode error as text to preserve visibility
+				errMsg := fmt.Sprintf("[ERROR: Failed to serialize tool response for '%s': %v]",
+					part.ToolResponse.Name, err)
+				parts = append(parts, a2a.TextPart{Text: errMsg})
+			} else {
 				parts = append(parts, a2a.DataPart{
 					Data: data,
 					Metadata: map[string]any{
@@ -156,7 +167,6 @@ func MessageFromLLM(llmMsg llm.Message) *a2a.Message {
 					},
 				})
 			}
-
 		case part.IsReasoning() && part.ReasoningTrace != nil:
 			// Reasoning trace: store text as TextPart (like regular text)
 			parts = append(parts, a2a.TextPart{Text: part.ReasoningTrace.Text})

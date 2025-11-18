@@ -152,6 +152,7 @@ func (e *Executor) processEvents(
 					},
 				}
 			}
+
 			write(historyStatus)
 
 			// Reset artifactID so next model_call creates a new one
@@ -169,6 +170,7 @@ func (e *Executor) processEvents(
 					artifact = a2a.NewArtifactUpdateEvent(reqCtx, currentArtifactID, a2a.TextPart{Text: ev.Delta.Part.Text})
 					artifact.Append = true
 				}
+
 				write(artifact)
 			}
 		case agent.InvocationEndEvent:
@@ -189,8 +191,10 @@ func (e *Executor) processEvents(
 					},
 				}
 			}
+
 			write(statusEvent)
 			e.log.InfoContext(ctx, "Returning from InvocationEndEvent")
+
 			return nil
 		default:
 			e.log.DebugContext(ctx, "Received unhandled event", "type", fmt.Sprintf("%T", event))
