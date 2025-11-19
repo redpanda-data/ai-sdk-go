@@ -168,6 +168,9 @@ func (r *Runner) Run(
 			if err != nil {
 				// Forward error
 				if !yield(nil, err) {
+					// Consumer stopped - save session before returning
+					//nolint:contextcheck // invCtx embeds the original ctx and maintains its cancellation
+					_ = r.config.sessionStore.Save(invCtx, sess)
 					return
 				}
 
@@ -187,6 +190,10 @@ func (r *Runner) Run(
 
 			// Forward event to caller
 			if !yield(evt, nil) {
+				// Consumer stopped (likely due to cancellation or early return)
+				// Save session to preserve progress up to this point
+				//nolint:contextcheck // invCtx embeds the original ctx and maintains its cancellation
+				_ = r.config.sessionStore.Save(invCtx, sess)
 				return
 			}
 

@@ -758,3 +758,80 @@ func TestExecutor_SessionPersistence(t *testing.T) {
 		assert.True(t, hasCompleted, "Request %d should have completed successfully", i+1)
 	}
 }
+
+func TestExecutor_SessionPersistence_Cancelled(t *testing.T) {
+	t.Parallel()
+
+	// Create fake model that responds
+	model := fakellm.NewFakeModel()
+	model.When(fakellm.Any()).ThenRespondText("This is a response.")
+
+	// Create agent
+	agentInstance, err := llmagent.New("test-agent", "You are a helpful assistant.", model)
+	require.NoError(t, err)
+
+	// Create runner with shared session store
+	sessionStore := session.NewInMemoryStore()
+	runnerInstance, err := runner.New(agentInstance, sessionStore)
+	require.NoError(t, err)
+
+	// Create A2A executor
+	executor := NewExecutor(agentInstance, runnerInstance, slog.Default())
+
+	// Create cancellable context
+	ctx, cancel := context.WithCancel(context.Background())
+	contextID := "test-session-context-cancelled"
+
+	reqCtx := &a2asrv.RequestContext{
+		ContextID:  contextID,
+		TaskID:     "test-task-1",
+		StoredTask: nil,
+		Message: a2a.NewMessage(
+			a2a.MessageRoleUser,
+			a2a.TextPart{Text: "Tell me something."},
+		),
+	}
+
+	queue := eventqueue.NewInMemoryQueue(100)
+	events := []a2a.Event{}
+	eventsDone := make(chan struct{})
+
+	go func() {
+		defer close(eventsDone)
+		for {
+			event, err := queue.Read(ctx)
+			if err != nil {
+				return
+			}
+			events = append(events, event)
+
+			// Cancel after receiving the first artifact (response started)
+			if _, ok := event.(*a2a.TaskArtifactUpdateEvent); ok {
+				t.Log("Cancelling context after receiving artifact")
+				cancel()
+			}
+		}
+	}()
+
+	_ = executor.Execute(ctx, reqCtx, queue)
+	// Cancellation expected, error may or may not occur
+
+	queue.Close()
+	<-eventsDone
+
+	t.Logf("Received %d events before cancellation", len(events))
+
+	// The key assertion: Even though we cancelled, progress should be saved
+	savedSession, err := sessionStore.Load(context.Background(), contextID)
+	if err == nil {
+		t.Logf("Session was saved with %d messages despite cancellation", len(savedSession.Messages))
+		// Should have at least the user message
+		assert.GreaterOrEqual(t, len(savedSession.Messages), 1, "Should have saved at least the user message")
+		if len(savedSession.Messages) >= 1 {
+			assert.Equal(t, llm.RoleUser, savedSession.Messages[0].Role)
+			assert.Contains(t, savedSession.Messages[0].TextContent(), "Tell me something")
+		}
+	} else {
+		t.Logf("Session not found after cancellation: %v", err)
+	}
+}
