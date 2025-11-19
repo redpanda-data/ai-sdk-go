@@ -15,12 +15,14 @@ const (
 )
 
 // ResponseMapper converts Anthropic API payloads to llm.Response.
-// It's stateless; the zero value is ready to use.
-type ResponseMapper struct{}
+type ResponseMapper struct {
+	modelDefinition ModelDefinition
+}
 
 // NewResponseMapper returns a ready-to-use mapper.
-// Zero value is also valid; this exists for callers that prefer constructors.
-func NewResponseMapper() *ResponseMapper { return &ResponseMapper{} }
+func NewResponseMapper(definition ModelDefinition) *ResponseMapper {
+	return &ResponseMapper{modelDefinition: definition}
+}
 
 // FromProvider converts an Anthropic Beta Messages API payload into llm.Response.
 func (m *ResponseMapper) FromProvider(r *anthropic.BetaMessage) (*llm.Response, error) {
@@ -82,6 +84,7 @@ func (m *ResponseMapper) FromProvider(r *anthropic.BetaMessage) (*llm.Response, 
 			TotalTokens:     int(r.Usage.InputTokens + r.Usage.OutputTokens),
 			CachedTokens:    int(r.Usage.CacheReadInputTokens),
 			ReasoningTokens: 0, // Anthropic doesn't separate reasoning tokens in usage
+			MaxInputTokens:  m.modelDefinition.Constraints.MaxInputTokens,
 		}
 	}
 

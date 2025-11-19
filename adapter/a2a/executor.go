@@ -165,6 +165,7 @@ func (e *Executor) processEvents(
 						"total_tokens":     ev.Response.Usage.TotalTokens,
 						"cached_tokens":    ev.Response.Usage.CachedTokens,
 						"reasoning_tokens": ev.Response.Usage.ReasoningTokens,
+						"max_input_tokens": ev.Response.Usage.MaxInputTokens,
 					},
 				}
 			}
@@ -203,6 +204,7 @@ func (e *Executor) processEvents(
 						"total_tokens":     ev.Usage.TotalTokens,
 						"cached_tokens":    ev.Usage.CachedTokens,
 						"reasoning_tokens": ev.Usage.ReasoningTokens,
+						"max_input_tokens": ev.Usage.MaxInputTokens,
 					},
 				}
 			}

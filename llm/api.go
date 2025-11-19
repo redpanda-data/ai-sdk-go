@@ -27,6 +27,11 @@ type ModelInfo interface {
 	// Use this to check if specific features are available before making requests
 	// that depend on them (e.g., streaming, tool calls, vision).
 	Capabilities() ModelCapabilities
+
+	// Constraints returns the model's validation rules and limitations.
+	// This includes the maximum context window size, temperature range,
+	// supported parameters, and other model-specific constraints.
+	Constraints() ModelConstraints
 }
 
 // Generator provides non-streaming text generation capabilities.

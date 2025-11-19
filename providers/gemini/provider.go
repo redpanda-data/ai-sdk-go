@@ -97,7 +97,7 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 		definition:     modelDef,
 		client:         p.client,
 		requestMapper:  NewRequestMapper(cfg),
-		responseMapper: NewResponseMapper(),
+		responseMapper: NewResponseMapper(modelDef),
 	}, nil
 }
 

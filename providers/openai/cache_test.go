@@ -49,99 +49,48 @@ func TestOpenAICachedTokens(t *testing.T) {
 	t.Logf("Request 1 - InputTokens: %d, OutputTokens: %d, CachedTokens: %d",
 		response1.Usage.InputTokens, response1.Usage.OutputTokens, response1.Usage.CachedTokens)
 
-	// Continue the conversation - this should hit the cache
-	messages = append(messages, llm.Message{
-		Role:    llm.RoleAssistant,
-		Content: response1.Message.Content,
-	})
-	messages = append(messages, llm.Message{
-		Role: llm.RoleUser,
-		Content: []*llm.Part{
-			llm.NewTextPart("Question 2: Say 'ok'."),
-		},
-	})
+	// Run multiple iterations to increase chances of seeing cached tokens
+	// OpenAI's automatic caching behavior is not deterministic
+	var responses []*llm.Response
+	responses = append(responses, response1)
 
-	response2, err := model.Generate(ctx, &llm.Request{Messages: messages})
-	require.NoError(t, err)
-	require.NotNil(t, response2)
-	require.NotNil(t, response2.Usage)
+	for i := 2; i <= 10; i++ {
+		messages = append(messages, llm.Message{
+			Role:    llm.RoleAssistant,
+			Content: responses[len(responses)-1].Message.Content,
+		})
+		messages = append(messages, llm.Message{
+			Role: llm.RoleUser,
+			Content: []*llm.Part{
+				llm.NewTextPart("Question: Say 'ok'."),
+			},
+		})
 
-	t.Logf("Request 2 - InputTokens: %d, OutputTokens: %d, CachedTokens: %d",
-		response2.Usage.InputTokens, response2.Usage.OutputTokens, response2.Usage.CachedTokens)
+		resp, err := model.Generate(ctx, &llm.Request{Messages: messages})
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		require.NotNil(t, resp.Usage)
 
-	// Continue further - cache should grow
-	messages = append(messages, llm.Message{
-		Role:    llm.RoleAssistant,
-		Content: response2.Message.Content,
-	})
-	messages = append(messages, llm.Message{
-		Role: llm.RoleUser,
-		Content: []*llm.Part{
-			llm.NewTextPart("Question 3: Say 'ok' again."),
-		},
-	})
+		t.Logf("Request %d - InputTokens: %d, OutputTokens: %d, CachedTokens: %d",
+			i, resp.Usage.InputTokens, resp.Usage.OutputTokens, resp.Usage.CachedTokens)
 
-	response3, err := model.Generate(ctx, &llm.Request{Messages: messages})
-	require.NoError(t, err)
-	require.NotNil(t, response3)
-	require.NotNil(t, response3.Usage)
+		responses = append(responses, resp)
+	}
 
-	t.Logf("Request 3 - InputTokens: %d, OutputTokens: %d, CachedTokens: %d",
-		response3.Usage.InputTokens, response3.Usage.OutputTokens, response3.Usage.CachedTokens)
+	// Check if any request showed cached tokens
+	totalCached := 0
 
-	// Request 4 - Now that we have 1024+ tokens in history, this should hit cache
-	messages = append(messages, llm.Message{
-		Role:    llm.RoleAssistant,
-		Content: response3.Message.Content,
-	})
-	messages = append(messages, llm.Message{
-		Role: llm.RoleUser,
-		Content: []*llm.Part{
-			llm.NewTextPart("Question 4: Say 'confirmed'."),
-		},
-	})
+	for i, resp := range responses {
+		assert.GreaterOrEqual(t, resp.Usage.CachedTokens, 0)
 
-	response4, err := model.Generate(ctx, &llm.Request{Messages: messages})
-	require.NoError(t, err)
-	require.NotNil(t, response4)
-	require.NotNil(t, response4.Usage)
+		totalCached += resp.Usage.CachedTokens
+		if resp.Usage.CachedTokens > 0 {
+			t.Logf("Cache hit on request %d with %d cached tokens", i+1, resp.Usage.CachedTokens)
+		}
+	}
 
-	t.Logf("Request 4 - InputTokens: %d, OutputTokens: %d, CachedTokens: %d",
-		response4.Usage.InputTokens, response4.Usage.OutputTokens, response4.Usage.CachedTokens)
+	// OpenAI should show caching on at least one subsequent request
+	require.Positive(t, totalCached, "Expected cached tokens with OpenAI automatic caching after %d requests", len(responses))
 
-	// Request 5 - Continue to build cache
-	messages = append(messages, llm.Message{
-		Role:    llm.RoleAssistant,
-		Content: response4.Message.Content,
-	})
-	messages = append(messages, llm.Message{
-		Role: llm.RoleUser,
-		Content: []*llm.Part{
-			llm.NewTextPart("Question 5: Say 'acknowledged'."),
-		},
-	})
-
-	response5, err := model.Generate(ctx, &llm.Request{Messages: messages})
-	require.NoError(t, err)
-	require.NotNil(t, response5)
-	require.NotNil(t, response5.Usage)
-
-	t.Logf("Request 5 - InputTokens: %d, OutputTokens: %d, CachedTokens: %d",
-		response5.Usage.InputTokens, response5.Usage.OutputTokens, response5.Usage.CachedTokens)
-
-	// Verify all responses have the CachedTokens field populated
-	assert.GreaterOrEqual(t, response1.Usage.CachedTokens, 0)
-	assert.GreaterOrEqual(t, response2.Usage.CachedTokens, 0)
-	assert.GreaterOrEqual(t, response3.Usage.CachedTokens, 0)
-	assert.GreaterOrEqual(t, response4.Usage.CachedTokens, 0)
-	assert.GreaterOrEqual(t, response5.Usage.CachedTokens, 0)
-
-	// Check if any requests show cached tokens
-	totalCached := response2.Usage.CachedTokens + response3.Usage.CachedTokens +
-		response4.Usage.CachedTokens + response5.Usage.CachedTokens
-
-	// OpenAI should show caching on subsequent requests
-	require.Positive(t, totalCached, "Expected cached tokens with OpenAI automatic caching")
-
-	t.Logf("SUCCESS: Detected %d total cached tokens across requests", totalCached)
+	t.Logf("SUCCESS: Detected %d total cached tokens across %d requests", totalCached, len(responses))
 }

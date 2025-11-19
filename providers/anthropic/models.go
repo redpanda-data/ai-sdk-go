@@ -49,7 +49,8 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Constraints: llm.ModelConstraints{
 			TemperatureRange:  [2]float64{0.0, 1.0},
-			MaxTokensLimit:    200000, // 200K context window
+			MaxInputTokens:    200000, // 200K context window
+			MaxOutputTokens:   64000,  // 64K output tokens
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens"},
 			MutuallyExclusive: [][]string{},
 		},
@@ -69,7 +70,8 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Constraints: llm.ModelConstraints{
 			TemperatureRange:  [2]float64{0.0, 1.0},
-			MaxTokensLimit:    200000, // 200K context window
+			MaxInputTokens:    200000, // 200K context window
+			MaxOutputTokens:   64000,  // 64K output tokens
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens"},
 			MutuallyExclusive: [][]string{},
 		},
@@ -89,7 +91,8 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Constraints: llm.ModelConstraints{
 			TemperatureRange:  [2]float64{0.0, 1.0},
-			MaxTokensLimit:    200000, // 200K context window
+			MaxInputTokens:    200000, // 200K context window
+			MaxOutputTokens:   32000,  // 32K output tokens
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens"},
 			MutuallyExclusive: [][]string{},
 		},

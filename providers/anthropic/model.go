@@ -33,6 +33,11 @@ func (m *Model) Capabilities() llm.ModelCapabilities {
 	return m.definition.Capabilities
 }
 
+// Constraints returns the model's validation rules and limitations.
+func (m *Model) Constraints() llm.ModelConstraints {
+	return m.definition.Constraints
+}
+
 // Generate performs a single, non-streaming request to the Anthropic Beta Messages API.
 func (m *Model) Generate(ctx context.Context, req *llm.Request) (*llm.Response, error) {
 	// Convert our unified request to Anthropic Beta Messages API format
