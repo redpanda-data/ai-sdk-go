@@ -418,7 +418,7 @@ func TestExecutor_SessionPersistence_Mock(t *testing.T) {
 	model := fakellm.NewFakeModel()
 
 	// Use a custom response builder that checks the conversation history
-	model.When(fakellm.Any()).ThenRespondWith(func(req *llm.Request, cc *fakellm.CallContext) (*llm.Response, error) {
+	model.When(fakellm.Any()).ThenRespondWith(func(req *llm.Request, _ *fakellm.CallContext) (*llm.Response, error) {
 		lastUserMsg := req.Messages[len(req.Messages)-1].TextContent()
 
 		// Check if user is telling us their favorite color
@@ -495,6 +495,7 @@ func TestExecutor_SessionPersistence_Mock(t *testing.T) {
 
 	// First request: Tell the agent your favorite color
 	t.Log("=== First request: Setting favorite color to blue ===")
+
 	reqCtx1 := &a2asrv.RequestContext{
 		ContextID:  contextID,
 		TaskID:     "test-task-1",
@@ -511,11 +512,13 @@ func TestExecutor_SessionPersistence_Mock(t *testing.T) {
 
 	go func() {
 		defer close(eventsDone1)
+
 		for {
 			event, err := queue1.Read(ctx)
 			if err != nil {
 				return
 			}
+
 			events1 = append(events1, event)
 		}
 	}()
@@ -528,11 +531,12 @@ func TestExecutor_SessionPersistence_Mock(t *testing.T) {
 
 	// Extract first response text
 	var firstResponse string
+
 	for _, event := range events1 {
 		if artifactEvent, ok := event.(*a2a.TaskArtifactUpdateEvent); ok {
 			for _, part := range artifactEvent.Artifact.Parts {
 				if textPart, ok := part.(a2a.TextPart); ok {
-					firstResponse += textPart.Text
+					firstResponse += textPart.Text //nolint:perfsprint // Test readability over performance
 				}
 			}
 		}
@@ -549,6 +553,7 @@ func TestExecutor_SessionPersistence_Mock(t *testing.T) {
 
 	// Second request: Ask what their favorite color is
 	t.Log("=== Second request: Asking for favorite color ===")
+
 	reqCtx2 := &a2asrv.RequestContext{
 		ContextID:  contextID, // Same context ID for session persistence
 		TaskID:     "test-task-2",
@@ -565,11 +570,13 @@ func TestExecutor_SessionPersistence_Mock(t *testing.T) {
 
 	go func() {
 		defer close(eventsDone2)
+
 		for {
 			event, err := queue2.Read(ctx)
 			if err != nil {
 				return
 			}
+
 			events2 = append(events2, event)
 		}
 	}()
@@ -582,11 +589,12 @@ func TestExecutor_SessionPersistence_Mock(t *testing.T) {
 
 	// Extract second response text
 	var secondResponse string
+
 	for _, event := range events2 {
 		if artifactEvent, ok := event.(*a2a.TaskArtifactUpdateEvent); ok {
 			for _, part := range artifactEvent.Artifact.Parts {
 				if textPart, ok := part.(a2a.TextPart); ok {
-					secondResponse += textPart.Text
+					secondResponse += textPart.Text //nolint:perfsprint // Test readability over performance
 				}
 			}
 		}
@@ -635,6 +643,7 @@ func TestExecutor_SessionPersistence(t *testing.T) {
 
 	// First request: Tell the agent your favorite color
 	t.Log("=== First request: Setting favorite color to blue ===")
+
 	reqCtx1 := &a2asrv.RequestContext{
 		ContextID:  contextID,
 		TaskID:     "test-task-1",
@@ -651,11 +660,13 @@ func TestExecutor_SessionPersistence(t *testing.T) {
 
 	go func() {
 		defer close(eventsDone1)
+
 		for {
 			event, err := queue1.Read(ctx)
 			if err != nil {
 				return
 			}
+
 			events1 = append(events1, event)
 		}
 	}()
@@ -670,11 +681,12 @@ func TestExecutor_SessionPersistence(t *testing.T) {
 
 	// Extract first response text
 	var firstResponse string
+
 	for _, event := range events1 {
 		if artifactEvent, ok := event.(*a2a.TaskArtifactUpdateEvent); ok {
 			for _, part := range artifactEvent.Artifact.Parts {
 				if textPart, ok := part.(a2a.TextPart); ok {
-					firstResponse += textPart.Text
+					firstResponse += textPart.Text //nolint:perfsprint // Test readability over performance
 				}
 			}
 		}
@@ -687,12 +699,14 @@ func TestExecutor_SessionPersistence(t *testing.T) {
 	savedSession, err := sessionStore.Load(ctx, contextID)
 	require.NoError(t, err, "Session should be saved after first request")
 	t.Logf("Session has %d messages after first request", len(savedSession.Messages))
+
 	for i, msg := range savedSession.Messages {
 		t.Logf("  Message %d: role=%s, content parts=%d", i, msg.Role, len(msg.Content))
 	}
 
 	// Second request: Ask what their favorite color is
 	t.Log("=== Second request: Asking for favorite color ===")
+
 	reqCtx2 := &a2asrv.RequestContext{
 		ContextID:  contextID, // Same context ID for session persistence
 		TaskID:     "test-task-2",
@@ -709,11 +723,13 @@ func TestExecutor_SessionPersistence(t *testing.T) {
 
 	go func() {
 		defer close(eventsDone2)
+
 		for {
 			event, err := queue2.Read(ctx)
 			if err != nil {
 				return
 			}
+
 			events2 = append(events2, event)
 		}
 	}()
@@ -726,11 +742,12 @@ func TestExecutor_SessionPersistence(t *testing.T) {
 
 	// Extract second response text
 	var secondResponse string
+
 	for _, event := range events2 {
 		if artifactEvent, ok := event.(*a2a.TaskArtifactUpdateEvent); ok {
 			for _, part := range artifactEvent.Artifact.Parts {
 				if textPart, ok := part.(a2a.TextPart); ok {
-					secondResponse += textPart.Text
+					secondResponse += textPart.Text //nolint:perfsprint // Test readability over performance
 				}
 			}
 		}
@@ -747,6 +764,7 @@ func TestExecutor_SessionPersistence(t *testing.T) {
 	// Verify both requests completed successfully
 	for i, events := range [][]a2a.Event{events1, events2} {
 		hasCompleted := false
+
 		for _, event := range events {
 			if statusEvent, ok := event.(*a2a.TaskStatusUpdateEvent); ok {
 				if statusEvent.Status.State == a2a.TaskStateCompleted && statusEvent.Final {
@@ -755,6 +773,7 @@ func TestExecutor_SessionPersistence(t *testing.T) {
 				}
 			}
 		}
+
 		assert.True(t, hasCompleted, "Request %d should have completed successfully", i+1)
 	}
 }
@@ -798,11 +817,13 @@ func TestExecutor_SessionPersistence_Cancelled(t *testing.T) {
 
 	go func() {
 		defer close(eventsDone)
+
 		for {
 			event, err := queue.Read(ctx)
 			if err != nil {
 				return
 			}
+
 			events = append(events, event)
 
 			// Cancel after receiving the first artifact (response started)
@@ -827,6 +848,7 @@ func TestExecutor_SessionPersistence_Cancelled(t *testing.T) {
 		t.Logf("Session was saved with %d messages despite cancellation", len(savedSession.Messages))
 		// Should have at least the user message
 		assert.GreaterOrEqual(t, len(savedSession.Messages), 1, "Should have saved at least the user message")
+
 		if len(savedSession.Messages) >= 1 {
 			assert.Equal(t, llm.RoleUser, savedSession.Messages[0].Role)
 			assert.Contains(t, savedSession.Messages[0].TextContent(), "Tell me something")

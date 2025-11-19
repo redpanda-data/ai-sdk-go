@@ -170,6 +170,7 @@ func (r *Runner) Run(
 		}()
 
 		// 5. Execute agent and forward events
+		//nolint:contextcheck // Agent.Run requires InvocationContext, not raw context
 		for evt, err := range r.config.agent.Run(invCtx) {
 			if err != nil {
 				// Forward error
@@ -183,7 +184,6 @@ func (r *Runner) Run(
 			// Save session after each assistant message (incremental persistence)
 			// Note: Agent already appended the message to sess.Messages, we just save it
 			if _, ok := evt.(agent.MessageEvent); ok {
-				//nolint:contextcheck // invCtx embeds the original ctx and maintains its cancellation
 				if err := r.config.sessionStore.Save(invCtx, sess); err != nil {
 					yield(nil, fmt.Errorf("%w: %w", agent.ErrSessionSave, err))
 					return
