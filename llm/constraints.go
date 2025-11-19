@@ -11,8 +11,11 @@ type ModelConstraints struct {
 	// TemperatureRange defines the valid range for temperature parameter [min, max]
 	TemperatureRange [2]float64
 
-	// MaxTokensLimit is the maximum context window size (input tokens)
-	MaxTokensLimit int
+	// MaxInputTokens is the maximum context window size (input tokens)
+	MaxInputTokens int
+
+	// MaxOutputTokens is the maximum number of tokens the model can generate in a single response
+	MaxOutputTokens int
 
 	// SupportedParams lists all parameters this model accepts
 	SupportedParams []string

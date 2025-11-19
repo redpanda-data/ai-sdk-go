@@ -37,7 +37,8 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Constraints: llm.ModelConstraints{
 			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxTokensLimit:    1048576, // 1M input tokens
+			MaxInputTokens:    1048576, // 1M input tokens
+			MaxOutputTokens:   65535,   // 65K output tokens
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
 			MutuallyExclusive: [][]string{},
 		},
@@ -57,7 +58,8 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Constraints: llm.ModelConstraints{
 			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxTokensLimit:    1048576, // 1M input tokens
+			MaxInputTokens:    1048576, // 1M input tokens
+			MaxOutputTokens:   65535,   // 65K output tokens
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
 			MutuallyExclusive: [][]string{},
 		},
@@ -77,7 +79,8 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Constraints: llm.ModelConstraints{
 			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxTokensLimit:    1048576, // 1M input tokens
+			MaxInputTokens:    1048576, // 1M input tokens
+			MaxOutputTokens:   65535,   // 65K output tokens
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
 			MutuallyExclusive: [][]string{},
 		},
@@ -97,7 +100,8 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Constraints: llm.ModelConstraints{
 			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxTokensLimit:    1048576, // 1M input tokens
+			MaxInputTokens:    1048576, // 1M input tokens
+			MaxOutputTokens:   65535,   // 65K output tokens
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
 			MutuallyExclusive: [][]string{},
 		},
@@ -117,7 +121,8 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Constraints: llm.ModelConstraints{
 			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxTokensLimit:    1048576, // 1M input tokens
+			MaxInputTokens:    1048576, // 1M input tokens
+			MaxOutputTokens:   8192,    // 8K output tokens
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
 			MutuallyExclusive: [][]string{},
 		},

@@ -27,7 +27,7 @@ func (simpleModel) Name() string                        { return "test-model" }
 func (simpleModel) Capabilities() llm.ModelCapabilities { return llm.ModelCapabilities{} }
 func (simpleModel) Constraints() llm.ModelConstraints {
 	return llm.ModelConstraints{
-		MaxTokensLimit: 128000,
+		MaxInputTokens: 128000,
 	}
 }
 

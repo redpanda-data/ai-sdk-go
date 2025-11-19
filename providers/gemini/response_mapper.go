@@ -52,7 +52,7 @@ func (m *ResponseMapper) FromProvider(r *genai.GenerateContentResponse) (*llm.Re
 			TotalTokens:     int(r.UsageMetadata.TotalTokenCount),
 			CachedTokens:    int(r.UsageMetadata.CachedContentTokenCount),
 			ReasoningTokens: 0,
-			MaxInputTokens:  m.modelDefinition.Constraints.MaxTokensLimit,
+			MaxInputTokens:  m.modelDefinition.Constraints.MaxInputTokens,
 		}
 	}
 

@@ -120,7 +120,7 @@ func (m *ResponseMapper) FromProvider(r *responses.Response) (*llm.Response, err
 			TotalTokens:     int(r.Usage.TotalTokens),
 			CachedTokens:    int(r.Usage.InputTokensDetails.CachedTokens),
 			ReasoningTokens: int(r.Usage.OutputTokensDetails.ReasoningTokens),
-			MaxInputTokens:  m.modelDefinition.Constraints.MaxTokensLimit,
+			MaxInputTokens:  m.modelDefinition.Constraints.MaxInputTokens,
 		}
 	} else {
 		// Even if TotalTokens is 0, provide usage structure with MaxInputTokens
@@ -130,7 +130,7 @@ func (m *ResponseMapper) FromProvider(r *responses.Response) (*llm.Response, err
 			TotalTokens:     int(r.Usage.TotalTokens),
 			CachedTokens:    int(r.Usage.InputTokensDetails.CachedTokens),
 			ReasoningTokens: int(r.Usage.OutputTokensDetails.ReasoningTokens),
-			MaxInputTokens:  m.modelDefinition.Constraints.MaxTokensLimit,
+			MaxInputTokens:  m.modelDefinition.Constraints.MaxInputTokens,
 		}
 	}
 

@@ -84,7 +84,7 @@ func (m *ResponseMapper) FromProvider(r *anthropic.BetaMessage) (*llm.Response, 
 			TotalTokens:     int(r.Usage.InputTokens + r.Usage.OutputTokens),
 			CachedTokens:    int(r.Usage.CacheReadInputTokens),
 			ReasoningTokens: 0, // Anthropic doesn't separate reasoning tokens in usage
-			MaxInputTokens:  m.modelDefinition.Constraints.MaxTokensLimit,
+			MaxInputTokens:  m.modelDefinition.Constraints.MaxInputTokens,
 		}
 	}
 

@@ -216,7 +216,8 @@ func (m *FakeModel) Capabilities() llm.ModelCapabilities {
 func (m *FakeModel) Constraints() llm.ModelConstraints {
 	return llm.ModelConstraints{
 		TemperatureRange:  [2]float64{0.0, 2.0},
-		MaxTokensLimit:    128000, // Default 128K context window
+		MaxInputTokens:    128000, // Default 128K context window
+		MaxOutputTokens:   4096,   // Default 4K output tokens
 		SupportedParams:   []string{"temperature", "max_tokens", "top_p"},
 		MutuallyExclusive: [][]string{},
 	}

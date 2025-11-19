@@ -23,7 +23,8 @@ func getDefaultCapabilities() llm.ModelCapabilities {
 func getDefaultConstraints() llm.ModelConstraints {
 	return llm.ModelConstraints{
 		TemperatureRange:  [2]float64{0.0, 2.0},
-		MaxTokensLimit:    100000, // Generous limit for most models
+		MaxInputTokens:    100000, // Generous limit for most models
+		MaxOutputTokens:   16384,  // Conservative default for most models
 		SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed", "logprobs", "stop"},
 		MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		ConditionalRules:  []llm.ConditionalRule{},
