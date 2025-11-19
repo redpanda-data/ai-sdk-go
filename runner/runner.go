@@ -161,24 +161,26 @@ func (r *Runner) Run(
 		// 3. Create invocation context
 		invCtx := agent.NewInvocationContext(ctx, sess)
 
-		// 4. Execute agent and forward events
-		// Save session incrementally after each message to ensure persistence
-		// even if the consumer stops iterating early
+		// 4. Save session on exit (handles normal completion, cancellation, errors)
+		//nolint:contextcheck // invCtx embeds the original ctx and maintains its cancellation
+		defer func() {
+			if err := r.config.sessionStore.Save(invCtx, sess); err != nil {
+				yield(nil, fmt.Errorf("%w: %w", agent.ErrSessionSave, err))
+			}
+		}()
+
+		// 5. Execute agent and forward events
 		for evt, err := range r.config.agent.Run(invCtx) {
 			if err != nil {
 				// Forward error
 				if !yield(nil, err) {
-					// Consumer stopped - save session before returning
-					//nolint:contextcheck // invCtx embeds the original ctx and maintains its cancellation
-					_ = r.config.sessionStore.Save(invCtx, sess)
 					return
 				}
 
 				continue
 			}
 
-			// Save session after each assistant message (before yielding)
-			// This ensures progress is persisted regardless of consumer behavior
+			// Save session after each assistant message (incremental persistence)
 			// Note: Agent already appended the message to sess.Messages, we just save it
 			if _, ok := evt.(agent.MessageEvent); ok {
 				//nolint:contextcheck // invCtx embeds the original ctx and maintains its cancellation
@@ -190,20 +192,11 @@ func (r *Runner) Run(
 
 			// Forward event to caller
 			if !yield(evt, nil) {
-				// Consumer stopped (likely due to cancellation or early return)
-				// Save session to preserve progress up to this point
-				//nolint:contextcheck // invCtx embeds the original ctx and maintains its cancellation
-				_ = r.config.sessionStore.Save(invCtx, sess)
 				return
 			}
 
-			// On completion, save final session state and exit
+			// Exit after completion event
 			if _, ok := evt.(agent.InvocationEndEvent); ok {
-				//nolint:contextcheck // invCtx embeds the original ctx and maintains its cancellation
-				if err := r.config.sessionStore.Save(invCtx, sess); err != nil {
-					yield(nil, fmt.Errorf("%w: %w", agent.ErrSessionSave, err))
-					return
-				}
 				return
 			}
 		}
