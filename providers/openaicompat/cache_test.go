@@ -14,7 +14,6 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/providers/testutil"
 )
 
-
 func TestOpenAICompatCachedTokens(t *testing.T) {
 	t.Parallel()
 

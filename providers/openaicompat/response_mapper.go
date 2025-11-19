@@ -81,6 +81,7 @@ func (rm *ResponseMapper) FromProvider(apiResp *openai.ChatCompletion) (*llm.Res
 
 	// Extract usage statistics
 	var usage *llm.TokenUsage
+
 	if apiResp.Usage.TotalTokens > 0 {
 		// Extract cached tokens from details if field is present
 		var cachedTokens int

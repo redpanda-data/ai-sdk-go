@@ -47,10 +47,8 @@ func SumUsage(usages ...*TokenUsage) *TokenUsage {
 			result = &val
 		} else {
 			// Accumulate into result
-			maxInputTokens := result.MaxInputTokens
-			if u.MaxInputTokens > maxInputTokens {
-				maxInputTokens = u.MaxInputTokens
-			}
+			maxInputTokens := max(u.MaxInputTokens, result.MaxInputTokens)
+
 			result = &TokenUsage{
 				InputTokens:     u.InputTokens + result.InputTokens,
 				OutputTokens:    u.OutputTokens + result.OutputTokens,

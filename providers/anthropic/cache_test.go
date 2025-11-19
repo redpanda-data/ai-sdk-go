@@ -14,7 +14,6 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/providers/testutil"
 )
 
-
 func TestAnthropicCachedTokens(t *testing.T) {
 	t.Parallel()
 

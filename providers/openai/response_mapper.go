@@ -122,6 +122,16 @@ func (m *ResponseMapper) FromProvider(r *responses.Response) (*llm.Response, err
 			ReasoningTokens: int(r.Usage.OutputTokensDetails.ReasoningTokens),
 			MaxInputTokens:  m.modelDefinition.Constraints.MaxTokensLimit,
 		}
+	} else {
+		// Even if TotalTokens is 0, provide usage structure with MaxInputTokens
+		usage = &llm.TokenUsage{
+			InputTokens:     int(r.Usage.InputTokens),
+			OutputTokens:    int(r.Usage.OutputTokens),
+			TotalTokens:     int(r.Usage.TotalTokens),
+			CachedTokens:    int(r.Usage.InputTokensDetails.CachedTokens),
+			ReasoningTokens: int(r.Usage.OutputTokensDetails.ReasoningTokens),
+			MaxInputTokens:  m.modelDefinition.Constraints.MaxTokensLimit,
+		}
 	}
 
 	// 6. Finish reason: tool calls take precedence.

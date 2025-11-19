@@ -30,6 +30,7 @@ func (simpleModel) Constraints() llm.ModelConstraints {
 		MaxTokensLimit: 128000,
 	}
 }
+
 func (simpleModel) Generate(context.Context, *llm.Request) (*llm.Response, error) {
 	return nil, errors.New("not implemented")
 }
