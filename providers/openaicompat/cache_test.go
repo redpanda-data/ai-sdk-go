@@ -2,7 +2,6 @@ package openaicompat_test
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
@@ -12,28 +11,9 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/providers/openaicompat"
 	"github.com/redpanda-data/ai-sdk-go/providers/openaicompat/openaicompattest"
+	"github.com/redpanda-data/ai-sdk-go/providers/testutil"
 )
 
-// generateLargePrompt generates a large prompt with approximately the target number of tokens.
-// Rough estimate: 1 token ≈ 4 characters for English text.
-func generateLargePrompt(targetTokens int) string {
-	const loremIpsum = `Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. `
-
-	// Estimate characters needed (4 chars per token)
-	targetChars := targetTokens * 4
-
-	var builder strings.Builder
-	builder.WriteString("Context information:\n\n")
-
-	// Repeat lorem ipsum until we hit target
-	for builder.Len() < targetChars {
-		builder.WriteString(loremIpsum)
-	}
-
-	builder.WriteString("\n\nPlease answer the following question based on this context.")
-
-	return builder.String()
-}
 
 func TestOpenAICompatCachedTokens(t *testing.T) {
 	t.Parallel()
@@ -53,7 +33,8 @@ func TestOpenAICompatCachedTokens(t *testing.T) {
 	ctx := context.Background()
 
 	// OpenAI caching requires 1024+ tokens to trigger
-	longContext := generateLargePrompt(1200)
+	// Use a larger prompt to ensure we consistently exceed the threshold
+	longContext := testutil.GenerateLargePrompt(1500)
 
 	messages := []llm.Message{
 		{
@@ -163,14 +144,10 @@ func TestOpenAICompatCachedTokens(t *testing.T) {
 	totalCached := response2.Usage.CachedTokens + response3.Usage.CachedTokens +
 		response4.Usage.CachedTokens + response5.Usage.CachedTokens
 
-	// OpenAI caching behavior may vary - field should exist even if 0
-	assert.GreaterOrEqual(t, totalCached, 0)
+	// OpenAI-compatible should show caching when using OpenAI backend
+	require.Positive(t, totalCached, "Expected cached tokens with OpenAI-compatible automatic caching")
 
-	if totalCached > 0 {
-		t.Logf("SUCCESS: Detected %d total cached tokens across requests", totalCached)
-	} else {
-		t.Logf("INFO: No cached tokens detected (OpenAI caching is automatic and may not trigger)")
-	}
+	t.Logf("SUCCESS: Detected %d total cached tokens across requests", totalCached)
 }
 
 func TestDeepSeekCachedTokens(t *testing.T) {
@@ -191,7 +168,7 @@ func TestDeepSeekCachedTokens(t *testing.T) {
 	ctx := context.Background()
 
 	// Generate large prompt for potential caching
-	longContext := generateLargePrompt(1200)
+	longContext := testutil.GenerateLargePrompt(1200)
 
 	messages := []llm.Message{
 		{
@@ -236,5 +213,9 @@ func TestDeepSeekCachedTokens(t *testing.T) {
 	assert.GreaterOrEqual(t, response2.Usage.CachedTokens, 0)
 
 	totalCached := response1.Usage.CachedTokens + response2.Usage.CachedTokens
-	t.Logf("Total cached tokens: %d", totalCached)
+
+	// DeepSeek should show caching on subsequent requests
+	require.Positive(t, totalCached, "Expected cached tokens with DeepSeek caching")
+
+	t.Logf("SUCCESS: Detected %d total cached tokens", totalCached)
 }

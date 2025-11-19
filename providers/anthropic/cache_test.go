@@ -2,7 +2,6 @@ package anthropic_test
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
@@ -12,28 +11,9 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/providers/anthropic"
 	"github.com/redpanda-data/ai-sdk-go/providers/anthropic/anthropictest"
+	"github.com/redpanda-data/ai-sdk-go/providers/testutil"
 )
 
-// generateLargePrompt generates a large prompt with approximately the target number of tokens.
-// Rough estimate: 1 token ≈ 4 characters for English text.
-func generateLargePrompt(targetTokens int) string {
-	const loremIpsum = `Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. `
-
-	// Estimate characters needed (4 chars per token)
-	targetChars := targetTokens * 4
-
-	var builder strings.Builder
-	builder.WriteString("Context information:\n\n")
-
-	// Repeat lorem ipsum until we hit target
-	for builder.Len() < targetChars {
-		builder.WriteString(loremIpsum)
-	}
-
-	builder.WriteString("\n\nPlease answer the following question based on this context.")
-
-	return builder.String()
-}
 
 func TestAnthropicCachedTokens(t *testing.T) {
 	t.Parallel()
@@ -54,7 +34,7 @@ func TestAnthropicCachedTokens(t *testing.T) {
 
 	// Anthropic requires large prompts for caching (minimum 1024 tokens for Sonnet)
 	// Generate a large system prompt - need ~1400 tokens worth of characters to get 1024+ tokens
-	longSystemPrompt := generateLargePrompt(1800)
+	longSystemPrompt := testutil.GenerateLargePrompt(1800)
 
 	// System message with cache breakpoint - will be reused across all requests
 	systemMessage := llm.Message{

@@ -43,6 +43,13 @@ func NewExecutor(
 // Execute implements a2asrv.AgentExecutor.
 // This is called for each message/send or message/stream request.
 func (e *Executor) Execute(ctx context.Context, reqCtx *a2asrv.RequestContext, queue eventqueue.Queue) error {
+	e.log.InfoContext(ctx, "Executor.Execute called",
+		"task_id", reqCtx.TaskID,
+		"context_id", reqCtx.ContextID,
+		"has_stored_task", reqCtx.StoredTask != nil,
+		"related_tasks_count", len(reqCtx.RelatedTasks),
+		"has_message", reqCtx.Message != nil,
+	)
 	// Helper closure to write events to queue with error logging
 	write := func(event a2a.Event) {
 		if err := queue.Write(ctx, event); err != nil {
@@ -54,13 +61,11 @@ func (e *Executor) Execute(ctx context.Context, reqCtx *a2asrv.RequestContext, q
 	if reqCtx.StoredTask == nil {
 		event := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateSubmitted, nil)
 		write(event)
-		e.log.InfoContext(ctx, "Wrote submitted status")
 	}
 
 	// Emit working status before starting runner
 	workingEvent := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateWorking, nil)
 	write(workingEvent)
-	e.log.InfoContext(ctx, "Wrote working status")
 
 	// Run the agent and process events
 	events := e.runner.Run(ctx, "", reqCtx.ContextID, MessageToLLM(reqCtx.Message))
@@ -70,10 +75,20 @@ func (e *Executor) Execute(ctx context.Context, reqCtx *a2asrv.RequestContext, q
 }
 
 // Cancel implements a2asrv.AgentExecutor.
-func (e *Executor) Cancel(ctx context.Context, reqCtx *a2asrv.RequestContext, _ eventqueue.Queue) error {
+func (e *Executor) Cancel(ctx context.Context, reqCtx *a2asrv.RequestContext, queue eventqueue.Queue) error {
 	e.log.InfoContext(ctx, "Executor.Cancel called", "task_id", reqCtx.TaskID)
 
-	// TODO: Implement cancellation logic here
+	// Write a canceled status event to the queue
+	statusEvent := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateCanceled, nil)
+	statusEvent.Final = true
+
+	if err := queue.Write(ctx, statusEvent); err != nil {
+		e.log.ErrorContext(ctx, "Failed to write canceled status", "error", err)
+
+		return err
+	}
+
+	e.log.InfoContext(ctx, "Task canceled successfully", "task_id", reqCtx.TaskID)
 
 	return nil
 }
@@ -97,10 +112,13 @@ func (e *Executor) processEvents(
 	for event, err := range events {
 		if err != nil {
 			e.log.ErrorContext(ctx, "Runner returned error", "error", err)
-			// Write a failed status event and return
-			statusEvent := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateFailed, nil)
-			statusEvent.Final = true
-			write(statusEvent)
+
+			// Don't write failed status if context was canceled - Cancel already wrote canceled status
+			if ctx.Err() == nil {
+				statusEvent := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateFailed, nil)
+				statusEvent.Final = true
+				write(statusEvent)
+			}
 
 			return err
 		}
@@ -117,16 +135,14 @@ func (e *Executor) processEvents(
 			}
 		case agent.ToolRequestEvent:
 			// Tool request is already in MessageEvent, no separate handling needed
-
 		case agent.ToolResponseEvent:
-			e.log.InfoContext(ctx, "Tool response event", "tool", ev.Response.Name)
+			e.log.DebugContext(ctx, "Tool response event", "tool", ev.Response.Name)
 
 			// Add tool response to history as a user message
 			llmMsg := llm.NewMessage(llm.RoleUser, llm.NewToolResponsePart(&ev.Response))
 			a2amsg := MessageFromLLM(llmMsg)
 			historyStatus := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateWorking, a2amsg)
 			write(historyStatus)
-
 		case agent.MessageEvent:
 			// Mark the streaming artifact as complete if we were streaming
 			if currentArtifactID != "" {
@@ -155,7 +171,6 @@ func (e *Executor) processEvents(
 			}
 
 			write(historyStatus)
-
 			// Reset artifactID so next model_call creates a new one
 			currentArtifactID = ""
 		case agent.AssistantDeltaEvent:
@@ -175,7 +190,7 @@ func (e *Executor) processEvents(
 				write(artifact)
 			}
 		case agent.InvocationEndEvent:
-			e.log.InfoContext(ctx, "Invocation end event", "finish_reason", ev.FinishReason)
+			e.log.DebugContext(ctx, "Invocation end event", "finish_reason", ev.FinishReason)
 			// Write final completion status - this is required to signal task completion
 			statusEvent := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateCompleted, nil)
 			statusEvent.Final = true
@@ -195,7 +210,6 @@ func (e *Executor) processEvents(
 			}
 
 			write(statusEvent)
-			e.log.InfoContext(ctx, "Returning from InvocationEndEvent")
 
 			return nil
 		default:
@@ -206,7 +220,7 @@ func (e *Executor) processEvents(
 	// If we exit the loop without receiving InvocationEndEvent, write a completion status anyway
 	e.log.WarnContext(ctx, "Event loop ended without InvocationEndEvent")
 
-	statusEvent := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateCompleted, nil)
+	statusEvent := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateFailed, a2a.NewMessage(a2a.MessageRoleAgent, a2a.TextPart{Text: "internal error: incomplete agent call: missing InvocationEndEvent"}))
 	statusEvent.Final = true
 	write(statusEvent)
 
