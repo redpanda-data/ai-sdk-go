@@ -91,7 +91,12 @@ func MessageToLLM(msg *a2a.Message) llm.Message {
 
 		case a2a.DataPart, a2a.FilePart:
 			// DataPart/FilePart → JSON text (LLM doesn't have native support for these)
-			if jsonBytes, err := json.Marshal(p); err == nil {
+			jsonBytes, err := json.Marshal(p)
+			if err != nil {
+				// Fallback: encode error as text to preserve visibility
+				errMsg := fmt.Sprintf("[ERROR: Failed to serialize part: %v]", err)
+				parts = append(parts, llm.NewTextPart(errMsg))
+			} else {
 				parts = append(parts, llm.NewTextPart(string(jsonBytes)))
 			}
 		}
