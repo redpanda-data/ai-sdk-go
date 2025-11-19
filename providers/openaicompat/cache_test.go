@@ -163,14 +163,10 @@ func TestOpenAICompatCachedTokens(t *testing.T) {
 	totalCached := response2.Usage.CachedTokens + response3.Usage.CachedTokens +
 		response4.Usage.CachedTokens + response5.Usage.CachedTokens
 
-	// OpenAI caching behavior may vary - field should exist even if 0
-	assert.GreaterOrEqual(t, totalCached, 0)
+	// OpenAI-compatible should show caching on subsequent requests
+	require.Positive(t, totalCached, "Expected cached tokens with OpenAI-compatible automatic caching")
 
-	if totalCached > 0 {
-		t.Logf("SUCCESS: Detected %d total cached tokens across requests", totalCached)
-	} else {
-		t.Logf("INFO: No cached tokens detected (OpenAI caching is automatic and may not trigger)")
-	}
+	t.Logf("SUCCESS: Detected %d total cached tokens across requests", totalCached)
 }
 
 func TestDeepSeekCachedTokens(t *testing.T) {
@@ -236,5 +232,9 @@ func TestDeepSeekCachedTokens(t *testing.T) {
 	assert.GreaterOrEqual(t, response2.Usage.CachedTokens, 0)
 
 	totalCached := response1.Usage.CachedTokens + response2.Usage.CachedTokens
-	t.Logf("Total cached tokens: %d", totalCached)
+
+	// DeepSeek should show caching on subsequent requests
+	require.Positive(t, totalCached, "Expected cached tokens with DeepSeek caching")
+
+	t.Logf("SUCCESS: Detected %d total cached tokens", totalCached)
 }

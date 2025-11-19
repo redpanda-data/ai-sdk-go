@@ -161,12 +161,8 @@ func TestOpenAICachedTokens(t *testing.T) {
 	totalCached := response2.Usage.CachedTokens + response3.Usage.CachedTokens +
 		response4.Usage.CachedTokens + response5.Usage.CachedTokens
 
-	// OpenAI caching is automatic but may not always trigger - field should exist
-	assert.GreaterOrEqual(t, totalCached, 0)
+	// OpenAI should show caching on subsequent requests
+	require.Positive(t, totalCached, "Expected cached tokens with OpenAI automatic caching")
 
-	if totalCached > 0 {
-		t.Logf("SUCCESS: Detected %d total cached tokens across requests", totalCached)
-	} else {
-		t.Logf("INFO: No cached tokens detected (OpenAI automatic caching may not trigger)")
-	}
+	t.Logf("SUCCESS: Detected %d total cached tokens across requests", totalCached)
 }
