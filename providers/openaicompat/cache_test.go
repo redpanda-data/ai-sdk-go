@@ -32,7 +32,8 @@ func TestOpenAICompatCachedTokens(t *testing.T) {
 	ctx := context.Background()
 
 	// OpenAI caching requires 1024+ tokens to trigger
-	longContext := testutil.GenerateLargePrompt(1200)
+	// Use a larger prompt to ensure we consistently exceed the threshold
+	longContext := testutil.GenerateLargePrompt(1500)
 
 	messages := []llm.Message{
 		{
@@ -142,15 +143,10 @@ func TestOpenAICompatCachedTokens(t *testing.T) {
 	totalCached := response2.Usage.CachedTokens + response3.Usage.CachedTokens +
 		response4.Usage.CachedTokens + response5.Usage.CachedTokens
 
-	// OpenAI-compatible behavior depends on the backend provider
-	// For OpenAI backend (used in this test), caching is automatic but may not trigger consistently
-	assert.GreaterOrEqual(t, totalCached, 0)
+	// OpenAI-compatible should show caching when using OpenAI backend
+	require.Positive(t, totalCached, "Expected cached tokens with OpenAI-compatible automatic caching")
 
-	if totalCached > 0 {
-		t.Logf("SUCCESS: Detected %d total cached tokens across requests", totalCached)
-	} else {
-		t.Logf("INFO: No cached tokens detected (backend caching behavior varies)")
-	}
+	t.Logf("SUCCESS: Detected %d total cached tokens across requests", totalCached)
 }
 
 func TestDeepSeekCachedTokens(t *testing.T) {
