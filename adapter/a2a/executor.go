@@ -70,11 +70,19 @@ func (e *Executor) Execute(ctx context.Context, reqCtx *a2asrv.RequestContext, q
 }
 
 // Cancel implements a2asrv.AgentExecutor.
-func (e *Executor) Cancel(ctx context.Context, reqCtx *a2asrv.RequestContext, _ eventqueue.Queue) error {
+func (e *Executor) Cancel(ctx context.Context, reqCtx *a2asrv.RequestContext, queue eventqueue.Queue) error {
 	e.log.InfoContext(ctx, "Executor.Cancel called", "task_id", reqCtx.TaskID)
 
-	// TODO: Implement cancellation logic here
+	// Write a canceled status event to the queue
+	statusEvent := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateCanceled, nil)
+	statusEvent.Final = true
 
+	if err := queue.Write(ctx, statusEvent); err != nil {
+		e.log.ErrorContext(ctx, "Failed to write canceled status", "error", err)
+		return err
+	}
+
+	e.log.InfoContext(ctx, "Task canceled successfully", "task_id", reqCtx.TaskID)
 	return nil
 }
 
@@ -97,10 +105,13 @@ func (e *Executor) processEvents(
 	for event, err := range events {
 		if err != nil {
 			e.log.ErrorContext(ctx, "Runner returned error", "error", err)
-			// Write a failed status event and return
-			statusEvent := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateFailed, nil)
-			statusEvent.Final = true
-			write(statusEvent)
+
+			// Don't write failed status if context was canceled - Cancel already wrote canceled status
+			if ctx.Err() == nil {
+				statusEvent := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateFailed, nil)
+				statusEvent.Final = true
+				write(statusEvent)
+			}
 
 			return err
 		}
