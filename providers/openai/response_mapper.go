@@ -116,6 +116,7 @@ func (m *ResponseMapper) FromProvider(r *responses.Response) (*llm.Response, err
 			InputTokens:     int(r.Usage.InputTokens),
 			OutputTokens:    int(r.Usage.OutputTokens),
 			TotalTokens:     int(r.Usage.TotalTokens),
+			CachedTokens:    int(r.Usage.InputTokensDetails.CachedTokens),
 			ReasoningTokens: int(r.Usage.OutputTokensDetails.ReasoningTokens),
 		}
 	}

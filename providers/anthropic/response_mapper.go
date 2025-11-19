@@ -80,10 +80,9 @@ func (m *ResponseMapper) FromProvider(r *anthropic.BetaMessage) (*llm.Response, 
 			InputTokens:     int(r.Usage.InputTokens),
 			OutputTokens:    int(r.Usage.OutputTokens),
 			TotalTokens:     int(r.Usage.InputTokens + r.Usage.OutputTokens),
+			CachedTokens:    int(r.Usage.CacheReadInputTokens),
 			ReasoningTokens: 0, // Anthropic doesn't separate reasoning tokens in usage
 		}
-		// Note: cache-related metrics are available in r.Usage.CacheCreationInputTokens
-		// and r.Usage.CacheReadInputTokens but TokenUsage doesn't have a Metadata field
 	}
 
 	// Map finish reason

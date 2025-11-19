@@ -45,10 +45,10 @@ func (m *ResponseMapper) FromProvider(r *genai.GenerateContentResponse) (*llm.Re
 	var usage *llm.TokenUsage
 	if r.UsageMetadata != nil {
 		usage = &llm.TokenUsage{
-			InputTokens:  int(r.UsageMetadata.PromptTokenCount),
-			OutputTokens: int(r.UsageMetadata.CandidatesTokenCount),
-			TotalTokens:  int(r.UsageMetadata.TotalTokenCount),
-			// Gemini doesn't separate reasoning tokens in usage
+			InputTokens:     int(r.UsageMetadata.PromptTokenCount),
+			OutputTokens:    int(r.UsageMetadata.CandidatesTokenCount),
+			TotalTokens:     int(r.UsageMetadata.TotalTokenCount),
+			CachedTokens:    int(r.UsageMetadata.CachedContentTokenCount),
 			ReasoningTokens: 0,
 		}
 	}
