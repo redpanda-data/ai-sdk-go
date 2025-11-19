@@ -151,6 +151,10 @@ func (ic *InvocationContext) AddUsage(usage *llm.TokenUsage) {
 	ic.totalUsage.ReasoningTokens += usage.ReasoningTokens
 	ic.totalUsage.CachedTokens += usage.CachedTokens
 	ic.totalUsage.TotalTokens += usage.TotalTokens
+	// MaxInputTokens is a model constraint, not cumulative - use the first non-zero value
+	if ic.totalUsage.MaxInputTokens == 0 && usage.MaxInputTokens > 0 {
+		ic.totalUsage.MaxInputTokens = usage.MaxInputTokens
+	}
 }
 
 // generateInvocationID generates a unique invocation identifier.
