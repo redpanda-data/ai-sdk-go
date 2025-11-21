@@ -120,8 +120,8 @@ func WithMaxTokens(tokens int) Option {
 			return fmt.Errorf("%s: max_tokens must be positive, got %d", cfg.ModelName, tokens)
 		}
 
-		if tokens > cfg.Constraints.MaxTokensLimit {
-			return fmt.Errorf("%s: max_tokens %d exceeds limit %d", cfg.ModelName, tokens, cfg.Constraints.MaxTokensLimit)
+		if tokens > cfg.Constraints.MaxInputTokens {
+			return fmt.Errorf("%s: max_tokens %d exceeds limit %d", cfg.ModelName, tokens, cfg.Constraints.MaxInputTokens)
 		}
 
 		cfg.MaxTokens = &tokens

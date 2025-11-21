@@ -161,9 +161,16 @@ func (r *Runner) Run(
 		// 3. Create invocation context
 		invCtx := agent.NewInvocationContext(ctx, sess)
 
-		// 4. Execute agent and forward events
-		var completed bool
+		// 4. Save session on exit (handles normal completion, cancellation, errors)
+		//nolint:contextcheck // invCtx embeds the original ctx and maintains its cancellation
+		defer func() {
+			if err := r.config.sessionStore.Save(invCtx, sess); err != nil {
+				yield(nil, fmt.Errorf("%w: %w", agent.ErrSessionSave, err))
+			}
+		}()
 
+		// 5. Execute agent and forward events
+		//nolint:contextcheck // Agent.Run requires InvocationContext, not raw context
 		for evt, err := range r.config.agent.Run(invCtx) {
 			if err != nil {
 				// Forward error
@@ -174,9 +181,13 @@ func (r *Runner) Run(
 				continue
 			}
 
-			// Check if this is the terminal event
-			if _, ok := evt.(agent.InvocationEndEvent); ok {
-				completed = true
+			// Save session after each assistant message (incremental persistence)
+			// Note: Agent already appended the message to sess.Messages, we just save it
+			if _, ok := evt.(agent.MessageEvent); ok {
+				if err := r.config.sessionStore.Save(invCtx, sess); err != nil {
+					yield(nil, fmt.Errorf("%w: %w", agent.ErrSessionSave, err))
+					return
+				}
 			}
 
 			// Forward event to caller
@@ -184,17 +195,10 @@ func (r *Runner) Run(
 				return
 			}
 
-			// If completed, save session and exit
-			if completed {
-				break
+			// Exit after completion event
+			if _, ok := evt.(agent.InvocationEndEvent); ok {
+				return
 			}
-		}
-
-		// 5. Save session
-		//nolint:contextcheck // invCtx embeds the original ctx and maintains its cancellation
-		if err := r.config.sessionStore.Save(invCtx, sess); err != nil {
-			yield(nil, fmt.Errorf("%w: %w", agent.ErrSessionSave, err))
-			return
 		}
 	}
 }

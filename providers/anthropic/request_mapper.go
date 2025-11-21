@@ -151,6 +151,31 @@ func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]anthropic.BetaMe
 		}
 	}
 
+	// If caching is enabled, set cache_control on system blocks and last message
+	if rm.config.EnableCaching {
+		// Mark the last system block for caching if we have any
+		if len(systemBlocks) > 0 {
+			lastIdx := len(systemBlocks) - 1
+			block := systemBlocks[lastIdx]
+			block.CacheControl = anthropic.NewBetaCacheControlEphemeralParam()
+			systemBlocks[lastIdx] = block
+		}
+
+		// Also mark the last text block of the last message
+		if len(apiMessages) > 0 {
+			lastMsg := &apiMessages[len(apiMessages)-1]
+			for i := len(lastMsg.Content) - 1; i >= 0; i-- {
+				if lastMsg.Content[i].OfText != nil {
+					content := lastMsg.Content[i]
+					content.OfText.CacheControl = anthropic.NewBetaCacheControlEphemeralParam()
+					lastMsg.Content[i] = content
+
+					break
+				}
+			}
+		}
+	}
+
 	return apiMessages, systemBlocks, nil
 }
 

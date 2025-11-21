@@ -10,12 +10,14 @@ import (
 )
 
 // ResponseMapper converts OpenAI Responses API payloads to llm.Response.
-// It's stateless; the zero value is ready to use.
-type ResponseMapper struct{}
+type ResponseMapper struct {
+	modelDefinition ModelDefinition
+}
 
 // NewResponseMapper returns a ready-to-use mapper.
-// Zero value is also valid; this exists for callers that prefer constructors.
-func NewResponseMapper() *ResponseMapper { return &ResponseMapper{} }
+func NewResponseMapper(definition ModelDefinition) *ResponseMapper {
+	return &ResponseMapper{modelDefinition: definition}
+}
 
 // FromProvider converts an OpenAI Responses API payload into llm.Response.
 func (m *ResponseMapper) FromProvider(r *responses.Response) (*llm.Response, error) {
@@ -116,7 +118,19 @@ func (m *ResponseMapper) FromProvider(r *responses.Response) (*llm.Response, err
 			InputTokens:     int(r.Usage.InputTokens),
 			OutputTokens:    int(r.Usage.OutputTokens),
 			TotalTokens:     int(r.Usage.TotalTokens),
+			CachedTokens:    int(r.Usage.InputTokensDetails.CachedTokens),
 			ReasoningTokens: int(r.Usage.OutputTokensDetails.ReasoningTokens),
+			MaxInputTokens:  m.modelDefinition.Constraints.MaxInputTokens,
+		}
+	} else {
+		// Even if TotalTokens is 0, provide usage structure with MaxInputTokens
+		usage = &llm.TokenUsage{
+			InputTokens:     int(r.Usage.InputTokens),
+			OutputTokens:    int(r.Usage.OutputTokens),
+			TotalTokens:     int(r.Usage.TotalTokens),
+			CachedTokens:    int(r.Usage.InputTokensDetails.CachedTokens),
+			ReasoningTokens: int(r.Usage.OutputTokensDetails.ReasoningTokens),
+			MaxInputTokens:  m.modelDefinition.Constraints.MaxInputTokens,
 		}
 	}
 

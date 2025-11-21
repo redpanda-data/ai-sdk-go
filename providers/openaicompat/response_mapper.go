@@ -10,11 +10,13 @@ import (
 )
 
 // ResponseMapper handles conversion from OpenAI Chat Completion API responses to unified format.
-type ResponseMapper struct{}
+type ResponseMapper struct {
+	constraints llm.ModelConstraints
+}
 
-// NewResponseMapper creates a new ResponseMapper. The mapper is stateless and can be reused.
-func NewResponseMapper() *ResponseMapper {
-	return &ResponseMapper{}
+// NewResponseMapper creates a new ResponseMapper.
+func NewResponseMapper(constraints llm.ModelConstraints) *ResponseMapper {
+	return &ResponseMapper{constraints: constraints}
 }
 
 // FromProvider converts an OpenAI ChatCompletion response to our unified Response format.
@@ -79,12 +81,27 @@ func (rm *ResponseMapper) FromProvider(apiResp *openai.ChatCompletion) (*llm.Res
 
 	// Extract usage statistics
 	var usage *llm.TokenUsage
+
 	if apiResp.Usage.TotalTokens > 0 {
+		// Extract cached tokens from details if field is present
+		var cachedTokens int
+		if apiResp.Usage.JSON.PromptTokensDetails.Valid() {
+			cachedTokens = int(apiResp.Usage.PromptTokensDetails.CachedTokens)
+		}
+
+		// Extract reasoning tokens from details if field is present
+		var reasoningTokens int
+		if apiResp.Usage.JSON.CompletionTokensDetails.Valid() {
+			reasoningTokens = int(apiResp.Usage.CompletionTokensDetails.ReasoningTokens)
+		}
+
 		usage = &llm.TokenUsage{
 			InputTokens:     int(apiResp.Usage.PromptTokens),
 			OutputTokens:    int(apiResp.Usage.CompletionTokens),
 			TotalTokens:     int(apiResp.Usage.TotalTokens),
-			ReasoningTokens: int(apiResp.Usage.CompletionTokensDetails.ReasoningTokens),
+			CachedTokens:    cachedTokens,
+			ReasoningTokens: reasoningTokens,
+			MaxInputTokens:  rm.constraints.MaxInputTokens,
 		}
 	} else {
 		// If no usage provided, return empty usage structure
@@ -93,7 +110,9 @@ func (rm *ResponseMapper) FromProvider(apiResp *openai.ChatCompletion) (*llm.Res
 			InputTokens:     0,
 			OutputTokens:    0,
 			TotalTokens:     0,
+			CachedTokens:    0,
 			ReasoningTokens: 0,
+			MaxInputTokens:  rm.constraints.MaxInputTokens,
 		}
 	}
 

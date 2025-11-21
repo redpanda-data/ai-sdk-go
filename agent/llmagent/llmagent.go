@@ -110,8 +110,6 @@ func (a *LLMAgent) InputSchema() map[string]any {
 // The stream always ends with InvocationEndEvent, even on error or cancellation.
 func (a *LLMAgent) Run(invCtx *agent.InvocationContext) iter.Seq2[agent.Event, error] {
 	return func(yield func(agent.Event, error) bool) {
-		sess := invCtx.Session()
-
 		// Helper: create event envelope
 		makeEnvelope := func() agent.EventEnvelope {
 			return agent.EventEnvelope{
@@ -121,9 +119,6 @@ func (a *LLMAgent) Run(invCtx *agent.InvocationContext) iter.Seq2[agent.Event, e
 				At:           time.Now().UTC(),
 			}
 		}
-
-		// Ensure system prompt is present
-		messages := a.ensureSystemPrompt(sess.Messages)
 
 		// Execute turn loop
 		for invCtx.Turn() < a.config.maxTurns {
@@ -150,7 +145,7 @@ func (a *LLMAgent) Run(invCtx *agent.InvocationContext) iter.Seq2[agent.Event, e
 			// Create turn execution function that can be wrapped by interceptors
 			// This encapsulates the entire turn execution logic
 			executeTurn := func(ctx context.Context) (agent.FinishReason, error) {
-				return a.executeSingleTurn(ctx, &messages, makeEnvelope, yield)
+				return a.executeSingleTurn(ctx, makeEnvelope, yield)
 			}
 
 			// Apply turn interceptors
@@ -198,7 +193,6 @@ func (a *LLMAgent) Run(invCtx *agent.InvocationContext) iter.Seq2[agent.Event, e
 // When FinishReason is empty, the turn completed normally and the loop should continue.
 func (a *LLMAgent) executeSingleTurn(
 	ctx context.Context,
-	messages *[]llm.Message,
 	makeEnvelope func() agent.EventEnvelope,
 	yield func(agent.Event, error) bool,
 ) (agent.FinishReason, error) {
@@ -217,9 +211,13 @@ func (a *LLMAgent) executeSingleTurn(
 		return agent.FinishReasonInterrupted, nil
 	}
 
+	// Build working message list with system prompt (not persisted)
+	// This creates a transient view for the LLM request
+	reqMessages := a.ensureSystemPrompt(sess.Messages)
+
 	// Prepare request
 	req := &llm.Request{
-		Messages: *messages,
+		Messages: reqMessages,
 	}
 	if a.config.tools != nil {
 		req.Tools = a.config.tools.List()
@@ -244,9 +242,8 @@ func (a *LLMAgent) executeSingleTurn(
 	// Update usage tracking
 	invCtx.AddUsage(resp.Usage)
 
-	// Add assistant message to session and local history
+	// Add assistant message to session (single source of truth)
 	sess.Messages = append(sess.Messages, resp.Message)
-	*messages = append(*messages, resp.Message)
 
 	// Emit message event
 	if !yield(agent.MessageEvent{
@@ -324,13 +321,11 @@ func (a *LLMAgent) executeSingleTurn(
 	}
 
 	//nolint:contextcheck // invCtx embeds context.Context and is designed to be used as a context
-	toolMessages := a.executeTools(invCtx, toolReqs, makeEnvelope, yield)
+	toolParts := a.executeTools(invCtx, toolReqs, makeEnvelope, yield)
 
-	// Add tool results to conversation (including errors - LLM handles them gracefully)
-	for _, msg := range toolMessages {
-		sess.Messages = append(sess.Messages, msg)
-		*messages = append(*messages, msg)
-	}
+	// Build single message with all tool response parts
+	toolMsg := llm.NewMessage(llm.RoleUser, toolParts...)
+	sess.Messages = append(sess.Messages, toolMsg)
 
 	// Emit turn completed
 	if !yield(agent.StatusEvent{
@@ -455,7 +450,7 @@ func (a *LLMAgent) generateWithStreaming(
 //
 // ToolResponseEvents are yielded as tools complete.
 //
-// Returns tool result messages to be added to the conversation.
+// Returns tool response parts in the order they were requested.
 //
 // Future: Will also return list of tool IDs requiring input for
 // StatusStageInputRequired / FinishReasonInputRequired support.
@@ -464,7 +459,7 @@ func (a *LLMAgent) executeTools(
 	toolReqs []*llm.ToolRequest,
 	makeEnvelope func() agent.EventEnvelope,
 	yield func(agent.Event, error) bool,
-) []llm.Message {
+) []*llm.Part {
 	// Execute tools concurrently with limited parallelism
 	g, ctx := errgroup.WithContext(invCtx)
 	g.SetLimit(min(a.config.toolConcurrency, len(toolReqs)))
@@ -504,23 +499,11 @@ func (a *LLMAgent) executeTools(
 		})
 	}
 
-	// Wait for all tools to complete
-	// Note: g.Wait() should never return an error since goroutines always return nil
-	_ = g.Wait()
+	// Collect tool response parts and yield events as they arrive
+	parts := make([]*llm.Part, 0, len(toolReqs))
 
-	close(results)
-
-	// Collect results in original request order for deterministic transcripts
-	ordered := make([]toolResult, len(toolReqs))
-	for result := range results {
-		ordered[result.idx] = result
-	}
-
-	// Build messages and yield events in request order
-	messages := make([]llm.Message, 0, len(toolReqs))
-
-	for _, result := range ordered {
-		var msg llm.Message
+	for range toolReqs {
+		result := <-results
 
 		if result.err != nil {
 			// Tool execution failed - create error response
@@ -529,32 +512,30 @@ func (a *LLMAgent) executeTools(
 				Name:  result.name,
 				Error: result.err.Error(),
 			}
-			msg = llm.NewMessage(llm.RoleUser, llm.NewToolResponsePart(errResp))
+			parts = append(parts, llm.NewToolResponsePart(errResp))
 
 			// Yield error tool result event
 			if !yield(agent.ToolResponseEvent{
 				Envelope: makeEnvelope(),
 				Response: *errResp,
 			}, nil) {
-				return messages // Consumer stopped listening
+				return parts // Consumer stopped listening
 			}
 		} else {
 			// Tool execution succeeded
-			msg = llm.NewMessage(llm.RoleUser, llm.NewToolResponsePart(result.response))
+			parts = append(parts, llm.NewToolResponsePart(result.response))
 
 			// Yield tool result event
 			if !yield(agent.ToolResponseEvent{
 				Envelope: makeEnvelope(),
 				Response: *result.response,
 			}, nil) {
-				return messages // Consumer stopped listening
+				return parts // Consumer stopped listening
 			}
 		}
-
-		messages = append(messages, msg)
 	}
 
-	return messages
+	return parts
 }
 
 // mapLLMFinishReason converts an llm.FinishReason to an agent.FinishReason.

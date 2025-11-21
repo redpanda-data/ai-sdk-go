@@ -31,7 +31,8 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Constraints: llm.ModelConstraints{
 			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxTokensLimit:    128000, // Up to 128K output tokens
+			MaxInputTokens:    272000, // 272K context window
+			MaxOutputTokens:   128000, // 128K output tokens
 			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed", "reasoning_effort", "reasoning_summary"},
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
@@ -52,7 +53,8 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Constraints: llm.ModelConstraints{
 			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxTokensLimit:    128000,
+			MaxInputTokens:    272000, // 272K context window
+			MaxOutputTokens:   128000, // 128K output tokens
 			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "reasoning_effort", "reasoning_summary"},
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
@@ -73,7 +75,8 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Constraints: llm.ModelConstraints{
 			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxTokensLimit:    4096, // Smaller output limit for nano
+			MaxInputTokens:    272000, // 272K context window
+			MaxOutputTokens:   128000, // 128K output tokens
 			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty"},
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
@@ -94,7 +97,8 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Constraints: llm.ModelConstraints{
 			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxTokensLimit:    4096,
+			MaxInputTokens:    1047576, // ~1M context window
+			MaxOutputTokens:   32768,   // 32K output tokens
 			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed"},
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
@@ -113,7 +117,8 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Constraints: llm.ModelConstraints{
 			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxTokensLimit:    4096,
+			MaxInputTokens:    1047576, // ~1M context window
+			MaxOutputTokens:   32768,   // 32K output tokens
 			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty"},
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
@@ -133,7 +138,8 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Constraints: llm.ModelConstraints{
 			TemperatureRange:  [2]float64{0.0, 1.0}, // Reasoning models prefer lower randomness
-			MaxTokensLimit:    100000,               // Large output capacity
+			MaxInputTokens:    200000,               // 200K context window
+			MaxOutputTokens:   100000,               // 100K output tokens
 			SupportedParams:   []string{"temperature", "max_tokens", "reasoning_effort", "reasoning_summary"},
 			MutuallyExclusive: [][]string{},
 		},
@@ -151,7 +157,8 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Constraints: llm.ModelConstraints{
 			TemperatureRange:  [2]float64{0.0, 1.0},
-			MaxTokensLimit:    100000,
+			MaxInputTokens:    200000, // 200K context window
+			MaxOutputTokens:   100000, // 100K output tokens
 			SupportedParams:   []string{"temperature", "max_tokens", "reasoning_effort", "reasoning_summary"},
 			MutuallyExclusive: [][]string{},
 		},
@@ -173,7 +180,8 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Constraints: llm.ModelConstraints{
 			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxTokensLimit:    16384,
+			MaxInputTokens:    128000, // 128K context window
+			MaxOutputTokens:   16384,  // 16K output tokens
 			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "logprobs", "seed", "frequency_penalty", "presence_penalty"},
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 			ConditionalRules: []llm.ConditionalRule{
@@ -199,7 +207,8 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Constraints: llm.ModelConstraints{
 			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxTokensLimit:    16384,
+			MaxInputTokens:    128000, // 128K context window
+			MaxOutputTokens:   16384,  // 16K output tokens
 			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty"},
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
@@ -220,7 +229,8 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Constraints: llm.ModelConstraints{
 			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxTokensLimit:    4096,
+			MaxInputTokens:    128000, // 128K context window
+			MaxOutputTokens:   4096,   // 4K output tokens
 			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed"},
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
@@ -239,7 +249,8 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Constraints: llm.ModelConstraints{
 			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxTokensLimit:    4096,
+			MaxInputTokens:    16385, // 16K context window
+			MaxOutputTokens:   4096,  // 4K output tokens
 			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty"},
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
@@ -259,7 +270,8 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Constraints: llm.ModelConstraints{
 			TemperatureRange:  [2]float64{0.0, 1.0}, // Reasoning models prefer lower randomness
-			MaxTokensLimit:    200000,               // Very large output capacity for pro model
+			MaxInputTokens:    200000,               // 200K context window
+			MaxOutputTokens:   100000,               // 100K output tokens
 			SupportedParams:   []string{"temperature", "max_tokens", "reasoning_effort", "reasoning_summary"},
 			MutuallyExclusive: [][]string{},
 		},
@@ -279,7 +291,8 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Constraints: llm.ModelConstraints{
 			TemperatureRange:  [2]float64{0.0, 1.0}, // Reasoning models prefer lower randomness
-			MaxTokensLimit:    200000,               // Very large output capacity for pro model
+			MaxInputTokens:    200000,               // 200K context window
+			MaxOutputTokens:   100000,               // 100K output tokens
 			SupportedParams:   []string{"temperature", "max_tokens", "reasoning_effort", "reasoning_summary"},
 			MutuallyExclusive: [][]string{},
 		},

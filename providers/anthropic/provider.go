@@ -18,7 +18,9 @@ type Provider struct {
 	BaseURL    string
 	HTTPClient *http.Client
 	Timeout    time.Duration
-	client     *anthropic.Client
+	// EnableCaching enables prompt caching by setting cache_control markers
+	EnableCaching bool
+	client        *anthropic.Client
 }
 
 // ProviderOption configures a Provider instance using functional options.
@@ -85,6 +87,16 @@ func WithHTTPClient(client *http.Client) ProviderOption {
 	}
 }
 
+// WithCaching enables prompt caching by setting cache_control markers on requests.
+// When enabled, the SDK automatically marks the last message content block for caching,
+// allowing Anthropic to cache the conversation prefix for cost savings.
+func WithCaching() ProviderOption {
+	return func(p *Provider) error {
+		p.EnableCaching = true
+		return nil
+	}
+}
+
 // WithTimeout sets the request timeout for API calls.
 // If a custom http.Client has been provided, the client is shallow-copied
 // to avoid mutating caller state.
@@ -118,10 +130,11 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 	}
 
 	cfg := &Config{
-		ModelName:   modelName,
-		Constraints: modelDef.Constraints,
-		MaxTokens:   4096, // Default required by Anthropic API
-		setOptions:  make(map[string]bool),
+		ModelName:     modelName,
+		Constraints:   modelDef.Constraints,
+		MaxTokens:     4096, // Default required by Anthropic API
+		EnableCaching: p.EnableCaching,
+		setOptions:    make(map[string]bool),
 	}
 
 	// Apply all options with validation
@@ -144,7 +157,7 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 		definition:     modelDef,
 		client:         p.client,
 		requestMapper:  NewRequestMapper(cfg),
-		responseMapper: NewResponseMapper(),
+		responseMapper: NewResponseMapper(modelDef),
 	}, nil
 }
 

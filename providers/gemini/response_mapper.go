@@ -12,12 +12,14 @@ import (
 )
 
 // ResponseMapper converts Gemini API payloads to llm.Response.
-// It's stateless; the zero value is ready to use.
-type ResponseMapper struct{}
+type ResponseMapper struct {
+	modelDefinition ModelDefinition
+}
 
 // NewResponseMapper returns a ready-to-use mapper.
-// Zero value is also valid; this exists for callers that prefer constructors.
-func NewResponseMapper() *ResponseMapper { return &ResponseMapper{} }
+func NewResponseMapper(definition ModelDefinition) *ResponseMapper {
+	return &ResponseMapper{modelDefinition: definition}
+}
 
 // FromProvider converts a Gemini GenerateContentResponse into llm.Response.
 func (m *ResponseMapper) FromProvider(r *genai.GenerateContentResponse) (*llm.Response, error) {
@@ -45,11 +47,12 @@ func (m *ResponseMapper) FromProvider(r *genai.GenerateContentResponse) (*llm.Re
 	var usage *llm.TokenUsage
 	if r.UsageMetadata != nil {
 		usage = &llm.TokenUsage{
-			InputTokens:  int(r.UsageMetadata.PromptTokenCount),
-			OutputTokens: int(r.UsageMetadata.CandidatesTokenCount),
-			TotalTokens:  int(r.UsageMetadata.TotalTokenCount),
-			// Gemini doesn't separate reasoning tokens in usage
+			InputTokens:     int(r.UsageMetadata.PromptTokenCount),
+			OutputTokens:    int(r.UsageMetadata.CandidatesTokenCount),
+			TotalTokens:     int(r.UsageMetadata.TotalTokenCount),
+			CachedTokens:    int(r.UsageMetadata.CachedContentTokenCount),
 			ReasoningTokens: 0,
+			MaxInputTokens:  m.modelDefinition.Constraints.MaxInputTokens,
 		}
 	}
 

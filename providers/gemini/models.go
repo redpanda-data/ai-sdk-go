@@ -4,6 +4,7 @@ import "github.com/redpanda-data/ai-sdk-go/llm"
 
 // Model ID constants for Google Gemini models.
 const (
+	ModelGemini3ProPreview = "gemini-3-pro-preview"
 	ModelGemini25Pro       = "gemini-2.5-pro"
 	ModelGemini25Flash     = "gemini-2.5-flash"
 	ModelGemini25FlashLite = "gemini-2.5-flash-lite"
@@ -21,6 +22,27 @@ type ModelDefinition struct {
 // supportedModels defines all Gemini models with their capabilities and constraints.
 // Based on https://ai.google.dev/gemini-api/docs/models
 var supportedModels = map[string]ModelDefinition{
+	ModelGemini3ProPreview: {
+		Name:  ModelGemini3ProPreview,
+		Label: "Gemini 3 Pro Preview",
+		Capabilities: llm.ModelCapabilities{
+			Streaming:        true,
+			Tools:            true,
+			JSONMode:         true,
+			StructuredOutput: true,
+			Vision:           true,
+			MultiTurn:        true,
+			SystemPrompts:    true,
+			Reasoning:        true, // Gemini 3 has thinking support
+		},
+		Constraints: llm.ModelConstraints{
+			TemperatureRange:  [2]float64{0.0, 2.0},
+			MaxInputTokens:    1048576, // 1M input tokens
+			MaxOutputTokens:   65535,   // 65K output tokens
+			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
+			MutuallyExclusive: [][]string{},
+		},
+	},
 	ModelGemini25Pro: {
 		Name:  ModelGemini25Pro,
 		Label: "Gemini 2.5 Pro",
@@ -36,7 +58,8 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Constraints: llm.ModelConstraints{
 			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxTokensLimit:    1048576, // 1M input tokens
+			MaxInputTokens:    1048576, // 1M input tokens
+			MaxOutputTokens:   65535,   // 65K output tokens
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
 			MutuallyExclusive: [][]string{},
 		},
@@ -56,7 +79,8 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Constraints: llm.ModelConstraints{
 			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxTokensLimit:    1048576, // 1M input tokens
+			MaxInputTokens:    1048576, // 1M input tokens
+			MaxOutputTokens:   65535,   // 65K output tokens
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
 			MutuallyExclusive: [][]string{},
 		},
@@ -76,7 +100,8 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Constraints: llm.ModelConstraints{
 			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxTokensLimit:    1048576, // 1M input tokens
+			MaxInputTokens:    1048576, // 1M input tokens
+			MaxOutputTokens:   65535,   // 65K output tokens
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
 			MutuallyExclusive: [][]string{},
 		},
@@ -96,7 +121,8 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Constraints: llm.ModelConstraints{
 			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxTokensLimit:    1048576, // 1M input tokens
+			MaxInputTokens:    1048576, // 1M input tokens
+			MaxOutputTokens:   8192,    // 8K output tokens
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
 			MutuallyExclusive: [][]string{},
 		},
