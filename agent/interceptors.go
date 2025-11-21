@@ -27,6 +27,37 @@ import (
 //   - Retry by calling next multiple times
 //   - Transform outputs after execution
 //
+// # Example
+//
+// A simple logging interceptor that tracks tool executions:
+//
+//	type ToolLogger struct {
+//	    logger *slog.Logger
+//	}
+//
+//	func (t *ToolLogger) InterceptToolExecution(
+//	    ctx context.Context,
+//	    req *llm.ToolRequest,
+//	    next agent.ToolExecutionNext,
+//	) (*llm.ToolResponse, error) {
+//	    t.logger.Info("tool starting", "name", req.Name, "id", req.ID)
+//	    resp, err := next(ctx, req)
+//	    if err != nil {
+//	        t.logger.Error("tool failed", "name", req.Name, "error", err)
+//	    } else {
+//	        t.logger.Info("tool completed", "name", req.Name)
+//	    }
+//	    return resp, err
+//	}
+//
+//	// Register with agent
+//	agent, _ := llmagent.New(
+//	    "assistant",
+//	    "You are helpful",
+//	    model,
+//	    llmagent.WithInterceptors(&ToolLogger{logger: slog.Default()}),
+//	)
+//
 // See the individual interceptor interfaces for details on when they are called and what they can do.
 type Interceptor any
 
@@ -59,13 +90,12 @@ type TurnInterceptor interface {
 	InterceptTurn(ctx context.Context, next TurnNext) (FinishReason, error)
 }
 
-// ModelCallHandler represents the behavioral surface of an LLM model.
+// ModelCallHandler represents the behavioral surface of an LLM model, separating
+// generation logic (Generate/GenerateEvents) from identity metadata (Name/Capabilities).
 //
-// This interface separates the generation logic (Generate/GenerateEvents) from
-// the identity metadata (Name/Capabilities).
-//
-// Interceptors wrap this interface to intercept both code paths without needing to
-// implement the metadata methods (Name/Capabilities), eliminating boilerplate.
+// This separation allows ModelInterceptor to wrap generation behavior without requiring
+// interceptors to implement the identity methods, eliminating boilerplate. The framework
+// automatically combines the wrapped handler with the base model's identity.
 type ModelCallHandler interface {
 	llm.Generator       // Generate(ctx context.Context, req *Request) (*Response, error)
 	llm.EventsGenerator // GenerateEvents(ctx context.Context, req *Request) iter.Seq2[Event, error]

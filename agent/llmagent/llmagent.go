@@ -364,7 +364,7 @@ func (a *LLMAgent) ensureSystemPrompt(messages []llm.Message) []llm.Message {
 
 // generate calls the LLM to generate a response.
 //
-// The model parameter is the potentially intercepted model (wrapped by hooks).
+// The model parameter is the potentially intercepted model (wrapped by interceptors).
 // If the model supports streaming (implements llm.EventsGenerator),
 // it will emit AssistantDeltaEvent for each content part as it arrives.
 func (a *LLMAgent) generate(
