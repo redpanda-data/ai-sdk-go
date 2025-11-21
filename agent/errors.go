@@ -42,12 +42,6 @@ var (
 	// This could be due to API errors, rate limits, invalid input, or model errors.
 	ErrModelGeneration = errors.New("agent: model generation failed")
 
-	// ErrToolExecution is deprecated and no longer used.
-	// Tool execution errors (including context cancellation, timeouts, etc.) are now
-	// sent to the LLM as error tool responses, allowing the LLM to handle failures
-	// gracefully. See ToolResponse.Error for individual tool errors.
-	ErrToolExecution = errors.New("agent: tool execution failed")
-
 	// ErrToolRegistry indicates tools were requested but no tool registry is configured.
 	// This is a configuration error, not a transient error.
 	ErrToolRegistry = errors.New("agent: no tool registry configured")

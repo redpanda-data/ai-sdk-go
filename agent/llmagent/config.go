@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/tool"
 )
@@ -15,6 +16,7 @@ type config struct {
 	systemPrompt    string
 	model           llm.Model
 	tools           tool.Registry
+	interceptors    []agent.Interceptor
 	maxTurns        int
 	toolConcurrency int
 }
@@ -39,6 +41,13 @@ func (c *config) validate() error {
 
 	if c.toolConcurrency <= 0 {
 		return fmt.Errorf("llmagent: toolConcurrency must be positive, got %d", c.toolConcurrency)
+	}
+
+	// Validate that all interceptors implement at least one interceptor interface
+	for i, interceptor := range c.interceptors {
+		if !agent.ImplementsAnyInterceptor(interceptor) {
+			return fmt.Errorf("llmagent: interceptor at index %d does not implement any valid interface", i)
+		}
 	}
 
 	return nil
@@ -75,5 +84,13 @@ func WithMaxTurns(maxTurns int) Option {
 func WithToolConcurrency(toolConcurrency int) Option {
 	return func(c *config) {
 		c.toolConcurrency = toolConcurrency
+	}
+}
+
+// WithInterceptors sets the interceptors to be applied during agent execution.
+// Interceptors can intercept and modify behavior at various points in the execution lifecycle.
+func WithInterceptors(i ...agent.Interceptor) Option {
+	return func(c *config) {
+		c.interceptors = i
 	}
 }

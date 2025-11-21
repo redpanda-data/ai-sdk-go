@@ -3,6 +3,7 @@ module github.com/redpanda-data/ai-sdk-go
 go 1.25.4
 
 ignore ./build
+ignore ./examples
 
 require (
 	github.com/a2aproject/a2a-go v0.3.2

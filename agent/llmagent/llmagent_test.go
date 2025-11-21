@@ -114,6 +114,14 @@ func TestNew_Validation(t *testing.T) {
 			opts:      []llmagent.Option{llmagent.WithToolConcurrency(-1)},
 			wantErr:   "toolConcurrency must be positive",
 		},
+		{
+			name:      "invalid interceptor - does not implement any interface",
+			agentName: "test",
+			prompt:    "You are helpful",
+			model:     model,
+			opts:      []llmagent.Option{llmagent.WithInterceptors(struct{}{})},
+			wantErr:   "interceptor at index 0 does not implement any valid interface",
+		},
 	}
 
 	for _, tt := range tests {
