@@ -10,10 +10,8 @@ import (
 	"errors"
 	"fmt"
 	"iter"
-	"time"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
-	"github.com/redpanda-data/ai-sdk-go/agent/hooks"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/store/session"
 )
@@ -30,7 +28,7 @@ import (
 //  1. Loads (or creates) the session from the store
 //  2. Adds the user message to the session
 //  3. Creates an InvocationContext with the session reference
-//  4. Calls Agent.Run(invCtx) and forwards events
+//  4. Calls Agent.Run(invCtx)
 //  5. Saves the updated session when complete
 //
 // The Runner is stateless - all state lives in the Session. Multiple
@@ -39,6 +37,11 @@ import (
 // Event Streaming:
 // The Runner forwards events from the agent without modification.
 // This enables real-time progress updates and protocol adapter integration.
+//
+// Interceptors:
+// All interceptors (Turn, Model, Tool) are configured on the Agent, not the Runner.
+// The Runner is a thin orchestration layer. For invocation-level concerns
+// (logging, metrics, etc.), wrap the runner.Run() call directly in your code.
 type Runner struct {
 	config *runnerConfig
 }
@@ -47,6 +50,28 @@ type Runner struct {
 //
 // The agent and session store are required. Optional configuration can be
 // provided via Option functions.
+//
+// # Interceptors
+//
+// All interceptors are configured on the Agent, not the Runner:
+//
+//	agent, err := llmagent.New(
+//	    "assistant",
+//	    systemPrompt,
+//	    model,
+//	    llmagent.WithInterceptors(observabilityInterceptor, loggingInterceptor),
+//	)
+//	runner, err := runner.New(agent, sessionStore)
+//
+// The Runner is a thin orchestration layer that manages sessions and calls
+// the agent. For invocation-level concerns (before/after entire invocation),
+// wrap the runner.Run() call in your own code:
+//
+//	log.Println("Starting invocation")
+//	for evt, err := range runner.Run(ctx, userID, sessionID, msg) {
+//	    // handle events
+//	}
+//	log.Println("Invocation complete")
 //
 // # Example
 //
@@ -157,96 +182,23 @@ func (r *Runner) Run(
 			return
 		}
 
-		// 2. Create invocation context (needed for hook context)
-		invCtx := agent.NewInvocationContext(ctx, sess)
-
-		// 3. Execute BeforeInvocation hooks
-		if len(r.config.hooks) > 0 {
-			//nolint:contextcheck // hookCtx wraps invCtx which properly propagates the parent context
-			hookCtx := hooks.NewHookContext(
-				invCtx,
-				invCtx.InvocationID(),
-				sess.ID,
-				0, // turn starts at 0
-				time.Now().UTC(),
-				sess,
-			)
-
-			if err := r.executeBeforeInvocationHooks(hookCtx, userMessage); err != nil {
-				yield(nil, fmt.Errorf("before invocation hook: %w", err))
-				return
-			}
-		}
-
-		// 4. Add user message to session
+		// 2. Add user message to session
 		sess.Messages = append(sess.Messages, userMessage)
 
-		// 5. Execute agent and collect events
-		var completed bool
-		var finalMessage *llm.Message
-		var allEvents []agent.Event
-		var invocationErr error
+		// 3. Create invocation context
+		invCtx := agent.NewInvocationContext(ctx, sess)
 
-		//nolint:contextcheck // invCtx properly wraps the parent context and propagates cancellation
+		// 4. Execute agent and stream events in real-time
+		// The agent handles all interceptors (Turn, Model, Tool) internally
+
 		for evt, err := range r.config.agent.Run(invCtx) {
-			if err != nil {
-				invocationErr = err
-				// Forward error
-				if !yield(nil, err) {
-					return
-				}
-
-				continue
-			}
-
-			// Collect events for AfterInvocation hooks
-			allEvents = append(allEvents, evt)
-
-			// Track final message
-			if msgEvt, ok := evt.(agent.MessageEvent); ok {
-				finalMessage = &msgEvt.Response.Message
-			}
-
-			// Check if this is the terminal event
-			var endEvt agent.InvocationEndEvent
-			if evt != nil {
-				endEvt, completed = evt.(agent.InvocationEndEvent)
-			}
-
-			// Forward event to caller
-			if !yield(evt, nil) {
+			// Forward each event immediately as it arrives (streaming!)
+			if !yield(evt, err) {
 				return
-			}
-
-			// If completed, execute AfterInvocation hooks
-			if completed && len(r.config.hooks) > 0 {
-				hookCtx := hooks.NewHookContext(
-					invCtx,
-					invCtx.InvocationID(),
-					sess.ID,
-					invCtx.Turn(),
-					time.Now().UTC(),
-					sess,
-				)
-
-				result := hooks.InvocationResult{
-					FinishReason: endEvt.FinishReason,
-					FinalMessage: finalMessage,
-					TotalUsage:   invCtx.TotalUsage(),
-					Events:       allEvents,
-					Error:        invocationErr,
-				}
-
-				if err := r.executeAfterInvocationHooks(hookCtx, result); err != nil {
-					yield(nil, fmt.Errorf("after invocation hook: %w", err))
-					return
-				}
-
-				break
 			}
 		}
 
-		// 6. Save session
+		// 5. Save session after all events have been processed
 		//nolint:contextcheck // invCtx embeds the original ctx and maintains its cancellation
 		if err := r.config.sessionStore.Save(invCtx, sess); err != nil {
 			yield(nil, fmt.Errorf("%w: %w", agent.ErrSessionSave, err))
