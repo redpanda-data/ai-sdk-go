@@ -25,10 +25,6 @@ var (
 	// This is a configuration error, not a transient error.
 	ErrNoSessionStore = errors.New("agent: no session store provided")
 
-	// ErrInvalidHook is returned when a registered hook doesn't implement any hook interfaces.
-	// This is a configuration error, not a transient error.
-	ErrInvalidHook = errors.New("agent: hook must implement at least one hook interface")
-
 	// ErrInvalidInvocationContext is returned when a context passed to an interceptor is not an InvocationContext.
 	// This is a programming error, not a transient error.
 	ErrInvalidInvocationContext = errors.New("agent: context must be an InvocationContext")
