@@ -29,8 +29,6 @@ func (c *runnerConfig) validate() error {
 // Options are applied during Runner construction via New(). They allow
 // customization of runner behavior.
 //
-// Note: Interceptors are configured on the Agent, not the Runner. See agent/llmagent.WithInterceptors.
-//
 // # Example
 //
 //	runner, err := runner.New(agent, store)

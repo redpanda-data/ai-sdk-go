@@ -2,7 +2,7 @@
 //
 // Runner handles session loading/saving and forwards events from agent execution.
 // This separation enables independent evolution of infrastructure concerns
-// (middleware, hooks, retries) without impacting the core agent interface.
+// without impacting the core agent interface.
 package runner
 
 import (
@@ -37,11 +37,6 @@ import (
 // Event Streaming:
 // The Runner forwards events from the agent without modification.
 // This enables real-time progress updates and protocol adapter integration.
-//
-// Interceptors:
-// All interceptors (Turn, Model, Tool) are configured on the Agent, not the Runner.
-// The Runner is a thin orchestration layer. For invocation-level concerns
-// (logging, metrics, etc.), wrap the runner.Run() call directly in your code.
 type Runner struct {
 	config *runnerConfig
 }
@@ -50,28 +45,6 @@ type Runner struct {
 //
 // The agent and session store are required. Optional configuration can be
 // provided via Option functions.
-//
-// # Interceptors
-//
-// All interceptors are configured on the Agent, not the Runner:
-//
-//	agent, err := llmagent.New(
-//	    "assistant",
-//	    systemPrompt,
-//	    model,
-//	    llmagent.WithInterceptors(observabilityInterceptor, loggingInterceptor),
-//	)
-//	runner, err := runner.New(agent, sessionStore)
-//
-// The Runner is a thin orchestration layer that manages sessions and calls
-// the agent. For invocation-level concerns (before/after entire invocation),
-// wrap the runner.Run() call in your own code:
-//
-//	log.Println("Starting invocation")
-//	for evt, err := range runner.Run(ctx, userID, sessionID, msg) {
-//	    // handle events
-//	}
-//	log.Println("Invocation complete")
 //
 // # Example
 //
@@ -189,8 +162,6 @@ func (r *Runner) Run(
 		invCtx := agent.NewInvocationContext(ctx, sess)
 
 		// 4. Execute agent and stream events in real-time
-		// The agent handles all interceptors (Turn, Model, Tool) internally
-
 		for evt, err := range r.config.agent.Run(invCtx) {
 			// Forward each event immediately as it arrives (streaming!)
 			if !yield(evt, err) {
