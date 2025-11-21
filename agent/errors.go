@@ -25,10 +25,6 @@ var (
 	// This is a configuration error, not a transient error.
 	ErrNoSessionStore = errors.New("agent: no session store provided")
 
-	// ErrInvalidInvocationContext is returned when a context passed to an interceptor is not an InvocationContext.
-	// This is a programming error, not a transient error.
-	ErrInvalidInvocationContext = errors.New("agent: context must be an InvocationContext")
-
 	// ErrSessionLoad indicates a failure to load session state from storage.
 	// This may be a transient error (network, database connection) that can be retried.
 	ErrSessionLoad = errors.New("agent: failed to load session")
@@ -45,12 +41,6 @@ var (
 	// ErrModelGeneration indicates the LLM model failed to generate a response.
 	// This could be due to API errors, rate limits, invalid input, or model errors.
 	ErrModelGeneration = errors.New("agent: model generation failed")
-
-	// ErrToolExecution is deprecated and no longer used.
-	// Tool execution errors (including context cancellation, timeouts, etc.) are now
-	// sent to the LLM as error tool responses, allowing the LLM to handle failures
-	// gracefully. See ToolResponse.Error for individual tool errors.
-	ErrToolExecution = errors.New("agent: tool execution failed")
 
 	// ErrToolRegistry indicates tools were requested but no tool registry is configured.
 	// This is a configuration error, not a transient error.
