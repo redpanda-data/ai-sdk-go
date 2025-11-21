@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/tool"
 )
@@ -15,6 +16,7 @@ type config struct {
 	systemPrompt    string
 	model           llm.Model
 	tools           tool.Registry
+	interceptors    []agent.Interceptor
 	maxTurns        int
 	toolConcurrency int
 }
@@ -75,5 +77,13 @@ func WithMaxTurns(maxTurns int) Option {
 func WithToolConcurrency(toolConcurrency int) Option {
 	return func(c *config) {
 		c.toolConcurrency = toolConcurrency
+	}
+}
+
+// WithInterceptors sets the interceptors to be applied during agent execution.
+// Interceptors can intercept and modify behavior at various points in the execution lifecycle.
+func WithInterceptors(i ...agent.Interceptor) Option {
+	return func(c *config) {
+		c.interceptors = i
 	}
 }
