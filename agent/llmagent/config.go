@@ -43,6 +43,13 @@ func (c *config) validate() error {
 		return fmt.Errorf("llmagent: toolConcurrency must be positive, got %d", c.toolConcurrency)
 	}
 
+	// Validate that all interceptors implement at least one interceptor interface
+	for i, interceptor := range c.interceptors {
+		if !agent.ImplementsAnyInterceptor(interceptor) {
+			return fmt.Errorf("llmagent: interceptor at index %d does not implement any valid interface", i)
+		}
+	}
+
 	return nil
 }
 
