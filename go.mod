@@ -3,6 +3,7 @@ module github.com/redpanda-data/ai-sdk-go
 go 1.25.4
 
 ignore ./build
+ignore ./examples
 
 require (
 	github.com/anthropics/anthropic-sdk-go v1.17.0
