@@ -922,6 +922,10 @@ func (m *testModel) Capabilities() llm.ModelCapabilities {
 	}
 }
 
+func (m *testModel) Constraints() llm.ModelConstraints {
+	return llm.ModelConstraints{}
+}
+
 func (m *testModel) Generate(ctx context.Context, req *llm.Request) (*llm.Response, error) {
 	if m.generateFunc != nil {
 		return m.generateFunc(ctx, req)

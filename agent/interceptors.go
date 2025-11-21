@@ -214,18 +214,19 @@ func ApplyModelInterceptors(
 	}
 
 	// Bridge: handler only has Generate/GenerateEvents, but agent needs full llm.Model
-	// So we wrap it to add Name/Capabilities from the base model
+	// So we wrap it to add ModelInfo methods from the base model via embedding
 	return &interceptedModel{
-		base:    base,
-		handler: handler,
+		ModelInfo: base,
+		handler:   handler,
 	}
 }
 
 // interceptedModel implements llm.Model by combining:
-//   - Base model's Name/Capabilities (preserved identity)
+//   - Base model's ModelInfo methods (Name/Capabilities/Constraints) via embedding (preserved identity)
 //   - Handler chain's Generate/GenerateEvents (intercepted behavior)
 type interceptedModel struct {
-	base    llm.ModelInfo    // For Name() and Capabilities()
+	llm.ModelInfo // Embedded - all ModelInfo methods automatically promoted
+
 	handler ModelCallHandler // For Generate() and GenerateEvents()
 }
 
@@ -237,16 +238,6 @@ func (m *interceptedModel) Generate(ctx context.Context, req *llm.Request) (*llm
 // GenerateEvents delegates to the intercepted handler chain.
 func (m *interceptedModel) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[llm.Event, error] {
 	return m.handler.GenerateEvents(ctx, req)
-}
-
-// Name returns the base model's name (identity preserved, not intercepted).
-func (m *interceptedModel) Name() string {
-	return m.base.Name()
-}
-
-// Capabilities returns the base model's capabilities (identity preserved, not intercepted).
-func (m *interceptedModel) Capabilities() llm.ModelCapabilities {
-	return m.base.Capabilities()
 }
 
 // ApplyTurnInterceptors wraps a turn execution function with the turn interceptor chain.
