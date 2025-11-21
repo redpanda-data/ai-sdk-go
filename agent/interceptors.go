@@ -200,9 +200,8 @@ func ApplyModelInterceptors(
 
 	// Apply interceptors in reverse order (first interceptor = outermost wrapper)
 	for i := len(interceptors) - 1; i >= 0; i-- {
-		if interceptor, ok := interceptors[i].(ModelInterceptor); ok {
+		if ic, ok := interceptors[i].(ModelInterceptor); ok {
 			next := handler
-			ic := interceptor
 
 			handler = ic.InterceptModel(ctx, req, next)
 		}
