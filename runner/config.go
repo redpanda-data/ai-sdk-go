@@ -27,9 +27,13 @@ func (c *runnerConfig) validate() error {
 // Option configures a Runner.
 //
 // Options are applied during Runner construction via New(). They allow
-// customization of runner behavior.
+// customization of runner behavior such as middleware, hooks, retries,
+// and observability.
 //
 // # Example
 //
-//	runner, err := runner.New(agent, store)
+//	runner, err := runner.New(agent, store,
+//	    runner.WithMiddleware(loggingMiddleware),
+//	    runner.WithMaxRetries(3),
+//	)
 type Option func(*runnerConfig)

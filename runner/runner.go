@@ -2,7 +2,7 @@
 //
 // Runner handles session loading/saving and forwards events from agent execution.
 // This separation enables independent evolution of infrastructure concerns
-// without impacting the core agent interface.
+// (middleware, hooks, retries) without impacting the core agent interface.
 package runner
 
 import (
@@ -28,7 +28,7 @@ import (
 //  1. Loads (or creates) the session from the store
 //  2. Adds the user message to the session
 //  3. Creates an InvocationContext with the session reference
-//  4. Calls Agent.Run(invCtx)
+//  4. Calls Agent.Run(invCtx) and forwards events
 //  5. Saves the updated session when complete
 //
 // The Runner is stateless - all state lives in the Session. Multiple
@@ -161,15 +161,36 @@ func (r *Runner) Run(
 		// 3. Create invocation context
 		invCtx := agent.NewInvocationContext(ctx, sess)
 
-		// 4. Execute agent and stream events in real-time
+		// 4. Execute agent and forward events
+		var completed bool
+
 		for evt, err := range r.config.agent.Run(invCtx) {
-			// Forward each event immediately as it arrives (streaming!)
-			if !yield(evt, err) {
+			if err != nil {
+				// Forward error
+				if !yield(nil, err) {
+					return
+				}
+
+				continue
+			}
+
+			// Check if this is the terminal event
+			if _, ok := evt.(agent.InvocationEndEvent); ok {
+				completed = true
+			}
+
+			// Forward event to caller
+			if !yield(evt, nil) {
 				return
+			}
+
+			// If completed, save session and exit
+			if completed {
+				break
 			}
 		}
 
-		// 5. Save session after all events have been processed
+		// 5. Save session
 		//nolint:contextcheck // invCtx embeds the original ctx and maintains its cancellation
 		if err := r.config.sessionStore.Save(invCtx, sess); err != nil {
 			yield(nil, fmt.Errorf("%w: %w", agent.ErrSessionSave, err))
