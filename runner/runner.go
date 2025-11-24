@@ -20,15 +20,15 @@ import (
 //
 // The Runner is the entry point for executing agents. It handles:
 //   - Session loading and persistence
-//   - InvocationContext creation
+//   - InvocationMetadata creation
 //   - Agent execution coordination
 //   - Event streaming
 //
 // Design: The Runner:
 //  1. Loads (or creates) the session from the store
 //  2. Adds the user message to the session
-//  3. Creates an InvocationContext with the session reference
-//  4. Calls Agent.Run(invCtx) and forwards events
+//  3. Creates an InvocationMetadata with the session reference
+//  4. Calls Agent.Run(ctx, inv) and forwards events
 //  5. Saves the updated session when complete
 //
 // The Runner is stateless - all state lives in the Session. Multiple
@@ -158,20 +158,18 @@ func (r *Runner) Run(
 		// 2. Add user message to session
 		sess.Messages = append(sess.Messages, userMessage)
 
-		// 3. Create invocation context
-		invCtx := agent.NewInvocationContext(ctx, sess)
+		// 3. Create invocation metadata
+		inv := agent.NewInvocationMetadata(sess)
 
 		// 4. Save session on exit (handles normal completion, cancellation, errors)
-		//nolint:contextcheck // invCtx embeds the original ctx and maintains its cancellation
 		defer func() {
-			if err := r.config.sessionStore.Save(invCtx, sess); err != nil {
+			if err := r.config.sessionStore.Save(ctx, sess); err != nil {
 				yield(nil, fmt.Errorf("%w: %w", agent.ErrSessionSave, err))
 			}
 		}()
 
 		// 5. Execute agent and forward events
-		//nolint:contextcheck // Agent.Run requires InvocationContext, not raw context
-		for evt, err := range r.config.agent.Run(invCtx) {
+		for evt, err := range r.config.agent.Run(ctx, inv) {
 			if err != nil {
 				// Forward error
 				if !yield(nil, err) {
@@ -184,7 +182,7 @@ func (r *Runner) Run(
 			// Save session after each assistant message (incremental persistence)
 			// Note: Agent already appended the message to sess.Messages, we just save it
 			if _, ok := evt.(agent.MessageEvent); ok {
-				if err := r.config.sessionStore.Save(invCtx, sess); err != nil {
+				if err := r.config.sessionStore.Save(ctx, sess); err != nil {
 					yield(nil, fmt.Errorf("%w: %w", agent.ErrSessionSave, err))
 					return
 				}

@@ -233,10 +233,10 @@ func TestRun_SimpleSingleTurn(t *testing.T) {
 				ID:       "test-session",
 				Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hello!"))},
 			}
-			invCtx := agent.NewInvocationContext(context.Background(), sess)
+			inv := agent.NewInvocationMetadata(sess)
 
 			// Execute
-			events := collectEvents(t, ag.Run(invCtx))
+			events := collectEvents(t, ag.Run(t.Context(), inv))
 
 			// Assert: Should have completion event
 			endEvent := findInvocationEndEvent(events)
@@ -310,10 +310,10 @@ func TestRun_MultiTurnWithTools(t *testing.T) {
 		ID:       "test-session",
 		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("What's the weather?"))},
 	}
-	invCtx := agent.NewInvocationContext(context.Background(), sess)
+	inv := agent.NewInvocationMetadata(sess)
 
 	// Execute
-	events := collectEvents(t, ag.Run(invCtx))
+	events := collectEvents(t, ag.Run(t.Context(), inv))
 
 	// Assert: Should have exactly 2 turns (0 and 1)
 	maxTurn := -1
@@ -383,10 +383,10 @@ func TestRun_MaxTurnsLimit(t *testing.T) {
 		ID:       "test-session",
 		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Start"))},
 	}
-	invCtx := agent.NewInvocationContext(context.Background(), sess)
+	inv := agent.NewInvocationMetadata(sess)
 
 	// Execute
-	events := collectEvents(t, ag.Run(invCtx))
+	events := collectEvents(t, ag.Run(t.Context(), inv))
 
 	// Assert: Should hit max turns
 	endEvent := findInvocationEndEvent(events)
@@ -415,12 +415,12 @@ func TestExecuteTools_NoToolRegistry(t *testing.T) {
 		ID:       "test-session",
 		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Test"))},
 	}
-	invCtx := agent.NewInvocationContext(context.Background(), sess)
+	inv := agent.NewInvocationMetadata(sess)
 
 	// Execute - expect TERMINAL error (system failure)
 	var terminalErr error
 
-	for _, err := range ag.Run(invCtx) {
+	for _, err := range ag.Run(t.Context(), inv) {
 		if err != nil {
 			terminalErr = err
 			break
@@ -476,10 +476,10 @@ func TestExecuteTools_ToolError(t *testing.T) {
 		ID:       "test-session",
 		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Test"))},
 	}
-	invCtx := agent.NewInvocationContext(context.Background(), sess)
+	inv := agent.NewInvocationMetadata(sess)
 
 	// Execute
-	events := collectEvents(t, ag.Run(invCtx))
+	events := collectEvents(t, ag.Run(t.Context(), inv))
 
 	// Assert: Should have tool result with error
 	toolResultEvents := filterEvents[agent.ToolResponseEvent](events)
@@ -514,13 +514,13 @@ func TestRun_ContextCancellation(t *testing.T) {
 			ID:       "test-session",
 			Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hello"))},
 		}
-		invCtx := agent.NewInvocationContext(ctx, sess)
+		inv := agent.NewInvocationMetadata(sess)
 
 		// Start execution
 		var events []agent.Event
 		var gotError bool
 		var cancelCalled bool
-		eventIter := ag.Run(invCtx)
+		eventIter := ag.Run(ctx, inv)
 
 		// Collect first event, then cancel
 		for evt, err := range eventIter {
@@ -570,10 +570,10 @@ func TestRun_ContextCancellation(t *testing.T) {
 			ID:       "test-session",
 			Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hello"))},
 		}
-		invCtx := agent.NewInvocationContext(ctx, sess)
+		inv := agent.NewInvocationMetadata(sess)
 
 		// Execute
-		events := collectEvents(t, ag.Run(invCtx))
+		events := collectEvents(t, ag.Run(ctx, inv))
 
 		// Assert: Should get canceled finish reason
 		endEvent := findInvocationEndEvent(events)
@@ -596,10 +596,10 @@ func TestRun_EventEnvelope(t *testing.T) {
 		ID:       "test-session",
 		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hello"))},
 	}
-	invCtx := agent.NewInvocationContext(context.Background(), sess)
+	inv := agent.NewInvocationMetadata(sess)
 
 	// Execute
-	events := collectEvents(t, ag.Run(invCtx))
+	events := collectEvents(t, ag.Run(t.Context(), inv))
 
 	// Assert: All events should have proper envelope
 	require.NotEmpty(t, events)
@@ -646,9 +646,9 @@ func TestRun_UsageTracking(t *testing.T) {
 			ID:       "test-session",
 			Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hello"))},
 		}
-		invCtx := agent.NewInvocationContext(context.Background(), sess)
+		inv := agent.NewInvocationMetadata(sess)
 
-		events := collectEvents(t, ag.Run(invCtx))
+		events := collectEvents(t, ag.Run(t.Context(), inv))
 
 		endEvent := findInvocationEndEvent(events)
 		require.NotNil(t, endEvent)
@@ -693,9 +693,9 @@ func TestRun_UsageTracking(t *testing.T) {
 			ID:       "test-session",
 			Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hello"))},
 		}
-		invCtx := agent.NewInvocationContext(context.Background(), sess)
+		inv := agent.NewInvocationMetadata(sess)
 
-		events := collectEvents(t, ag.Run(invCtx))
+		events := collectEvents(t, ag.Run(t.Context(), inv))
 
 		// Verify usage accumulates across turns
 		endEvent := findInvocationEndEvent(events)
@@ -726,10 +726,10 @@ func TestRun_StreamingDeltas(t *testing.T) {
 		ID:       "test-session",
 		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hello"))},
 	}
-	invCtx := agent.NewInvocationContext(context.Background(), sess)
+	inv := agent.NewInvocationMetadata(sess)
 
 	// Execute and collect delta events
-	events := collectEvents(t, ag.Run(invCtx))
+	events := collectEvents(t, ag.Run(t.Context(), inv))
 
 	deltaEvents := filterEvents[agent.AssistantDeltaEvent](events)
 	assert.Greater(t, len(deltaEvents), 1, "should have multiple streaming deltas")
@@ -765,10 +765,10 @@ func TestRun_EventOrdering(t *testing.T) {
 			ID:       "test-session",
 			Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hello"))},
 		}
-		invCtx := agent.NewInvocationContext(context.Background(), sess)
+		inv := agent.NewInvocationMetadata(sess)
 
 		// Execute and collect events
-		events := collectEvents(t, ag.Run(invCtx))
+		events := collectEvents(t, ag.Run(t.Context(), inv))
 
 		// Verify canonical sequence: StatusEvent → MessageEvent → InvocationEndEvent
 		require.GreaterOrEqual(t, len(events), 3, "should have at least status, message, and end events")
@@ -840,10 +840,10 @@ func TestRun_EventOrdering(t *testing.T) {
 			ID:       "test-session",
 			Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("What's the weather?"))},
 		}
-		invCtx := agent.NewInvocationContext(context.Background(), sess)
+		inv := agent.NewInvocationMetadata(sess)
 
 		// Execute and collect events
-		events := collectEvents(t, ag.Run(invCtx))
+		events := collectEvents(t, ag.Run(t.Context(), inv))
 
 		// Verify canonical sequence:
 		// StatusEvent → MessageEvent (tool calls) → ToolRequestEvent → ToolResponseEvent → MessageEvent (final) → InvocationEndEvent

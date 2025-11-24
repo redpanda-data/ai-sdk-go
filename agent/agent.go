@@ -2,7 +2,7 @@
 //
 // Key concepts:
 //   - Agent: Stateless executor implementing a specific execution strategy
-//   - InvocationContext: Per-invocation state (turn, usage) and execution handle
+//   - InvocationMetadata: Per-invocation state (turn, usage) and session reference
 //   - Event: Sealed interface for all runtime events yielded during execution
 //
 // All agent implementations yield events during execution for real-time observability.
@@ -10,14 +10,16 @@
 package agent
 
 import (
+	"context"
 	"iter"
 )
 
 // Agent is the core execution interface. Different agent types
 // (LLM-based, remote, sequential, etc.) implement this interface.
 //
-// Agents are stateless executors that operate on an InvocationContext.
-// The context provides access to the session state and other execution data.
+// Agents are stateless executors that operate with a context.Context for
+// control flow and InvocationMetadata for domain state. This separation
+// follows idiomatic Go patterns and prevents context derivation footguns.
 //
 // # Event Streaming
 //
@@ -36,11 +38,15 @@ type Agent interface {
 	// Description describes the agent's purpose and capabilities.
 	Description() string
 
-	// Run executes the agent with the given invocation context.
+	// Run executes the agent with the given context and invocation metadata.
 	//
-	// The agent reads from invCtx.Session() (messages, turn, usage) and
-	// updates it as execution progresses. Events are yielded during
-	// execution to provide real-time progress updates.
+	// The agent reads from inv.Session() (messages) and updates it as
+	// execution progresses. Events are yielded during execution to provide
+	// real-time progress updates.
+	//
+	// Parameters:
+	//   - ctx: Standard Go context for cancellation, deadlines, and request-scoped values
+	//   - inv: Invocation metadata (session, turn, usage, metadata)
 	//
 	// # Error Handling
 	//
@@ -56,7 +62,7 @@ type Agent interface {
 	//   Examples: rate limits, content filters, max turns reached
 	//
 	// Consumer pattern:
-	//   for evt, err := range agent.Run(invCtx) {
+	//   for evt, err := range agent.Run(ctx, inv) {
 	//       if err != nil {
 	//           // CONTROL FLOW: Fatal error, system can't continue
 	//           return
@@ -68,7 +74,7 @@ type Agent interface {
 	//           // Completion (check FinishReason)
 	//       }
 	//   }
-	Run(ctx *InvocationContext) iter.Seq2[Event, error]
+	Run(ctx context.Context, inv *InvocationMetadata) iter.Seq2[Event, error]
 
 	// InputSchema returns the expected input schema for this agent.
 	// Used when wrapping agents as tools (agent-as-tool pattern).
