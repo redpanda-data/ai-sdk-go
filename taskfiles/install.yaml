@@ -3,6 +3,8 @@ version: '3'
 vars:
   GOLANGCI_LINT_VERSION: 2.6.1
   TPARSE_VERSION: 0.18.0
+  GOVULNCHECK_VERSION: 1.1.4
+  OSV_SCANNER_VERSION: 2.3.0
 
 tasks:
   go:
@@ -40,3 +42,25 @@ tasks:
     status:
       - test -f {{.BIN_DIR}}/tparse
       - '[[ $({{.BIN_DIR}}/tparse --version 2>&1) == *"{{.TPARSE_VERSION}}"* ]]'
+
+  govulncheck:
+    desc: Install govulncheck (Go vulnerability scanner)
+    deps:
+      - go
+    cmds:
+      - mkdir -p {{.BIN_DIR}}
+      - GOBIN={{.BIN_DIR}} {{.GO_BIN}} install golang.org/x/vuln/cmd/govulncheck@v{{.GOVULNCHECK_VERSION}}
+    status:
+      - test -f {{.BIN_DIR}}/govulncheck
+      - '[[ $({{.BIN_DIR}}/govulncheck -version 2>&1) == *"v{{.GOVULNCHECK_VERSION}}"* ]]'
+
+  osv-scanner:
+    desc: Install osv-scanner (Google OSV vulnerability scanner)
+    deps:
+      - go
+    cmds:
+      - mkdir -p {{.BIN_DIR}}
+      - GOBIN={{.BIN_DIR}} {{.GO_BIN}} install github.com/google/osv-scanner/v2/cmd/osv-scanner@v{{.OSV_SCANNER_VERSION}}
+    status:
+      - test -f {{.BIN_DIR}}/osv-scanner
+      - '[[ $({{.BIN_DIR}}/osv-scanner --version 2>&1) == *"{{.OSV_SCANNER_VERSION}}"* ]]'
