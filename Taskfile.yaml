@@ -45,6 +45,15 @@ tasks:
     cmds:
       - '{{.GO_BIN}} test -json -cover -parallel 10 -run Integration ./... | {{.BIN_DIR}}/tparse -follow -all'
 
+  security:
+    desc: Run security vulnerability checks (govulncheck + osv-scanner)
+    deps:
+      - install:govulncheck
+      - install:osv-scanner
+    cmds:
+      - '{{.BIN_DIR}}/govulncheck ./...'
+      - '{{.BIN_DIR}}/osv-scanner --lockfile go.mod'
+
   ci:
     desc: Run all CI checks (lint, test:unit)
     cmds:
