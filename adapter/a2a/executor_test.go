@@ -132,13 +132,15 @@ func TestExecutor_Integration_OpenAI(t *testing.T) {
 			}
 
 			// Check for per-message usage metadata on working state events with agent messages
-			if ev.Status.State == a2a.TaskStateWorking && ev.Status.Message != nil && ev.Status.Message.Role == a2a.MessageRoleAgent {
-				if ev.Status.Message.Metadata != nil {
-					if usage, ok := ev.Status.Message.Metadata["usage"].(map[string]any); ok {
-						t.Logf("  Per-message token usage: %+v", usage)
-						if totalTokens, ok := usage["total_tokens"].(int); ok {
-							assert.Positive(t, totalTokens, "Should have per-message token usage")
-						}
+			isWorkingAgentMessage := ev.Status.State == a2a.TaskStateWorking &&
+				ev.Status.Message != nil &&
+				ev.Status.Message.Role == a2a.MessageRoleAgent
+			if isWorkingAgentMessage && ev.Status.Message.Metadata != nil {
+				if usage, ok := ev.Status.Message.Metadata["usage"].(map[string]any); ok {
+					t.Logf("  Per-message token usage: %+v", usage)
+
+					if totalTokens, ok := usage["total_tokens"].(int); ok {
+						assert.Positive(t, totalTokens, "Should have per-message token usage")
 					}
 				}
 			}
