@@ -154,11 +154,10 @@ func (e *Executor) processEvents(
 			// Add agent's message to history via a status update
 			// Convert LLM response to A2A message format
 			a2amsg := MessageFromLLM(ev.Response.Message)
-			historyStatus := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateWorking, a2amsg)
 
-			// Attach token usage if available
+			// Attach token usage to the message itself if available
 			if ev.Response.Usage != nil {
-				historyStatus.Metadata = map[string]any{
+				a2amsg.Metadata = map[string]any{
 					"usage": map[string]any{
 						"input_tokens":     ev.Response.Usage.InputTokens,
 						"output_tokens":    ev.Response.Usage.OutputTokens,
@@ -170,6 +169,7 @@ func (e *Executor) processEvents(
 				}
 			}
 
+			historyStatus := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateWorking, a2amsg)
 			write(historyStatus)
 			// Reset artifactID so next model_call creates a new one
 			currentArtifactID = ""
