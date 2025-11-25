@@ -108,35 +108,35 @@ func (a *LLMAgent) InputSchema() map[string]any {
 //   - Completion (InvocationEndEvent)
 //
 // The stream always ends with InvocationEndEvent, even on error or cancellation.
-func (a *LLMAgent) Run(invCtx *agent.InvocationContext) iter.Seq2[agent.Event, error] {
+func (a *LLMAgent) Run(ctx context.Context, inv *agent.InvocationMetadata) iter.Seq2[agent.Event, error] {
 	return func(yield func(agent.Event, error) bool) {
 		// Helper: create event envelope
 		makeEnvelope := func() agent.EventEnvelope {
 			return agent.EventEnvelope{
-				InvocationID: invCtx.InvocationID(),
-				SessionID:    invCtx.Session().ID,
-				Turn:         invCtx.Turn(),
+				InvocationID: inv.InvocationID(),
+				SessionID:    inv.Session().ID,
+				Turn:         inv.Turn(),
 				At:           time.Now().UTC(),
 			}
 		}
 
 		// Execute turn loop
-		for invCtx.Turn() < a.config.maxTurns {
+		for inv.Turn() < a.config.maxTurns {
 			// Emit turn started
 			if !yield(agent.StatusEvent{
 				Envelope: makeEnvelope(),
 				Stage:    agent.StatusStageTurnStarted,
-				Details:  fmt.Sprintf("turn %d started", invCtx.Turn()),
+				Details:  fmt.Sprintf("turn %d started", inv.Turn()),
 			}, nil) {
 				return
 			}
 
 			// Check context cancellation
-			if invCtx.Err() != nil {
+			if ctx.Err() != nil {
 				yield(agent.InvocationEndEvent{
 					Envelope:     makeEnvelope(),
 					FinishReason: agent.FinishReasonInterrupted,
-					Usage:        ptr(invCtx.TotalUsage()),
+					Usage:        ptr(inv.TotalUsage()),
 				}, nil)
 
 				return
@@ -144,15 +144,15 @@ func (a *LLMAgent) Run(invCtx *agent.InvocationContext) iter.Seq2[agent.Event, e
 
 			// Create turn execution function that can be wrapped by interceptors
 			// This encapsulates the entire turn execution logic
-			executeTurn := func(ctx context.Context) (agent.FinishReason, error) {
-				return a.executeSingleTurn(ctx, makeEnvelope, yield)
+			executeTurn := func(ctx context.Context, inv *agent.InvocationMetadata) (agent.FinishReason, error) {
+				return a.executeSingleTurn(ctx, inv, makeEnvelope, yield)
 			}
 
 			// Apply turn interceptors
-			wrappedTurn := agent.ApplyTurnInterceptors(invCtx, a.config.interceptors, executeTurn)
+			wrappedTurn := agent.ApplyTurnInterceptors(a.config.interceptors, executeTurn)
 
 			// Execute the turn (wrapped by interceptors)
-			finishReason, err := wrappedTurn(invCtx)
+			finishReason, err := wrappedTurn(ctx, inv)
 			if err != nil {
 				// Terminal error from turn execution
 				yield(nil, err)
@@ -165,21 +165,21 @@ func (a *LLMAgent) Run(invCtx *agent.InvocationContext) iter.Seq2[agent.Event, e
 				yield(agent.InvocationEndEvent{
 					Envelope:     makeEnvelope(),
 					FinishReason: finishReason,
-					Usage:        ptr(invCtx.TotalUsage()),
+					Usage:        ptr(inv.TotalUsage()),
 				}, nil)
 
 				return
 			}
 
 			// Increment turn for next iteration
-			invCtx.IncrementTurn()
+			agent.IncrementTurn(inv)
 		}
 
 		// Max turns reached
 		yield(agent.InvocationEndEvent{
 			Envelope:     makeEnvelope(),
 			FinishReason: agent.FinishReasonMaxTurns,
-			Usage:        ptr(invCtx.TotalUsage()),
+			Usage:        ptr(inv.TotalUsage()),
 		}, nil)
 	}
 }
@@ -193,13 +193,11 @@ func (a *LLMAgent) Run(invCtx *agent.InvocationContext) iter.Seq2[agent.Event, e
 // When FinishReason is empty, the turn completed normally and the loop should continue.
 func (a *LLMAgent) executeSingleTurn(
 	ctx context.Context,
+	inv *agent.InvocationMetadata,
 	makeEnvelope func() agent.EventEnvelope,
 	yield func(agent.Event, error) bool,
 ) (agent.FinishReason, error) {
-	// Get invocation context (guaranteed to be InvocationContext)
-	//nolint:errcheck,forcetypeassert // Type assertion guaranteed by function contract - panic is intentional for programming errors
-	invCtx := ctx.(*agent.InvocationContext)
-	sess := invCtx.Session()
+	sess := inv.Session()
 
 	// Emit model call status
 	if !yield(agent.StatusEvent{
@@ -225,12 +223,10 @@ func (a *LLMAgent) executeSingleTurn(
 
 	// Apply model interceptors for this request
 	// This wraps the models Generate/GenerateEvents with interceptor logic
-	//nolint:contextcheck // invCtx embeds context.Context and is designed to be used as a context
-	model := agent.ApplyModelInterceptors(invCtx, req, a.config.model, a.config.interceptors)
+	model := agent.ApplyModelInterceptors(ctx, inv, req, a.config.model, a.config.interceptors)
 
 	// Generate response from LLM (with streaming support if available)
-	//nolint:contextcheck // invCtx embeds context.Context and is designed to be used as a context
-	resp, err := a.generate(invCtx, model, req, makeEnvelope, yield)
+	resp, err := a.generate(ctx, model, req, makeEnvelope, yield)
 	if err != nil {
 		// TERMINAL ERROR: System failure (auth, connection, protocol violation)
 		// Observable errors (rate limits, content filters) come through:
@@ -240,7 +236,7 @@ func (a *LLMAgent) executeSingleTurn(
 	}
 
 	// Update usage tracking
-	invCtx.AddUsage(resp.Usage)
+	agent.AddUsage(inv, resp.Usage)
 
 	// Add assistant message to session (single source of truth)
 	sess.Messages = append(sess.Messages, resp.Message)
@@ -270,7 +266,7 @@ func (a *LLMAgent) executeSingleTurn(
 			yield(agent.StatusEvent{
 				Envelope: makeEnvelope(),
 				Stage:    agent.StatusStageTurnCompleted,
-				Details:  fmt.Sprintf("turn %d completed - length limit", invCtx.Turn()),
+				Details:  fmt.Sprintf("turn %d completed - length limit", inv.Turn()),
 				Usage:    resp.Usage,
 			}, nil)
 		}
@@ -287,7 +283,7 @@ func (a *LLMAgent) executeSingleTurn(
 		yield(agent.StatusEvent{
 			Envelope: makeEnvelope(),
 			Stage:    agent.StatusStageTurnCompleted,
-			Details:  fmt.Sprintf("turn %d completed", invCtx.Turn()),
+			Details:  fmt.Sprintf("turn %d completed", inv.Turn()),
 			Usage:    resp.Usage,
 		}, nil)
 
@@ -320,8 +316,7 @@ func (a *LLMAgent) executeSingleTurn(
 		return "", agent.ErrToolRegistry
 	}
 
-	//nolint:contextcheck // invCtx embeds context.Context and is designed to be used as a context
-	toolParts := a.executeTools(invCtx, toolReqs, makeEnvelope, yield)
+	toolParts := a.executeTools(ctx, inv, toolReqs, makeEnvelope, yield)
 
 	// Build single message with all tool response parts
 	toolMsg := llm.NewMessage(llm.RoleUser, toolParts...)
@@ -331,7 +326,7 @@ func (a *LLMAgent) executeSingleTurn(
 	if !yield(agent.StatusEvent{
 		Envelope: makeEnvelope(),
 		Stage:    agent.StatusStageTurnCompleted,
-		Details:  fmt.Sprintf("turn %d completed", invCtx.Turn()),
+		Details:  fmt.Sprintf("turn %d completed", inv.Turn()),
 	}, nil) {
 		// Consumer stopped listening
 		return agent.FinishReasonInterrupted, nil
@@ -363,7 +358,7 @@ func (a *LLMAgent) ensureSystemPrompt(messages []llm.Message) []llm.Message {
 // If the model supports streaming (implements llm.EventsGenerator),
 // it will emit AssistantDeltaEvent for each content part as it arrives.
 func (a *LLMAgent) generate(
-	invCtx *agent.InvocationContext,
+	ctx context.Context,
 	model llm.Model,
 	req *llm.Request,
 	makeEnvelope func() agent.EventEnvelope,
@@ -371,11 +366,11 @@ func (a *LLMAgent) generate(
 ) (*llm.Response, error) {
 	// Use streaming if model supports it (provides better UX with real-time updates)
 	if eg, ok := model.(llm.EventsGenerator); ok {
-		return a.generateWithStreaming(invCtx, eg, req, makeEnvelope, yield)
+		return a.generateWithStreaming(ctx, eg, req, makeEnvelope, yield)
 	}
 
 	// Fall back to non-streaming generation
-	return model.Generate(invCtx, req)
+	return model.Generate(ctx, req)
 }
 
 // generateWithStreaming uses the EventsGenerator interface to get token-by-token deltas.
@@ -455,13 +450,14 @@ func (a *LLMAgent) generateWithStreaming(
 // Future: Will also return list of tool IDs requiring input for
 // StatusStageInputRequired / FinishReasonInputRequired support.
 func (a *LLMAgent) executeTools(
-	invCtx *agent.InvocationContext,
+	ctx context.Context,
+	inv *agent.InvocationMetadata,
 	toolReqs []*llm.ToolRequest,
 	makeEnvelope func() agent.EventEnvelope,
 	yield func(agent.Event, error) bool,
 ) []*llm.Part {
 	// Execute tools concurrently with limited parallelism
-	g, ctx := errgroup.WithContext(invCtx)
+	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(min(a.config.toolConcurrency, len(toolReqs)))
 
 	// Results channel (buffered to avoid blocking)
@@ -476,17 +472,17 @@ func (a *LLMAgent) executeTools(
 	results := make(chan toolResult, len(toolReqs))
 
 	// Create base tool executor
-	baseExecutor := func(ctx context.Context, req *llm.ToolRequest) (*llm.ToolResponse, error) {
+	baseExecutor := func(ctx context.Context, _ *agent.InvocationMetadata, req *llm.ToolRequest) (*llm.ToolResponse, error) {
 		return a.config.tools.Execute(ctx, req)
 	}
 
 	// Apply tool interceptors
-	executor := agent.ApplyToolInterceptors(ctx, a.config.interceptors, baseExecutor)
+	executor := agent.ApplyToolInterceptors(a.config.interceptors, baseExecutor)
 
 	// Launch tool executions
 	for i, req := range toolReqs {
 		g.Go(func() error {
-			resp, err := executor(ctx, req)
+			resp, err := executor(gctx, inv, req)
 			results <- toolResult{
 				idx:       i,
 				requestID: req.ID,

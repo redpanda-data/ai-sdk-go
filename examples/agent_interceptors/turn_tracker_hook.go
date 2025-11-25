@@ -30,28 +30,25 @@ func NewTurnTrackerInterceptor(maxTurns int) *TurnTrackerInterceptor {
 
 // InterceptTurn implements agent.TurnInterceptor.
 // It logs each turn and can implement custom early stopping conditions.
-func (h *TurnTrackerInterceptor) InterceptTurn(ctx context.Context, next agent.TurnNext) (agent.FinishReason, error) {
-	// Note: In a real implementation, you might extract turn number from ctx
-	// For this example, we'll just log the turn
+func (h *TurnTrackerInterceptor) InterceptTurn(ctx context.Context, inv *agent.InvocationMetadata, next agent.TurnNext) (agent.FinishReason, error) {
 	start := time.Now()
-	log.Printf("[TurnTracker] Turn started")
+	log.Printf("[TurnTracker] Turn %d started (Session: %s)", inv.Turn(), inv.Session().ID)
 
-	reason, err := next(ctx)
+	reason, err := next(ctx, inv)
 
 	duration := time.Since(start)
 	if err != nil {
-		log.Printf("[TurnTracker] Turn failed after %v: %v", duration, err)
+		log.Printf("[TurnTracker] Turn %d failed after %v: %v", inv.Turn(), duration, err)
 		return reason, err
 	}
 
-	log.Printf("[TurnTracker] Turn completed in %v (reason: %s)", duration, reason)
+	log.Printf("[TurnTracker] Turn %d completed in %v (reason: %s)", inv.Turn(), duration, reason)
 
 	// Example: Implement custom early stopping
-	// In a real scenario, you might check turn count from context
-	// if turnNum >= h.maxTurns {
-	//     log.Printf("[TurnTracker] Stopping early: reached max turns (%d)", h.maxTurns)
-	//     return agent.FinishReasonMaxTurns, nil
-	// }
+	if h.maxTurns > 0 && inv.Turn() >= h.maxTurns {
+		log.Printf("[TurnTracker] Stopping early: reached max turns (%d)", h.maxTurns)
+		return agent.FinishReasonMaxTurns, nil
+	}
 
 	return reason, nil
 }

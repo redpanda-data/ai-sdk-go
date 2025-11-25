@@ -56,6 +56,7 @@ func NewToolApprovalInterceptor(requireApproval []string, autoApprove bool) *Too
 // It prompts for approval before executing tools that require it.
 func (h *ToolApprovalInterceptor) InterceptToolExecution(
 	ctx context.Context,
+	inv *agent.InvocationMetadata,
 	req *llm.ToolRequest,
 	next agent.ToolExecutionNext,
 ) (*llm.ToolResponse, error) {
@@ -64,13 +65,13 @@ func (h *ToolApprovalInterceptor) InterceptToolExecution(
 
 	if !needsApproval {
 		// No approval needed, execute directly
-		return next(ctx, req)
+		return next(ctx, inv, req)
 	}
 
 	// Auto-approve if configured (useful for CI/testing)
 	if h.autoApprove {
 		log.Printf("[ToolApproval] Auto-approved tool %q", req.Name)
-		return next(ctx, req)
+		return next(ctx, inv, req)
 	}
 
 	// Serialize approval prompts when tools execute concurrently
@@ -110,7 +111,7 @@ func (h *ToolApprovalInterceptor) InterceptToolExecution(
 	}
 
 	log.Printf("[ToolApproval] Tool %q approved by user, executing...", req.Name)
-	return next(ctx, req)
+	return next(ctx, inv, req)
 }
 
 // promptForApproval prompts the user for approval and returns their decision.

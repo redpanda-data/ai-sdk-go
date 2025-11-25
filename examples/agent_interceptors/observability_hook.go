@@ -32,6 +32,7 @@ func NewObservabilityInterceptor() *ObservabilityInterceptor {
 // It wraps model calls to track latency and usage.
 func (h *ObservabilityInterceptor) InterceptModel(
 	ctx context.Context,
+	inv *agent.InvocationMetadata,
 	req *llm.Request,
 	next agent.ModelCallHandler,
 ) agent.ModelCallHandler {

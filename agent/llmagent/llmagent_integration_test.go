@@ -104,15 +104,15 @@ func TestLLMAgent_Integration_ToolCalling(t *testing.T) {
 	)
 	require.NoError(t, err, "failed to create agent")
 
-	// Create session and invocation context
+	// Create session and invocation metadata
 	sess := &session.State{
 		ID:       "test-session",
 		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("What is 42 plus 58?"))},
 	}
-	invCtx := agent.NewInvocationContext(ctx, sess)
+	inv := agent.NewInvocationMetadata(sess)
 
 	// Execute
-	events := collectEvents(t, ag.Run(invCtx))
+	events := collectEvents(t, ag.Run(ctx, inv))
 
 	// Collect different event types
 	toolCallEvents := filterEvents[agent.ToolRequestEvent](events)

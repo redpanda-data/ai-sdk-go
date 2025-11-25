@@ -71,10 +71,10 @@ func TestRun_NewSession(t *testing.T) {
 	store := session.NewInMemoryStore()
 	ag := &mockAgent{
 		name: "test-agent",
-		runFunc: func(invCtx *agent.InvocationContext) iter.Seq2[agent.Event, error] {
+		runFunc: func(_ context.Context, inv *agent.InvocationMetadata) iter.Seq2[agent.Event, error] {
 			return func(yield func(agent.Event, error) bool) {
 				// Verify session is empty initially
-				sess := invCtx.Session()
+				sess := inv.Session()
 				if len(sess.Messages) != 1 { // Only user message
 					yield(nil, errors.New("expected 1 message"))
 					return
@@ -83,7 +83,7 @@ func TestRun_NewSession(t *testing.T) {
 				// Emit completion event
 				yield(agent.InvocationEndEvent{
 					Envelope: agent.EventEnvelope{
-						InvocationID: invCtx.InvocationID(),
+						InvocationID: inv.InvocationID(),
 						SessionID:    sess.ID,
 						Turn:         0,
 						At:           time.Now().UTC(),
@@ -133,9 +133,9 @@ func TestRun_ExistingSession(t *testing.T) {
 
 	ag := &mockAgent{
 		name: "test-agent",
-		runFunc: func(invCtx *agent.InvocationContext) iter.Seq2[agent.Event, error] {
+		runFunc: func(_ context.Context, inv *agent.InvocationMetadata) iter.Seq2[agent.Event, error] {
 			return func(yield func(agent.Event, error) bool) {
-				sess := invCtx.Session()
+				sess := inv.Session()
 
 				// Verify session has both old and new messages
 				if len(sess.Messages) != 2 {
@@ -148,7 +148,7 @@ func TestRun_ExistingSession(t *testing.T) {
 
 				yield(agent.InvocationEndEvent{
 					Envelope: agent.EventEnvelope{
-						InvocationID: invCtx.InvocationID(),
+						InvocationID: inv.InvocationID(),
 						SessionID:    sess.ID,
 						Turn:         0,
 						At:           time.Now().UTC(),
@@ -184,16 +184,16 @@ func TestRun_MessageAccumulation(t *testing.T) {
 
 	ag := &mockAgent{
 		name: "test-agent",
-		runFunc: func(invCtx *agent.InvocationContext) iter.Seq2[agent.Event, error] {
+		runFunc: func(_ context.Context, inv *agent.InvocationMetadata) iter.Seq2[agent.Event, error] {
 			return func(yield func(agent.Event, error) bool) {
-				sess := invCtx.Session()
+				sess := inv.Session()
 
 				// Add assistant response
 				sess.Messages = append(sess.Messages, llm.NewMessage(llm.RoleAssistant, llm.NewTextPart("Response")))
 
 				yield(agent.InvocationEndEvent{
 					Envelope: agent.EventEnvelope{
-						InvocationID: invCtx.InvocationID(),
+						InvocationID: inv.InvocationID(),
 						SessionID:    sess.ID,
 						Turn:         0,
 						At:           time.Now().UTC(),
@@ -244,11 +244,11 @@ func TestRun_EventForwarding(t *testing.T) {
 	// Agent that emits multiple event types
 	ag := &mockAgent{
 		name: "test-agent",
-		runFunc: func(invCtx *agent.InvocationContext) iter.Seq2[agent.Event, error] {
+		runFunc: func(_ context.Context, inv *agent.InvocationMetadata) iter.Seq2[agent.Event, error] {
 			return func(yield func(agent.Event, error) bool) {
-				sess := invCtx.Session()
+				sess := inv.Session()
 				envelope := agent.EventEnvelope{
-					InvocationID: invCtx.InvocationID(),
+					InvocationID: inv.InvocationID(),
 					SessionID:    sess.ID,
 					Turn:         0,
 					At:           time.Now().UTC(),
@@ -348,12 +348,12 @@ func TestRun_SessionSaveError(t *testing.T) {
 
 	ag := &mockAgent{
 		name: "test-agent",
-		runFunc: func(invCtx *agent.InvocationContext) iter.Seq2[agent.Event, error] {
+		runFunc: func(_ context.Context, inv *agent.InvocationMetadata) iter.Seq2[agent.Event, error] {
 			return func(yield func(agent.Event, error) bool) {
 				yield(agent.InvocationEndEvent{
 					Envelope: agent.EventEnvelope{
-						InvocationID: invCtx.InvocationID(),
-						SessionID:    invCtx.Session().ID,
+						InvocationID: inv.InvocationID(),
+						SessionID:    inv.Session().ID,
 						Turn:         0,
 						At:           time.Now().UTC(),
 					},
@@ -391,14 +391,14 @@ func TestRun_ContextCancellation(t *testing.T) {
 
 	ag := &mockAgent{
 		name: "test-agent",
-		runFunc: func(invCtx *agent.InvocationContext) iter.Seq2[agent.Event, error] {
+		runFunc: func(ctx context.Context, inv *agent.InvocationMetadata) iter.Seq2[agent.Event, error] {
 			return func(yield func(agent.Event, error) bool) {
 				// Check if context is already canceled
-				if invCtx.Err() != nil {
+				if ctx.Err() != nil {
 					yield(agent.InvocationEndEvent{
 						Envelope: agent.EventEnvelope{
-							InvocationID: invCtx.InvocationID(),
-							SessionID:    invCtx.Session().ID,
+							InvocationID: inv.InvocationID(),
+							SessionID:    inv.Session().ID,
 							Turn:         0,
 							At:           time.Now().UTC(),
 						},
@@ -411,8 +411,8 @@ func TestRun_ContextCancellation(t *testing.T) {
 				// Normal completion
 				yield(agent.InvocationEndEvent{
 					Envelope: agent.EventEnvelope{
-						InvocationID: invCtx.InvocationID(),
-						SessionID:    invCtx.Session().ID,
+						InvocationID: inv.InvocationID(),
+						SessionID:    inv.Session().ID,
 						Turn:         0,
 						At:           time.Now().UTC(),
 					},
@@ -473,7 +473,7 @@ func findInvocationEndEvent(events []agent.Event) *agent.InvocationEndEvent {
 type mockAgent struct {
 	name        string
 	description string
-	runFunc     func(*agent.InvocationContext) iter.Seq2[agent.Event, error]
+	runFunc     func(context.Context, *agent.InvocationMetadata) iter.Seq2[agent.Event, error]
 }
 
 func (m *mockAgent) Name() string {
@@ -484,17 +484,17 @@ func (m *mockAgent) Description() string {
 	return m.description
 }
 
-func (m *mockAgent) Run(invCtx *agent.InvocationContext) iter.Seq2[agent.Event, error] {
+func (m *mockAgent) Run(ctx context.Context, inv *agent.InvocationMetadata) iter.Seq2[agent.Event, error] {
 	if m.runFunc != nil {
-		return m.runFunc(invCtx)
+		return m.runFunc(ctx, inv)
 	}
 
 	// Default implementation
 	return func(yield func(agent.Event, error) bool) {
 		yield(agent.InvocationEndEvent{
 			Envelope: agent.EventEnvelope{
-				InvocationID: invCtx.InvocationID(),
-				SessionID:    invCtx.Session().ID,
+				InvocationID: inv.InvocationID(),
+				SessionID:    inv.Session().ID,
 				Turn:         0,
 				At:           time.Now().UTC(),
 			},
