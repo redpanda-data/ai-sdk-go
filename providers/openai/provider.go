@@ -21,6 +21,11 @@ type Provider struct {
 	client     *openai.Client
 }
 
+// Name returns the provider identifier.
+func (*Provider) Name() string {
+	return "openai"
+}
+
 // ProviderOption configures a Provider instance using functional options.
 type ProviderOption func(*Provider) error
 

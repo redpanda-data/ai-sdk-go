@@ -30,11 +30,12 @@ func NewTurnTrackerInterceptor(maxTurns int) *TurnTrackerInterceptor {
 
 // InterceptTurn implements agent.TurnInterceptor.
 // It logs each turn and can implement custom early stopping conditions.
-func (h *TurnTrackerInterceptor) InterceptTurn(ctx context.Context, inv *agent.InvocationMetadata, next agent.TurnNext) (agent.FinishReason, error) {
+func (h *TurnTrackerInterceptor) InterceptTurn(ctx context.Context, info *agent.TurnInfo, next agent.TurnNext) (agent.FinishReason, error) {
+	inv := info.Inv
 	start := time.Now()
 	log.Printf("[TurnTracker] Turn %d started (Session: %s)", inv.Turn(), inv.Session().ID)
 
-	reason, err := next(ctx, inv)
+	reason, err := next(ctx, info)
 
 	duration := time.Since(start)
 	if err != nil {

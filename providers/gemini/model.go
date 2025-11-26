@@ -30,6 +30,11 @@ func (m *Model) Name() string {
 	return m.config.ModelName
 }
 
+// Provider returns the provider name.
+func (m *Model) Provider() string {
+	return m.provider.Name()
+}
+
 // Capabilities returns what features this model supports.
 func (m *Model) Capabilities() llm.ModelCapabilities {
 	return m.definition.Capabilities

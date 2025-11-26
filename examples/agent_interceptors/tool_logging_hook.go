@@ -27,15 +27,17 @@ func NewToolLoggingInterceptor() *ToolLoggingInterceptor {
 // It logs tool execution details including timing and results.
 func (h *ToolLoggingInterceptor) InterceptToolExecution(
 	ctx context.Context,
-	inv *agent.InvocationMetadata,
-	req *llm.ToolRequest,
+	info *agent.ToolCallInfo,
 	next agent.ToolExecutionNext,
 ) (*llm.ToolResponse, error) {
+	inv := info.Inv
+	req := info.Req
+
 	start := time.Now()
 	log.Printf("[ToolLogging][Turn %d] Tool %q execution started", inv.Turn(), req.Name)
 	log.Printf("[ToolLogging] Arguments: %s", string(req.Arguments))
 
-	resp, err := next(ctx, inv, req)
+	resp, err := next(ctx, info)
 
 	duration := time.Since(start)
 	if err != nil {

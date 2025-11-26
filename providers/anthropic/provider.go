@@ -23,6 +23,11 @@ type Provider struct {
 	client        *anthropic.Client
 }
 
+// Name returns the provider identifier.
+func (*Provider) Name() string {
+	return "anthropic"
+}
+
 // ProviderOption configures a Provider instance using functional options.
 type ProviderOption func(*Provider) error
 

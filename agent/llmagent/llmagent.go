@@ -144,15 +144,15 @@ func (a *LLMAgent) Run(ctx context.Context, inv *agent.InvocationMetadata) iter.
 
 			// Create turn execution function that can be wrapped by interceptors
 			// This encapsulates the entire turn execution logic
-			executeTurn := func(ctx context.Context, inv *agent.InvocationMetadata) (agent.FinishReason, error) {
-				return a.executeSingleTurn(ctx, inv, makeEnvelope, yield)
+			executeTurn := func(ctx context.Context, info *agent.TurnInfo) (agent.FinishReason, error) {
+				return a.executeSingleTurn(ctx, info.Inv, makeEnvelope, yield)
 			}
 
 			// Apply turn interceptors
 			wrappedTurn := agent.ApplyTurnInterceptors(a.config.interceptors, executeTurn)
 
 			// Execute the turn (wrapped by interceptors)
-			finishReason, err := wrappedTurn(ctx, inv)
+			finishReason, err := wrappedTurn(ctx, &agent.TurnInfo{Inv: inv})
 			if err != nil {
 				// Terminal error from turn execution
 				yield(nil, err)
@@ -223,7 +223,12 @@ func (a *LLMAgent) executeSingleTurn(
 
 	// Apply model interceptors for this request
 	// This wraps the models Generate/GenerateEvents with interceptor logic
-	model := agent.ApplyModelInterceptors(ctx, inv, req, a.config.model, a.config.interceptors)
+	modelInfo := &agent.ModelCallInfo{
+		Inv:   inv,
+		Model: a.config.model,
+		Req:   req,
+	}
+	model := agent.ApplyModelInterceptors(ctx, modelInfo, a.config.model, a.config.interceptors)
 
 	// Generate response from LLM (with streaming support if available)
 	resp, err := a.generate(ctx, model, req, makeEnvelope, yield)
@@ -472,8 +477,8 @@ func (a *LLMAgent) executeTools(
 	results := make(chan toolResult, len(toolReqs))
 
 	// Create base tool executor
-	baseExecutor := func(ctx context.Context, _ *agent.InvocationMetadata, req *llm.ToolRequest) (*llm.ToolResponse, error) {
-		return a.config.tools.Execute(ctx, req)
+	baseExecutor := func(ctx context.Context, info *agent.ToolCallInfo) (*llm.ToolResponse, error) {
+		return a.config.tools.Execute(ctx, info.Req)
 	}
 
 	// Apply tool interceptors
@@ -482,7 +487,8 @@ func (a *LLMAgent) executeTools(
 	// Launch tool executions
 	for i, req := range toolReqs {
 		g.Go(func() error {
-			resp, err := executor(gctx, inv, req)
+			toolInfo := &agent.ToolCallInfo{Inv: inv, Req: req}
+			resp, err := executor(gctx, toolInfo)
 			results <- toolResult{
 				idx:       i,
 				requestID: req.ID,

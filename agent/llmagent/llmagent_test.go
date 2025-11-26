@@ -24,6 +24,7 @@ import (
 type simpleModel struct{}
 
 func (simpleModel) Name() string                        { return "test-model" }
+func (simpleModel) Provider() string                    { return "test" }
 func (simpleModel) Capabilities() llm.ModelCapabilities { return llm.ModelCapabilities{} }
 func (simpleModel) Constraints() llm.ModelConstraints {
 	return llm.ModelConstraints{

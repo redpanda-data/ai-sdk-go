@@ -31,14 +31,14 @@ func NewObservabilityInterceptor() *ObservabilityInterceptor {
 // InterceptModel implements agent.ModelInterceptor.
 // It wraps model calls to track latency and usage.
 func (h *ObservabilityInterceptor) InterceptModel(
-	ctx context.Context,
-	inv *agent.InvocationMetadata,
-	req *llm.Request,
+	_ context.Context,
+	info *agent.ModelCallInfo,
 	next agent.ModelCallHandler,
 ) agent.ModelCallHandler {
 	return &observabilityModelHandler{
 		interceptor: h,
 		next:        next,
+		modelInfo:   info,
 	}
 }
 
@@ -46,6 +46,7 @@ func (h *ObservabilityInterceptor) InterceptModel(
 type observabilityModelHandler struct {
 	interceptor *ObservabilityInterceptor
 	next        agent.ModelCallHandler
+	modelInfo   *agent.ModelCallInfo
 }
 
 // Generate implements synchronous model generation with metrics.
@@ -56,7 +57,13 @@ func (h *observabilityModelHandler) Generate(ctx context.Context, req *llm.Reque
 	h.interceptor.mu.Unlock()
 
 	start := time.Now()
-	log.Printf("[Observability] Model call #%d started", callNum)
+	log.Printf("[Observability] Model call #%d started - model=%s provider=%s session=%s turn=%d messages=%d",
+		callNum,
+		h.modelInfo.Model.Name(),
+		h.modelInfo.Model.Provider(),
+		h.modelInfo.Inv.Session().ID,
+		h.modelInfo.Inv.Turn(),
+		len(h.modelInfo.Req.Messages))
 
 	resp, err := h.next.Generate(ctx, req)
 
@@ -83,7 +90,13 @@ func (h *observabilityModelHandler) GenerateEvents(ctx context.Context, req *llm
 	h.interceptor.mu.Unlock()
 
 	start := time.Now()
-	log.Printf("[Observability] Streaming model call #%d started", callNum)
+	log.Printf("[Observability] Streaming model call #%d started - model=%s provider=%s session=%s turn=%d messages=%d",
+		callNum,
+		h.modelInfo.Model.Name(),
+		h.modelInfo.Model.Provider(),
+		h.modelInfo.Inv.Session().ID,
+		h.modelInfo.Inv.Turn(),
+		len(h.modelInfo.Req.Messages))
 
 	return func(yield func(llm.Event, error) bool) {
 		var eventCount int
