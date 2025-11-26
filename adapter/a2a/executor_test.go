@@ -875,3 +875,70 @@ func TestExecutor_SessionPersistence_Cancelled(t *testing.T) {
 		t.Logf("Session not found after cancellation: %v", err)
 	}
 }
+
+func TestExecutor_Integration_OpenAI_GPT51_WithReasoning(t *testing.T) {
+	t.Parallel()
+
+	apiKey := openaitest.GetAPIKeyOrSkipTest(t)
+
+	provider, err := openai.NewProvider(apiKey)
+	require.NoError(t, err)
+
+	// Create model with reasoning enabled
+	model, err := provider.NewModel(
+		openai.ModelGPT5_1,
+		openai.WithReasoningEffort(openai.ReasoningEffortMedium),
+	)
+	require.NoError(t, err)
+
+	agentInstance, err := llmagent.New("test-agent-gpt51-reasoning", "You are a helpful assistant.", model)
+	require.NoError(t, err)
+
+	sessionStore := session.NewInMemoryStore()
+	runnerInstance, err := runner.New(agentInstance, sessionStore)
+	require.NoError(t, err)
+
+	executor := NewExecutor(agentInstance, runnerInstance, slog.Default())
+
+	reqCtx := &a2asrv.RequestContext{
+		ContextID:  "test-context-gpt51-reasoning",
+		TaskID:     "test-task-gpt51-reasoning",
+		StoredTask: nil,
+		Message: a2a.NewMessage(
+			a2a.MessageRoleUser,
+			a2a.TextPart{Text: "Solve this: If a train leaves at 2pm going 60mph, when does it arrive 180 miles away?"},
+		),
+	}
+
+	queue := eventqueue.NewInMemoryQueue(100)
+	ctx := context.Background()
+
+	events := []a2a.Event{}
+	eventsDone := make(chan struct{})
+
+	go func() {
+		defer close(eventsDone)
+
+		for {
+			event, err := queue.Read(ctx)
+			if err != nil {
+				return
+			}
+
+			events = append(events, event)
+		}
+	}()
+
+	err = executor.Execute(ctx, reqCtx, queue)
+	require.NoError(t, err)
+
+	queue.Close()
+	<-eventsDone
+
+	// Verify response
+	assert.NotEmpty(t, events, "Should have events")
+	t.Logf("GPT-5.1 reasoning test completed with %d events", len(events))
+
+	// Could verify reasoning tokens were used in usage metadata
+	// by checking event metadata for ReasoningTokens > 0
+}

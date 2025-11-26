@@ -5,7 +5,7 @@ This directory contains provider implementations for various LLM services.
 ## Available Providers
 
 - **anthropic** - Anthropic Claude models (Sonnet, Haiku, Opus)
-- **openai** - OpenAI models (GPT-5, GPT-4.x, o-series reasoning models)
+- **openai** - OpenAI models (GPT-5.1, GPT-5, GPT-4.x, o-series reasoning models)
 - **gemini** - Google Gemini models (2.5 Pro, 2.5 Flash, etc.)
 - **openaicompat** - Generic OpenAI-compatible API provider
 
