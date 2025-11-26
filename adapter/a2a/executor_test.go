@@ -3,6 +3,7 @@ package a2a
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"strings"
 	"testing"
@@ -833,11 +834,14 @@ func TestExecutor_SessionPersistence_Cancelled(t *testing.T) {
 	events := []a2a.Event{}
 	eventsDone := make(chan struct{})
 
+	// Use background context for reading queue so we can receive the canceled status event
+	readCtx := context.Background()
+
 	go func() {
 		defer close(eventsDone)
 
 		for {
-			event, err := queue.Read(ctx)
+			event, err := queue.Read(readCtx)
 			if err != nil {
 				return
 			}
@@ -852,13 +856,51 @@ func TestExecutor_SessionPersistence_Cancelled(t *testing.T) {
 		}
 	}()
 
-	_ = executor.Execute(ctx, reqCtx, queue)
-	// Cancellation expected, error may or may not occur
+	err = executor.Execute(ctx, reqCtx, queue)
+	require.NoError(t, err, "Execute should not return error even for cancellation")
 
 	queue.Close()
 	<-eventsDone
 
-	t.Logf("Received %d events before cancellation", len(events))
+	t.Logf("Received %d events", len(events))
+
+	// Log all events
+	for i, event := range events {
+		t.Logf("Event %d: %T", i, event)
+
+		if statusEvent, ok := event.(*a2a.TaskStatusUpdateEvent); ok {
+			t.Logf("  Status: state=%s, final=%v", statusEvent.Status.State, statusEvent.Final)
+		}
+	}
+
+	// Find the canceled status event
+	var canceledEvent *a2a.TaskStatusUpdateEvent
+
+	for _, event := range events {
+		if statusEvent, ok := event.(*a2a.TaskStatusUpdateEvent); ok {
+			if statusEvent.Status.State == a2a.TaskStateCanceled {
+				canceledEvent = statusEvent
+				break
+			}
+		}
+	}
+
+	// Assert we got a canceled status event with error details
+	require.NotNil(t, canceledEvent, "Should have a TaskStateCanceled event")
+	assert.True(t, canceledEvent.Final, "Canceled event should be marked as final")
+	require.NotNil(t, canceledEvent.Status.Message, "Canceled status should include error message")
+
+	// Extract error text
+	var errorText string
+
+	for _, part := range canceledEvent.Status.Message.Parts {
+		if textPart, ok := part.(a2a.TextPart); ok {
+			errorText += textPart.Text //nolint:perfsprint // Test readability over performance
+		}
+	}
+
+	t.Logf("Error message in canceled status: %s", errorText)
+	assert.Contains(t, errorText, "context canceled", "Error message should indicate context was canceled")
 
 	// The key assertion: Even though we cancelled, progress should be saved
 	savedSession, err := sessionStore.Load(context.Background(), contextID)
@@ -874,4 +916,110 @@ func TestExecutor_SessionPersistence_Cancelled(t *testing.T) {
 	} else {
 		t.Logf("Session not found after cancellation: %v", err)
 	}
+}
+
+func TestExecutor_ErrorHandling(t *testing.T) {
+	t.Parallel()
+
+	// Create fake model that returns an error simulating an API error
+	model := fakellm.NewFakeModel()
+	apiError := errors.New("API call failed: received error while streaming: {\"type\":\"invalid_request_error\",\"code\":\"context_length_exceeded\",\"message\":\"Your input exceeds the context window of this model. Please adjust your input and try again.\",\"param\":\"input\"}")
+	model.When(fakellm.Any()).ThenError(apiError)
+
+	// Create agent
+	agentInstance, err := llmagent.New("test-agent", "You are a helpful assistant.", model)
+	require.NoError(t, err)
+
+	// Create runner
+	sessionStore := session.NewInMemoryStore()
+	runnerInstance, err := runner.New(agentInstance, sessionStore)
+	require.NoError(t, err)
+
+	// Create A2A executor
+	executor := NewExecutor(agentInstance, runnerInstance, slog.Default())
+
+	// Create request context
+	reqCtx := &a2asrv.RequestContext{
+		ContextID:  "test-context-error",
+		TaskID:     "test-task-error",
+		StoredTask: nil,
+		Message: a2a.NewMessage(
+			a2a.MessageRoleUser,
+			a2a.TextPart{Text: "Tell me something."},
+		),
+	}
+
+	// Create queue
+	queue := eventqueue.NewInMemoryQueue(100)
+	events := []a2a.Event{}
+	eventsDone := make(chan struct{})
+
+	ctx := context.Background()
+
+	go func() {
+		defer close(eventsDone)
+
+		for {
+			event, err := queue.Read(ctx)
+			if err != nil {
+				return
+			}
+
+			events = append(events, event)
+		}
+	}()
+
+	// Execute should NOT return an error for agent failures - those should be communicated via events
+	// Only queue write failures should return errors
+	err = executor.Execute(ctx, reqCtx, queue)
+	require.NoError(t, err, "Execute should NOT return error for agent failures - they should be communicated via task status events")
+
+	queue.Close()
+	<-eventsDone
+
+	// Verify we got the expected events
+	require.NotEmpty(t, events, "Should have written events to queue")
+
+	t.Logf("Total events: %d", len(events))
+
+	for i, event := range events {
+		t.Logf("Event %d: %T", i, event)
+	}
+
+	// Find the failed status event
+	var failedEvent *a2a.TaskStatusUpdateEvent
+
+	for _, event := range events {
+		if statusEvent, ok := event.(*a2a.TaskStatusUpdateEvent); ok {
+			t.Logf("Status event: state=%s, final=%v, message=%v", statusEvent.Status.State, statusEvent.Final, statusEvent.Status.Message)
+
+			if statusEvent.Status.State == a2a.TaskStateFailed {
+				failedEvent = statusEvent
+				break
+			}
+		}
+	}
+
+	// Assert we got a failed status event
+	require.NotNil(t, failedEvent, "Should have a TaskStateFailed event")
+	assert.True(t, failedEvent.Final, "Failed event should be marked as final")
+
+	// The key assertion: the error message should be included in the status update
+	require.NotNil(t, failedEvent.Status.Message, "Failed status should include a message with error details")
+	assert.Equal(t, a2a.MessageRoleAgent, failedEvent.Status.Message.Role, "Error message should be from the agent")
+
+	// Extract the error text from the message
+	var errorText string
+
+	for _, part := range failedEvent.Status.Message.Parts {
+		if textPart, ok := part.(a2a.TextPart); ok {
+			errorText += textPart.Text //nolint:perfsprint // Test readability over performance
+		}
+	}
+
+	t.Logf("Error message in failed status: %s", errorText)
+
+	// The error message should contain details about what went wrong, not just "internal error"
+	assert.Contains(t, errorText, "context_length_exceeded", "Error message should contain API error details")
+	assert.Contains(t, errorText, "context window", "Error message should contain human-readable error explanation")
 }
