@@ -15,6 +15,12 @@ const (
 	// ModelGPT5Nano is the GPT-5 Nano model.
 	ModelGPT5Nano = shared.ChatModelGPT5Nano
 
+	// ModelGPT5_1 is the GPT-5.1 model with configurable adaptive reasoning.
+	// Unlike GPT-5, reasoning defaults to 'none' - use WithReasoningEffort() to enable.
+	// Note: This constant uses a manual string since the OpenAI SDK doesn't yet
+	// include GPT-5.1. TODO: migrate to shared.ChatModelGPT5_1 when SDK adds support.
+	ModelGPT5_1 = shared.ChatModel("gpt-5.1")
+
 	// ModelGPT4O is the GPT-4o model.
 	ModelGPT4O = shared.ChatModelGPT4o
 	// ModelGPT4OMini is the GPT-4o Mini model.
