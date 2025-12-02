@@ -113,14 +113,30 @@ func (e *Executor) processEvents(
 		if err != nil {
 			e.log.ErrorContext(ctx, "Runner returned error", "error", err)
 
-			// Don't write failed status if context was canceled - Cancel already wrote canceled status
-			if ctx.Err() == nil {
-				statusEvent := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateFailed, nil)
+			// Check if the error is a cancellation error
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				// Emit canceled status with error message
+				// Use background context since the original context is likely canceled
+				bgCtx := context.Background()
+				errMsg := a2a.NewMessage(a2a.MessageRoleAgent, a2a.TextPart{Text: err.Error()})
+				statusEvent := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateCanceled, errMsg)
+				statusEvent.Final = true
+
+				//nolint:contextcheck // Must use background context since original context is canceled
+				if writeErr := queue.Write(bgCtx, statusEvent); writeErr != nil {
+					e.log.ErrorContext(ctx, "Failed to write canceled status", "error", writeErr)
+				}
+			} else {
+				// Regular failure - emit failed status with error message
+				errMsg := a2a.NewMessage(a2a.MessageRoleAgent, a2a.TextPart{Text: err.Error()})
+				statusEvent := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateFailed, errMsg)
 				statusEvent.Final = true
 				write(statusEvent)
 			}
 
-			return err
+			// Agent failures are communicated via task status events, not Execute errors.
+			// Only return errors for queue write failures (per AgentExecutor interface contract).
+			return nil
 		}
 
 		e.log.DebugContext(ctx, "Processing event", "type", fmt.Sprintf("%T", event))
