@@ -45,7 +45,7 @@ func (f *AnthropicAgentFixture) StandardAgent(tools tool.Registry) (*llmagent.LL
 
 	return llmagent.New(
 		"test-agent",
-		"You are a helpful assistant.",
+		"You are a helpful assistant. When you have tools available, you must use them to answer questions rather than answering directly.",
 		model,
 		llmagent.WithTools(tools),
 		llmagent.WithMaxTurns(10),
