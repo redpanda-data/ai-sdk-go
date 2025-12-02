@@ -791,9 +791,15 @@ func (s *Suite) TestGenerateEventsWithTools() {
 			request: &llm.Request{
 				Messages: []llm.Message{
 					{
+						Role: llm.RoleSystem,
+						Content: []*llm.Part{
+							llm.NewTextPart("CRITICAL: When multiple tools are needed to answer a question, you MUST call all required tools in parallel in a single response. Do not call tools sequentially."),
+						},
+					},
+					{
 						Role: llm.RoleUser,
 						Content: []*llm.Part{
-							llm.NewTextPart("What is the weather in San Francisco and New York? Also, what time is it in Tokyo?"),
+							llm.NewTextPart("What's the current weather in Tokyo and what time is it there right now?"),
 						},
 					},
 				},
@@ -806,7 +812,7 @@ func (s *Suite) TestGenerateEventsWithTools() {
 							"properties": {
 								"location": {
 									"type": "string",
-									"description": "The city and state, e.g. San Francisco, CA"
+									"description": "The city name, e.g. Tokyo, San Francisco"
 								}
 							},
 							"required": ["location"]
