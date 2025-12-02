@@ -11,6 +11,11 @@ import (
 // Used across all agent conformance tests to ensure consistent behavior.
 type CalculatorTool struct{}
 
+// NewCalculatorTool returns a new calculator tool instance.
+func NewCalculatorTool() *CalculatorTool {
+	return &CalculatorTool{}
+}
+
 func (*CalculatorTool) Definition() llm.ToolDefinition {
 	return llm.ToolDefinition{
 		Name:        "add_numbers",
@@ -51,9 +56,4 @@ func (*CalculatorTool) Execute(_ context.Context, args json.RawMessage) (json.Ra
 	}
 
 	return json.Marshal(response)
-}
-
-// NewCalculatorTool returns a new calculator tool instance.
-func NewCalculatorTool() *CalculatorTool {
-	return &CalculatorTool{}
 }
