@@ -768,6 +768,18 @@ func (s *Suite) TestGenerateEventsWithTools() {
 				assert.True(t, hasEndEvent, "Should receive stream end event")
 				assert.Equal(t, llm.FinishReasonToolCalls, endEvent.Response.FinishReason, "Finish reason should be ToolCalls")
 
+				finalToolReqs := endEvent.Response.ToolRequests()
+				require.NotEmpty(t, finalToolReqs, "Final message should have tool requests")
+
+				finalToolReq := finalToolReqs[0]
+				assert.Equal(t, "get_weather", finalToolReq.Name, "Final message tool name should match")
+
+				var finalArgs map[string]any
+				err := json.Unmarshal(finalToolReq.Arguments, &finalArgs)
+				require.NoError(t, err, "Final message tool arguments should be valid JSON")
+				require.NotEmpty(t, finalArgs, "Final message tool arguments must not be empty!")
+				assert.Contains(t, finalArgs, "location", "Final message should contain location")
+
 				// Verify usage information in end event
 				require.NotNil(t, endEvent.Response.Usage)
 				assert.Positive(t, endEvent.Response.Usage.InputTokens)

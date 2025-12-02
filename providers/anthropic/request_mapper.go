@@ -315,26 +315,8 @@ func (rm *RequestMapper) mapToolDefinitions(tools []llm.ToolDefinition) ([]anthr
 		// Adapt the schema for Anthropic
 		schema := rm.schemaMapper.AdaptSchemaForAnthropic(schemaMap)
 
-		// Build the input schema param
-		inputSchema := anthropic.BetaToolInputSchemaParam{
-			Type:        constant.Object(""),
-			ExtraFields: schema,
-		}
-
-		if props, ok := schema["properties"]; ok {
-			inputSchema.Properties = props
-		}
-
-		if req, ok := schema["required"].([]any); ok {
-			required := make([]string, 0, len(req))
-			for _, r := range req {
-				if s, ok := r.(string); ok {
-					required = append(required, s)
-				}
-			}
-
-			inputSchema.Required = required
-		}
+		// Use Anthropic SDK helper which properly transforms and filters the schema
+		inputSchema := anthropic.BetaToolInputSchema(schema)
 
 		apiTool := anthropic.BetaToolUnionParam{
 			OfTool: &anthropic.BetaToolParam{
