@@ -18,7 +18,7 @@ type TokenUsage struct {
 	CachedTokens int `json:"cached_tokens,omitempty"`
 
 	// ReasoningTokens is the number of tokens used for reasoning (thinking) by reasoning models.
-	// Only available for models that support reasoning (OpenAI o-series, GPT-5 series, GPT-5.1 series).
+	// Only available for models that support reasoning (OpenAI o-series, GPT-5 series).
 	ReasoningTokens int `json:"reasoning_tokens,omitempty"`
 
 	// MaxInputTokens is the maximum number of tokens the model can accept as input.
