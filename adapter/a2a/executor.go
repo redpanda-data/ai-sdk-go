@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"iter"
 	"log/slog"
+	"time"
 
 	"github.com/a2aproject/a2a-go/a2a"
 	"github.com/a2aproject/a2a-go/a2asrv"
@@ -116,8 +117,9 @@ func (e *Executor) processEvents(
 			// Check if the error is a cancellation error
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				// Emit canceled status with error message
-				// Use background context since the original context is likely canceled
-				bgCtx := context.Background()
+				// Use background context with timeout since the original context is likely canceled
+				bgCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
 				errMsg := a2a.NewMessage(a2a.MessageRoleAgent, a2a.TextPart{Text: err.Error()})
 				statusEvent := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateCanceled, errMsg)
 				statusEvent.Final = true
