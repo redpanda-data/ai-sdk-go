@@ -1,7 +1,6 @@
 package gemini_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/suite"
@@ -16,7 +15,6 @@ import (
 // GeminiAgentFixture implements conformance.Fixture for Gemini provider.
 type GeminiAgentFixture struct {
 	provider *gemini.Provider
-	ctx      context.Context
 }
 
 // NewGeminiAgentFixture creates a new Gemini agent test fixture.
@@ -24,16 +22,14 @@ func NewGeminiAgentFixture(t *testing.T) *GeminiAgentFixture {
 	t.Helper()
 
 	apiKey := geminitest.GetAPIKeyOrSkipTest(t)
-	ctx := context.Background()
 
-	provider, err := gemini.NewProvider(ctx, apiKey)
+	provider, err := gemini.NewProvider(t.Context(), apiKey)
 	if err != nil {
 		t.Fatalf("Failed to create provider: %v", err)
 	}
 
 	return &GeminiAgentFixture{
 		provider: provider,
-		ctx:      ctx,
 	}
 }
 
@@ -75,6 +71,8 @@ func (f *GeminiAgentFixture) ReasoningAgent(tools tool.Registry) (*llmagent.LLMA
 
 // TestGeminiAgentConformance runs the agent conformance test suite for Gemini.
 func TestGeminiAgentConformance(t *testing.T) {
+	t.Parallel()
+
 	fixture := NewGeminiAgentFixture(t)
 	suite.Run(t, conformance.NewSuite(fixture))
 }

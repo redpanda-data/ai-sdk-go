@@ -7,11 +7,11 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
-// calculatorTool is a standard test tool that adds two numbers.
+// CalculatorTool is a standard test tool that adds two numbers.
 // Used across all agent conformance tests to ensure consistent behavior.
-type calculatorTool struct{}
+type CalculatorTool struct{}
 
-func (*calculatorTool) Definition() llm.ToolDefinition {
+func (*CalculatorTool) Definition() llm.ToolDefinition {
 	return llm.ToolDefinition{
 		Name:        "add_numbers",
 		Description: "Adds two numbers together and returns the result",
@@ -32,7 +32,7 @@ func (*calculatorTool) Definition() llm.ToolDefinition {
 	}
 }
 
-func (*calculatorTool) Execute(_ context.Context, args json.RawMessage) (json.RawMessage, error) {
+func (*CalculatorTool) Execute(_ context.Context, args json.RawMessage) (json.RawMessage, error) {
 	var params struct {
 		A float64 `json:"a"`
 		B float64 `json:"b"`
@@ -54,6 +54,6 @@ func (*calculatorTool) Execute(_ context.Context, args json.RawMessage) (json.Ra
 }
 
 // NewCalculatorTool returns a new calculator tool instance.
-func NewCalculatorTool() *calculatorTool {
-	return &calculatorTool{}
+func NewCalculatorTool() *CalculatorTool {
+	return &CalculatorTool{}
 }

@@ -18,6 +18,7 @@ import (
 // their provider works correctly with the agent layer.
 type Suite struct {
 	suite.Suite
+
 	fixture Fixture
 }
 
@@ -42,6 +43,7 @@ func (s *Suite) TestBasicToolCalling() {
 	if ag == nil {
 		s.T().Skip("No standard agent available")
 	}
+
 	s.Require().NoError(err)
 
 	// Create session and execute
@@ -105,6 +107,7 @@ func (s *Suite) TestMultiTurnToolExecution() {
 	if ag == nil {
 		s.T().Skip("No standard agent available")
 	}
+
 	s.Require().NoError(err)
 
 	// Create session and execute
@@ -137,10 +140,11 @@ func (s *Suite) TestMultiTurnToolExecution() {
 func collectEvents(t *testing.T, iter func(func(agent.Event, error) bool)) []agent.Event {
 	t.Helper()
 
-	var events []agent.Event
+	events := make([]agent.Event, 0)
 
 	for evt, err := range iter {
 		require.NoError(t, err, "unexpected error in event stream")
+
 		events = append(events, evt)
 	}
 
