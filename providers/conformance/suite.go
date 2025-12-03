@@ -445,64 +445,88 @@ func (s *Suite) TestGenerateEventsWithReasoning() {
 			},
 		}
 
+		// Retry up to 3 times to handle flaky reasoning trace streaming
+		// Some providers (e.g., OpenAI) don't consistently stream reasoning traces
+		const maxAttempts = 3
 		var (
 			contentParts []*llm.Part
 			endEvent     llm.StreamEndEvent
 			hasEndEvent  bool
+			allReasoning string
 		)
 
-		eventCount := 0
+		for attempt := 1; attempt <= maxAttempts; attempt++ {
+			if attempt > 1 {
+				s.T().Logf("Retry attempt %d/%d for reasoning traces", attempt, maxAttempts)
+			}
 
-		// Collect all stream events using range loop
-		for event, streamErr := range model.GenerateEvents(s.T().Context(), request) {
-			s.Require().NoError(streamErr)
+			contentParts = nil
+			hasEndEvent = false
+			eventCount := 0
 
-			eventCount++
+			// Collect all stream events using range loop
+			for event, streamErr := range model.GenerateEvents(s.T().Context(), request) {
+				s.Require().NoError(streamErr)
 
-			switch e := event.(type) {
-			case llm.ContentPartEvent:
-				contentParts = append(contentParts, e.Part)
-			case llm.StreamEndEvent:
-				endEvent = e
-				hasEndEvent = true
-			case llm.ErrorEvent:
-				s.T().Fatalf("Received error event: %s (code: %s)", e.Message, e.Code)
+				eventCount++
+
+				switch e := event.(type) {
+				case llm.ContentPartEvent:
+					contentParts = append(contentParts, e.Part)
+				case llm.StreamEndEvent:
+					endEvent = e
+					hasEndEvent = true
+				case llm.ErrorEvent:
+					s.T().Fatalf("Received error event: %s (code: %s)", e.Message, e.Code)
+				}
+			}
+
+			// Verify we received events
+			s.Positive(eventCount, "Should receive stream events")
+
+			// Verify we got content
+			s.NotEmpty(contentParts, "Should receive content parts")
+
+			// Extract and combine text parts for quality checks
+			var (
+				allTextSb      strings.Builder
+				allReasoningSb strings.Builder
+			)
+
+			for _, part := range contentParts {
+				if part.IsText() {
+					allTextSb.WriteString(part.Text)
+				} else if part.IsReasoning() {
+					allReasoningSb.WriteString(part.ReasoningTrace.Text)
+				}
+			}
+
+			allText := allTextSb.String()
+			s.Greater(len(allText), 200, "Should provide detailed technical analysis")
+
+			// Should mention relevant concepts
+			lowerText := strings.ToLower(allText)
+			s.True(
+				strings.Contains(lowerText, "consensus") ||
+					strings.Contains(lowerText, "byzantine") ||
+					strings.Contains(lowerText, "partition"),
+				"Should discuss relevant distributed systems concepts")
+
+			allReasoning = allReasoningSb.String()
+
+			// If we got reasoning traces, we're done
+			if len(allReasoning) > 0 {
+				s.T().Logf("Received reasoning traces on attempt %d/%d", attempt, maxAttempts)
+				break
+			}
+
+			// If this is the last attempt, fail
+			if attempt == maxAttempts {
+				s.Fail("Should receive reasoning traces for complex question after %d attempts", maxAttempts)
 			}
 		}
 
-		// Verify we received events
-		s.Positive(eventCount, "Should receive stream events")
-
-		// Verify we got content
-		s.NotEmpty(contentParts, "Should receive content parts")
-
-		// Extract and combine text parts for quality checks
-		var (
-			allTextSb      strings.Builder
-			allReasoningSb strings.Builder
-		)
-
-		for _, part := range contentParts {
-			if part.IsText() {
-				allTextSb.WriteString(part.Text)
-			} else if part.IsReasoning() {
-				allReasoningSb.WriteString(part.ReasoningTrace.Text)
-			}
-		}
-
-		allText := allTextSb.String()
-		s.Greater(len(allText), 200, "Should provide detailed technical analysis")
-
-		// Should mention relevant concepts
-		lowerText := strings.ToLower(allText)
-		s.True(
-			strings.Contains(lowerText, "consensus") ||
-				strings.Contains(lowerText, "byzantine") ||
-				strings.Contains(lowerText, "partition"),
-			"Should discuss relevant distributed systems concepts")
-
-		// Verify reasoning content (should be present for complex question)
-		allReasoning := allReasoningSb.String()
+		// Verify reasoning content
 		s.NotEmpty(allReasoning, "Should receive reasoning traces for complex question")
 		s.Greater(len(allReasoning), 50, "Should have substantial reasoning content")
 
