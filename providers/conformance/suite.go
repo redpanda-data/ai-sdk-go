@@ -1247,6 +1247,16 @@ func (s *Suite) TestToolExecutionLoop() {
 			"Location should reference San Francisco from first tool result")
 
 		// Step 3: Provide weather result
+		// Models may make multiple tool calls (even duplicates), so we need to respond to ALL of them
+		weatherResponses := make([]*llm.Part, 0, len(toolRequests2))
+		for _, toolReq := range toolRequests2 {
+			weatherResponses = append(weatherResponses, llm.NewToolResponsePart(&llm.ToolResponse{
+				ID:     toolReq.ID,
+				Name:   toolReq.Name,
+				Result: json.RawMessage(`{"temperature": 65, "condition": "foggy", "humidity": 85}`),
+			}))
+		}
+
 		request3 := &llm.Request{
 			Messages: []llm.Message{
 				{
@@ -1268,14 +1278,8 @@ func (s *Suite) TestToolExecutionLoop() {
 				},
 				response2.Message,
 				{
-					Role: llm.RoleUser,
-					Content: []*llm.Part{
-						llm.NewToolResponsePart(&llm.ToolResponse{
-							ID:     toolRequests2[0].ID,
-							Name:   toolRequests2[0].Name,
-							Result: json.RawMessage(`{"temperature": 65, "condition": "foggy", "humidity": 85}`),
-						}),
-					},
+					Role:    llm.RoleUser,
+					Content: weatherResponses,
 				},
 			},
 			Tools: initialRequest.Tools,
