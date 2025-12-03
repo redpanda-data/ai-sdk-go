@@ -90,8 +90,9 @@ func setupTracer() (*tracetest.InMemoryExporter, *sdktrace.TracerProvider) {
 	return exporter, tp
 }
 
-//nolint:paralleltest // Uses shared tracer state
 func TestTracingInterceptor_InterceptTurn_CreatesInvocationSpan(t *testing.T) {
+	t.Parallel()
+
 	exporter, tp := setupTracer()
 	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
 
@@ -128,8 +129,9 @@ func TestTracingInterceptor_InterceptTurn_CreatesInvocationSpan(t *testing.T) {
 	assertHasAttribute(t, invocationSpan.Attributes, pluginotel.AttrGenAIAgentName, "test-agent")
 }
 
-//nolint:paralleltest // Uses shared tracer state
 func TestTracingInterceptor_InterceptTurn_MultipleTurns(t *testing.T) {
+	t.Parallel()
+
 	exporter, tp := setupTracer()
 	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
 
@@ -168,8 +170,9 @@ func TestTracingInterceptor_InterceptTurn_MultipleTurns(t *testing.T) {
 	assertHasAttribute(t, invocationSpan.Attributes, pluginotel.AttrGenAIOperationName, pluginotel.OperationInvokeAgent)
 }
 
-//nolint:paralleltest // Uses shared tracer state
 func TestTracingInterceptor_InterceptTurn_ErrorRecording(t *testing.T) {
+	t.Parallel()
+
 	exporter, tp := setupTracer()
 	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
 
@@ -199,8 +202,9 @@ func TestTracingInterceptor_InterceptTurn_ErrorRecording(t *testing.T) {
 	assert.Equal(t, codes.Error, invocationSpan.Status.Code)
 }
 
-//nolint:paralleltest // Uses shared tracer state
 func TestTracingInterceptor_InterceptModel_Generate(t *testing.T) {
+	t.Parallel()
+
 	exporter, tp := setupTracer()
 	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
 
@@ -255,8 +259,9 @@ func TestTracingInterceptor_InterceptModel_Generate(t *testing.T) {
 	assert.Equal(t, trace.SpanKindClient, chatSpan.SpanKind)
 }
 
-//nolint:paralleltest // Uses shared tracer state
 func TestTracingInterceptor_InterceptModel_GenerateEvents(t *testing.T) {
+	t.Parallel()
+
 	exporter, tp := setupTracer()
 	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
 
@@ -304,8 +309,9 @@ func TestTracingInterceptor_InterceptModel_GenerateEvents(t *testing.T) {
 	assertHasAttribute(t, chatSpan.Attributes, pluginotel.AttrGenAIResponseID, "resp-456")
 }
 
-//nolint:paralleltest // Uses shared tracer state
 func TestTracingInterceptor_InterceptToolExecution(t *testing.T) {
+	t.Parallel()
+
 	exporter, tp := setupTracer()
 	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
 
@@ -359,8 +365,10 @@ func TestTracingInterceptor_InterceptToolExecution(t *testing.T) {
 	assert.Equal(t, trace.SpanKindInternal, toolSpan.SpanKind)
 }
 
-//nolint:dupl,paralleltest // Similar to WithRecordOutputs test but tests different functionality; Uses shared tracer state
+//nolint:dupl // Similar to WithRecordOutputs test but tests different functionality
 func TestTracingInterceptor_InterceptToolExecution_WithRecordInputs(t *testing.T) {
+	t.Parallel()
+
 	exporter, tp := setupTracer()
 	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
 
@@ -408,8 +416,10 @@ func TestTracingInterceptor_InterceptToolExecution_WithRecordInputs(t *testing.T
 	assertHasAttribute(t, toolSpan.Attributes, pluginotel.AttrGenAIToolCallArguments, `{"city": "Seattle"}`)
 }
 
-//nolint:dupl,paralleltest // Similar to WithRecordInputs test but tests different functionality; Uses shared tracer state
+//nolint:dupl // Similar to WithRecordInputs test but tests different functionality
 func TestTracingInterceptor_InterceptToolExecution_WithRecordOutputs(t *testing.T) {
+	t.Parallel()
+
 	exporter, tp := setupTracer()
 	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
 
@@ -457,8 +467,9 @@ func TestTracingInterceptor_InterceptToolExecution_WithRecordOutputs(t *testing.
 	assertHasAttribute(t, toolSpan.Attributes, pluginotel.AttrGenAIToolCallResult, `{"temperature":"72F","conditions":"sunny"}`)
 }
 
-//nolint:paralleltest // Uses shared tracer state
 func TestTracingInterceptor_InterceptToolExecution_Error(t *testing.T) {
+	t.Parallel()
+
 	exporter, tp := setupTracer()
 	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
 
@@ -503,8 +514,9 @@ func TestTracingInterceptor_InterceptToolExecution_Error(t *testing.T) {
 	assert.Equal(t, codes.Error, toolSpan.Status.Code)
 }
 
-//nolint:paralleltest // Uses shared tracer state
 func TestTracingInterceptor_SpanHierarchy(t *testing.T) {
+	t.Parallel()
+
 	exporter, tp := setupTracer()
 	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
 
@@ -578,8 +590,9 @@ func TestTracingInterceptor_SpanHierarchy(t *testing.T) {
 		"Tool span should be child of invocation span")
 }
 
-//nolint:paralleltest // Uses shared tracer state
 func TestTracingInterceptor_ContentRecording(t *testing.T) {
+	t.Parallel()
+
 	exporter, tp := setupTracer()
 	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
 
