@@ -10,6 +10,7 @@ import (
 
 func TestProviderCreation(t *testing.T) {
 	t.Parallel()
+
 	ctx := context.Background()
 
 	// Valid provider creation with API key
@@ -26,6 +27,7 @@ func TestProviderCreation(t *testing.T) {
 
 func TestProviderModels(t *testing.T) {
 	t.Parallel()
+
 	ctx := context.Background()
 
 	provider, err := NewProvider(ctx, "test-api-key")
@@ -58,6 +60,7 @@ func TestProviderModels(t *testing.T) {
 
 func TestModelCreation(t *testing.T) {
 	t.Parallel()
+
 	ctx := context.Background()
 
 	provider, err := NewProvider(ctx, "test-api-key")
@@ -88,6 +91,7 @@ func TestModelCreation(t *testing.T) {
 
 func TestModelConstraints(t *testing.T) {
 	t.Parallel()
+
 	ctx := context.Background()
 
 	provider, err := NewProvider(ctx, "test-api-key")
@@ -113,6 +117,7 @@ func TestModelConstraints(t *testing.T) {
 
 func TestModelCapabilities(t *testing.T) {
 	t.Parallel()
+
 	ctx := context.Background()
 
 	provider, err := NewProvider(ctx, "test-api-key")
@@ -159,34 +164,34 @@ func TestModelTokenLimits(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name            string
-		model           string
-		expectedMaxIn   int
-		expectedMaxOut  int
+		name           string
+		model          string
+		expectedMaxIn  int
+		expectedMaxOut int
 	}{
 		{
-			name:            "Gemini 3 Pro Preview",
-			model:           ModelGemini3ProPreview,
-			expectedMaxIn:   1048576, // 1M
-			expectedMaxOut:  65535,   // 65K
+			name:           "Gemini 3 Pro Preview",
+			model:          ModelGemini3ProPreview,
+			expectedMaxIn:  1048576, // 1M
+			expectedMaxOut: 65535,   // 65K
 		},
 		{
-			name:            "Gemini 2.5 Pro",
-			model:           ModelGemini25Pro,
-			expectedMaxIn:   1048576, // 1M
-			expectedMaxOut:  65535,   // 65K
+			name:           "Gemini 2.5 Pro",
+			model:          ModelGemini25Pro,
+			expectedMaxIn:  1048576, // 1M
+			expectedMaxOut: 65535,   // 65K
 		},
 		{
-			name:            "Gemini 2.5 Flash",
-			model:           ModelGemini25Flash,
-			expectedMaxIn:   1048576, // 1M
-			expectedMaxOut:  65535,   // 65K
+			name:           "Gemini 2.5 Flash",
+			model:          ModelGemini25Flash,
+			expectedMaxIn:  1048576, // 1M
+			expectedMaxOut: 65535,   // 65K
 		},
 		{
-			name:            "Gemini 2.0 Flash",
-			model:           ModelGemini20Flash,
-			expectedMaxIn:   1048576, // 1M
-			expectedMaxOut:  8192,    // 8K
+			name:           "Gemini 2.0 Flash",
+			model:          ModelGemini20Flash,
+			expectedMaxIn:  1048576, // 1M
+			expectedMaxOut: 8192,    // 8K
 		},
 	}
 
