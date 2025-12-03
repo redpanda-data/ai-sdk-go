@@ -101,16 +101,9 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 				// For tool_use, save the initial data
 				switch e.ContentBlock.Type {
 				case blockTypeToolUse:
-					// Convert input to json.RawMessage
-					inputJSON, err := json.Marshal(e.ContentBlock.Input)
-					if err != nil {
-						inputJSON = json.RawMessage("{}")
-					}
-
 					acc.toolUse = &toolUseData{
-						ID:    e.ContentBlock.ID,
-						Name:  e.ContentBlock.Name,
-						Input: inputJSON,
+						ID:   e.ContentBlock.ID,
+						Name: e.ContentBlock.Name,
 					}
 				case blockTypeThinking:
 					acc.thinkingSignature = e.ContentBlock.Signature
@@ -178,15 +171,9 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 				// For tool use blocks, emit the complete tool request
 				if acc.blockType == blockTypeToolUse && acc.toolUse != nil {
-					// Use accumulated args if available, otherwise use initial input
-					var argsJSON json.RawMessage
-
-					switch {
-					case acc.toolArgs != "":
-						argsJSON = json.RawMessage(acc.toolArgs)
-					case acc.toolUse.Input != nil:
-						argsJSON = acc.toolUse.Input
-					default:
+					// Use accumulated args from input_json_delta events
+					argsJSON := json.RawMessage(acc.toolArgs)
+					if acc.toolArgs == "" {
 						argsJSON = json.RawMessage("{}")
 					}
 
@@ -263,11 +250,12 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 				case blockTypeToolUse:
 					if acc.toolUse != nil {
+						// Use accumulated toolArgs from input_json_delta events
 						finalContent = append(finalContent, anthropic.BetaContentBlockUnion{
 							Type:  blockTypeToolUse,
 							ID:    acc.toolUse.ID,
 							Name:  acc.toolUse.Name,
-							Input: acc.toolUse.Input,
+							Input: json.RawMessage(acc.toolArgs),
 						})
 					}
 				}
@@ -301,7 +289,6 @@ type contentBlockAccumulator struct {
 
 // toolUseData stores tool use information during streaming.
 type toolUseData struct {
-	ID    string
-	Name  string
-	Input json.RawMessage
+	ID   string
+	Name string
 }
