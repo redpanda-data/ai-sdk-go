@@ -40,6 +40,7 @@ func TestGeminiCachedTokens(t *testing.T) {
 	}
 
 	// First request - establishes implicit cache
+	// Note: Gemini's implicit caching may have a warm-up period
 	response1, err := model.Generate(ctx, &llm.Request{Messages: messages})
 	require.NoError(t, err)
 	require.NotNil(t, response1)
@@ -88,13 +89,57 @@ func TestGeminiCachedTokens(t *testing.T) {
 	t.Logf("Request 3 - InputTokens: %d, OutputTokens: %d, CachedTokens: %d",
 		response3.Usage.InputTokens, response3.Usage.OutputTokens, response3.Usage.CachedTokens)
 
+	// Continue further to give cache more time to warm up
+	messages = append(messages, llm.Message{
+		Role:    llm.RoleAssistant,
+		Content: response3.Message.Content,
+	})
+	messages = append(messages, llm.Message{
+		Role: llm.RoleUser,
+		Content: []*llm.Part{
+			llm.NewTextPart("Question 4: Say 'yes'."),
+		},
+	})
+
+	response4, err := model.Generate(ctx, &llm.Request{Messages: messages})
+	require.NoError(t, err)
+	require.NotNil(t, response4)
+	require.NotNil(t, response4.Usage)
+
+	t.Logf("Request 4 - InputTokens: %d, OutputTokens: %d, CachedTokens: %d",
+		response4.Usage.InputTokens, response4.Usage.OutputTokens, response4.Usage.CachedTokens)
+
+	// One more request
+	messages = append(messages, llm.Message{
+		Role:    llm.RoleAssistant,
+		Content: response4.Message.Content,
+	})
+	messages = append(messages, llm.Message{
+		Role: llm.RoleUser,
+		Content: []*llm.Part{
+			llm.NewTextPart("Question 5: Say 'ok' one last time."),
+		},
+	})
+
+	response5, err := model.Generate(ctx, &llm.Request{Messages: messages})
+	require.NoError(t, err)
+	require.NotNil(t, response5)
+	require.NotNil(t, response5.Usage)
+
+	t.Logf("Request 5 - InputTokens: %d, OutputTokens: %d, CachedTokens: %d",
+		response5.Usage.InputTokens, response5.Usage.OutputTokens, response5.Usage.CachedTokens)
+
 	// Verify all responses have the CachedTokens field populated
 	assert.GreaterOrEqual(t, response1.Usage.CachedTokens, 0)
 	assert.GreaterOrEqual(t, response2.Usage.CachedTokens, 0)
 	assert.GreaterOrEqual(t, response3.Usage.CachedTokens, 0)
+	assert.GreaterOrEqual(t, response4.Usage.CachedTokens, 0)
+	assert.GreaterOrEqual(t, response5.Usage.CachedTokens, 0)
 
 	// Check if any requests show cached tokens (Gemini implicit caching is automatic)
-	totalCached := response2.Usage.CachedTokens + response3.Usage.CachedTokens
+	// Check all requests after the first one
+	totalCached := response2.Usage.CachedTokens + response3.Usage.CachedTokens +
+		response4.Usage.CachedTokens + response5.Usage.CachedTokens
 
 	// Gemini 2.5 should show implicit caching on subsequent requests
 	require.Positive(t, totalCached, "Expected cached tokens with Gemini 2.5 implicit caching")

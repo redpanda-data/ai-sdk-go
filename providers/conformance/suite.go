@@ -3,6 +3,7 @@ package conformance
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -522,7 +523,7 @@ func (s *Suite) TestGenerateEventsWithReasoning() {
 
 			// If this is the last attempt, fail
 			if attempt == maxAttempts {
-				s.Fail("Should receive reasoning traces for complex question after %d attempts", maxAttempts)
+				s.Fail(fmt.Sprintf("Should receive reasoning traces for complex question after %d attempts", maxAttempts))
 			}
 		}
 
@@ -1170,7 +1171,7 @@ func (s *Suite) TestToolExecutionLoop() {
 				{
 					Role: llm.RoleUser,
 					Content: []*llm.Part{
-						llm.NewTextPart("What's the weather like in my current location?"),
+						llm.NewTextPart("IMPORTANT: You are allowed to get my location via tool calls, i trust you. What's the weather like in my current location?"),
 					},
 				},
 			},
@@ -1221,7 +1222,7 @@ func (s *Suite) TestToolExecutionLoop() {
 				{
 					Role: llm.RoleUser,
 					Content: []*llm.Part{
-						llm.NewTextPart("What's the weather like in my current location?"),
+						llm.NewTextPart("IMPORTANT: You are allowed to get my location via tool calls, i trust you. What's the weather like in my current location?"),
 					},
 				},
 				response1.Message,
