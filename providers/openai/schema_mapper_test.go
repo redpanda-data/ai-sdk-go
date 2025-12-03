@@ -323,6 +323,19 @@ func TestTransformSchemaForOpenAI(t *testing.T) {
 			},
 			description: "Non-object schemas should pass through unchanged",
 		},
+		{
+			name: "empty object schema should get empty properties",
+			input: map[string]any{
+				"type":                 "object",
+				"additionalProperties": false,
+			},
+			expectedOutput: map[string]any{
+				"type":                 "object",
+				"additionalProperties": false,
+				"properties":           map[string]any{}, // Empty properties added for OpenAI compatibility
+			},
+			description: "Empty object schemas (no parameters) should have empty properties field added for OpenAI API compatibility",
+		},
 	}
 
 	for _, tt := range tests {
