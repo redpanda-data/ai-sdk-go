@@ -100,77 +100,8 @@ func (t *TracingInterceptor) InterceptTurn(
 ) (agent.FinishReason, error) {
 	inv := info.Inv
 
-	// On turn 0, create the root invocation span
-	//nolint:nestif // Complex span initialization logic
-	if inv.Turn() == 0 {
-		var invSpan trace.Span
-
-		// Build attributes for invocation span
-		attrs := []attribute.KeyValue{
-			GenAIOperationName(OperationInvokeAgent),
-		}
-
-		// Add conversation ID if session is available
-		if session := inv.Session(); session != nil && session.ID != "" {
-			attrs = append(attrs, GenAIConversationID(session.ID))
-		}
-
-		// Add agent metadata from snapshot
-		agentSnap := inv.Agent()
-		if agentSnap.Name != "" {
-			attrs = append(attrs, GenAIAgentName(agentSnap.Name))
-		}
-
-		if agentSnap.Description != "" {
-			attrs = append(attrs, GenAIAgentDescription(agentSnap.Description))
-		}
-
-		// Extract system prompt from session messages (first system role message)
-		if systemPrompt := extractSystemPrompt(inv.Session().Messages); systemPrompt != "" {
-			attrs = append(attrs, GenAISystemInstructions(systemPrompt))
-		}
-
-		// Build span name following OTel convention: "invoke_agent {gen_ai.agent.name}"
-		// Falls back to just "invoke_agent" if agent name is not available
-		spanName := "invoke_agent"
-		if agentSnap.Name != "" {
-			spanName = "invoke_agent " + agentSnap.Name
-		}
-
-		// Call attribute injector if configured (before span creation for sampling)
-		if t.cfg.attributeInjector != nil {
-			sessionID := ""
-			if session := inv.Session(); session != nil {
-				sessionID = session.ID
-			}
-
-			injectorCtx := AttributeContext{
-				Ctx:       ctx,
-				SpanType:  SpanTypeInvocation,
-				SpanName:  spanName,
-				SessionID: sessionID,
-				Inv:       inv,
-			}
-			if customAttrs := t.cfg.attributeInjector(injectorCtx); len(customAttrs) > 0 {
-				attrs = append(attrs, customAttrs...)
-			}
-		}
-
-		ctx, invSpan = t.tracer.Start(ctx, spanName,
-			trace.WithSpanKind(trace.SpanKindInternal),
-			trace.WithAttributes(attrs...),
-		)
-
-		// Store only the span (not context) for later retrieval
-		inv.SetMetadata(MetadataKeyInvocationSpan, invSpan)
-	} else {
-		// Retrieve the invocation span and re-parent the context
-		// This preserves the incoming context's deadlines/cancellation while
-		// maintaining the span hierarchy
-		if invSpan, ok := inv.GetMetadata(MetadataKeyInvocationSpan).(trace.Span); ok {
-			ctx = trace.ContextWithSpan(ctx, invSpan)
-		}
-	}
+	// Ensure we have the invocation span in the context when we call next
+	ctx = t.withInvocationSpan(ctx, inv)
 
 	// Execute the turn with invocation context so model/tool spans are children of invocation span
 	reason, err := next(ctx, info)
@@ -183,20 +114,112 @@ func (t *TracingInterceptor) InterceptTurn(
 	return reason, err
 }
 
+// withInvocationSpan ensures the invocation span exists and is in the context.
+// On turn 0, it creates the invocation span. On subsequent turns, it re-parents the context.
+func (t *TracingInterceptor) withInvocationSpan(
+	ctx context.Context,
+	inv *agent.InvocationMetadata,
+) context.Context {
+	if inv.Turn() == 0 {
+		ctx, span := t.startInvocationSpan(ctx, inv)
+		// Store only the span (not context) for later retrieval
+		inv.SetMetadata(MetadataKeyInvocationSpan, span)
+
+		return ctx
+	}
+
+	if span, ok := getInvocationSpan(inv); ok {
+		// Re-parent context to the existing invocation span while
+		// preserving deadlines/cancellation
+		return trace.ContextWithSpan(ctx, span)
+	}
+
+	return ctx
+}
+
+// startInvocationSpan creates the root invocation span with all required attributes.
+func (t *TracingInterceptor) startInvocationSpan(
+	ctx context.Context,
+	inv *agent.InvocationMetadata,
+) (context.Context, trace.Span) {
+	attrs := []attribute.KeyValue{
+		GenAIOperationName(OperationInvokeAgent),
+	}
+
+	session := inv.Session()
+	if session != nil {
+		if session.ID != "" {
+			attrs = append(attrs, GenAIConversationID(session.ID))
+		}
+
+		if systemPrompt := extractSystemPrompt(session.Messages); systemPrompt != "" {
+			attrs = append(attrs, GenAISystemInstructions(systemPrompt))
+		}
+	}
+
+	agentSnap := inv.Agent()
+	if agentSnap.Name != "" {
+		attrs = append(attrs, GenAIAgentName(agentSnap.Name))
+	}
+
+	if agentSnap.Description != "" {
+		attrs = append(attrs, GenAIAgentDescription(agentSnap.Description))
+	}
+
+	// Build span name following OTel convention: "invoke_agent {gen_ai.agent.name}"
+	spanName := "invoke_agent"
+	if agentSnap.Name != "" {
+		spanName = "invoke_agent " + agentSnap.Name
+	}
+
+	// Call attribute injector if configured (before span creation for sampling)
+	if t.cfg.attributeInjector != nil {
+		var sessionID string
+		if session != nil {
+			sessionID = session.ID
+		}
+
+		spanCtx := SpanContext{
+			SpanType:  SpanTypeInvocation,
+			SpanName:  spanName,
+			SessionID: sessionID,
+			Inv:       inv,
+		}
+
+		if customAttrs := t.cfg.attributeInjector(ctx, spanCtx); len(customAttrs) > 0 {
+			attrs = append(attrs, customAttrs...)
+		}
+	}
+
+	//nolint:spancheck // span is returned and stored in metadata by caller
+	return t.tracer.Start(
+		ctx,
+		spanName,
+		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(attrs...),
+	)
+}
+
+// getInvocationSpan retrieves the invocation span from metadata.
+func getInvocationSpan(inv *agent.InvocationMetadata) (trace.Span, bool) {
+	span, ok := inv.GetMetadata(MetadataKeyInvocationSpan).(trace.Span)
+	return span, ok
+}
+
 // endInvocationSpan finalizes the invocation span with usage stats and optional error.
 func (t *TracingInterceptor) endInvocationSpan(inv *agent.InvocationMetadata, err error) {
-	invSpan, ok := inv.GetMetadata(MetadataKeyInvocationSpan).(trace.Span)
+	span, ok := getInvocationSpan(inv)
 	if !ok {
 		return
 	}
 
 	// Add final usage stats to invocation span
 	usage := inv.TotalUsage()
-	invSpan.SetAttributes(
+	span.SetAttributes(
 		GenAIUsageInputTokens(usage.InputTokens),
 		GenAIUsageOutputTokens(usage.OutputTokens),
 	)
 
-	setSpanError(invSpan, err)
-	invSpan.End()
+	setSpanError(span, err)
+	span.End()
 }
