@@ -373,7 +373,7 @@ func (s *Suite) TestGenerateWithReasoning() {
 				{
 					Role: llm.RoleUser,
 					Content: []*llm.Part{
-						llm.NewTextPart("IMPORTANT: Think step-by-step and show your detailed reasoning process. Design a distributed consensus algorithm that can handle both network partitions and Byzantine failures. Explain the key trade-offs and why existing solutions like Raft or PBFT might not be sufficient."),
+						llm.NewTextPart("Design a distributed consensus algorithm that can handle both network partitions and Byzantine failures. Explain the key trade-offs and why existing solutions like Raft or PBFT might not be sufficient."),
 					},
 				},
 			},
@@ -440,7 +440,7 @@ func (s *Suite) TestGenerateEventsWithReasoning() {
 				{
 					Role: llm.RoleUser,
 					Content: []*llm.Part{
-						llm.NewTextPart("IMPORTANT: Think step-by-step and show your detailed reasoning process. Design a distributed consensus algorithm that can handle both network partitions and Byzantine failures. Explain the key trade-offs and why existing solutions like Raft or PBFT might not be sufficient."),
+						llm.NewTextPart("Design a distributed consensus algorithm that can handle both network partitions and Byzantine failures. Explain the key trade-offs and why existing solutions like Raft or PBFT might not be sufficient."),
 					},
 				},
 			},
