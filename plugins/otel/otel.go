@@ -58,10 +58,10 @@
 // Add custom attributes for sampling, correlation, or backend-specific needs:
 //
 //	tracer := otel.New(
-//	    otel.WithAttributeInjector(func(ctx otel.AttributeContext) []attribute.KeyValue {
+//	    otel.WithAttributeInjector(func(ctx context.Context, spanCtx otel.SpanContext) []attribute.KeyValue {
 //	        return []attribute.KeyValue{
 //	            attribute.String("environment", os.Getenv("ENV")),
-//	            attribute.String("tenant_id", getTenantID(ctx.Ctx)),
+//	            attribute.String("tenant_id", getTenantID(ctx)),
 //	        }
 //	    }),
 //	)

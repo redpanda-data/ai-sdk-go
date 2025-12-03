@@ -107,11 +107,11 @@ func WithRecordToolDefinitions(enabled bool) Option {
 // Example for Langfuse compatibility:
 //
 //	pluginotel.New(
-//	    pluginotel.WithAttributeInjector(func(ctx pluginotel.AttributeContext) []attribute.KeyValue {
-//	        if ctx.SpanType == pluginotel.SpanTypeInvocation {
+//	    pluginotel.WithAttributeInjector(func(ctx context.Context, spanCtx pluginotel.SpanContext) []attribute.KeyValue {
+//	        if spanCtx.SpanType == pluginotel.SpanTypeInvocation {
 //	            return []attribute.KeyValue{
-//	                attribute.String("langfuse.trace.name", ctx.SpanName),
-//	                attribute.String("langfuse.session.id", ctx.SessionID),
+//	                attribute.String("langfuse.trace.name", spanCtx.SpanName),
+//	                attribute.String("langfuse.session.id", spanCtx.SessionID),
 //	            }
 //	        }
 //	        return nil

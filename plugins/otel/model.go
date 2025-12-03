@@ -128,14 +128,13 @@ func (h *tracingModelHandler) startSpan(ctx context.Context, req *llm.Request) (
 
 	// Call attribute injector if configured (before span creation for sampling)
 	if h.cfg.attributeInjector != nil {
-		injectorCtx := AttributeContext{
-			Ctx:       ctx,
+		spanCtx := SpanContext{
 			SpanType:  SpanTypeModel,
 			SpanName:  spanName,
 			SessionID: h.convID,
 			Inv:       h.inv,
 		}
-		if customAttrs := h.cfg.attributeInjector(injectorCtx); len(customAttrs) > 0 {
+		if customAttrs := h.cfg.attributeInjector(ctx, spanCtx); len(customAttrs) > 0 {
 			attrs = append(attrs, customAttrs...)
 		}
 	}

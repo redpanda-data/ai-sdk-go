@@ -41,14 +41,13 @@ func (t *TracingInterceptor) InterceptToolExecution(
 			sessionID = session.ID
 		}
 
-		injectorCtx := AttributeContext{
-			Ctx:       ctx,
+		spanCtx := SpanContext{
 			SpanType:  SpanTypeTool,
 			SpanName:  spanName,
 			SessionID: sessionID,
 			Inv:       info.Inv,
 		}
-		if customAttrs := t.cfg.attributeInjector(injectorCtx); len(customAttrs) > 0 {
+		if customAttrs := t.cfg.attributeInjector(ctx, spanCtx); len(customAttrs) > 0 {
 			attrs = append(attrs, customAttrs...)
 		}
 	}

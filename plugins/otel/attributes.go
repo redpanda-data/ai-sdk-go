@@ -109,60 +109,69 @@ const (
 	SpanTypeTool SpanType = "tool"
 )
 
-// AttributeContext provides context information for custom attribute injection.
+// SpanContext provides span-specific context for attribute injection.
 //
-// This context is passed to AttributeInjector callbacks, allowing users to add
-// platform-specific or custom attributes based on the span being created.
+// This contains the minimal information needed to add custom attributes
+// to OpenTelemetry spans before creation (important for sampling decisions).
+//
+// Note: This is distinct from trace.SpanContext (from the OTel SDK). This struct
+// provides high-level span information for attribute injection, while trace.SpanContext
+// is a low-level OTel primitive containing trace/span IDs.
 //
 // Example usage for Langfuse:
 //
-//	func(ctx AttributeContext) []attribute.KeyValue {
-//	    if ctx.SpanType == SpanTypeInvocation {
+//	func(ctx context.Context, spanCtx SpanContext) []attribute.KeyValue {
+//	    if spanCtx.SpanType == SpanTypeInvocation {
 //	        return []attribute.KeyValue{
-//	            attribute.String("langfuse.trace.name", ctx.SpanName),
-//	            attribute.String("langfuse.session.id", ctx.SessionID),
+//	            attribute.String("langfuse.trace.name", spanCtx.SpanName),
+//	            attribute.String("langfuse.session.id", spanCtx.SessionID),
 //	        }
 //	    }
 //	    return nil
 //	}
-type AttributeContext struct {
-	// Ctx is the Go context, providing access to request-scoped values
-	// (e.g., user ID, tenant ID set by middleware).
-	//nolint:containedctx // Intentional: context needed for attribute injectors to access request-scoped values
-	Ctx context.Context
-
-	// SpanType identifies the category of span being created.
+type SpanContext struct {
+	// SpanType identifies the span category (invocation/model/tool).
 	SpanType SpanType
 
 	// SpanName is the computed span name (e.g., "invoke_agent my-assistant").
 	SpanName string
 
-	// SessionID is the session/conversation identifier for this invocation.
-	// This is the value of gen_ai.conversation.id.
+	// SessionID is the session/conversation identifier.
+	// Empty string if no session is available.
 	SessionID string
 
-	// Inv provides full access to invocation metadata, including:
-	//   - Session state and messages
-	//   - Agent snapshot (name, description)
-	//   - Turn number and usage statistics
-	//   - Custom metadata set by other interceptors
+	// Inv provides full invocation metadata (session, turn, usage, custom metadata).
+	// This is the SDK's primary state carrier.
 	//
-	// Note: This may be nil for some span types. Always check before accessing.
+	// May be nil for some span types - always check before accessing.
 	Inv *agent.InvocationMetadata
 }
 
-// AttributeInjector is a callback function that allows users to inject custom attributes
-// into OpenTelemetry spans.
+// AttributeInjector is a callback that adds custom attributes to spans.
 //
-// The injector is called before span creation, ensuring attributes are available for
-// sampling decisions. It receives an AttributeContext with runtime information about
-// the span being created.
+// Called before span creation for all span types (invocation/model/tool),
+// ensuring attributes are available for sampling decisions.
 //
-// Injectors must be thread-safe, as they may be called concurrently when tools execute
-// in parallel.
+// Must be thread-safe - tools may execute concurrently.
 //
-// Return nil or an empty slice if no attributes should be added for the given context.
-type AttributeInjector func(ctx AttributeContext) []attribute.KeyValue
+// Parameters:
+//   - ctx: Go context for request-scoped values (user ID, tenant ID, etc.)
+//   - spanCtx: Span-specific context (type, name, session, invocation metadata)
+//
+// Return nil or empty slice if no attributes should be added.
+//
+// Example:
+//
+//	func(ctx context.Context, spanCtx otel.SpanContext) []attribute.KeyValue {
+//	    if spanCtx.SpanType == otel.SpanTypeInvocation {
+//	        return []attribute.KeyValue{
+//	            attribute.String("customer.id", getCustomerID(ctx)),
+//	            attribute.String("langfuse.trace.name", spanCtx.SpanName),
+//	        }
+//	    }
+//	    return nil
+//	}
+type AttributeInjector func(ctx context.Context, spanCtx SpanContext) []attribute.KeyValue
 
 // Event names for model content recording following OTel GenAI conventions.
 // Note: These are used for model inference operations only. Tool inputs/outputs
