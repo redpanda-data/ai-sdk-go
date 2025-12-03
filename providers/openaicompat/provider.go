@@ -28,6 +28,7 @@ func (p *Provider) Name() string {
 	if p.name != "" {
 		return p.name
 	}
+
 	return "openaicompat"
 }
 
