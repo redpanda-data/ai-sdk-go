@@ -488,6 +488,7 @@ func (a *LLMAgent) executeTools(
 	for i, req := range toolReqs {
 		g.Go(func() error {
 			toolInfo := &agent.ToolCallInfo{Inv: inv, Req: req}
+
 			resp, err := executor(gctx, toolInfo)
 			results <- toolResult{
 				idx:       i,

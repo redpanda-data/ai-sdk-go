@@ -132,7 +132,7 @@ func TestModelInterceptor_Ordering(t *testing.T) {
 	interceptors := []agent.Interceptor{interceptor1, interceptor2, interceptor3}
 
 	ctx := context.Background()
-	inv := agent.NewInvocationMetadata(&session.State{ID: "test"})
+	inv := agent.NewInvocationMetadata(&session.State{ID: "test"}, agent.Snapshot{})
 	req := newTestModelRequest()
 	modelInfo := &agent.ModelCallInfo{Inv: inv, Model: baseModel, Req: req}
 
@@ -182,7 +182,7 @@ func TestToolInterceptor_Ordering(t *testing.T) {
 	interceptors := []agent.Interceptor{interceptor1, interceptor2, interceptor3}
 
 	ctx := context.Background()
-	inv := agent.NewInvocationMetadata(&session.State{ID: "test"})
+	inv := agent.NewInvocationMetadata(&session.State{ID: "test"}, agent.Snapshot{})
 	executor := agent.ApplyToolInterceptors(interceptors, baseExecutor)
 
 	// Execute
@@ -248,7 +248,7 @@ func TestModelInterceptor_ShortCircuit(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	inv := agent.NewInvocationMetadata(&session.State{ID: "test"})
+	inv := agent.NewInvocationMetadata(&session.State{ID: "test"}, agent.Snapshot{})
 	req := newTestModelRequest()
 	modelInfo := &agent.ModelCallInfo{Inv: inv, Model: baseModel, Req: req}
 
@@ -293,7 +293,7 @@ func TestToolInterceptor_ShortCircuit(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	inv := agent.NewInvocationMetadata(&session.State{ID: "test"})
+	inv := agent.NewInvocationMetadata(&session.State{ID: "test"}, agent.Snapshot{})
 	executor := agent.ApplyToolInterceptors([]agent.Interceptor{authInterceptor}, baseExecutor)
 
 	// Execute
@@ -382,7 +382,7 @@ func TestModelInterceptor_ErrorPropagation(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			inv := agent.NewInvocationMetadata(&session.State{ID: "test"})
+			inv := agent.NewInvocationMetadata(&session.State{ID: "test"}, agent.Snapshot{})
 			req := newTestModelRequest()
 			modelInfo := &agent.ModelCallInfo{Inv: inv, Model: baseModel, Req: req}
 
@@ -470,7 +470,7 @@ func TestToolInterceptor_ErrorPropagation(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			inv := agent.NewInvocationMetadata(&session.State{ID: "test"})
+			inv := agent.NewInvocationMetadata(&session.State{ID: "test"}, agent.Snapshot{})
 			executor := agent.ApplyToolInterceptors([]agent.Interceptor{testInterceptor}, baseExecutor)
 
 			// Execute
@@ -536,7 +536,7 @@ func TestModelInterceptor_ContextPropagation(t *testing.T) {
 
 	// Create canceled context
 	ctx := newCanceledContext()
-	inv := agent.NewInvocationMetadata(&session.State{ID: "test"})
+	inv := agent.NewInvocationMetadata(&session.State{ID: "test"}, agent.Snapshot{})
 	req := newTestModelRequest()
 	modelInfo := &agent.ModelCallInfo{Inv: inv, Model: baseModel, Req: req}
 
@@ -587,7 +587,7 @@ func TestToolInterceptor_ContextPropagation(t *testing.T) {
 
 	// Create canceled context
 	ctx := newCanceledContext()
-	inv := agent.NewInvocationMetadata(&session.State{ID: "test"})
+	inv := agent.NewInvocationMetadata(&session.State{ID: "test"}, agent.Snapshot{})
 
 	executor := agent.ApplyToolInterceptors([]agent.Interceptor{testInterceptor}, baseExecutor)
 
@@ -702,7 +702,7 @@ func TestTurnInterceptor_Ordering(t *testing.T) {
 	interceptors := []agent.Interceptor{interceptor1, interceptor2, interceptor3}
 
 	ctx := context.Background()
-	inv := agent.NewInvocationMetadata(&session.State{ID: "test"})
+	inv := agent.NewInvocationMetadata(&session.State{ID: "test"}, agent.Snapshot{})
 	turnFunc := agent.ApplyTurnInterceptors(interceptors, baseTurn)
 
 	// Execute
@@ -745,7 +745,7 @@ func TestTurnInterceptor_EarlyStopping(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	inv := agent.NewInvocationMetadata(&session.State{ID: "test"})
+	inv := agent.NewInvocationMetadata(&session.State{ID: "test"}, agent.Snapshot{})
 	turnFunc := agent.ApplyTurnInterceptors([]agent.Interceptor{earlyStopInterceptor}, baseTurn)
 
 	// Execute
@@ -776,7 +776,7 @@ func TestEmptyInterceptors(t *testing.T) {
 		}
 
 		ctx := context.Background()
-		inv := agent.NewInvocationMetadata(&session.State{ID: "test"})
+		inv := agent.NewInvocationMetadata(&session.State{ID: "test"}, agent.Snapshot{})
 		req := newTestModelRequest()
 		modelInfo := &agent.ModelCallInfo{Inv: inv, Model: baseModel, Req: req}
 
@@ -802,7 +802,7 @@ func TestEmptyInterceptors(t *testing.T) {
 		}
 
 		ctx := context.Background()
-		inv := agent.NewInvocationMetadata(&session.State{ID: "test"})
+		inv := agent.NewInvocationMetadata(&session.State{ID: "test"}, agent.Snapshot{})
 
 		// Apply with empty interceptors list
 		executor := agent.ApplyToolInterceptors([]agent.Interceptor{}, baseExecutor)
@@ -825,7 +825,7 @@ func TestEmptyInterceptors(t *testing.T) {
 		}
 
 		ctx := context.Background()
-		inv := agent.NewInvocationMetadata(&session.State{ID: "test"})
+		inv := agent.NewInvocationMetadata(&session.State{ID: "test"}, agent.Snapshot{})
 
 		// Apply with empty interceptors list
 		turnFunc := agent.ApplyTurnInterceptors([]agent.Interceptor{}, baseTurn)
