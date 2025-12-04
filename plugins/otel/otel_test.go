@@ -100,7 +100,7 @@ func TestTracingInterceptor_InterceptTurn_CreatesInvocationSpan(t *testing.T) {
 		pluginotel.WithTracerProvider(tp),
 	)
 
-	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Snapshot{
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
 		Name:        "test-agent",
 		Description: "Test agent for OpenTelemetry tracing",
 	})
@@ -139,7 +139,7 @@ func TestTracingInterceptor_InterceptTurn_MultipleTurns(t *testing.T) {
 		pluginotel.WithTracerProvider(tp),
 	)
 
-	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Snapshot{
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
 		Name:        "test-agent",
 		Description: "Test agent for OpenTelemetry tracing",
 	})
@@ -180,7 +180,7 @@ func TestTracingInterceptor_InterceptTurn_ErrorRecording(t *testing.T) {
 		pluginotel.WithTracerProvider(tp),
 	)
 
-	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Snapshot{
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
 		Name:        "test-agent",
 		Description: "Test agent for OpenTelemetry tracing",
 	})
@@ -212,7 +212,7 @@ func TestTracingInterceptor_InterceptModel_Generate(t *testing.T) {
 		pluginotel.WithTracerProvider(tp),
 	)
 
-	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Snapshot{
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
 		Name:        "test-agent",
 		Description: "Test agent for OpenTelemetry tracing",
 	})
@@ -269,7 +269,7 @@ func TestTracingInterceptor_InterceptModel_GenerateEvents(t *testing.T) {
 		pluginotel.WithTracerProvider(tp),
 	)
 
-	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Snapshot{
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
 		Name:        "test-agent",
 		Description: "Test agent for OpenTelemetry tracing",
 	})
@@ -319,7 +319,7 @@ func TestTracingInterceptor_InterceptToolExecution(t *testing.T) {
 		pluginotel.WithTracerProvider(tp),
 	)
 
-	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Snapshot{
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
 		Name:        "test-agent",
 		Description: "Test agent for OpenTelemetry tracing",
 	})
@@ -377,7 +377,7 @@ func TestTracingInterceptor_InterceptToolExecution_WithRecordInputs(t *testing.T
 		pluginotel.WithRecordInputs(true),
 	)
 
-	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Snapshot{
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
 		Name:        "test-agent",
 		Description: "Test agent for OpenTelemetry tracing",
 	})
@@ -428,7 +428,7 @@ func TestTracingInterceptor_InterceptToolExecution_WithRecordOutputs(t *testing.
 		pluginotel.WithRecordOutputs(true),
 	)
 
-	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Snapshot{
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
 		Name:        "test-agent",
 		Description: "Test agent for OpenTelemetry tracing",
 	})
@@ -477,7 +477,7 @@ func TestTracingInterceptor_InterceptToolExecution_Error(t *testing.T) {
 		pluginotel.WithTracerProvider(tp),
 	)
 
-	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Snapshot{
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
 		Name:        "test-agent",
 		Description: "Test agent for OpenTelemetry tracing",
 	})
@@ -524,7 +524,7 @@ func TestTracingInterceptor_SpanHierarchy(t *testing.T) {
 		pluginotel.WithTracerProvider(tp),
 	)
 
-	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Snapshot{
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
 		Name:        "test-agent",
 		Description: "Test agent for OpenTelemetry tracing",
 	})
@@ -602,7 +602,7 @@ func TestTracingInterceptor_ContentRecording(t *testing.T) {
 		pluginotel.WithRecordOutputs(true),
 	)
 
-	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Snapshot{
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
 		Name:        "test-agent",
 		Description: "Test agent for OpenTelemetry tracing",
 	})
@@ -667,7 +667,7 @@ func TestTracingInterceptor_ContextPropagation(t *testing.T) {
 		pluginotel.WithTracerProvider(tp),
 	)
 
-	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Snapshot{
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
 		Name:        "test-agent",
 		Description: "Test agent for OpenTelemetry tracing",
 	})

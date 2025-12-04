@@ -109,7 +109,7 @@ func TestLLMAgent_Integration_ToolCalling(t *testing.T) {
 		ID:       "test-session",
 		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("What is 42 plus 58?"))},
 	}
-	inv := agent.NewInvocationMetadata(sess, agent.Snapshot{})
+	inv := agent.NewInvocationMetadata(sess, agent.Info{})
 
 	// Execute
 	events := collectEvents(t, ag.Run(ctx, inv))

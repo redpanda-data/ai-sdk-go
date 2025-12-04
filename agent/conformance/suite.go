@@ -51,7 +51,7 @@ func (s *Suite) TestBasicToolCalling() {
 		ID:       "test-session",
 		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("What is 42 plus 58?"))},
 	}
-	inv := agent.NewInvocationMetadata(sess, agent.Snapshot{Name: "test-agent", Description: "Test agent for conformance"})
+	inv := agent.NewInvocationMetadata(sess, agent.Info{Name: "test-agent", Description: "Test agent for conformance"})
 
 	events := collectEvents(s.T(), ag.Run(s.T().Context(), inv))
 
@@ -115,7 +115,7 @@ func (s *Suite) TestMultiTurnToolExecution() {
 		ID:       "test-session",
 		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("What is 15 plus 27?"))},
 	}
-	inv := agent.NewInvocationMetadata(sess, agent.Snapshot{Name: "test-agent", Description: "Test agent for conformance"})
+	inv := agent.NewInvocationMetadata(sess, agent.Info{Name: "test-agent", Description: "Test agent for conformance"})
 
 	events := collectEvents(s.T(), ag.Run(s.T().Context(), inv))
 

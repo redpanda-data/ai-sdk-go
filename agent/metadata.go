@@ -7,19 +7,19 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/store/session"
 )
 
-// Snapshot captures the agent's identity at the start of an invocation.
+// Info captures the agent's identity at the start of an invocation.
 //
 // This is an immutable snapshot taken when InvocationMetadata is created, providing
 // stable agent identity for observability, debugging, auditing, and telemetry purposes.
 //
 // # What's Included
 //
-// Snapshot contains only the agent's identity (name, description) which are
+// Info contains only the agent's identity (name, description) which are
 // not available elsewhere in the invocation context. Other agent configuration:
 //   - System prompt: available in session.Messages (first system role message)
 //   - Available tools: available in llm.Request.Tools (sent with each model call)
 //
-// # Why a Snapshot?
+// # Why a Info?
 //
 // The live agent instance may change over time, but interceptors and telemetry systems
 // need a consistent view of agent identity. This snapshot ensures that:
@@ -29,7 +29,7 @@ import (
 //
 // # Immutability Contract
 //
-// Snapshot is immutable after construction. It represents the agent identity
+// Info is immutable after construction. It represents the agent identity
 // at invocation start.
 //
 // # Design Rationale
@@ -39,7 +39,7 @@ import (
 //   - Clearly distinguish "agent identity" from "runtime state" (turn, usage)
 //   - Provide room to evolve (add Version, Labels, etc. if needed)
 //   - Make mutability clear (entire struct is immutable)
-type Snapshot struct {
+type Info struct {
 	// Name is the agent's identifier (used for gen_ai.agent.name)
 	Name string
 
@@ -99,7 +99,7 @@ type InvocationMetadata struct {
 	totalUsage   llm.TokenUsage
 
 	// Immutable agent snapshot - captured at invocation start
-	agent Snapshot
+	agent Info
 
 	// Session reference - accessible but modifications should be careful
 	session *session.State
@@ -120,7 +120,7 @@ type InvocationMetadata struct {
 // This function is typically called by agent implementations (e.g., llmagent) at the
 // start of execution. For convenience, use NewInvocationMetadataFromAgent if you have
 // an Agent interface.
-func NewInvocationMetadata(sess *session.State, agent Snapshot) *InvocationMetadata {
+func NewInvocationMetadata(sess *session.State, agent Info) *InvocationMetadata {
 	return &InvocationMetadata{
 		invocationID: generateInvocationID(),
 		agent:        agent,
@@ -158,7 +158,7 @@ func (m *InvocationMetadata) InvocationID() string {
 // tracked in ModelInterceptor spans, not here.
 //
 // This field is immutable and set once at creation.
-func (m *InvocationMetadata) Agent() Snapshot {
+func (m *InvocationMetadata) Agent() Info {
 	return m.agent
 }
 
