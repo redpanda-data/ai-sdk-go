@@ -41,16 +41,6 @@ const (
 	attrErrorType                  = "error.type"
 )
 
-// Span name prefixes following OTel GenAI semantic conventions.
-// Actual span names include additional context (e.g., "chat gpt-4o", "execute_tool get_weather").
-// These are internal constants used by the plugin for span naming.
-// See: https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-agent-spans/
-const (
-	spanNameAgent    = "gen_ai.agent"
-	spanNameChat     = "gen_ai.chat"
-	spanNameToolCall = "gen_ai.tool"
-)
-
 // Operation names for gen_ai.operation.name attribute.
 // These are internal constants used by the plugin.
 const (
