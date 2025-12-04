@@ -122,8 +122,8 @@ func (h *tracingModelHandler) startSpan(ctx context.Context, req *llm.Request) (
 
 	// Build base attributes
 	attrs := []attribute.KeyValue{
-		GenAIOperationName(OperationChat),
-		GenAIConversationID(h.convID),
+		genAIOperationName(operationChat),
+		genAIConversationID(h.convID),
 	}
 
 	// Call attribute injector if configured (before span creation for sampling)
@@ -158,11 +158,11 @@ func (h *tracingModelHandler) addRequestAttributes(span trace.Span, req *llm.Req
 	// Get model name and provider from ModelInfo
 	if h.modelInfo != nil {
 		if modelName := h.modelInfo.Name(); modelName != "" {
-			span.SetAttributes(GenAIRequestModel(modelName))
+			span.SetAttributes(genAIRequestModel(modelName))
 		}
 
 		if providerName := h.modelInfo.Provider(); providerName != "" {
-			span.SetAttributes(GenAIProviderName(providerName))
+			span.SetAttributes(genAIProviderName(providerName))
 		}
 	}
 
@@ -183,7 +183,7 @@ func (h *tracingModelHandler) recordInputEvent(span trace.Span, req *llm.Request
 
 	// Serialize messages to JSON for the event
 	if messagesJSON, err := json.Marshal(req.Messages); err == nil {
-		span.AddEvent(EventGenAIContentPrompt,
+		span.AddEvent(eventGenAIContentPrompt,
 			trace.WithAttributes(
 				attribute.String("content", string(messagesJSON)),
 				attribute.Int("message_count", len(req.Messages)),
@@ -200,7 +200,7 @@ func (h *tracingModelHandler) recordOutputEvent(span trace.Span, resp *llm.Respo
 
 	// Serialize the response message to JSON for the event
 	if messageJSON, err := json.Marshal(resp.Message); err == nil {
-		span.AddEvent(EventGenAIContentCompletion,
+		span.AddEvent(eventGenAIContentCompletion,
 			trace.WithAttributes(
 				attribute.String("content", string(messageJSON)),
 				attribute.String("finish_reason", string(resp.FinishReason)),
@@ -216,7 +216,7 @@ func (h *tracingModelHandler) recordResponseAttributes(span trace.Span, resp *ll
 	}
 
 	if resp.ID != "" {
-		span.SetAttributes(GenAIResponseID(resp.ID))
+		span.SetAttributes(genAIResponseID(resp.ID))
 	}
 
 	// Note: llm.Response doesn't have a Model field. The model used can be
@@ -224,13 +224,13 @@ func (h *tracingModelHandler) recordResponseAttributes(span trace.Span, resp *ll
 	// If we need response model, we would need to extend llm.Response.
 
 	if resp.FinishReason != "" {
-		span.SetAttributes(GenAIResponseFinishReasons(string(resp.FinishReason)))
+		span.SetAttributes(genAIResponseFinishReasons(string(resp.FinishReason)))
 	}
 
 	if resp.Usage != nil {
 		span.SetAttributes(
-			GenAIUsageInputTokens(resp.Usage.InputTokens),
-			GenAIUsageOutputTokens(resp.Usage.OutputTokens),
+			genAIUsageInputTokens(resp.Usage.InputTokens),
+			genAIUsageOutputTokens(resp.Usage.OutputTokens),
 		)
 	}
 }

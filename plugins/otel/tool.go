@@ -24,14 +24,14 @@ func (t *TracingInterceptor) InterceptToolExecution(
 
 	// Build base attributes
 	attrs := []attribute.KeyValue{
-		GenAIOperationName(OperationToolCall),
-		GenAIToolName(req.Name),
-		GenAIToolCallID(req.ID),
+		genAIOperationName(operationToolCall),
+		genAIToolName(req.Name),
+		genAIToolCallID(req.ID),
 	}
 
 	// Add conversation ID if session is available
 	if session := info.Inv.Session(); session != nil && session.ID != "" {
-		attrs = append(attrs, GenAIConversationID(session.ID))
+		attrs = append(attrs, genAIConversationID(session.ID))
 	}
 
 	// Call attribute injector if configured (before span creation for sampling)
@@ -61,14 +61,14 @@ func (t *TracingInterceptor) InterceptToolExecution(
 
 	// Measure and record argument size
 	if len(req.Arguments) > 0 {
-		span.SetAttributes(ToolArgumentsSize(len(req.Arguments)))
+		span.SetAttributes(toolArgumentsSize(len(req.Arguments)))
 	}
 
 	// Optionally record tool arguments as span attribute (opt-in - may contain PII)
 	if t.cfg.recordInputs && len(req.Arguments) > 0 {
 		// Validate JSON is structured object
 		if isValidStructuredJSON(req.Arguments) {
-			span.SetAttributes(GenAIToolCallArguments(string(req.Arguments)))
+			span.SetAttributes(genAIToolCallArguments(string(req.Arguments)))
 		}
 	}
 
@@ -80,26 +80,26 @@ func (t *TracingInterceptor) InterceptToolExecution(
 
 	// Calculate and record execution duration (metadata - no PII)
 	duration := time.Since(startTime)
-	span.SetAttributes(ToolExecutionDuration(duration.Milliseconds()))
+	span.SetAttributes(toolExecutionDuration(duration.Milliseconds()))
 
 	// Record errors
 	//nolint:nestif // Complex result processing logic
 	if err != nil {
 		setSpanError(span, err)
-		span.SetAttributes(ToolResultAvailable(false))
+		span.SetAttributes(toolResultAvailable(false))
 	} else {
 		// Record result availability and size (metadata - no PII)
 		resultAvailable := resp != nil && resp.Result != nil
-		span.SetAttributes(ToolResultAvailable(resultAvailable))
+		span.SetAttributes(toolResultAvailable(resultAvailable))
 
 		if resultAvailable {
-			span.SetAttributes(ToolResultSize(len(resp.Result)))
+			span.SetAttributes(toolResultSize(len(resp.Result)))
 
 			// Optionally record tool output as span attribute (opt-in - may contain PII)
 			if t.cfg.recordOutputs {
 				// Validate JSON is structured object
 				if isValidStructuredJSON(resp.Result) {
-					span.SetAttributes(GenAIToolCallResult(string(resp.Result)))
+					span.SetAttributes(genAIToolCallResult(string(resp.Result)))
 				}
 			}
 		}

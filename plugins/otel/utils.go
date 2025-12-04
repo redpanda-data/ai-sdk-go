@@ -59,5 +59,5 @@ func setSpanError(span trace.Span, err error) {
 	span.RecordError(err)
 	span.SetStatus(codes.Error, err.Error())
 	// Use concrete error type for better debugging (e.g., "*errors.errorString")
-	span.SetAttributes(ErrorType(fmt.Sprintf("%T", err)))
+	span.SetAttributes(errorType(fmt.Sprintf("%T", err)))
 }

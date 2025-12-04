@@ -124,9 +124,9 @@ func TestTracingInterceptor_InterceptTurn_CreatesInvocationSpan(t *testing.T) {
 	assert.Equal(t, "invoke_agent test-agent", invocationSpan.Name)
 
 	// Check invocation attributes
-	assertHasAttribute(t, invocationSpan.Attributes, pluginotel.AttrGenAIOperationName, pluginotel.OperationInvokeAgent)
-	assertHasAttribute(t, invocationSpan.Attributes, pluginotel.AttrGenAIConversationID, "sess-123")
-	assertHasAttribute(t, invocationSpan.Attributes, pluginotel.AttrGenAIAgentName, "test-agent")
+	assertHasAttribute(t, invocationSpan.Attributes, "gen_ai.operation.name", "invoke_agent")
+	assertHasAttribute(t, invocationSpan.Attributes, "gen_ai.conversation.id", "sess-123")
+	assertHasAttribute(t, invocationSpan.Attributes, "gen_ai.agent.name", "test-agent")
 }
 
 func TestTracingInterceptor_InterceptTurn_MultipleTurns(t *testing.T) {
@@ -167,7 +167,7 @@ func TestTracingInterceptor_InterceptTurn_MultipleTurns(t *testing.T) {
 	require.Len(t, spans, 1, "Expected 1 invocation span across multiple turns")
 
 	invocationSpan := spans[0]
-	assertHasAttribute(t, invocationSpan.Attributes, pluginotel.AttrGenAIOperationName, pluginotel.OperationInvokeAgent)
+	assertHasAttribute(t, invocationSpan.Attributes, "gen_ai.operation.name", "invoke_agent")
 }
 
 func TestTracingInterceptor_InterceptTurn_ErrorRecording(t *testing.T) {
@@ -248,12 +248,12 @@ func TestTracingInterceptor_InterceptModel_Generate(t *testing.T) {
 	require.NotNil(t, chatSpan, "Expected chat span")
 
 	// Check attributes
-	assertHasAttribute(t, chatSpan.Attributes, pluginotel.AttrGenAIOperationName, pluginotel.OperationChat)
-	assertHasAttribute(t, chatSpan.Attributes, pluginotel.AttrGenAIRequestModel, "gpt-4")
-	assertHasAttribute(t, chatSpan.Attributes, pluginotel.AttrGenAIProviderName, "openai")
-	assertHasAttribute(t, chatSpan.Attributes, pluginotel.AttrGenAIResponseID, "resp-123")
-	assertHasAttribute(t, chatSpan.Attributes, pluginotel.AttrGenAIUsageInputTokens, int64(10))
-	assertHasAttribute(t, chatSpan.Attributes, pluginotel.AttrGenAIUsageOutputTokens, int64(20))
+	assertHasAttribute(t, chatSpan.Attributes, "gen_ai.operation.name", "chat")
+	assertHasAttribute(t, chatSpan.Attributes, "gen_ai.request.model", "gpt-4")
+	assertHasAttribute(t, chatSpan.Attributes, "gen_ai.provider.name", "openai")
+	assertHasAttribute(t, chatSpan.Attributes, "gen_ai.response.id", "resp-123")
+	assertHasAttribute(t, chatSpan.Attributes, "gen_ai.usage.input_tokens", int64(10))
+	assertHasAttribute(t, chatSpan.Attributes, "gen_ai.usage.output_tokens", int64(20))
 
 	// Verify SpanKind is Client for model calls
 	assert.Equal(t, trace.SpanKindClient, chatSpan.SpanKind)
@@ -306,7 +306,7 @@ func TestTracingInterceptor_InterceptModel_GenerateEvents(t *testing.T) {
 	require.NotNil(t, chatSpan, "Expected chat span")
 
 	// Streaming should also capture response ID from StreamEndEvent
-	assertHasAttribute(t, chatSpan.Attributes, pluginotel.AttrGenAIResponseID, "resp-456")
+	assertHasAttribute(t, chatSpan.Attributes, "gen_ai.response.id", "resp-456")
 }
 
 func TestTracingInterceptor_InterceptToolExecution(t *testing.T) {
@@ -357,9 +357,9 @@ func TestTracingInterceptor_InterceptToolExecution(t *testing.T) {
 	require.NotNil(t, toolSpan, "Expected execute_tool span")
 
 	// Check attributes use gen_ai.tool.* namespace
-	assertHasAttribute(t, toolSpan.Attributes, pluginotel.AttrGenAIOperationName, pluginotel.OperationToolCall)
-	assertHasAttribute(t, toolSpan.Attributes, pluginotel.AttrGenAIToolName, "get_weather")
-	assertHasAttribute(t, toolSpan.Attributes, pluginotel.AttrGenAIToolCallID, "tool-call-123")
+	assertHasAttribute(t, toolSpan.Attributes, "gen_ai.operation.name", "execute_tool")
+	assertHasAttribute(t, toolSpan.Attributes, "gen_ai.tool.name", "get_weather")
+	assertHasAttribute(t, toolSpan.Attributes, "gen_ai.tool.call.id", "tool-call-123")
 
 	// Verify SpanKind is Internal for tool calls
 	assert.Equal(t, trace.SpanKindInternal, toolSpan.SpanKind)
@@ -413,7 +413,7 @@ func TestTracingInterceptor_InterceptToolExecution_WithRecordInputs(t *testing.T
 	require.NotNil(t, toolSpan)
 
 	// With recordInputs=true, arguments should be recorded as span attribute (not event)
-	assertHasAttribute(t, toolSpan.Attributes, pluginotel.AttrGenAIToolCallArguments, `{"city": "Seattle"}`)
+	assertHasAttribute(t, toolSpan.Attributes, "gen_ai.tool.call.arguments", `{"city": "Seattle"}`)
 }
 
 //nolint:dupl // Similar to WithRecordInputs test but tests different functionality
@@ -464,7 +464,7 @@ func TestTracingInterceptor_InterceptToolExecution_WithRecordOutputs(t *testing.
 	require.NotNil(t, toolSpan)
 
 	// With recordOutputs=true, result should be recorded as span attribute (not event)
-	assertHasAttribute(t, toolSpan.Attributes, pluginotel.AttrGenAIToolCallResult, `{"temperature":"72F","conditions":"sunny"}`)
+	assertHasAttribute(t, toolSpan.Attributes, "gen_ai.tool.call.result", `{"temperature":"72F","conditions":"sunny"}`)
 }
 
 func TestTracingInterceptor_InterceptToolExecution_Error(t *testing.T) {
@@ -643,11 +643,11 @@ func TestTracingInterceptor_ContentRecording(t *testing.T) {
 	var hasPromptEvent, hasCompletionEvent bool
 
 	for _, evt := range chatSpan.Events {
-		if evt.Name == pluginotel.EventGenAIContentPrompt {
+		if evt.Name == "gen_ai.content.prompt" {
 			hasPromptEvent = true
 		}
 
-		if evt.Name == pluginotel.EventGenAIContentCompletion {
+		if evt.Name == "gen_ai.content.completion" {
 			hasCompletionEvent = true
 		}
 	}

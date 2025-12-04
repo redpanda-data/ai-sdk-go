@@ -14,88 +14,54 @@ import (
 )
 
 // Attribute keys following OpenTelemetry Gen AI semantic conventions.
+// These constants are used internally by the plugin to populate standard attributes.
+// External users should use AttributeInjector for custom attributes only.
+//
 // See: https://opentelemetry.io/docs/specs/semconv/gen-ai/
 const (
-	// AttrGenAIOperationName is the operation name attribute.
-	AttrGenAIOperationName = "gen_ai.operation.name"
-	// AttrGenAIProviderName is the provider name (gen_ai.provider.name).
-	AttrGenAIProviderName = "gen_ai.provider.name"
-
-	// AttrGenAIAgentName is the agent name.
-	AttrGenAIAgentName = "gen_ai.agent.name"
-	// AttrGenAIAgentDescription is the agent description.
-	AttrGenAIAgentDescription = "gen_ai.agent.description"
-	// AttrGenAIConversationID is the conversation/session identifier.
-	AttrGenAIConversationID = "gen_ai.conversation.id"
-	// AttrGenAISystemInstructions is the system instructions/prompt.
-	AttrGenAISystemInstructions = "gen_ai.system_instructions"
-
-	// AttrGenAIRequestModel is the requested model name.
-	AttrGenAIRequestModel = "gen_ai.request.model"
-
-	// AttrGenAIResponseID is the response identifier.
-	AttrGenAIResponseID = "gen_ai.response.id"
-	// AttrGenAIResponseFinishReasons is the finish reasons.
-	AttrGenAIResponseFinishReasons = "gen_ai.response.finish_reasons"
-
-	// AttrGenAIUsageInputTokens is the input token count.
-	AttrGenAIUsageInputTokens = "gen_ai.usage.input_tokens" //nolint:gosec // Not a credential
-	// AttrGenAIUsageOutputTokens is the output token count.
-	AttrGenAIUsageOutputTokens = "gen_ai.usage.output_tokens" //nolint:gosec // Not a credential
-
-	// AttrGenAIToolName is the tool name (gen_ai.tool.name).
-	AttrGenAIToolName = "gen_ai.tool.name"
-	// AttrGenAIToolCallID is the tool call identifier (gen_ai.tool.call.id).
-	AttrGenAIToolCallID = "gen_ai.tool.call.id"
-	// AttrGenAIToolCallArguments is the tool call arguments (gen_ai.tool.call.arguments).
-	AttrGenAIToolCallArguments = "gen_ai.tool.call.arguments"
-	// AttrGenAIToolCallResult is the tool call result (gen_ai.tool.call.result).
-	AttrGenAIToolCallResult = "gen_ai.tool.call.result"
-
-	// AttrToolArgumentsSize is the size of tool arguments in bytes (vendor attribute).
-	// This is a vendor-specific attribute prefixed with "redpanda" to avoid collisions.
-	AttrToolArgumentsSize = "redpanda.tool.arguments.size"
-	// AttrToolResultSize is the size of tool result in bytes (vendor attribute).
-	AttrToolResultSize = "redpanda.tool.result.size"
-	// AttrToolExecutionDuration is the tool execution time in milliseconds (vendor attribute).
-	AttrToolExecutionDuration = "redpanda.tool.execution.duration"
-	// AttrToolResultAvailable indicates whether a tool result was returned (vendor attribute).
-	AttrToolResultAvailable = "redpanda.tool.result.available"
-
-	// AttrErrorType is the error type attribute (standard OTel).
-	AttrErrorType = "error.type"
+	attrGenAIOperationName         = "gen_ai.operation.name"
+	attrGenAIProviderName          = "gen_ai.provider.name"
+	attrGenAIAgentName             = "gen_ai.agent.name"
+	attrGenAIAgentDescription      = "gen_ai.agent.description"
+	attrGenAIConversationID        = "gen_ai.conversation.id"
+	attrGenAISystemInstructions    = "gen_ai.system_instructions"
+	attrGenAIRequestModel          = "gen_ai.request.model"
+	attrGenAIResponseID            = "gen_ai.response.id"
+	attrGenAIResponseFinishReasons = "gen_ai.response.finish_reasons"
+	attrGenAIUsageInputTokens      = "gen_ai.usage.input_tokens"  //nolint:gosec // Not a credential
+	attrGenAIUsageOutputTokens     = "gen_ai.usage.output_tokens" //nolint:gosec // Not a credential
+	attrGenAIToolName              = "gen_ai.tool.name"
+	attrGenAIToolCallID            = "gen_ai.tool.call.id"
+	attrGenAIToolCallArguments     = "gen_ai.tool.call.arguments"
+	attrGenAIToolCallResult        = "gen_ai.tool.call.result"
+	attrToolArgumentsSize          = "redpanda.tool.arguments.size"
+	attrToolResultSize             = "redpanda.tool.result.size"
+	attrToolExecutionDuration      = "redpanda.tool.execution.duration"
+	attrToolResultAvailable        = "redpanda.tool.result.available"
+	attrErrorType                  = "error.type"
 )
 
 // Span name prefixes following OTel GenAI semantic conventions.
 // Actual span names include additional context (e.g., "chat gpt-4o", "execute_tool get_weather").
+// These are internal constants used by the plugin for span naming.
 // See: https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-agent-spans/
 const (
-	// SpanNameAgent is the base span name for agent operations (actual: "invoke_agent {agent_name}").
-	SpanNameAgent = "gen_ai.agent"
-
-	// SpanNameChat is the base span name for LLM chat completion (actual: "chat {model_name}").
-	SpanNameChat = "gen_ai.chat"
-
-	// SpanNameToolCall is the base span name for tool execution (actual: "execute_tool {tool_name}").
-	SpanNameToolCall = "gen_ai.tool"
+	spanNameAgent    = "gen_ai.agent"
+	spanNameChat     = "gen_ai.chat"
+	spanNameToolCall = "gen_ai.tool"
 )
 
 // Operation names for gen_ai.operation.name attribute.
+// These are internal constants used by the plugin.
 const (
-	// OperationInvokeAgent is the operation name for agent invocation.
-	OperationInvokeAgent = "invoke_agent"
-	// OperationChat is the operation name for chat completion.
-	OperationChat = "chat"
-	// OperationToolCall is the operation name for tool execution.
-	OperationToolCall = "execute_tool"
+	operationInvokeAgent = "invoke_agent"
+	operationChat        = "chat"
+	operationToolCall    = "execute_tool"
 )
 
-// Metadata keys used for span propagation via InvocationMetadata.
-const (
-	// MetadataKeyInvocationSpan stores the root invocation span for later retrieval.
-	// We store only the span (not context) and use trace.ContextWithSpan for re-parenting.
-	MetadataKeyInvocationSpan = "otel.invocation.span"
-)
+// Metadata key for span propagation via InvocationMetadata.
+// This is an internal constant - users should never access this directly.
+const metadataKeyInvocationSpan = "otel.invocation.span"
 
 // SpanType identifies the category of the operation being traced.
 type SpanType string
@@ -176,112 +142,92 @@ type AttributeInjector func(ctx context.Context, spanCtx SpanContext) []attribut
 // Event names for model content recording following OTel GenAI conventions.
 // Note: These are used for model inference operations only. Tool inputs/outputs
 // are recorded as span attributes (gen_ai.tool.call.arguments, gen_ai.tool.call.result).
+// These are internal constants used by the plugin.
 // See: https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-events/
 const (
-	// EventGenAIContentPrompt is the event name for recording model prompt content.
-	EventGenAIContentPrompt = "gen_ai.content.prompt"
-	// EventGenAIContentCompletion is the event name for recording model completion content.
-	EventGenAIContentCompletion = "gen_ai.content.completion"
+	eventGenAIContentPrompt     = "gen_ai.content.prompt"
+	eventGenAIContentCompletion = "gen_ai.content.completion"
 )
 
-// Helper functions to create typed attributes.
+// Helper functions create typed attributes for internal use.
+// These ensure correct attribute types (String vs Int vs Slice) according to OTel conventions.
 
-// GenAIOperationName creates a gen_ai.operation.name attribute.
-func GenAIOperationName(op string) attribute.KeyValue {
-	return attribute.String(AttrGenAIOperationName, op)
+func genAIOperationName(op string) attribute.KeyValue {
+	return attribute.String(attrGenAIOperationName, op)
 }
 
-// GenAIProviderName creates a gen_ai.provider.name attribute.
-func GenAIProviderName(name string) attribute.KeyValue {
-	return attribute.String(AttrGenAIProviderName, name)
+func genAIProviderName(name string) attribute.KeyValue {
+	return attribute.String(attrGenAIProviderName, name)
 }
 
-// GenAIAgentName creates a gen_ai.agent.name attribute.
-func GenAIAgentName(name string) attribute.KeyValue {
-	return attribute.String(AttrGenAIAgentName, name)
+func genAIAgentName(name string) attribute.KeyValue {
+	return attribute.String(attrGenAIAgentName, name)
 }
 
-// GenAIAgentDescription creates a gen_ai.agent.description attribute.
-func GenAIAgentDescription(description string) attribute.KeyValue {
-	return attribute.String(AttrGenAIAgentDescription, description)
+func genAIAgentDescription(description string) attribute.KeyValue {
+	return attribute.String(attrGenAIAgentDescription, description)
 }
 
-// GenAISystemInstructions creates a gen_ai.system_instructions attribute.
-func GenAISystemInstructions(instructions string) attribute.KeyValue {
-	return attribute.String(AttrGenAISystemInstructions, instructions)
+func genAISystemInstructions(instructions string) attribute.KeyValue {
+	return attribute.String(attrGenAISystemInstructions, instructions)
 }
 
-// GenAIConversationID creates a gen_ai.conversation.id attribute.
-func GenAIConversationID(id string) attribute.KeyValue {
-	return attribute.String(AttrGenAIConversationID, id)
+func genAIConversationID(id string) attribute.KeyValue {
+	return attribute.String(attrGenAIConversationID, id)
 }
 
-// GenAIRequestModel creates a gen_ai.request.model attribute.
-func GenAIRequestModel(model string) attribute.KeyValue {
-	return attribute.String(AttrGenAIRequestModel, model)
+func genAIRequestModel(model string) attribute.KeyValue {
+	return attribute.String(attrGenAIRequestModel, model)
 }
 
-// GenAIResponseID creates a gen_ai.response.id attribute.
-func GenAIResponseID(id string) attribute.KeyValue {
-	return attribute.String(AttrGenAIResponseID, id)
+func genAIResponseID(id string) attribute.KeyValue {
+	return attribute.String(attrGenAIResponseID, id)
 }
 
-// GenAIResponseFinishReasons creates a gen_ai.response.finish_reasons attribute.
-func GenAIResponseFinishReasons(reasons ...string) attribute.KeyValue {
-	return attribute.StringSlice(AttrGenAIResponseFinishReasons, reasons)
+func genAIResponseFinishReasons(reasons ...string) attribute.KeyValue {
+	return attribute.StringSlice(attrGenAIResponseFinishReasons, reasons)
 }
 
-// GenAIUsageInputTokens creates a gen_ai.usage.input_tokens attribute.
-func GenAIUsageInputTokens(tokens int) attribute.KeyValue {
-	return attribute.Int(AttrGenAIUsageInputTokens, tokens)
+func genAIUsageInputTokens(tokens int) attribute.KeyValue {
+	return attribute.Int(attrGenAIUsageInputTokens, tokens)
 }
 
-// GenAIUsageOutputTokens creates a gen_ai.usage.output_tokens attribute.
-func GenAIUsageOutputTokens(tokens int) attribute.KeyValue {
-	return attribute.Int(AttrGenAIUsageOutputTokens, tokens)
+func genAIUsageOutputTokens(tokens int) attribute.KeyValue {
+	return attribute.Int(attrGenAIUsageOutputTokens, tokens)
 }
 
-// GenAIToolName creates a gen_ai.tool.name attribute.
-func GenAIToolName(name string) attribute.KeyValue {
-	return attribute.String(AttrGenAIToolName, name)
+func genAIToolName(name string) attribute.KeyValue {
+	return attribute.String(attrGenAIToolName, name)
 }
 
-// GenAIToolCallID creates a gen_ai.tool.call_id attribute.
-func GenAIToolCallID(id string) attribute.KeyValue {
-	return attribute.String(AttrGenAIToolCallID, id)
+func genAIToolCallID(id string) attribute.KeyValue {
+	return attribute.String(attrGenAIToolCallID, id)
 }
 
-// GenAIToolCallArguments creates a gen_ai.tool.call.arguments attribute.
-func GenAIToolCallArguments(args string) attribute.KeyValue {
-	return attribute.String(AttrGenAIToolCallArguments, args)
+func genAIToolCallArguments(args string) attribute.KeyValue {
+	return attribute.String(attrGenAIToolCallArguments, args)
 }
 
-// GenAIToolCallResult creates a gen_ai.tool.call.result attribute.
-func GenAIToolCallResult(result string) attribute.KeyValue {
-	return attribute.String(AttrGenAIToolCallResult, result)
+func genAIToolCallResult(result string) attribute.KeyValue {
+	return attribute.String(attrGenAIToolCallResult, result)
 }
 
-// ErrorType creates an error.type attribute.
-func ErrorType(errType string) attribute.KeyValue {
-	return attribute.String(AttrErrorType, errType)
+func errorType(errType string) attribute.KeyValue {
+	return attribute.String(attrErrorType, errType)
 }
 
-// ToolArgumentsSize creates a tool.arguments.size attribute.
-func ToolArgumentsSize(size int) attribute.KeyValue {
-	return attribute.Int(AttrToolArgumentsSize, size)
+func toolArgumentsSize(size int) attribute.KeyValue {
+	return attribute.Int(attrToolArgumentsSize, size)
 }
 
-// ToolResultSize creates a tool.result.size attribute.
-func ToolResultSize(size int) attribute.KeyValue {
-	return attribute.Int(AttrToolResultSize, size)
+func toolResultSize(size int) attribute.KeyValue {
+	return attribute.Int(attrToolResultSize, size)
 }
 
-// ToolExecutionDuration creates a tool.execution.duration attribute (in milliseconds).
-func ToolExecutionDuration(durationMs int64) attribute.KeyValue {
-	return attribute.Int64(AttrToolExecutionDuration, durationMs)
+func toolExecutionDuration(durationMs int64) attribute.KeyValue {
+	return attribute.Int64(attrToolExecutionDuration, durationMs)
 }
 
-// ToolResultAvailable creates a tool.result.available attribute.
-func ToolResultAvailable(available bool) attribute.KeyValue {
-	return attribute.Bool(AttrToolResultAvailable, available)
+func toolResultAvailable(available bool) attribute.KeyValue {
+	return attribute.Bool(attrToolResultAvailable, available)
 }

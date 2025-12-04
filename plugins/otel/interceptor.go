@@ -123,7 +123,7 @@ func (t *TracingInterceptor) withInvocationSpan(
 	if inv.Turn() == 0 {
 		ctx, span := t.startInvocationSpan(ctx, inv)
 		// Store only the span (not context) for later retrieval
-		inv.SetMetadata(MetadataKeyInvocationSpan, span)
+		inv.SetMetadata(metadataKeyInvocationSpan, span)
 
 		return ctx
 	}
@@ -143,27 +143,27 @@ func (t *TracingInterceptor) startInvocationSpan(
 	inv *agent.InvocationMetadata,
 ) (context.Context, trace.Span) {
 	attrs := []attribute.KeyValue{
-		GenAIOperationName(OperationInvokeAgent),
+		genAIOperationName(operationInvokeAgent),
 	}
 
 	session := inv.Session()
 	if session != nil {
 		if session.ID != "" {
-			attrs = append(attrs, GenAIConversationID(session.ID))
+			attrs = append(attrs, genAIConversationID(session.ID))
 		}
 
 		if systemPrompt := extractSystemPrompt(session.Messages); systemPrompt != "" {
-			attrs = append(attrs, GenAISystemInstructions(systemPrompt))
+			attrs = append(attrs, genAISystemInstructions(systemPrompt))
 		}
 	}
 
 	agentSnap := inv.Agent()
 	if agentSnap.Name != "" {
-		attrs = append(attrs, GenAIAgentName(agentSnap.Name))
+		attrs = append(attrs, genAIAgentName(agentSnap.Name))
 	}
 
 	if agentSnap.Description != "" {
-		attrs = append(attrs, GenAIAgentDescription(agentSnap.Description))
+		attrs = append(attrs, genAIAgentDescription(agentSnap.Description))
 	}
 
 	// Build span name following OTel convention: "invoke_agent {gen_ai.agent.name}"
@@ -202,7 +202,7 @@ func (t *TracingInterceptor) startInvocationSpan(
 
 // getInvocationSpan retrieves the invocation span from metadata.
 func getInvocationSpan(inv *agent.InvocationMetadata) (trace.Span, bool) {
-	span, ok := inv.GetMetadata(MetadataKeyInvocationSpan).(trace.Span)
+	span, ok := inv.GetMetadata(metadataKeyInvocationSpan).(trace.Span)
 	return span, ok
 }
 
@@ -216,8 +216,8 @@ func (t *TracingInterceptor) endInvocationSpan(inv *agent.InvocationMetadata, er
 	// Add final usage stats to invocation span
 	usage := inv.TotalUsage()
 	span.SetAttributes(
-		GenAIUsageInputTokens(usage.InputTokens),
-		GenAIUsageOutputTokens(usage.OutputTokens),
+		genAIUsageInputTokens(usage.InputTokens),
+		genAIUsageOutputTokens(usage.OutputTokens),
 	)
 
 	setSpanError(span, err)
