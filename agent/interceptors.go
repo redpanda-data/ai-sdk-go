@@ -120,8 +120,8 @@ type ModelCallHandler interface {
 // ModelCallInfo contains context for model call interception.
 // New fields can be added without breaking existing interceptor implementations.
 type ModelCallInfo struct {
-	// Inv provides invocation metadata (session, turn, usage, custom metadata).
-	Inv *InvocationMetadata
+	// InvocationMetadata provides invocation metadata (session, turn, usage, custom metadata).
+	InvocationMetadata *InvocationMetadata
 
 	// Model provides read-only access to model identity (Name, Capabilities, Constraints).
 	// Use this for observability (e.g., OTel span attributes) or routing decisions.

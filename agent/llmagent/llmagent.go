@@ -224,9 +224,9 @@ func (a *LLMAgent) executeSingleTurn(
 	// Apply model interceptors for this request
 	// This wraps the models Generate/GenerateEvents with interceptor logic
 	modelInfo := &agent.ModelCallInfo{
-		Inv:   inv,
-		Model: a.config.model,
-		Req:   req,
+		InvocationMetadata: inv,
+		Model:              a.config.model,
+		Req:                req,
 	}
 	model := agent.ApplyModelInterceptors(ctx, modelInfo, a.config.model, a.config.interceptors)
 

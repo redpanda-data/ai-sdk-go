@@ -21,7 +21,7 @@ func (t *TracingInterceptor) InterceptModel(
 	// Pass the context through - it already has the invocation span as parent
 	// from InterceptTurn calling next(ctx, info)
 	convID := ""
-	if session := info.Inv.Session(); session != nil {
+	if session := info.InvocationMetadata.Session(); session != nil {
 		convID = session.ID
 	}
 
@@ -31,7 +31,7 @@ func (t *TracingInterceptor) InterceptModel(
 		next:      next,
 		modelInfo: info.Model, // Capture model info for span attributes
 		convID:    convID,
-		inv:       info.Inv, // Capture invocation metadata for attribute injection
+		inv:       info.InvocationMetadata, // Capture invocation metadata for attribute injection
 	}
 }
 

@@ -222,9 +222,9 @@ func TestTracingInterceptor_InterceptModel_Generate(t *testing.T) {
 	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
 		// Within turn, intercept model call
 		modelInfo := &agent.ModelCallInfo{
-			Inv:   inv,
-			Model: &mockModelInfo{name: "gpt-4", provider: "openai"},
-			Req:   &llm.Request{},
+			InvocationMetadata: inv,
+			Model:              &mockModelInfo{name: "gpt-4", provider: "openai"},
+			Req:                &llm.Request{},
 		}
 		handler := interceptor.InterceptModel(ctx, modelInfo, &mockModelHandler{})
 		resp, err := handler.Generate(ctx, &llm.Request{})
@@ -277,9 +277,9 @@ func TestTracingInterceptor_InterceptModel_GenerateEvents(t *testing.T) {
 
 	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
 		modelInfo := &agent.ModelCallInfo{
-			Inv:   inv,
-			Model: &mockModelInfo{name: "test-model", provider: "test"},
-			Req:   &llm.Request{},
+			InvocationMetadata: inv,
+			Model:              &mockModelInfo{name: "test-model", provider: "test"},
+			Req:                &llm.Request{},
 		}
 		handler := interceptor.InterceptModel(ctx, modelInfo, &mockModelHandler{})
 
@@ -533,9 +533,9 @@ func TestTracingInterceptor_SpanHierarchy(t *testing.T) {
 	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
 		// Model call
 		modelInfo := &agent.ModelCallInfo{
-			Inv:   inv,
-			Model: &mockModelInfo{name: "test-model", provider: "test"},
-			Req:   &llm.Request{},
+			InvocationMetadata: inv,
+			Model:              &mockModelInfo{name: "test-model", provider: "test"},
+			Req:                &llm.Request{},
 		}
 		handler := interceptor.InterceptModel(ctx, modelInfo, &mockModelHandler{})
 		_, _ = handler.Generate(ctx, &llm.Request{})
@@ -616,9 +616,9 @@ func TestTracingInterceptor_ContentRecording(t *testing.T) {
 			},
 		}
 		modelInfo := &agent.ModelCallInfo{
-			Inv:   inv,
-			Model: &mockModelInfo{name: "test-model", provider: "test"},
-			Req:   req,
+			InvocationMetadata: inv,
+			Model:              &mockModelInfo{name: "test-model", provider: "test"},
+			Req:                req,
 		}
 		handler := interceptor.InterceptModel(ctx, modelInfo, &mockModelHandler{})
 		_, _ = handler.Generate(ctx, req)
@@ -680,9 +680,9 @@ func TestTracingInterceptor_ContextPropagation(t *testing.T) {
 
 	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
 		modelInfo := &agent.ModelCallInfo{
-			Inv:   inv,
-			Model: &mockModelInfo{name: "test-model", provider: "test"},
-			Req:   &llm.Request{},
+			InvocationMetadata: inv,
+			Model:              &mockModelInfo{name: "test-model", provider: "test"},
+			Req:                &llm.Request{},
 		}
 		handler := interceptor.InterceptModel(ctx, modelInfo, &mockModelHandler{
 			generateFn: func(ctx context.Context, _ *llm.Request) (*llm.Response, error) {

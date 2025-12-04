@@ -134,7 +134,7 @@ func TestModelInterceptor_Ordering(t *testing.T) {
 	ctx := context.Background()
 	inv := agent.NewInvocationMetadata(&session.State{ID: "test"}, agent.Snapshot{})
 	req := newTestModelRequest()
-	modelInfo := &agent.ModelCallInfo{Inv: inv, Model: baseModel, Req: req}
+	modelInfo := &agent.ModelCallInfo{InvocationMetadata: inv, Model: baseModel, Req: req}
 
 	interceptedModel := agent.ApplyModelInterceptors(ctx, modelInfo, baseModel, interceptors)
 
@@ -250,7 +250,7 @@ func TestModelInterceptor_ShortCircuit(t *testing.T) {
 	ctx := context.Background()
 	inv := agent.NewInvocationMetadata(&session.State{ID: "test"}, agent.Snapshot{})
 	req := newTestModelRequest()
-	modelInfo := &agent.ModelCallInfo{Inv: inv, Model: baseModel, Req: req}
+	modelInfo := &agent.ModelCallInfo{InvocationMetadata: inv, Model: baseModel, Req: req}
 
 	interceptedModel := agent.ApplyModelInterceptors(ctx, modelInfo, baseModel, []agent.Interceptor{cacheInterceptor})
 
@@ -384,7 +384,7 @@ func TestModelInterceptor_ErrorPropagation(t *testing.T) {
 			ctx := context.Background()
 			inv := agent.NewInvocationMetadata(&session.State{ID: "test"}, agent.Snapshot{})
 			req := newTestModelRequest()
-			modelInfo := &agent.ModelCallInfo{Inv: inv, Model: baseModel, Req: req}
+			modelInfo := &agent.ModelCallInfo{InvocationMetadata: inv, Model: baseModel, Req: req}
 
 			interceptedModel := agent.ApplyModelInterceptors(ctx, modelInfo, baseModel, []agent.Interceptor{testInterceptor})
 
@@ -538,7 +538,7 @@ func TestModelInterceptor_ContextPropagation(t *testing.T) {
 	ctx := newCanceledContext()
 	inv := agent.NewInvocationMetadata(&session.State{ID: "test"}, agent.Snapshot{})
 	req := newTestModelRequest()
-	modelInfo := &agent.ModelCallInfo{Inv: inv, Model: baseModel, Req: req}
+	modelInfo := &agent.ModelCallInfo{InvocationMetadata: inv, Model: baseModel, Req: req}
 
 	interceptedModel := agent.ApplyModelInterceptors(ctx, modelInfo, baseModel, []agent.Interceptor{testInterceptor})
 
@@ -778,7 +778,7 @@ func TestEmptyInterceptors(t *testing.T) {
 		ctx := context.Background()
 		inv := agent.NewInvocationMetadata(&session.State{ID: "test"}, agent.Snapshot{})
 		req := newTestModelRequest()
-		modelInfo := &agent.ModelCallInfo{Inv: inv, Model: baseModel, Req: req}
+		modelInfo := &agent.ModelCallInfo{InvocationMetadata: inv, Model: baseModel, Req: req}
 
 		// Apply with empty interceptors list
 		interceptedModel := agent.ApplyModelInterceptors(ctx, modelInfo, baseModel, []agent.Interceptor{})

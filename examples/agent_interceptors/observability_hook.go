@@ -61,8 +61,8 @@ func (h *observabilityModelHandler) Generate(ctx context.Context, req *llm.Reque
 		callNum,
 		h.modelInfo.Model.Name(),
 		h.modelInfo.Model.Provider(),
-		h.modelInfo.Inv.Session().ID,
-		h.modelInfo.Inv.Turn(),
+		h.modelInfo.InvocationMetadata.Session().ID,
+		h.modelInfo.InvocationMetadata.Turn(),
 		len(h.modelInfo.Req.Messages))
 
 	resp, err := h.next.Generate(ctx, req)
@@ -94,8 +94,8 @@ func (h *observabilityModelHandler) GenerateEvents(ctx context.Context, req *llm
 		callNum,
 		h.modelInfo.Model.Name(),
 		h.modelInfo.Model.Provider(),
-		h.modelInfo.Inv.Session().ID,
-		h.modelInfo.Inv.Turn(),
+		h.modelInfo.InvocationMetadata.Session().ID,
+		h.modelInfo.InvocationMetadata.Turn(),
 		len(h.modelInfo.Req.Messages))
 
 	return func(yield func(llm.Event, error) bool) {
