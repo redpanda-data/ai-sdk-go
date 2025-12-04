@@ -37,15 +37,15 @@ import (
 //
 //	func (t *ToolLogger) InterceptToolExecution(
 //	    ctx context.Context,
-//	    req *llm.ToolRequest,
+//	    info *agent.ToolCallInfo,
 //	    next agent.ToolExecutionNext,
 //	) (*llm.ToolResponse, error) {
-//	    t.logger.Info("tool starting", "name", req.Name, "id", req.ID)
-//	    resp, err := next(ctx, req)
+//	    t.logger.Info("tool starting", "name", info.Req.Name, "id", info.Req.ID)
+//	    resp, err := next(ctx, info)
 //	    if err != nil {
-//	        t.logger.Error("tool failed", "name", req.Name, "error", err)
+//	        t.logger.Error("tool failed", "name", info.Req.Name, "error", err)
 //	    } else {
-//	        t.logger.Info("tool completed", "name", req.Name)
+//	        t.logger.Info("tool completed", "name", info.Req.Name)
 //	    }
 //	    return resp, err
 //	}
@@ -63,8 +63,15 @@ type Interceptor any
 
 // NOTE: When adding new interceptor interfaces, update ImplementsAnyInterceptor below.
 
+// TurnInfo contains context for turn interception.
+// New fields can be added without breaking existing interceptor implementations.
+type TurnInfo struct {
+	// Inv provides invocation metadata (session, turn, usage, custom metadata).
+	Inv *InvocationMetadata
+}
+
 // TurnNext is the continuation function for turn interception.
-type TurnNext func(ctx context.Context, inv *InvocationMetadata) (FinishReason, error)
+type TurnNext func(ctx context.Context, info *TurnInfo) (FinishReason, error)
 
 // TurnInterceptor intercepts individual turns in the agentic loop.
 //
@@ -88,15 +95,15 @@ type TurnInterceptor interface {
 	//
 	// Parameters:
 	//   - ctx: Standard Go context for cancellation, deadlines, and request-scoped values
-	//   - inv: Invocation metadata (session, turn, usage, metadata)
+	//   - info: Turn context (invocation metadata); new fields may be added in future versions
 	//   - next: Continuation function to call the next interceptor or the base turn execution
 	//
 	// Interceptors can:
 	//   - Derive a new context (e.g., add timeout) and pass it to next
-	//   - Read from inv (turn number, session, metadata set by previous interceptors)
-	//   - Write to inv.Metadata() to pass data to subsequent interceptors
-	//   - Modify inv.Session() (e.g., inject system messages) - use with caution
-	InterceptTurn(ctx context.Context, inv *InvocationMetadata, next TurnNext) (FinishReason, error)
+	//   - Read from info.Inv (turn number, session, metadata set by previous interceptors)
+	//   - Write to info.Inv.Metadata() to pass data to subsequent interceptors
+	//   - Modify info.Inv.Session() (e.g., inject system messages) - use with caution
+	InterceptTurn(ctx context.Context, info *TurnInfo, next TurnNext) (FinishReason, error)
 }
 
 // ModelCallHandler represents the behavioral surface of an LLM model, separating
@@ -108,6 +115,20 @@ type TurnInterceptor interface {
 type ModelCallHandler interface {
 	llm.Generator       // Generate(ctx context.Context, req *Request) (*Response, error)
 	llm.EventsGenerator // GenerateEvents(ctx context.Context, req *Request) iter.Seq2[Event, error]
+}
+
+// ModelCallInfo contains context for model call interception.
+// New fields can be added without breaking existing interceptor implementations.
+type ModelCallInfo struct {
+	// InvocationMetadata provides invocation metadata (session, turn, usage, custom metadata).
+	InvocationMetadata *InvocationMetadata
+
+	// Model provides read-only access to model identity (Name, Capabilities, Constraints).
+	// Use this for observability (e.g., OTel span attributes) or routing decisions.
+	Model llm.ModelInfo
+
+	// Req is the LLM request to be sent to the model.
+	Req *llm.Request
 }
 
 // ModelInterceptor intercepts LLM API calls for both synchronous and streaming generation.
@@ -123,17 +144,17 @@ type ModelCallHandler interface {
 //   - Request Validation: Validate before either path
 //   - Dynamic Routing: Choose model based on request
 //   - A/B Testing: Modify prompts or route to different models
+//   - Observability: Access model name/capabilities for tracing attributes
 type ModelInterceptor interface {
 	// InterceptModel wraps the model's generation behavior.
 	//
-	// The interceptor receives a ModelCallHandler (just Generate/GenerateEvents)
+	// The interceptor receives model call context and a ModelCallHandler (just Generate/GenerateEvents)
 	// and returns a wrapped version that implements both methods. The framework
 	// handles combining the wrapped handler with the original model metadata.
 	//
 	// Parameters:
 	//   - ctx: Standard Go context for cancellation, deadlines, and request-scoped values
-	//   - inv: Invocation metadata (session, turn, usage, metadata)
-	//   - req: The LLM request to be sent to the model
+	//   - info: Model call context (invocation, model identity, request); new fields may be added
 	//   - next: The next model handler in the chain
 	//
 	// The wrapper MUST implement both Generate() and GenerateEvents() to handle
@@ -141,17 +162,28 @@ type ModelInterceptor interface {
 	//
 	// The wrapper MAY:
 	//   - Share logic between Generate and GenerateEvents
-	//   - Modify requests before passing to next
+	//   - Modify info.Req before passing to next
 	//   - Transform responses/events after receiving from next
 	//   - Skip calling next entirely (e.g., cache hit)
 	//   - Call next multiple times (e.g., retries)
-	//   - Read from inv (turn number, session, metadata set by previous interceptors)
-	//   - Write to inv.Metadata() to pass data to subsequent interceptors
-	InterceptModel(ctx context.Context, inv *InvocationMetadata, req *llm.Request, next ModelCallHandler) ModelCallHandler
+	//   - Read from info.Inv (turn number, session, metadata set by previous interceptors)
+	//   - Write to info.Inv.Metadata() to pass data to subsequent interceptors
+	//   - Read info.Model.Name(), info.Model.Capabilities() for observability/routing
+	InterceptModel(ctx context.Context, info *ModelCallInfo, next ModelCallHandler) ModelCallHandler
+}
+
+// ToolCallInfo contains context for tool execution interception.
+// New fields can be added without breaking existing interceptor implementations.
+type ToolCallInfo struct {
+	// Inv provides invocation metadata (session, turn, usage, custom metadata).
+	Inv *InvocationMetadata
+
+	// Req is the tool request from the LLM.
+	Req *llm.ToolRequest
 }
 
 // ToolExecutionNext is the continuation function for tool execution interception.
-type ToolExecutionNext func(ctx context.Context, inv *InvocationMetadata, req *llm.ToolRequest) (*llm.ToolResponse, error)
+type ToolExecutionNext func(ctx context.Context, info *ToolCallInfo) (*llm.ToolResponse, error)
 
 // ToolInterceptor intercepts tool executions.
 //
@@ -176,23 +208,22 @@ type ToolInterceptor interface {
 	//
 	// Parameters:
 	//   - ctx: Standard Go context for cancellation, deadlines, and request-scoped values
-	//   - inv: Invocation metadata (session, turn, usage, metadata)
-	//   - req: The tool request from the LLM
+	//   - info: Tool call context (invocation metadata, tool request); new fields may be added
 	//   - next: Continuation function to call the next interceptor or the base tool execution
 	//
 	// You can:
-	//   - Modify req before passing to next
+	//   - Modify info.Req before passing to next
 	//   - Skip calling next (e.g., deny execution, return mock result)
 	//   - Call next multiple times (e.g., retries)
 	//   - Transform the response after next returns
-	//   - Read from inv (turn number, session, metadata set by previous interceptors)
-	//   - Write to inv.Metadata() to pass data to subsequent interceptors
+	//   - Read from info.Inv (turn number, session, metadata set by previous interceptors)
+	//   - Write to info.Inv.Metadata() to pass data to subsequent interceptors
 	//
 	// Tool execution errors are not terminal - they are sent to the LLM as tool errors.
 	// Return an error to indicate the tool failed; the error message will be sent to the LLM.
 	//
 	// IMPORTANT: Always pass ctx (or a child context) to next, never context.Background().
-	InterceptToolExecution(ctx context.Context, inv *InvocationMetadata, req *llm.ToolRequest, next ToolExecutionNext) (*llm.ToolResponse, error)
+	InterceptToolExecution(ctx context.Context, info *ToolCallInfo, next ToolExecutionNext) (*llm.ToolResponse, error)
 }
 
 // ImplementsAnyInterceptor checks if interceptor i implements at least one interceptor interface.
@@ -216,8 +247,7 @@ func ImplementsAnyInterceptor(i Interceptor) bool {
 // Returns the base model unchanged if no ModelInterceptor interceptors are present.
 func ApplyModelInterceptors(
 	ctx context.Context,
-	inv *InvocationMetadata,
-	req *llm.Request,
+	info *ModelCallInfo,
 	base llm.Model,
 	interceptors []Interceptor,
 ) llm.Model {
@@ -229,7 +259,7 @@ func ApplyModelInterceptors(
 		if ic, ok := interceptors[i].(ModelInterceptor); ok {
 			next := handler
 
-			handler = ic.InterceptModel(ctx, inv, req, next)
+			handler = ic.InterceptModel(ctx, info, next)
 		}
 	}
 
@@ -284,8 +314,8 @@ func ApplyTurnInterceptors(
 			ic := interceptor
 
 			// Create a wrapper that calls the interceptor
-			turnFunc = func(ctx context.Context, inv *InvocationMetadata) (FinishReason, error) {
-				return ic.InterceptTurn(ctx, inv, next)
+			turnFunc = func(ctx context.Context, info *TurnInfo) (FinishReason, error) {
+				return ic.InterceptTurn(ctx, info, next)
 			}
 		}
 	}
@@ -312,8 +342,8 @@ func ApplyToolInterceptors(
 			ic := interceptor
 
 			// Create a wrapper that calls the interceptor
-			executor = func(ctx context.Context, inv *InvocationMetadata, req *llm.ToolRequest) (*llm.ToolResponse, error) {
-				return ic.InterceptToolExecution(ctx, inv, req, next)
+			executor = func(ctx context.Context, info *ToolCallInfo) (*llm.ToolResponse, error) {
+				return ic.InterceptToolExecution(ctx, info, next)
 			}
 		}
 	}

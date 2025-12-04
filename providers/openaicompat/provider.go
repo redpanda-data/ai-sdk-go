@@ -18,7 +18,18 @@ type Provider struct {
 	BaseURL    string
 	HTTPClient *http.Client
 	Timeout    time.Duration
+	name       string // Provider name for observability (e.g., "deepseek", "together")
 	client     *openai.Client
+}
+
+// Name returns the provider identifier.
+// Returns the configured name, or "openaicompat" if not set.
+func (p *Provider) Name() string {
+	if p.name != "" {
+		return p.name
+	}
+
+	return "openaicompat"
 }
 
 // ProviderOption configures a Provider instance using functional options.
@@ -81,6 +92,16 @@ func WithHTTPClient(client *http.Client) ProviderOption {
 
 		p.HTTPClient = client
 
+		return nil
+	}
+}
+
+// WithProviderName sets the provider name for observability and identification.
+// This is useful when using openaicompat with different providers (e.g., "deepseek", "together").
+// If not set, defaults to "openaicompat".
+func WithProviderName(name string) ProviderOption {
+	return func(p *Provider) error {
+		p.name = name
 		return nil
 	}
 }

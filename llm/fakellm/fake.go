@@ -207,6 +207,11 @@ func (m *FakeModel) Name() string {
 	return m.name
 }
 
+// Provider returns the provider name.
+func (m *FakeModel) Provider() string {
+	return "fakellm"
+}
+
 // Capabilities returns the model's supported features.
 func (m *FakeModel) Capabilities() llm.ModelCapabilities {
 	return m.caps

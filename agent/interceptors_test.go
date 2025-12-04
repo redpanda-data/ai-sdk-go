@@ -69,8 +69,8 @@ func newCanceledContext() context.Context {
 func newOrderingModelInterceptor(name string, recorder *orderRecorder) *testModelInterceptor {
 	return &testModelInterceptor{
 		name: name,
-		//nolint:revive // ctx and req are used in nested closures
-		intercept: func(ctx context.Context, inv *agent.InvocationMetadata, req *llm.Request, next agent.ModelCallHandler) agent.ModelCallHandler {
+		//nolint:revive // ctx and info are used in nested closures
+		intercept: func(ctx context.Context, info *agent.ModelCallInfo, next agent.ModelCallHandler) agent.ModelCallHandler {
 			return &testModelCallHandler{
 				generateFunc: func(ctx context.Context, req *llm.Request) (*llm.Response, error) {
 					recorder.record(name + "-before")
@@ -92,10 +92,10 @@ func newOrderingModelInterceptor(name string, recorder *orderRecorder) *testMode
 // newOrderingToolInterceptor creates a tool interceptor that records execution order.
 func newOrderingToolInterceptor(name string, recorder *orderRecorder) *testToolInterceptor {
 	return &testToolInterceptor{
-		intercept: func(ctx context.Context, inv *agent.InvocationMetadata, req *llm.ToolRequest, next agent.ToolExecutionNext) (*llm.ToolResponse, error) {
+		intercept: func(ctx context.Context, info *agent.ToolCallInfo, next agent.ToolExecutionNext) (*llm.ToolResponse, error) {
 			recorder.record(name + "-before")
 
-			resp, err := next(ctx, inv, req)
+			resp, err := next(ctx, info)
 
 			recorder.record(name + "-after")
 
@@ -132,10 +132,11 @@ func TestModelInterceptor_Ordering(t *testing.T) {
 	interceptors := []agent.Interceptor{interceptor1, interceptor2, interceptor3}
 
 	ctx := context.Background()
-	inv := agent.NewInvocationMetadata(&session.State{ID: "test"})
+	inv := agent.NewInvocationMetadata(&session.State{ID: "test"}, agent.Info{})
 	req := newTestModelRequest()
+	modelInfo := &agent.ModelCallInfo{InvocationMetadata: inv, Model: baseModel, Req: req}
 
-	interceptedModel := agent.ApplyModelInterceptors(ctx, inv, req, baseModel, interceptors)
+	interceptedModel := agent.ApplyModelInterceptors(ctx, modelInfo, baseModel, interceptors)
 
 	// Execute
 	_, err := interceptedModel.Generate(ctx, req)
@@ -167,12 +168,12 @@ func TestToolInterceptor_Ordering(t *testing.T) {
 	interceptor2 := newOrderingToolInterceptor("interceptor2", recorder)
 	interceptor3 := newOrderingToolInterceptor("interceptor3", recorder)
 
-	baseExecutor := func(_ context.Context, _ *agent.InvocationMetadata, req *llm.ToolRequest) (*llm.ToolResponse, error) {
+	baseExecutor := func(_ context.Context, info *agent.ToolCallInfo) (*llm.ToolResponse, error) {
 		recorder.record("base")
 
 		return &llm.ToolResponse{
-			ID:     req.ID,
-			Name:   req.Name,
+			ID:     info.Req.ID,
+			Name:   info.Req.Name,
 			Result: []byte(`"result"`),
 		}, nil
 	}
@@ -181,12 +182,12 @@ func TestToolInterceptor_Ordering(t *testing.T) {
 	interceptors := []agent.Interceptor{interceptor1, interceptor2, interceptor3}
 
 	ctx := context.Background()
-	inv := agent.NewInvocationMetadata(&session.State{ID: "test"})
+	inv := agent.NewInvocationMetadata(&session.State{ID: "test"}, agent.Info{})
 	executor := agent.ApplyToolInterceptors(interceptors, baseExecutor)
 
 	// Execute
 	req := newTestToolRequest()
-	_, err := executor(ctx, inv, req)
+	_, err := executor(ctx, &agent.ToolCallInfo{Inv: inv, Req: req})
 	require.NoError(t, err)
 
 	// Verify: first registered interceptor (interceptor1) should be outermost
@@ -216,7 +217,7 @@ func TestModelInterceptor_ShortCircuit(t *testing.T) {
 	// Cache interceptor that never calls next
 	cacheInterceptor := &testModelInterceptor{
 		name: "cache",
-		intercept: func(_ context.Context, _ *agent.InvocationMetadata, _ *llm.Request, _ agent.ModelCallHandler) agent.ModelCallHandler {
+		intercept: func(_ context.Context, _ *agent.ModelCallInfo, _ agent.ModelCallHandler) agent.ModelCallHandler {
 			return &testModelCallHandler{
 				generateFunc: func(_ context.Context, _ *llm.Request) (*llm.Response, error) {
 					// Return cached response without calling next
@@ -247,10 +248,11 @@ func TestModelInterceptor_ShortCircuit(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	inv := agent.NewInvocationMetadata(&session.State{ID: "test"})
+	inv := agent.NewInvocationMetadata(&session.State{ID: "test"}, agent.Info{})
 	req := newTestModelRequest()
+	modelInfo := &agent.ModelCallInfo{InvocationMetadata: inv, Model: baseModel, Req: req}
 
-	interceptedModel := agent.ApplyModelInterceptors(ctx, inv, req, baseModel, []agent.Interceptor{cacheInterceptor})
+	interceptedModel := agent.ApplyModelInterceptors(ctx, modelInfo, baseModel, []agent.Interceptor{cacheInterceptor})
 
 	// Execute
 	resp, err := interceptedModel.Generate(ctx, req)
@@ -270,34 +272,34 @@ func TestToolInterceptor_ShortCircuit(t *testing.T) {
 
 	// Authorization interceptor that denies execution
 	authInterceptor := &testToolInterceptor{
-		intercept: func(_ context.Context, _ *agent.InvocationMetadata, req *llm.ToolRequest, _ agent.ToolExecutionNext) (*llm.ToolResponse, error) {
+		intercept: func(_ context.Context, info *agent.ToolCallInfo, _ agent.ToolExecutionNext) (*llm.ToolResponse, error) {
 			// Return error without calling next
 			return &llm.ToolResponse{
-				ID:    req.ID,
-				Name:  req.Name,
+				ID:    info.Req.ID,
+				Name:  info.Req.Name,
 				Error: "execution denied by policy",
 			}, nil
 		},
 	}
 
-	baseExecutor := func(_ context.Context, _ *agent.InvocationMetadata, req *llm.ToolRequest) (*llm.ToolResponse, error) {
+	baseExecutor := func(_ context.Context, info *agent.ToolCallInfo) (*llm.ToolResponse, error) {
 		baseCalled.Store(true)
 
 		return &llm.ToolResponse{
-			ID:     req.ID,
-			Name:   req.Name,
+			ID:     info.Req.ID,
+			Name:   info.Req.Name,
 			Result: []byte(`"real result"`),
 		}, nil
 	}
 
 	ctx := context.Background()
-	inv := agent.NewInvocationMetadata(&session.State{ID: "test"})
+	inv := agent.NewInvocationMetadata(&session.State{ID: "test"}, agent.Info{})
 	executor := agent.ApplyToolInterceptors([]agent.Interceptor{authInterceptor}, baseExecutor)
 
 	// Execute
 	req := newTestToolRequest()
 	req.Name = "dangerous_tool"
-	resp, err := executor(ctx, inv, req)
+	resp, err := executor(ctx, &agent.ToolCallInfo{Inv: inv, Req: req})
 	require.NoError(t, err)
 
 	// Verify: base executor should NOT have been called
@@ -345,8 +347,8 @@ func TestModelInterceptor_ErrorPropagation(t *testing.T) {
 
 			testInterceptor := &testModelInterceptor{
 				name: "test",
-				//nolint:revive // ctx and req are used in nested closures
-				intercept: func(ctx context.Context, inv *agent.InvocationMetadata, req *llm.Request, next agent.ModelCallHandler) agent.ModelCallHandler {
+				//nolint:revive // ctx and info are used in nested closures
+				intercept: func(ctx context.Context, info *agent.ModelCallInfo, next agent.ModelCallHandler) agent.ModelCallHandler {
 					return &testModelCallHandler{
 						generateFunc: func(ctx context.Context, req *llm.Request) (*llm.Response, error) {
 							interceptorCalled.Store(true)
@@ -380,10 +382,11 @@ func TestModelInterceptor_ErrorPropagation(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			inv := agent.NewInvocationMetadata(&session.State{ID: "test"})
+			inv := agent.NewInvocationMetadata(&session.State{ID: "test"}, agent.Info{})
 			req := newTestModelRequest()
+			modelInfo := &agent.ModelCallInfo{InvocationMetadata: inv, Model: baseModel, Req: req}
 
-			interceptedModel := agent.ApplyModelInterceptors(ctx, inv, req, baseModel, []agent.Interceptor{testInterceptor})
+			interceptedModel := agent.ApplyModelInterceptors(ctx, modelInfo, baseModel, []agent.Interceptor{testInterceptor})
 
 			// Execute
 			_, err := interceptedModel.Generate(ctx, req)
@@ -441,18 +444,18 @@ func TestToolInterceptor_ErrorPropagation(t *testing.T) {
 			baseCalled := atomic.Bool{}
 
 			testInterceptor := &testToolInterceptor{
-				intercept: func(ctx context.Context, inv *agent.InvocationMetadata, req *llm.ToolRequest, next agent.ToolExecutionNext) (*llm.ToolResponse, error) {
+				intercept: func(ctx context.Context, info *agent.ToolCallInfo, next agent.ToolExecutionNext) (*llm.ToolResponse, error) {
 					interceptorCalled.Store(true)
 
 					if tt.interceptorError != nil {
 						return nil, tt.interceptorError
 					}
 
-					return next(ctx, inv, req)
+					return next(ctx, info)
 				},
 			}
 
-			baseExecutor := func(_ context.Context, _ *agent.InvocationMetadata, req *llm.ToolRequest) (*llm.ToolResponse, error) {
+			baseExecutor := func(_ context.Context, info *agent.ToolCallInfo) (*llm.ToolResponse, error) {
 				baseCalled.Store(true)
 
 				if tt.baseError != nil {
@@ -460,19 +463,19 @@ func TestToolInterceptor_ErrorPropagation(t *testing.T) {
 				}
 
 				return &llm.ToolResponse{
-					ID:     req.ID,
-					Name:   req.Name,
+					ID:     info.Req.ID,
+					Name:   info.Req.Name,
 					Result: []byte(`"result"`),
 				}, nil
 			}
 
 			ctx := context.Background()
-			inv := agent.NewInvocationMetadata(&session.State{ID: "test"})
+			inv := agent.NewInvocationMetadata(&session.State{ID: "test"}, agent.Info{})
 			executor := agent.ApplyToolInterceptors([]agent.Interceptor{testInterceptor}, baseExecutor)
 
 			// Execute
 			req := newTestToolRequest()
-			_, err := executor(ctx, inv, req)
+			_, err := executor(ctx, &agent.ToolCallInfo{Inv: inv, Req: req})
 
 			// Verify error
 			if tt.wantErr != "" {
@@ -499,8 +502,8 @@ func TestModelInterceptor_ContextPropagation(t *testing.T) {
 
 	testInterceptor := &testModelInterceptor{
 		name: "context-checker",
-		//nolint:revive // ctx and req are used in nested closures
-		intercept: func(ctx context.Context, inv *agent.InvocationMetadata, req *llm.Request, next agent.ModelCallHandler) agent.ModelCallHandler {
+		//nolint:revive // ctx and info are used in nested closures
+		intercept: func(ctx context.Context, info *agent.ModelCallInfo, next agent.ModelCallHandler) agent.ModelCallHandler {
 			return &testModelCallHandler{
 				generateFunc: func(ctx context.Context, req *llm.Request) (*llm.Response, error) {
 					if ctx.Err() != nil {
@@ -533,10 +536,11 @@ func TestModelInterceptor_ContextPropagation(t *testing.T) {
 
 	// Create canceled context
 	ctx := newCanceledContext()
-	inv := agent.NewInvocationMetadata(&session.State{ID: "test"})
+	inv := agent.NewInvocationMetadata(&session.State{ID: "test"}, agent.Info{})
 	req := newTestModelRequest()
+	modelInfo := &agent.ModelCallInfo{InvocationMetadata: inv, Model: baseModel, Req: req}
 
-	interceptedModel := agent.ApplyModelInterceptors(ctx, inv, req, baseModel, []agent.Interceptor{testInterceptor})
+	interceptedModel := agent.ApplyModelInterceptors(ctx, modelInfo, baseModel, []agent.Interceptor{testInterceptor})
 
 	// Execute with canceled context
 	_, err := interceptedModel.Generate(ctx, req)
@@ -558,38 +562,38 @@ func TestToolInterceptor_ContextPropagation(t *testing.T) {
 	baseSeenContext := atomic.Bool{}
 
 	testInterceptor := &testToolInterceptor{
-		intercept: func(ctx context.Context, inv *agent.InvocationMetadata, req *llm.ToolRequest, next agent.ToolExecutionNext) (*llm.ToolResponse, error) {
+		intercept: func(ctx context.Context, info *agent.ToolCallInfo, next agent.ToolExecutionNext) (*llm.ToolResponse, error) {
 			if ctx.Err() != nil {
 				interceptorSeenContext.Store(true)
 				return nil, ctx.Err()
 			}
 
-			return next(ctx, inv, req)
+			return next(ctx, info)
 		},
 	}
 
-	baseExecutor := func(ctx context.Context, _ *agent.InvocationMetadata, req *llm.ToolRequest) (*llm.ToolResponse, error) {
+	baseExecutor := func(ctx context.Context, info *agent.ToolCallInfo) (*llm.ToolResponse, error) {
 		if ctx.Err() != nil {
 			baseSeenContext.Store(true)
 			return nil, ctx.Err()
 		}
 
 		return &llm.ToolResponse{
-			ID:     req.ID,
-			Name:   req.Name,
+			ID:     info.Req.ID,
+			Name:   info.Req.Name,
 			Result: []byte(`"result"`),
 		}, nil
 	}
 
 	// Create canceled context
 	ctx := newCanceledContext()
-	inv := agent.NewInvocationMetadata(&session.State{ID: "test"})
+	inv := agent.NewInvocationMetadata(&session.State{ID: "test"}, agent.Info{})
 
 	executor := agent.ApplyToolInterceptors([]agent.Interceptor{testInterceptor}, baseExecutor)
 
 	// Execute with canceled context
 	req := newTestToolRequest()
-	_, err := executor(ctx, inv, req)
+	_, err := executor(ctx, &agent.ToolCallInfo{Inv: inv, Req: req})
 
 	// Verify cancellation error
 	require.Error(t, err)
@@ -655,10 +659,10 @@ func TestTurnInterceptor_Ordering(t *testing.T) {
 
 	// Create three interceptors that record order
 	interceptor1 := &testTurnInterceptor{
-		intercept: func(ctx context.Context, inv *agent.InvocationMetadata, next agent.TurnNext) (agent.FinishReason, error) {
+		intercept: func(ctx context.Context, info *agent.TurnInfo, next agent.TurnNext) (agent.FinishReason, error) {
 			recorder.record("interceptor1-before")
 
-			reason, err := next(ctx, inv)
+			reason, err := next(ctx, info)
 
 			recorder.record("interceptor1-after")
 
@@ -666,10 +670,10 @@ func TestTurnInterceptor_Ordering(t *testing.T) {
 		},
 	}
 	interceptor2 := &testTurnInterceptor{
-		intercept: func(ctx context.Context, inv *agent.InvocationMetadata, next agent.TurnNext) (agent.FinishReason, error) {
+		intercept: func(ctx context.Context, info *agent.TurnInfo, next agent.TurnNext) (agent.FinishReason, error) {
 			recorder.record("interceptor2-before")
 
-			reason, err := next(ctx, inv)
+			reason, err := next(ctx, info)
 
 			recorder.record("interceptor2-after")
 
@@ -677,10 +681,10 @@ func TestTurnInterceptor_Ordering(t *testing.T) {
 		},
 	}
 	interceptor3 := &testTurnInterceptor{
-		intercept: func(ctx context.Context, inv *agent.InvocationMetadata, next agent.TurnNext) (agent.FinishReason, error) {
+		intercept: func(ctx context.Context, info *agent.TurnInfo, next agent.TurnNext) (agent.FinishReason, error) {
 			recorder.record("interceptor3-before")
 
-			reason, err := next(ctx, inv)
+			reason, err := next(ctx, info)
 
 			recorder.record("interceptor3-after")
 
@@ -688,7 +692,7 @@ func TestTurnInterceptor_Ordering(t *testing.T) {
 		},
 	}
 
-	baseTurn := func(_ context.Context, _ *agent.InvocationMetadata) (agent.FinishReason, error) {
+	baseTurn := func(_ context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
 		recorder.record("base")
 		return agent.FinishReasonStop, nil
 	}
@@ -698,11 +702,11 @@ func TestTurnInterceptor_Ordering(t *testing.T) {
 	interceptors := []agent.Interceptor{interceptor1, interceptor2, interceptor3}
 
 	ctx := context.Background()
-	inv := agent.NewInvocationMetadata(&session.State{ID: "test"})
+	inv := agent.NewInvocationMetadata(&session.State{ID: "test"}, agent.Info{})
 	turnFunc := agent.ApplyTurnInterceptors(interceptors, baseTurn)
 
 	// Execute
-	reason, err := turnFunc(ctx, inv)
+	reason, err := turnFunc(ctx, &agent.TurnInfo{Inv: inv})
 	require.NoError(t, err)
 	assert.Equal(t, agent.FinishReasonStop, reason)
 
@@ -729,23 +733,23 @@ func TestTurnInterceptor_EarlyStopping(t *testing.T) {
 
 	// Interceptor that stops early
 	earlyStopInterceptor := &testTurnInterceptor{
-		intercept: func(_ context.Context, _ *agent.InvocationMetadata, _ agent.TurnNext) (agent.FinishReason, error) {
+		intercept: func(_ context.Context, _ *agent.TurnInfo, _ agent.TurnNext) (agent.FinishReason, error) {
 			// Return early without calling next
 			return agent.FinishReasonMaxTurns, nil
 		},
 	}
 
-	baseTurn := func(_ context.Context, _ *agent.InvocationMetadata) (agent.FinishReason, error) {
+	baseTurn := func(_ context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
 		baseCalled.Store(true)
 		return agent.FinishReasonStop, nil
 	}
 
 	ctx := context.Background()
-	inv := agent.NewInvocationMetadata(&session.State{ID: "test"})
+	inv := agent.NewInvocationMetadata(&session.State{ID: "test"}, agent.Info{})
 	turnFunc := agent.ApplyTurnInterceptors([]agent.Interceptor{earlyStopInterceptor}, baseTurn)
 
 	// Execute
-	reason, err := turnFunc(ctx, inv)
+	reason, err := turnFunc(ctx, &agent.TurnInfo{Inv: inv})
 	require.NoError(t, err)
 
 	// Verify: should get the early stop reason
@@ -772,11 +776,12 @@ func TestEmptyInterceptors(t *testing.T) {
 		}
 
 		ctx := context.Background()
-		inv := agent.NewInvocationMetadata(&session.State{ID: "test"})
+		inv := agent.NewInvocationMetadata(&session.State{ID: "test"}, agent.Info{})
 		req := newTestModelRequest()
+		modelInfo := &agent.ModelCallInfo{InvocationMetadata: inv, Model: baseModel, Req: req}
 
 		// Apply with empty interceptors list
-		interceptedModel := agent.ApplyModelInterceptors(ctx, inv, req, baseModel, []agent.Interceptor{})
+		interceptedModel := agent.ApplyModelInterceptors(ctx, modelInfo, baseModel, []agent.Interceptor{})
 
 		// Should return base model unchanged
 		assert.Equal(t, baseModel, interceptedModel, "Empty interceptors should return base model unchanged")
@@ -786,25 +791,25 @@ func TestEmptyInterceptors(t *testing.T) {
 		t.Parallel()
 
 		called := atomic.Bool{}
-		baseExecutor := func(_ context.Context, _ *agent.InvocationMetadata, req *llm.ToolRequest) (*llm.ToolResponse, error) {
+		baseExecutor := func(_ context.Context, info *agent.ToolCallInfo) (*llm.ToolResponse, error) {
 			called.Store(true)
 
 			return &llm.ToolResponse{
-				ID:     req.ID,
-				Name:   req.Name,
+				ID:     info.Req.ID,
+				Name:   info.Req.Name,
 				Result: []byte(`"result"`),
 			}, nil
 		}
 
 		ctx := context.Background()
-		inv := agent.NewInvocationMetadata(&session.State{ID: "test"})
+		inv := agent.NewInvocationMetadata(&session.State{ID: "test"}, agent.Info{})
 
 		// Apply with empty interceptors list
 		executor := agent.ApplyToolInterceptors([]agent.Interceptor{}, baseExecutor)
 
 		// Execute
 		req := newTestToolRequest()
-		_, err := executor(ctx, inv, req)
+		_, err := executor(ctx, &agent.ToolCallInfo{Inv: inv, Req: req})
 		require.NoError(t, err)
 
 		assert.True(t, called.Load(), "Base executor should be called with empty interceptors")
@@ -814,19 +819,19 @@ func TestEmptyInterceptors(t *testing.T) {
 		t.Parallel()
 
 		called := atomic.Bool{}
-		baseTurn := func(_ context.Context, _ *agent.InvocationMetadata) (agent.FinishReason, error) {
+		baseTurn := func(_ context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
 			called.Store(true)
 			return agent.FinishReasonStop, nil
 		}
 
 		ctx := context.Background()
-		inv := agent.NewInvocationMetadata(&session.State{ID: "test"})
+		inv := agent.NewInvocationMetadata(&session.State{ID: "test"}, agent.Info{})
 
 		// Apply with empty interceptors list
 		turnFunc := agent.ApplyTurnInterceptors([]agent.Interceptor{}, baseTurn)
 
 		// Execute
-		reason, err := turnFunc(ctx, inv)
+		reason, err := turnFunc(ctx, &agent.TurnInfo{Inv: inv})
 		require.NoError(t, err)
 		assert.Equal(t, agent.FinishReasonStop, reason)
 
@@ -836,26 +841,26 @@ func TestEmptyInterceptors(t *testing.T) {
 
 // testTurnInterceptor is a test implementation of TurnInterceptor.
 type testTurnInterceptor struct {
-	intercept func(ctx context.Context, inv *agent.InvocationMetadata, next agent.TurnNext) (agent.FinishReason, error)
+	intercept func(ctx context.Context, info *agent.TurnInfo, next agent.TurnNext) (agent.FinishReason, error)
 }
 
-func (i *testTurnInterceptor) InterceptTurn(ctx context.Context, inv *agent.InvocationMetadata, next agent.TurnNext) (agent.FinishReason, error) {
+func (i *testTurnInterceptor) InterceptTurn(ctx context.Context, info *agent.TurnInfo, next agent.TurnNext) (agent.FinishReason, error) {
 	if i.intercept != nil {
-		return i.intercept(ctx, inv, next)
+		return i.intercept(ctx, info, next)
 	}
 
-	return next(ctx, inv)
+	return next(ctx, info)
 }
 
 // testModelInterceptor is a test implementation of ModelInterceptor.
 type testModelInterceptor struct {
 	name      string
-	intercept func(ctx context.Context, inv *agent.InvocationMetadata, req *llm.Request, next agent.ModelCallHandler) agent.ModelCallHandler
+	intercept func(ctx context.Context, info *agent.ModelCallInfo, next agent.ModelCallHandler) agent.ModelCallHandler
 }
 
-func (i *testModelInterceptor) InterceptModel(ctx context.Context, inv *agent.InvocationMetadata, req *llm.Request, next agent.ModelCallHandler) agent.ModelCallHandler {
+func (i *testModelInterceptor) InterceptModel(ctx context.Context, info *agent.ModelCallInfo, next agent.ModelCallHandler) agent.ModelCallHandler {
 	if i.intercept != nil {
-		return i.intercept(ctx, inv, req, next)
+		return i.intercept(ctx, info, next)
 	}
 
 	return next
@@ -863,30 +868,30 @@ func (i *testModelInterceptor) InterceptModel(ctx context.Context, inv *agent.In
 
 // testToolInterceptor is a test implementation of ToolInterceptor.
 type testToolInterceptor struct {
-	intercept func(ctx context.Context, inv *agent.InvocationMetadata, req *llm.ToolRequest, next agent.ToolExecutionNext) (*llm.ToolResponse, error)
+	intercept func(ctx context.Context, info *agent.ToolCallInfo, next agent.ToolExecutionNext) (*llm.ToolResponse, error)
 }
 
-func (i *testToolInterceptor) InterceptToolExecution(ctx context.Context, inv *agent.InvocationMetadata, req *llm.ToolRequest, next agent.ToolExecutionNext) (*llm.ToolResponse, error) {
+func (i *testToolInterceptor) InterceptToolExecution(ctx context.Context, info *agent.ToolCallInfo, next agent.ToolExecutionNext) (*llm.ToolResponse, error) {
 	if i.intercept != nil {
-		return i.intercept(ctx, inv, req, next)
+		return i.intercept(ctx, info, next)
 	}
 
-	return next(ctx, inv, req)
+	return next(ctx, info)
 }
 
 // multiInterceptor implements all three interceptor interfaces.
 type multiInterceptor struct{}
 
-func (i *multiInterceptor) InterceptTurn(ctx context.Context, inv *agent.InvocationMetadata, next agent.TurnNext) (agent.FinishReason, error) {
-	return next(ctx, inv)
+func (i *multiInterceptor) InterceptTurn(ctx context.Context, info *agent.TurnInfo, next agent.TurnNext) (agent.FinishReason, error) {
+	return next(ctx, info)
 }
 
-func (i *multiInterceptor) InterceptModel(_ context.Context, _ *agent.InvocationMetadata, _ *llm.Request, next agent.ModelCallHandler) agent.ModelCallHandler {
+func (i *multiInterceptor) InterceptModel(_ context.Context, _ *agent.ModelCallInfo, next agent.ModelCallHandler) agent.ModelCallHandler {
 	return next
 }
 
-func (i *multiInterceptor) InterceptToolExecution(ctx context.Context, inv *agent.InvocationMetadata, req *llm.ToolRequest, next agent.ToolExecutionNext) (*llm.ToolResponse, error) {
-	return next(ctx, inv, req)
+func (i *multiInterceptor) InterceptToolExecution(ctx context.Context, info *agent.ToolCallInfo, next agent.ToolExecutionNext) (*llm.ToolResponse, error) {
+	return next(ctx, info)
 }
 
 // testModelCallHandler is a test implementation of ModelCallHandler.
@@ -927,6 +932,10 @@ type testModel struct {
 
 func (m *testModel) Name() string {
 	return m.name
+}
+
+func (m *testModel) Provider() string {
+	return "test"
 }
 
 func (m *testModel) Capabilities() llm.ModelCapabilities {

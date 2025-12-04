@@ -17,6 +17,11 @@ type Provider struct {
 	context context.Context //nolint:containedctx // Context required for Gemini client lifetime management
 }
 
+// Name returns the provider identifier.
+func (*Provider) Name() string {
+	return "gemini"
+}
+
 // ProviderOption configures a Provider instance using functional options.
 type ProviderOption func(*Provider) error
 

@@ -23,6 +23,10 @@ type ModelInfo interface {
 	// metrics, and model selection logic.
 	Name() string
 
+	// Provider returns the name of the AI provider (e.g., "openai", "anthropic", "google").
+	// This is useful for observability, routing decisions, and provider-specific handling.
+	Provider() string
+
 	// Capabilities returns what features this model supports.
 	// Use this to check if specific features are available before making requests
 	// that depend on them (e.g., streaming, tool calls, vision).

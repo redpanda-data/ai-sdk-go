@@ -83,10 +83,19 @@ func transformSchemaForOpenAI(node any) {
 	// Force additionalProperties: false for OpenAI Structured Outputs strict mode
 	obj["additionalProperties"] = false
 
+	// Ensure properties field exists (OpenAI requires it, even if empty)
 	props, ok := obj["properties"].(map[string]any)
 	if !ok {
+		// Add empty properties map if missing
+		props = make(map[string]any)
+		obj["properties"] = props
+	}
+
+	// If properties is empty, no further transformation needed
+	if len(props) == 0 {
 		return
 	}
+
 	// Recurse properties first
 	for _, p := range props {
 		transformSchemaForOpenAI(p)

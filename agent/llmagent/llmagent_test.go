@@ -24,6 +24,7 @@ import (
 type simpleModel struct{}
 
 func (simpleModel) Name() string                        { return "test-model" }
+func (simpleModel) Provider() string                    { return "test" }
 func (simpleModel) Capabilities() llm.ModelCapabilities { return llm.ModelCapabilities{} }
 func (simpleModel) Constraints() llm.ModelConstraints {
 	return llm.ModelConstraints{
@@ -233,7 +234,7 @@ func TestRun_SimpleSingleTurn(t *testing.T) {
 				ID:       "test-session",
 				Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hello!"))},
 			}
-			inv := agent.NewInvocationMetadata(sess)
+			inv := agent.NewInvocationMetadata(sess, agent.Info{})
 
 			// Execute
 			events := collectEvents(t, ag.Run(t.Context(), inv))
@@ -310,7 +311,7 @@ func TestRun_MultiTurnWithTools(t *testing.T) {
 		ID:       "test-session",
 		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("What's the weather?"))},
 	}
-	inv := agent.NewInvocationMetadata(sess)
+	inv := agent.NewInvocationMetadata(sess, agent.Info{})
 
 	// Execute
 	events := collectEvents(t, ag.Run(t.Context(), inv))
@@ -383,7 +384,7 @@ func TestRun_MaxTurnsLimit(t *testing.T) {
 		ID:       "test-session",
 		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Start"))},
 	}
-	inv := agent.NewInvocationMetadata(sess)
+	inv := agent.NewInvocationMetadata(sess, agent.Info{})
 
 	// Execute
 	events := collectEvents(t, ag.Run(t.Context(), inv))
@@ -415,7 +416,7 @@ func TestExecuteTools_NoToolRegistry(t *testing.T) {
 		ID:       "test-session",
 		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Test"))},
 	}
-	inv := agent.NewInvocationMetadata(sess)
+	inv := agent.NewInvocationMetadata(sess, agent.Info{})
 
 	// Execute - expect TERMINAL error (system failure)
 	var terminalErr error
@@ -476,7 +477,7 @@ func TestExecuteTools_ToolError(t *testing.T) {
 		ID:       "test-session",
 		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Test"))},
 	}
-	inv := agent.NewInvocationMetadata(sess)
+	inv := agent.NewInvocationMetadata(sess, agent.Info{})
 
 	// Execute
 	events := collectEvents(t, ag.Run(t.Context(), inv))
@@ -514,7 +515,7 @@ func TestRun_ContextCancellation(t *testing.T) {
 			ID:       "test-session",
 			Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hello"))},
 		}
-		inv := agent.NewInvocationMetadata(sess)
+		inv := agent.NewInvocationMetadata(sess, agent.Info{})
 
 		// Start execution
 		var events []agent.Event
@@ -570,7 +571,7 @@ func TestRun_ContextCancellation(t *testing.T) {
 			ID:       "test-session",
 			Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hello"))},
 		}
-		inv := agent.NewInvocationMetadata(sess)
+		inv := agent.NewInvocationMetadata(sess, agent.Info{})
 
 		// Execute
 		events := collectEvents(t, ag.Run(ctx, inv))
@@ -596,7 +597,7 @@ func TestRun_EventEnvelope(t *testing.T) {
 		ID:       "test-session",
 		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hello"))},
 	}
-	inv := agent.NewInvocationMetadata(sess)
+	inv := agent.NewInvocationMetadata(sess, agent.Info{})
 
 	// Execute
 	events := collectEvents(t, ag.Run(t.Context(), inv))
@@ -646,7 +647,7 @@ func TestRun_UsageTracking(t *testing.T) {
 			ID:       "test-session",
 			Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hello"))},
 		}
-		inv := agent.NewInvocationMetadata(sess)
+		inv := agent.NewInvocationMetadata(sess, agent.Info{})
 
 		events := collectEvents(t, ag.Run(t.Context(), inv))
 
@@ -693,7 +694,7 @@ func TestRun_UsageTracking(t *testing.T) {
 			ID:       "test-session",
 			Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hello"))},
 		}
-		inv := agent.NewInvocationMetadata(sess)
+		inv := agent.NewInvocationMetadata(sess, agent.Info{})
 
 		events := collectEvents(t, ag.Run(t.Context(), inv))
 
@@ -726,7 +727,7 @@ func TestRun_StreamingDeltas(t *testing.T) {
 		ID:       "test-session",
 		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hello"))},
 	}
-	inv := agent.NewInvocationMetadata(sess)
+	inv := agent.NewInvocationMetadata(sess, agent.Info{})
 
 	// Execute and collect delta events
 	events := collectEvents(t, ag.Run(t.Context(), inv))
@@ -765,7 +766,7 @@ func TestRun_EventOrdering(t *testing.T) {
 			ID:       "test-session",
 			Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hello"))},
 		}
-		inv := agent.NewInvocationMetadata(sess)
+		inv := agent.NewInvocationMetadata(sess, agent.Info{})
 
 		// Execute and collect events
 		events := collectEvents(t, ag.Run(t.Context(), inv))
@@ -840,7 +841,7 @@ func TestRun_EventOrdering(t *testing.T) {
 			ID:       "test-session",
 			Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("What's the weather?"))},
 		}
-		inv := agent.NewInvocationMetadata(sess)
+		inv := agent.NewInvocationMetadata(sess, agent.Info{})
 
 		// Execute and collect events
 		events := collectEvents(t, ag.Run(t.Context(), inv))

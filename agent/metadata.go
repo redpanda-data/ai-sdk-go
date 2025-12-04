@@ -7,6 +7,46 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/store/session"
 )
 
+// Info captures the agent's identity at the start of an invocation.
+//
+// This is an immutable snapshot taken when InvocationMetadata is created, providing
+// stable agent identity for observability, debugging, auditing, and telemetry purposes.
+//
+// # What's Included
+//
+// Info contains only the agent's identity (name, description) which are
+// not available elsewhere in the invocation context. Other agent configuration:
+//   - System prompt: available in session.Messages (first system role message)
+//   - Available tools: available in llm.Request.Tools (sent with each model call)
+//
+// # Why a Info?
+//
+// The live agent instance may change over time, but interceptors and telemetry systems
+// need a consistent view of agent identity. This snapshot ensures that:
+//   - OpenTelemetry spans have stable agent metadata (gen_ai.agent.name, gen_ai.agent.description)
+//   - Debugging tools can identify which agent handled this invocation
+//   - Auditing systems can track agent identity for compliance
+//
+// # Immutability Contract
+//
+// Info is immutable after construction. It represents the agent identity
+// at invocation start.
+//
+// # Design Rationale
+//
+// This struct is separate from InvocationMetadata's root fields to:
+//   - Keep the root namespace clean (avoid "God Object" antipattern)
+//   - Clearly distinguish "agent identity" from "runtime state" (turn, usage)
+//   - Provide room to evolve (add Version, Labels, etc. if needed)
+//   - Make mutability clear (entire struct is immutable)
+type Info struct {
+	// Name is the agent's identifier (used for gen_ai.agent.name)
+	Name string
+
+	// Description is the agent's purpose and capabilities (used for gen_ai.agent.description)
+	Description string
+}
+
 // InvocationMetadata holds invocation-specific state and metadata.
 //
 // This type separates invocation domain data from context.Context control flow,
@@ -58,6 +98,9 @@ type InvocationMetadata struct {
 	turn         int
 	totalUsage   llm.TokenUsage
 
+	// Immutable agent snapshot - captured at invocation start
+	agent Info
+
 	// Session reference - accessible but modifications should be careful
 	session *session.State
 
@@ -65,15 +108,22 @@ type InvocationMetadata struct {
 	metadata map[string]any
 }
 
-// NewInvocationMetadata creates a new invocation metadata.
+// NewInvocationMetadata creates a new invocation metadata with agent context.
 //
 // The invocation ID is automatically generated. The provided session reference
 // is stored for state access. Turn and usage start at zero.
 //
-// This function is typically called by Runner at the start of execution.
-func NewInvocationMetadata(sess *session.State) *InvocationMetadata {
+// The agent snapshot captures the agent's configuration (name, description, system prompt,
+// available tools) at invocation start, providing a stable baseline for observability,
+// debugging, and telemetry.
+//
+// This function is typically called by agent implementations (e.g., llmagent) at the
+// start of execution. For convenience, use NewInvocationMetadataFromAgent if you have
+// an Agent interface.
+func NewInvocationMetadata(sess *session.State, agent Info) *InvocationMetadata {
 	return &InvocationMetadata{
 		invocationID: generateInvocationID(),
+		agent:        agent,
 		session:      sess,
 		turn:         0,
 		totalUsage:   llm.TokenUsage{},
@@ -92,6 +142,24 @@ func NewInvocationMetadata(sess *session.State) *InvocationMetadata {
 // This field is immutable and set once at creation.
 func (m *InvocationMetadata) InvocationID() string {
 	return m.invocationID
+}
+
+// Agent returns the agent snapshot for this invocation.
+//
+// The snapshot captures the agent's configuration (name, description, system prompt,
+// available tools) at invocation start. This is immutable and provides a stable
+// baseline for:
+//   - Observability (OpenTelemetry gen_ai.agent.* attributes)
+//   - Debugging (what system prompt and tools were active?)
+//   - Auditing (compliance tracking of agent configuration)
+//   - Replay (reconstructing agent state for testing)
+//
+// Per-call variations (e.g., dynamic prompts, tool subsets per turn) should be
+// tracked in ModelInterceptor spans, not here.
+//
+// This field is immutable and set once at creation.
+func (m *InvocationMetadata) Agent() Info {
+	return m.agent
 }
 
 // Session returns the session state.
