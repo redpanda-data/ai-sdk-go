@@ -691,14 +691,20 @@ func (c *clientImpl) beginOp() (func(), error) {
 // This pattern ensures operations can be cancelled by either:
 //   - Client shutdown (bgCtx cancelled) - prevents operations after Close()
 //   - Caller timeout/cancellation (callerCtx cancelled) - respects caller's deadline
+//
+// IMPORTANT: The context is derived from callerCtx to preserve trace context and
+// other values, while still respecting bgCtx cancellation for client shutdown.
 func opContext(bgCtx, callerCtx context.Context) (context.Context, context.CancelFunc) {
-	ctx, cancel := context.WithCancel(bgCtx)
-	stop := context.AfterFunc(callerCtx, cancel)
+	// Derive from callerCtx to preserve trace context and other values
+	ctx, cancel := context.WithCancel(callerCtx)
 
-	// Wrap cancel to clean up both cancel and stop
+	// Also cancel when bgCtx is cancelled (client shutdown)
+	stopBg := context.AfterFunc(bgCtx, cancel)
+
+	// Wrap cancel to clean up both cancel and stopBg
 	cleanup := func() {
 		cancel()
-		stop()
+		stopBg()
 	}
 
 	return ctx, cleanup
