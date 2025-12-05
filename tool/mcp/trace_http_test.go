@@ -20,7 +20,7 @@ import (
 
 // TestTraceHTTPPropagation verifies that OTEL trace context is propagated
 // through HTTP headers from the MCP client to the MCP server.
-func TestTraceHTTPPropagation(t *testing.T) {
+func TestTraceHTTPPropagation(t *testing.T) { //nolint:paralleltest // spawns HTTP server with shared state
 	// Setup OTEL tracer
 	tp := sdktrace.NewTracerProvider()
 	otel.SetTracerProvider(tp)
@@ -30,6 +30,7 @@ func TestTraceHTTPPropagation(t *testing.T) {
 			propagation.Baggage{},
 		),
 	)
+
 	defer func() { _ = tp.Shutdown(context.Background()) }()
 
 	tracer := tp.Tracer("test-tracer")
@@ -73,6 +74,7 @@ func TestTraceHTTPPropagation(t *testing.T) {
 		var args map[string]any
 		if len(req.Params.Arguments) > 0 {
 			if err := json.Unmarshal(req.Params.Arguments, &args); err != nil {
+				//nolint:nilerr // Tool errors are returned in result, not as Go errors
 				return &sdkmcp.CallToolResult{
 					Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: "invalid args"}},
 					IsError: true,
@@ -81,6 +83,7 @@ func TestTraceHTTPPropagation(t *testing.T) {
 		}
 
 		msg, _ := args["message"].(string)
+
 		return &sdkmcp.CallToolResult{
 			Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: "echo: " + msg}},
 		}, nil
@@ -88,17 +91,20 @@ func TestTraceHTTPPropagation(t *testing.T) {
 
 	// Create HTTP handler with middleware to capture headers
 	mcpHandler := sdkmcp.NewStreamableHTTPHandler(
-		func(r *http.Request) *sdkmcp.Server { return mcpServer },
+		func(_ *http.Request) *sdkmcp.Server { return mcpServer },
 		&sdkmcp.StreamableHTTPOptions{},
 	)
 
 	// Wrap with middleware to capture incoming HTTP headers
 	headerCaptureHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
+
 		capturedHeaders = r.Header.Clone()
+
 		mu.Unlock()
 
 		t.Logf("Incoming HTTP request headers:")
+
 		for k, v := range r.Header {
 			t.Logf("  %s: %v", k, v)
 		}
@@ -127,6 +133,7 @@ func TestTraceHTTPPropagation(t *testing.T) {
 
 	ctx := context.Background()
 	require.NoError(t, client.Start(ctx))
+
 	defer func() { _ = client.Close() }()
 
 	// Create a parent span to simulate agent tool execution
@@ -150,13 +157,15 @@ func TestTraceHTTPPropagation(t *testing.T) {
 
 	// Check captured HTTP headers
 	mu.Lock()
+
 	headers := capturedHeaders
+
 	mu.Unlock()
 
 	require.NotNil(t, headers, "should have captured HTTP headers")
 
 	// Check for traceparent header (W3C Trace Context)
-	traceparent := headers.Get("traceparent")
+	traceparent := headers.Get("Traceparent")
 	t.Logf("Captured traceparent header: %q", traceparent)
 
 	// Assert that traceparent header is present
@@ -175,6 +184,6 @@ func TestTraceHTTPPropagation(t *testing.T) {
 	}
 
 	// Check tracestate header (optional but good to verify)
-	tracestate := headers.Get("tracestate")
+	tracestate := headers.Get("Tracestate")
 	t.Logf("Captured tracestate header: %q", tracestate)
 }
