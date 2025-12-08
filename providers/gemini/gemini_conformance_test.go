@@ -14,14 +14,13 @@ import (
 
 // GeminiFixture implements the conformance.Fixture interface for Gemini provider.
 type GeminiFixture struct {
-	provider       *gemini.Provider
-	standardModel  llm.Model
-	reasoningModel llm.Model
-	ctx            context.Context //nolint:containedctx // Context required for Gemini provider operations
+	provider *gemini.Provider
+	model    llm.Model
+	ctx      context.Context //nolint:containedctx // Context required for Gemini provider operations
 }
 
-// NewGeminiFixture creates a new Gemini test fixture.
-func NewGeminiFixture(t *testing.T) *GeminiFixture {
+// NewGeminiFixture creates a new Gemini test fixture for a specific model.
+func NewGeminiFixture(t *testing.T, modelName string) *GeminiFixture {
 	t.Helper()
 
 	// Check for API key (skips test if not set)
@@ -35,26 +34,24 @@ func NewGeminiFixture(t *testing.T) *GeminiFixture {
 		t.Fatalf("Failed to create provider: %v", err)
 	}
 
-	// Create standard model (Gemini 2.5 Flash)
-	standardModel, err := provider.NewModel(geminitest.TestModelName)
+	// Create model first to check capabilities
+	model, err := provider.NewModel(modelName)
 	if err != nil {
-		t.Fatalf("Failed to create standard model: %v", err)
+		t.Fatalf("Failed to create model %s: %v", modelName, err)
 	}
 
-	// Create reasoning model (Gemini 2.5 Pro with thinking enabled)
-	reasoningModel, err := provider.NewModel(geminitest.TestReasoningModelName,
-		gemini.WithThinking(true),
-	)
-	if err != nil {
-		// Reasoning model is optional, just log but don't skip
-		t.Logf("Failed to create reasoning model: %v", err)
+	// If the model supports reasoning, recreate it with thinking enabled
+	if model.Capabilities().Reasoning {
+		model, err = provider.NewModel(modelName, gemini.WithThinking(true))
+		if err != nil {
+			t.Fatalf("Failed to create model %s with thinking: %v", modelName, err)
+		}
 	}
 
 	return &GeminiFixture{
-		provider:       provider,
-		standardModel:  standardModel,
-		reasoningModel: reasoningModel,
-		ctx:            ctx,
+		provider: provider,
+		model:    model,
+		ctx:      ctx,
 	}
 }
 
@@ -63,11 +60,17 @@ func (f *GeminiFixture) Name() string {
 }
 
 func (f *GeminiFixture) StandardModel() llm.Model {
-	return f.standardModel
+	return f.model
 }
 
 func (f *GeminiFixture) ReasoningModel() llm.Model {
-	return f.reasoningModel
+	// Return the same model if it supports reasoning
+	// The conformance suite will check capabilities and skip tests if needed
+	if f.model.Capabilities().Reasoning {
+		return f.model
+	}
+
+	return nil
 }
 
 func (f *GeminiFixture) Models() []llm.ModelDiscoveryInfo {
@@ -78,10 +81,21 @@ func (f *GeminiFixture) NewModel(modelName string) (llm.Model, error) {
 	return f.provider.NewModel(modelName)
 }
 
-// TestGeminiConformance runs the generic conformance test suite for the Gemini provider.
+// TestGeminiConformance runs the conformance test suite for Gemini models.
+// Tests multiple models including Gemini 3 Pro to ensure thought signature
+// preservation works correctly for multi-turn tool calling.
 //
 //nolint:paralleltest // Test suite manages its own lifecycle
 func TestGeminiConformance(t *testing.T) {
-	fixture := NewGeminiFixture(t)
-	suite.Run(t, conformance.NewSuite(fixture))
+	modelsToTest := []string{
+		gemini.ModelGemini25Flash,     // gemini-2.5-flash
+		gemini.ModelGemini3ProPreview, // gemini-3-pro-preview
+	}
+
+	for _, modelName := range modelsToTest {
+		t.Run(modelName, func(t *testing.T) {
+			fixture := NewGeminiFixture(t, modelName)
+			suite.Run(t, conformance.NewSuite(fixture))
+		})
+	}
 }
