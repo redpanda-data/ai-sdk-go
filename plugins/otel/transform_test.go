@@ -47,7 +47,7 @@ func TestTransformInputMessages_OTelCompliance(t *testing.T) {
 					}),
 				),
 			},
-			want: `[{"role":"user","parts":[{"type":"tool_call_response","id":"call_123","response":{"results":["result1","result2"]}}]}]`,
+			want: `[{"role":"tool","parts":[{"type":"tool_call_response","id":"call_123","response":{"results":["result1","result2"]}}]}]`,
 		},
 		{
 			name: "message with tool response error",
@@ -60,7 +60,7 @@ func TestTransformInputMessages_OTelCompliance(t *testing.T) {
 					}),
 				),
 			},
-			want: `[{"role":"user","parts":[{"type":"tool_call_response","id":"call_123","response":{"error":"API rate limit exceeded"}}]}]`,
+			want: `[{"role":"tool","parts":[{"type":"tool_call_response","id":"call_123","response":{"error":"API rate limit exceeded"}}]}]`,
 		},
 		{
 			name: "message with reasoning",
