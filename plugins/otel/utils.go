@@ -6,21 +6,7 @@ import (
 
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
-
-	"github.com/redpanda-data/ai-sdk-go/llm"
 )
-
-// extractSystemPrompt finds the first system role message in the message history.
-// Returns empty string if no system message is found.
-func extractSystemPrompt(messages []llm.Message) string {
-	for _, msg := range messages {
-		if msg.Role == llm.RoleSystem {
-			return msg.TextContent()
-		}
-	}
-
-	return ""
-}
 
 // isValidStructuredJSON checks if the given bytes contain valid JSON that represents
 // a structured object (object or array), not a primitive value.

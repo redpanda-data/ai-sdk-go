@@ -2,6 +2,7 @@ package otel
 
 import (
 	"context"
+	"encoding/json"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -49,10 +50,10 @@ import (
 // capturing PII and to minimize span size per OTel Gen AI semantic conventions.
 //
 // Enable selectively with:
-//   - WithRecordInputs(true) - record model prompts as gen_ai.content.prompt events and
-//     tool arguments as gen_ai.tool.call.arguments span attributes
-//   - WithRecordOutputs(true) - record model completions as gen_ai.content.completion events and
-//     tool results as gen_ai.tool.call.result span attributes
+//   - WithRecordInputs(true) - record model prompts as gen_ai.input.messages span attribute (JSON string)
+//     and tool arguments as gen_ai.tool.call.arguments span attributes
+//   - WithRecordOutputs(true) - record model completions as gen_ai.output.messages span attribute (JSON string)
+//     and tool results as gen_ai.tool.call.result span attributes
 //   - WithRecordToolDefinitions(true) - record tool definitions as gen_ai.tool.definitions attribute
 //
 // Note: Tool definitions are "NOT RECOMMENDED to populate by default" per the OTel spec due to size.
@@ -151,13 +152,23 @@ func (t *TracingInterceptor) startInvocationSpan(
 		if session.ID != "" {
 			attrs = append(attrs, genAIConversationID(session.ID))
 		}
-
-		if systemPrompt := extractSystemPrompt(session.Messages); systemPrompt != "" {
-			attrs = append(attrs, genAISystemInstructions(systemPrompt))
-		}
 	}
 
 	agentSnap := inv.Agent()
+
+	// Add system instructions from agent snapshot (not from session messages)
+	// Per OTel spec, system_instructions should be for separately-provided instructions
+	if agentSnap.SystemPrompt != "" {
+		// Transform to OTel format (array of parts)
+		systemPart := otelPart{
+			Type:    "text",
+			Content: agentSnap.SystemPrompt,
+		}
+		if sysJSON, err := json.Marshal([]otelPart{systemPart}); err == nil {
+			attrs = append(attrs, genAISystemInstructions(string(sysJSON)))
+		}
+	}
+
 	if agentSnap.Name != "" {
 		attrs = append(attrs, genAIAgentName(agentSnap.Name))
 	}

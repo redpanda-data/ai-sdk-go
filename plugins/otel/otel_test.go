@@ -639,21 +639,25 @@ func TestTracingInterceptor_ContentRecording(t *testing.T) {
 
 	require.NotNil(t, chatSpan, "Expected chat span")
 
-	// Should have both prompt and completion events
-	var hasPromptEvent, hasCompletionEvent bool
+	// Should have both input and output messages as span attributes
+	var hasInputMessages, hasOutputMessages bool
 
-	for _, evt := range chatSpan.Events {
-		if evt.Name == "gen_ai.content.prompt" {
-			hasPromptEvent = true
+	for _, attr := range chatSpan.Attributes {
+		if string(attr.Key) == "gen_ai.input.messages" {
+			hasInputMessages = true
+			// Verify it's a JSON string
+			assert.NotEmpty(t, attr.Value.AsString(), "gen_ai.input.messages should not be empty")
 		}
 
-		if evt.Name == "gen_ai.content.completion" {
-			hasCompletionEvent = true
+		if string(attr.Key) == "gen_ai.output.messages" {
+			hasOutputMessages = true
+			// Verify it's a JSON string
+			assert.NotEmpty(t, attr.Value.AsString(), "gen_ai.output.messages should not be empty")
 		}
 	}
 
-	assert.True(t, hasPromptEvent, "Expected gen_ai.content.prompt event")
-	assert.True(t, hasCompletionEvent, "Expected gen_ai.content.completion event")
+	assert.True(t, hasInputMessages, "Expected gen_ai.input.messages attribute")
+	assert.True(t, hasOutputMessages, "Expected gen_ai.output.messages attribute")
 }
 
 func TestTracingInterceptor_ContextPropagation(t *testing.T) {
