@@ -172,7 +172,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 							toolPart.Metadata = make(map[string]any)
 						}
 
-						toolPart.Metadata["gemini_thought_signature"] = part.ThoughtSignature
+						toolPart.Metadata[metadataKeyThoughtSignature] = part.ThoughtSignature
 					}
 
 					event = llm.ContentPartEvent{

@@ -121,7 +121,7 @@ func (m *ResponseMapper) mapParts(parts []*genai.Part) ([]*llm.Part, bool, error
 					toolPart.Metadata = make(map[string]any)
 				}
 
-				toolPart.Metadata["gemini_thought_signature"] = part.ThoughtSignature
+				toolPart.Metadata[metadataKeyThoughtSignature] = part.ThoughtSignature
 			}
 
 			content = append(content, toolPart)
