@@ -45,6 +45,11 @@ type Info struct {
 
 	// Description is the agent's purpose and capabilities (used for gen_ai.agent.description)
 	Description string
+
+	// SystemPrompt contains the agent's system instructions (used for gen_ai.system_instructions).
+	// This captures the base system prompt configured for the agent, distinct from dynamic
+	// instructions that may be part of the conversation history.
+	SystemPrompt string
 }
 
 // InvocationMetadata holds invocation-specific state and metadata.

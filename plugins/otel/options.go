@@ -13,7 +13,7 @@ type config struct {
 	tracerName     string
 
 	// Content recording options (opt-in due to PII concerns)
-	// When enabled, content is recorded as span events (gen_ai.content.prompt/completion)
+	// When enabled, content is recorded as span attributes (gen_ai.input.messages/output.messages)
 	recordInputs  bool
 	recordOutputs bool
 
@@ -57,11 +57,13 @@ func WithTracerName(name string) Option {
 	}
 }
 
-// WithRecordInputs enables recording of input/prompt content as span events.
+// WithRecordInputs enables recording of input/prompt content on model spans.
 // Disabled by default due to potential PII in prompts.
 //
-// When enabled, prompts are recorded as gen_ai.content.prompt span events.
-// Span events are preferred over attributes for large payloads per OTel GenAI conventions.
+// When enabled, chat history is recorded on model spans as the
+// gen_ai.input.messages attribute, serialized according to the
+// OpenTelemetry Input messages JSON schema.
+//
 // Use with caution in production environments.
 func WithRecordInputs(enabled bool) Option {
 	return func(c *config) {
@@ -69,11 +71,13 @@ func WithRecordInputs(enabled bool) Option {
 	}
 }
 
-// WithRecordOutputs enables recording of output/completion content as span events.
+// WithRecordOutputs enables recording of output/completion content on model spans.
 // Disabled by default due to potential PII in responses.
 //
-// When enabled, completions are recorded as gen_ai.content.completion span events.
-// Span events are preferred over attributes for large payloads per OTel GenAI conventions.
+// When enabled, model outputs are recorded on model spans as the
+// gen_ai.output.messages attribute, serialized according to the
+// OpenTelemetry Output messages JSON schema.
+//
 // Use with caution in production environments.
 func WithRecordOutputs(enabled bool) Option {
 	return func(c *config) {

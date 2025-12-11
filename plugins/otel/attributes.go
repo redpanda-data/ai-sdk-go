@@ -30,6 +30,9 @@ const (
 	attrGenAIResponseFinishReasons = "gen_ai.response.finish_reasons"
 	attrGenAIUsageInputTokens      = "gen_ai.usage.input_tokens"  //nolint:gosec // Not a credential
 	attrGenAIUsageOutputTokens     = "gen_ai.usage.output_tokens" //nolint:gosec // Not a credential
+	attrGenAIInputMessages         = "gen_ai.input.messages"
+	attrGenAIOutputMessages        = "gen_ai.output.messages"
+	attrGenAIToolDefinitions       = "gen_ai.tool.definitions"
 	attrGenAIToolName              = "gen_ai.tool.name"
 	attrGenAIToolCallID            = "gen_ai.tool.call.id"
 	attrGenAIToolCallArguments     = "gen_ai.tool.call.arguments"
@@ -129,16 +132,6 @@ type SpanContext struct {
 //	}
 type AttributeInjector func(ctx context.Context, spanCtx SpanContext) []attribute.KeyValue
 
-// Event names for model content recording following OTel GenAI conventions.
-// Note: These are used for model inference operations only. Tool inputs/outputs
-// are recorded as span attributes (gen_ai.tool.call.arguments, gen_ai.tool.call.result).
-// These are internal constants used by the plugin.
-// See: https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-events/
-const (
-	eventGenAIContentPrompt     = "gen_ai.content.prompt"
-	eventGenAIContentCompletion = "gen_ai.content.completion"
-)
-
 // Helper functions create typed attributes for internal use.
 // These ensure correct attribute types (String vs Int vs Slice) according to OTel conventions.
 
@@ -200,6 +193,18 @@ func genAIToolCallArguments(args string) attribute.KeyValue {
 
 func genAIToolCallResult(result string) attribute.KeyValue {
 	return attribute.String(attrGenAIToolCallResult, result)
+}
+
+func genAIInputMessages(json string) attribute.KeyValue {
+	return attribute.String(attrGenAIInputMessages, json)
+}
+
+func genAIOutputMessages(json string) attribute.KeyValue {
+	return attribute.String(attrGenAIOutputMessages, json)
+}
+
+func genAIToolDefinitions(json string) attribute.KeyValue {
+	return attribute.String(attrGenAIToolDefinitions, json)
 }
 
 func errorType(errType string) attribute.KeyValue {
