@@ -17,9 +17,25 @@ const (
 
 	// ModelGPT5_1 is the GPT-5.1 model with configurable adaptive reasoning.
 	// Unlike GPT-5, reasoning defaults to 'none' - use WithReasoningEffort() to enable.
-	// Note: This constant uses a manual string since the OpenAI SDK doesn't yet
-	// include GPT-5.1. TODO: migrate to shared.ChatModelGPT5_1 when SDK adds support.
-	ModelGPT5_1 = shared.ChatModel("gpt-5.1")
+	ModelGPT5_1 = shared.ChatModelGPT5_1
+
+	// ModelGPT5_2 is the GPT-5.2 Thinking model (default variant).
+	// Designed for complex structured work: coding, math, document analysis, planning.
+	// Note: Uses manual string since OpenAI SDK doesn't yet include GPT-5.2.
+	// TODO: migrate to shared.ChatModelGPT5_2 when SDK adds support.
+	ModelGPT5_2 = shared.ChatModel("gpt-5.2")
+
+	// ModelGPT5_2Instant is the GPT-5.2 Instant model (speed-optimized variant).
+	// Optimized for routine queries: writing, translation, information seeking.
+	// Note: Uses manual string since OpenAI SDK doesn't yet include GPT-5.2.
+	// TODO: migrate to shared.ChatModelGPT5_2Instant when SDK adds support.
+	ModelGPT5_2Instant = shared.ChatModel("gpt-5.2-chat-latest")
+
+	// ModelGPT5_2Pro is the GPT-5.2 Pro model (maximum accuracy variant).
+	// Achieves highest accuracy on difficult problems requiring deep reasoning.
+	// Note: Uses manual string since OpenAI SDK doesn't yet include GPT-5.2.
+	// TODO: migrate to shared.ResponsesModelGPT5_2Pro when SDK adds support.
+	ModelGPT5_2Pro = shared.ResponsesModel("gpt-5.2-pro")
 
 	// ModelGPT4O is the GPT-4o model.
 	ModelGPT4O = shared.ChatModelGPT4o

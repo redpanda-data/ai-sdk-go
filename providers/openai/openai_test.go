@@ -50,7 +50,7 @@ func TestProviderModels(t *testing.T) {
 	}
 
 	// Verify expected models are present
-	expectedModels := []string{"gpt-4o", "gpt-4o-mini", "o3", "gpt-5"}
+	expectedModels := []string{"gpt-4o", "gpt-4o-mini", "o3", "gpt-5", "gpt-5.2"}
 	for _, expected := range expectedModels {
 		assert.Contains(t, modelNames, expected, "Should include %s", expected)
 	}
