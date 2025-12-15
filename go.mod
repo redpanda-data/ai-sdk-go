@@ -11,7 +11,7 @@ require (
 	github.com/anthropics/anthropic-sdk-go v1.18.1
 	github.com/google/jsonschema-go v0.3.0
 	github.com/google/uuid v1.6.0
-	github.com/openai/openai-go/v3 v3.8.1
+	github.com/openai/openai-go/v3 v3.12.0
 	github.com/stretchr/testify v1.11.1
 	github.com/twmb/go-cache v1.2.1
 	go.opentelemetry.io/otel v1.38.0

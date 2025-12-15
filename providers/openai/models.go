@@ -103,6 +103,72 @@ var supportedModels = map[string]ModelDefinition{
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
 	},
+	ModelGPT5_2: {
+		Name:  ModelGPT5_2,
+		Label: "OpenAI GPT-5.2 Thinking",
+		Capabilities: llm.ModelCapabilities{
+			Streaming:        true,
+			Tools:            true,
+			JSONMode:         true,
+			StructuredOutput: true,
+			Vision:           true,
+			Audio:            true,
+			MultiTurn:        true,
+			SystemPrompts:    true,
+			Reasoning:        true,
+		},
+		Constraints: llm.ModelConstraints{
+			TemperatureRange:  [2]float64{0.0, 2.0},
+			MaxInputTokens:    400000, // 400K context window
+			MaxOutputTokens:   128000, // 128K output tokens
+			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed", "reasoning_effort", "reasoning_summary"},
+			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
+		},
+	},
+	ModelGPT5_2Instant: {
+		Name:  ModelGPT5_2Instant,
+		Label: "OpenAI GPT-5.2 Instant",
+		Capabilities: llm.ModelCapabilities{
+			Streaming:        true,
+			Tools:            true,
+			JSONMode:         true,
+			StructuredOutput: true,
+			Vision:           true,
+			Audio:            true,
+			MultiTurn:        true,
+			SystemPrompts:    true,
+			Reasoning:        true,
+		},
+		Constraints: llm.ModelConstraints{
+			TemperatureRange:  [2]float64{0.0, 2.0},
+			MaxInputTokens:    400000, // 400K context window
+			MaxOutputTokens:   128000, // 128K output tokens
+			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed", "reasoning_effort", "reasoning_summary"},
+			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
+		},
+	},
+	ModelGPT5_2Pro: {
+		Name:  ModelGPT5_2Pro,
+		Label: "OpenAI GPT-5.2 Pro",
+		Capabilities: llm.ModelCapabilities{
+			Streaming:        true,
+			Tools:            true,
+			JSONMode:         true,
+			StructuredOutput: true,
+			Vision:           true,
+			Audio:            true,
+			MultiTurn:        true,
+			SystemPrompts:    true,
+			Reasoning:        true,
+		},
+		Constraints: llm.ModelConstraints{
+			TemperatureRange:  [2]float64{0.0, 2.0},
+			MaxInputTokens:    400000, // 400K context window
+			MaxOutputTokens:   128000, // 128K output tokens
+			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed", "reasoning_effort", "reasoning_summary"},
+			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
+		},
+	},
 
 	// GPT-4.1 Series (Enhanced Performance)
 	ModelGPT41: {
