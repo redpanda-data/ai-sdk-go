@@ -88,8 +88,9 @@ func (f *GeminiFixture) NewModel(modelName string) (llm.Model, error) {
 //nolint:paralleltest // Test suite manages its own lifecycle
 func TestGeminiConformance(t *testing.T) {
 	modelsToTest := []string{
-		gemini.ModelGemini25Flash,     // gemini-2.5-flash
-		gemini.ModelGemini3ProPreview, // gemini-3-pro-preview
+		gemini.ModelGemini25Flash,       // gemini-2.5-flash
+		gemini.ModelGemini3ProPreview,   // gemini-3-pro-preview
+		gemini.ModelGemini3FlashPreview, // gemini-3-flash-preview
 	}
 
 	for _, modelName := range modelsToTest {
