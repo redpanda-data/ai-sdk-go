@@ -11,7 +11,8 @@ import (
 )
 
 const (
-	mimeTypeJSON = "application/json"
+	mimeTypeJSON                = "application/json"
+	metadataKeyThoughtSignature = "gemini_thought_signature"
 )
 
 // RequestMapper handles conversion from unified Request to Gemini API format.
@@ -196,10 +197,19 @@ func (rm *RequestMapper) mapParts(parts []*llm.Part) ([]*genai.Part, error) {
 				return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
 			}
 
-			geminiParts = append(geminiParts, genai.NewPartFromFunctionCall(
+			geminiPart := genai.NewPartFromFunctionCall(
 				part.ToolRequest.Name,
 				args,
-			))
+			)
+
+			// Restore thought signature preserved from previous response (required for Gemini 3 Pro)
+			if part.Metadata != nil {
+				if sig, ok := part.Metadata[metadataKeyThoughtSignature].([]byte); ok {
+					geminiPart.ThoughtSignature = sig
+				}
+			}
+
+			geminiParts = append(geminiParts, geminiPart)
 
 		case part.IsToolResponse():
 			if part.ToolResponse == nil {

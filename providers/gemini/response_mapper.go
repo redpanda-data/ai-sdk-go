@@ -108,11 +108,23 @@ func (m *ResponseMapper) mapParts(parts []*genai.Part) ([]*llm.Part, bool, error
 			// Generate ID if not provided by Gemini (using cmp.Or pattern from fantasy)
 			id := cmp.Or(part.FunctionCall.ID, uuid.New().String())
 
-			content = append(content, llm.NewToolRequestPart(&llm.ToolRequest{
+			toolPart := llm.NewToolRequestPart(&llm.ToolRequest{
 				ID:        id,
 				Name:      part.FunctionCall.Name,
 				Arguments: argsJSON,
-			}))
+			})
+
+			// Preserve thought signature for Gemini 3 Pro multi-turn conversations
+			// Gemini 3 Pro requires thought signatures to be passed back during function calling
+			if len(part.ThoughtSignature) > 0 {
+				if toolPart.Metadata == nil {
+					toolPart.Metadata = make(map[string]any)
+				}
+
+				toolPart.Metadata[metadataKeyThoughtSignature] = part.ThoughtSignature
+			}
+
+			content = append(content, toolPart)
 
 		default:
 			// Skip unsupported part types (file data, inline data, etc.)
