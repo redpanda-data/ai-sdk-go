@@ -3,7 +3,10 @@ package tool
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -480,5 +483,286 @@ func TestCompositeRegistry_MCPUseCase(t *testing.T) {
 		names := []string{defs[0].Name, defs[1].Name}
 		assert.Contains(t, names, "mcp_tool")
 		assert.Contains(t, names, "agent2_custom")
+	})
+}
+
+// mockConcurrentTool tracks concurrent execution for testing.
+type mockConcurrentTool struct {
+	name             string
+	delay            time.Duration
+	currentCounter   *atomic.Int32
+	maxCounter       *atomic.Int32
+	executionCounter *atomic.Int32
+}
+
+func (t *mockConcurrentTool) Definition() llm.ToolDefinition {
+	return llm.ToolDefinition{
+		Name:        t.name,
+		Description: "Mock tool for concurrency testing",
+		Parameters:  json.RawMessage(`{"type":"object","properties":{}}`),
+	}
+}
+
+func (t *mockConcurrentTool) Execute(ctx context.Context, _ json.RawMessage) (json.RawMessage, error) {
+	// Track execution count
+	if t.executionCounter != nil {
+		t.executionCounter.Add(1)
+	}
+
+	// Track concurrent execution
+	current := t.currentCounter.Add(1)
+	defer t.currentCounter.Add(-1)
+
+	// Update max concurrent if needed
+	for {
+		maxVal := t.maxCounter.Load()
+		if current <= maxVal || t.maxCounter.CompareAndSwap(maxVal, current) {
+			break
+		}
+	}
+
+	// Simulate work with context cancellation support
+	select {
+	case <-time.After(t.delay):
+		return json.Marshal(map[string]string{"result": "success"})
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func TestCompositeRegistry_Concurrency(t *testing.T) {
+	t.Parallel()
+
+	t.Run("respects concurrency limit", func(t *testing.T) {
+		t.Parallel()
+
+		var currentConcurrent, maxConcurrent atomic.Int32
+
+		mockTool := &mockConcurrentTool{
+			name:           "test-tool",
+			delay:          50 * time.Millisecond,
+			currentCounter: &currentConcurrent,
+			maxCounter:     &maxConcurrent,
+		}
+
+		reg1 := NewRegistry(RegistryConfig{})
+		require.NoError(t, reg1.Register(mockTool))
+
+		composite := NewCompositeRegistry(reg1)
+
+		// Create 10 requests
+		requests := make([]*llm.ToolRequest, 10)
+		for i := range requests {
+			requests[i] = &llm.ToolRequest{
+				ID:        fmt.Sprintf("req-%d", i),
+				Name:      "test-tool",
+				Arguments: json.RawMessage(`{}`),
+			}
+		}
+
+		results := composite.ExecuteAll(
+			context.Background(),
+			requests,
+			WithMaxConcurrency(3),
+		)
+
+		require.Len(t, results, 10)
+		assert.LessOrEqual(t, maxConcurrent.Load(), int32(3), "Should respect concurrency limit of 3")
+		assert.GreaterOrEqual(t, maxConcurrent.Load(), int32(1), "At least one tool should have run concurrently")
+
+		// Verify all succeeded
+		for i, resp := range results {
+			assert.Empty(t, resp.Error, "Request %d should succeed", i)
+			assert.NotEmpty(t, resp.Result)
+		}
+	})
+
+	t.Run("default full parallelism", func(t *testing.T) {
+		t.Parallel()
+
+		var currentConcurrent, maxConcurrent atomic.Int32
+
+		mockTool := &mockConcurrentTool{
+			name:           "test-tool",
+			delay:          50 * time.Millisecond,
+			currentCounter: &currentConcurrent,
+			maxCounter:     &maxConcurrent,
+		}
+
+		reg1 := NewRegistry(RegistryConfig{})
+		require.NoError(t, reg1.Register(mockTool))
+
+		composite := NewCompositeRegistry(reg1)
+
+		// Create 5 requests
+		requests := make([]*llm.ToolRequest, 5)
+		for i := range requests {
+			requests[i] = &llm.ToolRequest{
+				ID:        fmt.Sprintf("req-%d", i),
+				Name:      "test-tool",
+				Arguments: json.RawMessage(`{}`),
+			}
+		}
+
+		// No concurrency limit specified - should run all in parallel
+		results := composite.ExecuteAll(context.Background(), requests)
+
+		require.Len(t, results, 5)
+		// All 5 should have run concurrently (or close to it due to timing)
+		assert.GreaterOrEqual(t, maxConcurrent.Load(), int32(3), "Should run multiple tools concurrently by default")
+
+		for i, resp := range results {
+			assert.Empty(t, resp.Error, "Request %d should succeed", i)
+		}
+	})
+
+	t.Run("context cancellation", func(t *testing.T) {
+		t.Parallel()
+
+		var executionCount atomic.Int32
+		mockTool := &mockConcurrentTool{
+			name:             "test-tool",
+			delay:            500 * time.Millisecond, // Longer delay to ensure cancellation happens
+			currentCounter:   &atomic.Int32{},
+			maxCounter:       &atomic.Int32{},
+			executionCounter: &executionCount,
+		}
+
+		reg1 := NewRegistry(RegistryConfig{})
+		require.NoError(t, reg1.Register(mockTool))
+
+		composite := NewCompositeRegistry(reg1)
+
+		// Create 5 requests
+		requests := make([]*llm.ToolRequest, 5)
+		for i := range requests {
+			requests[i] = &llm.ToolRequest{
+				ID:        fmt.Sprintf("req-%d", i),
+				Name:      "test-tool",
+				Arguments: json.RawMessage(`{}`),
+			}
+		}
+
+		// Cancel context after 50ms (before tools can complete their 500ms delay)
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		defer cancel()
+
+		results := composite.ExecuteAll(ctx, requests)
+
+		// ExecuteAll always returns len(reqs) responses, even on cancellation
+		require.Len(t, results, 5)
+
+		// At least some results should have errors due to cancellation
+		// (some may have started and been cancelled, others may never have started)
+		errorCount := 0
+
+		for _, result := range results {
+			if result.Error != "" {
+				errorCount++
+			}
+		}
+
+		assert.Positive(t, errorCount, "At least some requests should have errors due to cancellation")
+	})
+
+	t.Run("mixed registries concurrent execution", func(t *testing.T) {
+		t.Parallel()
+
+		var currentConcurrent, maxConcurrent atomic.Int32
+
+		mockTool1 := &mockConcurrentTool{
+			name:           "tool1",
+			delay:          50 * time.Millisecond,
+			currentCounter: &currentConcurrent,
+			maxCounter:     &maxConcurrent,
+		}
+
+		mockTool2 := &mockConcurrentTool{
+			name:           "tool2",
+			delay:          50 * time.Millisecond,
+			currentCounter: &currentConcurrent,
+			maxCounter:     &maxConcurrent,
+		}
+
+		reg1 := NewRegistry(RegistryConfig{})
+		require.NoError(t, reg1.Register(mockTool1))
+
+		reg2 := NewRegistry(RegistryConfig{})
+		require.NoError(t, reg2.Register(mockTool2))
+
+		composite := NewCompositeRegistry(reg1, reg2)
+
+		// Create mixed requests from both registries
+		requests := []*llm.ToolRequest{
+			{ID: "req-1", Name: "tool1", Arguments: json.RawMessage(`{}`)},
+			{ID: "req-2", Name: "tool2", Arguments: json.RawMessage(`{}`)},
+			{ID: "req-3", Name: "tool1", Arguments: json.RawMessage(`{}`)},
+			{ID: "req-4", Name: "tool2", Arguments: json.RawMessage(`{}`)},
+		}
+
+		results := composite.ExecuteAll(
+			context.Background(),
+			requests,
+			WithMaxConcurrency(2),
+		)
+
+		require.Len(t, results, 4)
+		assert.LessOrEqual(t, maxConcurrent.Load(), int32(2), "Should respect concurrency limit")
+
+		// Verify correct tool execution and order preservation
+		assert.Equal(t, "req-1", results[0].ID)
+		assert.Equal(t, "tool1", results[0].Name)
+		assert.Equal(t, "req-2", results[1].ID)
+		assert.Equal(t, "tool2", results[1].Name)
+		assert.Equal(t, "req-3", results[2].ID)
+		assert.Equal(t, "tool1", results[2].Name)
+		assert.Equal(t, "req-4", results[3].ID)
+		assert.Equal(t, "tool2", results[3].Name)
+
+		// All should succeed
+		for i, resp := range results {
+			assert.Empty(t, resp.Error, "Request %d should succeed", i)
+		}
+	})
+
+	t.Run("sequential execution with concurrency 1", func(t *testing.T) {
+		t.Parallel()
+
+		var currentConcurrent, maxConcurrent atomic.Int32
+
+		mockTool := &mockConcurrentTool{
+			name:           "test-tool",
+			delay:          30 * time.Millisecond,
+			currentCounter: &currentConcurrent,
+			maxCounter:     &maxConcurrent,
+		}
+
+		reg1 := NewRegistry(RegistryConfig{})
+		require.NoError(t, reg1.Register(mockTool))
+
+		composite := NewCompositeRegistry(reg1)
+
+		requests := make([]*llm.ToolRequest, 5)
+		for i := range requests {
+			requests[i] = &llm.ToolRequest{
+				ID:        fmt.Sprintf("req-%d", i),
+				Name:      "test-tool",
+				Arguments: json.RawMessage(`{}`),
+			}
+		}
+
+		// Force sequential execution
+		results := composite.ExecuteAll(
+			context.Background(),
+			requests,
+			WithMaxConcurrency(1),
+		)
+
+		require.Len(t, results, 5)
+		assert.Equal(t, int32(1), maxConcurrent.Load(), "Should execute sequentially with concurrency limit 1")
+
+		for i, resp := range results {
+			assert.Empty(t, resp.Error, "Request %d should succeed", i)
+		}
 	})
 }

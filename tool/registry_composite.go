@@ -104,23 +104,28 @@ func (c *CompositeRegistry) Execute(ctx context.Context, req *llm.ToolRequest) (
 	return nil, ErrToolNotFound
 }
 
-// ExecuteAll runs multiple tool requests, routing each to the appropriate child registry.
-func (c *CompositeRegistry) ExecuteAll(ctx context.Context, reqs []*llm.ToolRequest, _ ...BatchOption) []*llm.ToolResponse {
-	responses := make([]*llm.ToolResponse, len(reqs))
-
-	for i, req := range reqs {
-		resp, err := c.Execute(ctx, req)
-		if err != nil {
-			// Convert error to ToolResponse format
-			responses[i] = &llm.ToolResponse{
-				ID:    req.ID,
-				Name:  req.Name,
-				Error: err.Error(),
-			}
-		} else {
-			responses[i] = resp
+// ExecuteAll runs multiple tool requests concurrently, routing each to the appropriate child registry.
+// Respects batch options like WithMaxConcurrency() for controlled concurrency.
+//
+// Like the normal registry, this uses the best-effort pattern: all errors are encoded in
+// ToolResponse.Error fields, and len(reqs) responses are always returned in the same order.
+func (c *CompositeRegistry) ExecuteAll(ctx context.Context, reqs []*llm.ToolRequest, opts ...BatchOption) []*llm.ToolResponse {
+	// Use the shared concurrent execution helper with our Execute method
+	// which routes each request to the appropriate child registry
+	return executeAllConcurrent(ctx, reqs, opts, func(ctx context.Context, req *llm.ToolRequest) (*llm.ToolResponse, error) {
+		if req == nil {
+			return &llm.ToolResponse{Error: ErrToolRequestNil.Error()}, ErrToolRequestNil
 		}
-	}
 
-	return responses
+		resp, err := c.Execute(ctx, req)
+		if resp == nil {
+			resp = &llm.ToolResponse{ID: req.ID, Name: req.Name}
+		}
+
+		if err != nil {
+			resp.Error = err.Error()
+		}
+
+		return resp, err
+	})
 }

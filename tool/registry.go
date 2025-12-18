@@ -227,16 +227,24 @@ func (r *registry) Execute(ctx context.Context, req *llm.ToolRequest) (*llm.Tool
 	}, nil
 }
 
-// ExecuteAll implements Registry.ExecuteAll.
-// All errors are encoded in ToolResponse.Error fields, including:
-// - Per-tool execution failures
-// - Individual tool timeouts
-// - Context cancellation (for tasks that never started or were interrupted)
+// executeAllConcurrent is a shared helper for concurrent tool execution.
+// It implements the best-effort pattern: all errors are encoded in ToolResponse.Error,
+// never as top-level errors. Always returns len(reqs) responses.
 //
-// This "best-effort" pattern ensures callers always get a predictable response
-// structure with len(reqs) entries, making it simpler to process results without
-// checking for top-level errors.
-func (r *registry) ExecuteAll(ctx context.Context, reqs []*llm.ToolRequest, opts ...BatchOption) []*llm.ToolResponse {
+// This helper enables code reuse between registry and CompositeRegistry implementations,
+// ensuring consistent concurrency behavior across all registry types.
+//
+// Parameters:
+//   - ctx: context for cancellation
+//   - reqs: slice of tool requests to execute
+//   - opts: batch options (concurrency control, etc.)
+//   - execOne: function to execute a single request (registry-specific)
+func executeAllConcurrent(
+	ctx context.Context,
+	reqs []*llm.ToolRequest,
+	opts []BatchOption,
+	execOne func(context.Context, *llm.ToolRequest) (*llm.ToolResponse, error),
+) []*llm.ToolResponse {
 	n := len(reqs)
 	if n == 0 {
 		return []*llm.ToolResponse{}
@@ -260,7 +268,7 @@ func (r *registry) ExecuteAll(ctx context.Context, reqs []*llm.ToolRequest, opts
 		g.Go(func() error {
 			// Per-tool errors are encoded in resp.Error, never propagated to errgroup.
 			// This prevents one tool failure from canceling other concurrent executions.
-			resp, _ := r.executeOne(gctx, req)
+			resp, _ := execOne(gctx, req)
 			results[i] = resp
 
 			return nil
@@ -282,6 +290,19 @@ func (r *registry) ExecuteAll(ctx context.Context, reqs []*llm.ToolRequest, opts
 	}
 
 	return results
+}
+
+// ExecuteAll implements Registry.ExecuteAll.
+// All errors are encoded in ToolResponse.Error fields, including:
+// - Per-tool execution failures
+// - Individual tool timeouts
+// - Context cancellation (for tasks that never started or were interrupted)
+//
+// This "best-effort" pattern ensures callers always get a predictable response
+// structure with len(reqs) entries, making it simpler to process results without
+// checking for top-level errors.
+func (r *registry) ExecuteAll(ctx context.Context, reqs []*llm.ToolRequest, opts ...BatchOption) []*llm.ToolResponse {
+	return executeAllConcurrent(ctx, reqs, opts, r.executeOne)
 }
 
 // enforceResponseSizeLimit checks response size and applies limits/fallbacks.
