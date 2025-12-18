@@ -3,7 +3,6 @@ package tool
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
@@ -41,13 +40,13 @@ func NewCompositeRegistry(registries ...Registry) *CompositeRegistry {
 }
 
 // Register is not supported on composite registries - register in child registries instead.
-func (c *CompositeRegistry) Register(tool Tool, opts ...Option) error {
-	return fmt.Errorf("cannot register tools directly in composite registry: register in child registries instead")
+func (c *CompositeRegistry) Register(_ Tool, _ ...Option) error {
+	return errors.New("cannot register tools directly in composite registry: register in child registries instead")
 }
 
 // Unregister is not supported on composite registries - unregister from child registries instead.
-func (c *CompositeRegistry) Unregister(name string) error {
-	return fmt.Errorf("cannot unregister tools from composite registry: unregister from child registries instead")
+func (c *CompositeRegistry) Unregister(_ string) error {
+	return errors.New("cannot unregister tools from composite registry: unregister from child registries instead")
 }
 
 // List returns merged tool definitions from all child registries.
@@ -106,7 +105,7 @@ func (c *CompositeRegistry) Execute(ctx context.Context, req *llm.ToolRequest) (
 }
 
 // ExecuteAll runs multiple tool requests, routing each to the appropriate child registry.
-func (c *CompositeRegistry) ExecuteAll(ctx context.Context, reqs []*llm.ToolRequest, opts ...BatchOption) []*llm.ToolResponse {
+func (c *CompositeRegistry) ExecuteAll(ctx context.Context, reqs []*llm.ToolRequest, _ ...BatchOption) []*llm.ToolResponse {
 	responses := make([]*llm.ToolResponse, len(reqs))
 
 	for i, req := range reqs {

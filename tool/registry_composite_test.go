@@ -5,12 +5,13 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
-// simpleTool is a basic tool implementation for testing
+// simpleTool is a basic tool implementation for testing.
 type simpleTool struct {
 	name        string
 	description string
@@ -25,7 +26,7 @@ func (t *simpleTool) Definition() llm.ToolDefinition {
 	}
 }
 
-func (t *simpleTool) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+func (t *simpleTool) Execute(_ context.Context, _ json.RawMessage) (json.RawMessage, error) {
 	return json.Marshal(map[string]string{"result": t.result})
 }
 
@@ -34,6 +35,7 @@ func TestCompositeRegistry_List(t *testing.T) {
 
 	t.Run("empty composite", func(t *testing.T) {
 		t.Parallel()
+
 		composite := NewCompositeRegistry()
 		defs := composite.List()
 		assert.Empty(t, defs)
@@ -326,7 +328,7 @@ func TestCompositeRegistry_RegisterUnregisterNotSupported(t *testing.T) {
 
 		composite := NewCompositeRegistry()
 		err := composite.Register(&simpleTool{name: "tool1"})
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot register tools directly in composite registry")
 	})
 
@@ -335,7 +337,7 @@ func TestCompositeRegistry_RegisterUnregisterNotSupported(t *testing.T) {
 
 		composite := NewCompositeRegistry()
 		err := composite.Unregister("tool1")
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot unregister tools from composite registry")
 	})
 }
@@ -404,6 +406,8 @@ func TestCompositeRegistry_MCPUseCase(t *testing.T) {
 
 	// Both agents can access MCP tools
 	t.Run("agent1 can access MCP tool", func(t *testing.T) {
+		t.Parallel()
+
 		resp, err := agent1Registry.Execute(context.Background(), &llm.ToolRequest{
 			ID: "test-1", Name: "mcp_tool", Arguments: json.RawMessage(`{}`),
 		})
@@ -412,6 +416,8 @@ func TestCompositeRegistry_MCPUseCase(t *testing.T) {
 	})
 
 	t.Run("agent2 can access MCP tool", func(t *testing.T) {
+		t.Parallel()
+
 		resp, err := agent2Registry.Execute(context.Background(), &llm.ToolRequest{
 			ID: "test-2", Name: "mcp_tool", Arguments: json.RawMessage(`{}`),
 		})
@@ -421,6 +427,8 @@ func TestCompositeRegistry_MCPUseCase(t *testing.T) {
 
 	// Each agent has its own custom tools
 	t.Run("agent1 has its custom tool", func(t *testing.T) {
+		t.Parallel()
+
 		resp, err := agent1Registry.Execute(context.Background(), &llm.ToolRequest{
 			ID: "test-3", Name: "agent1_custom", Arguments: json.RawMessage(`{}`),
 		})
@@ -429,6 +437,8 @@ func TestCompositeRegistry_MCPUseCase(t *testing.T) {
 	})
 
 	t.Run("agent2 has its custom tool", func(t *testing.T) {
+		t.Parallel()
+
 		resp, err := agent2Registry.Execute(context.Background(), &llm.ToolRequest{
 			ID: "test-4", Name: "agent2_custom", Arguments: json.RawMessage(`{}`),
 		})
@@ -438,17 +448,23 @@ func TestCompositeRegistry_MCPUseCase(t *testing.T) {
 
 	// Agents don't see each other's custom tools
 	t.Run("agent1 cannot access agent2 custom tool", func(t *testing.T) {
+		t.Parallel()
+
 		_, err := agent1Registry.Get("agent2_custom")
 		assert.ErrorIs(t, err, ErrToolNotFound)
 	})
 
 	t.Run("agent2 cannot access agent1 custom tool", func(t *testing.T) {
+		t.Parallel()
+
 		_, err := agent2Registry.Get("agent1_custom")
 		assert.ErrorIs(t, err, ErrToolNotFound)
 	})
 
 	// Verify tool lists
 	t.Run("agent1 lists MCP + custom tools", func(t *testing.T) {
+		t.Parallel()
+
 		defs := agent1Registry.List()
 		require.Len(t, defs, 2)
 		names := []string{defs[0].Name, defs[1].Name}
@@ -457,6 +473,8 @@ func TestCompositeRegistry_MCPUseCase(t *testing.T) {
 	})
 
 	t.Run("agent2 lists MCP + custom tools", func(t *testing.T) {
+		t.Parallel()
+
 		defs := agent2Registry.List()
 		require.Len(t, defs, 2)
 		names := []string{defs[0].Name, defs[1].Name}
