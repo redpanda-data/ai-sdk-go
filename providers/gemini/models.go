@@ -4,11 +4,12 @@ import "github.com/redpanda-data/ai-sdk-go/llm"
 
 // Model ID constants for Google Gemini models.
 const (
-	ModelGemini3ProPreview = "gemini-3-pro-preview"
-	ModelGemini25Pro       = "gemini-2.5-pro"
-	ModelGemini25Flash     = "gemini-2.5-flash"
-	ModelGemini25FlashLite = "gemini-2.5-flash-lite"
-	ModelGemini20Flash     = "gemini-2.0-flash"
+	ModelGemini3ProPreview   = "gemini-3-pro-preview"
+	ModelGemini3FlashPreview = "gemini-3-flash-preview"
+	ModelGemini25Pro         = "gemini-2.5-pro"
+	ModelGemini25Flash       = "gemini-2.5-flash"
+	ModelGemini25FlashLite   = "gemini-2.5-flash-lite"
+	ModelGemini20Flash       = "gemini-2.0-flash"
 )
 
 // ModelDefinition defines a Gemini model with its capabilities and constraints.
@@ -25,6 +26,27 @@ var supportedModels = map[string]ModelDefinition{
 	ModelGemini3ProPreview: {
 		Name:  ModelGemini3ProPreview,
 		Label: "Gemini 3 Pro Preview",
+		Capabilities: llm.ModelCapabilities{
+			Streaming:        true,
+			Tools:            true,
+			JSONMode:         true,
+			StructuredOutput: true,
+			Vision:           true,
+			MultiTurn:        true,
+			SystemPrompts:    true,
+			Reasoning:        true, // Gemini 3 has thinking support
+		},
+		Constraints: llm.ModelConstraints{
+			TemperatureRange:  [2]float64{0.0, 2.0},
+			MaxInputTokens:    1048576, // 1M input tokens
+			MaxOutputTokens:   65535,   // 65K output tokens
+			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
+			MutuallyExclusive: [][]string{},
+		},
+	},
+	ModelGemini3FlashPreview: {
+		Name:  ModelGemini3FlashPreview,
+		Label: "Gemini 3 Flash Preview",
 		Capabilities: llm.ModelCapabilities{
 			Streaming:        true,
 			Tools:            true,
