@@ -340,6 +340,51 @@ func TestCompositeRegistry_RegisterUnregisterNotSupported(t *testing.T) {
 	})
 }
 
+func TestCompositeRegistry_DynamicToolUpdates(t *testing.T) {
+	t.Parallel()
+
+	// Simulate MCP leaf registry that gets updated dynamically
+	mcpRegistry := NewRegistry(RegistryConfig{})
+	require.NoError(t, mcpRegistry.Register(&simpleTool{name: "tool1", result: "v1"}))
+
+	// Create composite registry
+	composite := NewCompositeRegistry(mcpRegistry)
+
+	// Verify initial tool is visible
+	defs := composite.List()
+	require.Len(t, defs, 1)
+	assert.Equal(t, "tool1", defs[0].Name)
+
+	// Simulate MCP client adding a new tool to leaf registry
+	require.NoError(t, mcpRegistry.Register(&simpleTool{name: "tool2", result: "v2"}))
+
+	// Verify new tool is immediately visible through composite
+	defs = composite.List()
+	require.Len(t, defs, 2, "composite should reflect leaf registry updates")
+	names := []string{defs[0].Name, defs[1].Name}
+	assert.Contains(t, names, "tool1")
+	assert.Contains(t, names, "tool2")
+
+	// Verify new tool is executable
+	resp, err := composite.Execute(context.Background(), &llm.ToolRequest{
+		ID: "test-1", Name: "tool2", Arguments: json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+	assert.Contains(t, string(resp.Result), "v2")
+
+	// Simulate MCP client removing a tool
+	require.NoError(t, mcpRegistry.Unregister("tool1"))
+
+	// Verify removal is reflected in composite
+	defs = composite.List()
+	require.Len(t, defs, 1, "composite should reflect tool removal")
+	assert.Equal(t, "tool2", defs[0].Name)
+
+	// Verify removed tool is no longer accessible
+	_, err = composite.Get("tool1")
+	assert.ErrorIs(t, err, ErrToolNotFound)
+}
+
 func TestCompositeRegistry_MCPUseCase(t *testing.T) {
 	t.Parallel()
 
