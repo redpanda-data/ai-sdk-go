@@ -12,7 +12,7 @@ import (
 
 const (
 	mimeTypeJSON                = "application/json"
-	metadataKeyThoughtSignature = "google_thought_signature"
+	metadataKeyThoughtSignature = "gemini_thought_signature"
 )
 
 // RequestMapper handles conversion from unified Request to Google API format.
