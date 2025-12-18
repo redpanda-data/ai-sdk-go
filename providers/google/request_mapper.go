@@ -1,4 +1,4 @@
-package gemini
+package google
 
 import (
 	"encoding/json"
@@ -15,7 +15,7 @@ const (
 	metadataKeyThoughtSignature = "gemini_thought_signature"
 )
 
-// RequestMapper handles conversion from unified Request to Gemini API format.
+// RequestMapper handles conversion from unified Request to Google API format.
 type RequestMapper struct {
 	config       *Config
 	schemaMapper *SchemaMapper
@@ -29,7 +29,7 @@ func NewRequestMapper(config *Config) *RequestMapper {
 	}
 }
 
-// ToProvider converts our unified Request to Gemini API format.
+// ToProvider converts our unified Request to Google API format.
 func (rm *RequestMapper) ToProvider(req *llm.Request) ([]*genai.Content, *genai.GenerateContentConfig, error) {
 	// Map messages to Content
 	contents, systemInstruction, err := rm.mapMessages(req.Messages)
@@ -262,8 +262,8 @@ func (rm *RequestMapper) mapToolDefinitions(tools []llm.ToolDefinition) ([]*gena
 			return nil, fmt.Errorf("failed to parse tool schema for %s: %w", tool.Name, err)
 		}
 
-		// Adapt the schema for Gemini (though Gemini uses standard JSON Schema)
-		schema := rm.schemaMapper.AdaptSchemaForGemini(schemaMap)
+		// Adapt the schema for Google (though Google uses standard JSON Schema)
+		schema := rm.schemaMapper.AdaptSchemaForGoogle(schemaMap)
 
 		funcDecl := &genai.FunctionDeclaration{
 			Name:        tool.Name,

@@ -1,4 +1,4 @@
-package gemini
+package google
 
 import (
 	"cmp"
@@ -15,7 +15,7 @@ import (
 
 var _ llm.Model = (*Model)(nil)
 
-// Model implements the llm.Model interface for Gemini models.
+// Model implements the llm.Model interface for Google Gemini models.
 type Model struct {
 	provider       *Provider
 	config         *Config
@@ -45,9 +45,9 @@ func (m *Model) Constraints() llm.ModelConstraints {
 	return m.definition.Constraints
 }
 
-// Generate performs a single, non-streaming request to the Gemini API.
+// Generate performs a single, non-streaming request to the Google API.
 func (m *Model) Generate(ctx context.Context, req *llm.Request) (*llm.Response, error) {
-	// Convert our unified request to Gemini API format
+	// Convert our unified request to Google API format
 	contents, config, err := m.requestMapper.ToProvider(req)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", llm.ErrRequestMapping, err)
@@ -69,11 +69,11 @@ func (m *Model) Generate(ctx context.Context, req *llm.Request) (*llm.Response, 
 	return m.responseMapper.FromProvider(response)
 }
 
-// GenerateEvents performs a streaming request to the Gemini API.
+// GenerateEvents performs a streaming request to the Google API.
 // It returns a Go 1.23+ iterator for streaming LLM responses.
 func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[llm.Event, error] {
 	return func(yield func(llm.Event, error) bool) {
-		// Convert our unified request to Gemini API format
+		// Convert our unified request to Google API format
 		contents, config, err := m.requestMapper.ToProvider(req)
 		if err != nil {
 			yield(nil, fmt.Errorf("%w: %w", llm.ErrRequestMapping, err))

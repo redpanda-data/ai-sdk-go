@@ -1,4 +1,4 @@
-package gemini
+package google
 
 import (
 	"cmp"
@@ -11,7 +11,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
-// ResponseMapper converts Gemini API payloads to llm.Response.
+// ResponseMapper converts Google API payloads to llm.Response.
 type ResponseMapper struct {
 	modelDefinition ModelDefinition
 }
@@ -21,7 +21,7 @@ func NewResponseMapper(definition ModelDefinition) *ResponseMapper {
 	return &ResponseMapper{modelDefinition: definition}
 }
 
-// FromProvider converts a Gemini GenerateContentResponse into llm.Response.
+// FromProvider converts a Google GenerateContentResponse into llm.Response.
 func (m *ResponseMapper) FromProvider(r *genai.GenerateContentResponse) (*llm.Response, error) {
 	if r == nil {
 		return nil, fmt.Errorf("%w: nil provider response", llm.ErrResponseMapping)

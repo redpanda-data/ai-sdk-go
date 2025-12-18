@@ -1,4 +1,4 @@
-package gemini_test
+package google_test
 
 import (
 	"context"
@@ -8,22 +8,22 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
-	"github.com/redpanda-data/ai-sdk-go/providers/gemini"
-	"github.com/redpanda-data/ai-sdk-go/providers/gemini/geminitest"
+	"github.com/redpanda-data/ai-sdk-go/providers/google"
+	"github.com/redpanda-data/ai-sdk-go/providers/google/googletest"
 	"github.com/redpanda-data/ai-sdk-go/providers/testutil"
 )
 
 func TestGeminiCachedTokens(t *testing.T) {
 	t.Parallel()
 
-	apiKey := geminitest.GetAPIKeyOrSkipTest(t)
+	apiKey := googletest.GetAPIKeyOrSkipTest(t)
 
 	ctx := context.Background()
 
-	provider, err := gemini.NewProvider(ctx, apiKey)
+	provider, err := google.NewProvider(ctx, apiKey)
 	require.NoError(t, err)
 
-	model, err := provider.NewModel(geminitest.TestModelName)
+	model, err := provider.NewModel(googletest.TestModelName)
 	require.NoError(t, err)
 
 	// Gemini 2.5 Flash requires 2048+ tokens for implicit caching

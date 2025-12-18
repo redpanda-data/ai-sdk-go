@@ -59,7 +59,7 @@ Use a **vertical stack layout** (top to bottom represents the call hierarchy).
 - Pluggable providers (show as stacked chips with "..." for extensibility):
   - OpenAI
   - Anthropic
-  - Gemini
+  - Google
   - Custom...
 - Color: Orange/amber (#DD6B20) - external API boundary
 - Add plug icon to indicate pluggability

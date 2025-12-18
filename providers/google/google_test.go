@@ -1,4 +1,4 @@
-package gemini
+package google
 
 import (
 	"context"
@@ -42,7 +42,7 @@ func TestProviderModels(t *testing.T) {
 		modelNames[i] = model.Name
 		assert.NotEmpty(t, model.Name, "Model name should not be empty")
 		assert.NotEmpty(t, model.Label, "Model label should not be empty")
-		assert.Equal(t, "gemini", model.Provider, "Provider should be 'gemini'")
+		assert.Equal(t, "google", model.Provider, "Provider should be 'google'")
 	}
 
 	// Verify expected models are present
@@ -87,7 +87,7 @@ func TestModelCreation(t *testing.T) {
 	// Error cases
 	_, err = provider.NewModel("nonexistent-model")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unsupported Gemini model")
+	assert.Contains(t, err.Error(), "unsupported")
 }
 
 func TestModelConstraints(t *testing.T) {

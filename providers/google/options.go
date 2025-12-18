@@ -1,4 +1,4 @@
-package gemini
+package google
 
 import (
 	"errors"
@@ -8,10 +8,10 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
-// Option configures a Gemini model instance using functional options.
+// Option configures a Google Gemini model instance using functional options.
 type Option func(*Config) error
 
-// Config holds the configuration for a Gemini model instance.
+// Config holds the configuration for a Google Gemini model instance.
 type Config struct {
 	ModelName   string
 	Constraints llm.ModelConstraints
@@ -207,7 +207,7 @@ func WithThinking(enabled bool) Option {
 //   - Testing beta/experimental model variants
 //   - Using timestamped versions not yet in the SDK
 //
-// The custom name will be sent to Gemini's API, but validation and constraints
+// The custom name will be sent to Google's API, but validation and constraints
 // are inherited from the base model specified in NewModel().
 func WithCustomModelName(customName string) Option {
 	return func(cfg *Config) error {

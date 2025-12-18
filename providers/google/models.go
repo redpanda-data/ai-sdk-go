@@ -1,4 +1,4 @@
-package gemini
+package google
 
 import "github.com/redpanda-data/ai-sdk-go/llm"
 
