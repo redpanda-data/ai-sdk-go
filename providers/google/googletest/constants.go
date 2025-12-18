@@ -1,4 +1,4 @@
-package geminitest
+package googletest
 
 const (
 	// TestModelName is the model to use for integration tests.

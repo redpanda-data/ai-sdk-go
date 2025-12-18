@@ -1,4 +1,4 @@
-package gemini
+package google
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
-// Provider implements the Gemini model provider.
+// Provider implements the Google Gemini model provider.
 type Provider struct {
 	APIKey  string
 	client  *genai.Client
@@ -19,13 +19,13 @@ type Provider struct {
 
 // Name returns the provider identifier.
 func (*Provider) Name() string {
-	return "gemini"
+	return "google"
 }
 
 // ProviderOption configures a Provider instance using functional options.
 type ProviderOption func(*Provider) error
 
-// NewProvider creates a new Gemini provider with the required API key and optional configuration.
+// NewProvider creates a new Google Gemini provider with the required API key and optional configuration.
 //
 //nolint:contextcheck // Context is intentionally stored for Gemini client operations
 func NewProvider(ctx context.Context, apiKey string, opts ...ProviderOption) (*Provider, error) {
@@ -69,11 +69,11 @@ func (p *Provider) Close() error {
 	return nil
 }
 
-// NewModel creates a new Gemini model instance with the specified configuration.
+// NewModel creates a new Google Gemini model instance with the specified configuration.
 func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error) {
 	modelDef, ok := supportedModels[modelName]
 	if !ok {
-		return nil, fmt.Errorf("unsupported Gemini model: %s", modelName)
+		return nil, fmt.Errorf("unsupported model: %s", modelName)
 	}
 
 	cfg := &Config{
@@ -114,7 +114,7 @@ func (*Provider) Models() []llm.ModelDiscoveryInfo {
 			Name:         def.Name,
 			Label:        def.Label,
 			Capabilities: def.Capabilities,
-			Provider:     "gemini",
+			Provider:     "google",
 		})
 	}
 

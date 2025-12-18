@@ -1,4 +1,4 @@
-package gemini_test
+package google_test
 
 import (
 	"context"
@@ -8,28 +8,28 @@ import (
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/providers/conformance"
-	"github.com/redpanda-data/ai-sdk-go/providers/gemini"
-	"github.com/redpanda-data/ai-sdk-go/providers/gemini/geminitest"
+	"github.com/redpanda-data/ai-sdk-go/providers/google"
+	"github.com/redpanda-data/ai-sdk-go/providers/google/googletest"
 )
 
-// GeminiFixture implements the conformance.Fixture interface for Gemini provider.
-type GeminiFixture struct {
-	provider *gemini.Provider
+// GoogleFixture implements the conformance.Fixture interface for Google Gemini provider.
+type GoogleFixture struct {
+	provider *google.Provider
 	model    llm.Model
-	ctx      context.Context //nolint:containedctx // Context required for Gemini provider operations
+	ctx      context.Context //nolint:containedctx // Context required for Google provider operations
 }
 
-// NewGeminiFixture creates a new Gemini test fixture for a specific model.
-func NewGeminiFixture(t *testing.T, modelName string) *GeminiFixture {
+// NewGoogleFixture creates a new Google Gemini test fixture for a specific model.
+func NewGoogleFixture(t *testing.T, modelName string) *GoogleFixture {
 	t.Helper()
 
 	// Check for API key (skips test if not set)
-	apiKey := geminitest.GetAPIKeyOrSkipTest(t)
+	apiKey := googletest.GetAPIKeyOrSkipTest(t)
 
 	ctx := context.Background()
 
 	// Create provider
-	provider, err := gemini.NewProvider(ctx, apiKey)
+	provider, err := google.NewProvider(ctx, apiKey)
 	if err != nil {
 		t.Fatalf("Failed to create provider: %v", err)
 	}
@@ -42,28 +42,28 @@ func NewGeminiFixture(t *testing.T, modelName string) *GeminiFixture {
 
 	// If the model supports reasoning, recreate it with thinking enabled
 	if model.Capabilities().Reasoning {
-		model, err = provider.NewModel(modelName, gemini.WithThinking(true))
+		model, err = provider.NewModel(modelName, google.WithThinking(true))
 		if err != nil {
 			t.Fatalf("Failed to create model %s with thinking: %v", modelName, err)
 		}
 	}
 
-	return &GeminiFixture{
+	return &GoogleFixture{
 		provider: provider,
 		model:    model,
 		ctx:      ctx,
 	}
 }
 
-func (f *GeminiFixture) Name() string {
-	return "Gemini"
+func (f *GoogleFixture) Name() string {
+	return "Google"
 }
 
-func (f *GeminiFixture) StandardModel() llm.Model {
+func (f *GoogleFixture) StandardModel() llm.Model {
 	return f.model
 }
 
-func (f *GeminiFixture) ReasoningModel() llm.Model {
+func (f *GoogleFixture) ReasoningModel() llm.Model {
 	// Return the same model if it supports reasoning
 	// The conformance suite will check capabilities and skip tests if needed
 	if f.model.Capabilities().Reasoning {
@@ -73,29 +73,29 @@ func (f *GeminiFixture) ReasoningModel() llm.Model {
 	return nil
 }
 
-func (f *GeminiFixture) Models() []llm.ModelDiscoveryInfo {
+func (f *GoogleFixture) Models() []llm.ModelDiscoveryInfo {
 	return f.provider.Models()
 }
 
-func (f *GeminiFixture) NewModel(modelName string) (llm.Model, error) {
+func (f *GoogleFixture) NewModel(modelName string) (llm.Model, error) {
 	return f.provider.NewModel(modelName)
 }
 
-// TestGeminiConformance runs the conformance test suite for Gemini models.
+// TestGoogleConformance runs the conformance test suite for Google Gemini models.
 // Tests multiple models including Gemini 3 Pro to ensure thought signature
 // preservation works correctly for multi-turn tool calling.
 //
 //nolint:paralleltest // Test suite manages its own lifecycle
-func TestGeminiConformance(t *testing.T) {
+func TestGoogleConformance(t *testing.T) {
 	modelsToTest := []string{
-		gemini.ModelGemini25Flash,       // gemini-2.5-flash
-		gemini.ModelGemini3ProPreview,   // gemini-3-pro-preview
-		gemini.ModelGemini3FlashPreview, // gemini-3-flash-preview
+		google.ModelGemini25Flash,       // gemini-2.5-flash
+		google.ModelGemini3ProPreview,   // gemini-3-pro-preview
+		google.ModelGemini3FlashPreview, // gemini-3-flash-preview
 	}
 
 	for _, modelName := range modelsToTest {
 		t.Run(modelName, func(t *testing.T) {
-			fixture := NewGeminiFixture(t, modelName)
+			fixture := NewGoogleFixture(t, modelName)
 			suite.Run(t, conformance.NewSuite(fixture))
 		})
 	}

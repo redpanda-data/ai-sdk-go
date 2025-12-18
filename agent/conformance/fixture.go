@@ -8,7 +8,7 @@ import (
 // Fixture defines the interface that provider packages must implement
 // to participate in agent conformance testing.
 //
-// Each provider package (openai, anthropic, gemini, etc.) should create
+// Each provider package (openai, anthropic, google, etc.) should create
 // a fixture that demonstrates their provider works correctly with the
 // agent layer, particularly for tool calling scenarios.
 type Fixture interface {

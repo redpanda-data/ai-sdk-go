@@ -1,4 +1,4 @@
-package geminitest
+package googletest
 
 import (
 	"os"
