@@ -57,11 +57,11 @@ func (h *tracingModelHandler) Generate(ctx context.Context, req *llm.Request) (*
 		return nil, err
 	}
 
-	// Record response attributes and output event
+	// Record response attributes and output messages
 	h.recordResponseAttributes(span, resp)
 
 	if h.cfg.recordOutputs {
-		h.recordOutputEvent(span, resp)
+		h.recordOutputMessages(span, resp)
 	}
 
 	return resp, nil
@@ -93,7 +93,7 @@ func (h *tracingModelHandler) GenerateEvents(ctx context.Context, req *llm.Reque
 				h.recordResponseAttributes(span, endEvt.Response)
 
 				if h.cfg.recordOutputs && endEvt.Response != nil {
-					h.recordOutputEvent(span, endEvt.Response)
+					h.recordOutputMessages(span, endEvt.Response)
 				}
 
 				yield(evt, nil)
@@ -147,22 +147,43 @@ func (h *tracingModelHandler) startSpan(ctx context.Context, req *llm.Request) (
 	h.addRequestAttributes(span, req)
 
 	if h.cfg.recordInputs {
-		h.recordInputEvent(span, req)
+		h.recordInputMessages(span, req)
 	}
 
 	return ctx, span
 }
 
 // addRequestAttributes adds request-related attributes to the span.
+// Also propagates provider and model information to the parent invocation span.
 func (h *tracingModelHandler) addRequestAttributes(span trace.Span, req *llm.Request) {
 	// Get model name and provider from ModelInfo
+	var modelName, providerName string
+
 	if h.modelInfo != nil {
-		if modelName := h.modelInfo.Name(); modelName != "" {
-			span.SetAttributes(genAIRequestModel(modelName))
+		if name := h.modelInfo.Name(); name != "" {
+			modelName = name
+			span.SetAttributes(genAIRequestModel(name))
 		}
 
-		if providerName := h.modelInfo.Provider(); providerName != "" {
-			span.SetAttributes(genAIProviderName(providerName))
+		if prov := h.modelInfo.Provider(); prov != "" {
+			providerName = prov
+			span.SetAttributes(genAIProviderName(prov))
+		}
+	}
+
+	// Propagate provider and model to the invocation span (required per OTel spec)
+	if invSpan, ok := getInvocationSpan(h.inv); ok {
+		var invAttrs []attribute.KeyValue
+		if providerName != "" {
+			invAttrs = append(invAttrs, genAIProviderName(providerName))
+		}
+
+		if modelName != "" {
+			invAttrs = append(invAttrs, genAIRequestModel(modelName))
+		}
+
+		if len(invAttrs) > 0 {
+			invSpan.SetAttributes(invAttrs...)
 		}
 	}
 
@@ -170,41 +191,48 @@ func (h *tracingModelHandler) addRequestAttributes(span trace.Span, req *llm.Req
 	// Disabled by default per OTel spec: "NOT RECOMMENDED to populate by default" due to size
 	if h.cfg.recordToolDefinitions && req != nil && len(req.Tools) > 0 {
 		if toolsJSON, err := json.Marshal(req.Tools); err == nil {
-			span.SetAttributes(attribute.String("gen_ai.tool.definitions", string(toolsJSON)))
+			span.SetAttributes(genAIToolDefinitions(string(toolsJSON)))
 		}
 	}
 }
 
-// recordInputEvent records the input messages as a span event.
-func (h *tracingModelHandler) recordInputEvent(span trace.Span, req *llm.Request) {
+// recordInputMessages records the input messages as a span attribute (gen_ai.input.messages).
+// Per OTel spec, this is recorded as a JSON string following the Input messages JSON schema.
+func (h *tracingModelHandler) recordInputMessages(span trace.Span, req *llm.Request) {
 	if req == nil || len(req.Messages) == 0 {
 		return
 	}
 
-	// Serialize messages to JSON for the event
-	if messagesJSON, err := json.Marshal(req.Messages); err == nil {
-		span.AddEvent(eventGenAIContentPrompt,
-			trace.WithAttributes(
-				attribute.String("content", string(messagesJSON)),
-				attribute.Int("message_count", len(req.Messages)),
-			),
+	// Transform SDK messages to OTel-compliant format
+	otelMessages := transformInputMessages(req.Messages)
+
+	// Serialize OTel messages to JSON and record as span attribute
+	if messagesJSON, err := json.Marshal(otelMessages); err == nil {
+		span.SetAttributes(
+			genAIInputMessages(string(messagesJSON)),
 		)
 	}
 }
 
-// recordOutputEvent records the output message as a span event.
-func (h *tracingModelHandler) recordOutputEvent(span trace.Span, resp *llm.Response) {
+// recordOutputMessages records the output message as a span attribute (gen_ai.output.messages).
+// Per OTel spec, this is recorded as a JSON string following the Output messages JSON schema.
+// Output messages are recorded as an array containing a single message with finish_reason.
+func (h *tracingModelHandler) recordOutputMessages(span trace.Span, resp *llm.Response) {
 	if resp == nil {
 		return
 	}
 
-	// Serialize the response message to JSON for the event
-	if messageJSON, err := json.Marshal(resp.Message); err == nil {
-		span.AddEvent(eventGenAIContentCompletion,
-			trace.WithAttributes(
-				attribute.String("content", string(messageJSON)),
-				attribute.String("finish_reason", string(resp.FinishReason)),
-			),
+	// Transform SDK message to OTel-compliant format with finish_reason
+	// Use mapFinishReason to normalize to OTel enum
+	otelMsg := transformOutputMessage(resp.Message, mapFinishReason(resp.FinishReason))
+
+	// Output messages must be an array per the schema
+	otelMessages := []otelMessage{otelMsg}
+
+	// Serialize OTel messages to JSON and record as span attribute
+	if messageJSON, err := json.Marshal(otelMessages); err == nil {
+		span.SetAttributes(
+			genAIOutputMessages(string(messageJSON)),
 		)
 	}
 }
@@ -224,7 +252,7 @@ func (h *tracingModelHandler) recordResponseAttributes(span trace.Span, resp *ll
 	// If we need response model, we would need to extend llm.Response.
 
 	if resp.FinishReason != "" {
-		span.SetAttributes(genAIResponseFinishReasons(string(resp.FinishReason)))
+		span.SetAttributes(genAIResponseFinishReasons(mapFinishReason(resp.FinishReason)))
 	}
 
 	if resp.Usage != nil {
