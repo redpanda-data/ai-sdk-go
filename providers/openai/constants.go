@@ -66,6 +66,8 @@ const (
 type ReasoningEffort string
 
 const (
+	// ReasoningEffortNone disables reasoning (supported by GPT-5.1+ only).
+	ReasoningEffortNone = ReasoningEffort(shared.ReasoningEffortNone)
 	// ReasoningEffortMinimal uses the least computational effort for reasoning.
 	ReasoningEffortMinimal = ReasoningEffort(shared.ReasoningEffortMinimal)
 	// ReasoningEffortLow uses low computational effort for reasoning.

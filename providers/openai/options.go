@@ -206,7 +206,7 @@ func WithStop(sequences ...string) Option {
 }
 
 // WithReasoningEffort sets the computational effort for reasoning models.
-// Valid values: "minimal", "low", "medium" (default), "high".
+// Valid values: "none" (GPT-5.1+ only), "minimal", "low", "medium" (default), "high".
 // Only supported by reasoning models (GPT-5, O-series).
 func WithReasoningEffort(effort ReasoningEffort) Option {
 	return func(cfg *Config) error {
@@ -216,7 +216,7 @@ func WithReasoningEffort(effort ReasoningEffort) Option {
 		}
 
 		switch effort {
-		case ReasoningEffortMinimal, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh:
+		case ReasoningEffortNone, ReasoningEffortMinimal, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh:
 			cfg.ReasoningEffort = &effort
 			cfg.setOptions["reasoning_effort"] = true
 
