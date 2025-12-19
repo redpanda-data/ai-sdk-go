@@ -247,6 +247,48 @@ func TestUnsupportedReasoningEffortsIntegration(t *testing.T) {
 			shouldReject: true,
 			reason:       "O3 doesn't support 'none'",
 		},
+		{
+			model:        ModelO3,
+			effort:       ReasoningEffortMinimal,
+			shouldReject: true,
+			reason:       "O3 doesn't support 'minimal'",
+		},
+		{
+			model:        ModelO1Pro,
+			effort:       ReasoningEffortMinimal,
+			shouldReject: true,
+			reason:       "O1-pro doesn't support 'minimal'",
+		},
+		{
+			model:        ModelO4Mini,
+			effort:       ReasoningEffortMinimal,
+			shouldReject: true,
+			reason:       "O4-mini doesn't support 'minimal'",
+		},
+		{
+			model:        ModelGPT5_2Pro,
+			effort:       ReasoningEffortNone,
+			shouldReject: true,
+			reason:       "GPT-5.2-pro doesn't support 'none'",
+		},
+		{
+			model:        ModelGPT5_2Pro,
+			effort:       ReasoningEffortLow,
+			shouldReject: true,
+			reason:       "GPT-5.2-pro doesn't support 'low'",
+		},
+		{
+			model:        ModelGPT5_2Instant,
+			effort:       ReasoningEffortNone,
+			shouldReject: true,
+			reason:       "GPT-5.2-instant only supports 'medium'",
+		},
+		{
+			model:        ModelGPT5_2Instant,
+			effort:       ReasoningEffortLow,
+			shouldReject: true,
+			reason:       "GPT-5.2-instant only supports 'medium'",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -317,11 +359,11 @@ func TestSupportedReasoningEfforts(t *testing.T) {
 			expectMinimal: true,
 		},
 		{
-			name:          "o3 should start with 'minimal'",
+			name:          "o3 should start with 'low'",
 			model:         ModelO3,
-			expectedFirst: ReasoningEffortMinimal,
+			expectedFirst: ReasoningEffortLow,
 			expectNone:    false,
-			expectMinimal: true,
+			expectMinimal: false,
 		},
 	}
 

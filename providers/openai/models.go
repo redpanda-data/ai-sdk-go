@@ -151,7 +151,7 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed", "reasoning_effort", "reasoning_summary"},
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
-		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh},
+		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortMedium}, // Instant variant only supports medium
 	},
 	ModelGPT5_2Pro: {
 		Name:  ModelGPT5_2Pro,
@@ -174,7 +174,7 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed", "reasoning_effort", "reasoning_summary"},
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
-		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh},
+		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh}, // Pro variant starts at medium
 	},
 
 	// GPT-4.1 Series (Enhanced Performance)
@@ -238,7 +238,7 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:   []string{"temperature", "max_tokens", "reasoning_effort", "reasoning_summary"},
 			MutuallyExclusive: [][]string{},
 		},
-		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortMinimal, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
+		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
 	},
 	ModelO4Mini: {
 		Name:  ModelO4Mini,
@@ -258,7 +258,7 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:   []string{"temperature", "max_tokens", "reasoning_effort", "reasoning_summary"},
 			MutuallyExclusive: [][]string{},
 		},
-		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortMinimal, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
+		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
 	},
 
 	// GPT-4o Series (Multimodal)
@@ -372,7 +372,7 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:   []string{"temperature", "max_tokens", "reasoning_effort", "reasoning_summary"},
 			MutuallyExclusive: [][]string{},
 		},
-		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortMinimal, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
+		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
 	},
 
 	// O3 Pro - Professional-grade reasoning
@@ -394,6 +394,6 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:   []string{"temperature", "max_tokens", "reasoning_effort", "reasoning_summary"},
 			MutuallyExclusive: [][]string{},
 		},
-		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortMinimal, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
+		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
 	},
 }
