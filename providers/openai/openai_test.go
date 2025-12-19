@@ -666,16 +666,18 @@ func TestGPT52ReasoningEffort(t *testing.T) {
 			wantErr:       false,
 		},
 		{
-			name:          "gpt-5.2 with ReasoningEffortMinimal (SDK accepts, API rejects)",
+			name:          "gpt-5.2 with ReasoningEffortMinimal (unsupported)",
 			model:         ModelGPT5_2,
 			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortMinimal)},
-			wantErr:       false, // SDK validation passes, but OpenAI API will reject
+			wantErr:       true,
+			errContains:   "does not support reasoning effort 'minimal'",
 		},
 		{
-			name:          "gpt-5.2-pro with ReasoningEffortNone (supported)",
+			name:          "gpt-5.2-pro with ReasoningEffortNone (unsupported)",
 			model:         ModelGPT5_2Pro,
 			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortNone)},
-			wantErr:       false,
+			wantErr:       true,
+			errContains:   "does not support reasoning effort 'none'",
 		},
 		{
 			name:          "gpt-5.1 with ReasoningEffortNone (supported)",
@@ -684,10 +686,11 @@ func TestGPT52ReasoningEffort(t *testing.T) {
 			wantErr:       false,
 		},
 		{
-			name:          "gpt-5.1 with ReasoningEffortMinimal (SDK accepts, API rejects)",
+			name:          "gpt-5.1 with ReasoningEffortMinimal (unsupported)",
 			model:         ModelGPT5_1,
 			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortMinimal)},
-			wantErr:       false, // SDK validation passes, but OpenAI API will reject
+			wantErr:       true,
+			errContains:   "does not support reasoning effort 'minimal'",
 		},
 		{
 			name:          "gpt-5 with ReasoningEffortMinimal (supported for older models)",
@@ -699,36 +702,6 @@ func TestGPT52ReasoningEffort(t *testing.T) {
 			name:          "o3 with ReasoningEffortLow (supported)",
 			model:         ModelO3,
 			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortLow)},
-			wantErr:       false,
-		},
-		{
-			name:          "gpt-5-2-codex with ReasoningEffortNone (supported)",
-			model:         ModelGPT5_2Codex,
-			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortNone)},
-			wantErr:       false,
-		},
-		{
-			name:          "gpt-5-2-codex with ReasoningEffortLow (supported)",
-			model:         ModelGPT5_2Codex,
-			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortLow)},
-			wantErr:       false,
-		},
-		{
-			name:          "gpt-5-2-codex with ReasoningEffortMedium (supported)",
-			model:         ModelGPT5_2Codex,
-			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortMedium)},
-			wantErr:       false,
-		},
-		{
-			name:          "gpt-5-2-codex with ReasoningEffortHigh (supported)",
-			model:         ModelGPT5_2Codex,
-			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortHigh)},
-			wantErr:       false,
-		},
-		{
-			name:          "gpt-5-2-codex with ReasoningEffortXHigh (supported)",
-			model:         ModelGPT5_2Codex,
-			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortXHigh)},
 			wantErr:       false,
 		},
 	}

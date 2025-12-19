@@ -37,12 +37,6 @@ const (
 	// TODO: migrate to shared.ResponsesModelGPT5_2Pro when SDK adds support.
 	ModelGPT5_2Pro = shared.ResponsesModel("gpt-5.2-pro")
 
-	// ModelGPT5_2Codex is the GPT-5.2 Codex model (coding-optimized variant).
-	// Specialized for software engineering tasks: code generation, debugging, refactoring.
-	// Note: Uses manual string since OpenAI SDK doesn't yet include GPT-5.2.
-	// TODO: migrate to shared.ChatModelGPT5_2Codex when SDK adds support.
-	ModelGPT5_2Codex = shared.ChatModel("gpt-5.2-codex")
-
 	// ModelGPT4O is the GPT-4o model.
 	ModelGPT4O = shared.ChatModelGPT4o
 	// ModelGPT4OMini is the GPT-4o Mini model.
