@@ -15,8 +15,9 @@ import (
 // and accepts 'none' when making actual API calls.
 //
 // This test requires OPENAI_API_KEY environment variable to be set.
-// Run with: OPENAI_API_KEY=sk-... go test -v -run TestGPT52ReasoningEffortIntegration
+// Run with: OPENAI_API_KEY=sk-... go test -v -run TestGPT52ReasoningEffortIntegration.
 func TestGPT52ReasoningEffortIntegration(t *testing.T) {
+	t.Parallel()
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
 		t.Skip("Skipping integration test: OPENAI_API_KEY not set")
@@ -64,12 +65,17 @@ func TestGPT52ReasoningEffortIntegration(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			// Create model with reasoning effort
 			model, err := provider.NewModel(tc.model, tc.reasoningOpt)
 			require.NoError(t, err, "Model creation should succeed")
 
 			// Verify supported reasoning efforts
-			supportedEfforts := model.(*Model).SupportedReasoningEfforts()
+			m, ok := model.(*Model)
+			require.True(t, ok, "Model should be *openai.Model")
+
+			supportedEfforts := m.SupportedReasoningEfforts()
 			t.Logf("Model %s supported reasoning efforts: %v", tc.model, supportedEfforts)
 			assert.NotEmpty(t, supportedEfforts, "Should have supported reasoning efforts")
 
@@ -89,14 +95,17 @@ func TestGPT52ReasoningEffortIntegration(t *testing.T) {
 
 			if tc.wantErr {
 				require.Error(t, err, "Expected API call to fail")
+
 				if tc.errContains != "" {
 					assert.Contains(t, err.Error(), tc.errContains, "Error should mention the unsupported value")
 				}
+
 				t.Logf("Expected error occurred: %v", err)
 			} else {
 				require.NoError(t, err, "Expected API call to succeed")
 				require.NotNil(t, resp, "Response should not be nil")
 				assert.NotEmpty(t, resp.Message.Content, "Response should have content")
+
 				if len(resp.Message.Content) > 0 && resp.Message.Content[0].Text != "" {
 					t.Logf("Success! Response: %s", resp.Message.Content[0].Text)
 				}
@@ -109,8 +118,9 @@ func TestGPT52ReasoningEffortIntegration(t *testing.T) {
 // This makes actual API calls to validate that each model accepts its advertised reasoning efforts.
 //
 // This test requires OPENAI_API_KEY environment variable to be set.
-// Run with: OPENAI_API_KEY=sk-... go test -v -run TestAllModelsReasoningEffortsIntegration -timeout 30m
+// Run with: OPENAI_API_KEY=sk-... go test -v -run TestAllModelsReasoningEffortsIntegration -timeout 30m.
 func TestAllModelsReasoningEffortsIntegration(t *testing.T) {
+	t.Parallel()
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
 		t.Skip("Skipping integration test: OPENAI_API_KEY not set")
@@ -137,11 +147,15 @@ func TestAllModelsReasoningEffortsIntegration(t *testing.T) {
 
 	for _, modelName := range reasoningModels {
 		t.Run(modelName, func(t *testing.T) {
+			t.Parallel()
+
 			// Create model to get supported reasoning efforts
 			model, err := provider.NewModel(modelName)
 			require.NoError(t, err)
 
-			m := model.(*Model)
+			m, ok := model.(*Model)
+			require.True(t, ok, "Model should be *openai.Model")
+
 			supportedEfforts := m.SupportedReasoningEfforts()
 			require.NotEmpty(t, supportedEfforts, "Model should have supported reasoning efforts")
 
@@ -150,6 +164,8 @@ func TestAllModelsReasoningEffortsIntegration(t *testing.T) {
 			// Test each supported reasoning effort
 			for _, effort := range supportedEfforts {
 				t.Run(string(effort), func(t *testing.T) {
+					t.Parallel()
+
 					// Create model with specific reasoning effort
 					testModel, err := provider.NewModel(modelName, WithReasoningEffort(effort))
 					require.NoError(t, err, "Should create model with effort %s", effort)
@@ -185,8 +201,9 @@ func TestAllModelsReasoningEffortsIntegration(t *testing.T) {
 // This makes actual API calls to verify the model definitions are accurate.
 //
 // This test requires OPENAI_API_KEY environment variable to be set.
-// Run with: OPENAI_API_KEY=sk-... go test -v -run TestUnsupportedReasoningEffortsIntegration
+// Run with: OPENAI_API_KEY=sk-... go test -v -run TestUnsupportedReasoningEffortsIntegration.
 func TestUnsupportedReasoningEffortsIntegration(t *testing.T) {
+	t.Parallel()
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
 		t.Skip("Skipping integration test: OPENAI_API_KEY not set")
@@ -231,6 +248,8 @@ func TestUnsupportedReasoningEffortsIntegration(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.model+"_with_"+string(tc.effort), func(t *testing.T) {
+			t.Parallel()
+
 			// Create model with unsupported reasoning effort
 			model, err := provider.NewModel(tc.model, WithReasoningEffort(tc.effort))
 			require.NoError(t, err, "SDK should accept the configuration")
@@ -310,7 +329,9 @@ func TestSupportedReasoningEfforts(t *testing.T) {
 			model, err := provider.NewModel(tc.model)
 			require.NoError(t, err)
 
-			m := model.(*Model)
+			m, ok := model.(*Model)
+			require.True(t, ok, "Model should be *openai.Model")
+
 			efforts := m.SupportedReasoningEfforts()
 
 			require.NotEmpty(t, efforts, "Model should have supported reasoning efforts")
@@ -319,10 +340,12 @@ func TestSupportedReasoningEfforts(t *testing.T) {
 			// Check for 'none' support
 			hasNone := false
 			hasMinimal := false
+
 			for _, effort := range efforts {
 				if effort == ReasoningEffortNone {
 					hasNone = true
 				}
+
 				if effort == ReasoningEffortMinimal {
 					hasMinimal = true
 				}

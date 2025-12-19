@@ -711,9 +711,11 @@ func TestGPT52ReasoningEffort(t *testing.T) {
 
 			if tt.wantErr {
 				require.Error(t, err)
+
 				if tt.errContains != "" {
 					assert.Contains(t, err.Error(), tt.errContains)
 				}
+
 				return
 			}
 

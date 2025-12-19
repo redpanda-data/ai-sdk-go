@@ -4,10 +4,10 @@ import "github.com/redpanda-data/ai-sdk-go/llm"
 
 // ModelDefinition defines an OpenAI model with its capabilities and constraints.
 type ModelDefinition struct {
-	Name                     string
-	Label                    string
-	Capabilities             llm.ModelCapabilities
-	Constraints              llm.ModelConstraints
+	Name                      string
+	Label                     string
+	Capabilities              llm.ModelCapabilities
+	Constraints               llm.ModelConstraints
 	SupportedReasoningEfforts []ReasoningEffort // Ascending order: safest/lowest first
 }
 
