@@ -44,6 +44,12 @@ func (m *Model) Constraints() llm.ModelConstraints {
 	return m.definition.Constraints
 }
 
+// SupportedReasoningEfforts returns the reasoning efforts this model supports, in ascending order (safest/lowest first).
+// Returns empty slice for non-reasoning models.
+func (m *Model) SupportedReasoningEfforts() []ReasoningEffort {
+	return m.definition.SupportedReasoningEfforts
+}
+
 // Generate performs a single, non-streaming request to the OpenAI Responses API.
 func (m *Model) Generate(ctx context.Context, req *llm.Request) (*llm.Response, error) {
 	// Convert our unified request to Responses API format

@@ -628,6 +628,106 @@ func TestMessageMappingWithToolParts(t *testing.T) {
 	}
 }
 
+func TestGPT52ReasoningEffort(t *testing.T) {
+	t.Parallel()
+
+	provider, err := NewProvider("sk-test-key")
+	require.NoError(t, err)
+
+	tests := []struct {
+		name          string
+		model         string
+		reasoningOpts []Option
+		wantErr       bool
+		errContains   string
+	}{
+		{
+			name:          "gpt-5.2 with ReasoningEffortNone (supported)",
+			model:         ModelGPT5_2,
+			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortNone)},
+			wantErr:       false,
+		},
+		{
+			name:          "gpt-5.2 with ReasoningEffortLow (supported)",
+			model:         ModelGPT5_2,
+			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortLow)},
+			wantErr:       false,
+		},
+		{
+			name:          "gpt-5.2 with ReasoningEffortMedium (supported)",
+			model:         ModelGPT5_2,
+			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortMedium)},
+			wantErr:       false,
+		},
+		{
+			name:          "gpt-5.2 with ReasoningEffortHigh (supported)",
+			model:         ModelGPT5_2,
+			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortHigh)},
+			wantErr:       false,
+		},
+		{
+			name:          "gpt-5.2 with ReasoningEffortMinimal (SDK accepts, API rejects)",
+			model:         ModelGPT5_2,
+			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortMinimal)},
+			wantErr:       false, // SDK validation passes, but OpenAI API will reject
+		},
+		{
+			name:          "gpt-5.2-pro with ReasoningEffortNone (supported)",
+			model:         ModelGPT5_2Pro,
+			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortNone)},
+			wantErr:       false,
+		},
+		{
+			name:          "gpt-5.1 with ReasoningEffortNone (supported)",
+			model:         ModelGPT5_1,
+			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortNone)},
+			wantErr:       false,
+		},
+		{
+			name:          "gpt-5.1 with ReasoningEffortMinimal (SDK accepts, API rejects)",
+			model:         ModelGPT5_1,
+			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortMinimal)},
+			wantErr:       false, // SDK validation passes, but OpenAI API will reject
+		},
+		{
+			name:          "gpt-5 with ReasoningEffortMinimal (supported for older models)",
+			model:         ModelGPT5,
+			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortMinimal)},
+			wantErr:       false,
+		},
+		{
+			name:          "o3 with ReasoningEffortLow (supported)",
+			model:         ModelO3,
+			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortLow)},
+			wantErr:       false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			model, err := provider.NewModel(tt.model, tt.reasoningOpts...)
+
+			if tt.wantErr {
+				require.Error(t, err)
+
+				if tt.errContains != "" {
+					assert.Contains(t, err.Error(), tt.errContains)
+				}
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.NotNil(t, model)
+
+			// Verify the model has reasoning capability
+			assert.True(t, model.Capabilities().Reasoning, "Model should support reasoning")
+		})
+	}
+}
+
 func TestMessageRoleValidation(t *testing.T) {
 	t.Parallel()
 

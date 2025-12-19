@@ -66,6 +66,8 @@ const (
 type ReasoningEffort string
 
 const (
+	// ReasoningEffortNone disables reasoning (supported by GPT-5.1+ only).
+	ReasoningEffortNone = ReasoningEffort(shared.ReasoningEffortNone)
 	// ReasoningEffortMinimal uses the least computational effort for reasoning.
 	ReasoningEffortMinimal = ReasoningEffort(shared.ReasoningEffortMinimal)
 	// ReasoningEffortLow uses low computational effort for reasoning.
@@ -74,6 +76,8 @@ const (
 	ReasoningEffortMedium = ReasoningEffort(shared.ReasoningEffortMedium)
 	// ReasoningEffortHigh uses high computational effort for reasoning.
 	ReasoningEffortHigh = ReasoningEffort(shared.ReasoningEffortHigh)
+	// ReasoningEffortXHigh uses extra high computational effort for reasoning (GPT-5.2+).
+	ReasoningEffortXHigh = ReasoningEffort(shared.ReasoningEffortXhigh)
 )
 
 // ReasoningSummary controls whether and how reasoning traces are summarized.
