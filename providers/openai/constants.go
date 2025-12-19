@@ -76,6 +76,8 @@ const (
 	ReasoningEffortMedium = ReasoningEffort(shared.ReasoningEffortMedium)
 	// ReasoningEffortHigh uses high computational effort for reasoning.
 	ReasoningEffortHigh = ReasoningEffort(shared.ReasoningEffortHigh)
+	// ReasoningEffortXHigh uses extra high computational effort for reasoning (GPT-5.2+).
+	ReasoningEffortXHigh = ReasoningEffort(shared.ReasoningEffortXhigh)
 )
 
 // ReasoningSummary controls whether and how reasoning traces are summarized.
