@@ -18,6 +18,7 @@ import (
 // Run with: OPENAI_API_KEY=sk-... go test -v -run TestGPT52ReasoningEffortIntegration.
 func TestGPT52ReasoningEffortIntegration(t *testing.T) {
 	t.Parallel()
+
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
 		t.Skip("Skipping integration test: OPENAI_API_KEY not set")
@@ -29,11 +30,11 @@ func TestGPT52ReasoningEffortIntegration(t *testing.T) {
 	ctx := context.Background()
 
 	testCases := []struct {
-		name          string
-		model         string
-		reasoningOpt  Option
-		wantErr       bool
-		errContains   string
+		name         string
+		model        string
+		reasoningOpt Option
+		wantErr      bool
+		errContains  string
 	}{
 		{
 			name:         "gpt-5.2 with ReasoningEffortNone should succeed",
@@ -121,6 +122,7 @@ func TestGPT52ReasoningEffortIntegration(t *testing.T) {
 // Run with: OPENAI_API_KEY=sk-... go test -v -run TestAllModelsReasoningEffortsIntegration -timeout 30m.
 func TestAllModelsReasoningEffortsIntegration(t *testing.T) {
 	t.Parallel()
+
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
 		t.Skip("Skipping integration test: OPENAI_API_KEY not set")
@@ -204,6 +206,7 @@ func TestAllModelsReasoningEffortsIntegration(t *testing.T) {
 // Run with: OPENAI_API_KEY=sk-... go test -v -run TestUnsupportedReasoningEffortsIntegration.
 func TestUnsupportedReasoningEffortsIntegration(t *testing.T) {
 	t.Parallel()
+
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
 		t.Skip("Skipping integration test: OPENAI_API_KEY not set")
@@ -286,11 +289,11 @@ func TestSupportedReasoningEfforts(t *testing.T) {
 	require.NoError(t, err)
 
 	testCases := []struct {
-		name           string
-		model          string
-		expectedFirst  ReasoningEffort // First (safest) effort
-		expectNone     bool            // Should support 'none'
-		expectMinimal  bool            // Should support 'minimal'
+		name          string
+		model         string
+		expectedFirst ReasoningEffort // First (safest) effort
+		expectNone    bool            // Should support 'none'
+		expectMinimal bool            // Should support 'minimal'
 	}{
 		{
 			name:          "gpt-5.2 should start with 'none'",
