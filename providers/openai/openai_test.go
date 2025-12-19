@@ -701,6 +701,36 @@ func TestGPT52ReasoningEffort(t *testing.T) {
 			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortLow)},
 			wantErr:       false,
 		},
+		{
+			name:          "gpt-5-2-codex with ReasoningEffortNone (supported)",
+			model:         ModelGPT5_2Codex,
+			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortNone)},
+			wantErr:       false,
+		},
+		{
+			name:          "gpt-5-2-codex with ReasoningEffortLow (supported)",
+			model:         ModelGPT5_2Codex,
+			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortLow)},
+			wantErr:       false,
+		},
+		{
+			name:          "gpt-5-2-codex with ReasoningEffortMedium (supported)",
+			model:         ModelGPT5_2Codex,
+			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortMedium)},
+			wantErr:       false,
+		},
+		{
+			name:          "gpt-5-2-codex with ReasoningEffortHigh (supported)",
+			model:         ModelGPT5_2Codex,
+			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortHigh)},
+			wantErr:       false,
+		},
+		{
+			name:          "gpt-5-2-codex with ReasoningEffortXHigh (supported)",
+			model:         ModelGPT5_2Codex,
+			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortXHigh)},
+			wantErr:       false,
+		},
 	}
 
 	for _, tt := range tests {

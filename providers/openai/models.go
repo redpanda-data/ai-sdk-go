@@ -176,6 +176,29 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh}, // Pro variant starts at medium
 	},
+	ModelGPT5_2Codex: {
+		Name:  ModelGPT5_2Codex,
+		Label: "OpenAI GPT-5.2 Codex",
+		Capabilities: llm.ModelCapabilities{
+			Streaming:        true,
+			Tools:            true,
+			JSONMode:         true,
+			StructuredOutput: true,
+			Vision:           true,
+			Audio:            false, // Codex focuses on code, not audio
+			MultiTurn:        true,
+			SystemPrompts:    true,
+			Reasoning:        true,
+		},
+		Constraints: llm.ModelConstraints{
+			TemperatureRange:  [2]float64{0.0, 2.0},
+			MaxInputTokens:    400000, // 400K context window
+			MaxOutputTokens:   128000, // 128K output tokens
+			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed", "reasoning_effort", "reasoning_summary"},
+			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
+		},
+		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh},
+	},
 
 	// GPT-4.1 Series (Enhanced Performance)
 	ModelGPT41: {
