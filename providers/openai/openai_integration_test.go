@@ -70,6 +70,20 @@ func TestGPT52ReasoningEffortIntegration(t *testing.T) {
 
 			// Create model with reasoning effort
 			model, err := provider.NewModel(tc.model, tc.reasoningOpt)
+
+			if tc.wantErr {
+				// SDK should catch unsupported reasoning efforts early
+				require.Error(t, err, "Model creation should fail for unsupported reasoning effort")
+
+				if tc.errContains != "" {
+					assert.Contains(t, err.Error(), tc.errContains, "Error should mention the unsupported value")
+				}
+
+				t.Logf("Expected SDK validation error occurred: %v", err)
+
+				return
+			}
+
 			require.NoError(t, err, "Model creation should succeed")
 
 			// Verify supported reasoning efforts
@@ -93,23 +107,12 @@ func TestGPT52ReasoningEffortIntegration(t *testing.T) {
 			}
 
 			resp, err := model.Generate(ctx, req)
+			require.NoError(t, err, "Expected API call to succeed")
+			require.NotNil(t, resp, "Response should not be nil")
+			assert.NotEmpty(t, resp.Message.Content, "Response should have content")
 
-			if tc.wantErr {
-				require.Error(t, err, "Expected API call to fail")
-
-				if tc.errContains != "" {
-					assert.Contains(t, err.Error(), tc.errContains, "Error should mention the unsupported value")
-				}
-
-				t.Logf("Expected error occurred: %v", err)
-			} else {
-				require.NoError(t, err, "Expected API call to succeed")
-				require.NotNil(t, resp, "Response should not be nil")
-				assert.NotEmpty(t, resp.Message.Content, "Response should have content")
-
-				if len(resp.Message.Content) > 0 && resp.Message.Content[0].Text != "" {
-					t.Logf("Success! Response: %s", resp.Message.Content[0].Text)
-				}
+			if len(resp.Message.Content) > 0 && resp.Message.Content[0].Text != "" {
+				t.Logf("Success! Response: %s", resp.Message.Content[0].Text)
 			}
 		})
 	}
@@ -215,8 +218,6 @@ func TestUnsupportedReasoningEffortsIntegration(t *testing.T) {
 	provider, err := NewProvider(apiKey)
 	require.NoError(t, err)
 
-	ctx := context.Background()
-
 	testCases := []struct {
 		model        string
 		effort       ReasoningEffort
@@ -295,29 +296,16 @@ func TestUnsupportedReasoningEffortsIntegration(t *testing.T) {
 		t.Run(tc.model+"_with_"+string(tc.effort), func(t *testing.T) {
 			t.Parallel()
 
-			// Create model with unsupported reasoning effort
-			model, err := provider.NewModel(tc.model, WithReasoningEffort(tc.effort))
-			require.NoError(t, err, "SDK should accept the configuration")
-
-			// Make API call - should fail
-			req := &llm.Request{
-				Messages: []llm.Message{
-					{
-						Role: llm.RoleUser,
-						Content: []*llm.Part{
-							llm.NewTextPart("Test"),
-						},
-					},
-				},
-			}
-
-			_, err = model.Generate(ctx, req)
+			// SDK now validates reasoning efforts at model creation time
+			// Create model with unsupported reasoning effort - should fail at SDK level
+			_, err := provider.NewModel(tc.model, WithReasoningEffort(tc.effort))
 
 			if tc.shouldReject {
-				require.Error(t, err, "API should reject unsupported reasoning effort: %s", tc.reason)
-				t.Logf("✓ Expected rejection: %v", err)
+				require.Error(t, err, "SDK should reject unsupported reasoning effort: %s", tc.reason)
+				assert.Contains(t, err.Error(), "does not support reasoning effort", "Error should mention unsupported reasoning effort")
+				t.Logf("✓ SDK correctly rejected: %v", err)
 			} else {
-				require.NoError(t, err, "API should accept reasoning effort")
+				require.NoError(t, err, "SDK should accept reasoning effort")
 			}
 		})
 	}

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/openai/openai-go/v3"
@@ -135,6 +136,13 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 	err := cfg.Validate()
 	if err != nil {
 		return nil, fmt.Errorf("configuration validation failed for %s: %w", modelName, err)
+	}
+
+	// Validate reasoning effort against model's supported efforts
+	if cfg.ReasoningEffort != nil && len(modelDef.SupportedReasoningEfforts) > 0 {
+		if !slices.Contains(modelDef.SupportedReasoningEfforts, *cfg.ReasoningEffort) {
+			return nil, fmt.Errorf("model %s does not support reasoning effort '%s'", modelName, *cfg.ReasoningEffort)
+		}
 	}
 
 	return &Model{
