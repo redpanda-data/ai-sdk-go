@@ -14,16 +14,17 @@ import (
 
 func TestProviderCreation(t *testing.T) {
 	t.Parallel()
-	// Valid provider creation
+	// Valid provider creation with API key
 	provider, err := NewProvider("sk-test-key-123")
 	require.NoError(t, err)
 	assert.NotNil(t, provider)
 	assert.NotNil(t, provider.client)
 
-	// Empty API key should fail
-	_, err = NewProvider("")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "API key is required")
+	// Empty API key should be allowed (for providers that don't require authentication)
+	provider, err = NewProvider("")
+	require.NoError(t, err)
+	assert.NotNil(t, provider)
+	assert.NotNil(t, provider.client)
 
 	// Invalid options should fail
 	_, err = NewProvider("sk-test", WithTimeout(-1*time.Second))

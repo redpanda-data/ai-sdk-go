@@ -35,12 +35,9 @@ func (p *Provider) Name() string {
 // ProviderOption configures a Provider instance using functional options.
 type ProviderOption func(*Provider) error
 
-// NewProvider creates a new OpenAI-compatible provider with the required API key and optional configuration.
+// NewProvider creates a new OpenAI-compatible provider with optional configuration.
+// The API key is optional to support providers that don't require authentication.
 func NewProvider(apiKey string, opts ...ProviderOption) (*Provider, error) {
-	if apiKey == "" {
-		return nil, errors.New("API key is required")
-	}
-
 	timeout := 10 * time.Minute
 	p := &Provider{
 		APIKey:  apiKey,
@@ -60,10 +57,15 @@ func NewProvider(apiKey string, opts ...ProviderOption) (*Provider, error) {
 
 	// Initialize OpenAI client with provider configuration
 	clientOpts := []option.RequestOption{
-		option.WithAPIKey(p.APIKey),
 		option.WithBaseURL(p.BaseURL),
 		option.WithHTTPClient(p.HTTPClient),
 	}
+
+	// Only add API key if provided
+	if p.APIKey != "" {
+		clientOpts = append(clientOpts, option.WithAPIKey(p.APIKey))
+	}
+
 	client := openai.NewClient(clientOpts...)
 	p.client = &client
 
