@@ -68,19 +68,19 @@ func TestContext7Integration_EndToEnd(t *testing.T) { //nolint:paralleltest // c
 	require.NotEmpty(t, tools, "Expected Context7 to provide tools")
 
 	// Verify expected tools are present (namespaced with context7__)
-	var hasResolveLibrary, hasGetDocs bool
+	var hasResolveLibrary, hasQueryDocs bool
 
 	for _, tool := range tools {
 		switch tool.Name {
 		case "context7__resolve-library-id":
 			hasResolveLibrary = true
-		case "context7__get-library-docs":
-			hasGetDocs = true
+		case "context7__query-docs":
+			hasQueryDocs = true
 		}
 	}
 
 	require.True(t, hasResolveLibrary, "Expected Context7 to provide context7__resolve-library-id tool")
-	require.True(t, hasGetDocs, "Expected Context7 to provide context7__get-library-docs tool")
+	require.True(t, hasQueryDocs, "Expected Context7 to provide context7__query-docs tool")
 
 	// Create OpenAI provider and model
 	provider, err := openai.NewProvider(openaiAPIKey)
