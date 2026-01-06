@@ -9,6 +9,9 @@ import (
 	"github.com/redpanda-data/common-go/kvstore/memdb"
 )
 
+// Compile-time interface check.
+var _ Store = (*KVStore)(nil)
+
 // KVStore provides session storage backed by Kafka via kvstore.
 // Writes are persisted to Kafka and block until visible in reads.
 // Multiple instances share state through Kafka topic consumption.

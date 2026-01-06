@@ -6,9 +6,13 @@ import (
 	"errors"
 
 	"github.com/a2aproject/a2a-go/a2a"
+	"github.com/a2aproject/a2a-go/a2asrv"
 	"github.com/redpanda-data/common-go/kvstore"
 	"github.com/redpanda-data/common-go/kvstore/memdb"
 )
+
+// Compile-time interface check.
+var _ a2asrv.TaskStore = (*KVTaskStore)(nil)
 
 // KVTaskStore provides A2A task storage backed by Kafka via kvstore.
 // Writes are persisted to Kafka and block until visible in reads.
