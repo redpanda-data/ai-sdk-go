@@ -15,7 +15,6 @@ require (
 	github.com/redpanda-data/common-go/kvstore v0.0.0-20260106181407-ec5fc3f8ef64
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go/modules/redpanda v0.40.0
-	github.com/twmb/franz-go v1.20.4
 	github.com/twmb/go-cache v1.2.1
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.64.0
 	go.opentelemetry.io/otel v1.39.0
@@ -91,6 +90,7 @@ require (
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/tklauser/numcpus v0.11.0 // indirect
+	github.com/twmb/franz-go v1.20.4 // indirect
 	github.com/twmb/franz-go/pkg/kadm v1.17.1 // indirect
 	github.com/twmb/franz-go/pkg/kmsg v1.12.0 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
