@@ -65,15 +65,15 @@ type Store interface {
 // data such as user preferences, feature flags, or tracking information.
 type State struct {
 	// ID is the unique identifier for this session.
-	ID string
+	ID string `json:"id"`
 
 	// Messages contains the conversation history (excluding system prompts).
 	// The slice should be treated as append-only to maintain temporal ordering.
-	Messages []llm.Message
+	Messages []llm.Message `json:"messages"`
 
 	// Metadata contains arbitrary key-value pairs associated with the session.
 	// Common uses include user settings, locale, feature flags, and analytics data.
-	Metadata map[string]any
+	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
 // Clone creates a deep copy of the session state.
