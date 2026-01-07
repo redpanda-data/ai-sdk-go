@@ -522,7 +522,7 @@ func TestKVTaskStore_BootstrapRestoresSortOrder(t *testing.T) { //nolint:paralle
 	assert.Equal(t, "task-old", string(resp.Tasks[1].ID))
 }
 
-func TestKVTaskStore_InvalidPageToken(t *testing.T) { //nolint:paralleltest // Serial to reduce container memory pressure
+func TestKVTaskStore_InvalidPageToken(t *testing.T) { //nolint:tparallel,paralleltest // Serial to reduce container memory pressure
 	if testing.Short() {
 		t.Skip("skipping integration test")
 	}
@@ -533,8 +533,7 @@ func TestKVTaskStore_InvalidPageToken(t *testing.T) { //nolint:paralleltest // S
 		redpanda.WithAutoCreateTopics(),
 	)
 	require.NoError(t, err)
-
-	defer func() { _ = container.Terminate(ctx) }()
+	t.Cleanup(func() { _ = container.Terminate(ctx) })
 
 	brokers, err := container.KafkaSeedBroker(ctx)
 	require.NoError(t, err)
@@ -543,8 +542,7 @@ func TestKVTaskStore_InvalidPageToken(t *testing.T) { //nolint:paralleltest // S
 
 	store, err := a2aadapter.NewKVTaskStore(ctx, topic, kvstore.WithBrokers(brokers))
 	require.NoError(t, err)
-
-	defer store.Close()
+	t.Cleanup(func() { _ = store.Close() })
 
 	// Create a task
 	require.NoError(t, store.Save(ctx, &a2a.Task{
