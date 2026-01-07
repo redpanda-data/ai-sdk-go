@@ -152,7 +152,7 @@ func (s *KVTaskStore) List(ctx context.Context, req *a2a.ListTasksRequest) (*a2a
 	if req.PageToken != "" {
 		for i, sk := range sortedCopy {
 			if sk == req.PageToken {
-				startIdx = i + 1 // Start after the token
+				startIdx = i // Start from the token (first item of this page)
 				break
 			}
 		}
@@ -209,7 +209,11 @@ func (s *KVTaskStore) List(ctx context.Context, req *a2a.ListTasksRequest) (*a2a
 		tasks = append(tasks, &taskCopy)
 
 		if len(tasks) >= pageSize {
-			nextPageToken = sortKey
+			// Set token to the next item (first item of next page)
+			if i+1 < len(sortedCopy) {
+				nextPageToken = sortedCopy[i+1]
+			}
+
 			break
 		}
 	}
