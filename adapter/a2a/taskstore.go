@@ -81,8 +81,10 @@ func NewKVTaskStore(ctx context.Context, topic string, opts ...kvstore.ClientOpt
 
 	onDelete := func(key []byte) {
 		taskID := a2a.TaskID(key)
+
 		store.mu.Lock()
 		defer store.mu.Unlock()
+
 		if sortKey, exists := store.index[taskID]; exists {
 			store.removeSortKeyLocked(sortKey)
 			delete(store.index, taskID)
@@ -103,26 +105,6 @@ func NewKVTaskStore(ctx context.Context, topic string, opts ...kvstore.ClientOpt
 	store.client = kvstore.NewResourceClient(client, serde)
 
 	return store, nil
-}
-
-// insertSortKeyLocked inserts a sortKey in sorted order (descending by time).
-// Caller must hold mu.
-func (s *KVTaskStore) insertSortKeyLocked(sortKey string) {
-	// Binary search for insertion point (sorted ascending, which gives descending time)
-	idx, found := slices.BinarySearch(s.sorted, sortKey)
-	if found {
-		return // Already exists
-	}
-	s.sorted = slices.Insert(s.sorted, idx, sortKey)
-}
-
-// removeSortKeyLocked removes a sortKey from the sorted slice.
-// Caller must hold mu.
-func (s *KVTaskStore) removeSortKeyLocked(sortKey string) {
-	idx, found := slices.BinarySearch(s.sorted, sortKey)
-	if found {
-		s.sorted = slices.Delete(s.sorted, idx, idx+1)
-	}
 }
 
 // Save stores a task.
@@ -154,6 +136,7 @@ func (s *KVTaskStore) List(ctx context.Context, req *a2a.ListTasksRequest) (*a2a
 	if pageSize <= 0 {
 		pageSize = 50
 	}
+
 	if pageSize > 100 {
 		pageSize = 100
 	}
@@ -165,6 +148,7 @@ func (s *KVTaskStore) List(ctx context.Context, req *a2a.ListTasksRequest) (*a2a
 
 	// Find starting position for pagination
 	startIdx := 0
+
 	if req.PageToken != "" {
 		for i, sk := range sortedCopy {
 			if sk == req.PageToken {
@@ -186,6 +170,7 @@ func (s *KVTaskStore) List(ctx context.Context, req *a2a.ListTasksRequest) (*a2a
 			if errors.Is(err, kvstore.ErrNotFound) {
 				continue // Task was deleted, skip
 			}
+
 			return nil, err
 		}
 
@@ -242,24 +227,52 @@ func (s *KVTaskStore) Close() error {
 	return s.client.Raw().Close()
 }
 
+// insertSortKeyLocked inserts a sortKey in sorted order (descending by time).
+// Caller must hold mu.
+func (s *KVTaskStore) insertSortKeyLocked(sortKey string) {
+	// Binary search for insertion point (sorted ascending, which gives descending time)
+	idx, found := slices.BinarySearch(s.sorted, sortKey)
+
+	if found {
+		return // Already exists
+	}
+
+	s.sorted = slices.Insert(s.sorted, idx, sortKey)
+}
+
+// removeSortKeyLocked removes a sortKey from the sorted slice.
+// Caller must hold mu.
+func (s *KVTaskStore) removeSortKeyLocked(sortKey string) {
+	idx, found := slices.BinarySearch(s.sorted, sortKey)
+
+	if found {
+		s.sorted = slices.Delete(s.sorted, idx, idx+1)
+	}
+}
+
 // makeSortKey creates a sort key for time-ordered indexing.
 // Format: {inverted_timestamp}:{task_id}
 // Inverted timestamp ensures descending order with ascending key scan.
 func makeSortKey(timestamp *time.Time, taskID a2a.TaskID) string {
 	var ts int64
+
 	if timestamp != nil {
 		ts = timestamp.UnixNano()
 	}
+
 	inverted := math.MaxInt64 - ts
+
 	return fmt.Sprintf("%020d:%s", inverted, taskID)
 }
 
 // taskIDFromSortKey extracts the task ID from a sort key.
 func taskIDFromSortKey(sortKey string) a2a.TaskID {
 	idx := strings.Index(sortKey, ":")
+
 	if idx == -1 {
 		return a2a.TaskID(sortKey)
 	}
+
 	return a2a.TaskID(sortKey[idx+1:])
 }
 

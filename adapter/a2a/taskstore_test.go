@@ -198,6 +198,7 @@ func TestKVTaskStore_ListSortedByTime(t *testing.T) {
 		redpanda.WithAutoCreateTopics(),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = container.Terminate(ctx) }()
 
 	brokers, err := container.KafkaSeedBroker(ctx)
@@ -207,6 +208,7 @@ func TestKVTaskStore_ListSortedByTime(t *testing.T) {
 		kvstore.WithBrokers(brokers),
 	)
 	require.NoError(t, err)
+
 	defer store.Close()
 
 	// Create tasks with different timestamps
@@ -244,6 +246,7 @@ func TestKVTaskStore_ListPagination(t *testing.T) {
 		redpanda.WithAutoCreateTopics(),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = container.Terminate(ctx) }()
 
 	brokers, err := container.KafkaSeedBroker(ctx)
@@ -253,6 +256,7 @@ func TestKVTaskStore_ListPagination(t *testing.T) {
 		kvstore.WithBrokers(brokers),
 	)
 	require.NoError(t, err)
+
 	defer store.Close()
 
 	// Create 5 tasks with distinct timestamps
@@ -303,6 +307,7 @@ func TestKVTaskStore_ListFilters(t *testing.T) {
 		redpanda.WithAutoCreateTopics(),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = container.Terminate(ctx) }()
 
 	brokers, err := container.KafkaSeedBroker(ctx)
@@ -312,6 +317,7 @@ func TestKVTaskStore_ListFilters(t *testing.T) {
 		kvstore.WithBrokers(brokers),
 	)
 	require.NoError(t, err)
+
 	defer store.Close()
 
 	baseTime := time.Now()
@@ -331,6 +337,7 @@ func TestKVTaskStore_ListFilters(t *testing.T) {
 	resp, err := store.List(ctx, &a2a.ListTasksRequest{ContextID: "ctx-a"})
 	require.NoError(t, err)
 	require.Len(t, resp.Tasks, 2)
+
 	for _, task := range resp.Tasks {
 		assert.Equal(t, "ctx-a", task.ContextID)
 	}
@@ -339,6 +346,7 @@ func TestKVTaskStore_ListFilters(t *testing.T) {
 	resp, err = store.List(ctx, &a2a.ListTasksRequest{Status: a2a.TaskStateCompleted})
 	require.NoError(t, err)
 	require.Len(t, resp.Tasks, 2)
+
 	for _, task := range resp.Tasks {
 		assert.Equal(t, a2a.TaskStateCompleted, task.Status.State)
 	}
@@ -371,6 +379,7 @@ func TestKVTaskStore_ListHistoryAndArtifacts(t *testing.T) {
 		redpanda.WithAutoCreateTopics(),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = container.Terminate(ctx) }()
 
 	brokers, err := container.KafkaSeedBroker(ctx)
@@ -380,6 +389,7 @@ func TestKVTaskStore_ListHistoryAndArtifacts(t *testing.T) {
 		kvstore.WithBrokers(brokers),
 	)
 	require.NoError(t, err)
+
 	defer store.Close()
 
 	task := &a2a.Task{
@@ -411,8 +421,14 @@ func TestKVTaskStore_ListHistoryAndArtifacts(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, resp.Tasks, 1)
 	assert.Len(t, resp.Tasks[0].History, 2)
-	assert.Equal(t, "msg3", resp.Tasks[0].History[0].Parts[0].(a2a.TextPart).Text)
-	assert.Equal(t, "msg4", resp.Tasks[0].History[1].Parts[0].(a2a.TextPart).Text)
+
+	text0, ok := resp.Tasks[0].History[0].Parts[0].(a2a.TextPart)
+	require.True(t, ok)
+	assert.Equal(t, "msg3", text0.Text)
+
+	text1, ok := resp.Tasks[0].History[1].Parts[0].(a2a.TextPart)
+	require.True(t, ok)
+	assert.Equal(t, "msg4", text1.Text)
 
 	// Include artifacts
 	resp, err = store.List(ctx, &a2a.ListTasksRequest{IncludeArtifacts: true})
@@ -434,6 +450,7 @@ func TestKVTaskStore_UpdateChangesSortOrder(t *testing.T) {
 		redpanda.WithAutoCreateTopics(),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = container.Terminate(ctx) }()
 
 	brokers, err := container.KafkaSeedBroker(ctx)
@@ -443,6 +460,7 @@ func TestKVTaskStore_UpdateChangesSortOrder(t *testing.T) {
 		kvstore.WithBrokers(brokers),
 	)
 	require.NoError(t, err)
+
 	defer store.Close()
 
 	baseTime := time.Now()
@@ -450,6 +468,7 @@ func TestKVTaskStore_UpdateChangesSortOrder(t *testing.T) {
 	// Create tasks: task-a is oldest, task-b is newest
 	taskA := &a2a.Task{ID: "task-a", ContextID: "ctx", Status: a2a.TaskStatus{State: a2a.TaskStateWorking, Timestamp: ptr(baseTime)}}
 	taskB := &a2a.Task{ID: "task-b", ContextID: "ctx", Status: a2a.TaskStatus{State: a2a.TaskStateWorking, Timestamp: ptr(baseTime.Add(time.Hour))}}
+
 	require.NoError(t, store.Save(ctx, taskA))
 	require.NoError(t, store.Save(ctx, taskB))
 
@@ -490,6 +509,7 @@ func TestKVTaskStore_BootstrapRestoresSortOrder(t *testing.T) {
 		redpanda.WithAutoCreateTopics(),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = container.Terminate(ctx) }()
 
 	brokers, err := container.KafkaSeedBroker(ctx)
@@ -504,11 +524,12 @@ func TestKVTaskStore_BootstrapRestoresSortOrder(t *testing.T) {
 	baseTime := time.Now()
 	require.NoError(t, store1.Save(ctx, &a2a.Task{ID: "task-old", ContextID: "ctx", Status: a2a.TaskStatus{Timestamp: ptr(baseTime)}}))
 	require.NoError(t, store1.Save(ctx, &a2a.Task{ID: "task-new", ContextID: "ctx", Status: a2a.TaskStatus{Timestamp: ptr(baseTime.Add(time.Hour))}}))
-	store1.Close()
+	_ = store1.Close()
 
 	// Second store: bootstrap from Kafka
 	store2, err := a2aadapter.NewKVTaskStore(ctx, topic, kvstore.WithBrokers(brokers))
 	require.NoError(t, err)
+
 	defer store2.Close()
 
 	// Sort order should be restored
