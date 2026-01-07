@@ -166,12 +166,10 @@ func (s *KVTaskStore) List(ctx context.Context, req *a2a.ListTasksRequest) (*a2a
 	startIdx := 0
 
 	if req.PageToken != "" {
-		for i, sk := range sortedCopy {
-			if sk == req.PageToken {
-				startIdx = i // Start from the token (first item of this page)
-				break
-			}
-		}
+		// Use binary search since sortedCopy is sorted (O(log n) vs O(n))
+		// If found, idx is the position. If not found, idx is where it would be inserted,
+		// which maintains pagination continuity when the token's task was deleted.
+		startIdx, _ = slices.BinarySearch(sortedCopy, req.PageToken)
 	}
 
 	var tasks []*a2a.Task
@@ -236,8 +234,10 @@ func (s *KVTaskStore) List(ctx context.Context, req *a2a.ListTasksRequest) (*a2a
 	}
 
 	return &a2a.ListTasksResponse{
-		Tasks:         tasks,
-		TotalSize:     len(tasks),
+		Tasks: tasks,
+		// TotalSize is the total task count in the store at snapshot time,
+		// NOT the filtered count (computing filtered count would require iterating all tasks)
+		TotalSize:     len(sortedCopy),
 		PageSize:      pageSize,
 		NextPageToken: nextPageToken,
 	}, nil
