@@ -12,7 +12,7 @@ require (
 	github.com/google/jsonschema-go v0.3.0
 	github.com/google/uuid v1.6.0
 	github.com/openai/openai-go/v3 v3.15.0
-	github.com/redpanda-data/common-go/kvstore v0.0.0-20260107121409-675bb546adb5
+	github.com/redpanda-data/common-go/kvstore v0.0.0-20260107161328-f85fcb64106e
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go/modules/redpanda v0.40.0
 	github.com/twmb/go-cache v1.2.1
