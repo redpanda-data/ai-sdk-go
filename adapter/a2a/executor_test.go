@@ -285,6 +285,7 @@ func TestExecutor_ToolUse_MessageHistory(t *testing.T) {
 	// Collect events
 	events := []a2a.Event{}
 	eventsDone := make(chan struct{})
+	finalEventSeen := make(chan struct{})
 
 	go func() {
 		defer close(eventsDone)
@@ -296,12 +297,19 @@ func TestExecutor_ToolUse_MessageHistory(t *testing.T) {
 			}
 
 			events = append(events, event)
+
+			// Check if this is a final event
+			if statusEvent, ok := event.(*a2a.TaskStatusUpdateEvent); ok && statusEvent.Final {
+				close(finalEventSeen)
+			}
 		}
 	}()
 
 	err = executor.Execute(ctx, reqCtx, writerQueue)
 	require.NoError(t, err)
 
+	// Wait for reader to see the final event, then close both queues
+	<-finalEventSeen
 	writerQueue.Close()
 	readerQueue.Close()
 	<-eventsDone
