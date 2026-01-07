@@ -82,7 +82,10 @@ func TestExecutor_Integration_OpenAI(t *testing.T) {
 	// Create real in-memory queue from a2a-go
 	ctx := context.Background()
 	queueMgr := eventqueue.NewInMemoryManager(eventqueue.WithQueueBufferSize(100))
-	queue, err := queueMgr.GetOrCreate(ctx, reqCtx.TaskID)
+	// Create separate reader and writer queues (broadcast pattern - writer's events go to other queues)
+	readerQueue, err := queueMgr.GetOrCreate(ctx, reqCtx.TaskID)
+	require.NoError(t, err)
+	writerQueue, err := queueMgr.GetOrCreate(ctx, reqCtx.TaskID)
 	require.NoError(t, err)
 
 	// Collect events in background
@@ -93,7 +96,7 @@ func TestExecutor_Integration_OpenAI(t *testing.T) {
 		defer close(eventsDone)
 
 		for {
-			event, err := queue.Read(ctx)
+			event, err := readerQueue.Read(ctx)
 			if err != nil {
 				return // Queue closed or error
 			}
@@ -102,11 +105,12 @@ func TestExecutor_Integration_OpenAI(t *testing.T) {
 		}
 	}()
 
-	err = executor.Execute(ctx, reqCtx, queue)
+	err = executor.Execute(ctx, reqCtx, writerQueue)
 	require.NoError(t, err)
 
-	// Close queue to signal no more events
-	queue.Close()
+	// Close queues to signal no more events
+	writerQueue.Close()
+	readerQueue.Close()
 
 	// Wait for event reader to finish
 	<-eventsDone
@@ -272,7 +276,10 @@ func TestExecutor_ToolUse_MessageHistory(t *testing.T) {
 	// Create queue
 	ctx := context.Background()
 	queueMgr := eventqueue.NewInMemoryManager(eventqueue.WithQueueBufferSize(100))
-	queue, err := queueMgr.GetOrCreate(ctx, reqCtx.TaskID)
+	// Create separate reader and writer queues (broadcast pattern - writer's events go to other queues)
+	readerQueue, err := queueMgr.GetOrCreate(ctx, reqCtx.TaskID)
+	require.NoError(t, err)
+	writerQueue, err := queueMgr.GetOrCreate(ctx, reqCtx.TaskID)
 	require.NoError(t, err)
 
 	// Collect events
@@ -283,7 +290,7 @@ func TestExecutor_ToolUse_MessageHistory(t *testing.T) {
 		defer close(eventsDone)
 
 		for {
-			event, err := queue.Read(ctx)
+			event, err := readerQueue.Read(ctx)
 			if err != nil {
 				return
 			}
@@ -292,10 +299,11 @@ func TestExecutor_ToolUse_MessageHistory(t *testing.T) {
 		}
 	}()
 
-	err = executor.Execute(ctx, reqCtx, queue)
+	err = executor.Execute(ctx, reqCtx, writerQueue)
 	require.NoError(t, err)
 
-	queue.Close()
+	writerQueue.Close()
+	readerQueue.Close()
 	<-eventsDone
 
 	// Extract message history from status updates
@@ -526,8 +534,12 @@ func TestExecutor_SessionPersistence_Mock(t *testing.T) {
 	}
 
 	queueMgr := eventqueue.NewInMemoryManager(eventqueue.WithQueueBufferSize(100))
-	queue1, err := queueMgr.GetOrCreate(ctx, reqCtx1.TaskID)
+	// Create separate reader and writer queues (broadcast pattern - writer's events go to other queues)
+	readerQueue1, err := queueMgr.GetOrCreate(ctx, reqCtx1.TaskID)
 	require.NoError(t, err)
+	writerQueue1, err := queueMgr.GetOrCreate(ctx, reqCtx1.TaskID)
+	require.NoError(t, err)
+
 	events1 := []a2a.Event{}
 	eventsDone1 := make(chan struct{})
 
@@ -535,7 +547,7 @@ func TestExecutor_SessionPersistence_Mock(t *testing.T) {
 		defer close(eventsDone1)
 
 		for {
-			event, err := queue1.Read(ctx)
+			event, err := readerQueue1.Read(ctx)
 			if err != nil {
 				return
 			}
@@ -544,10 +556,11 @@ func TestExecutor_SessionPersistence_Mock(t *testing.T) {
 		}
 	}()
 
-	err = executor.Execute(ctx, reqCtx1, queue1)
+	err = executor.Execute(ctx, reqCtx1, writerQueue1)
 	require.NoError(t, err)
 
-	queue1.Close()
+	writerQueue1.Close()
+	readerQueue1.Close()
 	<-eventsDone1
 
 	// Extract first response text
@@ -585,8 +598,11 @@ func TestExecutor_SessionPersistence_Mock(t *testing.T) {
 		),
 	}
 
-	queue2, err := queueMgr.GetOrCreate(ctx, reqCtx2.TaskID)
+	readerQueue2, err := queueMgr.GetOrCreate(ctx, reqCtx2.TaskID)
 	require.NoError(t, err)
+	writerQueue2, err := queueMgr.GetOrCreate(ctx, reqCtx2.TaskID)
+	require.NoError(t, err)
+
 	events2 := []a2a.Event{}
 	eventsDone2 := make(chan struct{})
 
@@ -594,7 +610,7 @@ func TestExecutor_SessionPersistence_Mock(t *testing.T) {
 		defer close(eventsDone2)
 
 		for {
-			event, err := queue2.Read(ctx)
+			event, err := readerQueue2.Read(ctx)
 			if err != nil {
 				return
 			}
@@ -603,10 +619,11 @@ func TestExecutor_SessionPersistence_Mock(t *testing.T) {
 		}
 	}()
 
-	err = executor.Execute(ctx, reqCtx2, queue2)
+	err = executor.Execute(ctx, reqCtx2, writerQueue2)
 	require.NoError(t, err)
 
-	queue2.Close()
+	writerQueue2.Close()
+	readerQueue2.Close()
 	<-eventsDone2
 
 	// Extract second response text
@@ -677,8 +694,12 @@ func TestExecutor_SessionPersistence(t *testing.T) {
 	}
 
 	queueMgr := eventqueue.NewInMemoryManager(eventqueue.WithQueueBufferSize(100))
-	queue1, err := queueMgr.GetOrCreate(ctx, reqCtx1.TaskID)
+	// Create separate reader and writer queues (broadcast pattern - writer's events go to other queues)
+	readerQueue1, err := queueMgr.GetOrCreate(ctx, reqCtx1.TaskID)
 	require.NoError(t, err)
+	writerQueue1, err := queueMgr.GetOrCreate(ctx, reqCtx1.TaskID)
+	require.NoError(t, err)
+
 	events1 := []a2a.Event{}
 	eventsDone1 := make(chan struct{})
 
@@ -686,7 +707,7 @@ func TestExecutor_SessionPersistence(t *testing.T) {
 		defer close(eventsDone1)
 
 		for {
-			event, err := queue1.Read(ctx)
+			event, err := readerQueue1.Read(ctx)
 			if err != nil {
 				return
 			}
@@ -695,10 +716,11 @@ func TestExecutor_SessionPersistence(t *testing.T) {
 		}
 	}()
 
-	err = executor.Execute(ctx, reqCtx1, queue1)
+	err = executor.Execute(ctx, reqCtx1, writerQueue1)
 	require.NoError(t, err)
 
-	queue1.Close()
+	writerQueue1.Close()
+	readerQueue1.Close()
 	<-eventsDone1
 
 	t.Logf("First request completed, waiting for events to finish processing")
@@ -741,8 +763,11 @@ func TestExecutor_SessionPersistence(t *testing.T) {
 		),
 	}
 
-	queue2, err := queueMgr.GetOrCreate(ctx, reqCtx2.TaskID)
+	readerQueue2, err := queueMgr.GetOrCreate(ctx, reqCtx2.TaskID)
 	require.NoError(t, err)
+	writerQueue2, err := queueMgr.GetOrCreate(ctx, reqCtx2.TaskID)
+	require.NoError(t, err)
+
 	events2 := []a2a.Event{}
 	eventsDone2 := make(chan struct{})
 
@@ -750,7 +775,7 @@ func TestExecutor_SessionPersistence(t *testing.T) {
 		defer close(eventsDone2)
 
 		for {
-			event, err := queue2.Read(ctx)
+			event, err := readerQueue2.Read(ctx)
 			if err != nil {
 				return
 			}
@@ -759,10 +784,11 @@ func TestExecutor_SessionPersistence(t *testing.T) {
 		}
 	}()
 
-	err = executor.Execute(ctx, reqCtx2, queue2)
+	err = executor.Execute(ctx, reqCtx2, writerQueue2)
 	require.NoError(t, err)
 
-	queue2.Close()
+	writerQueue2.Close()
+	readerQueue2.Close()
 	<-eventsDone2
 
 	// Extract second response text
@@ -837,8 +863,12 @@ func TestExecutor_SessionPersistence_Cancelled(t *testing.T) {
 	}
 
 	queueMgr := eventqueue.NewInMemoryManager(eventqueue.WithQueueBufferSize(100))
-	queue, err := queueMgr.GetOrCreate(ctx, reqCtx.TaskID)
+	// Create separate reader and writer queues (broadcast pattern - writer's events go to other queues)
+	readerQueue, err := queueMgr.GetOrCreate(ctx, reqCtx.TaskID)
 	require.NoError(t, err)
+	writerQueue, err := queueMgr.GetOrCreate(ctx, reqCtx.TaskID)
+	require.NoError(t, err)
+
 	events := []a2a.Event{}
 	eventsDone := make(chan struct{})
 
@@ -849,7 +879,7 @@ func TestExecutor_SessionPersistence_Cancelled(t *testing.T) {
 		defer close(eventsDone)
 
 		for {
-			event, err := queue.Read(readCtx)
+			event, err := readerQueue.Read(readCtx)
 			if err != nil {
 				return
 			}
@@ -864,10 +894,11 @@ func TestExecutor_SessionPersistence_Cancelled(t *testing.T) {
 		}
 	}()
 
-	err = executor.Execute(ctx, reqCtx, queue)
+	err = executor.Execute(ctx, reqCtx, writerQueue)
 	require.NoError(t, err, "Execute should not return error even for cancellation")
 
-	queue.Close()
+	writerQueue.Close()
+	readerQueue.Close()
 	<-eventsDone
 
 	t.Logf("Received %d events", len(events))
@@ -960,8 +991,12 @@ func TestExecutor_ErrorHandling(t *testing.T) {
 	// Create queue
 	ctx := context.Background()
 	queueMgr := eventqueue.NewInMemoryManager(eventqueue.WithQueueBufferSize(100))
-	queue, err := queueMgr.GetOrCreate(ctx, reqCtx.TaskID)
+	// Create separate reader and writer queues (broadcast pattern - writer's events go to other queues)
+	readerQueue, err := queueMgr.GetOrCreate(ctx, reqCtx.TaskID)
 	require.NoError(t, err)
+	writerQueue, err := queueMgr.GetOrCreate(ctx, reqCtx.TaskID)
+	require.NoError(t, err)
+
 	events := []a2a.Event{}
 	eventsDone := make(chan struct{})
 
@@ -969,7 +1004,7 @@ func TestExecutor_ErrorHandling(t *testing.T) {
 		defer close(eventsDone)
 
 		for {
-			event, err := queue.Read(ctx)
+			event, err := readerQueue.Read(ctx)
 			if err != nil {
 				return
 			}
@@ -980,10 +1015,11 @@ func TestExecutor_ErrorHandling(t *testing.T) {
 
 	// Execute should NOT return an error for agent failures - those should be communicated via events
 	// Only queue write failures should return errors
-	err = executor.Execute(ctx, reqCtx, queue)
+	err = executor.Execute(ctx, reqCtx, writerQueue)
 	require.NoError(t, err, "Execute should NOT return error for agent failures - they should be communicated via task status events")
 
-	queue.Close()
+	writerQueue.Close()
+	readerQueue.Close()
 	<-eventsDone
 
 	// Verify we got the expected events
