@@ -34,6 +34,7 @@ func encodePageToken(sortKey string) (string, error) {
 	}
 
 	token := pageToken{SortKey: sortKey}
+
 	jsonData, err := json.Marshal(token)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal page token: %w", err)

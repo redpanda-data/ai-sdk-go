@@ -577,6 +577,8 @@ func TestKVTaskStore_InvalidPageToken(t *testing.T) { //nolint:paralleltest // S
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			_, err := store.List(ctx, &a2a.ListTasksRequest{
 				PageToken: tc.pageToken,
 			})
