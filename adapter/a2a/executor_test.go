@@ -80,10 +80,10 @@ func TestExecutor_Integration_OpenAI(t *testing.T) {
 	}
 
 	// Create real in-memory queue from a2a-go
-	queue := eventqueue.NewInMemoryQueue(100)
-
-	// Execute
 	ctx := context.Background()
+	queueMgr := eventqueue.NewInMemoryManager(eventqueue.WithQueueBufferSize(100))
+	queue, err := queueMgr.GetOrCreate(ctx, reqCtx.TaskID)
+	require.NoError(t, err)
 
 	// Collect events in background
 	events := []a2a.Event{}
@@ -270,10 +270,10 @@ func TestExecutor_ToolUse_MessageHistory(t *testing.T) {
 	}
 
 	// Create queue
-	queue := eventqueue.NewInMemoryQueue(100)
-
-	// Execute
 	ctx := context.Background()
+	queueMgr := eventqueue.NewInMemoryManager(eventqueue.WithQueueBufferSize(100))
+	queue, err := queueMgr.GetOrCreate(ctx, reqCtx.TaskID)
+	require.NoError(t, err)
 
 	// Collect events
 	events := []a2a.Event{}
@@ -525,7 +525,9 @@ func TestExecutor_SessionPersistence_Mock(t *testing.T) {
 		),
 	}
 
-	queue1 := eventqueue.NewInMemoryQueue(100)
+	queueMgr := eventqueue.NewInMemoryManager(eventqueue.WithQueueBufferSize(100))
+	queue1, err := queueMgr.GetOrCreate(ctx, reqCtx1.TaskID)
+	require.NoError(t, err)
 	events1 := []a2a.Event{}
 	eventsDone1 := make(chan struct{})
 
@@ -583,7 +585,8 @@ func TestExecutor_SessionPersistence_Mock(t *testing.T) {
 		),
 	}
 
-	queue2 := eventqueue.NewInMemoryQueue(100)
+	queue2, err := queueMgr.GetOrCreate(ctx, reqCtx2.TaskID)
+	require.NoError(t, err)
 	events2 := []a2a.Event{}
 	eventsDone2 := make(chan struct{})
 
@@ -673,7 +676,9 @@ func TestExecutor_SessionPersistence(t *testing.T) {
 		),
 	}
 
-	queue1 := eventqueue.NewInMemoryQueue(100)
+	queueMgr := eventqueue.NewInMemoryManager(eventqueue.WithQueueBufferSize(100))
+	queue1, err := queueMgr.GetOrCreate(ctx, reqCtx1.TaskID)
+	require.NoError(t, err)
 	events1 := []a2a.Event{}
 	eventsDone1 := make(chan struct{})
 
@@ -736,7 +741,8 @@ func TestExecutor_SessionPersistence(t *testing.T) {
 		),
 	}
 
-	queue2 := eventqueue.NewInMemoryQueue(100)
+	queue2, err := queueMgr.GetOrCreate(ctx, reqCtx2.TaskID)
+	require.NoError(t, err)
 	events2 := []a2a.Event{}
 	eventsDone2 := make(chan struct{})
 
@@ -830,7 +836,9 @@ func TestExecutor_SessionPersistence_Cancelled(t *testing.T) {
 		),
 	}
 
-	queue := eventqueue.NewInMemoryQueue(100)
+	queueMgr := eventqueue.NewInMemoryManager(eventqueue.WithQueueBufferSize(100))
+	queue, err := queueMgr.GetOrCreate(ctx, reqCtx.TaskID)
+	require.NoError(t, err)
 	events := []a2a.Event{}
 	eventsDone := make(chan struct{})
 
@@ -950,11 +958,12 @@ func TestExecutor_ErrorHandling(t *testing.T) {
 	}
 
 	// Create queue
-	queue := eventqueue.NewInMemoryQueue(100)
+	ctx := context.Background()
+	queueMgr := eventqueue.NewInMemoryManager(eventqueue.WithQueueBufferSize(100))
+	queue, err := queueMgr.GetOrCreate(ctx, reqCtx.TaskID)
+	require.NoError(t, err)
 	events := []a2a.Event{}
 	eventsDone := make(chan struct{})
-
-	ctx := context.Background()
 
 	go func() {
 		defer close(eventsDone)

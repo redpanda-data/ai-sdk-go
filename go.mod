@@ -7,12 +7,12 @@ ignore ./build
 ignore ./examples
 
 require (
-	github.com/a2aproject/a2a-go v0.3.2
+	github.com/a2aproject/a2a-go v0.3.4-0.20260105202806-bf3096c9babf
 	github.com/anthropics/anthropic-sdk-go v1.18.1
 	github.com/google/jsonschema-go v0.3.0
 	github.com/google/uuid v1.6.0
 	github.com/openai/openai-go/v3 v3.15.0
-	github.com/redpanda-data/common-go/kvstore v0.0.0-20260106181407-ec5fc3f8ef64
+	github.com/redpanda-data/common-go/kvstore v0.0.0-20260107121409-675bb546adb5
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go/modules/redpanda v0.40.0
 	github.com/twmb/go-cache v1.2.1

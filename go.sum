@@ -32,8 +32,8 @@ github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA
 github.com/PuerkitoBio/goquery v1.9.2/go.mod h1:GHPCaP0ODyyxqcNoFGYlAprUFH81NuRPd0GX3Zu2Mvk=
 github.com/PuerkitoBio/goquery v1.11.0 h1:jZ7pwMQXIITcUXNH83LLk+txlaEy6NVOfTuP43xxfqw=
 github.com/PuerkitoBio/goquery v1.11.0/go.mod h1:wQHgxUOU3JGuj3oD/QFfxUdlzW6xPHfqyHre6VMY4DQ=
-github.com/a2aproject/a2a-go v0.3.2 h1:hm/QwmB+w1yxcoJwWlfCN7zavYGGNzxZD97ORGbogRE=
-github.com/a2aproject/a2a-go v0.3.2/go.mod h1:8C0O6lsfR7zWFEqVZz/+zWCoxe8gSWpknEpqm/Vgj3E=
+github.com/a2aproject/a2a-go v0.3.4-0.20260105202806-bf3096c9babf h1:XXS2+tSfTtS5npLCS6/mjwdxz+SxDIcPtlV20H6FDOc=
+github.com/a2aproject/a2a-go v0.3.4-0.20260105202806-bf3096c9babf/go.mod h1:8C0O6lsfR7zWFEqVZz/+zWCoxe8gSWpknEpqm/Vgj3E=
 github.com/ajstarks/deck v0.0.0-20200831202436-30c9fc6549a9/go.mod h1:JynElWSGnm/4RlzPXRlREEwqTHAN3T56Bv2ITsFT3gY=
 github.com/ajstarks/deck/generate v0.0.0-20210309230005-c3f852c02e19/go.mod h1:T13YZdzov6OU0A1+RfKZiZN9ca6VeKdBdyDV+BY97Tk=
 github.com/ajstarks/svgo v0.0.0-20211024235047-1546f124cd8b h1:slYM766cy2nI3BwyRiyQj/Ud48djTMtMebDqepE95rw=
@@ -165,8 +165,8 @@ github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZb
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 h1:o4JXh1EVt9k/+g42oCprj/FisM4qX9L3sZB3upGN2ZU=
 github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55/go.mod h1:OmDBASR4679mdNQnz2pUhc2G8CO2JrUAVFDRBDP/hJE=
-github.com/redpanda-data/common-go/kvstore v0.0.0-20260106181407-ec5fc3f8ef64 h1:6LK+7ooviwFEQR4m3YNb0tL+9XlRyvM2sOuJCStuO2c=
-github.com/redpanda-data/common-go/kvstore v0.0.0-20260106181407-ec5fc3f8ef64/go.mod h1:5W31Pttg3UQKCLpScLVVNRlQd5O/EYX5pkkDuSQiqdM=
+github.com/redpanda-data/common-go/kvstore v0.0.0-20260107121409-675bb546adb5 h1:8n6G9fyrGE+oCAC5KVWj0wkmmmae9x6IjTcbvfjXtL8=
+github.com/redpanda-data/common-go/kvstore v0.0.0-20260107121409-675bb546adb5/go.mod h1:5W31Pttg3UQKCLpScLVVNRlQd5O/EYX5pkkDuSQiqdM=
 github.com/rogpeppe/go-internal v1.14.1 h1:UQB4HGPB6osV0SQTLymcB4TgvyWu6ZyliaW0tI/otEQ=
 github.com/rogpeppe/go-internal v1.14.1/go.mod h1:MaRKkUm5W0goXpeCfT7UZI6fk/L7L7so1lCWt35ZSgc=
 github.com/rs/xid v1.6.0 h1:fV591PaemRlL6JfRxGDEPl69wICngIQ3shQtzfy2gxU=

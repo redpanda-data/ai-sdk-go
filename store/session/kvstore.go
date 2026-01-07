@@ -39,10 +39,7 @@ func NewKVStore(ctx context.Context, topic string, opts ...kvstore.ClientOption)
 		return nil, err
 	}
 
-	// Prepend storage option so user options can override if needed
-	allOpts := append([]kvstore.ClientOption{kvstore.WithStorage(storage)}, opts...)
-
-	client, err := kvstore.NewClient(ctx, topic, allOpts...)
+	client, err := kvstore.NewClient(ctx, topic, storage, opts...)
 	if err != nil {
 		return nil, err
 	}

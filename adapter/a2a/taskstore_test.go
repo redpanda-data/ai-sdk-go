@@ -2,6 +2,7 @@ package a2a_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/a2aproject/a2a-go/a2a"
 	"github.com/redpanda-data/common-go/kvstore"
@@ -182,4 +183,342 @@ func TestKVTaskStore_Bootstrap(t *testing.T) {
 	assert.Equal(t, "bootstrap-ctx", loaded.ContextID)
 	assert.Equal(t, a2a.TaskStateCompleted, loaded.Status.State)
 	assert.Equal(t, "value", loaded.Metadata["key"])
+}
+
+func TestKVTaskStore_ListSortedByTime(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
+	ctx := t.Context()
+
+	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest",
+		redpanda.WithAutoCreateTopics(),
+	)
+	require.NoError(t, err)
+	defer func() { _ = container.Terminate(ctx) }()
+
+	brokers, err := container.KafkaSeedBroker(ctx)
+	require.NoError(t, err)
+
+	store, err := a2aadapter.NewKVTaskStore(ctx, "test-a2a-list-sorted",
+		kvstore.WithBrokers(brokers),
+	)
+	require.NoError(t, err)
+	defer store.Close()
+
+	// Create tasks with different timestamps
+	baseTime := time.Now()
+	tasks := []*a2a.Task{
+		{ID: "task-old", ContextID: "ctx", Status: a2a.TaskStatus{State: a2a.TaskStateCompleted, Timestamp: ptr(baseTime.Add(-2 * time.Hour))}},
+		{ID: "task-mid", ContextID: "ctx", Status: a2a.TaskStatus{State: a2a.TaskStateCompleted, Timestamp: ptr(baseTime.Add(-1 * time.Hour))}},
+		{ID: "task-new", ContextID: "ctx", Status: a2a.TaskStatus{State: a2a.TaskStateCompleted, Timestamp: ptr(baseTime)}},
+	}
+
+	// Save in random order
+	require.NoError(t, store.Save(ctx, tasks[1])) // mid
+	require.NoError(t, store.Save(ctx, tasks[0])) // old
+	require.NoError(t, store.Save(ctx, tasks[2])) // new
+
+	// List should return in descending time order (newest first)
+	resp, err := store.List(ctx, &a2a.ListTasksRequest{})
+	require.NoError(t, err)
+	require.Len(t, resp.Tasks, 3)
+	assert.Equal(t, "task-new", string(resp.Tasks[0].ID))
+	assert.Equal(t, "task-mid", string(resp.Tasks[1].ID))
+	assert.Equal(t, "task-old", string(resp.Tasks[2].ID))
+}
+
+func TestKVTaskStore_ListPagination(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
+	ctx := t.Context()
+
+	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest",
+		redpanda.WithAutoCreateTopics(),
+	)
+	require.NoError(t, err)
+	defer func() { _ = container.Terminate(ctx) }()
+
+	brokers, err := container.KafkaSeedBroker(ctx)
+	require.NoError(t, err)
+
+	store, err := a2aadapter.NewKVTaskStore(ctx, "test-a2a-list-pagination",
+		kvstore.WithBrokers(brokers),
+	)
+	require.NoError(t, err)
+	defer store.Close()
+
+	// Create 5 tasks with distinct timestamps
+	baseTime := time.Now()
+	for i := range 5 {
+		task := &a2a.Task{
+			ID:        a2a.TaskID("task-" + string(rune('a'+i))),
+			ContextID: "ctx",
+			Status:    a2a.TaskStatus{State: a2a.TaskStateCompleted, Timestamp: ptr(baseTime.Add(time.Duration(i) * time.Minute))},
+		}
+		require.NoError(t, store.Save(ctx, task))
+	}
+
+	// First page: 2 items
+	resp, err := store.List(ctx, &a2a.ListTasksRequest{PageSize: 2})
+	require.NoError(t, err)
+	require.Len(t, resp.Tasks, 2)
+	assert.Equal(t, "task-e", string(resp.Tasks[0].ID)) // newest
+	assert.Equal(t, "task-d", string(resp.Tasks[1].ID))
+	assert.NotEmpty(t, resp.NextPageToken)
+
+	// Second page: 2 items
+	resp, err = store.List(ctx, &a2a.ListTasksRequest{PageSize: 2, PageToken: resp.NextPageToken})
+	require.NoError(t, err)
+	require.Len(t, resp.Tasks, 2)
+	assert.Equal(t, "task-c", string(resp.Tasks[0].ID))
+	assert.Equal(t, "task-b", string(resp.Tasks[1].ID))
+	assert.NotEmpty(t, resp.NextPageToken)
+
+	// Third page: 1 item (last)
+	resp, err = store.List(ctx, &a2a.ListTasksRequest{PageSize: 2, PageToken: resp.NextPageToken})
+	require.NoError(t, err)
+	require.Len(t, resp.Tasks, 1)
+	assert.Equal(t, "task-a", string(resp.Tasks[0].ID)) // oldest
+	assert.Empty(t, resp.NextPageToken)
+}
+
+func TestKVTaskStore_ListFilters(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
+	ctx := t.Context()
+
+	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest",
+		redpanda.WithAutoCreateTopics(),
+	)
+	require.NoError(t, err)
+	defer func() { _ = container.Terminate(ctx) }()
+
+	brokers, err := container.KafkaSeedBroker(ctx)
+	require.NoError(t, err)
+
+	store, err := a2aadapter.NewKVTaskStore(ctx, "test-a2a-list-filters",
+		kvstore.WithBrokers(brokers),
+	)
+	require.NoError(t, err)
+	defer store.Close()
+
+	baseTime := time.Now()
+
+	// Create tasks with different contexts and states
+	tasks := []*a2a.Task{
+		{ID: "task-1", ContextID: "ctx-a", Status: a2a.TaskStatus{State: a2a.TaskStateWorking, Timestamp: ptr(baseTime)}},
+		{ID: "task-2", ContextID: "ctx-a", Status: a2a.TaskStatus{State: a2a.TaskStateCompleted, Timestamp: ptr(baseTime.Add(time.Minute))}},
+		{ID: "task-3", ContextID: "ctx-b", Status: a2a.TaskStatus{State: a2a.TaskStateWorking, Timestamp: ptr(baseTime.Add(2 * time.Minute))}},
+		{ID: "task-4", ContextID: "ctx-b", Status: a2a.TaskStatus{State: a2a.TaskStateCompleted, Timestamp: ptr(baseTime.Add(3 * time.Minute))}},
+	}
+	for _, task := range tasks {
+		require.NoError(t, store.Save(ctx, task))
+	}
+
+	// Filter by ContextID
+	resp, err := store.List(ctx, &a2a.ListTasksRequest{ContextID: "ctx-a"})
+	require.NoError(t, err)
+	require.Len(t, resp.Tasks, 2)
+	for _, task := range resp.Tasks {
+		assert.Equal(t, "ctx-a", task.ContextID)
+	}
+
+	// Filter by Status
+	resp, err = store.List(ctx, &a2a.ListTasksRequest{Status: a2a.TaskStateCompleted})
+	require.NoError(t, err)
+	require.Len(t, resp.Tasks, 2)
+	for _, task := range resp.Tasks {
+		assert.Equal(t, a2a.TaskStateCompleted, task.Status.State)
+	}
+
+	// Filter by LastUpdatedAfter
+	cutoff := baseTime.Add(90 * time.Second)
+	resp, err = store.List(ctx, &a2a.ListTasksRequest{LastUpdatedAfter: &cutoff})
+	require.NoError(t, err)
+	require.Len(t, resp.Tasks, 2) // task-3 and task-4
+	assert.Equal(t, "task-4", string(resp.Tasks[0].ID))
+	assert.Equal(t, "task-3", string(resp.Tasks[1].ID))
+
+	// Combined filters
+	resp, err = store.List(ctx, &a2a.ListTasksRequest{ContextID: "ctx-b", Status: a2a.TaskStateWorking})
+	require.NoError(t, err)
+	require.Len(t, resp.Tasks, 1)
+	assert.Equal(t, "task-3", string(resp.Tasks[0].ID))
+}
+
+func TestKVTaskStore_ListHistoryAndArtifacts(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
+	ctx := t.Context()
+
+	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest",
+		redpanda.WithAutoCreateTopics(),
+	)
+	require.NoError(t, err)
+	defer func() { _ = container.Terminate(ctx) }()
+
+	brokers, err := container.KafkaSeedBroker(ctx)
+	require.NoError(t, err)
+
+	store, err := a2aadapter.NewKVTaskStore(ctx, "test-a2a-list-history",
+		kvstore.WithBrokers(brokers),
+	)
+	require.NoError(t, err)
+	defer store.Close()
+
+	task := &a2a.Task{
+		ID:        "task-1",
+		ContextID: "ctx",
+		Status:    a2a.TaskStatus{State: a2a.TaskStateCompleted, Timestamp: ptr(time.Now())},
+		History: []*a2a.Message{
+			a2a.NewMessage(a2a.MessageRoleUser, a2a.TextPart{Text: "msg1"}),
+			a2a.NewMessage(a2a.MessageRoleAgent, a2a.TextPart{Text: "msg2"}),
+			a2a.NewMessage(a2a.MessageRoleUser, a2a.TextPart{Text: "msg3"}),
+			a2a.NewMessage(a2a.MessageRoleAgent, a2a.TextPart{Text: "msg4"}),
+		},
+		Artifacts: []*a2a.Artifact{
+			{Name: "artifact1"},
+			{Name: "artifact2"},
+		},
+	}
+	require.NoError(t, store.Save(ctx, task))
+
+	// Default: no artifacts, full history
+	resp, err := store.List(ctx, &a2a.ListTasksRequest{})
+	require.NoError(t, err)
+	require.Len(t, resp.Tasks, 1)
+	assert.Len(t, resp.Tasks[0].History, 4)
+	assert.Nil(t, resp.Tasks[0].Artifacts)
+
+	// Trim history to last 2 messages
+	resp, err = store.List(ctx, &a2a.ListTasksRequest{HistoryLength: 2})
+	require.NoError(t, err)
+	require.Len(t, resp.Tasks, 1)
+	assert.Len(t, resp.Tasks[0].History, 2)
+	assert.Equal(t, "msg3", resp.Tasks[0].History[0].Parts[0].(a2a.TextPart).Text)
+	assert.Equal(t, "msg4", resp.Tasks[0].History[1].Parts[0].(a2a.TextPart).Text)
+
+	// Include artifacts
+	resp, err = store.List(ctx, &a2a.ListTasksRequest{IncludeArtifacts: true})
+	require.NoError(t, err)
+	require.Len(t, resp.Tasks, 1)
+	assert.Len(t, resp.Tasks[0].Artifacts, 2)
+}
+
+func TestKVTaskStore_UpdateChangesSortOrder(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
+	ctx := t.Context()
+
+	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest",
+		redpanda.WithAutoCreateTopics(),
+	)
+	require.NoError(t, err)
+	defer func() { _ = container.Terminate(ctx) }()
+
+	brokers, err := container.KafkaSeedBroker(ctx)
+	require.NoError(t, err)
+
+	store, err := a2aadapter.NewKVTaskStore(ctx, "test-a2a-update-sort",
+		kvstore.WithBrokers(brokers),
+	)
+	require.NoError(t, err)
+	defer store.Close()
+
+	baseTime := time.Now()
+
+	// Create tasks: task-a is oldest, task-b is newest
+	taskA := &a2a.Task{ID: "task-a", ContextID: "ctx", Status: a2a.TaskStatus{State: a2a.TaskStateWorking, Timestamp: ptr(baseTime)}}
+	taskB := &a2a.Task{ID: "task-b", ContextID: "ctx", Status: a2a.TaskStatus{State: a2a.TaskStateWorking, Timestamp: ptr(baseTime.Add(time.Hour))}}
+	require.NoError(t, store.Save(ctx, taskA))
+	require.NoError(t, store.Save(ctx, taskB))
+
+	// Initial order: task-b, task-a
+	resp, err := store.List(ctx, &a2a.ListTasksRequest{})
+	require.NoError(t, err)
+	require.Len(t, resp.Tasks, 2)
+	assert.Equal(t, "task-b", string(resp.Tasks[0].ID))
+	assert.Equal(t, "task-a", string(resp.Tasks[1].ID))
+
+	// Update task-a with newer timestamp - should move to front
+	taskA.Status.Timestamp = ptr(baseTime.Add(2 * time.Hour))
+	require.NoError(t, store.Save(ctx, taskA))
+
+	// New order: task-a, task-b
+	resp, err = store.List(ctx, &a2a.ListTasksRequest{})
+	require.NoError(t, err)
+	require.Len(t, resp.Tasks, 2)
+	assert.Equal(t, "task-a", string(resp.Tasks[0].ID))
+	assert.Equal(t, "task-b", string(resp.Tasks[1].ID))
+
+	// Verify Get still works
+	loaded, err := store.Get(ctx, "task-a")
+	require.NoError(t, err)
+	assert.Equal(t, taskA.Status.Timestamp.Unix(), loaded.Status.Timestamp.Unix())
+}
+
+func TestKVTaskStore_BootstrapRestoresSortOrder(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
+	ctx := t.Context()
+
+	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest",
+		redpanda.WithAutoCreateTopics(),
+	)
+	require.NoError(t, err)
+	defer func() { _ = container.Terminate(ctx) }()
+
+	brokers, err := container.KafkaSeedBroker(ctx)
+	require.NoError(t, err)
+
+	const topic = "test-a2a-bootstrap-sort"
+
+	// First store: create tasks
+	store1, err := a2aadapter.NewKVTaskStore(ctx, topic, kvstore.WithBrokers(brokers))
+	require.NoError(t, err)
+
+	baseTime := time.Now()
+	require.NoError(t, store1.Save(ctx, &a2a.Task{ID: "task-old", ContextID: "ctx", Status: a2a.TaskStatus{Timestamp: ptr(baseTime)}}))
+	require.NoError(t, store1.Save(ctx, &a2a.Task{ID: "task-new", ContextID: "ctx", Status: a2a.TaskStatus{Timestamp: ptr(baseTime.Add(time.Hour))}}))
+	store1.Close()
+
+	// Second store: bootstrap from Kafka
+	store2, err := a2aadapter.NewKVTaskStore(ctx, topic, kvstore.WithBrokers(brokers))
+	require.NoError(t, err)
+	defer store2.Close()
+
+	// Sort order should be restored
+	resp, err := store2.List(ctx, &a2a.ListTasksRequest{})
+	require.NoError(t, err)
+	require.Len(t, resp.Tasks, 2)
+	assert.Equal(t, "task-new", string(resp.Tasks[0].ID))
+	assert.Equal(t, "task-old", string(resp.Tasks[1].ID))
+}
+
+func ptr[T any](v T) *T {
+	return &v
 }
