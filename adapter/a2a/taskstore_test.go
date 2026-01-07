@@ -14,7 +14,6 @@ import (
 )
 
 func TestKVTaskStore_SaveGet(t *testing.T) { //nolint:paralleltest // Serial to reduce container memory pressure
-
 	if testing.Short() {
 		t.Skip("skipping integration test")
 	}
@@ -82,7 +81,6 @@ func TestKVTaskStore_SaveGet(t *testing.T) { //nolint:paralleltest // Serial to 
 }
 
 func TestKVTaskStore_MultipleTasks(t *testing.T) { //nolint:paralleltest // Serial to reduce container memory pressure
-
 	if testing.Short() {
 		t.Skip("skipping integration test")
 	}
@@ -128,7 +126,6 @@ func TestKVTaskStore_MultipleTasks(t *testing.T) { //nolint:paralleltest // Seri
 }
 
 func TestKVTaskStore_Bootstrap(t *testing.T) { //nolint:paralleltest // Serial to reduce container memory pressure
-
 	if testing.Short() {
 		t.Skip("skipping integration test")
 	}
@@ -183,7 +180,6 @@ func TestKVTaskStore_Bootstrap(t *testing.T) { //nolint:paralleltest // Serial t
 }
 
 func TestKVTaskStore_ListSortedByTime(t *testing.T) { //nolint:paralleltest // Serial to reduce container memory pressure
-
 	if testing.Short() {
 		t.Skip("skipping integration test")
 	}
@@ -230,7 +226,6 @@ func TestKVTaskStore_ListSortedByTime(t *testing.T) { //nolint:paralleltest // S
 }
 
 func TestKVTaskStore_ListPagination(t *testing.T) { //nolint:paralleltest // Serial to reduce container memory pressure
-
 	if testing.Short() {
 		t.Skip("skipping integration test")
 	}
@@ -290,7 +285,6 @@ func TestKVTaskStore_ListPagination(t *testing.T) { //nolint:paralleltest // Ser
 }
 
 func TestKVTaskStore_ListFilters(t *testing.T) { //nolint:paralleltest // Serial to reduce container memory pressure
-
 	if testing.Short() {
 		t.Skip("skipping integration test")
 	}
@@ -361,7 +355,6 @@ func TestKVTaskStore_ListFilters(t *testing.T) { //nolint:paralleltest // Serial
 }
 
 func TestKVTaskStore_ListHistoryAndArtifacts(t *testing.T) { //nolint:paralleltest // Serial to reduce container memory pressure
-
 	if testing.Short() {
 		t.Skip("skipping integration test")
 	}
@@ -431,7 +424,6 @@ func TestKVTaskStore_ListHistoryAndArtifacts(t *testing.T) { //nolint:parallelte
 }
 
 func TestKVTaskStore_UpdateChangesSortOrder(t *testing.T) { //nolint:paralleltest // Serial to reduce container memory pressure
-
 	if testing.Short() {
 		t.Skip("skipping integration test")
 	}
@@ -489,7 +481,6 @@ func TestKVTaskStore_UpdateChangesSortOrder(t *testing.T) { //nolint:paralleltes
 }
 
 func TestKVTaskStore_BootstrapRestoresSortOrder(t *testing.T) { //nolint:paralleltest // Serial to reduce container memory pressure
-
 	if testing.Short() {
 		t.Skip("skipping integration test")
 	}

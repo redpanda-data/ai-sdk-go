@@ -542,6 +542,7 @@ func TestExecutor_SessionPersistence_Mock(t *testing.T) {
 
 	events1 := []a2a.Event{}
 	eventsDone1 := make(chan struct{})
+	finalEventSeen1 := make(chan struct{})
 
 	go func() {
 		defer close(eventsDone1)
@@ -553,12 +554,19 @@ func TestExecutor_SessionPersistence_Mock(t *testing.T) {
 			}
 
 			events1 = append(events1, event)
+
+			// Check if this is a final event
+			if statusEvent, ok := event.(*a2a.TaskStatusUpdateEvent); ok && statusEvent.Final {
+				close(finalEventSeen1)
+			}
 		}
 	}()
 
 	err = executor.Execute(ctx, reqCtx1, writerQueue1)
 	require.NoError(t, err)
 
+	// Wait for reader to see the final event, then close both queues
+	<-finalEventSeen1
 	writerQueue1.Close()
 	readerQueue1.Close()
 	<-eventsDone1
@@ -605,6 +613,7 @@ func TestExecutor_SessionPersistence_Mock(t *testing.T) {
 
 	events2 := []a2a.Event{}
 	eventsDone2 := make(chan struct{})
+	finalEventSeen2 := make(chan struct{})
 
 	go func() {
 		defer close(eventsDone2)
@@ -616,12 +625,19 @@ func TestExecutor_SessionPersistence_Mock(t *testing.T) {
 			}
 
 			events2 = append(events2, event)
+
+			// Check if this is a final event
+			if statusEvent, ok := event.(*a2a.TaskStatusUpdateEvent); ok && statusEvent.Final {
+				close(finalEventSeen2)
+			}
 		}
 	}()
 
 	err = executor.Execute(ctx, reqCtx2, writerQueue2)
 	require.NoError(t, err)
 
+	// Wait for reader to see the final event, then close both queues
+	<-finalEventSeen2
 	writerQueue2.Close()
 	readerQueue2.Close()
 	<-eventsDone2
@@ -702,6 +718,7 @@ func TestExecutor_SessionPersistence(t *testing.T) {
 
 	events1 := []a2a.Event{}
 	eventsDone1 := make(chan struct{})
+	finalEventSeen1 := make(chan struct{})
 
 	go func() {
 		defer close(eventsDone1)
@@ -713,12 +730,19 @@ func TestExecutor_SessionPersistence(t *testing.T) {
 			}
 
 			events1 = append(events1, event)
+
+			// Check if this is a final event
+			if statusEvent, ok := event.(*a2a.TaskStatusUpdateEvent); ok && statusEvent.Final {
+				close(finalEventSeen1)
+			}
 		}
 	}()
 
 	err = executor.Execute(ctx, reqCtx1, writerQueue1)
 	require.NoError(t, err)
 
+	// Wait for reader to see the final event, then close both queues
+	<-finalEventSeen1
 	writerQueue1.Close()
 	readerQueue1.Close()
 	<-eventsDone1
@@ -770,6 +794,7 @@ func TestExecutor_SessionPersistence(t *testing.T) {
 
 	events2 := []a2a.Event{}
 	eventsDone2 := make(chan struct{})
+	finalEventSeen2 := make(chan struct{})
 
 	go func() {
 		defer close(eventsDone2)
@@ -781,12 +806,19 @@ func TestExecutor_SessionPersistence(t *testing.T) {
 			}
 
 			events2 = append(events2, event)
+
+			// Check if this is a final event
+			if statusEvent, ok := event.(*a2a.TaskStatusUpdateEvent); ok && statusEvent.Final {
+				close(finalEventSeen2)
+			}
 		}
 	}()
 
 	err = executor.Execute(ctx, reqCtx2, writerQueue2)
 	require.NoError(t, err)
 
+	// Wait for reader to see the final event, then close both queues
+	<-finalEventSeen2
 	writerQueue2.Close()
 	readerQueue2.Close()
 	<-eventsDone2
@@ -999,6 +1031,7 @@ func TestExecutor_ErrorHandling(t *testing.T) {
 
 	events := []a2a.Event{}
 	eventsDone := make(chan struct{})
+	finalEventSeen := make(chan struct{})
 
 	go func() {
 		defer close(eventsDone)
@@ -1010,6 +1043,11 @@ func TestExecutor_ErrorHandling(t *testing.T) {
 			}
 
 			events = append(events, event)
+
+			// Check if this is a final event
+			if statusEvent, ok := event.(*a2a.TaskStatusUpdateEvent); ok && statusEvent.Final {
+				close(finalEventSeen)
+			}
 		}
 	}()
 
@@ -1018,6 +1056,8 @@ func TestExecutor_ErrorHandling(t *testing.T) {
 	err = executor.Execute(ctx, reqCtx, writerQueue)
 	require.NoError(t, err, "Execute should NOT return error for agent failures - they should be communicated via task status events")
 
+	// Wait for reader to see the final event, then close both queues
+	<-finalEventSeen
 	writerQueue.Close()
 	readerQueue.Close()
 	<-eventsDone
