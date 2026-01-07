@@ -13,8 +13,7 @@ import (
 	a2aadapter "github.com/redpanda-data/ai-sdk-go/adapter/a2a"
 )
 
-func TestKVTaskStore_SaveGet(t *testing.T) {
-	t.Parallel()
+func TestKVTaskStore_SaveGet(t *testing.T) { //nolint:paralleltest // Serial to reduce container memory pressure
 
 	if testing.Short() {
 		t.Skip("skipping integration test")
@@ -82,8 +81,7 @@ func TestKVTaskStore_SaveGet(t *testing.T) {
 	assert.Len(t, loaded.History, 2)
 }
 
-func TestKVTaskStore_MultipleTasks(t *testing.T) {
-	t.Parallel()
+func TestKVTaskStore_MultipleTasks(t *testing.T) { //nolint:paralleltest // Serial to reduce container memory pressure
 
 	if testing.Short() {
 		t.Skip("skipping integration test")
@@ -129,8 +127,7 @@ func TestKVTaskStore_MultipleTasks(t *testing.T) {
 	}
 }
 
-func TestKVTaskStore_Bootstrap(t *testing.T) {
-	t.Parallel()
+func TestKVTaskStore_Bootstrap(t *testing.T) { //nolint:paralleltest // Serial to reduce container memory pressure
 
 	if testing.Short() {
 		t.Skip("skipping integration test")
@@ -185,8 +182,7 @@ func TestKVTaskStore_Bootstrap(t *testing.T) {
 	assert.Equal(t, "value", loaded.Metadata["key"])
 }
 
-func TestKVTaskStore_ListSortedByTime(t *testing.T) {
-	t.Parallel()
+func TestKVTaskStore_ListSortedByTime(t *testing.T) { //nolint:paralleltest // Serial to reduce container memory pressure
 
 	if testing.Short() {
 		t.Skip("skipping integration test")
@@ -233,8 +229,7 @@ func TestKVTaskStore_ListSortedByTime(t *testing.T) {
 	assert.Equal(t, "task-old", string(resp.Tasks[2].ID))
 }
 
-func TestKVTaskStore_ListPagination(t *testing.T) {
-	t.Parallel()
+func TestKVTaskStore_ListPagination(t *testing.T) { //nolint:paralleltest // Serial to reduce container memory pressure
 
 	if testing.Short() {
 		t.Skip("skipping integration test")
@@ -294,8 +289,7 @@ func TestKVTaskStore_ListPagination(t *testing.T) {
 	assert.Empty(t, resp.NextPageToken)
 }
 
-func TestKVTaskStore_ListFilters(t *testing.T) {
-	t.Parallel()
+func TestKVTaskStore_ListFilters(t *testing.T) { //nolint:paralleltest // Serial to reduce container memory pressure
 
 	if testing.Short() {
 		t.Skip("skipping integration test")
@@ -366,8 +360,7 @@ func TestKVTaskStore_ListFilters(t *testing.T) {
 	assert.Equal(t, "task-3", string(resp.Tasks[0].ID))
 }
 
-func TestKVTaskStore_ListHistoryAndArtifacts(t *testing.T) {
-	t.Parallel()
+func TestKVTaskStore_ListHistoryAndArtifacts(t *testing.T) { //nolint:paralleltest // Serial to reduce container memory pressure
 
 	if testing.Short() {
 		t.Skip("skipping integration test")
@@ -437,8 +430,7 @@ func TestKVTaskStore_ListHistoryAndArtifacts(t *testing.T) {
 	assert.Len(t, resp.Tasks[0].Artifacts, 2)
 }
 
-func TestKVTaskStore_UpdateChangesSortOrder(t *testing.T) {
-	t.Parallel()
+func TestKVTaskStore_UpdateChangesSortOrder(t *testing.T) { //nolint:paralleltest // Serial to reduce container memory pressure
 
 	if testing.Short() {
 		t.Skip("skipping integration test")
@@ -496,8 +488,7 @@ func TestKVTaskStore_UpdateChangesSortOrder(t *testing.T) {
 	assert.Equal(t, taskA.Status.Timestamp.Unix(), loaded.Status.Timestamp.Unix())
 }
 
-func TestKVTaskStore_BootstrapRestoresSortOrder(t *testing.T) {
-	t.Parallel()
+func TestKVTaskStore_BootstrapRestoresSortOrder(t *testing.T) { //nolint:paralleltest // Serial to reduce container memory pressure
 
 	if testing.Short() {
 		t.Skip("skipping integration test")
