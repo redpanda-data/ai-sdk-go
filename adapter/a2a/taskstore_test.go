@@ -522,6 +522,70 @@ func TestKVTaskStore_BootstrapRestoresSortOrder(t *testing.T) { //nolint:paralle
 	assert.Equal(t, "task-old", string(resp.Tasks[1].ID))
 }
 
+func TestKVTaskStore_InvalidPageToken(t *testing.T) { //nolint:paralleltest // Serial to reduce container memory pressure
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
+	ctx := t.Context()
+
+	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest",
+		redpanda.WithAutoCreateTopics(),
+	)
+	require.NoError(t, err)
+
+	defer func() { _ = container.Terminate(ctx) }()
+
+	brokers, err := container.KafkaSeedBroker(ctx)
+	require.NoError(t, err)
+
+	const topic = "test-a2a-invalid-token"
+
+	store, err := a2aadapter.NewKVTaskStore(ctx, topic, kvstore.WithBrokers(brokers))
+	require.NoError(t, err)
+
+	defer store.Close()
+
+	// Create a task
+	require.NoError(t, store.Save(ctx, &a2a.Task{
+		ID:        "task-1",
+		ContextID: "ctx",
+		Status:    a2a.TaskStatus{Timestamp: ptr(time.Now())},
+	}))
+
+	testCases := []struct {
+		name      string
+		pageToken string
+		expectErr string
+	}{
+		{
+			name:      "garbage base64",
+			pageToken: "not-valid-base64!@#$",
+			expectErr: "invalid page token",
+		},
+		{
+			name:      "valid base64 but not JSON",
+			pageToken: "bm90IGpzb24=", // "not json" in base64
+			expectErr: "invalid page token",
+		},
+		{
+			name:      "valid JSON but missing sortKey",
+			pageToken: "e30=", // "{}" in base64
+			expectErr: "invalid page token",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := store.List(ctx, &a2a.ListTasksRequest{
+				PageToken: tc.pageToken,
+			})
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.expectErr)
+		})
+	}
+}
+
 func ptr[T any](v T) *T {
 	return &v
 }

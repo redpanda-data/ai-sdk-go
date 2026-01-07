@@ -2,6 +2,7 @@ package a2a
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,6 +20,51 @@ import (
 
 // Compile-time interface check.
 var _ a2asrv.TaskStore = (*KVTaskStore)(nil)
+
+// pageToken is the internal structure for pagination tokens.
+// Tokens are JSON marshaled and base64 encoded to make them opaque to clients.
+type pageToken struct {
+	SortKey string `json:"s"` // The sortKey to continue from
+}
+
+// encodePageToken encodes a sortKey into an opaque base64 page token.
+func encodePageToken(sortKey string) (string, error) {
+	if sortKey == "" {
+		return "", nil
+	}
+
+	token := pageToken{SortKey: sortKey}
+	jsonData, err := json.Marshal(token)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal page token: %w", err)
+	}
+
+	return base64.URLEncoding.EncodeToString(jsonData), nil
+}
+
+// decodePageToken decodes a base64 page token into a sortKey.
+// Returns an error if the token is invalid or malformed.
+func decodePageToken(encoded string) (string, error) {
+	if encoded == "" {
+		return "", nil
+	}
+
+	jsonData, err := base64.URLEncoding.DecodeString(encoded)
+	if err != nil {
+		return "", fmt.Errorf("invalid page token: not valid base64: %w", err)
+	}
+
+	var token pageToken
+	if err := json.Unmarshal(jsonData, &token); err != nil {
+		return "", fmt.Errorf("invalid page token: malformed structure: %w", err)
+	}
+
+	if token.SortKey == "" {
+		return "", errors.New("invalid page token: missing sortKey")
+	}
+
+	return token.SortKey, nil
+}
 
 // KVTaskStore provides A2A task storage backed by Kafka via kvstore.
 // Writes are persisted to Kafka and block until visible in reads.
@@ -166,10 +212,16 @@ func (s *KVTaskStore) List(ctx context.Context, req *a2a.ListTasksRequest) (*a2a
 	startIdx := 0
 
 	if req.PageToken != "" {
+		// Decode and validate the page token
+		sortKey, err := decodePageToken(req.PageToken)
+		if err != nil {
+			return nil, fmt.Errorf("invalid page token: %w", err)
+		}
+
 		// Use binary search since sortedCopy is sorted (O(log n) vs O(n))
 		// If found, idx is the position. If not found, idx is where it would be inserted,
 		// which maintains pagination continuity when the token's task was deleted.
-		startIdx, _ = slices.BinarySearch(sortedCopy, req.PageToken)
+		startIdx, _ = slices.BinarySearch(sortedCopy, sortKey)
 	}
 
 	var tasks []*a2a.Task
@@ -226,7 +278,12 @@ func (s *KVTaskStore) List(ctx context.Context, req *a2a.ListTasksRequest) (*a2a
 		if len(tasks) >= pageSize {
 			// Set token to the next item (first item of next page)
 			if i+1 < len(sortedCopy) {
-				nextPageToken = sortedCopy[i+1]
+				encoded, err := encodePageToken(sortedCopy[i+1])
+				if err != nil {
+					return nil, fmt.Errorf("failed to encode page token: %w", err)
+				}
+
+				nextPageToken = encoded
 			}
 
 			break
