@@ -131,6 +131,22 @@ func (s *KVTaskStore) Get(ctx context.Context, taskID a2a.TaskID) (*a2a.Task, er
 
 // List retrieves tasks matching the criteria in the request.
 // Tasks are returned in descending order by last update time.
+//
+// # Consistency Model
+//
+// List provides snapshot-at-copy consistency: it copies the sorted index under lock,
+// then releases the lock and reads task data. This creates a race condition where:
+//
+//  1. Tasks in the snapshot may have been deleted before we read them
+//     (handled by skipping ErrNotFound entries)
+//  2. Tasks in the snapshot may have been updated with newer timestamps/state
+//     (the returned data reflects the current state, not snapshot-time state)
+//  3. Newly added tasks after the snapshot won't appear in results
+//  4. The sort order reflects snapshot-time, but task data is current-time
+//
+// This is acceptable for the A2A list operation which doesn't require strict
+// snapshot isolation. The alternative (holding RLock during all kvstore reads)
+// would block all concurrent writes for the entire List operation.
 func (s *KVTaskStore) List(ctx context.Context, req *a2a.ListTasksRequest) (*a2a.ListTasksResponse, error) {
 	pageSize := req.PageSize
 	if pageSize <= 0 {
@@ -168,7 +184,8 @@ func (s *KVTaskStore) List(ctx context.Context, req *a2a.ListTasksRequest) (*a2a
 		task, err := s.client.Get(ctx, []byte(taskID))
 		if err != nil {
 			if errors.Is(err, kvstore.ErrNotFound) {
-				continue // Task was deleted, skip
+				// Task was deleted between snapshot and read (see consistency model in function doc)
+				continue
 			}
 
 			return nil, err
