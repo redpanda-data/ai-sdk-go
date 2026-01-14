@@ -1,6 +1,7 @@
 package kvstore_test
 
 import (
+	"context"
 	"testing"
 
 	commonkvstore "github.com/redpanda-data/common-go/kvstore"
@@ -26,6 +27,32 @@ func redpandaLowMemory() testcontainers.CustomizeRequestOption {
 	)
 }
 
+// requireRedpandaContainer starts a Redpanda container and logs its output on failure.
+func requireRedpandaContainer(ctx context.Context, t *testing.T) *redpanda.Container {
+	t.Helper()
+
+	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest",
+		redpandaLowMemory(),
+		redpanda.WithAutoCreateTopics(),
+	)
+	if err != nil {
+		if container != nil {
+			if logs, logErr := container.Logs(ctx); logErr == nil {
+				buf := make([]byte, 4096)
+				n, _ := logs.Read(buf)
+				t.Logf("Container logs:\n%s", string(buf[:n]))
+				logs.Close()
+			}
+
+			_ = container.Terminate(ctx)
+		}
+
+		t.Fatalf("Failed to start Redpanda container: %v", err)
+	}
+
+	return container
+}
+
 func TestKVStore_LoadSaveDelete(t *testing.T) {
 	t.Parallel()
 
@@ -35,12 +62,7 @@ func TestKVStore_LoadSaveDelete(t *testing.T) {
 
 	ctx := t.Context()
 
-	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest",
-		redpandaLowMemory(),
-		redpanda.WithAutoCreateTopics(),
-	)
-	require.NoError(t, err)
-
+	container := requireRedpandaContainer(ctx, t)
 	defer func() { _ = container.Terminate(ctx) }()
 
 	brokers, err := container.KafkaSeedBroker(ctx)
@@ -113,12 +135,7 @@ func TestKVStore_MultipleSessions(t *testing.T) {
 
 	ctx := t.Context()
 
-	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest",
-		redpandaLowMemory(),
-		redpanda.WithAutoCreateTopics(),
-	)
-	require.NoError(t, err)
-
+	container := requireRedpandaContainer(ctx, t)
 	defer func() { _ = container.Terminate(ctx) }()
 
 	brokers, err := container.KafkaSeedBroker(ctx)
@@ -160,12 +177,7 @@ func TestKVStore_Bootstrap(t *testing.T) {
 
 	ctx := t.Context()
 
-	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest",
-		redpandaLowMemory(),
-		redpanda.WithAutoCreateTopics(),
-	)
-	require.NoError(t, err)
-
+	container := requireRedpandaContainer(ctx, t)
 	defer func() { _ = container.Terminate(ctx) }()
 
 	brokers, err := container.KafkaSeedBroker(ctx)
