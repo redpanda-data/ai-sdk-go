@@ -330,9 +330,14 @@ func (s *KVTaskStore) List(ctx context.Context, req *a2a.ListTasksRequest) (*a2a
 			return nil, fmt.Errorf("invalid page token: %w", err)
 		}
 
-		// Use binary search since sortedCopy is sorted (O(log n) vs O(n))
-		// If found, idx is the position. If not found, idx is where it would be inserted,
-		// which maintains pagination continuity when the token's task was deleted.
+		// Use binary search since sortedCopy is sorted (O(log n) vs O(n)).
+		// If found, idx is the exact position of the token's task.
+		// If not found (task was deleted between pages), idx is where it would be inserted.
+		// This insertion point is correct because:
+		// - Sort keys are unique (timestamp:taskID format)
+		// - The insertion point is the first key > deleted key
+		// - This is exactly where the next page should start
+		// Thus pagination remains consistent even when tasks are deleted between requests.
 		startIdx, _ = slices.BinarySearch(sortedCopy, sortKey)
 	}
 
@@ -404,8 +409,11 @@ func (s *KVTaskStore) List(ctx context.Context, req *a2a.ListTasksRequest) (*a2a
 
 	return &a2a.ListTasksResponse{
 		Tasks: tasks,
-		// TotalSize is the total task count in the store at snapshot time,
-		// NOT the filtered count (computing filtered count would require iterating all tasks)
+		// TotalSize is the UNFILTERED total task count in the store at snapshot time.
+		// This does NOT reflect any ContextID, Status, or LastUpdatedAfter filters.
+		// Computing filtered count would require iterating all tasks which is expensive.
+		// Consumers should use len(Tasks) for current page count and NextPageToken
+		// to determine if more results exist.
 		TotalSize:     len(sortedCopy),
 		PageSize:      pageSize,
 		NextPageToken: nextPageToken,
@@ -443,6 +451,11 @@ func (s *KVTaskStore) removeSortKeyLocked(sortKey string) {
 // makeSortKey creates a sort key for time-ordered indexing.
 // Format: {inverted_timestamp}:{task_id}
 // Inverted timestamp ensures descending order with ascending key scan.
+//
+// Note: This assumes timestamps are non-negative (post-1970 Unix epoch).
+// Negative timestamps would cause inverted values > MaxInt64, which would
+// break sort ordering. This is acceptable since task timestamps should
+// always be recent/current time.
 func makeSortKey(timestamp *time.Time, taskID a2a.TaskID) string {
 	var ts int64
 
@@ -450,6 +463,8 @@ func makeSortKey(timestamp *time.Time, taskID a2a.TaskID) string {
 		ts = timestamp.UnixNano()
 	}
 
+	// Invert timestamp so ascending sort gives descending time order.
+	// MaxInt64 - ts works for all reasonable timestamps (post-1970).
 	inverted := math.MaxInt64 - ts
 
 	return fmt.Sprintf("%020d:%s", inverted, taskID)

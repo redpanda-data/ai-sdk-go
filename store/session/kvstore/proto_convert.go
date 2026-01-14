@@ -24,7 +24,7 @@ func getFromProtoConverter() func(*llmpb.SessionState) (*session.State, error) {
 // toProtoSessionState converts a Go session.State to protobuf.
 func toProtoSessionState(s *session.State) (*llmpb.SessionState, error) {
 	if s == nil {
-		return &llmpb.SessionState{}, nil
+		return nil, errors.New("cannot convert nil State to proto")
 	}
 
 	// Convert messages
@@ -60,7 +60,7 @@ func toProtoSessionState(s *session.State) (*llmpb.SessionState, error) {
 // fromProtoSessionState converts a protobuf SessionState to Go session.State.
 func fromProtoSessionState(pb *llmpb.SessionState) (*session.State, error) {
 	if pb == nil {
-		return &session.State{}, nil
+		return nil, errors.New("cannot convert nil proto SessionState")
 	}
 
 	// Convert messages
@@ -215,7 +215,7 @@ func toProtoPart(p *llm.Part) (*llmpb.Part, error) {
 		}
 
 	default:
-		return nil, fmt.Errorf("unknown PartKind: %v", p.Kind)
+		return nil, fmt.Errorf("unknown PartKind: %v (expected text, tool_request, tool_response, or reasoning)", p.Kind)
 	}
 
 	// Convert part metadata
