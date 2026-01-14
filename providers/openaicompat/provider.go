@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/openai/openai-go/v3"
@@ -11,6 +12,22 @@ import (
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
+
+// normalizeBaseURL ensures the base URL ends with /v1 for OpenAI API compatibility.
+//
+// The OpenAI SDK expects the base URL to include the /v1 path segment
+// (e.g., "https://api.openai.com/v1"), while other providers like Anthropic
+// expect it without (e.g., "https://api.anthropic.com"). This normalization
+// allows users to provide URLs in either format consistently across providers,
+// bridging the gap between different SDK expectations.
+func normalizeBaseURL(url string) string {
+	url = strings.TrimSuffix(url, "/")
+	if !strings.HasSuffix(url, "/v1") {
+		url += "/v1"
+	}
+
+	return url
+}
 
 // Provider implements the OpenAI-compatible model provider using Chat Completion API.
 type Provider struct {
@@ -71,13 +88,14 @@ func NewProvider(apiKey string, opts ...ProviderOption) (*Provider, error) {
 }
 
 // WithBaseURL sets a custom API endpoint for OpenAI-compatible providers.
+// The URL is normalized to ensure it ends with /v1 for API compatibility.
 func WithBaseURL(url string) ProviderOption {
 	return func(p *Provider) error {
 		if url == "" {
 			return errors.New("base URL cannot be empty")
 		}
 
-		p.BaseURL = url
+		p.BaseURL = normalizeBaseURL(url)
 
 		return nil
 	}
