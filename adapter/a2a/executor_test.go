@@ -102,18 +102,23 @@ func TestExecutor_Integration_OpenAI(t *testing.T) {
 			}
 
 			events = append(events, event)
+
+			// Exit when we see the final event to ensure we've read everything
+			if statusEvent, ok := event.(*a2a.TaskStatusUpdateEvent); ok && statusEvent.Final {
+				return
+			}
 		}
 	}()
 
 	err = executor.Execute(ctx, reqCtx, writerQueue)
 	require.NoError(t, err)
 
-	// Close queues to signal no more events
+	// Wait for event reader to finish (exits when it sees Final=true)
+	<-eventsDone
+
+	// Close queues after reader is done
 	writerQueue.Close()
 	readerQueue.Close()
-
-	// Wait for event reader to finish
-	<-eventsDone
 
 	// Verify events were written
 	require.NotEmpty(t, events, "Should have written events to queue")
