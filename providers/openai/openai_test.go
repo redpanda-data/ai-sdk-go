@@ -12,6 +12,87 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
+func TestNormalizeBaseURL(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "URL without /v1",
+			input:    "https://api.openai.com",
+			expected: "https://api.openai.com/v1",
+		},
+		{
+			name:     "URL with /v1",
+			input:    "https://api.openai.com/v1",
+			expected: "https://api.openai.com/v1",
+		},
+		{
+			name:     "URL with trailing slash",
+			input:    "https://api.openai.com/",
+			expected: "https://api.openai.com/v1",
+		},
+		{
+			name:     "URL with /v1 and trailing slash",
+			input:    "https://api.openai.com/v1/",
+			expected: "https://api.openai.com/v1",
+		},
+		{
+			name:     "custom URL without /v1",
+			input:    "https://custom-api.example.com",
+			expected: "https://custom-api.example.com/v1",
+		},
+		{
+			name:     "custom URL with /v1",
+			input:    "https://custom-api.example.com/v1",
+			expected: "https://custom-api.example.com/v1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := normalizeBaseURL(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestWithBaseURLNormalization(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		inputURL    string
+		expectedURL string
+	}{
+		{
+			name:        "URL without /v1 gets normalized",
+			inputURL:    "https://api.openai.com",
+			expectedURL: "https://api.openai.com/v1",
+		},
+		{
+			name:        "URL with /v1 stays unchanged",
+			inputURL:    "https://api.openai.com/v1",
+			expectedURL: "https://api.openai.com/v1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			provider, err := NewProvider("sk-test-key", WithBaseURL(tt.inputURL))
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedURL, provider.BaseURL)
+		})
+	}
+}
+
 func TestProviderCreation(t *testing.T) {
 	t.Parallel()
 	// Valid provider creation
