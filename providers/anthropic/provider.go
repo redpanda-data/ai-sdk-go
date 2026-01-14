@@ -23,6 +23,7 @@ import (
 func normalizeBaseURL(url string) string {
 	url = strings.TrimSuffix(url, "/")
 	url = strings.TrimSuffix(url, "/v1")
+
 	return url
 }
 

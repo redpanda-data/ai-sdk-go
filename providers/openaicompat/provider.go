@@ -25,6 +25,7 @@ func normalizeBaseURL(url string) string {
 	if !strings.HasSuffix(url, "/v1") {
 		url += "/v1"
 	}
+
 	return url
 }
 
