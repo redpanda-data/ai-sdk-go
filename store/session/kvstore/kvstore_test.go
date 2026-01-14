@@ -1,13 +1,11 @@
 package kvstore_test
 
 import (
-	"context"
 	"testing"
 
 	commonkvstore "github.com/redpanda-data/common-go/kvstore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/redpanda"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
@@ -15,54 +13,18 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/store/session/kvstore"
 )
 
-// redpandaLowMemory returns options for running Redpanda with reduced memory footprint.
-// This helps avoid OOM kills in CI environments with limited resources.
-func redpandaLowMemory() testcontainers.CustomizeRequestOption {
-	return testcontainers.WithCmd(
-		"redpanda", "start",
-		"--mode=dev-container",
-		"--smp=1",
-		"--memory=512M",
-		"--reserve-memory=0M",
-	)
-}
-
-// requireRedpandaContainer starts a Redpanda container and logs its output on failure.
-func requireRedpandaContainer(ctx context.Context, t *testing.T) *redpanda.Container {
-	t.Helper()
-
-	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest",
-		redpandaLowMemory(),
-		redpanda.WithAutoCreateTopics(),
-	)
-	if err != nil {
-		if container != nil {
-			if logs, logErr := container.Logs(ctx); logErr == nil {
-				buf := make([]byte, 4096)
-				n, _ := logs.Read(buf)
-				t.Logf("Container logs:\n%s", string(buf[:n]))
-				logs.Close()
-			}
-
-			_ = container.Terminate(ctx)
-		}
-
-		t.Fatalf("Failed to start Redpanda container: %v", err)
-	}
-
-	return container
-}
-
-func TestKVStore_LoadSaveDelete(t *testing.T) {
-	t.Parallel()
-
+func TestKVStore_LoadSaveDelete(t *testing.T) { //nolint:paralleltest // Serial to reduce container memory pressure
 	if testing.Short() {
 		t.Skip("skipping integration test")
 	}
 
 	ctx := t.Context()
 
-	container := requireRedpandaContainer(ctx, t)
+	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest",
+		redpanda.WithAutoCreateTopics(),
+	)
+	require.NoError(t, err)
+
 	defer func() { _ = container.Terminate(ctx) }()
 
 	brokers, err := container.KafkaSeedBroker(ctx)
@@ -126,16 +88,18 @@ func TestKVStore_LoadSaveDelete(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestKVStore_MultipleSessions(t *testing.T) {
-	t.Parallel()
-
+func TestKVStore_MultipleSessions(t *testing.T) { //nolint:paralleltest // Serial to reduce container memory pressure
 	if testing.Short() {
 		t.Skip("skipping integration test")
 	}
 
 	ctx := t.Context()
 
-	container := requireRedpandaContainer(ctx, t)
+	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest",
+		redpanda.WithAutoCreateTopics(),
+	)
+	require.NoError(t, err)
+
 	defer func() { _ = container.Terminate(ctx) }()
 
 	brokers, err := container.KafkaSeedBroker(ctx)
@@ -168,16 +132,18 @@ func TestKVStore_MultipleSessions(t *testing.T) {
 	}
 }
 
-func TestKVStore_Bootstrap(t *testing.T) {
-	t.Parallel()
-
+func TestKVStore_Bootstrap(t *testing.T) { //nolint:paralleltest // Serial to reduce container memory pressure
 	if testing.Short() {
 		t.Skip("skipping integration test")
 	}
 
 	ctx := t.Context()
 
-	container := requireRedpandaContainer(ctx, t)
+	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest",
+		redpanda.WithAutoCreateTopics(),
+	)
+	require.NoError(t, err)
+
 	defer func() { _ = container.Terminate(ctx) }()
 
 	brokers, err := container.KafkaSeedBroker(ctx)

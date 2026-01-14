@@ -20,13 +20,11 @@ import (
 )
 
 // TestKVTaskStoreWithSchemaRegistry_SchemaRegistration verifies schema registration.
-func TestKVTaskStoreWithSchemaRegistry_SchemaRegistration(t *testing.T) {
-	t.Parallel()
-
+func TestKVTaskStoreWithSchemaRegistry_SchemaRegistration(t *testing.T) { //nolint:paralleltest // Serial to reduce container memory pressure
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest", redpandaLowMemory())
+	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest")
 	require.NoError(t, err)
 
 	defer func() { _ = container.Terminate(ctx) }()
@@ -85,13 +83,11 @@ func TestKVTaskStoreWithSchemaRegistry_SchemaRegistration(t *testing.T) {
 }
 
 // TestKVTaskStoreWithSchemaRegistry_RoundTrip tests full serialization round-trip.
-func TestKVTaskStoreWithSchemaRegistry_RoundTrip(t *testing.T) {
-	t.Parallel()
-
+func TestKVTaskStoreWithSchemaRegistry_RoundTrip(t *testing.T) { //nolint:paralleltest // Serial to reduce container memory pressure
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest", redpandaLowMemory())
+	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest")
 	require.NoError(t, err)
 
 	defer func() { _ = container.Terminate(ctx) }()
@@ -186,13 +182,11 @@ func TestKVTaskStoreWithSchemaRegistry_RoundTrip(t *testing.T) {
 
 // TestKVTaskStoreWithSchemaRegistry_DynamicDeserialization validates that tasks
 // can be deserialized using dynamic proto from Schema Registry, like Console does.
-func TestKVTaskStoreWithSchemaRegistry_DynamicDeserialization(t *testing.T) {
-	t.Parallel()
-
+func TestKVTaskStoreWithSchemaRegistry_DynamicDeserialization(t *testing.T) { //nolint:paralleltest // Serial to reduce container memory pressure
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest", redpandaLowMemory())
+	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest")
 	require.NoError(t, err)
 
 	defer func() { _ = container.Terminate(ctx) }()

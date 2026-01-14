@@ -21,15 +21,13 @@ import (
 // TestKVStoreWithSchemaRegistry_WireFormat verifies the Confluent Schema Registry wire format.
 // This test ensures that data is stored with the correct wire format encoding:
 // [magic_byte=0x00][schema_id:4bytes][message_indexes][protobuf_data].
-func TestKVStoreWithSchemaRegistry_WireFormat(t *testing.T) {
-	t.Parallel()
-
+func TestKVStoreWithSchemaRegistry_WireFormat(t *testing.T) { //nolint:paralleltest // Serial to reduce container memory pressure
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 
 	defer cancel()
 
 	// Start Redpanda with Schema Registry
-	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest", redpandaLowMemory())
+	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest")
 	require.NoError(t, err)
 
 	defer func() { _ = container.Terminate(ctx) }()
@@ -149,15 +147,13 @@ func TestKVStoreWithSchemaRegistry_WireFormat(t *testing.T) {
 }
 
 // TestKVStoreWithSchemaRegistry_SchemaRegistration verifies schema registration.
-func TestKVStoreWithSchemaRegistry_SchemaRegistration(t *testing.T) {
-	t.Parallel()
-
+func TestKVStoreWithSchemaRegistry_SchemaRegistration(t *testing.T) { //nolint:paralleltest // Serial to reduce container memory pressure
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 
 	defer cancel()
 
 	// Start Redpanda with Schema Registry
-	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest", redpandaLowMemory())
+	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest")
 	require.NoError(t, err)
 
 	defer func() { _ = container.Terminate(ctx) }()
@@ -223,15 +219,13 @@ func TestKVStoreWithSchemaRegistry_SchemaRegistration(t *testing.T) {
 }
 
 // TestKVStoreWithSchemaRegistry_RoundTrip tests full serialization round-trip.
-func TestKVStoreWithSchemaRegistry_RoundTrip(t *testing.T) {
-	t.Parallel()
-
+func TestKVStoreWithSchemaRegistry_RoundTrip(t *testing.T) { //nolint:paralleltest // Serial to reduce container memory pressure
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 
 	defer cancel()
 
 	// Start Redpanda with Schema Registry
-	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest", redpandaLowMemory())
+	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest")
 	require.NoError(t, err)
 
 	defer func() { _ = container.Terminate(ctx) }()
