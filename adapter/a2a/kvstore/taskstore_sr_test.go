@@ -26,7 +26,7 @@ func TestKVTaskStoreWithSchemaRegistry_SchemaRegistration(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest")
+	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest", redpandaLowMemory())
 	require.NoError(t, err)
 
 	defer func() { _ = container.Terminate(ctx) }()
@@ -91,7 +91,7 @@ func TestKVTaskStoreWithSchemaRegistry_RoundTrip(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest")
+	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest", redpandaLowMemory())
 	require.NoError(t, err)
 
 	defer func() { _ = container.Terminate(ctx) }()
@@ -192,7 +192,7 @@ func TestKVTaskStoreWithSchemaRegistry_DynamicDeserialization(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest")
+	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest", redpandaLowMemory())
 	require.NoError(t, err)
 
 	defer func() { _ = container.Terminate(ctx) }()

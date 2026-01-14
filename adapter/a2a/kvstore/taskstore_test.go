@@ -8,10 +8,23 @@ import (
 	commonkvstore "github.com/redpanda-data/common-go/kvstore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/redpanda"
 
 	"github.com/redpanda-data/ai-sdk-go/adapter/a2a/kvstore"
 )
+
+// redpandaLowMemory returns options for running Redpanda with reduced memory footprint.
+// This helps avoid OOM kills in CI environments with limited resources.
+func redpandaLowMemory() testcontainers.CustomizeRequestOption {
+	return testcontainers.WithCmd(
+		"redpanda", "start",
+		"--mode=dev-container",
+		"--smp=1",
+		"--memory=256M",
+		"--reserve-memory=0M",
+	)
+}
 
 func TestKVTaskStore_SaveGet(t *testing.T) { //nolint:paralleltest // Serial to reduce container memory pressure
 	if testing.Short() {
@@ -21,6 +34,7 @@ func TestKVTaskStore_SaveGet(t *testing.T) { //nolint:paralleltest // Serial to 
 	ctx := t.Context()
 
 	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest",
+		redpandaLowMemory(),
 		redpanda.WithAutoCreateTopics(),
 	)
 	require.NoError(t, err)
@@ -88,6 +102,7 @@ func TestKVTaskStore_MultipleTasks(t *testing.T) { //nolint:paralleltest // Seri
 	ctx := t.Context()
 
 	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest",
+		redpandaLowMemory(),
 		redpanda.WithAutoCreateTopics(),
 	)
 	require.NoError(t, err)
@@ -133,6 +148,7 @@ func TestKVTaskStore_Bootstrap(t *testing.T) { //nolint:paralleltest // Serial t
 	ctx := t.Context()
 
 	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest",
+		redpandaLowMemory(),
 		redpanda.WithAutoCreateTopics(),
 	)
 	require.NoError(t, err)
@@ -187,6 +203,7 @@ func TestKVTaskStore_ListSortedByTime(t *testing.T) { //nolint:paralleltest // S
 	ctx := t.Context()
 
 	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest",
+		redpandaLowMemory(),
 		redpanda.WithAutoCreateTopics(),
 	)
 	require.NoError(t, err)
@@ -233,6 +250,7 @@ func TestKVTaskStore_ListPagination(t *testing.T) { //nolint:paralleltest // Ser
 	ctx := t.Context()
 
 	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest",
+		redpandaLowMemory(),
 		redpanda.WithAutoCreateTopics(),
 	)
 	require.NoError(t, err)
@@ -292,6 +310,7 @@ func TestKVTaskStore_ListFilters(t *testing.T) { //nolint:paralleltest // Serial
 	ctx := t.Context()
 
 	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest",
+		redpandaLowMemory(),
 		redpanda.WithAutoCreateTopics(),
 	)
 	require.NoError(t, err)
@@ -362,6 +381,7 @@ func TestKVTaskStore_ListHistoryAndArtifacts(t *testing.T) { //nolint:parallelte
 	ctx := t.Context()
 
 	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest",
+		redpandaLowMemory(),
 		redpanda.WithAutoCreateTopics(),
 	)
 	require.NoError(t, err)
@@ -431,6 +451,7 @@ func TestKVTaskStore_UpdateChangesSortOrder(t *testing.T) { //nolint:paralleltes
 	ctx := t.Context()
 
 	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest",
+		redpandaLowMemory(),
 		redpanda.WithAutoCreateTopics(),
 	)
 	require.NoError(t, err)
@@ -488,6 +509,7 @@ func TestKVTaskStore_BootstrapRestoresSortOrder(t *testing.T) { //nolint:paralle
 	ctx := t.Context()
 
 	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest",
+		redpandaLowMemory(),
 		redpanda.WithAutoCreateTopics(),
 	)
 	require.NoError(t, err)
@@ -530,6 +552,7 @@ func TestKVTaskStore_InvalidPageToken(t *testing.T) { //nolint:tparallel,paralle
 	ctx := t.Context()
 
 	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest",
+		redpandaLowMemory(),
 		redpanda.WithAutoCreateTopics(),
 	)
 	require.NoError(t, err)

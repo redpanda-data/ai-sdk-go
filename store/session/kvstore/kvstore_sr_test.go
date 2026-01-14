@@ -29,7 +29,7 @@ func TestKVStoreWithSchemaRegistry_WireFormat(t *testing.T) {
 	defer cancel()
 
 	// Start Redpanda with Schema Registry
-	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest")
+	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest", redpandaLowMemory())
 	require.NoError(t, err)
 
 	defer func() { _ = container.Terminate(ctx) }()
@@ -157,7 +157,7 @@ func TestKVStoreWithSchemaRegistry_SchemaRegistration(t *testing.T) {
 	defer cancel()
 
 	// Start Redpanda with Schema Registry
-	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest")
+	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest", redpandaLowMemory())
 	require.NoError(t, err)
 
 	defer func() { _ = container.Terminate(ctx) }()
@@ -231,7 +231,7 @@ func TestKVStoreWithSchemaRegistry_RoundTrip(t *testing.T) {
 	defer cancel()
 
 	// Start Redpanda with Schema Registry
-	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest")
+	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest", redpandaLowMemory())
 	require.NoError(t, err)
 
 	defer func() { _ = container.Terminate(ctx) }()

@@ -6,12 +6,25 @@ import (
 	commonkvstore "github.com/redpanda-data/common-go/kvstore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/redpanda"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/store/session"
 	"github.com/redpanda-data/ai-sdk-go/store/session/kvstore"
 )
+
+// redpandaLowMemory returns options for running Redpanda with reduced memory footprint.
+// This helps avoid OOM kills in CI environments with limited resources.
+func redpandaLowMemory() testcontainers.CustomizeRequestOption {
+	return testcontainers.WithCmd(
+		"redpanda", "start",
+		"--mode=dev-container",
+		"--smp=1",
+		"--memory=256M",
+		"--reserve-memory=0M",
+	)
+}
 
 func TestKVStore_LoadSaveDelete(t *testing.T) {
 	t.Parallel()
@@ -23,6 +36,7 @@ func TestKVStore_LoadSaveDelete(t *testing.T) {
 	ctx := t.Context()
 
 	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest",
+		redpandaLowMemory(),
 		redpanda.WithAutoCreateTopics(),
 	)
 	require.NoError(t, err)
@@ -100,6 +114,7 @@ func TestKVStore_MultipleSessions(t *testing.T) {
 	ctx := t.Context()
 
 	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest",
+		redpandaLowMemory(),
 		redpanda.WithAutoCreateTopics(),
 	)
 	require.NoError(t, err)
@@ -146,6 +161,7 @@ func TestKVStore_Bootstrap(t *testing.T) {
 	ctx := t.Context()
 
 	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest",
+		redpandaLowMemory(),
 		redpanda.WithAutoCreateTopics(),
 	)
 	require.NoError(t, err)
