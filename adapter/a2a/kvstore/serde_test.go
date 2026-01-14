@@ -55,7 +55,7 @@ func TestToProtoTask_Metadata(t *testing.T) {
 	// Check number value
 	intVal := pb.Metadata.Fields["int_val"]
 	require.NotNil(t, intVal)
-	assert.Equal(t, float64(42), intVal.GetNumberValue())
+	assert.InDelta(t, float64(42), intVal.GetNumberValue(), 0)
 
 	// Check float value
 	floatVal := pb.Metadata.Fields["float_val"]
@@ -161,7 +161,7 @@ func TestToProtoTask_ArtifactMetadata(t *testing.T) {
 
 	require.NotNil(t, artifact.Metadata)
 	assert.Equal(t, "application/json", artifact.Metadata.Fields["mime_type"].GetStringValue())
-	assert.Equal(t, float64(1024), artifact.Metadata.Fields["size"].GetNumberValue())
+	assert.InDelta(t, float64(1024), artifact.Metadata.Fields["size"].GetNumberValue(), 0)
 }
 
 func TestFromProtoTask_Metadata(t *testing.T) {
@@ -194,7 +194,7 @@ func TestFromProtoTask_Metadata(t *testing.T) {
 
 	require.NotNil(t, task.Metadata)
 	assert.Equal(t, "value1", task.Metadata["key1"])
-	assert.Equal(t, float64(123), task.Metadata["key2"])
+	assert.InDelta(t, float64(123), task.Metadata["key2"], 0)
 
 	nested, ok := task.Metadata["nested"].(map[string]any)
 	require.True(t, ok)
@@ -312,6 +312,7 @@ func TestMetadata_NilVsEmpty(t *testing.T) {
 		result, err := pbconv.FromProtoTask(pb)
 		require.NoError(t, err)
 		require.Len(t, result.History, 1)
+
 		if result.History[0].Metadata == nil {
 			t.Log("BEHAVIOR: empty proto message Struct -> nil Go metadata")
 		} else {
@@ -375,6 +376,7 @@ func TestMetadata_NilVsEmpty(t *testing.T) {
 		result, err := pbconv.FromProtoTask(pb)
 		require.NoError(t, err)
 		require.Len(t, result.Artifacts, 1)
+
 		if result.Artifacts[0].Metadata == nil {
 			t.Log("BEHAVIOR: empty proto artifact Struct -> nil Go metadata")
 		} else {
@@ -437,7 +439,7 @@ func TestMetadata_NilVsEmpty(t *testing.T) {
 		require.Len(t, pb.History[0].Parts, 1)
 		require.NotNil(t, pb.History[0].Parts[0].Metadata)
 		assert.Equal(t, "en", pb.History[0].Parts[0].Metadata.Fields["language"].GetStringValue())
-		assert.Equal(t, float64(5), pb.History[0].Parts[0].Metadata.Fields["tokens"].GetNumberValue())
+		assert.InDelta(t, float64(5), pb.History[0].Parts[0].Metadata.Fields["tokens"].GetNumberValue(), 0)
 
 		result, err := pbconv.FromProtoTask(pb)
 		require.NoError(t, err)
@@ -447,7 +449,7 @@ func TestMetadata_NilVsEmpty(t *testing.T) {
 		textPart, ok := result.History[0].Parts[0].(a2a.TextPart)
 		require.True(t, ok)
 		assert.Equal(t, "en", textPart.Metadata["language"])
-		assert.Equal(t, float64(5), textPart.Metadata["tokens"])
+		assert.InDelta(t, float64(5), textPart.Metadata["tokens"], 0)
 	})
 
 	t.Run("status_message_metadata", func(t *testing.T) {
@@ -473,12 +475,12 @@ func TestMetadata_NilVsEmpty(t *testing.T) {
 
 		require.NotNil(t, pb.Status.Update, "status message should be in Update field")
 		require.NotNil(t, pb.Status.Update.Metadata)
-		assert.Equal(t, float64(50), pb.Status.Update.Metadata.Fields["progress"].GetNumberValue())
+		assert.InDelta(t, float64(50), pb.Status.Update.Metadata.Fields["progress"].GetNumberValue(), 0)
 
 		result, err := pbconv.FromProtoTask(pb)
 		require.NoError(t, err)
 		require.NotNil(t, result.Status.Message)
-		assert.Equal(t, float64(50), result.Status.Message.Metadata["progress"])
+		assert.InDelta(t, float64(50), result.Status.Message.Metadata["progress"], 0)
 	})
 }
 
@@ -568,6 +570,7 @@ func TestEmptyCollections(t *testing.T) {
 
 		pb, err := pbconv.ToProtoTask(task)
 		require.NoError(t, err)
+
 		if pb.Artifacts == nil {
 			t.Log("BEHAVIOR: empty Go Artifacts -> nil proto Artifacts")
 		} else {
@@ -617,6 +620,7 @@ func TestEmptyCollections(t *testing.T) {
 		pb, err := pbconv.ToProtoTask(task)
 		require.NoError(t, err)
 		require.Len(t, pb.History, 1)
+
 		if pb.History[0].Parts == nil {
 			t.Log("BEHAVIOR: empty Go Parts -> nil proto Parts")
 		} else {
@@ -697,7 +701,7 @@ func TestProtoRoundTrip_FullTask(t *testing.T) {
 
 	// Verify task metadata
 	assert.Equal(t, "test", result.Metadata["task_type"])
-	assert.Equal(t, float64(1), result.Metadata["priority"])
+	assert.InDelta(t, float64(1), result.Metadata["priority"], 0)
 	assert.Equal(t, true, result.Metadata["is_enabled"])
 	assert.Nil(t, result.Metadata["nullable"])
 
@@ -707,5 +711,5 @@ func TestProtoRoundTrip_FullTask(t *testing.T) {
 
 	config, ok := result.Metadata["config"].(map[string]any)
 	require.True(t, ok)
-	assert.Equal(t, float64(30), config["timeout"])
+	assert.InDelta(t, float64(30), config["timeout"], 0)
 }

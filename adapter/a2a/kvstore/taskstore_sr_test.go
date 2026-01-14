@@ -28,6 +28,7 @@ func TestKVTaskStoreWithSchemaRegistry_SchemaRegistration(t *testing.T) {
 
 	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest")
 	require.NoError(t, err)
+
 	defer func() { _ = container.Terminate(ctx) }()
 
 	brokers, err := container.KafkaSeedBroker(ctx)
@@ -50,6 +51,7 @@ func TestKVTaskStoreWithSchemaRegistry_SchemaRegistration(t *testing.T) {
 		commonkvstore.WithReplicationFactor(1),
 	)
 	require.NoError(t, err)
+
 	defer store.Close()
 
 	// Save a task to trigger schema registration
@@ -91,6 +93,7 @@ func TestKVTaskStoreWithSchemaRegistry_RoundTrip(t *testing.T) {
 
 	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest")
 	require.NoError(t, err)
+
 	defer func() { _ = container.Terminate(ctx) }()
 
 	brokers, err := container.KafkaSeedBroker(ctx)
@@ -112,6 +115,7 @@ func TestKVTaskStoreWithSchemaRegistry_RoundTrip(t *testing.T) {
 		commonkvstore.WithReplicationFactor(1),
 	)
 	require.NoError(t, err)
+
 	defer store.Close()
 
 	now := time.Now()
@@ -190,6 +194,7 @@ func TestKVTaskStoreWithSchemaRegistry_DynamicDeserialization(t *testing.T) {
 
 	container, err := redpanda.Run(ctx, "redpandadata/redpanda:latest")
 	require.NoError(t, err)
+
 	defer func() { _ = container.Terminate(ctx) }()
 
 	brokers, err := container.KafkaSeedBroker(ctx)
@@ -212,6 +217,7 @@ func TestKVTaskStoreWithSchemaRegistry_DynamicDeserialization(t *testing.T) {
 		commonkvstore.WithReplicationFactor(1),
 	)
 	require.NoError(t, err)
+
 	defer store.Close()
 
 	now := time.Now()
@@ -243,12 +249,15 @@ func TestKVTaskStoreWithSchemaRegistry_DynamicDeserialization(t *testing.T) {
 		kgo.ConsumeTopics(topic),
 	)
 	require.NoError(t, err)
+
 	defer kafkaClient.Close()
 
 	var record *kgo.Record
-	for attempt := 0; attempt < 10; attempt++ {
+
+	for range 10 {
 		pollCtx, pollCancel := context.WithTimeout(ctx, time.Second)
 		fetches := kafkaClient.PollFetches(pollCtx)
+
 		pollCancel()
 
 		fetches.EachRecord(func(r *kgo.Record) {
@@ -263,6 +272,7 @@ func TestKVTaskStoreWithSchemaRegistry_DynamicDeserialization(t *testing.T) {
 
 		time.Sleep(100 * time.Millisecond)
 	}
+
 	require.NotNil(t, record)
 
 	// Decode Schema Registry wire format
@@ -306,7 +316,7 @@ func TestKVTaskStoreWithSchemaRegistry_DynamicDeserialization(t *testing.T) {
 
 	// Verify fields
 	assert.Equal(t, string(testTask.ID), taskDynamic.Get(msgDesc.Fields().ByName("id")).String())
-	assert.Equal(t, string(testTask.ContextID), taskDynamic.Get(msgDesc.Fields().ByName("context_id")).String())
+	assert.Equal(t, testTask.ContextID, taskDynamic.Get(msgDesc.Fields().ByName("context_id")).String())
 }
 
 // fetchSchemaWithReferences fetches a schema and all references from Schema Registry.
@@ -331,6 +341,8 @@ func fetchSchemaWithReferences(ctx context.Context, t *testing.T, client *sr.Cli
 
 // fetchReferences recursively fetches schema references.
 func fetchReferences(ctx context.Context, t *testing.T, client *sr.Client, refs []sr.SchemaReference, schemaMap map[string]string) error {
+	t.Helper()
+
 	for _, ref := range refs {
 		if _, exists := schemaMap[ref.Name]; exists {
 			continue

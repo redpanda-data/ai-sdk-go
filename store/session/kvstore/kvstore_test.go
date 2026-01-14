@@ -103,6 +103,7 @@ func TestKVStore_MultipleSessions(t *testing.T) {
 		redpanda.WithAutoCreateTopics(),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = container.Terminate(ctx) }()
 
 	brokers, err := container.KafkaSeedBroker(ctx)
@@ -112,6 +113,7 @@ func TestKVStore_MultipleSessions(t *testing.T) {
 		commonkvstore.WithBrokers(brokers),
 	)
 	require.NoError(t, err)
+
 	defer store.Close()
 
 	// Save multiple sessions
@@ -147,6 +149,7 @@ func TestKVStore_Bootstrap(t *testing.T) {
 		redpanda.WithAutoCreateTopics(),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = container.Terminate(ctx) }()
 
 	brokers, err := container.KafkaSeedBroker(ctx)
@@ -176,6 +179,7 @@ func TestKVStore_Bootstrap(t *testing.T) {
 		commonkvstore.WithBrokers(brokers),
 	)
 	require.NoError(t, err)
+
 	defer store2.Close()
 
 	// Data should be immediately available

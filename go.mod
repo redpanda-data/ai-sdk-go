@@ -9,6 +9,7 @@ ignore ./examples
 require (
 	github.com/a2aproject/a2a-go v0.3.4-0.20260105202806-bf3096c9babf
 	github.com/anthropics/anthropic-sdk-go v1.18.1
+	github.com/bufbuild/protocompile v0.14.1
 	github.com/google/jsonschema-go v0.3.0
 	github.com/google/uuid v1.6.0
 	github.com/openai/openai-go/v3 v3.15.0
@@ -43,7 +44,6 @@ require (
 	github.com/ajstarks/svgo v0.0.0-20211024235047-1546f124cd8b // indirect
 	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/avast/retry-go/v5 v5.0.0 // indirect
-	github.com/bufbuild/protocompile v0.14.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/containerd/errdefs v1.0.0 // indirect

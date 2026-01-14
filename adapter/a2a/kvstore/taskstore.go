@@ -507,4 +507,3 @@ func (s *taskSRSerde) Deserialize(b []byte) (*a2a.Task, error) {
 
 	return pbconv.FromProtoTask(pb)
 }
-
