@@ -1,15 +1,16 @@
-package session_test
+package kvstore_test
 
 import (
 	"testing"
 
-	"github.com/redpanda-data/common-go/kvstore"
+	commonkvstore "github.com/redpanda-data/common-go/kvstore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go/modules/redpanda"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/store/session"
+	"github.com/redpanda-data/ai-sdk-go/store/session/kvstore"
 )
 
 func TestKVStore_LoadSaveDelete(t *testing.T) {
@@ -31,8 +32,8 @@ func TestKVStore_LoadSaveDelete(t *testing.T) {
 	brokers, err := container.KafkaSeedBroker(ctx)
 	require.NoError(t, err)
 
-	store, err := session.NewKVStore(ctx, "test-sessions",
-		kvstore.WithBrokers(brokers),
+	store, err := kvstore.NewKVStore(ctx, "test-sessions",
+		commonkvstore.WithBrokers(brokers),
 	)
 	require.NoError(t, err)
 
@@ -102,17 +103,15 @@ func TestKVStore_MultipleSessions(t *testing.T) {
 		redpanda.WithAutoCreateTopics(),
 	)
 	require.NoError(t, err)
-
 	defer func() { _ = container.Terminate(ctx) }()
 
 	brokers, err := container.KafkaSeedBroker(ctx)
 	require.NoError(t, err)
 
-	store, err := session.NewKVStore(ctx, "test-multi-sessions",
-		kvstore.WithBrokers(brokers),
+	store, err := kvstore.NewKVStore(ctx, "test-multi-sessions",
+		commonkvstore.WithBrokers(brokers),
 	)
 	require.NoError(t, err)
-
 	defer store.Close()
 
 	// Save multiple sessions
@@ -148,7 +147,6 @@ func TestKVStore_Bootstrap(t *testing.T) {
 		redpanda.WithAutoCreateTopics(),
 	)
 	require.NoError(t, err)
-
 	defer func() { _ = container.Terminate(ctx) }()
 
 	brokers, err := container.KafkaSeedBroker(ctx)
@@ -157,8 +155,8 @@ func TestKVStore_Bootstrap(t *testing.T) {
 	const topic = "test-bootstrap-sessions"
 
 	// First store: write some sessions
-	store1, err := session.NewKVStore(ctx, topic,
-		kvstore.WithBrokers(brokers),
+	store1, err := kvstore.NewKVStore(ctx, topic,
+		commonkvstore.WithBrokers(brokers),
 	)
 	require.NoError(t, err)
 
@@ -174,11 +172,10 @@ func TestKVStore_Bootstrap(t *testing.T) {
 	store1.Close()
 
 	// Second store: should bootstrap from Kafka
-	store2, err := session.NewKVStore(ctx, topic,
-		kvstore.WithBrokers(brokers),
+	store2, err := kvstore.NewKVStore(ctx, topic,
+		commonkvstore.WithBrokers(brokers),
 	)
 	require.NoError(t, err)
-
 	defer store2.Close()
 
 	// Data should be immediately available

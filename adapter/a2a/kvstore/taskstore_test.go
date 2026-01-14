@@ -1,16 +1,16 @@
-package a2a_test
+package kvstore_test
 
 import (
 	"testing"
 	"time"
 
 	"github.com/a2aproject/a2a-go/a2a"
-	"github.com/redpanda-data/common-go/kvstore"
+	commonkvstore "github.com/redpanda-data/common-go/kvstore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go/modules/redpanda"
 
-	a2aadapter "github.com/redpanda-data/ai-sdk-go/adapter/a2a"
+	"github.com/redpanda-data/ai-sdk-go/adapter/a2a/kvstore"
 )
 
 func TestKVTaskStore_SaveGet(t *testing.T) { //nolint:paralleltest // Serial to reduce container memory pressure
@@ -30,8 +30,8 @@ func TestKVTaskStore_SaveGet(t *testing.T) { //nolint:paralleltest // Serial to 
 	brokers, err := container.KafkaSeedBroker(ctx)
 	require.NoError(t, err)
 
-	store, err := a2aadapter.NewKVTaskStore(ctx, "test-a2a-tasks",
-		kvstore.WithBrokers(brokers),
+	store, err := kvstore.NewKVTaskStore(ctx, "test-a2a-tasks",
+		commonkvstore.WithBrokers(brokers),
 	)
 	require.NoError(t, err)
 
@@ -91,17 +91,15 @@ func TestKVTaskStore_MultipleTasks(t *testing.T) { //nolint:paralleltest // Seri
 		redpanda.WithAutoCreateTopics(),
 	)
 	require.NoError(t, err)
-
 	defer func() { _ = container.Terminate(ctx) }()
 
 	brokers, err := container.KafkaSeedBroker(ctx)
 	require.NoError(t, err)
 
-	store, err := a2aadapter.NewKVTaskStore(ctx, "test-a2a-multi-tasks",
-		kvstore.WithBrokers(brokers),
+	store, err := kvstore.NewKVTaskStore(ctx, "test-a2a-multi-tasks",
+		commonkvstore.WithBrokers(brokers),
 	)
 	require.NoError(t, err)
-
 	defer store.Close()
 
 	// Save multiple tasks
@@ -136,7 +134,6 @@ func TestKVTaskStore_Bootstrap(t *testing.T) { //nolint:paralleltest // Serial t
 		redpanda.WithAutoCreateTopics(),
 	)
 	require.NoError(t, err)
-
 	defer func() { _ = container.Terminate(ctx) }()
 
 	brokers, err := container.KafkaSeedBroker(ctx)
@@ -145,8 +142,8 @@ func TestKVTaskStore_Bootstrap(t *testing.T) { //nolint:paralleltest // Serial t
 	const topic = "test-a2a-bootstrap-tasks"
 
 	// First store: write some tasks
-	store1, err := a2aadapter.NewKVTaskStore(ctx, topic,
-		kvstore.WithBrokers(brokers),
+	store1, err := kvstore.NewKVTaskStore(ctx, topic,
+		commonkvstore.WithBrokers(brokers),
 	)
 	require.NoError(t, err)
 
@@ -164,11 +161,10 @@ func TestKVTaskStore_Bootstrap(t *testing.T) { //nolint:paralleltest // Serial t
 	store1.Close()
 
 	// Second store: should bootstrap from Kafka
-	store2, err := a2aadapter.NewKVTaskStore(ctx, topic,
-		kvstore.WithBrokers(brokers),
+	store2, err := kvstore.NewKVTaskStore(ctx, topic,
+		commonkvstore.WithBrokers(brokers),
 	)
 	require.NoError(t, err)
-
 	defer store2.Close()
 
 	// Data should be immediately available
@@ -190,17 +186,15 @@ func TestKVTaskStore_ListSortedByTime(t *testing.T) { //nolint:paralleltest // S
 		redpanda.WithAutoCreateTopics(),
 	)
 	require.NoError(t, err)
-
 	defer func() { _ = container.Terminate(ctx) }()
 
 	brokers, err := container.KafkaSeedBroker(ctx)
 	require.NoError(t, err)
 
-	store, err := a2aadapter.NewKVTaskStore(ctx, "test-a2a-list-sorted",
-		kvstore.WithBrokers(brokers),
+	store, err := kvstore.NewKVTaskStore(ctx, "test-a2a-list-sorted",
+		commonkvstore.WithBrokers(brokers),
 	)
 	require.NoError(t, err)
-
 	defer store.Close()
 
 	// Create tasks with different timestamps
@@ -236,17 +230,15 @@ func TestKVTaskStore_ListPagination(t *testing.T) { //nolint:paralleltest // Ser
 		redpanda.WithAutoCreateTopics(),
 	)
 	require.NoError(t, err)
-
 	defer func() { _ = container.Terminate(ctx) }()
 
 	brokers, err := container.KafkaSeedBroker(ctx)
 	require.NoError(t, err)
 
-	store, err := a2aadapter.NewKVTaskStore(ctx, "test-a2a-list-pagination",
-		kvstore.WithBrokers(brokers),
+	store, err := kvstore.NewKVTaskStore(ctx, "test-a2a-list-pagination",
+		commonkvstore.WithBrokers(brokers),
 	)
 	require.NoError(t, err)
-
 	defer store.Close()
 
 	// Create 5 tasks with distinct timestamps
@@ -295,17 +287,15 @@ func TestKVTaskStore_ListFilters(t *testing.T) { //nolint:paralleltest // Serial
 		redpanda.WithAutoCreateTopics(),
 	)
 	require.NoError(t, err)
-
 	defer func() { _ = container.Terminate(ctx) }()
 
 	brokers, err := container.KafkaSeedBroker(ctx)
 	require.NoError(t, err)
 
-	store, err := a2aadapter.NewKVTaskStore(ctx, "test-a2a-list-filters",
-		kvstore.WithBrokers(brokers),
+	store, err := kvstore.NewKVTaskStore(ctx, "test-a2a-list-filters",
+		commonkvstore.WithBrokers(brokers),
 	)
 	require.NoError(t, err)
-
 	defer store.Close()
 
 	baseTime := time.Now()
@@ -365,17 +355,15 @@ func TestKVTaskStore_ListHistoryAndArtifacts(t *testing.T) { //nolint:parallelte
 		redpanda.WithAutoCreateTopics(),
 	)
 	require.NoError(t, err)
-
 	defer func() { _ = container.Terminate(ctx) }()
 
 	brokers, err := container.KafkaSeedBroker(ctx)
 	require.NoError(t, err)
 
-	store, err := a2aadapter.NewKVTaskStore(ctx, "test-a2a-list-history",
-		kvstore.WithBrokers(brokers),
+	store, err := kvstore.NewKVTaskStore(ctx, "test-a2a-list-history",
+		commonkvstore.WithBrokers(brokers),
 	)
 	require.NoError(t, err)
-
 	defer store.Close()
 
 	task := &a2a.Task{
@@ -434,17 +422,15 @@ func TestKVTaskStore_UpdateChangesSortOrder(t *testing.T) { //nolint:paralleltes
 		redpanda.WithAutoCreateTopics(),
 	)
 	require.NoError(t, err)
-
 	defer func() { _ = container.Terminate(ctx) }()
 
 	brokers, err := container.KafkaSeedBroker(ctx)
 	require.NoError(t, err)
 
-	store, err := a2aadapter.NewKVTaskStore(ctx, "test-a2a-update-sort",
-		kvstore.WithBrokers(brokers),
+	store, err := kvstore.NewKVTaskStore(ctx, "test-a2a-update-sort",
+		commonkvstore.WithBrokers(brokers),
 	)
 	require.NoError(t, err)
-
 	defer store.Close()
 
 	baseTime := time.Now()
@@ -491,7 +477,6 @@ func TestKVTaskStore_BootstrapRestoresSortOrder(t *testing.T) { //nolint:paralle
 		redpanda.WithAutoCreateTopics(),
 	)
 	require.NoError(t, err)
-
 	defer func() { _ = container.Terminate(ctx) }()
 
 	brokers, err := container.KafkaSeedBroker(ctx)
@@ -500,7 +485,7 @@ func TestKVTaskStore_BootstrapRestoresSortOrder(t *testing.T) { //nolint:paralle
 	const topic = "test-a2a-bootstrap-sort"
 
 	// First store: create tasks
-	store1, err := a2aadapter.NewKVTaskStore(ctx, topic, kvstore.WithBrokers(brokers))
+	store1, err := kvstore.NewKVTaskStore(ctx, topic, commonkvstore.WithBrokers(brokers))
 	require.NoError(t, err)
 
 	baseTime := time.Now()
@@ -509,9 +494,8 @@ func TestKVTaskStore_BootstrapRestoresSortOrder(t *testing.T) { //nolint:paralle
 	_ = store1.Close()
 
 	// Second store: bootstrap from Kafka
-	store2, err := a2aadapter.NewKVTaskStore(ctx, topic, kvstore.WithBrokers(brokers))
+	store2, err := kvstore.NewKVTaskStore(ctx, topic, commonkvstore.WithBrokers(brokers))
 	require.NoError(t, err)
-
 	defer store2.Close()
 
 	// Sort order should be restored
@@ -540,7 +524,7 @@ func TestKVTaskStore_InvalidPageToken(t *testing.T) { //nolint:tparallel,paralle
 
 	const topic = "test-a2a-invalid-token"
 
-	store, err := a2aadapter.NewKVTaskStore(ctx, topic, kvstore.WithBrokers(brokers))
+	store, err := kvstore.NewKVTaskStore(ctx, topic, commonkvstore.WithBrokers(brokers))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 
