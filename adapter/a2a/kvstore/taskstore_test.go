@@ -22,7 +22,7 @@ func redpandaLowMemory() testcontainers.CustomizeRequestOption {
 		"redpanda", "start",
 		"--mode=dev-container",
 		"--smp=1",
-		"--memory=256M",
+		"--memory=512M",
 		"--reserve-memory=0M",
 	)
 }
