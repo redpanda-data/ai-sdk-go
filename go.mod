@@ -9,12 +9,15 @@ ignore ./examples
 require (
 	github.com/a2aproject/a2a-go v0.3.4-0.20260105202806-bf3096c9babf
 	github.com/anthropics/anthropic-sdk-go v1.18.1
+	github.com/bufbuild/protocompile v0.14.1
 	github.com/google/jsonschema-go v0.3.0
 	github.com/google/uuid v1.6.0
 	github.com/openai/openai-go/v3 v3.15.0
-	github.com/redpanda-data/common-go/kvstore v0.0.0-20260107161328-f85fcb64106e
+	github.com/redpanda-data/common-go/kvstore v0.0.0-20260113165942-f4854f69b074
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go/modules/redpanda v0.40.0
+	github.com/twmb/franz-go v1.20.4
+	github.com/twmb/franz-go/pkg/sr v1.6.0
 	github.com/twmb/go-cache v1.2.1
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.64.0
 	go.opentelemetry.io/otel v1.39.0
@@ -23,6 +26,7 @@ require (
 	golang.org/x/oauth2 v0.33.0
 	gonum.org/v1/plot v0.16.0
 	google.golang.org/genai v1.36.0
+	google.golang.org/protobuf v1.36.10
 )
 
 require (
@@ -90,7 +94,6 @@ require (
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/tklauser/numcpus v0.11.0 // indirect
-	github.com/twmb/franz-go v1.20.4 // indirect
 	github.com/twmb/franz-go/pkg/kadm v1.17.1 // indirect
 	github.com/twmb/franz-go/pkg/kmsg v1.12.0 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
@@ -102,9 +105,9 @@ require (
 	golang.org/x/mod v0.31.0 // indirect
 	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/text v0.32.0 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20251213004720-97cd9d5aeac2 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251213004720-97cd9d5aeac2 // indirect
 	google.golang.org/grpc v1.77.0 // indirect
-	google.golang.org/protobuf v1.36.10 // indirect
 )
 
 require (

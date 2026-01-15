@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package redpanda.llm.v1;
+
+option go_package = "github.com/redpanda-data/ai-sdk-go/proto/gen/go/redpanda/llm/v1;llmpb";
+
+import "google/protobuf/struct.proto";
+import "redpanda/llm/v1/message.proto";
+
+// SessionState represents persistent session state for conversation management.
+message SessionState {
+  // Unique session identifier
+  string id = 1;
+
+  // Conversation history
+  repeated Message messages = 2;
+
+  // Arbitrary key-value pairs for session metadata
+  google.protobuf.Struct metadata = 3;
+}

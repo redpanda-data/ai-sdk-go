@@ -1,4 +1,4 @@
-package a2a
+package kvstore
 
 import (
 	"context"
@@ -13,9 +13,12 @@ import (
 	"time"
 
 	"github.com/a2aproject/a2a-go/a2a"
+	"github.com/a2aproject/a2a-go/a2apb"
+	"github.com/a2aproject/a2a-go/a2apb/pbconv"
 	"github.com/a2aproject/a2a-go/a2asrv"
-	"github.com/redpanda-data/common-go/kvstore"
+	commonkvstore "github.com/redpanda-data/common-go/kvstore"
 	"github.com/redpanda-data/common-go/kvstore/memdb"
+	"github.com/twmb/franz-go/pkg/sr"
 )
 
 // Compile-time interface check.
@@ -67,14 +70,14 @@ func decodePageToken(encoded string) (string, error) {
 	return token.SortKey, nil
 }
 
-// KVTaskStore provides A2A task storage backed by Kafka via kvstore.
+// KVTaskStore provides A2A task storage backed by Kafka via commonkvstore.
 // Writes are persisted to Kafka and block until visible in reads.
 // Multiple instances share state through Kafka topic consumption.
 //
 // Tasks are stored with task_id as the key (enabling Kafka log compaction).
 // An in-memory sorted index maintains time-ordering for efficient List() operations.
 type KVTaskStore struct {
-	client *kvstore.ResourceClient[*a2a.Task]
+	client *commonkvstore.ResourceClient[*a2a.Task]
 
 	mu     sync.RWMutex
 	index  map[a2a.TaskID]string // task_id -> sortKey (for tracking/removal on update)
@@ -84,8 +87,8 @@ type KVTaskStore struct {
 // NewKVTaskStore creates a new A2A task store backed by Kafka.
 //
 // The topic parameter specifies the Kafka topic for task storage.
-// Use kvstore.WithBrokers, kvstore.WithReplicationFactor, kvstore.WithKafkaOptions,
-// and kvstore.WithLogger to configure the underlying client.
+// Use commonkvstore.WithBrokers, commonkvstore.WithReplicationFactor, commonkvstore.WithKafkaOptions,
+// and commonkvstore.WithLogger to configure the underlying client.
 //
 // The context is used only for initialization (topic creation, metadata fetches,
 // and bootstrap sync). It is not retained after NewKVTaskStore returns.
@@ -94,7 +97,7 @@ type KVTaskStore struct {
 // ensuring reads are consistent immediately after creation.
 //
 // The caller MUST call Close() to release resources when done.
-func NewKVTaskStore(ctx context.Context, topic string, opts ...kvstore.ClientOption) (*KVTaskStore, error) {
+func NewKVTaskStore(ctx context.Context, topic string, opts ...commonkvstore.ClientOption) (*KVTaskStore, error) {
 	storage, err := memdb.New()
 	if err != nil {
 		return nil, err
@@ -108,7 +111,7 @@ func NewKVTaskStore(ctx context.Context, topic string, opts ...kvstore.ClientOpt
 	serde := &taskSerde{}
 
 	// Set up hooks to maintain the in-memory sorted index
-	onSet := kvstore.WrapOnSet(serde, func(_ []byte, task *a2a.Task) {
+	onSet := commonkvstore.WrapOnSet(serde, func(_ []byte, task *a2a.Task) {
 		store.mu.Lock()
 		defer store.mu.Unlock()
 
@@ -139,17 +142,125 @@ func NewKVTaskStore(ctx context.Context, topic string, opts ...kvstore.ClientOpt
 	}
 
 	// Prepend hook options
-	allOpts := append([]kvstore.ClientOption{
-		kvstore.WithOnSetHook(onSet),
-		kvstore.WithOnDeleteHook(onDelete),
+	allOpts := append([]commonkvstore.ClientOption{
+		commonkvstore.WithOnSetHook(onSet),
+		commonkvstore.WithOnDeleteHook(onDelete),
 	}, opts...)
 
-	client, err := kvstore.NewClient(ctx, topic, storage, allOpts...)
+	client, err := commonkvstore.NewClient(ctx, topic, storage, allOpts...)
 	if err != nil {
 		return nil, err
 	}
 
-	store.client = kvstore.NewResourceClient(client, serde)
+	store.client = commonkvstore.NewResourceClient(client, serde)
+
+	return store, nil
+}
+
+// NewKVTaskStoreWithSchemaRegistry creates a new A2A task store backed by Kafka with Schema Registry integration.
+//
+// This constructor uses protobuf serialization with Confluent Schema Registry wire format.
+// The schema is automatically registered with the Schema Registry on first write.
+//
+// Parameters:
+//   - ctx: Context for initialization only (not retained)
+//   - topic: Kafka topic for task storage
+//   - srClient: Schema Registry client for schema registration
+//   - opts: Additional kvstore options (brokers, replication factor, etc.)
+//
+// All agents share the schema subject "redpanda-a2a-task-value" to avoid Schema Registry
+// accumulation of identical per-agent schemas. Each agent still uses its own topic for data isolation.
+//
+// Example:
+//
+//	srClient, _ := sr.NewClient(sr.URLs("http://localhost:8081"))
+//	store, err := a2a.NewKVTaskStoreWithSchemaRegistry(
+//	    ctx,
+//	    "a2a-tasks",
+//	    srClient,
+//	    commonkvstore.WithBrokers("localhost:9092"),
+//	)
+func NewKVTaskStoreWithSchemaRegistry(
+	ctx context.Context,
+	topic string,
+	srClient *sr.Client,
+	opts ...commonkvstore.ClientOption,
+) (*KVTaskStore, error) {
+	storage, err := memdb.New()
+	if err != nil {
+		return nil, err
+	}
+
+	store := &KVTaskStore{
+		index:  make(map[a2a.TaskID]string),
+		sorted: nil,
+	}
+
+	// Create protobuf serde with Schema Registry support
+	// Uses shared subject to avoid per-agent schema accumulation in Schema Registry.
+	// All agents use identical a2apb.Task schema - no need for per-topic subjects.
+	// Uses a2a_task.proto which contains only Task and its dependencies,
+	// ensuring Task is at message index 0.
+	subject := "redpanda-a2a-task-value"
+
+	srSerde, err := commonkvstore.Proto(
+		func() *a2apb.Task { return &a2apb.Task{} },
+		commonkvstore.WithSchemaRegistry(
+			srClient,
+			subject,
+			a2aTaskProtoSchema,
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create proto serde: %w", err)
+	}
+
+	// Wrap with conversion layer (a2a.Task ↔ a2apb.Task)
+	serde := &taskSRSerde{inner: srSerde}
+
+	// Set up hooks to maintain the in-memory sorted index
+	onSet := commonkvstore.WrapOnSet(serde, func(_ []byte, task *a2a.Task) {
+		store.mu.Lock()
+		defer store.mu.Unlock()
+
+		newSortKey := makeSortKey(task.Status.Timestamp, task.ID)
+
+		// Remove old sortKey if task already exists with different timestamp
+		if oldSortKey, exists := store.index[task.ID]; exists && oldSortKey != newSortKey {
+			store.removeSortKeyLocked(oldSortKey)
+		}
+
+		// Update index and insert new sortKey if not already present
+		if store.index[task.ID] != newSortKey {
+			store.index[task.ID] = newSortKey
+			store.insertSortKeyLocked(newSortKey)
+		}
+	})
+
+	onDelete := func(key []byte) {
+		taskID := a2a.TaskID(key)
+
+		store.mu.Lock()
+		defer store.mu.Unlock()
+
+		if sortKey, exists := store.index[taskID]; exists {
+			store.removeSortKeyLocked(sortKey)
+			delete(store.index, taskID)
+		}
+	}
+
+	// Prepend hook options
+	allOpts := append([]commonkvstore.ClientOption{
+		commonkvstore.WithOnSetHook(onSet),
+		commonkvstore.WithOnDeleteHook(onDelete),
+	}, opts...)
+
+	client, err := commonkvstore.NewClient(ctx, topic, storage, allOpts...)
+	if err != nil {
+		return nil, err
+	}
+
+	store.client = commonkvstore.NewResourceClient(client, serde)
 
 	return store, nil
 }
@@ -165,7 +276,7 @@ func (s *KVTaskStore) Save(ctx context.Context, task *a2a.Task) error {
 // Returns a2a.ErrTaskNotFound if the task does not exist.
 func (s *KVTaskStore) Get(ctx context.Context, taskID a2a.TaskID) (*a2a.Task, error) {
 	task, err := s.client.Get(ctx, []byte(taskID))
-	if errors.Is(err, kvstore.ErrNotFound) {
+	if errors.Is(err, commonkvstore.ErrNotFound) {
 		return nil, a2a.ErrTaskNotFound
 	}
 
@@ -219,9 +330,14 @@ func (s *KVTaskStore) List(ctx context.Context, req *a2a.ListTasksRequest) (*a2a
 			return nil, fmt.Errorf("invalid page token: %w", err)
 		}
 
-		// Use binary search since sortedCopy is sorted (O(log n) vs O(n))
-		// If found, idx is the position. If not found, idx is where it would be inserted,
-		// which maintains pagination continuity when the token's task was deleted.
+		// Use binary search since sortedCopy is sorted (O(log n) vs O(n)).
+		// If found, idx is the exact position of the token's task.
+		// If not found (task was deleted between pages), idx is where it would be inserted.
+		// This insertion point is correct because:
+		// - Sort keys are unique (timestamp:taskID format)
+		// - The insertion point is the first key > deleted key
+		// - This is exactly where the next page should start
+		// Thus pagination remains consistent even when tasks are deleted between requests.
 		startIdx, _ = slices.BinarySearch(sortedCopy, sortKey)
 	}
 
@@ -234,7 +350,7 @@ func (s *KVTaskStore) List(ctx context.Context, req *a2a.ListTasksRequest) (*a2a
 
 		task, err := s.client.Get(ctx, []byte(taskID))
 		if err != nil {
-			if errors.Is(err, kvstore.ErrNotFound) {
+			if errors.Is(err, commonkvstore.ErrNotFound) {
 				// Task was deleted between snapshot and read (see consistency model in function doc)
 				continue
 			}
@@ -293,8 +409,11 @@ func (s *KVTaskStore) List(ctx context.Context, req *a2a.ListTasksRequest) (*a2a
 
 	return &a2a.ListTasksResponse{
 		Tasks: tasks,
-		// TotalSize is the total task count in the store at snapshot time,
-		// NOT the filtered count (computing filtered count would require iterating all tasks)
+		// TotalSize is the UNFILTERED total task count in the store at snapshot time.
+		// This does NOT reflect any ContextID, Status, or LastUpdatedAfter filters.
+		// Computing filtered count would require iterating all tasks which is expensive.
+		// Consumers should use len(Tasks) for current page count and NextPageToken
+		// to determine if more results exist.
 		TotalSize:     len(sortedCopy),
 		PageSize:      pageSize,
 		NextPageToken: nextPageToken,
@@ -332,6 +451,11 @@ func (s *KVTaskStore) removeSortKeyLocked(sortKey string) {
 // makeSortKey creates a sort key for time-ordered indexing.
 // Format: {inverted_timestamp}:{task_id}
 // Inverted timestamp ensures descending order with ascending key scan.
+//
+// Note: This assumes timestamps are non-negative (post-1970 Unix epoch).
+// Negative timestamps would cause inverted values > MaxInt64, which would
+// break sort ordering. This is acceptable since task timestamps should
+// always be recent/current time.
 func makeSortKey(timestamp *time.Time, taskID a2a.TaskID) string {
 	var ts int64
 
@@ -339,6 +463,8 @@ func makeSortKey(timestamp *time.Time, taskID a2a.TaskID) string {
 		ts = timestamp.UnixNano()
 	}
 
+	// Invert timestamp so ascending sort gives descending time order.
+	// MaxInt64 - ts works for all reasonable timestamps (post-1970).
 	inverted := math.MaxInt64 - ts
 
 	return fmt.Sprintf("%020d:%s", inverted, taskID)
@@ -369,4 +495,30 @@ func (*taskSerde) Deserialize(b []byte) (*a2a.Task, error) {
 	}
 
 	return &t, nil
+}
+
+// taskSRSerde combines conversion and Schema Registry serialization for A2A tasks.
+// It converts a2a.Task ↔ a2apb.Task using the pbconv package, then delegates to SR serde.
+type taskSRSerde struct {
+	inner commonkvstore.Serde[*a2apb.Task]
+}
+
+// Serialize converts a2a.Task to proto, then serializes with SR wire format.
+func (s *taskSRSerde) Serialize(task *a2a.Task) ([]byte, error) {
+	pb, err := pbconv.ToProtoTask(task)
+	if err != nil {
+		return nil, fmt.Errorf("convert to proto: %w", err)
+	}
+
+	return s.inner.Serialize(pb)
+}
+
+// Deserialize decodes SR wire format, unmarshals proto, then converts to a2a.Task.
+func (s *taskSRSerde) Deserialize(b []byte) (*a2a.Task, error) {
+	pb, err := s.inner.Deserialize(b)
+	if err != nil {
+		return nil, fmt.Errorf("deserialize proto: %w", err)
+	}
+
+	return pbconv.FromProtoTask(pb)
 }

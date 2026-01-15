@@ -1,0 +1,92 @@
+syntax = "proto3";
+
+package redpanda.llm.v1;
+
+option go_package = "github.com/redpanda-data/ai-sdk-go/proto/gen/go/redpanda/llm/v1;llmpb";
+
+import "google/protobuf/struct.proto";
+
+// MessageRole defines who sent a message in the conversation.
+enum MessageRole {
+  MESSAGE_ROLE_UNSPECIFIED = 0;
+  MESSAGE_ROLE_USER = 1;
+  MESSAGE_ROLE_ASSISTANT = 2;
+  MESSAGE_ROLE_SYSTEM = 3;
+}
+
+// PartKind defines the type of content contained in a Part.
+enum PartKind {
+  PART_KIND_UNSPECIFIED = 0;
+  PART_KIND_TEXT = 1;
+  PART_KIND_TOOL_REQUEST = 2;
+  PART_KIND_TOOL_RESPONSE = 3;
+  PART_KIND_REASONING = 4;
+}
+
+// Message represents a single message in a conversation.
+// Messages form the conversation history and current context for the model.
+message Message {
+  // Role indicates who sent this message
+  MessageRole role = 1;
+
+  // Content contains the message content using the extensible Part system.
+  // This allows for rich content including text, tool calls, reasoning, etc.
+  repeated Part content = 2;
+}
+
+// Part represents different types of content within messages.
+// Uses oneof for type-safe content representation.
+message Part {
+  // Kind determines which data field is populated
+  PartKind kind = 1;
+
+  // Oneof for type-safe content (only one populated)
+  oneof data {
+    string text = 2;
+    ToolRequest tool_request = 3;
+    ToolResponse tool_response = 4;
+    ReasoningTrace reasoning_trace = 5;
+  }
+
+  // Metadata provides extensible key-value storage for additional information
+  google.protobuf.Struct metadata = 10;
+}
+
+// ToolRequest represents a request from the model to execute a tool.
+message ToolRequest {
+  // Unique identifier for this tool request
+  string id = 1;
+
+  // Name of the tool to execute
+  string name = 2;
+
+  // Tool input as JSON-encoded bytes
+  bytes arguments = 3;
+}
+
+// ToolResponse represents the result of executing a tool.
+message ToolResponse {
+  // ID matching the corresponding ToolRequest
+  string id = 1;
+
+  // Name of the tool that was executed
+  string name = 2;
+
+  // Tool output as JSON-encoded bytes
+  bytes result = 3;
+
+  // Error information if the tool execution failed
+  string error = 4;
+}
+
+// ReasoningTrace represents reasoning thoughts/traces from the model.
+message ReasoningTrace {
+  // Unique identifier for this reasoning trace
+  string id = 1;
+
+  // Reasoning content as text
+  string text = 2;
+
+  // Additional context about the reasoning trace
+  google.protobuf.Struct metadata = 3;
+}
