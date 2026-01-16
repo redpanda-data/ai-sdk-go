@@ -433,37 +433,6 @@ func (c *clientImpl) connect(ctx context.Context) (*sdkmcp.ClientSession, *sdkmc
 	return session, mcpClient, nil
 }
 
-// cleanupAfterFailedStart centralizes cleanup logic for failed Start attempts.
-func (c *clientImpl) cleanupAfterFailedStart(session *sdkmcp.ClientSession) {
-	var errs []error
-
-	c.mu.RLock()
-
-	if c.startErr != nil {
-		errs = append(errs, c.startErr)
-	}
-
-	c.mu.RUnlock()
-
-	if session != nil {
-		closeErr := session.Close()
-		if closeErr != nil {
-			c.logger.Warn("failed to close session during startup cleanup", "err", closeErr)
-			errs = append(errs, fmt.Errorf("session cleanup failed: %w", closeErr))
-		}
-	}
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.cancel != nil {
-		c.cancel()
-	}
-
-	c.resetClientStateLocked()
-	c.startErr = errors.Join(errs...)
-}
-
 // resetClientStateLocked resets connection-specific state.
 // Caller must hold c.mu.
 func (c *clientImpl) resetClientStateLocked() {
