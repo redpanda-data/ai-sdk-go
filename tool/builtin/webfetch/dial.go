@@ -169,8 +169,9 @@ func safeTLSDialContext(cfg Config) func(ctx context.Context, network, addr stri
 
 		// Create TLS config with proper ServerName for certificate validation
 		tlsConfig := &tls.Config{
-			MinVersion: tls.VersionTLS12,
-			ServerName: hostname, // Use original hostname for SNI, not the IP
+			MinVersion:         tls.VersionTLS12,
+			ServerName:         hostname,               // Use original hostname for SNI, not the IP
+			InsecureSkipVerify: cfg.InsecureSkipVerify, //nolint:gosec // InsecureSkipVerify is only for testing
 		}
 
 		// Wrap connection with TLS
