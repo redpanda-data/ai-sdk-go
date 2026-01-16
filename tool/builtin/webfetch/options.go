@@ -6,16 +6,17 @@ import (
 
 // Config holds the configuration for the webfetch tool.
 type Config struct {
-	Timeout           time.Duration // Request timeout
-	MaxRedirects      int           // Maximum number of redirects to follow
-	MaxResponseBytes  int64         // Maximum response body size
-	AllowedSchemes    []string      // Allowed URL schemes (default: ["https"])
-	AllowedPorts      []int         // Allowed ports (default: [443])
-	DenyPrivateIPs    bool          // Block private/reserved IP addresses (default: true)
-	AllowedMedia      []string      // Allowed media types (supports wildcards like "text/*")
-	ConvertToMarkdown bool          // Convert HTML content to markdown (default: true)
-	Fencing           bool          // Enable prompt injection protection fencing (default: true)
-	FenceConfig       FenceConfig   // Fence delimiters for untrusted content (default: OpenAI's untrusted_text format)
+	Timeout            time.Duration // Request timeout
+	MaxRedirects       int           // Maximum number of redirects to follow
+	MaxResponseBytes   int64         // Maximum response body size
+	AllowedSchemes     []string      // Allowed URL schemes (default: ["https"])
+	AllowedPorts       []int         // Allowed ports (default: [443])
+	DenyPrivateIPs     bool          // Block private/reserved IP addresses (default: true)
+	AllowedMedia       []string      // Allowed media types (supports wildcards like "text/*")
+	ConvertToMarkdown  bool          // Convert HTML content to markdown (default: true)
+	Fencing            bool          // Enable prompt injection protection fencing (default: true)
+	FenceConfig        FenceConfig   // Fence delimiters for untrusted content (default: OpenAI's untrusted_text format)
+	InsecureSkipVerify bool          // Skip TLS certificate verification (testing only)
 }
 
 // DefaultConfig returns a configuration with secure defaults.
@@ -118,5 +119,13 @@ func WithCustomFence(start, end string) Option {
 			Start: start,
 			End:   end,
 		}
+	}
+}
+
+// WithInsecureSkipVerify disables TLS certificate verification.
+// This should only be used for testing with self-signed certificates.
+func WithInsecureSkipVerify(skip bool) Option {
+	return func(cfg *Config) {
+		cfg.InsecureSkipVerify = skip
 	}
 }
