@@ -390,6 +390,7 @@ func TestIntegrationInitialConnectionFailureRecovers(t *testing.T) { //nolint:pa
 
 	// Start client in background - it will try to connect and retry
 	startDone := make(chan error, 1)
+
 	go func() {
 		startDone <- client.Start(ctx)
 	}()
@@ -437,13 +438,16 @@ func TestIntegrationShutdownDuringReconnect(t *testing.T) { //nolint:paralleltes
 
 	factory := func() (sdkmcp.Transport, error) {
 		mu.Lock()
+
 		connectCount++
 		allow := allowConnect
+
 		mu.Unlock()
 
 		if !allow {
 			return nil, errors.New("connection refused")
 		}
+
 		return transport, nil
 	}
 
@@ -458,8 +462,11 @@ func TestIntegrationShutdownDuringReconnect(t *testing.T) { //nolint:paralleltes
 
 	// Block new connections and stop server - client will start reconnecting
 	mu.Lock()
+
 	allowConnect = false
+
 	mu.Unlock()
+
 	_ = server.stop()
 
 	// Give reconnect loop time to start attempting reconnection
@@ -467,19 +474,23 @@ func TestIntegrationShutdownDuringReconnect(t *testing.T) { //nolint:paralleltes
 
 	// Verify reconnect attempts are happening
 	mu.Lock()
+
 	attempts := connectCount
+
 	mu.Unlock()
+
 	assert.Greater(t, attempts, 1, "should have attempted reconnection")
 
 	// Close should complete cleanly even during reconnect
 	shutdownDone := make(chan error, 1)
+
 	go func() {
 		shutdownDone <- client.Close()
 	}()
 
 	select {
 	case err := <-shutdownDone:
-		assert.NoError(t, err, "Close() should complete cleanly during reconnect")
+		require.NoError(t, err, "Close() should complete cleanly during reconnect")
 	case <-time.After(2 * time.Second):
 		t.Fatal("Close() hung during reconnect - this is a bug")
 	}
@@ -517,7 +528,7 @@ func TestIntegrationOperationsDuringReconnect(t *testing.T) { //nolint:parallelt
 
 	_, err = client.ExecuteTool(shortCtx, echoTool, json.RawMessage(`{"message":"test"}`))
 	// Should get context deadline exceeded or similar error, not panic
-	assert.Error(t, err, "ExecuteTool should fail when no session is available")
+	require.Error(t, err, "ExecuteTool should fail when no session is available")
 
 	// Now bring server back up
 	harness.Spawn(t)
@@ -528,6 +539,7 @@ func TestIntegrationOperationsDuringReconnect(t *testing.T) { //nolint:parallelt
 		defer callCancel()
 
 		_, err := client.ExecuteTool(callCtx, echoTool, json.RawMessage(`{"message":"recovered"}`))
+
 		return err == nil
 	}, 3*time.Second, 100*time.Millisecond, "client should recover after server comes back")
 }
@@ -568,6 +580,7 @@ func TestIntegrationMultipleReconnectCycles(t *testing.T) { //nolint:paralleltes
 			defer cancel()
 
 			_, err := client.ExecuteTool(callCtx, echoTool, json.RawMessage(`{"message":"after"}`))
+
 			return err == nil
 		}, 2*time.Second, 50*time.Millisecond, "cycle %d: should reconnect after restart", cycle)
 	}
@@ -590,6 +603,7 @@ func TestIntegrationShutdownBeforeServerAvailable(t *testing.T) { //nolint:paral
 
 	// Start in background - it will keep retrying
 	startDone := make(chan error, 1)
+
 	go func() {
 		startDone <- client.Start(ctx)
 	}()
@@ -608,13 +622,14 @@ func TestIntegrationShutdownBeforeServerAvailable(t *testing.T) { //nolint:paral
 
 	// Close should work cleanly
 	shutdownDone := make(chan error, 1)
+
 	go func() {
 		shutdownDone <- client.Close()
 	}()
 
 	select {
 	case err := <-shutdownDone:
-		assert.NoError(t, err, "Close() should complete cleanly")
+		require.NoError(t, err, "Close() should complete cleanly")
 	case <-time.After(2 * time.Second):
 		t.Fatal("Close() hung - reconnect loop didn't terminate properly")
 	}

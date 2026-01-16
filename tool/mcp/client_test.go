@@ -226,11 +226,11 @@ func TestClientLifecycle(t *testing.T) {
 
 		// Start() succeeds even with connection failure - client retries in background
 		err = client.Start(context.Background())
-		assert.NoError(t, err, "Start() should succeed even when initial connection fails")
+		require.NoError(t, err, "Start() should succeed even when initial connection fails")
 		assert.True(t, client.Started(), "client should be in started state")
 
 		// Clean up - client is trying to reconnect in background
-		assert.NoError(t, client.Close())
+		require.NoError(t, client.Close())
 	})
 
 	t.Run("transport connect error succeeds and retries in background", func(t *testing.T) {
@@ -246,11 +246,11 @@ func TestClientLifecycle(t *testing.T) {
 
 		// Start() succeeds even with connection failure - client retries in background
 		err = client.Start(context.Background())
-		assert.NoError(t, err, "Start() should succeed even when initial connection fails")
+		require.NoError(t, err, "Start() should succeed even when initial connection fails")
 		assert.True(t, client.Started(), "client should be in started state")
 
 		// Clean up - client is trying to reconnect in background
-		assert.NoError(t, client.Close())
+		require.NoError(t, client.Close())
 	})
 }
 

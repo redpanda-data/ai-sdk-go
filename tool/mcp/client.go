@@ -43,9 +43,10 @@ type Client interface {
 	// Automatically registers tools if a registry is configured.
 	// Launches background sync goroutine if auto-sync is enabled.
 	//
-	// Note: This is a single-shot connection attempt with no automatic retry.
-	// If connection or initial sync fails, the client remains stopped and the
-	// caller must handle retry logic if desired.
+	// If the initial connection fails, Start still succeeds but the client will
+	// retry connecting in the background. This allows callers to handle MCP servers
+	// that are temporarily unavailable at startup without crashing. Tools become
+	// available once the server connects.
 	Start(ctx context.Context) error
 
 	// Shutdown gracefully stops the client, respecting the provided context deadline.
@@ -87,8 +88,9 @@ var _ Client = (*clientImpl)(nil)
 //   - Start(ctx) uses the caller's context ONLY for initial connection and sync.
 //     Creates a background-rooted context (bgCtx) that governs the client's lifetime,
 //     ensuring the client doesn't die if the caller's Start context expires.
-//     Uses sync.Once to ensure initialization runs exactly once. If Start fails,
-//     subsequent calls return the same error - the client instance cannot be retried.
+//     Uses sync.Once to ensure initialization runs exactly once. Start always succeeds
+//     (unless the client is already closed) - if the initial connection fails, the
+//     sessionManagerLoop handles retrying in the background.
 //   - Shutdown(ctx) gracefully terminates: cancels bgCtx and waits for in-flight
 //     operations (tracked by wg) to complete or ctx to expire. Uses sync.Once for
 //     idempotent shutdown.
