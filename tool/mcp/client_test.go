@@ -215,7 +215,7 @@ func TestClientLifecycle(t *testing.T) {
 		t.Skip("sync.Once guarantees idempotency by design")
 	})
 
-	t.Run("transport factory error", func(t *testing.T) {
+	t.Run("transport factory error succeeds and retries in background", func(t *testing.T) {
 		t.Parallel()
 
 		expectedErr := errors.New("factory failed")
@@ -224,11 +224,16 @@ func TestClientLifecycle(t *testing.T) {
 		client, err := NewClient("test", factory)
 		require.NoError(t, err)
 
+		// Start() succeeds even with connection failure - client retries in background
 		err = client.Start(context.Background())
-		assert.ErrorContains(t, err, "failed to create transport")
+		assert.NoError(t, err, "Start() should succeed even when initial connection fails")
+		assert.True(t, client.Started(), "client should be in started state")
+
+		// Clean up - client is trying to reconnect in background
+		assert.NoError(t, client.Close())
 	})
 
-	t.Run("transport connect error", func(t *testing.T) {
+	t.Run("transport connect error succeeds and retries in background", func(t *testing.T) {
 		t.Parallel()
 
 		expectedErr := errors.New("connect failed")
@@ -239,8 +244,13 @@ func TestClientLifecycle(t *testing.T) {
 		client, err := NewClient("test", factory)
 		require.NoError(t, err)
 
+		// Start() succeeds even with connection failure - client retries in background
 		err = client.Start(context.Background())
-		assert.ErrorContains(t, err, "failed to connect")
+		assert.NoError(t, err, "Start() should succeed even when initial connection fails")
+		assert.True(t, client.Started(), "client should be in started state")
+
+		// Clean up - client is trying to reconnect in background
+		assert.NoError(t, client.Close())
 	})
 }
 

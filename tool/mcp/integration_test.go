@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -370,4 +371,251 @@ func (h *restartHarness) StopCurrent() {
 // Close releases resources held by the harness.
 func (h *restartHarness) Close() {
 	h.StopCurrent()
+}
+
+// TestIntegrationInitialConnectionFailureRecovers verifies that when the MCP server
+// is unavailable at startup, the client starts successfully and reconnects once
+// the server becomes available.
+func TestIntegrationInitialConnectionFailureRecovers(t *testing.T) { //nolint:paralleltest // spawns MCP server process
+	ctx := t.Context()
+
+	// Create harness but DON'T spawn server yet - simulates server unavailable at startup
+	harness := newRestartHarness(ctx)
+	t.Cleanup(harness.Close)
+
+	// Create client with a factory that will block until server is available
+	client, err := NewClient("test-server", harness.Factory(t))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+
+	// Start client in background - it will try to connect and retry
+	startDone := make(chan error, 1)
+	go func() {
+		startDone <- client.Start(ctx)
+	}()
+
+	// Give client time to attempt initial connection (will block in factory waiting for transport)
+	time.Sleep(50 * time.Millisecond)
+
+	// Now spawn the server - client should connect
+	harness.Spawn(t)
+
+	// Start should complete successfully
+	select {
+	case err := <-startDone:
+		require.NoError(t, err, "Start() should succeed once server is available")
+	case <-time.After(3 * time.Second):
+		t.Fatal("Start() timed out waiting for server")
+	}
+
+	assert.True(t, client.Started(), "client should be in started state")
+
+	// Verify client can execute tools
+	tools, err := client.ListTools(ctx)
+	require.NoError(t, err)
+	echoTool := toolNameContaining(t, tools, "echo")
+
+	result, err := client.ExecuteTool(ctx, echoTool, json.RawMessage(`{"message":"recovered"}`))
+	require.NoError(t, err)
+	require.Contains(t, string(result), "recovered")
+}
+
+// TestIntegrationShutdownDuringReconnect verifies that calling Close() while the
+// client is attempting to reconnect completes cleanly without hanging.
+func TestIntegrationShutdownDuringReconnect(t *testing.T) { //nolint:paralleltest // tests client reconnection
+	ctx := t.Context()
+
+	// Track connection attempts and control when connections fail
+	var mu sync.Mutex
+	connectCount := 0
+	allowConnect := true
+
+	server := newMockMCPServer()
+	transport, err := server.start(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = server.stop() })
+
+	factory := func() (sdkmcp.Transport, error) {
+		mu.Lock()
+		connectCount++
+		allow := allowConnect
+		mu.Unlock()
+
+		if !allow {
+			return nil, errors.New("connection refused")
+		}
+		return transport, nil
+	}
+
+	client, err := NewClient("test-server", factory)
+	require.NoError(t, err)
+	require.NoError(t, client.Start(ctx))
+
+	// Verify connection works
+	tools, err := client.ListTools(ctx)
+	require.NoError(t, err)
+	require.NotEmpty(t, tools)
+
+	// Block new connections and stop server - client will start reconnecting
+	mu.Lock()
+	allowConnect = false
+	mu.Unlock()
+	_ = server.stop()
+
+	// Give reconnect loop time to start attempting reconnection
+	time.Sleep(300 * time.Millisecond)
+
+	// Verify reconnect attempts are happening
+	mu.Lock()
+	attempts := connectCount
+	mu.Unlock()
+	assert.Greater(t, attempts, 1, "should have attempted reconnection")
+
+	// Close should complete cleanly even during reconnect
+	shutdownDone := make(chan error, 1)
+	go func() {
+		shutdownDone <- client.Close()
+	}()
+
+	select {
+	case err := <-shutdownDone:
+		assert.NoError(t, err, "Close() should complete cleanly during reconnect")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Close() hung during reconnect - this is a bug")
+	}
+}
+
+// TestIntegrationOperationsDuringReconnect verifies that operations properly
+// handle the case when no session is available (during reconnection).
+func TestIntegrationOperationsDuringReconnect(t *testing.T) { //nolint:paralleltest // spawns MCP server process
+	ctx := t.Context()
+
+	harness := newRestartHarness(ctx)
+	t.Cleanup(harness.Close)
+
+	harness.Spawn(t)
+
+	client, err := NewClient("test-server", harness.Factory(t))
+	require.NoError(t, err)
+	require.NoError(t, client.Start(ctx))
+	t.Cleanup(func() { _ = client.Close() })
+
+	// Get tool name while connected
+	tools, err := client.ListTools(ctx)
+	require.NoError(t, err)
+	echoTool := toolNameContaining(t, tools, "echo")
+
+	// Stop server - client will lose session and start reconnecting
+	harness.StopCurrent()
+
+	// Give time for session to close and reconnect to start
+	time.Sleep(100 * time.Millisecond)
+
+	// Operations with short timeout should fail/timeout while reconnecting
+	shortCtx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
+	defer cancel()
+
+	_, err = client.ExecuteTool(shortCtx, echoTool, json.RawMessage(`{"message":"test"}`))
+	// Should get context deadline exceeded or similar error, not panic
+	assert.Error(t, err, "ExecuteTool should fail when no session is available")
+
+	// Now bring server back up
+	harness.Spawn(t)
+
+	// Should eventually recover and work again
+	require.Eventually(t, func() bool {
+		callCtx, callCancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer callCancel()
+
+		_, err := client.ExecuteTool(callCtx, echoTool, json.RawMessage(`{"message":"recovered"}`))
+		return err == nil
+	}, 3*time.Second, 100*time.Millisecond, "client should recover after server comes back")
+}
+
+// TestIntegrationMultipleReconnectCycles verifies that the client handles
+// multiple server restarts gracefully.
+func TestIntegrationMultipleReconnectCycles(t *testing.T) { //nolint:paralleltest // spawns MCP server process
+	ctx := t.Context()
+
+	harness := newRestartHarness(ctx)
+	t.Cleanup(harness.Close)
+
+	harness.Spawn(t)
+
+	client, err := NewClient("test-server", harness.Factory(t))
+	require.NoError(t, err)
+	require.NoError(t, client.Start(ctx))
+	t.Cleanup(func() { _ = client.Close() })
+
+	tools, err := client.ListTools(ctx)
+	require.NoError(t, err)
+	echoTool := toolNameContaining(t, tools, "echo")
+
+	// Perform multiple restart cycles
+	for cycle := 1; cycle <= 3; cycle++ {
+		// Verify current connection works
+		result, err := client.ExecuteTool(ctx, echoTool, json.RawMessage(`{"message":"cycle`+string(rune('0'+cycle))+`"}`))
+		require.NoError(t, err, "cycle %d: should work before restart", cycle)
+		require.Contains(t, string(result), "cycle")
+
+		// Restart server
+		harness.StopCurrent()
+		harness.Spawn(t)
+
+		// Wait for reconnection
+		require.Eventually(t, func() bool {
+			callCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+			defer cancel()
+
+			_, err := client.ExecuteTool(callCtx, echoTool, json.RawMessage(`{"message":"after"}`))
+			return err == nil
+		}, 2*time.Second, 50*time.Millisecond, "cycle %d: should reconnect after restart", cycle)
+	}
+}
+
+// TestIntegrationShutdownBeforeServerAvailable verifies that Close() works
+// correctly when called before the server ever became available.
+func TestIntegrationShutdownBeforeServerAvailable(t *testing.T) { //nolint:paralleltest // tests client without server
+	ctx := t.Context()
+
+	// Factory that always fails - simulates permanently unavailable server
+	failCount := 0
+	factory := func() (sdkmcp.Transport, error) {
+		failCount++
+		return nil, errors.New("server unavailable")
+	}
+
+	client, err := NewClient("test-server", factory)
+	require.NoError(t, err)
+
+	// Start in background - it will keep retrying
+	startDone := make(chan error, 1)
+	go func() {
+		startDone <- client.Start(ctx)
+	}()
+
+	// Wait for Start to complete (it should succeed even though connection fails)
+	select {
+	case err := <-startDone:
+		require.NoError(t, err, "Start() should succeed even when server is unavailable")
+	case <-time.After(1 * time.Second):
+		t.Fatal("Start() should complete quickly even when connection fails")
+	}
+
+	// Let it attempt a few reconnects
+	time.Sleep(500 * time.Millisecond)
+	assert.Greater(t, failCount, 1, "should have attempted multiple connections")
+
+	// Close should work cleanly
+	shutdownDone := make(chan error, 1)
+	go func() {
+		shutdownDone <- client.Close()
+	}()
+
+	select {
+	case err := <-shutdownDone:
+		assert.NoError(t, err, "Close() should complete cleanly")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Close() hung - reconnect loop didn't terminate properly")
+	}
 }

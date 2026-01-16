@@ -200,8 +200,11 @@ func NewClient(serverID string, transportFactory TransportFactory, opts ...Clien
 // runs independently afterward with a background context.
 //
 // Start executes exactly once using sync.Once. Concurrent calls will block until
-// the first call completes, then return the same result. If Start fails, the client
-// is permanently in a failed state - create a new client to retry.
+// the first call completes, then return the same result.
+//
+// If the initial connection fails, Start still succeeds but the client will
+// retry connecting in the background. This allows callers to handle MCP servers
+// that are temporarily unavailable at startup without crashing.
 func (c *clientImpl) Start(ctx context.Context) error {
 	c.startOnce.Do(func() {
 		if c.isShutdown() {
@@ -223,29 +226,25 @@ func (c *clientImpl) Start(ctx context.Context) error {
 		// Connect to MCP server
 		session, mcpClient, err := c.connect(ctx)
 		if err != nil {
+			// Initial connection failed - log and continue.
+			// sessionManagerLoop will handle reconnection in the background.
+			c.logger.Warn("initial connection failed, will retry in background",
+				"serverID", c.serverID,
+				"err", err)
+		} else {
+			// Update client state with connection details
 			c.mu.Lock()
-			c.startErr = err
+			c.replaceSessionLocked(session, mcpClient)
 			c.mu.Unlock()
-			c.cleanupAfterFailedStart(nil)
 
-			return
-		}
+			c.logger.Info("connected to MCP server", "serverID", c.serverID)
 
-		// Update client state with connection details
-		c.mu.Lock()
-		c.replaceSessionLocked(session, mcpClient)
-		c.mu.Unlock()
-
-		c.logger.Info("connected to MCP server", "serverID", c.serverID)
-
-		// Perform initial tool sync
-		if err := c.SyncTools(ctx); err != nil {
-			c.mu.Lock()
-			c.startErr = fmt.Errorf("initial tool sync failed: %w", err)
-			c.mu.Unlock()
-			c.cleanupAfterFailedStart(session)
-
-			return
+			// Perform initial tool sync
+			if err := c.SyncTools(ctx); err != nil {
+				c.logger.Warn("initial tool sync failed, will retry after reconnect",
+					"serverID", c.serverID,
+					"err", err)
+			}
 		}
 
 		// Start auto-sync if enabled
@@ -540,6 +539,13 @@ func (c *clientImpl) waitForSession(ctx context.Context) (*sdkmcp.ClientSession,
 // Design invariant: Only one sessionManagerLoop runs per client instance, guaranteed by
 // wg.Add(1) in Start() under startOnce. This loop naturally re-fetches the session at
 // the top of each iteration, so there's no need for defensive session-mismatch checks.
+//
+// The loop handles two scenarios:
+//  1. Started with a valid session: waits for session to close, then reconnects
+//  2. Started without a session (initial connect failed): immediately attempts to connect
+//
+// This allows the client to gracefully handle MCP servers that are temporarily unavailable
+// at startup - the client will keep retrying in the background.
 func (c *clientImpl) sessionManagerLoop() {
 	defer c.wg.Done()
 
@@ -550,30 +556,38 @@ func (c *clientImpl) sessionManagerLoop() {
 		bgCtx := c.bgCtx
 		c.mu.RUnlock()
 
-		// Exit if no session or shutting down
-		if session == nil || bgCtx == nil {
-			c.logger.Debug("sessionManagerLoop exiting: no session or context")
+		// Exit only if shutting down (no bgCtx)
+		if bgCtx == nil {
+			c.logger.Debug("sessionManagerLoop exiting: no context")
 			return
 		}
 
-		// Wait for the current session to close (blocks until disconnect)
-		waitErr := session.Wait()
+		// If we have a session, wait for it to close
+		if session != nil {
+			// Wait for the current session to close (blocks until disconnect)
+			waitErr := session.Wait()
 
-		// Check if shutting down
+			// Check if shutting down
+			if c.closing.Load() || bgCtx.Err() != nil {
+				return
+			}
+
+			if waitErr != nil {
+				c.logger.Warn("MCP session closed with error", "serverID", c.serverID, "err", waitErr)
+			} else {
+				c.logger.Info("MCP session closed", "serverID", c.serverID)
+			}
+
+			// Clear disconnected session
+			c.mu.Lock()
+			c.replaceSessionLocked(nil, nil)
+			c.mu.Unlock()
+		}
+
+		// Check if shutting down before attempting reconnect
 		if c.closing.Load() || bgCtx.Err() != nil {
 			return
 		}
-
-		if waitErr != nil {
-			c.logger.Warn("MCP session closed with error", "serverID", c.serverID, "err", waitErr)
-		} else {
-			c.logger.Info("MCP session closed", "serverID", c.serverID)
-		}
-
-		// Clear disconnected session
-		c.mu.Lock()
-		c.replaceSessionLocked(nil, nil)
-		c.mu.Unlock()
 
 		// Perform blocking reconnect with exponential backoff
 		newSession, newClient, err := c.performReconnect(bgCtx)
