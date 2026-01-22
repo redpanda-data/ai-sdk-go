@@ -233,6 +233,7 @@ func (c *clientImpl) computeToolDiff(prepared map[string]*preparedTool) []regist
 			Name:        namespaced,
 			Description: prep.mcpTool.Description,
 			Parameters:  prep.paramsJSON,
+			Type:        llm.ToolTypeExtension, // MCP tools are remote (extension)
 		}
 
 		if w, exists := c.tools[namespaced]; exists {

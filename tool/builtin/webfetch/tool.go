@@ -62,6 +62,7 @@ func (t *Tool) Definition() llm.ToolDefinition {
 		Name:        "webfetch",
 		Description: "Fetch a HTTPS URL (GET/HEAD) with SSRF protection and size limits. Text/JSON/XML only.",
 		Parameters:  schemaBytes,
+		Type:        llm.ToolTypeFunction,
 		Metadata: map[string]any{
 			"category": "web",
 			"security": "high",

@@ -714,6 +714,339 @@ func TestTracingInterceptor_ContextPropagation(t *testing.T) {
 	assert.NotEmpty(t, spans)
 }
 
+func TestTracingInterceptor_InterceptToolExecution_WithToolTypeAndDescription(t *testing.T) {
+	t.Parallel()
+
+	exporter, tp := setupTracer()
+	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
+
+	interceptor := pluginotel.New(
+		pluginotel.WithTracerProvider(tp),
+	)
+
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
+		Name:        "test-agent",
+		Description: "Test agent for OpenTelemetry tracing",
+	})
+	ctx := t.Context()
+
+	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+		req := &llm.ToolRequest{
+			Name:      "get_weather",
+			ID:        "tool-call-123",
+			Arguments: json.RawMessage(`{"city": "Seattle"}`),
+		}
+
+		// Create a tool definition with type and description
+		toolDef := &llm.ToolDefinition{
+			Name:        "get_weather",
+			Description: "Gets the current weather for a location",
+			Type:        llm.ToolTypeFunction,
+		}
+
+		toolInfo := &agent.ToolCallInfo{
+			Inv:        inv,
+			Req:        req,
+			Definition: toolDef,
+		}
+
+		resp, err := interceptor.InterceptToolExecution(ctx, toolInfo,
+			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponse, error) {
+				return &llm.ToolResponse{Result: json.RawMessage(`"Sunny, 72F"`)}, nil
+			})
+		require.NoError(t, err)
+		assert.NotNil(t, resp)
+
+		return agent.FinishReasonStop, nil
+	})
+
+	// Find the tool span
+	spans := exporter.GetSpans()
+	var toolSpan *tracetest.SpanStub
+
+	for i := range spans {
+		if strings.HasPrefix(spans[i].Name, "execute_tool") {
+			toolSpan = &spans[i]
+			break
+		}
+	}
+
+	require.NotNil(t, toolSpan, "Expected execute_tool span")
+
+	// Check that tool type and description attributes are set
+	assertHasAttribute(t, toolSpan.Attributes, "gen_ai.tool.type", "function")
+	assertHasAttribute(t, toolSpan.Attributes, "gen_ai.tool.description", "Gets the current weather for a location")
+}
+
+func TestTracingInterceptor_InterceptToolExecution_ToolTypeDefaultsToFunction(t *testing.T) {
+	t.Parallel()
+
+	exporter, tp := setupTracer()
+	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
+
+	interceptor := pluginotel.New(
+		pluginotel.WithTracerProvider(tp),
+	)
+
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
+		Name:        "test-agent",
+		Description: "Test agent for OpenTelemetry tracing",
+	})
+	ctx := t.Context()
+
+	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+		req := &llm.ToolRequest{
+			Name:      "custom_tool",
+			ID:        "tool-call-456",
+			Arguments: json.RawMessage(`{}`),
+		}
+
+		// Create a tool definition without specifying Type (should default to "function")
+		toolDef := &llm.ToolDefinition{
+			Name:        "custom_tool",
+			Description: "A custom tool",
+		}
+
+		toolInfo := &agent.ToolCallInfo{
+			Inv:        inv,
+			Req:        req,
+			Definition: toolDef,
+		}
+
+		_, _ = interceptor.InterceptToolExecution(ctx, toolInfo,
+			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponse, error) {
+				return &llm.ToolResponse{Result: json.RawMessage(`{}`)}, nil
+			})
+
+		return agent.FinishReasonStop, nil
+	})
+
+	// Find the tool span
+	spans := exporter.GetSpans()
+	var toolSpan *tracetest.SpanStub
+
+	for i := range spans {
+		if strings.HasPrefix(spans[i].Name, "execute_tool") {
+			toolSpan = &spans[i]
+			break
+		}
+	}
+
+	require.NotNil(t, toolSpan, "Expected execute_tool span")
+
+	// Check that tool type defaults to "function"
+	assertHasAttribute(t, toolSpan.Attributes, "gen_ai.tool.type", "function")
+}
+
+func TestTracingInterceptor_InterceptToolExecution_WithDifferentToolTypes(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		toolType string
+	}{
+		{name: "function type", toolType: llm.ToolTypeFunction},
+		{name: "extension type", toolType: llm.ToolTypeExtension},
+		{name: "datastore type", toolType: llm.ToolTypeDatastore},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			exporter, tp := setupTracer()
+			defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
+
+			interceptor := pluginotel.New(
+				pluginotel.WithTracerProvider(tp),
+			)
+
+			inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
+				Name:        "test-agent",
+				Description: "Test agent for OpenTelemetry tracing",
+			})
+			ctx := t.Context()
+
+			_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+				req := &llm.ToolRequest{
+					Name:      "test_tool",
+					ID:        "tool-call-789",
+					Arguments: json.RawMessage(`{}`),
+				}
+
+				toolDef := &llm.ToolDefinition{
+					Name:        "test_tool",
+					Description: "A test tool",
+					Type:        tc.toolType,
+				}
+
+				toolInfo := &agent.ToolCallInfo{
+					Inv:        inv,
+					Req:        req,
+					Definition: toolDef,
+				}
+
+				_, _ = interceptor.InterceptToolExecution(ctx, toolInfo,
+					func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponse, error) {
+						return &llm.ToolResponse{Result: json.RawMessage(`{}`)}, nil
+					})
+
+				return agent.FinishReasonStop, nil
+			})
+
+			// Find the tool span
+			spans := exporter.GetSpans()
+			var toolSpan *tracetest.SpanStub
+
+			for i := range spans {
+				if strings.HasPrefix(spans[i].Name, "execute_tool") {
+					toolSpan = &spans[i]
+					break
+				}
+			}
+
+			require.NotNil(t, toolSpan, "Expected execute_tool span")
+
+			// Check that the correct tool type is set
+			assertHasAttribute(t, toolSpan.Attributes, "gen_ai.tool.type", tc.toolType)
+		})
+	}
+}
+
+func TestTracingInterceptor_InterceptToolExecution_WithoutDefinition(t *testing.T) {
+	t.Parallel()
+
+	exporter, tp := setupTracer()
+	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
+
+	interceptor := pluginotel.New(
+		pluginotel.WithTracerProvider(tp),
+	)
+
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
+		Name:        "test-agent",
+		Description: "Test agent for OpenTelemetry tracing",
+	})
+	ctx := t.Context()
+
+	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+		req := &llm.ToolRequest{
+			Name:      "unknown_tool",
+			ID:        "tool-call-999",
+			Arguments: json.RawMessage(`{}`),
+		}
+
+		// ToolCallInfo without Definition (simulates tool not found in registry)
+		toolInfo := &agent.ToolCallInfo{
+			Inv:        inv,
+			Req:        req,
+			Definition: nil, // No definition available
+		}
+
+		_, _ = interceptor.InterceptToolExecution(ctx, toolInfo,
+			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponse, error) {
+				return &llm.ToolResponse{Result: json.RawMessage(`{}`)}, nil
+			})
+
+		return agent.FinishReasonStop, nil
+	})
+
+	// Find the tool span
+	spans := exporter.GetSpans()
+	var toolSpan *tracetest.SpanStub
+
+	for i := range spans {
+		if strings.HasPrefix(spans[i].Name, "execute_tool") {
+			toolSpan = &spans[i]
+			break
+		}
+	}
+
+	require.NotNil(t, toolSpan, "Expected execute_tool span")
+
+	// Should still have basic attributes
+	assertHasAttribute(t, toolSpan.Attributes, "gen_ai.tool.name", "unknown_tool")
+	assertHasAttribute(t, toolSpan.Attributes, "gen_ai.tool.call.id", "tool-call-999")
+
+	// Should NOT have type or description attributes when Definition is nil
+	hasType := false
+	hasDescription := false
+
+	for _, attr := range toolSpan.Attributes {
+		if string(attr.Key) == "gen_ai.tool.type" {
+			hasType = true
+		}
+
+		if string(attr.Key) == "gen_ai.tool.description" {
+			hasDescription = true
+		}
+	}
+
+	assert.False(t, hasType, "Should not have gen_ai.tool.type when Definition is nil")
+	assert.False(t, hasDescription, "Should not have gen_ai.tool.description when Definition is nil")
+}
+
+func TestTracingInterceptor_InterceptToolExecution_InvalidToolTypeDefaultsToFunction(t *testing.T) {
+	t.Parallel()
+
+	exporter, tp := setupTracer()
+	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
+
+	interceptor := pluginotel.New(
+		pluginotel.WithTracerProvider(tp),
+	)
+
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
+		Name:        "test-agent",
+		Description: "Test agent for OpenTelemetry tracing",
+	})
+	ctx := t.Context()
+
+	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+		req := &llm.ToolRequest{
+			Name:      "invalid_type_tool",
+			ID:        "tool-call-invalid",
+			Arguments: json.RawMessage(`{}`),
+		}
+
+		// Create a tool definition with an invalid Type value
+		toolDef := &llm.ToolDefinition{
+			Name:        "invalid_type_tool",
+			Description: "Tool with invalid type",
+			Type:        "invalid_type_value", // Invalid - should default to "function"
+		}
+
+		toolInfo := &agent.ToolCallInfo{
+			Inv:        inv,
+			Req:        req,
+			Definition: toolDef,
+		}
+
+		_, _ = interceptor.InterceptToolExecution(ctx, toolInfo,
+			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponse, error) {
+				return &llm.ToolResponse{Result: json.RawMessage(`{}`)}, nil
+			})
+
+		return agent.FinishReasonStop, nil
+	})
+
+	// Find the tool span
+	spans := exporter.GetSpans()
+	var toolSpan *tracetest.SpanStub
+
+	for i := range spans {
+		if strings.HasPrefix(spans[i].Name, "execute_tool") {
+			toolSpan = &spans[i]
+			break
+		}
+	}
+
+	require.NotNil(t, toolSpan, "Expected execute_tool span")
+
+	// Check that invalid tool type defaults to "function" for OTel compliance
+	assertHasAttribute(t, toolSpan.Attributes, "gen_ai.tool.type", "function")
+}
+
 // Helper functions for attribute assertions
 
 func assertHasAttribute(t *testing.T, attrs []attribute.KeyValue, key string, expected any) {

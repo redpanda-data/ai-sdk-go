@@ -61,6 +61,7 @@ EXAMPLES:
 New artifact: {"name": "Analysis Report", "description": "Summary of findings", "text": "Analysis results...\n\nConclusions..."}
 Append to existing: {"append_to_artifact_id": "artifact-123", "text": "Additional findings..."}`,
 		Parameters: schemaBytes,
+		Type:       llm.ToolTypeFunction,
 	}
 }
 
