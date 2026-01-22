@@ -44,7 +44,7 @@ func doRequest(ctx context.Context, cfg Config, method, rawURL string) (*resp, e
 		Proxy:                 nil, // CRITICAL: Disable proxy to prevent bypass via ProxyFromEnvironment
 		DialContext:           safeDialContext(cfg),
 		DialTLSContext:        safeTLSDialContext(cfg), // Handle TLS SNI properly when dialing by IP
-		TLSClientConfig:       &tls.Config{MinVersion: tls.VersionTLS12},
+		TLSClientConfig:       &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: cfg.InsecureSkipVerify}, //nolint:gosec // InsecureSkipVerify is only for testing
 		ResponseHeaderTimeout: 5 * time.Second,
 		TLSHandshakeTimeout:   5 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,

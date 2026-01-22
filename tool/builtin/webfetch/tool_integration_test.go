@@ -25,9 +25,10 @@ const testTimeout = 60 * time.Second
 // testOptions returns common test options that disable security restrictions for testing.
 func testOptions() []webfetch.Option {
 	return []webfetch.Option{
-		webfetch.WithDenyPrivateIPs(false),                     // Allow localhost for testing
-		webfetch.WithAllowedSchemes([]string{"https", "http"}), // Allow both schemes
-		webfetch.WithAllowedPorts(nil),                         // Allow all ports in tests
+		webfetch.WithDenyPrivateIPs(false), // Allow localhost for testing
+		webfetch.WithAllowedSchemes([]string{"https"}),
+		webfetch.WithAllowedPorts(nil),        // Allow all ports in tests
+		webfetch.WithInsecureSkipVerify(true), // Allow self-signed certs from httptest.NewTLSServer
 	}
 }
 
@@ -97,7 +98,7 @@ func TestWebFetch_PromptInjectionFencing_Integration(t *testing.T) {
 </body>
 </html>`
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(injectionContent))
