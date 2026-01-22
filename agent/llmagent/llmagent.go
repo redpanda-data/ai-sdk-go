@@ -321,7 +321,7 @@ func (a *LLMAgent) executeSingleTurn(
 		return "", agent.ErrToolRegistry
 	}
 
-	toolParts := a.executeTools(ctx, inv, toolReqs, makeEnvelope, yield)
+	toolParts := a.executeTools(ctx, inv, toolReqs, req.Tools, makeEnvelope, yield)
 
 	// Build single message with all tool response parts
 	toolMsg := llm.NewMessage(llm.RoleUser, toolParts...)
@@ -458,6 +458,7 @@ func (a *LLMAgent) executeTools(
 	ctx context.Context,
 	inv *agent.InvocationMetadata,
 	toolReqs []*llm.ToolRequest,
+	toolDefs []llm.ToolDefinition,
 	makeEnvelope func() agent.EventEnvelope,
 	yield func(agent.Event, error) bool,
 ) []*llm.Part {
@@ -484,10 +485,20 @@ func (a *LLMAgent) executeTools(
 	// Apply tool interceptors
 	executor := agent.ApplyToolInterceptors(a.config.interceptors, baseExecutor)
 
+	// Build tool definition lookup map for interceptors from provided definitions
+	toolDefMap := make(map[string]*llm.ToolDefinition, len(toolDefs))
+	for i := range toolDefs {
+		toolDefMap[toolDefs[i].Name] = &toolDefs[i]
+	}
+
 	// Launch tool executions
 	for i, req := range toolReqs {
 		g.Go(func() error {
-			toolInfo := &agent.ToolCallInfo{Inv: inv, Req: req}
+			toolInfo := &agent.ToolCallInfo{
+				Inv:        inv,
+				Req:        req,
+				Definition: toolDefMap[req.Name], // Add tool definition
+			}
 
 			resp, err := executor(gctx, toolInfo)
 			results <- toolResult{

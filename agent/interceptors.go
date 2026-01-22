@@ -180,6 +180,11 @@ type ToolCallInfo struct {
 
 	// Req is the tool request from the LLM.
 	Req *llm.ToolRequest
+
+	// Definition is the full tool definition including description and type.
+	// Used by interceptors for observability (e.g., OpenTelemetry attributes).
+	// May be nil if tool definition is not available.
+	Definition *llm.ToolDefinition
 }
 
 // ToolExecutionNext is the continuation function for tool execution interception.

@@ -64,6 +64,7 @@ Bar: {"name": "Regional Sales", "description": "Q1 sales by region", "chart_type
 Scatter: {"name": "Transaction Analysis", "description": "Amount vs fraud score correlation", "chart_type": "scatter", "scatter_data": {"series": [{"name": "Transactions", "x": [10,20,30], "y": [0.1,0.5,0.9]}]}}
 Histogram: {"name": "Response Time Distribution", "description": "API response time frequency", "chart_type": "histogram", "histogram_data": {"values": [12.3,45.2,23.1], "bins": 10}}`,
 		Parameters: schemaBytes,
+		Type:       llm.ToolTypeFunction,
 		Metadata: map[string]any{
 			"category": "visualization",
 		},

@@ -97,6 +97,7 @@ IMPORTANT RULES:
 - Use FAILED for tasks that were attempted but couldn't be completed
 - Use ABANDONED for tasks that are no longer relevant or needed`,
 		Parameters: schema,
+		Type:       llm.ToolTypeFunction,
 	}
 }
 
@@ -227,6 +228,7 @@ IMPORTANT RULES:
 - Provide clear, actionable descriptions
 - Use specific, measurable content`,
 		Parameters: schema,
+		Type:       llm.ToolTypeFunction, // Explicit: local execution
 	}
 }
 

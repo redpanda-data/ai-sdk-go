@@ -37,6 +37,8 @@ const (
 	attrGenAIToolCallID            = "gen_ai.tool.call.id"
 	attrGenAIToolCallArguments     = "gen_ai.tool.call.arguments"
 	attrGenAIToolCallResult        = "gen_ai.tool.call.result"
+	attrGenAIToolType              = "gen_ai.tool.type"
+	attrGenAIToolDescription       = "gen_ai.tool.description"
 	attrToolArgumentsSize          = "redpanda.tool.arguments.size"
 	attrToolResultSize             = "redpanda.tool.result.size"
 	attrToolExecutionDuration      = "redpanda.tool.execution.duration"
@@ -193,6 +195,14 @@ func genAIToolCallArguments(args string) attribute.KeyValue {
 
 func genAIToolCallResult(result string) attribute.KeyValue {
 	return attribute.String(attrGenAIToolCallResult, result)
+}
+
+func genAIToolType(toolType string) attribute.KeyValue {
+	return attribute.String(attrGenAIToolType, toolType)
+}
+
+func genAIToolDescription(description string) attribute.KeyValue {
+	return attribute.String(attrGenAIToolDescription, description)
 }
 
 func genAIInputMessages(json string) attribute.KeyValue {

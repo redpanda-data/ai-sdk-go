@@ -34,6 +34,26 @@ func (t *TracingInterceptor) InterceptToolExecution(
 		attrs = append(attrs, genAIConversationID(session.ID))
 	}
 
+	// Add tool type and description if definition is available
+	if info.Definition != nil {
+		if info.Definition.Description != "" {
+			attrs = append(attrs, genAIToolDescription(info.Definition.Description))
+		}
+
+		toolType := info.Definition.Type
+		switch toolType {
+		case "", llm.ToolTypeFunction:
+			toolType = llm.ToolTypeFunction
+		case llm.ToolTypeExtension, llm.ToolTypeDatastore:
+			// Valid types - use as-is
+		default:
+			// Invalid type - default to function for OTel compliance
+			toolType = llm.ToolTypeFunction
+		}
+
+		attrs = append(attrs, genAIToolType(toolType))
+	}
+
 	// Call attribute injector if configured (before span creation for sampling)
 	if t.cfg.attributeInjector != nil {
 		sessionID := ""

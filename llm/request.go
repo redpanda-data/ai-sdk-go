@@ -49,6 +49,11 @@ type ToolDefinition struct {
 	// Metadata provides additional information about the tool.
 	// This can include provider-specific configuration or documentation.
 	Metadata map[string]any `json:"metadata,omitempty"`
+
+	// Type specifies the tool category for observability.
+	// Values: "function" (default), "extension", "datastore"
+	// Used for OpenTelemetry gen_ai.tool.type attribute.
+	Type string `json:"type,omitempty"`
 }
 
 // ToolChoice controls how the model should interact with available tools.
@@ -68,6 +73,22 @@ const (
 	ToolChoiceNone     = "none"     // Model should not use any tools
 	ToolChoiceRequired = "required" // Model must use at least one tool
 	ToolChoiceSpecific = "specific" // Model must use the tool specified in Name
+)
+
+// Tool type constants for OpenTelemetry semantic conventions.
+// These describe where/how the tool executes.
+const (
+	// ToolTypeFunction: Local execution - agent generates parameters,
+	// local code executes the logic (built-in tools, user-provided functions).
+	ToolTypeFunction = "function"
+
+	// ToolTypeExtension: Agent-side remote execution - agent calls
+	// external APIs or services (e.g., MCP server tools).
+	ToolTypeExtension = "extension"
+
+	// ToolTypeDatastore: Specialized data retrieval tools
+	// (e.g., vector databases, knowledge bases).
+	ToolTypeDatastore = "datastore"
 )
 
 // ResponseFormat controls the structure of the model's output.
