@@ -66,7 +66,7 @@ func TestKVTaskStoreWithSchemaRegistry_SchemaRegistration(t *testing.T) { //noli
 		},
 	}
 
-	err = store.Save(ctx, testTask)
+	_, err = store.Save(ctx, testTask, nil, 0)
 	require.NoError(t, err)
 
 	// Verify schema is registered
@@ -160,12 +160,12 @@ func TestKVTaskStoreWithSchemaRegistry_RoundTrip(t *testing.T) { //nolint:parall
 	}
 
 	for _, task := range testTasks {
-		err := store.Save(ctx, task)
+		_, err := store.Save(ctx, task, nil, 0)
 		require.NoError(t, err)
 	}
 
 	for _, original := range testTasks {
-		loaded, err := store.Get(ctx, original.ID)
+		loaded, _, err := store.Get(ctx, original.ID)
 		require.NoError(t, err)
 
 		assert.Equal(t, original.ID, loaded.ID)
@@ -234,7 +234,7 @@ func TestKVTaskStoreWithSchemaRegistry_DynamicDeserialization(t *testing.T) { //
 		},
 	}
 
-	err = store.Save(ctx, testTask)
+	_, err = store.Save(ctx, testTask, nil, 0)
 	require.NoError(t, err)
 
 	// Read raw message from Kafka

@@ -7,7 +7,7 @@ ignore ./build
 ignore ./examples
 
 require (
-	github.com/a2aproject/a2a-go v0.3.4-0.20260105202806-bf3096c9babf
+	github.com/a2aproject/a2a-go v0.3.5
 	github.com/anthropics/anthropic-sdk-go v1.18.1
 	github.com/bufbuild/protocompile v0.14.1
 	github.com/google/jsonschema-go v0.3.0

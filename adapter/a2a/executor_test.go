@@ -96,7 +96,7 @@ func TestExecutor_Integration_OpenAI(t *testing.T) {
 		defer close(eventsDone)
 
 		for {
-			event, err := readerQueue.Read(ctx)
+			event, _, err := readerQueue.Read(ctx)
 			if err != nil {
 				return // Queue closed or error
 			}
@@ -296,7 +296,7 @@ func TestExecutor_ToolUse_MessageHistory(t *testing.T) {
 		defer close(eventsDone)
 
 		for {
-			event, err := readerQueue.Read(ctx)
+			event, _, err := readerQueue.Read(ctx)
 			if err != nil {
 				return
 			}
@@ -561,7 +561,7 @@ func TestExecutor_SessionPersistence_Mock(t *testing.T) {
 		defer close(eventsDone1)
 
 		for {
-			event, err := readerQueue1.Read(ctx)
+			event, _, err := readerQueue1.Read(ctx)
 			if err != nil {
 				return
 			}
@@ -632,7 +632,7 @@ func TestExecutor_SessionPersistence_Mock(t *testing.T) {
 		defer close(eventsDone2)
 
 		for {
-			event, err := readerQueue2.Read(ctx)
+			event, _, err := readerQueue2.Read(ctx)
 			if err != nil {
 				return
 			}
@@ -737,7 +737,7 @@ func TestExecutor_SessionPersistence(t *testing.T) {
 		defer close(eventsDone1)
 
 		for {
-			event, err := readerQueue1.Read(ctx)
+			event, _, err := readerQueue1.Read(ctx)
 			if err != nil {
 				return
 			}
@@ -813,7 +813,7 @@ func TestExecutor_SessionPersistence(t *testing.T) {
 		defer close(eventsDone2)
 
 		for {
-			event, err := readerQueue2.Read(ctx)
+			event, _, err := readerQueue2.Read(ctx)
 			if err != nil {
 				return
 			}
@@ -924,7 +924,7 @@ func TestExecutor_SessionPersistence_Cancelled(t *testing.T) {
 		defer close(eventsDone)
 
 		for {
-			event, err := readerQueue.Read(readCtx)
+			event, _, err := readerQueue.Read(readCtx)
 			if err != nil {
 				return
 			}
@@ -1050,7 +1050,7 @@ func TestExecutor_ErrorHandling(t *testing.T) {
 		defer close(eventsDone)
 
 		for {
-			event, err := readerQueue.Read(ctx)
+			event, _, err := readerQueue.Read(ctx)
 			if err != nil {
 				return
 			}

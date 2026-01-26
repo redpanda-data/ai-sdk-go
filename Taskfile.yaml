@@ -27,7 +27,7 @@ tasks:
       - install:go
       - install:tparse
     cmds:
-      - '{{.GO_BIN}} test -json -cover -parallel 10 ./... | {{.BIN_DIR}}/tparse -follow -all'
+      - '{{.GO_BIN}} test -json -cover -parallel 10 -timeout 30m ./... | {{.BIN_DIR}}/tparse -follow -all'
 
   test:unit:
     desc: Run unit tests only with coverage (excludes integration tests)
@@ -43,7 +43,7 @@ tasks:
       - install:go
       - install:tparse
     cmds:
-      - '{{.GO_BIN}} test -json -cover -parallel 10 -run Integration ./... | {{.BIN_DIR}}/tparse -follow -all'
+      - '{{.GO_BIN}} test -json -cover -parallel 10 -timeout 30m -run Integration ./... | {{.BIN_DIR}}/tparse -follow -all'
 
   security:
     desc: Run security vulnerability checks (govulncheck + osv-scanner)
