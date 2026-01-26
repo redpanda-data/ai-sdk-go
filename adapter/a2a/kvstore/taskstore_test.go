@@ -38,7 +38,7 @@ func TestKVTaskStore_SaveGet(t *testing.T) { //nolint:paralleltest // Serial to 
 	defer store.Close()
 
 	// Get non-existent task
-	_, err = store.Get(ctx, "nonexistent")
+	_, _, err = store.Get(ctx, "nonexistent")
 	require.ErrorIs(t, err, a2a.ErrTaskNotFound)
 
 	// Save a task
@@ -55,11 +55,11 @@ func TestKVTaskStore_SaveGet(t *testing.T) { //nolint:paralleltest // Serial to 
 			"key": "value",
 		},
 	}
-	err = store.Save(ctx, task)
+	_, err = store.Save(ctx, task, nil, 0)
 	require.NoError(t, err)
 
 	// Get the task back
-	loaded, err := store.Get(ctx, "task-1")
+	loaded, _, err := store.Get(ctx, "task-1")
 	require.NoError(t, err)
 	assert.Equal(t, task.ID, loaded.ID)
 	assert.Equal(t, task.ContextID, loaded.ContextID)
@@ -70,11 +70,11 @@ func TestKVTaskStore_SaveGet(t *testing.T) { //nolint:paralleltest // Serial to 
 	// Update the task
 	task.Status.State = a2a.TaskStateCompleted
 	task.History = append(task.History, a2a.NewMessage(a2a.MessageRoleAgent, a2a.TextPart{Text: "Done"}))
-	err = store.Save(ctx, task)
+	_, err = store.Save(ctx, task, nil, 0)
 	require.NoError(t, err)
 
 	// Get updated task
-	loaded, err = store.Get(ctx, "task-1")
+	loaded, _, err = store.Get(ctx, "task-1")
 	require.NoError(t, err)
 	assert.Equal(t, a2a.TaskStateCompleted, loaded.Status.State)
 	assert.Len(t, loaded.History, 2)
@@ -113,13 +113,13 @@ func TestKVTaskStore_MultipleTasks(t *testing.T) { //nolint:paralleltest // Seri
 				State: a2a.TaskStateSubmitted,
 			},
 		}
-		err = store.Save(ctx, task)
+		_, err = store.Save(ctx, task, nil, 0)
 		require.NoError(t, err)
 	}
 
 	// Load all tasks
 	for i := range 10 {
-		loaded, err := store.Get(ctx, a2a.TaskID("task-"+string(rune('a'+i))))
+		loaded, _, err := store.Get(ctx, a2a.TaskID("task-"+string(rune('a'+i))))
 		require.NoError(t, err)
 		assert.Equal(t, "ctx-"+string(rune('a'+i)), loaded.ContextID)
 	}
@@ -159,7 +159,7 @@ func TestKVTaskStore_Bootstrap(t *testing.T) { //nolint:paralleltest // Serial t
 		},
 		Metadata: map[string]any{"key": "value"},
 	}
-	err = store1.Save(ctx, task)
+	_, err = store1.Save(ctx, task, nil, 0)
 	require.NoError(t, err)
 	store1.Close()
 
@@ -172,7 +172,7 @@ func TestKVTaskStore_Bootstrap(t *testing.T) { //nolint:paralleltest // Serial t
 	defer store2.Close()
 
 	// Data should be immediately available
-	loaded, err := store2.Get(ctx, "bootstrap-task")
+	loaded, _, err := store2.Get(ctx, "bootstrap-task")
 	require.NoError(t, err)
 	assert.Equal(t, "bootstrap-ctx", loaded.ContextID)
 	assert.Equal(t, a2a.TaskStateCompleted, loaded.Status.State)
@@ -212,9 +212,12 @@ func TestKVTaskStore_ListSortedByTime(t *testing.T) { //nolint:paralleltest // S
 	}
 
 	// Save in random order
-	require.NoError(t, store.Save(ctx, tasks[1])) // mid
-	require.NoError(t, store.Save(ctx, tasks[0])) // old
-	require.NoError(t, store.Save(ctx, tasks[2])) // new
+	_, err = store.Save(ctx, tasks[1], nil, 0) // mid
+	require.NoError(t, err)
+	_, err = store.Save(ctx, tasks[0], nil, 0) // old
+	require.NoError(t, err)
+	_, err = store.Save(ctx, tasks[2], nil, 0) // new
+	require.NoError(t, err)
 
 	// List should return in descending time order (newest first)
 	resp, err := store.List(ctx, &a2a.ListTasksRequest{})
@@ -257,7 +260,8 @@ func TestKVTaskStore_ListPagination(t *testing.T) { //nolint:paralleltest // Ser
 			ContextID: "ctx",
 			Status:    a2a.TaskStatus{State: a2a.TaskStateCompleted, Timestamp: ptr(baseTime.Add(time.Duration(i) * time.Minute))},
 		}
-		require.NoError(t, store.Save(ctx, task))
+		_, err := store.Save(ctx, task, nil, 0)
+		require.NoError(t, err)
 	}
 
 	// First page: 2 items
@@ -318,7 +322,8 @@ func TestKVTaskStore_ListFilters(t *testing.T) { //nolint:paralleltest // Serial
 		{ID: "task-4", ContextID: "ctx-b", Status: a2a.TaskStatus{State: a2a.TaskStateCompleted, Timestamp: ptr(baseTime.Add(3 * time.Minute))}},
 	}
 	for _, task := range tasks {
-		require.NoError(t, store.Save(ctx, task))
+		_, err := store.Save(ctx, task, nil, 0)
+		require.NoError(t, err)
 	}
 
 	// Filter by ContextID
@@ -393,7 +398,8 @@ func TestKVTaskStore_ListHistoryAndArtifacts(t *testing.T) { //nolint:parallelte
 			{Name: "artifact2"},
 		},
 	}
-	require.NoError(t, store.Save(ctx, task))
+	_, err = store.Save(ctx, task, nil, 0)
+	require.NoError(t, err)
 
 	// Default: no artifacts, full history
 	resp, err := store.List(ctx, &a2a.ListTasksRequest{})
@@ -453,8 +459,10 @@ func TestKVTaskStore_UpdateChangesSortOrder(t *testing.T) { //nolint:paralleltes
 	taskA := &a2a.Task{ID: "task-a", ContextID: "ctx", Status: a2a.TaskStatus{State: a2a.TaskStateWorking, Timestamp: ptr(baseTime)}}
 	taskB := &a2a.Task{ID: "task-b", ContextID: "ctx", Status: a2a.TaskStatus{State: a2a.TaskStateWorking, Timestamp: ptr(baseTime.Add(time.Hour))}}
 
-	require.NoError(t, store.Save(ctx, taskA))
-	require.NoError(t, store.Save(ctx, taskB))
+	_, err = store.Save(ctx, taskA, nil, 0)
+	require.NoError(t, err)
+	_, err = store.Save(ctx, taskB, nil, 0)
+	require.NoError(t, err)
 
 	// Initial order: task-b, task-a
 	resp, err := store.List(ctx, &a2a.ListTasksRequest{})
@@ -465,7 +473,8 @@ func TestKVTaskStore_UpdateChangesSortOrder(t *testing.T) { //nolint:paralleltes
 
 	// Update task-a with newer timestamp - should move to front
 	taskA.Status.Timestamp = ptr(baseTime.Add(2 * time.Hour))
-	require.NoError(t, store.Save(ctx, taskA))
+	_, err = store.Save(ctx, taskA, nil, 0)
+	require.NoError(t, err)
 
 	// New order: task-a, task-b
 	resp, err = store.List(ctx, &a2a.ListTasksRequest{})
@@ -475,7 +484,7 @@ func TestKVTaskStore_UpdateChangesSortOrder(t *testing.T) { //nolint:paralleltes
 	assert.Equal(t, "task-b", string(resp.Tasks[1].ID))
 
 	// Verify Get still works
-	loaded, err := store.Get(ctx, "task-a")
+	loaded, _, err := store.Get(ctx, "task-a")
 	require.NoError(t, err)
 	assert.Equal(t, taskA.Status.Timestamp.Unix(), loaded.Status.Timestamp.Unix())
 }
@@ -504,8 +513,10 @@ func TestKVTaskStore_BootstrapRestoresSortOrder(t *testing.T) { //nolint:paralle
 	require.NoError(t, err)
 
 	baseTime := time.Now()
-	require.NoError(t, store1.Save(ctx, &a2a.Task{ID: "task-old", ContextID: "ctx", Status: a2a.TaskStatus{Timestamp: ptr(baseTime)}}))
-	require.NoError(t, store1.Save(ctx, &a2a.Task{ID: "task-new", ContextID: "ctx", Status: a2a.TaskStatus{Timestamp: ptr(baseTime.Add(time.Hour))}}))
+	_, err = store1.Save(ctx, &a2a.Task{ID: "task-old", ContextID: "ctx", Status: a2a.TaskStatus{Timestamp: ptr(baseTime)}}, nil, 0)
+	require.NoError(t, err)
+	_, err = store1.Save(ctx, &a2a.Task{ID: "task-new", ContextID: "ctx", Status: a2a.TaskStatus{Timestamp: ptr(baseTime.Add(time.Hour))}}, nil, 0)
+	require.NoError(t, err)
 	_ = store1.Close()
 
 	// Second store: bootstrap from Kafka
@@ -545,11 +556,12 @@ func TestKVTaskStore_InvalidPageToken(t *testing.T) { //nolint:tparallel,paralle
 	t.Cleanup(func() { _ = store.Close() })
 
 	// Create a task
-	require.NoError(t, store.Save(ctx, &a2a.Task{
+	_, err = store.Save(ctx, &a2a.Task{
 		ID:        "task-1",
 		ContextID: "ctx",
 		Status:    a2a.TaskStatus{Timestamp: ptr(time.Now())},
-	}))
+	}, nil, 0)
+	require.NoError(t, err)
 
 	testCases := []struct {
 		name      string

@@ -267,24 +267,31 @@ func NewKVTaskStoreWithSchemaRegistry(
 
 // Save stores a task.
 // Blocks until the write is visible in this client's reads.
-func (s *KVTaskStore) Save(ctx context.Context, task *a2a.Task) error {
+//
+// Note: The event and prev parameters are accepted for interface compatibility
+// but are not used. The kvstore doesn't support optimistic concurrency control.
+// The returned TaskVersion is always 0.
+func (s *KVTaskStore) Save(ctx context.Context, task *a2a.Task, _ a2a.Event, _ a2a.TaskVersion) (a2a.TaskVersion, error) {
 	// Key is just task_id - enables Kafka log compaction
-	return s.client.Put(ctx, []byte(task.ID), task)
+	err := s.client.Put(ctx, []byte(task.ID), task)
+	return 0, err
 }
 
 // Get retrieves a task by ID.
 // Returns a2a.ErrTaskNotFound if the task does not exist.
-func (s *KVTaskStore) Get(ctx context.Context, taskID a2a.TaskID) (*a2a.Task, error) {
+//
+// Note: The returned TaskVersion is always 0 since kvstore doesn't track versions.
+func (s *KVTaskStore) Get(ctx context.Context, taskID a2a.TaskID) (*a2a.Task, a2a.TaskVersion, error) {
 	task, err := s.client.Get(ctx, []byte(taskID))
 	if errors.Is(err, commonkvstore.ErrNotFound) {
-		return nil, a2a.ErrTaskNotFound
+		return nil, 0, a2a.ErrTaskNotFound
 	}
 
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	return task, nil
+	return task, 0, nil
 }
 
 // List retrieves tasks matching the criteria in the request.
