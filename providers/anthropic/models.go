@@ -6,6 +6,7 @@ import "github.com/redpanda-data/ai-sdk-go/llm"
 const (
 	ModelClaudeSonnet45 = "claude-sonnet-4-5-20250929"
 	ModelClaudeHaiku45  = "claude-haiku-4-5-20251001"
+	ModelClaudeOpus45   = "claude-opus-4-5-20251101"
 	ModelClaudeOpus41   = "claude-opus-4-1-20250805"
 )
 
@@ -26,6 +27,10 @@ var modelAliases = map[string]string{
 
 	// Haiku 4.5 aliases
 	"claude-haiku-4-5": ModelClaudeHaiku45,
+
+	// Opus 4.5 aliases
+	"claude-opus-4-5": ModelClaudeOpus45,
+	"claude-4-opus":   ModelClaudeOpus45,
 
 	// Opus 4.1 aliases
 	"claude-opus-4-1": ModelClaudeOpus41,
@@ -93,6 +98,27 @@ var supportedModels = map[string]ModelDefinition{
 			TemperatureRange:  [2]float64{0.0, 1.0},
 			MaxInputTokens:    200000, // 200K context window
 			MaxOutputTokens:   32000,  // 32K output tokens
+			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens"},
+			MutuallyExclusive: [][]string{},
+		},
+	},
+	ModelClaudeOpus45: {
+		Name:  ModelClaudeOpus45,
+		Label: "Claude Opus 4.5",
+		Capabilities: llm.ModelCapabilities{
+			Streaming:        true,
+			Tools:            true,
+			JSONMode:         false, // Anthropic doesn't have native JSON mode
+			StructuredOutput: false, // Use tool calling for structured output instead
+			Vision:           true,
+			MultiTurn:        true,
+			SystemPrompts:    true,
+			Reasoning:        true, // Extended thinking support
+		},
+		Constraints: llm.ModelConstraints{
+			TemperatureRange:  [2]float64{0.0, 1.0},
+			MaxInputTokens:    200000, // 200K context window
+			MaxOutputTokens:   64000,  // 64K output tokens
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens"},
 			MutuallyExclusive: [][]string{},
 		},

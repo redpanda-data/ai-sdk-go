@@ -35,6 +35,16 @@ func TestModelAliases(t *testing.T) {
 			alias:         "claude-opus-4-1",
 			expectedModel: ModelClaudeOpus41,
 		},
+		{
+			name:          "claude-opus-4-5 resolves to timestamped version",
+			alias:         "claude-opus-4-5",
+			expectedModel: ModelClaudeOpus45,
+		},
+		{
+			name:          "claude-4-opus resolves to latest Opus 4.5",
+			alias:         "claude-4-opus",
+			expectedModel: ModelClaudeOpus45,
+		},
 	}
 
 	for _, tt := range tests {
