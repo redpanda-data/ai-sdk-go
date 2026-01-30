@@ -392,7 +392,7 @@ func TestRun_SessionSaveError(t *testing.T) {
 // This test demonstrates the bug by having:
 // 1. Consumer break out of the for loop after receiving InvocationEndEvent
 // 2. Session store fail on Save (in the defer)
-// 3. Defer attempts to yield the error -> PANIC
+// 3. Defer attempts to yield the error -> PANIC.
 func TestRun_SessionSaveError_ConsumerStopsEarly_Panic(t *testing.T) {
 	t.Parallel()
 
@@ -439,12 +439,11 @@ func TestRun_SessionSaveError_ConsumerStopsEarly_Panic(t *testing.T) {
 		if err != nil {
 			t.Logf("got error: %v", err)
 		}
-		if evt != nil {
-			if _, ok := evt.(agent.InvocationEndEvent); ok {
-				// Consumer stops iteration here - simulating A2A executor behavior
-				// This causes yield to return false for any subsequent calls
-				break
-			}
+
+		if _, ok := evt.(agent.InvocationEndEvent); ok {
+			// Consumer stops iteration here - simulating A2A executor behavior
+			// This causes yield to return false for any subsequent calls
+			break
 		}
 	}
 
