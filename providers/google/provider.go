@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"time"
 
 	"google.golang.org/genai"
 
@@ -12,9 +14,12 @@ import (
 
 // Provider implements the Google Gemini model provider.
 type Provider struct {
-	APIKey  string
-	client  *genai.Client
-	context context.Context //nolint:containedctx // Context required for Gemini client lifetime management
+	APIKey     string
+	BaseURL    string
+	HTTPClient *http.Client
+	Timeout    time.Duration
+	client     *genai.Client
+	context    context.Context //nolint:containedctx // Context required for Gemini client lifetime management
 }
 
 // Name returns the provider identifier.
@@ -37,8 +42,14 @@ func NewProvider(ctx context.Context, apiKey string, opts ...ProviderOption) (*P
 		ctx = context.Background()
 	}
 
+	timeout := 10 * time.Minute
 	p := &Provider{
 		APIKey:  apiKey,
+		BaseURL: "",
+		HTTPClient: &http.Client{
+			Timeout: timeout,
+		},
+		Timeout: timeout,
 		context: ctx,
 	}
 
@@ -49,10 +60,22 @@ func NewProvider(ctx context.Context, apiKey string, opts ...ProviderOption) (*P
 		}
 	}
 
-	// Initialize Gemini client
-	client, err := genai.NewClient(ctx, &genai.ClientConfig{
+	// Initialize Gemini client with provider configuration
+	clientConfig := &genai.ClientConfig{
 		APIKey: apiKey,
-	})
+	}
+
+	// Set HTTPClient if provided
+	if p.HTTPClient != nil {
+		clientConfig.HTTPClient = p.HTTPClient
+	}
+
+	// Set BaseURL via HTTPOptions if provided
+	if p.BaseURL != "" {
+		clientConfig.HTTPOptions.BaseURL = p.BaseURL
+	}
+
+	client, err := genai.NewClient(ctx, clientConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Gemini client: %w", err)
 	}
@@ -60,6 +83,52 @@ func NewProvider(ctx context.Context, apiKey string, opts ...ProviderOption) (*P
 	p.client = client
 
 	return p, nil
+}
+
+// WithBaseURL sets a custom API endpoint for the Google provider.
+func WithBaseURL(url string) ProviderOption {
+	return func(p *Provider) error {
+		if url == "" {
+			return errors.New("base URL cannot be empty")
+		}
+
+		p.BaseURL = url
+
+		return nil
+	}
+}
+
+// WithHTTPClient sets a custom HTTP client for API requests.
+func WithHTTPClient(client *http.Client) ProviderOption {
+	return func(p *Provider) error {
+		if client == nil {
+			return errors.New("HTTP client cannot be nil")
+		}
+
+		p.HTTPClient = client
+
+		return nil
+	}
+}
+
+// WithTimeout sets the request timeout for API calls.
+// If a custom http.Client has been provided, the client is shallow-copied
+// to avoid mutating caller state.
+func WithTimeout(timeout time.Duration) ProviderOption {
+	return func(p *Provider) error {
+		if timeout <= 0 {
+			return fmt.Errorf("timeout must be positive, got %v", timeout)
+		}
+
+		p.Timeout = timeout
+
+		// Clone the existing client to avoid mutating caller-owned instances.
+		clone := *p.HTTPClient // shallow copy preserves Transport, Jar, etc.
+		clone.Timeout = timeout
+		p.HTTPClient = &clone
+
+		return nil
+	}
 }
 
 // Close closes the Gemini client and releases resources.
