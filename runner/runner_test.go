@@ -383,6 +383,75 @@ func TestRun_SessionSaveError(t *testing.T) {
 	assert.ErrorIs(t, gotError, agent.ErrSessionSave)
 }
 
+// TestRun_SessionSaveError_ConsumerStopsEarly_Panic reproduces AI-587.
+//
+// BUG: When the consumer stops iteration early (e.g., returns after InvocationEndEvent)
+// and the deferred session save fails, the defer tries to yield() on a closed iterator,
+// causing: "runtime error: range function continued iteration after function for loop body returned false"
+//
+// This test demonstrates the bug by having:
+// 1. Consumer break out of the for loop after receiving InvocationEndEvent
+// 2. Session store fail on Save (in the defer)
+// 3. Defer attempts to yield the error -> PANIC
+func TestRun_SessionSaveError_ConsumerStopsEarly_Panic(t *testing.T) {
+	t.Parallel()
+
+	// Store that returns error on Save
+	store := &mockSessionStore{
+		loadFunc: func(_ context.Context, _ string) (*session.State, error) {
+			return nil, session.ErrNotFound
+		},
+		saveFunc: func(_ context.Context, _ *session.State) error {
+			return errors.New("database write failed")
+		},
+	}
+
+	ag := &mockAgent{
+		name: "test-agent",
+		runFunc: func(_ context.Context, inv *agent.InvocationMetadata) iter.Seq2[agent.Event, error] {
+			return func(yield func(agent.Event, error) bool) {
+				yield(agent.InvocationEndEvent{
+					Envelope: agent.EventEnvelope{
+						InvocationID: inv.InvocationID(),
+						SessionID:    inv.Session().ID,
+						Turn:         0,
+						At:           time.Now().UTC(),
+					},
+					FinishReason: agent.FinishReasonStop,
+				}, nil)
+			}
+		},
+	}
+
+	r, err := runner.New(ag, store)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	userMsg := llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hello"))
+
+	// This simulates what the A2A executor does: stop iteration after InvocationEndEvent.
+	// The bug is that the runner's defer tries to yield after we've stopped iterating.
+	//
+	// Expected behavior: No panic, error should be logged or returned via other means.
+	// Actual behavior (BUG): Panic with "range function continued iteration after function
+	// for loop body returned false"
+	for evt, err := range r.Run(ctx, "", "test-session", userMsg) {
+		if err != nil {
+			t.Logf("got error: %v", err)
+		}
+		if evt != nil {
+			if _, ok := evt.(agent.InvocationEndEvent); ok {
+				// Consumer stops iteration here - simulating A2A executor behavior
+				// This causes yield to return false for any subsequent calls
+				break
+			}
+		}
+	}
+
+	// If we reach here without panic, the bug is fixed
+	t.Log("No panic - test passed")
+}
+
 // TestRun_ContextCancellation verifies context cancellation.
 func TestRun_ContextCancellation(t *testing.T) {
 	t.Parallel()
