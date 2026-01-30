@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"log/slog"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/llm"
@@ -56,6 +57,7 @@ func New(ag agent.Agent, sessionStore session.Store, opts ...Option) (*Runner, e
 	cfg := &runnerConfig{
 		agent:        ag,
 		sessionStore: sessionStore,
+		logger:       slog.Default(),
 	}
 
 	// Apply options
@@ -179,10 +181,11 @@ func (r *Runner) Run(
 				// calling yield again would panic.
 				if !consumerStopped {
 					yield(nil, fmt.Errorf("%w: %w", agent.ErrSessionSave, err))
+				} else {
+					r.config.logger.Error("session save failed after consumer stopped",
+						"sessionID", sess.ID,
+						"error", err)
 				}
-				// Note: If consumer stopped, the error is silently dropped.
-				// This is acceptable because the consumer explicitly chose to stop
-				// processing events (e.g., broke out of their for loop).
 			}
 		}()
 

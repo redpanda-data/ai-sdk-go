@@ -1,6 +1,8 @@
 package runner
 
 import (
+	"log/slog"
+
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/store/session"
 )
@@ -9,6 +11,7 @@ import (
 type runnerConfig struct {
 	agent        agent.Agent
 	sessionStore session.Store
+	logger       *slog.Logger
 }
 
 // validate checks that the runner configuration is valid.
@@ -37,3 +40,11 @@ func (c *runnerConfig) validate() error {
 //	    runner.WithMaxRetries(3),
 //	)
 type Option func(*runnerConfig)
+
+// WithLogger sets a custom logger for the runner.
+// Defaults to slog.Default().
+func WithLogger(logger *slog.Logger) Option {
+	return func(c *runnerConfig) {
+		c.logger = logger
+	}
+}
