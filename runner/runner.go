@@ -166,10 +166,23 @@ func (r *Runner) Run(
 			Description: r.config.agent.Description(),
 		})
 
+		// Track whether the consumer stopped iteration (yield returned false).
+		// When yield returns false, we must not call it again or Go panics with
+		// "range function continued iteration after function for loop body returned false".
+		consumerStopped := false
+
 		// 4. Save session on exit (handles normal completion, cancellation, errors)
 		defer func() {
 			if err := r.config.sessionStore.Save(ctx, sess); err != nil {
-				yield(nil, fmt.Errorf("%w: %w", agent.ErrSessionSave, err))
+				// Only yield error if consumer hasn't explicitly stopped iteration.
+				// If consumer broke out of their for loop (yield returned false),
+				// calling yield again would panic.
+				if !consumerStopped {
+					yield(nil, fmt.Errorf("%w: %w", agent.ErrSessionSave, err))
+				}
+				// Note: If consumer stopped, the error is silently dropped.
+				// This is acceptable because the consumer explicitly chose to stop
+				// processing events (e.g., broke out of their for loop).
 			}
 		}()
 
@@ -178,6 +191,7 @@ func (r *Runner) Run(
 			if err != nil {
 				// Forward error
 				if !yield(nil, err) {
+					consumerStopped = true
 					return
 				}
 
@@ -195,10 +209,12 @@ func (r *Runner) Run(
 
 			// Forward event to caller
 			if !yield(evt, nil) {
+				consumerStopped = true
 				return
 			}
 
-			// Exit after completion event
+			// Exit after completion event - consumer is still active here,
+			// defer can still yield if needed
 			if _, ok := evt.(agent.InvocationEndEvent); ok {
 				return
 			}
