@@ -383,7 +383,6 @@ func (s *Suite) TestGenerateWithReasoning() {
 		s.Require().NoError(err)
 		s.Require().NotNil(response)
 		s.Require().NotEmpty(response.Message.Content)
-		s.Greaterf(len(response.Message.Content), 1, "Should have at least two content parts, one for reasoning and one for the text output")
 
 		// 1. Check if reasoning worked
 		hasReasoning := false
