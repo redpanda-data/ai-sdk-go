@@ -120,6 +120,15 @@ func (a *LLMAgent) Run(ctx context.Context, inv *agent.InvocationMetadata) iter.
 			}
 		}
 
+		// Recover incomplete tool calls before the first turn executes.
+		// This handles sessions where the previous invocation was interrupted
+		// after the assistant emitted tool requests but before tool responses
+		// were added to the session.
+		if err := a.recoverIncompleteToolCalls(ctx, inv, makeEnvelope, yield); err != nil {
+			yield(nil, err)
+			return
+		}
+
 		// Execute turn loop
 		for inv.Turn() < a.config.maxTurns {
 			// Emit turn started
@@ -550,6 +559,118 @@ func (a *LLMAgent) executeTools(
 	}
 
 	return parts
+}
+
+// recoverIncompleteToolCalls detects and executes incomplete tool calls from a
+// previous interrupted invocation.
+//
+// An incomplete tool call occurs when:
+//  1. The assistant responds with tool requests
+//  2. The session is saved (runner saves after MessageEvent)
+//  3. The process crashes/disconnects before tool execution completes
+//  4. A new user message arrives, appended to the session by the runner
+//
+// The resulting session has: [..., assistant(tool_request), user(text)] with no
+// tool response in between. LLMs reject this with "No tool output found for function call".
+//
+// This method detects the pattern, executes the incomplete tools, and inserts the
+// tool response message before the new user message, repairing the session.
+//
+// Error handling:
+//   - Tool execution errors are captured in ToolResponse.Error and become part
+//     of the repaired session. The LLM can reason about these failures.
+//   - Context cancellation stops the yield loop, terminating recovery gracefully.
+//   - If yield returns false (consumer stopped), recovery aborts without error.
+//
+// Observability: A StatusEvent with stage ToolExec is emitted before executing
+// incomplete tools, indicating how many are being recovered.
+func (a *LLMAgent) recoverIncompleteToolCalls(
+	ctx context.Context,
+	inv *agent.InvocationMetadata,
+	makeEnvelope func() agent.EventEnvelope,
+	yield func(agent.Event, error) bool,
+) error {
+	sess := inv.Session()
+
+	incomplete := detectIncompleteToolCalls(sess.Messages)
+	if len(incomplete) == 0 {
+		return nil
+	}
+
+	// Emit status: recovering incomplete tools
+	if !yield(agent.StatusEvent{
+		Envelope: makeEnvelope(),
+		Stage:    agent.StatusStageToolExec,
+		Details:  fmt.Sprintf("recovering %d incomplete tool calls from interrupted session", len(incomplete)),
+	}, nil) {
+		return nil // Consumer stopped
+	}
+
+	// Need tool registry to execute
+	if a.config.tools == nil {
+		return agent.ErrToolRegistry
+	}
+
+	// Execute the incomplete tools
+	toolDefs := a.config.tools.List()
+	toolParts := a.executeTools(ctx, inv, incomplete, toolDefs, makeEnvelope, yield)
+
+	// Insert tool response message BEFORE the last user message.
+	// Current: [..., assistant(tool_req), user(text)]
+	// After:   [..., assistant(tool_req), user(tool_resp), user(text)]
+	toolMsg := llm.NewMessage(llm.RoleUser, toolParts...)
+	lastIdx := len(sess.Messages) - 1
+	sess.Messages = append(sess.Messages[:lastIdx], toolMsg, sess.Messages[lastIdx])
+
+	return nil
+}
+
+// detectIncompleteToolCalls checks if the session ends with incomplete tool calls.
+//
+// Returns the incomplete tool requests if found, nil otherwise.
+//
+// Pattern detected: [..., assistant(tool_requests), user(text_only)]
+// The user message has text but no tool responses, indicating the previous
+// invocation was interrupted after tool requests but before tool execution.
+//
+// Why tail-only detection is correct:
+// Incomplete tool calls can only occur at the session tail. The sequence is:
+//  1. Runner receives user message, appends to session, calls agent
+//  2. Agent generates response with tool requests
+//  3. Runner saves session after MessageEvent (assistant message persisted)
+//  4. Crash/disconnect before tool execution completes
+//  5. New user message arrives, runner loads session and appends it
+//
+// The incomplete calls are always between the last assistant message and the
+// new user message. Incomplete calls earlier in the session would indicate a
+// different bug (session corruption, not crash recovery).
+func detectIncompleteToolCalls(msgs []llm.Message) []*llm.ToolRequest {
+	if len(msgs) < 2 {
+		return nil
+	}
+
+	lastIdx := len(msgs) - 1
+	lastMsg := msgs[lastIdx]
+	prevMsg := msgs[lastIdx-1]
+
+	// Last should be user (new message from runner), prev should be assistant
+	if lastMsg.Role != llm.RoleUser || prevMsg.Role != llm.RoleAssistant {
+		return nil
+	}
+
+	// Previous (assistant) message must have tool requests
+	toolReqs := prevMsg.ToolRequests()
+	if len(toolReqs) == 0 {
+		return nil
+	}
+
+	// If last (user) message has tool responses, session is valid
+	if len(lastMsg.ToolResponses()) > 0 {
+		return nil
+	}
+
+	// Incomplete tool calls detected
+	return toolReqs
 }
 
 // mapLLMFinishReason converts an llm.FinishReason to an agent.FinishReason.

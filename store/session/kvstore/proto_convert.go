@@ -18,7 +18,7 @@ func getToProtoConverter() func(*session.State) (*llmpb.SessionState, error) {
 
 // getFromProtoConverter returns the conversion function from proto to State.
 func getFromProtoConverter() func(*llmpb.SessionState) (*session.State, error) {
-	return fromProtoSessionState
+	return FromProtoSessionState
 }
 
 // toProtoSessionState converts a Go session.State to protobuf.
@@ -57,8 +57,9 @@ func toProtoSessionState(s *session.State) (*llmpb.SessionState, error) {
 	}, nil
 }
 
-// fromProtoSessionState converts a protobuf SessionState to Go session.State.
-func fromProtoSessionState(pb *llmpb.SessionState) (*session.State, error) {
+// FromProtoSessionState converts a protobuf SessionState to Go session.State.
+// Exported for tests that need to parse protojson test fixtures.
+func FromProtoSessionState(pb *llmpb.SessionState) (*session.State, error) {
 	if pb == nil {
 		return nil, errors.New("cannot convert nil proto SessionState")
 	}
