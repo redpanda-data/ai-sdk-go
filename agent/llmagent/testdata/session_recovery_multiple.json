@@ -1,0 +1,58 @@
+{
+    "id": "agent-chat-multi-tool-recovery-test",
+    "messages": [
+        {
+            "role": "MESSAGE_ROLE_USER",
+            "content": [
+                {
+                    "kind": "PART_KIND_TEXT",
+                    "text": "Get the weather in Paris, London, and Tokyo simultaneously.",
+                    "metadata": null
+                }
+            ]
+        },
+        {
+            "role": "MESSAGE_ROLE_ASSISTANT",
+            "content": [
+                {
+                    "kind": "PART_KIND_TOOL_REQUEST",
+                    "toolRequest": {
+                        "id": "call_paris_weather_001",
+                        "name": "get_weather",
+                        "arguments": "eyJjaXR5IjoiUGFyaXMifQ=="
+                    },
+                    "metadata": null
+                },
+                {
+                    "kind": "PART_KIND_TOOL_REQUEST",
+                    "toolRequest": {
+                        "id": "call_london_weather_002",
+                        "name": "get_weather",
+                        "arguments": "eyJjaXR5IjoiTG9uZG9uIn0="
+                    },
+                    "metadata": null
+                },
+                {
+                    "kind": "PART_KIND_TOOL_REQUEST",
+                    "toolRequest": {
+                        "id": "call_tokyo_weather_003",
+                        "name": "get_weather",
+                        "arguments": "eyJjaXR5IjoiVG9reW8ifQ=="
+                    },
+                    "metadata": null
+                }
+            ]
+        },
+        {
+            "role": "MESSAGE_ROLE_USER",
+            "content": [
+                {
+                    "kind": "PART_KIND_TEXT",
+                    "text": "Actually, just summarize what you found.",
+                    "metadata": null
+                }
+            ]
+        }
+    ],
+    "metadata": {}
+}

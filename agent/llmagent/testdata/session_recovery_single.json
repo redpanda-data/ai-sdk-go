@@ -1,0 +1,40 @@
+{
+    "id": "agent-chat-d60b7jmuc85c73dvgj10-1H5UkWUlC6yQlmBwcKNsC",
+    "messages": [
+        {
+            "role": "MESSAGE_ROLE_USER",
+            "content": [
+                {
+                    "kind": "PART_KIND_TEXT",
+                    "text": "Look for stale Jiras, don't add any labels, just query.",
+                    "metadata": null
+                }
+            ]
+        },
+        {
+            "role": "MESSAGE_ROLE_ASSISTANT",
+            "content": [
+                {
+                    "kind": "PART_KIND_TOOL_REQUEST",
+                    "toolRequest": {
+                        "id": "call_DAmImBLMWNpSIBvmibH64e4T",
+                        "name": "d60bcamuc85c73dvgj1g__slack_post_message",
+                        "arguments": "eyJibG9ja3MiOnt9LCJjaGFubmVsIjoiYWdlbnQtY29yZS1lbnRlcnByaXNlIiwidGV4dCI6IvCfp7kgSmlyYSBTdGFsZS1Jc3N1ZSBTY2FuIn0="
+                    },
+                    "metadata": null
+                }
+            ]
+        },
+        {
+            "role": "MESSAGE_ROLE_USER",
+            "content": [
+                {
+                    "kind": "PART_KIND_TEXT",
+                    "text": "test",
+                    "metadata": null
+                }
+            ]
+        }
+    ],
+    "metadata": {}
+}
