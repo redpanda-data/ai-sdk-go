@@ -210,23 +210,59 @@ func (e *Executor) processEvents(
 			}
 		case agent.InvocationEndEvent:
 			e.log.DebugContext(ctx, "Invocation end event", "finish_reason", ev.FinishReason)
-			// Write final completion status - this is required to signal task completion
-			statusEvent := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateCompleted, nil)
+
+			// Map finish reason to appropriate A2A task state
+			var taskState a2a.TaskState
+			var statusMsg *a2a.Message
+
+			switch ev.FinishReason {
+			case agent.FinishReasonStop, agent.FinishReasonTransfer:
+				taskState = a2a.TaskStateCompleted
+			case agent.FinishReasonMaxTurns:
+				taskState = a2a.TaskStateFailed
+				statusMsg = a2a.NewMessage(a2a.MessageRoleAgent, a2a.TextPart{
+					Text: "Agent stopped: maximum iterations reached",
+				})
+			case agent.FinishReasonLength:
+				taskState = a2a.TaskStateFailed
+				statusMsg = a2a.NewMessage(a2a.MessageRoleAgent, a2a.TextPart{
+					Text: "Agent stopped: context length limit exceeded",
+				})
+			case agent.FinishReasonError:
+				taskState = a2a.TaskStateFailed
+			case agent.FinishReasonInterrupted:
+				taskState = a2a.TaskStateCanceled
+			case agent.FinishReasonInputRequired:
+				taskState = a2a.TaskStateInputRequired
+			default:
+				e.log.ErrorContext(ctx, "Unknown finish reason", "finish_reason", ev.FinishReason)
+
+				taskState = a2a.TaskStateFailed
+				statusMsg = a2a.NewMessage(a2a.MessageRoleAgent, a2a.TextPart{
+					Text: fmt.Sprintf("Agent stopped: unknown finish reason %q", ev.FinishReason),
+				})
+			}
+
+			statusEvent := a2a.NewStatusUpdateEvent(reqCtx, taskState, statusMsg)
 			statusEvent.Final = true
 
-			// Add token usage to metadata if available
+			// Add token usage and finish reason to metadata
+			metadata := map[string]any{
+				"finish_reason": string(ev.FinishReason),
+			}
+
 			if ev.Usage != nil {
-				statusEvent.Metadata = map[string]any{
-					"usage": map[string]any{
-						"input_tokens":     ev.Usage.InputTokens,
-						"output_tokens":    ev.Usage.OutputTokens,
-						"total_tokens":     ev.Usage.TotalTokens,
-						"cached_tokens":    ev.Usage.CachedTokens,
-						"reasoning_tokens": ev.Usage.ReasoningTokens,
-						"max_input_tokens": ev.Usage.MaxInputTokens,
-					},
+				metadata["usage"] = map[string]any{
+					"input_tokens":     ev.Usage.InputTokens,
+					"output_tokens":    ev.Usage.OutputTokens,
+					"total_tokens":     ev.Usage.TotalTokens,
+					"cached_tokens":    ev.Usage.CachedTokens,
+					"reasoning_tokens": ev.Usage.ReasoningTokens,
+					"max_input_tokens": ev.Usage.MaxInputTokens,
 				}
 			}
+
+			statusEvent.Metadata = metadata
 
 			write(statusEvent)
 
