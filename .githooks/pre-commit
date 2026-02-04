@@ -1,0 +1,40 @@
+#!/bin/bash
+# Pre-commit hook to enforce code quality
+# Runs golangci-lint on staged Go files
+
+set -e
+
+# Check if we're in the project root
+if [ ! -f "go.mod" ]; then
+    echo "Error: This script must be run from the project root"
+    exit 1
+fi
+
+# Check for staged Go files
+STAGED_GO_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.go$' || true)
+
+if [ -z "$STAGED_GO_FILES" ]; then
+    exit 0
+fi
+
+echo "Running pre-commit checks..."
+
+# Ensure golangci-lint is installed via taskw (uses pinned version)
+./taskw install:golangci-lint --silent
+
+# Get unique directories containing staged Go files
+STAGED_DIRS=$(echo "$STAGED_GO_FILES" | xargs -n1 dirname | sort -u | sed 's|^|./|')
+
+# Run golangci-lint on affected packages, only reporting new issues
+if ! .build/.bin/golangci-lint run --new-from-rev=HEAD $STAGED_DIRS; then
+    echo ""
+    echo "Pre-commit checks FAILED"
+    echo ""
+    echo "Fix the issues above and try again."
+    echo "  ./taskw lint   # Run linter with auto-fix"
+    echo ""
+    echo "Use --no-verify to bypass (not recommended)."
+    exit 1
+fi
+
+echo "Pre-commit checks passed."
