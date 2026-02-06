@@ -35,7 +35,7 @@ var modelAliases = map[string]string{
 
 	// Opus 4.5 aliases
 	"claude-opus-4-5": ModelClaudeOpus45,
-	"claude-4-opus":   ModelClaudeOpus45,
+	"claude-4-5-opus": ModelClaudeOpus45,
 
 	// Opus 4.1 aliases
 	"claude-opus-4-1": ModelClaudeOpus41,
@@ -103,7 +103,7 @@ var supportedModels = map[string]ModelDefinition{
 			TemperatureRange:  [2]float64{0.0, 1.0},
 			MaxInputTokens:    1000000, // 1M context window (beta)
 			MaxOutputTokens:   128000,  // 128K output tokens
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens"},
+			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "effort"},
 			MutuallyExclusive: [][]string{},
 		},
 	},
