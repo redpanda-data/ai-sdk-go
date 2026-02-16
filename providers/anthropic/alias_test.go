@@ -41,9 +41,14 @@ func TestModelAliases(t *testing.T) {
 			expectedModel: ModelClaudeOpus45,
 		},
 		{
-			name:          "claude-4-opus resolves to latest Opus 4.5",
-			alias:         "claude-4-opus",
+			name:          "claude-4-5-opus resolves to latest Opus 4.5",
+			alias:         "claude-4-5-opus",
 			expectedModel: ModelClaudeOpus45,
+		},
+		{
+			name:          "claude-4-6-opus resolves to Opus 4.6",
+			alias:         "claude-4-6-opus",
+			expectedModel: ModelClaudeOpus46,
 		},
 	}
 
