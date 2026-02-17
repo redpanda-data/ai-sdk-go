@@ -1,6 +1,6 @@
 module github.com/redpanda-data/ai-sdk-go
 
-go 1.25.4
+go 1.25.7
 
 ignore ./build
 

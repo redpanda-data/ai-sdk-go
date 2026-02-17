@@ -27,7 +27,9 @@ jobs:
 
       - uses: actions/setup-go@v6
         with:
-          go-version: 'stable'
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v8
@@ -35,3 +37,5 @@ jobs:
           version: v2.6
           # Once we resolved the initial linting set of issues we should remove this
           only-new-issues: true
+          # Skip cache management since actions/setup-go handles Go cache
+          skip-cache: false
