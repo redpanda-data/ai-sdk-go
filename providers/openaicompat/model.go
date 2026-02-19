@@ -55,8 +55,7 @@ func (m *Model) Generate(ctx context.Context, req *llm.Request) (*llm.Response, 
 	// Make the API call using Chat Completion API
 	response, err := m.client.Chat.Completions.New(ctx, apiReq)
 	if err != nil {
-		mappedErr := m.responseMapper.FromProviderError(err)
-		return nil, fmt.Errorf("%w: %w", llm.ErrAPICall, mappedErr)
+		return nil, fmt.Errorf("%w: %w", llm.ErrAPICall, classifyError(err))
 	}
 
 	// Convert Chat Completion API response back to our format
@@ -194,8 +193,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 		// Check for stream errors
 		if err := stream.Err(); err != nil {
-			mappedErr := m.responseMapper.FromProviderError(err)
-			yield(nil, fmt.Errorf("%w: %w", llm.ErrAPICall, mappedErr))
+			yield(nil, fmt.Errorf("%w: %w", llm.ErrAPICall, classifyError(err)))
 
 			return
 		}

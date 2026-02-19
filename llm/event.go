@@ -101,3 +101,23 @@ type StreamEndEvent struct {
 
 // isStreamEvent implements the StreamEvent interface constraint.
 func (StreamEndEvent) isStreamEvent() {}
+
+// StreamResetEvent signals that a stream is being retried. Consumers should
+// discard any accumulated content from the previous attempt and prepare
+// to receive events from a fresh generation.
+//
+// This event is emitted by the retry interceptor when a retryable error
+// occurs during streaming. The sequence is:
+//
+//	[deltas...] → StreamResetEvent → [deltas...] → StreamEndEvent
+type StreamResetEvent struct {
+	// Attempt is the retry attempt number (1-based).
+	// Attempt 1 means the first retry after the initial attempt failed.
+	Attempt int `json:"attempt"`
+
+	// Reason describes why the stream is being reset (typically the error message).
+	Reason string `json:"reason"`
+}
+
+// isStreamEvent implements the StreamEvent interface constraint.
+func (StreamResetEvent) isStreamEvent() {}

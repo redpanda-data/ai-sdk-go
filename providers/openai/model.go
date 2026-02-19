@@ -61,7 +61,7 @@ func (m *Model) Generate(ctx context.Context, req *llm.Request) (*llm.Response, 
 	// Make the API call using Responses API
 	response, err := m.client.Responses.New(ctx, apiReq)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", llm.ErrAPICall, err)
+		return nil, fmt.Errorf("%w: %w", llm.ErrAPICall, classifyError(err))
 	}
 
 	// Convert Responses API response back to our format
@@ -158,7 +158,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 		// Check for transport/cancellation errors
 		if err := stream.Err(); err != nil {
-			yield(nil, fmt.Errorf("%w: %w", llm.ErrAPICall, err))
+			yield(nil, fmt.Errorf("%w: %w", llm.ErrAPICall, classifyError(err)))
 			return
 		}
 

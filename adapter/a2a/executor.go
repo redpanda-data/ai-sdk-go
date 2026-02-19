@@ -192,6 +192,15 @@ func (e *Executor) processEvents(
 			write(historyStatus)
 			// Reset artifactID so next model_call creates a new one
 			currentArtifactID = ""
+		case agent.StreamResetEvent:
+			// Stream is being retried — abandon current streaming artifact
+			if currentArtifactID != "" {
+				finalArtifact := a2a.NewArtifactUpdateEvent(reqCtx, currentArtifactID)
+				finalArtifact.LastChunk = true
+				write(finalArtifact)
+
+				currentArtifactID = ""
+			}
 		case agent.AssistantDeltaEvent:
 			// Stream delta updates as incremental artifact chunks
 			if ev.Delta.Part != nil && ev.Delta.Part.IsText() {

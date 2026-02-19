@@ -8,7 +8,7 @@ ignore ./examples
 
 require (
 	github.com/a2aproject/a2a-go v0.3.5
-	github.com/anthropics/anthropic-sdk-go v1.20.0
+	github.com/anthropics/anthropic-sdk-go v1.22.1
 	github.com/bufbuild/protocompile v0.14.1
 	github.com/google/jsonschema-go v0.3.0
 	github.com/google/uuid v1.6.0
