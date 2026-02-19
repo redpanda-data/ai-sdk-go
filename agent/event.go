@@ -146,6 +146,24 @@ func (ErrorEvent) isEvent() {}
 // GetEnvelope returns the event envelope containing observability metadata.
 func (e ErrorEvent) GetEnvelope() EventEnvelope { return e.Envelope }
 
+// StreamResetEvent signals that a stream is being retried. Consumers should
+// discard any accumulated content from the previous attempt.
+//
+// This event is emitted when the retry interceptor catches a retryable error
+// during streaming and restarts the generation.
+type StreamResetEvent struct {
+	Envelope EventEnvelope `json:"envelope"`
+	// Attempt is the retry attempt number (1-based).
+	Attempt int `json:"attempt"`
+	// Reason describes why the stream is being reset.
+	Reason string `json:"reason"`
+}
+
+func (StreamResetEvent) isEvent() {}
+
+// GetEnvelope returns the event envelope containing observability metadata.
+func (e StreamResetEvent) GetEnvelope() EventEnvelope { return e.Envelope }
+
 // InvocationEndEvent signals completion of the invocation (success or failure).
 // This event is ALWAYS the final event in a stream.
 // After this event, the event stream ends.

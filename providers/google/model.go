@@ -62,7 +62,7 @@ func (m *Model) Generate(ctx context.Context, req *llm.Request) (*llm.Response, 
 	// Make the API call
 	response, err := m.client.Models.GenerateContent(ctx, modelName, contents, config)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", llm.ErrAPICall, err)
+		return nil, fmt.Errorf("%w: %w", llm.ErrAPICall, classifyError(err))
 	}
 
 	// Convert Gemini response back to our format
@@ -96,7 +96,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 		// Process streaming events
 		for response, err := range stream {
 			if err != nil {
-				yield(nil, fmt.Errorf("%w: %w", llm.ErrAPICall, err))
+				yield(nil, fmt.Errorf("%w: %w", llm.ErrAPICall, classifyError(err)))
 				return
 			}
 

@@ -79,6 +79,25 @@ type ProviderError struct {
 
 	// Message is a human-readable error description from the provider
 	Message string
+
+	// Retryable indicates whether this error represents a transient condition
+	// that may succeed on retry (e.g., rate limits, server errors).
+	Retryable bool
+}
+
+// IsRetryable checks if an error represents a transient condition that may
+// succeed on retry. It works through error wrapping chains.
+//
+// Returns true if:
+//   - The error is a *ProviderError with Retryable set to true
+//   - The error wraps ErrServerError or ErrRateLimitExceeded
+func IsRetryable(err error) bool {
+	var perr *ProviderError
+	if errors.As(err, &perr) {
+		return perr.Retryable
+	}
+
+	return errors.Is(err, ErrServerError) || errors.Is(err, ErrRateLimitExceeded)
 }
 
 // Error implements the error interface.

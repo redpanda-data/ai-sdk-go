@@ -129,9 +129,7 @@ func (rm *ResponseMapper) FromProvider(apiResp *openai.ChatCompletion) (*llm.Res
 
 // FromProviderError maps OpenAI API errors to SDK error categories.
 func (rm *ResponseMapper) FromProviderError(err error) error {
-	// For now, just pass through the error
-	// TODO: Map specific OpenAI error types to SDK error categories
-	return err
+	return classifyError(err)
 }
 
 // mapFinishReason converts OpenAI finish reason to unified format.

@@ -413,6 +413,18 @@ func (a *LLMAgent) generateWithStreaming(
 				return nil, errors.New("consumer stopped iteration")
 			}
 
+		case llm.StreamResetEvent:
+			// Stream is being retried — reset accumulated state and notify consumer
+			response = nil
+
+			if !yield(agent.StreamResetEvent{
+				Envelope: makeEnvelope(),
+				Attempt:  evt.Attempt,
+				Reason:   evt.Reason,
+			}, nil) {
+				return nil, errors.New("consumer stopped iteration")
+			}
+
 		case llm.StreamEndEvent:
 			// StreamEndEvent always has exactly one of Response or Error set
 			if evt.Error != nil {
