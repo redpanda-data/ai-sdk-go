@@ -69,7 +69,7 @@ func successResponse() *llm.Response {
 
 // collectEvents drains an iterator into slices.
 func collectEvents(seq iter.Seq2[llm.Event, error]) ([]llm.Event, error) {
-	var events []llm.Event
+	events := make([]llm.Event, 0)
 
 	for event, err := range seq {
 		if err != nil {
