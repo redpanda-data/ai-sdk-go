@@ -517,6 +517,7 @@ func TestKVTaskStore_BootstrapRestoresSortOrder(t *testing.T) { //nolint:paralle
 	require.NoError(t, err)
 	_, err = store1.Save(ctx, &a2a.Task{ID: "task-new", ContextID: "ctx", Status: a2a.TaskStatus{Timestamp: ptr(baseTime.Add(time.Hour))}}, nil, 0)
 	require.NoError(t, err)
+
 	_ = store1.Close()
 
 	// Second store: bootstrap from Kafka
