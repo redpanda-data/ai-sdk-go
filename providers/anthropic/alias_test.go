@@ -130,6 +130,7 @@ func TestWithThinkingBudget(t *testing.T) {
 
 		m, ok := model.(*Model)
 		require.True(t, ok)
+		assert.True(t, m.config.EnableThinking, "WithThinkingBudget should implicitly enable thinking")
 		require.NotNil(t, m.config.ThinkingBudget)
 		assert.Equal(t, int64(2048), *m.config.ThinkingBudget)
 	})

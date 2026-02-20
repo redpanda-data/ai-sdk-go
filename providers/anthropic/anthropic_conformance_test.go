@@ -121,17 +121,21 @@ func TestAnthropicAdaptiveThinking(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 
-	var hasText bool
+	var hasText, hasReasoning bool
 
 	for _, part := range resp.Message.Content {
-		if part.IsText() {
+		switch {
+		case part.IsText():
 			hasText = true
 
 			assert.NotEmpty(t, part.Text)
+		case part.IsReasoning():
+			hasReasoning = true
 		}
 	}
 
 	assert.True(t, hasText, "expected text content in response")
+	assert.True(t, hasReasoning, "expected reasoning content from adaptive thinking")
 	require.NotNil(t, resp.Usage)
 	assert.Positive(t, resp.Usage.TotalTokens, "expected non-zero token usage")
 }
