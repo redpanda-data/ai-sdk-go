@@ -94,17 +94,43 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) (anthropic.BetaMessageNewP
 
 	// Enable extended thinking if configured
 	if rm.config.EnableThinking {
-		// Use 25% of max tokens for thinking budget
-		budgetTokens := max(
-			// Ensure minimum budget of 1024 tokens (API requirement)
-			int64(rm.config.MaxTokens/4), 1024)
-
-		apiReq.Thinking = anthropic.BetaThinkingConfigParamUnion{
-			OfEnabled: &anthropic.BetaThinkingConfigEnabledParam{
-				Type:         constant.Enabled(""),
-				BudgetTokens: budgetTokens,
-			},
+		switch {
+		case rm.config.ThinkingBudget != nil:
+			// Explicit budget: manual thinking with user-specified tokens
+			apiReq.Thinking = anthropic.BetaThinkingConfigParamUnion{
+				OfEnabled: &anthropic.BetaThinkingConfigEnabledParam{
+					Type:         constant.Enabled(""),
+					BudgetTokens: *rm.config.ThinkingBudget,
+				},
+			}
+		case rm.config.AdaptiveThinking:
+			// Model supports adaptive thinking: let the API decide the budget
+			adaptive := anthropic.NewBetaThinkingConfigAdaptiveParam()
+			apiReq.Thinking = anthropic.BetaThinkingConfigParamUnion{
+				OfAdaptive: &adaptive,
+			}
+		default:
+			// Legacy fallback: 25% of max tokens with minimum of 1024
+			budgetTokens := max(int64(rm.config.MaxTokens/4), 1024)
+			apiReq.Thinking = anthropic.BetaThinkingConfigParamUnion{
+				OfEnabled: &anthropic.BetaThinkingConfigEnabledParam{
+					Type:         constant.Enabled(""),
+					BudgetTokens: budgetTokens,
+				},
+			}
 		}
+	}
+
+	// Apply effort if configured
+	if rm.config.Effort != nil {
+		apiReq.OutputConfig = anthropic.BetaOutputConfigParam{
+			Effort: anthropic.BetaOutputConfigEffort(*rm.config.Effort),
+		}
+	}
+
+	// Apply speed if configured
+	if rm.config.Speed != nil {
+		apiReq.Speed = anthropic.BetaMessageNewParamsSpeed(*rm.config.Speed)
 	}
 
 	return apiReq, nil

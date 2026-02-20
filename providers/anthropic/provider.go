@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -151,11 +152,12 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 	}
 
 	cfg := &Config{
-		ModelName:     modelName,
-		Constraints:   modelDef.Constraints,
-		MaxTokens:     4096, // Default required by Anthropic API
-		EnableCaching: p.EnableCaching,
-		setOptions:    make(map[string]bool),
+		ModelName:        modelDef.Name,
+		Constraints:      modelDef.Constraints,
+		MaxTokens:        4096, // Default required by Anthropic API
+		EnableCaching:    p.EnableCaching,
+		AdaptiveThinking: modelDef.AdaptiveThinking,
+		setOptions:       make(map[string]bool),
 	}
 
 	// Apply all options with validation
@@ -170,6 +172,20 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 	err := cfg.Validate()
 	if err != nil {
 		return nil, fmt.Errorf("configuration validation failed for %s: %w", modelName, err)
+	}
+
+	// Validate effort against model's supported values
+	if cfg.Effort != nil {
+		if len(modelDef.SupportedEfforts) == 0 || !slices.Contains(modelDef.SupportedEfforts, *cfg.Effort) {
+			return nil, fmt.Errorf("model %s does not support effort '%s'", modelName, *cfg.Effort)
+		}
+	}
+
+	// Validate speed against model's supported values
+	if cfg.Speed != nil {
+		if len(modelDef.SupportedSpeeds) == 0 || !slices.Contains(modelDef.SupportedSpeeds, *cfg.Speed) {
+			return nil, fmt.Errorf("model %s does not support speed '%s'", modelName, *cfg.Speed)
+		}
 	}
 
 	return &Model{

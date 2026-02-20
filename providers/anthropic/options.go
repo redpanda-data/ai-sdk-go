@@ -24,7 +24,13 @@ type Config struct {
 	Stop        []string
 
 	// Extended thinking configuration
-	EnableThinking bool // Enable extended thinking for reasoning models
+	EnableThinking   bool   // Enable extended thinking for reasoning models
+	ThinkingBudget   *int64 // Explicit thinking budget in tokens (min 1024)
+	AdaptiveThinking bool   // Whether model supports adaptive thinking (set from ModelDefinition)
+
+	// Effort and speed configuration
+	Effort *Effort // Output effort level
+	Speed  *Speed  // Inference speed mode
 
 	// Prompt caching configuration
 	EnableCaching bool // Enable prompt caching by setting cache_control markers
@@ -158,6 +164,61 @@ func WithStop(sequences ...string) Option {
 func WithThinking(enabled bool) Option {
 	return func(cfg *Config) error {
 		cfg.EnableThinking = enabled
+		return nil
+	}
+}
+
+// WithThinkingBudget sets an explicit thinking budget in tokens.
+// The minimum budget is 1024 tokens (API requirement).
+// Only applicable to models with "thinking_budget" in SupportedParams.
+func WithThinkingBudget(tokens int64) Option {
+	return func(cfg *Config) error {
+		err := cfg.Constraints.ValidateParameterSupport("thinking_budget")
+		if err != nil {
+			return fmt.Errorf("%s: %w", cfg.ModelName, err)
+		}
+
+		if tokens < 1024 {
+			return fmt.Errorf("%s: thinking_budget must be at least 1024, got %d", cfg.ModelName, tokens)
+		}
+
+		cfg.ThinkingBudget = &tokens
+		cfg.setOptions["thinking_budget"] = true
+
+		return nil
+	}
+}
+
+// WithEffort sets the output effort level for the model.
+// Only applicable to models with "effort" in SupportedParams.
+// The specific effort value is validated against the model's SupportedEfforts in NewModel().
+func WithEffort(effort Effort) Option {
+	return func(cfg *Config) error {
+		err := cfg.Constraints.ValidateParameterSupport("effort")
+		if err != nil {
+			return fmt.Errorf("%s: %w", cfg.ModelName, err)
+		}
+
+		cfg.Effort = &effort
+		cfg.setOptions["effort"] = true
+
+		return nil
+	}
+}
+
+// WithSpeed sets the inference speed mode for the model.
+// Only applicable to models with "speed" in SupportedParams.
+// The specific speed value is validated against the model's SupportedSpeeds in NewModel().
+func WithSpeed(speed Speed) Option {
+	return func(cfg *Config) error {
+		err := cfg.Constraints.ValidateParameterSupport("speed")
+		if err != nil {
+			return fmt.Errorf("%s: %w", cfg.ModelName, err)
+		}
+
+		cfg.Speed = &speed
+		cfg.setOptions["speed"] = true
+
 		return nil
 	}
 }
