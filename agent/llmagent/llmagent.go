@@ -414,7 +414,10 @@ func (a *LLMAgent) generateWithStreaming(
 			}
 
 		case llm.StreamResetEvent:
-			// Stream is being retried — reset accumulated state and notify consumer
+			// Stream is being retried — reset accumulated state and notify consumer.
+			// Only response needs resetting here; provider-level state (content block
+			// accumulators, aggregated parts, etc.) is implicitly reset when the retry
+			// interceptor calls GenerateEvents() again, creating a fresh stream context.
 			response = nil
 
 			if !yield(agent.StreamResetEvent{

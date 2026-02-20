@@ -54,6 +54,8 @@ func (m *Model) Generate(ctx context.Context, req *llm.Request) (*llm.Response, 
 	// Make the API call using Beta Messages API
 	response, err := m.client.Beta.Messages.New(ctx, apiReq)
 	if err != nil {
+		// Double-wrap: ErrAPICall (for backward compat) + classified error (e.g.
+		// ErrRateLimitExceeded) so both errors.Is checks work on the same error.
 		return nil, fmt.Errorf("%w: %w", llm.ErrAPICall, classifyError(err))
 	}
 
@@ -209,13 +211,17 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 				// Will be handled after loop
 
 			default:
-				// Unknown event type - ignore
+				// Unknown event type - ignore.
+				// Note: prior to Anthropic SDK v1.22.1, SSE "error" events were delivered
+				// as discrete stream events and handled here. Since v1.22.1 the SDK
+				// converts them into stream.Err(), which we handle via classifyError below.
 				continue
 			}
 		}
 
 		// Check for transport/cancellation errors
 		if err := stream.Err(); err != nil {
+			// See Generate for ErrAPICall double-wrap rationale.
 			yield(nil, fmt.Errorf("%w: %w", llm.ErrAPICall, classifyError(err)))
 			return
 		}

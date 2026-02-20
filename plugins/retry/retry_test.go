@@ -328,6 +328,32 @@ func TestGenerateEvents_NonRetryablePropagated(t *testing.T) {
 	assert.Equal(t, 1, callCount)
 }
 
+func TestGenerateEvents_ContextCancel(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	callCount := 0
+
+	mock := &mockModel{
+		generateEventsFunc: func(_ context.Context, _ *llm.Request) iter.Seq2[llm.Event, error] {
+			callCount++
+
+			cancel()
+
+			return func(yield func(llm.Event, error) bool) {
+				yield(nil, retryableErr())
+			}
+		},
+	}
+
+	model := WrapModel(mock, WithMaxRetries(3), WithInitialDelay(time.Millisecond))
+	_, err := collectEvents(model.GenerateEvents(ctx, &llm.Request{}))
+
+	require.Error(t, err)
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Equal(t, 1, callCount)
+}
+
 // --- WrapModel tests ---
 
 func TestWrapModel_PreservesIdentity(t *testing.T) {

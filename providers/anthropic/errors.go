@@ -52,6 +52,11 @@ func classifyHTTPError(apiErr *anthropic.Error) *llm.ProviderError {
 // classifySSEError parses the SDK's SSE streaming error format and classifies it.
 // The format is: "received error while streaming: {json}"
 // where JSON is: {"type":"error","error":{"type":"<error_type>","message":"<msg>"}}.
+//
+// String matching is required because the Anthropic SDK (v1.22.1) does not expose
+// typed errors for SSE streams — ssestream.Stream returns a plain error via
+// stream.Err(), constructed as fmt.Errorf("received error while streaming: %s", data).
+// Returns nil when the error doesn't match, letting it fall through unclassified.
 func classifySSEError(err error) *llm.ProviderError {
 	msg := err.Error()
 

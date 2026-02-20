@@ -31,6 +31,7 @@ tasks:
     status:
       - test -f {{.BIN_DIR}}/golangci-lint
       - '[[ $({{.BIN_DIR}}/golangci-lint --version) == *"{{.GOLANGCI_LINT_VERSION}}"* ]]'
+      - '[[ $({{.GO_BIN}} version {{.BIN_DIR}}/golangci-lint) == *"go{{.GO_VERSION}}"* ]]'
 
   tparse:
     desc: Install tparse
@@ -42,6 +43,7 @@ tasks:
     status:
       - test -f {{.BIN_DIR}}/tparse
       - '[[ $({{.BIN_DIR}}/tparse --version 2>&1) == *"{{.TPARSE_VERSION}}"* ]]'
+      - '[[ $({{.GO_BIN}} version {{.BIN_DIR}}/tparse) == *"go{{.GO_VERSION}}"* ]]'
 
   govulncheck:
     desc: Install govulncheck (Go vulnerability scanner)
@@ -53,6 +55,7 @@ tasks:
     status:
       - test -f {{.BIN_DIR}}/govulncheck
       - '[[ $({{.BIN_DIR}}/govulncheck -version 2>&1) == *"v{{.GOVULNCHECK_VERSION}}"* ]]'
+      - '[[ $({{.GO_BIN}} version {{.BIN_DIR}}/govulncheck) == *"go{{.GO_VERSION}}"* ]]'
 
   osv-scanner:
     desc: Install osv-scanner (Google OSV vulnerability scanner)
@@ -64,3 +67,4 @@ tasks:
     status:
       - test -f {{.BIN_DIR}}/osv-scanner
       - '[[ $({{.BIN_DIR}}/osv-scanner --version 2>&1) == *"{{.OSV_SCANNER_VERSION}}"* ]]'
+      - '[[ $({{.GO_BIN}} version {{.BIN_DIR}}/osv-scanner) == *"go{{.GO_VERSION}}"* ]]'
