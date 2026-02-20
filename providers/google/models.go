@@ -40,7 +40,7 @@ var supportedModels = map[string]ModelDefinition{
 		Constraints: llm.ModelConstraints{
 			TemperatureRange:  [2]float64{0.0, 2.0},
 			MaxInputTokens:    1048576, // 1M input tokens
-			MaxOutputTokens:   65536,   // 64K output tokens
+			MaxOutputTokens:   65535,   // 64K output tokens
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
 			MutuallyExclusive: [][]string{},
 		},
