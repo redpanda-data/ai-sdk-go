@@ -1,9 +1,12 @@
 package anthropic_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
@@ -82,4 +85,53 @@ func (f *AnthropicFixture) NewModel(modelName string) (llm.Model, error) {
 func TestAnthropicConformance(t *testing.T) {
 	fixture := NewAnthropicFixture(t)
 	suite.Run(t, conformance.NewSuite(fixture))
+}
+
+// TestAnthropicAdaptiveThinking tests adaptive thinking with Sonnet 4.6.
+func TestAnthropicAdaptiveThinking(t *testing.T) {
+	t.Parallel()
+
+	apiKey := anthropictest.GetAPIKeyOrSkipTest(t)
+
+	provider, err := anthropic.NewProvider(apiKey, anthropic.WithTimeout(time.Minute*2))
+	require.NoError(t, err)
+
+	// Create Sonnet 4.6 with adaptive thinking enabled
+	model, err := provider.NewModel(anthropictest.TestAdaptiveModelName,
+		anthropic.WithThinking(true),
+		anthropic.WithMaxTokens(8192),
+	)
+	require.NoError(t, err)
+
+	req := &llm.Request{
+		Messages: []llm.Message{
+			{
+				Role: llm.RoleUser,
+				Content: []*llm.Part{
+					llm.NewTextPart("Explain the difference between a mutex and a semaphore in two sentences."),
+				},
+			},
+		},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*2)
+	defer cancel()
+
+	resp, err := model.Generate(ctx, req)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	var hasText bool
+
+	for _, part := range resp.Message.Content {
+		if part.IsText() {
+			hasText = true
+
+			assert.NotEmpty(t, part.Text)
+		}
+	}
+
+	assert.True(t, hasText, "expected text content in response")
+	require.NotNil(t, resp.Usage)
+	assert.Positive(t, resp.Usage.TotalTokens, "expected non-zero token usage")
 }

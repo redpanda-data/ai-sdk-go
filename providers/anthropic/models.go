@@ -4,6 +4,7 @@ import "github.com/redpanda-data/ai-sdk-go/llm"
 
 // Model ID constants for Anthropic Claude models.
 const (
+	ModelClaudeSonnet46 = "claude-sonnet-4-6"
 	ModelClaudeSonnet45 = "claude-sonnet-4-5-20250929"
 	ModelClaudeHaiku45  = "claude-haiku-4-5-20251001"
 	ModelClaudeOpus46   = "claude-opus-4-6"
@@ -11,39 +12,69 @@ const (
 	ModelClaudeOpus41   = "claude-opus-4-1-20250805"
 )
 
+// Effort controls the output effort level for supported models.
+type Effort string
+
+const (
+	EffortLow    Effort = "low"
+	EffortMedium Effort = "medium"
+	EffortHigh   Effort = "high"
+	EffortMax    Effort = "max"
+)
+
+// Speed controls the inference speed mode for supported models.
+type Speed string
+
+const (
+	SpeedStandard Speed = "standard"
+	SpeedFast     Speed = "fast"
+)
+
 // ModelDefinition defines a Claude model with its capabilities and constraints.
 type ModelDefinition struct {
-	Name         string
-	Label        string
-	Capabilities llm.ModelCapabilities
-	Constraints  llm.ModelConstraints
+	Name             string
+	Label            string
+	Capabilities     llm.ModelCapabilities
+	Constraints      llm.ModelConstraints
+	SupportedEfforts []Effort // Which effort values this model accepts
+	SupportedSpeeds  []Speed  // Which speed values this model accepts
+	AdaptiveThinking bool     // Whether model uses adaptive thinking by default
 }
 
 // modelAliases maps common model name aliases to their canonical timestamped versions.
-// Supports both claude-{family}-{version} and claude-{version}-{family} formats.
 var modelAliases = map[string]string{
-	// Sonnet 4.5 aliases
 	"claude-sonnet-4-5": ModelClaudeSonnet45,
-	"claude-4-sonnet":   ModelClaudeSonnet45,
-
-	// Haiku 4.5 aliases
-	"claude-haiku-4-5": ModelClaudeHaiku45,
-
-	// Opus 4.6 aliases
-	"claude-opus-4-6": ModelClaudeOpus46,
-	"claude-4-6-opus": ModelClaudeOpus46,
-
-	// Opus 4.5 aliases
-	"claude-opus-4-5": ModelClaudeOpus45,
-	"claude-4-5-opus": ModelClaudeOpus45,
-
-	// Opus 4.1 aliases
-	"claude-opus-4-1": ModelClaudeOpus41,
+	"claude-haiku-4-5":  ModelClaudeHaiku45,
+	"claude-opus-4-5":   ModelClaudeOpus45,
+	"claude-opus-4-1":   ModelClaudeOpus41,
 }
 
 // supportedModels defines all Claude models with their capabilities and constraints.
 // Based on Anthropic API documentation and model specifications.
 var supportedModels = map[string]ModelDefinition{
+	ModelClaudeSonnet46: {
+		Name:  ModelClaudeSonnet46,
+		Label: "Claude Sonnet 4.6",
+		Capabilities: llm.ModelCapabilities{
+			Streaming:        true,
+			Tools:            true,
+			JSONMode:         false, // Anthropic doesn't have native JSON mode
+			StructuredOutput: false, // Use tool calling for structured output instead
+			Vision:           true,
+			MultiTurn:        true,
+			SystemPrompts:    true,
+			Reasoning:        true, // Extended thinking + adaptive thinking support
+		},
+		Constraints: llm.ModelConstraints{
+			TemperatureRange:  [2]float64{0.0, 1.0},
+			MaxInputTokens:    200000, // 200K context window
+			MaxOutputTokens:   64000,  // 64K output tokens
+			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "effort", "thinking_budget"},
+			MutuallyExclusive: [][]string{},
+		},
+		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh},
+		AdaptiveThinking: true,
+	},
 	ModelClaudeSonnet45: {
 		Name:  ModelClaudeSonnet45,
 		Label: "Claude Sonnet 4.5",
@@ -103,9 +134,12 @@ var supportedModels = map[string]ModelDefinition{
 			TemperatureRange:  [2]float64{0.0, 1.0},
 			MaxInputTokens:    1000000, // 1M context window (beta)
 			MaxOutputTokens:   128000,  // 128K output tokens
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "effort"},
+			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "effort", "thinking_budget", "speed"},
 			MutuallyExclusive: [][]string{},
 		},
+		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh, EffortMax},
+		SupportedSpeeds:  []Speed{SpeedStandard, SpeedFast},
+		AdaptiveThinking: true,
 	},
 	ModelClaudeOpus41: {
 		Name:  ModelClaudeOpus41,
@@ -145,8 +179,9 @@ var supportedModels = map[string]ModelDefinition{
 			TemperatureRange:  [2]float64{0.0, 1.0},
 			MaxInputTokens:    200000, // 200K context window
 			MaxOutputTokens:   64000,  // 64K output tokens
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens"},
+			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "effort"},
 			MutuallyExclusive: [][]string{},
 		},
+		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh},
 	},
 }
