@@ -101,6 +101,7 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) ([]*genai.Content, *genai.
 	if rm.config.EnableThinking {
 		config.ThinkingConfig = &genai.ThinkingConfig{
 			IncludeThoughts: true,
+			ThinkingBudget:  rm.config.ThinkingBudget,
 		}
 	}
 

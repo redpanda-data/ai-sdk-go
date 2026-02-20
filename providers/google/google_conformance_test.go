@@ -42,7 +42,7 @@ func NewGoogleFixture(t *testing.T, modelName string) *GoogleFixture {
 
 	// If the model supports reasoning, recreate it with thinking enabled
 	if model.Capabilities().Reasoning {
-		model, err = provider.NewModel(modelName, google.WithThinking(true))
+		model, err = provider.NewModel(modelName, google.WithThinking(true), google.WithThinkingBudget(4096))
 		if err != nil {
 			t.Fatalf("Failed to create model %s with thinking: %v", modelName, err)
 		}

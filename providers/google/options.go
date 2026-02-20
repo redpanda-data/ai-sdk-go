@@ -26,7 +26,8 @@ type Config struct {
 	FrequencyPenalty *float32
 
 	// Extended thinking configuration
-	EnableThinking bool // Enable thinking for reasoning models
+	EnableThinking bool   // Enable thinking for reasoning models
+	ThinkingBudget *int32 // Optional thinking budget in tokens
 
 	// Custom model name override (inherits base model capabilities)
 	CustomModelName string
@@ -197,6 +198,15 @@ func WithFrequencyPenalty(penalty float32) Option {
 func WithThinking(enabled bool) Option {
 	return func(cfg *Config) error {
 		cfg.EnableThinking = enabled
+		return nil
+	}
+}
+
+// WithThinkingBudget sets the thinking budget in tokens.
+// Only applicable when thinking is enabled.
+func WithThinkingBudget(tokens int32) Option {
+	return func(cfg *Config) error {
+		cfg.ThinkingBudget = &tokens
 		return nil
 	}
 }
