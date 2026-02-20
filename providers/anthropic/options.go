@@ -130,8 +130,8 @@ func WithMaxTokens(tokens int) Option {
 			return fmt.Errorf("%s: max_tokens must be positive, got %d", cfg.ModelName, tokens)
 		}
 
-		if tokens > cfg.Constraints.MaxInputTokens {
-			return fmt.Errorf("%s: max_tokens %d exceeds limit %d", cfg.ModelName, tokens, cfg.Constraints.MaxInputTokens)
+		if tokens > cfg.Constraints.MaxOutputTokens {
+			return fmt.Errorf("%s: max_tokens %d exceeds limit %d", cfg.ModelName, tokens, cfg.Constraints.MaxOutputTokens)
 		}
 
 		cfg.MaxTokens = tokens
@@ -168,8 +168,8 @@ func WithThinking(enabled bool) Option {
 	}
 }
 
-// WithThinkingBudget sets an explicit thinking budget in tokens.
-// The minimum budget is 1024 tokens (API requirement).
+// WithThinkingBudget sets an explicit thinking budget in tokens and implicitly
+// enables thinking. The minimum budget is 1024 tokens (API requirement).
 // Only applicable to models with "thinking_budget" in SupportedParams.
 func WithThinkingBudget(tokens int64) Option {
 	return func(cfg *Config) error {
@@ -182,6 +182,7 @@ func WithThinkingBudget(tokens int64) Option {
 			return fmt.Errorf("%s: thinking_budget must be at least 1024, got %d", cfg.ModelName, tokens)
 		}
 
+		cfg.EnableThinking = true
 		cfg.ThinkingBudget = &tokens
 		cfg.setOptions["thinking_budget"] = true
 
