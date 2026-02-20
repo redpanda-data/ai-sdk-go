@@ -4,6 +4,7 @@ import "github.com/redpanda-data/ai-sdk-go/llm"
 
 // Model ID constants for Google Gemini models.
 const (
+	ModelGemini31ProPreview  = "gemini-3.1-pro-preview"
 	ModelGemini3ProPreview   = "gemini-3-pro-preview"
 	ModelGemini3FlashPreview = "gemini-3-flash-preview"
 	ModelGemini25Pro         = "gemini-2.5-pro"
@@ -23,6 +24,27 @@ type ModelDefinition struct {
 // supportedModels defines all Gemini models with their capabilities and constraints.
 // Based on https://ai.google.dev/gemini-api/docs/models
 var supportedModels = map[string]ModelDefinition{
+	ModelGemini31ProPreview: {
+		Name:  ModelGemini31ProPreview,
+		Label: "Gemini 3.1 Pro Preview",
+		Capabilities: llm.ModelCapabilities{
+			Streaming:        true,
+			Tools:            true,
+			JSONMode:         true,
+			StructuredOutput: true,
+			Vision:           true,
+			MultiTurn:        true,
+			SystemPrompts:    true,
+			Reasoning:        true,
+		},
+		Constraints: llm.ModelConstraints{
+			TemperatureRange:  [2]float64{0.0, 2.0},
+			MaxInputTokens:    1048576, // 1M input tokens
+			MaxOutputTokens:   65536,   // 64K output tokens
+			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
+			MutuallyExclusive: [][]string{},
+		},
+	},
 	ModelGemini3ProPreview: {
 		Name:  ModelGemini3ProPreview,
 		Label: "Gemini 3 Pro Preview",

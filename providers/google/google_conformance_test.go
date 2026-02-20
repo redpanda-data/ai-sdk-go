@@ -88,7 +88,8 @@ func (f *GoogleFixture) NewModel(modelName string) (llm.Model, error) {
 //nolint:paralleltest // Test suite manages its own lifecycle
 func TestGoogleConformance(t *testing.T) {
 	modelsToTest := []string{
-		google.ModelGemini25Flash,       // gemini-2.5-flash
+		google.ModelGemini25Flash,        // gemini-2.5-flash
+		google.ModelGemini31ProPreview,  // gemini-3.1-pro-preview
 		google.ModelGemini3ProPreview,   // gemini-3-pro-preview
 		google.ModelGemini3FlashPreview, // gemini-3-flash-preview
 	}
