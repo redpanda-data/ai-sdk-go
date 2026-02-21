@@ -84,12 +84,11 @@ func TestNew_Validation(t *testing.T) {
 			wantErr:   "model is required",
 		},
 		{
-			name:      "invalid MaxTurns zero",
+			name:      "MaxTurns zero keeps default",
 			agentName: "test",
 			prompt:    "You are helpful",
 			model:     model,
 			opts:      []llmagent.Option{llmagent.WithMaxTurns(0)},
-			wantErr:   "maxTurns must be positive",
 		},
 		{
 			name:      "invalid MaxTurns negative",
@@ -97,7 +96,7 @@ func TestNew_Validation(t *testing.T) {
 			prompt:    "You are helpful",
 			model:     model,
 			opts:      []llmagent.Option{llmagent.WithMaxTurns(-1)},
-			wantErr:   "maxTurns must be positive",
+			wantErr:   "maxTurns must not be negative",
 		},
 		{
 			name:      "invalid ToolConcurrency zero",

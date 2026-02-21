@@ -35,8 +35,8 @@ func (c *config) validate() error {
 		return errors.New("llmagent: model is required")
 	}
 
-	if c.maxTurns <= 0 {
-		return fmt.Errorf("llmagent: maxTurns must be positive, got %d", c.maxTurns)
+	if c.maxTurns < 0 {
+		return fmt.Errorf("llmagent: maxTurns must not be negative, got %d", c.maxTurns)
 	}
 
 	if c.toolConcurrency <= 0 {
@@ -72,10 +72,12 @@ func WithTools(tools tool.Registry) Option {
 }
 
 // WithMaxTurns sets the maximum number of turns per invocation.
-// Defaults to 25 if not specified.
+// 0 keeps the default (25). Negative values are rejected at validation.
 func WithMaxTurns(maxTurns int) Option {
 	return func(c *config) {
-		c.maxTurns = maxTurns
+		if maxTurns > 0 {
+			c.maxTurns = maxTurns
+		}
 	}
 }
 
