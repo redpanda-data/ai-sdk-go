@@ -141,18 +141,15 @@ func WithTimeout(timeout time.Duration) ProviderOption {
 
 // NewModel creates a new Anthropic model instance with the specified configuration.
 func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error) {
-	// Resolve alias to canonical name if it exists
-	if canonical, ok := modelAliases[modelName]; ok {
-		modelName = canonical
-	}
+	family := resolveModelFamily(modelName)
 
-	modelDef, ok := supportedModels[modelName]
+	modelDef, ok := supportedModels[family]
 	if !ok {
 		return nil, fmt.Errorf("unsupported Anthropic model: %s", modelName)
 	}
 
 	cfg := &Config{
-		ModelName:        modelDef.Name,
+		ModelName:        modelName,
 		Constraints:      modelDef.Constraints,
 		MaxTokens:        4096, // Default required by Anthropic API
 		EnableCaching:    p.EnableCaching,

@@ -1,15 +1,21 @@
 package anthropic
 
-import "github.com/redpanda-data/ai-sdk-go/llm"
+import (
+	"strings"
+
+	"github.com/redpanda-data/ai-sdk-go/llm"
+)
 
 // Model ID constants for Anthropic Claude models.
+// These are model family identifiers (non-timestamped). The Anthropic API
+// accepts them directly and resolves to the latest snapshot.
 const (
 	ModelClaudeSonnet46 = "claude-sonnet-4-6"
-	ModelClaudeSonnet45 = "claude-sonnet-4-5-20250929"
-	ModelClaudeHaiku45  = "claude-haiku-4-5-20251001"
+	ModelClaudeSonnet45 = "claude-sonnet-4-5"
+	ModelClaudeHaiku45  = "claude-haiku-4-5"
 	ModelClaudeOpus46   = "claude-opus-4-6"
-	ModelClaudeOpus45   = "claude-opus-4-5-20251101"
-	ModelClaudeOpus41   = "claude-opus-4-1-20250805"
+	ModelClaudeOpus45   = "claude-opus-4-5"
+	ModelClaudeOpus41   = "claude-opus-4-1"
 )
 
 // Effort controls the output effort level for supported models.
@@ -41,12 +47,20 @@ type ModelDefinition struct {
 	AdaptiveThinking bool     // Whether model uses adaptive thinking by default
 }
 
-// modelAliases maps common model name aliases to their canonical timestamped versions.
-var modelAliases = map[string]string{
-	"claude-sonnet-4-5": ModelClaudeSonnet45,
-	"claude-haiku-4-5":  ModelClaudeHaiku45,
-	"claude-opus-4-5":   ModelClaudeOpus45,
-	"claude-opus-4-1":   ModelClaudeOpus41,
+// resolveModelFamily returns the model family key for a given model string.
+// If the model string has a known family as a prefix, that family is returned.
+// Otherwise the original string is returned unchanged.
+// e.g., "claude-sonnet-4-5-20250929" -> "claude-sonnet-4-5"
+//
+//	"claude-sonnet-4-5"          -> "claude-sonnet-4-5" (unchanged)
+func resolveModelFamily(model string) string {
+	for family := range supportedModels {
+		if strings.HasPrefix(model, family) {
+			return family
+		}
+	}
+
+	return model
 }
 
 // supportedModels defines all Claude models with their capabilities and constraints.

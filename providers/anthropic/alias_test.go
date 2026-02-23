@@ -16,39 +16,54 @@ func TestModelResolution(t *testing.T) {
 		expectedModel string
 	}{
 		{
-			name:          "claude-sonnet-4-6 resolves directly",
+			name:          "claude-sonnet-4-6 family name resolves",
 			modelKey:      "claude-sonnet-4-6",
-			expectedModel: ModelClaudeSonnet46,
+			expectedModel: "claude-sonnet-4-6",
 		},
 		{
-			name:          "claude-sonnet-4-5 alias resolves to timestamped version",
+			name:          "claude-sonnet-4-5 family name resolves",
 			modelKey:      "claude-sonnet-4-5",
-			expectedModel: ModelClaudeSonnet45,
+			expectedModel: "claude-sonnet-4-5",
 		},
 		{
-			name:          "claude-sonnet-4-5-20250929 resolves directly",
-			modelKey:      ModelClaudeSonnet45,
-			expectedModel: ModelClaudeSonnet45,
+			name:          "claude-sonnet-4-5 timestamped preserves original",
+			modelKey:      "claude-sonnet-4-5-20250929",
+			expectedModel: "claude-sonnet-4-5-20250929",
 		},
 		{
-			name:          "claude-haiku-4-5 alias resolves to timestamped version",
+			name:          "claude-haiku-4-5 family name resolves",
 			modelKey:      "claude-haiku-4-5",
-			expectedModel: ModelClaudeHaiku45,
+			expectedModel: "claude-haiku-4-5",
 		},
 		{
-			name:          "claude-opus-4-6 resolves directly",
-			modelKey:      ModelClaudeOpus46,
-			expectedModel: ModelClaudeOpus46,
+			name:          "claude-haiku-4-5 timestamped preserves original",
+			modelKey:      "claude-haiku-4-5-20251001",
+			expectedModel: "claude-haiku-4-5-20251001",
 		},
 		{
-			name:          "claude-opus-4-5 alias resolves to timestamped version",
+			name:          "claude-opus-4-6 family name resolves",
+			modelKey:      "claude-opus-4-6",
+			expectedModel: "claude-opus-4-6",
+		},
+		{
+			name:          "claude-opus-4-5 family name resolves",
 			modelKey:      "claude-opus-4-5",
-			expectedModel: ModelClaudeOpus45,
+			expectedModel: "claude-opus-4-5",
 		},
 		{
-			name:          "claude-opus-4-1 alias resolves to timestamped version",
+			name:          "claude-opus-4-5 timestamped preserves original",
+			modelKey:      "claude-opus-4-5-20251101",
+			expectedModel: "claude-opus-4-5-20251101",
+		},
+		{
+			name:          "claude-opus-4-1 family name resolves",
 			modelKey:      "claude-opus-4-1",
-			expectedModel: ModelClaudeOpus41,
+			expectedModel: "claude-opus-4-1",
+		},
+		{
+			name:          "claude-opus-4-1 arbitrary timestamp resolves",
+			modelKey:      "claude-opus-4-1-20240101",
+			expectedModel: "claude-opus-4-1-20240101",
 		},
 	}
 
@@ -86,7 +101,7 @@ func TestCustomModelName(t *testing.T) {
 	m, ok := model.(*Model)
 	require.True(t, ok)
 
-	assert.Equal(t, ModelClaudeOpus41, m.config.ModelName)
+	assert.Equal(t, "claude-opus-4-1", m.config.ModelName)
 	assert.Equal(t, "claude-opus-4-2-beta", m.config.CustomModelName)
 	assert.Equal(t, int(200000), m.config.Constraints.MaxInputTokens)
 }
