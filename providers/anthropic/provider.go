@@ -36,7 +36,10 @@ type Provider struct {
 	Timeout    time.Duration
 	// EnableCaching enables prompt caching by setting cache_control markers
 	EnableCaching bool
-	client        *anthropic.Client
+	// extraOpts are additional request options passed to the Anthropic client
+	// (e.g., bedrock.WithLoadDefaultConfig for AWS Bedrock support).
+	extraOpts []option.RequestOption
+	client    *anthropic.Client
 }
 
 // Name returns the provider identifier.
@@ -76,6 +79,7 @@ func NewProvider(apiKey string, opts ...ProviderOption) (*Provider, error) {
 		option.WithBaseURL(p.BaseURL),
 		option.WithHTTPClient(p.HTTPClient),
 	}
+	clientOpts = append(clientOpts, p.extraOpts...)
 	client := anthropic.NewClient(clientOpts...)
 	p.client = &client
 
@@ -115,6 +119,17 @@ func WithHTTPClient(client *http.Client) ProviderOption {
 func WithCaching() ProviderOption {
 	return func(p *Provider) error {
 		p.EnableCaching = true
+		return nil
+	}
+}
+
+// WithRequestOptions appends additional Anthropic SDK request options.
+// This is useful for advanced configuration such as AWS Bedrock support:
+//
+//	anthropic.WithRequestOptions(bedrock.WithLoadDefaultConfig(ctx))
+func WithRequestOptions(opts ...option.RequestOption) ProviderOption {
+	return func(p *Provider) error {
+		p.extraOpts = append(p.extraOpts, opts...)
 		return nil
 	}
 }

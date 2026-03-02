@@ -50,12 +50,21 @@ type ModelDefinition struct {
 // resolveModelFamily returns the model family key for a given model string.
 // If the model string has a known family as a prefix, that family is returned.
 // Otherwise the original string is returned unchanged.
-// e.g., "claude-sonnet-4-5-20250929" -> "claude-sonnet-4-5"
 //
-//	"claude-sonnet-4-5"          -> "claude-sonnet-4-5" (unchanged)
+// Supports both direct and Bedrock-style model IDs:
+//
+//	"claude-sonnet-4-5-20250929"           -> "claude-sonnet-4-5"
+//	"claude-sonnet-4-5"                    -> "claude-sonnet-4-5" (unchanged)
+//	"eu.anthropic.claude-opus-4-6-v1"      -> "claude-opus-4-6"  (Bedrock cross-region)
+//	"anthropic.claude-sonnet-4-6-v2:0"     -> "claude-sonnet-4-6" (Bedrock)
 func resolveModelFamily(model string) string {
 	for family := range supportedModels {
 		if strings.HasPrefix(model, family) {
+			return family
+		}
+		// Bedrock model IDs embed the family after a provider prefix,
+		// e.g., "eu.anthropic.claude-opus-4-6-v1" contains "claude-opus-4-6".
+		if strings.Contains(model, "."+family) {
 			return family
 		}
 	}

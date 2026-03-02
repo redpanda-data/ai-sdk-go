@@ -7,6 +7,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestResolveModelFamily(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		model    string
+		expected string
+	}{
+		{"direct family", "claude-sonnet-4-6", "claude-sonnet-4-6"},
+		{"timestamped", "claude-sonnet-4-5-20250929", "claude-sonnet-4-5"},
+		{"bedrock cross-region", "eu.anthropic.claude-opus-4-6-v1", "claude-opus-4-6"},
+		{"bedrock standard", "anthropic.claude-sonnet-4-6-v2:0", "claude-sonnet-4-6"},
+		{"bedrock haiku", "us.anthropic.claude-haiku-4-5-20251001-v1:0", "claude-haiku-4-5"},
+		{"unknown model", "some-unknown-model", "some-unknown-model"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.expected, resolveModelFamily(tt.model))
+		})
+	}
+}
+
 func TestNormalizeBaseURL(t *testing.T) {
 	t.Parallel()
 
