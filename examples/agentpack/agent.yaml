@@ -1,0 +1,16 @@
+name: local-assistant
+description: A helpful local assistant powered by Ollama
+prompt_file: prompt.md
+
+mcps:
+  filesystem:
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "./"]
+  atlassian:
+    command: npx
+    args:
+      - "-y"
+      - "mcp-remote@latest"
+      - "https://mcp.atlassian.com/v1/mcp"
+      # - "--header"
+      # - "Authorization: Bearer ${ATLASSIAN_API_TOKEN}"

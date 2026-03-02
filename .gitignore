@@ -33,3 +33,4 @@ go.work.sum
 .idea
 .build
 .bin
+/agent-runner
