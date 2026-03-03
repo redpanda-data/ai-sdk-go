@@ -3,7 +3,9 @@ package anthropic
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"iter"
 
 	"github.com/anthropics/anthropic-sdk-go"
@@ -84,6 +86,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 		contentBlocks := make(map[int]*contentBlockAccumulator)
 
 		var finalMessage *anthropic.BetaMessage
+		var receivedMessageStop bool
 
 		// Process streaming events
 		for stream.Next() {
@@ -208,7 +211,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 			case "message_stop":
 				// Stream completed successfully
-				// Will be handled after loop
+				receivedMessageStop = true
 
 			default:
 				// Unknown event type - ignore.
@@ -219,11 +222,18 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 			}
 		}
 
-		// Check for transport/cancellation errors
+		// Check for transport/cancellation errors.
+		// Bedrock's EventStream decoder returns io.EOF on normal stream termination
+		// (the upstream anthropic-sdk-go bedrock decoder doesn't suppress it).
+		// We only suppress io.EOF when message_stop was received, confirming the
+		// stream completed normally. A premature EOF (without message_stop) means
+		// the connection was severed mid-stream and data may be incomplete.
 		if err := stream.Err(); err != nil {
-			// See Generate for ErrAPICall double-wrap rationale.
-			yield(nil, fmt.Errorf("%w: %w", llm.ErrAPICall, classifyError(err)))
-			return
+			if !errors.Is(err, io.EOF) || !receivedMessageStop {
+				// See Generate for ErrAPICall double-wrap rationale.
+				yield(nil, fmt.Errorf("%w: %w", llm.ErrAPICall, classifyError(err)))
+				return
+			}
 		}
 
 		// Send final event with complete response
@@ -253,12 +263,15 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 				case blockTypeToolUse:
 					if acc.toolUse != nil {
-						// Use accumulated toolArgs from input_json_delta events
+						toolInput := json.RawMessage(acc.toolArgs)
+						if acc.toolArgs == "" {
+							toolInput = json.RawMessage("{}")
+						}
 						finalContent = append(finalContent, anthropic.BetaContentBlockUnion{
 							Type:  blockTypeToolUse,
 							ID:    acc.toolUse.ID,
 							Name:  acc.toolUse.Name,
-							Input: json.RawMessage(acc.toolArgs),
+							Input: toolInput,
 						})
 					}
 				}

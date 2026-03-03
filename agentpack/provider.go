@@ -3,7 +3,10 @@ package agentpack
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/anthropics/anthropic-sdk-go/bedrock"
 
@@ -159,9 +162,19 @@ func newBedrockModel(ctx context.Context, modelName string) (llm.Model, error) {
 	// (env vars AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY, IAM roles, SSO, etc.)
 	// and reads AWS_REGION for the endpoint.
 	bedrockOpt := bedrock.WithLoadDefaultConfig(ctx)
-	p, err := anthropic.NewProvider("bedrock", // dummy key — Bedrock uses AWS credentials
-		anthropic.WithRequestOptions(bedrockOpt),
-	)
+
+	var providerOpts []anthropic.ProviderOption
+	providerOpts = append(providerOpts, anthropic.WithRequestOptions(bedrockOpt))
+
+	// When LOG_LEVEL=debug, wrap the HTTP client to log request/response details.
+	if strings.ToLower(os.Getenv("LOG_LEVEL")) == "debug" {
+		providerOpts = append(providerOpts, anthropic.WithHTTPClient(&http.Client{
+			Timeout:   10 * time.Minute,
+			Transport: &debugTransport{base: http.DefaultTransport},
+		}))
+	}
+
+	p, err := anthropic.NewProvider("bedrock", providerOpts...) // dummy key — Bedrock uses AWS credentials
 	if err != nil {
 		return nil, fmt.Errorf("create bedrock provider: %w", err)
 	}
@@ -170,6 +183,30 @@ func newBedrockModel(ctx context.Context, modelName string) (llm.Model, error) {
 		return nil, fmt.Errorf("create bedrock model %s: %w", modelName, err)
 	}
 	return m, nil
+}
+
+// debugTransport logs HTTP request/response details for debugging API issues.
+type debugTransport struct {
+	base http.RoundTripper
+}
+
+func (d *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	fmt.Fprintf(os.Stderr, "[DEBUG] %s %s\n", req.Method, req.URL)
+	for k, v := range req.Header {
+		if k == "Authorization" || k == "X-Api-Key" {
+			fmt.Fprintf(os.Stderr, "[DEBUG]   %s: [redacted]\n", k)
+		} else {
+			fmt.Fprintf(os.Stderr, "[DEBUG]   %s: %s\n", k, v)
+		}
+	}
+	resp, err := d.base.RoundTrip(req)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[DEBUG] Transport error: %v\n", err)
+		return resp, err
+	}
+	fmt.Fprintf(os.Stderr, "[DEBUG] Response: %d %s\n", resp.StatusCode, resp.Status)
+	fmt.Fprintf(os.Stderr, "[DEBUG]   Content-Type: %s\n", resp.Header.Get("Content-Type"))
+	return resp, err
 }
 
 func newOllamaModel(baseURL, modelName string) (llm.Model, error) {
