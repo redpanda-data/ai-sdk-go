@@ -68,6 +68,11 @@ type Result struct {
 }
 
 // Execute implements tool.Tool by running the agent with a fresh session.
+func (at *AgentTool) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+	return executeAgent(ctx, at.agent, args)
+}
+
+// executeAgent runs an agent with a fresh session and returns the result.
 //
 // Input Handling:
 //   - Args are passed as JSON in a user message (e.g., {"query": "search X"})
@@ -85,10 +90,10 @@ type Result struct {
 //   - Each invocation creates a fresh session (no context sharing)
 //   - This prevents context pollution and keeps parent/child boundaries clear
 //   - For context sharing, pass relevant information explicitly in args
-func (at *AgentTool) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+func executeAgent(ctx context.Context, a agent.Agent, args json.RawMessage) (json.RawMessage, error) {
 	// 1. Create fresh session with unique ID to prevent collisions in state stores
 	sess := &session.State{
-		ID:       fmt.Sprintf("agent-tool-%s-%d", at.agent.Name(), time.Now().UnixNano()),
+		ID:       fmt.Sprintf("agent-tool-%s-%d", a.Name(), time.Now().UnixNano()),
 		Messages: []llm.Message{},
 		Metadata: map[string]any{},
 	}
@@ -101,14 +106,14 @@ func (at *AgentTool) Execute(ctx context.Context, args json.RawMessage) (json.Ra
 
 	// 3. Create invocation metadata
 	inv := agent.NewInvocationMetadata(sess, agent.Info{
-		Name:        at.agent.Name(),
-		Description: at.agent.Description(),
+		Name:        a.Name(),
+		Description: a.Description(),
 	})
 
 	// 4. Run agent and collect response
 	var result string
 
-	for evt, err := range at.agent.Run(ctx, inv) {
+	for evt, err := range a.Run(ctx, inv) {
 		if err != nil {
 			return nil, fmt.Errorf("agent execution failed: %w", err)
 		}
