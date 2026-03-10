@@ -275,15 +275,10 @@ func (m *Model) buildFinalParts(blocks map[int]*contentBlockAccumulator) []*llm.
 
 		case blockTypeToolUse:
 			if acc.toolUse != nil {
-				argsJSON := json.RawMessage(acc.toolArgs)
-				if acc.toolArgs == "" {
-					argsJSON = json.RawMessage("{}")
-				}
-
 				parts = append(parts, llm.NewToolRequestPart(&llm.ToolRequest{
 					ID:        acc.toolUse.ID,
 					Name:      acc.toolUse.Name,
-					Arguments: argsJSON,
+					Arguments: acc.argsJSON(),
 				}))
 			}
 
@@ -314,6 +309,13 @@ type contentBlockAccumulator struct {
 	toolArgs           string
 	toolUse            *toolUseData
 	reasoningSignature string
+}
+
+func (a *contentBlockAccumulator) argsJSON() json.RawMessage {
+	if a.toolArgs == "" {
+		return json.RawMessage("{}")
+	}
+	return json.RawMessage(a.toolArgs)
 }
 
 // toolUseData stores tool use information during streaming.
