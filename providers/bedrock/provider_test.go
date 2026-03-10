@@ -826,6 +826,12 @@ func TestModelsDiscovery(t *testing.T) {
 		assert.NotEmpty(t, m.Name)
 		assert.NotEmpty(t, m.Label)
 	}
+
+	// Verify sorted by name
+	for i := 1; i < len(models); i++ {
+		assert.True(t, models[i-1].Name < models[i].Name,
+			"Models() should be sorted by Name: %s should come before %s", models[i-1].Name, models[i].Name)
+	}
 }
 
 // ---------- Options validation ----------
