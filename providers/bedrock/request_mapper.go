@@ -196,13 +196,8 @@ func (rm *RequestMapper) mapUserMessage(msg llm.Message) (types.Message, error) 
 				return apiMsg, errors.New("tool response part has nil ToolResponse")
 			}
 
-			block, err := rm.mapToolResultBlock(part.ToolResponse)
-			if err != nil {
-				return apiMsg, err
-			}
-
 			apiMsg.Content = append(apiMsg.Content, &types.ContentBlockMemberToolResult{
-				Value: block,
+				Value: rm.mapToolResultBlock(part.ToolResponse),
 			})
 
 		default:
@@ -267,7 +262,7 @@ func (rm *RequestMapper) mapAssistantMessage(msg llm.Message) (types.Message, er
 }
 
 // mapToolResultBlock converts a tool response to a Bedrock ToolResultBlock.
-func (rm *RequestMapper) mapToolResultBlock(resp *llm.ToolResponse) (types.ToolResultBlock, error) {
+func (rm *RequestMapper) mapToolResultBlock(resp *llm.ToolResponse) types.ToolResultBlock {
 	block := types.ToolResultBlock{
 		ToolUseId: aws.String(resp.ID),
 	}
@@ -284,7 +279,7 @@ func (rm *RequestMapper) mapToolResultBlock(resp *llm.ToolResponse) (types.ToolR
 		}
 	}
 
-	return block, nil
+	return block
 }
 
 // mapToolConfig converts tool definitions and choice to Bedrock ToolConfiguration.
