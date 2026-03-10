@@ -333,7 +333,7 @@ func (rm *RequestMapper) mapToolChoice(choice *llm.ToolChoice) (types.ToolChoice
 		}, nil
 
 	case llm.ToolChoiceNone:
-		return nil, errors.New("ToolChoiceNone should be handled by not passing tools")
+		return nil, errors.New("Bedrock does not support tool_choice=none; omit tools from the request instead")
 
 	case llm.ToolChoiceSpecific:
 		if choice.Name == nil || *choice.Name == "" {
