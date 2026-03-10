@@ -588,6 +588,72 @@ func TestRequestMapper_AssistantWithToolUse(t *testing.T) {
 	assert.Equal(t, "search", *toolBlock.Value.Name)
 }
 
+func TestRequestMapper_CachingEnabled(t *testing.T) {
+	t.Parallel()
+
+	cfg := &Config{
+		ModelName:     "claude-sonnet-4-6",
+		EnableCaching: true,
+		setOptions:    make(map[string]bool),
+	}
+
+	mapper := NewRequestMapper(cfg)
+
+	req := &llm.Request{
+		Messages: []llm.Message{
+			llm.NewMessage(llm.RoleSystem, llm.NewTextPart("You are helpful.")),
+			llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hello!")),
+		},
+	}
+
+	input, err := mapper.ToConverseInput(req)
+	require.NoError(t, err)
+
+	// System should have the text block + a CachePoint
+	require.Len(t, input.System, 2)
+	_, ok := input.System[0].(*types.SystemContentBlockMemberText)
+	require.True(t, ok)
+	cacheBlock, ok := input.System[1].(*types.SystemContentBlockMemberCachePoint)
+	require.True(t, ok)
+	assert.Equal(t, types.CachePointTypeDefault, cacheBlock.Value.Type)
+
+	// Last message should have text block + a CachePoint
+	require.Len(t, input.Messages, 1)
+	require.Len(t, input.Messages[0].Content, 2)
+	_, ok = input.Messages[0].Content[0].(*types.ContentBlockMemberText)
+	require.True(t, ok)
+	msgCacheBlock, ok := input.Messages[0].Content[1].(*types.ContentBlockMemberCachePoint)
+	require.True(t, ok)
+	assert.Equal(t, types.CachePointTypeDefault, msgCacheBlock.Value.Type)
+}
+
+func TestRequestMapper_CachingDisabled(t *testing.T) {
+	t.Parallel()
+
+	cfg := &Config{
+		ModelName:     "claude-sonnet-4-6",
+		EnableCaching: false,
+		setOptions:    make(map[string]bool),
+	}
+
+	mapper := NewRequestMapper(cfg)
+
+	req := &llm.Request{
+		Messages: []llm.Message{
+			llm.NewMessage(llm.RoleSystem, llm.NewTextPart("You are helpful.")),
+			llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hello!")),
+		},
+	}
+
+	input, err := mapper.ToConverseInput(req)
+	require.NoError(t, err)
+
+	// No cache points should be appended
+	assert.Len(t, input.System, 1)
+	require.Len(t, input.Messages, 1)
+	assert.Len(t, input.Messages[0].Content, 1)
+}
+
 func TestRequestMapper_StreamInput(t *testing.T) {
 	t.Parallel()
 

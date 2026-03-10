@@ -162,6 +162,19 @@ func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]types.Message, [
 		}
 	}
 
+	// If caching is enabled, insert CachePointBlocks after the last system block
+	// and after the last content block of the last message.
+	if rm.config.EnableCaching {
+		cachePoint := types.CachePointBlock{Type: types.CachePointTypeDefault}
+		if len(system) > 0 {
+			system = append(system, &types.SystemContentBlockMemberCachePoint{Value: cachePoint})
+		}
+		if len(apiMessages) > 0 {
+			lastMsg := &apiMessages[len(apiMessages)-1]
+			lastMsg.Content = append(lastMsg.Content, &types.ContentBlockMemberCachePoint{Value: cachePoint})
+		}
+	}
+
 	return apiMessages, system, nil
 }
 
