@@ -8,16 +8,19 @@ import (
 )
 
 // modelFamilies is sorted by descending length for deterministic longest-prefix matching.
-var modelFamilies []string
+var modelFamilies = buildModelFamilies()
 
-func init() {
-	modelFamilies = make([]string, 0, len(supportedModels))
+func buildModelFamilies() []string {
+	families := make([]string, 0, len(supportedModels))
 	for family := range supportedModels {
-		modelFamilies = append(modelFamilies, family)
+		families = append(families, family)
 	}
-	sort.Slice(modelFamilies, func(i, j int) bool {
-		return len(modelFamilies[i]) > len(modelFamilies[j])
+
+	sort.Slice(families, func(i, j int) bool {
+		return len(families[i]) > len(families[j])
 	})
+
+	return families
 }
 
 // Model family constants for Claude models on Bedrock.
@@ -86,9 +89,9 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Constraints: llm.ModelConstraints{
 			TemperatureRange: [2]float64{0.0, 1.0},
-			MaxInputTokens:  200000,
+			MaxInputTokens:   200000,
 			MaxOutputTokens:  64000,
-			SupportedParams: []string{"temperature", "top_p", "max_tokens", "stop"},
+			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 		},
 	},
 	ModelClaudeSonnet45: {
@@ -104,9 +107,9 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Constraints: llm.ModelConstraints{
 			TemperatureRange: [2]float64{0.0, 1.0},
-			MaxInputTokens:  200000,
+			MaxInputTokens:   200000,
 			MaxOutputTokens:  64000,
-			SupportedParams: []string{"temperature", "top_p", "max_tokens", "stop"},
+			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 		},
 	},
 	ModelClaudeHaiku45: {
@@ -122,9 +125,9 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Constraints: llm.ModelConstraints{
 			TemperatureRange: [2]float64{0.0, 1.0},
-			MaxInputTokens:  200000,
+			MaxInputTokens:   200000,
 			MaxOutputTokens:  64000,
-			SupportedParams: []string{"temperature", "top_p", "max_tokens", "stop"},
+			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 		},
 	},
 	ModelClaudeOpus46: {
@@ -140,9 +143,9 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Constraints: llm.ModelConstraints{
 			TemperatureRange: [2]float64{0.0, 1.0},
-			MaxInputTokens:  1000000,
+			MaxInputTokens:   1000000,
 			MaxOutputTokens:  128000,
-			SupportedParams: []string{"temperature", "top_p", "max_tokens", "stop"},
+			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 		},
 	},
 	ModelClaudeOpus45: {
@@ -158,9 +161,9 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Constraints: llm.ModelConstraints{
 			TemperatureRange: [2]float64{0.0, 1.0},
-			MaxInputTokens:  200000,
+			MaxInputTokens:   200000,
 			MaxOutputTokens:  64000,
-			SupportedParams: []string{"temperature", "top_p", "max_tokens", "stop"},
+			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 		},
 	},
 	ModelClaudeOpus41: {
@@ -176,9 +179,9 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Constraints: llm.ModelConstraints{
 			TemperatureRange: [2]float64{0.0, 1.0},
-			MaxInputTokens:  200000,
+			MaxInputTokens:   200000,
 			MaxOutputTokens:  32000,
-			SupportedParams: []string{"temperature", "top_p", "max_tokens", "stop"},
+			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 		},
 	},
 }

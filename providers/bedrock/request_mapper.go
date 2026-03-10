@@ -169,6 +169,7 @@ func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]types.Message, [
 		if len(system) > 0 {
 			system = append(system, &types.SystemContentBlockMemberCachePoint{Value: cachePoint})
 		}
+
 		if len(apiMessages) > 0 {
 			lastMsg := &apiMessages[len(apiMessages)-1]
 			lastMsg.Content = append(lastMsg.Content, &types.ContentBlockMemberCachePoint{Value: cachePoint})
@@ -333,7 +334,7 @@ func (rm *RequestMapper) mapToolChoice(choice *llm.ToolChoice) (types.ToolChoice
 		}, nil
 
 	case llm.ToolChoiceNone:
-		return nil, errors.New("Bedrock does not support tool_choice=none; omit tools from the request instead")
+		return nil, errors.New("bedrock does not support tool_choice=none; omit tools from the request instead")
 
 	case llm.ToolChoiceSpecific:
 		if choice.Name == nil || *choice.Name == "" {

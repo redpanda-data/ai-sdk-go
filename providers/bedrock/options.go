@@ -2,6 +2,7 @@ package bedrock
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
@@ -89,7 +90,7 @@ func WithMaxTokens(tokens int) Option {
 			return fmt.Errorf("%s: max_tokens %d exceeds limit %d", cfg.ModelName, tokens, cfg.Constraints.MaxOutputTokens)
 		}
 
-		v := int32(tokens)
+		v := int32(tokens) //nolint:gosec // bounds checked: 1 <= tokens <= MaxOutputTokens (<=128000)
 		cfg.MaxTokens = &v
 		cfg.setOptions["max_tokens"] = true
 
@@ -104,10 +105,8 @@ func WithStop(sequences ...string) Option {
 			return fmt.Errorf("%s: maximum 4 stop sequences allowed, got %d", cfg.ModelName, len(sequences))
 		}
 
-		for _, s := range sequences {
-			if s == "" {
-				return fmt.Errorf("%s: stop sequences cannot be empty", cfg.ModelName)
-			}
+		if slices.Contains(sequences, "") {
+			return fmt.Errorf("%s: stop sequences cannot be empty", cfg.ModelName)
 		}
 
 		cfg.Stop = sequences

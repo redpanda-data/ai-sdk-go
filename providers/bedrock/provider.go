@@ -20,11 +20,6 @@ type Provider struct {
 	enableCaching bool
 }
 
-// Name returns the provider identifier.
-func (*Provider) Name() string {
-	return "bedrock"
-}
-
 // ProviderOption configures a Provider instance using functional options.
 type ProviderOption func(*providerConfig) error
 
@@ -58,6 +53,7 @@ func NewProvider(ctx context.Context, opts ...ProviderOption) (*Provider, error)
 		}
 
 		var err error
+
 		awsCfg, err = awsconfig.LoadDefaultConfig(ctx, loadOpts...)
 		if err != nil {
 			return nil, fmt.Errorf("load AWS config: %w", err)
@@ -78,6 +74,11 @@ func NewProvider(ctx context.Context, opts ...ProviderOption) (*Provider, error)
 		client:        client,
 		enableCaching: cfg.caching,
 	}, nil
+}
+
+// Name returns the provider identifier.
+func (*Provider) Name() string {
+	return "bedrock"
 }
 
 // WithAWSConfig sets a pre-loaded AWS configuration.

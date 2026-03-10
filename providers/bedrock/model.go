@@ -61,8 +61,6 @@ func (m *Model) Generate(ctx context.Context, req *llm.Request) (*llm.Response, 
 
 // GenerateEvents performs a streaming request using the Bedrock ConverseStream API.
 // It returns a Go 1.23+ iterator for streaming LLM responses.
-//
-//nolint:gocyclo // Streaming event handling requires switching on multiple event types
 func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[llm.Event, error] {
 	return func(yield func(llm.Event, error) bool) {
 		input, err := m.requestMapper.ToConverseStreamInput(req)
@@ -100,16 +98,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 				acc := &contentBlockAccumulator{index: idx}
 
 				if e.Value.Start != nil {
-					if toolStart, ok := e.Value.Start.(*types.ContentBlockStartMemberToolUse); ok {
-						acc.blockType = blockTypeToolUse
-						acc.toolUse = &toolUseData{}
-						if toolStart.Value.ToolUseId != nil {
-							acc.toolUse.ID = *toolStart.Value.ToolUseId
-						}
-						if toolStart.Value.Name != nil {
-							acc.toolUse.Name = *toolStart.Value.Name
-						}
-					}
+					applyContentBlockStart(acc, e.Value.Start)
 				}
 
 				contentBlocks[idx] = acc
@@ -127,51 +116,9 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 				}
 
 				if e.Value.Delta != nil {
-					switch delta := e.Value.Delta.(type) {
-					case *types.ContentBlockDeltaMemberText:
-						if acc.blockType == "" {
-							acc.blockType = blockTypeText
-						}
-
-						acc.textContent += delta.Value
-
-						if !yield(llm.ContentPartEvent{
-							Index: idx,
-							Part:  llm.NewTextPart(delta.Value),
-						}, nil) {
+					if event, hasEvent := processContentDelta(acc, e.Value.Delta, idx); hasEvent {
+						if !yield(event, nil) {
 							return
-						}
-
-					case *types.ContentBlockDeltaMemberToolUse:
-						if delta.Value.Input != nil {
-							acc.toolArgs += *delta.Value.Input
-						}
-
-					case *types.ContentBlockDeltaMemberReasoningContent:
-						if delta.Value != nil {
-							switch rd := delta.Value.(type) {
-							case *types.ReasoningContentBlockDeltaMemberText:
-								if acc.blockType == "" {
-									acc.blockType = blockTypeReasoning
-								}
-
-								acc.textContent += rd.Value
-
-								// Signature arrives after all text deltas, so streaming
-								// reasoning events carry an empty ID. The final assembled
-								// part in buildFinalParts includes the signature.
-								if !yield(llm.ContentPartEvent{
-									Index: idx,
-									Part: llm.NewReasoningPart(&llm.ReasoningTrace{
-										Text: rd.Value,
-									}),
-								}, nil) {
-									return
-								}
-
-							case *types.ReasoningContentBlockDeltaMemberSignature:
-								acc.reasoningSignature = rd.Value
-							}
 						}
 					}
 				}
@@ -228,20 +175,14 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 			usage = m.responseMapper.mapTokenUsage(tokenUsage)
 		}
 
-		var finishReason llm.FinishReason
-		hasToolCalls := false
+		finishReason := m.responseMapper.mapStopReason(stopReason)
+
 		for _, part := range finalParts {
 			if part.IsToolRequest() {
-				hasToolCalls = true
+				finishReason = llm.FinishReasonToolCalls
 
 				break
 			}
-		}
-
-		if hasToolCalls {
-			finishReason = llm.FinishReasonToolCalls
-		} else {
-			finishReason = m.responseMapper.mapStopReason(stopReason)
 		}
 
 		yield(llm.StreamEndEvent{
@@ -315,6 +256,7 @@ func (a *contentBlockAccumulator) argsJSON() json.RawMessage {
 	if a.toolArgs == "" {
 		return json.RawMessage("{}")
 	}
+
 	return json.RawMessage(a.toolArgs)
 }
 
@@ -322,4 +264,81 @@ func (a *contentBlockAccumulator) argsJSON() json.RawMessage {
 type toolUseData struct {
 	ID   string
 	Name string
+}
+
+// applyContentBlockStart applies a content block start event to an accumulator.
+func applyContentBlockStart(acc *contentBlockAccumulator, start types.ContentBlockStart) {
+	toolStart, ok := start.(*types.ContentBlockStartMemberToolUse)
+	if !ok {
+		return
+	}
+
+	acc.blockType = blockTypeToolUse
+	acc.toolUse = &toolUseData{}
+
+	if toolStart.Value.ToolUseId != nil {
+		acc.toolUse.ID = *toolStart.Value.ToolUseId
+	}
+
+	if toolStart.Value.Name != nil {
+		acc.toolUse.Name = *toolStart.Value.Name
+	}
+}
+
+// processContentDelta processes a content block delta and returns an event to yield if any.
+func processContentDelta(acc *contentBlockAccumulator, delta types.ContentBlockDelta, idx int) (llm.Event, bool) {
+	switch d := delta.(type) {
+	case *types.ContentBlockDeltaMemberText:
+		if acc.blockType == "" {
+			acc.blockType = blockTypeText
+		}
+
+		acc.textContent += d.Value
+
+		return llm.ContentPartEvent{
+			Index: idx,
+			Part:  llm.NewTextPart(d.Value),
+		}, true
+
+	case *types.ContentBlockDeltaMemberToolUse:
+		if d.Value.Input != nil {
+			acc.toolArgs += *d.Value.Input
+		}
+
+	case *types.ContentBlockDeltaMemberReasoningContent:
+		return processReasoningDelta(acc, d, idx)
+	}
+
+	return nil, false
+}
+
+// processReasoningDelta handles reasoning content deltas during streaming.
+func processReasoningDelta(acc *contentBlockAccumulator, delta *types.ContentBlockDeltaMemberReasoningContent, idx int) (llm.Event, bool) {
+	if delta.Value == nil {
+		return nil, false
+	}
+
+	switch rd := delta.Value.(type) {
+	case *types.ReasoningContentBlockDeltaMemberText:
+		if acc.blockType == "" {
+			acc.blockType = blockTypeReasoning
+		}
+
+		acc.textContent += rd.Value
+
+		// Signature arrives after all text deltas, so streaming
+		// reasoning events carry an empty ID. The final assembled
+		// part in buildFinalParts includes the signature.
+		return llm.ContentPartEvent{
+			Index: idx,
+			Part: llm.NewReasoningPart(&llm.ReasoningTrace{
+				Text: rd.Value,
+			}),
+		}, true
+
+	case *types.ReasoningContentBlockDeltaMemberSignature:
+		acc.reasoningSignature = rd.Value
+	}
+
+	return nil, false
 }

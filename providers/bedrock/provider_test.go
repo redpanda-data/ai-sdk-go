@@ -361,7 +361,7 @@ func TestRequestMapper_InferenceConfig(t *testing.T) {
 	maxTokens := int32(2048)
 
 	cfg := &Config{
-		ModelName:  "claude-sonnet-4-6",
+		ModelName:   "claude-sonnet-4-6",
 		Temperature: &temp,
 		TopP:        &topP,
 		MaxTokens:   &maxTokens,
@@ -801,9 +801,9 @@ func TestResponseMapper_CachedTokens(t *testing.T) {
 	}
 
 	resp, err := mapper.FromConverseOutput(types.StopReasonEndTurn, output, &types.TokenUsage{
-		InputTokens:         aws.Int32(100),
-		OutputTokens:        aws.Int32(10),
-		TotalTokens:         aws.Int32(110),
+		InputTokens:          aws.Int32(100),
+		OutputTokens:         aws.Int32(10),
+		TotalTokens:          aws.Int32(110),
 		CacheReadInputTokens: aws.Int32(80),
 	})
 	require.NoError(t, err)
@@ -829,7 +829,7 @@ func TestModelsDiscovery(t *testing.T) {
 
 	// Verify sorted by name
 	for i := 1; i < len(models); i++ {
-		assert.True(t, models[i-1].Name < models[i].Name,
+		assert.Less(t, models[i-1].Name, models[i].Name,
 			"Models() should be sorted by Name: %s should come before %s", models[i-1].Name, models[i].Name)
 	}
 }

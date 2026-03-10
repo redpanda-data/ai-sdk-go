@@ -70,55 +70,11 @@ func (m *ResponseMapper) mapContentBlocks(blocks []types.ContentBlock) ([]*llm.P
 		case *types.ContentBlockMemberToolUse:
 			hasToolCalls = true
 
-			// Marshal the document.Interface Input to JSON
-			var argsJSON json.RawMessage
-			if v.Value.Input != nil {
-				var raw any
-				if err := v.Value.Input.UnmarshalSmithyDocument(&raw); err == nil {
-					if b, err := json.Marshal(raw); err == nil {
-						argsJSON = b
-					}
-				}
-			}
-
-			if argsJSON == nil {
-				argsJSON = json.RawMessage("{}")
-			}
-
-			var id, name string
-			if v.Value.ToolUseId != nil {
-				id = *v.Value.ToolUseId
-			}
-
-			if v.Value.Name != nil {
-				name = *v.Value.Name
-			}
-
-			parts = append(parts, llm.NewToolRequestPart(&llm.ToolRequest{
-				ID:        id,
-				Name:      name,
-				Arguments: argsJSON,
-			}))
+			parts = append(parts, m.mapToolUseBlock(&v.Value))
 
 		case *types.ContentBlockMemberReasoningContent:
-			if v.Value != nil {
-				if rt, ok := v.Value.(*types.ReasoningContentBlockMemberReasoningText); ok {
-					var text, sig string
-					if rt.Value.Text != nil {
-						text = *rt.Value.Text
-					}
-
-					if rt.Value.Signature != nil {
-						sig = *rt.Value.Signature
-					}
-
-					if text != "" {
-						parts = append(parts, llm.NewReasoningPart(&llm.ReasoningTrace{
-							ID:   sig,
-							Text: text,
-						}))
-					}
-				}
+			if part := m.mapReasoningBlock(v.Value); part != nil {
+				parts = append(parts, part)
 			}
 		}
 	}
@@ -141,9 +97,76 @@ func (m *ResponseMapper) mapStopReason(reason types.StopReason) llm.FinishReason
 	case types.StopReasonContentFiltered, types.StopReasonGuardrailIntervened:
 		return llm.FinishReasonContentFilter
 
+	case types.StopReasonMalformedModelOutput, types.StopReasonMalformedToolUse:
+		return llm.FinishReasonStop
+
 	default:
 		return llm.FinishReasonStop
 	}
+}
+
+// mapToolUseBlock converts a Bedrock ToolUseBlock to an llm.Part.
+func (m *ResponseMapper) mapToolUseBlock(block *types.ToolUseBlock) *llm.Part {
+	argsJSON := m.marshalToolInput(block.Input)
+
+	var id, name string
+	if block.ToolUseId != nil {
+		id = *block.ToolUseId
+	}
+
+	if block.Name != nil {
+		name = *block.Name
+	}
+
+	return llm.NewToolRequestPart(&llm.ToolRequest{
+		ID:        id,
+		Name:      name,
+		Arguments: argsJSON,
+	})
+}
+
+// marshalToolInput marshals a document.Interface to JSON, defaulting to "{}".
+func (m *ResponseMapper) marshalToolInput(input interface{ UnmarshalSmithyDocument(any) error }) json.RawMessage {
+	if input != nil {
+		var raw any
+		if err := input.UnmarshalSmithyDocument(&raw); err == nil {
+			if b, err := json.Marshal(raw); err == nil {
+				return b
+			}
+		}
+	}
+
+	return json.RawMessage("{}")
+}
+
+// mapReasoningBlock converts a Bedrock ReasoningContentBlock to an llm.Part, or nil if empty.
+func (m *ResponseMapper) mapReasoningBlock(value types.ReasoningContentBlock) *llm.Part {
+	if value == nil {
+		return nil
+	}
+
+	rt, ok := value.(*types.ReasoningContentBlockMemberReasoningText)
+	if !ok {
+		return nil
+	}
+
+	var text, sig string
+	if rt.Value.Text != nil {
+		text = *rt.Value.Text
+	}
+
+	if rt.Value.Signature != nil {
+		sig = *rt.Value.Signature
+	}
+
+	if text == "" {
+		return nil
+	}
+
+	return llm.NewReasoningPart(&llm.ReasoningTrace{
+		ID:   sig,
+		Text: text,
+	})
 }
 
 // mapTokenUsage converts Bedrock TokenUsage to llm.TokenUsage.
