@@ -84,6 +84,12 @@ func TestResolveModelFamily(t *testing.T) {
 			input:    "llama-3.2-90b",
 			expected: "llama-3.2-90b",
 		},
+		// Negative: "anthropic." must follow a dot or start the string
+		{
+			name:     "misleading prefix: notanthropic.claude-sonnet-4-6",
+			input:    "notanthropic.claude-sonnet-4-6",
+			expected: "notanthropic.claude-sonnet-4-6",
+		},
 	}
 
 	for _, tt := range tests {

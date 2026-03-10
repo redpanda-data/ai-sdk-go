@@ -57,15 +57,13 @@ type ModelDefinition struct {
 //  2. Match remaining string against known family keys using prefix matching
 //  3. If no match, return original string (caller rejects unknown models)
 func resolveModelFamily(model string) string {
-	// Strip provider prefix: "eu.anthropic.X" → "X", "anthropic.X" → "X"
-	stripped := model
-	if idx := strings.Index(model, "anthropic."); idx >= 0 {
-		stripped = model[idx+len("anthropic."):]
-	}
-
-	// Match against known families using longest-prefix first
 	for _, family := range modelFamilies {
-		if strings.HasPrefix(stripped, family) {
+		if strings.HasPrefix(model, family) {
+			return family
+		}
+
+		if strings.HasPrefix(model, "anthropic."+family) ||
+			strings.Contains(model, ".anthropic."+family) {
 			return family
 		}
 	}
