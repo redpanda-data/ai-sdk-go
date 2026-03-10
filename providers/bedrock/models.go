@@ -1,10 +1,24 @@
 package bedrock
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
+
+// modelFamilies is sorted by descending length for deterministic longest-prefix matching.
+var modelFamilies []string
+
+func init() {
+	modelFamilies = make([]string, 0, len(supportedModels))
+	for family := range supportedModels {
+		modelFamilies = append(modelFamilies, family)
+	}
+	sort.Slice(modelFamilies, func(i, j int) bool {
+		return len(modelFamilies[i]) > len(modelFamilies[j])
+	})
+}
 
 // Model family constants for Claude models on Bedrock.
 // These are the canonical short names used as map keys.
@@ -46,8 +60,8 @@ func resolveModelFamily(model string) string {
 		stripped = model[idx+len("anthropic."):]
 	}
 
-	// Match against known families using prefix
-	for family := range supportedModels {
+	// Match against known families using longest-prefix first
+	for _, family := range modelFamilies {
 		if strings.HasPrefix(stripped, family) {
 			return family
 		}
