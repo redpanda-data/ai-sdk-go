@@ -136,17 +136,12 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 				// For tool use blocks, emit the complete tool request
 				if acc.blockType == blockTypeToolUse && acc.toolUse != nil {
-					argsJSON := json.RawMessage(acc.toolArgs)
-					if acc.toolArgs == "" {
-						argsJSON = json.RawMessage("{}")
-					}
-
 					if !yield(llm.ContentPartEvent{
 						Index: idx,
 						Part: llm.NewToolRequestPart(&llm.ToolRequest{
 							ID:        acc.toolUse.ID,
 							Name:      acc.toolUse.Name,
-							Arguments: argsJSON,
+							Arguments: acc.argsJSON(),
 						}),
 					}, nil) {
 						return
@@ -253,7 +248,7 @@ type contentBlockAccumulator struct {
 }
 
 func (a *contentBlockAccumulator) argsJSON() json.RawMessage {
-	if a.toolArgs == "" {
+	if a.toolArgs == "" || !json.Valid([]byte(a.toolArgs)) {
 		return json.RawMessage("{}")
 	}
 
