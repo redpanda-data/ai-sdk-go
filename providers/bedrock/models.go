@@ -53,15 +53,6 @@ func resolveModelFamily(model string) string {
 		}
 	}
 
-	// Also try the original string for direct family names
-	if stripped != model {
-		for family := range supportedModels {
-			if strings.HasPrefix(model, family) {
-				return family
-			}
-		}
-	}
-
 	return model
 }
 
