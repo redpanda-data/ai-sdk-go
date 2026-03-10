@@ -157,10 +157,12 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 								acc.textContent += rd.Value
 
+								// Signature arrives after all text deltas, so streaming
+								// reasoning events carry an empty ID. The final assembled
+								// part in buildFinalParts includes the signature.
 								if !yield(llm.ContentPartEvent{
 									Index: idx,
 									Part: llm.NewReasoningPart(&llm.ReasoningTrace{
-										ID:   acc.reasoningSignature,
 										Text: rd.Value,
 									}),
 								}, nil) {
