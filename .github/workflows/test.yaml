@@ -18,6 +18,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   test:
@@ -42,6 +43,11 @@ jobs:
           key: ${{ runner.os }}-build-${{ hashFiles('**/go.sum', 'Taskfile.yaml', 'taskfiles/install.yaml') }}
           restore-keys: |
             ${{ runner.os }}-build-
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::961547496971:role/ai-sdk-go-ci-bedrock
+          aws-region: us-east-1
 
       - uses: go-task/setup-task@v1
 
