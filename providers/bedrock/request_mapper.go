@@ -25,67 +25,62 @@ func NewRequestMapper(config *Config) *RequestMapper {
 
 // ToConverseInput converts an llm.Request to a bedrockruntime.ConverseInput.
 func (rm *RequestMapper) ToConverseInput(req *llm.Request) (*bedrockruntime.ConverseInput, error) {
-	messages, system, err := rm.mapMessages(req.Messages)
+	p, err := rm.buildConverseParams(req)
 	if err != nil {
-		return nil, fmt.Errorf("%w: message mapping failed: %w", llm.ErrRequestMapping, err)
+		return nil, err
 	}
 
-	input := &bedrockruntime.ConverseInput{
-		ModelId:  aws.String(rm.config.APIModelID),
-		Messages: messages,
-	}
-
-	if len(system) > 0 {
-		input.System = system
-	}
-
-	// Build inference configuration
-	infConfig := rm.buildInferenceConfig()
-	if infConfig != nil {
-		input.InferenceConfig = infConfig
-	}
-
-	// Enable extended thinking via additionalModelRequestFields
-	if rm.config.EnableThinking {
-		input.AdditionalModelRequestFields = rm.buildThinkingFields()
-	}
-
-	// Map tools
-	if len(req.Tools) > 0 {
-		toolConfig, err := rm.mapToolConfig(req.Tools, req.ToolChoice)
-		if err != nil {
-			return nil, fmt.Errorf("%w: tool mapping failed: %w", llm.ErrRequestMapping, err)
-		}
-
-		input.ToolConfig = toolConfig
-	}
-
-	return input, nil
+	return &bedrockruntime.ConverseInput{
+		ModelId:                      aws.String(rm.config.APIModelID),
+		Messages:                     p.messages,
+		System:                       p.system,
+		InferenceConfig:              p.infConfig,
+		AdditionalModelRequestFields: p.thinking,
+		ToolConfig:                   p.tools,
+	}, nil
 }
 
 // ToConverseStreamInput converts an llm.Request to a bedrockruntime.ConverseStreamInput.
 func (rm *RequestMapper) ToConverseStreamInput(req *llm.Request) (*bedrockruntime.ConverseStreamInput, error) {
+	p, err := rm.buildConverseParams(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &bedrockruntime.ConverseStreamInput{
+		ModelId:                      aws.String(rm.config.APIModelID),
+		Messages:                     p.messages,
+		System:                       p.system,
+		InferenceConfig:              p.infConfig,
+		AdditionalModelRequestFields: p.thinking,
+		ToolConfig:                   p.tools,
+	}, nil
+}
+
+// converseParams holds the resolved fields shared by Converse and ConverseStream.
+type converseParams struct {
+	messages  []types.Message
+	system    []types.SystemContentBlock
+	infConfig *types.InferenceConfiguration
+	thinking  document.Interface
+	tools     *types.ToolConfiguration
+}
+
+// buildConverseParams resolves all common request parameters once.
+func (rm *RequestMapper) buildConverseParams(req *llm.Request) (*converseParams, error) {
 	messages, system, err := rm.mapMessages(req.Messages)
 	if err != nil {
 		return nil, fmt.Errorf("%w: message mapping failed: %w", llm.ErrRequestMapping, err)
 	}
 
-	input := &bedrockruntime.ConverseStreamInput{
-		ModelId:  aws.String(rm.config.APIModelID),
-		Messages: messages,
-	}
-
-	if len(system) > 0 {
-		input.System = system
-	}
-
-	infConfig := rm.buildInferenceConfig()
-	if infConfig != nil {
-		input.InferenceConfig = infConfig
+	p := &converseParams{
+		messages:  messages,
+		system:    system,
+		infConfig: rm.buildInferenceConfig(),
 	}
 
 	if rm.config.EnableThinking {
-		input.AdditionalModelRequestFields = rm.buildThinkingFields()
+		p.thinking = rm.buildThinkingFields()
 	}
 
 	if len(req.Tools) > 0 {
@@ -94,10 +89,10 @@ func (rm *RequestMapper) ToConverseStreamInput(req *llm.Request) (*bedrockruntim
 			return nil, fmt.Errorf("%w: tool mapping failed: %w", llm.ErrRequestMapping, err)
 		}
 
-		input.ToolConfig = toolConfig
+		p.tools = toolConfig
 	}
 
-	return input, nil
+	return p, nil
 }
 
 // buildInferenceConfig creates the InferenceConfiguration from config options.
@@ -139,7 +134,7 @@ func (rm *RequestMapper) buildInferenceConfig() *types.InferenceConfiguration {
 func (rm *RequestMapper) buildThinkingFields() document.Interface {
 	return document.NewLazyDocument(map[string]any{
 		"thinking": map[string]any{
-			"type":         "enabled",
+			"type":          "enabled",
 			"budget_tokens": rm.config.BudgetTokens,
 		},
 	})

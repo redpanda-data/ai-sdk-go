@@ -144,8 +144,8 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 	}
 
 	cfg := &Config{
-		ModelName:  modelName,
-		APIModelID: apiModelID,
+		ModelName:     modelName,
+		APIModelID:    apiModelID,
 		Constraints:   modelDef.Constraints,
 		EnableCaching: p.enableCaching,
 		setOptions:    make(map[string]bool),

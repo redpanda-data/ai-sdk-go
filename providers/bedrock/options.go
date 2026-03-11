@@ -12,8 +12,8 @@ type Option func(*Config) error
 
 // Config holds the configuration for a Bedrock model instance.
 type Config struct {
-	ModelName  string // User-facing model name (as passed to NewModel)
-	APIModelID string // Fully-qualified Bedrock model ID for API calls
+	ModelName   string // User-facing model name (as passed to NewModel)
+	APIModelID  string // Fully-qualified Bedrock model ID for API calls
 	Constraints llm.ModelConstraints
 
 	Temperature *float64
