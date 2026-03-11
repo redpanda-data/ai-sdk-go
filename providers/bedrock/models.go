@@ -80,7 +80,7 @@ var supportedModels = map[string]ModelDefinition{
 		Capabilities: llm.ModelCapabilities{
 			Streaming:     true,
 			Tools:         true,
-			Vision:        true,
+			Vision:        false,
 			MultiTurn:     true,
 			SystemPrompts: true,
 			Reasoning:     true,
@@ -98,7 +98,7 @@ var supportedModels = map[string]ModelDefinition{
 		Capabilities: llm.ModelCapabilities{
 			Streaming:     true,
 			Tools:         true,
-			Vision:        true,
+			Vision:        false,
 			MultiTurn:     true,
 			SystemPrompts: true,
 			Reasoning:     true,
@@ -116,7 +116,7 @@ var supportedModels = map[string]ModelDefinition{
 		Capabilities: llm.ModelCapabilities{
 			Streaming:     true,
 			Tools:         true,
-			Vision:        true,
+			Vision:        false,
 			MultiTurn:     true,
 			SystemPrompts: true,
 			Reasoning:     true,
@@ -134,7 +134,7 @@ var supportedModels = map[string]ModelDefinition{
 		Capabilities: llm.ModelCapabilities{
 			Streaming:     true,
 			Tools:         true,
-			Vision:        true,
+			Vision:        false,
 			MultiTurn:     true,
 			SystemPrompts: true,
 			Reasoning:     true,
@@ -152,7 +152,7 @@ var supportedModels = map[string]ModelDefinition{
 		Capabilities: llm.ModelCapabilities{
 			Streaming:     true,
 			Tools:         true,
-			Vision:        true,
+			Vision:        false,
 			MultiTurn:     true,
 			SystemPrompts: true,
 			Reasoning:     true,
@@ -170,7 +170,7 @@ var supportedModels = map[string]ModelDefinition{
 		Capabilities: llm.ModelCapabilities{
 			Streaming:     true,
 			Tools:         true,
-			Vision:        true,
+			Vision:        false,
 			MultiTurn:     true,
 			SystemPrompts: true,
 			Reasoning:     true,

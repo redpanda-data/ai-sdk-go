@@ -315,7 +315,7 @@ func TestNewModel_Capabilities(t *testing.T) {
 	caps := model.Capabilities()
 	assert.True(t, caps.Streaming)
 	assert.True(t, caps.Tools)
-	assert.True(t, caps.Vision)
+	assert.False(t, caps.Vision)
 	assert.True(t, caps.MultiTurn)
 	assert.True(t, caps.SystemPrompts)
 	assert.True(t, caps.Reasoning)
