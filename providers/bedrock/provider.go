@@ -17,6 +17,7 @@ import (
 // Provider implements the Bedrock model provider using the Converse API.
 type Provider struct {
 	client        *bedrockruntime.Client
+	region        string
 	enableCaching bool
 }
 
@@ -72,6 +73,7 @@ func NewProvider(ctx context.Context, opts ...ProviderOption) (*Provider, error)
 
 	return &Provider{
 		client:        client,
+		region:        awsCfg.Region,
 		enableCaching: cfg.caching,
 	}, nil
 }
@@ -132,8 +134,18 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 		return nil, fmt.Errorf("unsupported Bedrock model: %s", modelName)
 	}
 
+	// Resolve the model ID to send to the Bedrock API.
+	// If the user passed a short name (matching the family key exactly),
+	// build the inference profile ID: {regionPrefix}.{modelID}
+	// Otherwise, the user passed a qualified ID — use it as-is.
+	apiModelID := modelName
+	if modelName == family && modelDef.DefaultModelID != "" {
+		apiModelID = inferenceProfileRegion(p.region) + "." + modelDef.DefaultModelID
+	}
+
 	cfg := &Config{
-		ModelName:     modelName,
+		ModelName:  modelName,
+		APIModelID: apiModelID,
 		Constraints:   modelDef.Constraints,
 		EnableCaching: p.enableCaching,
 		setOptions:    make(map[string]bool),

@@ -328,6 +328,7 @@ func TestRequestMapper_BasicRequest(t *testing.T) {
 
 	cfg := &Config{
 		ModelName:  "eu.anthropic.claude-sonnet-4-6",
+		APIModelID: "eu.anthropic.claude-sonnet-4-6",
 		setOptions: make(map[string]bool),
 	}
 
@@ -666,6 +667,7 @@ func TestRequestMapper_StreamInput(t *testing.T) {
 	temp := 0.5
 	cfg := &Config{
 		ModelName:   "claude-sonnet-4-6",
+		APIModelID:  "anthropic.claude-sonnet-4-6",
 		Temperature: &temp,
 		setOptions:  make(map[string]bool),
 	}
@@ -681,7 +683,7 @@ func TestRequestMapper_StreamInput(t *testing.T) {
 	input, err := mapper.ToConverseStreamInput(req)
 	require.NoError(t, err)
 
-	assert.Equal(t, "claude-sonnet-4-6", *input.ModelId)
+	assert.Equal(t, "anthropic.claude-sonnet-4-6", *input.ModelId)
 	require.NotNil(t, input.InferenceConfig)
 	require.NotNil(t, input.InferenceConfig.Temperature)
 	assert.InDelta(t, 0.5, *input.InferenceConfig.Temperature, 0.001)

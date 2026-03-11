@@ -30,16 +30,26 @@ const (
 	ModelClaudeSonnet45 = "claude-sonnet-4-5"
 	ModelClaudeHaiku45  = "claude-haiku-4-5"
 	ModelClaudeOpus46   = "claude-opus-4-6"
-	ModelClaudeOpus45   = "claude-opus-4-5"
-	ModelClaudeOpus41   = "claude-opus-4-1"
+	ModelClaudeOpus45 = "claude-opus-4-5"
 )
 
 // ModelDefinition defines a model with its capabilities and constraints.
 type ModelDefinition struct {
 	Name         string
 	Label        string
+	DefaultModelID string // Default Bedrock model ID for this family (e.g. "anthropic.claude-sonnet-4-5-20250929-v1:0")
 	Capabilities llm.ModelCapabilities
 	Constraints  llm.ModelConstraints
+}
+
+// inferenceProfileRegion maps an AWS region to the Bedrock inference profile
+// geographic prefix (e.g. "us-east-1" → "us", "eu-west-1" → "eu").
+func inferenceProfileRegion(region string) string {
+	if idx := strings.IndexByte(region, '-'); idx > 0 {
+		return region[:idx]
+	}
+
+	return "us"
 }
 
 // resolveModelFamily extracts the family key from any Bedrock model ID format.
@@ -75,8 +85,9 @@ func resolveModelFamily(model string) string {
 // Standard features only — no Anthropic-specific thinking/effort/speed.
 var supportedModels = map[string]ModelDefinition{
 	ModelClaudeSonnet46: {
-		Name:  ModelClaudeSonnet46,
-		Label: "Claude Sonnet 4.6",
+		Name:    ModelClaudeSonnet46,
+		Label:   "Claude Sonnet 4.6",
+		DefaultModelID: "anthropic.claude-sonnet-4-6",
 		Capabilities: llm.ModelCapabilities{
 			Streaming:     true,
 			Tools:         true,
@@ -93,8 +104,9 @@ var supportedModels = map[string]ModelDefinition{
 		},
 	},
 	ModelClaudeSonnet45: {
-		Name:  ModelClaudeSonnet45,
-		Label: "Claude Sonnet 4.5",
+		Name:    ModelClaudeSonnet45,
+		Label:   "Claude Sonnet 4.5",
+		DefaultModelID: "anthropic.claude-sonnet-4-5-20250929-v1:0",
 		Capabilities: llm.ModelCapabilities{
 			Streaming:     true,
 			Tools:         true,
@@ -111,8 +123,9 @@ var supportedModels = map[string]ModelDefinition{
 		},
 	},
 	ModelClaudeHaiku45: {
-		Name:  ModelClaudeHaiku45,
-		Label: "Claude Haiku 4.5",
+		Name:    ModelClaudeHaiku45,
+		Label:   "Claude Haiku 4.5",
+		DefaultModelID: "anthropic.claude-haiku-4-5-20251001-v1:0",
 		Capabilities: llm.ModelCapabilities{
 			Streaming:     true,
 			Tools:         true,
@@ -129,8 +142,9 @@ var supportedModels = map[string]ModelDefinition{
 		},
 	},
 	ModelClaudeOpus46: {
-		Name:  ModelClaudeOpus46,
-		Label: "Claude Opus 4.6",
+		Name:    ModelClaudeOpus46,
+		Label:   "Claude Opus 4.6",
+		DefaultModelID: "anthropic.claude-opus-4-6-v1",
 		Capabilities: llm.ModelCapabilities{
 			Streaming:     true,
 			Tools:         true,
@@ -147,8 +161,9 @@ var supportedModels = map[string]ModelDefinition{
 		},
 	},
 	ModelClaudeOpus45: {
-		Name:  ModelClaudeOpus45,
-		Label: "Claude Opus 4.5",
+		Name:    ModelClaudeOpus45,
+		Label:   "Claude Opus 4.5",
+		DefaultModelID: "anthropic.claude-opus-4-5-20251101-v1:0",
 		Capabilities: llm.ModelCapabilities{
 			Streaming:     true,
 			Tools:         true,
@@ -161,24 +176,6 @@ var supportedModels = map[string]ModelDefinition{
 			TemperatureRange: [2]float64{0.0, 1.0},
 			MaxInputTokens:   200000,
 			MaxOutputTokens:  64000,
-			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
-		},
-	},
-	ModelClaudeOpus41: {
-		Name:  ModelClaudeOpus41,
-		Label: "Claude Opus 4.1",
-		Capabilities: llm.ModelCapabilities{
-			Streaming:     true,
-			Tools:         true,
-			Vision:        false,
-			MultiTurn:     true,
-			SystemPrompts: true,
-			Reasoning:     true,
-		},
-		Constraints: llm.ModelConstraints{
-			TemperatureRange: [2]float64{0.0, 1.0},
-			MaxInputTokens:   200000,
-			MaxOutputTokens:  32000,
 			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 		},
 	},

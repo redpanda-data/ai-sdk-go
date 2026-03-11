@@ -31,7 +31,7 @@ func (rm *RequestMapper) ToConverseInput(req *llm.Request) (*bedrockruntime.Conv
 	}
 
 	input := &bedrockruntime.ConverseInput{
-		ModelId:  aws.String(rm.config.ModelName),
+		ModelId:  aws.String(rm.config.APIModelID),
 		Messages: messages,
 	}
 
@@ -43,6 +43,11 @@ func (rm *RequestMapper) ToConverseInput(req *llm.Request) (*bedrockruntime.Conv
 	infConfig := rm.buildInferenceConfig()
 	if infConfig != nil {
 		input.InferenceConfig = infConfig
+	}
+
+	// Enable extended thinking via additionalModelRequestFields
+	if rm.config.EnableThinking {
+		input.AdditionalModelRequestFields = rm.buildThinkingFields()
 	}
 
 	// Map tools
@@ -66,7 +71,7 @@ func (rm *RequestMapper) ToConverseStreamInput(req *llm.Request) (*bedrockruntim
 	}
 
 	input := &bedrockruntime.ConverseStreamInput{
-		ModelId:  aws.String(rm.config.ModelName),
+		ModelId:  aws.String(rm.config.APIModelID),
 		Messages: messages,
 	}
 
@@ -77,6 +82,10 @@ func (rm *RequestMapper) ToConverseStreamInput(req *llm.Request) (*bedrockruntim
 	infConfig := rm.buildInferenceConfig()
 	if infConfig != nil {
 		input.InferenceConfig = infConfig
+	}
+
+	if rm.config.EnableThinking {
+		input.AdditionalModelRequestFields = rm.buildThinkingFields()
 	}
 
 	if len(req.Tools) > 0 {
@@ -123,6 +132,17 @@ func (rm *RequestMapper) buildInferenceConfig() *types.InferenceConfiguration {
 	}
 
 	return &cfg
+}
+
+// buildThinkingFields returns the additionalModelRequestFields document for
+// enabling extended thinking with the configured budget.
+func (rm *RequestMapper) buildThinkingFields() document.Interface {
+	return document.NewLazyDocument(map[string]any{
+		"thinking": map[string]any{
+			"type":         "enabled",
+			"budget_tokens": rm.config.BudgetTokens,
+		},
+	})
 }
 
 // mapMessages converts llm.Messages to Bedrock Converse types, separating system messages.

@@ -12,13 +12,20 @@ type Option func(*Config) error
 
 // Config holds the configuration for a Bedrock model instance.
 type Config struct {
-	ModelName   string
+	ModelName  string // User-facing model name (as passed to NewModel)
+	APIModelID string // Fully-qualified Bedrock model ID for API calls
 	Constraints llm.ModelConstraints
 
 	Temperature *float64
 	TopP        *float64
 	MaxTokens   *int32
 	Stop        []string
+
+	// EnableThinking enables extended thinking (reasoning traces) via
+	// additionalModelRequestFields. BudgetTokens controls how many tokens
+	// to allocate for the thinking budget.
+	EnableThinking bool
+	BudgetTokens   int
 
 	// EnableCaching enables prompt caching on Bedrock.
 	EnableCaching bool
@@ -111,6 +118,21 @@ func WithStop(sequences ...string) Option {
 
 		cfg.Stop = sequences
 		cfg.setOptions["stop"] = true
+
+		return nil
+	}
+}
+
+// WithThinking enables extended thinking (reasoning traces).
+// budgetTokens controls the maximum number of tokens for the thinking budget.
+func WithThinking(budgetTokens int) Option {
+	return func(cfg *Config) error {
+		if budgetTokens < 1 {
+			return fmt.Errorf("%s: budget_tokens must be positive, got %d", cfg.ModelName, budgetTokens)
+		}
+
+		cfg.EnableThinking = true
+		cfg.BudgetTokens = budgetTokens
 
 		return nil
 	}
