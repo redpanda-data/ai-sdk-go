@@ -26,12 +26,11 @@ type mockAgent struct {
 	shouldError bool
 }
 
-func (m *mockAgent) Name() string {
-	return m.name
-}
-
-func (m *mockAgent) Description() string {
-	return m.description
+func (m *mockAgent) Info() agent.Info {
+	return agent.Info{
+		Name:        m.name,
+		Description: m.description,
+	}
 }
 
 func (m *mockAgent) InputSchema() map[string]any {

@@ -80,7 +80,7 @@ func NewProvider(ctx context.Context, opts ...ProviderOption) (*Provider, error)
 
 // Name returns the provider identifier.
 func (*Provider) Name() string {
-	return "bedrock"
+	return "aws.bedrock"
 }
 
 // WithAWSConfig sets a pre-loaded AWS configuration.
@@ -172,14 +172,14 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 }
 
 // Models returns all supported Bedrock models with their capabilities.
-func (*Provider) Models() []llm.ModelDiscoveryInfo {
+func (p *Provider) Models() []llm.ModelDiscoveryInfo {
 	models := make([]llm.ModelDiscoveryInfo, 0, len(supportedModels))
 	for _, def := range supportedModels {
 		models = append(models, llm.ModelDiscoveryInfo{
 			Name:         def.Name,
 			Label:        def.Label,
 			Capabilities: def.Capabilities,
-			Provider:     "bedrock",
+			Provider:     p.Name(),
 		})
 	}
 

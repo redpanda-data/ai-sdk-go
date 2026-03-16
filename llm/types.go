@@ -1,28 +1,55 @@
 package llm
 
 // TokenUsage tracks token consumption for AI model requests.
-// Token counting varies by provider, so not all fields may be available.
+//
+// Fields are populated on a best-effort basis — not all providers report every field.
+// Zero values indicate the provider did not report that metric.
+//
+// # Provider Coverage
+//
+// All providers report InputTokens, OutputTokens, and TotalTokens.
+// CachedTokens is widely supported. ReasoningTokens is provider-specific.
+// See individual field docs for details.
 type TokenUsage struct {
-	// InputTokens is the number of tokens in the input/prompt
+	// InputTokens is the number of tokens in the input/prompt.
+	// Reported by all providers.
 	InputTokens int `json:"input_tokens"`
 
-	// OutputTokens is the number of tokens in the generated response
+	// OutputTokens is the number of tokens in the generated response.
+	// Reported by all providers. For reasoning models on OpenAI, this includes
+	// reasoning tokens — ReasoningTokens is a subset of OutputTokens, not additive.
 	OutputTokens int `json:"output_tokens"`
 
-	// TotalTokens is the sum of prompt and completion tokens.
-	// This should equal InputTokens + OutputTokens when both are available.
+	// TotalTokens is the total token count for the request.
+	// Most providers return this directly from their API. Anthropic computes it
+	// as InputTokens + OutputTokens since their API does not provide it.
+	//
+	// For non-reasoning models, TotalTokens == InputTokens + OutputTokens.
+	// For reasoning models (OpenAI), TotalTokens still equals InputTokens + OutputTokens
+	// because reasoning tokens are included in OutputTokens.
 	TotalTokens int `json:"total_tokens"`
 
-	// CachedTokens represents tokens that were served from cache, if supported.
-	// This can help track cost savings from caching.
+	// CachedTokens is the number of input tokens served from the provider's prompt cache.
+	// These tokens are typically billed at a reduced rate. CachedTokens is a subset of
+	// InputTokens, not additive.
+	//
+	// Supported by all providers: OpenAI (InputTokensDetails.CachedTokens),
+	// Anthropic (CacheReadInputTokens), Google (CachedContentTokenCount),
+	// Bedrock (CacheReadInputTokens), and OpenAI-compatible APIs.
 	CachedTokens int `json:"cached_tokens,omitempty"`
 
-	// ReasoningTokens is the number of tokens used for reasoning (thinking) by reasoning models.
-	// Only available for models that support reasoning (OpenAI o-series, GPT-5 series).
+	// ReasoningTokens is the number of tokens the model used for internal reasoning (thinking).
+	// This is a subset of OutputTokens — it is NOT additive to the output count.
+	// These tokens are billed as output tokens.
+	//
+	// Only reported by OpenAI (o-series, GPT-5) and OpenAI-compatible providers
+	// (e.g., DeepSeek-R1). Anthropic, Google, and Bedrock do not report this field;
+	// it will be zero for those providers.
 	ReasoningTokens int `json:"reasoning_tokens,omitempty"`
 
-	// MaxInputTokens is the maximum number of tokens the model can accept as input.
-	// This represents the model's context window size.
+	// MaxInputTokens is the model's context window size (maximum input tokens accepted).
+	// This is a model capability, not a usage metric — it is populated from the model
+	// definition at configuration time, not from API responses.
 	MaxInputTokens int `json:"max_input_tokens,omitempty"`
 }
 

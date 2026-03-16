@@ -32,11 +32,18 @@ import (
 //
 // The event stream ends with a terminal event (InvocationEndEvent).
 type Agent interface {
-	// Name returns the agent's identifier.
-	Name() string
-
-	// Description describes the agent's purpose and capabilities.
-	Description() string
+	// Info returns the agent's identity snapshot.
+	//
+	// The returned Info struct contains stable, human-readable metadata
+	// used by observability integrations (OpenTelemetry gen_ai.agent.*),
+	// agent-as-tool wrappers, and other SDK features.
+	//
+	// For LLM-based agents, Info also includes ModelName and ProviderName
+	// so that invocation spans can carry gen_ai.request.model and
+	// gen_ai.provider.name from creation, even before a model call occurs.
+	//
+	// Adding fields to Info is backward-compatible (zero value).
+	Info() Info
 
 	// Run executes the agent with the given context and invocation metadata.
 	//

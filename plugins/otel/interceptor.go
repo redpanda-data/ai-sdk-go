@@ -30,9 +30,11 @@ import (
 //	)
 //
 //	agent, _ := llmagent.New(
-//	    "assistant",
+//	    "support-triage",
 //	    "You are helpful",
 //	    model,
+//	    llmagent.WithID("support-triage-prod"),
+//	    llmagent.WithVersion("1.4.2"),
 //	    llmagent.WithInterceptors(tracer),
 //	)
 //
@@ -177,6 +179,22 @@ func (t *TracingInterceptor) startInvocationSpan(
 		attrs = append(attrs, genAIAgentDescription(agentSnap.Description))
 	}
 
+	if agentSnap.ID != "" {
+		attrs = append(attrs, genAIAgentID(agentSnap.ID))
+	}
+
+	if agentSnap.Version != "" {
+		attrs = append(attrs, genAIAgentVersion(agentSnap.Version))
+	}
+
+	if agentSnap.ModelName != "" {
+		attrs = append(attrs, genAIRequestModel(agentSnap.ModelName))
+	}
+
+	if agentSnap.ProviderName != "" {
+		attrs = append(attrs, genAIProviderName(agentSnap.ProviderName))
+	}
+
 	// Build span name following OTel convention: "invoke_agent {gen_ai.agent.name}"
 	spanName := "invoke_agent"
 	if agentSnap.Name != "" {
@@ -226,10 +244,7 @@ func (t *TracingInterceptor) endInvocationSpan(inv *agent.InvocationMetadata, er
 
 	// Add final usage stats to invocation span
 	usage := inv.TotalUsage()
-	span.SetAttributes(
-		genAIUsageInputTokens(usage.InputTokens),
-		genAIUsageOutputTokens(usage.OutputTokens),
-	)
+	setUsageAttributes(span, &usage)
 
 	setSpanError(span, err)
 	span.End()

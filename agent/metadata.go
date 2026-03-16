@@ -37,10 +37,11 @@ import (
 // This struct is separate from InvocationMetadata's root fields to:
 //   - Keep the root namespace clean (avoid "God Object" antipattern)
 //   - Clearly distinguish "agent identity" from "runtime state" (turn, usage)
-//   - Provide room to evolve (add Version, Labels, etc. if needed)
+//   - Provide room to evolve (add Labels, etc. if needed)
 //   - Make mutability clear (entire struct is immutable)
 type Info struct {
-	// Name is the agent's identifier (used for gen_ai.agent.name)
+	// Name is the agent's application-defined name (used for gen_ai.agent.name).
+	// It should be stable and human-readable, but does not need to be globally unique.
 	Name string
 
 	// Description is the agent's purpose and capabilities (used for gen_ai.agent.description)
@@ -50,6 +51,22 @@ type Info struct {
 	// This captures the base system prompt configured for the agent, distinct from dynamic
 	// instructions that may be part of the conversation history.
 	SystemPrompt string
+
+	// ID is an optional unique agent identifier (used for gen_ai.agent.id).
+	// It should be stable across invocations and uniquely identify the logical agent.
+	ID string
+
+	// Version is an optional agent version (used for gen_ai.agent.version).
+	// Use a stable release or configuration version, not a per-request value.
+	Version string
+
+	// ModelName is the model identifier for LLM-based agents (used for gen_ai.request.model).
+	// Empty for non-LLM agents.
+	ModelName string
+
+	// ProviderName is the provider name for LLM-based agents (used for gen_ai.provider.name).
+	// Empty for non-LLM agents.
+	ProviderName string
 }
 
 // InvocationMetadata holds invocation-specific state and metadata.

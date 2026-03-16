@@ -14,9 +14,11 @@
 //	tracer := otel.New()
 //
 //	agent, _ := llmagent.New(
-//	    "assistant",
+//	    "support-triage",
 //	    "You are helpful",
 //	    model,
+//	    llmagent.WithID("support-triage-prod"),
+//	    llmagent.WithVersion("1.4.2"),
 //	    llmagent.WithInterceptors(tracer),
 //	)
 //

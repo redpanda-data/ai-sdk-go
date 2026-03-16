@@ -544,12 +544,11 @@ type mockAgent struct {
 	runFunc     func(context.Context, *agent.InvocationMetadata) iter.Seq2[agent.Event, error]
 }
 
-func (m *mockAgent) Name() string {
-	return m.name
-}
-
-func (m *mockAgent) Description() string {
-	return m.description
+func (m *mockAgent) Info() agent.Info {
+	return agent.Info{
+		Name:        m.name,
+		Description: m.description,
+	}
 }
 
 func (m *mockAgent) Run(ctx context.Context, inv *agent.InvocationMetadata) iter.Seq2[agent.Event, error] {

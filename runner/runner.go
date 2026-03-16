@@ -161,12 +161,8 @@ func (r *Runner) Run(
 		sess.Messages = append(sess.Messages, userMessage)
 
 		// 3. Create invocation metadata with agent snapshot
-		// The snapshot captures agent identity (name, description) for observability.
-		// Other config (system prompt, tools) is available through messages and requests.
-		inv := agent.NewInvocationMetadata(sess, agent.Info{
-			Name:        r.config.agent.Name(),
-			Description: r.config.agent.Description(),
-		})
+		// The snapshot captures agent identity for observability.
+		inv := agent.NewInvocationMetadata(sess, r.config.agent.Info())
 
 		// Track whether the consumer stopped iteration (yield returned false).
 		// When yield returns false, we must not call it again or Go panics with

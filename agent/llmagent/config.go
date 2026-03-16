@@ -14,6 +14,8 @@ type config struct {
 	name            string
 	description     string
 	systemPrompt    string
+	id              string
+	version         string
 	model           llm.Model
 	tools           tool.Registry
 	interceptors    []agent.Interceptor
@@ -92,5 +94,19 @@ func WithToolConcurrency(toolConcurrency int) Option {
 func WithInterceptors(i ...agent.Interceptor) Option {
 	return func(c *config) {
 		c.interceptors = i
+	}
+}
+
+// WithID sets the agent's unique identifier (used for gen_ai.agent.id).
+func WithID(id string) Option {
+	return func(c *config) {
+		c.id = id
+	}
+}
+
+// WithVersion sets the agent's version (used for gen_ai.agent.version).
+func WithVersion(version string) Option {
+	return func(c *config) {
+		c.version = version
 	}
 }
