@@ -72,14 +72,17 @@ func New(name string, systemPrompt string, model llm.Model, opts ...Option) (*LL
 	}, nil
 }
 
-// Name returns the agent's identifier.
-func (a *LLMAgent) Name() string {
-	return a.config.name
-}
-
-// Description returns the agent's purpose and capabilities.
-func (a *LLMAgent) Description() string {
-	return a.config.description
+// Info returns the agent's identity snapshot.
+func (a *LLMAgent) Info() agent.Info {
+	return agent.Info{
+		Name:         a.config.name,
+		Description:  a.config.description,
+		SystemPrompt: a.config.systemPrompt,
+		ID:           a.config.id,
+		Version:      a.config.version,
+		ModelName:    a.config.model.Name(),
+		ProviderName: a.config.model.Provider(),
+	}
 }
 
 // InputSchema returns the expected input schema.

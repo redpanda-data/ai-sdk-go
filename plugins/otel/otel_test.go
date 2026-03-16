@@ -514,6 +514,73 @@ func TestTracingInterceptor_InterceptToolExecution_Error(t *testing.T) {
 	assert.Equal(t, codes.Error, toolSpan.Status.Code)
 }
 
+func TestTracingInterceptor_InterceptToolExecution_ToolErrorResponse(t *testing.T) {
+	t.Parallel()
+
+	exporter, tp := setupTracer()
+	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
+
+	interceptor := pluginotel.New(
+		pluginotel.WithTracerProvider(tp),
+		pluginotel.WithRecordOutputs(true), // Ensure result is NOT recorded for tool errors
+	)
+
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
+		Name:        "test-agent",
+		Description: "Test agent for OpenTelemetry tracing",
+	})
+	ctx := t.Context()
+
+	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+		req := &llm.ToolRequest{Name: "query_logs", ID: "tool-call-abc", Arguments: json.RawMessage(`{"query":"errors"}`)}
+
+		toolInfo := &agent.ToolCallInfo{Inv: inv, Req: req}
+		resp, err := interceptor.InterceptToolExecution(ctx, toolInfo,
+			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponse, error) {
+				// Tool returns error content (not a Go error) — like a 502 from an upstream API
+				return &llm.ToolResponse{
+					ID:    "tool-call-abc",
+					Name:  "query_logs",
+					Error: "query failed: upstream returned status 502",
+				}, nil
+			})
+		require.NoError(t, err) // No Go error
+		assert.NotNil(t, resp)
+
+		return agent.FinishReasonStop, nil
+	})
+
+	// Find the tool span
+	spans := exporter.GetSpans()
+	var toolSpan *tracetest.SpanStub
+
+	for i := range spans {
+		if strings.HasPrefix(spans[i].Name, "execute_tool") {
+			toolSpan = &spans[i]
+			break
+		}
+	}
+
+	require.NotNil(t, toolSpan, "Expected execute_tool span")
+
+	// Span status SHOULD be Error (per MCP semconv: isError=true → span error)
+	assert.Equal(t, codes.Error, toolSpan.Status.Code)
+	assert.Contains(t, toolSpan.Status.Description, "query failed")
+
+	// error.type SHOULD be "tool_error" (per MCP semconv well-known value)
+	assertHasAttribute(t, toolSpan.Attributes, "error.type", "tool_error")
+
+	// gen_ai.tool.call.result SHOULD NOT be recorded (spec: "if execution was successful")
+	assertMissingAttribute(t, toolSpan.Attributes, "gen_ai.tool.call.result")
+
+	// redpanda.tool.result.available should be false
+	for _, attr := range toolSpan.Attributes {
+		if string(attr.Key) == "redpanda.tool.result.available" {
+			assert.False(t, attr.Value.AsBool())
+		}
+	}
+}
+
 func TestTracingInterceptor_SpanHierarchy(t *testing.T) {
 	t.Parallel()
 
@@ -969,21 +1036,8 @@ func TestTracingInterceptor_InterceptToolExecution_WithoutDefinition(t *testing.
 	assertHasAttribute(t, toolSpan.Attributes, "gen_ai.tool.call.id", "tool-call-999")
 
 	// Should NOT have type or description attributes when Definition is nil
-	hasType := false
-	hasDescription := false
-
-	for _, attr := range toolSpan.Attributes {
-		if string(attr.Key) == "gen_ai.tool.type" {
-			hasType = true
-		}
-
-		if string(attr.Key) == "gen_ai.tool.description" {
-			hasDescription = true
-		}
-	}
-
-	assert.False(t, hasType, "Should not have gen_ai.tool.type when Definition is nil")
-	assert.False(t, hasDescription, "Should not have gen_ai.tool.description when Definition is nil")
+	assertMissingAttribute(t, toolSpan.Attributes, "gen_ai.tool.type")
+	assertMissingAttribute(t, toolSpan.Attributes, "gen_ai.tool.description")
 }
 
 func TestTracingInterceptor_InterceptToolExecution_InvalidToolTypeDefaultsToFunction(t *testing.T) {
@@ -1047,7 +1101,307 @@ func TestTracingInterceptor_InterceptToolExecution_InvalidToolTypeDefaultsToFunc
 	assertHasAttribute(t, toolSpan.Attributes, "gen_ai.tool.type", "function")
 }
 
+func TestTracingInterceptor_AgentIDAndVersion_Present(t *testing.T) {
+	t.Parallel()
+
+	exporter, tp := setupTracer()
+	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
+
+	interceptor := pluginotel.New(
+		pluginotel.WithTracerProvider(tp),
+	)
+
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
+		Name:        "test-agent",
+		Description: "Test agent",
+		ID:          "agent-123",
+		Version:     "1.0",
+	})
+	ctx := t.Context()
+
+	reason, err := interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(_ context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+		return agent.FinishReasonStop, nil
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, agent.FinishReasonStop, reason)
+
+	spans := exporter.GetSpans()
+	require.Len(t, spans, 1)
+
+	assertHasAttribute(t, spans[0].Attributes, "gen_ai.agent.id", "agent-123")
+	assertHasAttribute(t, spans[0].Attributes, "gen_ai.agent.version", "1.0")
+}
+
+func TestTracingInterceptor_AgentIDAndVersion_Absent(t *testing.T) {
+	t.Parallel()
+
+	exporter, tp := setupTracer()
+	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
+
+	interceptor := pluginotel.New(
+		pluginotel.WithTracerProvider(tp),
+	)
+
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
+		Name:        "test-agent",
+		Description: "Test agent",
+	})
+	ctx := t.Context()
+
+	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(_ context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+		return agent.FinishReasonStop, nil
+	})
+
+	spans := exporter.GetSpans()
+	require.Len(t, spans, 1)
+
+	assertMissingAttribute(t, spans[0].Attributes, "gen_ai.agent.id")
+	assertMissingAttribute(t, spans[0].Attributes, "gen_ai.agent.version")
+}
+
+func TestTracingInterceptor_CacheReadTokens_OnModelSpan(t *testing.T) {
+	t.Parallel()
+
+	exporter, tp := setupTracer()
+	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
+
+	interceptor := pluginotel.New(
+		pluginotel.WithTracerProvider(tp),
+	)
+
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
+		Name: "test-agent",
+	})
+	ctx := t.Context()
+
+	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+		modelInfo := &agent.ModelCallInfo{
+			InvocationMetadata: inv,
+			Model:              &mockModelInfo{name: "gpt-4", provider: "openai"},
+			Req:                &llm.Request{},
+		}
+		handler := interceptor.InterceptModel(ctx, modelInfo, &mockModelHandler{
+			generateFn: func(_ context.Context, _ *llm.Request) (*llm.Response, error) {
+				return &llm.Response{
+					Message:      llm.Message{Role: llm.RoleAssistant},
+					FinishReason: llm.FinishReasonStop,
+					Usage: &llm.TokenUsage{
+						InputTokens:  100,
+						OutputTokens: 50,
+						CachedTokens: 75,
+					},
+					ID: "resp-cache",
+				}, nil
+			},
+		})
+		_, _ = handler.Generate(ctx, &llm.Request{})
+
+		return agent.FinishReasonStop, nil
+	})
+
+	spans := exporter.GetSpans()
+	var chatSpan *tracetest.SpanStub
+
+	for i := range spans {
+		if strings.HasPrefix(spans[i].Name, "chat") {
+			chatSpan = &spans[i]
+			break
+		}
+	}
+
+	require.NotNil(t, chatSpan)
+	assertHasAttribute(t, chatSpan.Attributes, "gen_ai.usage.cache_read.input_tokens", int64(75))
+}
+
+func TestTracingInterceptor_CacheReadTokens_AbsentWhenZero(t *testing.T) {
+	t.Parallel()
+
+	exporter, tp := setupTracer()
+	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
+
+	interceptor := pluginotel.New(
+		pluginotel.WithTracerProvider(tp),
+	)
+
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
+		Name: "test-agent",
+	})
+	ctx := t.Context()
+
+	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+		modelInfo := &agent.ModelCallInfo{
+			InvocationMetadata: inv,
+			Model:              &mockModelInfo{name: "gpt-4", provider: "openai"},
+			Req:                &llm.Request{},
+		}
+		handler := interceptor.InterceptModel(ctx, modelInfo, &mockModelHandler{})
+		_, _ = handler.Generate(ctx, &llm.Request{})
+
+		return agent.FinishReasonStop, nil
+	})
+
+	spans := exporter.GetSpans()
+	var chatSpan *tracetest.SpanStub
+
+	for i := range spans {
+		if strings.HasPrefix(spans[i].Name, "chat") {
+			chatSpan = &spans[i]
+			break
+		}
+	}
+
+	require.NotNil(t, chatSpan)
+	assertMissingAttribute(t, chatSpan.Attributes, "gen_ai.usage.cache_read.input_tokens")
+}
+
+func TestTracingInterceptor_CacheReadTokens_OnInvocationSpan(t *testing.T) {
+	t.Parallel()
+
+	exporter, tp := setupTracer()
+	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
+
+	interceptor := pluginotel.New(
+		pluginotel.WithTracerProvider(tp),
+	)
+
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
+		Name: "test-agent",
+	})
+	ctx := t.Context()
+
+	// Simulate a model call that adds cached tokens to the invocation usage
+	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(_ context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+		// Manually add usage with cached tokens to the invocation
+		agent.AddUsage(inv, &llm.TokenUsage{
+			InputTokens:  100,
+			OutputTokens: 50,
+			CachedTokens: 30,
+		})
+
+		return agent.FinishReasonStop, nil
+	})
+
+	spans := exporter.GetSpans()
+	var invSpan *tracetest.SpanStub
+
+	for i := range spans {
+		if strings.HasPrefix(spans[i].Name, "invoke_agent") {
+			invSpan = &spans[i]
+			break
+		}
+	}
+
+	require.NotNil(t, invSpan)
+	assertHasAttribute(t, invSpan.Attributes, "gen_ai.usage.cache_read.input_tokens", int64(30))
+}
+
+func TestTracingInterceptor_SystemInstructions_Emitted(t *testing.T) {
+	t.Parallel()
+
+	exporter, tp := setupTracer()
+	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
+
+	interceptor := pluginotel.New(
+		pluginotel.WithTracerProvider(tp),
+	)
+
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
+		Name:         "test-agent",
+		SystemPrompt: "You are a helpful assistant.",
+	})
+	ctx := t.Context()
+
+	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(_ context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+		return agent.FinishReasonStop, nil
+	})
+
+	spans := exporter.GetSpans()
+	require.Len(t, spans, 1)
+
+	// Verify gen_ai.system_instructions is present as JSON array
+	var found bool
+
+	for _, attr := range spans[0].Attributes {
+		if string(attr.Key) == "gen_ai.system_instructions" {
+			found = true
+			val := attr.Value.AsString()
+			assert.Contains(t, val, "You are a helpful assistant.")
+		}
+	}
+
+	assert.True(t, found, "Expected gen_ai.system_instructions attribute")
+}
+
+func TestTracingInterceptor_ModelAndProvider_OnInvocationSpan(t *testing.T) {
+	t.Parallel()
+
+	exporter, tp := setupTracer()
+	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
+
+	interceptor := pluginotel.New(
+		pluginotel.WithTracerProvider(tp),
+	)
+
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
+		Name:         "test-agent",
+		ModelName:    "gpt-4o",
+		ProviderName: "openai",
+	})
+	ctx := t.Context()
+
+	// Complete immediately without any model call
+	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(_ context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+		return agent.FinishReasonStop, nil
+	})
+
+	spans := exporter.GetSpans()
+	require.Len(t, spans, 1)
+
+	// Even without a model call, invocation span should have model/provider from Info
+	assertHasAttribute(t, spans[0].Attributes, "gen_ai.request.model", "gpt-4o")
+	assertHasAttribute(t, spans[0].Attributes, "gen_ai.provider.name", "openai")
+}
+
+func TestTracingInterceptor_ModelAndProvider_AbsentForNonLLMAgent(t *testing.T) {
+	t.Parallel()
+
+	exporter, tp := setupTracer()
+	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
+
+	interceptor := pluginotel.New(
+		pluginotel.WithTracerProvider(tp),
+	)
+
+	// Non-LLM agent: no ModelName or ProviderName
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
+		Name: "orchestrator",
+	})
+	ctx := t.Context()
+
+	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(_ context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+		return agent.FinishReasonStop, nil
+	})
+
+	spans := exporter.GetSpans()
+	require.Len(t, spans, 1)
+
+	assertMissingAttribute(t, spans[0].Attributes, "gen_ai.request.model")
+	assertMissingAttribute(t, spans[0].Attributes, "gen_ai.provider.name")
+}
+
 // Helper functions for attribute assertions
+
+func assertMissingAttribute(t *testing.T, attrs []attribute.KeyValue, key string) {
+	t.Helper()
+
+	for _, attr := range attrs {
+		if string(attr.Key) == key {
+			t.Errorf("Attribute %s should not be present, but found with value %v", key, attr.Value)
+			return
+		}
+	}
+}
 
 func assertHasAttribute(t *testing.T, attrs []attribute.KeyValue, key string, expected any) {
 	t.Helper()

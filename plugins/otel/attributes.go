@@ -19,31 +19,34 @@ import (
 //
 // See: https://opentelemetry.io/docs/specs/semconv/gen-ai/
 const (
-	attrGenAIOperationName         = "gen_ai.operation.name"
-	attrGenAIProviderName          = "gen_ai.provider.name"
-	attrGenAIAgentName             = "gen_ai.agent.name"
-	attrGenAIAgentDescription      = "gen_ai.agent.description"
-	attrGenAIConversationID        = "gen_ai.conversation.id"
-	attrGenAISystemInstructions    = "gen_ai.system_instructions"
-	attrGenAIRequestModel          = "gen_ai.request.model"
-	attrGenAIResponseID            = "gen_ai.response.id"
-	attrGenAIResponseFinishReasons = "gen_ai.response.finish_reasons"
-	attrGenAIUsageInputTokens      = "gen_ai.usage.input_tokens"  //nolint:gosec // Not a credential
-	attrGenAIUsageOutputTokens     = "gen_ai.usage.output_tokens" //nolint:gosec // Not a credential
-	attrGenAIInputMessages         = "gen_ai.input.messages"
-	attrGenAIOutputMessages        = "gen_ai.output.messages"
-	attrGenAIToolDefinitions       = "gen_ai.tool.definitions"
-	attrGenAIToolName              = "gen_ai.tool.name"
-	attrGenAIToolCallID            = "gen_ai.tool.call.id"
-	attrGenAIToolCallArguments     = "gen_ai.tool.call.arguments"
-	attrGenAIToolCallResult        = "gen_ai.tool.call.result"
-	attrGenAIToolType              = "gen_ai.tool.type"
-	attrGenAIToolDescription       = "gen_ai.tool.description"
-	attrToolArgumentsSize          = "redpanda.tool.arguments.size"
-	attrToolResultSize             = "redpanda.tool.result.size"
-	attrToolExecutionDuration      = "redpanda.tool.execution.duration"
-	attrToolResultAvailable        = "redpanda.tool.result.available"
-	attrErrorType                  = "error.type"
+	attrGenAIOperationName             = "gen_ai.operation.name"
+	attrGenAIProviderName              = "gen_ai.provider.name"
+	attrGenAIAgentName                 = "gen_ai.agent.name"
+	attrGenAIAgentDescription          = "gen_ai.agent.description"
+	attrGenAIAgentID                   = "gen_ai.agent.id"
+	attrGenAIAgentVersion              = "gen_ai.agent.version"
+	attrGenAIConversationID            = "gen_ai.conversation.id"
+	attrGenAISystemInstructions        = "gen_ai.system_instructions"
+	attrGenAIRequestModel              = "gen_ai.request.model"
+	attrGenAIResponseID                = "gen_ai.response.id"
+	attrGenAIResponseFinishReasons     = "gen_ai.response.finish_reasons"
+	attrGenAIUsageInputTokens          = "gen_ai.usage.input_tokens"            //nolint:gosec // Not a credential
+	attrGenAIUsageOutputTokens         = "gen_ai.usage.output_tokens"           //nolint:gosec // Not a credential
+	attrGenAIUsageCacheReadInputTokens = "gen_ai.usage.cache_read.input_tokens" //nolint:gosec // Not a credential
+	attrGenAIInputMessages             = "gen_ai.input.messages"
+	attrGenAIOutputMessages            = "gen_ai.output.messages"
+	attrGenAIToolDefinitions           = "gen_ai.tool.definitions"
+	attrGenAIToolName                  = "gen_ai.tool.name"
+	attrGenAIToolCallID                = "gen_ai.tool.call.id"
+	attrGenAIToolCallArguments         = "gen_ai.tool.call.arguments"
+	attrGenAIToolCallResult            = "gen_ai.tool.call.result"
+	attrGenAIToolType                  = "gen_ai.tool.type"
+	attrGenAIToolDescription           = "gen_ai.tool.description"
+	attrToolArgumentsSize              = "redpanda.tool.arguments.size"
+	attrToolResultSize                 = "redpanda.tool.result.size"
+	attrToolExecutionDuration          = "redpanda.tool.execution.duration"
+	attrToolResultAvailable            = "redpanda.tool.result.available"
+	attrErrorType                      = "error.type"
 )
 
 // Operation names for gen_ai.operation.name attribute.
@@ -52,6 +55,10 @@ const (
 	operationInvokeAgent = "invoke_agent"
 	operationChat        = "chat"
 	operationToolCall    = "execute_tool"
+
+	// errorTypeToolError is the error.type value for tool-level errors
+	// (analogous to MCP isError=true). Per OTel MCP semconv.
+	errorTypeToolError = "tool_error"
 )
 
 // Metadata key for span propagation via InvocationMetadata.
@@ -153,6 +160,14 @@ func genAIAgentDescription(description string) attribute.KeyValue {
 	return attribute.String(attrGenAIAgentDescription, description)
 }
 
+func genAIAgentID(id string) attribute.KeyValue {
+	return attribute.String(attrGenAIAgentID, id)
+}
+
+func genAIAgentVersion(version string) attribute.KeyValue {
+	return attribute.String(attrGenAIAgentVersion, version)
+}
+
 func genAISystemInstructions(instructions string) attribute.KeyValue {
 	return attribute.String(attrGenAISystemInstructions, instructions)
 }
@@ -179,6 +194,10 @@ func genAIUsageInputTokens(tokens int) attribute.KeyValue {
 
 func genAIUsageOutputTokens(tokens int) attribute.KeyValue {
 	return attribute.Int(attrGenAIUsageOutputTokens, tokens)
+}
+
+func genAIUsageCacheReadInputTokens(tokens int) attribute.KeyValue {
+	return attribute.Int(attrGenAIUsageCacheReadInputTokens, tokens)
 }
 
 func genAIToolName(name string) attribute.KeyValue {

@@ -143,18 +143,22 @@ func TestNew_Validation(t *testing.T) {
 	}
 }
 
-// TestLLMAgent_Name verifies Name() returns configured name.
-func TestLLMAgent_Name(t *testing.T) {
+// TestLLMAgent_Info verifies Info() returns configured identity.
+func TestLLMAgent_Info(t *testing.T) {
 	t.Parallel()
 
-	ag, err := llmagent.New("my-agent", "You are helpful", simpleModel{})
-	require.NoError(t, err)
-	assert.Equal(t, "my-agent", ag.Name())
-}
+	t.Run("basic fields", func(t *testing.T) {
+		t.Parallel()
 
-// TestLLMAgent_Description verifies Description() returns configured description.
-func TestLLMAgent_Description(t *testing.T) {
-	t.Parallel()
+		ag, err := llmagent.New("my-agent", "You are helpful", simpleModel{})
+		require.NoError(t, err)
+
+		info := ag.Info()
+		assert.Equal(t, "my-agent", info.Name)
+		assert.Equal(t, "You are helpful", info.SystemPrompt)
+		assert.Equal(t, "test-model", info.ModelName)
+		assert.Equal(t, "test", info.ProviderName)
+	})
 
 	t.Run("with description", func(t *testing.T) {
 		t.Parallel()
@@ -166,7 +170,7 @@ func TestLLMAgent_Description(t *testing.T) {
 			llmagent.WithDescription("A test agent"),
 		)
 		require.NoError(t, err)
-		assert.Equal(t, "A test agent", ag.Description())
+		assert.Equal(t, "A test agent", ag.Info().Description)
 	})
 
 	t.Run("without description", func(t *testing.T) {
@@ -174,7 +178,7 @@ func TestLLMAgent_Description(t *testing.T) {
 
 		ag, err := llmagent.New("test-agent", "You are helpful", simpleModel{})
 		require.NoError(t, err)
-		assert.Empty(t, ag.Description())
+		assert.Empty(t, ag.Info().Description)
 	})
 }
 

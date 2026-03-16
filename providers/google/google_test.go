@@ -42,7 +42,7 @@ func TestProviderModels(t *testing.T) {
 		modelNames[i] = model.Name
 		assert.NotEmpty(t, model.Name, "Model name should not be empty")
 		assert.NotEmpty(t, model.Label, "Model label should not be empty")
-		assert.Equal(t, "google", model.Provider, "Provider should be 'google'")
+		assert.Equal(t, "gcp.gemini", model.Provider, "Provider should be 'gcp.gemini'")
 	}
 
 	// Verify expected models are present

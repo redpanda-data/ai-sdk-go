@@ -24,7 +24,7 @@ type Provider struct {
 
 // Name returns the provider identifier.
 func (*Provider) Name() string {
-	return "google"
+	return "gcp.gemini"
 }
 
 // ProviderOption configures a Provider instance using functional options.
@@ -176,14 +176,14 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 }
 
 // Models returns all Gemini models with their capabilities.
-func (*Provider) Models() []llm.ModelDiscoveryInfo {
+func (p *Provider) Models() []llm.ModelDiscoveryInfo {
 	models := make([]llm.ModelDiscoveryInfo, 0, len(supportedModels))
 	for _, def := range supportedModels {
 		models = append(models, llm.ModelDiscoveryInfo{
 			Name:         def.Name,
 			Label:        def.Label,
 			Capabilities: def.Capabilities,
-			Provider:     "google",
+			Provider:     p.Name(),
 		})
 	}
 

@@ -171,21 +171,10 @@ func (h *tracingModelHandler) addRequestAttributes(span trace.Span, req *llm.Req
 		}
 	}
 
-	// Propagate provider and model to the invocation span (required per OTel spec)
-	if invSpan, ok := getInvocationSpan(h.inv); ok {
-		var invAttrs []attribute.KeyValue
-		if providerName != "" {
-			invAttrs = append(invAttrs, genAIProviderName(providerName))
-		}
-
-		if modelName != "" {
-			invAttrs = append(invAttrs, genAIRequestModel(modelName))
-		}
-
-		if len(invAttrs) > 0 {
-			invSpan.SetAttributes(invAttrs...)
-		}
-	}
+	// Propagate provider and model to the invocation span if not already set at creation.
+	// For LLM agents, startInvocationSpan sets these from Info().ModelName/ProviderName.
+	// This fallback covers non-LLM agents or agents where Info() has empty model/provider.
+	h.propagateModelToInvocation(providerName, modelName)
 
 	// Optionally record available tools from the request (gen_ai.tool.definitions)
 	// Disabled by default per OTel spec: "NOT RECOMMENDED to populate by default" due to size
@@ -193,6 +182,34 @@ func (h *tracingModelHandler) addRequestAttributes(span trace.Span, req *llm.Req
 		if toolsJSON, err := json.Marshal(req.Tools); err == nil {
 			span.SetAttributes(genAIToolDefinitions(string(toolsJSON)))
 		}
+	}
+}
+
+// propagateModelToInvocation sets provider/model on the invocation span when
+// they were not already set at span creation time (i.e. for non-LLM agents or
+// agents whose Info() returns empty model/provider).
+func (h *tracingModelHandler) propagateModelToInvocation(providerName, modelName string) {
+	agentSnap := h.inv.Agent()
+	if agentSnap.ModelName != "" && agentSnap.ProviderName != "" {
+		return
+	}
+
+	invSpan, ok := getInvocationSpan(h.inv)
+	if !ok {
+		return
+	}
+
+	var invAttrs []attribute.KeyValue
+	if providerName != "" && agentSnap.ProviderName == "" {
+		invAttrs = append(invAttrs, genAIProviderName(providerName))
+	}
+
+	if modelName != "" && agentSnap.ModelName == "" {
+		invAttrs = append(invAttrs, genAIRequestModel(modelName))
+	}
+
+	if len(invAttrs) > 0 {
+		invSpan.SetAttributes(invAttrs...)
 	}
 }
 
@@ -255,10 +272,5 @@ func (h *tracingModelHandler) recordResponseAttributes(span trace.Span, resp *ll
 		span.SetAttributes(genAIResponseFinishReasons(mapFinishReason(resp.FinishReason)))
 	}
 
-	if resp.Usage != nil {
-		span.SetAttributes(
-			genAIUsageInputTokens(resp.Usage.InputTokens),
-			genAIUsageOutputTokens(resp.Usage.OutputTokens),
-		)
-	}
+	setUsageAttributes(span, resp.Usage)
 }

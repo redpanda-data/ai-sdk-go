@@ -42,6 +42,7 @@ func New(a agent.Agent) tool.Tool {
 
 // Definition implements tool.Tool by using the agent's existing metadata.
 func (at *AgentTool) Definition() llm.ToolDefinition {
+	info := at.agent.Info()
 	schema := at.agent.InputSchema()
 
 	schemaJSON, err := json.Marshal(schema)
@@ -49,15 +50,15 @@ func (at *AgentTool) Definition() llm.ToolDefinition {
 		// Programming error: agent's InputSchema contains unmarshalable types (channels, funcs, etc.)
 		// This is caught at tool registration time, not by user input or parent agent calls.
 		return llm.ToolDefinition{
-			Name:        at.agent.Name(),
-			Description: fmt.Sprintf("[SCHEMA ERROR] %s - Invalid InputSchema implementation: %v", at.agent.Description(), err),
+			Name:        info.Name,
+			Description: fmt.Sprintf("[SCHEMA ERROR] %s - Invalid InputSchema implementation: %v", info.Description, err),
 			Parameters:  json.RawMessage(`{"type":"object"}`),
 		}
 	}
 
 	return llm.ToolDefinition{
-		Name:        at.agent.Name(),
-		Description: at.agent.Description(),
+		Name:        info.Name,
+		Description: info.Description,
 		Parameters:  schemaJSON,
 	}
 }
@@ -86,9 +87,11 @@ type Result struct {
 //   - This prevents context pollution and keeps parent/child boundaries clear
 //   - For context sharing, pass relevant information explicitly in args
 func (at *AgentTool) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+	info := at.agent.Info()
+
 	// 1. Create fresh session with unique ID to prevent collisions in state stores
 	sess := &session.State{
-		ID:       fmt.Sprintf("agent-tool-%s-%d", at.agent.Name(), time.Now().UnixNano()),
+		ID:       fmt.Sprintf("agent-tool-%s-%d", info.Name, time.Now().UnixNano()),
 		Messages: []llm.Message{},
 		Metadata: map[string]any{},
 	}
@@ -100,10 +103,7 @@ func (at *AgentTool) Execute(ctx context.Context, args json.RawMessage) (json.Ra
 	sess.Messages = append(sess.Messages, userMsg)
 
 	// 3. Create invocation metadata
-	inv := agent.NewInvocationMetadata(sess, agent.Info{
-		Name:        at.agent.Name(),
-		Description: at.agent.Description(),
-	})
+	inv := agent.NewInvocationMetadata(sess, info)
 
 	// 4. Run agent and collect response
 	var result string

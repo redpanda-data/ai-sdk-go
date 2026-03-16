@@ -4,8 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
 // isValidStructuredJSON checks if the given bytes contain valid JSON that represents
@@ -46,4 +49,35 @@ func setSpanError(span trace.Span, err error) {
 	span.SetStatus(codes.Error, err.Error())
 	// Use concrete error type for better debugging (e.g., "*errors.errorString")
 	span.SetAttributes(errorType(fmt.Sprintf("%T", err)))
+}
+
+// setToolError records a tool-level error on a span.
+// This is for tools that return error content (analogous to MCP isError=true),
+// as opposed to Go errors from infrastructure failures.
+// Per OTel MCP semconv, error.type SHOULD be "tool_error".
+//
+// Unlike setSpanError, this does not call span.RecordError() because there is
+// no Go error to record — the error is a string from the tool's response payload,
+// not an exception. The status description carries the error message.
+func setToolError(span trace.Span, errMsg string) {
+	span.SetStatus(codes.Error, errMsg)
+	span.SetAttributes(errorType(errorTypeToolError))
+}
+
+// setUsageAttributes sets token usage attributes on a span.
+// Conditionally includes cache_read tokens when present.
+func setUsageAttributes(span trace.Span, usage *llm.TokenUsage) {
+	if usage == nil {
+		return
+	}
+
+	attrs := []attribute.KeyValue{
+		genAIUsageInputTokens(usage.InputTokens),
+		genAIUsageOutputTokens(usage.OutputTokens),
+	}
+	if usage.CachedTokens > 0 {
+		attrs = append(attrs, genAIUsageCacheReadInputTokens(usage.CachedTokens))
+	}
+
+	span.SetAttributes(attrs...)
 }

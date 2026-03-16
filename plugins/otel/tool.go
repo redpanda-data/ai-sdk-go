@@ -102,13 +102,28 @@ func (t *TracingInterceptor) InterceptToolExecution(
 	duration := time.Since(startTime)
 	span.SetAttributes(toolExecutionDuration(duration.Milliseconds()))
 
-	// Record errors
-	//nolint:nestif // Complex result processing logic
-	if err != nil {
+	// Record errors and results.
+	//
+	// Three outcomes:
+	//   1. Go error (err != nil): infrastructure failure — set span error from the Go error
+	//   2. Tool error (resp.Error != ""): tool returned error content — set error.type = "tool_error"
+	//      per MCP semconv (isError=true). Do NOT record gen_ai.tool.call.result (spec: "if successful").
+	//   3. Success: record result availability/size, optionally record gen_ai.tool.call.result
+	//
+
+	switch {
+	case err != nil:
+		// Case 1: Go error — infrastructure/transport failure
 		setSpanError(span, err)
 		span.SetAttributes(toolResultAvailable(false))
-	} else {
-		// Record result availability and size (metadata - no PII)
+	case resp != nil && resp.Error != "":
+		// Case 2: Tool returned error content (analogous to MCP isError=true).
+		// Per OTel MCP semconv: error.type SHOULD be "tool_error" and span status SHOULD be Error.
+		// gen_ai.tool.call.result is NOT recorded (spec: "if execution was successful").
+		setToolError(span, resp.Error)
+		span.SetAttributes(toolResultAvailable(false))
+	default:
+		// Case 3: Success
 		resultAvailable := resp != nil && resp.Result != nil
 		span.SetAttributes(toolResultAvailable(resultAvailable))
 
