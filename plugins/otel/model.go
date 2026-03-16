@@ -190,6 +190,9 @@ func (h *tracingModelHandler) addRequestAttributes(span trace.Span, req *llm.Req
 // agents whose Info() returns empty model/provider).
 func (h *tracingModelHandler) propagateModelToInvocation(providerName, modelName string) {
 	agentSnap := h.inv.Agent()
+	// Short-circuit: both model and provider were already set on the invocation
+	// span at creation time (startInvocationSpan reads them from Info()). The
+	// per-attribute guards below handle the mixed case where only one is set.
 	if agentSnap.ModelName != "" && agentSnap.ProviderName != "" {
 		return
 	}
