@@ -64,7 +64,7 @@ model, err := provider.NewModel(anthropic.ModelClaudeOpus46)
 import "github.com/redpanda-data/ai-sdk-go/providers/google"
 
 provider, err := google.NewProvider(ctx, os.Getenv("GOOGLE_API_KEY"))
-model, err := provider.NewModel(google.ModelGemini25Pro)
+model, err := provider.NewModel(google.ModelGemini31ProPreview)
 ```
 
 ### AWS Bedrock
