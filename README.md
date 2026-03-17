@@ -1,4 +1,4 @@
-# ai-sdk-go
+# Redpanda AI SDK for Go
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/redpanda-data/ai-sdk-go.svg)](https://pkg.go.dev/github.com/redpanda-data/ai-sdk-go)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
@@ -144,7 +144,6 @@ The [`examples/`](examples/) directory contains runnable demos:
 
 - **[agent_as_tool](examples/agent_as_tool)** — Delegate subtasks to a nested agent for context isolation
 - **[agent_interceptors](examples/agent_interceptors)** — Observability and approval hooks for agent execution
-- **[grafana-cloud-agent](examples/grafana-cloud-agent)** — Full-featured agent with Grafana Cloud integration
 
 ## License
 
