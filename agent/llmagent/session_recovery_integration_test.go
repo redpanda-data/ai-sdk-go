@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -113,8 +114,11 @@ func TestSessionRecovery_Multiple(t *testing.T) {
 		t.Logf("Incomplete tool %d: id=%s name=%s", i+1, req.ID, req.Name)
 	}
 
-	// Track tool executions
-	var executedCities []string
+	// Track tool executions (guarded by mutex since executeTools runs concurrently)
+	var (
+		mu             sync.Mutex
+		executedCities []string
+	)
 
 	// Create mock tool
 	registry := tool.NewRegistry(tool.RegistryConfig{})
@@ -133,7 +137,9 @@ func TestSessionRecovery_Multiple(t *testing.T) {
 				return nil, err
 			}
 
+			mu.Lock()
 			executedCities = append(executedCities, params.City)
+			mu.Unlock()
 
 			weather := map[string]string{
 				"Paris":  "Sunny, 22C",
