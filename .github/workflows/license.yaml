@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: "Test"
+name: "License Headers"
 
 on:
   push:
@@ -20,25 +20,21 @@ on:
       - main
     paths:
       - '**.go'
-      - 'go.mod'
-      - 'go.sum'
-      - '.github/workflows/test.yaml'
+      - 'header.txt'
+      - '.github/workflows/license.yaml'
   pull_request:
     paths:
       - '**.go'
-      - 'go.mod'
-      - 'go.sum'
-      - '.github/workflows/test.yaml'
+      - 'header.txt'
+      - '.github/workflows/license.yaml'
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
-  test:
-    name: Test
+  license-check:
+    name: Check License Headers
     runs-on: blacksmith-8vcpu-ubuntu-2404
-    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -52,23 +48,11 @@ jobs:
         with:
           path: |
             .build
-            ~/go/pkg/mod
-            ~/.cache/go-build
           key: ${{ runner.os }}-build-${{ hashFiles('**/go.sum', 'Taskfile.yaml', 'taskfiles/install.yaml') }}
           restore-keys: |
             ${{ runner.os }}-build-
 
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::961547496971:role/ai-sdk-go-ci-bedrock
-          aws-region: us-east-1
-
       - uses: go-task/setup-task@v1
 
-      - name: Run CI checks
-        run: task test
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          CONTEXT7_API_KEY: ${{ secrets.CONTEXT7_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+      - name: Check license headers
+        run: task license:check
