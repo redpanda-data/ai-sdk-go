@@ -5,7 +5,7 @@ dotenv: ['.env.local', '.env']
 vars:
   BUILD_ROOT: "{{.ROOT_DIR}}/.build"
   BIN_DIR: "{{.BUILD_ROOT}}/.bin"
-  GO_VERSION: 1.26.0
+  GO_VERSION: 1.26.1
   GO_ROOT: "{{.BUILD_ROOT}}/go{{.GO_VERSION}}"
   GO_BIN: "{{.GO_ROOT}}/bin/go"
   MODULE_PATH: github.com/redpanda-data/ai-sdk-go
