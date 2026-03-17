@@ -1,3 +1,17 @@
+# Copyright 2026 Redpanda Data, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 version: '3'
 
 dotenv: ['.env.local', '.env']
@@ -18,6 +32,20 @@ includes:
   install: taskfiles/install.yaml
 
 tasks:
+  license:
+    desc: Add Apache 2.0 license headers to all Go files
+    deps:
+      - install:addlicense
+    cmds:
+      - '{{.BIN_DIR}}/addlicense -f header.txt -ignore ".build/**" .'
+
+  license:check:
+    desc: Check that all Go files have Apache 2.0 license headers
+    deps:
+      - install:addlicense
+    cmds:
+      - '{{.BIN_DIR}}/addlicense -f header.txt -ignore ".build/**" -check .'
+
   lint:
     desc: Run golangci-lint on all directories with Go files (excluding build/)
     deps:
@@ -60,7 +88,8 @@ tasks:
       - '{{.BIN_DIR}}/osv-scanner --lockfile go.mod'
 
   ci:
-    desc: Run all CI checks (lint, test:unit)
+    desc: Run all CI checks (license, lint, test:unit)
     cmds:
+      - task: license:check
       - task: lint
       - task: test:unit
