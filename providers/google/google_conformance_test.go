@@ -3,6 +3,7 @@ package google_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/suite"
 
@@ -28,8 +29,9 @@ func NewGoogleFixture(t *testing.T, modelName string) *GoogleFixture {
 
 	ctx := context.Background()
 
-	// Create provider
-	provider, err := google.NewProvider(ctx, apiKey)
+	// Create provider with a 2-minute timeout to fail fast on hung API calls,
+	// consistent with the OpenAI and Anthropic conformance test fixtures.
+	provider, err := google.NewProvider(ctx, apiKey, google.WithTimeout(2*time.Minute))
 	if err != nil {
 		t.Fatalf("Failed to create provider: %v", err)
 	}
