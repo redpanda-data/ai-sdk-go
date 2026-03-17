@@ -14,7 +14,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.50.1
 	github.com/aws/smithy-go v1.24.2
 	github.com/bufbuild/protocompile v0.14.1
-	github.com/google/jsonschema-go v0.3.0
+	github.com/google/jsonschema-go v0.4.2
 	github.com/google/uuid v1.6.0
 	github.com/openai/openai-go/v3 v3.17.0
 	github.com/redpanda-data/common-go/kvstore v0.0.0-20260113165942-f4854f69b074
@@ -101,6 +101,8 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
+	github.com/segmentio/asm v1.1.3 // indirect
+	github.com/segmentio/encoding v0.5.3 // indirect
 	github.com/shirou/gopsutil/v4 v4.25.12 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/testcontainers/testcontainers-go v0.40.0 // indirect
@@ -129,7 +131,7 @@ require (
 require (
 	github.com/JohannesKaufmann/html-to-markdown v1.6.0
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/modelcontextprotocol/go-sdk v1.1.0
+	github.com/modelcontextprotocol/go-sdk v1.3.1
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rs/xid v1.6.0
 	golang.org/x/net v0.49.0
