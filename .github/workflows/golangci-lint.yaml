@@ -48,7 +48,7 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v8
         with:
-          version: latest
+          version: v2.11.3
           # Once we resolved the initial linting set of issues we should remove this
           only-new-issues: true
           # Skip cache management since actions/setup-go handles Go cache
