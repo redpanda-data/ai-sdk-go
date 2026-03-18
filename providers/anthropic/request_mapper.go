@@ -111,27 +111,16 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) (anthropic.BetaMessageNewP
 		switch {
 		case rm.config.ThinkingBudget != nil:
 			// Explicit budget: manual thinking with user-specified tokens
-			apiReq.Thinking = anthropic.BetaThinkingConfigParamUnion{
-				OfEnabled: &anthropic.BetaThinkingConfigEnabledParam{
-					Type:         constant.Enabled(""),
-					BudgetTokens: *rm.config.ThinkingBudget,
-				},
-			}
+			apiReq.Thinking = anthropic.BetaThinkingConfigParamOfEnabled(*rm.config.ThinkingBudget)
 		case rm.config.AdaptiveThinking:
 			// Model supports adaptive thinking: let the API decide the budget
-			adaptive := anthropic.NewBetaThinkingConfigAdaptiveParam()
 			apiReq.Thinking = anthropic.BetaThinkingConfigParamUnion{
-				OfAdaptive: &adaptive,
+				OfAdaptive: &anthropic.BetaThinkingConfigAdaptiveParam{},
 			}
 		default:
 			// Legacy fallback: 25% of max tokens with minimum of 1024
 			budgetTokens := max(int64(rm.config.MaxTokens/4), 1024)
-			apiReq.Thinking = anthropic.BetaThinkingConfigParamUnion{
-				OfEnabled: &anthropic.BetaThinkingConfigEnabledParam{
-					Type:         constant.Enabled(""),
-					BudgetTokens: budgetTokens,
-				},
-			}
+			apiReq.Thinking = anthropic.BetaThinkingConfigParamOfEnabled(budgetTokens)
 		}
 	}
 

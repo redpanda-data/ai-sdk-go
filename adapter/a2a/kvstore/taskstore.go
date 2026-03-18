@@ -282,10 +282,10 @@ func NewKVTaskStoreWithSchemaRegistry(
 // Save stores a task.
 // Blocks until the write is visible in this client's reads.
 //
-// Note: The event and prev parameters are accepted for interface compatibility
-// but are not used. The kvstore doesn't support optimistic concurrency control.
+// Note: The event, prev, and prevVersion parameters are accepted for interface
+// compatibility but are not used. The kvstore doesn't support optimistic concurrency control.
 // The returned TaskVersion is always 0.
-func (s *KVTaskStore) Save(ctx context.Context, task *a2a.Task, _ a2a.Event, _ a2a.TaskVersion) (a2a.TaskVersion, error) {
+func (s *KVTaskStore) Save(ctx context.Context, task *a2a.Task, _ a2a.Event, _ *a2a.Task, _ a2a.TaskVersion) (a2a.TaskVersion, error) {
 	// Key is just task_id - enables Kafka log compaction
 	err := s.client.Put(ctx, []byte(task.ID), task)
 	return 0, err
