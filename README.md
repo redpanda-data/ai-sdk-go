@@ -1,5 +1,9 @@
 # Redpanda AI SDK for Go
 
+<p align="center">
+  <img src="assets/gopher.png" alt="Redpanda AI SDK Gopher" width="400">
+</p>
+
 [![Go Reference](https://pkg.go.dev/badge/github.com/redpanda-data/ai-sdk-go.svg)](https://pkg.go.dev/github.com/redpanda-data/ai-sdk-go)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
