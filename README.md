@@ -5,6 +5,10 @@
 
 A Go SDK for building AI-powered applications with a unified interface across multiple LLM providers. Supports OpenAI, Anthropic, Google Gemini, AWS Bedrock, and any OpenAI-compatible API.
 
+<p align="center">
+  <img src="assets/gopher.png" alt="Redpanda AI SDK Gopher" width="400">
+</p>
+
 ## Install
 
 ```bash
