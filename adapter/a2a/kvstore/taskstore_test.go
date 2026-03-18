@@ -515,8 +515,9 @@ func TestKVTaskStore_BootstrapRestoresSortOrder(t *testing.T) { //nolint:paralle
 	require.NoError(t, err)
 
 	baseTime := time.Now()
-	mustSave(ctx, t, store1, &a2a.Task{ID: "task-old", ContextID: "ctx", Status: a2a.TaskStatus{Timestamp: ptr(baseTime)}})
-	mustSave(ctx, t, store1, &a2a.Task{ID: "task-new", ContextID: "ctx", Status: a2a.TaskStatus{Timestamp: ptr(baseTime.Add(time.Hour))}})
+	newTime := baseTime.Add(time.Hour)
+	mustSave(ctx, t, store1, &a2a.Task{ID: "task-old", ContextID: "ctx", Status: a2a.TaskStatus{Timestamp: &baseTime}})
+	mustSave(ctx, t, store1, &a2a.Task{ID: "task-new", ContextID: "ctx", Status: a2a.TaskStatus{Timestamp: &newTime}})
 
 	_ = store1.Close()
 
