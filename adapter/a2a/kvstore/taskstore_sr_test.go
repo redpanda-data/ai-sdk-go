@@ -80,8 +80,7 @@ func TestKVTaskStoreWithSchemaRegistry_SchemaRegistration(t *testing.T) { //noli
 		},
 	}
 
-	_, err = store.Save(ctx, testTask, nil, 0)
-	require.NoError(t, err)
+	mustSave(ctx, t, store, testTask)
 
 	// Verify schema is registered
 	subjects, err := srClient.Subjects(ctx)
@@ -174,8 +173,7 @@ func TestKVTaskStoreWithSchemaRegistry_RoundTrip(t *testing.T) { //nolint:parall
 	}
 
 	for _, task := range testTasks {
-		_, err := store.Save(ctx, task, nil, 0)
-		require.NoError(t, err)
+		mustSave(ctx, t, store, task)
 	}
 
 	for _, original := range testTasks {
@@ -248,8 +246,7 @@ func TestKVTaskStoreWithSchemaRegistry_DynamicDeserialization(t *testing.T) { //
 		},
 	}
 
-	_, err = store.Save(ctx, testTask, nil, 0)
-	require.NoError(t, err)
+	mustSave(ctx, t, store, testTask)
 
 	// Read raw message from Kafka
 	kafkaClient, err := kgo.NewClient(
