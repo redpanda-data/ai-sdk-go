@@ -25,7 +25,7 @@ type ModelDefinition struct {
 	SupportedReasoningEfforts []ReasoningEffort // Ascending order: safest/lowest first
 }
 
-// supportedModels defines all current OpenAI models (2025) with their constraints.
+// supportedModels defines all current OpenAI models with their constraints.
 // Based on current OpenAI API documentation and model specifications.
 // When adding a new model, both capabilities and constraints must be defined here.
 var supportedModels = map[string]ModelDefinition{
@@ -189,6 +189,101 @@ var supportedModels = map[string]ModelDefinition{
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh}, // Pro variant starts at medium
+	},
+
+	// GPT-5.3 Series
+	ModelGPT5_3ChatLatest: {
+		Name:  ModelGPT5_3ChatLatest,
+		Label: "OpenAI GPT-5.3 Chat Latest",
+		Capabilities: llm.ModelCapabilities{
+			Streaming:        true,
+			Tools:            true,
+			JSONMode:         true,
+			StructuredOutput: true,
+			Vision:           true,
+			Audio:            true,
+			MultiTurn:        true,
+			SystemPrompts:    true,
+			Reasoning:        true,
+		},
+		Constraints: llm.ModelConstraints{
+			TemperatureRange:  [2]float64{0.0, 2.0},
+			MaxInputTokens:    400000, // 400K context window
+			MaxOutputTokens:   128000, // 128K output tokens
+			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed", "reasoning_effort", "reasoning_summary"},
+			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
+		},
+		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortMedium}, // Chat-latest only supports medium
+	},
+
+	// GPT-5.4 Series (March 2026 Flagship)
+	ModelGPT5_4: {
+		Name:  ModelGPT5_4,
+		Label: "OpenAI GPT-5.4",
+		Capabilities: llm.ModelCapabilities{
+			Streaming:        true,
+			Tools:            true,
+			JSONMode:         true,
+			StructuredOutput: true,
+			Vision:           true,
+			Audio:            true,
+			MultiTurn:        true,
+			SystemPrompts:    true,
+			Reasoning:        true,
+		},
+		Constraints: llm.ModelConstraints{
+			TemperatureRange:  [2]float64{0.0, 2.0},
+			MaxInputTokens:    272000, // 272K context window
+			MaxOutputTokens:   128000, // 128K output tokens
+			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed", "reasoning_effort", "reasoning_summary"},
+			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
+		},
+		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh},
+	},
+	ModelGPT5_4Mini: {
+		Name:  ModelGPT5_4Mini,
+		Label: "OpenAI GPT-5.4 Mini",
+		Capabilities: llm.ModelCapabilities{
+			Streaming:        true,
+			Tools:            true,
+			JSONMode:         true,
+			StructuredOutput: true,
+			Vision:           true,
+			Audio:            true,
+			MultiTurn:        true,
+			SystemPrompts:    true,
+			Reasoning:        true,
+		},
+		Constraints: llm.ModelConstraints{
+			TemperatureRange:  [2]float64{0.0, 2.0},
+			MaxInputTokens:    400000, // 400K context window
+			MaxOutputTokens:   128000, // 128K output tokens
+			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed", "reasoning_effort", "reasoning_summary"},
+			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
+		},
+		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh},
+	},
+	ModelGPT5_4Nano: {
+		Name:  ModelGPT5_4Nano,
+		Label: "OpenAI GPT-5.4 Nano",
+		Capabilities: llm.ModelCapabilities{
+			Streaming:        true,
+			Tools:            true,
+			JSONMode:         true,
+			StructuredOutput: true,
+			Vision:           false, // Nano has reduced capabilities
+			Audio:            false,
+			MultiTurn:        true,
+			SystemPrompts:    true,
+			Reasoning:        false, // Nano focuses on speed over reasoning
+		},
+		Constraints: llm.ModelConstraints{
+			TemperatureRange:  [2]float64{0.0, 2.0},
+			MaxInputTokens:    400000, // 400K context window
+			MaxOutputTokens:   128000, // 128K output tokens
+			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty"},
+			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
+		},
 	},
 
 	// GPT-4.1 Series (Enhanced Performance)
