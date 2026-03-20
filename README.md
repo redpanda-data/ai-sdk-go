@@ -35,7 +35,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	model, err := provider.NewModel(openai.ModelGPT5_2)
+	model, err := provider.NewModel(openai.ModelGPT5_4)
 	if err != nil {
 		log.Fatal(err)
 	}
