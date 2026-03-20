@@ -34,22 +34,21 @@ const (
 	ModelGPT5_1 = shared.ChatModelGPT5_1
 
 	// ModelGPT5_2 is the GPT-5.2 Thinking model (default variant).
-	// Designed for complex structured work: coding, math, document analysis, planning.
-	// Note: Uses manual string since OpenAI SDK doesn't yet include GPT-5.2.
-	// TODO: migrate to shared.ChatModelGPT5_2 when SDK adds support.
-	ModelGPT5_2 = shared.ChatModel("gpt-5.2")
-
+	ModelGPT5_2 = shared.ChatModelGPT5_2
 	// ModelGPT5_2Instant is the GPT-5.2 Instant model (speed-optimized variant).
-	// Optimized for routine queries: writing, translation, information seeking.
-	// Note: Uses manual string since OpenAI SDK doesn't yet include GPT-5.2.
-	// TODO: migrate to shared.ChatModelGPT5_2Instant when SDK adds support.
-	ModelGPT5_2Instant = shared.ChatModel("gpt-5.2-chat-latest")
-
+	ModelGPT5_2Instant = shared.ChatModelGPT5_2ChatLatest
 	// ModelGPT5_2Pro is the GPT-5.2 Pro model (maximum accuracy variant).
-	// Achieves highest accuracy on difficult problems requiring deep reasoning.
-	// Note: Uses manual string since OpenAI SDK doesn't yet include GPT-5.2.
-	// TODO: migrate to shared.ResponsesModelGPT5_2Pro when SDK adds support.
-	ModelGPT5_2Pro = shared.ResponsesModel("gpt-5.2-pro")
+	ModelGPT5_2Pro = shared.ChatModelGPT5_2Pro
+
+	// ModelGPT5_3ChatLatest is the GPT-5.3 Chat Latest model (speed-optimized, medium-only reasoning).
+	ModelGPT5_3ChatLatest = shared.ChatModelGPT5_3ChatLatest
+
+	// ModelGPT5_4 is the GPT-5.4 flagship model with full reasoning.
+	ModelGPT5_4 = shared.ChatModelGPT5_4
+	// ModelGPT5_4Mini is the GPT-5.4 Mini model (efficient, full reasoning, 400K context).
+	ModelGPT5_4Mini = shared.ChatModelGPT5_4Mini
+	// ModelGPT5_4Nano is the GPT-5.4 Nano model (speed-optimized, no reasoning/vision/audio).
+	ModelGPT5_4Nano = shared.ChatModelGPT5_4Nano
 
 	// ModelGPT4O is the GPT-4o model.
 	ModelGPT4O = shared.ChatModelGPT4o

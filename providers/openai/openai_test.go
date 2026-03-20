@@ -145,7 +145,7 @@ func TestProviderModels(t *testing.T) {
 	}
 
 	// Verify expected models are present
-	expectedModels := []string{"gpt-4o", "gpt-4o-mini", "o3", "gpt-5", "gpt-5.2"}
+	expectedModels := []string{"gpt-4o", "gpt-4o-mini", "o3", "gpt-5", "gpt-5.2", "gpt-5.3-chat-latest", "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano"}
 	for _, expected := range expectedModels {
 		assert.Contains(t, modelNames, expected, "Should include %s", expected)
 	}
@@ -792,6 +792,32 @@ func TestGPT52ReasoningEffort(t *testing.T) {
 			model:         ModelGPT5,
 			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortMinimal)},
 			wantErr:       false,
+		},
+		{
+			name:          "gpt-5.4 with ReasoningEffortXHigh (supported)",
+			model:         ModelGPT5_4,
+			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortXHigh)},
+			wantErr:       false,
+		},
+		{
+			name:          "gpt-5.4 with ReasoningEffortMinimal (unsupported)",
+			model:         ModelGPT5_4,
+			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortMinimal)},
+			wantErr:       true,
+			errContains:   "does not support reasoning effort 'minimal'",
+		},
+		{
+			name:          "gpt-5.3-chat-latest with ReasoningEffortMedium (supported)",
+			model:         ModelGPT5_3ChatLatest,
+			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortMedium)},
+			wantErr:       false,
+		},
+		{
+			name:          "gpt-5.3-chat-latest with ReasoningEffortHigh (unsupported)",
+			model:         ModelGPT5_3ChatLatest,
+			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortHigh)},
+			wantErr:       true,
+			errContains:   "does not support reasoning effort 'high'",
 		},
 		{
 			name:          "o3 with ReasoningEffortLow (supported)",
