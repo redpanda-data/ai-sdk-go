@@ -24,15 +24,10 @@ task security               # Run govulncheck + osv-scanner
 - Prefer table-driven tests
 - Integration tests require provider API keys (OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_API_KEY, CONTEXT7_API_KEY) — tests are skipped if keys are missing
 - Integration tests against LLM providers can be flaky due to provider behavior
-- New files must have Apache 2.0 license headers (`task license` to add them)
 
-## Code Style
+## Hooks
 
-- **Imports**: Group as stdlib, third-party, then local (`github.com/redpanda-data/ai-sdk-go`)
-- **JSON/YAML struct tags**: Use snake_case (enforced by tagliatelle linter)
-- **Forbidden**: `fmt.Print*`, `log.*`, `print()`, `println()`, `panic()` (enforced by forbidigo linter)
-- **Errors**: Use wrapped static errors, avoid dynamic error creation
-- Formatting is handled by gofumpt/goimports via `task lint`
+Stop hooks in `.claude/settings.json` automatically run `task license` (adds Apache 2.0 headers) and `task lint` (golangci-lint with --fix) when Claude finishes a turn. Code style (import grouping, gofumpt formatting, forbidden functions, snake_case tags) is enforced by the linter — no need to remember these rules manually.
 
 ## Project Structure
 
