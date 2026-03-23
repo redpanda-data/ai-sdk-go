@@ -49,41 +49,43 @@ aws s3api put-bucket-encryption \
     '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"aws:kms"},"BucketKeyEnabled":true}]}'
 ```
 
-### 2. Apply Terraform with local state (backend block commented out)
+### 2. Apply Terraform
+
+The S3 backend is already configured in `main.tf`, so init connects directly to the bucket:
 
 ```bash
 terraform init
-terraform plan
-terraform apply
+terraform plan -var="create_oidc_provider=false"   # if the GitHub OIDC provider already exists
+terraform apply -var="create_oidc_provider=false"
 ```
 
-### 3. Enable the S3 backend and migrate state
+### 3. Enable Bedrock model access (manual)
 
-Uncomment the `backend "s3"` block in `main.tf`, then:
+Models must be enabled individually via the AWS CLI. Get the offer token, then create the agreement:
 
 ```bash
-terraform init -migrate-state
+OFFER_TOKEN=$(aws bedrock list-foundation-model-agreement-offers \
+  --model-id anthropic.claude-sonnet-4-5-20250929-v1:0 \
+  --region us-east-1 \
+  --query 'offers[0].offerToken' --output text)
+
+aws bedrock create-foundation-model-agreement \
+  --model-id anthropic.claude-sonnet-4-5-20250929-v1:0 \
+  --offer-token "$OFFER_TOKEN" \
+  --region us-east-1
 ```
+
+Repeat for each model needed. The following models are currently enabled:
+
+- `anthropic.claude-sonnet-4-5-20250929-v1:0`
+- `anthropic.claude-sonnet-4-6`
+- `anthropic.claude-haiku-4-5-20251001-v1:0`
+- `anthropic.claude-opus-4-5-20251101-v1:0`
+- `anthropic.claude-opus-4-6-v1`
 
 ### 4. Update the GitHub Actions workflow
 
-Add the OIDC permission and AWS credentials step to `.github/workflows/test.yaml`:
-
-```yaml
-permissions:
-  contents: read
-  id-token: write
-
-steps:
-  # ... checkout, setup-go, etc.
-
-  - uses: aws-actions/configure-aws-credentials@v4
-    with:
-      role-to-assume: arn:aws:iam::961547496971:role/ai-sdk-go-ci-bedrock
-      aws-region: us-east-1
-
-  # ... run tests
-```
+Update the role ARN in `.github/workflows/test.yaml` with the `role_arn` output from the apply.
 
 ## Day-to-day usage
 
