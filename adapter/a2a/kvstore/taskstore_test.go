@@ -217,9 +217,9 @@ func TestKVTaskStore_ListSortedByTime(t *testing.T) { //nolint:paralleltest // S
 	// Create tasks with different timestamps
 	baseTime := time.Now()
 	tasks := []*a2a.Task{
-		{ID: "task-old", ContextID: "ctx", Status: a2a.TaskStatus{State: a2a.TaskStateCompleted, Timestamp: ptr(baseTime.Add(-2 * time.Hour))}},
-		{ID: "task-mid", ContextID: "ctx", Status: a2a.TaskStatus{State: a2a.TaskStateCompleted, Timestamp: ptr(baseTime.Add(-1 * time.Hour))}},
-		{ID: "task-new", ContextID: "ctx", Status: a2a.TaskStatus{State: a2a.TaskStateCompleted, Timestamp: ptr(baseTime)}},
+		{ID: "task-old", ContextID: "ctx", Status: a2a.TaskStatus{State: a2a.TaskStateCompleted, Timestamp: new(baseTime.Add(-2 * time.Hour))}},
+		{ID: "task-mid", ContextID: "ctx", Status: a2a.TaskStatus{State: a2a.TaskStateCompleted, Timestamp: new(baseTime.Add(-1 * time.Hour))}},
+		{ID: "task-new", ContextID: "ctx", Status: a2a.TaskStatus{State: a2a.TaskStateCompleted, Timestamp: new(baseTime)}},
 	}
 
 	// Save in random order
@@ -266,7 +266,7 @@ func TestKVTaskStore_ListPagination(t *testing.T) { //nolint:paralleltest // Ser
 		task := &a2a.Task{
 			ID:        a2a.TaskID("task-" + string(rune('a'+i))),
 			ContextID: "ctx",
-			Status:    a2a.TaskStatus{State: a2a.TaskStateCompleted, Timestamp: ptr(baseTime.Add(time.Duration(i) * time.Minute))},
+			Status:    a2a.TaskStatus{State: a2a.TaskStateCompleted, Timestamp: new(baseTime.Add(time.Duration(i) * time.Minute))},
 		}
 		mustSave(ctx, t, store, task)
 	}
@@ -323,10 +323,10 @@ func TestKVTaskStore_ListFilters(t *testing.T) { //nolint:paralleltest // Serial
 
 	// Create tasks with different contexts and states
 	tasks := []*a2a.Task{
-		{ID: "task-1", ContextID: "ctx-a", Status: a2a.TaskStatus{State: a2a.TaskStateWorking, Timestamp: ptr(baseTime)}},
-		{ID: "task-2", ContextID: "ctx-a", Status: a2a.TaskStatus{State: a2a.TaskStateCompleted, Timestamp: ptr(baseTime.Add(time.Minute))}},
-		{ID: "task-3", ContextID: "ctx-b", Status: a2a.TaskStatus{State: a2a.TaskStateWorking, Timestamp: ptr(baseTime.Add(2 * time.Minute))}},
-		{ID: "task-4", ContextID: "ctx-b", Status: a2a.TaskStatus{State: a2a.TaskStateCompleted, Timestamp: ptr(baseTime.Add(3 * time.Minute))}},
+		{ID: "task-1", ContextID: "ctx-a", Status: a2a.TaskStatus{State: a2a.TaskStateWorking, Timestamp: new(baseTime)}},
+		{ID: "task-2", ContextID: "ctx-a", Status: a2a.TaskStatus{State: a2a.TaskStateCompleted, Timestamp: new(baseTime.Add(time.Minute))}},
+		{ID: "task-3", ContextID: "ctx-b", Status: a2a.TaskStatus{State: a2a.TaskStateWorking, Timestamp: new(baseTime.Add(2 * time.Minute))}},
+		{ID: "task-4", ContextID: "ctx-b", Status: a2a.TaskStatus{State: a2a.TaskStateCompleted, Timestamp: new(baseTime.Add(3 * time.Minute))}},
 	}
 	for _, task := range tasks {
 		mustSave(ctx, t, store, task)
@@ -392,7 +392,7 @@ func TestKVTaskStore_ListHistoryAndArtifacts(t *testing.T) { //nolint:parallelte
 	task := &a2a.Task{
 		ID:        "task-1",
 		ContextID: "ctx",
-		Status:    a2a.TaskStatus{State: a2a.TaskStateCompleted, Timestamp: ptr(time.Now())},
+		Status:    a2a.TaskStatus{State: a2a.TaskStateCompleted, Timestamp: new(time.Now())},
 		History: []*a2a.Message{
 			a2a.NewMessage(a2a.MessageRoleUser, a2a.TextPart{Text: "msg1"}),
 			a2a.NewMessage(a2a.MessageRoleAgent, a2a.TextPart{Text: "msg2"}),
@@ -461,8 +461,8 @@ func TestKVTaskStore_UpdateChangesSortOrder(t *testing.T) { //nolint:paralleltes
 	baseTime := time.Now()
 
 	// Create tasks: task-a is oldest, task-b is newest
-	taskA := &a2a.Task{ID: "task-a", ContextID: "ctx", Status: a2a.TaskStatus{State: a2a.TaskStateWorking, Timestamp: ptr(baseTime)}}
-	taskB := &a2a.Task{ID: "task-b", ContextID: "ctx", Status: a2a.TaskStatus{State: a2a.TaskStateWorking, Timestamp: ptr(baseTime.Add(time.Hour))}}
+	taskA := &a2a.Task{ID: "task-a", ContextID: "ctx", Status: a2a.TaskStatus{State: a2a.TaskStateWorking, Timestamp: new(baseTime)}}
+	taskB := &a2a.Task{ID: "task-b", ContextID: "ctx", Status: a2a.TaskStatus{State: a2a.TaskStateWorking, Timestamp: new(baseTime.Add(time.Hour))}}
 
 	mustSave(ctx, t, store, taskA)
 	mustSave(ctx, t, store, taskB)
@@ -475,7 +475,7 @@ func TestKVTaskStore_UpdateChangesSortOrder(t *testing.T) { //nolint:paralleltes
 	assert.Equal(t, "task-a", string(resp.Tasks[1].ID))
 
 	// Update task-a with newer timestamp - should move to front
-	taskA.Status.Timestamp = ptr(baseTime.Add(2 * time.Hour))
+	taskA.Status.Timestamp = new(baseTime.Add(2 * time.Hour))
 	mustSave(ctx, t, store, taskA)
 
 	// New order: task-a, task-b
@@ -561,7 +561,7 @@ func TestKVTaskStore_InvalidPageToken(t *testing.T) { //nolint:tparallel,paralle
 	mustSave(ctx, t, store, &a2a.Task{
 		ID:        "task-1",
 		ContextID: "ctx",
-		Status:    a2a.TaskStatus{Timestamp: ptr(time.Now())},
+		Status:    a2a.TaskStatus{Timestamp: new(time.Now())},
 	})
 
 	testCases := []struct {
@@ -604,8 +604,4 @@ func mustSave(ctx context.Context, t *testing.T, store *kvstore.KVTaskStore, tas
 
 	_, err := store.Save(ctx, task, nil, nil, 0)
 	require.NoError(t, err)
-}
-
-func ptr[T any](v T) *T {
-	return &v
 }

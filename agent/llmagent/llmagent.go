@@ -162,7 +162,7 @@ func (a *LLMAgent) Run(ctx context.Context, inv *agent.InvocationMetadata) iter.
 				yield(agent.InvocationEndEvent{
 					Envelope:     makeEnvelope(),
 					FinishReason: agent.FinishReasonInterrupted,
-					Usage:        ptr(inv.TotalUsage()),
+					Usage:        new(inv.TotalUsage()),
 				}, nil)
 
 				return
@@ -191,7 +191,7 @@ func (a *LLMAgent) Run(ctx context.Context, inv *agent.InvocationMetadata) iter.
 				yield(agent.InvocationEndEvent{
 					Envelope:     makeEnvelope(),
 					FinishReason: finishReason,
-					Usage:        ptr(inv.TotalUsage()),
+					Usage:        new(inv.TotalUsage()),
 				}, nil)
 
 				return
@@ -205,7 +205,7 @@ func (a *LLMAgent) Run(ctx context.Context, inv *agent.InvocationMetadata) iter.
 		yield(agent.InvocationEndEvent{
 			Envelope:     makeEnvelope(),
 			FinishReason: agent.FinishReasonMaxTurns,
-			Usage:        ptr(inv.TotalUsage()),
+			Usage:        new(inv.TotalUsage()),
 		}, nil)
 	}
 }
@@ -735,9 +735,4 @@ func mapLLMFinishReason(reason llm.FinishReason) (agent.FinishReason, error) {
 	default:
 		return agent.FinishReasonError, fmt.Errorf("unhandled finish reason: %v", reason)
 	}
-}
-
-// ptr is a helper to get a pointer to a value.
-func ptr[T any](v T) *T {
-	return &v
 }

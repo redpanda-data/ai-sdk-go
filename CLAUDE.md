@@ -11,7 +11,8 @@ task ci                     # Run all CI checks (license:check, lint, unit tests
 task test                   # Run all tests (unit + integration, 30m timeout)
 task test:unit              # Unit tests only (-short flag)
 task test:integration       # Integration tests only (requires API keys)
-task lint                   # Run golangci-lint with --fix
+task lint                   # Run golangci-lint with --fix (all issues)
+task lint:new               # Run golangci-lint with --fix (new issues only)
 task license                # Add Apache 2.0 license headers to Go files
 task license:check          # Verify license headers
 task security               # Run govulncheck + osv-scanner
@@ -27,7 +28,7 @@ task security               # Run govulncheck + osv-scanner
 
 ## Hooks
 
-Stop hooks in `.claude/settings.json` automatically run `task license` (adds Apache 2.0 headers) and `task lint` (golangci-lint with --fix) when Claude finishes a turn. Code style (import grouping, gofumpt formatting, forbidden functions, snake_case tags) is enforced by the linter — no need to remember these rules manually.
+Stop hooks in `.claude/settings.json` automatically run `task license` (adds Apache 2.0 headers) and `task lint:new` (golangci-lint with --fix, new issues only) when Claude finishes a turn. Code style (import grouping, gofumpt formatting, forbidden functions, snake_case tags) is enforced by the linter — no need to remember these rules manually.
 
 ## Project Structure
 
