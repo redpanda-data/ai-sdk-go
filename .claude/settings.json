@@ -11,7 +11,7 @@
           },
           {
             "type": "command",
-            "command": "lint_out=$(task lint 2>&1); rc=$?; [ $rc -eq 0 ] && exit 0; issues=$(echo \"$lint_out\" | grep -cE '^[^ ].*:[0-9]+:'); printf '{\"hookSpecificOutput\":{\"hookEventName\":\"Stop\",\"additionalContext\":\"task lint found %d issues that --fix could not auto-resolve. Run `task lint` to see details and fix them.\"}}\\n' \"$issues\"; exit 0",
+            "command": "lint_out=$(task lint:new 2>&1); rc=$?; [ $rc -eq 0 ] && exit 0; issues=$(echo \"$lint_out\" | grep -cE '^[^ ].*:[0-9]+:'); printf '{\"hookSpecificOutput\":{\"hookEventName\":\"Stop\",\"additionalContext\":\"task lint:new found %d new issues that --fix could not auto-resolve. Run `task lint:new` to see details and fix them.\"}}\\n' \"$issues\"; exit 0",
             "timeout": 120,
             "statusMessage": "Running linter..."
           }

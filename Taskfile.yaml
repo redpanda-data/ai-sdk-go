@@ -39,6 +39,13 @@ tasks:
     cmds:
       - 'PATH={{.GO_ROOT}}/bin:$PATH {{.BIN_DIR}}/golangci-lint run --fix --timeout 10m ./...'
 
+  lint:new:
+    desc: Run golangci-lint only on new issues (uncommitted changes)
+    deps:
+      - install:golangci-lint
+    cmds:
+      - 'PATH={{.GO_ROOT}}/bin:$PATH {{.BIN_DIR}}/golangci-lint run --fix --new --timeout 10m ./...'
+
   test:
     desc: Run all tests with coverage
     deps:
