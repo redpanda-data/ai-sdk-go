@@ -16,6 +16,7 @@ package anthropic
 
 import (
 	"encoding/json"
+	"os"
 	"testing"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
@@ -445,5 +446,316 @@ func TestFromNativeToolResultContent(t *testing.T) {
 			got := extractToolResultText(tt.raw)
 			assert.Equal(t, tt.want, got)
 		})
+	}
+}
+
+// TestFromNative_ToProvider_ClaudeCodePayload reproduces the exact failure seen
+// when proxying Claude Code through the AI Gateway. The gateway does
+// FromNative → ToProvider and sends the result to Anthropic. Two bugs:
+//   1. max_tokens is lost (becomes 0) because ToProvider uses Config.MaxTokens
+//   2. Tool schemas with enum, default, minItems etc. are mangled by
+//      AdaptSchemaForAnthropic (Anthropic rejects with "JSON schema is invalid")
+func TestFromNative_ToProvider_ClaudeCodePayload(t *testing.T) {
+	payload, err := os.ReadFile("testdata/claude_code_request.json")
+	require.NoError(t, err)
+
+	rm := NewRequestMapper(&Config{})
+
+	req, modelName, err := rm.FromNative(payload)
+	require.NoError(t, err)
+	assert.Equal(t, "claude-opus-4-6", modelName)
+	require.Len(t, req.Tools, 4)
+
+	apiReq, err := rm.ToProvider(req)
+	require.NoError(t, err)
+
+	// Bug 1: max_tokens must be preserved from the original request.
+	assert.Equal(t, int64(64000), apiReq.MaxTokens, "max_tokens must be preserved from native request")
+
+	// Bug 2: tool count must match.
+	require.Len(t, apiReq.Tools, 4)
+
+	toolsJSON, err := json.Marshal(apiReq.Tools)
+	require.NoError(t, err)
+
+	var tools []map[string]any
+	require.NoError(t, json.Unmarshal(toolsJSON, &tools))
+
+	for _, tool := range tools {
+		name, _ := tool["name"].(string)
+		_, hasCustom := tool["custom"]
+		assert.False(t, hasCustom, "tool %s must not have 'custom' wrapper", name)
+
+		schema, ok := tool["input_schema"].(map[string]any)
+		require.True(t, ok, "tool %s must have input_schema as object", name)
+		assert.Equal(t, "object", schema["type"], "tool %s schema type", name)
+		_, hasProps := schema["properties"]
+		assert.True(t, hasProps, "tool %s schema must have properties", name)
+	}
+
+	// Agent tool: enum on "model" must survive.
+	agentTool := findToolByName(tools, "Agent")
+	require.NotNil(t, agentTool)
+	agentProps := agentTool["input_schema"].(map[string]any)["properties"].(map[string]any)
+	modelProp := agentProps["model"].(map[string]any)
+	assert.Contains(t, modelProp, "enum", "Agent.model must preserve enum")
+
+	// AskUserQuestion: nested minItems/maxItems must survive.
+	askTool := findToolByName(tools, "AskUserQuestion")
+	require.NotNil(t, askTool)
+	askProps := askTool["input_schema"].(map[string]any)["properties"].(map[string]any)
+	questions := askProps["questions"].(map[string]any)
+	assert.Contains(t, questions, "minItems", "questions must preserve minItems")
+	assert.Contains(t, questions, "maxItems", "questions must preserve maxItems")
+
+	// Edit: default on replace_all must survive.
+	editTool := findToolByName(tools, "Edit")
+	require.NotNil(t, editTool)
+	editProps := editTool["input_schema"].(map[string]any)["properties"].(map[string]any)
+	replaceAll := editProps["replace_all"].(map[string]any)
+	assert.Contains(t, replaceAll, "default", "Edit.replace_all must preserve default")
+}
+
+func findToolByName(tools []map[string]any, name string) map[string]any {
+	for _, t := range tools {
+		if t["name"] == name {
+			return t
+		}
+	}
+	return nil
+}
+
+// TestFromNative_ToProvider_ToolSchemaRoundtrip_Complex tests with schemas that
+// match what Claude Code actually sends -- nested objects, oneOf, $ref, etc.
+// These are the schemas that trigger the "tools.N.custom.input_schema: JSON
+// schema is invalid" error from Anthropic.
+func TestFromNative_ToProvider_ToolSchemaRoundtrip_Complex(t *testing.T) {
+	nativeRequest := `{
+		"model": "claude-sonnet-4-20250514",
+		"max_tokens": 8096,
+		"messages": [
+			{"role": "user", "content": "hello"}
+		],
+		"tools": [
+			{
+				"name": "Edit",
+				"description": "Edit a file",
+				"input_schema": {
+
+					"type": "object",
+					"properties": {
+						"file_path": {"type": "string", "description": "Absolute path"},
+						"old_string": {"type": "string", "description": "Text to replace"},
+						"new_string": {"type": "string", "description": "Replacement text"},
+						"replace_all": {"type": "boolean", "default": false}
+					},
+					"required": ["file_path", "old_string", "new_string"],
+					"additionalProperties": false
+				}
+			},
+			{
+				"name": "Agent",
+				"description": "Launch a sub-agent",
+				"input_schema": {
+
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"prompt": {"type": "string"},
+						"description": {"type": "string"},
+						"model": {
+							"type": "string",
+							"enum": ["sonnet", "opus", "haiku"]
+						},
+						"run_in_background": {"type": "boolean"},
+						"isolation": {
+							"type": "string",
+							"enum": ["worktree"]
+						},
+						"subagent_type": {"type": "string"}
+					},
+					"required": ["description", "prompt"]
+				}
+			},
+			{
+				"name": "AskUserQuestion",
+				"description": "Ask the user a question",
+				"input_schema": {
+
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"questions": {
+							"type": "array",
+							"items": {
+								"type": "object",
+								"additionalProperties": false,
+								"properties": {
+									"question": {"type": "string"},
+									"header": {"type": "string"},
+									"multiSelect": {"type": "boolean", "default": false},
+									"options": {
+										"type": "array",
+										"items": {
+											"type": "object",
+											"additionalProperties": false,
+											"properties": {
+												"label": {"type": "string"},
+												"description": {"type": "string"},
+												"preview": {"type": "string"}
+											},
+											"required": ["label", "description"]
+										},
+										"minItems": 2,
+										"maxItems": 4
+									}
+								},
+								"required": ["question", "header", "options", "multiSelect"]
+							},
+							"minItems": 1,
+							"maxItems": 4
+						}
+					},
+					"required": ["questions"]
+				}
+			}
+		]
+	}`
+
+	rm := NewRequestMapper(&Config{
+		ModelName: "claude-sonnet-4-20250514",
+		MaxTokens: 8096,
+	})
+
+	req, _, err := rm.FromNative([]byte(nativeRequest))
+	require.NoError(t, err)
+	require.Len(t, req.Tools, 3)
+
+	apiReq, err := rm.ToProvider(req)
+	require.NoError(t, err)
+	require.Len(t, apiReq.Tools, 3)
+
+	// Serialize to check the wire format
+	toolsJSON, err := json.Marshal(apiReq.Tools)
+	require.NoError(t, err)
+
+	var tools []map[string]any
+	require.NoError(t, json.Unmarshal(toolsJSON, &tools))
+
+	t.Logf("Wire format: %s", string(toolsJSON))
+
+	for _, tool := range tools {
+		name, _ := tool["name"].(string)
+
+		// Must NOT have "custom" wrapper
+		_, hasCustom := tool["custom"]
+		assert.False(t, hasCustom, "tool %s must not have 'custom' wrapper", name)
+
+		// input_schema must be a valid object schema
+		schema, ok := tool["input_schema"].(map[string]any)
+		require.True(t, ok, "tool %s must have input_schema as object", name)
+		assert.Equal(t, "object", schema["type"], "tool %s schema type", name)
+
+	}
+}
+
+// TestFromNative_ToProvider_ToolSchemaRoundtrip verifies that tool input_schema
+// survives the FromNative → ToProvider roundtrip without corruption.
+// This is the exact path the AI Gateway takes: parse a native Anthropic request,
+// then re-serialize it to call the Anthropic API via the SDK.
+//
+// Regression: Claude Code sends tools with JSON schemas that were mangled by
+// AdaptSchemaForAnthropic / BetaToolInputSchema, causing Anthropic to reject
+// the request with "tools.N.custom.input_schema: JSON schema is invalid".
+func TestFromNative_ToProvider_ToolSchemaRoundtrip(t *testing.T) {
+	nativeRequest := `{
+		"model": "claude-sonnet-4-20250514",
+		"max_tokens": 1024,
+		"messages": [
+			{"role": "user", "content": "What is the weather in Berlin?"}
+		],
+		"tools": [
+			{
+				"name": "get_weather",
+				"description": "Get current weather for a city",
+				"input_schema": {
+					"type": "object",
+					"properties": {
+						"city": {
+							"type": "string",
+							"description": "City name"
+						},
+						"units": {
+							"type": "string",
+							"enum": ["celsius", "fahrenheit"],
+							"default": "celsius"
+						}
+					},
+					"required": ["city"],
+					"additionalProperties": false
+				}
+			},
+			{
+				"name": "read_file",
+				"description": "Read a file from disk",
+				"input_schema": {
+					"type": "object",
+					"properties": {
+						"path": {
+							"type": "string",
+							"description": "Absolute file path"
+						},
+						"offset": {
+							"type": "integer",
+							"description": "Line offset"
+						},
+						"limit": {
+							"type": "integer",
+							"description": "Max lines to read"
+						}
+					},
+					"required": ["path"]
+				}
+			}
+		]
+	}`
+
+	rm := NewRequestMapper(&Config{
+		ModelName: "claude-sonnet-4-20250514",
+		MaxTokens: 1024,
+	})
+
+	// Step 1: Parse native request
+	req, modelName, err := rm.FromNative([]byte(nativeRequest))
+	require.NoError(t, err)
+	assert.Equal(t, "claude-sonnet-4-20250514", modelName)
+	require.Len(t, req.Tools, 2)
+
+	// Step 2: Convert back to Anthropic API format (what model.Generate does internally)
+	apiReq, err := rm.ToProvider(req)
+	require.NoError(t, err)
+
+	// Step 3: Verify tools survived the roundtrip
+	require.Len(t, apiReq.Tools, 2)
+
+	// Serialize to JSON to inspect the actual wire format
+	toolsJSON, err := json.Marshal(apiReq.Tools)
+	require.NoError(t, err)
+
+	// The tool schemas must not be wrapped in a "custom" key or otherwise mangled.
+	var tools []map[string]any
+	require.NoError(t, json.Unmarshal(toolsJSON, &tools))
+
+	for _, tool := range tools {
+		// Each tool should have input_schema at the top level, not nested under "custom"
+		schema, ok := tool["input_schema"].(map[string]any)
+		if !ok {
+			t.Fatalf("tool %v missing input_schema as object", tool["name"])
+		}
+		// Schema must have "type": "object" directly, not wrapped
+		assert.Equal(t, "object", schema["type"], "tool %v schema type", tool["name"])
+		// Must have "properties" directly
+		_, hasProps := schema["properties"]
+		assert.True(t, hasProps, "tool %v schema must have properties", tool["name"])
 	}
 }

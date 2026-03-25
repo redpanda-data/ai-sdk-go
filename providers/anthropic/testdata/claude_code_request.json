@@ -1,0 +1,108 @@
+{
+  "model": "claude-opus-4-6",
+  "max_tokens": 64000,
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        {"type": "text", "text": "hi"}
+      ]
+    }
+  ],
+  "system": [
+    {"type": "text", "text": "You are Claude Code."}
+  ],
+  "tools": [
+    {
+      "name": "Edit",
+      "description": "Edit a file",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "file_path": {"description": "The absolute path to the file to modify", "type": "string"},
+          "old_string": {"description": "The text to replace", "type": "string"},
+          "new_string": {"description": "The text to replace it with", "type": "string"},
+          "replace_all": {"default": false, "description": "Replace all occurrences", "type": "boolean"}
+        },
+        "required": ["file_path", "old_string", "new_string"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "Agent",
+      "description": "Launch a sub-agent",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "prompt": {"description": "The task for the agent", "type": "string"},
+          "description": {"description": "A short description", "type": "string"},
+          "model": {"type": "string", "enum": ["sonnet", "opus", "haiku"]},
+          "run_in_background": {"type": "boolean"},
+          "isolation": {"type": "string", "enum": ["worktree"]},
+          "subagent_type": {"type": "string"}
+        },
+        "required": ["description", "prompt"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "AskUserQuestion",
+      "description": "Ask the user a question",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "questions": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 4,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "question": {"type": "string"},
+                "header": {"type": "string"},
+                "multiSelect": {"type": "boolean", "default": false},
+                "options": {
+                  "type": "array",
+                  "minItems": 2,
+                  "maxItems": 4,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "label": {"type": "string"},
+                      "description": {"type": "string"},
+                      "preview": {"type": "string"}
+                    },
+                    "required": ["label", "description"]
+                  }
+                }
+              },
+              "required": ["question", "header", "options", "multiSelect"]
+            }
+          }
+        },
+        "required": ["questions"]
+      }
+    },
+    {
+      "name": "Bash",
+      "description": "Execute a bash command",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "command": {"description": "The command to execute", "type": "string"},
+          "timeout": {"description": "Optional timeout in milliseconds (max 600000)", "type": "number"},
+          "description": {"description": "Description of the command", "type": "string"},
+          "run_in_background": {"type": "boolean"},
+          "dangerouslyDisableSandbox": {"type": "boolean"}
+        },
+        "required": ["command"],
+        "additionalProperties": false
+      }
+    }
+  ],
+  "stream": true,
+  "thinking": {"type": "adaptive"}
+}
