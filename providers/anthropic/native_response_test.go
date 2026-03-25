@@ -336,3 +336,80 @@ func TestEventToNative_NilEvent(t *testing.T) {
 	_, err := EventToNative(nil, "claude-3-5-haiku-20241022")
 	require.Error(t, err)
 }
+
+func TestResponseFromNative_SimpleText(t *testing.T) {
+	body := `{
+		"id": "msg_01XFDUDYJgAACzvnptvVoYEL",
+		"type": "message",
+		"role": "assistant",
+		"model": "claude-sonnet-4-20250514",
+		"content": [
+			{"type": "text", "text": "Hello, world!"}
+		],
+		"stop_reason": "end_turn",
+		"usage": {
+			"input_tokens": 25,
+			"output_tokens": 10,
+			"cache_creation_input_tokens": 0,
+			"cache_read_input_tokens": 5
+		}
+	}`
+
+	resp, model, err := ResponseFromNative([]byte(body))
+	require.NoError(t, err)
+	assert.Equal(t, "claude-sonnet-4-20250514", model)
+	assert.Equal(t, "msg_01XFDUDYJgAACzvnptvVoYEL", resp.ID)
+	assert.Equal(t, llm.FinishReasonStop, resp.FinishReason)
+	assert.Equal(t, "Hello, world!", resp.Message.TextContent())
+	require.NotNil(t, resp.Usage)
+	assert.Equal(t, 25, resp.Usage.InputTokens)
+	assert.Equal(t, 10, resp.Usage.OutputTokens)
+	assert.Equal(t, 35, resp.Usage.TotalTokens)
+	assert.Equal(t, 5, resp.Usage.CachedTokens)
+}
+
+func TestResponseFromNative_ToolUse(t *testing.T) {
+	body := `{
+		"id": "msg_tool",
+		"type": "message",
+		"role": "assistant",
+		"model": "claude-sonnet-4-20250514",
+		"content": [
+			{"type": "text", "text": "Let me check."},
+			{"type": "tool_use", "id": "toolu_123", "name": "get_weather", "input": {"city": "Berlin"}}
+		],
+		"stop_reason": "tool_use",
+		"usage": {"input_tokens": 50, "output_tokens": 30}
+	}`
+
+	resp, _, err := ResponseFromNative([]byte(body))
+	require.NoError(t, err)
+	assert.Equal(t, llm.FinishReasonToolCalls, resp.FinishReason)
+	require.Len(t, resp.Message.Content, 2)
+	assert.True(t, resp.Message.Content[0].IsText())
+	assert.True(t, resp.Message.Content[1].IsToolRequest())
+	assert.Equal(t, "get_weather", resp.Message.Content[1].ToolRequest.Name)
+}
+
+func TestResponseFromNative_Thinking(t *testing.T) {
+	body := `{
+		"id": "msg_think",
+		"type": "message",
+		"role": "assistant",
+		"model": "claude-opus-4-20250514",
+		"content": [
+			{"type": "thinking", "thinking": "Let me reason about this...", "signature": "sig_abc"},
+			{"type": "text", "text": "The answer is 42."}
+		],
+		"stop_reason": "end_turn",
+		"usage": {"input_tokens": 100, "output_tokens": 200}
+	}`
+
+	resp, _, err := ResponseFromNative([]byte(body))
+	require.NoError(t, err)
+	require.Len(t, resp.Message.Content, 2)
+	assert.True(t, resp.Message.Content[0].IsReasoning())
+	assert.Equal(t, "Let me reason about this...", resp.Message.Content[0].ReasoningTrace.Text)
+	assert.Equal(t, "sig_abc", resp.Message.Content[0].ReasoningTrace.ID)
+	assert.True(t, resp.Message.Content[1].IsText())
+}

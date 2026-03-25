@@ -80,6 +80,85 @@ type outboundDelta struct {
 	StopReason string `json:"stop_reason,omitempty"`
 }
 
+// nativeResponseBody is the Anthropic message response format for deserialization.
+// Separate from outboundMessage to support fields only present in incoming responses
+// (e.g. cache token counts).
+type nativeResponseBody struct {
+	ID         string                 `json:"id"`
+	Type       string                 `json:"type"`
+	Role       string                 `json:"role"`
+	Model      string                 `json:"model"`
+	Content    []outboundContentBlock `json:"content"`
+	StopReason string                 `json:"stop_reason"`
+	Usage      nativeResponseUsage    `json:"usage"`
+}
+
+type nativeResponseUsage struct {
+	InputTokens              int `json:"input_tokens"`
+	OutputTokens             int `json:"output_tokens"`
+	CacheCreationInputTokens int `json:"cache_creation_input_tokens,omitempty"`
+	CacheReadInputTokens     int `json:"cache_read_input_tokens,omitempty"`
+}
+
+// ResponseFromNative parses an Anthropic /v1/messages response JSON body
+// into a unified llm.Response and extracts the model name.
+func ResponseFromNative(body []byte) (*llm.Response, string, error) {
+	var nr nativeResponseBody
+	if err := json.Unmarshal(body, &nr); err != nil {
+		return nil, "", fmt.Errorf("failed to unmarshal native response: %w", err)
+	}
+
+	resp := &llm.Response{
+		ID:           nr.ID,
+		FinishReason: nativeStopReasonToFinish(nr.StopReason),
+		Usage: &llm.TokenUsage{
+			InputTokens:  nr.Usage.InputTokens,
+			OutputTokens: nr.Usage.OutputTokens,
+			TotalTokens:  nr.Usage.InputTokens + nr.Usage.OutputTokens,
+			CachedTokens: nr.Usage.CacheReadInputTokens,
+		},
+	}
+
+	var parts []*llm.Part
+	for _, block := range nr.Content {
+		switch block.Type {
+		case blockTypeText:
+			parts = append(parts, llm.NewTextPart(block.Text))
+		case blockTypeToolUse:
+			parts = append(parts, llm.NewToolRequestPart(&llm.ToolRequest{
+				ID:        block.ID,
+				Name:      block.Name,
+				Arguments: block.Input,
+			}))
+		case blockTypeThinking:
+			parts = append(parts, llm.NewReasoningPart(&llm.ReasoningTrace{
+				ID:   block.Signature,
+				Text: block.Thinking,
+			}))
+		}
+	}
+
+	resp.Message = llm.NewMessage(llm.RoleAssistant, parts...)
+
+	return resp, nr.Model, nil
+}
+
+// nativeStopReasonToFinish maps Anthropic's stop_reason to a unified FinishReason.
+func nativeStopReasonToFinish(reason string) llm.FinishReason {
+	switch reason {
+	case "end_turn":
+		return llm.FinishReasonStop
+	case "max_tokens":
+		return llm.FinishReasonLength
+	case "tool_use":
+		return llm.FinishReasonToolCalls
+	case "refusal":
+		return llm.FinishReasonContentFilter
+	default:
+		return llm.FinishReasonStop
+	}
+}
+
 // ResponseToNative serializes a unified llm.Response to Anthropic's native JSON format.
 func ResponseToNative(resp *llm.Response, model string) ([]byte, error) {
 	if resp == nil {
