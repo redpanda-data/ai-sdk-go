@@ -20,6 +20,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/genai"
 )
 
 func TestProviderCreation(t *testing.T) {
@@ -223,4 +224,32 @@ func TestModelTokenLimits(t *testing.T) {
 				"MaxOutputTokens should match")
 		})
 	}
+}
+
+func TestResponseMapper_CachedTokens(t *testing.T) {
+	t.Parallel()
+
+	mapper := NewResponseMapper(supportedModels[ModelGemini25Flash])
+
+	resp, err := mapper.FromProvider(&genai.GenerateContentResponse{
+		Candidates: []*genai.Candidate{{
+			Content: &genai.Content{
+				Role:  "model",
+				Parts: []*genai.Part{{Text: "Hello"}},
+			},
+			FinishReason: genai.FinishReasonStop,
+		}},
+		UsageMetadata: &genai.GenerateContentResponseUsageMetadata{
+			PromptTokenCount:        100,
+			CandidatesTokenCount:    10,
+			TotalTokenCount:         110,
+			CachedContentTokenCount: 80,
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp.Usage)
+	assert.Equal(t, 100, resp.Usage.InputTokens)
+	assert.Equal(t, 10, resp.Usage.OutputTokens)
+	assert.Equal(t, 110, resp.Usage.TotalTokens)
+	assert.Equal(t, 80, resp.Usage.CachedTokens)
 }

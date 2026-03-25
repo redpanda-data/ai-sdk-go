@@ -18,8 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/suite"
-
+	"github.com/redpanda-data/ai-sdk-go/internal/testsuite"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/plugins/retry"
 	"github.com/redpanda-data/ai-sdk-go/providers/conformance"
@@ -29,9 +28,8 @@ import (
 
 // OpenAIFixture implements the conformance.Fixture interface for OpenAI provider.
 type OpenAIFixture struct {
-	provider       *openai.Provider
-	standardModel  llm.Model
-	reasoningModel llm.Model
+	provider          *openai.Provider
+	reasoningProvider *openai.Provider
 }
 
 // NewOpenAIFixture creates a new OpenAI test fixture.
@@ -47,36 +45,15 @@ func NewOpenAIFixture(t *testing.T) *OpenAIFixture {
 		t.Fatalf("Failed to create provider: %v", err)
 	}
 
-	// Create standard model
-	standardModel, err := provider.NewModel(openaitest.TestModelName)
-	if err != nil {
-		t.Fatalf("Failed to create standard model: %v", err)
-	}
-
 	// Create reasoning model with extended timeout since reasoning can take longer
 	reasoningProvider, err := openai.NewProvider(apiKey, openai.WithTimeout(time.Minute*5))
 	if err != nil {
 		t.Fatalf("Failed to create reasoning provider: %v", err)
 	}
 
-	reasoningModel, err := reasoningProvider.NewModel(openaitest.TestReasoningModelName,
-		openai.WithReasoningEffort(openai.ReasoningEffortHigh),
-		openai.WithReasoningSummary(openai.ReasoningSummaryDetailed),
-	)
-	if err != nil {
-		// Reasoning model is optional, just log but don't skip
-		t.Logf("Failed to create reasoning model: %v", err)
-	}
-
-	var wrappedReasoning llm.Model
-	if reasoningModel != nil {
-		wrappedReasoning = retry.WrapModel(reasoningModel)
-	}
-
 	return &OpenAIFixture{
-		provider:       provider,
-		standardModel:  retry.WrapModel(standardModel),
-		reasoningModel: wrappedReasoning,
+		provider:          provider,
+		reasoningProvider: reasoningProvider,
 	}
 }
 
@@ -84,12 +61,30 @@ func (f *OpenAIFixture) Name() string {
 	return "OpenAI"
 }
 
-func (f *OpenAIFixture) StandardModel() llm.Model {
-	return f.standardModel
+func (f *OpenAIFixture) NewStandardModel(t *testing.T) llm.Model {
+	t.Helper()
+
+	model, err := f.provider.NewModel(openaitest.TestModelName)
+	if err != nil {
+		t.Fatalf("Failed to create standard model: %v", err)
+	}
+
+	return retry.WrapModel(model)
 }
 
-func (f *OpenAIFixture) ReasoningModel() llm.Model {
-	return f.reasoningModel
+func (f *OpenAIFixture) NewReasoningModel(t *testing.T) llm.Model {
+	t.Helper()
+
+	model, err := f.reasoningProvider.NewModel(openaitest.TestReasoningModelName,
+		openai.WithReasoningEffort(openai.ReasoningEffortHigh),
+		openai.WithReasoningSummary(openai.ReasoningSummaryDetailed),
+	)
+	if err != nil {
+		t.Skipf("No reasoning model available: %v", err)
+		return nil
+	}
+
+	return retry.WrapModel(model)
 }
 
 func (f *OpenAIFixture) Models() []llm.ModelDiscoveryInfo {
@@ -101,9 +96,9 @@ func (f *OpenAIFixture) NewModel(modelName string) (llm.Model, error) {
 }
 
 // TestOpenAIConformance_Integration runs the generic conformance test suite for the OpenAI provider.
-//
-//nolint:paralleltest // Test suite manages its own lifecycle
 func TestOpenAIConformance_Integration(t *testing.T) {
+	t.Parallel()
+
 	fixture := NewOpenAIFixture(t)
-	suite.Run(t, conformance.NewSuite(fixture))
+	testsuite.Run(t, conformance.NewSuite(fixture))
 }
