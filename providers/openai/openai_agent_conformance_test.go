@@ -17,10 +17,9 @@ package openai_test
 import (
 	"testing"
 
-	"github.com/stretchr/testify/suite"
-
 	"github.com/redpanda-data/ai-sdk-go/agent/conformance"
 	"github.com/redpanda-data/ai-sdk-go/agent/llmagent"
+	"github.com/redpanda-data/ai-sdk-go/internal/testsuite"
 	"github.com/redpanda-data/ai-sdk-go/providers/openai"
 	"github.com/redpanda-data/ai-sdk-go/providers/openai/openaitest"
 	"github.com/redpanda-data/ai-sdk-go/tool"
@@ -89,5 +88,5 @@ func TestOpenAIAgentConformance_Integration(t *testing.T) {
 	t.Parallel()
 
 	fixture := NewOpenAIAgentFixture(t)
-	suite.Run(t, conformance.NewSuite(fixture))
+	testsuite.Run(t, conformance.NewSuite(fixture))
 }

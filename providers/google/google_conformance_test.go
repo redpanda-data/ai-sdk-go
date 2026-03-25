@@ -19,8 +19,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/suite"
-
+	"github.com/redpanda-data/ai-sdk-go/internal/testsuite"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/plugins/retry"
 	"github.com/redpanda-data/ai-sdk-go/providers/conformance"
@@ -30,9 +29,9 @@ import (
 
 // GoogleFixture implements the conformance.Fixture interface for Google Gemini provider.
 type GoogleFixture struct {
-	provider *google.Provider
-	model    llm.Model
-	ctx      context.Context //nolint:containedctx // Context required for Google provider operations
+	provider  *google.Provider
+	modelName string
+	ctx       context.Context //nolint:containedctx // Context required for Google provider operations
 }
 
 // NewGoogleFixture creates a new Google Gemini test fixture for a specific model.
@@ -51,24 +50,10 @@ func NewGoogleFixture(t *testing.T, modelName string) *GoogleFixture {
 		t.Fatalf("Failed to create provider: %v", err)
 	}
 
-	// Create model first to check capabilities
-	model, err := provider.NewModel(modelName)
-	if err != nil {
-		t.Fatalf("Failed to create model %s: %v", modelName, err)
-	}
-
-	// If the model supports reasoning, recreate it with thinking enabled
-	if model.Capabilities().Reasoning {
-		model, err = provider.NewModel(modelName, google.WithThinking(true), google.WithThinkingBudget(4096))
-		if err != nil {
-			t.Fatalf("Failed to create model %s with thinking: %v", modelName, err)
-		}
-	}
-
 	return &GoogleFixture{
-		provider: provider,
-		model:    retry.WrapModel(model),
-		ctx:      ctx,
+		provider:  provider,
+		modelName: modelName,
+		ctx:       ctx,
 	}
 }
 
@@ -76,18 +61,45 @@ func (f *GoogleFixture) Name() string {
 	return "Google"
 }
 
-func (f *GoogleFixture) StandardModel() llm.Model {
-	return f.model
-}
+func (f *GoogleFixture) NewStandardModel(t *testing.T) llm.Model {
+	t.Helper()
 
-func (f *GoogleFixture) ReasoningModel() llm.Model {
-	// Return the same model if it supports reasoning
-	// The conformance suite will check capabilities and skip tests if needed
-	if f.model.Capabilities().Reasoning {
-		return f.model
+	baseModel, err := f.provider.NewModel(f.modelName)
+	if err != nil {
+		t.Fatalf("Failed to create model %s: %v", f.modelName, err)
 	}
 
-	return nil
+	if baseModel.Capabilities().Reasoning {
+		model, err := f.provider.NewModel(f.modelName, google.WithThinking(true), google.WithThinkingBudget(4096))
+		if err != nil {
+			t.Fatalf("Failed to create model %s with thinking: %v", f.modelName, err)
+		}
+
+		return retry.WrapModel(model)
+	}
+
+	return retry.WrapModel(baseModel)
+}
+
+func (f *GoogleFixture) NewReasoningModel(t *testing.T) llm.Model {
+	t.Helper()
+
+	baseModel, err := f.provider.NewModel(f.modelName)
+	if err != nil {
+		t.Fatalf("Failed to create model %s: %v", f.modelName, err)
+	}
+
+	if !baseModel.Capabilities().Reasoning {
+		t.Skip("No reasoning model available")
+		return nil
+	}
+
+	model, err := f.provider.NewModel(f.modelName, google.WithThinking(true), google.WithThinkingBudget(4096))
+	if err != nil {
+		t.Fatalf("Failed to create model %s with thinking: %v", f.modelName, err)
+	}
+
+	return retry.WrapModel(model)
 }
 
 func (f *GoogleFixture) Models() []llm.ModelDiscoveryInfo {
@@ -115,7 +127,7 @@ func TestGoogleConformance_Integration(t *testing.T) {
 			t.Parallel()
 
 			fixture := NewGoogleFixture(t, modelName)
-			suite.Run(t, conformance.NewSuite(fixture))
+			testsuite.Run(t, conformance.NewSuite(fixture))
 		})
 	}
 }

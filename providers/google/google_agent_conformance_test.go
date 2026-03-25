@@ -17,10 +17,9 @@ package google_test
 import (
 	"testing"
 
-	"github.com/stretchr/testify/suite"
-
 	"github.com/redpanda-data/ai-sdk-go/agent/conformance"
 	"github.com/redpanda-data/ai-sdk-go/agent/llmagent"
+	"github.com/redpanda-data/ai-sdk-go/internal/testsuite"
 	"github.com/redpanda-data/ai-sdk-go/providers/google"
 	"github.com/redpanda-data/ai-sdk-go/providers/google/googletest"
 	"github.com/redpanda-data/ai-sdk-go/tool"
@@ -88,5 +87,5 @@ func TestGoogleAgentConformance_Integration(t *testing.T) {
 	t.Parallel()
 
 	fixture := NewGoogleAgentFixture(t)
-	suite.Run(t, conformance.NewSuite(fixture))
+	testsuite.Run(t, conformance.NewSuite(fixture))
 }
