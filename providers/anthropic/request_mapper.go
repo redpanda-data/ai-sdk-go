@@ -341,11 +341,11 @@ func (rm *RequestMapper) mapToolDefinitions(tools []llm.ToolDefinition) ([]anthr
 			return nil, fmt.Errorf("failed to parse tool schema for %s: %w", tool.Name, err)
 		}
 
-		// Adapt the schema for Anthropic
-		schema := rm.schemaMapper.AdaptSchemaForAnthropic(schemaMap)
-
-		// Use Anthropic SDK helper which properly transforms and filters the schema
-		inputSchema := anthropic.BetaToolInputSchema(schema)
+		// Pass the schema through as-is. The Anthropic SDK's BetaToolInputSchema
+		// runs transformSchema which strips fields like enum, default, minItems,
+		// maxItems and dumps them into the description string. This breaks schemas
+		// that are already valid Anthropic JSON Schema (e.g. from a gateway proxy).
+		inputSchema := anthropic.BetaToolInputSchemaParam{ExtraFields: schemaMap}
 
 		apiTool := anthropic.BetaToolUnionParam{
 			OfTool: &anthropic.BetaToolParam{
