@@ -7,7 +7,7 @@ ignore ./build
 ignore ./examples
 
 require (
-	github.com/a2aproject/a2a-go v0.3.10
+	github.com/a2aproject/a2a-go v0.3.12
 	github.com/anthropics/anthropic-sdk-go v1.27.0
 	github.com/aws/aws-sdk-go-v2 v1.41.4
 	github.com/aws/aws-sdk-go-v2/config v1.32.12
