@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/plugins/retry"
 	"github.com/redpanda-data/ai-sdk-go/providers/anthropic"
 	"github.com/redpanda-data/ai-sdk-go/providers/anthropic/anthropictest"
 	"github.com/redpanda-data/ai-sdk-go/providers/conformance"
@@ -66,10 +67,15 @@ func NewAnthropicFixture(t *testing.T) *AnthropicFixture {
 		t.Logf("Failed to create reasoning model: %v", err)
 	}
 
+	var wrappedReasoning llm.Model
+	if reasoningModel != nil {
+		wrappedReasoning = retry.WrapModel(reasoningModel)
+	}
+
 	return &AnthropicFixture{
 		provider:       provider,
-		standardModel:  standardModel,
-		reasoningModel: reasoningModel,
+		standardModel:  retry.WrapModel(standardModel),
+		reasoningModel: wrappedReasoning,
 	}
 }
 
@@ -93,16 +99,16 @@ func (f *AnthropicFixture) NewModel(modelName string) (llm.Model, error) {
 	return f.provider.NewModel(modelName)
 }
 
-// TestAnthropicConformance runs the generic conformance test suite for the Anthropic provider.
+// TestAnthropicConformance_Integration runs the generic conformance test suite for the Anthropic provider.
 //
 //nolint:paralleltest // Test suite manages its own lifecycle
-func TestAnthropicConformance(t *testing.T) {
+func TestAnthropicConformance_Integration(t *testing.T) {
 	fixture := NewAnthropicFixture(t)
 	suite.Run(t, conformance.NewSuite(fixture))
 }
 
-// TestAnthropicAdaptiveThinking tests adaptive thinking with Sonnet 4.6.
-func TestAnthropicAdaptiveThinking(t *testing.T) {
+// TestAnthropicAdaptiveThinking_Integration tests adaptive thinking with Sonnet 4.6.
+func TestAnthropicAdaptiveThinking_Integration(t *testing.T) {
 	t.Parallel()
 
 	apiKey := anthropictest.GetAPIKeyOrSkipTest(t)

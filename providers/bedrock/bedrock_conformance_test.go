@@ -91,10 +91,10 @@ func (f *BedrockFixture) NewModel(modelName string) (llm.Model, error) {
 	return f.provider.NewModel(modelName)
 }
 
-// TestBedrockConformance runs the generic conformance test suite for the Bedrock provider.
+// TestBedrockConformance_Integration runs the generic conformance test suite for the Bedrock provider.
 //
 //nolint:paralleltest // Test suite manages its own lifecycle
-func TestBedrockConformance(t *testing.T) {
+func TestBedrockConformance_Integration(t *testing.T) {
 	fixture := NewBedrockFixture(t)
 	suite.Run(t, conformance.NewSuite(fixture))
 }

@@ -84,8 +84,8 @@ func (f *AnthropicAgentFixture) ReasoningAgent(tools tool.Registry) (*llmagent.L
 	)
 }
 
-// TestAnthropicAgentConformance runs the agent conformance test suite for Anthropic.
-func TestAnthropicAgentConformance(t *testing.T) {
+// TestAnthropicAgentConformance_Integration runs the agent conformance test suite for Anthropic.
+func TestAnthropicAgentConformance_Integration(t *testing.T) {
 	t.Parallel()
 
 	fixture := NewAnthropicAgentFixture(t)

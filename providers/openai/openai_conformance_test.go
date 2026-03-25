@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/plugins/retry"
 	"github.com/redpanda-data/ai-sdk-go/providers/conformance"
 	"github.com/redpanda-data/ai-sdk-go/providers/openai"
 	"github.com/redpanda-data/ai-sdk-go/providers/openai/openaitest"
@@ -67,10 +68,15 @@ func NewOpenAIFixture(t *testing.T) *OpenAIFixture {
 		t.Logf("Failed to create reasoning model: %v", err)
 	}
 
+	var wrappedReasoning llm.Model
+	if reasoningModel != nil {
+		wrappedReasoning = retry.WrapModel(reasoningModel)
+	}
+
 	return &OpenAIFixture{
 		provider:       provider,
-		standardModel:  standardModel,
-		reasoningModel: reasoningModel,
+		standardModel:  retry.WrapModel(standardModel),
+		reasoningModel: wrappedReasoning,
 	}
 }
 

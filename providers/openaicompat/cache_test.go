@@ -28,7 +28,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/providers/testutil"
 )
 
-func TestOpenAICompatCachedTokens(t *testing.T) {
+func TestOpenAICompatCachedTokens_Integration(t *testing.T) {
 	t.Parallel()
 
 	apiKey := openaicompattest.GetAPIKeyOrSkipTest(t)
@@ -163,7 +163,7 @@ func TestOpenAICompatCachedTokens(t *testing.T) {
 	t.Logf("SUCCESS: Detected %d total cached tokens across requests", totalCached)
 }
 
-func TestDeepSeekCachedTokens(t *testing.T) {
+func TestDeepSeekCachedTokens_Integration(t *testing.T) {
 	t.Parallel()
 
 	apiKey := openaicompattest.GetDeepSeekAPIKeyOrSkipTest(t)
