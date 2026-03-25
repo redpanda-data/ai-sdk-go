@@ -393,32 +393,60 @@ func (s *Suite) TestGenerateWithReasoning() {
 			},
 		}
 
-		response, err := model.Generate(s.T().Context(), request)
-		s.Require().NoError(err)
-		s.Require().NotNil(response)
-		s.Require().NotEmpty(response.Message.Content)
+		// Reasoning traces may not appear on every attempt (provider-dependent), so retry.
+		const maxAttempts = 3
 
-		// 1. Check if reasoning worked
-		hasReasoning := false
+		var (
+			response     *llm.Response
+			hasReasoning bool
+		)
 
-		for _, part := range response.Message.Content {
-			if part.IsReasoning() {
-				hasReasoning = true
+		for attempt := 1; attempt <= maxAttempts; attempt++ {
+			if attempt > 1 {
+				s.T().Logf("Retry attempt %d/%d for reasoning traces", attempt, maxAttempts)
+			}
 
-				s.NotEmpty(part.ReasoningTrace.Text)
-				// Note: ID is optional - some providers (like DeepSeek) don't provide reasoning trace IDs
-				// Complex technical question should trigger substantial reasoning
-				s.Greater(len(part.ReasoningTrace.Text), 30, "Should show detailed reasoning process")
+			var err error
+
+			response, err = model.Generate(s.T().Context(), request)
+			if err != nil {
+				if attempt < maxAttempts {
+					s.T().Logf("Attempt %d/%d failed: %v", attempt, maxAttempts, err)
+
+					continue
+				}
+
+				s.Require().NoError(err)
+			}
+
+			s.Require().NotNil(response)
+			s.Require().NotEmpty(response.Message.Content)
+
+			hasReasoning = false
+
+			for _, part := range response.Message.Content {
+				if part.IsReasoning() {
+					hasReasoning = true
+
+					s.NotEmpty(part.ReasoningTrace.Text)
+					s.Greater(len(part.ReasoningTrace.Text), 30, "Should show detailed reasoning process")
+				}
+			}
+
+			if hasReasoning {
+				s.T().Logf("Received reasoning traces on attempt %d/%d", attempt, maxAttempts)
+
+				break
+			}
+
+			if attempt == maxAttempts {
+				s.FailNow(fmt.Sprintf("Complex technical question should trigger reasoning after %d attempts", maxAttempts))
 			}
 		}
 
-		s.True(hasReasoning, "Complex technical question should trigger reasoning")
-
-		// 2. Check Text response
 		text := response.TextContent()
-		// Should be a comprehensive response
 		s.Greater(len(text), 200, "Should provide detailed technical analysis")
-		// Should mention relevant concepts
+
 		lowerText := strings.ToLower(text)
 		s.True(
 			strings.Contains(lowerText, "consensus") ||
@@ -426,7 +454,6 @@ func (s *Suite) TestGenerateWithReasoning() {
 				strings.Contains(lowerText, "partition"),
 			"Should discuss relevant distributed systems concepts")
 
-		// Usage should be significant for complex reasoning
 		s.Require().NotNil(response.Usage)
 		s.Greater(response.Usage.TotalTokens, 200, "Complex reasoning should use many tokens")
 	})
@@ -469,20 +496,14 @@ func (s *Suite) TestGenerateEventsWithReasoning() {
 			allReasoning string
 		)
 
-		for attempt := 1; attempt <= maxAttempts; attempt++ {
-			if attempt > 1 {
-				s.T().Logf("Retry attempt %d/%d for reasoning traces", attempt, maxAttempts)
-			}
-
+		collectReasoningEvents := func() error {
 			contentParts = nil
 			hasEndEvent = false
-			eventCount := 0
 
-			// Collect all stream events using range loop
 			for event, streamErr := range model.GenerateEvents(s.T().Context(), request) {
-				s.Require().NoError(streamErr)
-
-				eventCount++
+				if streamErr != nil {
+					return streamErr
+				}
 
 				switch e := event.(type) {
 				case llm.ContentPartEvent:
@@ -491,14 +512,28 @@ func (s *Suite) TestGenerateEventsWithReasoning() {
 					endEvent = e
 					hasEndEvent = true
 				case llm.ErrorEvent:
-					s.T().Fatalf("Received error event: %s (code: %s)", e.Message, e.Code)
+					return fmt.Errorf("error event: %s (code: %s)", e.Message, e.Code)
 				}
 			}
 
-			// Verify we received events
-			s.Positive(eventCount, "Should receive stream events")
+			return nil
+		}
 
-			// Verify we got content
+		for attempt := 1; attempt <= maxAttempts; attempt++ {
+			if attempt > 1 {
+				s.T().Logf("Retry attempt %d/%d for reasoning traces", attempt, maxAttempts)
+			}
+
+			if err := collectReasoningEvents(); err != nil {
+				if attempt < maxAttempts {
+					s.T().Logf("Attempt %d/%d failed: %v", attempt, maxAttempts, err)
+
+					continue
+				}
+
+				s.Require().NoError(err)
+			}
+
 			s.NotEmpty(contentParts, "Should receive content parts")
 
 			// Extract and combine text parts for quality checks
@@ -536,7 +571,7 @@ func (s *Suite) TestGenerateEventsWithReasoning() {
 
 			// If this is the last attempt, fail
 			if attempt == maxAttempts {
-				s.Fail(fmt.Sprintf("Should receive reasoning traces for complex question after %d attempts", maxAttempts))
+				s.FailNow(fmt.Sprintf("Should receive reasoning traces for complex question after %d attempts", maxAttempts))
 			}
 		}
 
@@ -831,13 +866,13 @@ func (s *Suite) TestGenerateEventsWithTools() {
 					{
 						Role: llm.RoleSystem,
 						Content: []*llm.Part{
-							llm.NewTextPart("CRITICAL: When multiple tools are needed to answer a question, you MUST call all required tools in parallel in a single response. Do not call tools sequentially."),
+							llm.NewTextPart("You are a tool-calling assistant. You MUST use the provided tools to answer questions. NEVER answer directly — always call the appropriate tools. When multiple tools are needed, call them all in parallel in a single response."),
 						},
 					},
 					{
 						Role: llm.RoleUser,
 						Content: []*llm.Part{
-							llm.NewTextPart("What's the current weather in Tokyo and what time is it there right now?"),
+							llm.NewTextPart("What's the current weather in Tokyo and what time is it there right now? Use the get_weather and get_time tools."),
 						},
 					},
 				},
@@ -875,37 +910,71 @@ func (s *Suite) TestGenerateEventsWithTools() {
 			validate: func(t *testing.T, model llm.Model, ctx context.Context, request *llm.Request) {
 				t.Helper()
 
+				// Models may non-deterministically skip tool calls, so retry up to 3 times.
+				const maxAttempts = 3
+
 				var (
-					toolRequests []*llm.ToolRequest
-					endEvent     llm.StreamEndEvent
-					hasEndEvent  bool
+					toolRequests       []*llm.ToolRequest
+					toolRequestsByName map[string][]*llm.ToolRequest
+					endEvent           llm.StreamEndEvent
+					hasEndEvent        bool
 				)
 
-				toolRequestsByName := make(map[string][]*llm.ToolRequest)
+				collectToolEvents := func() error {
+					toolRequests = nil
+					toolRequestsByName = make(map[string][]*llm.ToolRequest)
+					hasEndEvent = false
 
-				// Collect all stream events using range loop
-				for event, err := range model.GenerateEvents(ctx, request) {
-					require.NoError(t, err)
-
-					switch e := event.(type) {
-					case llm.ContentPartEvent:
-						if e.Part.IsToolRequest() {
-							toolRequests = append(toolRequests, e.Part.ToolRequest)
-							toolRequestsByName[e.Part.ToolRequest.Name] = append(
-								toolRequestsByName[e.Part.ToolRequest.Name],
-								e.Part.ToolRequest,
-							)
+					for event, err := range model.GenerateEvents(ctx, request) {
+						if err != nil {
+							return err
 						}
-					case llm.StreamEndEvent:
-						endEvent = e
-						hasEndEvent = true
-					case llm.ErrorEvent:
-						t.Fatalf("Received error event: %s (code: %s)", e.Message, e.Code)
+
+						switch e := event.(type) {
+						case llm.ContentPartEvent:
+							if e.Part.IsToolRequest() {
+								toolRequests = append(toolRequests, e.Part.ToolRequest)
+								toolRequestsByName[e.Part.ToolRequest.Name] = append(
+									toolRequestsByName[e.Part.ToolRequest.Name],
+									e.Part.ToolRequest,
+								)
+							}
+						case llm.StreamEndEvent:
+							endEvent = e
+							hasEndEvent = true
+						case llm.ErrorEvent:
+							return fmt.Errorf("error event: %s (code: %s)", e.Message, e.Code)
+						}
 					}
+
+					return nil
 				}
 
-				// Verify we received multiple tool requests
-				assert.Greater(t, len(toolRequests), 1, "Should receive multiple tool requests")
+				for attempt := 1; attempt <= maxAttempts; attempt++ {
+					if attempt > 1 {
+						t.Logf("Retry attempt %d/%d for multiple tool calls", attempt, maxAttempts)
+					}
+
+					if err := collectToolEvents(); err != nil {
+						if attempt < maxAttempts {
+							t.Logf("Attempt %d/%d failed: %v", attempt, maxAttempts, err)
+
+							continue
+						}
+
+						require.NoError(t, err)
+					}
+
+					if len(toolRequests) > 1 {
+						t.Logf("Received %d tool calls on attempt %d/%d", len(toolRequests), attempt, maxAttempts)
+
+						break
+					}
+
+					if attempt == maxAttempts {
+						t.Fatalf("Should receive multiple tool requests after %d attempts, got %d", maxAttempts, len(toolRequests))
+					}
+				}
 
 				// Verify each tool request has proper structure
 				uniqueIDs := make(map[string]bool)
@@ -1349,7 +1418,7 @@ func (s *Suite) TestToolExecutionLoop() {
 	})
 }
 
-func (s *Suite) TestAllSupportedModels() {
+func (s *Suite) TestAllSupportedModels() { //nolint:tparallel // testify/suite manages top-level lifecycle; subtests are parallel
 	t := s.T()
 
 	models := s.fixture.Models()
@@ -1358,9 +1427,13 @@ func (s *Suite) TestAllSupportedModels() {
 	}
 
 	t.Run("basic generation works for all supported models", func(t *testing.T) {
+		t.Parallel() //nolint:testifylint // safe: subtests use their own t, not s.T()
+
 		for _, m := range models {
 			modelName := m.Name
 			t.Run("model_"+modelName, func(t *testing.T) {
+				t.Parallel() //nolint:testifylint // safe: uses t directly, no shared suite state
+
 				model, err := s.fixture.NewModel(modelName)
 				if err != nil {
 					t.Skipf("Skipping model %s due to creation error: %v", modelName, err)

@@ -28,9 +28,9 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/providers/openaicompat"
 )
 
-// TestDeepSeekReasoningContent tests that reasoning_content is correctly extracted
+// TestDeepSeekReasoningContent_Integration tests that reasoning_content is correctly extracted
 // from DeepSeek's API responses.
-func TestDeepSeekReasoningContent(t *testing.T) {
+func TestDeepSeekReasoningContent_Integration(t *testing.T) {
 	t.Parallel()
 
 	apiKey := os.Getenv("DEEPSEEK_API_KEY")

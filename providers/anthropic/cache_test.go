@@ -28,7 +28,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/providers/testutil"
 )
 
-func TestAnthropicCachedTokens(t *testing.T) {
+func TestAnthropicCachedTokens_Integration(t *testing.T) {
 	t.Parallel()
 
 	apiKey := anthropictest.GetAPIKeyOrSkipTest(t)

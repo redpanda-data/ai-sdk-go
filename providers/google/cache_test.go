@@ -27,7 +27,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/providers/testutil"
 )
 
-func TestGeminiCachedTokens(t *testing.T) {
+func TestGeminiCachedTokens_Integration(t *testing.T) {
 	t.Parallel()
 
 	apiKey := googletest.GetAPIKeyOrSkipTest(t)

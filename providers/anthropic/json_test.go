@@ -26,7 +26,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/providers/anthropic/anthropictest"
 )
 
-func TestAnthropicJSONOutput(t *testing.T) {
+func TestAnthropicJSONOutput_Integration(t *testing.T) {
 	t.Parallel()
 
 	apiKey := anthropictest.GetAPIKeyOrSkipTest(t)

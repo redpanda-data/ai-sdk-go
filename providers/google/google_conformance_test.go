@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/plugins/retry"
 	"github.com/redpanda-data/ai-sdk-go/providers/conformance"
 	"github.com/redpanda-data/ai-sdk-go/providers/google"
 	"github.com/redpanda-data/ai-sdk-go/providers/google/googletest"
@@ -66,7 +67,7 @@ func NewGoogleFixture(t *testing.T, modelName string) *GoogleFixture {
 
 	return &GoogleFixture{
 		provider: provider,
-		model:    model,
+		model:    retry.WrapModel(model),
 		ctx:      ctx,
 	}
 }
@@ -97,12 +98,12 @@ func (f *GoogleFixture) NewModel(modelName string) (llm.Model, error) {
 	return f.provider.NewModel(modelName)
 }
 
-// TestGoogleConformance runs the conformance test suite for Google Gemini models.
+// TestGoogleConformance_Integration runs the conformance test suite for Google Gemini models.
 // Tests multiple models including Gemini 3 Pro to ensure thought signature
 // preservation works correctly for multi-turn tool calling.
-//
-//nolint:paralleltest // Test suite manages its own lifecycle
-func TestGoogleConformance(t *testing.T) {
+func TestGoogleConformance_Integration(t *testing.T) {
+	t.Parallel()
+
 	modelsToTest := []string{
 		google.ModelGemini25Flash,       // gemini-2.5-flash
 		google.ModelGemini31ProPreview,  // gemini-3.1-pro-preview
@@ -111,6 +112,8 @@ func TestGoogleConformance(t *testing.T) {
 
 	for _, modelName := range modelsToTest {
 		t.Run(modelName, func(t *testing.T) {
+			t.Parallel()
+
 			fixture := NewGoogleFixture(t, modelName)
 			suite.Run(t, conformance.NewSuite(fixture))
 		})

@@ -83,8 +83,8 @@ func (f *GoogleAgentFixture) ReasoningAgent(tools tool.Registry) (*llmagent.LLMA
 	)
 }
 
-// TestGoogleAgentConformance runs the agent conformance test suite for Google Gemini.
-func TestGoogleAgentConformance(t *testing.T) {
+// TestGoogleAgentConformance_Integration runs the agent conformance test suite for Google Gemini.
+func TestGoogleAgentConformance_Integration(t *testing.T) {
 	t.Parallel()
 
 	fixture := NewGoogleAgentFixture(t)

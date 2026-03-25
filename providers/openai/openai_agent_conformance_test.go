@@ -84,8 +84,8 @@ func (f *OpenAIAgentFixture) ReasoningAgent(tools tool.Registry) (*llmagent.LLMA
 	)
 }
 
-// TestOpenAIAgentConformance runs the agent conformance test suite for OpenAI.
-func TestOpenAIAgentConformance(t *testing.T) {
+// TestOpenAIAgentConformance_Integration runs the agent conformance test suite for OpenAI.
+func TestOpenAIAgentConformance_Integration(t *testing.T) {
 	t.Parallel()
 
 	fixture := NewOpenAIAgentFixture(t)
