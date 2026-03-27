@@ -18,9 +18,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/suite"
-
+	"github.com/redpanda-data/ai-sdk-go/internal/testsuite"
 	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/plugins/retry"
 	"github.com/redpanda-data/ai-sdk-go/providers/conformance"
 	"github.com/redpanda-data/ai-sdk-go/providers/openaicompat"
 	"github.com/redpanda-data/ai-sdk-go/providers/openaicompat/openaicompattest"
@@ -29,9 +29,9 @@ import (
 // DeepSeekFixture implements the conformance.Fixture interface for DeepSeek API.
 // This tests the openaicompat provider against DeepSeek's reasoning models.
 type DeepSeekFixture struct {
-	provider       *openaicompat.Provider
-	standardModel  llm.Model
-	reasoningModel llm.Model
+	provider      *openaicompat.Provider
+	standardCaps  llm.ModelCapabilities
+	reasoningCaps llm.ModelCapabilities
 }
 
 // NewDeepSeekFixture creates a new DeepSeek test fixture.
@@ -65,31 +65,13 @@ func NewDeepSeekFixture(t *testing.T) *DeepSeekFixture {
 		Reasoning:        false, // Set per-model below
 	}
 
-	// Standard model (non-reasoning)
-	standardModel, err := provider.NewModel(
-		openaicompattest.DeepSeekDefaultStandardModel,
-		openaicompat.WithCapabilities(deepseekCaps),
-	)
-	if err != nil {
-		t.Fatalf("Failed to create standard model: %v", err)
-	}
-
-	// Reasoning model with reasoning capability enabled
 	reasoningCaps := deepseekCaps
 	reasoningCaps.Reasoning = true
 
-	reasoningModel, err := provider.NewModel(
-		openaicompattest.DeepSeekDefaultReasoningModel,
-		openaicompat.WithCapabilities(reasoningCaps),
-	)
-	if err != nil {
-		t.Fatalf("Failed to create reasoning model: %v", err)
-	}
-
 	return &DeepSeekFixture{
-		provider:       provider,
-		standardModel:  standardModel,
-		reasoningModel: reasoningModel,
+		provider:      provider,
+		standardCaps:  deepseekCaps,
+		reasoningCaps: reasoningCaps,
 	}
 }
 
@@ -97,12 +79,32 @@ func (f *DeepSeekFixture) Name() string {
 	return "DeepSeek"
 }
 
-func (f *DeepSeekFixture) StandardModel() llm.Model {
-	return f.standardModel
+func (f *DeepSeekFixture) NewStandardModel(t *testing.T) llm.Model {
+	t.Helper()
+
+	model, err := f.provider.NewModel(
+		openaicompattest.DeepSeekDefaultStandardModel,
+		openaicompat.WithCapabilities(f.standardCaps),
+	)
+	if err != nil {
+		t.Fatalf("Failed to create standard model: %v", err)
+	}
+
+	return retry.WrapModel(model)
 }
 
-func (f *DeepSeekFixture) ReasoningModel() llm.Model {
-	return f.reasoningModel
+func (f *DeepSeekFixture) NewReasoningModel(t *testing.T) llm.Model {
+	t.Helper()
+
+	model, err := f.provider.NewModel(
+		openaicompattest.DeepSeekDefaultReasoningModel,
+		openaicompat.WithCapabilities(f.reasoningCaps),
+	)
+	if err != nil {
+		t.Fatalf("Failed to create reasoning model: %v", err)
+	}
+
+	return retry.WrapModel(model)
 }
 
 func (f *DeepSeekFixture) Models() []llm.ModelDiscoveryInfo {
@@ -122,9 +124,9 @@ func (f *DeepSeekFixture) NewModel(modelName string) (llm.Model, error) {
 // Optional environment variables:
 //
 //	DEEPSEEK_BASE_URL - API base URL (default: https://api.deepseek.com)
-//
-//nolint:paralleltest // Test suite manages its own lifecycle
 func TestDeepSeekConformance_Integration(t *testing.T) {
+	t.Parallel()
+
 	fixture := NewDeepSeekFixture(t)
-	suite.Run(t, conformance.NewSuite(fixture))
+	testsuite.Run(t, conformance.NewSuite(fixture))
 }

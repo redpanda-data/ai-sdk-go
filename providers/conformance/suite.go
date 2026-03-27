@@ -23,24 +23,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
 // Suite provides generic conformance tests for any provider implementing the llm.Model interface.
-// Provider implementations should create their own test file that instantiates this suite with a
-// provider-specific fixture.
-//
-// Usage:
-//
-//	func TestProviderConformance(t *testing.T) {
-//	    fixture := NewMyProviderFixture(t)
-//	    suite.Run(t, conformance.NewSuite(fixture))
-//	}
 type Suite struct {
-	suite.Suite
-
 	fixture Fixture
 }
 
@@ -51,10 +39,55 @@ func NewSuite(fixture Fixture) *Suite {
 	}
 }
 
-func (s *Suite) TestGenerate() {
-	model := s.fixture.StandardModel()
+func (s *Suite) TestGenerate(t *testing.T) {
+	t.Helper()
+	testGenerate(t, s.fixture)
+}
+
+func (s *Suite) TestGenerateEvents(t *testing.T) {
+	t.Helper()
+	testGenerateEvents(t, s.fixture)
+}
+
+func (s *Suite) TestGenerateWithReasoning(t *testing.T) {
+	t.Helper()
+	testGenerateWithReasoning(t, s.fixture)
+}
+
+func (s *Suite) TestGenerateEventsWithReasoning(t *testing.T) {
+	t.Helper()
+	testGenerateEventsWithReasoning(t, s.fixture)
+}
+
+func (s *Suite) TestStructuredOutputs(t *testing.T) {
+	t.Helper()
+	testStructuredOutputs(t, s.fixture)
+}
+
+func (s *Suite) TestJSONObjectOutput(t *testing.T) {
+	t.Helper()
+	testJSONObjectOutput(t, s.fixture)
+}
+
+func (s *Suite) TestGenerateEventsWithTools(t *testing.T) {
+	t.Helper()
+	testGenerateEventsWithTools(t, s.fixture)
+}
+
+func (s *Suite) TestToolExecutionLoop(t *testing.T) {
+	t.Helper()
+	testToolExecutionLoop(t, s.fixture)
+}
+
+func (s *Suite) TestAllSupportedModels(t *testing.T) {
+	t.Helper()
+	testAllSupportedModels(t, s.fixture)
+}
+
+func testGenerate(t *testing.T, fixture Fixture) { //nolint:thelper // not a helper, called from t.Run subtest
+	model := fixture.NewStandardModel(t)
 	if model == nil {
-		s.T().Skip("No standard model available")
+		t.Skip("No standard model available")
 	}
 
 	tests := []struct {
@@ -156,22 +189,22 @@ func (s *Suite) TestGenerate() {
 	}
 
 	for _, tt := range tests {
-		s.Run(tt.name, func() {
-			response, err := model.Generate(s.T().Context(), tt.request)
-			tt.validate(s.T(), response, err)
+		t.Run(tt.name, func(t *testing.T) {
+			response, err := model.Generate(t.Context(), tt.request)
+			tt.validate(t, response, err)
 		})
 	}
 }
 
-func (s *Suite) TestGenerateEvents() {
-	model := s.fixture.StandardModel()
+func testGenerateEvents(t *testing.T, fixture Fixture) { //nolint:thelper // not a helper, called from t.Run subtest
+	model := fixture.NewStandardModel(t)
 	if model == nil {
-		s.T().Skip("No standard model available")
+		t.Skip("No standard model available")
 	}
 
 	caps := model.Capabilities()
 	if !caps.Streaming {
-		s.T().Skip("Model does not support streaming")
+		t.Skip("Model does not support streaming")
 	}
 
 	tests := []struct {
@@ -364,24 +397,24 @@ func (s *Suite) TestGenerateEvents() {
 	}
 
 	for _, tt := range tests {
-		s.Run(tt.name, func() {
-			tt.validate(s.T(), model, s.T().Context(), tt.request)
+		t.Run(tt.name, func(t *testing.T) {
+			tt.validate(t, model, t.Context(), tt.request)
 		})
 	}
 }
 
-func (s *Suite) TestGenerateWithReasoning() {
-	model := s.fixture.ReasoningModel()
+func testGenerateWithReasoning(t *testing.T, fixture Fixture) { //nolint:thelper // not a helper, called from t.Run subtest
+	model := fixture.NewReasoningModel(t)
 	if model == nil {
-		s.T().Skip("No reasoning model available")
+		t.Skip("No reasoning model available")
 	}
 
 	caps := model.Capabilities()
 	if !caps.Reasoning {
-		s.T().Skip("Model does not support reasoning")
+		t.Skip("Model does not support reasoning")
 	}
 
-	s.Run("complex reasoning question", func() {
+	t.Run("complex reasoning question", func(t *testing.T) {
 		request := &llm.Request{
 			Messages: []llm.Message{
 				{
@@ -403,24 +436,24 @@ func (s *Suite) TestGenerateWithReasoning() {
 
 		for attempt := 1; attempt <= maxAttempts; attempt++ {
 			if attempt > 1 {
-				s.T().Logf("Retry attempt %d/%d for reasoning traces", attempt, maxAttempts)
+				t.Logf("Retry attempt %d/%d for reasoning traces", attempt, maxAttempts)
 			}
 
 			var err error
 
-			response, err = model.Generate(s.T().Context(), request)
+			response, err = model.Generate(t.Context(), request)
 			if err != nil {
 				if attempt < maxAttempts {
-					s.T().Logf("Attempt %d/%d failed: %v", attempt, maxAttempts, err)
+					t.Logf("Attempt %d/%d failed: %v", attempt, maxAttempts, err)
 
 					continue
 				}
 
-				s.Require().NoError(err)
+				require.NoError(t, err)
 			}
 
-			s.Require().NotNil(response)
-			s.Require().NotEmpty(response.Message.Content)
+			require.NotNil(t, response)
+			require.NotEmpty(t, response.Message.Content)
 
 			hasReasoning = false
 
@@ -428,53 +461,53 @@ func (s *Suite) TestGenerateWithReasoning() {
 				if part.IsReasoning() {
 					hasReasoning = true
 
-					s.NotEmpty(part.ReasoningTrace.Text)
-					s.Greater(len(part.ReasoningTrace.Text), 30, "Should show detailed reasoning process")
+					assert.NotEmpty(t, part.ReasoningTrace.Text)
+					assert.Greater(t, len(part.ReasoningTrace.Text), 30, "Should show detailed reasoning process")
 				}
 			}
 
 			if hasReasoning {
-				s.T().Logf("Received reasoning traces on attempt %d/%d", attempt, maxAttempts)
+				t.Logf("Received reasoning traces on attempt %d/%d", attempt, maxAttempts)
 
 				break
 			}
 
 			if attempt == maxAttempts {
-				s.FailNow(fmt.Sprintf("Complex technical question should trigger reasoning after %d attempts", maxAttempts))
+				t.Fatalf("Complex technical question should trigger reasoning after %d attempts", maxAttempts)
 			}
 		}
 
 		text := response.TextContent()
-		s.Greater(len(text), 200, "Should provide detailed technical analysis")
+		assert.Greater(t, len(text), 200, "Should provide detailed technical analysis")
 
 		lowerText := strings.ToLower(text)
-		s.True(
+		assert.True(t,
 			strings.Contains(lowerText, "consensus") ||
 				strings.Contains(lowerText, "byzantine") ||
 				strings.Contains(lowerText, "partition"),
 			"Should discuss relevant distributed systems concepts")
 
-		s.Require().NotNil(response.Usage)
-		s.Greater(response.Usage.TotalTokens, 200, "Complex reasoning should use many tokens")
+		require.NotNil(t, response.Usage)
+		assert.Greater(t, response.Usage.TotalTokens, 200, "Complex reasoning should use many tokens")
 	})
 }
 
-func (s *Suite) TestGenerateEventsWithReasoning() {
-	model := s.fixture.ReasoningModel()
+func testGenerateEventsWithReasoning(t *testing.T, fixture Fixture) { //nolint:thelper // not a helper, called from t.Run subtest
+	model := fixture.NewReasoningModel(t)
 	if model == nil {
-		s.T().Skip("No reasoning model available")
+		t.Skip("No reasoning model available")
 	}
 
 	caps := model.Capabilities()
 	if !caps.Reasoning {
-		s.T().Skip("Model does not support reasoning")
+		t.Skip("Model does not support reasoning")
 	}
 
 	if !caps.Streaming {
-		s.T().Skip("Model does not support streaming")
+		t.Skip("Model does not support streaming")
 	}
 
-	s.Run("streaming with reasoning traces", func() {
+	t.Run("streaming with reasoning traces", func(t *testing.T) {
 		request := &llm.Request{
 			Messages: []llm.Message{
 				{
@@ -500,7 +533,7 @@ func (s *Suite) TestGenerateEventsWithReasoning() {
 			contentParts = nil
 			hasEndEvent = false
 
-			for event, streamErr := range model.GenerateEvents(s.T().Context(), request) {
+			for event, streamErr := range model.GenerateEvents(t.Context(), request) {
 				if streamErr != nil {
 					return streamErr
 				}
@@ -521,20 +554,20 @@ func (s *Suite) TestGenerateEventsWithReasoning() {
 
 		for attempt := 1; attempt <= maxAttempts; attempt++ {
 			if attempt > 1 {
-				s.T().Logf("Retry attempt %d/%d for reasoning traces", attempt, maxAttempts)
+				t.Logf("Retry attempt %d/%d for reasoning traces", attempt, maxAttempts)
 			}
 
 			if err := collectReasoningEvents(); err != nil {
 				if attempt < maxAttempts {
-					s.T().Logf("Attempt %d/%d failed: %v", attempt, maxAttempts, err)
+					t.Logf("Attempt %d/%d failed: %v", attempt, maxAttempts, err)
 
 					continue
 				}
 
-				s.Require().NoError(err)
+				require.NoError(t, err)
 			}
 
-			s.NotEmpty(contentParts, "Should receive content parts")
+			assert.NotEmpty(t, contentParts, "Should receive content parts")
 
 			// Extract and combine text parts for quality checks
 			var (
@@ -551,11 +584,11 @@ func (s *Suite) TestGenerateEventsWithReasoning() {
 			}
 
 			allText := allTextSb.String()
-			s.Greater(len(allText), 200, "Should provide detailed technical analysis")
+			assert.Greater(t, len(allText), 200, "Should provide detailed technical analysis")
 
 			// Should mention relevant concepts
 			lowerText := strings.ToLower(allText)
-			s.True(
+			assert.True(t,
 				strings.Contains(lowerText, "consensus") ||
 					strings.Contains(lowerText, "byzantine") ||
 					strings.Contains(lowerText, "partition"),
@@ -565,31 +598,31 @@ func (s *Suite) TestGenerateEventsWithReasoning() {
 
 			// If we got reasoning traces, we're done
 			if len(allReasoning) > 0 {
-				s.T().Logf("Received reasoning traces on attempt %d/%d", attempt, maxAttempts)
+				t.Logf("Received reasoning traces on attempt %d/%d", attempt, maxAttempts)
 				break
 			}
 
 			// If this is the last attempt, fail
 			if attempt == maxAttempts {
-				s.FailNow(fmt.Sprintf("Should receive reasoning traces for complex question after %d attempts", maxAttempts))
+				t.Fatalf("Should receive reasoning traces for complex question after %d attempts", maxAttempts)
 			}
 		}
 
 		// Verify reasoning content
-		s.NotEmpty(allReasoning, "Should receive reasoning traces for complex question")
-		s.Greater(len(allReasoning), 50, "Should have substantial reasoning content")
+		assert.NotEmpty(t, allReasoning, "Should receive reasoning traces for complex question")
+		assert.Greater(t, len(allReasoning), 50, "Should have substantial reasoning content")
 
 		// Verify we got an end event
-		s.Require().True(hasEndEvent, "Should receive stream end event")
-		s.Equal(llm.FinishReasonStop, endEvent.Response.FinishReason)
+		require.True(t, hasEndEvent, "Should receive stream end event")
+		assert.Equal(t, llm.FinishReasonStop, endEvent.Response.FinishReason)
 
 		// Verify usage information
-		s.Require().NotNil(endEvent.Response.Usage)
-		s.Greater(endEvent.Response.Usage.TotalTokens, 200, "Complex reasoning should use many tokens")
+		require.NotNil(t, endEvent.Response.Usage)
+		assert.Greater(t, endEvent.Response.Usage.TotalTokens, 200, "Complex reasoning should use many tokens")
 
 		// Verify StreamEndEvent.Response.Message contains aggregated content
 		// Streaming may send many small chunks, but final response combines them
-		s.Require().NotEmpty(endEvent.Response.Message.Content,
+		require.NotEmpty(t, endEvent.Response.Message.Content,
 			"StreamEndEvent.Response.Message should contain content")
 
 		// Aggregate streamed text and reasoning, compare with final response
@@ -609,12 +642,12 @@ func (s *Suite) TestGenerateEventsWithReasoning() {
 		}
 
 		finalText := endEvent.Response.TextContent()
-		s.Equal(streamedTextSb.String(), finalText,
+		assert.Equal(t, streamedTextSb.String(), finalText,
 			"StreamEndEvent aggregated text should match all streamed text chunks")
 
 		// Verify reasoning traces are present in final response
 		streamedReasoning := streamedReasoningSb.String()
-		s.NotEmpty(streamedReasoning, "Should have streamed reasoning content")
+		assert.NotEmpty(t, streamedReasoning, "Should have streamed reasoning content")
 
 		var finalReasoningSb strings.Builder
 
@@ -625,23 +658,23 @@ func (s *Suite) TestGenerateEventsWithReasoning() {
 		}
 
 		finalReasoning := finalReasoningSb.String()
-		s.Equal(streamedReasoning, finalReasoning,
+		assert.Equal(t, streamedReasoning, finalReasoning,
 			"StreamEndEvent aggregated reasoning should match all streamed reasoning chunks")
 	})
 }
 
-func (s *Suite) TestStructuredOutputs() {
-	model := s.fixture.StandardModel()
+func testStructuredOutputs(t *testing.T, fixture Fixture) { //nolint:thelper // not a helper, called from t.Run subtest
+	model := fixture.NewStandardModel(t)
 	if model == nil {
-		s.T().Skip("No standard model available")
+		t.Skip("No standard model available")
 	}
 
 	caps := model.Capabilities()
 	if !caps.StructuredOutput {
-		s.T().Skip("Model does not support structured output")
+		t.Skip("Model does not support structured output")
 	}
 
-	s.Run("JSON Schema structured output", func() {
+	t.Run("JSON Schema structured output", func(t *testing.T) {
 		// Define a JSON schema for a simple person object
 		schema := `{
 			"type": "object",
@@ -669,44 +702,44 @@ func (s *Suite) TestStructuredOutputs() {
 			},
 		}
 
-		resp, err := model.Generate(s.T().Context(), req)
-		s.Require().NoError(err)
-		s.Require().NotNil(resp)
+		resp, err := model.Generate(t.Context(), req)
+		require.NoError(t, err)
+		require.NotNil(t, resp)
 
 		// Get the text content
 		textContent := resp.TextContent()
-		s.NotEmpty(textContent)
+		assert.NotEmpty(t, textContent)
 
 		// Verify it's valid JSON that matches our schema
 		var personData map[string]any
 
 		err = json.Unmarshal([]byte(textContent), &personData)
-		s.Require().NoError(err, "Response should be valid JSON")
+		require.NoError(t, err, "Response should be valid JSON")
 
 		// Verify required fields are present
-		s.Contains(personData, "name")
-		s.Contains(personData, "age")
-		s.Contains(personData, "city")
+		assert.Contains(t, personData, "name")
+		assert.Contains(t, personData, "age")
+		assert.Contains(t, personData, "city")
 
 		// Verify field types
-		s.IsType("", personData["name"])
-		s.IsType(float64(0), personData["age"]) // JSON numbers are float64
-		s.IsType("", personData["city"])
+		assert.IsType(t, "", personData["name"])
+		assert.IsType(t, float64(0), personData["age"]) // JSON numbers are float64
+		assert.IsType(t, "", personData["city"])
 	})
 }
 
-func (s *Suite) TestJSONObjectOutput() {
-	model := s.fixture.StandardModel()
+func testJSONObjectOutput(t *testing.T, fixture Fixture) { //nolint:thelper // not a helper, called from t.Run subtest
+	model := fixture.NewStandardModel(t)
 	if model == nil {
-		s.T().Skip("No standard model available")
+		t.Skip("No standard model available")
 	}
 
 	caps := model.Capabilities()
 	if !caps.JSONMode {
-		s.T().Skip("Model does not support JSON mode")
+		t.Skip("Model does not support JSON mode")
 	}
 
-	s.Run("JSON Object mode", func() {
+	t.Run("JSON Object mode", func(t *testing.T) {
 		req := &llm.Request{
 			Messages: []llm.Message{{
 				Role:    llm.RoleUser,
@@ -717,35 +750,35 @@ func (s *Suite) TestJSONObjectOutput() {
 			},
 		}
 
-		resp, err := model.Generate(s.T().Context(), req)
-		s.Require().NoError(err)
-		s.Require().NotNil(resp)
+		resp, err := model.Generate(t.Context(), req)
+		require.NoError(t, err)
+		require.NotNil(t, resp)
 
 		// Get the text content
 		textContent := resp.TextContent()
-		s.NotEmpty(textContent)
+		assert.NotEmpty(t, textContent)
 
 		// Verify it's valid JSON (but we don't enforce specific structure)
 		var jsonData any
 
 		err = json.Unmarshal([]byte(textContent), &jsonData)
-		s.Require().NoError(err, "Response should be valid JSON")
+		require.NoError(t, err, "Response should be valid JSON")
 	})
 }
 
-func (s *Suite) TestGenerateEventsWithTools() {
-	model := s.fixture.StandardModel()
+func testGenerateEventsWithTools(t *testing.T, fixture Fixture) { //nolint:thelper // not a helper, called from t.Run subtest
+	model := fixture.NewStandardModel(t)
 	if model == nil {
-		s.T().Skip("No standard model available")
+		t.Skip("No standard model available")
 	}
 
 	caps := model.Capabilities()
 	if !caps.Tools {
-		s.T().Skip("Model does not support tools")
+		t.Skip("Model does not support tools")
 	}
 
 	if !caps.Streaming {
-		s.T().Skip("Model does not support streaming")
+		t.Skip("Model does not support streaming")
 	}
 
 	tests := []struct {
@@ -1022,24 +1055,24 @@ func (s *Suite) TestGenerateEventsWithTools() {
 	}
 
 	for _, tt := range tests {
-		s.Run(tt.name, func() {
-			tt.validate(s.T(), model, s.T().Context(), tt.request)
+		t.Run(tt.name, func(t *testing.T) {
+			tt.validate(t, model, t.Context(), tt.request)
 		})
 	}
 }
 
-func (s *Suite) TestToolExecutionLoop() {
-	model := s.fixture.StandardModel()
+func testToolExecutionLoop(t *testing.T, fixture Fixture) { //nolint:thelper // not a helper, called from t.Run subtest
+	model := fixture.NewStandardModel(t)
 	if model == nil {
-		s.T().Skip("No standard model available")
+		t.Skip("No standard model available")
 	}
 
 	caps := model.Capabilities()
 	if !caps.Tools {
-		s.T().Skip("Model does not support tools")
+		t.Skip("Model does not support tools")
 	}
 
-	s.Run("tool execution with result feedback", func() {
+	t.Run("tool execution with result feedback", func(t *testing.T) {
 		// Step 1: Initial request that should trigger tool call
 		initialRequest := &llm.Request{
 			Messages: []llm.Message{
@@ -1069,10 +1102,10 @@ func (s *Suite) TestToolExecutionLoop() {
 		}
 
 		// Get initial response with tool call
-		response, err := model.Generate(s.T().Context(), initialRequest)
-		s.Require().NoError(err)
-		s.Require().NotNil(response)
-		s.Equal(llm.FinishReasonToolCalls, response.FinishReason, "Should request tool call")
+		response, err := model.Generate(t.Context(), initialRequest)
+		require.NoError(t, err)
+		require.NotNil(t, response)
+		assert.Equal(t, llm.FinishReasonToolCalls, response.FinishReason, "Should request tool call")
 
 		// Extract tool requests
 		var toolRequests []*llm.ToolRequest
@@ -1083,8 +1116,8 @@ func (s *Suite) TestToolExecutionLoop() {
 			}
 		}
 
-		s.Require().NotEmpty(toolRequests, "Should have at least one tool request")
-		s.Equal("get_weather", toolRequests[0].Name, "Should request get_weather tool")
+		require.NotEmpty(t, toolRequests, "Should have at least one tool request")
+		assert.Equal(t, "get_weather", toolRequests[0].Name, "Should request get_weather tool")
 
 		// Step 2: Simulate tool execution and send result back
 		followUpRequest := &llm.Request{
@@ -1111,32 +1144,32 @@ func (s *Suite) TestToolExecutionLoop() {
 		}
 
 		// Step 3: Get final response with tool result incorporated
-		finalResponse, err := model.Generate(s.T().Context(), followUpRequest)
-		s.Require().NoError(err)
-		s.Require().NotNil(finalResponse)
+		finalResponse, err := model.Generate(t.Context(), followUpRequest)
+		require.NoError(t, err)
+		require.NotNil(t, finalResponse)
 
 		// Verify final response
-		s.Equal(llm.FinishReasonStop, finalResponse.FinishReason, "Should complete after tool result")
+		assert.Equal(t, llm.FinishReasonStop, finalResponse.FinishReason, "Should complete after tool result")
 
 		// Verify response contains information from tool result
 		finalText := finalResponse.TextContent()
-		s.NotEmpty(finalText, "Should have text response")
+		assert.NotEmpty(t, finalText, "Should have text response")
 
 		// Check that the response mentions the weather data
 		lowerText := strings.ToLower(finalText)
-		s.True(
+		assert.True(t,
 			strings.Contains(lowerText, "72") || strings.Contains(lowerText, "sunny") || strings.Contains(lowerText, "san francisco"),
 			"Response should incorporate tool result data")
 
 		// Verify usage information
-		s.Require().NotNil(finalResponse.Usage)
-		s.Positive(finalResponse.Usage.TotalTokens)
+		require.NotNil(t, finalResponse.Usage)
+		assert.Positive(t, finalResponse.Usage.TotalTokens)
 	})
 
-	s.Run("multi-turn tool execution streaming", func() {
+	t.Run("multi-turn tool execution streaming", func(t *testing.T) {
 		// Skip if streaming not supported
 		if !caps.Streaming {
-			s.T().Skip("Model does not support streaming")
+			t.Skip("Model does not support streaming")
 		}
 
 		// Step 1: Initial request that should trigger tool call
@@ -1173,8 +1206,8 @@ func (s *Suite) TestToolExecutionLoop() {
 			assistantMessage llm.Message
 		)
 
-		for event, err := range model.GenerateEvents(s.T().Context(), initialRequest) {
-			s.Require().NoError(err)
+		for event, err := range model.GenerateEvents(t.Context(), initialRequest) {
+			require.NoError(t, err)
 
 			switch e := event.(type) {
 			case llm.ContentPartEvent:
@@ -1183,14 +1216,14 @@ func (s *Suite) TestToolExecutionLoop() {
 					assistantMessage.Content = append(assistantMessage.Content, e.Part)
 				}
 			case llm.StreamEndEvent:
-				s.Equal(llm.FinishReasonToolCalls, e.Response.FinishReason)
+				assert.Equal(t, llm.FinishReasonToolCalls, e.Response.FinishReason)
 
 				assistantMessage.Role = llm.RoleAssistant
 			}
 		}
 
-		s.Require().NotEmpty(toolRequests, "Should have tool requests")
-		s.Equal("get_time", toolRequests[0].Name)
+		require.NotEmpty(t, toolRequests, "Should have tool requests")
+		assert.Equal(t, "get_time", toolRequests[0].Name)
 
 		// Step 2: Send tool result and get final response via streaming
 		followUpRequest := &llm.Request{
@@ -1221,8 +1254,8 @@ func (s *Suite) TestToolExecutionLoop() {
 			finalFinishReason llm.FinishReason
 		)
 
-		for event, err := range model.GenerateEvents(s.T().Context(), followUpRequest) {
-			s.Require().NoError(err)
+		for event, err := range model.GenerateEvents(t.Context(), followUpRequest) {
+			require.NoError(t, err)
 
 			switch e := event.(type) {
 			case llm.ContentPartEvent:
@@ -1231,22 +1264,22 @@ func (s *Suite) TestToolExecutionLoop() {
 				}
 			case llm.StreamEndEvent:
 				finalFinishReason = e.Response.FinishReason
-				s.Require().NotNil(e.Response.Usage)
-				s.Positive(e.Response.Usage.TotalTokens)
+				require.NotNil(t, e.Response.Usage)
+				assert.Positive(t, e.Response.Usage.TotalTokens)
 			}
 		}
 
-		s.Equal(llm.FinishReasonStop, finalFinishReason, "Should complete after tool result")
-		s.NotEmpty(finalText.String(), "Should have text response")
+		assert.Equal(t, llm.FinishReasonStop, finalFinishReason, "Should complete after tool result")
+		assert.NotEmpty(t, finalText.String(), "Should have text response")
 
 		// Verify response mentions the time data
 		lowerText := strings.ToLower(finalText.String())
-		s.True(
+		assert.True(t,
 			strings.Contains(lowerText, "tokyo") || strings.Contains(lowerText, "14:30") || strings.Contains(lowerText, "time"),
 			"Response should incorporate tool result data")
 	})
 
-	s.Run("sequential tool calls with dependency", func() {
+	t.Run("sequential tool calls with dependency", func(t *testing.T) {
 		// Step 1: Ask for weather in current location (requires two tools: location, then weather)
 		initialRequest := &llm.Request{
 			Messages: []llm.Message{
@@ -1281,10 +1314,10 @@ func (s *Suite) TestToolExecutionLoop() {
 		}
 
 		// Get first response - should request get_current_location
-		response1, err := model.Generate(s.T().Context(), initialRequest)
-		s.Require().NoError(err)
-		s.Require().NotNil(response1)
-		s.Equal(llm.FinishReasonToolCalls, response1.FinishReason, "Should request first tool")
+		response1, err := model.Generate(t.Context(), initialRequest)
+		require.NoError(t, err)
+		require.NotNil(t, response1)
+		assert.Equal(t, llm.FinishReasonToolCalls, response1.FinishReason, "Should request first tool")
 
 		// Extract first tool request
 		var toolRequests1 []*llm.ToolRequest
@@ -1295,8 +1328,8 @@ func (s *Suite) TestToolExecutionLoop() {
 			}
 		}
 
-		s.Require().NotEmpty(toolRequests1, "Should have tool request")
-		s.Equal("get_current_location", toolRequests1[0].Name, "Should request location first")
+		require.NotEmpty(t, toolRequests1, "Should have tool request")
+		assert.Equal(t, "get_current_location", toolRequests1[0].Name, "Should request location first")
 
 		// Step 2: Provide location result
 		request2 := &llm.Request{
@@ -1323,10 +1356,10 @@ func (s *Suite) TestToolExecutionLoop() {
 		}
 
 		// Get second response - should now request get_weather with location
-		response2, err := model.Generate(s.T().Context(), request2)
-		s.Require().NoError(err)
-		s.Require().NotNil(response2)
-		s.Equal(llm.FinishReasonToolCalls, response2.FinishReason, "Should request second tool")
+		response2, err := model.Generate(t.Context(), request2)
+		require.NoError(t, err)
+		require.NotNil(t, response2)
+		assert.Equal(t, llm.FinishReasonToolCalls, response2.FinishReason, "Should request second tool")
 
 		// Extract second tool request
 		var toolRequests2 []*llm.ToolRequest
@@ -1337,19 +1370,19 @@ func (s *Suite) TestToolExecutionLoop() {
 			}
 		}
 
-		s.Require().NotEmpty(toolRequests2, "Should have second tool request")
-		s.Equal("get_weather", toolRequests2[0].Name, "Should request weather with location")
+		require.NotEmpty(t, toolRequests2, "Should have second tool request")
+		assert.Equal(t, "get_weather", toolRequests2[0].Name, "Should request weather with location")
 
 		// Verify the weather request includes location from first tool
 		var weatherArgs map[string]any
 
 		err = json.Unmarshal(toolRequests2[0].Arguments, &weatherArgs)
-		s.Require().NoError(err)
-		s.Contains(weatherArgs, "location", "Should have location argument")
+		require.NoError(t, err)
+		assert.Contains(t, weatherArgs, "location", "Should have location argument")
 
 		location, ok := weatherArgs["location"].(string)
-		s.Require().True(ok, "location should be a string")
-		s.True(
+		require.True(t, ok, "location should be a string")
+		assert.True(t,
 			strings.Contains(strings.ToLower(location), "san francisco") || strings.Contains(strings.ToLower(location), "sf"),
 			"Location should reference San Francisco from first tool result")
 
@@ -1393,48 +1426,42 @@ func (s *Suite) TestToolExecutionLoop() {
 		}
 
 		// Get final response with weather answer
-		finalResponse, err := model.Generate(s.T().Context(), request3)
+		finalResponse, err := model.Generate(t.Context(), request3)
 		if err != nil {
 			if reqJSON, _ := json.MarshalIndent(request3, "", "  "); reqJSON != nil {
-				s.T().Logf("Request that failed:\n%s", reqJSON)
+				t.Logf("Request that failed:\n%s", reqJSON)
 			}
 		}
 
-		s.Require().NoError(err)
-		s.Require().NotNil(finalResponse)
-		s.Equal(llm.FinishReasonStop, finalResponse.FinishReason, "Should complete after all tools")
+		require.NoError(t, err)
+		require.NotNil(t, finalResponse)
+		assert.Equal(t, llm.FinishReasonStop, finalResponse.FinishReason, "Should complete after all tools")
 
 		// Verify final response mentions both location and weather
 		finalText := finalResponse.TextContent()
-		s.NotEmpty(finalText, "Should have final text response")
+		assert.NotEmpty(t, finalText, "Should have final text response")
 
 		lowerText := strings.ToLower(finalText)
-		s.True(
+		assert.True(t,
 			strings.Contains(lowerText, "65") || strings.Contains(lowerText, "foggy") || strings.Contains(lowerText, "san francisco"),
 			"Response should mention weather and location from tool results")
 
-		s.Require().NotNil(finalResponse.Usage)
-		s.Positive(finalResponse.Usage.TotalTokens)
+		require.NotNil(t, finalResponse.Usage)
+		assert.Positive(t, finalResponse.Usage.TotalTokens)
 	})
 }
 
-func (s *Suite) TestAllSupportedModels() { //nolint:tparallel // testify/suite manages top-level lifecycle; subtests are parallel
-	t := s.T()
-
-	models := s.fixture.Models()
+func testAllSupportedModels(t *testing.T, fixture Fixture) { //nolint:thelper // not a helper, called from t.Run subtest
+	models := fixture.Models()
 	if len(models) == 0 {
 		t.Skip("No models available for testing")
 	}
 
 	t.Run("basic generation works for all supported models", func(t *testing.T) {
-		t.Parallel() //nolint:testifylint // safe: subtests use their own t, not s.T()
-
 		for _, m := range models {
 			modelName := m.Name
 			t.Run("model_"+modelName, func(t *testing.T) {
-				t.Parallel() //nolint:testifylint // safe: uses t directly, no shared suite state
-
-				model, err := s.fixture.NewModel(modelName)
+				model, err := fixture.NewModel(modelName)
 				if err != nil {
 					t.Skipf("Skipping model %s due to creation error: %v", modelName, err)
 					return

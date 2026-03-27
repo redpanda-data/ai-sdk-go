@@ -17,9 +17,9 @@ package openaicompat_test
 import (
 	"testing"
 
-	"github.com/stretchr/testify/suite"
-
+	"github.com/redpanda-data/ai-sdk-go/internal/testsuite"
 	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/plugins/retry"
 	"github.com/redpanda-data/ai-sdk-go/providers/conformance"
 	"github.com/redpanda-data/ai-sdk-go/providers/openaicompat"
 	"github.com/redpanda-data/ai-sdk-go/providers/openaicompat/openaicompattest"
@@ -27,9 +27,7 @@ import (
 
 // OpenAICompatFixture implements the conformance.Fixture interface for OpenAI-compatible provider.
 type OpenAICompatFixture struct {
-	provider       *openaicompat.Provider
-	standardModel  llm.Model
-	reasoningModel llm.Model
+	provider *openaicompat.Provider
 }
 
 // NewOpenAICompatFixture creates a new OpenAI-compatible test fixture.
@@ -45,25 +43,8 @@ func NewOpenAICompatFixture(t *testing.T) *OpenAICompatFixture {
 		t.Fatalf("Failed to create provider: %v", err)
 	}
 
-	// Create standard model
-	standardModel, err := provider.NewModel(openaicompattest.TestModelName)
-	if err != nil {
-		t.Fatalf("Failed to create standard model: %v", err)
-	}
-
-	// Create reasoning model with reasoning capability enabled
-	reasoningModel, err := provider.NewModel(
-		openaicompattest.TestReasoningModelName,
-		openaicompat.WithReasoning(),
-	)
-	if err != nil {
-		t.Fatalf("Failed to create reasoning model: %v", err)
-	}
-
 	return &OpenAICompatFixture{
-		provider:       provider,
-		standardModel:  standardModel,
-		reasoningModel: reasoningModel,
+		provider: provider,
 	}
 }
 
@@ -71,11 +52,20 @@ func (f *OpenAICompatFixture) Name() string {
 	return "OpenAICompat"
 }
 
-func (f *OpenAICompatFixture) StandardModel() llm.Model {
-	return f.standardModel
+func (f *OpenAICompatFixture) NewStandardModel(t *testing.T) llm.Model {
+	t.Helper()
+
+	model, err := f.provider.NewModel(openaicompattest.TestModelName)
+	if err != nil {
+		t.Fatalf("Failed to create standard model: %v", err)
+	}
+
+	return retry.WrapModel(model)
 }
 
-func (f *OpenAICompatFixture) ReasoningModel() llm.Model {
+func (f *OpenAICompatFixture) NewReasoningModel(t *testing.T) llm.Model {
+	t.Helper()
+
 	// OpenAI's o1 models don't expose reasoning traces in Chat Completions API.
 	// The reasoning_content field is only available in:
 	// 1. OpenAI's Responses API (not Chat Completions)
@@ -83,6 +73,8 @@ func (f *OpenAICompatFixture) ReasoningModel() llm.Model {
 	//
 	// Since these conformance tests run against OpenAI's API, skip reasoning tests.
 	// The provider correctly handles reasoning_content when present (e.g., with vLLM/DeepSeek-R1).
+	t.Skip("Reasoning traces are not exposed against the OpenAI-compatible Chat Completions target")
+
 	return nil
 }
 
@@ -95,9 +87,9 @@ func (f *OpenAICompatFixture) NewModel(modelName string) (llm.Model, error) {
 }
 
 // TestOpenAICompatConformance_Integration runs the generic conformance test suite for the OpenAI-compatible provider.
-//
-//nolint:paralleltest // Test suite manages its own lifecycle
 func TestOpenAICompatConformance_Integration(t *testing.T) {
+	t.Parallel()
+
 	fixture := NewOpenAICompatFixture(t)
-	suite.Run(t, conformance.NewSuite(fixture))
+	testsuite.Run(t, conformance.NewSuite(fixture))
 }

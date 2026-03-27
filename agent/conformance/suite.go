@@ -18,8 +18,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/llm"
@@ -31,8 +31,6 @@ import (
 // Provider packages should create fixtures and run this suite to verify
 // their provider works correctly with the agent layer.
 type Suite struct {
-	suite.Suite
-
 	fixture Fixture
 }
 
@@ -44,21 +42,34 @@ func NewSuite(fixture Fixture) *Suite {
 }
 
 // TestBasicToolCalling tests that an agent can make a single tool call with proper arguments.
-// This is the critical test that catches streaming bugs where tool arguments are lost.
-func (s *Suite) TestBasicToolCalling() {
+func (s *Suite) TestBasicToolCalling(t *testing.T) {
+	t.Helper()
+	testBasicToolCalling(t, s.fixture)
+}
+
+// TestMultiTurnToolExecution tests that an agent can execute tools across multiple turns.
+func (s *Suite) TestMultiTurnToolExecution(t *testing.T) {
+	t.Helper()
+	testMultiTurnToolExecution(t, s.fixture)
+}
+
+// testBasicToolCalling contains the shared implementation for TestBasicToolCalling.
+func testBasicToolCalling(t *testing.T, fixture Fixture) {
+	t.Helper()
+
 	// Create tool registry with calculator
 	registry := tool.NewRegistry(tool.RegistryConfig{})
 	calculator := NewCalculatorTool()
 	err := registry.Register(calculator)
-	s.Require().NoError(err)
+	require.NoError(t, err)
 
 	// Create agent
-	ag, err := s.fixture.StandardAgent(registry)
+	ag, err := fixture.StandardAgent(registry)
 	if ag == nil {
-		s.T().Skip("No standard agent available")
+		t.Skip("No standard agent available")
 	}
 
-	s.Require().NoError(err)
+	require.NoError(t, err)
 
 	// Create session and execute
 	sess := &session.State{
@@ -67,7 +78,7 @@ func (s *Suite) TestBasicToolCalling() {
 	}
 	inv := agent.NewInvocationMetadata(sess, agent.Info{Name: "test-agent", Description: "Test agent for conformance"})
 
-	events := collectEvents(s.T(), ag.Run(s.T().Context(), inv))
+	events := collectEvents(t, ag.Run(t.Context(), inv))
 
 	// Extract event types
 	toolCallEvents := filterEvents[agent.ToolRequestEvent](events)
@@ -76,8 +87,8 @@ func (s *Suite) TestBasicToolCalling() {
 	endEvent := findInvocationEndEvent(events)
 
 	// Verify tool was called
-	s.Require().NotEmpty(toolCallEvents, "agent should have called the calculator tool")
-	s.Equal("add_numbers", toolCallEvents[0].Request.Name)
+	require.NotEmpty(t, toolCallEvents, "agent should have called the calculator tool")
+	assert.Equal(t, "add_numbers", toolCallEvents[0].Request.Name)
 
 	// CRITICAL: Verify tool arguments are populated (not empty)
 	var toolArgs struct {
@@ -85,44 +96,46 @@ func (s *Suite) TestBasicToolCalling() {
 		B float64 `json:"b"`
 	}
 	err = json.Unmarshal(toolCallEvents[0].Request.Arguments, &toolArgs)
-	s.Require().NoError(err, "tool arguments should be valid JSON")
-	s.NotZero(toolArgs.A, "tool argument 'a' must not be zero")
-	s.NotZero(toolArgs.B, "tool argument 'b' must not be zero")
+	require.NoError(t, err, "tool arguments should be valid JSON")
+	assert.NotZero(t, toolArgs.A, "tool argument 'a' must not be zero")
+	assert.NotZero(t, toolArgs.B, "tool argument 'b' must not be zero")
 
 	// Verify tool result received
-	s.Require().NotEmpty(toolResultEvents, "should receive tool result")
-	s.Empty(toolResultEvents[0].Response.Error, "tool execution should succeed")
+	require.NotEmpty(t, toolResultEvents, "should receive tool result")
+	assert.Empty(t, toolResultEvents[0].Response.Error, "tool execution should succeed")
 
 	// Verify final response
-	s.Require().NotNil(endEvent, "should receive InvocationEndEvent")
-	s.Equal(agent.FinishReasonStop, endEvent.FinishReason)
+	require.NotNil(t, endEvent, "should receive InvocationEndEvent")
+	assert.Equal(t, agent.FinishReasonStop, endEvent.FinishReason)
 
 	// Should have final message with text
-	s.Require().NotEmpty(messageEvents, "should have message events")
+	require.NotEmpty(t, messageEvents, "should have message events")
 	lastMessage := messageEvents[len(messageEvents)-1]
 	finalText := lastMessage.Response.TextContent()
-	s.NotEmpty(finalText, "should have final response text")
+	assert.NotEmpty(t, finalText, "should have final response text")
 
 	// Verify usage tracking
-	s.Require().NotNil(endEvent.Usage)
-	s.Positive(endEvent.Usage.TotalTokens)
+	require.NotNil(t, endEvent.Usage)
+	assert.Positive(t, endEvent.Usage.TotalTokens)
 }
 
-// TestMultiTurnToolExecution tests that an agent can execute tools across multiple turns.
-func (s *Suite) TestMultiTurnToolExecution() {
+// testMultiTurnToolExecution contains the shared implementation for TestMultiTurnToolExecution.
+func testMultiTurnToolExecution(t *testing.T, fixture Fixture) {
+	t.Helper()
+
 	// Create tool registry with calculator
 	registry := tool.NewRegistry(tool.RegistryConfig{})
 	calculator := NewCalculatorTool()
 	err := registry.Register(calculator)
-	s.Require().NoError(err)
+	require.NoError(t, err)
 
 	// Create agent with limited turns
-	ag, err := s.fixture.StandardAgent(registry)
+	ag, err := fixture.StandardAgent(registry)
 	if ag == nil {
-		s.T().Skip("No standard agent available")
+		t.Skip("No standard agent available")
 	}
 
-	s.Require().NoError(err)
+	require.NoError(t, err)
 
 	// Create session and execute
 	sess := &session.State{
@@ -131,23 +144,23 @@ func (s *Suite) TestMultiTurnToolExecution() {
 	}
 	inv := agent.NewInvocationMetadata(sess, agent.Info{Name: "test-agent", Description: "Test agent for conformance"})
 
-	events := collectEvents(s.T(), ag.Run(s.T().Context(), inv))
+	events := collectEvents(t, ag.Run(t.Context(), inv))
 
 	// Extract events
 	toolCallEvents := filterEvents[agent.ToolRequestEvent](events)
 	endEvent := findInvocationEndEvent(events)
 
 	// Should complete successfully
-	s.Require().NotNil(endEvent)
-	s.NotEqual(agent.FinishReasonMaxTurns, endEvent.FinishReason, "should not hit max turns")
+	require.NotNil(t, endEvent)
+	assert.NotEqual(t, agent.FinishReasonMaxTurns, endEvent.FinishReason, "should not hit max turns")
 
 	// Should have made at least one tool call
-	s.NotEmpty(toolCallEvents, "should have called calculator")
+	assert.NotEmpty(t, toolCallEvents, "should have called calculator")
 
 	// Turn count should be reasonable (at least 2 turns: initial + tool response)
 	finalTurn := endEvent.GetEnvelope().Turn
-	s.GreaterOrEqual(finalTurn, 1, "should take at least 2 turns")
-	s.LessOrEqual(finalTurn, 5, "should complete within reasonable turns")
+	assert.GreaterOrEqual(t, finalTurn, 1, "should take at least 2 turns")
+	assert.LessOrEqual(t, finalTurn, 5, "should complete within reasonable turns")
 }
 
 // collectEvents collects all events from an agent run iterator.
