@@ -15,7 +15,6 @@
 package google_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -31,7 +30,6 @@ import (
 type GoogleFixture struct {
 	provider  *google.Provider
 	modelName string
-	ctx       context.Context //nolint:containedctx // Context required for Google provider operations
 }
 
 // NewGoogleFixture creates a new Google Gemini test fixture for a specific model.
@@ -41,11 +39,9 @@ func NewGoogleFixture(t *testing.T, modelName string) *GoogleFixture {
 	// Check for API key (skips test if not set)
 	apiKey := googletest.GetAPIKeyOrSkipTest(t)
 
-	ctx := context.Background()
-
 	// Create provider with a 2-minute timeout to fail fast on hung API calls,
 	// consistent with the OpenAI and Anthropic conformance test fixtures.
-	provider, err := google.NewProvider(ctx, apiKey, google.WithTimeout(2*time.Minute))
+	provider, err := google.NewProvider(t.Context(), apiKey, google.WithTimeout(2*time.Minute))
 	if err != nil {
 		t.Fatalf("Failed to create provider: %v", err)
 	}
@@ -53,7 +49,6 @@ func NewGoogleFixture(t *testing.T, modelName string) *GoogleFixture {
 	return &GoogleFixture{
 		provider:  provider,
 		modelName: modelName,
-		ctx:       ctx,
 	}
 }
 

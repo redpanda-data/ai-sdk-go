@@ -15,8 +15,9 @@
 package testsuite
 
 import (
+	"cmp"
 	"reflect"
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -72,7 +73,7 @@ func discoverMethods(rv reflect.Value) []discoveredMethod {
 			continue
 		}
 
-		if method.Type.NumIn() != 2 || method.Type.In(1) != testingTType {
+		if method.Type.NumIn() != 2 || method.Type.NumOut() != 0 || method.Type.In(1) != testingTType {
 			continue
 		}
 
@@ -82,8 +83,8 @@ func discoverMethods(rv reflect.Value) []discoveredMethod {
 		})
 	}
 
-	sort.Slice(methods, func(i, j int) bool {
-		return methods[i].name < methods[j].name
+	slices.SortFunc(methods, func(a, b discoveredMethod) int {
+		return cmp.Compare(a.name, b.name)
 	})
 
 	return methods

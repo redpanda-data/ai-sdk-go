@@ -152,6 +152,7 @@ func TestSessionRecovery_Multiple(t *testing.T) {
 			}
 
 			mu.Lock()
+
 			executedCities = append(executedCities, params.City)
 
 			mu.Unlock()
