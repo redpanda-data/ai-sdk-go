@@ -107,8 +107,9 @@ func testGenerate(t *testing.T, fixture Fixture) { //nolint:thelper // not a hel
 					},
 				},
 			},
-			validate: func(t *testing.T, response *llm.Response, _ error) {
+			validate: func(t *testing.T, response *llm.Response, err error) {
 				t.Helper()
+				require.NoError(t, err)
 				require.NotNil(t, response)
 				require.NotEmpty(t, response.Message.Content)
 
@@ -154,8 +155,9 @@ func testGenerate(t *testing.T, fixture Fixture) { //nolint:thelper // not a hel
 					},
 				},
 			},
-			validate: func(t *testing.T, response *llm.Response, _ error) {
+			validate: func(t *testing.T, response *llm.Response, err error) {
 				t.Helper()
+				require.NoError(t, err)
 				require.NotNil(t, response)
 				require.NotEmpty(t, response.Message.Content)
 
@@ -178,8 +180,9 @@ func testGenerate(t *testing.T, fixture Fixture) { //nolint:thelper // not a hel
 					},
 				},
 			},
-			validate: func(t *testing.T, response *llm.Response, _ error) {
+			validate: func(t *testing.T, response *llm.Response, err error) {
 				t.Helper()
+				require.NoError(t, err)
 				require.NotNil(t, response)
 				require.NotEmpty(t, response.Message.Content)
 
