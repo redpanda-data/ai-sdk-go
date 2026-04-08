@@ -15,27 +15,10 @@
 package bedrock
 
 import (
-	"sort"
 	"strings"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
-
-// modelFamilies is sorted by descending length for deterministic longest-prefix matching.
-var modelFamilies = buildModelFamilies()
-
-func buildModelFamilies() []string {
-	families := make([]string, 0, len(supportedModels))
-	for family := range supportedModels {
-		families = append(families, family)
-	}
-
-	sort.Slice(families, func(i, j int) bool {
-		return len(families[i]) > len(families[j])
-	})
-
-	return families
-}
 
 // Model ID constants for Claude models on Bedrock.
 // These are real Bedrock model IDs that can be passed directly to NewModel.
@@ -45,16 +28,6 @@ const (
 	ModelClaudeHaiku45  = "anthropic.claude-haiku-4-5-20251001-v1:0"
 	ModelClaudeOpus46   = "anthropic.claude-opus-4-6-v1"
 	ModelClaudeOpus45   = "anthropic.claude-opus-4-5-20251101-v1:0"
-)
-
-// familyClaudeSonnet46 and siblings are short family keys used internally
-// for longest-prefix matching in resolveModelFamily.
-const (
-	familyClaudeSonnet46 = "claude-sonnet-4-6"
-	familyClaudeSonnet45 = "claude-sonnet-4-5"
-	familyClaudeHaiku45  = "claude-haiku-4-5"
-	familyClaudeOpus46   = "claude-opus-4-6"
-	familyClaudeOpus45   = "claude-opus-4-5"
 )
 
 // ModelDefinition defines a model with its capabilities and constraints.
@@ -89,39 +62,28 @@ func hasRegionPrefix(modelID string) bool {
 	return strings.ContainsRune(after, '.')
 }
 
-// resolveModelFamily extracts the family key from any Bedrock model ID format.
-//
-// Supports multiple formats:
-//
-//	"claude-sonnet-4-6"                           → "claude-sonnet-4-6" (direct)
-//	"eu.anthropic.claude-sonnet-4-6"              → "claude-sonnet-4-6" (cross-region inference profile)
-//	"global.anthropic.claude-opus-4-6-v1"         → "claude-opus-4-6"  (global inference profile)
-//	"eu.anthropic.claude-sonnet-4-5-20250929-v1:0"→ "claude-sonnet-4-5" (versioned)
-//	"anthropic.claude-sonnet-4-6-v2:0"            → "claude-sonnet-4-6" (provider prefix)
-//
-// Algorithm:
-//  1. Strip region + provider prefix (everything through "anthropic.")
-//  2. Match remaining string against known family keys using prefix matching
-//  3. If no match, return original string (caller rejects unknown models)
-func resolveModelFamily(model string) string {
-	for _, family := range modelFamilies {
-		if strings.HasPrefix(model, family) {
-			return family
-		}
+// lookupModel finds a ModelDefinition by model ID.
+// It tries a direct map lookup first, then strips the region prefix
+// (e.g. "us." from "us.anthropic.claude-sonnet-4-6") and retries.
+func lookupModel(modelName string) (ModelDefinition, bool) {
+	if def, ok := supportedModels[modelName]; ok {
+		return def, true
+	}
 
-		if strings.HasPrefix(model, "anthropic."+family) ||
-			strings.Contains(model, ".anthropic."+family) {
-			return family
+	// Strip region prefix: "us.anthropic.claude-…" → "anthropic.claude-…"
+	if _, after, ok := strings.Cut(modelName, "."); ok {
+		if def, ok := supportedModels[after]; ok {
+			return def, true
 		}
 	}
 
-	return model
+	return ModelDefinition{}, false
 }
 
 // supportedModels defines Claude models available on Bedrock via the Converse API.
 // Standard features only — no Anthropic-specific thinking/effort/speed.
 var supportedModels = map[string]ModelDefinition{
-	familyClaudeSonnet46: {
+	ModelClaudeSonnet46: {
 		Name:  ModelClaudeSonnet46,
 		Label: "Claude Sonnet 4.6",
 		Capabilities: llm.ModelCapabilities{
@@ -139,7 +101,7 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 		},
 	},
-	familyClaudeSonnet45: {
+	ModelClaudeSonnet45: {
 		Name:  ModelClaudeSonnet45,
 		Label: "Claude Sonnet 4.5",
 		Capabilities: llm.ModelCapabilities{
@@ -157,7 +119,7 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 		},
 	},
-	familyClaudeHaiku45: {
+	ModelClaudeHaiku45: {
 		Name:  ModelClaudeHaiku45,
 		Label: "Claude Haiku 4.5",
 		Capabilities: llm.ModelCapabilities{
@@ -175,7 +137,7 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 		},
 	},
-	familyClaudeOpus46: {
+	ModelClaudeOpus46: {
 		Name:  ModelClaudeOpus46,
 		Label: "Claude Opus 4.6",
 		Capabilities: llm.ModelCapabilities{
@@ -193,7 +155,7 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 		},
 	},
-	familyClaudeOpus45: {
+	ModelClaudeOpus45: {
 		Name:  ModelClaudeOpus45,
 		Label: "Claude Opus 4.5",
 		Capabilities: llm.ModelCapabilities{
