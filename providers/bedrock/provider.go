@@ -157,6 +157,7 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 	if modelName == family {
 		apiModelID = modelDef.Name
 	}
+
 	if !hasRegionPrefix(apiModelID) {
 		apiModelID = inferenceProfileRegion(p.region) + "." + apiModelID
 	}

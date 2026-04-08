@@ -71,12 +71,12 @@ func inferenceProfileRegion(region string) string {
 // segments: bare model IDs like "anthropic.claude-sonnet-4-6" have one dot,
 // while prefixed IDs have two or more.
 func hasRegionPrefix(modelID string) bool {
-	first := strings.IndexByte(modelID, '.')
-	if first < 0 {
+	_, after, ok := strings.Cut(modelID, ".")
+	if !ok {
 		return false
 	}
 
-	return strings.IndexByte(modelID[first+1:], '.') >= 0
+	return strings.ContainsRune(after, '.')
 }
 
 // resolveModelFamily extracts the family key from any Bedrock model ID format.
