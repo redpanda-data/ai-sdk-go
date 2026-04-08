@@ -49,11 +49,10 @@ const (
 
 // ModelDefinition defines a model with its capabilities and constraints.
 type ModelDefinition struct {
-	Name           string
-	Label          string
-	DefaultModelID string // Default Bedrock model ID for this family (e.g. "anthropic.claude-sonnet-4-5-20250929-v1:0")
-	Capabilities   llm.ModelCapabilities
-	Constraints    llm.ModelConstraints
+	Name         string // Real Bedrock model ID (e.g. "anthropic.claude-sonnet-4-5-20250929-v1:0")
+	Label        string
+	Capabilities llm.ModelCapabilities
+	Constraints  llm.ModelConstraints
 }
 
 // inferenceProfileRegion maps an AWS region to the Bedrock inference profile
@@ -99,9 +98,8 @@ func resolveModelFamily(model string) string {
 // Standard features only — no Anthropic-specific thinking/effort/speed.
 var supportedModels = map[string]ModelDefinition{
 	ModelClaudeSonnet46: {
-		Name:           ModelClaudeSonnet46,
-		Label:          "Claude Sonnet 4.6",
-		DefaultModelID: "anthropic.claude-sonnet-4-6",
+		Name:  "anthropic.claude-sonnet-4-6",
+		Label: "Claude Sonnet 4.6",
 		Capabilities: llm.ModelCapabilities{
 			Streaming:     true,
 			Tools:         true,
@@ -118,9 +116,8 @@ var supportedModels = map[string]ModelDefinition{
 		},
 	},
 	ModelClaudeSonnet45: {
-		Name:           ModelClaudeSonnet45,
-		Label:          "Claude Sonnet 4.5",
-		DefaultModelID: "anthropic.claude-sonnet-4-5-20250929-v1:0",
+		Name:  "anthropic.claude-sonnet-4-5-20250929-v1:0",
+		Label: "Claude Sonnet 4.5",
 		Capabilities: llm.ModelCapabilities{
 			Streaming:     true,
 			Tools:         true,
@@ -137,9 +134,8 @@ var supportedModels = map[string]ModelDefinition{
 		},
 	},
 	ModelClaudeHaiku45: {
-		Name:           ModelClaudeHaiku45,
-		Label:          "Claude Haiku 4.5",
-		DefaultModelID: "anthropic.claude-haiku-4-5-20251001-v1:0",
+		Name:  "anthropic.claude-haiku-4-5-20251001-v1:0",
+		Label: "Claude Haiku 4.5",
 		Capabilities: llm.ModelCapabilities{
 			Streaming:     true,
 			Tools:         true,
@@ -156,9 +152,8 @@ var supportedModels = map[string]ModelDefinition{
 		},
 	},
 	ModelClaudeOpus46: {
-		Name:           ModelClaudeOpus46,
-		Label:          "Claude Opus 4.6",
-		DefaultModelID: "anthropic.claude-opus-4-6-v1",
+		Name:  "anthropic.claude-opus-4-6-v1",
+		Label: "Claude Opus 4.6",
 		Capabilities: llm.ModelCapabilities{
 			Streaming:     true,
 			Tools:         true,
@@ -175,9 +170,8 @@ var supportedModels = map[string]ModelDefinition{
 		},
 	},
 	ModelClaudeOpus45: {
-		Name:           ModelClaudeOpus45,
-		Label:          "Claude Opus 4.5",
-		DefaultModelID: "anthropic.claude-opus-4-5-20251101-v1:0",
+		Name:  "anthropic.claude-opus-4-5-20251101-v1:0",
+		Label: "Claude Opus 4.5",
 		Capabilities: llm.ModelCapabilities{
 			Streaming:     true,
 			Tools:         true,

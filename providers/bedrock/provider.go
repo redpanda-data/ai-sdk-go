@@ -153,8 +153,8 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 	// build the inference profile ID: {regionPrefix}.{modelID}
 	// Otherwise, the user passed a qualified ID — use it as-is.
 	apiModelID := modelName
-	if modelName == family && modelDef.DefaultModelID != "" {
-		apiModelID = inferenceProfileRegion(p.region) + "." + modelDef.DefaultModelID
+	if modelName == family {
+		apiModelID = inferenceProfileRegion(p.region) + "." + modelDef.Name
 	}
 
 	cfg := &Config{
