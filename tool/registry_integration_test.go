@@ -520,6 +520,8 @@ func (m *mockTool) Definition() llm.ToolDefinition {
 	}
 }
 
+func (*mockTool) IsAsynchronous() bool { return false }
+
 func (m *mockTool) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
 	if m.delay > 0 {
 		select {

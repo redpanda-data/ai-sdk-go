@@ -125,14 +125,15 @@ var _ Client = (*clientImpl)(nil)
 //   - All operations respect both client lifetime (bgCtx) and caller deadlines (via opContext).
 type clientImpl struct {
 	// Configuration (immutable after construction)
-	serverID         string
-	transportFactory TransportFactory
-	registry         tool.Registry
-	autoSyncInterval time.Duration
-	shutdownTimeout  time.Duration
-	toolTimeout      time.Duration
-	logger           *slog.Logger
-	toolFilter       ToolFilterFunc
+	serverID           string
+	transportFactory   TransportFactory
+	registry           tool.Registry
+	autoSyncInterval   time.Duration
+	shutdownTimeout    time.Duration
+	toolTimeout        time.Duration
+	logger             *slog.Logger
+	toolFilter         ToolFilterFunc
+	elicitationHandler ElicitationHandler
 
 	// MCP SDK components
 	mcpClient *sdkmcp.Client
@@ -419,11 +420,7 @@ func (c *clientImpl) isShutdown() bool {
 
 // connect creates and connects the MCP client.
 func (c *clientImpl) connect(ctx context.Context) (*sdkmcp.ClientSession, *sdkmcp.Client, error) {
-	mcpClient := sdkmcp.NewClient(&sdkmcp.Implementation{
-		Name:    "redpanda-ai-agent-sdk",
-		Title:   "Redpanda AI Agent SDK",
-		Version: "v1.0.0",
-	}, &sdkmcp.ClientOptions{
+	opts := &sdkmcp.ClientOptions{
 		KeepAlive: 30 * time.Second,
 		ToolListChangedHandler: func(_ context.Context, _ *sdkmcp.ToolListChangedRequest) {
 			select {
@@ -431,7 +428,31 @@ func (c *clientImpl) connect(ctx context.Context) (*sdkmcp.ClientSession, *sdkmc
 			default:
 			}
 		},
-	})
+	}
+
+	// Wire elicitation handler if configured
+	if c.elicitationHandler != nil {
+		opts.ElicitationHandler = func(ctx context.Context, req *sdkmcp.ElicitRequest) (*sdkmcp.ElicitResult, error) {
+			resp, err := c.elicitationHandler(ctx, &ElicitationRequest{
+				Message:         req.Params.Message,
+				RequestedSchema: req.Params.RequestedSchema,
+			})
+			if err != nil {
+				return nil, err
+			}
+
+			return &sdkmcp.ElicitResult{
+				Action:  resp.Action,
+				Content: resp.Content,
+			}, nil
+		}
+	}
+
+	mcpClient := sdkmcp.NewClient(&sdkmcp.Implementation{
+		Name:    "redpanda-ai-agent-sdk",
+		Title:   "Redpanda AI Agent SDK",
+		Version: "v1.0.0",
+	}, opts)
 
 	transport, err := c.transportFactory()
 	if err != nil {

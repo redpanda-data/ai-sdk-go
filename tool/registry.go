@@ -148,13 +148,22 @@ func (r *registry) Unregister(name string) error {
 }
 
 // List returns tool definitions for use in llm.Request.Tools.
+// Asynchronous tools (IsAsynchronous() == true) have a note appended to their
+// description instructing the LLM not to re-invoke them after a pending status.
 func (r *registry) List() []llm.ToolDefinition {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	definitions := make([]llm.ToolDefinition, 0, len(r.tools))
 	for _, registered := range r.tools {
-		definitions = append(definitions, registered.tool.Definition())
+		def := registered.tool.Definition()
+		if registered.tool.IsAsynchronous() {
+			def.Description += "\n\nNOTE: This is an asynchronous operation. " +
+				"Do not call this tool again if it has already returned " +
+				"an intermediate or pending status."
+		}
+
+		definitions = append(definitions, def)
 	}
 
 	return definitions

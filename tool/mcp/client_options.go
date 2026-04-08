@@ -15,6 +15,7 @@
 package mcp
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
@@ -100,5 +101,54 @@ func WithShutdownTimeout(timeout time.Duration) ClientOption {
 func WithToolTimeout(timeout time.Duration) ClientOption {
 	return func(c *clientImpl) {
 		c.toolTimeout = timeout
+	}
+}
+
+// ElicitationHandler is called when an MCP server requests user input during
+// tool execution via the MCP elicitation protocol.
+//
+// The handler receives the server's elicitation request (message + optional
+// schema) and returns the user's response. For synchronous contexts (CLI apps),
+// the handler can prompt on stdin. For async contexts (web apps), it can
+// integrate with a UI framework.
+//
+// Returning an error causes the MCP tool call to fail with that error.
+type ElicitationHandler func(ctx context.Context, req *ElicitationRequest) (*ElicitationResponse, error)
+
+// ElicitationRequest contains the MCP server's request for user input.
+type ElicitationRequest struct {
+	// Message is the human-readable message explaining what input is needed.
+	Message string `json:"message"`
+	// RequestedSchema is an optional JSON schema defining the expected input structure.
+	// Only used for "form" elicitation mode.
+	RequestedSchema any `json:"requested_schema,omitempty"`
+}
+
+// ElicitationResponse contains the user's response to an elicitation request.
+type ElicitationResponse struct {
+	// Action is the user's decision: "accept", "decline", or "cancel".
+	Action string `json:"action"`
+	// Content contains the submitted form data when Action is "accept".
+	Content map[string]any `json:"content,omitempty"`
+}
+
+// WithElicitationHandler sets a handler for MCP server elicitation requests.
+// When an MCP server requests user input during tool execution, this handler
+// is called to obtain the user's response.
+//
+// Setting this handler automatically advertises elicitation capability to
+// the MCP server during connection.
+//
+// Example:
+//
+//	handler := func(ctx context.Context, req *mcp.ElicitationRequest) (*mcp.ElicitationResponse, error) {
+//	    fmt.Printf("Server asks: %s\n", req.Message)
+//	    // ... prompt user and collect response ...
+//	    return &mcp.ElicitationResponse{Action: "accept", Content: response}, nil
+//	}
+//	client, err := NewClient(serverID, transport, WithElicitationHandler(handler))
+func WithElicitationHandler(handler ElicitationHandler) ClientOption {
+	return func(c *clientImpl) {
+		c.elicitationHandler = handler
 	}
 }

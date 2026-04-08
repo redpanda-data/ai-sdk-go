@@ -115,6 +115,9 @@ IMPORTANT RULES:
 	}
 }
 
+// IsAsynchronous implements tool.Tool.
+func (*UpdateTodoStateTool) IsAsynchronous() bool { return false }
+
 // Execute processes the update todo state request.
 func (t *UpdateTodoStateTool) Execute(_ context.Context, args json.RawMessage) (json.RawMessage, error) {
 	var req UpdateTodoStateRequest
@@ -245,6 +248,9 @@ IMPORTANT RULES:
 		Type:       llm.ToolTypeFunction, // Explicit: local execution
 	}
 }
+
+// IsAsynchronous implements tool.Tool.
+func (*AddTodoTool) IsAsynchronous() bool { return false }
 
 // Execute processes the add todo request.
 func (t *AddTodoTool) Execute(_ context.Context, args json.RawMessage) (json.RawMessage, error) {

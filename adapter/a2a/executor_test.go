@@ -465,6 +465,8 @@ func (m *mockWeatherTool) Execute(_ context.Context, _ json.RawMessage) (json.Ra
 	return json.RawMessage(`{"temperature": "72°F", "conditions": "sunny"}`), nil
 }
 
+func (*mockWeatherTool) IsAsynchronous() bool { return false }
+
 func TestExecutor_SessionPersistence_Mock(t *testing.T) {
 	t.Parallel()
 
