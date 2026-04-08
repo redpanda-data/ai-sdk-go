@@ -37,14 +37,24 @@ func buildModelFamilies() []string {
 	return families
 }
 
-// Model family constants for Claude models on Bedrock.
-// These are the canonical short names used as map keys.
+// Model ID constants for Claude models on Bedrock.
+// These are real Bedrock model IDs that can be passed directly to NewModel.
 const (
-	ModelClaudeSonnet46 = "claude-sonnet-4-6"
-	ModelClaudeSonnet45 = "claude-sonnet-4-5"
-	ModelClaudeHaiku45  = "claude-haiku-4-5"
-	ModelClaudeOpus46   = "claude-opus-4-6"
-	ModelClaudeOpus45   = "claude-opus-4-5"
+	ModelClaudeSonnet46 = "anthropic.claude-sonnet-4-6"
+	ModelClaudeSonnet45 = "anthropic.claude-sonnet-4-5-20250929-v1:0"
+	ModelClaudeHaiku45  = "anthropic.claude-haiku-4-5-20251001-v1:0"
+	ModelClaudeOpus46   = "anthropic.claude-opus-4-6-v1"
+	ModelClaudeOpus45   = "anthropic.claude-opus-4-5-20251101-v1:0"
+)
+
+// familyClaudeSonnet46 and siblings are short family keys used internally
+// for longest-prefix matching in resolveModelFamily.
+const (
+	familyClaudeSonnet46 = "claude-sonnet-4-6"
+	familyClaudeSonnet45 = "claude-sonnet-4-5"
+	familyClaudeHaiku45  = "claude-haiku-4-5"
+	familyClaudeOpus46   = "claude-opus-4-6"
+	familyClaudeOpus45   = "claude-opus-4-5"
 )
 
 // ModelDefinition defines a model with its capabilities and constraints.
@@ -111,8 +121,8 @@ func resolveModelFamily(model string) string {
 // supportedModels defines Claude models available on Bedrock via the Converse API.
 // Standard features only — no Anthropic-specific thinking/effort/speed.
 var supportedModels = map[string]ModelDefinition{
-	ModelClaudeSonnet46: {
-		Name:  "anthropic.claude-sonnet-4-6",
+	familyClaudeSonnet46: {
+		Name:  ModelClaudeSonnet46,
 		Label: "Claude Sonnet 4.6",
 		Capabilities: llm.ModelCapabilities{
 			Streaming:     true,
@@ -129,8 +139,8 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 		},
 	},
-	ModelClaudeSonnet45: {
-		Name:  "anthropic.claude-sonnet-4-5-20250929-v1:0",
+	familyClaudeSonnet45: {
+		Name:  ModelClaudeSonnet45,
 		Label: "Claude Sonnet 4.5",
 		Capabilities: llm.ModelCapabilities{
 			Streaming:     true,
@@ -147,8 +157,8 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 		},
 	},
-	ModelClaudeHaiku45: {
-		Name:  "anthropic.claude-haiku-4-5-20251001-v1:0",
+	familyClaudeHaiku45: {
+		Name:  ModelClaudeHaiku45,
 		Label: "Claude Haiku 4.5",
 		Capabilities: llm.ModelCapabilities{
 			Streaming:     true,
@@ -165,8 +175,8 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 		},
 	},
-	ModelClaudeOpus46: {
-		Name:  "anthropic.claude-opus-4-6-v1",
+	familyClaudeOpus46: {
+		Name:  ModelClaudeOpus46,
 		Label: "Claude Opus 4.6",
 		Capabilities: llm.ModelCapabilities{
 			Streaming:     true,
@@ -183,8 +193,8 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 		},
 	},
-	ModelClaudeOpus45: {
-		Name:  "anthropic.claude-opus-4-5-20251101-v1:0",
+	familyClaudeOpus45: {
+		Name:  ModelClaudeOpus45,
 		Label: "Claude Opus 4.5",
 		Capabilities: llm.ModelCapabilities{
 			Streaming:     true,

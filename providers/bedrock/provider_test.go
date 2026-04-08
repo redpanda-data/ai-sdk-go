@@ -709,7 +709,7 @@ func TestRequestMapper_StreamInput(t *testing.T) {
 func TestResponseMapper_TextResponse(t *testing.T) {
 	t.Parallel()
 
-	mapper := NewResponseMapper(supportedModels[ModelClaudeSonnet46])
+	mapper := NewResponseMapper(supportedModels[familyClaudeSonnet46])
 
 	output := &types.ConverseOutputMemberMessage{
 		Value: types.Message{
@@ -739,7 +739,7 @@ func TestResponseMapper_TextResponse(t *testing.T) {
 func TestResponseMapper_ToolUseResponse(t *testing.T) {
 	t.Parallel()
 
-	mapper := NewResponseMapper(supportedModels[ModelClaudeSonnet46])
+	mapper := NewResponseMapper(supportedModels[familyClaudeSonnet46])
 
 	output := &types.ConverseOutputMemberMessage{
 		Value: types.Message{
@@ -776,7 +776,7 @@ func TestResponseMapper_ToolUseResponse(t *testing.T) {
 func TestResponseMapper_StopReasons(t *testing.T) {
 	t.Parallel()
 
-	mapper := NewResponseMapper(supportedModels[ModelClaudeSonnet46])
+	mapper := NewResponseMapper(supportedModels[familyClaudeSonnet46])
 
 	tests := []struct {
 		name     string
@@ -802,7 +802,7 @@ func TestResponseMapper_StopReasons(t *testing.T) {
 func TestResponseMapper_NilOutput(t *testing.T) {
 	t.Parallel()
 
-	mapper := NewResponseMapper(supportedModels[ModelClaudeSonnet46])
+	mapper := NewResponseMapper(supportedModels[familyClaudeSonnet46])
 
 	_, err := mapper.FromConverseOutput(types.StopReasonEndTurn, nil, nil)
 	require.Error(t, err)
@@ -812,7 +812,7 @@ func TestResponseMapper_NilOutput(t *testing.T) {
 func TestResponseMapper_CachedTokens(t *testing.T) {
 	t.Parallel()
 
-	mapper := NewResponseMapper(supportedModels[ModelClaudeSonnet46])
+	mapper := NewResponseMapper(supportedModels[familyClaudeSonnet46])
 
 	output := &types.ConverseOutputMemberMessage{
 		Value: types.Message{
