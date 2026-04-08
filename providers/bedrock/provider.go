@@ -141,20 +141,18 @@ func WithCaching() ProviderOption {
 
 // NewModel creates a new Bedrock model instance with the specified configuration.
 func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error) {
-	family := resolveModelFamily(modelName)
-
-	modelDef, ok := supportedModels[family]
+	modelDef, ok := lookupModel(modelName)
 	if !ok {
 		return nil, fmt.Errorf("unsupported Bedrock model: %s", modelName)
 	}
 
-	// Resolve the model ID to send to the Bedrock API.
-	// If the user passed a short name (matching the family key exactly),
-	// build the inference profile ID: {regionPrefix}.{modelID}
-	// Otherwise, the user passed a qualified ID — use it as-is.
+	// Build the API model ID with the region inference-profile prefix.
+	// If the caller already provided a region prefix (e.g. "eu.anthropic.…"),
+	// use it as-is. Otherwise prepend the provider's region.
 	apiModelID := modelName
-	if modelName == family && modelDef.DefaultModelID != "" {
-		apiModelID = inferenceProfileRegion(p.region) + "." + modelDef.DefaultModelID
+
+	if !hasRegionPrefix(apiModelID) {
+		apiModelID = inferenceProfileRegion(p.region) + "." + apiModelID
 	}
 
 	cfg := &Config{

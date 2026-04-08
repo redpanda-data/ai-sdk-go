@@ -28,88 +28,57 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
-// ---------- resolveModelFamily ----------
+// ---------- lookupModel ----------
 
-func TestResolveModelFamily(t *testing.T) {
+func TestLookupModel(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		input    string
-		expected string
+		name    string
+		input   string
+		wantOK  bool
+		wantDef string // expected ModelDefinition.Name if found
 	}{
-		// Direct family names
 		{
-			name:     "direct family: claude-sonnet-4-6",
-			input:    "claude-sonnet-4-6",
-			expected: "claude-sonnet-4-6",
+			name:    "direct model ID",
+			input:   ModelClaudeSonnet46,
+			wantOK:  true,
+			wantDef: ModelClaudeSonnet46,
 		},
 		{
-			name:     "direct family: claude-opus-4-6",
-			input:    "claude-opus-4-6",
-			expected: "claude-opus-4-6",
+			name:    "with region prefix",
+			input:   "eu." + ModelClaudeSonnet46,
+			wantOK:  true,
+			wantDef: ModelClaudeSonnet46,
 		},
 		{
-			name:     "direct family: claude-haiku-4-5",
-			input:    "claude-haiku-4-5",
-			expected: "claude-haiku-4-5",
-		},
-		// Cross-region inference profiles
-		{
-			name:     "eu cross-region: eu.anthropic.claude-sonnet-4-6",
-			input:    "eu.anthropic.claude-sonnet-4-6",
-			expected: "claude-sonnet-4-6",
+			name:    "versioned with region",
+			input:   "us." + ModelClaudeHaiku45,
+			wantOK:  true,
+			wantDef: ModelClaudeHaiku45,
 		},
 		{
-			name:     "global cross-region: global.anthropic.claude-opus-4-6-v1",
-			input:    "global.anthropic.claude-opus-4-6-v1",
-			expected: "claude-opus-4-6",
-		},
-		// Versioned inference profiles
-		{
-			name:     "versioned: eu.anthropic.claude-sonnet-4-5-20250929-v1:0",
-			input:    "eu.anthropic.claude-sonnet-4-5-20250929-v1:0",
-			expected: "claude-sonnet-4-5",
+			name:   "unknown model",
+			input:  "llama-3.2-90b",
+			wantOK: false,
 		},
 		{
-			name:     "versioned: eu.anthropic.claude-haiku-4-5-20251001-v1:0",
-			input:    "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
-			expected: "claude-haiku-4-5",
-		},
-		{
-			name:     "versioned: global.anthropic.claude-opus-4-5-20251101-v1:0",
-			input:    "global.anthropic.claude-opus-4-5-20251101-v1:0",
-			expected: "claude-opus-4-5",
-		},
-		// Provider prefix without region
-		{
-			name:     "provider prefix: anthropic.claude-sonnet-4-6-v2:0",
-			input:    "anthropic.claude-sonnet-4-6-v2:0",
-			expected: "claude-sonnet-4-6",
-		},
-		// Unknown model — returned as-is
-		{
-			name:     "unknown model returned as-is",
-			input:    "eu.anthropic.claude-3-5-sonnet-20240620-v1:0",
-			expected: "eu.anthropic.claude-3-5-sonnet-20240620-v1:0",
-		},
-		{
-			name:     "completely unknown model",
-			input:    "llama-3.2-90b",
-			expected: "llama-3.2-90b",
-		},
-		// Negative: "anthropic." must follow a dot or start the string
-		{
-			name:     "misleading prefix: notanthropic.claude-sonnet-4-6",
-			input:    "notanthropic.claude-sonnet-4-6",
-			expected: "notanthropic.claude-sonnet-4-6",
+			name:   "unknown with region prefix",
+			input:  "us.meta.llama-3.2-90b",
+			wantOK: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tt.expected, resolveModelFamily(tt.input))
+
+			def, ok := lookupModel(tt.input)
+			assert.Equal(t, tt.wantOK, ok)
+
+			if tt.wantOK {
+				assert.Equal(t, tt.wantDef, def.Name)
+			}
 		})
 	}
 }
@@ -246,10 +215,10 @@ func TestNewModel_SupportedModels(t *testing.T) {
 		name      string
 		modelName string
 	}{
-		{"direct family", "claude-sonnet-4-6"},
-		{"eu cross-region", "eu.anthropic.claude-sonnet-4-6"},
-		{"global versioned", "global.anthropic.claude-opus-4-6-v1"},
-		{"versioned with suffix", "eu.anthropic.claude-haiku-4-5-20251001-v1:0"},
+		{"model constant", ModelClaudeSonnet46},
+		{"with region prefix", "eu." + ModelClaudeSonnet46},
+		{"opus with region", "global." + ModelClaudeOpus46},
+		{"haiku with region", "eu." + ModelClaudeHaiku45},
 	}
 
 	for _, tt := range tests {
@@ -280,7 +249,7 @@ func TestNewModel_WithOptions(t *testing.T) {
 
 	p := &Provider{client: nil}
 
-	model, err := p.NewModel("claude-sonnet-4-6",
+	model, err := p.NewModel(ModelClaudeSonnet46,
 		WithTemperature(0.7),
 		WithTopP(0.9),
 		WithMaxTokens(1000),
@@ -304,7 +273,7 @@ func TestNewModel_InvalidTemperature(t *testing.T) {
 
 	p := &Provider{client: nil}
 
-	_, err := p.NewModel("claude-sonnet-4-6", WithTemperature(2.0))
+	_, err := p.NewModel(ModelClaudeSonnet46, WithTemperature(2.0))
 	require.Error(t, err)
 }
 
@@ -313,7 +282,7 @@ func TestNewModel_MaxTokensExceedsLimit(t *testing.T) {
 
 	p := &Provider{client: nil}
 
-	_, err := p.NewModel("claude-sonnet-4-6", WithMaxTokens(999999))
+	_, err := p.NewModel(ModelClaudeSonnet46, WithMaxTokens(999999))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "exceeds limit")
 }
@@ -323,7 +292,7 @@ func TestNewModel_Capabilities(t *testing.T) {
 
 	p := &Provider{client: nil}
 
-	model, err := p.NewModel("claude-opus-4-6")
+	model, err := p.NewModel(ModelClaudeOpus46)
 	require.NoError(t, err)
 
 	caps := model.Capabilities()
@@ -382,7 +351,7 @@ func TestRequestMapper_InferenceConfig(t *testing.T) {
 	maxTokens := int32(2048)
 
 	cfg := &Config{
-		ModelName:   "claude-sonnet-4-6",
+		ModelName:   ModelClaudeSonnet46,
 		Temperature: &temp,
 		TopP:        &topP,
 		MaxTokens:   &maxTokens,
@@ -413,7 +382,7 @@ func TestRequestMapper_NoInferenceConfig(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
-		ModelName:  "claude-sonnet-4-6",
+		ModelName:  ModelClaudeSonnet46,
 		setOptions: make(map[string]bool),
 	}
 
@@ -432,7 +401,7 @@ func TestRequestMapper_ToolDefinitions(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
-		ModelName:  "claude-sonnet-4-6",
+		ModelName:  ModelClaudeSonnet46,
 		setOptions: make(map[string]bool),
 	}
 
@@ -474,7 +443,7 @@ func TestRequestMapper_ToolChoiceSpecific(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
-		ModelName:  "claude-sonnet-4-6",
+		ModelName:  ModelClaudeSonnet46,
 		setOptions: make(map[string]bool),
 	}
 
@@ -507,7 +476,7 @@ func TestRequestMapper_ToolResponse(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
-		ModelName:  "claude-sonnet-4-6",
+		ModelName:  ModelClaudeSonnet46,
 		setOptions: make(map[string]bool),
 	}
 
@@ -541,7 +510,7 @@ func TestRequestMapper_ToolResponseError(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
-		ModelName:  "claude-sonnet-4-6",
+		ModelName:  ModelClaudeSonnet46,
 		setOptions: make(map[string]bool),
 	}
 
@@ -571,7 +540,7 @@ func TestRequestMapper_AssistantWithToolUse(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
-		ModelName:  "claude-sonnet-4-6",
+		ModelName:  ModelClaudeSonnet46,
 		setOptions: make(map[string]bool),
 	}
 
@@ -613,7 +582,7 @@ func TestRequestMapper_CachingEnabled(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
-		ModelName:     "claude-sonnet-4-6",
+		ModelName:     ModelClaudeSonnet46,
 		EnableCaching: true,
 		setOptions:    make(map[string]bool),
 	}
@@ -652,7 +621,7 @@ func TestRequestMapper_CachingDisabled(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
-		ModelName:     "claude-sonnet-4-6",
+		ModelName:     ModelClaudeSonnet46,
 		EnableCaching: false,
 		setOptions:    make(map[string]bool),
 	}
@@ -680,7 +649,7 @@ func TestRequestMapper_StreamInput(t *testing.T) {
 
 	temp := 0.5
 	cfg := &Config{
-		ModelName:   "claude-sonnet-4-6",
+		ModelName:   ModelClaudeSonnet46,
 		APIModelID:  "anthropic.claude-sonnet-4-6",
 		Temperature: &temp,
 		setOptions:  make(map[string]bool),
@@ -863,7 +832,7 @@ func TestWithStop_TooMany(t *testing.T) {
 
 	p := &Provider{client: nil}
 
-	_, err := p.NewModel("claude-sonnet-4-6", WithStop("a", "b", "c", "d", "e"))
+	_, err := p.NewModel(ModelClaudeSonnet46, WithStop("a", "b", "c", "d", "e"))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "maximum 4 stop sequences")
 }
@@ -873,7 +842,7 @@ func TestWithStop_Empty(t *testing.T) {
 
 	p := &Provider{client: nil}
 
-	_, err := p.NewModel("claude-sonnet-4-6", WithStop("a", ""))
+	_, err := p.NewModel(ModelClaudeSonnet46, WithStop("a", ""))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cannot be empty")
 }
@@ -883,7 +852,7 @@ func TestWithTopP_OutOfRange(t *testing.T) {
 
 	p := &Provider{client: nil}
 
-	_, err := p.NewModel("claude-sonnet-4-6", WithTopP(1.5))
+	_, err := p.NewModel(ModelClaudeSonnet46, WithTopP(1.5))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "top_p must be 0.0-1.0")
 }
@@ -893,7 +862,7 @@ func TestWithMaxTokens_Negative(t *testing.T) {
 
 	p := &Provider{client: nil}
 
-	_, err := p.NewModel("claude-sonnet-4-6", WithMaxTokens(-1))
+	_, err := p.NewModel(ModelClaudeSonnet46, WithMaxTokens(-1))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "must be positive")
 }
