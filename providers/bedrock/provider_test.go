@@ -351,7 +351,7 @@ func TestRequestMapper_InferenceConfig(t *testing.T) {
 	maxTokens := int32(2048)
 
 	cfg := &Config{
-		ModelName:   "claude-sonnet-4-6",
+		ModelName:   ModelClaudeSonnet46,
 		Temperature: &temp,
 		TopP:        &topP,
 		MaxTokens:   &maxTokens,
@@ -382,7 +382,7 @@ func TestRequestMapper_NoInferenceConfig(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
-		ModelName:  "claude-sonnet-4-6",
+		ModelName:  ModelClaudeSonnet46,
 		setOptions: make(map[string]bool),
 	}
 
@@ -401,7 +401,7 @@ func TestRequestMapper_ToolDefinitions(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
-		ModelName:  "claude-sonnet-4-6",
+		ModelName:  ModelClaudeSonnet46,
 		setOptions: make(map[string]bool),
 	}
 
@@ -443,7 +443,7 @@ func TestRequestMapper_ToolChoiceSpecific(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
-		ModelName:  "claude-sonnet-4-6",
+		ModelName:  ModelClaudeSonnet46,
 		setOptions: make(map[string]bool),
 	}
 
@@ -476,7 +476,7 @@ func TestRequestMapper_ToolResponse(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
-		ModelName:  "claude-sonnet-4-6",
+		ModelName:  ModelClaudeSonnet46,
 		setOptions: make(map[string]bool),
 	}
 
@@ -510,7 +510,7 @@ func TestRequestMapper_ToolResponseError(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
-		ModelName:  "claude-sonnet-4-6",
+		ModelName:  ModelClaudeSonnet46,
 		setOptions: make(map[string]bool),
 	}
 
@@ -540,7 +540,7 @@ func TestRequestMapper_AssistantWithToolUse(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
-		ModelName:  "claude-sonnet-4-6",
+		ModelName:  ModelClaudeSonnet46,
 		setOptions: make(map[string]bool),
 	}
 
@@ -582,7 +582,7 @@ func TestRequestMapper_CachingEnabled(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
-		ModelName:     "claude-sonnet-4-6",
+		ModelName:     ModelClaudeSonnet46,
 		EnableCaching: true,
 		setOptions:    make(map[string]bool),
 	}
@@ -621,7 +621,7 @@ func TestRequestMapper_CachingDisabled(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
-		ModelName:     "claude-sonnet-4-6",
+		ModelName:     ModelClaudeSonnet46,
 		EnableCaching: false,
 		setOptions:    make(map[string]bool),
 	}
@@ -649,7 +649,7 @@ func TestRequestMapper_StreamInput(t *testing.T) {
 
 	temp := 0.5
 	cfg := &Config{
-		ModelName:   "claude-sonnet-4-6",
+		ModelName:   ModelClaudeSonnet46,
 		APIModelID:  "anthropic.claude-sonnet-4-6",
 		Temperature: &temp,
 		setOptions:  make(map[string]bool),
