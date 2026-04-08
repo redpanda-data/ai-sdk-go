@@ -149,12 +149,16 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 	}
 
 	// Resolve the model ID to send to the Bedrock API.
-	// If the user passed a short name (matching the family key exactly),
-	// build the inference profile ID: {regionPrefix}.{modelID}
-	// Otherwise, the user passed a qualified ID — use it as-is.
+	// Short family names are expanded to the full model ID, then any
+	// ID missing a region inference-profile prefix gets one prepended.
+	// IDs that already contain a dotted prefix (e.g. "us.anthropic.…",
+	// "eu.anthropic.…") are used as-is.
 	apiModelID := modelName
 	if modelName == family {
-		apiModelID = inferenceProfileRegion(p.region) + "." + modelDef.Name
+		apiModelID = modelDef.Name
+	}
+	if !hasRegionPrefix(apiModelID) {
+		apiModelID = inferenceProfileRegion(p.region) + "." + apiModelID
 	}
 
 	cfg := &Config{

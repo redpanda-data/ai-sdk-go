@@ -65,6 +65,20 @@ func inferenceProfileRegion(region string) string {
 	return "us"
 }
 
+// hasRegionPrefix reports whether a model ID already contains a region
+// inference-profile prefix (e.g. "us.anthropic.claude-sonnet-4-6").
+// It checks for the "{region}.{provider}." pattern by counting dot-separated
+// segments: bare model IDs like "anthropic.claude-sonnet-4-6" have one dot,
+// while prefixed IDs have two or more.
+func hasRegionPrefix(modelID string) bool {
+	first := strings.IndexByte(modelID, '.')
+	if first < 0 {
+		return false
+	}
+
+	return strings.IndexByte(modelID[first+1:], '.') >= 0
+}
+
 // resolveModelFamily extracts the family key from any Bedrock model ID format.
 //
 // Supports multiple formats:
