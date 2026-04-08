@@ -62,6 +62,8 @@ func (*calculatorTool) Definition() llm.ToolDefinition {
 	}
 }
 
+func (*calculatorTool) IsAsynchronous() bool { return false }
+
 func (*calculatorTool) Execute(_ context.Context, args json.RawMessage) (json.RawMessage, error) {
 	// Parse arguments
 	var params struct {

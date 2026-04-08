@@ -66,6 +66,9 @@ func (t *TemperatureSensorTool) Definition() llm.ToolDefinition {
 	}
 }
 
+// IsAsynchronous implements tool.Tool.
+func (*TemperatureSensorTool) IsAsynchronous() bool { return false }
+
 func (t *TemperatureSensorTool) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
 	var input TemperatureSensorInput
 	if err := json.Unmarshal(args, &input); err != nil {
@@ -135,6 +138,9 @@ func (t *GetSecretValueTool) Definition() llm.ToolDefinition {
 		Parameters:  schemaBytes,
 	}
 }
+
+// IsAsynchronous implements tool.Tool.
+func (*GetSecretValueTool) IsAsynchronous() bool { return false }
 
 func (t *GetSecretValueTool) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
 	var input GetSecretValueInput

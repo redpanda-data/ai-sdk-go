@@ -51,6 +51,8 @@ func (*CalculatorTool) Definition() llm.ToolDefinition {
 	}
 }
 
+func (*CalculatorTool) IsAsynchronous() bool { return false }
+
 func (*CalculatorTool) Execute(_ context.Context, args json.RawMessage) (json.RawMessage, error) {
 	var params struct {
 		A float64 `json:"a"`

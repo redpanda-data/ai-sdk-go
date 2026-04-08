@@ -85,6 +85,9 @@ Histogram: {"name": "Response Time Distribution", "description": "API response t
 	}
 }
 
+// IsAsynchronous implements tool.Tool.
+func (*Tool) IsAsynchronous() bool { return false }
+
 // Execute performs the plot generation.
 func (*Tool) Execute(_ context.Context, args json.RawMessage) (json.RawMessage, error) {
 	var input Input
