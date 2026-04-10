@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/tool"
 )
 
 // CalculatorTool is a standard test tool that adds two numbers.
@@ -51,14 +52,14 @@ func (*CalculatorTool) Definition() llm.ToolDefinition {
 	}
 }
 
-func (*CalculatorTool) Execute(_ context.Context, args json.RawMessage) (json.RawMessage, error) {
+func (*CalculatorTool) Execute(_ context.Context, args json.RawMessage) (tool.Result, error) {
 	var params struct {
 		A float64 `json:"a"`
 		B float64 `json:"b"`
 	}
 
 	if err := json.Unmarshal(args, &params); err != nil {
-		return nil, err
+		return tool.Result{}, err
 	}
 
 	result := params.A + params.B
@@ -69,5 +70,10 @@ func (*CalculatorTool) Execute(_ context.Context, args json.RawMessage) (json.Ra
 		"b":      params.B,
 	}
 
-	return json.Marshal(response)
+	encoded, err := json.Marshal(response)
+	if err != nil {
+		return tool.Result{}, err
+	}
+
+	return tool.Result{Output: encoded}, nil
 }

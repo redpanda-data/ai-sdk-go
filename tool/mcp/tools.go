@@ -379,10 +379,15 @@ func (w *toolWrapper) Definition() llm.ToolDefinition {
 
 // Execute forwards the tool execution to the MCP client.
 // Uses the namespaced tool name from the definition.
-func (w *toolWrapper) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+func (w *toolWrapper) Execute(ctx context.Context, args json.RawMessage) (tool.Result, error) {
 	w.mu.RLock()
 	toolName := w.definition.Name
 	w.mu.RUnlock()
 
-	return w.client.ExecuteTool(ctx, toolName, args)
+	result, err := w.client.ExecuteTool(ctx, toolName, args)
+	if err != nil {
+		return tool.Result{}, err
+	}
+
+	return tool.Result{Output: result}, nil
 }

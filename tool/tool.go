@@ -33,7 +33,10 @@ type Tool interface {
 	// This includes name, description, and parameter JSON schema
 	Definition() llm.ToolDefinition
 
-	// Execute performs the tool's main operation synchronously
-	// Input and output are JSON for maximum flexibility across tool types
-	Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error)
+	// Execute performs the tool's main operation.
+	//
+	// Tools always return an Output that is persisted in the conversation history.
+	// When the returned Result includes Pending metadata, the runtime pauses and
+	// exposes a typed continuation to the caller.
+	Execute(ctx context.Context, args json.RawMessage) (Result, error)
 }

@@ -16,6 +16,7 @@ package runner_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"iter"
 	"testing"
@@ -520,6 +521,164 @@ func TestRun_ContextCancellation(t *testing.T) {
 	endEvent := findInvocationEndEvent(events)
 	require.NotNil(t, endEvent)
 	assert.Equal(t, agent.FinishReasonInterrupted, endEvent.FinishReason)
+}
+
+func TestRun_ResumesUserInputContinuation(t *testing.T) {
+	t.Parallel()
+
+	store := session.NewInMemoryStore()
+	ctx := context.Background()
+
+	sess := &session.State{
+		ID: "pending-user-input",
+		Messages: []llm.Message{
+			llm.NewMessage(llm.RoleAssistant, llm.NewToolRequestPart(&llm.ToolRequest{
+				ID:        "call_input",
+				Name:      "require_input",
+				Arguments: json.RawMessage(`{"message":"Which cluster?"}`),
+			})),
+			llm.NewMessage(llm.RoleUser, llm.NewToolResponsePart(&llm.ToolResponse{
+				ID:     "call_input",
+				Name:   "require_input",
+				Result: json.RawMessage(`{"status":"awaiting_input","message":"Which cluster?"}`),
+			})),
+		},
+		Metadata: map[string]any{},
+	}
+	agent.SetPendingActions(sess, []agent.PendingAction{{
+		ID:         "pending:call_input",
+		ToolCallID: "call_input",
+		ToolName:   "require_input",
+		Kind:       "user_input",
+		Message:    "Which cluster?",
+		InputType:  "clarification",
+	}})
+	require.NoError(t, store.Save(ctx, sess))
+
+	ag := &mockAgent{
+		name: "resume-agent",
+		runFunc: func(_ context.Context, inv *agent.InvocationMetadata) iter.Seq2[agent.Event, error] {
+			return func(yield func(agent.Event, error) bool) {
+				pending, err := agent.GetPendingActions(inv.Session())
+				require.NoError(t, err)
+				assert.Empty(t, pending)
+				require.Len(t, inv.Session().Messages, 3)
+				assert.Equal(t, "cluster-a", inv.Session().Messages[2].TextContent())
+
+				yield(agent.InvocationEndEvent{
+					Envelope: agent.EventEnvelope{
+						InvocationID: inv.InvocationID(),
+						SessionID:    inv.Session().ID,
+						Turn:         0,
+						At:           time.Now().UTC(),
+					},
+					FinishReason: agent.FinishReasonStop,
+				}, nil)
+			}
+		},
+	}
+
+	r, err := runner.New(ag, store)
+	require.NoError(t, err)
+
+	reply := llm.NewMessage(llm.RoleUser, llm.NewTextPart("cluster-a"))
+	events := collectEvents(t, r.Run(ctx, "", sess.ID, reply))
+	endEvent := findInvocationEndEvent(events)
+	require.NotNil(t, endEvent)
+	assert.Equal(t, agent.FinishReasonStop, endEvent.FinishReason)
+
+	saved, err := store.Load(ctx, sess.ID)
+	require.NoError(t, err)
+	pending, err := agent.GetPendingActions(saved)
+	require.NoError(t, err)
+	assert.Empty(t, pending)
+	require.Len(t, saved.Messages, 3)
+	assert.Equal(t, "cluster-a", saved.Messages[2].TextContent())
+}
+
+func TestResolvePending_ReplacesPendingToolResponse(t *testing.T) {
+	t.Parallel()
+
+	store := session.NewInMemoryStore()
+	ctx := context.Background()
+
+	sess := &session.State{
+		ID: "pending-external",
+		Messages: []llm.Message{
+			llm.NewMessage(llm.RoleAssistant, llm.NewToolRequestPart(&llm.ToolRequest{
+				ID:        "call_deploy",
+				Name:      "deploy",
+				Arguments: json.RawMessage(`{"version":"v1.2.3"}`),
+			})),
+			llm.NewMessage(llm.RoleUser, llm.NewToolResponsePart(&llm.ToolResponse{
+				ID:     "call_deploy",
+				Name:   "deploy",
+				Result: json.RawMessage(`{"status":"pending","task_id":"deploy-42"}`),
+			})),
+		},
+		Metadata: map[string]any{},
+	}
+	agent.SetPendingActions(sess, []agent.PendingAction{{
+		ID:         "pending:call_deploy",
+		ToolCallID: "call_deploy",
+		ToolName:   "deploy",
+		Kind:       "external_result",
+		Message:    "Deployment is still running",
+	}})
+	require.NoError(t, store.Save(ctx, sess))
+
+	ag := &mockAgent{
+		name: "deploy-agent",
+		runFunc: func(_ context.Context, inv *agent.InvocationMetadata) iter.Seq2[agent.Event, error] {
+			return func(yield func(agent.Event, error) bool) {
+				pending, err := agent.GetPendingActions(inv.Session())
+				require.NoError(t, err)
+				assert.Empty(t, pending)
+
+				require.Len(t, inv.Session().Messages, 2)
+				responses := inv.Session().Messages[1].ToolResponses()
+				require.Len(t, responses, 1)
+				assert.JSONEq(t,
+					`{"status":"completed","url":"https://staging.example.com"}`,
+					string(responses[0].Result),
+				)
+
+				yield(agent.InvocationEndEvent{
+					Envelope: agent.EventEnvelope{
+						InvocationID: inv.InvocationID(),
+						SessionID:    inv.Session().ID,
+						Turn:         0,
+						At:           time.Now().UTC(),
+					},
+					FinishReason: agent.FinishReasonStop,
+				}, nil)
+			}
+		},
+	}
+
+	r, err := runner.New(ag, store)
+	require.NoError(t, err)
+
+	events := collectEvents(t, r.ResolvePending(ctx, "", sess.ID, []runner.PendingResolution{{
+		ID:     "pending:call_deploy",
+		Result: json.RawMessage(`{"status":"completed","url":"https://staging.example.com"}`),
+	}}))
+	endEvent := findInvocationEndEvent(events)
+	require.NotNil(t, endEvent)
+	assert.Equal(t, agent.FinishReasonStop, endEvent.FinishReason)
+
+	saved, err := store.Load(ctx, sess.ID)
+	require.NoError(t, err)
+	pending, err := agent.GetPendingActions(saved)
+	require.NoError(t, err)
+	assert.Empty(t, pending)
+	require.Len(t, saved.Messages, 2)
+	responses := saved.Messages[1].ToolResponses()
+	require.Len(t, responses, 1)
+	assert.JSONEq(t,
+		`{"status":"completed","url":"https://staging.example.com"}`,
+		string(responses[0].Result),
+	)
 }
 
 // Helper functions

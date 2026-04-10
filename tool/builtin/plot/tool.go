@@ -86,31 +86,31 @@ Histogram: {"name": "Response Time Distribution", "description": "API response t
 }
 
 // Execute performs the plot generation.
-func (*Tool) Execute(_ context.Context, args json.RawMessage) (json.RawMessage, error) {
+func (*Tool) Execute(_ context.Context, args json.RawMessage) (tool.Result, error) {
 	var input Input
 	if err := json.Unmarshal(args, &input); err != nil {
-		return nil, fmt.Errorf("invalid plot input: %w", err)
+		return tool.Result{}, fmt.Errorf("invalid plot input: %w", err)
 	}
 
 	// Validate required artifact metadata
 	if input.Name == "" {
-		return nil, errors.New("plot must have non-empty name")
+		return tool.Result{}, errors.New("plot must have non-empty name")
 	}
 
 	if input.Description == "" {
-		return nil, errors.New("plot must have non-empty description")
+		return tool.Result{}, errors.New("plot must have non-empty description")
 	}
 
 	// Build the chart
 	p, width, height, err := buildChart(input)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build chart: %w", err)
+		return tool.Result{}, fmt.Errorf("failed to build chart: %w", err)
 	}
 
 	// Render to PNG
 	pngBytes, err := renderToPNG(p, width, height)
 	if err != nil {
-		return nil, fmt.Errorf("failed to render chart: %w", err)
+		return tool.Result{}, fmt.Errorf("failed to render chart: %w", err)
 	}
 
 	// Encode to base64
@@ -128,7 +128,12 @@ func (*Tool) Execute(_ context.Context, args json.RawMessage) (json.RawMessage, 
 		Height:     height,
 	}
 
-	return json.Marshal(output)
+	encoded, err := json.Marshal(output)
+	if err != nil {
+		return tool.Result{}, err
+	}
+
+	return tool.Result{Output: encoded}, nil
 }
 
 // Manual JSON schema for plot Input type.

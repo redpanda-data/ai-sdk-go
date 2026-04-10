@@ -520,20 +520,30 @@ func (m *mockTool) Definition() llm.ToolDefinition {
 	}
 }
 
-func (m *mockTool) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+func (m *mockTool) Execute(ctx context.Context, args json.RawMessage) (tool.Result, error) {
 	if m.delay > 0 {
 		select {
 		case <-time.After(m.delay):
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return tool.Result{}, ctx.Err()
 		}
 	}
 
 	if m.execFunc != nil {
-		return m.execFunc(ctx, args)
+		result, err := m.execFunc(ctx, args)
+		if err != nil {
+			return tool.Result{}, err
+		}
+
+		return tool.Result{Output: result}, nil
 	}
 
-	return json.Marshal(map[string]string{"result": "success"})
+	encoded, err := json.Marshal(map[string]string{"result": "success"})
+	if err != nil {
+		return tool.Result{}, err
+	}
+
+	return tool.Result{Output: encoded}, nil
 }
 
 // TestRegistry_ExecuteAll tests batch execution functionality.

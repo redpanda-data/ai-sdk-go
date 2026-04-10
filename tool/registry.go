@@ -47,9 +47,16 @@ type Registry interface {
 	// Get retrieves a registered tool by name
 	Get(name string) (Tool, error)
 
-	// Execute runs a tool synchronously and returns the complete result.
-	// Returns (nil, error) for validation errors; otherwise returns a ToolResponse with
-	// execution errors encoded in the Error field.
+	// ExecuteDetailed runs a tool and returns both the transcript response and any
+	// continuation metadata requested by the tool.
+	//
+	// Returns (nil, error) for validation errors; otherwise returns an ExecutionResult
+	// with execution failures encoded in Response.Error.
+	ExecuteDetailed(ctx context.Context, req *llm.ToolRequest) (*ExecutionResult, error)
+
+	// Execute runs a tool and returns only the transcript response.
+	// This is a convenience wrapper over ExecuteDetailed for callers that do not
+	// need continuation metadata.
 	Execute(ctx context.Context, req *llm.ToolRequest) (*llm.ToolResponse, error)
 
 	// ExecuteAll runs multiple tool requests concurrently with optional concurrency limits.
@@ -173,8 +180,8 @@ func (r *registry) Get(name string) (Tool, error) {
 	return registered.tool, nil
 }
 
-// Execute runs a tool synchronously and returns the complete result.
-func (r *registry) Execute(ctx context.Context, req *llm.ToolRequest) (*llm.ToolResponse, error) {
+// ExecuteDetailed runs a tool and returns both the transcript response and any continuation metadata.
+func (r *registry) ExecuteDetailed(ctx context.Context, req *llm.ToolRequest) (*ExecutionResult, error) {
 	if req == nil {
 		return nil, ErrToolRequestNil
 	}
@@ -185,10 +192,12 @@ func (r *registry) Execute(ctx context.Context, req *llm.ToolRequest) (*llm.Tool
 	r.mu.RUnlock()
 
 	if !exists {
-		return &llm.ToolResponse{
-			ID:    req.ID,
-			Name:  req.Name,
-			Error: fmt.Sprintf("%v: %q", ErrToolNotFound, req.Name),
+		return &ExecutionResult{
+			Response: &llm.ToolResponse{
+				ID:    req.ID,
+				Name:  req.Name,
+				Error: fmt.Sprintf("%v: %q", ErrToolNotFound, req.Name),
+			},
 		}, nil
 	}
 
@@ -208,37 +217,56 @@ func (r *registry) Execute(ctx context.Context, req *llm.ToolRequest) (*llm.Tool
 	if err != nil {
 		// Check if it's a timeout
 		if errors.Is(executeCtx.Err(), context.DeadlineExceeded) {
-			return &llm.ToolResponse{
-				ID:    req.ID,
-				Name:  req.Name,
-				Error: fmt.Sprintf("%v after %s", ErrToolExecutionTimeout, registered.config.Timeout),
+			return &ExecutionResult{
+				Response: &llm.ToolResponse{
+					ID:    req.ID,
+					Name:  req.Name,
+					Error: fmt.Sprintf("%v after %s", ErrToolExecutionTimeout, registered.config.Timeout),
+				},
 			}, nil
 		}
 
 		// Other execution errors
-		return &llm.ToolResponse{
-			ID:    req.ID,
-			Name:  req.Name,
-			Error: err.Error(),
+		return &ExecutionResult{
+			Response: &llm.ToolResponse{
+				ID:    req.ID,
+				Name:  req.Name,
+				Error: err.Error(),
+			},
 		}, nil
 	}
 
 	// Check response size and apply limits
-	processedResult, err := r.enforceResponseSizeLimit(result, &registered.config)
+	processedResult, err := r.enforceResponseSizeLimit(result.Output, &registered.config)
 	if err != nil {
-		return &llm.ToolResponse{
-			ID:    req.ID,
-			Name:  req.Name,
-			Error: fmt.Sprintf("failed to process response: %v", err),
+		return &ExecutionResult{
+			Response: &llm.ToolResponse{
+				ID:    req.ID,
+				Name:  req.Name,
+				Error: fmt.Sprintf("failed to process response: %v", err),
+			},
 		}, nil
 	}
 
 	// Success
-	return &llm.ToolResponse{
-		ID:     req.ID,
-		Name:   req.Name,
-		Result: processedResult,
+	return &ExecutionResult{
+		Response: &llm.ToolResponse{
+			ID:     req.ID,
+			Name:   req.Name,
+			Result: processedResult,
+		},
+		Pending: result.Pending,
 	}, nil
+}
+
+// Execute runs a tool and returns only the transcript response.
+func (r *registry) Execute(ctx context.Context, req *llm.ToolRequest) (*llm.ToolResponse, error) {
+	result, err := r.ExecuteDetailed(ctx, req)
+	if result == nil {
+		return nil, err
+	}
+
+	return result.Response, err
 }
 
 // ExecuteAll implements Registry.ExecuteAll.

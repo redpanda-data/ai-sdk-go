@@ -85,7 +85,7 @@ func (t *Tool) Definition() llm.ToolDefinition {
 }
 
 // Execute performs the webfetch operation.
-func (t *Tool) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+func (t *Tool) Execute(ctx context.Context, args json.RawMessage) (tool.Result, error) {
 	var params struct {
 		URL               string `json:"url"`
 		Method            string `json:"method,omitempty"`
@@ -93,11 +93,21 @@ func (t *Tool) Execute(ctx context.Context, args json.RawMessage) (json.RawMessa
 	}
 
 	if err := json.Unmarshal(args, &params); err != nil {
-		return marshalErr(fmt.Errorf("invalid arguments: %w", err))
+		errResult, err := marshalErr(fmt.Errorf("invalid arguments: %w", err))
+		if err != nil {
+			return tool.Result{}, err
+		}
+
+		return tool.Result{Output: errResult}, nil
 	}
 
 	if params.URL == "" {
-		return marshalErr(errors.New("url is required"))
+		errResult, err := marshalErr(errors.New("url is required"))
+		if err != nil {
+			return tool.Result{}, err
+		}
+
+		return tool.Result{Output: errResult}, nil
 	}
 
 	// Default method
@@ -107,7 +117,12 @@ func (t *Tool) Execute(ctx context.Context, args json.RawMessage) (json.RawMessa
 
 	// Validate method
 	if params.Method != http.MethodGet && params.Method != http.MethodHead {
-		return marshalErr(fmt.Errorf("unsupported method %q", params.Method))
+		errResult, err := marshalErr(fmt.Errorf("unsupported method %q", params.Method))
+		if err != nil {
+			return tool.Result{}, err
+		}
+
+		return tool.Result{Output: errResult}, nil
 	}
 
 	// Determine if we should convert to markdown
@@ -119,7 +134,12 @@ func (t *Tool) Execute(ctx context.Context, args json.RawMessage) (json.RawMessa
 	// Perform request
 	resp, err := doRequest(ctx, t.cfg, params.Method, params.URL)
 	if err != nil {
-		return marshalErr(err)
+		errResult, marshalErr := marshalErr(err)
+		if marshalErr != nil {
+			return tool.Result{}, marshalErr
+		}
+
+		return tool.Result{Output: errResult}, nil
 	}
 
 	// Build response
@@ -156,7 +176,12 @@ func (t *Tool) Execute(ctx context.Context, args json.RawMessage) (json.RawMessa
 		}
 	}
 
-	return json.Marshal(result)
+	encoded, err := json.Marshal(result)
+	if err != nil {
+		return tool.Result{}, err
+	}
+
+	return tool.Result{Output: encoded}, nil
 }
 
 // fenceBodyContent wraps body content in fence delimiters to protect against

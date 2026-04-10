@@ -183,7 +183,7 @@ func TestExecute(t *testing.T) {
 		require.NoError(t, err)
 
 		var output agenttool.Result
-		err = json.Unmarshal(result, &output)
+		err = json.Unmarshal(result.Output, &output)
 		require.NoError(t, err)
 		assert.Equal(t, "This is the agent response", output.Result)
 	})
@@ -203,7 +203,7 @@ func TestExecute(t *testing.T) {
 		require.NoError(t, err)
 
 		var output agenttool.Result
-		err = json.Unmarshal(result, &output)
+		err = json.Unmarshal(result.Output, &output)
 		require.NoError(t, err)
 		assert.Equal(t, "Response without input", output.Result)
 	})

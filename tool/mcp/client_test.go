@@ -124,6 +124,15 @@ func (m *mockRegistry) List() []llm.ToolDefinition {
 }
 
 func (m *mockRegistry) Execute(ctx context.Context, req *llm.ToolRequest) (*llm.ToolResponse, error) {
+	result, err := m.ExecuteDetailed(ctx, req)
+	if result == nil {
+		return nil, err
+	}
+
+	return result.Response, err
+}
+
+func (m *mockRegistry) ExecuteDetailed(ctx context.Context, req *llm.ToolRequest) (*tool.ExecutionResult, error) {
 	t, err := m.Get(req.Name)
 	if err != nil {
 		return nil, err
@@ -134,9 +143,12 @@ func (m *mockRegistry) Execute(ctx context.Context, req *llm.ToolRequest) (*llm.
 		return nil, err
 	}
 
-	return &llm.ToolResponse{
-		Name:   req.Name,
-		Result: result,
+	return &tool.ExecutionResult{
+		Response: &llm.ToolResponse{
+			Name:   req.Name,
+			Result: result.Output,
+		},
+		Pending: result.Pending,
 	}, nil
 }
 

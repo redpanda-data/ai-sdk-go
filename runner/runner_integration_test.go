@@ -62,14 +62,14 @@ func (*calculatorTool) Definition() llm.ToolDefinition {
 	}
 }
 
-func (*calculatorTool) Execute(_ context.Context, args json.RawMessage) (json.RawMessage, error) {
+func (*calculatorTool) Execute(_ context.Context, args json.RawMessage) (tool.Result, error) {
 	// Parse arguments
 	var params struct {
 		A float64 `json:"a"`
 		B float64 `json:"b"`
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
-		return nil, err
+		return tool.Result{}, err
 	}
 
 	// Calculate result
@@ -82,7 +82,12 @@ func (*calculatorTool) Execute(_ context.Context, args json.RawMessage) (json.Ra
 		"b":      params.B,
 	}
 
-	return json.Marshal(response)
+	encoded, err := json.Marshal(response)
+	if err != nil {
+		return tool.Result{}, err
+	}
+
+	return tool.Result{Output: encoded}, nil
 }
 
 // TestRunner_Integration_WithTools tests runner with agent that uses tools.

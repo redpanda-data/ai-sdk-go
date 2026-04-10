@@ -80,24 +80,24 @@ Append to existing: {"append_to_artifact_id": "artifact-123", "text": "Additiona
 }
 
 // Execute processes the artifact emit request.
-func (*ArtifactEmitTool) Execute(_ context.Context, args json.RawMessage) (json.RawMessage, error) {
+func (*ArtifactEmitTool) Execute(_ context.Context, args json.RawMessage) (tool.Result, error) {
 	var input EmitArtifactInput
 
 	err := json.Unmarshal(args, &input)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse artifact emit request: %w", err)
+		return tool.Result{}, fmt.Errorf("failed to parse artifact emit request: %w", err)
 	}
 
 	if input.Name == "" {
-		return nil, errors.New("artifact must have non-empty name")
+		return tool.Result{}, errors.New("artifact must have non-empty name")
 	}
 
 	if input.Description == "" {
-		return nil, errors.New("artifact must have non-empty description")
+		return tool.Result{}, errors.New("artifact must have non-empty description")
 	}
 
 	if input.Text == "" {
-		return nil, errors.New("artifact must have non-empty text content")
+		return tool.Result{}, errors.New("artifact must have non-empty text content")
 	}
 
 	// Create the response with properly typed artifact data
@@ -105,7 +105,12 @@ func (*ArtifactEmitTool) Execute(_ context.Context, args json.RawMessage) (json.
 		ArtifactID: "artifact-" + xid.New().String(),
 	}
 
-	return json.Marshal(output)
+	encoded, err := json.Marshal(output)
+	if err != nil {
+		return tool.Result{}, err
+	}
+
+	return tool.Result{Output: encoded}, nil
 }
 
 // Manual JSON schema for EmitArtifactInput.

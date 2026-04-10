@@ -959,16 +959,82 @@ type mockTool struct {
 	name       string
 	definition llm.ToolDefinition
 	executeFn  func(context.Context, json.RawMessage) (json.RawMessage, error)
+	pending    *tool.Pending
 }
 
 func (m *mockTool) Definition() llm.ToolDefinition {
 	return m.definition
 }
 
-func (m *mockTool) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+func (m *mockTool) Execute(ctx context.Context, args json.RawMessage) (tool.Result, error) {
 	if m.executeFn != nil {
-		return m.executeFn(ctx, args)
+		result, err := m.executeFn(ctx, args)
+		if err != nil {
+			return tool.Result{}, err
+		}
+
+		return tool.Result{Output: result, Pending: m.pending}, nil
 	}
 
-	return json.RawMessage(`{}`), nil
+	return tool.Result{Output: json.RawMessage(`{}`), Pending: m.pending}, nil
+}
+
+func TestRun_PendingToolPausesExecution(t *testing.T) {
+	t.Parallel()
+
+	pendingTool := &mockTool{
+		name: "require_input",
+		definition: llm.ToolDefinition{
+			Name:        "require_input",
+			Description: "Ask the user for clarification",
+			Parameters:  json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`),
+		},
+		executeFn: func(_ context.Context, _ json.RawMessage) (json.RawMessage, error) {
+			return json.RawMessage(`{"status":"awaiting_input","message":"Which cluster?"}`), nil
+		},
+		pending: &tool.Pending{
+			Kind:      tool.PendingKindUserInput,
+			Message:   "Which cluster?",
+			InputType: "clarification",
+		},
+	}
+
+	registry := tool.NewRegistry(tool.RegistryConfig{})
+	require.NoError(t, registry.Register(pendingTool))
+
+	model := fakellm.NewFakeModel()
+	model.When(fakellm.FirstTurn()).
+		Times(1).
+		ThenRespondWithToolCall("require_input", map[string]any{})
+
+	ag, err := llmagent.New(
+		"clarifier",
+		"You ask follow-up questions when you need clarification.",
+		model,
+		llmagent.WithTools(registry),
+	)
+	require.NoError(t, err)
+
+	sess := &session.State{
+		ID:       "pending-session",
+		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Deploy the app"))},
+	}
+	inv := agent.NewInvocationMetadata(sess, agent.Info{})
+
+	events := collectEvents(t, ag.Run(t.Context(), inv))
+	endEvent := findInvocationEndEvent(events)
+	require.NotNil(t, endEvent)
+	assert.Equal(t, agent.FinishReasonInputRequired, endEvent.FinishReason)
+	require.Len(t, endEvent.PendingActions, 1)
+	assert.Equal(t, "user_input", endEvent.PendingActions[0].Kind)
+	assert.Equal(t, "Which cluster?", endEvent.PendingActions[0].Message)
+	assert.Equal(t, "clarification", endEvent.PendingActions[0].InputType)
+	require.Len(t, endEvent.InputRequiredToolIDs, 1)
+	assert.Equal(t, endEvent.PendingActions[0].ToolCallID, endEvent.InputRequiredToolIDs[0])
+
+	pendingActions, err := agent.GetPendingActions(sess)
+	require.NoError(t, err)
+	require.Len(t, pendingActions, 1)
+	assert.Equal(t, endEvent.PendingActions[0].ID, pendingActions[0].ID)
+	assert.Len(t, sess.Messages, 3)
 }

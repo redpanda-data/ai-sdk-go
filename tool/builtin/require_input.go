@@ -30,13 +30,6 @@ type RequireInputRequest struct {
 	Type    string `json:"type,omitempty"`
 }
 
-// RequireInputResponse represents the output from the require input tool.
-type RequireInputResponse struct {
-	Success bool   `json:"success"`
-	Message string `json:"message"`
-	Status  string `json:"status"`
-}
-
 // RequireInputTool implements a tool for marking tasks as requiring user input.
 type RequireInputTool struct{}
 
@@ -91,17 +84,17 @@ IMPORTANT:
 }
 
 // Execute processes the require input request.
-func (*RequireInputTool) Execute(_ context.Context, args json.RawMessage) (json.RawMessage, error) {
+func (*RequireInputTool) Execute(_ context.Context, args json.RawMessage) (tool.Result, error) {
 	var req RequireInputRequest
 
 	err := json.Unmarshal(args, &req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse require input request: %w", err)
+		return tool.Result{}, fmt.Errorf("failed to parse require input request: %w", err)
 	}
 
 	// Validate the request
 	if req.Message == "" {
-		return nil, errors.New("message cannot be empty")
+		return tool.Result{}, errors.New("message cannot be empty")
 	}
 
 	// Set default type if not provided
@@ -117,23 +110,28 @@ func (*RequireInputTool) Execute(_ context.Context, args json.RawMessage) (json.
 		"approval":      true,
 	}
 	if !validTypes[req.Type] {
-		return nil, fmt.Errorf("invalid type %q", req.Type)
-	}
-
-	response := RequireInputResponse{
-		Success: true,
-		Message: "Task marked as requiring user input: " + req.Message,
-		Status:  "require_input",
+		return tool.Result{}, fmt.Errorf("invalid type %q", req.Type)
 	}
 
 	// Include the original request in the response for the reconciler to process
 	responseWithDetails := map[string]any{
-		"success":       response.Success,
-		"message":       response.Message,
-		"status":        response.Status,
+		"message":       "Awaiting user " + req.Type + ": " + req.Message,
+		"status":        "awaiting_input",
 		"input_message": req.Message,
 		"input_type":    req.Type,
 	}
 
-	return json.Marshal(responseWithDetails)
+	output, err := json.Marshal(responseWithDetails)
+	if err != nil {
+		return tool.Result{}, err
+	}
+
+	return tool.Result{
+		Output: output,
+		Pending: &tool.Pending{
+			Kind:      tool.PendingKindUserInput,
+			Message:   req.Message,
+			InputType: req.Type,
+		},
+	}, nil
 }

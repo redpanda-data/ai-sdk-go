@@ -116,23 +116,28 @@ IMPORTANT RULES:
 }
 
 // Execute processes the update todo state request.
-func (t *UpdateTodoStateTool) Execute(_ context.Context, args json.RawMessage) (json.RawMessage, error) {
+func (t *UpdateTodoStateTool) Execute(_ context.Context, args json.RawMessage) (tool.Result, error) {
 	var req UpdateTodoStateRequest
 
 	err := json.Unmarshal(args, &req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse update todo state request: %w", err)
+		return tool.Result{}, fmt.Errorf("failed to parse update todo state request: %w", err)
 	}
 
 	// Validate the updates
 	err = t.validateUpdates(req.Updates)
 	if err != nil {
-		return nil, fmt.Errorf("invalid updates: %w", err)
+		return tool.Result{}, fmt.Errorf("invalid updates: %w", err)
 	}
 
 	// The actual todo list updates will be handled by the reconciler
 	// Return empty response
-	return json.Marshal(UpdateTodoStateResponse{})
+	encoded, err := json.Marshal(UpdateTodoStateResponse{})
+	if err != nil {
+		return tool.Result{}, err
+	}
+
+	return tool.Result{Output: encoded}, nil
 }
 
 // validateUpdates validates the structure and constraints of updates.
@@ -247,23 +252,28 @@ IMPORTANT RULES:
 }
 
 // Execute processes the add todo request.
-func (t *AddTodoTool) Execute(_ context.Context, args json.RawMessage) (json.RawMessage, error) {
+func (t *AddTodoTool) Execute(_ context.Context, args json.RawMessage) (tool.Result, error) {
 	var req AddTodoRequest
 
 	err := json.Unmarshal(args, &req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse add todo request: %w", err)
+		return tool.Result{}, fmt.Errorf("failed to parse add todo request: %w", err)
 	}
 
 	// Validate the new todos
 	err = t.validateTodos(req.Todos)
 	if err != nil {
-		return nil, fmt.Errorf("invalid todos: %w", err)
+		return tool.Result{}, fmt.Errorf("invalid todos: %w", err)
 	}
 
 	// The actual todo list updates will be handled by the reconciler
 	// Return empty response
-	return json.Marshal(AddTodoResponse{})
+	encoded, err := json.Marshal(AddTodoResponse{})
+	if err != nil {
+		return tool.Result{}, err
+	}
+
+	return tool.Result{Output: encoded}, nil
 }
 
 // validateTodos validates the structure and constraints of new todos.

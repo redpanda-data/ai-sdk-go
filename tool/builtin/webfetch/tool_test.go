@@ -393,7 +393,7 @@ func TestWebFetch_EndToEnd(t *testing.T) {
 			require.NoError(t, err)
 
 			var response map[string]any
-			require.NoError(t, json.Unmarshal(result, &response))
+			require.NoError(t, json.Unmarshal(result.Output, &response))
 
 			tt.validateResp(t, response)
 		})
@@ -447,7 +447,7 @@ func TestWebFetch_SecurityValidation(t *testing.T) {
 			require.NoError(t, err)
 
 			var response map[string]any
-			require.NoError(t, json.Unmarshal(result, &response))
+			require.NoError(t, json.Unmarshal(result.Output, &response))
 
 			// All cases should be errors
 			require.Contains(t, response, "error")
@@ -565,7 +565,7 @@ func TestSecurityHardening(t *testing.T) {
 			require.NoError(t, err)
 
 			var response map[string]any
-			require.NoError(t, json.Unmarshal(result, &response))
+			require.NoError(t, json.Unmarshal(result.Output, &response))
 
 			require.Contains(t, response, "error")
 			require.NotNil(t, response["error"])
@@ -599,7 +599,7 @@ func TestFencing(t *testing.T) { //nolint:paralleltest // shared httptest server
 
 		var response map[string]any
 
-		err = json.Unmarshal(result, &response)
+		err = json.Unmarshal(result.Output, &response)
 		require.NoError(t, err)
 
 		body, ok := response["body"].(string)
@@ -618,7 +618,7 @@ func TestFencing(t *testing.T) { //nolint:paralleltest // shared httptest server
 
 		var response map[string]any
 
-		err = json.Unmarshal(result, &response)
+		err = json.Unmarshal(result.Output, &response)
 		require.NoError(t, err)
 
 		body, ok := response["body"].(string)

@@ -72,7 +72,7 @@ func TestTool_Execute_LineChart(t *testing.T) {
 
 	var output Output
 
-	err = json.Unmarshal(outputJSON, &output)
+	err = json.Unmarshal(outputJSON.Output, &output)
 	require.NoError(t, err)
 
 	// Verify output structure
@@ -120,7 +120,7 @@ func TestTool_Execute_BarChart(t *testing.T) {
 
 	var output Output
 
-	err = json.Unmarshal(outputJSON, &output)
+	err = json.Unmarshal(outputJSON.Output, &output)
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, output.ArtifactID)
@@ -156,7 +156,7 @@ func TestTool_Execute_ScatterChart(t *testing.T) {
 
 	var output Output
 
-	err = json.Unmarshal(outputJSON, &output)
+	err = json.Unmarshal(outputJSON.Output, &output)
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, output.ArtifactID)
@@ -187,7 +187,7 @@ func TestTool_Execute_Histogram(t *testing.T) {
 
 	var output Output
 
-	err = json.Unmarshal(outputJSON, &output)
+	err = json.Unmarshal(outputJSON.Output, &output)
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, output.ArtifactID)
@@ -226,7 +226,7 @@ func TestTool_Execute_CustomDimensions(t *testing.T) {
 
 	var output Output
 
-	err = json.Unmarshal(outputJSON, &output)
+	err = json.Unmarshal(outputJSON.Output, &output)
 	require.NoError(t, err)
 
 	assert.Equal(t, 1000, output.Width)
@@ -385,7 +385,7 @@ func TestTool_Execute_MultipleSeries(t *testing.T) {
 
 	var output Output
 
-	err = json.Unmarshal(outputJSON, &output)
+	err = json.Unmarshal(outputJSON.Output, &output)
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, output.PNGData)

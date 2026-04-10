@@ -200,6 +200,8 @@ type InvocationEndEvent struct {
 	// Only populated when FinishReason is FinishReasonInputRequired.
 	// These IDs correspond to ToolRequestEvent.Request.ID from earlier in the stream.
 	InputRequiredToolIDs []string `json:"input_required_tool_ids,omitempty"`
+	// PendingActions provides typed continuation details for paused invocations.
+	PendingActions []PendingAction `json:"pending_actions,omitempty"`
 }
 
 func (InvocationEndEvent) isEvent() {}

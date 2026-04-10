@@ -23,6 +23,7 @@ import (
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/tool"
 )
 
 // TemperatureSensorTool simulates reading from a temperature sensor.
@@ -66,10 +67,10 @@ func (t *TemperatureSensorTool) Definition() llm.ToolDefinition {
 	}
 }
 
-func (t *TemperatureSensorTool) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+func (t *TemperatureSensorTool) Execute(ctx context.Context, args json.RawMessage) (tool.Result, error) {
 	var input TemperatureSensorInput
 	if err := json.Unmarshal(args, &input); err != nil {
-		return nil, fmt.Errorf("invalid input: %w", err)
+		return tool.Result{}, fmt.Errorf("invalid input: %w", err)
 	}
 
 	unit := input.Unit
@@ -93,7 +94,12 @@ func (t *TemperatureSensorTool) Execute(ctx context.Context, args json.RawMessag
 		Timestamp:   time.Now().Unix(),
 	}
 
-	return json.Marshal(output)
+	encoded, err := json.Marshal(output)
+	if err != nil {
+		return tool.Result{}, err
+	}
+
+	return tool.Result{Output: encoded}, nil
 }
 
 // GetSecretValueTool retrieves a secret value from memory.
@@ -136,15 +142,15 @@ func (t *GetSecretValueTool) Definition() llm.ToolDefinition {
 	}
 }
 
-func (t *GetSecretValueTool) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+func (t *GetSecretValueTool) Execute(ctx context.Context, args json.RawMessage) (tool.Result, error) {
 	var input GetSecretValueInput
 	if err := json.Unmarshal(args, &input); err != nil {
-		return nil, fmt.Errorf("invalid input: %w", err)
+		return tool.Result{}, fmt.Errorf("invalid input: %w", err)
 	}
 
 	value, exists := t.secrets[input.SecretName]
 	if !exists {
-		return nil, fmt.Errorf("secret %q not found", input.SecretName)
+		return tool.Result{}, fmt.Errorf("secret %q not found", input.SecretName)
 	}
 
 	output := GetSecretValueOutput{
@@ -152,5 +158,10 @@ func (t *GetSecretValueTool) Execute(ctx context.Context, args json.RawMessage) 
 		SecretValue: value,
 	}
 
-	return json.Marshal(output)
+	encoded, err := json.Marshal(output)
+	if err != nil {
+		return tool.Result{}, err
+	}
+
+	return tool.Result{Output: encoded}, nil
 }

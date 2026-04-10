@@ -47,6 +47,13 @@ var (
 	// This may be a transient error (network, database connection) that can be retried.
 	ErrSessionSave = errors.New("agent: failed to save session")
 
+	// ErrPendingResolutionRequired indicates the session is paused on an external continuation
+	// and cannot accept a plain user message until the pending action is resolved.
+	ErrPendingResolutionRequired = errors.New("agent: pending continuation must be resolved before running")
+
+	// ErrPendingActionNotFound indicates a requested pending action ID does not exist in the session.
+	ErrPendingActionNotFound = errors.New("agent: pending action not found")
+
 	// ────────────────────────────────────────────────────────────────────────────────
 	// Agent execution errors
 	// These are returned during agent execution (model generation, tool execution).

@@ -165,7 +165,7 @@ func TestUpdateTodos_EndToEnd(t *testing.T) {
 
 			// Verify it returns empty response
 			var response UpdateTodoStateResponse
-			require.NoError(t, json.Unmarshal(result, &response))
+			require.NoError(t, json.Unmarshal(result.Output, &response))
 		})
 	}
 }
@@ -391,7 +391,7 @@ func TestAddTodos_EndToEnd(t *testing.T) {
 
 			// Verify it returns empty response
 			var response AddTodoResponse
-			require.NoError(t, json.Unmarshal(result, &response))
+			require.NoError(t, json.Unmarshal(result.Output, &response))
 		})
 	}
 }
@@ -545,7 +545,7 @@ func TestTodoTools_EdgeCases(t *testing.T) {
 
 		// Should succeed even with basic context - verify empty response
 		var response UpdateTodoStateResponse
-		require.NoError(t, json.Unmarshal(result, &response))
+		require.NoError(t, json.Unmarshal(result.Output, &response))
 	})
 
 	t.Run("AddTool handles Unicode names", func(t *testing.T) {
@@ -571,7 +571,7 @@ func TestTodoTools_EdgeCases(t *testing.T) {
 
 		// Verify empty response - Unicode handling happens at input validation
 		var response AddTodoResponse
-		require.NoError(t, json.Unmarshal(result, &response))
+		require.NoError(t, json.Unmarshal(result.Output, &response))
 	})
 
 	t.Run("tools handle extremely long names gracefully", func(t *testing.T) {
@@ -594,7 +594,7 @@ func TestTodoTools_EdgeCases(t *testing.T) {
 
 		// Should handle long names without errors - verify empty response
 		var response UpdateTodoStateResponse
-		require.NoError(t, json.Unmarshal(result, &response))
+		require.NoError(t, json.Unmarshal(result.Output, &response))
 	})
 }
 
@@ -624,7 +624,7 @@ func TestTodoTools_StatusValidation(t *testing.T) {
 
 			// Verify empty response
 			var response UpdateTodoStateResponse
-			require.NoError(t, json.Unmarshal(result, &response))
+			require.NoError(t, json.Unmarshal(result.Output, &response))
 		}
 	})
 
@@ -670,7 +670,7 @@ func TestTodoTools_StatusValidation(t *testing.T) {
 
 			// Verify empty response
 			var response AddTodoResponse
-			require.NoError(t, json.Unmarshal(result, &response))
+			require.NoError(t, json.Unmarshal(result.Output, &response))
 		}
 	})
 
@@ -726,7 +726,7 @@ func TestTodoTools_InProgressConstraint(t *testing.T) {
 
 		// Verify empty response
 		var response UpdateTodoStateResponse
-		require.NoError(t, json.Unmarshal(result, &response))
+		require.NoError(t, json.Unmarshal(result.Output, &response))
 	})
 
 	t.Run("UpdateTool rejects multiple IN_PROGRESS", func(t *testing.T) {
@@ -775,7 +775,7 @@ func TestTodoTools_InProgressConstraint(t *testing.T) {
 
 		// Verify empty response
 		var response AddTodoResponse
-		require.NoError(t, json.Unmarshal(result, &response))
+		require.NoError(t, json.Unmarshal(result.Output, &response))
 	})
 
 	t.Run("AddTool rejects multiple IN_PROGRESS", func(t *testing.T) {

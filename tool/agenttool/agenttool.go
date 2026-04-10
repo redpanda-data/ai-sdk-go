@@ -100,7 +100,7 @@ type Result struct {
 //   - Each invocation creates a fresh session (no context sharing)
 //   - This prevents context pollution and keeps parent/child boundaries clear
 //   - For context sharing, pass relevant information explicitly in args
-func (at *AgentTool) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+func (at *AgentTool) Execute(ctx context.Context, args json.RawMessage) (tool.Result, error) {
 	info := at.agent.Info()
 
 	// 1. Create fresh session with unique ID to prevent collisions in state stores
@@ -124,7 +124,7 @@ func (at *AgentTool) Execute(ctx context.Context, args json.RawMessage) (json.Ra
 
 	for evt, err := range at.agent.Run(ctx, inv) {
 		if err != nil {
-			return nil, fmt.Errorf("agent execution failed: %w", err)
+			return tool.Result{}, fmt.Errorf("agent execution failed: %w", err)
 		}
 
 		// Capture last assistant message as result
@@ -142,5 +142,10 @@ func (at *AgentTool) Execute(ctx context.Context, args json.RawMessage) (json.Ra
 		Result: result,
 	}
 
-	return json.Marshal(output)
+	encoded, err := json.Marshal(output)
+	if err != nil {
+		return tool.Result{}, err
+	}
+
+	return tool.Result{Output: encoded}, nil
 }

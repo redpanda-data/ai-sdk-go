@@ -20,12 +20,14 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"sync"
 	"time"
 
 	"golang.org/x/sync/errgroup"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/tool"
 )
 
 // Compile-time check that LLMAgent implements agent.Agent.
@@ -187,12 +189,19 @@ func (a *LLMAgent) Run(ctx context.Context, inv *agent.InvocationMetadata) iter.
 
 			// Check if interceptor or turn logic wants to end execution
 			if finishReason != "" {
-				// Emit terminal event
-				yield(agent.InvocationEndEvent{
+				endEvent := agent.InvocationEndEvent{
 					Envelope:     makeEnvelope(),
 					FinishReason: finishReason,
 					Usage:        new(inv.TotalUsage()),
-				}, nil)
+				}
+				if pendingActions, ok := inv.GetMetadata("pending_actions").([]agent.PendingAction); ok {
+					endEvent.PendingActions = pendingActions
+					for _, pendingAction := range pendingActions {
+						endEvent.InputRequiredToolIDs = append(endEvent.InputRequiredToolIDs, pendingAction.ToolCallID)
+					}
+				}
+
+				yield(endEvent, nil)
 
 				return
 			}
@@ -347,11 +356,26 @@ func (a *LLMAgent) executeSingleTurn(
 		return "", agent.ErrToolRegistry
 	}
 
-	toolParts := a.executeTools(ctx, inv, toolReqs, req.Tools, makeEnvelope, yield)
+	toolResult := a.executeTools(ctx, inv, toolReqs, req.Tools, makeEnvelope, yield)
 
 	// Build single message with all tool response parts
-	toolMsg := llm.NewMessage(llm.RoleUser, toolParts...)
+	toolMsg := llm.NewMessage(llm.RoleUser, toolResult.parts...)
 	sess.Messages = append(sess.Messages, toolMsg)
+
+	if len(toolResult.pendingActions) > 0 {
+		agent.SetPendingActions(sess, toolResult.pendingActions)
+		inv.SetMetadata("pending_actions", toolResult.pendingActions)
+
+		if !yield(agent.StatusEvent{
+			Envelope: makeEnvelope(),
+			Stage:    agent.StatusStageInputRequired,
+			Details:  fmt.Sprintf("%d continuations pending", len(toolResult.pendingActions)),
+		}, nil) {
+			return agent.FinishReasonInterrupted, nil
+		}
+
+		return agent.FinishReasonInputRequired, nil
+	}
 
 	// Emit turn completed
 	if !yield(agent.StatusEvent{
@@ -479,6 +503,11 @@ func (a *LLMAgent) generateWithStreaming(
 	return response, nil
 }
 
+type executeToolsResult struct {
+	parts          []*llm.Part
+	pendingActions []agent.PendingAction
+}
+
 // executeTools runs tool calls concurrently.
 //
 // Tool execution is limited by toolConcurrency. Individual tool errors
@@ -491,10 +520,7 @@ func (a *LLMAgent) generateWithStreaming(
 //
 // ToolResponseEvents are yielded as tools complete.
 //
-// Returns tool response parts in the order they were requested.
-//
-// Future: Will also return list of tool IDs requiring input for
-// StatusStageInputRequired / FinishReasonInputRequired support.
+// Returns tool response parts and any pending continuations requested by the tools.
 func (a *LLMAgent) executeTools(
 	ctx context.Context,
 	inv *agent.InvocationMetadata,
@@ -502,7 +528,7 @@ func (a *LLMAgent) executeTools(
 	toolDefs []llm.ToolDefinition,
 	makeEnvelope func() agent.EventEnvelope,
 	yield func(agent.Event, error) bool,
-) []*llm.Part {
+) executeToolsResult {
 	// Execute tools concurrently with limited parallelism
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(min(a.config.toolConcurrency, len(toolReqs)))
@@ -517,9 +543,24 @@ func (a *LLMAgent) executeTools(
 	}
 
 	results := make(chan toolResult, len(toolReqs))
+	var pendingByRequest sync.Map
 
 	// Create base tool executor
 	baseExecutor := func(ctx context.Context, info *agent.ToolCallInfo) (*llm.ToolResponse, error) {
+		if registry, ok := a.config.tools.(interface {
+			ExecuteDetailed(context.Context, *llm.ToolRequest) (*tool.ExecutionResult, error)
+		}); ok {
+			execResult, err := registry.ExecuteDetailed(ctx, info.Req)
+			if execResult != nil && execResult.Pending != nil {
+				pendingByRequest.Store(info.Req.ID, *execResult.Pending)
+			}
+			if execResult == nil {
+				return nil, err
+			}
+
+			return execResult.Response, err
+		}
+
 		return a.config.tools.Execute(ctx, info.Req)
 	}
 
@@ -556,6 +597,7 @@ func (a *LLMAgent) executeTools(
 
 	// Collect tool response parts and yield events as they arrive
 	parts := make([]*llm.Part, 0, len(toolReqs))
+	var pendingActions []agent.PendingAction
 
 	for range toolReqs {
 		result := <-results
@@ -574,7 +616,7 @@ func (a *LLMAgent) executeTools(
 				Envelope: makeEnvelope(),
 				Response: *errResp,
 			}, nil) {
-				return parts // Consumer stopped listening
+				return executeToolsResult{parts: parts, pendingActions: pendingActions}
 			}
 		} else {
 			// Tool execution succeeded
@@ -585,12 +627,25 @@ func (a *LLMAgent) executeTools(
 				Envelope: makeEnvelope(),
 				Response: *result.response,
 			}, nil) {
-				return parts // Consumer stopped listening
+				return executeToolsResult{parts: parts, pendingActions: pendingActions}
+			}
+
+			if pendingValue, ok := pendingByRequest.Load(result.requestID); ok {
+				pending := pendingValue.(tool.Pending)
+				pendingActions = append(pendingActions, agent.PendingAction{
+					ID:              pendingActionID(result.requestID),
+					ToolCallID:      result.requestID,
+					ToolName:        result.name,
+					Kind:            string(pending.Kind),
+					Message:         pending.Message,
+					InputType:       pending.InputType,
+					RequestedSchema: pending.RequestedSchema,
+				})
 			}
 		}
 	}
 
-	return parts
+	return executeToolsResult{parts: parts, pendingActions: pendingActions}
 }
 
 // recoverIncompleteToolCalls detects and executes incomplete tool calls from a
@@ -645,16 +700,20 @@ func (a *LLMAgent) recoverIncompleteToolCalls(
 
 	// Execute the incomplete tools
 	toolDefs := a.config.tools.List()
-	toolParts := a.executeTools(ctx, inv, incomplete, toolDefs, makeEnvelope, yield)
+	toolResult := a.executeTools(ctx, inv, incomplete, toolDefs, makeEnvelope, yield)
 
 	// Insert tool response message BEFORE the last user message.
 	// Current: [..., assistant(tool_req), user(text)]
 	// After:   [..., assistant(tool_req), user(tool_resp), user(text)]
-	toolMsg := llm.NewMessage(llm.RoleUser, toolParts...)
+	toolMsg := llm.NewMessage(llm.RoleUser, toolResult.parts...)
 	lastIdx := len(sess.Messages) - 1
 	sess.Messages = append(sess.Messages[:lastIdx], toolMsg, sess.Messages[lastIdx])
 
 	return nil
+}
+
+func pendingActionID(toolCallID string) string {
+	return "pending:" + toolCallID
 }
 
 // detectIncompleteToolCalls checks if the session ends with incomplete tool calls.

@@ -461,8 +461,8 @@ func (m *mockWeatherTool) Definition() llm.ToolDefinition {
 	}
 }
 
-func (m *mockWeatherTool) Execute(_ context.Context, _ json.RawMessage) (json.RawMessage, error) {
-	return json.RawMessage(`{"temperature": "72°F", "conditions": "sunny"}`), nil
+func (m *mockWeatherTool) Execute(_ context.Context, _ json.RawMessage) (tool.Result, error) {
+	return tool.Result{Output: json.RawMessage(`{"temperature": "72°F", "conditions": "sunny"}`)}, nil
 }
 
 func TestExecutor_SessionPersistence_Mock(t *testing.T) {
