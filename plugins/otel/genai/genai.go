@@ -34,9 +34,9 @@ const (
 	AttrGenAIRequestModel              = "gen_ai.request.model"
 	AttrGenAIResponseID                = "gen_ai.response.id"
 	AttrGenAIResponseFinishReasons     = "gen_ai.response.finish_reasons"
-	AttrGenAIUsageInputTokens          = "gen_ai.usage.input_tokens"              //nolint:gosec // Not a credential
-	AttrGenAIUsageOutputTokens         = "gen_ai.usage.output_tokens"             //nolint:gosec // Not a credential
-	AttrGenAIUsageCacheReadInputTokens = "gen_ai.usage.cache_read.input_tokens"   //nolint:gosec // Not a credential
+	AttrGenAIUsageInputTokens          = "gen_ai.usage.input_tokens"            //nolint:gosec // Not a credential
+	AttrGenAIUsageOutputTokens         = "gen_ai.usage.output_tokens"           //nolint:gosec // Not a credential
+	AttrGenAIUsageCacheReadInputTokens = "gen_ai.usage.cache_read.input_tokens" //nolint:gosec // Not a credential
 	AttrGenAIInputMessages             = "gen_ai.input.messages"
 	AttrGenAIOutputMessages            = "gen_ai.output.messages"
 )
@@ -94,12 +94,15 @@ func StampModelCallSpan(span trace.Span, a *ModelCallAttrs) {
 	if model != "" {
 		attrs = append(attrs, attribute.String(AttrGenAIRequestModel, model))
 	}
+
 	if a.Provider != "" {
 		attrs = append(attrs, attribute.String(AttrGenAIProviderName, a.Provider))
 	}
+
 	if a.ResponseID != "" {
 		attrs = append(attrs, attribute.String(AttrGenAIResponseID, a.ResponseID))
 	}
+
 	if a.FinishReason != "" {
 		attrs = append(attrs, attribute.StringSlice(AttrGenAIResponseFinishReasons, []string{a.FinishReason}))
 	}
@@ -121,5 +124,6 @@ func SpanName(model string) string {
 	if model == "" {
 		return OperationChat
 	}
+
 	return OperationChat + " " + model
 }

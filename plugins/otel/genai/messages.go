@@ -80,6 +80,7 @@ func MarshalMessages(msgs []Message) string {
 	if err != nil {
 		return "[]"
 	}
+
 	return string(b)
 }
 
@@ -104,14 +105,17 @@ func ValidateMessages(msgs []Message) error {
 		if !validRoles[msg.Role] {
 			return fmt.Errorf("message[%d]: invalid role %q", i, msg.Role)
 		}
+
 		if len(msg.Parts) == 0 {
 			return fmt.Errorf("message[%d]: parts must not be empty", i)
 		}
+
 		for j, part := range msg.Parts {
 			if !validPartTypes[part.Type] {
 				return fmt.Errorf("message[%d].parts[%d]: invalid type %q", i, j, part.Type)
 			}
 		}
 	}
+
 	return nil
 }

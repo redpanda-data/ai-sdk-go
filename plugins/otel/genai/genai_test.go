@@ -110,6 +110,7 @@ func TestStampModelCallSpan(t *testing.T) {
 			t.Parallel()
 
 			exporter := tracetest.NewInMemoryExporter()
+
 			tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
 			defer tp.Shutdown(context.Background()) //nolint:errcheck // test cleanup
 
@@ -133,6 +134,7 @@ func TestStampModelCallSpan(t *testing.T) {
 				if !assert.True(t, ok, "missing attribute %q", key) {
 					continue
 				}
+
 				switch w := want.(type) {
 				case string:
 					assert.Equal(t, w, val.AsString(), "attribute %q", key)
