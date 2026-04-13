@@ -100,6 +100,9 @@ type Result struct {
 //   - Each invocation creates a fresh session (no context sharing)
 //   - This prevents context pollution and keeps parent/child boundaries clear
 //   - For context sharing, pass relevant information explicitly in args
+// IsAsynchronous implements tool.Tool.
+func (*AgentTool) IsAsynchronous() bool { return false }
+
 func (at *AgentTool) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
 	info := at.agent.Info()
 

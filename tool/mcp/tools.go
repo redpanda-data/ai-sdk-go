@@ -377,6 +377,9 @@ func (w *toolWrapper) Definition() llm.ToolDefinition {
 	return w.definition
 }
 
+// IsAsynchronous implements tool.Tool.
+func (*toolWrapper) IsAsynchronous() bool { return false }
+
 // Execute forwards the tool execution to the MCP client.
 // Uses the namespaced tool name from the definition.
 func (w *toolWrapper) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {

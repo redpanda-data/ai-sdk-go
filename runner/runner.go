@@ -174,63 +174,118 @@ func (r *Runner) Run(
 		// 2. Add user message to session
 		sess.Messages = append(sess.Messages, userMessage)
 
-		// 3. Create invocation metadata with agent snapshot
-		// The snapshot captures agent identity for observability.
-		inv := agent.NewInvocationMetadata(sess, r.config.agent.Info())
+		// 3. Execute agent and forward events
+		r.runAgent(ctx, sess, yield)
+	}
+}
 
-		// Track whether the consumer stopped iteration (yield returned false).
-		// When yield returns false, we must not call it again or Go panics with
-		// "range function continued iteration after function for loop body returned false".
-		consumerStopped := false
+// Resume continues a paused invocation by providing results for pending tools.
+//
+// This is used after an invocation ended with FinishReasonInputRequired.
+// The caller provides tool results for the tools listed in
+// InvocationEndEvent.InputRequiredToolIDs.
+//
+// The provided tool results are added to the session as a user message
+// containing ToolResponse parts, then the agent resumes from where it
+// left off. The LLM sees the full history: original tool call, the initial
+// pending result, and the final result provided here.
+//
+// # Example
+//
+//	// After receiving InvocationEndEvent with FinishReason "input_required"
+//	// and InputRequiredToolIDs: ["call_abc123"]
+//	for evt, err := range runner.Resume(ctx, userID, sessionID,
+//	    []llm.ToolResponse{{
+//	        ID:     "call_abc123",
+//	        Name:   "deploy",
+//	        Result: json.RawMessage(`{"url": "https://staging.example.com"}`),
+//	    }},
+//	) {
+//	    // ... handle events as with Run() ...
+//	}
+func (r *Runner) Resume(
+	ctx context.Context,
+	_ string, // UserID will be used in the future.
+	sessionID string,
+	toolResults []llm.ToolResponse,
+) iter.Seq2[agent.Event, error] {
+	return func(yield func(agent.Event, error) bool) {
+		// 1. Load session (must exist — Resume is only valid for existing sessions)
+		sess, err := r.config.sessionStore.Load(ctx, sessionID)
+		if err != nil {
+			yield(nil, fmt.Errorf("%w: %w", agent.ErrSessionLoad, err))
+			return
+		}
 
-		// 4. Save session on exit (handles normal completion, cancellation, errors)
-		defer func() {
-			if err := r.config.sessionStore.Save(ctx, sess); err != nil {
-				// Only yield error if consumer hasn't explicitly stopped iteration.
-				// If consumer broke out of their for loop (yield returned false),
-				// calling yield again would panic.
-				if !consumerStopped {
-					yield(nil, fmt.Errorf("%w: %w", agent.ErrSessionSave, err))
-				} else {
-					r.config.logger.Error("session save failed after consumer stopped",
-						"sessionID", sess.ID,
-						"error", err)
-				}
+		// 2. Add tool results as user message with ToolResponse parts
+		parts := make([]*llm.Part, 0, len(toolResults))
+		for i := range toolResults {
+			parts = append(parts, llm.NewToolResponsePart(&toolResults[i]))
+		}
+
+		sess.Messages = append(sess.Messages, llm.NewMessage(llm.RoleUser, parts...))
+
+		// 3. Execute agent and forward events
+		r.runAgent(ctx, sess, yield)
+	}
+}
+
+// runAgent is the shared agent execution and event forwarding logic
+// used by both Run() and Resume().
+func (r *Runner) runAgent(
+	ctx context.Context,
+	sess *session.State,
+	yield func(agent.Event, error) bool,
+) {
+	// Create invocation metadata with agent snapshot
+	inv := agent.NewInvocationMetadata(sess, r.config.agent.Info())
+
+	// Track whether the consumer stopped iteration (yield returned false).
+	// When yield returns false, we must not call it again or Go panics with
+	// "range function continued iteration after function for loop body returned false".
+	consumerStopped := false
+
+	// Save session on exit (handles normal completion, cancellation, errors)
+	defer func() {
+		if err := r.config.sessionStore.Save(ctx, sess); err != nil {
+			if !consumerStopped {
+				yield(nil, fmt.Errorf("%w: %w", agent.ErrSessionSave, err))
+			} else {
+				r.config.logger.Error("session save failed after consumer stopped",
+					"sessionID", sess.ID,
+					"error", err)
 			}
-		}()
+		}
+	}()
 
-		// 5. Execute agent and forward events
-		for evt, err := range r.config.agent.Run(ctx, inv) {
-			if err != nil {
-				// Forward error
-				if !yield(nil, err) {
-					consumerStopped = true
-					return
-				}
-
-				continue
-			}
-
-			// Save session after each assistant message (incremental persistence)
-			// Note: Agent already appended the message to sess.Messages, we just save it
-			if _, ok := evt.(agent.MessageEvent); ok {
-				if err := r.config.sessionStore.Save(ctx, sess); err != nil {
-					yield(nil, fmt.Errorf("%w: %w", agent.ErrSessionSave, err))
-					return
-				}
-			}
-
-			// Forward event to caller
-			if !yield(evt, nil) {
+	// Execute agent and forward events
+	for evt, err := range r.config.agent.Run(ctx, inv) {
+		if err != nil {
+			if !yield(nil, err) {
 				consumerStopped = true
 				return
 			}
 
-			// Exit after completion event - consumer is still active here,
-			// defer can still yield if needed
-			if _, ok := evt.(agent.InvocationEndEvent); ok {
+			continue
+		}
+
+		// Save session after each assistant message (incremental persistence)
+		if _, ok := evt.(agent.MessageEvent); ok {
+			if err := r.config.sessionStore.Save(ctx, sess); err != nil {
+				yield(nil, fmt.Errorf("%w: %w", agent.ErrSessionSave, err))
 				return
 			}
+		}
+
+		// Forward event to caller
+		if !yield(evt, nil) {
+			consumerStopped = true
+			return
+		}
+
+		// Exit after completion event
+		if _, ok := evt.(agent.InvocationEndEvent); ok {
+			return
 		}
 	}
 }

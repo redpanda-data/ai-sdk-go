@@ -85,6 +85,9 @@ func (t *Tool) Definition() llm.ToolDefinition {
 }
 
 // Execute performs the webfetch operation.
+// IsAsynchronous implements tool.Tool.
+func (*Tool) IsAsynchronous() bool { return false }
+
 func (t *Tool) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
 	var params struct {
 		URL               string `json:"url"`

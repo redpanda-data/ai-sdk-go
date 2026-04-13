@@ -972,3 +972,188 @@ func (m *mockTool) Execute(ctx context.Context, args json.RawMessage) (json.RawM
 
 	return json.RawMessage(`{}`), nil
 }
+
+func (*mockTool) IsAsynchronous() bool { return false }
+
+// asyncMockTool is a mock tool that declares itself as asynchronous.
+type asyncMockTool struct {
+	mockTool
+}
+
+func (*asyncMockTool) IsAsynchronous() bool { return true }
+
+// TestRun_AsyncToolPausesExecution tests that an asynchronous tool
+// causes the agent to pause with FinishReasonInputRequired.
+func TestRun_AsyncToolPausesExecution(t *testing.T) {
+	t.Parallel()
+
+	// Setup: Create an asynchronous deploy tool
+	deployTool := &asyncMockTool{
+		mockTool: mockTool{
+			name: "deploy",
+			definition: llm.ToolDefinition{
+				Name:        "deploy",
+				Description: "Deploy to staging",
+				Parameters: json.RawMessage(`{
+					"type": "object",
+					"properties": {
+						"version": {"type": "string"}
+					},
+					"required": ["version"]
+				}`),
+			},
+			executeFn: func(_ context.Context, _ json.RawMessage) (json.RawMessage, error) {
+				return json.RawMessage(`{"status": "pending", "task_id": "deploy-42"}`), nil
+			},
+		},
+	}
+
+	registry := tool.NewRegistry(tool.RegistryConfig{})
+	err := registry.Register(deployTool)
+	require.NoError(t, err)
+
+	// Setup: Configure fake model to call the deploy tool
+	model := fakellm.NewFakeModel()
+	model.When(fakellm.FirstTurn()).
+		Times(1).
+		ThenRespondWithToolCall("deploy", map[string]any{"version": "v2.5.0"})
+
+	// Create agent
+	ag, err := llmagent.New(
+		"deploy-agent",
+		"You help deploy applications",
+		model,
+		llmagent.WithTools(registry),
+	)
+	require.NoError(t, err)
+
+	// Create session
+	sess := &session.State{
+		ID:       "test-session",
+		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Deploy v2.5.0 to staging"))},
+	}
+	inv := agent.NewInvocationMetadata(sess, agent.Info{})
+
+	// Execute
+	events := collectEvents(t, ag.Run(t.Context(), inv))
+
+	// Assert: Should end with FinishReasonInputRequired
+	endEvent := findInvocationEndEvent(events)
+	require.NotNil(t, endEvent)
+	assert.Equal(t, agent.FinishReasonInputRequired, endEvent.FinishReason)
+
+	// Assert: Should have the deploy tool's call ID in InputRequiredToolIDs
+	require.Len(t, endEvent.InputRequiredToolIDs, 1)
+	assert.NotEmpty(t, endEvent.InputRequiredToolIDs[0])
+
+	// Assert: Should have emitted StatusStageInputRequired
+	statusEvents := filterEvents[agent.StatusEvent](events)
+	hasInputRequired := false
+	for _, se := range statusEvents {
+		if se.Stage == agent.StatusStageInputRequired {
+			hasInputRequired = true
+			assert.Contains(t, se.Details, "1 tools awaiting external input")
+		}
+	}
+	assert.True(t, hasInputRequired, "expected StatusStageInputRequired event")
+
+	// Assert: Tool response event was emitted with the pending result
+	toolRespEvents := filterEvents[agent.ToolResponseEvent](events)
+	require.NotEmpty(t, toolRespEvents)
+	assert.Contains(t, string(toolRespEvents[0].Response.Result), "pending")
+
+	// Assert: Tool result was added to session
+	// Session should have: [user_msg, assistant(tool_call), user(tool_resp)]
+	assert.Len(t, sess.Messages, 3)
+}
+
+// TestRun_MixedSyncAndAsyncTools tests that a mix of normal and async tools
+// correctly pauses only for the async tool IDs.
+func TestRun_MixedSyncAndAsyncTools(t *testing.T) {
+	t.Parallel()
+
+	// Setup: One normal tool, one async tool
+	normalTool := &mockTool{
+		name: "get_status",
+		definition: llm.ToolDefinition{
+			Name:        "get_status",
+			Description: "Get current status",
+			Parameters:  json.RawMessage(`{"type": "object", "properties": {}}`),
+		},
+		executeFn: func(_ context.Context, _ json.RawMessage) (json.RawMessage, error) {
+			return json.RawMessage(`{"status": "ok"}`), nil
+		},
+	}
+
+	asyncTool := &asyncMockTool{
+		mockTool: mockTool{
+			name: "long_task",
+			definition: llm.ToolDefinition{
+				Name:        "long_task",
+				Description: "Start a long running task",
+				Parameters:  json.RawMessage(`{"type": "object", "properties": {}}`),
+			},
+			executeFn: func(_ context.Context, _ json.RawMessage) (json.RawMessage, error) {
+				return json.RawMessage(`{"status": "pending", "task_id": "task-99"}`), nil
+			},
+		},
+	}
+
+	registry := tool.NewRegistry(tool.RegistryConfig{})
+	require.NoError(t, registry.Register(normalTool))
+	require.NoError(t, registry.Register(asyncTool))
+
+	// Setup: Model calls both tools simultaneously
+	model := fakellm.NewFakeModel()
+	model.When(fakellm.FirstTurn()).
+		Times(1).
+		ThenRespondWith(func(_ *llm.Request, cc *fakellm.CallContext) (*llm.Response, error) {
+			return &llm.Response{
+				Message: llm.Message{
+					Role: llm.RoleAssistant,
+					Content: []*llm.Part{
+						llm.NewToolRequestPart(&llm.ToolRequest{
+							ID:        "call_status",
+							Name:      "get_status",
+							Arguments: json.RawMessage(`{}`),
+						}),
+						llm.NewToolRequestPart(&llm.ToolRequest{
+							ID:        "call_task",
+							Name:      "long_task",
+							Arguments: json.RawMessage(`{}`),
+						}),
+					},
+				},
+				FinishReason: llm.FinishReasonToolCalls,
+				ID:           "resp-1",
+			}, nil
+		})
+
+	ag, err := llmagent.New(
+		"mixed-agent",
+		"You handle mixed tasks",
+		model,
+		llmagent.WithTools(registry),
+	)
+	require.NoError(t, err)
+
+	sess := &session.State{
+		ID:       "test-session",
+		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Check status and start task"))},
+	}
+	inv := agent.NewInvocationMetadata(sess, agent.Info{})
+
+	events := collectEvents(t, ag.Run(t.Context(), inv))
+
+	// Assert: Should pause with input required
+	endEvent := findInvocationEndEvent(events)
+	require.NotNil(t, endEvent)
+	assert.Equal(t, agent.FinishReasonInputRequired, endEvent.FinishReason)
+
+	// Assert: Only the async tool's ID should be in InputRequiredToolIDs
+	require.Len(t, endEvent.InputRequiredToolIDs, 1)
+
+	// Assert: Both tool responses were emitted
+	toolRespEvents := filterEvents[agent.ToolResponseEvent](events)
+	assert.Len(t, toolRespEvents, 2)
+}

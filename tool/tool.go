@@ -36,4 +36,19 @@ type Tool interface {
 	// Execute performs the tool's main operation synchronously
 	// Input and output are JSON for maximum flexibility across tool types
 	Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error)
+
+	// IsAsynchronous indicates whether this tool cannot complete in a single
+	// synchronous call. Asynchronous tools return an initial/pending result
+	// from Execute() and require external completion (e.g., user input,
+	// CI/CD deployment finish, batch job result).
+	//
+	// When true, the agent pauses after executing this tool and emits
+	// FinishReasonInputRequired with the tool's call ID, allowing the
+	// caller to provide the final result later via Runner.Resume().
+	//
+	// The tool's Execute() should return a normal result describing the
+	// pending state (e.g., {"status": "pending", "task_id": "ci-42"}).
+	// This result is stored in the session so the LLM has context when
+	// the final result arrives.
+	IsAsynchronous() bool
 }

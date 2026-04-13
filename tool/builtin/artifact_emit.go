@@ -79,6 +79,9 @@ Append to existing: {"append_to_artifact_id": "artifact-123", "text": "Additiona
 	}
 }
 
+// IsAsynchronous implements tool.Tool.
+func (*ArtifactEmitTool) IsAsynchronous() bool { return false }
+
 // Execute processes the artifact emit request.
 func (*ArtifactEmitTool) Execute(_ context.Context, args json.RawMessage) (json.RawMessage, error) {
 	var input EmitArtifactInput

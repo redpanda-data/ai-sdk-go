@@ -90,7 +90,15 @@ IMPORTANT:
 	}
 }
 
+// IsAsynchronous implements tool.Tool. RequireInputTool is asynchronous because
+// it signals that the agent needs external input before continuing. The agent
+// pauses and the caller provides the user's response via Runner.Resume().
+func (*RequireInputTool) IsAsynchronous() bool { return true }
+
 // Execute processes the require input request.
+// Returns a pending status describing what input is needed. Because
+// IsAsynchronous() returns true, the framework will pause the agent
+// and emit FinishReasonInputRequired.
 func (*RequireInputTool) Execute(_ context.Context, args json.RawMessage) (json.RawMessage, error) {
 	var req RequireInputRequest
 
@@ -120,17 +128,9 @@ func (*RequireInputTool) Execute(_ context.Context, args json.RawMessage) (json.
 		return nil, fmt.Errorf("invalid type %q", req.Type)
 	}
 
-	response := RequireInputResponse{
-		Success: true,
-		Message: "Task marked as requiring user input: " + req.Message,
-		Status:  "require_input",
-	}
-
-	// Include the original request in the response for the reconciler to process
 	responseWithDetails := map[string]any{
-		"success":       response.Success,
-		"message":       response.Message,
-		"status":        response.Status,
+		"status":        "awaiting_input",
+		"message":       "Awaiting user " + req.Type + ": " + req.Message,
 		"input_message": req.Message,
 		"input_type":    req.Type,
 	}
