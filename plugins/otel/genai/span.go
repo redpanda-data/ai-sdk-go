@@ -81,10 +81,13 @@ func StampModelCallSpan(span trace.Span, a *ModelCallAttrs) {
 		attrs = append(attrs, attribute.StringSlice(AttrGenAIResponseFinishReasons, []string{a.FinishReason}))
 	}
 
-	attrs = append(attrs,
-		attribute.Int(AttrGenAIUsageInputTokens, a.InputTokens),
-		attribute.Int(AttrGenAIUsageOutputTokens, a.OutputTokens),
-	)
+	if a.InputTokens > 0 {
+		attrs = append(attrs, attribute.Int(AttrGenAIUsageInputTokens, a.InputTokens))
+	}
+
+	if a.OutputTokens > 0 {
+		attrs = append(attrs, attribute.Int(AttrGenAIUsageOutputTokens, a.OutputTokens))
+	}
 
 	if a.CachedTokens > 0 {
 		attrs = append(attrs, attribute.Int(AttrGenAIUsageCacheReadInputTokens, a.CachedTokens))

@@ -99,6 +99,23 @@ func TestStampModelCallSpan(t *testing.T) {
 			wantMissing: []string{AttrGenAIUsageCacheReadInputTokens},
 		},
 		{
+			name: "zero token counts omitted",
+			attrs: &ModelCallAttrs{
+				Provider:     "openai",
+				RequestModel: "gpt-4o",
+			},
+			wantKVs: map[string]any{
+				AttrGenAIOperationName: OperationChat,
+				AttrGenAIProviderName:  "openai",
+				AttrGenAIRequestModel:  "gpt-4o",
+			},
+			wantMissing: []string{
+				AttrGenAIUsageInputTokens,
+				AttrGenAIUsageOutputTokens,
+				AttrGenAIUsageCacheReadInputTokens,
+			},
+		},
+		{
 			name:    "nil attrs is no-op",
 			attrs:   nil,
 			wantKVs: map[string]any{},
