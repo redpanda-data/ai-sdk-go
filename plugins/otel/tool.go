@@ -23,6 +23,7 @@ import (
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/plugins/otel/genai"
 )
 
 // InterceptToolExecution creates a "gen_ai.tool" span wrapping tool calls.
@@ -38,7 +39,7 @@ func (t *TracingInterceptor) InterceptToolExecution(
 
 	// Build base attributes
 	attrs := []attribute.KeyValue{
-		genAIOperationName(operationToolCall),
+		genAIOperationName(genai.OperationToolCall),
 		genAIToolName(req.Name),
 		genAIToolCallID(req.ID),
 	}

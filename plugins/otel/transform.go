@@ -18,46 +18,12 @@ import (
 	"encoding/json"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/plugins/otel/genai"
 )
 
-// OTel-compliant message structures following the spec at:
-// https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-input-messages.json
-// https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-output-messages.json
-//
-// Note: The OpenTelemetry Go SDK (go.opentelemetry.io/otel/semconv) provides
-// attribute keys for gen_ai.input.messages and gen_ai.output.messages but does
-// NOT provide struct definitions for the JSON schema. We define these types
-// here to ensure compliance with the OTel semantic conventions.
-
-// otelMessage represents a message in OTel-compliant format.
-type otelMessage struct {
-	Role         string     `json:"role"`
-	Parts        []otelPart `json:"parts"`
-	Name         string     `json:"name,omitempty"`          // Optional participant identifier
-	FinishReason string     `json:"finish_reason,omitempty"` // Only for output messages
-}
-
-// otelPart represents a message part in OTel-compliant format.
-// The structure varies based on the "type" field.
-type otelPart struct {
-	// Common field for all part types
-	Type string `json:"type"` // "text", "tool_call", "tool_call_response", "reasoning"
-
-	// TextPart fields (type="text")
-	Content string `json:"content,omitempty"` // Used for text and reasoning
-
-	// ToolCallRequestPart fields (type="tool_call")
-	Name      string          `json:"name,omitempty"`
-	ID        string          `json:"id,omitempty"`
-	Arguments json.RawMessage `json:"arguments,omitempty"`
-
-	// ToolCallResponsePart fields (type="tool_call_response")
-	Response json.RawMessage `json:"response,omitempty"`
-}
-
 // transformInputMessages converts SDK messages to OTel-compliant input format.
-func transformInputMessages(messages []llm.Message) []otelMessage {
-	result := make([]otelMessage, 0, len(messages))
+func transformInputMessages(messages []llm.Message) []genai.Message {
+	result := make([]genai.Message, 0, len(messages))
 
 	for _, msg := range messages {
 		result = append(result, transformMessage(msg, ""))
@@ -67,7 +33,7 @@ func transformInputMessages(messages []llm.Message) []otelMessage {
 }
 
 // transformOutputMessage converts SDK message to OTel-compliant output format.
-func transformOutputMessage(msg llm.Message, finishReason string) otelMessage {
+func transformOutputMessage(msg llm.Message, finishReason string) genai.Message {
 	return transformMessage(msg, finishReason)
 }
 
@@ -104,10 +70,10 @@ func mapFinishReason(fr llm.FinishReason) string {
 }
 
 // transformMessage converts a single SDK message to OTel format.
-func transformMessage(msg llm.Message, finishReason string) otelMessage {
-	otelMsg := otelMessage{
+func transformMessage(msg llm.Message, finishReason string) genai.Message {
+	otelMsg := genai.Message{
 		Role:  mapRole(msg),
-		Parts: make([]otelPart, 0, len(msg.Content)),
+		Parts: make([]genai.Part, 0, len(msg.Content)),
 	}
 
 	// Add finish_reason for output messages if provided
@@ -128,25 +94,25 @@ func transformMessage(msg llm.Message, finishReason string) otelMessage {
 }
 
 // transformPart converts a SDK Part to OTel-compliant format.
-func transformPart(part *llm.Part) otelPart {
+func transformPart(part *llm.Part) genai.Part {
 	switch part.Kind {
 	case llm.PartText:
-		return otelPart{
-			Type:    "text",
+		return genai.Part{
+			Type:    genai.PartTypeText,
 			Content: part.Text,
 		}
 
 	case llm.PartToolRequest:
 		if part.ToolRequest == nil {
 			// OTel JSON schema requires "name" field for tool_call parts
-			return otelPart{
-				Type: "tool_call",
+			return genai.Part{
+				Type: genai.PartTypeToolCall,
 				Name: "unknown",
 			}
 		}
 
-		return otelPart{
-			Type:      "tool_call",
+		return genai.Part{
+			Type:      genai.PartTypeToolCall,
 			Name:      part.ToolRequest.Name,
 			ID:        part.ToolRequest.ID,
 			Arguments: part.ToolRequest.Arguments,
@@ -158,8 +124,8 @@ func transformPart(part *llm.Part) otelPart {
 		response := json.RawMessage("null")
 
 		if part.ToolResponse == nil {
-			return otelPart{
-				Type:     "tool_call_response",
+			return genai.Part{
+				Type:     genai.PartTypeToolCallResponse,
 				Response: response,
 			}
 		}
@@ -169,6 +135,7 @@ func transformPart(part *llm.Part) otelPart {
 		if part.ToolResponse.Error != "" {
 			// Create an error response structure
 			errorResp := map[string]string{"error": part.ToolResponse.Error}
+
 			if b, err := json.Marshal(errorResp); err == nil {
 				response = b
 			}
@@ -177,26 +144,26 @@ func transformPart(part *llm.Part) otelPart {
 		}
 		// else: keep default null value
 
-		return otelPart{
-			Type:     "tool_call_response",
+		return genai.Part{
+			Type:     genai.PartTypeToolCallResponse,
 			ID:       part.ToolResponse.ID,
 			Response: response,
 		}
 
 	case llm.PartReasoning:
 		if part.ReasoningTrace == nil {
-			return otelPart{Type: "reasoning"}
+			return genai.Part{Type: genai.PartTypeReasoning}
 		}
 
-		return otelPart{
-			Type:    "reasoning",
+		return genai.Part{
+			Type:    genai.PartTypeReasoning,
 			Content: part.ReasoningTrace.Text,
 		}
 
 	default:
 		// Unknown part type - create a generic text representation
-		return otelPart{
-			Type:    "text",
+		return genai.Part{
+			Type:    genai.PartTypeText,
 			Content: "",
 		}
 	}

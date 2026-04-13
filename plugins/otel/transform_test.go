@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/plugins/otel/genai"
 )
 
 func TestTransformInputMessages_OTelCompliance(t *testing.T) {
@@ -271,12 +272,12 @@ func TestTransformPart_AllTypes(t *testing.T) {
 	tests := []struct {
 		name string
 		part *llm.Part
-		want otelPart
+		want genai.Part
 	}{
 		{
 			name: "text part",
 			part: llm.NewTextPart("Hello"),
-			want: otelPart{Type: "text", Content: "Hello"},
+			want: genai.Part{Type: "text", Content: "Hello"},
 		},
 		{
 			name: "tool request part",
@@ -285,7 +286,7 @@ func TestTransformPart_AllTypes(t *testing.T) {
 				Name:      "weather",
 				Arguments: json.RawMessage(`{"location":"NYC"}`),
 			}),
-			want: otelPart{
+			want: genai.Part{
 				Type:      "tool_call",
 				ID:        "call_789",
 				Name:      "weather",
@@ -299,7 +300,7 @@ func TestTransformPart_AllTypes(t *testing.T) {
 				Name:   "weather",
 				Result: json.RawMessage(`{"temp":72,"condition":"sunny"}`),
 			}),
-			want: otelPart{
+			want: genai.Part{
 				Type:     "tool_call_response",
 				ID:       "call_789",
 				Response: json.RawMessage(`{"temp":72,"condition":"sunny"}`),
@@ -311,7 +312,7 @@ func TestTransformPart_AllTypes(t *testing.T) {
 				ID:   "reason_123",
 				Text: "First, I need to consider...",
 			}),
-			want: otelPart{
+			want: genai.Part{
 				Type:    "reasoning",
 				Content: "First, I need to consider...",
 			},

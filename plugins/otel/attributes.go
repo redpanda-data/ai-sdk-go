@@ -17,6 +17,9 @@ package otel
 // This file defines OpenTelemetry attribute keys and helper functions following
 // the Gen AI semantic conventions.
 //
+// Shared gen_ai.* constants live in plugins/otel/genai. This file adds
+// Redpanda-specific attributes and convenience helpers for the interceptor.
+//
 // See: https://opentelemetry.io/docs/specs/semconv/gen-ai/
 
 import (
@@ -25,55 +28,21 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
+	"github.com/redpanda-data/ai-sdk-go/plugins/otel/genai"
 )
 
-// Attribute keys following OpenTelemetry Gen AI semantic conventions.
-// These constants are used internally by the plugin to populate standard attributes.
-// External users should use AttributeInjector for custom attributes only.
-//
-// See: https://opentelemetry.io/docs/specs/semconv/gen-ai/
+// Redpanda-specific and error attributes (not part of OTel Gen AI semconv).
 const (
-	attrGenAIOperationName             = "gen_ai.operation.name"
-	attrGenAIProviderName              = "gen_ai.provider.name"
-	attrGenAIAgentName                 = "gen_ai.agent.name"
-	attrGenAIAgentDescription          = "gen_ai.agent.description"
-	attrGenAIAgentID                   = "gen_ai.agent.id"
-	attrGenAIAgentVersion              = "gen_ai.agent.version"
-	attrGenAIConversationID            = "gen_ai.conversation.id"
-	attrGenAISystemInstructions        = "gen_ai.system_instructions"
-	attrGenAIRequestModel              = "gen_ai.request.model"
-	attrGenAIResponseID                = "gen_ai.response.id"
-	attrGenAIResponseFinishReasons     = "gen_ai.response.finish_reasons"
-	attrGenAIUsageInputTokens          = "gen_ai.usage.input_tokens"            //nolint:gosec // Not a credential
-	attrGenAIUsageOutputTokens         = "gen_ai.usage.output_tokens"           //nolint:gosec // Not a credential
-	attrGenAIUsageCacheReadInputTokens = "gen_ai.usage.cache_read.input_tokens" //nolint:gosec // Not a credential
-	attrGenAIInputMessages             = "gen_ai.input.messages"
-	attrGenAIOutputMessages            = "gen_ai.output.messages"
-	attrGenAIToolDefinitions           = "gen_ai.tool.definitions"
-	attrGenAIToolName                  = "gen_ai.tool.name"
-	attrGenAIToolCallID                = "gen_ai.tool.call.id"
-	attrGenAIToolCallArguments         = "gen_ai.tool.call.arguments"
-	attrGenAIToolCallResult            = "gen_ai.tool.call.result"
-	attrGenAIToolType                  = "gen_ai.tool.type"
-	attrGenAIToolDescription           = "gen_ai.tool.description"
-	attrToolArgumentsSize              = "redpanda.tool.arguments.size"
-	attrToolResultSize                 = "redpanda.tool.result.size"
-	attrToolExecutionDuration          = "redpanda.tool.execution.duration"
-	attrToolResultAvailable            = "redpanda.tool.result.available"
-	attrErrorType                      = "error.type"
+	attrToolArgumentsSize     = "redpanda.tool.arguments.size"
+	attrToolResultSize        = "redpanda.tool.result.size"
+	attrToolExecutionDuration = "redpanda.tool.execution.duration"
+	attrToolResultAvailable   = "redpanda.tool.result.available"
+	attrErrorType             = "error.type"
 )
 
-// Operation names for gen_ai.operation.name attribute.
-// These are internal constants used by the plugin.
-const (
-	operationInvokeAgent = "invoke_agent"
-	operationChat        = "chat"
-	operationToolCall    = "execute_tool"
-
-	// errorTypeToolError is the error.type value for tool-level errors
-	// (analogous to MCP isError=true). Per OTel MCP semconv.
-	errorTypeToolError = "tool_error"
-)
+// errorTypeToolError is the error.type value for tool-level errors
+// (analogous to MCP isError=true). Per OTel MCP semconv.
+const errorTypeToolError = "tool_error"
 
 // Metadata key for span propagation via InvocationMetadata.
 // This is an internal constant - users should never access this directly.
@@ -159,95 +128,95 @@ type AttributeInjector func(ctx context.Context, spanCtx SpanContext) []attribut
 // These ensure correct attribute types (String vs Int vs Slice) according to OTel conventions.
 
 func genAIOperationName(op string) attribute.KeyValue {
-	return attribute.String(attrGenAIOperationName, op)
+	return attribute.String(genai.AttrGenAIOperationName, op)
 }
 
 func genAIProviderName(name string) attribute.KeyValue {
-	return attribute.String(attrGenAIProviderName, name)
+	return attribute.String(genai.AttrGenAIProviderName, name)
 }
 
 func genAIAgentName(name string) attribute.KeyValue {
-	return attribute.String(attrGenAIAgentName, name)
+	return attribute.String(genai.AttrGenAIAgentName, name)
 }
 
 func genAIAgentDescription(description string) attribute.KeyValue {
-	return attribute.String(attrGenAIAgentDescription, description)
+	return attribute.String(genai.AttrGenAIAgentDescription, description)
 }
 
 func genAIAgentID(id string) attribute.KeyValue {
-	return attribute.String(attrGenAIAgentID, id)
+	return attribute.String(genai.AttrGenAIAgentID, id)
 }
 
 func genAIAgentVersion(version string) attribute.KeyValue {
-	return attribute.String(attrGenAIAgentVersion, version)
+	return attribute.String(genai.AttrGenAIAgentVersion, version)
 }
 
 func genAISystemInstructions(instructions string) attribute.KeyValue {
-	return attribute.String(attrGenAISystemInstructions, instructions)
+	return attribute.String(genai.AttrGenAISystemInstructions, instructions)
 }
 
 func genAIConversationID(id string) attribute.KeyValue {
-	return attribute.String(attrGenAIConversationID, id)
+	return attribute.String(genai.AttrGenAIConversationID, id)
 }
 
 func genAIRequestModel(model string) attribute.KeyValue {
-	return attribute.String(attrGenAIRequestModel, model)
+	return attribute.String(genai.AttrGenAIRequestModel, model)
 }
 
 func genAIResponseID(id string) attribute.KeyValue {
-	return attribute.String(attrGenAIResponseID, id)
+	return attribute.String(genai.AttrGenAIResponseID, id)
 }
 
 func genAIResponseFinishReasons(reasons ...string) attribute.KeyValue {
-	return attribute.StringSlice(attrGenAIResponseFinishReasons, reasons)
+	return attribute.StringSlice(genai.AttrGenAIResponseFinishReasons, reasons)
 }
 
 func genAIUsageInputTokens(tokens int) attribute.KeyValue {
-	return attribute.Int(attrGenAIUsageInputTokens, tokens)
+	return attribute.Int(genai.AttrGenAIUsageInputTokens, tokens)
 }
 
 func genAIUsageOutputTokens(tokens int) attribute.KeyValue {
-	return attribute.Int(attrGenAIUsageOutputTokens, tokens)
+	return attribute.Int(genai.AttrGenAIUsageOutputTokens, tokens)
 }
 
 func genAIUsageCacheReadInputTokens(tokens int) attribute.KeyValue {
-	return attribute.Int(attrGenAIUsageCacheReadInputTokens, tokens)
+	return attribute.Int(genai.AttrGenAIUsageCacheReadInputTokens, tokens)
 }
 
 func genAIToolName(name string) attribute.KeyValue {
-	return attribute.String(attrGenAIToolName, name)
+	return attribute.String(genai.AttrGenAIToolName, name)
 }
 
 func genAIToolCallID(id string) attribute.KeyValue {
-	return attribute.String(attrGenAIToolCallID, id)
+	return attribute.String(genai.AttrGenAIToolCallID, id)
 }
 
 func genAIToolCallArguments(args string) attribute.KeyValue {
-	return attribute.String(attrGenAIToolCallArguments, args)
+	return attribute.String(genai.AttrGenAIToolCallArguments, args)
 }
 
 func genAIToolCallResult(result string) attribute.KeyValue {
-	return attribute.String(attrGenAIToolCallResult, result)
+	return attribute.String(genai.AttrGenAIToolCallResult, result)
 }
 
 func genAIToolType(toolType string) attribute.KeyValue {
-	return attribute.String(attrGenAIToolType, toolType)
+	return attribute.String(genai.AttrGenAIToolType, toolType)
 }
 
 func genAIToolDescription(description string) attribute.KeyValue {
-	return attribute.String(attrGenAIToolDescription, description)
+	return attribute.String(genai.AttrGenAIToolDescription, description)
 }
 
 func genAIInputMessages(json string) attribute.KeyValue {
-	return attribute.String(attrGenAIInputMessages, json)
+	return attribute.String(genai.AttrGenAIInputMessages, json)
 }
 
 func genAIOutputMessages(json string) attribute.KeyValue {
-	return attribute.String(attrGenAIOutputMessages, json)
+	return attribute.String(genai.AttrGenAIOutputMessages, json)
 }
 
 func genAIToolDefinitions(json string) attribute.KeyValue {
-	return attribute.String(attrGenAIToolDefinitions, json)
+	return attribute.String(genai.AttrGenAIToolDefinitions, json)
 }
 
 func errorType(errType string) attribute.KeyValue {
