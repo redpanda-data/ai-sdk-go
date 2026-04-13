@@ -23,6 +23,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
+	"github.com/redpanda-data/ai-sdk-go/plugins/otel/genai"
 )
 
 // TracingInterceptor provides OpenTelemetry tracing for agent operations.
@@ -160,7 +161,7 @@ func (t *TracingInterceptor) startInvocationSpan(
 	inv *agent.InvocationMetadata,
 ) (context.Context, trace.Span) {
 	attrs := []attribute.KeyValue{
-		genAIOperationName(operationInvokeAgent),
+		genAIOperationName(genai.OperationInvokeAgent),
 	}
 
 	session := inv.Session()
@@ -176,11 +177,11 @@ func (t *TracingInterceptor) startInvocationSpan(
 	// Per OTel spec, system_instructions should be for separately-provided instructions
 	if agentSnap.SystemPrompt != "" {
 		// Transform to OTel format (array of parts)
-		systemPart := otelPart{
-			Type:    "text",
+		systemPart := genai.Part{
+			Type:    genai.PartTypeText,
 			Content: agentSnap.SystemPrompt,
 		}
-		if sysJSON, err := json.Marshal([]otelPart{systemPart}); err == nil {
+		if sysJSON, err := json.Marshal([]genai.Part{systemPart}); err == nil {
 			attrs = append(attrs, genAISystemInstructions(string(sysJSON)))
 		}
 	}

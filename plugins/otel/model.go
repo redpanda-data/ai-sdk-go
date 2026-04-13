@@ -24,6 +24,7 @@ import (
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/plugins/otel/genai"
 )
 
 // InterceptModel creates a "gen_ai.chat" span wrapping model generation calls.
@@ -136,7 +137,7 @@ func (h *tracingModelHandler) startSpan(ctx context.Context, req *llm.Request) (
 
 	// Build base attributes
 	attrs := []attribute.KeyValue{
-		genAIOperationName(operationChat),
+		genAIOperationName(genai.OperationChat),
 		genAIConversationID(h.convID),
 	}
 
@@ -261,7 +262,7 @@ func (h *tracingModelHandler) recordOutputMessages(span trace.Span, resp *llm.Re
 	otelMsg := transformOutputMessage(resp.Message, mapFinishReason(resp.FinishReason))
 
 	// Output messages must be an array per the schema
-	otelMessages := []otelMessage{otelMsg}
+	otelMessages := []genai.Message{otelMsg}
 
 	// Serialize OTel messages to JSON and record as span attribute
 	if messageJSON, err := json.Marshal(otelMessages); err == nil {

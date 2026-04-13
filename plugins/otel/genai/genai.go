@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package genai provides exported OpenTelemetry Gen AI semantic convention
-// constants and a helper to stamp model-call attributes onto spans.
+// constants, message types, and helpers for stamping spans.
 //
 // This package is intentionally decoupled from the agent interceptor in
 // plugins/otel so that proxies (like the AI Gateway) can produce identical
@@ -31,6 +31,12 @@ import (
 const (
 	AttrGenAIOperationName             = "gen_ai.operation.name"
 	AttrGenAIProviderName              = "gen_ai.provider.name"
+	AttrGenAIAgentName                 = "gen_ai.agent.name"
+	AttrGenAIAgentDescription          = "gen_ai.agent.description"
+	AttrGenAIAgentID                   = "gen_ai.agent.id"
+	AttrGenAIAgentVersion              = "gen_ai.agent.version"
+	AttrGenAIConversationID            = "gen_ai.conversation.id"
+	AttrGenAISystemInstructions        = "gen_ai.system_instructions"
 	AttrGenAIRequestModel              = "gen_ai.request.model"
 	AttrGenAIResponseID                = "gen_ai.response.id"
 	AttrGenAIResponseFinishReasons     = "gen_ai.response.finish_reasons"
@@ -39,11 +45,20 @@ const (
 	AttrGenAIUsageCacheReadInputTokens = "gen_ai.usage.cache_read.input_tokens" //nolint:gosec // Not a credential
 	AttrGenAIInputMessages             = "gen_ai.input.messages"
 	AttrGenAIOutputMessages            = "gen_ai.output.messages"
+	AttrGenAIToolDefinitions           = "gen_ai.tool.definitions"
+	AttrGenAIToolName                  = "gen_ai.tool.name"
+	AttrGenAIToolCallID                = "gen_ai.tool.call.id"
+	AttrGenAIToolCallArguments         = "gen_ai.tool.call.arguments"
+	AttrGenAIToolCallResult            = "gen_ai.tool.call.result"
+	AttrGenAIToolType                  = "gen_ai.tool.type"
+	AttrGenAIToolDescription           = "gen_ai.tool.description"
 )
 
 // Operation name constants.
 const (
-	OperationChat = "chat"
+	OperationInvokeAgent = "invoke_agent"
+	OperationChat        = "chat"
+	OperationToolCall    = "execute_tool"
 )
 
 // ModelCallAttrs holds fields extracted from an LLM request/response pair.
@@ -91,6 +106,7 @@ func StampModelCallSpan(span trace.Span, a *ModelCallAttrs) {
 	attrs := []attribute.KeyValue{
 		attribute.String(AttrGenAIOperationName, OperationChat),
 	}
+
 	if model != "" {
 		attrs = append(attrs, attribute.String(AttrGenAIRequestModel, model))
 	}
@@ -111,6 +127,7 @@ func StampModelCallSpan(span trace.Span, a *ModelCallAttrs) {
 		attribute.Int(AttrGenAIUsageInputTokens, a.InputTokens),
 		attribute.Int(AttrGenAIUsageOutputTokens, a.OutputTokens),
 	)
+
 	if a.CachedTokens > 0 {
 		attrs = append(attrs, attribute.Int(AttrGenAIUsageCacheReadInputTokens, a.CachedTokens))
 	}
