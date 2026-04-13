@@ -91,7 +91,6 @@ func MarshalMessage(msg Message) string {
 
 // ValidateMessages checks that messages conform to the OTel Gen AI schema.
 // Returns an error describing the first violation found, or nil if valid.
-// Use this in tests to enforce conformance.
 func ValidateMessages(msgs []Message) error {
 	validRoles := map[string]bool{
 		RoleUser: true, RoleAssistant: true, RoleSystem: true, RoleTool: true,

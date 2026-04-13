@@ -27,6 +27,8 @@ import (
 )
 
 func TestStampModelCallSpan(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		attrs       *ModelCallAttrs
@@ -105,6 +107,8 @@ func TestStampModelCallSpan(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			exporter := tracetest.NewInMemoryExporter()
 			tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
 			defer tp.Shutdown(context.Background()) //nolint:errcheck // test cleanup
@@ -150,6 +154,8 @@ func TestStampModelCallSpan(t *testing.T) {
 }
 
 func TestSpanName(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "chat", SpanName(""))
 	assert.Equal(t, "chat gpt-4o", SpanName("gpt-4o"))
 	assert.Equal(t, "chat claude-3-5-sonnet-20241022", SpanName("claude-3-5-sonnet-20241022"))

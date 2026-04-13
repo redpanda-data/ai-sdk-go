@@ -80,6 +80,9 @@ func StampModelCallSpan(span trace.Span, a *ModelCallAttrs) {
 		return
 	}
 
+	// OTel Gen AI semconv has no gen_ai.response.model attribute.
+	// Fall back to ResponseModel when RequestModel is empty so that
+	// gen_ai.request.model is always populated when possible.
 	model := a.RequestModel
 	if model == "" {
 		model = a.ResponseModel
