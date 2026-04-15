@@ -144,8 +144,12 @@ func WithTimeout(timeout time.Duration) ProviderOption {
 }
 
 // NewModel creates a new OpenAI model instance with the specified configuration.
+// It accepts both family names (e.g. "o3") and timestamped snapshot IDs
+// (e.g. "o3-2025-04-16"), resolving the latter to the corresponding family
+// for capability/constraint lookup.
 func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error) {
-	modelDef, ok := supportedModels[modelName]
+	family := resolveModelFamily(modelName)
+	modelDef, ok := supportedModels[family]
 	if !ok {
 		return nil, fmt.Errorf("unsupported OpenAI model: %s", modelName)
 	}

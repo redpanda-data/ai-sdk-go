@@ -14,7 +14,11 @@
 
 package openai
 
-import "github.com/redpanda-data/ai-sdk-go/llm"
+import (
+	"strings"
+
+	"github.com/redpanda-data/ai-sdk-go/llm"
+)
 
 // ModelDefinition defines an OpenAI model with its capabilities and constraints.
 type ModelDefinition struct {
@@ -23,6 +27,30 @@ type ModelDefinition struct {
 	Capabilities              llm.ModelCapabilities
 	Constraints               llm.ModelConstraints
 	SupportedReasoningEfforts []ReasoningEffort // Ascending order: safest/lowest first
+}
+
+// resolveModelFamily returns the model family key for a given model string.
+// If the model string has a known family as a prefix, that family is returned
+// (longest match wins). Otherwise the original string is returned unchanged.
+//
+// Unlike Anthropic and Bedrock, the OpenAI SDK has no built-in alias
+// resolution, so timestamped snapshot IDs like "o3-2025-04-16" are not
+// recognized. This function bridges that gap:
+//
+//	"o3-2025-04-16"  -> "o3"
+//	"gpt-4o-2024-11-20" -> "gpt-4o"
+//	"gpt-4o"            -> "gpt-4o" (unchanged, exact match)
+func resolveModelFamily(model string) string {
+	best := ""
+	for family := range supportedModels {
+		if strings.HasPrefix(model, family) && len(family) > len(best) {
+			best = family
+		}
+	}
+	if best != "" {
+		return best
+	}
+	return model
 }
 
 // supportedModels defines all current OpenAI models with their constraints.
