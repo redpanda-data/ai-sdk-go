@@ -149,6 +149,7 @@ func WithTimeout(timeout time.Duration) ProviderOption {
 // for capability/constraint lookup.
 func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error) {
 	family := resolveModelFamily(modelName)
+
 	modelDef, ok := supportedModels[family]
 	if !ok {
 		return nil, fmt.Errorf("unsupported OpenAI model: %s", modelName)

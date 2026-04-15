@@ -42,14 +42,17 @@ type ModelDefinition struct {
 //	"gpt-4o"            -> "gpt-4o" (unchanged, exact match)
 func resolveModelFamily(model string) string {
 	best := ""
+
 	for family := range supportedModels {
 		if strings.HasPrefix(model, family) && len(family) > len(best) {
 			best = family
 		}
 	}
+
 	if best != "" {
 		return best
 	}
+
 	return model
 }
 
