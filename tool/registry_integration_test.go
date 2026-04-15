@@ -475,6 +475,12 @@ func TestRegistry_WebfetchToolWithLLM_Integration(t *testing.T) {
 					llm.NewToolResponsePart(toolResponse),
 				},
 			},
+			{
+				Role: llm.RoleUser,
+				Content: []*llm.Part{
+					llm.NewTextPart("Summarize the data returned by the webfetch tool above."),
+				},
+			},
 		},
 		Tools: toolDefinitions,
 		ToolChoice: &llm.ToolChoice{
