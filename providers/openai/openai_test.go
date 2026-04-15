@@ -179,6 +179,73 @@ func TestModelCreation(t *testing.T) {
 	assert.Contains(t, err.Error(), "cannot use")
 }
 
+func TestResolveModelFamily(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "exact match returns unchanged",
+			input:    "o3",
+			expected: "o3",
+		},
+		{
+			name:     "timestamped o3 resolves to family",
+			input:    "o3-2025-04-16",
+			expected: "o3",
+		},
+		{
+			name:     "timestamped gpt-4o resolves to family",
+			input:    "gpt-4o-2024-11-20",
+			expected: "gpt-4o",
+		},
+		{
+			name:     "gpt-4o-mini not confused with gpt-4o",
+			input:    "gpt-4o-mini",
+			expected: "gpt-4o-mini",
+		},
+		{
+			name:     "timestamped gpt-4o-mini resolves to gpt-4o-mini not gpt-4o",
+			input:    "gpt-4o-mini-2024-07-18",
+			expected: "gpt-4o-mini",
+		},
+		{
+			name:     "unknown model returns unchanged",
+			input:    "unknown-model-2025-01-01",
+			expected: "unknown-model-2025-01-01",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.expected, resolveModelFamily(tt.input))
+		})
+	}
+}
+
+func TestNewModelWithTimestampedName(t *testing.T) {
+	t.Parallel()
+
+	provider, err := NewProvider("sk-test-key")
+	require.NoError(t, err)
+
+	// Timestamped model should resolve and use the original name for API calls.
+	model, err := provider.NewModel("o3-2025-04-16")
+	require.NoError(t, err)
+	assert.Equal(t, "o3-2025-04-16", model.Name(), "original timestamped name preserved")
+	assert.True(t, model.Capabilities().Reasoning, "inherits o3 capabilities")
+
+	// Timestamped gpt-4o-mini resolves correctly (not to gpt-4o).
+	model, err = provider.NewModel("gpt-4o-mini-2024-07-18")
+	require.NoError(t, err)
+	assert.Equal(t, "gpt-4o-mini-2024-07-18", model.Name())
+	assert.False(t, model.Capabilities().Audio, "gpt-4o-mini has no audio")
+}
+
 func TestModelConstraints(t *testing.T) {
 	t.Parallel()
 
