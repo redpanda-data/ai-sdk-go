@@ -73,7 +73,7 @@ func (f *AnthropicFixture) NewReasoningModel(t *testing.T) llm.Model {
 
 	model, err := f.provider.NewModel(anthropictest.TestReasoningModelName,
 		anthropic.WithThinking(true),
-		anthropic.WithMaxTokens(8192),
+		anthropic.WithMaxTokens(16384),
 	)
 	if err != nil {
 		t.Skipf("No reasoning model available: %v", err)

@@ -82,6 +82,7 @@ Repeat for each model needed. The following models are currently enabled:
 - `anthropic.claude-haiku-4-5-20251001-v1:0`
 - `anthropic.claude-opus-4-5-20251101-v1:0`
 - `anthropic.claude-opus-4-6-v1`
+- `anthropic.claude-opus-4-7`
 
 ### 4. Update the GitHub Actions workflow
 

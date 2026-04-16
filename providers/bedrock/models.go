@@ -26,6 +26,7 @@ const (
 	ModelClaudeSonnet46 = "anthropic.claude-sonnet-4-6"
 	ModelClaudeSonnet45 = "anthropic.claude-sonnet-4-5-20250929-v1:0"
 	ModelClaudeHaiku45  = "anthropic.claude-haiku-4-5-20251001-v1:0"
+	ModelClaudeOpus47   = "anthropic.claude-opus-4-7"
 	ModelClaudeOpus46   = "anthropic.claude-opus-4-6-v1"
 	ModelClaudeOpus45   = "anthropic.claude-opus-4-5-20251101-v1:0"
 )
@@ -83,6 +84,24 @@ func lookupModel(modelName string) (ModelDefinition, bool) {
 // supportedModels defines Claude models available on Bedrock via the Converse API.
 // Standard features only — no Anthropic-specific thinking/effort/speed.
 var supportedModels = map[string]ModelDefinition{
+	ModelClaudeOpus47: {
+		Name:  ModelClaudeOpus47,
+		Label: "Claude Opus 4.7",
+		Capabilities: llm.ModelCapabilities{
+			Streaming:     true,
+			Tools:         true,
+			Vision:        false,
+			MultiTurn:     true,
+			SystemPrompts: true,
+			Reasoning:     true,
+		},
+		Constraints: llm.ModelConstraints{
+			TemperatureRange: [2]float64{0.0, 1.0},
+			MaxInputTokens:   1000000,
+			MaxOutputTokens:  128000,
+			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
+		},
+	},
 	ModelClaudeSonnet46: {
 		Name:  ModelClaudeSonnet46,
 		Label: "Claude Sonnet 4.6",
