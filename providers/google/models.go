@@ -14,7 +14,10 @@
 
 package google
 
-import "github.com/redpanda-data/ai-sdk-go/llm"
+import (
+	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/pricing"
+)
 
 // Model ID constants for Google Gemini models.
 const (
@@ -33,6 +36,7 @@ type ModelDefinition struct {
 	Label        string
 	Capabilities llm.ModelCapabilities
 	Constraints  llm.ModelConstraints
+	Pricing      pricing.Info
 }
 
 // supportedModels defines all Gemini models with their capabilities and constraints.
@@ -58,6 +62,13 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
 			MutuallyExclusive: [][]string{},
 		},
+		Pricing: pricing.Info{
+			InputPerMillion: 200_000_000, OutputPerMillion: 1_200_000_000, CachedInputPerMillion: 20_000_000,
+			Tiers: []pricing.Tier{
+				{MaxInputTokens: 200_000, InputPerMillion: 200_000_000, OutputPerMillion: 1_200_000_000, CachedInputPerMillion: 20_000_000},
+				{MaxInputTokens: 0, InputPerMillion: 400_000_000, OutputPerMillion: 1_800_000_000, CachedInputPerMillion: 40_000_000},
+			},
+		},
 	},
 	ModelGemini3ProPreview: {
 		Name:  ModelGemini3ProPreview,
@@ -78,6 +89,13 @@ var supportedModels = map[string]ModelDefinition{
 			MaxOutputTokens:   65535,   // 65K output tokens
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
 			MutuallyExclusive: [][]string{},
+		},
+		Pricing: pricing.Info{
+			InputPerMillion: 200_000_000, OutputPerMillion: 1_200_000_000, CachedInputPerMillion: 20_000_000,
+			Tiers: []pricing.Tier{
+				{MaxInputTokens: 200_000, InputPerMillion: 200_000_000, OutputPerMillion: 1_200_000_000, CachedInputPerMillion: 20_000_000},
+				{MaxInputTokens: 0, InputPerMillion: 400_000_000, OutputPerMillion: 1_800_000_000, CachedInputPerMillion: 40_000_000},
+			},
 		},
 	},
 	ModelGemini3FlashPreview: {
@@ -100,6 +118,9 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
 			MutuallyExclusive: [][]string{},
 		},
+		Pricing: pricing.Info{
+			InputPerMillion: 50_000_000, OutputPerMillion: 300_000_000, CachedInputPerMillion: 5_000_000,
+		},
 	},
 	ModelGemini25Pro: {
 		Name:  ModelGemini25Pro,
@@ -120,6 +141,13 @@ var supportedModels = map[string]ModelDefinition{
 			MaxOutputTokens:   65535,   // 65K output tokens
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
 			MutuallyExclusive: [][]string{},
+		},
+		Pricing: pricing.Info{
+			InputPerMillion: 125_000_000, OutputPerMillion: 1_000_000_000, CachedInputPerMillion: 12_500_000,
+			Tiers: []pricing.Tier{
+				{MaxInputTokens: 200_000, InputPerMillion: 125_000_000, OutputPerMillion: 1_000_000_000, CachedInputPerMillion: 12_500_000},
+				{MaxInputTokens: 0, InputPerMillion: 250_000_000, OutputPerMillion: 1_500_000_000, CachedInputPerMillion: 25_000_000},
+			},
 		},
 	},
 	ModelGemini25Flash: {
@@ -142,6 +170,9 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
 			MutuallyExclusive: [][]string{},
 		},
+		Pricing: pricing.Info{
+			InputPerMillion: 30_000_000, OutputPerMillion: 250_000_000, CachedInputPerMillion: 3_000_000,
+		},
 	},
 	ModelGemini25FlashLite: {
 		Name:  ModelGemini25FlashLite,
@@ -163,6 +194,9 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
 			MutuallyExclusive: [][]string{},
 		},
+		Pricing: pricing.Info{
+			InputPerMillion: 10_000_000, OutputPerMillion: 40_000_000, CachedInputPerMillion: 1_000_000,
+		},
 	},
 	ModelGemini20Flash: {
 		Name:  ModelGemini20Flash,
@@ -183,6 +217,9 @@ var supportedModels = map[string]ModelDefinition{
 			MaxOutputTokens:   8192,    // 8K output tokens
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
 			MutuallyExclusive: [][]string{},
+		},
+		Pricing: pricing.Info{
+			InputPerMillion: 10_000_000, OutputPerMillion: 40_000_000, CachedInputPerMillion: 2_500_000,
 		},
 	},
 }

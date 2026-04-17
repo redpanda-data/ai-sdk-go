@@ -19,6 +19,28 @@ package pricing
 
 import "time"
 
+// Info holds the current pricing for a model. Embed this in provider
+// ModelDefinition structs so pricing is defined alongside capabilities.
+// All prices are in microcents per million tokens.
+type Info struct {
+	InputPerMillion       int64
+	OutputPerMillion      int64
+	CachedInputPerMillion int64
+	Tiers                 []Tier // optional context-length tiers
+}
+
+// ToModelPricing converts Info into a ModelPricing entry for the given model ID.
+func (info Info) ToModelPricing(modelID string) ModelPricing {
+	rate := Rate{
+		EffectiveFrom:         Epoch,
+		InputPerMillion:       info.InputPerMillion,
+		OutputPerMillion:      info.OutputPerMillion,
+		CachedInputPerMillion: info.CachedInputPerMillion,
+		Tiers:                 info.Tiers,
+	}
+	return ModelPricing{ModelID: modelID, Rates: []Rate{rate}}
+}
+
 // Tier represents pricing for a specific context-length range.
 // Some providers (e.g. Google Gemini Pro) charge different rates based on
 // the total input context size. All prices are in microcents per million tokens.

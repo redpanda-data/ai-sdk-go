@@ -17,22 +17,14 @@ package anthropic
 import "github.com/redpanda-data/ai-sdk-go/pricing"
 
 // DefaultPricing returns pricing for all supported Anthropic Claude models.
-// Prices are in microcents per million tokens.
+// Pricing is derived from model definitions in supportedModels to ensure
+// every model always has pricing defined.
 //
 // Source: https://docs.anthropic.com/en/docs/about-claude/pricing (as of 2026-04)
 func DefaultPricing() []pricing.ModelPricing {
-	return []pricing.ModelPricing{
-		// ── Claude 4.6 ─────────────────────────────────────────
-		//                                                  input          output         cached
-		pricing.FlatModel(ModelClaudeSonnet46, 300_000_000, 1_500_000_000, 30_000_000),
-		pricing.FlatModel(ModelClaudeOpus46, 500_000_000, 2_500_000_000, 50_000_000),
-
-		// ── Claude 4.5 ─────────────────────────────────────────
-		pricing.FlatModel(ModelClaudeSonnet45, 300_000_000, 1_500_000_000, 30_000_000),
-		pricing.FlatModel(ModelClaudeOpus45, 500_000_000, 2_500_000_000, 50_000_000),
-		pricing.FlatModel(ModelClaudeHaiku45, 100_000_000, 500_000_000, 10_000_000),
-
-		// ── Claude 4.1 ─────────────────────────────────────────
-		pricing.FlatModel(ModelClaudeOpus41, 1_500_000_000, 7_500_000_000, 150_000_000),
+	models := make([]pricing.ModelPricing, 0, len(supportedModels))
+	for id, def := range supportedModels {
+		models = append(models, def.Pricing.ToModelPricing(id))
 	}
+	return models
 }
