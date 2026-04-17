@@ -7,18 +7,24 @@ import (
 )
 
 func TestAllModelsHavePricing(t *testing.T) {
+	t.Parallel()
+
 	for id, def := range supportedModels {
 		t.Run(id, func(t *testing.T) {
-			assert.Greater(t, def.Pricing.InputPerMillion, int64(0),
+			t.Parallel()
+
+			assert.Positive(t, def.Pricing.InputPerMillion,
 				"model %s missing input pricing — add Pricing to its ModelDefinition", id)
-			assert.Greater(t, def.Pricing.OutputPerMillion, int64(0),
+			assert.Positive(t, def.Pricing.OutputPerMillion,
 				"model %s missing output pricing — add Pricing to its ModelDefinition", id)
 		})
 	}
 }
 
 func TestDefaultPricingMatchesModels(t *testing.T) {
+	t.Parallel()
+
 	pricingList := DefaultPricing()
-	assert.Equal(t, len(supportedModels), len(pricingList),
+	assert.Len(t, pricingList, len(supportedModels),
 		"DefaultPricing should return exactly one entry per supported model")
 }

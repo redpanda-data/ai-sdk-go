@@ -23,11 +23,12 @@ import "github.com/redpanda-data/ai-sdk-go/pricing"
 // Bedrock prices are for on-demand inference in us-east-1. Regional endpoints
 // may have a ~10% premium; this catalog uses global endpoint pricing.
 //
-// Source: https://aws.amazon.com/bedrock/pricing/ (as of 2026-04)
+// Source: https://aws.amazon.com/bedrock/pricing/ (as of 2026-04).
 func DefaultPricing() []pricing.ModelPricing {
 	models := make([]pricing.ModelPricing, 0, len(supportedModels))
 	for id, def := range supportedModels {
 		models = append(models, def.Pricing.ToModelPricing(id))
 	}
+
 	return models
 }

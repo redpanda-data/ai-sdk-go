@@ -20,11 +20,12 @@ import "github.com/redpanda-data/ai-sdk-go/pricing"
 // Pricing is derived from model definitions in supportedModels to ensure
 // every model always has pricing defined.
 //
-// Source: https://docs.anthropic.com/en/docs/about-claude/pricing (as of 2026-04)
+// Source: https://docs.anthropic.com/en/docs/about-claude/pricing (as of 2026-04).
 func DefaultPricing() []pricing.ModelPricing {
 	models := make([]pricing.ModelPricing, 0, len(supportedModels))
 	for id, def := range supportedModels {
 		models = append(models, def.Pricing.ToModelPricing(id))
 	}
+
 	return models
 }

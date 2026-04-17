@@ -23,6 +23,8 @@ import (
 )
 
 func TestModelPricing_RateAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)
 	oldDate := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 
@@ -35,36 +37,50 @@ func TestModelPricing_RateAt(t *testing.T) {
 	}
 
 	t.Run("current rate", func(t *testing.T) {
+		t.Parallel()
+
 		rate := mp.RateAt(now.Add(24 * time.Hour))
 		require.NotNil(t, rate)
 		assert.Equal(t, int64(250_000_000), rate.InputPerMillion)
 	})
 
 	t.Run("historical rate", func(t *testing.T) {
+		t.Parallel()
+
 		rate := mp.RateAt(oldDate.Add(24 * time.Hour))
 		require.NotNil(t, rate)
 		assert.Equal(t, int64(500_000_000), rate.InputPerMillion)
 	})
 
 	t.Run("exact boundary", func(t *testing.T) {
+		t.Parallel()
+
 		rate := mp.RateAt(now)
 		require.NotNil(t, rate)
 		assert.Equal(t, int64(250_000_000), rate.InputPerMillion)
 	})
 
 	t.Run("before all rates returns nil", func(t *testing.T) {
+		t.Parallel()
+
 		rate := mp.RateAt(oldDate.Add(-1 * time.Second))
 		assert.Nil(t, rate)
 	})
 
 	t.Run("empty rates returns nil", func(t *testing.T) {
+		t.Parallel()
+
 		empty := ModelPricing{ModelID: "empty"}
 		assert.Nil(t, empty.RateAt(now))
 	})
 }
 
 func TestModelPricing_CurrentRate(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns first rate", func(t *testing.T) {
+		t.Parallel()
+
 		mp := ModelPricing{
 			ModelID: "gpt-4o",
 			Rates: []Rate{
@@ -78,12 +94,16 @@ func TestModelPricing_CurrentRate(t *testing.T) {
 	})
 
 	t.Run("empty rates returns nil", func(t *testing.T) {
+		t.Parallel()
+
 		mp := ModelPricing{ModelID: "empty"}
 		assert.Nil(t, mp.CurrentRate())
 	})
 }
 
 func TestCatalog_Lookup(t *testing.T) {
+	t.Parallel()
+
 	catalog := NewCatalog([]ModelPricing{
 		{
 			ModelID: "gpt-4o",
@@ -94,6 +114,8 @@ func TestCatalog_Lookup(t *testing.T) {
 	})
 
 	t.Run("found", func(t *testing.T) {
+		t.Parallel()
+
 		mp, ok := catalog.Lookup("gpt-4o")
 		assert.True(t, ok)
 		require.NotNil(t, mp)
@@ -101,6 +123,8 @@ func TestCatalog_Lookup(t *testing.T) {
 	})
 
 	t.Run("not found", func(t *testing.T) {
+		t.Parallel()
+
 		mp, ok := catalog.Lookup("nonexistent")
 		assert.False(t, ok)
 		assert.Nil(t, mp)
@@ -108,6 +132,8 @@ func TestCatalog_Lookup(t *testing.T) {
 }
 
 func TestCalculateCost(t *testing.T) {
+	t.Parallel()
+
 	rate := &Rate{
 		InputPerMillion:       250_000_000,   // $2.50 per million
 		OutputPerMillion:      1_000_000_000, // $10.00 per million
@@ -115,6 +141,8 @@ func TestCalculateCost(t *testing.T) {
 	}
 
 	t.Run("basic calculation", func(t *testing.T) {
+		t.Parallel()
+
 		cost := CalculateCost(rate, 1000, 500, 200)
 
 		// input: 1000 * 250_000_000 / 1_000_000 = 250_000
@@ -128,12 +156,16 @@ func TestCalculateCost(t *testing.T) {
 	})
 
 	t.Run("zero tokens", func(t *testing.T) {
+		t.Parallel()
+
 		cost := CalculateCost(rate, 0, 0, 0)
 		assert.Equal(t, int64(0), cost.TotalCostMicrocents)
 	})
 }
 
 func TestCalculateCost_Tiered(t *testing.T) {
+	t.Parallel()
+
 	rate := &Rate{
 		InputPerMillion:       125_000_000,   // $1.25 per M (default = low tier)
 		OutputPerMillion:      1_000_000_000, // $10.00 per M
@@ -145,24 +177,32 @@ func TestCalculateCost_Tiered(t *testing.T) {
 	}
 
 	t.Run("below threshold uses low tier", func(t *testing.T) {
+		t.Parallel()
+
 		cost := CalculateCost(rate, 100_000, 1000, 0)
 		assert.Equal(t, int64(12_500_000), cost.InputCostMicrocents)
 		assert.Equal(t, int64(1_000_000), cost.OutputCostMicrocents)
 	})
 
 	t.Run("at threshold uses low tier", func(t *testing.T) {
+		t.Parallel()
+
 		cost := CalculateCost(rate, 200_000, 1000, 0)
 		assert.Equal(t, int64(25_000_000), cost.InputCostMicrocents)
 		assert.Equal(t, int64(1_000_000), cost.OutputCostMicrocents)
 	})
 
 	t.Run("above threshold uses high tier", func(t *testing.T) {
+		t.Parallel()
+
 		cost := CalculateCost(rate, 200_001, 1000, 0)
 		assert.Equal(t, int64(50_000_250), cost.InputCostMicrocents)
 		assert.Equal(t, int64(1_500_000), cost.OutputCostMicrocents)
 	})
 
 	t.Run("cached tokens count toward context size", func(t *testing.T) {
+		t.Parallel()
+
 		// 150k input + 60k cached = 210k context → high tier
 		cost := CalculateCost(rate, 150_000, 1000, 60_000)
 		assert.Equal(t, int64(37_500_000), cost.InputCostMicrocents)
@@ -170,6 +210,8 @@ func TestCalculateCost_Tiered(t *testing.T) {
 	})
 
 	t.Run("default rate fields match low tier", func(t *testing.T) {
+		t.Parallel()
+
 		assert.Equal(t, int64(125_000_000), rate.InputPerMillion)
 		assert.Equal(t, int64(1_000_000_000), rate.OutputPerMillion)
 		assert.Equal(t, int64(31_250_000), rate.CachedInputPerMillion)

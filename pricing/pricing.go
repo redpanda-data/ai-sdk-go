@@ -38,6 +38,7 @@ func (info Info) ToModelPricing(modelID string) ModelPricing {
 		CachedInputPerMillion: info.CachedInputPerMillion,
 		Tiers:                 info.Tiers,
 	}
+
 	return ModelPricing{ModelID: modelID, Rates: []Rate{rate}}
 }
 
@@ -87,6 +88,7 @@ func (mp *ModelPricing) RateAt(t time.Time) *Rate {
 			return &mp.Rates[i]
 		}
 	}
+
 	return nil
 }
 
@@ -95,6 +97,7 @@ func (mp *ModelPricing) CurrentRate() *Rate {
 	if len(mp.Rates) == 0 {
 		return nil
 	}
+
 	return &mp.Rates[0]
 }
 
@@ -127,6 +130,7 @@ func CalculateCost(rate *Rate, inputTokens, outputTokens, cachedTokens int) Cost
 				inputRate = tier.InputPerMillion
 				outputRate = tier.OutputPerMillion
 				cachedRate = tier.CachedInputPerMillion
+
 				break
 			}
 		}
@@ -135,6 +139,7 @@ func CalculateCost(rate *Rate, inputTokens, outputTokens, cachedTokens int) Cost
 	input := int64(inputTokens) * inputRate / 1_000_000
 	output := int64(outputTokens) * outputRate / 1_000_000
 	cached := int64(cachedTokens) * cachedRate / 1_000_000
+
 	return Cost{
 		InputCostMicrocents:  input,
 		OutputCostMicrocents: output,
@@ -154,11 +159,13 @@ func NewCatalog(models []ModelPricing) *Catalog {
 	for i := range models {
 		m[models[i].ModelID] = &models[i]
 	}
+
 	return &Catalog{models: m}
 }
 
 // Lookup returns the ModelPricing for the given model ID.
 func (c *Catalog) Lookup(modelID string) (*ModelPricing, bool) {
 	mp, ok := c.models[modelID]
+
 	return mp, ok
 }
