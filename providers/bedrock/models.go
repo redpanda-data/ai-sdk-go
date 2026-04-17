@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/pricing"
 )
 
 // Model ID constants for Claude models on Bedrock.
@@ -37,6 +38,7 @@ type ModelDefinition struct {
 	Label        string
 	Capabilities llm.ModelCapabilities
 	Constraints  llm.ModelConstraints
+	Pricing      pricing.Info
 }
 
 // inferenceProfileRegion maps an AWS region to the Bedrock inference profile
@@ -101,6 +103,11 @@ var supportedModels = map[string]ModelDefinition{
 			MaxOutputTokens:  128000,
 			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 		},
+		Pricing: pricing.Info{
+			InputPerMillion:       500_000_000,
+			OutputPerMillion:      2_500_000_000,
+			CachedInputPerMillion: 50_000_000,
+		},
 	},
 	ModelClaudeSonnet46: {
 		Name:  ModelClaudeSonnet46,
@@ -118,6 +125,11 @@ var supportedModels = map[string]ModelDefinition{
 			MaxInputTokens:   200000,
 			MaxOutputTokens:  64000,
 			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
+		},
+		Pricing: pricing.Info{
+			InputPerMillion:       300_000_000,
+			OutputPerMillion:      1_500_000_000,
+			CachedInputPerMillion: 30_000_000,
 		},
 	},
 	ModelClaudeSonnet45: {
@@ -137,6 +149,11 @@ var supportedModels = map[string]ModelDefinition{
 			MaxOutputTokens:  64000,
 			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 		},
+		Pricing: pricing.Info{
+			InputPerMillion:       300_000_000,
+			OutputPerMillion:      1_500_000_000,
+			CachedInputPerMillion: 30_000_000,
+		},
 	},
 	ModelClaudeHaiku45: {
 		Name:  ModelClaudeHaiku45,
@@ -154,6 +171,11 @@ var supportedModels = map[string]ModelDefinition{
 			MaxInputTokens:   200000,
 			MaxOutputTokens:  64000,
 			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
+		},
+		Pricing: pricing.Info{
+			InputPerMillion:       100_000_000,
+			OutputPerMillion:      500_000_000,
+			CachedInputPerMillion: 10_000_000,
 		},
 	},
 	ModelClaudeOpus46: {
@@ -173,6 +195,11 @@ var supportedModels = map[string]ModelDefinition{
 			MaxOutputTokens:  128000,
 			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 		},
+		Pricing: pricing.Info{
+			InputPerMillion:       500_000_000,
+			OutputPerMillion:      2_500_000_000,
+			CachedInputPerMillion: 50_000_000,
+		},
 	},
 	ModelClaudeOpus45: {
 		Name:  ModelClaudeOpus45,
@@ -190,6 +217,11 @@ var supportedModels = map[string]ModelDefinition{
 			MaxInputTokens:   200000,
 			MaxOutputTokens:  64000,
 			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
+		},
+		Pricing: pricing.Info{
+			InputPerMillion:       500_000_000,
+			OutputPerMillion:      2_500_000_000,
+			CachedInputPerMillion: 50_000_000,
 		},
 	},
 }

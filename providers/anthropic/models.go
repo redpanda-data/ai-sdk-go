@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/pricing"
 )
 
 // Model ID constants for Anthropic Claude models.
@@ -61,6 +62,7 @@ type ModelDefinition struct {
 	SupportedEfforts []Effort // Which effort values this model accepts
 	SupportedSpeeds  []Speed  // Which speed values this model accepts
 	AdaptiveThinking bool     // Whether model uses adaptive thinking by default
+	Pricing          pricing.Info
 }
 
 // resolveModelFamily returns the model family key for a given model string.
@@ -107,6 +109,11 @@ var supportedModels = map[string]ModelDefinition{
 		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax},
 		SupportedSpeeds:  []Speed{SpeedStandard, SpeedFast},
 		AdaptiveThinking: true,
+		Pricing: pricing.Info{
+			InputPerMillion:       500_000_000,
+			OutputPerMillion:      2_500_000_000,
+			CachedInputPerMillion: 50_000_000,
+		},
 	},
 	ModelClaudeSonnet46: {
 		Name:  ModelClaudeSonnet46,
@@ -130,6 +137,11 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh},
 		AdaptiveThinking: true,
+		Pricing: pricing.Info{
+			InputPerMillion:       300_000_000,
+			OutputPerMillion:      1_500_000_000,
+			CachedInputPerMillion: 30_000_000,
+		},
 	},
 	ModelClaudeSonnet45: {
 		Name:  ModelClaudeSonnet45,
@@ -151,6 +163,11 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens"},
 			MutuallyExclusive: [][]string{},
 		},
+		Pricing: pricing.Info{
+			InputPerMillion:       300_000_000,
+			OutputPerMillion:      1_500_000_000,
+			CachedInputPerMillion: 30_000_000,
+		},
 	},
 	ModelClaudeHaiku45: {
 		Name:  ModelClaudeHaiku45,
@@ -171,6 +188,11 @@ var supportedModels = map[string]ModelDefinition{
 			MaxOutputTokens:   64000,  // 64K output tokens
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens"},
 			MutuallyExclusive: [][]string{},
+		},
+		Pricing: pricing.Info{
+			InputPerMillion:       100_000_000,
+			OutputPerMillion:      500_000_000,
+			CachedInputPerMillion: 10_000_000,
 		},
 	},
 	ModelClaudeOpus46: {
@@ -196,6 +218,11 @@ var supportedModels = map[string]ModelDefinition{
 		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh, EffortMax},
 		SupportedSpeeds:  []Speed{SpeedStandard, SpeedFast},
 		AdaptiveThinking: true,
+		Pricing: pricing.Info{
+			InputPerMillion:       500_000_000,
+			OutputPerMillion:      2_500_000_000,
+			CachedInputPerMillion: 50_000_000,
+		},
 	},
 	ModelClaudeOpus41: {
 		Name:  ModelClaudeOpus41,
@@ -216,6 +243,11 @@ var supportedModels = map[string]ModelDefinition{
 			MaxOutputTokens:   32000,  // 32K output tokens
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens"},
 			MutuallyExclusive: [][]string{},
+		},
+		Pricing: pricing.Info{
+			InputPerMillion:       1_500_000_000,
+			OutputPerMillion:      7_500_000_000,
+			CachedInputPerMillion: 150_000_000,
 		},
 	},
 	ModelClaudeOpus45: {
@@ -239,5 +271,10 @@ var supportedModels = map[string]ModelDefinition{
 			MutuallyExclusive: [][]string{},
 		},
 		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh},
+		Pricing: pricing.Info{
+			InputPerMillion:       500_000_000,
+			OutputPerMillion:      2_500_000_000,
+			CachedInputPerMillion: 50_000_000,
+		},
 	},
 }
