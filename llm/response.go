@@ -66,17 +66,9 @@ type Response struct {
 
 	// InvokedModelID is the actual model that served the request when a
 	// router rewrote it (Bedrock PromptRouter, OpenAI model routing). Empty
-	// when no re-routing occurred.
+	// when no re-routing occurred. Pricing must be computed against the
+	// invoked model, not the requested one.
 	InvokedModelID string `json:"invoked_model_id,omitempty"`
-
-	// LatencyMs is total server-reported latency in milliseconds.
-	// Zero if not returned by the provider.
-	LatencyMs int64 `json:"latency_ms,omitempty"`
-
-	// FirstByteLatencyMs is time-to-first-byte in milliseconds when reported.
-	// Currently surfaced only by Bedrock-Anthropic via
-	// amazon-bedrock-invocationMetrics.
-	FirstByteLatencyMs int64 `json:"first_byte_latency_ms,omitempty"`
 }
 
 // TextContent extracts and combines all text content from this response.

@@ -21,7 +21,7 @@ The current struct has three concrete problems:
 
 2. **Missing dimensions.** Providers already bill on fields the SDK does not surface:
    - Anthropic `cache_creation.ephemeral_5m_input_tokens` vs `ephemeral_1h_input_tokens` (two different write rates).
-   - Anthropic `service_tier` (standard / priority / batch), `speed` (standard / fast), `inference_geo`.
+   - Anthropic `service_tier` (standard / priority / batch — each a distinct price sheet), `speed` (standard / fast — fast costs more), `inference_geo`.
    - Anthropic `server_tool_use.web_search_requests` / `web_fetch_requests` (billed per request).
    - OpenAI `accepted_prediction_tokens` / `rejected_prediction_tokens` (rejected is billed as output but never returned to the caller).
    - OpenAI `prompt_tokens_details.audio_tokens` / `completion_tokens_details.audio_tokens` (different rate).
@@ -49,7 +49,11 @@ This makes "billed tokens" a simple integer sum and removes the subset/additive 
 
 ### What lives where
 
-`TokenUsage` contains **only** the additive token-accounting surface. Per-call metadata that describes *how* a request was processed — `ServiceTier`, `RawServiceTier`, `Speed`, `InferenceRegion`, `InvokedModelID`, `LatencyMs`, `FirstByteLatencyMs` — lives on `llm.Response`. These fields are not meaningfully additive across calls, so forcing them through `SumUsage` (first-non-empty-wins, max, etc.) is a type smell.
+`TokenUsage` contains **only** the additive token-accounting surface. Per-call metadata that affects how the request was priced — `ServiceTier`, `RawServiceTier`, `Speed`, `InferenceRegion`, `InvokedModelID` — lives on `llm.Response`. These fields are not meaningfully additive across calls, so forcing them through `SumUsage` (first-non-empty-wins, max, etc.) is a type smell.
+
+Service tier, speed, and region are not cosmetic: every provider we support charges **different per-token rates** depending on tier. OpenAI's `flex` is ≈50% off, `priority` is ≈2×; Anthropic's `batch` is 50% off; Bedrock's `reserved` and Google's `PROVISIONED_THROUGHPUT` bypass per-token billing entirely. Anthropic `speed=fast` costs more than `standard`. `InvokedModelID` matters because Bedrock's PromptRouter can rewrite the model — pricing must be computed against the invoked model, not the requested one.
+
+Pure observability fields (latency, TTFT) are deliberately out of scope for this RFC. They belong in a tracing/metrics layer, not on `Response`.
 
 `MaxInputTokens` is a model-config value, not usage. It has been removed from `TokenUsage`; the canonical source is `modelDefinition.Constraints.MaxInputTokens`.
 
@@ -89,19 +93,17 @@ type TokenUsage struct {
 }
 ```
 
-Per-call metadata on `llm.Response`:
+Per-call metadata on `llm.Response` — each of these can change the per-token rate:
 
 ```go
 type Response struct {
     // ...existing fields...
 
-    ServiceTier        ServiceTier
-    RawServiceTier     string
-    Speed              string
-    InferenceRegion    string
-    InvokedModelID     string
-    LatencyMs          int64
-    FirstByteLatencyMs int64
+    ServiceTier     ServiceTier // default | flex | priority | batch | scale | reserved | provisioned_throughput
+    RawServiceTier  string      // provider-native value when the normalized mapping is lossy
+    Speed           string      // Anthropic: "standard" | "fast" (fast costs more)
+    InferenceRegion string      // Anthropic inference_geo, Bedrock region
+    InvokedModelID  string      // Bedrock PromptRouter: price against this, not the requested model
 }
 ```
 
@@ -134,7 +136,7 @@ PR 1 wires the subset of the shape that can be populated from fields the existin
 | `ServerToolRequests` | — (PR 2: Anthropic web_search/web_fetch, Google grounding) |
 | `GuardrailUnits` | — (PR 2: Bedrock) |
 | `Extra` | Bedrock unknown-TTL audit keys |
-| `Response.ServiceTier` / `RawServiceTier` / `Speed` / `InferenceRegion` / `InvokedModelID` / `LatencyMs` / `FirstByteLatencyMs` | — (PR 2) |
+| `Response.ServiceTier` / `RawServiceTier` / `Speed` / `InferenceRegion` / `InvokedModelID` | — (PR 2) |
 
 Consumers treating a zero field as "reported zero" today will need to verify against the provider's raw response until PR 2 lands, same as with the old `TokenUsage`.
 
@@ -199,4 +201,4 @@ This is a v0 breaking change. The SDK is pre-1.0; consumers who care about stabl
 ## Scope split
 
 - **PR 1 (this):** new shape + `SumUsage` + helpers + extractor updates for fields already extracted today (input/output/cached for every provider; cache-creation 5m/1h + unknown-TTL fallback for Anthropic and Bedrock; thoughts + tool-use for Google). Response gains per-call metadata fields but they are not populated yet. Everything compiles, all unit tests pass.
-- **PR 2 (follow-up):** richer extraction — `Modality*Tokens` (Google, OpenAI audio), `GuardrailUnits` (Bedrock), `RejectedPredictionTokens` (OpenAI), and full population of `Response.ServiceTier` / `RawServiceTier` / `Speed` / `InferenceRegion` / `InvokedModelID` / `LatencyMs` / `FirstByteLatencyMs`. `ServerToolRequests` for Anthropic (web_search, web_fetch), Google (grounding).
+- **PR 2 (follow-up):** richer extraction — `Modality*Tokens` (Google, OpenAI audio), `GuardrailUnits` (Bedrock), `RejectedPredictionTokens` (OpenAI), and full population of `Response.ServiceTier` / `RawServiceTier` / `Speed` / `InferenceRegion` / `InvokedModelID`. `ServerToolRequests` for Anthropic (web_search, web_fetch), Google (grounding).
