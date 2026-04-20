@@ -37,6 +37,7 @@ package pricing
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"sort"
 	"time"
@@ -203,8 +204,10 @@ func computeVersion(m map[string]*Info) string {
 	sort.Strings(keys)
 
 	h := sha256.New()
+
 	for _, k := range keys {
 		info := m[k]
+
 		var cw5m, cw1h int64
 		if info.Anthropic != nil {
 			cw5m = info.Anthropic.CacheWrite5mPerMillion
@@ -218,7 +221,7 @@ func computeVersion(m map[string]*Info) string {
 
 	sum := h.Sum(nil)
 
-	return fmt.Sprintf("%x", sum[:8]) // 16 hex chars — short but collision-resistant for catalogs
+	return hex.EncodeToString(sum[:8]) // 16 hex chars — short but collision-resistant for catalogs
 }
 
 // Lookup returns the pricing Info for the given model ID.
