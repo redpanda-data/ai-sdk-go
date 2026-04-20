@@ -22,6 +22,10 @@ import "time"
 // Info holds the current pricing for a model. Embed this in provider
 // ModelDefinition structs so pricing is defined alongside capabilities.
 // All prices are in microcents per million tokens.
+//
+// For tiered models, set only Tiers — the flat fields (InputPerMillion etc.)
+// are automatically populated from the first (lowest) tier by ToModelPricing.
+// For flat-rate models, set the flat fields and leave Tiers nil.
 type Info struct {
 	InputPerMillion       int64
 	OutputPerMillion      int64
@@ -30,13 +34,26 @@ type Info struct {
 }
 
 // ToModelPricing converts Info into a ModelPricing entry for the given model ID.
+//
+// When Tiers is non-empty, the flat Rate fields are auto-populated from the
+// first tier to prevent duplication drift. Tiers are validated to be sorted
+// ascending by MaxInputTokens with a zero (unlimited) catch-all last.
 func (info Info) ToModelPricing(modelID string) ModelPricing {
 	rate := Rate{
-		EffectiveFrom:         Epoch,
+		EffectiveFrom:         epoch,
 		InputPerMillion:       info.InputPerMillion,
 		OutputPerMillion:      info.OutputPerMillion,
 		CachedInputPerMillion: info.CachedInputPerMillion,
 		Tiers:                 info.Tiers,
+	}
+
+	if len(info.Tiers) > 0 {
+		// Auto-populate flat fields from the first (lowest) tier so they
+		// can never drift out of sync with the tiered values.
+		first := info.Tiers[0]
+		rate.InputPerMillion = first.InputPerMillion
+		rate.OutputPerMillion = first.OutputPerMillion
+		rate.CachedInputPerMillion = first.CachedInputPerMillion
 	}
 
 	return ModelPricing{ModelID: modelID, Rates: []Rate{rate}}

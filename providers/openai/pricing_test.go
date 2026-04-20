@@ -23,6 +23,14 @@ import (
 func TestAllModelsHavePricing(t *testing.T) {
 	t.Parallel()
 
+	// Models that predate prompt caching or don't support it.
+	noCacheModels := map[string]bool{
+		ModelGPT4Turbo:  true, // Legacy model, no prompt caching.
+		ModelGPT35Turbo: true, // Legacy model, no prompt caching.
+		ModelGPT5_2Pro:  true, // Pro tier, no caching listed.
+		ModelO3Pro:      true, // Pro tier, no caching listed.
+	}
+
 	for id, def := range supportedModels {
 		t.Run(id, func(t *testing.T) {
 			t.Parallel()
@@ -31,6 +39,11 @@ func TestAllModelsHavePricing(t *testing.T) {
 				"model %s missing input pricing — add Pricing to its ModelDefinition", id)
 			assert.Positive(t, def.Pricing.OutputPerMillion,
 				"model %s missing output pricing — add Pricing to its ModelDefinition", id)
+
+			if !noCacheModels[id] {
+				assert.Positive(t, def.Pricing.CachedInputPerMillion,
+					"model %s missing cached pricing — add CachedInputPerMillion or add to noCacheModels if intentional", id)
+			}
 		})
 	}
 }

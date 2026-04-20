@@ -27,10 +27,24 @@ func TestAllModelsHavePricing(t *testing.T) {
 		t.Run(id, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Positive(t, def.Pricing.InputPerMillion,
-				"model %s missing input pricing — add Pricing to its ModelDefinition", id)
-			assert.Positive(t, def.Pricing.OutputPerMillion,
-				"model %s missing output pricing — add Pricing to its ModelDefinition", id)
+			p := def.Pricing
+			if len(p.Tiers) > 0 {
+				// Tiered models: flat fields are zero in the struct definition
+				// (auto-populated by ToModelPricing). Validate first tier instead.
+				assert.Positive(t, p.Tiers[0].InputPerMillion,
+					"model %s missing input pricing in first tier", id)
+				assert.Positive(t, p.Tiers[0].OutputPerMillion,
+					"model %s missing output pricing in first tier", id)
+				assert.Positive(t, p.Tiers[0].CachedInputPerMillion,
+					"model %s missing cached pricing in first tier", id)
+			} else {
+				assert.Positive(t, p.InputPerMillion,
+					"model %s missing input pricing — add Pricing to its ModelDefinition", id)
+				assert.Positive(t, p.OutputPerMillion,
+					"model %s missing output pricing — add Pricing to its ModelDefinition", id)
+				assert.Positive(t, p.CachedInputPerMillion,
+					"model %s missing cached pricing — add CachedInputPerMillion to its ModelDefinition", id)
+			}
 		})
 	}
 }

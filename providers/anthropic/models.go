@@ -66,16 +66,24 @@ type ModelDefinition struct {
 }
 
 // resolveModelFamily returns the model family key for a given model string.
-// If the model string has a known family as a prefix, that family is returned.
-// Otherwise the original string is returned unchanged.
-// e.g., "claude-sonnet-4-5-20250929" -> "claude-sonnet-4-5"
+// If the model string has a known family as a prefix, the longest match is
+// returned (to handle families that share a common prefix, e.g.
+// "claude-opus-4" vs "claude-opus-4-5"). Otherwise the original string is
+// returned unchanged.
 //
+//	"claude-sonnet-4-5-20250929" -> "claude-sonnet-4-5"
 //	"claude-sonnet-4-5"          -> "claude-sonnet-4-5" (unchanged)
 func resolveModelFamily(model string) string {
+	best := ""
+
 	for family := range supportedModels {
-		if strings.HasPrefix(model, family) {
-			return family
+		if strings.HasPrefix(model, family) && len(family) > len(best) {
+			best = family
 		}
+	}
+
+	if best != "" {
+		return best
 	}
 
 	return model

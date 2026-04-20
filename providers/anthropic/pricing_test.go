@@ -17,6 +17,8 @@ func TestAllModelsHavePricing(t *testing.T) {
 				"model %s missing input pricing — add Pricing to its ModelDefinition", id)
 			assert.Positive(t, def.Pricing.OutputPerMillion,
 				"model %s missing output pricing — add Pricing to its ModelDefinition", id)
+			assert.Positive(t, def.Pricing.CachedInputPerMillion,
+				"model %s missing cached pricing — add CachedInputPerMillion to its ModelDefinition", id)
 		})
 	}
 }

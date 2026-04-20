@@ -16,42 +16,6 @@ package pricing
 
 import "time"
 
-// Epoch is the default effective date for all initial pricing entries.
-var Epoch = time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
-
-// FlatModel creates a ModelPricing with flat (non-tiered) pricing.
-// All prices are in microcents per million tokens.
-func FlatModel(id string, input, output, cached int64) ModelPricing {
-	return ModelPricing{
-		ModelID: id,
-		Rates: []Rate{
-			{
-				EffectiveFrom:         Epoch,
-				InputPerMillion:       input,
-				OutputPerMillion:      output,
-				CachedInputPerMillion: cached,
-			},
-		},
-	}
-}
-
-// TieredModel creates a ModelPricing with two context-length tiers.
-// The default tier (accessible via Rate.InputPerMillion etc.) is always the
-// lower tier, so callers that don't care about tiers get the common-case price.
-func TieredModel(id string, threshold int64, lowInput, lowOutput, lowCached, highInput, highOutput, highCached int64) ModelPricing {
-	return ModelPricing{
-		ModelID: id,
-		Rates: []Rate{
-			{
-				EffectiveFrom:         Epoch,
-				InputPerMillion:       lowInput,
-				OutputPerMillion:      lowOutput,
-				CachedInputPerMillion: lowCached,
-				Tiers: []Tier{
-					{MaxInputTokens: threshold, InputPerMillion: lowInput, OutputPerMillion: lowOutput, CachedInputPerMillion: lowCached},
-					{MaxInputTokens: 0, InputPerMillion: highInput, OutputPerMillion: highOutput, CachedInputPerMillion: highCached},
-				},
-			},
-		},
-	}
-}
+// epoch is the default effective date for all initial pricing entries.
+// Unexported to prevent accidental mutation; used by Info.ToModelPricing.
+var epoch = time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)

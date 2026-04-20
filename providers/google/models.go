@@ -63,7 +63,6 @@ var supportedModels = map[string]ModelDefinition{
 			MutuallyExclusive: [][]string{},
 		},
 		Pricing: pricing.Info{
-			InputPerMillion: 200_000_000, OutputPerMillion: 1_200_000_000, CachedInputPerMillion: 20_000_000,
 			Tiers: []pricing.Tier{
 				{MaxInputTokens: 200_000, InputPerMillion: 200_000_000, OutputPerMillion: 1_200_000_000, CachedInputPerMillion: 20_000_000},
 				{MaxInputTokens: 0, InputPerMillion: 400_000_000, OutputPerMillion: 1_800_000_000, CachedInputPerMillion: 40_000_000},
@@ -91,7 +90,6 @@ var supportedModels = map[string]ModelDefinition{
 			MutuallyExclusive: [][]string{},
 		},
 		Pricing: pricing.Info{
-			InputPerMillion: 200_000_000, OutputPerMillion: 1_200_000_000, CachedInputPerMillion: 20_000_000,
 			Tiers: []pricing.Tier{
 				{MaxInputTokens: 200_000, InputPerMillion: 200_000_000, OutputPerMillion: 1_200_000_000, CachedInputPerMillion: 20_000_000},
 				{MaxInputTokens: 0, InputPerMillion: 400_000_000, OutputPerMillion: 1_800_000_000, CachedInputPerMillion: 40_000_000},
@@ -143,7 +141,6 @@ var supportedModels = map[string]ModelDefinition{
 			MutuallyExclusive: [][]string{},
 		},
 		Pricing: pricing.Info{
-			InputPerMillion: 125_000_000, OutputPerMillion: 1_000_000_000, CachedInputPerMillion: 12_500_000,
 			Tiers: []pricing.Tier{
 				{MaxInputTokens: 200_000, InputPerMillion: 125_000_000, OutputPerMillion: 1_000_000_000, CachedInputPerMillion: 12_500_000},
 				{MaxInputTokens: 0, InputPerMillion: 250_000_000, OutputPerMillion: 1_500_000_000, CachedInputPerMillion: 25_000_000},

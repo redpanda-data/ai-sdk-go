@@ -217,3 +217,42 @@ func TestCalculateCost_Tiered(t *testing.T) {
 		assert.Equal(t, int64(31_250_000), rate.CachedInputPerMillion)
 	})
 }
+
+func TestInfo_ToModelPricing_TieredAutoPopulatesFlat(t *testing.T) {
+	t.Parallel()
+
+	info := Info{
+		// Flat fields intentionally left at zero — ToModelPricing should
+		// auto-populate them from the first tier.
+		Tiers: []Tier{
+			{MaxInputTokens: 200_000, InputPerMillion: 125_000_000, OutputPerMillion: 1_000_000_000, CachedInputPerMillion: 12_500_000},
+			{MaxInputTokens: 0, InputPerMillion: 250_000_000, OutputPerMillion: 1_500_000_000, CachedInputPerMillion: 25_000_000},
+		},
+	}
+
+	mp := info.ToModelPricing("test-model")
+	rate := mp.CurrentRate()
+	require.NotNil(t, rate)
+
+	// Flat fields should be auto-populated from first tier.
+	assert.Equal(t, int64(125_000_000), rate.InputPerMillion)
+	assert.Equal(t, int64(1_000_000_000), rate.OutputPerMillion)
+	assert.Equal(t, int64(12_500_000), rate.CachedInputPerMillion)
+}
+
+func TestInfo_ToModelPricing_FlatNoTiers(t *testing.T) {
+	t.Parallel()
+
+	info := Info{
+		InputPerMillion:       250_000_000,
+		OutputPerMillion:      1_000_000_000,
+		CachedInputPerMillion: 25_000_000,
+	}
+
+	mp := info.ToModelPricing("test-flat")
+	rate := mp.CurrentRate()
+	require.NotNil(t, rate)
+
+	assert.Empty(t, rate.Tiers)
+	assert.Equal(t, int64(250_000_000), rate.InputPerMillion)
+}
