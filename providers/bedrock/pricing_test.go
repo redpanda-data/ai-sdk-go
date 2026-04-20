@@ -1,0 +1,53 @@
+// Copyright 2026 Redpanda Data, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package bedrock
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestAllModelsHavePricing(t *testing.T) {
+	t.Parallel()
+
+	for id, def := range supportedModels {
+		t.Run(id, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Positive(t, def.Pricing.InputPerMillion,
+				"model %s missing input pricing — add Pricing to its ModelDefinition", id)
+			assert.Positive(t, def.Pricing.OutputPerMillion,
+				"model %s missing output pricing — add Pricing to its ModelDefinition", id)
+			assert.Positive(t, def.Pricing.CachedInputPerMillion,
+				"model %s missing cached pricing — add CachedInputPerMillion to its ModelDefinition", id)
+			require.NotNil(t, def.Pricing.Anthropic,
+				"model %s missing Anthropic pricing — add Anthropic sub-struct to its ModelDefinition", id)
+			assert.Positive(t, def.Pricing.Anthropic.CacheWrite5mPerMillion,
+				"model %s missing 5m cache write pricing", id)
+			assert.Positive(t, def.Pricing.Anthropic.CacheWrite1hPerMillion,
+				"model %s missing 1h cache write pricing", id)
+		})
+	}
+}
+
+func TestModelPricingMatchesModels(t *testing.T) {
+	t.Parallel()
+
+	pricingMap := ModelPricing()
+	assert.Len(t, pricingMap, len(supportedModels),
+		"ModelPricing should return exactly one entry per supported model")
+}
