@@ -65,7 +65,7 @@ func TestOpenAICompatCachedTokens_Integration(t *testing.T) {
 	require.NotNil(t, response1.Usage)
 
 	t.Logf("Request 1 - InputTokens: %d, OutputTokens: %d, CachedTokens: %d",
-		response1.Usage.InputTokens, response1.Usage.OutputTokens, response1.Usage.CachedTokens)
+		response1.Usage.InputTokens, response1.Usage.OutputTokens, response1.Usage.CachedInputTokens)
 
 	// Continue the conversation
 	messages = append(messages, llm.Message{
@@ -85,7 +85,7 @@ func TestOpenAICompatCachedTokens_Integration(t *testing.T) {
 	require.NotNil(t, response2.Usage)
 
 	t.Logf("Request 2 - InputTokens: %d, OutputTokens: %d, CachedTokens: %d",
-		response2.Usage.InputTokens, response2.Usage.OutputTokens, response2.Usage.CachedTokens)
+		response2.Usage.InputTokens, response2.Usage.OutputTokens, response2.Usage.CachedInputTokens)
 
 	// Continue further
 	messages = append(messages, llm.Message{
@@ -105,7 +105,7 @@ func TestOpenAICompatCachedTokens_Integration(t *testing.T) {
 	require.NotNil(t, response3.Usage)
 
 	t.Logf("Request 3 - InputTokens: %d, OutputTokens: %d, CachedTokens: %d",
-		response3.Usage.InputTokens, response3.Usage.OutputTokens, response3.Usage.CachedTokens)
+		response3.Usage.InputTokens, response3.Usage.OutputTokens, response3.Usage.CachedInputTokens)
 
 	// Two more requests to ensure we trigger caching
 	messages = append(messages, llm.Message{
@@ -125,7 +125,7 @@ func TestOpenAICompatCachedTokens_Integration(t *testing.T) {
 	require.NotNil(t, response4.Usage)
 
 	t.Logf("Request 4 - InputTokens: %d, OutputTokens: %d, CachedTokens: %d",
-		response4.Usage.InputTokens, response4.Usage.OutputTokens, response4.Usage.CachedTokens)
+		response4.Usage.InputTokens, response4.Usage.OutputTokens, response4.Usage.CachedInputTokens)
 
 	messages = append(messages, llm.Message{
 		Role:    llm.RoleAssistant,
@@ -144,18 +144,18 @@ func TestOpenAICompatCachedTokens_Integration(t *testing.T) {
 	require.NotNil(t, response5.Usage)
 
 	t.Logf("Request 5 - InputTokens: %d, OutputTokens: %d, CachedTokens: %d",
-		response5.Usage.InputTokens, response5.Usage.OutputTokens, response5.Usage.CachedTokens)
+		response5.Usage.InputTokens, response5.Usage.OutputTokens, response5.Usage.CachedInputTokens)
 
 	// Verify all responses have the CachedTokens field populated
-	assert.GreaterOrEqual(t, response1.Usage.CachedTokens, 0)
-	assert.GreaterOrEqual(t, response2.Usage.CachedTokens, 0)
-	assert.GreaterOrEqual(t, response3.Usage.CachedTokens, 0)
-	assert.GreaterOrEqual(t, response4.Usage.CachedTokens, 0)
-	assert.GreaterOrEqual(t, response5.Usage.CachedTokens, 0)
+	assert.GreaterOrEqual(t, response1.Usage.CachedInputTokens, 0)
+	assert.GreaterOrEqual(t, response2.Usage.CachedInputTokens, 0)
+	assert.GreaterOrEqual(t, response3.Usage.CachedInputTokens, 0)
+	assert.GreaterOrEqual(t, response4.Usage.CachedInputTokens, 0)
+	assert.GreaterOrEqual(t, response5.Usage.CachedInputTokens, 0)
 
 	// Check if any requests show cached tokens
-	totalCached := response2.Usage.CachedTokens + response3.Usage.CachedTokens +
-		response4.Usage.CachedTokens + response5.Usage.CachedTokens
+	totalCached := response2.Usage.CachedInputTokens + response3.Usage.CachedInputTokens +
+		response4.Usage.CachedInputTokens + response5.Usage.CachedInputTokens
 
 	// OpenAI-compatible should show caching when using OpenAI backend
 	require.Positive(t, totalCached, "Expected cached tokens with OpenAI-compatible automatic caching")
@@ -199,7 +199,7 @@ func TestDeepSeekCachedTokens_Integration(t *testing.T) {
 	require.NotNil(t, response1.Usage)
 
 	t.Logf("Request 1 - InputTokens: %d, OutputTokens: %d, CachedTokens: %d",
-		response1.Usage.InputTokens, response1.Usage.OutputTokens, response1.Usage.CachedTokens)
+		response1.Usage.InputTokens, response1.Usage.OutputTokens, response1.Usage.CachedInputTokens)
 
 	// Continue the conversation
 	messages = append(messages, llm.Message{
@@ -219,13 +219,13 @@ func TestDeepSeekCachedTokens_Integration(t *testing.T) {
 	require.NotNil(t, response2.Usage)
 
 	t.Logf("Request 2 - InputTokens: %d, OutputTokens: %d, CachedTokens: %d",
-		response2.Usage.InputTokens, response2.Usage.OutputTokens, response2.Usage.CachedTokens)
+		response2.Usage.InputTokens, response2.Usage.OutputTokens, response2.Usage.CachedInputTokens)
 
 	// Verify CachedTokens field exists (may be 0 depending on DeepSeek's caching policy)
-	assert.GreaterOrEqual(t, response1.Usage.CachedTokens, 0)
-	assert.GreaterOrEqual(t, response2.Usage.CachedTokens, 0)
+	assert.GreaterOrEqual(t, response1.Usage.CachedInputTokens, 0)
+	assert.GreaterOrEqual(t, response2.Usage.CachedInputTokens, 0)
 
-	totalCached := response1.Usage.CachedTokens + response2.Usage.CachedTokens
+	totalCached := response1.Usage.CachedInputTokens + response2.Usage.CachedInputTokens
 
 	// DeepSeek should show caching on subsequent requests
 	require.Positive(t, totalCached, "Expected cached tokens with DeepSeek caching")

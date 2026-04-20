@@ -62,7 +62,7 @@ func TestGeminiCachedTokens_Integration(t *testing.T) {
 	require.NotNil(t, response1.Usage)
 
 	t.Logf("Request 1 - InputTokens: %d, OutputTokens: %d, CachedTokens: %d",
-		response1.Usage.InputTokens, response1.Usage.OutputTokens, response1.Usage.CachedTokens)
+		response1.Usage.InputTokens, response1.Usage.OutputTokens, response1.Usage.CachedInputTokens)
 
 	// Continue the conversation
 	messages = append(messages, llm.Message{
@@ -82,7 +82,7 @@ func TestGeminiCachedTokens_Integration(t *testing.T) {
 	require.NotNil(t, response2.Usage)
 
 	t.Logf("Request 2 - InputTokens: %d, OutputTokens: %d, CachedTokens: %d",
-		response2.Usage.InputTokens, response2.Usage.OutputTokens, response2.Usage.CachedTokens)
+		response2.Usage.InputTokens, response2.Usage.OutputTokens, response2.Usage.CachedInputTokens)
 
 	// Continue further
 	messages = append(messages, llm.Message{
@@ -102,7 +102,7 @@ func TestGeminiCachedTokens_Integration(t *testing.T) {
 	require.NotNil(t, response3.Usage)
 
 	t.Logf("Request 3 - InputTokens: %d, OutputTokens: %d, CachedTokens: %d",
-		response3.Usage.InputTokens, response3.Usage.OutputTokens, response3.Usage.CachedTokens)
+		response3.Usage.InputTokens, response3.Usage.OutputTokens, response3.Usage.CachedInputTokens)
 
 	// Continue further to give cache more time to warm up
 	messages = append(messages, llm.Message{
@@ -122,7 +122,7 @@ func TestGeminiCachedTokens_Integration(t *testing.T) {
 	require.NotNil(t, response4.Usage)
 
 	t.Logf("Request 4 - InputTokens: %d, OutputTokens: %d, CachedTokens: %d",
-		response4.Usage.InputTokens, response4.Usage.OutputTokens, response4.Usage.CachedTokens)
+		response4.Usage.InputTokens, response4.Usage.OutputTokens, response4.Usage.CachedInputTokens)
 
 	// One more request
 	messages = append(messages, llm.Message{
@@ -142,7 +142,7 @@ func TestGeminiCachedTokens_Integration(t *testing.T) {
 	require.NotNil(t, response5.Usage)
 
 	t.Logf("Request 5 - InputTokens: %d, OutputTokens: %d, CachedTokens: %d",
-		response5.Usage.InputTokens, response5.Usage.OutputTokens, response5.Usage.CachedTokens)
+		response5.Usage.InputTokens, response5.Usage.OutputTokens, response5.Usage.CachedInputTokens)
 
 	// Log cache statistics. Google's implicit caching is opportunistic — cache hits
 	// are not guaranteed by the API, so we don't assert on them. This test verifies
@@ -152,11 +152,11 @@ func TestGeminiCachedTokens_Integration(t *testing.T) {
 	totalCached := 0
 
 	for i, resp := range responses {
-		assert.GreaterOrEqual(t, resp.Usage.CachedTokens, 0, "CachedTokens should be non-negative")
+		assert.GreaterOrEqual(t, resp.Usage.CachedInputTokens, 0, "CachedTokens should be non-negative")
 
-		totalCached += resp.Usage.CachedTokens
-		if resp.Usage.CachedTokens > 0 {
-			t.Logf("Cache hit on request %d with %d cached tokens", i+1, resp.Usage.CachedTokens)
+		totalCached += resp.Usage.CachedInputTokens
+		if resp.Usage.CachedInputTokens > 0 {
+			t.Logf("Cache hit on request %d with %d cached tokens", i+1, resp.Usage.CachedInputTokens)
 		}
 	}
 

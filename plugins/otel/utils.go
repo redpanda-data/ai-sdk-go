@@ -89,8 +89,8 @@ func setUsageAttributes(span trace.Span, usage *llm.TokenUsage) {
 		genAIUsageInputTokens(usage.InputTokens),
 		genAIUsageOutputTokens(usage.OutputTokens),
 	}
-	if usage.CachedTokens > 0 {
-		attrs = append(attrs, genAIUsageCacheReadInputTokens(usage.CachedTokens))
+	if usage.CachedInputTokens > 0 {
+		attrs = append(attrs, genAIUsageCacheReadInputTokens(usage.CachedInputTokens))
 	}
 
 	span.SetAttributes(attrs...)

@@ -1203,7 +1203,7 @@ func TestTracingInterceptor_CacheReadTokens_OnModelSpan(t *testing.T) {
 					Usage: &llm.TokenUsage{
 						InputTokens:  100,
 						OutputTokens: 50,
-						CachedTokens: 75,
+						CachedInputTokens: 75,
 					},
 					ID: "resp-cache",
 				}, nil
@@ -1290,7 +1290,7 @@ func TestTracingInterceptor_CacheReadTokens_OnInvocationSpan(t *testing.T) {
 		agent.AddUsage(inv, &llm.TokenUsage{
 			InputTokens:  100,
 			OutputTokens: 50,
-			CachedTokens: 30,
+			CachedInputTokens: 30,
 		})
 
 		return agent.FinishReasonStop, nil

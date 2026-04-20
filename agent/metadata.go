@@ -288,14 +288,12 @@ func (m *InvocationMetadata) incrementTurn() {
 // token consumption for this invocation. It is not exported because
 // interceptors should not modify usage tracking.
 func (m *InvocationMetadata) addUsage(usage *llm.TokenUsage) {
-	m.totalUsage.InputTokens += usage.InputTokens
-	m.totalUsage.OutputTokens += usage.OutputTokens
-	m.totalUsage.ReasoningTokens += usage.ReasoningTokens
-	m.totalUsage.CachedTokens += usage.CachedTokens
-	m.totalUsage.TotalTokens += usage.TotalTokens
-	// MaxInputTokens is a model constraint, not cumulative - use the first non-zero value
-	if m.totalUsage.MaxInputTokens == 0 && usage.MaxInputTokens > 0 {
-		m.totalUsage.MaxInputTokens = usage.MaxInputTokens
+	if usage == nil {
+		return
+	}
+
+	if summed := llm.SumUsage(&m.totalUsage, usage); summed != nil {
+		m.totalUsage = *summed
 	}
 }
 

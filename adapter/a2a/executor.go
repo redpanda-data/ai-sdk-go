@@ -192,12 +192,15 @@ func (e *Executor) processEvents(
 			if ev.Response.Usage != nil {
 				a2amsg.Metadata = map[string]any{
 					"usage": map[string]any{
-						"input_tokens":     ev.Response.Usage.InputTokens,
-						"output_tokens":    ev.Response.Usage.OutputTokens,
-						"total_tokens":     ev.Response.Usage.TotalTokens,
-						"cached_tokens":    ev.Response.Usage.CachedTokens,
-						"reasoning_tokens": ev.Response.Usage.ReasoningTokens,
-						"max_input_tokens": ev.Response.Usage.MaxInputTokens,
+						"input_tokens":          ev.Response.Usage.InputTokens,
+						"output_tokens":         ev.Response.Usage.OutputTokens,
+						"total_billed_tokens":   ev.Response.Usage.TotalBilledTokens(),
+						"cached_input_tokens":   ev.Response.Usage.CachedInputTokens,
+						"cache_creation_5m":     ev.Response.Usage.CacheCreation5mTokens,
+						"cache_creation_1h":     ev.Response.Usage.CacheCreation1hTokens,
+						"tool_use_input_tokens": ev.Response.Usage.ToolUseInputTokens,
+						"reasoning_tokens":      ev.Response.Usage.ReasoningTokens,
+						"max_input_tokens":      ev.Response.Usage.MaxInputTokens,
 					},
 				}
 			}
@@ -276,12 +279,15 @@ func (e *Executor) processEvents(
 
 			if ev.Usage != nil {
 				metadata["usage"] = map[string]any{
-					"input_tokens":     ev.Usage.InputTokens,
-					"output_tokens":    ev.Usage.OutputTokens,
-					"total_tokens":     ev.Usage.TotalTokens,
-					"cached_tokens":    ev.Usage.CachedTokens,
-					"reasoning_tokens": ev.Usage.ReasoningTokens,
-					"max_input_tokens": ev.Usage.MaxInputTokens,
+					"input_tokens":          ev.Usage.InputTokens,
+					"output_tokens":         ev.Usage.OutputTokens,
+					"total_billed_tokens":   ev.Usage.TotalBilledTokens(),
+					"cached_input_tokens":   ev.Usage.CachedInputTokens,
+					"cache_creation_5m":     ev.Usage.CacheCreation5mTokens,
+					"cache_creation_1h":     ev.Usage.CacheCreation1hTokens,
+					"tool_use_input_tokens": ev.Usage.ToolUseInputTokens,
+					"reasoning_tokens":      ev.Usage.ReasoningTokens,
+					"max_input_tokens":      ev.Usage.MaxInputTokens,
 				}
 			}
 

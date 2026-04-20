@@ -477,7 +477,7 @@ func TestFakeModel_TokenCounting(t *testing.T) {
 	// Verify token counts are reasonable
 	assert.Positive(t, resp.Usage.InputTokens)
 	assert.Positive(t, resp.Usage.OutputTokens)
-	assert.Equal(t, resp.Usage.InputTokens+resp.Usage.OutputTokens, resp.Usage.TotalTokens)
+	assert.Equal(t, resp.Usage.InputTokens+resp.Usage.OutputTokens, resp.Usage.TotalBilledTokens())
 }
 
 // TestFakeModel_ToolCallingLoop demonstrates an integration test with agent-like tool calling.

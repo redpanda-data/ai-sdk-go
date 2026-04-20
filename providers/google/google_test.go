@@ -248,8 +248,10 @@ func TestResponseMapper_CachedTokens(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, resp.Usage)
-	assert.Equal(t, 100, resp.Usage.InputTokens)
+	// Google reports CachedContentTokenCount as a subset of PromptTokenCount;
+	// the normalized mapper un-subsets it so the two buckets are disjoint.
+	assert.Equal(t, 20, resp.Usage.InputTokens, "fresh input = 100 prompt - 80 cached")
+	assert.Equal(t, 80, resp.Usage.CachedInputTokens)
 	assert.Equal(t, 10, resp.Usage.OutputTokens)
-	assert.Equal(t, 110, resp.Usage.TotalTokens)
-	assert.Equal(t, 80, resp.Usage.CachedTokens)
+	assert.Equal(t, 110, resp.Usage.TotalBilledTokens(), "should equal Google's total")
 }

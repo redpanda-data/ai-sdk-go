@@ -269,7 +269,7 @@ func TestRun_SimpleSingleTurn(t *testing.T) {
 
 			// Assert: Usage is tracked
 			require.NotNil(t, endEvent.Usage)
-			assert.Positive(t, endEvent.Usage.TotalTokens)
+			assert.Positive(t, endEvent.Usage.TotalBilledTokens())
 		})
 	}
 }
@@ -672,7 +672,7 @@ func TestRun_UsageTracking(t *testing.T) {
 		endEvent := findInvocationEndEvent(events)
 		require.NotNil(t, endEvent)
 		require.NotNil(t, endEvent.Usage)
-		assert.Positive(t, endEvent.Usage.TotalTokens)
+		assert.Positive(t, endEvent.Usage.TotalBilledTokens())
 	})
 
 	t.Run("multi turn", func(t *testing.T) {
@@ -720,7 +720,7 @@ func TestRun_UsageTracking(t *testing.T) {
 		endEvent := findInvocationEndEvent(events)
 		require.NotNil(t, endEvent)
 		require.NotNil(t, endEvent.Usage)
-		assert.Positive(t, endEvent.Usage.TotalTokens)
+		assert.Positive(t, endEvent.Usage.TotalBilledTokens())
 
 		// Should be more than single turn since we had 2 model calls
 		assert.Equal(t, 2, model.CallCount())

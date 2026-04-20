@@ -484,7 +484,6 @@ func TestExecutor_SessionPersistence_Mock(t *testing.T) {
 				Usage: &llm.TokenUsage{
 					InputTokens:  10,
 					OutputTokens: 15,
-					TotalTokens:  25,
 				},
 			}, nil
 		}
@@ -501,7 +500,6 @@ func TestExecutor_SessionPersistence_Mock(t *testing.T) {
 						Usage: &llm.TokenUsage{
 							InputTokens:  20,
 							OutputTokens: 8,
-							TotalTokens:  28,
 						},
 					}, nil
 				}
@@ -514,7 +512,6 @@ func TestExecutor_SessionPersistence_Mock(t *testing.T) {
 				Usage: &llm.TokenUsage{
 					InputTokens:  15,
 					OutputTokens: 10,
-					TotalTokens:  25,
 				},
 			}, nil
 		}
@@ -527,7 +524,6 @@ func TestExecutor_SessionPersistence_Mock(t *testing.T) {
 			Usage: &llm.TokenUsage{
 				InputTokens:  5,
 				OutputTokens: 5,
-				TotalTokens:  10,
 			},
 		}, nil
 	})

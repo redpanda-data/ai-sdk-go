@@ -701,7 +701,7 @@ func TestResponseMapper_TextResponse(t *testing.T) {
 	require.NotNil(t, resp.Usage)
 	assert.Equal(t, 10, resp.Usage.InputTokens)
 	assert.Equal(t, 8, resp.Usage.OutputTokens)
-	assert.Equal(t, 18, resp.Usage.TotalTokens)
+	assert.Equal(t, 18, resp.Usage.TotalBilledTokens())
 }
 
 func TestResponseMapper_ToolUseResponse(t *testing.T) {
@@ -799,7 +799,7 @@ func TestResponseMapper_CachedTokens(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, resp.Usage)
-	assert.Equal(t, 80, resp.Usage.CachedTokens)
+	assert.Equal(t, 80, resp.Usage.CachedInputTokens)
 }
 
 // ---------- Models discovery ----------
