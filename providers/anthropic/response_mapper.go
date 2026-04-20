@@ -89,16 +89,21 @@ func (m *ResponseMapper) FromProvider(r *anthropic.BetaMessage) (*llm.Response, 
 		}
 	}
 
-	// Extract usage information
+	// Extract usage information. Anthropic's input_tokens, cache_read_input_tokens,
+	// and cache_creation_input_tokens are disjoint — map them directly onto the
+	// SDK's disjoint buckets.
 	var usage *llm.TokenUsage
-	if r.Usage.InputTokens > 0 || r.Usage.OutputTokens > 0 {
+	if r.Usage.InputTokens > 0 || r.Usage.OutputTokens > 0 ||
+		r.Usage.CacheReadInputTokens > 0 || r.Usage.CacheCreationInputTokens > 0 {
 		usage = &llm.TokenUsage{
-			InputTokens:     int(r.Usage.InputTokens),
-			OutputTokens:    int(r.Usage.OutputTokens),
-			TotalTokens:     int(r.Usage.InputTokens + r.Usage.OutputTokens),
-			CachedTokens:    int(r.Usage.CacheReadInputTokens),
-			ReasoningTokens: 0, // Anthropic doesn't separate reasoning tokens in usage
-			MaxInputTokens:  m.modelDefinition.Constraints.MaxInputTokens,
+			InputTokens:           int(r.Usage.InputTokens),
+			CachedInputTokens:     int(r.Usage.CacheReadInputTokens),
+			CacheCreation5mTokens: int(r.Usage.CacheCreation.Ephemeral5mInputTokens),
+			CacheCreation1hTokens: int(r.Usage.CacheCreation.Ephemeral1hInputTokens),
+			OutputTokens:          int(r.Usage.OutputTokens),
+			// Anthropic thinking/extended-reasoning tokens are billed as regular
+			// output tokens and are not reported separately in usage.
+			MaxInputTokens: m.modelDefinition.Constraints.MaxInputTokens,
 		}
 	}
 

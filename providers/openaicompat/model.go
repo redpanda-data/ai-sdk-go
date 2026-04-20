@@ -110,14 +110,18 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 		for stream.Next() {
 			chunk := stream.Current()
 
-			// Accumulate usage from any chunk that has it
-			// OpenAI sends usage in the last chunk (which has empty choices) when stream_options.include_usage is true
+			// Accumulate usage from any chunk that has it. OpenAI sends usage in
+			// the last chunk (which has empty choices) when
+			// stream_options.include_usage is true. Un-subset cached and
+			// reasoning tokens so the normalized buckets stay disjoint.
 			if chunk.Usage.JSON.TotalTokens.Valid() && chunk.Usage.TotalTokens > 0 {
+				cachedTokens := int(chunk.Usage.PromptTokensDetails.CachedTokens)
+				reasoningTokens := int(chunk.Usage.CompletionTokensDetails.ReasoningTokens)
 				usage = &llm.TokenUsage{
-					InputTokens:     int(chunk.Usage.PromptTokens),
-					OutputTokens:    int(chunk.Usage.CompletionTokens),
-					TotalTokens:     int(chunk.Usage.TotalTokens),
-					ReasoningTokens: int(chunk.Usage.CompletionTokensDetails.ReasoningTokens),
+					InputTokens:       int(chunk.Usage.PromptTokens) - cachedTokens,
+					CachedInputTokens: cachedTokens,
+					OutputTokens:      int(chunk.Usage.CompletionTokens) - reasoningTokens,
+					ReasoningTokens:   reasoningTokens,
 				}
 			}
 

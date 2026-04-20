@@ -57,16 +57,21 @@ func (m *ResponseMapper) FromProvider(r *genai.GenerateContentResponse) (*llm.Re
 		return nil, err
 	}
 
-	// Extract usage information
+	// Extract usage information. Google reports CachedContentTokenCount as a
+	// subset of PromptTokenCount; un-subset so the normalized buckets stay
+	// disjoint. ThoughtsTokenCount is already additive in Google's model and
+	// maps directly onto ReasoningTokens. ToolUsePromptTokenCount is a separate
+	// billable input dimension.
 	var usage *llm.TokenUsage
 	if r.UsageMetadata != nil {
+		cachedIn := int(r.UsageMetadata.CachedContentTokenCount)
 		usage = &llm.TokenUsage{
-			InputTokens:     int(r.UsageMetadata.PromptTokenCount),
-			OutputTokens:    int(r.UsageMetadata.CandidatesTokenCount),
-			TotalTokens:     int(r.UsageMetadata.TotalTokenCount),
-			CachedTokens:    int(r.UsageMetadata.CachedContentTokenCount),
-			ReasoningTokens: 0,
-			MaxInputTokens:  m.modelDefinition.Constraints.MaxInputTokens,
+			InputTokens:        int(r.UsageMetadata.PromptTokenCount) - cachedIn,
+			CachedInputTokens:  cachedIn,
+			ToolUseInputTokens: int(r.UsageMetadata.ToolUsePromptTokenCount),
+			OutputTokens:       int(r.UsageMetadata.CandidatesTokenCount),
+			ReasoningTokens:    int(r.UsageMetadata.ThoughtsTokenCount),
+			MaxInputTokens:     m.modelDefinition.Constraints.MaxInputTokens,
 		}
 	}
 

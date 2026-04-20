@@ -183,7 +183,10 @@ func (m *ResponseMapper) mapReasoningBlock(value types.ReasoningContentBlock) *l
 	})
 }
 
-// mapTokenUsage converts Bedrock TokenUsage to llm.TokenUsage.
+// mapTokenUsage converts Bedrock TokenUsage to llm.TokenUsage. Bedrock
+// Converse's InputTokens, CacheReadInputTokens, and CacheWriteInputTokens are
+// already disjoint, matching the normalized shape directly. Per-TTL write
+// breakdown from CacheDetails is split into 5m / 1h buckets.
 func (m *ResponseMapper) mapTokenUsage(usage *types.TokenUsage) *llm.TokenUsage {
 	result := &llm.TokenUsage{
 		MaxInputTokens: m.modelDefinition.Constraints.MaxInputTokens,
@@ -197,12 +200,36 @@ func (m *ResponseMapper) mapTokenUsage(usage *types.TokenUsage) *llm.TokenUsage 
 		result.OutputTokens = int(*usage.OutputTokens)
 	}
 
-	if usage.TotalTokens != nil {
-		result.TotalTokens = int(*usage.TotalTokens)
+	if usage.CacheReadInputTokens != nil {
+		result.CachedInputTokens = int(*usage.CacheReadInputTokens)
 	}
 
-	if usage.CacheReadInputTokens != nil {
-		result.CachedTokens = int(*usage.CacheReadInputTokens)
+	// CacheDetails breaks cache writes down by TTL. Split into 5m / 1h
+	// buckets; other TTL values (if Bedrock introduces them) fall through
+	// to Extra for consumer-side handling.
+	for _, detail := range usage.CacheDetails {
+		if detail.InputTokens == nil {
+			continue
+		}
+
+		tokens := int(*detail.InputTokens)
+		switch detail.Ttl {
+		case types.CacheTTLFiveMinutes:
+			result.CacheCreation5mTokens += tokens
+		case types.CacheTTLOneHour:
+			result.CacheCreation1hTokens += tokens
+		default:
+			if result.Extra == nil {
+				result.Extra = make(map[string]any)
+			}
+
+			key := "bedrock.cache_write_ttl_" + string(detail.Ttl) + "_tokens"
+			if existing, ok := result.Extra[key].(int); ok {
+				result.Extra[key] = existing + tokens
+			} else {
+				result.Extra[key] = tokens
+			}
+		}
 	}
 
 	return result

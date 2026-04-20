@@ -125,27 +125,17 @@ func (m *ResponseMapper) FromProvider(r *responses.Response) (*llm.Response, err
 		}
 	}
 
-	// 5. Usage extraction if available.
-	var usage *llm.TokenUsage
-	if r.Usage.TotalTokens > 0 {
-		usage = &llm.TokenUsage{
-			InputTokens:     int(r.Usage.InputTokens),
-			OutputTokens:    int(r.Usage.OutputTokens),
-			TotalTokens:     int(r.Usage.TotalTokens),
-			CachedTokens:    int(r.Usage.InputTokensDetails.CachedTokens),
-			ReasoningTokens: int(r.Usage.OutputTokensDetails.ReasoningTokens),
-			MaxInputTokens:  m.modelDefinition.Constraints.MaxInputTokens,
-		}
-	} else {
-		// Even if TotalTokens is 0, provide usage structure with MaxInputTokens
-		usage = &llm.TokenUsage{
-			InputTokens:     int(r.Usage.InputTokens),
-			OutputTokens:    int(r.Usage.OutputTokens),
-			TotalTokens:     int(r.Usage.TotalTokens),
-			CachedTokens:    int(r.Usage.InputTokensDetails.CachedTokens),
-			ReasoningTokens: int(r.Usage.OutputTokensDetails.ReasoningTokens),
-			MaxInputTokens:  m.modelDefinition.Constraints.MaxInputTokens,
-		}
+	// 5. Usage extraction. OpenAI reports cached_tokens as a subset of
+	// input_tokens and reasoning_tokens as a subset of output_tokens. The
+	// normalized shape is disjoint, so we un-subset both here.
+	cachedIn := int(r.Usage.InputTokensDetails.CachedTokens)
+	reasoning := int(r.Usage.OutputTokensDetails.ReasoningTokens)
+	usage := &llm.TokenUsage{
+		InputTokens:       int(r.Usage.InputTokens) - cachedIn,
+		CachedInputTokens: cachedIn,
+		OutputTokens:      int(r.Usage.OutputTokens) - reasoning,
+		ReasoningTokens:   reasoning,
+		MaxInputTokens:    m.modelDefinition.Constraints.MaxInputTokens,
 	}
 
 	// 6. Finish reason: tool calls take precedence.
