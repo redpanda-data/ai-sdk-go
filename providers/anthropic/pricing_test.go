@@ -1,6 +1,7 @@
 package anthropic
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -34,17 +35,7 @@ func TestFastModeModelsHaveFastPricing(t *testing.T) {
 	t.Parallel()
 
 	for id, def := range supportedModels {
-		hasFastSpeed := false
-
-		for _, s := range def.SupportedSpeeds {
-			if s == SpeedFast {
-				hasFastSpeed = true
-
-				break
-			}
-		}
-
-		if !hasFastSpeed {
+		if !slices.Contains(def.SupportedSpeeds, SpeedFast) {
 			continue
 		}
 
