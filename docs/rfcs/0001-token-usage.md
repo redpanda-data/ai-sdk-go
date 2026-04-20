@@ -55,6 +55,8 @@ The struct only carries counters that at least one extractor populates today. Pe
 
 Service tier, speed, and region are not cosmetic: every provider we support charges **different per-token rates** depending on tier. OpenAI's `flex` is ≈50% off, `priority` is ≈2×; Anthropic's `batch` is 50% off; Bedrock's `reserved` and Google's `PROVISIONED_THROUGHPUT` bypass per-token billing entirely. Anthropic `speed=fast` costs more than `standard`. `InvokedModelID` matters because Bedrock's PromptRouter can rewrite the model — pricing must be computed against the invoked model, not the requested one.
 
+Consequence for consumers: **cost is per-call, not per-summed-usage.** A session total is the sum of per-call `Cost` values, not `calc(sumOfAllUsages)` — the latter has no single tier/speed/region to price against when individual calls differed. The `TokenUsage` + `Response` split makes this the natural shape: price each `(Response.Usage, Response.ServiceTier|Speed|Region|InvokedModelID)` tuple, then add.
+
 Pure observability fields (latency, TTFT) are deliberately out of scope for this RFC. They belong in a tracing/metrics layer, not on `Response`.
 
 `MaxInputTokens` is a model-config value, not usage. It has been removed from `TokenUsage`; the canonical source is `modelDefinition.Constraints.MaxInputTokens`.
