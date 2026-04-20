@@ -30,7 +30,7 @@ func TestAllModelsHavePricing(t *testing.T) {
 			p := def.Pricing
 			if len(p.Tiers) > 0 {
 				// Tiered models: flat fields are zero in the struct definition
-				// (auto-populated by ToModelPricing). Validate first tier instead.
+				// (auto-populated by NewCatalog). Validate first tier instead.
 				assert.Positive(t, p.Tiers[0].InputPerMillion,
 					"model %s missing input pricing in first tier", id)
 				assert.Positive(t, p.Tiers[0].OutputPerMillion,
@@ -49,10 +49,10 @@ func TestAllModelsHavePricing(t *testing.T) {
 	}
 }
 
-func TestDefaultPricingMatchesModels(t *testing.T) {
+func TestModelPricingMatchesModels(t *testing.T) {
 	t.Parallel()
 
-	pricingList := DefaultPricing()
-	assert.Len(t, pricingList, len(supportedModels),
-		"DefaultPricing should return exactly one entry per supported model")
+	pricingMap := ModelPricing()
+	assert.Len(t, pricingMap, len(supportedModels),
+		"ModelPricing should return exactly one entry per supported model")
 }

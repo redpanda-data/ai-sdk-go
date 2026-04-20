@@ -22,32 +22,13 @@ package pricing
 // All prices are in microcents per million tokens.
 //
 // For tiered models, set only Tiers — the flat fields (InputPerMillion etc.)
-// are automatically populated from the first (lowest) tier by ToModelPricing.
-// For flat-rate models, set the flat fields and leave Tiers nil.
+// are automatically populated from the first (lowest) tier when building
+// a Catalog. For flat-rate models, set the flat fields and leave Tiers nil.
 type Info struct {
 	InputPerMillion       int64
 	OutputPerMillion      int64
 	CachedInputPerMillion int64
 	Tiers                 []Tier // optional context-length tiers
-}
-
-// ToModelPricing converts Info into a ModelPricing entry for the given model ID.
-//
-// When Tiers is non-empty, the flat fields are auto-populated from the
-// first tier to prevent duplication drift.
-func (info Info) ToModelPricing(modelID string) ModelPricing {
-	resolved := info
-
-	if len(info.Tiers) > 0 {
-		// Auto-populate flat fields from the first (lowest) tier so they
-		// can never drift out of sync with the tiered values.
-		first := info.Tiers[0]
-		resolved.InputPerMillion = first.InputPerMillion
-		resolved.OutputPerMillion = first.OutputPerMillion
-		resolved.CachedInputPerMillion = first.CachedInputPerMillion
-	}
-
-	return ModelPricing{ModelID: modelID, Info: resolved}
 }
 
 // Tier represents pricing for a specific context-length range.
@@ -60,13 +41,6 @@ type Tier struct {
 	InputPerMillion       int64
 	OutputPerMillion      int64
 	CachedInputPerMillion int64
-}
-
-// ModelPricing holds the pricing for a single model, identified by ModelID.
-type ModelPricing struct {
-	Info
-
-	ModelID string
 }
 
 // Cost represents the calculated cost breakdown for a request.
@@ -118,22 +92,34 @@ func CalculateCost(info *Info, inputTokens, outputTokens, cachedTokens int) Cost
 
 // Catalog is an in-memory lookup table of model pricing.
 type Catalog struct {
-	models map[string]*ModelPricing
+	models map[string]*Info
 }
 
-// NewCatalog creates a Catalog from a slice of ModelPricing.
-func NewCatalog(models []ModelPricing) *Catalog {
-	m := make(map[string]*ModelPricing, len(models))
-	for i := range models {
-		m[models[i].ModelID] = &models[i]
+// NewCatalog creates a Catalog from one or more model→pricing maps.
+// For tiered models, flat fields are auto-populated from the first tier.
+func NewCatalog(providers ...map[string]Info) *Catalog {
+	m := make(map[string]*Info)
+
+	for _, provider := range providers {
+		for id, info := range provider {
+			resolved := info
+			if len(info.Tiers) > 0 {
+				first := info.Tiers[0]
+				resolved.InputPerMillion = first.InputPerMillion
+				resolved.OutputPerMillion = first.OutputPerMillion
+				resolved.CachedInputPerMillion = first.CachedInputPerMillion
+			}
+
+			m[id] = &resolved
+		}
 	}
 
 	return &Catalog{models: m}
 }
 
-// Lookup returns the ModelPricing for the given model ID.
-func (c *Catalog) Lookup(modelID string) (*ModelPricing, bool) {
-	mp, ok := c.models[modelID]
+// Lookup returns the pricing Info for the given model ID.
+func (c *Catalog) Lookup(modelID string) (*Info, bool) {
+	info, ok := c.models[modelID]
 
-	return mp, ok
+	return info, ok
 }

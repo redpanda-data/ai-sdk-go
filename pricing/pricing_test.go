@@ -24,25 +24,21 @@ import (
 func TestCatalog_Lookup(t *testing.T) {
 	t.Parallel()
 
-	catalog := NewCatalog([]ModelPricing{
-		{
-			ModelID: "gpt-4o",
-			Info: Info{
-				InputPerMillion:       250_000_000,
-				OutputPerMillion:      1_000_000_000,
-				CachedInputPerMillion: 125_000_000,
-			},
+	catalog := NewCatalog(map[string]Info{
+		"gpt-4o": {
+			InputPerMillion:       250_000_000,
+			OutputPerMillion:      1_000_000_000,
+			CachedInputPerMillion: 125_000_000,
 		},
 	})
 
 	t.Run("found", func(t *testing.T) {
 		t.Parallel()
 
-		mp, ok := catalog.Lookup("gpt-4o")
+		info, ok := catalog.Lookup("gpt-4o")
 		assert.True(t, ok)
-		require.NotNil(t, mp)
-		assert.Equal(t, "gpt-4o", mp.ModelID)
-		assert.Equal(t, int64(250_000_000), mp.InputPerMillion)
+		require.NotNil(t, info)
+		assert.Equal(t, int64(250_000_000), info.InputPerMillion)
 	})
 
 	t.Run("not found", func(t *testing.T) {
@@ -133,37 +129,42 @@ func TestCalculateCost_Tiered(t *testing.T) {
 	})
 }
 
-func TestInfo_ToModelPricing_TieredAutoPopulatesFlat(t *testing.T) {
+func TestNewCatalog_TieredAutoPopulatesFlat(t *testing.T) {
 	t.Parallel()
 
-	info := Info{
-		// Flat fields intentionally left at zero — ToModelPricing should
-		// auto-populate them from the first tier.
-		Tiers: []Tier{
-			{MaxInputTokens: 200_000, InputPerMillion: 125_000_000, OutputPerMillion: 1_000_000_000, CachedInputPerMillion: 12_500_000},
-			{MaxInputTokens: 0, InputPerMillion: 250_000_000, OutputPerMillion: 1_500_000_000, CachedInputPerMillion: 25_000_000},
+	catalog := NewCatalog(map[string]Info{
+		"tiered-model": {
+			// Flat fields intentionally left at zero — NewCatalog should
+			// auto-populate them from the first tier.
+			Tiers: []Tier{
+				{MaxInputTokens: 200_000, InputPerMillion: 125_000_000, OutputPerMillion: 1_000_000_000, CachedInputPerMillion: 12_500_000},
+				{MaxInputTokens: 0, InputPerMillion: 250_000_000, OutputPerMillion: 1_500_000_000, CachedInputPerMillion: 25_000_000},
+			},
 		},
-	}
+	})
 
-	mp := info.ToModelPricing("test-model")
+	info, ok := catalog.Lookup("tiered-model")
+	require.True(t, ok)
 
 	// Flat fields should be auto-populated from first tier.
-	assert.Equal(t, int64(125_000_000), mp.InputPerMillion)
-	assert.Equal(t, int64(1_000_000_000), mp.OutputPerMillion)
-	assert.Equal(t, int64(12_500_000), mp.CachedInputPerMillion)
+	assert.Equal(t, int64(125_000_000), info.InputPerMillion)
+	assert.Equal(t, int64(1_000_000_000), info.OutputPerMillion)
+	assert.Equal(t, int64(12_500_000), info.CachedInputPerMillion)
 }
 
-func TestInfo_ToModelPricing_FlatNoTiers(t *testing.T) {
+func TestNewCatalog_MultipleProviders(t *testing.T) {
 	t.Parallel()
 
-	info := Info{
-		InputPerMillion:       250_000_000,
-		OutputPerMillion:      1_000_000_000,
-		CachedInputPerMillion: 25_000_000,
-	}
+	catalog := NewCatalog(
+		map[string]Info{"model-a": {InputPerMillion: 100, OutputPerMillion: 200}},
+		map[string]Info{"model-b": {InputPerMillion: 300, OutputPerMillion: 400}},
+	)
 
-	mp := info.ToModelPricing("test-flat")
+	a, ok := catalog.Lookup("model-a")
+	require.True(t, ok)
+	assert.Equal(t, int64(100), a.InputPerMillion)
 
-	assert.Empty(t, mp.Tiers)
-	assert.Equal(t, int64(250_000_000), mp.InputPerMillion)
+	b, ok := catalog.Lookup("model-b")
+	require.True(t, ok)
+	assert.Equal(t, int64(300), b.InputPerMillion)
 }

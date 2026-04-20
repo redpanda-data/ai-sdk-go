@@ -16,16 +16,13 @@ package anthropic
 
 import "github.com/redpanda-data/ai-sdk-go/pricing"
 
-// DefaultPricing returns pricing for all supported Anthropic Claude models.
-// Pricing is derived from model definitions in supportedModels to ensure
-// every model always has pricing defined.
-//
+// ModelPricing returns a model ID → pricing map for all supported Anthropic models.
 // Source: https://docs.anthropic.com/en/docs/about-claude/pricing (as of 2026-04).
-func DefaultPricing() []pricing.ModelPricing {
-	models := make([]pricing.ModelPricing, 0, len(supportedModels))
+func ModelPricing() map[string]pricing.Info {
+	m := make(map[string]pricing.Info, len(supportedModels))
 	for id, def := range supportedModels {
-		models = append(models, def.Pricing.ToModelPricing(id))
+		m[id] = def.Pricing
 	}
 
-	return models
+	return m
 }
