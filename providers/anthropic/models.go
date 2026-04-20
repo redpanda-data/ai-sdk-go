@@ -115,7 +115,6 @@ var supportedModels = map[string]ModelDefinition{
 			MutuallyExclusive: [][]string{},
 		},
 		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax},
-		SupportedSpeeds:  []Speed{SpeedStandard, SpeedFast},
 		AdaptiveThinking: true,
 		Pricing: pricing.Info{
 			InputPerMillion:       500_000_000,   // $5.00/M
@@ -124,6 +123,8 @@ var supportedModels = map[string]ModelDefinition{
 			Anthropic: &pricing.AnthropicPricing{
 				CacheWrite5mPerMillion: 625_000_000,   // $6.25/M (1.25× input)
 				CacheWrite1hPerMillion: 1_000_000_000, // $10.00/M (2× input)
+				// Fast mode not yet available for Opus 4.7 per Anthropic pricing page.
+				// Add when Anthropic publishes fast mode pricing for this model.
 			},
 		},
 	},
@@ -249,6 +250,13 @@ var supportedModels = map[string]ModelDefinition{
 			Anthropic: &pricing.AnthropicPricing{
 				CacheWrite5mPerMillion: 625_000_000,   // $6.25/M (1.25× input)
 				CacheWrite1hPerMillion: 1_000_000_000, // $10.00/M (2× input)
+				// Fast mode (speed: "fast") — 6× standard rates.
+				// Source: https://docs.anthropic.com/en/docs/about-claude/pricing#fast-mode-pricing
+				FastInputPerMillion:        3_000_000_000,  // $30.00/M (6× input)
+				FastOutputPerMillion:       15_000_000_000, // $150.00/M (6× output)
+				FastCachedInputPerMillion:  300_000_000,    // $3.00/M (0.1× fast input)
+				FastCacheWrite5mPerMillion: 3_750_000_000,  // $37.50/M (1.25× fast input)
+				FastCacheWrite1hPerMillion: 6_000_000_000,  // $60.00/M (2× fast input)
 			},
 		},
 	},

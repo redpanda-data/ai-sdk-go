@@ -30,6 +30,43 @@ func TestAllModelsHavePricing(t *testing.T) {
 	}
 }
 
+func TestFastModeModelsHaveFastPricing(t *testing.T) {
+	t.Parallel()
+
+	for id, def := range supportedModels {
+		hasFastSpeed := false
+
+		for _, s := range def.SupportedSpeeds {
+			if s == SpeedFast {
+				hasFastSpeed = true
+
+				break
+			}
+		}
+
+		if !hasFastSpeed {
+			continue
+		}
+
+		t.Run(id, func(t *testing.T) {
+			t.Parallel()
+
+			require.NotNil(t, def.Pricing.Anthropic,
+				"model %s supports fast speed but has no Anthropic pricing", id)
+			assert.Positive(t, def.Pricing.Anthropic.FastInputPerMillion,
+				"model %s supports fast speed but missing FastInputPerMillion", id)
+			assert.Positive(t, def.Pricing.Anthropic.FastOutputPerMillion,
+				"model %s supports fast speed but missing FastOutputPerMillion", id)
+			assert.Positive(t, def.Pricing.Anthropic.FastCachedInputPerMillion,
+				"model %s supports fast speed but missing FastCachedInputPerMillion", id)
+			assert.Positive(t, def.Pricing.Anthropic.FastCacheWrite5mPerMillion,
+				"model %s supports fast speed but missing FastCacheWrite5mPerMillion", id)
+			assert.Positive(t, def.Pricing.Anthropic.FastCacheWrite1hPerMillion,
+				"model %s supports fast speed but missing FastCacheWrite1hPerMillion", id)
+		})
+	}
+}
+
 func TestModelPricingMatchesModels(t *testing.T) {
 	t.Parallel()
 

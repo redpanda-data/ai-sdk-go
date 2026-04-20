@@ -136,6 +136,99 @@ func TestAnthropicPricing_CacheWriteRate_Nil(t *testing.T) {
 	assert.Equal(t, int64(0), info.Anthropic.CacheWriteRate("1h"))
 }
 
+func TestInfo_WithSpeed(t *testing.T) {
+	t.Parallel()
+
+	opus46 := &Info{
+		InputPerMillion:       500_000_000,   // $5.00/M
+		OutputPerMillion:      2_500_000_000, // $25.00/M
+		CachedInputPerMillion: 50_000_000,    // $0.50/M
+		Anthropic: &AnthropicPricing{
+			CacheWrite5mPerMillion:     625_000_000,    // $6.25/M
+			CacheWrite1hPerMillion:     1_000_000_000,  // $10.00/M
+			FastInputPerMillion:        3_000_000_000,  // $30.00/M (6× input)
+			FastOutputPerMillion:       15_000_000_000, // $150.00/M (6× output)
+			FastCachedInputPerMillion:  300_000_000,    // $3.00/M (0.1× fast input)
+			FastCacheWrite5mPerMillion: 3_750_000_000,  // $37.50/M (1.25× fast input)
+			FastCacheWrite1hPerMillion: 6_000_000_000,  // $60.00/M (2× fast input)
+		},
+	}
+
+	t.Run("fast returns adjusted rates", func(t *testing.T) {
+		t.Parallel()
+
+		fast := opus46.WithSpeed("fast")
+		assert.Equal(t, int64(3_000_000_000), fast.InputPerMillion)
+		assert.Equal(t, int64(15_000_000_000), fast.OutputPerMillion)
+		assert.Equal(t, int64(300_000_000), fast.CachedInputPerMillion)
+		// Cache write rates should also be swapped to fast versions.
+		assert.Equal(t, int64(3_750_000_000), fast.Anthropic.CacheWriteRate("5m"))
+		assert.Equal(t, int64(6_000_000_000), fast.Anthropic.CacheWriteRate("1h"))
+	})
+
+	t.Run("fast does not mutate original", func(t *testing.T) {
+		t.Parallel()
+
+		_ = opus46.WithSpeed("fast")
+		assert.Equal(t, int64(500_000_000), opus46.InputPerMillion)
+		assert.Equal(t, int64(625_000_000), opus46.Anthropic.CacheWrite5mPerMillion)
+	})
+
+	t.Run("standard returns original", func(t *testing.T) {
+		t.Parallel()
+
+		same := opus46.WithSpeed("standard")
+		assert.Same(t, opus46, same)
+	})
+
+	t.Run("empty speed returns original", func(t *testing.T) {
+		t.Parallel()
+
+		same := opus46.WithSpeed("")
+		assert.Same(t, opus46, same)
+	})
+
+	t.Run("nil anthropic returns original", func(t *testing.T) {
+		t.Parallel()
+
+		openai := &Info{InputPerMillion: 250_000_000, OutputPerMillion: 1_000_000_000}
+		same := openai.WithSpeed("fast")
+		assert.Same(t, openai, same)
+	})
+
+	t.Run("no fast pricing returns original", func(t *testing.T) {
+		t.Parallel()
+
+		haiku := &Info{
+			InputPerMillion: 100_000_000,
+			Anthropic: &AnthropicPricing{
+				CacheWrite5mPerMillion: 125_000_000,
+				CacheWrite1hPerMillion: 200_000_000,
+				// FastInputPerMillion is 0 — no fast mode support.
+			},
+		}
+		same := haiku.WithSpeed("fast")
+		assert.Same(t, haiku, same)
+	})
+
+	t.Run("CalculateCost works with fast Info", func(t *testing.T) {
+		t.Parallel()
+
+		fast := opus46.WithSpeed("fast")
+		cacheWriteRate := fast.Anthropic.CacheWriteRate("5m")
+		cost := CalculateCost(fast, 1_000_000, 500_000, 100_000, 50_000, cacheWriteRate)
+
+		// input:  1M × $30/M = $30 = 3,000,000,000 microcents
+		assert.Equal(t, int64(3_000_000_000), cost.InputCostMicrocents)
+		// output: 500K × $150/M = $75 = 7,500,000,000 microcents
+		assert.Equal(t, int64(7_500_000_000), cost.OutputCostMicrocents)
+		// cached: 100K × $3/M = $0.30 = 30,000,000 microcents
+		assert.Equal(t, int64(30_000_000), cost.CachedCostMicrocents)
+		// cache write: 50K × $37.50/M = $1.875 = 187,500,000 microcents
+		assert.Equal(t, int64(187_500_000), cost.CacheWriteCostMicrocents)
+	})
+}
+
 func TestCalculateCost_Tiered(t *testing.T) {
 	t.Parallel()
 

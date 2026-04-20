@@ -66,7 +66,9 @@ type Info struct {
 	EffectiveFrom time.Time
 }
 
-// AnthropicPricing holds Anthropic-specific cache write pricing.
+// AnthropicPricing holds Anthropic-specific pricing extensions.
+//
+// # Cache write pricing
 //
 // Anthropic charges a premium for tokens written to the prompt cache
 // (cache_creation_input_tokens). The cost depends on the cache TTL:
@@ -76,9 +78,24 @@ type Info struct {
 // Other providers handle caching differently:
 //   - OpenAI: cache writes are free (automatic caching, no write cost).
 //   - Google: no per-token write cost; charges per-hour storage instead.
+//
+// # Fast mode pricing
+//
+// Anthropic offers a fast inference mode (speed: "fast") for select models
+// (currently Opus 4.6 only). Fast mode charges a premium (6× standard rates
+// for Opus 4.6). The response usage object includes a "speed" field confirming
+// which speed was used. Cache write multipliers stack on top of fast mode
+// pricing. Fast mode fields are zero when the model doesn't support it.
 type AnthropicPricing struct {
 	CacheWrite5mPerMillion int64 // 5-minute TTL write cost (default, 1.25× input)
 	CacheWrite1hPerMillion int64 // 1-hour TTL write cost (extended, 2× input)
+
+	// Fast mode (speed: "fast") pricing. Zero means fast mode not supported.
+	FastInputPerMillion        int64 // fast mode input rate
+	FastOutputPerMillion       int64 // fast mode output rate
+	FastCachedInputPerMillion  int64 // fast mode cached input rate (0.1× fast input)
+	FastCacheWrite5mPerMillion int64 // fast mode 5m cache write (1.25× fast input)
+	FastCacheWrite1hPerMillion int64 // fast mode 1h cache write (2× fast input)
 }
 
 // CacheWriteRate returns the cache write rate for the given TTL string.
@@ -95,6 +112,31 @@ func (a *AnthropicPricing) CacheWriteRate(ttl string) int64 {
 	default:
 		return a.CacheWrite5mPerMillion
 	}
+}
+
+// WithSpeed returns a copy of the Info with rates adjusted for the given speed.
+// For "fast", uses Anthropic fast mode rates if the model supports it
+// (FastInputPerMillion > 0). For "", "standard", or any unrecognized speed,
+// returns the original Info unchanged (no copy).
+//
+// The returned Info can be used with CalculateCost and CacheWriteRate without
+// any special handling — all rate fields are swapped to fast mode rates.
+func (info *Info) WithSpeed(speed string) *Info {
+	if speed != "fast" || info.Anthropic == nil || info.Anthropic.FastInputPerMillion == 0 {
+		return info
+	}
+
+	cp := *info
+	cp.InputPerMillion = info.Anthropic.FastInputPerMillion
+	cp.OutputPerMillion = info.Anthropic.FastOutputPerMillion
+	cp.CachedInputPerMillion = info.Anthropic.FastCachedInputPerMillion
+
+	cpAnth := *info.Anthropic
+	cpAnth.CacheWrite5mPerMillion = info.Anthropic.FastCacheWrite5mPerMillion
+	cpAnth.CacheWrite1hPerMillion = info.Anthropic.FastCacheWrite1hPerMillion
+	cp.Anthropic = &cpAnth
+
+	return &cp
 }
 
 // Tier represents pricing for a specific context-length range.
@@ -208,15 +250,21 @@ func computeVersion(m map[string]*Info) string {
 	for _, k := range keys {
 		info := m[k]
 
-		var cw5m, cw1h int64
+		var cw5m, cw1h, fi, fo, fc, fcw5m, fcw1h int64
 		if info.Anthropic != nil {
 			cw5m = info.Anthropic.CacheWrite5mPerMillion
 			cw1h = info.Anthropic.CacheWrite1hPerMillion
+			fi = info.Anthropic.FastInputPerMillion
+			fo = info.Anthropic.FastOutputPerMillion
+			fc = info.Anthropic.FastCachedInputPerMillion
+			fcw5m = info.Anthropic.FastCacheWrite5mPerMillion
+			fcw1h = info.Anthropic.FastCacheWrite1hPerMillion
 		}
 
-		fmt.Fprintf(h, "%s:%d:%d:%d:%d:%d\n",
+		fmt.Fprintf(h, "%s:%d:%d:%d:%d:%d:%d:%d:%d:%d:%d\n",
 			k, info.InputPerMillion, info.OutputPerMillion,
-			info.CachedInputPerMillion, cw5m, cw1h)
+			info.CachedInputPerMillion, cw5m, cw1h,
+			fi, fo, fc, fcw5m, fcw1h)
 	}
 
 	sum := h.Sum(nil)
