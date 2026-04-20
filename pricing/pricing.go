@@ -13,8 +13,26 @@
 // limitations under the License.
 
 // Package pricing provides an in-memory pricing catalog for LLM model cost
-// calculation. Prices are stored in microcents per million tokens
+// calculation. Prices are stored as int64 microcents per million tokens
 // (1 cent = 1,000,000 microcents).
+//
+// # Why microcents?
+//
+// LLM providers price models with sub-cent granularity. For example, GPT-5
+// Nano cached input costs $0.005/M (= 0.5 cents). Whole-cent integers would
+// truncate that to 0 — a 100% error. Dollars as float64 would be the most
+// readable option, but floats introduce rounding semantics into cost
+// aggregation pipelines. Microcents are the smallest integer unit that
+// represents all current provider prices exactly while keeping pure integer
+// arithmetic end-to-end.
+//
+// To convert a dollar price from a provider's pricing page:
+//
+//	$2.50/M  → 250_000_000 microcents/M   (dollars × 100_000_000)
+//	$0.005/M →     500_000 microcents/M
+//
+// Always add a dollar-amount comment next to each pricing value for
+// readability.
 package pricing
 
 // Info holds pricing for a model. Embed this in provider ModelDefinition
