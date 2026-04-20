@@ -77,15 +77,6 @@ func TestTokenUsage_BilledOutputTokens(t *testing.T) {
 			},
 			want: 75,
 		},
-		{
-			name: "rejected predictions add; accepted are already in output",
-			usage: &TokenUsage{
-				OutputTokens:             40,
-				ReasoningTokens:          0,
-				RejectedPredictionTokens: 5,
-			},
-			want: 45,
-		},
 	}
 
 	for _, tt := range tests {
@@ -137,8 +128,6 @@ func TestSumUsage(t *testing.T) {
 					CacheCreation5mTokens: 5,
 					OutputTokens:          50,
 					ReasoningTokens:       5,
-					ModalityInputTokens:   map[Modality]int{ModalityText: 100},
-					ServerToolRequests:    map[ServerTool]int{ServerToolWebSearch: 2},
 					Extra:                 map[string]any{"provider.flag": true},
 				},
 			},
@@ -148,22 +137,18 @@ func TestSumUsage(t *testing.T) {
 				CacheCreation5mTokens: 5,
 				OutputTokens:          50,
 				ReasoningTokens:       5,
-				ModalityInputTokens:   map[Modality]int{ModalityText: 100},
-				ServerToolRequests:    map[ServerTool]int{ServerToolWebSearch: 2},
 				Extra:                 map[string]any{"provider.flag": true},
 			},
 		},
 		{
-			name: "scalars add, maps merge",
+			name: "scalars add, extra merges",
 			usages: []*TokenUsage{
 				{
-					InputTokens:         100,
-					CachedInputTokens:   10,
-					OutputTokens:        50,
-					ReasoningTokens:     5,
-					ModalityInputTokens: map[Modality]int{ModalityText: 80, ModalityImage: 20},
-					ServerToolRequests:  map[ServerTool]int{ServerToolWebSearch: 2},
-					GuardrailUnits:      map[string]int{"content_policy": 1},
+					InputTokens:       100,
+					CachedInputTokens: 10,
+					OutputTokens:      50,
+					ReasoningTokens:   5,
+					Extra:             map[string]any{"bedrock.cache_write_ttl_1d_tokens": 8},
 				},
 				{
 					InputTokens:                   200,
@@ -171,10 +156,7 @@ func TestSumUsage(t *testing.T) {
 					CacheCreationUnknownTTLTokens: 3,
 					OutputTokens:                  100,
 					ReasoningTokens:               10,
-					RejectedPredictionTokens:      7,
-					ModalityInputTokens:           map[Modality]int{ModalityText: 150, ModalityAudio: 50},
-					ServerToolRequests:            map[ServerTool]int{ServerToolWebSearch: 1, ServerToolWebFetch: 3},
-					GuardrailUnits:                map[string]int{"content_policy": 2, "topic_policy": 1},
+					Extra:                         map[string]any{"bedrock.cache_write_ttl_1d_tokens": 7},
 				},
 			},
 			expected: &TokenUsage{
@@ -184,17 +166,7 @@ func TestSumUsage(t *testing.T) {
 				CacheCreationUnknownTTLTokens: 3,
 				OutputTokens:                  150,
 				ReasoningTokens:               15,
-				RejectedPredictionTokens:      7,
-				ModalityInputTokens: map[Modality]int{
-					ModalityText:  230,
-					ModalityImage: 20,
-					ModalityAudio: 50,
-				},
-				ServerToolRequests: map[ServerTool]int{
-					ServerToolWebSearch: 3,
-					ServerToolWebFetch:  3,
-				},
-				GuardrailUnits: map[string]int{"content_policy": 3, "topic_policy": 1},
+				Extra:                         map[string]any{"bedrock.cache_write_ttl_1d_tokens": 15},
 			},
 		},
 		{
@@ -227,13 +199,13 @@ func TestSumUsage(t *testing.T) {
 func TestSumUsage_NoAliasing(t *testing.T) {
 	t.Parallel()
 
-	original := map[Modality]int{ModalityText: 100}
-	a := &TokenUsage{InputTokens: 10, ModalityInputTokens: original}
-	b := &TokenUsage{InputTokens: 5, ModalityInputTokens: map[Modality]int{ModalityText: 50}}
+	original := map[string]any{"provider.x": 100}
+	a := &TokenUsage{InputTokens: 10, Extra: original}
+	b := &TokenUsage{InputTokens: 5, Extra: map[string]any{"provider.x": 50}}
 
 	result := SumUsage(a, b)
 
-	assert.Equal(t, 150, result.ModalityInputTokens[ModalityText])
-	assert.Equal(t, 100, original[ModalityText], "SumUsage must not mutate the first input's map")
-	assert.NotSame(t, &original, &result.ModalityInputTokens, "result must not alias the first input's map")
+	assert.Equal(t, 150, result.Extra["provider.x"])
+	assert.Equal(t, 100, original["provider.x"], "SumUsage must not mutate the first input's Extra map")
+	assert.NotSame(t, &original, &result.Extra, "result must not alias the first input's Extra map")
 }

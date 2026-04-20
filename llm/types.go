@@ -24,8 +24,7 @@ import "maps"
 // All token counters are DISJOINT. A prompt token is counted in exactly one of
 // InputTokens, CachedInputTokens, CacheCreation5mTokens, CacheCreation1hTokens,
 // CacheCreationUnknownTTLTokens, or ToolUseInputTokens. Likewise output tokens
-// are counted in exactly one of OutputTokens, ReasoningTokens, or
-// RejectedPredictionTokens.
+// are counted in exactly one of OutputTokens or ReasoningTokens.
 //
 // This matches Anthropic's and Bedrock's native convention. OpenAI and Google
 // extractors un-subset their native values so the invariant holds uniformly
@@ -99,10 +98,8 @@ type TokenUsage struct {
 	ToolUseInputTokens int `json:"tool_use_input_tokens,omitempty"`
 
 	// OutputTokens is the number of tokens in the assistant's visible
-	// response. Does NOT include reasoning tokens (disjoint, see
-	// ReasoningTokens) or rejected predicted-output tokens (disjoint, see
-	// RejectedPredictionTokens). Does INCLUDE accepted predicted-output
-	// tokens, since those appear in the completion.
+	// response. Does NOT include reasoning tokens — those are a separate
+	// disjoint bucket (see ReasoningTokens).
 	OutputTokens int `json:"output_tokens"`
 
 	// ReasoningTokens is the number of tokens the model spent on hidden
@@ -117,47 +114,6 @@ type TokenUsage struct {
 	// Anthropic's thinking content is billed as regular output and
 	// ReasoningTokens will be zero.
 	ReasoningTokens int `json:"reasoning_tokens,omitempty"`
-
-	// RejectedPredictionTokens is the number of OpenAI Predicted Outputs
-	// tokens that did NOT appear in the completion. Billed as output but
-	// never returned to the caller, so they are disjoint from OutputTokens.
-	//
-	// Provider coverage: OpenAI only
-	// (completion_tokens_details.rejected_prediction_tokens).
-	//
-	// Note: accepted predicted-output tokens are NOT a separate counter —
-	// they appear verbatim in the completion and are already included in
-	// OutputTokens. Consumers that need the breakdown can read the raw
-	// provider response.
-	RejectedPredictionTokens int `json:"rejected_prediction_tokens,omitempty"`
-
-	// ModalityInputTokens breaks InputTokens down by modality when the
-	// provider reports it. The sum over the map equals InputTokens.
-	//
-	// Provider coverage: Google (prompt_tokens_details[]). OpenAI audio
-	// tokens are exposed here when present.
-	ModalityInputTokens map[Modality]int `json:"modality_input_tokens,omitempty"`
-
-	// ModalityOutputTokens breaks OutputTokens down by modality.
-	ModalityOutputTokens map[Modality]int `json:"modality_output_tokens,omitempty"`
-
-	// ModalityCachedInputTokens breaks CachedInputTokens down by modality.
-	ModalityCachedInputTokens map[Modality]int `json:"modality_cached_input_tokens,omitempty"`
-
-	// ServerToolRequests counts billable server-side tool invocations by
-	// kind. Each entry is one request, not a token count.
-	//
-	// Provider coverage: Anthropic (web_search, web_fetch), Google (inferred
-	// from GroundingMetadata), Cohere-on-Bedrock (search, classification).
-	ServerToolRequests map[ServerTool]int `json:"server_tool_requests,omitempty"`
-
-	// GuardrailUnits counts provider-reported guardrail policy units. Each
-	// key is an independent billing SKU on Bedrock.
-	//
-	// Provider coverage: Bedrock. Keys include "content_policy",
-	// "contextual_grounding", "sensitive_info", "sensitive_info_free",
-	// "topic_policy", "word_policy".
-	GuardrailUnits map[string]int `json:"guardrail_units,omitempty"`
 
 	// Extra carries provider-specific dimensions that the SDK does not
 	// normalize today. Keys MUST be namespaced as "<provider>.<field>" to
@@ -188,22 +144,17 @@ func (u *TokenUsage) BilledInputTokens() int {
 		u.ToolUseInputTokens
 }
 
-// BilledOutputTokens returns the total output-side tokens that contribute to
-// billing: OutputTokens + ReasoningTokens + RejectedPredictionTokens.
-//
-// AcceptedPredictionTokens are NOT added here — they appear verbatim in the
-// completion and are already counted inside OutputTokens.
+// BilledOutputTokens returns the total output-side tokens that contribute
+// to billing: OutputTokens + ReasoningTokens.
 func (u *TokenUsage) BilledOutputTokens() int {
 	if u == nil {
 		return 0
 	}
 
-	return u.OutputTokens + u.ReasoningTokens + u.RejectedPredictionTokens
+	return u.OutputTokens + u.ReasoningTokens
 }
 
-// TotalBilledTokens returns BilledInputTokens + BilledOutputTokens. Non-token
-// fees (ServerToolRequests, GuardrailUnits) are not included — those are
-// priced separately by the consumer.
+// TotalBilledTokens returns BilledInputTokens + BilledOutputTokens.
 func (u *TokenUsage) TotalBilledTokens() int {
 	return u.BilledInputTokens() + u.BilledOutputTokens()
 }
@@ -211,13 +162,12 @@ func (u *TokenUsage) TotalBilledTokens() int {
 // SumUsage aggregates multiple TokenUsage values into a single cumulative
 // result. Nil values are safely skipped. Returns nil if all inputs are nil.
 //
-// All scalar counters are added. Map fields (Modality*, ServerToolRequests,
-// GuardrailUnits, Extra) are merged with per-key addition for numeric values;
-// non-numeric Extra values take the first-writer-wins rule.
+// All scalar counters are added. The Extra map is merged with per-key addition
+// for numeric values; non-numeric Extra values take the first-writer-wins rule.
 //
 // TokenUsage intentionally contains only additive accounting fields.
-// Per-call metadata (service tier, speed, region, invoked model, latency)
-// lives on llm.Response, which is not summed.
+// Per-call metadata (service tier, speed, region, invoked model) lives on
+// llm.Response, which is not summed.
 //
 // Example:
 //
@@ -244,13 +194,7 @@ func SumUsage(usages ...*TokenUsage) *TokenUsage {
 
 		result.OutputTokens += u.OutputTokens
 		result.ReasoningTokens += u.ReasoningTokens
-		result.RejectedPredictionTokens += u.RejectedPredictionTokens
 
-		result.ModalityInputTokens = mergeModality(result.ModalityInputTokens, u.ModalityInputTokens)
-		result.ModalityOutputTokens = mergeModality(result.ModalityOutputTokens, u.ModalityOutputTokens)
-		result.ModalityCachedInputTokens = mergeModality(result.ModalityCachedInputTokens, u.ModalityCachedInputTokens)
-		result.ServerToolRequests = mergeServerTools(result.ServerToolRequests, u.ServerToolRequests)
-		result.GuardrailUnits = mergeStringInt(result.GuardrailUnits, u.GuardrailUnits)
 		result.Extra = mergeExtra(result.Extra, u.Extra)
 	}
 
@@ -259,47 +203,9 @@ func SumUsage(usages ...*TokenUsage) *TokenUsage {
 
 func cloneUsage(u *TokenUsage) *TokenUsage {
 	out := *u
-	out.ModalityInputTokens = cloneModality(u.ModalityInputTokens)
-	out.ModalityOutputTokens = cloneModality(u.ModalityOutputTokens)
-	out.ModalityCachedInputTokens = cloneModality(u.ModalityCachedInputTokens)
-	out.ServerToolRequests = cloneServerTools(u.ServerToolRequests)
-	out.GuardrailUnits = cloneStringInt(u.GuardrailUnits)
 	out.Extra = cloneExtra(u.Extra)
 
 	return &out
-}
-
-func cloneModality(m map[Modality]int) map[Modality]int {
-	if len(m) == 0 {
-		return nil
-	}
-
-	out := make(map[Modality]int, len(m))
-	maps.Copy(out, m)
-
-	return out
-}
-
-func cloneServerTools(m map[ServerTool]int) map[ServerTool]int {
-	if len(m) == 0 {
-		return nil
-	}
-
-	out := make(map[ServerTool]int, len(m))
-	maps.Copy(out, m)
-
-	return out
-}
-
-func cloneStringInt(m map[string]int) map[string]int {
-	if len(m) == 0 {
-		return nil
-	}
-
-	out := make(map[string]int, len(m))
-	maps.Copy(out, m)
-
-	return out
 }
 
 func cloneExtra(m map[string]any) map[string]any {
@@ -311,54 +217,6 @@ func cloneExtra(m map[string]any) map[string]any {
 	maps.Copy(out, m)
 
 	return out
-}
-
-func mergeModality(dst, src map[Modality]int) map[Modality]int {
-	if len(src) == 0 {
-		return dst
-	}
-
-	if dst == nil {
-		dst = make(map[Modality]int, len(src))
-	}
-
-	for k, v := range src {
-		dst[k] += v
-	}
-
-	return dst
-}
-
-func mergeServerTools(dst, src map[ServerTool]int) map[ServerTool]int {
-	if len(src) == 0 {
-		return dst
-	}
-
-	if dst == nil {
-		dst = make(map[ServerTool]int, len(src))
-	}
-
-	for k, v := range src {
-		dst[k] += v
-	}
-
-	return dst
-}
-
-func mergeStringInt(dst, src map[string]int) map[string]int {
-	if len(src) == 0 {
-		return dst
-	}
-
-	if dst == nil {
-		dst = make(map[string]int, len(src))
-	}
-
-	for k, v := range src {
-		dst[k] += v
-	}
-
-	return dst
 }
 
 func mergeExtra(dst, src map[string]any) map[string]any {
@@ -387,18 +245,6 @@ func mergeExtra(dst, src map[string]any) map[string]any {
 
 	return dst
 }
-
-// Modality identifies the medium of a chunk of tokens.
-type Modality string
-
-// Modality constants. Providers report a subset of these.
-const (
-	ModalityText     Modality = "text"
-	ModalityImage    Modality = "image"
-	ModalityAudio    Modality = "audio"
-	ModalityVideo    Modality = "video"
-	ModalityDocument Modality = "document"
-)
 
 // ServiceTier is the normalized request-processing variant reported on
 // llm.Response. Not every provider reports every value; the empty string
@@ -434,21 +280,6 @@ const (
 	// ServiceTierProvisionedThroughput maps Google TrafficType
 	// PROVISIONED_THROUGHPUT and Bedrock Provisioned Throughput invocations.
 	ServiceTierProvisionedThroughput ServiceTier = "provisioned_throughput"
-)
-
-// ServerTool identifies a server-side tool whose invocations are billed per
-// request (not per token). Values are lower_snake_case.
-type ServerTool string
-
-// ServerTool constants cover the known server-side billable tools across
-// providers. Custom values (via type conversion) are acceptable for
-// consumer-specific extensions.
-const (
-	ServerToolWebSearch      ServerTool = "web_search"
-	ServerToolWebFetch       ServerTool = "web_fetch"
-	ServerToolImageSearch    ServerTool = "image_search"
-	ServerToolCodeExecution  ServerTool = "code_execution"
-	ServerToolClassification ServerTool = "classification" // Cohere on Bedrock
 )
 
 // FinishReason indicates why model generation stopped.
