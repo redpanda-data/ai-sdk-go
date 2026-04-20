@@ -85,6 +85,15 @@ func lookupModel(modelName string) (ModelDefinition, bool) {
 
 // supportedModels defines Claude models available on Bedrock via the Converse API.
 // Standard features only — no Anthropic-specific thinking/effort/speed.
+//
+// Pricing: Anthropic Claude models have uniform pricing across all Bedrock
+// regions — the rates here apply regardless of whether the request is routed
+// via in-region, geo cross-region (us./eu./ap. prefix), or global inference.
+//
+// Note: some non-Anthropic Bedrock models (Gemma, DeepSeek, Amazon Nova) DO
+// have regional pricing differences (up to ~57% premium in certain regions).
+// When those models are added, their definitions should include a
+// pricing.BedrockPricing sub-struct with regional overrides.
 var supportedModels = map[string]ModelDefinition{
 	ModelClaudeOpus47: {
 		Name:  ModelClaudeOpus47,
@@ -104,9 +113,13 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 		},
 		Pricing: pricing.Info{
-			InputPerMillion:       500_000_000,
-			OutputPerMillion:      2_500_000_000,
-			CachedInputPerMillion: 50_000_000,
+			InputPerMillion:       500_000_000,   // $5.00/M
+			OutputPerMillion:      2_500_000_000, // $25.00/M
+			CachedInputPerMillion: 50_000_000,    // $0.50/M
+			Anthropic: &pricing.AnthropicPricing{
+				CacheWrite5mPerMillion: 625_000_000,   // $6.25/M (1.25× input)
+				CacheWrite1hPerMillion: 1_000_000_000, // $10.00/M (2× input)
+			},
 		},
 	},
 	ModelClaudeSonnet46: {
@@ -127,9 +140,13 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 		},
 		Pricing: pricing.Info{
-			InputPerMillion:       300_000_000,
-			OutputPerMillion:      1_500_000_000,
-			CachedInputPerMillion: 30_000_000,
+			InputPerMillion:       300_000_000,   // $3.00/M
+			OutputPerMillion:      1_500_000_000, // $15.00/M
+			CachedInputPerMillion: 30_000_000,    // $0.30/M
+			Anthropic: &pricing.AnthropicPricing{
+				CacheWrite5mPerMillion: 375_000_000, // $3.75/M (1.25× input)
+				CacheWrite1hPerMillion: 600_000_000, // $6.00/M (2× input)
+			},
 		},
 	},
 	ModelClaudeSonnet45: {
@@ -150,9 +167,13 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 		},
 		Pricing: pricing.Info{
-			InputPerMillion:       300_000_000,
-			OutputPerMillion:      1_500_000_000,
-			CachedInputPerMillion: 30_000_000,
+			InputPerMillion:       300_000_000,   // $3.00/M
+			OutputPerMillion:      1_500_000_000, // $15.00/M
+			CachedInputPerMillion: 30_000_000,    // $0.30/M
+			Anthropic: &pricing.AnthropicPricing{
+				CacheWrite5mPerMillion: 375_000_000, // $3.75/M (1.25× input)
+				CacheWrite1hPerMillion: 600_000_000, // $6.00/M (2× input)
+			},
 		},
 	},
 	ModelClaudeHaiku45: {
@@ -173,9 +194,13 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 		},
 		Pricing: pricing.Info{
-			InputPerMillion:       100_000_000,
-			OutputPerMillion:      500_000_000,
-			CachedInputPerMillion: 10_000_000,
+			InputPerMillion:       100_000_000, // $1.00/M
+			OutputPerMillion:      500_000_000, // $5.00/M
+			CachedInputPerMillion: 10_000_000,  // $0.10/M
+			Anthropic: &pricing.AnthropicPricing{
+				CacheWrite5mPerMillion: 125_000_000, // $1.25/M (1.25× input)
+				CacheWrite1hPerMillion: 200_000_000, // $2.00/M (2× input)
+			},
 		},
 	},
 	ModelClaudeOpus46: {
@@ -196,9 +221,13 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 		},
 		Pricing: pricing.Info{
-			InputPerMillion:       500_000_000,
-			OutputPerMillion:      2_500_000_000,
-			CachedInputPerMillion: 50_000_000,
+			InputPerMillion:       500_000_000,   // $5.00/M
+			OutputPerMillion:      2_500_000_000, // $25.00/M
+			CachedInputPerMillion: 50_000_000,    // $0.50/M
+			Anthropic: &pricing.AnthropicPricing{
+				CacheWrite5mPerMillion: 625_000_000,   // $6.25/M (1.25× input)
+				CacheWrite1hPerMillion: 1_000_000_000, // $10.00/M (2× input)
+			},
 		},
 	},
 	ModelClaudeOpus45: {
@@ -219,9 +248,13 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 		},
 		Pricing: pricing.Info{
-			InputPerMillion:       500_000_000,
-			OutputPerMillion:      2_500_000_000,
-			CachedInputPerMillion: 50_000_000,
+			InputPerMillion:       500_000_000,   // $5.00/M
+			OutputPerMillion:      2_500_000_000, // $25.00/M
+			CachedInputPerMillion: 50_000_000,    // $0.50/M
+			Anthropic: &pricing.AnthropicPricing{
+				CacheWrite5mPerMillion: 625_000_000,   // $6.25/M (1.25× input)
+				CacheWrite1hPerMillion: 1_000_000_000, // $10.00/M (2× input)
+			},
 		},
 	},
 }

@@ -18,9 +18,6 @@ import "github.com/redpanda-data/ai-sdk-go/pricing"
 
 // ModelPricing returns a model ID → pricing map for all supported Bedrock models.
 //
-// Bedrock prices are for on-demand inference in us-east-1. Regional endpoints
-// may have a ~10% premium; this catalog uses global endpoint pricing.
-//
 // Source: https://aws.amazon.com/bedrock/pricing/ (as of 2026-04).
 func ModelPricing() map[string]pricing.Info {
 	m := make(map[string]pricing.Info, len(supportedModels))
