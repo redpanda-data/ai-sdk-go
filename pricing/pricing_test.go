@@ -16,90 +16,10 @@ package pricing
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestModelPricing_RateAt(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)
-	oldDate := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
-
-	mp := ModelPricing{
-		ModelID: "gpt-4o",
-		Rates: []Rate{
-			{EffectiveFrom: now, InputPerMillion: 250_000_000, OutputPerMillion: 1_000_000_000, CachedInputPerMillion: 125_000_000},
-			{EffectiveFrom: oldDate, InputPerMillion: 500_000_000, OutputPerMillion: 1_500_000_000, CachedInputPerMillion: 250_000_000},
-		},
-	}
-
-	t.Run("current rate", func(t *testing.T) {
-		t.Parallel()
-
-		rate := mp.RateAt(now.Add(24 * time.Hour))
-		require.NotNil(t, rate)
-		assert.Equal(t, int64(250_000_000), rate.InputPerMillion)
-	})
-
-	t.Run("historical rate", func(t *testing.T) {
-		t.Parallel()
-
-		rate := mp.RateAt(oldDate.Add(24 * time.Hour))
-		require.NotNil(t, rate)
-		assert.Equal(t, int64(500_000_000), rate.InputPerMillion)
-	})
-
-	t.Run("exact boundary", func(t *testing.T) {
-		t.Parallel()
-
-		rate := mp.RateAt(now)
-		require.NotNil(t, rate)
-		assert.Equal(t, int64(250_000_000), rate.InputPerMillion)
-	})
-
-	t.Run("before all rates returns nil", func(t *testing.T) {
-		t.Parallel()
-
-		rate := mp.RateAt(oldDate.Add(-1 * time.Second))
-		assert.Nil(t, rate)
-	})
-
-	t.Run("empty rates returns nil", func(t *testing.T) {
-		t.Parallel()
-
-		empty := ModelPricing{ModelID: "empty"}
-		assert.Nil(t, empty.RateAt(now))
-	})
-}
-
-func TestModelPricing_CurrentRate(t *testing.T) {
-	t.Parallel()
-
-	t.Run("returns first rate", func(t *testing.T) {
-		t.Parallel()
-
-		mp := ModelPricing{
-			ModelID: "gpt-4o",
-			Rates: []Rate{
-				{InputPerMillion: 250_000_000},
-				{InputPerMillion: 500_000_000},
-			},
-		}
-		rate := mp.CurrentRate()
-		require.NotNil(t, rate)
-		assert.Equal(t, int64(250_000_000), rate.InputPerMillion)
-	})
-
-	t.Run("empty rates returns nil", func(t *testing.T) {
-		t.Parallel()
-
-		mp := ModelPricing{ModelID: "empty"}
-		assert.Nil(t, mp.CurrentRate())
-	})
-}
 
 func TestCatalog_Lookup(t *testing.T) {
 	t.Parallel()
@@ -107,8 +27,10 @@ func TestCatalog_Lookup(t *testing.T) {
 	catalog := NewCatalog([]ModelPricing{
 		{
 			ModelID: "gpt-4o",
-			Rates: []Rate{
-				{InputPerMillion: 250_000_000, OutputPerMillion: 1_000_000_000, CachedInputPerMillion: 125_000_000},
+			Info: Info{
+				InputPerMillion:       250_000_000,
+				OutputPerMillion:      1_000_000_000,
+				CachedInputPerMillion: 125_000_000,
 			},
 		},
 	})
@@ -120,6 +42,7 @@ func TestCatalog_Lookup(t *testing.T) {
 		assert.True(t, ok)
 		require.NotNil(t, mp)
 		assert.Equal(t, "gpt-4o", mp.ModelID)
+		assert.Equal(t, int64(250_000_000), mp.InputPerMillion)
 	})
 
 	t.Run("not found", func(t *testing.T) {
@@ -134,7 +57,7 @@ func TestCatalog_Lookup(t *testing.T) {
 func TestCalculateCost(t *testing.T) {
 	t.Parallel()
 
-	rate := &Rate{
+	info := &Info{
 		InputPerMillion:       250_000_000,   // $2.50 per million
 		OutputPerMillion:      1_000_000_000, // $10.00 per million
 		CachedInputPerMillion: 125_000_000,   // $1.25 per million
@@ -143,7 +66,7 @@ func TestCalculateCost(t *testing.T) {
 	t.Run("basic calculation", func(t *testing.T) {
 		t.Parallel()
 
-		cost := CalculateCost(rate, 1000, 500, 200)
+		cost := CalculateCost(info, 1000, 500, 200)
 
 		// input: 1000 * 250_000_000 / 1_000_000 = 250_000
 		assert.Equal(t, int64(250_000), cost.InputCostMicrocents)
@@ -158,7 +81,7 @@ func TestCalculateCost(t *testing.T) {
 	t.Run("zero tokens", func(t *testing.T) {
 		t.Parallel()
 
-		cost := CalculateCost(rate, 0, 0, 0)
+		cost := CalculateCost(info, 0, 0, 0)
 		assert.Equal(t, int64(0), cost.TotalCostMicrocents)
 	})
 }
@@ -166,7 +89,7 @@ func TestCalculateCost(t *testing.T) {
 func TestCalculateCost_Tiered(t *testing.T) {
 	t.Parallel()
 
-	rate := &Rate{
+	info := &Info{
 		InputPerMillion:       125_000_000,   // $1.25 per M (default = low tier)
 		OutputPerMillion:      1_000_000_000, // $10.00 per M
 		CachedInputPerMillion: 31_250_000,    // $0.3125 per M
@@ -179,7 +102,7 @@ func TestCalculateCost_Tiered(t *testing.T) {
 	t.Run("below threshold uses low tier", func(t *testing.T) {
 		t.Parallel()
 
-		cost := CalculateCost(rate, 100_000, 1000, 0)
+		cost := CalculateCost(info, 100_000, 1000, 0)
 		assert.Equal(t, int64(12_500_000), cost.InputCostMicrocents)
 		assert.Equal(t, int64(1_000_000), cost.OutputCostMicrocents)
 	})
@@ -187,7 +110,7 @@ func TestCalculateCost_Tiered(t *testing.T) {
 	t.Run("at threshold uses low tier", func(t *testing.T) {
 		t.Parallel()
 
-		cost := CalculateCost(rate, 200_000, 1000, 0)
+		cost := CalculateCost(info, 200_000, 1000, 0)
 		assert.Equal(t, int64(25_000_000), cost.InputCostMicrocents)
 		assert.Equal(t, int64(1_000_000), cost.OutputCostMicrocents)
 	})
@@ -195,7 +118,7 @@ func TestCalculateCost_Tiered(t *testing.T) {
 	t.Run("above threshold uses high tier", func(t *testing.T) {
 		t.Parallel()
 
-		cost := CalculateCost(rate, 200_001, 1000, 0)
+		cost := CalculateCost(info, 200_001, 1000, 0)
 		assert.Equal(t, int64(50_000_250), cost.InputCostMicrocents)
 		assert.Equal(t, int64(1_500_000), cost.OutputCostMicrocents)
 	})
@@ -204,17 +127,9 @@ func TestCalculateCost_Tiered(t *testing.T) {
 		t.Parallel()
 
 		// 150k input + 60k cached = 210k context → high tier
-		cost := CalculateCost(rate, 150_000, 1000, 60_000)
+		cost := CalculateCost(info, 150_000, 1000, 60_000)
 		assert.Equal(t, int64(37_500_000), cost.InputCostMicrocents)
 		assert.Equal(t, int64(3_750_000), cost.CachedCostMicrocents)
-	})
-
-	t.Run("default rate fields match low tier", func(t *testing.T) {
-		t.Parallel()
-
-		assert.Equal(t, int64(125_000_000), rate.InputPerMillion)
-		assert.Equal(t, int64(1_000_000_000), rate.OutputPerMillion)
-		assert.Equal(t, int64(31_250_000), rate.CachedInputPerMillion)
 	})
 }
 
@@ -231,13 +146,11 @@ func TestInfo_ToModelPricing_TieredAutoPopulatesFlat(t *testing.T) {
 	}
 
 	mp := info.ToModelPricing("test-model")
-	rate := mp.CurrentRate()
-	require.NotNil(t, rate)
 
 	// Flat fields should be auto-populated from first tier.
-	assert.Equal(t, int64(125_000_000), rate.InputPerMillion)
-	assert.Equal(t, int64(1_000_000_000), rate.OutputPerMillion)
-	assert.Equal(t, int64(12_500_000), rate.CachedInputPerMillion)
+	assert.Equal(t, int64(125_000_000), mp.InputPerMillion)
+	assert.Equal(t, int64(1_000_000_000), mp.OutputPerMillion)
+	assert.Equal(t, int64(12_500_000), mp.CachedInputPerMillion)
 }
 
 func TestInfo_ToModelPricing_FlatNoTiers(t *testing.T) {
@@ -250,9 +163,7 @@ func TestInfo_ToModelPricing_FlatNoTiers(t *testing.T) {
 	}
 
 	mp := info.ToModelPricing("test-flat")
-	rate := mp.CurrentRate()
-	require.NotNil(t, rate)
 
-	assert.Empty(t, rate.Tiers)
-	assert.Equal(t, int64(250_000_000), rate.InputPerMillion)
+	assert.Empty(t, mp.Tiers)
+	assert.Equal(t, int64(250_000_000), mp.InputPerMillion)
 }

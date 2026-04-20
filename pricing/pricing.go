@@ -17,10 +17,8 @@
 // (1 cent = 1,000,000 microcents).
 package pricing
 
-import "time"
-
-// Info holds the current pricing for a model. Embed this in provider
-// ModelDefinition structs so pricing is defined alongside capabilities.
+// Info holds pricing for a model. Embed this in provider ModelDefinition
+// structs so pricing is defined alongside capabilities.
 // All prices are in microcents per million tokens.
 //
 // For tiered models, set only Tiers — the flat fields (InputPerMillion etc.)
@@ -35,28 +33,21 @@ type Info struct {
 
 // ToModelPricing converts Info into a ModelPricing entry for the given model ID.
 //
-// When Tiers is non-empty, the flat Rate fields are auto-populated from the
-// first tier to prevent duplication drift. Tiers are validated to be sorted
-// ascending by MaxInputTokens with a zero (unlimited) catch-all last.
+// When Tiers is non-empty, the flat fields are auto-populated from the
+// first tier to prevent duplication drift.
 func (info Info) ToModelPricing(modelID string) ModelPricing {
-	rate := Rate{
-		EffectiveFrom:         epoch,
-		InputPerMillion:       info.InputPerMillion,
-		OutputPerMillion:      info.OutputPerMillion,
-		CachedInputPerMillion: info.CachedInputPerMillion,
-		Tiers:                 info.Tiers,
-	}
+	resolved := info
 
 	if len(info.Tiers) > 0 {
 		// Auto-populate flat fields from the first (lowest) tier so they
 		// can never drift out of sync with the tiered values.
 		first := info.Tiers[0]
-		rate.InputPerMillion = first.InputPerMillion
-		rate.OutputPerMillion = first.OutputPerMillion
-		rate.CachedInputPerMillion = first.CachedInputPerMillion
+		resolved.InputPerMillion = first.InputPerMillion
+		resolved.OutputPerMillion = first.OutputPerMillion
+		resolved.CachedInputPerMillion = first.CachedInputPerMillion
 	}
 
-	return ModelPricing{ModelID: modelID, Rates: []Rate{rate}}
+	return ModelPricing{ModelID: modelID, Info: resolved}
 }
 
 // Tier represents pricing for a specific context-length range.
@@ -71,51 +62,11 @@ type Tier struct {
 	CachedInputPerMillion int64
 }
 
-// Rate represents pricing for a model at a point in time.
-// All prices are in microcents per million tokens.
-//
-// The top-level InputPerMillion/OutputPerMillion/CachedInputPerMillion fields
-// are the default (lowest) tier and are always populated. When Tiers is
-// non-empty, CalculateCost selects the matching tier based on context size;
-// otherwise it uses the default fields.
-type Rate struct {
-	EffectiveFrom         time.Time
-	InputPerMillion       int64
-	OutputPerMillion      int64
-	CachedInputPerMillion int64
-
-	// Tiers holds context-length-based pricing tiers, sorted ascending by
-	// MaxInputTokens. The last entry should have MaxInputTokens=0 (unlimited).
-	// When empty, the flat Rate fields are used for all requests.
-	Tiers []Tier
-}
-
-// ModelPricing holds the pricing history for a single model.
-// Rates are sorted by EffectiveFrom descending (newest first).
+// ModelPricing holds the pricing for a single model, identified by ModelID.
 type ModelPricing struct {
+	Info
+
 	ModelID string
-	Rates   []Rate
-}
-
-// RateAt returns the effective rate for the given timestamp.
-// It returns nil if the timestamp is before all known rates.
-func (mp *ModelPricing) RateAt(t time.Time) *Rate {
-	for i := range mp.Rates {
-		if !t.Before(mp.Rates[i].EffectiveFrom) {
-			return &mp.Rates[i]
-		}
-	}
-
-	return nil
-}
-
-// CurrentRate returns the most recent rate (Rates[0]), or nil if empty.
-func (mp *ModelPricing) CurrentRate() *Rate {
-	if len(mp.Rates) == 0 {
-		return nil
-	}
-
-	return &mp.Rates[0]
 }
 
 // Cost represents the calculated cost breakdown for a request.
@@ -127,22 +78,22 @@ type Cost struct {
 	TotalCostMicrocents  int64
 }
 
-// CalculateCost computes the cost for a given rate and token counts.
+// CalculateCost computes the cost for a given pricing info and token counts.
 // Cost = tokens * pricePerMillion / 1_000_000.
 //
-// When the rate has Tiers, the tier is selected based on total context size
-// (inputTokens + cachedTokens). Otherwise the flat rate fields are used.
+// When the info has Tiers, the tier is selected based on total context size
+// (inputTokens + cachedTokens). Otherwise the flat fields are used.
 //
 // Note: integer division truncates toward zero, under-counting by up to
 // ~1 microcent per component per request. This is acceptable for cost
 // reporting; if this is ever used for billing, switch to rounding:
 // (tokens * rate + 500_000) / 1_000_000.
-func CalculateCost(rate *Rate, inputTokens, outputTokens, cachedTokens int) Cost {
-	inputRate, outputRate, cachedRate := rate.InputPerMillion, rate.OutputPerMillion, rate.CachedInputPerMillion
+func CalculateCost(info *Info, inputTokens, outputTokens, cachedTokens int) Cost {
+	inputRate, outputRate, cachedRate := info.InputPerMillion, info.OutputPerMillion, info.CachedInputPerMillion
 
-	if len(rate.Tiers) > 0 {
+	if len(info.Tiers) > 0 {
 		contextSize := int64(inputTokens + cachedTokens)
-		for _, tier := range rate.Tiers {
+		for _, tier := range info.Tiers {
 			if tier.MaxInputTokens == 0 || contextSize <= tier.MaxInputTokens {
 				inputRate = tier.InputPerMillion
 				outputRate = tier.OutputPerMillion
