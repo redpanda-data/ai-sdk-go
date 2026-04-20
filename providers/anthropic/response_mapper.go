@@ -99,6 +99,7 @@ func (m *ResponseMapper) FromProvider(r *anthropic.BetaMessage) (*llm.Response, 
 	// accurate. Anthropic thinking/extended-reasoning tokens are billed as
 	// regular output tokens and are not reported separately in usage.
 	var usage *llm.TokenUsage
+
 	if r.Usage.InputTokens > 0 || r.Usage.OutputTokens > 0 ||
 		r.Usage.CacheReadInputTokens > 0 || r.Usage.CacheCreationInputTokens > 0 {
 		ephemeral5m := int(r.Usage.CacheCreation.Ephemeral5mInputTokens)

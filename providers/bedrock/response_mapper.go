@@ -210,6 +210,7 @@ func (m *ResponseMapper) mapTokenUsage(usage *types.TokenUsage) *llm.TokenUsage 
 	}
 
 	var knownBreakdownTokens int
+
 	for _, detail := range usage.CacheDetails {
 		if detail.InputTokens == nil {
 			continue
