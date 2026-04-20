@@ -33,13 +33,14 @@ func TestTokenUsage_BilledInputTokens(t *testing.T) {
 		{
 			name: "all input buckets disjoint and summed",
 			usage: &TokenUsage{
-				InputTokens:           100,
-				CachedInputTokens:     50,
-				CacheCreation5mTokens: 30,
-				CacheCreation1hTokens: 20,
-				ToolUseInputTokens:    10,
+				InputTokens:                   100,
+				CachedInputTokens:             50,
+				CacheCreation5mTokens:         30,
+				CacheCreation1hTokens:         20,
+				CacheCreationUnknownTTLTokens: 5,
+				ToolUseInputTokens:            10,
 			},
-			want: 210,
+			want: 215,
 		},
 		{
 			name: "only fresh input",
@@ -77,14 +78,13 @@ func TestTokenUsage_BilledOutputTokens(t *testing.T) {
 			want: 75,
 		},
 		{
-			name: "with predicted outputs",
+			name: "rejected predictions add; accepted are already in output",
 			usage: &TokenUsage{
 				OutputTokens:             40,
 				ReasoningTokens:          0,
-				AcceptedPredictionTokens: 10,
 				RejectedPredictionTokens: 5,
 			},
-			want: 55,
+			want: 45,
 		},
 	}
 
@@ -100,13 +100,14 @@ func TestTokenUsage_TotalBilledTokens(t *testing.T) {
 	t.Parallel()
 
 	u := &TokenUsage{
-		InputTokens:           100,
-		CachedInputTokens:     50,
-		CacheCreation5mTokens: 30,
-		OutputTokens:          40,
-		ReasoningTokens:       10,
+		InputTokens:                   100,
+		CachedInputTokens:             50,
+		CacheCreation5mTokens:         30,
+		CacheCreationUnknownTTLTokens: 10,
+		OutputTokens:                  40,
+		ReasoningTokens:               10,
 	}
-	assert.Equal(t, 230, u.TotalBilledTokens())
+	assert.Equal(t, 240, u.TotalBilledTokens())
 }
 
 func TestSumUsage(t *testing.T) {
@@ -165,21 +166,25 @@ func TestSumUsage(t *testing.T) {
 					GuardrailUnits:      map[string]int{"content_policy": 1},
 				},
 				{
-					InputTokens:           200,
-					CacheCreation5mTokens: 25,
-					OutputTokens:          100,
-					ReasoningTokens:       10,
-					ModalityInputTokens:   map[Modality]int{ModalityText: 150, ModalityAudio: 50},
-					ServerToolRequests:    map[ServerTool]int{ServerToolWebSearch: 1, ServerToolWebFetch: 3},
-					GuardrailUnits:        map[string]int{"content_policy": 2, "topic_policy": 1},
+					InputTokens:                   200,
+					CacheCreation5mTokens:         25,
+					CacheCreationUnknownTTLTokens: 3,
+					OutputTokens:                  100,
+					ReasoningTokens:               10,
+					RejectedPredictionTokens:      7,
+					ModalityInputTokens:           map[Modality]int{ModalityText: 150, ModalityAudio: 50},
+					ServerToolRequests:            map[ServerTool]int{ServerToolWebSearch: 1, ServerToolWebFetch: 3},
+					GuardrailUnits:                map[string]int{"content_policy": 2, "topic_policy": 1},
 				},
 			},
 			expected: &TokenUsage{
-				InputTokens:           300,
-				CachedInputTokens:     10,
-				CacheCreation5mTokens: 25,
-				OutputTokens:          150,
-				ReasoningTokens:       15,
+				InputTokens:                   300,
+				CachedInputTokens:             10,
+				CacheCreation5mTokens:         25,
+				CacheCreationUnknownTTLTokens: 3,
+				OutputTokens:                  150,
+				ReasoningTokens:               15,
+				RejectedPredictionTokens:      7,
 				ModalityInputTokens: map[Modality]int{
 					ModalityText:  230,
 					ModalityImage: 20,
@@ -190,29 +195,6 @@ func TestSumUsage(t *testing.T) {
 					ServerToolWebFetch:  3,
 				},
 				GuardrailUnits: map[string]int{"content_policy": 3, "topic_policy": 1},
-			},
-		},
-		{
-			name: "first non-empty string wins",
-			usages: []*TokenUsage{
-				{InputTokens: 10, ServiceTier: ServiceTierPriority, Speed: "fast"},
-				{InputTokens: 20, ServiceTier: ServiceTierDefault, Speed: "standard"},
-			},
-			expected: &TokenUsage{
-				InputTokens: 30,
-				ServiceTier: ServiceTierPriority,
-				Speed:       "fast",
-			},
-		},
-		{
-			name: "MaxInputTokens takes max",
-			usages: []*TokenUsage{
-				{InputTokens: 1, MaxInputTokens: 128_000},
-				{InputTokens: 1, MaxInputTokens: 200_000},
-			},
-			expected: &TokenUsage{
-				InputTokens:    2,
-				MaxInputTokens: 200_000,
 			},
 		},
 		{

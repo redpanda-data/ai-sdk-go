@@ -185,12 +185,17 @@ func (m *ResponseMapper) mapReasoningBlock(value types.ReasoningContentBlock) *l
 
 // mapTokenUsage converts Bedrock TokenUsage to llm.TokenUsage. Bedrock
 // Converse's InputTokens, CacheReadInputTokens, and CacheWriteInputTokens are
-// already disjoint, matching the normalized shape directly. Per-TTL write
-// breakdown from CacheDetails is split into 5m / 1h buckets.
+// already disjoint, matching the normalized shape directly.
+//
+// Per-TTL write breakdown from CacheDetails is split into 5m / 1h buckets
+// when present. If CacheDetails is missing or covers fewer tokens than the
+// aggregate CacheWriteInputTokens, the remainder is routed to
+// CacheCreationUnknownTTLTokens so BilledInputTokens() reflects the full
+// provider-reported billable amount. Unknown TTL string values (if Bedrock
+// introduces more) are still recorded in Extra for audit, in addition to
+// being counted in the unknown-TTL aggregate.
 func (m *ResponseMapper) mapTokenUsage(usage *types.TokenUsage) *llm.TokenUsage {
-	result := &llm.TokenUsage{
-		MaxInputTokens: m.modelDefinition.Constraints.MaxInputTokens,
-	}
+	result := &llm.TokenUsage{}
 
 	if usage.InputTokens != nil {
 		result.InputTokens = int(*usage.InputTokens)
@@ -204,9 +209,7 @@ func (m *ResponseMapper) mapTokenUsage(usage *types.TokenUsage) *llm.TokenUsage 
 		result.CachedInputTokens = int(*usage.CacheReadInputTokens)
 	}
 
-	// CacheDetails breaks cache writes down by TTL. Split into 5m / 1h
-	// buckets; other TTL values (if Bedrock introduces them) fall through
-	// to Extra for consumer-side handling.
+	var knownBreakdownTokens int
 	for _, detail := range usage.CacheDetails {
 		if detail.InputTokens == nil {
 			continue
@@ -216,9 +219,17 @@ func (m *ResponseMapper) mapTokenUsage(usage *types.TokenUsage) *llm.TokenUsage 
 		switch detail.Ttl {
 		case types.CacheTTLFiveMinutes:
 			result.CacheCreation5mTokens += tokens
+			knownBreakdownTokens += tokens
 		case types.CacheTTLOneHour:
 			result.CacheCreation1hTokens += tokens
+			knownBreakdownTokens += tokens
 		default:
+			// Unknown TTL string — count toward the billable total via the
+			// unknown-TTL bucket, and also record the raw TTL in Extra for
+			// audit so consumers can see the actual value Bedrock reported.
+			result.CacheCreationUnknownTTLTokens += tokens
+			knownBreakdownTokens += tokens
+
 			if result.Extra == nil {
 				result.Extra = make(map[string]any)
 			}
@@ -229,6 +240,18 @@ func (m *ResponseMapper) mapTokenUsage(usage *types.TokenUsage) *llm.TokenUsage 
 			} else {
 				result.Extra[key] = tokens
 			}
+		}
+	}
+
+	// Fallback: if the aggregate CacheWriteInputTokens is larger than the
+	// per-TTL breakdown (older response shape, partial CacheDetails), route
+	// the remainder to CacheCreationUnknownTTLTokens so BilledInputTokens
+	// stays accurate. A nil CacheWriteInputTokens with a non-empty
+	// breakdown is treated as consistent.
+	if usage.CacheWriteInputTokens != nil {
+		aggregate := int(*usage.CacheWriteInputTokens)
+		if aggregate > knownBreakdownTokens {
+			result.CacheCreationUnknownTTLTokens += aggregate - knownBreakdownTokens
 		}
 	}
 

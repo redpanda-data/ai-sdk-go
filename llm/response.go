@@ -41,6 +41,42 @@ type Response struct {
 	// Raw contains the original provider response for debugging purposes.
 	// This is optional and may be omitted in production to save memory.
 	Raw map[string]any `json:"raw,omitempty"`
+
+	// ServiceTier is the normalized request-processing variant the provider
+	// reported for this call. Empty string means default or not reported.
+	// This field describes HOW the request was processed and is not
+	// meaningfully additive across calls — it lives on Response, not
+	// TokenUsage.
+	ServiceTier ServiceTier `json:"service_tier,omitempty"`
+
+	// RawServiceTier carries the provider-native tier string for audit/debug
+	// when the normalized mapping is lossy (e.g., vendor-specific values the
+	// SDK doesn't recognize).
+	RawServiceTier string `json:"raw_service_tier,omitempty"`
+
+	// Speed is a provider-specific latency tier. Anthropic:
+	// "standard" | "fast". Bedrock PerformanceConfig:
+	// "standard" | "optimized". Empty for providers that do not report one.
+	Speed string `json:"speed,omitempty"`
+
+	// InferenceRegion is the compute region reported by the provider, if any.
+	// Anthropic populates this from inference_geo. Other providers typically
+	// leave it empty.
+	InferenceRegion string `json:"inference_region,omitempty"`
+
+	// InvokedModelID is the actual model that served the request when a
+	// router rewrote it (Bedrock PromptRouter, OpenAI model routing). Empty
+	// when no re-routing occurred.
+	InvokedModelID string `json:"invoked_model_id,omitempty"`
+
+	// LatencyMs is total server-reported latency in milliseconds.
+	// Zero if not returned by the provider.
+	LatencyMs int64 `json:"latency_ms,omitempty"`
+
+	// FirstByteLatencyMs is time-to-first-byte in milliseconds when reported.
+	// Currently surfaced only by Bedrock-Anthropic via
+	// amazon-bedrock-invocationMetrics.
+	FirstByteLatencyMs int64 `json:"first_byte_latency_ms,omitempty"`
 }
 
 // TextContent extracts and combines all text content from this response.

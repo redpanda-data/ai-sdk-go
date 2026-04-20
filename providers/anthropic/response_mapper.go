@@ -91,19 +91,31 @@ func (m *ResponseMapper) FromProvider(r *anthropic.BetaMessage) (*llm.Response, 
 
 	// Extract usage information. Anthropic's input_tokens, cache_read_input_tokens,
 	// and cache_creation_input_tokens are disjoint — map them directly onto the
-	// SDK's disjoint buckets.
+	// SDK's disjoint buckets. The per-TTL breakdown lives in
+	// usage.cache_creation.ephemeral_{5m,1h}_input_tokens; if that breakdown
+	// is absent or covers fewer tokens than the aggregate
+	// cache_creation_input_tokens (older API response shapes), route the
+	// remainder to CacheCreationUnknownTTLTokens so BilledInputTokens() stays
+	// accurate. Anthropic thinking/extended-reasoning tokens are billed as
+	// regular output tokens and are not reported separately in usage.
 	var usage *llm.TokenUsage
 	if r.Usage.InputTokens > 0 || r.Usage.OutputTokens > 0 ||
 		r.Usage.CacheReadInputTokens > 0 || r.Usage.CacheCreationInputTokens > 0 {
+		ephemeral5m := int(r.Usage.CacheCreation.Ephemeral5mInputTokens)
+		ephemeral1h := int(r.Usage.CacheCreation.Ephemeral1hInputTokens)
+
+		var unknownTTL int
+		if aggregate := int(r.Usage.CacheCreationInputTokens); aggregate > ephemeral5m+ephemeral1h {
+			unknownTTL = aggregate - ephemeral5m - ephemeral1h
+		}
+
 		usage = &llm.TokenUsage{
-			InputTokens:           int(r.Usage.InputTokens),
-			CachedInputTokens:     int(r.Usage.CacheReadInputTokens),
-			CacheCreation5mTokens: int(r.Usage.CacheCreation.Ephemeral5mInputTokens),
-			CacheCreation1hTokens: int(r.Usage.CacheCreation.Ephemeral1hInputTokens),
-			OutputTokens:          int(r.Usage.OutputTokens),
-			// Anthropic thinking/extended-reasoning tokens are billed as regular
-			// output tokens and are not reported separately in usage.
-			MaxInputTokens: m.modelDefinition.Constraints.MaxInputTokens,
+			InputTokens:                   int(r.Usage.InputTokens),
+			CachedInputTokens:             int(r.Usage.CacheReadInputTokens),
+			CacheCreation5mTokens:         ephemeral5m,
+			CacheCreation1hTokens:         ephemeral1h,
+			CacheCreationUnknownTTLTokens: unknownTTL,
+			OutputTokens:                  int(r.Usage.OutputTokens),
 		}
 	}
 

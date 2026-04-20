@@ -135,7 +135,6 @@ func (m *ResponseMapper) FromProvider(r *responses.Response) (*llm.Response, err
 		CachedInputTokens: cachedIn,
 		OutputTokens:      int(r.Usage.OutputTokens) - reasoning,
 		ReasoningTokens:   reasoning,
-		MaxInputTokens:    m.modelDefinition.Constraints.MaxInputTokens,
 	}
 
 	// 6. Finish reason: tool calls take precedence.

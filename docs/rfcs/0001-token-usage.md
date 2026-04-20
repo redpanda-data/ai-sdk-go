@@ -6,7 +6,7 @@
 
 ## Summary
 
-Replace the current `llm.TokenUsage` with a shape that can losslessly carry what all four first-party providers (OpenAI, Anthropic, Google, AWS Bedrock) actually report, so that consumers — agents, gateways, billing/FinOps tools, dashboards — can price, audit, and sum usage without provider-specific workarounds.
+Replace the current `llm.TokenUsage` with a **normalized** shape that captures the billable and operationally interesting dimensions the four first-party providers (OpenAI, Anthropic, Google, AWS Bedrock) report, so that consumers — agents, gateways, billing/FinOps tools, dashboards — can price and aggregate usage without provider-specific workarounds. This is not a lossless mirror of every provider field; dimensions the SDK does not normalize (e.g., provider-specific trace details, forthcoming billing lines) live in an `Extra` map keyed by `<provider>.<field>`.
 
 ## Motivation
 
@@ -39,55 +39,69 @@ The current struct has three concrete problems:
 ### Core invariant
 
 **All token counters are disjoint.** A prompt token is counted in exactly one of:
-`InputTokens`, `CachedInputTokens`, `CacheCreation5mTokens`, `CacheCreation1hTokens`, `ToolUseInputTokens`.
+`InputTokens`, `CachedInputTokens`, `CacheCreation5mTokens`, `CacheCreation1hTokens`, `CacheCreationUnknownTTLTokens`, `ToolUseInputTokens`.
 
-Same rule on the output side: `OutputTokens`, `ReasoningTokens`, `RejectedPredictionTokens` (plus `AcceptedPredictionTokens` when OpenAI Predicted Outputs is in use — see field doc).
+Same rule on the output side: `OutputTokens`, `ReasoningTokens`, `RejectedPredictionTokens`.
+
+Note on OpenAI Predicted Outputs: `accepted_prediction_tokens` are by OpenAI's definition tokens that appeared *in* the completion, so they are already counted inside `OutputTokens` — they are not a separate disjoint bucket. Only `rejected_prediction_tokens` (billed but not returned to the caller) are surfaced as an additive field. Consumers who need the accepted-vs-rejected breakdown can read the raw provider response.
 
 This makes "billed tokens" a simple integer sum and removes the subset/additive ambiguity. It matches Anthropic's and Bedrock's native convention and requires mechanical remapping for OpenAI and Google.
+
+### What lives where
+
+`TokenUsage` contains **only** the additive token-accounting surface. Per-call metadata that describes *how* a request was processed — `ServiceTier`, `RawServiceTier`, `Speed`, `InferenceRegion`, `InvokedModelID`, `LatencyMs`, `FirstByteLatencyMs` — lives on `llm.Response`. These fields are not meaningfully additive across calls, so forcing them through `SumUsage` (first-non-empty-wins, max, etc.) is a type smell.
+
+`MaxInputTokens` is a model-config value, not usage. It has been removed from `TokenUsage`; the canonical source is `modelDefinition.Constraints.MaxInputTokens`.
+
+### TTL fallback for cache writes
+
+Anthropic and Bedrock both report a per-TTL breakdown for cache-write tokens. When the breakdown is absent or covers fewer tokens than the aggregate (older API response shapes, partial CacheDetails), extractors route the remainder to `CacheCreationUnknownTTLTokens`. That way `BilledInputTokens()` always reflects the provider-reported billable amount without pretending to know a TTL we weren't told.
 
 ### Field layout
 
 ```go
 type TokenUsage struct {
     // Input side (all disjoint).
-    InputTokens            int
-    CachedInputTokens      int
-    CacheCreation5mTokens  int
-    CacheCreation1hTokens  int
-    ToolUseInputTokens     int
+    InputTokens                   int
+    CachedInputTokens             int
+    CacheCreation5mTokens         int
+    CacheCreation1hTokens         int
+    CacheCreationUnknownTTLTokens int // fallback when per-TTL breakdown is absent
+    ToolUseInputTokens            int
 
     // Output side (all disjoint).
     OutputTokens             int
     ReasoningTokens          int
-    AcceptedPredictionTokens int
-    RejectedPredictionTokens int
+    RejectedPredictionTokens int // accepted predicted tokens are already inside OutputTokens
 
     // Per-modality breakdown (optional; keys sum to the top-level counter).
     ModalityInputTokens       map[Modality]int
     ModalityOutputTokens      map[Modality]int
     ModalityCachedInputTokens map[Modality]int
 
-    // Request posture / routing (informational, affects pricing).
-    ServiceTier     ServiceTier
-    RawServiceTier  string
-    Speed           string
-    InferenceRegion string
-    InvokedModelID  string
-
     // Non-token billable counters.
     ServerToolRequests map[ServerTool]int
     GuardrailUnits     map[string]int
 
-    // Performance (not billable but widely useful).
+    // Provider-specific dimensions we do not normalize.
+    // Keys MUST be namespaced as "<provider>.<field>" to avoid collisions.
+    Extra map[string]any
+}
+```
+
+Per-call metadata on `llm.Response`:
+
+```go
+type Response struct {
+    // ...existing fields...
+
+    ServiceTier        ServiceTier
+    RawServiceTier     string
+    Speed              string
+    InferenceRegion    string
+    InvokedModelID     string
     LatencyMs          int64
     FirstByteLatencyMs int64
-
-    // Model capability (config, not usage).
-    MaxInputTokens int
-
-    // Provider-specific dimensions we do not normalize.
-    // Keys must be namespaced as "<provider>.<field>" to avoid collisions.
-    Extra map[string]any
 }
 ```
 
@@ -104,18 +118,39 @@ func (u *TokenUsage) TotalBilledTokens() int
 - **`TotalTokens`**: providers disagree on its meaning (some include reasoning, some don't; some include cache writes, some don't). Callers use `TotalBilledTokens()`.
 - **`CachedTokens`** → renamed to `CachedInputTokens` with new disjoint semantics. The rename forces consumers to notice the semantic change at compile time rather than silently miscount.
 
+### PR 1 extractor coverage
+
+PR 1 wires the subset of the shape that can be populated from fields the existing extractors already read. This is deliberate — new shape and new extraction are split so the type change lands cleanly, then follow-ups focus on richer data.
+
+| Field | Populated in PR 1? |
+|---|---|
+| `InputTokens`, `OutputTokens`, `CachedInputTokens` | All providers |
+| `CacheCreation5mTokens`, `CacheCreation1hTokens` | Anthropic, Bedrock |
+| `CacheCreationUnknownTTLTokens` | Anthropic, Bedrock (fallback path) |
+| `ToolUseInputTokens` | Google |
+| `ReasoningTokens` | OpenAI, OpenAI-compat, Google |
+| `RejectedPredictionTokens` | — (PR 2) |
+| `ModalityInputTokens` / `ModalityOutputTokens` / `ModalityCachedInputTokens` | — (PR 2: Google, OpenAI audio) |
+| `ServerToolRequests` | — (PR 2: Anthropic web_search/web_fetch, Google grounding) |
+| `GuardrailUnits` | — (PR 2: Bedrock) |
+| `Extra` | Bedrock unknown-TTL audit keys |
+| `Response.ServiceTier` / `RawServiceTier` / `Speed` / `InferenceRegion` / `InvokedModelID` / `LatencyMs` / `FirstByteLatencyMs` | — (PR 2) |
+
+Consumers treating a zero field as "reported zero" today will need to verify against the provider's raw response until PR 2 lands, same as with the old `TokenUsage`.
+
 ### Per-provider mapping contract
 
 This is the contract every response mapper must satisfy. Full rationale per field is in the provider's `response_mapper.go`.
 
-**Anthropic / Bedrock-Anthropic (already disjoint — direct copy):**
+**Anthropic (already disjoint — direct copy with TTL fallback):**
 
 ```
-InputTokens            ← usage.input_tokens
-CachedInputTokens      ← usage.cache_read_input_tokens
-CacheCreation5mTokens  ← usage.cache_creation.ephemeral_5m_input_tokens
-CacheCreation1hTokens  ← usage.cache_creation.ephemeral_1h_input_tokens
-OutputTokens           ← usage.output_tokens
+InputTokens                   ← usage.input_tokens
+CachedInputTokens             ← usage.cache_read_input_tokens
+CacheCreation5mTokens         ← usage.cache_creation.ephemeral_5m_input_tokens
+CacheCreation1hTokens         ← usage.cache_creation.ephemeral_1h_input_tokens
+CacheCreationUnknownTTLTokens ← max(0, usage.cache_creation_input_tokens - (5m + 1h))
+OutputTokens                  ← usage.output_tokens
 ```
 
 **OpenAI (normalize subset → disjoint):**
@@ -137,15 +172,19 @@ OutputTokens      ← candidates_token_count  // already excludes thoughts
 ReasoningTokens   ← thoughts_token_count    // already additive
 ```
 
-**Bedrock Converse:**
+**Bedrock Converse (direct copy with TTL fallback):**
 
 ```
-InputTokens            ← input_tokens
-CachedInputTokens      ← cache_read_input_tokens
-CacheCreation5mTokens  ← cache_details[ttl="5m"].input_tokens
-CacheCreation1hTokens  ← cache_details[ttl="1h"].input_tokens
-OutputTokens           ← output_tokens
+InputTokens                    ← input_tokens
+CachedInputTokens              ← cache_read_input_tokens
+CacheCreation5mTokens          ← sum(cache_details[ttl="5m"].input_tokens)
+CacheCreation1hTokens          ← sum(cache_details[ttl="1h"].input_tokens)
+CacheCreationUnknownTTLTokens  ← sum(cache_details[ttl=other].input_tokens)
+                                 + max(0, cache_write_input_tokens - sum(cache_details))
+OutputTokens                   ← output_tokens
 ```
+
+Unknown TTL strings are also recorded in `Extra["bedrock.cache_write_ttl_<ttl>_tokens"]` for audit.
 
 ## Breaking change posture
 
@@ -159,5 +198,5 @@ This is a v0 breaking change. The SDK is pre-1.0; consumers who care about stabl
 
 ## Scope split
 
-- **PR 1 (this):** new shape + `SumUsage` + helpers + conformance contract + minimal extractor updates (rename + disjoint math for fields already extracted today). Everything compiles, all existing tests pass with updated assertions.
-- **PR 2 (follow-up):** richer extraction — populate `CacheCreation5m/1hTokens` separately (Anthropic / Bedrock), `Modality*Tokens` (Google, OpenAI audio), `GuardrailUnits` (Bedrock), `AcceptedPredictionTokens` / `RejectedPredictionTokens` (OpenAI), `ServiceTier` / `Speed` / `InferenceRegion`, `ServerToolRequests`.
+- **PR 1 (this):** new shape + `SumUsage` + helpers + extractor updates for fields already extracted today (input/output/cached for every provider; cache-creation 5m/1h + unknown-TTL fallback for Anthropic and Bedrock; thoughts + tool-use for Google). Response gains per-call metadata fields but they are not populated yet. Everything compiles, all unit tests pass.
+- **PR 2 (follow-up):** richer extraction — `Modality*Tokens` (Google, OpenAI audio), `GuardrailUnits` (Bedrock), `RejectedPredictionTokens` (OpenAI), and full population of `Response.ServiceTier` / `RawServiceTier` / `Speed` / `InferenceRegion` / `InvokedModelID` / `LatencyMs` / `FirstByteLatencyMs`. `ServerToolRequests` for Anthropic (web_search, web_fetch), Google (grounding).

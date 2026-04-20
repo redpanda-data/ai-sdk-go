@@ -111,7 +111,6 @@ func (rm *ResponseMapper) FromProvider(apiResp *openai.ChatCompletion) (*llm.Res
 		CachedInputTokens: cachedTokens,
 		OutputTokens:      int(apiResp.Usage.CompletionTokens) - reasoningTokens,
 		ReasoningTokens:   reasoningTokens,
-		MaxInputTokens:    rm.constraints.MaxInputTokens,
 	}
 
 	return &llm.Response{

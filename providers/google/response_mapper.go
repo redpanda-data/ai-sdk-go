@@ -71,7 +71,6 @@ func (m *ResponseMapper) FromProvider(r *genai.GenerateContentResponse) (*llm.Re
 			ToolUseInputTokens: int(r.UsageMetadata.ToolUsePromptTokenCount),
 			OutputTokens:       int(r.UsageMetadata.CandidatesTokenCount),
 			ReasoningTokens:    int(r.UsageMetadata.ThoughtsTokenCount),
-			MaxInputTokens:     m.modelDefinition.Constraints.MaxInputTokens,
 		}
 	}
 

@@ -23,31 +23,42 @@ import "maps"
 //
 // All token counters are DISJOINT. A prompt token is counted in exactly one of
 // InputTokens, CachedInputTokens, CacheCreation5mTokens, CacheCreation1hTokens,
-// or ToolUseInputTokens. Likewise output tokens are counted in exactly one of
-// OutputTokens, ReasoningTokens, AcceptedPredictionTokens, RejectedPredictionTokens.
+// CacheCreationUnknownTTLTokens, or ToolUseInputTokens. Likewise output tokens
+// are counted in exactly one of OutputTokens, ReasoningTokens, or
+// RejectedPredictionTokens.
 //
-// This matches Anthropic's and Bedrock's native convention and requires that
-// OpenAI and Google extractors un-subset their native values (see the provider
-// response mappers for details).
+// This matches Anthropic's and Bedrock's native convention. OpenAI and Google
+// extractors un-subset their native values so the invariant holds uniformly
+// (see the per-provider response mappers).
 //
-// # Not reported vs zero
+// # Zero vs not-reported
 //
-// A zero value means "not reported by the provider", not "zero tokens." Providers
-// do not always surface every dimension; consumers relying on a specific field
-// should check the provider's own documentation for coverage.
+// A zero value is ambiguous: it may mean "reported zero" or "not surfaced by
+// the provider or the extractor." Consumers that need to distinguish should
+// consult the provider's raw response. Within the SDK, extractors populate
+// fields whenever the underlying SDK exposes them; additional fields are
+// wired in over subsequent releases.
 //
 // # Billed totals
 //
 // Use BilledInputTokens, BilledOutputTokens, and TotalBilledTokens to compute
-// sums — directly adding fields is correct because counters are disjoint, but
-// the helpers document intent and are stable across future field additions.
+// sums. Counters are disjoint so these are simple additions; the helpers
+// document intent and stay stable as fields are added.
+//
+// # What is NOT in TokenUsage
+//
+// Per-call metadata that describes HOW a request was processed
+// (service tier, speed, inference region, invoked model ID, latencies) lives
+// on llm.Response, not here. Those fields are not meaningfully additive
+// across calls.
 type TokenUsage struct {
-	// InputTokens is the number of fresh (non-cached, non-cache-write, non-tool)
-	// prompt tokens charged at the base input rate.
+	// InputTokens is the number of fresh (non-cached, non-cache-write,
+	// non-tool-use) prompt tokens charged at the base input rate.
 	InputTokens int `json:"input_tokens"`
 
-	// CachedInputTokens is the number of prompt tokens served from the provider's
-	// cache (cache read). Disjoint from InputTokens. Billed at a reduced rate.
+	// CachedInputTokens is the number of prompt tokens served from the
+	// provider's cache (cache read). Disjoint from InputTokens. Billed at a
+	// reduced rate.
 	//
 	// Provider coverage: OpenAI (prompt_tokens_details.cached_tokens),
 	// Anthropic (cache_read_input_tokens), Google (cached_content_token_count),
@@ -62,54 +73,69 @@ type TokenUsage struct {
 	CacheCreation5mTokens int `json:"cache_creation_5m_tokens,omitempty"`
 
 	// CacheCreation1hTokens is the number of prompt tokens written to the
-	// provider's 1-hour-TTL cache. Disjoint from InputTokens. Billed at an
-	// elevated rate (higher than 5m writes).
+	// provider's 1-hour-TTL cache. Disjoint from InputTokens. Billed at a
+	// higher elevated rate than 5m writes.
 	//
 	// Provider coverage: Anthropic, Bedrock-Anthropic.
 	CacheCreation1hTokens int `json:"cache_creation_1h_tokens,omitempty"`
 
-	// ToolUseInputTokens is the number of prompt tokens consumed by server-side
-	// tool invocations (e.g., function-calling loops billed separately from the
-	// user-visible prompt). Disjoint from InputTokens.
+	// CacheCreationUnknownTTLTokens is the number of prompt tokens written
+	// to the provider's cache when a TTL-specific field was not available
+	// (older API shapes, future unknown TTLs). Disjoint from InputTokens and
+	// from the 5m/1h counters.
 	//
-	// Provider coverage: Google (tool_use_prompt_token_count). Zero for providers
-	// that fold tool-use tokens into InputTokens.
+	// Extractors fall back to this field when a provider reports an
+	// aggregate cache-write count without a per-TTL breakdown, so the total
+	// stays reflected in BilledInputTokens() without pretending to know the
+	// TTL.
+	CacheCreationUnknownTTLTokens int `json:"cache_creation_unknown_ttl_tokens,omitempty"`
+
+	// ToolUseInputTokens is the number of prompt tokens consumed by
+	// server-side tool invocations (e.g., function-calling loops billed
+	// separately from the user-visible prompt). Disjoint from InputTokens.
+	//
+	// Provider coverage: Google (tool_use_prompt_token_count). Zero for
+	// providers that fold tool-use tokens into InputTokens.
 	ToolUseInputTokens int `json:"tool_use_input_tokens,omitempty"`
 
-	// OutputTokens is the number of tokens in the assistant's visible response.
-	// Does NOT include reasoning/thinking tokens, which are separate.
+	// OutputTokens is the number of tokens in the assistant's visible
+	// response. Does NOT include reasoning tokens (disjoint, see
+	// ReasoningTokens) or rejected predicted-output tokens (disjoint, see
+	// RejectedPredictionTokens). Does INCLUDE accepted predicted-output
+	// tokens, since those appear in the completion.
 	OutputTokens int `json:"output_tokens"`
 
 	// ReasoningTokens is the number of tokens the model spent on hidden
 	// reasoning/thinking. Disjoint from OutputTokens — the SDK un-subsets
-	// OpenAI's native value so that the invariant holds uniformly. Typically
-	// billed at the output rate, though some providers charge separately.
+	// OpenAI's native value so the invariant holds uniformly. Typically
+	// billed at the output rate.
 	//
-	// Provider coverage: OpenAI o-series / GPT-5 (completion_tokens_details.reasoning_tokens),
-	// Google Gemini 2.5+ (thoughts_token_count), OpenAI-compatible reasoning models.
-	// Anthropic and Bedrock do not surface thinking tokens as a separate counter
-	// — Anthropic's thinking content is billed as regular output tokens and
-	// ReasoningTokens will be 0.
+	// Provider coverage: OpenAI o-series / GPT-5
+	// (completion_tokens_details.reasoning_tokens), Google Gemini 2.5+
+	// (thoughts_token_count), OpenAI-compatible reasoning models. Anthropic
+	// and Bedrock do not surface thinking tokens as a separate counter —
+	// Anthropic's thinking content is billed as regular output and
+	// ReasoningTokens will be zero.
 	ReasoningTokens int `json:"reasoning_tokens,omitempty"`
 
-	// AcceptedPredictionTokens is the number of Predicted Outputs tokens that
-	// appeared verbatim in the completion. Disjoint from OutputTokens.
+	// RejectedPredictionTokens is the number of OpenAI Predicted Outputs
+	// tokens that did NOT appear in the completion. Billed as output but
+	// never returned to the caller, so they are disjoint from OutputTokens.
 	//
-	// Provider coverage: OpenAI only (completion_tokens_details.accepted_prediction_tokens).
-	AcceptedPredictionTokens int `json:"accepted_prediction_tokens,omitempty"`
-
-	// RejectedPredictionTokens is the number of Predicted Outputs tokens that
-	// did NOT appear in the completion. These are billed as output but are not
-	// returned in the response. Disjoint from OutputTokens.
+	// Provider coverage: OpenAI only
+	// (completion_tokens_details.rejected_prediction_tokens).
 	//
-	// Provider coverage: OpenAI only (completion_tokens_details.rejected_prediction_tokens).
+	// Note: accepted predicted-output tokens are NOT a separate counter —
+	// they appear verbatim in the completion and are already included in
+	// OutputTokens. Consumers that need the breakdown can read the raw
+	// provider response.
 	RejectedPredictionTokens int `json:"rejected_prediction_tokens,omitempty"`
 
-	// ModalityInputTokens breaks InputTokens down by modality when the provider
-	// reports it. The sum over the map equals InputTokens.
+	// ModalityInputTokens breaks InputTokens down by modality when the
+	// provider reports it. The sum over the map equals InputTokens.
 	//
-	// Provider coverage: Google (prompt_tokens_details[]). OpenAI audio tokens
-	// are exposed here when present.
+	// Provider coverage: Google (prompt_tokens_details[]). OpenAI audio
+	// tokens are exposed here when present.
 	ModalityInputTokens map[Modality]int `json:"modality_input_tokens,omitempty"`
 
 	// ModalityOutputTokens breaks OutputTokens down by modality.
@@ -118,93 +144,61 @@ type TokenUsage struct {
 	// ModalityCachedInputTokens breaks CachedInputTokens down by modality.
 	ModalityCachedInputTokens map[Modality]int `json:"modality_cached_input_tokens,omitempty"`
 
-	// ServiceTier is the normalized request/response variant. An empty string
-	// means the provider did not report one or it was the default.
-	ServiceTier ServiceTier `json:"service_tier,omitempty"`
-
-	// RawServiceTier carries the provider-native tier string for audit/debug
-	// when the normalized mapping is lossy.
-	RawServiceTier string `json:"raw_service_tier,omitempty"`
-
-	// Speed is a provider-specific latency tier. Anthropic: "standard" | "fast".
-	// Bedrock PerformanceConfig: "standard" | "optimized". Empty for providers
-	// that do not report one.
-	Speed string `json:"speed,omitempty"`
-
-	// InferenceRegion is the compute region reported by the provider if any.
-	// Anthropic populates this from inference_geo; other providers typically
-	// leave it empty.
-	InferenceRegion string `json:"inference_region,omitempty"`
-
-	// InvokedModelID is the actual model that served the request when a router
-	// rewrote it (Bedrock PromptRouter, OpenAI model routing). Empty when no
-	// re-routing occurred.
-	InvokedModelID string `json:"invoked_model_id,omitempty"`
-
-	// ServerToolRequests counts billable server-side tool invocations by kind.
-	// Each entry is one request, not token count.
+	// ServerToolRequests counts billable server-side tool invocations by
+	// kind. Each entry is one request, not a token count.
 	//
 	// Provider coverage: Anthropic (web_search, web_fetch), Google (inferred
 	// from GroundingMetadata), Cohere-on-Bedrock (search, classification).
 	ServerToolRequests map[ServerTool]int `json:"server_tool_requests,omitempty"`
 
-	// GuardrailUnits counts provider-reported guardrail policy units. Each key
-	// is an independent billing SKU on Bedrock.
+	// GuardrailUnits counts provider-reported guardrail policy units. Each
+	// key is an independent billing SKU on Bedrock.
 	//
 	// Provider coverage: Bedrock. Keys include "content_policy",
 	// "contextual_grounding", "sensitive_info", "sensitive_info_free",
 	// "topic_policy", "word_policy".
 	GuardrailUnits map[string]int `json:"guardrail_units,omitempty"`
 
-	// LatencyMs is total server-reported latency in milliseconds.
-	// Zero if not returned by the provider.
-	LatencyMs int64 `json:"latency_ms,omitempty"`
-
-	// FirstByteLatencyMs is time-to-first-byte in milliseconds when reported.
-	// Currently surfaced only by Bedrock-Anthropic via amazon-bedrock-invocationMetrics.
-	FirstByteLatencyMs int64 `json:"first_byte_latency_ms,omitempty"`
-
-	// MaxInputTokens is the model's context-window size. This is a model
-	// capability, not a usage metric — it is populated from the model definition
-	// at configuration time, not from the API response.
-	MaxInputTokens int `json:"max_input_tokens,omitempty"`
-
 	// Extra carries provider-specific dimensions that the SDK does not
 	// normalize today. Keys MUST be namespaced as "<provider>.<field>" to
-	// prevent collisions (e.g., "anthropic.iterations", "cohere.search_units",
-	// "bedrock.invocation_latency_ms").
+	// prevent collisions (e.g., "anthropic.iterations",
+	// "cohere.search_units", "bedrock.invocation_latency_ms").
 	//
-	// Anything that appears in Extra is a candidate for promotion to a
-	// first-class field in a future release.
+	// Extra is NOT included in BilledInputTokens / BilledOutputTokens —
+	// anything billable should graduate to a first-class field.
 	Extra map[string]any `json:"extra,omitempty"`
 }
 
 // BilledInputTokens returns the total input-side tokens that contribute to
 // billing: InputTokens + CachedInputTokens + CacheCreation5mTokens +
-// CacheCreation1hTokens + ToolUseInputTokens.
+// CacheCreation1hTokens + CacheCreationUnknownTTLTokens + ToolUseInputTokens.
 //
-// Counters are disjoint so this is a simple sum; the helper exists to document
-// intent and remain stable as fields are added.
+// Counters are disjoint so this is a simple sum; the helper exists to
+// document intent and remain stable as fields are added.
 func (u *TokenUsage) BilledInputTokens() int {
 	if u == nil {
 		return 0
 	}
 
-	return u.InputTokens + u.CachedInputTokens +
-		u.CacheCreation5mTokens + u.CacheCreation1hTokens +
+	return u.InputTokens +
+		u.CachedInputTokens +
+		u.CacheCreation5mTokens +
+		u.CacheCreation1hTokens +
+		u.CacheCreationUnknownTTLTokens +
 		u.ToolUseInputTokens
 }
 
 // BilledOutputTokens returns the total output-side tokens that contribute to
-// billing: OutputTokens + ReasoningTokens + AcceptedPredictionTokens +
-// RejectedPredictionTokens.
+// billing: OutputTokens + ReasoningTokens + RejectedPredictionTokens.
+//
+// AcceptedPredictionTokens are NOT added here — they appear verbatim in the
+// completion and are already counted inside OutputTokens.
 func (u *TokenUsage) BilledOutputTokens() int {
 	if u == nil {
 		return 0
 	}
 
-	return u.OutputTokens + u.ReasoningTokens +
-		u.AcceptedPredictionTokens + u.RejectedPredictionTokens
+	return u.OutputTokens + u.ReasoningTokens + u.RejectedPredictionTokens
 }
 
 // TotalBilledTokens returns BilledInputTokens + BilledOutputTokens. Non-token
@@ -217,18 +211,13 @@ func (u *TokenUsage) TotalBilledTokens() int {
 // SumUsage aggregates multiple TokenUsage values into a single cumulative
 // result. Nil values are safely skipped. Returns nil if all inputs are nil.
 //
-// Scalar fields are added. Map fields (Modality*, ServerToolRequests,
+// All scalar counters are added. Map fields (Modality*, ServerToolRequests,
 // GuardrailUnits, Extra) are merged with per-key addition for numeric values;
-// non-numeric Extra values are taken from the first non-nil usage that has
-// that key.
+// non-numeric Extra values take the first-writer-wins rule.
 //
-// String fields (ServiceTier, RawServiceTier, Speed, InferenceRegion,
-// InvokedModelID) are taken from the first non-empty value in order. These
-// fields describe a single request and are not meaningfully additive across
-// calls.
-//
-// MaxInputTokens takes the maximum across inputs (it is a model capability,
-// not an accumulating usage metric).
+// TokenUsage intentionally contains only additive accounting fields.
+// Per-call metadata (service tier, speed, region, invoked model, latency)
+// lives on llm.Response, which is not summed.
 //
 // Example:
 //
@@ -250,39 +239,12 @@ func SumUsage(usages ...*TokenUsage) *TokenUsage {
 		result.CachedInputTokens += u.CachedInputTokens
 		result.CacheCreation5mTokens += u.CacheCreation5mTokens
 		result.CacheCreation1hTokens += u.CacheCreation1hTokens
+		result.CacheCreationUnknownTTLTokens += u.CacheCreationUnknownTTLTokens
 		result.ToolUseInputTokens += u.ToolUseInputTokens
 
 		result.OutputTokens += u.OutputTokens
 		result.ReasoningTokens += u.ReasoningTokens
-		result.AcceptedPredictionTokens += u.AcceptedPredictionTokens
 		result.RejectedPredictionTokens += u.RejectedPredictionTokens
-
-		result.LatencyMs += u.LatencyMs
-		result.FirstByteLatencyMs += u.FirstByteLatencyMs
-
-		if u.MaxInputTokens > result.MaxInputTokens {
-			result.MaxInputTokens = u.MaxInputTokens
-		}
-
-		if result.ServiceTier == "" {
-			result.ServiceTier = u.ServiceTier
-		}
-
-		if result.RawServiceTier == "" {
-			result.RawServiceTier = u.RawServiceTier
-		}
-
-		if result.Speed == "" {
-			result.Speed = u.Speed
-		}
-
-		if result.InferenceRegion == "" {
-			result.InferenceRegion = u.InferenceRegion
-		}
-
-		if result.InvokedModelID == "" {
-			result.InvokedModelID = u.InvokedModelID
-		}
 
 		result.ModalityInputTokens = mergeModality(result.ModalityInputTokens, u.ModalityInputTokens)
 		result.ModalityOutputTokens = mergeModality(result.ModalityOutputTokens, u.ModalityOutputTokens)
@@ -438,8 +400,9 @@ const (
 	ModalityDocument Modality = "document"
 )
 
-// ServiceTier is the normalized request-processing variant. Not every provider
-// reports every value; the empty string means default / unreported.
+// ServiceTier is the normalized request-processing variant reported on
+// llm.Response. Not every provider reports every value; the empty string
+// means default / unreported.
 type ServiceTier string
 
 // ServiceTier constants cover the union of variants across providers.
@@ -456,10 +419,10 @@ const (
 	// Google ON_DEMAND_PRIORITY).
 	ServiceTierPriority ServiceTier = "priority"
 
-	// ServiceTierBatch is the async 50%-discount batch tier (Anthropic "batch",
-	// OpenAI Batch API). Note: OpenAI's Batch SKU is a separate endpoint, not
-	// a service_tier on the sync API; extractors set this for responses whose
-	// origin is the batch endpoint.
+	// ServiceTierBatch is the async 50%-discount batch tier (Anthropic
+	// "batch", OpenAI Batch API). Note: OpenAI's Batch SKU is a separate
+	// endpoint, not a service_tier on the sync API; extractors set this for
+	// responses whose origin is the batch endpoint.
 	ServiceTierBatch ServiceTier = "batch"
 
 	// ServiceTierScale is OpenAI's enterprise scale tier.

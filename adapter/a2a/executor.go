@@ -200,7 +200,6 @@ func (e *Executor) processEvents(
 						"cache_creation_1h":     ev.Response.Usage.CacheCreation1hTokens,
 						"tool_use_input_tokens": ev.Response.Usage.ToolUseInputTokens,
 						"reasoning_tokens":      ev.Response.Usage.ReasoningTokens,
-						"max_input_tokens":      ev.Response.Usage.MaxInputTokens,
 					},
 				}
 			}
@@ -287,7 +286,6 @@ func (e *Executor) processEvents(
 					"cache_creation_1h":     ev.Usage.CacheCreation1hTokens,
 					"tool_use_input_tokens": ev.Usage.ToolUseInputTokens,
 					"reasoning_tokens":      ev.Usage.ReasoningTokens,
-					"max_input_tokens":      ev.Usage.MaxInputTokens,
 				}
 			}
 
