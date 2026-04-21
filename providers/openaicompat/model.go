@@ -263,15 +263,15 @@ func (*Model) buildStreamEndResponse(
 	}
 
 	// Add tool calls in index order. Drop any that didn't finish accumulating
-	// so they don't poison session replay; finalizeToolRequest has already
-	// coerced the emitted calls when emitToolCalls ran.
+	// so they don't poison session replay; emitToolCalls already coerced the
+	// emitted calls' Arguments in-place during streaming.
 	for i := range len(toolCalls) {
 		tc, ok := toolCalls[i]
 		if !ok {
 			continue
 		}
 
-		if !finalizeToolRequest(tc) {
+		if _, ok := llm.FinalizeToolArgs(tc.Arguments); !ok {
 			continue
 		}
 
@@ -302,12 +302,15 @@ func (*Model) emitToolCalls(toolCalls map[int]*llm.ToolRequest, yield func(llm.E
 			continue
 		}
 
-		if !finalizeToolRequest(tc) {
+		args, ok := llm.FinalizeToolArgs(tc.Arguments)
+		if !ok {
 			// Stream ended mid-args accumulation (typically finish_reason=length
 			// on a call that hadn't finished). Drop the partial block; see
 			// providers/anthropic/model.go for the full wedge story.
 			continue
 		}
+
+		tc.Arguments = args
 
 		if !yield(llm.ContentPartEvent{
 			Index: i,
@@ -318,17 +321,4 @@ func (*Model) emitToolCalls(toolCalls map[int]*llm.ToolRequest, yield func(llm.E
 	}
 
 	return true
-}
-
-// finalizeToolRequest validates a streaming-accumulated tool call in place.
-// Empty args are coerced to `{}` (providers sometimes legitimately emit a
-// no-arg tool call with zero delta bytes). Invalid JSON means the accumulation
-// was cut short and the block should be dropped.
-func finalizeToolRequest(tc *llm.ToolRequest) bool {
-	if len(tc.Arguments) == 0 {
-		tc.Arguments = json.RawMessage("{}")
-		return true
-	}
-
-	return json.Valid(tc.Arguments)
 }

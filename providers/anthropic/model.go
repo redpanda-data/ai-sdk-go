@@ -16,7 +16,6 @@ package anthropic
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"iter"
 
@@ -192,7 +191,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 				// For tool use blocks, emit the complete tool request
 				if acc.blockType == blockTypeToolUse && acc.toolUse != nil {
-					argsJSON, ok := finalizeToolArgs(acc.toolArgs)
+					argsJSON, ok := llm.FinalizeToolArgs([]byte(acc.toolArgs))
 					if !ok {
 						// Invalid JSON means the model (or the SDK) emitted a
 						// completed tool_use block whose args aren't parseable.
@@ -269,7 +268,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 				case blockTypeToolUse:
 					if acc.toolUse != nil {
-						argsJSON, ok := finalizeToolArgs(acc.toolArgs)
+						argsJSON, ok := llm.FinalizeToolArgs([]byte(acc.toolArgs))
 						if !ok {
 							// Partial tool_use: the stream ended (typically
 							// stop_reason=max_tokens) before input_json_delta
@@ -321,26 +320,4 @@ type contentBlockAccumulator struct {
 type toolUseData struct {
 	ID   string
 	Name string
-}
-
-// finalizeToolArgs validates the JSON accumulated from input_json_delta
-// events and returns the bytes to hand off as tool arguments.
-//
-// Empty accumulation is treated as `{}` — this is what Anthropic actually
-// sends for tools invoked with no parameters, so coercion is safe. Invalid
-// JSON signals a partial block: the stream was cut short (typically
-// stop_reason=max_tokens) before accumulation completed, or in rare cases
-// the model emitted a malformed tool_use block. Either way the caller
-// should drop the block rather than let invalid args escape: downstream
-// session persistence would then poison every subsequent replay.
-func finalizeToolArgs(toolArgs string) (json.RawMessage, bool) {
-	if toolArgs == "" {
-		return json.RawMessage("{}"), true
-	}
-
-	if !json.Valid([]byte(toolArgs)) {
-		return nil, false
-	}
-
-	return json.RawMessage(toolArgs), true
 }

@@ -16,7 +16,6 @@ package bedrock
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"iter"
 
@@ -160,7 +159,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 				// For tool use blocks, emit the complete tool request
 				if acc.blockType == blockTypeToolUse && acc.toolUse != nil {
-					argsJSON, ok := acc.finalizeToolArgs()
+					argsJSON, ok := llm.FinalizeToolArgs([]byte(acc.toolArgs))
 					if !ok {
 						// Block finished with invalid JSON: skip rather than
 						// ship truncated args downstream.
@@ -256,7 +255,7 @@ func (m *Model) buildFinalParts(blocks map[int]*contentBlockAccumulator) []*llm.
 
 		case blockTypeToolUse:
 			if acc.toolUse != nil {
-				argsJSON, ok := acc.finalizeToolArgs()
+				argsJSON, ok := llm.FinalizeToolArgs([]byte(acc.toolArgs))
 				if !ok {
 					// Partial tool_use left over when the stream was cut short
 					// (typically StopReasonMaxTokens) before the toolUse input
@@ -304,24 +303,6 @@ type contentBlockAccumulator struct {
 	reasoningSignature string
 }
 
-// finalizeToolArgs validates the JSON accumulated from ContentBlockDelta
-// toolUse input events. Empty accumulation coerces to `{}` (Bedrock's wire
-// form for no-arg tool calls). Invalid JSON signals a partial block — the
-// stream ended before accumulation completed, typically on
-// StopReasonMaxTokens — and the caller should drop the block rather than
-// ship truncated bytes downstream: persisted in session state, those bytes
-// wedge every subsequent replay on "unexpected end of JSON input".
-func (a *contentBlockAccumulator) finalizeToolArgs() (json.RawMessage, bool) {
-	if a.toolArgs == "" {
-		return json.RawMessage("{}"), true
-	}
-
-	if !json.Valid([]byte(a.toolArgs)) {
-		return nil, false
-	}
-
-	return json.RawMessage(a.toolArgs), true
-}
 
 // toolUseData stores tool use information during streaming.
 type toolUseData struct {

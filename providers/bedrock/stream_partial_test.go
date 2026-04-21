@@ -21,49 +21,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestFinalizeToolArgs(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		name     string
-		in       string
-		want     string
-		wantOK   bool
-		wantNone bool
-	}{
-		{name: "empty coerces to object", in: "", want: "{}", wantOK: true},
-		{name: "valid passes through", in: `{"q":"SELECT 1"}`, want: `{"q":"SELECT 1"}`, wantOK: true},
-		{name: "valid empty object", in: `{}`, want: `{}`, wantOK: true},
-		{name: "truncated is dropped", in: `{"q":`, wantOK: false, wantNone: true},
-		{name: "garbage is dropped", in: `not json`, wantOK: false, wantNone: true},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			acc := &contentBlockAccumulator{toolArgs: tc.in}
-
-			got, ok := acc.finalizeToolArgs()
-			assert.Equal(t, tc.wantOK, ok)
-
-			if tc.wantNone {
-				assert.Nil(t, got)
-			} else {
-				assert.Equal(t, tc.want, string(got))
-			}
-		})
-	}
-}
-
 // TestBuildFinalParts_DropsPartialToolUse covers the streaming wedge: when
 // Bedrock's Converse stream is cut off (typically StopReasonMaxTokens) while
 // accumulating ContentBlockDelta toolUse input deltas, the accumulator holds
-// truncated JSON like `{"q":`. Without the finalize guard, buildFinalParts
-// used to hand that block back as a tool_use with coerced `{}` args (hiding
-// the fact that the call was partial) and earlier bedrock revisions would
-// have shipped the truncated bytes verbatim — poisoning session replay the
-// same way the anthropic bug did.
+// truncated JSON like `{"q":`. buildFinalParts must drop that block rather
+// than ship the partial accumulation downstream — otherwise the truncated
+// bytes reach session state and poison every subsequent replay the same way
+// the anthropic bug did.
 func TestBuildFinalParts_DropsPartialToolUse(t *testing.T) {
 	t.Parallel()
 
