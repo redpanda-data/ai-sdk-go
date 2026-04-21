@@ -262,11 +262,20 @@ func (*Model) buildStreamEndResponse(
 		parts = append(parts, llm.NewTextPart(content))
 	}
 
-	// Add tool calls in index order
+	// Add tool calls in index order. Drop any that didn't finish accumulating
+	// so they don't poison session replay; finalizeToolRequest has already
+	// coerced the emitted calls when emitToolCalls ran.
 	for i := range len(toolCalls) {
-		if tc, ok := toolCalls[i]; ok {
-			parts = append(parts, llm.NewToolRequestPart(tc))
+		tc, ok := toolCalls[i]
+		if !ok {
+			continue
 		}
+
+		if !finalizeToolRequest(tc) {
+			continue
+		}
+
+		parts = append(parts, llm.NewToolRequestPart(tc))
 	}
 
 	// Ensure usage is not nil
@@ -288,15 +297,38 @@ func (*Model) buildStreamEndResponse(
 // emitToolCalls emits ContentPartEvent for each accumulated tool call.
 func (*Model) emitToolCalls(toolCalls map[int]*llm.ToolRequest, yield func(llm.Event, error) bool) bool {
 	for i := range len(toolCalls) {
-		if tc, ok := toolCalls[i]; ok {
-			if !yield(llm.ContentPartEvent{
-				Index: i,
-				Part:  llm.NewToolRequestPart(tc),
-			}, nil) {
-				return false
-			}
+		tc, ok := toolCalls[i]
+		if !ok {
+			continue
+		}
+
+		if !finalizeToolRequest(tc) {
+			// Stream ended mid-args accumulation (typically finish_reason=length
+			// on a call that hadn't finished). Drop the partial block; see
+			// providers/anthropic/model.go for the full wedge story.
+			continue
+		}
+
+		if !yield(llm.ContentPartEvent{
+			Index: i,
+			Part:  llm.NewToolRequestPart(tc),
+		}, nil) {
+			return false
 		}
 	}
 
 	return true
+}
+
+// finalizeToolRequest validates a streaming-accumulated tool call in place.
+// Empty args are coerced to `{}` (providers sometimes legitimately emit a
+// no-arg tool call with zero delta bytes). Invalid JSON means the accumulation
+// was cut short and the block should be dropped.
+func finalizeToolRequest(tc *llm.ToolRequest) bool {
+	if len(tc.Arguments) == 0 {
+		tc.Arguments = json.RawMessage("{}")
+		return true
+	}
+
+	return json.Valid(tc.Arguments)
 }

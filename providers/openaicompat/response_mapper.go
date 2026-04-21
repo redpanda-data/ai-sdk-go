@@ -130,12 +130,23 @@ func (rm *ResponseMapper) FromProviderError(err error) error {
 }
 
 // mapFinishReason converts OpenAI finish reason to unified format.
+// Truncation and filter signals must propagate through to the caller; only
+// upgrade a plain Stop to ToolCalls when tool use blocks are present. See
+// providers/anthropic/response_mapper.go for the full rationale.
 func (rm *ResponseMapper) mapFinishReason(reason string, hasToolCalls bool) (llm.FinishReason, error) {
-	// Tool calls take precedence
-	if hasToolCalls {
+	mapped, err := mapOpenAIFinishReason(reason)
+	if err != nil {
+		return mapped, err
+	}
+
+	if hasToolCalls && mapped == llm.FinishReasonStop {
 		return llm.FinishReasonToolCalls, nil
 	}
 
+	return mapped, nil
+}
+
+func mapOpenAIFinishReason(reason string) (llm.FinishReason, error) {
 	switch reason {
 	case "stop":
 		return llm.FinishReasonStop, nil

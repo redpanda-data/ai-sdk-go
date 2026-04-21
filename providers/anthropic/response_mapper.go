@@ -121,12 +121,15 @@ func (m *ResponseMapper) FromProvider(r *anthropic.BetaMessage) (*llm.Response, 
 		}
 	}
 
-	// Map finish reason
-	var finishReason llm.FinishReason
-	if hasToolCalls {
+	// Map finish reason. The provider's own stop reason wins when it signals
+	// anything other than a clean "end_turn": max_tokens, context_window,
+	// pause_turn, refusal all need to propagate so the agent loop can react.
+	// Only upgrade a plain Stop to ToolCalls when tool_use blocks are
+	// present — truncation signals must never be masked by tool calls that
+	// happened to complete before the stream was cut short.
+	finishReason := m.mapStopReason(r.StopReason)
+	if hasToolCalls && finishReason == llm.FinishReasonStop {
 		finishReason = llm.FinishReasonToolCalls
-	} else {
-		finishReason = m.mapStopReason(r.StopReason)
 	}
 
 	return &llm.Response{

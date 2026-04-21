@@ -59,11 +59,13 @@ func (m *ResponseMapper) FromConverseOutput(
 		tokenUsage = m.mapTokenUsage(usage)
 	}
 
-	var finishReason llm.FinishReason
-	if hasToolCalls {
+	// Map finish reason. Truncation signals (max_tokens, etc.) must propagate
+	// through to the caller; only upgrade a plain Stop to ToolCalls when tool
+	// use blocks are present. See providers/anthropic/response_mapper.go for
+	// the full rationale.
+	finishReason := m.mapStopReason(stopReason)
+	if hasToolCalls && finishReason == llm.FinishReasonStop {
 		finishReason = llm.FinishReasonToolCalls
-	} else {
-		finishReason = m.mapStopReason(stopReason)
 	}
 
 	resp := &llm.Response{
