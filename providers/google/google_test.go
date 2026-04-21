@@ -67,7 +67,6 @@ func TestProviderModels(t *testing.T) {
 		"gemini-2.5-pro",
 		"gemini-2.5-flash",
 		"gemini-2.5-flash-lite",
-		"gemini-2.0-flash",
 	}
 	for _, expected := range expectedModels {
 		assert.Contains(t, modelNames, expected, "Should include %s", expected)
@@ -165,15 +164,6 @@ func TestModelCapabilities(t *testing.T) {
 	assert.True(t, caps.MultiTurn, "Should support multi-turn")
 	assert.True(t, caps.SystemPrompts, "Should support system prompts")
 
-	// Gemini 2.0 Flash (older generation - no structured output)
-	model, err = provider.NewModel(ModelGemini20Flash)
-	require.NoError(t, err)
-
-	caps = model.Capabilities()
-	assert.True(t, caps.Streaming)
-	assert.True(t, caps.Tools)
-	assert.False(t, caps.StructuredOutput, "Older model lacks structured output")
-	assert.False(t, caps.Reasoning, "Older model lacks explicit reasoning")
 }
 
 func TestModelTokenLimits(t *testing.T) {
@@ -202,12 +192,6 @@ func TestModelTokenLimits(t *testing.T) {
 			model:          ModelGemini25Flash,
 			expectedMaxIn:  1048576, // 1M
 			expectedMaxOut: 65535,   // 65K
-		},
-		{
-			name:           "Gemini 2.0 Flash",
-			model:          ModelGemini20Flash,
-			expectedMaxIn:  1048576, // 1M
-			expectedMaxOut: 8192,    // 8K
 		},
 	}
 

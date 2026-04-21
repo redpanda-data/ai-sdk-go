@@ -27,7 +27,6 @@ const (
 	ModelGemini25Pro         = "gemini-2.5-pro"
 	ModelGemini25Flash       = "gemini-2.5-flash"
 	ModelGemini25FlashLite   = "gemini-2.5-flash-lite"
-	ModelGemini20Flash       = "gemini-2.0-flash"
 )
 
 // ModelDefinition defines a Gemini model with its capabilities and constraints.
@@ -193,30 +192,6 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Pricing: pricing.Info{
 			InputPerMillion: 10_000_000, OutputPerMillion: 40_000_000, CachedInputPerMillion: 1_000_000,
-		},
-	},
-	ModelGemini20Flash: {
-		Name:  ModelGemini20Flash,
-		Label: "Gemini 2.0 Flash",
-		Capabilities: llm.ModelCapabilities{
-			Streaming:        true,
-			Tools:            true,
-			JSONMode:         true,
-			StructuredOutput: false, // Previous generation
-			Vision:           true,
-			MultiTurn:        true,
-			SystemPrompts:    true,
-			Reasoning:        false, // Standard model without explicit thinking
-		},
-		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    1048576, // 1M input tokens
-			MaxOutputTokens:   8192,    // 8K output tokens
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
-			MutuallyExclusive: [][]string{},
-		},
-		Pricing: pricing.Info{
-			InputPerMillion: 10_000_000, OutputPerMillion: 40_000_000, CachedInputPerMillion: 2_500_000,
 		},
 	},
 }
