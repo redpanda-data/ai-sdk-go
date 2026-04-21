@@ -149,5 +149,5 @@ func TestAnthropicAdaptiveThinking_Integration(t *testing.T) {
 	assert.True(t, hasText, "expected text content in response")
 	assert.True(t, hasReasoning, "expected reasoning content from adaptive thinking")
 	require.NotNil(t, resp.Usage)
-	assert.Positive(t, resp.Usage.TotalTokens, "expected non-zero token usage")
+	assert.Positive(t, resp.Usage.TotalBilledTokens(), "expected non-zero token usage")
 }

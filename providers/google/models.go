@@ -15,6 +15,8 @@
 package google
 
 import (
+	"strings"
+
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/pricing"
 )
@@ -36,6 +38,30 @@ type ModelDefinition struct {
 	Capabilities llm.ModelCapabilities
 	Constraints  llm.ModelConstraints
 	Pricing      pricing.Info
+}
+
+// resolveModelFamily collapses provider-returned versioned model identifiers to
+// the stable model key used by the SDK catalog.
+//
+// Gemini responses can report values such as "models/gemini-2.5-flash-001",
+// while the SDK catalog is keyed by family IDs like "gemini-2.5-flash". Pricing
+// and capability lookup need the stable family key, so this resolver picks the
+// longest supportedModels prefix after removing the optional "models/" prefix.
+func resolveModelFamily(model string) string {
+	model = strings.TrimPrefix(model, "models/")
+
+	best := ""
+	for family := range supportedModels {
+		if strings.HasPrefix(model, family) && len(family) > len(best) {
+			best = family
+		}
+	}
+
+	if best != "" {
+		return best
+	}
+
+	return model
 }
 
 // supportedModels defines all Gemini models with their capabilities and constraints.
@@ -61,12 +87,13 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
 			MutuallyExclusive: [][]string{},
 		},
-		Pricing: pricing.Info{
-			Tiers: []pricing.Tier{
-				{MaxInputTokens: 200_000, InputPerMillion: 200_000_000, OutputPerMillion: 1_200_000_000, CachedInputPerMillion: 20_000_000},
-				{MaxInputTokens: 0, InputPerMillion: 400_000_000, OutputPerMillion: 1_800_000_000, CachedInputPerMillion: 40_000_000},
+		Pricing: pricing.TieredInfo(
+			pricing.NewRates(2.00, 12.00, 0.20),
+			pricing.Bracket{
+				MinContextTokens: 200_001,
+				Rates:            pricing.NewRates(4.00, 18.00, 0.40),
 			},
-		},
+		),
 	},
 	ModelGemini3ProPreview: {
 		Name:  ModelGemini3ProPreview,
@@ -88,12 +115,13 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
 			MutuallyExclusive: [][]string{},
 		},
-		Pricing: pricing.Info{
-			Tiers: []pricing.Tier{
-				{MaxInputTokens: 200_000, InputPerMillion: 200_000_000, OutputPerMillion: 1_200_000_000, CachedInputPerMillion: 20_000_000},
-				{MaxInputTokens: 0, InputPerMillion: 400_000_000, OutputPerMillion: 1_800_000_000, CachedInputPerMillion: 40_000_000},
+		Pricing: pricing.TieredInfo(
+			pricing.NewRates(2.00, 12.00, 0.20),
+			pricing.Bracket{
+				MinContextTokens: 200_001,
+				Rates:            pricing.NewRates(4.00, 18.00, 0.40),
 			},
-		},
+		),
 	},
 	ModelGemini3FlashPreview: {
 		Name:  ModelGemini3FlashPreview,
@@ -115,9 +143,7 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
 			MutuallyExclusive: [][]string{},
 		},
-		Pricing: pricing.Info{
-			InputPerMillion: 50_000_000, OutputPerMillion: 300_000_000, CachedInputPerMillion: 5_000_000,
-		},
+		Pricing: pricing.FlatInfo(0.50, 3.00, 0.05),
 	},
 	ModelGemini25Pro: {
 		Name:  ModelGemini25Pro,
@@ -139,12 +165,13 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
 			MutuallyExclusive: [][]string{},
 		},
-		Pricing: pricing.Info{
-			Tiers: []pricing.Tier{
-				{MaxInputTokens: 200_000, InputPerMillion: 125_000_000, OutputPerMillion: 1_000_000_000, CachedInputPerMillion: 12_500_000},
-				{MaxInputTokens: 0, InputPerMillion: 250_000_000, OutputPerMillion: 1_500_000_000, CachedInputPerMillion: 25_000_000},
+		Pricing: pricing.TieredInfo(
+			pricing.NewRates(1.25, 10.00, 0.125),
+			pricing.Bracket{
+				MinContextTokens: 200_001,
+				Rates:            pricing.NewRates(2.50, 15.00, 0.25),
 			},
-		},
+		),
 	},
 	ModelGemini25Flash: {
 		Name:  ModelGemini25Flash,
@@ -166,9 +193,7 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
 			MutuallyExclusive: [][]string{},
 		},
-		Pricing: pricing.Info{
-			InputPerMillion: 30_000_000, OutputPerMillion: 250_000_000, CachedInputPerMillion: 3_000_000,
-		},
+		Pricing: pricing.FlatInfo(0.30, 2.50, 0.03),
 	},
 	ModelGemini25FlashLite: {
 		Name:  ModelGemini25FlashLite,
@@ -190,8 +215,6 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
 			MutuallyExclusive: [][]string{},
 		},
-		Pricing: pricing.Info{
-			InputPerMillion: 10_000_000, OutputPerMillion: 40_000_000, CachedInputPerMillion: 1_000_000,
-		},
+		Pricing: pricing.FlatInfo(0.10, 0.40, 0.01),
 	},
 }

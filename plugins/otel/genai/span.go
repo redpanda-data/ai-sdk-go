@@ -40,9 +40,16 @@ type ModelCallAttrs struct {
 	FinishReason string
 
 	// Token usage.
-	InputTokens  int
-	OutputTokens int
-	CachedTokens int
+	//
+	// Values are emitted per the OpenTelemetry Gen AI SemConv span
+	// contract (https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/):
+	// CachedTokens and CacheCreationInputTokens SHOULD be included in
+	// InputTokens (they are subsets, not parallel buckets). Callers are
+	// responsible for ensuring that invariant before passing values in.
+	InputTokens              int
+	OutputTokens             int
+	CachedTokens             int
+	CacheCreationInputTokens int
 }
 
 // StampModelCallSpan sets gen_ai.* attributes on an existing span.
@@ -91,6 +98,10 @@ func StampModelCallSpan(span trace.Span, a *ModelCallAttrs) {
 
 	if a.CachedTokens > 0 {
 		attrs = append(attrs, attribute.Int(AttrGenAIUsageCacheReadInputTokens, a.CachedTokens))
+	}
+
+	if a.CacheCreationInputTokens > 0 {
+		attrs = append(attrs, attribute.Int(AttrGenAIUsageCacheCreationInputTokens, a.CacheCreationInputTokens))
 	}
 
 	span.SetAttributes(attrs...)

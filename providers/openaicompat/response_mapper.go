@@ -93,41 +93,24 @@ func (rm *ResponseMapper) FromProvider(apiResp *openai.ChatCompletion) (*llm.Res
 		return nil, fmt.Errorf("%w: %w", llm.ErrResponseMapping, err)
 	}
 
-	// Extract usage statistics
-	var usage *llm.TokenUsage
+	// Extract usage statistics. OpenAI Chat reports cached_tokens and
+	// reasoning_tokens as subsets; un-subset both so the normalized
+	// llm.TokenUsage buckets stay disjoint.
+	var cachedTokens int
+	if apiResp.Usage.JSON.PromptTokensDetails.Valid() {
+		cachedTokens = int(apiResp.Usage.PromptTokensDetails.CachedTokens)
+	}
 
-	if apiResp.Usage.TotalTokens > 0 {
-		// Extract cached tokens from details if field is present
-		var cachedTokens int
-		if apiResp.Usage.JSON.PromptTokensDetails.Valid() {
-			cachedTokens = int(apiResp.Usage.PromptTokensDetails.CachedTokens)
-		}
+	var reasoningTokens int
+	if apiResp.Usage.JSON.CompletionTokensDetails.Valid() {
+		reasoningTokens = int(apiResp.Usage.CompletionTokensDetails.ReasoningTokens)
+	}
 
-		// Extract reasoning tokens from details if field is present
-		var reasoningTokens int
-		if apiResp.Usage.JSON.CompletionTokensDetails.Valid() {
-			reasoningTokens = int(apiResp.Usage.CompletionTokensDetails.ReasoningTokens)
-		}
-
-		usage = &llm.TokenUsage{
-			InputTokens:     int(apiResp.Usage.PromptTokens),
-			OutputTokens:    int(apiResp.Usage.CompletionTokens),
-			TotalTokens:     int(apiResp.Usage.TotalTokens),
-			CachedTokens:    cachedTokens,
-			ReasoningTokens: reasoningTokens,
-			MaxInputTokens:  rm.constraints.MaxInputTokens,
-		}
-	} else {
-		// If no usage provided, return empty usage structure
-		// This can happen with some OpenAI-compatible APIs
-		usage = &llm.TokenUsage{
-			InputTokens:     0,
-			OutputTokens:    0,
-			TotalTokens:     0,
-			CachedTokens:    0,
-			ReasoningTokens: 0,
-			MaxInputTokens:  rm.constraints.MaxInputTokens,
-		}
+	usage := &llm.TokenUsage{
+		InputTokens:       int(apiResp.Usage.PromptTokens) - cachedTokens,
+		CachedInputTokens: cachedTokens,
+		OutputTokens:      int(apiResp.Usage.CompletionTokens) - reasoningTokens,
+		ReasoningTokens:   reasoningTokens,
 	}
 
 	return &llm.Response{

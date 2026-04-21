@@ -176,7 +176,7 @@ func TestLLMAgent_Integration_ToolCalling(t *testing.T) {
 
 	// 5. Verify usage information is tracked
 	require.NotNil(t, endEvent.Usage, "should track token usage")
-	assert.Positive(t, endEvent.Usage.TotalTokens, "should have non-zero token usage")
+	assert.Positive(t, endEvent.Usage.TotalBilledTokens(), "should have non-zero token usage")
 
 	// 6. Verify turn count is reasonable
 	finalTurn := endEvent.GetEnvelope().Turn
@@ -185,5 +185,5 @@ func TestLLMAgent_Integration_ToolCalling(t *testing.T) {
 
 	t.Logf("Final response: %s", finalText)
 	t.Logf("Tool calls: %d, Tool results: %d", len(toolCallEvents), len(toolResultEvents))
-	t.Logf("Token usage: %d total tokens", endEvent.Usage.TotalTokens)
+	t.Logf("Token usage: %d total tokens", endEvent.Usage.TotalBilledTokens())
 }

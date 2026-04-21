@@ -1201,9 +1201,9 @@ func TestTracingInterceptor_CacheReadTokens_OnModelSpan(t *testing.T) {
 					Message:      llm.Message{Role: llm.RoleAssistant},
 					FinishReason: llm.FinishReasonStop,
 					Usage: &llm.TokenUsage{
-						InputTokens:  100,
-						OutputTokens: 50,
-						CachedTokens: 75,
+						InputTokens:       100,
+						OutputTokens:      50,
+						CachedInputTokens: 75,
 					},
 					ID: "resp-cache",
 				}, nil
@@ -1228,7 +1228,7 @@ func TestTracingInterceptor_CacheReadTokens_OnModelSpan(t *testing.T) {
 	assertHasAttribute(t, chatSpan.Attributes, "gen_ai.usage.cache_read.input_tokens", int64(75))
 }
 
-func TestTracingInterceptor_CacheReadTokens_AbsentWhenZero(t *testing.T) {
+func TestTracingInterceptor_OptionalUsageAttrs_AbsentWhenZero(t *testing.T) {
 	t.Parallel()
 
 	exporter, tp := setupTracer()
@@ -1266,7 +1266,11 @@ func TestTracingInterceptor_CacheReadTokens_AbsentWhenZero(t *testing.T) {
 	}
 
 	require.NotNil(t, chatSpan)
+	// The spec defines these as subsets of input_tokens. When the underlying
+	// counter is zero we omit the key rather than emitting a zero — keeps
+	// metric backends from materialising a partition that provides no signal.
 	assertMissingAttribute(t, chatSpan.Attributes, "gen_ai.usage.cache_read.input_tokens")
+	assertMissingAttribute(t, chatSpan.Attributes, "gen_ai.usage.cache_creation.input_tokens")
 }
 
 func TestTracingInterceptor_CacheReadTokens_OnInvocationSpan(t *testing.T) {
@@ -1288,9 +1292,9 @@ func TestTracingInterceptor_CacheReadTokens_OnInvocationSpan(t *testing.T) {
 	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(_ context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
 		// Manually add usage with cached tokens to the invocation
 		agent.AddUsage(inv, &llm.TokenUsage{
-			InputTokens:  100,
-			OutputTokens: 50,
-			CachedTokens: 30,
+			InputTokens:       100,
+			OutputTokens:      50,
+			CachedInputTokens: 30,
 		})
 
 		return agent.FinishReasonStop, nil
@@ -1308,6 +1312,105 @@ func TestTracingInterceptor_CacheReadTokens_OnInvocationSpan(t *testing.T) {
 
 	require.NotNil(t, invSpan)
 	assertHasAttribute(t, invSpan.Attributes, "gen_ai.usage.cache_read.input_tokens", int64(30))
+}
+
+// TestTracingInterceptor_UsageAttributesAreSemconvCompliant covers the
+// un-subset-on-emit contract. llm.TokenUsage is internally disjoint, but
+// the OTel Gen AI SemConv span spec requires that gen_ai.usage.input_tokens
+// is the inclusive total (cache_read and cache_creation are subsets that
+// SHOULD be included in it). Reasoning tokens fold into output_tokens.
+// Per-TTL cache writes, reasoning, and tool-use input are deliberately
+// not surfaced as separate span attributes today.
+//
+// See https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/.
+func TestTracingInterceptor_UsageAttributesAreSemconvCompliant(t *testing.T) {
+	t.Parallel()
+
+	exporter, tp := setupTracer()
+	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
+
+	interceptor := pluginotel.New(
+		pluginotel.WithTracerProvider(tp),
+	)
+
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
+		Name: "test-agent",
+	})
+	ctx := t.Context()
+
+	// Disjoint buckets: 50 fresh input, 30 cache read, 20 cache-write-5m,
+	// 10 cache-write-1h, 5 unknown-TTL, 15 tool-use input, 60 output,
+	// 40 reasoning. After un-subset:
+	//   gen_ai.usage.input_tokens  = 50 + 30 + 20 + 10 + 5 + 15 = 130
+	//   gen_ai.usage.output_tokens = 60 + 40 = 100
+	//   cache_read.input_tokens    = 30
+	//   cache_creation.input_tokens = 20 + 10 + 5 = 35
+	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+		modelInfo := &agent.ModelCallInfo{
+			InvocationMetadata: inv,
+			Model:              &mockModelInfo{name: "claude-sonnet-4-5", provider: "anthropic"},
+			Req:                &llm.Request{},
+		}
+		handler := interceptor.InterceptModel(ctx, modelInfo, &mockModelHandler{
+			generateFn: func(_ context.Context, _ *llm.Request) (*llm.Response, error) {
+				return &llm.Response{
+					Message:      llm.Message{Role: llm.RoleAssistant},
+					FinishReason: llm.FinishReasonStop,
+					Usage: &llm.TokenUsage{
+						InputTokens:                   50,
+						CachedInputTokens:             30,
+						CacheCreation5mTokens:         20,
+						CacheCreation1hTokens:         10,
+						CacheCreationUnknownTTLTokens: 5,
+						ToolUseInputTokens:            15,
+						OutputTokens:                  60,
+						ReasoningTokens:               40,
+					},
+					ID: "resp-semconv",
+				}, nil
+			},
+		})
+		_, _ = handler.Generate(ctx, &llm.Request{})
+
+		return agent.FinishReasonStop, nil
+	})
+
+	spans := exporter.GetSpans()
+
+	var chatSpan *tracetest.SpanStub
+
+	for i := range spans {
+		if strings.HasPrefix(spans[i].Name, "chat") {
+			chatSpan = &spans[i]
+			break
+		}
+	}
+
+	require.NotNil(t, chatSpan)
+
+	// The four spec-defined span keys carry the summed values.
+	assertHasAttribute(t, chatSpan.Attributes, "gen_ai.usage.input_tokens", int64(130))
+	assertHasAttribute(t, chatSpan.Attributes, "gen_ai.usage.output_tokens", int64(100))
+	assertHasAttribute(t, chatSpan.Attributes, "gen_ai.usage.cache_read.input_tokens", int64(30))
+	assertHasAttribute(t, chatSpan.Attributes, "gen_ai.usage.cache_creation.input_tokens", int64(35))
+
+	// No vendor/per-TTL/reasoning/tool-use token attributes leak onto
+	// the span — SemConv has no span-level keys for those dimensions.
+	for _, attr := range chatSpan.Attributes {
+		key := string(attr.Key)
+		switch key {
+		case "gen_ai.usage.input_tokens",
+			"gen_ai.usage.output_tokens",
+			"gen_ai.usage.cache_read.input_tokens",
+			"gen_ai.usage.cache_creation.input_tokens":
+			continue
+		}
+
+		assert.False(t, strings.HasPrefix(key, "gen_ai.usage."),
+			"unexpected gen_ai.usage.* attribute %q on span", key)
+		assert.False(t, strings.HasPrefix(key, "redpanda.gen_ai."),
+			"unexpected vendor gen_ai attribute %q on span", key)
+	}
 }
 
 func TestTracingInterceptor_SystemInstructions_Emitted(t *testing.T) {

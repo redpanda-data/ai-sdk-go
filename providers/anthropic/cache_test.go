@@ -75,8 +75,8 @@ func TestAnthropicCachedTokens_Integration(t *testing.T) {
 	require.NotNil(t, response1)
 	require.NotNil(t, response1.Usage)
 
-	t.Logf("Request 1 - InputTokens: %d, OutputTokens: %d, CachedTokens: %d",
-		response1.Usage.InputTokens, response1.Usage.OutputTokens, response1.Usage.CachedTokens)
+	t.Logf("Request 1 - InputTokens: %d, OutputTokens: %d, CachedInputTokens: %d",
+		response1.Usage.InputTokens, response1.Usage.OutputTokens, response1.Usage.CachedInputTokens)
 
 	// Request 2 - Should hit cache on system message
 	request2 := &llm.Request{
@@ -96,8 +96,8 @@ func TestAnthropicCachedTokens_Integration(t *testing.T) {
 	require.NotNil(t, response2)
 	require.NotNil(t, response2.Usage)
 
-	t.Logf("Request 2 - InputTokens: %d, OutputTokens: %d, CachedTokens: %d",
-		response2.Usage.InputTokens, response2.Usage.OutputTokens, response2.Usage.CachedTokens)
+	t.Logf("Request 2 - InputTokens: %d, OutputTokens: %d, CachedInputTokens: %d",
+		response2.Usage.InputTokens, response2.Usage.OutputTokens, response2.Usage.CachedInputTokens)
 
 	// Request 3 - Should hit cache on system message
 	request3 := &llm.Request{
@@ -117,16 +117,16 @@ func TestAnthropicCachedTokens_Integration(t *testing.T) {
 	require.NotNil(t, response3)
 	require.NotNil(t, response3.Usage)
 
-	t.Logf("Request 3 - InputTokens: %d, OutputTokens: %d, CachedTokens: %d",
-		response3.Usage.InputTokens, response3.Usage.OutputTokens, response3.Usage.CachedTokens)
+	t.Logf("Request 3 - InputTokens: %d, OutputTokens: %d, CachedInputTokens: %d",
+		response3.Usage.InputTokens, response3.Usage.OutputTokens, response3.Usage.CachedInputTokens)
 
 	// Verify all responses have the CachedTokens field populated
-	assert.GreaterOrEqual(t, response1.Usage.CachedTokens, 0)
-	assert.GreaterOrEqual(t, response2.Usage.CachedTokens, 0)
-	assert.GreaterOrEqual(t, response3.Usage.CachedTokens, 0)
+	assert.GreaterOrEqual(t, response1.Usage.CachedInputTokens, 0)
+	assert.GreaterOrEqual(t, response2.Usage.CachedInputTokens, 0)
+	assert.GreaterOrEqual(t, response3.Usage.CachedInputTokens, 0)
 
 	// Check if any requests show cached tokens (requests 2-3 should hit the cached system prompt)
-	totalCached := response2.Usage.CachedTokens + response3.Usage.CachedTokens
+	totalCached := response2.Usage.CachedInputTokens + response3.Usage.CachedInputTokens
 
 	// Anthropic should show caching on subsequent requests that reuse the system prompt
 	require.Positive(t, totalCached, "Expected cached tokens when reusing system prompt with cache_control marker")

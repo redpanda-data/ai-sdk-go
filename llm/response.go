@@ -41,6 +41,40 @@ type Response struct {
 	// Raw contains the original provider response for debugging purposes.
 	// This is optional and may be omitted in production to save memory.
 	Raw map[string]any `json:"raw,omitempty"`
+
+	// ServiceTier is the provider-reported processing tier for this response.
+	// Known tiers normalize to the ServiceTier* constants and can be compared
+	// in switch statements. Unknown non-empty values are preserved verbatim
+	// (lower-cased, trimmed, dashes to underscores) and fall through to the
+	// default arm. The empty value means the provider did not report a tier
+	// and is distinct from ServiceTierDefault.
+	//
+	// This belongs on Response rather than TokenUsage because it is request
+	// metadata, not something that can be meaningfully summed across multiple
+	// calls. Pricing uses it as one dimension when selecting a rate card.
+	ServiceTier ServiceTier `json:"service_tier,omitempty"`
+
+	// Speed is the provider-reported latency mode for this response.
+	// Known modes normalize to the Speed* constants and can be compared
+	// in switch statements. Unknown non-empty values are preserved
+	// verbatim (lower-cased, trimmed, dashes to underscores) and fall
+	// through to the default arm. The empty value means the provider
+	// did not report a speed.
+	Speed Speed `json:"speed,omitempty"`
+
+	// InferenceRegion is the region that actually served the request when the
+	// provider reports it. This matters for pricing because some providers price
+	// the same model differently by region.
+	InferenceRegion string `json:"inference_region,omitempty"`
+
+	// InvokedModelID is the model identifier that should be used for SDK lookups
+	// after any provider-side routing has been accounted for.
+	//
+	// Providers sometimes return snapshot/version strings that are more specific
+	// than the stable model keys this SDK exposes. Adapters may normalize those
+	// raw values to the closest supported model ID so pricing and capability
+	// lookup continue to work without a second resolver layer.
+	InvokedModelID string `json:"invoked_model_id,omitempty"`
 }
 
 // TextContent extracts and combines all text content from this response.

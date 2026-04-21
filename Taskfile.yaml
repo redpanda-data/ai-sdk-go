@@ -10,9 +10,12 @@ vars:
   GO_BIN: "{{.GO_ROOT}}/bin/go"
   MODULE_PATH: github.com/redpanda-data/ai-sdk-go
 
-env:
-  GOROOT: "{{.GO_ROOT}}"
-  GOTOOLCHAIN: local
+# GOROOT / GOTOOLCHAIN are exported via per-command inline assignments
+# below (not top-level env:) so they override any inherited shell GOROOT
+# — task's env: block does NOT beat OS env, so a contributor with a
+# stale GOROOT (e.g. left by `go env -w GOROOT=...`) would otherwise
+# see phantom "version X does not match go tool version Y" typecheck
+# errors from the pinned toolchain.
 
 includes:
   install: taskfiles/install.yaml
@@ -37,14 +40,14 @@ tasks:
     deps:
       - install:golangci-lint
     cmds:
-      - 'PATH={{.GO_ROOT}}/bin:$PATH {{.BIN_DIR}}/golangci-lint run --fix --timeout 10m ./...'
+      - 'GOROOT={{.GO_ROOT}} GOTOOLCHAIN=local PATH={{.GO_ROOT}}/bin:$PATH {{.BIN_DIR}}/golangci-lint run --fix --timeout 10m ./...'
 
   lint:new:
     desc: Run golangci-lint only on new issues (uncommitted changes)
     deps:
       - install:golangci-lint
     cmds:
-      - 'PATH={{.GO_ROOT}}/bin:$PATH {{.BIN_DIR}}/golangci-lint run --fix --new --timeout 10m ./...'
+      - 'GOROOT={{.GO_ROOT}} GOTOOLCHAIN=local PATH={{.GO_ROOT}}/bin:$PATH {{.BIN_DIR}}/golangci-lint run --fix --new --timeout 10m ./...'
 
   test:
     desc: Run all tests with coverage
@@ -52,7 +55,7 @@ tasks:
       - install:go
       - install:tparse
     cmds:
-      - '{{.GO_BIN}} test -json -cover -parallel 10 -timeout 30m ./... | {{.BIN_DIR}}/tparse -follow -all'
+      - 'GOROOT={{.GO_ROOT}} GOTOOLCHAIN=local {{.GO_BIN}} test -json -cover -parallel 10 -timeout 30m ./... | {{.BIN_DIR}}/tparse -follow -all'
 
   test:unit:
     desc: Run unit tests only with coverage (excludes integration tests)
@@ -60,7 +63,7 @@ tasks:
       - install:go
       - install:tparse
     cmds:
-      - '{{.GO_BIN}} test -json -cover -short -parallel 10 ./... | {{.BIN_DIR}}/tparse -follow -all'
+      - 'GOROOT={{.GO_ROOT}} GOTOOLCHAIN=local {{.GO_BIN}} test -json -cover -short -parallel 10 ./... | {{.BIN_DIR}}/tparse -follow -all'
 
   test:integration:
     desc: Run integration tests with coverage (requires OPENAI_API_KEY)
@@ -68,7 +71,7 @@ tasks:
       - install:go
       - install:tparse
     cmds:
-      - '{{.GO_BIN}} test -json -cover -parallel 10 -timeout 30m -run Integration ./... | {{.BIN_DIR}}/tparse -follow -all'
+      - 'GOROOT={{.GO_ROOT}} GOTOOLCHAIN=local {{.GO_BIN}} test -json -cover -parallel 10 -timeout 30m -run Integration ./... | {{.BIN_DIR}}/tparse -follow -all'
 
   security:
     desc: Run security vulnerability checks (govulncheck + osv-scanner)
@@ -77,8 +80,8 @@ tasks:
       - install:govulncheck
       - install:osv-scanner
     cmds:
-      - '{{.BIN_DIR}}/govulncheck ./...'
-      - '{{.BIN_DIR}}/osv-scanner --lockfile go.mod'
+      - 'GOROOT={{.GO_ROOT}} GOTOOLCHAIN=local {{.BIN_DIR}}/govulncheck ./...'
+      - 'GOROOT={{.GO_ROOT}} GOTOOLCHAIN=local {{.BIN_DIR}}/osv-scanner --lockfile go.mod'
 
   ci:
     desc: Run all CI checks (license, lint, test:unit)

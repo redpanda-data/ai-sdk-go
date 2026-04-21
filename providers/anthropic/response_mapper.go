@@ -89,16 +89,35 @@ func (m *ResponseMapper) FromProvider(r *anthropic.BetaMessage) (*llm.Response, 
 		}
 	}
 
-	// Extract usage information
+	// Extract usage information. Anthropic's input_tokens, cache_read_input_tokens,
+	// and cache_creation_input_tokens are already disjoint in the API response,
+	// so they map straight onto llm.TokenUsage's disjoint buckets. The per-TTL
+	// breakdown lives in usage.cache_creation.ephemeral_{5m,1h}_input_tokens; if
+	// that breakdown is absent or covers fewer tokens than the aggregate
+	// cache_creation_input_tokens, the remainder lands in
+	// CacheCreationUnknownTTLTokens so BilledInputTokens() stays accurate.
+	//
+	// Anthropic's thinking tokens are billed at the output rate and are not
+	// reported separately in usage, so ReasoningTokens stays zero.
 	var usage *llm.TokenUsage
-	if r.Usage.InputTokens > 0 || r.Usage.OutputTokens > 0 {
+
+	if r.Usage.InputTokens > 0 || r.Usage.OutputTokens > 0 ||
+		r.Usage.CacheReadInputTokens > 0 || r.Usage.CacheCreationInputTokens > 0 {
+		ephemeral5m := int(r.Usage.CacheCreation.Ephemeral5mInputTokens)
+		ephemeral1h := int(r.Usage.CacheCreation.Ephemeral1hInputTokens)
+
+		var unknownTTL int
+		if aggregate := int(r.Usage.CacheCreationInputTokens); aggregate > ephemeral5m+ephemeral1h {
+			unknownTTL = aggregate - ephemeral5m - ephemeral1h
+		}
+
 		usage = &llm.TokenUsage{
-			InputTokens:     int(r.Usage.InputTokens),
-			OutputTokens:    int(r.Usage.OutputTokens),
-			TotalTokens:     int(r.Usage.InputTokens + r.Usage.OutputTokens),
-			CachedTokens:    int(r.Usage.CacheReadInputTokens),
-			ReasoningTokens: 0, // Anthropic doesn't separate reasoning tokens in usage
-			MaxInputTokens:  m.modelDefinition.Constraints.MaxInputTokens,
+			InputTokens:                   int(r.Usage.InputTokens),
+			CachedInputTokens:             int(r.Usage.CacheReadInputTokens),
+			CacheCreation5mTokens:         ephemeral5m,
+			CacheCreation1hTokens:         ephemeral1h,
+			CacheCreationUnknownTTLTokens: unknownTTL,
+			OutputTokens:                  int(r.Usage.OutputTokens),
 		}
 	}
 
@@ -116,8 +135,12 @@ func (m *ResponseMapper) FromProvider(r *anthropic.BetaMessage) (*llm.Response, 
 			Role:    llm.RoleAssistant,
 			Content: content,
 		},
-		FinishReason: finishReason,
-		Usage:        usage,
+		FinishReason:    finishReason,
+		Usage:           usage,
+		ServiceTier:     llm.NormalizeServiceTier(string(r.Usage.ServiceTier)),
+		Speed:           llm.NormalizeSpeed(string(r.Usage.Speed)),
+		InferenceRegion: r.Usage.InferenceGeo,
+		InvokedModelID:  resolveModelFamily(r.Model),
 	}, nil
 }
 

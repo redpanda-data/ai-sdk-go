@@ -58,9 +58,9 @@ type usageModelHandler struct {
 func (h *usageModelHandler) Generate(ctx context.Context, req *llm.Request) (*llm.Response, error) {
 	resp, err := h.next.Generate(ctx, req)
 	if err == nil && resp.Usage != nil {
-		h.tracker.totalTokens += resp.Usage.TotalTokens
+		h.tracker.totalTokens += resp.Usage.TotalBilledTokens()
 		fmt.Printf("  [%s Usage] +%d tokens (cumulative: %d)\n",
-			h.tracker.name, resp.Usage.TotalTokens, h.tracker.totalTokens)
+			h.tracker.name, resp.Usage.TotalBilledTokens(), h.tracker.totalTokens)
 	}
 	return resp, err
 }
@@ -70,7 +70,7 @@ func (h *usageModelHandler) GenerateEvents(ctx context.Context, req *llm.Request
 		var turnUsage int
 		for evt, err := range h.next.GenerateEvents(ctx, req) {
 			if endEvt, ok := evt.(llm.StreamEndEvent); ok && endEvt.Response != nil && endEvt.Response.Usage != nil {
-				turnUsage = endEvt.Response.Usage.TotalTokens
+				turnUsage = endEvt.Response.Usage.TotalBilledTokens()
 			}
 			if !yield(evt, err) {
 				return
@@ -206,10 +206,7 @@ This helps keep your context clean and focused on the main task.`,
 	sess.Messages = append(sess.Messages, userMessage)
 
 	// Create invocation metadata
-	inv := agent.NewInvocationMetadata(sess, agent.Info{
-		Name:        mainAgent.Name(),
-		Description: mainAgent.Description(),
-	})
+	inv := agent.NewInvocationMetadata(sess, mainAgent.Info())
 
 	// Run the main agent
 	fmt.Println("Agent-as-Tool Example: Context Management Pattern")
@@ -245,7 +242,7 @@ This helps keep your context clean and focused on the main task.`,
 		case agent.InvocationEndEvent:
 			fmt.Printf("\n[Done] Finish reason: %s\n", e.FinishReason)
 			if e.Usage != nil {
-				fmt.Printf("Total tokens used: %d\n", e.Usage.TotalTokens)
+				fmt.Printf("Total tokens used: %d\n", e.Usage.TotalBilledTokens())
 			}
 		}
 	}

@@ -116,7 +116,7 @@ func testBasicToolCalling(t *testing.T, fixture Fixture) {
 
 	// Verify usage tracking
 	require.NotNil(t, endEvent.Usage)
-	assert.Positive(t, endEvent.Usage.TotalTokens)
+	assert.Positive(t, endEvent.Usage.TotalBilledTokens())
 }
 
 // testMultiTurnToolExecution contains the shared implementation for TestMultiTurnToolExecution.

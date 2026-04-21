@@ -14,62 +14,164 @@
 
 package llm
 
-// TokenUsage tracks token consumption for AI model requests.
+import "maps"
+
+// TokenUsage is the normalized, cross-provider accounting of tokens for a
+// single LLM call.
 //
-// Fields are populated on a best-effort basis — not all providers report every field.
-// Zero values indicate the provider did not report that metric.
+// # Disjoint counters
 //
-// # Provider Coverage
+// All token counters are DISJOINT. A prompt token is counted in exactly one of
+// InputTokens, CachedInputTokens, CacheCreation5mTokens, CacheCreation1hTokens,
+// CacheCreationUnknownTTLTokens, or ToolUseInputTokens. Likewise output tokens
+// are counted in exactly one of OutputTokens or ReasoningTokens.
 //
-// All providers report InputTokens, OutputTokens, and TotalTokens.
-// CachedTokens is widely supported. ReasoningTokens is provider-specific.
-// See individual field docs for details.
+// This matches Anthropic's and Bedrock's native convention. OpenAI and Google
+// extractors un-subset their native values so the invariant holds uniformly
+// (see the per-provider response mappers).
+//
+// # Zero vs not-reported
+//
+// A zero value is ambiguous: it may mean "reported zero" or "not surfaced by
+// the provider or the extractor." Consumers that need to distinguish should
+// consult the provider's raw response. Within the SDK, extractors populate
+// fields whenever the underlying SDK exposes them; additional fields are
+// wired in over subsequent releases.
+//
+// # Billed totals
+//
+// Use BilledInputTokens, BilledOutputTokens, and TotalBilledTokens to compute
+// sums. Counters are disjoint so these are simple additions; the helpers
+// document intent and stay stable as fields are added.
+//
+// # What is NOT in TokenUsage
+//
+// Per-call metadata that describes HOW a request was processed
+// (service tier, speed, inference region, invoked model ID, latencies) lives
+// on llm.Response, not here. Those fields are not meaningfully additive
+// across calls.
 type TokenUsage struct {
-	// InputTokens is the number of tokens in the input/prompt.
-	// Reported by all providers.
+	// InputTokens is the number of fresh (non-cached, non-cache-write,
+	// non-tool-use) prompt tokens charged at the base input rate.
 	InputTokens int `json:"input_tokens"`
 
-	// OutputTokens is the number of tokens in the generated response.
-	// Reported by all providers. For reasoning models on OpenAI, this includes
-	// reasoning tokens — ReasoningTokens is a subset of OutputTokens, not additive.
+	// CachedInputTokens is the number of prompt tokens served from the
+	// provider's cache (cache read). Disjoint from InputTokens. Billed at a
+	// reduced rate.
+	//
+	// Provider coverage: OpenAI (prompt_tokens_details.cached_tokens),
+	// Anthropic (cache_read_input_tokens), Google (cached_content_token_count),
+	// Bedrock Converse (cache_read_input_tokens), OpenAI-compatible APIs.
+	CachedInputTokens int `json:"cached_input_tokens,omitempty"`
+
+	// CacheCreation5mTokens is the number of prompt tokens written to the
+	// provider's 5-minute-TTL cache. Disjoint from InputTokens. Billed at an
+	// elevated rate.
+	//
+	// Provider coverage: Anthropic, Bedrock-Anthropic.
+	CacheCreation5mTokens int `json:"cache_creation_5m_tokens,omitempty"`
+
+	// CacheCreation1hTokens is the number of prompt tokens written to the
+	// provider's 1-hour-TTL cache. Disjoint from InputTokens. Billed at a
+	// higher elevated rate than 5m writes.
+	//
+	// Provider coverage: Anthropic, Bedrock-Anthropic.
+	CacheCreation1hTokens int `json:"cache_creation_1h_tokens,omitempty"`
+
+	// CacheCreationUnknownTTLTokens is the number of prompt tokens written
+	// to the provider's cache when a TTL-specific field was not available
+	// (older API shapes, future unknown TTLs). Disjoint from InputTokens and
+	// from the 5m/1h counters.
+	//
+	// Extractors fall back to this field when a provider reports an
+	// aggregate cache-write count without a per-TTL breakdown, so the total
+	// stays reflected in BilledInputTokens() without pretending to know the
+	// TTL.
+	CacheCreationUnknownTTLTokens int `json:"cache_creation_unknown_ttl_tokens,omitempty"`
+
+	// ToolUseInputTokens is the number of prompt tokens consumed by
+	// server-side tool invocations (e.g., function-calling loops billed
+	// separately from the user-visible prompt). Disjoint from InputTokens.
+	//
+	// Provider coverage: Google (tool_use_prompt_token_count). Zero for
+	// providers that fold tool-use tokens into InputTokens.
+	ToolUseInputTokens int `json:"tool_use_input_tokens,omitempty"`
+
+	// OutputTokens is the number of tokens in the assistant's visible
+	// response. Does NOT include reasoning tokens — those are a separate
+	// disjoint bucket (see ReasoningTokens).
 	OutputTokens int `json:"output_tokens"`
 
-	// TotalTokens is the total token count for the request.
-	// Most providers return this directly from their API. Anthropic computes it
-	// as InputTokens + OutputTokens since their API does not provide it.
+	// ReasoningTokens is the number of tokens the model spent on hidden
+	// reasoning/thinking. Disjoint from OutputTokens — the SDK un-subsets
+	// OpenAI's native value so the invariant holds uniformly. Typically
+	// billed at the output rate.
 	//
-	// For non-reasoning models, TotalTokens == InputTokens + OutputTokens.
-	// For reasoning models (OpenAI), TotalTokens still equals InputTokens + OutputTokens
-	// because reasoning tokens are included in OutputTokens.
-	TotalTokens int `json:"total_tokens"`
-
-	// CachedTokens is the number of input tokens served from the provider's prompt cache.
-	// These tokens are typically billed at a reduced rate. CachedTokens is a subset of
-	// InputTokens, not additive.
-	//
-	// Supported by all providers: OpenAI (InputTokensDetails.CachedTokens),
-	// Anthropic (CacheReadInputTokens), Google (CachedContentTokenCount),
-	// Bedrock (CacheReadInputTokens), and OpenAI-compatible APIs.
-	CachedTokens int `json:"cached_tokens,omitempty"`
-
-	// ReasoningTokens is the number of tokens the model used for internal reasoning (thinking).
-	// This is a subset of OutputTokens — it is NOT additive to the output count.
-	// These tokens are billed as output tokens.
-	//
-	// Only reported by OpenAI (o-series, GPT-5) and OpenAI-compatible providers
-	// (e.g., DeepSeek-R1). Anthropic, Google, and Bedrock do not report this field;
-	// it will be zero for those providers.
+	// Provider coverage: OpenAI o-series / GPT-5
+	// (completion_tokens_details.reasoning_tokens), Google Gemini 2.5+
+	// (thoughts_token_count), OpenAI-compatible reasoning models. Anthropic
+	// and Bedrock do not surface thinking tokens as a separate counter —
+	// Anthropic's thinking content is billed as regular output and
+	// ReasoningTokens will be zero.
 	ReasoningTokens int `json:"reasoning_tokens,omitempty"`
 
-	// MaxInputTokens is the model's context window size (maximum input tokens accepted).
-	// This is a model capability, not a usage metric — it is populated from the model
-	// definition at configuration time, not from API responses.
-	MaxInputTokens int `json:"max_input_tokens,omitempty"`
+	// Extra carries provider-specific dimensions that the SDK does not
+	// normalize today. Keys MUST be namespaced as "<provider>.<field>" to
+	// prevent collisions (e.g., "anthropic.iterations",
+	// "cohere.search_units", "bedrock.invocation_latency_ms").
+	//
+	// Extra is NOT included in BilledInputTokens / BilledOutputTokens —
+	// anything billable should graduate to a first-class field.
+	Extra map[string]any `json:"extra,omitempty"`
 }
 
-// SumUsage aggregates multiple TokenUsage values into a single cumulative result.
-// This is the preferred way to accumulate usage across multiple operations.
-// Nil values are safely skipped. Returns nil if all inputs are nil.
+// BilledInputTokens returns the total input-side tokens that contribute to
+// billing: InputTokens + CachedInputTokens + CacheCreation5mTokens +
+// CacheCreation1hTokens + CacheCreationUnknownTTLTokens + ToolUseInputTokens.
+//
+// Counters are disjoint so this is a simple sum; the helper exists to
+// document intent and remain stable as fields are added.
+func (u *TokenUsage) BilledInputTokens() int {
+	if u == nil {
+		return 0
+	}
+
+	return u.InputTokens +
+		u.CachedInputTokens +
+		u.CacheCreation5mTokens +
+		u.CacheCreation1hTokens +
+		u.CacheCreationUnknownTTLTokens +
+		u.ToolUseInputTokens
+}
+
+// BilledOutputTokens returns the total output-side tokens that contribute
+// to billing: OutputTokens + ReasoningTokens.
+func (u *TokenUsage) BilledOutputTokens() int {
+	if u == nil {
+		return 0
+	}
+
+	return u.OutputTokens + u.ReasoningTokens
+}
+
+// TotalBilledTokens returns BilledInputTokens + BilledOutputTokens.
+func (u *TokenUsage) TotalBilledTokens() int {
+	return u.BilledInputTokens() + u.BilledOutputTokens()
+}
+
+// SumUsage aggregates multiple TokenUsage values into a single cumulative
+// result. Nil values are safely skipped. Returns nil if all inputs are nil.
+//
+// All scalar counters are added. The Extra map is merged per key; when
+// both sides hold the same numeric type (int, int64, or float64) the
+// values are summed. Any other collision (different numeric types,
+// booleans, strings, nested maps) keeps the first-writer-wins value
+// rather than silently coercing across types. Anything billable should
+// graduate to a first-class field instead of relying on Extra merging.
+//
+// TokenUsage intentionally contains only additive accounting fields.
+// Per-call metadata (service tier, speed, region, invoked model) lives on
+// llm.Response, which is not summed.
 //
 // Example:
 //
@@ -83,26 +185,86 @@ func SumUsage(usages ...*TokenUsage) *TokenUsage {
 		}
 
 		if result == nil {
-			// First non-nil usage, make a copy
-			val := *u
-			result = &val
-		} else {
-			// Accumulate into result
-			maxInputTokens := max(u.MaxInputTokens, result.MaxInputTokens)
-
-			result = &TokenUsage{
-				InputTokens:     u.InputTokens + result.InputTokens,
-				OutputTokens:    u.OutputTokens + result.OutputTokens,
-				TotalTokens:     u.TotalTokens + result.TotalTokens,
-				CachedTokens:    u.CachedTokens + result.CachedTokens,
-				ReasoningTokens: u.ReasoningTokens + result.ReasoningTokens,
-				MaxInputTokens:  maxInputTokens,
-			}
+			result = cloneUsage(u)
+			continue
 		}
+
+		result.InputTokens += u.InputTokens
+		result.CachedInputTokens += u.CachedInputTokens
+		result.CacheCreation5mTokens += u.CacheCreation5mTokens
+		result.CacheCreation1hTokens += u.CacheCreation1hTokens
+		result.CacheCreationUnknownTTLTokens += u.CacheCreationUnknownTTLTokens
+		result.ToolUseInputTokens += u.ToolUseInputTokens
+
+		result.OutputTokens += u.OutputTokens
+		result.ReasoningTokens += u.ReasoningTokens
+
+		result.Extra = mergeExtra(result.Extra, u.Extra)
 	}
 
 	return result
 }
+
+func cloneUsage(u *TokenUsage) *TokenUsage {
+	out := *u
+	out.Extra = cloneExtra(u.Extra)
+
+	return &out
+}
+
+func cloneExtra(m map[string]any) map[string]any {
+	if len(m) == 0 {
+		return nil
+	}
+
+	out := make(map[string]any, len(m))
+	maps.Copy(out, m)
+
+	return out
+}
+
+func mergeExtra(dst, src map[string]any) map[string]any {
+	if len(src) == 0 {
+		return dst
+	}
+
+	if dst == nil {
+		dst = make(map[string]any, len(src))
+	}
+
+	for k, v := range src {
+		existing, ok := dst[k]
+		if !ok {
+			dst[k] = v
+			continue
+		}
+
+		// Same-typed numeric values add; any other collision — including
+		// differently-typed numerics like int vs int64 — keeps the first
+		// writer rather than silently coercing. Billable counters should
+		// graduate to a first-class TokenUsage field.
+		switch existingValue := existing.(type) {
+		case int:
+			if incoming, ok := v.(int); ok {
+				dst[k] = existingValue + incoming
+			}
+		case int64:
+			if incoming, ok := v.(int64); ok {
+				dst[k] = existingValue + incoming
+			}
+		case float64:
+			if incoming, ok := v.(float64); ok {
+				dst[k] = existingValue + incoming
+			}
+		}
+	}
+
+	return dst
+}
+
+// ServiceTier lives in llm/service_tier.go alongside NormalizeServiceTier.
+// The pricing package consumes it as one selector dimension when choosing a
+// rate card.
 
 // FinishReason indicates why model generation stopped.
 type FinishReason string

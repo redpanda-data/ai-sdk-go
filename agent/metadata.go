@@ -285,17 +285,15 @@ func (m *InvocationMetadata) incrementTurn() {
 // addUsage accumulates token usage from a model call.
 //
 // This should be called after each model generation to track cumulative
-// token consumption for this invocation. It is not exported because
-// interceptors should not modify usage tracking.
+// token consumption for this invocation. It delegates to llm.SumUsage so
+// disjoint counters and Extra maps merge correctly — see llm/types.go.
 func (m *InvocationMetadata) addUsage(usage *llm.TokenUsage) {
-	m.totalUsage.InputTokens += usage.InputTokens
-	m.totalUsage.OutputTokens += usage.OutputTokens
-	m.totalUsage.ReasoningTokens += usage.ReasoningTokens
-	m.totalUsage.CachedTokens += usage.CachedTokens
-	m.totalUsage.TotalTokens += usage.TotalTokens
-	// MaxInputTokens is a model constraint, not cumulative - use the first non-zero value
-	if m.totalUsage.MaxInputTokens == 0 && usage.MaxInputTokens > 0 {
-		m.totalUsage.MaxInputTokens = usage.MaxInputTokens
+	if usage == nil {
+		return
+	}
+
+	if summed := llm.SumUsage(&m.totalUsage, usage); summed != nil {
+		m.totalUsage = *summed
 	}
 }
 

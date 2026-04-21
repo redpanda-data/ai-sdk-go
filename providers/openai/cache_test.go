@@ -60,8 +60,8 @@ func TestOpenAICachedTokens_Integration(t *testing.T) {
 	require.NotNil(t, response1)
 	require.NotNil(t, response1.Usage)
 
-	t.Logf("Request 1 - InputTokens: %d, OutputTokens: %d, CachedTokens: %d",
-		response1.Usage.InputTokens, response1.Usage.OutputTokens, response1.Usage.CachedTokens)
+	t.Logf("Request 1 - InputTokens: %d, OutputTokens: %d, CachedInputTokens: %d",
+		response1.Usage.InputTokens, response1.Usage.OutputTokens, response1.Usage.CachedInputTokens)
 
 	// Run multiple iterations to increase chances of seeing cached tokens
 	// OpenAI's automatic caching behavior is not deterministic
@@ -85,8 +85,8 @@ func TestOpenAICachedTokens_Integration(t *testing.T) {
 		require.NotNil(t, resp)
 		require.NotNil(t, resp.Usage)
 
-		t.Logf("Request %d - InputTokens: %d, OutputTokens: %d, CachedTokens: %d",
-			i, resp.Usage.InputTokens, resp.Usage.OutputTokens, resp.Usage.CachedTokens)
+		t.Logf("Request %d - InputTokens: %d, OutputTokens: %d, CachedInputTokens: %d",
+			i, resp.Usage.InputTokens, resp.Usage.OutputTokens, resp.Usage.CachedInputTokens)
 
 		responses = append(responses, resp)
 	}
@@ -98,11 +98,11 @@ func TestOpenAICachedTokens_Integration(t *testing.T) {
 	totalCached := 0
 
 	for i, resp := range responses {
-		assert.GreaterOrEqual(t, resp.Usage.CachedTokens, 0, "CachedTokens should be non-negative")
+		assert.GreaterOrEqual(t, resp.Usage.CachedInputTokens, 0, "CachedTokens should be non-negative")
 
-		totalCached += resp.Usage.CachedTokens
-		if resp.Usage.CachedTokens > 0 {
-			t.Logf("Cache hit on request %d with %d cached tokens", i+1, resp.Usage.CachedTokens)
+		totalCached += resp.Usage.CachedInputTokens
+		if resp.Usage.CachedInputTokens > 0 {
+			t.Logf("Cache hit on request %d with %d cached tokens", i+1, resp.Usage.CachedInputTokens)
 		}
 	}
 

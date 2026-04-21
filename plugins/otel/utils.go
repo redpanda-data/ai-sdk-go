@@ -78,19 +78,51 @@ func setToolError(span trace.Span, errMsg string) {
 	span.SetAttributes(errorType(errorTypeToolError))
 }
 
-// setUsageAttributes sets token usage attributes on a span.
-// Conditionally includes cache_read tokens when present.
+// setUsageAttributes stamps gen_ai.usage.* attributes on a span
+// following the OpenTelemetry Gen AI SemConv span contract:
+// https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/.
+//
+// llm.TokenUsage is internally disjoint (cache reads, cache writes per
+// TTL, and tool-use tokens each live in their own counter), but the
+// span spec requires that gen_ai.usage.input_tokens is the INCLUSIVE
+// total: "This value SHOULD include all types of input tokens,
+// including cached tokens." cache_read.input_tokens and
+// cache_creation.input_tokens are subsets, not parallel buckets.
+//
+// We un-subset at the wire boundary: emit BilledInputTokens() on
+// input_tokens and BilledOutputTokens() on output_tokens (output_tokens
+// is "tokens used in the GenAI response (completion)" — providers that
+// surface reasoning counts bill them at the output rate and fold them
+// into the parent completion_tokens total, so we follow the same
+// convention for invoice-reconcilable span totals). The cache sub-keys
+// carry their native values.
+//
+// Per-TTL cache writes, reasoning, and tool-use input buckets are
+// deliberately NOT surfaced on spans — no SemConv key exists today. If
+// we ship a metric emitter later, those dimensions belong on the
+// gen_ai.client.token.usage histogram via gen_ai.token.cache and
+// gen_ai.token.reasoning per
+// https://github.com/open-telemetry/semantic-conventions/pull/3624.
 func setUsageAttributes(span trace.Span, usage *llm.TokenUsage) {
 	if usage == nil {
 		return
 	}
 
+	cacheCreationTotal := usage.CacheCreation5mTokens +
+		usage.CacheCreation1hTokens +
+		usage.CacheCreationUnknownTTLTokens
+
 	attrs := []attribute.KeyValue{
-		genAIUsageInputTokens(usage.InputTokens),
-		genAIUsageOutputTokens(usage.OutputTokens),
+		genAIUsageInputTokens(usage.BilledInputTokens()),
+		genAIUsageOutputTokens(usage.BilledOutputTokens()),
 	}
-	if usage.CachedTokens > 0 {
-		attrs = append(attrs, genAIUsageCacheReadInputTokens(usage.CachedTokens))
+
+	if usage.CachedInputTokens > 0 {
+		attrs = append(attrs, genAIUsageCacheReadInputTokens(usage.CachedInputTokens))
+	}
+
+	if cacheCreationTotal > 0 {
+		attrs = append(attrs, genAIUsageCacheCreationInputTokens(cacheCreationTotal))
 	}
 
 	span.SetAttributes(attrs...)
