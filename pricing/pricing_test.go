@@ -15,6 +15,7 @@
 package pricing
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -338,6 +339,18 @@ func TestCatalogBuilder_Errors(t *testing.T) {
 		assert.Contains(t, err.Error(), `override for unknown model "missing"`)
 	})
 
+	t.Run("duplicate override errors", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := NewCatalog(
+			WithProvider("openai", map[string]Info{"m": FlatInfo(0.00000001, 0.00000002, 0.00000003)}),
+			WithOverride("m", FlatInfo(0.00000004, 0.00000005, 0.00000006)),
+			WithOverride("m", FlatInfo(0.00000007, 0.00000008, 0.00000009)),
+		)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `duplicate override for model "m"`)
+	})
+
 	t.Run("ambiguous selectors rejected", func(t *testing.T) {
 		t.Parallel()
 
@@ -350,6 +363,25 @@ func TestCatalogBuilder_Errors(t *testing.T) {
 		)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "ambiguous selectors")
+	})
+
+	t.Run("all ambiguous selector pairs reported", func(t *testing.T) {
+		t.Parallel()
+
+		// Three single-dimension overrides that all overlap pairwise at the same
+		// specificity — three ambiguous pairs. Builder should surface all of
+		// them in a single error so authors can fix in one pass.
+		info := FlatInfo(0.00000001, 0.00000002, 0.00000003).
+			WithOverride(Selector{Speed: "fast"}, RateCard{Base: NewRates(0.0000001, 0.0000002, 0.0000003)}).
+			WithOverride(Selector{ServiceTier: llm.ServiceTierPriority}, RateCard{Base: NewRates(0.00000011, 0.00000022, 0.00000033)}).
+			WithOverride(Selector{Region: "us-east-1"}, RateCard{Base: NewRates(0.00000012, 0.00000023, 0.00000034)})
+
+		_, err := NewCatalog(
+			WithProvider("anthropic", map[string]Info{"m": info}),
+		)
+		require.Error(t, err)
+		assert.Equal(t, 3, strings.Count(err.Error(), "ambiguous selectors"),
+			"every ambiguous pair should be reported once, got: %v", err)
 	})
 
 	t.Run("empty override selector rejected", func(t *testing.T) {

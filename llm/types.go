@@ -162,8 +162,12 @@ func (u *TokenUsage) TotalBilledTokens() int {
 // SumUsage aggregates multiple TokenUsage values into a single cumulative
 // result. Nil values are safely skipped. Returns nil if all inputs are nil.
 //
-// All scalar counters are added. The Extra map is merged with per-key addition
-// for numeric values; non-numeric Extra values take the first-writer-wins rule.
+// All scalar counters are added. The Extra map is merged per key; when
+// both sides hold the same numeric type (int, int64, or float64) the
+// values are summed. Any other collision (different numeric types,
+// booleans, strings, nested maps) keeps the first-writer-wins value
+// rather than silently coercing across types. Anything billable should
+// graduate to a first-class field instead of relying on Extra merging.
 //
 // TokenUsage intentionally contains only additive accounting fields.
 // Per-call metadata (service tier, speed, region, invoked model) lives on
@@ -229,18 +233,30 @@ func mergeExtra(dst, src map[string]any) map[string]any {
 	}
 
 	for k, v := range src {
-		if existing, ok := dst[k]; ok {
-			if ei, eok := existing.(int); eok {
-				if vi, vok := v.(int); vok {
-					dst[k] = ei + vi
-					continue
-				}
-			}
-			// Non-numeric collision: first writer wins.
+		existing, ok := dst[k]
+		if !ok {
+			dst[k] = v
 			continue
 		}
 
-		dst[k] = v
+		// Same-typed numeric values add; any other collision — including
+		// differently-typed numerics like int vs int64 — keeps the first
+		// writer rather than silently coercing. Billable counters should
+		// graduate to a first-class TokenUsage field.
+		switch existingValue := existing.(type) {
+		case int:
+			if incoming, ok := v.(int); ok {
+				dst[k] = existingValue + incoming
+			}
+		case int64:
+			if incoming, ok := v.(int64); ok {
+				dst[k] = existingValue + incoming
+			}
+		case float64:
+			if incoming, ok := v.(float64); ok {
+				dst[k] = existingValue + incoming
+			}
+		}
 	}
 
 	return dst

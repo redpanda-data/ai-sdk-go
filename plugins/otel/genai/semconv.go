@@ -23,30 +23,39 @@
 package genai
 
 // Attribute keys following OpenTelemetry Gen AI semantic conventions.
+//
+// The gen_ai.usage.* group follows the span contract at
+// https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/. The
+// spec rule for the cache-read and cache-creation sub-keys is that
+// their values SHOULD be included in gen_ai.usage.input_tokens —
+// producers emit the inclusive total on input_tokens and the subsets on
+// the cache_* keys. Per-TTL cache writes, reasoning tokens, and
+// tool-use input tokens do not have span-level SemConv keys today.
 const (
-	AttrGenAIOperationName             = "gen_ai.operation.name"
-	AttrGenAIProviderName              = "gen_ai.provider.name"
-	AttrGenAIAgentName                 = "gen_ai.agent.name"
-	AttrGenAIAgentDescription          = "gen_ai.agent.description"
-	AttrGenAIAgentID                   = "gen_ai.agent.id"
-	AttrGenAIAgentVersion              = "gen_ai.agent.version"
-	AttrGenAIConversationID            = "gen_ai.conversation.id"
-	AttrGenAISystemInstructions        = "gen_ai.system_instructions"
-	AttrGenAIRequestModel              = "gen_ai.request.model"
-	AttrGenAIResponseID                = "gen_ai.response.id"
-	AttrGenAIResponseFinishReasons     = "gen_ai.response.finish_reasons"
-	AttrGenAIUsageInputTokens          = "gen_ai.usage.input_tokens"            //nolint:gosec // Not a credential
-	AttrGenAIUsageOutputTokens         = "gen_ai.usage.output_tokens"           //nolint:gosec // Not a credential
-	AttrGenAIUsageCacheReadInputTokens = "gen_ai.usage.cache_read.input_tokens" //nolint:gosec // Not a credential
-	AttrGenAIInputMessages             = "gen_ai.input.messages"
-	AttrGenAIOutputMessages            = "gen_ai.output.messages"
-	AttrGenAIToolDefinitions           = "gen_ai.tool.definitions"
-	AttrGenAIToolName                  = "gen_ai.tool.name"
-	AttrGenAIToolCallID                = "gen_ai.tool.call.id"
-	AttrGenAIToolCallArguments         = "gen_ai.tool.call.arguments"
-	AttrGenAIToolCallResult            = "gen_ai.tool.call.result"
-	AttrGenAIToolType                  = "gen_ai.tool.type"
-	AttrGenAIToolDescription           = "gen_ai.tool.description"
+	AttrGenAIOperationName                 = "gen_ai.operation.name"
+	AttrGenAIProviderName                  = "gen_ai.provider.name"
+	AttrGenAIAgentName                     = "gen_ai.agent.name"
+	AttrGenAIAgentDescription              = "gen_ai.agent.description"
+	AttrGenAIAgentID                       = "gen_ai.agent.id"
+	AttrGenAIAgentVersion                  = "gen_ai.agent.version"
+	AttrGenAIConversationID                = "gen_ai.conversation.id"
+	AttrGenAISystemInstructions            = "gen_ai.system_instructions"
+	AttrGenAIRequestModel                  = "gen_ai.request.model"
+	AttrGenAIResponseID                    = "gen_ai.response.id"
+	AttrGenAIResponseFinishReasons         = "gen_ai.response.finish_reasons"
+	AttrGenAIUsageInputTokens              = "gen_ai.usage.input_tokens"                //nolint:gosec // Not a credential
+	AttrGenAIUsageOutputTokens             = "gen_ai.usage.output_tokens"               //nolint:gosec // Not a credential
+	AttrGenAIUsageCacheReadInputTokens     = "gen_ai.usage.cache_read.input_tokens"     //nolint:gosec // Not a credential
+	AttrGenAIUsageCacheCreationInputTokens = "gen_ai.usage.cache_creation.input_tokens" //nolint:gosec // Not a credential
+	AttrGenAIInputMessages                 = "gen_ai.input.messages"
+	AttrGenAIOutputMessages                = "gen_ai.output.messages"
+	AttrGenAIToolDefinitions               = "gen_ai.tool.definitions"
+	AttrGenAIToolName                      = "gen_ai.tool.name"
+	AttrGenAIToolCallID                    = "gen_ai.tool.call.id"
+	AttrGenAIToolCallArguments             = "gen_ai.tool.call.arguments"
+	AttrGenAIToolCallResult                = "gen_ai.tool.call.result"
+	AttrGenAIToolType                      = "gen_ai.tool.type"
+	AttrGenAIToolDescription               = "gen_ai.tool.description"
 )
 
 // Operation name constants.

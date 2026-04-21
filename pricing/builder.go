@@ -63,8 +63,20 @@ func WithProvider(provider string, models map[string]Info) Option {
 
 // WithOverride replaces the pricing of an existing model ID. Unknown
 // IDs surface as errors from NewCatalog.
+//
+// Symmetric with WithProvider: passing the same modelID twice is a
+// configuration bug, not "last-writer-wins." NewCatalog returns a
+// duplicate-override error rather than silently keeping only the last
+// value.
 func WithOverride(modelID string, info Info) Option {
 	return func(b *catalogBuilder) {
+		if _, exists := b.overrides[modelID]; exists {
+			b.buildErrs = append(b.buildErrs,
+				fmt.Errorf("duplicate override for model %q", modelID))
+
+			return
+		}
+
 		b.overrides[modelID] = cloneInfo(info)
 	}
 }
@@ -256,6 +268,8 @@ func validateOverrides(overrides []Override, scope string) error {
 		return nil
 	}
 
+	var errs []error
+
 	for i := range overrides {
 		for j := i + 1; j < len(overrides); j++ {
 			a := overrides[i].Match
@@ -266,13 +280,14 @@ func validateOverrides(overrides []Override, scope string) error {
 			}
 
 			if selectorSpecificity(a) == selectorSpecificity(b) {
-				return fmt.Errorf("%s: ambiguous selectors %q and %q have the same specificity and overlap",
-					scope, selectorString(a), selectorString(b))
+				errs = append(errs,
+					fmt.Errorf("%s: ambiguous selectors %q and %q have the same specificity and overlap",
+						scope, selectorString(a), selectorString(b)))
 			}
 		}
 	}
 
-	return nil
+	return errors.Join(errs...)
 }
 
 func computeVersion(models map[string]Info) string {

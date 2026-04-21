@@ -183,6 +183,51 @@ func TestSumUsage(t *testing.T) {
 				OutputTokens: 150,
 			},
 		},
+		{
+			// Same-typed numerics add across int, int64, and float64.
+			// A differently-typed collision keeps the first writer —
+			// e.g. int vs int64 for the same key would not coerce. A
+			// type-consistent string collision also keeps the first.
+			name: "extra merges int, int64, and float64 by type",
+			usages: []*TokenUsage{
+				{
+					Extra: map[string]any{
+						"provider.int":    10,
+						"provider.int64":  int64(1000),
+						"provider.float":  1.5,
+						"provider.string": "a",
+					},
+				},
+				{
+					Extra: map[string]any{
+						"provider.int":    25,
+						"provider.int64":  int64(2500),
+						"provider.float":  2.25,
+						"provider.string": "b",
+					},
+				},
+			},
+			expected: &TokenUsage{
+				Extra: map[string]any{
+					"provider.int":    35,
+					"provider.int64":  int64(3500),
+					"provider.float":  3.75,
+					"provider.string": "a",
+				},
+			},
+		},
+		{
+			// Cross-type numeric collisions are first-writer-wins — we
+			// don't silently coerce int -> int64 or int -> float64.
+			name: "extra skips cross-type numeric collisions",
+			usages: []*TokenUsage{
+				{Extra: map[string]any{"provider.count": 10}},
+				{Extra: map[string]any{"provider.count": int64(99)}},
+			},
+			expected: &TokenUsage{
+				Extra: map[string]any{"provider.count": 10},
+			},
+		},
 	}
 
 	for _, tt := range tests {

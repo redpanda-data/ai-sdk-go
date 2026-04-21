@@ -23,7 +23,7 @@ import (
 )
 
 // Catalog is an in-memory lookup table of model pricing. The zero
-// value is not usable; construct catalogs through NewCatalog().Build().
+// value is not usable; construct catalogs through NewCatalog(opts...).
 //
 // Catalogs key on bare model IDs. Provider namespacing is the
 // responsibility of each provider package (Bedrock IDs are prefixed
@@ -231,6 +231,12 @@ func resolveBracket(card RateCard, contextTokens int64) (Rates, int64) {
 // and whether the bucket was priced. When tokens == 0 the bucket is
 // treated as priced-at-zero: no unpriced signal is useful when nothing
 // was used.
+//
+// Overflow: tokens * rate is int64. Real context windows (<1e7 tokens
+// for any shipping 2026 model) × the highest catalog rate (~1.5e11
+// microcents/M) stay well under int64 max. No defensive guard: a
+// caller that synthesises multi-billion-token usage is buggy upstream,
+// and masking it here would produce a silently-wrong invoice.
 func priceBucket(tokens, rate int64) (int64, bool) {
 	if tokens == 0 {
 		return 0, true

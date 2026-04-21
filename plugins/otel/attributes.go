@@ -183,6 +183,10 @@ func genAIUsageCacheReadInputTokens(tokens int) attribute.KeyValue {
 	return attribute.Int(genai.AttrGenAIUsageCacheReadInputTokens, tokens)
 }
 
+func genAIUsageCacheCreationInputTokens(tokens int) attribute.KeyValue {
+	return attribute.Int(genai.AttrGenAIUsageCacheCreationInputTokens, tokens)
+}
+
 func genAIToolName(name string) attribute.KeyValue {
 	return attribute.String(genai.AttrGenAIToolName, name)
 }
