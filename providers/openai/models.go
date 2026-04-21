@@ -85,7 +85,7 @@ var supportedModels = map[string]ModelDefinition{
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortMinimal, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
-		Pricing:                   pricing.Info{InputPerMillion: 62_500_000, OutputPerMillion: 500_000_000, CachedInputPerMillion: 12_500_000},
+		Pricing:                   pricing.FlatInfo(0.625, 5.00, 0.125),
 	},
 	ModelGPT5Mini: {
 		Name:  ModelGPT5Mini,
@@ -109,7 +109,8 @@ var supportedModels = map[string]ModelDefinition{
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortMinimal, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
-		Pricing:                   pricing.Info{InputPerMillion: 12_500_000, OutputPerMillion: 100_000_000, CachedInputPerMillion: 2_500_000},
+		// $0.25 / $2.00 / $0.025 per M (input / output / cached input).
+		Pricing: pricing.FlatInfo(0.25, 2.00, 0.025),
 	},
 	ModelGPT5Nano: {
 		Name:  ModelGPT5Nano,
@@ -132,7 +133,7 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty"},
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
-		Pricing: pricing.Info{InputPerMillion: 5_000_000, OutputPerMillion: 40_000_000, CachedInputPerMillion: 500_000},
+		Pricing: pricing.FlatInfo(0.05, 0.40, 0.005),
 	},
 	ModelGPT5_1: {
 		Name:  ModelGPT5_1,
@@ -156,7 +157,8 @@ var supportedModels = map[string]ModelDefinition{
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
-		Pricing:                   pricing.Info{InputPerMillion: 62_500_000, OutputPerMillion: 500_000_000, CachedInputPerMillion: 12_500_000},
+		// $1.25 / $10.00 / $0.125 per M (input / output / cached input).
+		Pricing: pricing.FlatInfo(1.25, 10.00, 0.125),
 	},
 	ModelGPT5_2: {
 		Name:  ModelGPT5_2,
@@ -180,7 +182,7 @@ var supportedModels = map[string]ModelDefinition{
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh},
-		Pricing:                   pricing.Info{InputPerMillion: 87_500_000, OutputPerMillion: 700_000_000, CachedInputPerMillion: 17_500_000},
+		Pricing:                   pricing.FlatInfo(0.875, 7.00, 0.175),
 	},
 	ModelGPT5_2Instant: {
 		Name:  ModelGPT5_2Instant,
@@ -204,7 +206,7 @@ var supportedModels = map[string]ModelDefinition{
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortMedium}, // Instant variant only supports medium
-		Pricing:                   pricing.Info{InputPerMillion: 87_500_000, OutputPerMillion: 700_000_000, CachedInputPerMillion: 17_500_000},
+		Pricing:                   pricing.FlatInfo(0.875, 7.00, 0.175),
 	},
 	ModelGPT5_2Pro: {
 		Name:  ModelGPT5_2Pro,
@@ -228,7 +230,7 @@ var supportedModels = map[string]ModelDefinition{
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh}, // Pro variant starts at medium
-		Pricing:                   pricing.Info{InputPerMillion: 1_050_000_000, OutputPerMillion: 8_400_000_000},
+		Pricing:                   pricing.FlatInfo(10.50, 84.00, 0),
 	},
 
 	// GPT-5.3 Series
@@ -254,7 +256,7 @@ var supportedModels = map[string]ModelDefinition{
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortMedium}, // Chat-latest only supports medium
-		Pricing:                   pricing.Info{InputPerMillion: 175_000_000, OutputPerMillion: 1_400_000_000, CachedInputPerMillion: 17_500_000},
+		Pricing:                   pricing.FlatInfo(1.75, 14.00, 0.175),
 	},
 
 	// GPT-5.4 Series (March 2026 Flagship)
@@ -280,7 +282,7 @@ var supportedModels = map[string]ModelDefinition{
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh},
-		Pricing:                   pricing.Info{InputPerMillion: 250_000_000, OutputPerMillion: 1_500_000_000, CachedInputPerMillion: 25_000_000},
+		Pricing:                   pricing.FlatInfo(2.50, 15.00, 0.25),
 	},
 	ModelGPT5_4Mini: {
 		Name:  ModelGPT5_4Mini,
@@ -304,7 +306,7 @@ var supportedModels = map[string]ModelDefinition{
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh},
-		Pricing:                   pricing.Info{InputPerMillion: 75_000_000, OutputPerMillion: 450_000_000, CachedInputPerMillion: 7_500_000},
+		Pricing:                   pricing.FlatInfo(0.75, 4.50, 0.075),
 	},
 	ModelGPT5_4Nano: {
 		Name:  ModelGPT5_4Nano,
@@ -327,7 +329,7 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty"},
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
-		Pricing: pricing.Info{InputPerMillion: 20_000_000, OutputPerMillion: 125_000_000, CachedInputPerMillion: 2_000_000},
+		Pricing: pricing.FlatInfo(0.20, 1.25, 0.02),
 	},
 
 	// GPT-4.1 Series (Enhanced Performance)
@@ -350,7 +352,7 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed"},
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
-		Pricing: pricing.Info{InputPerMillion: 200_000_000, OutputPerMillion: 800_000_000, CachedInputPerMillion: 50_000_000},
+		Pricing: pricing.FlatInfo(2.00, 8.00, 0.50),
 	},
 	ModelGPT41Mini: {
 		Name:  ModelGPT41Mini,
@@ -371,7 +373,7 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty"},
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
-		Pricing: pricing.Info{InputPerMillion: 40_000_000, OutputPerMillion: 160_000_000, CachedInputPerMillion: 10_000_000},
+		Pricing: pricing.FlatInfo(0.40, 1.60, 0.10),
 	},
 
 	// O-Series Reasoning Models
@@ -394,7 +396,7 @@ var supportedModels = map[string]ModelDefinition{
 			MutuallyExclusive: [][]string{},
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
-		Pricing:                   pricing.Info{InputPerMillion: 200_000_000, OutputPerMillion: 800_000_000, CachedInputPerMillion: 50_000_000},
+		Pricing:                   pricing.FlatInfo(2.00, 8.00, 0.50),
 	},
 	ModelO4Mini: {
 		Name:  ModelO4Mini,
@@ -415,7 +417,7 @@ var supportedModels = map[string]ModelDefinition{
 			MutuallyExclusive: [][]string{},
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
-		Pricing:                   pricing.Info{InputPerMillion: 110_000_000, OutputPerMillion: 440_000_000, CachedInputPerMillion: 27_500_000},
+		Pricing:                   pricing.FlatInfo(1.10, 4.40, 0.275),
 	},
 
 	// GPT-4o Series (Multimodal)
@@ -446,7 +448,7 @@ var supportedModels = map[string]ModelDefinition{
 				},
 			},
 		},
-		Pricing: pricing.Info{InputPerMillion: 250_000_000, OutputPerMillion: 1_000_000_000, CachedInputPerMillion: 125_000_000},
+		Pricing: pricing.FlatInfo(2.50, 10.00, 1.25),
 	},
 	ModelGPT4OMini: {
 		Name:  ModelGPT4OMini,
@@ -467,7 +469,7 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty"},
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
-		Pricing: pricing.Info{InputPerMillion: 15_000_000, OutputPerMillion: 60_000_000, CachedInputPerMillion: 7_500_000},
+		Pricing: pricing.FlatInfo(0.15, 0.60, 0.075),
 	},
 
 	// Legacy but still supported (2025)
@@ -490,7 +492,7 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed"},
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
-		Pricing: pricing.Info{InputPerMillion: 500_000_000, OutputPerMillion: 1_500_000_000},
+		Pricing: pricing.FlatInfo(5.00, 15.00, 0),
 	},
 	ModelGPT35Turbo: {
 		Name:  ModelGPT35Turbo,
@@ -511,7 +513,7 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty"},
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
-		Pricing: pricing.Info{InputPerMillion: 50_000_000, OutputPerMillion: 150_000_000},
+		Pricing: pricing.FlatInfo(0.50, 1.50, 0),
 	},
 
 	// O1 Pro - Advanced reasoning model
@@ -534,7 +536,7 @@ var supportedModels = map[string]ModelDefinition{
 			MutuallyExclusive: [][]string{},
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
-		Pricing:                   pricing.Info{InputPerMillion: 15_000_000_000, OutputPerMillion: 60_000_000_000, CachedInputPerMillion: 7_500_000_000},
+		Pricing:                   pricing.FlatInfo(150.00, 600.00, 75.00),
 	},
 
 	// O3 Pro - Professional-grade reasoning
@@ -557,6 +559,6 @@ var supportedModels = map[string]ModelDefinition{
 			MutuallyExclusive: [][]string{},
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
-		Pricing:                   pricing.Info{InputPerMillion: 2_000_000_000, OutputPerMillion: 8_000_000_000},
+		Pricing:                   pricing.FlatInfo(20.00, 80.00, 0),
 	},
 }

@@ -28,22 +28,20 @@ func TestAllModelsHavePricing(t *testing.T) {
 			t.Parallel()
 
 			p := def.Pricing
-			if len(p.Tiers) > 0 {
-				// Tiered models: flat fields are zero in the struct definition
-				// (auto-populated by NewCatalog). Validate first tier instead.
-				assert.Positive(t, p.Tiers[0].InputPerMillion,
-					"model %s missing input pricing in first tier", id)
-				assert.Positive(t, p.Tiers[0].OutputPerMillion,
-					"model %s missing output pricing in first tier", id)
-				assert.Positive(t, p.Tiers[0].CachedInputPerMillion,
-					"model %s missing cached pricing in first tier", id)
-			} else {
-				assert.Positive(t, p.InputPerMillion,
-					"model %s missing input pricing — add Pricing to its ModelDefinition", id)
-				assert.Positive(t, p.OutputPerMillion,
-					"model %s missing output pricing — add Pricing to its ModelDefinition", id)
-				assert.Positive(t, p.CachedInputPerMillion,
-					"model %s missing cached pricing — add CachedInputPerMillion to its ModelDefinition", id)
+			assert.Positive(t, p.Default.Base.InputPerMillion,
+				"model %s missing input pricing — add Pricing to its ModelDefinition", id)
+			assert.Positive(t, p.Default.Base.OutputPerMillion,
+				"model %s missing output pricing — add Pricing to its ModelDefinition", id)
+			assert.Positive(t, p.Default.Base.CachedInputPerMillion,
+				"model %s missing cached pricing — add CachedInputPerMillion to its ModelDefinition", id)
+
+			for i, tier := range p.Default.Brackets {
+				assert.Positive(t, tier.Rates.InputPerMillion,
+					"model %s missing input pricing in tier %d", id, i)
+				assert.Positive(t, tier.Rates.OutputPerMillion,
+					"model %s missing output pricing in tier %d", id, i)
+				assert.Positive(t, tier.Rates.CachedInputPerMillion,
+					"model %s missing cached pricing in tier %d", id, i)
 			}
 		})
 	}

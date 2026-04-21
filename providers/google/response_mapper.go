@@ -57,16 +57,22 @@ func (m *ResponseMapper) FromProvider(r *genai.GenerateContentResponse) (*llm.Re
 		return nil, err
 	}
 
-	// Extract usage information
+	// Extract usage information. Google reports CachedContentTokenCount as a
+	// subset of PromptTokenCount; the normalized llm.TokenUsage shape is
+	// disjoint, so we un-subset it here. ThoughtsTokenCount is already
+	// additive in Google's model (the SDK doc states
+	// TotalTokenCount = prompt + candidates + tool_use + thoughts), so it
+	// maps directly onto ReasoningTokens. ToolUsePromptTokenCount is a
+	// separate billable input dimension and populates ToolUseInputTokens.
 	var usage *llm.TokenUsage
 	if r.UsageMetadata != nil {
+		cachedIn := int(r.UsageMetadata.CachedContentTokenCount)
 		usage = &llm.TokenUsage{
-			InputTokens:     int(r.UsageMetadata.PromptTokenCount),
-			OutputTokens:    int(r.UsageMetadata.CandidatesTokenCount),
-			TotalTokens:     int(r.UsageMetadata.TotalTokenCount),
-			CachedTokens:    int(r.UsageMetadata.CachedContentTokenCount),
-			ReasoningTokens: 0,
-			MaxInputTokens:  m.modelDefinition.Constraints.MaxInputTokens,
+			InputTokens:        int(r.UsageMetadata.PromptTokenCount) - cachedIn,
+			CachedInputTokens:  cachedIn,
+			ToolUseInputTokens: int(r.UsageMetadata.ToolUsePromptTokenCount),
+			OutputTokens:       int(r.UsageMetadata.CandidatesTokenCount),
+			ReasoningTokens:    int(r.UsageMetadata.ThoughtsTokenCount),
 		}
 	}
 
@@ -79,9 +85,23 @@ func (m *ResponseMapper) FromProvider(r *genai.GenerateContentResponse) (*llm.Re
 			Role:    llm.RoleAssistant,
 			Content: content,
 		},
-		FinishReason: finishReason,
-		Usage:        usage,
+		FinishReason:   finishReason,
+		Usage:          usage,
+		InvokedModelID: resolvedModelID(r.ModelVersion, m.modelDefinition.Name),
 	}, nil
+}
+
+func resolvedModelID(providerModel, fallback string) string {
+	if providerModel == "" {
+		return fallback
+	}
+
+	resolved := resolveModelFamily(providerModel)
+	if resolved == "" {
+		return fallback
+	}
+
+	return resolved
 }
 
 // mapParts converts Gemini Parts to unified Parts.

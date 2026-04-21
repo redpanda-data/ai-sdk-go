@@ -45,12 +45,14 @@ const (
 	EffortMax    Effort = "max"
 )
 
-// Speed controls the inference speed mode for supported models.
-type Speed string
+// Speed controls the inference speed mode for supported models. It is
+// an alias of llm.Speed so catalog authors can pass Speed constants
+// into pricing.Selector without casting.
+type Speed = llm.Speed
 
 const (
-	SpeedStandard Speed = "standard"
-	SpeedFast     Speed = "fast"
+	SpeedStandard = llm.SpeedStandard
+	SpeedFast     = llm.SpeedFast
 )
 
 // ModelDefinition defines a Claude model with its capabilities and constraints.
@@ -116,17 +118,9 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax},
 		AdaptiveThinking: true,
-		Pricing: pricing.Info{
-			InputPerMillion:       500_000_000,   // $5.00/M
-			OutputPerMillion:      2_500_000_000, // $25.00/M
-			CachedInputPerMillion: 50_000_000,    // $0.50/M
-			Anthropic: &pricing.AnthropicPricing{
-				CacheWrite5mPerMillion: 625_000_000,   // $6.25/M (1.25× input)
-				CacheWrite1hPerMillion: 1_000_000_000, // $10.00/M (2× input)
-				// Fast mode not yet available for Opus 4.7 per Anthropic pricing page.
-				// Add when Anthropic publishes fast mode pricing for this model.
-			},
-		},
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
+		),
 	},
 	ModelClaudeSonnet46: {
 		Name:  ModelClaudeSonnet46,
@@ -150,15 +144,9 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh},
 		AdaptiveThinking: true,
-		Pricing: pricing.Info{
-			InputPerMillion:       300_000_000,   // $3.00/M
-			OutputPerMillion:      1_500_000_000, // $15.00/M
-			CachedInputPerMillion: 30_000_000,    // $0.30/M
-			Anthropic: &pricing.AnthropicPricing{
-				CacheWrite5mPerMillion: 375_000_000, // $3.75/M (1.25× input)
-				CacheWrite1hPerMillion: 600_000_000, // $6.00/M (2× input)
-			},
-		},
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0),
+		),
 	},
 	ModelClaudeSonnet45: {
 		Name:  ModelClaudeSonnet45,
@@ -180,15 +168,9 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens"},
 			MutuallyExclusive: [][]string{},
 		},
-		Pricing: pricing.Info{
-			InputPerMillion:       300_000_000,   // $3.00/M
-			OutputPerMillion:      1_500_000_000, // $15.00/M
-			CachedInputPerMillion: 30_000_000,    // $0.30/M
-			Anthropic: &pricing.AnthropicPricing{
-				CacheWrite5mPerMillion: 375_000_000, // $3.75/M (1.25× input)
-				CacheWrite1hPerMillion: 600_000_000, // $6.00/M (2× input)
-			},
-		},
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0),
+		),
 	},
 	ModelClaudeHaiku45: {
 		Name:  ModelClaudeHaiku45,
@@ -210,15 +192,9 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens"},
 			MutuallyExclusive: [][]string{},
 		},
-		Pricing: pricing.Info{
-			InputPerMillion:       100_000_000, // $1.00/M
-			OutputPerMillion:      500_000_000, // $5.00/M
-			CachedInputPerMillion: 10_000_000,  // $0.10/M
-			Anthropic: &pricing.AnthropicPricing{
-				CacheWrite5mPerMillion: 125_000_000, // $1.25/M (1.25× input)
-				CacheWrite1hPerMillion: 200_000_000, // $2.00/M (2× input)
-			},
-		},
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(1.00, 5.00, 0.10).WithCacheCreation(1.25, 2.00, 0),
+		),
 	},
 	ModelClaudeOpus46: {
 		Name:  ModelClaudeOpus46,
@@ -243,22 +219,15 @@ var supportedModels = map[string]ModelDefinition{
 		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh, EffortMax},
 		SupportedSpeeds:  []Speed{SpeedStandard, SpeedFast},
 		AdaptiveThinking: true,
-		Pricing: pricing.Info{
-			InputPerMillion:       500_000_000,   // $5.00/M
-			OutputPerMillion:      2_500_000_000, // $25.00/M
-			CachedInputPerMillion: 50_000_000,    // $0.50/M
-			Anthropic: &pricing.AnthropicPricing{
-				CacheWrite5mPerMillion: 625_000_000,   // $6.25/M (1.25× input)
-				CacheWrite1hPerMillion: 1_000_000_000, // $10.00/M (2× input)
-				// Fast mode (speed: "fast") — 6× standard rates.
-				// Source: https://docs.anthropic.com/en/docs/about-claude/pricing#fast-mode-pricing
-				FastInputPerMillion:        3_000_000_000,  // $30.00/M (6× input)
-				FastOutputPerMillion:       15_000_000_000, // $150.00/M (6× output)
-				FastCachedInputPerMillion:  300_000_000,    // $3.00/M (0.1× fast input)
-				FastCacheWrite5mPerMillion: 3_750_000_000,  // $37.50/M (1.25× fast input)
-				FastCacheWrite1hPerMillion: 6_000_000_000,  // $60.00/M (2× fast input)
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
+		).WithOverride(
+			pricing.Selector{Speed: SpeedFast},
+			pricing.RateCard{
+				Base: pricing.NewRates(30.00, 150.00, 3.00).
+					WithCacheCreation(37.50, 60.00, 0),
 			},
-		},
+		),
 	},
 	ModelClaudeOpus41: {
 		Name:  ModelClaudeOpus41,
@@ -280,15 +249,10 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens"},
 			MutuallyExclusive: [][]string{},
 		},
-		Pricing: pricing.Info{
-			InputPerMillion:       1_500_000_000, // $15.00/M
-			OutputPerMillion:      7_500_000_000, // $75.00/M
-			CachedInputPerMillion: 150_000_000,   // $1.50/M
-			Anthropic: &pricing.AnthropicPricing{
-				CacheWrite5mPerMillion: 1_875_000_000, // $18.75/M (1.25× input)
-				CacheWrite1hPerMillion: 3_000_000_000, // $30.00/M (2× input)
-			},
-		},
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(15.00, 75.00, 1.50).
+				WithCacheCreation(18.75, 30.00, 0),
+		),
 	},
 	ModelClaudeOpus45: {
 		Name:  ModelClaudeOpus45,
@@ -311,14 +275,9 @@ var supportedModels = map[string]ModelDefinition{
 			MutuallyExclusive: [][]string{},
 		},
 		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh},
-		Pricing: pricing.Info{
-			InputPerMillion:       500_000_000,   // $5.00/M
-			OutputPerMillion:      2_500_000_000, // $25.00/M
-			CachedInputPerMillion: 50_000_000,    // $0.50/M
-			Anthropic: &pricing.AnthropicPricing{
-				CacheWrite5mPerMillion: 625_000_000,   // $6.25/M (1.25× input)
-				CacheWrite1hPerMillion: 1_000_000_000, // $10.00/M (2× input)
-			},
-		},
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(5.00, 25.00, 0.50).
+				WithCacheCreation(6.25, 10.00, 0),
+		),
 	},
 }

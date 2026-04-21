@@ -35,13 +35,13 @@ func TestAllModelsHavePricing(t *testing.T) {
 		t.Run(id, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Positive(t, def.Pricing.InputPerMillion,
+			assert.Positive(t, def.Pricing.Default.Base.InputPerMillion,
 				"model %s missing input pricing — add Pricing to its ModelDefinition", id)
-			assert.Positive(t, def.Pricing.OutputPerMillion,
+			assert.Positive(t, def.Pricing.Default.Base.OutputPerMillion,
 				"model %s missing output pricing — add Pricing to its ModelDefinition", id)
 
 			if !noCacheModels[id] {
-				assert.Positive(t, def.Pricing.CachedInputPerMillion,
+				assert.Positive(t, def.Pricing.Default.Base.CachedInputPerMillion,
 					"model %s missing cached pricing — add CachedInputPerMillion or add to noCacheModels if intentional", id)
 			}
 		})

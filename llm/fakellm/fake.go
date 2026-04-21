@@ -579,7 +579,6 @@ func (m *FakeModel) addUsageAndLatency(ctx context.Context, req *llm.Request, re
 	resp.Usage = &llm.TokenUsage{
 		InputTokens:  inputTokens,
 		OutputTokens: outputTokens,
-		TotalTokens:  inputTokens + outputTokens,
 	}
 
 	// Simulate latency
@@ -632,7 +631,6 @@ func (m *FakeModel) textToStreamEvents(text string, finishReason llm.FinishReaso
 			Usage: &llm.TokenUsage{
 				InputTokens:  0, // Calculated in stream wrapper if needed
 				OutputTokens: m.tokenizer.Count(text),
-				TotalTokens:  m.tokenizer.Count(text),
 			},
 		},
 	})
@@ -660,7 +658,6 @@ func (m *FakeModel) responseToStreamEvents(req *llm.Request, resp *llm.Response)
 		resp.Usage = &llm.TokenUsage{
 			InputTokens:  inputTokens,
 			OutputTokens: outputTokens,
-			TotalTokens:  inputTokens + outputTokens,
 		}
 	}
 
@@ -897,7 +894,6 @@ func (rb *RuleBuilder) ThenStreamText(text string, config StreamConfig) *FakeMod
 			Usage: &llm.TokenUsage{
 				InputTokens:  inputTokens,
 				OutputTokens: outputTokens,
-				TotalTokens:  inputTokens + outputTokens,
 			},
 		}
 
@@ -936,7 +932,6 @@ func (rb *RuleBuilder) ThenStreamText(text string, config StreamConfig) *FakeMod
 					Usage: &llm.TokenUsage{
 						InputTokens:  inputTokens,
 						OutputTokens: outputTokens,
-						TotalTokens:  inputTokens + outputTokens,
 					},
 				},
 			})

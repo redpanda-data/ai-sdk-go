@@ -103,7 +103,7 @@ func TestRun_NewSession(t *testing.T) {
 						At:           time.Now().UTC(),
 					},
 					FinishReason: agent.FinishReasonStop,
-					Usage:        &llm.TokenUsage{TotalTokens: 100},
+					Usage:        &llm.TokenUsage{InputTokens: 60, OutputTokens: 40},
 				}, nil)
 			}
 		},

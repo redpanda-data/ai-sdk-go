@@ -18,7 +18,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestAllModelsHavePricing(t *testing.T) {
@@ -28,17 +27,15 @@ func TestAllModelsHavePricing(t *testing.T) {
 		t.Run(id, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Positive(t, def.Pricing.InputPerMillion,
+			assert.Positive(t, def.Pricing.Default.Base.InputPerMillion,
 				"model %s missing input pricing — add Pricing to its ModelDefinition", id)
-			assert.Positive(t, def.Pricing.OutputPerMillion,
+			assert.Positive(t, def.Pricing.Default.Base.OutputPerMillion,
 				"model %s missing output pricing — add Pricing to its ModelDefinition", id)
-			assert.Positive(t, def.Pricing.CachedInputPerMillion,
+			assert.Positive(t, def.Pricing.Default.Base.CachedInputPerMillion,
 				"model %s missing cached pricing — add CachedInputPerMillion to its ModelDefinition", id)
-			require.NotNil(t, def.Pricing.Anthropic,
-				"model %s missing Anthropic pricing — add Anthropic sub-struct to its ModelDefinition", id)
-			assert.Positive(t, def.Pricing.Anthropic.CacheWrite5mPerMillion,
+			assert.Positive(t, def.Pricing.Default.Base.CacheCreation5mPerMillion,
 				"model %s missing 5m cache write pricing", id)
-			assert.Positive(t, def.Pricing.Anthropic.CacheWrite1hPerMillion,
+			assert.Positive(t, def.Pricing.Default.Base.CacheCreation1hPerMillion,
 				"model %s missing 1h cache write pricing", id)
 		})
 	}

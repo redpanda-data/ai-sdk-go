@@ -688,20 +688,40 @@ func TestResponseMapper_TextResponse(t *testing.T) {
 		},
 	}
 
-	resp, err := mapper.FromConverseOutput(types.StopReasonEndTurn, output, &types.TokenUsage{
-		InputTokens:  aws.Int32(10),
-		OutputTokens: aws.Int32(8),
-		TotalTokens:  aws.Int32(18),
-	})
+	resp, err := mapper.FromConverseOutput(
+		types.StopReasonEndTurn,
+		output,
+		&types.TokenUsage{
+			InputTokens:  aws.Int32(10),
+			OutputTokens: aws.Int32(8),
+			TotalTokens:  aws.Int32(18),
+		},
+		&types.PerformanceConfiguration{
+			Latency: types.PerformanceConfigLatencyOptimized,
+		},
+		&types.ServiceTier{
+			Type: types.ServiceTierTypeReserved,
+		},
+		&types.ConverseTrace{
+			PromptRouter: &types.PromptRouterTrace{
+				InvokedModelId: aws.String("us.anthropic.claude-sonnet-4-6"),
+			},
+		},
+	)
 	require.NoError(t, err)
 
 	assert.Equal(t, llm.RoleAssistant, resp.Message.Role)
 	assert.Equal(t, "Hello! How can I help?", resp.TextContent())
 	assert.Equal(t, llm.FinishReasonStop, resp.FinishReason)
+	assert.Equal(t, llm.ServiceTierReserved, resp.ServiceTier)
+	// Bedrock reports "optimized"; NormalizeSpeed collapses it to the
+	// cross-provider SpeedFast concept.
+	assert.Equal(t, llm.SpeedFast, resp.Speed)
+	assert.Equal(t, ModelClaudeSonnet46, resp.InvokedModelID)
 	require.NotNil(t, resp.Usage)
 	assert.Equal(t, 10, resp.Usage.InputTokens)
 	assert.Equal(t, 8, resp.Usage.OutputTokens)
-	assert.Equal(t, 18, resp.Usage.TotalTokens)
+	assert.Equal(t, 18, resp.Usage.TotalBilledTokens())
 }
 
 func TestResponseMapper_ToolUseResponse(t *testing.T) {
@@ -729,7 +749,7 @@ func TestResponseMapper_ToolUseResponse(t *testing.T) {
 		InputTokens:  aws.Int32(20),
 		OutputTokens: aws.Int32(15),
 		TotalTokens:  aws.Int32(35),
-	})
+	}, nil, nil, nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, llm.FinishReasonToolCalls, resp.FinishReason)
@@ -772,7 +792,7 @@ func TestResponseMapper_NilOutput(t *testing.T) {
 
 	mapper := NewResponseMapper(supportedModels[ModelClaudeSonnet46])
 
-	_, err := mapper.FromConverseOutput(types.StopReasonEndTurn, nil, nil)
+	_, err := mapper.FromConverseOutput(types.StopReasonEndTurn, nil, nil, nil, nil, nil)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, llm.ErrResponseMapping)
 }
@@ -796,10 +816,10 @@ func TestResponseMapper_CachedTokens(t *testing.T) {
 		OutputTokens:         aws.Int32(10),
 		TotalTokens:          aws.Int32(110),
 		CacheReadInputTokens: aws.Int32(80),
-	})
+	}, nil, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, resp.Usage)
-	assert.Equal(t, 80, resp.Usage.CachedTokens)
+	assert.Equal(t, 80, resp.Usage.CachedInputTokens)
 }
 
 // ---------- Models discovery ----------

@@ -134,7 +134,7 @@ func testGenerate(t *testing.T, fixture Fixture) { //nolint:thelper // not a hel
 				require.NotNil(t, response.Usage)
 				assert.Positive(t, response.Usage.InputTokens)
 				assert.Positive(t, response.Usage.OutputTokens)
-				assert.Positive(t, response.Usage.TotalTokens)
+				assert.Positive(t, response.Usage.TotalBilledTokens())
 			},
 		},
 		{
@@ -165,7 +165,7 @@ func testGenerate(t *testing.T, fixture Fixture) { //nolint:thelper // not a hel
 
 				// Should have usage information
 				require.NotNil(t, response.Usage)
-				assert.Positive(t, response.Usage.TotalTokens)
+				assert.Positive(t, response.Usage.TotalBilledTokens())
 			},
 		},
 		{
@@ -262,7 +262,7 @@ func testGenerateEvents(t *testing.T, fixture Fixture) { //nolint:thelper // not
 				require.NotNil(t, endEvent.Response.Usage)
 				assert.Positive(t, endEvent.Response.Usage.InputTokens)
 				assert.Positive(t, endEvent.Response.Usage.OutputTokens)
-				assert.Positive(t, endEvent.Response.Usage.TotalTokens)
+				assert.Positive(t, endEvent.Response.Usage.TotalBilledTokens())
 
 				// Verify StreamEndEvent.Response.Message contains aggregated content
 				// Streaming may send many small text chunks, but final response combines them
@@ -376,7 +376,7 @@ func testGenerateEvents(t *testing.T, fixture Fixture) { //nolint:thelper // not
 
 				// Verify usage information
 				require.NotNil(t, endEvent.Response.Usage)
-				assert.Positive(t, endEvent.Response.Usage.TotalTokens)
+				assert.Positive(t, endEvent.Response.Usage.TotalBilledTokens())
 
 				// Verify StreamEndEvent.Response.Message contains aggregated content
 				require.NotEmpty(t, contentParts, "Should have received content parts")
@@ -491,7 +491,7 @@ func testGenerateWithReasoning(t *testing.T, fixture Fixture) { //nolint:thelper
 			"Should discuss relevant distributed systems concepts")
 
 		require.NotNil(t, response.Usage)
-		assert.Greater(t, response.Usage.TotalTokens, 200, "Complex reasoning should use many tokens")
+		assert.Greater(t, response.Usage.TotalBilledTokens(), 200, "Complex reasoning should use many tokens")
 	})
 }
 
@@ -621,7 +621,7 @@ func testGenerateEventsWithReasoning(t *testing.T, fixture Fixture) { //nolint:t
 
 		// Verify usage information
 		require.NotNil(t, endEvent.Response.Usage)
-		assert.Greater(t, endEvent.Response.Usage.TotalTokens, 200, "Complex reasoning should use many tokens")
+		assert.Greater(t, endEvent.Response.Usage.TotalBilledTokens(), 200, "Complex reasoning should use many tokens")
 
 		// Verify StreamEndEvent.Response.Message contains aggregated content
 		// Streaming may send many small chunks, but final response combines them
@@ -892,7 +892,7 @@ func testGenerateEventsWithTools(t *testing.T, fixture Fixture) { //nolint:thelp
 				// Verify usage information in end event
 				require.NotNil(t, endEvent.Response.Usage)
 				assert.Positive(t, endEvent.Response.Usage.InputTokens)
-				assert.Positive(t, endEvent.Response.Usage.TotalTokens)
+				assert.Positive(t, endEvent.Response.Usage.TotalBilledTokens())
 			},
 		},
 		{
@@ -1052,7 +1052,7 @@ func testGenerateEventsWithTools(t *testing.T, fixture Fixture) { //nolint:thelp
 				// Verify usage information in end event
 				require.NotNil(t, endEvent.Response.Usage)
 				assert.Positive(t, endEvent.Response.Usage.InputTokens)
-				assert.Positive(t, endEvent.Response.Usage.TotalTokens)
+				assert.Positive(t, endEvent.Response.Usage.TotalBilledTokens())
 			},
 		},
 	}
@@ -1166,7 +1166,7 @@ func testToolExecutionLoop(t *testing.T, fixture Fixture) { //nolint:thelper // 
 
 		// Verify usage information
 		require.NotNil(t, finalResponse.Usage)
-		assert.Positive(t, finalResponse.Usage.TotalTokens)
+		assert.Positive(t, finalResponse.Usage.TotalBilledTokens())
 	})
 
 	t.Run("multi-turn tool execution streaming", func(t *testing.T) {
@@ -1268,7 +1268,7 @@ func testToolExecutionLoop(t *testing.T, fixture Fixture) { //nolint:thelper // 
 			case llm.StreamEndEvent:
 				finalFinishReason = e.Response.FinishReason
 				require.NotNil(t, e.Response.Usage)
-				assert.Positive(t, e.Response.Usage.TotalTokens)
+				assert.Positive(t, e.Response.Usage.TotalBilledTokens())
 			}
 		}
 
@@ -1450,7 +1450,7 @@ func testToolExecutionLoop(t *testing.T, fixture Fixture) { //nolint:thelper // 
 			"Response should mention weather and location from tool results")
 
 		require.NotNil(t, finalResponse.Usage)
-		assert.Positive(t, finalResponse.Usage.TotalTokens)
+		assert.Positive(t, finalResponse.Usage.TotalBilledTokens())
 	})
 }
 
@@ -1486,7 +1486,7 @@ func testAllSupportedModels(t *testing.T, fixture Fixture) { //nolint:thelper //
 				assert.NotEmpty(t, resp.FinishReason)
 
 				if resp.Usage != nil {
-					assert.Positive(t, resp.Usage.TotalTokens)
+					assert.Positive(t, resp.Usage.TotalBilledTokens())
 				}
 			})
 		}

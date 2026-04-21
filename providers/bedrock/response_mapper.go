@@ -34,7 +34,14 @@ func NewResponseMapper(definition ModelDefinition) *ResponseMapper {
 }
 
 // FromConverseOutput converts a Bedrock ConverseOutput to llm.Response.
-func (m *ResponseMapper) FromConverseOutput(stopReason types.StopReason, output types.ConverseOutput, usage *types.TokenUsage) (*llm.Response, error) {
+func (m *ResponseMapper) FromConverseOutput(
+	stopReason types.StopReason,
+	output types.ConverseOutput,
+	usage *types.TokenUsage,
+	performanceConfig *types.PerformanceConfiguration,
+	serviceTier *types.ServiceTier,
+	trace *types.ConverseTrace,
+) (*llm.Response, error) {
 	if output == nil {
 		return nil, fmt.Errorf("%w: nil provider output", llm.ErrResponseMapping)
 	}
@@ -59,14 +66,19 @@ func (m *ResponseMapper) FromConverseOutput(stopReason types.StopReason, output 
 		finishReason = m.mapStopReason(stopReason)
 	}
 
-	return &llm.Response{
+	resp := &llm.Response{
 		Message: llm.Message{
 			Role:    llm.RoleAssistant,
 			Content: content,
 		},
-		FinishReason: finishReason,
-		Usage:        tokenUsage,
-	}, nil
+		FinishReason:   finishReason,
+		Usage:          tokenUsage,
+		InvokedModelID: m.modelDefinition.Name,
+	}
+
+	m.applyResponseMetadata(resp, performanceConfig, serviceTier, promptRouterFromTrace(trace))
+
+	return resp, nil
 }
 
 // mapContentBlocks converts Bedrock content blocks to llm.Parts.
@@ -183,11 +195,16 @@ func (m *ResponseMapper) mapReasoningBlock(value types.ReasoningContentBlock) *l
 	})
 }
 
-// mapTokenUsage converts Bedrock TokenUsage to llm.TokenUsage.
+// mapTokenUsage converts Bedrock Converse TokenUsage to the normalized
+// llm.TokenUsage shape. Bedrock's InputTokens, CacheReadInputTokens, and
+// CacheWriteInputTokens are already disjoint, matching the shape directly.
+// Per-TTL write breakdown from CacheDetails is split into 5m / 1h buckets;
+// if the breakdown is missing or covers fewer tokens than the aggregate
+// CacheWriteInputTokens, the remainder routes to CacheCreationUnknownTTLTokens
+// so BilledInputTokens() stays accurate. Unknown TTL string values (if
+// Bedrock introduces more) are still recorded in the unknown-TTL bucket.
 func (m *ResponseMapper) mapTokenUsage(usage *types.TokenUsage) *llm.TokenUsage {
-	result := &llm.TokenUsage{
-		MaxInputTokens: m.modelDefinition.Constraints.MaxInputTokens,
-	}
+	result := &llm.TokenUsage{}
 
 	if usage.InputTokens != nil {
 		result.InputTokens = int(*usage.InputTokens)
@@ -197,13 +214,72 @@ func (m *ResponseMapper) mapTokenUsage(usage *types.TokenUsage) *llm.TokenUsage 
 		result.OutputTokens = int(*usage.OutputTokens)
 	}
 
-	if usage.TotalTokens != nil {
-		result.TotalTokens = int(*usage.TotalTokens)
+	if usage.CacheReadInputTokens != nil {
+		result.CachedInputTokens = int(*usage.CacheReadInputTokens)
 	}
 
-	if usage.CacheReadInputTokens != nil {
-		result.CachedTokens = int(*usage.CacheReadInputTokens)
+	var knownBreakdownTokens int
+
+	for _, detail := range usage.CacheDetails {
+		if detail.InputTokens == nil {
+			continue
+		}
+
+		tokens := int(*detail.InputTokens)
+		switch detail.Ttl {
+		case types.CacheTTLFiveMinutes:
+			result.CacheCreation5mTokens += tokens
+			knownBreakdownTokens += tokens
+		case types.CacheTTLOneHour:
+			result.CacheCreation1hTokens += tokens
+			knownBreakdownTokens += tokens
+		default:
+			result.CacheCreationUnknownTTLTokens += tokens
+			knownBreakdownTokens += tokens
+		}
+	}
+
+	if usage.CacheWriteInputTokens != nil {
+		if aggregate := int(*usage.CacheWriteInputTokens); aggregate > knownBreakdownTokens {
+			result.CacheCreationUnknownTTLTokens += aggregate - knownBreakdownTokens
+		}
 	}
 
 	return result
+}
+
+func (m *ResponseMapper) applyResponseMetadata(
+	resp *llm.Response,
+	performanceConfig *types.PerformanceConfiguration,
+	serviceTier *types.ServiceTier,
+	promptRouter *types.PromptRouterTrace,
+) {
+	if resp == nil {
+		return
+	}
+
+	if performanceConfig != nil && performanceConfig.Latency != "" {
+		resp.Speed = llm.NormalizeSpeed(string(performanceConfig.Latency))
+	}
+
+	if serviceTier != nil {
+		resp.ServiceTier = llm.NormalizeServiceTier(string(serviceTier.Type))
+	}
+
+	if promptRouter != nil && promptRouter.InvokedModelId != nil && *promptRouter.InvokedModelId != "" {
+		if def, ok := lookupModel(*promptRouter.InvokedModelId); ok {
+			resp.InvokedModelID = def.Name
+			return
+		}
+
+		resp.InvokedModelID = *promptRouter.InvokedModelId
+	}
+}
+
+func promptRouterFromTrace(trace *types.ConverseTrace) *types.PromptRouterTrace {
+	if trace == nil {
+		return nil
+	}
+
+	return trace.PromptRouter
 }

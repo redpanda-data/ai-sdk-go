@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/redpanda-data/ai-sdk-go/pricing"
 )
 
 func TestAllModelsHavePricing(t *testing.T) {
@@ -15,17 +17,15 @@ func TestAllModelsHavePricing(t *testing.T) {
 		t.Run(id, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Positive(t, def.Pricing.InputPerMillion,
+			assert.Positive(t, def.Pricing.Default.Base.InputPerMillion,
 				"model %s missing input pricing — add Pricing to its ModelDefinition", id)
-			assert.Positive(t, def.Pricing.OutputPerMillion,
+			assert.Positive(t, def.Pricing.Default.Base.OutputPerMillion,
 				"model %s missing output pricing — add Pricing to its ModelDefinition", id)
-			assert.Positive(t, def.Pricing.CachedInputPerMillion,
+			assert.Positive(t, def.Pricing.Default.Base.CachedInputPerMillion,
 				"model %s missing cached pricing — add CachedInputPerMillion to its ModelDefinition", id)
-			require.NotNil(t, def.Pricing.Anthropic,
-				"model %s missing Anthropic pricing — add Anthropic sub-struct to its ModelDefinition", id)
-			assert.Positive(t, def.Pricing.Anthropic.CacheWrite5mPerMillion,
+			assert.Positive(t, def.Pricing.Default.Base.CacheCreation5mPerMillion,
 				"model %s missing 5m cache write pricing", id)
-			assert.Positive(t, def.Pricing.Anthropic.CacheWrite1hPerMillion,
+			assert.Positive(t, def.Pricing.Default.Base.CacheCreation1hPerMillion,
 				"model %s missing 1h cache write pricing", id)
 		})
 	}
@@ -42,17 +42,17 @@ func TestFastModeModelsHaveFastPricing(t *testing.T) {
 		t.Run(id, func(t *testing.T) {
 			t.Parallel()
 
-			require.NotNil(t, def.Pricing.Anthropic,
-				"model %s supports fast speed but has no Anthropic pricing", id)
-			assert.Positive(t, def.Pricing.Anthropic.FastInputPerMillion,
+			fast, found := findFastOverride(def.Pricing.Overrides)
+			require.True(t, found, "model %s supports fast speed but has no fast override", id)
+			assert.Positive(t, fast.Base.InputPerMillion,
 				"model %s supports fast speed but missing FastInputPerMillion", id)
-			assert.Positive(t, def.Pricing.Anthropic.FastOutputPerMillion,
+			assert.Positive(t, fast.Base.OutputPerMillion,
 				"model %s supports fast speed but missing FastOutputPerMillion", id)
-			assert.Positive(t, def.Pricing.Anthropic.FastCachedInputPerMillion,
+			assert.Positive(t, fast.Base.CachedInputPerMillion,
 				"model %s supports fast speed but missing FastCachedInputPerMillion", id)
-			assert.Positive(t, def.Pricing.Anthropic.FastCacheWrite5mPerMillion,
+			assert.Positive(t, fast.Base.CacheCreation5mPerMillion,
 				"model %s supports fast speed but missing FastCacheWrite5mPerMillion", id)
-			assert.Positive(t, def.Pricing.Anthropic.FastCacheWrite1hPerMillion,
+			assert.Positive(t, fast.Base.CacheCreation1hPerMillion,
 				"model %s supports fast speed but missing FastCacheWrite1hPerMillion", id)
 		})
 	}
@@ -64,4 +64,15 @@ func TestModelPricingMatchesModels(t *testing.T) {
 	pricingMap := ModelPricing()
 	assert.Len(t, pricingMap, len(supportedModels),
 		"ModelPricing should return exactly one entry per supported model")
+}
+
+func findFastOverride(overrides []pricing.Override) (pricing.RateCard, bool) {
+	fastMatch := pricing.Selector{Speed: SpeedFast}
+	for _, override := range overrides {
+		if override.Match == fastMatch {
+			return override.RateCard, true
+		}
+	}
+
+	return pricing.RateCard{}, false
 }

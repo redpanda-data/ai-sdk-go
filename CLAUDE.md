@@ -49,13 +49,14 @@ Steps:
 2. Convert each dollar price: `$2.50/M` → `250_000_000`
 3. Add a dollar comment on every value for readability:
    ```go
-   Pricing: pricing.Info{
-       InputPerMillion:       250_000_000, // $2.50/M
-       OutputPerMillion:      1_000_000_000, // $10.00/M
-       CachedInputPerMillion: 125_000_000, // $1.25/M
-   },
+   Pricing: pricing.FlatInfo(
+       250_000_000,   // $2.50/M input
+       1_000_000_000, // $10.00/M output
+       125_000_000,   // $1.25/M cached input
+   ),
    ```
-4. If the model has tiered pricing (like Gemini Pro), use the `Tiers` field instead.
+4. If the model has tiered pricing (like Gemini Pro), use `pricing.TieredInfo(...)`.
+5. If pricing changes by service tier, speed, or region, add a selector override with `Pricing.WithOverride(...)` instead of introducing provider-specific pricing fields.
 
 ## Project Structure
 

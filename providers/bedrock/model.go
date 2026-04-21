@@ -70,7 +70,14 @@ func (m *Model) Generate(ctx context.Context, req *llm.Request) (*llm.Response, 
 		return nil, fmt.Errorf("%w: %w", llm.ErrAPICall, classifyError(err))
 	}
 
-	return m.responseMapper.FromConverseOutput(output.StopReason, output.Output, output.Usage)
+	return m.responseMapper.FromConverseOutput(
+		output.StopReason,
+		output.Output,
+		output.Usage,
+		output.PerformanceConfig,
+		output.ServiceTier,
+		output.Trace,
+	)
 }
 
 // GenerateEvents performs a streaming request using the Bedrock ConverseStream API.
@@ -97,6 +104,9 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 		var stopReason types.StopReason
 		var tokenUsage *types.TokenUsage
+		var performanceConfig *types.PerformanceConfiguration
+		var serviceTier *types.ServiceTier
+		var promptRouter *types.PromptRouterTrace
 
 		for event := range stream.Events() {
 			switch e := event.(type) {
@@ -167,6 +177,12 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 			case *types.ConverseStreamOutputMemberMetadata:
 				tokenUsage = e.Value.Usage
+				performanceConfig = e.Value.PerformanceConfig
+
+				serviceTier = e.Value.ServiceTier
+				if e.Value.Trace != nil {
+					promptRouter = e.Value.Trace.PromptRouter
+				}
 			}
 		}
 
@@ -194,15 +210,19 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 			}
 		}
 
-		yield(llm.StreamEndEvent{
-			Response: &llm.Response{
-				Message: llm.Message{
-					Role:    llm.RoleAssistant,
-					Content: finalParts,
-				},
-				FinishReason: finishReason,
-				Usage:        usage,
+		resp := &llm.Response{
+			Message: llm.Message{
+				Role:    llm.RoleAssistant,
+				Content: finalParts,
 			},
+			FinishReason:   finishReason,
+			Usage:          usage,
+			InvokedModelID: m.definition.Name,
+		}
+		m.responseMapper.applyResponseMetadata(resp, performanceConfig, serviceTier, promptRouter)
+
+		yield(llm.StreamEndEvent{
+			Response: resp,
 		}, nil)
 	}
 }
