@@ -163,7 +163,6 @@ func TestModelCapabilities(t *testing.T) {
 	assert.True(t, caps.Reasoning, "Should support reasoning/thinking")
 	assert.True(t, caps.MultiTurn, "Should support multi-turn")
 	assert.True(t, caps.SystemPrompts, "Should support system prompts")
-
 }
 
 func TestModelTokenLimits(t *testing.T) {

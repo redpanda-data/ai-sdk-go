@@ -1201,8 +1201,8 @@ func TestTracingInterceptor_CacheReadTokens_OnModelSpan(t *testing.T) {
 					Message:      llm.Message{Role: llm.RoleAssistant},
 					FinishReason: llm.FinishReasonStop,
 					Usage: &llm.TokenUsage{
-						InputTokens:  100,
-						OutputTokens: 50,
+						InputTokens:       100,
+						OutputTokens:      50,
 						CachedInputTokens: 75,
 					},
 					ID: "resp-cache",
@@ -1292,8 +1292,8 @@ func TestTracingInterceptor_CacheReadTokens_OnInvocationSpan(t *testing.T) {
 	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(_ context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
 		// Manually add usage with cached tokens to the invocation
 		agent.AddUsage(inv, &llm.TokenUsage{
-			InputTokens:  100,
-			OutputTokens: 50,
+			InputTokens:       100,
+			OutputTokens:      50,
 			CachedInputTokens: 30,
 		})
 

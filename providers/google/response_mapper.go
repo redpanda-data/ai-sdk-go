@@ -65,6 +65,7 @@ func (m *ResponseMapper) FromProvider(r *genai.GenerateContentResponse) (*llm.Re
 	// maps directly onto ReasoningTokens. ToolUsePromptTokenCount is a
 	// separate billable input dimension and populates ToolUseInputTokens.
 	var usage *llm.TokenUsage
+
 	if r.UsageMetadata != nil {
 		cachedIn := int(r.UsageMetadata.CachedContentTokenCount)
 		usage = &llm.TokenUsage{
