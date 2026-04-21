@@ -16,7 +16,6 @@ package bedrock
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"iter"
 
@@ -160,12 +159,19 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 				// For tool use blocks, emit the complete tool request
 				if acc.blockType == blockTypeToolUse && acc.toolUse != nil {
+					argsJSON, ok := llm.FinalizeToolArgs([]byte(acc.toolArgs))
+					if !ok {
+						// Block finished with invalid JSON: skip rather than
+						// ship truncated args downstream.
+						continue
+					}
+
 					if !yield(llm.ContentPartEvent{
 						Index: idx,
 						Part: llm.NewToolRequestPart(&llm.ToolRequest{
 							ID:        acc.toolUse.ID,
 							Name:      acc.toolUse.Name,
-							Arguments: acc.argsJSON(),
+							Arguments: argsJSON,
 						}),
 					}, nil) {
 						return
@@ -200,13 +206,17 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 			usage = m.responseMapper.mapTokenUsage(tokenUsage)
 		}
 
+		// Map finish reason. Truncation signals must survive — only upgrade a
+		// plain Stop to ToolCalls when tool use blocks are present. See
+		// providers/anthropic/response_mapper.go for the full rationale.
 		finishReason := m.responseMapper.mapStopReason(stopReason)
+		if finishReason == llm.FinishReasonStop {
+			for _, part := range finalParts {
+				if part.IsToolRequest() {
+					finishReason = llm.FinishReasonToolCalls
 
-		for _, part := range finalParts {
-			if part.IsToolRequest() {
-				finishReason = llm.FinishReasonToolCalls
-
-				break
+					break
+				}
 			}
 		}
 
@@ -245,10 +255,22 @@ func (m *Model) buildFinalParts(blocks map[int]*contentBlockAccumulator) []*llm.
 
 		case blockTypeToolUse:
 			if acc.toolUse != nil {
+				argsJSON, ok := llm.FinalizeToolArgs([]byte(acc.toolArgs))
+				if !ok {
+					// Partial tool_use left over when the stream was cut short
+					// (typically StopReasonMaxTokens) before the toolUse input
+					// deltas finished. Dropping the block keeps invalid JSON
+					// out of session state; the caller sees the stop reason
+					// and can retry. Persisting the partial accumulation
+					// would poison every subsequent replay with
+					// "unexpected end of JSON input".
+					continue
+				}
+
 				parts = append(parts, llm.NewToolRequestPart(&llm.ToolRequest{
 					ID:        acc.toolUse.ID,
 					Name:      acc.toolUse.Name,
-					Arguments: acc.argsJSON(),
+					Arguments: argsJSON,
 				}))
 			}
 
@@ -281,13 +303,6 @@ type contentBlockAccumulator struct {
 	reasoningSignature string
 }
 
-func (a *contentBlockAccumulator) argsJSON() json.RawMessage {
-	if a.toolArgs == "" || !json.Valid([]byte(a.toolArgs)) {
-		return json.RawMessage("{}")
-	}
-
-	return json.RawMessage(a.toolArgs)
-}
 
 // toolUseData stores tool use information during streaming.
 type toolUseData struct {

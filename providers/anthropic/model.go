@@ -16,7 +16,6 @@ package anthropic
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"iter"
 
@@ -192,10 +191,12 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 				// For tool use blocks, emit the complete tool request
 				if acc.blockType == blockTypeToolUse && acc.toolUse != nil {
-					// Use accumulated args from input_json_delta events
-					argsJSON := json.RawMessage(acc.toolArgs)
-					if acc.toolArgs == "" {
-						argsJSON = json.RawMessage("{}")
+					argsJSON, ok := llm.FinalizeToolArgs([]byte(acc.toolArgs))
+					if !ok {
+						// Invalid JSON means the model (or the SDK) emitted a
+						// completed tool_use block whose args aren't parseable.
+						// Skip rather than wedge every downstream consumer.
+						continue
 					}
 
 					if !yield(llm.ContentPartEvent{
@@ -267,12 +268,23 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 				case blockTypeToolUse:
 					if acc.toolUse != nil {
-						// Use accumulated toolArgs from input_json_delta events
+						argsJSON, ok := llm.FinalizeToolArgs([]byte(acc.toolArgs))
+						if !ok {
+							// Partial tool_use: the stream ended (typically
+							// stop_reason=max_tokens) before input_json_delta
+							// accumulation finished. Dropping the block keeps
+							// invalid JSON out of session state; callers see
+							// FinishReasonLength and can retry. Persisting the
+							// partial arguments poisons every subsequent
+							// replay with "unexpected end of JSON input".
+							continue
+						}
+
 						finalContent = append(finalContent, anthropic.BetaContentBlockUnion{
 							Type:  blockTypeToolUse,
 							ID:    acc.toolUse.ID,
 							Name:  acc.toolUse.Name,
-							Input: json.RawMessage(acc.toolArgs),
+							Input: argsJSON,
 						})
 					}
 				}

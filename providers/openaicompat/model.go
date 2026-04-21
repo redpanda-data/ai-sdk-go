@@ -262,11 +262,20 @@ func (*Model) buildStreamEndResponse(
 		parts = append(parts, llm.NewTextPart(content))
 	}
 
-	// Add tool calls in index order
+	// Add tool calls in index order. Drop any that didn't finish accumulating
+	// so they don't poison session replay; emitToolCalls already coerced the
+	// emitted calls' Arguments in-place during streaming.
 	for i := range len(toolCalls) {
-		if tc, ok := toolCalls[i]; ok {
-			parts = append(parts, llm.NewToolRequestPart(tc))
+		tc, ok := toolCalls[i]
+		if !ok {
+			continue
 		}
+
+		if _, ok := llm.FinalizeToolArgs(tc.Arguments); !ok {
+			continue
+		}
+
+		parts = append(parts, llm.NewToolRequestPart(tc))
 	}
 
 	// Ensure usage is not nil
@@ -288,13 +297,26 @@ func (*Model) buildStreamEndResponse(
 // emitToolCalls emits ContentPartEvent for each accumulated tool call.
 func (*Model) emitToolCalls(toolCalls map[int]*llm.ToolRequest, yield func(llm.Event, error) bool) bool {
 	for i := range len(toolCalls) {
-		if tc, ok := toolCalls[i]; ok {
-			if !yield(llm.ContentPartEvent{
-				Index: i,
-				Part:  llm.NewToolRequestPart(tc),
-			}, nil) {
-				return false
-			}
+		tc, ok := toolCalls[i]
+		if !ok {
+			continue
+		}
+
+		args, ok := llm.FinalizeToolArgs(tc.Arguments)
+		if !ok {
+			// Stream ended mid-args accumulation (typically finish_reason=length
+			// on a call that hadn't finished). Drop the partial block; see
+			// providers/anthropic/model.go for the full wedge story.
+			continue
+		}
+
+		tc.Arguments = args
+
+		if !yield(llm.ContentPartEvent{
+			Index: i,
+			Part:  llm.NewToolRequestPart(tc),
+		}, nil) {
+			return false
 		}
 	}
 

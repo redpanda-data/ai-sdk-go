@@ -138,12 +138,13 @@ func (m *ResponseMapper) FromProvider(r *responses.Response) (*llm.Response, err
 		ReasoningTokens:   reasoning,
 	}
 
-	// 6. Finish reason: tool calls take precedence.
-	var finish llm.FinishReason
-	if hasToolCalls {
+	// 6. Finish reason. Truncation and filter signals must propagate through
+	// to the caller; only upgrade a plain Stop to ToolCalls when tool use
+	// blocks are present. See providers/anthropic/response_mapper.go for
+	// the full rationale.
+	finish := m.mapFinishReasonFromStatus(string(r.Status), r.IncompleteDetails)
+	if hasToolCalls && finish == llm.FinishReasonStop {
 		finish = llm.FinishReasonToolCalls
-	} else {
-		finish = m.mapFinishReasonFromStatus(string(r.Status), r.IncompleteDetails)
 	}
 
 	return &llm.Response{

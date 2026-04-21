@@ -172,11 +172,20 @@ func (m *ResponseMapper) mapParts(parts []*genai.Part) ([]*llm.Part, bool, error
 
 // mapFinishReason converts Gemini's finish reason to our unified finish reason.
 func (m *ResponseMapper) mapFinishReason(reason genai.FinishReason, hasToolCalls bool) llm.FinishReason {
-	// If there are tool calls, the finish reason should be ToolCalls
-	if hasToolCalls {
+	mapped := mapGenAIFinishReason(reason)
+
+	// Only upgrade a plain Stop to ToolCalls when tool use blocks are
+	// present. Truncation and safety signals must propagate through so the
+	// agent loop can react. See providers/anthropic/response_mapper.go for
+	// the full rationale.
+	if hasToolCalls && mapped == llm.FinishReasonStop {
 		return llm.FinishReasonToolCalls
 	}
 
+	return mapped
+}
+
+func mapGenAIFinishReason(reason genai.FinishReason) llm.FinishReason {
 	switch reason {
 	case genai.FinishReasonStop:
 		return llm.FinishReasonStop
