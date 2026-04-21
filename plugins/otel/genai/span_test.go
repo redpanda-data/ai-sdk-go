@@ -83,7 +83,7 @@ func TestStampModelCallSpan(t *testing.T) {
 			name: "zero cached tokens omitted",
 			attrs: &ModelCallAttrs{
 				Provider:     "google",
-				RequestModel: "gemini-2.0-flash",
+				RequestModel: "gemini-2.5-flash",
 				FinishReason: "stop",
 				InputTokens:  50,
 				OutputTokens: 30,
@@ -92,7 +92,7 @@ func TestStampModelCallSpan(t *testing.T) {
 			wantKVs: map[string]any{
 				AttrGenAIOperationName:     OperationChat,
 				AttrGenAIProviderName:      "google",
-				AttrGenAIRequestModel:      "gemini-2.0-flash",
+				AttrGenAIRequestModel:      "gemini-2.5-flash",
 				AttrGenAIUsageInputTokens:  50,
 				AttrGenAIUsageOutputTokens: 30,
 			},

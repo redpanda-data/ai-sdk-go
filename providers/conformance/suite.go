@@ -20,11 +20,13 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/plugins/retry"
 )
 
 // Suite provides generic conformance tests for any provider implementing the llm.Model interface.
@@ -1460,15 +1462,22 @@ func testAllSupportedModels(t *testing.T, fixture Fixture) { //nolint:thelper //
 		t.Skip("No models available for testing")
 	}
 
+	// Run sequentially (not parallel) to avoid rate limiting across providers.
+	// Each model is wrapped with retry to handle transient errors.
 	t.Run("basic generation works for all supported models", func(t *testing.T) {
 		for _, m := range models {
 			modelName := m.Name
 			t.Run("model_"+modelName, func(t *testing.T) {
-				model, err := fixture.NewModel(modelName)
+				baseModel, err := fixture.NewModel(modelName)
 				if err != nil {
 					t.Skipf("Skipping model %s due to creation error: %v", modelName, err)
 					return
 				}
+
+				model := retry.WrapModel(baseModel,
+					retry.WithMaxRetries(5),
+					retry.WithInitialDelay(2*time.Second),
+				)
 
 				reqObj := &llm.Request{
 					Messages: []llm.Message{{

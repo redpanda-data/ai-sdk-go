@@ -90,7 +90,7 @@ func (h *observabilityModelHandler) Generate(ctx context.Context, req *llm.Reque
 	log.Printf("[Observability] Model call #%d completed in %v", callNum, duration)
 	if resp.Usage != nil {
 		log.Printf("[Observability] Tokens: input=%d output=%d total=%d",
-			resp.Usage.InputTokens, resp.Usage.OutputTokens, resp.Usage.TotalTokens)
+			resp.Usage.InputTokens, resp.Usage.OutputTokens, resp.Usage.TotalBilledTokens())
 	}
 
 	return resp, nil

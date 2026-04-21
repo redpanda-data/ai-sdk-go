@@ -461,7 +461,7 @@ assert.Greater(t, resp.Usage.InputTokens, 0)
 assert.Greater(t, resp.Usage.OutputTokens, 0)
 assert.Equal(t,
     resp.Usage.InputTokens + resp.Usage.OutputTokens,
-    resp.Usage.TotalTokens)
+    resp.Usage.TotalBilledTokens())
 ```
 
 ### Custom Tokenizer
@@ -542,7 +542,7 @@ assert.Equal(t, llm.FinishReasonStop, resp.FinishReason)
 5. **Verify Token Usage**: Ensure your code respects token limits
 
    ```go
-   assert.LessOrEqual(t, resp.Usage.TotalTokens, maxTokens)
+   assert.LessOrEqual(t, resp.Usage.TotalBilledTokens(), maxTokens)
    ```
 
 ## Examples

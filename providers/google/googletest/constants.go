@@ -16,7 +16,7 @@ package googletest
 
 const (
 	// TestModelName is the model to use for integration tests.
-	TestModelName = "gemini-2.5-flash"
+	TestModelName = "gemini-3-flash-preview"
 	// TestReasoningModelName is the model for reasoning tests.
-	TestReasoningModelName = "gemini-2.5-pro"
+	TestReasoningModelName = "gemini-3.1-pro-preview"
 )

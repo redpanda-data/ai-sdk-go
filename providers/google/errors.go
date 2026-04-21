@@ -16,6 +16,7 @@ package google
 
 import (
 	"errors"
+	"net"
 
 	"google.golang.org/genai"
 
@@ -32,6 +33,17 @@ func classifyError(err error) error {
 	var apiErr *genai.APIError
 	if errors.As(err, &apiErr) {
 		return classifyAPIError(apiErr)
+	}
+
+	// Network timeouts (e.g., Client.Timeout exceeded) are retryable.
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return &llm.ProviderError{
+			Base:      llm.ErrServerError,
+			Code:      "TIMEOUT",
+			Message:   err.Error(),
+			Retryable: true,
+		}
 	}
 
 	return err
