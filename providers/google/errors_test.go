@@ -16,6 +16,7 @@ package google
 
 import (
 	"errors"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -80,4 +81,33 @@ func TestClassifyAPIError(t *testing.T) {
 			assert.Equal(t, tt.message, pe.Message)
 		})
 	}
+}
+
+// timeoutError is a test helper that implements net.Error with Timeout()=true,
+// mimicking Go's http.httpError produced on Client.Timeout exceeded.
+type timeoutError struct{ msg string }
+
+func (e *timeoutError) Error() string   { return e.msg }
+func (e *timeoutError) Timeout() bool   { return true }
+func (e *timeoutError) Temporary() bool { return true }
+
+func TestClassifyError_NetworkTimeout(t *testing.T) {
+	t.Parallel()
+
+	// Simulate the error chain produced by Go's HTTP client on Client.Timeout:
+	// url.Error -> httpError (timeout=true)
+	timeoutErr := &url.Error{
+		Op:  "Post",
+		URL: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+		Err: &timeoutError{msg: "context deadline exceeded (Client.Timeout exceeded while awaiting headers)"},
+	}
+
+	result := classifyError(timeoutErr)
+	require.Error(t, result)
+
+	var pe *llm.ProviderError
+	require.ErrorAs(t, result, &pe)
+	require.ErrorIs(t, pe, llm.ErrServerError)
+	assert.True(t, pe.Retryable)
+	assert.Equal(t, "TIMEOUT", pe.Code)
 }
