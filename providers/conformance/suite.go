@@ -948,19 +948,22 @@ func testGenerateEventsWithTools(t *testing.T, fixture Fixture) { //nolint:thelp
 			validate: func(t *testing.T, model llm.Model, ctx context.Context, request *llm.Request) {
 				t.Helper()
 
-				// Models may non-deterministically skip tool calls, so retry up to 3 times.
-				const maxAttempts = 3
+				// Models may non-deterministically skip tool calls or respond
+				// with text instead, so retry up to 5 times.
+				const maxAttempts = 5
 
 				var (
 					toolRequests       []*llm.ToolRequest
 					toolRequestsByName map[string][]*llm.ToolRequest
 					endEvent           llm.StreamEndEvent
 					hasEndEvent        bool
+					textParts          []string
 				)
 
 				collectToolEvents := func() error {
 					toolRequests = nil
 					toolRequestsByName = make(map[string][]*llm.ToolRequest)
+					textParts = nil
 					hasEndEvent = false
 
 					for event, err := range model.GenerateEvents(ctx, request) {
@@ -976,6 +979,8 @@ func testGenerateEventsWithTools(t *testing.T, fixture Fixture) { //nolint:thelp
 									toolRequestsByName[e.Part.ToolRequest.Name],
 									e.Part.ToolRequest,
 								)
+							} else if e.Part.Text != "" {
+								textParts = append(textParts, e.Part.Text)
 							}
 						case llm.StreamEndEvent:
 							endEvent = e
@@ -995,7 +1000,7 @@ func testGenerateEventsWithTools(t *testing.T, fixture Fixture) { //nolint:thelp
 
 					if err := collectToolEvents(); err != nil {
 						if attempt < maxAttempts {
-							t.Logf("Attempt %d/%d failed: %v", attempt, maxAttempts, err)
+							t.Logf("Attempt %d/%d failed with error: %v", attempt, maxAttempts, err)
 
 							continue
 						}
@@ -1007,6 +1012,26 @@ func testGenerateEventsWithTools(t *testing.T, fixture Fixture) { //nolint:thelp
 						t.Logf("Received %d tool calls on attempt %d/%d", len(toolRequests), attempt, maxAttempts)
 
 						break
+					}
+
+					// Log what the model returned instead of tool calls for debugging.
+					finishReason := "unknown"
+
+					if hasEndEvent && endEvent.Response != nil {
+						finishReason = string(endEvent.Response.FinishReason)
+					}
+
+					t.Logf("Attempt %d/%d: got %d tool calls, %d text parts, finish_reason=%s",
+						attempt, maxAttempts, len(toolRequests), len(textParts), finishReason)
+
+					if len(textParts) > 0 {
+						combined := strings.Join(textParts, "")
+
+						if len(combined) > 200 {
+							combined = combined[:200] + "..."
+						}
+
+						t.Logf("  text response: %s", combined)
 					}
 
 					if attempt == maxAttempts {
