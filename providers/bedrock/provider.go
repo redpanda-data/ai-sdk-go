@@ -44,6 +44,7 @@ type providerConfig struct {
 	httpClient *http.Client
 	region     string
 	caching    bool
+	noAuth     bool // skip SigV4 signing (for proxied/gateway mode)
 }
 
 // NewProvider creates a new Bedrock provider.
@@ -65,6 +66,13 @@ func NewProvider(ctx context.Context, opts ...ProviderOption) (*Provider, error)
 		var loadOpts []func(*awsconfig.LoadOptions) error
 		if cfg.region != "" {
 			loadOpts = append(loadOpts, awsconfig.WithRegion(cfg.region))
+		}
+
+		if cfg.noAuth {
+			// Skip SigV4 signing — use anonymous credentials so the AWS SDK
+			// sends requests without an Authorization header. Intended for
+			// proxied/gateway mode where the proxy handles authentication.
+			loadOpts = append(loadOpts, awsconfig.WithCredentialsProvider(aws.AnonymousCredentials{}))
 		}
 
 		var err error
@@ -127,6 +135,16 @@ func WithRegion(region string) ProviderOption {
 
 		cfg.region = region
 
+		return nil
+	}
+}
+
+// WithNoAuth disables AWS SigV4 request signing. Use this when routing
+// requests through a proxy (such as the Redpanda AI Gateway) that handles
+// authentication on behalf of the client.
+func WithNoAuth() ProviderOption {
+	return func(cfg *providerConfig) error {
+		cfg.noAuth = true
 		return nil
 	}
 }
