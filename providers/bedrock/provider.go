@@ -30,10 +30,9 @@ import (
 
 // Provider implements the Bedrock model provider using the Converse API.
 type Provider struct {
-	client         *bedrockruntime.Client
-	region         string
-	regionExplicit bool // true when WithRegion was called — disables cross-region inference profiles
-	enableCaching  bool
+	client        *bedrockruntime.Client
+	region        string
+	enableCaching bool
 }
 
 // ProviderOption configures a Provider instance using functional options.
@@ -95,10 +94,9 @@ func NewProvider(ctx context.Context, opts ...ProviderOption) (*Provider, error)
 	client := bedrockruntime.NewFromConfig(awsCfg, clientOpts...)
 
 	return &Provider{
-		client:         client,
-		region:         awsCfg.Region,
-		regionExplicit: cfg.region != "",
-		enableCaching:  cfg.caching,
+		client:        client,
+		region:        awsCfg.Region,
+		enableCaching: cfg.caching,
 	}, nil
 }
 
@@ -167,15 +165,12 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 	}
 
 	// Build the API model ID. When the caller already provided a region
-	// prefix (e.g. "eu.anthropic.…"), use it as-is. When a specific region
-	// was set via WithRegion, use the bare model ID so the request hits
-	// that region's foundation model directly instead of a cross-region
-	// inference profile. Only promote to an inference profile when no
-	// explicit region was configured (default credential chain picks the
-	// region, so cross-region routing improves availability).
+	// prefix (e.g. "eu.anthropic.…"), use it as-is. Otherwise, promote
+	// to a cross-region inference profile which is required for on-demand
+	// throughput on Bedrock.
 	apiModelID := modelName
 
-	if !hasRegionPrefix(apiModelID) && !p.regionExplicit {
+	if !hasRegionPrefix(apiModelID) {
 		apiModelID = inferenceProfileRegion(p.region) + "." + apiModelID
 	}
 
