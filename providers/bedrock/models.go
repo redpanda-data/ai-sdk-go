@@ -41,14 +41,27 @@ type ModelDefinition struct {
 	Pricing      pricing.Info
 }
 
-// inferenceProfileRegion maps an AWS region to the Bedrock inference profile
-// geographic prefix (e.g. "us-east-1" → "us", "eu-west-1" → "eu").
+// inferenceProfileRegion maps an AWS region to the Bedrock cross-region
+// inference profile geographic prefix.
+//
+// AWS uses these prefixes:
+//   - "us"   for US regions        (us-east-1, us-west-2, …)
+//   - "eu"   for European regions  (eu-west-1, eu-central-1, …)
+//   - "apac" for Asia Pacific      (ap-southeast-1, ap-northeast-1, …)
+//
+// See https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference-support.html
 func inferenceProfileRegion(region string) string {
-	if idx := strings.IndexByte(region, '-'); idx > 0 {
-		return region[:idx]
+	idx := strings.IndexByte(region, '-')
+	if idx <= 0 {
+		return "us"
 	}
 
-	return "us"
+	prefix := region[:idx]
+	if prefix == "ap" {
+		return "apac"
+	}
+
+	return prefix
 }
 
 // hasRegionPrefix reports whether a model ID already contains a region
