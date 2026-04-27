@@ -28,6 +28,59 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
+// ---------- inferenceProfileRegion ----------
+
+func TestInferenceProfileRegion(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		region string
+		want   string
+	}{
+		{"us-east-1", "us"},
+		{"us-west-2", "us"},
+		{"eu-west-1", "eu"},
+		{"eu-central-1", "eu"},
+		{"ap-southeast-1", "apac"},
+		{"ap-northeast-1", "apac"},
+		{"ap-south-1", "apac"},
+		{"", "us"},
+		{"unknown", "us"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.region, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, inferenceProfileRegion(tt.region))
+		})
+	}
+}
+
+// ---------- hasRegionPrefix ----------
+
+func TestHasRegionPrefix(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		modelID string
+		want    bool
+	}{
+		{"anthropic.claude-sonnet-4-6", false},
+		{"us.anthropic.claude-sonnet-4-6", true},
+		{"eu.anthropic.claude-sonnet-4-6", true},
+		{"apac.anthropic.claude-sonnet-4-6", true},
+		{"global.anthropic.claude-sonnet-4-6", true},
+		{"no-dots-here", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.modelID, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, hasRegionPrefix(tt.modelID))
+		})
+	}
+}
+
 // ---------- lookupModel ----------
 
 func TestLookupModel(t *testing.T) {
@@ -232,6 +285,47 @@ func TestNewModel_SupportedModels(t *testing.T) {
 			assert.Equal(t, "aws.bedrock", model.Provider())
 		})
 	}
+}
+
+func TestNewModel_APACRegionPrefix(t *testing.T) {
+	t.Parallel()
+
+	// Provider configured with an Asia Pacific region should produce
+	// "apac." prefix, not "ap." (which AWS does not recognize).
+	p := &Provider{client: nil, region: "ap-southeast-1"}
+
+	model, err := p.NewModel(ModelClaudeSonnet46)
+	require.NoError(t, err)
+
+	m, ok := model.(*Model)
+	require.True(t, ok)
+	assert.Equal(t, "apac."+ModelClaudeSonnet46, m.config.APIModelID)
+}
+
+func TestNewModel_USRegionPrefix(t *testing.T) {
+	t.Parallel()
+
+	p := &Provider{client: nil, region: "us-east-1"}
+
+	model, err := p.NewModel(ModelClaudeSonnet46)
+	require.NoError(t, err)
+
+	m, ok := model.(*Model)
+	require.True(t, ok)
+	assert.Equal(t, "us."+ModelClaudeSonnet46, m.config.APIModelID)
+}
+
+func TestNewModel_EURegionPrefix(t *testing.T) {
+	t.Parallel()
+
+	p := &Provider{client: nil, region: "eu-west-1"}
+
+	model, err := p.NewModel(ModelClaudeSonnet46)
+	require.NoError(t, err)
+
+	m, ok := model.(*Model)
+	require.True(t, ok)
+	assert.Equal(t, "eu."+ModelClaudeSonnet46, m.config.APIModelID)
 }
 
 func TestNewModel_UnsupportedModel(t *testing.T) {
