@@ -17,6 +17,7 @@ package bedrock_test
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/redpanda-data/ai-sdk-go/internal/testsuite"
@@ -83,7 +84,34 @@ func (f *BedrockFixture) NewReasoningModel(t *testing.T) llm.Model {
 }
 
 func (f *BedrockFixture) Models() []llm.ModelDiscoveryInfo {
-	return f.provider.Models()
+	all := f.provider.Models()
+
+	// The catalog now exposes one entry per inference profile (base, global.,
+	// us./eu./au./apac.). Conformance runs in a single AWS region with limited
+	// IAM, so only the bare entries are universally reachable: NewModel
+	// auto-prefixes them to the test region's geo profile, which is the only
+	// routing the CI's SCP allows. Geo profiles for other geographies fail with
+	// ValidationException (cross-geography from a single entry-point region),
+	// and the global. profile resolves to foundation-model ARNs that the CI's
+	// SCP explicitly denies. Per-variant catalog correctness is covered by
+	// unit tests in provider_test.go.
+	filtered := make([]llm.ModelDiscoveryInfo, 0, len(all))
+
+	for _, m := range all {
+		if isBareModelID(m.Name) {
+			filtered = append(filtered, m)
+		}
+	}
+
+	return filtered
+}
+
+// isBareModelID reports whether name is a foundation-model ID without an
+// inference-profile prefix (e.g. "anthropic.claude-opus-4-7" yes;
+// "us.anthropic.claude-opus-4-7" no).
+func isBareModelID(name string) bool {
+	return strings.HasPrefix(name, "anthropic.") &&
+		!strings.Contains(strings.TrimPrefix(name, "anthropic."), ".")
 }
 
 func (f *BedrockFixture) NewModel(modelName string) (llm.Model, error) {

@@ -32,21 +32,22 @@ import (
 // can only be invoked via a prefixed ID. Older 4.5 models can be invoked with
 // the bare ID for in-region access.
 const (
-	// Claude Sonnet 4.6 (inference-profile-only).
+	// ModelClaudeSonnet46 is the bare Bedrock ID for Claude Sonnet 4.6
+	// (inference-profile-only — invoke via one of the prefixed variants).
 	ModelClaudeSonnet46       = "anthropic.claude-sonnet-4-6"
 	ModelClaudeSonnet46Global = "global." + ModelClaudeSonnet46
 	ModelClaudeSonnet46US     = "us." + ModelClaudeSonnet46
 	ModelClaudeSonnet46EU     = "eu." + ModelClaudeSonnet46
 	ModelClaudeSonnet46AU     = "au." + ModelClaudeSonnet46
 
-	// Claude Sonnet 4.5.
+	// ModelClaudeSonnet45 is the bare Bedrock ID for Claude Sonnet 4.5.
 	ModelClaudeSonnet45       = "anthropic.claude-sonnet-4-5-20250929-v1:0"
 	ModelClaudeSonnet45Global = "global." + ModelClaudeSonnet45
 	ModelClaudeSonnet45US     = "us." + ModelClaudeSonnet45
 	ModelClaudeSonnet45EU     = "eu." + ModelClaudeSonnet45
 	ModelClaudeSonnet45AU     = "au." + ModelClaudeSonnet45
 
-	// Claude Haiku 4.5.
+	// ModelClaudeHaiku45 is the bare Bedrock ID for Claude Haiku 4.5.
 	ModelClaudeHaiku45       = "anthropic.claude-haiku-4-5-20251001-v1:0"
 	ModelClaudeHaiku45Global = "global." + ModelClaudeHaiku45
 	ModelClaudeHaiku45US     = "us." + ModelClaudeHaiku45
@@ -54,21 +55,23 @@ const (
 	ModelClaudeHaiku45AU     = "au." + ModelClaudeHaiku45
 	ModelClaudeHaiku45APAC   = "apac." + ModelClaudeHaiku45
 
-	// Claude Opus 4.7 (inference-profile-only).
+	// ModelClaudeOpus47 is the bare Bedrock ID for Claude Opus 4.7
+	// (inference-profile-only — invoke via one of the prefixed variants).
 	ModelClaudeOpus47       = "anthropic.claude-opus-4-7"
 	ModelClaudeOpus47Global = "global." + ModelClaudeOpus47
 	ModelClaudeOpus47US     = "us." + ModelClaudeOpus47
 	ModelClaudeOpus47EU     = "eu." + ModelClaudeOpus47
 	ModelClaudeOpus47AU     = "au." + ModelClaudeOpus47
 
-	// Claude Opus 4.6 (inference-profile-only).
+	// ModelClaudeOpus46 is the bare Bedrock ID for Claude Opus 4.6
+	// (inference-profile-only — invoke via one of the prefixed variants).
 	ModelClaudeOpus46       = "anthropic.claude-opus-4-6-v1"
 	ModelClaudeOpus46Global = "global." + ModelClaudeOpus46
 	ModelClaudeOpus46US     = "us." + ModelClaudeOpus46
 	ModelClaudeOpus46EU     = "eu." + ModelClaudeOpus46
 	ModelClaudeOpus46AU     = "au." + ModelClaudeOpus46
 
-	// Claude Opus 4.5.
+	// ModelClaudeOpus45 is the bare Bedrock ID for Claude Opus 4.5.
 	ModelClaudeOpus45       = "anthropic.claude-opus-4-5-20251101-v1:0"
 	ModelClaudeOpus45Global = "global." + ModelClaudeOpus45
 	ModelClaudeOpus45EU     = "eu." + ModelClaudeOpus45
@@ -291,10 +294,12 @@ var supportedModels = buildSupportedModels()
 
 func buildSupportedModels() map[string]ModelDefinition {
 	m := make(map[string]ModelDefinition)
+
 	for _, model := range claudeModels {
 		for _, def := range model.expand() {
 			m[def.Name] = def
 		}
 	}
+
 	return m
 }
