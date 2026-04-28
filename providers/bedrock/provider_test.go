@@ -28,7 +28,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
-// ---------- inferenceProfileRegion ----------
+// ---------- InferenceProfileRegion ----------
 
 func TestInferenceProfileRegion(t *testing.T) {
 	t.Parallel()
@@ -51,7 +51,7 @@ func TestInferenceProfileRegion(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.region, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tt.want, inferenceProfileRegion(tt.region))
+			assert.Equal(t, tt.want, InferenceProfileRegion(tt.region))
 		})
 	}
 }
@@ -93,10 +93,15 @@ func TestLookupModel(t *testing.T) {
 		wantDef string // expected ModelDefinition.Name if found
 	}{
 		{
-			name:    "base model ID",
-			input:   ModelClaudeSonnet46,
+			name:    "bare ID is invokable for 4.5 models",
+			input:   ModelClaudeSonnet45,
 			wantOK:  true,
-			wantDef: ModelClaudeSonnet46,
+			wantDef: ModelClaudeSonnet45,
+		},
+		{
+			name:   "bare ID is not in the catalog for inference-profile-only models",
+			input:  ModelClaudeSonnet46,
+			wantOK: false,
 		},
 		{
 			name:    "geo profile is its own entry",

@@ -24,13 +24,15 @@ import (
 // Model ID constants for Claude models on Bedrock.
 //
 // Each logical Claude model is exposed as multiple Bedrock model IDs, one per
-// inference profile. AWS bills these at different rates: the bare ID and the
-// "global." profile use the headline price, while geo profiles
-// ("us." / "eu." / "au." / "apac.") carry a ~10% cross-region premium.
+// inference profile. AWS bills these at different rates: the bare ID (when
+// invokable) and the "global." profile use the headline price, while geo
+// profiles ("us." / "eu." / "au." / "apac.") carry a ~10% cross-region premium.
 //
-// New 4.6+ models (Sonnet 4.6, Opus 4.6/4.7) are inference-profile-only and
-// can only be invoked via a prefixed ID. Older 4.5 models can be invoked with
-// the bare ID for in-region access.
+// 4.6+ models (Sonnet 4.6, Opus 4.6, Opus 4.7) are inference-profile-only —
+// AWS does not allow on-demand invocation of the bare foundation-model ID, so
+// the bare constant exists only as a building block for the prefixed variants
+// and is not registered in supportedModels. Older 4.5 models can be invoked
+// with the bare ID for in-region access and have a real catalog entry.
 const (
 	// ModelClaudeSonnet46 is the bare Bedrock ID for Claude Sonnet 4.6
 	// (inference-profile-only — invoke via one of the prefixed variants).
@@ -86,7 +88,7 @@ type ModelDefinition struct {
 	Pricing      pricing.Info
 }
 
-// inferenceProfileRegion maps an AWS region to the Bedrock cross-region
+// InferenceProfileRegion maps an AWS region to the Bedrock cross-region
 // inference profile geographic prefix.
 //
 // AWS uses these prefixes:
@@ -95,7 +97,7 @@ type ModelDefinition struct {
 //   - "apac" for Asia Pacific      (ap-southeast-1, ap-northeast-1, …)
 //
 // See https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference-support.html
-func inferenceProfileRegion(region string) string {
+func InferenceProfileRegion(region string) string {
 	idx := strings.IndexByte(region, '-')
 	if idx <= 0 {
 		return "us"
@@ -138,7 +140,8 @@ type claudeModel struct {
 	label        string
 	capabilities llm.ModelCapabilities
 	constraints  llm.ModelConstraints
-	// baseRates apply to the bare ID and the "global." profile.
+	// baseRates apply to the bare ID (when invokable) and the "global."
+	// profile — these share the headline rate.
 	baseRates pricing.Rates
 	// geoRates apply to the geo profiles (us./eu./au./apac.) — the AWS
 	// cross-region inference premium (~10% over baseRates).
@@ -146,28 +149,36 @@ type claudeModel struct {
 	// geoProfiles lists the geo prefixes (without trailing dot) that AWS
 	// publishes for this model.
 	geoProfiles []string
+	// inferenceProfileOnly is true when AWS does not allow on-demand
+	// invocation of the bare foundation-model ID — the only valid calls go
+	// through an inference profile (global. / geo). Anthropic's 4.6+
+	// generation falls into this bucket. When set, expand() omits the bare
+	// catalog entry so Models() does not advertise an ID that cannot be
+	// invoked.
+	inferenceProfileOnly bool
 }
 
 // expand returns one ModelDefinition per inference profile variant.
 func (c claudeModel) expand() []ModelDefinition {
 	defs := make([]ModelDefinition, 0, 2+len(c.geoProfiles))
 
-	defs = append(defs,
-		ModelDefinition{
+	if !c.inferenceProfileOnly {
+		defs = append(defs, ModelDefinition{
 			Name:         c.baseID,
 			Label:        c.label,
 			Capabilities: c.capabilities,
 			Constraints:  c.constraints,
 			Pricing:      pricing.FlatInfoFromRates(c.baseRates),
-		},
-		ModelDefinition{
-			Name:         "global." + c.baseID,
-			Label:        c.label + " (Global)",
-			Capabilities: c.capabilities,
-			Constraints:  c.constraints,
-			Pricing:      pricing.FlatInfoFromRates(c.baseRates),
-		},
-	)
+		})
+	}
+
+	defs = append(defs, ModelDefinition{
+		Name:         "global." + c.baseID,
+		Label:        c.label + " (Global)",
+		Capabilities: c.capabilities,
+		Constraints:  c.constraints,
+		Pricing:      pricing.FlatInfoFromRates(c.baseRates),
+	})
 
 	for _, geo := range c.geoProfiles {
 		defs = append(defs, ModelDefinition{
@@ -229,7 +240,8 @@ var claudeModels = []claudeModel{
 			WithCacheCreation(6.25, 10.00, 0),
 		geoRates: pricing.NewRates(5.50, 27.50, 0.55).
 			WithCacheCreation(6.875, 11.00, 0),
-		geoProfiles: []string{"us", "eu", "au"},
+		geoProfiles:          []string{"us", "eu", "au"},
+		inferenceProfileOnly: true,
 	},
 	{
 		baseID:       ModelClaudeOpus46,
@@ -240,7 +252,8 @@ var claudeModels = []claudeModel{
 			WithCacheCreation(6.25, 10.00, 0),
 		geoRates: pricing.NewRates(5.50, 27.50, 0.55).
 			WithCacheCreation(6.875, 11.00, 0),
-		geoProfiles: []string{"us", "eu", "au"},
+		geoProfiles:          []string{"us", "eu", "au"},
+		inferenceProfileOnly: true,
 	},
 	{
 		baseID:       ModelClaudeOpus45,
@@ -262,7 +275,8 @@ var claudeModels = []claudeModel{
 			WithCacheCreation(3.75, 6.00, 0),
 		geoRates: pricing.NewRates(3.30, 16.50, 0.33).
 			WithCacheCreation(4.125, 6.60, 0),
-		geoProfiles: []string{"us", "eu", "au"},
+		geoProfiles:          []string{"us", "eu", "au"},
+		inferenceProfileOnly: true,
 	},
 	{
 		baseID:       ModelClaudeSonnet45,

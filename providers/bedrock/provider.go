@@ -165,7 +165,7 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 	apiModelID := modelName
 
 	if !hasRegionPrefix(apiModelID) {
-		apiModelID = inferenceProfileRegion(p.region) + "." + apiModelID
+		apiModelID = InferenceProfileRegion(p.region) + "." + apiModelID
 	}
 
 	// Look up by the prefixed ID — each inference profile variant is a
