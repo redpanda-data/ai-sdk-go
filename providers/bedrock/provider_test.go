@@ -93,22 +93,28 @@ func TestLookupModel(t *testing.T) {
 		wantDef string // expected ModelDefinition.Name if found
 	}{
 		{
-			name:    "direct model ID",
+			name:    "base model ID",
 			input:   ModelClaudeSonnet46,
 			wantOK:  true,
 			wantDef: ModelClaudeSonnet46,
 		},
 		{
-			name:    "with region prefix",
-			input:   "eu." + ModelClaudeSonnet46,
+			name:    "geo profile is its own entry",
+			input:   ModelClaudeSonnet46EU,
 			wantOK:  true,
-			wantDef: ModelClaudeSonnet46,
+			wantDef: ModelClaudeSonnet46EU,
 		},
 		{
-			name:    "versioned with region",
-			input:   "us." + ModelClaudeHaiku45,
+			name:    "global profile is its own entry",
+			input:   ModelClaudeOpus47Global,
 			wantOK:  true,
-			wantDef: ModelClaudeHaiku45,
+			wantDef: ModelClaudeOpus47Global,
+		},
+		{
+			name:    "versioned model with region",
+			input:   ModelClaudeHaiku45US,
+			wantOK:  true,
+			wantDef: ModelClaudeHaiku45US,
 		},
 		{
 			name:   "unknown model",
@@ -118,6 +124,11 @@ func TestLookupModel(t *testing.T) {
 		{
 			name:   "unknown with region prefix",
 			input:  "us.meta.llama-3.2-90b",
+			wantOK: false,
+		},
+		{
+			name:   "geo profile not published for this model",
+			input:  "us." + ModelClaudeOpus45,
 			wantOK: false,
 		},
 	}
@@ -291,15 +302,16 @@ func TestNewModel_APACRegionPrefix(t *testing.T) {
 	t.Parallel()
 
 	// Provider configured with an Asia Pacific region should produce
-	// "apac." prefix, not "ap." (which AWS does not recognize).
+	// "apac." prefix, not "ap." (which AWS does not recognize). Haiku 4.5
+	// is the only Claude model with an apac inference profile.
 	p := &Provider{client: nil, region: "ap-southeast-1"}
 
-	model, err := p.NewModel(ModelClaudeSonnet46)
+	model, err := p.NewModel(ModelClaudeHaiku45)
 	require.NoError(t, err)
 
 	m, ok := model.(*Model)
 	require.True(t, ok)
-	assert.Equal(t, "apac."+ModelClaudeSonnet46, m.config.APIModelID)
+	assert.Equal(t, ModelClaudeHaiku45APAC, m.config.APIModelID)
 }
 
 func TestNewModel_USRegionPrefix(t *testing.T) {
@@ -811,7 +823,10 @@ func TestResponseMapper_TextResponse(t *testing.T) {
 	// Bedrock reports "optimized"; NormalizeSpeed collapses it to the
 	// cross-provider SpeedFast concept.
 	assert.Equal(t, llm.SpeedFast, resp.Speed)
-	assert.Equal(t, ModelClaudeSonnet46, resp.InvokedModelID)
+	// InvokedModelID reflects the actual inference profile AWS routed to,
+	// not just the logical model name — geo and global profiles bill at
+	// different rates so the routing identity matters downstream.
+	assert.Equal(t, ModelClaudeSonnet46US, resp.InvokedModelID)
 	require.NotNil(t, resp.Usage)
 	assert.Equal(t, 10, resp.Usage.InputTokens)
 	assert.Equal(t, 8, resp.Usage.OutputTokens)
