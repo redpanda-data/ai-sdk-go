@@ -113,6 +113,13 @@ func (rm *ResponseMapper) FromProvider(apiResp *openai.ChatCompletion) (*llm.Res
 		ReasoningTokens:   reasoningTokens,
 	}
 
+	// Empty content surfaces as error regardless of finish reason — see
+	// providers/anthropic/response_mapper.go for full rationale.
+	if len(content) == 0 {
+		return nil, fmt.Errorf("%w: provider returned no content blocks (finish_reason=%s, response_id=%s)",
+			llm.ErrResponseMapping, choice.FinishReason, apiResp.ID)
+	}
+
 	return &llm.Response{
 		Message: llm.Message{
 			Role:    llm.RoleAssistant,

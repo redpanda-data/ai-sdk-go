@@ -269,8 +269,28 @@ func (a *LLMAgent) executeSingleTurn(
 	// Update usage tracking
 	agent.AddUsage(inv, resp.Usage)
 
-	// Add assistant message to session (single source of truth)
-	sess.Messages = append(sess.Messages, resp.Message)
+	// Add assistant message to session (single source of truth).
+	//
+	// Skip persistence when Content is empty. Sources we have observed:
+	//   - max_tokens hit before any content block was emitted
+	//   - the only content block was a partial tool_use that stream
+	//     finalisation correctly dropped (PR #116)
+	//   - refusal / safety filter with no text emitted
+	//
+	// In all of these the FinishReason carries the truth (Length,
+	// ContentFilter, etc.) and the terminal-reason handling below
+	// surfaces it. The MessageEvent below still fires so observers
+	// see what happened. Persisting the empty Message would poison
+	// every subsequent replay — Anthropic and most other providers
+	// reject `messages.N.content` arrays with `Field required` and
+	// the conversation is permanently wedged.
+	//
+	// Same shape as adk-go's `AppendEvent` check on `Event.Partial`:
+	// the session-store boundary is the right place to drop responses
+	// that carry no usable content.
+	if len(resp.Message.Content) > 0 {
+		sess.Messages = append(sess.Messages, resp.Message)
+	}
 
 	// Emit message event
 	if !yield(agent.MessageEvent{

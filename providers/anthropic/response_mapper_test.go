@@ -136,3 +136,56 @@ func TestResponseMapper_FinishReasonTruncationWithToolCalls(t *testing.T) {
 		})
 	}
 }
+
+// TestResponseMapper_EmptyContentIsError locks in the invariant that the
+// provider never produces a Response with empty Message.Content. Sibling
+// case to the truncation fix in PR #116: silent failure modes corrupt
+// session state, so surface them as errors at the provider boundary
+// rather than handing the agent loop a non-result it has to guess about.
+//
+// Sources of empty content we have observed (or that PR #116 made
+// possible by correctly dropping partial tool_use blocks):
+//
+//   - max_tokens hit before any content block was emitted
+//   - the only content block was a partial tool_use that stream
+//     finalisation dropped (PR #116)
+//   - refusal with no text emitted
+//   - rare provider anomalies (200 OK with empty content array)
+//
+// In every case the caller has no useful output. Returning an error
+// lets the agent loop's terminal-error handling fire (status: failure,
+// nothing persisted) instead of appending an empty Message to session
+// state that Anthropic rejects on every subsequent replay.
+func TestResponseMapper_EmptyContentIsError(t *testing.T) {
+	t.Parallel()
+
+	mapper := NewResponseMapper(supportedModels[ModelClaudeOpus46])
+
+	cases := []struct {
+		name       string
+		stopReason anthropic.BetaStopReason
+	}{
+		{name: "end_turn with empty content", stopReason: anthropic.BetaStopReasonEndTurn},
+		{name: "max_tokens with empty content", stopReason: anthropic.BetaStopReasonMaxTokens},
+		{name: "refusal with empty content", stopReason: anthropic.BetaStopReasonRefusal},
+		{name: "context_window with empty content", stopReason: anthropic.BetaStopReasonModelContextWindowExceeded},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			resp, err := mapper.FromProvider(&anthropic.BetaMessage{
+				ID:         "msg_empty",
+				Model:      anthropic.Model("claude-opus-4-6-20260401"),
+				Content:    []anthropic.BetaContentBlockUnion{},
+				StopReason: tc.stopReason,
+				Usage:      anthropic.BetaUsage{InputTokens: 1, OutputTokens: 0},
+			})
+
+			require.Error(t, err, "empty content must surface as error")
+			assert.ErrorIs(t, err, llm.ErrResponseMapping)
+			assert.Nil(t, resp)
+		})
+	}
+}

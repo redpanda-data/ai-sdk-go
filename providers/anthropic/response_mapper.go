@@ -132,6 +132,20 @@ func (m *ResponseMapper) FromProvider(r *anthropic.BetaMessage) (*llm.Response, 
 		finishReason = llm.FinishReasonToolCalls
 	}
 
+	// Empty content is a non-result regardless of stop reason. Sources:
+	// max_tokens hit before any block was emitted; the only block was a
+	// partial tool_use that stream finalisation correctly dropped (#116);
+	// refusal with no text emitted; rare provider anomalies. In every
+	// case the agent loop has nothing to act on — surface as an error so
+	// the caller can decide (retry with higher max_tokens, surface to
+	// user, etc.) instead of persisting an empty Message that would
+	// poison every subsequent replay (Anthropic rejects empty
+	// `messages.N.content` arrays with `Field required`).
+	if len(content) == 0 {
+		return nil, fmt.Errorf("%w: provider returned no content blocks (stop_reason=%s, response_id=%s)",
+			llm.ErrResponseMapping, r.StopReason, r.ID)
+	}
+
 	return &llm.Response{
 		ID: r.ID,
 		Message: llm.Message{

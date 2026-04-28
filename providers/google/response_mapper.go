@@ -80,6 +80,16 @@ func (m *ResponseMapper) FromProvider(r *genai.GenerateContentResponse) (*llm.Re
 	// Map finish reason
 	finishReason := m.mapFinishReason(candidate.FinishReason, hasToolCalls)
 
+	// Empty content surfaces as error regardless of finish reason — see
+	// providers/anthropic/response_mapper.go for full rationale. Gemini
+	// can produce empty content when max_tokens hits before any Part is
+	// emitted, when safety filters strip all text, or when the candidate
+	// only carries unsupported part types (file_data, inline_data).
+	if len(content) == 0 {
+		return nil, fmt.Errorf("%w: provider returned no content blocks (finish_reason=%s)",
+			llm.ErrResponseMapping, candidate.FinishReason)
+	}
+
 	return &llm.Response{
 		ID: r.ResponseID,
 		Message: llm.Message{
