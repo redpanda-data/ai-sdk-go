@@ -24,11 +24,11 @@ import (
 // Model ID constants for Claude models on Bedrock.
 // These are real Bedrock model IDs that can be passed directly to NewModel.
 const (
-	ModelClaudeSonnet46 = "anthropic.claude-sonnet-4-6"
+	ModelClaudeSonnet46 = "anthropic.claude-sonnet-4-6-v1:0"
 	ModelClaudeSonnet45 = "anthropic.claude-sonnet-4-5-20250929-v1:0"
 	ModelClaudeHaiku45  = "anthropic.claude-haiku-4-5-20251001-v1:0"
-	ModelClaudeOpus47   = "anthropic.claude-opus-4-7"
-	ModelClaudeOpus46   = "anthropic.claude-opus-4-6-v1"
+	ModelClaudeOpus47   = "anthropic.claude-opus-4-7-v1:0"
+	ModelClaudeOpus46   = "anthropic.claude-opus-4-6-v1:0"
 	ModelClaudeOpus45   = "anthropic.claude-opus-4-5-20251101-v1:0"
 )
 
@@ -65,9 +65,9 @@ func inferenceProfileRegion(region string) string {
 }
 
 // hasRegionPrefix reports whether a model ID already contains a region
-// inference-profile prefix (e.g. "us.anthropic.claude-sonnet-4-6").
+// inference-profile prefix (e.g. "us.anthropic.claude-sonnet-4-6-v1:0").
 // It checks for the "{region}.{provider}." pattern by counting dot-separated
-// segments: bare model IDs like "anthropic.claude-sonnet-4-6" have one dot,
+// segments: bare model IDs like "anthropic.claude-sonnet-4-6-v1:0" have one dot,
 // while prefixed IDs have two or more.
 func hasRegionPrefix(modelID string) bool {
 	_, after, ok := strings.Cut(modelID, ".")
@@ -80,7 +80,7 @@ func hasRegionPrefix(modelID string) bool {
 
 // lookupModel finds a ModelDefinition by model ID.
 // It tries a direct map lookup first, then strips the region prefix
-// (e.g. "us." from "us.anthropic.claude-sonnet-4-6") and retries.
+// (e.g. "us." from "us.anthropic.claude-sonnet-4-6-v1:0") and retries.
 func lookupModel(modelName string) (ModelDefinition, bool) {
 	if def, ok := supportedModels[modelName]; ok {
 		return def, true
