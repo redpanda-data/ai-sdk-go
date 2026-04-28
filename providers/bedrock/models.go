@@ -24,9 +24,10 @@ import (
 // Model ID constants for Claude models on Bedrock.
 //
 // Each logical Claude model is exposed as multiple Bedrock model IDs, one per
-// inference profile. AWS bills these at different rates: the bare ID (when
-// invokable) and the "global." profile use the headline price, while geo
-// profiles ("us." / "eu." / "au." / "apac.") carry a ~10% cross-region premium.
+// inference profile. The catalog applies a single flat rate per logical model
+// to every variant — AWS actually charges a ~10% premium on the geo profiles
+// (us./eu./au./jp.) over the headline rate, so cost reports under-report on
+// geo invocations. Modelling per-variant pricing is tracked in AI-908.
 //
 // 4.6+ models (Sonnet 4.6, Opus 4.6, Opus 4.7) are inference-profile-only —
 // AWS does not allow on-demand invocation of the bare foundation-model ID, so
@@ -141,12 +142,17 @@ type claudeModel struct {
 	label        string
 	capabilities llm.ModelCapabilities
 	constraints  llm.ModelConstraints
-	// baseRates apply to the bare ID (when invokable) and the "global."
-	// profile — these share the headline rate.
-	baseRates pricing.Rates
-	// geoRates apply to the geo profiles (us./eu./au./apac.) — the AWS
-	// cross-region inference premium (~10% over baseRates).
-	geoRates pricing.Rates
+	// rates is applied uniformly to every variant (bare, global., and each
+	// geo profile). This is the headline rate AWS publishes for the model,
+	// and matches the bare/global. on-demand price.
+	//
+	// KNOWN LIMITATION: AWS actually charges a ~10% premium for the geo
+	// profiles (us./eu./au./jp.) over the headline rate, so cost reports
+	// derived from this catalog will under-report by ~10% for any geo
+	// invocation. See AI-908 for the proper fix (per-variant pricing for
+	// Claude, plus per-region overrides for non-Anthropic models like Nova /
+	// Gemma / DeepSeek where regional rates can differ by tens of percent).
+	rates pricing.Rates
 	// geoProfiles lists the geo prefixes (without trailing dot) that AWS
 	// publishes for this model.
 	geoProfiles []string
@@ -159,9 +165,13 @@ type claudeModel struct {
 	inferenceProfileOnly bool
 }
 
-// expand returns one ModelDefinition per inference profile variant.
+// expand returns one ModelDefinition per inference profile variant. All
+// variants share the same flat rate today — see the rates field doc for the
+// known under-reporting on geo profiles (tracked in AI-908).
 func (c claudeModel) expand() []ModelDefinition {
 	defs := make([]ModelDefinition, 0, 2+len(c.geoProfiles))
+
+	pricingInfo := pricing.FlatInfoFromRates(c.rates)
 
 	if !c.inferenceProfileOnly {
 		defs = append(defs, ModelDefinition{
@@ -169,7 +179,7 @@ func (c claudeModel) expand() []ModelDefinition {
 			Label:        c.label,
 			Capabilities: c.capabilities,
 			Constraints:  c.constraints,
-			Pricing:      pricing.FlatInfoFromRates(c.baseRates),
+			Pricing:      pricingInfo,
 		})
 	}
 
@@ -178,7 +188,7 @@ func (c claudeModel) expand() []ModelDefinition {
 		Label:        c.label + " (Global)",
 		Capabilities: c.capabilities,
 		Constraints:  c.constraints,
-		Pricing:      pricing.FlatInfoFromRates(c.baseRates),
+		Pricing:      pricingInfo,
 	})
 
 	for _, geo := range c.geoProfiles {
@@ -187,7 +197,7 @@ func (c claudeModel) expand() []ModelDefinition {
 			Label:        c.label + " (" + strings.ToUpper(geo) + ")",
 			Capabilities: c.capabilities,
 			Constraints:  c.constraints,
-			Pricing:      pricing.FlatInfoFromRates(c.geoRates),
+			Pricing:      pricingInfo,
 		})
 	}
 
@@ -224,23 +234,19 @@ var (
 // claudeModels enumerates every logical Claude model on Bedrock. Pricing
 // rates source: https://aws.amazon.com/bedrock/pricing/ (as of 2026-04).
 //
-// Per-profile pricing notes:
-//   - Bare ID and "global.": headline rate ("baseRates").
-//   - Geo profiles (us./eu./au./apac.): ~10% cross-region premium ("geoRates").
-//
-// Non-Anthropic Bedrock models (Gemma, DeepSeek, Amazon Nova) can have
-// larger regional pricing differences (up to ~57% premium); those should
-// model regional rates with pricing.Info overrides instead of this helper.
+// One flat rate per logical model is applied to every inference profile
+// variant. AWS actually charges a ~10% premium on the geo profiles
+// (us./eu./au./jp.) — this catalog under-reports cost on those by ~10%.
+// Modelling per-variant pricing (and per-region overrides for non-Anthropic
+// Bedrock models like Nova / Gemma / DeepSeek) is tracked in AI-908.
 var claudeModels = []claudeModel{
 	{
 		baseID:       ModelClaudeOpus47,
 		label:        "Claude Opus 4.7",
 		capabilities: claudeStandardCaps,
 		constraints:  claudeContext1MConstraints,
-		baseRates: pricing.NewRates(5.00, 25.00, 0.50).
+		rates: pricing.NewRates(5.00, 25.00, 0.50).
 			WithCacheCreation(6.25, 10.00, 0),
-		geoRates: pricing.NewRates(5.50, 27.50, 0.55).
-			WithCacheCreation(6.875, 11.00, 0),
 		geoProfiles:          []string{"us", "eu", "au"},
 		inferenceProfileOnly: true,
 	},
@@ -249,10 +255,8 @@ var claudeModels = []claudeModel{
 		label:        "Claude Opus 4.6",
 		capabilities: claudeStandardCaps,
 		constraints:  claudeContext1MConstraints,
-		baseRates: pricing.NewRates(5.00, 25.00, 0.50).
+		rates: pricing.NewRates(5.00, 25.00, 0.50).
 			WithCacheCreation(6.25, 10.00, 0),
-		geoRates: pricing.NewRates(5.50, 27.50, 0.55).
-			WithCacheCreation(6.875, 11.00, 0),
 		geoProfiles:          []string{"us", "eu", "au"},
 		inferenceProfileOnly: true,
 	},
@@ -261,10 +265,8 @@ var claudeModels = []claudeModel{
 		label:        "Claude Opus 4.5",
 		capabilities: claudeStandardCaps,
 		constraints:  claudeContext200kConstraints,
-		baseRates: pricing.NewRates(5.00, 25.00, 0.50).
+		rates: pricing.NewRates(5.00, 25.00, 0.50).
 			WithCacheCreation(6.25, 10.00, 0),
-		geoRates: pricing.NewRates(5.50, 27.50, 0.55).
-			WithCacheCreation(6.875, 11.00, 0),
 		geoProfiles: []string{"us", "eu"},
 	},
 	{
@@ -272,10 +274,8 @@ var claudeModels = []claudeModel{
 		label:        "Claude Sonnet 4.6",
 		capabilities: claudeStandardCaps,
 		constraints:  claudeContext200kConstraints,
-		baseRates: pricing.NewRates(3.00, 15.00, 0.30).
+		rates: pricing.NewRates(3.00, 15.00, 0.30).
 			WithCacheCreation(3.75, 6.00, 0),
-		geoRates: pricing.NewRates(3.30, 16.50, 0.33).
-			WithCacheCreation(4.125, 6.60, 0),
 		geoProfiles:          []string{"us", "eu", "au"},
 		inferenceProfileOnly: true,
 	},
@@ -284,10 +284,8 @@ var claudeModels = []claudeModel{
 		label:        "Claude Sonnet 4.5",
 		capabilities: claudeStandardCaps,
 		constraints:  claudeContext200kConstraints,
-		baseRates: pricing.NewRates(3.00, 15.00, 0.30).
+		rates: pricing.NewRates(3.00, 15.00, 0.30).
 			WithCacheCreation(3.75, 6.00, 0),
-		geoRates: pricing.NewRates(3.30, 16.50, 0.33).
-			WithCacheCreation(4.125, 6.60, 0),
 		geoProfiles: []string{"us", "eu", "au", "jp"},
 	},
 	{
@@ -295,10 +293,8 @@ var claudeModels = []claudeModel{
 		label:        "Claude Haiku 4.5",
 		capabilities: claudeStandardCaps,
 		constraints:  claudeContext200kConstraints,
-		baseRates: pricing.NewRates(1.00, 5.00, 0.10).
+		rates: pricing.NewRates(1.00, 5.00, 0.10).
 			WithCacheCreation(1.25, 2.00, 0),
-		geoRates: pricing.NewRates(1.10, 5.50, 0.11).
-			WithCacheCreation(1.375, 2.20, 0),
 		geoProfiles: []string{"us", "eu", "au"},
 	},
 }
