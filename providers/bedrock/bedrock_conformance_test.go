@@ -17,6 +17,7 @@ package bedrock_test
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/redpanda-data/ai-sdk-go/internal/testsuite"
@@ -30,6 +31,7 @@ import (
 // BedrockFixture implements the conformance.Fixture interface for the Bedrock provider.
 type BedrockFixture struct {
 	provider *bedrock.Provider
+	region   string
 }
 
 // NewBedrockFixture creates a new Bedrock test fixture.
@@ -52,6 +54,7 @@ func NewBedrockFixture(t *testing.T) *BedrockFixture {
 
 	return &BedrockFixture{
 		provider: provider,
+		region:   region,
 	}
 }
 
@@ -83,7 +86,27 @@ func (f *BedrockFixture) NewReasoningModel(t *testing.T) llm.Model {
 }
 
 func (f *BedrockFixture) Models() []llm.ModelDiscoveryInfo {
-	return f.provider.Models()
+	all := f.provider.Models()
+
+	// The catalog exposes one entry per inference profile (global. and each
+	// geo). Conformance runs in a single AWS region with limited IAM, so we
+	// only iterate the variants reachable from the test region: the matching
+	// geo profile (e.g. "us." when running in us-east-1). Other geo profiles
+	// fail with ValidationException (cross-geography from a single entry-point
+	// region) and the global. profile resolves to foundation-model ARNs that
+	// the CI's SCP explicitly denies. Per-variant catalog correctness is
+	// covered by unit tests in provider_test.go.
+	geoPrefix := bedrock.InferenceProfileRegion(f.region) + "."
+
+	filtered := make([]llm.ModelDiscoveryInfo, 0, len(all))
+
+	for _, m := range all {
+		if strings.HasPrefix(m.Name, geoPrefix) {
+			filtered = append(filtered, m)
+		}
+	}
+
+	return filtered
 }
 
 func (f *BedrockFixture) NewModel(modelName string) (llm.Model, error) {

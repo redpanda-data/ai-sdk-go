@@ -22,26 +22,75 @@ import (
 )
 
 // Model ID constants for Claude models on Bedrock.
-// These are real Bedrock model IDs that can be passed directly to NewModel.
+//
+// Each logical Claude model is exposed as multiple Bedrock model IDs, one per
+// inference profile. The catalog applies a single flat rate per logical model
+// to every variant — AWS actually charges a ~10% premium on the geo profiles
+// (us./eu./au./jp.) over the headline rate, so cost reports under-report on
+// geo invocations. Modelling per-variant pricing is tracked in AI-908.
+//
+// 4.6+ models (Sonnet 4.6, Opus 4.6, Opus 4.7) are inference-profile-only —
+// AWS does not allow on-demand invocation of the bare foundation-model ID, so
+// the bare constant exists only as a building block for the prefixed variants
+// and is not registered in supportedModels. Older 4.5 models can be invoked
+// with the bare ID for in-region access and have a real catalog entry.
 const (
-	ModelClaudeSonnet46 = "anthropic.claude-sonnet-4-6"
-	ModelClaudeSonnet45 = "anthropic.claude-sonnet-4-5-20250929-v1:0"
-	ModelClaudeHaiku45  = "anthropic.claude-haiku-4-5-20251001-v1:0"
-	ModelClaudeOpus47   = "anthropic.claude-opus-4-7"
-	ModelClaudeOpus46   = "anthropic.claude-opus-4-6-v1"
-	ModelClaudeOpus45   = "anthropic.claude-opus-4-5-20251101-v1:0"
+	// ModelClaudeSonnet46 is the bare Bedrock ID for Claude Sonnet 4.6
+	// (inference-profile-only — invoke via one of the prefixed variants).
+	ModelClaudeSonnet46       = "anthropic.claude-sonnet-4-6"
+	ModelClaudeSonnet46Global = "global." + ModelClaudeSonnet46
+	ModelClaudeSonnet46US     = "us." + ModelClaudeSonnet46
+	ModelClaudeSonnet46EU     = "eu." + ModelClaudeSonnet46
+	ModelClaudeSonnet46AU     = "au." + ModelClaudeSonnet46
+
+	// ModelClaudeSonnet45 is the bare Bedrock ID for Claude Sonnet 4.5.
+	ModelClaudeSonnet45       = "anthropic.claude-sonnet-4-5-20250929-v1:0"
+	ModelClaudeSonnet45Global = "global." + ModelClaudeSonnet45
+	ModelClaudeSonnet45US     = "us." + ModelClaudeSonnet45
+	ModelClaudeSonnet45EU     = "eu." + ModelClaudeSonnet45
+	ModelClaudeSonnet45AU     = "au." + ModelClaudeSonnet45
+	ModelClaudeSonnet45JP     = "jp." + ModelClaudeSonnet45
+
+	// ModelClaudeHaiku45 is the bare Bedrock ID for Claude Haiku 4.5.
+	ModelClaudeHaiku45       = "anthropic.claude-haiku-4-5-20251001-v1:0"
+	ModelClaudeHaiku45Global = "global." + ModelClaudeHaiku45
+	ModelClaudeHaiku45US     = "us." + ModelClaudeHaiku45
+	ModelClaudeHaiku45EU     = "eu." + ModelClaudeHaiku45
+	ModelClaudeHaiku45AU     = "au." + ModelClaudeHaiku45
+
+	// ModelClaudeOpus47 is the bare Bedrock ID for Claude Opus 4.7
+	// (inference-profile-only — invoke via one of the prefixed variants).
+	ModelClaudeOpus47       = "anthropic.claude-opus-4-7"
+	ModelClaudeOpus47Global = "global." + ModelClaudeOpus47
+	ModelClaudeOpus47US     = "us." + ModelClaudeOpus47
+	ModelClaudeOpus47EU     = "eu." + ModelClaudeOpus47
+	ModelClaudeOpus47AU     = "au." + ModelClaudeOpus47
+
+	// ModelClaudeOpus46 is the bare Bedrock ID for Claude Opus 4.6
+	// (inference-profile-only — invoke via one of the prefixed variants).
+	ModelClaudeOpus46       = "anthropic.claude-opus-4-6-v1"
+	ModelClaudeOpus46Global = "global." + ModelClaudeOpus46
+	ModelClaudeOpus46US     = "us." + ModelClaudeOpus46
+	ModelClaudeOpus46EU     = "eu." + ModelClaudeOpus46
+	ModelClaudeOpus46AU     = "au." + ModelClaudeOpus46
+
+	// ModelClaudeOpus45 is the bare Bedrock ID for Claude Opus 4.5.
+	ModelClaudeOpus45       = "anthropic.claude-opus-4-5-20251101-v1:0"
+	ModelClaudeOpus45Global = "global." + ModelClaudeOpus45
+	ModelClaudeOpus45US     = "us." + ModelClaudeOpus45
+	ModelClaudeOpus45EU     = "eu." + ModelClaudeOpus45
 )
 
 // ModelDefinition defines a model with its capabilities and constraints.
 type ModelDefinition struct {
-	Name         string // Real Bedrock model ID (e.g. "anthropic.claude-sonnet-4-5-20250929-v1:0")
+	Name         string // Real Bedrock model ID (e.g. "us.anthropic.claude-sonnet-4-6")
 	Label        string
 	Capabilities llm.ModelCapabilities
 	Constraints  llm.ModelConstraints
 	Pricing      pricing.Info
 }
 
-// inferenceProfileRegion maps an AWS region to the Bedrock cross-region
+// InferenceProfileRegion maps an AWS region to the Bedrock cross-region
 // inference profile geographic prefix.
 //
 // AWS uses these prefixes:
@@ -50,7 +99,7 @@ type ModelDefinition struct {
 //   - "apac" for Asia Pacific      (ap-southeast-1, ap-northeast-1, …)
 //
 // See https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference-support.html
-func inferenceProfileRegion(region string) string {
+func InferenceProfileRegion(region string) string {
 	idx := strings.IndexByte(region, '-')
 	if idx <= 0 {
 		return "us"
@@ -78,166 +127,190 @@ func hasRegionPrefix(modelID string) bool {
 	return strings.ContainsRune(after, '.')
 }
 
-// lookupModel finds a ModelDefinition by model ID.
-// It tries a direct map lookup first, then strips the region prefix
-// (e.g. "us." from "us.anthropic.claude-sonnet-4-6") and retries.
+// lookupModel finds a ModelDefinition by exact model ID. Each inference
+// profile variant is registered as its own entry (with its own pricing), so
+// callers must pass the full prefixed ID to get the correct rate card.
 func lookupModel(modelName string) (ModelDefinition, bool) {
-	if def, ok := supportedModels[modelName]; ok {
-		return def, true
+	def, ok := supportedModels[modelName]
+	return def, ok
+}
+
+// claudeModel describes a single logical Claude model on Bedrock and the
+// inference profile variants under which it is exposed.
+type claudeModel struct {
+	baseID       string
+	label        string
+	capabilities llm.ModelCapabilities
+	constraints  llm.ModelConstraints
+	// rates is applied uniformly to every variant (bare, global., and each
+	// geo profile). This is the headline rate AWS publishes for the model,
+	// and matches the bare/global. on-demand price.
+	//
+	// KNOWN LIMITATION: AWS actually charges a ~10% premium for the geo
+	// profiles (us./eu./au./jp.) over the headline rate, so cost reports
+	// derived from this catalog will under-report by ~10% for any geo
+	// invocation. See AI-908 for the proper fix (per-variant pricing for
+	// Claude, plus per-region overrides for non-Anthropic models like Nova /
+	// Gemma / DeepSeek where regional rates can differ by tens of percent).
+	rates pricing.Rates
+	// geoProfiles lists the geo prefixes (without trailing dot) that AWS
+	// publishes for this model.
+	geoProfiles []string
+	// inferenceProfileOnly is true when AWS does not allow on-demand
+	// invocation of the bare foundation-model ID — the only valid calls go
+	// through an inference profile (global. / geo). Anthropic's 4.6+
+	// generation falls into this bucket. When set, expand() omits the bare
+	// catalog entry so Models() does not advertise an ID that cannot be
+	// invoked.
+	inferenceProfileOnly bool
+}
+
+// expand returns one ModelDefinition per inference profile variant. All
+// variants share the same flat rate today — see the rates field doc for the
+// known under-reporting on geo profiles (tracked in AI-908).
+func (c claudeModel) expand() []ModelDefinition {
+	defs := make([]ModelDefinition, 0, 2+len(c.geoProfiles))
+
+	pricingInfo := pricing.FlatInfoFromRates(c.rates)
+
+	if !c.inferenceProfileOnly {
+		defs = append(defs, ModelDefinition{
+			Name:         c.baseID,
+			Label:        c.label,
+			Capabilities: c.capabilities,
+			Constraints:  c.constraints,
+			Pricing:      pricingInfo,
+		})
 	}
 
-	// Strip region prefix: "us.anthropic.claude-…" → "anthropic.claude-…"
-	if _, after, ok := strings.Cut(modelName, "."); ok {
-		if def, ok := supportedModels[after]; ok {
-			return def, true
+	defs = append(defs, ModelDefinition{
+		Name:         "global." + c.baseID,
+		Label:        c.label + " (Global)",
+		Capabilities: c.capabilities,
+		Constraints:  c.constraints,
+		Pricing:      pricingInfo,
+	})
+
+	for _, geo := range c.geoProfiles {
+		defs = append(defs, ModelDefinition{
+			Name:         geo + "." + c.baseID,
+			Label:        c.label + " (" + strings.ToUpper(geo) + ")",
+			Capabilities: c.capabilities,
+			Constraints:  c.constraints,
+			Pricing:      pricingInfo,
+		})
+	}
+
+	return defs
+}
+
+// claudeMillionTokenCaps and claudeStandardCaps capture the two capability
+// shapes shared by all Claude models on Bedrock.
+var (
+	claudeStandardCaps = llm.ModelCapabilities{
+		Streaming:     true,
+		Tools:         true,
+		Vision:        false,
+		MultiTurn:     true,
+		SystemPrompts: true,
+		Reasoning:     true,
+	}
+
+	claudeContext1MConstraints = llm.ModelConstraints{
+		TemperatureRange: [2]float64{0.0, 1.0},
+		MaxInputTokens:   1000000,
+		MaxOutputTokens:  128000,
+		SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
+	}
+
+	claudeContext200kConstraints = llm.ModelConstraints{
+		TemperatureRange: [2]float64{0.0, 1.0},
+		MaxInputTokens:   200000,
+		MaxOutputTokens:  64000,
+		SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
+	}
+)
+
+// claudeModels enumerates every logical Claude model on Bedrock. Pricing
+// rates source: https://aws.amazon.com/bedrock/pricing/ (as of 2026-04).
+//
+// One flat rate per logical model is applied to every inference profile
+// variant. AWS actually charges a ~10% premium on the geo profiles
+// (us./eu./au./jp.) — this catalog under-reports cost on those by ~10%.
+// Modelling per-variant pricing (and per-region overrides for non-Anthropic
+// Bedrock models like Nova / Gemma / DeepSeek) is tracked in AI-908.
+var claudeModels = []claudeModel{
+	{
+		baseID:       ModelClaudeOpus47,
+		label:        "Claude Opus 4.7",
+		capabilities: claudeStandardCaps,
+		constraints:  claudeContext1MConstraints,
+		rates: pricing.NewRates(5.00, 25.00, 0.50).
+			WithCacheCreation(6.25, 10.00, 0),
+		geoProfiles:          []string{"us", "eu", "au"},
+		inferenceProfileOnly: true,
+	},
+	{
+		baseID:       ModelClaudeOpus46,
+		label:        "Claude Opus 4.6",
+		capabilities: claudeStandardCaps,
+		constraints:  claudeContext1MConstraints,
+		rates: pricing.NewRates(5.00, 25.00, 0.50).
+			WithCacheCreation(6.25, 10.00, 0),
+		geoProfiles:          []string{"us", "eu", "au"},
+		inferenceProfileOnly: true,
+	},
+	{
+		baseID:       ModelClaudeOpus45,
+		label:        "Claude Opus 4.5",
+		capabilities: claudeStandardCaps,
+		constraints:  claudeContext200kConstraints,
+		rates: pricing.NewRates(5.00, 25.00, 0.50).
+			WithCacheCreation(6.25, 10.00, 0),
+		geoProfiles: []string{"us", "eu"},
+	},
+	{
+		baseID:       ModelClaudeSonnet46,
+		label:        "Claude Sonnet 4.6",
+		capabilities: claudeStandardCaps,
+		constraints:  claudeContext200kConstraints,
+		rates: pricing.NewRates(3.00, 15.00, 0.30).
+			WithCacheCreation(3.75, 6.00, 0),
+		geoProfiles:          []string{"us", "eu", "au"},
+		inferenceProfileOnly: true,
+	},
+	{
+		baseID:       ModelClaudeSonnet45,
+		label:        "Claude Sonnet 4.5",
+		capabilities: claudeStandardCaps,
+		constraints:  claudeContext200kConstraints,
+		rates: pricing.NewRates(3.00, 15.00, 0.30).
+			WithCacheCreation(3.75, 6.00, 0),
+		geoProfiles: []string{"us", "eu", "au", "jp"},
+	},
+	{
+		baseID:       ModelClaudeHaiku45,
+		label:        "Claude Haiku 4.5",
+		capabilities: claudeStandardCaps,
+		constraints:  claudeContext200kConstraints,
+		rates: pricing.NewRates(1.00, 5.00, 0.10).
+			WithCacheCreation(1.25, 2.00, 0),
+		geoProfiles: []string{"us", "eu", "au"},
+	},
+}
+
+// supportedModels is the per-variant catalog. Every Bedrock model ID that the
+// SDK accepts — including each inference profile prefix — is a key in this map.
+var supportedModels = buildSupportedModels()
+
+func buildSupportedModels() map[string]ModelDefinition {
+	m := make(map[string]ModelDefinition)
+
+	for _, model := range claudeModels {
+		for _, def := range model.expand() {
+			m[def.Name] = def
 		}
 	}
 
-	return ModelDefinition{}, false
-}
-
-// supportedModels defines Claude models available on Bedrock via the Converse API.
-// Standard features only — no Anthropic-specific thinking/effort/speed.
-//
-// Pricing: Anthropic Claude models have uniform pricing across all Bedrock
-// regions — the rates here apply regardless of whether the request is routed
-// via in-region, geo cross-region (us./eu./ap. prefix), or global inference.
-//
-// Note: some non-Anthropic Bedrock models (Gemma, DeepSeek, Amazon Nova) DO
-// have regional pricing differences (up to ~57% premium in certain regions).
-// When those models are added, their definitions should include a
-// pricing.BedrockPricing sub-struct with regional overrides.
-var supportedModels = map[string]ModelDefinition{
-	ModelClaudeOpus47: {
-		Name:  ModelClaudeOpus47,
-		Label: "Claude Opus 4.7",
-		Capabilities: llm.ModelCapabilities{
-			Streaming:     true,
-			Tools:         true,
-			Vision:        false,
-			MultiTurn:     true,
-			SystemPrompts: true,
-			Reasoning:     true,
-		},
-		Constraints: llm.ModelConstraints{
-			TemperatureRange: [2]float64{0.0, 1.0},
-			MaxInputTokens:   1000000,
-			MaxOutputTokens:  128000,
-			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
-		},
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(5.00, 25.00, 0.50).
-				WithCacheCreation(6.25, 10.00, 0),
-		),
-	},
-	ModelClaudeSonnet46: {
-		Name:  ModelClaudeSonnet46,
-		Label: "Claude Sonnet 4.6",
-		Capabilities: llm.ModelCapabilities{
-			Streaming:     true,
-			Tools:         true,
-			Vision:        false,
-			MultiTurn:     true,
-			SystemPrompts: true,
-			Reasoning:     true,
-		},
-		Constraints: llm.ModelConstraints{
-			TemperatureRange: [2]float64{0.0, 1.0},
-			MaxInputTokens:   200000,
-			MaxOutputTokens:  64000,
-			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
-		},
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(3.00, 15.00, 0.30).
-				WithCacheCreation(3.75, 6.00, 0),
-		),
-	},
-	ModelClaudeSonnet45: {
-		Name:  ModelClaudeSonnet45,
-		Label: "Claude Sonnet 4.5",
-		Capabilities: llm.ModelCapabilities{
-			Streaming:     true,
-			Tools:         true,
-			Vision:        false,
-			MultiTurn:     true,
-			SystemPrompts: true,
-			Reasoning:     true,
-		},
-		Constraints: llm.ModelConstraints{
-			TemperatureRange: [2]float64{0.0, 1.0},
-			MaxInputTokens:   200000,
-			MaxOutputTokens:  64000,
-			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
-		},
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(3.00, 15.00, 0.30).
-				WithCacheCreation(3.75, 6.00, 0),
-		),
-	},
-	ModelClaudeHaiku45: {
-		Name:  ModelClaudeHaiku45,
-		Label: "Claude Haiku 4.5",
-		Capabilities: llm.ModelCapabilities{
-			Streaming:     true,
-			Tools:         true,
-			Vision:        false,
-			MultiTurn:     true,
-			SystemPrompts: true,
-			Reasoning:     true,
-		},
-		Constraints: llm.ModelConstraints{
-			TemperatureRange: [2]float64{0.0, 1.0},
-			MaxInputTokens:   200000,
-			MaxOutputTokens:  64000,
-			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
-		},
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(1.00, 5.00, 0.10).
-				WithCacheCreation(1.25, 2.00, 0),
-		),
-	},
-	ModelClaudeOpus46: {
-		Name:  ModelClaudeOpus46,
-		Label: "Claude Opus 4.6",
-		Capabilities: llm.ModelCapabilities{
-			Streaming:     true,
-			Tools:         true,
-			Vision:        false,
-			MultiTurn:     true,
-			SystemPrompts: true,
-			Reasoning:     true,
-		},
-		Constraints: llm.ModelConstraints{
-			TemperatureRange: [2]float64{0.0, 1.0},
-			MaxInputTokens:   1000000,
-			MaxOutputTokens:  128000,
-			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
-		},
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(5.00, 25.00, 0.50).
-				WithCacheCreation(6.25, 10.00, 0),
-		),
-	},
-	ModelClaudeOpus45: {
-		Name:  ModelClaudeOpus45,
-		Label: "Claude Opus 4.5",
-		Capabilities: llm.ModelCapabilities{
-			Streaming:     true,
-			Tools:         true,
-			Vision:        false,
-			MultiTurn:     true,
-			SystemPrompts: true,
-			Reasoning:     true,
-		},
-		Constraints: llm.ModelConstraints{
-			TemperatureRange: [2]float64{0.0, 1.0},
-			MaxInputTokens:   200000,
-			MaxOutputTokens:  64000,
-			SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
-		},
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(5.00, 25.00, 0.50).
-				WithCacheCreation(6.25, 10.00, 0),
-		),
-	},
+	return m
 }

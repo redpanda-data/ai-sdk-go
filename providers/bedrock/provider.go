@@ -159,18 +159,21 @@ func WithCaching() ProviderOption {
 
 // NewModel creates a new Bedrock model instance with the specified configuration.
 func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error) {
-	modelDef, ok := lookupModel(modelName)
-	if !ok {
-		return nil, fmt.Errorf("unsupported Bedrock model: %s", modelName)
-	}
-
 	// Build the API model ID with the region inference-profile prefix.
 	// If the caller already provided a region prefix (e.g. "eu.anthropic.…"),
 	// use it as-is. Otherwise prepend the provider's region.
 	apiModelID := modelName
 
 	if !hasRegionPrefix(apiModelID) {
-		apiModelID = inferenceProfileRegion(p.region) + "." + apiModelID
+		apiModelID = InferenceProfileRegion(p.region) + "." + apiModelID
+	}
+
+	// Look up by the prefixed ID — each inference profile variant is a
+	// separate catalog entry with its own pricing (geo profiles carry a
+	// cross-region premium over the base/global rate).
+	modelDef, ok := lookupModel(apiModelID)
+	if !ok {
+		return nil, fmt.Errorf("unsupported Bedrock model: %s", modelName)
 	}
 
 	cfg := &Config{

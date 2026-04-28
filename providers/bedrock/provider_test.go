@@ -28,7 +28,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
-// ---------- inferenceProfileRegion ----------
+// ---------- InferenceProfileRegion ----------
 
 func TestInferenceProfileRegion(t *testing.T) {
 	t.Parallel()
@@ -51,7 +51,7 @@ func TestInferenceProfileRegion(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.region, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tt.want, inferenceProfileRegion(tt.region))
+			assert.Equal(t, tt.want, InferenceProfileRegion(tt.region))
 		})
 	}
 }
@@ -93,22 +93,33 @@ func TestLookupModel(t *testing.T) {
 		wantDef string // expected ModelDefinition.Name if found
 	}{
 		{
-			name:    "direct model ID",
-			input:   ModelClaudeSonnet46,
+			name:    "bare ID is invokable for 4.5 models",
+			input:   ModelClaudeSonnet45,
 			wantOK:  true,
-			wantDef: ModelClaudeSonnet46,
+			wantDef: ModelClaudeSonnet45,
 		},
 		{
-			name:    "with region prefix",
-			input:   "eu." + ModelClaudeSonnet46,
-			wantOK:  true,
-			wantDef: ModelClaudeSonnet46,
+			name:   "bare ID is not in the catalog for inference-profile-only models",
+			input:  ModelClaudeSonnet46,
+			wantOK: false,
 		},
 		{
-			name:    "versioned with region",
-			input:   "us." + ModelClaudeHaiku45,
+			name:    "geo profile is its own entry",
+			input:   ModelClaudeSonnet46EU,
 			wantOK:  true,
-			wantDef: ModelClaudeHaiku45,
+			wantDef: ModelClaudeSonnet46EU,
+		},
+		{
+			name:    "global profile is its own entry",
+			input:   ModelClaudeOpus47Global,
+			wantOK:  true,
+			wantDef: ModelClaudeOpus47Global,
+		},
+		{
+			name:    "versioned model with region",
+			input:   ModelClaudeHaiku45US,
+			wantOK:  true,
+			wantDef: ModelClaudeHaiku45US,
 		},
 		{
 			name:   "unknown model",
@@ -118,6 +129,11 @@ func TestLookupModel(t *testing.T) {
 		{
 			name:   "unknown with region prefix",
 			input:  "us.meta.llama-3.2-90b",
+			wantOK: false,
+		},
+		{
+			name:   "geo profile not published for this model",
+			input:  "au." + ModelClaudeOpus45,
 			wantOK: false,
 		},
 	}
@@ -287,19 +303,20 @@ func TestNewModel_SupportedModels(t *testing.T) {
 	}
 }
 
-func TestNewModel_APACRegionPrefix(t *testing.T) {
+func TestNewModel_APACRegionPrefixHasNoMatchingModel(t *testing.T) {
 	t.Parallel()
 
-	// Provider configured with an Asia Pacific region should produce
-	// "apac." prefix, not "ap." (which AWS does not recognize).
+	// AWS does not publish an "apac." inference profile for any current
+	// Anthropic Claude model — Sonnet 4.5 has "jp." for Japan, and other
+	// Asia-Pacific regions have to use "global." instead. A provider in
+	// ap-southeast-1 calling NewModel with a bare Claude ID therefore fails
+	// at lookup; that's the correct behavior, exposed here as a regression
+	// guard so anyone re-introducing apac. needs to confirm AWS publishes it.
 	p := &Provider{client: nil, region: "ap-southeast-1"}
 
-	model, err := p.NewModel(ModelClaudeSonnet46)
-	require.NoError(t, err)
-
-	m, ok := model.(*Model)
-	require.True(t, ok)
-	assert.Equal(t, "apac."+ModelClaudeSonnet46, m.config.APIModelID)
+	_, err := p.NewModel(ModelClaudeHaiku45)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported Bedrock model")
 }
 
 func TestNewModel_USRegionPrefix(t *testing.T) {
@@ -811,7 +828,10 @@ func TestResponseMapper_TextResponse(t *testing.T) {
 	// Bedrock reports "optimized"; NormalizeSpeed collapses it to the
 	// cross-provider SpeedFast concept.
 	assert.Equal(t, llm.SpeedFast, resp.Speed)
-	assert.Equal(t, ModelClaudeSonnet46, resp.InvokedModelID)
+	// InvokedModelID reflects the actual inference profile AWS routed to,
+	// not just the logical model name — geo and global profiles bill at
+	// different rates so the routing identity matters downstream.
+	assert.Equal(t, ModelClaudeSonnet46US, resp.InvokedModelID)
 	require.NotNil(t, resp.Usage)
 	assert.Equal(t, 10, resp.Usage.InputTokens)
 	assert.Equal(t, 8, resp.Usage.OutputTokens)
