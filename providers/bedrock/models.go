@@ -48,6 +48,7 @@ const (
 	ModelClaudeSonnet45US     = "us." + ModelClaudeSonnet45
 	ModelClaudeSonnet45EU     = "eu." + ModelClaudeSonnet45
 	ModelClaudeSonnet45AU     = "au." + ModelClaudeSonnet45
+	ModelClaudeSonnet45JP     = "jp." + ModelClaudeSonnet45
 
 	// ModelClaudeHaiku45 is the bare Bedrock ID for Claude Haiku 4.5.
 	ModelClaudeHaiku45       = "anthropic.claude-haiku-4-5-20251001-v1:0"
@@ -55,7 +56,6 @@ const (
 	ModelClaudeHaiku45US     = "us." + ModelClaudeHaiku45
 	ModelClaudeHaiku45EU     = "eu." + ModelClaudeHaiku45
 	ModelClaudeHaiku45AU     = "au." + ModelClaudeHaiku45
-	ModelClaudeHaiku45APAC   = "apac." + ModelClaudeHaiku45
 
 	// ModelClaudeOpus47 is the bare Bedrock ID for Claude Opus 4.7
 	// (inference-profile-only — invoke via one of the prefixed variants).
@@ -76,6 +76,7 @@ const (
 	// ModelClaudeOpus45 is the bare Bedrock ID for Claude Opus 4.5.
 	ModelClaudeOpus45       = "anthropic.claude-opus-4-5-20251101-v1:0"
 	ModelClaudeOpus45Global = "global." + ModelClaudeOpus45
+	ModelClaudeOpus45US     = "us." + ModelClaudeOpus45
 	ModelClaudeOpus45EU     = "eu." + ModelClaudeOpus45
 )
 
@@ -264,7 +265,7 @@ var claudeModels = []claudeModel{
 			WithCacheCreation(6.25, 10.00, 0),
 		geoRates: pricing.NewRates(5.50, 27.50, 0.55).
 			WithCacheCreation(6.875, 11.00, 0),
-		geoProfiles: []string{"eu"},
+		geoProfiles: []string{"us", "eu"},
 	},
 	{
 		baseID:       ModelClaudeSonnet46,
@@ -287,7 +288,7 @@ var claudeModels = []claudeModel{
 			WithCacheCreation(3.75, 6.00, 0),
 		geoRates: pricing.NewRates(3.30, 16.50, 0.33).
 			WithCacheCreation(4.125, 6.60, 0),
-		geoProfiles: []string{"us", "eu", "au"},
+		geoProfiles: []string{"us", "eu", "au", "jp"},
 	},
 	{
 		baseID:       ModelClaudeHaiku45,
@@ -298,7 +299,7 @@ var claudeModels = []claudeModel{
 			WithCacheCreation(1.25, 2.00, 0),
 		geoRates: pricing.NewRates(1.10, 5.50, 0.11).
 			WithCacheCreation(1.375, 2.20, 0),
-		geoProfiles: []string{"us", "eu", "au", "apac"},
+		geoProfiles: []string{"us", "eu", "au"},
 	},
 }
 

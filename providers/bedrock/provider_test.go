@@ -133,7 +133,7 @@ func TestLookupModel(t *testing.T) {
 		},
 		{
 			name:   "geo profile not published for this model",
-			input:  "us." + ModelClaudeOpus45,
+			input:  "au." + ModelClaudeOpus45,
 			wantOK: false,
 		},
 	}
@@ -303,20 +303,20 @@ func TestNewModel_SupportedModels(t *testing.T) {
 	}
 }
 
-func TestNewModel_APACRegionPrefix(t *testing.T) {
+func TestNewModel_APACRegionPrefixHasNoMatchingModel(t *testing.T) {
 	t.Parallel()
 
-	// Provider configured with an Asia Pacific region should produce
-	// "apac." prefix, not "ap." (which AWS does not recognize). Haiku 4.5
-	// is the only Claude model with an apac inference profile.
+	// AWS does not publish an "apac." inference profile for any current
+	// Anthropic Claude model — Sonnet 4.5 has "jp." for Japan, and other
+	// Asia-Pacific regions have to use "global." instead. A provider in
+	// ap-southeast-1 calling NewModel with a bare Claude ID therefore fails
+	// at lookup; that's the correct behavior, exposed here as a regression
+	// guard so anyone re-introducing apac. needs to confirm AWS publishes it.
 	p := &Provider{client: nil, region: "ap-southeast-1"}
 
-	model, err := p.NewModel(ModelClaudeHaiku45)
-	require.NoError(t, err)
-
-	m, ok := model.(*Model)
-	require.True(t, ok)
-	assert.Equal(t, ModelClaudeHaiku45APAC, m.config.APIModelID)
+	_, err := p.NewModel(ModelClaudeHaiku45)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported Bedrock model")
 }
 
 func TestNewModel_USRegionPrefix(t *testing.T) {
