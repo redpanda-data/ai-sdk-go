@@ -78,15 +78,22 @@ type TokenUsage struct {
 	// Provider coverage: Anthropic, Bedrock-Anthropic.
 	CacheCreation1hTokens int `json:"cache_creation_1h_tokens,omitempty"`
 
-	// CacheCreationUnknownTTLTokens is the number of prompt tokens written
-	// to the provider's cache when a TTL-specific field was not available
-	// (older API shapes, future unknown TTLs). Disjoint from InputTokens and
-	// from the 5m/1h counters.
+	// CacheCreationUnknownTTLTokens is a defensive fallback bucket for
+	// cache-write tokens whose TTL the gateway can't categorize as 5m or
+	// 1h. Disjoint from InputTokens and from the 5m/1h counters.
 	//
-	// Extractors fall back to this field when a provider reports an
-	// aggregate cache-write count without a per-TTL breakdown, so the total
-	// stays reflected in BilledInputTokens() without pretending to know the
-	// TTL.
+	// Expected to stay at zero. Both Anthropic-direct and Bedrock Converse
+	// currently return clean per-TTL breakdowns whose sums match the
+	// aggregate cache-write count, so no tokens land here in practice. The
+	// bucket exists as forward-compat for two cases: (1) a provider
+	// introduces a new TTL string the extractor's switch doesn't recognize
+	// (e.g., a hypothetical 24h cache), and (2) the per-TTL breakdown
+	// covers fewer tokens than the aggregate. Either fires on an
+	// upstream-API change — the right response is to add an explicit TTL
+	// bucket (and rate) rather than treat this as a catch-all.
+	//
+	// Provider coverage: Anthropic, Bedrock-Anthropic. A non-zero value is
+	// a signal that gateway-side extraction needs updating.
 	CacheCreationUnknownTTLTokens int `json:"cache_creation_unknown_ttl_tokens,omitempty"`
 
 	// ToolUseInputTokens is the number of prompt tokens consumed by

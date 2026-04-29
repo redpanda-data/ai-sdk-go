@@ -75,10 +75,18 @@ type Rates struct {
 
 	// Prompt-cache writes. Anthropic-family (direct + Bedrock) only:
 	// cache creation is billed separately from standard input, with
-	// distinct rates per TTL. CacheCreationUnknownTTL is the fallback
-	// bucket used when the provider reports aggregate cache-write
-	// tokens without a per-TTL breakdown. All three stay zero on
-	// providers that do not bill cache writes separately.
+	// distinct rates per TTL. All three stay zero on providers that do
+	// not bill cache writes separately.
+	//
+	// CacheCreationUnknownTTLPerMillion is the rate for the defensive
+	// fallback bucket described on llm.TokenUsage.CacheCreationUnknownTTLTokens.
+	// Anthropic does not publish a price for "unknown TTL" — and currently
+	// no tokens land in that bucket, since both Anthropic-direct and
+	// Bedrock Converse return clean per-TTL breakdowns. Catalog entries
+	// therefore set this to zero on purpose. If a provider later
+	// introduces a new TTL value (e.g., 24h), the correct fix is to add
+	// an explicit TTL bucket and price rather than invent a rate for
+	// "unknown".
 	CacheCreation5mPerMillion         int64
 	CacheCreation1hPerMillion         int64
 	CacheCreationUnknownTTLPerMillion int64
