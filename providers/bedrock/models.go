@@ -27,17 +27,20 @@ import (
 // inference profile. The catalog registers each variant as its own entry
 // because AWS prices them differently:
 //
-//   - bare ID (when invokable) and geo profiles (us./eu./au./jp.):
-//     headline (standard) per-region price.
-//   - global. profile: ~10% cheaper than the headline rate (AWS-published
-//     "Global cross-Region inference" savings; see
-//     https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html).
+//   - bare ID (when invokable) and geo profiles (us./eu./au./jp.) use the
+//     "Geo and In-region Cross-region Inference" rate.
+//   - global. profile uses the "Global Cross-region Inference" rate, which
+//     AWS publishes ~10% cheaper than the geo rate. See
+//     https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html
+//     and the two side-by-side Anthropic tables on
+//     https://aws.amazon.com/bedrock/pricing/.
 //
-// 4.6+ models (Sonnet 4.6, Opus 4.6, Opus 4.7) are inference-profile-only —
-// AWS does not allow on-demand invocation of the bare foundation-model ID, so
-// the bare constant exists only as a building block for the prefixed variants
-// and is not registered in supportedModels. Older 4.5 models can be invoked
-// with the bare ID for in-region access and have a real catalog entry.
+// Bare-ID invokability varies per generation. AWS publishes a per-region
+// In-Region availability table on each model card; if no region supports
+// In-Region for a given model, only the inference-profile variants are
+// registered in supportedModels. As of 2026-04, Sonnet 4.6 and Opus 4.6 each
+// support In-Region in a single region only (eu-west-2), which the SDK
+// continues to surface only via the prefixed variants for now.
 const (
 	// ModelClaudeSonnet46 is the bare Bedrock ID for Claude Sonnet 4.6
 	// (inference-profile-only — invoke via one of the prefixed variants).
@@ -62,13 +65,15 @@ const (
 	ModelClaudeHaiku45EU     = "eu." + ModelClaudeHaiku45
 	ModelClaudeHaiku45AU     = "au." + ModelClaudeHaiku45
 
-	// ModelClaudeOpus47 is the bare Bedrock ID for Claude Opus 4.7
-	// (inference-profile-only — invoke via one of the prefixed variants).
+	// ModelClaudeOpus47 is the bare Bedrock ID for Claude Opus 4.7.
+	// AWS publishes In-Region availability for the bare ID in five regions
+	// (us-east-1, us-east-2, eu-north-1, eu-west-1, ap-northeast-1); the
+	// prefixed variants cover the rest.
 	ModelClaudeOpus47       = "anthropic.claude-opus-4-7"
 	ModelClaudeOpus47Global = "global." + ModelClaudeOpus47
 	ModelClaudeOpus47US     = "us." + ModelClaudeOpus47
 	ModelClaudeOpus47EU     = "eu." + ModelClaudeOpus47
-	ModelClaudeOpus47AU     = "au." + ModelClaudeOpus47
+	ModelClaudeOpus47JP     = "jp." + ModelClaudeOpus47
 
 	// ModelClaudeOpus46 is the bare Bedrock ID for Claude Opus 4.6
 	// (inference-profile-only — invoke via one of the prefixed variants).
@@ -168,29 +173,34 @@ var (
 	}
 )
 
-// Per-model rate cards. Two Rates per logical model: the headline rate
-// (applied to bare and to each geo profile) and the global. rate (~10%
-// cheaper, AWS's published Global cross-Region inference savings).
+// Per-model rate cards. Two Rates per logical model, mirroring the two
+// Anthropic tables on https://aws.amazon.com/bedrock/pricing/:
 //
-// Source: https://aws.amazon.com/bedrock/pricing/ (as of 2026-04).
+//   - geo: "Geo and In-region Cross-region Inference" — applies to bare ID
+//     invocations (when supported in-region) and to us./eu./au./jp. profiles.
+//   - global: "Global Cross-region Inference" — applies to global. profiles
+//     and is exactly 10% cheaper than the geo rate per-column.
+//
+// Source: https://aws.amazon.com/bedrock/pricing/ (resolved via the metered
+// units feed at b0.p.awsstatic.com, as of 2026-04).
 //
 // Each variant under supportedModels references one of these by name, so
 // updating a model's price is a one-line change here.
 var (
-	claudeOpus4xHeadline = pricing.NewRates(5.00, 25.00, 0.50).
+	claudeOpus4xGeo = pricing.NewRates(5.50, 27.50, 0.55).
+			WithCacheCreation(6.875, 11.00, 0)
+	claudeOpus4xGlobal = pricing.NewRates(5.00, 25.00, 0.50).
 				WithCacheCreation(6.25, 10.00, 0)
-	claudeOpus4xGlobal = pricing.NewRates(4.50, 22.50, 0.45).
-				WithCacheCreation(5.625, 9.00, 0)
 
-	claudeSonnet4xHeadline = pricing.NewRates(3.00, 15.00, 0.30).
+	claudeSonnet4xGeo = pricing.NewRates(3.30, 16.50, 0.33).
+				WithCacheCreation(4.125, 6.60, 0)
+	claudeSonnet4xGlobal = pricing.NewRates(3.00, 15.00, 0.30).
 				WithCacheCreation(3.75, 6.00, 0)
-	claudeSonnet4xGlobal = pricing.NewRates(2.70, 13.50, 0.27).
-				WithCacheCreation(3.375, 5.40, 0)
 
-	claudeHaiku45Headline = pricing.NewRates(1.00, 5.00, 0.10).
+	claudeHaiku45Geo = pricing.NewRates(1.10, 5.50, 0.11).
+				WithCacheCreation(1.375, 2.20, 0)
+	claudeHaiku45Global = pricing.NewRates(1.00, 5.00, 0.10).
 				WithCacheCreation(1.25, 2.00, 0)
-	claudeHaiku45Global = pricing.NewRates(0.90, 4.50, 0.09).
-				WithCacheCreation(1.125, 1.80, 0)
 )
 
 // supportedModels is the per-variant Bedrock catalog. Every model ID the SDK
@@ -200,13 +210,20 @@ var (
 //
 // Pricing rule encoded per entry:
 //   - bare ID (when invokable) and geo profiles (us./eu./au./jp.) use the
-//     model's headline (standard) rate.
-//   - global. profiles use the model's global rate (~10% cheaper, AWS's
-//     published Global cross-Region inference savings).
+//     model's geo rate.
+//   - global. profiles use the model's global rate (~10% cheaper).
 var supportedModels = map[string]ModelDefinition{
 	// ----------------------------------------------------------------
-	// Claude Opus 4.7 — inference-profile-only, no bare entry.
+	// Claude Opus 4.7 — bare ID is invokable in 5 regions; geo
+	// profiles cover us, eu, jp (au is not published).
 	// ----------------------------------------------------------------
+	ModelClaudeOpus47: {
+		Name:         ModelClaudeOpus47,
+		Label:        "Claude Opus 4.7",
+		Capabilities: claudeStandardCaps,
+		Constraints:  claudeContext1MConstraints,
+		Pricing:      pricing.FlatInfoFromRates(claudeOpus4xGeo),
+	},
 	ModelClaudeOpus47Global: {
 		Name:         ModelClaudeOpus47Global,
 		Label:        "Claude Opus 4.7 (Global)",
@@ -219,21 +236,21 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Opus 4.7 (US)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext1MConstraints,
-		Pricing:      pricing.FlatInfoFromRates(claudeOpus4xHeadline),
+		Pricing:      pricing.FlatInfoFromRates(claudeOpus4xGeo),
 	},
 	ModelClaudeOpus47EU: {
 		Name:         ModelClaudeOpus47EU,
 		Label:        "Claude Opus 4.7 (EU)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext1MConstraints,
-		Pricing:      pricing.FlatInfoFromRates(claudeOpus4xHeadline),
+		Pricing:      pricing.FlatInfoFromRates(claudeOpus4xGeo),
 	},
-	ModelClaudeOpus47AU: {
-		Name:         ModelClaudeOpus47AU,
-		Label:        "Claude Opus 4.7 (AU)",
+	ModelClaudeOpus47JP: {
+		Name:         ModelClaudeOpus47JP,
+		Label:        "Claude Opus 4.7 (JP)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext1MConstraints,
-		Pricing:      pricing.FlatInfoFromRates(claudeOpus4xHeadline),
+		Pricing:      pricing.FlatInfoFromRates(claudeOpus4xGeo),
 	},
 
 	// ----------------------------------------------------------------
@@ -251,21 +268,21 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Opus 4.6 (US)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext1MConstraints,
-		Pricing:      pricing.FlatInfoFromRates(claudeOpus4xHeadline),
+		Pricing:      pricing.FlatInfoFromRates(claudeOpus4xGeo),
 	},
 	ModelClaudeOpus46EU: {
 		Name:         ModelClaudeOpus46EU,
 		Label:        "Claude Opus 4.6 (EU)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext1MConstraints,
-		Pricing:      pricing.FlatInfoFromRates(claudeOpus4xHeadline),
+		Pricing:      pricing.FlatInfoFromRates(claudeOpus4xGeo),
 	},
 	ModelClaudeOpus46AU: {
 		Name:         ModelClaudeOpus46AU,
 		Label:        "Claude Opus 4.6 (AU)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext1MConstraints,
-		Pricing:      pricing.FlatInfoFromRates(claudeOpus4xHeadline),
+		Pricing:      pricing.FlatInfoFromRates(claudeOpus4xGeo),
 	},
 
 	// ----------------------------------------------------------------
@@ -276,7 +293,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Opus 4.5",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
-		Pricing:      pricing.FlatInfoFromRates(claudeOpus4xHeadline),
+		Pricing:      pricing.FlatInfoFromRates(claudeOpus4xGeo),
 	},
 	ModelClaudeOpus45Global: {
 		Name:         ModelClaudeOpus45Global,
@@ -290,14 +307,14 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Opus 4.5 (US)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
-		Pricing:      pricing.FlatInfoFromRates(claudeOpus4xHeadline),
+		Pricing:      pricing.FlatInfoFromRates(claudeOpus4xGeo),
 	},
 	ModelClaudeOpus45EU: {
 		Name:         ModelClaudeOpus45EU,
 		Label:        "Claude Opus 4.5 (EU)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
-		Pricing:      pricing.FlatInfoFromRates(claudeOpus4xHeadline),
+		Pricing:      pricing.FlatInfoFromRates(claudeOpus4xGeo),
 	},
 
 	// ----------------------------------------------------------------
@@ -315,21 +332,21 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Sonnet 4.6 (US)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
-		Pricing:      pricing.FlatInfoFromRates(claudeSonnet4xHeadline),
+		Pricing:      pricing.FlatInfoFromRates(claudeSonnet4xGeo),
 	},
 	ModelClaudeSonnet46EU: {
 		Name:         ModelClaudeSonnet46EU,
 		Label:        "Claude Sonnet 4.6 (EU)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
-		Pricing:      pricing.FlatInfoFromRates(claudeSonnet4xHeadline),
+		Pricing:      pricing.FlatInfoFromRates(claudeSonnet4xGeo),
 	},
 	ModelClaudeSonnet46AU: {
 		Name:         ModelClaudeSonnet46AU,
 		Label:        "Claude Sonnet 4.6 (AU)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
-		Pricing:      pricing.FlatInfoFromRates(claudeSonnet4xHeadline),
+		Pricing:      pricing.FlatInfoFromRates(claudeSonnet4xGeo),
 	},
 
 	// ----------------------------------------------------------------
@@ -340,7 +357,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Sonnet 4.5",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
-		Pricing:      pricing.FlatInfoFromRates(claudeSonnet4xHeadline),
+		Pricing:      pricing.FlatInfoFromRates(claudeSonnet4xGeo),
 	},
 	ModelClaudeSonnet45Global: {
 		Name:         ModelClaudeSonnet45Global,
@@ -354,28 +371,28 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Sonnet 4.5 (US)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
-		Pricing:      pricing.FlatInfoFromRates(claudeSonnet4xHeadline),
+		Pricing:      pricing.FlatInfoFromRates(claudeSonnet4xGeo),
 	},
 	ModelClaudeSonnet45EU: {
 		Name:         ModelClaudeSonnet45EU,
 		Label:        "Claude Sonnet 4.5 (EU)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
-		Pricing:      pricing.FlatInfoFromRates(claudeSonnet4xHeadline),
+		Pricing:      pricing.FlatInfoFromRates(claudeSonnet4xGeo),
 	},
 	ModelClaudeSonnet45AU: {
 		Name:         ModelClaudeSonnet45AU,
 		Label:        "Claude Sonnet 4.5 (AU)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
-		Pricing:      pricing.FlatInfoFromRates(claudeSonnet4xHeadline),
+		Pricing:      pricing.FlatInfoFromRates(claudeSonnet4xGeo),
 	},
 	ModelClaudeSonnet45JP: {
 		Name:         ModelClaudeSonnet45JP,
 		Label:        "Claude Sonnet 4.5 (JP)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
-		Pricing:      pricing.FlatInfoFromRates(claudeSonnet4xHeadline),
+		Pricing:      pricing.FlatInfoFromRates(claudeSonnet4xGeo),
 	},
 
 	// ----------------------------------------------------------------
@@ -386,7 +403,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Haiku 4.5",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
-		Pricing:      pricing.FlatInfoFromRates(claudeHaiku45Headline),
+		Pricing:      pricing.FlatInfoFromRates(claudeHaiku45Geo),
 	},
 	ModelClaudeHaiku45Global: {
 		Name:         ModelClaudeHaiku45Global,
@@ -400,20 +417,20 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Haiku 4.5 (US)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
-		Pricing:      pricing.FlatInfoFromRates(claudeHaiku45Headline),
+		Pricing:      pricing.FlatInfoFromRates(claudeHaiku45Geo),
 	},
 	ModelClaudeHaiku45EU: {
 		Name:         ModelClaudeHaiku45EU,
 		Label:        "Claude Haiku 4.5 (EU)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
-		Pricing:      pricing.FlatInfoFromRates(claudeHaiku45Headline),
+		Pricing:      pricing.FlatInfoFromRates(claudeHaiku45Geo),
 	},
 	ModelClaudeHaiku45AU: {
 		Name:         ModelClaudeHaiku45AU,
 		Label:        "Claude Haiku 4.5 (AU)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
-		Pricing:      pricing.FlatInfoFromRates(claudeHaiku45Headline),
+		Pricing:      pricing.FlatInfoFromRates(claudeHaiku45Geo),
 	},
 }

@@ -18,6 +18,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/redpanda-data/ai-sdk-go/pricing"
 )
 
 func TestAllModelsHavePricing(t *testing.T) {
@@ -47,4 +49,41 @@ func TestModelPricingMatchesModels(t *testing.T) {
 	pricingMap := ModelPricing()
 	assert.Len(t, pricingMap, len(supportedModels),
 		"ModelPricing should return exactly one entry per supported model")
+}
+
+// TestGeoGlobalRatio pins the relationship between the Geo and Global rate
+// cards at exactly 1.10x per column. AWS publishes the Global tier at a
+// 10% discount to the Geo/In-region tier; an earlier version of this catalog
+// inverted the relationship (cf. revert a7f0410), so we encode the direction
+// here to fail loud on any future drift.
+func TestGeoGlobalRatio(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name        string
+		geo, global pricing.Rates
+	}{
+		{"Opus 4.x", claudeOpus4xGeo, claudeOpus4xGlobal},
+		{"Sonnet 4.x", claudeSonnet4xGeo, claudeSonnet4xGlobal},
+		{"Haiku 4.5", claudeHaiku45Geo, claudeHaiku45Global},
+	}
+
+	// 10*geo == 11*global is the exact integer form of geo = 1.10 * global
+	// in the int64-microcent representation pricing.NewRates produces.
+	check := func(t *testing.T, col string, geo, global int64) {
+		t.Helper()
+		assert.Equal(t, 11*global, 10*geo, "%s: geo should be exactly 1.10x global", col)
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			check(t, "input", tc.geo.InputPerMillion, tc.global.InputPerMillion)
+			check(t, "output", tc.geo.OutputPerMillion, tc.global.OutputPerMillion)
+			check(t, "cache read", tc.geo.CachedInputPerMillion, tc.global.CachedInputPerMillion)
+			check(t, "cache 5m write", tc.geo.CacheCreation5mPerMillion, tc.global.CacheCreation5mPerMillion)
+			check(t, "cache 1h write", tc.geo.CacheCreation1hPerMillion, tc.global.CacheCreation1hPerMillion)
+		})
+	}
 }
