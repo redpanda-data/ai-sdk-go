@@ -15,11 +15,11 @@
 package bedrock
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/redpanda-data/ai-sdk-go/pricing"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAllModelsHavePricing(t *testing.T) {
@@ -51,39 +51,58 @@ func TestModelPricingMatchesModels(t *testing.T) {
 		"ModelPricing should return exactly one entry per supported model")
 }
 
-// TestGeoGlobalRatio pins the relationship between the Geo and Global rate
-// cards at exactly 1.10x per column. AWS publishes the Global tier at a
-// 10% discount to the Geo/In-region tier; an earlier version of this catalog
-// inverted the relationship (cf. revert a7f0410), so we encode the direction
-// here to fail loud on any future drift.
+// TestGeoGlobalRatio pins, per logical model, the relationship between the
+// catalog's global. variant and any of its non-global siblings (bare /
+// us. / eu. / au. / jp.): geo == 1.10 * global, exactly, in every priced
+// column. AWS publishes the Global tier at a 10% discount to the
+// Geo/In-region tier; an earlier version of this catalog inverted the
+// relationship (cf. revert a7f0410), so we encode the direction here to
+// fail loud on any future drift.
+//
+// The check walks supportedModels rather than referencing shared rate
+// constants, because the catalog deliberately spells each rate out per
+// entry — Anthropic's intermediate releases (e.g. Opus 4.1) have priced
+// differently in the past, so there is no per-family rate variable.
 func TestGeoGlobalRatio(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name        string
-		geo, global pricing.Rates
-	}{
-		{"Opus 4.x", claudeOpus4xGeo, claudeOpus4xGlobal},
-		{"Sonnet 4.x", claudeSonnet4xGeo, claudeSonnet4xGlobal},
-		{"Haiku 4.5", claudeHaiku45Geo, claudeHaiku45Global},
-	}
+	for id, def := range supportedModels {
+		if !strings.HasPrefix(id, "global.") {
+			continue
+		}
 
-	// 10*geo == 11*global is the exact integer form of geo = 1.10 * global
-	// in the int64-microcent representation pricing.NewRates produces.
-	check := func(t *testing.T, col string, geo, global int64) {
-		t.Helper()
-		assert.Equal(t, 11*global, 10*geo, "%s: geo should be exactly 1.10x global", col)
-	}
+		bare := strings.TrimPrefix(id, "global.")
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+		// Pick any non-global sibling to compare against. Prefer the bare
+		// entry when it exists, otherwise fall back to the us. profile
+		// (every model in the catalog has at least one geo profile).
+		sibling, ok := supportedModels[bare]
+		if !ok {
+			sibling, ok = supportedModels["us."+bare]
+		}
+
+		require.True(t, ok, "global. variant %s has no non-global sibling to compare against", id)
+
+		t.Run(id, func(t *testing.T) {
 			t.Parallel()
 
-			check(t, "input", tc.geo.InputPerMillion, tc.global.InputPerMillion)
-			check(t, "output", tc.geo.OutputPerMillion, tc.global.OutputPerMillion)
-			check(t, "cache read", tc.geo.CachedInputPerMillion, tc.global.CachedInputPerMillion)
-			check(t, "cache 5m write", tc.geo.CacheCreation5mPerMillion, tc.global.CacheCreation5mPerMillion)
-			check(t, "cache 1h write", tc.geo.CacheCreation1hPerMillion, tc.global.CacheCreation1hPerMillion)
+			gl := def.Pricing.Default.Base
+			geo := sibling.Pricing.Default.Base
+
+			// 10*geo == 11*global is the exact integer form of
+			// geo = 1.10 * global in the int64-microcent form
+			// pricing.NewRates produces.
+			check := func(col string, geoVal, globalVal int64) {
+				assert.Equal(t, 11*globalVal, 10*geoVal,
+					"%s/%s: geo (%d) should be exactly 1.10x global (%d)",
+					id, col, geoVal, globalVal)
+			}
+
+			check("input", geo.InputPerMillion, gl.InputPerMillion)
+			check("output", geo.OutputPerMillion, gl.OutputPerMillion)
+			check("cache read", geo.CachedInputPerMillion, gl.CachedInputPerMillion)
+			check("cache 5m write", geo.CacheCreation5mPerMillion, gl.CacheCreation5mPerMillion)
+			check("cache 1h write", geo.CacheCreation1hPerMillion, gl.CacheCreation1hPerMillion)
 		})
 	}
 }
