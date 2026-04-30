@@ -35,12 +35,13 @@ import (
 //     and the two side-by-side Anthropic tables on
 //     https://aws.amazon.com/bedrock/pricing/.
 //
-// Bare-ID invokability varies per generation. AWS publishes a per-region
-// In-Region availability table on each model card; if no region supports
-// In-Region for a given model, only the inference-profile variants are
-// registered in supportedModels. As of 2026-04, Sonnet 4.6 and Opus 4.6 each
-// support In-Region in a single region only (eu-west-2), which the SDK
-// continues to surface only via the prefixed variants for now.
+// Bare-ID invokability varies per generation. The signal we trust is the
+// "In-Region endpoint URL" cell on each model card's Programmatic Access
+// table: if it lists a real bedrock-runtime URL the bare ID is registered
+// in supportedModels, if it says N/A only the inference-profile variants
+// are registered. As of 2026-04, Opus 4.7 is the only Anthropic model on
+// Bedrock with N/A in that cell (every 4.5/4.6 entry, including the
+// inference-profile-only Sonnet 4.6 and Opus 4.6, lists a real URL).
 const (
 	// ModelClaudeSonnet46 is the bare Bedrock ID for Claude Sonnet 4.6
 	// (inference-profile-only — invoke via one of the prefixed variants).
@@ -65,10 +66,10 @@ const (
 	ModelClaudeHaiku45EU     = "eu." + ModelClaudeHaiku45
 	ModelClaudeHaiku45AU     = "au." + ModelClaudeHaiku45
 
-	// ModelClaudeOpus47 is the bare Bedrock ID for Claude Opus 4.7.
-	// AWS publishes In-Region availability for the bare ID in five regions
-	// (us-east-1, us-east-2, eu-north-1, eu-west-1, ap-northeast-1); the
-	// prefixed variants cover the rest.
+	// ModelClaudeOpus47 is the bare Bedrock ID for Claude Opus 4.7
+	// (inference-profile-only — the model card's Programmatic Access table
+	// lists the bedrock-runtime In-Region endpoint URL as N/A, which is
+	// unique to 4.7 among published Anthropic models on Bedrock).
 	ModelClaudeOpus47       = "anthropic.claude-opus-4-7"
 	ModelClaudeOpus47Global = "global." + ModelClaudeOpus47
 	ModelClaudeOpus47US     = "us." + ModelClaudeOpus47
@@ -191,18 +192,9 @@ var (
 //     is exactly 10% cheaper than the geo rate for the same model.
 var supportedModels = map[string]ModelDefinition{
 	// ----------------------------------------------------------------
-	// Claude Opus 4.7 — bare ID is invokable in 5 regions; geo
+	// Claude Opus 4.7 — inference-profile-only, no bare entry. Geo
 	// profiles cover us, eu, jp (au is not published).
 	// ----------------------------------------------------------------
-	ModelClaudeOpus47: {
-		Name:         ModelClaudeOpus47,
-		Label:        "Claude Opus 4.7",
-		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext1MConstraints,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
-		),
-	},
 	ModelClaudeOpus47Global: {
 		Name:         ModelClaudeOpus47Global,
 		Label:        "Claude Opus 4.7 (Global)",
