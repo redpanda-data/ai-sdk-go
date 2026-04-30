@@ -206,15 +206,9 @@ func (rm *RequestMapper) mapParts(parts []*llm.Part) ([]*genai.Part, error) {
 				return nil, errors.New("tool request part has nil ToolRequest")
 			}
 
-			// Parse arguments as map for function call
-			var args map[string]any
-			if err := json.Unmarshal(part.ToolRequest.Arguments, &args); err != nil {
-				return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
-			}
-
 			geminiPart := genai.NewPartFromFunctionCall(
 				part.ToolRequest.Name,
-				args,
+				part.ToolRequest.ArgumentsAsObject(),
 			)
 
 			// Restore thought signature preserved from previous response (required for Gemini 3 Pro)

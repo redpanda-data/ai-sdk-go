@@ -256,17 +256,11 @@ func (rm *RequestMapper) mapAssistantMessage(msg llm.Message) (types.Message, er
 				return apiMsg, errors.New("tool request part has nil ToolRequest")
 			}
 
-			// Parse arguments to a generic map for document.Interface
-			var input map[string]any
-			if err := json.Unmarshal(part.ToolRequest.Arguments, &input); err != nil {
-				return apiMsg, fmt.Errorf("failed to parse tool arguments: %w", err)
-			}
-
 			apiMsg.Content = append(apiMsg.Content, &types.ContentBlockMemberToolUse{
 				Value: types.ToolUseBlock{
 					ToolUseId: aws.String(part.ToolRequest.ID),
 					Name:      aws.String(part.ToolRequest.Name),
-					Input:     document.NewLazyDocument(input),
+					Input:     document.NewLazyDocument(part.ToolRequest.ArgumentsAsObject()),
 				},
 			})
 

@@ -167,6 +167,29 @@ type ToolRequest struct {
 	Arguments json.RawMessage `json:"arguments"`
 }
 
+// ArgumentsAsObject decodes Arguments into a JSON object for provider APIs
+// that require structured input (Anthropic tool_use.input, Bedrock tool_use
+// input, Gemini function_call.args). Empty bytes decode to an empty object,
+// which matches what providers actually send for no-arg tools. Invalid JSON
+// also decodes to an empty object rather than erroring: corrupt arguments
+// can end up in session state when a streaming turn is cut short
+// mid-accumulation (e.g. stop_reason=max_tokens during input_json_delta),
+// and without this fallback every replay of that session fails message
+// mapping with "unexpected end of JSON input". The paired tool_result
+// already carries the original parse error so the model has context.
+func (t *ToolRequest) ArgumentsAsObject() map[string]any {
+	if len(t.Arguments) == 0 {
+		return map[string]any{}
+	}
+
+	var input map[string]any
+	if err := json.Unmarshal(t.Arguments, &input); err != nil {
+		return map[string]any{}
+	}
+
+	return input
+}
+
 // ToolResponse represents the result of executing a tool.
 // This is sent back to the model to continue the conversation.
 type ToolResponse struct {

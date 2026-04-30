@@ -147,15 +147,6 @@ func (m *ResponseMapper) FromProvider(r *responses.Response) (*llm.Response, err
 		finish = llm.FinishReasonToolCalls
 	}
 
-	// Empty content surfaces as error regardless of finish reason — see
-	// providers/anthropic/response_mapper.go for full rationale. Responses
-	// API can produce empty Output when max_tokens hits before any item is
-	// completed (output_item.done never fires).
-	if len(content) == 0 {
-		return nil, fmt.Errorf("%w: provider returned no content blocks (status=%s, response_id=%s)",
-			llm.ErrResponseMapping, r.Status, r.ID)
-	}
-
 	return &llm.Response{
 		ID: r.ID,
 		Message: llm.Message{

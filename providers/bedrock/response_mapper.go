@@ -68,13 +68,6 @@ func (m *ResponseMapper) FromConverseOutput(
 		finishReason = llm.FinishReasonToolCalls
 	}
 
-	// Empty content surfaces as error regardless of stop reason — see
-	// providers/anthropic/response_mapper.go for full rationale.
-	if len(content) == 0 {
-		return nil, fmt.Errorf("%w: provider returned no content blocks (stop_reason=%s)",
-			llm.ErrResponseMapping, stopReason)
-	}
-
 	resp := &llm.Response{
 		Message: llm.Message{
 			Role:    llm.RoleAssistant,
