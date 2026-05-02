@@ -470,6 +470,42 @@ func TestRequestMapper_ToolDefinitions(t *testing.T) {
 	assert.True(t, ok)
 }
 
+func TestRequestMapper_EmptyToolDescription(t *testing.T) {
+	t.Parallel()
+
+	cfg := &Config{
+		ModelName:  "claude-sonnet-4-6",
+		setOptions: make(map[string]bool),
+	}
+
+	mapper := NewRequestMapper(cfg)
+
+	schema := json.RawMessage(`{"type":"object"}`)
+
+	req := &llm.Request{
+		Messages: []llm.Message{
+			llm.NewMessage(llm.RoleUser, llm.NewTextPart("hi")),
+		},
+		Tools: []llm.ToolDefinition{
+			{Name: "search", Description: "Search the web", Parameters: schema},
+			{Name: "subagent_a", Description: "", Parameters: schema},
+			{Name: "summarize", Description: "Summarize text", Parameters: schema},
+			{Name: "subagent_b", Description: "", Parameters: schema},
+		},
+		ToolChoice: &llm.ToolChoice{Type: llm.ToolChoiceAuto},
+	}
+
+	_, err := mapper.ToConverseInput(req)
+	require.Error(t, err)
+	require.ErrorIs(t, err, llm.ErrRequestMapping)
+	// All offenders surfaced in a single error so callers can fix in one pass.
+	assert.Contains(t, err.Error(), "subagent_a")
+	assert.Contains(t, err.Error(), "subagent_b")
+	// Tools with valid descriptions are not flagged.
+	assert.NotContains(t, err.Error(), "missing on: search")
+	assert.NotContains(t, err.Error(), "summarize,")
+}
+
 func TestRequestMapper_ToolChoiceSpecific(t *testing.T) {
 	t.Parallel()
 

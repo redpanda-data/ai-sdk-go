@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
@@ -314,6 +315,22 @@ func (rm *RequestMapper) mapToolResultBlock(resp *llm.ToolResponse) types.ToolRe
 
 // mapToolConfig converts tool definitions and choice to Bedrock ToolConfiguration.
 func (rm *RequestMapper) mapToolConfig(tools []llm.ToolDefinition, choice *llm.ToolChoice) (*types.ToolConfiguration, error) {
+	// Bedrock Converse rejects any tool whose description is the empty
+	// string with an opaque ValidationException ("Member must have length
+	// greater than or equal to 1"). Validate upfront and surface every
+	// offender at once so callers can fix all of them in one pass.
+	var missingDesc []string
+
+	for _, tool := range tools {
+		if tool.Description == "" {
+			missingDesc = append(missingDesc, tool.Name)
+		}
+	}
+
+	if len(missingDesc) > 0 {
+		return nil, fmt.Errorf("bedrock: every tool must have a non-empty description; missing on: %s", strings.Join(missingDesc, ", "))
+	}
+
 	apiTools := make([]types.Tool, 0, len(tools))
 
 	for _, tool := range tools {
