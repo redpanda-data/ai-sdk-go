@@ -35,13 +35,16 @@ import (
 //     and the two side-by-side Anthropic tables on
 //     https://aws.amazon.com/bedrock/pricing/.
 //
-// Bare-ID invokability varies per generation. The signal we trust is the
-// "In-Region endpoint URL" cell on each model card's Programmatic Access
-// table: if it lists a real bedrock-runtime URL the bare ID is registered
-// in supportedModels, if it says N/A only the inference-profile variants
-// are registered. As of 2026-04, Opus 4.7 is the only Anthropic model on
-// Bedrock with N/A in that cell (every 4.5/4.6 entry, including the
-// inference-profile-only Sonnet 4.6 and Opus 4.6, lists a real URL).
+// Every 4.5+ Anthropic model on Bedrock is inference-profile-only:
+// invoking the bare ID via bedrock-runtime returns ValidationException
+// "Invocation of model ID … with on-demand throughput isn't supported.
+// Retry your request with the ID or ARN of an inference profile that
+// contains this model." Verified empirically (2026-04) for Opus 4.5/4.6/4.7,
+// Sonnet 4.5/4.6, and Haiku 4.5 in us-east-2 (and Sonnet 4.5 in us-east-1,
+// Opus 4.7 in eu-west-1) — both AWS doc tables describing bare-ID
+// invokability are unreliable, so the bare consts below exist only as
+// building blocks for the prefixed variants and are NOT registered in
+// supportedModels.
 const (
 	// ModelClaudeSonnet46 is the bare Bedrock ID for Claude Sonnet 4.6
 	// (inference-profile-only — invoke via one of the prefixed variants).
@@ -51,7 +54,8 @@ const (
 	ModelClaudeSonnet46EU     = "eu." + ModelClaudeSonnet46
 	ModelClaudeSonnet46AU     = "au." + ModelClaudeSonnet46
 
-	// ModelClaudeSonnet45 is the bare Bedrock ID for Claude Sonnet 4.5.
+	// ModelClaudeSonnet45 is the bare Bedrock ID for Claude Sonnet 4.5
+	// (inference-profile-only — invoke via one of the prefixed variants).
 	ModelClaudeSonnet45       = "anthropic.claude-sonnet-4-5-20250929-v1:0"
 	ModelClaudeSonnet45Global = "global." + ModelClaudeSonnet45
 	ModelClaudeSonnet45US     = "us." + ModelClaudeSonnet45
@@ -59,7 +63,8 @@ const (
 	ModelClaudeSonnet45AU     = "au." + ModelClaudeSonnet45
 	ModelClaudeSonnet45JP     = "jp." + ModelClaudeSonnet45
 
-	// ModelClaudeHaiku45 is the bare Bedrock ID for Claude Haiku 4.5.
+	// ModelClaudeHaiku45 is the bare Bedrock ID for Claude Haiku 4.5
+	// (inference-profile-only — invoke via one of the prefixed variants).
 	ModelClaudeHaiku45       = "anthropic.claude-haiku-4-5-20251001-v1:0"
 	ModelClaudeHaiku45Global = "global." + ModelClaudeHaiku45
 	ModelClaudeHaiku45US     = "us." + ModelClaudeHaiku45
@@ -67,9 +72,7 @@ const (
 	ModelClaudeHaiku45AU     = "au." + ModelClaudeHaiku45
 
 	// ModelClaudeOpus47 is the bare Bedrock ID for Claude Opus 4.7
-	// (inference-profile-only — the model card's Programmatic Access table
-	// lists the bedrock-runtime In-Region endpoint URL as N/A, which is
-	// unique to 4.7 among published Anthropic models on Bedrock).
+	// (inference-profile-only — invoke via one of the prefixed variants).
 	ModelClaudeOpus47       = "anthropic.claude-opus-4-7"
 	ModelClaudeOpus47Global = "global." + ModelClaudeOpus47
 	ModelClaudeOpus47US     = "us." + ModelClaudeOpus47
@@ -84,7 +87,8 @@ const (
 	ModelClaudeOpus46EU     = "eu." + ModelClaudeOpus46
 	ModelClaudeOpus46AU     = "au." + ModelClaudeOpus46
 
-	// ModelClaudeOpus45 is the bare Bedrock ID for Claude Opus 4.5.
+	// ModelClaudeOpus45 is the bare Bedrock ID for Claude Opus 4.5
+	// (inference-profile-only — invoke via one of the prefixed variants).
 	ModelClaudeOpus45       = "anthropic.claude-opus-4-5-20251101-v1:0"
 	ModelClaudeOpus45Global = "global." + ModelClaudeOpus45
 	ModelClaudeOpus45US     = "us." + ModelClaudeOpus45
@@ -273,17 +277,8 @@ var supportedModels = map[string]ModelDefinition{
 	},
 
 	// ----------------------------------------------------------------
-	// Claude Opus 4.5 — bare ID is invokable.
+	// Claude Opus 4.5 — inference-profile-only, no bare entry.
 	// ----------------------------------------------------------------
-	ModelClaudeOpus45: {
-		Name:         ModelClaudeOpus45,
-		Label:        "Claude Opus 4.5",
-		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext200kConstraints,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
-		),
-	},
 	ModelClaudeOpus45Global: {
 		Name:         ModelClaudeOpus45Global,
 		Label:        "Claude Opus 4.5 (Global)",
@@ -353,17 +348,8 @@ var supportedModels = map[string]ModelDefinition{
 	},
 
 	// ----------------------------------------------------------------
-	// Claude Sonnet 4.5 — bare ID is invokable; widest geo coverage.
+	// Claude Sonnet 4.5 — inference-profile-only, widest geo coverage.
 	// ----------------------------------------------------------------
-	ModelClaudeSonnet45: {
-		Name:         ModelClaudeSonnet45,
-		Label:        "Claude Sonnet 4.5",
-		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext200kConstraints,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0),
-		),
-	},
 	ModelClaudeSonnet45Global: {
 		Name:         ModelClaudeSonnet45Global,
 		Label:        "Claude Sonnet 4.5 (Global)",
@@ -411,17 +397,8 @@ var supportedModels = map[string]ModelDefinition{
 	},
 
 	// ----------------------------------------------------------------
-	// Claude Haiku 4.5 — bare ID is invokable.
+	// Claude Haiku 4.5 — inference-profile-only, no bare entry.
 	// ----------------------------------------------------------------
-	ModelClaudeHaiku45: {
-		Name:         ModelClaudeHaiku45,
-		Label:        "Claude Haiku 4.5",
-		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext200kConstraints,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(1.10, 5.50, 0.11).WithCacheCreation(1.375, 2.20, 0),
-		),
-	},
 	ModelClaudeHaiku45Global: {
 		Name:         ModelClaudeHaiku45Global,
 		Label:        "Claude Haiku 4.5 (Global)",
