@@ -237,7 +237,7 @@ func (a *LLMAgent) executeSingleTurn(
 
 	// Build working message list with system prompt (not persisted)
 	// This creates a transient view for the LLM request
-	reqMessages, err := a.resolveSystemPrompt(ctx, sess.Messages)
+	reqMessages, err := a.resolveSystemPrompt(ctx, inv, sess.Messages)
 	if err != nil {
 		return "", fmt.Errorf("llmagent: system prompt: %w", err)
 	}
@@ -374,13 +374,12 @@ func (a *LLMAgent) executeSingleTurn(
 // prompt prepended. The system prompt is never persisted to the session.
 //
 // When a [SystemPromptProvider] is configured it is called every turn,
-// receiving the request context so callers can pass per-request data
-// (e.g., the authenticated user's identity). Otherwise the static
-// systemPrompt string from the config is used.
-func (a *LLMAgent) resolveSystemPrompt(ctx context.Context, messages []llm.Message) ([]llm.Message, error) {
+// receiving both the request context and the invocation metadata.
+// Otherwise the static systemPrompt string from the config is used.
+func (a *LLMAgent) resolveSystemPrompt(ctx context.Context, inv *agent.InvocationMetadata, messages []llm.Message) ([]llm.Message, error) {
 	prompt := a.config.systemPrompt
 	if a.config.systemPromptProvider != nil {
-		p, err := a.config.systemPromptProvider(ctx)
+		p, err := a.config.systemPromptProvider(ctx, inv)
 		if err != nil {
 			return nil, err
 		}

@@ -21,6 +21,7 @@ import (
 	"iter"
 	"strings"
 	"testing"
+	"text/template"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -95,7 +96,7 @@ func TestNew_Validation(t *testing.T) {
 			agentName: "test",
 			prompt:    "",
 			model:     model,
-			opts: []llmagent.Option{llmagent.WithSystemPromptProvider(func(context.Context) (string, error) {
+			opts: []llmagent.Option{llmagent.WithSystemPromptProvider(func(context.Context, *agent.InvocationMetadata) (string, error) {
 				return "dynamic prompt", nil
 			})},
 		},
@@ -209,38 +210,56 @@ func TestLLMAgent_Info(t *testing.T) {
 func TestRun_SystemPromptProvider(t *testing.T) {
 	t.Parallel()
 
-	t.Run("provider injects per-request data from context", func(t *testing.T) {
+	t.Run("go template with context and invocation metadata", func(t *testing.T) {
 		t.Parallel()
 
 		type emailKey struct{}
 
+		tmpl := template.Must(template.New("sys").Parse(
+			"You are assisting {{.Email}}, an employee at {{.Org}}. Session: {{.SessionID}}",
+		))
+
 		model := fakellm.NewFakeModel()
-		model.When(fakellm.SystemPromptContains("alice@example.com")).
-			ThenStreamText("Hello Alice!", fakellm.StreamConfig{})
+		model.When(fakellm.And(
+			fakellm.SystemPromptContains("alice@acme.com"),
+			fakellm.SystemPromptContains("AcmeCorp"),
+			fakellm.SystemPromptContains("sess-42"),
+		)).ThenStreamText("Hello Alice!", fakellm.StreamConfig{})
 
 		ag, err := llmagent.New("test-agent", "", model,
-			llmagent.WithSystemPromptProvider(func(ctx context.Context) (string, error) {
+			llmagent.WithSystemPromptProvider(func(ctx context.Context, inv *agent.InvocationMetadata) (string, error) {
 				email, _ := ctx.Value(emailKey{}).(string)
-				return "You are assisting " + email, nil
+				org, _ := inv.Session().Metadata["org"].(string)
+				var buf strings.Builder
+				if err := tmpl.Execute(&buf, map[string]string{
+					"Email":     email,
+					"Org":       org,
+					"SessionID": inv.Session().ID,
+				}); err != nil {
+					return "", err
+				}
+				return buf.String(), nil
 			}),
 		)
 		require.NoError(t, err)
 
 		sess := &session.State{
-			ID:       "test-session",
+			ID:       "sess-42",
 			Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hi"))},
+			Metadata: map[string]any{"org": "AcmeCorp"},
 		}
 		inv := agent.NewInvocationMetadata(sess, agent.Info{})
 
-		ctx := context.WithValue(t.Context(), emailKey{}, "alice@example.com")
+		ctx := context.WithValue(t.Context(), emailKey{}, "alice@acme.com")
 		events := collectEvents(t, ag.Run(ctx, inv))
 
 		endEvent := findInvocationEndEvent(events)
 		require.NotNil(t, endEvent)
 		assert.Equal(t, agent.FinishReasonStop, endEvent.FinishReason)
 
-		err = model.CheckCalled(fakellm.SystemPromptContains("alice@example.com"))
-		require.NoError(t, err)
+		require.NoError(t, model.CheckCalled(fakellm.SystemPromptContains("alice@acme.com")))
+		require.NoError(t, model.CheckCalled(fakellm.SystemPromptContains("AcmeCorp")))
+		require.NoError(t, model.CheckCalled(fakellm.SystemPromptContains("sess-42")))
 	})
 
 	t.Run("provider error is terminal", func(t *testing.T) {
@@ -250,7 +269,7 @@ func TestRun_SystemPromptProvider(t *testing.T) {
 		model.When(fakellm.Any()).ThenStreamText("unreachable", fakellm.StreamConfig{})
 
 		ag, err := llmagent.New("test-agent", "", model,
-			llmagent.WithSystemPromptProvider(func(context.Context) (string, error) {
+			llmagent.WithSystemPromptProvider(func(context.Context, *agent.InvocationMetadata) (string, error) {
 				return "", errors.New("identity service unavailable")
 			}),
 		)
@@ -284,7 +303,7 @@ func TestRun_SystemPromptProvider(t *testing.T) {
 			ThenStreamText("OK", fakellm.StreamConfig{})
 
 		ag, err := llmagent.New("test-agent", "static prompt", model,
-			llmagent.WithSystemPromptProvider(func(context.Context) (string, error) {
+			llmagent.WithSystemPromptProvider(func(context.Context, *agent.InvocationMetadata) (string, error) {
 				return "dynamic prompt", nil
 			}),
 		)
@@ -302,8 +321,7 @@ func TestRun_SystemPromptProvider(t *testing.T) {
 		require.NotNil(t, endEvent)
 		assert.Equal(t, agent.FinishReasonStop, endEvent.FinishReason)
 
-		err = model.CheckCalled(fakellm.SystemPromptContains("dynamic"))
-		require.NoError(t, err)
+		require.NoError(t, model.CheckCalled(fakellm.SystemPromptContains("dynamic")))
 	})
 }
 

@@ -26,12 +26,17 @@ import (
 
 // SystemPromptProvider is a function that returns the system prompt for a
 // given request. It is called once per LLM call (i.e., every turn in the
-// agentic loop), receiving the request's context.Context so callers can
-// pass per-request data such as the authenticated user's identity.
+// agentic loop), receiving both the request context and the invocation
+// metadata so callers can draw from either source:
+//
+//   - ctx carries request-scoped values (e.g., authenticated identity
+//     injected by HTTP middleware via [context.WithValue]).
+//   - inv exposes session metadata, per-invocation metadata set by
+//     interceptors, and the current turn number.
 //
 // Use [WithSystemPromptProvider] to configure it. When set, it takes
 // precedence over the static systemPrompt string.
-type SystemPromptProvider func(ctx context.Context) (string, error)
+type SystemPromptProvider func(ctx context.Context, inv *agent.InvocationMetadata) (string, error)
 
 // config holds the internal configuration for an LLMAgent.
 type config struct {
@@ -89,9 +94,9 @@ type Option func(*config)
 // and the static systemPrompt argument to [New] is ignored. Pass an empty
 // string for systemPrompt when using a provider.
 //
-// The provider receives the request's context.Context, so callers can inject
-// per-request data (e.g., authenticated user identity) via [context.WithValue]
-// and read it back inside the provider.
+// The provider receives both context.Context (for request-scoped values like
+// authenticated identity) and [agent.InvocationMetadata] (for session state,
+// interceptor metadata, and turn number).
 func WithSystemPromptProvider(p SystemPromptProvider) Option {
 	return func(c *config) {
 		c.systemPromptProvider = p
