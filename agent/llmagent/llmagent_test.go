@@ -21,6 +21,7 @@ import (
 	"iter"
 	"strings"
 	"testing"
+	"text/template"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -84,11 +85,20 @@ func TestNew_Validation(t *testing.T) {
 			wantErr:   "name is required",
 		},
 		{
-			name:      "missing prompt",
+			name:      "missing prompt and provider",
 			agentName: "test",
 			prompt:    "",
 			model:     model,
 			wantErr:   "system prompt is required",
+		},
+		{
+			name:      "provider replaces static prompt",
+			agentName: "test",
+			prompt:    "",
+			model:     model,
+			opts: []llmagent.Option{llmagent.WithSystemPromptProvider(func(context.Context, *agent.InvocationMetadata) (string, error) {
+				return "dynamic prompt", nil
+			})},
 		},
 		{
 			name:      "missing model",
@@ -193,6 +203,132 @@ func TestLLMAgent_Info(t *testing.T) {
 		ag, err := llmagent.New("test-agent", "You are helpful", simpleModel{})
 		require.NoError(t, err)
 		assert.Empty(t, ag.Info().Description)
+	})
+}
+
+// TestRun_SystemPromptProvider verifies dynamic system prompt resolution.
+func TestRun_SystemPromptProvider(t *testing.T) {
+	t.Parallel()
+
+	t.Run("go template with context and invocation metadata", func(t *testing.T) {
+		t.Parallel()
+
+		type emailKey struct{}
+
+		tmpl := template.Must(template.New("sys").Parse(
+			"You are assisting {{.Email}}, an employee at {{.Org}}. Session: {{.SessionID}}",
+		))
+
+		model := fakellm.NewFakeModel()
+		model.When(fakellm.And(
+			fakellm.SystemPromptContains("alice@acme.com"),
+			fakellm.SystemPromptContains("AcmeCorp"),
+			fakellm.SystemPromptContains("sess-42"),
+		)).ThenStreamText("Hello Alice!", fakellm.StreamConfig{})
+
+		ag, err := llmagent.New("test-agent", "", model,
+			llmagent.WithSystemPromptProvider(func(ctx context.Context, inv *agent.InvocationMetadata) (string, error) {
+				email, _ := ctx.Value(emailKey{}).(string)
+				org, _ := inv.Session().Metadata["org"].(string)
+
+				var buf strings.Builder
+				if err := tmpl.Execute(&buf, map[string]string{
+					"Email":     email,
+					"Org":       org,
+					"SessionID": inv.Session().ID,
+				}); err != nil {
+					return "", err
+				}
+
+				return buf.String(), nil
+			}),
+		)
+		require.NoError(t, err)
+
+		sess := &session.State{
+			ID:       "sess-42",
+			Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hi"))},
+			Metadata: map[string]any{"org": "AcmeCorp"},
+		}
+		inv := agent.NewInvocationMetadata(sess, agent.Info{})
+
+		ctx := context.WithValue(t.Context(), emailKey{}, "alice@acme.com")
+		events := collectEvents(t, ag.Run(ctx, inv))
+
+		endEvent := findInvocationEndEvent(events)
+		require.NotNil(t, endEvent)
+		assert.Equal(t, agent.FinishReasonStop, endEvent.FinishReason)
+
+		call, err := model.LastCall()
+		require.NoError(t, err)
+		require.NotEmpty(t, call.Request.Messages)
+		assert.Equal(t, llm.RoleSystem, call.Request.Messages[0].Role)
+		assert.Equal(t,
+			"You are assisting alice@acme.com, an employee at AcmeCorp. Session: sess-42",
+			call.Request.Messages[0].TextContent(),
+		)
+	})
+
+	t.Run("provider error is terminal", func(t *testing.T) {
+		t.Parallel()
+
+		model := fakellm.NewFakeModel()
+		model.When(fakellm.Any()).ThenStreamText("unreachable", fakellm.StreamConfig{})
+
+		ag, err := llmagent.New("test-agent", "", model,
+			llmagent.WithSystemPromptProvider(func(context.Context, *agent.InvocationMetadata) (string, error) {
+				return "", errors.New("identity service unavailable")
+			}),
+		)
+		require.NoError(t, err)
+
+		sess := &session.State{
+			ID:       "test-session",
+			Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hi"))},
+		}
+		inv := agent.NewInvocationMetadata(sess, agent.Info{})
+
+		var terminalErr error
+
+		for _, err := range ag.Run(t.Context(), inv) {
+			if err != nil {
+				terminalErr = err
+				break
+			}
+		}
+
+		require.Error(t, terminalErr)
+		assert.Contains(t, terminalErr.Error(), "identity service unavailable")
+		assert.Equal(t, 0, model.CallCount(), "model should not be called when provider fails")
+	})
+
+	t.Run("provider takes precedence over static prompt", func(t *testing.T) {
+		t.Parallel()
+
+		model := fakellm.NewFakeModel()
+		model.When(fakellm.SystemPromptContains("dynamic")).
+			ThenStreamText("OK", fakellm.StreamConfig{})
+
+		ag, err := llmagent.New("test-agent", "static prompt", model,
+			llmagent.WithSystemPromptProvider(func(context.Context, *agent.InvocationMetadata) (string, error) {
+				return "dynamic prompt", nil
+			}),
+		)
+		require.NoError(t, err)
+
+		sess := &session.State{
+			ID:       "test-session",
+			Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hi"))},
+		}
+		inv := agent.NewInvocationMetadata(sess, agent.Info{})
+
+		events := collectEvents(t, ag.Run(t.Context(), inv))
+
+		endEvent := findInvocationEndEvent(events)
+		require.NotNil(t, endEvent)
+		assert.Equal(t, agent.FinishReasonStop, endEvent.FinishReason)
+
+		require.NoError(t, model.CheckCalled(fakellm.SystemPromptContains("dynamic")))
 	})
 }
 
