@@ -230,6 +230,7 @@ func TestRun_SystemPromptProvider(t *testing.T) {
 			llmagent.WithSystemPromptProvider(func(ctx context.Context, inv *agent.InvocationMetadata) (string, error) {
 				email, _ := ctx.Value(emailKey{}).(string)
 				org, _ := inv.Session().Metadata["org"].(string)
+
 				var buf strings.Builder
 				if err := tmpl.Execute(&buf, map[string]string{
 					"Email":     email,
@@ -238,6 +239,7 @@ func TestRun_SystemPromptProvider(t *testing.T) {
 				}); err != nil {
 					return "", err
 				}
+
 				return buf.String(), nil
 			}),
 		)
@@ -257,9 +259,14 @@ func TestRun_SystemPromptProvider(t *testing.T) {
 		require.NotNil(t, endEvent)
 		assert.Equal(t, agent.FinishReasonStop, endEvent.FinishReason)
 
-		require.NoError(t, model.CheckCalled(fakellm.SystemPromptContains("alice@acme.com")))
-		require.NoError(t, model.CheckCalled(fakellm.SystemPromptContains("AcmeCorp")))
-		require.NoError(t, model.CheckCalled(fakellm.SystemPromptContains("sess-42")))
+		call, err := model.LastCall()
+		require.NoError(t, err)
+		require.NotEmpty(t, call.Request.Messages)
+		assert.Equal(t, llm.RoleSystem, call.Request.Messages[0].Role)
+		assert.Equal(t,
+			"You are assisting alice@acme.com, an employee at AcmeCorp. Session: sess-42",
+			call.Request.Messages[0].TextContent(),
+		)
 	})
 
 	t.Run("provider error is terminal", func(t *testing.T) {
