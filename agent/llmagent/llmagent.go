@@ -237,7 +237,10 @@ func (a *LLMAgent) executeSingleTurn(
 
 	// Build working message list with system prompt (not persisted)
 	// This creates a transient view for the LLM request
-	reqMessages := a.ensureSystemPrompt(sess.Messages)
+	reqMessages, err := a.resolveSystemPrompt(ctx, sess.Messages)
+	if err != nil {
+		return "", fmt.Errorf("llmagent: system prompt: %w", err)
+	}
 
 	// Prepare request
 	req := &llm.Request{
@@ -367,20 +370,34 @@ func (a *LLMAgent) executeSingleTurn(
 	return "", nil
 }
 
-// ensureSystemPrompt adds the system prompt if not already present.
+// resolveSystemPrompt produces a transient message list with the system
+// prompt prepended. The system prompt is never persisted to the session.
 //
-// The system prompt is never persisted - it's only added at runtime.
-// This prevents duplication across invocations.
-func (a *LLMAgent) ensureSystemPrompt(messages []llm.Message) []llm.Message {
-	if len(messages) > 0 && messages[0].Role == llm.RoleSystem {
-		// System prompt already present
-		return messages
+// When a [SystemPromptProvider] is configured it is called every turn,
+// receiving the request context so callers can pass per-request data
+// (e.g., the authenticated user's identity). Otherwise the static
+// systemPrompt string from the config is used.
+func (a *LLMAgent) resolveSystemPrompt(ctx context.Context, messages []llm.Message) ([]llm.Message, error) {
+	prompt := a.config.systemPrompt
+	if a.config.systemPromptProvider != nil {
+		p, err := a.config.systemPromptProvider(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		prompt = p
 	}
 
-	// Prepend system prompt
-	systemMsg := llm.NewMessage(llm.RoleSystem, llm.NewTextPart(a.config.systemPrompt))
+	systemMsg := llm.NewMessage(llm.RoleSystem, llm.NewTextPart(prompt))
 
-	return append([]llm.Message{systemMsg}, messages...)
+	// Strip an existing system message — it's always stale since the
+	// session never stores one; this guards against a previous turn's
+	// transient copy leaking in.
+	if len(messages) > 0 && messages[0].Role == llm.RoleSystem {
+		messages = messages[1:]
+	}
+
+	return append([]llm.Message{systemMsg}, messages...), nil
 }
 
 // generate calls the LLM to generate a response.
