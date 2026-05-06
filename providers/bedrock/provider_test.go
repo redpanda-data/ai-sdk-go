@@ -93,13 +93,17 @@ func TestLookupModel(t *testing.T) {
 		wantDef string // expected ModelDefinition.Name if found
 	}{
 		{
-			name:    "bare ID is invokable for 4.5 models",
-			input:   ModelClaudeSonnet45,
-			wantOK:  true,
-			wantDef: ModelClaudeSonnet45,
+			// Every Anthropic 4.5+ model on Bedrock returns
+			// "ValidationException: on-demand throughput isn't supported"
+			// for the bare ID. Verified empirically against bedrock-runtime
+			// in us-east-2; we do not register bare entries for any of
+			// them. See note at top of models.go.
+			name:   "bare ID is not in the catalog for inference-profile-only models",
+			input:  ModelClaudeSonnet45,
+			wantOK: false,
 		},
 		{
-			name:   "bare ID is not in the catalog for inference-profile-only models",
+			name:   "bare ID for 4.6 is also not in the catalog",
 			input:  ModelClaudeSonnet46,
 			wantOK: false,
 		},
