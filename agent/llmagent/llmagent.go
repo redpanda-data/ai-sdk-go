@@ -127,6 +127,11 @@ func (a *LLMAgent) InputSchema() map[string]any {
 // The stream always ends with InvocationEndEvent, even on error or cancellation.
 func (a *LLMAgent) Run(ctx context.Context, inv *agent.InvocationMetadata) iter.Seq2[agent.Event, error] {
 	return func(yield func(agent.Event, error) bool) {
+		if inv == nil {
+			yield(nil, errors.New("llmagent: invocation metadata is required"))
+			return
+		}
+
 		// Helper: create event envelope
 		makeEnvelope := func() agent.EventEnvelope {
 			return agent.EventEnvelope{
@@ -386,6 +391,34 @@ func (a *LLMAgent) resolveSystemPrompt(ctx context.Context, inv *agent.Invocatio
 
 		prompt = p
 	}
+
+	// Append Global Instructions if present in context
+	if globalInstr := agent.GlobalInstructions(ctx); globalInstr != "" {
+		prompt = fmt.Sprintf("%s\n\n---\n## Global Instructions\n%s", prompt, globalInstr)
+	}
+
+	// Collect variables for templating
+	vars := make(map[string]any)
+
+	// 1. Session Metadata
+	if sess := inv.Session(); sess != nil && sess.Metadata != nil {
+		for k, v := range sess.Metadata {
+			vars[k] = v
+		}
+	}
+
+	// 2. Invocation Metadata (overrides session)
+	if inv.Metadata() != nil {
+		for k, v := range inv.Metadata() {
+			vars[k] = v
+		}
+	}
+
+	// 3. Built-in variables
+	vars["current_date"] = time.Now().UTC().Format("2006-01-02")
+
+	// Resolve template placeholders
+	prompt = agent.ResolveTemplate(prompt, vars)
 
 	systemMsg := llm.NewMessage(llm.RoleSystem, llm.NewTextPart(prompt))
 
