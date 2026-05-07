@@ -24,33 +24,37 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/tool"
 )
 
-// SystemPromptProvider is a function that returns the system prompt for a
+// InstructionProvider is a function that returns the system prompt for a
 // given request. It is called once per LLM call (i.e., every turn in the
 // agentic loop), receiving both the request context and the invocation
 // metadata so callers can draw from either source:
 //
 //   - ctx carries request-scoped values (e.g., authenticated identity
 //     injected by HTTP middleware via [context.WithValue]).
-//   - inv exposes session metadata, per-invocation metadata set by
-//     interceptors, and the current turn number.
+//   - inv.Session().Metadata contains long-lived session state, which is the
+//     preferred source for persistent templating variables (e.g., user name,
+//     preferences).
+//   - inv.Metadata() contains transient metadata primarily used for
+//     interceptor communication during the current invocation.
 //
-// Use [WithSystemPromptProvider] to configure it. When set, it takes
+// Use [WithInstructionProvider] to configure it. When set, it takes
 // precedence over the static systemPrompt string.
-type SystemPromptProvider func(ctx context.Context, inv *agent.InvocationMetadata) (string, error)
+type InstructionProvider func(ctx context.Context, inv *agent.InvocationMetadata) (string, error)
 
 // config holds the internal configuration for an LLMAgent.
 type config struct {
-	name                 string
-	description          string
-	systemPrompt         string
-	systemPromptProvider SystemPromptProvider
-	id                   string
-	version              string
-	model                llm.Model
-	tools                tool.Registry
-	interceptors         []agent.Interceptor
-	maxTurns             int
-	toolConcurrency      int
+	name                string
+	description         string
+	systemPrompt        string
+	instructionProvider InstructionProvider
+	globalInstruction   string
+	id                  string
+	version             string
+	model               llm.Model
+	tools               tool.Registry
+	interceptors        []agent.Interceptor
+	maxTurns            int
+	toolConcurrency     int
 }
 
 // validate checks that the configuration is valid.
@@ -59,8 +63,8 @@ func (c *config) validate() error {
 		return errors.New("llmagent: name is required")
 	}
 
-	if c.systemPrompt == "" && c.systemPromptProvider == nil {
-		return errors.New("llmagent: system prompt is required (set either systemPrompt or SystemPromptProvider)")
+	if c.systemPrompt == "" && c.instructionProvider == nil {
+		return errors.New("llmagent: system prompt is required (set either systemPrompt or InstructionProvider)")
 	}
 
 	if c.model == nil {
@@ -88,7 +92,7 @@ func (c *config) validate() error {
 // Option configures an LLMAgent.
 type Option func(*config)
 
-// WithSystemPromptProvider sets a dynamic system prompt provider.
+// WithInstructionProvider sets a dynamic system prompt provider.
 //
 // When set, the provider is called every turn to produce the system prompt,
 // and the static systemPrompt argument to [New] is ignored. Pass an empty
@@ -97,9 +101,9 @@ type Option func(*config)
 // The provider receives both context.Context (for request-scoped values like
 // authenticated identity) and [agent.InvocationMetadata] (for session state,
 // interceptor metadata, and turn number).
-func WithSystemPromptProvider(p SystemPromptProvider) Option {
+func WithInstructionProvider(p InstructionProvider) Option {
 	return func(c *config) {
-		c.systemPromptProvider = p
+		c.instructionProvider = p
 	}
 }
 
@@ -146,6 +150,15 @@ func WithInterceptors(i ...agent.Interceptor) Option {
 func WithID(id string) Option {
 	return func(c *config) {
 		c.id = id
+	}
+}
+
+// WithGlobalInstruction sets a static global instruction that applies to
+// all agents in a multi-agent tree. It is appended to the system prompt
+// along with any instructions found in the context.
+func WithGlobalInstruction(instr string) Option {
+	return func(c *config) {
+		c.globalInstruction = instr
 	}
 }
 

@@ -16,6 +16,7 @@ package llmagent_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -29,20 +30,36 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/store/session"
 )
 
-func TestDynamicSystemPrompt(t *testing.T) {
+func TestDynamicInstructionProvider(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-
-	// Base prompt with various placeholders
-	basePrompt := "Hello {user_name}! Today is {current_date}. Your role is {role}. App: {app_name}."
 
 	// Setup fake model to capture the request
 	fake := fakellm.NewFakeModel()
 	fake.When(fakellm.Any()).ThenRespondText("Done")
 
-	// Create agent
-	a, err := llmagent.New("test-agent", basePrompt, fake)
+	// Create agent with InstructionProvider
+	a, err := llmagent.New("test-agent", "Fallback prompt", fake,
+		llmagent.WithInstructionProvider(func(ctx context.Context, inv *agent.InvocationMetadata) (string, error) {
+			user := "Unknown"
+			if v, ok := inv.Metadata()["user_name"]; ok {
+				user = v.(string)
+			} else if sess := inv.Session(); sess != nil && sess.Metadata != nil {
+				if v, ok := sess.Metadata["user_name"]; ok {
+					user = v.(string)
+				}
+			}
+
+			role := "Assistant"
+			if v, ok := inv.Metadata()["role"]; ok {
+				role = v.(string)
+			}
+
+			date := time.Now().UTC().Format("2006-01-02")
+			return fmt.Sprintf("Hello %s! Today is %s. Your role is %s.", user, date, role), nil
+		}),
+	)
 	require.NoError(t, err)
 
 	// Case 1: Session Metadata
@@ -51,8 +68,6 @@ func TestDynamicSystemPrompt(t *testing.T) {
 			ID: "test-sess",
 			Metadata: map[string]any{
 				"user_name": "Alice",
-				"role":      "Assistant",
-				"app_name":  "TestApp",
 			},
 		}
 		sess.Messages = append(sess.Messages, llm.NewMessage(llm.RoleUser, llm.NewTextPart("hi")))
@@ -60,10 +75,9 @@ func TestDynamicSystemPrompt(t *testing.T) {
 
 		for evt, err := range a.Run(ctx, inv) {
 			require.NoError(t, err)
-			_ = evt // skip events
+			_ = evt
 		}
 
-		// Inspect the captured request
 		reqs := fake.Calls()
 		require.Len(t, reqs, 1)
 		
@@ -74,7 +88,6 @@ func TestDynamicSystemPrompt(t *testing.T) {
 		assert.Contains(t, systemMsg.TextContent(), "Hello Alice!")
 		assert.Contains(t, systemMsg.TextContent(), "Today is "+expectedDate)
 		assert.Contains(t, systemMsg.TextContent(), "Your role is Assistant")
-		assert.Contains(t, systemMsg.TextContent(), "App: TestApp")
 	})
 
 	// Case 2: Invocation Metadata Overrides Session
@@ -88,7 +101,8 @@ func TestDynamicSystemPrompt(t *testing.T) {
 		}
 		sess.Messages = append(sess.Messages, llm.NewMessage(llm.RoleUser, llm.NewTextPart("hi")))
 		inv := agent.NewInvocationMetadata(sess, a.Info())
-		inv.SetMetadata("user_name", "Bob") // Override session
+		inv.SetMetadata("user_name", "Bob")
+		inv.SetMetadata("role", "Expert")
 
 		for evt, err := range a.Run(ctx, inv) {
 			require.NoError(t, err)
@@ -98,6 +112,7 @@ func TestDynamicSystemPrompt(t *testing.T) {
 		reqs := fake.Calls()
 		systemMsg := findSystemMessage(reqs[0].Request)
 		assert.Contains(t, systemMsg.TextContent(), "Hello Bob!")
+		assert.Contains(t, systemMsg.TextContent(), "Your role is Expert")
 	})
 
 	// Case 3: Global Instructions from Context
@@ -121,32 +136,6 @@ func TestDynamicSystemPrompt(t *testing.T) {
 		assert.Contains(t, systemMsg.TextContent(), "---")
 		assert.Contains(t, systemMsg.TextContent(), "## Global Instructions")
 		assert.Contains(t, systemMsg.TextContent(), "Be extremely polite.")
-	})
-
-	// Case 4: JSON Safety
-	t.Run("JSON Safety", func(t *testing.T) {
-		fake.ResetCalls()
-		jsonPrompt := `Format: {"name": "{user_name}", "data": { "key": "val" }}`
-		a2, _ := llmagent.New("json-agent", jsonPrompt, fake)
-		
-		sess := &session.State{
-			ID: "test-sess",
-			Metadata: map[string]any{"user_name": "Alice"},
-		}
-		sess.Messages = append(sess.Messages, llm.NewMessage(llm.RoleUser, llm.NewTextPart("hi")))
-		inv := agent.NewInvocationMetadata(sess, a2.Info())
-
-		for evt, err := range a2.Run(ctx, inv) {
-			require.NoError(t, err)
-			_ = evt
-		}
-
-		reqs := fake.Calls()
-		systemMsg := findSystemMessage(reqs[0].Request)
-		
-		// Should replace {user_name} but NOT touch { "key": "val" }
-		assert.Contains(t, systemMsg.TextContent(), `"name": "Alice"`)
-		assert.Contains(t, systemMsg.TextContent(), `"data": { "key": "val" }`)
 	})
 }
 

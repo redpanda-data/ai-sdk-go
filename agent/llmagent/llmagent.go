@@ -378,47 +378,34 @@ func (a *LLMAgent) executeSingleTurn(
 // resolveSystemPrompt produces a transient message list with the system
 // prompt prepended. The system prompt is never persisted to the session.
 //
-// When a [SystemPromptProvider] is configured it is called every turn,
+// When an [InstructionProvider] is configured it is called every turn,
 // receiving both the request context and the invocation metadata.
 // Otherwise the static systemPrompt string from the config is used.
 func (a *LLMAgent) resolveSystemPrompt(ctx context.Context, inv *agent.InvocationMetadata, messages []llm.Message) ([]llm.Message, error) {
 	prompt := a.config.systemPrompt
-	if a.config.systemPromptProvider != nil {
-		p, err := a.config.systemPromptProvider(ctx, inv)
+	if a.config.instructionProvider != nil {
+		p, err := a.config.instructionProvider(ctx, inv)
 		if err != nil {
-			return nil, err
+			// Fall back to static prompt on error as per design
+			p = a.config.systemPrompt
 		}
-
 		prompt = p
 	}
 
-	// Append Global Instructions if present in context
-	if globalInstr := agent.GlobalInstructions(ctx); globalInstr != "" {
+	// Collect all global instructions (static + context)
+	globalInstr := a.config.globalInstruction
+	if ctxInstr := agent.GlobalInstructions(ctx); ctxInstr != "" {
+		if globalInstr != "" {
+			globalInstr += "\n" + ctxInstr
+		} else {
+			globalInstr = ctxInstr
+		}
+	}
+
+	// Append Global Instructions if any are present
+	if globalInstr != "" {
 		prompt = fmt.Sprintf("%s\n\n---\n## Global Instructions\n%s", prompt, globalInstr)
 	}
-
-	// Collect variables for templating
-	vars := make(map[string]any)
-
-	// 1. Session Metadata
-	if sess := inv.Session(); sess != nil && sess.Metadata != nil {
-		for k, v := range sess.Metadata {
-			vars[k] = v
-		}
-	}
-
-	// 2. Invocation Metadata (overrides session)
-	if inv.Metadata() != nil {
-		for k, v := range inv.Metadata() {
-			vars[k] = v
-		}
-	}
-
-	// 3. Built-in variables
-	vars["current_date"] = time.Now().UTC().Format("2006-01-02")
-
-	// Resolve template placeholders
-	prompt = agent.ResolveTemplate(prompt, vars)
 
 	systemMsg := llm.NewMessage(llm.RoleSystem, llm.NewTextPart(prompt))
 
