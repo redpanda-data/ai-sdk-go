@@ -2,8 +2,12 @@ package aisdk
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
+	"iter"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -371,6 +375,78 @@ func TestHandler_V6PartsFormat(t *testing.T) {
 	}
 	if capturedMessages[2].Content[0].Text != "follow up" {
 		t.Errorf("msg[2] text = %q, want 'follow up'", capturedMessages[2].Content[0].Text)
+	}
+}
+
+// errorStreamModel is a minimal llm.Model that yields specific event sequences
+// for testing error handling in StreamModel.
+type errorStreamModel struct {
+	events []llm.Event
+}
+
+func (m *errorStreamModel) Name() string                         { return "error-test-model" }
+func (m *errorStreamModel) Provider() string                     { return "test" }
+func (m *errorStreamModel) Capabilities() llm.ModelCapabilities  { return llm.ModelCapabilities{Streaming: true} }
+func (m *errorStreamModel) Constraints() llm.ModelConstraints    { return llm.ModelConstraints{} }
+func (m *errorStreamModel) Generate(_ context.Context, _ *llm.Request) (*llm.Response, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+func (m *errorStreamModel) GenerateEvents(_ context.Context, _ *llm.Request) iter.Seq2[llm.Event, error] {
+	return func(yield func(llm.Event, error) bool) {
+		for _, e := range m.events {
+			if !yield(e, nil) {
+				return
+			}
+		}
+	}
+}
+
+func TestStreamModel_StreamEndEventWithError(t *testing.T) {
+	// Test that when StreamEndEvent carries an error, the adapter emits
+	// error + finish-step + finish(finishReason:"error")
+	model := &errorStreamModel{
+		events: []llm.Event{
+			llm.ContentPartEvent{Index: 0, Part: llm.NewTextPart("partial")},
+			llm.StreamEndEvent{Error: errors.New("provider exploded")},
+		},
+	}
+
+	rec := httptest.NewRecorder()
+	ew := NewEventWriter(rec)
+	StreamModel(context.Background(), model, &llm.Request{
+		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("hi"))},
+	}, ew, nil)
+
+	chunks, done := parseSSE(t, rec.Body)
+	if !done {
+		t.Error("stream not terminated with [DONE]")
+	}
+
+	types := chunkTypes(chunks)
+	// start → start-step → text-start → text-delta → error → text-end → finish-step → finish
+	expected := []string{"start", "start-step", "text-start", "text-delta", "error", "text-end", "finish-step", "finish"}
+	if len(types) != len(expected) {
+		t.Fatalf("chunk types = %v, want %v", types, expected)
+	}
+	for i, exp := range expected {
+		if types[i] != exp {
+			t.Fatalf("chunk[%d] type = %q, want %q\nall types: %v", i, types[i], exp, types)
+		}
+	}
+
+	// Verify error text
+	for _, c := range chunks {
+		if c["type"] == "error" {
+			if et, ok := c["errorText"].(string); !ok || et != "provider exploded" {
+				t.Errorf("error.errorText = %v, want \"provider exploded\"", c["errorText"])
+			}
+		}
+	}
+
+	// Verify finish has finishReason "error" (NOT "stop")
+	finishChunk := chunks[len(chunks)-1]
+	if reason, ok := finishChunk["finishReason"].(string); !ok || reason != "error" {
+		t.Errorf("finish.finishReason = %v, want \"error\"", finishChunk["finishReason"])
 	}
 }
 
