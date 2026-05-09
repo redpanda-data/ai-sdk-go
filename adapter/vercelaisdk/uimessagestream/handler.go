@@ -22,6 +22,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -44,9 +45,15 @@ func Handler(model llm.Model, opts ...Option) http.Handler {
 // Option configures the handler.
 type Option func(*config)
 
+// ToolExecutor is called when the model requests a tool call. It receives the
+// tool name and parsed JSON arguments, and returns the result as JSON bytes.
+type ToolExecutor func(ctx context.Context, name string, args json.RawMessage) (json.RawMessage, error)
+
 type config struct {
-	system string
-	logger *slog.Logger
+	system   string
+	logger   *slog.Logger
+	tools    []llm.ToolDefinition
+	executor ToolExecutor
 }
 
 // WithSystem sets the system prompt prepended to every request.
@@ -57,6 +64,17 @@ func WithSystem(prompt string) Option {
 // WithLogger sets the logger for the handler.
 func WithLogger(l *slog.Logger) Option {
 	return func(c *config) { c.logger = l }
+}
+
+// WithTools registers tool definitions and an executor for agentic tool calling.
+// When the model requests a tool call, the handler will execute it via the
+// executor, stream the result to the client, and feed it back to the model
+// for the next turn.
+func WithTools(tools []llm.ToolDefinition, executor ToolExecutor) Option {
+	return func(c *config) {
+		c.tools = tools
+		c.executor = executor
+	}
 }
 
 type handler struct {
@@ -121,7 +139,10 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req := &llm.Request{Messages: messages}
+	req := &llm.Request{
+		Messages: messages,
+		Tools:    h.cfg.tools,
+	}
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -132,7 +153,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	setSSEHeaders(w)
 
 	ew := &EventWriter{w: w, f: flusher}
-	StreamModel(r.Context(), h.model, req, ew, h.cfg.logger)
+	StreamModelWithTools(r.Context(), h.model, req, ew, h.cfg.logger, h.cfg.executor)
 }
 
 // generateMessageID creates a random 16-character hex ID for use as a messageId.
@@ -203,7 +224,64 @@ func StreamModel(ctx context.Context, model llm.Model, req *llm.Request, ew *Eve
 					return
 				}
 
-			case llm.PartReasoning:
+			case llm.PartToolRequest:
+					// Close text span before tool call (model often outputs text then calls tool).
+					if textStarted {
+						if err := ew.WriteChunk(Chunk{"type": "text-end", "id": textID}); err != nil {
+							return
+						}
+						textStarted = false
+					}
+					tr := e.Part.ToolRequest
+					if tr != nil {
+						// tool-input-start
+						if err := ew.WriteChunk(Chunk{
+							"type":       "tool-input-start",
+							"toolCallId": tr.ID,
+							"toolName":   tr.Name,
+						}); err != nil {
+							return
+						}
+						// tool-input-available (Go SDK gives complete args, not streaming deltas)
+						var input any
+						if len(tr.Arguments) > 0 {
+							_ = json.Unmarshal(tr.Arguments, &input)
+						}
+						if err := ew.WriteChunk(Chunk{
+							"type":       "tool-input-available",
+							"toolCallId": tr.ID,
+							"toolName":   tr.Name,
+							"input":      input,
+						}); err != nil {
+							return
+						}
+					}
+
+				case llm.PartToolResponse:
+					tr := e.Part.ToolResponse
+					if tr != nil {
+						var output any
+						if len(tr.Result) > 0 {
+							_ = json.Unmarshal(tr.Result, &output)
+						}
+						if tr.Error != "" {
+							_ = ew.WriteChunk(Chunk{
+								"type":       "tool-output-error",
+								"toolCallId": tr.ID,
+								"errorText":  tr.Error,
+							})
+						} else {
+							if err := ew.WriteChunk(Chunk{
+								"type":       "tool-output-available",
+								"toolCallId": tr.ID,
+								"output":     output,
+							}); err != nil {
+								return
+							}
+						}
+					}
+
+				case llm.PartReasoning:
 				// Forward reasoning traces with stateful tracking.
 				if !reasoningStarted {
 					if err := ew.WriteChunk(Chunk{"type": "reasoning-start", "id": reasoningID}); err != nil {
@@ -267,6 +345,169 @@ func StreamModel(ctx context.Context, model llm.Model, req *llm.Request, ew *Eve
 		}
 	}
 
+	ew.WriteDone()
+}
+
+// StreamModelWithTools is like StreamModel but supports agentic tool calling.
+// When the model returns tool calls, the executor is invoked for each, results
+// are streamed to the client, and the model is called again with the results
+// appended to the conversation. This loops until the model stops calling tools.
+func StreamModelWithTools(ctx context.Context, model llm.Model, req *llm.Request, ew *EventWriter, logger *slog.Logger, executor ToolExecutor) {
+	if executor == nil {
+		StreamModel(ctx, model, req, ew, logger)
+		return
+	}
+	if logger == nil {
+		logger = slog.Default()
+	}
+
+	messageID := generateMessageID()
+	if err := ew.WriteChunk(Chunk{"type": "start", "messageId": messageID}); err != nil {
+		return
+	}
+
+	messages := make([]llm.Message, len(req.Messages))
+	copy(messages, req.Messages)
+
+	textCounter := 0
+	const maxTurns = 10
+
+	for turn := 0; turn < maxTurns; turn++ {
+		if err := ew.WriteChunk(Chunk{"type": "start-step"}); err != nil {
+			return
+		}
+
+		textID := fmt.Sprintf("text-%d", textCounter)
+		textStarted := false
+		var toolRequests []*llm.ToolRequest
+
+		iterReq := &llm.Request{
+			Messages:   messages,
+			Tools:      req.Tools,
+			ToolChoice: req.ToolChoice,
+		}
+
+		var finishReason string
+
+		for event, err := range model.GenerateEvents(ctx, iterReq) {
+			if err != nil {
+				if ctx.Err() != nil {
+					return
+				}
+				logger.Error("stream error", "error", err)
+				_ = ew.WriteChunk(Chunk{"type": "error", "errorText": "An error occurred"})
+				_ = ew.WriteChunk(Chunk{"type": "finish-step"})
+				_ = ew.WriteChunk(Chunk{"type": "finish", "finishReason": "error"})
+				ew.WriteDone()
+				return
+			}
+
+			switch e := event.(type) {
+			case llm.ContentPartEvent:
+				switch e.Part.Kind {
+				case llm.PartText:
+					if !textStarted {
+						if err := ew.WriteChunk(Chunk{"type": "text-start", "id": textID}); err != nil {
+							return
+						}
+						textStarted = true
+					}
+					if err := ew.WriteChunk(Chunk{"type": "text-delta", "id": textID, "delta": e.Part.Text}); err != nil {
+						return
+					}
+
+				case llm.PartToolRequest:
+					if textStarted {
+						if err := ew.WriteChunk(Chunk{"type": "text-end", "id": textID}); err != nil {
+							return
+						}
+						textStarted = false
+						textCounter++
+						textID = fmt.Sprintf("text-%d", textCounter)
+					}
+					tr := e.Part.ToolRequest
+					if tr != nil {
+						toolRequests = append(toolRequests, tr)
+						if err := ew.WriteChunk(Chunk{
+							"type": "tool-input-start", "toolCallId": tr.ID, "toolName": tr.Name,
+						}); err != nil {
+							return
+						}
+						var input any
+						if len(tr.Arguments) > 0 {
+							_ = json.Unmarshal(tr.Arguments, &input)
+						}
+						if err := ew.WriteChunk(Chunk{
+							"type": "tool-input-available", "toolCallId": tr.ID, "toolName": tr.Name, "input": input,
+						}); err != nil {
+							return
+						}
+					}
+				}
+
+			case llm.StreamEndEvent:
+				if e.Error != nil {
+					logger.Error("LLM error", "error", e.Error)
+					_ = ew.WriteChunk(Chunk{"type": "error", "errorText": "An error occurred"})
+				}
+				if textStarted {
+					_ = ew.WriteChunk(Chunk{"type": "text-end", "id": textID})
+					textStarted = false
+					textCounter++
+				}
+				_ = ew.WriteChunk(Chunk{"type": "finish-step"})
+
+				finishReason = "stop"
+				if e.Error != nil {
+					finishReason = "error"
+				} else if e.Response != nil {
+					finishReason = mapFinishReason(e.Response.FinishReason)
+				}
+			}
+		}
+
+		if len(toolRequests) == 0 || finishReason != "tool-calls" {
+			_ = ew.WriteChunk(Chunk{"type": "finish", "finishReason": finishReason})
+			ew.WriteDone()
+			return
+		}
+
+		// Execute tools and append results to messages.
+		assistantParts := make([]*llm.Part, 0, len(toolRequests))
+		for _, tr := range toolRequests {
+			assistantParts = append(assistantParts, llm.NewToolRequestPart(tr))
+		}
+		messages = append(messages, llm.Message{Role: llm.RoleAssistant, Content: assistantParts})
+
+		toolResponseParts := make([]*llm.Part, 0, len(toolRequests))
+		for _, tr := range toolRequests {
+			result, err := executor(ctx, tr.Name, tr.Arguments)
+			if err != nil {
+				_ = ew.WriteChunk(Chunk{
+					"type": "tool-output-error", "toolCallId": tr.ID, "errorText": err.Error(),
+				})
+				toolResponseParts = append(toolResponseParts, llm.NewToolResponsePart(&llm.ToolResponse{
+					ID: tr.ID, Name: tr.Name, Error: err.Error(),
+				}))
+			} else {
+				var output any
+				if len(result) > 0 {
+					_ = json.Unmarshal(result, &output)
+				}
+				if err := ew.WriteChunk(Chunk{
+					"type": "tool-output-available", "toolCallId": tr.ID, "output": output,
+				}); err != nil {
+					return
+				}
+				toolResponseParts = append(toolResponseParts, llm.NewToolResponsePart(&llm.ToolResponse{
+					ID: tr.ID, Name: tr.Name, Result: result,
+				}))
+			}
+		}
+		messages = append(messages, llm.Message{Role: llm.RoleUser, Content: toolResponseParts})
+	}
+
+	_ = ew.WriteChunk(Chunk{"type": "finish", "finishReason": "other"})
 	ew.WriteDone()
 }
 

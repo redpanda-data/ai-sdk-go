@@ -1080,3 +1080,147 @@ func TestHandler_ErrorResponseSanitized(t *testing.T) {
 		}
 	}
 }
+
+func TestStreamModel_ToolCall(t *testing.T) {
+	model := &errorStreamModel{
+		events: []llm.Event{
+			llm.ContentPartEvent{Index: 0, Part: llm.NewTextPart("Let me check the weather.")},
+			llm.ContentPartEvent{Index: 1, Part: llm.NewToolRequestPart(&llm.ToolRequest{
+				ID:        "call-1",
+				Name:      "getWeather",
+				Arguments: json.RawMessage(`{"location":"San Francisco"}`),
+			})},
+			llm.ContentPartEvent{Index: 2, Part: llm.NewToolResponsePart(&llm.ToolResponse{
+				ID:     "call-1",
+				Name:   "getWeather",
+				Result: json.RawMessage(`{"temp":72,"condition":"sunny"}`),
+			})},
+			llm.ContentPartEvent{Index: 3, Part: llm.NewTextPart("It's 72°F and sunny!")},
+			llm.StreamEndEvent{Response: &llm.Response{FinishReason: llm.FinishReasonStop}},
+		},
+	}
+
+	rec := httptest.NewRecorder()
+	ew := NewEventWriter(rec)
+	StreamModel(context.Background(), model, &llm.Request{
+		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("weather?"))},
+	}, ew, nil)
+
+	chunks, done := parseSSE(t, rec.Body)
+	if !done {
+		t.Error("stream not terminated with [DONE]")
+	}
+
+	types := chunkTypes(chunks)
+	expected := []string{
+		"start", "start-step",
+		"text-start", "text-delta", "text-end",
+		"tool-input-start", "tool-input-available",
+		"tool-output-available",
+		"text-start", "text-delta", "text-end",
+		"finish-step", "finish",
+	}
+	if len(types) != len(expected) {
+		t.Fatalf("chunk types = %v\nwant       = %v", types, expected)
+	}
+	for i, exp := range expected {
+		if types[i] != exp {
+			t.Fatalf("chunk[%d] type = %q, want %q\nall: %v", i, types[i], exp, types)
+		}
+	}
+
+	// Verify tool-input-start has correct fields
+	for _, c := range chunks {
+		if c["type"] == "tool-input-start" {
+			if c["toolCallId"] != "call-1" {
+				t.Errorf("tool-input-start toolCallId = %v, want call-1", c["toolCallId"])
+			}
+			if c["toolName"] != "getWeather" {
+				t.Errorf("tool-input-start toolName = %v, want getWeather", c["toolName"])
+			}
+		}
+	}
+
+	// Verify tool-input-available has parsed input
+	for _, c := range chunks {
+		if c["type"] == "tool-input-available" {
+			input, ok := c["input"].(map[string]any)
+			if !ok {
+				t.Fatalf("tool-input-available input is not map: %T", c["input"])
+			}
+			if input["location"] != "San Francisco" {
+				t.Errorf("input.location = %v, want San Francisco", input["location"])
+			}
+		}
+	}
+
+	// Verify tool-output-available has parsed output
+	for _, c := range chunks {
+		if c["type"] == "tool-output-available" {
+			output, ok := c["output"].(map[string]any)
+			if !ok {
+				t.Fatalf("tool-output-available output is not map: %T", c["output"])
+			}
+			if output["condition"] != "sunny" {
+				t.Errorf("output.condition = %v, want sunny", output["condition"])
+			}
+		}
+	}
+}
+
+func TestStreamModel_ToolCallError(t *testing.T) {
+	model := &errorStreamModel{
+		events: []llm.Event{
+			llm.ContentPartEvent{Index: 0, Part: llm.NewToolRequestPart(&llm.ToolRequest{
+				ID:        "call-2",
+				Name:      "failTool",
+				Arguments: json.RawMessage(`{}`),
+			})},
+			llm.ContentPartEvent{Index: 1, Part: llm.NewToolResponsePart(&llm.ToolResponse{
+				ID:    "call-2",
+				Name:  "failTool",
+				Error: "tool execution failed",
+			})},
+			llm.StreamEndEvent{Response: &llm.Response{FinishReason: llm.FinishReasonStop}},
+		},
+	}
+
+	rec := httptest.NewRecorder()
+	ew := NewEventWriter(rec)
+	StreamModel(context.Background(), model, &llm.Request{
+		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("fail"))},
+	}, ew, nil)
+
+	chunks, done := parseSSE(t, rec.Body)
+	if !done {
+		t.Error("stream not terminated with [DONE]")
+	}
+
+	types := chunkTypes(chunks)
+	expected := []string{
+		"start", "start-step",
+		"tool-input-start", "tool-input-available",
+		"tool-output-error",
+		"finish-step", "finish",
+	}
+	if len(types) != len(expected) {
+		t.Fatalf("chunk types = %v\nwant       = %v", types, expected)
+	}
+	for i, exp := range expected {
+		if types[i] != exp {
+			t.Fatalf("chunk[%d] = %q, want %q", i, types[i], exp)
+		}
+	}
+
+	// Verify tool-output-error has errorText
+	for _, c := range chunks {
+		if c["type"] == "tool-output-error" {
+			if c["errorText"] != "tool execution failed" {
+				t.Errorf("errorText = %v, want 'tool execution failed'", c["errorText"])
+			}
+			if c["toolCallId"] != "call-2" {
+				t.Errorf("toolCallId = %v, want call-2", c["toolCallId"])
+			}
+		}
+	}
+}
