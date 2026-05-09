@@ -176,9 +176,9 @@ func StreamModel(ctx context.Context, model llm.Model, req *llm.Request, ew *Eve
 				return
 			}
 			logger.Error("stream error", "error", err)
-			ew.WriteChunk(Chunk{"type": "error", "errorText": "An error occurred"})
-			ew.WriteChunk(Chunk{"type": "finish-step"})
-			ew.WriteChunk(Chunk{"type": "finish", "finishReason": "error"})
+			_ = ew.WriteChunk(Chunk{"type": "error", "errorText": "An error occurred"})
+			_ = ew.WriteChunk(Chunk{"type": "finish-step"})
+			_ = ew.WriteChunk(Chunk{"type": "finish", "finishReason": "error"})
 			break
 		}
 
@@ -219,16 +219,24 @@ func StreamModel(ctx context.Context, model llm.Model, req *llm.Request, ew *Eve
 			}
 
 		case llm.ErrorEvent:
-			ew.WriteChunk(Chunk{"type": "error", "errorText": e.Message})
+			// ErrorEvent is non-terminal (stream continues). Log and sanitize.
+			logger.Warn("recoverable LLM error", "message", e.Message)
+			if err := ew.WriteChunk(Chunk{"type": "error", "errorText": "An error occurred"}); err != nil {
+				return
+			}
 
 		case llm.StreamResetEvent:
 			// Reset accumulated state. Close open text/reasoning spans first.
 			if textStarted {
-				ew.WriteChunk(Chunk{"type": "text-end", "id": textID})
+				if err := ew.WriteChunk(Chunk{"type": "text-end", "id": textID}); err != nil {
+					return
+				}
 				textStarted = false
 			}
 			if reasoningStarted {
-				ew.WriteChunk(Chunk{"type": "reasoning-end", "id": reasoningID})
+				if err := ew.WriteChunk(Chunk{"type": "reasoning-end", "id": reasoningID}); err != nil {
+					return
+				}
 				reasoningStarted = false
 			}
 
@@ -236,29 +244,26 @@ func StreamModel(ctx context.Context, model llm.Model, req *llm.Request, ew *Eve
 			hasError := e.Error != nil
 			if hasError {
 				logger.Error("LLM error", "error", e.Error)
-				// Don't leak raw error text to clients.
-				ew.WriteChunk(Chunk{"type": "error", "errorText": "An error occurred"})
+				_ = ew.WriteChunk(Chunk{"type": "error", "errorText": "An error occurred"})
 			}
 
 			if reasoningStarted {
-				ew.WriteChunk(Chunk{"type": "reasoning-end", "id": reasoningID})
+				_ = ew.WriteChunk(Chunk{"type": "reasoning-end", "id": reasoningID})
 			}
 
 			if textStarted {
-				ew.WriteChunk(Chunk{"type": "text-end", "id": textID})
+				_ = ew.WriteChunk(Chunk{"type": "text-end", "id": textID})
 			}
 
-			// finish-step
-			ew.WriteChunk(Chunk{"type": "finish-step"})
+			_ = ew.WriteChunk(Chunk{"type": "finish-step"})
 
-			// finish
 			reason := "stop"
 			if hasError {
 				reason = "error"
 			} else if e.Response != nil {
 				reason = mapFinishReason(e.Response.FinishReason)
 			}
-			ew.WriteChunk(Chunk{"type": "finish", "finishReason": reason})
+			_ = ew.WriteChunk(Chunk{"type": "finish", "finishReason": reason})
 		}
 	}
 

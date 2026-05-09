@@ -619,8 +619,8 @@ func TestHandler_ErrorEventNonTerminal(t *testing.T) {
 	// Verify the error chunk text
 	for _, c := range chunks {
 		if c["type"] == "error" {
-			if et := c["errorText"].(string); et != "recoverable warning" {
-				t.Errorf("errorText = %q, want 'recoverable warning'", et)
+			if et := c["errorText"].(string); et != "An error occurred" {
+				t.Errorf("errorText = %q, want 'An error occurred' (sanitized)", et)
 			}
 		}
 	}
