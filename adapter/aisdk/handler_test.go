@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"iter"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -459,6 +460,7 @@ func TestHandler_FinishReasonMapping(t *testing.T) {
 		{llm.FinishReasonLength, "length"},
 		{llm.FinishReasonContentFilter, "content-filter"},
 		{llm.FinishReasonToolCalls, "tool-calls"},
+		{llm.FinishReason("unknown_reason"), "other"},
 	}
 
 	for _, tt := range tests {
@@ -467,5 +469,333 @@ func TestHandler_FinishReasonMapping(t *testing.T) {
 				t.Errorf("mapFinishReason(%q) = %q, want %q", tt.reason, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestHandler_WithLogger(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	model := fakellm.NewFakeModel().
+		When(fakellm.Any()).
+		ThenStreamText("ok", fakellm.StreamConfig{ChunkSize: 100})
+
+	h := Handler(model, WithLogger(logger))
+
+	body := `{"id":"chat-log","messages":[{"role":"user","content":"hi"}]}`
+	req := httptest.NewRequest(http.MethodPost, "/api/chat", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+}
+
+func TestHandler_SystemRoleMessage(t *testing.T) {
+	var capturedMessages []llm.Message
+	model := fakellm.NewFakeModel().
+		When(fakellm.Any()).
+		ThenRespondWith(func(req *llm.Request, _ *fakellm.CallContext) (*llm.Response, error) {
+			capturedMessages = req.Messages
+			return &llm.Response{
+				Message:      llm.NewMessage(llm.RoleAssistant, llm.NewTextPart("ok")),
+				FinishReason: llm.FinishReasonStop,
+			}, nil
+		})
+
+	h := Handler(model)
+
+	body := `{"id":"chat-sys","messages":[{"role":"system","content":"be brief"},{"role":"user","content":"hi"}]}`
+	req := httptest.NewRequest(http.MethodPost, "/api/chat", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	if len(capturedMessages) != 2 {
+		t.Fatalf("expected 2 messages, got %d", len(capturedMessages))
+	}
+	if capturedMessages[0].Role != llm.RoleSystem {
+		t.Errorf("msg[0] role = %q, want system", capturedMessages[0].Role)
+	}
+}
+
+func TestHandler_EmptyMessagesSkipped(t *testing.T) {
+	var capturedMessages []llm.Message
+	model := fakellm.NewFakeModel().
+		When(fakellm.Any()).
+		ThenRespondWith(func(req *llm.Request, _ *fakellm.CallContext) (*llm.Response, error) {
+			capturedMessages = req.Messages
+			return &llm.Response{
+				Message:      llm.NewMessage(llm.RoleAssistant, llm.NewTextPart("ok")),
+				FinishReason: llm.FinishReasonStop,
+			}, nil
+		})
+
+	h := Handler(model)
+
+	// Message with empty parts and no content should be skipped
+	body := `{"id":"chat-empty","messages":[
+		{"role":"user","parts":[{"type":"step-start"}]},
+		{"role":"user","content":"real message"}
+	]}`
+	req := httptest.NewRequest(http.MethodPost, "/api/chat", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	if len(capturedMessages) != 1 {
+		t.Fatalf("expected 1 message (empty skipped), got %d", len(capturedMessages))
+	}
+	if capturedMessages[0].Content[0].Text != "real message" {
+		t.Errorf("msg text = %q, want 'real message'", capturedMessages[0].Content[0].Text)
+	}
+}
+
+func TestHandler_ContextCancellation(t *testing.T) {
+	// Model that blocks until context is cancelled
+	model := &errorStreamModel{
+		events: []llm.Event{
+			llm.ContentPartEvent{Index: 0, Part: llm.NewTextPart("partial")},
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel immediately
+
+	rec := httptest.NewRecorder()
+	ew := NewEventWriter(rec)
+	StreamModel(ctx, model, &llm.Request{
+		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("hi"))},
+	}, ew, nil)
+
+	// Should not panic. Stream may be partial but that's expected on cancellation.
+}
+
+func TestHandler_ErrorEventNonTerminal(t *testing.T) {
+	// ErrorEvent is non-terminal — stream continues after it
+	model := &errorStreamModel{
+		events: []llm.Event{
+			llm.ContentPartEvent{Index: 0, Part: llm.NewTextPart("before")},
+			llm.ErrorEvent{Message: "recoverable warning"},
+			llm.ContentPartEvent{Index: 0, Part: llm.NewTextPart(" after")},
+			llm.StreamEndEvent{Response: &llm.Response{FinishReason: llm.FinishReasonStop}},
+		},
+	}
+
+	rec := httptest.NewRecorder()
+	ew := NewEventWriter(rec)
+	StreamModel(context.Background(), model, &llm.Request{
+		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("hi"))},
+	}, ew, nil)
+
+	chunks, done := parseSSE(t, rec.Body)
+	if !done {
+		t.Error("stream not terminated with [DONE]")
+	}
+
+	types := chunkTypes(chunks)
+	expected := []string{"start", "start-step", "text-start", "text-delta", "error", "text-delta", "text-end", "finish-step", "finish"}
+	if len(types) != len(expected) {
+		t.Fatalf("chunk types = %v, want %v", types, expected)
+	}
+	for i, exp := range expected {
+		if types[i] != exp {
+			t.Fatalf("chunk[%d] type = %q, want %q\nall: %v", i, types[i], exp, types)
+		}
+	}
+
+	// Verify the error chunk text
+	for _, c := range chunks {
+		if c["type"] == "error" {
+			if et := c["errorText"].(string); et != "recoverable warning" {
+				t.Errorf("errorText = %q, want 'recoverable warning'", et)
+			}
+		}
+	}
+
+	// Verify assembled text includes both deltas
+	var text strings.Builder
+	for _, c := range chunks {
+		if c["type"] == "text-delta" {
+			text.WriteString(c["delta"].(string))
+		}
+	}
+	if got := text.String(); got != "before after" {
+		t.Errorf("assembled text = %q, want 'before after'", got)
+	}
+}
+
+func TestHandler_TextContentPrefersPartsOverContent(t *testing.T) {
+	msg := chatMessage{
+		Role:    "user",
+		Content: "legacy content",
+		Parts:   []messagePart{{Type: "text", Text: "parts content"}},
+	}
+	if got := msg.textContent(); got != "parts content" {
+		t.Errorf("textContent() = %q, want 'parts content'", got)
+	}
+}
+
+func TestHandler_TextContentFallsBackToContent(t *testing.T) {
+	msg := chatMessage{
+		Role:    "user",
+		Content: "legacy content",
+	}
+	if got := msg.textContent(); got != "legacy content" {
+		t.Errorf("textContent() = %q, want 'legacy content'", got)
+	}
+}
+
+func TestStreamModel_ReasoningTrace(t *testing.T) {
+	model := &errorStreamModel{
+		events: []llm.Event{
+			llm.ContentPartEvent{Index: 0, Part: llm.NewReasoningPart(&llm.ReasoningTrace{Text: "thinking..."})},
+			llm.ContentPartEvent{Index: 1, Part: llm.NewTextPart("result")},
+			llm.StreamEndEvent{Response: &llm.Response{FinishReason: llm.FinishReasonStop}},
+		},
+	}
+
+	rec := httptest.NewRecorder()
+	ew := NewEventWriter(rec)
+	StreamModel(context.Background(), model, &llm.Request{
+		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("think"))},
+	}, ew, nil)
+
+	chunks, done := parseSSE(t, rec.Body)
+	if !done {
+		t.Error("stream not terminated with [DONE]")
+	}
+
+	types := chunkTypes(chunks)
+	expected := []string{"start", "start-step", "reasoning-start", "reasoning-delta", "reasoning-end", "text-start", "text-delta", "text-end", "finish-step", "finish"}
+	if len(types) != len(expected) {
+		t.Fatalf("chunk types = %v, want %v", types, expected)
+	}
+	for i, exp := range expected {
+		if types[i] != exp {
+			t.Fatalf("chunk[%d] type = %q, want %q\nall: %v", i, types[i], exp, types)
+		}
+	}
+
+	// Verify reasoning delta content
+	for _, c := range chunks {
+		if c["type"] == "reasoning-delta" {
+			if d := c["delta"].(string); d != "thinking..." {
+				t.Errorf("reasoning-delta = %q, want 'thinking...'", d)
+			}
+		}
+	}
+}
+
+func TestStreamModel_ReasoningNilTrace(t *testing.T) {
+	model := &errorStreamModel{
+		events: []llm.Event{
+			llm.ContentPartEvent{Index: 0, Part: llm.NewReasoningPart(nil)},
+			llm.StreamEndEvent{Response: &llm.Response{FinishReason: llm.FinishReasonStop}},
+		},
+	}
+
+	rec := httptest.NewRecorder()
+	ew := NewEventWriter(rec)
+	StreamModel(context.Background(), model, &llm.Request{
+		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("think"))},
+	}, ew, nil)
+
+	chunks, done := parseSSE(t, rec.Body)
+	if !done {
+		t.Error("stream not terminated with [DONE]")
+	}
+
+	types := chunkTypes(chunks)
+	// reasoning-start + reasoning-end (no delta since trace is nil)
+	expected := []string{"start", "start-step", "reasoning-start", "reasoning-end", "finish-step", "finish"}
+	if len(types) != len(expected) {
+		t.Fatalf("chunk types = %v, want %v", types, expected)
+	}
+}
+
+type noFlushResponseWriter struct {
+	http.ResponseWriter
+}
+
+func TestHandler_NoFlusherSupport(t *testing.T) {
+	model := fakellm.NewFakeModel()
+	h := Handler(model)
+
+	body := `{"id":"nf","messages":[{"role":"user","content":"hi"}]}`
+	req := httptest.NewRequest(http.MethodPost, "/api/chat", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := &noFlushResponseWriter{httptest.NewRecorder()}
+
+	h.ServeHTTP(rec, req)
+}
+
+func TestStreamModel_IteratorErrorWithCancelledContext(t *testing.T) {
+	// When iterator yields error AND context is cancelled, handler should return silently
+	ctx, cancel := context.WithCancel(context.Background())
+
+	cancellingModel := &cancellingErrorModel{cancel: cancel}
+
+	rec := httptest.NewRecorder()
+	ew := NewEventWriter(rec)
+	StreamModel(ctx, cancellingModel, &llm.Request{
+		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("hi"))},
+	}, ew, nil)
+
+	// Should have start + start-step but no finish (context cancelled)
+	chunks, _ := parseSSE(t, rec.Body)
+	types := chunkTypes(chunks)
+	if len(types) < 2 || types[0] != "start" || types[1] != "start-step" {
+		t.Fatalf("expected at least start + start-step, got %v", types)
+	}
+	// Should NOT have finish (early return on ctx cancel)
+	for _, tp := range types {
+		if tp == "finish" {
+			t.Error("should not have finish chunk when context is cancelled")
+		}
+	}
+}
+
+// cancellingErrorModel cancels the context then returns an error from the iterator
+type cancellingErrorModel struct {
+	errorStreamModel
+	cancel context.CancelFunc
+}
+
+func (m *cancellingErrorModel) GenerateEvents(_ context.Context, _ *llm.Request) iter.Seq2[llm.Event, error] {
+	return func(yield func(llm.Event, error) bool) {
+		m.cancel()
+		yield(nil, fmt.Errorf("after cancel"))
+	}
+}
+
+func TestHandler_AllRequiredHeaders(t *testing.T) {
+	model := fakellm.NewFakeModel().
+		When(fakellm.Any()).
+		ThenStreamText("x", fakellm.StreamConfig{ChunkSize: 100})
+
+	h := Handler(model)
+
+	body := `{"id":"hdr","messages":[{"role":"user","content":"hi"}]}`
+	req := httptest.NewRequest(http.MethodPost, "/api/chat", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	headers := map[string]string{
+		"Content-Type":                   "text/event-stream",
+		"Cache-Control":                  "no-cache",
+		"Connection":                     "keep-alive",
+		"X-Vercel-AI-UI-Message-Stream":  "v1",
+		"X-Accel-Buffering":              "no",
+	}
+	for k, want := range headers {
+		if got := rec.Header().Get(k); got != want {
+			t.Errorf("header %q = %q, want %q", k, got, want)
+		}
 	}
 }
