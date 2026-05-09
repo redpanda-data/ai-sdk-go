@@ -196,17 +196,27 @@ func TestHandler_ErrorResponse(t *testing.T) {
 		t.Error("stream not terminated with [DONE]")
 	}
 
-	hasError := false
-	for _, c := range chunks {
-		if c["type"] == "error" {
-			hasError = true
-			if et, ok := c["errorText"].(string); !ok || et == "" {
-				t.Error("error chunk has empty errorText")
-			}
+	// Verify the exact chunk sequence:
+	// start → start-step → error → finish-step → finish(finishReason:"error") → [DONE]
+	types := chunkTypes(chunks)
+	expected := []string{"start", "start-step", "error", "finish-step", "finish"}
+	if len(types) != len(expected) {
+		t.Fatalf("chunk types = %v, want %v", types, expected)
+	}
+	for i, exp := range expected {
+		if types[i] != exp {
+			t.Fatalf("chunk[%d] type = %q, want %q\nall types: %v", i, types[i], exp, types)
 		}
 	}
-	if !hasError {
-		t.Error("expected error chunk in stream")
+
+	// Verify error chunk has errorText
+	if et, ok := chunks[2]["errorText"].(string); !ok || et == "" {
+		t.Error("error chunk has empty errorText")
+	}
+
+	// Verify finish has finishReason "error"
+	if reason, ok := chunks[4]["finishReason"].(string); !ok || reason != "error" {
+		t.Errorf("finish.finishReason = %v, want \"error\"", chunks[4]["finishReason"])
 	}
 }
 

@@ -141,6 +141,8 @@ func StreamModel(ctx context.Context, model llm.Model, req *llm.Request, ew *Eve
 			}
 			logger.Error("stream error", "error", err)
 			ew.WriteChunk(Chunk{"type": "error", "errorText": err.Error()})
+			ew.WriteChunk(Chunk{"type": "finish-step"})
+			ew.WriteChunk(Chunk{"type": "finish", "finishReason": "error"})
 			break
 		}
 
@@ -168,7 +170,8 @@ func StreamModel(ctx context.Context, model llm.Model, req *llm.Request, ew *Eve
 			ew.WriteChunk(Chunk{"type": "error", "errorText": e.Message})
 
 		case llm.StreamEndEvent:
-			if e.Error != nil {
+			hasError := e.Error != nil
+			if hasError {
 				logger.Error("LLM error", "error", e.Error)
 				ew.WriteChunk(Chunk{"type": "error", "errorText": e.Error.Error()})
 			}
@@ -182,7 +185,9 @@ func StreamModel(ctx context.Context, model llm.Model, req *llm.Request, ew *Eve
 
 			// finish
 			reason := "stop"
-			if e.Response != nil {
+			if hasError {
+				reason = "error"
+			} else if e.Response != nil {
 				reason = mapFinishReason(e.Response.FinishReason)
 			}
 			ew.WriteChunk(Chunk{"type": "finish", "finishReason": reason})
