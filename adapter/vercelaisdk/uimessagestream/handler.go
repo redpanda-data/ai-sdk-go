@@ -379,6 +379,8 @@ func StreamModelWithTools(ctx context.Context, model llm.Model, req *llm.Request
 
 		textID := fmt.Sprintf("text-%d", textCounter)
 		textStarted := false
+		reasoningID := "reasoning-0"
+		reasoningStarted := false
 		var toolRequests []*llm.ToolRequest
 
 		iterReq := &llm.Request{
@@ -406,6 +408,12 @@ func StreamModelWithTools(ctx context.Context, model llm.Model, req *llm.Request
 			case llm.ContentPartEvent:
 				switch e.Part.Kind {
 				case llm.PartText:
+					if reasoningStarted {
+						if err := ew.WriteChunk(Chunk{"type": "reasoning-end", "id": reasoningID}); err != nil {
+							return
+						}
+						reasoningStarted = false
+					}
 					if !textStarted {
 						if err := ew.WriteChunk(Chunk{"type": "text-start", "id": textID}); err != nil {
 							return
@@ -416,7 +424,26 @@ func StreamModelWithTools(ctx context.Context, model llm.Model, req *llm.Request
 						return
 					}
 
+				case llm.PartReasoning:
+					if !reasoningStarted {
+						if err := ew.WriteChunk(Chunk{"type": "reasoning-start", "id": reasoningID}); err != nil {
+							return
+						}
+						reasoningStarted = true
+					}
+					if e.Part.ReasoningTrace != nil {
+						if err := ew.WriteChunk(Chunk{"type": "reasoning-delta", "id": reasoningID, "delta": e.Part.ReasoningTrace.Text}); err != nil {
+							return
+						}
+					}
+
 				case llm.PartToolRequest:
+					if reasoningStarted {
+						if err := ew.WriteChunk(Chunk{"type": "reasoning-end", "id": reasoningID}); err != nil {
+							return
+						}
+						reasoningStarted = false
+					}
 					if textStarted {
 						if err := ew.WriteChunk(Chunk{"type": "text-end", "id": textID}); err != nil {
 							return
@@ -449,6 +476,10 @@ func StreamModelWithTools(ctx context.Context, model llm.Model, req *llm.Request
 				if e.Error != nil {
 					logger.Error("LLM error", "error", e.Error)
 					_ = ew.WriteChunk(Chunk{"type": "error", "errorText": "An error occurred"})
+				}
+				if reasoningStarted {
+					_ = ew.WriteChunk(Chunk{"type": "reasoning-end", "id": reasoningID})
+					reasoningStarted = false
 				}
 				if textStarted {
 					_ = ew.WriteChunk(Chunk{"type": "text-end", "id": textID})
