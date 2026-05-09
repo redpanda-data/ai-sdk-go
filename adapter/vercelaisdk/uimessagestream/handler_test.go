@@ -214,9 +214,11 @@ func TestHandler_ErrorResponse(t *testing.T) {
 		}
 	}
 
-	// Verify error chunk has errorText
+	// Verify error chunk has sanitized errorText (not raw error)
 	if et, ok := chunks[2]["errorText"].(string); !ok || et == "" {
 		t.Error("error chunk has empty errorText")
+	} else if et != "An error occurred" {
+		t.Errorf("error chunk errorText = %q, want sanitized 'An error occurred'", et)
 	}
 
 	// Verify finish has finishReason "error"
@@ -385,10 +387,10 @@ type errorStreamModel struct {
 	events []llm.Event
 }
 
-func (m *errorStreamModel) Name() string                         { return "error-test-model" }
-func (m *errorStreamModel) Provider() string                     { return "test" }
-func (m *errorStreamModel) Capabilities() llm.ModelCapabilities  { return llm.ModelCapabilities{Streaming: true} }
-func (m *errorStreamModel) Constraints() llm.ModelConstraints    { return llm.ModelConstraints{} }
+func (m *errorStreamModel) Name() string                        { return "error-test-model" }
+func (m *errorStreamModel) Provider() string                    { return "test" }
+func (m *errorStreamModel) Capabilities() llm.ModelCapabilities { return llm.ModelCapabilities{Streaming: true} }
+func (m *errorStreamModel) Constraints() llm.ModelConstraints   { return llm.ModelConstraints{} }
 func (m *errorStreamModel) Generate(_ context.Context, _ *llm.Request) (*llm.Response, error) {
 	return nil, fmt.Errorf("not implemented")
 }
@@ -435,11 +437,11 @@ func TestStreamModel_StreamEndEventWithError(t *testing.T) {
 		}
 	}
 
-	// Verify error text
+	// Verify error text is sanitized
 	for _, c := range chunks {
 		if c["type"] == "error" {
-			if et, ok := c["errorText"].(string); !ok || et != "provider exploded" {
-				t.Errorf("error.errorText = %v, want \"provider exploded\"", c["errorText"])
+			if et, ok := c["errorText"].(string); !ok || et != "An error occurred" {
+				t.Errorf("error.errorText = %v, want \"An error occurred\"", c["errorText"])
 			}
 		}
 	}
@@ -555,23 +557,30 @@ func TestHandler_EmptyMessagesSkipped(t *testing.T) {
 }
 
 func TestHandler_ContextCancellation(t *testing.T) {
-	// Model that blocks until context is cancelled
-	model := &errorStreamModel{
-		events: []llm.Event{
-			llm.ContentPartEvent{Index: 0, Part: llm.NewTextPart("partial")},
-		},
-	}
-
+	// Model that cancels context mid-stream then yields an error,
+	// simulating a real cancellation scenario.
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // cancel immediately
+
+	cancellingModel := &cancellingErrorModel{cancel: cancel}
 
 	rec := httptest.NewRecorder()
 	ew := NewEventWriter(rec)
-	StreamModel(ctx, model, &llm.Request{
+	StreamModel(ctx, cancellingModel, &llm.Request{
 		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("hi"))},
 	}, ew, nil)
 
-	// Should not panic. Stream may be partial but that's expected on cancellation.
+	// Should have start + start-step but no finish (context cancelled)
+	chunks, _ := parseSSE(t, rec.Body)
+	types := chunkTypes(chunks)
+	if len(types) < 2 || types[0] != "start" || types[1] != "start-step" {
+		t.Fatalf("expected at least start + start-step, got %v", types)
+	}
+	// Should NOT have finish (early return on ctx cancel)
+	for _, tp := range types {
+		if tp == "finish" {
+			t.Error("should not have finish chunk when context is cancelled")
+		}
+	}
 }
 
 func TestHandler_ErrorEventNonTerminal(t *testing.T) {
@@ -690,6 +699,80 @@ func TestStreamModel_ReasoningTrace(t *testing.T) {
 	}
 }
 
+func TestStreamModel_ReasoningStatefulTracking(t *testing.T) {
+	// Multiple reasoning events should produce one reasoning-start,
+	// multiple reasoning-deltas, and one reasoning-end.
+	model := &errorStreamModel{
+		events: []llm.Event{
+			llm.ContentPartEvent{Index: 0, Part: llm.NewReasoningPart(&llm.ReasoningTrace{Text: "step 1"})},
+			llm.ContentPartEvent{Index: 0, Part: llm.NewReasoningPart(&llm.ReasoningTrace{Text: " step 2"})},
+			llm.ContentPartEvent{Index: 0, Part: llm.NewReasoningPart(&llm.ReasoningTrace{Text: " step 3"})},
+			llm.ContentPartEvent{Index: 1, Part: llm.NewTextPart("result")},
+			llm.StreamEndEvent{Response: &llm.Response{FinishReason: llm.FinishReasonStop}},
+		},
+	}
+
+	rec := httptest.NewRecorder()
+	ew := NewEventWriter(rec)
+	StreamModel(context.Background(), model, &llm.Request{
+		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("think hard"))},
+	}, ew, nil)
+
+	chunks, done := parseSSE(t, rec.Body)
+	if !done {
+		t.Error("stream not terminated with [DONE]")
+	}
+
+	types := chunkTypes(chunks)
+	expected := []string{
+		"start", "start-step",
+		"reasoning-start", "reasoning-delta", "reasoning-delta", "reasoning-delta", "reasoning-end",
+		"text-start", "text-delta", "text-end",
+		"finish-step", "finish",
+	}
+	if len(types) != len(expected) {
+		t.Fatalf("chunk types = %v, want %v", types, expected)
+	}
+	for i, exp := range expected {
+		if types[i] != exp {
+			t.Fatalf("chunk[%d] type = %q, want %q\nall: %v", i, types[i], exp, types)
+		}
+	}
+
+	// Verify all reasoning deltas share the same ID as the start/end
+	var rStartID, rEndID string
+	var deltaIDs []string
+	for _, c := range chunks {
+		switch c["type"] {
+		case "reasoning-start":
+			rStartID = c["id"].(string)
+		case "reasoning-end":
+			rEndID = c["id"].(string)
+		case "reasoning-delta":
+			deltaIDs = append(deltaIDs, c["id"].(string))
+		}
+	}
+	if rStartID != rEndID {
+		t.Errorf("reasoning-start id = %q, reasoning-end id = %q, want match", rStartID, rEndID)
+	}
+	for i, id := range deltaIDs {
+		if id != rStartID {
+			t.Errorf("reasoning-delta[%d] id = %q, want %q", i, id, rStartID)
+		}
+	}
+
+	// Verify concatenated reasoning text
+	var reasoning strings.Builder
+	for _, c := range chunks {
+		if c["type"] == "reasoning-delta" {
+			reasoning.WriteString(c["delta"].(string))
+		}
+	}
+	if got := reasoning.String(); got != "step 1 step 2 step 3" {
+		t.Errorf("assembled reasoning = %q, want 'step 1 step 2 step 3'", got)
+	}
+}
+
 func TestStreamModel_ReasoningNilTrace(t *testing.T) {
 	model := &errorStreamModel{
 		events: []llm.Event{
@@ -710,7 +793,7 @@ func TestStreamModel_ReasoningNilTrace(t *testing.T) {
 	}
 
 	types := chunkTypes(chunks)
-	// reasoning-start + reasoning-end (no delta since trace is nil)
+	// reasoning-start (no delta since trace is nil) + reasoning-end at StreamEnd
 	expected := []string{"start", "start-step", "reasoning-start", "reasoning-end", "finish-step", "finish"}
 	if len(types) != len(expected) {
 		t.Fatalf("chunk types = %v, want %v", types, expected)
@@ -728,9 +811,14 @@ func TestHandler_NoFlusherSupport(t *testing.T) {
 	body := `{"id":"nf","messages":[{"role":"user","content":"hi"}]}`
 	req := httptest.NewRequest(http.MethodPost, "/api/chat", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	rec := &noFlushResponseWriter{httptest.NewRecorder()}
+	inner := httptest.NewRecorder()
+	rec := &noFlushResponseWriter{inner}
 
 	h.ServeHTTP(rec, req)
+
+	if inner.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", inner.Code)
+	}
 }
 
 func TestStreamModel_IteratorErrorWithCancelledContext(t *testing.T) {
@@ -787,15 +875,208 @@ func TestHandler_AllRequiredHeaders(t *testing.T) {
 	h.ServeHTTP(rec, req)
 
 	headers := map[string]string{
-		"Content-Type":                   "text/event-stream",
-		"Cache-Control":                  "no-cache",
-		"Connection":                     "keep-alive",
-		"X-Vercel-AI-UI-Message-Stream":  "v1",
-		"X-Accel-Buffering":              "no",
+		"Content-Type":                  "text/event-stream",
+		"Cache-Control":                 "no-cache",
+		"Connection":                    "keep-alive",
+		"X-Vercel-AI-UI-Message-Stream": "v1",
+		"X-Accel-Buffering":             "no",
 	}
 	for k, want := range headers {
 		if got := rec.Header().Get(k); got != want {
 			t.Errorf("header %q = %q, want %q", k, got, want)
+		}
+	}
+}
+
+func TestHandler_StartChunkHasMessageID(t *testing.T) {
+	model := fakellm.NewFakeModel().
+		When(fakellm.Any()).
+		ThenStreamText("ok", fakellm.StreamConfig{ChunkSize: 100})
+
+	h := Handler(model)
+
+	body := `{"id":"chat-mid","messages":[{"role":"user","content":"hi"}]}`
+	req := httptest.NewRequest(http.MethodPost, "/api/chat", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	chunks, done := parseSSE(t, rec.Body)
+	if !done {
+		t.Error("stream not terminated with [DONE]")
+	}
+
+	if len(chunks) == 0 {
+		t.Fatal("no chunks")
+	}
+	startChunk := chunks[0]
+	if startChunk["type"] != "start" {
+		t.Fatalf("first chunk type = %q, want 'start'", startChunk["type"])
+	}
+	mid, ok := startChunk["messageId"].(string)
+	if !ok || mid == "" {
+		t.Fatalf("start chunk has no messageId")
+	}
+	if len(mid) != 16 {
+		t.Errorf("messageId length = %d, want 16", len(mid))
+	}
+}
+
+func TestHandler_RequestBodySizeLimit(t *testing.T) {
+	model := fakellm.NewFakeModel()
+	h := Handler(model)
+
+	// Create a body larger than 1MB
+	bigBody := strings.Repeat("x", 1<<20+1)
+	req := httptest.NewRequest(http.MethodPost, "/api/chat", strings.NewReader(bigBody))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for oversized body, got %d", rec.Code)
+	}
+}
+
+func TestHandler_EmptyMessagesArray(t *testing.T) {
+	model := fakellm.NewFakeModel()
+	h := Handler(model)
+
+	body := `{"id":"chat-none","messages":[]}`
+	req := httptest.NewRequest(http.MethodPost, "/api/chat", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for empty messages, got %d", rec.Code)
+	}
+}
+
+func TestStreamModel_StreamResetEvent(t *testing.T) {
+	// StreamResetEvent should close open text span and reset state,
+	// allowing a new text sequence to begin.
+	model := &errorStreamModel{
+		events: []llm.Event{
+			llm.ContentPartEvent{Index: 0, Part: llm.NewTextPart("attempt1")},
+			llm.StreamResetEvent{Attempt: 1, Reason: "retrying"},
+			llm.ContentPartEvent{Index: 0, Part: llm.NewTextPart("attempt2")},
+			llm.StreamEndEvent{Response: &llm.Response{FinishReason: llm.FinishReasonStop}},
+		},
+	}
+
+	rec := httptest.NewRecorder()
+	ew := NewEventWriter(rec)
+	StreamModel(context.Background(), model, &llm.Request{
+		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("hi"))},
+	}, ew, nil)
+
+	chunks, done := parseSSE(t, rec.Body)
+	if !done {
+		t.Error("stream not terminated with [DONE]")
+	}
+
+	types := chunkTypes(chunks)
+	expected := []string{
+		"start", "start-step",
+		"text-start", "text-delta", "text-end", // first attempt
+		"text-start", "text-delta", "text-end",  // second attempt after reset
+		"finish-step", "finish",
+	}
+	if len(types) != len(expected) {
+		t.Fatalf("chunk types = %v, want %v", types, expected)
+	}
+	for i, exp := range expected {
+		if types[i] != exp {
+			t.Fatalf("chunk[%d] type = %q, want %q\nall: %v", i, types[i], exp, types)
+		}
+	}
+}
+
+func TestStreamModel_StreamResetEventWithReasoning(t *testing.T) {
+	// StreamResetEvent should also close open reasoning span.
+	model := &errorStreamModel{
+		events: []llm.Event{
+			llm.ContentPartEvent{Index: 0, Part: llm.NewReasoningPart(&llm.ReasoningTrace{Text: "think1"})},
+			llm.ContentPartEvent{Index: 1, Part: llm.NewTextPart("text1")},
+			llm.StreamResetEvent{Attempt: 1, Reason: "retrying"},
+			llm.ContentPartEvent{Index: 0, Part: llm.NewTextPart("text2")},
+			llm.StreamEndEvent{Response: &llm.Response{FinishReason: llm.FinishReasonStop}},
+		},
+	}
+
+	rec := httptest.NewRecorder()
+	ew := NewEventWriter(rec)
+	StreamModel(context.Background(), model, &llm.Request{
+		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("hi"))},
+	}, ew, nil)
+
+	chunks, done := parseSSE(t, rec.Body)
+	if !done {
+		t.Error("stream not terminated with [DONE]")
+	}
+
+	types := chunkTypes(chunks)
+	expected := []string{
+		"start", "start-step",
+		"reasoning-start", "reasoning-delta",   // reasoning in first attempt
+		"reasoning-end",                        // closed when text part arrives
+		"text-start", "text-delta",             // text in first attempt
+		"text-end",                             // reset closes text
+		"text-start", "text-delta", "text-end", // second attempt
+		"finish-step", "finish",
+	}
+	if len(types) != len(expected) {
+		t.Fatalf("chunk types = %v, want %v", types, expected)
+	}
+	for i, exp := range expected {
+		if types[i] != exp {
+			t.Fatalf("chunk[%d] type = %q, want %q\nall: %v", i, types[i], exp, types)
+		}
+	}
+}
+
+func TestHandler_TextContentConcatenatesAllParts(t *testing.T) {
+	msg := chatMessage{
+		Role: "assistant",
+		Parts: []messagePart{
+			{Type: "text", Text: "Hello "},
+			{Type: "step-start"},
+			{Type: "text", Text: "World"},
+		},
+	}
+	if got := msg.textContent(); got != "Hello World" {
+		t.Errorf("textContent() = %q, want 'Hello World'", got)
+	}
+}
+
+func TestHandler_ErrorResponseSanitized(t *testing.T) {
+	// Verify that StreamEndEvent errors are sanitized (no raw error text leaked)
+	model := &errorStreamModel{
+		events: []llm.Event{
+			llm.StreamEndEvent{Error: errors.New("secret internal error: db password is foo")},
+		},
+	}
+
+	rec := httptest.NewRecorder()
+	ew := NewEventWriter(rec)
+	StreamModel(context.Background(), model, &llm.Request{
+		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("hi"))},
+	}, ew, nil)
+
+	chunks, _ := parseSSE(t, rec.Body)
+	for _, c := range chunks {
+		if c["type"] == "error" {
+			et := c["errorText"].(string)
+			if strings.Contains(et, "secret") || strings.Contains(et, "password") {
+				t.Errorf("error text leaks internals: %q", et)
+			}
+			if et != "An error occurred" {
+				t.Errorf("error text = %q, want 'An error occurred'", et)
+			}
 		}
 	}
 }

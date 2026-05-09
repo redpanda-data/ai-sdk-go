@@ -19,10 +19,13 @@ package uimessagestream
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
-	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
@@ -81,11 +84,16 @@ type messagePart struct {
 
 // textContent extracts the text content from a message, supporting both
 // the v6 parts-based format and the legacy content field.
+// All text parts are concatenated to preserve multi-step conversation history.
 func (m chatMessage) textContent() string {
+	var parts []string
 	for _, p := range m.Parts {
 		if p.Type == "text" {
-			return p.Text
+			parts = append(parts, p.Text)
 		}
+	}
+	if len(parts) > 0 {
+		return strings.Join(parts, "")
 	}
 	return m.Content
 }
@@ -96,6 +104,9 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Limit request body to 1MB to prevent abuse.
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 	var body chatRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -103,6 +114,13 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	messages := convertMessages(body.Messages, h.cfg.system)
+
+	// Reject requests with no meaningful messages.
+	if len(messages) == 0 {
+		http.Error(w, "empty messages", http.StatusBadRequest)
+		return
+	}
+
 	req := &llm.Request{Messages: messages}
 
 	flusher, ok := w.(http.Flusher)
@@ -117,6 +135,16 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	StreamModel(r.Context(), h.model, req, ew, h.cfg.logger)
 }
 
+// generateMessageID creates a random 16-character hex ID for use as a messageId.
+func generateMessageID() string {
+	b := make([]byte, 8)
+	if _, err := rand.Read(b); err != nil {
+		// Fallback — should never happen in practice.
+		return "msg-0000000000000000"
+	}
+	return hex.EncodeToString(b)
+}
+
 // StreamModel streams responses from an llm.Model as AI SDK UI Message Stream
 // events. This is the core streaming logic, usable from custom HTTP handlers.
 func StreamModel(ctx context.Context, model llm.Model, req *llm.Request, ew *EventWriter, logger *slog.Logger) {
@@ -124,14 +152,23 @@ func StreamModel(ctx context.Context, model llm.Model, req *llm.Request, ew *Eve
 		logger = slog.Default()
 	}
 
+	messageID := generateMessageID()
+
 	// start
-	ew.WriteChunk(Chunk{"type": "start"})
+	if err := ew.WriteChunk(Chunk{"type": "start", "messageId": messageID}); err != nil {
+		return
+	}
 
 	// start-step
-	ew.WriteChunk(Chunk{"type": "start-step"})
+	if err := ew.WriteChunk(Chunk{"type": "start-step"}); err != nil {
+		return
+	}
 
 	textID := "text-0"
 	textStarted := false
+
+	reasoningID := "reasoning-0"
+	reasoningStarted := false
 
 	for event, err := range model.GenerateEvents(ctx, req) {
 		if err != nil {
@@ -139,7 +176,7 @@ func StreamModel(ctx context.Context, model llm.Model, req *llm.Request, ew *Eve
 				return
 			}
 			logger.Error("stream error", "error", err)
-			ew.WriteChunk(Chunk{"type": "error", "errorText": err.Error()})
+			ew.WriteChunk(Chunk{"type": "error", "errorText": "An error occurred"})
 			ew.WriteChunk(Chunk{"type": "finish-step"})
 			ew.WriteChunk(Chunk{"type": "finish", "finishReason": "error"})
 			break
@@ -149,30 +186,62 @@ func StreamModel(ctx context.Context, model llm.Model, req *llm.Request, ew *Eve
 		case llm.ContentPartEvent:
 			switch e.Part.Kind {
 			case llm.PartText:
+				// Close reasoning span before starting text.
+				if reasoningStarted {
+					if err := ew.WriteChunk(Chunk{"type": "reasoning-end", "id": reasoningID}); err != nil {
+						return
+					}
+					reasoningStarted = false
+				}
 				if !textStarted {
-					ew.WriteChunk(Chunk{"type": "text-start", "id": textID})
+					if err := ew.WriteChunk(Chunk{"type": "text-start", "id": textID}); err != nil {
+						return
+					}
 					textStarted = true
 				}
-				ew.WriteChunk(Chunk{"type": "text-delta", "id": textID, "delta": e.Part.Text})
+				if err := ew.WriteChunk(Chunk{"type": "text-delta", "id": textID, "delta": e.Part.Text}); err != nil {
+					return
+				}
 
 			case llm.PartReasoning:
-				// Forward reasoning traces
-				reasoningID := "reasoning-0"
-				ew.WriteChunk(Chunk{"type": "reasoning-start", "id": reasoningID})
-				if e.Part.ReasoningTrace != nil {
-					ew.WriteChunk(Chunk{"type": "reasoning-delta", "id": reasoningID, "delta": e.Part.ReasoningTrace.Text})
+				// Forward reasoning traces with stateful tracking.
+				if !reasoningStarted {
+					if err := ew.WriteChunk(Chunk{"type": "reasoning-start", "id": reasoningID}); err != nil {
+						return
+					}
+					reasoningStarted = true
 				}
-				ew.WriteChunk(Chunk{"type": "reasoning-end", "id": reasoningID})
+				if e.Part.ReasoningTrace != nil {
+					if err := ew.WriteChunk(Chunk{"type": "reasoning-delta", "id": reasoningID, "delta": e.Part.ReasoningTrace.Text}); err != nil {
+						return
+					}
+				}
 			}
 
 		case llm.ErrorEvent:
 			ew.WriteChunk(Chunk{"type": "error", "errorText": e.Message})
 
+		case llm.StreamResetEvent:
+			// Reset accumulated state. Close open text/reasoning spans first.
+			if textStarted {
+				ew.WriteChunk(Chunk{"type": "text-end", "id": textID})
+				textStarted = false
+			}
+			if reasoningStarted {
+				ew.WriteChunk(Chunk{"type": "reasoning-end", "id": reasoningID})
+				reasoningStarted = false
+			}
+
 		case llm.StreamEndEvent:
 			hasError := e.Error != nil
 			if hasError {
 				logger.Error("LLM error", "error", e.Error)
-				ew.WriteChunk(Chunk{"type": "error", "errorText": e.Error.Error()})
+				// Don't leak raw error text to clients.
+				ew.WriteChunk(Chunk{"type": "error", "errorText": "An error occurred"})
+			}
+
+			if reasoningStarted {
+				ew.WriteChunk(Chunk{"type": "reasoning-end", "id": reasoningID})
 			}
 
 			if textStarted {
@@ -203,6 +272,8 @@ func convertMessages(msgs []chatMessage, system string) []llm.Message {
 	}
 	for _, m := range msgs {
 		text := m.textContent()
+		// Skip messages with no text content. This handles v6 step-start parts
+		// and other non-text-only messages that don't carry user/assistant text.
 		if text == "" {
 			continue
 		}
@@ -260,21 +331,34 @@ func NewEventWriter(w http.ResponseWriter) *EventWriter {
 }
 
 // WriteChunk writes a single SSE data event and flushes.
-func (ew *EventWriter) WriteChunk(c Chunk) {
+// Returns an error if marshaling or writing fails.
+func (ew *EventWriter) WriteChunk(c Chunk) error {
 	data, err := json.Marshal(c)
 	if err != nil {
-		return
+		return err
 	}
-	fmt.Fprintf(ew.w, "data: %s\n\n", data)
+	if _, err := io.WriteString(ew.w, "data: "); err != nil {
+		return err
+	}
+	if _, err := ew.w.Write(data); err != nil {
+		return err
+	}
+	if _, err := io.WriteString(ew.w, "\n\n"); err != nil {
+		return err
+	}
 	if ew.f != nil {
 		ew.f.Flush()
 	}
+	return nil
 }
 
 // WriteDone writes the terminal [DONE] event and flushes.
-func (ew *EventWriter) WriteDone() {
-	fmt.Fprint(ew.w, "data: [DONE]\n\n")
+func (ew *EventWriter) WriteDone() error {
+	if _, err := io.WriteString(ew.w, "data: [DONE]\n\n"); err != nil {
+		return err
+	}
 	if ew.f != nil {
 		ew.f.Flush()
 	}
+	return nil
 }
