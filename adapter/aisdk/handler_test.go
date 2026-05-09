@@ -308,6 +308,62 @@ func TestHandler_InvalidBody(t *testing.T) {
 	}
 }
 
+func TestHandler_V6PartsFormat(t *testing.T) {
+	var capturedMessages []llm.Message
+	model := fakellm.NewFakeModel().
+		When(fakellm.Any()).
+		ThenRespondWith(func(req *llm.Request, _ *fakellm.CallContext) (*llm.Response, error) {
+			capturedMessages = req.Messages
+			return &llm.Response{
+				Message:      llm.NewMessage(llm.RoleAssistant, llm.NewTextPart("ok")),
+				FinishReason: llm.FinishReasonStop,
+			}, nil
+		})
+
+	h := Handler(model)
+
+	// v6 format: messages use parts array instead of content string
+	body := `{
+		"id": "chat-v6",
+		"trigger": "submit-message",
+		"messages": [
+			{
+				"role": "user",
+				"parts": [{"type": "text", "text": "hello from v6"}],
+				"id": "msg-1"
+			},
+			{
+				"role": "assistant",
+				"parts": [{"type": "step-start"}, {"type": "text", "text": "hi there", "state": "done"}],
+				"id": "msg-2"
+			},
+			{
+				"role": "user",
+				"parts": [{"type": "text", "text": "follow up"}],
+				"id": "msg-3"
+			}
+		]
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/api/chat", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	if len(capturedMessages) != 3 {
+		t.Fatalf("expected 3 messages, got %d", len(capturedMessages))
+	}
+	if capturedMessages[0].Content[0].Text != "hello from v6" {
+		t.Errorf("msg[0] text = %q, want 'hello from v6'", capturedMessages[0].Content[0].Text)
+	}
+	if capturedMessages[1].Content[0].Text != "hi there" {
+		t.Errorf("msg[1] text = %q, want 'hi there'", capturedMessages[1].Content[0].Text)
+	}
+	if capturedMessages[2].Content[0].Text != "follow up" {
+		t.Errorf("msg[2] text = %q, want 'follow up'", capturedMessages[2].Content[0].Text)
+	}
+}
+
 func TestHandler_FinishReasonMapping(t *testing.T) {
 	tests := []struct {
 		reason llm.FinishReason

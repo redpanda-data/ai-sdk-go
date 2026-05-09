@@ -70,8 +70,25 @@ type chatRequest struct {
 }
 
 type chatMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role    string        `json:"role"`
+	Content string        `json:"content"`
+	Parts   []messagePart `json:"parts"`
+}
+
+type messagePart struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+}
+
+// textContent extracts the text content from a message, supporting both
+// the v6 parts-based format and the legacy content field.
+func (m chatMessage) textContent() string {
+	for _, p := range m.Parts {
+		if p.Type == "text" {
+			return p.Text
+		}
+	}
+	return m.Content
 }
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -181,6 +198,10 @@ func convertMessages(msgs []chatMessage, system string) []llm.Message {
 		out = append(out, llm.NewMessage(llm.RoleSystem, llm.NewTextPart(system)))
 	}
 	for _, m := range msgs {
+		text := m.textContent()
+		if text == "" {
+			continue
+		}
 		role := llm.RoleUser
 		switch m.Role {
 		case "assistant":
@@ -188,7 +209,7 @@ func convertMessages(msgs []chatMessage, system string) []llm.Message {
 		case "system":
 			role = llm.RoleSystem
 		}
-		out = append(out, llm.NewMessage(role, llm.NewTextPart(m.Content)))
+		out = append(out, llm.NewMessage(role, llm.NewTextPart(text)))
 	}
 	return out
 }
