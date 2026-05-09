@@ -1,7 +1,6 @@
-// Package aisdk provides an HTTP handler that implements the Vercel AI SDK
-// UI Message Stream protocol (v1). This allows any ai-sdk-go llm.Model to
-// serve responses compatible with the useChat hook from the "@ai-sdk/react"
-// npm package.
+// Package uimessagestream provides an HTTP handler that implements the Vercel
+// AI SDK UI Message Stream protocol (v1). This allows any ai-sdk-go llm.Model
+// to serve responses compatible with the useChat hook from "@ai-sdk/react".
 //
 // Wire format: Server-Sent Events (SSE) with JSON chunks.
 // Each event is written as: "data: <json>\n\n"
@@ -16,7 +15,7 @@
 // packages/ai/src/ui-message-stream/json-to-sse-transform-stream.ts.
 //
 // Reference: https://github.com/vercel/ai
-package aisdk
+package uimessagestream
 
 import (
 	"context"

@@ -12,7 +12,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/redpanda-data/ai-sdk-go/adapter/aisdk"
+	"github.com/redpanda-data/ai-sdk-go/adapter/vercelaisdk/uimessagestream"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/llm/fakellm"
 )
@@ -28,21 +28,21 @@ func main() {
 		fakellm.WithLatency(fakellm.LatencyProfile{}),
 	).When(fakellm.Any()).
 		ThenStreamText("Hello, world!", fakellm.StreamConfig{ChunkSize: 100})
-	mux.Handle("POST /api/simple", aisdk.Handler(simpleModel))
+	mux.Handle("POST /api/simple", uimessagestream.Handler(simpleModel))
 
 	// POST /api/streaming -- small chunks
 	streamModel := fakellm.NewFakeModel(
 		fakellm.WithLatency(fakellm.LatencyProfile{}),
 	).When(fakellm.Any()).
 		ThenStreamText("Hello streaming world", fakellm.StreamConfig{ChunkSize: 4})
-	mux.Handle("POST /api/streaming", aisdk.Handler(streamModel))
+	mux.Handle("POST /api/streaming", uimessagestream.Handler(streamModel))
 
 	// POST /api/error -- rate limit error
 	errorModel := fakellm.NewFakeModel(
 		fakellm.WithLatency(fakellm.LatencyProfile{}),
 	).When(fakellm.Any()).
 		ThenError(llm.ErrRateLimitExceeded)
-	mux.Handle("POST /api/error", aisdk.Handler(errorModel))
+	mux.Handle("POST /api/error", uimessagestream.Handler(errorModel))
 
 	// POST /api/echo-context -- echoes back the received messages as JSON text
 	echoModel := fakellm.NewFakeModel(
@@ -69,7 +69,7 @@ func main() {
 				FinishReason: llm.FinishReasonStop,
 			}, nil
 		})
-	mux.Handle("POST /api/echo-context", aisdk.Handler(echoModel))
+	mux.Handle("POST /api/echo-context", uimessagestream.Handler(echoModel))
 
 	// POST /api/system -- has system prompt "You are a pirate", echoes it back
 	systemModel := fakellm.NewFakeModel(
@@ -88,7 +88,7 @@ func main() {
 				FinishReason: llm.FinishReasonStop,
 			}, nil
 		})
-	mux.Handle("POST /api/system", aisdk.Handler(systemModel, aisdk.WithSystem("You are a pirate")))
+	mux.Handle("POST /api/system", uimessagestream.Handler(systemModel, uimessagestream.WithSystem("You are a pirate")))
 
 	// Health check
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {

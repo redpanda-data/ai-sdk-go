@@ -1,4 +1,4 @@
-package aisdk
+package uimessagestream
 
 import (
 	"bufio"
