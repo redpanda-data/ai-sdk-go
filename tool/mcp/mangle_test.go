@@ -89,7 +89,7 @@ func TestMangleHeadIfTooLong(t *testing.T) {
 	t.Run("zero maxLen", func(t *testing.T) {
 		t.Parallel()
 
-		assert.Equal(t, "", mangleHeadIfTooLong("anything", 0))
+		assert.Empty(t, mangleHeadIfTooLong("anything", 0))
 	})
 
 	t.Run("tiny maxLen", func(t *testing.T) {
