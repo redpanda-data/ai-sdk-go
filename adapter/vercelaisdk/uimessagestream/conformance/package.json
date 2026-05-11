@@ -1,0 +1,11 @@
+{
+  "name": "aisdk-conformance",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test conformance.test.mjs"
+  },
+  "dependencies": {
+    "ai": "^6.0.177"
+  }
+}

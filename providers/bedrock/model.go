@@ -303,7 +303,6 @@ type contentBlockAccumulator struct {
 	reasoningSignature string
 }
 
-
 // toolUseData stores tool use information during streaming.
 type toolUseData struct {
 	ID   string
