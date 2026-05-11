@@ -57,7 +57,7 @@ func main() {
 				Text string `json:"text"`
 			}
 
-			var msgs []msgInfo
+			msgs := make([]msgInfo, 0, len(req.Messages))
 			for _, m := range req.Messages {
 				msgs = append(msgs, msgInfo{
 					Role: string(m.Role),
