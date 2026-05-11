@@ -4,12 +4,14 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/redpanda-data/ai-sdk-go/adapter/vercelaisdk/uimessagestream"
@@ -19,6 +21,7 @@ import (
 
 func main() {
 	port := flag.Int("port", 0, "port to listen on (0 = random)")
+
 	flag.Parse()
 
 	mux := http.NewServeMux()
@@ -53,6 +56,7 @@ func main() {
 				Role string `json:"role"`
 				Text string `json:"text"`
 			}
+
 			var msgs []msgInfo
 			for _, m := range req.Messages {
 				msgs = append(msgs, msgInfo{
@@ -60,10 +64,12 @@ func main() {
 					Text: m.TextContent(),
 				})
 			}
+
 			data, err := json.Marshal(msgs)
 			if err != nil {
 				return nil, err
 			}
+
 			return &llm.Response{
 				Message:      llm.NewMessage(llm.RoleAssistant, llm.NewTextPart(string(data))),
 				FinishReason: llm.FinishReasonStop,
@@ -77,12 +83,14 @@ func main() {
 	).When(fakellm.Any()).
 		ThenRespondWith(func(req *llm.Request, _ *fakellm.CallContext) (*llm.Response, error) {
 			var systemText string
+
 			for _, m := range req.Messages {
 				if m.Role == llm.RoleSystem {
 					systemText = m.TextContent()
 					break
 				}
 			}
+
 			return &llm.Response{
 				Message:      llm.NewMessage(llm.RoleAssistant, llm.NewTextPart("System: "+systemText)),
 				FinishReason: llm.FinishReasonStop,
@@ -90,27 +98,34 @@ func main() {
 		})
 	mux.Handle("POST /api/system", uimessagestream.Handler(systemModel, uimessagestream.WithSystem("You are a pirate")))
 
-	// Health check
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
+	// Health check.
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "ok")
+
+		if _, err := w.Write([]byte("ok\n")); err != nil {
+			slog.Error("health check write failed", "error", err)
+		}
 	})
 
 	addr := fmt.Sprintf("127.0.0.1:%d", *port)
-	ln, err := net.Listen("tcp", addr)
+
+	ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", addr)
 	if err != nil {
-		log.Fatalf("listen: %v", err)
+		slog.Error("listen failed", "error", err)
+		os.Exit(1)
 	}
 
-	// Print the actual address (important when port=0)
-	fmt.Printf("LISTEN_ADDR=%s\n", ln.Addr().String())
+	// The conformance runner parses this line from stdout.
+	_, _ = os.Stdout.WriteString("LISTEN_ADDR=" + ln.Addr().String() + "\n")
 
 	server := &http.Server{
 		Handler:      mux,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 30 * time.Second,
 	}
+
 	if err := server.Serve(ln); err != nil {
-		log.Fatal(err)
+		slog.Error("server error", "error", err)
+		os.Exit(1)
 	}
 }
