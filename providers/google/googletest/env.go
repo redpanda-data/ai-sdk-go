@@ -21,8 +21,16 @@ import (
 
 // GetAPIKeyOrSkipTest returns the API key if present,
 // otherwise it skips the test.
+//
+// Google integration tests are skipped by default because the Gemini API
+// frequently returns 503 "high demand" errors that cause flaky CI runs.
+// Set RUN_GOOGLE_INTEGRATION=1 to opt in (e.g. for local debugging).
 func GetAPIKeyOrSkipTest(t *testing.T) string {
 	t.Helper()
+
+	if os.Getenv("RUN_GOOGLE_INTEGRATION") != "1" {
+		t.Skip("skipping Google integration test: set RUN_GOOGLE_INTEGRATION=1 to enable (disabled by default due to frequent 503 high-demand errors)")
+	}
 
 	key := os.Getenv("GOOGLE_API_KEY")
 	if key == "" {
