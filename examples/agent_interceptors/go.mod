@@ -1,6 +1,8 @@
 module github.com/redpanda-data/ai-sdk-go/examples/agent_hooks
 
-go 1.26.1
+go 1.26
+
+toolchain go1.26.3
 
 require (
 	github.com/google/jsonschema-go v0.3.0
