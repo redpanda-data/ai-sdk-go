@@ -27,7 +27,6 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
-
 // Provider implements the OpenAI-compatible model provider using Chat Completion API.
 type Provider struct {
 	APIKey     string

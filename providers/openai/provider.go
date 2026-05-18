@@ -28,7 +28,6 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
-
 // Provider implements the OpenAI model provider.
 type Provider struct {
 	APIKey     string
