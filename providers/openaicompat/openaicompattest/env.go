@@ -62,3 +62,29 @@ func GetDeepSeekModel(defaultModel string) string {
 
 	return defaultModel
 }
+
+// GetAnthropicAPIKeyOrSkipTest returns the Anthropic API key if present,
+// otherwise it skips the test.
+func GetAnthropicAPIKeyOrSkipTest(t *testing.T) string {
+	t.Helper()
+
+	key := os.Getenv("ANTHROPIC_API_KEY")
+	if key == "" {
+		t.Skip("ANTHROPIC_API_KEY not set, skipping Anthropic test")
+	}
+
+	return key
+}
+
+// GetGoogleAPIKeyOrSkipTest returns the Google API key if present,
+// otherwise it skips the test.
+func GetGoogleAPIKeyOrSkipTest(t *testing.T) string {
+	t.Helper()
+
+	key := os.Getenv("GOOGLE_API_KEY")
+	if key == "" {
+		t.Skip("GOOGLE_API_KEY not set, skipping Google test")
+	}
+
+	return key
+}
