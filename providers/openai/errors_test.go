@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	oai "github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/packages/respjson"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -93,6 +94,8 @@ func TestClassifyHTTPError_ProviderErrorFields(t *testing.T) {
 		Request:    &http.Request{Method: http.MethodPost, URL: reqURL},
 		Response:   &http.Response{StatusCode: http.StatusTooManyRequests},
 	}
+	apiErr.JSON.Message = respjson.NewField(`"Rate limit exceeded"`)
+	apiErr.JSON.Code = respjson.NewField(`"rate_limit_exceeded"`)
 
 	result := classifyError(apiErr)
 
@@ -100,5 +103,6 @@ func TestClassifyHTTPError_ProviderErrorFields(t *testing.T) {
 	require.ErrorAs(t, result, &pe)
 	assert.Equal(t, "rate_limit_exceeded", pe.Code)
 	assert.Equal(t, "Rate limit exceeded", pe.Message)
+	assert.Equal(t, http.StatusTooManyRequests, pe.StatusCode)
 	assert.True(t, pe.Retryable)
 }

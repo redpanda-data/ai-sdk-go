@@ -32,22 +32,38 @@ func classifyError(err error) error {
 
 	var apiErr *openai.Error
 	if errors.As(err, &apiErr) {
-		return classifyHTTPError(apiErr)
+		if pe, ok := classifyHTTPError(apiErr); ok {
+			return pe
+		}
+		retryable, base := classifyStatusCode(apiErr.StatusCode)
+		return &llm.ProviderError{
+			Base:       base,
+			StatusCode: apiErr.StatusCode,
+			Message:    apiErr.Error(),
+			Retryable:  retryable,
+		}
 	}
 
 	return err
 }
 
-// classifyHTTPError maps an OpenAI HTTP API error to a *llm.ProviderError.
-func classifyHTTPError(apiErr *openai.Error) *llm.ProviderError {
-	retryable, base := classifyStatusCode(apiErr.StatusCode)
-
-	return &llm.ProviderError{
-		Base:      base,
-		Code:      apiErr.Code,
-		Message:   apiErr.Message,
-		Retryable: retryable,
+// classifyHTTPError extracts structured error fields from an OpenAI SDK error.
+// Returns (nil, false) when the SDK could not parse the response as an OpenAI
+// error (JSON.Message field absent), and the caller should fall back to the
+// raw SDK error for diagnostics.
+func classifyHTTPError(apiErr *openai.Error) (*llm.ProviderError, bool) {
+	if !apiErr.JSON.Message.Valid() {
+		return nil, false
 	}
+
+	retryable, base := classifyStatusCode(apiErr.StatusCode)
+	return &llm.ProviderError{
+		Base:       base,
+		Code:       apiErr.Code,
+		Message:    apiErr.Message,
+		StatusCode: apiErr.StatusCode,
+		Retryable:  retryable,
+	}, true
 }
 
 // classifyStatusCode maps HTTP status codes to sentinel errors and retryability.

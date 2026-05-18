@@ -94,6 +94,10 @@ type ProviderError struct {
 	// Message is a human-readable error description from the provider
 	Message string
 
+	// StatusCode is the HTTP status code from the provider response.
+	// Zero when the error did not originate from an HTTP response.
+	StatusCode int
+
 	// Retryable indicates whether this error represents a transient condition
 	// that may succeed on retry (e.g., rate limits, server errors).
 	Retryable bool
@@ -116,11 +120,16 @@ func IsRetryable(err error) bool {
 
 // Error implements the error interface.
 func (e *ProviderError) Error() string {
-	if e.Code != "" {
+	switch {
+	case e.Code != "" && e.StatusCode != 0:
+		return fmt.Sprintf("%s (HTTP %d): [%s] %s", e.Base, e.StatusCode, e.Code, e.Message)
+	case e.Code != "":
 		return fmt.Sprintf("%s: [%s] %s", e.Base, e.Code, e.Message)
+	case e.StatusCode != 0:
+		return fmt.Sprintf("%s (HTTP %d): %s", e.Base, e.StatusCode, e.Message)
+	default:
+		return fmt.Sprintf("%s: %s", e.Base, e.Message)
 	}
-
-	return fmt.Sprintf("%s: %s", e.Base, e.Message)
 }
 
 // Unwrap returns the base error for errors.Is/As support.

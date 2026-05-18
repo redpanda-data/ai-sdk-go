@@ -56,10 +56,11 @@ func classifyHTTPError(apiErr *anthropic.Error) *llm.ProviderError {
 	retryable, base := classifyStatusCode(apiErr.StatusCode)
 
 	return &llm.ProviderError{
-		Base:      base,
-		Code:      statusCodeToString(apiErr.StatusCode),
-		Message:   apiErr.Error(),
-		Retryable: retryable,
+		Base:       base,
+		Code:       statusCodeToString(apiErr.StatusCode),
+		Message:    apiErr.Error(),
+		StatusCode: apiErr.StatusCode,
+		Retryable:  retryable,
 	}
 }
 
