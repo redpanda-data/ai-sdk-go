@@ -465,6 +465,77 @@ func TestRun_SessionSaveError_ConsumerStopsEarly_Panic(t *testing.T) {
 	t.Log("No panic - test passed")
 }
 
+// TestRun_SessionSaveError_ConsumerBreaksOnMessageSaveError_Panic reproduces AI-1157.
+//
+// BUG: When the per-MessageEvent inner session save fails, the runner yields the error
+// at runner.go:218 WITHOUT capturing yield's bool return. If the consumer breaks on
+// that error, the consumerStopped flag stays false. The function returns, the defer
+// fires, the deferred Save fails again, and the defer's yield panics with:
+//
+//	runtime error: range function continued iteration after function for loop body returned false
+//
+// Distinct from AI-587 (consumer breaks on InvocationEndEvent), which was already
+// handled because line 224 captures yield's return.
+//
+// Reproduction:
+//  1. Agent yields a MessageEvent.
+//  2. Runner's per-message Save (runner.go:217) fails.
+//  3. Runner yields the ErrSessionSave error (runner.go:218).
+//  4. Consumer breaks on the error.
+//  5. Runner returns; defer fires; Save fails again.
+//  6. Defer's yield(...) panics because the iterator was already canceled.
+func TestRun_SessionSaveError_ConsumerBreaksOnMessageSaveError_Panic(t *testing.T) {
+	t.Parallel()
+
+	store := &mockSessionStore{
+		loadFunc: func(_ context.Context, _ string) (*session.State, error) {
+			return nil, session.ErrNotFound
+		},
+		saveFunc: func(_ context.Context, _ *session.State) error {
+			return errors.New("marshal failed")
+		},
+	}
+
+	ag := &mockAgent{
+		name: "test-agent",
+		runFunc: func(_ context.Context, inv *agent.InvocationMetadata) iter.Seq2[agent.Event, error] {
+			return func(yield func(agent.Event, error) bool) {
+				envelope := agent.EventEnvelope{
+					InvocationID: inv.InvocationID(),
+					SessionID:    inv.Session().ID,
+					Turn:         0,
+					At:           time.Now().UTC(),
+				}
+				yield(agent.MessageEvent{
+					Envelope: envelope,
+					Response: llm.Response{
+						Message: llm.NewMessage(llm.RoleAssistant, llm.NewTextPart("hi")),
+					},
+				}, nil)
+			}
+		},
+	}
+
+	r, err := runner.New(ag, store)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	userMsg := llm.NewMessage(llm.RoleUser, llm.NewTextPart("hello"))
+
+	var gotErr error
+
+	for _, err := range r.Run(ctx, "", "test-session", userMsg) {
+		if err != nil {
+			gotErr = err
+
+			break
+		}
+	}
+
+	require.Error(t, gotErr)
+	assert.ErrorIs(t, gotErr, agent.ErrSessionSave)
+}
+
 // TestRun_ContextCancellation verifies context cancellation.
 func TestRun_ContextCancellation(t *testing.T) {
 	t.Parallel()
