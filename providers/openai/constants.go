@@ -43,6 +43,10 @@ const (
 	// ModelGPT5_3ChatLatest is the GPT-5.3 Chat Latest model (speed-optimized, medium-only reasoning).
 	ModelGPT5_3ChatLatest = shared.ChatModelGPT5_3ChatLatest
 
+	// ModelGPT5_5 is the GPT-5.5 flagship model (1M context, coding/professional work).
+	// Raw string until the OpenAI SDK adds the constant.
+	ModelGPT5_5 = "gpt-5.5"
+
 	// ModelGPT5_4 is the GPT-5.4 flagship model with full reasoning.
 	ModelGPT5_4 = shared.ChatModelGPT5_4
 	// ModelGPT5_4Mini is the GPT-5.4 Mini model (efficient, full reasoning, 400K context).

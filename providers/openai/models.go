@@ -259,6 +259,32 @@ var supportedModels = map[string]ModelDefinition{
 		Pricing:                   pricing.FlatInfo(1.75, 14.00, 0.175),
 	},
 
+	// GPT-5.5 (May 2026 Flagship)
+	ModelGPT5_5: {
+		Name:  ModelGPT5_5,
+		Label: "OpenAI GPT-5.5",
+		Capabilities: llm.ModelCapabilities{
+			Streaming:        true,
+			Tools:            true,
+			JSONMode:         true,
+			StructuredOutput: true,
+			Vision:           true,
+			Audio:            true,
+			MultiTurn:        true,
+			SystemPrompts:    true,
+			Reasoning:        true,
+		},
+		Constraints: llm.ModelConstraints{
+			TemperatureRange:  [2]float64{0.0, 2.0},
+			MaxInputTokens:    1048576, // 1M context window
+			MaxOutputTokens:   128000,  // 128K output tokens
+			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed", "reasoning_effort", "reasoning_summary"},
+			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
+		},
+		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh},
+		Pricing:                   pricing.FlatInfo(5.00, 30.00, 0.50),
+	},
+
 	// GPT-5.4 Series (March 2026 Flagship)
 	ModelGPT5_4: {
 		Name:  ModelGPT5_4,
