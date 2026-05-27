@@ -449,15 +449,10 @@ func (m *mockWeatherTool) Definition() llm.ToolDefinition {
 		return llm.ToolDefinition{} // Return empty definition on error
 	}
 
-	schemaBytes, err := json.Marshal(schema)
-	if err != nil {
-		return llm.ToolDefinition{} // Return empty definition on error
-	}
-
 	return llm.ToolDefinition{
 		Name:        "get_weather",
 		Description: "Get the current weather for a location",
-		Parameters:  schemaBytes,
+		Parameters:  schema,
 	}
 }
 

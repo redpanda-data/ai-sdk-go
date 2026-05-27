@@ -22,12 +22,24 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/plugins/retry"
 )
+
+// mustParseSchema parses a JSON Schema literal used in conformance fixtures.
+// Panics on failure — the inputs are compile-time strings in test code.
+func mustParseSchema(raw string) *jsonschema.Schema {
+	s := &jsonschema.Schema{}
+	if err := json.Unmarshal([]byte(raw), s); err != nil {
+		panic(fmt.Errorf("conformance: parse schema: %w", err)) //nolint:forbidigo // test fixture helper
+	}
+
+	return s
+}
 
 // Suite provides generic conformance tests for any provider implementing the llm.Model interface.
 type Suite struct {
@@ -806,7 +818,7 @@ func testGenerateEventsWithTools(t *testing.T, fixture Fixture) { //nolint:thelp
 					{
 						Name:        "get_weather",
 						Description: "Get the current weather in a given location",
-						Parameters: json.RawMessage(`{
+						Parameters: mustParseSchema(`{
 							"type": "object",
 							"properties": {
 								"location": {
@@ -918,7 +930,7 @@ func testGenerateEventsWithTools(t *testing.T, fixture Fixture) { //nolint:thelp
 					{
 						Name:        "get_weather",
 						Description: "Get the current weather in a given location",
-						Parameters: json.RawMessage(`{
+						Parameters: mustParseSchema(`{
 							"type": "object",
 							"properties": {
 								"location": {
@@ -932,7 +944,7 @@ func testGenerateEventsWithTools(t *testing.T, fixture Fixture) { //nolint:thelp
 					{
 						Name:        "get_time",
 						Description: "Get the current time in a given timezone",
-						Parameters: json.RawMessage(`{
+						Parameters: mustParseSchema(`{
 							"type": "object",
 							"properties": {
 								"timezone": {
@@ -1117,7 +1129,7 @@ func testToolExecutionLoop(t *testing.T, fixture Fixture) { //nolint:thelper // 
 				{
 					Name:        "get_weather",
 					Description: "Get the current weather in a given location",
-					Parameters: json.RawMessage(`{
+					Parameters: mustParseSchema(`{
 						"type": "object",
 						"properties": {
 							"location": {
@@ -1217,7 +1229,7 @@ func testToolExecutionLoop(t *testing.T, fixture Fixture) { //nolint:thelper // 
 				{
 					Name:        "get_time",
 					Description: "Get the current time in a given timezone",
-					Parameters: json.RawMessage(`{
+					Parameters: mustParseSchema(`{
 						"type": "object",
 						"properties": {
 							"timezone": {
@@ -1326,12 +1338,12 @@ func testToolExecutionLoop(t *testing.T, fixture Fixture) { //nolint:thelper // 
 				{
 					Name:        "get_current_location",
 					Description: "Get the user's current location",
-					Parameters:  json.RawMessage(`{"type": "object", "properties": {}}`),
+					Parameters:  mustParseSchema(`{"type": "object", "properties": {}}`),
 				},
 				{
 					Name:        "get_weather",
 					Description: "Get the current weather in a given location",
-					Parameters: json.RawMessage(`{
+					Parameters: mustParseSchema(`{
 						"type": "object",
 						"properties": {
 							"location": {

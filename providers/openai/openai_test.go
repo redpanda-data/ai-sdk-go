@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/redpanda-data/ai-sdk-go/internal/testschema"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -364,7 +365,7 @@ func TestToolMapping(t *testing.T) {
 				{
 					Name:        "get_weather",
 					Description: "Get current weather information for a location",
-					Parameters: json.RawMessage(`{
+					Parameters: testschema.MustParse(`{
 						"type": "object",
 						"properties": {
 							"location": {
@@ -428,12 +429,12 @@ func TestToolMapping(t *testing.T) {
 				{
 					Name:        "tool_one",
 					Description: "First tool",
-					Parameters:  json.RawMessage(`{"type": "object", "properties": {}}`),
+					Parameters:  testschema.MustParse(`{"type": "object", "properties": {}}`),
 				},
 				{
 					Name:        "tool_two",
 					Description: "Second tool",
-					Parameters:  json.RawMessage(`{"type": "object", "properties": {}}`),
+					Parameters:  testschema.MustParse(`{"type": "object", "properties": {}}`),
 				},
 			},
 			wantErr: false,
@@ -449,7 +450,7 @@ func TestToolMapping(t *testing.T) {
 			tools: []llm.ToolDefinition{
 				{
 					Name:       "simple_tool",
-					Parameters: json.RawMessage(`{"type": "object", "properties": {}}`),
+					Parameters: testschema.MustParse(`{"type": "object", "properties": {}}`),
 				},
 			},
 			wantErr: false,
@@ -469,7 +470,7 @@ func TestToolMapping(t *testing.T) {
 			tools: []llm.ToolDefinition{
 				{
 					Name:       "bad_tool",
-					Parameters: json.RawMessage(`{invalid json}`),
+					Parameters: testschema.MustParse(`{invalid json}`),
 				},
 			},
 			wantErr: true,
@@ -521,7 +522,7 @@ func TestRequestMappingWithTools(t *testing.T) {
 			{
 				Name:        "get_weather",
 				Description: "Get current weather information for a location",
-				Parameters: json.RawMessage(`{
+				Parameters: testschema.MustParse(`{
 					"type": "object",
 					"properties": {
 						"location": {"type": "string", "description": "The city and state/country"}
@@ -638,9 +639,10 @@ func TestMessageMappingWithToolParts(t *testing.T) {
 					Role: llm.RoleUser,
 					Content: []llm.Part{
 						&llm.ToolResponsePart{
-							ID:    "call_123",
-							Name:  "get_weather",
-							IsError: true, Result: json.RawMessage(`{"error":"API rate limit exceeded"}`),						},
+							ID:      "call_123",
+							Name:    "get_weather",
+							IsError: true, Result: json.RawMessage(`{"error":"API rate limit exceeded"}`),
+						},
 					},
 				},
 			},

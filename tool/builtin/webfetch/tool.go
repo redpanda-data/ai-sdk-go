@@ -23,6 +23,7 @@ import (
 	"time"
 
 	md "github.com/JohannesKaufmann/html-to-markdown"
+	"github.com/google/jsonschema-go/jsonschema"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/tool"
@@ -72,10 +73,13 @@ func (t *Tool) Definition() llm.ToolDefinition {
 
 	schemaBytes, _ := json.Marshal(schema) //nolint:errchkjson // We know that this will succeed
 
+	parsed := &jsonschema.Schema{}
+	_ = json.Unmarshal(schemaBytes, parsed)
+
 	return llm.ToolDefinition{
 		Name:        "webfetch",
 		Description: "Fetch a HTTPS URL (GET/HEAD) with SSRF protection and size limits. Text/JSON/XML only.",
-		Parameters:  schemaBytes,
+		Parameters:  parsed,
 		Type:        llm.ToolTypeFunction,
 		Metadata: map[string]any{
 			"category": "web",

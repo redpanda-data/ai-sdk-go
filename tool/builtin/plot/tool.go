@@ -25,6 +25,7 @@ import (
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/tool"
+	"github.com/redpanda-data/ai-sdk-go/tool/builtin"
 )
 
 // Tool implements the plot tool for generating charts.
@@ -39,13 +40,6 @@ func New() tool.Tool {
 
 // Definition returns the tool definition for LLM consumption.
 func (*Tool) Definition() llm.ToolDefinition {
-	// Generate schema from PlotInput type
-	schemaBytes, err := json.Marshal(plotInputSchema)
-	if err != nil {
-		// Fallback to empty schema if marshaling fails
-		schemaBytes = []byte("{}")
-	}
-
 	return llm.ToolDefinition{
 		Name: "plot",
 		Description: `Generate data visualization charts as PNG images, returned as artifacts.
@@ -77,7 +71,7 @@ Line: {"name": "User Growth", "description": "Daily active users over last 30 da
 Bar: {"name": "Regional Sales", "description": "Q1 sales by region", "chart_type": "bar", "title": "Sales by Region", "bar_data": {"categories": ["North","South"], "series": [{"name": "Q1", "values": [100,150]}]}}
 Scatter: {"name": "Transaction Analysis", "description": "Amount vs fraud score correlation", "chart_type": "scatter", "scatter_data": {"series": [{"name": "Transactions", "x": [10,20,30], "y": [0.1,0.5,0.9]}]}}
 Histogram: {"name": "Response Time Distribution", "description": "API response time frequency", "chart_type": "histogram", "histogram_data": {"values": [12.3,45.2,23.1], "bins": 10}}`,
-		Parameters: schemaBytes,
+		Parameters: plotInputSchema,
 		Type:       llm.ToolTypeFunction,
 		Metadata: map[string]any{
 			"category": "visualization",
@@ -131,199 +125,113 @@ func (*Tool) Execute(_ context.Context, args json.RawMessage) (json.RawMessage, 
 	return json.Marshal(output)
 }
 
-// Manual JSON schema for plot Input type.
-var plotInputSchema = map[string]any{
+// Manual JSON schema for plot Input type. Parsed once at init time from the
+// JSON literal below to keep the source readable; MustParseSchema panics on
+// invalid schema, which is desirable for this compile-time constant.
+var plotInputSchema = builtin.MustParseSchema(`{
 	"type": "object",
-	"properties": map[string]any{
-		"name": map[string]any{
-			"type":        "string",
-			"description": "Name for the plot artifact",
+	"properties": {
+		"name": {"type": "string", "description": "Name for the plot artifact"},
+		"description": {"type": "string", "description": "Description of what the plot shows"},
+		"chart_type": {
+			"type": "string",
+			"enum": ["line", "bar", "scatter", "histogram"],
+			"description": "Type of chart to generate"
 		},
-		"description": map[string]any{
-			"type":        "string",
-			"description": "Description of what the plot shows",
-		},
-		"chart_type": map[string]any{
-			"type":        "string",
-			"enum":        []string{"line", "bar", "scatter", "histogram"},
-			"description": "Type of chart to generate",
-		},
-		"title": map[string]any{
-			"type":        "string",
-			"description": "Chart title",
-		},
-		"x_label": map[string]any{
-			"type":        "string",
-			"description": "X-axis label",
-		},
-		"y_label": map[string]any{
-			"type":        "string",
-			"description": "Y-axis label",
-		},
-		"options": map[string]any{
-			"type":        "object",
+		"title": {"type": "string", "description": "Chart title"},
+		"x_label": {"type": "string", "description": "X-axis label"},
+		"y_label": {"type": "string", "description": "Y-axis label"},
+		"options": {
+			"type": "object",
 			"description": "Chart rendering options",
-			"properties": map[string]any{
-				"width": map[string]any{
-					"type":        "integer",
-					"description": "Chart width in pixels (default 800)",
-				},
-				"height": map[string]any{
-					"type":        "integer",
-					"description": "Chart height in pixels (default 600)",
-				},
-				"legend": map[string]any{
-					"type":        "boolean",
-					"description": "Show legend (default true)",
-				},
-				"grid": map[string]any{
-					"type":        "boolean",
-					"description": "Show grid lines (default true)",
-				},
+			"properties": {
+				"width": {"type": "integer", "description": "Chart width in pixels (default 800)"},
+				"height": {"type": "integer", "description": "Chart height in pixels (default 600)"},
+				"legend": {"type": "boolean", "description": "Show legend (default true)"},
+				"grid": {"type": "boolean", "description": "Show grid lines (default true)"}
 			},
-			"additionalProperties": false,
+			"additionalProperties": false
 		},
-		"line_data": map[string]any{
-			"type":        "object",
+		"line_data": {
+			"type": "object",
 			"description": "Data for line charts",
-			"properties": map[string]any{
-				"series": map[string]any{
-					"type":        "array",
+			"properties": {
+				"series": {
+					"type": "array",
 					"description": "Data series for line chart",
-					"minItems":    1,
-					"items": map[string]any{
+					"minItems": 1,
+					"items": {
 						"type": "object",
-						"properties": map[string]any{
-							"name": map[string]any{
-								"type":        "string",
-								"description": "Series name for legend",
-							},
-							"x": map[string]any{
-								"type":        "array",
-								"description": "X-axis values",
-								"minItems":    1,
-								"items": map[string]any{
-									"type": "number",
-								},
-							},
-							"y": map[string]any{
-								"type":        "array",
-								"description": "Y-axis values",
-								"minItems":    1,
-								"items": map[string]any{
-									"type": "number",
-								},
-							},
+						"properties": {
+							"name": {"type": "string", "description": "Series name for legend"},
+							"x": {"type": "array", "description": "X-axis values", "minItems": 1, "items": {"type": "number"}},
+							"y": {"type": "array", "description": "Y-axis values", "minItems": 1, "items": {"type": "number"}}
 						},
-						"required":             []string{"name", "x", "y"},
-						"additionalProperties": false,
-					},
-				},
+						"required": ["name", "x", "y"],
+						"additionalProperties": false
+					}
+				}
 			},
-			"required":             []string{"series"},
-			"additionalProperties": false,
+			"required": ["series"],
+			"additionalProperties": false
 		},
-		"bar_data": map[string]any{
-			"type":        "object",
+		"bar_data": {
+			"type": "object",
 			"description": "Data for bar charts",
-			"properties": map[string]any{
-				"categories": map[string]any{
-					"type":        "array",
-					"description": "Category labels for X-axis",
-					"minItems":    1,
-					"items": map[string]any{
-						"type": "string",
-					},
-				},
-				"series": map[string]any{
-					"type":        "array",
+			"properties": {
+				"categories": {"type": "array", "description": "Category labels for X-axis", "minItems": 1, "items": {"type": "string"}},
+				"series": {
+					"type": "array",
 					"description": "Data series for bar chart",
-					"minItems":    1,
-					"items": map[string]any{
+					"minItems": 1,
+					"items": {
 						"type": "object",
-						"properties": map[string]any{
-							"name": map[string]any{
-								"type":        "string",
-								"description": "Series name for legend",
-							},
-							"values": map[string]any{
-								"type":        "array",
-								"description": "Data values",
-								"minItems":    1,
-								"items": map[string]any{
-									"type": "number",
-								},
-							},
+						"properties": {
+							"name": {"type": "string", "description": "Series name for legend"},
+							"values": {"type": "array", "description": "Data values", "minItems": 1, "items": {"type": "number"}}
 						},
-						"required":             []string{"name", "values"},
-						"additionalProperties": false,
-					},
-				},
+						"required": ["name", "values"],
+						"additionalProperties": false
+					}
+				}
 			},
-			"required":             []string{"categories", "series"},
-			"additionalProperties": false,
+			"required": ["categories", "series"],
+			"additionalProperties": false
 		},
-		"scatter_data": map[string]any{
-			"type":        "object",
+		"scatter_data": {
+			"type": "object",
 			"description": "Data for scatter plots",
-			"properties": map[string]any{
-				"series": map[string]any{
-					"type":        "array",
+			"properties": {
+				"series": {
+					"type": "array",
 					"description": "Data series for scatter plot",
-					"minItems":    1,
-					"items": map[string]any{
+					"minItems": 1,
+					"items": {
 						"type": "object",
-						"properties": map[string]any{
-							"name": map[string]any{
-								"type":        "string",
-								"description": "Series name for legend",
-							},
-							"x": map[string]any{
-								"type":        "array",
-								"description": "X-axis values",
-								"minItems":    1,
-								"items": map[string]any{
-									"type": "number",
-								},
-							},
-							"y": map[string]any{
-								"type":        "array",
-								"description": "Y-axis values",
-								"minItems":    1,
-								"items": map[string]any{
-									"type": "number",
-								},
-							},
+						"properties": {
+							"name": {"type": "string", "description": "Series name for legend"},
+							"x": {"type": "array", "description": "X-axis values", "minItems": 1, "items": {"type": "number"}},
+							"y": {"type": "array", "description": "Y-axis values", "minItems": 1, "items": {"type": "number"}}
 						},
-						"required":             []string{"name", "x", "y"},
-						"additionalProperties": false,
-					},
-				},
+						"required": ["name", "x", "y"],
+						"additionalProperties": false
+					}
+				}
 			},
-			"required":             []string{"series"},
-			"additionalProperties": false,
+			"required": ["series"],
+			"additionalProperties": false
 		},
-		"histogram_data": map[string]any{
-			"type":        "object",
+		"histogram_data": {
+			"type": "object",
 			"description": "Data for histograms",
-			"properties": map[string]any{
-				"values": map[string]any{
-					"type":        "array",
-					"description": "Raw values to bin into histogram",
-					"minItems":    1,
-					"items": map[string]any{
-						"type": "number",
-					},
-				},
-				"bins": map[string]any{
-					"type":        "integer",
-					"description": "Number of histogram bins (default 10)",
-				},
+			"properties": {
+				"values": {"type": "array", "description": "Raw values to bin into histogram", "minItems": 1, "items": {"type": "number"}},
+				"bins": {"type": "integer", "description": "Number of histogram bins (default 10)"}
 			},
-			"required":             []string{"values"},
-			"additionalProperties": false,
-		},
+			"required": ["values"],
+			"additionalProperties": false
+		}
 	},
-	"required":             []string{"name", "description", "chart_type"},
-	"additionalProperties": false,
-}
+	"required": ["name", "description", "chart_type"],
+	"additionalProperties": false
+}`)

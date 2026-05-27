@@ -318,10 +318,19 @@ func (rm *RequestMapper) mapToolDefinitions(tools []llm.ToolDefinition) ([]anthr
 	apiTools := make([]anthropic.BetaToolUnionParam, 0, len(tools))
 
 	for _, tool := range tools {
-		// Parse the JSON schema
+		// Marshal *jsonschema.Schema to JSON once per tool, then decode into
+		// a mutable map for the schema adapter.
 		var schemaMap map[string]any
-		if err := json.Unmarshal(tool.Parameters, &schemaMap); err != nil {
-			return nil, fmt.Errorf("failed to parse tool schema for %s: %w", tool.Name, err)
+
+		if tool.Parameters != nil {
+			schemaBytes, err := json.Marshal(tool.Parameters)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal tool schema for %s: %w", tool.Name, err)
+			}
+
+			if err := json.Unmarshal(schemaBytes, &schemaMap); err != nil {
+				return nil, fmt.Errorf("failed to parse tool schema for %s: %w", tool.Name, err)
+			}
 		}
 
 		// Adapt the schema for Anthropic

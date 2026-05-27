@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/redpanda-data/ai-sdk-go/internal/testschema"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/providers/openai"
 	"github.com/redpanda-data/ai-sdk-go/providers/openai/openaitest"
@@ -470,7 +471,7 @@ func TestRegistry_WebfetchToolWithLLM_Integration(t *testing.T) {
 				Content: response.Message.Content, // Include the original tool requests
 			},
 			{
-				Role: llm.RoleUser,
+				Role:    llm.RoleUser,
 				Content: []llm.Part{toolResponse},
 			},
 		},
@@ -514,7 +515,7 @@ func (m *mockTool) Definition() llm.ToolDefinition {
 	return llm.ToolDefinition{
 		Name:        m.name,
 		Description: "Mock tool for testing",
-		Parameters:  json.RawMessage(`{"type":"object","properties":{"input":{"type":"string"}}}`),
+		Parameters:  testschema.MustParse(`{"type":"object","properties":{"input":{"type":"string"}}}`),
 	}
 }
 

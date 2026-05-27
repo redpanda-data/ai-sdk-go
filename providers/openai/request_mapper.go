@@ -334,10 +334,17 @@ func (rm *RequestMapper) mapToolDefinitions(tools []llm.ToolDefinition) ([]respo
 	apiTools := make([]responses.ToolUnionParam, 0, len(tools))
 
 	for _, tool := range tools {
-		// Parse the parameters JSON schema
+		// Marshal *jsonschema.Schema once per tool, then decode into a map
+		// so the existing schema adapter can mutate it.
 		var parametersMap map[string]any
-		if len(tool.Parameters) > 0 {
-			err := json.Unmarshal(tool.Parameters, &parametersMap)
+
+		if tool.Parameters != nil {
+			schemaBytes, err := json.Marshal(tool.Parameters)
+			if err != nil {
+				return nil, fmt.Errorf("invalid parameters for tool %s: %w", tool.Name, err)
+			}
+
+			err = json.Unmarshal(schemaBytes, &parametersMap)
 			if err != nil {
 				return nil, fmt.Errorf("invalid parameters JSON for tool %s: %w", tool.Name, err)
 			}

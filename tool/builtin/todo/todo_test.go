@@ -495,7 +495,9 @@ func TestTodoTools_Definitions(t *testing.T) {
 
 		// Verify schema is valid JSON
 		var schema map[string]any
-		require.NoError(t, json.Unmarshal(def.Parameters, &schema))
+
+		schemaBytes, _ := json.Marshal(def.Parameters)
+		require.NoError(t, json.Unmarshal(schemaBytes, &schema))
 		assert.Equal(t, "object", schema["type"])
 		assert.Contains(t, schema, "properties")
 		assert.Contains(t, schema, "required")
@@ -515,7 +517,9 @@ func TestTodoTools_Definitions(t *testing.T) {
 
 		// Verify schema is valid JSON
 		var schema map[string]any
-		require.NoError(t, json.Unmarshal(def.Parameters, &schema))
+
+		schemaBytes, _ := json.Marshal(def.Parameters)
+		require.NoError(t, json.Unmarshal(schemaBytes, &schema))
 		assert.Equal(t, "object", schema["type"])
 		assert.Contains(t, schema, "properties")
 		assert.Contains(t, schema, "required")

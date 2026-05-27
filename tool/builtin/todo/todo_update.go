@@ -23,6 +23,7 @@ import (
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/tool"
+	"github.com/redpanda-data/ai-sdk-go/tool/builtin"
 )
 
 // Item represents a todo item with name and status.
@@ -63,34 +64,6 @@ func NewUpdateStateTool() tool.Tool {
 
 // Definition returns the tool definition for the LLM.
 func (*UpdateTodoStateTool) Definition() llm.ToolDefinition {
-	schema := json.RawMessage(`{
-		"type": "object",
-		"properties": {
-			"updates": {
-				"description": "List of todo status updates to apply",
-				"type": "array",
-				"items": {
-					"type": "object",
-					"properties": {
-						"name": {
-							"type": "string",
-							"description": "Name of the todo to update"
-						},
-						"status": {
-							"type": "string",
-							"enum": ["PENDING", "IN_PROGRESS", "COMPLETED", "FAILED", "ABANDONED"],
-							"description": "New status to set for the todo"
-						}
-					},
-					"required": ["name", "status"],
-					"additionalProperties": false
-				}
-			}
-		},
-		"required": ["updates"],
-		"additionalProperties": false
-	}`)
-
 	return llm.ToolDefinition{
 		Name: "update_todos",
 		Description: `Update the status of existing todos in your task list. Use this to change the state of specific todos without rebuilding the entire list.
@@ -110,10 +83,35 @@ IMPORTANT RULES:
 - Mark tasks COMPLETED immediately after finishing
 - Use FAILED for tasks that were attempted but couldn't be completed
 - Use ABANDONED for tasks that are no longer relevant or needed`,
-		Parameters: schema,
+		Parameters: updateTodoSchema,
 		Type:       llm.ToolTypeFunction,
 	}
 }
+
+var updateTodoSchema = builtin.MustParseSchema(`{
+	"type": "object",
+	"properties": {
+		"updates": {
+			"description": "List of todo status updates to apply",
+			"type": "array",
+			"items": {
+				"type": "object",
+				"properties": {
+					"name": {"type": "string", "description": "Name of the todo to update"},
+					"status": {
+						"type": "string",
+						"enum": ["PENDING", "IN_PROGRESS", "COMPLETED", "FAILED", "ABANDONED"],
+						"description": "New status to set for the todo"
+					}
+				},
+				"required": ["name", "status"],
+				"additionalProperties": false
+			}
+		}
+	},
+	"required": ["updates"],
+	"additionalProperties": false
+}`)
 
 // Execute processes the update todo state request.
 func (t *UpdateTodoStateTool) Execute(_ context.Context, args json.RawMessage) (json.RawMessage, error) {
@@ -190,35 +188,6 @@ func NewAddTool() tool.Tool {
 
 // Definition returns the tool definition for the LLM.
 func (*AddTodoTool) Definition() llm.ToolDefinition {
-	schema := json.RawMessage(`{
-		"type": "object",
-		"properties": {
-			"todos": {
-				"description": "New todos to add to the task list",
-				"type": "array",
-				"items": {
-					"type": "object",
-					"properties": {
-						"name": {
-							"type": "string",
-							"minLength": 1,
-							"description": "The name/description of the todo task"
-						},
-						"status": {
-							"type": "string",
-							"enum": ["PENDING", "IN_PROGRESS", "COMPLETED", "FAILED", "ABANDONED"],
-							"description": "Initial status of the todo"
-						}
-					},
-					"required": ["name", "status"],
-					"additionalProperties": false
-				}
-			}
-		},
-		"required": ["todos"],
-		"additionalProperties": false
-	}`)
-
 	return llm.ToolDefinition{
 		Name: "add_todos",
 		Description: `Add new todos to your existing task list. Use this to expand your task list as new work is discovered.
@@ -241,10 +210,35 @@ IMPORTANT RULES:
 - Only mark as IN_PROGRESS if immediately starting work
 - Provide clear, actionable descriptions
 - Use specific, measurable content`,
-		Parameters: schema,
+		Parameters: addTodoSchema,
 		Type:       llm.ToolTypeFunction, // Explicit: local execution
 	}
 }
+
+var addTodoSchema = builtin.MustParseSchema(`{
+	"type": "object",
+	"properties": {
+		"todos": {
+			"description": "New todos to add to the task list",
+			"type": "array",
+			"items": {
+				"type": "object",
+				"properties": {
+					"name": {"type": "string", "minLength": 1, "description": "The name/description of the todo task"},
+					"status": {
+						"type": "string",
+						"enum": ["PENDING", "IN_PROGRESS", "COMPLETED", "FAILED", "ABANDONED"],
+						"description": "Initial status of the todo"
+					}
+				},
+				"required": ["name", "status"],
+				"additionalProperties": false
+			}
+		}
+	},
+	"required": ["todos"],
+	"additionalProperties": false
+}`)
 
 // Execute processes the add todo request.
 func (t *AddTodoTool) Execute(_ context.Context, args json.RawMessage) (json.RawMessage, error) {

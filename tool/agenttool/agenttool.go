@@ -37,6 +37,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/jsonschema-go/jsonschema"
+
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/store/session"
@@ -59,6 +61,13 @@ func (at *AgentTool) Definition() llm.ToolDefinition {
 	info := at.agent.Info()
 	schema := at.agent.InputSchema()
 
+	if schema == nil {
+		return llm.ToolDefinition{
+			Name:        info.Name,
+			Description: info.Description,
+		}
+	}
+
 	schemaJSON, err := json.Marshal(schema)
 	if err != nil {
 		// Programming error: agent's InputSchema contains unmarshalable types (channels, funcs, etc.)
@@ -66,14 +75,23 @@ func (at *AgentTool) Definition() llm.ToolDefinition {
 		return llm.ToolDefinition{
 			Name:        info.Name,
 			Description: fmt.Sprintf("[SCHEMA ERROR] %s - Invalid InputSchema implementation: %v", info.Description, err),
-			Parameters:  json.RawMessage(`{"type":"object"}`),
+			Parameters:  &jsonschema.Schema{Type: "object"},
+		}
+	}
+
+	parsed := &jsonschema.Schema{}
+	if err := json.Unmarshal(schemaJSON, parsed); err != nil {
+		return llm.ToolDefinition{
+			Name:        info.Name,
+			Description: fmt.Sprintf("[SCHEMA ERROR] %s - InputSchema is not valid JSON Schema: %v", info.Description, err),
+			Parameters:  &jsonschema.Schema{Type: "object"},
 		}
 	}
 
 	return llm.ToolDefinition{
 		Name:        info.Name,
 		Description: info.Description,
-		Parameters:  schemaJSON,
+		Parameters:  parsed,
 	}
 }
 

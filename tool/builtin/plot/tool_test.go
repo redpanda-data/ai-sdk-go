@@ -37,8 +37,8 @@ func TestTool_Definition(t *testing.T) {
 	// Verify schema is valid JSON
 	var schema map[string]any
 
-	err := json.Unmarshal(def.Parameters, &schema)
-	require.NoError(t, err)
+	schemaBytes, _ := json.Marshal(def.Parameters) //nolint:errchkjson // round-trip of typed schema for shape assertion
+	require.NoError(t, json.Unmarshal(schemaBytes, &schema))
 }
 
 func TestTool_Execute_LineChart(t *testing.T) {

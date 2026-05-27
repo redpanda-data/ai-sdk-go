@@ -155,8 +155,8 @@ func TestDefinition(t *testing.T) {
 			// Parameters is json.RawMessage, so unmarshal to compare
 			var actualSchema map[string]any
 			if def.Parameters != nil {
-				err := json.Unmarshal(def.Parameters, &actualSchema)
-				require.NoError(t, err)
+				schemaBytes, _ := json.Marshal(def.Parameters)
+				require.NoError(t, json.Unmarshal(schemaBytes, &actualSchema))
 			}
 
 			assert.Equal(t, tt.schema, actualSchema)

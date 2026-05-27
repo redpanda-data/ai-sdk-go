@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/redpanda-data/ai-sdk-go/internal/testschema"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -522,7 +523,7 @@ func TestRequestMapper_ToolDefinitions(t *testing.T) {
 
 	mapper := NewRequestMapper(cfg)
 
-	schema := json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`)
+	schema := testschema.MustParse(`{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`)
 
 	req := &llm.Request{
 		Messages: []llm.Message{
@@ -573,7 +574,7 @@ func TestRequestMapper_ToolChoiceSpecific(t *testing.T) {
 			{
 				Name:        "search",
 				Description: "Search",
-				Parameters:  json.RawMessage(`{"type":"object"}`),
+				Parameters:  testschema.MustParse(`{"type":"object"}`),
 			},
 		},
 		ToolChoice: &llm.ToolChoice{Type: llm.ToolChoiceSpecific, Name: &toolName},
@@ -635,9 +636,10 @@ func TestRequestMapper_ToolResponseError(t *testing.T) {
 		Messages: []llm.Message{
 			llm.NewMessage(llm.RoleUser,
 				&llm.ToolResponsePart{
-					ID:    "toolu_123",
-					Name:  "search",
-					IsError: true, Result: json.RawMessage(`{"error":"API rate limited"}`),				},
+					ID:      "toolu_123",
+					Name:    "search",
+					IsError: true, Result: json.RawMessage(`{"error":"API rate limited"}`),
+				},
 			),
 		},
 	}

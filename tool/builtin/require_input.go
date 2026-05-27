@@ -47,24 +47,6 @@ func NewRequireInputTool() tool.Tool {
 
 // Definition returns the tool definition for the LLM.
 func (*RequireInputTool) Definition() llm.ToolDefinition {
-	schema := json.RawMessage(`{
-		"type": "object",
-		"properties": {
-			"message": {
-				"type": "string",
-				"minLength": 1,
-				"description": "A clear message explaining what input is needed from the user"
-			},
-			"type": {
-				"type": "string",
-				"enum": ["clarification", "decision", "information", "approval"],
-				"description": "The type of input needed: clarification (unclear requirements), decision (user choice needed), information (missing data), approval (permission required)"
-			}
-		},
-		"required": ["message"],
-		"additionalProperties": false
-	}`)
-
 	return llm.ToolDefinition{
 		Name: "require_input",
 		Description: `Use this tool when you need input, clarification, or decisions from the user before proceeding with a task.
@@ -85,10 +67,28 @@ IMPORTANT:
 - Provide a clear, specific message about what input is needed
 - Use appropriate type to categorize the input request
 - This will pause task execution until user responds`,
-		Parameters: schema,
+		Parameters: requireInputSchema,
 		Type:       llm.ToolTypeFunction,
 	}
 }
+
+var requireInputSchema = MustParseSchema(`{
+	"type": "object",
+	"properties": {
+		"message": {
+			"type": "string",
+			"minLength": 1,
+			"description": "A clear message explaining what input is needed from the user"
+		},
+		"type": {
+			"type": "string",
+			"enum": ["clarification", "decision", "information", "approval"],
+			"description": "The type of input needed: clarification (unclear requirements), decision (user choice needed), information (missing data), approval (permission required)"
+		}
+	},
+	"required": ["message"],
+	"additionalProperties": false
+}`)
 
 // Execute processes the require input request.
 func (*RequireInputTool) Execute(_ context.Context, args json.RawMessage) (json.RawMessage, error) {

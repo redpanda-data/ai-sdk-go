@@ -308,8 +308,16 @@ func (rm *RequestMapper) mapToolConfig(tools []llm.ToolDefinition, choice *llm.T
 
 	for _, tool := range tools {
 		var schemaMap map[string]any
-		if err := json.Unmarshal(tool.Parameters, &schemaMap); err != nil {
-			return nil, fmt.Errorf("failed to parse tool schema for %s: %w", tool.Name, err)
+
+		if tool.Parameters != nil {
+			schemaBytes, err := json.Marshal(tool.Parameters)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal tool schema for %s: %w", tool.Name, err)
+			}
+
+			if err := json.Unmarshal(schemaBytes, &schemaMap); err != nil {
+				return nil, fmt.Errorf("failed to parse tool schema for %s: %w", tool.Name, err)
+			}
 		}
 
 		apiTools = append(apiTools, &types.ToolMemberToolSpec{
