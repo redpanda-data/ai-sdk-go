@@ -20,6 +20,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/jsonschema-go/jsonschema"
+
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/tool"
 )
@@ -47,23 +49,24 @@ func NewRequireInputTool() tool.Tool {
 
 // Definition returns the tool definition for the LLM.
 func (*RequireInputTool) Definition() llm.ToolDefinition {
-	schema := json.RawMessage(`{
-		"type": "object",
-		"properties": {
+	minLength := 1
+	schema := &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
 			"message": {
-				"type": "string",
-				"minLength": 1,
-				"description": "A clear message explaining what input is needed from the user"
+				Type:        "string",
+				MinLength:   &minLength,
+				Description: "A clear message explaining what input is needed from the user",
 			},
 			"type": {
-				"type": "string",
-				"enum": ["clarification", "decision", "information", "approval"],
-				"description": "The type of input needed: clarification (unclear requirements), decision (user choice needed), information (missing data), approval (permission required)"
-			}
+				Type:        "string",
+				Enum:        []any{"clarification", "decision", "information", "approval"},
+				Description: "The type of input needed: clarification (unclear requirements), decision (user choice needed), information (missing data), approval (permission required)",
+			},
 		},
-		"required": ["message"],
-		"additionalProperties": false
-	}`)
+		Required:             []string{"message"},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
 
 	return llm.ToolDefinition{
 		Name: "require_input",

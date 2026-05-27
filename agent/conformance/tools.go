@@ -17,6 +17,9 @@ package conformance
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+
+	"github.com/google/jsonschema-go/jsonschema"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
@@ -34,20 +37,7 @@ func (*CalculatorTool) Definition() llm.ToolDefinition {
 	return llm.ToolDefinition{
 		Name:        "add_numbers",
 		Description: "Adds two numbers together and returns the result",
-		Parameters: json.RawMessage(`{
-			"type": "object",
-			"properties": {
-				"a": {
-					"type": "number",
-					"description": "The first number to add"
-				},
-				"b": {
-					"type": "number",
-					"description": "The second number to add"
-				}
-			},
-			"required": ["a", "b"]
-		}`),
+		Parameters:  mustParseAddSchema(),
 	}
 }
 
@@ -70,4 +60,25 @@ func (*CalculatorTool) Execute(_ context.Context, args json.RawMessage) (json.Ra
 	}
 
 	return json.Marshal(response)
+}
+
+// mustParseAddSchema returns the input schema for the calculator tool.
+// Inline JSON keeps the literal readable; parsing happens once at definition
+// time so the tool implementation stays straightforward.
+func mustParseAddSchema() *jsonschema.Schema {
+	raw := `{
+		"type": "object",
+		"properties": {
+			"a": {"type": "number", "description": "The first number to add"},
+			"b": {"type": "number", "description": "The second number to add"}
+		},
+		"required": ["a", "b"]
+	}`
+
+	s := &jsonschema.Schema{}
+	if err := s.UnmarshalJSON([]byte(raw)); err != nil {
+		panic(fmt.Sprintf("calculator schema: %v", err)) //nolint:forbidigo // schema literals are developer-authored; misparse must surface immediately
+	}
+
+	return s
 }

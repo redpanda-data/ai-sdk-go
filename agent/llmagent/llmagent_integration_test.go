@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -44,7 +45,7 @@ func (*calculatorTool) Definition() llm.ToolDefinition {
 	return llm.ToolDefinition{
 		Name:        "add_numbers",
 		Description: "Adds two numbers together and returns the result",
-		Parameters: json.RawMessage(`{
+		Parameters: parseTestSchema(json.RawMessage(`{
 			"type": "object",
 			"properties": {
 				"a": {
@@ -57,7 +58,7 @@ func (*calculatorTool) Definition() llm.ToolDefinition {
 				}
 			},
 			"required": ["a", "b"]
-		}`),
+		}`)),
 	}
 }
 
@@ -186,4 +187,15 @@ func TestLLMAgent_Integration_ToolCalling(t *testing.T) {
 	t.Logf("Final response: %s", finalText)
 	t.Logf("Tool calls: %d, Tool results: %d", len(toolCallEvents), len(toolResultEvents))
 	t.Logf("Token usage: %d total tokens", endEvent.Usage.TotalBilledTokens())
+}
+
+// parseTestSchema parses a json.RawMessage into a *jsonschema.Schema for test
+// fixtures. Invalid input still produces a non-nil schema (jsonschema.Schema
+// permits the empty object) so callers exercising invalid-JSON branches see
+// the failure when the provider attempts the round trip.
+func parseTestSchema(raw json.RawMessage) *jsonschema.Schema {
+	s := &jsonschema.Schema{}
+	_ = s.UnmarshalJSON([]byte(raw))
+
+	return s
 }

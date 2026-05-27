@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/require"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
@@ -90,6 +91,9 @@ func TestAnthropicJSONOutput_Integration(t *testing.T) {
 		schemaJSON, err := json.Marshal(schema)
 		require.NoError(t, err)
 
+		parsedSchema := &jsonschema.Schema{}
+		require.NoError(t, parsedSchema.UnmarshalJSON(schemaJSON))
+
 		req := &llm.Request{
 			Messages: []llm.Message{
 				{
@@ -101,7 +105,7 @@ func TestAnthropicJSONOutput_Integration(t *testing.T) {
 				Type: llm.ResponseFormatJSONSchema,
 				JSONSchema: &llm.JSONSchema{
 					Name:   "Person",
-					Schema: schemaJSON,
+					Schema: parsedSchema,
 				},
 			},
 		}

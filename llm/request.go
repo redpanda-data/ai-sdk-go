@@ -14,7 +14,7 @@
 
 package llm
 
-import "encoding/json"
+import "github.com/google/jsonschema-go/jsonschema"
 
 // Request represents a standardized request to any AI model.
 // This structure contains only the universal concepts that work across
@@ -137,9 +137,11 @@ type ToolDefinition struct {
 	// This helps the model make good decisions about tool usage.
 	Description string `json:"description"`
 
-	// Parameters defines the input schema for this tool as a JSON Schema.
-	// This tells the model what arguments are expected and their types.
-	Parameters json.RawMessage `json:"parameters"`
+	// Parameters defines the input schema for this tool.
+	// Build with jsonschema.For[T] for struct-driven schemas, or as a
+	// literal *jsonschema.Schema for hand-rolled shapes. Providers
+	// marshal the schema to JSON at request-mapping time.
+	Parameters *jsonschema.Schema `json:"parameters"`
 
 	// Type specifies the tool category for observability.
 	// Used for OpenTelemetry gen_ai.tool.type attribute.
@@ -234,7 +236,6 @@ type JSONSchema struct {
 	// Description explains what this schema represents
 	Description string `json:"description,omitempty"`
 
-	// Schema is the JSON Schema definition as a JSON object.
-	// This defines the structure the model's output must match.
-	Schema json.RawMessage `json:"schema"`
+	// Schema is the JSON Schema definition the model's output must match.
+	Schema *jsonschema.Schema `json:"schema"`
 }

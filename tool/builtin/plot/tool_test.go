@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -37,7 +38,7 @@ func TestTool_Definition(t *testing.T) {
 	// Verify schema is valid JSON
 	var schema map[string]any
 
-	err := json.Unmarshal(def.Parameters, &schema)
+	err := unmarshalSchema(def.Parameters, &schema)
 	require.NoError(t, err)
 }
 
@@ -389,4 +390,15 @@ func TestTool_Execute_MultipleSeries(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, output.PNGData)
+}
+
+// unmarshalSchema marshals a *jsonschema.Schema to JSON bytes and unmarshals
+// them into the destination map for tests that inspect schema fields.
+func unmarshalSchema(s *jsonschema.Schema, dst any) error {
+	data, err := json.Marshal(s)
+	if err != nil {
+		return err
+	}
+
+	return json.Unmarshal(data, dst)
 }

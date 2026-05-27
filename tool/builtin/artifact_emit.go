@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/rs/xid"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
@@ -52,11 +53,6 @@ func NewArtifactEmitTool() tool.Tool {
 // Definition returns the tool definition for the LLM.
 func (*ArtifactEmitTool) Definition() llm.ToolDefinition {
 	// Convert schema to JSON
-	schemaBytes, err := json.Marshal(artifactInputSchema)
-	if err != nil {
-		// Fallback to empty schema if marshaling fails
-		schemaBytes = []byte("{}")
-	}
 
 	return llm.ToolDefinition{
 		Name: "artifact_emit",
@@ -74,7 +70,7 @@ FUNCTIONALITY:
 EXAMPLES:
 New artifact: {"name": "Analysis Report", "description": "Summary of findings", "text": "Analysis results...\n\nConclusions..."}
 Append to existing: {"append_to_artifact_id": "artifact-123", "text": "Additional findings..."}`,
-		Parameters: schemaBytes,
+		Parameters: artifactInputSchema,
 		Type:       llm.ToolKindFunction,
 	}
 }
@@ -109,22 +105,13 @@ func (*ArtifactEmitTool) Execute(_ context.Context, args json.RawMessage) (json.
 }
 
 // Manual JSON schema for EmitArtifactInput.
-var artifactInputSchema = map[string]any{
-	"type": "object",
-	"properties": map[string]any{
-		"name": map[string]any{
-			"type":        "string",
-			"description": "Name for the artifact",
-		},
-		"description": map[string]any{
-			"type":        "string",
-			"description": "Description of the artifact",
-		},
-		"text": map[string]any{
-			"type":        "string",
-			"description": "Text content for the artifact",
-		},
+var artifactInputSchema = &jsonschema.Schema{
+	Type: "object",
+	Properties: map[string]*jsonschema.Schema{
+		"name":        {Type: "string", Description: "Name for the artifact"},
+		"description": {Type: "string", Description: "Description of the artifact"},
+		"text":        {Type: "string", Description: "Text content for the artifact"},
 	},
-	"required":             []string{"name", "description", "text"},
-	"additionalProperties": false,
+	Required:             []string{"name", "description", "text"},
+	AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
 }

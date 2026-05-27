@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/jsonschema-go/jsonschema"
+
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/tool"
 )
@@ -63,7 +65,7 @@ func NewUpdateStateTool() tool.Tool {
 
 // Definition returns the tool definition for the LLM.
 func (*UpdateTodoStateTool) Definition() llm.ToolDefinition {
-	schema := json.RawMessage(`{
+	schema := mustParseTodoSchema(`{
 		"type": "object",
 		"properties": {
 			"updates": {
@@ -190,7 +192,7 @@ func NewAddTool() tool.Tool {
 
 // Definition returns the tool definition for the LLM.
 func (*AddTodoTool) Definition() llm.ToolDefinition {
-	schema := json.RawMessage(`{
+	schema := mustParseTodoSchema(`{
 		"type": "object",
 		"properties": {
 			"todos": {
@@ -306,4 +308,16 @@ func (*AddTodoTool) validateTodos(todos []Item) error {
 	}
 
 	return nil
+}
+
+// mustParseTodoSchema parses the inline JSON schema literal into a
+// *jsonschema.Schema. Panics on invalid input — schema literals are
+// developer-authored so misparses must surface immediately.
+func mustParseTodoSchema(raw string) *jsonschema.Schema {
+	s := &jsonschema.Schema{}
+	if err := s.UnmarshalJSON([]byte(raw)); err != nil {
+		panic(fmt.Sprintf("invalid todo tool schema: %v", err)) //nolint:forbidigo // schema literals are developer-authored; misparse must surface immediately
+	}
+
+	return s
 }

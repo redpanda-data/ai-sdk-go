@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -513,7 +514,7 @@ func (m *mockTool) Definition() llm.ToolDefinition {
 	return llm.ToolDefinition{
 		Name:        m.name,
 		Description: "Mock tool for testing",
-		Parameters:  json.RawMessage(`{"type":"object","properties":{"input":{"type":"string"}}}`),
+		Parameters:  parseTestSchema(json.RawMessage(`{"type":"object","properties":{"input":{"type":"string"}}}`)),
 	}
 }
 
@@ -726,4 +727,15 @@ func TestRegistry_ExecuteAll(t *testing.T) {
 			assert.NotEmpty(t, result.Error, "All requests should have errors due to cancellation")
 		}
 	})
+}
+
+// parseTestSchema parses a json.RawMessage into a *jsonschema.Schema for test
+// fixtures. Invalid input still produces a non-nil schema (jsonschema.Schema
+// permits the empty object) so callers exercising invalid-JSON branches see
+// the failure when the provider attempts the round trip.
+func parseTestSchema(raw json.RawMessage) *jsonschema.Schema {
+	s := &jsonschema.Schema{}
+	_ = s.UnmarshalJSON([]byte(raw))
+
+	return s
 }

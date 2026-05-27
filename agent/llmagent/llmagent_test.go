@@ -420,13 +420,13 @@ func TestRun_MultiTurnWithTools(t *testing.T) {
 		definition: llm.ToolDefinition{
 			Name:        "get_weather",
 			Description: "Get current weather for a location",
-			Parameters: json.RawMessage(`{
+			Parameters: parseTestSchema(json.RawMessage(`{
 				"type": "object",
 				"properties": {
 					"location": {"type": "string"}
 				},
 				"required": ["location"]
-			}`),
+			}`)),
 		},
 		executeFn: func(_ context.Context, _ json.RawMessage) (json.RawMessage, error) {
 			return json.RawMessage(`{"temp": 72, "condition": "sunny"}`), nil

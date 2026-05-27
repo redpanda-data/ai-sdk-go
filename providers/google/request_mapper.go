@@ -142,9 +142,14 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) ([]*genai.Content, *genai.
 		case llm.ResponseFormatJSONSchema:
 			if req.ResponseFormat.JSONSchema != nil {
 				config.ResponseMIMEType = mimeTypeJSON
-				// Convert JSONSchema.Schema (json.RawMessage) to interface{}
+
+				schemaBytes, err := json.Marshal(req.ResponseFormat.JSONSchema.Schema)
+				if err != nil {
+					return nil, nil, fmt.Errorf("%w: marshal response schema: %w", llm.ErrRequestMapping, err)
+				}
+
 				var schemaMap map[string]any
-				if err := json.Unmarshal(req.ResponseFormat.JSONSchema.Schema, &schemaMap); err != nil {
+				if err := json.Unmarshal(schemaBytes, &schemaMap); err != nil {
 					return nil, nil, fmt.Errorf("%w: failed to parse response schema: %w", llm.ErrRequestMapping, err)
 				}
 
@@ -306,8 +311,13 @@ func (rm *RequestMapper) mapToolDefinitions(tools []llm.ToolDefinition) ([]*gena
 
 	for _, tool := range tools {
 		// Parse the JSON schema
+		schemaBytes, err := json.Marshal(tool.Parameters)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal tool schema for %s: %w", tool.Name, err)
+		}
+
 		var schemaMap map[string]any
-		if err := json.Unmarshal(tool.Parameters, &schemaMap); err != nil {
+		if err := json.Unmarshal(schemaBytes, &schemaMap); err != nil {
 			return nil, fmt.Errorf("failed to parse tool schema for %s: %w", tool.Name, err)
 		}
 

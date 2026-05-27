@@ -23,6 +23,7 @@ import (
 	"time"
 
 	md "github.com/JohannesKaufmann/html-to-markdown"
+	"github.com/google/jsonschema-go/jsonschema"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/tool"
@@ -47,35 +48,31 @@ func New(opts ...Option) *Tool {
 
 // Definition returns the tool definition for LLM consumption.
 func (t *Tool) Definition() llm.ToolDefinition {
-	schema := map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"url": map[string]any{
-				"type":        "string",
-				"description": "HTTPS URL to fetch",
+	defaultMarkdown, _ := json.Marshal(t.cfg.ConvertToMarkdown) //nolint:errchkjson // bool marshals cleanly
+	schema := &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"url": {Type: "string", Description: "HTTPS URL to fetch"},
+			"method": {
+				Type:        "string",
+				Enum:        []any{"GET", "HEAD"},
+				Default:     json.RawMessage(`"GET"`),
+				Description: "HTTP method to use",
 			},
-			"method": map[string]any{
-				"type":        "string",
-				"enum":        []string{"GET", "HEAD"},
-				"default":     "GET",
-				"description": "HTTP method to use",
-			},
-			"convert_to_markdown": map[string]any{
-				"type":        "boolean",
-				"default":     t.cfg.ConvertToMarkdown,
-				"description": "Convert HTML content to markdown for better readability",
+			"convert_to_markdown": {
+				Type:        "boolean",
+				Default:     defaultMarkdown,
+				Description: "Convert HTML content to markdown for better readability",
 			},
 		},
-		"required":             []string{"url"},
-		"additionalProperties": false,
+		Required:             []string{"url"},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
 	}
-
-	schemaBytes, _ := json.Marshal(schema) //nolint:errchkjson // We know that this will succeed
 
 	return llm.ToolDefinition{
 		Name:        "webfetch",
 		Description: "Fetch a HTTPS URL (GET/HEAD) with SSRF protection and size limits. Text/JSON/XML only.",
-		Parameters:  schemaBytes,
+		Parameters:  schema,
 		Type:        llm.ToolKindFunction,
 	}
 }

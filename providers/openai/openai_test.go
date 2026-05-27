@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/openai/openai-go/v3/responses"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -355,7 +356,7 @@ func TestToolMapping(t *testing.T) {
 				{
 					Name:        "get_weather",
 					Description: "Get current weather information for a location",
-					Parameters: json.RawMessage(`{
+					Parameters: parseTestSchema(json.RawMessage(`{
 						"type": "object",
 						"properties": {
 							"location": {
@@ -364,7 +365,7 @@ func TestToolMapping(t *testing.T) {
 							}
 						},
 						"required": ["location"]
-					}`),
+					}`)),
 				},
 			},
 			wantErr: false,
@@ -419,12 +420,12 @@ func TestToolMapping(t *testing.T) {
 				{
 					Name:        "tool_one",
 					Description: "First tool",
-					Parameters:  json.RawMessage(`{"type": "object", "properties": {}}`),
+					Parameters:  parseTestSchema(json.RawMessage(`{"type": "object", "properties": {}}`)),
 				},
 				{
 					Name:        "tool_two",
 					Description: "Second tool",
-					Parameters:  json.RawMessage(`{"type": "object", "properties": {}}`),
+					Parameters:  parseTestSchema(json.RawMessage(`{"type": "object", "properties": {}}`)),
 				},
 			},
 			wantErr: false,
@@ -440,7 +441,7 @@ func TestToolMapping(t *testing.T) {
 			tools: []llm.ToolDefinition{
 				{
 					Name:       "simple_tool",
-					Parameters: json.RawMessage(`{"type": "object", "properties": {}}`),
+					Parameters: parseTestSchema(json.RawMessage(`{"type": "object", "properties": {}}`)),
 				},
 			},
 			wantErr: false,
@@ -460,7 +461,7 @@ func TestToolMapping(t *testing.T) {
 			tools: []llm.ToolDefinition{
 				{
 					Name:       "bad_tool",
-					Parameters: json.RawMessage(`{invalid json}`),
+					Parameters: parseTestSchema(json.RawMessage(`{invalid json}`)),
 				},
 			},
 			wantErr: true,
@@ -512,13 +513,13 @@ func TestRequestMappingWithTools(t *testing.T) {
 			{
 				Name:        "get_weather",
 				Description: "Get current weather information for a location",
-				Parameters: json.RawMessage(`{
+				Parameters: parseTestSchema(json.RawMessage(`{
 					"type": "object",
 					"properties": {
 						"location": {"type": "string", "description": "The city and state/country"}
 					},
 					"required": ["location"]
-				}`),
+				}`)),
 			},
 		},
 	}
@@ -991,4 +992,15 @@ func TestMessageRoleValidation(t *testing.T) {
 			}
 		})
 	}
+}
+
+// parseTestSchema parses a json.RawMessage into a *jsonschema.Schema for test
+// fixtures. Invalid input still produces a non-nil schema (jsonschema.Schema
+// permits the empty object) so callers exercising invalid-JSON branches see
+// the failure when the provider attempts the round trip.
+func parseTestSchema(raw json.RawMessage) *jsonschema.Schema {
+	s := &jsonschema.Schema{}
+	_ = s.UnmarshalJSON([]byte(raw))
+
+	return s
 }

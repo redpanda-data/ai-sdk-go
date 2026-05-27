@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
@@ -184,10 +185,10 @@ type registryOp struct {
 	unregister string    // non-empty for unregister operations
 }
 
-// preparedTool holds a tool with its pre-marshalled parameters JSON.
+// preparedTool holds a tool with its parsed parameters schema.
 type preparedTool struct {
 	mcpTool        *sdkmcp.Tool
-	paramsJSON     json.RawMessage
+	schema         *jsonschema.Schema
 	namespacedName string
 }
 
@@ -204,8 +205,8 @@ func (c *clientImpl) prepareTools(fetched map[string]*sdkmcp.Tool) map[string]*p
 
 		namespaced := c.namespaceTool(mcpTool.Name)
 
-		// Marshal JSON outside lock
-		paramsJSON, err := json.Marshal(mcpTool.InputSchema)
+		// Marshal+parse outside lock
+		schemaBytes, err := json.Marshal(mcpTool.InputSchema)
 		if err != nil {
 			c.logger.Warn("failed to marshal tool parameters",
 				"tool", mcpTool.Name, "err", err)
@@ -213,9 +214,17 @@ func (c *clientImpl) prepareTools(fetched map[string]*sdkmcp.Tool) map[string]*p
 			continue
 		}
 
+		schema := &jsonschema.Schema{}
+		if err := schema.UnmarshalJSON(schemaBytes); err != nil {
+			c.logger.Warn("failed to parse tool schema",
+				"tool", mcpTool.Name, "err", err)
+
+			continue
+		}
+
 		prepared[namespaced] = &preparedTool{
 			mcpTool:        mcpTool,
-			paramsJSON:     paramsJSON,
+			schema:         schema,
 			namespacedName: namespaced,
 		}
 	}
@@ -246,7 +255,7 @@ func (c *clientImpl) computeToolDiff(prepared map[string]*preparedTool) []regist
 		def := llm.ToolDefinition{
 			Name:        namespaced,
 			Description: prep.mcpTool.Description,
-			Parameters:  prep.paramsJSON,
+			Parameters:  prep.schema,
 			Type:        llm.ToolKindExtension, // MCP tools are remote (extension)
 		}
 

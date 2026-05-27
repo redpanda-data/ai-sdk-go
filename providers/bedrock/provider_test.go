@@ -22,6 +22,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/document"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -518,7 +519,7 @@ func TestRequestMapper_ToolDefinitions(t *testing.T) {
 
 	mapper := NewRequestMapper(cfg)
 
-	schema := json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`)
+	schema := parseTestSchema(json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`))
 
 	req := &llm.Request{
 		Messages: []llm.Message{
@@ -568,7 +569,7 @@ func TestRequestMapper_ToolChoiceSpecific(t *testing.T) {
 			{
 				Name:        "search",
 				Description: "Search",
-				Parameters:  json.RawMessage(`{"type":"object"}`),
+				Parameters:  parseTestSchema(json.RawMessage(`{"type":"object"}`)),
 			},
 		},
 		ToolChoice: &llm.ToolChoice{Type: llm.ToolChoiceSpecific, Name: &toolName},
@@ -992,4 +993,15 @@ func TestWithMaxTokens_Negative(t *testing.T) {
 	_, err := p.NewModel(ModelClaudeSonnet46, WithMaxTokens(-1))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "must be positive")
+}
+
+// parseTestSchema parses a json.RawMessage into a *jsonschema.Schema for test
+// fixtures. Invalid input still produces a non-nil schema (jsonschema.Schema
+// permits the empty object) so callers exercising invalid-JSON branches see
+// the failure when the provider attempts the round trip.
+func parseTestSchema(raw json.RawMessage) *jsonschema.Schema {
+	s := &jsonschema.Schema{}
+	_ = s.UnmarshalJSON([]byte(raw))
+
+	return s
 }

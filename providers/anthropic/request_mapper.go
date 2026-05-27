@@ -349,8 +349,13 @@ func (rm *RequestMapper) mapToolDefinitions(tools []llm.ToolDefinition) ([]anthr
 
 	for _, tool := range tools {
 		// Parse the JSON schema
+		schemaBytes, err := json.Marshal(tool.Parameters)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal tool schema for %s: %w", tool.Name, err)
+		}
+
 		var schemaMap map[string]any
-		if err := json.Unmarshal(tool.Parameters, &schemaMap); err != nil {
+		if err := json.Unmarshal(schemaBytes, &schemaMap); err != nil {
 			return nil, fmt.Errorf("failed to parse tool schema for %s: %w", tool.Name, err)
 		}
 

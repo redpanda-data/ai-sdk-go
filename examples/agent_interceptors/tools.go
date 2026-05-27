@@ -57,12 +57,11 @@ func (t *TemperatureSensorTool) Definition() llm.ToolDefinition {
 	falseSchema := &jsonschema.Schema{}
 	schema.AdditionalProperties = falseSchema
 
-	schemaBytes, _ := json.Marshal(schema)
 
 	return llm.ToolDefinition{
 		Name:        "read_temperature_sensor",
 		Description: "Reads the current temperature from the system's temperature sensor. Returns real-time sensor data.",
-		Parameters:  schemaBytes,
+		Parameters:  schema,
 	}
 }
 
@@ -127,12 +126,11 @@ func (t *GetSecretValueTool) Definition() llm.ToolDefinition {
 	falseSchema := &jsonschema.Schema{}
 	schema.AdditionalProperties = falseSchema
 
-	schemaBytes, _ := json.Marshal(schema)
 
 	return llm.ToolDefinition{
 		Name:        "get_secret_value",
 		Description: "Retrieves a secret value from the secure secrets store. Use this when you need to access API keys, passwords, or other sensitive configuration.",
-		Parameters:  schemaBytes,
+		Parameters:  schema,
 	}
 }
 

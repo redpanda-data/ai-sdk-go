@@ -395,9 +395,14 @@ func (rm *RequestMapper) mapToolDefinitions(tools []llm.ToolDefinition) ([]opena
 	for _, tool := range tools {
 		// Parse the parameters JSON schema
 		var parametersMap map[string]any
-		if len(tool.Parameters) > 0 {
-			err := json.Unmarshal(tool.Parameters, &parametersMap)
+
+		if tool.Parameters != nil {
+			schemaBytes, err := json.Marshal(tool.Parameters)
 			if err != nil {
+				return nil, fmt.Errorf("failed to marshal tool schema for %s: %w", tool.Name, err)
+			}
+
+			if err := json.Unmarshal(schemaBytes, &parametersMap); err != nil {
 				return nil, fmt.Errorf("invalid parameters JSON for tool %s: %w", tool.Name, err)
 			}
 		} else {
@@ -486,11 +491,13 @@ func (rm *RequestMapper) mapResponseFormat(format *llm.ResponseFormat) (openai.C
 			return openai.ChatCompletionNewParamsResponseFormatUnion{}, errors.New("json_schema format requires schema")
 		}
 
-		// Parse the original schema
-		var originalSchema map[string]any
-
-		err := json.Unmarshal(format.JSONSchema.Schema, &originalSchema)
+		schemaBytes, err := json.Marshal(format.JSONSchema.Schema)
 		if err != nil {
+			return openai.ChatCompletionNewParamsResponseFormatUnion{}, fmt.Errorf("marshal JSON schema: %w", err)
+		}
+
+		var originalSchema map[string]any
+		if err := json.Unmarshal(schemaBytes, &originalSchema); err != nil {
 			return openai.ChatCompletionNewParamsResponseFormatUnion{}, fmt.Errorf("invalid JSON schema: %w", err)
 		}
 

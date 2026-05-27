@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -155,8 +156,7 @@ func TestDefinition(t *testing.T) {
 			// Parameters is json.RawMessage, so unmarshal to compare
 			var actualSchema map[string]any
 			if def.Parameters != nil {
-				err := json.Unmarshal(def.Parameters, &actualSchema)
-				require.NoError(t, err)
+				require.NoError(t, unmarshalSchema(def.Parameters, &actualSchema))
 			}
 
 			assert.Equal(t, tt.schema, actualSchema)
@@ -242,4 +242,15 @@ func TestExecute(t *testing.T) {
 		assert.Contains(t, err.Error(), "agent execution failed")
 		assert.ErrorIs(t, err, context.DeadlineExceeded)
 	})
+}
+
+// unmarshalSchema marshals a *jsonschema.Schema to JSON bytes and unmarshals
+// them into the destination map for tests that inspect schema fields.
+func unmarshalSchema(s *jsonschema.Schema, dst any) error {
+	data, err := json.Marshal(s)
+	if err != nil {
+		return err
+	}
+
+	return json.Unmarshal(data, dst)
 }

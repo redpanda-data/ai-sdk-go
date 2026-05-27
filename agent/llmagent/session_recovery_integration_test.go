@@ -67,7 +67,7 @@ func TestSessionRecovery_Single(t *testing.T) {
 		definition: llm.ToolDefinition{
 			Name:        incompleteReqs[0].Name,
 			Description: "Mock tool for session recovery test",
-			Parameters:  json.RawMessage(`{"type":"object","properties":{}}`),
+			Parameters:  parseTestSchema(json.RawMessage(`{"type":"object","properties":{}}`)),
 		},
 		executeFn: func(_ context.Context, _ json.RawMessage) (json.RawMessage, error) {
 			return json.RawMessage(`{"status":"recovered"}`), nil
@@ -140,7 +140,7 @@ func TestSessionRecovery_Multiple(t *testing.T) {
 		definition: llm.ToolDefinition{
 			Name:        "get_weather",
 			Description: "Get weather for a city",
-			Parameters:  json.RawMessage(`{"type":"object","properties":{"city":{"type":"string"}}}`),
+			Parameters:  parseTestSchema(json.RawMessage(`{"type":"object","properties":{"city":{"type":"string"}}}`)),
 		},
 		executeFn: func(_ context.Context, args json.RawMessage) (json.RawMessage, error) {
 			var params struct {

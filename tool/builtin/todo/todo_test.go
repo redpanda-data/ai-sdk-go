@@ -21,6 +21,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -495,7 +496,7 @@ func TestTodoTools_Definitions(t *testing.T) {
 
 		// Verify schema is valid JSON
 		var schema map[string]any
-		require.NoError(t, json.Unmarshal(def.Parameters, &schema))
+		require.NoError(t, unmarshalSchema(def.Parameters, &schema))
 		assert.Equal(t, "object", schema["type"])
 		assert.Contains(t, schema, "properties")
 		assert.Contains(t, schema, "required")
@@ -515,7 +516,7 @@ func TestTodoTools_Definitions(t *testing.T) {
 
 		// Verify schema is valid JSON
 		var schema map[string]any
-		require.NoError(t, json.Unmarshal(def.Parameters, &schema))
+		require.NoError(t, unmarshalSchema(def.Parameters, &schema))
 		assert.Equal(t, "object", schema["type"])
 		assert.Contains(t, schema, "properties")
 		assert.Contains(t, schema, "required")
@@ -800,4 +801,15 @@ func TestTodoTools_InProgressConstraint(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, strings.ToLower(err.Error()), "in_progress")
 	})
+}
+
+// unmarshalSchema marshals a *jsonschema.Schema to JSON bytes and unmarshals
+// them into the destination map for tests that inspect schema fields.
+func unmarshalSchema(s *jsonschema.Schema, dst any) error {
+	data, err := json.Marshal(s)
+	if err != nil {
+		return err
+	}
+
+	return json.Unmarshal(data, dst)
 }

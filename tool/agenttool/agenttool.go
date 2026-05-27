@@ -37,6 +37,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/jsonschema-go/jsonschema"
+
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/store/session"
@@ -59,21 +61,28 @@ func (at *AgentTool) Definition() llm.ToolDefinition {
 	info := at.agent.Info()
 	schema := at.agent.InputSchema()
 
-	schemaJSON, err := json.Marshal(schema)
+	if schema == nil {
+		return llm.ToolDefinition{
+			Name:        info.Name,
+			Description: info.Description,
+		}
+	}
+
+	parsed, err := schemaFromMap(schema)
 	if err != nil {
 		// Programming error: agent's InputSchema contains unmarshalable types (channels, funcs, etc.)
 		// This is caught at tool registration time, not by user input or parent agent calls.
 		return llm.ToolDefinition{
 			Name:        info.Name,
 			Description: fmt.Sprintf("[SCHEMA ERROR] %s - Invalid InputSchema implementation: %v", info.Description, err),
-			Parameters:  json.RawMessage(`{"type":"object"}`),
+			Parameters:  &jsonschema.Schema{Type: "object"},
 		}
 	}
 
 	return llm.ToolDefinition{
 		Name:        info.Name,
 		Description: info.Description,
-		Parameters:  schemaJSON,
+		Parameters:  parsed,
 	}
 }
 
@@ -143,4 +152,21 @@ func (at *AgentTool) Execute(ctx context.Context, args json.RawMessage) (json.Ra
 	}
 
 	return json.Marshal(output)
+}
+
+// schemaFromMap parses an agent's map[string]any schema into a *jsonschema.Schema
+// via a JSON round trip. Returns an error if the map contains unmarshalable
+// values such as channels or functions.
+func schemaFromMap(m map[string]any) (*jsonschema.Schema, error) {
+	data, err := json.Marshal(m)
+	if err != nil {
+		return nil, err
+	}
+
+	s := &jsonschema.Schema{}
+	if err := s.UnmarshalJSON(data); err != nil {
+		return nil, err
+	}
+
+	return s, nil
 }
