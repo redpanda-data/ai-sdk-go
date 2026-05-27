@@ -42,11 +42,11 @@ func TestTransformInputMessages_OTelCompliance(t *testing.T) {
 			messages: []llm.Message{
 				llm.NewMessage(llm.RoleAssistant,
 					llm.NewTextPart("Let me search for that."),
-					llm.NewToolRequestPart(&llm.ToolRequest{
+					&llm.ToolRequestPart{
 						ID:        "call_123",
 						Name:      "search",
 						Arguments: json.RawMessage(`{"query":"test"}`),
-					}),
+					},
 				),
 			},
 			want: `[{"role":"assistant","parts":[{"type":"text","content":"Let me search for that."},{"type":"tool_call","name":"search","id":"call_123","arguments":{"query":"test"}}]}]`,
@@ -55,11 +55,11 @@ func TestTransformInputMessages_OTelCompliance(t *testing.T) {
 			name: "message with tool response",
 			messages: []llm.Message{
 				llm.NewMessage(llm.RoleUser,
-					llm.NewToolResponsePart(&llm.ToolResponse{
+					&llm.ToolResponsePart{
 						ID:     "call_123",
 						Name:   "search",
 						Result: json.RawMessage(`{"results":["result1","result2"]}`),
-					}),
+					},
 				),
 			},
 			want: `[{"role":"tool","parts":[{"type":"tool_call_response","id":"call_123","response":{"results":["result1","result2"]}}]}]`,
@@ -68,11 +68,11 @@ func TestTransformInputMessages_OTelCompliance(t *testing.T) {
 			name: "message with tool response error",
 			messages: []llm.Message{
 				llm.NewMessage(llm.RoleUser,
-					llm.NewToolResponsePart(&llm.ToolResponse{
+					&llm.ToolResponsePart{
 						ID:    "call_123",
 						Name:  "search",
 						Error: "API rate limit exceeded",
-					}),
+					},
 				),
 			},
 			want: `[{"role":"tool","parts":[{"type":"tool_call_response","id":"call_123","response":{"error":"API rate limit exceeded"}}]}]`,
@@ -81,10 +81,10 @@ func TestTransformInputMessages_OTelCompliance(t *testing.T) {
 			name: "message with reasoning",
 			messages: []llm.Message{
 				llm.NewMessage(llm.RoleAssistant,
-					llm.NewReasoningPart(&llm.ReasoningTrace{
+					&llm.ReasoningPart{
 						ID:   "reasoning_123",
 						Text: "Let me think about this step by step...",
-					}),
+					},
 					llm.NewTextPart("Here's my answer."),
 				),
 			},
@@ -200,11 +200,11 @@ func TestTransformOutputMessage_OTelCompliance(t *testing.T) {
 		{
 			name: "response with tool call and finish reason",
 			message: llm.NewMessage(llm.RoleAssistant,
-				llm.NewToolRequestPart(&llm.ToolRequest{
+				&llm.ToolRequestPart{
 					ID:        "call_456",
 					Name:      "calculate",
 					Arguments: json.RawMessage(`{"operation":"add","values":[1,2]}`),
-				}),
+				},
 			),
 			finishReason: "tool_call",
 			want:         `{"role":"assistant","parts":[{"type":"tool_call","name":"calculate","id":"call_456","arguments":{"operation":"add","values":[1,2]}}],"finish_reason":"tool_call"}`,
@@ -271,7 +271,7 @@ func TestTransformPart_AllTypes(t *testing.T) {
 
 	tests := []struct {
 		name string
-		part *llm.Part
+		part llm.Part
 		want genai.Part
 	}{
 		{
@@ -281,11 +281,11 @@ func TestTransformPart_AllTypes(t *testing.T) {
 		},
 		{
 			name: "tool request part",
-			part: llm.NewToolRequestPart(&llm.ToolRequest{
+			part: &llm.ToolRequestPart{
 				ID:        "call_789",
 				Name:      "weather",
 				Arguments: json.RawMessage(`{"location":"NYC"}`),
-			}),
+			},
 			want: genai.Part{
 				Type:      "tool_call",
 				ID:        "call_789",
@@ -295,11 +295,11 @@ func TestTransformPart_AllTypes(t *testing.T) {
 		},
 		{
 			name: "tool response part",
-			part: llm.NewToolResponsePart(&llm.ToolResponse{
+			part: &llm.ToolResponsePart{
 				ID:     "call_789",
 				Name:   "weather",
 				Result: json.RawMessage(`{"temp":72,"condition":"sunny"}`),
-			}),
+			},
 			want: genai.Part{
 				Type:     "tool_call_response",
 				ID:       "call_789",
@@ -308,10 +308,10 @@ func TestTransformPart_AllTypes(t *testing.T) {
 		},
 		{
 			name: "reasoning part",
-			part: llm.NewReasoningPart(&llm.ReasoningTrace{
+			part: &llm.ReasoningPart{
 				ID:   "reason_123",
 				Text: "First, I need to consider...",
-			}),
+			},
 			want: genai.Part{
 				Type:    "reasoning",
 				Content: "First, I need to consider...",

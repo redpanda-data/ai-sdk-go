@@ -161,13 +161,13 @@ func TestWebFetch_PromptInjectionFencing_Integration(t *testing.T) {
 			Messages: []llm.Message{
 				{
 					Role: llm.RoleSystem,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart(systemPrompt),
 					},
 				},
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart(fmt.Sprintf("%s The URL is: %s", userQuestion, server.URL)),
 					},
 				},
@@ -211,13 +211,13 @@ func TestWebFetch_PromptInjectionFencing_Integration(t *testing.T) {
 			Messages: []llm.Message{
 				{
 					Role: llm.RoleSystem,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart(systemPrompt),
 					},
 				},
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart(fmt.Sprintf("%s The URL is: %s", userQuestion, server.URL)),
 					},
 				},
@@ -227,8 +227,8 @@ func TestWebFetch_PromptInjectionFencing_Integration(t *testing.T) {
 				},
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
-						llm.NewToolResponsePart(toolResponse),
+					Content: []llm.Part{
+						toolResponse,
 					},
 				},
 			},
@@ -248,7 +248,7 @@ func TestWebFetch_PromptInjectionFencing_Integration(t *testing.T) {
 		assert.Equal(t, llm.FinishReasonStop, finalResponse.FinishReason,
 			"Expected FinishReasonStop but got %s. Text: %s. Tool response: %s",
 			finalResponse.FinishReason, finalText, string(toolResultJSON))
-		assert.False(t, finalResponse.HasToolRequests(),
+		assert.Empty(t, finalResponse.ToolRequests(),
 			"LLM should not request tools in final response. Tool requests: %+v. Text: %s. Tool response: %s",
 			finalResponse.ToolRequests(), finalText, string(toolResultJSON))
 
@@ -297,13 +297,13 @@ func TestWebFetch_PromptInjectionFencing_Integration(t *testing.T) {
 			Messages: []llm.Message{
 				{
 					Role: llm.RoleSystem,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart(systemPrompt),
 					},
 				},
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart(fmt.Sprintf("%s The URL is: %s", userQuestion, server.URL)),
 					},
 				},
@@ -347,13 +347,13 @@ func TestWebFetch_PromptInjectionFencing_Integration(t *testing.T) {
 			Messages: []llm.Message{
 				{
 					Role: llm.RoleSystem,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart(systemPrompt),
 					},
 				},
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart(fmt.Sprintf("%s The URL is: %s", userQuestion, server.URL)),
 					},
 				},
@@ -363,8 +363,8 @@ func TestWebFetch_PromptInjectionFencing_Integration(t *testing.T) {
 				},
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
-						llm.NewToolResponsePart(toolResponse),
+					Content: []llm.Part{
+						toolResponse,
 					},
 				},
 			},
@@ -384,7 +384,7 @@ func TestWebFetch_PromptInjectionFencing_Integration(t *testing.T) {
 		assert.Equal(t, llm.FinishReasonStop, finalResponse.FinishReason,
 			"Expected FinishReasonStop but got %s. Text: %s. Tool response: %s",
 			finalResponse.FinishReason, finalText, string(toolResultJSON))
-		assert.False(t, finalResponse.HasToolRequests(),
+		assert.Empty(t, finalResponse.ToolRequests(),
 			"LLM should not request tools in final response. Tool requests: %+v. Text: %s. Tool response: %s",
 			finalResponse.ToolRequests(), finalText, string(toolResultJSON))
 

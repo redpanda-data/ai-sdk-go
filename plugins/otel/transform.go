@@ -94,74 +94,50 @@ func transformMessage(msg llm.Message, finishReason string) genai.Message {
 }
 
 // transformPart converts a SDK Part to OTel-compliant format.
-func transformPart(part *llm.Part) genai.Part {
-	switch part.Kind {
-	case llm.PartText:
+func transformPart(part llm.Part) genai.Part {
+	switch p := part.(type) {
+	case *llm.TextPart:
 		return genai.Part{
 			Type:    genai.PartTypeText,
-			Content: part.Text,
+			Content: p.Text,
 		}
 
-	case llm.PartToolRequest:
-		if part.ToolRequest == nil {
-			// OTel JSON schema requires "name" field for tool_call parts
-			return genai.Part{
-				Type: genai.PartTypeToolCall,
-				Name: "unknown",
-			}
-		}
-
+	case *llm.ToolRequestPart:
 		return genai.Part{
 			Type:      genai.PartTypeToolCall,
-			Name:      part.ToolRequest.Name,
-			ID:        part.ToolRequest.ID,
-			Arguments: part.ToolRequest.Arguments,
+			Name:      p.Name,
+			ID:        p.ID,
+			Arguments: p.Arguments,
 		}
 
-	case llm.PartToolResponse:
+	case *llm.ToolResponsePart:
 		// OTel JSON schema requires "response" field to always be present.
 		// Default to null to satisfy this requirement.
 		response := json.RawMessage("null")
 
-		if part.ToolResponse == nil {
-			return genai.Part{
-				Type:     genai.PartTypeToolCallResponse,
-				Response: response,
-			}
-		}
-
-		// Convert the result to response field
-		// If there's an error, we should include it in the response
-		if part.ToolResponse.Error != "" {
-			// Create an error response structure
-			errorResp := map[string]string{"error": part.ToolResponse.Error}
+		if p.Error != "" {
+			errorResp := map[string]string{"error": p.Error}
 
 			if b, err := json.Marshal(errorResp); err == nil {
 				response = b
 			}
-		} else if len(part.ToolResponse.Result) > 0 {
-			response = part.ToolResponse.Result
+		} else if len(p.Result) > 0 {
+			response = p.Result
 		}
-		// else: keep default null value
 
 		return genai.Part{
 			Type:     genai.PartTypeToolCallResponse,
-			ID:       part.ToolResponse.ID,
+			ID:       p.ID,
 			Response: response,
 		}
 
-	case llm.PartReasoning:
-		if part.ReasoningTrace == nil {
-			return genai.Part{Type: genai.PartTypeReasoning}
-		}
-
+	case *llm.ReasoningPart:
 		return genai.Part{
 			Type:    genai.PartTypeReasoning,
-			Content: part.ReasoningTrace.Text,
+			Content: p.Text,
 		}
 
 	default:
-		// Unknown part type - create a generic text representation
 		return genai.Part{
 			Type:    genai.PartTypeText,
 			Content: "",

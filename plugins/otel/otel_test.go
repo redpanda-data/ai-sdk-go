@@ -340,7 +340,7 @@ func TestTracingInterceptor_InterceptToolExecution(t *testing.T) {
 	ctx := t.Context()
 
 	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
-		req := &llm.ToolRequest{
+		req := &llm.ToolRequestPart{
 			Name:      "get_weather",
 			ID:        "tool-call-123",
 			Arguments: json.RawMessage(`{"city": "Seattle"}`),
@@ -348,8 +348,8 @@ func TestTracingInterceptor_InterceptToolExecution(t *testing.T) {
 
 		toolInfo := &agent.ToolCallInfo{Inv: inv, Req: req}
 		resp, err := interceptor.InterceptToolExecution(ctx, toolInfo,
-			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponse, error) {
-				return &llm.ToolResponse{Result: json.RawMessage(`"Sunny, 72F"`)}, nil
+			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
+				return &llm.ToolResponsePart{Result: json.RawMessage(`"Sunny, 72F"`)}, nil
 			})
 		require.NoError(t, err)
 		assert.NotNil(t, resp)
@@ -398,7 +398,7 @@ func TestTracingInterceptor_InterceptToolExecution_WithRecordInputs(t *testing.T
 	ctx := t.Context()
 
 	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
-		req := &llm.ToolRequest{
+		req := &llm.ToolRequestPart{
 			Name:      "get_weather",
 			ID:        "tool-call-123",
 			Arguments: json.RawMessage(`{"city": "Seattle"}`),
@@ -406,8 +406,8 @@ func TestTracingInterceptor_InterceptToolExecution_WithRecordInputs(t *testing.T
 
 		toolInfo := &agent.ToolCallInfo{Inv: inv, Req: req}
 		_, _ = interceptor.InterceptToolExecution(ctx, toolInfo,
-			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponse, error) {
-				return &llm.ToolResponse{Result: json.RawMessage(`{"temp": "72F"}`)}, nil
+			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
+				return &llm.ToolResponsePart{Result: json.RawMessage(`{"temp": "72F"}`)}, nil
 			})
 
 		return agent.FinishReasonStop, nil
@@ -449,7 +449,7 @@ func TestTracingInterceptor_InterceptToolExecution_WithRecordOutputs(t *testing.
 	ctx := t.Context()
 
 	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
-		req := &llm.ToolRequest{
+		req := &llm.ToolRequestPart{
 			Name:      "get_weather",
 			ID:        "tool-call-123",
 			Arguments: json.RawMessage(`{"city": "Seattle"}`),
@@ -457,8 +457,8 @@ func TestTracingInterceptor_InterceptToolExecution_WithRecordOutputs(t *testing.
 
 		toolInfo := &agent.ToolCallInfo{Inv: inv, Req: req}
 		_, _ = interceptor.InterceptToolExecution(ctx, toolInfo,
-			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponse, error) {
-				return &llm.ToolResponse{Result: json.RawMessage(`{"temperature":"72F","conditions":"sunny"}`)}, nil
+			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
+				return &llm.ToolResponsePart{Result: json.RawMessage(`{"temperature":"72F","conditions":"sunny"}`)}, nil
 			})
 
 		return agent.FinishReasonStop, nil
@@ -499,11 +499,11 @@ func TestTracingInterceptor_InterceptToolExecution_Error(t *testing.T) {
 	toolErr := errors.New("tool execution failed")
 
 	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
-		req := &llm.ToolRequest{Name: "failing_tool", ID: "tool-123"}
+		req := &llm.ToolRequestPart{Name: "failing_tool", ID: "tool-123"}
 
 		toolInfo := &agent.ToolCallInfo{Inv: inv, Req: req}
 		_, err := interceptor.InterceptToolExecution(ctx, toolInfo,
-			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponse, error) {
+			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
 				return nil, toolErr
 			})
 		require.ErrorIs(t, err, toolErr)
@@ -546,13 +546,13 @@ func TestTracingInterceptor_InterceptToolExecution_ToolErrorResponse(t *testing.
 	ctx := t.Context()
 
 	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
-		req := &llm.ToolRequest{Name: "query_logs", ID: "tool-call-abc", Arguments: json.RawMessage(`{"query":"errors"}`)}
+		req := &llm.ToolRequestPart{Name: "query_logs", ID: "tool-call-abc", Arguments: json.RawMessage(`{"query":"errors"}`)}
 
 		toolInfo := &agent.ToolCallInfo{Inv: inv, Req: req}
 		resp, err := interceptor.InterceptToolExecution(ctx, toolInfo,
-			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponse, error) {
+			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
 				// Tool returns error content (not a Go error) — like a 502 from an upstream API
-				return &llm.ToolResponse{
+				return &llm.ToolResponsePart{
 					ID:    "tool-call-abc",
 					Name:  "query_logs",
 					Error: "query failed: upstream returned status 502",
@@ -622,19 +622,19 @@ func TestTracingInterceptor_SpanHierarchy(t *testing.T) {
 		_, _ = handler.Generate(ctx, &llm.Request{})
 
 		// Tool calls
-		req1 := &llm.ToolRequest{Name: "tool1", ID: "t1"}
-		req2 := &llm.ToolRequest{Name: "tool2", ID: "t2"}
+		req1 := &llm.ToolRequestPart{Name: "tool1", ID: "t1"}
+		req2 := &llm.ToolRequestPart{Name: "tool2", ID: "t2"}
 
 		toolInfo1 := &agent.ToolCallInfo{Inv: inv, Req: req1}
 		_, _ = interceptor.InterceptToolExecution(ctx, toolInfo1,
-			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponse, error) {
-				return &llm.ToolResponse{}, nil
+			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
+				return &llm.ToolResponsePart{}, nil
 			})
 
 		toolInfo2 := &agent.ToolCallInfo{Inv: inv, Req: req2}
 		_, _ = interceptor.InterceptToolExecution(ctx, toolInfo2,
-			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponse, error) {
-				return &llm.ToolResponse{}, nil
+			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
+				return &llm.ToolResponsePart{}, nil
 			})
 
 		return agent.FinishReasonStop, nil
@@ -693,7 +693,7 @@ func TestTracingInterceptor_ContentRecording(t *testing.T) {
 		// Model call with messages
 		req := &llm.Request{
 			Messages: []llm.Message{
-				{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("Hello, what's the weather?")}},
+				{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("Hello, what's the weather?")}},
 			},
 		}
 		modelInfo := &agent.ModelCallInfo{
@@ -812,7 +812,7 @@ func TestTracingInterceptor_InterceptToolExecution_WithToolTypeAndDescription(t 
 	ctx := t.Context()
 
 	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
-		req := &llm.ToolRequest{
+		req := &llm.ToolRequestPart{
 			Name:      "get_weather",
 			ID:        "tool-call-123",
 			Arguments: json.RawMessage(`{"city": "Seattle"}`),
@@ -832,8 +832,8 @@ func TestTracingInterceptor_InterceptToolExecution_WithToolTypeAndDescription(t 
 		}
 
 		resp, err := interceptor.InterceptToolExecution(ctx, toolInfo,
-			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponse, error) {
-				return &llm.ToolResponse{Result: json.RawMessage(`"Sunny, 72F"`)}, nil
+			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
+				return &llm.ToolResponsePart{Result: json.RawMessage(`"Sunny, 72F"`)}, nil
 			})
 		require.NoError(t, err)
 		assert.NotNil(t, resp)
@@ -876,7 +876,7 @@ func TestTracingInterceptor_InterceptToolExecution_ToolTypeDefaultsToFunction(t 
 	ctx := t.Context()
 
 	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
-		req := &llm.ToolRequest{
+		req := &llm.ToolRequestPart{
 			Name:      "custom_tool",
 			ID:        "tool-call-456",
 			Arguments: json.RawMessage(`{}`),
@@ -895,8 +895,8 @@ func TestTracingInterceptor_InterceptToolExecution_ToolTypeDefaultsToFunction(t 
 		}
 
 		_, _ = interceptor.InterceptToolExecution(ctx, toolInfo,
-			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponse, error) {
-				return &llm.ToolResponse{Result: json.RawMessage(`{}`)}, nil
+			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
+				return &llm.ToolResponsePart{Result: json.RawMessage(`{}`)}, nil
 			})
 
 		return agent.FinishReasonStop, nil
@@ -949,7 +949,7 @@ func TestTracingInterceptor_InterceptToolExecution_WithDifferentToolTypes(t *tes
 			ctx := t.Context()
 
 			_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
-				req := &llm.ToolRequest{
+				req := &llm.ToolRequestPart{
 					Name:      "test_tool",
 					ID:        "tool-call-789",
 					Arguments: json.RawMessage(`{}`),
@@ -968,8 +968,8 @@ func TestTracingInterceptor_InterceptToolExecution_WithDifferentToolTypes(t *tes
 				}
 
 				_, _ = interceptor.InterceptToolExecution(ctx, toolInfo,
-					func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponse, error) {
-						return &llm.ToolResponse{Result: json.RawMessage(`{}`)}, nil
+					func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
+						return &llm.ToolResponsePart{Result: json.RawMessage(`{}`)}, nil
 					})
 
 				return agent.FinishReasonStop, nil
@@ -1011,7 +1011,7 @@ func TestTracingInterceptor_InterceptToolExecution_WithoutDefinition(t *testing.
 	ctx := t.Context()
 
 	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
-		req := &llm.ToolRequest{
+		req := &llm.ToolRequestPart{
 			Name:      "unknown_tool",
 			ID:        "tool-call-999",
 			Arguments: json.RawMessage(`{}`),
@@ -1025,8 +1025,8 @@ func TestTracingInterceptor_InterceptToolExecution_WithoutDefinition(t *testing.
 		}
 
 		_, _ = interceptor.InterceptToolExecution(ctx, toolInfo,
-			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponse, error) {
-				return &llm.ToolResponse{Result: json.RawMessage(`{}`)}, nil
+			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
+				return &llm.ToolResponsePart{Result: json.RawMessage(`{}`)}, nil
 			})
 
 		return agent.FinishReasonStop, nil
@@ -1071,7 +1071,7 @@ func TestTracingInterceptor_InterceptToolExecution_InvalidToolTypeDefaultsToFunc
 	ctx := t.Context()
 
 	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
-		req := &llm.ToolRequest{
+		req := &llm.ToolRequestPart{
 			Name:      "invalid_type_tool",
 			ID:        "tool-call-invalid",
 			Arguments: json.RawMessage(`{}`),
@@ -1091,8 +1091,8 @@ func TestTracingInterceptor_InterceptToolExecution_InvalidToolTypeDefaultsToFunc
 		}
 
 		_, _ = interceptor.InterceptToolExecution(ctx, toolInfo,
-			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponse, error) {
-				return &llm.ToolResponse{Result: json.RawMessage(`{}`)}, nil
+			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
+				return &llm.ToolResponsePart{Result: json.RawMessage(`{}`)}, nil
 			})
 
 		return agent.FinishReasonStop, nil

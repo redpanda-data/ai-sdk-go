@@ -504,7 +504,7 @@ func (m *FakeModel) generateFallback(ctx context.Context, req *llm.Request, cc *
 	response := &llm.Response{
 		Message: llm.Message{
 			Role:    llm.RoleAssistant,
-			Content: []*llm.Part{llm.NewTextPart(text)},
+			Content: []llm.Part{llm.NewTextPart(text)},
 		},
 		FinishReason: finishReason,
 		ID:           fmt.Sprintf("fake-%d", cc.TotalCalls),
@@ -736,7 +736,7 @@ func (rb *RuleBuilder) ThenRespondText(text string, opts ...ResponseOption) *Fak
 		resp := &llm.Response{
 			Message: llm.Message{
 				Role:    llm.RoleAssistant,
-				Content: []*llm.Part{llm.NewTextPart(text)},
+				Content: []llm.Part{llm.NewTextPart(text)},
 			},
 			FinishReason: llm.FinishReasonStop,
 			ID:           fmt.Sprintf("fake-%d", cc.TotalCalls),
@@ -825,16 +825,14 @@ func (rb *RuleBuilder) ThenRespondWithToolCall(toolName string, arguments map[st
 			return nil, fmt.Errorf("marshal tool arguments: %w", err)
 		}
 
-		toolReq := &llm.ToolRequest{
-			ID:        fmt.Sprintf("call_%d", cc.TotalCalls),
-			Name:      toolName,
-			Arguments: argsJSON,
-		}
-
 		return &llm.Response{
 			Message: llm.Message{
-				Role:    llm.RoleAssistant,
-				Content: []*llm.Part{llm.NewToolRequestPart(toolReq)},
+				Role: llm.RoleAssistant,
+				Content: []llm.Part{llm.NewToolRequestPart(
+					fmt.Sprintf("call_%d", cc.TotalCalls),
+					toolName,
+					argsJSON,
+				)},
 			},
 			FinishReason: llm.FinishReasonToolCalls,
 			ID:           fmt.Sprintf("fake-%d", cc.TotalCalls),
@@ -863,7 +861,7 @@ func (rb *RuleBuilder) ThenRespondJSON(value any) *FakeModel {
 		return &llm.Response{
 			Message: llm.Message{
 				Role:    llm.RoleAssistant,
-				Content: []*llm.Part{llm.NewTextPart(string(jsonBytes))},
+				Content: []llm.Part{llm.NewTextPart(string(jsonBytes))},
 			},
 			FinishReason: llm.FinishReasonStop,
 			ID:           fmt.Sprintf("fake-%d", cc.TotalCalls),
@@ -886,7 +884,7 @@ func (rb *RuleBuilder) ThenStreamText(text string, config StreamConfig) *FakeMod
 		resp := &llm.Response{
 			Message: llm.Message{
 				Role:    llm.RoleAssistant,
-				Content: []*llm.Part{llm.NewTextPart(text)},
+				Content: []llm.Part{llm.NewTextPart(text)},
 			},
 			FinishReason: finishReason,
 			Usage: &llm.TokenUsage{
@@ -924,7 +922,7 @@ func (rb *RuleBuilder) ThenStreamText(text string, config StreamConfig) *FakeMod
 				Response: &llm.Response{
 					Message: llm.Message{
 						Role:    llm.RoleAssistant,
-						Content: []*llm.Part{llm.NewTextPart(text)},
+						Content: []llm.Part{llm.NewTextPart(text)},
 					},
 					FinishReason: finishReason,
 					Usage: &llm.TokenUsage{

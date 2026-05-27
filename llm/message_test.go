@@ -27,44 +27,36 @@ import (
 func TestNewMessage(t *testing.T) {
 	t.Parallel()
 
-	toolReq := &llm.ToolRequest{
-		ID:        "call_1",
-		Name:      "search",
-		Arguments: json.RawMessage(`{"query":"test"}`),
-	}
-	toolResp := &llm.ToolResponse{
-		ID:     "call_1",
-		Name:   "search",
-		Result: json.RawMessage(`{"results":["item1"]}`),
-	}
+	toolReq := llm.NewToolRequestPart("call_1", "search", json.RawMessage(`{"query":"test"}`))
+	toolResp := llm.NewToolResponsePart("call_1", "search", json.RawMessage(`{"results":["item1"]}`))
 
 	tests := []struct {
 		name      string
 		role      llm.MessageRole
-		parts     []*llm.Part
+		parts     []llm.Part
 		wantParts int
 		wantText  string
 	}{
 		{
 			name:      "user message with text",
 			role:      llm.RoleUser,
-			parts:     []*llm.Part{llm.NewTextPart("Hello")},
+			parts:     []llm.Part{llm.NewTextPart("Hello")},
 			wantParts: 1,
 			wantText:  "Hello",
 		},
 		{
 			name:      "system message",
 			role:      llm.RoleSystem,
-			parts:     []*llm.Part{llm.NewTextPart("You are helpful")},
+			parts:     []llm.Part{llm.NewTextPart("You are helpful")},
 			wantParts: 1,
 			wantText:  "You are helpful",
 		},
 		{
 			name: "assistant with text and tool request",
 			role: llm.RoleAssistant,
-			parts: []*llm.Part{
+			parts: []llm.Part{
 				llm.NewTextPart("Searching..."),
-				llm.NewToolRequestPart(toolReq),
+				toolReq,
 			},
 			wantParts: 2,
 			wantText:  "Searching...",
@@ -72,14 +64,14 @@ func TestNewMessage(t *testing.T) {
 		{
 			name:      "tool response message",
 			role:      llm.RoleUser,
-			parts:     []*llm.Part{llm.NewToolResponsePart(toolResp)},
+			parts:     []llm.Part{toolResp},
 			wantParts: 1,
 			wantText:  "",
 		},
 		{
 			name:      "empty message",
 			role:      llm.RoleUser,
-			parts:     []*llm.Part{},
+			parts:     []llm.Part{},
 			wantParts: 0,
 			wantText:  "",
 		},
@@ -96,4 +88,41 @@ func TestNewMessage(t *testing.T) {
 			assert.Equal(t, tt.wantText, msg.TextContent())
 		})
 	}
+}
+
+func TestMessageJSONRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	original := llm.NewMessage(llm.RoleAssistant,
+		llm.NewTextPart("hello"),
+		llm.NewToolRequestPart("call_1", "search", json.RawMessage(`{"q":"x"}`)),
+		llm.NewToolResponsePart("call_1", "search", json.RawMessage(`{"ok":true}`)),
+		llm.NewReasoningPart("thinking..."),
+	)
+
+	data, err := json.Marshal(original)
+	require.NoError(t, err)
+
+	var decoded llm.Message
+
+	require.NoError(t, json.Unmarshal(data, &decoded))
+	assert.Equal(t, original.Role, decoded.Role)
+	require.Len(t, decoded.Content, 4)
+
+	text, ok := decoded.Content[0].(*llm.TextPart)
+	require.True(t, ok)
+	assert.Equal(t, "hello", text.Text)
+
+	tr, ok := decoded.Content[1].(*llm.ToolRequestPart)
+	require.True(t, ok)
+	assert.Equal(t, "call_1", tr.ID)
+	assert.Equal(t, "search", tr.Name)
+
+	tres, ok := decoded.Content[2].(*llm.ToolResponsePart)
+	require.True(t, ok)
+	assert.Equal(t, "call_1", tres.ID)
+
+	reason, ok := decoded.Content[3].(*llm.ReasoningPart)
+	require.True(t, ok)
+	assert.Equal(t, "thinking...", reason.Text)
 }

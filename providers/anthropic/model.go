@@ -162,10 +162,10 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 						acc.textContent += e.Delta.Thinking
 						if !yield(llm.ContentPartEvent{
 							Index: int(e.Index),
-							Part: llm.NewReasoningPart(&llm.ReasoningTrace{
+							Part: &llm.ReasoningPart{
 								ID:   acc.thinkingSignature,
 								Text: e.Delta.Thinking,
-							}),
+							},
 						}, nil) {
 							return
 						}
@@ -201,11 +201,11 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 					if !yield(llm.ContentPartEvent{
 						Index: int(e.Index),
-						Part: llm.NewToolRequestPart(&llm.ToolRequest{
+						Part: &llm.ToolRequestPart{
 							ID:        acc.toolUse.ID,
 							Name:      acc.toolUse.Name,
 							Arguments: argsJSON,
-						}),
+						},
 					}, nil) {
 						return
 					}

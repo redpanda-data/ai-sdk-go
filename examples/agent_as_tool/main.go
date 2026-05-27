@@ -92,7 +92,7 @@ func (a *assistantToolLogger) InterceptToolExecution(
 	ctx context.Context,
 	info *agent.ToolCallInfo,
 	next agent.ToolExecutionNext,
-) (*llm.ToolResponse, error) {
+) (*llm.ToolResponsePart, error) {
 	fmt.Printf("  [Assistant Tool Call] %s\n", info.Req.Name)
 	if len(info.Req.Arguments) > 0 && len(info.Req.Arguments) < 200 {
 		fmt.Printf("  [Assistant Tool Args] %s\n", string(info.Req.Arguments))

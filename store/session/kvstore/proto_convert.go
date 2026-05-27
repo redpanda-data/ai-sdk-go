@@ -144,7 +144,7 @@ func fromProtoMessage(pb *llmpb.Message) (*llm.Message, error) {
 	}
 
 	// Convert content parts
-	parts := make([]*llm.Part, len(pb.Content))
+	parts := make([]llm.Part, len(pb.Content))
 	for i, pbPart := range pb.Content {
 		part, err := fromProtoPart(pbPart)
 		if err != nil {
@@ -161,131 +161,137 @@ func fromProtoMessage(pb *llmpb.Message) (*llm.Message, error) {
 }
 
 // toProtoPart converts llm.Part to proto with oneof population.
-func toProtoPart(p *llm.Part) (*llmpb.Part, error) {
+func toProtoPart(p llm.Part) (*llmpb.Part, error) {
 	if p == nil {
 		return &llmpb.Part{}, nil
 	}
 
-	pbKind, err := toProtoPartKind(p.Kind)
-	if err != nil {
-		return nil, err
-	}
+	switch v := p.(type) {
+	case *llm.TextPart:
+		pbPart := &llmpb.Part{Kind: llmpb.PartKind_PART_KIND_TEXT, Data: &llmpb.Part_Text{Text: v.Text}}
+		if v.Metadata != nil {
+			meta, err := structpb.NewStruct(v.Metadata)
+			if err != nil {
+				return nil, fmt.Errorf("convert part metadata: %w", err)
+			}
 
-	pbPart := &llmpb.Part{Kind: pbKind}
-
-	// Populate oneof based on Kind
-	switch p.Kind {
-	case llm.PartText:
-		pbPart.Data = &llmpb.Part_Text{Text: p.Text}
-
-	case llm.PartToolRequest:
-		if p.ToolRequest == nil {
-			return nil, errors.New("PartToolRequest has nil ToolRequest")
+			pbPart.Metadata = meta
 		}
 
-		pbPart.Data = &llmpb.Part_ToolRequest{
-			ToolRequest: &llmpb.ToolRequest{
-				Id:        p.ToolRequest.ID,
-				Name:      p.ToolRequest.Name,
-				Arguments: []byte(p.ToolRequest.Arguments),
+		return pbPart, nil
+
+	case *llm.ToolRequestPart:
+		pbPart := &llmpb.Part{
+			Kind: llmpb.PartKind_PART_KIND_TOOL_REQUEST,
+			Data: &llmpb.Part_ToolRequest{
+				ToolRequest: &llmpb.ToolRequest{
+					Id:        v.ID,
+					Name:      v.Name,
+					Arguments: []byte(v.Arguments),
+				},
 			},
 		}
+		if v.Metadata != nil {
+			meta, err := structpb.NewStruct(v.Metadata)
+			if err != nil {
+				return nil, fmt.Errorf("convert part metadata: %w", err)
+			}
 
-	case llm.PartToolResponse:
-		if p.ToolResponse == nil {
-			return nil, errors.New("PartToolResponse has nil ToolResponse")
+			pbPart.Metadata = meta
 		}
 
-		pbPart.Data = &llmpb.Part_ToolResponse{
-			ToolResponse: &llmpb.ToolResponse{
-				Id:     p.ToolResponse.ID,
-				Name:   p.ToolResponse.Name,
-				Result: []byte(p.ToolResponse.Result),
-				Error:  p.ToolResponse.Error,
+		return pbPart, nil
+
+	case *llm.ToolResponsePart:
+		pbPart := &llmpb.Part{
+			Kind: llmpb.PartKind_PART_KIND_TOOL_RESPONSE,
+			Data: &llmpb.Part_ToolResponse{
+				ToolResponse: &llmpb.ToolResponse{
+					Id:     v.ID,
+					Name:   v.Name,
+					Result: []byte(v.Result),
+					Error:  v.Error,
+				},
 			},
 		}
+		if v.Metadata != nil {
+			meta, err := structpb.NewStruct(v.Metadata)
+			if err != nil {
+				return nil, fmt.Errorf("convert part metadata: %w", err)
+			}
 
-	case llm.PartReasoning:
-		if p.ReasoningTrace == nil {
-			return nil, errors.New("PartReasoning has nil ReasoningTrace")
+			pbPart.Metadata = meta
 		}
 
+		return pbPart, nil
+
+	case *llm.ReasoningPart:
 		var pbReasoningMeta *structpb.Struct
 
-		if p.ReasoningTrace.Metadata != nil {
+		if v.Metadata != nil {
 			var err error
 
-			pbReasoningMeta, err = structpb.NewStruct(p.ReasoningTrace.Metadata)
+			pbReasoningMeta, err = structpb.NewStruct(v.Metadata)
 			if err != nil {
 				return nil, fmt.Errorf("convert reasoning metadata: %w", err)
 			}
 		}
 
-		pbPart.Data = &llmpb.Part_ReasoningTrace{
-			ReasoningTrace: &llmpb.ReasoningTrace{
-				Id:       p.ReasoningTrace.ID,
-				Text:     p.ReasoningTrace.Text,
-				Metadata: pbReasoningMeta,
+		return &llmpb.Part{
+			Kind: llmpb.PartKind_PART_KIND_REASONING,
+			Data: &llmpb.Part_ReasoningTrace{
+				ReasoningTrace: &llmpb.ReasoningTrace{
+					Id:       v.ID,
+					Text:     v.Text,
+					Metadata: pbReasoningMeta,
+				},
 			},
-		}
+		}, nil
 
 	default:
-		return nil, fmt.Errorf("unknown PartKind: %v (expected text, tool_request, tool_response, or reasoning)", p.Kind)
+		return nil, fmt.Errorf("unknown Part type: %T", p)
 	}
-
-	// Convert part metadata
-	if p.Metadata != nil {
-		var err error
-
-		pbPart.Metadata, err = structpb.NewStruct(p.Metadata)
-		if err != nil {
-			return nil, fmt.Errorf("convert part metadata: %w", err)
-		}
-	}
-
-	return pbPart, nil
 }
 
 // fromProtoPart converts proto Part to llm.Part with oneof extraction.
-func fromProtoPart(pb *llmpb.Part) (*llm.Part, error) {
+func fromProtoPart(pb *llmpb.Part) (llm.Part, error) {
 	if pb == nil {
-		return &llm.Part{}, nil
+		return nil, nil //nolint:nilnil // nil sentinel for absent part
 	}
 
-	kind, err := fromProtoPartKind(pb.Kind)
-	if err != nil {
-		return nil, err
+	var partMetadata map[string]any
+	if pb.Metadata != nil {
+		partMetadata = pb.Metadata.AsMap()
 	}
 
-	part := &llm.Part{Kind: kind}
-
-	// Extract data from oneof
 	switch data := pb.Data.(type) {
 	case *llmpb.Part_Text:
-		part.Text = data.Text
+		return &llm.TextPart{Text: data.Text, Metadata: partMetadata}, nil
 
 	case *llmpb.Part_ToolRequest:
 		if data.ToolRequest == nil {
 			return nil, errors.New("Part_ToolRequest has nil ToolRequest")
 		}
 
-		part.ToolRequest = &llm.ToolRequest{
+		return &llm.ToolRequestPart{
 			ID:        data.ToolRequest.Id,
 			Name:      data.ToolRequest.Name,
 			Arguments: data.ToolRequest.Arguments,
-		}
+			Metadata:  partMetadata,
+		}, nil
 
 	case *llmpb.Part_ToolResponse:
 		if data.ToolResponse == nil {
 			return nil, errors.New("Part_ToolResponse has nil ToolResponse")
 		}
 
-		part.ToolResponse = &llm.ToolResponse{
-			ID:     data.ToolResponse.Id,
-			Name:   data.ToolResponse.Name,
-			Result: data.ToolResponse.Result,
-			Error:  data.ToolResponse.Error,
-		}
+		return &llm.ToolResponsePart{
+			ID:       data.ToolResponse.Id,
+			Name:     data.ToolResponse.Name,
+			Result:   data.ToolResponse.Result,
+			Error:    data.ToolResponse.Error,
+			Metadata: partMetadata,
+		}, nil
 
 	case *llmpb.Part_ReasoningTrace:
 		if data.ReasoningTrace == nil {
@@ -297,11 +303,11 @@ func fromProtoPart(pb *llmpb.Part) (*llm.Part, error) {
 			reasoningMeta = data.ReasoningTrace.Metadata.AsMap()
 		}
 
-		part.ReasoningTrace = &llm.ReasoningTrace{
+		return &llm.ReasoningPart{
 			ID:       data.ReasoningTrace.Id,
 			Text:     data.ReasoningTrace.Text,
 			Metadata: reasoningMeta,
-		}
+		}, nil
 
 	case nil:
 		return nil, errors.New("part has no data set")
@@ -309,13 +315,6 @@ func fromProtoPart(pb *llmpb.Part) (*llm.Part, error) {
 	default:
 		return nil, fmt.Errorf("unknown Part data type: %T", data)
 	}
-
-	// Convert part metadata
-	if pb.Metadata != nil {
-		part.Metadata = pb.Metadata.AsMap()
-	}
-
-	return part, nil
 }
 
 // toProtoRole converts llm.MessageRole to proto enum.
@@ -348,36 +347,3 @@ func fromProtoRole(pbRole llmpb.MessageRole) (llm.MessageRole, error) {
 	}
 }
 
-// toProtoPartKind converts llm.PartKind to proto enum.
-func toProtoPartKind(kind llm.PartKind) (llmpb.PartKind, error) {
-	switch kind {
-	case llm.PartText:
-		return llmpb.PartKind_PART_KIND_TEXT, nil
-	case llm.PartToolRequest:
-		return llmpb.PartKind_PART_KIND_TOOL_REQUEST, nil
-	case llm.PartToolResponse:
-		return llmpb.PartKind_PART_KIND_TOOL_RESPONSE, nil
-	case llm.PartReasoning:
-		return llmpb.PartKind_PART_KIND_REASONING, nil
-	default:
-		return llmpb.PartKind_PART_KIND_UNSPECIFIED, fmt.Errorf("unknown PartKind: %v", kind)
-	}
-}
-
-// fromProtoPartKind converts proto PartKind to llm.PartKind.
-func fromProtoPartKind(pbKind llmpb.PartKind) (llm.PartKind, error) {
-	switch pbKind {
-	case llmpb.PartKind_PART_KIND_TEXT:
-		return llm.PartText, nil
-	case llmpb.PartKind_PART_KIND_TOOL_REQUEST:
-		return llm.PartToolRequest, nil
-	case llmpb.PartKind_PART_KIND_TOOL_RESPONSE:
-		return llm.PartToolResponse, nil
-	case llmpb.PartKind_PART_KIND_REASONING:
-		return llm.PartReasoning, nil
-	case llmpb.PartKind_PART_KIND_UNSPECIFIED:
-		return 0, errors.New("unspecified PartKind")
-	default:
-		return 0, fmt.Errorf("unknown PartKind: %v", pbKind)
-	}
-}

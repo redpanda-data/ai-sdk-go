@@ -64,7 +64,7 @@ func TestTodoToolsIntegration(t *testing.T) {
 			]
 		}`
 
-		toolReq := &llm.ToolRequest{
+		toolReq := &llm.ToolRequestPart{
 			Name:      "update_todos",
 			Arguments: json.RawMessage(updateArgs),
 		}
@@ -92,7 +92,7 @@ func TestTodoToolsIntegration(t *testing.T) {
 			]
 		}`
 
-		toolReq := &llm.ToolRequest{
+		toolReq := &llm.ToolRequestPart{
 			Name:      "add_todos",
 			Arguments: json.RawMessage(addArgs),
 		}
@@ -116,7 +116,7 @@ func TestTodoToolsIntegration(t *testing.T) {
 			]
 		}`
 
-		toolReq := &llm.ToolRequest{
+		toolReq := &llm.ToolRequestPart{
 			Name:      "update_todos",
 			Arguments: json.RawMessage(invalidArgs),
 		}
@@ -139,7 +139,7 @@ func TestTodoToolsIntegration(t *testing.T) {
 			]
 		}`
 
-		toolReq := &llm.ToolRequest{
+		toolReq := &llm.ToolRequestPart{
 			Name:      "add_todos",
 			Arguments: json.RawMessage(invalidArgs),
 		}
@@ -166,7 +166,7 @@ func TestTodoToolsIntegration(t *testing.T) {
 			]
 		}`
 
-		toolReq := &llm.ToolRequest{
+		toolReq := &llm.ToolRequestPart{
 			Name:      "add_todos",
 			Arguments: json.RawMessage(invalidArgs),
 		}

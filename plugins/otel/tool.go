@@ -31,7 +31,7 @@ func (t *TracingInterceptor) InterceptToolExecution(
 	ctx context.Context,
 	info *agent.ToolCallInfo,
 	next agent.ToolExecutionNext,
-) (*llm.ToolResponse, error) {
+) (*llm.ToolResponsePart, error) {
 	req := info.Req
 
 	// Build span name following OTel convention: "execute_tool {gen_ai.tool.name}"

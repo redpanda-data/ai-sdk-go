@@ -52,7 +52,7 @@ func TestAnthropicCachedTokens_Integration(t *testing.T) {
 	// System message with cache breakpoint - will be reused across all requests
 	systemMessage := llm.Message{
 		Role: llm.RoleSystem,
-		Content: []*llm.Part{
+		Content: []llm.Part{
 			llm.NewTextPart(longSystemPrompt),
 		},
 	}
@@ -63,7 +63,7 @@ func TestAnthropicCachedTokens_Integration(t *testing.T) {
 			systemMessage,
 			{
 				Role: llm.RoleUser,
-				Content: []*llm.Part{
+				Content: []llm.Part{
 					llm.NewTextPart("Question 1: Say 'yes' if you understand."),
 				},
 			},
@@ -84,7 +84,7 @@ func TestAnthropicCachedTokens_Integration(t *testing.T) {
 			systemMessage,
 			{
 				Role: llm.RoleUser,
-				Content: []*llm.Part{
+				Content: []llm.Part{
 					llm.NewTextPart("Question 2: Say 'ok'."),
 				},
 			},
@@ -105,7 +105,7 @@ func TestAnthropicCachedTokens_Integration(t *testing.T) {
 			systemMessage,
 			{
 				Role: llm.RoleUser,
-				Content: []*llm.Part{
+				Content: []llm.Part{
 					llm.NewTextPart("Question 3: Say 'confirmed'."),
 				},
 			},

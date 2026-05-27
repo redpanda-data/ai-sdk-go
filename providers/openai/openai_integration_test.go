@@ -113,7 +113,7 @@ func TestGPT52ReasoningEffortIntegration(t *testing.T) {
 				Messages: []llm.Message{
 					{
 						Role: llm.RoleUser,
-						Content: []*llm.Part{
+						Content: []llm.Part{
 							llm.NewTextPart("What is 2+2? Answer with just the number."),
 						},
 					},
@@ -125,8 +125,11 @@ func TestGPT52ReasoningEffortIntegration(t *testing.T) {
 			require.NotNil(t, resp, "Response should not be nil")
 			assert.NotEmpty(t, resp.Message.Content, "Response should have content")
 
-			if len(resp.Message.Content) > 0 && resp.Message.Content[0].Text != "" {
-				t.Logf("Success! Response: %s", resp.Message.Content[0].Text)
+			if len(resp.Message.Content) > 0 {
+				text := resp.TextContent()
+				if text != "" {
+					t.Logf("Success! Response: %s", text)
+				}
 			}
 		})
 	}
@@ -197,7 +200,7 @@ func TestAllModelsReasoningEffortsIntegration(t *testing.T) {
 						Messages: []llm.Message{
 							{
 								Role: llm.RoleUser,
-								Content: []*llm.Part{
+								Content: []llm.Part{
 									llm.NewTextPart("What is 2+2? Answer with just the number."),
 								},
 							},
@@ -209,9 +212,11 @@ func TestAllModelsReasoningEffortsIntegration(t *testing.T) {
 					require.NotNil(t, resp, "Response should not be nil")
 					assert.NotEmpty(t, resp.Message.Content, "Response should have content")
 
-					if len(resp.Message.Content) > 0 && resp.Message.Content[0].Text != "" {
-						t.Logf("✓ Model %s with effort %s succeeded. Response: %s",
-							modelName, effort, resp.Message.Content[0].Text)
+					if len(resp.Message.Content) > 0 {
+						text := resp.TextContent()
+						if text != "" {
+							t.Logf("✓ Model %s with effort %s succeeded. Response: %s", modelName, effort, text)
+						}
 					}
 				})
 			}

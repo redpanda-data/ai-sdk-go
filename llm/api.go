@@ -93,7 +93,7 @@ type Generator interface {
 	//	response, err := model.Generate(ctx, &llm.Request{
 	//		Messages: []llm.Message{{
 	//			Role:    llm.RoleUser,
-	//			Content: []*llm.Part{llm.NewTextPart("Hello!")},
+	//			Content: []llm.Part{llm.NewTextPart("Hello!")},
 	//		}},
 	//	})
 	//	if err != nil {

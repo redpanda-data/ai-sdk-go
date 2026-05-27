@@ -894,7 +894,9 @@ func TestRun_StreamingDeltas(t *testing.T) {
 
 	var reconstructedSb714 strings.Builder
 	for _, delta := range deltaEvents {
-		reconstructedSb714.WriteString(delta.Delta.Part.Text)
+		if tp, ok := delta.Delta.Part.(*llm.TextPart); ok {
+			reconstructedSb714.WriteString(tp.Text)
+		}
 	}
 
 	reconstructed += reconstructedSb714.String()

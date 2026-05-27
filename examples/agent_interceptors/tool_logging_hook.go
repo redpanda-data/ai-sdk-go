@@ -43,7 +43,7 @@ func (h *ToolLoggingInterceptor) InterceptToolExecution(
 	ctx context.Context,
 	info *agent.ToolCallInfo,
 	next agent.ToolExecutionNext,
-) (*llm.ToolResponse, error) {
+) (*llm.ToolResponsePart, error) {
 	inv := info.Inv
 	req := info.Req
 

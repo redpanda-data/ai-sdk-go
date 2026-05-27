@@ -176,10 +176,10 @@ func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]anthropic.BetaMe
 		case llm.RoleSystem:
 			// System messages go into the separate system parameter
 			for _, part := range msg.Content {
-				if part.IsText() {
+				if tp, ok := part.(*llm.TextPart); ok {
 					systemBlocks = append(systemBlocks, anthropic.BetaTextBlockParam{
 						Type: constant.Text(""),
-						Text: part.Text,
+						Text: tp.Text,
 					})
 				}
 			}
@@ -240,22 +240,18 @@ func (rm *RequestMapper) mapUserMessage(msg llm.Message) (anthropic.BetaMessageP
 	}
 
 	for _, part := range msg.Content {
-		if part.IsText() {
+		switch p := part.(type) {
+		case *llm.TextPart:
 			apiMsg.Content = append(apiMsg.Content, anthropic.BetaContentBlockParamUnion{
 				OfText: &anthropic.BetaTextBlockParam{
 					Type: constant.Text(""),
-					Text: part.Text,
+					Text: p.Text,
 				},
 			})
-		} else if part.IsToolResponse() {
-			block, err := rm.mapToolResultBlock(part)
-			if err != nil {
-				return apiMsg, err
-			}
-
-			apiMsg.Content = append(apiMsg.Content, block)
-		} else {
-			return apiMsg, fmt.Errorf("unsupported part type in user message: %s", part.Kind)
+		case *llm.ToolResponsePart:
+			apiMsg.Content = append(apiMsg.Content, rm.mapToolResultBlock(p))
+		default:
+			return apiMsg, fmt.Errorf("unsupported part type in user message: %T", part)
 		}
 	}
 
@@ -269,46 +265,42 @@ func (rm *RequestMapper) mapAssistantMessage(msg llm.Message) (anthropic.BetaMes
 	}
 
 	for _, part := range msg.Content {
-		switch {
-		case part.IsText():
+		switch p := part.(type) {
+		case *llm.TextPart:
 			apiMsg.Content = append(apiMsg.Content, anthropic.BetaContentBlockParamUnion{
 				OfText: &anthropic.BetaTextBlockParam{
 					Type: constant.Text(""),
-					Text: part.Text,
+					Text: p.Text,
 				},
 			})
 
-		case part.IsToolRequest():
-			if part.ToolRequest == nil {
-				return apiMsg, errors.New("tool request part has nil ToolRequest")
-			}
-
+		case *llm.ToolRequestPart:
 			// Parse arguments as map for input field
 			var input map[string]any
-			if err := json.Unmarshal(part.ToolRequest.Arguments, &input); err != nil {
+			if err := json.Unmarshal(p.Arguments, &input); err != nil {
 				return apiMsg, fmt.Errorf("failed to parse tool arguments: %w", err)
 			}
 
 			apiMsg.Content = append(apiMsg.Content, anthropic.BetaContentBlockParamUnion{
 				OfToolUse: &anthropic.BetaToolUseBlockParam{
 					Type:  constant.ToolUse(""),
-					ID:    part.ToolRequest.ID,
-					Name:  part.ToolRequest.Name,
+					ID:    p.ID,
+					Name:  p.Name,
 					Input: input,
 				},
 			})
 
-		case part.IsReasoning():
+		case *llm.ReasoningPart:
 			// Map reasoning to thinking block
 			apiMsg.Content = append(apiMsg.Content, anthropic.BetaContentBlockParamUnion{
 				OfThinking: &anthropic.BetaThinkingBlockParam{
 					Type:     constant.Thinking(""),
-					Thinking: part.Text,
+					Thinking: p.Text,
 				},
 			})
 
 		default:
-			return apiMsg, fmt.Errorf("unsupported part type in assistant message: %s", part.Kind)
+			return apiMsg, fmt.Errorf("unsupported part type in assistant message: %T", part)
 		}
 	}
 
@@ -316,23 +308,19 @@ func (rm *RequestMapper) mapAssistantMessage(msg llm.Message) (anthropic.BetaMes
 }
 
 // mapToolResultBlock converts a tool response to Anthropic's tool_result format.
-func (rm *RequestMapper) mapToolResultBlock(part *llm.Part) (anthropic.BetaContentBlockParamUnion, error) {
-	if part.ToolResponse == nil {
-		return anthropic.BetaContentBlockParamUnion{}, errors.New("tool response part has nil ToolResponse")
-	}
-
+func (rm *RequestMapper) mapToolResultBlock(resp *llm.ToolResponsePart) anthropic.BetaContentBlockParamUnion {
 	var (
 		isError bool
 		content []anthropic.BetaToolResultBlockParamContentUnion
 	)
 
-	if part.ToolResponse.Error != "" {
+	if resp.Error != "" {
 		// If there was an error, include it in the content
 		isError = true
 		content = []anthropic.BetaToolResultBlockParamContentUnion{
 			{OfText: &anthropic.BetaTextBlockParam{
 				Type: constant.Text(""),
-				Text: part.ToolResponse.Error,
+				Text: resp.Error,
 			}},
 		}
 	} else {
@@ -340,7 +328,7 @@ func (rm *RequestMapper) mapToolResultBlock(part *llm.Part) (anthropic.BetaConte
 		content = []anthropic.BetaToolResultBlockParamContentUnion{
 			{OfText: &anthropic.BetaTextBlockParam{
 				Type: constant.Text(""),
-				Text: string(part.ToolResponse.Result),
+				Text: string(resp.Result),
 			}},
 		}
 	}
@@ -348,11 +336,11 @@ func (rm *RequestMapper) mapToolResultBlock(part *llm.Part) (anthropic.BetaConte
 	return anthropic.BetaContentBlockParamUnion{
 		OfToolResult: &anthropic.BetaToolResultBlockParam{
 			Type:      constant.ToolResult(""),
-			ToolUseID: part.ToolResponse.ID,
+			ToolUseID: resp.ID,
 			Content:   content,
 			IsError:   param.NewOpt(isError),
 		},
-	}, nil
+	}
 }
 
 // mapToolDefinitions converts our tool definitions to Anthropic format.

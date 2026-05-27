@@ -48,7 +48,7 @@ func TestOpenAICachedTokens_Integration(t *testing.T) {
 	messages := []llm.Message{
 		{
 			Role: llm.RoleUser,
-			Content: []*llm.Part{
+			Content: []llm.Part{
 				llm.NewTextPart(longContext + "\n\nQuestion 1: Say 'yes' if you understand."),
 			},
 		},
@@ -75,7 +75,7 @@ func TestOpenAICachedTokens_Integration(t *testing.T) {
 		})
 		messages = append(messages, llm.Message{
 			Role: llm.RoleUser,
-			Content: []*llm.Part{
+			Content: []llm.Part{
 				llm.NewTextPart("Question: Say 'ok'."),
 			},
 		})

@@ -14,15 +14,29 @@
 
 package llm
 
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+)
+
 // Message represents a single message in a conversation.
 // Messages form the conversation history and current context for the model.
 type Message struct {
-	// Role indicates who sent this message
+	// Role indicates who sent this message.
 	Role MessageRole `json:"role"`
 
-	// Content contains the message content using the extensible Part system.
-	// This allows for rich content including text, images, tool calls, etc.
-	Content []*Part `json:"content"`
+	// Content holds the message body using the sealed-interface Part
+	// type. JSON encoding wraps each Part in a "{type: ...}" envelope.
+	Content []Part `json:"-"`
+}
+
+// messageJSON is the wire format for Message. Content is serialised via
+// the explicit Part envelope so the sealed-interface concrete types
+// round-trip across JSON boundaries.
+type messageJSON struct {
+	Role    MessageRole       `json:"role"`
+	Content []json.RawMessage `json:"content"`
 }
 
 // MessageRole defines who sent a message in the conversation.
@@ -51,13 +65,15 @@ const (
 //
 //	msg := llm.NewMessage(llm.RoleAssistant,
 //	    llm.NewTextPart("I'll search for that."),
-//	    llm.NewToolRequestPart(toolReq),
+//	    llm.NewToolRequestPart("call_1", "search", args),
 //	)
 //
 // For tool responses, use the user role:
 //
-//	msg := llm.NewMessage(llm.RoleUser, llm.NewToolResponsePart(resp))
-func NewMessage(role MessageRole, parts ...*Part) Message {
+//	msg := llm.NewMessage(llm.RoleUser,
+//	    llm.NewToolResponsePart("call_1", "search", result),
+//	)
+func NewMessage(role MessageRole, parts ...Part) Message {
 	return Message{
 		Role:    role,
 		Content: parts,
@@ -70,56 +86,59 @@ func (m *Message) TextContent() string {
 	return JoinTextParts(m.Content)
 }
 
-// ToolRequests extracts all tool requests from this message.
+// ToolRequests extracts all tool request parts from this message.
 // This is useful for agents that need to process tool calls from assistant messages.
-func (m *Message) ToolRequests() []*ToolRequest {
-	var toolRequests []*ToolRequest
-
-	for _, part := range m.Content {
-		if part.IsToolRequest() && part.ToolRequest != nil {
-			toolRequests = append(toolRequests, part.ToolRequest)
-		}
-	}
-
-	return toolRequests
+func (m *Message) ToolRequests() []*ToolRequestPart {
+	return PartsOfType[*ToolRequestPart](m.Content)
 }
 
-// HasToolRequests returns true if this message contains any tool requests.
-// This is more readable than checking len(msg.ToolRequests()) > 0.
-func (m *Message) HasToolRequests() bool {
-	for _, part := range m.Content {
-		if part.IsToolRequest() {
-			return true
-		}
-	}
-
-	return false
-}
-
-// ToolResponses extracts all tool responses from this message.
+// ToolResponses extracts all tool response parts from this message.
 // This is useful when processing tool execution results.
-func (m *Message) ToolResponses() []*ToolResponse {
-	var toolResponses []*ToolResponse
-
-	for _, part := range m.Content {
-		if part.IsToolResponse() && part.ToolResponse != nil {
-			toolResponses = append(toolResponses, part.ToolResponse)
-		}
-	}
-
-	return toolResponses
+func (m *Message) ToolResponses() []*ToolResponsePart {
+	return PartsOfType[*ToolResponsePart](m.Content)
 }
 
-// FilterParts returns all parts of the specified kind.
-// This provides a generic way to extract parts by type.
-func (m *Message) FilterParts(kind PartKind) []*Part {
-	var filtered []*Part
-
-	for _, part := range m.Content {
-		if part.Kind == kind {
-			filtered = append(filtered, part)
-		}
+// MarshalJSON implements json.Marshaler for Message.
+func (m Message) MarshalJSON() ([]byte, error) {
+	out := messageJSON{
+		Role:    m.Role,
+		Content: make([]json.RawMessage, len(m.Content)),
 	}
 
-	return filtered
+	for i, p := range m.Content {
+		data, err := MarshalPart(p)
+		if err != nil {
+			return nil, fmt.Errorf("encode message part %d: %w", i, err)
+		}
+
+		out.Content[i] = data
+	}
+
+	return json.Marshal(out)
+}
+
+// UnmarshalJSON implements json.Unmarshaler for Message.
+func (m *Message) UnmarshalJSON(data []byte) error {
+	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
+		return nil
+	}
+
+	var in messageJSON
+	if err := json.Unmarshal(data, &in); err != nil {
+		return err
+	}
+
+	m.Role = in.Role
+	m.Content = make([]Part, 0, len(in.Content))
+
+	for i, raw := range in.Content {
+		p, err := UnmarshalPart(raw)
+		if err != nil {
+			return fmt.Errorf("decode message part %d: %w", i, err)
+		}
+
+		m.Content = append(m.Content, p)
+	}
+
+	return nil
 }

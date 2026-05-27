@@ -106,8 +106,8 @@ func resolvedModelID(providerModel, fallback string) string {
 }
 
 // mapParts converts Gemini Parts to unified Parts.
-func (m *ResponseMapper) mapParts(parts []*genai.Part) ([]*llm.Part, bool, error) {
-	content := make([]*llm.Part, 0, len(parts))
+func (m *ResponseMapper) mapParts(parts []*genai.Part) ([]llm.Part, bool, error) {
+	content := make([]llm.Part, 0, len(parts))
 	hasToolCalls := false
 
 	for _, part := range parts {
@@ -121,10 +121,10 @@ func (m *ResponseMapper) mapParts(parts []*genai.Part) ([]*llm.Part, bool, error
 					signature = string(part.ThoughtSignature)
 				}
 
-				content = append(content, llm.NewReasoningPart(&llm.ReasoningTrace{
+				content = append(content, &llm.ReasoningPart{
 					ID:   signature,
 					Text: part.Text,
-				}))
+				})
 			} else {
 				// Regular text part
 				content = append(content, llm.NewTextPart(part.Text))
@@ -143,11 +143,11 @@ func (m *ResponseMapper) mapParts(parts []*genai.Part) ([]*llm.Part, bool, error
 			// Generate ID if not provided by Gemini (using cmp.Or pattern from fantasy)
 			id := cmp.Or(part.FunctionCall.ID, uuid.New().String())
 
-			toolPart := llm.NewToolRequestPart(&llm.ToolRequest{
+			toolPart := &llm.ToolRequestPart{
 				ID:        id,
 				Name:      part.FunctionCall.Name,
 				Arguments: argsJSON,
-			})
+			}
 
 			// Preserve thought signature for Gemini 3 Pro multi-turn conversations
 			// Gemini 3 Pro requires thought signatures to be passed back during function calling

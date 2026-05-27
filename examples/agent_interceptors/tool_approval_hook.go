@@ -72,7 +72,7 @@ func (h *ToolApprovalInterceptor) InterceptToolExecution(
 	ctx context.Context,
 	info *agent.ToolCallInfo,
 	next agent.ToolExecutionNext,
-) (*llm.ToolResponse, error) {
+) (*llm.ToolResponsePart, error) {
 	req := info.Req
 
 	// Check if this tool requires approval
@@ -118,7 +118,7 @@ func (h *ToolApprovalInterceptor) InterceptToolExecution(
 		log.Printf("[ToolApproval] Tool %q execution denied by user", req.Name)
 
 		// Return a response indicating the tool was denied
-		return &llm.ToolResponse{
+		return &llm.ToolResponsePart{
 			ID:    req.ID,
 			Name:  req.Name,
 			Error: "Tool execution denied by user",

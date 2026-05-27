@@ -311,8 +311,8 @@ func TestHandler_SystemPrompt(t *testing.T) {
 		t.Errorf("first message role = %q, want system", capturedMessages[0].Role)
 	}
 
-	if capturedMessages[0].Content[0].Text != "Be concise." {
-		t.Errorf("system prompt = %q, want 'Be concise.'", capturedMessages[0].Content[0].Text)
+	if tp, ok := capturedMessages[0].Content[0].(*llm.TextPart); !ok || tp.Text != "Be concise." {
+		t.Errorf("text = %q, want 'Be concise.'", tp.Text)
 	}
 }
 
@@ -444,16 +444,16 @@ func TestHandler_V6PartsFormat(t *testing.T) {
 		t.Fatalf("expected 3 messages, got %d", len(capturedMessages))
 	}
 
-	if capturedMessages[0].Content[0].Text != "hello from v6" {
-		t.Errorf("msg[0] text = %q, want 'hello from v6'", capturedMessages[0].Content[0].Text)
+	if tp, ok := capturedMessages[0].Content[0].(*llm.TextPart); !ok || tp.Text != "hello from v6" {
+		t.Errorf("text = %q, want 'hello from v6'", tp.Text)
 	}
 
-	if capturedMessages[1].Content[0].Text != "hi there" {
-		t.Errorf("msg[1] text = %q, want 'hi there'", capturedMessages[1].Content[0].Text)
+	if tp, ok := capturedMessages[1].Content[0].(*llm.TextPart); !ok || tp.Text != "hi there" {
+		t.Errorf("text = %q, want 'hi there'", tp.Text)
 	}
 
-	if capturedMessages[2].Content[0].Text != "follow up" {
-		t.Errorf("msg[2] text = %q, want 'follow up'", capturedMessages[2].Content[0].Text)
+	if tp, ok := capturedMessages[2].Content[0].(*llm.TextPart); !ok || tp.Text != "follow up" {
+		t.Errorf("text = %q, want 'follow up'", tp.Text)
 	}
 }
 
@@ -650,8 +650,8 @@ func TestHandler_EmptyMessagesSkipped(t *testing.T) {
 		t.Fatalf("expected 1 message (empty skipped), got %d", len(capturedMessages))
 	}
 
-	if capturedMessages[0].Content[0].Text != "real message" {
-		t.Errorf("msg text = %q, want 'real message'", capturedMessages[0].Content[0].Text)
+	if tp, ok := capturedMessages[0].Content[0].(*llm.TextPart); !ok || tp.Text != "real message" {
+		t.Errorf("text = %q, want 'real message'", tp.Text)
 	}
 }
 
@@ -774,7 +774,7 @@ func TestStreamModel_ReasoningTrace(t *testing.T) {
 
 	model := &errorStreamModel{
 		events: []llm.Event{
-			llm.ContentPartEvent{Index: 0, Part: llm.NewReasoningPart(&llm.ReasoningTrace{Text: "thinking..."})},
+			llm.ContentPartEvent{Index: 0, Part: &llm.ReasoningPart{Text: "thinking..."}},
 			llm.ContentPartEvent{Index: 1, Part: llm.NewTextPart("result")},
 			llm.StreamEndEvent{Response: &llm.Response{FinishReason: llm.FinishReasonStop}},
 		},
@@ -819,9 +819,9 @@ func TestStreamModel_ReasoningStatefulTracking(t *testing.T) {
 
 	model := &errorStreamModel{
 		events: []llm.Event{
-			llm.ContentPartEvent{Index: 0, Part: llm.NewReasoningPart(&llm.ReasoningTrace{Text: "step 1"})},
-			llm.ContentPartEvent{Index: 0, Part: llm.NewReasoningPart(&llm.ReasoningTrace{Text: " step 2"})},
-			llm.ContentPartEvent{Index: 0, Part: llm.NewReasoningPart(&llm.ReasoningTrace{Text: " step 3"})},
+			llm.ContentPartEvent{Index: 0, Part: &llm.ReasoningPart{Text: "step 1"}},
+			llm.ContentPartEvent{Index: 0, Part: &llm.ReasoningPart{Text: " step 2"}},
+			llm.ContentPartEvent{Index: 0, Part: &llm.ReasoningPart{Text: " step 3"}},
 			llm.ContentPartEvent{Index: 1, Part: llm.NewTextPart("result")},
 			llm.StreamEndEvent{Response: &llm.Response{FinishReason: llm.FinishReasonStop}},
 		},
@@ -900,7 +900,7 @@ func TestStreamModel_ReasoningNilTrace(t *testing.T) {
 
 	model := &errorStreamModel{
 		events: []llm.Event{
-			llm.ContentPartEvent{Index: 0, Part: llm.NewReasoningPart(nil)},
+			llm.ContentPartEvent{Index: 0, Part: &llm.ReasoningPart{}},
 			llm.StreamEndEvent{Response: &llm.Response{FinishReason: llm.FinishReasonStop}},
 		},
 	}
@@ -1147,7 +1147,7 @@ func TestStreamModel_StreamResetEventWithReasoning(t *testing.T) {
 
 	model := &errorStreamModel{
 		events: []llm.Event{
-			llm.ContentPartEvent{Index: 0, Part: llm.NewReasoningPart(&llm.ReasoningTrace{Text: "think1"})},
+			llm.ContentPartEvent{Index: 0, Part: &llm.ReasoningPart{Text: "think1"}},
 			llm.ContentPartEvent{Index: 1, Part: llm.NewTextPart("text1")},
 			llm.StreamResetEvent{Attempt: 1, Reason: "retrying"},
 			llm.ContentPartEvent{Index: 0, Part: llm.NewTextPart("text2")},
@@ -1244,16 +1244,16 @@ func TestStreamModel_ToolCall(t *testing.T) {
 	model := &errorStreamModel{
 		events: []llm.Event{
 			llm.ContentPartEvent{Index: 0, Part: llm.NewTextPart("Let me check the weather.")},
-			llm.ContentPartEvent{Index: 1, Part: llm.NewToolRequestPart(&llm.ToolRequest{
+			llm.ContentPartEvent{Index: 1, Part: &llm.ToolRequestPart{
 				ID:        "call-1",
 				Name:      "getWeather",
 				Arguments: json.RawMessage(`{"location":"San Francisco"}`),
-			})},
-			llm.ContentPartEvent{Index: 2, Part: llm.NewToolResponsePart(&llm.ToolResponse{
+			}},
+			llm.ContentPartEvent{Index: 2, Part: &llm.ToolResponsePart{
 				ID:     "call-1",
 				Name:   "getWeather",
 				Result: json.RawMessage(`{"temp":72,"condition":"sunny"}`),
-			})},
+			}},
 			llm.ContentPartEvent{Index: 3, Part: llm.NewTextPart("It's 72F and sunny!")},
 			llm.StreamEndEvent{Response: &llm.Response{FinishReason: llm.FinishReasonStop}},
 		},
@@ -1335,16 +1335,16 @@ func TestStreamModel_ToolCallError(t *testing.T) {
 
 	model := &errorStreamModel{
 		events: []llm.Event{
-			llm.ContentPartEvent{Index: 0, Part: llm.NewToolRequestPart(&llm.ToolRequest{
+			llm.ContentPartEvent{Index: 0, Part: &llm.ToolRequestPart{
 				ID:        "call-2",
 				Name:      "failTool",
 				Arguments: json.RawMessage(`{}`),
-			})},
-			llm.ContentPartEvent{Index: 1, Part: llm.NewToolResponsePart(&llm.ToolResponse{
+			}},
+			llm.ContentPartEvent{Index: 1, Part: &llm.ToolResponsePart{
 				ID:    "call-2",
 				Name:  "failTool",
 				Error: "tool execution failed",
-			})},
+			}},
 			llm.StreamEndEvent{Response: &llm.Response{FinishReason: llm.FinishReasonStop}},
 		},
 	}

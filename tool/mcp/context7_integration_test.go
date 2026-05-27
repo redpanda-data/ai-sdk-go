@@ -113,7 +113,7 @@ func TestContext7Integration_EndToEnd(t *testing.T) { //nolint:paralleltest // c
 	messages := []llm.Message{
 		{
 			Role: llm.RoleUser,
-			Content: []*llm.Part{
+			Content: []llm.Part{
 				llm.NewTextPart("I need to understand how to use the useState hook in React. Use the available tools to find the official documentation about React useState hook and summarize the key points for me."),
 			},
 		},
@@ -150,7 +150,7 @@ func TestContext7Integration_EndToEnd(t *testing.T) { //nolint:paralleltest // c
 		toolRequests := response.ToolRequests()
 		require.NotEmpty(t, toolRequests, "LLM indicated tool calls but provided no requests")
 
-		toolResults := make([]*llm.Part, 0, len(toolRequests))
+		toolResults := make([]llm.Part, 0, len(toolRequests))
 		for _, toolReq := range toolRequests {
 			toolCallCount++
 
@@ -158,7 +158,7 @@ func TestContext7Integration_EndToEnd(t *testing.T) { //nolint:paralleltest // c
 			require.NoError(t, err, "Failed to execute tool %s", toolReq.Name)
 			require.NotNil(t, toolResp)
 
-			toolResults = append(toolResults, llm.NewToolResponsePart(toolResp))
+			toolResults = append(toolResults, toolResp)
 		}
 
 		// Add assistant message with tool calls to conversation

@@ -14,6 +14,8 @@
 
 package llm
 
+import "encoding/json"
+
 // Event represents all possible events that can occur during streaming.
 // This is a discriminated union implemented using Go interfaces.
 // The isStreamEvent() method is a type constraint that prevents external types
@@ -32,24 +34,59 @@ type Event interface {
 // - Tool calls: buffered until complete and valid, then emitted as complete Parts
 // - Reasoning traces: streamed as incremental reasoning steps for transparency.
 type ContentPartEvent struct {
-	// Index refers to which content position this part occupies in the response
+	// Index refers to which content position this part occupies in the response.
 	Index int `json:"index"`
 
-	// Part contains the content using the Part system
-	// - Text Parts: can be incremental deltas (tokens/words) for responsive display
-	// - Tool Call Parts: always complete and valid JSON, ready for execution
-	// - Other content types: depends on provider capabilities
-	Part *Part `json:"part"`
+	// Part contains the content using the sealed-interface Part system:
+	//   - TextPart: incremental deltas (tokens/words) for responsive display.
+	//   - ToolRequestPart: always complete and valid JSON, ready for execution.
+	//   - ReasoningPart: incremental reasoning fragments when supported.
+	Part Part `json:"-"`
 }
 
 // isStreamEvent implements the Event interface constraint.
 func (ContentPartEvent) isStreamEvent() {}
 
+// contentPartEventJSON is the wire form for ContentPartEvent so the
+// sealed-interface Part round-trips through JSON.
+type contentPartEventJSON struct {
+	Index int             `json:"index"`
+	Part  json.RawMessage `json:"part"`
+}
+
+// MarshalJSON implements json.Marshaler.
+func (e ContentPartEvent) MarshalJSON() ([]byte, error) {
+	partData, err := MarshalPart(e.Part)
+	if err != nil {
+		return nil, err
+	}
+
+	return json.Marshal(contentPartEventJSON{Index: e.Index, Part: partData})
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (e *ContentPartEvent) UnmarshalJSON(data []byte) error {
+	var in contentPartEventJSON
+	if err := json.Unmarshal(data, &in); err != nil {
+		return err
+	}
+
+	p, err := UnmarshalPart(in.Part)
+	if err != nil {
+		return err
+	}
+
+	e.Index = in.Index
+	e.Part = p
+
+	return nil
+}
+
 // ErrorEvent represents an error that occurred during streaming.
 // This can be either a recoverable error (stream continues) or
 // a terminal error (stream ends).
 type ErrorEvent struct {
-	// Message provides a human-readable error description
+	// Message provides a human-readable error description.
 	Message string `json:"message"`
 
 	// Code provides a machine-readable error code for programmatic handling.
@@ -71,14 +108,14 @@ func (ErrorEvent) isStreamEvent() {}
 //
 //	case llm.StreamEndEvent:
 //	    if evt.Error != nil {
-//	        // Check error category with the Is* helpers:
-//	        if llm.IsRateLimit(evt.Error) {
+//	        // Check error category with errors.Is()
+//	        if errors.Is(evt.Error, llm.ErrRateLimitExceeded) {
 //	            // Retry with exponential backoff
-//	        } else if llm.IsInvalidInput(evt.Error) {
+//	        } else if errors.Is(evt.Error, llm.ErrInvalidInput) {
 //	            // Don't retry - fix the input
 //	        }
 //
-//	        // Get provider-specific details with errors.As():
+//	        // Get provider-specific details with type assertion
 //	        var perr *llm.ProviderError
 //	        if errors.As(evt.Error, &perr) {
 //	            log.Printf("Provider error [%s]: %s", perr.Code, perr.Message)
@@ -104,14 +141,14 @@ type StreamEndEvent struct {
 	// Error contains provider or mapping errors that prevented successful completion.
 	// This is nil when Response is set.
 	//
-	// Common error categories (check with the Is* helpers or errors.Is):
+	// Common error categories (check with errors.Is):
 	//   - ErrRateLimitExceeded: Retryable with backoff
 	//   - ErrInvalidInput: Not retryable, fix input
 	//   - ErrContentPolicyViolation: Not retryable, policy violation
 	//   - ErrServerError: Retryable, transient provider issue
 	//
-	// Use errors.As(&perr) with *ProviderError to access the provider-specific
-	// Code and Message.
+	// Use errors.As(err, &perr) where perr is *ProviderError to access
+	// provider-specific Code and Message.
 	Error error `json:"-"`
 }
 

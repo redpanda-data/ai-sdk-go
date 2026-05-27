@@ -147,10 +147,10 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 						event = llm.ContentPartEvent{
 							Index: idx,
-							Part: llm.NewReasoningPart(&llm.ReasoningTrace{
+							Part: &llm.ReasoningPart{
 								ID:   signature,
 								Text: part.Text,
-							}),
+							},
 						}
 					} else {
 						// Regular text delta
@@ -175,11 +175,11 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 					// Generate ID if not provided by Gemini (using cmp.Or pattern from fantasy)
 					id := cmp.Or(part.FunctionCall.ID, uuid.New().String())
 
-					toolPart := llm.NewToolRequestPart(&llm.ToolRequest{
+					toolPart := &llm.ToolRequestPart{
 						ID:        id,
 						Name:      part.FunctionCall.Name,
 						Arguments: argsJSON,
-					})
+					}
 
 					// Preserve thought signature for Gemini 3 Pro multi-turn conversations
 					// Gemini 3 Pro requires thought signatures to be passed back during function calling

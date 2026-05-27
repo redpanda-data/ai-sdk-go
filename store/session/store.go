@@ -92,6 +92,10 @@ type State struct {
 
 // Clone creates a deep copy of the session state.
 // Returns nil if the receiver is nil.
+//
+// Each Message and each Part within is cloned, so mutations to the clone
+// do not affect the original. This contract matters because Parts are
+// pointer types and a shallow copy would alias mutable state.
 func (s *State) Clone() *State {
 	if s == nil {
 		return nil
@@ -102,7 +106,10 @@ func (s *State) Clone() *State {
 		Messages: make([]llm.Message, len(s.Messages)),
 		Metadata: make(map[string]any, len(s.Metadata)),
 	}
-	copy(clone.Messages, s.Messages)
+	for i, m := range s.Messages {
+		clone.Messages[i] = llm.CloneMessage(m)
+	}
+
 	maps.Copy(clone.Metadata, s.Metadata)
 
 	return clone

@@ -316,8 +316,8 @@ func LastMessageHasToolResponse(toolName string) Matcher {
 		}
 
 		for _, part := range lastMsg.Content {
-			if part.IsToolResponse() && part.ToolResponse != nil {
-				if part.ToolResponse.Name == toolName {
+			if tr, ok := part.(*llm.ToolResponsePart); ok && tr != nil {
+				if tr.Name == toolName {
 					return nil
 				}
 			}

@@ -75,7 +75,7 @@ func successResponse() *llm.Response {
 		ID: "resp-1",
 		Message: llm.Message{
 			Role:    llm.RoleAssistant,
-			Content: []*llm.Part{llm.NewTextPart("Hello")},
+			Content: []llm.Part{llm.NewTextPart("Hello")},
 		},
 		FinishReason: llm.FinishReasonStop,
 	}

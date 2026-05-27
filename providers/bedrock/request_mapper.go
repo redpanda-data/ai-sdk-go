@@ -214,9 +214,9 @@ func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]types.Message, [
 		switch msg.Role {
 		case llm.RoleSystem:
 			for _, part := range msg.Content {
-				if part.IsText() {
+				if tp, ok := part.(*llm.TextPart); ok {
 					system = append(system, &types.SystemContentBlockMemberText{
-						Value: part.Text,
+						Value: tp.Text,
 					})
 				}
 			}
@@ -266,23 +266,19 @@ func (rm *RequestMapper) mapUserMessage(msg llm.Message) (types.Message, error) 
 	}
 
 	for _, part := range msg.Content {
-		switch {
-		case part.IsText():
+		switch p := part.(type) {
+		case *llm.TextPart:
 			apiMsg.Content = append(apiMsg.Content, &types.ContentBlockMemberText{
-				Value: part.Text,
+				Value: p.Text,
 			})
 
-		case part.IsToolResponse():
-			if part.ToolResponse == nil {
-				return apiMsg, errors.New("tool response part has nil ToolResponse")
-			}
-
+		case *llm.ToolResponsePart:
 			apiMsg.Content = append(apiMsg.Content, &types.ContentBlockMemberToolResult{
-				Value: rm.mapToolResultBlock(part.ToolResponse),
+				Value: rm.mapToolResultBlock(p),
 			})
 
 		default:
-			return apiMsg, fmt.Errorf("unsupported part type in user message: %s", part.Kind)
+			return apiMsg, fmt.Errorf("unsupported part type in user message: %T", part)
 		}
 	}
 
@@ -296,46 +292,42 @@ func (rm *RequestMapper) mapAssistantMessage(msg llm.Message) (types.Message, er
 	}
 
 	for _, part := range msg.Content {
-		switch {
-		case part.IsText():
+		switch p := part.(type) {
+		case *llm.TextPart:
 			apiMsg.Content = append(apiMsg.Content, &types.ContentBlockMemberText{
-				Value: part.Text,
+				Value: p.Text,
 			})
 
-		case part.IsToolRequest():
-			if part.ToolRequest == nil {
-				return apiMsg, errors.New("tool request part has nil ToolRequest")
-			}
-
+		case *llm.ToolRequestPart:
 			// Parse arguments to a generic map for document.Interface
 			var input map[string]any
-			if err := json.Unmarshal(part.ToolRequest.Arguments, &input); err != nil {
+			if err := json.Unmarshal(p.Arguments, &input); err != nil {
 				return apiMsg, fmt.Errorf("failed to parse tool arguments: %w", err)
 			}
 
 			apiMsg.Content = append(apiMsg.Content, &types.ContentBlockMemberToolUse{
 				Value: types.ToolUseBlock{
-					ToolUseId: aws.String(part.ToolRequest.ID),
-					Name:      aws.String(part.ToolRequest.Name),
+					ToolUseId: aws.String(p.ID),
+					Name:      aws.String(p.Name),
 					Input:     document.NewLazyDocument(input),
 				},
 			})
 
-		case part.IsReasoning():
+		case *llm.ReasoningPart:
 			// Pass reasoning traces back as reasoning content blocks
-			if part.ReasoningTrace != nil && part.ReasoningTrace.Text != "" {
+			if p.Text != "" {
 				apiMsg.Content = append(apiMsg.Content, &types.ContentBlockMemberReasoningContent{
 					Value: &types.ReasoningContentBlockMemberReasoningText{
 						Value: types.ReasoningTextBlock{
-							Text:      aws.String(part.ReasoningTrace.Text),
-							Signature: aws.String(part.ReasoningTrace.ID),
+							Text:      aws.String(p.Text),
+							Signature: aws.String(p.ID),
 						},
 					},
 				})
 			}
 
 		default:
-			return apiMsg, fmt.Errorf("unsupported part type in assistant message: %s", part.Kind)
+			return apiMsg, fmt.Errorf("unsupported part type in assistant message: %T", part)
 		}
 	}
 
@@ -343,7 +335,7 @@ func (rm *RequestMapper) mapAssistantMessage(msg llm.Message) (types.Message, er
 }
 
 // mapToolResultBlock converts a tool response to a Bedrock ToolResultBlock.
-func (rm *RequestMapper) mapToolResultBlock(resp *llm.ToolResponse) types.ToolResultBlock {
+func (rm *RequestMapper) mapToolResultBlock(resp *llm.ToolResponsePart) types.ToolResultBlock {
 	block := types.ToolResultBlock{
 		ToolUseId: aws.String(resp.ID),
 	}

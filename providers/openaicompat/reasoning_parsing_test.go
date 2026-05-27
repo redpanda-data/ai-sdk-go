@@ -73,13 +73,15 @@ func TestReasoningContentParsing(t *testing.T) {
 		require.Len(t, response.Message.Content, 2, "Expected reasoning + text content")
 
 		// First part should be reasoning
-		assert.Equal(t, llm.PartReasoning, response.Message.Content[0].Kind)
-		assert.Contains(t, response.Message.Content[0].ReasoningTrace.Text, "Let me think")
-		assert.Contains(t, response.Message.Content[0].ReasoningTrace.Text, "step by step")
+		rp, ok := response.Message.Content[0].(*llm.ReasoningPart)
+		require.True(t, ok, "Expected ReasoningPart")
+		assert.Contains(t, rp.Text, "Let me think")
+		assert.Contains(t, rp.Text, "step by step")
 
 		// Second part should be text
-		assert.Equal(t, llm.PartText, response.Message.Content[1].Kind)
-		assert.Equal(t, "9.11 is greater than 9.8", response.Message.Content[1].Text)
+		tp, ok := response.Message.Content[1].(*llm.TextPart)
+		require.True(t, ok, "Expected TextPart")
+		assert.Equal(t, "9.11 is greater than 9.8", tp.Text)
 
 		// Check reasoning tokens
 		assert.Equal(t, 15, response.Usage.ReasoningTokens)
@@ -119,8 +121,9 @@ func TestReasoningContentParsing(t *testing.T) {
 
 		// Should have only 1 content part: text
 		require.Len(t, response.Message.Content, 1)
-		assert.Equal(t, llm.PartText, response.Message.Content[0].Kind)
-		assert.Equal(t, "Hello, how can I help?", response.Message.Content[0].Text)
+		tp, ok := response.Message.Content[0].(*llm.TextPart)
+		require.True(t, ok, "Expected TextPart")
+		assert.Equal(t, "Hello, how can I help?", tp.Text)
 
 		// No reasoning tokens
 		assert.Equal(t, 0, response.Usage.ReasoningTokens)
@@ -160,6 +163,7 @@ func TestReasoningContentParsing(t *testing.T) {
 
 		// Should have only text part, empty reasoning is skipped
 		require.Len(t, response.Message.Content, 1)
-		assert.Equal(t, llm.PartText, response.Message.Content[0].Kind)
+		_, ok := response.Message.Content[0].(*llm.TextPart)
+		assert.True(t, ok, "Expected TextPart")
 	})
 }

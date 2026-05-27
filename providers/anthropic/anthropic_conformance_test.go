@@ -119,7 +119,7 @@ func TestAnthropicAdaptiveThinking_Integration(t *testing.T) {
 		Messages: []llm.Message{
 			{
 				Role: llm.RoleUser,
-				Content: []*llm.Part{
+				Content: []llm.Part{
 					llm.NewTextPart("Explain the difference between a mutex and a semaphore in two sentences."),
 				},
 			},
@@ -136,13 +136,14 @@ func TestAnthropicAdaptiveThinking_Integration(t *testing.T) {
 	var hasText, hasReasoning bool
 
 	for _, part := range resp.Message.Content {
-		switch {
-		case part.IsText():
+		switch p := part.(type) {
+		case *llm.TextPart:
 			hasText = true
 
-			assert.NotEmpty(t, part.Text)
-		case part.IsReasoning():
+			assert.NotEmpty(t, p.Text)
+		case *llm.ReasoningPart:
 			hasReasoning = true
+			_ = p
 		}
 	}
 
