@@ -193,10 +193,10 @@ func (p *Provider) Models() []llm.ModelDiscoveryInfo {
 	models := make([]llm.ModelDiscoveryInfo, 0, len(supportedModels))
 	for _, def := range supportedModels {
 		models = append(models, llm.ModelDiscoveryInfo{
-			Name:         def.Name,
+			Name:         llm.ModelID(def.Name),
 			Label:        def.Label,
 			Capabilities: def.Capabilities,
-			Provider:     p.Name(),
+			Provider:     llm.ProviderID(p.Name()),
 		})
 	}
 

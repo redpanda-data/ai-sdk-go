@@ -86,7 +86,7 @@ IMPORTANT:
 - Use appropriate type to categorize the input request
 - This will pause task execution until user responds`,
 		Parameters: schema,
-		Type:       llm.ToolTypeFunction,
+		Type:       llm.ToolKindFunction,
 	}
 }
 

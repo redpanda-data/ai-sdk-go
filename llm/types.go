@@ -308,7 +308,7 @@ type ModelCapabilities struct {
 // This is returned by provider.Models() for model discovery and capability checking.
 type ModelDiscoveryInfo struct {
 	// Name is the model identifier used in API calls
-	Name string
+	Name ModelID
 
 	// Label is a human-readable display name
 	Label string
@@ -317,5 +317,5 @@ type ModelDiscoveryInfo struct {
 	Capabilities ModelCapabilities
 
 	// Provider is the name of the provider that offers this model
-	Provider string
+	Provider ProviderID
 }

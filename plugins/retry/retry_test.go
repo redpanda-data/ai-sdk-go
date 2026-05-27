@@ -37,8 +37,8 @@ type mockModel struct {
 	generateEventsFunc func(ctx context.Context, req *llm.Request) iter.Seq2[llm.Event, error]
 }
 
-func (m *mockModel) Name() string                        { return "mock" }
-func (m *mockModel) Provider() string                    { return "test" }
+func (m *mockModel) Name() llm.ModelID                   { return "mock" }
+func (m *mockModel) Provider() llm.ProviderID            { return "test" }
 func (m *mockModel) Capabilities() llm.ModelCapabilities { return llm.ModelCapabilities{} }
 func (m *mockModel) Constraints() llm.ModelConstraints   { return llm.ModelConstraints{} }
 
@@ -381,8 +381,8 @@ func TestWrapModel_PreservesIdentity(t *testing.T) {
 
 	model := WrapModel(mock, WithMaxRetries(3))
 
-	assert.Equal(t, "mock", model.Name())
-	assert.Equal(t, "test", model.Provider())
+	assert.Equal(t, llm.ModelID("mock"), model.Name())
+	assert.Equal(t, llm.ProviderID("test"), model.Provider())
 }
 
 // --- Config tests ---

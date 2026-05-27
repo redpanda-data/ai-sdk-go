@@ -1491,7 +1491,7 @@ func testAllSupportedModels(t *testing.T, fixture Fixture) { //nolint:thelper //
 	// Each model is wrapped with retry to handle transient errors.
 	t.Run("basic generation works for all supported models", func(t *testing.T) {
 		for _, m := range models {
-			modelName := m.Name
+			modelName := string(m.Name)
 			t.Run("model_"+modelName, func(t *testing.T) {
 				baseModel, err := fixture.NewModel(modelName)
 				if err != nil {

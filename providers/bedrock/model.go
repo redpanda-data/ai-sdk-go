@@ -38,13 +38,13 @@ type Model struct {
 }
 
 // Name returns the model identifier.
-func (m *Model) Name() string {
-	return m.config.ModelName
+func (m *Model) Name() llm.ModelID {
+	return llm.ModelID(m.config.ModelName)
 }
 
 // Provider returns the provider name.
-func (m *Model) Provider() string {
-	return m.provider.Name()
+func (m *Model) Provider() llm.ProviderID {
+	return llm.ProviderID(m.provider.Name())
 }
 
 // Capabilities returns what features this model supports.
@@ -227,7 +227,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 			},
 			FinishReason:   finishReason,
 			Usage:          usage,
-			InvokedModelID: m.definition.Name,
+			InvokedModelID: llm.ModelID(m.definition.Name),
 		}
 		m.responseMapper.applyResponseMetadata(resp, performanceConfig, serviceTier, promptRouter)
 

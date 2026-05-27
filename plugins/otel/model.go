@@ -131,7 +131,7 @@ func (h *tracingModelHandler) startSpan(ctx context.Context, req *llm.Request) (
 
 	if h.modelInfo != nil {
 		if modelName := h.modelInfo.Name(); modelName != "" {
-			spanName = "chat " + modelName
+			spanName = "chat " + string(modelName)
 		}
 	}
 
@@ -172,7 +172,10 @@ func (h *tracingModelHandler) startSpan(ctx context.Context, req *llm.Request) (
 // Also propagates provider and model information to the parent invocation span.
 func (h *tracingModelHandler) addRequestAttributes(span trace.Span, req *llm.Request) {
 	// Get model name and provider from ModelInfo
-	var modelName, providerName string
+	var (
+		modelName    llm.ModelID
+		providerName llm.ProviderID
+	)
 
 	if h.modelInfo != nil {
 		if name := h.modelInfo.Name(); name != "" {
@@ -203,7 +206,7 @@ func (h *tracingModelHandler) addRequestAttributes(span trace.Span, req *llm.Req
 // propagateModelToInvocation sets provider/model on the invocation span when
 // they were not already set at span creation time (i.e. for non-LLM agents or
 // agents whose Info() returns empty model/provider).
-func (h *tracingModelHandler) propagateModelToInvocation(providerName, modelName string) {
+func (h *tracingModelHandler) propagateModelToInvocation(providerName llm.ProviderID, modelName llm.ModelID) {
 	agentSnap := h.inv.Agent()
 	// Short-circuit: both model and provider were already set on the invocation
 	// span at creation time (startInvocationSpan reads them from Info()). The

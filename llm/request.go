@@ -56,60 +56,65 @@ type ToolDefinition struct {
 	Parameters json.RawMessage `json:"parameters"`
 
 	// Type specifies the tool category for observability.
-	// Values: "function" (default), "extension", "datastore"
 	// Used for OpenTelemetry gen_ai.tool.type attribute.
-	Type string `json:"type,omitempty"`
+	Type ToolKind `json:"type,omitempty"`
 }
+
+// ToolKind classifies where and how a tool executes for observability.
+type ToolKind string
+
+// Tool kind constants for OpenTelemetry semantic conventions.
+// These describe where/how the tool executes.
+const (
+	// ToolKindFunction: Local execution - agent generates parameters,
+	// local code executes the logic (built-in tools, user-provided functions).
+	ToolKindFunction ToolKind = "function"
+
+	// ToolKindExtension: Agent-side remote execution - agent calls
+	// external APIs or services (e.g., MCP server tools).
+	ToolKindExtension ToolKind = "extension"
+
+	// ToolKindDatastore: Specialized data retrieval tools
+	// (e.g., vector databases, knowledge bases).
+	ToolKindDatastore ToolKind = "datastore"
+)
 
 // ToolChoice controls how the model should interact with available tools.
 type ToolChoice struct {
 	// Type specifies the tool selection strategy.
-	// Valid values: "auto", "none", "required", "specific"
-	Type string `json:"type"`
+	Type ToolChoiceType `json:"type"`
 
-	// Name specifies a particular tool when Type is "specific".
+	// Name specifies a particular tool when Type is ToolChoiceSpecific.
 	// This forces the model to use only the named tool.
 	Name *string `json:"name,omitempty"`
 }
 
-// Common ToolChoice values.
+// ToolChoiceType selects the tool-invocation strategy a model should use.
+type ToolChoiceType string
+
+// Common ToolChoiceType values.
 const (
-	ToolChoiceAuto     = "auto"     // Model decides whether and which tools to use
-	ToolChoiceNone     = "none"     // Model should not use any tools
-	ToolChoiceRequired = "required" // Model must use at least one tool
-	ToolChoiceSpecific = "specific" // Model must use the tool specified in Name
-)
-
-// Tool type constants for OpenTelemetry semantic conventions.
-// These describe where/how the tool executes.
-const (
-	// ToolTypeFunction: Local execution - agent generates parameters,
-	// local code executes the logic (built-in tools, user-provided functions).
-	ToolTypeFunction = "function"
-
-	// ToolTypeExtension: Agent-side remote execution - agent calls
-	// external APIs or services (e.g., MCP server tools).
-	ToolTypeExtension = "extension"
-
-	// ToolTypeDatastore: Specialized data retrieval tools
-	// (e.g., vector databases, knowledge bases).
-	ToolTypeDatastore = "datastore"
+	ToolChoiceAuto     ToolChoiceType = "auto"     // Model decides whether and which tools to use
+	ToolChoiceNone     ToolChoiceType = "none"     // Model should not use any tools
+	ToolChoiceRequired ToolChoiceType = "required" // Model must use at least one tool
+	ToolChoiceSpecific ToolChoiceType = "specific" // Model must use the tool specified in Name
 )
 
 // ResponseFormat controls the structure of the model's output.
 // This provides three levels of output control, from free-form to strictly constrained.
 type ResponseFormat struct {
 	// Type specifies the output format constraint level.
-	// Valid values: "text", "json_object", "json_schema"
-	Type string `json:"type"`
+	Type ResponseFormatType `json:"type"`
 
-	// JSONSchema provides the schema when Type is "json_schema".
+	// JSONSchema provides the schema when Type is ResponseFormatJSONSchema.
 	// This constrains the model to generate valid JSON matching the exact schema.
-	// Only used with ResponseFormatJSONSchema.
 	JSONSchema *JSONSchema `json:"json_schema,omitempty"`
 }
 
-// ResponseFormat types provide increasing levels of output structure control:
+// ResponseFormatType selects how strictly a model's output is constrained.
+type ResponseFormatType string
+
+// ResponseFormatType values provide increasing levels of output structure control:
 //
 // text: Natural language output with no constraints (default)
 // json_object: Valid JSON output with any structure the model chooses
@@ -118,19 +123,19 @@ const (
 	// ResponseFormatText produces natural language output with no structural constraints.
 	// This is the default behavior. Use explicitly when you need to override provider
 	// defaults or switch dynamically from structured to unstructured output.
-	ResponseFormatText = "text"
+	ResponseFormatText ResponseFormatType = "text"
 
 	// ResponseFormatJSONObject guarantees valid JSON output but allows any JSON structure.
 	// The model can choose the JSON format and field names. Good for data extraction
 	// where you need JSON but don't have rigid structure requirements.
 	// Example output: {"name": "John", "skills": ["Go", "Python"]}.
-	ResponseFormatJSONObject = "json_object"
+	ResponseFormatJSONObject ResponseFormatType = "json_object"
 
 	// ResponseFormatJSONSchema enforces both valid JSON and exact schema compliance.
 	// The model output must exactly match the provided JSONSchema. Use this when
 	// you need predictable JSON structure for API integration or data processing.
 	// Example: {"sentiment": "positive", "confidence": 0.87} matching your schema.
-	ResponseFormatJSONSchema = "json_schema"
+	ResponseFormatJSONSchema ResponseFormatType = "json_schema"
 )
 
 // JSONSchema defines a constraint for structured JSON output.

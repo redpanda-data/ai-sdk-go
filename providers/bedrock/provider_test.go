@@ -301,8 +301,8 @@ func TestNewModel_SupportedModels(t *testing.T) {
 			model, err := p.NewModel(tt.modelName)
 			require.NoError(t, err)
 			require.NotNil(t, model)
-			assert.Equal(t, tt.modelName, model.Name())
-			assert.Equal(t, "aws.bedrock", model.Provider())
+			assert.Equal(t, llm.ModelID(tt.modelName), model.Name())
+			assert.Equal(t, llm.ProviderID("aws.bedrock"), model.Provider())
 		})
 	}
 }
@@ -495,7 +495,7 @@ func TestRequestMapper_NoInferenceConfig(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
-		ModelName:  ModelClaudeSonnet46,
+		ModelName: ModelClaudeSonnet46,
 	}
 
 	mapper := NewRequestMapper(cfg)
@@ -513,7 +513,7 @@ func TestRequestMapper_ToolDefinitions(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
-		ModelName:  ModelClaudeSonnet46,
+		ModelName: ModelClaudeSonnet46,
 	}
 
 	mapper := NewRequestMapper(cfg)
@@ -554,7 +554,7 @@ func TestRequestMapper_ToolChoiceSpecific(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
-		ModelName:  ModelClaudeSonnet46,
+		ModelName: ModelClaudeSonnet46,
 	}
 
 	mapper := NewRequestMapper(cfg)
@@ -586,7 +586,7 @@ func TestRequestMapper_ToolResponse(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
-		ModelName:  ModelClaudeSonnet46,
+		ModelName: ModelClaudeSonnet46,
 	}
 
 	mapper := NewRequestMapper(cfg)
@@ -619,7 +619,7 @@ func TestRequestMapper_ToolResponseError(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
-		ModelName:  ModelClaudeSonnet46,
+		ModelName: ModelClaudeSonnet46,
 	}
 
 	mapper := NewRequestMapper(cfg)
@@ -648,7 +648,7 @@ func TestRequestMapper_AssistantWithToolUse(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
-		ModelName:  ModelClaudeSonnet46,
+		ModelName: ModelClaudeSonnet46,
 	}
 
 	mapper := NewRequestMapper(cfg)
@@ -824,7 +824,7 @@ func TestResponseMapper_TextResponse(t *testing.T) {
 	// InvokedModelID reflects the actual inference profile AWS routed to,
 	// not just the logical model name — geo and global profiles bill at
 	// different rates so the routing identity matters downstream.
-	assert.Equal(t, ModelClaudeSonnet46US, resp.InvokedModelID)
+	assert.Equal(t, llm.ModelID(ModelClaudeSonnet46US), resp.InvokedModelID)
 	require.NotNil(t, resp.Usage)
 	assert.Equal(t, 10, resp.Usage.InputTokens)
 	assert.Equal(t, 8, resp.Usage.OutputTokens)
@@ -940,7 +940,7 @@ func TestModelsDiscovery(t *testing.T) {
 	assert.Len(t, models, len(supportedModels))
 
 	for _, m := range models {
-		assert.Equal(t, "aws.bedrock", m.Provider)
+		assert.Equal(t, llm.ProviderID("aws.bedrock"), m.Provider)
 		assert.NotEmpty(t, m.Name)
 		assert.NotEmpty(t, m.Label)
 	}

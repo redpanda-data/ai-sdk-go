@@ -463,8 +463,8 @@ type errorStreamModel struct {
 	events []llm.Event
 }
 
-func (m *errorStreamModel) Name() string     { return "error-test-model" }
-func (m *errorStreamModel) Provider() string { return "test" }
+func (m *errorStreamModel) Name() llm.ModelID        { return "error-test-model" }
+func (m *errorStreamModel) Provider() llm.ProviderID { return "test" }
 
 func (m *errorStreamModel) Capabilities() llm.ModelCapabilities {
 	return llm.ModelCapabilities{Streaming: true}

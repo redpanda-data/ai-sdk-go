@@ -38,8 +38,8 @@ import (
 // simpleModel is a minimal model for testing (no I/O).
 type simpleModel struct{}
 
-func (simpleModel) Name() string                        { return "test-model" }
-func (simpleModel) Provider() string                    { return "test" }
+func (simpleModel) Name() llm.ModelID                   { return "test-model" }
+func (simpleModel) Provider() llm.ProviderID            { return "test" }
 func (simpleModel) Capabilities() llm.ModelCapabilities { return llm.ModelCapabilities{} }
 func (simpleModel) Constraints() llm.ModelConstraints {
 	return llm.ModelConstraints{
@@ -180,8 +180,8 @@ func TestLLMAgent_Info(t *testing.T) {
 		info := ag.Info()
 		assert.Equal(t, "my-agent", info.Name)
 		assert.Equal(t, "You are helpful", info.SystemPrompt)
-		assert.Equal(t, "test-model", info.ModelName)
-		assert.Equal(t, "test", info.ProviderName)
+		assert.Equal(t, llm.ModelID("test-model"), info.ModelName)
+		assert.Equal(t, llm.ProviderID("test"), info.ProviderName)
 	})
 
 	t.Run("with description", func(t *testing.T) {

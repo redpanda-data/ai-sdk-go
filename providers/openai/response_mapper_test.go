@@ -50,7 +50,7 @@ func TestResponseMapper_Metadata(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, llm.ServiceTierDefault, resp.ServiceTier)
-	assert.Equal(t, ModelGPT5Mini, resp.InvokedModelID)
+	assert.Equal(t, llm.ModelID(ModelGPT5Mini), resp.InvokedModelID)
 }
 
 // TestResponseMapper_FinishReasonTruncationWithToolCalls locks in the rule

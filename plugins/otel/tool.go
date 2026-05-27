@@ -57,13 +57,13 @@ func (t *TracingInterceptor) InterceptToolExecution(
 
 		toolType := info.Definition.Type
 		switch toolType {
-		case "", llm.ToolTypeFunction:
-			toolType = llm.ToolTypeFunction
-		case llm.ToolTypeExtension, llm.ToolTypeDatastore:
+		case "", llm.ToolKindFunction:
+			toolType = llm.ToolKindFunction
+		case llm.ToolKindExtension, llm.ToolKindDatastore:
 			// Valid types - use as-is
 		default:
 			// Invalid type - default to function for OTel compliance
-			toolType = llm.ToolTypeFunction
+			toolType = llm.ToolKindFunction
 		}
 
 		attrs = append(attrs, genAIToolType(toolType))

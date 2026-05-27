@@ -71,15 +71,16 @@ func (ErrorEvent) isStreamEvent() {}
 //
 //	case llm.StreamEndEvent:
 //	    if evt.Error != nil {
-//	        // Check error category with errors.Is()
-//	        if errors.Is(evt.Error, llm.ErrRateLimitExceeded) {
+//	        // Check error category with the Is* helpers:
+//	        if llm.IsRateLimit(evt.Error) {
 //	            // Retry with exponential backoff
-//	        } else if errors.Is(evt.Error, llm.ErrInvalidInput) {
+//	        } else if llm.IsInvalidInput(evt.Error) {
 //	            // Don't retry - fix the input
 //	        }
 //
-//	        // Get provider-specific details with type assertion
-//	        if perr, ok := evt.Error.(*llm.ProviderError); ok {
+//	        // Get provider-specific details with errors.As():
+//	        var perr *llm.ProviderError
+//	        if errors.As(evt.Error, &perr) {
 //	            log.Printf("Provider error [%s]: %s", perr.Code, perr.Message)
 //	        }
 //	        return evt.Error
@@ -103,13 +104,14 @@ type StreamEndEvent struct {
 	// Error contains provider or mapping errors that prevented successful completion.
 	// This is nil when Response is set.
 	//
-	// Common error categories (check with errors.Is):
+	// Common error categories (check with the Is* helpers or errors.Is):
 	//   - ErrRateLimitExceeded: Retryable with backoff
 	//   - ErrInvalidInput: Not retryable, fix input
 	//   - ErrContentPolicyViolation: Not retryable, policy violation
 	//   - ErrServerError: Retryable, transient provider issue
 	//
-	// Type assert to *ProviderError to access provider-specific Code and Message.
+	// Use errors.As(&perr) with *ProviderError to access the provider-specific
+	// Code and Message.
 	Error error `json:"-"`
 }
 

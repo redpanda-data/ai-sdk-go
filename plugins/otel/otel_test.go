@@ -42,8 +42,8 @@ type mockModelInfo struct {
 	provider string
 }
 
-func (m *mockModelInfo) Name() string     { return m.name }
-func (m *mockModelInfo) Provider() string { return m.provider }
+func (m *mockModelInfo) Name() llm.ModelID        { return llm.ModelID(m.name) }
+func (m *mockModelInfo) Provider() llm.ProviderID { return llm.ProviderID(m.provider) }
 func (m *mockModelInfo) Capabilities() llm.ModelCapabilities {
 	return llm.ModelCapabilities{}
 }
@@ -822,7 +822,7 @@ func TestTracingInterceptor_InterceptToolExecution_WithToolTypeAndDescription(t 
 		toolDef := &llm.ToolDefinition{
 			Name:        "get_weather",
 			Description: "Gets the current weather for a location",
-			Type:        llm.ToolTypeFunction,
+			Type:        llm.ToolKindFunction,
 		}
 
 		toolInfo := &agent.ToolCallInfo{
@@ -924,11 +924,11 @@ func TestTracingInterceptor_InterceptToolExecution_WithDifferentToolTypes(t *tes
 
 	testCases := []struct {
 		name     string
-		toolType string
+		toolType llm.ToolKind
 	}{
-		{name: "function type", toolType: llm.ToolTypeFunction},
-		{name: "extension type", toolType: llm.ToolTypeExtension},
-		{name: "datastore type", toolType: llm.ToolTypeDatastore},
+		{name: "function type", toolType: llm.ToolKindFunction},
+		{name: "extension type", toolType: llm.ToolKindExtension},
+		{name: "datastore type", toolType: llm.ToolKindDatastore},
 	}
 
 	for _, tc := range testCases {
@@ -989,7 +989,7 @@ func TestTracingInterceptor_InterceptToolExecution_WithDifferentToolTypes(t *tes
 			require.NotNil(t, toolSpan, "Expected execute_tool span")
 
 			// Check that the correct tool type is set
-			assertHasAttribute(t, toolSpan.Attributes, "gen_ai.tool.type", tc.toolType)
+			assertHasAttribute(t, toolSpan.Attributes, "gen_ai.tool.type", string(tc.toolType))
 		})
 	}
 }

@@ -388,7 +388,7 @@ func HasResponseFormat() Matcher {
 //
 //	model.When(testing.ResponseFormatIs(llm.ResponseFormatJSONObject)).
 //	    ThenRespondText(`{"result": "structured"}`)
-func ResponseFormatIs(formatType string) Matcher {
+func ResponseFormatIs(formatType llm.ResponseFormatType) Matcher {
 	return func(req *llm.Request, _ *CallContext) error {
 		if req.ResponseFormat == nil {
 			return errors.New("no response format specified")

@@ -944,11 +944,11 @@ type testModel struct {
 	generateEventsFunc func(ctx context.Context, req *llm.Request) iter.Seq2[llm.Event, error]
 }
 
-func (m *testModel) Name() string {
-	return m.name
+func (m *testModel) Name() llm.ModelID {
+	return llm.ModelID(m.name)
 }
 
-func (m *testModel) Provider() string {
+func (m *testModel) Provider() llm.ProviderID {
 	return "test"
 }
 

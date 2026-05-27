@@ -403,7 +403,7 @@ func TestFakeModel_ModelCapabilities(t *testing.T) {
 		}),
 	)
 
-	assert.Equal(t, "test-model-pro", model.Name())
+	assert.Equal(t, llm.ModelID("test-model-pro"), model.Name())
 
 	caps := model.Capabilities()
 	assert.True(t, caps.Streaming)
