@@ -79,9 +79,6 @@ Scatter: {"name": "Transaction Analysis", "description": "Amount vs fraud score 
 Histogram: {"name": "Response Time Distribution", "description": "API response time frequency", "chart_type": "histogram", "histogram_data": {"values": [12.3,45.2,23.1], "bins": 10}}`,
 		Parameters: schemaBytes,
 		Type:       llm.ToolTypeFunction,
-		Metadata: map[string]any{
-			"category": "visualization",
-		},
 	}
 }
 

@@ -20,7 +20,7 @@ package llm
 // from accidentally implementing this interface, ensuring type safety.
 type Event interface {
 	// isStreamEvent is an unexported method that acts as a type constraint.
-	// Only types defined in this package can implement StreamEvent,
+	// Only types defined in this package can implement Event,
 	// which prevents external code from accidentally satisfying the interface
 	// and ensures all stream events are known and handled by the SDK.
 	isStreamEvent()
@@ -42,7 +42,7 @@ type ContentPartEvent struct {
 	Part *Part `json:"part"`
 }
 
-// isStreamEvent implements the StreamEvent interface constraint.
+// isStreamEvent implements the Event interface constraint.
 func (ContentPartEvent) isStreamEvent() {}
 
 // ErrorEvent represents an error that occurred during streaming.
@@ -57,7 +57,7 @@ type ErrorEvent struct {
 	Code string `json:"code,omitempty"`
 }
 
-// isStreamEvent implements the StreamEvent interface constraint.
+// isStreamEvent implements the Event interface constraint.
 func (ErrorEvent) isStreamEvent() {}
 
 // StreamEndEvent signals completion of a stream (success or failure).
@@ -113,7 +113,7 @@ type StreamEndEvent struct {
 	Error error `json:"-"`
 }
 
-// isStreamEvent implements the StreamEvent interface constraint.
+// isStreamEvent implements the Event interface constraint.
 func (StreamEndEvent) isStreamEvent() {}
 
 // StreamResetEvent signals that a stream is being retried. Consumers should
@@ -133,5 +133,5 @@ type StreamResetEvent struct {
 	Reason string `json:"reason"`
 }
 
-// isStreamEvent implements the StreamEvent interface constraint.
+// isStreamEvent implements the Event interface constraint.
 func (StreamResetEvent) isStreamEvent() {}

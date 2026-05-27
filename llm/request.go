@@ -36,11 +36,6 @@ type Request struct {
 	// Only used if the model supports structured output (check Capabilities.StructuredOutput).
 	ResponseFormat *ResponseFormat `json:"response_format,omitempty"`
 
-	// Options contains provider-specific configuration.
-	// Examples: temperature, max_tokens, top_p, etc.
-	// Each provider will type-assert this to their own configuration struct.
-	Options any `json:"options,omitempty"`
-
 	// Metadata provides additional context for tracing, logging, and debugging.
 	// This data flows through but does not affect model behavior.
 	Metadata map[string]string `json:"metadata,omitempty"`
@@ -59,10 +54,6 @@ type ToolDefinition struct {
 	// Parameters defines the input schema for this tool as a JSON Schema.
 	// This tells the model what arguments are expected and their types.
 	Parameters json.RawMessage `json:"parameters"`
-
-	// Metadata provides additional information about the tool.
-	// This can include provider-specific configuration or documentation.
-	Metadata map[string]any `json:"metadata,omitempty"`
 
 	// Type specifies the tool category for observability.
 	// Values: "function" (default), "extension", "datastore"

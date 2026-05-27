@@ -181,7 +181,6 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 		APIModelID:    apiModelID,
 		Constraints:   modelDef.Constraints,
 		EnableCaching: p.enableCaching,
-		setOptions:    make(map[string]bool),
 	}
 
 	for _, opt := range opts {

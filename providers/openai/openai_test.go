@@ -132,11 +132,6 @@ func TestModelCreation(t *testing.T) {
 	_, err = provider.NewModel("nonexistent-model")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported OpenAI model")
-
-	// Conflicting options
-	_, err = provider.NewModel(ModelGPT5Mini, WithTemperature(0.7), WithTopP(0.9))
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "cannot use")
 }
 
 func TestResolveModelFamily(t *testing.T) {
@@ -219,10 +214,6 @@ func TestModelConstraints(t *testing.T) {
 	_, err = provider.NewModel(ModelO3, WithTemperature(1.5)) // O3 max is 1.0
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "out of range")
-
-	_, err = provider.NewModel(ModelO3, WithTopP(0.9)) // O3 doesn't support top_p
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not supported")
 }
 
 func TestModelCapabilities(t *testing.T) {

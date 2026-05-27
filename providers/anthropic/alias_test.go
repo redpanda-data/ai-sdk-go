@@ -182,13 +182,6 @@ func TestWithThinkingBudget(t *testing.T) {
 		assert.Contains(t, err.Error(), "thinking_budget must be at least 1024")
 	})
 
-	t.Run("rejected on model without thinking_budget support", func(t *testing.T) {
-		t.Parallel()
-
-		_, err := provider.NewModel(ModelClaudeSonnet45, WithThinkingBudget(2048))
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "thinking_budget")
-	})
 }
 
 func TestWithEffort(t *testing.T) {

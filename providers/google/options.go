@@ -45,30 +45,13 @@ type Config struct {
 
 	// Custom model name override (inherits base model capabilities)
 	CustomModelName string
-
-	// Track which options have been set for conflict detection
-	setOptions map[string]bool
 }
 
 // WithTemperature sets the temperature parameter (0.0-2.0).
 // Controls randomness in the model's responses.
 func WithTemperature(temp float64) Option {
 	return func(cfg *Config) error {
-		err := cfg.Constraints.ValidateParameterSupport("temperature")
-		if err != nil {
-			return fmt.Errorf("%s: %w", cfg.ModelName, err)
-		}
-
-		err = cfg.Constraints.ValidateTemperature(temp)
-		if err != nil {
-			return fmt.Errorf("%s: %w", cfg.ModelName, err)
-		}
-
-		cfg.setOptions["temperature"] = true
-
-		err = cfg.Constraints.ValidateMutualExclusion(cfg.setOptions)
-		if err != nil {
-			delete(cfg.setOptions, "temperature")
+		if err := cfg.Constraints.ValidateTemperature(temp); err != nil {
 			return fmt.Errorf("%s: %w", cfg.ModelName, err)
 		}
 
@@ -82,21 +65,8 @@ func WithTemperature(temp float64) Option {
 // Nucleus sampling parameter for controlling randomness.
 func WithTopP(topP float64) Option {
 	return func(cfg *Config) error {
-		err := cfg.Constraints.ValidateParameterSupport("top_p")
-		if err != nil {
-			return fmt.Errorf("%s: %w", cfg.ModelName, err)
-		}
-
 		if topP < 0 || topP > 1 {
 			return fmt.Errorf("%s: top_p must be 0.0-1.0, got %f", cfg.ModelName, topP)
-		}
-
-		cfg.setOptions["top_p"] = true
-
-		err = cfg.Constraints.ValidateMutualExclusion(cfg.setOptions)
-		if err != nil {
-			delete(cfg.setOptions, "top_p")
-			return fmt.Errorf("%s: %w", cfg.ModelName, err)
 		}
 
 		cfg.TopP = &topP
@@ -109,17 +79,11 @@ func WithTopP(topP float64) Option {
 // Only sample from the top K options for each subsequent token.
 func WithTopK(topK int32) Option {
 	return func(cfg *Config) error {
-		err := cfg.Constraints.ValidateParameterSupport("top_k")
-		if err != nil {
-			return fmt.Errorf("%s: %w", cfg.ModelName, err)
-		}
-
 		if topK < 1 {
 			return fmt.Errorf("%s: top_k must be positive, got %d", cfg.ModelName, topK)
 		}
 
 		cfg.TopK = &topK
-		cfg.setOptions["top_k"] = true
 
 		return nil
 	}
@@ -128,11 +92,6 @@ func WithTopK(topK int32) Option {
 // WithMaxTokens sets the maximum number of tokens to generate.
 func WithMaxTokens(tokens int32) Option {
 	return func(cfg *Config) error {
-		err := cfg.Constraints.ValidateParameterSupport("max_tokens")
-		if err != nil {
-			return fmt.Errorf("%s: %w", cfg.ModelName, err)
-		}
-
 		if tokens < 1 {
 			return fmt.Errorf("%s: max_tokens must be positive, got %d", cfg.ModelName, tokens)
 		}
@@ -143,7 +102,6 @@ func WithMaxTokens(tokens int32) Option {
 		}
 
 		cfg.MaxTokens = &tokens
-		cfg.setOptions["max_tokens"] = true
 
 		return nil
 	}
@@ -161,7 +119,6 @@ func WithStop(sequences ...string) Option {
 		}
 
 		cfg.Stop = sequences
-		cfg.setOptions["stop"] = true
 
 		return nil
 	}
@@ -171,17 +128,11 @@ func WithStop(sequences ...string) Option {
 // Positive values penalize new tokens based on whether they appear in the text so far.
 func WithPresencePenalty(penalty float32) Option {
 	return func(cfg *Config) error {
-		err := cfg.Constraints.ValidateParameterSupport("presence_penalty")
-		if err != nil {
-			return fmt.Errorf("%s: %w", cfg.ModelName, err)
-		}
-
 		if penalty < -2.0 || penalty > 2.0 {
 			return fmt.Errorf("%s: presence_penalty must be -2.0 to 2.0, got %f", cfg.ModelName, penalty)
 		}
 
 		cfg.PresencePenalty = &penalty
-		cfg.setOptions["presence_penalty"] = true
 
 		return nil
 	}
@@ -191,17 +142,11 @@ func WithPresencePenalty(penalty float32) Option {
 // Positive values penalize new tokens based on their frequency in the text so far.
 func WithFrequencyPenalty(penalty float32) Option {
 	return func(cfg *Config) error {
-		err := cfg.Constraints.ValidateParameterSupport("frequency_penalty")
-		if err != nil {
-			return fmt.Errorf("%s: %w", cfg.ModelName, err)
-		}
-
 		if penalty < -2.0 || penalty > 2.0 {
 			return fmt.Errorf("%s: frequency_penalty must be -2.0 to 2.0, got %f", cfg.ModelName, penalty)
 		}
 
 		cfg.FrequencyPenalty = &penalty
-		cfg.setOptions["frequency_penalty"] = true
 
 		return nil
 	}
@@ -249,26 +194,6 @@ func WithCustomModelName(customName string) Option {
 func (c *Config) Validate() error {
 	if c.ModelName == "" {
 		return fmt.Errorf("%w: model name is required", llm.ErrInvalidConfig)
-	}
-
-	// Validate that all set options are actually supported
-	for option := range c.setOptions {
-		err := c.Constraints.ValidateParameterSupport(option)
-		if err != nil {
-			return fmt.Errorf("%w: %w", llm.ErrInvalidConfig, err)
-		}
-	}
-
-	// Validate mutual exclusion rules
-	err := c.Constraints.ValidateMutualExclusion(c.setOptions)
-	if err != nil {
-		return fmt.Errorf("%w: %w", llm.ErrInvalidConfig, err)
-	}
-
-	// Validate conditional rules
-	err = c.Constraints.ValidateConditionalRules(c.setOptions)
-	if err != nil {
-		return fmt.Errorf("%w: %w", llm.ErrInvalidConfig, err)
 	}
 
 	return nil

@@ -23,9 +23,10 @@
 // application code remains unchanged when switching between different LLM services.
 // This enables easy testing, comparison, and migration between providers.
 //
-// Streaming follows Go idioms similar to sql.Rows and bufio.Scanner through the
-// EventStream interface. All events use discriminated unions for compile-time
-// type safety without exposing any interface{} types in the public API.
+// Streaming uses Go 1.23 range-over-func iterators (iter.Seq2[Event, error]),
+// which provide automatic cleanup on early break and a familiar for-range loop.
+// All events use discriminated unions for compile-time type safety without
+// exposing any interface{} types in the public API.
 //
 // The Part system allows extensible content representation that can grow from
 // simple text to complex multimedia and tool interactions without breaking changes.

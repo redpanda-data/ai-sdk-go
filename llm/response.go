@@ -38,10 +38,6 @@ type Response struct {
 	// This enables request-response correlation for tracing and debugging.
 	Metadata map[string]string `json:"metadata,omitempty"`
 
-	// Raw contains the original provider response for debugging purposes.
-	// This is optional and may be omitted in production to save memory.
-	Raw map[string]any `json:"raw,omitempty"`
-
 	// ServiceTier is the provider-reported processing tier for this response.
 	// Known tiers normalize to the ServiceTier* constants and can be compared
 	// in switch statements. Unknown non-empty values are preserved verbatim

@@ -162,7 +162,6 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 	cfg := &Config{
 		ModelName:   modelName,
 		Constraints: modelDef.Constraints,
-		setOptions:  make(map[string]bool),
 	}
 
 	// Apply all options with validation

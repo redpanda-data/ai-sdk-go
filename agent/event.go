@@ -22,7 +22,7 @@ import (
 )
 
 // Event is a sealed interface representing all possible runtime events.
-// This follows the same pattern as llm.StreamEvent for type safety and consistency.
+// This follows the same pattern as llm.Event for type safety and consistency.
 //
 // All events carry a common envelope with observability fields.
 //

@@ -427,7 +427,6 @@ func TestRequestMapper_BasicRequest(t *testing.T) {
 	cfg := &Config{
 		ModelName:  "eu.anthropic.claude-sonnet-4-6",
 		APIModelID: "eu.anthropic.claude-sonnet-4-6",
-		setOptions: make(map[string]bool),
 	}
 
 	mapper := NewRequestMapper(cfg)
@@ -471,7 +470,6 @@ func TestRequestMapper_InferenceConfig(t *testing.T) {
 		TopP:        &topP,
 		MaxTokens:   &maxTokens,
 		Stop:        []string{"END"},
-		setOptions:  make(map[string]bool),
 	}
 
 	mapper := NewRequestMapper(cfg)
@@ -498,7 +496,6 @@ func TestRequestMapper_NoInferenceConfig(t *testing.T) {
 
 	cfg := &Config{
 		ModelName:  ModelClaudeSonnet46,
-		setOptions: make(map[string]bool),
 	}
 
 	mapper := NewRequestMapper(cfg)
@@ -517,7 +514,6 @@ func TestRequestMapper_ToolDefinitions(t *testing.T) {
 
 	cfg := &Config{
 		ModelName:  ModelClaudeSonnet46,
-		setOptions: make(map[string]bool),
 	}
 
 	mapper := NewRequestMapper(cfg)
@@ -559,7 +555,6 @@ func TestRequestMapper_ToolChoiceSpecific(t *testing.T) {
 
 	cfg := &Config{
 		ModelName:  ModelClaudeSonnet46,
-		setOptions: make(map[string]bool),
 	}
 
 	mapper := NewRequestMapper(cfg)
@@ -592,7 +587,6 @@ func TestRequestMapper_ToolResponse(t *testing.T) {
 
 	cfg := &Config{
 		ModelName:  ModelClaudeSonnet46,
-		setOptions: make(map[string]bool),
 	}
 
 	mapper := NewRequestMapper(cfg)
@@ -626,7 +620,6 @@ func TestRequestMapper_ToolResponseError(t *testing.T) {
 
 	cfg := &Config{
 		ModelName:  ModelClaudeSonnet46,
-		setOptions: make(map[string]bool),
 	}
 
 	mapper := NewRequestMapper(cfg)
@@ -656,7 +649,6 @@ func TestRequestMapper_AssistantWithToolUse(t *testing.T) {
 
 	cfg := &Config{
 		ModelName:  ModelClaudeSonnet46,
-		setOptions: make(map[string]bool),
 	}
 
 	mapper := NewRequestMapper(cfg)
@@ -699,7 +691,6 @@ func TestRequestMapper_CachingEnabled(t *testing.T) {
 	cfg := &Config{
 		ModelName:     ModelClaudeSonnet46,
 		EnableCaching: true,
-		setOptions:    make(map[string]bool),
 	}
 
 	mapper := NewRequestMapper(cfg)
@@ -738,7 +729,6 @@ func TestRequestMapper_CachingDisabled(t *testing.T) {
 	cfg := &Config{
 		ModelName:     ModelClaudeSonnet46,
 		EnableCaching: false,
-		setOptions:    make(map[string]bool),
 	}
 
 	mapper := NewRequestMapper(cfg)
@@ -767,7 +757,6 @@ func TestRequestMapper_StreamInput(t *testing.T) {
 		ModelName:   ModelClaudeSonnet46,
 		APIModelID:  "anthropic.claude-sonnet-4-6",
 		Temperature: &temp,
-		setOptions:  make(map[string]bool),
 	}
 
 	mapper := NewRequestMapper(cfg)

@@ -111,10 +111,6 @@ var supportedModels = map[string]ModelDefinition{
 			TemperatureRange: [2]float64{0.0, 1.0},
 			MaxInputTokens:   1000000, // 1M context window
 			MaxOutputTokens:  128000,  // 128K output tokens
-			// Opus 4.7 rejects thinking.type.enabled — thinking budget is not user-controllable.
-			// Use adaptive thinking + effort to bias reasoning depth.
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "effort", "speed"},
-			MutuallyExclusive: [][]string{},
 		},
 		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax},
 		AdaptiveThinking: true,
@@ -136,11 +132,9 @@ var supportedModels = map[string]ModelDefinition{
 			Reasoning:        true, // Extended thinking + adaptive thinking support
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 1.0},
-			MaxInputTokens:    200000, // 200K context window
-			MaxOutputTokens:   64000,  // 64K output tokens
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "effort", "thinking_budget"},
-			MutuallyExclusive: [][]string{},
+			TemperatureRange: [2]float64{0.0, 1.0},
+			MaxInputTokens:   200000, // 200K context window
+			MaxOutputTokens:  64000,  // 64K output tokens
 		},
 		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh},
 		AdaptiveThinking: true,
@@ -162,11 +156,9 @@ var supportedModels = map[string]ModelDefinition{
 			Reasoning:        true, // Extended thinking support
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 1.0},
-			MaxInputTokens:    200000, // 200K context window
-			MaxOutputTokens:   64000,  // 64K output tokens
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens"},
-			MutuallyExclusive: [][]string{},
+			TemperatureRange: [2]float64{0.0, 1.0},
+			MaxInputTokens:   200000, // 200K context window
+			MaxOutputTokens:  64000,  // 64K output tokens
 		},
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0),
@@ -186,11 +178,9 @@ var supportedModels = map[string]ModelDefinition{
 			Reasoning:        true, // Extended thinking support
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 1.0},
-			MaxInputTokens:    200000, // 200K context window
-			MaxOutputTokens:   64000,  // 64K output tokens
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens"},
-			MutuallyExclusive: [][]string{},
+			TemperatureRange: [2]float64{0.0, 1.0},
+			MaxInputTokens:   200000, // 200K context window
+			MaxOutputTokens:  64000,  // 64K output tokens
 		},
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(1.00, 5.00, 0.10).WithCacheCreation(1.25, 2.00, 0),
@@ -210,11 +200,9 @@ var supportedModels = map[string]ModelDefinition{
 			Reasoning:        true, // Extended thinking + adaptive thinking support
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 1.0},
-			MaxInputTokens:    1000000, // 1M context window (beta)
-			MaxOutputTokens:   128000,  // 128K output tokens
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "effort", "thinking_budget", "speed"},
-			MutuallyExclusive: [][]string{},
+			TemperatureRange: [2]float64{0.0, 1.0},
+			MaxInputTokens:   1000000, // 1M context window (beta)
+			MaxOutputTokens:  128000,  // 128K output tokens
 		},
 		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh, EffortMax},
 		SupportedSpeeds:  []Speed{SpeedStandard, SpeedFast},
@@ -243,11 +231,9 @@ var supportedModels = map[string]ModelDefinition{
 			Reasoning:        true, // Extended thinking support
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 1.0},
-			MaxInputTokens:    200000, // 200K context window
-			MaxOutputTokens:   32000,  // 32K output tokens
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens"},
-			MutuallyExclusive: [][]string{},
+			TemperatureRange: [2]float64{0.0, 1.0},
+			MaxInputTokens:   200000, // 200K context window
+			MaxOutputTokens:  32000,  // 32K output tokens
 		},
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(15.00, 75.00, 1.50).
@@ -268,11 +254,9 @@ var supportedModels = map[string]ModelDefinition{
 			Reasoning:        true, // Extended thinking support
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 1.0},
-			MaxInputTokens:    200000, // 200K context window
-			MaxOutputTokens:   64000,  // 64K output tokens
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "effort"},
-			MutuallyExclusive: [][]string{},
+			TemperatureRange: [2]float64{0.0, 1.0},
+			MaxInputTokens:   200000, // 200K context window
+			MaxOutputTokens:  64000,  // 64K output tokens
 		},
 		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh},
 		Pricing: pricing.FlatInfoFromRates(
