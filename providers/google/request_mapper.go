@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 
 	"google.golang.org/genai"
 
@@ -59,36 +60,77 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) ([]*genai.Content, *genai.
 		config.SystemInstruction = systemInstruction
 	}
 
-	// Apply configuration parameters
-	if rm.config.Temperature != nil {
-		temp := float32(*rm.config.Temperature)
+	// Resolve sampling knobs: Request.Sampling overrides per-field; Config
+	// provides defaults for fields not set on the request.
+	if req.Sampling != nil {
+		if err := rm.validateSamplingOverride(req.Sampling); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	temperature := rm.config.Temperature
+	topP := rm.config.TopP
+	topK := rm.config.TopK
+	maxTokens := rm.config.MaxTokens
+	stop := rm.config.Stop
+	presencePenalty := rm.config.PresencePenalty
+	frequencyPenalty := rm.config.FrequencyPenalty
+
+	if req.Sampling != nil {
+		temperature = llm.CoalesceFloat64(req.Sampling.Temperature, temperature)
+		topP = llm.CoalesceFloat64(req.Sampling.TopP, topP)
+		stop = llm.CoalesceStrings(req.Sampling.StopSequences, stop)
+
+		if req.Sampling.TopK != nil {
+			v := int32(*req.Sampling.TopK) //nolint:gosec // bounds checked in validateSamplingOverride
+			topK = &v
+		}
+
+		if req.Sampling.MaxOutputTokens != nil {
+			v := int32(*req.Sampling.MaxOutputTokens) //nolint:gosec // bounds checked in validateSamplingOverride
+			maxTokens = &v
+		}
+
+		if req.Sampling.PresencePenalty != nil {
+			v := float32(*req.Sampling.PresencePenalty)
+			presencePenalty = &v
+		}
+
+		if req.Sampling.FrequencyPenalty != nil {
+			v := float32(*req.Sampling.FrequencyPenalty)
+			frequencyPenalty = &v
+		}
+	}
+
+	if temperature != nil {
+		temp := float32(*temperature)
 		config.Temperature = &temp
 	}
 
-	if rm.config.TopP != nil {
-		topP := float32(*rm.config.TopP)
-		config.TopP = &topP
+	if topP != nil {
+		v := float32(*topP)
+		config.TopP = &v
 	}
 
-	if rm.config.TopK != nil {
-		topK := float32(*rm.config.TopK)
-		config.TopK = &topK
+	if topK != nil {
+		v := float32(*topK)
+		config.TopK = &v
 	}
 
-	if rm.config.MaxTokens != nil {
-		config.MaxOutputTokens = *rm.config.MaxTokens
+	if maxTokens != nil {
+		config.MaxOutputTokens = *maxTokens
 	}
 
-	if len(rm.config.Stop) > 0 {
-		config.StopSequences = rm.config.Stop
+	if len(stop) > 0 {
+		config.StopSequences = stop
 	}
 
-	if rm.config.PresencePenalty != nil {
-		config.PresencePenalty = rm.config.PresencePenalty
+	if presencePenalty != nil {
+		config.PresencePenalty = presencePenalty
 	}
 
-	if rm.config.FrequencyPenalty != nil {
-		config.FrequencyPenalty = rm.config.FrequencyPenalty
+	if frequencyPenalty != nil {
+		config.FrequencyPenalty = frequencyPenalty
 	}
 
 	// Apply response format from request
@@ -333,4 +375,41 @@ func (rm *RequestMapper) mapToolChoice(choice *llm.ToolChoice) (*genai.ToolConfi
 	}
 
 	return config, nil
+}
+
+// validateSamplingOverride rejects per-request sampling values that fall
+// outside the model's constraints. Only fields the Google API actually
+// consumes are validated here.
+func (rm *RequestMapper) validateSamplingOverride(s *llm.SamplingParams) error {
+	if s.Temperature != nil {
+		if err := rm.config.Constraints.ValidateTemperature(*s.Temperature); err != nil {
+			return fmt.Errorf("%w: %w", llm.ErrRequestMapping, err)
+		}
+	}
+
+	if s.TopP != nil && (*s.TopP < 0 || *s.TopP > 1) {
+		return fmt.Errorf("%w: top_p must be 0.0-1.0, got %f", llm.ErrRequestMapping, *s.TopP)
+	}
+
+	if s.TopK != nil && (*s.TopK < 1 || *s.TopK > math.MaxInt32) {
+		return fmt.Errorf("%w: top_k must be in [1, %d], got %d", llm.ErrRequestMapping, math.MaxInt32, *s.TopK)
+	}
+
+	if s.MaxOutputTokens != nil && (*s.MaxOutputTokens < 1 || *s.MaxOutputTokens > math.MaxInt32) {
+		return fmt.Errorf("%w: max_output_tokens must be in [1, %d], got %d", llm.ErrRequestMapping, math.MaxInt32, *s.MaxOutputTokens)
+	}
+
+	if len(s.StopSequences) > 5 {
+		return fmt.Errorf("%w: maximum 5 stop sequences allowed, got %d", llm.ErrRequestMapping, len(s.StopSequences))
+	}
+
+	if s.PresencePenalty != nil && (*s.PresencePenalty < -2.0 || *s.PresencePenalty > 2.0) {
+		return fmt.Errorf("%w: presence_penalty must be -2.0 to 2.0, got %f", llm.ErrRequestMapping, *s.PresencePenalty)
+	}
+
+	if s.FrequencyPenalty != nil && (*s.FrequencyPenalty < -2.0 || *s.FrequencyPenalty > 2.0) {
+		return fmt.Errorf("%w: frequency_penalty must be -2.0 to 2.0, got %f", llm.ErrRequestMapping, *s.FrequencyPenalty)
+	}
+
+	return nil
 }

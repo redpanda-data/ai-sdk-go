@@ -36,9 +36,95 @@ type Request struct {
 	// Only used if the model supports structured output (check Capabilities.StructuredOutput).
 	ResponseFormat *ResponseFormat `json:"response_format,omitempty"`
 
+	// Sampling carries per-request generation knobs that override the
+	// provider Config defaults (temperature, top_p, max output tokens, etc.).
+	// Any field left nil falls back to the value baked into the model's
+	// Config at NewModel time. Set Sampling to vary a single parameter per
+	// call without rebuilding the model.
+	Sampling *SamplingParams `json:"sampling,omitempty"`
+
 	// Metadata provides additional context for tracing, logging, and debugging.
 	// This data flows through but does not affect model behavior.
 	Metadata map[string]string `json:"metadata,omitempty"`
+}
+
+// SamplingParams carries the cross-provider generation knobs that may be
+// overridden per request. All fields are pointers (or nilable slices) so
+// "unset" is distinguishable from a meaningful zero value (e.g.
+// Temperature=0 disables sampling; nil means "use the Config default").
+//
+// Providers ignore fields they do not support. For knobs that are
+// provider-specific (e.g. Anthropic extended thinking, OpenAI reasoning
+// effort, Bedrock thinking budget) keep using the provider Config; those
+// do not generalize across the SDK's other providers.
+type SamplingParams struct {
+	// Temperature controls randomness. Provider-specific valid range
+	// (commonly 0.0-1.0 or 0.0-2.0). nil = use Config default.
+	Temperature *float64 `json:"temperature,omitempty"`
+
+	// TopP is the nucleus-sampling probability mass. Typically 0.0-1.0.
+	TopP *float64 `json:"top_p,omitempty"`
+
+	// TopK restricts sampling to the top K tokens at each step.
+	// Supported by Anthropic and Google; ignored by OpenAI/Bedrock.
+	TopK *int `json:"top_k,omitempty"`
+
+	// MaxOutputTokens caps the number of tokens the model may generate.
+	MaxOutputTokens *int `json:"max_output_tokens,omitempty"`
+
+	// StopSequences are strings at which generation halts.
+	// Empty/nil means "use the Config default".
+	StopSequences []string `json:"stop_sequences,omitempty"`
+
+	// Seed makes generation deterministic when supported.
+	// OpenAI and OpenAI-compatible providers honor it; others ignore it.
+	Seed *int64 `json:"seed,omitempty"`
+
+	// PresencePenalty penalizes tokens by whether they have appeared.
+	// Supported by OpenAI/OpenAI-compatible and Google; ignored elsewhere.
+	PresencePenalty *float64 `json:"presence_penalty,omitempty"`
+
+	// FrequencyPenalty penalizes tokens by their frequency in the text so far.
+	// Supported by OpenAI/OpenAI-compatible and Google; ignored elsewhere.
+	FrequencyPenalty *float64 `json:"frequency_penalty,omitempty"`
+}
+
+// CoalesceFloat64 returns override if non-nil, otherwise fallback. Pointer-
+// returning helper to keep provider request mappers terse when merging
+// per-request SamplingParams over per-model Config defaults.
+func CoalesceFloat64(override, fallback *float64) *float64 {
+	if override != nil {
+		return override
+	}
+
+	return fallback
+}
+
+// CoalesceInt returns override if non-nil, otherwise fallback.
+func CoalesceInt(override, fallback *int) *int {
+	if override != nil {
+		return override
+	}
+
+	return fallback
+}
+
+// CoalesceInt64 returns override if non-nil, otherwise fallback.
+func CoalesceInt64(override, fallback *int64) *int64 {
+	if override != nil {
+		return override
+	}
+
+	return fallback
+}
+
+// CoalesceStrings returns override if non-empty, otherwise fallback.
+func CoalesceStrings(override, fallback []string) []string {
+	if len(override) > 0 {
+		return override
+	}
+
+	return fallback
 }
 
 // ToolDefinition describes a function/tool available to the model.

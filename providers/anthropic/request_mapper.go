@@ -53,8 +53,33 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) (anthropic.BetaMessageNewP
 		Model: anthropic.Model(modelName),
 	}
 
-	// MaxTokens is set by provider config (required by Anthropic API)
-	apiReq.MaxTokens = int64(rm.config.MaxTokens)
+	// Resolve sampling knobs: Request.Sampling overrides per-field; Config
+	// provides defaults for fields not set on the request.
+	if req.Sampling != nil {
+		if err := rm.validateSamplingOverride(req.Sampling); err != nil {
+			return apiReq, err
+		}
+	}
+
+	temperature := rm.config.Temperature
+	topP := rm.config.TopP
+	topK := rm.config.TopK
+	stop := rm.config.Stop
+	maxTokens := rm.config.MaxTokens
+
+	if req.Sampling != nil {
+		temperature = llm.CoalesceFloat64(req.Sampling.Temperature, temperature)
+		topP = llm.CoalesceFloat64(req.Sampling.TopP, topP)
+		topK = llm.CoalesceInt(req.Sampling.TopK, topK)
+		stop = llm.CoalesceStrings(req.Sampling.StopSequences, stop)
+
+		if req.Sampling.MaxOutputTokens != nil {
+			maxTokens = *req.Sampling.MaxOutputTokens
+		}
+	}
+
+	// MaxTokens is required by the Anthropic API.
+	apiReq.MaxTokens = int64(maxTokens)
 
 	// Map messages and system prompt
 	messages, systemPrompt, err := rm.mapMessages(req.Messages)
@@ -68,20 +93,20 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) (anthropic.BetaMessageNewP
 	}
 
 	// Apply configuration parameters
-	if rm.config.Temperature != nil {
-		apiReq.Temperature = param.NewOpt(*rm.config.Temperature)
+	if temperature != nil {
+		apiReq.Temperature = param.NewOpt(*temperature)
 	}
 
-	if rm.config.TopP != nil {
-		apiReq.TopP = param.NewOpt(*rm.config.TopP)
+	if topP != nil {
+		apiReq.TopP = param.NewOpt(*topP)
 	}
 
-	if rm.config.TopK != nil {
-		apiReq.TopK = param.NewOpt(int64(*rm.config.TopK))
+	if topK != nil {
+		apiReq.TopK = param.NewOpt(int64(*topK))
 	}
 
-	if len(rm.config.Stop) > 0 {
-		apiReq.StopSequences = rm.config.Stop
+	if len(stop) > 0 {
+		apiReq.StopSequences = stop
 	}
 
 	// Apply tool definitions if provided
@@ -118,8 +143,8 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) (anthropic.BetaMessageNewP
 				OfAdaptive: &anthropic.BetaThinkingConfigAdaptiveParam{},
 			}
 		default:
-			// Legacy fallback: 25% of max tokens with minimum of 1024
-			budgetTokens := max(int64(rm.config.MaxTokens/4), 1024)
+			// Legacy fallback: 25% of effective max tokens with minimum of 1024
+			budgetTokens := max(int64(maxTokens/4), 1024)
 			apiReq.Thinking = anthropic.BetaThinkingConfigParamOfEnabled(budgetTokens)
 		}
 	}
@@ -401,4 +426,34 @@ func (rm *RequestMapper) mapToolChoice(choice *llm.ToolChoice) (anthropic.BetaTo
 	default:
 		return anthropic.BetaToolChoiceUnionParam{}, fmt.Errorf("unsupported tool choice type: %s", choice.Type)
 	}
+}
+
+// validateSamplingOverride rejects per-request sampling values that fall
+// outside the model's constraints. Only fields the Anthropic API actually
+// consumes are validated here; fields the API ignores are accepted
+// silently (see SamplingParams docs).
+func (rm *RequestMapper) validateSamplingOverride(s *llm.SamplingParams) error {
+	if s.Temperature != nil {
+		if err := rm.config.Constraints.ValidateTemperature(*s.Temperature); err != nil {
+			return fmt.Errorf("%w: %w", llm.ErrRequestMapping, err)
+		}
+	}
+
+	if s.TopP != nil && (*s.TopP < 0 || *s.TopP > 1) {
+		return fmt.Errorf("%w: top_p must be 0.0-1.0, got %f", llm.ErrRequestMapping, *s.TopP)
+	}
+
+	if s.TopK != nil && *s.TopK < 1 {
+		return fmt.Errorf("%w: top_k must be positive, got %d", llm.ErrRequestMapping, *s.TopK)
+	}
+
+	if s.MaxOutputTokens != nil && *s.MaxOutputTokens < 1 {
+		return fmt.Errorf("%w: max_output_tokens must be positive, got %d", llm.ErrRequestMapping, *s.MaxOutputTokens)
+	}
+
+	if len(s.StopSequences) > 4 {
+		return fmt.Errorf("%w: maximum 4 stop sequences allowed, got %d", llm.ErrRequestMapping, len(s.StopSequences))
+	}
+
+	return nil
 }

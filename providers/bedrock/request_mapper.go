@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
@@ -82,6 +83,12 @@ type converseParams struct {
 
 // buildConverseParams resolves all common request parameters once.
 func (rm *RequestMapper) buildConverseParams(req *llm.Request) (*converseParams, error) {
+	if req.Sampling != nil {
+		if err := rm.validateSamplingOverride(req.Sampling); err != nil {
+			return nil, err
+		}
+	}
+
 	messages, system, err := rm.mapMessages(req.Messages)
 	if err != nil {
 		return nil, fmt.Errorf("%w: message mapping failed: %w", llm.ErrRequestMapping, err)
@@ -90,7 +97,7 @@ func (rm *RequestMapper) buildConverseParams(req *llm.Request) (*converseParams,
 	p := &converseParams{
 		messages:  messages,
 		system:    system,
-		infConfig: rm.buildInferenceConfig(),
+		infConfig: rm.buildInferenceConfig(req.Sampling),
 	}
 
 	if rm.config.EnableThinking {
@@ -109,30 +116,49 @@ func (rm *RequestMapper) buildConverseParams(req *llm.Request) (*converseParams,
 	return p, nil
 }
 
-// buildInferenceConfig creates the InferenceConfiguration from config options.
-func (rm *RequestMapper) buildInferenceConfig() *types.InferenceConfiguration {
+// buildInferenceConfig creates the InferenceConfiguration from config and
+// per-request sampling overrides.
+func (rm *RequestMapper) buildInferenceConfig(sampling *llm.SamplingParams) *types.InferenceConfiguration {
+	// Resolve effective sampling knobs: Request.Sampling overrides per-field;
+	// Config provides defaults for fields not set on the request.
+	temperature := rm.config.Temperature
+	topP := rm.config.TopP
+	maxTokens := rm.config.MaxTokens
+	stop := rm.config.Stop
+
+	if sampling != nil {
+		temperature = llm.CoalesceFloat64(sampling.Temperature, temperature)
+		topP = llm.CoalesceFloat64(sampling.TopP, topP)
+		stop = llm.CoalesceStrings(sampling.StopSequences, stop)
+
+		if sampling.MaxOutputTokens != nil {
+			v := int32(*sampling.MaxOutputTokens) //nolint:gosec // bounds checked in validateSamplingOverride
+			maxTokens = &v
+		}
+	}
+
 	var cfg types.InferenceConfiguration
 	hasConfig := false
 
-	if rm.config.Temperature != nil {
-		v := float32(*rm.config.Temperature)
+	if temperature != nil {
+		v := float32(*temperature)
 		cfg.Temperature = &v
 		hasConfig = true
 	}
 
-	if rm.config.TopP != nil {
-		v := float32(*rm.config.TopP)
+	if topP != nil {
+		v := float32(*topP)
 		cfg.TopP = &v
 		hasConfig = true
 	}
 
-	if rm.config.MaxTokens != nil {
-		cfg.MaxTokens = rm.config.MaxTokens
+	if maxTokens != nil {
+		cfg.MaxTokens = maxTokens
 		hasConfig = true
 	}
 
-	if len(rm.config.Stop) > 0 {
-		cfg.StopSequences = rm.config.Stop
+	if len(stop) > 0 {
+		cfg.StopSequences = stop
 		hasConfig = true
 	}
 
@@ -141,6 +167,31 @@ func (rm *RequestMapper) buildInferenceConfig() *types.InferenceConfiguration {
 	}
 
 	return &cfg
+}
+
+// validateSamplingOverride rejects per-request sampling values that fall
+// outside the model's constraints. Only fields the Bedrock Converse API
+// actually consumes are validated.
+func (rm *RequestMapper) validateSamplingOverride(s *llm.SamplingParams) error {
+	if s.Temperature != nil {
+		if err := rm.config.Constraints.ValidateTemperature(*s.Temperature); err != nil {
+			return fmt.Errorf("%w: %w", llm.ErrRequestMapping, err)
+		}
+	}
+
+	if s.TopP != nil && (*s.TopP < 0 || *s.TopP > 1) {
+		return fmt.Errorf("%w: top_p must be 0.0-1.0, got %f", llm.ErrRequestMapping, *s.TopP)
+	}
+
+	if s.MaxOutputTokens != nil && (*s.MaxOutputTokens < 1 || *s.MaxOutputTokens > math.MaxInt32) {
+		return fmt.Errorf("%w: max_output_tokens must be in [1, %d], got %d", llm.ErrRequestMapping, math.MaxInt32, *s.MaxOutputTokens)
+	}
+
+	if len(s.StopSequences) > 4 {
+		return fmt.Errorf("%w: maximum 4 stop sequences allowed, got %d", llm.ErrRequestMapping, len(s.StopSequences))
+	}
+
+	return nil
 }
 
 // buildThinkingFields returns the additionalModelRequestFields document for

@@ -59,13 +59,30 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) (responses.ResponseNewPara
 		OfInputItemList: inputItems,
 	}
 
-	// Apply configuration parameters
-	if rm.config.Temperature != nil {
-		apiReq.Temperature = openai.Float(*rm.config.Temperature)
+	// Resolve sampling knobs: Request.Sampling overrides per-field; Config
+	// provides defaults for fields not set on the request.
+	var samplingOverride *llm.SamplingParams
+	if req.Sampling != nil {
+		samplingOverride = req.Sampling
+		if err := rm.validateSamplingOverride(samplingOverride); err != nil {
+			return apiReq, err
+		}
 	}
 
-	if rm.config.MaxTokens != nil {
-		apiReq.MaxOutputTokens = openai.Int(int64(*rm.config.MaxTokens))
+	temperature := rm.config.Temperature
+	maxTokens := rm.config.MaxTokens
+
+	if samplingOverride != nil {
+		temperature = llm.CoalesceFloat64(samplingOverride.Temperature, temperature)
+		maxTokens = llm.CoalesceInt(samplingOverride.MaxOutputTokens, maxTokens)
+	}
+
+	if temperature != nil {
+		apiReq.Temperature = openai.Float(*temperature)
+	}
+
+	if maxTokens != nil {
+		apiReq.MaxOutputTokens = openai.Int(int64(*maxTokens))
 	}
 
 	// Apply reasoning parameters for reasoning models
@@ -388,6 +405,24 @@ func (rm *RequestMapper) mapToolDefinitions(tools []llm.ToolDefinition) ([]respo
 	}
 
 	return apiTools, nil
+}
+
+// validateSamplingOverride rejects per-request sampling values that fall
+// outside the model's constraints. Only fields the OpenAI Responses API
+// actually consumes are validated here; other fields are accepted and
+// silently ignored (see SamplingParams docs).
+func (rm *RequestMapper) validateSamplingOverride(s *llm.SamplingParams) error {
+	if s.Temperature != nil {
+		if err := rm.config.Constraints.ValidateTemperature(*s.Temperature); err != nil {
+			return fmt.Errorf("%w: %w", llm.ErrRequestMapping, err)
+		}
+	}
+
+	if s.MaxOutputTokens != nil && *s.MaxOutputTokens < 1 {
+		return fmt.Errorf("%w: max_output_tokens must be positive, got %d", llm.ErrRequestMapping, *s.MaxOutputTokens)
+	}
+
+	return nil
 }
 
 // mapToolChoice converts unified ToolChoice to OpenAI Responses API format.

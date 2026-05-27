@@ -57,29 +57,59 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) (openai.ChatCompletionNewP
 
 	apiReq.Messages = messages
 
-	// Apply configuration parameters
-	if rm.config.Temperature != nil {
-		apiReq.Temperature = openai.Float(*rm.config.Temperature)
+	// Resolve sampling knobs: Request.Sampling overrides per-field; Config
+	// provides defaults for fields not set on the request.
+	if req.Sampling != nil {
+		if err := rm.validateSamplingOverride(req.Sampling); err != nil {
+			return apiReq, err
+		}
 	}
 
-	if rm.config.MaxTokens != nil {
-		apiReq.MaxTokens = openai.Int(int64(*rm.config.MaxTokens))
-	}
-
-	if rm.config.TopP != nil {
-		apiReq.TopP = openai.Float(*rm.config.TopP)
-	}
-
-	if rm.config.FrequencyPenalty != nil {
-		apiReq.FrequencyPenalty = openai.Float(*rm.config.FrequencyPenalty)
-	}
-
-	if rm.config.PresencePenalty != nil {
-		apiReq.PresencePenalty = openai.Float(*rm.config.PresencePenalty)
-	}
+	temperature := rm.config.Temperature
+	topP := rm.config.TopP
+	maxTokens := rm.config.MaxTokens
+	frequencyPenalty := rm.config.FrequencyPenalty
+	presencePenalty := rm.config.PresencePenalty
+	stop := rm.config.Stop
+	var seed *int64
 
 	if rm.config.Seed != nil {
-		apiReq.Seed = openai.Int(int64(*rm.config.Seed))
+		v := int64(*rm.config.Seed)
+		seed = &v
+	}
+
+	if req.Sampling != nil {
+		temperature = llm.CoalesceFloat64(req.Sampling.Temperature, temperature)
+		topP = llm.CoalesceFloat64(req.Sampling.TopP, topP)
+		maxTokens = llm.CoalesceInt(req.Sampling.MaxOutputTokens, maxTokens)
+		frequencyPenalty = llm.CoalesceFloat64(req.Sampling.FrequencyPenalty, frequencyPenalty)
+		presencePenalty = llm.CoalesceFloat64(req.Sampling.PresencePenalty, presencePenalty)
+		stop = llm.CoalesceStrings(req.Sampling.StopSequences, stop)
+		seed = llm.CoalesceInt64(req.Sampling.Seed, seed)
+	}
+
+	if temperature != nil {
+		apiReq.Temperature = openai.Float(*temperature)
+	}
+
+	if maxTokens != nil {
+		apiReq.MaxTokens = openai.Int(int64(*maxTokens))
+	}
+
+	if topP != nil {
+		apiReq.TopP = openai.Float(*topP)
+	}
+
+	if frequencyPenalty != nil {
+		apiReq.FrequencyPenalty = openai.Float(*frequencyPenalty)
+	}
+
+	if presencePenalty != nil {
+		apiReq.PresencePenalty = openai.Float(*presencePenalty)
+	}
+
+	if seed != nil {
+		apiReq.Seed = openai.Int(*seed)
 	}
 
 	if rm.config.LogProbs != nil && *rm.config.LogProbs {
@@ -88,10 +118,10 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) (openai.ChatCompletionNewP
 		apiReq.TopLogprobs = openai.Int(5)
 	}
 
-	if len(rm.config.Stop) > 0 {
+	if len(stop) > 0 {
 		// Stop can be a string or array of strings
 		apiReq.Stop = openai.ChatCompletionNewParamsStopUnion{
-			OfStringArray: rm.config.Stop,
+			OfStringArray: stop,
 		}
 	}
 
@@ -497,4 +527,37 @@ func (rm *RequestMapper) mapResponseFormat(format *llm.ResponseFormat) (openai.C
 	default:
 		return openai.ChatCompletionNewParamsResponseFormatUnion{}, fmt.Errorf("unsupported response format type: %s", format.Type)
 	}
+}
+
+// validateSamplingOverride rejects per-request sampling values that fall
+// outside the model's constraints. Only fields the Chat Completion API
+// consumes are validated.
+func (rm *RequestMapper) validateSamplingOverride(s *llm.SamplingParams) error {
+	if s.Temperature != nil {
+		if err := rm.config.Constraints.ValidateTemperature(*s.Temperature); err != nil {
+			return fmt.Errorf("%w: %w", llm.ErrRequestMapping, err)
+		}
+	}
+
+	if s.TopP != nil && (*s.TopP < 0 || *s.TopP > 1) {
+		return fmt.Errorf("%w: top_p must be 0.0-1.0, got %f", llm.ErrRequestMapping, *s.TopP)
+	}
+
+	if s.MaxOutputTokens != nil && *s.MaxOutputTokens < 1 {
+		return fmt.Errorf("%w: max_output_tokens must be positive, got %d", llm.ErrRequestMapping, *s.MaxOutputTokens)
+	}
+
+	if s.PresencePenalty != nil && (*s.PresencePenalty < -2.0 || *s.PresencePenalty > 2.0) {
+		return fmt.Errorf("%w: presence_penalty must be -2.0 to 2.0, got %f", llm.ErrRequestMapping, *s.PresencePenalty)
+	}
+
+	if s.FrequencyPenalty != nil && (*s.FrequencyPenalty < -2.0 || *s.FrequencyPenalty > 2.0) {
+		return fmt.Errorf("%w: frequency_penalty must be -2.0 to 2.0, got %f", llm.ErrRequestMapping, *s.FrequencyPenalty)
+	}
+
+	if len(s.StopSequences) > 4 {
+		return fmt.Errorf("%w: maximum 4 stop sequences allowed, got %d", llm.ErrRequestMapping, len(s.StopSequences))
+	}
+
+	return nil
 }
