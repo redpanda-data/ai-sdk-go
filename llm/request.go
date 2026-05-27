@@ -48,15 +48,30 @@ type Request struct {
 	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
-// SamplingParams carries the cross-provider generation knobs that may be
-// overridden per request. All fields are pointers (or nilable slices) so
-// "unset" is distinguishable from a meaningful zero value (e.g.
-// Temperature=0 disables sampling; nil means "use the Config default").
+// SamplingParams carries the cross-provider generation knobs that may
+// be overridden per request. All fields are pointers (or nilable
+// slices) so "unset" is distinguishable from a meaningful zero value
+// (e.g. Temperature=0 disables sampling; nil means "use the Config
+// default").
 //
-// Providers ignore fields they do not support. For knobs that are
-// provider-specific (e.g. Anthropic extended thinking, OpenAI reasoning
-// effort, Bedrock thinking budget) keep using the provider Config; those
-// do not generalize across the SDK's other providers.
+// Provider support matrix:
+//
+//   - Temperature, TopP, MaxOutputTokens — supported by all providers.
+//   - TopK — supported by Anthropic and Google.
+//   - Seed — supported by OpenAI-Compatible (Chat Completions) and
+//     Bedrock-on-Anthropic. NOT supported by the OpenAI Responses API.
+//   - PresencePenalty, FrequencyPenalty — supported by OpenAI-Compatible
+//     and Google. NOT supported by the OpenAI Responses API.
+//   - StopSequences — supported by Anthropic, Google, OpenAI-Compatible
+//     and Bedrock. NOT supported by the OpenAI Responses API.
+//
+// When a field is set on SamplingParams but the resolved provider does
+// not support it, the request mapper returns an error wrapping
+// llm.ErrInvalidInput so the failure is visible at the call site rather
+// than silently dropped. Defaults baked into the provider Config (e.g.
+// openai.WithTemperature) are accepted unconditionally because they may
+// have been registered before the model was known; only explicit
+// per-request overrides trigger the support-matrix check.
 type SamplingParams struct {
 	// Temperature controls randomness. Provider-specific valid range
 	// (commonly 0.0-1.0 or 0.0-2.0). nil = use Config default.
@@ -66,26 +81,30 @@ type SamplingParams struct {
 	TopP *float64 `json:"top_p,omitempty"`
 
 	// TopK restricts sampling to the top K tokens at each step.
-	// Supported by Anthropic and Google; ignored by OpenAI/Bedrock.
+	// Supported by Anthropic and Google.
 	TopK *int `json:"top_k,omitempty"`
 
 	// MaxOutputTokens caps the number of tokens the model may generate.
 	MaxOutputTokens *int `json:"max_output_tokens,omitempty"`
 
 	// StopSequences are strings at which generation halts.
-	// Empty/nil means "use the Config default".
+	// Supported by Anthropic, Google, OpenAI-Compatible and Bedrock.
+	// NOT supported by the OpenAI Responses API.
 	StopSequences []string `json:"stop_sequences,omitempty"`
 
 	// Seed makes generation deterministic when supported.
-	// OpenAI and OpenAI-compatible providers honor it; others ignore it.
+	// Supported by OpenAI-Compatible (Chat Completions) and
+	// Bedrock-on-Anthropic; NOT supported by the OpenAI Responses API.
 	Seed *int64 `json:"seed,omitempty"`
 
 	// PresencePenalty penalizes tokens by whether they have appeared.
-	// Supported by OpenAI/OpenAI-compatible and Google; ignored elsewhere.
+	// Supported by OpenAI-Compatible and Google; NOT supported by the
+	// OpenAI Responses API.
 	PresencePenalty *float64 `json:"presence_penalty,omitempty"`
 
-	// FrequencyPenalty penalizes tokens by their frequency in the text so far.
-	// Supported by OpenAI/OpenAI-compatible and Google; ignored elsewhere.
+	// FrequencyPenalty penalizes tokens by their frequency in the text
+	// so far. Supported by OpenAI-Compatible and Google; NOT supported
+	// by the OpenAI Responses API.
 	FrequencyPenalty *float64 `json:"frequency_penalty,omitempty"`
 }
 

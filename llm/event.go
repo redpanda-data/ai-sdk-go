@@ -97,33 +97,13 @@ type ErrorEvent struct {
 // isStreamEvent implements the Event interface constraint.
 func (ErrorEvent) isStreamEvent() {}
 
-// StreamEndEvent signals completion of a stream (success or failure).
-// This event is always the final event in the iterator sequence.
+// StreamEndEvent signals successful completion of a stream.
+// This event is the final event in the iterator sequence when generation succeeds;
+// failures are reported via the iterator's error channel and skip this event.
 //
-// Exactly one of Response or Error will be set:
-//   - Response != nil: Generation succeeded (check Response.FinishReason for completeness)
-//   - Error != nil: Generation failed
-//
-// Error Handling Examples:
+// Example:
 //
 //	case llm.StreamEndEvent:
-//	    if evt.Error != nil {
-//	        // Check error category with errors.Is()
-//	        if errors.Is(evt.Error, llm.ErrRateLimitExceeded) {
-//	            // Retry with exponential backoff
-//	        } else if errors.Is(evt.Error, llm.ErrInvalidInput) {
-//	            // Don't retry - fix the input
-//	        }
-//
-//	        // Get provider-specific details with type assertion
-//	        var perr *llm.ProviderError
-//	        if errors.As(evt.Error, &perr) {
-//	            log.Printf("Provider error [%s]: %s", perr.Code, perr.Message)
-//	        }
-//	        return evt.Error
-//	    }
-//
-//	    // Success - check if response is complete
 //	    switch evt.Response.FinishReason {
 //	    case llm.FinishReasonStop:
 //	        // Complete response
@@ -134,22 +114,9 @@ func (ErrorEvent) isStreamEvent() {}
 //	    }
 type StreamEndEvent struct {
 	// Response is the complete response from the LLM provider that contains all
-	// chunked information from the streamed events.
-	// This is nil when Error is set.
+	// chunked information from the streamed events. Always non-nil for a
+	// StreamEndEvent emitted by a compliant provider.
 	Response *Response `json:"response,omitempty"`
-
-	// Error contains provider or mapping errors that prevented successful completion.
-	// This is nil when Response is set.
-	//
-	// Common error categories (check with errors.Is):
-	//   - ErrRateLimitExceeded: Retryable with backoff
-	//   - ErrInvalidInput: Not retryable, fix input
-	//   - ErrContentPolicyViolation: Not retryable, policy violation
-	//   - ErrServerError: Retryable, transient provider issue
-	//
-	// Use errors.As(err, &perr) where perr is *ProviderError to access
-	// provider-specific Code and Message.
-	Error error `json:"-"`
 }
 
 // isStreamEvent implements the Event interface constraint.

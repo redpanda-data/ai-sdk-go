@@ -346,4 +346,3 @@ func fromProtoRole(pbRole llmpb.MessageRole) (llm.MessageRole, error) {
 		return "", fmt.Errorf("unknown MessageRole: %v", pbRole)
 	}
 }
-

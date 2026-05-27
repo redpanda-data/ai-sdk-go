@@ -341,22 +341,14 @@ func (sw *streamWriter) closeSpans() {
 	}
 }
 
-// writeStreamEnd handles a StreamEndEvent: emits error/close/finish chunks.
-func (sw *streamWriter) writeStreamEnd(e llm.StreamEndEvent, logger *slog.Logger) {
-	if e.Error != nil {
-		logger.Error("LLM error", "error", e.Error)
-
-		_ = sw.ew.WriteChunk(Chunk{"type": "error", "errorText": "An error occurred"})
-	}
-
+// writeStreamEnd handles a StreamEndEvent: emits close/finish chunks.
+func (sw *streamWriter) writeStreamEnd(e llm.StreamEndEvent) {
 	sw.closeSpans()
 
 	_ = sw.ew.WriteChunk(Chunk{"type": "finish-step"})
 
 	reason := finishReasonStop
-	if e.Error != nil {
-		reason = finishReasonError
-	} else if e.Response != nil {
+	if e.Response != nil {
 		reason = mapFinishReason(e.Response.FinishReason)
 	}
 
@@ -391,6 +383,8 @@ func StreamModel(ctx context.Context, model llm.Model, req *llm.Request, ew *Eve
 			logger.Error("stream error", "error", err)
 
 			_ = ew.WriteChunk(Chunk{"type": "error", "errorText": "An error occurred"})
+			_ = sw.endText()
+			_ = sw.endReasoning()
 			_ = ew.WriteChunk(Chunk{"type": "finish-step"})
 			_ = ew.WriteChunk(Chunk{"type": "finish", "finishReason": finishReasonError})
 
@@ -420,7 +414,7 @@ func StreamModel(ctx context.Context, model llm.Model, req *llm.Request, ew *Eve
 			}
 
 		case llm.StreamEndEvent:
-			sw.writeStreamEnd(e, logger)
+			sw.writeStreamEnd(e)
 		}
 	}
 
@@ -497,15 +491,16 @@ func streamToolTurn(
 
 	var toolRequests []*llm.ToolRequestPart
 
-	iterReq := &llm.Request{
-		Messages:   messages,
-		Tools:      req.Tools,
-		ToolChoice: req.ToolChoice,
-	}
+	// Carry every per-request knob (Sampling, ResponseFormat, Metadata,
+	// etc.) across the iteration so subsequent turns see the same
+	// generation parameters as the first turn. Only swap Messages,
+	// which grows with each tool round-trip.
+	iterReq := *req
+	iterReq.Messages = messages
 
 	var finishReason string
 
-	for event, err := range model.GenerateEvents(ctx, iterReq) {
+	for event, err := range model.GenerateEvents(ctx, &iterReq) {
 		if err != nil {
 			if ctx.Err() != nil {
 				return "", nil
@@ -514,6 +509,8 @@ func streamToolTurn(
 			logger.Error("stream error", "error", err)
 
 			_ = ew.WriteChunk(Chunk{"type": "error", "errorText": "An error occurred"})
+			_ = sw.endText()
+			_ = sw.endReasoning()
 			_ = ew.WriteChunk(Chunk{"type": "finish-step"})
 			_ = ew.WriteChunk(Chunk{"type": "finish", "finishReason": finishReasonError})
 			_ = ew.WriteDone()
@@ -528,7 +525,7 @@ func streamToolTurn(
 			}
 
 		case llm.StreamEndEvent:
-			finishReason = writeToolTurnEnd(e, sw, ew, logger)
+			finishReason = writeToolTurnEnd(e, sw, ew)
 		}
 	}
 
@@ -569,21 +566,13 @@ func handleToolTurnPart(e llm.ContentPartEvent, sw *streamWriter, toolRequests *
 	return false
 }
 
-func writeToolTurnEnd(e llm.StreamEndEvent, sw *streamWriter, ew *EventWriter, logger *slog.Logger) string {
-	if e.Error != nil {
-		logger.Error("LLM error", "error", e.Error)
-
-		_ = ew.WriteChunk(Chunk{"type": "error", "errorText": "An error occurred"})
-	}
-
+func writeToolTurnEnd(e llm.StreamEndEvent, sw *streamWriter, ew *EventWriter) string {
 	sw.closeSpans()
 
 	_ = ew.WriteChunk(Chunk{"type": "finish-step"})
 
 	reason := finishReasonStop
-	if e.Error != nil {
-		reason = finishReasonError
-	} else if e.Response != nil {
+	if e.Response != nil {
 		reason = mapFinishReason(e.Response.FinishReason)
 	}
 

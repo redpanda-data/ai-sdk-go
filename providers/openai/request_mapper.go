@@ -26,7 +26,16 @@ import (
 	"github.com/openai/openai-go/v3/shared/constant"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/providers/internal/sampling"
 )
+
+// providerID is the llm.ProviderID surfaced in user-facing error
+// messages emitted by the request mapper.
+const providerID llm.ProviderID = "openai"
+
+// includeOutputTextLogprobs is the Responses API "include" key that
+// enables per-token logprob output on assistant text messages.
+const includeOutputTextLogprobs = "message.output_text.logprobs"
 
 // RequestMapper handles conversion from unified Request to OpenAI API format.
 type RequestMapper struct {
@@ -60,7 +69,11 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) (responses.ResponseNewPara
 	}
 
 	// Resolve sampling knobs: Request.Sampling overrides per-field; Config
-	// provides defaults for fields not set on the request.
+	// provides defaults for fields not set on the request. Knobs the
+	// Responses API does NOT support (Seed, PresencePenalty,
+	// FrequencyPenalty, StopSequences) error when explicitly set on
+	// SamplingParams so callers learn at the call site rather than
+	// having the value silently dropped.
 	var samplingOverride *llm.SamplingParams
 	if req.Sampling != nil {
 		samplingOverride = req.Sampling
@@ -70,19 +83,39 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) (responses.ResponseNewPara
 	}
 
 	temperature := rm.config.Temperature
+	topP := rm.config.TopP
 	maxTokens := rm.config.MaxTokens
 
 	if samplingOverride != nil {
-		temperature = llm.CoalesceFloat64(samplingOverride.Temperature, temperature)
-		maxTokens = llm.CoalesceInt(samplingOverride.MaxOutputTokens, maxTokens)
+		temperature = sampling.Coalesce(samplingOverride.Temperature, temperature)
+		topP = sampling.Coalesce(samplingOverride.TopP, topP)
+		maxTokens = sampling.Coalesce(samplingOverride.MaxOutputTokens, maxTokens)
+	}
+
+	if err := sampling.ValidateMaxOutputTokens(maxTokens, rm.config.Constraints.MaxOutputTokens); err != nil {
+		return apiReq, fmt.Errorf("%w: %w", llm.ErrRequestMapping, err)
 	}
 
 	if temperature != nil {
 		apiReq.Temperature = openai.Float(*temperature)
 	}
 
+	if topP != nil {
+		apiReq.TopP = openai.Float(*topP)
+	}
+
 	if maxTokens != nil {
 		apiReq.MaxOutputTokens = openai.Int(int64(*maxTokens))
+	}
+
+	// Wire logprobs: the Responses API opts in via the Include list and
+	// surfaces the count via TopLogprobs.
+	if rm.config.LogProbs != nil && *rm.config.LogProbs {
+		apiReq.Include = append(apiReq.Include, includeOutputTextLogprobs)
+
+		if rm.config.TopLogProbs != nil {
+			apiReq.TopLogprobs = openai.Int(int64(*rm.config.TopLogProbs))
+		}
 	}
 
 	// Apply reasoning parameters for reasoning models
@@ -394,10 +427,10 @@ func (rm *RequestMapper) mapToolDefinitions(tools []llm.ToolDefinition) ([]respo
 	return apiTools, nil
 }
 
-// validateSamplingOverride rejects per-request sampling values that fall
-// outside the model's constraints. Only fields the OpenAI Responses API
-// actually consumes are validated here; other fields are accepted and
-// silently ignored (see SamplingParams docs).
+// validateSamplingOverride rejects per-request sampling values that
+// fall outside the model's constraints AND any field the OpenAI
+// Responses API does not support. The latter is a hard error rather
+// than silent drop so callers cannot mistake "ignored" for "applied".
 func (rm *RequestMapper) validateSamplingOverride(s *llm.SamplingParams) error {
 	if s.Temperature != nil {
 		if err := rm.config.Constraints.ValidateTemperature(*s.Temperature); err != nil {
@@ -405,8 +438,24 @@ func (rm *RequestMapper) validateSamplingOverride(s *llm.SamplingParams) error {
 		}
 	}
 
-	if s.MaxOutputTokens != nil && *s.MaxOutputTokens < 1 {
-		return fmt.Errorf("%w: max_output_tokens must be positive, got %d", llm.ErrRequestMapping, *s.MaxOutputTokens)
+	if err := sampling.RejectUnsupported("seed", s.Seed, providerID); err != nil {
+		return fmt.Errorf("%w: %w", llm.ErrRequestMapping, err)
+	}
+
+	if err := sampling.RejectUnsupported("presence_penalty", s.PresencePenalty, providerID); err != nil {
+		return fmt.Errorf("%w: %w", llm.ErrRequestMapping, err)
+	}
+
+	if err := sampling.RejectUnsupported("frequency_penalty", s.FrequencyPenalty, providerID); err != nil {
+		return fmt.Errorf("%w: %w", llm.ErrRequestMapping, err)
+	}
+
+	if err := sampling.RejectUnsupportedSlice("stop_sequences", s.StopSequences, providerID); err != nil {
+		return fmt.Errorf("%w: %w", llm.ErrRequestMapping, err)
+	}
+
+	if err := sampling.RejectUnsupported("top_k", s.TopK, providerID); err != nil {
+		return fmt.Errorf("%w: %w", llm.ErrRequestMapping, err)
 	}
 
 	return nil

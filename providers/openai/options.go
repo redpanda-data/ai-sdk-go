@@ -16,7 +16,6 @@ package openai
 
 import (
 	"fmt"
-	"slices"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
@@ -25,19 +24,24 @@ import (
 type Option func(*Config) error
 
 // Config holds the configuration for an OpenAI model instance.
+//
+// The OpenAI Responses API (used by this provider) does NOT support the
+// Chat Completions knobs Seed, PresencePenalty, FrequencyPenalty or
+// Stop. They are intentionally absent from Config. For Chat Completions
+// behaviour use providers/openaicompat.
 type Config struct {
 	ModelName   string
 	Constraints llm.ModelConstraints
 
-	// OpenAI-specific parameters
-	Temperature      *float64
-	TopP             *float64
-	MaxTokens        *int
-	FrequencyPenalty *float64
-	PresencePenalty  *float64
-	Seed             *int
-	LogProbs         *bool
-	Stop             []string
+	// Generation parameters supported by Responses API
+	Temperature *float64
+	TopP        *float64
+	MaxTokens   *int
+
+	// Log probability output controls (Responses API: opted in via
+	// the `Include` request field + TopLogprobs request field).
+	LogProbs    *bool
+	TopLogProbs *int
 
 	// Reasoning model parameters (GPT-5, O-series)
 	ReasoningEffort  *ReasoningEffort  // Defaults to medium if not specified
@@ -73,14 +77,15 @@ func WithTopP(topP float64) Option {
 }
 
 // WithMaxTokens sets the maximum number of tokens to generate.
+// Validated against the model's MaxOutputTokens constraint.
 func WithMaxTokens(tokens int) Option {
 	return func(cfg *Config) error {
 		if tokens < 1 {
 			return fmt.Errorf("%s: max_tokens must be positive, got %d", cfg.ModelName, tokens)
 		}
 
-		if tokens > cfg.Constraints.MaxInputTokens {
-			return fmt.Errorf("%s: max_tokens %d exceeds limit %d", cfg.ModelName, tokens, cfg.Constraints.MaxInputTokens)
+		if cfg.Constraints.MaxOutputTokens > 0 && tokens > cfg.Constraints.MaxOutputTokens {
+			return fmt.Errorf("%s: max_tokens %d exceeds model output limit %d", cfg.ModelName, tokens, cfg.Constraints.MaxOutputTokens)
 		}
 
 		cfg.MaxTokens = &tokens
@@ -89,44 +94,9 @@ func WithMaxTokens(tokens int) Option {
 	}
 }
 
-// WithFrequencyPenalty sets the frequency penalty (-2.0 to 2.0).
-// Reduces repetition of tokens based on their frequency in the text so far.
-func WithFrequencyPenalty(penalty float64) Option {
-	return func(cfg *Config) error {
-		if penalty < -2.0 || penalty > 2.0 {
-			return fmt.Errorf("%s: frequency_penalty must be -2.0 to 2.0, got %f", cfg.ModelName, penalty)
-		}
-
-		cfg.FrequencyPenalty = &penalty
-
-		return nil
-	}
-}
-
-// WithPresencePenalty sets the presence penalty (-2.0 to 2.0).
-// Reduces repetition of tokens based on whether they appear in the text so far.
-func WithPresencePenalty(penalty float64) Option {
-	return func(cfg *Config) error {
-		if penalty < -2.0 || penalty > 2.0 {
-			return fmt.Errorf("%s: presence_penalty must be -2.0 to 2.0, got %f", cfg.ModelName, penalty)
-		}
-
-		cfg.PresencePenalty = &penalty
-
-		return nil
-	}
-}
-
-// WithSeed sets the seed for deterministic outputs.
-func WithSeed(seed int) Option {
-	return func(cfg *Config) error {
-		cfg.Seed = &seed
-		return nil
-	}
-}
-
-// WithLogProbs enables log probabilities in the response.
-// May conflict with streaming depending on the model.
+// WithLogProbs enables log probabilities in the Responses API output.
+// When set, the request mapper adds "message.output_text.logprobs" to
+// the Include list.
 func WithLogProbs(enabled bool) Option {
 	return func(cfg *Config) error {
 		cfg.LogProbs = &enabled
@@ -134,18 +104,16 @@ func WithLogProbs(enabled bool) Option {
 	}
 }
 
-// WithStop sets custom stop sequences for generation.
-func WithStop(sequences ...string) Option {
+// WithTopLogProbs sets the number of top log-probabilities to return per
+// generated token. Implies LogProbs (the request mapper sets both).
+// Valid range is [0, 20] per the OpenAI Responses API.
+func WithTopLogProbs(n int) Option {
 	return func(cfg *Config) error {
-		if len(sequences) > 4 {
-			return fmt.Errorf("%s: maximum 4 stop sequences allowed, got %d", cfg.ModelName, len(sequences))
+		if n < 0 || n > 20 {
+			return fmt.Errorf("%s: top_logprobs must be 0-20, got %d", cfg.ModelName, n)
 		}
 
-		if slices.Contains(sequences, "") {
-			return fmt.Errorf("%s: stop sequences cannot be empty", cfg.ModelName)
-		}
-
-		cfg.Stop = sequences
+		cfg.TopLogProbs = &n
 
 		return nil
 	}

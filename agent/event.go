@@ -68,7 +68,6 @@ type StatusEvent struct {
 	Details string `json:"details,omitempty"`
 	// Usage contains per-turn token usage when available (e.g., after a model call completes).
 	// For multi-turn runs, each StatusStageTurnCompleted event carries that turn's usage.
-	// To get cumulative usage across all turns, see StreamEndEvent.Usage.
 	Usage *llm.TokenUsage `json:"usage,omitempty"`
 }
 

@@ -294,9 +294,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 			completeResponse, err := m.responseMapper.FromProvider(finalMessage)
 			if err != nil {
-				yield(llm.StreamEndEvent{
-					Error: fmt.Errorf("%w: %w", llm.ErrResponseMapping, err),
-				}, nil)
+				yield(nil, fmt.Errorf("%w: %w", llm.ErrResponseMapping, err))
 			} else {
 				yield(llm.StreamEndEvent{
 					Response: completeResponse,

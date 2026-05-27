@@ -104,7 +104,6 @@ func (h *tracingModelHandler) GenerateEvents(ctx context.Context, req *llm.Reque
 
 			// Check for StreamEndEvent to capture final stats
 			if endEvt, ok := evt.(llm.StreamEndEvent); ok {
-				setSpanError(span, endEvt.Error)
 				h.recordResponseAttributes(span, endEvt.Response)
 
 				if h.cfg.recordOutputs && endEvt.Response != nil {

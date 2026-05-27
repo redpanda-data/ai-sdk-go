@@ -24,6 +24,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/shared/constant"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/providers/internal/sampling"
 )
 
 // RequestMapper handles conversion from unified Request to Anthropic API format.
@@ -440,8 +441,8 @@ func (rm *RequestMapper) validateSamplingOverride(s *llm.SamplingParams) error {
 		return fmt.Errorf("%w: top_k must be positive, got %d", llm.ErrRequestMapping, *s.TopK)
 	}
 
-	if s.MaxOutputTokens != nil && *s.MaxOutputTokens < 1 {
-		return fmt.Errorf("%w: max_output_tokens must be positive, got %d", llm.ErrRequestMapping, *s.MaxOutputTokens)
+	if err := sampling.ValidateMaxOutputTokens(s.MaxOutputTokens, rm.config.Constraints.MaxOutputTokens); err != nil {
+		return fmt.Errorf("%w: %w", llm.ErrRequestMapping, err)
 	}
 
 	if len(s.StopSequences) > 4 {

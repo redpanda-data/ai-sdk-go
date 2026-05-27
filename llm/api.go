@@ -128,34 +128,27 @@ type Generator interface {
 // display partial results to users as they become available.
 type EventsGenerator interface {
 	// GenerateEvents returns an iterator for streaming LLM responses.
-	// Iteration ends naturally after a final StreamEndEvent, or early if the consumer
-	// breaks out of the loop. Resource cleanup is automatic in both cases.
-	//
-	// The iterator yields (event, nil) for successful events or (nil, err) for fatal
-	// transport/mapping failures. Always check err on each iteration.
+	// Successful iteration ends after a final StreamEndEvent; on failure the
+	// iterator yields (nil, err) and stops. Iteration also ends early if the
+	// consumer breaks out of the loop. Resource cleanup is automatic in all cases.
 	//
 	// Error Handling:
 	//
-	// Three types of errors are communicated through the iterator:
+	// Two channels carry errors:
 	//
 	// 1. Recoverable warnings (ErrorEvent):
 	//   - Yielded as (ErrorEvent{...}, nil)
 	//   - Non-terminal, streaming continues
 	//   - Log or handle as appropriate for your application
 	//
-	// 2. Terminal provider errors (StreamEndEvent.Error):
-	//   - Yielded as (StreamEndEvent{Error: err}, nil)
-	//   - Final event, indicates completion with error
+	// 2. Terminal errors (transport, mapping, or provider failures):
+	//   - Yielded as (nil, err)
+	//   - Final iteration; no further events follow
 	//   - Check with errors.Is():
 	//     * ErrRateLimitExceeded: Retryable with backoff
 	//     * ErrInvalidInput: Not retryable, fix input
 	//     * ErrContentPolicyViolation: Not retryable, policy violation
 	//     * ErrServerError: Retryable, transient issue
-	//
-	// 3. Fatal transport/mapping errors:
-	//   - Yielded as (nil, err)
-	//   - Stops iteration immediately
-	//   - Check with errors.Is():
 	//     * ErrRequestMapping: Request conversion failed
 	//     * ErrResponseMapping: Response parsing failed
 	//     * ErrAPICall: Network or transport failure
@@ -165,6 +158,10 @@ type EventsGenerator interface {
 	//
 	//	for event, err := range model.GenerateEvents(ctx, request) {
 	//		if err != nil {
+	//			// Terminal error - no further events
+	//			if llm.IsRateLimit(err) {
+	//				return retryWithBackoff(ctx, model, request)
+	//			}
 	//			return fmt.Errorf("stream failed: %w", err)
 	//		}
 	//
@@ -178,14 +175,6 @@ type EventsGenerator interface {
 	//			log.Printf("warning [%s]: %s", e.Code, e.Message)
 	//
 	//		case llm.StreamEndEvent:
-	//			// Handle completion
-	//			if e.Error != nil {
-	//				// Provider returned an error
-	//				if errors.Is(e.Error, llm.ErrRateLimitExceeded) {
-	//					return retryWithBackoff(ctx, model, request)
-	//				}
-	//				return e.Error
-	//			}
 	//			// Success - e.Response contains usage stats and finish reason
 	//			log.Printf("usage: %+v", e.Response.Usage)
 	//		}

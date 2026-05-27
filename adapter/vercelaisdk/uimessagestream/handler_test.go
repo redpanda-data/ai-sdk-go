@@ -458,9 +458,11 @@ func TestHandler_V6PartsFormat(t *testing.T) {
 }
 
 // errorStreamModel is a minimal llm.Model that yields specific event sequences
-// for testing error handling in StreamModel.
+// for testing error handling in StreamModel. After all events are yielded, if
+// terminalErr is non-nil it is yielded as (nil, err) to terminate the stream.
 type errorStreamModel struct {
-	events []llm.Event
+	events      []llm.Event
+	terminalErr error
 }
 
 func (m *errorStreamModel) Name() llm.ModelID        { return "error-test-model" }
@@ -483,6 +485,10 @@ func (m *errorStreamModel) GenerateEvents(_ context.Context, _ *llm.Request) ite
 				return
 			}
 		}
+
+		if m.terminalErr != nil {
+			yield(nil, m.terminalErr)
+		}
 	}
 }
 
@@ -492,8 +498,8 @@ func TestStreamModel_StreamEndEventWithError(t *testing.T) {
 	model := &errorStreamModel{
 		events: []llm.Event{
 			llm.ContentPartEvent{Index: 0, Part: llm.NewTextPart("partial")},
-			llm.StreamEndEvent{Error: errors.New("provider exploded")},
 		},
+		terminalErr: errors.New("provider exploded"),
 	}
 
 	rec := httptest.NewRecorder()
@@ -1210,9 +1216,7 @@ func TestHandler_ErrorResponseSanitized(t *testing.T) {
 	t.Parallel()
 
 	model := &errorStreamModel{
-		events: []llm.Event{
-			llm.StreamEndEvent{Error: errors.New("secret internal error: db password is foo")},
-		},
+		terminalErr: errors.New("secret internal error: db password is foo"),
 	}
 
 	rec := httptest.NewRecorder()
@@ -1326,6 +1330,106 @@ func TestStreamModel_ToolCall(t *testing.T) {
 			if output["condition"] != "sunny" {
 				t.Errorf("output.condition = %v, want sunny", output["condition"])
 			}
+		}
+	}
+}
+
+// requestCapturingModel records each *llm.Request StreamModel passes
+// to GenerateEvents so tests can assert the iteration loop carries
+// per-request fields (Sampling, ResponseFormat, Metadata) across turns.
+type requestCapturingModel struct {
+	captured []*llm.Request
+	turns    [][]llm.Event
+}
+
+func (*requestCapturingModel) Name() llm.ModelID                  { return "capture" }
+func (*requestCapturingModel) Provider() llm.ProviderID           { return "test" }
+func (*requestCapturingModel) Capabilities() llm.ModelCapabilities { return llm.ModelCapabilities{Streaming: true} }
+func (*requestCapturingModel) Constraints() llm.ModelConstraints  { return llm.ModelConstraints{} }
+func (*requestCapturingModel) Generate(_ context.Context, _ *llm.Request) (*llm.Response, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *requestCapturingModel) GenerateEvents(_ context.Context, req *llm.Request) iter.Seq2[llm.Event, error] {
+	turn := len(m.captured)
+
+	// Snapshot the request as the handler saw it.
+	snap := *req
+	m.captured = append(m.captured, &snap)
+
+	return func(yield func(llm.Event, error) bool) {
+		if turn >= len(m.turns) {
+			return
+		}
+
+		for _, e := range m.turns[turn] {
+			if !yield(e, nil) {
+				return
+			}
+		}
+	}
+}
+
+// TestStreamModel_PreservesRequestFieldsAcrossTurns ensures that the
+// per-turn iteration request keeps Sampling, ResponseFormat and
+// Metadata from the original request rather than rebuilding a stripped
+// llm.Request. Without this, tool-loop iterations would drop the
+// caller's generation knobs after the first turn.
+func TestStreamModel_PreservesRequestFieldsAcrossTurns(t *testing.T) {
+	t.Parallel()
+
+	model := &requestCapturingModel{
+		turns: [][]llm.Event{
+			{
+				llm.ContentPartEvent{Index: 0, Part: &llm.ToolRequestPart{
+					ID:        "call-1",
+					Name:      "noop",
+					Arguments: json.RawMessage(`{}`),
+				}},
+				llm.StreamEndEvent{Response: &llm.Response{FinishReason: llm.FinishReasonToolCalls}},
+			},
+			{
+				llm.ContentPartEvent{Index: 0, Part: llm.NewTextPart("done")},
+				llm.StreamEndEvent{Response: &llm.Response{FinishReason: llm.FinishReasonStop}},
+			},
+		},
+	}
+
+	temp := 0.7
+
+	req := &llm.Request{
+		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("hi"))},
+		Sampling: &llm.SamplingParams{Temperature: &temp},
+		ResponseFormat: &llm.ResponseFormat{
+			Type: llm.ResponseFormatJSONObject,
+		},
+		Metadata: map[string]string{"trace_id": "abc"},
+	}
+
+	rec := httptest.NewRecorder()
+	ew := NewEventWriter(rec)
+
+	executor := func(_ context.Context, _ string, _ json.RawMessage) (json.RawMessage, error) {
+		return json.RawMessage(`{"ok":true}`), nil
+	}
+
+	StreamModelWithTools(context.Background(), model, req, ew, nil, executor)
+
+	if len(model.captured) < 2 {
+		t.Fatalf("expected at least 2 turns captured, got %d", len(model.captured))
+	}
+
+	for i, cap := range model.captured {
+		if cap.Sampling == nil || cap.Sampling.Temperature == nil || *cap.Sampling.Temperature != 0.7 {
+			t.Errorf("turn %d: Sampling.Temperature missing or wrong: %+v", i, cap.Sampling)
+		}
+
+		if cap.ResponseFormat == nil || cap.ResponseFormat.Type != llm.ResponseFormatJSONObject {
+			t.Errorf("turn %d: ResponseFormat missing: %+v", i, cap.ResponseFormat)
+		}
+
+		if cap.Metadata["trace_id"] != "abc" {
+			t.Errorf("turn %d: Metadata.trace_id missing: %+v", i, cap.Metadata)
 		}
 	}
 }

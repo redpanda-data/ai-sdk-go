@@ -462,11 +462,6 @@ func (a *LLMAgent) generateWithStreaming(
 			}
 
 		case llm.StreamEndEvent:
-			// StreamEndEvent always has exactly one of Response or Error set
-			if evt.Error != nil {
-				return nil, fmt.Errorf("%w: %w", agent.ErrModelGeneration, evt.Error)
-			}
-
 			response = evt.Response
 
 		case llm.ErrorEvent:

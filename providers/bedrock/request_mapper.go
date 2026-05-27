@@ -26,6 +26,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/providers/internal/sampling"
 )
 
 // RequestMapper handles conversion from llm.Request to Bedrock Converse API format.
@@ -183,8 +184,12 @@ func (rm *RequestMapper) validateSamplingOverride(s *llm.SamplingParams) error {
 		return fmt.Errorf("%w: top_p must be 0.0-1.0, got %f", llm.ErrRequestMapping, *s.TopP)
 	}
 
-	if s.MaxOutputTokens != nil && (*s.MaxOutputTokens < 1 || *s.MaxOutputTokens > math.MaxInt32) {
-		return fmt.Errorf("%w: max_output_tokens must be in [1, %d], got %d", llm.ErrRequestMapping, math.MaxInt32, *s.MaxOutputTokens)
+	if s.MaxOutputTokens != nil && *s.MaxOutputTokens > math.MaxInt32 {
+		return fmt.Errorf("%w: max_output_tokens %d exceeds int32 range", llm.ErrRequestMapping, *s.MaxOutputTokens)
+	}
+
+	if err := sampling.ValidateMaxOutputTokens(s.MaxOutputTokens, rm.config.Constraints.MaxOutputTokens); err != nil {
+		return fmt.Errorf("%w: %w", llm.ErrRequestMapping, err)
 	}
 
 	if len(s.StopSequences) > 4 {

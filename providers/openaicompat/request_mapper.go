@@ -26,6 +26,7 @@ import (
 	"github.com/openai/openai-go/v3/shared/constant"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/providers/internal/sampling"
 )
 
 // RequestMapper handles conversion from unified Request to OpenAI Chat Completion API format.
@@ -537,8 +538,8 @@ func (rm *RequestMapper) validateSamplingOverride(s *llm.SamplingParams) error {
 		return fmt.Errorf("%w: top_p must be 0.0-1.0, got %f", llm.ErrRequestMapping, *s.TopP)
 	}
 
-	if s.MaxOutputTokens != nil && *s.MaxOutputTokens < 1 {
-		return fmt.Errorf("%w: max_output_tokens must be positive, got %d", llm.ErrRequestMapping, *s.MaxOutputTokens)
+	if err := sampling.ValidateMaxOutputTokens(s.MaxOutputTokens, rm.config.Constraints.MaxOutputTokens); err != nil {
+		return fmt.Errorf("%w: %w", llm.ErrRequestMapping, err)
 	}
 
 	if s.PresencePenalty != nil && (*s.PresencePenalty < -2.0 || *s.PresencePenalty > 2.0) {

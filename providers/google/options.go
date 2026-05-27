@@ -97,8 +97,8 @@ func WithMaxTokens(tokens int32) Option {
 		}
 
 		// Safely check limit without overflow
-		if cfg.Constraints.MaxInputTokens > 0 && int(tokens) > cfg.Constraints.MaxInputTokens {
-			return fmt.Errorf("%s: max_tokens %d exceeds limit %d", cfg.ModelName, tokens, cfg.Constraints.MaxInputTokens)
+		if cfg.Constraints.MaxOutputTokens > 0 && int(tokens) > cfg.Constraints.MaxOutputTokens {
+			return fmt.Errorf("%s: max_tokens %d exceeds model output limit %d", cfg.ModelName, tokens, cfg.Constraints.MaxOutputTokens)
 		}
 
 		cfg.MaxTokens = &tokens
