@@ -17,6 +17,7 @@ package llmagent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"iter"
@@ -514,11 +515,11 @@ func (a *LLMAgent) generateWithStreaming(
 func (a *LLMAgent) executeTools(
 	ctx context.Context,
 	inv *agent.InvocationMetadata,
-	toolReqs []*llm.ToolRequest,
+	toolReqs []*llm.ToolRequestPart,
 	toolDefs []llm.ToolDefinition,
 	makeEnvelope func() agent.EventEnvelope,
 	yield func(agent.Event, error) bool,
-) []*llm.Part {
+) []llm.Part {
 	// Execute tools concurrently with limited parallelism
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(min(a.config.toolConcurrency, len(toolReqs)))
@@ -528,14 +529,14 @@ func (a *LLMAgent) executeTools(
 		idx       int
 		requestID string
 		name      string
-		response  *llm.ToolResponse
+		response  *llm.ToolResponsePart
 		err       error
 	}
 
 	results := make(chan toolResult, len(toolReqs))
 
 	// Create base tool executor
-	baseExecutor := func(ctx context.Context, info *agent.ToolCallInfo) (*llm.ToolResponse, error) {
+	baseExecutor := func(ctx context.Context, info *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
 		return a.config.tools.Execute(ctx, info.Req)
 	}
 
@@ -571,19 +572,25 @@ func (a *LLMAgent) executeTools(
 	}
 
 	// Collect tool response parts and yield events as they arrive
-	parts := make([]*llm.Part, 0, len(toolReqs))
+	parts := make([]llm.Part, 0, len(toolReqs))
 
 	for range toolReqs {
 		result := <-results
 
 		if result.err != nil {
-			// Tool execution failed - create error response
-			errResp := &llm.ToolResponse{
-				ID:    result.requestID,
-				Name:  result.name,
-				Error: result.err.Error(),
+			// Tool execution failed - encode error payload into the response.
+			errPayload, mErr := json.Marshal(map[string]string{"error": result.err.Error()})
+			if mErr != nil {
+				errPayload = []byte(`{"error":"tool error"}`)
 			}
-			parts = append(parts, llm.NewToolResponsePart(errResp))
+
+			errResp := &llm.ToolResponsePart{
+				ID:      result.requestID,
+				Name:    result.name,
+				Result:  errPayload,
+				IsError: true,
+			}
+			parts = append(parts, errResp)
 
 			// Yield error tool result event
 			if !yield(agent.ToolResponseEvent{
@@ -594,7 +601,7 @@ func (a *LLMAgent) executeTools(
 			}
 		} else {
 			// Tool execution succeeded
-			parts = append(parts, llm.NewToolResponsePart(result.response))
+			parts = append(parts, result.response)
 
 			// Yield tool result event
 			if !yield(agent.ToolResponseEvent{
@@ -692,7 +699,7 @@ func (a *LLMAgent) recoverIncompleteToolCalls(
 // The incomplete calls are always between the last assistant message and the
 // new user message. Incomplete calls earlier in the session would indicate a
 // different bug (session corruption, not crash recovery).
-func detectIncompleteToolCalls(msgs []llm.Message) []*llm.ToolRequest {
+func detectIncompleteToolCalls(msgs []llm.Message) []*llm.ToolRequestPart {
 	if len(msgs) < 2 {
 		return nil
 	}

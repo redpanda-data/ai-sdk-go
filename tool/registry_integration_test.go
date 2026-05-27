@@ -83,7 +83,7 @@ func TestRegistry_BasicOperations(t *testing.T) {
 
 	ctx := context.Background()
 	params := webfetch.NewParameters(server.URL).WithMethod("GET")
-	req := &llm.ToolRequest{
+	req := &llm.ToolRequestPart{
 		ID:        "test-success",
 		Name:      "webfetch",
 		Arguments: params.MustToJSONRawMessage(),
@@ -93,7 +93,7 @@ func TestRegistry_BasicOperations(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "test-success", response.ID)
 	assert.Equal(t, "webfetch", response.Name)
-	assert.Empty(t, response.Error)
+	assert.False(t, response.IsError)
 	assert.NotNil(t, response.Result)
 
 	// Test unregistration
@@ -157,7 +157,7 @@ func TestRegistry_ErrorConditions(t *testing.T) {
 		require.ErrorIs(t, err, tool.ErrToolRequestNil)
 
 		// Non-existent tool execution
-		req := &llm.ToolRequest{
+		req := &llm.ToolRequestPart{
 			ID:        "test-not-found",
 			Name:      "nonexistent",
 			Arguments: json.RawMessage(`{}`),
@@ -165,8 +165,8 @@ func TestRegistry_ErrorConditions(t *testing.T) {
 		response, err := registry.Execute(context.Background(), req)
 		require.NoError(t, err)
 		assert.Equal(t, "test-not-found", response.ID)
-		assert.Contains(t, response.Error, tool.ErrToolNotFound.Error())
-		assert.Nil(t, response.Result)
+		assert.True(t, response.IsError)
+		assert.Contains(t, string(response.Result), tool.ErrToolNotFound.Error())
 	})
 }
 
@@ -193,7 +193,7 @@ func TestRegistry_Configuration(t *testing.T) {
 		require.NoError(t, err)
 
 		params := webfetch.NewParameters(server.URL).WithMethod("GET")
-		req := &llm.ToolRequest{
+		req := &llm.ToolRequestPart{
 			ID:        "test-timeout",
 			Name:      "webfetch",
 			Arguments: params.MustToJSONRawMessage(),
@@ -203,7 +203,7 @@ func TestRegistry_Configuration(t *testing.T) {
 		require.NoError(t, err)
 
 		// Webfetch tool handles context cancellation gracefully
-		assert.Empty(t, response.Error)
+		assert.False(t, response.IsError)
 		assert.NotNil(t, response.Result)
 
 		var result map[string]any
@@ -246,7 +246,7 @@ func TestRegistry_Configuration(t *testing.T) {
 		require.NoError(t, err)
 
 		params := webfetch.NewParameters(server.URL).WithMethod("GET")
-		req := &llm.ToolRequest{
+		req := &llm.ToolRequestPart{
 			ID:        "test-size-custom",
 			Name:      "webfetch",
 			Arguments: params.MustToJSONRawMessage(),
@@ -328,7 +328,7 @@ func TestRegistry_ConcurrentAccess(t *testing.T) {
 			// Test concurrent execution
 			ctx := context.Background()
 			params := webfetch.NewParameters(server.URL).WithMethod("GET")
-			req := &llm.ToolRequest{
+			req := &llm.ToolRequestPart{
 				ID:        "concurrent-test",
 				Name:      "webfetch",
 				Arguments: params.MustToJSONRawMessage(),
@@ -397,7 +397,7 @@ func TestRegistry_WebfetchToolWithLLM_Integration(t *testing.T) {
 		Messages: []llm.Message{
 			{
 				Role: llm.RoleUser,
-				Content: []*llm.Part{
+				Content: []llm.Part{
 					llm.NewTextPart("Use the webfetch tool to fetch this exact URL: " + server.URL + " - do NOT modify the URL scheme."),
 				},
 			},
@@ -422,7 +422,7 @@ func TestRegistry_WebfetchToolWithLLM_Integration(t *testing.T) {
 	require.NotEmpty(t, toolRequests, "LLM should have requested tool execution")
 
 	// Find webfetch tool request
-	var webfetchRequest *llm.ToolRequest
+	var webfetchRequest *llm.ToolRequestPart
 
 	for _, req := range toolRequests {
 		if req.Name == "webfetch" {
@@ -441,7 +441,7 @@ func TestRegistry_WebfetchToolWithLLM_Integration(t *testing.T) {
 	require.NotNil(t, toolResponse)
 	assert.Equal(t, webfetchRequest.ID, toolResponse.ID, "Tool response ID should match request ID")
 	assert.Equal(t, "webfetch", toolResponse.Name, "Tool response name should match")
-	assert.Empty(t, toolResponse.Error, "Tool execution should succeed")
+	assert.False(t, toolResponse.IsError, "Tool execution should succeed")
 	assert.NotNil(t, toolResponse.Result, "Tool should return results")
 
 	// Verify tool response contains expected data structure
@@ -461,7 +461,7 @@ func TestRegistry_WebfetchToolWithLLM_Integration(t *testing.T) {
 		Messages: []llm.Message{
 			{
 				Role: llm.RoleUser,
-				Content: []*llm.Part{
+				Content: []llm.Part{
 					llm.NewTextPart("Use the webfetch tool to fetch this exact URL: " + server.URL + " - do NOT modify the URL scheme."),
 				},
 			},
@@ -471,9 +471,7 @@ func TestRegistry_WebfetchToolWithLLM_Integration(t *testing.T) {
 			},
 			{
 				Role: llm.RoleUser,
-				Content: []*llm.Part{
-					llm.NewToolResponsePart(toolResponse),
-				},
+				Content: []llm.Part{toolResponse},
 			},
 		},
 		Tools: toolDefinitions,
@@ -554,84 +552,84 @@ func TestRegistry_ExecuteAll(t *testing.T) {
 
 	testCases := []struct {
 		name      string
-		requests  []*llm.ToolRequest
-		assertion func(t *testing.T, results []*llm.ToolResponse)
+		requests  []*llm.ToolRequestPart
+		assertion func(t *testing.T, results []*llm.ToolResponsePart)
 	}{
 		{
 			name:     "empty nil slice",
 			requests: nil,
-			assertion: func(t *testing.T, _ []*llm.ToolResponse) {
+			assertion: func(t *testing.T, _ []*llm.ToolResponsePart) {
 				t.Helper()
 			},
 		},
 		{
 			name:     "empty slice",
-			requests: []*llm.ToolRequest{},
-			assertion: func(t *testing.T, _ []*llm.ToolResponse) {
+			requests: []*llm.ToolRequestPart{},
+			assertion: func(t *testing.T, _ []*llm.ToolResponsePart) {
 				t.Helper()
 			},
 		},
 		{
 			name: "single request",
-			requests: []*llm.ToolRequest{
+			requests: []*llm.ToolRequestPart{
 				{ID: "req-1", Name: "successful-tool", Arguments: json.RawMessage(`{"input":"test"}`)},
 			},
-			assertion: func(t *testing.T, results []*llm.ToolResponse) {
+			assertion: func(t *testing.T, results []*llm.ToolResponsePart) {
 				t.Helper()
 				assert.Equal(t, "req-1", results[0].ID)
 				assert.Equal(t, "successful-tool", results[0].Name)
-				assert.Empty(t, results[0].Error)
+				assert.False(t, results[0].IsError)
 				assert.NotNil(t, results[0].Result)
 			},
 		},
 		{
 			name: "multiple requests preserve order",
-			requests: []*llm.ToolRequest{
+			requests: []*llm.ToolRequestPart{
 				{ID: "req-1", Name: "successful-tool"},
 				{ID: "req-2", Name: "successful-tool"},
 				{ID: "req-3", Name: "successful-tool"},
 			},
-			assertion: func(t *testing.T, results []*llm.ToolResponse) {
+			assertion: func(t *testing.T, results []*llm.ToolResponsePart) {
 				t.Helper()
 
 				for i, result := range results {
 					assert.Equal(t, fmt.Sprintf("req-%d", i+1), result.ID, "Order should be preserved")
-					assert.Empty(t, result.Error)
+					assert.False(t, result.IsError)
 				}
 			},
 		},
 		{
 			name: "partial failures",
-			requests: []*llm.ToolRequest{
+			requests: []*llm.ToolRequestPart{
 				{ID: "req-ok", Name: "successful-tool"},
 				{ID: "req-fail", Name: "failing-tool"},
 			},
-			assertion: func(t *testing.T, results []*llm.ToolResponse) {
+			assertion: func(t *testing.T, results []*llm.ToolResponsePart) {
 				t.Helper()
-				assert.Empty(t, results[0].Error)
-				assert.Contains(t, results[1].Error, "simulated failure")
+				assert.False(t, results[0].IsError)
+				assert.Contains(t, string(results[1].Result), "simulated failure")
 			},
 		},
 		{
 			name: "nil request in slice",
-			requests: []*llm.ToolRequest{
+			requests: []*llm.ToolRequestPart{
 				{ID: "req-1", Name: "successful-tool"},
 				nil,
 			},
-			assertion: func(t *testing.T, results []*llm.ToolResponse) {
+			assertion: func(t *testing.T, results []*llm.ToolResponsePart) {
 				t.Helper()
-				assert.Empty(t, results[0].Error)
-				assert.Contains(t, results[1].Error, tool.ErrToolRequestNil.Error())
+				assert.False(t, results[0].IsError)
+				assert.Contains(t, string(results[1].Result), tool.ErrToolRequestNil.Error())
 			},
 		},
 		{
 			name: "nonexistent tool",
-			requests: []*llm.ToolRequest{
+			requests: []*llm.ToolRequestPart{
 				{ID: "req-1", Name: "nonexistent-tool"},
 			},
-			assertion: func(t *testing.T, results []*llm.ToolResponse) {
+			assertion: func(t *testing.T, results []*llm.ToolResponsePart) {
 				t.Helper()
-				assert.Contains(t, results[0].Error, tool.ErrToolNotFound.Error())
+				assert.Contains(t, string(results[0].Result), tool.ErrToolNotFound.Error())
 				assert.Equal(t, "req-1", results[0].ID)
 			},
 		},
@@ -676,9 +674,9 @@ func TestRegistry_ExecuteAll(t *testing.T) {
 		require.NoError(t, registry.Register(mockTool))
 
 		// Create 10 requests
-		requests := make([]*llm.ToolRequest, 10)
+		requests := make([]*llm.ToolRequestPart, 10)
 		for i := range requests {
-			requests[i] = &llm.ToolRequest{
+			requests[i] = &llm.ToolRequestPart{
 				ID:   fmt.Sprintf("req-%d", i),
 				Name: "test-tool",
 			}
@@ -707,9 +705,9 @@ func TestRegistry_ExecuteAll(t *testing.T) {
 		require.NoError(t, registry.Register(mockTool))
 
 		// Create 5 requests
-		requests := make([]*llm.ToolRequest, 5)
+		requests := make([]*llm.ToolRequestPart, 5)
 		for i := range requests {
-			requests[i] = &llm.ToolRequest{
+			requests[i] = &llm.ToolRequestPart{
 				ID:        fmt.Sprintf("req-%d", i),
 				Name:      "test-tool",
 				Arguments: json.RawMessage(`{}`),
@@ -728,7 +726,7 @@ func TestRegistry_ExecuteAll(t *testing.T) {
 		// All results should have errors (either execution errors or cancellation errors)
 		// Context cancellation errors are encoded in ToolResponse.Error, not as a top-level error
 		for _, result := range results {
-			assert.NotEmpty(t, result.Error, "All requests should have errors due to cancellation")
+			assert.True(t, result.IsError, "All requests should have errors due to cancellation")
 		}
 	})
 }

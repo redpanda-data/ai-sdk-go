@@ -91,7 +91,10 @@ type State struct {
 }
 
 // Clone creates a deep copy of the session state.
-// Returns nil if the receiver is nil.
+// Returns nil if the receiver is nil. Each Message in s.Messages is
+// duplicated via llm.CloneMessage so persisted state never shares mutable
+// pointers (Part interfaces, json.RawMessage slices, metadata maps) with the
+// live caller.
 func (s *State) Clone() *State {
 	if s == nil {
 		return nil
@@ -102,7 +105,11 @@ func (s *State) Clone() *State {
 		Messages: make([]llm.Message, len(s.Messages)),
 		Metadata: make(map[string]any, len(s.Metadata)),
 	}
-	copy(clone.Messages, s.Messages)
+
+	for i, msg := range s.Messages {
+		clone.Messages[i] = llm.CloneMessage(msg)
+	}
+
 	maps.Copy(clone.Metadata, s.Metadata)
 
 	return clone

@@ -84,8 +84,8 @@ func (m *ResponseMapper) FromConverseOutput(
 }
 
 // mapContentBlocks converts Bedrock content blocks to llm.Parts.
-func (m *ResponseMapper) mapContentBlocks(blocks []types.ContentBlock) ([]*llm.Part, bool) {
-	parts := make([]*llm.Part, 0, len(blocks))
+func (m *ResponseMapper) mapContentBlocks(blocks []types.ContentBlock) ([]llm.Part, bool) {
+	parts := make([]llm.Part, 0, len(blocks))
 	hasToolCalls := false
 
 	for _, block := range blocks {
@@ -134,7 +134,7 @@ func (m *ResponseMapper) mapStopReason(reason types.StopReason) llm.FinishReason
 }
 
 // mapToolUseBlock converts a Bedrock ToolUseBlock to an llm.Part.
-func (m *ResponseMapper) mapToolUseBlock(block *types.ToolUseBlock) *llm.Part {
+func (m *ResponseMapper) mapToolUseBlock(block *types.ToolUseBlock) llm.Part {
 	argsJSON := m.marshalToolInput(block.Input)
 
 	var id, name string
@@ -146,11 +146,7 @@ func (m *ResponseMapper) mapToolUseBlock(block *types.ToolUseBlock) *llm.Part {
 		name = *block.Name
 	}
 
-	return llm.NewToolRequestPart(&llm.ToolRequest{
-		ID:        id,
-		Name:      name,
-		Arguments: argsJSON,
-	})
+	return llm.NewToolRequestPart(id, name, argsJSON)
 }
 
 // marshalToolInput marshals a document.Interface to JSON, defaulting to "{}".
@@ -168,7 +164,7 @@ func (m *ResponseMapper) marshalToolInput(input interface{ UnmarshalSmithyDocume
 }
 
 // mapReasoningBlock converts a Bedrock ReasoningContentBlock to an llm.Part, or nil if empty.
-func (m *ResponseMapper) mapReasoningBlock(value types.ReasoningContentBlock) *llm.Part {
+func (m *ResponseMapper) mapReasoningBlock(value types.ReasoningContentBlock) llm.Part {
 	if value == nil {
 		return nil
 	}
@@ -191,10 +187,10 @@ func (m *ResponseMapper) mapReasoningBlock(value types.ReasoningContentBlock) *l
 		return nil
 	}
 
-	return llm.NewReasoningPart(&llm.ReasoningTrace{
-		ID:   sig,
-		Text: text,
-	})
+	return &llm.ReasoningPart{
+		Text:      text,
+		Signature: sig,
+	}
 }
 
 // mapTokenUsage converts Bedrock Converse TokenUsage to the normalized

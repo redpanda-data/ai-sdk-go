@@ -122,8 +122,8 @@ func (e AssistantDeltaEvent) GetEnvelope() EventEnvelope { return e.Envelope }
 
 // ToolRequestEvent represents a tool invocation request from the LLM.
 type ToolRequestEvent struct {
-	Envelope EventEnvelope   `json:"envelope"`
-	Request  llm.ToolRequest `json:"request"`
+	Envelope EventEnvelope       `json:"envelope"`
+	Request  llm.ToolRequestPart `json:"request"`
 }
 
 func (ToolRequestEvent) isEvent() {}
@@ -133,8 +133,8 @@ func (e ToolRequestEvent) GetEnvelope() EventEnvelope { return e.Envelope }
 
 // ToolResponseEvent carries the result of a tool execution.
 type ToolResponseEvent struct {
-	Envelope EventEnvelope    `json:"envelope"`
-	Response llm.ToolResponse `json:"response"`
+	Envelope EventEnvelope        `json:"envelope"`
+	Response llm.ToolResponsePart `json:"response"`
 }
 
 func (ToolResponseEvent) isEvent() {}

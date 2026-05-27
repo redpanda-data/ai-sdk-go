@@ -257,7 +257,7 @@ func (sw *streamWriter) writeTextDelta(text string) error {
 	return sw.ew.WriteChunk(Chunk{"type": "text-delta", "id": sw.textID, "delta": text})
 }
 
-func (sw *streamWriter) writeReasoningDelta(trace *llm.ReasoningTrace) error {
+func (sw *streamWriter) writeReasoningDelta(trace *llm.ReasoningPart) error {
 	if !sw.reasoningStarted {
 		if err := sw.ew.WriteChunk(Chunk{"type": "reasoning-start", "id": sw.reasoningID}); err != nil {
 			return err
@@ -266,14 +266,14 @@ func (sw *streamWriter) writeReasoningDelta(trace *llm.ReasoningTrace) error {
 		sw.reasoningStarted = true
 	}
 
-	if trace == nil {
+	if trace == nil || trace.Text == "" {
 		return nil
 	}
 
 	return sw.ew.WriteChunk(Chunk{"type": "reasoning-delta", "id": sw.reasoningID, "delta": trace.Text})
 }
 
-func (sw *streamWriter) writeToolRequest(tr *llm.ToolRequest) error {
+func (sw *streamWriter) writeToolRequest(tr *llm.ToolRequestPart) error {
 	if tr == nil {
 		return nil
 	}
@@ -294,14 +294,14 @@ func (sw *streamWriter) writeToolRequest(tr *llm.ToolRequest) error {
 	})
 }
 
-func (sw *streamWriter) writeToolResponse(tr *llm.ToolResponse) error {
+func (sw *streamWriter) writeToolResponse(tr *llm.ToolResponsePart) error {
 	if tr == nil {
 		return nil
 	}
 
-	if tr.Error != "" {
+	if tr.IsError {
 		return sw.ew.WriteChunk(Chunk{
-			"type": "tool-output-error", "toolCallId": tr.ID, "errorText": tr.Error,
+			"type": "tool-output-error", "toolCallId": tr.ID, "errorText": string(tr.Result),
 		})
 	}
 
@@ -316,20 +316,20 @@ func (sw *streamWriter) writeToolResponse(tr *llm.ToolResponse) error {
 }
 
 // handleContentPart dispatches a content part event to the appropriate writer method.
-func (sw *streamWriter) handleContentPart(part *llm.Part) error {
-	switch part.Kind {
-	case llm.PartText:
-		return sw.writeTextDelta(part.Text)
-	case llm.PartToolRequest:
+func (sw *streamWriter) handleContentPart(part llm.Part) error {
+	switch p := part.(type) {
+	case *llm.TextPart:
+		return sw.writeTextDelta(p.Text)
+	case *llm.ToolRequestPart:
 		if err := sw.endText(); err != nil {
 			return err
 		}
 
-		return sw.writeToolRequest(part.ToolRequest)
-	case llm.PartToolResponse:
-		return sw.writeToolResponse(part.ToolResponse)
-	case llm.PartReasoning:
-		return sw.writeReasoningDelta(part.ReasoningTrace)
+		return sw.writeToolRequest(p)
+	case *llm.ToolResponsePart:
+		return sw.writeToolResponse(p)
+	case *llm.ReasoningPart:
+		return sw.writeReasoningDelta(p)
 	}
 
 	return nil
@@ -469,9 +469,9 @@ func StreamModelWithTools(ctx context.Context, model llm.Model, req *llm.Request
 			return
 		}
 
-		assistantParts := make([]*llm.Part, 0, len(toolRequests))
+		assistantParts := make([]llm.Part, 0, len(toolRequests))
 		for _, tr := range toolRequests {
-			assistantParts = append(assistantParts, llm.NewToolRequestPart(tr))
+			assistantParts = append(assistantParts, tr)
 		}
 
 		messages = append(messages, llm.Message{Role: llm.RoleAssistant, Content: assistantParts})
@@ -494,7 +494,7 @@ func streamToolTurn(
 	sw *streamWriter,
 	ew *EventWriter,
 	logger *slog.Logger,
-) (string, []*llm.ToolRequest) {
+) (string, []*llm.ToolRequestPart) {
 	if err := ew.WriteChunk(Chunk{"type": "start-step"}); err != nil {
 		return "", nil
 	}
@@ -503,7 +503,7 @@ func streamToolTurn(
 	sw.textStarted = false
 	sw.reasoningStarted = false
 
-	var toolRequests []*llm.ToolRequest
+	var toolRequests []*llm.ToolRequestPart
 
 	iterReq := &llm.Request{
 		Messages:   messages,
@@ -543,19 +543,19 @@ func streamToolTurn(
 	return finishReason, toolRequests
 }
 
-func handleToolTurnPart(e llm.ContentPartEvent, sw *streamWriter, toolRequests *[]*llm.ToolRequest) bool {
-	switch e.Part.Kind {
-	case llm.PartText:
-		if err := sw.writeTextDelta(e.Part.Text); err != nil {
+func handleToolTurnPart(e llm.ContentPartEvent, sw *streamWriter, toolRequests *[]*llm.ToolRequestPart) bool {
+	switch p := e.Part.(type) {
+	case *llm.TextPart:
+		if err := sw.writeTextDelta(p.Text); err != nil {
 			return true
 		}
 
-	case llm.PartReasoning:
-		if err := sw.writeReasoningDelta(e.Part.ReasoningTrace); err != nil {
+	case *llm.ReasoningPart:
+		if err := sw.writeReasoningDelta(p); err != nil {
 			return true
 		}
 
-	case llm.PartToolRequest:
+	case *llm.ToolRequestPart:
 		if err := sw.endReasoning(); err != nil {
 			return true
 		}
@@ -564,16 +564,13 @@ func handleToolTurnPart(e llm.ContentPartEvent, sw *streamWriter, toolRequests *
 			return true
 		}
 
-		tr := e.Part.ToolRequest
-		if tr != nil {
-			*toolRequests = append(*toolRequests, tr)
+		*toolRequests = append(*toolRequests, p)
 
-			if err := sw.writeToolRequest(tr); err != nil {
-				return true
-			}
+		if err := sw.writeToolRequest(p); err != nil {
+			return true
 		}
 
-	case llm.PartToolResponse:
+	case *llm.ToolResponsePart:
 		// Tool responses in tool-calling mode are handled by executeTools.
 	}
 
@@ -601,8 +598,8 @@ func writeToolTurnEnd(e llm.StreamEndEvent, sw *streamWriter, ew *EventWriter, l
 	return reason
 }
 
-func executeTools(ctx context.Context, toolRequests []*llm.ToolRequest, messages *[]llm.Message, ew *EventWriter, executor ToolExecutor) error {
-	toolResponseParts := make([]*llm.Part, 0, len(toolRequests))
+func executeTools(ctx context.Context, toolRequests []*llm.ToolRequestPart, messages *[]llm.Message, ew *EventWriter, executor ToolExecutor) error {
+	toolResponseParts := make([]llm.Part, 0, len(toolRequests))
 
 	for _, tr := range toolRequests {
 		result, err := executor(ctx, tr.Name, tr.Arguments)
@@ -611,9 +608,14 @@ func executeTools(ctx context.Context, toolRequests []*llm.ToolRequest, messages
 				"type": "tool-output-error", "toolCallId": tr.ID, "errorText": err.Error(),
 			})
 
-			toolResponseParts = append(toolResponseParts, llm.NewToolResponsePart(&llm.ToolResponse{
-				ID: tr.ID, Name: tr.Name, Error: err.Error(),
-			}))
+			errPayload, mErr := json.Marshal(map[string]string{"error": err.Error()})
+			if mErr != nil {
+				errPayload = []byte(`{"error":"tool error"}`)
+			}
+
+			toolResponseParts = append(toolResponseParts, &llm.ToolResponsePart{
+				ID: tr.ID, Name: tr.Name, Result: errPayload, IsError: true,
+			})
 
 			continue
 		}
@@ -629,9 +631,7 @@ func executeTools(ctx context.Context, toolRequests []*llm.ToolRequest, messages
 			return err
 		}
 
-		toolResponseParts = append(toolResponseParts, llm.NewToolResponsePart(&llm.ToolResponse{
-			ID: tr.ID, Name: tr.Name, Result: result,
-		}))
+		toolResponseParts = append(toolResponseParts, llm.NewToolResponsePart(tr.ID, tr.Name, result, false))
 	}
 
 	*messages = append(*messages, llm.Message{Role: llm.RoleUser, Content: toolResponseParts})

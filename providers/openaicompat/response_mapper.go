@@ -49,25 +49,20 @@ func (rm *ResponseMapper) FromProvider(apiResp *openai.ChatCompletion) (*llm.Res
 
 	// Build response content from message
 	// Pre-allocate for reasoning + text + tool calls
-	content := make([]*llm.Part, 0, 2+len(message.ToolCalls))
+	content := make([]llm.Part, 0, 2+len(message.ToolCalls))
 
 	// Check for reasoning_content in extra fields (for reasoning models like DeepSeek-R1, o1)
 	// This field is not yet in the official Go SDK but is in the API response
 	if reasoningField, ok := message.JSON.ExtraFields["reasoning_content"]; ok && reasoningField.Raw() != "" {
 		var reasoningContent string
 		if err := json.Unmarshal([]byte(reasoningField.Raw()), &reasoningContent); err == nil && reasoningContent != "" {
-			content = append(content, llm.NewReasoningPart(&llm.ReasoningTrace{
-				Text: reasoningContent,
-			}))
+			content = append(content, llm.NewReasoningPart(reasoningContent))
 		}
 	}
 
 	// Add text content if present
 	if message.Content != "" {
-		content = append(content, &llm.Part{
-			Kind: llm.PartText,
-			Text: message.Content,
-		})
+		content = append(content, llm.NewTextPart(message.Content))
 	}
 
 	// Add tool calls if present
@@ -77,14 +72,11 @@ func (rm *ResponseMapper) FromProvider(apiResp *openai.ChatCompletion) (*llm.Res
 			continue
 		}
 
-		content = append(content, &llm.Part{
-			Kind: llm.PartToolRequest,
-			ToolRequest: &llm.ToolRequest{
-				ID:        toolCall.ID,
-				Name:      toolCall.Function.Name,
-				Arguments: json.RawMessage(toolCall.Function.Arguments),
-			},
-		})
+		content = append(content, llm.NewToolRequestPart(
+			toolCall.ID,
+			toolCall.Function.Name,
+			json.RawMessage(toolCall.Function.Arguments),
+		))
 	}
 
 	// Map finish reason

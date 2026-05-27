@@ -79,7 +79,7 @@ func (m *ResponseMapper) FromProvider(r *responses.Response) (*llm.Response, err
 	}
 
 	// 4. Collect content and detect tool calls.
-	content := make([]*llm.Part, 0, len(r.Output))
+	content := make([]llm.Part, 0, len(r.Output))
 	hasToolCalls := false
 
 	for _, out := range r.Output {
@@ -100,11 +100,7 @@ func (m *ResponseMapper) FromProvider(r *responses.Response) (*llm.Response, err
 
 			hasToolCalls = true
 
-			content = append(content, llm.NewToolRequestPart(&llm.ToolRequest{
-				ID:        fc.CallID,
-				Name:      fc.Name,
-				Arguments: json.RawMessage(fc.Arguments),
-			}))
+			content = append(content, llm.NewToolRequestPart(fc.CallID, fc.Name, json.RawMessage(fc.Arguments)))
 
 		case outputTypeReasoning:
 			for i, s := range out.Summary {
@@ -112,11 +108,11 @@ func (m *ResponseMapper) FromProvider(r *responses.Response) (*llm.Response, err
 					continue
 				}
 
-				content = append(content, llm.NewReasoningPart(&llm.ReasoningTrace{
+				content = append(content, &llm.ReasoningPart{
 					ID:       fmt.Sprintf("%s-%d", out.ID, i),
 					Text:     s.Text,
 					Metadata: map[string]any{"summary_index": i},
-				}))
+				})
 			}
 
 		default:

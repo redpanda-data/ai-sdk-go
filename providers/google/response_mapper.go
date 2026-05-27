@@ -106,8 +106,8 @@ func resolvedModelID(providerModel, fallback string) string {
 }
 
 // mapParts converts Gemini Parts to unified Parts.
-func (m *ResponseMapper) mapParts(parts []*genai.Part) ([]*llm.Part, bool, error) {
-	content := make([]*llm.Part, 0, len(parts))
+func (m *ResponseMapper) mapParts(parts []*genai.Part) ([]llm.Part, bool, error) {
+	content := make([]llm.Part, 0, len(parts))
 	hasToolCalls := false
 
 	for _, part := range parts {
@@ -116,15 +116,10 @@ func (m *ResponseMapper) mapParts(parts []*genai.Part) ([]*llm.Part, bool, error
 			// Check if this is a thinking/reasoning part
 			if part.Thought {
 				// This is a thinking part
-				var signature string
-				if len(part.ThoughtSignature) > 0 {
-					signature = string(part.ThoughtSignature)
-				}
-
-				content = append(content, llm.NewReasoningPart(&llm.ReasoningTrace{
-					ID:   signature,
-					Text: part.Text,
-				}))
+				content = append(content, &llm.ReasoningPart{
+					Text:      part.Text,
+					Signature: string(part.ThoughtSignature),
+				})
 			} else {
 				// Regular text part
 				content = append(content, llm.NewTextPart(part.Text))
@@ -143,20 +138,14 @@ func (m *ResponseMapper) mapParts(parts []*genai.Part) ([]*llm.Part, bool, error
 			// Generate ID if not provided by Gemini (using cmp.Or pattern from fantasy)
 			id := cmp.Or(part.FunctionCall.ID, uuid.New().String())
 
-			toolPart := llm.NewToolRequestPart(&llm.ToolRequest{
-				ID:        id,
-				Name:      part.FunctionCall.Name,
-				Arguments: argsJSON,
-			})
+			toolPart := llm.NewToolRequestPart(id, part.FunctionCall.Name, argsJSON)
 
 			// Preserve thought signature for Gemini 3 Pro multi-turn conversations
 			// Gemini 3 Pro requires thought signatures to be passed back during function calling
 			if len(part.ThoughtSignature) > 0 {
-				if toolPart.Metadata == nil {
-					toolPart.Metadata = make(map[string]any)
+				toolPart.Metadata = map[string]any{
+					metadataKeyThoughtSignature: part.ThoughtSignature,
 				}
-
-				toolPart.Metadata[metadataKeyThoughtSignature] = part.ThoughtSignature
 			}
 
 			content = append(content, toolPart)

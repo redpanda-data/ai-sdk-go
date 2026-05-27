@@ -19,6 +19,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
 // TestBuildFinalParts_DropsPartialToolUse covers the streaming wedge: when
@@ -51,7 +53,8 @@ func TestBuildFinalParts_DropsPartialToolUse(t *testing.T) {
 	parts := m.buildFinalParts(blocks)
 
 	require.Len(t, parts, 1, "partial tool_use must not leak into final parts")
-	require.NotNil(t, parts[0].ToolRequest)
-	assert.Equal(t, "tool_ok", parts[0].ToolRequest.ID)
-	assert.JSONEq(t, `{"q":"SELECT 1"}`, string(parts[0].ToolRequest.Arguments))
+	tr, ok := parts[0].(*llm.ToolRequestPart)
+	require.True(t, ok)
+	assert.Equal(t, "tool_ok", tr.ID)
+	assert.JSONEq(t, `{"q":"SELECT 1"}`, string(tr.Arguments))
 }

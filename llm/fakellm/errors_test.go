@@ -31,7 +31,7 @@ func TestErrorHelperMethods(t *testing.T) {
 
 	req := &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("test")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("test")}},
 		},
 	}
 

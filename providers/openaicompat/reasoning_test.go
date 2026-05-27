@@ -59,7 +59,7 @@ func TestDeepSeekReasoningContent_Integration(t *testing.T) {
 			Messages: []llm.Message{
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart("What is 9.11 vs 9.8, which is greater?"),
 					},
 				},
@@ -80,12 +80,11 @@ func TestDeepSeekReasoningContent_Integration(t *testing.T) {
 		)
 
 		for _, part := range response.Message.Content {
-			if part.Kind == llm.PartReasoning {
+			switch p := part.(type) {
+			case *llm.ReasoningPart:
 				hasReasoning = true
-				reasoningText = part.ReasoningTrace.Text
-			}
-
-			if part.Kind == llm.PartText {
+				reasoningText = p.Text
+			case *llm.TextPart:
 				hasText = true
 			}
 		}
@@ -106,7 +105,7 @@ func TestDeepSeekReasoningContent_Integration(t *testing.T) {
 			Messages: []llm.Message{
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart("How many Rs are in the word 'strawberry'?"),
 					},
 				},
@@ -124,13 +123,11 @@ func TestDeepSeekReasoningContent_Integration(t *testing.T) {
 
 			switch e := event.(type) {
 			case llm.ContentPartEvent:
-				switch e.Part.Kind {
-				case llm.PartReasoning:
-					reasoningParts = append(reasoningParts, e.Part.ReasoningTrace.Text)
-				case llm.PartText:
-					textParts = append(textParts, e.Part.Text)
-				case llm.PartToolRequest, llm.PartToolResponse:
-					// Not expected in this test
+				switch p := e.Part.(type) {
+				case *llm.ReasoningPart:
+					reasoningParts = append(reasoningParts, p.Text)
+				case *llm.TextPart:
+					textParts = append(textParts, p.Text)
 				}
 			case llm.StreamEndEvent:
 				finalResponse = e.Response

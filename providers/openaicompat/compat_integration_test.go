@@ -78,7 +78,7 @@ func TestOpenAICompatProviders(t *testing.T) {
 
 			resp, err := model.Generate(ctx, &llm.Request{
 				Messages: []llm.Message{
-					{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("Say hello in one sentence.")}},
+					{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("Say hello in one sentence.")}},
 				},
 			})
 			require.NoError(t, err)
@@ -87,8 +87,8 @@ func TestOpenAICompatProviders(t *testing.T) {
 			var b strings.Builder
 
 			for _, part := range resp.Message.Content {
-				if part.IsText() {
-					b.WriteString(part.Text)
+				if tp, ok := part.(*llm.TextPart); ok {
+					b.WriteString(tp.Text)
 				}
 			}
 

@@ -31,7 +31,7 @@ func (t *TracingInterceptor) InterceptToolExecution(
 	ctx context.Context,
 	info *agent.ToolCallInfo,
 	next agent.ToolExecutionNext,
-) (*llm.ToolResponse, error) {
+) (*llm.ToolResponsePart, error) {
 	req := info.Req
 
 	// Build span name following OTel convention: "execute_tool {gen_ai.tool.name}"
@@ -131,11 +131,11 @@ func (t *TracingInterceptor) InterceptToolExecution(
 		// Case 1: Go error — infrastructure/transport failure
 		setSpanError(span, err)
 		span.SetAttributes(toolResultAvailable(false))
-	case resp != nil && resp.Error != "":
+	case resp != nil && resp.IsError:
 		// Case 2: Tool returned error content (analogous to MCP isError=true).
 		// Per OTel MCP semconv: error.type SHOULD be "tool_error" and span status SHOULD be Error.
 		// gen_ai.tool.call.result is NOT recorded (spec: "if execution was successful").
-		setToolError(span, resp.Error)
+		setToolError(span, string(resp.Result))
 		span.SetAttributes(toolResultAvailable(false))
 	default:
 		// Case 3: Success
