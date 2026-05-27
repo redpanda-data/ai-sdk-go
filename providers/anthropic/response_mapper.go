@@ -143,7 +143,7 @@ func (m *ResponseMapper) FromProvider(r *anthropic.BetaMessage) (*llm.Response, 
 		ServiceTier:     llm.NormalizeServiceTier(string(r.Usage.ServiceTier)),
 		Speed:           llm.NormalizeSpeed(string(r.Usage.Speed)),
 		InferenceRegion: r.Usage.InferenceGeo,
-		InvokedModelID:  resolveModelFamily(r.Model),
+		InvokedModelID:  llm.ModelID(resolveModelFamily(r.Model)),
 	}, nil
 }
 

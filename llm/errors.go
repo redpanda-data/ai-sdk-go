@@ -74,13 +74,19 @@ var (
 //
 // Usage examples:
 //
-//	// Check category with errors.Is()
+//	// Check category with the Is* helpers (preferred):
+//	if llm.IsRateLimit(err) {
+//	    // Retry with backoff
+//	}
+//
+//	// Check category directly with errors.Is():
 //	if errors.Is(err, llm.ErrRateLimitExceeded) {
 //	    // Retry with backoff
 //	}
 //
-//	// Get provider details with type assertion
-//	if perr, ok := err.(*llm.ProviderError); ok {
+//	// Get provider details with errors.As():
+//	var perr *llm.ProviderError
+//	if errors.As(err, &perr) {
 //	    log.Printf("Provider error [%s]: %s", perr.Code, perr.Message)
 //	}
 type ProviderError struct {
@@ -106,12 +112,41 @@ type ProviderError struct {
 //   - The error is a *ProviderError with Retryable set to true
 //   - The error wraps ErrServerError or ErrRateLimitExceeded
 func IsRetryable(err error) bool {
-	var perr *ProviderError
-	if errors.As(err, &perr) {
+	if perr, ok := errors.AsType[*ProviderError](err); ok {
 		return perr.Retryable
 	}
 
 	return errors.Is(err, ErrServerError) || errors.Is(err, ErrRateLimitExceeded)
+}
+
+// IsRateLimit reports whether err wraps ErrRateLimitExceeded. Rate-limit
+// errors are retryable with exponential backoff.
+func IsRateLimit(err error) bool {
+	return errors.Is(err, ErrRateLimitExceeded)
+}
+
+// IsInvalidInput reports whether err wraps ErrInvalidInput. These errors are
+// not retryable — the caller must fix the request.
+func IsInvalidInput(err error) bool {
+	return errors.Is(err, ErrInvalidInput)
+}
+
+// IsContentPolicy reports whether err wraps ErrContentPolicyViolation. These
+// errors are not retryable — the content violates provider safety policies.
+func IsContentPolicy(err error) bool {
+	return errors.Is(err, ErrContentPolicyViolation)
+}
+
+// IsServerError reports whether err wraps ErrServerError. These errors are
+// retryable with backoff.
+func IsServerError(err error) bool {
+	return errors.Is(err, ErrServerError)
+}
+
+// IsUnsupportedFeature reports whether err wraps ErrUnsupportedFeature. The
+// provider or model does not support the requested feature; not retryable.
+func IsUnsupportedFeature(err error) bool {
+	return errors.Is(err, ErrUnsupportedFeature)
 }
 
 // Error implements the error interface.

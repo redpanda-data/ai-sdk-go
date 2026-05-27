@@ -98,10 +98,10 @@ func TestProviderModels(t *testing.T) {
 	// Collect model names for verification
 	modelNames := make([]string, len(models))
 	for i, model := range models {
-		modelNames[i] = model.Name
+		modelNames[i] = string(model.Name)
 		assert.NotEmpty(t, model.Name, "Model name should not be empty")
 		assert.NotEmpty(t, model.Label, "Model label should not be empty")
-		assert.Equal(t, "openai", model.Provider, "Provider should be 'openai'")
+		assert.Equal(t, llm.ProviderID("openai"), model.Provider, "Provider should be 'openai'")
 	}
 
 	// Verify expected models are present
@@ -121,12 +121,12 @@ func TestModelCreation(t *testing.T) {
 	model, err := provider.NewModel(ModelGPT5Mini)
 	require.NoError(t, err)
 	assert.NotNil(t, model)
-	assert.Equal(t, ModelGPT5Mini, model.Name())
+	assert.Equal(t, llm.ModelID(ModelGPT5Mini), model.Name())
 
 	// Valid model with options
 	model, err = provider.NewModel(ModelGPT5Mini, WithTemperature(0.7), WithMaxTokens(100))
 	require.NoError(t, err)
-	assert.Equal(t, ModelGPT5Mini, model.Name())
+	assert.Equal(t, llm.ModelID(ModelGPT5Mini), model.Name())
 
 	// Error cases
 	_, err = provider.NewModel("nonexistent-model")
@@ -191,13 +191,13 @@ func TestNewModelWithTimestampedName(t *testing.T) {
 	// Timestamped model should resolve and use the original name for API calls.
 	model, err := provider.NewModel("o3-2025-04-16")
 	require.NoError(t, err)
-	assert.Equal(t, "o3-2025-04-16", model.Name(), "original timestamped name preserved")
+	assert.Equal(t, llm.ModelID("o3-2025-04-16"), model.Name(), "original timestamped name preserved")
 	assert.True(t, model.Capabilities().Reasoning, "inherits o3 capabilities")
 
 	// Timestamped gpt-4o-mini resolves correctly (not to gpt-4o).
 	model, err = provider.NewModel("gpt-4o-mini-2024-07-18")
 	require.NoError(t, err)
-	assert.Equal(t, "gpt-4o-mini-2024-07-18", model.Name())
+	assert.Equal(t, llm.ModelID("gpt-4o-mini-2024-07-18"), model.Name())
 	assert.False(t, model.Capabilities().Audio, "gpt-4o-mini has no audio")
 }
 

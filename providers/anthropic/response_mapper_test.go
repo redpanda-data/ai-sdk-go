@@ -50,7 +50,7 @@ func TestResponseMapper_Metadata(t *testing.T) {
 	assert.Equal(t, llm.ServiceTierDefault, resp.ServiceTier)
 	assert.Equal(t, llm.SpeedFast, resp.Speed)
 	assert.Equal(t, "us-east-1", resp.InferenceRegion)
-	assert.Equal(t, ModelClaudeOpus46, resp.InvokedModelID)
+	assert.Equal(t, llm.ModelID(ModelClaudeOpus46), resp.InvokedModelID)
 }
 
 // TestResponseMapper_FinishReasonTruncationWithToolCalls locks in the rule

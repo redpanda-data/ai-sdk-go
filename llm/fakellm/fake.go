@@ -217,12 +217,12 @@ func NewFakeModel(opts ...Option) *FakeModel {
 }
 
 // Name returns the model identifier.
-func (m *FakeModel) Name() string {
-	return m.name
+func (m *FakeModel) Name() llm.ModelID {
+	return llm.ModelID(m.name)
 }
 
 // Provider returns the provider name.
-func (m *FakeModel) Provider() string {
+func (m *FakeModel) Provider() llm.ProviderID {
 	return "fakellm"
 }
 

@@ -78,9 +78,9 @@ var supportedModels = map[string]ModelDefinition{
 			Reasoning:        true,
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    272000, // 272K context window
-			MaxOutputTokens:   128000, // 128K output tokens
+			TemperatureRange: [2]float64{0.0, 2.0},
+			MaxInputTokens:   272000, // 272K context window
+			MaxOutputTokens:  128000, // 128K output tokens
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortMinimal, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
 		Pricing:                   pricing.FlatInfo(0.625, 5.00, 0.125),
@@ -100,9 +100,9 @@ var supportedModels = map[string]ModelDefinition{
 			Reasoning:        true,
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    272000, // 272K context window
-			MaxOutputTokens:   128000, // 128K output tokens
+			TemperatureRange: [2]float64{0.0, 2.0},
+			MaxInputTokens:   272000, // 272K context window
+			MaxOutputTokens:  128000, // 128K output tokens
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortMinimal, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
 		// $0.25 / $2.00 / $0.025 per M (input / output / cached input).
@@ -123,9 +123,9 @@ var supportedModels = map[string]ModelDefinition{
 			Reasoning:        false, // Nano focuses on speed over reasoning
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    272000, // 272K context window
-			MaxOutputTokens:   128000, // 128K output tokens
+			TemperatureRange: [2]float64{0.0, 2.0},
+			MaxInputTokens:   272000, // 272K context window
+			MaxOutputTokens:  128000, // 128K output tokens
 		},
 		Pricing: pricing.FlatInfo(0.05, 0.40, 0.005),
 	},
@@ -144,9 +144,9 @@ var supportedModels = map[string]ModelDefinition{
 			Reasoning:        true, // Configurable: defaults to none, supports low/medium/high
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    272000, // 272K context window
-			MaxOutputTokens:   128000, // 128K output tokens
+			TemperatureRange: [2]float64{0.0, 2.0},
+			MaxInputTokens:   272000, // 272K context window
+			MaxOutputTokens:  128000, // 128K output tokens
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
 		// $1.25 / $10.00 / $0.125 per M (input / output / cached input).
@@ -167,9 +167,9 @@ var supportedModels = map[string]ModelDefinition{
 			Reasoning:        true,
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    400000, // 400K context window
-			MaxOutputTokens:   128000, // 128K output tokens
+			TemperatureRange: [2]float64{0.0, 2.0},
+			MaxInputTokens:   400000, // 400K context window
+			MaxOutputTokens:  128000, // 128K output tokens
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh},
 		Pricing:                   pricing.FlatInfo(0.875, 7.00, 0.175),
@@ -189,9 +189,9 @@ var supportedModels = map[string]ModelDefinition{
 			Reasoning:        true,
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    400000, // 400K context window
-			MaxOutputTokens:   128000, // 128K output tokens
+			TemperatureRange: [2]float64{0.0, 2.0},
+			MaxInputTokens:   400000, // 400K context window
+			MaxOutputTokens:  128000, // 128K output tokens
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortMedium}, // Instant variant only supports medium
 		Pricing:                   pricing.FlatInfo(0.875, 7.00, 0.175),
@@ -211,9 +211,9 @@ var supportedModels = map[string]ModelDefinition{
 			Reasoning:        true,
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    400000, // 400K context window
-			MaxOutputTokens:   128000, // 128K output tokens
+			TemperatureRange: [2]float64{0.0, 2.0},
+			MaxInputTokens:   400000, // 400K context window
+			MaxOutputTokens:  128000, // 128K output tokens
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh}, // Pro variant starts at medium
 		Pricing:                   pricing.FlatInfo(10.50, 84.00, 0),
@@ -235,9 +235,9 @@ var supportedModels = map[string]ModelDefinition{
 			Reasoning:        true,
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    400000, // 400K context window
-			MaxOutputTokens:   128000, // 128K output tokens
+			TemperatureRange: [2]float64{0.0, 2.0},
+			MaxInputTokens:   400000, // 400K context window
+			MaxOutputTokens:  128000, // 128K output tokens
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortMedium}, // Chat-latest only supports medium
 		Pricing:                   pricing.FlatInfo(1.75, 14.00, 0.175),
@@ -259,9 +259,9 @@ var supportedModels = map[string]ModelDefinition{
 			Reasoning:        true,
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    1048576, // 1M context window
-			MaxOutputTokens:   128000,  // 128K output tokens
+			TemperatureRange: [2]float64{0.0, 2.0},
+			MaxInputTokens:   1048576, // 1M context window
+			MaxOutputTokens:  128000,  // 128K output tokens
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh},
 		Pricing:                   pricing.FlatInfo(5.00, 30.00, 0.50),
@@ -283,9 +283,9 @@ var supportedModels = map[string]ModelDefinition{
 			Reasoning:        true,
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    272000, // 272K context window
-			MaxOutputTokens:   128000, // 128K output tokens
+			TemperatureRange: [2]float64{0.0, 2.0},
+			MaxInputTokens:   272000, // 272K context window
+			MaxOutputTokens:  128000, // 128K output tokens
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh},
 		Pricing:                   pricing.FlatInfo(2.50, 15.00, 0.25),
@@ -305,9 +305,9 @@ var supportedModels = map[string]ModelDefinition{
 			Reasoning:        true,
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    400000, // 400K context window
-			MaxOutputTokens:   128000, // 128K output tokens
+			TemperatureRange: [2]float64{0.0, 2.0},
+			MaxInputTokens:   400000, // 400K context window
+			MaxOutputTokens:  128000, // 128K output tokens
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh},
 		Pricing:                   pricing.FlatInfo(0.75, 4.50, 0.075),
@@ -327,9 +327,9 @@ var supportedModels = map[string]ModelDefinition{
 			Reasoning:        false, // Nano focuses on speed over reasoning
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    400000, // 400K context window
-			MaxOutputTokens:   128000, // 128K output tokens
+			TemperatureRange: [2]float64{0.0, 2.0},
+			MaxInputTokens:   400000, // 400K context window
+			MaxOutputTokens:  128000, // 128K output tokens
 		},
 		Pricing: pricing.FlatInfo(0.20, 1.25, 0.02),
 	},
@@ -348,9 +348,9 @@ var supportedModels = map[string]ModelDefinition{
 			SystemPrompts:    true,
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    1047576, // ~1M context window
-			MaxOutputTokens:   32768,   // 32K output tokens
+			TemperatureRange: [2]float64{0.0, 2.0},
+			MaxInputTokens:   1047576, // ~1M context window
+			MaxOutputTokens:  32768,   // 32K output tokens
 		},
 		Pricing: pricing.FlatInfo(2.00, 8.00, 0.50),
 	},
@@ -367,9 +367,9 @@ var supportedModels = map[string]ModelDefinition{
 			SystemPrompts:    true,
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    1047576, // ~1M context window
-			MaxOutputTokens:   32768,   // 32K output tokens
+			TemperatureRange: [2]float64{0.0, 2.0},
+			MaxInputTokens:   1047576, // ~1M context window
+			MaxOutputTokens:  32768,   // 32K output tokens
 		},
 		Pricing: pricing.FlatInfo(0.40, 1.60, 0.10),
 	},
@@ -387,9 +387,9 @@ var supportedModels = map[string]ModelDefinition{
 			Reasoning:     true,
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 1.0}, // Reasoning models prefer lower randomness
-			MaxInputTokens:    200000,               // 200K context window
-			MaxOutputTokens:   100000,               // 100K output tokens
+			TemperatureRange: [2]float64{0.0, 1.0}, // Reasoning models prefer lower randomness
+			MaxInputTokens:   200000,               // 200K context window
+			MaxOutputTokens:  100000,               // 100K output tokens
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
 		Pricing:                   pricing.FlatInfo(2.00, 8.00, 0.50),
@@ -406,9 +406,9 @@ var supportedModels = map[string]ModelDefinition{
 			Reasoning:     true,
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 1.0},
-			MaxInputTokens:    200000, // 200K context window
-			MaxOutputTokens:   100000, // 100K output tokens
+			TemperatureRange: [2]float64{0.0, 1.0},
+			MaxInputTokens:   200000, // 200K context window
+			MaxOutputTokens:  100000, // 100K output tokens
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
 		Pricing:                   pricing.FlatInfo(1.10, 4.40, 0.275),
@@ -429,9 +429,9 @@ var supportedModels = map[string]ModelDefinition{
 			SystemPrompts:    true,
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    128000, // 128K context window
-			MaxOutputTokens:   16384,  // 16K output tokens
+			TemperatureRange: [2]float64{0.0, 2.0},
+			MaxInputTokens:   128000, // 128K context window
+			MaxOutputTokens:  16384,  // 16K output tokens
 		},
 		Pricing: pricing.FlatInfo(2.50, 10.00, 1.25),
 	},
@@ -448,9 +448,9 @@ var supportedModels = map[string]ModelDefinition{
 			SystemPrompts:    true,
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    128000, // 128K context window
-			MaxOutputTokens:   16384,  // 16K output tokens
+			TemperatureRange: [2]float64{0.0, 2.0},
+			MaxInputTokens:   128000, // 128K context window
+			MaxOutputTokens:  16384,  // 16K output tokens
 		},
 		Pricing: pricing.FlatInfo(0.15, 0.60, 0.075),
 	},
@@ -469,9 +469,9 @@ var supportedModels = map[string]ModelDefinition{
 			SystemPrompts:    true,
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    128000, // 128K context window
-			MaxOutputTokens:   4096,   // 4K output tokens
+			TemperatureRange: [2]float64{0.0, 2.0},
+			MaxInputTokens:   128000, // 128K context window
+			MaxOutputTokens:  4096,   // 4K output tokens
 		},
 		Pricing: pricing.FlatInfo(5.00, 15.00, 0),
 	},
@@ -488,9 +488,9 @@ var supportedModels = map[string]ModelDefinition{
 			// No vision or audio
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    16385, // 16K context window
-			MaxOutputTokens:   4096,  // 4K output tokens
+			TemperatureRange: [2]float64{0.0, 2.0},
+			MaxInputTokens:   16385, // 16K context window
+			MaxOutputTokens:  4096,  // 4K output tokens
 		},
 		Pricing: pricing.FlatInfo(0.50, 1.50, 0),
 	},
@@ -508,9 +508,9 @@ var supportedModels = map[string]ModelDefinition{
 			Reasoning:     true,
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 1.0}, // Reasoning models prefer lower randomness
-			MaxInputTokens:    200000,               // 200K context window
-			MaxOutputTokens:   100000,               // 100K output tokens
+			TemperatureRange: [2]float64{0.0, 1.0}, // Reasoning models prefer lower randomness
+			MaxInputTokens:   200000,               // 200K context window
+			MaxOutputTokens:  100000,               // 100K output tokens
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
 		Pricing:                   pricing.FlatInfo(150.00, 600.00, 75.00),
@@ -529,9 +529,9 @@ var supportedModels = map[string]ModelDefinition{
 			Reasoning:     true,
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 1.0}, // Reasoning models prefer lower randomness
-			MaxInputTokens:    200000,               // 200K context window
-			MaxOutputTokens:   100000,               // 100K output tokens
+			TemperatureRange: [2]float64{0.0, 1.0}, // Reasoning models prefer lower randomness
+			MaxInputTokens:   200000,               // 200K context window
+			MaxOutputTokens:  100000,               // 100K output tokens
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
 		Pricing:                   pricing.FlatInfo(20.00, 80.00, 0),

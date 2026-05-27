@@ -181,7 +181,6 @@ func TestWithThinkingBudget(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "thinking_budget must be at least 1024")
 	})
-
 }
 
 func TestWithEffort(t *testing.T) {

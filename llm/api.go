@@ -35,11 +35,11 @@ type ModelInfo interface {
 	// Name returns the model identifier (e.g., "gpt-4o", "claude-3.5-sonnet").
 	// The returned name should be consistent and can be used for logging,
 	// metrics, and model selection logic.
-	Name() string
+	Name() ModelID
 
 	// Provider returns the name of the AI provider (e.g., "openai", "anthropic", "google").
 	// This is useful for observability, routing decisions, and provider-specific handling.
-	Provider() string
+	Provider() ProviderID
 
 	// Capabilities returns what features this model supports.
 	// Use this to check if specific features are available before making requests
@@ -51,6 +51,16 @@ type ModelInfo interface {
 	// supported parameters, and other model-specific constraints.
 	Constraints() ModelConstraints
 }
+
+// ModelID identifies a specific model offered by a provider (e.g. "gpt-4o",
+// "claude-3.5-sonnet"). The same model can be reachable from multiple
+// providers; pair with ProviderID to disambiguate.
+type ModelID string
+
+// ProviderID identifies an AI provider (e.g. "openai", "anthropic",
+// "google"). Provider implementations expose their own ID as a typed
+// constant.
+type ProviderID string
 
 // Generator provides non-streaming text generation capabilities.
 //
@@ -87,17 +97,18 @@ type Generator interface {
 	//		}},
 	//	})
 	//	if err != nil {
-	//		// Check error category with errors.Is()
-	//		if errors.Is(err, llm.ErrRateLimitExceeded) {
+	//		// Check error category with the Is* helpers:
+	//		if llm.IsRateLimit(err) {
 	//			// Retry with exponential backoff
 	//			return retryWithBackoff(ctx, model, request)
-	//		} else if errors.Is(err, llm.ErrInvalidInput) {
+	//		} else if llm.IsInvalidInput(err) {
 	//			// Don't retry - fix the input
 	//			return fmt.Errorf("invalid request: %w", err)
 	//		}
 	//
-	//		// Get provider-specific details with type assertion
-	//		if perr, ok := err.(*llm.ProviderError); ok {
+	//		// Get provider-specific details with errors.As():
+	//		var perr *llm.ProviderError
+	//		if errors.As(err, &perr) {
 	//			log.Printf("Provider error [%s]: %s", perr.Code, perr.Message)
 	//		}
 	//		return err

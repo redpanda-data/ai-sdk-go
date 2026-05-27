@@ -75,7 +75,7 @@ func (m *ResponseMapper) FromConverseOutput(
 		},
 		FinishReason:   finishReason,
 		Usage:          tokenUsage,
-		InvokedModelID: m.modelDefinition.Name,
+		InvokedModelID: llm.ModelID(m.modelDefinition.Name),
 	}
 
 	m.applyResponseMetadata(resp, performanceConfig, serviceTier, promptRouterFromTrace(trace))
@@ -270,11 +270,11 @@ func (m *ResponseMapper) applyResponseMetadata(
 
 	if promptRouter != nil && promptRouter.InvokedModelId != nil && *promptRouter.InvokedModelId != "" {
 		if def, ok := lookupModel(*promptRouter.InvokedModelId); ok {
-			resp.InvokedModelID = def.Name
+			resp.InvokedModelID = llm.ModelID(def.Name)
 			return
 		}
 
-		resp.InvokedModelID = *promptRouter.InvokedModelId
+		resp.InvokedModelID = llm.ModelID(*promptRouter.InvokedModelId)
 	}
 }
 

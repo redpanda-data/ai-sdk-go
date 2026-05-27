@@ -28,6 +28,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
+	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/plugins/otel/genai"
 )
 
@@ -131,8 +132,8 @@ func genAIOperationName(op string) attribute.KeyValue {
 	return attribute.String(genai.AttrGenAIOperationName, op)
 }
 
-func genAIProviderName(name string) attribute.KeyValue {
-	return attribute.String(genai.AttrGenAIProviderName, name)
+func genAIProviderName(name llm.ProviderID) attribute.KeyValue {
+	return attribute.String(genai.AttrGenAIProviderName, string(name))
 }
 
 func genAIAgentName(name string) attribute.KeyValue {
@@ -159,8 +160,8 @@ func genAIConversationID(id string) attribute.KeyValue {
 	return attribute.String(genai.AttrGenAIConversationID, id)
 }
 
-func genAIRequestModel(model string) attribute.KeyValue {
-	return attribute.String(genai.AttrGenAIRequestModel, model)
+func genAIRequestModel(model llm.ModelID) attribute.KeyValue {
+	return attribute.String(genai.AttrGenAIRequestModel, string(model))
 }
 
 func genAIResponseID(id string) attribute.KeyValue {
@@ -203,8 +204,8 @@ func genAIToolCallResult(result string) attribute.KeyValue {
 	return attribute.String(genai.AttrGenAIToolCallResult, result)
 }
 
-func genAIToolType(toolType string) attribute.KeyValue {
-	return attribute.String(genai.AttrGenAIToolType, toolType)
+func genAIToolType(toolType llm.ToolKind) attribute.KeyValue {
+	return attribute.String(genai.AttrGenAIToolType, string(toolType))
 }
 
 func genAIToolDescription(description string) attribute.KeyValue {

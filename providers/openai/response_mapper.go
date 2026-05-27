@@ -156,7 +156,7 @@ func (m *ResponseMapper) FromProvider(r *responses.Response) (*llm.Response, err
 		FinishReason:   finish,
 		Usage:          usage,
 		ServiceTier:    llm.NormalizeServiceTier(string(r.ServiceTier)),
-		InvokedModelID: r.Model,
+		InvokedModelID: llm.ModelID(r.Model),
 	}, nil
 }
 

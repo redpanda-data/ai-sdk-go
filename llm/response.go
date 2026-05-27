@@ -70,7 +70,7 @@ type Response struct {
 	// than the stable model keys this SDK exposes. Adapters may normalize those
 	// raw values to the closest supported model ID so pricing and capability
 	// lookup continue to work without a second resolver layer.
-	InvokedModelID string `json:"invoked_model_id,omitempty"`
+	InvokedModelID ModelID `json:"invoked_model_id,omitempty"`
 }
 
 // TextContent extracts and combines all text content from this response.

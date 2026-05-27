@@ -76,11 +76,11 @@ type Info struct {
 
 	// ModelName is the model identifier for LLM-based agents (used for gen_ai.request.model).
 	// Empty for non-LLM agents.
-	ModelName string
+	ModelName llm.ModelID
 
 	// ProviderName is the provider name for LLM-based agents (used for gen_ai.provider.name).
 	// Empty for non-LLM agents.
-	ProviderName string
+	ProviderName llm.ProviderID
 }
 
 // InvocationMetadata holds invocation-specific state and metadata.

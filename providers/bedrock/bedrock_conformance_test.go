@@ -101,7 +101,7 @@ func (f *BedrockFixture) Models() []llm.ModelDiscoveryInfo {
 	filtered := make([]llm.ModelDiscoveryInfo, 0, len(all))
 
 	for _, m := range all {
-		if strings.HasPrefix(m.Name, geoPrefix) {
+		if strings.HasPrefix(string(m.Name), geoPrefix) {
 			filtered = append(filtered, m)
 		}
 	}

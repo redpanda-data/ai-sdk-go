@@ -88,7 +88,7 @@ func (m *ResponseMapper) FromProvider(r *genai.GenerateContentResponse) (*llm.Re
 		},
 		FinishReason:   finishReason,
 		Usage:          usage,
-		InvokedModelID: resolvedModelID(r.ModelVersion, m.modelDefinition.Name),
+		InvokedModelID: llm.ModelID(resolvedModelID(r.ModelVersion, m.modelDefinition.Name)),
 	}, nil
 }
 

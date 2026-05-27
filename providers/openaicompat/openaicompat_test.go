@@ -108,12 +108,12 @@ func TestModelCreation(t *testing.T) {
 	model, err := provider.NewModel("gpt-4o-mini")
 	require.NoError(t, err)
 	assert.NotNil(t, model)
-	assert.Equal(t, "gpt-4o-mini", model.Name())
+	assert.Equal(t, llm.ModelID("gpt-4o-mini"), model.Name())
 
 	// Valid model with options
 	model, err = provider.NewModel("gpt-4o-mini", WithTemperature(0.7), WithMaxTokens(100))
 	require.NoError(t, err)
-	assert.Equal(t, "gpt-4o-mini", model.Name())
+	assert.Equal(t, llm.ModelID("gpt-4o-mini"), model.Name())
 
 	// Empty model name should fail
 	_, err = provider.NewModel("")

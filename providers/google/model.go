@@ -40,13 +40,13 @@ type Model struct {
 }
 
 // Name returns the model identifier.
-func (m *Model) Name() string {
-	return m.config.ModelName
+func (m *Model) Name() llm.ModelID {
+	return llm.ModelID(m.config.ModelName)
 }
 
 // Provider returns the provider name.
-func (m *Model) Provider() string {
-	return m.provider.Name()
+func (m *Model) Provider() llm.ProviderID {
+	return llm.ProviderID(m.provider.Name())
 }
 
 // Capabilities returns what features this model supports.
