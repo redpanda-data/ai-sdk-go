@@ -136,25 +136,25 @@ func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]openai.ChatCompl
 	for _, msg := range messages {
 		// Group parts by type for this message
 		var (
-			textParts     []llm.Part
-			toolRequests  []llm.Part
-			toolResponses []llm.Part
+			textParts     []*llm.TextPart
+			toolRequests  []*llm.ToolRequestPart
+			toolResponses []*llm.ToolResponsePart
 		)
 
 		for _, part := range msg.Content {
-			switch {
-			case part.IsText():
-				textParts = append(textParts, *part)
-			case part.IsToolRequest():
-				toolRequests = append(toolRequests, *part)
-			case part.IsToolResponse():
-				toolResponses = append(toolResponses, *part)
-			case part.IsReasoning():
+			switch p := part.(type) {
+			case *llm.TextPart:
+				textParts = append(textParts, p)
+			case *llm.ToolRequestPart:
+				toolRequests = append(toolRequests, p)
+			case *llm.ToolResponsePart:
+				toolResponses = append(toolResponses, p)
+			case *llm.ReasoningPart:
 				// Chat API doesn't have native reasoning support
 				// Skip reasoning parts
 				continue
 			default:
-				return nil, fmt.Errorf("unknown part kind: %q", part.Kind.String())
+				return nil, fmt.Errorf("unknown part type: %T", part)
 			}
 		}
 
@@ -170,7 +170,7 @@ func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]openai.ChatCompl
 			// Handle tool responses first (takes precedence)
 			if len(toolResponses) > 0 {
 				for _, part := range toolResponses {
-					apiMsg, err := rm.mapToolMessage(&part)
+					apiMsg, err := rm.mapToolMessage(part)
 					if err != nil {
 						return nil, err
 					}
@@ -206,7 +206,7 @@ func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]openai.ChatCompl
 }
 
 // mapSystemMessage converts system text parts to a system message.
-func (rm *RequestMapper) mapSystemMessage(parts []llm.Part) openai.ChatCompletionMessageParamUnion {
+func (rm *RequestMapper) mapSystemMessage(parts []*llm.TextPart) openai.ChatCompletionMessageParamUnion {
 	// Concatenate all text parts
 	var text strings.Builder
 
@@ -227,9 +227,9 @@ func (rm *RequestMapper) mapSystemMessage(parts []llm.Part) openai.ChatCompletio
 }
 
 // mapUserMessage converts user text parts to a user message.
-func (rm *RequestMapper) mapUserMessage(parts []llm.Part) openai.ChatCompletionMessageParamUnion {
+func (rm *RequestMapper) mapUserMessage(parts []*llm.TextPart) openai.ChatCompletionMessageParamUnion {
 	// If single text part, use simple string content
-	if len(parts) == 1 && parts[0].IsText() {
+	if len(parts) == 1 {
 		return openai.ChatCompletionMessageParamUnion{
 			OfUser: &openai.ChatCompletionUserMessageParam{
 				Role:    constant.User(""),
@@ -260,63 +260,55 @@ func (rm *RequestMapper) mapUserMessage(parts []llm.Part) openai.ChatCompletionM
 }
 
 // mapAssistantMessage converts assistant text parts to an assistant message.
-func (rm *RequestMapper) mapAssistantMessage(parts []llm.Part) openai.ChatCompletionMessageParamUnion {
+func (rm *RequestMapper) mapAssistantMessage(parts []*llm.TextPart) openai.ChatCompletionMessageParamUnion {
 	// Concatenate all text parts
-	var (
-		text      string
-		textSb264 strings.Builder
-	)
+	var textSb strings.Builder
 
 	for i, part := range parts {
 		if i > 0 {
-			textSb264.WriteString("\n")
+			textSb.WriteString("\n")
 		}
 
-		textSb264.WriteString(part.Text)
+		textSb.WriteString(part.Text)
 	}
-
-	text += textSb264.String()
 
 	return openai.ChatCompletionMessageParamUnion{
 		OfAssistant: &openai.ChatCompletionAssistantMessageParam{
 			Role:    constant.Assistant(""),
-			Content: openai.ChatCompletionAssistantMessageParamContentUnion{OfString: param.NewOpt(text)},
+			Content: openai.ChatCompletionAssistantMessageParamContentUnion{OfString: param.NewOpt(textSb.String())},
 		},
 	}
 }
 
 // mapAssistantMessageWithTools converts assistant message with tool calls.
-func (rm *RequestMapper) mapAssistantMessageWithTools(textParts []llm.Part, toolParts []llm.Part) (openai.ChatCompletionMessageParamUnion, error) {
+func (rm *RequestMapper) mapAssistantMessageWithTools(textParts []*llm.TextPart, toolParts []*llm.ToolRequestPart) (openai.ChatCompletionMessageParamUnion, error) {
 	// Concatenate text parts for content
-	var (
-		text      string
-		textSb283 strings.Builder
-	)
+	var textSb strings.Builder
 
 	for i, part := range textParts {
 		if i > 0 {
-			textSb283.WriteString("\n")
+			textSb.WriteString("\n")
 		}
 
-		textSb283.WriteString(part.Text)
+		textSb.WriteString(part.Text)
 	}
 
-	text = textSb283.String()
+	text := textSb.String()
 
 	// Map tool calls
 	toolCalls := make([]openai.ChatCompletionMessageToolCallUnionParam, 0, len(toolParts))
 	for _, part := range toolParts {
-		if part.ToolRequest == nil {
-			return openai.ChatCompletionMessageParamUnion{}, errors.New("tool request part has nil ToolRequest")
+		if part == nil {
+			return openai.ChatCompletionMessageParamUnion{}, errors.New("nil ToolRequestPart")
 		}
 
 		toolCalls = append(toolCalls, openai.ChatCompletionMessageToolCallUnionParam{
 			OfFunction: &openai.ChatCompletionMessageFunctionToolCallParam{
-				ID:   part.ToolRequest.ID,
+				ID:   part.ID,
 				Type: constant.Function(""),
 				Function: openai.ChatCompletionMessageFunctionToolCallFunctionParam{
-					Name:      part.ToolRequest.Name,
-					Arguments: string(part.ToolRequest.Arguments),
+					Name:      part.Name,
+					Arguments: string(part.Arguments),
 				},
 			},
 		})
@@ -338,35 +330,16 @@ func (rm *RequestMapper) mapAssistantMessageWithTools(textParts []llm.Part, tool
 }
 
 // mapToolMessage converts a tool response to a tool message.
-func (rm *RequestMapper) mapToolMessage(part *llm.Part) (openai.ChatCompletionMessageParamUnion, error) {
-	if part.ToolResponse == nil {
-		return openai.ChatCompletionMessageParamUnion{}, errors.New("tool response part has nil ToolResponse")
-	}
-
-	var content string
-
-	if part.ToolResponse.Error != "" {
-		// If there was an error, include it in the content
-		errorResult := map[string]any{
-			"error": part.ToolResponse.Error,
-		}
-
-		errorBytes, err := json.Marshal(errorResult)
-		if err != nil {
-			return openai.ChatCompletionMessageParamUnion{}, fmt.Errorf("failed to marshal tool error: %w", err)
-		}
-
-		content = string(errorBytes)
-	} else {
-		// Use the successful result
-		content = string(part.ToolResponse.Result)
+func (rm *RequestMapper) mapToolMessage(part *llm.ToolResponsePart) (openai.ChatCompletionMessageParamUnion, error) {
+	if part == nil {
+		return openai.ChatCompletionMessageParamUnion{}, errors.New("nil ToolResponsePart")
 	}
 
 	return openai.ChatCompletionMessageParamUnion{
 		OfTool: &openai.ChatCompletionToolMessageParam{
 			Role:       constant.Tool(""),
-			Content:    openai.ChatCompletionToolMessageParamContentUnion{OfString: param.NewOpt(content)},
-			ToolCallID: part.ToolResponse.ID,
+			Content:    openai.ChatCompletionToolMessageParamContentUnion{OfString: param.NewOpt(string(part.Result))},
+			ToolCallID: part.ID,
 		},
 	}, nil
 }

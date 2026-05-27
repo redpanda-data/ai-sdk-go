@@ -168,11 +168,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 					if !yield(llm.ContentPartEvent{
 						Index: idx,
-						Part: llm.NewToolRequestPart(&llm.ToolRequest{
-							ID:        acc.toolUse.ID,
-							Name:      acc.toolUse.Name,
-							Arguments: argsJSON,
-						}),
+						Part:  llm.NewToolRequestPart(acc.toolUse.ID, acc.toolUse.Name, argsJSON),
 					}, nil) {
 						return
 					}
@@ -212,7 +208,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 		finishReason := m.responseMapper.mapStopReason(stopReason)
 		if finishReason == llm.FinishReasonStop {
 			for _, part := range finalParts {
-				if part.IsToolRequest() {
+				if _, ok := part.(*llm.ToolRequestPart); ok {
 					finishReason = llm.FinishReasonToolCalls
 
 					break
@@ -238,8 +234,8 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 }
 
 // buildFinalParts constructs the complete content from stream accumulators.
-func (m *Model) buildFinalParts(blocks map[int]*contentBlockAccumulator) []*llm.Part {
-	parts := make([]*llm.Part, 0, len(blocks))
+func (m *Model) buildFinalParts(blocks map[int]*contentBlockAccumulator) []llm.Part {
+	parts := make([]llm.Part, 0, len(blocks))
 
 	for i := range len(blocks) {
 		acc, ok := blocks[i]
@@ -267,19 +263,15 @@ func (m *Model) buildFinalParts(blocks map[int]*contentBlockAccumulator) []*llm.
 					continue
 				}
 
-				parts = append(parts, llm.NewToolRequestPart(&llm.ToolRequest{
-					ID:        acc.toolUse.ID,
-					Name:      acc.toolUse.Name,
-					Arguments: argsJSON,
-				}))
+				parts = append(parts, llm.NewToolRequestPart(acc.toolUse.ID, acc.toolUse.Name, argsJSON))
 			}
 
 		case blockTypeReasoning:
 			if acc.textContent != "" {
-				parts = append(parts, llm.NewReasoningPart(&llm.ReasoningTrace{
-					ID:   acc.reasoningSignature,
-					Text: acc.textContent,
-				}))
+				parts = append(parts, &llm.ReasoningPart{
+					Text:      acc.textContent,
+					Signature: acc.reasoningSignature,
+				})
 			}
 		}
 	}
@@ -374,9 +366,7 @@ func processReasoningDelta(acc *contentBlockAccumulator, delta *types.ContentBlo
 		// part in buildFinalParts includes the signature.
 		return llm.ContentPartEvent{
 			Index: idx,
-			Part: llm.NewReasoningPart(&llm.ReasoningTrace{
-				Text: rd.Value,
-			}),
+			Part:  llm.NewReasoningPart(rd.Value),
 		}, true
 
 	case *types.ReasoningContentBlockDeltaMemberSignature:

@@ -64,7 +64,7 @@ func TestTodoToolsIntegration(t *testing.T) {
 			]
 		}`
 
-		toolReq := &llm.ToolRequest{
+		toolReq := &llm.ToolRequestPart{
 			Name:      "update_todos",
 			Arguments: json.RawMessage(updateArgs),
 		}
@@ -92,7 +92,7 @@ func TestTodoToolsIntegration(t *testing.T) {
 			]
 		}`
 
-		toolReq := &llm.ToolRequest{
+		toolReq := &llm.ToolRequestPart{
 			Name:      "add_todos",
 			Arguments: json.RawMessage(addArgs),
 		}
@@ -116,15 +116,15 @@ func TestTodoToolsIntegration(t *testing.T) {
 			]
 		}`
 
-		toolReq := &llm.ToolRequest{
+		toolReq := &llm.ToolRequestPart{
 			Name:      "update_todos",
 			Arguments: json.RawMessage(invalidArgs),
 		}
 
 		result, err := registry.Execute(ctx, toolReq)
 		require.NoError(t, err, "Registry should not return Go errors for tool validation failures")
-		assert.NotEmpty(t, result.Error, "Expected validation error in ToolResponse")
-		assert.Contains(t, result.Error, "invalid status", "Error should mention invalid status")
+		assert.True(t, result.IsError, "Expected validation error in ToolResponse")
+		assert.Contains(t, string(result.Result), "invalid status", "Error should mention invalid status")
 	})
 
 	t.Run("validation_rejects_empty_name", func(t *testing.T) {
@@ -139,15 +139,15 @@ func TestTodoToolsIntegration(t *testing.T) {
 			]
 		}`
 
-		toolReq := &llm.ToolRequest{
+		toolReq := &llm.ToolRequestPart{
 			Name:      "add_todos",
 			Arguments: json.RawMessage(invalidArgs),
 		}
 
 		result, err := registry.Execute(ctx, toolReq)
 		require.NoError(t, err, "Registry should not return Go errors for tool validation failures")
-		assert.NotEmpty(t, result.Error, "Expected validation error in ToolResponse")
-		assert.Contains(t, result.Error, "name cannot be empty", "Error should mention empty name")
+		assert.True(t, result.IsError, "Expected validation error in ToolResponse")
+		assert.Contains(t, string(result.Result), "name cannot be empty", "Error should mention empty name")
 	})
 
 	t.Run("validation_rejects_multiple_in_progress", func(t *testing.T) {
@@ -166,14 +166,14 @@ func TestTodoToolsIntegration(t *testing.T) {
 			]
 		}`
 
-		toolReq := &llm.ToolRequest{
+		toolReq := &llm.ToolRequestPart{
 			Name:      "add_todos",
 			Arguments: json.RawMessage(invalidArgs),
 		}
 
 		result, err := registry.Execute(ctx, toolReq)
 		require.NoError(t, err, "Registry should not return Go errors for tool validation failures")
-		assert.NotEmpty(t, result.Error, "Expected validation error in ToolResponse")
-		assert.Contains(t, result.Error, "IN_PROGRESS", "Error should mention IN_PROGRESS constraint")
+		assert.True(t, result.IsError, "Expected validation error in ToolResponse")
+		assert.Contains(t, string(result.Result), "IN_PROGRESS", "Error should mention IN_PROGRESS constraint")
 	})
 }

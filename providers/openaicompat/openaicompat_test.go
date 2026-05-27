@@ -175,7 +175,7 @@ func TestRequestMapping(t *testing.T) {
 		Messages: []llm.Message{
 			{
 				Role: llm.RoleUser,
-				Content: []*llm.Part{
+				Content: []llm.Part{
 					llm.NewTextPart("Hello!"),
 				},
 			},
@@ -412,7 +412,7 @@ func TestRequestMappingWithTools(t *testing.T) {
 		Messages: []llm.Message{
 			{
 				Role: llm.RoleUser,
-				Content: []*llm.Part{
+				Content: []llm.Part{
 					llm.NewTextPart("What's the weather like in Paris?"),
 				},
 			},
@@ -466,7 +466,7 @@ func TestMessageMappingWithToolParts(t *testing.T) {
 			messages: []llm.Message{
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart("Hello!"),
 					},
 				},
@@ -483,13 +483,13 @@ func TestMessageMappingWithToolParts(t *testing.T) {
 			messages: []llm.Message{
 				{
 					Role: llm.RoleAssistant,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart("I'll check the weather for you."),
-						llm.NewToolRequestPart(&llm.ToolRequest{
+						&llm.ToolRequestPart{
 							ID:        "call_123",
 							Name:      "get_weather",
 							Arguments: json.RawMessage(`{"location": "Paris, France"}`),
-						}),
+						},
 					},
 				},
 			},
@@ -513,12 +513,12 @@ func TestMessageMappingWithToolParts(t *testing.T) {
 			messages: []llm.Message{
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
-						llm.NewToolResponsePart(&llm.ToolResponse{
+					Content: []llm.Part{
+						&llm.ToolResponsePart{
 							ID:     "call_123",
 							Name:   "get_weather",
 							Result: json.RawMessage(`{"temperature": "22°C", "condition": "sunny"}`),
-						}),
+						},
 					},
 				},
 			},
@@ -536,12 +536,11 @@ func TestMessageMappingWithToolParts(t *testing.T) {
 			messages: []llm.Message{
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
-						llm.NewToolResponsePart(&llm.ToolResponse{
+					Content: []llm.Part{
+						&llm.ToolResponsePart{
 							ID:    "call_123",
 							Name:  "get_weather",
-							Error: "API rate limit exceeded",
-						}),
+							IsError: true, Result: json.RawMessage(`{"error":"API rate limit exceeded"}`),						},
 					},
 				},
 			},
@@ -559,11 +558,11 @@ func TestMessageMappingWithToolParts(t *testing.T) {
 			messages: []llm.Message{
 				{
 					Role: llm.RoleAssistant,
-					Content: []*llm.Part{
-						llm.NewReasoningPart(&llm.ReasoningTrace{
+					Content: []llm.Part{
+						&llm.ReasoningPart{
 							ID:   "reasoning_123",
 							Text: "Let me think about this step by step...",
-						}),
+						},
 					},
 				},
 			},
@@ -579,29 +578,29 @@ func TestMessageMappingWithToolParts(t *testing.T) {
 			messages: []llm.Message{
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart("Check the weather"),
 					},
 				},
 				{
 					Role: llm.RoleAssistant,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart("I'll check that for you."),
-						llm.NewToolRequestPart(&llm.ToolRequest{
+						&llm.ToolRequestPart{
 							ID:        "call_456",
 							Name:      "get_weather",
 							Arguments: json.RawMessage(`{"location": "London"}`),
-						}),
+						},
 					},
 				},
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
-						llm.NewToolResponsePart(&llm.ToolResponse{
+					Content: []llm.Part{
+						&llm.ToolResponsePart{
 							ID:     "call_456",
 							Name:   "get_weather",
 							Result: json.RawMessage(`{"temperature": "15°C"}`),
-						}),
+						},
 					},
 				},
 			},

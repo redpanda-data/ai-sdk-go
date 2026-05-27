@@ -63,7 +63,7 @@ func TestDeepSeekMultiTurnReasoning(t *testing.T) {
 	// Define reusable message parts
 	userMsg1 := llm.Message{
 		Role: llm.RoleUser,
-		Content: []*llm.Part{
+		Content: []llm.Part{
 			llm.NewTextPart("What is 15 * 23?"),
 		},
 	}
@@ -80,11 +80,10 @@ func TestDeepSeekMultiTurnReasoning(t *testing.T) {
 	var hasReasoning1, hasText1 bool
 
 	for _, part := range response1.Message.Content {
-		if part.IsReasoning() {
+		switch part.(type) {
+		case *llm.ReasoningPart:
 			hasReasoning1 = true
-		}
-
-		if part.IsText() {
+		case *llm.TextPart:
 			hasText1 = true
 		}
 	}
@@ -95,7 +94,7 @@ func TestDeepSeekMultiTurnReasoning(t *testing.T) {
 	// Second turn building on first
 	userMsg2 := llm.Message{
 		Role: llm.RoleUser,
-		Content: []*llm.Part{
+		Content: []llm.Part{
 			llm.NewTextPart("Now add 100 to that result."),
 		},
 	}
@@ -118,11 +117,10 @@ func TestDeepSeekMultiTurnReasoning(t *testing.T) {
 	var hasReasoning2, hasText2 bool
 
 	for _, part := range response2.Message.Content {
-		if part.IsReasoning() {
+		switch part.(type) {
+		case *llm.ReasoningPart:
 			hasReasoning2 = true
-		}
-
-		if part.IsText() {
+		case *llm.TextPart:
 			hasText2 = true
 		}
 	}

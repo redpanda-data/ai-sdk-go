@@ -140,17 +140,12 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 				case part.Text != "":
 					if part.Thought {
 						// Thinking/reasoning part
-						var signature string
-						if len(part.ThoughtSignature) > 0 {
-							signature = string(part.ThoughtSignature)
-						}
-
 						event = llm.ContentPartEvent{
 							Index: idx,
-							Part: llm.NewReasoningPart(&llm.ReasoningTrace{
-								ID:   signature,
-								Text: part.Text,
-							}),
+							Part: &llm.ReasoningPart{
+								Text:      part.Text,
+								Signature: string(part.ThoughtSignature),
+							},
 						}
 					} else {
 						// Regular text delta
@@ -175,20 +170,14 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 					// Generate ID if not provided by Gemini (using cmp.Or pattern from fantasy)
 					id := cmp.Or(part.FunctionCall.ID, uuid.New().String())
 
-					toolPart := llm.NewToolRequestPart(&llm.ToolRequest{
-						ID:        id,
-						Name:      part.FunctionCall.Name,
-						Arguments: argsJSON,
-					})
+					toolPart := llm.NewToolRequestPart(id, part.FunctionCall.Name, argsJSON)
 
 					// Preserve thought signature for Gemini 3 Pro multi-turn conversations
 					// Gemini 3 Pro requires thought signatures to be passed back during function calling
 					if len(part.ThoughtSignature) > 0 {
-						if toolPart.Metadata == nil {
-							toolPart.Metadata = make(map[string]any)
+						toolPart.Metadata = map[string]any{
+							metadataKeyThoughtSignature: part.ThoughtSignature,
 						}
-
-						toolPart.Metadata[metadataKeyThoughtSignature] = part.ThoughtSignature
 					}
 
 					event = llm.ContentPartEvent{

@@ -84,13 +84,13 @@ func TestTodoTools_Integration(t *testing.T) {
 			Messages: []llm.Message{
 				{
 					Role: llm.RoleSystem,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart(systemPrompt),
 					},
 				},
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart(userRequest),
 					},
 				},
@@ -107,7 +107,7 @@ func TestTodoTools_Integration(t *testing.T) {
 		toolRequests := response.ToolRequests()
 		if len(toolRequests) > 0 {
 			// Find the add_todos tool request
-			var addTodosRequest *llm.ToolRequest
+			var addTodosRequest *llm.ToolRequestPart
 
 			for _, req := range toolRequests {
 				if req.Name == "add_todos" {
@@ -121,7 +121,7 @@ func TestTodoTools_Integration(t *testing.T) {
 			// Execute the tool
 			toolResponse, err := registry.Execute(ctx, addTodosRequest)
 			require.NoError(t, err)
-			require.Empty(t, toolResponse.Error, "Tool should execute successfully")
+			require.False(t, toolResponse.IsError, "Tool should execute successfully")
 
 			// Tool returns empty response, just verify it succeeded
 			var toolResult map[string]any
@@ -140,13 +140,13 @@ func TestTodoTools_Integration(t *testing.T) {
 			Messages: []llm.Message{
 				{
 					Role: llm.RoleSystem,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart(systemPrompt),
 					},
 				},
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart(userRequest),
 					},
 				},
@@ -163,7 +163,7 @@ func TestTodoTools_Integration(t *testing.T) {
 		toolRequests := response.ToolRequests()
 		if len(toolRequests) > 0 {
 			// Find the update_todos tool request
-			var updateTodosRequest *llm.ToolRequest
+			var updateTodosRequest *llm.ToolRequestPart
 
 			for _, req := range toolRequests {
 				if req.Name == "update_todos" {
@@ -177,7 +177,7 @@ func TestTodoTools_Integration(t *testing.T) {
 			// Execute the tool
 			toolResponse, err := registry.Execute(ctx, updateTodosRequest)
 			require.NoError(t, err)
-			require.Empty(t, toolResponse.Error, "Tool should execute successfully")
+			require.False(t, toolResponse.IsError, "Tool should execute successfully")
 
 			// Tool returns empty response, just verify it succeeded
 			var toolResult map[string]any
@@ -194,13 +194,13 @@ func TestTodoTools_Integration(t *testing.T) {
 		conversationHistory := []llm.Message{
 			{
 				Role: llm.RoleSystem,
-				Content: []*llm.Part{
+				Content: []llm.Part{
 					llm.NewTextPart(systemPrompt),
 				},
 			},
 			{
 				Role: llm.RoleUser,
-				Content: []*llm.Part{
+				Content: []llm.Part{
 					llm.NewTextPart("I need to add two tasks: 'Write unit tests' (pending) and 'Deploy to staging' (pending)."),
 				},
 			},
@@ -217,7 +217,7 @@ func TestTodoTools_Integration(t *testing.T) {
 		require.NotNil(t, addResponse)
 
 		// Execute any tool calls from the add response
-		var lastToolResponse *llm.ToolResponse
+		var lastToolResponse *llm.ToolResponsePart
 
 		addToolRequests := addResponse.ToolRequests()
 		if len(addToolRequests) > 0 {
@@ -225,7 +225,7 @@ func TestTodoTools_Integration(t *testing.T) {
 				if toolReq.Name == "add_todos" {
 					toolResp, err := registry.Execute(ctx, toolReq)
 					require.NoError(t, err)
-					require.Empty(t, toolResp.Error)
+					require.False(t, toolResp.IsError)
 					lastToolResponse = toolResp
 				}
 			}
@@ -236,15 +236,13 @@ func TestTodoTools_Integration(t *testing.T) {
 		if lastToolResponse != nil {
 			conversationHistory = append(conversationHistory, llm.Message{
 				Role: llm.RoleUser,
-				Content: []*llm.Part{
-					llm.NewToolResponsePart(lastToolResponse),
-				},
+				Content: []llm.Part{lastToolResponse},
 			})
 		}
 
 		conversationHistory = append(conversationHistory, llm.Message{
 			Role: llm.RoleUser,
-			Content: []*llm.Part{
+			Content: []llm.Part{
 				llm.NewTextPart("Now please mark 'Write unit tests' as in progress."),
 			},
 		})
@@ -268,7 +266,7 @@ func TestTodoTools_Integration(t *testing.T) {
 				if toolReq.Name == "update_todos" {
 					toolResp, err := registry.Execute(ctx, toolReq)
 					require.NoError(t, err)
-					require.Empty(t, toolResp.Error, "Update tool should execute successfully")
+					require.False(t, toolResp.IsError, "Update tool should execute successfully")
 
 					// Tool returns empty response, just verify it succeeded
 					var toolResult map[string]any
@@ -280,9 +278,7 @@ func TestTodoTools_Integration(t *testing.T) {
 					conversationHistory = append(conversationHistory, updateResponse.Message)
 					conversationHistory = append(conversationHistory, llm.Message{
 						Role: llm.RoleUser,
-						Content: []*llm.Part{
-							llm.NewToolResponsePart(toolResp),
-						},
+						Content: []llm.Part{toolResp},
 					})
 
 					finalRequest := &llm.Request{

@@ -76,7 +76,7 @@ func TestKVStoreWithSchemaRegistry_WireFormat(t *testing.T) { //nolint:parallelt
 		Messages: []llm.Message{
 			{
 				Role: llm.RoleUser,
-				Content: []*llm.Part{
+				Content: []llm.Part{
 					llm.NewTextPart("Test message for wire format verification"),
 				},
 			},
@@ -203,7 +203,7 @@ func TestKVStoreWithSchemaRegistry_SchemaRegistration(t *testing.T) { //nolint:p
 		Messages: []llm.Message{
 			{
 				Role: llm.RoleAssistant,
-				Content: []*llm.Part{
+				Content: []llm.Part{
 					llm.NewTextPart("Schema registration test"),
 				},
 			},
@@ -275,7 +275,7 @@ func TestKVStoreWithSchemaRegistry_RoundTrip(t *testing.T) { //nolint:parallelte
 			Messages: []llm.Message{
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart("Simple text message"),
 					},
 				},
@@ -286,13 +286,13 @@ func TestKVStoreWithSchemaRegistry_RoundTrip(t *testing.T) { //nolint:parallelte
 			Messages: []llm.Message{
 				{
 					Role: llm.RoleAssistant,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart("Response with tool call"),
-						llm.NewToolRequestPart(&llm.ToolRequest{
+						&llm.ToolRequestPart{
 							ID:        "req-1",
 							Name:      "search",
 							Arguments: []byte(`{"query": "test"}`),
-						}),
+						},
 					},
 				},
 			},
@@ -306,12 +306,12 @@ func TestKVStoreWithSchemaRegistry_RoundTrip(t *testing.T) { //nolint:parallelte
 			Messages: []llm.Message{
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
-						llm.NewToolResponsePart(&llm.ToolResponse{
+					Content: []llm.Part{
+						&llm.ToolResponsePart{
 							ID:     "req-1",
 							Name:   "search",
 							Result: []byte(`{"results": ["item1", "item2"]}`),
-						}),
+						},
 					},
 				},
 			},
@@ -339,7 +339,7 @@ func TestKVStoreWithSchemaRegistry_RoundTrip(t *testing.T) { //nolint:parallelte
 
 			for partIdx, origPart := range origMsg.Content {
 				loadedPart := loadedMsg.Content[partIdx]
-				assert.Equal(t, origPart.Kind, loadedPart.Kind, "message %d part %d kind mismatch", msgIdx, partIdx)
+				assert.IsType(t, origPart, loadedPart, "message %d part %d type mismatch", msgIdx, partIdx)
 			}
 		}
 

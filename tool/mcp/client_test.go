@@ -123,7 +123,7 @@ func (m *mockRegistry) List() []llm.ToolDefinition {
 	return defs
 }
 
-func (m *mockRegistry) Execute(ctx context.Context, req *llm.ToolRequest) (*llm.ToolResponse, error) {
+func (m *mockRegistry) Execute(ctx context.Context, req *llm.ToolRequestPart) (*llm.ToolResponsePart, error) {
 	t, err := m.Get(req.Name)
 	if err != nil {
 		return nil, err
@@ -134,15 +134,15 @@ func (m *mockRegistry) Execute(ctx context.Context, req *llm.ToolRequest) (*llm.
 		return nil, err
 	}
 
-	return &llm.ToolResponse{
+	return &llm.ToolResponsePart{
 		Name:   req.Name,
 		Result: result,
 	}, nil
 }
 
-func (m *mockRegistry) ExecuteAll(ctx context.Context, reqs []*llm.ToolRequest, _ ...tool.BatchOption) []*llm.ToolResponse {
+func (m *mockRegistry) ExecuteAll(ctx context.Context, reqs []*llm.ToolRequestPart, _ ...tool.BatchOption) []*llm.ToolResponsePart {
 	// Simple mock implementation - just call Execute for each request
-	results := make([]*llm.ToolResponse, len(reqs))
+	results := make([]*llm.ToolResponsePart, len(reqs))
 	for i, req := range reqs {
 		resp, _ := m.Execute(ctx, req)
 		results[i] = resp

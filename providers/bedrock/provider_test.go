@@ -600,11 +600,11 @@ func TestRequestMapper_ToolResponse(t *testing.T) {
 	req := &llm.Request{
 		Messages: []llm.Message{
 			llm.NewMessage(llm.RoleUser,
-				llm.NewToolResponsePart(&llm.ToolResponse{
+				&llm.ToolResponsePart{
 					ID:     "toolu_123",
 					Name:   "search",
 					Result: json.RawMessage(`{"results": ["cat1", "cat2"]}`),
-				}),
+				},
 			),
 		},
 	}
@@ -634,11 +634,10 @@ func TestRequestMapper_ToolResponseError(t *testing.T) {
 	req := &llm.Request{
 		Messages: []llm.Message{
 			llm.NewMessage(llm.RoleUser,
-				llm.NewToolResponsePart(&llm.ToolResponse{
+				&llm.ToolResponsePart{
 					ID:    "toolu_123",
 					Name:  "search",
-					Error: "API rate limited",
-				}),
+					IsError: true, Result: json.RawMessage(`{"error":"API rate limited"}`),				},
 			),
 		},
 	}
@@ -665,11 +664,11 @@ func TestRequestMapper_AssistantWithToolUse(t *testing.T) {
 		Messages: []llm.Message{
 			llm.NewMessage(llm.RoleAssistant,
 				llm.NewTextPart("Let me search for that."),
-				llm.NewToolRequestPart(&llm.ToolRequest{
+				&llm.ToolRequestPart{
 					ID:        "toolu_456",
 					Name:      "search",
 					Arguments: json.RawMessage(`{"query":"cats"}`),
-				}),
+				},
 			),
 		},
 	}

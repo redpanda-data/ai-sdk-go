@@ -38,7 +38,7 @@ func TestFakeModel_BasicTextResponse(t *testing.T) {
 		Messages: []llm.Message{
 			{
 				Role:    llm.RoleUser,
-				Content: []*llm.Part{llm.NewTextPart("hello")},
+				Content: []llm.Part{llm.NewTextPart("hello")},
 			},
 		},
 	}
@@ -78,7 +78,7 @@ func TestFakeModel_MultipleRules(t *testing.T) {
 
 			req := &llm.Request{
 				Messages: []llm.Message{
-					{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart(tt.input)}},
+					{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart(tt.input)}},
 				},
 			}
 
@@ -101,7 +101,7 @@ func TestFakeModel_ToolCall(t *testing.T) {
 
 	req := &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("What's the weather?")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("What's the weather?")}},
 		},
 		Tools: []llm.ToolDefinition{
 			{Name: "get_weather", Description: "Get weather for a location"},
@@ -129,7 +129,7 @@ func TestFakeModel_Streaming(t *testing.T) {
 
 	req := &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("test")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("test")}},
 		},
 	}
 
@@ -143,8 +143,8 @@ func TestFakeModel_Streaming(t *testing.T) {
 
 		switch e := event.(type) {
 		case llm.ContentPartEvent:
-			if e.Part.IsText() {
-				chunks = append(chunks, e.Part.Text)
+			if tp, ok := e.Part.(*llm.TextPart); ok {
+				chunks = append(chunks, tp.Text)
 			}
 		case llm.StreamEndEvent:
 			finishEvent = e
@@ -178,7 +178,7 @@ func TestFakeModel_RateLimitOnce(t *testing.T) {
 
 	req := &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("test")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("test")}},
 		},
 	}
 
@@ -202,7 +202,7 @@ func TestFakeModel_ErrorPattern(t *testing.T) {
 
 	req := &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("test")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("test")}},
 		},
 	}
 
@@ -236,7 +236,7 @@ func TestFakeModel_ContextCancellation(t *testing.T) {
 
 	req := &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("test")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("test")}},
 		},
 	}
 
@@ -268,7 +268,7 @@ func TestFakeModel_Scenario_ToolCalling(t *testing.T) {
 	// Turn 0: Initial request
 	req1 := &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("What's the weather in SF?")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("What's the weather in SF?")}},
 		},
 		Tools: []llm.ToolDefinition{
 			{Name: "get_weather"},
@@ -284,16 +284,16 @@ func TestFakeModel_Scenario_ToolCalling(t *testing.T) {
 	// Turn 1: Tool response
 	req2 := &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("What's the weather in SF?")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("What's the weather in SF?")}},
 			resp1.Message, // Include tool request
 			{
 				Role: llm.RoleUser,
-				Content: []*llm.Part{
-					llm.NewToolResponsePart(&llm.ToolResponse{
+				Content: []llm.Part{
+					&llm.ToolResponsePart{
 						ID:     resp1.ToolRequests()[0].ID,
 						Name:   "get_weather",
 						Result: []byte(`{"temperature": 68, "condition": "sunny"}`),
-					}),
+					},
 				},
 			},
 		},
@@ -320,7 +320,7 @@ func TestFakeModel_MidStreamError(t *testing.T) {
 
 	req := &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("test")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("test")}},
 		},
 	}
 
@@ -351,7 +351,7 @@ func TestFakeModel_FallbackBehavior(t *testing.T) {
 
 	req := &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("Hello world")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("Hello world")}},
 		},
 	}
 
@@ -374,7 +374,7 @@ func TestFakeModel_LatencySimulation(t *testing.T) {
 
 	req := &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("test")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("test")}},
 		},
 	}
 
@@ -435,7 +435,7 @@ func TestFakeModel_ComplexMatchers(t *testing.T) {
 	// Test AND matcher
 	req1 := &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("What's the weather?")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("What's the weather?")}},
 		},
 		Tools:    []llm.ToolDefinition{{Name: "get_weather"}},
 		Metadata: map[string]string{"session_id": "test"},
@@ -448,7 +448,7 @@ func TestFakeModel_ComplexMatchers(t *testing.T) {
 	// Test OR matcher
 	req2 := &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("hi")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("hi")}},
 		},
 	}
 
@@ -466,7 +466,7 @@ func TestFakeModel_TokenCounting(t *testing.T) {
 
 	req := &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("Hello")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("Hello")}},
 		},
 	}
 
@@ -503,7 +503,7 @@ func TestFakeModel_ToolCallingLoop(t *testing.T) {
 	// Turn 0: Model requests tool call
 	req1 := &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("What is 2 + 2?")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("What is 2 + 2?")}},
 		},
 		Tools:    []llm.ToolDefinition{{Name: "calculate"}},
 		Metadata: map[string]string{"session_id": "calc-session"},
@@ -516,13 +516,13 @@ func TestFakeModel_ToolCallingLoop(t *testing.T) {
 	// Turn 1: Provide tool result, model responds with final answer
 	req2 := &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("What is 2 + 2?")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("What is 2 + 2?")}},
 			resp1.Message,
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewToolResponsePart(&llm.ToolResponse{
+			{Role: llm.RoleUser, Content: []llm.Part{&llm.ToolResponsePart{
 				ID:     resp1.ToolRequests()[0].ID,
 				Name:   "calculate",
 				Result: []byte(`{"result": 4}`),
-			})}},
+			}}},
 		},
 		Tools:    []llm.ToolDefinition{{Name: "calculate"}},
 		Metadata: map[string]string{"session_id": "calc-session"},

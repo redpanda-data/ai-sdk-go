@@ -50,13 +50,13 @@ type Registry interface {
 	// Execute runs a tool synchronously and returns the complete result.
 	// Returns (nil, error) for validation errors; otherwise returns a ToolResponse with
 	// execution errors encoded in the Error field.
-	Execute(ctx context.Context, req *llm.ToolRequest) (*llm.ToolResponse, error)
+	Execute(ctx context.Context, req *llm.ToolRequestPart) (*llm.ToolResponsePart, error)
 
 	// ExecuteAll runs multiple tool requests concurrently with optional concurrency limits.
 	// Always returns len(reqs) responses in the same order. All failures (tool errors,
 	// timeouts, cancellation) are encoded in ToolResponse.Error, never as a top-level error.
 	// This ensures callers get a uniform response shape regardless of failure mode.
-	ExecuteAll(ctx context.Context, reqs []*llm.ToolRequest, opts ...BatchOption) []*llm.ToolResponse
+	ExecuteAll(ctx context.Context, reqs []*llm.ToolRequestPart, opts ...BatchOption) []*llm.ToolResponsePart
 }
 
 // RegistryConfig configures the overall registry behavior.
@@ -70,7 +70,7 @@ type RegistryConfig struct {
 // This allows tools to access registry-level services and configuration.
 type ExecutionContext struct {
 	// Original LLM request for context
-	ToolRequest *llm.ToolRequest
+	ToolRequest *llm.ToolRequestPart
 
 	// Tool configuration
 	Config *Config
@@ -174,7 +174,7 @@ func (r *registry) Get(name string) (Tool, error) {
 }
 
 // Execute runs a tool synchronously and returns the complete result.
-func (r *registry) Execute(ctx context.Context, req *llm.ToolRequest) (*llm.ToolResponse, error) {
+func (r *registry) Execute(ctx context.Context, req *llm.ToolRequestPart) (*llm.ToolResponsePart, error) {
 	if req == nil {
 		return nil, ErrToolRequestNil
 	}
@@ -185,11 +185,7 @@ func (r *registry) Execute(ctx context.Context, req *llm.ToolRequest) (*llm.Tool
 	r.mu.RUnlock()
 
 	if !exists {
-		return &llm.ToolResponse{
-			ID:    req.ID,
-			Name:  req.Name,
-			Error: fmt.Sprintf("%v: %q", ErrToolNotFound, req.Name),
-		}, nil
+		return errorToolResponse(req, fmt.Sprintf("%v: %q", ErrToolNotFound, req.Name)), nil
 	}
 
 	// Apply timeout if configured
@@ -208,37 +204,43 @@ func (r *registry) Execute(ctx context.Context, req *llm.ToolRequest) (*llm.Tool
 	if err != nil {
 		// Check if it's a timeout
 		if errors.Is(executeCtx.Err(), context.DeadlineExceeded) {
-			return &llm.ToolResponse{
-				ID:    req.ID,
-				Name:  req.Name,
-				Error: fmt.Sprintf("%v after %s", ErrToolExecutionTimeout, registered.config.Timeout),
-			}, nil
+			return errorToolResponse(req, fmt.Sprintf("%v after %s", ErrToolExecutionTimeout, registered.config.Timeout)), nil
 		}
 
 		// Other execution errors
-		return &llm.ToolResponse{
-			ID:    req.ID,
-			Name:  req.Name,
-			Error: err.Error(),
-		}, nil
+		return errorToolResponse(req, err.Error()), nil
 	}
 
 	// Check response size and apply limits
 	processedResult, err := r.enforceResponseSizeLimit(result, &registered.config)
 	if err != nil {
-		return &llm.ToolResponse{
-			ID:    req.ID,
-			Name:  req.Name,
-			Error: fmt.Sprintf("failed to process response: %v", err),
-		}, nil
+		return errorToolResponse(req, fmt.Sprintf("failed to process response: %v", err)), nil
 	}
 
 	// Success
-	return &llm.ToolResponse{
+	return &llm.ToolResponsePart{
 		ID:     req.ID,
 		Name:   req.Name,
 		Result: processedResult,
 	}, nil
+}
+
+// errorToolResponse builds a ToolResponsePart carrying an error payload.
+// The error message is encoded as JSON {"error":"..."} in Result and IsError is set.
+func errorToolResponse(req *llm.ToolRequestPart, message string) *llm.ToolResponsePart {
+	payload, err := json.Marshal(map[string]string{"error": message})
+	if err != nil {
+		// json.Marshal on map[string]string cannot fail; fall back to a raw
+		// JSON-safe payload so we still return a well-formed result.
+		payload = []byte(`{"error":"tool error"}`)
+	}
+
+	return &llm.ToolResponsePart{
+		ID:      req.ID,
+		Name:    req.Name,
+		Result:  payload,
+		IsError: true,
+	}
 }
 
 // ExecuteAll implements Registry.ExecuteAll.
@@ -250,10 +252,10 @@ func (r *registry) Execute(ctx context.Context, req *llm.ToolRequest) (*llm.Tool
 // This "best-effort" pattern ensures callers always get a predictable response
 // structure with len(reqs) entries, making it simpler to process results without
 // checking for top-level errors.
-func (r *registry) ExecuteAll(ctx context.Context, reqs []*llm.ToolRequest, opts ...BatchOption) []*llm.ToolResponse {
+func (r *registry) ExecuteAll(ctx context.Context, reqs []*llm.ToolRequestPart, opts ...BatchOption) []*llm.ToolResponsePart {
 	n := len(reqs)
 	if n == 0 {
-		return []*llm.ToolResponse{}
+		return []*llm.ToolResponsePart{}
 	}
 
 	cfg := defaultBatchConfig()
@@ -266,7 +268,7 @@ func (r *registry) ExecuteAll(ctx context.Context, reqs []*llm.ToolRequest, opts
 		concurrency = n
 	}
 
-	results := make([]*llm.ToolResponse, n)
+	results := make([]*llm.ToolResponsePart, n)
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(concurrency)
 
@@ -288,9 +290,7 @@ func (r *registry) ExecuteAll(ctx context.Context, reqs []*llm.ToolRequest, opts
 	if ctx.Err() != nil {
 		for i := range results {
 			if results[i] == nil {
-				results[i] = &llm.ToolResponse{
-					Error: ctx.Err().Error(),
-				}
+				results[i] = errorToolResponse(&llm.ToolRequestPart{}, ctx.Err().Error())
 			}
 		}
 	}
@@ -331,18 +331,23 @@ func (*registry) enforceResponseSizeLimit(result json.RawMessage, config *Config
 
 // executeOne is a helper that handles nil requests and calls Execute.
 // It always returns a non-nil ToolResponse, with errors populated in the Error field.
-func (r *registry) executeOne(ctx context.Context, req *llm.ToolRequest) (*llm.ToolResponse, error) {
+func (r *registry) executeOne(ctx context.Context, req *llm.ToolRequestPart) (*llm.ToolResponsePart, error) {
 	if req == nil {
-		return &llm.ToolResponse{Error: ErrToolRequestNil.Error()}, ErrToolRequestNil
+		return errorToolResponse(&llm.ToolRequestPart{}, ErrToolRequestNil.Error()), ErrToolRequestNil
 	}
 
 	resp, err := r.Execute(ctx, req)
 	if resp == nil {
-		resp = &llm.ToolResponse{ID: req.ID, Name: req.Name}
+		resp = &llm.ToolResponsePart{ID: req.ID, Name: req.Name}
 	}
 
 	if err != nil {
-		resp.Error = err.Error()
+		resp.IsError = true
+
+		payload, mErr := json.Marshal(map[string]string{"error": err.Error()})
+		if mErr == nil {
+			resp.Result = payload
+		}
 	}
 
 	return resp, err

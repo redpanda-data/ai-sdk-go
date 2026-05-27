@@ -48,7 +48,7 @@ func TestGeminiCachedTokens_Integration(t *testing.T) {
 	messages := []llm.Message{
 		{
 			Role: llm.RoleUser,
-			Content: []*llm.Part{
+			Content: []llm.Part{
 				llm.NewTextPart(longContext + "\n\nQuestion 1: Say 'yes' if you understand."),
 			},
 		},
@@ -71,7 +71,7 @@ func TestGeminiCachedTokens_Integration(t *testing.T) {
 	})
 	messages = append(messages, llm.Message{
 		Role: llm.RoleUser,
-		Content: []*llm.Part{
+		Content: []llm.Part{
 			llm.NewTextPart("Question 2: Say 'ok'."),
 		},
 	})
@@ -91,7 +91,7 @@ func TestGeminiCachedTokens_Integration(t *testing.T) {
 	})
 	messages = append(messages, llm.Message{
 		Role: llm.RoleUser,
-		Content: []*llm.Part{
+		Content: []llm.Part{
 			llm.NewTextPart("Question 3: Say 'ok' again."),
 		},
 	})
@@ -111,7 +111,7 @@ func TestGeminiCachedTokens_Integration(t *testing.T) {
 	})
 	messages = append(messages, llm.Message{
 		Role: llm.RoleUser,
-		Content: []*llm.Part{
+		Content: []llm.Part{
 			llm.NewTextPart("Question 4: Say 'yes'."),
 		},
 	})
@@ -131,7 +131,7 @@ func TestGeminiCachedTokens_Integration(t *testing.T) {
 	})
 	messages = append(messages, llm.Message{
 		Role: llm.RoleUser,
-		Content: []*llm.Part{
+		Content: []llm.Part{
 			llm.NewTextPart("Question 5: Say 'ok' one last time."),
 		},
 	})

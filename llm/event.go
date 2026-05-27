@@ -14,6 +14,8 @@
 
 package llm
 
+import "encoding/json"
+
 // Event represents all possible events that can occur during streaming.
 // This is a discriminated union implemented using Go interfaces.
 // The isStreamEvent() method is a type constraint that prevents external types
@@ -39,7 +41,49 @@ type ContentPartEvent struct {
 	// - Text Parts: can be incremental deltas (tokens/words) for responsive display
 	// - Tool Call Parts: always complete and valid JSON, ready for execution
 	// - Other content types: depends on provider capabilities
-	Part *Part `json:"part"`
+	Part Part `json:"part"`
+}
+
+// MarshalJSON encodes a ContentPartEvent using the Part discriminator envelope.
+func (e ContentPartEvent) MarshalJSON() ([]byte, error) {
+	partBytes, err := MarshalPart(e.Part)
+	if err != nil {
+		return nil, err
+	}
+
+	return json.Marshal(struct {
+		Index int             `json:"index"`
+		Part  json.RawMessage `json:"part"`
+	}{e.Index, partBytes})
+}
+
+// UnmarshalJSON decodes a ContentPartEvent previously produced by MarshalJSON.
+func (e *ContentPartEvent) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		Index int             `json:"index"`
+		Part  json.RawMessage `json:"part"`
+	}
+
+	err := json.Unmarshal(data, &raw)
+	if err != nil {
+		return err
+	}
+
+	e.Index = raw.Index
+
+	if len(raw.Part) == 0 {
+		e.Part = nil
+		return nil
+	}
+
+	part, err := UnmarshalPart(raw.Part)
+	if err != nil {
+		return err
+	}
+
+	e.Part = part
+
+	return nil
 }
 
 // isStreamEvent implements the StreamEvent interface constraint.

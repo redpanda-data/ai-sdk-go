@@ -161,13 +161,13 @@ func TestWebFetch_PromptInjectionFencing_Integration(t *testing.T) {
 			Messages: []llm.Message{
 				{
 					Role: llm.RoleSystem,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart(systemPrompt),
 					},
 				},
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart(fmt.Sprintf("%s The URL is: %s", userQuestion, server.URL)),
 					},
 				},
@@ -211,13 +211,13 @@ func TestWebFetch_PromptInjectionFencing_Integration(t *testing.T) {
 			Messages: []llm.Message{
 				{
 					Role: llm.RoleSystem,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart(systemPrompt),
 					},
 				},
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart(fmt.Sprintf("%s The URL is: %s", userQuestion, server.URL)),
 					},
 				},
@@ -227,9 +227,7 @@ func TestWebFetch_PromptInjectionFencing_Integration(t *testing.T) {
 				},
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
-						llm.NewToolResponsePart(toolResponse),
-					},
+					Content: []llm.Part{toolResponse},
 				},
 			},
 		}
@@ -297,13 +295,13 @@ func TestWebFetch_PromptInjectionFencing_Integration(t *testing.T) {
 			Messages: []llm.Message{
 				{
 					Role: llm.RoleSystem,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart(systemPrompt),
 					},
 				},
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart(fmt.Sprintf("%s The URL is: %s", userQuestion, server.URL)),
 					},
 				},
@@ -347,13 +345,13 @@ func TestWebFetch_PromptInjectionFencing_Integration(t *testing.T) {
 			Messages: []llm.Message{
 				{
 					Role: llm.RoleSystem,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart(systemPrompt),
 					},
 				},
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart(fmt.Sprintf("%s The URL is: %s", userQuestion, server.URL)),
 					},
 				},
@@ -363,9 +361,7 @@ func TestWebFetch_PromptInjectionFencing_Integration(t *testing.T) {
 				},
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
-						llm.NewToolResponsePart(toolResponse),
-					},
+					Content: []llm.Part{toolResponse},
 				},
 			},
 		}

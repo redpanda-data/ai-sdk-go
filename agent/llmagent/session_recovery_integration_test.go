@@ -218,7 +218,7 @@ func TestSessionRecovery_Multiple(t *testing.T) {
 }
 
 // loadRecoverySession parses a protojson session and extracts incomplete tool requests.
-func loadRecoverySession(t *testing.T, data []byte) (*session.State, []*llm.ToolRequest) {
+func loadRecoverySession(t *testing.T, data []byte) (*session.State, []*llm.ToolRequestPart) {
 	t.Helper()
 
 	var protoState llmpb.SessionState

@@ -172,7 +172,8 @@ func (e *Executor) processEvents(
 			e.log.DebugContext(ctx, "Tool response event", "tool", ev.Response.Name)
 
 			// Add tool response to history as a user message
-			llmMsg := llm.NewMessage(llm.RoleUser, llm.NewToolResponsePart(&ev.Response))
+			resp := ev.Response
+			llmMsg := llm.NewMessage(llm.RoleUser, &resp)
 			a2amsg := MessageFromLLM(llmMsg)
 			historyStatus := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateWorking, a2amsg)
 			write(historyStatus)
@@ -216,15 +217,15 @@ func (e *Executor) processEvents(
 			}
 		case agent.AssistantDeltaEvent:
 			// Stream delta updates as incremental artifact chunks
-			if ev.Delta.Part != nil && ev.Delta.Part.IsText() {
+			if tp, ok := ev.Delta.Part.(*llm.TextPart); ok && tp != nil {
 				var artifact *a2a.TaskArtifactUpdateEvent
 				if currentArtifactID == "" {
 					// Create new artifact for streaming
-					artifact = a2a.NewArtifactEvent(reqCtx, a2a.TextPart{Text: ev.Delta.Part.Text})
+					artifact = a2a.NewArtifactEvent(reqCtx, a2a.TextPart{Text: tp.Text})
 					currentArtifactID = artifact.Artifact.ID
 				} else {
 					// Append to existing artifact
-					artifact = a2a.NewArtifactUpdateEvent(reqCtx, currentArtifactID, a2a.TextPart{Text: ev.Delta.Part.Text})
+					artifact = a2a.NewArtifactUpdateEvent(reqCtx, currentArtifactID, a2a.TextPart{Text: tp.Text})
 					artifact.Append = true
 				}
 

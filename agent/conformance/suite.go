@@ -102,7 +102,7 @@ func testBasicToolCalling(t *testing.T, fixture Fixture) {
 
 	// Verify tool result received
 	require.NotEmpty(t, toolResultEvents, "should receive tool result")
-	assert.Empty(t, toolResultEvents[0].Response.Error, "tool execution should succeed")
+	assert.False(t, toolResultEvents[0].Response.IsError, "tool execution should succeed")
 
 	// Verify final response
 	require.NotNil(t, endEvent, "should receive InvocationEndEvent")

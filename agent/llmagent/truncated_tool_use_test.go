@@ -53,7 +53,7 @@ func TestRun_TruncatedTurnStopsBeforeToolExecution(t *testing.T) {
 	// finalisation, so it never shows up here. FinishReasonLength is what
 	// the fixed response mapper now lets through instead of clamping to
 	// ToolCalls.
-	toolCalls := []*llm.ToolRequest{
+	toolCalls := []*llm.ToolRequestPart{
 		{
 			ID:        "call_1",
 			Name:      "db_query",
@@ -69,9 +69,9 @@ func TestRun_TruncatedTurnStopsBeforeToolExecution(t *testing.T) {
 	model := fakellm.NewFakeModel()
 	model.When(fakellm.Any()).
 		ThenRespondWith(func(_ *llm.Request, _ *fakellm.CallContext) (*llm.Response, error) {
-			content := make([]*llm.Part, 0, len(toolCalls))
+			content := make([]llm.Part, 0, len(toolCalls))
 			for _, tr := range toolCalls {
-				content = append(content, llm.NewToolRequestPart(tr))
+				content = append(content, tr)
 			}
 
 			return &llm.Response{
@@ -120,8 +120,8 @@ func TestRun_TruncatedTurnStopsBeforeToolExecution(t *testing.T) {
 	var persistedToolCalls []string
 
 	for _, part := range assistant.Content {
-		if part.IsToolRequest() {
-			persistedToolCalls = append(persistedToolCalls, part.ToolRequest.ID)
+		if tr, ok := part.(*llm.ToolRequestPart); ok {
+			persistedToolCalls = append(persistedToolCalls, tr.ID)
 		}
 	}
 
