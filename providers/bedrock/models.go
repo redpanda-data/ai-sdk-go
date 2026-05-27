@@ -172,14 +172,12 @@ var (
 		TemperatureRange: [2]float64{0.0, 1.0},
 		MaxInputTokens:   1000000,
 		MaxOutputTokens:  128000,
-		SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 	}
 
 	claudeContext200kConstraints = llm.ModelConstraints{
 		TemperatureRange: [2]float64{0.0, 1.0},
 		MaxInputTokens:   200000,
 		MaxOutputTokens:  64000,
-		SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 	}
 )
 

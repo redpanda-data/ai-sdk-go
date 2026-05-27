@@ -203,23 +203,23 @@ type EventsGenerator interface {
 // It combines metadata, generation, and streaming capabilities into a single interface.
 //
 // All provider implementations must support both streaming and non-streaming generation.
-// If a provider doesn't support streaming, GenerateStream should return ErrUnsupportedFeature.
+// If a provider doesn't support streaming, GenerateEvents should return ErrUnsupportedFeature.
 //
 // Design Note: Consumer code should prefer the narrowest interface needed:
 //   - Use ModelInfo when you only need metadata
 //   - Use Generator when you only need non-streaming generation
-//   - Use StreamGenerator when you only need streaming
+//   - Use EventsGenerator when you only need streaming
 //   - Use Model when you need the complete feature set
 //
 // Example usage patterns:
 //
 //	// Prefer narrow interfaces in function signatures:
 //	func processText(gen llm.Generator) { ... }
-//	func streamChat(sg llm.StreamGenerator) { ... }
+//	func streamChat(eg llm.EventsGenerator) { ... }
 //
 //	// Use type assertions for optional streaming:
-//	if sg, ok := model.(llm.StreamGenerator); ok {
-//		return streamResponse(sg)
+//	if eg, ok := model.(llm.EventsGenerator); ok {
+//		return streamResponse(eg)
 //	}
 //	return batchResponse(model)
 type Model interface {

@@ -168,7 +168,6 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 		MaxTokens:        4096, // Default required by Anthropic API
 		EnableCaching:    p.EnableCaching,
 		AdaptiveThinking: modelDef.AdaptiveThinking,
-		setOptions:       make(map[string]bool),
 	}
 
 	// Apply all options with validation

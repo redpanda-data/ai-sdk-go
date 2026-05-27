@@ -82,11 +82,9 @@ var supportedModels = map[string]ModelDefinition{
 			Reasoning:        true,
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    1048576,
-			MaxOutputTokens:   65535,
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
-			MutuallyExclusive: [][]string{},
+			TemperatureRange: [2]float64{0.0, 2.0},
+			MaxInputTokens:   1048576,
+			MaxOutputTokens:  65535,
 		},
 		Pricing: pricing.FlatInfo(1.50, 9.00, 0.15),
 	},
@@ -104,11 +102,9 @@ var supportedModels = map[string]ModelDefinition{
 			Reasoning:        true,
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    1048576, // 1M input tokens
-			MaxOutputTokens:   65535,   // 64K output tokens
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
-			MutuallyExclusive: [][]string{},
+			TemperatureRange: [2]float64{0.0, 2.0},
+			MaxInputTokens:   1048576, // 1M input tokens
+			MaxOutputTokens:  65535,   // 64K output tokens
 		},
 		Pricing: pricing.TieredInfo(
 			pricing.NewRates(2.00, 12.00, 0.20),
@@ -132,11 +128,9 @@ var supportedModels = map[string]ModelDefinition{
 			Reasoning:        true, // Gemini 3 has thinking support
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    1048576, // 1M input tokens
-			MaxOutputTokens:   65535,   // 65K output tokens
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
-			MutuallyExclusive: [][]string{},
+			TemperatureRange: [2]float64{0.0, 2.0},
+			MaxInputTokens:   1048576, // 1M input tokens
+			MaxOutputTokens:  65535,   // 65K output tokens
 		},
 		Pricing: pricing.TieredInfo(
 			pricing.NewRates(2.00, 12.00, 0.20),
@@ -160,11 +154,9 @@ var supportedModels = map[string]ModelDefinition{
 			Reasoning:        true, // Gemini 3 has thinking support
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    1048576, // 1M input tokens
-			MaxOutputTokens:   65535,   // 65K output tokens
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
-			MutuallyExclusive: [][]string{},
+			TemperatureRange: [2]float64{0.0, 2.0},
+			MaxInputTokens:   1048576, // 1M input tokens
+			MaxOutputTokens:  65535,   // 65K output tokens
 		},
 		Pricing: pricing.FlatInfo(0.50, 3.00, 0.05),
 	},
@@ -182,11 +174,9 @@ var supportedModels = map[string]ModelDefinition{
 			Reasoning:        true, // Gemini 2.5 has thinking support
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    1048576, // 1M input tokens
-			MaxOutputTokens:   65535,   // 65K output tokens
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
-			MutuallyExclusive: [][]string{},
+			TemperatureRange: [2]float64{0.0, 2.0},
+			MaxInputTokens:   1048576, // 1M input tokens
+			MaxOutputTokens:  65535,   // 65K output tokens
 		},
 		Pricing: pricing.TieredInfo(
 			pricing.NewRates(1.25, 10.00, 0.125),
@@ -210,11 +200,9 @@ var supportedModels = map[string]ModelDefinition{
 			Reasoning:        true, // Thinking support
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    1048576, // 1M input tokens
-			MaxOutputTokens:   65535,   // 65K output tokens
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
-			MutuallyExclusive: [][]string{},
+			TemperatureRange: [2]float64{0.0, 2.0},
+			MaxInputTokens:   1048576, // 1M input tokens
+			MaxOutputTokens:  65535,   // 65K output tokens
 		},
 		Pricing: pricing.FlatInfo(0.30, 2.50, 0.03),
 	},
@@ -232,11 +220,9 @@ var supportedModels = map[string]ModelDefinition{
 			Reasoning:        true, // Thinking support
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    1048576, // 1M input tokens
-			MaxOutputTokens:   65535,   // 65K output tokens
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
-			MutuallyExclusive: [][]string{},
+			TemperatureRange: [2]float64{0.0, 2.0},
+			MaxInputTokens:   1048576, // 1M input tokens
+			MaxOutputTokens:  65535,   // 65K output tokens
 		},
 		Pricing: pricing.FlatInfo(0.10, 0.40, 0.01),
 	},
