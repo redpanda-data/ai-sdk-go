@@ -71,6 +71,14 @@ const (
 	ModelClaudeHaiku45EU     = "eu." + ModelClaudeHaiku45
 	ModelClaudeHaiku45AU     = "au." + ModelClaudeHaiku45
 
+	// ModelClaudeOpus48 is the bare Bedrock ID for Claude Opus 4.8
+	// (inference-profile-only — invoke via one of the prefixed variants).
+	ModelClaudeOpus48       = "anthropic.claude-opus-4-8"
+	ModelClaudeOpus48Global = "global." + ModelClaudeOpus48
+	ModelClaudeOpus48US     = "us." + ModelClaudeOpus48
+	ModelClaudeOpus48EU     = "eu." + ModelClaudeOpus48
+	ModelClaudeOpus48JP     = "jp." + ModelClaudeOpus48
+
 	// ModelClaudeOpus47 is the bare Bedrock ID for Claude Opus 4.7
 	// (inference-profile-only — invoke via one of the prefixed variants).
 	ModelClaudeOpus47       = "anthropic.claude-opus-4-7"
@@ -195,6 +203,47 @@ var (
 //   - global. profiles use the "Global Cross-region Inference" rate, which
 //     is exactly 10% cheaper than the geo rate for the same model.
 var supportedModels = map[string]ModelDefinition{
+	// ----------------------------------------------------------------
+	// Claude Opus 4.8 — inference-profile-only, no bare entry. Geo
+	// profiles cover us, eu, jp (au is not published).
+	// ----------------------------------------------------------------
+	ModelClaudeOpus48Global: {
+		Name:         ModelClaudeOpus48Global,
+		Label:        "Claude Opus 4.8 (Global)",
+		Capabilities: claudeStandardCaps,
+		Constraints:  claudeContext1MConstraints,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
+		),
+	},
+	ModelClaudeOpus48US: {
+		Name:         ModelClaudeOpus48US,
+		Label:        "Claude Opus 4.8 (US)",
+		Capabilities: claudeStandardCaps,
+		Constraints:  claudeContext1MConstraints,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
+		),
+	},
+	ModelClaudeOpus48EU: {
+		Name:         ModelClaudeOpus48EU,
+		Label:        "Claude Opus 4.8 (EU)",
+		Capabilities: claudeStandardCaps,
+		Constraints:  claudeContext1MConstraints,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
+		),
+	},
+	ModelClaudeOpus48JP: {
+		Name:         ModelClaudeOpus48JP,
+		Label:        "Claude Opus 4.8 (JP)",
+		Capabilities: claudeStandardCaps,
+		Constraints:  claudeContext1MConstraints,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
+		),
+	},
+
 	// ----------------------------------------------------------------
 	// Claude Opus 4.7 — inference-profile-only, no bare entry. Geo
 	// profiles cover us, eu, jp (au is not published).

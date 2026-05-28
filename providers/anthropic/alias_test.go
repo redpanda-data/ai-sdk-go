@@ -60,6 +60,16 @@ func TestModelResolution(t *testing.T) {
 			expectedModel: "claude-opus-4-6",
 		},
 		{
+			name:          "claude-opus-4-8 family name resolves",
+			modelKey:      "claude-opus-4-8",
+			expectedModel: "claude-opus-4-8",
+		},
+		{
+			name:          "claude-opus-4-8 timestamped preserves original",
+			modelKey:      "claude-opus-4-8-20260528",
+			expectedModel: "claude-opus-4-8-20260528",
+		},
+		{
 			name:          "claude-opus-4-7 family name resolves",
 			modelKey:      "claude-opus-4-7",
 			expectedModel: "claude-opus-4-7",

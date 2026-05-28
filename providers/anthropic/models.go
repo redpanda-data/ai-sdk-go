@@ -28,6 +28,7 @@ const (
 	ModelClaudeSonnet46 = "claude-sonnet-4-6"
 	ModelClaudeSonnet45 = "claude-sonnet-4-5"
 	ModelClaudeHaiku45  = "claude-haiku-4-5"
+	ModelClaudeOpus48   = "claude-opus-4-8"
 	ModelClaudeOpus47   = "claude-opus-4-7"
 	ModelClaudeOpus46   = "claude-opus-4-6"
 	ModelClaudeOpus45   = "claude-opus-4-5"
@@ -94,6 +95,44 @@ func resolveModelFamily(model string) string {
 // supportedModels defines all Claude models with their capabilities and constraints.
 // Based on Anthropic API documentation and model specifications.
 var supportedModels = map[string]ModelDefinition{
+	ModelClaudeOpus48: {
+		Name:  ModelClaudeOpus48,
+		Label: "Claude Opus 4.8",
+		Capabilities: llm.ModelCapabilities{
+			Streaming:        true,
+			Tools:            true,
+			JSONMode:         false, // Anthropic doesn't have native JSON mode
+			StructuredOutput: false, // Use tool calling for structured output instead
+			Vision:           true,
+			MultiTurn:        true,
+			SystemPrompts:    true,
+			Reasoning:        true, // Adaptive thinking only; use effort to bias toward more/less thinking
+		},
+		Constraints: llm.ModelConstraints{
+			TemperatureRange: [2]float64{0.0, 1.0},
+			MaxInputTokens:   1000000, // 1M context window
+			MaxOutputTokens:  128000,  // 128K output tokens
+			// Opus 4.8 rejects thinking.type.enabled — thinking budget is not user-controllable.
+			// Use adaptive thinking + effort to bias reasoning depth.
+			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "effort", "speed"},
+			MutuallyExclusive: [][]string{},
+		},
+		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax},
+		SupportedSpeeds:  []Speed{SpeedStandard, SpeedFast},
+		AdaptiveThinking: true,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
+		).WithOverride(
+			pricing.Selector{Speed: SpeedFast},
+			pricing.RateCard{
+				// Opus 4.8 fast mode is 3x cheaper than Opus 4.6/4.7's fast mode.
+				// Cache rates derived from Anthropic's prompt-caching multipliers
+				// (5m-write = 1.25x base input, 1h-write = 2x, cache-read = 0.10x).
+				Base: pricing.NewRates(10.00, 50.00, 1.00).
+					WithCacheCreation(12.50, 20.00, 0),
+			},
+		),
+	},
 	ModelClaudeOpus47: {
 		Name:  ModelClaudeOpus47,
 		Label: "Claude Opus 4.7",
