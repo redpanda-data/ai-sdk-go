@@ -18,6 +18,10 @@ Thumbs.db
 # Test binary, built with `go test -c`
 *.test
 
+# Compiled example binaries (named after their module/directory)
+examples/agent_as_tool/agent_as_tool
+examples/agent_interceptors/agent_hooks
+
 # Code coverage profiles and other test artifacts
 *.out
 coverage.*
