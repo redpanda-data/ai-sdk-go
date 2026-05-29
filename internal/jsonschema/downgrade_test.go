@@ -133,78 +133,54 @@ func TestCollapseDynamicNodes(t *testing.T) {
 	})
 }
 
-func TestStripUnsupportedOpenAIKeywords(t *testing.T) {
+func TestWalk(t *testing.T) {
 	t.Parallel()
 
-	t.Run("format byte removed, base64 hint folded into description", func(t *testing.T) {
-		t.Parallel()
-
-		n := map[string]any{"type": "string", "format": "byte", "contentEncoding": "base64"}
-		StripUnsupportedOpenAIKeywords(n)
-		_, hasFormat := n["format"]
-		assert.False(t, hasFormat)
-
-		_, hasEnc := n["contentEncoding"]
-		assert.False(t, hasEnc)
-		assert.Contains(t, n["description"], "Base64")
-	})
-
-	t.Run("supported formats are kept", func(t *testing.T) {
-		t.Parallel()
-
-		for _, f := range []string{"date-time", "uuid", "email"} {
-			n := map[string]any{"type": "string", "format": f}
-			StripUnsupportedOpenAIKeywords(n)
-			assert.Equal(t, f, n["format"], "format %q should survive", f)
-		}
-	})
-
-	t.Run("propertyNames and patternProperties removed", func(t *testing.T) {
-		t.Parallel()
-
-		n := map[string]any{
-			"type":              "object",
-			"propertyNames":     map[string]any{"pattern": "^x"},
-			"patternProperties": map[string]any{"^y": map[string]any{"type": "string"}},
-		}
-		StripUnsupportedOpenAIKeywords(n)
-		_, hasPN := n["propertyNames"]
-		_, hasPP := n["patternProperties"]
-
-		assert.False(t, hasPN)
-		assert.False(t, hasPP)
-	})
-
-	t.Run("recurses into nested properties and items", func(t *testing.T) {
-		t.Parallel()
-
-		n := map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"blob": map[string]any{"type": "string", "format": "byte"},
-				"list": map[string]any{
-					"type":  "array",
-					"items": map[string]any{"type": "string", "contentEncoding": "base64"},
-				},
+	// Walk must visit every schema-object node through the standard
+	// subschema-bearing keywords, and fn runs before recursion.
+	schema := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"a": map[string]any{"type": "string"},
+			"b": map[string]any{
+				"type":  "array",
+				"items": map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "integer"}},
 			},
-		}
-		StripUnsupportedOpenAIKeywords(n)
-		props := mp(n["properties"])
-		_, blobFmt := mp(props["blob"])["format"]
-		assert.False(t, blobFmt)
+		},
+		"anyOf": []any{map[string]any{"type": "null"}},
+	}
+	var types []string
 
-		_, itemEnc := mp(mp(props["list"])["items"])["contentEncoding"]
-		assert.False(t, itemEnc)
+	Walk(schema, func(obj map[string]any) {
+		if t, ok := obj["type"].(string); ok {
+			types = append(types, t)
+		}
 	})
 
-	t.Run("does not mutate beyond the listed keywords", func(t *testing.T) {
+	for _, want := range []string{"object", "string", "array", "object", "integer", "null"} {
+		assert.Contains(t, types, want)
+	}
+}
+
+func TestDeepCopy(t *testing.T) {
+	t.Parallel()
+
+	t.Run("independent copy", func(t *testing.T) {
 		t.Parallel()
 
-		n := map[string]any{"type": "string", "minLength": 3, "maxLength": 5, "pattern": "^a"}
-		StripUnsupportedOpenAIKeywords(n)
-		require.Equal(t, "string", n["type"])
-		assert.Equal(t, 3, n["minLength"])
-		assert.Equal(t, 5, n["maxLength"])
-		assert.Equal(t, "^a", n["pattern"])
+		orig := map[string]any{"type": "object", "properties": map[string]any{"a": map[string]any{"type": "string"}}}
+		cp, err := DeepCopy(orig)
+		require.NoError(t, err)
+
+		// Mutating the copy (including nested maps) must not touch the original.
+		mp(cp["properties"])["a"] = "mutated"
+		assert.Equal(t, map[string]any{"type": "string"}, mp(orig["properties"])["a"])
+	})
+
+	t.Run("errors on non-JSON-serializable input", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := DeepCopy(map[string]any{"ch": make(chan int)})
+		assert.Error(t, err)
 	})
 }

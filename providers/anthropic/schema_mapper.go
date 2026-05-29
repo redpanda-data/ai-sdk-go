@@ -15,9 +15,6 @@
 package anthropic
 
 import (
-	"bytes"
-	"encoding/json"
-
 	"github.com/redpanda-data/ai-sdk-go/internal/jsonschema"
 )
 
@@ -34,7 +31,7 @@ func NewSchemaMapper() *SchemaMapper { return &SchemaMapper{} }
 // collapsed to a JSON-encoded string. Everything else is standard JSON Schema and
 // passes through unchanged.
 func (*SchemaMapper) AdaptSchemaForAnthropic(schema map[string]any) map[string]any {
-	cp, err := deepCopyMap(schema)
+	cp, err := jsonschema.DeepCopy(schema)
 	if err != nil {
 		return schema
 	}
@@ -42,26 +39,4 @@ func (*SchemaMapper) AdaptSchemaForAnthropic(schema map[string]any) map[string]a
 	jsonschema.CollapseDynamicNodes(cp)
 
 	return cp
-}
-
-// deepCopyMap via JSON (simple and good enough here).
-func deepCopyMap(m map[string]any) (map[string]any, error) {
-	var buf bytes.Buffer
-
-	enc := json.NewEncoder(&buf)
-	dec := json.NewDecoder(&buf)
-
-	err := enc.Encode(m)
-	if err != nil {
-		return nil, err
-	}
-
-	var cp map[string]any
-
-	err = dec.Decode(&cp)
-	if err != nil {
-		return nil, err
-	}
-
-	return cp, nil
 }

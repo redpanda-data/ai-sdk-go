@@ -14,78 +14,92 @@
 
 // Package jsonschema holds provider-agnostic helpers for downgrading standard
 // JSON Schema (e.g. schemas exposed by MCP servers) into the narrower subsets
-// individual LLM providers accept as tool input_schema. MCP servers legitimately
-// publish full JSON Schema; per the MCP ecosystem the client is responsible for
-// adapting it per provider (the same way LangChain, the OpenAI Agents SDK and
-// the Vercel AI SDK do).
+// individual LLM providers accept as a tool input_schema. MCP servers
+// legitimately publish full JSON Schema; per the MCP ecosystem the client is
+// responsible for adapting it per provider (the same way LangChain, the OpenAI
+// Agents SDK and the Vercel AI SDK do).
+//
+// Only transforms common to more than one provider live here. Provider-specific
+// rules (e.g. OpenAI's keyword allowlist) live in the respective provider
+// package and use Walk for traversal.
 package jsonschema
 
-// OpenAISupportedStringFormats is the set of JSON Schema string "format" values
-// OpenAI Structured Outputs / strict function calling accepts. Any other value
-// (e.g. "byte", "uri", "uri-reference") is rejected with a 400.
-// See https://platform.openai.com/docs/guides/structured-outputs.
-var OpenAISupportedStringFormats = map[string]bool{
-	"date-time": true,
-	"time":      true,
-	"date":      true,
-	"duration":  true,
-	"email":     true,
-	"hostname":  true,
-	"ipv4":      true,
-	"ipv6":      true,
-	"uuid":      true,
+import (
+	"bytes"
+	"encoding/json"
+)
+
+// DeepCopy returns a JSON round-tripped deep copy of a schema, so adapters can
+// mutate freely without touching the caller's input.
+func DeepCopy(m map[string]any) (map[string]any, error) {
+	var buf bytes.Buffer
+
+	if err := json.NewEncoder(&buf).Encode(m); err != nil {
+		return nil, err
+	}
+
+	var cp map[string]any
+	if err := json.NewDecoder(&buf).Decode(&cp); err != nil {
+		return nil, err
+	}
+
+	return cp, nil
 }
 
-// StripUnsupportedOpenAIKeywords walks the schema and removes keywords OpenAI
-// strict mode rejects outright. These are all annotations/constraints whose
-// removal does not change a value's type, so dropping them is lossless for
-// decoding (a base64 "bytes" field, for example, is still a string).
-func StripUnsupportedOpenAIKeywords(node any) {
-	walk(node, func(obj map[string]any) {
-		// Object/map keywords OpenAI does not permit.
-		delete(obj, "propertyNames")
-		delete(obj, "patternProperties")
-		delete(obj, "minProperties")
-		delete(obj, "maxProperties")
-		delete(obj, "dependentRequired")
-		delete(obj, "dependentSchemas")
+// Walk applies fn to every schema-object node reachable from node, recursing
+// through the standard subschema-bearing keywords (properties, $defs,
+// definitions, patternProperties, anyOf/oneOf/allOf, prefixItems, items,
+// additionalProperties). fn runs on a node before its children, so a pass that
+// deletes a keyword also prunes that keyword's subtree from the walk.
+func Walk(node any, fn func(map[string]any)) {
+	switch n := node.(type) {
+	case map[string]any:
+		fn(n)
 
-		// Content keywords (e.g. base64 bytes) are not part of the subset.
-		delete(obj, "contentEncoding")
-		delete(obj, "contentMediaType")
-		delete(obj, "contentSchema")
-
-		// "format" survives only for the documented supported values. When a
-		// non-supported format is dropped from a bytes field, fold the base64
-		// hint into the description so the model still knows to base64-encode.
-		if f, ok := obj["format"].(string); ok && !OpenAISupportedStringFormats[f] {
-			if f == "byte" {
-				appendBase64Hint(obj)
+		if props, ok := n["properties"].(map[string]any); ok {
+			for _, v := range props {
+				Walk(v, fn)
 			}
-
-			delete(obj, "format")
 		}
-	})
-}
 
-func appendBase64Hint(obj map[string]any) {
-	const hint = "Base64-encoded binary data."
-
-	switch d := obj["description"].(type) {
-	case string:
-		if d == "" {
-			obj["description"] = hint
-		} else {
-			obj["description"] = d + " " + hint
+		for _, k := range []string{"$defs", "definitions", "patternProperties"} {
+			if defs, ok := n[k].(map[string]any); ok {
+				for _, v := range defs {
+					Walk(v, fn)
+				}
+			}
 		}
-	default:
-		obj["description"] = hint
+
+		for _, k := range []string{"anyOf", "oneOf", "allOf", "prefixItems"} {
+			if arr, ok := n[k].([]any); ok {
+				for _, v := range arr {
+					Walk(v, fn)
+				}
+			}
+		}
+
+		switch it := n["items"].(type) {
+		case map[string]any:
+			Walk(it, fn)
+		case []any:
+			for _, v := range it {
+				Walk(v, fn)
+			}
+		}
+
+		if ap, ok := n["additionalProperties"].(map[string]any); ok {
+			Walk(ap, fn)
+		}
+	case []any:
+		for _, v := range n {
+			Walk(v, fn)
+		}
 	}
 }
 
 // CollapseDynamicNodes rewrites schema nodes that describe open-ended / dynamic
 // JSON (no fixed type) into a single JSON-encoded string node. OpenAI strict and
-// Anthropic both reject typeless or open-object schemas as tool input_schema
+// Anthropic both reject typeless or open-object schemas as a tool input_schema
 // (only Gemini accepts them), so the common-denominator representation is a
 // string the model fills with JSON text; the MCP server parses it back.
 //
@@ -167,8 +181,7 @@ func CollapseDynamicNodes(node any) {
 // isDynamicNode reports whether m is an open-ended / dynamic JSON node with no
 // fixed, closed type that a strict provider can express.
 func isDynamicNode(m map[string]any) bool {
-	_, hasRef := m["$ref"]
-	if hasRef {
+	if _, hasRef := m["$ref"]; hasRef {
 		return false
 	}
 
@@ -206,52 +219,4 @@ func isDynamicNode(m map[string]any) bool {
 	}
 
 	return false
-}
-
-// walk applies fn to every schema-object node reachable from node, recursing
-// through the standard subschema-bearing keywords.
-func walk(node any, fn func(map[string]any)) {
-	switch n := node.(type) {
-	case map[string]any:
-		fn(n)
-
-		if props, ok := n["properties"].(map[string]any); ok {
-			for _, v := range props {
-				walk(v, fn)
-			}
-		}
-
-		for _, k := range []string{"$defs", "definitions", "patternProperties"} {
-			if defs, ok := n[k].(map[string]any); ok {
-				for _, v := range defs {
-					walk(v, fn)
-				}
-			}
-		}
-
-		for _, k := range []string{"anyOf", "oneOf", "allOf", "prefixItems"} {
-			if arr, ok := n[k].([]any); ok {
-				for _, v := range arr {
-					walk(v, fn)
-				}
-			}
-		}
-
-		switch it := n["items"].(type) {
-		case map[string]any:
-			walk(it, fn)
-		case []any:
-			for _, v := range it {
-				walk(v, fn)
-			}
-		}
-
-		if ap, ok := n["additionalProperties"].(map[string]any); ok {
-			walk(ap, fn)
-		}
-	case []any:
-		for _, v := range n {
-			walk(v, fn)
-		}
-	}
 }

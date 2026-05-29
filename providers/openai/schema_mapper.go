@@ -15,13 +15,70 @@
 package openai
 
 import (
-	"bytes"
-	"encoding/json"
 	"slices"
 	"sort"
 
 	"github.com/redpanda-data/ai-sdk-go/internal/jsonschema"
 )
+
+// openAISupportedStringFormats is the set of JSON Schema string "format" values
+// OpenAI Structured Outputs / strict function calling accepts. Any other value
+// (e.g. "byte", "uri", "uri-reference") is rejected with a 400.
+// See https://platform.openai.com/docs/guides/structured-outputs.
+var openAISupportedStringFormats = map[string]bool{
+	"date-time": true,
+	"time":      true,
+	"date":      true,
+	"duration":  true,
+	"email":     true,
+	"hostname":  true,
+	"ipv4":      true,
+	"ipv6":      true,
+	"uuid":      true,
+}
+
+// stripUnsupportedKeywords removes JSON Schema keywords OpenAI strict mode
+// rejects outright. These are annotations/constraints whose removal does not
+// change a value's type, so dropping them is lossless for decoding (a base64
+// "bytes" field, for example, is still a string).
+func stripUnsupportedKeywords(node any) {
+	jsonschema.Walk(node, func(obj map[string]any) {
+		// Object/map keywords OpenAI does not permit.
+		delete(obj, "propertyNames")
+		delete(obj, "patternProperties")
+		delete(obj, "minProperties")
+		delete(obj, "maxProperties")
+		delete(obj, "dependentRequired")
+		delete(obj, "dependentSchemas")
+
+		// Content keywords (e.g. base64 bytes) are not part of the subset.
+		delete(obj, "contentEncoding")
+		delete(obj, "contentMediaType")
+		delete(obj, "contentSchema")
+
+		// "format" survives only for the documented supported values. When a
+		// non-supported format is dropped from a bytes field, fold the base64
+		// hint into the description so the model still knows to base64-encode.
+		if f, ok := obj["format"].(string); ok && !openAISupportedStringFormats[f] {
+			if f == "byte" {
+				appendBase64Hint(obj)
+			}
+
+			delete(obj, "format")
+		}
+	})
+}
+
+func appendBase64Hint(obj map[string]any) {
+	const hint = "Base64-encoded binary data."
+
+	if d, ok := obj["description"].(string); ok && d != "" {
+		obj["description"] = d + " " + hint
+		return
+	}
+
+	obj["description"] = hint
+}
 
 // SchemaMapper transforms standard JSON Schemas to OpenAI-compatible schemas.
 // Notes:
@@ -35,7 +92,7 @@ func NewSchemaMapper() *SchemaMapper { return &SchemaMapper{} }
 
 // AdaptSchemaForOpenAI returns a transformed deep copy, never mutating the input.
 func (*SchemaMapper) AdaptSchemaForOpenAI(schema map[string]any) map[string]any {
-	cp, err := deepCopyMap(schema)
+	cp, err := jsonschema.DeepCopy(schema)
 	if err != nil {
 		return schema
 	}
@@ -44,7 +101,7 @@ func (*SchemaMapper) AdaptSchemaForOpenAI(schema map[string]any) map[string]any 
 	// JSON-encoded string, then drop keywords OpenAI strict mode rejects, before
 	// applying OpenAI's structural requirements.
 	jsonschema.CollapseDynamicNodes(cp)
-	jsonschema.StripUnsupportedOpenAIKeywords(cp)
+	stripUnsupportedKeywords(cp)
 	transformSchemaForOpenAI(cp)
 
 	return cp
@@ -249,26 +306,4 @@ func toStringSet(v any) map[string]struct{} {
 	}
 
 	return res
-}
-
-// deepCopyMap via JSON (simple and good enough here).
-func deepCopyMap(m map[string]any) (map[string]any, error) {
-	var buf bytes.Buffer
-
-	enc := json.NewEncoder(&buf)
-	dec := json.NewDecoder(&buf)
-
-	err := enc.Encode(m)
-	if err != nil {
-		return nil, err
-	}
-
-	var cp map[string]any
-
-	err = dec.Decode(&cp)
-	if err != nil {
-		return nil, err
-	}
-
-	return cp, nil
 }

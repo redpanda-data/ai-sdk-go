@@ -103,3 +103,79 @@ func typeNoNull(node any) string {
 
 	return ""
 }
+
+func TestStripUnsupportedKeywords(t *testing.T) {
+	t.Parallel()
+
+	t.Run("format byte removed, base64 hint folded into description", func(t *testing.T) {
+		t.Parallel()
+
+		n := map[string]any{"type": "string", "format": "byte", "contentEncoding": "base64"}
+		stripUnsupportedKeywords(n)
+		_, hasFormat := n["format"]
+		assert.False(t, hasFormat)
+
+		_, hasEnc := n["contentEncoding"]
+		assert.False(t, hasEnc)
+		assert.Contains(t, n["description"], "Base64")
+	})
+
+	t.Run("supported formats are kept", func(t *testing.T) {
+		t.Parallel()
+
+		for _, f := range []string{"date-time", "uuid", "email"} {
+			n := map[string]any{"type": "string", "format": f}
+			stripUnsupportedKeywords(n)
+			assert.Equal(t, f, n["format"], "format %q should survive", f)
+		}
+	})
+
+	t.Run("propertyNames and patternProperties removed", func(t *testing.T) {
+		t.Parallel()
+
+		n := map[string]any{
+			"type":              "object",
+			"propertyNames":     map[string]any{"pattern": "^x"},
+			"patternProperties": map[string]any{"^y": map[string]any{"type": "string"}},
+		}
+		stripUnsupportedKeywords(n)
+		_, hasPN := n["propertyNames"]
+		_, hasPP := n["patternProperties"]
+
+		assert.False(t, hasPN)
+		assert.False(t, hasPP)
+	})
+
+	t.Run("recurses into nested properties and items", func(t *testing.T) {
+		t.Parallel()
+
+		n := map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"blob": map[string]any{"type": "string", "format": "byte"},
+				"list": map[string]any{
+					"type":  "array",
+					"items": map[string]any{"type": "string", "contentEncoding": "base64"},
+				},
+			},
+		}
+		stripUnsupportedKeywords(n)
+		props := mp(n["properties"])
+		_, blobFmt := mp(props["blob"])["format"]
+		assert.False(t, blobFmt)
+
+		_, itemEnc := mp(mp(props["list"])["items"])["contentEncoding"]
+		assert.False(t, itemEnc)
+	})
+
+	t.Run("does not touch unrelated constraints", func(t *testing.T) {
+		t.Parallel()
+
+		n := map[string]any{"type": "string", "minLength": 3, "maxLength": 5, "pattern": "^a"}
+		stripUnsupportedKeywords(n)
+		require.Equal(t, "string", n["type"])
+		assert.Equal(t, 3, n["minLength"])
+		assert.Equal(t, 5, n["maxLength"])
+		assert.Equal(t, "^a", n["pattern"])
+	})
+}
