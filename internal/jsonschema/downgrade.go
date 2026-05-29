@@ -112,19 +112,16 @@ func Walk(node any, fn func(map[string]any)) {
 //
 // Closed message objects (with "properties"), maps (additionalProperties is a
 // schema), and typed scalars/arrays are left untouched.
+//
+// It is a Walk pass: collapsing a node clears its children, so Walk finds no
+// subschemas to descend into and the collapse does not recurse into a subtree
+// that no longer exists.
 func CollapseDynamicNodes(node any) {
-	m, ok := node.(map[string]any)
-	if !ok {
-		if arr, ok := node.([]any); ok {
-			for _, e := range arr {
-				CollapseDynamicNodes(e)
-			}
+	Walk(node, func(m map[string]any) {
+		if !isDynamicNode(m) {
+			return
 		}
 
-		return
-	}
-
-	if isDynamicNode(m) {
 		desc := "JSON value, provided as a JSON-encoded string."
 		if d, ok := m["description"].(string); ok && d != "" {
 			desc = d + " Provide it as a JSON-encoded string."
@@ -136,46 +133,7 @@ func CollapseDynamicNodes(node any) {
 
 		m["type"] = "string"
 		m["description"] = desc
-
-		return
-	}
-
-	// Recurse into the standard subschema-bearing keywords.
-	if props, ok := m["properties"].(map[string]any); ok {
-		for _, v := range props {
-			CollapseDynamicNodes(v)
-		}
-	}
-
-	for _, k := range []string{"$defs", "definitions", "patternProperties"} {
-		if defs, ok := m[k].(map[string]any); ok {
-			for _, v := range defs {
-				CollapseDynamicNodes(v)
-			}
-		}
-	}
-
-	for _, k := range []string{"anyOf", "oneOf", "allOf", "prefixItems"} {
-		if arr, ok := m[k].([]any); ok {
-			for _, v := range arr {
-				CollapseDynamicNodes(v)
-			}
-		}
-	}
-
-	switch it := m["items"].(type) {
-	case map[string]any:
-		CollapseDynamicNodes(it)
-	case []any:
-		for _, v := range it {
-			CollapseDynamicNodes(v)
-		}
-	}
-	// additionalProperties may be a schema (map value type); recurse so dynamic
-	// values inside a map still collapse.
-	if ap, ok := m["additionalProperties"].(map[string]any); ok {
-		CollapseDynamicNodes(ap)
-	}
+	})
 }
 
 // isDynamicNode reports whether m is an open-ended / dynamic JSON node with no
