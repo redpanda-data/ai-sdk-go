@@ -17,6 +17,8 @@ package anthropic
 import (
 	"bytes"
 	"encoding/json"
+
+	"github.com/redpanda-data/ai-sdk-go/internal/jsonschema"
 )
 
 // SchemaMapper transforms standard JSON Schemas to Anthropic-compatible schemas.
@@ -27,15 +29,17 @@ type SchemaMapper struct{}
 func NewSchemaMapper() *SchemaMapper { return &SchemaMapper{} }
 
 // AdaptSchemaForAnthropic returns a transformed deep copy, never mutating the input.
-// Currently, Anthropic accepts standard JSON Schema, so minimal transformation is needed.
+// Anthropic validates tool input_schema against JSON Schema draft 2020-12 and
+// rejects typeless / open-ended nodes (e.g. protobuf Struct/Value), so those are
+// collapsed to a JSON-encoded string. Everything else is standard JSON Schema and
+// passes through unchanged.
 func (*SchemaMapper) AdaptSchemaForAnthropic(schema map[string]any) map[string]any {
 	cp, err := deepCopyMap(schema)
 	if err != nil {
 		return schema
 	}
 
-	// Anthropic uses standard JSON Schema format
-	// No special transformations needed currently
+	jsonschema.CollapseDynamicNodes(cp)
 	return cp
 }
 

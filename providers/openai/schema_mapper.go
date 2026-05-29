@@ -19,6 +19,8 @@ import (
 	"encoding/json"
 	"slices"
 	"sort"
+
+	"github.com/redpanda-data/ai-sdk-go/internal/jsonschema"
 )
 
 // SchemaMapper transforms standard JSON Schemas to OpenAI-compatible schemas.
@@ -38,6 +40,11 @@ func (*SchemaMapper) AdaptSchemaForOpenAI(schema map[string]any) map[string]any 
 		return schema
 	}
 
+	// Collapse open-ended/dynamic nodes (e.g. protobuf Struct/Value) to a
+	// JSON-encoded string, then drop keywords OpenAI strict mode rejects, before
+	// applying OpenAI's structural requirements.
+	jsonschema.CollapseDynamicNodes(cp)
+	jsonschema.StripUnsupportedOpenAIKeywords(cp)
 	transformSchemaForOpenAI(cp)
 
 	return cp
