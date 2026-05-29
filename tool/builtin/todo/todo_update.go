@@ -23,7 +23,6 @@ import (
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/tool"
-	"github.com/redpanda-data/ai-sdk-go/tool/builtin"
 )
 
 // Item represents a todo item with name and status.
@@ -88,7 +87,7 @@ IMPORTANT RULES:
 	}
 }
 
-var updateTodoSchema = builtin.MustParseSchema(`{
+var updateTodoSchema = llm.MustSchema(`{
 	"type": "object",
 	"properties": {
 		"updates": {
@@ -215,7 +214,7 @@ IMPORTANT RULES:
 	}
 }
 
-var addTodoSchema = builtin.MustParseSchema(`{
+var addTodoSchema = llm.MustSchema(`{
 	"type": "object",
 	"properties": {
 		"todos": {

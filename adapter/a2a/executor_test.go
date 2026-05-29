@@ -25,7 +25,6 @@ import (
 	"github.com/a2aproject/a2a-go/a2a"
 	"github.com/a2aproject/a2a-go/a2asrv"
 	"github.com/a2aproject/a2a-go/a2asrv/eventqueue"
-	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -444,7 +443,7 @@ type weatherInput struct {
 
 func (m *mockWeatherTool) Definition() llm.ToolDefinition {
 	// Use google/jsonschema-go to generate schema from Go type
-	schema, err := jsonschema.For[weatherInput](nil)
+	schema, err := llm.SchemaFor[weatherInput]()
 	if err != nil {
 		return llm.ToolDefinition{} // Return empty definition on error
 	}

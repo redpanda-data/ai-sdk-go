@@ -23,7 +23,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/redpanda-data/ai-sdk-go/internal/testschema"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -265,7 +264,7 @@ func TestToolMapping(t *testing.T) {
 				{
 					Name:        "get_weather",
 					Description: "Get current weather information for a location",
-					Parameters: testschema.MustParse(`{
+					Parameters: llm.MustSchema(`{
 						"type": "object",
 						"properties": {
 							"location": {
@@ -329,12 +328,12 @@ func TestToolMapping(t *testing.T) {
 				{
 					Name:        "tool_one",
 					Description: "First tool",
-					Parameters:  testschema.MustParse(`{"type": "object", "properties": {}}`),
+					Parameters:  llm.MustSchema(`{"type": "object", "properties": {}}`),
 				},
 				{
 					Name:        "tool_two",
 					Description: "Second tool",
-					Parameters:  testschema.MustParse(`{"type": "object", "properties": {}}`),
+					Parameters:  llm.MustSchema(`{"type": "object", "properties": {}}`),
 				},
 			},
 			wantErr: false,
@@ -350,7 +349,7 @@ func TestToolMapping(t *testing.T) {
 			tools: []llm.ToolDefinition{
 				{
 					Name:       "simple_tool",
-					Parameters: testschema.MustParse(`{"type": "object", "properties": {}}`),
+					Parameters: llm.MustSchema(`{"type": "object", "properties": {}}`),
 				},
 			},
 			wantErr: false,
@@ -370,7 +369,7 @@ func TestToolMapping(t *testing.T) {
 			tools: []llm.ToolDefinition{
 				{
 					Name:       "bad_tool",
-					Parameters: testschema.MustParse(`{invalid json}`),
+					Parameters: &llm.Schema{Type: "object", Types: []string{"object"}}, // both Type and Types set: fails to marshal
 				},
 			},
 			wantErr: true,
@@ -422,7 +421,7 @@ func TestRequestMappingWithTools(t *testing.T) {
 			{
 				Name:        "get_weather",
 				Description: "Get current weather information for a location",
-				Parameters: testschema.MustParse(`{
+				Parameters: llm.MustSchema(`{
 					"type": "object",
 					"properties": {
 						"location": {"type": "string", "description": "The city and state/country"}

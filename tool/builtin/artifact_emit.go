@@ -20,7 +20,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/rs/xid"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
@@ -103,9 +102,9 @@ func (*ArtifactEmitTool) Execute(_ context.Context, args json.RawMessage) (json.
 }
 
 // Manual JSON schema for EmitArtifactInput.
-var artifactInputSchema = &jsonschema.Schema{
+var artifactInputSchema = &llm.Schema{
 	Type: "object",
-	Properties: map[string]*jsonschema.Schema{
+	Properties: map[string]*llm.Schema{
 		"name": {
 			Type:        "string",
 			Description: "Name for the artifact",
@@ -120,5 +119,5 @@ var artifactInputSchema = &jsonschema.Schema{
 		},
 	},
 	Required:             []string{"name", "description", "text"},
-	AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	AdditionalProperties: &llm.Schema{Not: &llm.Schema{}},
 }

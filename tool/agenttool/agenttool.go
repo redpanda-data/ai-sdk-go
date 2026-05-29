@@ -37,7 +37,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/jsonschema-go/jsonschema"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/llm"
@@ -75,16 +74,16 @@ func (at *AgentTool) Definition() llm.ToolDefinition {
 		return llm.ToolDefinition{
 			Name:        info.Name,
 			Description: fmt.Sprintf("[SCHEMA ERROR] %s - Invalid InputSchema implementation: %v", info.Description, err),
-			Parameters:  &jsonschema.Schema{Type: "object"},
+			Parameters:  &llm.Schema{Type: "object"},
 		}
 	}
 
-	parsed := &jsonschema.Schema{}
+	parsed := &llm.Schema{}
 	if err := json.Unmarshal(schemaJSON, parsed); err != nil {
 		return llm.ToolDefinition{
 			Name:        info.Name,
 			Description: fmt.Sprintf("[SCHEMA ERROR] %s - InputSchema is not valid JSON Schema: %v", info.Description, err),
-			Parameters:  &jsonschema.Schema{Type: "object"},
+			Parameters:  &llm.Schema{Type: "object"},
 		}
 	}
 

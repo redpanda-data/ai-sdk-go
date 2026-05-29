@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/google/jsonschema-go/jsonschema"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
@@ -36,9 +35,9 @@ func (*CalculatorTool) Definition() llm.ToolDefinition {
 	return llm.ToolDefinition{
 		Name:        "add_numbers",
 		Description: "Adds two numbers together and returns the result",
-		Parameters: &jsonschema.Schema{
+		Parameters: &llm.Schema{
 			Type: "object",
-			Properties: map[string]*jsonschema.Schema{
+			Properties: map[string]*llm.Schema{
 				"a": {Type: "number", Description: "The first number to add"},
 				"b": {Type: "number", Description: "The second number to add"},
 			},

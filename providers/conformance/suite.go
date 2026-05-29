@@ -22,7 +22,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -32,8 +31,8 @@ import (
 
 // mustParseSchema parses a JSON Schema literal used in conformance fixtures.
 // Panics on failure — the inputs are compile-time strings in test code.
-func mustParseSchema(raw string) *jsonschema.Schema {
-	s := &jsonschema.Schema{}
+func mustParseSchema(raw string) *llm.Schema {
+	s := &llm.Schema{}
 	if err := json.Unmarshal([]byte(raw), s); err != nil {
 		panic(fmt.Errorf("conformance: parse schema: %w", err)) //nolint:forbidigo // test fixture helper
 	}

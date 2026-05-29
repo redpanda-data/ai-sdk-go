@@ -21,7 +21,6 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -48,13 +47,13 @@ type TemperatureSensorOutput struct {
 }
 
 func (t *TemperatureSensorTool) Definition() llm.ToolDefinition {
-	schema, err := jsonschema.For[TemperatureSensorInput](nil)
+	schema, err := llm.SchemaFor[TemperatureSensorInput]()
 	if err != nil {
 		panic(fmt.Sprintf("failed to generate schema: %v", err))
 	}
 
 	// Disable additional properties for strict validation
-	falseSchema := &jsonschema.Schema{}
+	falseSchema := &llm.Schema{}
 	schema.AdditionalProperties = falseSchema
 
 	return llm.ToolDefinition{
@@ -116,13 +115,13 @@ type GetSecretValueOutput struct {
 }
 
 func (t *GetSecretValueTool) Definition() llm.ToolDefinition {
-	schema, err := jsonschema.For[GetSecretValueInput](nil)
+	schema, err := llm.SchemaFor[GetSecretValueInput]()
 	if err != nil {
 		panic(fmt.Sprintf("failed to generate schema: %v", err))
 	}
 
 	// Disable additional properties for strict validation
-	falseSchema := &jsonschema.Schema{}
+	falseSchema := &llm.Schema{}
 	schema.AdditionalProperties = falseSchema
 
 	return llm.ToolDefinition{

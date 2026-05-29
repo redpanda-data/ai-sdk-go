@@ -30,7 +30,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/redpanda-data/ai-sdk-go/internal/testschema"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/providers/openai"
 	"github.com/redpanda-data/ai-sdk-go/providers/openai/openaitest"
@@ -515,7 +514,7 @@ func (m *mockTool) Definition() llm.ToolDefinition {
 	return llm.ToolDefinition{
 		Name:        m.name,
 		Description: "Mock tool for testing",
-		Parameters:  testschema.MustParse(`{"type":"object","properties":{"input":{"type":"string"}}}`),
+		Parameters:  llm.MustSchema(`{"type":"object","properties":{"input":{"type":"string"}}}`),
 	}
 }
 

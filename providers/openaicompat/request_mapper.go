@@ -349,7 +349,7 @@ func (rm *RequestMapper) mapToolDefinitions(tools []llm.ToolDefinition) ([]opena
 	apiTools := make([]openai.ChatCompletionToolUnionParam, 0, len(tools))
 
 	for _, tool := range tools {
-		// Marshal *jsonschema.Schema once per tool, then decode into a map
+		// Marshal *llm.Schema once per tool, then decode into a map
 		// so the existing schema adapter can mutate it.
 		var parametersMap map[string]any
 

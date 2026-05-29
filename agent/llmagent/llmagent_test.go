@@ -29,7 +29,6 @@ import (
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/agent/llmagent"
-	"github.com/redpanda-data/ai-sdk-go/internal/testschema"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/llm/fakellm"
 	"github.com/redpanda-data/ai-sdk-go/store/session"
@@ -421,7 +420,7 @@ func TestRun_MultiTurnWithTools(t *testing.T) {
 		definition: llm.ToolDefinition{
 			Name:        "get_weather",
 			Description: "Get current weather for a location",
-			Parameters: testschema.MustParse(`{
+			Parameters: llm.MustSchema(`{
 				"type": "object",
 				"properties": {
 					"location": {"type": "string"}

@@ -23,7 +23,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/jsonschema-go/jsonschema"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
@@ -188,7 +187,7 @@ type registryOp struct {
 // preparedTool holds a tool with its parsed parameters schema.
 type preparedTool struct {
 	mcpTool        *sdkmcp.Tool
-	params         *jsonschema.Schema
+	params         *llm.Schema
 	namespacedName string
 }
 
@@ -205,7 +204,7 @@ func (c *clientImpl) prepareTools(fetched map[string]*sdkmcp.Tool) map[string]*p
 
 		namespaced := c.namespaceTool(mcpTool.Name)
 
-		// Round-trip InputSchema through JSON to obtain a typed *jsonschema.Schema.
+		// Round-trip InputSchema through JSON to obtain a typed *llm.Schema.
 		// The MCP SDK's InputSchema is its own type, so we marshal then unmarshal
 		// rather than reinterpret-casting.
 		paramsJSON, err := json.Marshal(mcpTool.InputSchema)
@@ -216,7 +215,7 @@ func (c *clientImpl) prepareTools(fetched map[string]*sdkmcp.Tool) map[string]*p
 			continue
 		}
 
-		params := &jsonschema.Schema{}
+		params := &llm.Schema{}
 		if err := json.Unmarshal(paramsJSON, params); err != nil {
 			c.logger.Warn("failed to parse tool parameters into JSON Schema",
 				"tool", mcpTool.Name, "err", err)

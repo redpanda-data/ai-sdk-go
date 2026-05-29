@@ -25,7 +25,6 @@ import (
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/tool"
-	"github.com/redpanda-data/ai-sdk-go/tool/builtin"
 )
 
 // Tool implements the plot tool for generating charts.
@@ -128,7 +127,7 @@ func (*Tool) Execute(_ context.Context, args json.RawMessage) (json.RawMessage, 
 // Manual JSON schema for plot Input type. Parsed once at init time from the
 // JSON literal below to keep the source readable; MustParseSchema panics on
 // invalid schema, which is desirable for this compile-time constant.
-var plotInputSchema = builtin.MustParseSchema(`{
+var plotInputSchema = llm.MustSchema(`{
 	"type": "object",
 	"properties": {
 		"name": {"type": "string", "description": "Name for the plot artifact"},

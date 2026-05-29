@@ -14,11 +14,7 @@
 
 package llm
 
-import (
-	"encoding/json"
-
-	"github.com/google/jsonschema-go/jsonschema"
-)
+import "encoding/json"
 
 // Request represents a standardized request to any AI model.
 // This structure contains only the universal concepts that work across
@@ -62,9 +58,9 @@ type ToolDefinition struct {
 
 	// Parameters defines the input schema for this tool.
 	// Providers marshal this to JSON once when building their request bodies.
-	// Use a literal *jsonschema.Schema or build one from a Go type via
-	// jsonschema.For[T](nil).
-	Parameters *jsonschema.Schema `json:"parameters"`
+	// Build one with a &Schema{...} literal, from a Go type via SchemaFor[T](),
+	// or from a JSON literal via MustSchema.
+	Parameters *Schema `json:"parameters"`
 
 	// Metadata provides additional information about the tool.
 	// This can include provider-specific configuration or documentation.

@@ -72,7 +72,7 @@ IMPORTANT:
 	}
 }
 
-var requireInputSchema = MustParseSchema(`{
+var requireInputSchema = llm.MustSchema(`{
 	"type": "object",
 	"properties": {
 		"message": {

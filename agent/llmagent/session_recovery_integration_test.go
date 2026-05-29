@@ -27,7 +27,6 @@ import (
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/agent/llmagent"
-	"github.com/redpanda-data/ai-sdk-go/internal/testschema"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/providers/openai"
 	"github.com/redpanda-data/ai-sdk-go/providers/openai/openaitest"
@@ -68,7 +67,7 @@ func TestSessionRecovery_Single(t *testing.T) {
 		definition: llm.ToolDefinition{
 			Name:        incompleteReqs[0].Name,
 			Description: "Mock tool for session recovery test",
-			Parameters:  testschema.MustParse(`{"type":"object","properties":{}}`),
+			Parameters:  llm.MustSchema(`{"type":"object","properties":{}}`),
 		},
 		executeFn: func(_ context.Context, _ json.RawMessage) (json.RawMessage, error) {
 			return json.RawMessage(`{"status":"recovered"}`), nil
@@ -141,7 +140,7 @@ func TestSessionRecovery_Multiple(t *testing.T) {
 		definition: llm.ToolDefinition{
 			Name:        "get_weather",
 			Description: "Get weather for a city",
-			Parameters:  testschema.MustParse(`{"type":"object","properties":{"city":{"type":"string"}}}`),
+			Parameters:  llm.MustSchema(`{"type":"object","properties":{"city":{"type":"string"}}}`),
 		},
 		executeFn: func(_ context.Context, args json.RawMessage) (json.RawMessage, error) {
 			var params struct {

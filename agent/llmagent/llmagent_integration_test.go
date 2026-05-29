@@ -25,7 +25,6 @@ import (
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/agent/llmagent"
-	"github.com/redpanda-data/ai-sdk-go/internal/testschema"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/providers/openai"
 	"github.com/redpanda-data/ai-sdk-go/providers/openai/openaitest"
@@ -45,7 +44,7 @@ func (*calculatorTool) Definition() llm.ToolDefinition {
 	return llm.ToolDefinition{
 		Name:        "add_numbers",
 		Description: "Adds two numbers together and returns the result",
-		Parameters: testschema.MustParse(`{
+		Parameters: llm.MustSchema(`{
 			"type": "object",
 			"properties": {
 				"a": {

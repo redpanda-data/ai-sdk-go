@@ -251,7 +251,7 @@ func (rm *RequestMapper) mapToolDefinitions(tools []llm.ToolDefinition) ([]*gena
 	functionDeclarations := make([]*genai.FunctionDeclaration, 0, len(tools))
 
 	for _, tool := range tools {
-		// Marshal *jsonschema.Schema to JSON once per tool, then decode into
+		// Marshal *llm.Schema to JSON once per tool, then decode into
 		// a mutable map for the schema adapter.
 		var schemaMap map[string]any
 
