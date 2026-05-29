@@ -35,5 +35,5 @@ const (
 	// GoogleDefaultBaseURL is the Google Gemini OpenAI-compatible endpoint.
 	GoogleDefaultBaseURL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 	// GoogleDefaultModel is the default model for Google compat tests.
-	GoogleDefaultModel = "gemini-2.0-flash"
+	GoogleDefaultModel = "gemini-3.5-flash"
 )
