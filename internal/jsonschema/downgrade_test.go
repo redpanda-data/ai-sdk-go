@@ -29,6 +29,7 @@ func TestCollapseDynamicNodes(t *testing.T) {
 	t.Parallel()
 
 	t.Run("typeless Value node collapses to string", func(t *testing.T) {
+		t.Parallel()
 		// google.protobuf.Value renders typeless.
 		n := map[string]any{"description": "a dynamic JSON value"}
 		CollapseDynamicNodes(n)
@@ -37,6 +38,8 @@ func TestCollapseDynamicNodes(t *testing.T) {
 	})
 
 	t.Run("open object Struct collapses to string", func(t *testing.T) {
+		t.Parallel()
+
 		n := map[string]any{"type": "object", "additionalProperties": true}
 		CollapseDynamicNodes(n)
 		assert.Equal(t, "string", n["type"])
@@ -44,6 +47,8 @@ func TestCollapseDynamicNodes(t *testing.T) {
 	})
 
 	t.Run("untyped array ListValue collapses to string", func(t *testing.T) {
+		t.Parallel()
+
 		n := map[string]any{"type": "array", "items": map[string]any{}}
 		CollapseDynamicNodes(n)
 		assert.Equal(t, "string", n["type"])
@@ -51,6 +56,8 @@ func TestCollapseDynamicNodes(t *testing.T) {
 	})
 
 	t.Run("map is NOT collapsed (additionalProperties is a schema)", func(t *testing.T) {
+		t.Parallel()
+
 		n := map[string]any{
 			"type":                 "object",
 			"additionalProperties": map[string]any{"type": "string"},
@@ -61,6 +68,8 @@ func TestCollapseDynamicNodes(t *testing.T) {
 	})
 
 	t.Run("closed message object is not collapsed; recurses into properties", func(t *testing.T) {
+		t.Parallel()
+
 		n := map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -77,6 +86,8 @@ func TestCollapseDynamicNodes(t *testing.T) {
 	})
 
 	t.Run("Any keeps wrapper, collapses its typeless value", func(t *testing.T) {
+		t.Parallel()
+
 		n := map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -92,6 +103,8 @@ func TestCollapseDynamicNodes(t *testing.T) {
 	})
 
 	t.Run("dynamic inside array items collapses", func(t *testing.T) {
+		t.Parallel()
+
 		n := map[string]any{
 			"type":  "array",
 			"items": map[string]any{"description": "dynamic value"}, // Value, not empty
@@ -103,6 +116,8 @@ func TestCollapseDynamicNodes(t *testing.T) {
 	})
 
 	t.Run("typed scalar untouched", func(t *testing.T) {
+		t.Parallel()
+
 		n := map[string]any{"type": "string", "format": "uuid"}
 		CollapseDynamicNodes(n)
 		assert.Equal(t, "string", n["type"])
@@ -110,6 +125,8 @@ func TestCollapseDynamicNodes(t *testing.T) {
 	})
 
 	t.Run("preserves original description", func(t *testing.T) {
+		t.Parallel()
+
 		n := map[string]any{"description": "Custom metadata."}
 		CollapseDynamicNodes(n)
 		assert.Contains(t, n["description"], "Custom metadata.")
@@ -120,16 +137,21 @@ func TestStripUnsupportedOpenAIKeywords(t *testing.T) {
 	t.Parallel()
 
 	t.Run("format byte removed, base64 hint folded into description", func(t *testing.T) {
+		t.Parallel()
+
 		n := map[string]any{"type": "string", "format": "byte", "contentEncoding": "base64"}
 		StripUnsupportedOpenAIKeywords(n)
 		_, hasFormat := n["format"]
 		assert.False(t, hasFormat)
+
 		_, hasEnc := n["contentEncoding"]
 		assert.False(t, hasEnc)
 		assert.Contains(t, n["description"], "Base64")
 	})
 
 	t.Run("supported formats are kept", func(t *testing.T) {
+		t.Parallel()
+
 		for _, f := range []string{"date-time", "uuid", "email"} {
 			n := map[string]any{"type": "string", "format": f}
 			StripUnsupportedOpenAIKeywords(n)
@@ -138,6 +160,8 @@ func TestStripUnsupportedOpenAIKeywords(t *testing.T) {
 	})
 
 	t.Run("propertyNames and patternProperties removed", func(t *testing.T) {
+		t.Parallel()
+
 		n := map[string]any{
 			"type":              "object",
 			"propertyNames":     map[string]any{"pattern": "^x"},
@@ -146,11 +170,14 @@ func TestStripUnsupportedOpenAIKeywords(t *testing.T) {
 		StripUnsupportedOpenAIKeywords(n)
 		_, hasPN := n["propertyNames"]
 		_, hasPP := n["patternProperties"]
+
 		assert.False(t, hasPN)
 		assert.False(t, hasPP)
 	})
 
 	t.Run("recurses into nested properties and items", func(t *testing.T) {
+		t.Parallel()
+
 		n := map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -165,11 +192,14 @@ func TestStripUnsupportedOpenAIKeywords(t *testing.T) {
 		props := mp(n["properties"])
 		_, blobFmt := mp(props["blob"])["format"]
 		assert.False(t, blobFmt)
+
 		_, itemEnc := mp(mp(props["list"])["items"])["contentEncoding"]
 		assert.False(t, itemEnc)
 	})
 
 	t.Run("does not mutate beyond the listed keywords", func(t *testing.T) {
+		t.Parallel()
+
 		n := map[string]any{"type": "string", "minLength": 3, "maxLength": 5, "pattern": "^a"}
 		StripUnsupportedOpenAIKeywords(n)
 		require.Equal(t, "string", n["type"])

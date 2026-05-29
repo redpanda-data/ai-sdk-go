@@ -28,6 +28,7 @@ func mp(v any) map[string]any { m, _ := v.(map[string]any); return m }
 // draft-2020-12) to strings, while leaving typed fields and maps untouched.
 func TestAdaptSchemaForAnthropic_CollapsesDynamicNodes(t *testing.T) {
 	t.Parallel()
+
 	in := map[string]any{
 		"type": "object",
 		"properties": map[string]any{

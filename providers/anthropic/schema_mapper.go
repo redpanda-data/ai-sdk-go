@@ -40,6 +40,7 @@ func (*SchemaMapper) AdaptSchemaForAnthropic(schema map[string]any) map[string]a
 	}
 
 	jsonschema.CollapseDynamicNodes(cp)
+
 	return cp
 }
 

@@ -32,6 +32,7 @@ func sl(v any) []any          { s, _ := v.([]any); return s }
 // base64 hint preserved), maps preserved, every object closed.
 func TestAdaptSchemaForOpenAI_MCPShapes(t *testing.T) {
 	t.Parallel()
+
 	in := map[string]any{
 		"type": "object",
 		"properties": map[string]any{
@@ -48,6 +49,7 @@ func TestAdaptSchemaForOpenAI_MCPShapes(t *testing.T) {
 	blob := mp(props["blob"])
 	_, hasFmt := blob["format"]
 	_, hasEnc := blob["contentEncoding"]
+
 	assert.False(t, hasFmt, "format:byte must be stripped")
 	assert.False(t, hasEnc, "contentEncoding must be stripped")
 	assert.Contains(t, blob["description"], "Base64", "base64 hint preserved in description")
@@ -63,11 +65,14 @@ func TestAdaptSchemaForOpenAI_MCPShapes(t *testing.T) {
 
 	// Root object closed and every property required.
 	assert.Equal(t, false, out["additionalProperties"])
+
 	req := map[string]bool{}
+
 	for _, r := range sl(out["required"]) {
 		rs, _ := r.(string)
 		req[rs] = true
 	}
+
 	for name := range props {
 		assert.True(t, req[name], "property %q must be required under strict", name)
 	}
@@ -84,6 +89,7 @@ func typeNoNull(node any) string {
 	if !ok {
 		return ""
 	}
+
 	switch t := m["type"].(type) {
 	case string:
 		return t
@@ -94,5 +100,6 @@ func typeNoNull(node any) string {
 			}
 		}
 	}
+
 	return ""
 }

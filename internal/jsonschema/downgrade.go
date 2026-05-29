@@ -62,6 +62,7 @@ func StripUnsupportedOpenAIKeywords(node any) {
 			if f == "byte" {
 				appendBase64Hint(obj)
 			}
+
 			delete(obj, "format")
 		}
 	})
@@ -69,6 +70,7 @@ func StripUnsupportedOpenAIKeywords(node any) {
 
 func appendBase64Hint(obj map[string]any) {
 	const hint = "Base64-encoded binary data."
+
 	switch d := obj["description"].(type) {
 	case string:
 		if d == "" {
@@ -104,6 +106,7 @@ func CollapseDynamicNodes(node any) {
 				CollapseDynamicNodes(e)
 			}
 		}
+
 		return
 	}
 
@@ -112,11 +115,14 @@ func CollapseDynamicNodes(node any) {
 		if d, ok := m["description"].(string); ok && d != "" {
 			desc = d + " Provide it as a JSON-encoded string."
 		}
+
 		for k := range m {
 			delete(m, k)
 		}
+
 		m["type"] = "string"
 		m["description"] = desc
+
 		return
 	}
 
@@ -126,6 +132,7 @@ func CollapseDynamicNodes(node any) {
 			CollapseDynamicNodes(v)
 		}
 	}
+
 	for _, k := range []string{"$defs", "definitions", "patternProperties"} {
 		if defs, ok := m[k].(map[string]any); ok {
 			for _, v := range defs {
@@ -133,6 +140,7 @@ func CollapseDynamicNodes(node any) {
 			}
 		}
 	}
+
 	for _, k := range []string{"anyOf", "oneOf", "allOf", "prefixItems"} {
 		if arr, ok := m[k].([]any); ok {
 			for _, v := range arr {
@@ -140,6 +148,7 @@ func CollapseDynamicNodes(node any) {
 			}
 		}
 	}
+
 	switch it := m["items"].(type) {
 	case map[string]any:
 		CollapseDynamicNodes(it)
@@ -162,6 +171,7 @@ func isDynamicNode(m map[string]any) bool {
 	if hasRef {
 		return false
 	}
+
 	for _, k := range []string{"anyOf", "oneOf", "allOf"} {
 		if _, ok := m[k]; ok {
 			return false
@@ -174,22 +184,27 @@ func isDynamicNode(m map[string]any) bool {
 		return true
 	}
 
+	ts, ok := t.(string)
+	if !ok {
+		return false
+	}
+
 	_, hasProps := m["properties"]
-	switch ts := t.(type) {
-	case string:
-		// Open object: google.protobuf.Struct (additionalProperties:true, no
-		// fixed properties). Maps render additionalProperties as a schema, not
-		// true, so they are not collapsed here.
-		if ts == "object" && !hasProps && m["additionalProperties"] == true {
+
+	// Open object: google.protobuf.Struct (additionalProperties:true, no fixed
+	// properties). Maps render additionalProperties as a schema, not true, so
+	// they are not collapsed here.
+	if ts == "object" && !hasProps && m["additionalProperties"] == true {
+		return true
+	}
+
+	// Untyped array: google.protobuf.ListValue ({"items":{}}).
+	if ts == "array" {
+		if it, ok := m["items"].(map[string]any); ok && len(it) == 0 {
 			return true
 		}
-		// Untyped array: google.protobuf.ListValue ({"items":{}}).
-		if ts == "array" {
-			if it, ok := m["items"].(map[string]any); ok && len(it) == 0 {
-				return true
-			}
-		}
 	}
+
 	return false
 }
 
@@ -199,11 +214,13 @@ func walk(node any, fn func(map[string]any)) {
 	switch n := node.(type) {
 	case map[string]any:
 		fn(n)
+
 		if props, ok := n["properties"].(map[string]any); ok {
 			for _, v := range props {
 				walk(v, fn)
 			}
 		}
+
 		for _, k := range []string{"$defs", "definitions", "patternProperties"} {
 			if defs, ok := n[k].(map[string]any); ok {
 				for _, v := range defs {
@@ -211,6 +228,7 @@ func walk(node any, fn func(map[string]any)) {
 				}
 			}
 		}
+
 		for _, k := range []string{"anyOf", "oneOf", "allOf", "prefixItems"} {
 			if arr, ok := n[k].([]any); ok {
 				for _, v := range arr {
@@ -218,6 +236,7 @@ func walk(node any, fn func(map[string]any)) {
 				}
 			}
 		}
+
 		switch it := n["items"].(type) {
 		case map[string]any:
 			walk(it, fn)
@@ -226,6 +245,7 @@ func walk(node any, fn func(map[string]any)) {
 				walk(v, fn)
 			}
 		}
+
 		if ap, ok := n["additionalProperties"].(map[string]any); ok {
 			walk(ap, fn)
 		}
