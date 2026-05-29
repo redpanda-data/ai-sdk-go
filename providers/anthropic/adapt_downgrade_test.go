@@ -20,6 +20,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// mp is a checked map type-assertion helper (errcheck check-type-assertions).
+func mp(v any) map[string]any { m, _ := v.(map[string]any); return m }
+
 // TestAdaptSchemaForAnthropic_CollapsesDynamicNodes asserts the Anthropic adapter
 // collapses typeless / open-ended nodes (which Anthropic rejects as invalid
 // draft-2020-12) to strings, while leaving typed fields and maps untouched.
@@ -35,14 +38,14 @@ func TestAdaptSchemaForAnthropic_CollapsesDynamicNodes(t *testing.T) {
 		},
 	}
 	out := NewSchemaMapper().AdaptSchemaForAnthropic(in)
-	props := out["properties"].(map[string]any)
+	props := mp(out["properties"])
 
-	assert.Equal(t, "string", props["name"].(map[string]any)["type"])
-	assert.Equal(t, "string", props["meta"].(map[string]any)["type"], "Struct collapses to string")
-	assert.Equal(t, "string", props["val"].(map[string]any)["type"], "typeless Value collapses to string")
+	assert.Equal(t, "string", mp(props["name"])["type"])
+	assert.Equal(t, "string", mp(props["meta"])["type"], "Struct collapses to string")
+	assert.Equal(t, "string", mp(props["val"])["type"], "typeless Value collapses to string")
 	// Maps are valid for Anthropic and must be preserved.
-	assert.Equal(t, "object", props["labels"].(map[string]any)["type"])
+	assert.Equal(t, "object", mp(props["labels"])["type"])
 
 	// Input not mutated.
-	assert.Equal(t, true, in["properties"].(map[string]any)["meta"].(map[string]any)["additionalProperties"])
+	assert.Equal(t, true, mp(mp(in["properties"])["meta"])["additionalProperties"])
 }

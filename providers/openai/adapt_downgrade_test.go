@@ -21,6 +21,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// mp / sl are checked type-assertion helpers (errcheck check-type-assertions).
+func mp(v any) map[string]any { m, _ := v.(map[string]any); return m }
+func sl(v any) []any          { s, _ := v.([]any); return s }
+
 // TestAdaptSchemaForOpenAI_MCPShapes feeds a schema shaped like the JSON Schema
 // an MCP server (protoc-gen-go-mcp) emits — base64 bytes, a dynamic Struct, a
 // dynamic Value, and a map — and asserts the adapted result is OpenAI-strict
@@ -39,9 +43,9 @@ func TestAdaptSchemaForOpenAI_MCPShapes(t *testing.T) {
 		"required": []any{"blob"},
 	}
 	out := NewSchemaMapper().AdaptSchemaForOpenAI(in)
-	props := out["properties"].(map[string]any)
+	props := mp(out["properties"])
 
-	blob := props["blob"].(map[string]any)
+	blob := mp(props["blob"])
 	_, hasFmt := blob["format"]
 	_, hasEnc := blob["contentEncoding"]
 	assert.False(t, hasFmt, "format:byte must be stripped")
@@ -51,7 +55,7 @@ func TestAdaptSchemaForOpenAI_MCPShapes(t *testing.T) {
 	assert.Equal(t, "string", typeNoNull(props["meta"]), "Struct collapses to string")
 	assert.Equal(t, "string", typeNoNull(props["val"]), "Value collapses to string")
 
-	labels := props["labels"].(map[string]any)
+	labels := mp(props["labels"])
 	_, hasPN := labels["propertyNames"]
 	assert.False(t, hasPN, "propertyNames stripped")
 	// Map stays an object (OpenAI forces additionalProperties:false).
@@ -60,15 +64,16 @@ func TestAdaptSchemaForOpenAI_MCPShapes(t *testing.T) {
 	// Root object closed and every property required.
 	assert.Equal(t, false, out["additionalProperties"])
 	req := map[string]bool{}
-	for _, r := range out["required"].([]any) {
-		req[r.(string)] = true
+	for _, r := range sl(out["required"]) {
+		rs, _ := r.(string)
+		req[rs] = true
 	}
 	for name := range props {
 		assert.True(t, req[name], "property %q must be required under strict", name)
 	}
 
 	// The input must not be mutated.
-	origBlob := in["properties"].(map[string]any)["blob"].(map[string]any)
+	origBlob := mp(mp(in["properties"])["blob"])
 	require.Equal(t, "byte", origBlob["format"], "input schema must not be mutated")
 }
 

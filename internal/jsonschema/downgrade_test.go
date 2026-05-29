@@ -21,6 +21,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// mp is a checked map type-assertion helper: it keeps errcheck's
+// check-type-assertions satisfied while keeping the assertions readable.
+func mp(v any) map[string]any { m, _ := v.(map[string]any); return m }
+
 func TestCollapseDynamicNodes(t *testing.T) {
 	t.Parallel()
 
@@ -66,10 +70,10 @@ func TestCollapseDynamicNodes(t *testing.T) {
 		}
 		CollapseDynamicNodes(n)
 		assert.Equal(t, "object", n["type"])
-		props := n["properties"].(map[string]any)
-		assert.Equal(t, "string", props["id"].(map[string]any)["type"])
+		props := mp(n["properties"])
+		assert.Equal(t, "string", mp(props["id"])["type"])
 		// nested Value collapsed
-		assert.Equal(t, "string", props["config"].(map[string]any)["type"])
+		assert.Equal(t, "string", mp(props["config"])["type"])
 	})
 
 	t.Run("Any keeps wrapper, collapses its typeless value", func(t *testing.T) {
@@ -83,7 +87,7 @@ func TestCollapseDynamicNodes(t *testing.T) {
 		}
 		CollapseDynamicNodes(n)
 		assert.Equal(t, "object", n["type"]) // wrapper preserved
-		val := n["properties"].(map[string]any)["value"].(map[string]any)
+		val := mp(mp(n["properties"])["value"])
 		assert.Equal(t, "string", val["type"])
 	})
 
@@ -95,7 +99,7 @@ func TestCollapseDynamicNodes(t *testing.T) {
 		CollapseDynamicNodes(n)
 		// array stays array (items not empty), but item is collapsed
 		assert.Equal(t, "array", n["type"])
-		assert.Equal(t, "string", n["items"].(map[string]any)["type"])
+		assert.Equal(t, "string", mp(n["items"])["type"])
 	})
 
 	t.Run("typed scalar untouched", func(t *testing.T) {
@@ -158,10 +162,10 @@ func TestStripUnsupportedOpenAIKeywords(t *testing.T) {
 			},
 		}
 		StripUnsupportedOpenAIKeywords(n)
-		props := n["properties"].(map[string]any)
-		_, blobFmt := props["blob"].(map[string]any)["format"]
+		props := mp(n["properties"])
+		_, blobFmt := mp(props["blob"])["format"]
 		assert.False(t, blobFmt)
-		_, itemEnc := props["list"].(map[string]any)["items"].(map[string]any)["contentEncoding"]
+		_, itemEnc := mp(mp(props["list"])["items"])["contentEncoding"]
 		assert.False(t, itemEnc)
 	})
 
