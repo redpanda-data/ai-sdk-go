@@ -52,9 +52,10 @@ func (t *TemperatureSensorTool) Definition() llm.ToolDefinition {
 		panic(fmt.Sprintf("failed to generate schema: %v", err))
 	}
 
-	// Disable additional properties for strict validation
-	falseSchema := &llm.Schema{}
-	schema.AdditionalProperties = falseSchema
+	// Disable additional properties for strict validation. The JSON Schema
+	// "false" is encoded as a schema that matches nothing (not: {}); an empty
+	// &llm.Schema{} would instead marshal to `true` and allow extra properties.
+	schema.AdditionalProperties = &llm.Schema{Not: &llm.Schema{}}
 
 	return llm.ToolDefinition{
 		Name:        "read_temperature_sensor",
@@ -120,9 +121,10 @@ func (t *GetSecretValueTool) Definition() llm.ToolDefinition {
 		panic(fmt.Sprintf("failed to generate schema: %v", err))
 	}
 
-	// Disable additional properties for strict validation
-	falseSchema := &llm.Schema{}
-	schema.AdditionalProperties = falseSchema
+	// Disable additional properties for strict validation. The JSON Schema
+	// "false" is encoded as a schema that matches nothing (not: {}); an empty
+	// &llm.Schema{} would instead marshal to `true` and allow extra properties.
+	schema.AdditionalProperties = &llm.Schema{Not: &llm.Schema{}}
 
 	return llm.ToolDefinition{
 		Name:        "get_secret_value",

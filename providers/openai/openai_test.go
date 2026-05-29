@@ -465,6 +465,24 @@ func TestToolMapping(t *testing.T) {
 			},
 		},
 		{
+			// Regression: an empty Schema marshals to the JSON literal `true`,
+			// which must not break mapping for a no-argument tool.
+			name: "empty schema (no-argument tool)",
+			tools: []llm.ToolDefinition{
+				{
+					Name:       "no_args",
+					Parameters: &llm.Schema{},
+				},
+			},
+			wantErr: false,
+			validate: func(t *testing.T, tools []responses.ToolUnionParam) {
+				t.Helper()
+				require.Len(t, tools, 1)
+				require.NotNil(t, tools[0].OfFunction)
+				assert.Equal(t, "no_args", tools[0].OfFunction.Name)
+			},
+		},
+		{
 			name: "invalid JSON parameters",
 			tools: []llm.ToolDefinition{
 				{

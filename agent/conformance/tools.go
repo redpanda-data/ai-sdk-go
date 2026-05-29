@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/json"
 
-
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 

@@ -25,6 +25,7 @@ import (
 	"github.com/openai/openai-go/v3/shared"
 	"github.com/openai/openai-go/v3/shared/constant"
 
+	"github.com/redpanda-data/ai-sdk-go/internal/schemamap"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -349,22 +350,15 @@ func (rm *RequestMapper) mapToolDefinitions(tools []llm.ToolDefinition) ([]opena
 	apiTools := make([]openai.ChatCompletionToolUnionParam, 0, len(tools))
 
 	for _, tool := range tools {
-		// Marshal *llm.Schema once per tool, then decode into a map
-		// so the existing schema adapter can mutate it.
-		var parametersMap map[string]any
+		// Convert *llm.Schema into a map the schema adapter can mutate. A nil,
+		// empty, or boolean schema yields a nil map; fall back to an explicit
+		// empty-object schema in that case.
+		parametersMap, err := schemamap.ToMap(tool.Parameters)
+		if err != nil {
+			return nil, fmt.Errorf("invalid parameters for tool %s: %w", tool.Name, err)
+		}
 
-		if tool.Parameters != nil {
-			schemaBytes, err := json.Marshal(tool.Parameters)
-			if err != nil {
-				return nil, fmt.Errorf("invalid parameters for tool %s: %w", tool.Name, err)
-			}
-
-			err = json.Unmarshal(schemaBytes, &parametersMap)
-			if err != nil {
-				return nil, fmt.Errorf("invalid parameters JSON for tool %s: %w", tool.Name, err)
-			}
-		} else {
-			// If no parameters provided, use an empty object schema
+		if parametersMap == nil {
 			parametersMap = map[string]any{
 				"type":       "object",
 				"properties": map[string]any{},

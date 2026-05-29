@@ -125,7 +125,7 @@ func (*Tool) Execute(_ context.Context, args json.RawMessage) (json.RawMessage, 
 }
 
 // Manual JSON schema for plot Input type. Parsed once at init time from the
-// JSON literal below to keep the source readable; MustParseSchema panics on
+// JSON literal below to keep the source readable; llm.MustSchema panics on
 // invalid schema, which is desirable for this compile-time constant.
 var plotInputSchema = llm.MustSchema(`{
 	"type": "object",

@@ -23,6 +23,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/packages/param"
 	"github.com/anthropics/anthropic-sdk-go/shared/constant"
 
+	"github.com/redpanda-data/ai-sdk-go/internal/schemamap"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -318,19 +319,11 @@ func (rm *RequestMapper) mapToolDefinitions(tools []llm.ToolDefinition) ([]anthr
 	apiTools := make([]anthropic.BetaToolUnionParam, 0, len(tools))
 
 	for _, tool := range tools {
-		// Marshal *llm.Schema to JSON once per tool, then decode into
-		// a mutable map for the schema adapter.
-		var schemaMap map[string]any
-
-		if tool.Parameters != nil {
-			schemaBytes, err := json.Marshal(tool.Parameters)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal tool schema for %s: %w", tool.Name, err)
-			}
-
-			if err := json.Unmarshal(schemaBytes, &schemaMap); err != nil {
-				return nil, fmt.Errorf("failed to parse tool schema for %s: %w", tool.Name, err)
-			}
+		// Convert *llm.Schema into a mutable map for the schema adapter.
+		// Empty/boolean schemas yield a nil map, which the adapter handles.
+		schemaMap, err := schemamap.ToMap(tool.Parameters)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert tool schema for %s: %w", tool.Name, err)
 		}
 
 		// Adapt the schema for Anthropic

@@ -24,6 +24,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/document"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 
+	"github.com/redpanda-data/ai-sdk-go/internal/schemamap"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -307,17 +308,10 @@ func (rm *RequestMapper) mapToolConfig(tools []llm.ToolDefinition, choice *llm.T
 	apiTools := make([]types.Tool, 0, len(tools))
 
 	for _, tool := range tools {
-		var schemaMap map[string]any
-
-		if tool.Parameters != nil {
-			schemaBytes, err := json.Marshal(tool.Parameters)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal tool schema for %s: %w", tool.Name, err)
-			}
-
-			if err := json.Unmarshal(schemaBytes, &schemaMap); err != nil {
-				return nil, fmt.Errorf("failed to parse tool schema for %s: %w", tool.Name, err)
-			}
+		// Convert *llm.Schema into a map. Empty/boolean schemas yield a nil map.
+		schemaMap, err := schemamap.ToMap(tool.Parameters)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert tool schema for %s: %w", tool.Name, err)
 		}
 
 		apiTools = append(apiTools, &types.ToolMemberToolSpec{

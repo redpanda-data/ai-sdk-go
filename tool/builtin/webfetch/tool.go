@@ -70,15 +70,12 @@ func (t *Tool) Definition() llm.ToolDefinition {
 		"additionalProperties": false,
 	}
 
-	schemaBytes, _ := json.Marshal(schema) //nolint:errchkjson // We know that this will succeed
-
-	parsed := &llm.Schema{}
-	_ = json.Unmarshal(schemaBytes, parsed)
+	schemaBytes, _ := json.Marshal(schema) //nolint:errchkjson // static schema always marshals
 
 	return llm.ToolDefinition{
 		Name:        "webfetch",
 		Description: "Fetch a HTTPS URL (GET/HEAD) with SSRF protection and size limits. Text/JSON/XML only.",
-		Parameters:  parsed,
+		Parameters:  llm.MustSchema(string(schemaBytes)),
 		Type:        llm.ToolTypeFunction,
 		Metadata: map[string]any{
 			"category": "web",

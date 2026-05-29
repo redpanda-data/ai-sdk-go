@@ -37,7 +37,6 @@ import (
 	"fmt"
 	"time"
 
-
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/store/session"
