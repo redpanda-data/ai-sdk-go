@@ -74,13 +74,13 @@ func TestReasoningContentParsing(t *testing.T) {
 
 		// First part should be reasoning
 		rp, ok := response.Message.Content[0].(*llm.ReasoningPart)
-		require.True(t, ok, "expected *ReasoningPart, got %T", response.Message.Content[0])
+		require.True(t, ok)
 		assert.Contains(t, rp.Text, "Let me think")
 		assert.Contains(t, rp.Text, "step by step")
 
 		// Second part should be text
 		tp, ok := response.Message.Content[1].(*llm.TextPart)
-		require.True(t, ok, "expected *TextPart, got %T", response.Message.Content[1])
+		require.True(t, ok)
 		assert.Equal(t, "9.11 is greater than 9.8", tp.Text)
 
 		// Check reasoning tokens

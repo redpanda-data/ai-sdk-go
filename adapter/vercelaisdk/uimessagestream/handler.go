@@ -301,7 +301,7 @@ func (sw *streamWriter) writeToolResponse(tr *llm.ToolResponsePart) error {
 
 	if tr.IsError {
 		return sw.ew.WriteChunk(Chunk{
-			"type": "tool-output-error", "toolCallId": tr.ID, "errorText": string(tr.Result),
+			"type": "tool-output-error", "toolCallId": tr.ID, "errorText": toolErrorText(tr.Result),
 		})
 	}
 
@@ -313,6 +313,24 @@ func (sw *streamWriter) writeToolResponse(tr *llm.ToolResponsePart) error {
 	return sw.ew.WriteChunk(Chunk{
 		"type": "tool-output-available", "toolCallId": tr.ID, "output": output,
 	})
+}
+
+// toolErrorText extracts a human-readable error string from a tool error
+// result payload. NewToolErrorPart encodes errors as {"error":"..."}; older
+// or alternative shapes fall back to the raw payload string.
+func toolErrorText(result json.RawMessage) string {
+	if len(result) == 0 {
+		return ""
+	}
+
+	var env struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(result, &env); err == nil && env.Error != "" {
+		return env.Error
+	}
+
+	return string(result)
 }
 
 // handleContentPart dispatches a content part event to the appropriate writer method.
@@ -608,14 +626,7 @@ func executeTools(ctx context.Context, toolRequests []*llm.ToolRequestPart, mess
 				"type": "tool-output-error", "toolCallId": tr.ID, "errorText": err.Error(),
 			})
 
-			errPayload, mErr := json.Marshal(map[string]string{"error": err.Error()})
-			if mErr != nil {
-				errPayload = []byte(`{"error":"tool error"}`)
-			}
-
-			toolResponseParts = append(toolResponseParts, &llm.ToolResponsePart{
-				ID: tr.ID, Name: tr.Name, Result: errPayload, IsError: true,
-			})
+			toolResponseParts = append(toolResponseParts, llm.NewToolErrorPart(tr.ID, tr.Name, err.Error()))
 
 			continue
 		}
@@ -631,7 +642,7 @@ func executeTools(ctx context.Context, toolRequests []*llm.ToolRequestPart, mess
 			return err
 		}
 
-		toolResponseParts = append(toolResponseParts, llm.NewToolResponsePart(tr.ID, tr.Name, result, false))
+		toolResponseParts = append(toolResponseParts, llm.NewToolResponsePart(tr.ID, tr.Name, result))
 	}
 
 	*messages = append(*messages, llm.Message{Role: llm.RoleUser, Content: toolResponseParts})

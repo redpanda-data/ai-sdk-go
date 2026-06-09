@@ -16,6 +16,7 @@ package session
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/twmb/go-cache/cache"
@@ -42,6 +43,10 @@ const (
 // InMemoryStore is safe for concurrent use from multiple goroutines.
 type InMemoryStore struct {
 	cache *cache.Cache[string, *State]
+
+	// locks holds *sync.Mutex per session ID, allocated on first use,
+	// implementing WithSessionLock for single-process callers.
+	locks sync.Map
 }
 
 // InMemoryStoreOption configures an InMemoryStore.
@@ -121,5 +126,57 @@ func (s *InMemoryStore) Save(_ context.Context, state *State) error {
 func (s *InMemoryStore) Delete(_ context.Context, sessionID string) error {
 	//nolint:dogsled // cache.Delete returns (value, existed, evicted); we don't need any of these
 	_, _, _ = s.cache.Delete(sessionID)
+	// Keep the mutex entry around: a stale entry is cheap and avoids
+	// the LoadOrStore / Delete race that would otherwise let two
+	// callers acquire different mutex instances for the same ID right
+	// after a delete.
 	return nil
+}
+
+// WithSessionLock serializes operations against a single session ID.
+// The lock is a per-ID *sync.Mutex stored in a sync.Map and allocated
+// lazily on first use. The lock is held for the duration of fn even
+// when fn returns an error.
+func (s *InMemoryStore) WithSessionLock(ctx context.Context, sessionID string, fn func(context.Context) error) error {
+	mu := s.lockFor(sessionID)
+
+	// Respect ctx cancellation while acquiring — without this, a slow
+	// caller can block forever if the holder is stuck.
+	lockCh := make(chan struct{})
+
+	go func() {
+		mu.Lock()
+		close(lockCh)
+	}()
+
+	select {
+	case <-ctx.Done():
+		// Wait for the lock so we can release it; otherwise the next
+		// caller would inherit a held mutex.
+		go func() {
+			<-lockCh
+			mu.Unlock()
+		}()
+
+		return ctx.Err()
+	case <-lockCh:
+	}
+
+	defer mu.Unlock()
+
+	return fn(ctx)
+}
+
+func (s *InMemoryStore) lockFor(sessionID string) *sync.Mutex {
+	if v, ok := s.locks.Load(sessionID); ok {
+		mu, _ := v.(*sync.Mutex)
+		return mu
+	}
+
+	mu := &sync.Mutex{}
+
+	actual, _ := s.locks.LoadOrStore(sessionID, mu)
+	got, _ := actual.(*sync.Mutex)
+
+	return got
 }

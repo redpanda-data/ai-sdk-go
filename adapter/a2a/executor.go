@@ -29,6 +29,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/runner"
+	"github.com/redpanda-data/ai-sdk-go/tool"
 )
 
 // Executor implements the a2asrv.AgentExecutor interface, bridging AI SDK agents with A2A protocol.
@@ -172,8 +173,13 @@ func (e *Executor) processEvents(
 			e.log.DebugContext(ctx, "Tool response event", "tool", ev.Response.Name)
 
 			// Add tool response to history as a user message
-			resp := ev.Response
-			llmMsg := llm.NewMessage(llm.RoleUser, &resp)
+			toolPart := &llm.ToolResponsePart{
+				ID:      ev.Response.ID,
+				Name:    ev.Response.Name,
+				Result:  ev.Response.Result,
+				IsError: ev.Response.IsError,
+			}
+			llmMsg := llm.NewMessage(llm.RoleUser, toolPart)
 			a2amsg := MessageFromLLM(llmMsg)
 			historyStatus := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateWorking, a2amsg)
 			write(historyStatus)
@@ -255,8 +261,8 @@ func (e *Executor) processEvents(
 				taskState = a2a.TaskStateFailed
 			case agent.FinishReasonInterrupted:
 				taskState = a2a.TaskStateCanceled
-			case agent.FinishReasonInputRequired:
-				taskState = a2a.TaskStateInputRequired
+			case agent.FinishReasonPaused:
+				taskState = pendingCallsToTaskState(ev.PendingCalls)
 			default:
 				e.log.ErrorContext(ctx, "Unknown finish reason", "finish_reason", ev.FinishReason)
 
@@ -302,4 +308,31 @@ func (e *Executor) processEvents(
 	write(statusEvent)
 
 	return errors.New("incomplete agent call: missing InvocationEndEvent")
+}
+
+// pendingCallsToTaskState maps the first pending call's reason onto the
+// matching A2A task state. The A2A protocol does not have a dedicated
+// "waiting on external system" state, so tool_result pauses surface as
+// TaskStateWorking (the task is still in progress, just not consuming
+// the model). Human-driven pauses surface as TaskStateInputRequired so
+// clients know to prompt the user.
+func pendingCallsToTaskState(calls []agent.PendingCallSummary) a2a.TaskState {
+	if len(calls) == 0 {
+		return a2a.TaskStateInputRequired
+	}
+
+	switch calls[0].Reason {
+	case tool.AwaitReasonUserInput, tool.AwaitReasonApproval, tool.AwaitReasonElicitation:
+		return a2a.TaskStateInputRequired
+	case tool.AwaitReasonToolResult:
+		return a2a.TaskStateWorking
+	case tool.AwaitReasonHandoff:
+		if calls[0].Message != "" {
+			return a2a.TaskStateInputRequired
+		}
+
+		return a2a.TaskStateWorking
+	default:
+		return a2a.TaskStateInputRequired
+	}
 }

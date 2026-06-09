@@ -100,7 +100,11 @@ func (m *ResponseMapper) FromProvider(r *responses.Response) (*llm.Response, err
 
 			hasToolCalls = true
 
-			content = append(content, llm.NewToolRequestPart(fc.CallID, fc.Name, json.RawMessage(fc.Arguments)))
+			content = append(content, llm.NewToolRequestPart(
+				fc.CallID,
+				fc.Name,
+				json.RawMessage(fc.Arguments),
+			))
 
 		case outputTypeReasoning:
 			for i, s := range out.Summary {
@@ -109,9 +113,9 @@ func (m *ResponseMapper) FromProvider(r *responses.Response) (*llm.Response, err
 				}
 
 				content = append(content, &llm.ReasoningPart{
-					ID:       fmt.Sprintf("%s-%d", out.ID, i),
-					Text:     s.Text,
-					Metadata: map[string]any{"summary_index": i},
+					Text:      s.Text,
+					Signature: fmt.Sprintf("%s-%d", out.ID, i),
+					Metadata:  map[string]any{"summary_index": i},
 				})
 			}
 

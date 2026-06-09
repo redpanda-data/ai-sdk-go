@@ -201,7 +201,11 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 					if !yield(llm.ContentPartEvent{
 						Index: int(e.Index),
-						Part:  llm.NewToolRequestPart(acc.toolUse.ID, acc.toolUse.Name, argsJSON),
+						Part: llm.NewToolRequestPart(
+							acc.toolUse.ID,
+							acc.toolUse.Name,
+							argsJSON,
+						),
 					}, nil) {
 						return
 					}

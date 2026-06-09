@@ -27,16 +27,8 @@ import (
 func TestNewMessage(t *testing.T) {
 	t.Parallel()
 
-	toolReq := &llm.ToolRequestPart{
-		ID:        "call_1",
-		Name:      "search",
-		Arguments: json.RawMessage(`{"query":"test"}`),
-	}
-	toolResp := &llm.ToolResponsePart{
-		ID:     "call_1",
-		Name:   "search",
-		Result: json.RawMessage(`{"results":["item1"]}`),
-	}
+	toolReq := llm.NewToolRequestPart("call_1", "search", json.RawMessage(`{"query":"test"}`))
+	toolResp := llm.NewToolResponsePart("call_1", "search", json.RawMessage(`{"results":["item1"]}`))
 
 	tests := []struct {
 		name      string

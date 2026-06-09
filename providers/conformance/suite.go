@@ -1166,7 +1166,6 @@ func testToolExecutionLoop(t *testing.T, fixture Fixture) { //nolint:thelper // 
 							toolRequests[0].ID,
 							toolRequests[0].Name,
 							json.RawMessage(`{"temperature": 72, "condition": "sunny", "unit": "fahrenheit"}`),
-							false,
 						),
 					},
 				},
@@ -1273,7 +1272,6 @@ func testToolExecutionLoop(t *testing.T, fixture Fixture) { //nolint:thelper // 
 							toolRequests[0].ID,
 							toolRequests[0].Name,
 							json.RawMessage(`{"time": "14:30", "timezone": "Asia/Tokyo", "date": "2025-11-10"}`),
-							false,
 						),
 					},
 				},
@@ -1380,7 +1378,6 @@ func testToolExecutionLoop(t *testing.T, fixture Fixture) { //nolint:thelper // 
 							toolRequests1[0].ID,
 							toolRequests1[0].Name,
 							json.RawMessage(`{"city": "San Francisco", "state": "CA", "country": "USA"}`),
-							false,
 						),
 					},
 				},
@@ -1427,7 +1424,6 @@ func testToolExecutionLoop(t *testing.T, fixture Fixture) { //nolint:thelper // 
 				toolReq.ID,
 				toolReq.Name,
 				json.RawMessage(`{"temperature": 65, "condition": "foggy", "humidity": 85}`),
-				false,
 			))
 		}
 
@@ -1447,7 +1443,6 @@ func testToolExecutionLoop(t *testing.T, fixture Fixture) { //nolint:thelper // 
 							toolRequests1[0].ID,
 							toolRequests1[0].Name,
 							json.RawMessage(`{"city": "San Francisco", "state": "CA", "country": "USA"}`),
-							false,
 						),
 					},
 				},

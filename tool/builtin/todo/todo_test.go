@@ -23,6 +23,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	toolpkg "github.com/redpanda-data/ai-sdk-go/tool"
 )
 
 func TestUpdateTodos_EndToEnd(t *testing.T) {
@@ -160,12 +162,12 @@ func TestUpdateTodos_EndToEnd(t *testing.T) {
 			tool := NewUpdateStateTool()
 			ctx := context.Background()
 
-			result, err := tool.Execute(ctx, json.RawMessage(tt.args))
+			result, err := tool.Execute(ctx, toolpkg.Call{Args: json.RawMessage(tt.args)})
 			require.NoError(t, err)
 
 			// Verify it returns empty response
 			var response UpdateTodoStateResponse
-			require.NoError(t, json.Unmarshal(result, &response))
+			require.NoError(t, json.Unmarshal(result.Output, &response))
 		})
 	}
 }
@@ -242,7 +244,7 @@ func TestUpdateTodos_ValidationErrors(t *testing.T) {
 			tool := NewUpdateStateTool()
 			ctx := context.Background()
 
-			_, err := tool.Execute(ctx, json.RawMessage(tt.args))
+			_, err := tool.Execute(ctx, toolpkg.Call{Args: json.RawMessage(tt.args)})
 
 			// All validation errors should be returned as Go errors
 			require.Error(t, err, "Tool should return Go error for validation failure")
@@ -386,12 +388,12 @@ func TestAddTodos_EndToEnd(t *testing.T) {
 			tool := NewAddTool()
 			ctx := context.Background()
 
-			result, err := tool.Execute(ctx, json.RawMessage(tt.args))
+			result, err := tool.Execute(ctx, toolpkg.Call{Args: json.RawMessage(tt.args)})
 			require.NoError(t, err)
 
 			// Verify it returns empty response
 			var response AddTodoResponse
-			require.NoError(t, json.Unmarshal(result, &response))
+			require.NoError(t, json.Unmarshal(result.Output, &response))
 		})
 	}
 }
@@ -468,7 +470,7 @@ func TestAddTodos_ValidationErrors(t *testing.T) {
 			tool := NewAddTool()
 			ctx := context.Background()
 
-			_, err := tool.Execute(ctx, json.RawMessage(tt.args))
+			_, err := tool.Execute(ctx, toolpkg.Call{Args: json.RawMessage(tt.args)})
 
 			// All validation errors should be returned as Go errors
 			require.Error(t, err, "Tool should return Go error for validation failure")
@@ -484,7 +486,7 @@ func TestTodoTools_Definitions(t *testing.T) {
 		t.Parallel()
 
 		tool := NewUpdateStateTool()
-		def := tool.Definition()
+		def := toolpkg.Definition(tool)
 
 		assert.Equal(t, "update_todos", def.Name)
 		assert.NotEmpty(t, def.Description)
@@ -505,7 +507,7 @@ func TestTodoTools_Definitions(t *testing.T) {
 		t.Parallel()
 
 		tool := NewAddTool()
-		def := tool.Definition()
+		def := toolpkg.Definition(tool)
 
 		assert.Equal(t, "add_todos", def.Name)
 		assert.NotEmpty(t, def.Description)
@@ -540,12 +542,12 @@ func TestTodoTools_EdgeCases(t *testing.T) {
 		}`
 
 		// Test with background context
-		result, err := tool.Execute(context.Background(), json.RawMessage(args))
+		result, err := tool.Execute(context.Background(), toolpkg.Call{Args: json.RawMessage(args)})
 		require.NoError(t, err)
 
 		// Should succeed even with basic context - verify empty response
 		var response UpdateTodoStateResponse
-		require.NoError(t, json.Unmarshal(result, &response))
+		require.NoError(t, json.Unmarshal(result.Output, &response))
 	})
 
 	t.Run("AddTool handles Unicode names", func(t *testing.T) {
@@ -566,12 +568,12 @@ func TestTodoTools_EdgeCases(t *testing.T) {
 			]
 		}`
 
-		result, err := tool.Execute(context.Background(), json.RawMessage(args))
+		result, err := tool.Execute(context.Background(), toolpkg.Call{Args: json.RawMessage(args)})
 		require.NoError(t, err)
 
 		// Verify empty response - Unicode handling happens at input validation
 		var response AddTodoResponse
-		require.NoError(t, json.Unmarshal(result, &response))
+		require.NoError(t, json.Unmarshal(result.Output, &response))
 	})
 
 	t.Run("tools handle extremely long names gracefully", func(t *testing.T) {
@@ -589,12 +591,12 @@ func TestTodoTools_EdgeCases(t *testing.T) {
 			]
 		}`, longName)
 
-		result, err := updateTool.Execute(context.Background(), json.RawMessage(updateArgs))
+		result, err := updateTool.Execute(context.Background(), toolpkg.Call{Args: json.RawMessage(updateArgs)})
 		require.NoError(t, err)
 
 		// Should handle long names without errors - verify empty response
 		var response UpdateTodoStateResponse
-		require.NoError(t, json.Unmarshal(result, &response))
+		require.NoError(t, json.Unmarshal(result.Output, &response))
 	})
 }
 
@@ -619,12 +621,12 @@ func TestTodoTools_StatusValidation(t *testing.T) {
 				]
 			}`, state, state)
 
-			result, err := tool.Execute(context.Background(), json.RawMessage(args))
+			result, err := tool.Execute(context.Background(), toolpkg.Call{Args: json.RawMessage(args)})
 			require.NoError(t, err, "Failed for valid state: %s", state)
 
 			// Verify empty response
 			var response UpdateTodoStateResponse
-			require.NoError(t, json.Unmarshal(result, &response))
+			require.NoError(t, json.Unmarshal(result.Output, &response))
 		}
 	})
 
@@ -643,7 +645,7 @@ func TestTodoTools_StatusValidation(t *testing.T) {
 				]
 			}`, state)
 
-			_, err := tool.Execute(context.Background(), json.RawMessage(args))
+			_, err := tool.Execute(context.Background(), toolpkg.Call{Args: json.RawMessage(args)})
 			require.Error(t, err, "Invalid state %s should produce Go error", state)
 			assert.Contains(t, strings.ToLower(err.Error()), "invalid status")
 		}
@@ -665,12 +667,12 @@ func TestTodoTools_StatusValidation(t *testing.T) {
 				]
 			}`, state, state)
 
-			result, err := tool.Execute(context.Background(), json.RawMessage(args))
+			result, err := tool.Execute(context.Background(), toolpkg.Call{Args: json.RawMessage(args)})
 			require.NoError(t, err, "Failed for valid state: %s", state)
 
 			// Verify empty response
 			var response AddTodoResponse
-			require.NoError(t, json.Unmarshal(result, &response))
+			require.NoError(t, json.Unmarshal(result.Output, &response))
 		}
 	})
 
@@ -689,7 +691,7 @@ func TestTodoTools_StatusValidation(t *testing.T) {
 				]
 			}`, state)
 
-			_, err := tool.Execute(context.Background(), json.RawMessage(args))
+			_, err := tool.Execute(context.Background(), toolpkg.Call{Args: json.RawMessage(args)})
 			require.Error(t, err, "Invalid state %s should produce Go error", state)
 			assert.Contains(t, strings.ToLower(err.Error()), "invalid status")
 		}
@@ -721,12 +723,12 @@ func TestTodoTools_InProgressConstraint(t *testing.T) {
 			]
 		}`
 
-		result, err := tool.Execute(context.Background(), json.RawMessage(args))
+		result, err := tool.Execute(context.Background(), toolpkg.Call{Args: json.RawMessage(args)})
 		require.NoError(t, err)
 
 		// Verify empty response
 		var response UpdateTodoStateResponse
-		require.NoError(t, json.Unmarshal(result, &response))
+		require.NoError(t, json.Unmarshal(result.Output, &response))
 	})
 
 	t.Run("UpdateTool rejects multiple IN_PROGRESS", func(t *testing.T) {
@@ -747,7 +749,7 @@ func TestTodoTools_InProgressConstraint(t *testing.T) {
 			]
 		}`
 
-		_, err := tool.Execute(context.Background(), json.RawMessage(args))
+		_, err := tool.Execute(context.Background(), toolpkg.Call{Args: json.RawMessage(args)})
 		require.Error(t, err)
 		assert.Contains(t, strings.ToLower(err.Error()), "in_progress")
 	})
@@ -770,12 +772,12 @@ func TestTodoTools_InProgressConstraint(t *testing.T) {
 			]
 		}`
 
-		result, err := tool.Execute(context.Background(), json.RawMessage(args))
+		result, err := tool.Execute(context.Background(), toolpkg.Call{Args: json.RawMessage(args)})
 		require.NoError(t, err)
 
 		// Verify empty response
 		var response AddTodoResponse
-		require.NoError(t, json.Unmarshal(result, &response))
+		require.NoError(t, json.Unmarshal(result.Output, &response))
 	})
 
 	t.Run("AddTool rejects multiple IN_PROGRESS", func(t *testing.T) {
@@ -796,7 +798,7 @@ func TestTodoTools_InProgressConstraint(t *testing.T) {
 			]
 		}`
 
-		_, err := tool.Execute(context.Background(), json.RawMessage(args))
+		_, err := tool.Execute(context.Background(), toolpkg.Call{Args: json.RawMessage(args)})
 		require.Error(t, err)
 		assert.Contains(t, strings.ToLower(err.Error()), "in_progress")
 	})

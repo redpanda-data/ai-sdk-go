@@ -42,4 +42,14 @@ var (
 
 	// ErrInvalidToolConfig indicates that the tool configuration is invalid.
 	ErrInvalidToolConfig = errors.New("invalid tool configuration")
+
+	// ErrAwaitInvalid indicates that a tool returned an Await whose
+	// Reason/Resume combination is not allowed.
+	ErrAwaitInvalid = errors.New("invalid tool await")
+
+	// ErrAwaitReasonEmpty indicates that an Await has no Reason set.
+	ErrAwaitReasonEmpty = errors.New("await reason cannot be empty")
+
+	// ErrAwaitResumeEmpty indicates that an Await has no Resume mode set.
+	ErrAwaitResumeEmpty = errors.New("await resume mode cannot be empty")
 )

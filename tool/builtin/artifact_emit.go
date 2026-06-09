@@ -18,11 +18,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 
 	"github.com/rs/xid"
 
-	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/tool"
 )
 
@@ -38,29 +36,7 @@ type ArtifactEmitOutput struct {
 	ArtifactID string `json:"artifact_id"`
 }
 
-// ArtifactEmitTool implements a tool for emitting A2A artifacts.
-type ArtifactEmitTool struct{}
-
-// Ensure ArtifactEmitTool implements tool.Tool interface.
-var _ tool.Tool = (*ArtifactEmitTool)(nil)
-
-// NewArtifactEmitTool creates a new ArtifactEmitTool instance.
-func NewArtifactEmitTool() tool.Tool {
-	return &ArtifactEmitTool{}
-}
-
-// Definition returns the tool definition for the LLM.
-func (*ArtifactEmitTool) Definition() llm.ToolDefinition {
-	// Convert schema to JSON
-	schemaBytes, err := json.Marshal(artifactInputSchema)
-	if err != nil {
-		// Fallback to empty schema if marshaling fails
-		schemaBytes = []byte("{}")
-	}
-
-	return llm.ToolDefinition{
-		Name: "artifact_emit",
-		Description: `Emit an artifact containing text outputs or results of your work. Use this to provide structured text outputs to the user.
+const artifactEmitDescription = `Emit an artifact containing text outputs or results of your work. Use this to provide structured text outputs to the user.
 
 WHEN TO USE:
 - When you need to provide completed text outputs (reports, summaries, analysis)
@@ -73,39 +49,43 @@ FUNCTIONALITY:
 
 EXAMPLES:
 New artifact: {"name": "Analysis Report", "description": "Summary of findings", "text": "Analysis results...\n\nConclusions..."}
-Append to existing: {"append_to_artifact_id": "artifact-123", "text": "Additional findings..."}`,
-		Parameters: schemaBytes,
-		Type:       llm.ToolTypeFunction,
-	}
-}
+Append to existing: {"append_to_artifact_id": "artifact-123", "text": "Additional findings..."}`
 
-// Execute processes the artifact emit request.
-func (*ArtifactEmitTool) Execute(_ context.Context, args json.RawMessage) (json.RawMessage, error) {
-	var input EmitArtifactInput
+// NewArtifactEmitTool returns the artifact_emit built-in.
+func NewArtifactEmitTool() tool.Tool {
+	return tool.Must(tool.Func(
+		tool.Spec{
+			Name:        "artifact_emit",
+			Description: artifactEmitDescription,
+			InputSchema: mustMarshal(artifactInputSchema),
+		},
+		func(_ context.Context, in EmitArtifactInput) (tool.Result[ArtifactEmitOutput], error) {
+			if in.Name == "" {
+				return tool.Result[ArtifactEmitOutput]{}, errors.New("artifact must have non-empty name")
+			}
 
-	err := json.Unmarshal(args, &input)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse artifact emit request: %w", err)
-	}
+			if in.Description == "" {
+				return tool.Result[ArtifactEmitOutput]{}, errors.New("artifact must have non-empty description")
+			}
 
-	if input.Name == "" {
-		return nil, errors.New("artifact must have non-empty name")
-	}
+			if in.Text == "" {
+				return tool.Result[ArtifactEmitOutput]{}, errors.New("artifact must have non-empty text content")
+			}
 
-	if input.Description == "" {
-		return nil, errors.New("artifact must have non-empty description")
-	}
+			out := ArtifactEmitOutput{ArtifactID: "artifact-" + xid.New().String()}
 
-	if input.Text == "" {
-		return nil, errors.New("artifact must have non-empty text content")
-	}
-
-	// Create the response with properly typed artifact data
-	output := ArtifactEmitOutput{
-		ArtifactID: "artifact-" + xid.New().String(),
-	}
-
-	return json.Marshal(output)
+			return tool.Done(out, tool.Action{
+				Kind: tool.ActionArtifact,
+				Artifact: &tool.ArtifactAction{
+					ID:          out.ArtifactID,
+					Name:        in.Name,
+					Description: in.Description,
+					MediaType:   "text/plain",
+					Data:        []byte(in.Text),
+				},
+			}), nil
+		},
+	))
 }
 
 // Manual JSON schema for EmitArtifactInput.
@@ -127,4 +107,15 @@ var artifactInputSchema = map[string]any{
 	},
 	"required":             []string{"name", "description", "text"},
 	"additionalProperties": false,
+}
+
+func mustMarshal(v any) json.RawMessage {
+	b, err := json.Marshal(v)
+	if err != nil {
+		// Schema is a static literal — a marshal failure here means
+		// the source itself is malformed and the program cannot start.
+		panic(err) //nolint:forbidigo // init-time programmer error
+	}
+
+	return b
 }

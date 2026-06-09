@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/tool"
 )
 
@@ -56,49 +55,12 @@ type AddTodoResponse struct{}
 // UpdateTodoStateTool implements a tool for updating the status of existing todos.
 type UpdateTodoStateTool struct{}
 
-// NewUpdateStateTool creates a new UpdateTodoStateTool instance.
-func NewUpdateStateTool() tool.Tool {
-	return &UpdateTodoStateTool{}
-}
-
-// Definition returns the tool definition for the LLM.
-func (*UpdateTodoStateTool) Definition() llm.ToolDefinition {
-	schema := json.RawMessage(`{
-		"type": "object",
-		"properties": {
-			"updates": {
-				"description": "List of todo status updates to apply",
-				"type": "array",
-				"items": {
-					"type": "object",
-					"properties": {
-						"name": {
-							"type": "string",
-							"description": "Name of the todo to update"
-						},
-						"status": {
-							"type": "string",
-							"enum": ["PENDING", "IN_PROGRESS", "COMPLETED", "FAILED", "ABANDONED"],
-							"description": "New status to set for the todo"
-						}
-					},
-					"required": ["name", "status"],
-					"additionalProperties": false
-				}
-			}
-		},
-		"required": ["updates"],
-		"additionalProperties": false
-	}`)
-
-	return llm.ToolDefinition{
-		Name: "update_todos",
-		Description: `Update the status of existing todos in your task list. Use this to change the state of specific todos without rebuilding the entire list.
+const updateTodosDescription = `Update the status of existing todos in your task list. Use this to change the state of specific todos without rebuilding the entire list.
 
 SUPPORTED STATES:
 - PENDING: Task not yet started
 - IN_PROGRESS: Currently working (limit to ONE task at a time)
-- COMPLETED: Task finished successfully  
+- COMPLETED: Task finished successfully
 - FAILED: Task attempted but failed to complete
 - ABANDONED: Task intentionally stopped/cancelled without completion
 
@@ -109,34 +71,56 @@ IMPORTANT RULES:
 - Only ONE task should be IN_PROGRESS at any time
 - Mark tasks COMPLETED immediately after finishing
 - Use FAILED for tasks that were attempted but couldn't be completed
-- Use ABANDONED for tasks that are no longer relevant or needed`,
-		Parameters: schema,
-		Type:       llm.ToolTypeFunction,
-	}
-}
+- Use ABANDONED for tasks that are no longer relevant or needed`
 
-// Execute processes the update todo state request.
-func (t *UpdateTodoStateTool) Execute(_ context.Context, args json.RawMessage) (json.RawMessage, error) {
-	var req UpdateTodoStateRequest
+var updateTodosSchema = json.RawMessage(`{
+    "type": "object",
+    "properties": {
+        "updates": {
+            "description": "List of todo status updates to apply",
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Name of the todo to update"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": ["PENDING", "IN_PROGRESS", "COMPLETED", "FAILED", "ABANDONED"],
+                        "description": "New status to set for the todo"
+                    }
+                },
+                "required": ["name", "status"],
+                "additionalProperties": false
+            }
+        }
+    },
+    "required": ["updates"],
+    "additionalProperties": false
+}`)
 
-	err := json.Unmarshal(args, &req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse update todo state request: %w", err)
-	}
+// NewUpdateStateTool creates the update_todos tool.
+func NewUpdateStateTool() tool.Tool {
+	return tool.Must(tool.Func(
+		tool.Spec{
+			Name:        "update_todos",
+			Description: updateTodosDescription,
+			InputSchema: updateTodosSchema,
+		},
+		func(_ context.Context, in UpdateTodoStateRequest) (tool.Result[UpdateTodoStateResponse], error) {
+			if err := validateUpdates(in.Updates); err != nil {
+				return tool.Result[UpdateTodoStateResponse]{}, fmt.Errorf("invalid updates: %w", err)
+			}
 
-	// Validate the updates
-	err = t.validateUpdates(req.Updates)
-	if err != nil {
-		return nil, fmt.Errorf("invalid updates: %w", err)
-	}
-
-	// The actual todo list updates will be handled by the reconciler
-	// Return empty response
-	return json.Marshal(UpdateTodoStateResponse{})
+			return tool.Done(UpdateTodoStateResponse{}), nil
+		},
+	))
 }
 
 // validateUpdates validates the structure and constraints of updates.
-func (*UpdateTodoStateTool) validateUpdates(updates []Update) error {
+func validateUpdates(updates []Update) error {
 	if len(updates) == 0 {
 		return errors.New("updates list cannot be empty")
 	}
@@ -183,51 +167,13 @@ func (*UpdateTodoStateTool) validateUpdates(updates []Update) error {
 // AddTodoTool implements a tool for adding new todos to the task list.
 type AddTodoTool struct{}
 
-// NewAddTool creates a new AddTodoTool instance.
-func NewAddTool() tool.Tool {
-	return &AddTodoTool{}
-}
-
-// Definition returns the tool definition for the LLM.
-func (*AddTodoTool) Definition() llm.ToolDefinition {
-	schema := json.RawMessage(`{
-		"type": "object",
-		"properties": {
-			"todos": {
-				"description": "New todos to add to the task list",
-				"type": "array",
-				"items": {
-					"type": "object",
-					"properties": {
-						"name": {
-							"type": "string",
-							"minLength": 1,
-							"description": "The name/description of the todo task"
-						},
-						"status": {
-							"type": "string",
-							"enum": ["PENDING", "IN_PROGRESS", "COMPLETED", "FAILED", "ABANDONED"],
-							"description": "Initial status of the todo"
-						}
-					},
-					"required": ["name", "status"],
-					"additionalProperties": false
-				}
-			}
-		},
-		"required": ["todos"],
-		"additionalProperties": false
-	}`)
-
-	return llm.ToolDefinition{
-		Name: "add_todos",
-		Description: `Add new todos to your existing task list. Use this to expand your task list as new work is discovered.
+const addTodosDescription = `Add new todos to your existing task list. Use this to expand your task list as new work is discovered.
 
 SUPPORTED STATES:
 - PENDING: Task not yet started (typical for new todos)
 - IN_PROGRESS: Currently working (use sparingly)
 - COMPLETED: Task finished successfully (rare for new todos)
-- FAILED: Task attempted but failed to complete  
+- FAILED: Task attempted but failed to complete
 - ABANDONED: Task intentionally stopped/cancelled
 
 WHEN TO USE:
@@ -240,34 +186,57 @@ IMPORTANT RULES:
 - New todos typically start as PENDING
 - Only mark as IN_PROGRESS if immediately starting work
 - Provide clear, actionable descriptions
-- Use specific, measurable content`,
-		Parameters: schema,
-		Type:       llm.ToolTypeFunction, // Explicit: local execution
-	}
-}
+- Use specific, measurable content`
 
-// Execute processes the add todo request.
-func (t *AddTodoTool) Execute(_ context.Context, args json.RawMessage) (json.RawMessage, error) {
-	var req AddTodoRequest
+var addTodosSchema = json.RawMessage(`{
+    "type": "object",
+    "properties": {
+        "todos": {
+            "description": "New todos to add to the task list",
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "The name/description of the todo task"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": ["PENDING", "IN_PROGRESS", "COMPLETED", "FAILED", "ABANDONED"],
+                        "description": "Initial status of the todo"
+                    }
+                },
+                "required": ["name", "status"],
+                "additionalProperties": false
+            }
+        }
+    },
+    "required": ["todos"],
+    "additionalProperties": false
+}`)
 
-	err := json.Unmarshal(args, &req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse add todo request: %w", err)
-	}
+// NewAddTool creates the add_todos tool.
+func NewAddTool() tool.Tool {
+	return tool.Must(tool.Func(
+		tool.Spec{
+			Name:        "add_todos",
+			Description: addTodosDescription,
+			InputSchema: addTodosSchema,
+		},
+		func(_ context.Context, in AddTodoRequest) (tool.Result[AddTodoResponse], error) {
+			if err := validateTodos(in.Todos); err != nil {
+				return tool.Result[AddTodoResponse]{}, fmt.Errorf("invalid todos: %w", err)
+			}
 
-	// Validate the new todos
-	err = t.validateTodos(req.Todos)
-	if err != nil {
-		return nil, fmt.Errorf("invalid todos: %w", err)
-	}
-
-	// The actual todo list updates will be handled by the reconciler
-	// Return empty response
-	return json.Marshal(AddTodoResponse{})
+			return tool.Done(AddTodoResponse{}), nil
+		},
+	))
 }
 
 // validateTodos validates the structure and constraints of new todos.
-func (*AddTodoTool) validateTodos(todos []Item) error {
+func validateTodos(todos []Item) error {
 	if len(todos) == 0 {
 		return errors.New("todos list cannot be empty")
 	}

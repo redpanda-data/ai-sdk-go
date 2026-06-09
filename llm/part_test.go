@@ -58,7 +58,7 @@ func TestMarshalPart_RoundTrip(t *testing.T) {
 	cases := []llm.Part{
 		llm.NewTextPart("hello"),
 		llm.NewToolRequestPart("call_1", "search", json.RawMessage(`{"q":"x"}`)),
-		llm.NewToolResponsePart("call_1", "search", json.RawMessage(`{"ok":true}`), false),
+		llm.NewToolResponsePart("call_1", "search", json.RawMessage(`{"ok":true}`)),
 		&llm.ToolResponsePart{ID: "call_2", Name: "search", Result: json.RawMessage(`{"error":"boom"}`), IsError: true},
 		&llm.ReasoningPart{Text: "thinking", Signature: "sig-1"},
 	}

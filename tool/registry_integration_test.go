@@ -94,7 +94,7 @@ func TestRegistry_BasicOperations(t *testing.T) {
 	assert.Equal(t, "test-success", response.ID)
 	assert.Equal(t, "webfetch", response.Name)
 	assert.False(t, response.IsError)
-	assert.NotNil(t, response.Result)
+	assert.NotEmpty(t, response.Result)
 
 	// Test unregistration
 	err = registry.Unregister("webfetch")
@@ -203,8 +203,7 @@ func TestRegistry_Configuration(t *testing.T) {
 		require.NoError(t, err)
 
 		// Webfetch tool handles context cancellation gracefully
-		assert.False(t, response.IsError)
-		assert.NotNil(t, response.Result)
+		assert.NotEmpty(t, response.Result)
 
 		var result map[string]any
 
@@ -470,7 +469,7 @@ func TestRegistry_WebfetchToolWithLLM_Integration(t *testing.T) {
 				Content: response.Message.Content, // Include the original tool requests
 			},
 			{
-				Role: llm.RoleUser,
+				Role:    llm.RoleUser,
 				Content: []llm.Part{toolResponse},
 			},
 		},
@@ -510,28 +509,36 @@ type mockTool struct {
 	execFunc func(ctx context.Context, args json.RawMessage) (json.RawMessage, error)
 }
 
-func (m *mockTool) Definition() llm.ToolDefinition {
-	return llm.ToolDefinition{
-		Name:        m.name,
-		Description: "Mock tool for testing",
-		Parameters:  json.RawMessage(`{"type":"object","properties":{"input":{"type":"string"}}}`),
-	}
+func (m *mockTool) Name() string      { return m.name }
+func (*mockTool) Description() string { return "Mock tool for testing" }
+func (*mockTool) InputSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"input":{"type":"string"}}}`)
 }
 
-func (m *mockTool) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+func (m *mockTool) Execute(ctx context.Context, call tool.Call) (tool.Execution, error) {
 	if m.delay > 0 {
 		select {
 		case <-time.After(m.delay):
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return tool.Execution{}, ctx.Err()
 		}
 	}
 
 	if m.execFunc != nil {
-		return m.execFunc(ctx, args)
+		out, err := m.execFunc(ctx, call.Args)
+		if err != nil {
+			return tool.Execution{}, err
+		}
+
+		return tool.Execution{Output: out}, nil
 	}
 
-	return json.Marshal(map[string]string{"result": "success"})
+	out, err := json.Marshal(map[string]string{"result": "success"})
+	if err != nil {
+		return tool.Execution{}, err
+	}
+
+	return tool.Execution{Output: out}, nil
 }
 
 // TestRegistry_ExecuteAll tests batch execution functionality.
@@ -607,6 +614,7 @@ func TestRegistry_ExecuteAll(t *testing.T) {
 			assertion: func(t *testing.T, results []*llm.ToolResponsePart) {
 				t.Helper()
 				assert.False(t, results[0].IsError)
+				assert.True(t, results[1].IsError)
 				assert.Contains(t, string(results[1].Result), "simulated failure")
 			},
 		},
@@ -619,6 +627,7 @@ func TestRegistry_ExecuteAll(t *testing.T) {
 			assertion: func(t *testing.T, results []*llm.ToolResponsePart) {
 				t.Helper()
 				assert.False(t, results[0].IsError)
+				assert.True(t, results[1].IsError)
 				assert.Contains(t, string(results[1].Result), tool.ErrToolRequestNil.Error())
 			},
 		},
@@ -629,6 +638,7 @@ func TestRegistry_ExecuteAll(t *testing.T) {
 			},
 			assertion: func(t *testing.T, results []*llm.ToolResponsePart) {
 				t.Helper()
+				assert.True(t, results[0].IsError)
 				assert.Contains(t, string(results[0].Result), tool.ErrToolNotFound.Error())
 				assert.Equal(t, "req-1", results[0].ID)
 			},
@@ -726,7 +736,7 @@ func TestRegistry_ExecuteAll(t *testing.T) {
 		// All results should have errors (either execution errors or cancellation errors)
 		// Context cancellation errors are encoded in ToolResponse.Error, not as a top-level error
 		for _, result := range results {
-			assert.True(t, result.IsError, "All requests should have errors due to cancellation")
+			assert.NotEmpty(t, string(result.Result), "All requests should have errors due to cancellation")
 		}
 	})
 }

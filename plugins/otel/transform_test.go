@@ -42,11 +42,7 @@ func TestTransformInputMessages_OTelCompliance(t *testing.T) {
 			messages: []llm.Message{
 				llm.NewMessage(llm.RoleAssistant,
 					llm.NewTextPart("Let me search for that."),
-					&llm.ToolRequestPart{
-						ID:        "call_123",
-						Name:      "search",
-						Arguments: json.RawMessage(`{"query":"test"}`),
-					},
+					llm.NewToolRequestPart("call_123", "search", json.RawMessage(`{"query":"test"}`)),
 				),
 			},
 			want: `[{"role":"assistant","parts":[{"type":"text","content":"Let me search for that."},{"type":"tool_call","name":"search","id":"call_123","arguments":{"query":"test"}}]}]`,
@@ -55,11 +51,7 @@ func TestTransformInputMessages_OTelCompliance(t *testing.T) {
 			name: "message with tool response",
 			messages: []llm.Message{
 				llm.NewMessage(llm.RoleUser,
-					&llm.ToolResponsePart{
-						ID:     "call_123",
-						Name:   "search",
-						Result: json.RawMessage(`{"results":["result1","result2"]}`),
-					},
+					llm.NewToolResponsePart("call_123", "search", json.RawMessage(`{"results":["result1","result2"]}`)),
 				),
 			},
 			want: `[{"role":"tool","parts":[{"type":"tool_call_response","id":"call_123","response":{"results":["result1","result2"]}}]}]`,
@@ -68,10 +60,7 @@ func TestTransformInputMessages_OTelCompliance(t *testing.T) {
 			name: "message with tool response error",
 			messages: []llm.Message{
 				llm.NewMessage(llm.RoleUser,
-					&llm.ToolResponsePart{
-						ID:    "call_123",
-						Name:  "search",
-						IsError: true, Result: json.RawMessage(`{"error":"API rate limit exceeded"}`),					},
+					llm.NewToolErrorPart("call_123", "search", "API rate limit exceeded"),
 				),
 			},
 			want: `[{"role":"tool","parts":[{"type":"tool_call_response","id":"call_123","response":{"error":"API rate limit exceeded"}}]}]`,
@@ -81,8 +70,8 @@ func TestTransformInputMessages_OTelCompliance(t *testing.T) {
 			messages: []llm.Message{
 				llm.NewMessage(llm.RoleAssistant,
 					&llm.ReasoningPart{
-						ID:   "reasoning_123",
-						Text: "Let me think about this step by step...",
+						Text:      "Let me think about this step by step...",
+						Signature: "reasoning_123",
 					},
 					llm.NewTextPart("Here's my answer."),
 				),
@@ -199,11 +188,7 @@ func TestTransformOutputMessage_OTelCompliance(t *testing.T) {
 		{
 			name: "response with tool call and finish reason",
 			message: llm.NewMessage(llm.RoleAssistant,
-				&llm.ToolRequestPart{
-					ID:        "call_456",
-					Name:      "calculate",
-					Arguments: json.RawMessage(`{"operation":"add","values":[1,2]}`),
-				},
+				llm.NewToolRequestPart("call_456", "calculate", json.RawMessage(`{"operation":"add","values":[1,2]}`)),
 			),
 			finishReason: "tool_call",
 			want:         `{"role":"assistant","parts":[{"type":"tool_call","name":"calculate","id":"call_456","arguments":{"operation":"add","values":[1,2]}}],"finish_reason":"tool_call"}`,
@@ -280,11 +265,7 @@ func TestTransformPart_AllTypes(t *testing.T) {
 		},
 		{
 			name: "tool request part",
-			part: &llm.ToolRequestPart{
-				ID:        "call_789",
-				Name:      "weather",
-				Arguments: json.RawMessage(`{"location":"NYC"}`),
-			},
+			part: llm.NewToolRequestPart("call_789", "weather", json.RawMessage(`{"location":"NYC"}`)),
 			want: genai.Part{
 				Type:      "tool_call",
 				ID:        "call_789",
@@ -294,11 +275,7 @@ func TestTransformPart_AllTypes(t *testing.T) {
 		},
 		{
 			name: "tool response part",
-			part: &llm.ToolResponsePart{
-				ID:     "call_789",
-				Name:   "weather",
-				Result: json.RawMessage(`{"temp":72,"condition":"sunny"}`),
-			},
+			part: llm.NewToolResponsePart("call_789", "weather", json.RawMessage(`{"temp":72,"condition":"sunny"}`)),
 			want: genai.Part{
 				Type:     "tool_call_response",
 				ID:       "call_789",
@@ -308,8 +285,8 @@ func TestTransformPart_AllTypes(t *testing.T) {
 		{
 			name: "reasoning part",
 			part: &llm.ReasoningPart{
-				ID:   "reason_123",
-				Text: "First, I need to consider...",
+				Text:      "First, I need to consider...",
+				Signature: "reason_123",
 			},
 			want: genai.Part{
 				Type:    "reasoning",

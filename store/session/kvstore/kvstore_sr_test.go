@@ -288,11 +288,7 @@ func TestKVStoreWithSchemaRegistry_RoundTrip(t *testing.T) { //nolint:parallelte
 					Role: llm.RoleAssistant,
 					Content: []llm.Part{
 						llm.NewTextPart("Response with tool call"),
-						&llm.ToolRequestPart{
-							ID:        "req-1",
-							Name:      "search",
-							Arguments: []byte(`{"query": "test"}`),
-						},
+						llm.NewToolRequestPart("req-1", "search", []byte(`{"query": "test"}`)),
 					},
 				},
 			},
@@ -307,11 +303,7 @@ func TestKVStoreWithSchemaRegistry_RoundTrip(t *testing.T) { //nolint:parallelte
 				{
 					Role: llm.RoleUser,
 					Content: []llm.Part{
-						&llm.ToolResponsePart{
-							ID:     "req-1",
-							Name:   "search",
-							Result: []byte(`{"results": ["item1", "item2"]}`),
-						},
+						llm.NewToolResponsePart("req-1", "search", []byte(`{"results": ["item1", "item2"]}`)),
 					},
 				},
 			},

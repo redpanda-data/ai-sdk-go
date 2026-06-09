@@ -585,11 +585,7 @@ func TestMessageMappingWithToolParts(t *testing.T) {
 					Role: llm.RoleAssistant,
 					Content: []llm.Part{
 						llm.NewTextPart("I'll check the weather for you."),
-						&llm.ToolRequestPart{
-							ID:        "call_123",
-							Name:      "get_weather",
-							Arguments: json.RawMessage(`{"location": "Paris, France"}`),
-						},
+						llm.NewToolRequestPart("call_123", "get_weather", json.RawMessage(`{"location": "Paris, France"}`)),
 					},
 				},
 			},
@@ -614,11 +610,7 @@ func TestMessageMappingWithToolParts(t *testing.T) {
 				{
 					Role: llm.RoleUser,
 					Content: []llm.Part{
-						&llm.ToolResponsePart{
-							ID:     "call_123",
-							Name:   "get_weather",
-							Result: json.RawMessage(`{"temperature": "22°C", "condition": "sunny"}`),
-						},
+						llm.NewToolResponsePart("call_123", "get_weather", json.RawMessage(`{"temperature": "22°C", "condition": "sunny"}`)),
 					},
 				},
 			},
@@ -637,10 +629,7 @@ func TestMessageMappingWithToolParts(t *testing.T) {
 				{
 					Role: llm.RoleUser,
 					Content: []llm.Part{
-						&llm.ToolResponsePart{
-							ID:    "call_123",
-							Name:  "get_weather",
-							IsError: true, Result: json.RawMessage(`{"error":"API rate limit exceeded"}`),						},
+						llm.NewToolErrorPart("call_123", "get_weather", "API rate limit exceeded"),
 					},
 				},
 			},
@@ -660,8 +649,8 @@ func TestMessageMappingWithToolParts(t *testing.T) {
 					Role: llm.RoleAssistant,
 					Content: []llm.Part{
 						&llm.ReasoningPart{
-							ID:   "reasoning_123",
-							Text: "Let me think about this step by step...",
+							Text:      "Let me think about this step by step...",
+							Signature: "reasoning_123",
 						},
 					},
 				},
@@ -688,21 +677,13 @@ func TestMessageMappingWithToolParts(t *testing.T) {
 					Role: llm.RoleAssistant,
 					Content: []llm.Part{
 						llm.NewTextPart("I'll check that for you."),
-						&llm.ToolRequestPart{
-							ID:        "call_456",
-							Name:      "get_weather",
-							Arguments: json.RawMessage(`{"location": "London"}`),
-						},
+						llm.NewToolRequestPart("call_456", "get_weather", json.RawMessage(`{"location": "London"}`)),
 					},
 				},
 				{
 					Role: llm.RoleUser,
 					Content: []llm.Part{
-						&llm.ToolResponsePart{
-							ID:     "call_456",
-							Name:   "get_weather",
-							Result: json.RawMessage(`{"temperature": "15°C"}`),
-						},
+						llm.NewToolResponsePart("call_456", "get_weather", json.RawMessage(`{"temperature": "15°C"}`)),
 					},
 				},
 			},
@@ -901,11 +882,7 @@ func TestMessageRoleValidation(t *testing.T) {
 				{
 					Role: llm.RoleAssistant,
 					Content: []llm.Part{
-						&llm.ToolResponsePart{
-							ID:     "call_123",
-							Name:   "get_weather",
-							Result: json.RawMessage(`{"temp": 72}`),
-						},
+						llm.NewToolResponsePart("call_123", "get_weather", json.RawMessage(`{"temp": 72}`)),
 					},
 				},
 			},
@@ -918,11 +895,7 @@ func TestMessageRoleValidation(t *testing.T) {
 				{
 					Role: llm.RoleUser,
 					Content: []llm.Part{
-						&llm.ToolRequestPart{
-							ID:        "call_123",
-							Name:      "get_weather",
-							Arguments: json.RawMessage(`{"location": "Paris"}`),
-						},
+						llm.NewToolRequestPart("call_123", "get_weather", json.RawMessage(`{"location": "Paris"}`)),
 					},
 				},
 			},
@@ -935,16 +908,8 @@ func TestMessageRoleValidation(t *testing.T) {
 				{
 					Role: llm.RoleUser,
 					Content: []llm.Part{
-						&llm.ToolResponsePart{
-							ID:     "call_123",
-							Name:   "get_weather",
-							Result: json.RawMessage(`{"temp": 72}`),
-						},
-						&llm.ToolResponsePart{
-							ID:     "call_456",
-							Name:   "get_time",
-							Result: json.RawMessage(`{"time": "12:00"}`),
-						},
+						llm.NewToolResponsePart("call_123", "get_weather", json.RawMessage(`{"temp": 72}`)),
+						llm.NewToolResponsePart("call_456", "get_time", json.RawMessage(`{"time": "12:00"}`)),
 					},
 				},
 			},
@@ -956,11 +921,7 @@ func TestMessageRoleValidation(t *testing.T) {
 				{
 					Role: llm.RoleUser,
 					Content: []llm.Part{
-						&llm.ToolResponsePart{
-							ID:     "call_123",
-							Name:   "get_weather",
-							Result: json.RawMessage(`{"temp": 72}`),
-						},
+						llm.NewToolResponsePart("call_123", "get_weather", json.RawMessage(`{"temp": 72}`)),
 					},
 				},
 			},
@@ -972,11 +933,7 @@ func TestMessageRoleValidation(t *testing.T) {
 				{
 					Role: llm.RoleAssistant,
 					Content: []llm.Part{
-						&llm.ToolRequestPart{
-							ID:        "call_123",
-							Name:      "get_weather",
-							Arguments: json.RawMessage(`{"location": "Paris"}`),
-						},
+						llm.NewToolRequestPart("call_123", "get_weather", json.RawMessage(`{"location": "Paris"}`)),
 					},
 				},
 			},

@@ -14,22 +14,28 @@
 
 package webfetch
 
-import "encoding/json"
+import (
+	"encoding/json"
 
-// marshalErr creates a consistent error response in JSON format.
-// This ensures all errors returned by the tool have a uniform structure.
-func marshalErr(err error) (json.RawMessage, error) {
-	result := map[string]any{
+	"github.com/redpanda-data/ai-sdk-go/tool"
+)
+
+// errorExecution returns an Execution whose Output is a structured
+// `{"error":true,"message":...}` payload — preserving the legacy
+// webfetch error shape that the model has been prompted on — but with a
+// nil top-level error so the runtime still treats the call as
+// successful. webfetch is documented to encode its own errors this way;
+// the wrapped error stays out of band.
+func errorExecution(err error) tool.Execution {
+	payload := map[string]any{
 		"error":   true,
 		"message": err.Error(),
 	}
 
-	// Marshal the error response
-	data, marshalErr := json.Marshal(result)
+	data, marshalErr := json.Marshal(payload)
 	if marshalErr != nil {
-		// Fallback if JSON marshaling fails
-		return json.RawMessage(`{"error": true, "message": "internal error"}`), marshalErr
+		data = json.RawMessage(`{"error": true, "message": "internal error"}`)
 	}
 
-	return data, nil
+	return tool.Execution{Output: data}
 }

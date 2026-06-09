@@ -92,23 +92,21 @@ func (a *assistantToolLogger) InterceptToolExecution(
 	ctx context.Context,
 	info *agent.ToolCallInfo,
 	next agent.ToolExecutionNext,
-) (*llm.ToolResponsePart, error) {
+) (tool.Execution, error) {
 	fmt.Printf("  [Assistant Tool Call] %s\n", info.Req.Name)
 	if len(info.Req.Arguments) > 0 && len(info.Req.Arguments) < 200 {
 		fmt.Printf("  [Assistant Tool Args] %s\n", string(info.Req.Arguments))
 	}
 
-	resp, err := next(ctx, info)
+	exec, err := next(ctx, info)
 
 	if err != nil {
 		fmt.Printf("  [Assistant Tool Error] %v\n", err)
-	} else if resp.IsError {
-		fmt.Printf("  [Assistant Tool Error] %s\n", string(resp.Result))
 	} else {
 		fmt.Printf("  [Assistant Tool Success] %s\n", info.Req.Name)
 	}
 
-	return resp, err
+	return exec, err
 }
 
 func main() {

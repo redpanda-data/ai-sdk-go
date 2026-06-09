@@ -15,6 +15,7 @@
 package kvstore
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -64,11 +65,65 @@ func toProtoSessionState(s *session.State) (*llmpb.SessionState, error) {
 		}
 	}
 
+	pbPending, err := toProtoJSONMap(s.PendingToolCalls, "pending tool call")
+	if err != nil {
+		return nil, err
+	}
+
+	pbReceipts, err := toProtoJSONMap(s.ResumeReceipts, "resume receipt")
+	if err != nil {
+		return nil, err
+	}
+
 	return &llmpb.SessionState{
-		Id:       s.ID,
-		Messages: pbMessages,
-		Metadata: pbMetadata,
+		Id:               s.ID,
+		Messages:         pbMessages,
+		Metadata:         pbMetadata,
+		PendingToolCalls: pbPending,
+		ResumeReceipts:   pbReceipts,
 	}, nil
+}
+
+// toProtoJSONMap JSON-encodes each map value into the opaque bytes form used
+// by the SessionState pending_tool_calls / resume_receipts fields.
+func toProtoJSONMap[T any](src map[string]T, what string) (map[string][]byte, error) {
+	if len(src) == 0 {
+		return nil, nil //nolint:nilnil // nil maps are valid wire values
+	}
+
+	out := make(map[string][]byte, len(src))
+
+	for id, v := range src {
+		data, err := json.Marshal(v)
+		if err != nil {
+			return nil, fmt.Errorf("encode %s %q: %w", what, id, err)
+		}
+
+		out[id] = data
+	}
+
+	return out, nil
+}
+
+// fromProtoJSONMap decodes the opaque JSON bytes map form back into typed
+// map values.
+func fromProtoJSONMap[T any](src map[string][]byte, what string) (map[string]T, error) {
+	if len(src) == 0 {
+		return nil, nil //nolint:nilnil // nil maps are valid wire values
+	}
+
+	out := make(map[string]T, len(src))
+
+	for id, data := range src {
+		var v T
+		if err := json.Unmarshal(data, &v); err != nil {
+			return nil, fmt.Errorf("decode %s %q: %w", what, id, err)
+		}
+
+		out[id] = v
+	}
+
+	return out, nil
 }
 
 // FromProtoSessionState converts a protobuf SessionState to Go session.State.
@@ -95,10 +150,22 @@ func FromProtoSessionState(pb *llmpb.SessionState) (*session.State, error) {
 		metadata = pb.Metadata.AsMap()
 	}
 
+	pending, err := fromProtoJSONMap[session.PendingToolCall](pb.PendingToolCalls, "pending tool call")
+	if err != nil {
+		return nil, err
+	}
+
+	receipts, err := fromProtoJSONMap[session.ResumeReceipt](pb.ResumeReceipts, "resume receipt")
+	if err != nil {
+		return nil, err
+	}
+
 	return &session.State{
-		ID:       pb.Id,
-		Messages: messages,
-		Metadata: metadata,
+		ID:               pb.Id,
+		Messages:         messages,
+		Metadata:         metadata,
+		PendingToolCalls: pending,
+		ResumeReceipts:   receipts,
 	}, nil
 }
 
@@ -166,28 +233,30 @@ func toProtoPart(p llm.Part) (*llmpb.Part, error) {
 		return &llmpb.Part{}, nil
 	}
 
-	pbPart := &llmpb.Part{}
-
 	switch v := p.(type) {
 	case *llm.TextPart:
 		if v == nil {
-			return nil, errors.New("nil *TextPart")
+			return &llmpb.Part{}, nil
 		}
 
-		pbPart.Kind = llmpb.PartKind_PART_KIND_TEXT
-		pbPart.Data = &llmpb.Part_Text{Text: v.Text}
+		return &llmpb.Part{
+			Kind: llmpb.PartKind_PART_KIND_TEXT,
+			Data: &llmpb.Part_Text{Text: v.Text},
+		}, nil
 
 	case *llm.ToolRequestPart:
 		if v == nil {
-			return nil, errors.New("nil *ToolRequestPart")
+			return &llmpb.Part{}, nil
 		}
 
-		pbPart.Kind = llmpb.PartKind_PART_KIND_TOOL_REQUEST
-		pbPart.Data = &llmpb.Part_ToolRequest{
-			ToolRequest: &llmpb.ToolRequest{
-				Id:        v.ID,
-				Name:      v.Name,
-				Arguments: []byte(v.Arguments),
+		pbPart := &llmpb.Part{
+			Kind: llmpb.PartKind_PART_KIND_TOOL_REQUEST,
+			Data: &llmpb.Part_ToolRequest{
+				ToolRequest: &llmpb.ToolRequest{
+					Id:        v.ID,
+					Name:      v.Name,
+					Arguments: []byte(v.Arguments),
+				},
 			},
 		}
 
@@ -200,33 +269,36 @@ func toProtoPart(p llm.Part) (*llmpb.Part, error) {
 			pbPart.Metadata = meta
 		}
 
+		return pbPart, nil
+
 	case *llm.ToolResponsePart:
 		if v == nil {
-			return nil, errors.New("nil *ToolResponsePart")
+			return &llmpb.Part{}, nil
 		}
 
-		pbPart.Kind = llmpb.PartKind_PART_KIND_TOOL_RESPONSE
-
-		errStr := ""
+		// IsError is encoded in the proto Error field for backward compat:
+		// non-empty Error implies failure.
+		errMsg := ""
 		if v.IsError {
-			errStr = string(v.Result)
+			errMsg = string(v.Result)
 		}
 
-		pbPart.Data = &llmpb.Part_ToolResponse{
-			ToolResponse: &llmpb.ToolResponse{
-				Id:     v.ID,
-				Name:   v.Name,
-				Result: []byte(v.Result),
-				Error:  errStr,
+		return &llmpb.Part{
+			Kind: llmpb.PartKind_PART_KIND_TOOL_RESPONSE,
+			Data: &llmpb.Part_ToolResponse{
+				ToolResponse: &llmpb.ToolResponse{
+					Id:     v.ID,
+					Name:   v.Name,
+					Result: []byte(v.Result),
+					Error:  errMsg,
+				},
 			},
-		}
+		}, nil
 
 	case *llm.ReasoningPart:
 		if v == nil {
-			return nil, errors.New("nil *ReasoningPart")
+			return &llmpb.Part{}, nil
 		}
-
-		pbPart.Kind = llmpb.PartKind_PART_KIND_REASONING
 
 		var pbReasoningMeta *structpb.Struct
 
@@ -239,25 +311,26 @@ func toProtoPart(p llm.Part) (*llmpb.Part, error) {
 			}
 		}
 
-		pbPart.Data = &llmpb.Part_ReasoningTrace{
-			ReasoningTrace: &llmpb.ReasoningTrace{
-				Id:       v.Signature,
-				Text:     v.Text,
-				Metadata: pbReasoningMeta,
+		return &llmpb.Part{
+			Kind: llmpb.PartKind_PART_KIND_REASONING,
+			Data: &llmpb.Part_ReasoningTrace{
+				ReasoningTrace: &llmpb.ReasoningTrace{
+					Id:       v.Signature,
+					Text:     v.Text,
+					Metadata: pbReasoningMeta,
+				},
 			},
-		}
+		}, nil
 
 	default:
-		return nil, fmt.Errorf("unknown Part type: %T", p)
+		return nil, fmt.Errorf("unknown llm.Part type: %T", p)
 	}
-
-	return pbPart, nil
 }
 
 // fromProtoPart converts proto Part to llm.Part with oneof extraction.
 func fromProtoPart(pb *llmpb.Part) (llm.Part, error) {
 	if pb == nil {
-		return nil, errors.New("nil proto Part")
+		return nil, nil //nolint:nilnil // nil parts are valid wire values
 	}
 
 	// Extract data from oneof
@@ -270,54 +343,56 @@ func fromProtoPart(pb *llmpb.Part) (llm.Part, error) {
 			return nil, errors.New("Part_ToolRequest has nil ToolRequest")
 		}
 
-		out := &llm.ToolRequestPart{
+		part := &llm.ToolRequestPart{
 			ID:        data.ToolRequest.Id,
 			Name:      data.ToolRequest.Name,
 			Arguments: data.ToolRequest.Arguments,
 		}
 
 		if pb.Metadata != nil {
-			out.Metadata = pb.Metadata.AsMap()
+			part.Metadata = pb.Metadata.AsMap()
 		}
 
-		return out, nil
+		return part, nil
 
 	case *llmpb.Part_ToolResponse:
 		if data.ToolResponse == nil {
 			return nil, errors.New("Part_ToolResponse has nil ToolResponse")
 		}
 
-		out := &llm.ToolResponsePart{
+		part := &llm.ToolResponsePart{
 			ID:     data.ToolResponse.Id,
 			Name:   data.ToolResponse.Name,
 			Result: data.ToolResponse.Result,
 		}
 
-		// Older payloads stored error text in Error and result in Result; rehydrate as IsError.
 		if data.ToolResponse.Error != "" {
-			out.IsError = true
-			if len(out.Result) == 0 {
-				out.Result = []byte(data.ToolResponse.Error)
+			part.IsError = true
+			// The legacy wire format stored the message in Error with an
+			// empty Result. Re-encode it as the {"error": ...} payload the
+			// new code produces so Result is always valid JSON.
+			if len(part.Result) == 0 {
+				part = llm.NewToolErrorPart(part.ID, part.Name, data.ToolResponse.Error)
 			}
 		}
 
-		return out, nil
+		return part, nil
 
 	case *llmpb.Part_ReasoningTrace:
 		if data.ReasoningTrace == nil {
 			return nil, errors.New("Part_ReasoningTrace has nil ReasoningTrace")
 		}
 
-		out := &llm.ReasoningPart{
-			Signature: data.ReasoningTrace.Id,
-			Text:      data.ReasoningTrace.Text,
-		}
-
+		var reasoningMeta map[string]any
 		if data.ReasoningTrace.Metadata != nil {
-			out.Metadata = data.ReasoningTrace.Metadata.AsMap()
+			reasoningMeta = data.ReasoningTrace.Metadata.AsMap()
 		}
 
-		return out, nil
+		return &llm.ReasoningPart{
+			Text:      data.ReasoningTrace.Text,
+			Signature: data.ReasoningTrace.Id,
+			Metadata:  reasoningMeta,
+		}, nil
 
 	case nil:
 		return nil, errors.New("part has no data set")

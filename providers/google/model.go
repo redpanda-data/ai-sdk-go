@@ -140,11 +140,16 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 				case part.Text != "":
 					if part.Thought {
 						// Thinking/reasoning part
+						var signature string
+						if len(part.ThoughtSignature) > 0 {
+							signature = string(part.ThoughtSignature)
+						}
+
 						event = llm.ContentPartEvent{
 							Index: idx,
 							Part: &llm.ReasoningPart{
 								Text:      part.Text,
-								Signature: string(part.ThoughtSignature),
+								Signature: signature,
 							},
 						}
 					} else {

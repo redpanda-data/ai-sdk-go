@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 
 	commonkvstore "github.com/redpanda-data/common-go/kvstore"
 	"github.com/redpanda-data/common-go/kvstore/memdb"
@@ -41,6 +42,12 @@ var sessionStateProtoSchema string
 type KVStore struct {
 	client *commonkvstore.ResourceClient[*session.State]
 	raw    *commonkvstore.Client
+
+	// locks is a per-session-ID mutex map for WithSessionLock. This is
+	// process-local: distributed deployments should layer their own
+	// advisory lock (Kafka transactional lock, Redis lease, etc.) on
+	// top, or accept last-write-wins semantics across instances.
+	locks sync.Map
 }
 
 // NewKVStore creates a new session store backed by Kafka.
@@ -172,6 +179,49 @@ func (s *KVStore) Delete(ctx context.Context, sessionID string) error {
 // Close shuts down the kvstore client and releases resources.
 func (s *KVStore) Close() error {
 	return s.raw.Close()
+}
+
+// WithSessionLock serializes operations against a single session ID in
+// this process. Distributed deployments needing cross-instance mutual
+// exclusion should wrap this method with their own advisory lock.
+func (s *KVStore) WithSessionLock(ctx context.Context, sessionID string, fn func(context.Context) error) error {
+	mu := s.lockFor(sessionID)
+
+	lockCh := make(chan struct{})
+
+	go func() {
+		mu.Lock()
+		close(lockCh)
+	}()
+
+	select {
+	case <-ctx.Done():
+		go func() {
+			<-lockCh
+			mu.Unlock()
+		}()
+
+		return ctx.Err()
+	case <-lockCh:
+	}
+
+	defer mu.Unlock()
+
+	return fn(ctx)
+}
+
+func (s *KVStore) lockFor(sessionID string) *sync.Mutex {
+	if v, ok := s.locks.Load(sessionID); ok {
+		mu, _ := v.(*sync.Mutex)
+		return mu
+	}
+
+	mu := &sync.Mutex{}
+
+	actual, _ := s.locks.LoadOrStore(sessionID, mu)
+	got, _ := actual.(*sync.Mutex)
+
+	return got
 }
 
 // stateSerde handles JSON serialization of session State.

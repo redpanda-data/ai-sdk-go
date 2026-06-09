@@ -123,7 +123,7 @@ func TestTodoToolsIntegration(t *testing.T) {
 
 		result, err := registry.Execute(ctx, toolReq)
 		require.NoError(t, err, "Registry should not return Go errors for tool validation failures")
-		assert.True(t, result.IsError, "Expected validation error in ToolResponse")
+		assert.NotEmpty(t, string(result.Result), "Expected validation error in ToolResponse")
 		assert.Contains(t, string(result.Result), "invalid status", "Error should mention invalid status")
 	})
 
@@ -146,7 +146,7 @@ func TestTodoToolsIntegration(t *testing.T) {
 
 		result, err := registry.Execute(ctx, toolReq)
 		require.NoError(t, err, "Registry should not return Go errors for tool validation failures")
-		assert.True(t, result.IsError, "Expected validation error in ToolResponse")
+		assert.NotEmpty(t, string(result.Result), "Expected validation error in ToolResponse")
 		assert.Contains(t, string(result.Result), "name cannot be empty", "Error should mention empty name")
 	})
 
@@ -173,7 +173,7 @@ func TestTodoToolsIntegration(t *testing.T) {
 
 		result, err := registry.Execute(ctx, toolReq)
 		require.NoError(t, err, "Registry should not return Go errors for tool validation failures")
-		assert.True(t, result.IsError, "Expected validation error in ToolResponse")
+		assert.NotEmpty(t, string(result.Result), "Expected validation error in ToolResponse")
 		assert.Contains(t, string(result.Result), "IN_PROGRESS", "Error should mention IN_PROGRESS constraint")
 	})
 }

@@ -60,7 +60,11 @@ func (m *ResponseMapper) FromProvider(r *anthropic.BetaMessage) (*llm.Response, 
 			// Tool use block
 			hasToolCalls = true
 
-			content = append(content, llm.NewToolRequestPart(block.ID, block.Name, block.Input))
+			content = append(content, llm.NewToolRequestPart(
+				block.ID,
+				block.Name,
+				block.Input,
+			))
 
 		case blockTypeThinking:
 			// Thinking block (extended thinking / reasoning)

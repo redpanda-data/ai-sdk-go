@@ -25,10 +25,12 @@ import (
 	"fmt"
 	"iter"
 	"log/slog"
+	"time"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/store/session"
+	"github.com/redpanda-data/ai-sdk-go/tool"
 )
 
 // Runner orchestrates agent execution with session management.
@@ -159,15 +161,66 @@ func New(ag agent.Agent, sessionStore session.Store, opts ...Option) (*Runner, e
 //	}
 func (r *Runner) Run(
 	ctx context.Context,
-	_ string, // UserID will be used in the future.
+	userID string,
 	sessionID string,
 	userMessage llm.Message,
 ) iter.Seq2[agent.Event, error] {
 	return func(yield func(agent.Event, error) bool) {
+		// Serialize against any concurrent Run/Resume/Progress/Cancel
+		// for this session. Single-process stores use a per-ID mutex;
+		// distributed stores layer an advisory lock.
+		err := r.config.sessionStore.WithSessionLock(ctx, sessionID, func(ctx context.Context) error {
+			r.runLocked(ctx, userID, sessionID, userMessage, yield)
+			return nil
+		})
+		if err == nil {
+			return
+		}
+
+		// Context cancellation while waiting for the lock surfaces as
+		// FinishReasonInterrupted rather than a top-level iterator
+		// error — same shape the agent would produce if it observed
+		// the canceled context mid-run.
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			yield(agent.InvocationEndEvent{
+				Envelope: agent.EventEnvelope{
+					SessionID: sessionID,
+					At:        time.Now().UTC(),
+				},
+				FinishReason: agent.FinishReasonInterrupted,
+			}, nil)
+
+			return
+		}
+
+		yield(nil, err)
+	}
+}
+
+func (r *Runner) runLocked(
+	ctx context.Context,
+	_ string, // userID — reserved for ResumeAuthorizer once Run gains a hook
+	sessionID string,
+	userMessage llm.Message,
+	yield func(agent.Event, error) bool,
+) {
+	{
 		// 1. Load or create session
 		sess, err := r.loadOrCreateSession(ctx, sessionID)
 		if err != nil {
 			yield(nil, fmt.Errorf("%w: %w", agent.ErrSessionLoad, err))
+			return
+		}
+
+		session.MigratePendingToolCalls(sess)
+		r.sweepExpired(sess, time.Now().UTC())
+
+		// If this Run is supposed to be a ResumeWithMessage continuation,
+		// clear that pending call before invoking the agent so it doesn't
+		// re-pause on the same call. Other pause modes block Run with a
+		// clear error: callers must use Runner.Resume for those.
+		if err := consumeMessageResume(sess); err != nil {
+			yield(nil, err)
 			return
 		}
 
@@ -240,6 +293,40 @@ func (r *Runner) Run(
 			}
 		}
 	}
+}
+
+// consumeMessageResume detects whether the session has exactly one
+// pending tool call expecting ResumeWithMessage and clears it so the
+// agent loop can proceed with the user's next message. The placeholder
+// tool response stays in history (the model sees assistant→tool_call →
+// user→placeholder → user→answer), which is the documented shape
+// providers must accept for ResumeWithMessage pauses.
+//
+// Other pause modes block Run: callers must drive them via
+// Runner.Resume.
+func consumeMessageResume(sess *session.State) error {
+	if len(sess.PendingToolCalls) == 0 {
+		return nil
+	}
+
+	var messageResumes []string
+
+	for id, pc := range sess.PendingToolCalls {
+		if tool.ResumeMode(pc.Resume) == tool.ResumeWithMessage {
+			messageResumes = append(messageResumes, id)
+		}
+	}
+
+	if len(messageResumes) == 0 {
+		// Non-message pauses block Run. Caller must use Resume.
+		return fmt.Errorf("runner: session %s has %d pending tool call(s); use Runner.Resume", sess.ID, len(sess.PendingToolCalls))
+	}
+
+	for _, id := range messageResumes {
+		delete(sess.PendingToolCalls, id)
+	}
+
+	return nil
 }
 
 // loadOrCreateSession loads an existing session or creates a new one.

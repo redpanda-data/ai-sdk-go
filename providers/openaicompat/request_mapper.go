@@ -170,12 +170,7 @@ func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]openai.ChatCompl
 			// Handle tool responses first (takes precedence)
 			if len(toolResponses) > 0 {
 				for _, part := range toolResponses {
-					apiMsg, err := rm.mapToolMessage(part)
-					if err != nil {
-						return nil, err
-					}
-
-					apiMessages = append(apiMessages, apiMsg)
+					apiMessages = append(apiMessages, rm.mapToolMessage(part))
 				}
 			} else if len(textParts) > 0 {
 				apiMsg := rm.mapUserMessage(textParts)
@@ -185,11 +180,7 @@ func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]openai.ChatCompl
 		case llm.RoleAssistant:
 			if len(toolRequests) > 0 {
 				// Assistant message with tool calls
-				apiMsg, err := rm.mapAssistantMessageWithTools(textParts, toolRequests)
-				if err != nil {
-					return nil, err
-				}
-
+				apiMsg := rm.mapAssistantMessageWithTools(textParts, toolRequests)
 				apiMessages = append(apiMessages, apiMsg)
 			} else if len(textParts) > 0 {
 				// Assistant message with text only
@@ -272,16 +263,18 @@ func (rm *RequestMapper) mapAssistantMessage(parts []*llm.TextPart) openai.ChatC
 		textSb.WriteString(part.Text)
 	}
 
+	text := textSb.String()
+
 	return openai.ChatCompletionMessageParamUnion{
 		OfAssistant: &openai.ChatCompletionAssistantMessageParam{
 			Role:    constant.Assistant(""),
-			Content: openai.ChatCompletionAssistantMessageParamContentUnion{OfString: param.NewOpt(textSb.String())},
+			Content: openai.ChatCompletionAssistantMessageParamContentUnion{OfString: param.NewOpt(text)},
 		},
 	}
 }
 
 // mapAssistantMessageWithTools converts assistant message with tool calls.
-func (rm *RequestMapper) mapAssistantMessageWithTools(textParts []*llm.TextPart, toolParts []*llm.ToolRequestPart) (openai.ChatCompletionMessageParamUnion, error) {
+func (rm *RequestMapper) mapAssistantMessageWithTools(textParts []*llm.TextPart, toolParts []*llm.ToolRequestPart) openai.ChatCompletionMessageParamUnion {
 	// Concatenate text parts for content
 	var textSb strings.Builder
 
@@ -298,10 +291,6 @@ func (rm *RequestMapper) mapAssistantMessageWithTools(textParts []*llm.TextPart,
 	// Map tool calls
 	toolCalls := make([]openai.ChatCompletionMessageToolCallUnionParam, 0, len(toolParts))
 	for _, part := range toolParts {
-		if part == nil {
-			return openai.ChatCompletionMessageParamUnion{}, errors.New("nil ToolRequestPart")
-		}
-
 		toolCalls = append(toolCalls, openai.ChatCompletionMessageToolCallUnionParam{
 			OfFunction: &openai.ChatCompletionMessageFunctionToolCallParam{
 				ID:   part.ID,
@@ -326,22 +315,18 @@ func (rm *RequestMapper) mapAssistantMessageWithTools(textParts []*llm.TextPart,
 
 	return openai.ChatCompletionMessageParamUnion{
 		OfAssistant: msg,
-	}, nil
+	}
 }
 
 // mapToolMessage converts a tool response to a tool message.
-func (rm *RequestMapper) mapToolMessage(part *llm.ToolResponsePart) (openai.ChatCompletionMessageParamUnion, error) {
-	if part == nil {
-		return openai.ChatCompletionMessageParamUnion{}, errors.New("nil ToolResponsePart")
-	}
-
+func (rm *RequestMapper) mapToolMessage(part *llm.ToolResponsePart) openai.ChatCompletionMessageParamUnion {
 	return openai.ChatCompletionMessageParamUnion{
 		OfTool: &openai.ChatCompletionToolMessageParam{
 			Role:       constant.Tool(""),
 			Content:    openai.ChatCompletionToolMessageParamContentUnion{OfString: param.NewOpt(string(part.Result))},
 			ToolCallID: part.ID,
 		},
-	}, nil
+	}
 }
 
 // mapToolDefinitions converts tool definitions to Chat API format.

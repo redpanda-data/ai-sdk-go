@@ -116,9 +116,14 @@ func (m *ResponseMapper) mapParts(parts []*genai.Part) ([]llm.Part, bool, error)
 			// Check if this is a thinking/reasoning part
 			if part.Thought {
 				// This is a thinking part
+				var signature string
+				if len(part.ThoughtSignature) > 0 {
+					signature = string(part.ThoughtSignature)
+				}
+
 				content = append(content, &llm.ReasoningPart{
 					Text:      part.Text,
-					Signature: string(part.ThoughtSignature),
+					Signature: signature,
 				})
 			} else {
 				// Regular text part

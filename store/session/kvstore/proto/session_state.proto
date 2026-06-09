@@ -32,6 +32,15 @@ message SessionState {
 
   // Arbitrary key-value pairs for session metadata
   google.protobuf.Struct metadata = 3;
+
+  // Paused tool executions keyed by tool call ID. Each value is a
+  // JSON-encoded session.PendingToolCall (the record carries its own
+  // schema_version and is migrated on load).
+  map<string, bytes> pending_tool_calls = 4;
+
+  // Receipts of completed resumes keyed by tool call ID. Each value is a
+  // JSON-encoded session.ResumeReceipt.
+  map<string, bytes> resume_receipts = 5;
 }
 
 // Message represents a single message in a conversation.

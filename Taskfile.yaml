@@ -73,6 +73,14 @@ tasks:
     cmds:
       - 'GOROOT={{.GO_ROOT}} GOTOOLCHAIN=local {{.GO_BIN}} test -json -cover -parallel 10 -timeout 30m -run Integration ./... | {{.BIN_DIR}}/tparse -follow -all'
 
+  build:examples:
+    desc: Compile the example applications (excluded from the root module via the go.mod ignore directive)
+    deps:
+      - install:go
+    cmds:
+      - 'GOROOT={{.GO_ROOT}} GOTOOLCHAIN=local {{.GO_BIN}} build -o /dev/null ./examples/agent_as_tool/'
+      - 'cd examples/agent_interceptors && GOROOT={{.GO_ROOT}} GOTOOLCHAIN=local {{.GO_BIN}} build -o /dev/null ./...'
+
   security:
     desc: Run security vulnerability checks (govulncheck + osv-scanner)
     deps:
@@ -84,8 +92,9 @@ tasks:
       - 'GOROOT={{.GO_ROOT}} GOTOOLCHAIN=local {{.BIN_DIR}}/osv-scanner --lockfile go.mod'
 
   ci:
-    desc: Run all CI checks (license, lint, test:unit)
+    desc: Run all CI checks (license, lint, test:unit, build:examples)
     cmds:
       - task: license:check
       - task: lint
       - task: test:unit
+      - task: build:examples

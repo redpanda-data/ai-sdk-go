@@ -696,3 +696,9 @@ func (m *mockSessionStore) Delete(ctx context.Context, sessionID string) error {
 
 	return nil
 }
+
+// WithSessionLock is a no-op for this test mock: tests construct their
+// own sequencing and do not exercise concurrent session access.
+func (*mockSessionStore) WithSessionLock(ctx context.Context, _ string, fn func(context.Context) error) error {
+	return fn(ctx)
+}

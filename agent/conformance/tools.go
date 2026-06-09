@@ -18,7 +18,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/tool"
 )
 
 // CalculatorTool is a standard test tool that adds two numbers.
@@ -30,44 +30,51 @@ func NewCalculatorTool() *CalculatorTool {
 	return &CalculatorTool{}
 }
 
-func (*CalculatorTool) Definition() llm.ToolDefinition {
-	return llm.ToolDefinition{
-		Name:        "add_numbers",
-		Description: "Adds two numbers together and returns the result",
-		Parameters: json.RawMessage(`{
-			"type": "object",
-			"properties": {
-				"a": {
-					"type": "number",
-					"description": "The first number to add"
-				},
-				"b": {
-					"type": "number",
-					"description": "The second number to add"
-				}
-			},
-			"required": ["a", "b"]
-		}`),
-	}
+// Name implements tool.Tool.
+func (*CalculatorTool) Name() string { return "add_numbers" }
+
+// Description implements tool.Tool.
+func (*CalculatorTool) Description() string {
+	return "Adds two numbers together and returns the result"
 }
 
-func (*CalculatorTool) Execute(_ context.Context, args json.RawMessage) (json.RawMessage, error) {
+// InputSchema implements tool.Tool.
+func (*CalculatorTool) InputSchema() json.RawMessage {
+	return json.RawMessage(`{
+        "type": "object",
+        "properties": {
+            "a": {
+                "type": "number",
+                "description": "The first number to add"
+            },
+            "b": {
+                "type": "number",
+                "description": "The second number to add"
+            }
+        },
+        "required": ["a", "b"]
+    }`)
+}
+
+// Execute implements tool.Tool.
+func (*CalculatorTool) Execute(_ context.Context, call tool.Call) (tool.Execution, error) {
 	var params struct {
 		A float64 `json:"a"`
 		B float64 `json:"b"`
 	}
 
-	if err := json.Unmarshal(args, &params); err != nil {
-		return nil, err
+	if err := json.Unmarshal(call.Args, &params); err != nil {
+		return tool.Execution{}, err
 	}
 
-	result := params.A + params.B
-
-	response := map[string]any{
-		"result": result,
+	output, err := json.Marshal(map[string]any{
+		"result": params.A + params.B,
 		"a":      params.A,
 		"b":      params.B,
+	})
+	if err != nil {
+		return tool.Execution{}, err
 	}
 
-	return json.Marshal(response)
+	return tool.Execution{Output: output}, nil
 }

@@ -97,12 +97,24 @@ func transformMessage(msg llm.Message, finishReason string) genai.Message {
 func transformPart(part llm.Part) genai.Part {
 	switch p := part.(type) {
 	case *llm.TextPart:
+		if p == nil {
+			return genai.Part{Type: genai.PartTypeText}
+		}
+
 		return genai.Part{
 			Type:    genai.PartTypeText,
 			Content: p.Text,
 		}
 
 	case *llm.ToolRequestPart:
+		if p == nil {
+			// OTel JSON schema requires "name" field for tool_call parts
+			return genai.Part{
+				Type: genai.PartTypeToolCall,
+				Name: "unknown",
+			}
+		}
+
 		return genai.Part{
 			Type:      genai.PartTypeToolCall,
 			Name:      p.Name,
@@ -112,7 +124,16 @@ func transformPart(part llm.Part) genai.Part {
 
 	case *llm.ToolResponsePart:
 		// OTel JSON schema requires "response" field to always be present.
+		// Default to null to satisfy this requirement.
 		response := json.RawMessage("null")
+
+		if p == nil {
+			return genai.Part{
+				Type:     genai.PartTypeToolCallResponse,
+				Response: response,
+			}
+		}
+
 		if len(p.Result) > 0 {
 			response = p.Result
 		}
@@ -124,6 +145,10 @@ func transformPart(part llm.Part) genai.Part {
 		}
 
 	case *llm.ReasoningPart:
+		if p == nil {
+			return genai.Part{Type: genai.PartTypeReasoning}
+		}
+
 		return genai.Part{
 			Type:    genai.PartTypeReasoning,
 			Content: p.Text,

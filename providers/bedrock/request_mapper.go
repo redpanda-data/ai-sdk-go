@@ -163,7 +163,7 @@ func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]types.Message, [
 		switch msg.Role {
 		case llm.RoleSystem:
 			for _, part := range msg.Content {
-				if tp, ok := part.(*llm.TextPart); ok {
+				if tp, ok := part.(*llm.TextPart); ok && tp != nil {
 					system = append(system, &types.SystemContentBlockMemberText{
 						Value: tp.Text,
 					})

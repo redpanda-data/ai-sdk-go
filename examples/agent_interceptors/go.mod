@@ -4,12 +4,11 @@ go 1.26
 
 toolchain go1.26.3
 
-require (
-	github.com/google/jsonschema-go v0.4.2
-	github.com/redpanda-data/ai-sdk-go v0.0.0
-)
+require github.com/redpanda-data/ai-sdk-go v0.0.0
 
 require (
+	github.com/google/jsonschema-go v0.4.2 // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/openai/openai-go/v3 v3.29.0 // indirect
 	github.com/rs/xid v1.6.0 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect

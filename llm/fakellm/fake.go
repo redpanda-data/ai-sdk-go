@@ -827,7 +827,7 @@ func (rb *RuleBuilder) ThenRespondWithToolCall(toolName string, arguments map[st
 			return nil, fmt.Errorf("marshal tool arguments: %w", err)
 		}
 
-		toolReq := llm.NewToolRequestPart(
+		toolPart := llm.NewToolRequestPart(
 			fmt.Sprintf("call_%d", cc.TotalCalls),
 			toolName,
 			argsJSON,
@@ -836,7 +836,7 @@ func (rb *RuleBuilder) ThenRespondWithToolCall(toolName string, arguments map[st
 		return &llm.Response{
 			Message: llm.Message{
 				Role:    llm.RoleAssistant,
-				Content: []llm.Part{toolReq},
+				Content: []llm.Part{toolPart},
 			},
 			FinishReason: llm.FinishReasonToolCalls,
 			ID:           fmt.Sprintf("fake-%d", cc.TotalCalls),

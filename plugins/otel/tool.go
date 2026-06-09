@@ -24,6 +24,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/plugins/otel/genai"
+	"github.com/redpanda-data/ai-sdk-go/tool"
 )
 
 // InterceptToolExecution creates a "gen_ai.tool" span wrapping tool calls.
@@ -31,7 +32,7 @@ func (t *TracingInterceptor) InterceptToolExecution(
 	ctx context.Context,
 	info *agent.ToolCallInfo,
 	next agent.ToolExecutionNext,
-) (*llm.ToolResponsePart, error) {
+) (tool.Execution, error) {
 	req := info.Req
 
 	// Build span name following OTel convention: "execute_tool {gen_ai.tool.name}"
@@ -111,7 +112,7 @@ func (t *TracingInterceptor) InterceptToolExecution(
 	startTime := time.Now()
 
 	// Execute tool
-	resp, err := next(ctx, info)
+	exec, err := next(ctx, info)
 
 	// Calculate and record execution duration (metadata - no PII)
 	duration := time.Since(startTime)
@@ -119,41 +120,37 @@ func (t *TracingInterceptor) InterceptToolExecution(
 
 	// Record errors and results.
 	//
-	// Three outcomes:
-	//   1. Go error (err != nil): infrastructure failure — set span error from the Go error
-	//   2. Tool error (resp.Error != ""): tool returned error content — set error.type = "tool_error"
-	//      per MCP semconv (isError=true). Do NOT record gen_ai.tool.call.result (spec: "if successful").
-	//   3. Success: record result availability/size, optionally record gen_ai.tool.call.result
-	//
-
+	// Four outcomes:
+	//   1. Go error: infrastructure failure — set span error from the Go error.
+	//   2. Tool pause (exec.Await != nil): non-terminal — record placeholder
+	//      output info and emit an "await" event; do not finalize a result.
+	//   3. Empty output (no error, no pause): success but no payload.
+	//   4. Output present: success — record size and optionally the result.
 	switch {
 	case err != nil:
-		// Case 1: Go error — infrastructure/transport failure
-		setSpanError(span, err)
+		// Tool errors from the inner executor are model-visible (the
+		// registry encodes them as IsError responses), not infrastructure
+		// failures, so use the MCP-compatible "tool_error" type rather
+		// than the Go concrete error type.
+		setToolError(span, err.Error())
 		span.SetAttributes(toolResultAvailable(false))
-	case resp != nil && resp.IsError:
-		// Case 2: Tool returned error content (analogous to MCP isError=true).
-		// Per OTel MCP semconv: error.type SHOULD be "tool_error" and span status SHOULD be Error.
-		// gen_ai.tool.call.result is NOT recorded (spec: "if execution was successful").
-		setToolError(span, string(resp.Result))
-		span.SetAttributes(toolResultAvailable(false))
+	case exec.Await != nil:
+		span.SetAttributes(
+			toolResultAvailable(false),
+			genAIToolCallResult("<paused: "+string(exec.Await.Reason)+">"),
+		)
 	default:
-		// Case 3: Success
-		resultAvailable := resp != nil && resp.Result != nil
+		resultAvailable := len(exec.Output) > 0
 		span.SetAttributes(toolResultAvailable(resultAvailable))
 
 		if resultAvailable {
-			span.SetAttributes(toolResultSize(len(resp.Result)))
+			span.SetAttributes(toolResultSize(len(exec.Output)))
 
-			// Optionally record tool output as span attribute (opt-in - may contain PII)
-			if t.cfg.recordOutputs {
-				// Validate JSON is structured object
-				if isValidStructuredJSON(resp.Result) {
-					span.SetAttributes(genAIToolCallResult(string(resp.Result)))
-				}
+			if t.cfg.recordOutputs && isValidStructuredJSON(exec.Output) {
+				span.SetAttributes(genAIToolCallResult(string(exec.Output)))
 			}
 		}
 	}
 
-	return resp, err
+	return exec, err
 }

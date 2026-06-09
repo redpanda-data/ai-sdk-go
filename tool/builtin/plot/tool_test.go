@@ -22,13 +22,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	toolpkg "github.com/redpanda-data/ai-sdk-go/tool"
 )
 
 func TestTool_Definition(t *testing.T) {
 	t.Parallel()
 
 	tool := New()
-	def := tool.Definition()
+	def := toolpkg.Definition(tool)
 
 	assert.Equal(t, "plot", def.Name)
 	assert.NotEmpty(t, def.Description)
@@ -67,12 +69,12 @@ func TestTool_Execute_LineChart(t *testing.T) {
 	inputJSON, err := json.Marshal(input)
 	require.NoError(t, err)
 
-	outputJSON, err := tool.Execute(context.Background(), inputJSON)
+	outputJSON, err := tool.Execute(context.Background(), toolpkg.Call{Args: inputJSON})
 	require.NoError(t, err)
 
 	var output Output
 
-	err = json.Unmarshal(outputJSON, &output)
+	err = json.Unmarshal(outputJSON.Output, &output)
 	require.NoError(t, err)
 
 	// Verify output structure
@@ -115,12 +117,12 @@ func TestTool_Execute_BarChart(t *testing.T) {
 	inputJSON, err := json.Marshal(input)
 	require.NoError(t, err)
 
-	outputJSON, err := tool.Execute(context.Background(), inputJSON)
+	outputJSON, err := tool.Execute(context.Background(), toolpkg.Call{Args: inputJSON})
 	require.NoError(t, err)
 
 	var output Output
 
-	err = json.Unmarshal(outputJSON, &output)
+	err = json.Unmarshal(outputJSON.Output, &output)
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, output.ArtifactID)
@@ -151,12 +153,12 @@ func TestTool_Execute_ScatterChart(t *testing.T) {
 	inputJSON, err := json.Marshal(input)
 	require.NoError(t, err)
 
-	outputJSON, err := tool.Execute(context.Background(), inputJSON)
+	outputJSON, err := tool.Execute(context.Background(), toolpkg.Call{Args: inputJSON})
 	require.NoError(t, err)
 
 	var output Output
 
-	err = json.Unmarshal(outputJSON, &output)
+	err = json.Unmarshal(outputJSON.Output, &output)
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, output.ArtifactID)
@@ -182,12 +184,12 @@ func TestTool_Execute_Histogram(t *testing.T) {
 	inputJSON, err := json.Marshal(input)
 	require.NoError(t, err)
 
-	outputJSON, err := tool.Execute(context.Background(), inputJSON)
+	outputJSON, err := tool.Execute(context.Background(), toolpkg.Call{Args: inputJSON})
 	require.NoError(t, err)
 
 	var output Output
 
-	err = json.Unmarshal(outputJSON, &output)
+	err = json.Unmarshal(outputJSON.Output, &output)
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, output.ArtifactID)
@@ -221,12 +223,12 @@ func TestTool_Execute_CustomDimensions(t *testing.T) {
 	inputJSON, err := json.Marshal(input)
 	require.NoError(t, err)
 
-	outputJSON, err := tool.Execute(context.Background(), inputJSON)
+	outputJSON, err := tool.Execute(context.Background(), toolpkg.Call{Args: inputJSON})
 	require.NoError(t, err)
 
 	var output Output
 
-	err = json.Unmarshal(outputJSON, &output)
+	err = json.Unmarshal(outputJSON.Output, &output)
 	require.NoError(t, err)
 
 	assert.Equal(t, 1000, output.Width)
@@ -340,7 +342,7 @@ func TestTool_Execute_ValidationErrors(t *testing.T) {
 			inputJSON, err := json.Marshal(tt.input)
 			require.NoError(t, err)
 
-			_, err = tool.Execute(context.Background(), inputJSON)
+			_, err = tool.Execute(context.Background(), toolpkg.Call{Args: inputJSON})
 			assert.Error(t, err)
 		})
 	}
@@ -380,12 +382,12 @@ func TestTool_Execute_MultipleSeries(t *testing.T) {
 	inputJSON, err := json.Marshal(input)
 	require.NoError(t, err)
 
-	outputJSON, err := tool.Execute(context.Background(), inputJSON)
+	outputJSON, err := tool.Execute(context.Background(), toolpkg.Call{Args: inputJSON})
 	require.NoError(t, err)
 
 	var output Output
 
-	err = json.Unmarshal(outputJSON, &output)
+	err = json.Unmarshal(outputJSON.Output, &output)
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, output.PNGData)

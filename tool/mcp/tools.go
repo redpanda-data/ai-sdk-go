@@ -295,7 +295,7 @@ func (c *clientImpl) executeRegistryOps(ops []registryOp) {
 			err := c.registry.Register(op.register, opts...)
 			if err != nil {
 				c.logger.Warn("failed to register tool",
-					"tool", op.register.Definition().Name,
+					"tool", op.register.Name(),
 					"err", err)
 			}
 		}
@@ -369,20 +369,43 @@ type toolWrapper struct {
 // Ensure toolWrapper implements tool.Tool at compile time.
 var _ tool.Tool = (*toolWrapper)(nil)
 
-// Definition returns the tool's definition for LLM consumption.
-func (w *toolWrapper) Definition() llm.ToolDefinition {
+// Name implements tool.Tool.
+func (w *toolWrapper) Name() string {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
-	return w.definition
+	return w.definition.Name
 }
 
-// Execute forwards the tool execution to the MCP client.
-// Uses the namespaced tool name from the definition.
-func (w *toolWrapper) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+// Description implements tool.Tool.
+func (w *toolWrapper) Description() string {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+
+	return w.definition.Description
+}
+
+// InputSchema implements tool.Tool.
+func (w *toolWrapper) InputSchema() json.RawMessage {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+
+	return w.definition.Parameters
+}
+
+// Execute forwards the tool execution to the MCP client. The MCP wire
+// shape currently does not surface elicitation pauses; when it does,
+// this wrapper will branch on call.Resume and synthesize an
+// AwaitReasonElicitation execution.
+func (w *toolWrapper) Execute(ctx context.Context, call tool.Call) (tool.Execution, error) {
 	w.mu.RLock()
 	toolName := w.definition.Name
 	w.mu.RUnlock()
 
-	return w.client.ExecuteTool(ctx, toolName, args)
+	result, err := w.client.ExecuteTool(ctx, toolName, call.Args)
+	if err != nil {
+		return tool.Execution{}, err
+	}
+
+	return tool.Execution{Output: result}, nil
 }

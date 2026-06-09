@@ -147,7 +147,7 @@ func TestDefinition(t *testing.T) {
 			}
 
 			agentTool := agenttool.New(mockAgent)
-			def := agentTool.Definition()
+			def := tool.Definition(agentTool)
 
 			assert.Equal(t, tt.agentName, def.Name)
 			assert.Equal(t, tt.description, def.Description)
@@ -178,12 +178,12 @@ func TestExecute(t *testing.T) {
 		agentTool := agenttool.New(mockAgent)
 
 		args, _ := json.Marshal(map[string]string{"query": "test query"})
-		result, err := agentTool.Execute(context.Background(), args)
+		result, err := agentTool.Execute(context.Background(), tool.Call{Args: args})
 
 		require.NoError(t, err)
 
 		var output agenttool.Result
-		err = json.Unmarshal(result, &output)
+		err = json.Unmarshal(result.Output, &output)
 		require.NoError(t, err)
 		assert.Equal(t, "This is the agent response", output.Result)
 	})
@@ -198,12 +198,12 @@ func TestExecute(t *testing.T) {
 
 		agentTool := agenttool.New(mockAgent)
 
-		result, err := agentTool.Execute(context.Background(), json.RawMessage("{}"))
+		result, err := agentTool.Execute(context.Background(), tool.Call{Args: json.RawMessage("{}")})
 
 		require.NoError(t, err)
 
 		var output agenttool.Result
-		err = json.Unmarshal(result, &output)
+		err = json.Unmarshal(result.Output, &output)
 		require.NoError(t, err)
 		assert.Equal(t, "Response without input", output.Result)
 	})
@@ -218,7 +218,7 @@ func TestExecute(t *testing.T) {
 
 		agentTool := agenttool.New(mockAgent)
 
-		_, err := agentTool.Execute(context.Background(), json.RawMessage("{}"))
+		_, err := agentTool.Execute(context.Background(), tool.Call{Args: json.RawMessage("{}")})
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "agent execution failed")
@@ -236,7 +236,7 @@ func TestExecute(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 		defer cancel()
 
-		_, err := agentTool.Execute(ctx, json.RawMessage("{}"))
+		_, err := agentTool.Execute(ctx, tool.Call{Args: json.RawMessage("{}")})
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "agent execution failed")

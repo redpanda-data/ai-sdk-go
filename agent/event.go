@@ -87,7 +87,7 @@ const (
 	StatusStageRunStarting    StatusStage = "run_starting"
 	StatusStageModelCall      StatusStage = "model_call"
 	StatusStageToolExec       StatusStage = "tool_exec"
-	StatusStageInputRequired  StatusStage = "input_required"
+	StatusStagePaused         StatusStage = "paused"
 	StatusStageRunCompleted   StatusStage = "run_completed"
 	StatusStageRunFailed      StatusStage = "run_failed"
 	StatusStageRunInterrupted StatusStage = "run_canceled"
@@ -185,7 +185,7 @@ func (e StreamResetEvent) GetEnvelope() EventEnvelope { return e.Envelope }
 // InvocationEndEvent contains only metadata about the invocation completion. The final assistant
 // message is available via the last MessageEvent emitted before this event.
 //
-// On success: InvocationEndEvent{FinishReason: "stop"|"max_turns"|"length"|"input_required"}
+// On success: InvocationEndEvent{FinishReason: "stop"|"max_turns"|"length"|"paused"}
 // On failure: ErrorEvent -> InvocationEndEvent{FinishReason: "error"}.
 type InvocationEndEvent struct {
 	Envelope EventEnvelope `json:"envelope"`
@@ -196,10 +196,10 @@ type InvocationEndEvent struct {
 	// For per-turn usage breakdown, observe StatusEvent.Usage from each turn.
 	// This field is suitable for billing, cost tracking, and quota management.
 	Usage *llm.TokenUsage `json:"usage,omitempty"`
-	// InputRequiredToolIDs lists tool call IDs that require external input.
-	// Only populated when FinishReason is FinishReasonInputRequired.
-	// These IDs correspond to ToolRequestEvent.Request.ID from earlier in the stream.
-	InputRequiredToolIDs []string `json:"input_required_tool_ids,omitempty"`
+	// PendingCalls describes any tool calls that paused this invocation.
+	// Only populated when FinishReason is FinishReasonPaused. Use these
+	// to drive runner.Resume / runner.Run / runner.Cancel.
+	PendingCalls []PendingCallSummary `json:"pending_calls,omitempty"`
 }
 
 func (InvocationEndEvent) isEvent() {}
@@ -225,11 +225,12 @@ const (
 	// The LLM ran out of context space during generation.
 	FinishReasonLength FinishReason = "length"
 
-	// FinishReasonInputRequired indicates execution paused waiting for external input.
-	// One or more tools require user input, approval, or external data before continuing.
-	// The session state is saved and can be resumed when input is provided.
-	// Check InvocationEndEvent.InputRequiredToolIDs for the list of waiting tools.
-	FinishReasonInputRequired FinishReason = "input_required"
+	// FinishReasonPaused indicates execution paused awaiting an external
+	// signal. Inspect InvocationEndEvent.PendingCalls for the list of
+	// waiting tool calls and the kind of input each one expects. Resume
+	// via runner.Resume / runner.Run (for ResumeWithMessage pauses) /
+	// runner.Cancel.
+	FinishReasonPaused FinishReason = "paused"
 
 	// FinishReasonError indicates a fatal error occurred.
 	// The agent encountered an unrecoverable error during execution.

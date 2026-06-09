@@ -151,7 +151,7 @@ func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]anthropic.BetaMe
 		case llm.RoleSystem:
 			// System messages go into the separate system parameter
 			for _, part := range msg.Content {
-				if tp, ok := part.(*llm.TextPart); ok {
+				if tp, ok := part.(*llm.TextPart); ok && tp != nil {
 					systemBlocks = append(systemBlocks, anthropic.BetaTextBlockParam{
 						Type: constant.Text(""),
 						Text: tp.Text,
@@ -225,12 +225,7 @@ func (rm *RequestMapper) mapUserMessage(msg llm.Message) (anthropic.BetaMessageP
 			})
 
 		case *llm.ToolResponsePart:
-			block, err := rm.mapToolResultBlock(p)
-			if err != nil {
-				return apiMsg, err
-			}
-
-			apiMsg.Content = append(apiMsg.Content, block)
+			apiMsg.Content = append(apiMsg.Content, rm.mapToolResultBlock(p))
 
 		default:
 			return apiMsg, fmt.Errorf("unsupported part type in user message: %T", part)
@@ -276,9 +271,8 @@ func (rm *RequestMapper) mapAssistantMessage(msg llm.Message) (anthropic.BetaMes
 			// Map reasoning to thinking block
 			apiMsg.Content = append(apiMsg.Content, anthropic.BetaContentBlockParamUnion{
 				OfThinking: &anthropic.BetaThinkingBlockParam{
-					Type:      constant.Thinking(""),
-					Thinking:  p.Text,
-					Signature: p.Signature,
+					Type:     constant.Thinking(""),
+					Thinking: p.Text,
 				},
 			})
 
@@ -291,11 +285,7 @@ func (rm *RequestMapper) mapAssistantMessage(msg llm.Message) (anthropic.BetaMes
 }
 
 // mapToolResultBlock converts a tool response to Anthropic's tool_result format.
-func (rm *RequestMapper) mapToolResultBlock(part *llm.ToolResponsePart) (anthropic.BetaContentBlockParamUnion, error) {
-	if part == nil {
-		return anthropic.BetaContentBlockParamUnion{}, errors.New("nil ToolResponsePart")
-	}
-
+func (rm *RequestMapper) mapToolResultBlock(part *llm.ToolResponsePart) anthropic.BetaContentBlockParamUnion {
 	content := []anthropic.BetaToolResultBlockParamContentUnion{
 		{OfText: &anthropic.BetaTextBlockParam{
 			Type: constant.Text(""),
@@ -310,7 +300,7 @@ func (rm *RequestMapper) mapToolResultBlock(part *llm.ToolResponsePart) (anthrop
 			Content:   content,
 			IsError:   param.NewOpt(part.IsError),
 		},
-	}, nil
+	}
 }
 
 // mapToolDefinitions converts our tool definitions to Anthropic format.

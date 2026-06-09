@@ -19,6 +19,7 @@ import (
 	"iter"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/tool"
 )
 
 // Interceptor is a marker interface for all interceptors.
@@ -195,14 +196,27 @@ type ToolCallInfo struct {
 	// Req is the tool request from the LLM.
 	Req *llm.ToolRequestPart
 
+	// Resume is non-nil when the runtime re-enters this tool call after a
+	// ResumeWithReentry pause. An interceptor that paused this call MUST
+	// consume it: inspect the decision (Resume.Result / Resume.Error),
+	// set info.Resume = nil, and either call next to run the tool fresh
+	// (approved) or return an error (denied). Interceptors that did not
+	// pause the call should pass it through untouched — the runtime
+	// delivers it to the tool as Call.Resume.
+	Resume *tool.ResumePayload
+
 	// Definition is the full tool definition including description and type.
 	// Used by interceptors for observability (e.g., OpenTelemetry attributes).
 	// May be nil if tool definition is not available.
 	Definition *llm.ToolDefinition
 }
 
-// ToolExecutionNext is the continuation function for tool execution interception.
-type ToolExecutionNext func(ctx context.Context, info *ToolCallInfo) (*llm.ToolResponsePart, error)
+// ToolExecutionNext is the continuation function for tool execution
+// interception. Interceptors return a tool.Execution so they can both
+// short-circuit normal execution (mock results, denials, mid-flight
+// transformations) and pause execution via Execution.Await (approval
+// gates, MCP elicitation, etc.).
+type ToolExecutionNext func(ctx context.Context, info *ToolCallInfo) (tool.Execution, error)
 
 // ToolInterceptor intercepts tool executions.
 //
@@ -242,7 +256,7 @@ type ToolInterceptor interface {
 	// Return an error to indicate the tool failed; the error message will be sent to the LLM.
 	//
 	// IMPORTANT: Always pass ctx (or a child context) to next, never context.Background().
-	InterceptToolExecution(ctx context.Context, info *ToolCallInfo, next ToolExecutionNext) (*llm.ToolResponsePart, error)
+	InterceptToolExecution(ctx context.Context, info *ToolCallInfo, next ToolExecutionNext) (tool.Execution, error)
 }
 
 // ImplementsAnyInterceptor checks if interceptor i implements at least one interceptor interface.
@@ -361,7 +375,7 @@ func ApplyToolInterceptors(
 			ic := interceptor
 
 			// Create a wrapper that calls the interceptor
-			executor = func(ctx context.Context, info *ToolCallInfo) (*llm.ToolResponsePart, error) {
+			executor = func(ctx context.Context, info *ToolCallInfo) (tool.Execution, error) {
 				return ic.InterceptToolExecution(ctx, info, next)
 			}
 		}

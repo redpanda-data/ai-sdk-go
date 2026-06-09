@@ -122,8 +122,8 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 					if !yield(llm.ContentPartEvent{
 						Index: int(e.OutputIndex),
 						Part: &llm.ReasoningPart{
-							ID:   e.ItemID,
-							Text: e.Delta,
+							Text:      e.Delta,
+							Signature: e.ItemID,
 							Metadata: map[string]any{
 								"sequence_number": e.SequenceNumber,
 								"summary_index":   e.SummaryIndex,

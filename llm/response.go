@@ -90,7 +90,7 @@ func (r *Response) ToolRequests() []*ToolRequestPart {
 	return r.Message.ToolRequests()
 }
 
-// HasToolRequests returns true if this response contains any tool requests.
+// HasToolRequests reports whether this response contains any tool requests.
 // This is a convenience method that delegates to the underlying Message.
 func (r *Response) HasToolRequests() bool {
 	return r.Message.HasToolRequests()

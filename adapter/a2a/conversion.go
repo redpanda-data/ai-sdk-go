@@ -188,9 +188,7 @@ func MessageFromLLM(llmMsg llm.Message) *a2a.Message {
 			}
 		case *llm.ReasoningPart:
 			// Reasoning trace: store text as TextPart (like regular text)
-			if p.Text != "" {
-				parts = append(parts, a2a.TextPart{Text: p.Text})
-			}
+			parts = append(parts, a2a.TextPart{Text: p.Text})
 		}
 	}
 

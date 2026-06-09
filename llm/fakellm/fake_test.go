@@ -289,11 +289,11 @@ func TestFakeModel_Scenario_ToolCalling(t *testing.T) {
 			{
 				Role: llm.RoleUser,
 				Content: []llm.Part{
-					&llm.ToolResponsePart{
-						ID:     resp1.ToolRequests()[0].ID,
-						Name:   "get_weather",
-						Result: []byte(`{"temperature": 68, "condition": "sunny"}`),
-					},
+					llm.NewToolResponsePart(
+						resp1.ToolRequests()[0].ID,
+						"get_weather",
+						[]byte(`{"temperature": 68, "condition": "sunny"}`),
+					),
 				},
 			},
 		},
@@ -518,11 +518,7 @@ func TestFakeModel_ToolCallingLoop(t *testing.T) {
 		Messages: []llm.Message{
 			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("What is 2 + 2?")}},
 			resp1.Message,
-			{Role: llm.RoleUser, Content: []llm.Part{&llm.ToolResponsePart{
-				ID:     resp1.ToolRequests()[0].ID,
-				Name:   "calculate",
-				Result: []byte(`{"result": 4}`),
-			}}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewToolResponsePart(resp1.ToolRequests()[0].ID, "calculate", []byte(`{"result": 4}`))}},
 		},
 		Tools:    []llm.ToolDefinition{{Name: "calculate"}},
 		Metadata: map[string]string{"session_id": "calc-session"},

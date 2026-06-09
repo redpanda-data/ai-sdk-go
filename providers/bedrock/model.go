@@ -168,7 +168,11 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 					if !yield(llm.ContentPartEvent{
 						Index: idx,
-						Part:  llm.NewToolRequestPart(acc.toolUse.ID, acc.toolUse.Name, argsJSON),
+						Part: llm.NewToolRequestPart(
+							acc.toolUse.ID,
+							acc.toolUse.Name,
+							argsJSON,
+						),
 					}, nil) {
 						return
 					}
@@ -263,7 +267,11 @@ func (m *Model) buildFinalParts(blocks map[int]*contentBlockAccumulator) []llm.P
 					continue
 				}
 
-				parts = append(parts, llm.NewToolRequestPart(acc.toolUse.ID, acc.toolUse.Name, argsJSON))
+				parts = append(parts, llm.NewToolRequestPart(
+					acc.toolUse.ID,
+					acc.toolUse.Name,
+					argsJSON,
+				))
 			}
 
 		case blockTypeReasoning:
@@ -362,11 +370,11 @@ func processReasoningDelta(acc *contentBlockAccumulator, delta *types.ContentBlo
 		acc.textContent += rd.Value
 
 		// Signature arrives after all text deltas, so streaming
-		// reasoning events carry an empty ID. The final assembled
+		// reasoning events carry an empty Signature. The final assembled
 		// part in buildFinalParts includes the signature.
 		return llm.ContentPartEvent{
 			Index: idx,
-			Part:  llm.NewReasoningPart(rd.Value),
+			Part:  &llm.ReasoningPart{Text: rd.Value},
 		}, true
 
 	case *types.ReasoningContentBlockDeltaMemberSignature:

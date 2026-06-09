@@ -85,7 +85,7 @@ func (m *mockRegistry) Register(t tool.Tool, _ ...tool.Option) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.tools[t.Definition().Name] = t
+	m.tools[t.Name()] = t
 
 	return nil
 }
@@ -117,27 +117,49 @@ func (m *mockRegistry) List() []llm.ToolDefinition {
 
 	defs := make([]llm.ToolDefinition, 0, len(m.tools))
 	for _, t := range m.tools {
-		defs = append(defs, t.Definition())
+		defs = append(defs, tool.Definition(t))
 	}
 
 	return defs
 }
 
-func (m *mockRegistry) Execute(ctx context.Context, req *llm.ToolRequestPart) (*llm.ToolResponsePart, error) {
+func (m *mockRegistry) Run(ctx context.Context, inv tool.InvocationInfo, req *llm.ToolRequestPart) tool.ExecutionResult {
 	t, err := m.Get(req.Name)
 	if err != nil {
-		return nil, err
+		return tool.ExecutionResult{Request: req, Err: err}
 	}
 
-	result, err := t.Execute(ctx, req.Arguments)
+	exec, err := t.Execute(ctx, tool.Call{Request: *req, Args: req.Arguments, Invocation: inv})
+
+	return tool.ExecutionResult{Request: req, Execution: exec, Err: err}
+}
+
+func (m *mockRegistry) Resume(ctx context.Context, inv tool.InvocationInfo, req *llm.ToolRequestPart, payload *tool.ResumePayload) tool.ExecutionResult {
+	t, err := m.Get(req.Name)
 	if err != nil {
-		return nil, err
+		return tool.ExecutionResult{Request: req, Err: err}
 	}
 
-	return &llm.ToolResponsePart{
-		Name:   req.Name,
-		Result: result,
-	}, nil
+	exec, err := t.Execute(ctx, tool.Call{Request: *req, Args: req.Arguments, Invocation: inv, Resume: payload})
+
+	return tool.ExecutionResult{Request: req, Execution: exec, Err: err}
+}
+
+func (m *mockRegistry) RunAll(ctx context.Context, inv tool.InvocationInfo, reqs []*llm.ToolRequestPart, _ ...tool.BatchOption) []tool.ExecutionResult {
+	results := make([]tool.ExecutionResult, len(reqs))
+	for i, req := range reqs {
+		res := m.Run(ctx, inv, req)
+		res.Index = i
+		results[i] = res
+	}
+
+	return results
+}
+
+func (m *mockRegistry) Execute(ctx context.Context, req *llm.ToolRequestPart) (*llm.ToolResponsePart, error) {
+	res := m.Run(ctx, tool.InvocationInfo{}, req)
+
+	return res.Response(), nil
 }
 
 func (m *mockRegistry) ExecuteAll(ctx context.Context, reqs []*llm.ToolRequestPart, _ ...tool.BatchOption) []*llm.ToolResponsePart {

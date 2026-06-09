@@ -24,7 +24,6 @@ import (
 
 	md "github.com/JohannesKaufmann/html-to-markdown"
 
-	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/tool"
 )
 
@@ -45,8 +44,16 @@ func New(opts ...Option) *Tool {
 	return &Tool{cfg: cfg}
 }
 
-// Definition returns the tool definition for LLM consumption.
-func (t *Tool) Definition() llm.ToolDefinition {
+// Name implements tool.Tool.
+func (*Tool) Name() string { return "webfetch" }
+
+// Description implements tool.Tool.
+func (*Tool) Description() string {
+	return "Fetch a HTTPS URL (GET/HEAD) with SSRF protection and size limits. Text/JSON/XML only."
+}
+
+// InputSchema implements tool.Tool.
+func (t *Tool) InputSchema() json.RawMessage {
 	schema := map[string]any{
 		"type": "object",
 		"properties": map[string]any{
@@ -72,32 +79,26 @@ func (t *Tool) Definition() llm.ToolDefinition {
 
 	schemaBytes, _ := json.Marshal(schema) //nolint:errchkjson // We know that this will succeed
 
-	return llm.ToolDefinition{
-		Name:        "webfetch",
-		Description: "Fetch a HTTPS URL (GET/HEAD) with SSRF protection and size limits. Text/JSON/XML only.",
-		Parameters:  schemaBytes,
-		Type:        llm.ToolTypeFunction,
-		Metadata: map[string]any{
-			"category": "web",
-			"security": "high",
-		},
-	}
+	return schemaBytes
 }
 
-// Execute performs the webfetch operation.
-func (t *Tool) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+// Execute performs the webfetch operation. Per webfetch's prompt
+// contract, request failures are encoded as `{"error":true,...}`
+// payloads inside Output (not as IsError responses), so the model can
+// reason about them in the same shape regardless of which leg fails.
+func (t *Tool) Execute(ctx context.Context, call tool.Call) (tool.Execution, error) {
 	var params struct {
 		URL               string `json:"url"`
 		Method            string `json:"method,omitempty"`
 		ConvertToMarkdown *bool  `json:"convert_to_markdown,omitempty"`
 	}
 
-	if err := json.Unmarshal(args, &params); err != nil {
-		return marshalErr(fmt.Errorf("invalid arguments: %w", err))
+	if err := json.Unmarshal(call.Args, &params); err != nil {
+		return errorExecution(fmt.Errorf("invalid arguments: %w", err)), nil
 	}
 
 	if params.URL == "" {
-		return marshalErr(errors.New("url is required"))
+		return errorExecution(errors.New("url is required")), nil
 	}
 
 	// Default method
@@ -107,7 +108,7 @@ func (t *Tool) Execute(ctx context.Context, args json.RawMessage) (json.RawMessa
 
 	// Validate method
 	if params.Method != http.MethodGet && params.Method != http.MethodHead {
-		return marshalErr(fmt.Errorf("unsupported method %q", params.Method))
+		return errorExecution(fmt.Errorf("unsupported method %q", params.Method)), nil
 	}
 
 	// Determine if we should convert to markdown
@@ -119,7 +120,7 @@ func (t *Tool) Execute(ctx context.Context, args json.RawMessage) (json.RawMessa
 	// Perform request
 	resp, err := doRequest(ctx, t.cfg, params.Method, params.URL)
 	if err != nil {
-		return marshalErr(err)
+		return errorExecution(err), nil
 	}
 
 	// Build response
@@ -156,7 +157,12 @@ func (t *Tool) Execute(ctx context.Context, args json.RawMessage) (json.RawMessa
 		}
 	}
 
-	return json.Marshal(result)
+	output, err := json.Marshal(result)
+	if err != nil {
+		return tool.Execution{}, fmt.Errorf("marshal webfetch result: %w", err)
+	}
+
+	return tool.Execution{Output: output}, nil
 }
 
 // fenceBodyContent wraps body content in fence delimiters to protect against

@@ -1099,14 +1099,21 @@ type mockTool struct {
 	executeFn  func(context.Context, json.RawMessage) (json.RawMessage, error)
 }
 
-func (m *mockTool) Definition() llm.ToolDefinition {
-	return m.definition
+func (m *mockTool) Name() string { return m.definition.Name }
+func (m *mockTool) Description() string {
+	return m.definition.Description
 }
+func (m *mockTool) InputSchema() json.RawMessage { return m.definition.Parameters }
 
-func (m *mockTool) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+func (m *mockTool) Execute(ctx context.Context, call tool.Call) (tool.Execution, error) {
 	if m.executeFn != nil {
-		return m.executeFn(ctx, args)
+		out, err := m.executeFn(ctx, call.Args)
+		if err != nil {
+			return tool.Execution{}, err
+		}
+
+		return tool.Execution{Output: out}, nil
 	}
 
-	return json.RawMessage(`{}`), nil
+	return tool.Execution{Output: json.RawMessage(`{}`)}, nil
 }

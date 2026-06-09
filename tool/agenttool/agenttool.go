@@ -54,27 +54,26 @@ func New(a agent.Agent) tool.Tool {
 	return &AgentTool{agent: a}
 }
 
-// Definition implements tool.Tool by using the agent's existing metadata.
-func (at *AgentTool) Definition() llm.ToolDefinition {
-	info := at.agent.Info()
+// Name implements tool.Tool.
+func (at *AgentTool) Name() string { return at.agent.Info().Name }
+
+// Description implements tool.Tool.
+func (at *AgentTool) Description() string { return at.agent.Info().Description }
+
+// InputSchema implements tool.Tool.
+func (at *AgentTool) InputSchema() json.RawMessage {
 	schema := at.agent.InputSchema()
 
 	schemaJSON, err := json.Marshal(schema)
 	if err != nil {
-		// Programming error: agent's InputSchema contains unmarshalable types (channels, funcs, etc.)
-		// This is caught at tool registration time, not by user input or parent agent calls.
-		return llm.ToolDefinition{
-			Name:        info.Name,
-			Description: fmt.Sprintf("[SCHEMA ERROR] %s - Invalid InputSchema implementation: %v", info.Description, err),
-			Parameters:  json.RawMessage(`{"type":"object"}`),
-		}
+		// Programming error: agent's InputSchema contains unmarshalable types
+		// (channels, funcs, etc.). Surface a permissive fallback so the
+		// registry can still expose the tool — the agent author can fix
+		// the schema independently of tool wiring.
+		return json.RawMessage(`{"type":"object"}`)
 	}
 
-	return llm.ToolDefinition{
-		Name:        info.Name,
-		Description: info.Description,
-		Parameters:  schemaJSON,
-	}
+	return schemaJSON
 }
 
 // Result represents the output from an agent tool execution.
@@ -86,61 +85,88 @@ type Result struct {
 //
 // Input Handling:
 //   - Args are passed as JSON in a user message (e.g., {"query": "search X"})
-//   - The child agent receives this as text and parses it naturally
-//   - Modern LLMs reliably handle JSON parsing from text
-//   - Alternative approaches (text wrapping, schema validation) add complexity
-//     without proven value - the LLM handles malformed inputs by asking for clarification
+//   - The child agent receives this as text and parses it naturally.
 //
 // Output Structure:
-//   - Returns {"result": "<text>"}
-//   - Only the last assistant message is captured as the result
-//   - Token usage is tracked separately via interceptors on the agent
+//   - Returns {"result": "<text>"} on terminal completion.
+//   - If the child agent pauses (FinishReasonPaused), the parent tool
+//     returns a Handoff await so the runner can drive the child via
+//     Runner.Resume on the next iteration.
 //
 // Session Isolation:
-//   - Each invocation creates a fresh session (no context sharing)
-//   - This prevents context pollution and keeps parent/child boundaries clear
-//   - For context sharing, pass relevant information explicitly in args
-func (at *AgentTool) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+//   - Each invocation creates a fresh session.
+func (at *AgentTool) Execute(ctx context.Context, call tool.Call) (tool.Execution, error) {
 	info := at.agent.Info()
 
-	// 1. Create fresh session with unique ID to prevent collisions in state stores
 	sess := &session.State{
 		ID:       fmt.Sprintf("agent-tool-%s-%d", info.Name, time.Now().UnixNano()),
 		Messages: []llm.Message{},
 		Metadata: map[string]any{},
 	}
 
-	// 2. Convert args to user message
-	// Args are passed as JSON text (e.g., {"query": "..."})
-	// Child agent receives this in a user message and parses it naturally
-	userMsg := llm.NewMessage(llm.RoleUser, llm.NewTextPart(string(args)))
+	userMsg := llm.NewMessage(llm.RoleUser, llm.NewTextPart(string(call.Args)))
 	sess.Messages = append(sess.Messages, userMsg)
 
-	// 3. Create invocation metadata
 	inv := agent.NewInvocationMetadata(sess, info)
 
-	// 4. Run agent and collect response
-	var result string
+	var (
+		result    string
+		paused    bool
+		pauseInfo agent.InvocationEndEvent
+	)
 
 	for evt, err := range at.agent.Run(ctx, inv) {
 		if err != nil {
-			return nil, fmt.Errorf("agent execution failed: %w", err)
+			return tool.Execution{}, fmt.Errorf("agent execution failed: %w", err)
 		}
 
-		// Capture last assistant message as result
-		if msgEvt, ok := evt.(agent.MessageEvent); ok {
-			result = msgEvt.Response.Message.TextContent()
+		switch e := evt.(type) {
+		case agent.MessageEvent:
+			result = e.Response.Message.TextContent()
+		case agent.InvocationEndEvent:
+			if e.FinishReason == agent.FinishReasonPaused {
+				paused = true
+				pauseInfo = e
+			}
 		}
 	}
 
-	// 5. Return result
+	if paused {
+		// Encode just enough child context for the parent to resume on
+		// re-entry. Persisting the child's full session state by value
+		// would bloat parent session storage; we store the session ID and
+		// the surfaced pending-call summaries.
+		state, err := json.Marshal(map[string]any{
+			"child_session_id": sess.ID,
+			"pending_calls":    pauseInfo.PendingCalls,
+		})
+		if err != nil {
+			return tool.Execution{}, fmt.Errorf("encode handoff state: %w", err)
+		}
+
+		placeholder, err := json.Marshal(Result{Result: "Child agent paused awaiting input."})
+		if err != nil {
+			return tool.Execution{}, fmt.Errorf("encode handoff placeholder: %w", err)
+		}
+
+		return tool.Execution{
+			Output: placeholder,
+			Await: &tool.Await{
+				Reason: tool.AwaitReasonHandoff,
+				Resume: tool.ResumeWithReentry,
+				State:  state,
+			},
+		}, nil
+	}
+
 	if result == "" {
 		result = "Task completed with no text output."
 	}
 
-	output := Result{
-		Result: result,
+	output, err := json.Marshal(Result{Result: result})
+	if err != nil {
+		return tool.Execution{}, fmt.Errorf("marshal agent tool result: %w", err)
 	}
 
-	return json.Marshal(output)
+	return tool.Execution{Output: output}, nil
 }

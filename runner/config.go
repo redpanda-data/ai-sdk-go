@@ -15,6 +15,7 @@
 package runner
 
 import (
+	"context"
 	"log/slog"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
@@ -26,7 +27,37 @@ type runnerConfig struct {
 	agent        agent.Agent
 	sessionStore session.Store
 	logger       *slog.Logger
+	authorize    ResumeAuthorizer
 }
+
+// ResumeAuthorizer is an optional hook applied after loading pending
+// state and before mutating the session on Resume / Progress / Cancel /
+// message-resume. Returning a non-nil error aborts the operation and
+// leaves the session unchanged. The hook receives enough context to make
+// per-operation authorization decisions (actor, session, pending call,
+// submitted result).
+type ResumeAuthorizer func(ctx context.Context, info ResumeInfo) error
+
+// ResumeInfo is the input to ResumeAuthorizer.
+type ResumeInfo struct {
+	UserID      string
+	SessionID   string
+	PendingCall session.PendingToolCall
+	Result      Result
+	Operation   ResumeOperation
+}
+
+// ResumeOperation tells the authorizer which entry point triggered the
+// callback, so a single policy can reason about "approve this" vs.
+// "send progress" vs. "cancel" without three separate hooks.
+type ResumeOperation string
+
+const (
+	ResumeOperationResume   ResumeOperation = "resume"
+	ResumeOperationProgress ResumeOperation = "progress"
+	ResumeOperationCancel   ResumeOperation = "cancel"
+	ResumeOperationMessage  ResumeOperation = "message"
+)
 
 // validate checks that the runner configuration is valid.
 func (c *runnerConfig) validate() error {
@@ -60,5 +91,15 @@ type Option func(*runnerConfig)
 func WithLogger(logger *slog.Logger) Option {
 	return func(c *runnerConfig) {
 		c.logger = logger
+	}
+}
+
+// WithResumeAuthorizer registers a callback that runs before any
+// session-mutating Resume / Progress / Cancel / message-resume.
+// Returning a non-nil error aborts the operation without touching the
+// session.
+func WithResumeAuthorizer(authorize ResumeAuthorizer) Option {
+	return func(c *runnerConfig) {
+		c.authorize = authorize
 	}
 }

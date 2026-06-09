@@ -34,6 +34,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	pluginotel "github.com/redpanda-data/ai-sdk-go/plugins/otel"
 	"github.com/redpanda-data/ai-sdk-go/store/session"
+	"github.com/redpanda-data/ai-sdk-go/tool"
 )
 
 // mockModelInfo implements llm.ModelInfo for testing.
@@ -348,8 +349,8 @@ func TestTracingInterceptor_InterceptToolExecution(t *testing.T) {
 
 		toolInfo := &agent.ToolCallInfo{Inv: inv, Req: req}
 		resp, err := interceptor.InterceptToolExecution(ctx, toolInfo,
-			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
-				return &llm.ToolResponsePart{Result: json.RawMessage(`"Sunny, 72F"`)}, nil
+			func(_ context.Context, _ *agent.ToolCallInfo) (tool.Execution, error) {
+				return tool.Execution{Output: json.RawMessage(`"Sunny, 72F"`)}, nil
 			})
 		require.NoError(t, err)
 		assert.NotNil(t, resp)
@@ -406,8 +407,8 @@ func TestTracingInterceptor_InterceptToolExecution_WithRecordInputs(t *testing.T
 
 		toolInfo := &agent.ToolCallInfo{Inv: inv, Req: req}
 		_, _ = interceptor.InterceptToolExecution(ctx, toolInfo,
-			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
-				return &llm.ToolResponsePart{Result: json.RawMessage(`{"temp": "72F"}`)}, nil
+			func(_ context.Context, _ *agent.ToolCallInfo) (tool.Execution, error) {
+				return tool.Execution{Output: json.RawMessage(`{"temp": "72F"}`)}, nil
 			})
 
 		return agent.FinishReasonStop, nil
@@ -457,8 +458,8 @@ func TestTracingInterceptor_InterceptToolExecution_WithRecordOutputs(t *testing.
 
 		toolInfo := &agent.ToolCallInfo{Inv: inv, Req: req}
 		_, _ = interceptor.InterceptToolExecution(ctx, toolInfo,
-			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
-				return &llm.ToolResponsePart{Result: json.RawMessage(`{"temperature":"72F","conditions":"sunny"}`)}, nil
+			func(_ context.Context, _ *agent.ToolCallInfo) (tool.Execution, error) {
+				return tool.Execution{Output: json.RawMessage(`{"temperature":"72F","conditions":"sunny"}`)}, nil
 			})
 
 		return agent.FinishReasonStop, nil
@@ -503,8 +504,8 @@ func TestTracingInterceptor_InterceptToolExecution_Error(t *testing.T) {
 
 		toolInfo := &agent.ToolCallInfo{Inv: inv, Req: req}
 		_, err := interceptor.InterceptToolExecution(ctx, toolInfo,
-			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
-				return nil, toolErr
+			func(_ context.Context, _ *agent.ToolCallInfo) (tool.Execution, error) {
+				return tool.Execution{}, toolErr
 			})
 		require.ErrorIs(t, err, toolErr)
 
@@ -549,16 +550,16 @@ func TestTracingInterceptor_InterceptToolExecution_ToolErrorResponse(t *testing.
 		req := &llm.ToolRequestPart{Name: "query_logs", ID: "tool-call-abc", Arguments: json.RawMessage(`{"query":"errors"}`)}
 
 		toolInfo := &agent.ToolCallInfo{Inv: inv, Req: req}
-		resp, err := interceptor.InterceptToolExecution(ctx, toolInfo,
-			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
-				// Tool returns error content (not a Go error) — like a 502 from an upstream API
-				return &llm.ToolResponsePart{
-					ID:    "tool-call-abc",
-					Name:  "query_logs",
-					IsError: true, Result: json.RawMessage(`{"error":"query failed: upstream returned status 502"}`),				}, nil
+		_, err := interceptor.InterceptToolExecution(ctx, toolInfo,
+			func(_ context.Context, _ *agent.ToolCallInfo) (tool.Execution, error) {
+				// In the new Execution-shaped contract, both "infrastructure
+				// failures" and "model-visible tool errors" propagate as a
+				// Go error from the inner executor — the registry encodes
+				// either into a ToolResponsePart with IsError=true.
+				return tool.Execution{}, errors.New("query failed: upstream returned status 502")
 			})
-		require.NoError(t, err) // No Go error
-		assert.NotNil(t, resp)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "query failed")
 
 		return agent.FinishReasonStop, nil
 	})
@@ -626,14 +627,14 @@ func TestTracingInterceptor_SpanHierarchy(t *testing.T) {
 
 		toolInfo1 := &agent.ToolCallInfo{Inv: inv, Req: req1}
 		_, _ = interceptor.InterceptToolExecution(ctx, toolInfo1,
-			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
-				return &llm.ToolResponsePart{}, nil
+			func(_ context.Context, _ *agent.ToolCallInfo) (tool.Execution, error) {
+				return tool.Execution{}, nil
 			})
 
 		toolInfo2 := &agent.ToolCallInfo{Inv: inv, Req: req2}
 		_, _ = interceptor.InterceptToolExecution(ctx, toolInfo2,
-			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
-				return &llm.ToolResponsePart{}, nil
+			func(_ context.Context, _ *agent.ToolCallInfo) (tool.Execution, error) {
+				return tool.Execution{}, nil
 			})
 
 		return agent.FinishReasonStop, nil
@@ -831,8 +832,8 @@ func TestTracingInterceptor_InterceptToolExecution_WithToolTypeAndDescription(t 
 		}
 
 		resp, err := interceptor.InterceptToolExecution(ctx, toolInfo,
-			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
-				return &llm.ToolResponsePart{Result: json.RawMessage(`"Sunny, 72F"`)}, nil
+			func(_ context.Context, _ *agent.ToolCallInfo) (tool.Execution, error) {
+				return tool.Execution{Output: json.RawMessage(`"Sunny, 72F"`)}, nil
 			})
 		require.NoError(t, err)
 		assert.NotNil(t, resp)
@@ -894,8 +895,8 @@ func TestTracingInterceptor_InterceptToolExecution_ToolTypeDefaultsToFunction(t 
 		}
 
 		_, _ = interceptor.InterceptToolExecution(ctx, toolInfo,
-			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
-				return &llm.ToolResponsePart{Result: json.RawMessage(`{}`)}, nil
+			func(_ context.Context, _ *agent.ToolCallInfo) (tool.Execution, error) {
+				return tool.Execution{Output: json.RawMessage(`{}`)}, nil
 			})
 
 		return agent.FinishReasonStop, nil
@@ -967,8 +968,8 @@ func TestTracingInterceptor_InterceptToolExecution_WithDifferentToolTypes(t *tes
 				}
 
 				_, _ = interceptor.InterceptToolExecution(ctx, toolInfo,
-					func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
-						return &llm.ToolResponsePart{Result: json.RawMessage(`{}`)}, nil
+					func(_ context.Context, _ *agent.ToolCallInfo) (tool.Execution, error) {
+						return tool.Execution{Output: json.RawMessage(`{}`)}, nil
 					})
 
 				return agent.FinishReasonStop, nil
@@ -1024,8 +1025,8 @@ func TestTracingInterceptor_InterceptToolExecution_WithoutDefinition(t *testing.
 		}
 
 		_, _ = interceptor.InterceptToolExecution(ctx, toolInfo,
-			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
-				return &llm.ToolResponsePart{Result: json.RawMessage(`{}`)}, nil
+			func(_ context.Context, _ *agent.ToolCallInfo) (tool.Execution, error) {
+				return tool.Execution{Output: json.RawMessage(`{}`)}, nil
 			})
 
 		return agent.FinishReasonStop, nil
@@ -1090,8 +1091,8 @@ func TestTracingInterceptor_InterceptToolExecution_InvalidToolTypeDefaultsToFunc
 		}
 
 		_, _ = interceptor.InterceptToolExecution(ctx, toolInfo,
-			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
-				return &llm.ToolResponsePart{Result: json.RawMessage(`{}`)}, nil
+			func(_ context.Context, _ *agent.ToolCallInfo) (tool.Execution, error) {
+				return tool.Execution{Output: json.RawMessage(`{}`)}, nil
 			})
 
 		return agent.FinishReasonStop, nil

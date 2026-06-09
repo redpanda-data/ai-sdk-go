@@ -20,54 +20,29 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/tool"
 )
 
-// RequireInputRequest represents the input to the require input tool.
+// RequireInputRequest is the model-issued tool argument for require_input.
 type RequireInputRequest struct {
 	Message string `json:"message"`
 	Type    string `json:"type,omitempty"`
 }
 
-// RequireInputResponse represents the output from the require input tool.
+// RequireInputResponse is the placeholder result the model sees while the
+// runtime waits for the user's next message.
 type RequireInputResponse struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
-	Status  string `json:"status"`
+	// Status is retained for callers that grep for the old reconciler
+	// status string. New consumers should rely on the typed pause state
+	// instead.
+	Status       string `json:"status"`
+	InputMessage string `json:"input_message"`
+	InputType    string `json:"input_type"`
 }
 
-// RequireInputTool implements a tool for marking tasks as requiring user input.
-type RequireInputTool struct{}
-
-// NewRequireInputTool creates a new RequireInputTool instance.
-func NewRequireInputTool() tool.Tool {
-	return &RequireInputTool{}
-}
-
-// Definition returns the tool definition for the LLM.
-func (*RequireInputTool) Definition() llm.ToolDefinition {
-	schema := json.RawMessage(`{
-		"type": "object",
-		"properties": {
-			"message": {
-				"type": "string",
-				"minLength": 1,
-				"description": "A clear message explaining what input is needed from the user"
-			},
-			"type": {
-				"type": "string",
-				"enum": ["clarification", "decision", "information", "approval"],
-				"description": "The type of input needed: clarification (unclear requirements), decision (user choice needed), information (missing data), approval (permission required)"
-			}
-		},
-		"required": ["message"],
-		"additionalProperties": false
-	}`)
-
-	return llm.ToolDefinition{
-		Name: "require_input",
-		Description: `Use this tool when you need input, clarification, or decisions from the user before proceeding with a task.
+const requireInputDescription = `Use this tool when you need input, clarification, or decisions from the user before proceeding with a task.
 
 WHEN TO USE:
 - Requirements are unclear or ambiguous
@@ -83,57 +58,68 @@ WHEN NOT TO USE:
 
 IMPORTANT:
 - Provide a clear, specific message about what input is needed
-- Use appropriate type to categorize the input request
-- This will pause task execution until user responds`,
-		Parameters: schema,
-		Type:       llm.ToolTypeFunction,
-	}
+- Use appropriate type to categorize the input request`
+
+var requireInputSchema = json.RawMessage(`{
+    "type": "object",
+    "properties": {
+        "message": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A clear message explaining what input is needed from the user"
+        },
+        "type": {
+            "type": "string",
+            "enum": ["clarification", "decision", "information", "approval"],
+            "description": "The type of input needed: clarification (unclear requirements), decision (user choice needed), information (missing data), approval (permission required)"
+        }
+    },
+    "required": ["message"],
+    "additionalProperties": false
+}`)
+
+// validRequireInputTypes is the closed set of supported input types.
+var validRequireInputTypes = map[string]bool{
+	"clarification": true,
+	"decision":      true,
+	"information":   true,
+	"approval":      true,
 }
 
-// Execute processes the require input request.
-func (*RequireInputTool) Execute(_ context.Context, args json.RawMessage) (json.RawMessage, error) {
-	var req RequireInputRequest
+// NewRequireInputTool returns the require_input built-in tool. The tool
+// pauses execution with AwaitReasonUserInput + ResumeWithMessage: the
+// runtime stops the invocation and resumes when the next user message
+// arrives via runner.Run.
+func NewRequireInputTool() tool.Tool {
+	return tool.Must(tool.Func(
+		tool.Spec{
+			Name:        "require_input",
+			Description: requireInputDescription,
+			InputSchema: requireInputSchema,
+			Async:       tool.AsyncUserInput(),
+		},
+		func(_ context.Context, in RequireInputRequest) (tool.Result[RequireInputResponse], error) {
+			if in.Message == "" {
+				return tool.Result[RequireInputResponse]{}, errors.New("message cannot be empty")
+			}
 
-	err := json.Unmarshal(args, &req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse require input request: %w", err)
-	}
+			if in.Type == "" {
+				in.Type = "clarification"
+			}
 
-	// Validate the request
-	if req.Message == "" {
-		return nil, errors.New("message cannot be empty")
-	}
+			if !validRequireInputTypes[in.Type] {
+				return tool.Result[RequireInputResponse]{}, fmt.Errorf("invalid type %q", in.Type)
+			}
 
-	// Set default type if not provided
-	if req.Type == "" {
-		req.Type = "clarification"
-	}
+			out := RequireInputResponse{
+				Success:      true,
+				Message:      "Task marked as requiring user input: " + in.Message,
+				Status:       "require_input",
+				InputMessage: in.Message,
+				InputType:    in.Type,
+			}
 
-	// Validate type
-	validTypes := map[string]bool{
-		"clarification": true,
-		"decision":      true,
-		"information":   true,
-		"approval":      true,
-	}
-	if !validTypes[req.Type] {
-		return nil, fmt.Errorf("invalid type %q", req.Type)
-	}
-
-	response := RequireInputResponse{
-		Success: true,
-		Message: "Task marked as requiring user input: " + req.Message,
-		Status:  "require_input",
-	}
-
-	// Include the original request in the response for the reconciler to process
-	responseWithDetails := map[string]any{
-		"success":       response.Success,
-		"message":       response.Message,
-		"status":        response.Status,
-		"input_message": req.Message,
-		"input_type":    req.Type,
-	}
-
-	return json.Marshal(responseWithDetails)
+			return tool.NeedInput(out, in.Message), nil
+		},
+	))
 }

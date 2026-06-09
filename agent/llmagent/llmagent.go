@@ -17,7 +17,6 @@ package llmagent
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"iter"
@@ -27,6 +26,8 @@ import (
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/store/session"
+	"github.com/redpanda-data/ai-sdk-go/tool"
 )
 
 // Compile-time check that LLMAgent implements agent.Agent.
@@ -117,6 +118,69 @@ func (a *LLMAgent) InputSchema() map[string]any {
 	}
 }
 
+// Tools returns the agent's tool registry. The runner uses this to
+// re-enter tools on ResumeWithReentry pauses without taking a direct
+// dependency on this package.
+func (a *LLMAgent) Tools() tool.Registry { return a.config.tools }
+
+// ExecuteToolResume re-enters a paused tool call through the agent's
+// tool interceptor chain. The runner calls this (via a duck-typed
+// interface) when a ResumeWithReentry pending call is resumed, so that
+// an interceptor that paused the call — an approval gate in particular —
+// consumes the decision before the tool runs. See
+// agent.ToolCallInfo.Resume for the consume contract.
+func (a *LLMAgent) ExecuteToolResume(
+	ctx context.Context,
+	sess *session.State,
+	pc session.PendingToolCall,
+	payload *tool.ResumePayload,
+) (tool.Execution, error) {
+	if a.config.tools == nil {
+		return tool.Execution{}, agent.ErrToolRegistry
+	}
+
+	inv := agent.NewInvocationMetadata(sess, a.Info())
+
+	toolInv := tool.InvocationInfo{
+		InvocationID: inv.InvocationID(),
+		SessionID:    sess.ID,
+		AgentName:    a.config.name,
+	}
+
+	req := &llm.ToolRequestPart{ID: pc.ID, Name: pc.Name, Arguments: pc.Arguments}
+
+	// The base executor reads info.Resume at call time: the interceptor
+	// that paused the call consumes it (sets info.Resume = nil) before
+	// calling next, which makes the tool run fresh. If no interceptor
+	// consumed it, the payload reaches the tool as Call.Resume.
+	baseExecutor := func(ctx context.Context, info *agent.ToolCallInfo) (tool.Execution, error) {
+		if info.Resume == nil {
+			res := a.config.tools.Run(ctx, toolInv, info.Req)
+			return res.Execution, res.Err
+		}
+
+		res := a.config.tools.Resume(ctx, toolInv, info.Req, info.Resume)
+
+		return res.Execution, res.Err
+	}
+
+	executor := agent.ApplyToolInterceptors(a.config.interceptors, baseExecutor)
+
+	var def *llm.ToolDefinition
+
+	if t, err := a.config.tools.Get(pc.Name); err == nil {
+		d := tool.Definition(t)
+		def = &d
+	}
+
+	return executor(ctx, &agent.ToolCallInfo{
+		Inv:        inv,
+		Req:        req,
+		Definition: def,
+		Resume:     payload,
+	})
+}
+
 // Run executes the LLM agent, yielding events during execution.
 //
 // The agent executes a turn loop, yielding events for:
@@ -188,12 +252,24 @@ func (a *LLMAgent) Run(ctx context.Context, inv *agent.InvocationMetadata) iter.
 
 			// Check if interceptor or turn logic wants to end execution
 			if finishReason != "" {
-				// Emit terminal event
-				yield(agent.InvocationEndEvent{
+				end := agent.InvocationEndEvent{
 					Envelope:     makeEnvelope(),
 					FinishReason: finishReason,
 					Usage:        new(inv.TotalUsage()),
-				}, nil)
+				}
+
+				// On pause, surface the pending calls that were just
+				// recorded on the session so adapters can route their
+				// A2A / UI streams without a second session load.
+				if finishReason == agent.FinishReasonPaused {
+					if sess := inv.Session(); sess != nil {
+						for _, pc := range sess.PendingToolCalls {
+							end.PendingCalls = append(end.PendingCalls, pendingToCallSummary(pc))
+						}
+					}
+				}
+
+				yield(end, nil)
 
 				return
 			}
@@ -351,11 +427,38 @@ func (a *LLMAgent) executeSingleTurn(
 		return "", agent.ErrToolRegistry
 	}
 
-	toolParts := a.executeTools(ctx, inv, toolReqs, req.Tools, makeEnvelope, yield)
+	toolParts, pendingCalls := a.executeTools(ctx, inv, toolReqs, req.Tools, makeEnvelope, yield)
 
-	// Build single message with all tool response parts
+	// Build single message with all tool response parts. Placeholders for
+	// paused tools live in this message so the session is internally
+	// valid (every assistant tool_request is paired with a user
+	// tool_response). The runner replaces them with final results on
+	// resume.
 	toolMsg := llm.NewMessage(llm.RoleUser, toolParts...)
 	sess.Messages = append(sess.Messages, toolMsg)
+
+	// If any tools paused, store the typed pending calls on the session
+	// and stop the invocation. Resume is driven by runner.Resume /
+	// runner.Run (for ResumeWithMessage pauses). The outer agent loop
+	// builds the PendingCalls slice for InvocationEndEvent from the
+	// session after our return; we don't need to build it here.
+	if len(pendingCalls) > 0 {
+		if sess.PendingToolCalls == nil {
+			sess.PendingToolCalls = make(map[string]session.PendingToolCall, len(pendingCalls))
+		}
+
+		for _, pc := range pendingCalls {
+			sess.PendingToolCalls[pc.ID] = pc
+		}
+
+		_ = yield(agent.StatusEvent{
+			Envelope: makeEnvelope(),
+			Stage:    agent.StatusStagePaused,
+			Details:  fmt.Sprintf("paused: %d pending tool call(s)", len(pendingCalls)),
+		}, nil)
+
+		return agent.FinishReasonPaused, nil
+	}
 
 	// Emit turn completed
 	if !yield(agent.StatusEvent{
@@ -369,6 +472,22 @@ func (a *LLMAgent) executeSingleTurn(
 
 	// Turn completed normally - continue loop
 	return "", nil
+}
+
+// pendingToCallSummary projects a stored PendingToolCall onto the
+// surface adapter consumers see. Keeping this conversion local avoids
+// agent → session import dependencies in the event types.
+func pendingToCallSummary(pc session.PendingToolCall) agent.PendingCallSummary {
+	return agent.PendingCallSummary{
+		CallID:        pc.ID,
+		ToolName:      pc.Name,
+		Reason:        tool.AwaitReason(pc.Reason),
+		Resume:        tool.ResumeMode(pc.Resume),
+		Message:       pc.Message,
+		Prompt:        pc.Prompt,
+		CorrelationID: pc.CorrelationID,
+		ExpiresAt:     pc.ExpiresAt,
+	}
 }
 
 // resolveSystemPrompt produces a transient message list with the system
@@ -508,10 +627,14 @@ func (a *LLMAgent) generateWithStreaming(
 //
 // ToolResponseEvents are yielded as tools complete.
 //
-// Returns tool response parts in the order they were requested.
+// Returns tool response parts in the order they were requested, plus a
+// list of any pending tool calls that paused execution. The caller
+// persists the pending calls on the session and stops the invocation.
 //
-// Future: Will also return list of tool IDs requiring input for
-// StatusStageInputRequired / FinishReasonInputRequired support.
+// Tools may pause by returning Execution.Await; the runtime then
+// produces a placeholder ToolResponsePart (so the session stays
+// internally valid) and a typed PendingToolCall that the runner uses
+// to drive Resume/Progress/Cancel.
 func (a *LLMAgent) executeTools(
 	ctx context.Context,
 	inv *agent.InvocationMetadata,
@@ -519,7 +642,7 @@ func (a *LLMAgent) executeTools(
 	toolDefs []llm.ToolDefinition,
 	makeEnvelope func() agent.EventEnvelope,
 	yield func(agent.Event, error) bool,
-) []llm.Part {
+) ([]llm.Part, []session.PendingToolCall) {
 	// Execute tools concurrently with limited parallelism
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(min(a.config.toolConcurrency, len(toolReqs)))
@@ -529,15 +652,35 @@ func (a *LLMAgent) executeTools(
 		idx       int
 		requestID string
 		name      string
-		response  *llm.ToolResponsePart
+		execution tool.Execution
 		err       error
 	}
 
 	results := make(chan toolResult, len(toolReqs))
 
-	// Create base tool executor
-	baseExecutor := func(ctx context.Context, info *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
-		return a.config.tools.Execute(ctx, info.Req)
+	now := time.Now().UTC()
+
+	// Build tool.InvocationInfo from agent metadata to thread through
+	// the registry. The registry no longer reaches into agent types
+	// directly; this keeps tool.* free of an agent-package import cycle.
+	var sessionID string
+	if sess := inv.Session(); sess != nil {
+		sessionID = sess.ID
+	}
+
+	toolInv := tool.InvocationInfo{
+		InvocationID: inv.InvocationID(),
+		SessionID:    sessionID,
+		Turn:         inv.Turn(),
+		AgentName:    inv.Agent().Name,
+	}
+
+	// Base executor returns a tool.Execution. The interceptor chain
+	// preserves that shape end-to-end so any interceptor can pause via
+	// Execution.Await (approval gates, MCP elicitation, etc.).
+	baseExecutor := func(ctx context.Context, info *agent.ToolCallInfo) (tool.Execution, error) {
+		res := a.config.tools.Run(ctx, toolInv, info.Req)
+		return res.Execution, res.Err
 	}
 
 	// Apply tool interceptors
@@ -558,12 +701,12 @@ func (a *LLMAgent) executeTools(
 				Definition: toolDefMap[req.Name], // Add tool definition
 			}
 
-			resp, err := executor(gctx, toolInfo)
+			exec, err := executor(gctx, toolInfo)
 			results <- toolResult{
 				idx:       i,
 				requestID: req.ID,
 				name:      req.Name,
-				response:  resp,
+				execution: exec,
 				err:       err,
 			}
 
@@ -571,49 +714,113 @@ func (a *LLMAgent) executeTools(
 		})
 	}
 
-	// Collect tool response parts and yield events as they arrive
-	parts := make([]llm.Part, 0, len(toolReqs))
+	// Collect tool response parts and yield events as they arrive.
+	// Reconcile Execution + Err into a wire-format ToolResponsePart via
+	// the registry's ExecutionResult.Response helper so the shape stays
+	// in one place. Pauses (Execution.Await != nil) produce a
+	// PendingToolCall in addition to the placeholder response.
+	//
+	// Events stream in completion order (responsive UX), but parts are
+	// placed by request index: the persisted tool-response message must
+	// mirror the order of the tool_use blocks in the assistant message,
+	// or providers reject the request.
+	ordered := make([]llm.Part, len(toolReqs))
+
+	var pending []session.PendingToolCall
 
 	for range toolReqs {
 		result := <-results
 
-		if result.err != nil {
-			// Tool execution failed - encode error payload into the response.
-			errPayload, mErr := json.Marshal(map[string]string{"error": result.err.Error()})
-			if mErr != nil {
-				errPayload = []byte(`{"error":"tool error"}`)
-			}
+		req := toolReqs[result.idx]
+		execResult := tool.ExecutionResult{
+			Index:     result.idx,
+			Request:   req,
+			Execution: result.execution,
+			Err:       result.err,
+		}
+		resp := execResult.Response()
 
-			errResp := &llm.ToolResponsePart{
-				ID:      result.requestID,
-				Name:    result.name,
-				Result:  errPayload,
-				IsError: true,
-			}
-			parts = append(parts, errResp)
+		ordered[result.idx] = resp
 
-			// Yield error tool result event
-			if !yield(agent.ToolResponseEvent{
-				Envelope: makeEnvelope(),
-				Response: *errResp,
+		// If this call paused, record the typed pending entry and emit
+		// a ToolPendingEvent before the (placeholder) ToolResponseEvent
+		// so adapters can see "this is non-terminal" alongside the
+		// placeholder shape they need to mirror in their own streams.
+		if exec := result.execution; exec.Await != nil {
+			pc := buildPendingCall(req, exec, now)
+			pending = append(pending, pc)
+
+			if !yield(agent.ToolPendingEvent{
+				Envelope:    makeEnvelope(),
+				PendingCall: pendingToCallSummary(pc),
+				Placeholder: *resp,
 			}, nil) {
-				return parts // Consumer stopped listening
+				return compactParts(ordered), pending // Consumer stopped listening
 			}
-		} else {
-			// Tool execution succeeded
-			parts = append(parts, result.response)
+		}
 
-			// Yield tool result event
-			if !yield(agent.ToolResponseEvent{
-				Envelope: makeEnvelope(),
-				Response: *result.response,
-			}, nil) {
-				return parts // Consumer stopped listening
-			}
+		// Yield tool result event
+		if !yield(agent.ToolResponseEvent{
+			Envelope: makeEnvelope(),
+			Response: *resp,
+		}, nil) {
+			return compactParts(ordered), pending // Consumer stopped listening
+		}
+	}
+
+	return compactParts(ordered), pending
+}
+
+// compactParts drops unfilled (nil) slots from the indexed parts slice.
+// Slots are only nil when the consumer stopped listening before all
+// tool executions were collected.
+func compactParts(ordered []llm.Part) []llm.Part {
+	parts := make([]llm.Part, 0, len(ordered))
+
+	for _, p := range ordered {
+		if p != nil {
+			parts = append(parts, p)
 		}
 	}
 
 	return parts
+}
+
+// buildPendingCall constructs a session.PendingToolCall record from a
+// paused tool execution. ExpiresAt is computed from Await.Timeout if
+// the tool didn't set it explicitly.
+func buildPendingCall(req *llm.ToolRequestPart, exec tool.Execution, now time.Time) session.PendingToolCall {
+	a := exec.Await
+
+	pc := session.PendingToolCall{
+		SchemaVersion: session.PendingToolCallSchemaVersion,
+		ID:            req.ID,
+		Name:          req.Name,
+		Arguments:     req.Arguments,
+		Reason:        string(a.Reason),
+		Resume:        string(a.Resume),
+		Message:       a.Message,
+		Prompt:        a.Prompt,
+		State:         a.State,
+		CorrelationID: a.CorrelationID,
+		CreatedAt:     now,
+		LastOutput:    exec.Output,
+		Metadata:      a.Metadata,
+	}
+
+	if a.ExpiresAt != nil {
+		t := *a.ExpiresAt
+		pc.ExpiresAt = &t
+	} else if a.Timeout > 0 {
+		t := now.Add(a.Timeout)
+		pc.ExpiresAt = &t
+	}
+
+	if hash, err := tool.ArgumentsHash(req.Arguments); err == nil {
+		pc.ArgumentsHash = hash
+	}
+
+	return pc
 }
 
 // recoverIncompleteToolCalls detects and executes incomplete tool calls from a
@@ -666,9 +873,13 @@ func (a *LLMAgent) recoverIncompleteToolCalls(
 		return agent.ErrToolRegistry
 	}
 
-	// Execute the incomplete tools
+	// Execute the incomplete tools. Pending calls produced during
+	// recovery are discarded here — the runner does not yet expose a
+	// resume entry point that re-binds a pre-existing pause to the
+	// recovered placeholder. Treat recovery purely as "fill in missing
+	// tool responses so the next model call doesn't error out."
 	toolDefs := a.config.tools.List()
-	toolParts := a.executeTools(ctx, inv, incomplete, toolDefs, makeEnvelope, yield)
+	toolParts, _ := a.executeTools(ctx, inv, incomplete, toolDefs, makeEnvelope, yield)
 
 	// Insert tool response message BEFORE the last user message.
 	// Current: [..., assistant(tool_req), user(text)]

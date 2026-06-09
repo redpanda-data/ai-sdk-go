@@ -27,56 +27,122 @@ import (
 )
 
 // Registry manages tool registration, discovery, and execution.
-// It serves as the central coordination point for all tool operations.
 //
-// Design Philosophy:
-// - Registry handles the orchestration and lifecycle management
-// - Individual Tool implementations focus only on their specific logic
-// - Clean separation allows for different tool types (MCP, custom functions, external APIs).
+// Two execution surfaces are exposed:
+//
+//   - Run / RunAll return tool.ExecutionResult, the typed control-flow
+//     return that carries Execution{Output, Await, Actions} plus a
+//     runtime error. The agent loop and runner use these to detect
+//     pauses, persist pending state, and emit ToolPendingEvent.
+//   - Execute / ExecuteAll are convenience wrappers that reconcile an
+//     ExecutionResult into an llm.ToolResponsePart for callers that only
+//     care about the model-visible payload (most tests, ad-hoc tool
+//     invocations). They ignore Await: a paused tool surfaces as a
+//     placeholder response.
 type Registry interface {
-	// Register adds a tool to the registry with optional configuration
+	// Register adds a tool to the registry with optional configuration.
 	Register(tool Tool, opts ...Option) error
 
-	// Unregister removes a tool by name
+	// Unregister removes a tool by name.
 	Unregister(name string) error
 
-	// List returns tool definitions for use in llm.Request.Tools
-	// These definitions tell the LLM what tools are available
+	// List returns tool definitions for use in llm.Request.Tools. The
+	// definitions tell the model what tools are available; they include
+	// AsyncSpec-derived hints where set.
 	List() []llm.ToolDefinition
 
-	// Get retrieves a registered tool by name
+	// Get retrieves a registered tool by name.
 	Get(name string) (Tool, error)
 
-	// Execute runs a tool synchronously and returns the complete result.
-	// Returns (nil, error) for validation errors; otherwise returns a ToolResponse with
-	// execution errors encoded in the Error field.
+	// Run executes a single tool request and returns the typed
+	// ExecutionResult. Err is populated for runtime/tool errors (the
+	// returned Execution is the zero value in that case); pauses appear
+	// as Execution.Await != nil.
+	Run(ctx context.Context, inv InvocationInfo, req *llm.ToolRequestPart) ExecutionResult
+
+	// Resume re-enters a registered tool after a ResumeWithReentry pause,
+	// with Call.Resume populated from payload. It applies the same
+	// timeout, Await validation, and response-size limits as Run.
+	Resume(ctx context.Context, inv InvocationInfo, req *llm.ToolRequestPart, payload *ResumePayload) ExecutionResult
+
+	// RunAll executes multiple tool requests concurrently. Results are
+	// returned in the SAME ORDER as reqs — fixing the previous
+	// completion-order shape that broke provider tool-call ordering.
+	RunAll(ctx context.Context, inv InvocationInfo, reqs []*llm.ToolRequestPart, opts ...BatchOption) []ExecutionResult
+
+	// Execute reconciles Run's ExecutionResult into a single
+	// llm.ToolResponsePart. Errors are encoded via IsError + a
+	// `{"error":"..."}` payload. Returns (nil, ErrToolRequestNil) for a
+	// nil request — that signals a bad caller, not a tool failure.
 	Execute(ctx context.Context, req *llm.ToolRequestPart) (*llm.ToolResponsePart, error)
 
-	// ExecuteAll runs multiple tool requests concurrently with optional concurrency limits.
-	// Always returns len(reqs) responses in the same order. All failures (tool errors,
-	// timeouts, cancellation) are encoded in ToolResponse.Error, never as a top-level error.
-	// This ensures callers get a uniform response shape regardless of failure mode.
+	// ExecuteAll is the response-part variant of RunAll. Per-request
+	// failures are encoded in the returned parts; the slice always has
+	// len(reqs) entries, in request order.
 	ExecuteAll(ctx context.Context, reqs []*llm.ToolRequestPart, opts ...BatchOption) []*llm.ToolResponsePart
 }
 
-// RegistryConfig configures the overall registry behavior.
-// Currently empty but reserved for future registry-level settings.
-type RegistryConfig struct {
-	// Reserved for future registry-wide settings
-	// Tool-specific configuration is handled via functional options
+// ExecutionResult is the typed control-flow return from Registry.Run.
+// It preserves the request index, ID, and name so callers can emit
+// events as tools finish while still persisting the final message in
+// request order.
+type ExecutionResult struct {
+	// Index is the position of this request in the original RunAll
+	// input slice. Single-shot Run leaves this at 0.
+	Index int
+
+	// Request is the original tool request. ID and Name are guaranteed
+	// non-empty for requests that came through Run; nil only for the
+	// nil-request slot in RunAll.
+	Request *llm.ToolRequestPart
+
+	// Execution is the structured return from the tool. Output is the
+	// model-visible JSON; Await drives pause/resume.
+	Execution Execution
+
+	// Err is a runtime/tool error. The runtime treats it as a model-
+	// visible tool error (the model sees a ToolResponsePart with
+	// IsError=true), not a fatal failure of the invocation.
+	Err error
 }
 
-// ExecutionContext provides additional context during tool execution
-// This allows tools to access registry-level services and configuration.
-type ExecutionContext struct {
-	// Original LLM request for context
-	ToolRequest *llm.ToolRequestPart
+// Response reconciles e into the ToolResponsePart that should be added
+// to session history. It is the single chokepoint where Execution.Output
+// + Err become wire-format tool responses, so call sites cannot get the
+// shape subtly wrong.
+//
+// Rules:
+//   - Err != nil: IsError=true, Result is `{"error":"<msg>"}`.
+//   - Execution.Output non-empty: IsError=false, Result is Output.
+//   - Empty Output: IsError=false, Result is `{}` so providers always
+//     receive a JSON object.
+//
+// The Await pointer does not change the shape of the persisted message:
+// callers that care about pause must read e.Execution.Await directly.
+func (e ExecutionResult) Response() *llm.ToolResponsePart {
+	id, name := "", ""
+	if e.Request != nil {
+		id = e.Request.ID
+		name = e.Request.Name
+	}
 
-	// Tool configuration
-	Config *Config
+	if e.Err != nil {
+		return llm.NewToolErrorPart(id, name, e.Err.Error())
+	}
+
+	result := e.Execution.Output
+	if len(result) == 0 {
+		result = json.RawMessage(`{}`)
+	}
+
+	return llm.NewToolResponsePart(id, name, result)
 }
 
-// registry is the concrete implementation of Registry interface.
+// RegistryConfig configures registry-wide behavior. Reserved for future
+// settings; tool-specific configuration is handled via Option.
+type RegistryConfig struct{}
+
+// registry is the concrete implementation of Registry.
 type registry struct {
 	mu     sync.RWMutex
 	tools  map[string]*registeredTool
@@ -98,37 +164,29 @@ func NewRegistry(config RegistryConfig) Registry {
 }
 
 // Register adds a tool to the registry with optional configuration.
-func (r *registry) Register(tool Tool, opts ...Option) error {
-	if tool == nil {
+func (r *registry) Register(t Tool, opts ...Option) error {
+	if t == nil {
 		return ErrToolNil
 	}
 
-	definition := tool.Definition()
-	if definition.Name == "" {
+	name := t.Name()
+	if name == "" {
 		return ErrToolNameEmpty
 	}
 
-	// Create config with tool defaults
 	config := defaultToolConfig()
-
-	// Apply user options with validation
-	err := config.applyOptions(opts...)
-	if err != nil {
-		return fmt.Errorf("%w for tool %q: %w", ErrInvalidToolConfig, definition.Name, err)
+	if err := config.applyOptions(opts...); err != nil {
+		return fmt.Errorf("%w for tool %q: %w", ErrInvalidToolConfig, name, err)
 	}
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	// Check for duplicate names
-	if _, exists := r.tools[definition.Name]; exists {
-		return fmt.Errorf("%w: %q", ErrToolAlreadyRegistered, definition.Name)
+	if _, exists := r.tools[name]; exists {
+		return fmt.Errorf("%w: %q", ErrToolAlreadyRegistered, name)
 	}
 
-	r.tools[definition.Name] = &registeredTool{
-		tool:   tool,
-		config: *config,
-	}
+	r.tools[name] = &registeredTool{tool: t, config: *config}
 
 	return nil
 }
@@ -154,7 +212,7 @@ func (r *registry) List() []llm.ToolDefinition {
 
 	definitions := make([]llm.ToolDefinition, 0, len(r.tools))
 	for _, registered := range r.tools {
-		definitions = append(definitions, registered.tool.Definition())
+		definitions = append(definitions, Definition(registered.tool))
 	}
 
 	return definitions
@@ -173,89 +231,23 @@ func (r *registry) Get(name string) (Tool, error) {
 	return registered.tool, nil
 }
 
-// Execute runs a tool synchronously and returns the complete result.
-func (r *registry) Execute(ctx context.Context, req *llm.ToolRequestPart) (*llm.ToolResponsePart, error) {
-	if req == nil {
-		return nil, ErrToolRequestNil
-	}
-
-	// Find the tool
-	r.mu.RLock()
-	registered, exists := r.tools[req.Name]
-	r.mu.RUnlock()
-
-	if !exists {
-		return errorToolResponse(req, fmt.Sprintf("%v: %q", ErrToolNotFound, req.Name)), nil
-	}
-
-	// Apply timeout if configured
-	executeCtx := ctx
-
-	if registered.config.Timeout > 0 {
-		var cancel context.CancelFunc
-
-		executeCtx, cancel = context.WithTimeout(ctx, registered.config.Timeout)
-		defer cancel()
-	}
-
-	// Execute the tool
-	result, err := registered.tool.Execute(executeCtx, req.Arguments)
-	// Handle execution errors
-	if err != nil {
-		// Check if it's a timeout
-		if errors.Is(executeCtx.Err(), context.DeadlineExceeded) {
-			return errorToolResponse(req, fmt.Sprintf("%v after %s", ErrToolExecutionTimeout, registered.config.Timeout)), nil
-		}
-
-		// Other execution errors
-		return errorToolResponse(req, err.Error()), nil
-	}
-
-	// Check response size and apply limits
-	processedResult, err := r.enforceResponseSizeLimit(result, &registered.config)
-	if err != nil {
-		return errorToolResponse(req, fmt.Sprintf("failed to process response: %v", err)), nil
-	}
-
-	// Success
-	return &llm.ToolResponsePart{
-		ID:     req.ID,
-		Name:   req.Name,
-		Result: processedResult,
-	}, nil
+// Run executes a single tool request and returns the typed
+// ExecutionResult. See ExecutionResult for the error vs. await contract.
+func (r *registry) Run(ctx context.Context, inv InvocationInfo, req *llm.ToolRequestPart) ExecutionResult {
+	return r.run(ctx, inv, req, nil)
 }
 
-// errorToolResponse builds a ToolResponsePart carrying an error payload.
-// The error message is encoded as JSON {"error":"..."} in Result and IsError is set.
-func errorToolResponse(req *llm.ToolRequestPart, message string) *llm.ToolResponsePart {
-	payload, err := json.Marshal(map[string]string{"error": message})
-	if err != nil {
-		// json.Marshal on map[string]string cannot fail; fall back to a raw
-		// JSON-safe payload so we still return a well-formed result.
-		payload = []byte(`{"error":"tool error"}`)
-	}
-
-	return &llm.ToolResponsePart{
-		ID:      req.ID,
-		Name:    req.Name,
-		Result:  payload,
-		IsError: true,
-	}
+// Resume implements Registry.
+func (r *registry) Resume(ctx context.Context, inv InvocationInfo, req *llm.ToolRequestPart, payload *ResumePayload) ExecutionResult {
+	return r.run(ctx, inv, req, payload)
 }
 
-// ExecuteAll implements Registry.ExecuteAll.
-// All errors are encoded in ToolResponse.Error fields, including:
-// - Per-tool execution failures
-// - Individual tool timeouts
-// - Context cancellation (for tasks that never started or were interrupted)
-//
-// This "best-effort" pattern ensures callers always get a predictable response
-// structure with len(reqs) entries, making it simpler to process results without
-// checking for top-level errors.
-func (r *registry) ExecuteAll(ctx context.Context, reqs []*llm.ToolRequestPart, opts ...BatchOption) []*llm.ToolResponsePart {
+// RunAll executes multiple tool requests concurrently. Returned results
+// are in request order even though tools execute concurrently.
+func (r *registry) RunAll(ctx context.Context, inv InvocationInfo, reqs []*llm.ToolRequestPart, opts ...BatchOption) []ExecutionResult {
 	n := len(reqs)
 	if n == 0 {
-		return []*llm.ToolResponsePart{}
+		return []ExecutionResult{}
 	}
 
 	cfg := defaultBatchConfig()
@@ -268,29 +260,27 @@ func (r *registry) ExecuteAll(ctx context.Context, reqs []*llm.ToolRequestPart, 
 		concurrency = n
 	}
 
-	results := make([]*llm.ToolResponsePart, n)
+	results := make([]ExecutionResult, n)
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(concurrency)
 
 	for i, req := range reqs {
 		g.Go(func() error {
-			// Per-tool errors are encoded in resp.Error, never propagated to errgroup.
-			// This prevents one tool failure from canceling other concurrent executions.
-			resp, _ := r.executeOne(gctx, req)
-			results[i] = resp
+			res := r.Run(gctx, inv, req)
+			res.Index = i
+			results[i] = res
 
 			return nil
 		})
 	}
 
-	_ = g.Wait() // always nil since we never return errors from g.Go
+	_ = g.Wait()
 
-	// Fill any nil slots (tasks that never started due to context cancellation)
-	// with error responses so we always return len(reqs) results.
+	// Fill any slot the dispatcher could not start due to ctx cancel.
 	if ctx.Err() != nil {
 		for i := range results {
-			if results[i] == nil {
-				results[i] = errorToolResponse(&llm.ToolRequestPart{}, ctx.Err().Error())
+			if results[i].Request == nil && results[i].Err == nil {
+				results[i] = ExecutionResult{Index: i, Request: reqs[i], Err: ctx.Err()}
 			}
 		}
 	}
@@ -298,26 +288,119 @@ func (r *registry) ExecuteAll(ctx context.Context, reqs []*llm.ToolRequestPart, 
 	return results
 }
 
-// enforceResponseSizeLimit checks response size and applies limits/fallbacks.
+// Execute is the response-part wrapper around Run. See Registry docs
+// for when to prefer Run vs. Execute.
+func (r *registry) Execute(ctx context.Context, req *llm.ToolRequestPart) (*llm.ToolResponsePart, error) {
+	if req == nil {
+		return nil, ErrToolRequestNil
+	}
+
+	res := r.Run(ctx, InvocationInfo{}, req)
+
+	return res.Response(), nil
+}
+
+// ExecuteAll is the response-part wrapper around RunAll.
+func (r *registry) ExecuteAll(ctx context.Context, reqs []*llm.ToolRequestPart, opts ...BatchOption) []*llm.ToolResponsePart {
+	results := r.RunAll(ctx, InvocationInfo{}, reqs, opts...)
+	out := make([]*llm.ToolResponsePart, len(results))
+
+	for i, res := range results {
+		out[i] = res.Response()
+	}
+
+	return out
+}
+
+// run is the shared execution path for Run and Resume.
+func (r *registry) run(ctx context.Context, inv InvocationInfo, req *llm.ToolRequestPart, resume *ResumePayload) ExecutionResult {
+	if req == nil {
+		return ExecutionResult{Err: ErrToolRequestNil}
+	}
+
+	r.mu.RLock()
+	registered, exists := r.tools[req.Name]
+	r.mu.RUnlock()
+
+	out := ExecutionResult{Request: req}
+
+	if !exists {
+		out.Err = fmt.Errorf("%w: %q", ErrToolNotFound, req.Name)
+		return out
+	}
+
+	executeCtx := ctx
+
+	if registered.config.Timeout > 0 {
+		var cancel context.CancelFunc
+
+		executeCtx, cancel = context.WithTimeout(ctx, registered.config.Timeout)
+		defer cancel()
+	}
+
+	call := Call{
+		Request:    *req,
+		Args:       req.Arguments,
+		Invocation: inv,
+		Resume:     resume,
+	}
+
+	exec, err := registered.tool.Execute(executeCtx, call)
+	if err != nil {
+		if errors.Is(executeCtx.Err(), context.DeadlineExceeded) && !errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			// Per-tool timeout (not caller cancellation): report the
+			// configured timeout for clarity.
+			out.Err = fmt.Errorf("%w after %s", ErrToolExecutionTimeout, registered.config.Timeout)
+			return out
+		}
+
+		out.Err = err
+
+		return out
+	}
+
+	// Validate Await shape before persisting the pause.
+	if err := exec.Await.Validate(); err != nil {
+		out.Err = fmt.Errorf("%w: %w", ErrAwaitInvalid, err)
+		return out
+	}
+
+	// Enforce response-size limit on the placeholder/final Output. The
+	// limit applies regardless of whether the tool paused — paused tools
+	// still ship Output to the model.
+	limited, limitErr := r.enforceResponseSizeLimit(exec.Output, &registered.config)
+	if limitErr != nil {
+		out.Err = fmt.Errorf("response size: %w", limitErr)
+		return out
+	}
+
+	exec.Output = limited
+	out.Execution = exec
+
+	return out
+}
+
+// enforceResponseSizeLimit checks response size and applies a fallback
+// payload when the tool output exceeds the configured token budget.
+// Token count is approximated as len/4 — accurate enough for "is this
+// likely to blow up the context window" gating, which is the only
+// decision this method needs to make.
 func (*registry) enforceResponseSizeLimit(result json.RawMessage, config *Config) (json.RawMessage, error) {
-	if config.MaxResponseTokens <= 0 {
-		return result, nil // No limit configured
+	if config.MaxResponseTokens <= 0 || len(result) == 0 {
+		return result, nil
 	}
 
-	// Rough token estimation: ~4 characters per token for JSON
 	estimatedTokens := len(result) / 4
-
 	if estimatedTokens <= config.MaxResponseTokens {
-		return result, nil // Within limits
+		return result, nil
 	}
 
-	// Response too large - create fallback response
 	message := config.ResponseTooLargeMessage
 	if message == "" {
 		message = ErrToolResponseTooLarge.Error()
 	}
 
-	fallbackResponse := map[string]any{
+	fallback := map[string]any{
 		"error":   "response_too_large",
 		"message": message,
 		"details": map[string]any{
@@ -326,34 +409,10 @@ func (*registry) enforceResponseSizeLimit(result json.RawMessage, config *Config
 		},
 	}
 
-	return json.Marshal(fallbackResponse)
+	return json.Marshal(fallback)
 }
 
-// executeOne is a helper that handles nil requests and calls Execute.
-// It always returns a non-nil ToolResponse, with errors populated in the Error field.
-func (r *registry) executeOne(ctx context.Context, req *llm.ToolRequestPart) (*llm.ToolResponsePart, error) {
-	if req == nil {
-		return errorToolResponse(&llm.ToolRequestPart{}, ErrToolRequestNil.Error()), ErrToolRequestNil
-	}
-
-	resp, err := r.Execute(ctx, req)
-	if resp == nil {
-		resp = &llm.ToolResponsePart{ID: req.ID, Name: req.Name}
-	}
-
-	if err != nil {
-		resp.IsError = true
-
-		payload, mErr := json.Marshal(map[string]string{"error": err.Error()})
-		if mErr == nil {
-			resp.Result = payload
-		}
-	}
-
-	return resp, err
-}
-
-// BatchOption configures ExecuteAll behavior.
+// BatchOption configures RunAll / ExecuteAll behavior.
 type BatchOption func(*batchConfig)
 
 type batchConfig struct {
@@ -369,6 +428,6 @@ func WithMaxConcurrency(n int) BatchOption {
 
 func defaultBatchConfig() batchConfig {
 	return batchConfig{
-		concurrency: 0, // Will be set to len(reqs) in ExecuteAll
+		concurrency: 0,
 	}
 }

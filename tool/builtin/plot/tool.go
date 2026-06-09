@@ -23,7 +23,6 @@ import (
 
 	"github.com/rs/xid"
 
-	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/tool"
 )
 
@@ -32,23 +31,7 @@ type Tool struct{}
 
 var _ tool.Tool = (*Tool)(nil)
 
-// New creates a new plot tool instance.
-func New() tool.Tool {
-	return &Tool{}
-}
-
-// Definition returns the tool definition for LLM consumption.
-func (*Tool) Definition() llm.ToolDefinition {
-	// Generate schema from PlotInput type
-	schemaBytes, err := json.Marshal(plotInputSchema)
-	if err != nil {
-		// Fallback to empty schema if marshaling fails
-		schemaBytes = []byte("{}")
-	}
-
-	return llm.ToolDefinition{
-		Name: "plot",
-		Description: `Generate data visualization charts as PNG images, returned as artifacts.
+const plotDescription = `Generate data visualization charts as PNG images, returned as artifacts.
 
 WHEN TO USE:
 - Visualizing SQL query results (time series, distributions, comparisons)
@@ -70,55 +53,56 @@ IMPORTANT:
 - Must provide 'name' and 'description' for the artifact
 - Each chart type requires specific data structure (line_data, bar_data, scatter_data, histogram_data)
 - X and Y arrays must have matching lengths for line/scatter charts
-- Bar chart values must match categories length
+- Bar chart values must match categories length`
 
-EXAMPLES:
-Line: {"name": "User Growth", "description": "Daily active users over last 30 days", "chart_type": "line", "title": "Daily Users", "x_label": "Day", "y_label": "Count", "line_data": {"series": [{"name": "Users", "x": [1,2,3], "y": [100,150,120]}]}}
-Bar: {"name": "Regional Sales", "description": "Q1 sales by region", "chart_type": "bar", "title": "Sales by Region", "bar_data": {"categories": ["North","South"], "series": [{"name": "Q1", "values": [100,150]}]}}
-Scatter: {"name": "Transaction Analysis", "description": "Amount vs fraud score correlation", "chart_type": "scatter", "scatter_data": {"series": [{"name": "Transactions", "x": [10,20,30], "y": [0.1,0.5,0.9]}]}}
-Histogram: {"name": "Response Time Distribution", "description": "API response time frequency", "chart_type": "histogram", "histogram_data": {"values": [12.3,45.2,23.1], "bins": 10}}`,
-		Parameters: schemaBytes,
-		Type:       llm.ToolTypeFunction,
-		Metadata: map[string]any{
-			"category": "visualization",
-		},
+// New creates a new plot tool instance.
+func New() tool.Tool {
+	return &Tool{}
+}
+
+// Name implements tool.Tool.
+func (*Tool) Name() string { return "plot" }
+
+// Description implements tool.Tool.
+func (*Tool) Description() string { return plotDescription }
+
+// InputSchema implements tool.Tool.
+func (*Tool) InputSchema() json.RawMessage {
+	schemaBytes, err := json.Marshal(plotInputSchema)
+	if err != nil {
+		return json.RawMessage(`{"type":"object"}`)
 	}
+
+	return schemaBytes
 }
 
 // Execute performs the plot generation.
-func (*Tool) Execute(_ context.Context, args json.RawMessage) (json.RawMessage, error) {
+func (*Tool) Execute(_ context.Context, call tool.Call) (tool.Execution, error) {
 	var input Input
-	if err := json.Unmarshal(args, &input); err != nil {
-		return nil, fmt.Errorf("invalid plot input: %w", err)
+	if err := json.Unmarshal(call.Args, &input); err != nil {
+		return tool.Execution{}, fmt.Errorf("invalid plot input: %w", err)
 	}
 
-	// Validate required artifact metadata
 	if input.Name == "" {
-		return nil, errors.New("plot must have non-empty name")
+		return tool.Execution{}, errors.New("plot must have non-empty name")
 	}
 
 	if input.Description == "" {
-		return nil, errors.New("plot must have non-empty description")
+		return tool.Execution{}, errors.New("plot must have non-empty description")
 	}
 
-	// Build the chart
 	p, width, height, err := buildChart(input)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build chart: %w", err)
+		return tool.Execution{}, fmt.Errorf("failed to build chart: %w", err)
 	}
 
-	// Render to PNG
 	pngBytes, err := renderToPNG(p, width, height)
 	if err != nil {
-		return nil, fmt.Errorf("failed to render chart: %w", err)
+		return tool.Execution{}, fmt.Errorf("failed to render chart: %w", err)
 	}
 
-	// Encode to base64
 	base64Data := base64.StdEncoding.EncodeToString(pngBytes)
 
-	// Create output with artifact ID
-	// The reconciler will extract PNGData and create an artifact,
-	// then replace this response with just {artifactId} for the LLM
 	output := Output{
 		ArtifactID: "plot-" + xid.New().String(),
 		PNGData:    base64Data,
@@ -128,7 +112,24 @@ func (*Tool) Execute(_ context.Context, args json.RawMessage) (json.RawMessage, 
 		Height:     height,
 	}
 
-	return json.Marshal(output)
+	outputBytes, err := json.Marshal(output)
+	if err != nil {
+		return tool.Execution{}, fmt.Errorf("marshal plot output: %w", err)
+	}
+
+	return tool.Execution{
+		Output: outputBytes,
+		Actions: []tool.Action{{
+			Kind: tool.ActionArtifact,
+			Artifact: &tool.ArtifactAction{
+				ID:          output.ArtifactID,
+				Name:        input.Name,
+				Description: input.Description,
+				MediaType:   output.MimeType,
+				Data:        pngBytes,
+			},
+		}},
+	}, nil
 }
 
 // Manual JSON schema for plot Input type.

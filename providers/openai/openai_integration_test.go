@@ -25,17 +25,6 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
-// llmFirstText returns the first TextPart's text, if any.
-func llmFirstText(parts []llm.Part) (string, bool) {
-	for _, p := range parts {
-		if tp, ok := p.(*llm.TextPart); ok {
-			return tp.Text, true
-		}
-	}
-
-	return "", false
-}
-
 // TestGPT52ReasoningEffortIntegration tests that GPT-5.2 rejects 'minimal' reasoning effort
 // and accepts 'none' when making actual API calls.
 //
@@ -136,8 +125,8 @@ func TestGPT52ReasoningEffortIntegration(t *testing.T) {
 			require.NotNil(t, resp, "Response should not be nil")
 			assert.NotEmpty(t, resp.Message.Content, "Response should have content")
 
-			if tp, ok := llmFirstText(resp.Message.Content); ok && tp != "" {
-				t.Logf("Success! Response: %s", tp)
+			if text := resp.TextContent(); text != "" {
+				t.Logf("Success! Response: %s", text)
 			}
 		})
 	}
@@ -220,7 +209,7 @@ func TestAllModelsReasoningEffortsIntegration(t *testing.T) {
 					require.NotNil(t, resp, "Response should not be nil")
 					assert.NotEmpty(t, resp.Message.Content, "Response should have content")
 
-					if text, ok := llmFirstText(resp.Message.Content); ok && text != "" {
+					if text := resp.TextContent(); text != "" {
 						t.Logf("✓ Model %s with effort %s succeeded. Response: %s",
 							modelName, effort, text)
 					}

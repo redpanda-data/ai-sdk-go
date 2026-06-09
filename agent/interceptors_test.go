@@ -16,7 +16,6 @@ package agent_test
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"iter"
 	"sync"
@@ -29,6 +28,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/store/session"
+	"github.com/redpanda-data/ai-sdk-go/tool"
 )
 
 // Test helpers
@@ -107,7 +107,7 @@ func newOrderingModelInterceptor(name string, recorder *orderRecorder) *testMode
 // newOrderingToolInterceptor creates a tool interceptor that records execution order.
 func newOrderingToolInterceptor(name string, recorder *orderRecorder) *testToolInterceptor {
 	return &testToolInterceptor{
-		intercept: func(ctx context.Context, info *agent.ToolCallInfo, next agent.ToolExecutionNext) (*llm.ToolResponsePart, error) {
+		intercept: func(ctx context.Context, info *agent.ToolCallInfo, next agent.ToolExecutionNext) (tool.Execution, error) {
 			recorder.record(name + "-before")
 
 			resp, err := next(ctx, info)
@@ -183,14 +183,10 @@ func TestToolInterceptor_Ordering(t *testing.T) {
 	interceptor2 := newOrderingToolInterceptor("interceptor2", recorder)
 	interceptor3 := newOrderingToolInterceptor("interceptor3", recorder)
 
-	baseExecutor := func(_ context.Context, info *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
+	baseExecutor := func(_ context.Context, _ *agent.ToolCallInfo) (tool.Execution, error) {
 		recorder.record("base")
 
-		return &llm.ToolResponsePart{
-			ID:     info.Req.ID,
-			Name:   info.Req.Name,
-			Result: []byte(`"result"`),
-		}, nil
+		return tool.Execution{Output: []byte(`"result"`)}, nil
 	}
 
 	// Apply interceptors in order: interceptor1, interceptor2, interceptor3
@@ -287,25 +283,17 @@ func TestToolInterceptor_ShortCircuit(t *testing.T) {
 
 	// Authorization interceptor that denies execution
 	authInterceptor := &testToolInterceptor{
-		intercept: func(_ context.Context, info *agent.ToolCallInfo, _ agent.ToolExecutionNext) (*llm.ToolResponsePart, error) {
-			// Return error without calling next
-			return &llm.ToolResponsePart{
-				ID:      info.Req.ID,
-				Name:    info.Req.Name,
-				IsError: true,
-				Result:  json.RawMessage(`{"error":"execution denied by policy"}`),
-			}, nil
+		intercept: func(_ context.Context, _ *agent.ToolCallInfo, _ agent.ToolExecutionNext) (tool.Execution, error) {
+			// Return error without calling next. The runtime will encode
+			// this as a tool-error response.
+			return tool.Execution{}, errors.New("execution denied by policy")
 		},
 	}
 
-	baseExecutor := func(_ context.Context, info *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
+	baseExecutor := func(_ context.Context, _ *agent.ToolCallInfo) (tool.Execution, error) {
 		baseCalled.Store(true)
 
-		return &llm.ToolResponsePart{
-			ID:     info.Req.ID,
-			Name:   info.Req.Name,
-			Result: []byte(`"real result"`),
-		}, nil
+		return tool.Execution{Output: []byte(`"real result"`)}, nil
 	}
 
 	ctx := context.Background()
@@ -315,13 +303,12 @@ func TestToolInterceptor_ShortCircuit(t *testing.T) {
 	// Execute
 	req := newTestToolRequest()
 	req.Name = "dangerous_tool"
-	resp, err := executor(ctx, &agent.ToolCallInfo{Inv: inv, Req: req})
-	require.NoError(t, err)
+	_, err := executor(ctx, &agent.ToolCallInfo{Inv: inv, Req: req})
+	require.Error(t, err, "interceptor short-circuit should propagate as error")
+	assert.Contains(t, err.Error(), "execution denied")
 
 	// Verify: base executor should NOT have been called
 	assert.False(t, baseCalled.Load(), "Base executor should not be called when interceptor short-circuits")
-	assert.True(t, resp.IsError, "Response should have error")
-	assert.Contains(t, string(resp.Result), "execution denied", "Should get denial message")
 }
 
 // TestModelInterceptor_ErrorPropagation verifies error handling in the interceptor chain.
@@ -460,29 +447,25 @@ func TestToolInterceptor_ErrorPropagation(t *testing.T) {
 			baseCalled := atomic.Bool{}
 
 			testInterceptor := &testToolInterceptor{
-				intercept: func(ctx context.Context, info *agent.ToolCallInfo, next agent.ToolExecutionNext) (*llm.ToolResponsePart, error) {
+				intercept: func(ctx context.Context, info *agent.ToolCallInfo, next agent.ToolExecutionNext) (tool.Execution, error) {
 					interceptorCalled.Store(true)
 
 					if tt.interceptorError != nil {
-						return nil, tt.interceptorError
+						return tool.Execution{}, tt.interceptorError
 					}
 
 					return next(ctx, info)
 				},
 			}
 
-			baseExecutor := func(_ context.Context, info *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
+			baseExecutor := func(_ context.Context, _ *agent.ToolCallInfo) (tool.Execution, error) {
 				baseCalled.Store(true)
 
 				if tt.baseError != nil {
-					return nil, tt.baseError
+					return tool.Execution{}, tt.baseError
 				}
 
-				return &llm.ToolResponsePart{
-					ID:     info.Req.ID,
-					Name:   info.Req.Name,
-					Result: []byte(`"result"`),
-				}, nil
+				return tool.Execution{Output: []byte(`"result"`)}, nil
 			}
 
 			ctx := context.Background()
@@ -578,27 +561,23 @@ func TestToolInterceptor_ContextPropagation(t *testing.T) {
 	baseSeenContext := atomic.Bool{}
 
 	testInterceptor := &testToolInterceptor{
-		intercept: func(ctx context.Context, info *agent.ToolCallInfo, next agent.ToolExecutionNext) (*llm.ToolResponsePart, error) {
+		intercept: func(ctx context.Context, info *agent.ToolCallInfo, next agent.ToolExecutionNext) (tool.Execution, error) {
 			if ctx.Err() != nil {
 				interceptorSeenContext.Store(true)
-				return nil, ctx.Err()
+				return tool.Execution{}, ctx.Err()
 			}
 
 			return next(ctx, info)
 		},
 	}
 
-	baseExecutor := func(ctx context.Context, info *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
+	baseExecutor := func(ctx context.Context, _ *agent.ToolCallInfo) (tool.Execution, error) {
 		if ctx.Err() != nil {
 			baseSeenContext.Store(true)
-			return nil, ctx.Err()
+			return tool.Execution{}, ctx.Err()
 		}
 
-		return &llm.ToolResponsePart{
-			ID:     info.Req.ID,
-			Name:   info.Req.Name,
-			Result: []byte(`"result"`),
-		}, nil
+		return tool.Execution{Output: []byte(`"result"`)}, nil
 	}
 
 	// Create canceled context
@@ -807,14 +786,10 @@ func TestEmptyInterceptors(t *testing.T) {
 		t.Parallel()
 
 		called := atomic.Bool{}
-		baseExecutor := func(_ context.Context, info *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
+		baseExecutor := func(_ context.Context, _ *agent.ToolCallInfo) (tool.Execution, error) {
 			called.Store(true)
 
-			return &llm.ToolResponsePart{
-				ID:     info.Req.ID,
-				Name:   info.Req.Name,
-				Result: []byte(`"result"`),
-			}, nil
+			return tool.Execution{Output: []byte(`"result"`)}, nil
 		}
 
 		ctx := context.Background()
@@ -884,10 +859,10 @@ func (i *testModelInterceptor) InterceptModel(ctx context.Context, info *agent.M
 
 // testToolInterceptor is a test implementation of ToolInterceptor.
 type testToolInterceptor struct {
-	intercept func(ctx context.Context, info *agent.ToolCallInfo, next agent.ToolExecutionNext) (*llm.ToolResponsePart, error)
+	intercept func(ctx context.Context, info *agent.ToolCallInfo, next agent.ToolExecutionNext) (tool.Execution, error)
 }
 
-func (i *testToolInterceptor) InterceptToolExecution(ctx context.Context, info *agent.ToolCallInfo, next agent.ToolExecutionNext) (*llm.ToolResponsePart, error) {
+func (i *testToolInterceptor) InterceptToolExecution(ctx context.Context, info *agent.ToolCallInfo, next agent.ToolExecutionNext) (tool.Execution, error) {
 	if i.intercept != nil {
 		return i.intercept(ctx, info, next)
 	}
@@ -906,7 +881,7 @@ func (i *multiInterceptor) InterceptModel(_ context.Context, _ *agent.ModelCallI
 	return next
 }
 
-func (i *multiInterceptor) InterceptToolExecution(ctx context.Context, info *agent.ToolCallInfo, next agent.ToolExecutionNext) (*llm.ToolResponsePart, error) {
+func (i *multiInterceptor) InterceptToolExecution(ctx context.Context, info *agent.ToolCallInfo, next agent.ToolExecutionNext) (tool.Execution, error) {
 	return next(ctx, info)
 }
 

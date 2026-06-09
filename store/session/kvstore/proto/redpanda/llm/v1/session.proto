@@ -31,4 +31,16 @@ message SessionState {
 
   // Arbitrary key-value pairs for session metadata
   google.protobuf.Struct metadata = 3;
+
+  // Paused tool executions keyed by tool call ID. Each value is a
+  // JSON-encoded session.PendingToolCall. Stored as opaque JSON because the
+  // record carries its own schema_version and is migrated on load by
+  // session.MigratePendingToolCalls — mirroring it as a proto message would
+  // duplicate that schema and its migration logic.
+  map<string, bytes> pending_tool_calls = 4;
+
+  // Receipts of completed resumes keyed by tool call ID. Each value is a
+  // JSON-encoded session.ResumeReceipt. Opaque JSON for the same reason as
+  // pending_tool_calls.
+  map<string, bytes> resume_receipts = 5;
 }

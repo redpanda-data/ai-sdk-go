@@ -15,28 +15,35 @@
 package llm
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"maps"
 	"strings"
 )
 
-// Part represents a single unit of content within a Message or Response.
+// Part represents a single piece of content inside a Message or streamed
+// ContentPartEvent. It is a sealed discriminated union: only the concrete
+// pointer types declared in this package satisfy the interface.
 //
-// Part is a sealed interface: only the concrete pointer types declared in
-// this package satisfy it. Discriminate with a type switch:
+// Pointer receivers are intentional. Only the *Part forms (e.g. *TextPart)
+// satisfy Part — this prevents the footgun where both &TextPart{} and
+// TextPart{} satisfy the interface but type switches only match one form,
+// silently dropping the other.
 //
-//	switch p := part.(type) {
-//	case *llm.TextPart:
-//	    ...
-//	case *llm.ToolRequestPart:
-//	    ...
+// Consumers should type switch on the concrete types:
+//
+//	for _, p := range msg.Content {
+//	    switch p := p.(type) {
+//	    case *llm.TextPart:
+//	        // p.Text
+//	    case *llm.ToolRequestPart:
+//	        // p.ID, p.Name, p.Arguments
+//	    case *llm.ToolResponsePart:
+//	        // p.ID, p.Result, p.IsError
+//	    case *llm.ReasoningPart:
+//	        // p.Text, p.Signature
+//	    }
 //	}
-//
-// The marker method has a pointer receiver so value-form literals such as
-// `TextPart{}` deliberately do not satisfy the interface. Construct parts
-// with the New*Part helpers or `&TextPart{...}` literals.
 type Part interface {
 	isPart()
 }
@@ -46,91 +53,98 @@ type TextPart struct {
 	Text string `json:"text,omitempty"`
 }
 
-// ToolRequestPart represents a request from the model to execute a tool.
+// ToolRequestPart contains a request from the model to execute a tool.
 type ToolRequestPart struct {
 	// ID is a unique identifier for this tool request within the conversation.
 	ID string `json:"id"`
-
 	// Name is the name of the tool to execute.
 	Name string `json:"name"`
-
-	// Arguments contains the tool input as JSON.
+	// Arguments contains the tool input as JSON. The structure depends on the
+	// tool's input schema.
 	Arguments json.RawMessage `json:"arguments,omitempty"`
-
-	// Metadata carries provider-specific data that must round-trip with this
-	// tool call (e.g. Gemini 3 Pro thought signatures). Untouched by the SDK
-	// core; populated and consumed by individual providers.
+	// Metadata carries provider-specific context that must round-trip back
+	// to the provider on the next request (e.g. Gemini 3 thought signatures).
 	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
-// ToolResponsePart represents the result of executing a tool, sent back to
-// the model to continue the conversation.
+// ToolResponsePart contains the result of executing a tool.
 type ToolResponsePart struct {
 	// ID matches the ID from the corresponding ToolRequestPart.
 	ID string `json:"id"`
-
 	// Name is the name of the tool that was executed.
 	Name string `json:"name"`
-
-	// Result contains the tool output as JSON.
+	// Result contains the tool output as JSON. The structure depends on the
+	// tool's output schema. When IsError is true, Result may be empty.
 	Result json.RawMessage `json:"result,omitempty"`
-
-	// IsError indicates the tool reported a failure.
-	// When true, Result typically contains an error payload.
+	// IsError signals tool execution failure. When true, Result is typically
+	// an error payload (e.g. {"error":"..."}).
 	IsError bool `json:"is_error,omitempty"`
 }
 
-// ReasoningPart represents reasoning thoughts/traces from the model.
+// ReasoningPart contains reasoning thoughts/traces from the model. This is the
+// model's internal reasoning process, which may be exposed or summarized
+// depending on the provider and configuration.
 type ReasoningPart struct {
-	// ID is a unique identifier for this reasoning trace.
-	ID string `json:"id,omitempty"`
-
-	// Text contains the reasoning content.
+	// Text contains the reasoning content as text. For streaming responses,
+	// this may be built up incrementally.
 	Text string `json:"text,omitempty"`
-
-	// Signature is a provider-supplied opaque token that authenticates
-	// the reasoning block on subsequent turns (e.g. Anthropic extended
-	// thinking signatures, OpenAI reasoning IDs).
+	// Signature is provider-specific data attached to the trace (e.g.
+	// Anthropic thinking signatures, OpenAI item IDs). Empty for providers
+	// that do not emit one.
 	Signature string `json:"signature,omitempty"`
-
-	// Metadata provides additional provider-specific context about the
-	// reasoning trace.
+	// Metadata carries provider-specific context (obfuscation keys, summary
+	// indexes, redaction flags, etc.).
 	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
-// NewTextPart creates a TextPart with the given text.
+// NewTextPart returns a *TextPart containing the given text.
 func NewTextPart(text string) *TextPart {
 	return &TextPart{Text: text}
 }
 
-// NewToolRequestPart creates a ToolRequestPart with the given fields.
-func NewToolRequestPart(id, name string, arguments json.RawMessage) *ToolRequestPart {
-	return &ToolRequestPart{ID: id, Name: name, Arguments: arguments}
+// NewToolRequestPart returns a *ToolRequestPart with the given fields.
+func NewToolRequestPart(id, name string, args json.RawMessage) *ToolRequestPart {
+	return &ToolRequestPart{ID: id, Name: name, Arguments: args}
 }
 
-// NewToolResponsePart creates a ToolResponsePart with the given fields.
-// Set isError true when result is an error payload.
-func NewToolResponsePart(id, name string, result json.RawMessage, isError bool) *ToolResponsePart {
-	return &ToolResponsePart{ID: id, Name: name, Result: result, IsError: isError}
+// NewToolResponsePart returns a *ToolResponsePart with a successful result.
+func NewToolResponsePart(id, name string, result json.RawMessage) *ToolResponsePart {
+	return &ToolResponsePart{ID: id, Name: name, Result: result}
 }
 
-// NewReasoningPart creates a ReasoningPart with the given text.
+// NewToolErrorPart returns a *ToolResponsePart representing a failed tool
+// execution. The error message is encoded as a JSON object {"error": ...}
+// for compatibility with provider tool_result block formats.
+func NewToolErrorPart(id, name, message string) *ToolResponsePart {
+	payload, err := json.Marshal(map[string]string{"error": message})
+	if err != nil {
+		// json.Marshal of map[string]string never fails in practice; fall
+		// back to a literal to keep the API total.
+		payload = json.RawMessage(`{"error":""}`)
+	}
+
+	return &ToolResponsePart{ID: id, Name: name, Result: payload, IsError: true}
+}
+
+// NewReasoningPart returns a *ReasoningPart with the given text.
 func NewReasoningPart(text string) *ReasoningPart {
 	return &ReasoningPart{Text: text}
 }
+
+// isPart marker methods. Pointer receivers seal the interface to *Part forms.
 
 func (*TextPart) isPart()         {}
 func (*ToolRequestPart) isPart()  {}
 func (*ToolResponsePart) isPart() {}
 func (*ReasoningPart) isPart()    {}
 
-// JoinTextParts concatenates the text from every *TextPart in parts.
+// JoinTextParts concatenates the Text field of every *TextPart in the slice.
 // Non-text parts are ignored.
 func JoinTextParts(parts []Part) string {
 	var b strings.Builder
 
-	for _, p := range parts {
-		if tp, ok := p.(*TextPart); ok && tp != nil {
+	for _, part := range parts {
+		if tp, ok := part.(*TextPart); ok && tp != nil {
 			b.WriteString(tp.Text)
 		}
 	}
@@ -138,23 +152,24 @@ func JoinTextParts(parts []Part) string {
 	return b.String()
 }
 
-// Part type discriminators used on the JSON wire envelope.
+// partKind discriminator used in MarshalPart / UnmarshalPart envelopes.
 const (
-	partTypeText         = "text"
-	partTypeToolRequest  = "tool_request"
-	partTypeToolResponse = "tool_response"
-	partTypeReasoning    = "reasoning"
+	partKindText         = "text"
+	partKindToolRequest  = "tool_request"
+	partKindToolResponse = "tool_response"
+	partKindReasoning    = "reasoning"
 )
 
-// MarshalPart encodes a Part as a flat JSON object with a discriminator:
-//
-//	{"type":"text","text":"..."}
-//	{"type":"tool_request","id":"...","name":"...","arguments":...}
-//
-// A typed-nil pointer (e.g. `var p *TextPart; MarshalPart(p)`) marshals to
+// MarshalPart encodes a Part as a flat JSON envelope with a "type" field.
+// Typed-nil receivers (e.g. var p *TextPart; var part Part = p) marshal as
 // JSON null rather than panicking.
+//
+
 func MarshalPart(p Part) ([]byte, error) {
 	switch v := p.(type) {
+	case nil:
+		return []byte("null"), nil
+
 	case *TextPart:
 		if v == nil {
 			return []byte("null"), nil
@@ -163,7 +178,7 @@ func MarshalPart(p Part) ([]byte, error) {
 		return json.Marshal(struct {
 			Type string `json:"type"`
 			Text string `json:"text,omitempty"`
-		}{partTypeText, v.Text})
+		}{Type: partKindText, Text: v.Text})
 
 	case *ToolRequestPart:
 		if v == nil {
@@ -176,7 +191,7 @@ func MarshalPart(p Part) ([]byte, error) {
 			Name      string          `json:"name"`
 			Arguments json.RawMessage `json:"arguments,omitempty"`
 			Metadata  map[string]any  `json:"metadata,omitempty"`
-		}{partTypeToolRequest, v.ID, v.Name, v.Arguments, v.Metadata})
+		}{Type: partKindToolRequest, ID: v.ID, Name: v.Name, Arguments: v.Arguments, Metadata: v.Metadata})
 
 	case *ToolResponsePart:
 		if v == nil {
@@ -189,7 +204,7 @@ func MarshalPart(p Part) ([]byte, error) {
 			Name    string          `json:"name"`
 			Result  json.RawMessage `json:"result,omitempty"`
 			IsError bool            `json:"is_error,omitempty"`
-		}{partTypeToolResponse, v.ID, v.Name, v.Result, v.IsError})
+		}{Type: partKindToolResponse, ID: v.ID, Name: v.Name, Result: v.Result, IsError: v.IsError})
 
 	case *ReasoningPart:
 		if v == nil {
@@ -198,167 +213,144 @@ func MarshalPart(p Part) ([]byte, error) {
 
 		return json.Marshal(struct {
 			Type      string         `json:"type"`
-			ID        string         `json:"id,omitempty"`
 			Text      string         `json:"text,omitempty"`
 			Signature string         `json:"signature,omitempty"`
 			Metadata  map[string]any `json:"metadata,omitempty"`
-		}{partTypeReasoning, v.ID, v.Text, v.Signature, v.Metadata})
-
-	case nil:
-		return []byte("null"), nil
+		}{Type: partKindReasoning, Text: v.Text, Signature: v.Signature, Metadata: v.Metadata})
 
 	default:
-		return nil, fmt.Errorf("llm: unknown Part type %T", p)
+		return nil, fmt.Errorf("llm: cannot marshal unknown Part type %T", p)
 	}
 }
 
-// UnmarshalPart decodes a Part previously encoded by MarshalPart. The input
-// must be a JSON object containing a "type" discriminator (or the literal
-// null, which yields a nil Part).
+// UnmarshalPart decodes a Part from the flat envelope produced by MarshalPart.
+// A JSON null returns (nil, nil) — the caller may keep or filter the nil slot
+// based on context.
 func UnmarshalPart(data []byte) (Part, error) {
-	trimmed := bytes.TrimSpace(data)
-	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
-		return nil, nil //nolint:nilnil // null input yields nil Part by design
+	trim := strings.TrimSpace(string(data))
+	if trim == "" || trim == "null" {
+		return nil, nil //nolint:nilnil // null Parts are valid wire values
 	}
 
 	var head struct {
 		Type string `json:"type"`
 	}
 
-	err := json.Unmarshal(data, &head)
-	if err != nil {
-		return nil, fmt.Errorf("llm: decode part envelope: %w", err)
+	if err := json.Unmarshal(data, &head); err != nil {
+		return nil, fmt.Errorf("llm: decode Part envelope: %w", err)
 	}
 
 	switch head.Type {
-	case partTypeText:
+	case partKindText:
 		var v TextPart
-
-		err := json.Unmarshal(data, &v)
-		if err != nil {
-			return nil, fmt.Errorf("llm: decode text part: %w", err)
+		if err := json.Unmarshal(data, &v); err != nil {
+			return nil, fmt.Errorf("llm: decode TextPart: %w", err)
 		}
 
 		return &v, nil
 
-	case partTypeToolRequest:
+	case partKindToolRequest:
 		var v ToolRequestPart
-
-		err := json.Unmarshal(data, &v)
-		if err != nil {
-			return nil, fmt.Errorf("llm: decode tool request part: %w", err)
+		if err := json.Unmarshal(data, &v); err != nil {
+			return nil, fmt.Errorf("llm: decode ToolRequestPart: %w", err)
 		}
 
 		return &v, nil
 
-	case partTypeToolResponse:
+	case partKindToolResponse:
 		var v ToolResponsePart
-
-		err := json.Unmarshal(data, &v)
-		if err != nil {
-			return nil, fmt.Errorf("llm: decode tool response part: %w", err)
+		if err := json.Unmarshal(data, &v); err != nil {
+			return nil, fmt.Errorf("llm: decode ToolResponsePart: %w", err)
 		}
 
 		return &v, nil
 
-	case partTypeReasoning:
+	case partKindReasoning:
 		var v ReasoningPart
-
-		err := json.Unmarshal(data, &v)
-		if err != nil {
-			return nil, fmt.Errorf("llm: decode reasoning part: %w", err)
+		if err := json.Unmarshal(data, &v); err != nil {
+			return nil, fmt.Errorf("llm: decode ReasoningPart: %w", err)
 		}
 
 		return &v, nil
-
-	case "":
-		return nil, fmt.Errorf("llm: part envelope missing %q discriminator", "type")
 
 	default:
-		return nil, fmt.Errorf("llm: unknown part type %q", head.Type)
+		return nil, fmt.Errorf("llm: unknown Part type %q", head.Type)
 	}
 }
 
-// ClonePart returns a deep copy of p. The returned value is independent of
-// the input: mutating one will not affect the other.
+// ClonePart returns a deep copy of p. Typed-nil and untyped nil receivers
+// return nil. Use this at session-persistence boundaries to ensure callers
+// cannot mutate persisted Part fields through shared pointers.
 func ClonePart(p Part) Part {
 	switch v := p.(type) {
+	case nil:
+		return nil
+
 	case *TextPart:
 		if v == nil {
 			return nil
 		}
 
-		out := *v
+		clone := *v
 
-		return &out
+		return &clone
 
 	case *ToolRequestPart:
 		if v == nil {
 			return nil
 		}
 
-		out := *v
-
-		out.Arguments = cloneRawMessage(v.Arguments)
-		if v.Metadata != nil {
-			out.Metadata = maps.Clone(v.Metadata)
+		clone := *v
+		if v.Arguments != nil {
+			clone.Arguments = append(json.RawMessage(nil), v.Arguments...)
 		}
 
-		return &out
+		if v.Metadata != nil {
+			clone.Metadata = maps.Clone(v.Metadata)
+		}
+
+		return &clone
 
 	case *ToolResponsePart:
 		if v == nil {
 			return nil
 		}
 
-		out := *v
-		out.Result = cloneRawMessage(v.Result)
+		clone := *v
+		if v.Result != nil {
+			clone.Result = append(json.RawMessage(nil), v.Result...)
+		}
 
-		return &out
+		return &clone
 
 	case *ReasoningPart:
 		if v == nil {
 			return nil
 		}
 
-		out := *v
+		clone := *v
 		if v.Metadata != nil {
-			out.Metadata = maps.Clone(v.Metadata)
+			clone.Metadata = maps.Clone(v.Metadata)
 		}
 
-		return &out
-
-	case nil:
-		return nil
+		return &clone
 
 	default:
-		// Unknown Part implementations: best effort, return as-is. We do
-		// not allow external types to satisfy Part, so this is unreachable
-		// in practice.
 		return p
 	}
 }
 
-func cloneRawMessage(in json.RawMessage) json.RawMessage {
-	if in == nil {
-		return nil
-	}
-
-	out := make(json.RawMessage, len(in))
-	copy(out, in)
-
-	return out
-}
-
-// CloneMessage returns a deep copy of m. The Content slice and every Part
-// in it are duplicated so the result is safe to mutate independently of m.
+// CloneMessage returns a deep copy of m. The returned message's Content slice
+// is independent of the original and each Part is deep-copied via ClonePart.
 func CloneMessage(m Message) Message {
 	out := Message{Role: m.Role}
-	if m.Content != nil {
-		out.Content = make([]Part, len(m.Content))
-		for i, p := range m.Content {
-			out.Content[i] = ClonePart(p)
-		}
+	if m.Content == nil {
+		return out
+	}
+
+	out.Content = make([]Part, len(m.Content))
+	for i, p := range m.Content {
+		out.Content[i] = ClonePart(p)
 	}
 
 	return out

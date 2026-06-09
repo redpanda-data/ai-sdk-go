@@ -442,27 +442,25 @@ type weatherInput struct {
 	Location string `json:"location" jsonschema_description:"The city and state, e.g. San Francisco, CA"`
 }
 
-func (m *mockWeatherTool) Definition() llm.ToolDefinition {
-	// Use google/jsonschema-go to generate schema from Go type
+func (*mockWeatherTool) Name() string        { return "get_weather" }
+func (*mockWeatherTool) Description() string { return "Get the current weather for a location" }
+
+func (*mockWeatherTool) InputSchema() json.RawMessage {
 	schema, err := jsonschema.For[weatherInput](nil)
 	if err != nil {
-		return llm.ToolDefinition{} // Return empty definition on error
+		return json.RawMessage(`{"type":"object"}`)
 	}
 
 	schemaBytes, err := json.Marshal(schema)
 	if err != nil {
-		return llm.ToolDefinition{} // Return empty definition on error
+		return json.RawMessage(`{"type":"object"}`)
 	}
 
-	return llm.ToolDefinition{
-		Name:        "get_weather",
-		Description: "Get the current weather for a location",
-		Parameters:  schemaBytes,
-	}
+	return schemaBytes
 }
 
-func (m *mockWeatherTool) Execute(_ context.Context, _ json.RawMessage) (json.RawMessage, error) {
-	return json.RawMessage(`{"temperature": "72°F", "conditions": "sunny"}`), nil
+func (*mockWeatherTool) Execute(_ context.Context, _ tool.Call) (tool.Execution, error) {
+	return tool.Execution{Output: json.RawMessage(`{"temperature": "72°F", "conditions": "sunny"}`)}, nil
 }
 
 func TestExecutor_SessionPersistence_Mock(t *testing.T) {

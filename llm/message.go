@@ -17,17 +17,18 @@ package llm
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 )
 
 // Message represents a single message in a conversation.
 // Messages form the conversation history and current context for the model.
 type Message struct {
-	// Role indicates who sent this message.
+	// Role indicates who sent this message
 	Role MessageRole `json:"role"`
 
-	// Content contains the message content as a sequence of Parts.
-	// Use the New*Part helpers (or &TextPart{...} literals) to build
-	// content; type-switch over the concrete pointer types to consume it.
+	// Content carries the message content as a slice of Part values. Each
+	// element is one of the concrete *llm.TextPart / *llm.ToolRequestPart /
+	// *llm.ToolResponsePart / *llm.ReasoningPart pointer types.
 	Content []Part `json:"content"`
 }
 
@@ -47,12 +48,17 @@ const (
 )
 
 // NewMessage creates a message with the specified role and parts.
+// This is the recommended way to construct messages for LLM requests.
+//
+// For simple text messages, pass a single text part:
 //
 //	msg := llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hello"))
 //
+// For multi-part messages, pass multiple parts:
+//
 //	msg := llm.NewMessage(llm.RoleAssistant,
 //	    llm.NewTextPart("I'll search for that."),
-//	    llm.NewToolRequestPart("call_1", "search", argsJSON),
+//	    llm.NewToolRequestPart(id, name, args),
 //	)
 func NewMessage(role MessageRole, parts ...Part) Message {
 	return Message{
@@ -61,79 +67,19 @@ func NewMessage(role MessageRole, parts ...Part) Message {
 	}
 }
 
-// MarshalJSON encodes a Message using the discriminated Part envelope from
-// MarshalPart so the wire format does not depend on Go's interface-encoding
-// quirks.
-func (m Message) MarshalJSON() ([]byte, error) {
-	parts := make([]json.RawMessage, len(m.Content))
-
-	for i, p := range m.Content {
-		raw, err := MarshalPart(p)
-		if err != nil {
-			return nil, err
-		}
-
-		parts[i] = raw
-	}
-
-	return json.Marshal(struct {
-		Role    MessageRole       `json:"role"`
-		Content []json.RawMessage `json:"content"`
-	}{m.Role, parts})
-}
-
-// UnmarshalJSON decodes a Message previously produced by MarshalJSON. It
-// dispatches each Part through UnmarshalPart so the discriminator-tagged
-// envelope round-trips losslessly.
-func (m *Message) UnmarshalJSON(data []byte) error {
-	var raw struct {
-		Role    MessageRole       `json:"role"`
-		Content []json.RawMessage `json:"content"`
-	}
-
-	dec := json.NewDecoder(bytes.NewReader(data))
-
-	err := dec.Decode(&raw)
-	if err != nil {
-		return err
-	}
-
-	m.Role = raw.Role
-	m.Content = nil
-
-	if raw.Content == nil {
-		return nil
-	}
-
-	out := make([]Part, len(raw.Content))
-
-	for i, rp := range raw.Content {
-		part, err := UnmarshalPart(rp)
-		if err != nil {
-			return err
-		}
-
-		out[i] = part
-	}
-
-	m.Content = out
-
-	return nil
-}
-
 // TextContent extracts and combines all text content from this message.
 // Non-text parts are ignored.
 func (m *Message) TextContent() string {
 	return JoinTextParts(m.Content)
 }
 
-// ToolRequests returns the *ToolRequestPart parts of this message.
-// Useful for agents processing tool calls in assistant messages.
+// ToolRequests extracts all tool request parts from this message.
+// This is useful for agents that need to process tool calls from assistant messages.
 func (m *Message) ToolRequests() []*ToolRequestPart {
 	var out []*ToolRequestPart
 
-	for _, p := range m.Content {
-		if tr, ok := p.(*ToolRequestPart); ok && tr != nil {
+	for _, part := range m.Content {
+		if tr, ok := part.(*ToolRequestPart); ok && tr != nil {
 			out = append(out, tr)
 		}
 	}
@@ -141,10 +87,12 @@ func (m *Message) ToolRequests() []*ToolRequestPart {
 	return out
 }
 
-// HasToolRequests returns true if this message contains any tool requests.
+// HasToolRequests reports whether this message contains at least one tool
+// request part. This is more efficient than `len(m.ToolRequests()) > 0`
+// because it short-circuits on the first match.
 func (m *Message) HasToolRequests() bool {
-	for _, p := range m.Content {
-		if _, ok := p.(*ToolRequestPart); ok {
+	for _, part := range m.Content {
+		if _, ok := part.(*ToolRequestPart); ok {
 			return true
 		}
 	}
@@ -152,15 +100,92 @@ func (m *Message) HasToolRequests() bool {
 	return false
 }
 
-// ToolResponses returns the *ToolResponsePart parts of this message.
+// ToolResponses extracts all tool response parts from this message.
+// This is useful when processing tool execution results.
 func (m *Message) ToolResponses() []*ToolResponsePart {
 	var out []*ToolResponsePart
 
-	for _, p := range m.Content {
-		if tr, ok := p.(*ToolResponsePart); ok && tr != nil {
+	for _, part := range m.Content {
+		if tr, ok := part.(*ToolResponsePart); ok && tr != nil {
 			out = append(out, tr)
 		}
 	}
 
 	return out
+}
+
+// MarshalJSON serializes Message with custom envelope-based Part encoding so
+// the sealed-interface discriminated union survives JSON round-trips.
+func (m Message) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+
+	buf.WriteString(`{"role":`)
+
+	roleBytes, err := json.Marshal(m.Role)
+	if err != nil {
+		return nil, fmt.Errorf("llm: marshal Message role: %w", err)
+	}
+
+	buf.Write(roleBytes)
+	buf.WriteString(`,"content":`)
+
+	if m.Content == nil {
+		buf.WriteString("null")
+	} else {
+		buf.WriteByte('[')
+
+		for i, p := range m.Content {
+			if i > 0 {
+				buf.WriteByte(',')
+			}
+
+			pb, err := MarshalPart(p)
+			if err != nil {
+				return nil, fmt.Errorf("llm: marshal Message.Content[%d]: %w", i, err)
+			}
+
+			buf.Write(pb)
+		}
+
+		buf.WriteByte(']')
+	}
+
+	buf.WriteByte('}')
+
+	return buf.Bytes(), nil
+}
+
+// UnmarshalJSON decodes a Message including the discriminated-union Content
+// slice. Each element is dispatched through UnmarshalPart.
+func (m *Message) UnmarshalJSON(data []byte) error {
+	var wire struct {
+		Role    MessageRole       `json:"role"`
+		Content []json.RawMessage `json:"content"`
+	}
+
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return fmt.Errorf("llm: decode Message: %w", err)
+	}
+
+	m.Role = wire.Role
+
+	if wire.Content == nil {
+		m.Content = nil
+		return nil
+	}
+
+	parts := make([]Part, 0, len(wire.Content))
+
+	for i, raw := range wire.Content {
+		p, err := UnmarshalPart(raw)
+		if err != nil {
+			return fmt.Errorf("llm: decode Message.Content[%d]: %w", i, err)
+		}
+
+		parts = append(parts, p)
+	}
+
+	m.Content = parts
+
+	return nil
 }

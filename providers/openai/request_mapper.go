@@ -142,12 +142,7 @@ func (rm *RequestMapper) mapMessagesToInputItems(messages []llm.Message) ([]resp
 					return nil, fmt.Errorf("%w: tool request parts require RoleAssistant, got %s", llm.ErrRequestMapping, msg.Role)
 				}
 
-				item, err := rm.mapToolRequestMessage(p)
-				if err != nil {
-					return nil, err
-				}
-
-				items = append(items, item)
+				items = append(items, rm.mapToolRequestMessage(p))
 
 			case *llm.ToolResponsePart:
 				// Tool responses must be in RoleUser messages
@@ -155,20 +150,10 @@ func (rm *RequestMapper) mapMessagesToInputItems(messages []llm.Message) ([]resp
 					return nil, fmt.Errorf("%w: tool response parts require RoleUser, got %s", llm.ErrRequestMapping, msg.Role)
 				}
 
-				item, err := rm.mapToolResponseMessage(p)
-				if err != nil {
-					return nil, err
-				}
-
-				items = append(items, item)
+				items = append(items, rm.mapToolResponseMessage(p))
 
 			case *llm.ReasoningPart:
-				item, err := rm.mapReasoningMessage(p)
-				if err != nil {
-					return nil, err
-				}
-
-				items = append(items, item)
+				items = append(items, rm.mapReasoningMessage(p))
 
 			default:
 				return nil, fmt.Errorf("failed mapping unknown part type: %T", part)
@@ -199,11 +184,7 @@ func (rm *RequestMapper) mapTextMessage(part *llm.TextPart, role llm.MessageRole
 }
 
 // mapToolRequestMessage converts a tool request part to a function call input item.
-func (*RequestMapper) mapToolRequestMessage(part *llm.ToolRequestPart) (responses.ResponseInputItemUnionParam, error) {
-	if part == nil {
-		return responses.ResponseInputItemUnionParam{}, errors.New("nil ToolRequestPart")
-	}
-
+func (*RequestMapper) mapToolRequestMessage(part *llm.ToolRequestPart) responses.ResponseInputItemUnionParam {
 	functionCall := &responses.ResponseFunctionToolCallParam{
 		CallID:    part.ID,
 		Name:      part.Name,
@@ -213,15 +194,11 @@ func (*RequestMapper) mapToolRequestMessage(part *llm.ToolRequestPart) (response
 
 	return responses.ResponseInputItemUnionParam{
 		OfFunctionCall: functionCall,
-	}, nil
+	}
 }
 
 // mapToolResponseMessage converts a tool response part to a function call output input item.
-func (*RequestMapper) mapToolResponseMessage(part *llm.ToolResponsePart) (responses.ResponseInputItemUnionParam, error) {
-	if part == nil {
-		return responses.ResponseInputItemUnionParam{}, errors.New("nil ToolResponsePart")
-	}
-
+func (*RequestMapper) mapToolResponseMessage(part *llm.ToolResponsePart) responses.ResponseInputItemUnionParam {
 	output := string(part.Result)
 
 	functionOutput := &responses.ResponseInputItemFunctionCallOutputParam{
@@ -234,17 +211,13 @@ func (*RequestMapper) mapToolResponseMessage(part *llm.ToolResponsePart) (respon
 
 	return responses.ResponseInputItemUnionParam{
 		OfFunctionCallOutput: functionOutput,
-	}, nil
+	}
 }
 
 // mapReasoningMessage converts a reasoning part to a reasoning input item.
-func (*RequestMapper) mapReasoningMessage(part *llm.ReasoningPart) (responses.ResponseInputItemUnionParam, error) {
-	if part == nil {
-		return responses.ResponseInputItemUnionParam{}, errors.New("nil ReasoningPart")
-	}
-
+func (*RequestMapper) mapReasoningMessage(part *llm.ReasoningPart) responses.ResponseInputItemUnionParam {
 	reasoning := &responses.ResponseReasoningItemParam{
-		ID:   part.ID,
+		ID:   part.Signature,
 		Type: constant.Reasoning(""),
 		Summary: []responses.ResponseReasoningItemSummaryParam{
 			{
@@ -256,7 +229,7 @@ func (*RequestMapper) mapReasoningMessage(part *llm.ReasoningPart) (responses.Re
 
 	return responses.ResponseInputItemUnionParam{
 		OfReasoning: reasoning,
-	}, nil
+	}
 }
 
 // mapResponseFormat converts unified ResponseFormat to OpenAI Responses API format.

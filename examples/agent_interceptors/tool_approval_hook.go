@@ -18,6 +18,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -25,7 +26,7 @@ import (
 	"sync"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
-	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/tool"
 )
 
 // ToolApprovalInterceptor demonstrates ToolInterceptor with user approval.
@@ -72,7 +73,7 @@ func (h *ToolApprovalInterceptor) InterceptToolExecution(
 	ctx context.Context,
 	info *agent.ToolCallInfo,
 	next agent.ToolExecutionNext,
-) (*llm.ToolResponsePart, error) {
+) (tool.Execution, error) {
 	req := info.Req
 
 	// Check if this tool requires approval
@@ -117,13 +118,9 @@ func (h *ToolApprovalInterceptor) InterceptToolExecution(
 	if !approved {
 		log.Printf("[ToolApproval] Tool %q execution denied by user", req.Name)
 
-		// Return a response indicating the tool was denied
-		return &llm.ToolResponsePart{
-			ID:      req.ID,
-			Name:    req.Name,
-			Result:  []byte(`{"error":"Tool execution denied by user"}`),
-			IsError: true,
-		}, nil
+		// Returning an error marks the call as failed; the runtime encodes
+		// the message as a tool error response for the LLM.
+		return tool.Execution{}, errors.New("tool execution denied by user")
 	}
 
 	log.Printf("[ToolApproval] Tool %q approved by user, executing...", req.Name)

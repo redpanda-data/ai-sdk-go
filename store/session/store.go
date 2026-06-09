@@ -70,6 +70,19 @@ type Store interface {
 	// Delete removes a session by its ID.
 	// Returns nil if the session doesn't exist (idempotent).
 	Delete(ctx context.Context, sessionID string) error
+
+	// WithSessionLock serializes session-mutating operations against the
+	// given session ID. The provided function runs with the lock held;
+	// no Load/Save semantics are implied beyond callers' own use inside
+	// fn. Implementations MUST guarantee mutual exclusion for the
+	// duration of fn against any concurrent caller for the same
+	// sessionID — single-process stores typically use a per-ID mutex,
+	// distributed stores must use an advisory lock or lease.
+	//
+	// fn is expected to be reasonably short-running: runners hold this
+	// lock for the duration of a single Run/Resume/Progress/Cancel call
+	// (paused tools release the lock when they pause).
+	WithSessionLock(ctx context.Context, sessionID string, fn func(context.Context) error) error
 }
 
 // State represents the persistent state of a conversation session.
@@ -85,27 +98,42 @@ type State struct {
 	// The slice should be treated as append-only to maintain temporal ordering.
 	Messages []llm.Message `json:"messages"`
 
+	// PendingToolCalls records tool calls that paused this session and
+	// have not yet been resumed. Keyed by tool call ID. Drives
+	// runner.Resume / runner.Progress / runner.Cancel.
+	PendingToolCalls map[string]PendingToolCall `json:"pending_tool_calls,omitempty"`
+
+	// ResumeReceipts records completed pending calls so duplicate
+	// resume deliveries are detected and acknowledged without mutating
+	// session state. Keyed by tool call ID.
+	ResumeReceipts map[string]ResumeReceipt `json:"resume_receipts,omitempty"`
+
 	// Metadata contains arbitrary key-value pairs associated with the session.
 	// Common uses include user settings, locale, feature flags, and analytics data.
 	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
 // Clone creates a deep copy of the session state.
-// Returns nil if the receiver is nil. Each Message in s.Messages is
-// duplicated via llm.CloneMessage so persisted state never shares mutable
-// pointers (Part interfaces, json.RawMessage slices, metadata maps) with the
-// live caller.
+// Returns nil if the receiver is nil.
+//
+// Messages are deep-copied via [llm.CloneMessage] so callers cannot mutate
+// persisted Part fields through shared pointers — a shallow copy would
+// leak the underlying *Part interface slot. PendingToolCalls,
+// ResumeReceipts, and Metadata are likewise deep-copied so concurrent
+// runner operations on the same session ID cannot see each other's
+// in-progress mutations.
 func (s *State) Clone() *State {
 	if s == nil {
 		return nil
 	}
 
 	clone := &State{
-		ID:       s.ID,
-		Messages: make([]llm.Message, len(s.Messages)),
-		Metadata: make(map[string]any, len(s.Metadata)),
+		ID:               s.ID,
+		Messages:         make([]llm.Message, len(s.Messages)),
+		PendingToolCalls: clonePending(s.PendingToolCalls),
+		ResumeReceipts:   cloneReceipts(s.ResumeReceipts),
+		Metadata:         make(map[string]any, len(s.Metadata)),
 	}
-
 	for i, msg := range s.Messages {
 		clone.Messages[i] = llm.CloneMessage(msg)
 	}

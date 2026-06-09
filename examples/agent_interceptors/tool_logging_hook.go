@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
-	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/tool"
 )
 
 // ToolLoggingInterceptor demonstrates ToolInterceptor.
@@ -43,7 +43,7 @@ func (h *ToolLoggingInterceptor) InterceptToolExecution(
 	ctx context.Context,
 	info *agent.ToolCallInfo,
 	next agent.ToolExecutionNext,
-) (*llm.ToolResponsePart, error) {
+) (tool.Execution, error) {
 	inv := info.Inv
 	req := info.Req
 
@@ -51,22 +51,22 @@ func (h *ToolLoggingInterceptor) InterceptToolExecution(
 	log.Printf("[ToolLogging][Turn %d] Tool %q execution started", inv.Turn(), req.Name)
 	log.Printf("[ToolLogging] Arguments: %s", string(req.Arguments))
 
-	resp, err := next(ctx, info)
+	exec, err := next(ctx, info)
 
 	duration := time.Since(start)
 	if err != nil {
 		log.Printf("[ToolLogging] Tool %q failed after %v: %v", req.Name, duration, err)
-		return resp, err
+		return exec, err
 	}
 
-	if resp.IsError {
-		log.Printf("[ToolLogging] Tool %q returned error after %v: %s",
-			req.Name, duration, string(resp.Result))
+	if exec.Await != nil {
+		log.Printf("[ToolLogging] Tool %q paused after %v awaiting %s",
+			req.Name, duration, exec.Await.Reason)
 	} else {
 		log.Printf("[ToolLogging] Tool %q completed successfully in %v",
 			req.Name, duration)
-		log.Printf("[ToolLogging] Result: %s", string(resp.Result))
+		log.Printf("[ToolLogging] Result: %s", string(exec.Output))
 	}
 
-	return resp, nil
+	return exec, nil
 }

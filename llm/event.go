@@ -14,7 +14,10 @@
 
 package llm
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 // Event represents all possible events that can occur during streaming.
 // This is a discriminated union implemented using Go interfaces.
@@ -44,44 +47,36 @@ type ContentPartEvent struct {
 	Part Part `json:"part"`
 }
 
-// MarshalJSON encodes a ContentPartEvent using the Part discriminator envelope.
+// MarshalJSON encodes ContentPartEvent with Part serialized via MarshalPart so
+// the sealed-interface discriminated union survives JSON round-trips.
 func (e ContentPartEvent) MarshalJSON() ([]byte, error) {
-	partBytes, err := MarshalPart(e.Part)
+	pb, err := MarshalPart(e.Part)
 	if err != nil {
 		return nil, err
 	}
 
-	return json.Marshal(struct {
-		Index int             `json:"index"`
-		Part  json.RawMessage `json:"part"`
-	}{e.Index, partBytes})
+	return fmt.Appendf(nil, `{"index":%d,"part":%s}`, e.Index, pb), nil
 }
 
-// UnmarshalJSON decodes a ContentPartEvent previously produced by MarshalJSON.
+// UnmarshalJSON decodes the wire envelope and dispatches the part field
+// through UnmarshalPart.
 func (e *ContentPartEvent) UnmarshalJSON(data []byte) error {
-	var raw struct {
+	var wire struct {
 		Index int             `json:"index"`
 		Part  json.RawMessage `json:"part"`
 	}
 
-	err := json.Unmarshal(data, &raw)
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+
+	p, err := UnmarshalPart(wire.Part)
 	if err != nil {
 		return err
 	}
 
-	e.Index = raw.Index
-
-	if len(raw.Part) == 0 {
-		e.Part = nil
-		return nil
-	}
-
-	part, err := UnmarshalPart(raw.Part)
-	if err != nil {
-		return err
-	}
-
-	e.Part = part
+	e.Index = wire.Index
+	e.Part = p
 
 	return nil
 }
