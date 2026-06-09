@@ -27,7 +27,7 @@
 //	    llmagent.WithTools(toolRegistry))
 //
 //	// Main agent delegates via agenttool
-//	mainTools := tool.NewRegistry(tool.RegistryConfig{})
+//	mainTools := tool.NewRegistry()
 //	mainTools.Register(agenttool.New(assistant))
 package agenttool
 
@@ -116,7 +116,7 @@ func (at *AgentTool) Execute(ctx context.Context, call tool.Call) (tool.Executio
 		Metadata: map[string]any{},
 	}
 
-	userMsg := llm.NewMessage(llm.RoleUser, llm.NewTextPart(string(call.Args)))
+	userMsg := llm.NewMessage(llm.RoleUser, llm.NewTextPart(string(call.Request.Arguments)))
 	sess.Messages = append(sess.Messages, userMsg)
 
 	inv := agent.NewInvocationMetadata(sess, info)

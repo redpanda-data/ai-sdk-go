@@ -18,7 +18,7 @@
 // Registry manages tool registration and execution. Create with NewRegistry
 // and register tools using functional options:
 //
-//	registry := tool.NewRegistry(tool.RegistryConfig{})
+//	registry := tool.NewRegistry()
 //	registry.Register(myTool, tool.WithTimeout(30*time.Second))
 //
 // Tool is the basic interface - implement Definition and Execute.

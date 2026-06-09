@@ -145,7 +145,7 @@ func TestWebFetch_PromptInjectionFencing_Integration(t *testing.T) {
 		require.True(t, caps.Tools, "Model must support tool calling")
 
 		// Create registry with webfetch tool (fencing DISABLED)
-		registry := tool.NewRegistry(tool.RegistryConfig{})
+		registry := tool.NewRegistry()
 
 		opts := append(testOptions(), webfetch.WithFencing(false))
 		webfetchTool := webfetch.New(opts...)
@@ -191,7 +191,7 @@ func TestWebFetch_PromptInjectionFencing_Integration(t *testing.T) {
 		require.NotEmpty(t, toolRequests)
 
 		// Execute tool
-		toolResponse, err := registry.Execute(ctx, toolRequests[0])
+		toolResponse, err := executeTool(ctx, registry, toolRequests[0])
 		require.NoError(t, err)
 		require.NotNil(t, toolResponse)
 
@@ -281,7 +281,7 @@ func TestWebFetch_PromptInjectionFencing_Integration(t *testing.T) {
 		require.True(t, caps.Tools, "Model must support tool calling")
 
 		// Create registry with webfetch tool (fencing ENABLED - default)
-		registry := tool.NewRegistry(tool.RegistryConfig{})
+		registry := tool.NewRegistry()
 		webfetchTool := webfetch.New(testOptions()...)
 		err = registry.Register(webfetchTool)
 		require.NoError(t, err)
@@ -325,7 +325,7 @@ func TestWebFetch_PromptInjectionFencing_Integration(t *testing.T) {
 		require.NotEmpty(t, toolRequests)
 
 		// Execute tool
-		toolResponse, err := registry.Execute(ctx, toolRequests[0])
+		toolResponse, err := executeTool(ctx, registry, toolRequests[0])
 		require.NoError(t, err)
 		require.NotNil(t, toolResponse)
 
@@ -401,4 +401,14 @@ func TestWebFetch_PromptInjectionFencing_Integration(t *testing.T) {
 			"With fencing: LLM should extract correct color 'chartreuse' from fenced content. Got: %s. Tool response: %s",
 			finalText, string(toolResultJSON))
 	})
+}
+
+// executeTool reconciles a Run into the model-visible response part —
+// the test-side replacement for the removed Registry.Execute.
+func executeTool(ctx context.Context, reg *tool.Registry, req *llm.ToolRequestPart) (*llm.ToolResponsePart, error) {
+	if req == nil {
+		return nil, tool.ErrToolRequestNil
+	}
+
+	return reg.Run(ctx, tool.InvocationInfo{}, req).Response(), nil
 }

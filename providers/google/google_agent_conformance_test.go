@@ -50,7 +50,7 @@ func (f *GoogleAgentFixture) Name() string {
 	return "Google"
 }
 
-func (f *GoogleAgentFixture) StandardAgent(tools tool.Registry) (*llmagent.LLMAgent, error) {
+func (f *GoogleAgentFixture) StandardAgent(tools *tool.Registry) (*llmagent.LLMAgent, error) {
 	model, err := f.provider.NewModel(googletest.TestModelName)
 	if err != nil {
 		return nil, err
@@ -65,7 +65,7 @@ func (f *GoogleAgentFixture) StandardAgent(tools tool.Registry) (*llmagent.LLMAg
 	)
 }
 
-func (f *GoogleAgentFixture) ReasoningAgent(tools tool.Registry) (*llmagent.LLMAgent, error) {
+func (f *GoogleAgentFixture) ReasoningAgent(tools *tool.Registry) (*llmagent.LLMAgent, error) {
 	model, err := f.provider.NewModel(googletest.TestReasoningModelName,
 		google.WithThinking(true),
 	)

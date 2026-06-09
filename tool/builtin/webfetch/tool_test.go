@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/redpanda-data/ai-sdk-go/llm"
 	toolpkg "github.com/redpanda-data/ai-sdk-go/tool"
 )
 
@@ -391,7 +392,7 @@ func TestWebFetch_EndToEnd(t *testing.T) {
 			// Format URL into args
 			args := fmt.Sprintf(tt.args, server.URL)
 
-			result, err := tool.Execute(ctx, toolpkg.Call{Args: json.RawMessage(args)})
+			result, err := tool.Execute(ctx, toolpkg.Call{Request: llm.ToolRequestPart{Arguments: json.RawMessage(args)}})
 			require.NoError(t, err)
 
 			var response map[string]any
@@ -445,7 +446,7 @@ func TestWebFetch_SecurityValidation(t *testing.T) {
 			tool := New(tt.toolOptions...)
 			ctx := context.Background()
 
-			result, err := tool.Execute(ctx, toolpkg.Call{Args: json.RawMessage(tt.args)})
+			result, err := tool.Execute(ctx, toolpkg.Call{Request: llm.ToolRequestPart{Arguments: json.RawMessage(tt.args)}})
 			require.NoError(t, err)
 
 			var response map[string]any
@@ -563,7 +564,7 @@ func TestSecurityHardening(t *testing.T) {
 			tool := New() // Use default secure config
 			ctx := context.Background()
 
-			result, err := tool.Execute(ctx, toolpkg.Call{Args: json.RawMessage(tt.args)})
+			result, err := tool.Execute(ctx, toolpkg.Call{Request: llm.ToolRequestPart{Arguments: json.RawMessage(tt.args)}})
 			require.NoError(t, err)
 
 			var response map[string]any
@@ -596,7 +597,7 @@ func TestFencing(t *testing.T) { //nolint:paralleltest // shared httptest server
 	t.Run("fencing is enabled by default", func(t *testing.T) { //nolint:paralleltest // shared httptest server across subtests
 		tool := New(testOptions()...)
 		params := NewParameters(server.URL).WithMethod("GET")
-		result, err := tool.Execute(context.Background(), toolpkg.Call{Args: params.MustToJSONRawMessage()})
+		result, err := tool.Execute(context.Background(), toolpkg.Call{Request: llm.ToolRequestPart{Arguments: params.MustToJSONRawMessage()}})
 		require.NoError(t, err)
 
 		var response map[string]any
@@ -615,7 +616,7 @@ func TestFencing(t *testing.T) { //nolint:paralleltest // shared httptest server
 		opts := append(testOptions(), WithFencing(false))
 		tool := New(opts...)
 		params := NewParameters(server.URL).WithMethod("GET")
-		result, err := tool.Execute(context.Background(), toolpkg.Call{Args: params.MustToJSONRawMessage()})
+		result, err := tool.Execute(context.Background(), toolpkg.Call{Request: llm.ToolRequestPart{Arguments: params.MustToJSONRawMessage()}})
 		require.NoError(t, err)
 
 		var response map[string]any

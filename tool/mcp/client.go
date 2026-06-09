@@ -29,7 +29,6 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
-	"github.com/redpanda-data/ai-sdk-go/tool"
 )
 
 // Sentinel errors for client state management.
@@ -127,7 +126,7 @@ type clientImpl struct {
 	// Configuration (immutable after construction)
 	serverID         string
 	transportFactory TransportFactory
-	registry         tool.Registry
+	registry         ToolRegistry
 	autoSyncInterval time.Duration
 	shutdownTimeout  time.Duration
 	toolTimeout      time.Duration

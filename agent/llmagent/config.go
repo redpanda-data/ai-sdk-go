@@ -47,7 +47,7 @@ type config struct {
 	id                   string
 	version              string
 	model                llm.Model
-	tools                tool.Registry
+	tools                *tool.Registry
 	interceptors         []agent.Interceptor
 	maxTurns             int
 	toolConcurrency      int
@@ -112,7 +112,7 @@ func WithDescription(description string) Option {
 }
 
 // WithTools sets the registry of available tools.
-func WithTools(tools tool.Registry) Option {
+func WithTools(tools *tool.Registry) Option {
 	return func(c *config) {
 		c.tools = tools
 	}

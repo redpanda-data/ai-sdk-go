@@ -28,58 +28,19 @@ import (
 
 // Registry manages tool registration, discovery, and execution.
 //
-// Two execution surfaces are exposed:
+// Run / RunAll / Resume return tool.ExecutionResult, the typed
+// control-flow result that carries Execution{Output, Await, Actions}
+// plus a runtime error. The agent loop and runner use these to detect
+// pauses, persist pending state, and emit ToolPendingEvent. Callers
+// that only need the model-visible payload reconcile via
+// ExecutionResult.Response().
 //
-//   - Run / RunAll return tool.ExecutionResult, the typed control-flow
-//     return that carries Execution{Output, Await, Actions} plus a
-//     runtime error. The agent loop and runner use these to detect
-//     pauses, persist pending state, and emit ToolPendingEvent.
-//   - Execute / ExecuteAll are convenience wrappers that reconcile an
-//     ExecutionResult into an llm.ToolResponsePart for callers that only
-//     care about the model-visible payload (most tests, ad-hoc tool
-//     invocations). They ignore Await: a paused tool surfaces as a
-//     placeholder response.
-type Registry interface {
-	// Register adds a tool to the registry with optional configuration.
-	Register(tool Tool, opts ...Option) error
-
-	// Unregister removes a tool by name.
-	Unregister(name string) error
-
-	// List returns tool definitions for use in llm.Request.Tools. The
-	// definitions tell the model what tools are available; they include
-	// AsyncSpec-derived hints where set.
-	List() []llm.ToolDefinition
-
-	// Get retrieves a registered tool by name.
-	Get(name string) (Tool, error)
-
-	// Run executes a single tool request and returns the typed
-	// ExecutionResult. Err is populated for runtime/tool errors (the
-	// returned Execution is the zero value in that case); pauses appear
-	// as Execution.Await != nil.
-	Run(ctx context.Context, inv InvocationInfo, req *llm.ToolRequestPart) ExecutionResult
-
-	// Resume re-enters a registered tool after a ResumeWithReentry pause,
-	// with Call.Resume populated from payload. It applies the same
-	// timeout, Await validation, and response-size limits as Run.
-	Resume(ctx context.Context, inv InvocationInfo, req *llm.ToolRequestPart, payload *ResumePayload) ExecutionResult
-
-	// RunAll executes multiple tool requests concurrently. Results are
-	// returned in the SAME ORDER as reqs — fixing the previous
-	// completion-order shape that broke provider tool-call ordering.
-	RunAll(ctx context.Context, inv InvocationInfo, reqs []*llm.ToolRequestPart, opts ...BatchOption) []ExecutionResult
-
-	// Execute reconciles Run's ExecutionResult into a single
-	// llm.ToolResponsePart. Errors are encoded via IsError + a
-	// `{"error":"..."}` payload. Returns (nil, ErrToolRequestNil) for a
-	// nil request — that signals a bad caller, not a tool failure.
-	Execute(ctx context.Context, req *llm.ToolRequestPart) (*llm.ToolResponsePart, error)
-
-	// ExecuteAll is the response-part variant of RunAll. Per-request
-	// failures are encoded in the returned parts; the slice always has
-	// len(reqs) entries, in request order.
-	ExecuteAll(ctx context.Context, reqs []*llm.ToolRequestPart, opts ...BatchOption) []*llm.ToolResponsePart
+// Registry is a concrete type: components that want to abstract over it
+// should declare their own narrow interface over the methods they use
+// (see tool/mcp.ToolRegistry for an example).
+type Registry struct {
+	mu    sync.RWMutex
+	tools map[string]*registeredTool
 }
 
 // ExecutionResult is the typed control-flow return from Registry.Run.
@@ -138,33 +99,32 @@ func (e ExecutionResult) Response() *llm.ToolResponsePart {
 	return llm.NewToolResponsePart(id, name, result)
 }
 
-// RegistryConfig configures registry-wide behavior. Reserved for future
-// settings; tool-specific configuration is handled via Option.
-type RegistryConfig struct{}
-
-// registry is the concrete implementation of Registry.
-type registry struct {
-	mu     sync.RWMutex
-	tools  map[string]*registeredTool
-	config RegistryConfig
-}
-
 // registeredTool wraps a tool with its configuration.
 type registeredTool struct {
 	tool   Tool
 	config Config
 }
 
-// NewRegistry creates a new tool registry with the given configuration.
-func NewRegistry(config RegistryConfig) Registry {
-	return &registry{
-		tools:  make(map[string]*registeredTool),
-		config: config,
+// RegistryOption configures registry-wide behavior. None are defined
+// yet; the variadic NewRegistry signature exists so registry-wide
+// settings can be added without breaking callers.
+type RegistryOption func(*Registry)
+
+// NewRegistry creates a new tool registry.
+func NewRegistry(opts ...RegistryOption) *Registry {
+	r := &Registry{
+		tools: make(map[string]*registeredTool),
 	}
+
+	for _, opt := range opts {
+		opt(r)
+	}
+
+	return r
 }
 
 // Register adds a tool to the registry with optional configuration.
-func (r *registry) Register(t Tool, opts ...Option) error {
+func (r *Registry) Register(t Tool, opts ...Option) error {
 	if t == nil {
 		return ErrToolNil
 	}
@@ -192,7 +152,7 @@ func (r *registry) Register(t Tool, opts ...Option) error {
 }
 
 // Unregister removes a tool by name.
-func (r *registry) Unregister(name string) error {
+func (r *Registry) Unregister(name string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -206,7 +166,7 @@ func (r *registry) Unregister(name string) error {
 }
 
 // List returns tool definitions for use in llm.Request.Tools.
-func (r *registry) List() []llm.ToolDefinition {
+func (r *Registry) List() []llm.ToolDefinition {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -219,7 +179,7 @@ func (r *registry) List() []llm.ToolDefinition {
 }
 
 // Get retrieves a registered tool by name.
-func (r *registry) Get(name string) (Tool, error) {
+func (r *Registry) Get(name string) (Tool, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -233,18 +193,18 @@ func (r *registry) Get(name string) (Tool, error) {
 
 // Run executes a single tool request and returns the typed
 // ExecutionResult. See ExecutionResult for the error vs. await contract.
-func (r *registry) Run(ctx context.Context, inv InvocationInfo, req *llm.ToolRequestPart) ExecutionResult {
+func (r *Registry) Run(ctx context.Context, inv InvocationInfo, req *llm.ToolRequestPart) ExecutionResult {
 	return r.run(ctx, inv, req, nil)
 }
 
 // Resume implements Registry.
-func (r *registry) Resume(ctx context.Context, inv InvocationInfo, req *llm.ToolRequestPart, payload *ResumePayload) ExecutionResult {
+func (r *Registry) Resume(ctx context.Context, inv InvocationInfo, req *llm.ToolRequestPart, payload *ResumePayload) ExecutionResult {
 	return r.run(ctx, inv, req, payload)
 }
 
 // RunAll executes multiple tool requests concurrently. Returned results
 // are in request order even though tools execute concurrently.
-func (r *registry) RunAll(ctx context.Context, inv InvocationInfo, reqs []*llm.ToolRequestPart, opts ...BatchOption) []ExecutionResult {
+func (r *Registry) RunAll(ctx context.Context, inv InvocationInfo, reqs []*llm.ToolRequestPart, opts ...BatchOption) []ExecutionResult {
 	n := len(reqs)
 	if n == 0 {
 		return []ExecutionResult{}
@@ -288,32 +248,8 @@ func (r *registry) RunAll(ctx context.Context, inv InvocationInfo, reqs []*llm.T
 	return results
 }
 
-// Execute is the response-part wrapper around Run. See Registry docs
-// for when to prefer Run vs. Execute.
-func (r *registry) Execute(ctx context.Context, req *llm.ToolRequestPart) (*llm.ToolResponsePart, error) {
-	if req == nil {
-		return nil, ErrToolRequestNil
-	}
-
-	res := r.Run(ctx, InvocationInfo{}, req)
-
-	return res.Response(), nil
-}
-
-// ExecuteAll is the response-part wrapper around RunAll.
-func (r *registry) ExecuteAll(ctx context.Context, reqs []*llm.ToolRequestPart, opts ...BatchOption) []*llm.ToolResponsePart {
-	results := r.RunAll(ctx, InvocationInfo{}, reqs, opts...)
-	out := make([]*llm.ToolResponsePart, len(results))
-
-	for i, res := range results {
-		out[i] = res.Response()
-	}
-
-	return out
-}
-
 // run is the shared execution path for Run and Resume.
-func (r *registry) run(ctx context.Context, inv InvocationInfo, req *llm.ToolRequestPart, resume *ResumePayload) ExecutionResult {
+func (r *Registry) run(ctx context.Context, inv InvocationInfo, req *llm.ToolRequestPart, resume *ResumePayload) ExecutionResult {
 	if req == nil {
 		return ExecutionResult{Err: ErrToolRequestNil}
 	}
@@ -340,7 +276,6 @@ func (r *registry) run(ctx context.Context, inv InvocationInfo, req *llm.ToolReq
 
 	call := Call{
 		Request:    *req,
-		Args:       req.Arguments,
 		Invocation: inv,
 		Resume:     resume,
 	}
@@ -359,7 +294,10 @@ func (r *registry) run(ctx context.Context, inv InvocationInfo, req *llm.ToolReq
 		return out
 	}
 
-	// Validate Await shape before persisting the pause.
+	// Normalize then validate the Await shape before persisting the
+	// pause. Normalize fills an empty Resume from the Reason default.
+	exec.Await.Normalize()
+
 	if err := exec.Await.Validate(); err != nil {
 		out.Err = fmt.Errorf("%w: %w", ErrAwaitInvalid, err)
 		return out
@@ -393,7 +331,7 @@ func (r *registry) run(ctx context.Context, inv InvocationInfo, req *llm.ToolReq
 // Token count is approximated as len/4 — accurate enough for "is this
 // likely to blow up the context window" gating, which is the only
 // decision this method needs to make.
-func (*registry) enforceResponseSizeLimit(result json.RawMessage, config *Config) (json.RawMessage, error) {
+func (*Registry) enforceResponseSizeLimit(result json.RawMessage, config *Config) (json.RawMessage, error) {
 	if config.MaxResponseTokens <= 0 || len(result) == 0 {
 		return result, nil
 	}

@@ -61,7 +61,7 @@ func (*calculatorTool) Execute(_ context.Context, call tool.Call) (tool.Executio
 		A float64 `json:"a"`
 		B float64 `json:"b"`
 	}
-	if err := json.Unmarshal(call.Args, &params); err != nil {
+	if err := json.Unmarshal(call.Request.Arguments, &params); err != nil {
 		return tool.Execution{}, err
 	}
 
@@ -96,7 +96,7 @@ func TestLLMAgent_Integration_ToolCalling(t *testing.T) {
 	require.NoError(t, err, "failed to create model")
 
 	// Create tool registry and register calculator tool
-	registry := tool.NewRegistry(tool.RegistryConfig{})
+	registry := tool.NewRegistry()
 	calculator := &calculatorTool{}
 	err = registry.Register(calculator)
 	require.NoError(t, err, "failed to register calculator tool")

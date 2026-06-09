@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -32,11 +33,11 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/tool"
 )
 
-// Result is the caller-supplied resume payload for a single pending
-// tool call. Exactly one of Output / Error should be set; if both are
-// empty the call is treated as a no-op cancellation with a generic
-// error.
-type Result struct {
+// Resumption is the caller-supplied resume payload for a single
+// pending tool call. Set Output for success or Error for failure. When
+// both are empty, the call resolves successfully and the model sees the
+// last placeholder output (LastOutput) again.
+type Resumption struct {
 	// CallID is the originating tool call ID that paused.
 	CallID string
 
@@ -89,7 +90,7 @@ func (r *Runner) Resume(
 	ctx context.Context,
 	userID string,
 	sessionID string,
-	results ...Result,
+	results ...Resumption,
 ) (iter.Seq2[agent.Event, error], error) {
 	return r.resume(ctx, userID, sessionID, ResumeOperationResume, results)
 }
@@ -99,7 +100,7 @@ func (r *Runner) resume(
 	userID string,
 	sessionID string,
 	op ResumeOperation,
-	results []Result,
+	results []Resumption,
 ) (iter.Seq2[agent.Event, error], error) {
 	var (
 		items         []streamItem
@@ -175,7 +176,7 @@ func (r *Runner) applyResumeBatch(
 	userID string,
 	sessionID string,
 	op ResumeOperation,
-	results []Result,
+	results []Resumption,
 ) ([]streamItem, bool, error) {
 	sess, err := r.config.sessionStore.Load(ctx, sessionID)
 	if err != nil {
@@ -249,7 +250,7 @@ func (r *Runner) applyResume(
 	ctx context.Context,
 	userID string,
 	sess *session.State,
-	res Result,
+	res Resumption,
 	op ResumeOperation,
 	envelope func() agent.EventEnvelope,
 ) (bool, []agent.Event, error) {
@@ -307,13 +308,6 @@ func (r *Runner) applyResume(
 		return false, nil, fmt.Errorf("call %s has unknown resume mode %q", res.CallID, pc.Resume)
 	}
 
-	// Resolve aliases (coalesced calls) with the same payload.
-	for _, alias := range pc.CoalescedIDs {
-		if ac, aliasOK := sess.PendingToolCalls[alias]; aliasOK {
-			applyToolResponseResume(sess, &ac, res)
-		}
-	}
-
 	storeReceipt(sess, res.CallID, resultHash, res.Metadata)
 
 	return true, nil, nil
@@ -322,7 +316,7 @@ func (r *Runner) applyResume(
 // applyToolResponseResume replaces the placeholder ToolResponsePart for
 // pc.ID in session history with a final response, removes the pending
 // entry, and writes a ResumeReceipt.
-func applyToolResponseResume(sess *session.State, pc *session.PendingToolCall, res Result) {
+func applyToolResponseResume(sess *session.State, pc *session.PendingToolCall, res Resumption) {
 	resp := makeResumeResponse(pc, res)
 	replacePlaceholder(sess, pc.ID, resp)
 
@@ -344,7 +338,7 @@ type toolResumer interface {
 // bool reports whether the call paused again (chained pause): in that
 // case the new PendingToolCall replaces the old one and NO receipt must
 // be stored, or the chained pause could never be resumed.
-func applyReentryResume(ctx context.Context, r *Runner, sess *session.State, pc *session.PendingToolCall, res Result) bool {
+func applyReentryResume(ctx context.Context, r *Runner, sess *session.State, pc *session.PendingToolCall, res Resumption) bool {
 	payload := &tool.ResumePayload{
 		PriorState: pc.State,
 		Result:     res.Output,
@@ -355,7 +349,7 @@ func applyReentryResume(ctx context.Context, r *Runner, sess *session.State, pc 
 
 	exec, execErr := executeReentry(ctx, r, sess, pc, payload)
 	if execErr != nil {
-		applyToolResponseResume(sess, pc, Result{CallID: res.CallID, Error: execErr.Error()})
+		applyToolResponseResume(sess, pc, Resumption{CallID: res.CallID, Error: execErr.Error()})
 		return false
 	}
 
@@ -376,10 +370,7 @@ func applyReentryResume(ctx context.Context, r *Runner, sess *session.State, pc 
 		updated.Metadata = exec.Await.Metadata
 		updated.ExpiresAt = nil
 
-		if exec.Await.ExpiresAt != nil {
-			t := *exec.Await.ExpiresAt
-			updated.ExpiresAt = &t
-		} else if exec.Await.Timeout > 0 {
+		if exec.Await.Timeout > 0 {
 			t := now.Add(exec.Await.Timeout)
 			updated.ExpiresAt = &t
 		}
@@ -391,7 +382,7 @@ func applyReentryResume(ctx context.Context, r *Runner, sess *session.State, pc 
 		return true
 	}
 
-	applyToolResponseResume(sess, pc, Result{CallID: res.CallID, Output: exec.Output})
+	applyToolResponseResume(sess, pc, Resumption{CallID: res.CallID, Output: exec.Output})
 
 	return false
 }
@@ -429,7 +420,7 @@ func executeReentry(ctx context.Context, r *Runner, sess *session.State, pc *ses
 
 // makeResumeResponse builds the wire ToolResponsePart for a resolved
 // pending call.
-func makeResumeResponse(pc *session.PendingToolCall, res Result) *llm.ToolResponsePart {
+func makeResumeResponse(pc *session.PendingToolCall, res Resumption) *llm.ToolResponsePart {
 	if res.Error != "" {
 		return llm.NewToolErrorPart(pc.ID, pc.Name, res.Error)
 	}
@@ -476,7 +467,7 @@ func replacePlaceholder(sess *session.State, callID string, resp *llm.ToolRespon
 // excluded — the first successful resume's metadata wins, and
 // at-least-once duplicates with different webhook delivery IDs should
 // still be acked.
-func computeResultHash(res Result) string {
+func computeResultHash(res Resumption) string {
 	payload := struct {
 		Output json.RawMessage `json:"output,omitempty"`
 		Error  string          `json:"error,omitempty"`
@@ -523,18 +514,30 @@ func (r *Runner) sweepExpired(sess *session.State, now time.Time) {
 		}
 
 		errMsg := fmt.Sprintf("pending tool %q expired at %s", pc.Name, pc.ExpiresAt.Format(time.RFC3339))
-		applyToolResponseResume(sess, &pc, Result{CallID: id, Error: errMsg})
-		storeReceipt(sess, id, computeResultHash(Result{CallID: id, Error: errMsg}), nil)
+		applyToolResponseResume(sess, &pc, Resumption{CallID: id, Error: errMsg})
+		storeReceipt(sess, id, computeResultHash(Resumption{CallID: id, Error: errMsg}), nil)
 	}
 }
 
-// summariesFromSession projects the pending map into a stable slice for
-// InvocationEndEvent. Order is best-effort — callers should not rely
-// on iteration order in tests.
+// summariesFromSession projects the pending map into a deterministic
+// slice for InvocationEndEvent, ordered by CreatedAt then CallID.
 func summariesFromSession(sess *session.State) []agent.PendingCallSummary {
-	out := make([]agent.PendingCallSummary, 0, len(sess.PendingToolCalls))
+	pending := make([]session.PendingToolCall, 0, len(sess.PendingToolCalls))
 	for _, pc := range sess.PendingToolCalls {
-		out = append(out, summarizePendingCall(pc))
+		pending = append(pending, pc)
+	}
+
+	sort.Slice(pending, func(i, j int) bool {
+		if !pending[i].CreatedAt.Equal(pending[j].CreatedAt) {
+			return pending[i].CreatedAt.Before(pending[j].CreatedAt)
+		}
+
+		return pending[i].ID < pending[j].ID
+	})
+
+	out := make([]agent.PendingCallSummary, len(pending))
+	for i, pc := range pending {
+		out[i] = summarizePendingCall(pc)
 	}
 
 	return out
@@ -569,7 +572,7 @@ func (r *Runner) runAuthorizer(
 	userID string,
 	sessionID string,
 	pc session.PendingToolCall,
-	res Result,
+	res Resumption,
 	op ResumeOperation,
 ) error {
 	if r.config.authorize == nil {
@@ -652,7 +655,7 @@ func (r *Runner) Progress(
 			return fmt.Errorf("%w: call_id=%s", ErrPendingCallNotFound, callID)
 		}
 
-		if err := r.runAuthorizer(ctx, userID, sessionID, pc, Result{CallID: callID, Output: payload}, ResumeOperationProgress); err != nil {
+		if err := r.runAuthorizer(ctx, userID, sessionID, pc, Resumption{CallID: callID, Output: payload}, ResumeOperationProgress); err != nil {
 			return fmt.Errorf("progress not authorized: %w", err)
 		}
 
@@ -694,14 +697,14 @@ func (r *Runner) Cancel(
 		reason = "canceled"
 	}
 
-	return r.resume(ctx, userID, sessionID, ResumeOperationCancel, []Result{{CallID: callID, Error: reason}})
+	return r.resume(ctx, userID, sessionID, ResumeOperationCancel, []Resumption{{CallID: callID, Error: reason}})
 }
 
 // registryFromAgent returns the tool registry attached to a, if any.
 // Looking it up via an exported interface avoids dragging the
 // llmagent package into runner.
-func registryFromAgent(a agent.Agent) tool.Registry {
-	if r, ok := a.(interface{ Tools() tool.Registry }); ok {
+func registryFromAgent(a agent.Agent) *tool.Registry {
+	if r, ok := a.(interface{ Tools() *tool.Registry }); ok {
 		return r.Tools()
 	}
 

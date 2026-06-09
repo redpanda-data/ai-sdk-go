@@ -35,8 +35,9 @@ type Await struct {
 	Reason AwaitReason
 
 	// Resume describes how the runtime should continue once the caller has
-	// the answer. Valid Reason/Resume combinations are enforced by
-	// Validate.
+	// the answer. May be left empty: Normalize defaults it to the
+	// canonical mode for Reason (only tool_result offers a real choice).
+	// Valid Reason/Resume combinations are enforced by Validate.
 	Resume ResumeMode
 
 	// Message is suitable for UI and adapters. It is not sent to the model
@@ -55,19 +56,13 @@ type Await struct {
 
 	// CorrelationID is an app/job identifier (e.g. a deployment ID, a
 	// webhook job ID). Surfaced to adapters and used for cross-system
-	// joins. Coalescing uses ArgumentsHash, not CorrelationID, so this is
-	// purely an annotation.
+	// joins; the SDK itself treats it as an opaque annotation.
 	CorrelationID string
 
 	// Timeout is an optional wall-clock timeout for the pending call. The
 	// runtime computes ExpiresAt when storing pending state. Zero means
 	// "no timeout" and is the safe default for human-driven pauses.
 	Timeout time.Duration
-
-	// ExpiresAt is computed by the runtime from Timeout when the pending
-	// call is persisted. Tools should leave this unset; setting it directly
-	// is supported for tests and replay scenarios.
-	ExpiresAt *time.Time
 
 	// Metadata carries opaque transport/audit/debug data. It is never sent
 	// to the model and must not be used as a hidden control channel — if
@@ -146,6 +141,26 @@ var allowedAwaitPairs = map[AwaitReason]map[ResumeMode]struct{}{
 	AwaitReasonHandoff: {
 		ResumeWithReentry: {},
 	},
+}
+
+// Normalize fills derivable fields in place: an empty Resume defaults
+// to the canonical mode for Reason (tool_result → tool_response,
+// user_input → message, approval/elicitation/handoff → reentry). The
+// runtime calls this before Validate; tools may rely on it and only set
+// Resume when they want the non-default mode.
+func (a *Await) Normalize() {
+	if a == nil || a.Resume != "" {
+		return
+	}
+
+	switch a.Reason {
+	case AwaitReasonToolResult:
+		a.Resume = ResumeWithToolResponse
+	case AwaitReasonUserInput:
+		a.Resume = ResumeWithMessage
+	case AwaitReasonApproval, AwaitReasonElicitation, AwaitReasonHandoff:
+		a.Resume = ResumeWithReentry
+	}
 }
 
 // Validate reports whether a is a well-formed Await. It checks that Reason

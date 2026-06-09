@@ -259,7 +259,7 @@ func TestExecutor_ToolUse_MessageHistory(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create tool registry with mock weather tool
-	toolRegistry := tool.NewRegistry(tool.RegistryConfig{})
+	toolRegistry := tool.NewRegistry()
 	weatherTool := &mockWeatherTool{}
 	err = toolRegistry.Register(weatherTool)
 	require.NoError(t, err)

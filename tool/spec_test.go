@@ -121,7 +121,7 @@ func (rawMismatchedTool) Execute(context.Context, tool.Call) (tool.Execution, er
 func TestRegistry_EnforcesAsyncSpecForRawTools(t *testing.T) {
 	t.Parallel()
 
-	reg := tool.NewRegistry(tool.RegistryConfig{})
+	reg := tool.NewRegistry()
 	require.NoError(t, reg.Register(rawMismatchedTool{}))
 
 	res := reg.Run(context.Background(), tool.InvocationInfo{},

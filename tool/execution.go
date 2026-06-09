@@ -40,11 +40,6 @@ type Execution struct {
 	// event stream). Await is kept separate because it is part of the
 	// control-flow contract, not a side effect.
 	Actions []Action
-
-	// Metadata is for observability and adapter-specific details. It is
-	// not sent to the model by default. Promote keys to typed fields if
-	// SDK code starts branching on them.
-	Metadata map[string]any
 }
 
 // Action is an SDK-owned side-effect envelope returned alongside an
@@ -56,10 +51,6 @@ type Action struct {
 
 	// Artifact is set when Kind == ActionArtifact.
 	Artifact *ArtifactAction
-
-	// Metadata carries opaque per-action context not interpreted by the
-	// SDK.
-	Metadata map[string]any
 }
 
 // ActionKind discriminates the Action union.

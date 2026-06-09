@@ -30,10 +30,6 @@ type Call struct {
 	// across the initial call and any re-entry for the same pending call.
 	Request llm.ToolRequestPart
 
-	// Args is Request.Arguments for convenience. On resume, Args remains
-	// the original arguments — resume-specific data lives in Resume.
-	Args json.RawMessage
-
 	// Invocation provides invocation-scoped context (IDs, turn, agent).
 	Invocation InvocationInfo
 

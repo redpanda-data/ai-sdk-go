@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/redpanda-data/ai-sdk-go/llm"
 	toolpkg "github.com/redpanda-data/ai-sdk-go/tool"
 )
 
@@ -69,7 +70,7 @@ func TestTool_Execute_LineChart(t *testing.T) {
 	inputJSON, err := json.Marshal(input)
 	require.NoError(t, err)
 
-	outputJSON, err := tool.Execute(context.Background(), toolpkg.Call{Args: inputJSON})
+	outputJSON, err := tool.Execute(context.Background(), toolpkg.Call{Request: llm.ToolRequestPart{Arguments: inputJSON}})
 	require.NoError(t, err)
 
 	var output Output
@@ -117,7 +118,7 @@ func TestTool_Execute_BarChart(t *testing.T) {
 	inputJSON, err := json.Marshal(input)
 	require.NoError(t, err)
 
-	outputJSON, err := tool.Execute(context.Background(), toolpkg.Call{Args: inputJSON})
+	outputJSON, err := tool.Execute(context.Background(), toolpkg.Call{Request: llm.ToolRequestPart{Arguments: inputJSON}})
 	require.NoError(t, err)
 
 	var output Output
@@ -153,7 +154,7 @@ func TestTool_Execute_ScatterChart(t *testing.T) {
 	inputJSON, err := json.Marshal(input)
 	require.NoError(t, err)
 
-	outputJSON, err := tool.Execute(context.Background(), toolpkg.Call{Args: inputJSON})
+	outputJSON, err := tool.Execute(context.Background(), toolpkg.Call{Request: llm.ToolRequestPart{Arguments: inputJSON}})
 	require.NoError(t, err)
 
 	var output Output
@@ -184,7 +185,7 @@ func TestTool_Execute_Histogram(t *testing.T) {
 	inputJSON, err := json.Marshal(input)
 	require.NoError(t, err)
 
-	outputJSON, err := tool.Execute(context.Background(), toolpkg.Call{Args: inputJSON})
+	outputJSON, err := tool.Execute(context.Background(), toolpkg.Call{Request: llm.ToolRequestPart{Arguments: inputJSON}})
 	require.NoError(t, err)
 
 	var output Output
@@ -223,7 +224,7 @@ func TestTool_Execute_CustomDimensions(t *testing.T) {
 	inputJSON, err := json.Marshal(input)
 	require.NoError(t, err)
 
-	outputJSON, err := tool.Execute(context.Background(), toolpkg.Call{Args: inputJSON})
+	outputJSON, err := tool.Execute(context.Background(), toolpkg.Call{Request: llm.ToolRequestPart{Arguments: inputJSON}})
 	require.NoError(t, err)
 
 	var output Output
@@ -342,7 +343,7 @@ func TestTool_Execute_ValidationErrors(t *testing.T) {
 			inputJSON, err := json.Marshal(tt.input)
 			require.NoError(t, err)
 
-			_, err = tool.Execute(context.Background(), toolpkg.Call{Args: inputJSON})
+			_, err = tool.Execute(context.Background(), toolpkg.Call{Request: llm.ToolRequestPart{Arguments: inputJSON}})
 			assert.Error(t, err)
 		})
 	}
@@ -382,7 +383,7 @@ func TestTool_Execute_MultipleSeries(t *testing.T) {
 	inputJSON, err := json.Marshal(input)
 	require.NoError(t, err)
 
-	outputJSON, err := tool.Execute(context.Background(), toolpkg.Call{Args: inputJSON})
+	outputJSON, err := tool.Execute(context.Background(), toolpkg.Call{Request: llm.ToolRequestPart{Arguments: inputJSON}})
 	require.NoError(t, err)
 
 	var output Output

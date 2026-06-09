@@ -50,7 +50,7 @@ func (f *AnthropicAgentFixture) Name() string {
 	return "Anthropic"
 }
 
-func (f *AnthropicAgentFixture) StandardAgent(tools tool.Registry) (*llmagent.LLMAgent, error) {
+func (f *AnthropicAgentFixture) StandardAgent(tools *tool.Registry) (*llmagent.LLMAgent, error) {
 	model, err := f.provider.NewModel(anthropictest.TestModelName)
 	if err != nil {
 		return nil, err
@@ -65,7 +65,7 @@ func (f *AnthropicAgentFixture) StandardAgent(tools tool.Registry) (*llmagent.LL
 	)
 }
 
-func (f *AnthropicAgentFixture) ReasoningAgent(tools tool.Registry) (*llmagent.LLMAgent, error) {
+func (f *AnthropicAgentFixture) ReasoningAgent(tools *tool.Registry) (*llmagent.LLMAgent, error) {
 	model, err := f.provider.NewModel(anthropictest.TestReasoningModelName,
 		anthropic.WithThinking(true),
 		anthropic.WithMaxTokens(8192),

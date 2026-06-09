@@ -50,7 +50,7 @@ func (f *OpenAIAgentFixture) Name() string {
 	return "OpenAI"
 }
 
-func (f *OpenAIAgentFixture) StandardAgent(tools tool.Registry) (*llmagent.LLMAgent, error) {
+func (f *OpenAIAgentFixture) StandardAgent(tools *tool.Registry) (*llmagent.LLMAgent, error) {
 	model, err := f.provider.NewModel(openaitest.TestModelName)
 	if err != nil {
 		return nil, err
@@ -65,7 +65,7 @@ func (f *OpenAIAgentFixture) StandardAgent(tools tool.Registry) (*llmagent.LLMAg
 	)
 }
 
-func (f *OpenAIAgentFixture) ReasoningAgent(tools tool.Registry) (*llmagent.LLMAgent, error) {
+func (f *OpenAIAgentFixture) ReasoningAgent(tools *tool.Registry) (*llmagent.LLMAgent, error) {
 	model, err := f.provider.NewModel(openaitest.TestReasoningModelName,
 		openai.WithReasoningEffort(openai.ReasoningEffortHigh),
 		openai.WithReasoningSummary(openai.ReasoningSummaryDetailed),

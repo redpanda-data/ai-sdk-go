@@ -61,7 +61,7 @@ func TestTodoTools_Integration(t *testing.T) {
 	require.True(t, caps.Tools, "Model must support tool calling")
 
 	// Create registry with todo tools
-	registry := tool.NewRegistry(tool.RegistryConfig{})
+	registry := tool.NewRegistry()
 
 	updateTool := todo.NewUpdateStateTool()
 	err = registry.Register(updateTool)
@@ -119,7 +119,7 @@ func TestTodoTools_Integration(t *testing.T) {
 			require.NotNil(t, addTodosRequest, "LLM should use add_todos tool")
 
 			// Execute the tool
-			toolResponse, err := registry.Execute(ctx, addTodosRequest)
+			toolResponse, err := executeTool(ctx, registry, addTodosRequest)
 			require.NoError(t, err)
 			require.False(t, toolResponse.IsError, "Tool should execute successfully")
 
@@ -175,7 +175,7 @@ func TestTodoTools_Integration(t *testing.T) {
 			require.NotNil(t, updateTodosRequest, "LLM should use update_todos tool")
 
 			// Execute the tool
-			toolResponse, err := registry.Execute(ctx, updateTodosRequest)
+			toolResponse, err := executeTool(ctx, registry, updateTodosRequest)
 			require.NoError(t, err)
 			require.False(t, toolResponse.IsError, "Tool should execute successfully")
 
@@ -223,7 +223,7 @@ func TestTodoTools_Integration(t *testing.T) {
 		if len(addToolRequests) > 0 {
 			for _, toolReq := range addToolRequests {
 				if toolReq.Name == "add_todos" {
-					toolResp, err := registry.Execute(ctx, toolReq)
+					toolResp, err := executeTool(ctx, registry, toolReq)
 					require.NoError(t, err)
 					require.Empty(t, string(toolResp.Result))
 					lastToolResponse = toolResp
@@ -264,7 +264,7 @@ func TestTodoTools_Integration(t *testing.T) {
 		if len(updateToolRequests) > 0 {
 			for _, toolReq := range updateToolRequests {
 				if toolReq.Name == "update_todos" {
-					toolResp, err := registry.Execute(ctx, toolReq)
+					toolResp, err := executeTool(ctx, registry, toolReq)
 					require.NoError(t, err)
 					require.Empty(t, string(toolResp.Result), "Update tool should execute successfully")
 
@@ -312,4 +312,14 @@ func TestTodoTools_Integration(t *testing.T) {
 			len(finalText) < 20, // Short affirmative responses are acceptable
 			"Final response should acknowledge the update, got: %s", finalText)
 	})
+}
+
+// executeTool reconciles a Run into the model-visible response part —
+// the test-side replacement for the removed Registry.Execute.
+func executeTool(ctx context.Context, reg *tool.Registry, req *llm.ToolRequestPart) (*llm.ToolResponsePart, error) {
+	if req == nil {
+		return nil, tool.ErrToolRequestNil
+	}
+
+	return reg.Run(ctx, tool.InvocationInfo{}, req).Response(), nil
 }

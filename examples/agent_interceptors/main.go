@@ -77,7 +77,7 @@ func main() {
 	}
 
 	// Create tool registry
-	registry := tool.NewRegistry(tool.RegistryConfig{})
+	registry := tool.NewRegistry()
 
 	// Create runtime secrets that the model cannot know
 	secrets := map[string]string{

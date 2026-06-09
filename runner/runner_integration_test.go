@@ -62,7 +62,7 @@ func (*calculatorTool) Execute(_ context.Context, call tool.Call) (tool.Executio
 		A float64 `json:"a"`
 		B float64 `json:"b"`
 	}
-	if err := json.Unmarshal(call.Args, &params); err != nil {
+	if err := json.Unmarshal(call.Request.Arguments, &params); err != nil {
 		return tool.Execution{}, err
 	}
 
@@ -96,7 +96,7 @@ func TestRunner_Integration_WithTools(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create tool registry with calculator
-	registry := tool.NewRegistry(tool.RegistryConfig{})
+	registry := tool.NewRegistry()
 	err = registry.Register(&calculatorTool{})
 	require.NoError(t, err)
 

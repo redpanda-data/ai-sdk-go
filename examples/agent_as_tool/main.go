@@ -132,7 +132,7 @@ func main() {
 
 	// Create a general-purpose assistant agent with tools
 	// This agent can be delegated subtasks for better context management
-	assistantTools := tool.NewRegistry(tool.RegistryConfig{})
+	assistantTools := tool.NewRegistry()
 	if err := assistantTools.Register(webfetch.New()); err != nil {
 		log.Fatalf("failed to register webfetch tool: %v", err)
 	}
@@ -155,7 +155,7 @@ When given a task, use available tools as needed and provide a clear, concise re
 
 	// Create main agent that can delegate to the assistant for context isolation
 	// This enables the main agent to offload subtasks without polluting its context
-	mainTools := tool.NewRegistry(tool.RegistryConfig{})
+	mainTools := tool.NewRegistry()
 	// Configure a longer timeout (8 minutes) since agent execution can include:
 	// - Multiple LLM calls for reasoning and response formatting
 	// - Multiple tool calls (like webfetch) with their own timeouts

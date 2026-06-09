@@ -183,7 +183,7 @@ func TestExecute(t *testing.T) {
 		agentTool := agenttool.New(mockAgent)
 
 		args, _ := json.Marshal(map[string]string{"query": "test query"})
-		result, err := agentTool.Execute(context.Background(), tool.Call{Args: args})
+		result, err := agentTool.Execute(context.Background(), tool.Call{Request: llm.ToolRequestPart{Arguments: args}})
 
 		require.NoError(t, err)
 
@@ -203,7 +203,7 @@ func TestExecute(t *testing.T) {
 
 		agentTool := agenttool.New(mockAgent)
 
-		result, err := agentTool.Execute(context.Background(), tool.Call{Args: json.RawMessage("{}")})
+		result, err := agentTool.Execute(context.Background(), tool.Call{Request: llm.ToolRequestPart{Arguments: json.RawMessage("{}")}})
 
 		require.NoError(t, err)
 
@@ -223,7 +223,7 @@ func TestExecute(t *testing.T) {
 
 		agentTool := agenttool.New(mockAgent)
 
-		_, err := agentTool.Execute(context.Background(), tool.Call{Args: json.RawMessage("{}")})
+		_, err := agentTool.Execute(context.Background(), tool.Call{Request: llm.ToolRequestPart{Arguments: json.RawMessage("{}")}})
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "agent execution failed")
@@ -241,7 +241,7 @@ func TestExecute(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 		defer cancel()
 
-		_, err := agentTool.Execute(ctx, tool.Call{Args: json.RawMessage("{}")})
+		_, err := agentTool.Execute(ctx, tool.Call{Request: llm.ToolRequestPart{Arguments: json.RawMessage("{}")}})
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "agent execution failed")

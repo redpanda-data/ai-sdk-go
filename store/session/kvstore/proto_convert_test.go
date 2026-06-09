@@ -47,7 +47,6 @@ func TestProtoConvert_SessionStateRoundTrip(t *testing.T) {
 				ID:            "call_1",
 				Name:          "deploy",
 				Arguments:     json.RawMessage(`{"env":"prod"}`),
-				ArgumentsHash: "abc123",
 				Reason:        "tool_result",
 				Resume:        "tool_response",
 				Message:       "Deploying to prod…",

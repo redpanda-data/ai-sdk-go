@@ -50,7 +50,7 @@ func testOptions() []webfetch.Option {
 func TestRegistry_BasicOperations(t *testing.T) {
 	t.Parallel()
 
-	registry := tool.NewRegistry(tool.RegistryConfig{})
+	registry := tool.NewRegistry()
 	webfetchTool := webfetch.New(testOptions()...)
 
 	// Test registration
@@ -89,7 +89,7 @@ func TestRegistry_BasicOperations(t *testing.T) {
 		Arguments: params.MustToJSONRawMessage(),
 	}
 
-	response, err := registry.Execute(ctx, req)
+	response, err := executeTool(ctx, registry, req)
 	require.NoError(t, err)
 	assert.Equal(t, "test-success", response.ID)
 	assert.Equal(t, "webfetch", response.Name)
@@ -112,7 +112,7 @@ func TestRegistry_ErrorConditions(t *testing.T) {
 	t.Run("registration errors", func(t *testing.T) {
 		t.Parallel()
 		// Create isolated registry for this subtest to avoid conflicts with parallel subtests
-		registry := tool.NewRegistry(tool.RegistryConfig{})
+		registry := tool.NewRegistry()
 
 		// Nil tool
 		err := registry.Register(nil)
@@ -136,7 +136,7 @@ func TestRegistry_ErrorConditions(t *testing.T) {
 	t.Run("access errors", func(t *testing.T) {
 		t.Parallel()
 		// Create isolated registry for this subtest
-		registry := tool.NewRegistry(tool.RegistryConfig{})
+		registry := tool.NewRegistry()
 
 		// Tool not found
 		_, err := registry.Get("nonexistent")
@@ -150,10 +150,10 @@ func TestRegistry_ErrorConditions(t *testing.T) {
 	t.Run("execution errors", func(t *testing.T) {
 		t.Parallel()
 		// Create isolated registry for this subtest
-		registry := tool.NewRegistry(tool.RegistryConfig{})
+		registry := tool.NewRegistry()
 
 		// Nil request
-		_, err := registry.Execute(context.Background(), nil)
+		_, err := executeTool(context.Background(), registry, nil)
 		require.ErrorIs(t, err, tool.ErrToolRequestNil)
 
 		// Non-existent tool execution
@@ -162,7 +162,7 @@ func TestRegistry_ErrorConditions(t *testing.T) {
 			Name:      "nonexistent",
 			Arguments: json.RawMessage(`{}`),
 		}
-		response, err := registry.Execute(context.Background(), req)
+		response, err := executeTool(context.Background(), registry, req)
 		require.NoError(t, err)
 		assert.Equal(t, "test-not-found", response.ID)
 		assert.True(t, response.IsError)
@@ -176,7 +176,7 @@ func TestRegistry_Configuration(t *testing.T) {
 	t.Run("timeout configuration", func(t *testing.T) {
 		t.Parallel()
 
-		registry := tool.NewRegistry(tool.RegistryConfig{})
+		registry := tool.NewRegistry()
 
 		// Create server that delays response to trigger timeout
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -199,7 +199,7 @@ func TestRegistry_Configuration(t *testing.T) {
 			Arguments: params.MustToJSONRawMessage(),
 		}
 
-		response, err := registry.Execute(t.Context(), req)
+		response, err := executeTool(t.Context(), registry, req)
 		require.NoError(t, err)
 
 		// Webfetch tool handles context cancellation gracefully
@@ -222,7 +222,7 @@ func TestRegistry_Configuration(t *testing.T) {
 	t.Run("response size limits", func(t *testing.T) {
 		t.Parallel()
 
-		registry := tool.NewRegistry(tool.RegistryConfig{})
+		registry := tool.NewRegistry()
 
 		// Create server that returns JSON response
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -251,7 +251,7 @@ func TestRegistry_Configuration(t *testing.T) {
 			Arguments: params.MustToJSONRawMessage(),
 		}
 
-		response, err := registry.Execute(t.Context(), req)
+		response, err := executeTool(t.Context(), registry, req)
 		require.NoError(t, err)
 		assert.NotNil(t, response.Result)
 
@@ -266,12 +266,12 @@ func TestRegistry_Configuration(t *testing.T) {
 		}
 
 		// Test default message with new registry
-		registry2 := tool.NewRegistry(tool.RegistryConfig{})
+		registry2 := tool.NewRegistry()
 		err = registry2.Register(webfetch.New(testOptions()...), tool.WithMaxResponseTokens(1))
 		require.NoError(t, err)
 
 		req.ID = "test-size-default"
-		response, err = registry2.Execute(t.Context(), req)
+		response, err = executeTool(t.Context(), registry2, req)
 		require.NoError(t, err)
 
 		err = json.Unmarshal(response.Result, &result)
@@ -302,7 +302,7 @@ func TestRegistry_ConcurrentAccess(t *testing.T) {
 	}))
 	defer server.Close()
 
-	registry := tool.NewRegistry(tool.RegistryConfig{})
+	registry := tool.NewRegistry()
 	webfetchTool := webfetch.New(testOptions()...)
 	err := registry.Register(webfetchTool)
 	require.NoError(t, err)
@@ -333,7 +333,7 @@ func TestRegistry_ConcurrentAccess(t *testing.T) {
 				Arguments: params.MustToJSONRawMessage(),
 			}
 
-			response, err := registry.Execute(ctx, req)
+			response, err := executeTool(ctx, registry, req)
 			assert.NoError(t, err)
 			assert.NotNil(t, response)
 		}()
@@ -378,7 +378,7 @@ func TestRegistry_WebfetchToolWithLLM_Integration(t *testing.T) {
 	require.True(t, caps.Tools, "Model must support tool calling for this test")
 
 	// Create registry with webfetch tool
-	registry := tool.NewRegistry(tool.RegistryConfig{})
+	registry := tool.NewRegistry()
 	webfetchTool := webfetch.New(testOptions()...)
 	err = registry.Register(webfetchTool)
 	require.NoError(t, err)
@@ -435,7 +435,7 @@ func TestRegistry_WebfetchToolWithLLM_Integration(t *testing.T) {
 	assert.NotEmpty(t, webfetchRequest.Arguments, "Tool request should have arguments")
 
 	// Step 3: Execute tool using registry
-	toolResponse, err := registry.Execute(ctx, webfetchRequest)
+	toolResponse, err := executeTool(ctx, registry, webfetchRequest)
 	require.NoError(t, err)
 	require.NotNil(t, toolResponse)
 	assert.Equal(t, webfetchRequest.ID, toolResponse.ID, "Tool response ID should match request ID")
@@ -525,7 +525,7 @@ func (m *mockTool) Execute(ctx context.Context, call tool.Call) (tool.Execution,
 	}
 
 	if m.execFunc != nil {
-		out, err := m.execFunc(ctx, call.Args)
+		out, err := m.execFunc(ctx, call.Request.Arguments)
 		if err != nil {
 			return tool.Execution{}, err
 		}
@@ -553,7 +553,7 @@ func TestRegistry_ExecuteAll(t *testing.T) {
 		},
 	}
 
-	registry := tool.NewRegistry(tool.RegistryConfig{})
+	registry := tool.NewRegistry()
 	require.NoError(t, registry.Register(successfulTool))
 	require.NoError(t, registry.Register(failingTool))
 
@@ -649,7 +649,7 @@ func TestRegistry_ExecuteAll(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			results := registry.ExecuteAll(context.Background(), tc.requests)
+			results := executeAllTools(context.Background(), registry, tc.requests)
 			tc.assertion(t, results)
 		})
 	}
@@ -657,7 +657,7 @@ func TestRegistry_ExecuteAll(t *testing.T) {
 	t.Run("concurrency limit", func(t *testing.T) {
 		t.Parallel()
 
-		registry := tool.NewRegistry(tool.RegistryConfig{})
+		registry := tool.NewRegistry()
 
 		var currentConcurrent, maxConcurrent atomic.Int32
 
@@ -692,8 +692,7 @@ func TestRegistry_ExecuteAll(t *testing.T) {
 			}
 		}
 
-		results := registry.ExecuteAll(
-			context.Background(),
+		results := executeAllTools(context.Background(), registry,
 			requests,
 			tool.WithMaxConcurrency(3),
 		)
@@ -706,7 +705,7 @@ func TestRegistry_ExecuteAll(t *testing.T) {
 	t.Run("context cancellation", func(t *testing.T) {
 		t.Parallel()
 
-		registry := tool.NewRegistry(tool.RegistryConfig{})
+		registry := tool.NewRegistry()
 
 		mockTool := &mockTool{
 			name:  "test-tool",
@@ -728,7 +727,7 @@ func TestRegistry_ExecuteAll(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 		defer cancel()
 
-		results := registry.ExecuteAll(ctx, requests)
+		results := executeAllTools(ctx, registry, requests)
 
 		// ExecuteAll always returns len(reqs) responses, even on cancellation
 		require.Len(t, results, 5)
@@ -739,4 +738,26 @@ func TestRegistry_ExecuteAll(t *testing.T) {
 			assert.NotEmpty(t, string(result.Result), "All requests should have errors due to cancellation")
 		}
 	})
+}
+
+// executeTool reconciles a Run into the model-visible response part —
+// the test-side replacement for the removed Registry.Execute.
+func executeTool(ctx context.Context, reg *tool.Registry, req *llm.ToolRequestPart) (*llm.ToolResponsePart, error) {
+	if req == nil {
+		return nil, tool.ErrToolRequestNil
+	}
+
+	return reg.Run(ctx, tool.InvocationInfo{}, req).Response(), nil
+}
+
+// executeAllTools is the batch variant of executeTool.
+func executeAllTools(ctx context.Context, reg *tool.Registry, reqs []*llm.ToolRequestPart, opts ...tool.BatchOption) []*llm.ToolResponsePart {
+	results := reg.RunAll(ctx, tool.InvocationInfo{}, reqs, opts...)
+	out := make([]*llm.ToolResponsePart, len(results))
+
+	for i, res := range results {
+		out[i] = res.Response()
+	}
+
+	return out
 }

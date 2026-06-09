@@ -58,7 +58,7 @@ func testBasicToolCalling(t *testing.T, fixture Fixture) {
 	t.Helper()
 
 	// Create tool registry with calculator
-	registry := tool.NewRegistry(tool.RegistryConfig{})
+	registry := tool.NewRegistry()
 	calculator := NewCalculatorTool()
 	err := registry.Register(calculator)
 	require.NoError(t, err)
@@ -124,7 +124,7 @@ func testMultiTurnToolExecution(t *testing.T, fixture Fixture) {
 	t.Helper()
 
 	// Create tool registry with calculator
-	registry := tool.NewRegistry(tool.RegistryConfig{})
+	registry := tool.NewRegistry()
 	calculator := NewCalculatorTool()
 	err := registry.Register(calculator)
 	require.NoError(t, err)

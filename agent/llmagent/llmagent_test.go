@@ -433,7 +433,7 @@ func TestRun_MultiTurnWithTools(t *testing.T) {
 		},
 	}
 
-	registry := tool.NewRegistry(tool.RegistryConfig{})
+	registry := tool.NewRegistry()
 	err := registry.Register(weatherTool)
 	require.NoError(t, err)
 
@@ -515,7 +515,7 @@ func TestRun_MaxTurnsLimit(t *testing.T) {
 		},
 	}
 
-	registry := tool.NewRegistry(tool.RegistryConfig{})
+	registry := tool.NewRegistry()
 	require.NoError(t, registry.Register(dummyTool))
 
 	// Setup: Configure model to always request tools (infinite loop without max turns)
@@ -603,7 +603,7 @@ func TestExecuteTools_ToolError(t *testing.T) {
 		},
 	}
 
-	registry := tool.NewRegistry(tool.RegistryConfig{})
+	registry := tool.NewRegistry()
 	require.NoError(t, registry.Register(failingTool))
 
 	// Setup: Model scenario
@@ -825,7 +825,7 @@ func TestRun_UsageTracking(t *testing.T) {
 			},
 		}
 
-		registry := tool.NewRegistry(tool.RegistryConfig{})
+		registry := tool.NewRegistry()
 		require.NoError(t, registry.Register(dummyTool))
 
 		model := fakellm.NewFakeModel()
@@ -970,7 +970,7 @@ func TestRun_EventOrdering(t *testing.T) {
 			},
 		}
 
-		registry := tool.NewRegistry(tool.RegistryConfig{})
+		registry := tool.NewRegistry()
 		require.NoError(t, registry.Register(weatherTool))
 
 		// Setup: Model that first calls tool, then responds
@@ -1107,7 +1107,7 @@ func (m *mockTool) InputSchema() json.RawMessage { return m.definition.Parameter
 
 func (m *mockTool) Execute(ctx context.Context, call tool.Call) (tool.Execution, error) {
 	if m.executeFn != nil {
-		out, err := m.executeFn(ctx, call.Args)
+		out, err := m.executeFn(ctx, call.Request.Arguments)
 		if err != nil {
 			return tool.Execution{}, err
 		}
@@ -1136,7 +1136,7 @@ func TestRun_ToolArtifactEventEmitted(t *testing.T) {
 		},
 	))
 
-	registry := tool.NewRegistry(tool.RegistryConfig{})
+	registry := tool.NewRegistry()
 	require.NoError(t, registry.Register(artifactTool))
 
 	model := fakellm.NewFakeModel()

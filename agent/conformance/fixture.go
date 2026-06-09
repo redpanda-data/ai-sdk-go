@@ -31,10 +31,10 @@ type Fixture interface {
 
 	// StandardAgent creates an agent with a standard model and the given tool registry.
 	// Returns nil if provider doesn't support agents or tools.
-	StandardAgent(tools tool.Registry) (*llmagent.LLMAgent, error)
+	StandardAgent(tools *tool.Registry) (*llmagent.LLMAgent, error)
 
 	// ReasoningAgent creates an agent with a reasoning model and the given tool registry.
 	// Returns nil if provider doesn't support reasoning models.
 	// This is optional - providers without reasoning models should return nil.
-	ReasoningAgent(tools tool.Registry) (*llmagent.LLMAgent, error)
+	ReasoningAgent(tools *tool.Registry) (*llmagent.LLMAgent, error)
 }

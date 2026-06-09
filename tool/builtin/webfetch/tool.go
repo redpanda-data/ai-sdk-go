@@ -93,7 +93,7 @@ func (t *Tool) Execute(ctx context.Context, call tool.Call) (tool.Execution, err
 		ConvertToMarkdown *bool  `json:"convert_to_markdown,omitempty"`
 	}
 
-	if err := json.Unmarshal(call.Args, &params); err != nil {
+	if err := json.Unmarshal(call.Request.Arguments, &params); err != nil {
 		return errorExecution(fmt.Errorf("invalid arguments: %w", err)), nil
 	}
 

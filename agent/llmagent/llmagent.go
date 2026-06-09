@@ -121,7 +121,7 @@ func (a *LLMAgent) InputSchema() map[string]any {
 // Tools returns the agent's tool registry. The runner uses this to
 // re-enter tools on ResumeWithReentry pauses without taking a direct
 // dependency on this package.
-func (a *LLMAgent) Tools() tool.Registry { return a.config.tools }
+func (a *LLMAgent) Tools() *tool.Registry { return a.config.tools }
 
 // ExecuteToolResume re-enters a paused tool call through the agent's
 // tool interceptor chain. The runner calls this (via a duck-typed
@@ -732,6 +732,19 @@ func (a *LLMAgent) executeTools(
 		result := <-results
 
 		req := toolReqs[result.idx]
+
+		// Pauses created by interceptors don't pass through the registry,
+		// so normalize and validate the Await here before it reaches
+		// session state. Invalid pauses become tool errors.
+		if result.err == nil && result.execution.Await != nil {
+			result.execution.Await.Normalize()
+
+			if err := result.execution.Await.Validate(); err != nil {
+				result.err = fmt.Errorf("%w: %w", tool.ErrAwaitInvalid, err)
+				result.execution = tool.Execution{}
+			}
+		}
+
 		execResult := tool.ExecutionResult{
 			Index:     result.idx,
 			Request:   req,
@@ -804,8 +817,7 @@ func compactParts(ordered []llm.Part) []llm.Part {
 }
 
 // buildPendingCall constructs a session.PendingToolCall record from a
-// paused tool execution. ExpiresAt is computed from Await.Timeout if
-// the tool didn't set it explicitly.
+// paused tool execution. ExpiresAt is computed from Await.Timeout.
 func buildPendingCall(req *llm.ToolRequestPart, exec tool.Execution, now time.Time) session.PendingToolCall {
 	a := exec.Await
 
@@ -825,16 +837,9 @@ func buildPendingCall(req *llm.ToolRequestPart, exec tool.Execution, now time.Ti
 		Metadata:      a.Metadata,
 	}
 
-	if a.ExpiresAt != nil {
-		t := *a.ExpiresAt
-		pc.ExpiresAt = &t
-	} else if a.Timeout > 0 {
+	if a.Timeout > 0 {
 		t := now.Add(a.Timeout)
 		pc.ExpiresAt = &t
-	}
-
-	if hash, err := tool.ArgumentsHash(req.Arguments); err == nil {
-		pc.ArgumentsHash = hash
 	}
 
 	return pc

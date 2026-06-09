@@ -65,7 +65,7 @@ func TestContext7Integration_EndToEnd(t *testing.T) { //nolint:paralleltest // c
 		}),
 	)
 
-	registry := tool.NewRegistry(tool.RegistryConfig{})
+	registry := tool.NewRegistry()
 	client, err := mcp.NewClient("context7", factory, mcp.WithRegistry(registry))
 	require.NoError(t, err)
 
@@ -154,7 +154,7 @@ func TestContext7Integration_EndToEnd(t *testing.T) { //nolint:paralleltest // c
 		for _, toolReq := range toolRequests {
 			toolCallCount++
 
-			toolResp, err := registry.Execute(ctx, toolReq)
+			toolResp, err := executeTool(ctx, registry, toolReq)
 			require.NoError(t, err, "Failed to execute tool %s", toolReq.Name)
 			require.NotNil(t, toolResp)
 
@@ -192,4 +192,14 @@ func TestContext7Integration_EndToEnd(t *testing.T) { //nolint:paralleltest // c
 
 	// Verify conversation structure
 	assert.GreaterOrEqual(t, len(messages), 3, "Conversation should have at least user + assistant + tool messages")
+}
+
+// executeTool reconciles a Run into the model-visible response part —
+// the test-side replacement for the removed Registry.Execute.
+func executeTool(ctx context.Context, reg *tool.Registry, req *llm.ToolRequestPart) (*llm.ToolResponsePart, error) {
+	if req == nil {
+		return nil, tool.ErrToolRequestNil
+	}
+
+	return reg.Run(ctx, tool.InvocationInfo{}, req).Response(), nil
 }

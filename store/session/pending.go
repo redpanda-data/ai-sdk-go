@@ -51,11 +51,6 @@ type PendingToolCall struct {
 	// payload after a deploy that does not preserve in-memory state.
 	Arguments json.RawMessage `json:"arguments,omitempty"`
 
-	// ArgumentsHash is the JCS-canonical SHA-256 of Arguments. Used by
-	// the registry to coalesce re-issued tool calls with identical
-	// arguments while a pending call is still outstanding.
-	ArgumentsHash string `json:"arguments_hash,omitempty"`
-
 	// Reason mirrors tool.AwaitReason as a string so this package does
 	// not need to import tool. Converted by the runner.
 	Reason string `json:"reason"`
@@ -78,15 +73,6 @@ type PendingToolCall struct {
 	// CorrelationID is an app-supplied identifier (deployment ID,
 	// webhook job ID, …).
 	CorrelationID string `json:"correlation_id,omitempty"`
-
-	// CoalescedWith, if non-empty, names the original pending call this
-	// alias is coalesced into. The runner resolves all aliases in the
-	// same group with the same output.
-	CoalescedWith string `json:"coalesced_with,omitempty"`
-
-	// CoalescedIDs, on the original pending call, lists IDs of any
-	// aliases that point at it.
-	CoalescedIDs []string `json:"coalesced_ids,omitempty"`
 
 	// CreatedAt is when the pending call was stored.
 	CreatedAt time.Time `json:"created_at"`
@@ -165,10 +151,6 @@ func clonePendingToolCall(p PendingToolCall) PendingToolCall {
 
 	if p.LastOutput != nil {
 		clone.LastOutput = append(json.RawMessage(nil), p.LastOutput...)
-	}
-
-	if p.CoalescedIDs != nil {
-		clone.CoalescedIDs = append([]string(nil), p.CoalescedIDs...)
 	}
 
 	if p.ExpiresAt != nil {

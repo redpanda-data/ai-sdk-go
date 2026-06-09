@@ -402,7 +402,7 @@ func (w *toolWrapper) Execute(ctx context.Context, call tool.Call) (tool.Executi
 	toolName := w.definition.Name
 	w.mu.RUnlock()
 
-	result, err := w.client.ExecuteTool(ctx, toolName, call.Args)
+	result, err := w.client.ExecuteTool(ctx, toolName, call.Request.Arguments)
 	if err != nil {
 		return tool.Execution{}, err
 	}

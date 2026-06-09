@@ -31,7 +31,7 @@ func TestTodoToolsIntegration(t *testing.T) {
 	t.Parallel()
 
 	// Create tool registry
-	registry := tool.NewRegistry(tool.RegistryConfig{})
+	registry := tool.NewRegistry()
 
 	// Register all builtin tools
 	tools := []tool.Tool{
@@ -69,7 +69,7 @@ func TestTodoToolsIntegration(t *testing.T) {
 			Arguments: json.RawMessage(updateArgs),
 		}
 
-		result, err := registry.Execute(ctx, toolReq)
+		result, err := executeTool(ctx, registry, toolReq)
 		require.NoError(t, err, "Failed to execute update_todos")
 		// Verify empty response
 		var response UpdateTodoStateResponse
@@ -97,7 +97,7 @@ func TestTodoToolsIntegration(t *testing.T) {
 			Arguments: json.RawMessage(addArgs),
 		}
 
-		result, err := registry.Execute(ctx, toolReq)
+		result, err := executeTool(ctx, registry, toolReq)
 		require.NoError(t, err, "Failed to execute add_todos")
 		// Verify empty response
 		var response AddTodoResponse
@@ -121,7 +121,7 @@ func TestTodoToolsIntegration(t *testing.T) {
 			Arguments: json.RawMessage(invalidArgs),
 		}
 
-		result, err := registry.Execute(ctx, toolReq)
+		result, err := executeTool(ctx, registry, toolReq)
 		require.NoError(t, err, "Registry should not return Go errors for tool validation failures")
 		assert.NotEmpty(t, string(result.Result), "Expected validation error in ToolResponse")
 		assert.Contains(t, string(result.Result), "invalid status", "Error should mention invalid status")
@@ -144,7 +144,7 @@ func TestTodoToolsIntegration(t *testing.T) {
 			Arguments: json.RawMessage(invalidArgs),
 		}
 
-		result, err := registry.Execute(ctx, toolReq)
+		result, err := executeTool(ctx, registry, toolReq)
 		require.NoError(t, err, "Registry should not return Go errors for tool validation failures")
 		assert.NotEmpty(t, string(result.Result), "Expected validation error in ToolResponse")
 		assert.Contains(t, string(result.Result), "name cannot be empty", "Error should mention empty name")
@@ -171,9 +171,19 @@ func TestTodoToolsIntegration(t *testing.T) {
 			Arguments: json.RawMessage(invalidArgs),
 		}
 
-		result, err := registry.Execute(ctx, toolReq)
+		result, err := executeTool(ctx, registry, toolReq)
 		require.NoError(t, err, "Registry should not return Go errors for tool validation failures")
 		assert.NotEmpty(t, string(result.Result), "Expected validation error in ToolResponse")
 		assert.Contains(t, string(result.Result), "IN_PROGRESS", "Error should mention IN_PROGRESS constraint")
 	})
+}
+
+// executeTool reconciles a Run into the model-visible response part —
+// the test-side replacement for the removed Registry.Execute.
+func executeTool(ctx context.Context, reg *tool.Registry, req *llm.ToolRequestPart) (*llm.ToolResponsePart, error) {
+	if req == nil {
+		return nil, tool.ErrToolRequestNil
+	}
+
+	return reg.Run(ctx, tool.InvocationInfo{}, req).Response(), nil
 }

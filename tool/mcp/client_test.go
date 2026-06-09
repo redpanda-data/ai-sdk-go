@@ -129,7 +129,7 @@ func (m *mockRegistry) Run(ctx context.Context, inv tool.InvocationInfo, req *ll
 		return tool.ExecutionResult{Request: req, Err: err}
 	}
 
-	exec, err := t.Execute(ctx, tool.Call{Request: *req, Args: req.Arguments, Invocation: inv})
+	exec, err := t.Execute(ctx, tool.Call{Request: *req, Invocation: inv})
 
 	return tool.ExecutionResult{Request: req, Execution: exec, Err: err}
 }
@@ -140,7 +140,7 @@ func (m *mockRegistry) Resume(ctx context.Context, inv tool.InvocationInfo, req 
 		return tool.ExecutionResult{Request: req, Err: err}
 	}
 
-	exec, err := t.Execute(ctx, tool.Call{Request: *req, Args: req.Arguments, Invocation: inv, Resume: payload})
+	exec, err := t.Execute(ctx, tool.Call{Request: *req, Invocation: inv, Resume: payload})
 
 	return tool.ExecutionResult{Request: req, Execution: exec, Err: err}
 }

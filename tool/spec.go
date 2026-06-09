@@ -44,8 +44,8 @@ type Spec struct {
 	// "output_schema".
 	OutputSchema json.RawMessage
 
-	// Type is the provider-facing tool kind (e.g. "function",
-	// "extension"). Empty defaults to "function" at definition time.
+	// Type is the provider-facing tool kind. Empty defaults to
+	// ToolTypeFunction at definition time.
 	Type string
 
 	// Async, when non-nil, declares the tool as async-capable. The
@@ -80,6 +80,15 @@ type AsyncSpec struct {
 	// reason-appropriate default is used.
 	Hint string
 }
+
+// Provider-facing tool kinds for Spec.Type.
+const (
+	// ToolTypeFunction is the standard JSON-arguments function tool.
+	ToolTypeFunction = "function"
+
+	// ToolTypeExtension is a provider-side extension tool.
+	ToolTypeExtension = "extension"
+)
 
 // AsyncOption configures an AsyncSpec built by the factory helpers.
 type AsyncOption func(*AsyncSpec)
@@ -160,7 +169,7 @@ func Definition(t Tool) llm.ToolDefinition {
 	}
 
 	desc := t.Description()
-	typeName := "function"
+	typeName := ToolTypeFunction
 
 	var meta map[string]any
 
@@ -203,7 +212,7 @@ func SpecOf(t Tool) (Spec, bool) {
 // triple. Pulled out of Definition to keep cyclomatic complexity flat
 // when the spec carries multiple optional pieces.
 func applySpecToDefinition(desc string, spec Spec) (string, string, map[string]any) {
-	typeName := "function"
+	typeName := ToolTypeFunction
 	if spec.Type != "" {
 		typeName = spec.Type
 	}

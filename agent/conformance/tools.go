@@ -63,7 +63,7 @@ func (*CalculatorTool) Execute(_ context.Context, call tool.Call) (tool.Executio
 		B float64 `json:"b"`
 	}
 
-	if err := json.Unmarshal(call.Args, &params); err != nil {
+	if err := json.Unmarshal(call.Request.Arguments, &params); err != nil {
 		return tool.Execution{}, err
 	}
 

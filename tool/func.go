@@ -88,7 +88,7 @@ func (t *funcTool[In, Out]) Description() string          { return t.spec.Descri
 func (t *funcTool[In, Out]) InputSchema() json.RawMessage { return t.spec.InputSchema }
 func (t *funcTool[In, Out]) ToolSpec() Spec               { return t.spec }
 
-// Execute decodes call.Args into In, runs the user function, and
+// Execute decodes call.Request.Arguments into In, runs the user function, and
 // marshals the typed result.
 //
 // Re-entry (call.Resume != nil) never re-runs fn — re-running would
@@ -108,7 +108,7 @@ func (t *funcTool[In, Out]) Execute(ctx context.Context, call Call) (Execution, 
 
 	var in In
 
-	args := call.Args
+	args := call.Request.Arguments
 	if len(args) > 0 {
 		// Empty {} input is allowed for tools with no fields.
 		if err := json.Unmarshal(args, &in); err != nil {
@@ -124,6 +124,8 @@ func (t *funcTool[In, Out]) Execute(ctx context.Context, call Call) (Execution, 
 	// The registry is the enforcement point for Await validity and
 	// AsyncSpec consistency; this early check only exists to attribute a
 	// malformed Await to the tool by name before it leaves the typed path.
+	result.Await.Normalize()
+
 	if err := result.Await.Validate(); err != nil {
 		return Execution{}, fmt.Errorf("tool %q: %w", t.spec.Name, err)
 	}

@@ -15,7 +15,6 @@
 package tool
 
 import (
-	"errors"
 	"fmt"
 	"time"
 )
@@ -30,9 +29,6 @@ type Config struct {
 
 	// Message to return when response exceeds token limit (empty = use registry default)
 	ResponseTooLargeMessage string
-
-	// Custom metadata for the tool
-	Metadata map[string]any
 }
 
 // Option configures tool registration behavior with validation.
@@ -44,7 +40,6 @@ func defaultToolConfig() *Config {
 		Timeout:                 30 * time.Second, // Reasonable default for most operations
 		MaxResponseTokens:       25000,            // Reasonable context window portion
 		ResponseTooLargeMessage: "Response too large for context window. Consider using pagination, filtering, or requesting a summary instead of the full result.",
-		Metadata:                make(map[string]any),
 	}
 }
 
@@ -138,33 +133,6 @@ func WithMaxResponseTokens(maxTokens int) Option {
 func WithResponseTooLargeMessage(message string) Option {
 	return func(c *Config) error {
 		c.ResponseTooLargeMessage = message
-		return nil
-	}
-}
-
-// WithMetadata sets custom metadata for the tool.
-// This metadata is for internal registry management and observability, NOT sent to the LLM.
-//
-// Use this for:
-// - Tool categorization and management (category, risk_level, version)
-// - A2A integration context (environment, approval_workflow, notifications)
-// - Performance monitoring (expected_latency, cost_per_call, resource_requirements)
-// - Governance and compliance (audit_required, data_classification, owner)
-//
-// Examples:
-// - map[string]any{"category": "database", "risk_level": "high"}
-// - map[string]any{"environment": "prod", "requires_approval": true}
-// - map[string]any{"model_version": "v1.2", "gpu_required": true}
-//
-// Example: WithMetadata(map[string]any{"category": "external_api", "rate_limited": true}).
-func WithMetadata(metadata map[string]any) Option {
-	return func(c *Config) error {
-		if metadata == nil {
-			return errors.New("metadata cannot be nil")
-		}
-
-		c.Metadata = metadata
-
 		return nil
 	}
 }

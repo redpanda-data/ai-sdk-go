@@ -62,7 +62,7 @@ func TestSessionRecovery_Single(t *testing.T) {
 	t.Logf("Incomplete tool: id=%s name=%s", incompleteReqs[0].ID, incompleteReqs[0].Name)
 
 	// Create mock tool matching the incomplete request
-	registry := tool.NewRegistry(tool.RegistryConfig{})
+	registry := tool.NewRegistry()
 	err := registry.Register(&mockTool{
 		definition: llm.ToolDefinition{
 			Name:        incompleteReqs[0].Name,
@@ -135,7 +135,7 @@ func TestSessionRecovery_Multiple(t *testing.T) {
 	)
 
 	// Create mock tool
-	registry := tool.NewRegistry(tool.RegistryConfig{})
+	registry := tool.NewRegistry()
 	err := registry.Register(&mockTool{
 		definition: llm.ToolDefinition{
 			Name:        "get_weather",

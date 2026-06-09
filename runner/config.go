@@ -43,7 +43,7 @@ type ResumeInfo struct {
 	UserID      string
 	SessionID   string
 	PendingCall session.PendingToolCall
-	Result      Result
+	Result      Resumption
 	Operation   ResumeOperation
 }
 

@@ -79,7 +79,7 @@ func (*Tool) InputSchema() json.RawMessage {
 // Execute performs the plot generation.
 func (*Tool) Execute(_ context.Context, call tool.Call) (tool.Execution, error) {
 	var input Input
-	if err := json.Unmarshal(call.Args, &input); err != nil {
+	if err := json.Unmarshal(call.Request.Arguments, &input); err != nil {
 		return tool.Execution{}, fmt.Errorf("invalid plot input: %w", err)
 	}
 

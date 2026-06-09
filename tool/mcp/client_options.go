@@ -27,7 +27,14 @@ type ClientOption func(*clientImpl)
 // WithRegistry sets the tool.Registry for automatic tool registration.
 // When provided, tools are automatically registered and kept in sync.
 // Without a registry, tools are accessed via ListTools() and ExecuteTool().
-func WithRegistry(registry tool.Registry) ClientOption {
+// ToolRegistry is the narrow registry surface the MCP client needs. A
+// *tool.Registry satisfies it; tests can supply lightweight fakes.
+type ToolRegistry interface {
+	Register(t tool.Tool, opts ...tool.Option) error
+	Unregister(name string) error
+}
+
+func WithRegistry(registry ToolRegistry) ClientOption {
 	return func(c *clientImpl) {
 		c.registry = registry
 	}

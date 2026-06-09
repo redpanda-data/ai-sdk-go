@@ -199,7 +199,7 @@ func (r *Runner) Run(
 
 func (r *Runner) runLocked(
 	ctx context.Context,
-	_ string, // userID — reserved for ResumeAuthorizer once Run gains a hook
+	userID string,
 	sessionID string,
 	userMessage llm.Message,
 	yield func(agent.Event, error) bool,
@@ -219,7 +219,7 @@ func (r *Runner) runLocked(
 		// clear that pending call before invoking the agent so it doesn't
 		// re-pause on the same call. Other pause modes block Run with a
 		// clear error: callers must use Runner.Resume for those.
-		if err := consumeMessageResume(sess); err != nil {
+		if err := r.consumeMessageResume(ctx, userID, sess); err != nil {
 			yield(nil, err)
 			return
 		}
@@ -295,16 +295,12 @@ func (r *Runner) runLocked(
 	}
 }
 
-// consumeMessageResume detects whether the session has exactly one
-// pending tool call expecting ResumeWithMessage and clears it so the
-// agent loop can proceed with the user's next message. The placeholder
-// tool response stays in history (the model sees assistant→tool_call →
-// user→placeholder → user→answer), which is the documented shape
-// providers must accept for ResumeWithMessage pauses.
-//
-// Other pause modes block Run: callers must drive them via
-// Runner.Resume.
-func consumeMessageResume(sess *session.State) error {
+// consumeMessageResume clears ResumeWithMessage pending calls so the
+// incoming user message can continue the conversation. Each cleared
+// call is checked against the ResumeAuthorizer with
+// ResumeOperationMessage. Non-message pauses block Run: callers must
+// use Runner.Resume for those.
+func (r *Runner) consumeMessageResume(ctx context.Context, userID string, sess *session.State) error {
 	if len(sess.PendingToolCalls) == 0 {
 		return nil
 	}
@@ -323,6 +319,11 @@ func consumeMessageResume(sess *session.State) error {
 	}
 
 	for _, id := range messageResumes {
+		pc := sess.PendingToolCalls[id]
+		if err := r.runAuthorizer(ctx, userID, sess.ID, pc, Resumption{CallID: id}, ResumeOperationMessage); err != nil {
+			return fmt.Errorf("message resume not authorized: %w", err)
+		}
+
 		delete(sess.PendingToolCalls, id)
 	}
 
