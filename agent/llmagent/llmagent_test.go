@@ -1117,3 +1117,55 @@ func (m *mockTool) Execute(ctx context.Context, call tool.Call) (tool.Execution,
 
 	return tool.Execution{Output: json.RawMessage(`{}`)}, nil
 }
+
+func TestRun_ToolArtifactEventEmitted(t *testing.T) {
+	t.Parallel()
+
+	artifactTool := tool.Must(tool.Func(
+		tool.Spec{Name: "make_plot", Description: "Renders a plot."},
+		func(_ context.Context, _ struct{}) (tool.Result[map[string]string], error) {
+			return tool.Done(map[string]string{"status": "rendered"}, tool.Action{
+				Kind: tool.ActionArtifact,
+				Artifact: &tool.ArtifactAction{
+					ID:        "plot-1",
+					Name:      "plot.png",
+					MediaType: "image/png",
+					Data:      []byte{0x89, 0x50, 0x4e, 0x47},
+				},
+			}), nil
+		},
+	))
+
+	registry := tool.NewRegistry(tool.RegistryConfig{})
+	require.NoError(t, registry.Register(artifactTool))
+
+	model := fakellm.NewFakeModel()
+	model.When(fakellm.FirstTurn()).
+		Times(1).
+		ThenRespondWithToolCall("make_plot", map[string]any{})
+	model.When(fakellm.LastMessageHasToolResponse("make_plot")).
+		ThenStreamText("Here is your plot.", fakellm.StreamConfig{})
+
+	ag, err := llmagent.New("plotter", "You plot.", model, llmagent.WithTools(registry))
+	require.NoError(t, err)
+
+	sess := &session.State{ID: "sess-artifact"}
+	sess.Messages = append(sess.Messages, llm.NewMessage(llm.RoleUser, llm.NewTextPart("plot something")))
+	inv := agent.NewInvocationMetadata(sess, ag.Info())
+
+	var artifactEvents []agent.ToolArtifactEvent
+
+	for evt, err := range ag.Run(context.Background(), inv) {
+		require.NoError(t, err)
+
+		if ae, ok := evt.(agent.ToolArtifactEvent); ok {
+			artifactEvents = append(artifactEvents, ae)
+		}
+	}
+
+	require.Len(t, artifactEvents, 1)
+	assert.Equal(t, "make_plot", artifactEvents[0].ToolName)
+	assert.Equal(t, "plot-1", artifactEvents[0].Artifact.ID)
+	assert.Equal(t, "image/png", artifactEvents[0].Artifact.MediaType)
+	assert.Equal(t, []byte{0x89, 0x50, 0x4e, 0x47}, artifactEvents[0].Artifact.Data)
+}

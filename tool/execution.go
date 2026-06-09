@@ -35,9 +35,10 @@ type Execution struct {
 	// invocation with FinishReasonPaused.
 	Await *Await
 
-	// Actions contains side effects for the SDK runner to reconcile
-	// (currently artifact emission). Await is kept separate because it
-	// is part of the control-flow contract, not a side effect.
+	// Actions contains side effects for the SDK to reconcile (currently
+	// artifact emission, surfaced as agent.ToolArtifactEvent on the
+	// event stream). Await is kept separate because it is part of the
+	// control-flow contract, not a side effect.
 	Actions []Action
 
 	// Metadata is for observability and adapter-specific details. It is

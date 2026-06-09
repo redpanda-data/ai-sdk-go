@@ -766,6 +766,23 @@ func (a *LLMAgent) executeTools(
 		}, nil) {
 			return compactParts(ordered), pending // Consumer stopped listening
 		}
+
+		// Surface artifact actions so adapters/applications can persist
+		// them — the SDK does not store artifact bytes itself.
+		for _, action := range result.execution.Actions {
+			if action.Kind != tool.ActionArtifact || action.Artifact == nil {
+				continue
+			}
+
+			if !yield(agent.ToolArtifactEvent{
+				Envelope: makeEnvelope(),
+				CallID:   req.ID,
+				ToolName: req.Name,
+				Artifact: *action.Artifact,
+			}, nil) {
+				return compactParts(ordered), pending // Consumer stopped listening
+			}
+		}
 	}
 
 	return compactParts(ordered), pending
