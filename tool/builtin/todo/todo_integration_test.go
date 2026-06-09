@@ -225,7 +225,9 @@ func TestTodoTools_Integration(t *testing.T) {
 				if toolReq.Name == "add_todos" {
 					toolResp, err := executeTool(ctx, registry, toolReq)
 					require.NoError(t, err)
-					require.Empty(t, string(toolResp.Result))
+					// Empty tool output is normalized to {} so providers
+					// always receive a JSON object.
+					require.JSONEq(t, `{}`, string(toolResp.Result))
 					lastToolResponse = toolResp
 				}
 			}
@@ -266,7 +268,9 @@ func TestTodoTools_Integration(t *testing.T) {
 				if toolReq.Name == "update_todos" {
 					toolResp, err := executeTool(ctx, registry, toolReq)
 					require.NoError(t, err)
-					require.Empty(t, string(toolResp.Result), "Update tool should execute successfully")
+					// Empty tool output is normalized to {} so providers
+					// always receive a JSON object.
+					require.JSONEq(t, `{}`, string(toolResp.Result), "Update tool should execute successfully")
 
 					// Tool returns empty response, just verify it succeeded
 					var toolResult map[string]any

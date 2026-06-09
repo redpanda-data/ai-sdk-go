@@ -23,8 +23,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/redpanda-data/ai-sdk-go/agent"
+	"github.com/redpanda-data/ai-sdk-go/agent/llmagent"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	llmtesting "github.com/redpanda-data/ai-sdk-go/llm/fakellm"
+	"github.com/redpanda-data/ai-sdk-go/store/session"
+	"github.com/redpanda-data/ai-sdk-go/tool"
 )
 
 func TestFakeModel_BasicTextResponse(t *testing.T) {
@@ -527,4 +531,65 @@ func TestFakeModel_ToolCallingLoop(t *testing.T) {
 	resp2, err := model.Generate(ctx, req2)
 	require.NoError(t, err)
 	assert.Equal(t, "The answer is 4", resp2.TextContent())
+}
+
+// TestFakeModel_AgentLoop_ScenarioAndRespondText exercises fakellm
+// against the real agent loop (which always streams) — the doc-recommended
+// Scenario/OnTurn + ThenRespondText patterns must work there, not only
+// against direct Generate calls.
+func TestFakeModel_AgentLoop_ScenarioAndRespondText(t *testing.T) {
+	t.Parallel()
+
+	echoTool := tool.Must(tool.Func(
+		tool.Spec{Name: "lookup", Description: "Looks something up."},
+		func(_ context.Context, _ struct{}) (tool.Result[map[string]string], error) {
+			return tool.Done(map[string]string{"answer": "42"}), nil
+		},
+	))
+
+	registry := tool.NewRegistry()
+	require.NoError(t, registry.Register(echoTool))
+
+	model := llmtesting.NewFakeModel().
+		Scenario("lookup-flow", func(s *llmtesting.ScenarioBuilder) {
+			s.OnTurn(0).
+				When(llmtesting.HasTool("lookup")).
+				ThenRespondWithToolCall("lookup", map[string]any{})
+
+			// Turn advancement relies on the conversation key staying
+			// stable while the agent appends tool messages each turn.
+			s.OnTurn(1).
+				When(llmtesting.LastMessageHasToolResponse("lookup")).
+				ThenRespondText("The answer is 42.")
+		})
+
+	ag, err := llmagent.New("looker", "You look things up.", model, llmagent.WithTools(registry))
+	require.NoError(t, err)
+
+	sess := &session.State{ID: "sess-loop"}
+	sess.Messages = append(sess.Messages, llm.NewMessage(llm.RoleUser, llm.NewTextPart("look it up")))
+	inv := agent.NewInvocationMetadata(sess, ag.Info())
+
+	var (
+		finalText    string
+		finishReason agent.FinishReason
+	)
+
+	for evt, err := range ag.Run(context.Background(), inv) {
+		require.NoError(t, err)
+
+		switch e := evt.(type) {
+		case agent.MessageEvent:
+			if txt := e.Response.Message.TextContent(); txt != "" {
+				finalText = txt
+			}
+		case agent.InvocationEndEvent:
+			finishReason = e.FinishReason
+		}
+	}
+
+	assert.Equal(t, agent.FinishReasonStop, finishReason,
+		"scenario must advance past turn 0 under the agent loop")
+	assert.Equal(t, "The answer is 42.", finalText,
+		"ThenRespondText must produce a non-empty assistant message on the streaming path")
 }

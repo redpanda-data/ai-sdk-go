@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"maps"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -264,7 +265,7 @@ func (a *LLMAgent) Run(ctx context.Context, inv *agent.InvocationMetadata) iter.
 				if finishReason == agent.FinishReasonPaused {
 					if sess := inv.Session(); sess != nil {
 						for _, pc := range sess.PendingToolCalls {
-							end.PendingCalls = append(end.PendingCalls, pendingToCallSummary(pc))
+							end.PendingCalls = append(end.PendingCalls, agent.SummarizePendingCall(pc))
 						}
 					}
 				}
@@ -325,6 +326,13 @@ func (a *LLMAgent) executeSingleTurn(
 	}
 	if a.config.tools != nil {
 		req.Tools = a.config.tools.List()
+	}
+
+	// Session identity for observability plumbing. No provider sends
+	// Metadata to the wire; fakellm uses it to key conversations
+	// robustly instead of falling back to message-prefix hashing.
+	if sess := inv.Session(); sess != nil && sess.ID != "" {
+		req.Metadata = map[string]string{"session_id": sess.ID}
 	}
 
 	// Apply model interceptors for this request
@@ -472,22 +480,6 @@ func (a *LLMAgent) executeSingleTurn(
 
 	// Turn completed normally - continue loop
 	return "", nil
-}
-
-// pendingToCallSummary projects a stored PendingToolCall onto the
-// surface adapter consumers see. Keeping this conversion local avoids
-// agent → session import dependencies in the event types.
-func pendingToCallSummary(pc session.PendingToolCall) agent.PendingCallSummary {
-	return agent.PendingCallSummary{
-		CallID:        pc.ID,
-		ToolName:      pc.Name,
-		Reason:        tool.AwaitReason(pc.Reason),
-		Resume:        tool.ResumeMode(pc.Resume),
-		Message:       pc.Message,
-		Prompt:        pc.Prompt,
-		CorrelationID: pc.CorrelationID,
-		ExpiresAt:     pc.ExpiresAt,
-	}
 }
 
 // resolveSystemPrompt produces a transient message list with the system
@@ -765,7 +757,7 @@ func (a *LLMAgent) executeTools(
 
 			if !yield(agent.ToolPendingEvent{
 				Envelope:    makeEnvelope(),
-				PendingCall: pendingToCallSummary(pc),
+				PendingCall: agent.SummarizePendingCall(pc),
 				Placeholder: *resp,
 			}, nil) {
 				return compactParts(ordered), pending // Consumer stopped listening
@@ -834,7 +826,7 @@ func buildPendingCall(req *llm.ToolRequestPart, exec tool.Execution, now time.Ti
 		CorrelationID: a.CorrelationID,
 		CreatedAt:     now,
 		LastOutput:    exec.Output,
-		Metadata:      a.Metadata,
+		Metadata:      maps.Clone(a.Metadata),
 	}
 
 	if a.Timeout > 0 {
@@ -895,13 +887,26 @@ func (a *LLMAgent) recoverIncompleteToolCalls(
 		return agent.ErrToolRegistry
 	}
 
-	// Execute the incomplete tools. Pending calls produced during
-	// recovery are discarded here — the runner does not yet expose a
-	// resume entry point that re-binds a pre-existing pause to the
-	// recovered placeholder. Treat recovery purely as "fill in missing
-	// tool responses so the next model call doesn't error out."
+	// Execute the incomplete tools. Recovery re-runs them from scratch,
+	// so async tools execute at least once across crashes. Pending calls
+	// produced during recovery are discarded — the runner does not yet
+	// expose a resume entry point that re-binds a pre-existing pause to
+	// the recovered placeholder — which strands the pause permanently.
+	// Surface that loudly instead of silently.
 	toolDefs := a.config.tools.List()
-	toolParts, _ := a.executeTools(ctx, inv, incomplete, toolDefs, makeEnvelope, yield)
+	toolParts, recoveredPending := a.executeTools(ctx, inv, incomplete, toolDefs, makeEnvelope, yield)
+
+	for _, pc := range recoveredPending {
+		if !yield(agent.StatusEvent{
+			Envelope: makeEnvelope(),
+			Stage:    agent.StatusStageToolExec,
+			Details: fmt.Sprintf(
+				"WARNING: tool %q paused during crash recovery (call %s); the pause cannot be resumed and its placeholder response is final",
+				pc.Name, pc.ID),
+		}, nil) {
+			return nil
+		}
+	}
 
 	// Insert tool response message BEFORE the last user message.
 	// Current: [..., assistant(tool_req), user(text)]

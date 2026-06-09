@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/store/session"
 	"github.com/redpanda-data/ai-sdk-go/tool"
 )
 
@@ -35,6 +36,22 @@ type PendingCallSummary struct {
 	Prompt        json.RawMessage  `json:"prompt,omitempty"`
 	CorrelationID string           `json:"correlation_id,omitempty"`
 	ExpiresAt     *time.Time       `json:"expires_at,omitempty"`
+}
+
+// SummarizePendingCall projects a durable session.PendingToolCall into
+// the event-facing summary shape. The single projection site shared by
+// the agent loop and the runner.
+func SummarizePendingCall(pc session.PendingToolCall) PendingCallSummary {
+	return PendingCallSummary{
+		CallID:        pc.ID,
+		ToolName:      pc.Name,
+		Reason:        tool.AwaitReason(pc.Reason),
+		Resume:        tool.ResumeMode(pc.Resume),
+		Message:       pc.Message,
+		Prompt:        pc.Prompt,
+		CorrelationID: pc.CorrelationID,
+		ExpiresAt:     pc.ExpiresAt,
+	}
 }
 
 // ToolPendingEvent reports that a tool call paused. It is emitted in the

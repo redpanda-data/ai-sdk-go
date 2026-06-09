@@ -624,9 +624,15 @@ func (m *FakeModel) textToStreamEvents(text string, finishReason llm.FinishReaso
 		})
 	}
 
-	// Add finish event
+	// Add finish event. The Response must carry the full message: the
+	// agent loop persists StreamEndEvent.Response.Message, so omitting
+	// it would silently record an empty assistant message.
 	events = append(events, llm.StreamEndEvent{
 		Response: &llm.Response{
+			Message: llm.Message{
+				Role:    llm.RoleAssistant,
+				Content: []llm.Part{llm.NewTextPart(text)},
+			},
 			FinishReason: finishReason,
 			Usage: &llm.TokenUsage{
 				InputTokens:  0, // Calculated in stream wrapper if needed
@@ -670,8 +676,16 @@ func (m *FakeModel) responseToStreamEvents(req *llm.Request, resp *llm.Response)
 }
 
 // conversationKey derives a stable key for conversation tracking.
-// It first checks for an explicit session_id in metadata, then falls back
-// to a fast non-cryptographic hash (FNV-1a) of all messages.
+// It first checks for an explicit session_id in metadata, then falls
+// back to a fast non-cryptographic hash (FNV-1a) of the system prompt
+// and the FIRST user message.
+//
+// Only the conversation prefix is hashed deliberately: agent loops
+// append tool/assistant messages every turn, so hashing the full
+// history would assign every turn a fresh conversation and OnTurn
+// scenarios would never advance. Tests that interleave multiple
+// conversations starting with identical first messages should use
+// WithSessionKeyFrom or a session_id metadata entry instead.
 func conversationKey(req *llm.Request) string {
 	// Use metadata if available (preferred)
 	if req.Metadata != nil {
@@ -680,15 +694,25 @@ func conversationKey(req *llm.Request) string {
 		}
 	}
 
-	// Fallback: derive from fast hash of all messages
-	// FNV-1a is faster than SHA256 and provides adequate collision resistance
-	// for test scenarios
 	h := fnv.New64a()
+
+	wroteUser := false
+
 	for _, msg := range req.Messages {
-		h.Write([]byte(msg.Role))
-		h.Write([]byte{0}) // separator
-		h.Write([]byte(msg.TextContent()))
-		h.Write([]byte{0}) // separator
+		switch msg.Role {
+		case llm.RoleSystem:
+			h.Write([]byte(msg.TextContent()))
+			h.Write([]byte{0}) // separator
+		case llm.RoleUser:
+			if !wroteUser {
+				h.Write([]byte(msg.TextContent()))
+
+				wroteUser = true
+			}
+		case llm.RoleAssistant:
+			// Assistant/tool turns grow every loop iteration; including
+			// them would change the key per turn.
+		}
 	}
 
 	return fmt.Sprintf("conv-%x", h.Sum64())
@@ -733,8 +757,10 @@ func (rb *RuleBuilder) Times(maxTimes int) *RuleBuilder {
 }
 
 // ThenRespondText configures the rule to return a simple text response.
+// Works for both Generate and GenerateEvents — the agent loop always
+// streams, so a Generate-only action would never fire there.
 func (rb *RuleBuilder) ThenRespondText(text string, opts ...ResponseOption) *FakeModel {
-	rb.rule.action.Generate = func(ctx context.Context, req *llm.Request, cc *CallContext) (*llm.Response, error) {
+	return rb.ThenRespondWith(func(_ *llm.Request, cc *CallContext) (*llm.Response, error) {
 		resp := &llm.Response{
 			Message: llm.Message{
 				Role:    llm.RoleAssistant,
@@ -749,12 +775,8 @@ func (rb *RuleBuilder) ThenRespondText(text string, opts ...ResponseOption) *Fak
 			opt(resp)
 		}
 
-		return rb.model.addUsageAndLatency(ctx, req, resp, text)
-	}
-
-	rb.commit()
-
-	return rb.model
+		return resp, nil
+	})
 }
 
 // ThenRespondWith configures the rule to return a custom-built response.

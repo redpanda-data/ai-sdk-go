@@ -35,7 +35,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
+
+	"github.com/rs/xid"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/llm"
@@ -108,10 +109,23 @@ type Result struct {
 // Session Isolation:
 //   - Each invocation creates a fresh session.
 func (at *AgentTool) Execute(ctx context.Context, call tool.Call) (tool.Execution, error) {
+	// Re-entry after a handoff pause: never re-run the child agent —
+	// the child session was ephemeral and re-running would repeat every
+	// side effect of its first turn. The caller's submission resolves
+	// the call, mirroring funcTool's re-entry semantics. True child
+	// re-entry (re-binding the persisted child session) is future work.
+	if call.Resume != nil {
+		if call.Resume.Error != "" {
+			return tool.Execution{}, fmt.Errorf("agent tool %q: %s", at.Name(), call.Resume.Error)
+		}
+
+		return tool.Execution{Output: call.Resume.Result}, nil
+	}
+
 	info := at.agent.Info()
 
 	sess := &session.State{
-		ID:       fmt.Sprintf("agent-tool-%s-%d", info.Name, time.Now().UnixNano()),
+		ID:       "agent-tool-" + info.Name + "-" + xid.New().String(),
 		Messages: []llm.Message{},
 		Metadata: map[string]any{},
 	}

@@ -12,23 +12,61 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package tool provides a runtime for registering and executing functions
-// that can be called by Large Language Models.
+// Package tool provides a runtime for registering and executing tools
+// that LLM agents can call, including pause/resume for long-running and
+// human-in-the-loop tools.
 //
-// Registry manages tool registration and execution. Create with NewRegistry
-// and register tools using functional options:
+// # Defining tools
+//
+// The 90% path is tool.Func: a typed function with an inferred JSON
+// schema. Return tool.Done for synchronous results:
+//
+//	type AddInput struct {
+//		A int `json:"a"`
+//		B int `json:"b"`
+//	}
+//
+//	type AddOutput struct {
+//		Sum int `json:"sum"`
+//	}
+//
+//	var addTool = tool.Must(tool.Func(
+//		tool.Spec{Name: "add", Description: "Add two integers."},
+//		func(ctx context.Context, in AddInput) (tool.Result[AddOutput], error) {
+//			return tool.Done(AddOutput{Sum: in.A + in.B}), nil
+//		},
+//	))
+//
+// Implement the Tool interface directly when you need full control —
+// custom re-entry logic, dynamic schemas, wrapping external systems.
+// Implement SpecProvider as well so Definition() and the registry see
+// your structured Spec, and Unwrapper if you decorate another Tool.
+//
+// # Registry
 //
 //	registry := tool.NewRegistry()
-//	registry.Register(myTool, tool.WithTimeout(30*time.Second))
+//	_ = registry.Register(addTool, tool.WithTimeout(30*time.Second))
 //
-// Tool is the basic interface - implement Definition and Execute.
+//	res := registry.Run(ctx, inv, toolRequest)
+//	if res.Err != nil { /* model-visible tool error */ }
+//	if res.Execution.Await != nil { /* paused; persist pending state */ }
+//	responsePart := res.Response()
 //
-// Tools integrate with LLMs via the llm package's wire protocol types
-// (ToolDefinition, ToolRequest, ToolResponse). The registry provides
-// tool definitions and executes tool requests.
+// Run returns the typed ExecutionResult so callers can distinguish
+// pauses from terminal results; ExecutionResult.Response reconciles it
+// into the model-visible llm.ToolResponsePart.
 //
-// Basic usage:
+// # Pausing (async tools)
 //
-//	registry.Register(myTool, tool.WithTimeout(1*time.Minute))
-//	result, err := registry.Execute(ctx, toolRequest)
+// A tool pauses by returning a Result with a non-nil Await — built via
+// tool.Pending (external job, resumed with the final output) or
+// tool.NeedInput (conversational pause). Tools that need custom
+// re-entry logic implement Tool directly and read Call.Resume. Declare the pause behavior
+// on Spec.Async (AsyncExternalResult, AsyncApproval, ...) so the model
+// is told not to re-call the tool while a call is pending and the
+// registry validates emitted pauses.
+//
+// The agent loop persists pauses as session.PendingToolCall records;
+// runner.Resume delivers results, runner.Progress records non-terminal
+// updates, and runner.Cancel aborts. See the runner package.
 package tool

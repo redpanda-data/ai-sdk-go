@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"iter"
 	"sync/atomic"
 	"testing"
 
@@ -188,7 +189,6 @@ func TestRunner_Resume_Conflict(t *testing.T) {
 	_, err = r.Resume(ctx, "u", "s", runner.Resumption{CallID: "call-1", Output: json.RawMessage(`{"status":"different"}`)})
 	require.ErrorIs(t, err, runner.ErrResumeConflict)
 }
-
 
 // mustResume asserts the eager phase of Resume succeeded and returns
 // the continuation stream.
@@ -455,4 +455,88 @@ func TestRunner_Resume_ApprovalThenExternalWork_ChainedPause(t *testing.T) {
 	assert.NotContains(t, sess.PendingToolCalls, "call-1")
 	assert.Contains(t, sess.ResumeReceipts, "call-1")
 	assert.Equal(t, int32(1), count.Load(), "tool ran exactly once across the whole flow")
+}
+
+func TestRunner_Resume_RejectsInvalidJSON(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	registry := tool.NewRegistry()
+	require.NoError(t, registry.Register(newPausingTool()))
+
+	model := fakellm.NewFakeModel()
+	model.When(fakellm.Any()).ThenRespondWith(func(_ *llm.Request, _ *fakellm.CallContext) (*llm.Response, error) {
+		return &llm.Response{
+			Message: llm.NewMessage(llm.RoleAssistant,
+				llm.NewToolRequestPart("call-1", "deploy", json.RawMessage(`{"version":"v1"}`))),
+			FinishReason: llm.FinishReasonToolCalls,
+		}, nil
+	})
+
+	ag, err := llmagent.New("deployer", "You deploy things.", model, llmagent.WithTools(registry))
+	require.NoError(t, err)
+
+	store := session.NewInMemoryStore()
+	r, err := runner.New(ag, store)
+	require.NoError(t, err)
+
+	_ = collectEvents(t, r.Run(ctx, "u", "s", llm.NewMessage(llm.RoleUser, llm.NewTextPart("deploy"))))
+
+	// Malformed webhook bytes must be rejected eagerly, not persisted.
+	_, err = r.Resume(ctx, "u", "s", runner.Resumption{CallID: "call-1", Output: json.RawMessage(`{not json`)})
+	require.ErrorIs(t, err, runner.ErrInvalidResumePayload)
+
+	// The pending call is untouched and still resumable.
+	sess, err := store.Load(ctx, "s")
+	require.NoError(t, err)
+	require.Contains(t, sess.PendingToolCalls, "call-1")
+
+	_, err = r.Resume(ctx, "u", "s", runner.Resumption{CallID: "call-1", Output: json.RawMessage(`{"status":"ok"}`)})
+	require.NoError(t, err)
+}
+
+// bareAgent implements agent.Agent only — no Tools(), no
+// ExecuteToolResume — so it cannot re-enter paused tools.
+type bareAgent struct{}
+
+func (bareAgent) Info() agent.Info            { return agent.Info{Name: "bare"} }
+func (bareAgent) InputSchema() map[string]any { return nil }
+func (bareAgent) Run(_ context.Context, _ *agent.InvocationMetadata) iter.Seq2[agent.Event, error] {
+	return func(yield func(agent.Event, error) bool) {
+		yield(agent.InvocationEndEvent{FinishReason: agent.FinishReasonStop}, nil)
+	}
+}
+
+func TestRunner_Resume_ReentryNotSupported(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	store := session.NewInMemoryStore()
+	r, err := runner.New(bareAgent{}, store)
+	require.NoError(t, err)
+
+	// Seed a session paused on a reentry call.
+	require.NoError(t, store.Save(ctx, &session.State{
+		ID: "s",
+		PendingToolCalls: map[string]session.PendingToolCall{
+			"call-1": {
+				SchemaVersion: session.PendingToolCallSchemaVersion,
+				ID:            "call-1",
+				Name:          "gated",
+				Reason:        string(tool.AwaitReasonApproval),
+				Resume:        string(tool.ResumeWithReentry),
+			},
+		},
+	}))
+
+	// The runtime cannot re-enter: reject eagerly, keep the pending call.
+	_, err = r.Resume(ctx, "u", "s", runner.Resumption{CallID: "call-1", Output: json.RawMessage(`{"approved":true}`)})
+	require.ErrorIs(t, err, runner.ErrReentryNotSupported)
+
+	sess, err := store.Load(ctx, "s")
+	require.NoError(t, err)
+	assert.Contains(t, sess.PendingToolCalls, "call-1", "rejected resume must leave the pending call intact")
+	assert.NotContains(t, sess.ResumeReceipts, "call-1")
 }

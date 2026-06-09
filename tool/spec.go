@@ -39,11 +39,6 @@ type Spec struct {
 	// a schema themselves.
 	InputSchema json.RawMessage
 
-	// OutputSchema is an optional JSON Schema for the tool's output.
-	// Currently advisory; included in Definition.Metadata as
-	// "output_schema".
-	OutputSchema json.RawMessage
-
 	// Type is the provider-facing tool kind. Empty defaults to
 	// ToolTypeFunction at definition time.
 	Type string
@@ -156,31 +151,45 @@ func defaultAsyncHint(reason AwaitReason) string {
 }
 
 // Definition builds the provider-facing llm.ToolDefinition for a Tool.
-// It honors Spec.Description, appends AsyncSpec.Hint (or a default), and
-// folds Spec.Metadata into the result.
 //
-// Free-function rather than a method on Tool so that helpers built on
-// top of Spec (like Func) own description shaping in one place; raw
-// Tool implementations get a sensible default by virtue of implementing
-// Name/Description/InputSchema.
+// When the tool (or anything it wraps — see Unwrapper) provides a Spec,
+// the Spec is the source of truth: non-empty Spec.Name, Description,
+// and InputSchema take precedence over the corresponding Tool methods,
+// the async hint is appended, and Spec.Metadata/Type are folded in.
+// Tools without a Spec get a sensible default from
+// Name/Description/InputSchema alone.
 func Definition(t Tool) llm.ToolDefinition {
 	if t == nil {
 		return llm.ToolDefinition{}
 	}
 
+	name := t.Name()
 	desc := t.Description()
+	params := t.InputSchema()
 	typeName := ToolTypeFunction
 
 	var meta map[string]any
 
 	if spec, ok := SpecOf(t); ok {
+		if spec.Name != "" {
+			name = spec.Name
+		}
+
+		if spec.Description != "" {
+			desc = spec.Description
+		}
+
+		if len(spec.InputSchema) > 0 {
+			params = spec.InputSchema
+		}
+
 		desc, typeName, meta = applySpecToDefinition(desc, spec)
 	}
 
 	return llm.ToolDefinition{
-		Name:        t.Name(),
+		Name:        name,
 		Description: desc,
-		Parameters:  t.InputSchema(),
+		Parameters:  params,
 		Metadata:    meta,
 		Type:        typeName,
 	}
@@ -191,7 +200,11 @@ func Definition(t Tool) llm.ToolDefinition {
 // wrapped tool's Spec. The second return is false when neither t nor
 // anything it wraps implements SpecProvider.
 func SpecOf(t Tool) (Spec, bool) {
-	for t != nil {
+	// Bounded so a buggy Unwrap cycle (a wrapper returning itself)
+	// cannot hang Definition() or the registry.
+	const maxUnwrapDepth = 32
+
+	for depth := 0; t != nil && depth < maxUnwrapDepth; depth++ {
 		if sp, ok := t.(SpecProvider); ok {
 			return sp.ToolSpec(), true
 		}
@@ -208,9 +221,9 @@ func SpecOf(t Tool) (Spec, bool) {
 }
 
 // applySpecToDefinition layers the spec's async hint, type override,
-// metadata, and output schema onto the base description/type/meta
-// triple. Pulled out of Definition to keep cyclomatic complexity flat
-// when the spec carries multiple optional pieces.
+// and metadata onto the base description/type/meta triple. Pulled out
+// of Definition to keep cyclomatic complexity flat when the spec
+// carries multiple optional pieces.
 func applySpecToDefinition(desc string, spec Spec) (string, string, map[string]any) {
 	typeName := ToolTypeFunction
 	if spec.Type != "" {
@@ -222,14 +235,6 @@ func applySpecToDefinition(desc string, spec Spec) (string, string, map[string]a
 	var meta map[string]any
 	if spec.Metadata != nil {
 		meta = maps.Clone(spec.Metadata)
-	}
-
-	if spec.OutputSchema != nil {
-		if meta == nil {
-			meta = make(map[string]any, 1)
-		}
-
-		meta["output_schema"] = spec.OutputSchema
 	}
 
 	return desc, typeName, meta
@@ -250,6 +255,12 @@ func appendAsyncHint(desc string, async *AsyncSpec) string {
 
 	if hint == "" || strings.Contains(desc, hint) {
 		return desc
+	}
+
+	// Custom hints often omit a leading separator; without one the hint
+	// would run straight into the last sentence of the description.
+	if desc != "" && !strings.HasPrefix(hint, "\n") && !strings.HasPrefix(hint, " ") {
+		return desc + "\n\n" + hint
 	}
 
 	return desc + hint

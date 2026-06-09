@@ -45,7 +45,7 @@
 //	    ThenRespondText("Hello! How can I help you?")
 //
 //	response, err := model.Generate(ctx, &llm.Request{
-//	    Messages: []llm.Message{llm.UserText("hello")},
+//	    Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("hello"))},
 //	})
 //
 // # Streaming

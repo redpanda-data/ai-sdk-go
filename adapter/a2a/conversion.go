@@ -187,8 +187,12 @@ func MessageFromLLM(llmMsg llm.Message) *a2a.Message {
 				})
 			}
 		case *llm.ReasoningPart:
-			// Reasoning trace: store text as TextPart (like regular text)
-			parts = append(parts, a2a.TextPart{Text: p.Text})
+			// Reasoning trace: store text as TextPart (like regular text).
+			// Signature-only traces have empty text; emitting them would
+			// add empty parts the wire format never carried before.
+			if p.Text != "" {
+				parts = append(parts, a2a.TextPart{Text: p.Text})
+			}
 		}
 	}
 

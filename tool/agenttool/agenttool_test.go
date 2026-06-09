@@ -248,3 +248,55 @@ func TestExecute(t *testing.T) {
 		assert.ErrorIs(t, err, context.DeadlineExceeded)
 	})
 }
+
+func TestExecute_ReentryResolvesWithoutRerunningChild(t *testing.T) {
+	t.Parallel()
+
+	runs := 0
+	mock := &countingAgent{onRun: func() { runs++ }}
+	agentTool := agenttool.New(mock)
+
+	// First entry runs the child.
+	_, err := agentTool.Execute(context.Background(), tool.Call{
+		Request: llm.ToolRequestPart{Arguments: json.RawMessage(`{}`)},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 1, runs)
+
+	// Re-entry must NOT re-run the child; the resume payload resolves it.
+	exec, err := agentTool.Execute(context.Background(), tool.Call{
+		Request: llm.ToolRequestPart{Arguments: json.RawMessage(`{}`)},
+		Resume:  &tool.ResumePayload{Result: json.RawMessage(`{"result":"done"}`)},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 1, runs, "re-entry must not re-run the child agent")
+	assert.JSONEq(t, `{"result":"done"}`, string(exec.Output))
+
+	// Re-entry with an error resolves as a tool error.
+	_, err = agentTool.Execute(context.Background(), tool.Call{
+		Request: llm.ToolRequestPart{Arguments: json.RawMessage(`{}`)},
+		Resume:  &tool.ResumePayload{Error: "child canceled"},
+	})
+	require.ErrorContains(t, err, "child canceled")
+	assert.Equal(t, 1, runs)
+}
+
+// countingAgent counts Run invocations.
+type countingAgent struct {
+	mockAgent
+
+	onRun func()
+}
+
+func (c *countingAgent) Run(_ context.Context, _ *agent.InvocationMetadata) iter.Seq2[agent.Event, error] {
+	c.onRun()
+
+	return func(yield func(agent.Event, error) bool) {
+		msg := llm.NewMessage(llm.RoleAssistant, llm.NewTextPart("child says hi"))
+		if !yield(agent.MessageEvent{Response: llm.Response{Message: msg}}, nil) {
+			return
+		}
+
+		yield(agent.InvocationEndEvent{FinishReason: agent.FinishReasonStop}, nil)
+	}
+}

@@ -130,3 +130,44 @@ func TestRegistry_EnforcesAsyncSpecForRawTools(t *testing.T) {
 	require.ErrorIs(t, res.Err, tool.ErrAwaitInvalid)
 	assert.Contains(t, res.Err.Error(), "does not match declared")
 }
+
+// cyclicWrapper unwraps to itself — SpecOf must not hang on it.
+type cyclicWrapper struct{ tool.Tool }
+
+func (c *cyclicWrapper) Unwrap() tool.Tool { return c }
+
+func TestSpecOf_BoundedOnUnwrapCycle(t *testing.T) {
+	t.Parallel()
+
+	_, ok := tool.SpecOf(&cyclicWrapper{Tool: rawMismatchedTool{}})
+	assert.False(t, ok, "cycle must terminate without finding a spec")
+}
+
+// divergentSpecTool reports different values from its Tool methods and
+// its Spec — Definition must treat the Spec as the source of truth.
+type divergentSpecTool struct{}
+
+func (divergentSpecTool) Name() string                 { return "method_name" }
+func (divergentSpecTool) Description() string          { return "method description" }
+func (divergentSpecTool) InputSchema() json.RawMessage { return json.RawMessage(`{"from":"method"}`) }
+func (divergentSpecTool) ToolSpec() tool.Spec {
+	return tool.Spec{
+		Name:        "spec_name",
+		Description: "spec description",
+		InputSchema: json.RawMessage(`{"from":"spec"}`),
+	}
+}
+
+func (divergentSpecTool) Execute(context.Context, tool.Call) (tool.Execution, error) {
+	return tool.Execution{}, nil
+}
+
+func TestDefinition_SpecIsSourceOfTruth(t *testing.T) {
+	t.Parallel()
+
+	def := tool.Definition(divergentSpecTool{})
+
+	assert.Equal(t, "spec_name", def.Name)
+	assert.Equal(t, "spec description", def.Description)
+	assert.JSONEq(t, `{"from":"spec"}`, string(def.Parameters))
+}

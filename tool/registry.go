@@ -294,6 +294,14 @@ func (r *Registry) run(ctx context.Context, inv InvocationInfo, req *llm.ToolReq
 		return out
 	}
 
+	// Hand-written tools can return arbitrary bytes; reject non-JSON
+	// here so it cannot poison session history and fail later at the
+	// provider, far from the cause.
+	if len(exec.Output) > 0 && !json.Valid(exec.Output) {
+		out.Err = fmt.Errorf("tool %q returned invalid JSON output", req.Name)
+		return out
+	}
+
 	// Normalize then validate the Await shape before persisting the
 	// pause. Normalize fills an empty Resume from the Reason default.
 	exec.Await.Normalize()

@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"maps"
 	"sort"
 	"time"
 
@@ -59,10 +60,20 @@ type Resumption struct {
 // that retry safely (same payload) get ResumeAcknowledgedEvent instead.
 var ErrResumeConflict = errors.New("runner: resume conflict")
 
-// ErrPendingCallNotFound is returned when the caller submits a Result
-// for a call ID that has no pending entry (and no receipt, so it can't
-// be a duplicate either).
+// ErrPendingCallNotFound is returned when the caller submits a
+// Resumption for a call ID that has no pending entry (and no receipt,
+// so it can't be a duplicate either).
 var ErrPendingCallNotFound = errors.New("runner: pending tool call not found")
+
+// ErrInvalidResumePayload is returned when a Resumption or Progress
+// payload is not valid JSON.
+var ErrInvalidResumePayload = errors.New("runner: invalid resume payload")
+
+// ErrReentryNotSupported is returned when a ResumeWithReentry pending
+// call is resumed but the agent exposes neither ExecuteToolResume nor
+// Tools(), so the runtime has no way to re-enter the tool. The pending
+// call is left intact.
+var ErrReentryNotSupported = errors.New("runner: agent does not support tool re-entry")
 
 // Resume submits one or more tool results to a paused session. It is
 // idempotent for at-least-once delivery systems: a duplicate submission
@@ -73,7 +84,16 @@ var ErrPendingCallNotFound = errors.New("runner: pending tool call not found")
 // validated, applied, and the session saved. The returned stream first
 // replays the events produced while applying the results, then — once
 // no pending calls remain — streams the agent's continuation. Dropping
-// the stream skips only the model continuation, never the mutation.
+// the stream skips only the model continuation, never the mutation —
+// the session stays consistent and the model reacts on the next Run.
+// Handlers that want the agent to react immediately but don't care
+// about events should drain it:
+//
+//	stream, err := r.Resume(ctx, actor, sessionID, result)
+//	if err != nil { ... }
+//	for range stream {
+//	}
+//
 // The continuation re-acquires the session lock when ranged; another
 // Run/Resume may interleave between the mutation and the continuation,
 // which is safe because the session is fully consistent after the save.
@@ -254,6 +274,12 @@ func (r *Runner) applyResume(
 	op ResumeOperation,
 	envelope func() agent.EventEnvelope,
 ) (bool, []agent.Event, error) {
+	// Caller-supplied bytes go straight into session history; reject
+	// non-JSON before it durably poisons the session.
+	if len(res.Output) > 0 && !json.Valid(res.Output) {
+		return false, nil, fmt.Errorf("%w: call_id=%s output is not valid JSON", ErrInvalidResumePayload, res.CallID)
+	}
+
 	resultHash := computeResultHash(res)
 
 	// Idempotency: a duplicate with the same hash gets acked without
@@ -290,6 +316,13 @@ func (r *Runner) applyResume(
 	case tool.ResumeWithToolResponse:
 		applyToolResponseResume(sess, &pc, res)
 	case tool.ResumeWithReentry:
+		if !r.canReenter() {
+			// Reject rather than silently recording the payload as the
+			// final output — that would skip the tool's re-entry logic
+			// and any interceptor gates. The pending call stays intact.
+			return false, nil, fmt.Errorf("%w: call_id=%s requires ExecuteToolResume or Tools() on the agent", ErrReentryNotSupported, res.CallID)
+		}
+
 		if applyReentryResume(ctx, r, sess, &pc, res) {
 			// Chained pause: the call is pending again under the same
 			// ID. Storing a receipt here would make the new pause
@@ -298,7 +331,7 @@ func (r *Runner) applyResume(
 			// terminal resolutions.
 			chained := agent.ToolPendingEvent{
 				Envelope:    envelope(),
-				PendingCall: summarizePendingCall(sess.PendingToolCalls[res.CallID]),
+				PendingCall: agent.SummarizePendingCall(sess.PendingToolCalls[res.CallID]),
 				Placeholder: *llm.NewToolResponsePart(pc.ID, pc.Name, sess.PendingToolCalls[res.CallID].LastOutput),
 			}
 
@@ -367,7 +400,7 @@ func applyReentryResume(ctx context.Context, r *Runner, sess *session.State, pc 
 		updated.State = exec.Await.State
 		updated.LastOutput = exec.Output
 		updated.CorrelationID = exec.Await.CorrelationID
-		updated.Metadata = exec.Await.Metadata
+		updated.Metadata = maps.Clone(exec.Await.Metadata)
 		updated.ExpiresAt = nil
 
 		if exec.Await.Timeout > 0 {
@@ -387,9 +420,25 @@ func applyReentryResume(ctx context.Context, r *Runner, sess *session.State, pc 
 	return false
 }
 
+// canReenter reports whether the configured agent can re-enter a
+// paused tool call, either through its interceptor chain
+// (ExecuteToolResume) or directly via its tool registry.
+func (r *Runner) canReenter() bool {
+	if _, ok := r.config.agent.(toolResumer); ok {
+		return true
+	}
+
+	return registryFromAgent(r.config.agent) != nil
+}
+
 // executeReentry routes the re-entry through the agent's interceptor
-// chain when available, falling back to the raw registry tool, and as a
-// last resort treating the supplied payload as the final tool response.
+// chain when available, otherwise directly against the registry.
+// Callers must have checked canReenter first.
+//
+// It runs while the per-session lock is held: tools and interceptors
+// re-entered here MUST NOT call Runner.Run/Resume/Progress/Cancel for
+// the same session ID — the lock is not reentrant and doing so
+// deadlocks.
 func executeReentry(ctx context.Context, r *Runner, sess *session.State, pc *session.PendingToolCall, payload *tool.ResumePayload) (tool.Execution, error) {
 	if tr, ok := r.config.agent.(toolResumer); ok {
 		return tr.ExecuteToolResume(ctx, sess, *pc, payload)
@@ -397,13 +446,7 @@ func executeReentry(ctx context.Context, r *Runner, sess *session.State, pc *ses
 
 	registry := registryFromAgent(r.config.agent)
 	if registry == nil {
-		// No registry wired: degrade to recording the payload as the
-		// final output (or error) without re-entering anything.
-		if payload.Error != "" {
-			return tool.Execution{}, errors.New(payload.Error)
-		}
-
-		return tool.Execution{Output: payload.Result}, nil
+		return tool.Execution{}, ErrReentryNotSupported
 	}
 
 	if _, err := registry.Get(pc.Name); err != nil {
@@ -537,25 +580,10 @@ func summariesFromSession(sess *session.State) []agent.PendingCallSummary {
 
 	out := make([]agent.PendingCallSummary, len(pending))
 	for i, pc := range pending {
-		out[i] = summarizePendingCall(pc)
+		out[i] = agent.SummarizePendingCall(pc)
 	}
 
 	return out
-}
-
-// summarizePendingCall projects one pending call into the event-facing
-// summary shape.
-func summarizePendingCall(pc session.PendingToolCall) agent.PendingCallSummary {
-	return agent.PendingCallSummary{
-		CallID:        pc.ID,
-		ToolName:      pc.Name,
-		Reason:        tool.AwaitReason(pc.Reason),
-		Resume:        tool.ResumeMode(pc.Resume),
-		Message:       pc.Message,
-		Prompt:        pc.Prompt,
-		CorrelationID: pc.CorrelationID,
-		ExpiresAt:     pc.ExpiresAt,
-	}
 }
 
 func progressEntriesFromSession(src []session.ProgressEntry) []tool.ProgressEntry {
@@ -655,11 +683,18 @@ func (r *Runner) Progress(
 			return fmt.Errorf("%w: call_id=%s", ErrPendingCallNotFound, callID)
 		}
 
+		if len(payload) > 0 && !json.Valid(payload) {
+			return fmt.Errorf("%w: call_id=%s progress payload is not valid JSON", ErrInvalidResumePayload, callID)
+		}
+
 		if err := r.runAuthorizer(ctx, userID, sessionID, pc, Resumption{CallID: callID, Output: payload}, ResumeOperationProgress); err != nil {
 			return fmt.Errorf("progress not authorized: %w", err)
 		}
 
-		pc.Progress = append(pc.Progress, session.ProgressEntry{At: time.Now().UTC(), Payload: payload})
+		// Copy the payload: the caller owns the original bytes and may
+		// reuse the buffer after Progress returns.
+		stored := append(json.RawMessage(nil), payload...)
+		pc.Progress = append(pc.Progress, session.ProgressEntry{At: time.Now().UTC(), Payload: stored})
 		sess.PendingToolCalls[callID] = pc
 
 		if err := r.config.sessionStore.Save(ctx, sess); err != nil {

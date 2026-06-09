@@ -55,25 +55,6 @@ func Pending[T any](v T, opts ...AwaitOption) Result[T] {
 	return Result[T]{Value: v, Await: a}
 }
 
-// PendingReentry returns a Result that pauses awaiting an external
-// result that the SDK should resume by re-entering this tool with
-// Call.Resume populated (Reason=tool_result, Resume=reentry). Tools that
-// need to finalize work themselves on resume — for example, polling for
-// the final state and post-processing it — use this in place of
-// Pending.
-//
-// Note: on the typed Func path, re-entry never re-runs the function —
-// the resume payload resolves the call directly (see funcTool.Execute).
-// Implement Tool directly for custom re-entry logic.
-func PendingReentry[T any](v T, opts ...AwaitOption) Result[T] {
-	a := &Await{Reason: AwaitReasonToolResult, Resume: ResumeWithReentry}
-	for _, opt := range opts {
-		opt(a)
-	}
-
-	return Result[T]{Value: v, Await: a}
-}
-
 // NeedInput returns a Result that pauses for conversational user input
 // (Reason=user_input, Resume=message). The message argument is the UI
 // prompt the runner surfaces; it is also set on the Await so adapters
