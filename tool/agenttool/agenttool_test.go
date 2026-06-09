@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"iter"
+	"strings"
 	"testing"
 	"time"
 
@@ -150,7 +151,11 @@ func TestDefinition(t *testing.T) {
 			def := tool.Definition(agentTool)
 
 			assert.Equal(t, tt.agentName, def.Name)
-			assert.Equal(t, tt.description, def.Description)
+			// The definition carries the agent description plus the
+			// AsyncHandoff hint appended via ToolSpec.
+			assert.True(t, strings.HasPrefix(def.Description, tt.description),
+				"description should start with the agent description, got %q", def.Description)
+			assert.Contains(t, def.Description, "delegated sub-agent")
 
 			// Parameters is json.RawMessage, so unmarshal to compare
 			var actualSchema map[string]any

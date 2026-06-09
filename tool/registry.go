@@ -365,6 +365,14 @@ func (r *registry) run(ctx context.Context, inv InvocationInfo, req *llm.ToolReq
 		return out
 	}
 
+	// A declared AsyncSpec constrains the pauses a tool may emit. This
+	// applies to every Tool implementation (SpecOf follows Unwrap
+	// chains), not just tool.Func.
+	if err := validateAwaitAgainstSpec(registered.tool, req.Name, exec.Await); err != nil {
+		out.Err = err
+		return out
+	}
+
 	// Enforce response-size limit on the placeholder/final Output. The
 	// limit applies regardless of whether the tool paused — paused tools
 	// still ship Output to the model.
@@ -430,4 +438,29 @@ func defaultBatchConfig() batchConfig {
 	return batchConfig{
 		concurrency: 0,
 	}
+}
+
+// validateAwaitAgainstSpec checks a returned Await against the tool's
+// declared AsyncSpec, if any.
+func validateAwaitAgainstSpec(t Tool, name string, a *Await) error {
+	if a == nil {
+		return nil
+	}
+
+	spec, ok := SpecOf(t)
+	if !ok || spec.Async == nil {
+		return nil
+	}
+
+	if a.Reason != spec.Async.Reason {
+		return fmt.Errorf("%w: tool %q await reason %q does not match declared %q",
+			ErrAwaitInvalid, name, a.Reason, spec.Async.Reason)
+	}
+
+	if a.Resume != spec.Async.Resume {
+		return fmt.Errorf("%w: tool %q await resume %q does not match declared %q",
+			ErrAwaitInvalid, name, a.Resume, spec.Async.Resume)
+	}
+
+	return nil
 }

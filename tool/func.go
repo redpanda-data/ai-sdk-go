@@ -86,7 +86,7 @@ type funcTool[In, Out any] struct {
 func (t *funcTool[In, Out]) Name() string                 { return t.spec.Name }
 func (t *funcTool[In, Out]) Description() string          { return t.spec.Description }
 func (t *funcTool[In, Out]) InputSchema() json.RawMessage { return t.spec.InputSchema }
-func (t *funcTool[In, Out]) toolSpec() Spec               { return t.spec }
+func (t *funcTool[In, Out]) ToolSpec() Spec               { return t.spec }
 
 // Execute decodes call.Args into In, runs the user function, and
 // marshals the typed result.
@@ -121,26 +121,11 @@ func (t *funcTool[In, Out]) Execute(ctx context.Context, call Call) (Execution, 
 		return Execution{}, err
 	}
 
-	// The registry is the enforcement point for Await validity; this early
-	// check only exists to attribute a malformed Await to the tool by name
-	// before it leaves the typed path.
+	// The registry is the enforcement point for Await validity and
+	// AsyncSpec consistency; this early check only exists to attribute a
+	// malformed Await to the tool by name before it leaves the typed path.
 	if err := result.Await.Validate(); err != nil {
 		return Execution{}, fmt.Errorf("tool %q: %w", t.spec.Name, err)
-	}
-
-	// If the tool declared an AsyncSpec, the runtime expects the actual
-	// Await to match. Only enforce this when the tool actually paused;
-	// a sync return is always fine.
-	if result.Await != nil && t.spec.Async != nil {
-		if result.Await.Reason != t.spec.Async.Reason {
-			return Execution{}, fmt.Errorf("tool %q: await reason %q does not match declared %q",
-				t.spec.Name, result.Await.Reason, t.spec.Async.Reason)
-		}
-
-		if result.Await.Resume != t.spec.Async.Resume {
-			return Execution{}, fmt.Errorf("tool %q: await resume %q does not match declared %q",
-				t.spec.Name, result.Await.Resume, t.spec.Async.Resume)
-		}
 	}
 
 	output, err := json.Marshal(result.Value)

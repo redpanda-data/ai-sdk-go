@@ -76,6 +76,18 @@ func (at *AgentTool) InputSchema() json.RawMessage {
 	return schemaJSON
 }
 
+// ToolSpec implements tool.SpecProvider. Declaring AsyncHandoff makes
+// the registry validate the handoff pauses this wrapper emits and adds
+// the async hint to the model-visible description.
+func (at *AgentTool) ToolSpec() tool.Spec {
+	return tool.Spec{
+		Name:        at.Name(),
+		Description: at.Description(),
+		InputSchema: at.InputSchema(),
+		Async:       tool.AsyncHandoff(),
+	}
+}
+
 // Result represents the output from an agent tool execution.
 type Result struct {
 	Result string `json:"result"`

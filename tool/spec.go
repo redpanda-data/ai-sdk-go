@@ -164,8 +164,8 @@ func Definition(t Tool) llm.ToolDefinition {
 
 	var meta map[string]any
 
-	if sp, ok := t.(specProvider); ok {
-		desc, typeName, meta = applySpecToDefinition(desc, sp.toolSpec())
+	if spec, ok := SpecOf(t); ok {
+		desc, typeName, meta = applySpecToDefinition(desc, spec)
 	}
 
 	return llm.ToolDefinition{
@@ -175,6 +175,27 @@ func Definition(t Tool) llm.ToolDefinition {
 		Metadata:    meta,
 		Type:        typeName,
 	}
+}
+
+// SpecOf returns the structured Spec for t, following Unwrap chains so
+// decorators (logging, metrics, retry wrappers) transparently expose the
+// wrapped tool's Spec. The second return is false when neither t nor
+// anything it wraps implements SpecProvider.
+func SpecOf(t Tool) (Spec, bool) {
+	for t != nil {
+		if sp, ok := t.(SpecProvider); ok {
+			return sp.ToolSpec(), true
+		}
+
+		u, ok := t.(Unwrapper)
+		if !ok {
+			break
+		}
+
+		t = u.Unwrap()
+	}
+
+	return Spec{}, false
 }
 
 // applySpecToDefinition layers the spec's async hint, type override,
@@ -225,10 +246,20 @@ func appendAsyncHint(desc string, async *AsyncSpec) string {
 	return desc + hint
 }
 
-// specProvider is implemented by Tool wrappers that want Definition() to
-// honor their Spec metadata. Helpers in this package such as Func
-// implement it via an unexported method so consumers cannot fake out
-// the registry by lying about their Spec.
-type specProvider interface {
-	toolSpec() Spec
+// SpecProvider is implemented by Tools that carry a structured Spec.
+// tool.Func implements it; custom Tool implementations should too when
+// they want Definition() to include their async hint, type, output
+// schema, and metadata, and the registry to validate their pauses
+// against the declared AsyncSpec.
+type SpecProvider interface {
+	ToolSpec() Spec
+}
+
+// Unwrapper is implemented by Tool decorators (logging, metrics, retry
+// middleware) that wrap another Tool. Definition() and the registry
+// follow Unwrap chains via SpecOf, so wrapping a tool does not strip its
+// Spec — async hints in particular are part of the model-facing
+// contract and must survive decoration.
+type Unwrapper interface {
+	Unwrap() Tool
 }
