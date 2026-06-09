@@ -122,7 +122,7 @@ func TestRunner_Resume_ExternalResult_EndToEnd(t *testing.T) {
 
 	// Submit a Resume with a final result.
 	finalOutput := json.RawMessage(`{"deployment_id":"dep-1","status":"success","url":"https://example/deploy/1"}`)
-	resumeEvents := collectEvents(t, r.Resume(ctx, "user-1", "sess-1", runner.Result{CallID: "call-1", Output: finalOutput}))
+	resumeEvents := collectEvents(t, mustResume(ctx, t, r, "user-1", "sess-1", runner.Result{CallID: "call-1", Output: finalOutput}))
 
 	end2 := findInvocationEndEvent(resumeEvents)
 	require.NotNil(t, end2)
@@ -136,7 +136,7 @@ func TestRunner_Resume_ExternalResult_EndToEnd(t *testing.T) {
 
 	// Idempotency: same resume payload again should be acknowledged
 	// without mutating session state.
-	dupEvents := collectEvents(t, r.Resume(ctx, "user-1", "sess-1", runner.Result{CallID: "call-1", Output: finalOutput}))
+	dupEvents := collectEvents(t, mustResume(ctx, t, r, "user-1", "sess-1", runner.Result{CallID: "call-1", Output: finalOutput}))
 
 	sawAck := false
 
@@ -180,44 +180,66 @@ func TestRunner_Resume_Conflict(t *testing.T) {
 	_ = collectEvents(t, r.Run(ctx, "u", "s", llm.NewMessage(llm.RoleUser, llm.NewTextPart("deploy"))))
 
 	// First Resume succeeds.
-	_ = collectEvents(t, r.Resume(ctx, "u", "s", runner.Result{CallID: "call-1", Output: json.RawMessage(`{"status":"ok"}`)}))
+	_ = collectEvents(t, mustResume(ctx, t, r, "u", "s", runner.Result{CallID: "call-1", Output: json.RawMessage(`{"status":"ok"}`)}))
 
 	// Second Resume with a DIFFERENT payload must produce a conflict
-	// without mutating the session.
-	var errs []error
-
-	for _, err := range r.Resume(ctx, "u", "s", runner.Result{CallID: "call-1", Output: json.RawMessage(`{"status":"different"}`)}) {
-		_ = err
-		if err != nil {
-			errs = append(errs, err)
-		}
-	}
-
-	gotConflict := false
-
-	for _, e := range errs {
-		if errorContains(e, runner.ErrResumeConflict.Error()) {
-			gotConflict = true
-			break
-		}
-	}
-
-	assert.True(t, gotConflict, "expected ErrResumeConflict; got errs=%v", errs)
+	// without mutating the session — and the conflict surfaces EAGERLY,
+	// so a caller that never ranges the stream still sees it.
+	_, err = r.Resume(ctx, "u", "s", runner.Result{CallID: "call-1", Output: json.RawMessage(`{"status":"different"}`)})
+	require.ErrorIs(t, err, runner.ErrResumeConflict)
 }
 
-func errorContains(err error, needle string) bool {
-	if err == nil {
-		return false
-	}
 
-	s := err.Error()
-	for i := 0; i+len(needle) <= len(s); i++ {
-		if s[i:i+len(needle)] == needle {
-			return true
-		}
-	}
+// mustResume asserts the eager phase of Resume succeeded and returns
+// the continuation stream.
+func mustResume(ctx context.Context, t *testing.T, r *runner.Runner, userID, sessionID string, results ...runner.Result) func(func(agent.Event, error) bool) {
+	t.Helper()
 
-	return false
+	stream, err := r.Resume(ctx, userID, sessionID, results...)
+	require.NoError(t, err)
+
+	return stream
+}
+
+func TestRunner_Resume_MutatesEagerly_WithoutRangingStream(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	registry := tool.NewRegistry(tool.RegistryConfig{})
+	require.NoError(t, registry.Register(newPausingTool()))
+
+	model := fakellm.NewFakeModel()
+	model.When(fakellm.Any()).ThenRespondWith(func(_ *llm.Request, _ *fakellm.CallContext) (*llm.Response, error) {
+		return &llm.Response{
+			Message: llm.NewMessage(llm.RoleAssistant,
+				llm.NewToolRequestPart("call-1", "deploy", json.RawMessage(`{"version":"v1"}`))),
+			FinishReason: llm.FinishReasonToolCalls,
+		}, nil
+	})
+
+	ag, err := llmagent.New("deployer", "You deploy things.", model, llmagent.WithTools(registry))
+	require.NoError(t, err)
+
+	store := session.NewInMemoryStore()
+	r, err := runner.New(ag, store)
+	require.NoError(t, err)
+
+	_ = collectEvents(t, r.Run(ctx, "u", "s", llm.NewMessage(llm.RoleUser, llm.NewTextPart("deploy"))))
+
+	// Resume WITHOUT ranging the returned stream: the mutation must
+	// already be applied and saved when Resume returns.
+	_, err = r.Resume(ctx, "u", "s", runner.Result{CallID: "call-1", Output: json.RawMessage(`{"status":"ok"}`)})
+	require.NoError(t, err)
+
+	sess, err := store.Load(ctx, "s")
+	require.NoError(t, err)
+	assert.NotContains(t, sess.PendingToolCalls, "call-1", "pending call resolved without ranging the stream")
+	assert.Contains(t, sess.ResumeReceipts, "call-1")
+
+	// Unknown call ID surfaces eagerly too.
+	_, err = r.Resume(ctx, "u", "s", runner.Result{CallID: "nope", Output: json.RawMessage(`{}`)})
+	require.ErrorIs(t, err, runner.ErrPendingCallNotFound)
 }
 
 // approvalGate is a ToolInterceptor that pauses gated tools for human
@@ -335,7 +357,7 @@ func TestRunner_Resume_ApprovalApproved_RunsToolOnce(t *testing.T) {
 	assert.Equal(t, tool.AwaitReasonApproval, end.PendingCalls[0].Reason)
 	assert.Equal(t, int32(0), count.Load(), "tool must not run before approval")
 
-	resumeEvents := collectEvents(t, r.Resume(ctx, "approver", "s",
+	resumeEvents := collectEvents(t, mustResume(ctx, t, r, "approver", "s",
 		runner.Result{CallID: "call-1", Output: json.RawMessage(`{"approved":true}`)}))
 
 	end2 := findInvocationEndEvent(resumeEvents)
@@ -358,7 +380,7 @@ func TestRunner_Resume_ApprovalDenied_NeverRunsTool(t *testing.T) {
 
 	_ = collectEvents(t, r.Run(ctx, "u", "s", llm.NewMessage(llm.RoleUser, llm.NewTextPart("write"))))
 
-	resumeEvents := collectEvents(t, r.Resume(ctx, "approver", "s",
+	resumeEvents := collectEvents(t, mustResume(ctx, t, r, "approver", "s",
 		runner.Result{CallID: "call-1", Error: "denied by operator bob"}))
 
 	end := findInvocationEndEvent(resumeEvents)
@@ -399,7 +421,7 @@ func TestRunner_Resume_ApprovalThenExternalWork_ChainedPause(t *testing.T) {
 
 	// Approve: the interceptor consumes the decision, the tool runs and
 	// pauses again awaiting the external job. Same call ID, new reason.
-	approveEvents := collectEvents(t, r.Resume(ctx, "approver", "s",
+	approveEvents := collectEvents(t, mustResume(ctx, t, r, "approver", "s",
 		runner.Result{CallID: "call-1", Output: json.RawMessage(`{"approved":true}`)}))
 
 	sawChainedPending := false
@@ -421,7 +443,7 @@ func TestRunner_Resume_ApprovalThenExternalWork_ChainedPause(t *testing.T) {
 	assert.NotContains(t, sess.ResumeReceipts, "call-1", "no receipt while the call is still pending")
 
 	// Final resume with the external result completes the call.
-	finalEvents := collectEvents(t, r.Resume(ctx, "webhook", "s",
+	finalEvents := collectEvents(t, mustResume(ctx, t, r, "webhook", "s",
 		runner.Result{CallID: "call-1", Output: json.RawMessage(`{"status":"success"}`)}))
 
 	end := findInvocationEndEvent(finalEvents)

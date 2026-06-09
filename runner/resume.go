@@ -68,6 +68,20 @@ var ErrPendingCallNotFound = errors.New("runner: pending tool call not found")
 // with the same result hash emits ResumeAcknowledgedEvent and does not
 // touch the session.
 //
+// Resume mutates EAGERLY: by the time it returns, every result has been
+// validated, applied, and the session saved. The returned stream first
+// replays the events produced while applying the results, then — once
+// no pending calls remain — streams the agent's continuation. Dropping
+// the stream skips only the model continuation, never the mutation.
+// The continuation re-acquires the session lock when ranged; another
+// Run/Resume may interleave between the mutation and the continuation,
+// which is safe because the session is fully consistent after the save.
+//
+// A non-nil error means nothing was applied: session load/save failed,
+// or every supplied result was rejected (errors joined). When at least
+// one result applies, per-result rejections surface on the stream
+// instead.
+//
 // userID is the actor performing this resume — not necessarily the
 // original session owner. Applications use ResumeAuthorizer to enforce
 // per-operation policy.
@@ -76,18 +90,76 @@ func (r *Runner) Resume(
 	userID string,
 	sessionID string,
 	results ...Result,
-) iter.Seq2[agent.Event, error] {
-	return func(yield func(agent.Event, error) bool) {
-		err := r.config.sessionStore.WithSessionLock(ctx, sessionID, func(ctx context.Context) error {
-			return r.resumeLocked(ctx, userID, sessionID, results, yield)
-		})
+) (iter.Seq2[agent.Event, error], error) {
+	return r.resume(ctx, userID, sessionID, ResumeOperationResume, results)
+}
 
-		// WithSessionLock-level errors only surface via yield when the
-		// inner function didn't already yield them.
-		if err != nil && !errors.Is(err, errYielded) {
-			yield(nil, err)
+func (r *Runner) resume(
+	ctx context.Context,
+	userID string,
+	sessionID string,
+	op ResumeOperation,
+	results []Result,
+) (iter.Seq2[agent.Event, error], error) {
+	var (
+		items         []streamItem
+		needsContinue bool
+	)
+
+	err := r.config.sessionStore.WithSessionLock(ctx, sessionID, func(ctx context.Context) error {
+		var innerErr error
+		items, needsContinue, innerErr = r.applyResumeBatch(ctx, userID, sessionID, op, results)
+
+		return innerErr
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	stream := func(yield func(agent.Event, error) bool) {
+		for _, it := range items {
+			if !yield(it.evt, it.err) {
+				return
+			}
+		}
+
+		if !needsContinue {
+			return
+		}
+
+		// Continuation: re-acquire the lock and reload — the mutation
+		// lock was released when Resume returned.
+		lockErr := r.config.sessionStore.WithSessionLock(ctx, sessionID, func(ctx context.Context) error {
+			sess, err := r.config.sessionStore.Load(ctx, sessionID)
+			if err != nil {
+				yield(nil, fmt.Errorf("%w: %w", agent.ErrSessionLoad, err))
+				return errYielded
+			}
+
+			if len(sess.PendingToolCalls) > 0 {
+				// A concurrent Run/Resume paused the session again
+				// between our mutation and this continuation; it owns
+				// the next step.
+				return nil
+			}
+
+			r.runAgentAfterResume(ctx, sess, yield)
+
+			return nil
+		})
+		if lockErr != nil && !errors.Is(lockErr, errYielded) {
+			yield(nil, lockErr)
 		}
 	}
+
+	return stream, nil
+}
+
+// streamItem is a buffered (event, error) pair produced during the
+// eager mutation phase and replayed on the returned stream.
+type streamItem struct {
+	evt agent.Event
+	err error
 }
 
 // errYielded is an internal sentinel used to tell WithSessionLock that
@@ -95,17 +167,19 @@ func (r *Runner) Resume(
 // escape this package.
 var errYielded = errors.New("runner: error already yielded")
 
-func (r *Runner) resumeLocked(
+// applyResumeBatch loads the session, applies every result, and saves.
+// It runs under the session lock. The returned items replay on the
+// stream; needsContinue reports whether the agent loop should re-enter.
+func (r *Runner) applyResumeBatch(
 	ctx context.Context,
 	userID string,
 	sessionID string,
+	op ResumeOperation,
 	results []Result,
-	yield func(agent.Event, error) bool,
-) error {
+) ([]streamItem, bool, error) {
 	sess, err := r.config.sessionStore.Load(ctx, sessionID)
 	if err != nil {
-		yield(nil, fmt.Errorf("%w: %w", agent.ErrSessionLoad, err))
-		return errYielded
+		return nil, false, fmt.Errorf("%w: %w", agent.ErrSessionLoad, err)
 	}
 
 	session.MigratePendingToolCalls(sess)
@@ -119,48 +193,50 @@ func (r *Runner) resumeLocked(
 		}
 	}
 
-	// Apply each result. Errors per-result surface as events; we only
-	// abort the whole batch on infrastructure errors (load/save).
-	needsContinue := false
+	var (
+		items      []streamItem
+		rejections []error
+		anyApplied bool
+	)
 
 	for _, res := range results {
-		applied, err := r.applyResume(ctx, userID, sess, res, yield, envelope)
-		if err != nil {
-			yield(nil, err)
-			return errYielded
+		applied, evts, resErr := r.applyResume(ctx, userID, sess, res, op, envelope)
+
+		for _, evt := range evts {
+			items = append(items, streamItem{evt: evt})
 		}
 
-		needsContinue = needsContinue || applied
+		if resErr != nil {
+			items = append(items, streamItem{err: resErr})
+			rejections = append(rejections, resErr)
+		}
+
+		anyApplied = anyApplied || applied
+	}
+
+	// All results rejected → fail eagerly so callers that don't range
+	// the stream still see the problem.
+	if !anyApplied && len(rejections) > 0 && len(rejections) == len(results) {
+		return nil, false, errors.Join(rejections...)
 	}
 
 	if err := r.config.sessionStore.Save(ctx, sess); err != nil {
-		yield(nil, fmt.Errorf("%w: %w", agent.ErrSessionSave, err))
-		return errYielded
+		return nil, false, fmt.Errorf("%w: %w", agent.ErrSessionSave, err)
 	}
 
-	// If there are still pending calls, emit a paused end event and
-	// return without calling the model. The agent loop will only be
-	// re-entered when all pending calls are resolved.
+	// If there are still pending calls, emit a paused end event; the
+	// agent loop is only re-entered when all pending calls are resolved.
 	if len(sess.PendingToolCalls) > 0 {
-		yield(agent.InvocationEndEvent{
+		items = append(items, streamItem{evt: agent.InvocationEndEvent{
 			Envelope:     envelope(),
 			FinishReason: agent.FinishReasonPaused,
 			PendingCalls: summariesFromSession(sess),
-		}, nil)
+		}})
 
-		return nil
+		return items, false, nil
 	}
 
-	if !needsContinue {
-		return nil
-	}
-
-	// All pending calls cleared and at least one resume happened —
-	// re-enter the agent loop so the model can react to the new tool
-	// responses.
-	r.runAgentAfterResume(ctx, sess, envelope, yield)
-
-	return nil
+	return items, anyApplied, nil
 }
 
 // applyResume reconciles a single Result against the session. Returns
@@ -174,44 +250,41 @@ func (r *Runner) applyResume(
 	userID string,
 	sess *session.State,
 	res Result,
-	yield func(agent.Event, error) bool,
+	op ResumeOperation,
 	envelope func() agent.EventEnvelope,
-) (bool, error) {
+) (bool, []agent.Event, error) {
 	resultHash := computeResultHash(res)
 
 	// Idempotency: a duplicate with the same hash gets acked without
 	// session mutation; a different hash is a conflict.
 	if receipt, ok := sess.ResumeReceipts[res.CallID]; ok {
 		if receipt.ResultHash == resultHash {
-			yield(agent.ResumeAcknowledgedEvent{
+			ack := agent.ResumeAcknowledgedEvent{
 				Envelope: envelope(),
 				CallID:   res.CallID,
 				Status:   "already_resolved",
-			}, nil)
+			}
 
-			return false, nil
+			return false, []agent.Event{ack}, nil
 		}
 
-		return false, fmt.Errorf("%w: call_id=%s", ErrResumeConflict, res.CallID)
+		return false, nil, fmt.Errorf("%w: call_id=%s", ErrResumeConflict, res.CallID)
 	}
 
 	pc, ok := sess.PendingToolCalls[res.CallID]
 	if !ok {
-		yield(nil, fmt.Errorf("%w: call_id=%s", ErrPendingCallNotFound, res.CallID))
-		return false, nil
+		return false, nil, fmt.Errorf("%w: call_id=%s", ErrPendingCallNotFound, res.CallID)
 	}
 
-	if err := r.runAuthorizer(ctx, userID, sess.ID, pc, res, ResumeOperationResume); err != nil {
-		yield(nil, fmt.Errorf("resume not authorized: %w", err))
-		return false, nil
+	if err := r.runAuthorizer(ctx, userID, sess.ID, pc, res, op); err != nil {
+		return false, nil, fmt.Errorf("resume not authorized: %w", err)
 	}
 
 	switch tool.ResumeMode(pc.Resume) {
 	case tool.ResumeWithMessage:
 		// Callers must use Runner.Run with the user's next message
 		// for these pauses. Reject here so they don't silently no-op.
-		yield(nil, fmt.Errorf("call %s expects ResumeWithMessage; use Runner.Run with a user message", res.CallID))
-		return false, nil
+		return false, nil, fmt.Errorf("call %s expects ResumeWithMessage; use Runner.Run with a user message", res.CallID)
 
 	case tool.ResumeWithToolResponse:
 		applyToolResponseResume(sess, &pc, res)
@@ -222,17 +295,16 @@ func (r *Runner) applyResume(
 			// unresumable (the receipt check short-circuits before the
 			// pending lookup), so receipts are only written for
 			// terminal resolutions.
-			yield(agent.ToolPendingEvent{
+			chained := agent.ToolPendingEvent{
 				Envelope:    envelope(),
 				PendingCall: summarizePendingCall(sess.PendingToolCalls[res.CallID]),
 				Placeholder: *llm.NewToolResponsePart(pc.ID, pc.Name, sess.PendingToolCalls[res.CallID].LastOutput),
-			}, nil)
+			}
 
-			return false, nil
+			return false, []agent.Event{chained}, nil
 		}
 	default:
-		yield(nil, fmt.Errorf("call %s has unknown resume mode %q", res.CallID, pc.Resume))
-		return false, nil
+		return false, nil, fmt.Errorf("call %s has unknown resume mode %q", res.CallID, pc.Resume)
 	}
 
 	// Resolve aliases (coalesced calls) with the same payload.
@@ -244,7 +316,7 @@ func (r *Runner) applyResume(
 
 	storeReceipt(sess, res.CallID, resultHash, res.Metadata)
 
-	return true, nil
+	return true, nil, nil
 }
 
 // applyToolResponseResume replaces the placeholder ToolResponsePart for
@@ -518,7 +590,6 @@ func (r *Runner) runAuthorizer(
 func (r *Runner) runAgentAfterResume(
 	ctx context.Context,
 	sess *session.State,
-	envelope func() agent.EventEnvelope,
 	yield func(agent.Event, error) bool,
 ) {
 	inv := agent.NewInvocationMetadata(sess, r.config.agent.Info())
@@ -554,81 +625,76 @@ func (r *Runner) runAgentAfterResume(
 	if err := r.config.sessionStore.Save(ctx, sess); err != nil {
 		yield(nil, fmt.Errorf("%w: %w", agent.ErrSessionSave, err))
 	}
-
-	_ = envelope // intentionally unused; new invocation builds its own envelopes
 }
 
 // Progress records a non-terminal update on a pending tool call and
-// emits ToolProgressEvent. It never calls the model.
+// returns the ToolProgressEvent for the caller to forward. It mutates
+// eagerly and never calls the model.
 func (r *Runner) Progress(
 	ctx context.Context,
 	userID string,
 	sessionID string,
 	callID string,
 	payload json.RawMessage,
-) iter.Seq2[agent.Event, error] {
-	return func(yield func(agent.Event, error) bool) {
-		err := r.config.sessionStore.WithSessionLock(ctx, sessionID, func(ctx context.Context) error {
-			sess, err := r.config.sessionStore.Load(ctx, sessionID)
-			if err != nil {
-				yield(nil, fmt.Errorf("%w: %w", agent.ErrSessionLoad, err))
-				return errYielded
-			}
+) (agent.ToolProgressEvent, error) {
+	var out agent.ToolProgressEvent
 
-			session.MigratePendingToolCalls(sess)
-
-			pc, ok := sess.PendingToolCalls[callID]
-			if !ok {
-				yield(nil, fmt.Errorf("%w: call_id=%s", ErrPendingCallNotFound, callID))
-				return errYielded
-			}
-
-			if err := r.runAuthorizer(ctx, userID, sessionID, pc, Result{CallID: callID, Output: payload}, ResumeOperationProgress); err != nil {
-				yield(nil, fmt.Errorf("progress not authorized: %w", err))
-				return errYielded
-			}
-
-			pc.Progress = append(pc.Progress, session.ProgressEntry{At: time.Now().UTC(), Payload: payload})
-			sess.PendingToolCalls[callID] = pc
-
-			if err := r.config.sessionStore.Save(ctx, sess); err != nil {
-				yield(nil, fmt.Errorf("%w: %w", agent.ErrSessionSave, err))
-				return errYielded
-			}
-
-			yield(agent.ToolProgressEvent{
-				Envelope: agent.EventEnvelope{
-					InvocationID: "progress-" + uuid.NewString(),
-					SessionID:    sessionID,
-					At:           time.Now().UTC(),
-				},
-				CallID:  callID,
-				Payload: payload,
-			}, nil)
-
-			return nil
-		})
-
-		if err != nil && !errors.Is(err, errYielded) {
-			yield(nil, err)
+	err := r.config.sessionStore.WithSessionLock(ctx, sessionID, func(ctx context.Context) error {
+		sess, err := r.config.sessionStore.Load(ctx, sessionID)
+		if err != nil {
+			return fmt.Errorf("%w: %w", agent.ErrSessionLoad, err)
 		}
-	}
+
+		session.MigratePendingToolCalls(sess)
+
+		pc, ok := sess.PendingToolCalls[callID]
+		if !ok {
+			return fmt.Errorf("%w: call_id=%s", ErrPendingCallNotFound, callID)
+		}
+
+		if err := r.runAuthorizer(ctx, userID, sessionID, pc, Result{CallID: callID, Output: payload}, ResumeOperationProgress); err != nil {
+			return fmt.Errorf("progress not authorized: %w", err)
+		}
+
+		pc.Progress = append(pc.Progress, session.ProgressEntry{At: time.Now().UTC(), Payload: payload})
+		sess.PendingToolCalls[callID] = pc
+
+		if err := r.config.sessionStore.Save(ctx, sess); err != nil {
+			return fmt.Errorf("%w: %w", agent.ErrSessionSave, err)
+		}
+
+		out = agent.ToolProgressEvent{
+			Envelope: agent.EventEnvelope{
+				InvocationID: "progress-" + uuid.NewString(),
+				SessionID:    sessionID,
+				At:           time.Now().UTC(),
+			},
+			CallID:  callID,
+			Payload: payload,
+		}
+
+		return nil
+	})
+
+	return out, err
 }
 
 // Cancel resolves a pending tool call with a tool-error response. It
-// continues the agent loop afterward unless other pending calls remain.
+// mutates eagerly like Resume; the returned stream carries the agent
+// continuation unless other pending calls remain. The ResumeAuthorizer
+// sees ResumeOperationCancel.
 func (r *Runner) Cancel(
 	ctx context.Context,
 	userID string,
 	sessionID string,
 	callID string,
 	reason string,
-) iter.Seq2[agent.Event, error] {
+) (iter.Seq2[agent.Event, error], error) {
 	if reason == "" {
 		reason = "canceled"
 	}
 
-	return r.Resume(ctx, userID, sessionID, Result{CallID: callID, Error: reason})
+	return r.resume(ctx, userID, sessionID, ResumeOperationCancel, []Result{{CallID: callID, Error: reason}})
 }
 
 // registryFromAgent returns the tool registry attached to a, if any.
