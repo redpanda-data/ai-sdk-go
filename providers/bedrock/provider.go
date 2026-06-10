@@ -213,6 +213,7 @@ func (p *Provider) Models() []llm.ModelDiscoveryInfo {
 			Label:        def.Label,
 			Capabilities: def.Capabilities,
 			Provider:     p.Name(),
+			Metadata:     def.discoveryMetadata(),
 		})
 	}
 
