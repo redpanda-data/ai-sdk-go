@@ -100,7 +100,7 @@ func (m *ResponseMapper) FromProvider(r *responses.Response) (*llm.Response, err
 
 			hasToolCalls = true
 
-			content = append(content, llm.NewToolRequestPart(fc.CallID, fc.Name, json.RawMessage(fc.Arguments)))
+			content = append(content, llm.NewToolRequestPart(fc.CallID, fc.Name, normalizeToolArguments(fc.Arguments)))
 
 		case outputTypeReasoning:
 			for i, s := range out.Summary {
@@ -214,4 +214,17 @@ var codeToBaseErr = map[responses.ResponseErrorCode]error{
 	responses.ResponseErrorCodeImageParseError:       llm.ErrServerError,
 	responses.ResponseErrorCodeFailedToDownloadImage: llm.ErrServerError,
 	responses.ResponseErrorCodeImageFileNotFound:     llm.ErrServerError,
+}
+
+// normalizeToolArguments converts a raw function-call arguments string into
+// a JSON object payload. OpenAI emits an empty arguments string for
+// zero-parameter tool calls; passed through verbatim, downstream tool
+// executors serialize the call as `"arguments": null`, which strict MCP
+// servers reject. Mirrors the Bedrock mapper, which defaults absent tool
+// input to {}.
+func normalizeToolArguments(args string) json.RawMessage {
+	if args == "" {
+		return json.RawMessage(`{}`)
+	}
+	return json.RawMessage(args)
 }
