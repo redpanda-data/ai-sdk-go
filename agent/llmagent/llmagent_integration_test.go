@@ -152,7 +152,7 @@ func TestLLMAgent_Integration_ToolCalling(t *testing.T) {
 
 	// 3. Verify tool result was received
 	require.NotEmpty(t, toolResultEvents, "should have received tool result")
-	assert.Empty(t, toolResultEvents[0].Response.Error, "tool execution should succeed")
+	assert.False(t, toolResultEvents[0].Response.IsError, "tool execution should succeed")
 
 	// Parse and verify the result
 	var toolResult struct {

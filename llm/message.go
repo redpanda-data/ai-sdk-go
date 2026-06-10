@@ -14,15 +14,21 @@
 
 package llm
 
+import (
+	"bytes"
+	"encoding/json"
+)
+
 // Message represents a single message in a conversation.
 // Messages form the conversation history and current context for the model.
 type Message struct {
-	// Role indicates who sent this message
+	// Role indicates who sent this message.
 	Role MessageRole `json:"role"`
 
-	// Content contains the message content using the extensible Part system.
-	// This allows for rich content including text, images, tool calls, etc.
-	Content []*Part `json:"content"`
+	// Content contains the message content as a sequence of Parts.
+	// Use the New*Part helpers (or &TextPart{...} literals) to build
+	// content; type-switch over the concrete pointer types to consume it.
+	Content []Part `json:"content"`
 }
 
 // MessageRole defines who sent a message in the conversation.
@@ -41,27 +47,78 @@ const (
 )
 
 // NewMessage creates a message with the specified role and parts.
-// This is the recommended way to construct messages for LLM requests.
-//
-// For simple text messages, pass a single text part:
 //
 //	msg := llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hello"))
 //
-// For multi-part messages, pass multiple parts:
-//
 //	msg := llm.NewMessage(llm.RoleAssistant,
 //	    llm.NewTextPart("I'll search for that."),
-//	    llm.NewToolRequestPart(toolReq),
+//	    llm.NewToolRequestPart("call_1", "search", argsJSON),
 //	)
-//
-// For tool responses, use the user role:
-//
-//	msg := llm.NewMessage(llm.RoleUser, llm.NewToolResponsePart(resp))
-func NewMessage(role MessageRole, parts ...*Part) Message {
+func NewMessage(role MessageRole, parts ...Part) Message {
 	return Message{
 		Role:    role,
 		Content: parts,
 	}
+}
+
+// MarshalJSON encodes a Message using the discriminated Part envelope from
+// MarshalPart so the wire format does not depend on Go's interface-encoding
+// quirks.
+func (m Message) MarshalJSON() ([]byte, error) {
+	parts := make([]json.RawMessage, len(m.Content))
+
+	for i, p := range m.Content {
+		raw, err := MarshalPart(p)
+		if err != nil {
+			return nil, err
+		}
+
+		parts[i] = raw
+	}
+
+	return json.Marshal(struct {
+		Role    MessageRole       `json:"role"`
+		Content []json.RawMessage `json:"content"`
+	}{m.Role, parts})
+}
+
+// UnmarshalJSON decodes a Message previously produced by MarshalJSON. It
+// dispatches each Part through UnmarshalPart so the discriminator-tagged
+// envelope round-trips losslessly.
+func (m *Message) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		Role    MessageRole       `json:"role"`
+		Content []json.RawMessage `json:"content"`
+	}
+
+	dec := json.NewDecoder(bytes.NewReader(data))
+
+	err := dec.Decode(&raw)
+	if err != nil {
+		return err
+	}
+
+	m.Role = raw.Role
+	m.Content = nil
+
+	if raw.Content == nil {
+		return nil
+	}
+
+	out := make([]Part, len(raw.Content))
+
+	for i, rp := range raw.Content {
+		part, err := UnmarshalPart(rp)
+		if err != nil {
+			return err
+		}
+
+		out[i] = part
+	}
+
+	m.Content = out
+
+	return nil
 }
 
 // TextContent extracts and combines all text content from this message.
@@ -70,25 +127,24 @@ func (m *Message) TextContent() string {
 	return JoinTextParts(m.Content)
 }
 
-// ToolRequests extracts all tool requests from this message.
-// This is useful for agents that need to process tool calls from assistant messages.
-func (m *Message) ToolRequests() []*ToolRequest {
-	var toolRequests []*ToolRequest
+// ToolRequests returns the *ToolRequestPart parts of this message.
+// Useful for agents processing tool calls in assistant messages.
+func (m *Message) ToolRequests() []*ToolRequestPart {
+	var out []*ToolRequestPart
 
-	for _, part := range m.Content {
-		if part.IsToolRequest() && part.ToolRequest != nil {
-			toolRequests = append(toolRequests, part.ToolRequest)
+	for _, p := range m.Content {
+		if tr, ok := p.(*ToolRequestPart); ok && tr != nil {
+			out = append(out, tr)
 		}
 	}
 
-	return toolRequests
+	return out
 }
 
 // HasToolRequests returns true if this message contains any tool requests.
-// This is more readable than checking len(msg.ToolRequests()) > 0.
 func (m *Message) HasToolRequests() bool {
-	for _, part := range m.Content {
-		if part.IsToolRequest() {
+	for _, p := range m.Content {
+		if _, ok := p.(*ToolRequestPart); ok {
 			return true
 		}
 	}
@@ -96,30 +152,15 @@ func (m *Message) HasToolRequests() bool {
 	return false
 }
 
-// ToolResponses extracts all tool responses from this message.
-// This is useful when processing tool execution results.
-func (m *Message) ToolResponses() []*ToolResponse {
-	var toolResponses []*ToolResponse
+// ToolResponses returns the *ToolResponsePart parts of this message.
+func (m *Message) ToolResponses() []*ToolResponsePart {
+	var out []*ToolResponsePart
 
-	for _, part := range m.Content {
-		if part.IsToolResponse() && part.ToolResponse != nil {
-			toolResponses = append(toolResponses, part.ToolResponse)
+	for _, p := range m.Content {
+		if tr, ok := p.(*ToolResponsePart); ok && tr != nil {
+			out = append(out, tr)
 		}
 	}
 
-	return toolResponses
-}
-
-// FilterParts returns all parts of the specified kind.
-// This provides a generic way to extract parts by type.
-func (m *Message) FilterParts(kind PartKind) []*Part {
-	var filtered []*Part
-
-	for _, part := range m.Content {
-		if part.Kind == kind {
-			filtered = append(filtered, part)
-		}
-	}
-
-	return filtered
+	return out
 }

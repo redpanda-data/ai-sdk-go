@@ -53,7 +53,7 @@ import (
 //	    ctx context.Context,
 //	    info *agent.ToolCallInfo,
 //	    next agent.ToolExecutionNext,
-//	) (*llm.ToolResponse, error) {
+//	) (*llm.ToolResponsePart, error) {
 //	    t.logger.Info("tool starting", "name", info.Req.Name, "id", info.Req.ID)
 //	    resp, err := next(ctx, info)
 //	    if err != nil {
@@ -193,7 +193,7 @@ type ToolCallInfo struct {
 	Inv *InvocationMetadata
 
 	// Req is the tool request from the LLM.
-	Req *llm.ToolRequest
+	Req *llm.ToolRequestPart
 
 	// Definition is the full tool definition including description and type.
 	// Used by interceptors for observability (e.g., OpenTelemetry attributes).
@@ -202,7 +202,7 @@ type ToolCallInfo struct {
 }
 
 // ToolExecutionNext is the continuation function for tool execution interception.
-type ToolExecutionNext func(ctx context.Context, info *ToolCallInfo) (*llm.ToolResponse, error)
+type ToolExecutionNext func(ctx context.Context, info *ToolCallInfo) (*llm.ToolResponsePart, error)
 
 // ToolInterceptor intercepts tool executions.
 //
@@ -242,7 +242,7 @@ type ToolInterceptor interface {
 	// Return an error to indicate the tool failed; the error message will be sent to the LLM.
 	//
 	// IMPORTANT: Always pass ctx (or a child context) to next, never context.Background().
-	InterceptToolExecution(ctx context.Context, info *ToolCallInfo, next ToolExecutionNext) (*llm.ToolResponse, error)
+	InterceptToolExecution(ctx context.Context, info *ToolCallInfo, next ToolExecutionNext) (*llm.ToolResponsePart, error)
 }
 
 // ImplementsAnyInterceptor checks if interceptor i implements at least one interceptor interface.
@@ -361,7 +361,7 @@ func ApplyToolInterceptors(
 			ic := interceptor
 
 			// Create a wrapper that calls the interceptor
-			executor = func(ctx context.Context, info *ToolCallInfo) (*llm.ToolResponse, error) {
+			executor = func(ctx context.Context, info *ToolCallInfo) (*llm.ToolResponsePart, error) {
 				return ic.InterceptToolExecution(ctx, info, next)
 			}
 		}

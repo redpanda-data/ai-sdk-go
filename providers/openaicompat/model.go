@@ -100,7 +100,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 		var (
 			accumulatedContent   strings.Builder
 			accumulatedReasoning strings.Builder
-			toolCalls            = make(map[int]*llm.ToolRequest)
+			toolCalls            = make(map[int]*llm.ToolRequestPart)
 			finishReason         llm.FinishReason
 			responseID           string
 			usage                *llm.TokenUsage
@@ -141,7 +141,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 					if !yield(llm.ContentPartEvent{
 						Index: int(choice.Index),
-						Part:  llm.NewReasoningPart(&llm.ReasoningTrace{Text: reasoningDelta}),
+						Part:  llm.NewReasoningPart(reasoningDelta),
 					}, nil) {
 						return // Early break, defer runs
 					}
@@ -166,7 +166,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 				// Initialize or get existing tool call
 				if _, exists := toolCalls[idx]; !exists {
-					toolCalls[idx] = &llm.ToolRequest{}
+					toolCalls[idx] = &llm.ToolRequestPart{}
 				}
 
 				tc := toolCalls[idx]
@@ -243,18 +243,16 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 func (*Model) buildStreamEndResponse(
 	id string,
 	reasoning, content string,
-	toolCalls map[int]*llm.ToolRequest,
+	toolCalls map[int]*llm.ToolRequestPart,
 	finishReason llm.FinishReason,
 	usage *llm.TokenUsage,
 ) *llm.Response {
 	// Build content parts: reasoning + text + tool calls
-	parts := make([]*llm.Part, 0, 2+len(toolCalls))
+	parts := make([]llm.Part, 0, 2+len(toolCalls))
 
 	// Add accumulated reasoning if present
 	if reasoning != "" {
-		parts = append(parts, llm.NewReasoningPart(&llm.ReasoningTrace{
-			Text: reasoning,
-		}))
+		parts = append(parts, llm.NewReasoningPart(reasoning))
 	}
 
 	// Add text content if present
@@ -275,7 +273,7 @@ func (*Model) buildStreamEndResponse(
 			continue
 		}
 
-		parts = append(parts, llm.NewToolRequestPart(tc))
+		parts = append(parts, tc)
 	}
 
 	// Ensure usage is not nil
@@ -295,7 +293,7 @@ func (*Model) buildStreamEndResponse(
 }
 
 // emitToolCalls emits ContentPartEvent for each accumulated tool call.
-func (*Model) emitToolCalls(toolCalls map[int]*llm.ToolRequest, yield func(llm.Event, error) bool) bool {
+func (*Model) emitToolCalls(toolCalls map[int]*llm.ToolRequestPart, yield func(llm.Event, error) bool) bool {
 	for i := range len(toolCalls) {
 		tc, ok := toolCalls[i]
 		if !ok {
@@ -314,7 +312,7 @@ func (*Model) emitToolCalls(toolCalls map[int]*llm.ToolRequest, yield func(llm.E
 
 		if !yield(llm.ContentPartEvent{
 			Index: i,
-			Part:  llm.NewToolRequestPart(tc),
+			Part:  tc,
 		}, nil) {
 			return false
 		}

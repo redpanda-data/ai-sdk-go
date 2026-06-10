@@ -20,6 +20,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/redpanda-data/ai-sdk-go/internal/jsonschema"
 )
 
 func TestTransformSchemaForOpenAI(t *testing.T) {
@@ -503,67 +505,6 @@ func TestSchemaMapperWithCaching(t *testing.T) {
 	})
 }
 
-func TestDeepCopyMap(t *testing.T) {
-	t.Parallel()
-
-	t.Run("successful deep copy", func(t *testing.T) {
-		t.Parallel()
-
-		original := map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"nested": map[string]any{
-					"type":  "string",
-					"items": []any{"a", "b", "c"},
-				},
-			},
-			"numbers": []any{1, 2, 3},
-		}
-
-		copied, err := deepCopyMap(original)
-		require.NoError(t, err)
-
-		// Should be equal in content (use JSONEq to handle JSON type conversion)
-		originalJSON, err := json.Marshal(original)
-		require.NoError(t, err)
-		copiedJSON, err := json.Marshal(copied)
-		require.NoError(t, err)
-		assert.JSONEq(t, string(originalJSON), string(copiedJSON))
-
-		// But different objects (not same reference)
-		// Modify copied to verify independence
-		copied["type"] = "modified"
-		assert.NotEqual(t, original["type"], copied["type"])
-
-		// Modify nested structure
-		copiedProps, ok := copied["properties"].(map[string]any)
-		require.True(t, ok, "copied properties should be a map[string]any")
-		copiedNested, ok := copiedProps["nested"].(map[string]any)
-		require.True(t, ok, "copied nested should be a map[string]any")
-
-		copiedNested["type"] = "modified_nested"
-
-		originalProps, ok := original["properties"].(map[string]any)
-		require.True(t, ok, "original properties should be a map[string]any")
-		originalNested, ok := originalProps["nested"].(map[string]any)
-		require.True(t, ok, "original nested should be a map[string]any")
-		assert.NotEqual(t, originalNested["type"], copiedNested["type"])
-	})
-
-	t.Run("handles invalid JSON gracefully", func(t *testing.T) {
-		t.Parallel()
-
-		// This shouldn't normally happen with valid map[string]any,
-		// but test error handling
-		invalidMap := map[string]any{
-			"channel": make(chan int), // channels can't be JSON marshaled
-		}
-
-		_, err := deepCopyMap(invalidMap)
-		assert.Error(t, err, "Should return error for non-JSON-serializable data")
-	})
-}
-
 func TestOptionalEnumBecomesNullable(t *testing.T) {
 	t.Parallel()
 
@@ -633,7 +574,7 @@ func TestTupleItemsAreTransformed(t *testing.T) {
 func deepCopyMapForTest(t *testing.T, m map[string]any) map[string]any {
 	t.Helper()
 
-	copied, err := deepCopyMap(m)
+	copied, err := jsonschema.DeepCopy(m)
 	require.NoError(t, err)
 
 	return copied

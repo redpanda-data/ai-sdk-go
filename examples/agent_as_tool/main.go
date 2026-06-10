@@ -92,7 +92,7 @@ func (a *assistantToolLogger) InterceptToolExecution(
 	ctx context.Context,
 	info *agent.ToolCallInfo,
 	next agent.ToolExecutionNext,
-) (*llm.ToolResponse, error) {
+) (*llm.ToolResponsePart, error) {
 	fmt.Printf("  [Assistant Tool Call] %s\n", info.Req.Name)
 	if len(info.Req.Arguments) > 0 && len(info.Req.Arguments) < 200 {
 		fmt.Printf("  [Assistant Tool Args] %s\n", string(info.Req.Arguments))
@@ -102,8 +102,8 @@ func (a *assistantToolLogger) InterceptToolExecution(
 
 	if err != nil {
 		fmt.Printf("  [Assistant Tool Error] %v\n", err)
-	} else if resp.Error != "" {
-		fmt.Printf("  [Assistant Tool Error] %s\n", resp.Error)
+	} else if resp.IsError {
+		fmt.Printf("  [Assistant Tool Error] %s\n", string(resp.Result))
 	} else {
 		fmt.Printf("  [Assistant Tool Success] %s\n", info.Req.Name)
 	}
@@ -232,8 +232,8 @@ This helps keep your context clean and focused on the main task.`,
 			}
 
 		case agent.ToolResponseEvent:
-			if e.Response.Error != "" {
-				fmt.Printf("[Error] %s\n", e.Response.Error)
+			if e.Response.IsError {
+				fmt.Printf("[Error] %s\n", string(e.Response.Result))
 			}
 
 		case agent.MessageEvent:

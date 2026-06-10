@@ -84,9 +84,9 @@ func (r *Response) TextContent() string {
 	return r.Message.TextContent()
 }
 
-// ToolRequests extracts all tool requests from this response.
+// ToolRequests extracts all tool request parts from this response.
 // This is a convenience method that delegates to the underlying Message.
-func (r *Response) ToolRequests() []*ToolRequest {
+func (r *Response) ToolRequests() []*ToolRequestPart {
 	return r.Message.ToolRequests()
 }
 
@@ -96,14 +96,8 @@ func (r *Response) HasToolRequests() bool {
 	return r.Message.HasToolRequests()
 }
 
-// ToolResponses extracts all tool responses from this response.
+// ToolResponses extracts all tool response parts from this response.
 // This is a convenience method that delegates to the underlying Message.
-func (r *Response) ToolResponses() []*ToolResponse {
+func (r *Response) ToolResponses() []*ToolResponsePart {
 	return r.Message.ToolResponses()
-}
-
-// FilterParts returns all parts of the specified kind from this response.
-// This is a convenience method that delegates to the underlying Message.
-func (r *Response) FilterParts(kind PartKind) []*Part {
-	return r.Message.FilterParts(kind)
 }

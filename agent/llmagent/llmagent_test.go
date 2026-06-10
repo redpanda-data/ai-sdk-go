@@ -639,8 +639,8 @@ func TestExecuteTools_ToolError(t *testing.T) {
 	// Assert: Should have tool result with error
 	toolResultEvents := filterEvents[agent.ToolResponseEvent](events)
 	require.Len(t, toolResultEvents, 1)
-	assert.NotEmpty(t, toolResultEvents[0].Response.Error)
-	assert.Contains(t, toolResultEvents[0].Response.Error, "tool execution failed")
+	assert.True(t, toolResultEvents[0].Response.IsError)
+	assert.Contains(t, string(toolResultEvents[0].Response.Result), "tool execution failed")
 }
 
 // TestRun_ContextCancellation verifies context cancellation is handled.
@@ -894,7 +894,9 @@ func TestRun_StreamingDeltas(t *testing.T) {
 
 	var reconstructedSb714 strings.Builder
 	for _, delta := range deltaEvents {
-		reconstructedSb714.WriteString(delta.Delta.Part.Text)
+		if tp, ok := delta.Delta.Part.(*llm.TextPart); ok {
+			reconstructedSb714.WriteString(tp.Text)
+		}
 	}
 
 	reconstructed += reconstructedSb714.String()

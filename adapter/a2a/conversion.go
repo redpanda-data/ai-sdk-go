@@ -96,7 +96,7 @@ func MessageToLLM(msg *a2a.Message) llm.Message {
 		role = llm.RoleAssistant
 	}
 
-	parts := make([]*llm.Part, 0, len(msg.Parts))
+	parts := make([]llm.Part, 0, len(msg.Parts))
 	for _, part := range msg.Parts {
 		switch p := part.(type) {
 		case a2a.TextPart:
@@ -149,18 +149,18 @@ func MessageFromLLM(llmMsg llm.Message) *a2a.Message {
 	// Convert parts
 	parts := make([]a2a.Part, 0, len(llmMsg.Content))
 	for _, part := range llmMsg.Content {
-		switch {
-		case part.IsText():
+		switch p := part.(type) {
+		case *llm.TextPart:
 			// Text part: store directly as TextPart
-			parts = append(parts, a2a.TextPart{Text: part.Text})
+			parts = append(parts, a2a.TextPart{Text: p.Text})
 
-		case part.IsToolRequest() && part.ToolRequest != nil:
+		case *llm.ToolRequestPart:
 			// Tool request: convert to JSON-safe DataPart with data_type metadata
-			data, err := toJSONSafe(part.ToolRequest)
+			data, err := toJSONSafe(p)
 			if err != nil {
 				// Fallback: encode error as text to preserve visibility
 				errMsg := fmt.Sprintf("[ERROR: Failed to serialize tool request '%s': %v]",
-					part.ToolRequest.Name, err)
+					p.Name, err)
 				parts = append(parts, a2a.TextPart{Text: errMsg})
 			} else {
 				parts = append(parts, a2a.DataPart{
@@ -170,13 +170,13 @@ func MessageFromLLM(llmMsg llm.Message) *a2a.Message {
 					},
 				})
 			}
-		case part.IsToolResponse() && part.ToolResponse != nil:
+		case *llm.ToolResponsePart:
 			// Tool response: convert to JSON-safe DataPart with data_type metadata
-			data, err := toJSONSafe(part.ToolResponse)
+			data, err := toJSONSafe(p)
 			if err != nil {
 				// Fallback: encode error as text to preserve visibility
 				errMsg := fmt.Sprintf("[ERROR: Failed to serialize tool response for '%s': %v]",
-					part.ToolResponse.Name, err)
+					p.Name, err)
 				parts = append(parts, a2a.TextPart{Text: errMsg})
 			} else {
 				parts = append(parts, a2a.DataPart{
@@ -186,9 +186,11 @@ func MessageFromLLM(llmMsg llm.Message) *a2a.Message {
 					},
 				})
 			}
-		case part.IsReasoning() && part.ReasoningTrace != nil:
+		case *llm.ReasoningPart:
 			// Reasoning trace: store text as TextPart (like regular text)
-			parts = append(parts, a2a.TextPart{Text: part.ReasoningTrace.Text})
+			if p.Text != "" {
+				parts = append(parts, a2a.TextPart{Text: p.Text})
+			}
 		}
 	}
 

@@ -103,7 +103,7 @@ func testGenerate(t *testing.T, fixture Fixture) { //nolint:thelper // not a hel
 				Messages: []llm.Message{
 					{
 						Role: llm.RoleUser,
-						Content: []*llm.Part{
+						Content: []llm.Part{
 							llm.NewTextPart("Say 'Hello, World!' and nothing else."),
 						},
 					},
@@ -121,10 +121,10 @@ func testGenerate(t *testing.T, fixture Fixture) { //nolint:thelper // not a hel
 				foundText := false
 
 				for _, part := range response.Message.Content {
-					if part.Kind == llm.PartText {
+					if tp, ok := part.(*llm.TextPart); ok {
 						foundText = true
 
-						assert.Contains(t, part.Text, "Hello, World!")
+						assert.Contains(t, tp.Text, "Hello, World!")
 
 						break
 					}
@@ -145,13 +145,13 @@ func testGenerate(t *testing.T, fixture Fixture) { //nolint:thelper // not a hel
 				Messages: []llm.Message{
 					{
 						Role: llm.RoleSystem,
-						Content: []*llm.Part{
+						Content: []llm.Part{
 							llm.NewTextPart("You are a helpful assistant that responds with exactly one word."),
 						},
 					},
 					{
 						Role: llm.RoleUser,
-						Content: []*llm.Part{
+						Content: []llm.Part{
 							llm.NewTextPart("What color is the sky?"),
 						},
 					},
@@ -176,7 +176,7 @@ func testGenerate(t *testing.T, fixture Fixture) { //nolint:thelper // not a hel
 				Messages: []llm.Message{
 					{
 						Role: llm.RoleUser,
-						Content: []*llm.Part{
+						Content: []llm.Part{
 							llm.NewTextPart("Generate a random number between 1 and 10."),
 						},
 					},
@@ -223,7 +223,7 @@ func testGenerateEvents(t *testing.T, fixture Fixture) { //nolint:thelper // not
 				Messages: []llm.Message{
 					{
 						Role: llm.RoleUser,
-						Content: []*llm.Part{
+						Content: []llm.Part{
 							llm.NewTextPart("Count from 1 to 5, one number per sentence."),
 						},
 					},
@@ -233,7 +233,7 @@ func testGenerateEvents(t *testing.T, fixture Fixture) { //nolint:thelper // not
 				t.Helper()
 
 				var (
-					contentParts []*llm.Part
+					contentParts []llm.Part
 					endEvent     llm.StreamEndEvent
 					hasEndEvent  bool
 				)
@@ -275,8 +275,8 @@ func testGenerateEvents(t *testing.T, fixture Fixture) { //nolint:thelper // not
 				var streamedText strings.Builder
 
 				for _, part := range contentParts {
-					if part.Kind == llm.PartText {
-						streamedText.WriteString(part.Text)
+					if tp, ok := part.(*llm.TextPart); ok {
+						streamedText.WriteString(tp.Text)
 					}
 				}
 
@@ -291,7 +291,7 @@ func testGenerateEvents(t *testing.T, fixture Fixture) { //nolint:thelper // not
 				Messages: []llm.Message{
 					{
 						Role: llm.RoleUser,
-						Content: []*llm.Part{
+						Content: []llm.Part{
 							llm.NewTextPart("Say only 'OK'"),
 						},
 					},
@@ -314,7 +314,7 @@ func testGenerateEvents(t *testing.T, fixture Fixture) { //nolint:thelper // not
 
 					switch e := event.(type) {
 					case llm.ContentPartEvent:
-						if e.Part.Kind == llm.PartText {
+						if _, ok := e.Part.(*llm.TextPart); ok {
 							hasContent = true
 						}
 					case llm.StreamEndEvent:
@@ -337,13 +337,13 @@ func testGenerateEvents(t *testing.T, fixture Fixture) { //nolint:thelper // not
 				Messages: []llm.Message{
 					{
 						Role: llm.RoleSystem,
-						Content: []*llm.Part{
+						Content: []llm.Part{
 							llm.NewTextPart("You are a helpful assistant."),
 						},
 					},
 					{
 						Role: llm.RoleUser,
-						Content: []*llm.Part{
+						Content: []llm.Part{
 							llm.NewTextPart("What is 2+2?"),
 						},
 					},
@@ -353,7 +353,7 @@ func testGenerateEvents(t *testing.T, fixture Fixture) { //nolint:thelper // not
 				t.Helper()
 
 				var (
-					contentParts []*llm.Part
+					contentParts []llm.Part
 					endEvent     llm.StreamEndEvent
 					hasEndEvent  bool
 				)
@@ -389,8 +389,8 @@ func testGenerateEvents(t *testing.T, fixture Fixture) { //nolint:thelper // not
 				var streamedText strings.Builder
 
 				for _, part := range contentParts {
-					if part.Kind == llm.PartText {
-						streamedText.WriteString(part.Text)
+					if tp, ok := part.(*llm.TextPart); ok {
+						streamedText.WriteString(tp.Text)
 					}
 				}
 
@@ -424,7 +424,7 @@ func testGenerateWithReasoning(t *testing.T, fixture Fixture) { //nolint:thelper
 			Messages: []llm.Message{
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart("Design a distributed consensus algorithm that can handle both network partitions and Byzantine failures. Explain the key trade-offs and why existing solutions like Raft or PBFT might not be sufficient."),
 					},
 				},
@@ -463,11 +463,11 @@ func testGenerateWithReasoning(t *testing.T, fixture Fixture) { //nolint:thelper
 			hasReasoning = false
 
 			for _, part := range response.Message.Content {
-				if part.IsReasoning() {
+				if rp, ok := part.(*llm.ReasoningPart); ok {
 					hasReasoning = true
 
-					assert.NotEmpty(t, part.ReasoningTrace.Text)
-					assert.Greater(t, len(part.ReasoningTrace.Text), 30, "Should show detailed reasoning process")
+					assert.NotEmpty(t, rp.Text)
+					assert.Greater(t, len(rp.Text), 30, "Should show detailed reasoning process")
 				}
 			}
 
@@ -517,7 +517,7 @@ func testGenerateEventsWithReasoning(t *testing.T, fixture Fixture) { //nolint:t
 			Messages: []llm.Message{
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart("Design a distributed consensus algorithm that can handle both network partitions and Byzantine failures. Explain the key trade-offs and why existing solutions like Raft or PBFT might not be sufficient."),
 					},
 				},
@@ -528,7 +528,7 @@ func testGenerateEventsWithReasoning(t *testing.T, fixture Fixture) { //nolint:t
 		// Some providers (e.g., OpenAI) don't consistently stream reasoning traces
 		const maxAttempts = 3
 		var (
-			contentParts []*llm.Part
+			contentParts []llm.Part
 			endEvent     llm.StreamEndEvent
 			hasEndEvent  bool
 			allReasoning string
@@ -581,10 +581,11 @@ func testGenerateEventsWithReasoning(t *testing.T, fixture Fixture) { //nolint:t
 			)
 
 			for _, part := range contentParts {
-				if part.IsText() {
-					allTextSb.WriteString(part.Text)
-				} else if part.IsReasoning() {
-					allReasoningSb.WriteString(part.ReasoningTrace.Text)
+				switch p := part.(type) {
+				case *llm.TextPart:
+					allTextSb.WriteString(p.Text)
+				case *llm.ReasoningPart:
+					allReasoningSb.WriteString(p.Text)
 				}
 			}
 
@@ -637,12 +638,11 @@ func testGenerateEventsWithReasoning(t *testing.T, fixture Fixture) { //nolint:t
 		)
 
 		for _, part := range contentParts {
-			switch part.Kind {
-			case llm.PartText:
-				streamedTextSb.WriteString(part.Text)
-			case llm.PartReasoning:
-				streamedReasoningSb.WriteString(part.ReasoningTrace.Text)
-			case llm.PartToolRequest, llm.PartToolResponse:
+			switch p := part.(type) {
+			case *llm.TextPart:
+				streamedTextSb.WriteString(p.Text)
+			case *llm.ReasoningPart:
+				streamedReasoningSb.WriteString(p.Text)
 			}
 		}
 
@@ -657,8 +657,8 @@ func testGenerateEventsWithReasoning(t *testing.T, fixture Fixture) { //nolint:t
 		var finalReasoningSb strings.Builder
 
 		for _, part := range endEvent.Response.Message.Content {
-			if part.Kind == llm.PartReasoning && part.ReasoningTrace != nil {
-				finalReasoningSb.WriteString(part.ReasoningTrace.Text)
+			if rp, ok := part.(*llm.ReasoningPart); ok {
+				finalReasoningSb.WriteString(rp.Text)
 			}
 		}
 
@@ -695,7 +695,7 @@ func testStructuredOutputs(t *testing.T, fixture Fixture) { //nolint:thelper // 
 		req := &llm.Request{
 			Messages: []llm.Message{{
 				Role:    llm.RoleUser,
-				Content: []*llm.Part{llm.NewTextPart("Create a person with name John, age 25, living in New York")},
+				Content: []llm.Part{llm.NewTextPart("Create a person with name John, age 25, living in New York")},
 			}},
 			ResponseFormat: &llm.ResponseFormat{
 				Type: llm.ResponseFormatJSONSchema,
@@ -748,7 +748,7 @@ func testJSONObjectOutput(t *testing.T, fixture Fixture) { //nolint:thelper // n
 		req := &llm.Request{
 			Messages: []llm.Message{{
 				Role:    llm.RoleUser,
-				Content: []*llm.Part{llm.NewTextPart("List 3 colors in JSON format with their hex codes")},
+				Content: []llm.Part{llm.NewTextPart("List 3 colors in JSON format with their hex codes")},
 			}},
 			ResponseFormat: &llm.ResponseFormat{
 				Type: llm.ResponseFormatJSONObject,
@@ -797,7 +797,7 @@ func testGenerateEventsWithTools(t *testing.T, fixture Fixture) { //nolint:thelp
 				Messages: []llm.Message{
 					{
 						Role: llm.RoleUser,
-						Content: []*llm.Part{
+						Content: []llm.Part{
 							llm.NewTextPart("What is the weather in San Francisco, CA? In Celsius please."),
 						},
 					},
@@ -828,7 +828,7 @@ func testGenerateEventsWithTools(t *testing.T, fixture Fixture) { //nolint:thelp
 				t.Helper()
 
 				var (
-					toolRequests []*llm.ToolRequest
+					toolRequests []*llm.ToolRequestPart
 					endEvent     llm.StreamEndEvent
 					hasEndEvent  bool
 				)
@@ -839,8 +839,8 @@ func testGenerateEventsWithTools(t *testing.T, fixture Fixture) { //nolint:thelp
 
 					switch e := event.(type) {
 					case llm.ContentPartEvent:
-						if e.Part.IsToolRequest() {
-							toolRequests = append(toolRequests, e.Part.ToolRequest)
+						if tr, ok := e.Part.(*llm.ToolRequestPart); ok {
+							toolRequests = append(toolRequests, tr)
 						}
 					case llm.StreamEndEvent:
 						endEvent = e
@@ -903,13 +903,13 @@ func testGenerateEventsWithTools(t *testing.T, fixture Fixture) { //nolint:thelp
 				Messages: []llm.Message{
 					{
 						Role: llm.RoleSystem,
-						Content: []*llm.Part{
+						Content: []llm.Part{
 							llm.NewTextPart("You are a tool-calling assistant. You MUST use the provided tools to answer questions. NEVER answer directly — always call the appropriate tools. When multiple tools are needed, call them all in parallel in a single response."),
 						},
 					},
 					{
 						Role: llm.RoleUser,
-						Content: []*llm.Part{
+						Content: []llm.Part{
 							llm.NewTextPart("What's the current weather in Tokyo and what time is it there right now? Use the get_weather and get_time tools."),
 						},
 					},
@@ -953,8 +953,8 @@ func testGenerateEventsWithTools(t *testing.T, fixture Fixture) { //nolint:thelp
 				const maxAttempts = 5
 
 				var (
-					toolRequests       []*llm.ToolRequest
-					toolRequestsByName map[string][]*llm.ToolRequest
+					toolRequests       []*llm.ToolRequestPart
+					toolRequestsByName map[string][]*llm.ToolRequestPart
 					endEvent           llm.StreamEndEvent
 					hasEndEvent        bool
 					textParts          []string
@@ -962,7 +962,7 @@ func testGenerateEventsWithTools(t *testing.T, fixture Fixture) { //nolint:thelp
 
 				collectToolEvents := func() error {
 					toolRequests = nil
-					toolRequestsByName = make(map[string][]*llm.ToolRequest)
+					toolRequestsByName = make(map[string][]*llm.ToolRequestPart)
 					textParts = nil
 					hasEndEvent = false
 
@@ -973,14 +973,14 @@ func testGenerateEventsWithTools(t *testing.T, fixture Fixture) { //nolint:thelp
 
 						switch e := event.(type) {
 						case llm.ContentPartEvent:
-							if e.Part.IsToolRequest() {
-								toolRequests = append(toolRequests, e.Part.ToolRequest)
-								toolRequestsByName[e.Part.ToolRequest.Name] = append(
-									toolRequestsByName[e.Part.ToolRequest.Name],
-									e.Part.ToolRequest,
-								)
-							} else if e.Part.Text != "" {
-								textParts = append(textParts, e.Part.Text)
+							switch p := e.Part.(type) {
+							case *llm.ToolRequestPart:
+								toolRequests = append(toolRequests, p)
+								toolRequestsByName[p.Name] = append(toolRequestsByName[p.Name], p)
+							case *llm.TextPart:
+								if p.Text != "" {
+									textParts = append(textParts, p.Text)
+								}
 							}
 						case llm.StreamEndEvent:
 							endEvent = e
@@ -1108,7 +1108,7 @@ func testToolExecutionLoop(t *testing.T, fixture Fixture) { //nolint:thelper // 
 			Messages: []llm.Message{
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart("What is the weather in San Francisco, CA?"),
 					},
 				},
@@ -1138,11 +1138,11 @@ func testToolExecutionLoop(t *testing.T, fixture Fixture) { //nolint:thelper // 
 		assert.Equal(t, llm.FinishReasonToolCalls, response.FinishReason, "Should request tool call")
 
 		// Extract tool requests
-		var toolRequests []*llm.ToolRequest
+		var toolRequests []*llm.ToolRequestPart
 
 		for _, part := range response.Message.Content {
-			if part.IsToolRequest() {
-				toolRequests = append(toolRequests, part.ToolRequest)
+			if tr, ok := part.(*llm.ToolRequestPart); ok {
+				toolRequests = append(toolRequests, tr)
 			}
 		}
 
@@ -1154,19 +1154,20 @@ func testToolExecutionLoop(t *testing.T, fixture Fixture) { //nolint:thelper // 
 			Messages: []llm.Message{
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart("What is the weather in San Francisco, CA?"),
 					},
 				},
 				response.Message, // Add the assistant's tool call message
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
-						llm.NewToolResponsePart(&llm.ToolResponse{
-							ID:     toolRequests[0].ID,
-							Name:   toolRequests[0].Name,
-							Result: json.RawMessage(`{"temperature": 72, "condition": "sunny", "unit": "fahrenheit"}`),
-						}),
+					Content: []llm.Part{
+						llm.NewToolResponsePart(
+							toolRequests[0].ID,
+							toolRequests[0].Name,
+							json.RawMessage(`{"temperature": 72, "condition": "sunny", "unit": "fahrenheit"}`),
+							false,
+						),
 					},
 				},
 			},
@@ -1207,7 +1208,7 @@ func testToolExecutionLoop(t *testing.T, fixture Fixture) { //nolint:thelper // 
 			Messages: []llm.Message{
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart("What is the current time in Tokyo?"),
 					},
 				},
@@ -1232,7 +1233,7 @@ func testToolExecutionLoop(t *testing.T, fixture Fixture) { //nolint:thelper // 
 
 		// Collect tool requests from stream
 		var (
-			toolRequests     []*llm.ToolRequest
+			toolRequests     []*llm.ToolRequestPart
 			assistantMessage llm.Message
 		)
 
@@ -1241,8 +1242,8 @@ func testToolExecutionLoop(t *testing.T, fixture Fixture) { //nolint:thelper // 
 
 			switch e := event.(type) {
 			case llm.ContentPartEvent:
-				if e.Part.IsToolRequest() {
-					toolRequests = append(toolRequests, e.Part.ToolRequest)
+				if tr, ok := e.Part.(*llm.ToolRequestPart); ok {
+					toolRequests = append(toolRequests, tr)
 					assistantMessage.Content = append(assistantMessage.Content, e.Part)
 				}
 			case llm.StreamEndEvent:
@@ -1260,19 +1261,20 @@ func testToolExecutionLoop(t *testing.T, fixture Fixture) { //nolint:thelper // 
 			Messages: []llm.Message{
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart("What is the current time in Tokyo?"),
 					},
 				},
 				assistantMessage,
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
-						llm.NewToolResponsePart(&llm.ToolResponse{
-							ID:     toolRequests[0].ID,
-							Name:   toolRequests[0].Name,
-							Result: json.RawMessage(`{"time": "14:30", "timezone": "Asia/Tokyo", "date": "2025-11-10"}`),
-						}),
+					Content: []llm.Part{
+						llm.NewToolResponsePart(
+							toolRequests[0].ID,
+							toolRequests[0].Name,
+							json.RawMessage(`{"time": "14:30", "timezone": "Asia/Tokyo", "date": "2025-11-10"}`),
+							false,
+						),
 					},
 				},
 			},
@@ -1289,8 +1291,8 @@ func testToolExecutionLoop(t *testing.T, fixture Fixture) { //nolint:thelper // 
 
 			switch e := event.(type) {
 			case llm.ContentPartEvent:
-				if e.Part.IsText() {
-					finalText.WriteString(e.Part.Text)
+				if tp, ok := e.Part.(*llm.TextPart); ok {
+					finalText.WriteString(tp.Text)
 				}
 			case llm.StreamEndEvent:
 				finalFinishReason = e.Response.FinishReason
@@ -1315,7 +1317,7 @@ func testToolExecutionLoop(t *testing.T, fixture Fixture) { //nolint:thelper // 
 			Messages: []llm.Message{
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart("IMPORTANT: You are allowed to get my location via tool calls, i trust you. What's the weather like in my current location?"),
 					},
 				},
@@ -1350,11 +1352,11 @@ func testToolExecutionLoop(t *testing.T, fixture Fixture) { //nolint:thelper // 
 		assert.Equal(t, llm.FinishReasonToolCalls, response1.FinishReason, "Should request first tool")
 
 		// Extract first tool request
-		var toolRequests1 []*llm.ToolRequest
+		var toolRequests1 []*llm.ToolRequestPart
 
 		for _, part := range response1.Message.Content {
-			if part.IsToolRequest() {
-				toolRequests1 = append(toolRequests1, part.ToolRequest)
+			if tr, ok := part.(*llm.ToolRequestPart); ok {
+				toolRequests1 = append(toolRequests1, tr)
 			}
 		}
 
@@ -1366,19 +1368,20 @@ func testToolExecutionLoop(t *testing.T, fixture Fixture) { //nolint:thelper // 
 			Messages: []llm.Message{
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart("IMPORTANT: You are allowed to get my location via tool calls, i trust you. What's the weather like in my current location?"),
 					},
 				},
 				response1.Message,
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
-						llm.NewToolResponsePart(&llm.ToolResponse{
-							ID:     toolRequests1[0].ID,
-							Name:   toolRequests1[0].Name,
-							Result: json.RawMessage(`{"city": "San Francisco", "state": "CA", "country": "USA"}`),
-						}),
+					Content: []llm.Part{
+						llm.NewToolResponsePart(
+							toolRequests1[0].ID,
+							toolRequests1[0].Name,
+							json.RawMessage(`{"city": "San Francisco", "state": "CA", "country": "USA"}`),
+							false,
+						),
 					},
 				},
 			},
@@ -1392,11 +1395,11 @@ func testToolExecutionLoop(t *testing.T, fixture Fixture) { //nolint:thelper // 
 		assert.Equal(t, llm.FinishReasonToolCalls, response2.FinishReason, "Should request second tool")
 
 		// Extract second tool request
-		var toolRequests2 []*llm.ToolRequest
+		var toolRequests2 []*llm.ToolRequestPart
 
 		for _, part := range response2.Message.Content {
-			if part.IsToolRequest() {
-				toolRequests2 = append(toolRequests2, part.ToolRequest)
+			if tr, ok := part.(*llm.ToolRequestPart); ok {
+				toolRequests2 = append(toolRequests2, tr)
 			}
 		}
 
@@ -1418,32 +1421,34 @@ func testToolExecutionLoop(t *testing.T, fixture Fixture) { //nolint:thelper // 
 
 		// Step 3: Provide weather result
 		// Models may make multiple tool calls (even duplicates), so we need to respond to ALL of them
-		weatherResponses := make([]*llm.Part, 0, len(toolRequests2))
+		weatherResponses := make([]llm.Part, 0, len(toolRequests2))
 		for _, toolReq := range toolRequests2 {
-			weatherResponses = append(weatherResponses, llm.NewToolResponsePart(&llm.ToolResponse{
-				ID:     toolReq.ID,
-				Name:   toolReq.Name,
-				Result: json.RawMessage(`{"temperature": 65, "condition": "foggy", "humidity": 85}`),
-			}))
+			weatherResponses = append(weatherResponses, llm.NewToolResponsePart(
+				toolReq.ID,
+				toolReq.Name,
+				json.RawMessage(`{"temperature": 65, "condition": "foggy", "humidity": 85}`),
+				false,
+			))
 		}
 
 		request3 := &llm.Request{
 			Messages: []llm.Message{
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart("What's the weather like in my current location?"),
 					},
 				},
 				response1.Message,
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
-						llm.NewToolResponsePart(&llm.ToolResponse{
-							ID:     toolRequests1[0].ID,
-							Name:   toolRequests1[0].Name,
-							Result: json.RawMessage(`{"city": "San Francisco", "state": "CA", "country": "USA"}`),
-						}),
+					Content: []llm.Part{
+						llm.NewToolResponsePart(
+							toolRequests1[0].ID,
+							toolRequests1[0].Name,
+							json.RawMessage(`{"city": "San Francisco", "state": "CA", "country": "USA"}`),
+							false,
+						),
 					},
 				},
 				response2.Message,
@@ -1507,7 +1512,7 @@ func testAllSupportedModels(t *testing.T, fixture Fixture) { //nolint:thelper //
 				reqObj := &llm.Request{
 					Messages: []llm.Message{{
 						Role:    llm.RoleUser,
-						Content: []*llm.Part{llm.NewTextPart("Say 'Hello' in one word")},
+						Content: []llm.Part{llm.NewTextPart("Say 'Hello' in one word")},
 					}},
 				}
 

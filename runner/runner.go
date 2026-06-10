@@ -215,7 +215,14 @@ func (r *Runner) Run(
 			// Note: Agent already appended the message to sess.Messages, we just save it
 			if _, ok := evt.(agent.MessageEvent); ok {
 				if err := r.config.sessionStore.Save(ctx, sess); err != nil {
-					yield(nil, fmt.Errorf("%w: %w", agent.ErrSessionSave, err))
+					// Capture yield's bool so the defer's guard works if the
+					// consumer breaks here — otherwise the deferred save's
+					// yield panics with "range function continued iteration
+					// after function for loop body returned false".
+					if !yield(nil, fmt.Errorf("%w: %w", agent.ErrSessionSave, err)) {
+						consumerStopped = true
+					}
+
 					return
 				}
 			}

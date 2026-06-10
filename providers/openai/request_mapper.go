@@ -127,43 +127,43 @@ func (rm *RequestMapper) mapMessagesToInputItems(messages []llm.Message) ([]resp
 	for _, msg := range messages {
 		// Process each part in the message content
 		for _, part := range msg.Content {
-			switch {
-			case part.IsText():
-				item, err := rm.mapTextMessage(part, msg.Role)
+			switch p := part.(type) {
+			case *llm.TextPart:
+				item, err := rm.mapTextMessage(p, msg.Role)
 				if err != nil {
 					return nil, err
 				}
 
 				items = append(items, item)
 
-			case part.IsToolRequest():
+			case *llm.ToolRequestPart:
 				// Tool requests must be in RoleAssistant messages
 				if msg.Role != llm.RoleAssistant {
 					return nil, fmt.Errorf("%w: tool request parts require RoleAssistant, got %s", llm.ErrRequestMapping, msg.Role)
 				}
 
-				item, err := rm.mapToolRequestMessage(part)
+				item, err := rm.mapToolRequestMessage(p)
 				if err != nil {
 					return nil, err
 				}
 
 				items = append(items, item)
 
-			case part.IsToolResponse():
+			case *llm.ToolResponsePart:
 				// Tool responses must be in RoleUser messages
 				if msg.Role != llm.RoleUser {
 					return nil, fmt.Errorf("%w: tool response parts require RoleUser, got %s", llm.ErrRequestMapping, msg.Role)
 				}
 
-				item, err := rm.mapToolResponseMessage(part)
+				item, err := rm.mapToolResponseMessage(p)
 				if err != nil {
 					return nil, err
 				}
 
 				items = append(items, item)
 
-			case part.IsReasoning():
-				item, err := rm.mapReasoningMessage(part)
+			case *llm.ReasoningPart:
+				item, err := rm.mapReasoningMessage(p)
 				if err != nil {
 					return nil, err
 				}
@@ -171,7 +171,7 @@ func (rm *RequestMapper) mapMessagesToInputItems(messages []llm.Message) ([]resp
 				items = append(items, item)
 
 			default:
-				return nil, fmt.Errorf("failed mapping unknown part kind: %q", part.Kind.String())
+				return nil, fmt.Errorf("failed mapping unknown part type: %T", part)
 			}
 		}
 	}
@@ -180,7 +180,7 @@ func (rm *RequestMapper) mapMessagesToInputItems(messages []llm.Message) ([]resp
 }
 
 // mapTextMessage converts a text part to an API message input item.
-func (rm *RequestMapper) mapTextMessage(part *llm.Part, role llm.MessageRole) (responses.ResponseInputItemUnionParam, error) {
+func (rm *RequestMapper) mapTextMessage(part *llm.TextPart, role llm.MessageRole) (responses.ResponseInputItemUnionParam, error) {
 	apiRole, err := rm.mapRoleToAPI(role)
 	if err != nil {
 		return responses.ResponseInputItemUnionParam{}, err
@@ -199,15 +199,15 @@ func (rm *RequestMapper) mapTextMessage(part *llm.Part, role llm.MessageRole) (r
 }
 
 // mapToolRequestMessage converts a tool request part to a function call input item.
-func (*RequestMapper) mapToolRequestMessage(part *llm.Part) (responses.ResponseInputItemUnionParam, error) {
-	if part.ToolRequest == nil {
-		return responses.ResponseInputItemUnionParam{}, errors.New("tool request part has nil ToolRequest")
+func (*RequestMapper) mapToolRequestMessage(part *llm.ToolRequestPart) (responses.ResponseInputItemUnionParam, error) {
+	if part == nil {
+		return responses.ResponseInputItemUnionParam{}, errors.New("nil ToolRequestPart")
 	}
 
 	functionCall := &responses.ResponseFunctionToolCallParam{
-		CallID:    part.ToolRequest.ID,
-		Name:      part.ToolRequest.Name,
-		Arguments: string(part.ToolRequest.Arguments),
+		CallID:    part.ID,
+		Name:      part.Name,
+		Arguments: string(part.Arguments),
 		Type:      constant.FunctionCall(""),
 	}
 
@@ -217,32 +217,15 @@ func (*RequestMapper) mapToolRequestMessage(part *llm.Part) (responses.ResponseI
 }
 
 // mapToolResponseMessage converts a tool response part to a function call output input item.
-func (*RequestMapper) mapToolResponseMessage(part *llm.Part) (responses.ResponseInputItemUnionParam, error) {
-	if part.ToolResponse == nil {
-		return responses.ResponseInputItemUnionParam{}, errors.New("tool response part has nil ToolResponse")
+func (*RequestMapper) mapToolResponseMessage(part *llm.ToolResponsePart) (responses.ResponseInputItemUnionParam, error) {
+	if part == nil {
+		return responses.ResponseInputItemUnionParam{}, errors.New("nil ToolResponsePart")
 	}
 
-	var output string
-
-	if part.ToolResponse.Error != "" {
-		// If there was an error, include it in the output
-		errorResult := map[string]any{
-			"error": part.ToolResponse.Error,
-		}
-
-		errorBytes, err := json.Marshal(errorResult)
-		if err != nil {
-			return responses.ResponseInputItemUnionParam{}, fmt.Errorf("failed to marshal tool error: %w", err)
-		}
-
-		output = string(errorBytes)
-	} else {
-		// Use the successful result
-		output = string(part.ToolResponse.Result)
-	}
+	output := string(part.Result)
 
 	functionOutput := &responses.ResponseInputItemFunctionCallOutputParam{
-		CallID: part.ToolResponse.ID,
+		CallID: part.ID,
 		Output: responses.ResponseInputItemFunctionCallOutputOutputUnionParam{
 			OfString: param.NewOpt(output),
 		},
@@ -255,17 +238,17 @@ func (*RequestMapper) mapToolResponseMessage(part *llm.Part) (responses.Response
 }
 
 // mapReasoningMessage converts a reasoning part to a reasoning input item.
-func (*RequestMapper) mapReasoningMessage(part *llm.Part) (responses.ResponseInputItemUnionParam, error) {
-	if part.ReasoningTrace == nil {
-		return responses.ResponseInputItemUnionParam{}, errors.New("reasoning part has nil ReasoningTrace")
+func (*RequestMapper) mapReasoningMessage(part *llm.ReasoningPart) (responses.ResponseInputItemUnionParam, error) {
+	if part == nil {
+		return responses.ResponseInputItemUnionParam{}, errors.New("nil ReasoningPart")
 	}
 
 	reasoning := &responses.ResponseReasoningItemParam{
-		ID:   part.ReasoningTrace.ID,
+		ID:   part.ID,
 		Type: constant.Reasoning(""),
 		Summary: []responses.ResponseReasoningItemSummaryParam{
 			{
-				Text: part.ReasoningTrace.Text,
+				Text: part.Text,
 				Type: constant.SummaryText(""),
 			},
 		},

@@ -26,57 +26,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
-func TestNormalizeBaseURL(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{
-			name:     "URL without /v1",
-			input:    "https://api.openai.com",
-			expected: "https://api.openai.com/v1",
-		},
-		{
-			name:     "URL with /v1",
-			input:    "https://api.openai.com/v1",
-			expected: "https://api.openai.com/v1",
-		},
-		{
-			name:     "URL with trailing slash",
-			input:    "https://api.openai.com/",
-			expected: "https://api.openai.com/v1",
-		},
-		{
-			name:     "URL with /v1 and trailing slash",
-			input:    "https://api.openai.com/v1/",
-			expected: "https://api.openai.com/v1",
-		},
-		{
-			name:     "custom URL without /v1 (e.g., DeepSeek)",
-			input:    "https://api.deepseek.com",
-			expected: "https://api.deepseek.com/v1",
-		},
-		{
-			name:     "custom URL with /v1",
-			input:    "https://api.deepseek.com/v1",
-			expected: "https://api.deepseek.com/v1",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			result := normalizeBaseURL(tt.input)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
-func TestWithBaseURLNormalization(t *testing.T) {
+func TestWithBaseURL(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -85,14 +35,24 @@ func TestWithBaseURLNormalization(t *testing.T) {
 		expectedURL string
 	}{
 		{
-			name:        "URL without /v1 gets normalized",
-			inputURL:    "https://api.deepseek.com",
+			name:        "URL used as-is",
+			inputURL:    "https://api.deepseek.com/v1",
 			expectedURL: "https://api.deepseek.com/v1",
 		},
 		{
-			name:        "URL with /v1 stays unchanged",
-			inputURL:    "https://api.deepseek.com/v1",
+			name:        "trailing slash stripped",
+			inputURL:    "https://api.deepseek.com/v1/",
 			expectedURL: "https://api.deepseek.com/v1",
+		},
+		{
+			name:        "gateway URL preserved without /v1",
+			inputURL:    "https://gateway/llm/v1/providers/my-openai",
+			expectedURL: "https://gateway/llm/v1/providers/my-openai",
+		},
+		{
+			name:        "custom URL without /v1 preserved",
+			inputURL:    "https://api.deepseek.com",
+			expectedURL: "https://api.deepseek.com",
 		},
 	}
 
@@ -215,7 +175,7 @@ func TestRequestMapping(t *testing.T) {
 		Messages: []llm.Message{
 			{
 				Role: llm.RoleUser,
-				Content: []*llm.Part{
+				Content: []llm.Part{
 					llm.NewTextPart("Hello!"),
 				},
 			},
@@ -452,7 +412,7 @@ func TestRequestMappingWithTools(t *testing.T) {
 		Messages: []llm.Message{
 			{
 				Role: llm.RoleUser,
-				Content: []*llm.Part{
+				Content: []llm.Part{
 					llm.NewTextPart("What's the weather like in Paris?"),
 				},
 			},
@@ -506,7 +466,7 @@ func TestMessageMappingWithToolParts(t *testing.T) {
 			messages: []llm.Message{
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart("Hello!"),
 					},
 				},
@@ -523,13 +483,13 @@ func TestMessageMappingWithToolParts(t *testing.T) {
 			messages: []llm.Message{
 				{
 					Role: llm.RoleAssistant,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart("I'll check the weather for you."),
-						llm.NewToolRequestPart(&llm.ToolRequest{
+						&llm.ToolRequestPart{
 							ID:        "call_123",
 							Name:      "get_weather",
 							Arguments: json.RawMessage(`{"location": "Paris, France"}`),
-						}),
+						},
 					},
 				},
 			},
@@ -553,12 +513,12 @@ func TestMessageMappingWithToolParts(t *testing.T) {
 			messages: []llm.Message{
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
-						llm.NewToolResponsePart(&llm.ToolResponse{
+					Content: []llm.Part{
+						&llm.ToolResponsePart{
 							ID:     "call_123",
 							Name:   "get_weather",
 							Result: json.RawMessage(`{"temperature": "22°C", "condition": "sunny"}`),
-						}),
+						},
 					},
 				},
 			},
@@ -576,12 +536,11 @@ func TestMessageMappingWithToolParts(t *testing.T) {
 			messages: []llm.Message{
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
-						llm.NewToolResponsePart(&llm.ToolResponse{
+					Content: []llm.Part{
+						&llm.ToolResponsePart{
 							ID:    "call_123",
 							Name:  "get_weather",
-							Error: "API rate limit exceeded",
-						}),
+							IsError: true, Result: json.RawMessage(`{"error":"API rate limit exceeded"}`),						},
 					},
 				},
 			},
@@ -599,11 +558,11 @@ func TestMessageMappingWithToolParts(t *testing.T) {
 			messages: []llm.Message{
 				{
 					Role: llm.RoleAssistant,
-					Content: []*llm.Part{
-						llm.NewReasoningPart(&llm.ReasoningTrace{
+					Content: []llm.Part{
+						&llm.ReasoningPart{
 							ID:   "reasoning_123",
 							Text: "Let me think about this step by step...",
-						}),
+						},
 					},
 				},
 			},
@@ -619,29 +578,29 @@ func TestMessageMappingWithToolParts(t *testing.T) {
 			messages: []llm.Message{
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart("Check the weather"),
 					},
 				},
 				{
 					Role: llm.RoleAssistant,
-					Content: []*llm.Part{
+					Content: []llm.Part{
 						llm.NewTextPart("I'll check that for you."),
-						llm.NewToolRequestPart(&llm.ToolRequest{
+						&llm.ToolRequestPart{
 							ID:        "call_456",
 							Name:      "get_weather",
 							Arguments: json.RawMessage(`{"location": "London"}`),
-						}),
+						},
 					},
 				},
 				{
 					Role: llm.RoleUser,
-					Content: []*llm.Part{
-						llm.NewToolResponsePart(&llm.ToolResponse{
+					Content: []llm.Part{
+						&llm.ToolResponsePart{
 							ID:     "call_456",
 							Name:   "get_weather",
 							Result: json.RawMessage(`{"temperature": "15°C"}`),
-						}),
+						},
 					},
 				},
 			},

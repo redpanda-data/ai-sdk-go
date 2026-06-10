@@ -44,7 +44,7 @@ func TestAnthropicJSONOutput_Integration(t *testing.T) {
 			Messages: []llm.Message{
 				{
 					Role:    llm.RoleUser,
-					Content: []*llm.Part{llm.NewTextPart("Generate a JSON object with a 'name' field and an 'age' field. Return only the JSON, nothing else.")},
+					Content: []llm.Part{llm.NewTextPart("Generate a JSON object with a 'name' field and an 'age' field. Return only the JSON, nothing else.")},
 				},
 			},
 			ResponseFormat: &llm.ResponseFormat{
@@ -94,7 +94,7 @@ func TestAnthropicJSONOutput_Integration(t *testing.T) {
 			Messages: []llm.Message{
 				{
 					Role:    llm.RoleUser,
-					Content: []*llm.Part{llm.NewTextPart("Generate data for a person")},
+					Content: []llm.Part{llm.NewTextPart("Generate data for a person")},
 				},
 			},
 			ResponseFormat: &llm.ResponseFormat{

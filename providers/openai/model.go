@@ -121,14 +121,14 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 				if e.Delta != "" {
 					if !yield(llm.ContentPartEvent{
 						Index: int(e.OutputIndex),
-						Part: llm.NewReasoningPart(&llm.ReasoningTrace{
+						Part: &llm.ReasoningPart{
 							ID:   e.ItemID,
 							Text: e.Delta,
 							Metadata: map[string]any{
 								"sequence_number": e.SequenceNumber,
 								"summary_index":   e.SummaryIndex,
 							},
-						}),
+						},
 					}, nil) {
 						return
 					}
@@ -140,11 +140,11 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 				if toolCall, ok := e.Item.AsAny().(responses.ResponseFunctionToolCall); ok {
 					if !yield(llm.ContentPartEvent{
 						Index: int(e.OutputIndex),
-						Part: llm.NewToolRequestPart(&llm.ToolRequest{
-							ID:        toolCall.CallID,
-							Name:      toolCall.Name,
-							Arguments: json.RawMessage(toolCall.Arguments),
-						}),
+						Part: llm.NewToolRequestPart(
+							toolCall.CallID,
+							toolCall.Name,
+							json.RawMessage(toolCall.Arguments),
+						),
 					}, nil) {
 						return
 					}

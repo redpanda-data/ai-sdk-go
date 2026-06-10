@@ -193,73 +193,53 @@ func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]*genai.Content, 
 }
 
 // mapParts converts unified Parts to Gemini Parts.
-func (rm *RequestMapper) mapParts(parts []*llm.Part) ([]*genai.Part, error) {
+func (rm *RequestMapper) mapParts(parts []llm.Part) ([]*genai.Part, error) {
 	geminiParts := make([]*genai.Part, 0, len(parts))
 
 	for _, part := range parts {
-		switch {
-		case part.IsText():
-			geminiParts = append(geminiParts, genai.NewPartFromText(part.Text))
+		switch p := part.(type) {
+		case *llm.TextPart:
+			geminiParts = append(geminiParts, genai.NewPartFromText(p.Text))
 
-		case part.IsToolRequest():
-			if part.ToolRequest == nil {
-				return nil, errors.New("tool request part has nil ToolRequest")
-			}
-
+		case *llm.ToolRequestPart:
 			// Parse arguments as map for function call
 			var args map[string]any
-			if err := json.Unmarshal(part.ToolRequest.Arguments, &args); err != nil {
+			if err := json.Unmarshal(p.Arguments, &args); err != nil {
 				return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
 			}
 
-			geminiPart := genai.NewPartFromFunctionCall(
-				part.ToolRequest.Name,
-				args,
-			)
+			geminiPart := genai.NewPartFromFunctionCall(p.Name, args)
 
 			// Restore thought signature preserved from previous response (required for Gemini 3 Pro)
-			if part.Metadata != nil {
-				if sig, ok := part.Metadata[metadataKeyThoughtSignature].([]byte); ok {
+			if p.Metadata != nil {
+				if sig, ok := p.Metadata[metadataKeyThoughtSignature].([]byte); ok {
 					geminiPart.ThoughtSignature = sig
 				}
 			}
 
 			geminiParts = append(geminiParts, geminiPart)
 
-		case part.IsToolResponse():
-			if part.ToolResponse == nil {
-				return nil, errors.New("tool response part has nil ToolResponse")
-			}
-
+		case *llm.ToolResponsePart:
 			// Parse result as map for function response
 			var response map[string]any
-			if part.ToolResponse.Error != "" {
-				// If there was an error, wrap it in the response
+			if err := json.Unmarshal(p.Result, &response); err != nil {
+				// If unmarshaling fails, wrap the raw result
 				response = map[string]any{
-					"error": part.ToolResponse.Error,
-				}
-			} else {
-				if err := json.Unmarshal(part.ToolResponse.Result, &response); err != nil {
-					// If unmarshaling fails, wrap the raw result
-					response = map[string]any{
-						"result": string(part.ToolResponse.Result),
-					}
+					"result": string(p.Result),
 				}
 			}
 
-			geminiParts = append(geminiParts, genai.NewPartFromFunctionResponse(
-				part.ToolResponse.ID,
-				response,
-			))
+			geminiParts = append(geminiParts, genai.NewPartFromFunctionResponse(p.ID, response))
 
-		case part.IsReasoning():
+		case *llm.ReasoningPart:
 			// Gemini thinking is handled automatically by the ThinkingConfig
 			// and returned in the response. We don't need to include it in the request.
 			// Skip reasoning parts in the input.
+			_ = p
 			continue
 
 		default:
-			return nil, fmt.Errorf("unsupported part type: %s", part.Kind)
+			return nil, fmt.Errorf("unsupported part type: %T", part)
 		}
 	}
 

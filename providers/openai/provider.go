@@ -28,22 +28,6 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
-// normalizeBaseURL ensures the base URL ends with /v1 for OpenAI API compatibility.
-//
-// The OpenAI SDK expects the base URL to include the /v1 path segment
-// (e.g., "https://api.openai.com/v1"), while other providers like Anthropic
-// expect it without (e.g., "https://api.anthropic.com"). This normalization
-// allows users to provide URLs in either format consistently across providers,
-// bridging the gap between different SDK expectations.
-func normalizeBaseURL(url string) string {
-	url = strings.TrimSuffix(url, "/")
-	if !strings.HasSuffix(url, "/v1") {
-		url += "/v1"
-	}
-
-	return url
-}
-
 // Provider implements the OpenAI model provider.
 type Provider struct {
 	APIKey     string
@@ -97,14 +81,16 @@ func NewProvider(apiKey string, opts ...ProviderOption) (*Provider, error) {
 }
 
 // WithBaseURL sets a custom API endpoint for OpenAI-compatible providers.
-// The URL is normalized to ensure it ends with /v1 for API compatibility.
+// The URL is used as-is (trailing slash stripped). Callers talking to
+// OpenAI-compatible APIs must include /v1 in the URL themselves; callers
+// pointing at a gateway or proxy pass whatever URL that proxy expects.
 func WithBaseURL(url string) ProviderOption {
 	return func(p *Provider) error {
 		if url == "" {
 			return errors.New("base URL cannot be empty")
 		}
 
-		p.BaseURL = normalizeBaseURL(url)
+		p.BaseURL = strings.TrimRight(url, "/")
 
 		return nil
 	}

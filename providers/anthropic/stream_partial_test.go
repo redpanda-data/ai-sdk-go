@@ -83,12 +83,12 @@ func TestStreaming_MaxTokensMidToolUse(t *testing.T) {
 
 	req := &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("run it")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("run it")}},
 		},
 	}
 
 	var (
-		toolRequests []*llm.ToolRequest
+		toolRequests []*llm.ToolRequestPart
 		streamEnd    *llm.StreamEndEvent
 	)
 
@@ -97,7 +97,7 @@ func TestStreaming_MaxTokensMidToolUse(t *testing.T) {
 
 		switch e := event.(type) {
 		case llm.ContentPartEvent:
-			if tr := e.Part.ToolRequest; tr != nil {
+			if tr, ok := e.Part.(*llm.ToolRequestPart); ok {
 				toolRequests = append(toolRequests, tr)
 			}
 		case llm.StreamEndEvent:
@@ -121,7 +121,7 @@ func TestStreaming_MaxTokensMidToolUse(t *testing.T) {
 	var finalToolIDs []string
 
 	for _, part := range streamEnd.Response.Message.Content {
-		if tr := part.ToolRequest; tr != nil {
+		if tr, ok := part.(*llm.ToolRequestPart); ok {
 			finalToolIDs = append(finalToolIDs, tr.ID)
 			assert.True(t, json.Valid(tr.Arguments),
 				"tool_use %s in final response carried invalid JSON: %q", tr.ID, tr.Arguments)

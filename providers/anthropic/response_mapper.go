@@ -45,7 +45,7 @@ func (m *ResponseMapper) FromProvider(r *anthropic.BetaMessage) (*llm.Response, 
 	}
 
 	// Collect content from response blocks
-	content := make([]*llm.Part, 0, len(r.Content))
+	content := make([]llm.Part, 0, len(r.Content))
 	hasToolCalls := false
 
 	for _, block := range r.Content {
@@ -60,28 +60,24 @@ func (m *ResponseMapper) FromProvider(r *anthropic.BetaMessage) (*llm.Response, 
 			// Tool use block
 			hasToolCalls = true
 
-			content = append(content, llm.NewToolRequestPart(&llm.ToolRequest{
-				ID:        block.ID,
-				Name:      block.Name,
-				Arguments: block.Input,
-			}))
+			content = append(content, llm.NewToolRequestPart(block.ID, block.Name, block.Input))
 
 		case blockTypeThinking:
 			// Thinking block (extended thinking / reasoning)
 			if block.Thinking != "" {
-				content = append(content, llm.NewReasoningPart(&llm.ReasoningTrace{
-					ID:   block.Signature,
-					Text: block.Thinking,
-				}))
+				content = append(content, &llm.ReasoningPart{
+					Text:      block.Thinking,
+					Signature: block.Signature,
+				})
 			}
 
 		case "redacted_thinking":
 			// Redacted thinking block - include metadata but no text
-			content = append(content, llm.NewReasoningPart(&llm.ReasoningTrace{
-				ID:       block.Signature,
-				Text:     "[redacted thinking]",
-				Metadata: map[string]any{"redacted": true},
-			}))
+			content = append(content, &llm.ReasoningPart{
+				Text:      "[redacted thinking]",
+				Signature: block.Signature,
+				Metadata:  map[string]any{"redacted": true},
+			})
 
 		default:
 			// Unknown block type - skip it

@@ -36,7 +36,7 @@ func TestCallLogging(t *testing.T) {
 
 	req := &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("hello world")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("hello world")}},
 		},
 	}
 
@@ -79,7 +79,7 @@ func TestCallLogging_Stream(t *testing.T) {
 
 	req := &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("test")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("test")}},
 		},
 	}
 
@@ -104,7 +104,7 @@ func TestCallLogging_Errors(t *testing.T) {
 
 	req := &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("test")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("test")}},
 		},
 	}
 
@@ -127,7 +127,7 @@ func TestResetCalls(t *testing.T) {
 
 	req := &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("test")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("test")}},
 		},
 	}
 
@@ -152,7 +152,7 @@ func TestAssertCalled(t *testing.T) {
 
 	req := &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("weather check")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("weather check")}},
 		},
 	}
 
@@ -173,7 +173,7 @@ func TestAssertNotCalled(t *testing.T) {
 
 	req := &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("hello")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("hello")}},
 		},
 	}
 
@@ -194,7 +194,7 @@ func TestAssertCallCount(t *testing.T) {
 
 	req := &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("test")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("test")}},
 		},
 	}
 
@@ -215,7 +215,7 @@ func TestAssertGenerateCalled(t *testing.T) {
 
 	req := &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("test")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("test")}},
 		},
 	}
 
@@ -236,7 +236,7 @@ func TestAssertStreamCalled(t *testing.T) {
 
 	req := &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("test")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("test")}},
 		},
 	}
 
@@ -260,19 +260,19 @@ func TestCallsMatching(t *testing.T) {
 	// Make calls with different messages
 	_, _ = model.Generate(context.Background(), &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("what's the weather?")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("what's the weather?")}},
 		},
 	})
 
 	_, _ = model.Generate(context.Background(), &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("hello there")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("hello there")}},
 		},
 	})
 
 	_, _ = model.Generate(context.Background(), &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("weather forecast")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("weather forecast")}},
 		},
 	})
 
@@ -291,7 +291,7 @@ func TestLastAndFirstCall(t *testing.T) {
 
 	req := &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("test")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("test")}},
 		},
 	}
 
@@ -321,7 +321,7 @@ func TestWithTestingT_AutoVerify(t *testing.T) {
 
 		req := &llm.Request{
 			Messages: []llm.Message{
-				{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("test")}},
+				{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("test")}},
 			},
 		}
 
@@ -341,7 +341,7 @@ func TestWithTestingT_AutoVerify(t *testing.T) {
 
 		req := &llm.Request{
 			Messages: []llm.Message{
-				{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("test")}},
+				{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("test")}},
 			},
 		}
 
@@ -364,7 +364,7 @@ func TestDebugCalls(t *testing.T) {
 
 	req := &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("what's the weather?")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("what's the weather?")}},
 		},
 	}
 
@@ -392,7 +392,7 @@ func TestMatcherErrorMessages(t *testing.T) {
 
 	req := &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("hello")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("hello")}},
 		},
 	}
 
@@ -417,7 +417,7 @@ func TestComplexMatcherErrors(t *testing.T) {
 
 	req := &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("weather check")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("weather check")}},
 		},
 		// No tools
 	}
@@ -437,7 +437,7 @@ func TestComplexMatcherErrors(t *testing.T) {
 
 	req2 := &llm.Request{
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("hello")}},
+			{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("hello")}},
 		},
 	}
 
@@ -463,15 +463,15 @@ func TestNamedRulesInCalls(t *testing.T) {
 
 	// Make different calls
 	_, _ = model.Generate(context.Background(), &llm.Request{
-		Messages: []llm.Message{{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("weather?")}}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("weather?")}}},
 	})
 
 	_, _ = model.Generate(context.Background(), &llm.Request{
-		Messages: []llm.Message{{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("time?")}}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("time?")}}},
 	})
 
 	_, _ = model.Generate(context.Background(), &llm.Request{
-		Messages: []llm.Message{{Role: llm.RoleUser, Content: []*llm.Part{llm.NewTextPart("hello")}}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("hello")}}},
 	})
 
 	calls := model.Calls()
