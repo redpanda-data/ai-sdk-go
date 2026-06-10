@@ -30,6 +30,16 @@ func TestModelResolution(t *testing.T) {
 		expectedModel string
 	}{
 		{
+			name:          "claude-fable-5 family name resolves",
+			modelKey:      "claude-fable-5",
+			expectedModel: "claude-fable-5",
+		},
+		{
+			name:          "claude-fable-5 timestamped preserves original",
+			modelKey:      "claude-fable-5-20260604",
+			expectedModel: "claude-fable-5-20260604",
+		},
+		{
 			name:          "claude-sonnet-4-6 family name resolves",
 			modelKey:      "claude-sonnet-4-6",
 			expectedModel: "claude-sonnet-4-6",
