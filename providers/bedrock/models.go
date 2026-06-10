@@ -35,17 +35,21 @@ import (
 //     and the two side-by-side Anthropic tables on
 //     https://aws.amazon.com/bedrock/pricing/.
 //
-// Every 4.5+ Anthropic model on Bedrock is inference-profile-only:
-// invoking the bare ID via bedrock-runtime returns ValidationException
-// "Invocation of model ID … with on-demand throughput isn't supported.
-// Retry your request with the ID or ARN of an inference profile that
-// contains this model." Verified empirically (2026-04) for Opus 4.5/4.6/4.7,
-// Sonnet 4.5/4.6, and Haiku 4.5 in us-east-2 (and Sonnet 4.5 in us-east-1,
-// Opus 4.7 in eu-west-1) — both AWS doc tables describing bare-ID
-// invokability are unreliable, so the bare consts below exist only as
-// building blocks for the prefixed variants and are NOT registered in
+// This catalog registers inference-profile variants instead of bare Claude
+// IDs so each entry carries the correct routing and pricing metadata. For
+// earlier 4.5+ models, invoking the bare ID via bedrock-runtime returned
+// ValidationException "Invocation of model ID … with on-demand throughput
+// isn't supported" in empirical checks (2026-04); the bare consts below exist
+// only as building blocks for the prefixed variants and are NOT registered in
 // supportedModels.
 const (
+	// ModelClaudeFable5 is the bare Bedrock ID for Claude Fable 5
+	// (inference-profile-only — invoke via one of the prefixed variants).
+	ModelClaudeFable5       = "anthropic.claude-fable-5"
+	ModelClaudeFable5Global = "global." + ModelClaudeFable5
+	ModelClaudeFable5US     = "us." + ModelClaudeFable5
+	ModelClaudeFable5EU     = "eu." + ModelClaudeFable5
+
 	// ModelClaudeSonnet46 is the bare Bedrock ID for Claude Sonnet 4.6
 	// (inference-profile-only — invoke via one of the prefixed variants).
 	ModelClaudeSonnet46       = "anthropic.claude-sonnet-4-6"
@@ -105,11 +109,26 @@ const (
 
 // ModelDefinition defines a model with its capabilities and constraints.
 type ModelDefinition struct {
-	Name         string // Real Bedrock model ID (e.g. "us.anthropic.claude-sonnet-4-6")
-	Label        string
-	Capabilities llm.ModelCapabilities
-	Constraints  llm.ModelConstraints
-	Pricing      pricing.Info
+	Name                        string // Real Bedrock model ID (e.g. "us.anthropic.claude-sonnet-4-6")
+	Label                       string
+	Capabilities                llm.ModelCapabilities
+	Constraints                 llm.ModelConstraints
+	Pricing                     pricing.Info
+	RequiresProviderDataSharing bool
+}
+
+// ModelMetadataRequiresProviderDataSharing is set to "true" on discovery
+// metadata for Bedrock models that require provider data sharing.
+const ModelMetadataRequiresProviderDataSharing = "requires_provider_data_sharing"
+
+func (d ModelDefinition) discoveryMetadata() map[string]string {
+	if !d.RequiresProviderDataSharing {
+		return nil
+	}
+
+	return map[string]string{
+		ModelMetadataRequiresProviderDataSharing: "true",
+	}
 }
 
 // InferenceProfileRegion maps an AWS region to the Bedrock cross-region
@@ -183,6 +202,13 @@ var (
 		SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 	}
 
+	claudeFable5Constraints = llm.ModelConstraints{
+		TemperatureRange: [2]float64{0.0, 1.0},
+		MaxInputTokens:   1000000,
+		MaxOutputTokens:  128000,
+		SupportedParams:  []string{"max_tokens", "stop"},
+	}
+
 	claudeContext200kConstraints = llm.ModelConstraints{
 		TemperatureRange: [2]float64{0.0, 1.0},
 		MaxInputTokens:   200000,
@@ -203,6 +229,41 @@ var (
 //   - global. profiles use the "Global Cross-region Inference" rate, which
 //     is exactly 10% cheaper than the geo rate for the same model.
 var supportedModels = map[string]ModelDefinition{
+	// ----------------------------------------------------------------
+	// Claude Fable 5 — inference-profile-only, no bare entry. Geo
+	// profiles cover us and eu (jp/au are not published).
+	// ----------------------------------------------------------------
+	ModelClaudeFable5Global: {
+		Name:                        ModelClaudeFable5Global,
+		Label:                       "Claude Fable 5 (Global)",
+		Capabilities:                claudeStandardCaps,
+		Constraints:                 claudeFable5Constraints,
+		RequiresProviderDataSharing: true,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(10.00, 50.00, 1.00).WithCacheCreation(12.50, 20.00, 0),
+		),
+	},
+	ModelClaudeFable5US: {
+		Name:                        ModelClaudeFable5US,
+		Label:                       "Claude Fable 5 (US)",
+		Capabilities:                claudeStandardCaps,
+		Constraints:                 claudeFable5Constraints,
+		RequiresProviderDataSharing: true,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(13.75, 22.00, 0),
+		),
+	},
+	ModelClaudeFable5EU: {
+		Name:                        ModelClaudeFable5EU,
+		Label:                       "Claude Fable 5 (EU)",
+		Capabilities:                claudeStandardCaps,
+		Constraints:                 claudeFable5Constraints,
+		RequiresProviderDataSharing: true,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(13.75, 22.00, 0),
+		),
+	},
+
 	// ----------------------------------------------------------------
 	// Claude Opus 4.8 — inference-profile-only, no bare entry. Geo
 	// profiles cover us, eu, jp (au is not published).

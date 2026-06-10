@@ -318,4 +318,7 @@ type ModelDiscoveryInfo struct {
 
 	// Provider is the name of the provider that offers this model
 	Provider string
+
+	// Metadata carries provider-specific model metadata for discovery surfaces.
+	Metadata map[string]string
 }

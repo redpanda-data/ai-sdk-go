@@ -115,7 +115,7 @@ var supportedModels = map[string]ModelDefinition{
 			MaxOutputTokens:  128000,  // 128K output tokens
 			// Fable 5 rejects thinking.type.enabled — thinking budget is not user-controllable.
 			// Use adaptive thinking + effort to bias reasoning depth. No fast mode, so no "speed".
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "effort"},
+			SupportedParams:   []string{"max_tokens", "effort"},
 			MutuallyExclusive: [][]string{},
 		},
 		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax},
