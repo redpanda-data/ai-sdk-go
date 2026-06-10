@@ -385,3 +385,46 @@ func (h *restartHarness) StopCurrent() {
 func (h *restartHarness) Close() {
 	h.StopCurrent()
 }
+
+func TestIntegrationExecuteToolMangledName(t *testing.T) { //nolint:paralleltest // in-memory transports share lifecycle with the mock server
+	ctx := t.Context()
+
+	// Legal 61-char server tool name; the serverID prefix pushes the
+	// namespaced form past 64 chars, forcing the mangler.
+	const longName = "lookup_equity_research_report_with_an_unreasonably_long_name"
+
+	server := newMockMCPServer()
+	server.server.AddTool(&sdkmcp.Tool{
+		Name:        longName,
+		Description: "echoes the invoked tool name",
+		InputSchema: map[string]any{"type": "object"},
+	}, func(_ context.Context, req *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
+		return &sdkmcp.CallToolResult{
+			Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: req.Params.Name}},
+		}, nil
+	})
+
+	transport, err := server.start(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = server.stop() })
+
+	client, err := NewClient("test-server", func() (sdkmcp.Transport, error) { return transport, nil })
+	require.NoError(t, err)
+	require.NoError(t, client.Start(ctx))
+	t.Cleanup(func() { _ = client.Close() })
+
+	tools, err := client.ListTools(ctx)
+	require.NoError(t, err)
+
+	mangled := toolNameContaining(t, tools, "unreasonably_long_name")
+	assert.Equal(t, mangleHeadIfTooLong("test-server__"+longName, maxToolNameLen), mangled)
+	assert.LessOrEqual(t, len(mangled), maxToolNameLen)
+	assert.NotContains(t, mangled, "test-server__", "mangling replaces the serverID prefix")
+
+	// Dispatch must resolve the mangled name through the wrapper and
+	// forward the ORIGINAL tool name to the server; the handler echoes
+	// the invoked name back.
+	result, err := client.ExecuteTool(ctx, mangled, json.RawMessage(`{}`))
+	require.NoError(t, err)
+	assert.Contains(t, string(result), longName)
+}

@@ -31,7 +31,10 @@ import (
 
 // ListTools returns tool definitions for all available MCP server tools.
 //
-// Tool names are always namespaced with serverID (e.g., "github__create-issue").
+// Tool names are namespaced with serverID (e.g., "github__create-issue").
+// Names that would exceed 64 chars are deterministically mangled (a hash
+// prefix replaces the head); the original server tool name is preserved
+// internally and used when forwarding the call to the MCP server.
 //
 // The returned definitions can be:
 //   - Passed to an LLM for tool calling
@@ -73,11 +76,25 @@ func (c *clientImpl) ExecuteTool(ctx context.Context, toolName string, args json
 		return nil, err
 	}
 
-	serverID := c.serverID
+	// Resolve the server-side tool name. Prefer the stored mapping (required
+	// when the namespaced name was mangled to fit the 64-char limit), falling
+	// back to prefix-stripping for direct ExecuteTool calls.
+	c.mu.RLock()
+	wrapper := c.tools[toolName]
+	c.mu.RUnlock()
 
-	// Strip namespace prefix to get the server's tool name
-	// "github__create-issue" → "create-issue"
-	serverToolName := strings.TrimPrefix(toolName, serverID+"__")
+	var serverToolName string
+
+	if wrapper != nil {
+		wrapper.mu.RLock()
+		serverToolName = wrapper.serverToolName
+		wrapper.mu.RUnlock()
+	} else {
+		// Defensive fallback for callers that hand-construct a namespaced
+		// name instead of taking it from ListTools(). Mangled names cannot
+		// be recovered this way, but plain serverID__tool names still work.
+		serverToolName = strings.TrimPrefix(toolName, c.serverID+"__")
+	}
 
 	// Parse arguments directly into map
 	var argsMap map[string]any
@@ -105,7 +122,7 @@ func (c *clientImpl) ExecuteTool(ctx context.Context, toolName string, args json
 	if result.IsError {
 		c.logger.Debug("tool execution returned error",
 			"tool", toolName,
-			"serverID", serverID)
+			"serverID", c.serverID)
 	}
 
 	return json.Marshal(result.Content)
@@ -136,7 +153,10 @@ func (c *clientImpl) SyncTools(ctx context.Context) error {
 		}
 
 		// Pre-process tools (marshal JSON, apply filters) before acquiring lock
-		prepared := c.prepareTools(fetched)
+		prepared, err := c.prepareTools(fetched)
+		if err != nil {
+			return nil, err
+		}
 
 		// Compute diff under lock, then execute registry ops outside lock
 		c.mu.Lock()
@@ -189,11 +209,17 @@ type preparedTool struct {
 	mcpTool        *sdkmcp.Tool
 	paramsJSON     json.RawMessage
 	namespacedName string
+	serverToolName string // original name on the MCP server (pre-namespace)
 }
 
 // prepareTools pre-processes fetched tools by marshalling JSON and applying filters.
 // This expensive operation happens before acquiring locks.
-func (c *clientImpl) prepareTools(fetched map[string]*sdkmcp.Tool) map[string]*preparedTool {
+//
+// Returns an error when two distinct server tools map to the same namespaced
+// name (possible only via mangling, e.g. a hash collision or a server tool
+// literally named like a mangled output). Failing the whole sync keeps the
+// previous tool set intact instead of silently making one tool unreachable.
+func (c *clientImpl) prepareTools(fetched map[string]*sdkmcp.Tool) (map[string]*preparedTool, error) {
 	prepared := make(map[string]*preparedTool, len(fetched))
 
 	for _, mcpTool := range fetched {
@@ -213,14 +239,20 @@ func (c *clientImpl) prepareTools(fetched map[string]*sdkmcp.Tool) map[string]*p
 			continue
 		}
 
+		if prev, exists := prepared[namespaced]; exists {
+			return nil, fmt.Errorf("namespaced tool name collision on %q: server tools %q and %q both map to it",
+				namespaced, prev.serverToolName, mcpTool.Name)
+		}
+
 		prepared[namespaced] = &preparedTool{
 			mcpTool:        mcpTool,
 			paramsJSON:     paramsJSON,
 			namespacedName: namespaced,
+			serverToolName: mcpTool.Name,
 		}
 	}
 
-	return prepared
+	return prepared, nil
 }
 
 // computeToolDiff computes the diff between current and prepared tools.
@@ -254,13 +286,15 @@ func (c *clientImpl) computeToolDiff(prepared map[string]*preparedTool) []regist
 			// Update existing tool definition
 			w.mu.Lock()
 			w.definition = def
+			w.serverToolName = prep.serverToolName
 			w.mu.Unlock()
 			c.logger.Debug("updated tool", "tool", namespaced)
 		} else {
 			// Create new tool wrapper
 			w := &toolWrapper{
-				client:     c,
-				definition: def,
+				client:         c,
+				definition:     def,
+				serverToolName: prep.serverToolName,
 			}
 			c.tools[namespaced] = w
 
@@ -354,16 +388,19 @@ func (c *clientImpl) autoSyncLoop() {
 
 // namespaceTool creates a namespaced tool name to prevent collisions.
 // Format: serverID__toolName (double underscore for LLM API compatibility).
+// Names exceeding maxToolNameLen (64) are mangled to fit.
 func (c *clientImpl) namespaceTool(name string) string {
-	return fmt.Sprintf("%s__%s", c.serverID, name)
+	full := fmt.Sprintf("%s__%s", c.serverID, name)
+	return mangleHeadIfTooLong(full, maxToolNameLen)
 }
 
 // toolWrapper wraps an MCP tool and implements the tool.Tool interface.
 type toolWrapper struct {
 	client *clientImpl
 
-	mu         sync.RWMutex
-	definition llm.ToolDefinition
+	mu             sync.RWMutex
+	definition     llm.ToolDefinition
+	serverToolName string // original name on the MCP server (pre-namespace)
 }
 
 // Ensure toolWrapper implements tool.Tool at compile time.
