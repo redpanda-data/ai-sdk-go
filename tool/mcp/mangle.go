@@ -60,6 +60,20 @@ func mangleHeadIfTooLong(name string, maxLen int) string {
 	if len(hashPrefix) > 10 {
 		hashPrefix = hashPrefix[:10]
 	}
+	// Providers disagree on the leading character of a tool name: Gemini
+	// requires a letter or underscore, while OpenAI/Anthropic/Bedrock also
+	// accept digits. A base-36 hash starts with a digit ~88% of the time,
+	// and the mangled name leads with the hash -- Gemini then rejects the
+	// entire request with "Invalid function name" (live failure:
+	// morningstar-portfolio via the namespaced
+	// "...__nnhz8bnl3a_rningstarPortfolioService_CalculatePortfolioRiskScore",
+	// 2026-06-10). Map a leading digit onto 'g'..'p', mirroring
+	// protoc-gen-go-mcp's MangleHeadIfTooLong so names mangled at either
+	// layer keep using the same scheme; hashes already starting with a
+	// letter are unchanged.
+	if c := hashPrefix[0]; c >= '0' && c <= '9' {
+		hashPrefix = string('g'+(c-'0')) + hashPrefix[1:]
+	}
 
 	if maxLen <= len(hashPrefix) {
 		return hashPrefix[:maxLen]

@@ -135,3 +135,30 @@ func TestNamespaceToolMangling(t *testing.T) {
 		assert.Equal(t, a, b)
 	})
 }
+
+// Mangled names must be valid tool names on every provider. Gemini is
+// the strictest: the name must start with a letter or underscore. A
+// base-36 hash prefix starts with a digit ~88% of the time — without
+// the leading-digit remap, the exact name below was sent to Gemini and
+// 400-failed every generation of the financial-advisor agent
+// (2026-06-10).
+func TestMangleHeadIfTooLong_GeminiSafeLeadingChar(t *testing.T) {
+	const live = "morningstar-portfolio__nnhz8bnl3a_rningstarPortfolioService_CalculatePortfolioRiskScore"
+	got := mangleHeadIfTooLong(live, maxToolNameLen)
+	assert.Len(t, got, maxToolNameLen)
+	// The raw hash for this name is "1hqljtt9c2..." — '1' maps to 'h'.
+	assert.Equal(t, "hhqljtt9c2_rningstarPortfolioService_CalculatePortfolioRiskScore", got)
+	assert.Regexp(t, `^[a-zA-Z_]`, got)
+
+	// Deterministic, and letter-leading for any input.
+	assert.Equal(t, got, mangleHeadIfTooLong(live, maxToolNameLen))
+	inputs := []string{
+		"0" + strings.Repeat("y", 100),
+		strings.Repeat("x", 100),
+		"server__" + strings.Repeat("a", 80),
+	}
+	for _, in := range inputs {
+		m := mangleHeadIfTooLong(in, maxToolNameLen)
+		assert.Regexp(t, `^[a-zA-Z_]`, m, "input %q", in)
+	}
+}
