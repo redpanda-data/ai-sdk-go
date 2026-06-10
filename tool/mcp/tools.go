@@ -105,6 +105,16 @@ func (c *clientImpl) ExecuteTool(ctx context.Context, toolName string, args json
 		}
 	}
 
+	// Always send a JSON object. The MCP spec types tools/call arguments as
+	// an object, but a nil map here is not dropped by omitempty (the
+	// interface field holds a typed-nil map) and serializes as
+	// `"arguments": null`, which strict servers reject. Empty arguments are
+	// routine for zero-parameter tools: OpenAI-format models emit
+	// `"arguments": ""`, and JSON null unmarshals to a nil map above.
+	if argsMap == nil {
+		argsMap = map[string]any{}
+	}
+
 	// Create operation context that respects both client lifetime and caller's deadline
 	opCtx, cancel := opContext(bgCtx, ctx)
 	defer cancel()
