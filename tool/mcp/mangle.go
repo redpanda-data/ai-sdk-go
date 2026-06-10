@@ -36,7 +36,14 @@ const maxToolNameLen = 64
 //	{10-char-base36-hash}_{tail}
 //
 // The hash is derived from the full original name, so the mapping is stable
-// and collision-resistant (~31 bits of entropy, birthday bound ~46k).
+// and collision-resistant (~49 bits of entropy after leading-digit bias,
+// 50% birthday bound ~24M names).
+//
+// Assumes ASCII input (MCP tool names are restricted to [a-zA-Z0-9_-]);
+// the tail slice is byte-based and would split a multi-byte rune.
+// maxLen values below ~12 leave no room for the tail and degrade to a
+// bare hash prefix, which defeats collision avoidance — keep maxLen
+// comfortably above the 10-char hash.
 func mangleHeadIfTooLong(name string, maxLen int) string {
 	if maxLen <= 0 {
 		return ""

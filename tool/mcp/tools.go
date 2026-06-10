@@ -31,7 +31,10 @@ import (
 
 // ListTools returns tool definitions for all available MCP server tools.
 //
-// Tool names are always namespaced with serverID (e.g., "github__create-issue").
+// Tool names are namespaced with serverID (e.g., "github__create-issue").
+// Names that would exceed 64 chars are deterministically mangled (a hash
+// prefix replaces the head); the original server tool name is preserved
+// internally and used when forwarding the call to the MCP server.
 //
 // The returned definitions can be:
 //   - Passed to an LLM for tool calling
@@ -87,6 +90,9 @@ func (c *clientImpl) ExecuteTool(ctx context.Context, toolName string, args json
 		serverToolName = wrapper.serverToolName
 		wrapper.mu.RUnlock()
 	} else {
+		// Defensive fallback for callers that hand-construct a namespaced
+		// name instead of taking it from ListTools(). Mangled names cannot
+		// be recovered this way, but plain serverID__tool names still work.
 		serverToolName = strings.TrimPrefix(toolName, c.serverID+"__")
 	}
 
@@ -147,7 +153,10 @@ func (c *clientImpl) SyncTools(ctx context.Context) error {
 		}
 
 		// Pre-process tools (marshal JSON, apply filters) before acquiring lock
-		prepared := c.prepareTools(fetched)
+		prepared, err := c.prepareTools(fetched)
+		if err != nil {
+			return nil, err
+		}
 
 		// Compute diff under lock, then execute registry ops outside lock
 		c.mu.Lock()
@@ -205,7 +214,12 @@ type preparedTool struct {
 
 // prepareTools pre-processes fetched tools by marshalling JSON and applying filters.
 // This expensive operation happens before acquiring locks.
-func (c *clientImpl) prepareTools(fetched map[string]*sdkmcp.Tool) map[string]*preparedTool {
+//
+// Returns an error when two distinct server tools map to the same namespaced
+// name (possible only via mangling, e.g. a hash collision or a server tool
+// literally named like a mangled output). Failing the whole sync keeps the
+// previous tool set intact instead of silently making one tool unreachable.
+func (c *clientImpl) prepareTools(fetched map[string]*sdkmcp.Tool) (map[string]*preparedTool, error) {
 	prepared := make(map[string]*preparedTool, len(fetched))
 
 	for _, mcpTool := range fetched {
@@ -225,6 +239,11 @@ func (c *clientImpl) prepareTools(fetched map[string]*sdkmcp.Tool) map[string]*p
 			continue
 		}
 
+		if prev, exists := prepared[namespaced]; exists {
+			return nil, fmt.Errorf("namespaced tool name collision on %q: server tools %q and %q both map to it",
+				namespaced, prev.serverToolName, mcpTool.Name)
+		}
+
 		prepared[namespaced] = &preparedTool{
 			mcpTool:        mcpTool,
 			paramsJSON:     paramsJSON,
@@ -233,7 +252,7 @@ func (c *clientImpl) prepareTools(fetched map[string]*sdkmcp.Tool) map[string]*p
 		}
 	}
 
-	return prepared
+	return prepared, nil
 }
 
 // computeToolDiff computes the diff between current and prepared tools.
