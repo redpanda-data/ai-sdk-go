@@ -15,6 +15,8 @@
 package openai
 
 import (
+	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/openai/openai-go/v3/responses"
@@ -130,6 +132,62 @@ func TestResponseMapper_FinishReasonTruncationWithToolCalls(t *testing.T) {
 			})
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, resp.FinishReason)
+		})
+	}
+}
+
+// TestResponseMapper_FunctionCallArgumentsNormalization locks in how raw
+// function-call argument strings map to ToolRequestPart.Arguments. OpenAI
+// emits an empty arguments string for zero-parameter tool calls; passing
+// that through as an empty RawMessage makes downstream tool executors
+// serialize the call as `"arguments": null`, which strict MCP servers
+// reject. The Bedrock mapper already defaults absent input to {} — this
+// keeps providers consistent.
+//
+// The response is built from JSON because the openai-go output-item union
+// reconstructs variants from the captured raw JSON (AsFunctionCall reads
+// u.JSON.raw); struct-literal unions carry no field data into AsAny().
+func TestResponseMapper_FunctionCallArgumentsNormalization(t *testing.T) {
+	t.Parallel()
+
+	mapper := NewResponseMapper(supportedModels[ModelGPT5Mini])
+
+	cases := []struct {
+		name string
+		args string
+		want string
+	}{
+		{"empty arguments become an object", ``, `{}`},
+		{"populated arguments pass through", `{\"q\":\"SELECT 1\"}`, `{"q":"SELECT 1"}`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			payload := fmt.Sprintf(`{
+				"id": "resp_args",
+				"model": "%s",
+				"status": "completed",
+				"output": [{
+					"type": "function_call",
+					"call_id": "call_1",
+					"name": "get_me",
+					"arguments": "%s"
+				}],
+				"usage": {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}
+			}`, ModelGPT5Mini, tc.args)
+
+			var r responses.Response
+			require.NoError(t, json.Unmarshal([]byte(payload), &r))
+
+			resp, err := mapper.FromProvider(&r)
+			require.NoError(t, err)
+
+			require.Len(t, resp.Message.Content, 1)
+			part, ok := resp.Message.Content[0].(*llm.ToolRequestPart)
+			require.True(t, ok, "expected *llm.ToolRequestPart, got %T", resp.Message.Content[0])
+			assert.JSONEq(t, tc.want, string(part.Arguments))
 		})
 	}
 }

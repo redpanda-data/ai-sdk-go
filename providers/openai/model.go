@@ -16,7 +16,6 @@ package openai
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"iter"
 
@@ -143,7 +142,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 						Part: llm.NewToolRequestPart(
 							toolCall.CallID,
 							toolCall.Name,
-							json.RawMessage(toolCall.Arguments),
+							normalizeToolArguments(toolCall.Arguments),
 						),
 					}, nil) {
 						return
