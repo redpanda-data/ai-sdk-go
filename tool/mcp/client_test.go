@@ -333,30 +333,6 @@ func TestExecuteToolArgValidation(t *testing.T) {
 func TestExecuteToolEmptyArgumentsSentAsObject(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
-
-	server := newMockMCPServer()
-
-	var (
-		gotArgs map[string]any
-		called  bool
-	)
-	server.toolExecutor = func(_ string, args map[string]any) ([]sdkmcp.Content, error) {
-		gotArgs = args
-		called = true
-		return []sdkmcp.Content{&sdkmcp.TextContent{Text: "ok"}}, nil
-	}
-
-	transport, err := server.start(ctx)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = server.stop() })
-
-	client, err := NewClient("test-server", func() (sdkmcp.Transport, error) { return transport, nil })
-	require.NoError(t, err)
-	require.NoError(t, client.Start(ctx))
-	t.Cleanup(func() { _ = client.Close() })
-
-	// Sequential on purpose: the subtests share gotArgs/called.
 	for _, tc := range []struct {
 		name string
 		args json.RawMessage
@@ -366,15 +342,37 @@ func TestExecuteToolEmptyArgumentsSentAsObject(t *testing.T) {
 		{"json null", json.RawMessage("null")},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			gotArgs, called = nil, false
+			t.Parallel()
 
-			_, err := client.ExecuteTool(ctx, "test-server__echo", tc.args)
+			ctx := t.Context()
+
+			server := newMockMCPServer()
+			// The mock handler unmarshals the wire arguments before this
+			// hook: a JSON object (even empty) produces a non-nil map,
+			// while null or absent arguments leave it nil. Report which
+			// one arrived through the tool result.
+			server.toolExecutor = func(_ string, args map[string]any) ([]sdkmcp.Content, error) {
+				text := "args-object"
+				if args == nil {
+					text = "args-nil"
+				}
+
+				return []sdkmcp.Content{&sdkmcp.TextContent{Text: text}}, nil
+			}
+
+			transport, err := server.start(ctx)
 			require.NoError(t, err)
-			require.True(t, called)
-			// The mock handler unmarshals the wire arguments: a JSON
-			// object (even empty) produces a non-nil map, while null or
-			// absent arguments leave it nil.
-			assert.NotNil(t, gotArgs, "server must receive {}, not null/absent arguments")
+			t.Cleanup(func() { _ = server.stop() })
+
+			client, err := NewClient("test-server", func() (sdkmcp.Transport, error) { return transport, nil })
+			require.NoError(t, err)
+			require.NoError(t, client.Start(ctx))
+			t.Cleanup(func() { _ = client.Close() })
+
+			result, err := client.ExecuteTool(ctx, "test-server__echo", tc.args)
+			require.NoError(t, err)
+			assert.Contains(t, string(result), "args-object",
+				"server must receive {}, not null/absent arguments")
 		})
 	}
 }

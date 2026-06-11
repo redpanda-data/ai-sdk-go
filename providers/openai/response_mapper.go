@@ -226,5 +226,6 @@ func normalizeToolArguments(args string) json.RawMessage {
 	if args == "" {
 		return json.RawMessage(`{}`)
 	}
+
 	return json.RawMessage(args)
 }
