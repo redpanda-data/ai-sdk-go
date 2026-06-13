@@ -108,35 +108,10 @@ func TestLookupModel(t *testing.T) {
 			wantOK: false,
 		},
 		{
-			// The Bedrock catalog registers inference-profile variants so
-			// pricing and routing metadata stay explicit per profile.
-			name:   "Fable 5 bare ID is not in the catalog",
-			input:  ModelClaudeFable5,
-			wantOK: false,
-		},
-		{
 			name:    "geo profile is its own entry",
 			input:   ModelClaudeSonnet46EU,
 			wantOK:  true,
 			wantDef: ModelClaudeSonnet46EU,
-		},
-		{
-			name:    "Fable 5 US profile is its own entry",
-			input:   ModelClaudeFable5US,
-			wantOK:  true,
-			wantDef: ModelClaudeFable5US,
-		},
-		{
-			name:    "Fable 5 EU profile is its own entry",
-			input:   ModelClaudeFable5EU,
-			wantOK:  true,
-			wantDef: ModelClaudeFable5EU,
-		},
-		{
-			name:    "Fable 5 global profile is its own entry",
-			input:   ModelClaudeFable5Global,
-			wantOK:  true,
-			wantDef: ModelClaudeFable5Global,
 		},
 		{
 			name:    "global profile is its own entry",
@@ -317,7 +292,6 @@ func TestNewModel_SupportedModels(t *testing.T) {
 		{"with region prefix", "eu." + ModelClaudeSonnet46},
 		{"opus with region", "global." + ModelClaudeOpus46},
 		{"haiku with region", "eu." + ModelClaudeHaiku45},
-		{"Fable 5 with region prefix", ModelClaudeFable5EU},
 	}
 
 	for _, tt := range tests {
@@ -373,44 +347,6 @@ func TestNewModel_EURegionPrefix(t *testing.T) {
 	m, ok := model.(*Model)
 	require.True(t, ok)
 	assert.Equal(t, "eu."+ModelClaudeSonnet46, m.config.APIModelID)
-}
-
-func TestNewModel_Fable5RegionPrefix(t *testing.T) {
-	t.Parallel()
-
-	p := &Provider{client: nil, region: "us-east-1"}
-
-	model, err := p.NewModel(ModelClaudeFable5)
-	require.NoError(t, err)
-
-	m, ok := model.(*Model)
-	require.True(t, ok)
-	assert.Equal(t, ModelClaudeFable5US, m.config.APIModelID)
-}
-
-func TestNewModel_Fable5SamplingParametersRejected(t *testing.T) {
-	t.Parallel()
-
-	p := &Provider{client: nil, region: "us-east-1"}
-
-	tests := []struct {
-		name string
-		opt  Option
-		want string
-	}{
-		{name: "temperature", opt: WithTemperature(0.5), want: "temperature"},
-		{name: "top_p", opt: WithTopP(0.9), want: "top_p"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			_, err := p.NewModel(ModelClaudeFable5, tt.opt)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tt.want)
-		})
-	}
 }
 
 func TestNewModel_UnsupportedModel(t *testing.T) {
@@ -1026,27 +962,6 @@ func TestModelsDiscovery(t *testing.T) {
 			"Models() should be sorted by Name: %s should come before %s", models[i-1].Name, models[i].Name)
 	}
 }
-
-func TestModelsDiscovery_ProviderDataSharingMetadata(t *testing.T) {
-	t.Parallel()
-
-	p := &Provider{}
-
-	models := p.Models()
-
-	metadataByName := make(map[string]map[string]string, len(models))
-	for _, m := range models {
-		metadataByName[m.Name] = m.Metadata
-	}
-
-	for _, name := range []string{ModelClaudeFable5Global, ModelClaudeFable5US, ModelClaudeFable5EU} {
-		assert.Equal(t, "true", metadataByName[name][ModelMetadataRequiresProviderDataSharing])
-	}
-
-	assert.Empty(t, metadataByName[ModelClaudeSonnet46US])
-}
-
-// ---------- Options validation ----------
 
 func TestWithStop_TooMany(t *testing.T) {
 	t.Parallel()

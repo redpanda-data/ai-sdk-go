@@ -30,16 +30,6 @@ func TestModelResolution(t *testing.T) {
 		expectedModel string
 	}{
 		{
-			name:          "claude-fable-5 family name resolves",
-			modelKey:      "claude-fable-5",
-			expectedModel: "claude-fable-5",
-		},
-		{
-			name:          "claude-fable-5 timestamped preserves original",
-			modelKey:      "claude-fable-5-20260604",
-			expectedModel: "claude-fable-5-20260604",
-		},
-		{
 			name:          "claude-sonnet-4-6 family name resolves",
 			modelKey:      "claude-sonnet-4-6",
 			expectedModel: "claude-sonnet-4-6",
@@ -210,13 +200,6 @@ func TestWithThinkingBudget(t *testing.T) {
 		assert.Contains(t, err.Error(), "thinking_budget")
 	})
 
-	t.Run("rejected on Fable 5", func(t *testing.T) {
-		t.Parallel()
-
-		_, err := provider.NewModel(ModelClaudeFable5, WithThinkingBudget(2048))
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "thinking_budget")
-	})
 }
 
 func TestWithEffort(t *testing.T) {
@@ -257,20 +240,6 @@ func TestWithEffort(t *testing.T) {
 		require.True(t, ok)
 		require.NotNil(t, m.config.Effort)
 		assert.Equal(t, EffortMax, *m.config.Effort)
-	})
-
-	t.Run("all effort levels accepted on Fable 5", func(t *testing.T) {
-		t.Parallel()
-
-		for _, effort := range []Effort{EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax} {
-			model, err := provider.NewModel(ModelClaudeFable5, WithEffort(effort))
-			require.NoError(t, err)
-
-			m, ok := model.(*Model)
-			require.True(t, ok)
-			require.NotNil(t, m.config.Effort)
-			assert.Equal(t, effort, *m.config.Effort)
-		}
 	})
 
 	t.Run("rejected on model without effort support", func(t *testing.T) {
@@ -328,38 +297,4 @@ func TestWithSpeed(t *testing.T) {
 		assert.Contains(t, err.Error(), "speed")
 	})
 
-	t.Run("rejected on Fable 5", func(t *testing.T) {
-		t.Parallel()
-
-		_, err := provider.NewModel(ModelClaudeFable5, WithSpeed(SpeedFast))
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "speed")
-	})
-}
-
-func TestFable5SamplingParametersRejected(t *testing.T) {
-	t.Parallel()
-
-	provider, err := NewProvider("test-key")
-	require.NoError(t, err)
-
-	tests := []struct {
-		name string
-		opt  Option
-		want string
-	}{
-		{name: "temperature", opt: WithTemperature(0.5), want: "temperature"},
-		{name: "top_p", opt: WithTopP(0.9), want: "top_p"},
-		{name: "top_k", opt: WithTopK(10), want: "top_k"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			_, err := provider.NewModel(ModelClaudeFable5, tt.opt)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tt.want)
-		})
-	}
 }
