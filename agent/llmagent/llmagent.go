@@ -554,6 +554,10 @@ func (a *LLMAgent) executeTools(
 
 	// Create base tool executor
 	baseExecutor := func(ctx context.Context, info *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
+		// Expose the calling agent's invocation to the tool so tools such as
+		// agenttool can access the parent session (e.g. to share its id with an
+		// in-process sub-agent). Tools that do not read it are unaffected.
+		ctx = agent.ContextWithInvocation(ctx, info.Inv)
 		return a.config.tools.Execute(ctx, info.Req)
 	}
 

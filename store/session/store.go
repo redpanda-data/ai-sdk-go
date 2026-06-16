@@ -84,6 +84,21 @@ type Store interface {
 	List(ctx context.Context, req *ListRequest) (*ListResponse, error)
 }
 
+// Metadata keys recording parent→sub-agent linkage on a session's Metadata.
+//
+// When a sub-agent is invoked in-process as part of a parent agent's turn it
+// shares the parent's session ID (so the two group into one conversation for
+// tracing/reconstruction). These keys preserve the discriminator and back-
+// reference needed to tell the sub-agent's activity apart from the parent's.
+const (
+	// MetadataIsSidechain (bool) marks the session as a sub-agent (sidechain) run.
+	MetadataIsSidechain = "is_sidechain"
+	// MetadataParentInvocationID (string) references the parent agent's invocation ID.
+	MetadataParentInvocationID = "parent_invocation_id"
+	// MetadataAgentPath (string) identifies which sub-agent produced the session.
+	MetadataAgentPath = "agent_path"
+)
+
 // State represents the persistent state of a conversation session.
 //
 // The Messages slice contains the conversation history excluding any system prompts,
