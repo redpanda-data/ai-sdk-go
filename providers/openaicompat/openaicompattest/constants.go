@@ -30,7 +30,7 @@ const (
 	// AnthropicDefaultBaseURL is the Anthropic OpenAI-compatible endpoint.
 	AnthropicDefaultBaseURL = "https://api.anthropic.com/v1"
 	// AnthropicDefaultModel is the default model for Anthropic compat tests.
-	AnthropicDefaultModel = "claude-sonnet-4-20250514"
+	AnthropicDefaultModel = "claude-sonnet-4-6"
 
 	// GoogleDefaultBaseURL is the Google Gemini OpenAI-compatible endpoint.
 	GoogleDefaultBaseURL = "https://generativelanguage.googleapis.com/v1beta/openai/"
