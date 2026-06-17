@@ -127,6 +127,11 @@ func (at *AgentTool) Execute(ctx context.Context, args json.RawMessage) (json.Ra
 		metadata[session.MetadataAgentPath] = info.Name
 	}
 
+	// NOTE: when shared with the parent (above), this id is no longer unique
+	// across the parent and concurrent sub-agents. That is safe ONLY because this
+	// session is never loaded or persisted — it runs in memory via at.agent.Run.
+	// If a store is ever introduced on this path, key it on the unique invocation
+	// id / agent_path, not this (now non-unique) session id.
 	sess := &session.State{
 		ID:       sessionID,
 		Messages: []llm.Message{},
