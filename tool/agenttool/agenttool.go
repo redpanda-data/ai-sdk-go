@@ -123,7 +123,6 @@ func (at *AgentTool) Execute(ctx context.Context, args json.RawMessage) (json.Ra
 	// linkage needed to reconstruct the parent→sub-agent tree.
 	if parent, ok := agent.InvocationFromContext(ctx); ok && parent.Session() != nil {
 		sessionID = parent.Session().ID
-		metadata[session.MetadataIsSidechain] = true
 		metadata[session.MetadataParentInvocationID] = parent.InvocationID()
 		metadata[session.MetadataAgentPath] = info.Name
 	}

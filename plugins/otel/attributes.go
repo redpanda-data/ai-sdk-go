@@ -43,24 +43,19 @@ const (
 	// Sub-agent linkage attributes. Emitted on a sub-agent's invocation span so
 	// its activity can be told apart from the parent's even though they share a
 	// conversation (session) id.
-	attrAgentIsSidechain        = "redpanda.agent.is_sidechain"
 	attrAgentParentInvocationID = "redpanda.agent.parent_invocation_id"
 	attrAgentPath               = "redpanda.agent.path"
 )
 
-// sidechainAttrs derives sub-agent linkage span attributes from a session's
+// subagentAttrs derives sub-agent linkage span attributes from a session's
 // metadata (set by agenttool when a sub-agent shares the parent's session id).
-// Returns nil when the session carries no linkage.
-func sidechainAttrs(s *session.State) []attribute.KeyValue {
+// Returns nil when the session carries no linkage (i.e. it is not a sub-agent run).
+func subagentAttrs(s *session.State) []attribute.KeyValue {
 	if s == nil {
 		return nil
 	}
 
 	var attrs []attribute.KeyValue
-	if v, _ := s.Metadata[session.MetadataIsSidechain].(bool); v {
-		attrs = append(attrs, attribute.Bool(attrAgentIsSidechain, true))
-	}
-
 	if v, _ := s.Metadata[session.MetadataParentInvocationID].(string); v != "" {
 		attrs = append(attrs, attribute.String(attrAgentParentInvocationID, v))
 	}
