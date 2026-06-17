@@ -78,8 +78,8 @@ func TestExecute_SharesParentSessionID(t *testing.T) {
 	// Shares the parent's session id for conversation grouping.
 	assert.Equal(t, "parent-sess-123", child.gotSessionID)
 
-	// Linkage metadata records the discriminator + back-reference.
-	assert.Equal(t, true, child.gotMetadata[session.MetadataIsSidechain])
+	// Linkage metadata records the back-reference + sub-agent identity; its
+	// presence is the signal that this is a sub-agent run.
 	assert.Equal(t, parentInv.InvocationID(), child.gotMetadata[session.MetadataParentInvocationID])
 	assert.Equal(t, "search", child.gotMetadata[session.MetadataAgentPath])
 }

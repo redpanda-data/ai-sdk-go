@@ -170,8 +170,8 @@ func (t *TracingInterceptor) startInvocationSpan(
 			attrs = append(attrs, genAIConversationID(session.ID))
 		}
 
-		// Sub-agent linkage (present when this is a shared-session sidechain run).
-		attrs = append(attrs, sidechainAttrs(session)...)
+		// Sub-agent linkage (present when this is a shared-session sub-agent run).
+		attrs = append(attrs, subagentAttrs(session)...)
 	}
 
 	agentSnap := inv.Agent()
