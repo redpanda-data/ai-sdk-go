@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"sync"
 
 	"golang.org/x/sync/errgroup"
@@ -156,6 +157,15 @@ func (r *registry) List() []llm.ToolDefinition {
 	for _, registered := range r.tools {
 		definitions = append(definitions, registered.tool.Definition())
 	}
+
+	// Sort by name so the tools array is byte-identical across calls. Ranging a
+	// map yields a randomized order every time, and providers serialize
+	// req.Tools verbatim into the request prefix; a stable order is required for
+	// upstream prompt caching to ever hit. Names are unique (Register rejects
+	// duplicates), so this is a total order.
+	sort.Slice(definitions, func(i, j int) bool {
+		return definitions[i].Name < definitions[j].Name
+	})
 
 	return definitions
 }

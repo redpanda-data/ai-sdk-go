@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -51,6 +52,15 @@ func (c *clientImpl) ListTools(context.Context) ([]llm.ToolDefinition, error) {
 	for _, wrapper := range c.tools {
 		tools = append(tools, wrapper.definition)
 	}
+
+	// Sort by name so the returned slice is byte-stable across calls. Ranging
+	// the map yields a randomized order every time, and callers pass this
+	// straight into llm.Request.Tools, so a stable order is required for
+	// upstream prompt caching to hit. Names are unique (namespaced by server
+	// ID), giving a total order.
+	sort.Slice(tools, func(i, j int) bool {
+		return tools[i].Name < tools[j].Name
+	})
 
 	return tools, nil
 }

@@ -76,6 +76,54 @@ func TestDefaultCachingInsertsCachePoint(t *testing.T) {
 		"system blocks must carry a CachePoint by default")
 }
 
+// TestWithCachingIsNoOp pins the backward-compatibility contract: WithCaching()
+// stays callable with no arguments and leaves caching on.
+func TestWithCachingIsNoOp(t *testing.T) {
+	t.Parallel()
+
+	p, err := NewProvider(context.Background(),
+		WithAWSConfig(aws.Config{Region: "us-east-1"}), WithCaching())
+	require.NoError(t, err)
+
+	assert.True(t, p.enableCaching, "WithCaching() must remain a valid no-op with caching on")
+}
+
+// TestWithCachingDisabledSuppressesCachePoint proves the opt-out works end to
+// end: no CachePoint inserted into the system blocks.
+func TestWithCachingDisabledSuppressesCachePoint(t *testing.T) {
+	t.Parallel()
+
+	p, err := NewProvider(context.Background(),
+		WithAWSConfig(aws.Config{Region: "us-east-1"}), WithCachingDisabled())
+	require.NoError(t, err)
+	require.False(t, p.enableCaching, "WithCachingDisabled must turn caching off")
+
+	model, err := p.NewModel(ModelClaudeSonnet46)
+	require.NoError(t, err)
+
+	m, ok := model.(*Model)
+	require.True(t, ok, "NewModel must return *Model")
+
+	req := &llm.Request{
+		Messages: []llm.Message{
+			{
+				Role:    llm.RoleSystem,
+				Content: []llm.Part{llm.NewTextPart("You are a helpful assistant.")},
+			},
+			{
+				Role:    llm.RoleUser,
+				Content: []llm.Part{llm.NewTextPart("Hello")},
+			},
+		},
+	}
+
+	input, err := m.requestMapper.ToConverseInput(req)
+	require.NoError(t, err)
+
+	assert.False(t, hasSystemCachePoint(input.System),
+		"WithCachingDisabled must suppress the CachePoint")
+}
+
 // hasSystemCachePoint reports whether the system blocks contain a cache point.
 func hasSystemCachePoint(blocks []types.SystemContentBlock) bool {
 	for _, b := range blocks {

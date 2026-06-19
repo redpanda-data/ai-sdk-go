@@ -86,6 +86,59 @@ func TestDefaultCachingEmitsCacheControlMarkers(t *testing.T) {
 		"last message must carry a cache_control marker by default")
 }
 
+// TestWithCachingIsNoOp pins the backward-compatibility contract: WithCaching()
+// stays callable with no arguments and leaves caching on. The default is
+// already on, so it is a no-op, but consumers and existing tests call it and
+// must keep compiling.
+func TestWithCachingIsNoOp(t *testing.T) {
+	t.Parallel()
+
+	p, err := NewProvider("test-key", WithCaching())
+	require.NoError(t, err)
+
+	assert.True(t, p.EnableCaching, "WithCaching() must remain a valid no-op with caching on")
+}
+
+// TestWithCachingDisabledSuppressesMarkers proves the opt-out works end to end:
+// no cache_control markers on the system block or the last message.
+func TestWithCachingDisabledSuppressesMarkers(t *testing.T) {
+	t.Parallel()
+
+	p, err := NewProvider("test-key", WithCachingDisabled())
+	require.NoError(t, err)
+	require.False(t, p.EnableCaching, "WithCachingDisabled must turn caching off")
+
+	model, err := p.NewModel(ModelClaudeSonnet45)
+	require.NoError(t, err)
+
+	m, ok := model.(*Model)
+	require.True(t, ok, "NewModel must return *Model")
+
+	req := &llm.Request{
+		Messages: []llm.Message{
+			{
+				Role:    llm.RoleSystem,
+				Content: []llm.Part{llm.NewTextPart("You are a helpful assistant.")},
+			},
+			{
+				Role:    llm.RoleUser,
+				Content: []llm.Part{llm.NewTextPart("Hello")},
+			},
+		},
+	}
+
+	apiReq, err := m.requestMapper.ToProvider(req)
+	require.NoError(t, err)
+
+	require.NotEmpty(t, apiReq.System)
+	assert.False(t, hasCacheMarker(apiReq.System[len(apiReq.System)-1].CacheControl),
+		"WithCachingDisabled must suppress the system cache_control marker")
+
+	require.NotEmpty(t, apiReq.Messages)
+	assert.False(t, lastMessageHasCacheMarker(apiReq.Messages[len(apiReq.Messages)-1]),
+		"WithCachingDisabled must suppress the message cache_control marker")
+}
+
 // hasCacheMarker reports whether a cache_control value has been set. The zero
 // value leaves Type empty; NewBetaCacheControlEphemeralParam sets it to
 // "ephemeral".
