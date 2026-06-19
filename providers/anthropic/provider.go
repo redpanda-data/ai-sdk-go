@@ -75,6 +75,9 @@ func NewProvider(apiKey string, opts ...ProviderOption) (*Provider, error) {
 			Timeout: timeout,
 		},
 		Timeout: timeout,
+		// Caching is on by default. Opt-in caching just means callers forget
+		// to enable it; use WithCachingDisabled to turn it off.
+		EnableCaching: true,
 	}
 
 	for _, opt := range opts {
@@ -123,12 +126,23 @@ func WithHTTPClient(client *http.Client) ProviderOption {
 	}
 }
 
-// WithCaching enables prompt caching by setting cache_control markers on requests.
-// When enabled, the SDK automatically marks the last message content block for caching,
-// allowing Anthropic to cache the conversation prefix for cost savings.
+// WithCaching is retained for backward compatibility and is now a no-op:
+// prompt caching is enabled by default. Use WithCachingDisabled to turn it off.
 func WithCaching() ProviderOption {
 	return func(p *Provider) error {
 		p.EnableCaching = true
+		return nil
+	}
+}
+
+// WithCachingDisabled turns off prompt caching, so no cache_control markers are
+// emitted. Caching is on by default because an agent re-sending a stable system
+// prompt and toolset every turn gets much cheaper cache reads for a one-time
+// write premium, and below the model's token minimum the marker is ignored
+// server-side. Use this only when you specifically do not want caching.
+func WithCachingDisabled() ProviderOption {
+	return func(p *Provider) error {
+		p.EnableCaching = false
 		return nil
 	}
 }

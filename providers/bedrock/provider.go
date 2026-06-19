@@ -50,7 +50,10 @@ type providerConfig struct {
 // NewProvider creates a new Bedrock provider.
 // It uses the AWS SDK default credential chain (env vars, IAM roles, SSO, etc.).
 func NewProvider(ctx context.Context, opts ...ProviderOption) (*Provider, error) {
-	cfg := &providerConfig{}
+	// Caching is on by default. Bedrock does no automatic prefix caching, so
+	// these explicit markers are the only way to cache at all; opt-in just means
+	// callers forget. Use WithCachingDisabled to turn it off.
+	cfg := &providerConfig{caching: true}
 
 	for _, opt := range opts {
 		if err := opt(cfg); err != nil {
@@ -149,10 +152,23 @@ func WithNoAuth() ProviderOption {
 	}
 }
 
-// WithCaching enables prompt caching on Bedrock.
+// WithCaching is retained for backward compatibility and is now a no-op:
+// prompt caching is enabled by default. Use WithCachingDisabled to turn it off.
 func WithCaching() ProviderOption {
 	return func(cfg *providerConfig) error {
 		cfg.caching = true
+		return nil
+	}
+}
+
+// WithCachingDisabled turns off prompt caching, so no CachePoint markers are
+// emitted. Caching is on by default because Bedrock does no automatic prefix
+// caching: the explicit CachePoint markers are the only way to cache, and an
+// agent re-sending a stable prefix every turn benefits immediately. Use this
+// only when you specifically do not want caching.
+func WithCachingDisabled() ProviderOption {
+	return func(cfg *providerConfig) error {
+		cfg.caching = false
 		return nil
 	}
 }

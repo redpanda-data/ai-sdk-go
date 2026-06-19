@@ -15,10 +15,12 @@
 package mcp
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -51,6 +53,15 @@ func (c *clientImpl) ListTools(context.Context) ([]llm.ToolDefinition, error) {
 	for _, wrapper := range c.tools {
 		tools = append(tools, wrapper.definition)
 	}
+
+	// Sort by name so the returned slice is byte-stable across calls. Ranging
+	// the map yields a randomized order every time, and callers pass this
+	// straight into llm.Request.Tools, so a stable order is required for
+	// upstream prompt caching to hit. Names are unique (namespaced by server
+	// ID), giving a total order.
+	slices.SortFunc(tools, func(a, b llm.ToolDefinition) int {
+		return cmp.Compare(a.Name, b.Name)
+	})
 
 	return tools, nil
 }
