@@ -15,11 +15,12 @@
 package tool
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"sync"
 
 	"golang.org/x/sync/errgroup"
@@ -163,8 +164,8 @@ func (r *registry) List() []llm.ToolDefinition {
 	// req.Tools verbatim into the request prefix; a stable order is required for
 	// upstream prompt caching to ever hit. Names are unique (Register rejects
 	// duplicates), so this is a total order.
-	sort.Slice(definitions, func(i, j int) bool {
-		return definitions[i].Name < definitions[j].Name
+	slices.SortFunc(definitions, func(a, b llm.ToolDefinition) int {
+		return cmp.Compare(a.Name, b.Name)
 	})
 
 	return definitions
