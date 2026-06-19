@@ -166,12 +166,11 @@ func (t *TracingInterceptor) startInvocationSpan(
 
 	session := inv.Session()
 	if session != nil {
-		if session.ID != "" {
-			attrs = append(attrs, genAIConversationID(session.ID))
+		// Group under the conversation id (the parent/root for a sub-agent),
+		// not necessarily this session's own (unique) storage id.
+		if cid := conversationID(session); cid != "" {
+			attrs = append(attrs, genAIConversationID(cid))
 		}
-
-		// Sub-agent linkage (present when this is a shared-session sub-agent run).
-		attrs = append(attrs, subagentAttrs(session)...)
 	}
 
 	agentSnap := inv.Agent()
@@ -221,15 +220,12 @@ func (t *TracingInterceptor) startInvocationSpan(
 
 	// Call attribute injector if configured (before span creation for sampling)
 	if t.cfg.attributeInjector != nil {
-		var sessionID string
-		if session != nil {
-			sessionID = session.ID
-		}
-
+		// Expose the conversation grouping id (parent/root for a sub-agent) so
+		// session-oriented sinks (e.g. langfuse.session.id) group the tree.
 		spanCtx := SpanContext{
 			SpanType:  SpanTypeInvocation,
 			SpanName:  spanName,
-			SessionID: sessionID,
+			SessionID: conversationID(session),
 			Inv:       inv,
 		}
 

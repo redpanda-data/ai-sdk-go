@@ -102,36 +102,33 @@ type Result struct {
 //     conversation history. Context is isolated regardless of the session id.
 //   - For context sharing, pass relevant information explicitly in args
 //
-// Session ID:
+// Session ID & conversation grouping:
+//   - The sub-agent always gets its own freshly minted, globally unique session
+//     id. It never reuses the parent's id, so it can never collide with the
+//     parent's or a sibling sub-agent's session if it ever reaches a store —
+//     there is no "safe only while unpersisted" caveat.
 //   - When invoked as part of a parent agent's turn (the parent invocation is
-//     present in ctx), the sub-agent shares the parent's session id so the two
-//     group into one conversation for tracing/reconstruction, and linkage is
-//     recorded in session metadata (see the Metadata* constants). Isolation is
-//     preserved because the Messages slice is still built fresh and never loaded.
-//   - Otherwise a unique session id is minted, preserving the previous behavior.
+//     present in ctx), the sub-agent records the parent's conversation id in
+//     session metadata (see session.MetadataConversationID). Observability uses
+//     that to group the parent→sub-agent tree under one conversation
+//     (gen_ai.conversation.id) without overloading the storage id.
 func (at *AgentTool) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
 	info := at.agent.Info()
 
-	// 1. Determine the session id and linkage. Default to a freshly minted,
-	// unique id (used when there is no parent invocation in context, e.g. the
-	// agent tool is invoked outside of a parent agent turn).
+	// 1. Mint a unique session id for the sub-agent. Conversation grouping does
+	// NOT rely on this id; it is carried separately in metadata (below) so the
+	// storage id stays unique and safe as a store key.
 	sessionID := fmt.Sprintf("agent-tool-%s-%d", info.Name, time.Now().UnixNano())
 	metadata := map[string]any{}
 
-	// When the parent invocation is available, share its session id so the
-	// sub-agent groups with the parent in tracing/observability, and stamp the
-	// linkage needed to reconstruct the parent→sub-agent tree.
+	// When the parent invocation is available, propagate its conversation id
+	// (transitively, the root conversation) so the otel plugin groups this
+	// sub-agent under the same gen_ai.conversation.id as the parent without
+	// reusing the parent's session id.
 	if parent, ok := agent.InvocationFromContext(ctx); ok && parent.Session() != nil {
-		sessionID = parent.Session().ID
-		metadata[session.MetadataParentInvocationID] = parent.InvocationID()
-		metadata[session.MetadataAgentPath] = info.Name
+		metadata[session.MetadataConversationID] = session.ConversationID(parent.Session())
 	}
 
-	// NOTE: when shared with the parent (above), this id is no longer unique
-	// across the parent and concurrent sub-agents. That is safe ONLY because this
-	// session is never loaded or persisted — it runs in memory via at.agent.Run.
-	// If a store is ever introduced on this path, key it on the unique invocation
-	// id / agent_path, not this (now non-unique) session id.
 	sess := &session.State{
 		ID:       sessionID,
 		Messages: []llm.Message{},

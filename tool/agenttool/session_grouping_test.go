@@ -63,10 +63,10 @@ func parentContext(id string, messages ...llm.Message) (context.Context, *agent.
 	return agent.ContextWithInvocation(context.Background(), parentInv), parentInv
 }
 
-func TestExecute_SharesParentSessionID(t *testing.T) {
+func TestExecute_GroupsUnderParentConversation(t *testing.T) {
 	t.Parallel()
 
-	ctx, parentInv := parentContext("parent-sess-123",
+	ctx, _ := parentContext("parent-sess-123",
 		llm.NewMessage(llm.RoleUser, llm.NewTextPart("parent secret")))
 
 	child := &capturingAgent{mockAgent: mockAgent{name: "search", response: "ok"}}
@@ -75,16 +75,45 @@ func TestExecute_SharesParentSessionID(t *testing.T) {
 	_, err := at.Execute(ctx, json.RawMessage(`{"query":"x"}`))
 	require.NoError(t, err)
 
-	// Shares the parent's session id for conversation grouping.
-	assert.Equal(t, "parent-sess-123", child.gotSessionID)
+	// The sub-agent keeps its OWN unique storage id — it never reuses the
+	// parent's, so it can never collide in a store.
+	assert.True(t, strings.HasPrefix(child.gotSessionID, "agent-tool-search-"),
+		"got %q", child.gotSessionID)
+	assert.NotEqual(t, "parent-sess-123", child.gotSessionID)
 
-	// Linkage metadata records the back-reference + sub-agent identity; its
-	// presence is the signal that this is a sub-agent run.
-	assert.Equal(t, parentInv.InvocationID(), child.gotMetadata[session.MetadataParentInvocationID])
-	assert.Equal(t, "search", child.gotMetadata[session.MetadataAgentPath])
+	// Conversation grouping is carried in metadata: the parent's conversation id,
+	// so observability groups the two under one conversation.
+	assert.Equal(t, "parent-sess-123", child.gotMetadata[session.MetadataConversationID])
+
+	// And ConversationID resolves the sub-agent's session to the parent's id.
+	assert.Equal(t, "parent-sess-123",
+		session.ConversationID(&session.State{ID: child.gotSessionID, Metadata: child.gotMetadata}))
 }
 
-func TestExecute_ContextIsolatedDespiteSharedID(t *testing.T) {
+func TestExecute_PropagatesRootConversationID(t *testing.T) {
+	t.Parallel()
+
+	// A parent that is itself a sub-agent already carries a conversation id in
+	// metadata (the root). A nested sub-agent must group under that ROOT, not
+	// under the immediate parent's unique storage id.
+	parentSess := &session.State{
+		ID:       "agent-tool-mid-999",
+		Metadata: map[string]any{session.MetadataConversationID: "root-sess-1"},
+	}
+	parentInv := agent.NewInvocationMetadata(parentSess, agent.Info{Name: "mid"})
+	ctx := agent.ContextWithInvocation(context.Background(), parentInv)
+
+	child := &capturingAgent{mockAgent: mockAgent{name: "leaf", response: "ok"}}
+	at := agenttool.New(child)
+
+	_, err := at.Execute(ctx, json.RawMessage(`{}`))
+	require.NoError(t, err)
+
+	assert.Equal(t, "root-sess-1", child.gotMetadata[session.MetadataConversationID])
+	assert.NotEqual(t, "agent-tool-mid-999", child.gotMetadata[session.MetadataConversationID])
+}
+
+func TestExecute_ContextIsolatedDespiteGrouping(t *testing.T) {
 	t.Parallel()
 
 	ctx, _ := parentContext("parent-sess-123",
