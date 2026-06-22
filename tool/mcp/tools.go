@@ -31,6 +31,15 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/tool"
 )
 
+// MetaKeyLLMToolCallID is the MCP request `_meta` key under which the
+// originating LLM tool-call id (llm.ToolRequestPart.ID) is forwarded to the server
+// on a tools/call. A gateway or observability layer can read it to correlate
+// the tool execution back to the model turn that requested it (e.g. stamping
+// gen_ai.tool.call.id on its span). Domain-namespaced per the MCP `_meta`
+// convention so it never collides with the tool's own arguments or with
+// protocol-reserved keys.
+const MetaKeyLLMToolCallID = "redpanda.com/llm-tool-call-id"
+
 // ListTools returns tool definitions for all available MCP server tools.
 //
 // Tool names are namespaced with serverID (e.g., "github__create-issue").
@@ -130,11 +139,19 @@ func (c *clientImpl) ExecuteTool(ctx context.Context, toolName string, args json
 	opCtx, cancel := opContext(bgCtx, ctx)
 	defer cancel()
 
-	// Call MCP server with server tool name (prefix stripped)
-	result, err := session.CallTool(opCtx, &sdkmcp.CallToolParams{
+	// Call MCP server with server tool name (prefix stripped). Forward the
+	// originating LLM tool-call id (when the Registry put one on the context)
+	// in the request _meta so a gateway/observability layer can correlate this
+	// tool execution back to the model turn that requested it.
+	params := &sdkmcp.CallToolParams{
 		Name:      serverToolName,
 		Arguments: argsMap,
-	})
+	}
+	if id, ok := tool.CallIDFromContext(ctx); ok && id != "" {
+		params.Meta = sdkmcp.Meta{MetaKeyLLMToolCallID: id}
+	}
+
+	result, err := session.CallTool(opCtx, params)
 	if err != nil {
 		return nil, fmt.Errorf("tool %q execution failed: %w", toolName, err)
 	}

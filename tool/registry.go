@@ -209,6 +209,11 @@ func (r *registry) Execute(ctx context.Context, req *llm.ToolRequestPart) (*llm.
 		defer cancel()
 	}
 
+	// Carry the LLM-issued tool-call id on the execution context so transport
+	// tools (e.g. the MCP client) can forward it to the server for cross-layer
+	// correlation. Harmless for tools that ignore it.
+	executeCtx = WithCallID(executeCtx, req.ID)
+
 	// Execute the tool
 	result, err := registered.tool.Execute(executeCtx, req.Arguments)
 	// Handle execution errors
