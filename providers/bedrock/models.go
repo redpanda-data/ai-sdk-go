@@ -154,18 +154,36 @@ func InferenceProfileRegion(region string) string {
 	return prefix
 }
 
-// hasRegionPrefix reports whether a model ID already contains a region
-// inference-profile prefix (e.g. "us.anthropic.claude-sonnet-4-6").
-// It checks for the "{region}.{provider}." pattern by counting dot-separated
-// segments: bare model IDs like "anthropic.claude-sonnet-4-6" have one dot,
-// while prefixed IDs have two or more.
+// geoProfilePrefixes are the Bedrock cross-region and global inference-profile
+// prefixes that can lead a model ID — e.g. the "us" in
+// "us.anthropic.claude-sonnet-4-6" or the "global" in
+// "global.anthropic.claude-opus-4-6-v1".
+var geoProfilePrefixes = map[string]bool{
+	"us":     true,
+	"eu":     true,
+	"apac":   true,
+	"jp":     true,
+	"au":     true,
+	"global": true,
+}
+
+// hasRegionPrefix reports whether a model ID already begins with a Bedrock
+// region/global inference-profile prefix (e.g. "us.anthropic.claude-sonnet-4-6"
+// or "global.anthropic.claude-opus-4-6-v1").
+//
+// It matches the leading dot-separated segment against the known geo-profile
+// prefixes rather than counting dots. Dot-counting misclassifies
+// vendor-namespaced IDs whose model component itself contains a dot — notably
+// "openai.gpt-5.5" (the "5.5" version) — as region-prefixed. That mistake both
+// blocks such models from every region in IsModelAllowedFromRegion (no geo
+// matches the "openai" pseudo-prefix) and mis-prepends a profile in NewModel.
 func hasRegionPrefix(modelID string) bool {
-	_, after, ok := strings.Cut(modelID, ".")
+	prefix, _, ok := strings.Cut(modelID, ".")
 	if !ok {
 		return false
 	}
 
-	return strings.ContainsRune(after, '.')
+	return geoProfilePrefixes[prefix]
 }
 
 // lookupModel finds a ModelDefinition by exact model ID. Each inference
