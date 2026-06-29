@@ -71,6 +71,15 @@ func TestHasRegionPrefix(t *testing.T) {
 		{"apac.anthropic.claude-sonnet-4-6", true},
 		{"global.anthropic.claude-sonnet-4-6", true},
 		{"no-dots-here", false},
+		// Vendor-namespaced IDs whose version carries its own dot must not be
+		// mistaken for region-prefixed (the dot-counting bug). "openai" is not
+		// a geo prefix, so these are bare.
+		{"openai.gpt-5.5", false},
+		{"openai.gpt-5.4", false},
+		{"openai.gpt-oss-120b-1:0", false},
+		// A genuine geo prefix in front of such an ID is still detected.
+		{"us.openai.gpt-5.5", true},
+		{"eu.openai.gpt-5.5", true},
 	}
 
 	for _, tt := range tests {

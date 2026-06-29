@@ -76,6 +76,17 @@ func TestIsModelAllowedFromRegion(t *testing.T) {
 		{"us from unknown region", ModelClaudeSonnet46US, "xx-fake-1", false},
 		{"global from unknown region", ModelClaudeSonnet46Global, "xx-fake-1", true},
 		{"bare from unknown region (allowed)", ModelClaudeSonnet45, "xx-fake-1", true},
+
+		// Vendor-namespaced IDs with a dotted version (e.g. "openai.gpt-5.5")
+		// are bare, not region-prefixed, and must be allowed from any region —
+		// regression for the dot-counting misclassification that blocked them
+		// everywhere.
+		{"openai dotted-version bare from us-east-2", "openai.gpt-5.5", "us-east-2", true},
+		{"openai dotted-version bare from eu-west-1", "openai.gpt-5.5", "eu-west-1", true},
+		{"openai dotted-version bare from unknown region", "openai.gpt-5.5", "xx-fake-1", true},
+		// A real geo prefix on such an ID is still enforced.
+		{"eu-prefixed openai from us-east-1 (cross-geo)", "eu.openai.gpt-5.5", "us-east-1", false},
+		{"us-prefixed openai from us-east-1", "us.openai.gpt-5.5", "us-east-1", true},
 	}
 
 	for _, tc := range tests {
