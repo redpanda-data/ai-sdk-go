@@ -6,6 +6,6 @@
     "test": "node --test conformance.test.mjs"
   },
   "dependencies": {
-    "ai": "^6.0.177"
+    "ai": "^7.0.6"
   }
 }

@@ -73,6 +73,12 @@ tasks:
     cmds:
       - 'GOROOT={{.GO_ROOT}} GOTOOLCHAIN=local {{.GO_BIN}} test -json -cover -parallel 10 -timeout 30m -run Integration ./... | {{.BIN_DIR}}/tparse -follow -all'
 
+  test:conformance:
+    desc: Run the Vercel AI SDK UI message stream conformance suite (requires node + bun)
+    dir: adapter/vercelaisdk/uimessagestream/conformance
+    cmds:
+      - bash run.sh
+
   security:
     desc: Run security vulnerability checks (govulncheck + osv-scanner)
     deps:
