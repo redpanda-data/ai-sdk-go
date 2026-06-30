@@ -117,6 +117,28 @@ func TestLookupModel(t *testing.T) {
 			wantOK: false,
 		},
 		{
+			name:   "Sonnet 5 bare ID is not in the catalog",
+			input:  ModelClaudeSonnet5,
+			wantOK: false,
+		},
+		{
+			name:    "Sonnet 5 US profile is its own entry",
+			input:   ModelClaudeSonnet5US,
+			wantOK:  true,
+			wantDef: ModelClaudeSonnet5US,
+		},
+		{
+			name:    "Sonnet 5 global profile is its own entry",
+			input:   ModelClaudeSonnet5Global,
+			wantOK:  true,
+			wantDef: ModelClaudeSonnet5Global,
+		},
+		{
+			name:   "Sonnet 5 eu profile is not published yet",
+			input:  "eu." + ModelClaudeSonnet5,
+			wantOK: false,
+		},
+		{
 			// The Bedrock catalog registers inference-profile variants so
 			// pricing and routing metadata stay explicit per profile.
 			name:   "Fable 5 bare ID is not in the catalog",

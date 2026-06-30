@@ -26,6 +26,7 @@ import (
 // accepts them directly and resolves to the latest snapshot.
 const (
 	ModelClaudeFable5   = "claude-fable-5"
+	ModelClaudeSonnet5  = "claude-sonnet-5"
 	ModelClaudeSonnet46 = "claude-sonnet-4-6"
 	ModelClaudeSonnet45 = "claude-sonnet-4-5"
 	ModelClaudeHaiku45  = "claude-haiku-4-5"
@@ -190,6 +191,39 @@ var supportedModels = map[string]ModelDefinition{
 		AdaptiveThinking: true,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
+		),
+	},
+	ModelClaudeSonnet5: {
+		Name:  ModelClaudeSonnet5,
+		Label: "Claude Sonnet 5",
+		Capabilities: llm.ModelCapabilities{
+			Streaming:        true,
+			Tools:            true,
+			JSONMode:         false, // Anthropic doesn't have native JSON mode
+			StructuredOutput: false, // Use tool calling for structured output instead
+			Vision:           true,
+			MultiTurn:        true,
+			SystemPrompts:    true,
+			Reasoning:        true, // Adaptive thinking only; use effort to bias toward more/less thinking
+		},
+		Constraints: llm.ModelConstraints{
+			TemperatureRange: [2]float64{0.0, 1.0},
+			MaxInputTokens:   1000000, // 1M context window
+			MaxOutputTokens:  128000,  // 128K output tokens
+			// Sonnet 5 shares Opus 4.7's request surface: manual thinking budget
+			// is removed (adaptive thinking + effort instead), no fast mode.
+			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "effort"},
+			MutuallyExclusive: [][]string{},
+		},
+		// First Sonnet-tier model with xhigh; supports the full effort range.
+		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax},
+		AdaptiveThinking: true,
+		Pricing: pricing.FlatInfoFromRates(
+			// List price $3/$15 per MTok (the introductory $2/$10 through
+			// 2026-08-31 is deliberately not tracked here). Cache rates from
+			// Anthropic's prompt-caching multipliers (5m-write 1.25x, 1h-write 2x,
+			// cache-read 0.10x of base input).
+			pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0),
 		),
 	},
 	ModelClaudeSonnet46: {

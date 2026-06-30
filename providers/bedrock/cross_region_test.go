@@ -32,6 +32,13 @@ func TestIsModelAllowedFromRegion(t *testing.T) {
 		{"bare from eu", ModelClaudeSonnet45, "eu-west-1", true},
 		{"bare from unknown region", ModelClaudeSonnet45, "xx-fake-1", true},
 
+		// Sonnet 5 — only us. and global. are published; us. honours geo rules.
+		{"sonnet5 bare from eu", ModelClaudeSonnet5, "eu-west-1", true},
+		{"sonnet5 us from us-east-1", ModelClaudeSonnet5US, "us-east-1", true},
+		{"sonnet5 us from ca-central-1 (Canada is US Geo)", ModelClaudeSonnet5US, "ca-central-1", true},
+		{"sonnet5 us from eu-west-1 (cross-geo)", ModelClaudeSonnet5US, "eu-west-1", false},
+		{"sonnet5 global from me-central-1", ModelClaudeSonnet5Global, "me-central-1", true},
+
 		// global.* is always allowed.
 		{"global from us", ModelClaudeSonnet46Global, "us-east-1", true},
 		{"global from eu", ModelClaudeSonnet46Global, "eu-west-1", true},

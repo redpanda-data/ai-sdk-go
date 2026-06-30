@@ -40,6 +40,16 @@ func TestModelResolution(t *testing.T) {
 			expectedModel: "claude-fable-5-20260604",
 		},
 		{
+			name:          "claude-sonnet-5 family name resolves",
+			modelKey:      "claude-sonnet-5",
+			expectedModel: "claude-sonnet-5",
+		},
+		{
+			name:          "claude-sonnet-5 timestamped preserves original",
+			modelKey:      "claude-sonnet-5-20260601",
+			expectedModel: "claude-sonnet-5-20260601",
+		},
+		{
 			name:          "claude-sonnet-4-6 family name resolves",
 			modelKey:      "claude-sonnet-4-6",
 			expectedModel: "claude-sonnet-4-6",
@@ -257,6 +267,20 @@ func TestWithEffort(t *testing.T) {
 		require.True(t, ok)
 		require.NotNil(t, m.config.Effort)
 		assert.Equal(t, EffortMax, *m.config.Effort)
+	})
+
+	t.Run("all effort levels accepted on Sonnet 5", func(t *testing.T) {
+		t.Parallel()
+
+		for _, effort := range []Effort{EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax} {
+			model, err := provider.NewModel(ModelClaudeSonnet5, WithEffort(effort))
+			require.NoError(t, err)
+
+			m, ok := model.(*Model)
+			require.True(t, ok)
+			require.NotNil(t, m.config.Effort)
+			assert.Equal(t, effort, *m.config.Effort)
+		}
 	})
 
 	t.Run("all effort levels accepted on Fable 5", func(t *testing.T) {
