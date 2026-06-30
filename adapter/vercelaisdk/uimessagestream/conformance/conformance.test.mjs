@@ -1,5 +1,5 @@
 // Conformance tests: verify that the Go aisdk adapter produces SSE streams
-// that the real Vercel AI SDK v6 TypeScript client parses correctly.
+// that the real Vercel AI SDK v7 TypeScript client parses correctly.
 //
 // This uses DefaultChatTransport + readUIMessageStream, which is the exact
 // same parsing path that useChat/AbstractChat uses internally.
@@ -27,7 +27,7 @@ async function sendChat(endpoint, userMessages) {
     api: `${baseUrl}${endpoint}`,
   });
 
-  // Build messages in AI SDK v6 format
+  // Build messages in AI SDK v7 format
   const messages = userMessages.map((msg, i) => ({
     id: `msg-${i}`,
     role: msg.role || 'user',
@@ -176,7 +176,7 @@ describe('AI SDK conformance', () => {
     );
   });
 
-  it('Test 4: multi-turn context with v6 parts format', async () => {
+  it('Test 4: multi-turn context with v7 parts format', async () => {
     const { message, errors } = await sendChat('/api/echo-context', [
       { text: 'My name is Alice' },
     ]);
@@ -275,5 +275,141 @@ describe('AI SDK conformance', () => {
     assert.equal(received[1].text, 'hi there');
     assert.equal(received[2].role, 'user');
     assert.equal(received[2].text, 'how are you?');
+  });
+
+  it('Test 7: reasoning then text', async () => {
+    const { message, errors } = await sendChat('/api/reasoning', [
+      { text: 'think' },
+    ]);
+
+    assert.equal(errors.length, 0, `unexpected errors: ${errors}`);
+    assert.ok(message, 'should have received a message');
+
+    const reasoningParts = message.parts.filter((p) => p.type === 'reasoning');
+    assert.ok(reasoningParts.length > 0, 'should have a reasoning part');
+    assert.equal(reasoningParts[0].text, 'Thinking about the question.');
+    for (const rp of reasoningParts) {
+      assert.equal(rp.state, 'done', 'reasoning part should be done');
+    }
+
+    const textParts = message.parts.filter((p) => p.type === 'text');
+    const fullText = textParts.map((p) => p.text).join('');
+    assert.equal(fullText, 'The answer is 42.');
+    for (const tp of textParts) {
+      assert.equal(tp.state, 'done', 'text part should be done');
+    }
+
+    // Reasoning must precede text in the assembled message.
+    const firstReasoning = message.parts.findIndex((p) => p.type === 'reasoning');
+    const firstText = message.parts.findIndex((p) => p.type === 'text');
+    assert.ok(
+      firstReasoning < firstText,
+      'reasoning part should come before text part'
+    );
+  });
+
+  it('Test 8: tool call then final answer', async () => {
+    const { message, errors } = await sendChat('/api/tools', [
+      { text: 'weather in SF?' },
+    ]);
+
+    assert.equal(errors.length, 0, `unexpected errors: ${errors}`);
+    assert.ok(message, 'should have received a message');
+
+    // The real client assembles the tool call into a tool-<name> part that
+    // transitions to output-available with the executor's output.
+    const toolParts = message.parts.filter((p) =>
+      p.type?.startsWith('tool-')
+    );
+    assert.equal(toolParts.length, 1, 'should have exactly one tool part');
+    assert.equal(toolParts[0].type, 'tool-getWeather');
+    assert.equal(
+      toolParts[0].state,
+      'output-available',
+      'tool part should reach output-available'
+    );
+    assert.deepEqual(toolParts[0].output, {
+      temperature: '72F',
+      conditions: 'sunny',
+    });
+
+    const fullText = message.parts
+      .filter((p) => p.type === 'text')
+      .map((p) => p.text)
+      .join('');
+    assert.equal(fullText, 'It is sunny and 72F in San Francisco.');
+  });
+
+  it('Test 9: tool executor error then recovery', async () => {
+    const { message, errors } = await sendChat('/api/tool-error', [
+      { text: 'weather in SF?' },
+    ]);
+
+    // tool-output-error is a normal part-state transition, not a stream error.
+    assert.equal(errors.length, 0, `unexpected errors: ${errors}`);
+
+    const toolParts = message.parts.filter((p) =>
+      p.type?.startsWith('tool-')
+    );
+    assert.equal(toolParts.length, 1, 'should have one tool part');
+    assert.equal(
+      toolParts[0].state,
+      'output-error',
+      'tool part should reach output-error'
+    );
+    assert.equal(toolParts[0].errorText, 'weather service unavailable');
+
+    const fullText = message.parts
+      .filter((p) => p.type === 'text')
+      .map((p) => p.text)
+      .join('');
+    assert.equal(fullText, 'I could not fetch the weather.');
+  });
+
+  it('Test 10: multi-step tool calls reset text ids across steps', async () => {
+    const { message, errors } = await sendChat('/api/multistep', [
+      { text: 'run both steps' },
+    ]);
+
+    assert.equal(errors.length, 0, `unexpected errors: ${errors}`);
+
+    const toolParts = message.parts.filter((p) =>
+      p.type?.startsWith('tool-')
+    );
+    assert.equal(toolParts.length, 2, 'should have two tool parts');
+    for (const tp of toolParts) {
+      assert.equal(tp.state, 'output-available');
+    }
+
+    // Final text streamed in a later step (after multiple finish-step resets)
+    // must still assemble without "missing text part" errors.
+    const fullText = message.parts
+      .filter((p) => p.type === 'text')
+      .map((p) => p.text)
+      .join('');
+    assert.equal(fullText, 'Both steps are complete.');
+  });
+
+  it('Test 11: mid-stream error closes the open text part', async () => {
+    const { message, errors } = await sendChat('/api/midstream-error', [
+      { text: 'go' },
+    ]);
+
+    // The mid-stream failure surfaces exactly one error to onError.
+    assert.ok(errors.length >= 1, 'should surface the mid-stream error');
+    const errorTexts = errors.map((e) => e.message || String(e));
+    assert.ok(
+      errorTexts.some((t) => t.includes('server error')),
+      `expected server error, got: ${errorTexts.join(', ')}`
+    );
+
+    // The partial text emitted before the failure must be closed (state done):
+    // the adapter emits text-end before the error chunk, so the client does not
+    // throw "missing text part".
+    const textParts = message.parts.filter((p) => p.type === 'text');
+    assert.ok(textParts.length > 0, 'should have partial text');
+    for (const tp of textParts) {
+      assert.equal(tp.state, 'done', 'partial text part should be closed');
+    }
   });
 });

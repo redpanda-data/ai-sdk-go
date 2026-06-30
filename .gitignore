@@ -33,3 +33,6 @@ go.work.sum
 .idea
 .build
 .bin
+
+# Vercel AI SDK reference clone (for adapter cross-checking)
+/vercel-ai-reference*/
