@@ -1539,16 +1539,27 @@ func testAllSupportedModels(t *testing.T, fixture Fixture) { //nolint:thelper //
 }
 
 // isModelAccessGate reports whether err indicates the model exists in the
-// provider's catalog but is not accessible to the test account. For example,
-// Anthropic returns a 404 not_found_error with "<model> is not available" for
-// gated models such as Fable 5 (which requires Mythos access). Such models
-// should be skipped rather than failing conformance, while accounts that do
-// have access still exercise them.
+// provider's catalog but is not accessible to the test account. Two shapes:
+//
+//   - Anthropic returns a 404 not_found_error with "<model> is not available"
+//     for gated models such as Fable 5 (which requires Mythos access).
+//   - Bedrock returns an AccessDeniedException whose message points at the
+//     missing AWS Marketplace subscription ("Model access is denied ... not
+//     authorized to perform the required AWS Marketplace actions") for models
+//     the account hasn't subscribed to yet — newly released models like
+//     Sonnet 5 land here until the workspace enables them.
+//
+// Such models should be skipped rather than failing conformance, while
+// accounts that do have access still exercise them.
 func isModelAccessGate(err error) bool {
 	var perr *llm.ProviderError
 	if !errors.As(err, &perr) {
 		return false
 	}
 
-	return strings.Contains(perr.Message, "is not available")
+	msg := strings.ToLower(perr.Message)
+
+	return strings.Contains(msg, "is not available") ||
+		strings.Contains(msg, "model access is denied") ||
+		strings.Contains(msg, "aws-marketplace")
 }
