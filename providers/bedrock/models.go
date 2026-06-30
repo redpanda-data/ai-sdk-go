@@ -50,6 +50,16 @@ const (
 	ModelClaudeFable5US     = "us." + ModelClaudeFable5
 	ModelClaudeFable5EU     = "eu." + ModelClaudeFable5
 
+	// ModelClaudeSonnet5 is the bare Bedrock ID for Claude Sonnet 5
+	// (inference-profile-only — invoke via one of the prefixed variants).
+	// Only us. and global. profiles are published so far (verified by
+	// invocation 2026-06: us. succeeds, global. is IAM-gated, and eu./au./jp.
+	// return ValidationException "model identifier is invalid" even from their
+	// home regions). Add geo profiles here once AWS publishes them.
+	ModelClaudeSonnet5       = "anthropic.claude-sonnet-5"
+	ModelClaudeSonnet5Global = "global." + ModelClaudeSonnet5
+	ModelClaudeSonnet5US     = "us." + ModelClaudeSonnet5
+
 	// ModelClaudeSonnet46 is the bare Bedrock ID for Claude Sonnet 4.6
 	// (inference-profile-only — invoke via one of the prefixed variants).
 	ModelClaudeSonnet46       = "anthropic.claude-sonnet-4-6"
@@ -432,6 +442,29 @@ var supportedModels = map[string]ModelDefinition{
 		Constraints:  claudeContext200kConstraints,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
+		),
+	},
+
+	// ----------------------------------------------------------------
+	// Claude Sonnet 5 — inference-profile-only, no bare entry. Only us
+	// and global are published so far (see const block); 1M context.
+	// ----------------------------------------------------------------
+	ModelClaudeSonnet5Global: {
+		Name:         ModelClaudeSonnet5Global,
+		Label:        "Claude Sonnet 5 (Global)",
+		Capabilities: claudeStandardCaps,
+		Constraints:  claudeContext1MConstraints,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0),
+		),
+	},
+	ModelClaudeSonnet5US: {
+		Name:         ModelClaudeSonnet5US,
+		Label:        "Claude Sonnet 5 (US)",
+		Capabilities: claudeStandardCaps,
+		Constraints:  claudeContext1MConstraints,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0),
 		),
 	},
 
