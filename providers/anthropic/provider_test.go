@@ -101,3 +101,17 @@ func TestWithBaseURLNormalization(t *testing.T) {
 		})
 	}
 }
+
+func TestModelsDiscoveryConstraints(t *testing.T) {
+	t.Parallel()
+
+	models := (&Provider{}).Models()
+	assert.Len(t, models, len(supportedModels))
+
+	for _, m := range models {
+		assert.Positive(t, m.Constraints.MaxInputTokens,
+			"model %s missing MaxInputTokens — set Constraints in its ModelDefinition", m.Name)
+		assert.Positive(t, m.Constraints.MaxOutputTokens,
+			"model %s missing MaxOutputTokens — set Constraints in its ModelDefinition", m.Name)
+	}
+}

@@ -186,6 +186,7 @@ func (*Provider) Models() []llm.ModelDiscoveryInfo {
 			Name:         def.Name,
 			Label:        def.Label,
 			Capabilities: def.Capabilities,
+			Constraints:  def.Constraints,
 			Provider:     "openai",
 		})
 	}

@@ -25,6 +25,10 @@ import (
 // performing any generation. This is useful for model discovery, capability
 // checking, and routing decisions.
 //
+// To inspect a provider's model catalog without constructing models, use
+// Provider.Models(), which returns the same metadata as ModelDiscoveryInfo
+// values.
+//
 // Example:
 //
 //	model := provider.NewModel("gpt-4o")

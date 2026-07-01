@@ -58,6 +58,10 @@ func TestProviderModels(t *testing.T) {
 		assert.NotEmpty(t, model.Name, "Model name should not be empty")
 		assert.NotEmpty(t, model.Label, "Model label should not be empty")
 		assert.Equal(t, "gcp.gemini", model.Provider, "Provider should be 'gcp.gemini'")
+		assert.Positive(t, model.Constraints.MaxInputTokens,
+			"model %s missing MaxInputTokens — set Constraints in its ModelDefinition", model.Name)
+		assert.Positive(t, model.Constraints.MaxOutputTokens,
+			"model %s missing MaxOutputTokens — set Constraints in its ModelDefinition", model.Name)
 	}
 
 	// Verify expected models are present

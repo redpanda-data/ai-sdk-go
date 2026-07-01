@@ -1049,6 +1049,10 @@ func TestModelsDiscovery(t *testing.T) {
 		assert.Equal(t, "aws.bedrock", m.Provider)
 		assert.NotEmpty(t, m.Name)
 		assert.NotEmpty(t, m.Label)
+		assert.Positive(t, m.Constraints.MaxInputTokens,
+			"model %s missing MaxInputTokens — set Constraints in its ModelDefinition", m.Name)
+		assert.Positive(t, m.Constraints.MaxOutputTokens,
+			"model %s missing MaxOutputTokens — set Constraints in its ModelDefinition", m.Name)
 	}
 
 	// Verify sorted by name

@@ -1493,6 +1493,23 @@ func testAllSupportedModels(t *testing.T, fixture Fixture) { //nolint:thelper //
 		t.Skip("No models available for testing")
 	}
 
+	t.Run("discovery info exposes constraints", func(t *testing.T) {
+		for _, m := range models {
+			assert.Positive(t, m.Constraints.MaxInputTokens,
+				"model %s missing MaxInputTokens in discovery info", m.Name)
+			assert.Positive(t, m.Constraints.MaxOutputTokens,
+				"model %s missing MaxOutputTokens in discovery info", m.Name)
+
+			model, err := fixture.NewModel(m.Name)
+			if err != nil {
+				continue
+			}
+
+			assert.Equal(t, model.Constraints(), m.Constraints,
+				"discovery constraints for %s should match the instantiated model's constraints", m.Name)
+		}
+	})
+
 	// Run sequentially (not parallel) to avoid rate limiting across providers.
 	// Each model is wrapped with retry to handle transient errors.
 	t.Run("basic generation works for all supported models", func(t *testing.T) {

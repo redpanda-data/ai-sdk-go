@@ -304,7 +304,10 @@ type ModelCapabilities struct {
 	Reasoning        bool // Supports reasoning controls and exposes reasoning traces
 }
 
-// ModelDiscoveryInfo provides metadata about a model that can be discovered at runtime.
+// ModelDiscoveryInfo provides metadata about a model that can be discovered at
+// runtime, without constructing the model. It is the static counterpart of the
+// ModelInfo interface: Name, Provider, Capabilities, and Constraints mirror the
+// ModelInfo accessors, plus discovery-only fields (Label, Metadata).
 // This is returned by provider.Models() for model discovery and capability checking.
 type ModelDiscoveryInfo struct {
 	// Name is the model identifier used in API calls
@@ -315,6 +318,11 @@ type ModelDiscoveryInfo struct {
 
 	// Capabilities describes what features this model supports
 	Capabilities ModelCapabilities
+
+	// Constraints carries the model's validation rules and token limits.
+	// MaxInputTokens is the context window size; MaxOutputTokens the
+	// per-response generation cap.
+	Constraints ModelConstraints
 
 	// Provider is the name of the provider that offers this model
 	Provider string
