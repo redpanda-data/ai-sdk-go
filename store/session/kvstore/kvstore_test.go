@@ -27,6 +27,18 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/store/session/kvstore"
 )
 
+// TestKVStore_ListNotSupported needs no broker: List ignores the client and
+// always reports that the key-value backend cannot enumerate sessions.
+func TestKVStore_ListNotSupported(t *testing.T) {
+	t.Parallel()
+
+	store := &kvstore.KVStore{}
+
+	resp, err := store.List(t.Context(), &session.ListRequest{})
+	require.ErrorIs(t, err, session.ErrListNotSupported)
+	require.Nil(t, resp)
+}
+
 func TestKVStore_LoadSaveDelete(t *testing.T) { //nolint:paralleltest // Serial to reduce container memory pressure
 	if testing.Short() {
 		t.Skip("skipping integration test")
