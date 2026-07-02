@@ -283,6 +283,12 @@ func (a *LLMAgent) executeSingleTurn(
 	// FinishReason (Length) is read from resp below regardless, so the
 	// truncation signal still propagates. A legitimately truncated tool-use
 	// turn keeps its completed tool_use parts (len > 0) and is unaffected.
+	//
+	// This guard covers the persisted session store only. The MessageEvent
+	// below still carries the raw resp.Message, so a consumer that rebuilds
+	// history purely from the event stream (rather than from sess.Messages)
+	// can still observe the empty turn — the provider request-mappers'
+	// empty-content substitution is the authoritative backstop for that path.
 	if len(resp.Message.Content) > 0 {
 		sess.Messages = append(sess.Messages, resp.Message)
 	}

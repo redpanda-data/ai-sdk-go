@@ -303,7 +303,9 @@ func (rm *RequestMapper) mapAssistantMessage(msg llm.Message) (anthropic.BetaMes
 	// AND non-whitespace: Anthropic rejects a final assistant turn that ends in
 	// trailing whitespace, and some API/SDK versions strip a whitespace-only
 	// text block back to empty. A non-whitespace token is therefore robust
-	// whether the repaired turn is mid-conversation or the last message.
+	// whether the repaired turn is mid-conversation or the last message. The
+	// model does see a literal "(truncated)" turn on replay — a benign
+	// behavior change, since the original turn was already content-less.
 	if len(apiMsg.Content) == 0 {
 		apiMsg.Content = append(apiMsg.Content, anthropic.BetaContentBlockParamUnion{
 			OfText: &anthropic.BetaTextBlockParam{
