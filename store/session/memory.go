@@ -16,6 +16,10 @@ package session
 
 import (
 	"context"
+	"fmt"
+	"maps"
+	"sort"
+	"strconv"
 	"time"
 
 	"github.com/twmb/go-cache/cache"
@@ -28,6 +32,10 @@ const (
 
 	// DefaultCleanupInterval is how often the cache automatically cleans up expired sessions.
 	DefaultCleanupInterval = 1 * time.Hour
+
+	// DefaultListPageSize is the number of summaries List returns when
+	// ListRequest.PageSize is non-positive.
+	DefaultListPageSize = 50
 )
 
 // InMemoryStore provides an in-memory session storage implementation with automatic expiration.
@@ -108,10 +116,15 @@ func (s *InMemoryStore) Load(_ context.Context, sessionID string) (*State, error
 // Save persists a session and resets its expiration timer.
 //
 // If a session with the same ID already exists, it is completely replaced.
-// The state is cloned before storing to prevent external modifications.
+// The state is cloned before storing to prevent external modifications, and
+// UpdatedAt is stamped with the current time (storage-managed; the caller's
+// value is ignored).
 func (s *InMemoryStore) Save(_ context.Context, state *State) error {
 	// Clone to prevent external modifications
-	s.cache.Set(state.ID, state.Clone())
+	clone := state.Clone()
+	clone.UpdatedAt = time.Now()
+	s.cache.Set(state.ID, clone)
+
 	return nil
 }
 
@@ -122,4 +135,65 @@ func (s *InMemoryStore) Delete(_ context.Context, sessionID string) error {
 	//nolint:dogsled // cache.Delete returns (value, existed, evicted); we don't need any of these
 	_, _, _ = s.cache.Delete(sessionID)
 	return nil
+}
+
+// List returns a page of session summaries ordered by UpdatedAt descending,
+// then ID ascending. The page token is a plain offset into that ordering:
+// adequate for an in-memory store, though durable stores should prefer keyset
+// pagination. Summaries omit the message payload.
+func (s *InMemoryStore) List(_ context.Context, req *ListRequest) (*ListResponse, error) {
+	if req == nil {
+		req = &ListRequest{}
+	}
+
+	summaries := make([]Summary, 0)
+
+	s.cache.Range(func(id string, state *State, err error) bool {
+		if err != nil || state == nil {
+			return true
+		}
+
+		summaries = append(summaries, Summary{
+			ID:        id,
+			Metadata:  maps.Clone(state.Metadata),
+			UpdatedAt: state.UpdatedAt,
+		})
+
+		return true
+	})
+
+	sort.Slice(summaries, func(i, j int) bool {
+		if !summaries[i].UpdatedAt.Equal(summaries[j].UpdatedAt) {
+			return summaries[i].UpdatedAt.After(summaries[j].UpdatedAt)
+		}
+
+		return summaries[i].ID < summaries[j].ID
+	})
+
+	offset := 0
+
+	if req.PageToken != "" {
+		n, err := strconv.Atoi(req.PageToken)
+		if err != nil || n < 0 {
+			return nil, fmt.Errorf("session: invalid page token %q", req.PageToken)
+		}
+
+		offset = n
+	}
+
+	offset = min(offset, len(summaries))
+
+	pageSize := int(req.PageSize)
+	if pageSize <= 0 {
+		pageSize = DefaultListPageSize
+	}
+
+	end := min(offset+pageSize, len(summaries))
+
+	resp := &ListResponse{Sessions: summaries[offset:end]}
+	if end < len(summaries) {
+		resp.NextPageToken = strconv.Itoa(end)
+	}
+
+	return resp, nil
 }

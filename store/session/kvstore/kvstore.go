@@ -169,6 +169,13 @@ func (s *KVStore) Delete(ctx context.Context, sessionID string) error {
 	return s.client.Delete(ctx, []byte(sessionID))
 }
 
+// List always returns session.ErrListNotSupported: the Kafka key-value
+// backend is keyed by session ID and cannot enumerate sessions. This store is
+// slated for deprecation, so enumeration is intentionally not implemented.
+func (*KVStore) List(_ context.Context, _ *session.ListRequest) (*session.ListResponse, error) {
+	return nil, session.ErrListNotSupported
+}
+
 // Close shuts down the kvstore client and releases resources.
 func (s *KVStore) Close() error {
 	return s.raw.Close()

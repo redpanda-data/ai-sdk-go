@@ -26,6 +26,7 @@
 //	    Load(ctx context.Context, sessionID string) (*State, error)
 //	    Save(ctx context.Context, state *State) error
 //	    Delete(ctx context.Context, sessionID string) error
+//	    List(ctx context.Context, req *ListRequest) (*ListResponse, error)
 //	}
 //
 // # Concurrency
@@ -47,6 +48,7 @@ import (
 	"context"
 	"errors"
 	"maps"
+	"time"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
@@ -70,6 +72,16 @@ type Store interface {
 	// Delete removes a session by its ID.
 	// Returns nil if the session doesn't exist (idempotent).
 	Delete(ctx context.Context, sessionID string) error
+
+	// List returns a page of session summaries ordered by UpdatedAt
+	// descending, then ID ascending (a stable total order for keyset
+	// pagination). Summaries omit the message payload — use Load to fetch a
+	// full session. PageToken is opaque and implementation-defined; callers
+	// pass back the NextPageToken from the previous response.
+	//
+	// Stores whose backend cannot enumerate sessions (e.g. a plain key-value
+	// backend keyed by session ID) return ErrListNotSupported.
+	List(ctx context.Context, req *ListRequest) (*ListResponse, error)
 }
 
 // State represents the persistent state of a conversation session.
@@ -88,6 +100,12 @@ type State struct {
 	// Metadata contains arbitrary key-value pairs associated with the session.
 	// Common uses include user settings, locale, feature flags, and analytics data.
 	Metadata map[string]any `json:"metadata,omitempty"`
+
+	// UpdatedAt is the time the session was last persisted. It is
+	// storage-managed and output-only: Save ignores whatever value it holds
+	// (the store stamps the write time), while Load and List populate it.
+	// Stores without a clock may leave it zero.
+	UpdatedAt time.Time `json:"updated_at,omitzero"`
 }
 
 // Clone creates a deep copy of the session state.
@@ -101,9 +119,10 @@ func (s *State) Clone() *State {
 	}
 
 	clone := &State{
-		ID:       s.ID,
-		Messages: make([]llm.Message, len(s.Messages)),
-		Metadata: make(map[string]any, len(s.Metadata)),
+		ID:        s.ID,
+		Messages:  make([]llm.Message, len(s.Messages)),
+		Metadata:  make(map[string]any, len(s.Metadata)),
+		UpdatedAt: s.UpdatedAt,
 	}
 
 	for i, msg := range s.Messages {
@@ -117,3 +136,44 @@ func (s *State) Clone() *State {
 
 // ErrNotFound indicates that the requested session does not exist.
 var ErrNotFound = errors.New("session: not found")
+
+// ErrListNotSupported indicates that a Store's backend cannot enumerate
+// sessions (e.g. a plain key-value backend keyed by session ID). Such stores
+// return it from List.
+var ErrListNotSupported = errors.New("session: listing not supported by this store")
+
+// Summary is the list view of a session: its identity and metadata without
+// the message payload. It is what List returns per session, keeping list
+// queries cheap regardless of conversation size — fetch the messages with
+// Load only when a specific session is opened.
+type Summary struct {
+	// ID is the unique identifier for the session.
+	ID string
+
+	// Metadata is the session's metadata, as in State.
+	Metadata map[string]any
+
+	// UpdatedAt is the time the session was last persisted.
+	UpdatedAt time.Time
+}
+
+// ListRequest selects a page of session summaries.
+type ListRequest struct {
+	// PageSize is the maximum number of summaries to return. A non-positive
+	// value lets the store apply its own default; stores may cap it.
+	PageSize int32
+
+	// PageToken continues a previous List; empty starts from the first page.
+	// The token is opaque and must come from a prior ListResponse.
+	PageToken string
+}
+
+// ListResponse is one page of session summaries.
+type ListResponse struct {
+	// Sessions is the page, ordered by UpdatedAt descending, ID ascending.
+	Sessions []Summary
+
+	// NextPageToken is the token for the following page, or empty when this
+	// is the last page.
+	NextPageToken string
+}

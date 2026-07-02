@@ -671,6 +671,7 @@ type mockSessionStore struct {
 	loadFunc   func(context.Context, string) (*session.State, error)
 	saveFunc   func(context.Context, *session.State) error
 	deleteFunc func(context.Context, string) error
+	listFunc   func(context.Context, *session.ListRequest) (*session.ListResponse, error)
 }
 
 func (m *mockSessionStore) Load(ctx context.Context, sessionID string) (*session.State, error) {
@@ -695,4 +696,12 @@ func (m *mockSessionStore) Delete(ctx context.Context, sessionID string) error {
 	}
 
 	return nil
+}
+
+func (m *mockSessionStore) List(ctx context.Context, req *session.ListRequest) (*session.ListResponse, error) {
+	if m.listFunc != nil {
+		return m.listFunc(ctx, req)
+	}
+
+	return &session.ListResponse{}, nil
 }
