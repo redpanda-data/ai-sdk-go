@@ -287,6 +287,34 @@ func (rm *RequestMapper) mapAssistantMessage(msg llm.Message) (anthropic.BetaMes
 		}
 	}
 
+	// A truncated turn can reach us with no content parts: e.g. stop_reason=
+	// max_tokens where the model's only block was a partial tool_use whose
+	// accumulated JSON args didn't parse, so the streaming finalizer dropped it
+	// (see providers/anthropic/model.go). Anthropic's Messages API rejects an
+	// assistant message with an empty content array
+	// ("messages.N.content: Field required"), so replaying such a persisted turn
+	// 400s the whole request. Substitute a single minimal text block rather than
+	// dropping the message: dropping would leave the surrounding user turns
+	// adjacent and break Anthropic's required user/assistant alternation on
+	// replay. A truncated turn carries no recoverable content, so a placeholder
+	// loses nothing.
+	//
+	// The placeholder must be non-empty (Anthropic rejects empty text blocks)
+	// AND non-whitespace: Anthropic rejects a final assistant turn that ends in
+	// trailing whitespace, and some API/SDK versions strip a whitespace-only
+	// text block back to empty. A non-whitespace token is therefore robust
+	// whether the repaired turn is mid-conversation or the last message. The
+	// model does see a literal "(truncated)" turn on replay — a benign
+	// behavior change, since the original turn was already content-less.
+	if len(apiMsg.Content) == 0 {
+		apiMsg.Content = append(apiMsg.Content, anthropic.BetaContentBlockParamUnion{
+			OfText: &anthropic.BetaTextBlockParam{
+				Type: constant.Text(""),
+				Text: "(truncated)",
+			},
+		})
+	}
+
 	return apiMsg, nil
 }
 

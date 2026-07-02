@@ -273,8 +273,25 @@ func (a *LLMAgent) executeSingleTurn(
 	// Update usage tracking
 	agent.AddUsage(inv, resp.Usage)
 
-	// Add assistant message to session (single source of truth)
-	sess.Messages = append(sess.Messages, resp.Message)
+	// Add assistant message to session (single source of truth).
+	//
+	// Skip empty-content turns: a max_tokens cut can produce an assistant
+	// message with no parts (e.g. its only block was a partial tool_use the
+	// provider dropped). Persisting it poisons the session — on the next
+	// request the provider replays a content-less assistant message and
+	// Anthropic rejects it with "messages.N.content: Field required". The
+	// FinishReason (Length) is read from resp below regardless, so the
+	// truncation signal still propagates. A legitimately truncated tool-use
+	// turn keeps its completed tool_use parts (len > 0) and is unaffected.
+	//
+	// This guard covers the persisted session store only. The MessageEvent
+	// below still carries the raw resp.Message, so a consumer that rebuilds
+	// history purely from the event stream (rather than from sess.Messages)
+	// can still observe the empty turn — the provider request-mappers'
+	// empty-content substitution is the authoritative backstop for that path.
+	if len(resp.Message.Content) > 0 {
+		sess.Messages = append(sess.Messages, resp.Message)
+	}
 
 	// Emit message event
 	if !yield(agent.MessageEvent{

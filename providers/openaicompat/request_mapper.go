@@ -183,6 +183,18 @@ func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]openai.ChatCompl
 			}
 
 		case llm.RoleAssistant:
+			// Equivalent to the anthropic mapper's empty-content guard, by
+			// construction: an assistant turn with neither tool calls nor text
+			// (e.g. a max_tokens cut whose only block was a dropped partial
+			// tool_use, or a reasoning-only turn) emits no message at all rather
+			// than an invalid content-less assistant message. OpenAI's own Chat
+			// Completion API tolerates the resulting sequence (it does not require
+			// strict user/assistant alternation), so no placeholder substitution
+			// is needed here. Note some stricter OpenAI-compatible backends
+			// (certain vLLM/Mistral-style servers) do enforce alternation and may
+			// reject the consecutive user turns that dropping an empty assistant
+			// turn can leave behind — a pre-existing property of this mapper, not
+			// introduced by the empty-content handling.
 			if len(toolRequests) > 0 {
 				// Assistant message with tool calls
 				apiMsg, err := rm.mapAssistantMessageWithTools(textParts, toolRequests)
