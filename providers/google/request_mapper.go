@@ -179,6 +179,19 @@ func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]*genai.Content, 
 				return nil, nil, err
 			}
 
+			// A truncated turn can reach us with no content parts (e.g. a
+			// max_tokens cut whose only block was a partial tool_use the
+			// streaming finalizer dropped, or a reasoning-only turn — reasoning
+			// parts are skipped in mapParts). Gemini rejects a Content with
+			// empty Parts, so replaying such a persisted turn fails the whole
+			// request. Substitute a single minimal text block, matching the
+			// anthropic mapper. The placeholder is non-whitespace for the same
+			// robustness reasons (whitespace-only text can be stripped back to
+			// empty).
+			if len(parts) == 0 {
+				parts = append(parts, genai.NewPartFromText("(truncated)"))
+			}
+
 			contents = append(contents, &genai.Content{
 				Role:  genai.RoleModel,
 				Parts: parts,

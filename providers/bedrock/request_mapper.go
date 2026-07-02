@@ -280,6 +280,24 @@ func (rm *RequestMapper) mapAssistantMessage(msg llm.Message) (types.Message, er
 		}
 	}
 
+	// A truncated turn can reach us with no content parts (e.g. stop_reason=
+	// max_tokens where the model's only block was a partial tool_use the
+	// streaming finalizer dropped). Bedrock's Converse API — Anthropic-shaped —
+	// rejects an assistant message with a content-less body, so replaying such a
+	// persisted turn fails the whole request. Substitute a single minimal text
+	// block, matching the anthropic mapper. This runs before the cache-point
+	// insertion stage in mapMessages, so an empty assistant turn can never
+	// become a cachePoint-only content block (which is still invalid).
+	//
+	// The placeholder must be non-empty and non-whitespace: a whitespace-only or
+	// trailing-whitespace final assistant turn can be rejected or stripped back
+	// to empty, so a non-whitespace token is robust in any position.
+	if len(apiMsg.Content) == 0 {
+		apiMsg.Content = append(apiMsg.Content, &types.ContentBlockMemberText{
+			Value: "(truncated)",
+		})
+	}
+
 	return apiMsg, nil
 }
 

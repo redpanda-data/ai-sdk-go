@@ -298,11 +298,17 @@ func (rm *RequestMapper) mapAssistantMessage(msg llm.Message) (anthropic.BetaMes
 	// adjacent and break Anthropic's required user/assistant alternation on
 	// replay. A truncated turn carries no recoverable content, so a placeholder
 	// loses nothing.
+	//
+	// The placeholder must be non-empty (Anthropic rejects empty text blocks)
+	// AND non-whitespace: Anthropic rejects a final assistant turn that ends in
+	// trailing whitespace, and some API/SDK versions strip a whitespace-only
+	// text block back to empty. A non-whitespace token is therefore robust
+	// whether the repaired turn is mid-conversation or the last message.
 	if len(apiMsg.Content) == 0 {
 		apiMsg.Content = append(apiMsg.Content, anthropic.BetaContentBlockParamUnion{
 			OfText: &anthropic.BetaTextBlockParam{
 				Type: constant.Text(""),
-				Text: " ",
+				Text: "(truncated)",
 			},
 		})
 	}
