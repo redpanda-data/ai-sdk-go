@@ -77,10 +77,12 @@ func TestMapAssistantMessage_EmptyContentIsRepaired(t *testing.T) {
 
 	// And there must be at least one real (non-cachePoint) content block.
 	hasNonCachePoint := false
+
 	for _, b := range last.Content {
 		if _, isCache := b.(*types.ContentBlockMemberCachePoint); !isCache {
 			hasNonCachePoint = true
 		}
 	}
+
 	assert.True(t, hasNonCachePoint, "assistant turn must not be cachePoint-only")
 }
