@@ -937,17 +937,26 @@ func reconstructAssistant(m chatMessage) []llm.Message {
 			}
 
 		case p.isTool():
-			// Skip calls still streaming their input; not yet a complete call.
-			if p.State == "input-streaming" || p.ToolCallID == "" {
+			if p.ToolCallID == "" {
 				continue
 			}
 
 			name := p.toolName()
 
-			assistant = append(assistant, llm.NewToolRequestPart(p.ToolCallID, name, p.Input))
-
+			// Only reconstruct COMPLETED tool calls — those with a result. A call
+			// still streaming its input, or one that reached input-available but
+			// never produced an output (an aborted/interrupted prior turn the
+			// client re-sends), is dropped entirely: the tool-request part is
+			// emitted ONLY inside the result-bearing states. Emitting a bare
+			// tool-request with no paired tool-response would (a) make providers
+			// such as Anthropic reject the request for an unmatched tool_use, and
+			// (b) let a browser client forge an incomplete assistant tool call
+			// that an agent's crash-recovery path would execute before consulting
+			// the model. Dropping the unresolved call keeps history well-formed
+			// and denies that vector.
 			switch p.State {
 			case "output-available":
+				assistant = append(assistant, llm.NewToolRequestPart(p.ToolCallID, name, p.Input))
 				toolResults = append(toolResults, llm.NewToolResponsePart(p.ToolCallID, name, p.Output, false))
 			case "output-error":
 				// The new ToolResponsePart carries the error payload in Result
@@ -957,6 +966,7 @@ func reconstructAssistant(m chatMessage) []llm.Message {
 					errPayload = []byte(`{"error":"tool error"}`)
 				}
 
+				assistant = append(assistant, llm.NewToolRequestPart(p.ToolCallID, name, p.Input))
 				toolResults = append(toolResults, llm.NewToolResponsePart(p.ToolCallID, name, errPayload, true))
 			}
 		}

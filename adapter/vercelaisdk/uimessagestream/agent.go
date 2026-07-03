@@ -200,8 +200,13 @@ func (as *agentStreamer) writeDynamicToolResponse(tr *llm.ToolResponsePart) erro
 	}
 
 	if tr.IsError {
+		// The agent/tool registry stores the raw err.Error() in Result. Route it
+		// through onError before it reaches the browser, so failed MCP/subagent
+		// tools cannot leak server-side detail — matching the sanitization the
+		// model-level executor path applies to client-facing tool errors.
 		return as.ew.WriteChunk(Chunk{
-			"type": "tool-output-error", "toolCallId": tr.ID, "errorText": string(tr.Result), "dynamic": true,
+			"type": "tool-output-error", "toolCallId": tr.ID,
+			"errorText": as.onError(errors.New(string(tr.Result))), "dynamic": true,
 		})
 	}
 
@@ -372,11 +377,18 @@ func (as *agentStreamer) handleInvocationEnd(e agent.InvocationEndEvent) {
 	_ = as.endStep()
 
 	reason, controlText := mapAgentFinishReason(e.FinishReason)
-	if controlText != "" {
-		// A fixed, non-sensitive control message (max-turns / length). Emit it
-		// verbatim rather than through onError, which sanitizes to a generic
-		// string — this preserves parity with the A2A path, which surfaces these.
+
+	switch {
+	case controlText != "":
+		// A fixed, non-sensitive control message (max-turns / input-required).
+		// Emit it verbatim rather than through onError, which sanitizes to a
+		// generic string — this preserves parity with the A2A path.
 		_ = as.ew.WriteChunk(Chunk{"type": "error", "errorText": controlText})
+	case reason == finishReasonError:
+		// An error finish with no fixed control message (FinishReasonError). Emit
+		// a sanitized error chunk so the client always gets error text on an
+		// errored finish, matching the iterator-error and incomplete-run paths.
+		_ = as.ew.WriteChunk(Chunk{"type": "error", "errorText": as.onError(errors.New("agent run failed"))})
 	}
 
 	finish := Chunk{"type": "finish", "finishReason": reason}
@@ -401,7 +413,10 @@ func mapAgentFinishReason(fr agent.FinishReason) (string, string) {
 	case agent.FinishReasonMaxTurns:
 		return finishReasonError, "maximum iterations reached"
 	case agent.FinishReasonLength:
-		return finishReasonError, "context length limit exceeded"
+		// The UI stream has a dedicated "length" reason. Surface it as a normal
+		// partial completion (no error chunk), matching the model-level handler,
+		// rather than marking the whole message errored.
+		return "length", ""
 	case agent.FinishReasonInputRequired:
 		// HITL is not supported here; resolve the turn visibly rather than
 		// leaving a tool part spinning forever.
@@ -425,13 +440,15 @@ func usageMetadata(u *llm.TokenUsage) map[string]any {
 		return nil
 	}
 
+	// camelCase to match the AI SDK's own LanguageModelUsage shape, so a client
+	// that wires a messageMetadata schema expecting the SDK convention validates.
 	return map[string]any{
 		"usage": map[string]any{
-			"input_tokens":     u.InputTokens,
-			"output_tokens":    u.OutputTokens,
-			"total_tokens":     u.TotalBilledTokens(),
-			"cached_tokens":    u.CachedInputTokens,
-			"reasoning_tokens": u.ReasoningTokens,
+			"inputTokens":       u.InputTokens,
+			"outputTokens":      u.OutputTokens,
+			"totalTokens":       u.TotalBilledTokens(),
+			"cachedInputTokens": u.CachedInputTokens,
+			"reasoningTokens":   u.ReasoningTokens,
 		},
 	}
 }

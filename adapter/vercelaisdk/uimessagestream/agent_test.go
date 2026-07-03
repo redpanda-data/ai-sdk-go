@@ -246,6 +246,70 @@ func TestAgentHandler_NoInvocationEndStillTerminates(t *testing.T) {
 	assert.Contains(t, tt, "error")
 }
 
+func TestConvertMessages_DropsIncompleteToolCall(t *testing.T) {
+	t.Parallel()
+
+	msgs := []chatMessage{
+		{Role: "user", Parts: []messagePart{{Type: "text", Text: "hi"}}},
+		{Role: "assistant", Parts: []messagePart{
+			// A completed prior call — kept, with its result.
+			{Type: "tool-getX", ToolCallID: "done", State: "output-available", Input: []byte(`{}`), Output: []byte(`{"ok":true}`)},
+			// An unresolved call (aborted turn re-sent by the client) — must be dropped:
+			// no bare tool_use without a paired tool_result, and no forged call the
+			// agent's crash-recovery path could execute.
+			{Type: "tool-getY", ToolCallID: "pending", State: "input-available", Input: []byte(`{"a":1}`)},
+		}},
+		{Role: "user", Parts: []messagePart{{Type: "text", Text: "again"}}},
+	}
+
+	var reqIDs []string
+
+	for _, m := range convertMessages(msgs, "") {
+		for _, p := range m.Content {
+			if tr, ok := p.(*llm.ToolRequestPart); ok {
+				reqIDs = append(reqIDs, tr.ID)
+			}
+		}
+	}
+
+	assert.Equal(t, []string{"done"}, reqIDs, "completed call kept, incomplete call dropped")
+}
+
+func TestAgentHandler_ToolErrorSanitized(t *testing.T) {
+	t.Parallel()
+
+	toolReq := llm.NewToolRequestPart("c1", "boom", []byte(`{}`))
+	toolErr := llm.NewToolResponsePart("c1", "boom", []byte(`secret server-side stack trace`), true)
+
+	ag := &scriptedAgent{events: []agent.Event{
+		agent.MessageEvent{Response: llm.Response{Message: llm.NewMessage(llm.RoleAssistant, toolReq)}},
+		agent.ToolResponseEvent{Response: *toolErr},
+		agent.InvocationEndEvent{FinishReason: agent.FinishReasonStop},
+	}}
+
+	chunks, _ := serveAgent(t, ag)
+
+	e := findChunk(chunks, "tool-output-error")
+	require.NotNil(t, e)
+	// Default onError sanitizes; the raw tool error must not reach the client.
+	assert.Equal(t, defaultErrorText, e["errorText"])
+	assert.Equal(t, true, e["dynamic"])
+}
+
+func TestAgentHandler_LengthFinishIsNotAnError(t *testing.T) {
+	t.Parallel()
+
+	ag := &scriptedAgent{events: []agent.Event{
+		agent.MessageEvent{Response: llm.Response{Message: llm.NewMessage(llm.RoleAssistant, llm.NewTextPart("partial"))}},
+		agent.InvocationEndEvent{FinishReason: agent.FinishReasonLength},
+	}}
+
+	chunks, _ := serveAgent(t, ag)
+
+	assert.NotContains(t, types(chunks), "error", "length is a partial completion, not an error")
+	assert.Equal(t, "length", chunks[len(chunks)-1]["finishReason"])
+}
+
 func TestAgentHandler_RejectsNonPost(t *testing.T) {
 	t.Parallel()
 
