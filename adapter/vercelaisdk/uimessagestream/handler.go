@@ -325,24 +325,29 @@ func convertMessages(msgs []chatMessage) []llm.Message {
 	}
 
 	for _, m := range msgs {
-		role := messageRole(m.Role)
-
-		if role == llm.RoleAssistant {
+		switch messageRole(m.Role) {
+		case llm.RoleAssistant:
 			for _, am := range reconstructAssistant(m) {
 				appendMessage(am)
 			}
 
-			continue
-		}
+		case llm.RoleSystem:
+			// Inbound system messages are dropped. The agent supplies its own
+			// system prompt; honoring a client-supplied system role would let a
+			// browser inject or override agent-level instructions, since providers
+			// such as Anthropic/Google honor non-leading system messages and
+			// llmagent only strips a single leading one.
 
-		// User and system messages forward their concatenated text. Inbound
-		// file parts are dropped: llm.Part has no file kind.
-		text := m.textContent()
-		if text == "" {
-			continue
-		}
+		case llm.RoleUser:
+			// User messages forward their concatenated text. Inbound file parts
+			// are dropped: llm.Part has no file kind.
+			text := m.textContent()
+			if text == "" {
+				continue
+			}
 
-		appendMessage(llm.NewMessage(role, llm.NewTextPart(text)))
+			appendMessage(llm.NewMessage(llm.RoleUser, llm.NewTextPart(text)))
+		}
 	}
 
 	return out

@@ -127,6 +127,10 @@ type agentStreamer struct {
 	stepOpen          bool
 	streamedText      bool
 	streamedReasoning bool
+	// pending holds toolCallIds emitted as tool-input-available but not yet
+	// resolved by a ToolResponseEvent, so terminal paths can close them as
+	// tool-output-error rather than strand the client's dynamic tool part.
+	pending map[string]struct{}
 }
 
 func (as *agentStreamer) ensureStep() error {
@@ -186,15 +190,25 @@ func (as *agentStreamer) writeDynamicToolRequest(tr *llm.ToolRequestPart) error 
 		}
 	}
 
-	return as.ew.WriteChunk(Chunk{
+	if err := as.ew.WriteChunk(Chunk{
 		"type": "tool-input-available", "toolCallId": tr.ID, "toolName": tr.Name, "input": input, "dynamic": true,
-	})
+	}); err != nil {
+		return err
+	}
+
+	// Outstanding until a ToolResponseEvent resolves it (or a terminal path
+	// closes it as tool-output-error).
+	as.pending[tr.ID] = struct{}{}
+
+	return nil
 }
 
 func (as *agentStreamer) writeDynamicToolResponse(tr *llm.ToolResponsePart) error {
 	if tr == nil {
 		return nil
 	}
+
+	delete(as.pending, tr.ID)
 
 	if tr.IsError {
 		// The agent/tool registry stores the raw err.Error() in Result. Route it
@@ -242,6 +256,7 @@ func StreamAgent(ctx context.Context, ag agent.Agent, inv *agent.InvocationMetad
 		ew:      ew,
 		logger:  logger,
 		onError: onError,
+		pending: make(map[string]struct{}),
 	}
 
 	for event, err := range ag.Run(ctx, inv) {
@@ -254,10 +269,7 @@ func StreamAgent(ctx context.Context, ag agent.Agent, inv *agent.InvocationMetad
 
 			logger.Error("agent run error", "error", err)
 
-			_ = as.endStep()
-			_ = ew.WriteChunk(Chunk{"type": "error", "errorText": onError(err)})
-			_ = ew.WriteChunk(Chunk{"type": "finish", "finishReason": finishReasonError})
-			_ = ew.WriteDone()
+			as.terminate(onError(err))
 
 			return
 		}
@@ -270,11 +282,32 @@ func StreamAgent(ctx context.Context, ag agent.Agent, inv *agent.InvocationMetad
 	// The stream ended without an InvocationEndEvent. Terminate cleanly rather
 	// than leaving the browser hanging on an open stream.
 	logger.Warn("agent stream ended without InvocationEndEvent")
+	as.terminate(onError(errors.New("incomplete agent run")))
+}
 
+// terminate closes the open step, resolves any tool call still pending (so the
+// client never strands a dynamic tool part in input-available), then emits the
+// error + finish{error} + [DONE] terminator.
+func (as *agentStreamer) terminate(errText string) {
 	_ = as.endStep()
-	_ = ew.WriteChunk(Chunk{"type": "error", "errorText": onError(errors.New("incomplete agent run"))})
-	_ = ew.WriteChunk(Chunk{"type": "finish", "finishReason": finishReasonError})
-	_ = ew.WriteDone()
+	as.closePendingTools()
+	_ = as.ew.WriteChunk(Chunk{"type": "error", "errorText": errText})
+	_ = as.ew.WriteChunk(Chunk{"type": "finish", "finishReason": finishReasonError})
+	_ = as.ew.WriteDone()
+}
+
+// closePendingTools emits a tool-output-error for every tool call that was
+// requested but never produced a ToolResponseEvent, transitioning the client's
+// dynamic tool part out of input-available. Called on terminal paths.
+func (as *agentStreamer) closePendingTools() {
+	for id := range as.pending {
+		_ = as.ew.WriteChunk(Chunk{
+			"type": "tool-output-error", "toolCallId": id,
+			"errorText": as.onError(errors.New("tool call did not complete")), "dynamic": true,
+		})
+	}
+
+	as.pending = make(map[string]struct{})
 }
 
 // handleEvent maps one agent.Event onto UI chunks. It returns true when the
@@ -372,6 +405,11 @@ func (as *agentStreamer) handleMessage(e agent.MessageEvent) {
 
 func (as *agentStreamer) handleInvocationEnd(e agent.InvocationEndEvent) {
 	_ = as.endStep()
+
+	// Resolve any tool call the model requested but that never produced a result
+	// (e.g. input-required, or a run that ended mid-tool-turn), so the client's
+	// dynamic tool part transitions to output-error instead of hanging.
+	as.closePendingTools()
 
 	reason, controlText := mapAgentFinishReason(e.FinishReason)
 
