@@ -131,10 +131,6 @@ type agentStreamer struct {
 	// resolved by a ToolResponseEvent, so terminal paths can close them as
 	// tool-output-error rather than strand the client's dynamic tool part.
 	pending map[string]struct{}
-	// emitted holds every toolCallId whose tool-input pair has been written this
-	// invocation, so a tool call surfaced by BOTH a ToolRequestEvent and the
-	// MessageEvent copy (as llmagent does) is emitted only once.
-	emitted map[string]struct{}
 	// errored records that an error chunk was already written, so an errored
 	// finish does not emit a second, generic one (which would call the client's
 	// onError twice and mask the first, mapped error).
@@ -184,14 +180,6 @@ func (as *agentStreamer) writeDynamicToolRequest(tr *llm.ToolRequestPart) error 
 	if tr == nil {
 		return nil
 	}
-
-	// A tool call can arrive via both a ToolRequestEvent and the MessageEvent
-	// copy (llmagent emits both). Emit its tool-input pair exactly once.
-	if _, done := as.emitted[tr.ID]; done {
-		return nil
-	}
-
-	as.emitted[tr.ID] = struct{}{}
 
 	if err := as.ew.WriteChunk(Chunk{
 		"type": "tool-input-start", "toolCallId": tr.ID, "toolName": tr.Name, "dynamic": true,
@@ -274,7 +262,6 @@ func StreamAgent(ctx context.Context, ag agent.Agent, inv *agent.InvocationMetad
 		logger:  logger,
 		onError: onError,
 		pending: make(map[string]struct{}),
-		emitted: make(map[string]struct{}),
 	}
 
 	for event, err := range ag.Run(ctx, inv) {
@@ -338,16 +325,6 @@ func (as *agentStreamer) handleEvent(event agent.Event, logger *slog.Logger) boo
 	case agent.MessageEvent:
 		as.handleMessage(e)
 
-	case agent.ToolRequestEvent:
-		// Some agents signal a tool call via ToolRequestEvent rather than (or in
-		// addition to) embedding it in MessageEvent. Emit the tool-input pair here
-		// so a following ToolResponseEvent always has its preceding input chunks;
-		// the MessageEvent copy is deduped by toolCallId in writeDynamicToolRequest.
-		if err := as.ensureStep(); err == nil {
-			req := e.Request
-			as.emitToolRequest(&req)
-		}
-
 	case agent.ToolResponseEvent:
 		resp := e.Response
 		_ = as.writeDynamicToolResponse(&resp)
@@ -376,7 +353,12 @@ func (as *agentStreamer) handleEvent(event agent.Event, logger *slog.Logger) boo
 		return true
 
 	default:
-		// ToolRequestEvent (parts ride MessageEvent) and any future events.
+		// ToolRequestEvent is intentionally ignored: tool calls are sourced from
+		// MessageEvent (which llmagent always emits and which carries them as
+		// parts), exactly as adapter/a2a's Executor does. Handling ToolRequestEvent
+		// separately would duplicate llmagent's emission and leave the tool-call
+		// step ambiguous relative to the post-tool answer. Also covers future
+		// event kinds.
 	}
 
 	return false

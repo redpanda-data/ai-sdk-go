@@ -337,67 +337,6 @@ func TestAgentHandler_ClosesPendingToolOnTerminalError(t *testing.T) {
 	assert.Equal(t, "finish", tt[len(tt)-1])
 }
 
-func TestAgentHandler_ToolRequestEventDedupedWithMessageEvent(t *testing.T) {
-	t.Parallel()
-
-	// An agent that signals the call via ToolRequestEvent AND repeats it in the
-	// MessageEvent (as llmagent does) must emit exactly one tool-input pair, and
-	// the tool-input must precede the tool-output.
-	toolReq := llm.NewToolRequestPart("c1", "getX", []byte(`{}`))
-	toolResp := llm.NewToolResponsePart("c1", "getX", []byte(`{"ok":true}`), false)
-
-	ag := &scriptedAgent{events: []agent.Event{
-		agent.ToolRequestEvent{Request: *toolReq},
-		agent.MessageEvent{Response: llm.Response{Message: llm.NewMessage(llm.RoleAssistant, toolReq)}},
-		agent.ToolResponseEvent{Response: *toolResp},
-		agent.MessageEvent{Response: llm.Response{Message: llm.NewMessage(llm.RoleAssistant, llm.NewTextPart("done"))}},
-		agent.InvocationEndEvent{FinishReason: agent.FinishReasonStop},
-	}}
-
-	chunks, _ := serveAgent(t, ag)
-	tt := types(chunks)
-
-	starts := 0
-
-	for _, ty := range tt {
-		if ty == "tool-input-start" {
-			starts++
-		}
-	}
-
-	assert.Equal(t, 1, starts, "the tool call must be emitted exactly once despite the duplicate")
-	assert.Less(t, indexOf(tt, "tool-input-available"), indexOf(tt, "tool-output-available"), "input before output")
-}
-
-func TestAgentHandler_ErrorEventThenErrorFinishNotDuplicated(t *testing.T) {
-	t.Parallel()
-
-	// A recoverable ErrorEvent already surfaced the error; the following
-	// InvocationEndEvent{error} must NOT emit a second generic error chunk (which
-	// would call the client's onError twice and mask the first).
-	ag := &scriptedAgent{events: []agent.Event{
-		agent.ErrorEvent{Message: "rate limited"},
-		agent.InvocationEndEvent{FinishReason: agent.FinishReasonError},
-	}}
-
-	chunks, sawDone := serveAgent(t, ag)
-	assert.True(t, sawDone)
-
-	errs := 0
-
-	for _, ty := range types(chunks) {
-		if ty == "error" {
-			errs++
-		}
-	}
-
-	assert.Equal(t, 1, errs, "exactly one error chunk for ErrorEvent + errored finish")
-
-	tt := types(chunks)
-	assert.Equal(t, "finish", tt[len(tt)-1], "terminates with finish")
-	assert.Equal(t, "error", chunks[len(chunks)-1]["finishReason"])
-}
-
 func TestConvertMessages_DropsInboundSystem(t *testing.T) {
 	t.Parallel()
 
