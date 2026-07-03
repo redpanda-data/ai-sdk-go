@@ -135,6 +135,10 @@ type agentStreamer struct {
 	// invocation, so a tool call surfaced by BOTH a ToolRequestEvent and the
 	// MessageEvent copy (as llmagent does) is emitted only once.
 	emitted map[string]struct{}
+	// errored records that an error chunk was already written, so an errored
+	// finish does not emit a second, generic one (which would call the client's
+	// onError twice and mask the first, mapped error).
+	errored bool
 }
 
 func (as *agentStreamer) ensureStep() error {
@@ -365,6 +369,7 @@ func (as *agentStreamer) handleEvent(event agent.Event, logger *slog.Logger) boo
 		// Observable (recoverable) error — surface it but keep streaming.
 		logger.Warn("recoverable agent error", "message", e.Message)
 		_ = as.ew.WriteChunk(Chunk{"type": "error", "errorText": as.onError(agentErrorEventErr(e))})
+		as.errored = true
 
 	case agent.InvocationEndEvent:
 		as.handleInvocationEnd(e)
@@ -465,10 +470,12 @@ func (as *agentStreamer) handleInvocationEnd(e agent.InvocationEndEvent) {
 		// Emit it verbatim rather than through onError, which sanitizes to a
 		// generic string — this preserves parity with the A2A path.
 		_ = as.ew.WriteChunk(Chunk{"type": "error", "errorText": controlText})
-	case reason == finishReasonError:
-		// An error finish with no fixed control message (FinishReasonError). Emit
-		// a sanitized error chunk so the client always gets error text on an
-		// errored finish, matching the iterator-error and incomplete-run paths.
+	case reason == finishReasonError && !as.errored:
+		// An error finish with no fixed control message and no prior error chunk
+		// (a bare FinishReasonError). Emit one sanitized error so the client gets
+		// error text, matching the iterator-error and incomplete-run paths. If a
+		// recoverable ErrorEvent already surfaced the mapped error, don't emit a
+		// second generic one — that would call the client's onError twice.
 		_ = as.ew.WriteChunk(Chunk{"type": "error", "errorText": as.onError(errors.New("agent run failed"))})
 	}
 

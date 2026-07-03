@@ -369,6 +369,35 @@ func TestAgentHandler_ToolRequestEventDedupedWithMessageEvent(t *testing.T) {
 	assert.Less(t, indexOf(tt, "tool-input-available"), indexOf(tt, "tool-output-available"), "input before output")
 }
 
+func TestAgentHandler_ErrorEventThenErrorFinishNotDuplicated(t *testing.T) {
+	t.Parallel()
+
+	// A recoverable ErrorEvent already surfaced the error; the following
+	// InvocationEndEvent{error} must NOT emit a second generic error chunk (which
+	// would call the client's onError twice and mask the first).
+	ag := &scriptedAgent{events: []agent.Event{
+		agent.ErrorEvent{Message: "rate limited"},
+		agent.InvocationEndEvent{FinishReason: agent.FinishReasonError},
+	}}
+
+	chunks, sawDone := serveAgent(t, ag)
+	assert.True(t, sawDone)
+
+	errs := 0
+
+	for _, ty := range types(chunks) {
+		if ty == "error" {
+			errs++
+		}
+	}
+
+	assert.Equal(t, 1, errs, "exactly one error chunk for ErrorEvent + errored finish")
+
+	tt := types(chunks)
+	assert.Equal(t, "finish", tt[len(tt)-1], "terminates with finish")
+	assert.Equal(t, "error", chunks[len(chunks)-1]["finishReason"])
+}
+
 func TestConvertMessages_DropsInboundSystem(t *testing.T) {
 	t.Parallel()
 
