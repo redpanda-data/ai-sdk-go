@@ -337,6 +337,40 @@ func TestAgentHandler_ClosesPendingToolOnTerminalError(t *testing.T) {
 	assert.Equal(t, "finish", tt[len(tt)-1])
 }
 
+func TestAgentHandler_ToolResponseWithoutInputSkipped(t *testing.T) {
+	t.Parallel()
+
+	// llmagent's incomplete-tool-call recovery can emit a ToolResponseEvent with
+	// no preceding tool-input (no MessageEvent carried the call). Emitting a
+	// tool-output-* with no matching tool-input-* would error the client stream,
+	// so it must be skipped.
+	orphan := llm.NewToolResponsePart("ghost", "x", []byte(`{"ok":true}`), false)
+	ag := &scriptedAgent{events: []agent.Event{
+		agent.ToolResponseEvent{Response: *orphan},
+		agent.MessageEvent{Response: llm.Response{Message: llm.NewMessage(llm.RoleAssistant, llm.NewTextPart("done"))}},
+		agent.InvocationEndEvent{FinishReason: agent.FinishReasonStop},
+	}}
+
+	chunks, sawDone := serveAgent(t, ag)
+	assert.True(t, sawDone)
+	assert.NotContains(t, types(chunks), "tool-output-available", "orphan tool output must be skipped")
+}
+
+func TestAgentHandler_InterruptedFinishAborts(t *testing.T) {
+	t.Parallel()
+
+	// A cancellation between turns surfaces as InvocationEndEvent{interrupted}
+	// with no iterator error; it must become an abort, not a normal finish.
+	ag := &scriptedAgent{events: []agent.Event{
+		agent.InvocationEndEvent{FinishReason: agent.FinishReasonInterrupted},
+	}}
+
+	chunks, sawDone := serveAgent(t, ag)
+	assert.True(t, sawDone)
+	assert.Contains(t, types(chunks), "abort")
+	assert.NotContains(t, types(chunks), "finish", "interrupted must not report a normal finish")
+}
+
 func TestConvertMessages_DropsInboundSystem(t *testing.T) {
 	t.Parallel()
 

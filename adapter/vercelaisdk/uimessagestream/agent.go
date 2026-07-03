@@ -212,6 +212,14 @@ func (as *agentStreamer) writeDynamicToolResponse(tr *llm.ToolResponsePart) erro
 		return nil
 	}
 
+	// A tool-output-* chunk is only valid after a tool-input-* for the same
+	// toolCallId. If no input was emitted (e.g. llmagent's incomplete-tool-call
+	// recovery yields a ToolResponseEvent before any MessageEvent carries the
+	// call), emitting the output would error the client stream — skip it.
+	if _, ok := as.pending[tr.ID]; !ok {
+		return nil
+	}
+
 	delete(as.pending, tr.ID)
 
 	if tr.IsError {
@@ -276,6 +284,15 @@ func StreamAgent(ctx context.Context, ag agent.Agent, inv *agent.InvocationMetad
 
 			as.terminate(onError(err))
 
+			return
+		}
+
+		// A cancellation between turns surfaces as InvocationEndEvent{interrupted}
+		// with no iterator error. Emit an abort (not a normal finish) so useChat
+		// treats it as aborted rather than a completed assistant message.
+		if end, ok := event.(agent.InvocationEndEvent); ok &&
+			(end.FinishReason == agent.FinishReasonInterrupted || ctx.Err() != nil) {
+			as.sw.writeAbort(ctx)
 			return
 		}
 
