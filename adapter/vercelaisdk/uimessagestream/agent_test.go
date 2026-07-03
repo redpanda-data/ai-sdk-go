@@ -264,7 +264,7 @@ func TestConvertMessages_DropsIncompleteToolCall(t *testing.T) {
 
 	var reqIDs []string
 
-	for _, m := range convertMessages(msgs, "") {
+	for _, m := range convertMessages(msgs) {
 		for _, p := range m.Content {
 			if tr, ok := p.(*llm.ToolRequestPart); ok {
 				reqIDs = append(reqIDs, tr.ID)

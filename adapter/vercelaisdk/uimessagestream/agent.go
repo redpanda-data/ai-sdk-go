@@ -31,11 +31,10 @@ import (
 // full agent.Agent — its system prompt, tool registry (MCP + subagents-as-tools),
 // interceptor chain (OTel/transcripts), and agentic tool-calling loop.
 //
-// It is a pure protocol translator, in contrast to Handler, which drives a bare
-// llm.Model and runs its OWN tool loop (StreamModelWithTools). AgentHandler runs
-// no loop of its own: it converts the inbound UI messages into an agent
-// invocation and maps the agent's event stream onto UI Message Stream chunks.
-// The agent package owns all business logic.
+// It is a pure protocol translator: it runs no loop of its own, converting the
+// inbound UI messages into an agent invocation and mapping the agent's event
+// stream onto UI Message Stream chunks. The agent package owns all business
+// logic. This is the mirror of adapter/a2a's Executor, one protocol lower.
 //
 // History is client-authoritative: useChat re-sends the full message list every
 // turn, so each request rebuilds the whole conversation from the posted messages
@@ -51,7 +50,6 @@ func AgentHandler(ag agent.Agent, opts ...Option) http.Handler {
 	cfg := &config{
 		logger:       slog.Default(),
 		maxBodyBytes: 1 << 20, // 1MB
-		maxTurns:     10,      // unused here (the agent owns the loop); kept for config parity
 		onError:      defaultErrorMapper,
 	}
 	for _, o := range opts {
@@ -82,7 +80,7 @@ func (h *agentHTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Client-authoritative: rebuild the full conversation from the posted
 	// messages. No system prompt is injected here — the agent supplies its own.
-	messages := convertMessages(body.Messages, "")
+	messages := convertMessages(body.Messages)
 	if len(messages) == 0 {
 		http.Error(w, "empty messages", http.StatusBadRequest)
 		return
@@ -169,8 +167,7 @@ func (as *agentStreamer) endStep() error {
 // and subagents-as-tools) are discovered at runtime and are unknown to the
 // browser's compile-time tool registry, so they MUST be tagged dynamic:true —
 // otherwise useChat materializes a statically-typed tool-<name> part it cannot
-// correlate. This is why streamWriter.writeToolRequest (the static shape) is not
-// reused for the agent path.
+// correlate against a client-side schema.
 func (as *agentStreamer) writeDynamicToolRequest(tr *llm.ToolRequestPart) error {
 	if tr == nil {
 		return nil
