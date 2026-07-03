@@ -36,6 +36,14 @@ import (
 // stream onto UI Message Stream chunks. The agent package owns all business
 // logic. This is the mirror of adapter/a2a's Executor, one protocol lower.
 //
+// Contract: tool calls are taken from MessageEvent (the parts an assistant
+// message carries), which llmagent always emits — the same assumption
+// adapter/a2a's Executor makes. A hypothetical agent that reports tool calls
+// ONLY via ToolRequestEvent and never in a MessageEvent is not supported;
+// ToolRequestEvent is treated as an informational breadcrumb, not a source of
+// tool-input chunks, so its calls would not surface. Every agent.Agent in this
+// SDK (llmagent) satisfies the contract.
+//
 // History is client-authoritative: useChat re-sends the full message list every
 // turn, so each request rebuilds the whole conversation from the posted messages
 // and runs it against a fresh, non-persisted session. There is deliberately no
