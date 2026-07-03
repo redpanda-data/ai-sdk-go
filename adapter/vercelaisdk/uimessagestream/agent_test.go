@@ -358,6 +358,7 @@ func TestAgentHandler_ToolRequestEventDedupedWithMessageEvent(t *testing.T) {
 	tt := types(chunks)
 
 	starts := 0
+
 	for _, ty := range tt {
 		if ty == "tool-input-start" {
 			starts++
