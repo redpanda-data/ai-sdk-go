@@ -337,6 +337,37 @@ func TestAgentHandler_ClosesPendingToolOnTerminalError(t *testing.T) {
 	assert.Equal(t, "finish", tt[len(tt)-1])
 }
 
+func TestAgentHandler_ToolRequestEventDedupedWithMessageEvent(t *testing.T) {
+	t.Parallel()
+
+	// An agent that signals the call via ToolRequestEvent AND repeats it in the
+	// MessageEvent (as llmagent does) must emit exactly one tool-input pair, and
+	// the tool-input must precede the tool-output.
+	toolReq := llm.NewToolRequestPart("c1", "getX", []byte(`{}`))
+	toolResp := llm.NewToolResponsePart("c1", "getX", []byte(`{"ok":true}`), false)
+
+	ag := &scriptedAgent{events: []agent.Event{
+		agent.ToolRequestEvent{Request: *toolReq},
+		agent.MessageEvent{Response: llm.Response{Message: llm.NewMessage(llm.RoleAssistant, toolReq)}},
+		agent.ToolResponseEvent{Response: *toolResp},
+		agent.MessageEvent{Response: llm.Response{Message: llm.NewMessage(llm.RoleAssistant, llm.NewTextPart("done"))}},
+		agent.InvocationEndEvent{FinishReason: agent.FinishReasonStop},
+	}}
+
+	chunks, _ := serveAgent(t, ag)
+	tt := types(chunks)
+
+	starts := 0
+	for _, ty := range tt {
+		if ty == "tool-input-start" {
+			starts++
+		}
+	}
+
+	assert.Equal(t, 1, starts, "the tool call must be emitted exactly once despite the duplicate")
+	assert.Less(t, indexOf(tt, "tool-input-available"), indexOf(tt, "tool-output-available"), "input before output")
+}
+
 func TestConvertMessages_DropsInboundSystem(t *testing.T) {
 	t.Parallel()
 

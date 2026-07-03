@@ -131,6 +131,10 @@ type agentStreamer struct {
 	// resolved by a ToolResponseEvent, so terminal paths can close them as
 	// tool-output-error rather than strand the client's dynamic tool part.
 	pending map[string]struct{}
+	// emitted holds every toolCallId whose tool-input pair has been written this
+	// invocation, so a tool call surfaced by BOTH a ToolRequestEvent and the
+	// MessageEvent copy (as llmagent does) is emitted only once.
+	emitted map[string]struct{}
 }
 
 func (as *agentStreamer) ensureStep() error {
@@ -177,6 +181,14 @@ func (as *agentStreamer) writeDynamicToolRequest(tr *llm.ToolRequestPart) error 
 		return nil
 	}
 
+	// A tool call can arrive via both a ToolRequestEvent and the MessageEvent
+	// copy (llmagent emits both). Emit its tool-input pair exactly once.
+	if _, done := as.emitted[tr.ID]; done {
+		return nil
+	}
+
+	as.emitted[tr.ID] = struct{}{}
+
 	if err := as.ew.WriteChunk(Chunk{
 		"type": "tool-input-start", "toolCallId": tr.ID, "toolName": tr.Name, "dynamic": true,
 	}); err != nil {
@@ -211,13 +223,14 @@ func (as *agentStreamer) writeDynamicToolResponse(tr *llm.ToolResponsePart) erro
 	delete(as.pending, tr.ID)
 
 	if tr.IsError {
-		// The agent/tool registry stores the raw err.Error() in Result. Route it
-		// through onError before it reaches the browser, so failed MCP/subagent
-		// tools cannot leak server-side detail — matching the sanitization the
-		// model-level executor path applies to client-facing tool errors.
+		// Route the tool error through onError before it reaches the browser, so
+		// failed MCP/subagent tools cannot leak server-side detail (default), while
+		// a custom onError still sees the actual error string. The registry stores
+		// the failure as a {"error": "..."} JSON payload; unwrap it so onError gets
+		// the message, not the JSON envelope.
 		return as.ew.WriteChunk(Chunk{
 			"type": "tool-output-error", "toolCallId": tr.ID,
-			"errorText": as.onError(errors.New(string(tr.Result))), "dynamic": true,
+			"errorText": as.onError(errors.New(toolErrorText(tr.Result))), "dynamic": true,
 		})
 	}
 
@@ -257,6 +270,7 @@ func StreamAgent(ctx context.Context, ag agent.Agent, inv *agent.InvocationMetad
 		logger:  logger,
 		onError: onError,
 		pending: make(map[string]struct{}),
+		emitted: make(map[string]struct{}),
 	}
 
 	for event, err := range ag.Run(ctx, inv) {
@@ -319,6 +333,16 @@ func (as *agentStreamer) handleEvent(event agent.Event, logger *slog.Logger) boo
 
 	case agent.MessageEvent:
 		as.handleMessage(e)
+
+	case agent.ToolRequestEvent:
+		// Some agents signal a tool call via ToolRequestEvent rather than (or in
+		// addition to) embedding it in MessageEvent. Emit the tool-input pair here
+		// so a following ToolResponseEvent always has its preceding input chunks;
+		// the MessageEvent copy is deduped by toolCallId in writeDynamicToolRequest.
+		if err := as.ensureStep(); err == nil {
+			req := e.Request
+			as.emitToolRequest(&req)
+		}
 
 	case agent.ToolResponseEvent:
 		resp := e.Response
@@ -394,13 +418,35 @@ func (as *agentStreamer) handleMessage(e agent.MessageEvent) {
 				_ = as.sw.writeReasoningDelta(p)
 			}
 		case *llm.ToolRequestPart:
-			_ = as.sw.endReasoning()
-			_ = as.sw.endTextAndAdvance()
-			_ = as.writeDynamicToolRequest(p)
+			as.emitToolRequest(p)
 		}
 	}
 
 	_ = as.endStep()
+}
+
+// emitToolRequest closes any open text/reasoning span (a tool part cannot sit
+// inside one) and writes the dynamic tool-input pair. Shared by the MessageEvent
+// and ToolRequestEvent paths; writeDynamicToolRequest dedups by toolCallId.
+func (as *agentStreamer) emitToolRequest(p *llm.ToolRequestPart) {
+	_ = as.sw.endReasoning()
+	_ = as.sw.endTextAndAdvance()
+	_ = as.writeDynamicToolRequest(p)
+}
+
+// toolErrorText unwraps the tool failure payload. The registry stores failures
+// as {"error":"..."}; return that message so a custom onError sees the real
+// string, else fall back to the raw payload.
+func toolErrorText(result json.RawMessage) string {
+	var wrapped struct {
+		Error string `json:"error"`
+	}
+
+	if err := json.Unmarshal(result, &wrapped); err == nil && wrapped.Error != "" {
+		return wrapped.Error
+	}
+
+	return string(result)
 }
 
 func (as *agentStreamer) handleInvocationEnd(e agent.InvocationEndEvent) {
