@@ -8,6 +8,11 @@ Server:
 
 ```go
 import (
+    "context"
+    "encoding/json"
+    "net/http"
+    "os"
+
     "github.com/redpanda-data/ai-sdk-go/adapter/vercelaisdk/uimessagestream"
     "github.com/redpanda-data/ai-sdk-go/agent/llmagent"
     "github.com/redpanda-data/ai-sdk-go/llm"

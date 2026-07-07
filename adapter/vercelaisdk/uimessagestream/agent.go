@@ -469,6 +469,12 @@ func (as *agentStreamer) terminate(errText string) {
 	_ = as.ew.WriteDone()
 }
 
+// pendingToolText is the fixed message closing a tool call that never produced
+// a result. Like the max-turns control message, it is emitted verbatim rather
+// than through onError: it carries no server-side detail, and flattening it to
+// the generic sanitized text would hide the one useful hint the client gets.
+const pendingToolText = "tool call did not complete"
+
 // closePendingTools emits a tool-output-error for every tool call that was
 // requested but never produced a ToolResponseEvent, transitioning the client's
 // dynamic tool part out of input-available. Called on terminal paths.
@@ -476,7 +482,7 @@ func (as *agentStreamer) closePendingTools() {
 	for id := range as.pending {
 		_ = as.ew.WriteChunk(Chunk{
 			"type": "tool-output-error", "toolCallId": id,
-			"errorText": as.onError(errors.New("tool call did not complete")), "dynamic": true,
+			"errorText": pendingToolText, "dynamic": true,
 		})
 	}
 

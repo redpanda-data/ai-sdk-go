@@ -76,11 +76,11 @@ func projectUIMessages(msgs []llm.Message, onError ErrorMapper) []uiMessage {
 
 		// A tool request whose result never arrived (interrupted run) must not
 		// render as an eternal spinner; close it the way the streaming path's
-		// closePendingTools does.
+		// closePendingTools does — verbatim, it is a control message.
 		for _, idx := range pending {
 			if open.Parts[idx].State == "input-available" {
 				open.Parts[idx].State = "output-error"
-				open.Parts[idx].ErrorText = onError(errors.New("tool call did not complete"))
+				open.Parts[idx].ErrorText = pendingToolText
 			}
 		}
 
