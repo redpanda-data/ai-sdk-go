@@ -15,7 +15,19 @@
 // Package uimessagestream implements the server half of the Vercel AI SDK UI
 // Message Stream protocol (v1) — the wire format the useChat hook from
 // "@ai-sdk/react" speaks. It exposes an ai-sdk-go agent over that protocol via
-// AgentHandler (see agent.go).
+// Handler (see agent.go), with server-side sessions persisted in a
+// session.Store.
+//
+// History is server-authoritative, following the Vercel AI SDK's canonical
+// persistence pattern (https://ai-sdk.dev/docs/ai-sdk-ui/chatbot-message-persistence):
+// the server loads the chat by id, appends the one posted user message, runs
+// the agent, and saves — the client sends only {id, message} via
+// prepareSendMessagesRequest (the default full-body transport also works; only
+// the last message is used and the posted history is ignored). Sessions store
+// llm.Message — the SDK's canonical conversation shape, shared with the A2A
+// adapter and the runner — and are projected to UI messages on read; this
+// deliberately diverges from the AI SDK's persist-UIMessages advice, at the
+// cost that UI message ids and custom data parts do not round-trip.
 //
 // Wire format: Server-Sent Events (SSE) with JSON chunks. Each event is written
 // as "data: <json>\n\n"; the stream terminates with "data: [DONE]\n\n". The
@@ -24,18 +36,17 @@
 //	start → start-step → text-start → text-delta* → text-end → finish-step → finish → [DONE]
 //
 // Per-part chunk shapes mirror the Vercel AI SDK's
-// packages/ai/src/ui-message-stream/to-ui-message-chunk.ts, the SSE framing
-// mirrors json-to-sse-transform-stream.ts, and inbound multi-turn history
-// (including assistant tool calls and their results) is reconstructed from the
-// UI message parts, mirroring convert-to-model-messages.ts. Verified against
-// ai@7.0.6.
+// packages/ai/src/ui-message-stream/to-ui-message-chunk.ts, and the SSE framing
+// mirrors json-to-sse-transform-stream.ts. Verified against ai@7.0.6.
 //
 // This file holds the protocol primitives (message conversion, the SSE
-// EventWriter, and the streamWriter span bookkeeping) shared by AgentHandler.
+// EventWriter, and the streamWriter span bookkeeping) shared by Handler.
 //
 // Known limitations:
 //   - Inbound file/image parts are not forwarded: the llm.Part type has no file
 //     kind yet. Inbound reasoning parts are likewise dropped.
+//   - Editing a historical message is not supported (sessions do not persist
+//     UI message ids); regenerate covers the retry-last-answer flow.
 //
 // Reference: https://github.com/vercel/ai
 package uimessagestream
@@ -71,10 +82,17 @@ const defaultErrorText = "An error occurred."
 
 func defaultErrorMapper(error) string { return defaultErrorText }
 
+// SessionKeyFunc derives the storage key for a client-supplied chat id. It is
+// the tenant-isolation seam: a multi-tenant deployment derives the key from the
+// authenticated request (e.g. "userID/chatID") so one user cannot address
+// another's chat. Returning an error rejects the request with 403.
+type SessionKeyFunc func(r *http.Request, chatID string) (string, error)
+
 type config struct {
 	logger       *slog.Logger
 	maxBodyBytes int64
 	onError      ErrorMapper
+	sessionKey   SessionKeyFunc
 }
 
 // WithLogger sets the logger for the handler.
@@ -100,10 +118,37 @@ func WithOnError(fn ErrorMapper) Option {
 	}
 }
 
-// chatRequest matches the JSON body sent by useChat.
+// WithSessionKey sets the function deriving the session storage key from the
+// request and the client-supplied chat id. Without it the chat id is used
+// verbatim, which is only safe when every caller is trusted with every chat
+// (single-tenant / dev). Configuring a custom key disables the list endpoint:
+// session.Store.List enumerates all storage keys and cannot be tenant-scoped
+// here — expose your own list API instead. A nil fn is ignored.
+func WithSessionKey(fn SessionKeyFunc) Option {
+	return func(c *config) {
+		if fn != nil {
+			c.sessionKey = fn
+		}
+	}
+}
+
+// Chat lifecycle triggers sent by useChat's DefaultChatTransport.
+const (
+	triggerSubmit     = "submit-message"
+	triggerRegenerate = "regenerate-message"
+)
+
+// chatRequest matches the JSON body sent by useChat's DefaultChatTransport.
+// The canonical server-session client trims the body to {id, trigger,
+// messageId, message} via prepareSendMessagesRequest; the default transport
+// sends the full Messages list instead, of which only the last entry is used —
+// server-side history is authoritative.
 type chatRequest struct {
-	ID       string        `json:"id"`
-	Messages []chatMessage `json:"messages"`
+	ID        string        `json:"id"`
+	Trigger   string        `json:"trigger"`
+	MessageID string        `json:"messageId"` //nolint:tagliatelle // Vercel AI SDK wire format is camelCase
+	Message   *chatMessage  `json:"message"`
+	Messages  []chatMessage `json:"messages"`
 }
 
 type chatMessage struct {
@@ -112,20 +157,23 @@ type chatMessage struct {
 	Parts   []messagePart `json:"parts"`
 }
 
+// messagePart is the wire shape of a UI message part, both inbound (decoding
+// useChat requests) and outbound (the GET-history projection). omitempty keeps
+// projected parts minimal — a text part must not carry "toolCallId":"".
 type messagePart struct {
 	Type string `json:"type"`
-	Text string `json:"text"`
+	Text string `json:"text,omitempty"`
 
 	// Tool-call part fields. Tool parts carry a Type of "tool-<toolName>"
 	// (static tools) or "dynamic-tool" (with ToolName set), mirroring the v7 UI
 	// message ToolUIPart / DynamicToolUIPart shapes. The JSON tags are the
 	// camelCase names the Vercel AI SDK useChat client sends on the wire.
-	ToolCallID string          `json:"toolCallId"` //nolint:tagliatelle // Vercel AI SDK wire format is camelCase
-	ToolName   string          `json:"toolName"`   //nolint:tagliatelle // Vercel AI SDK wire format is camelCase
-	State      string          `json:"state"`
-	Input      json.RawMessage `json:"input"`
-	Output     json.RawMessage `json:"output"`
-	ErrorText  string          `json:"errorText"` //nolint:tagliatelle // Vercel AI SDK wire format is camelCase
+	ToolCallID string          `json:"toolCallId,omitempty"` //nolint:tagliatelle // Vercel AI SDK wire format is camelCase
+	ToolName   string          `json:"toolName,omitempty"`   //nolint:tagliatelle // Vercel AI SDK wire format is camelCase
+	State      string          `json:"state,omitempty"`
+	Input      json.RawMessage `json:"input,omitempty"`
+	Output     json.RawMessage `json:"output,omitempty"`
+	ErrorText  string          `json:"errorText,omitempty"` //nolint:tagliatelle // Vercel AI SDK wire format is camelCase
 }
 
 // isTool reports whether the part is a tool-call part.
@@ -161,6 +209,23 @@ func (m chatMessage) textContent() string {
 	}
 
 	return m.Content
+}
+
+// convertUserMessage converts the posted UI message into the user llm.Message
+// appended to the session. Only genuine user text is accepted: the client must
+// not be able to append assistant or system turns, and tool results only ever
+// originate server-side.
+func convertUserMessage(m chatMessage) (llm.Message, bool) {
+	if messageRole(m.Role) != llm.RoleUser {
+		return llm.Message{}, false
+	}
+
+	text := m.textContent()
+	if text == "" {
+		return llm.Message{}, false
+	}
+
+	return llm.NewMessage(llm.RoleUser, llm.NewTextPart(text)), true
 }
 
 // generateMessageID creates a random 16-character hex ID for use as a messageId.

@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"iter"
 	"net/http"
 	"net/http/httptest"
@@ -29,6 +30,7 @@ import (
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/store/session"
 )
 
 // scriptedAgent is a fake agent.Agent that yields a fixed sequence of events,
@@ -64,8 +66,25 @@ func (s *scriptedAgent) Run(_ context.Context, _ *agent.InvocationMetadata) iter
 	}
 }
 
-// serveAgent drives AgentHandler with a one-line user message and returns the
-// ordered list of decoded chunks plus whether the terminal [DONE] was seen.
+// submitBody builds the canonical trimmed POST body for a one-line user message.
+func submitBody(chatID, text string) string {
+	return fmt.Sprintf(
+		`{"id":%q,"trigger":"submit-message","message":{"role":"user","parts":[{"type":"text","text":%q}]}}`,
+		chatID, text)
+}
+
+// postChat POSTs a chat request body to the handler's run endpoint.
+func postChat(ctx context.Context, h http.Handler, body string) *httptest.ResponseRecorder {
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	return rec
+}
+
+// serveAgent drives Handler with a one-line user message against a fresh
+// in-memory store and returns the ordered list of decoded chunks plus whether
+// the terminal [DONE] was seen.
 func serveAgent(t *testing.T, ag agent.Agent) ([]Chunk, bool) {
 	t.Helper()
 	return serveAgentContext(context.Background(), t, ag)
@@ -76,11 +95,7 @@ func serveAgent(t *testing.T, ag agent.Agent) ([]Chunk, bool) {
 func serveAgentContext(ctx context.Context, t *testing.T, ag agent.Agent) ([]Chunk, bool) {
 	t.Helper()
 
-	body := `{"id":"chat-1","messages":[{"role":"user","parts":[{"type":"text","text":"hi"}]}]}`
-	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/chat", strings.NewReader(body))
-	rec := httptest.NewRecorder()
-
-	AgentHandler(ag).ServeHTTP(rec, req)
+	rec := postChat(ctx, Handler(ag, session.NewInMemoryStore()), submitBody("chat-1", "hi"))
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Equal(t, "v1", rec.Header().Get("X-Vercel-Ai-Ui-Message-Stream"))
@@ -508,12 +523,9 @@ func TestWithOnError_SurfacesCustomErrorText(t *testing.T) {
 	// The default mapper sanitizes (TestAgentHandler_ToolErrorSanitized); a
 	// custom WithOnError mapper must surface the real error text instead.
 	ag := &scriptedAgent{finalErr: errors.New("rate limit exceeded")}
+	h := Handler(ag, session.NewInMemoryStore(), WithOnError(func(err error) string { return err.Error() }))
 
-	body := `{"id":"chat-1","messages":[{"role":"user","parts":[{"type":"text","text":"hi"}]}]}`
-	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/chat", strings.NewReader(body))
-	rec := httptest.NewRecorder()
-
-	AgentHandler(ag, WithOnError(func(err error) string { return err.Error() })).ServeHTTP(rec, req)
+	rec := postChat(context.Background(), h, submitBody("chat-1", "hi"))
 
 	chunks, sawDone := parseSSEChunks(t, rec.Body.String())
 	assert.True(t, sawDone)
@@ -523,13 +535,30 @@ func TestWithOnError_SurfacesCustomErrorText(t *testing.T) {
 	assert.Equal(t, "rate limit exceeded", e["errorText"], "custom mapper should surface the real error")
 }
 
-func TestAgentHandler_RejectsNonPost(t *testing.T) {
+func TestHandler_Routing(t *testing.T) {
 	t.Parallel()
 
-	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/chat", nil)
+	h := Handler(&scriptedAgent{}, session.NewInMemoryStore())
+
+	do := func(method, path string) int {
+		req := httptest.NewRequestWithContext(context.Background(), method, path, nil)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+
+		return rec.Code
+	}
+
+	assert.Equal(t, http.StatusMethodNotAllowed, do(http.MethodPut, "/"), "PUT is not part of the surface")
+	assert.Equal(t, http.StatusNotFound, do(http.MethodGet, "/a/b"), "only single-segment chat ids")
+	assert.Equal(t, http.StatusNotFound, do(http.MethodGet, "/nope"), "absent chat")
+
+	// http.StripPrefix yields an empty path for the exact mount point; it must
+	// be served (normalized to "/"), not 301-redirected (which drops POST bodies).
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", strings.NewReader(submitBody("c", "hi")))
+	req.URL.Path = ""
 	rec := httptest.NewRecorder()
-	AgentHandler(&scriptedAgent{}).ServeHTTP(rec, req)
-	assert.Equal(t, http.StatusMethodNotAllowed, rec.Code)
+	h.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code, "empty path must be normalized, not redirected")
 }
 
 // --- helpers ---

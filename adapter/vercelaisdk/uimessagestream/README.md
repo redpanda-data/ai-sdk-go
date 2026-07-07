@@ -1,6 +1,6 @@
 # uimessagestream
 
-Server half of the Vercel AI SDK [UI Message Stream protocol](https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol) (v1) — the wire format `useChat` from `@ai-sdk/react` speaks. `AgentHandler` exposes an `agent.Agent` (system prompt, tools, interceptors, agentic loop) over that protocol. Verified against `ai@7.0.6`.
+Server half of the Vercel AI SDK [UI Message Stream protocol](https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol) (v1) — the wire format `useChat` from `@ai-sdk/react` speaks — with **server-side sessions**. `Handler` exposes an `agent.Agent` (system prompt, tools, interceptors, agentic loop) as a chat resource backed by a `session.Store`, following the AI SDK's canonical [persistence pattern](https://ai-sdk.dev/docs/ai-sdk-ui/chatbot-message-persistence): the server loads the chat by id, appends the one posted message, runs the agent, and saves. Verified against `ai@7.0.6`.
 
 ## Quickstart
 
@@ -16,73 +16,91 @@ _ = reg.Register(myTool)
 ag, _ := llmagent.New("assistant", "You are a helpful assistant.", model,
     llmagent.WithTools(reg))
 
-http.Handle("POST /api/chat", uimessagestream.AgentHandler(ag))
+chat := uimessagestream.Handler(ag, session.NewInMemoryStore())
+
+// Two-line mount: the exact path serves POST (run) and GET (list);
+// the trailing-slash pattern serves /{id} (history, delete).
+mux.Handle("/api/chat", http.StripPrefix("/api/chat", chat))
+mux.Handle("/api/chat/", http.StripPrefix("/api/chat", chat))
 ```
 
-Client (React):
+Client (React) — send only the last message; the server owns the history:
 
 ```tsx
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 
-const { messages, sendMessage } = useChat({
-  transport: new DefaultChatTransport({ api: '/api/chat' }),
+const { messages, sendMessage, regenerate } = useChat({
+  id: chatId, // stable chat id, e.g. from your router
+  messages: initialMessages, // resume: fetched from GET /api/chat/{id}
+  transport: new DefaultChatTransport({
+    api: '/api/chat',
+    prepareSendMessagesRequest: ({ id, messages, trigger, messageId }) => ({
+      body:
+        trigger === 'regenerate-message'
+          ? { id, trigger, messageId }
+          : { id, trigger, messageId, message: messages[messages.length - 1] },
+    }),
+  }),
 });
 ```
 
-That is the whole integration. No client-side tool registry is needed: agent tools are runtime-discovered (MCP, subagents), so they stream as `dynamic-tool` parts, not statically-typed `tool-<name>` parts.
+The trimmed transport is an optimization, not a requirement: the default transport (full message list) also works — the server takes the last message and ignores the rest. Posted history is never trusted; the store is authoritative.
 
-## History model: client-authoritative
+No client-side tool registry is needed: agent tools are runtime-discovered (MCP, subagents), so they stream as `dynamic-tool` parts, not statically-typed `tool-<name>` parts.
 
-`useChat` re-sends the **full message list** on every request. The handler rebuilds the whole conversation from the posted messages, runs it against a fresh, non-persisted session, and throws the session away. Do not configure the client to trim history (`prepareSendMessagesRequest` sending only the last message) — the server would see a one-message conversation. The `useChat` default is correct as-is.
+## Routes
 
-This matches the Vercel AI SDK's own model: the SDK has no server-side session or chat-list concept; history lives in the client and persistence is an application concern.
+Relative to the mount point:
 
-Consequences:
+| Route | Purpose |
+|---|---|
+| `POST /` | Run a turn. Body `{id, trigger, messageId, message}` (or default full body). Responds with the UI Message Stream (SSE). |
+| `GET /{id}` | Chat history as UI messages (`{id, updatedAt, messages}`) — feed `messages` to `useChat` to resume after a reload. |
+| `DELETE /{id}` | Delete the chat (204, idempotent). |
+| `GET /` | List chats (`{chats, nextPageToken}`, `pageSize`/`pageToken` query params). Disabled (501) with `WithSessionKey`, see below. |
 
-- Regenerate and edit-message work naturally — the client simply posts the rewritten list.
-- Nothing is stored server-side. There is deliberately no session keyed on the client-supplied chat id: an unauthenticated, client-chosen key into a server-side store is a tenant-isolation hazard, and it fights `useChat`'s regenerate/edit semantics.
-- The client does not persist anything either. `useChat` state is in-memory React state; it is gone on reload unless your application saves it. There is nothing to switch off.
+## Session semantics
 
-## Chat id and session id
+- **Submit** (`trigger: "submit-message"`, the default): load the session by chat id — creating it on first use — append the posted user message, run the agent, save. Saves happen before the run (the user message is never lost), after every completed assistant message, and when the run ends, on a context that survives client disconnects: closing the tab mid-answer does not lose the turn.
+- **Regenerate** (`trigger: "regenerate-message"`): truncate the stored history to the last user message and re-run without appending. `messageId` is accepted but unused — sessions persist model messages, which carry no UI ids, so v1 always regenerates the last answer (the `regenerate()` default). Editing a historical message is not supported for the same reason.
+- **Storage shape**: sessions persist `llm.Message` — the SDK's canonical conversation shape, shared with the A2A adapter and the runner — and are projected to UI messages on read. This deliberately diverges from the AI SDK's persist-UIMessages advice; the cost is that UI message ids and custom data parts do not round-trip.
+- **Concurrency**: concurrent POSTs to the same chat are serialized by an in-process keyed lock. Multi-replica deployments must serialize per session themselves (sticky routing, or a store-level guard).
+- An interrupted run can leave a trailing assistant tool call in the session; `llmagent` heals it on the next submit (executing the tools before consulting the model), and the history projection closes it as `output-error` so the UI never shows an eternal spinner.
 
-The client sends its chat id in the request body (`{"id": "...", "messages": [...]}` — set via `useChat({ id })`, otherwise generated). The handler uses it as the session ID of the throwaway session, purely for telemetry: transcripts and OTel spans from the agent's interceptor chain correlate across turns of the same chat. It is never a lookup key. When absent, a random id is used.
+## Multi-tenancy
 
-## Persisted chats
+The client chooses its chat id, so by default the id is the storage key — fine for single-tenant or dev setups, not for shared deployments. `WithSessionKey` derives the storage key from the authenticated request:
 
-If you need server-listed, server-persisted conversations (chat history UI across devices/reloads), that is an application-level API, exactly as it would be with a Node/Vercel backend. Two options:
+```go
+uimessagestream.Handler(ag, store, uimessagestream.WithSessionKey(
+    func(r *http.Request, chatID string) (string, error) {
+        user, err := authn(r) // your auth middleware/session
+        if err != nil {
+            return "", err // -> 403
+        }
+        return user.ID + "/" + chatID, nil
+    }))
+```
 
-1. **Keep this handler, persist alongside.** Store chats in your own backend keyed by *authenticated* user + chat id. To resume, load the messages and seed `useChat({ messages: initialMessages })`; the conversation then continues client-authoritatively against `AgentHandler`.
-
-2. **Own the history server-side.** Build a custom HTTP handler: authenticate, load the session from a `session.Store`, append the posted message, and stream with the exported `StreamAgent`. Only then does trimming the request make sense:
-
-   ```ts
-   new DefaultChatTransport({
-     api: '/api/chat',
-     prepareSendMessagesRequest: ({ id, messages }) => ({
-       body: { id, message: messages[messages.length - 1] },
-     }),
-   });
-   ```
-
-   Your handler owns authorization of `id` against the caller. `session.Store.List` provides paginated session summaries for a chat-list endpoint; the Vercel AI SDK itself has no such API — listing is always yours.
+Every route resolves through it, so one user cannot read, run, or delete another's chat. Configuring it disables `GET /` (501): `session.Store.List` enumerates all storage keys and cannot be tenant-scoped here — expose your own list API (this is app-level in the AI SDK world too).
 
 ## Errors
 
 Terminal and tool errors are sanitized to `"An error occurred."` by default so server-side detail never reaches the browser. Use `WithOnError` to surface specific text:
 
 ```go
-uimessagestream.AgentHandler(ag,
+uimessagestream.Handler(ag, store,
     uimessagestream.WithOnError(func(err error) string { return err.Error() }))
 ```
 
-The stream grammar guarantees the client never hangs: every terminal path (finish, error, abort, cancellation) closes open text spans, steps, and unresolved tool calls before the terminator, and at most one `error` chunk is emitted per stream.
+Failures before the stream starts (store errors, validation) are plain HTTP statuses; once streaming, the grammar guarantees the client never hangs — every terminal path (finish, error, abort, cancellation) closes open text spans, steps, and unresolved tool calls before the terminator, and at most one `error` chunk is emitted per stream.
 
 ## Security notes
 
-- Inbound `system` messages are dropped; the agent owns its system prompt.
-- Incomplete tool calls in re-sent history (state `input-streaming`/`input-available`) are dropped: a browser must not be able to forge an unexecuted tool call that the agent's recovery path would run.
+- Posted history is ignored; only the last user message is appended. A client cannot forge prior assistant turns or tool results.
+- Inbound `system` messages are rejected (only user messages are accepted); the agent owns its system prompt.
 
 ## Conformance
 
-`task test:conformance` (requires node + bun) runs the suite in `conformance/` against the real `ai` TypeScript client (`DefaultChatTransport` + `readUIMessageStream`), driving `AgentHandler` backed by `llmagent` over scripted fake models.
+`task test:conformance` (requires node + bun) runs the suite in `conformance/` against the real `ai` TypeScript client (`DefaultChatTransport` + `readUIMessageStream`), driving `Handler` backed by `llmagent` over scripted fake models — including multi-turn accumulation over the trimmed transport, regenerate, history resume, and delete/list.

@@ -27,14 +27,37 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/store/session"
 )
 
-// AgentHandler serves the Vercel AI SDK UI Message Stream protocol backed by a
-// full agent.Agent — its system prompt, tool registry (MCP + subagents-as-tools),
-// interceptor chain (OTel/transcripts), and agentic tool-calling loop.
+// Handler serves a chat resource over the Vercel AI SDK UI Message Stream
+// protocol, backed by a full agent.Agent — its system prompt, tool registry
+// (MCP + subagents-as-tools), interceptor chain (OTel/transcripts), and agentic
+// tool-calling loop — with sessions persisted server-side in the store.
 //
-// It is a pure protocol translator: it runs no loop of its own, converting the
-// inbound UI messages into an agent invocation and mapping the agent's event
-// stream onto UI Message Stream chunks. The agent package owns all business
-// logic. This is the mirror of adapter/a2a's Executor, one protocol lower.
+// Routes, relative to the mount point (mount with http.StripPrefix, see the
+// package README):
+//
+//	POST   /{$}   run a turn; responds with the UI Message Stream (SSE)
+//	GET    /{$}   list chats (JSON; 501 when WithSessionKey is configured or
+//	              the store does not support listing)
+//	GET    /{id}  chat history as UI messages (JSON, for useChat({messages}))
+//	DELETE /{id}  delete the chat (204)
+//
+// History is server-authoritative, following the Vercel AI SDK's canonical
+// persistence pattern: POST loads the session by chat id (creating it on first
+// use), appends the single posted user message, runs the agent, and saves —
+// incrementally after each completed assistant message and finally when the run
+// ends, with a context that survives client disconnects. Regenerate
+// (trigger "regenerate-message") truncates to the last user message and re-runs
+// without appending. Posted history beyond the last message is ignored; the
+// store is the source of truth.
+//
+// The client-supplied chat id maps to the storage key via WithSessionKey (the
+// tenant-isolation seam); concurrent POSTs to the same chat are serialized
+// per-process by a keyed lock.
+//
+// This takes an agent.Agent, not a *runner.Runner, even though the runner has
+// the load-append-run-save shape: regenerate needs truncate-without-append,
+// which the runner cannot express, and the handler's saves must outlive the
+// request context (see persistingAgent).
 //
 // Contract: tool calls are taken from MessageEvent (the parts an assistant
 // message carries), which llmagent always emits — the same assumption
@@ -43,18 +66,7 @@ import (
 // ToolRequestEvent is treated as an informational breadcrumb, not a source of
 // tool-input chunks, so its calls would not surface. Every agent.Agent in this
 // SDK (llmagent) satisfies the contract.
-//
-// History is client-authoritative: useChat re-sends the full message list every
-// turn, so each request rebuilds the whole conversation from the posted messages
-// and runs it against a fresh, non-persisted session. There is deliberately no
-// server-side session keyed on the client-supplied chat id (that would be a
-// tenant-isolation hazard and would fight useChat's regenerate/edit). Transcript
-// and span grouping come from the agent's interceptor chain plus the conversation
-// id the caller forwards out-of-band, not from a shared session store — which is
-// why this takes an agent.Agent and not a *runner.Runner: the runner's
-// load-session-by-id-and-append-one-message shape cannot express full-history
-// per request, and its persistence is exactly what client-authoritative avoids.
-func AgentHandler(ag agent.Agent, opts ...Option) http.Handler {
+func Handler(ag agent.Agent, store session.Store, opts ...Option) http.Handler {
 	cfg := &config{
 		logger:       slog.Default(),
 		maxBodyBytes: 1 << 20, // 1MB
@@ -64,20 +76,47 @@ func AgentHandler(ag agent.Agent, opts ...Option) http.Handler {
 		o(cfg)
 	}
 
-	return &agentHTTPHandler{agent: ag, cfg: cfg}
+	h := &chatHandler{agent: ag, store: store, cfg: cfg, locks: newKeyedMutex()}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /{$}", h.handlePost)
+	mux.HandleFunc("GET /{$}", h.handleList)
+	mux.HandleFunc("GET /{id}", h.handleGet)
+	mux.HandleFunc("DELETE /{id}", h.handleDelete)
+	h.mux = mux
+
+	return h
 }
 
-type agentHTTPHandler struct {
+type chatHandler struct {
 	agent agent.Agent
+	store session.Store
 	cfg   *config
+	locks *keyedMutex
+	mux   *http.ServeMux
 }
 
-func (h *agentHTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
+func (h *chatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// http.StripPrefix turns a request for the exact mount path into "", which
+	// ServeMux would 301-redirect — and a redirect on POST drops the body.
+	if r.URL.Path == "" {
+		r = r.Clone(r.Context())
+		r.URL.Path = "/"
 	}
 
+	h.mux.ServeHTTP(w, r)
+}
+
+// resolveKey maps the client-supplied chat id to the storage key.
+func (h *chatHandler) resolveKey(r *http.Request, chatID string) (string, error) {
+	if h.cfg.sessionKey == nil {
+		return chatID, nil
+	}
+
+	return h.cfg.sessionKey(r, chatID)
+}
+
+func (h *chatHandler) handlePost(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, h.cfg.maxBodyBytes)
 
 	var body chatRequest
@@ -86,11 +125,51 @@ func (h *agentHTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Client-authoritative: rebuild the full conversation from the posted
-	// messages. No system prompt is injected here — the agent supplies its own.
-	messages := convertMessages(body.Messages)
-	if len(messages) == 0 {
-		http.Error(w, "empty messages", http.StatusBadRequest)
+	trigger := body.Trigger
+	if trigger == "" {
+		trigger = triggerSubmit
+	}
+
+	if trigger != triggerSubmit && trigger != triggerRegenerate {
+		http.Error(w, "unknown trigger", http.StatusBadRequest)
+		return
+	}
+
+	chatID := body.ID
+	if chatID == "" {
+		if trigger == triggerRegenerate {
+			http.Error(w, "missing chat id", http.StatusBadRequest)
+			return
+		}
+
+		// useChat always sends an id; this fallback keeps bare curl usable,
+		// though the caller cannot rediscover the generated chat.
+		chatID = generateMessageID()
+	}
+
+	key, err := h.resolveKey(r, chatID)
+	if err != nil {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	// Serialize per chat: concurrent POSTs interleaving load-modify-save would
+	// lose messages.
+	unlock := h.locks.lock(key)
+	defer unlock()
+
+	sess, ok := h.prepareSession(w, r, trigger, key, &body)
+	if !ok {
+		return
+	}
+
+	// Pre-run save: a store failure is a clean 500 while headers are still
+	// writable, regenerate's truncation persists even if the run fails, and a
+	// concurrent GET already sees the user's message during the run.
+	if err := h.store.Save(context.WithoutCancel(r.Context()), sess); err != nil {
+		h.cfg.logger.Error("failed to save session", "sessionId", key, "error", err)
+		http.Error(w, "failed to save session", http.StatusInternalServerError)
+
 		return
 	}
 
@@ -100,25 +179,76 @@ func (h *agentHTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fresh, non-persisted session seeded with the whole conversation. The id is
-	// cosmetic (telemetry only) since nothing is saved; prefer the client's chat
-	// id when present for trace correlation.
-	sessionID := body.ID
-	if sessionID == "" {
-		sessionID = generateMessageID()
-	}
-
-	sess := &session.State{
-		ID:       sessionID,
-		Messages: messages,
-		Metadata: make(map[string]any),
-	}
 	inv := agent.NewInvocationMetadata(sess, h.agent.Info())
 
 	setSSEHeaders(w)
 
 	ew := &EventWriter{w: w, f: flusher}
-	StreamAgent(r.Context(), h.agent, inv, ew, h.cfg.logger, h.cfg.onError)
+	pag := &persistingAgent{inner: h.agent, store: h.store, sess: sess, logger: h.cfg.logger}
+	StreamAgent(r.Context(), pag, inv, ew, h.cfg.logger, h.cfg.onError)
+}
+
+// prepareSession loads and mutates the session for the trigger: submit appends
+// the posted user message (creating the session on first use), regenerate
+// truncates to the last user message. On failure it writes the HTTP error and
+// returns ok=false.
+func (h *chatHandler) prepareSession(w http.ResponseWriter, r *http.Request, trigger, key string, body *chatRequest) (*session.State, bool) {
+	switch trigger {
+	case triggerSubmit:
+		msg := body.Message
+		if msg == nil && len(body.Messages) > 0 {
+			// Default (untrimmed) transport: only the last message counts;
+			// server-side history is authoritative.
+			msg = &body.Messages[len(body.Messages)-1]
+		}
+
+		if msg == nil {
+			http.Error(w, "missing message", http.StatusBadRequest)
+			return nil, false
+		}
+
+		userMsg, ok := convertUserMessage(*msg)
+		if !ok {
+			http.Error(w, "message must be a user message with text", http.StatusBadRequest)
+			return nil, false
+		}
+
+		sess, err := loadOrCreate(r.Context(), h.store, key)
+		if err != nil {
+			h.cfg.logger.Error("failed to load session", "sessionId", key, "error", err)
+			http.Error(w, "failed to load session", http.StatusInternalServerError)
+
+			return nil, false
+		}
+
+		sess.Messages = append(sess.Messages, userMsg)
+
+		return sess, true
+
+	default: // triggerRegenerate, validated by the caller
+		sess, err := h.store.Load(r.Context(), key)
+		if errors.Is(err, session.ErrNotFound) {
+			http.Error(w, "chat not found", http.StatusNotFound)
+			return nil, false
+		}
+
+		if err != nil {
+			h.cfg.logger.Error("failed to load session", "sessionId", key, "error", err)
+			http.Error(w, "failed to load session", http.StatusInternalServerError)
+
+			return nil, false
+		}
+
+		// body.MessageID is accepted but unused: sessions persist model
+		// messages without UI ids, so v1 always regenerates from the last user
+		// message (the common retry flow).
+		if !truncateForRegenerate(sess) {
+			http.Error(w, "no user message to regenerate from", http.StatusConflict)
+			return nil, false
+		}
+
+		return sess, true
+	}
 }
 
 // agentStreamer maps an agent.Event stream onto UI Message Stream chunks. It
