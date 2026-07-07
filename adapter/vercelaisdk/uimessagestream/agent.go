@@ -284,7 +284,7 @@ func StreamAgent(ctx context.Context, ag agent.Agent, inv *agent.InvocationMetad
 		if err != nil {
 			// Cancellation: emit an abort (best-effort — the client may be gone).
 			if ctx.Err() != nil {
-				as.sw.writeAbort(ctx)
+				as.abort(ctx)
 				return
 			}
 
@@ -300,7 +300,7 @@ func StreamAgent(ctx context.Context, ag agent.Agent, inv *agent.InvocationMetad
 		// treats it as aborted rather than a completed assistant message.
 		if end, ok := event.(agent.InvocationEndEvent); ok &&
 			(end.FinishReason == agent.FinishReasonInterrupted || ctx.Err() != nil) {
-			as.sw.writeAbort(ctx)
+			as.abort(ctx)
 			return
 		}
 
@@ -315,13 +315,29 @@ func StreamAgent(ctx context.Context, ag agent.Agent, inv *agent.InvocationMetad
 	as.terminate(onError(errors.New("incomplete agent run")))
 }
 
+// abort closes the open step and resolves any pending tool call before the
+// abort terminator. Cancellation is a terminal path like any other: without the
+// cleanup, a client that outlives the cancel is left with an unbalanced
+// start-step or a dynamic tool part stuck in input-available.
+func (as *agentStreamer) abort(ctx context.Context) {
+	_ = as.endStep()
+	as.closePendingTools()
+	as.sw.writeAbort(ctx)
+}
+
 // terminate closes the open step, resolves any tool call still pending (so the
 // client never strands a dynamic tool part in input-available), then emits the
-// error + finish{error} + [DONE] terminator.
+// error + finish{error} + [DONE] terminator. The error chunk is skipped when a
+// recoverable ErrorEvent already surfaced one — the terminal invariant is at
+// most one error chunk, then finish{error}.
 func (as *agentStreamer) terminate(errText string) {
 	_ = as.endStep()
 	as.closePendingTools()
-	_ = as.ew.WriteChunk(Chunk{"type": "error", "errorText": errText})
+
+	if !as.errored {
+		_ = as.ew.WriteChunk(Chunk{"type": "error", "errorText": errText})
+	}
+
 	_ = as.ew.WriteChunk(Chunk{"type": "finish", "finishReason": finishReasonError})
 	_ = as.ew.WriteDone()
 }
@@ -472,10 +488,12 @@ func (as *agentStreamer) handleInvocationEnd(e agent.InvocationEndEvent) {
 	reason, controlText := mapAgentFinishReason(e.FinishReason)
 
 	switch {
-	case controlText != "":
+	case controlText != "" && !as.errored:
 		// A fixed, non-sensitive control message (max-turns / input-required).
 		// Emit it verbatim rather than through onError, which sanitizes to a
-		// generic string — this preserves parity with the A2A path.
+		// generic string — this preserves parity with the A2A path. Skipped when
+		// a recoverable ErrorEvent already surfaced an error chunk: at most one
+		// error chunk per stream, or the client's onError fires twice.
 		_ = as.ew.WriteChunk(Chunk{"type": "error", "errorText": controlText})
 	case reason == finishReasonError && !as.errored:
 		// An error finish with no fixed control message and no prior error chunk

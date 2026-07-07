@@ -17,6 +17,7 @@ package uimessagestream
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"iter"
 	"net/http"
 	"net/http/httptest"
@@ -35,6 +36,10 @@ import (
 type scriptedAgent struct {
 	events   []agent.Event
 	finalErr error
+	// beforeFinal runs after all events have been yielded and before finalErr
+	// (or the natural end of the stream); tests use it to cancel the request
+	// context mid-run.
+	beforeFinal func()
 }
 
 func (*scriptedAgent) Info() agent.Info { return agent.Info{Name: "test-agent"} }
@@ -49,6 +54,10 @@ func (s *scriptedAgent) Run(_ context.Context, _ *agent.InvocationMetadata) iter
 			}
 		}
 
+		if s.beforeFinal != nil {
+			s.beforeFinal()
+		}
+
 		if s.finalErr != nil {
 			yield(nil, s.finalErr)
 		}
@@ -59,9 +68,16 @@ func (s *scriptedAgent) Run(_ context.Context, _ *agent.InvocationMetadata) iter
 // ordered list of decoded chunks plus whether the terminal [DONE] was seen.
 func serveAgent(t *testing.T, ag agent.Agent) ([]Chunk, bool) {
 	t.Helper()
+	return serveAgentContext(context.Background(), t, ag)
+}
+
+// serveAgentContext is serveAgent with a caller-supplied request context, for
+// tests that cancel mid-run.
+func serveAgentContext(ctx context.Context, t *testing.T, ag agent.Agent) ([]Chunk, bool) {
+	t.Helper()
 
 	body := `{"id":"chat-1","messages":[{"role":"user","parts":[{"type":"text","text":"hi"}]}]}`
-	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/chat", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/chat", strings.NewReader(body))
 	rec := httptest.NewRecorder()
 
 	AgentHandler(ag).ServeHTTP(rec, req)
@@ -371,6 +387,105 @@ func TestAgentHandler_InterruptedFinishAborts(t *testing.T) {
 	assert.NotContains(t, types(chunks), "finish", "interrupted must not report a normal finish")
 }
 
+func TestAgentHandler_AbortClosesStepAndPendingTools(t *testing.T) {
+	t.Parallel()
+
+	// A cancellation is a terminal path like any other: the open step must be
+	// closed and the pending tool call resolved before the abort terminator, or
+	// useChat is left with an unbalanced start-step and a dynamic tool part
+	// stuck in input-available. Both abort triggers must clean up: an iterator
+	// error after the request context is cancelled, and an
+	// InvocationEndEvent{interrupted} with no iterator error.
+	toolReq := llm.NewToolRequestPart("stuck", "slowTool", []byte(`{}`))
+	openState := []agent.Event{
+		// Emits the tool-input pair (pending, no ToolResponseEvent follows) and
+		// closes its step; the delta then opens a fresh step with an open text span.
+		agent.MessageEvent{Response: llm.Response{Message: llm.NewMessage(llm.RoleAssistant, toolReq)}},
+		agent.AssistantDeltaEvent{Delta: llm.ContentPartEvent{Part: llm.NewTextPart("partial")}},
+	}
+
+	tests := []struct {
+		name  string
+		agent func(cancel context.CancelFunc) *scriptedAgent
+	}{
+		{
+			name: "iterator error after cancel",
+			agent: func(cancel context.CancelFunc) *scriptedAgent {
+				return &scriptedAgent{events: openState, beforeFinal: cancel, finalErr: context.Canceled}
+			},
+		},
+		{
+			name: "interrupted invocation end",
+			agent: func(context.CancelFunc) *scriptedAgent {
+				events := append(append([]agent.Event{}, openState...),
+					agent.InvocationEndEvent{FinishReason: agent.FinishReasonInterrupted})
+
+				return &scriptedAgent{events: events}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			chunks, sawDone := serveAgentContext(ctx, t, tc.agent(cancel))
+			assert.True(t, sawDone)
+
+			tt := types(chunks)
+			abortIdx := indexOf(tt, "abort")
+			require.GreaterOrEqual(t, abortIdx, 0, "expected an abort chunk")
+			assert.Equal(t, len(tt)-1, abortIdx, "abort must be the terminal chunk")
+			assert.NotContains(t, tt, "finish", "aborted run must not report a finish")
+
+			// The open text span/step is closed before the abort.
+			assert.Less(t, indexOf(tt, "text-end"), abortIdx, "open text span must be closed before abort")
+			assert.Equal(t, 2, countOf(tt, "finish-step"), "the reopened step must be closed before abort")
+
+			// The pending tool call is resolved before the abort.
+			out := findChunk(chunks, "tool-output-error")
+			require.NotNil(t, out, "pending tool call must be closed as tool-output-error")
+			assert.Equal(t, "stuck", out["toolCallId"])
+			assert.Less(t, indexOf(tt, "tool-output-error"), abortIdx)
+		})
+	}
+}
+
+func TestAgentHandler_RecoverableErrorEmitsSingleErrorChunk(t *testing.T) {
+	t.Parallel()
+
+	// A recoverable ErrorEvent already surfaces an error chunk; a terminal path
+	// that follows must not emit a second one — the client's onError would fire
+	// twice and the generic text would mask the first, mapped error.
+	tests := []struct {
+		name     string
+		trailing []agent.Event // events after the ErrorEvent
+	}{
+		{name: "incomplete run", trailing: nil},
+		{name: "max turns finish", trailing: []agent.Event{agent.InvocationEndEvent{FinishReason: agent.FinishReasonMaxTurns}}},
+		{name: "error finish", trailing: []agent.Event{agent.InvocationEndEvent{FinishReason: agent.FinishReasonError}}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			events := append([]agent.Event{agent.ErrorEvent{Message: "transient upstream failure"}}, tc.trailing...)
+			chunks, sawDone := serveAgent(t, &scriptedAgent{events: events})
+			assert.True(t, sawDone)
+
+			tt := types(chunks)
+			assert.Equal(t, 1, countOf(tt, "error"), "exactly one error chunk")
+			assert.Equal(t, "finish", tt[len(tt)-1])
+			assert.Equal(t, "error", chunks[len(chunks)-1]["finishReason"])
+			assert.Less(t, indexOf(tt, "error"), indexOf(tt, "finish"), "error must precede finish")
+		})
+	}
+}
+
 func TestConvertMessages_DropsInboundSystem(t *testing.T) {
 	t.Parallel()
 
@@ -386,6 +501,27 @@ func TestConvertMessages_DropsInboundSystem(t *testing.T) {
 	require.Len(t, out, 1)
 	assert.Equal(t, llm.RoleUser, out[0].Role)
 	assert.Equal(t, "hi", out[0].TextContent())
+}
+
+func TestWithOnError_SurfacesCustomErrorText(t *testing.T) {
+	t.Parallel()
+
+	// The default mapper sanitizes (TestAgentHandler_ToolErrorSanitized); a
+	// custom WithOnError mapper must surface the real error text instead.
+	ag := &scriptedAgent{finalErr: errors.New("rate limit exceeded")}
+
+	body := `{"id":"chat-1","messages":[{"role":"user","parts":[{"type":"text","text":"hi"}]}]}`
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/chat", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+
+	AgentHandler(ag, WithOnError(func(err error) string { return err.Error() })).ServeHTTP(rec, req)
+
+	chunks, sawDone := parseSSEChunks(t, rec.Body.String())
+	assert.True(t, sawDone)
+
+	e := findChunk(chunks, "error")
+	require.NotNil(t, e)
+	assert.Equal(t, "rate limit exceeded", e["errorText"], "custom mapper should surface the real error")
 }
 
 func TestAgentHandler_RejectsNonPost(t *testing.T) {
@@ -431,4 +567,16 @@ func indexOf(ss []string, target string) int {
 	}
 
 	return -1
+}
+
+func countOf(ss []string, target string) int {
+	n := 0
+
+	for _, s := range ss {
+		if s == target {
+			n++
+		}
+	}
+
+	return n
 }
