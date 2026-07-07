@@ -57,7 +57,11 @@ type chatListResponse struct {
 // messages and their tool-result user messages merge into ONE assistant UI
 // message with a step-start part per step — exactly the shape useChat builds
 // from one streamed response — while genuine user messages split the runs.
-func projectUIMessages(msgs []llm.Message) []uiMessage {
+//
+// Tool error text is routed through onError, exactly as the streaming path
+// does: a resumed page must not see server-side detail the live stream
+// sanitized.
+func projectUIMessages(msgs []llm.Message, onError ErrorMapper) []uiMessage {
 	out := make([]uiMessage, 0, len(msgs))
 
 	var (
@@ -76,7 +80,7 @@ func projectUIMessages(msgs []llm.Message) []uiMessage {
 		for _, idx := range pending {
 			if open.Parts[idx].State == "input-available" {
 				open.Parts[idx].State = "output-error"
-				open.Parts[idx].ErrorText = "tool call did not complete"
+				open.Parts[idx].ErrorText = onError(errors.New("tool call did not complete"))
 			}
 		}
 
@@ -107,7 +111,7 @@ func projectUIMessages(msgs []llm.Message) []uiMessage {
 
 				if tr.IsError {
 					open.Parts[idx].State = "output-error"
-					open.Parts[idx].ErrorText = toolErrorText(tr.Result)
+					open.Parts[idx].ErrorText = onError(errors.New(toolErrorText(tr.Result)))
 				} else {
 					open.Parts[idx].State = "output-available"
 					open.Parts[idx].Output = tr.Result
@@ -205,7 +209,7 @@ func (h *chatHandler) handleGet(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, chatHistoryResponse{
 		ID:        chatID,
 		UpdatedAt: sess.UpdatedAt,
-		Messages:  projectUIMessages(sess.Messages),
+		Messages:  projectUIMessages(sess.Messages, h.cfg.onError),
 	})
 }
 

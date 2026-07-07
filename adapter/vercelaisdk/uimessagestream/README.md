@@ -7,21 +7,50 @@ Server half of the Vercel AI SDK [UI Message Stream protocol](https://ai-sdk.dev
 Server:
 
 ```go
-provider, _ := openai.NewProvider(os.Getenv("OPENAI_API_KEY"))
-model, _ := provider.NewModel(openai.ModelGPT5Mini)
+import (
+    "github.com/redpanda-data/ai-sdk-go/adapter/vercelaisdk/uimessagestream"
+    "github.com/redpanda-data/ai-sdk-go/agent/llmagent"
+    "github.com/redpanda-data/ai-sdk-go/llm"
+    "github.com/redpanda-data/ai-sdk-go/providers/openai"
+    "github.com/redpanda-data/ai-sdk-go/store/session"
+    "github.com/redpanda-data/ai-sdk-go/tool"
+)
 
-reg := tool.NewRegistry(tool.RegistryConfig{})
-_ = reg.Register(myTool)
+// A tool is anything with Definition() and Execute().
+type weatherTool struct{}
 
-ag, _ := llmagent.New("assistant", "You are a helpful assistant.", model,
-    llmagent.WithTools(reg))
+func (weatherTool) Definition() llm.ToolDefinition {
+    return llm.ToolDefinition{
+        Name:        "getWeather",
+        Description: "Get the current weather for a city.",
+        Parameters:  json.RawMessage(`{"type":"object","properties":{"city":{"type":"string"}},"required":["city"]}`),
+    }
+}
 
-chat := uimessagestream.Handler(ag, session.NewInMemoryStore())
+func (weatherTool) Execute(context.Context, json.RawMessage) (json.RawMessage, error) {
+    return json.RawMessage(`{"temperature":"72F","conditions":"sunny"}`), nil
+}
 
-// Two-line mount: the exact path serves POST (run) and GET (list);
-// the trailing-slash pattern serves /{id} (history, delete).
-mux.Handle("/api/chat", http.StripPrefix("/api/chat", chat))
-mux.Handle("/api/chat/", http.StripPrefix("/api/chat", chat))
+func main() {
+    provider, _ := openai.NewProvider(os.Getenv("OPENAI_API_KEY"))
+    model, _ := provider.NewModel(openai.ModelGPT5Mini)
+
+    reg := tool.NewRegistry(tool.RegistryConfig{})
+    _ = reg.Register(weatherTool{})
+
+    ag, _ := llmagent.New("assistant", "You are a helpful assistant.", model,
+        llmagent.WithTools(reg))
+
+    chat := uimessagestream.Handler(ag, session.NewInMemoryStore())
+
+    // Two-line mount: the exact path serves POST (run) and GET (list);
+    // the trailing-slash pattern serves /{id} (history, delete).
+    mux := http.NewServeMux()
+    mux.Handle("/api/chat", http.StripPrefix("/api/chat", chat))
+    mux.Handle("/api/chat/", http.StripPrefix("/api/chat", chat))
+
+    _ = http.ListenAndServe(":8080", mux)
+}
 ```
 
 Client (React) — send only the last message; the server owns the history:
@@ -62,9 +91,9 @@ Relative to the mount point:
 
 ## Session semantics
 
-- **Submit** (`trigger: "submit-message"`, the default): load the session by chat id — creating it on first use — append the posted user message, run the agent, save. Saves happen before the run (the user message is never lost), after every completed assistant message, and when the run ends, on a context that survives client disconnects: closing the tab mid-answer does not lose the turn.
-- **Regenerate** (`trigger: "regenerate-message"`): truncate the stored history to the last user message and re-run without appending. `messageId` is accepted but unused — sessions persist model messages, which carry no UI ids, so v1 always regenerates the last answer (the `regenerate()` default). Editing a historical message is not supported for the same reason.
-- **Storage shape**: sessions persist `llm.Message` — the SDK's canonical conversation shape, shared with the A2A adapter and the runner — and are projected to UI messages on read. This deliberately diverges from the AI SDK's persist-UIMessages advice; the cost is that UI message ids and custom data parts do not round-trip.
+- **Submit** (`trigger: "submit-message"`, the default): load the session by chat id — creating it on first use — append the posted user message, run the agent, save. Saves happen before the run, after every completed assistant message, and when the run ends, on a context that survives client disconnects — so the user message and every *completed* assistant message are never lost. An answer still streaming when the client disconnects is aborted, not finished in the background: the server cannot distinguish a tab close from `stop()`.
+- **Regenerate** (`trigger: "regenerate-message"`): truncate the stored history to the last user message and re-run without appending. The re-run executes tools again — with non-idempotent tools (send an email, write a row), regenerate repeats the side effect. `messageId` is accepted but unused — sessions persist model messages, which carry no UI ids, so v1 always regenerates the last answer (the `regenerate()` default). Editing a historical message is not supported for the same reason.
+- **Storage shape**: sessions persist `llm.Message` — the SDK's canonical conversation shape, shared with the A2A adapter and the runner — and are projected to UI messages on read. This deliberately diverges from the AI SDK's persist-UIMessages advice; the cost is that UI message ids and custom data parts do not round-trip. In particular, a resumed history renumbers messages as `msg-0, msg-1, …`, so React keys are not stable across a reload.
 - **Concurrency**: concurrent POSTs to the same chat are serialized by an in-process keyed lock. Multi-replica deployments must serialize per session themselves (sticky routing, or a store-level guard).
 - An interrupted run can leave a trailing assistant tool call in the session; `llmagent` heals it on the next submit (executing the tools before consulting the model), and the history projection closes it as `output-error` so the UI never shows an eternal spinner.
 
@@ -87,12 +116,14 @@ Every route resolves through it, so one user cannot read, run, or delete another
 
 ## Errors
 
-Terminal and tool errors are sanitized to `"An error occurred."` by default so server-side detail never reaches the browser. Use `WithOnError` to surface specific text:
+Terminal and tool error *chunks* are sanitized to `"An error occurred."` by default — on the live stream and on the GET-history projection alike. Use `WithOnError` to surface specific text:
 
 ```go
 uimessagestream.Handler(ag, store,
     uimessagestream.WithOnError(func(err error) string { return err.Error() }))
 ```
+
+One caveat the mapper cannot cover: a failed tool's error text is fed back to the model (that is how an agent recovers), and the model routinely quotes it in its streamed answer. Anything secret in a tool error can therefore reach the browser as ordinary assistant text — sanitize inside the tool itself; `WithOnError` only governs the protocol's error fields.
 
 Failures before the stream starts (store errors, validation) are plain HTTP statuses; once streaming, the grammar guarantees the client never hangs — every terminal path (finish, error, abort, cancellation) closes open text spans, steps, and unresolved tool calls before the terminator, and at most one `error` chunk is emitted per stream.
 

@@ -206,6 +206,11 @@ func TestHandler_PostValidation(t *testing.T) {
 			want: http.StatusConflict,
 		},
 		{name: "regenerate without id", body: `{"trigger":"regenerate-message"}`, want: http.StatusBadRequest},
+		{
+			name: "submit without id",
+			body: `{"message":{"role":"user","parts":[{"type":"text","text":"hi"}]}}`,
+			want: http.StatusBadRequest,
+		},
 		{name: "unknown trigger", body: `{"id":"chat-1","trigger":"edit-message"}`, want: http.StatusBadRequest},
 		{name: "missing message", body: `{"id":"chat-1"}`, want: http.StatusBadRequest},
 		{

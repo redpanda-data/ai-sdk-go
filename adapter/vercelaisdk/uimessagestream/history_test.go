@@ -28,6 +28,10 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/store/session"
 )
 
+// passthroughErrors surfaces the raw error text, so projection tests can
+// assert unwrapping without the default sanitizer in the way.
+func passthroughErrors(err error) string { return err.Error() }
+
 func TestProjectUIMessages_MultiStepToolRun(t *testing.T) {
 	t.Parallel()
 
@@ -41,7 +45,7 @@ func TestProjectUIMessages_MultiStepToolRun(t *testing.T) {
 		llm.NewMessage(llm.RoleAssistant, llm.NewTextPart("It is 72F.")),
 	}
 
-	out := projectUIMessages(msgs)
+	out := projectUIMessages(msgs, passthroughErrors)
 	require.Len(t, out, 2)
 
 	assert.Equal(t, "user", out[0].Role)
@@ -75,7 +79,7 @@ func TestProjectUIMessages_ToolErrorUnwrapped(t *testing.T) {
 		llm.NewMessage(llm.RoleUser, llm.NewToolResponsePart("c1", "t", []byte(`{"error":"backend down"}`), true)),
 	}
 
-	out := projectUIMessages(msgs)
+	out := projectUIMessages(msgs, passthroughErrors)
 	require.Len(t, out, 2)
 
 	tool := out[1].Parts[1]
@@ -93,7 +97,7 @@ func TestProjectUIMessages_DanglingToolRequestClosed(t *testing.T) {
 		llm.NewMessage(llm.RoleAssistant, llm.NewToolRequestPart("c1", "t", []byte(`{}`))),
 	}
 
-	out := projectUIMessages(msgs)
+	out := projectUIMessages(msgs, passthroughErrors)
 	require.Len(t, out, 2)
 
 	tool := out[1].Parts[1]
@@ -108,7 +112,7 @@ func TestProjectUIMessages_ReasoningBeforeText(t *testing.T) {
 		llm.NewMessage(llm.RoleAssistant, llm.NewReasoningPart("thinking"), llm.NewTextPart("answer")),
 	}
 
-	out := projectUIMessages(msgs)
+	out := projectUIMessages(msgs, passthroughErrors)
 	require.Len(t, out, 1)
 	require.Len(t, out[0].Parts, 3)
 	assert.Equal(t, messagePart{Type: "reasoning", Text: "thinking", State: "done"}, out[0].Parts[1])
@@ -128,7 +132,7 @@ func TestProjectUIMessages_RoundTrip(t *testing.T) {
 		llm.NewMessage(llm.RoleUser, llm.NewTextPart("thanks")),
 	}
 
-	projected := projectUIMessages(msgs)
+	projected := projectUIMessages(msgs, passthroughErrors)
 
 	back := make([]chatMessage, 0, len(projected))
 	for _, m := range projected {
@@ -152,6 +156,44 @@ func TestProjectUIMessages_RoundTrip(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "c1", resp.ID)
 	assert.False(t, resp.IsError)
+}
+
+func TestHandler_GetHistorySanitizesToolErrors(t *testing.T) {
+	t.Parallel()
+
+	// The live stream routes tool error text through onError; a resumed page
+	// must not see server-side detail the stream sanitized. GET history goes
+	// through the same mapper.
+	ctx := context.Background()
+	store := session.NewInMemoryStore()
+	require.NoError(t, store.Save(ctx, &session.State{ID: "chat-1", Messages: []llm.Message{
+		llm.NewMessage(llm.RoleUser, llm.NewTextPart("q")),
+		llm.NewMessage(llm.RoleAssistant, llm.NewToolRequestPart("c1", "t", []byte(`{}`))),
+		llm.NewMessage(llm.RoleUser, llm.NewToolResponsePart("c1", "t", []byte(`{"error":"secret stack trace"}`), true)),
+	}}))
+
+	get := func(h http.Handler) string {
+		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/chat-1", nil)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusOK, rec.Code)
+
+		var resp chatHistoryResponse
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+		require.Len(t, resp.Messages, 2)
+
+		tool := resp.Messages[1].Parts[1]
+		require.Equal(t, "output-error", tool.State)
+
+		return tool.ErrorText
+	}
+
+	assert.Equal(t, defaultErrorText, get(Handler(&sessionEchoAgent{}, store)),
+		"default mapper must sanitize resumed tool errors")
+	assert.NotContains(t, get(Handler(&sessionEchoAgent{}, store)), "secret")
+
+	custom := Handler(&sessionEchoAgent{}, store, WithOnError(passthroughErrors))
+	assert.Equal(t, "secret stack trace", get(custom), "custom mapper sees the unwrapped error")
 }
 
 func TestHandler_GetHistory(t *testing.T) {

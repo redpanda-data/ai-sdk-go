@@ -135,16 +135,13 @@ func (h *chatHandler) handlePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// useChat always sends an id. Minting one server-side would create a
+	// session the client can never address again — an orphaned store entry
+	// with per-request amnesia — so an id-less request is a client bug: 400.
 	chatID := body.ID
 	if chatID == "" {
-		if trigger == triggerRegenerate {
-			http.Error(w, "missing chat id", http.StatusBadRequest)
-			return
-		}
-
-		// useChat always sends an id; this fallback keeps bare curl usable,
-		// though the caller cannot rediscover the generated chat.
-		chatID = generateMessageID()
+		http.Error(w, "missing chat id", http.StatusBadRequest)
+		return
 	}
 
 	key, err := h.resolveKey(r, chatID)
