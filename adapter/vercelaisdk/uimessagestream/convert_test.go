@@ -16,6 +16,7 @@ package uimessagestream
 
 import (
 	"encoding/json"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -23,6 +24,23 @@ import (
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
+
+func TestWriteChunk_DoesNotHTMLEscape(t *testing.T) {
+	t.Parallel()
+
+	rec := httptest.NewRecorder()
+	ew := NewEventWriter(rec)
+
+	require.NoError(t, ew.WriteChunk(Chunk{"type": "text-delta", "id": "text-0", "delta": "if a < b && c > d"}))
+
+	body := rec.Body.String()
+	assert.Contains(t, body, `"delta":"if a < b && c > d"`, "markup must be emitted verbatim, matching JSON.stringify")
+	// HTML escaping (Go's default) would replace <, >, & with their \u00xx
+	// escapes. Disabling it keeps the bytes identical to JSON.stringify.
+	assert.NotContains(t, body, "\\u003c", "< must not be escaped")
+	assert.NotContains(t, body, "\\u003e", "> must not be escaped")
+	assert.NotContains(t, body, "\\u0026", "& must not be escaped")
+}
 
 func TestConvertMessages_ReconstructsToolHistory(t *testing.T) {
 	t.Parallel()
