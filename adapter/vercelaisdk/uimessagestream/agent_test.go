@@ -93,10 +93,9 @@ func serveAgentContext(ctx context.Context, t *testing.T, ag agent.Agent) ([]Chu
 func parseSSEChunks(t *testing.T, raw string) ([]Chunk, bool) {
 	t.Helper()
 
-	var (
-		chunks  []Chunk
-		sawDone bool
-	)
+	chunks := make([]Chunk, 0, 16)
+
+	var sawDone bool
 
 	for block := range strings.SplitSeq(raw, "\n\n") {
 		block = strings.TrimSpace(block)
