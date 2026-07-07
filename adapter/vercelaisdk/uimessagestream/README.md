@@ -7,6 +7,8 @@ Server half of the Vercel AI SDK [UI Message Stream protocol](https://ai-sdk.dev
 Server:
 
 ```go
+package main
+
 import (
     "context"
     "encoding/json"
