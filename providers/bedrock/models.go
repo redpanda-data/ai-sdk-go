@@ -117,6 +117,24 @@ const (
 	ModelClaudeOpus45EU     = "eu." + ModelClaudeOpus45
 )
 
+// Model ID constants for Amazon Nova models on Bedrock.
+//
+// Like the Claude 4.5+ models, Nova 2 Lite is inference-profile-only: its
+// regional-availability table lists In-Region = No in every region, so the bare
+// "amazon.nova-2-lite-v1:0" ID is not on-demand invocable and is registered only
+// as a building block for the prefixed variants. AWS publishes us./eu./jp. geo
+// profiles and a global. profile (no apac./au.). See
+// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-amazon-nova-2-lite.html
+const (
+	// ModelNova2Lite is the bare Bedrock ID for Amazon Nova 2 Lite
+	// (inference-profile-only — invoke via one of the prefixed variants).
+	ModelNova2Lite       = "amazon.nova-2-lite-v1:0"
+	ModelNova2LiteGlobal = "global." + ModelNova2Lite
+	ModelNova2LiteUS     = "us." + ModelNova2Lite
+	ModelNova2LiteEU     = "eu." + ModelNova2Lite
+	ModelNova2LiteJP     = "jp." + ModelNova2Lite
+)
+
 // ModelDefinition defines a model with its capabilities and constraints.
 type ModelDefinition struct {
 	Name                        string // Real Bedrock model ID (e.g. "us.anthropic.claude-sonnet-4-6")
@@ -242,6 +260,31 @@ var (
 		MaxInputTokens:   200000,
 		MaxOutputTokens:  64000,
 		SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
+	}
+
+	// Capability/constraint shapes for Amazon Nova 2 Lite. Unlike the Claude
+	// entries, JSONMode and StructuredOutput are set: Nova supports Bedrock
+	// constrained-decoding structured outputs (response_format / Converse
+	// outputConfig.textFormat), which is the primary reason to reach for it on
+	// extraction workloads. Multimodal (image + video input), text output;
+	// reasoning via extended thinking. Nova also accepts top_k.
+	nova2LiteCaps = llm.ModelCapabilities{
+		Streaming:        true,
+		Tools:            true,
+		JSONMode:         true,
+		StructuredOutput: true,
+		Vision:           true,
+		Audio:            false,
+		MultiTurn:        true,
+		SystemPrompts:    true,
+		Reasoning:        true,
+	}
+
+	nova2LiteConstraints = llm.ModelConstraints{
+		TemperatureRange: [2]float64{0.0, 1.0},
+		MaxInputTokens:   1000000,
+		MaxOutputTokens:  64000,
+		SupportedParams:  []string{"temperature", "top_p", "top_k", "max_tokens", "stop"},
 	}
 )
 
@@ -594,6 +637,64 @@ var supportedModels = map[string]ModelDefinition{
 		Constraints:  claudeContext200kConstraints,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(1.10, 5.50, 0.11).WithCacheCreation(1.375, 2.20, 0),
+		),
+	},
+
+	// ----------------------------------------------------------------
+	// Amazon Nova 2 Lite — inference-profile-only, no bare entry. Geo
+	// profiles cover us, eu, jp; global. is also published.
+	//
+	// All rates verified against the AWS Price List bulk API (authoritative,
+	// machine-readable — the pricing web page is JS-rendered and unusable):
+	// offers/v1.0/aws/AmazonBedrock/<ts>/us-east-1/index.json, published
+	// 2026-07-07. Pricing follows the same geo/global split as the Claude
+	// entries above — the global. tier is the round base rate and each geo
+	// profile is exactly 1.10x it (enforced by TestGeoGlobalRatio):
+	//   global (…-cross-region-global): $0.30 in / $2.50 out / $0.075 cache-read
+	//   geo/in-region:                  $0.33 in / $2.75 out / $0.0825 cache-read
+	// cache-read is exactly 25% of input (75% discount).
+	//
+	// Cache WRITE is FREE: the AWS price list carries an explicit
+	// USE1-Nova2.0Lite-cache-write-input-token-count usagetype priced at
+	// $0.00 in both tiers (Nova charges nothing to populate the cache; only
+	// cache reads are billed, at the discounted rate above). So no
+	// WithCacheCreation is set — the cache-write buckets stay at zero, which
+	// TestAllModelsHavePricing explicitly allows for free-cache-write models.
+	// ----------------------------------------------------------------
+	ModelNova2LiteGlobal: {
+		Name:         ModelNova2LiteGlobal,
+		Label:        "Amazon Nova 2 Lite (Global)",
+		Capabilities: nova2LiteCaps,
+		Constraints:  nova2LiteConstraints,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(0.30, 2.50, 0.075),
+		),
+	},
+	ModelNova2LiteUS: {
+		Name:         ModelNova2LiteUS,
+		Label:        "Amazon Nova 2 Lite (US)",
+		Capabilities: nova2LiteCaps,
+		Constraints:  nova2LiteConstraints,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(0.33, 2.75, 0.0825),
+		),
+	},
+	ModelNova2LiteEU: {
+		Name:         ModelNova2LiteEU,
+		Label:        "Amazon Nova 2 Lite (EU)",
+		Capabilities: nova2LiteCaps,
+		Constraints:  nova2LiteConstraints,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(0.33, 2.75, 0.0825),
+		),
+	},
+	ModelNova2LiteJP: {
+		Name:         ModelNova2LiteJP,
+		Label:        "Amazon Nova 2 Lite (JP)",
+		Capabilities: nova2LiteCaps,
+		Constraints:  nova2LiteConstraints,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(0.33, 2.75, 0.0825),
 		),
 	},
 }
