@@ -652,7 +652,7 @@ var supportedModels = map[string]ModelDefinition{
 	// profile is exactly 1.10x it (enforced by TestGeoGlobalRatio):
 	//   global (…-cross-region-global): $0.30 in / $2.50 out / $0.075 cache-read
 	//   geo/in-region:                  $0.33 in / $2.75 out / $0.0825 cache-read
-	// cache-read is exactly 25% of input (75% discount).
+	// Cache reads are billed at 25% of the input rate (75% discount).
 	//
 	// Cache WRITE is FREE: the AWS price list carries an explicit
 	// USE1-Nova2.0Lite-cache-write-input-token-count usagetype priced at
