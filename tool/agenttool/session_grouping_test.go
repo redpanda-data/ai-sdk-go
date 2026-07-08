@@ -56,17 +56,17 @@ func (m *capturingAgent) Run(_ context.Context, inv *agent.InvocationMetadata) i
 	}
 }
 
-func parentContext(id string, messages ...llm.Message) (context.Context, *agent.InvocationMetadata) {
+func parentContext(id string, messages ...llm.Message) context.Context {
 	parentSess := &session.State{ID: id, Messages: messages}
 	parentInv := agent.NewInvocationMetadata(parentSess, agent.Info{Name: "root"})
 
-	return agent.ContextWithInvocation(context.Background(), parentInv), parentInv
+	return agent.ContextWithInvocation(context.Background(), parentInv)
 }
 
 func TestExecute_GroupsUnderParentConversation(t *testing.T) {
 	t.Parallel()
 
-	ctx, _ := parentContext("parent-sess-123",
+	ctx := parentContext("parent-sess-123",
 		llm.NewMessage(llm.RoleUser, llm.NewTextPart("parent secret")))
 
 	child := &capturingAgent{mockAgent: mockAgent{name: "search", response: "ok"}}
@@ -116,7 +116,7 @@ func TestExecute_PropagatesRootConversationID(t *testing.T) {
 func TestExecute_ContextIsolatedDespiteGrouping(t *testing.T) {
 	t.Parallel()
 
-	ctx, _ := parentContext("parent-sess-123",
+	ctx := parentContext("parent-sess-123",
 		llm.NewMessage(llm.RoleUser, llm.NewTextPart("parent secret")))
 
 	child := &capturingAgent{mockAgent: mockAgent{name: "search", response: "ok"}}
