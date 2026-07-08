@@ -59,6 +59,17 @@ func TestIsModelAllowedFromRegion(t *testing.T) {
 		{"au from ap-southeast-4 (Melbourne)", ModelClaudeHaiku45AU, "ap-southeast-4", true},
 		{"au from ap-southeast-6 (New Zealand)", ModelClaudeOpus46AU, "ap-southeast-6", true},
 
+		// Amazon Nova 2 Lite — same prefix-based routing as Claude (us/eu/jp
+		// geo profiles + global). Confirms the amazon. namespace routes like
+		// anthropic.
+		{"nova2 bare from us", ModelNova2Lite, "us-east-1", true},
+		{"nova2 us from us-east-1", ModelNova2LiteUS, "us-east-1", true},
+		{"nova2 eu from eu-west-1", ModelNova2LiteEU, "eu-west-1", true},
+		{"nova2 jp from ap-northeast-1 (Tokyo)", ModelNova2LiteJP, "ap-northeast-1", true},
+		{"nova2 global from me-central-1", ModelNova2LiteGlobal, "me-central-1", true},
+		{"nova2 us from eu-west-1 (cross-geo)", ModelNova2LiteUS, "eu-west-1", false},
+		{"nova2 eu from us-east-1 (cross-geo)", ModelNova2LiteEU, "us-east-1", false},
+
 		// Cross-geography — rejected.
 		{"eu from us-east-1", ModelClaudeSonnet46EU, "us-east-1", false},
 		{"us from eu-west-1", ModelClaudeSonnet46US, "eu-west-1", false},

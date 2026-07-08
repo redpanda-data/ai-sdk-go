@@ -196,6 +196,44 @@ func TestLookupModel(t *testing.T) {
 			input:  "au." + ModelClaudeOpus45,
 			wantOK: false,
 		},
+
+		// Amazon Nova 2 Lite — inference-profile-only, like the Claude
+		// entries. global/us/eu/jp are registered; the bare ID and the
+		// unpublished au. profile are not.
+		{
+			name:    "Nova 2 Lite global profile is its own entry",
+			input:   ModelNova2LiteGlobal,
+			wantOK:  true,
+			wantDef: ModelNova2LiteGlobal,
+		},
+		{
+			name:    "Nova 2 Lite us profile is its own entry",
+			input:   ModelNova2LiteUS,
+			wantOK:  true,
+			wantDef: ModelNova2LiteUS,
+		},
+		{
+			name:    "Nova 2 Lite eu profile is its own entry",
+			input:   ModelNova2LiteEU,
+			wantOK:  true,
+			wantDef: ModelNova2LiteEU,
+		},
+		{
+			name:    "Nova 2 Lite jp profile is its own entry",
+			input:   ModelNova2LiteJP,
+			wantOK:  true,
+			wantDef: ModelNova2LiteJP,
+		},
+		{
+			name:   "Nova 2 Lite bare ID is not in the catalog",
+			input:  ModelNova2Lite,
+			wantOK: false,
+		},
+		{
+			name:   "Nova 2 Lite au profile is not published",
+			input:  "au." + ModelNova2Lite,
+			wantOK: false,
+		},
 	}
 
 	for _, tt := range tests {

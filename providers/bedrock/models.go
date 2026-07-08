@@ -266,8 +266,16 @@ var (
 	// entries, JSONMode and StructuredOutput are set: Nova supports Bedrock
 	// constrained-decoding structured outputs (response_format / Converse
 	// outputConfig.textFormat), which is the primary reason to reach for it on
-	// extraction workloads. Multimodal (image + video input), text output;
-	// reasoning via extended thinking. Nova also accepts top_k.
+	// extraction workloads. Multimodal image + video input, text output.
+	//
+	// Reasoning is left false even though Nova 2 Lite supports extended
+	// thinking at the model level: the only lever in this SDK — WithThinking —
+	// emits the Anthropic-shaped {"thinking":{"type":"enabled",...}} document
+	// via AdditionalModelRequestFields (request_mapper.go), which Nova does not
+	// accept, so reasoning is not reachable for Nova through the current API.
+	// Flip to true once Nova's reasoning schema is wired through a Bedrock
+	// option. top_k is omitted from SupportedParams for the same reason: the
+	// Converse request mapper only emits temperature/top_p/max_tokens/stop.
 	nova2LiteCaps = llm.ModelCapabilities{
 		Streaming:        true,
 		Tools:            true,
@@ -277,14 +285,14 @@ var (
 		Audio:            false,
 		MultiTurn:        true,
 		SystemPrompts:    true,
-		Reasoning:        true,
+		Reasoning:        false,
 	}
 
 	nova2LiteConstraints = llm.ModelConstraints{
 		TemperatureRange: [2]float64{0.0, 1.0},
 		MaxInputTokens:   1000000,
 		MaxOutputTokens:  64000,
-		SupportedParams:  []string{"temperature", "top_p", "top_k", "max_tokens", "stop"},
+		SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 	}
 )
 
