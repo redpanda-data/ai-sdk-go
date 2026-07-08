@@ -35,10 +35,15 @@ func TestAllModelsHavePricing(t *testing.T) {
 				"model %s missing output pricing — add Pricing to its ModelDefinition", id)
 			assert.Positive(t, def.Pricing.Default.Base.CachedInputPerMillion,
 				"model %s missing cached pricing — add CachedInputPerMillion to its ModelDefinition", id)
-			assert.Positive(t, def.Pricing.Default.Base.CacheCreation5mPerMillion,
-				"model %s missing 5m cache write pricing", id)
-			assert.Positive(t, def.Pricing.Default.Base.CacheCreation1hPerMillion,
-				"model %s missing 1h cache write pricing", id)
+			// Cache-write may legitimately be zero: some models (e.g. Amazon
+			// Nova 2 Lite) do not charge to populate the cache — AWS lists the
+			// cache-write usagetype at $0.00 and bills only cache reads. So we
+			// require non-negative rather than strictly positive here; input,
+			// output, and cache-read above are always billed and stay positive.
+			assert.GreaterOrEqual(t, def.Pricing.Default.Base.CacheCreation5mPerMillion, int64(0),
+				"model %s has negative 5m cache write pricing", id)
+			assert.GreaterOrEqual(t, def.Pricing.Default.Base.CacheCreation1hPerMillion, int64(0),
+				"model %s has negative 1h cache write pricing", id)
 		})
 	}
 }
