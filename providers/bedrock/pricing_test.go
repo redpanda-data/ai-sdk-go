@@ -22,6 +22,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// freeCacheWriteModels lists Bedrock models AWS documents as charging nothing
+// to populate the cache (their cache-write usagetype is priced at $0.00). For
+// these, cache-write is expected to be exactly zero; every other model must
+// carry a positive cache-write rate.
+var freeCacheWriteModels = map[string]bool{
+	ModelNova2LiteGlobal: true,
+	ModelNova2LiteUS:     true,
+	ModelNova2LiteEU:     true,
+	ModelNova2LiteJP:     true,
+}
+
 func TestAllModelsHavePricing(t *testing.T) {
 	t.Parallel()
 
@@ -35,15 +46,23 @@ func TestAllModelsHavePricing(t *testing.T) {
 				"model %s missing output pricing — add Pricing to its ModelDefinition", id)
 			assert.Positive(t, def.Pricing.Default.Base.CachedInputPerMillion,
 				"model %s missing cached pricing — add CachedInputPerMillion to its ModelDefinition", id)
-			// Cache-write may legitimately be zero: some models (e.g. Amazon
-			// Nova 2 Lite) do not charge to populate the cache — AWS lists the
-			// cache-write usagetype at $0.00 and bills only cache reads. So we
-			// require non-negative rather than strictly positive here; input,
-			// output, and cache-read above are always billed and stay positive.
-			assert.GreaterOrEqual(t, def.Pricing.Default.Base.CacheCreation5mPerMillion, int64(0),
-				"model %s has negative 5m cache write pricing", id)
-			assert.GreaterOrEqual(t, def.Pricing.Default.Base.CacheCreation1hPerMillion, int64(0),
-				"model %s has negative 1h cache write pricing", id)
+			// Cache-write: every model must carry a positive rate, EXCEPT models
+			// AWS documents as charging nothing to populate the cache (their
+			// cache-write usagetype is $0.00) — Amazon Nova 2 Lite. Those must be
+			// exactly zero. Guarding both directions keeps the "forgot
+			// WithCacheCreation" check intact for Claude while allowing the
+			// documented free-cache-write models.
+			if freeCacheWriteModels[id] {
+				assert.Zero(t, def.Pricing.Default.Base.CacheCreation5mPerMillion,
+					"model %s is documented free-cache-write but has a 5m rate", id)
+				assert.Zero(t, def.Pricing.Default.Base.CacheCreation1hPerMillion,
+					"model %s is documented free-cache-write but has a 1h rate", id)
+			} else {
+				assert.Positive(t, def.Pricing.Default.Base.CacheCreation5mPerMillion,
+					"model %s missing 5m cache write pricing", id)
+				assert.Positive(t, def.Pricing.Default.Base.CacheCreation1hPerMillion,
+					"model %s missing 1h cache write pricing", id)
+			}
 		})
 	}
 }
