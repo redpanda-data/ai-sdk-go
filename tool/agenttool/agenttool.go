@@ -143,6 +143,7 @@ func (at *AgentTool) Execute(ctx context.Context, args json.RawMessage) (json.Ra
 
 	// 3. Create invocation metadata
 	inv := agent.NewInvocationMetadata(sess, info)
+	ctx = agent.ContextWithInvocation(ctx, inv)
 
 	// 4. Run agent and collect response
 	var result string

@@ -38,14 +38,25 @@ type capturingAgent struct {
 	gotSessionID string
 	gotMessages  []llm.Message
 	gotMetadata  map[string]any
+
+	gotContextInvocationPresent bool
+	gotContextInvocationSame    bool
+	gotContextSessionID         string
 }
 
-func (m *capturingAgent) Run(_ context.Context, inv *agent.InvocationMetadata) iter.Seq2[agent.Event, error] {
+func (m *capturingAgent) Run(ctx context.Context, inv *agent.InvocationMetadata) iter.Seq2[agent.Event, error] {
 	return func(yield func(agent.Event, error) bool) {
 		s := inv.Session()
 		m.gotSessionID = s.ID
 		m.gotMessages = s.Messages
 		m.gotMetadata = s.Metadata
+
+		ctxInv, ok := agent.InvocationFromContext(ctx)
+		m.gotContextInvocationPresent = ok
+		m.gotContextInvocationSame = ctxInv == inv
+		if ok && ctxInv.Session() != nil {
+			m.gotContextSessionID = ctxInv.Session().ID
+		}
 
 		msg := llm.NewMessage(llm.RoleAssistant, llm.NewTextPart(m.response))
 		if !yield(agent.MessageEvent{Response: llm.Response{Message: msg}}, nil) {
@@ -88,6 +99,22 @@ func TestExecute_GroupsUnderParentConversation(t *testing.T) {
 	// And ConversationID resolves the sub-agent's session to the parent's id.
 	assert.Equal(t, "parent-sess-123",
 		session.ConversationID(&session.State{ID: child.gotSessionID, Metadata: child.gotMetadata}))
+}
+
+func TestExecute_ContextCarriesChildInvocation(t *testing.T) {
+	t.Parallel()
+
+	ctx := parentContext("parent-sess-123")
+	child := &capturingAgent{mockAgent: mockAgent{name: "search", response: "ok"}}
+	at := agenttool.New(child)
+
+	_, err := at.Execute(ctx, json.RawMessage(`{}`))
+	require.NoError(t, err)
+
+	assert.True(t, child.gotContextInvocationPresent)
+	assert.True(t, child.gotContextInvocationSame)
+	assert.Equal(t, child.gotSessionID, child.gotContextSessionID)
+	assert.NotEqual(t, "parent-sess-123", child.gotContextSessionID)
 }
 
 func TestExecute_PropagatesRootConversationID(t *testing.T) {
