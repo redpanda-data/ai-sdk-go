@@ -316,18 +316,23 @@ var (
 
 	// Capability/constraint shapes for Mistral Large 3. Tools and native
 	// structured output (Converse outputConfig.textFormat / response_format)
-	// are supported, which — together with the low price — is the reason to
-	// reach for it. Vision is false: Mistral Large 3 is text-only on Bedrock
-	// (Pixtral Large is Mistral's multimodal entry). Reasoning is false — it is
-	// not a reasoning model (Magistral is Mistral's reasoning line), and the
-	// only reasoning lever in this SDK (WithThinking) emits an Anthropic-shaped
-	// thinking document that non-Anthropic Bedrock models reject.
+	// are set from LiteLLM's bedrock_converse catalog entry, which marks
+	// mistral.mistral-large-3-675b-instruct with supports_function_calling and
+	// supports_native_structured_output; a live Converse call with
+	// outputConfig.textFormat should still confirm constrained decoding before
+	// this leaves draft, since no unit test here exercises it. Vision is false:
+	// Mistral Large 3 is text-only on Bedrock (Pixtral Large is Mistral's
+	// multimodal entry). Reasoning is false — it is not a reasoning model
+	// (Magistral is Mistral's reasoning line), and the only reasoning lever in
+	// this SDK (WithThinking) emits an Anthropic-shaped thinking document that
+	// non-Anthropic Bedrock models reject.
 	//
-	// Context window: the Bedrock deployment advertises a 128K input window and
-	// 8,192 max output tokens (Mistral's native API exposes a larger window;
-	// the Bedrock-hosted variant is the smaller of the two). top_k is omitted
-	// from SupportedParams because the Converse request mapper only emits
-	// temperature/top_p/max_tokens/stop.
+	// Context window: LiteLLM's bedrock_converse entry lists a 128K
+	// (max_input_tokens 131072 rounded) input window and an 8,192 max-output
+	// cap for the Bedrock-hosted variant — smaller than Mistral's native API,
+	// so re-confirm the exact output cap when validating live (it may be
+	// raised). top_k is omitted from SupportedParams because the Converse
+	// request mapper only emits temperature/top_p/max_tokens/stop.
 	mistralLarge3Caps = llm.ModelCapabilities{
 		Streaming:        true,
 		Tools:            true,
