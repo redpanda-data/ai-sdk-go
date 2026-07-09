@@ -23,14 +23,18 @@ import (
 )
 
 // freeCacheWriteModels lists Bedrock models AWS documents as charging nothing
-// to populate the cache (their cache-write usagetype is priced at $0.00). For
-// these, cache-write is expected to be exactly zero; every other model must
-// carry a positive cache-write rate.
+// to populate the cache (their cache-write usagetype is priced at $0.00) —
+// currently Amazon Nova 2 Lite and xAI Grok 4.3. For these, cache-write is
+// expected to be exactly zero; every other caching model must carry a positive
+// cache-write rate.
 var freeCacheWriteModels = map[string]bool{
 	ModelNova2LiteGlobal: true,
 	ModelNova2LiteUS:     true,
 	ModelNova2LiteEU:     true,
 	ModelNova2LiteJP:     true,
+	// Grok 4.3 bills prompt-cache reads but populates the cache for free (no
+	// cache-write usagetype in the Price List) — same shape as Nova.
+	ModelGrok43: true,
 }
 
 // noCacheModels lists Bedrock models that do not support prompt caching at all
@@ -70,7 +74,8 @@ func TestAllModelsHavePricing(t *testing.T) {
 					"model %s is documented no-cache but has a 1h cache-write rate", id)
 			case freeCacheWriteModels[id]:
 				// Cache reads are billed, but populating the cache is free —
-				// their cache-write usagetype is $0.00 (Amazon Nova 2 Lite).
+				// their cache-write usagetype is $0.00 (Amazon Nova 2 Lite,
+				// xAI Grok 4.3).
 				assert.Positive(t, base.CachedInputPerMillion,
 					"model %s missing cached pricing — add CachedInputPerMillion to its ModelDefinition", id)
 				assert.Zero(t, base.CacheCreation5mPerMillion,
