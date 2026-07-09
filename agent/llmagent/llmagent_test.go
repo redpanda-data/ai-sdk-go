@@ -96,7 +96,7 @@ func TestNew_Validation(t *testing.T) {
 			agentName: "test",
 			prompt:    "",
 			model:     model,
-			opts: []llmagent.Option{llmagent.WithSystemPromptProvider(func(context.Context, *agent.InvocationMetadata) (string, error) {
+			opts: []llmagent.Option{llmagent.WithInstructionProvider(func(context.Context, *agent.InvocationMetadata) (string, error) {
 				return "dynamic prompt", nil
 			})},
 		},
@@ -206,8 +206,8 @@ func TestLLMAgent_Info(t *testing.T) {
 	})
 }
 
-// TestRun_SystemPromptProvider verifies dynamic system prompt resolution.
-func TestRun_SystemPromptProvider(t *testing.T) {
+// TestRun_InstructionProvider verifies dynamic system prompt resolution.
+func TestRun_InstructionProvider(t *testing.T) {
 	t.Parallel()
 
 	t.Run("go template with context and invocation metadata", func(t *testing.T) {
@@ -227,7 +227,7 @@ func TestRun_SystemPromptProvider(t *testing.T) {
 		)).ThenStreamText("Hello Alice!", fakellm.StreamConfig{})
 
 		ag, err := llmagent.New("test-agent", "", model,
-			llmagent.WithSystemPromptProvider(func(ctx context.Context, inv *agent.InvocationMetadata) (string, error) {
+			llmagent.WithInstructionProvider(func(ctx context.Context, inv *agent.InvocationMetadata) (string, error) {
 				email, _ := ctx.Value(emailKey{}).(string)
 				org, _ := inv.Session().Metadata["org"].(string)
 
@@ -269,39 +269,6 @@ func TestRun_SystemPromptProvider(t *testing.T) {
 		)
 	})
 
-	t.Run("provider error is terminal", func(t *testing.T) {
-		t.Parallel()
-
-		model := fakellm.NewFakeModel()
-		model.When(fakellm.Any()).ThenStreamText("unreachable", fakellm.StreamConfig{})
-
-		ag, err := llmagent.New("test-agent", "", model,
-			llmagent.WithSystemPromptProvider(func(context.Context, *agent.InvocationMetadata) (string, error) {
-				return "", errors.New("identity service unavailable")
-			}),
-		)
-		require.NoError(t, err)
-
-		sess := &session.State{
-			ID:       "test-session",
-			Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hi"))},
-		}
-		inv := agent.NewInvocationMetadata(sess, agent.Info{})
-
-		var terminalErr error
-
-		for _, err := range ag.Run(t.Context(), inv) {
-			if err != nil {
-				terminalErr = err
-				break
-			}
-		}
-
-		require.Error(t, terminalErr)
-		assert.Contains(t, terminalErr.Error(), "identity service unavailable")
-		assert.Equal(t, 0, model.CallCount(), "model should not be called when provider fails")
-	})
-
 	t.Run("provider takes precedence over static prompt", func(t *testing.T) {
 		t.Parallel()
 
@@ -310,7 +277,7 @@ func TestRun_SystemPromptProvider(t *testing.T) {
 			ThenStreamText("OK", fakellm.StreamConfig{})
 
 		ag, err := llmagent.New("test-agent", "static prompt", model,
-			llmagent.WithSystemPromptProvider(func(context.Context, *agent.InvocationMetadata) (string, error) {
+			llmagent.WithInstructionProvider(func(context.Context, *agent.InvocationMetadata) (string, error) {
 				return "dynamic prompt", nil
 			}),
 		)
@@ -329,6 +296,67 @@ func TestRun_SystemPromptProvider(t *testing.T) {
 		assert.Equal(t, agent.FinishReasonStop, endEvent.FinishReason)
 
 		require.NoError(t, model.CheckCalled(fakellm.SystemPromptContains("dynamic")))
+	})
+
+	t.Run("provider error falls back to static prompt", func(t *testing.T) {
+		t.Parallel()
+
+		model := fakellm.NewFakeModel()
+		model.When(fakellm.SystemPromptContains("static prompt")).
+			ThenStreamText("OK", fakellm.StreamConfig{})
+
+		ag, err := llmagent.New("test-agent", "static prompt", model,
+			llmagent.WithInstructionProvider(func(context.Context, *agent.InvocationMetadata) (string, error) {
+				return "", errors.New("provider failed")
+			}),
+		)
+		require.NoError(t, err)
+
+		sess := &session.State{
+			ID:       "test-session",
+			Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hi"))},
+		}
+		inv := agent.NewInvocationMetadata(sess, agent.Info{})
+
+		events := collectEvents(t, ag.Run(t.Context(), inv))
+
+		endEvent := findInvocationEndEvent(events)
+		require.NotNil(t, endEvent)
+		assert.Equal(t, agent.FinishReasonStop, endEvent.FinishReason)
+
+		require.NoError(t, model.CheckCalled(fakellm.SystemPromptContains("static prompt")))
+	})
+
+	t.Run("WithGlobalInstruction appends static instruction", func(t *testing.T) {
+		t.Parallel()
+
+		model := fakellm.NewFakeModel()
+		model.When(fakellm.And(
+			fakellm.SystemPromptContains("base prompt"),
+			fakellm.SystemPromptContains("static global"),
+			fakellm.SystemPromptContains("context global"),
+		)).ThenStreamText("OK", fakellm.StreamConfig{})
+
+		ag, err := llmagent.New("test-agent", "base prompt", model,
+			llmagent.WithGlobalInstruction("static global"),
+		)
+		require.NoError(t, err)
+
+		sess := &session.State{
+			ID:       "test-session",
+			Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hi"))},
+		}
+		inv := agent.NewInvocationMetadata(sess, agent.Info{})
+
+		ctx := agent.ContextWithGlobalInstructions(t.Context(), "context global")
+		events := collectEvents(t, ag.Run(ctx, inv))
+
+		endEvent := findInvocationEndEvent(events)
+		require.NotNil(t, endEvent)
+		assert.Equal(t, agent.FinishReasonStop, endEvent.FinishReason)
+
+		require.NoError(t, model.CheckCalled(fakellm.SystemPromptContains("static global")))
+		require.NoError(t, model.CheckCalled(fakellm.SystemPromptContains("context global")))
 	})
 }
 

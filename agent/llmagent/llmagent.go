@@ -128,6 +128,11 @@ func (a *LLMAgent) InputSchema() map[string]any {
 // The stream always ends with InvocationEndEvent, even on error or cancellation.
 func (a *LLMAgent) Run(ctx context.Context, inv *agent.InvocationMetadata) iter.Seq2[agent.Event, error] {
 	return func(yield func(agent.Event, error) bool) {
+		if inv == nil {
+			yield(nil, errors.New("llmagent: invocation metadata is required"))
+			return
+		}
+
 		// Helper: create event envelope
 		makeEnvelope := func() agent.EventEnvelope {
 			return agent.EventEnvelope{
@@ -391,18 +396,33 @@ func (a *LLMAgent) executeSingleTurn(
 // resolveSystemPrompt produces a transient message list with the system
 // prompt prepended. The system prompt is never persisted to the session.
 //
-// When a [SystemPromptProvider] is configured it is called every turn,
+// When an [InstructionProvider] is configured it is called every turn,
 // receiving both the request context and the invocation metadata.
 // Otherwise the static systemPrompt string from the config is used.
 func (a *LLMAgent) resolveSystemPrompt(ctx context.Context, inv *agent.InvocationMetadata, messages []llm.Message) ([]llm.Message, error) {
 	prompt := a.config.systemPrompt
-	if a.config.systemPromptProvider != nil {
-		p, err := a.config.systemPromptProvider(ctx, inv)
+	if a.config.instructionProvider != nil {
+		p, err := a.config.instructionProvider(ctx, inv)
 		if err != nil {
-			return nil, err
+			// Fall back to static prompt on error as per design
+			p = a.config.systemPrompt
 		}
-
 		prompt = p
+	}
+
+	// Collect all global instructions (static + context)
+	globalInstr := a.config.globalInstruction
+	if ctxInstr := agent.GlobalInstructions(ctx); ctxInstr != "" {
+		if globalInstr != "" {
+			globalInstr += "\n" + ctxInstr
+		} else {
+			globalInstr = ctxInstr
+		}
+	}
+
+	// Append Global Instructions if any are present
+	if globalInstr != "" {
+		prompt = fmt.Sprintf("%s\n\n---\n## Global Instructions\n%s", prompt, globalInstr)
 	}
 
 	systemMsg := llm.NewMessage(llm.RoleSystem, llm.NewTextPart(prompt))
