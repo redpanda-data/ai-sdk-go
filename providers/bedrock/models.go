@@ -154,6 +154,30 @@ const (
 	ModelMistralLarge3 = "mistral.mistral-large-3-675b-instruct"
 )
 
+// Model ID constants for xAI (Grok) models on Bedrock.
+//
+// Like Mistral Large 3 (and unlike the inference-profile-only Claude/Nova
+// entries), Grok 4.3 is an on-demand / in-region model invoked by its BARE ID
+// "xai.grok-4.3": it has no us./eu./global. cross-region inference profile (the
+// AWS Price List publishes rates only under the single us-east-1 usagetype
+// xai.grok-4.3-mantle-* with service tiers standard/flex/priority/batch, and
+// invoking a "us.xai..." profile returns "ValidationException: the provided
+// model identifier is invalid"). So we register the bare ID and NewModel
+// resolves it as-is.
+//
+// Unlike Mistral, Grok 4.3 DOES bill prompt-cache reads with free cache writes —
+// the same pricing shape as Amazon Nova (so it belongs in freeCacheWriteModels,
+// not noCacheModels).
+//
+// Note: xAI's latest published model is 4.3 (the version line runs
+// 4 -> 4.1 -> 4.20 -> 4.3); there is no "4.5". See
+// https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards.html
+const (
+	// ModelGrok43 is the on-demand / in-region Bedrock ID for xAI Grok 4.3
+	// (invoked bare, with no inference-profile prefix).
+	ModelGrok43 = "xai.grok-4.3"
+)
+
 // ModelDefinition defines a model with its capabilities and constraints.
 type ModelDefinition struct {
 	Name                        string // Real Bedrock model ID (e.g. "us.anthropic.claude-sonnet-4-6")
@@ -349,6 +373,43 @@ var (
 		TemperatureRange: [2]float64{0.0, 1.0},
 		MaxInputTokens:   128000,
 		MaxOutputTokens:  8192,
+		SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
+	}
+
+	// Capability/constraint shapes for xAI Grok 4.3. Tools, native structured
+	// output, and vision are set from LiteLLM's bedrock_mantle/xai.grok-4.3
+	// entry (supports_function_calling, supports_native_structured_output,
+	// supports_vision); these are asserted from the catalog, not observed, so a
+	// live Converse round-trip (image block + outputConfig.textFormat) should
+	// confirm them before this leaves draft.
+	//
+	// Reasoning is descriptive metadata only, set false. Grok 4.3 is a
+	// reasoning model, but nothing in request_mapper.go gates WithThinking on
+	// this flag: a caller who passes WithThinking to Grok would still emit the
+	// Anthropic-shaped thinking document and get a Bedrock rejection. Leaving it
+	// false documents "no reachable reasoning lever here" (matching the Nova
+	// entries); it does not itself prevent that emission.
+	//
+	// Context window: LiteLLM's bedrock_mantle entry lists a 128K (131072)
+	// input window and a 16,384 max-output cap for the Bedrock-hosted variant.
+	// top_k is omitted from SupportedParams because the Converse request mapper
+	// only emits temperature/top_p/max_tokens/stop.
+	grok43Caps = llm.ModelCapabilities{
+		Streaming:        true,
+		Tools:            true,
+		JSONMode:         true,
+		StructuredOutput: true,
+		Vision:           true,
+		Audio:            false,
+		MultiTurn:        true,
+		SystemPrompts:    true,
+		Reasoning:        false,
+	}
+
+	grok43Constraints = llm.ModelConstraints{
+		TemperatureRange: [2]float64{0.0, 1.0},
+		MaxInputTokens:   131072,
+		MaxOutputTokens:  16384,
 		SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 	}
 )
@@ -801,6 +862,43 @@ var supportedModels = map[string]ModelDefinition{
 		Constraints:  mistralLarge3Constraints,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(0.50, 1.50, 0),
+		),
+	},
+
+	// ----------------------------------------------------------------
+	// xAI Grok 4.3 — on-demand / in-region, registered under the BARE ID (no
+	// inference profile; the "us.xai..." profile does not exist — invoking it
+	// returns ValidationException "invalid model identifier"). Like Mistral
+	// Large 3 it does NOT follow the geo/global 1.10x split (AWS prices it by
+	// service tier under a single us-east-1 usagetype, no global. rate), so
+	// there is no global. sibling and TestGeoGlobalRatio does not apply. We
+	// register the on-demand *standard* tier (the tier the Converse proxy
+	// uses); flex/priority/batch are not modeled.
+	//
+	// Rates verified against the AWS Price List bulk API
+	// (offers/v1.0/aws/AmazonBedrock/20260707080509/us-east-1/index.json),
+	// usagetype xai.grok-4.3-mantle-{input,output,cache-read}-tokens-standard:
+	//   standard: $1.25 / 1M input, $2.50 / 1M output, $0.20 / 1M cache-read
+	// Cross-checked against LiteLLM's bedrock_mantle/xai.grok-4.3 entry
+	// (input 1.25e-06, output 2.5e-06, cache-read 2e-07 per token; 128K
+	// context; function calling + native structured output + vision).
+	//
+	// Cache WRITE is free (the price list carries no cache-write usagetype),
+	// same as Amazon Nova, so no WithCacheCreation is set and ModelGrok43 is
+	// listed in freeCacheWriteModels in pricing_test.go.
+	//
+	// Because the bare ID has no geo prefix, this entry is excluded from the
+	// per-region conformance sweep (BedrockFixture.Models filters to the
+	// source region's geo profile); the aigw external_llm integration test
+	// covers live invocation and skips cleanly when access is not granted.
+	// ----------------------------------------------------------------
+	ModelGrok43: {
+		Name:         ModelGrok43,
+		Label:        "Grok 4.3",
+		Capabilities: grok43Caps,
+		Constraints:  grok43Constraints,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(1.25, 2.50, 0.20),
 		),
 	},
 }
