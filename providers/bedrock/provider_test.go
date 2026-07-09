@@ -234,6 +234,20 @@ func TestLookupModel(t *testing.T) {
 			input:  "au." + ModelNova2Lite,
 			wantOK: false,
 		},
+
+		// Mistral Large 3 — on-demand / in-region, registered under the bare
+		// ID. The (non-existent) us. inference profile is not a catalog entry.
+		{
+			name:    "Mistral Large 3 bare ID is its own entry",
+			input:   ModelMistralLarge3,
+			wantOK:  true,
+			wantDef: ModelMistralLarge3,
+		},
+		{
+			name:   "Mistral Large 3 us profile is not in the catalog",
+			input:  "us." + ModelMistralLarge3,
+			wantOK: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -442,6 +456,24 @@ func TestNewModel_EURegionPrefix(t *testing.T) {
 	m, ok := model.(*Model)
 	require.True(t, ok)
 	assert.Equal(t, "eu."+ModelClaudeSonnet46, m.config.APIModelID)
+}
+
+// TestNewModel_BareInRegionModelNotPrefixed verifies that an on-demand /
+// in-region model registered under its bare ID (Mistral Large 3) is invoked
+// as-is: NewModel must NOT prepend a geo inference-profile prefix, because the
+// "us.mistral..." profile does not exist on Bedrock. This is the case the
+// exact-catalog-match branch in NewModel exists for.
+func TestNewModel_BareInRegionModelNotPrefixed(t *testing.T) {
+	t.Parallel()
+
+	p := &Provider{client: nil, region: "us-east-1"}
+
+	model, err := p.NewModel(ModelMistralLarge3)
+	require.NoError(t, err)
+
+	m, ok := model.(*Model)
+	require.True(t, ok)
+	assert.Equal(t, ModelMistralLarge3, m.config.APIModelID)
 }
 
 func TestNewModel_Fable5RegionPrefix(t *testing.T) {
