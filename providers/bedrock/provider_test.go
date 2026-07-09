@@ -234,6 +234,25 @@ func TestLookupModel(t *testing.T) {
 			input:  "au." + ModelNova2Lite,
 			wantOK: false,
 		},
+
+		// Mistral Large 3 — us. profile only for now. The bare ID and the
+		// not-yet-registered eu. profile are absent.
+		{
+			name:    "Mistral Large 3 us profile is its own entry",
+			input:   ModelMistralLarge3US,
+			wantOK:  true,
+			wantDef: ModelMistralLarge3US,
+		},
+		{
+			name:   "Mistral Large 3 bare ID is not in the catalog",
+			input:  ModelMistralLarge3,
+			wantOK: false,
+		},
+		{
+			name:   "Mistral Large 3 eu profile is not registered (US-only)",
+			input:  "eu." + ModelMistralLarge3,
+			wantOK: false,
+		},
 	}
 
 	for _, tt := range tests {

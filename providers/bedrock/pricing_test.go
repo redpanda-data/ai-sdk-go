@@ -33,6 +33,16 @@ var freeCacheWriteModels = map[string]bool{
 	ModelNova2LiteJP:     true,
 }
 
+// noCacheModels lists Bedrock models that do not support prompt caching at all
+// (AWS bills them with no cache-read or cache-write usagetype). For these,
+// every cache rate — read AND write — is expected to be exactly zero, which is
+// the documented shape for a non-caching provider (see pricing.Rates). This is
+// distinct from freeCacheWriteModels, which DO bill cache reads but populate
+// the cache for free.
+var noCacheModels = map[string]bool{
+	ModelMistralLarge3US: true,
+}
+
 func TestAllModelsHavePricing(t *testing.T) {
 	t.Parallel()
 
@@ -44,23 +54,37 @@ func TestAllModelsHavePricing(t *testing.T) {
 				"model %s missing input pricing — add Pricing to its ModelDefinition", id)
 			assert.Positive(t, def.Pricing.Default.Base.OutputPerMillion,
 				"model %s missing output pricing — add Pricing to its ModelDefinition", id)
-			assert.Positive(t, def.Pricing.Default.Base.CachedInputPerMillion,
-				"model %s missing cached pricing — add CachedInputPerMillion to its ModelDefinition", id)
-			// Cache-write: every model must carry a positive rate, EXCEPT models
-			// AWS documents as charging nothing to populate the cache (their
-			// cache-write usagetype is $0.00) — Amazon Nova 2 Lite. Those must be
-			// exactly zero. Guarding both directions keeps the "forgot
-			// WithCacheCreation" check intact for Claude while allowing the
-			// documented free-cache-write models.
-			if freeCacheWriteModels[id] {
-				assert.Zero(t, def.Pricing.Default.Base.CacheCreation5mPerMillion,
+
+			base := def.Pricing.Default.Base
+
+			switch {
+			case noCacheModels[id]:
+				// No prompt caching at all: every cache rate is zero. This is
+				// the documented shape for a non-caching provider (Mistral
+				// Large 3 — AWS bills no cache usagetype for it).
+				assert.Zero(t, base.CachedInputPerMillion,
+					"model %s is documented no-cache but has a cache-read rate", id)
+				assert.Zero(t, base.CacheCreation5mPerMillion,
+					"model %s is documented no-cache but has a 5m cache-write rate", id)
+				assert.Zero(t, base.CacheCreation1hPerMillion,
+					"model %s is documented no-cache but has a 1h cache-write rate", id)
+			case freeCacheWriteModels[id]:
+				// Cache reads are billed, but populating the cache is free —
+				// their cache-write usagetype is $0.00 (Amazon Nova 2 Lite).
+				assert.Positive(t, base.CachedInputPerMillion,
+					"model %s missing cached pricing — add CachedInputPerMillion to its ModelDefinition", id)
+				assert.Zero(t, base.CacheCreation5mPerMillion,
 					"model %s is documented free-cache-write but has a 5m rate", id)
-				assert.Zero(t, def.Pricing.Default.Base.CacheCreation1hPerMillion,
+				assert.Zero(t, base.CacheCreation1hPerMillion,
 					"model %s is documented free-cache-write but has a 1h rate", id)
-			} else {
-				assert.Positive(t, def.Pricing.Default.Base.CacheCreation5mPerMillion,
+			default:
+				// Full caching (Claude): read + write rates all positive. This
+				// keeps the "forgot WithCacheCreation" check intact.
+				assert.Positive(t, base.CachedInputPerMillion,
+					"model %s missing cached pricing — add CachedInputPerMillion to its ModelDefinition", id)
+				assert.Positive(t, base.CacheCreation5mPerMillion,
 					"model %s missing 5m cache write pricing", id)
-				assert.Positive(t, def.Pricing.Default.Base.CacheCreation1hPerMillion,
+				assert.Positive(t, base.CacheCreation1hPerMillion,
 					"model %s missing 1h cache write pricing", id)
 			}
 		})

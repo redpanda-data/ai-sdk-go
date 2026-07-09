@@ -135,6 +135,29 @@ const (
 	ModelNova2LiteJP     = "jp." + ModelNova2Lite
 )
 
+// Model ID constants for Mistral AI models on Bedrock.
+//
+// Mistral Large 3 is served on Bedrock through a cross-region inference
+// profile, so — like the Claude and Nova entries — the bare
+// "mistral.mistral-large-3-675b-instruct" ID is registered only as a building
+// block for the prefixed variant and is not itself a catalog key (NewModel
+// always prepends the source region's geo prefix to an un-prefixed ID, so a
+// bare-only entry would be unreachable anyway).
+//
+// Only the us. profile is registered here. The AWS Price List publishes rates
+// solely under the us-east-1 usagetype
+// (mistral.mistral-large-3-675b-instruct-mantle-*); eu./global. profile
+// availability is not yet confirmed, and per the model-maintenance skill we do
+// not register a profile until it is verified by invocation. Add eu./global.
+// entries once confirmed. See
+// https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards.html
+const (
+	// ModelMistralLarge3 is the bare Bedrock ID for Mistral Large 3
+	// (invoke via the prefixed variant).
+	ModelMistralLarge3   = "mistral.mistral-large-3-675b-instruct"
+	ModelMistralLarge3US = "us." + ModelMistralLarge3
+)
+
 // ModelDefinition defines a model with its capabilities and constraints.
 type ModelDefinition struct {
 	Name                        string // Real Bedrock model ID (e.g. "us.anthropic.claude-sonnet-4-6")
@@ -292,6 +315,39 @@ var (
 		TemperatureRange: [2]float64{0.0, 1.0},
 		MaxInputTokens:   1000000,
 		MaxOutputTokens:  64000,
+		SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
+	}
+
+	// Capability/constraint shapes for Mistral Large 3. Tools and native
+	// structured output (Converse outputConfig.textFormat / response_format)
+	// are supported, which — together with the low price — is the reason to
+	// reach for it. Vision is false: Mistral Large 3 is text-only on Bedrock
+	// (Pixtral Large is Mistral's multimodal entry). Reasoning is false — it is
+	// not a reasoning model (Magistral is Mistral's reasoning line), and the
+	// only reasoning lever in this SDK (WithThinking) emits an Anthropic-shaped
+	// thinking document that non-Anthropic Bedrock models reject.
+	//
+	// Context window: the Bedrock deployment advertises a 128K input window and
+	// 8,192 max output tokens (Mistral's native API exposes a larger window;
+	// the Bedrock-hosted variant is the smaller of the two). top_k is omitted
+	// from SupportedParams because the Converse request mapper only emits
+	// temperature/top_p/max_tokens/stop.
+	mistralLarge3Caps = llm.ModelCapabilities{
+		Streaming:        true,
+		Tools:            true,
+		JSONMode:         true,
+		StructuredOutput: true,
+		Vision:           false,
+		Audio:            false,
+		MultiTurn:        true,
+		SystemPrompts:    true,
+		Reasoning:        false,
+	}
+
+	mistralLarge3Constraints = llm.ModelConstraints{
+		TemperatureRange: [2]float64{0.0, 1.0},
+		MaxInputTokens:   128000,
+		MaxOutputTokens:  8192,
 		SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 	}
 )
@@ -703,6 +759,41 @@ var supportedModels = map[string]ModelDefinition{
 		Constraints:  nova2LiteConstraints,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(0.33, 2.75, 0.0825),
+		),
+	},
+
+	// ----------------------------------------------------------------
+	// Mistral Large 3 — us. profile only (see the const block above for why
+	// eu./global. are deferred). Unlike the Claude/Nova entries, Mistral Large
+	// 3 does NOT follow the geo/global 1.10x split: AWS prices it by service
+	// tier (standard/flex/priority/batch) under a single us-east-1 usagetype,
+	// with no separate global. rate — so there is no global. sibling and
+	// TestGeoGlobalRatio does not apply. We register the on-demand *standard*
+	// tier here (the tier the Converse proxy uses); flex/priority/batch are not
+	// modeled.
+	//
+	// Rates verified against the AWS Price List bulk API (authoritative,
+	// machine-readable — the pricing web page is JS-rendered and unusable):
+	// offers/v1.0/aws/AmazonBedrock/20260707080509/us-east-1/index.json,
+	// usagetype mistral.mistral-large-3-675b-instruct-mantle-{input,output}-
+	// tokens-standard:
+	//   standard: $0.50 / 1M input, $1.50 / 1M output
+	// Cross-checked against LiteLLM's bedrock_converse catalog entry
+	// (input 5e-07, output 1.5e-06 per token; 128K context; supports function
+	// calling + native structured output).
+	//
+	// Prompt caching is NOT billed for Mistral Large 3 (the price list carries
+	// no cache-read/cache-write usagetype), so all cache rates stay zero — the
+	// documented shape for a non-caching provider (see pricing.Rates). This is
+	// why ModelMistralLarge3US is listed in noCacheModels in pricing_test.go.
+	// ----------------------------------------------------------------
+	ModelMistralLarge3US: {
+		Name:         ModelMistralLarge3US,
+		Label:        "Mistral Large 3 (US)",
+		Capabilities: mistralLarge3Caps,
+		Constraints:  mistralLarge3Constraints,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(0.50, 1.50, 0),
 		),
 	},
 }
