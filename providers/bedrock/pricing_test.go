@@ -40,7 +40,7 @@ var freeCacheWriteModels = map[string]bool{
 // distinct from freeCacheWriteModels, which DO bill cache reads but populate
 // the cache for free.
 var noCacheModels = map[string]bool{
-	ModelMistralLarge3US: true,
+	ModelMistralLarge3: true,
 }
 
 func TestAllModelsHavePricing(t *testing.T) {

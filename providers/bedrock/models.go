@@ -137,25 +137,21 @@ const (
 
 // Model ID constants for Mistral AI models on Bedrock.
 //
-// Mistral Large 3 is served on Bedrock through a cross-region inference
-// profile, so — like the Claude and Nova entries — the bare
-// "mistral.mistral-large-3-675b-instruct" ID is registered only as a building
-// block for the prefixed variant and is not itself a catalog key (NewModel
-// always prepends the source region's geo prefix to an un-prefixed ID, so a
-// bare-only entry would be unreachable anyway).
-//
-// Only the us. profile is registered here. The AWS Price List publishes rates
-// solely under the us-east-1 usagetype
-// (mistral.mistral-large-3-675b-instruct-mantle-*); eu./global. profile
-// availability is not yet confirmed, and per the model-maintenance skill we do
-// not register a profile until it is verified by invocation. Add eu./global.
-// entries once confirmed. See
+// Unlike the Claude and Nova entries — which are inference-profile-only and
+// return ValidationException for the bare ID — Mistral Large 3 is an
+// on-demand / in-region model invoked by its BARE ID
+// "mistral.mistral-large-3-675b-instruct". It has no us./eu./global.
+// cross-region inference profile: the AWS Price List publishes rates only under
+// the single us-east-1 usagetype (mistral.mistral-large-3-675b-instruct-mantle-*)
+// with service tiers (standard/flex/priority/batch), and invoking the
+// "us.mistral..." profile returns "ValidationException: the provided model
+// identifier is invalid". So we register the bare ID and NewModel resolves it
+// as-is (no geo-prefix). See
 // https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards.html
 const (
-	// ModelMistralLarge3 is the bare Bedrock ID for Mistral Large 3
-	// (invoke via the prefixed variant).
-	ModelMistralLarge3   = "mistral.mistral-large-3-675b-instruct"
-	ModelMistralLarge3US = "us." + ModelMistralLarge3
+	// ModelMistralLarge3 is the on-demand / in-region Bedrock ID for
+	// Mistral Large 3 (invoked bare, with no inference-profile prefix).
+	ModelMistralLarge3 = "mistral.mistral-large-3-675b-instruct"
 )
 
 // ModelDefinition defines a model with its capabilities and constraints.
@@ -763,14 +759,15 @@ var supportedModels = map[string]ModelDefinition{
 	},
 
 	// ----------------------------------------------------------------
-	// Mistral Large 3 — us. profile only (see the const block above for why
-	// eu./global. are deferred). Unlike the Claude/Nova entries, Mistral Large
-	// 3 does NOT follow the geo/global 1.10x split: AWS prices it by service
-	// tier (standard/flex/priority/batch) under a single us-east-1 usagetype,
-	// with no separate global. rate — so there is no global. sibling and
-	// TestGeoGlobalRatio does not apply. We register the on-demand *standard*
-	// tier here (the tier the Converse proxy uses); flex/priority/batch are not
-	// modeled.
+	// Mistral Large 3 — on-demand / in-region, registered under the BARE ID
+	// (no inference profile; the "us.mistral..." profile does not exist —
+	// invoking it returns ValidationException "invalid model identifier").
+	// Unlike the Claude/Nova entries it does NOT follow the geo/global 1.10x
+	// split: AWS prices it by service tier (standard/flex/priority/batch) under
+	// a single us-east-1 usagetype, with no global. rate — so there is no
+	// global. sibling and TestGeoGlobalRatio does not apply. We register the
+	// on-demand *standard* tier here (the tier the Converse proxy uses);
+	// flex/priority/batch are not modeled.
 	//
 	// Rates verified against the AWS Price List bulk API (authoritative,
 	// machine-readable — the pricing web page is JS-rendered and unusable):
@@ -785,11 +782,16 @@ var supportedModels = map[string]ModelDefinition{
 	// Prompt caching is NOT billed for Mistral Large 3 (the price list carries
 	// no cache-read/cache-write usagetype), so all cache rates stay zero — the
 	// documented shape for a non-caching provider (see pricing.Rates). This is
-	// why ModelMistralLarge3US is listed in noCacheModels in pricing_test.go.
+	// why ModelMistralLarge3 is listed in noCacheModels in pricing_test.go.
+	//
+	// Because the bare ID has no geo prefix, this entry is excluded from the
+	// per-region conformance sweep (BedrockFixture.Models filters to the
+	// source region's geo profile); the aigw external_llm integration test
+	// covers live invocation and skips cleanly when access is not granted.
 	// ----------------------------------------------------------------
-	ModelMistralLarge3US: {
-		Name:         ModelMistralLarge3US,
-		Label:        "Mistral Large 3 (US)",
+	ModelMistralLarge3: {
+		Name:         ModelMistralLarge3,
+		Label:        "Mistral Large 3",
 		Capabilities: mistralLarge3Caps,
 		Constraints:  mistralLarge3Constraints,
 		Pricing: pricing.FlatInfoFromRates(

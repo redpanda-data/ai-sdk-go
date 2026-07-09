@@ -175,12 +175,17 @@ func WithCachingDisabled() ProviderOption {
 
 // NewModel creates a new Bedrock model instance with the specified configuration.
 func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error) {
-	// Build the API model ID with the region inference-profile prefix.
-	// If the caller already provided a region prefix (e.g. "eu.anthropic.…"),
-	// use it as-is. Otherwise prepend the provider's region.
+	// Build the API model ID. Most Bedrock models are cross-region inference
+	// profiles, so an un-prefixed name gets the source region's geo prefix
+	// (e.g. "anthropic.claude-sonnet-4-6" -> "us.anthropic.claude-sonnet-4-6").
+	// Two cases skip prefixing: a name that already carries a region prefix
+	// (e.g. "eu.anthropic.…"), and a name that is itself a catalog entry — a
+	// few third-party models (e.g. "mistral.mistral-large-3-675b-instruct") are
+	// on-demand / in-region and are invoked by their bare ID, so an exact
+	// catalog match is used as-is.
 	apiModelID := modelName
 
-	if !hasRegionPrefix(apiModelID) {
+	if _, registered := lookupModel(apiModelID); !registered && !hasRegionPrefix(apiModelID) {
 		apiModelID = InferenceProfileRegion(p.region) + "." + apiModelID
 	}
 
