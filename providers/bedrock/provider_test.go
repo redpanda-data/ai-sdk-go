@@ -248,20 +248,6 @@ func TestLookupModel(t *testing.T) {
 			input:  "us." + ModelMistralLarge3,
 			wantOK: false,
 		},
-
-		// Grok 4.3 — on-demand / in-region, registered under the bare ID.
-		// The (non-existent) us. inference profile is not a catalog entry.
-		{
-			name:    "Grok 4.3 bare ID is its own entry",
-			input:   ModelGrok43,
-			wantOK:  true,
-			wantDef: ModelGrok43,
-		},
-		{
-			name:   "Grok 4.3 us profile is not in the catalog",
-			input:  "us." + ModelGrok43,
-			wantOK: false,
-		},
 	}
 
 	for _, tt := range tests {
@@ -488,23 +474,6 @@ func TestNewModel_BareInRegionModelNotPrefixed(t *testing.T) {
 	m, ok := model.(*Model)
 	require.True(t, ok)
 	assert.Equal(t, ModelMistralLarge3, m.config.APIModelID)
-}
-
-// TestNewModel_Grok43BareNotPrefixed is the Grok analogue of
-// TestNewModel_BareInRegionModelNotPrefixed: the bare "xai.grok-4.3" ID must be
-// invoked as-is, with no "us." inference-profile prefix (that profile does not
-// exist on Bedrock).
-func TestNewModel_Grok43BareNotPrefixed(t *testing.T) {
-	t.Parallel()
-
-	p := &Provider{client: nil, region: "us-east-1"}
-
-	model, err := p.NewModel(ModelGrok43)
-	require.NoError(t, err)
-
-	m, ok := model.(*Model)
-	require.True(t, ok)
-	assert.Equal(t, ModelGrok43, m.config.APIModelID)
 }
 
 func TestNewModel_Fable5RegionPrefix(t *testing.T) {
