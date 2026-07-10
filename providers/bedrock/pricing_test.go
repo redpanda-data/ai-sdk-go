@@ -41,6 +41,9 @@ var freeCacheWriteModels = map[string]bool{
 // the cache for free.
 var noCacheModels = map[string]bool{
 	ModelMistralLarge3: true,
+	ModelGemma431B:     true,
+	ModelGemma426BA4B:  true,
+	ModelGemma4E2B:     true,
 }
 
 func TestAllModelsHavePricing(t *testing.T) {

@@ -22,17 +22,28 @@ import (
 	"sort"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	signerv4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
-// Provider implements the Bedrock model provider using the Converse API.
+// Provider implements the Bedrock model provider. Standard models use the
+// bedrock-runtime Converse API; mantle-only models (Mantle: true in the
+// catalog) use the OpenAI-compatible Responses API on bedrock-mantle, signed by
+// the SigV4 transport in mantle.go — which is why the provider also retains the
+// credentials, region, and a shared signer.
 type Provider struct {
 	client        *bedrockruntime.Client
 	region        string
 	enableCaching bool
+
+	// Retained for the mantle Responses transport (see mantle.go).
+	credentials  aws.CredentialsProvider
+	signer       *signerv4.Signer
+	httpClient   *http.Client // caller-supplied client, if any (base transport)
+	baseEndpoint string       // custom base endpoint (proxy/gateway mode), if any
 }
 
 // ProviderOption configures a Provider instance using functional options.
@@ -96,10 +107,31 @@ func NewProvider(ctx context.Context, opts ...ProviderOption) (*Provider, error)
 
 	client := bedrockruntime.NewFromConfig(awsCfg, clientOpts...)
 
+	var baseEndpoint string
+	if awsCfg.BaseEndpoint != nil {
+		baseEndpoint = *awsCfg.BaseEndpoint
+	}
+
+	// Resolve the HTTP client the mantle transport wraps. WithHTTPClient wins;
+	// otherwise honor a client supplied via WithAWSConfig (awsCfg.HTTPClient) so
+	// mantle requests use the same transport as the Converse client does, rather
+	// than silently falling back to the default. Anything else leaves it nil and
+	// mantle.go uses http.DefaultTransport.
+	httpClient := cfg.httpClient
+	if httpClient == nil {
+		if hc, ok := awsCfg.HTTPClient.(*http.Client); ok {
+			httpClient = hc
+		}
+	}
+
 	return &Provider{
 		client:        client,
 		region:        awsCfg.Region,
 		enableCaching: cfg.caching,
+		credentials:   awsCfg.Credentials,
+		signer:        signerv4.NewSigner(),
+		httpClient:    httpClient,
+		baseEndpoint:  baseEndpoint,
 	}, nil
 }
 
@@ -213,6 +245,12 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("configuration validation failed for %s: %w", modelName, err)
+	}
+
+	// Mantle-only models (Gemma 4, gpt-5.x) are not served by the Converse API;
+	// route them through the SigV4-signed OpenAI Responses transport instead.
+	if modelDef.Mantle {
+		return newMantleModel(p, cfg, modelDef)
 	}
 
 	return &Model{

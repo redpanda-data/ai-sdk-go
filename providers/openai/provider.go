@@ -141,29 +141,39 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 		return nil, fmt.Errorf("unsupported OpenAI model: %s", modelName)
 	}
 
+	return p.NewCompatModel(modelName, modelDef, opts...)
+}
+
+// NewCompatModel creates a model for an OpenAI-compatible endpoint using an
+// explicit ModelDefinition, bypassing the built-in supportedModels catalog and
+// the family-name resolver. It is the constructor for OpenAI-shaped models that
+// are not OpenAI's own — e.g. the Google Gemma 4 and OpenAI gpt-5.x models on
+// the AWS bedrock-mantle Responses endpoint, which the Bedrock provider reaches
+// by pointing this provider at a mantle base URL with a SigV4-signing HTTP
+// client (see providers/bedrock/mantle.go).
+//
+// modelName is sent verbatim as the API model ID. def supplies capabilities,
+// constraints, reasoning efforts, and pricing. All request/response/streaming
+// behaviour is identical to NewModel — only catalog lookup differs.
+func (p *Provider) NewCompatModel(modelName string, def ModelDefinition, opts ...Option) (llm.Model, error) {
 	cfg := &Config{
 		ModelName:   modelName,
-		Constraints: modelDef.Constraints,
+		Constraints: def.Constraints,
 		setOptions:  make(map[string]bool),
 	}
 
-	// Apply all options with validation
 	for _, opt := range opts {
-		err := opt(cfg)
-		if err != nil {
+		if err := opt(cfg); err != nil {
 			return nil, fmt.Errorf("invalid option for %s: %w", modelName, err)
 		}
 	}
 
-	// Validate configuration
-	err := cfg.Validate()
-	if err != nil {
+	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("configuration validation failed for %s: %w", modelName, err)
 	}
 
-	// Validate reasoning effort against model's supported efforts
-	if cfg.ReasoningEffort != nil && len(modelDef.SupportedReasoningEfforts) > 0 {
-		if !slices.Contains(modelDef.SupportedReasoningEfforts, *cfg.ReasoningEffort) {
+	if cfg.ReasoningEffort != nil && len(def.SupportedReasoningEfforts) > 0 {
+		if !slices.Contains(def.SupportedReasoningEfforts, *cfg.ReasoningEffort) {
 			return nil, fmt.Errorf("model %s does not support reasoning effort '%s'", modelName, *cfg.ReasoningEffort)
 		}
 	}
@@ -171,10 +181,10 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 	return &Model{
 		provider:       p,
 		config:         cfg,
-		definition:     modelDef,
+		definition:     def,
 		client:         p.client,
 		requestMapper:  NewRequestMapper(cfg),
-		responseMapper: NewResponseMapper(modelDef),
+		responseMapper: NewResponseMapper(def),
 	}, nil
 }
 
