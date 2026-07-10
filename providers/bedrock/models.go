@@ -154,6 +154,36 @@ const (
 	ModelMistralLarge3 = "mistral.mistral-large-3-675b-instruct"
 )
 
+// Model ID constants for Google Gemma 4 models on Bedrock.
+//
+// The Gemma 4 family is served ONLY on the bedrock-mantle endpoint (the
+// OpenAI-compatible Responses / Chat Completions API), NOT the standard
+// bedrock-runtime Converse API — so every entry sets Mantle: true and NewModel
+// routes it through the SigV4-signed Responses transport in mantle.go.
+//
+// Like Mistral Large 3, these are invoked by their BARE ID with no us./eu./
+// global. cross-region inference profile: the model cards list Geo = Not
+// supported and Global = Not supported, with only In-Region availability
+// (us-east-1, us-east-2, us-west-2, eu-central-1). So the bare ID is registered
+// and NewModel resolves it as-is (no geo-prefix). See
+// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-google-gemma-4-31b.html
+const (
+	// ModelGemma431B is Google Gemma 4 31B — a 30.7B dense model with
+	// built-in reasoning, native function calling, and text+image+video input
+	// (text output), 256K context. mantle-only.
+	ModelGemma431B = "google.gemma-4-31b"
+
+	// ModelGemma426BA4B is Google Gemma 4 26B-A4B — a 25.2B-total /
+	// 3.8B-active mixture-of-experts model tuned for cost/latency-sensitive
+	// workloads, 256K context. mantle-only.
+	ModelGemma426BA4B = "google.gemma-4-26b-a4b"
+
+	// ModelGemma4E2B is Google Gemma 4 E2B — the smallest variant (5.1B
+	// total / 2.3B effective) for low-latency interactive use, 128K context.
+	// mantle-only.
+	ModelGemma4E2B = "google.gemma-4-e2b"
+)
+
 // ModelDefinition defines a model with its capabilities and constraints.
 type ModelDefinition struct {
 	Name                        string // Real Bedrock model ID (e.g. "us.anthropic.claude-sonnet-4-6")
@@ -162,6 +192,16 @@ type ModelDefinition struct {
 	Constraints                 llm.ModelConstraints
 	Pricing                     pricing.Info
 	RequiresProviderDataSharing bool
+
+	// Mantle marks a model that is served ONLY on the bedrock-mantle
+	// endpoint (the OpenAI-compatible Responses / Chat Completions API at
+	// bedrock-mantle.{region}.api.aws), not the standard bedrock-runtime
+	// Converse API. NewModel routes these models through a SigV4-signed
+	// OpenAI Responses transport (see mantle.go) instead of Converse. The
+	// Google Gemma 4 family and OpenAI's gpt-5.x frontier models on Bedrock
+	// are mantle-only. See
+	// https://docs.aws.amazon.com/bedrock/latest/userguide/bedrock-mantle.html
+	Mantle bool
 }
 
 // ModelMetadataRequiresProviderDataSharing is set to "true" on discovery
@@ -350,6 +390,52 @@ var (
 		MaxInputTokens:   128000,
 		MaxOutputTokens:  8192,
 		SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
+	}
+
+	// Capability/constraint shapes for the Google Gemma 4 family on the
+	// bedrock-mantle endpoint. All variants share the same capability surface:
+	// streaming, native function calling (Tools), built-in Reasoning, and text
+	// output. Audio is false, and although Gemma accepts image/video input at
+	// the model level, Vision is left FALSE: the SDK has no image Part and the
+	// reused OpenAI Responses request mapper only serializes text/tool/reasoning
+	// parts, so there is no wired path to send an image today — advertising
+	// Vision would promise input the mapper silently drops. Flip to true once
+	// image input is threaded through the Responses request mapping. JSONMode /
+	// StructuredOutput are false for the same reason: unverified on this path.
+	//
+	// The context windows differ by variant (256K for 31B / 26B-A4B, 128K for
+	// E2B), so each gets its own constraints var. AWS publishes no separate
+	// max-output cap for Gemma on Bedrock — output is bounded only by the
+	// context window (other hosts report the full context as the output
+	// ceiling) — so MaxOutputTokens mirrors MaxInputTokens rather than a guessed
+	// smaller cap that would make WithMaxTokens spuriously reject large but
+	// valid requests. TemperatureRange is the OpenAI API's 0..2 (the mantle
+	// Responses endpoint honors OpenAI sampling semantics). SupportedParams
+	// lists only temperature and max_tokens: those are the only sampling
+	// controls the request mapper serializes, so advertising top_p / stop /
+	// penalties would let callers set knobs that silently do nothing.
+	gemma4Caps = llm.ModelCapabilities{
+		Streaming:     true,
+		Tools:         true,
+		Vision:        false,
+		Audio:         false,
+		MultiTurn:     true,
+		SystemPrompts: true,
+		Reasoning:     true,
+	}
+
+	gemma4Context256kConstraints = llm.ModelConstraints{
+		TemperatureRange: [2]float64{0.0, 2.0},
+		MaxInputTokens:   256000,
+		MaxOutputTokens:  256000,
+		SupportedParams:  []string{"temperature", "max_tokens"},
+	}
+
+	gemma4Context128kConstraints = llm.ModelConstraints{
+		TemperatureRange: [2]float64{0.0, 2.0},
+		MaxInputTokens:   128000,
+		MaxOutputTokens:  128000,
+		SupportedParams:  []string{"temperature", "max_tokens"},
 	}
 )
 
@@ -801,6 +887,57 @@ var supportedModels = map[string]ModelDefinition{
 		Constraints:  mistralLarge3Constraints,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(0.50, 1.50, 0),
+		),
+	},
+
+	// ----------------------------------------------------------------
+	// Google Gemma 4 family — mantle-only (Mantle: true), invoked by the
+	// bare ID via the bedrock-mantle Responses endpoint (no inference
+	// profile; the model cards list Geo/Global = Not supported). Because the
+	// bare IDs have no geo prefix, these are excluded from the per-region
+	// geo-profile conformance sweep and from TestGeoGlobalRatio (no global.
+	// sibling), and they are listed in noCacheModels in pricing_test.go.
+	//
+	// Pricing is the on-demand STANDARD-tier rate for the US regions
+	// (us-east-1/2, us-west-2), taken from https://aws.amazon.com/bedrock/pricing/
+	// (Google section, 2026-06). AWS also publishes a ~15-20% higher
+	// eu-central-1 (Frankfurt) rate that is NOT separately modeled here (the
+	// catalog keys on model ID, not region, and no existing Bedrock entry
+	// carries a region override): 31B EU $0.17/$0.48, 26B-A4B EU $0.16/$0.48,
+	// E2B EU $0.05/$0.10 per 1M in/out. Revisit with a pricing.Info region
+	// Override if EU-accurate billing is required. The mantle Responses
+	// endpoint bills only input/output (no cache-read/cache-write usagetype
+	// is published for Gemma), so all cache rates stay zero — the documented
+	// shape for a non-caching model (see pricing.Rates / noCacheModels).
+	// ----------------------------------------------------------------
+	ModelGemma431B: {
+		Name:         ModelGemma431B,
+		Label:        "Google Gemma 4 31B",
+		Capabilities: gemma4Caps,
+		Constraints:  gemma4Context256kConstraints,
+		Mantle:       true,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(0.14, 0.40, 0),
+		),
+	},
+	ModelGemma426BA4B: {
+		Name:         ModelGemma426BA4B,
+		Label:        "Google Gemma 4 26B-A4B",
+		Capabilities: gemma4Caps,
+		Constraints:  gemma4Context256kConstraints,
+		Mantle:       true,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(0.13, 0.40, 0),
+		),
+	},
+	ModelGemma4E2B: {
+		Name:         ModelGemma4E2B,
+		Label:        "Google Gemma 4 E2B",
+		Capabilities: gemma4Caps,
+		Constraints:  gemma4Context128kConstraints,
+		Mantle:       true,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(0.04, 0.08, 0),
 		),
 	},
 }
