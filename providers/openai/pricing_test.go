@@ -65,6 +65,25 @@ func TestGPT56Pricing(t *testing.T) {
 			wantWrite:   250_000_000,
 			wantOutput:  900_000_000,
 		},
+		{
+			name:       "Terra at 272K uses base rates",
+			model:      ModelGPT5_6Terra,
+			context:    272_000,
+			wantInput:  250_000_000,
+			wantCached: 25_000_000,
+			wantWrite:  312_500_000,
+			wantOutput: 1_500_000_000,
+		},
+		{
+			name:        "Terra above 272K uses long-context rates",
+			model:       ModelGPT5_6Terra,
+			context:     272_001,
+			wantBracket: 272_001,
+			wantInput:   500_000_000,
+			wantCached:  50_000_000,
+			wantWrite:   625_000_000,
+			wantOutput:  2_250_000_000,
+		},
 	}
 
 	for _, tt := range tests {
