@@ -393,6 +393,27 @@ var supportedModels = map[string]ModelDefinition{
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh},
 		Pricing:                   pricing.FlatInfo(5.00, 30.00, 0.50),
 	},
+	ModelGPT5_5Pro: {
+		Name:  ModelGPT5_5Pro,
+		Label: "OpenAI GPT-5.5 Pro",
+		Capabilities: llm.ModelCapabilities{
+			Tools:            true,
+			JSONMode:         true,
+			StructuredOutput: true,
+			Vision:           true,
+			MultiTurn:        true,
+			SystemPrompts:    true,
+			Reasoning:        true,
+		},
+		Constraints: llm.ModelConstraints{
+			MaxInputTokens:    1_050_000,
+			MaxOutputTokens:   128_000,
+			SupportedParams:   []string{"max_tokens", "reasoning_effort", "reasoning_summary"},
+			MutuallyExclusive: [][]string{},
+		},
+		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh},
+		Pricing:                   pricing.FlatInfo(30.00, 180.00, 0),
+	},
 
 	// GPT-5.4 Series (March 2026 Flagship)
 	ModelGPT5_4: {

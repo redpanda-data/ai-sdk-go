@@ -48,7 +48,9 @@ const (
 	ModelClaudeFable5       = "anthropic.claude-fable-5"
 	ModelClaudeFable5Global = "global." + ModelClaudeFable5
 	ModelClaudeFable5US     = "us." + ModelClaudeFable5
-	ModelClaudeFable5EU     = "eu." + ModelClaudeFable5
+	// ModelClaudeFable5EU is retained for runtime compatibility. The current AWS model card does not
+	// list this profile, so discovery marks it legacy rather than recommended.
+	ModelClaudeFable5EU = "eu." + ModelClaudeFable5
 
 	// ModelClaudeSonnet5 is the bare Bedrock ID for Claude Sonnet 5
 	// (inference-profile-only — invoke via one of the prefixed variants).
@@ -67,6 +69,7 @@ const (
 	ModelClaudeSonnet46US     = "us." + ModelClaudeSonnet46
 	ModelClaudeSonnet46EU     = "eu." + ModelClaudeSonnet46
 	ModelClaudeSonnet46AU     = "au." + ModelClaudeSonnet46
+	ModelClaudeSonnet46JP     = "jp." + ModelClaudeSonnet46
 
 	// ModelClaudeSonnet45 is the bare Bedrock ID for Claude Sonnet 4.5
 	// (inference-profile-only — invoke via one of the prefixed variants).
@@ -84,6 +87,7 @@ const (
 	ModelClaudeHaiku45US     = "us." + ModelClaudeHaiku45
 	ModelClaudeHaiku45EU     = "eu." + ModelClaudeHaiku45
 	ModelClaudeHaiku45AU     = "au." + ModelClaudeHaiku45
+	ModelClaudeHaiku45JP     = "jp." + ModelClaudeHaiku45
 
 	// ModelClaudeOpus48 is the bare Bedrock ID for Claude Opus 4.8
 	// (inference-profile-only — invoke via one of the prefixed variants).
@@ -92,6 +96,7 @@ const (
 	ModelClaudeOpus48US     = "us." + ModelClaudeOpus48
 	ModelClaudeOpus48EU     = "eu." + ModelClaudeOpus48
 	ModelClaudeOpus48JP     = "jp." + ModelClaudeOpus48
+	ModelClaudeOpus48AU     = "au." + ModelClaudeOpus48
 
 	// ModelClaudeOpus47 is the bare Bedrock ID for Claude Opus 4.7
 	// (inference-profile-only — invoke via one of the prefixed variants).
@@ -100,6 +105,7 @@ const (
 	ModelClaudeOpus47US     = "us." + ModelClaudeOpus47
 	ModelClaudeOpus47EU     = "eu." + ModelClaudeOpus47
 	ModelClaudeOpus47JP     = "jp." + ModelClaudeOpus47
+	ModelClaudeOpus47AU     = "au." + ModelClaudeOpus47
 
 	// ModelClaudeOpus46 is the bare Bedrock ID for Claude Opus 4.6
 	// (inference-profile-only — invoke via one of the prefixed variants).
@@ -452,8 +458,9 @@ var (
 //     is exactly 10% cheaper than the geo rate for the same model.
 var supportedModels = map[string]ModelDefinition{
 	// ----------------------------------------------------------------
-	// Claude Fable 5 — inference-profile-only, no bare entry. Geo
-	// profiles cover us and eu (jp/au are not published).
+	// Claude Fable 5 — inference-profile-only, no bare entry. The current AWS
+	// model card publishes us and global. The existing eu profile remains for
+	// runtime compatibility but is hidden from new selections by catalog policy.
 	// ----------------------------------------------------------------
 	ModelClaudeFable5Global: {
 		Name:                        ModelClaudeFable5Global,
@@ -485,10 +492,8 @@ var supportedModels = map[string]ModelDefinition{
 			pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(13.75, 22.00, 0),
 		),
 	},
-
 	// ----------------------------------------------------------------
-	// Claude Opus 4.8 — inference-profile-only, no bare entry. Geo
-	// profiles cover us, eu, jp (au is not published).
+	// Claude Opus 4.8 — inference-profile-only, no bare entry.
 	// ----------------------------------------------------------------
 	ModelClaudeOpus48Global: {
 		Name:         ModelClaudeOpus48Global,
@@ -526,10 +531,18 @@ var supportedModels = map[string]ModelDefinition{
 			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
 		),
 	},
+	ModelClaudeOpus48AU: {
+		Name:         ModelClaudeOpus48AU,
+		Label:        "Claude Opus 4.8 (AU)",
+		Capabilities: claudeStandardCaps,
+		Constraints:  claudeContext1MConstraints,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
+		),
+	},
 
 	// ----------------------------------------------------------------
-	// Claude Opus 4.7 — inference-profile-only, no bare entry. Geo
-	// profiles cover us, eu, jp (au is not published).
+	// Claude Opus 4.7 — inference-profile-only, no bare entry.
 	// ----------------------------------------------------------------
 	ModelClaudeOpus47Global: {
 		Name:         ModelClaudeOpus47Global,
@@ -561,6 +574,15 @@ var supportedModels = map[string]ModelDefinition{
 	ModelClaudeOpus47JP: {
 		Name:         ModelClaudeOpus47JP,
 		Label:        "Claude Opus 4.7 (JP)",
+		Capabilities: claudeStandardCaps,
+		Constraints:  claudeContext1MConstraints,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
+		),
+	},
+	ModelClaudeOpus47AU: {
+		Name:         ModelClaudeOpus47AU,
+		Label:        "Claude Opus 4.7 (AU)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext1MConstraints,
 		Pricing: pricing.FlatInfoFromRates(
@@ -701,6 +723,15 @@ var supportedModels = map[string]ModelDefinition{
 			pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0),
 		),
 	},
+	ModelClaudeSonnet46JP: {
+		Name:         ModelClaudeSonnet46JP,
+		Label:        "Claude Sonnet 4.6 (JP)",
+		Capabilities: claudeStandardCaps,
+		Constraints:  claudeContext200kConstraints,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0),
+		),
+	},
 
 	// ----------------------------------------------------------------
 	// Claude Sonnet 4.5 — inference-profile-only, widest geo coverage.
@@ -784,6 +815,15 @@ var supportedModels = map[string]ModelDefinition{
 	ModelClaudeHaiku45AU: {
 		Name:         ModelClaudeHaiku45AU,
 		Label:        "Claude Haiku 4.5 (AU)",
+		Capabilities: claudeStandardCaps,
+		Constraints:  claudeContext200kConstraints,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(1.10, 5.50, 0.11).WithCacheCreation(1.375, 2.20, 0),
+		),
+	},
+	ModelClaudeHaiku45JP: {
+		Name:         ModelClaudeHaiku45JP,
+		Label:        "Claude Haiku 4.5 (JP)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
 		Pricing: pricing.FlatInfoFromRates(

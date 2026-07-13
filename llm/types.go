@@ -304,6 +304,73 @@ type ModelCapabilities struct {
 	Reasoning        bool // Supports reasoning controls and exposes reasoning traces
 }
 
+// ModelPositioning describes whether a model should be recommended for new
+// workloads. It is intentionally independent from ModelLifecycle: a model can
+// remain active at its provider while being superseded by a newer model in the
+// same recommendation group.
+type ModelPositioning string
+
+const (
+	// ModelPositioningFrontier identifies a provider's highest-capability
+	// current model.
+	ModelPositioningFrontier ModelPositioning = "frontier"
+	// ModelPositioningModern identifies a current, useful model that serves a
+	// distinct cost, latency, or capability tier.
+	ModelPositioningModern ModelPositioning = "modern"
+	// ModelPositioningLegacy identifies a superseded model retained for
+	// backwards compatibility.
+	ModelPositioningLegacy ModelPositioning = "legacy"
+)
+
+// ModelLifecycle is the provider-confirmed availability state of a model.
+// Dates never implicitly change this value. In particular, Retired is only set
+// after an official provider source confirms that the model is unavailable.
+type ModelLifecycle string
+
+const (
+	ModelLifecycleActive     ModelLifecycle = "active"
+	ModelLifecycleDeprecated ModelLifecycle = "deprecated"
+	ModelLifecycleRetired    ModelLifecycle = "retired"
+)
+
+// ModelReleaseStage describes the provider's stability commitment for a
+// model, independently from recommendation and lifecycle state.
+type ModelReleaseStage string
+
+const (
+	ModelReleaseStageStable  ModelReleaseStage = "stable"
+	ModelReleaseStagePreview ModelReleaseStage = "preview"
+)
+
+// ModelCatalogMetadata is provider-scoped metadata used by model discovery
+// surfaces to recommend current models without breaking existing resources
+// that reference older IDs. FamilyKey is the stable product family used for UI
+// grouping. RecommendationGroup is the narrower upgrade track; Bedrock groups
+// include the routing geography because newer models are not always available
+// in every inference profile.
+//
+// EndOfLifeDate and VerifiedDate use ISO 8601 calendar dates (YYYY-MM-DD), not
+// timestamps. EndOfLifeDate is informational and never drives Lifecycle.
+type ModelCatalogMetadata struct {
+	FamilyKey           string
+	RecommendationGroup string
+	Positioning         ModelPositioning
+	Lifecycle           ModelLifecycle
+	ReleaseStage        ModelReleaseStage
+	EndOfLifeDate       string
+	Replacement         string
+	OfficialSourceURL   string
+	VerifiedDate        string
+}
+
+// ModelCatalogProvider exposes typed recommendation and lifecycle metadata
+// without changing ModelDiscoveryInfo's public struct layout. Implementations
+// resolve official aliases and dated snapshots to the same metadata as their
+// canonical discovery entry.
+type ModelCatalogProvider interface {
+	ModelCatalog(model string) (ModelCatalogMetadata, bool)
+}
+
 // ModelDiscoveryInfo provides metadata about a model that can be discovered at
 // runtime, without constructing the model. It is the static counterpart of the
 // ModelInfo interface: Name, Provider, Capabilities, and Constraints mirror the

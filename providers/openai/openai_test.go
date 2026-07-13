@@ -15,7 +15,11 @@
 package openai
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -358,6 +362,41 @@ func TestModelCapabilities(t *testing.T) {
 	assert.True(t, caps.Vision)
 	assert.False(t, caps.Audio)
 	assert.False(t, caps.StructuredOutput)
+}
+
+func TestGPT55ProGenerateEventsRejectsStreamingBeforeRequest(t *testing.T) {
+	t.Parallel()
+
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		http.Error(w, "unexpected streaming request", http.StatusBadRequest)
+	}))
+	t.Cleanup(server.Close)
+
+	provider, err := NewProvider("sk-test-key", WithBaseURL(server.URL))
+	require.NoError(t, err)
+
+	model, err := provider.NewModel(ModelGPT5_5Pro)
+	require.NoError(t, err)
+
+	request := &llm.Request{
+		Messages: []llm.Message{
+			llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hello")),
+		},
+	}
+
+	var streamErr error
+
+	for _, err := range model.GenerateEvents(context.Background(), request) {
+		if err != nil {
+			streamErr = err
+			break
+		}
+	}
+
+	require.ErrorIs(t, streamErr, llm.ErrUnsupportedFeature)
+	require.Zero(t, requests.Load())
 }
 
 func TestRequestMapping(t *testing.T) {

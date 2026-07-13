@@ -128,6 +128,7 @@ func TestAllModelsHavePricing(t *testing.T) {
 	noCacheModels := map[string]bool{
 		ModelGPT4Turbo:  true, // Legacy model, no prompt caching.
 		ModelGPT35Turbo: true, // Legacy model, no prompt caching.
+		ModelGPT5_5Pro:  true, // Pro tier, official model card lists no cached discount.
 		ModelGPT5_2Pro:  true, // Pro tier, no caching listed.
 		ModelO3Pro:      true, // Pro tier, no caching listed.
 	}

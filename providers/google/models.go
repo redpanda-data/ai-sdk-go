@@ -25,6 +25,7 @@ import (
 const (
 	ModelGemini35Flash       = "gemini-3.5-flash"
 	ModelGemini31ProPreview  = "gemini-3.1-pro-preview"
+	ModelGemini31FlashLite   = "gemini-3.1-flash-lite"
 	ModelGemini3ProPreview   = "gemini-3-pro-preview"
 	ModelGemini3FlashPreview = "gemini-3-flash-preview"
 	ModelGemini25Pro         = "gemini-2.5-pro"
@@ -117,6 +118,28 @@ var supportedModels = map[string]ModelDefinition{
 				Rates:            pricing.NewRates(4.00, 18.00, 0.40),
 			},
 		),
+	},
+	ModelGemini31FlashLite: {
+		Name:  ModelGemini31FlashLite,
+		Label: "Gemini 3.1 Flash Lite",
+		Capabilities: llm.ModelCapabilities{
+			Streaming:        true,
+			Tools:            true,
+			JSONMode:         true,
+			StructuredOutput: true,
+			Vision:           true,
+			MultiTurn:        true,
+			SystemPrompts:    true,
+			Reasoning:        true,
+		},
+		Constraints: llm.ModelConstraints{
+			TemperatureRange:  [2]float64{0.0, 2.0},
+			MaxInputTokens:    1048576,
+			MaxOutputTokens:   65536,
+			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
+			MutuallyExclusive: [][]string{},
+		},
+		Pricing: pricing.FlatInfo(0.25, 1.50, 0.025),
 	},
 	ModelGemini3ProPreview: {
 		Name:  ModelGemini3ProPreview,
