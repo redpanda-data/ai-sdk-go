@@ -175,6 +175,7 @@ func TestGPT56Models(t *testing.T) {
 	}{
 		{name: "Luna", model: ModelGPT5_6Luna, label: "OpenAI GPT-5.6 Luna"},
 		{name: "Terra", model: ModelGPT5_6Terra, label: "OpenAI GPT-5.6 Terra"},
+		{name: "Sol", model: ModelGPT5_6Sol, label: "OpenAI GPT-5.6 Sol"},
 	}
 
 	for _, tt := range tests {
@@ -212,6 +213,38 @@ func TestGPT56Models(t *testing.T) {
 
 			t.Fatalf("model %q was not discoverable", tt.model)
 		})
+	}
+}
+
+func TestGPT56AliasResolvesToSolWithoutDuplicateDiscovery(t *testing.T) {
+	t.Parallel()
+
+	provider, err := NewProvider("sk-test-key")
+	require.NoError(t, err)
+
+	aliasModel, err := provider.NewModel(ModelGPT5_6, WithReasoningEffort(ReasoningEffortMax))
+	require.NoError(t, err)
+	assert.Equal(t, ModelGPT5_6, aliasModel.Name())
+
+	solModel, err := provider.NewModel(ModelGPT5_6Sol)
+	require.NoError(t, err)
+	assert.Equal(t, solModel.Capabilities(), aliasModel.Capabilities())
+	assert.Equal(t, solModel.Constraints(), aliasModel.Constraints())
+
+	openAIModel, ok := aliasModel.(*Model)
+	require.True(t, ok)
+
+	apiReq, err := openAIModel.requestMapper.ToProvider(&llm.Request{})
+	require.NoError(t, err)
+	assert.Equal(t, ModelGPT5_6, apiReq.Model)
+
+	for _, discovered := range provider.Models() {
+		assert.NotEqual(t, ModelGPT5_6, discovered.Name)
+	}
+
+	for _, unsupported := range []string{"gpt-5.6-2026-07-09", "gpt-5.6-preview"} {
+		_, err := provider.NewModel(unsupported)
+		require.ErrorContains(t, err, "unsupported OpenAI model")
 	}
 }
 

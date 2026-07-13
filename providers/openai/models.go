@@ -31,6 +31,10 @@ type ModelDefinition struct {
 	Pricing                   pricing.Info      // Cost per million tokens (microcents)
 }
 
+var modelAliases = map[string]string{
+	ModelGPT5_6: ModelGPT5_6Sol,
+}
+
 // resolveModelFamily returns the model family key for a given model string.
 // If the model string has a known family as a prefix, that family is returned
 // (longest match wins). Otherwise the original string is returned unchanged.
@@ -43,6 +47,10 @@ type ModelDefinition struct {
 //	"gpt-4o-2024-11-20" -> "gpt-4o"
 //	"gpt-4o"            -> "gpt-4o" (unchanged, exact match)
 func resolveModelFamily(model string) string {
+	if family, ok := modelAliases[model]; ok {
+		return family
+	}
+
 	best := ""
 
 	for family := range supportedModels {
@@ -52,6 +60,12 @@ func resolveModelFamily(model string) string {
 	}
 
 	if best != "" {
+		for alias := range modelAliases {
+			if strings.HasPrefix(model, alias+"-") && !strings.HasPrefix(best, alias+"-") {
+				return model
+			}
+		}
+
 		return best
 	}
 
@@ -319,6 +333,37 @@ var supportedModels = map[string]ModelDefinition{
 			pricing.Bracket{
 				MinContextTokens: 272_001,
 				Rates:            pricing.NewRates(5.00, 22.50, 0.50).WithCacheCreation(0, 0, 6.25),
+			},
+		),
+	},
+	ModelGPT5_6Sol: {
+		Name:  ModelGPT5_6Sol,
+		Label: "OpenAI GPT-5.6 Sol",
+		Capabilities: llm.ModelCapabilities{
+			Streaming:        true,
+			Tools:            true,
+			JSONMode:         true,
+			StructuredOutput: true,
+			Vision:           true,
+			MultiTurn:        true,
+			SystemPrompts:    true,
+			Reasoning:        true,
+		},
+		Constraints: llm.ModelConstraints{
+			TemperatureRange:  [2]float64{0.0, 2.0},
+			MaxInputTokens:    1_050_000,
+			MaxOutputTokens:   128_000,
+			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed", "reasoning_effort", "reasoning_summary"},
+			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
+		},
+		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+		// Per M tokens: $5.00 input, $30.00 output, $0.50 cached input, $6.25 cache write.
+		// Above 272K: $10.00 input, $45.00 output, $1.00 cached input, $12.50 cache write.
+		Pricing: pricing.TieredInfo(
+			pricing.NewRates(5.00, 30.00, 0.50).WithCacheCreation(0, 0, 6.25),
+			pricing.Bracket{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(10.00, 45.00, 1.00).WithCacheCreation(0, 0, 12.50),
 			},
 		),
 	},
