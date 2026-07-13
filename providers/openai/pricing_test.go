@@ -84,6 +84,25 @@ func TestGPT56Pricing(t *testing.T) {
 			wantWrite:   625_000_000,
 			wantOutput:  2_250_000_000,
 		},
+		{
+			name:       "Sol at 272K uses base rates",
+			model:      ModelGPT5_6Sol,
+			context:    272_000,
+			wantInput:  500_000_000,
+			wantCached: 50_000_000,
+			wantWrite:  625_000_000,
+			wantOutput: 3_000_000_000,
+		},
+		{
+			name:        "Sol above 272K uses long-context rates",
+			model:       ModelGPT5_6Sol,
+			context:     272_001,
+			wantBracket: 272_001,
+			wantInput:   1_000_000_000,
+			wantCached:  100_000_000,
+			wantWrite:   1_250_000_000,
+			wantOutput:  4_500_000_000,
+		},
 	}
 
 	for _, tt := range tests {
@@ -130,10 +149,19 @@ func TestAllModelsHavePricing(t *testing.T) {
 	}
 }
 
+func TestGPT56AliasHasSolPricing(t *testing.T) {
+	t.Parallel()
+
+	pricingMap := ModelPricing()
+	aliasPricing, ok := pricingMap[ModelGPT5_6]
+	require.True(t, ok)
+	assert.Equal(t, supportedModels[ModelGPT5_6Sol].Pricing, aliasPricing)
+}
+
 func TestModelPricingMatchesModels(t *testing.T) {
 	t.Parallel()
 
 	pricingMap := ModelPricing()
-	assert.Len(t, pricingMap, len(supportedModels),
-		"ModelPricing should return exactly one entry per supported model")
+	assert.Len(t, pricingMap, len(supportedModels)+len(modelAliases),
+		"ModelPricing should return one entry per supported model and alias")
 }
