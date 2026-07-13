@@ -45,6 +45,8 @@ const (
 
 	// ModelGPT5_6Luna is the cost-optimized GPT-5.6 model.
 	ModelGPT5_6Luna = shared.ChatModelGPT5_6Luna
+	// ModelGPT5_6Terra balances capability and cost in the GPT-5.6 family.
+	ModelGPT5_6Terra = shared.ChatModelGPT5_6Terra
 
 	// ModelGPT5_5 is the GPT-5.5 flagship model (1M context, coding/professional work).
 	// Raw string until the OpenAI SDK adds the constant.

@@ -174,6 +174,7 @@ func TestGPT56Models(t *testing.T) {
 		label string
 	}{
 		{name: "Luna", model: ModelGPT5_6Luna, label: "OpenAI GPT-5.6 Luna"},
+		{name: "Terra", model: ModelGPT5_6Terra, label: "OpenAI GPT-5.6 Terra"},
 	}
 
 	for _, tt := range tests {

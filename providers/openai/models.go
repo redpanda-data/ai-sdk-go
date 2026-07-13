@@ -291,6 +291,37 @@ var supportedModels = map[string]ModelDefinition{
 			},
 		),
 	},
+	ModelGPT5_6Terra: {
+		Name:  ModelGPT5_6Terra,
+		Label: "OpenAI GPT-5.6 Terra",
+		Capabilities: llm.ModelCapabilities{
+			Streaming:        true,
+			Tools:            true,
+			JSONMode:         true,
+			StructuredOutput: true,
+			Vision:           true,
+			MultiTurn:        true,
+			SystemPrompts:    true,
+			Reasoning:        true,
+		},
+		Constraints: llm.ModelConstraints{
+			TemperatureRange:  [2]float64{0.0, 2.0},
+			MaxInputTokens:    1_050_000,
+			MaxOutputTokens:   128_000,
+			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed", "reasoning_effort", "reasoning_summary"},
+			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
+		},
+		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+		// Per M tokens: $2.50 input, $15.00 output, $0.25 cached input, $3.125 cache write.
+		// Above 272K: $5.00 input, $22.50 output, $0.50 cached input, $6.25 cache write.
+		Pricing: pricing.TieredInfo(
+			pricing.NewRates(2.50, 15.00, 0.25).WithCacheCreation(0, 0, 3.125),
+			pricing.Bracket{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(5.00, 22.50, 0.50).WithCacheCreation(0, 0, 6.25),
+			},
+		),
+	},
 
 	// GPT-5.5 (May 2026 Flagship)
 	ModelGPT5_5: {
