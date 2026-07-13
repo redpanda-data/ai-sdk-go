@@ -259,6 +259,39 @@ var supportedModels = map[string]ModelDefinition{
 		Pricing:                   pricing.FlatInfo(1.75, 14.00, 0.175),
 	},
 
+	// GPT-5.6 Series
+	ModelGPT5_6Luna: {
+		Name:  ModelGPT5_6Luna,
+		Label: "OpenAI GPT-5.6 Luna",
+		Capabilities: llm.ModelCapabilities{
+			Streaming:        true,
+			Tools:            true,
+			JSONMode:         true,
+			StructuredOutput: true,
+			Vision:           true,
+			MultiTurn:        true,
+			SystemPrompts:    true,
+			Reasoning:        true,
+		},
+		Constraints: llm.ModelConstraints{
+			TemperatureRange:  [2]float64{0.0, 2.0},
+			MaxInputTokens:    1_050_000,
+			MaxOutputTokens:   128_000,
+			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed", "reasoning_effort", "reasoning_summary"},
+			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
+		},
+		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+		// Per M tokens: $1.00 input, $6.00 output, $0.10 cached input, $1.25 cache write.
+		// Above 272K: $2.00 input, $9.00 output, $0.20 cached input, $2.50 cache write.
+		Pricing: pricing.TieredInfo(
+			pricing.NewRates(1.00, 6.00, 0.10).WithCacheCreation(0, 0, 1.25),
+			pricing.Bracket{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(2.00, 9.00, 0.20).WithCacheCreation(0, 0, 2.50),
+			},
+		),
+	},
+
 	// GPT-5.5 (May 2026 Flagship)
 	ModelGPT5_5: {
 		Name:  ModelGPT5_5,

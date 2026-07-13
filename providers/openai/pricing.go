@@ -17,7 +17,7 @@ package openai
 import "github.com/redpanda-data/ai-sdk-go/pricing"
 
 // ModelPricing returns a model ID → pricing map for all supported OpenAI models.
-// Source: https://openai.com/api/pricing/ (as of 2026-04).
+// Source: https://openai.com/api/pricing/ (as of 2026-07).
 func ModelPricing() map[string]pricing.Info {
 	m := make(map[string]pricing.Info, len(supportedModels))
 	for id, def := range supportedModels {

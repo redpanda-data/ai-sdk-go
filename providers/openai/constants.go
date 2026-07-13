@@ -43,6 +43,9 @@ const (
 	// ModelGPT5_3ChatLatest is the GPT-5.3 Chat Latest model (speed-optimized, medium-only reasoning).
 	ModelGPT5_3ChatLatest = shared.ChatModelGPT5_3ChatLatest
 
+	// ModelGPT5_6Luna is the cost-optimized GPT-5.6 model.
+	ModelGPT5_6Luna = shared.ChatModelGPT5_6Luna
+
 	// ModelGPT5_5 is the GPT-5.5 flagship model (1M context, coding/professional work).
 	// Raw string until the OpenAI SDK adds the constant.
 	ModelGPT5_5 = "gpt-5.5"
@@ -95,6 +98,8 @@ const (
 	ReasoningEffortHigh = ReasoningEffort(shared.ReasoningEffortHigh)
 	// ReasoningEffortXHigh uses extra high computational effort for reasoning (GPT-5.2+).
 	ReasoningEffortXHigh = ReasoningEffort(shared.ReasoningEffortXhigh)
+	// ReasoningEffortMax uses maximum computational effort for reasoning (GPT-5.6+).
+	ReasoningEffortMax = ReasoningEffort(shared.ReasoningEffortMax)
 )
 
 // ReasoningSummary controls whether and how reasoning traces are summarized.

@@ -121,17 +121,33 @@ func (m *ResponseMapper) FromProvider(r *responses.Response) (*llm.Response, err
 		}
 	}
 
-	// 5. Usage extraction. OpenAI reports cached_tokens as a subset of
-	// input_tokens and reasoning_tokens as a subset of output_tokens. The
-	// normalized llm.TokenUsage shape is disjoint, so we un-subset both
-	// here.
-	cachedIn := int(r.Usage.InputTokensDetails.CachedTokens)
-	reasoning := int(r.Usage.OutputTokensDetails.ReasoningTokens)
+	// 5. Usage extraction. OpenAI reports cached_tokens and
+	// cache_write_tokens as subsets of input_tokens, and reasoning_tokens as
+	// a subset of output_tokens. The normalized llm.TokenUsage shape is
+	// disjoint, so we un-subset them here.
+	inputTotal := r.Usage.InputTokens
+	cachedIn := r.Usage.InputTokensDetails.CachedTokens
+
+	cacheWrite := r.Usage.InputTokensDetails.CacheWriteTokens
+	if inputTotal < 0 || cachedIn < 0 || cacheWrite < 0 || cachedIn > inputTotal || cacheWrite > inputTotal-cachedIn {
+		return nil, fmt.Errorf("%w: invalid input token usage: total=%d cached=%d cache_write=%d",
+			llm.ErrResponseMapping, inputTotal, cachedIn, cacheWrite)
+	}
+
+	outputTotal := r.Usage.OutputTokens
+
+	reasoning := r.Usage.OutputTokensDetails.ReasoningTokens
+	if outputTotal < 0 || reasoning < 0 || reasoning > outputTotal {
+		return nil, fmt.Errorf("%w: invalid output token usage: total=%d reasoning=%d",
+			llm.ErrResponseMapping, outputTotal, reasoning)
+	}
+
 	usage := &llm.TokenUsage{
-		InputTokens:       int(r.Usage.InputTokens) - cachedIn,
-		CachedInputTokens: cachedIn,
-		OutputTokens:      int(r.Usage.OutputTokens) - reasoning,
-		ReasoningTokens:   reasoning,
+		InputTokens:                   int(inputTotal - cachedIn - cacheWrite),
+		CachedInputTokens:             int(cachedIn),
+		CacheCreationUnknownTTLTokens: int(cacheWrite),
+		OutputTokens:                  int(outputTotal - reasoning),
+		ReasoningTokens:               int(reasoning),
 	}
 
 	// 6. Finish reason. Truncation and filter signals must propagate through

@@ -86,7 +86,7 @@ type TokenUsage struct {
 	// Extractors fall back to this field when a provider reports an
 	// aggregate cache-write count without a per-TTL breakdown, so the total
 	// stays reflected in BilledInputTokens() without pretending to know the
-	// TTL.
+	// TTL. Provider coverage: OpenAI, Anthropic, Bedrock-Anthropic.
 	CacheCreationUnknownTTLTokens int `json:"cache_creation_unknown_ttl_tokens,omitempty"`
 
 	// ToolUseInputTokens is the number of prompt tokens consumed by

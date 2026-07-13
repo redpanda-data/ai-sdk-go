@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/openai/openai-go/v3/responses"
+	"github.com/openai/openai-go/v3/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -141,6 +142,76 @@ func TestModelCreation(t *testing.T) {
 	_, err = provider.NewModel(ModelGPT5Mini, WithTemperature(0.7), WithTopP(0.9))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cannot use")
+}
+
+func TestGPT56Models(t *testing.T) {
+	t.Parallel()
+
+	provider, err := NewProvider("sk-test-key")
+	require.NoError(t, err)
+
+	wantCapabilities := llm.ModelCapabilities{
+		Streaming:        true,
+		Tools:            true,
+		JSONMode:         true,
+		StructuredOutput: true,
+		Vision:           true,
+		MultiTurn:        true,
+		SystemPrompts:    true,
+		Reasoning:        true,
+	}
+	wantEfforts := []ReasoningEffort{
+		ReasoningEffortNone,
+		ReasoningEffortLow,
+		ReasoningEffortMedium,
+		ReasoningEffortHigh,
+		ReasoningEffortXHigh,
+		ReasoningEffortMax,
+	}
+	tests := []struct {
+		name  string
+		model string
+		label string
+	}{
+		{name: "Luna", model: ModelGPT5_6Luna, label: "OpenAI GPT-5.6 Luna"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			model, err := provider.NewModel(tt.model, WithReasoningEffort(ReasoningEffortMax))
+			require.NoError(t, err)
+			assert.Equal(t, tt.model, model.Name())
+			assert.Equal(t, wantCapabilities, model.Capabilities())
+			assert.Equal(t, 1_050_000, model.Constraints().MaxInputTokens)
+			assert.Equal(t, 128_000, model.Constraints().MaxOutputTokens)
+
+			openAIModel, ok := model.(*Model)
+			require.True(t, ok)
+			assert.Equal(t, wantEfforts, openAIModel.SupportedReasoningEfforts())
+
+			apiReq, err := openAIModel.requestMapper.ToProvider(&llm.Request{Messages: []llm.Message{{
+				Role:    llm.RoleUser,
+				Content: []llm.Part{llm.NewTextPart("hello")},
+			}}})
+			require.NoError(t, err)
+			assert.Equal(t, tt.model, apiReq.Model)
+			assert.Equal(t, shared.ReasoningEffortMax, apiReq.Reasoning.Effort)
+
+			for _, discovered := range provider.Models() {
+				if discovered.Name == tt.model {
+					assert.Equal(t, tt.label, discovered.Label)
+					assert.Equal(t, model.Capabilities(), discovered.Capabilities)
+					assert.Equal(t, model.Constraints(), discovered.Constraints)
+
+					return
+				}
+			}
+
+			t.Fatalf("model %q was not discoverable", tt.model)
+		})
+	}
 }
 
 func TestResolveModelFamily(t *testing.T) {
@@ -754,7 +825,7 @@ func TestMessageMappingWithToolParts(t *testing.T) {
 	}
 }
 
-func TestGPT52ReasoningEffort(t *testing.T) {
+func TestReasoningEffort(t *testing.T) {
 	t.Parallel()
 
 	provider, err := NewProvider("sk-test-key")
@@ -829,6 +900,13 @@ func TestGPT52ReasoningEffort(t *testing.T) {
 			model:         ModelGPT5_4,
 			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortXHigh)},
 			wantErr:       false,
+		},
+		{
+			name:          "gpt-5.5 with ReasoningEffortMax (unsupported)",
+			model:         ModelGPT5_5,
+			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortMax)},
+			wantErr:       true,
+			errContains:   "does not support reasoning effort 'max'",
 		},
 		{
 			name:          "gpt-5.4 with ReasoningEffortMinimal (unsupported)",
