@@ -73,12 +73,11 @@ type Rates struct {
 	// this at zero and emit no cached-input tokens.
 	CachedInputPerMillion int64
 
-	// Prompt-cache writes. Anthropic-family (direct + Bedrock) only:
-	// cache creation is billed separately from standard input, with
-	// distinct rates per TTL. CacheCreationUnknownTTL is the fallback
-	// bucket used when the provider reports aggregate cache-write
-	// tokens without a per-TTL breakdown. All three stay zero on
-	// providers that do not bill cache writes separately.
+	// Prompt-cache writes. Anthropic-family providers expose distinct rates
+	// per TTL; OpenAI exposes an aggregate cache-write count.
+	// CacheCreationUnknownTTL is the fallback bucket when the provider does
+	// not report a TTL. All three stay zero on providers that do not bill
+	// cache writes separately.
 	CacheCreation5mPerMillion         int64
 	CacheCreation1hPerMillion         int64
 	CacheCreationUnknownTTLPerMillion int64

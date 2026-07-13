@@ -18,7 +18,70 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/pricing"
 )
+
+func TestGPT56Pricing(t *testing.T) {
+	t.Parallel()
+
+	catalog, err := pricing.NewCatalog(pricing.WithProvider("openai", ModelPricing()))
+	require.NoError(t, err)
+
+	usage := &llm.TokenUsage{
+		InputTokens:                   1_000_000,
+		CachedInputTokens:             1_000_000,
+		CacheCreationUnknownTTLTokens: 1_000_000,
+		OutputTokens:                  1_000_000,
+	}
+	tests := []struct {
+		name        string
+		model       string
+		context     int64
+		wantBracket int64
+		wantInput   int64
+		wantCached  int64
+		wantWrite   int64
+		wantOutput  int64
+	}{
+		{
+			name:       "Luna at 272K uses base rates",
+			model:      ModelGPT5_6Luna,
+			context:    272_000,
+			wantInput:  100_000_000,
+			wantCached: 10_000_000,
+			wantWrite:  125_000_000,
+			wantOutput: 600_000_000,
+		},
+		{
+			name:        "Luna above 272K uses long-context rates",
+			model:       ModelGPT5_6Luna,
+			context:     272_001,
+			wantBracket: 272_001,
+			wantInput:   200_000_000,
+			wantCached:  20_000_000,
+			wantWrite:   250_000_000,
+			wantOutput:  900_000_000,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cost, err := catalog.Calculate(tt.model, usage, pricing.CalcRequest{ContextTokens: tt.context})
+			require.NoError(t, err)
+			assert.Empty(t, cost.Unpriced)
+			assert.Equal(t, tt.wantBracket, cost.AppliedBracketMinContextTokens)
+			assert.Equal(t, tt.wantInput, cost.Breakdown[pricing.UsageFieldInput])
+			assert.Equal(t, tt.wantCached, cost.Breakdown[pricing.UsageFieldCachedInput])
+			assert.Equal(t, tt.wantWrite, cost.Breakdown[pricing.UsageFieldCacheCreationUnknownTTL])
+			assert.Equal(t, tt.wantOutput, cost.Breakdown[pricing.UsageFieldOutput])
+		})
+	}
+}
 
 func TestAllModelsHavePricing(t *testing.T) {
 	t.Parallel()

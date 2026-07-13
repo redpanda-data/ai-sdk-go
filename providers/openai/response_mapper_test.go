@@ -55,6 +55,94 @@ func TestResponseMapper_Metadata(t *testing.T) {
 	assert.Equal(t, ModelGPT5Mini, resp.InvokedModelID)
 }
 
+func TestResponseMapper_CacheUsageBucketsAreDisjoint(t *testing.T) {
+	t.Parallel()
+
+	payload := `{
+		"id": "resp_cache",
+		"model": "gpt-5-mini",
+		"status": "completed",
+		"output": [{
+			"id": "msg_cache",
+			"type": "message",
+			"role": "assistant",
+			"status": "completed",
+			"content": [{"type": "output_text", "text": "ok", "annotations": []}]
+		}],
+		"usage": {
+			"input_tokens": 100,
+			"input_tokens_details": {
+				"cached_tokens": 30,
+				"cache_write_tokens": 20
+			},
+			"output_tokens": 5,
+			"total_tokens": 105
+		}
+	}`
+
+	var providerResponse responses.Response
+	require.NoError(t, json.Unmarshal([]byte(payload), &providerResponse))
+
+	mapper := NewResponseMapper(supportedModels[ModelGPT5Mini])
+	resp, err := mapper.FromProvider(&providerResponse)
+	require.NoError(t, err)
+	require.NotNil(t, resp.Usage)
+
+	assert.Equal(t, 50, resp.Usage.InputTokens)
+	assert.Equal(t, 30, resp.Usage.CachedInputTokens)
+	assert.Equal(t, 20, resp.Usage.CacheCreationUnknownTTLTokens)
+	assert.Equal(t, 100, resp.Usage.BilledInputTokens())
+}
+
+func TestResponseMapper_RejectsInvalidUsageCounters(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		usage responses.ResponseUsage
+	}{
+		{
+			name: "cache subsets exceed input total",
+			usage: responses.ResponseUsage{
+				InputTokens: 100,
+				InputTokensDetails: responses.ResponseUsageInputTokensDetails{
+					CachedTokens:     90,
+					CacheWriteTokens: 20,
+				},
+			},
+		},
+		{
+			name: "reasoning exceeds output total",
+			usage: responses.ResponseUsage{
+				OutputTokens: 10,
+				OutputTokensDetails: responses.ResponseUsageOutputTokensDetails{
+					ReasoningTokens: 11,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mapper := NewResponseMapper(supportedModels[ModelGPT5Mini])
+			_, err := mapper.FromProvider(&responses.Response{
+				Status: responses.ResponseStatusCompleted,
+				Output: []responses.ResponseOutputItemUnion{{
+					Type: outputTypeMessage,
+					Content: []responses.ResponseOutputMessageContentUnion{{
+						Type: contentTypeOutputText,
+						Text: "ok",
+					}},
+				}},
+				Usage: tt.usage,
+			})
+			require.ErrorIs(t, err, llm.ErrResponseMapping)
+		})
+	}
+}
+
 // TestResponseMapper_FinishReasonTruncationWithToolCalls locks in the rule
 // that truncation signals win over the hasToolCalls-based ToolCalls upgrade.
 // See providers/anthropic/response_mapper_test.go for the full rationale.
