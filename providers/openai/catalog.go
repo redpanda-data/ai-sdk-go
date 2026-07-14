@@ -29,12 +29,17 @@ const (
 )
 
 var openAIExactModelCatalogOverrides = map[string]llm.ModelCatalogMetadata{
-	"gpt-5-2025-08-07":      openAICatalog("gpt", "openai-gpt-flagship", "2025-08-07", "2026-12-11", true, false, ModelGPT5_5, openAIDeprecationsSource),
-	"gpt-5-mini-2025-08-07": openAICatalog("gpt", "openai-gpt-balanced", "2025-08-07", "2026-12-11", true, false, ModelGPT5_4Mini, openAIDeprecationsSource),
-	"gpt-5-nano-2025-08-07": openAICatalog("gpt", "openai-gpt-efficient", "2025-08-07", "2026-12-11", true, false, ModelGPT5_4Nano, openAIDeprecationsSource),
-	"o3-2025-04-16":         openAICatalog("o-series", "openai-gpt-flagship", "2025-04-16", "2026-12-11", true, false, ModelGPT5_5, openAIDeprecationsSource),
-	"o3-pro-2025-06-10":     openAICatalog("o-series", "openai-gpt-pro", "2025-06-10", "2026-12-11", true, false, ModelGPT5_5Pro, openAIDeprecationsSource),
-	"gpt-4-turbo-preview":   openAICatalog("gpt", "openai-gpt-flagship", "2023-11-06", "2026-03-26", true, true, ModelGPT5_5, openAIDeprecationsSource),
+	"gpt-5-2025-08-07":       openAICatalog("gpt", "openai-gpt-flagship", "2025-08-07", "2026-12-11", true, false, ModelGPT5_5, openAIDeprecationsSource),
+	"gpt-5-mini-2025-08-07":  openAICatalog("gpt", "openai-gpt-balanced", "2025-08-07", "2026-12-11", true, false, ModelGPT5_4Mini, openAIDeprecationsSource),
+	"gpt-5-nano-2025-08-07":  openAICatalog("gpt", "openai-gpt-efficient", "2025-08-07", "2026-12-11", true, false, ModelGPT5_4Nano, openAIDeprecationsSource),
+	"o3-2025-04-16":          openAICatalog("o-series", "openai-gpt-flagship", "2025-04-16", "2026-12-11", true, false, ModelGPT5_5, openAIDeprecationsSource),
+	"o3-pro-2025-06-10":      openAICatalog("o-series", "openai-gpt-pro", "2025-06-10", "2026-12-11", true, false, ModelGPT5_5Pro, openAIDeprecationsSource),
+	"gpt-3.5-turbo-0125":     openAICatalog("gpt", "openai-gpt-balanced", "2024-01-25", "2026-10-23", true, false, ModelGPT5_4Mini, openAIDeprecationsSource),
+	"gpt-4-turbo-2024-04-09": openAICatalog("gpt", "openai-gpt-flagship", "2024-04-09", "2026-10-23", true, false, ModelGPT5_5, openAIDeprecationsSource),
+	"gpt-4o-2024-05-13":      openAICatalog("gpt", "openai-gpt-flagship", "2024-05-13", "2026-10-23", true, false, ModelGPT5_5, openAIDeprecationsSource),
+	"o1-pro-2025-03-19":      openAICatalog("o-series", "openai-gpt-pro", "2025-03-19", "2026-10-23", true, false, ModelGPT5_5Pro, openAIDeprecationsSource),
+	"o4-mini-2025-04-16":     openAICatalog("o-series", "openai-gpt-balanced", "2025-04-16", "2026-10-23", true, false, ModelGPT5_4Mini, openAIDeprecationsSource),
+	"gpt-4-turbo-preview":    openAICatalog("gpt", "openai-gpt-flagship", "2023-11-06", "2026-03-26", true, true, ModelGPT5_5, openAIDeprecationsSource),
 }
 
 // ModelCatalog returns factual catalog metadata for a canonical,

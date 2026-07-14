@@ -14,7 +14,12 @@
 
 package anthropic
 
-import "github.com/redpanda-data/ai-sdk-go/llm"
+import (
+	"strings"
+	"time"
+
+	"github.com/redpanda-data/ai-sdk-go/llm"
+)
 
 const (
 	anthropicModelsSource         = "https://platform.claude.com/docs/en/about-claude/models/overview"
@@ -25,7 +30,39 @@ const (
 // ModelCatalog returns factual catalog metadata for a canonical,
 // aliased, or dated Anthropic model identifier.
 func (*Provider) ModelCatalog(model string) (llm.ModelCatalogMetadata, bool) {
-	return anthropicModelCatalog(resolveModelFamily(model))
+	model, ok := anthropicCatalogModel(model)
+	if !ok {
+		return llm.ModelCatalogMetadata{}, false
+	}
+
+	return anthropicModelCatalog(model)
+}
+
+// anthropicCatalogModel accepts exact canonical IDs for Claude 4.6 and newer.
+// Older generations also accept the documented aliases and YYYYMMDD snapshots.
+// Runtime custom-model resolution remains deliberately more permissive.
+func anthropicCatalogModel(model string) (string, bool) {
+	if _, ok := supportedModels[model]; ok {
+		return model, true
+	}
+
+	for _, family := range []string{
+		ModelClaudeOpus45,
+		ModelClaudeOpus41,
+		ModelClaudeSonnet45,
+		ModelClaudeHaiku45,
+	} {
+		date := strings.TrimPrefix(model, family+"-")
+		if date == model || len(date) != len("YYYYMMDD") {
+			continue
+		}
+
+		if _, err := time.Parse("20060102", date); err == nil {
+			return family, true
+		}
+	}
+
+	return "", false
 }
 
 func anthropicModelCatalog(name string) (llm.ModelCatalogMetadata, bool) {

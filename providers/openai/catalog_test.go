@@ -31,13 +31,19 @@ func TestModelCatalogPreservesExactAliasAndSnapshotFacts(t *testing.T) {
 		endOfLife   string
 		deprecated  bool
 		retired     bool
+		replacement string
 	}{
-		{name: "GPT-5 alias remains callable", model: ModelGPT5, releaseDate: "2025-08-07"},
-		{name: "GPT-5 snapshot is deprecated", model: "gpt-5-2025-08-07", releaseDate: "2025-08-07", endOfLife: "2026-12-11", deprecated: true},
-		{name: "O3 alias remains callable", model: ModelO3, releaseDate: "2025-04-16"},
-		{name: "O3 snapshot is deprecated", model: "o3-2025-04-16", releaseDate: "2025-04-16", endOfLife: "2026-12-11", deprecated: true},
-		{name: "GPT-4o deprecation has no inferred EOL", model: ModelGPT4O, releaseDate: "2024-05-13", deprecated: true},
-		{name: "retired preview stays exact", model: "gpt-4-turbo-preview", releaseDate: "2023-11-06", endOfLife: "2026-03-26", deprecated: true, retired: true},
+		{name: "GPT-5 alias remains callable", model: ModelGPT5, releaseDate: "2025-08-07", replacement: ModelGPT5_5},
+		{name: "GPT-5 snapshot is deprecated", model: "gpt-5-2025-08-07", releaseDate: "2025-08-07", endOfLife: "2026-12-11", deprecated: true, replacement: ModelGPT5_5},
+		{name: "O3 alias remains callable", model: ModelO3, releaseDate: "2025-04-16", replacement: ModelGPT5_5},
+		{name: "O3 snapshot is deprecated", model: "o3-2025-04-16", releaseDate: "2025-04-16", endOfLife: "2026-12-11", deprecated: true, replacement: ModelGPT5_5},
+		{name: "GPT-4o deprecation has no inferred EOL", model: ModelGPT4O, releaseDate: "2024-05-13", deprecated: true, replacement: ModelGPT5_6Sol},
+		{name: "GPT-4o snapshot has exact shutdown facts", model: "gpt-4o-2024-05-13", releaseDate: "2024-05-13", endOfLife: "2026-10-23", deprecated: true, replacement: ModelGPT5_5},
+		{name: "GPT-3.5 snapshot has exact shutdown facts", model: "gpt-3.5-turbo-0125", releaseDate: "2024-01-25", endOfLife: "2026-10-23", deprecated: true, replacement: ModelGPT5_4Mini},
+		{name: "GPT-4 Turbo snapshot has exact shutdown facts", model: "gpt-4-turbo-2024-04-09", releaseDate: "2024-04-09", endOfLife: "2026-10-23", deprecated: true, replacement: ModelGPT5_5},
+		{name: "O1 Pro snapshot has exact shutdown facts", model: "o1-pro-2025-03-19", releaseDate: "2025-03-19", endOfLife: "2026-10-23", deprecated: true, replacement: ModelGPT5_5Pro},
+		{name: "O4 Mini snapshot has exact shutdown facts", model: "o4-mini-2025-04-16", releaseDate: "2025-04-16", endOfLife: "2026-10-23", deprecated: true, replacement: ModelGPT5_4Mini},
+		{name: "retired preview stays exact", model: "gpt-4-turbo-preview", releaseDate: "2023-11-06", endOfLife: "2026-03-26", deprecated: true, retired: true, replacement: ModelGPT5_5},
 	}
 
 	for _, tt := range tests {
@@ -50,6 +56,7 @@ func TestModelCatalogPreservesExactAliasAndSnapshotFacts(t *testing.T) {
 			require.Equal(t, tt.endOfLife, catalog.EndOfLifeDate)
 			require.Equal(t, tt.deprecated, catalog.Deprecated)
 			require.Equal(t, tt.retired, catalog.Retired)
+			require.Equal(t, tt.replacement, catalog.ProviderReplacement)
 
 			if tt.model == ModelGPT4O {
 				require.Equal(t, openAIModelsSource, catalog.OfficialSourceURL)

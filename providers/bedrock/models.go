@@ -48,8 +48,8 @@ const (
 	ModelClaudeFable5       = "anthropic.claude-fable-5"
 	ModelClaudeFable5Global = "global." + ModelClaudeFable5
 	ModelClaudeFable5US     = "us." + ModelClaudeFable5
-	// ModelClaudeFable5EU is retained for runtime compatibility. The current AWS model card does not
-	// list this profile, so discovery marks it legacy rather than recommended.
+	// ModelClaudeFable5EU is retained for runtime compatibility. The current AWS
+	// model card does not list this profile, so Provider.Models omits it.
 	ModelClaudeFable5EU = "eu." + ModelClaudeFable5
 
 	// ModelClaudeSonnet5 is the bare Bedrock ID for Claude Sonnet 5
@@ -466,8 +466,8 @@ var (
 var supportedModels = map[string]ModelDefinition{
 	// ----------------------------------------------------------------
 	// Claude Fable 5 — inference-profile-only, no bare entry. The current AWS
-	// model card publishes us and global. The existing eu profile remains for
-	// runtime compatibility but is hidden from new selections by catalog policy.
+	// model card publishes us and global. The existing eu definition remains for
+	// runtime compatibility but is omitted from provider discovery.
 	// ----------------------------------------------------------------
 	ModelClaudeFable5Global: {
 		Name:                        ModelClaudeFable5Global,

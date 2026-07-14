@@ -1130,9 +1130,10 @@ func TestModelsDiscovery(t *testing.T) {
 	p := &Provider{}
 
 	models := p.Models()
-	assert.Len(t, models, len(supportedModels))
+	assert.Len(t, models, len(supportedModels)-1)
 
 	for _, m := range models {
+		assert.NotEqual(t, ModelClaudeFable5EU, m.Name)
 		assert.Equal(t, "aws.bedrock", m.Provider)
 		assert.NotEmpty(t, m.Name)
 		assert.NotEmpty(t, m.Label)
@@ -1161,9 +1162,14 @@ func TestModelsDiscovery_ProviderDataSharingMetadata(t *testing.T) {
 		metadataByName[m.Name] = m.Metadata
 	}
 
-	for _, name := range []string{ModelClaudeFable5Global, ModelClaudeFable5US, ModelClaudeFable5EU} {
+	for _, name := range []string{ModelClaudeFable5Global, ModelClaudeFable5US} {
 		assert.Equal(t, "true", metadataByName[name][ModelMetadataRequiresProviderDataSharing])
 	}
+
+	assert.NotContains(t, metadataByName, ModelClaudeFable5EU)
+
+	_, ok := lookupModel(ModelClaudeFable5EU)
+	require.True(t, ok, "the non-discoverable EU ID remains available for existing runtime configurations")
 
 	assert.Empty(t, metadataByName[ModelClaudeSonnet46US])
 }

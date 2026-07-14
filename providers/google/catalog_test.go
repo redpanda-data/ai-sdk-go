@@ -64,6 +64,60 @@ func TestModelCatalogPreservesGeminiAliasAndRetirementFacts(t *testing.T) {
 			replacement: ModelGemini35Flash,
 		},
 		{
+			name:        "retired Gemini 2 Flash pinned snapshot",
+			model:       "models/gemini-2.0-flash-001",
+			releaseDate: "2025-02-05",
+			deprecated:  true,
+			retired:     true,
+			endOfLife:   "2026-06-01",
+			replacement: ModelGemini35Flash,
+		},
+		{
+			name:        "retired Gemini 2 Flash Lite pinned snapshot",
+			model:       "gemini-2.0-flash-lite-001",
+			releaseDate: "2025-02-25",
+			deprecated:  true,
+			retired:     true,
+			endOfLife:   "2026-06-01",
+			replacement: ModelGemini31FlashLite,
+		},
+		{
+			name:        "retired Gemini 2 Flash Lite preview",
+			model:       "gemini-2.0-flash-lite-preview-02-05",
+			releaseDate: "2025-02-05",
+			deprecated:  true,
+			retired:     true,
+			endOfLife:   "2025-12-09",
+			replacement: ModelGemini25FlashLite,
+		},
+		{
+			name:        "retired Gemini 2.5 Flash preview",
+			model:       "gemini-2.5-flash-preview-05-20",
+			releaseDate: "2025-05-20",
+			deprecated:  true,
+			retired:     true,
+			endOfLife:   "2025-11-18",
+			replacement: ModelGemini35Flash,
+		},
+		{
+			name:        "retired Gemini 2.5 Flash Lite preview",
+			model:       "gemini-2.5-flash-lite-preview-09-2025",
+			releaseDate: "2025-09-25",
+			deprecated:  true,
+			retired:     true,
+			endOfLife:   "2026-03-31",
+			replacement: ModelGemini31FlashLite,
+		},
+		{
+			name:        "retired Gemini 2.5 Pro March preview",
+			model:       "gemini-2.5-pro-preview-03-25",
+			releaseDate: "2025-04-04",
+			deprecated:  true,
+			retired:     true,
+			endOfLife:   "2025-12-02",
+			replacement: ModelGemini31ProPreview,
+		},
+		{
 			name:        "retired Gemini 2.5 Pro preview snapshot",
 			model:       "gemini-2.5-pro-preview-06-05",
 			releaseDate: "2025-06-05",
@@ -97,6 +151,7 @@ func TestModelCatalogAcceptsOnlyKnownGeminiVersionShapes(t *testing.T) {
 	require.True(t, ok)
 
 	for _, model := range []string{
+		"gemini-3.1-pro-preview-11-2025",
 		"gemini-3-pro-preview-custom",
 		"gemini-3.1-flash-lite-preview-extra",
 		"gemini-2.5-flash-foo",
@@ -104,4 +159,12 @@ func TestModelCatalogAcceptsOnlyKnownGeminiVersionShapes(t *testing.T) {
 		_, ok := provider.ModelCatalog(model)
 		require.False(t, ok, model)
 	}
+}
+
+func TestModelCatalogUsesLaunchEvidenceForGemini25ProMarchPreview(t *testing.T) {
+	t.Parallel()
+
+	catalog, ok := (&Provider{}).ModelCatalog("gemini-2.5-pro-preview-03-25")
+	require.True(t, ok)
+	require.Equal(t, googleReleaseNotesSource, catalog.OfficialSourceURL)
 }

@@ -121,27 +121,41 @@ func TestGPT56Pricing(t *testing.T) {
 	}
 }
 
-func TestGPT55ProRegionalPricing(t *testing.T) {
+func TestDocumentedRegionalPricing(t *testing.T) {
 	t.Parallel()
 
 	catalog, err := pricing.NewCatalog(pricing.WithProvider("openai", ModelPricing()))
 	require.NoError(t, err)
 
 	usage := &llm.TokenUsage{InputTokens: 1_000_000, OutputTokens: 1_000_000}
-	defaultCost, err := catalog.Calculate(ModelGPT5_5Pro, usage, pricing.CalcRequest{})
-	require.NoError(t, err)
-	require.Equal(t, int64(21_000_000_000), defaultCost.Total)
+	tests := []struct {
+		model         string
+		defaultTotal  int64
+		regionalTotal int64
+	}{
+		{model: ModelGPT5_5, defaultTotal: 3_500_000_000, regionalTotal: 3_850_000_000},
+		{model: ModelGPT5_5Pro, defaultTotal: 21_000_000_000, regionalTotal: 23_100_000_000},
+		{model: ModelGPT5_4, defaultTotal: 1_750_000_000, regionalTotal: 1_925_000_000},
+		{model: ModelGPT5_4Mini, defaultTotal: 525_000_000, regionalTotal: 577_500_000},
+		{model: ModelGPT5_4Nano, defaultTotal: 145_000_000, regionalTotal: 159_500_000},
+	}
 
-	for _, region := range []string{"us", "eu"} {
-		t.Run(region, func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.model, func(t *testing.T) {
 			t.Parallel()
 
-			cost, err := catalog.Calculate(ModelGPT5_5Pro, usage, pricing.CalcRequest{
-				Selector: pricing.Selector{Region: region},
-			})
+			defaultCost, err := catalog.Calculate(tt.model, usage, pricing.CalcRequest{})
 			require.NoError(t, err)
-			require.Equal(t, int64(23_100_000_000), cost.Total)
-			require.Equal(t, pricing.Selector{Region: region}, cost.AppliedSelector)
+			require.Equal(t, tt.defaultTotal, defaultCost.Total)
+
+			for _, region := range []string{"us", "eu"} {
+				cost, err := catalog.Calculate(tt.model, usage, pricing.CalcRequest{
+					Selector: pricing.Selector{Region: region},
+				})
+				require.NoError(t, err)
+				require.Equal(t, tt.regionalTotal, cost.Total)
+				require.Equal(t, pricing.Selector{Region: region}, cost.AppliedSelector)
+			}
 		})
 	}
 }

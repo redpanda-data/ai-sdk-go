@@ -30,13 +30,8 @@ type ResponseMapper struct {
 }
 
 // NewResponseMapper returns a ready-to-use mapper.
-func NewResponseMapper(definition ModelDefinition, inferenceRegion ...string) *ResponseMapper {
-	region := ""
-	if len(inferenceRegion) > 0 {
-		region = inferenceRegion[0]
-	}
-
-	return &ResponseMapper{modelDefinition: definition, inferenceRegion: region}
+func NewResponseMapper(definition ModelDefinition, inferenceRegion string) *ResponseMapper {
+	return &ResponseMapper{modelDefinition: definition, inferenceRegion: inferenceRegion}
 }
 
 // FromProvider converts an OpenAI Responses API payload into llm.Response.
