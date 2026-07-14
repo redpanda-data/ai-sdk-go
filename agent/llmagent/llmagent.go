@@ -420,7 +420,7 @@ func (a *LLMAgent) resolveSystemPrompt(ctx context.Context, inv *agent.Invocatio
 // generate calls the LLM to generate a response.
 //
 // The model parameter is the potentially intercepted model (wrapped by interceptors).
-// If the model supports streaming (implements llm.EventsGenerator),
+// If the model advertises streaming support,
 // it will emit AssistantDeltaEvent for each content part as it arrives.
 func (a *LLMAgent) generate(
 	ctx context.Context,
@@ -429,9 +429,10 @@ func (a *LLMAgent) generate(
 	makeEnvelope func() agent.EventEnvelope,
 	yield func(agent.Event, error) bool,
 ) (*llm.Response, error) {
-	// Use streaming if model supports it (provides better UX with real-time updates)
-	if eg, ok := model.(llm.EventsGenerator); ok {
-		return a.generateWithStreaming(ctx, eg, req, makeEnvelope, yield)
+	// Every llm.Model implements EventsGenerator, including models whose API
+	// cannot stream. Capabilities is the authoritative dispatch signal.
+	if model.Capabilities().Streaming {
+		return a.generateWithStreaming(ctx, model, req, makeEnvelope, yield)
 	}
 
 	// Fall back to non-streaming generation
