@@ -127,7 +127,7 @@ func openAIModelCatalog(name string) (llm.ModelCatalogMetadata, bool) {
 	case ModelGPT5_2Pro:
 		return openAICatalog("gpt", "openai-gpt-pro", "2025-12-11", "", false, ModelGPT5_5Pro, openAIModelsSource), true
 	case ModelGPT5_3Codex:
-		return openAICatalog("codex", "openai-codex", "2026-02-05", "", false, "", openAIModelsSource), true
+		return openAICatalog("gpt", "openai-gpt-flagship", "2026-02-05", "", false, ModelGPT5_6Sol, openAIModelsSource), true
 
 	case ModelGPT5:
 		return openAICatalog("gpt", "openai-gpt-flagship", "2025-08-07", "", false, ModelGPT5_5, openAIModelsSource), true

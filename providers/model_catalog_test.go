@@ -199,7 +199,6 @@ func TestDirectProviderCatalogRecommendsOnlyNewestUsefulModelsPerFamily(t *testi
 		"openai": {
 			provider: &openai.Provider{},
 			expected: []string{
-				"gpt-5.3-codex",
 				openai.ModelGPT5_5Pro,
 				openai.ModelGPT5_6Luna,
 				openai.ModelGPT5_6Sol,

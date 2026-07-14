@@ -66,17 +66,18 @@ func TestModelCatalogRejectsUnrecognizedFamilySiblings(t *testing.T) {
 	}
 }
 
-func TestGPT53CodexIsCurrentSpecializedModel(t *testing.T) {
+func TestGPT53CodexUsesCurrentFlagshipUpgradeTrack(t *testing.T) {
 	t.Parallel()
 
 	const modelName = "gpt-5.3-codex"
 
 	catalog, ok := (&Provider{}).ModelCatalog(modelName)
 	require.True(t, ok)
-	require.Equal(t, "codex", catalog.FamilyKey)
-	require.Equal(t, "openai-codex", catalog.RecommendationGroup)
+	require.Equal(t, "gpt", catalog.FamilyKey)
+	require.Equal(t, "openai-gpt-flagship", catalog.RecommendationGroup)
 	require.Equal(t, "2026-02-05", catalog.ReleaseDate)
 	require.False(t, catalog.Retired)
+	require.Equal(t, ModelGPT5_6Sol, catalog.Replacement)
 
 	models := (&Provider{}).Models()
 	for _, model := range models {
