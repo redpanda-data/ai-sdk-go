@@ -25,18 +25,18 @@ import (
 const (
 	googleModelsSource       = "https://ai.google.dev/gemini-api/docs/models"
 	googleDeprecationsSource = "https://ai.google.dev/gemini-api/docs/deprecations"
-	googleVerifiedDate       = "2026-07-13"
+	googleVerifiedDate       = "2026-07-14"
 )
 
 var googleExactModelCatalogOverrides = map[string]llm.ModelCatalogMetadata{
-	"gemini-3.1-flash-lite-preview": googleCatalog("gemini-flash-lite", llm.ModelPositioningLegacy, llm.ModelLifecycleRetired, llm.ModelReleaseStagePreview, "2026-05-25", ModelGemini31FlashLite, googleDeprecationsSource),
-	"gemini-2.0-flash":              googleCatalog("gemini-flash", llm.ModelPositioningLegacy, llm.ModelLifecycleRetired, llm.ModelReleaseStageStable, "2026-06-01", ModelGemini35Flash, googleDeprecationsSource),
-	"gemini-2.5-pro-preview-03-25":  googleCatalog("gemini-pro", llm.ModelPositioningLegacy, llm.ModelLifecycleRetired, llm.ModelReleaseStagePreview, "2025-12-02", ModelGemini31ProPreview, googleDeprecationsSource),
-	"gemini-2.5-pro-preview-05-06":  googleCatalog("gemini-pro", llm.ModelPositioningLegacy, llm.ModelLifecycleRetired, llm.ModelReleaseStagePreview, "2025-12-02", ModelGemini31ProPreview, googleDeprecationsSource),
-	"gemini-2.5-pro-preview-06-05":  googleCatalog("gemini-pro", llm.ModelPositioningLegacy, llm.ModelLifecycleRetired, llm.ModelReleaseStagePreview, "2025-12-02", ModelGemini31ProPreview, googleDeprecationsSource),
+	"gemini-3.1-flash-lite-preview": googleCatalog("gemini-flash-lite", "2026-03-03", "2026-05-25", true, ModelGemini31FlashLite, googleDeprecationsSource),
+	"gemini-2.0-flash":              googleCatalog("gemini-flash", "2024-12-11", "2026-06-01", true, ModelGemini35Flash, googleDeprecationsSource),
+	"gemini-2.5-pro-preview-03-25":  googleCatalog("gemini-pro", "2025-03-25", "2025-12-02", true, ModelGemini31ProPreview, googleDeprecationsSource),
+	"gemini-2.5-pro-preview-05-06":  googleCatalog("gemini-pro", "2025-05-06", "2025-12-02", true, ModelGemini31ProPreview, googleDeprecationsSource),
+	"gemini-2.5-pro-preview-06-05":  googleCatalog("gemini-pro", "2025-06-05", "2025-12-02", true, ModelGemini31ProPreview, googleDeprecationsSource),
 }
 
-// ModelCatalog returns recommendation and lifecycle metadata for a canonical,
+// ModelCatalog returns factual catalog metadata for a canonical,
 // aliased, or versioned Gemini model identifier.
 func (*Provider) ModelCatalog(model string) (llm.ModelCatalogMetadata, bool) {
 	model = strings.TrimPrefix(model, "models/")
@@ -60,7 +60,7 @@ func (*Provider) ModelCatalog(model string) (llm.ModelCatalogMetadata, bool) {
 	return llm.ModelCatalogMetadata{}, false
 }
 
-// ModelCatalogOverrides returns exact deprecated or retired model IDs that
+// ModelCatalogOverrides returns exact EOL or retired model IDs that
 // remain outside Models() so they are not offered for new selections.
 func (*Provider) ModelCatalogOverrides() map[string]llm.ModelCatalogMetadata {
 	return maps.Clone(googleExactModelCatalogOverrides)
@@ -93,21 +93,21 @@ func googleVersionedModelFamily(model string) (string, bool) {
 func googleModelCatalog(name string) (llm.ModelCatalogMetadata, bool) {
 	switch name {
 	case ModelGemini31ProPreview:
-		return googleCatalog("gemini-pro", llm.ModelPositioningFrontier, llm.ModelLifecycleActive, llm.ModelReleaseStagePreview, "", "", googleModelsSource), true
+		return googleCatalog("gemini-pro", "2026-02-19", "", false, "", googleModelsSource), true
 	case ModelGemini3ProPreview:
-		return googleCatalog("gemini-pro", llm.ModelPositioningLegacy, llm.ModelLifecycleRetired, llm.ModelReleaseStagePreview, "2026-03-09", ModelGemini31ProPreview, googleDeprecationsSource), true
+		return googleCatalog("gemini-pro", "2025-11-18", "2026-03-09", true, ModelGemini31ProPreview, googleDeprecationsSource), true
 	case ModelGemini25Pro:
-		return googleCatalog("gemini-pro", llm.ModelPositioningLegacy, llm.ModelLifecycleDeprecated, llm.ModelReleaseStageStable, "2026-10-16", ModelGemini31ProPreview, googleDeprecationsSource), true
+		return googleCatalog("gemini-pro", "2025-06-17", "2026-10-16", false, ModelGemini31ProPreview, googleDeprecationsSource), true
 	case ModelGemini35Flash:
-		return googleCatalog("gemini-flash", llm.ModelPositioningModern, llm.ModelLifecycleActive, llm.ModelReleaseStageStable, "", "", googleModelsSource), true
+		return googleCatalog("gemini-flash", "2026-05-19", "", false, "", googleModelsSource), true
 	case ModelGemini3FlashPreview:
-		return googleCatalog("gemini-flash", llm.ModelPositioningLegacy, llm.ModelLifecycleActive, llm.ModelReleaseStagePreview, "", ModelGemini35Flash, googleDeprecationsSource), true
+		return googleCatalog("gemini-flash", "2025-12-17", "", false, ModelGemini35Flash, googleModelsSource), true
 	case ModelGemini25Flash:
-		return googleCatalog("gemini-flash", llm.ModelPositioningLegacy, llm.ModelLifecycleDeprecated, llm.ModelReleaseStageStable, "2026-10-16", ModelGemini35Flash, googleDeprecationsSource), true
+		return googleCatalog("gemini-flash", "2025-06-17", "2026-10-16", false, ModelGemini35Flash, googleDeprecationsSource), true
 	case ModelGemini31FlashLite:
-		return googleCatalog("gemini-flash-lite", llm.ModelPositioningModern, llm.ModelLifecycleActive, llm.ModelReleaseStageStable, "", "", googleModelsSource), true
+		return googleCatalog("gemini-flash-lite", "2026-05-07", "", false, "", googleModelsSource), true
 	case ModelGemini25FlashLite:
-		return googleCatalog("gemini-flash-lite", llm.ModelPositioningLegacy, llm.ModelLifecycleDeprecated, llm.ModelReleaseStageStable, "2026-10-16", ModelGemini31FlashLite, googleDeprecationsSource), true
+		return googleCatalog("gemini-flash-lite", "2025-07-22", "2026-10-16", false, ModelGemini31FlashLite, googleDeprecationsSource), true
 	default:
 		return llm.ModelCatalogMetadata{}, false
 	}
@@ -115,20 +115,18 @@ func googleModelCatalog(name string) (llm.ModelCatalogMetadata, bool) {
 
 func googleCatalog(
 	familyKey string,
-	positioning llm.ModelPositioning,
-	lifecycle llm.ModelLifecycle,
-	releaseStage llm.ModelReleaseStage,
+	releaseDate string,
 	endOfLifeDate string,
+	retired bool,
 	replacement string,
 	source string,
 ) llm.ModelCatalogMetadata {
 	return llm.ModelCatalogMetadata{
 		FamilyKey:           familyKey,
 		RecommendationGroup: "google-" + familyKey,
-		Positioning:         positioning,
-		Lifecycle:           lifecycle,
-		ReleaseStage:        releaseStage,
+		ReleaseDate:         releaseDate,
 		EndOfLifeDate:       endOfLifeDate,
+		Retired:             retired,
 		Replacement:         replacement,
 		OfficialSourceURL:   source,
 		VerifiedDate:        googleVerifiedDate,

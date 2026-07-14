@@ -18,26 +18,24 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
-func TestModelCatalogPreservesExactAliasAndSnapshotLifecycle(t *testing.T) {
+func TestModelCatalogPreservesExactAliasAndSnapshotFacts(t *testing.T) {
 	t.Parallel()
 
 	provider := &Provider{}
 	tests := []struct {
 		name        string
 		model       string
-		lifecycle   llm.ModelLifecycle
+		releaseDate string
 		endOfLife   string
-		positioning llm.ModelPositioning
+		retired     bool
 	}{
-		{name: "GPT-5 alias remains active", model: ModelGPT5, lifecycle: llm.ModelLifecycleActive, positioning: llm.ModelPositioningLegacy},
-		{name: "GPT-5 snapshot is deprecated", model: "gpt-5-2025-08-07", lifecycle: llm.ModelLifecycleDeprecated, endOfLife: "2026-12-11", positioning: llm.ModelPositioningLegacy},
-		{name: "O3 alias remains active", model: ModelO3, lifecycle: llm.ModelLifecycleActive, positioning: llm.ModelPositioningLegacy},
-		{name: "O3 snapshot is deprecated", model: "o3-2025-04-16", lifecycle: llm.ModelLifecycleDeprecated, endOfLife: "2026-12-11", positioning: llm.ModelPositioningLegacy},
-		{name: "retired preview stays exact", model: "gpt-4-turbo-preview", lifecycle: llm.ModelLifecycleRetired, endOfLife: "2026-03-26", positioning: llm.ModelPositioningLegacy},
+		{name: "GPT-5 alias remains callable", model: ModelGPT5, releaseDate: "2025-08-07"},
+		{name: "GPT-5 snapshot has EOL", model: "gpt-5-2025-08-07", releaseDate: "2025-08-07", endOfLife: "2026-12-11"},
+		{name: "O3 alias remains callable", model: ModelO3, releaseDate: "2025-04-16"},
+		{name: "O3 snapshot has EOL", model: "o3-2025-04-16", releaseDate: "2025-04-16", endOfLife: "2026-12-11"},
+		{name: "retired preview stays exact", model: "gpt-4-turbo-preview", releaseDate: "2023-11-06", endOfLife: "2026-03-26", retired: true},
 	}
 
 	for _, tt := range tests {
@@ -46,9 +44,9 @@ func TestModelCatalogPreservesExactAliasAndSnapshotLifecycle(t *testing.T) {
 
 			catalog, ok := provider.ModelCatalog(tt.model)
 			require.True(t, ok)
-			require.Equal(t, tt.lifecycle, catalog.Lifecycle)
+			require.Equal(t, tt.releaseDate, catalog.ReleaseDate)
 			require.Equal(t, tt.endOfLife, catalog.EndOfLifeDate)
-			require.Equal(t, tt.positioning, catalog.Positioning)
+			require.Equal(t, tt.retired, catalog.Retired)
 		})
 	}
 }
@@ -77,8 +75,8 @@ func TestGPT53CodexIsCurrentSpecializedModel(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "codex", catalog.FamilyKey)
 	require.Equal(t, "openai-codex", catalog.RecommendationGroup)
-	require.Equal(t, llm.ModelPositioningModern, catalog.Positioning)
-	require.Equal(t, llm.ModelLifecycleActive, catalog.Lifecycle)
+	require.Equal(t, "2026-02-05", catalog.ReleaseDate)
+	require.False(t, catalog.Retired)
 
 	models := (&Provider{}).Models()
 	for _, model := range models {

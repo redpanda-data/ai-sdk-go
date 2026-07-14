@@ -18,57 +18,53 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
-func TestModelCatalogPreservesGeminiAliasAndRetirementLifecycle(t *testing.T) {
+func TestModelCatalogPreservesGeminiAliasAndRetirementFacts(t *testing.T) {
 	t.Parallel()
 
 	provider := &Provider{}
 	tests := []struct {
-		name         string
-		model        string
-		lifecycle    llm.ModelLifecycle
-		releaseStage llm.ModelReleaseStage
-		endOfLife    string
-		replacement  string
+		name        string
+		model       string
+		releaseDate string
+		retired     bool
+		endOfLife   string
+		replacement string
 	}{
 		{
-			name:         "current Flash alias",
-			model:        "models/gemini-flash-latest",
-			lifecycle:    llm.ModelLifecycleActive,
-			releaseStage: llm.ModelReleaseStageStable,
+			name:        "current Flash alias",
+			model:       "models/gemini-flash-latest",
+			releaseDate: "2026-05-19",
 		},
 		{
-			name:         "stable Flash Lite remains active",
-			model:        ModelGemini31FlashLite,
-			lifecycle:    llm.ModelLifecycleActive,
-			releaseStage: llm.ModelReleaseStageStable,
+			name:        "stable Flash Lite remains active",
+			model:       ModelGemini31FlashLite,
+			releaseDate: "2026-05-07",
 		},
 		{
-			name:         "retired Flash Lite preview",
-			model:        "gemini-3.1-flash-lite-preview",
-			lifecycle:    llm.ModelLifecycleRetired,
-			releaseStage: llm.ModelReleaseStagePreview,
-			endOfLife:    "2026-05-25",
-			replacement:  ModelGemini31FlashLite,
+			name:        "retired Flash Lite preview",
+			model:       "gemini-3.1-flash-lite-preview",
+			releaseDate: "2026-03-03",
+			retired:     true,
+			endOfLife:   "2026-05-25",
+			replacement: ModelGemini31FlashLite,
 		},
 		{
-			name:         "retired Gemini 2 Flash",
-			model:        "gemini-2.0-flash",
-			lifecycle:    llm.ModelLifecycleRetired,
-			releaseStage: llm.ModelReleaseStageStable,
-			endOfLife:    "2026-06-01",
-			replacement:  ModelGemini35Flash,
+			name:        "retired Gemini 2 Flash",
+			model:       "gemini-2.0-flash",
+			releaseDate: "2024-12-11",
+			retired:     true,
+			endOfLife:   "2026-06-01",
+			replacement: ModelGemini35Flash,
 		},
 		{
-			name:         "retired Gemini 2.5 Pro preview snapshot",
-			model:        "gemini-2.5-pro-preview-06-05",
-			lifecycle:    llm.ModelLifecycleRetired,
-			releaseStage: llm.ModelReleaseStagePreview,
-			endOfLife:    "2025-12-02",
-			replacement:  ModelGemini31ProPreview,
+			name:        "retired Gemini 2.5 Pro preview snapshot",
+			model:       "gemini-2.5-pro-preview-06-05",
+			releaseDate: "2025-06-05",
+			retired:     true,
+			endOfLife:   "2025-12-02",
+			replacement: ModelGemini31ProPreview,
 		},
 	}
 
@@ -78,8 +74,8 @@ func TestModelCatalogPreservesGeminiAliasAndRetirementLifecycle(t *testing.T) {
 
 			catalog, ok := provider.ModelCatalog(tt.model)
 			require.True(t, ok)
-			require.Equal(t, tt.lifecycle, catalog.Lifecycle)
-			require.Equal(t, tt.releaseStage, catalog.ReleaseStage)
+			require.Equal(t, tt.releaseDate, catalog.ReleaseDate)
+			require.Equal(t, tt.retired, catalog.Retired)
 			require.Equal(t, tt.endOfLife, catalog.EndOfLifeDate)
 			require.Equal(t, tt.replacement, catalog.Replacement)
 		})

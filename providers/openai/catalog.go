@@ -25,19 +25,19 @@ import (
 const (
 	openAIModelsSource       = "https://developers.openai.com/api/docs/models"
 	openAIDeprecationsSource = "https://developers.openai.com/api/docs/deprecations"
-	openAIVerifiedDate       = "2026-07-13"
+	openAIVerifiedDate       = "2026-07-14"
 )
 
 var openAIExactModelCatalogOverrides = map[string]llm.ModelCatalogMetadata{
-	"gpt-5-2025-08-07":      openAICatalog("gpt", "openai-gpt-flagship", llm.ModelPositioningLegacy, llm.ModelLifecycleDeprecated, "2026-12-11", ModelGPT5_5, openAIDeprecationsSource),
-	"gpt-5-mini-2025-08-07": openAICatalog("gpt", "openai-gpt-balanced", llm.ModelPositioningLegacy, llm.ModelLifecycleDeprecated, "2026-12-11", ModelGPT5_4Mini, openAIDeprecationsSource),
-	"gpt-5-nano-2025-08-07": openAICatalog("gpt", "openai-gpt-efficient", llm.ModelPositioningLegacy, llm.ModelLifecycleDeprecated, "2026-12-11", ModelGPT5_4Nano, openAIDeprecationsSource),
-	"o3-2025-04-16":         openAICatalog("o-series", "openai-o-reasoning", llm.ModelPositioningLegacy, llm.ModelLifecycleDeprecated, "2026-12-11", ModelGPT5_5, openAIDeprecationsSource),
-	"o3-pro-2025-06-10":     openAICatalog("o-series", "openai-o-pro", llm.ModelPositioningLegacy, llm.ModelLifecycleDeprecated, "2026-12-11", ModelGPT5_5Pro, openAIDeprecationsSource),
-	"gpt-4-turbo-preview":   openAICatalog("gpt", "openai-gpt-flagship", llm.ModelPositioningLegacy, llm.ModelLifecycleRetired, "2026-03-26", ModelGPT5_5, openAIDeprecationsSource),
+	"gpt-5-2025-08-07":      openAICatalog("gpt", "openai-gpt-flagship", "2025-08-07", "2026-12-11", false, ModelGPT5_5, openAIDeprecationsSource),
+	"gpt-5-mini-2025-08-07": openAICatalog("gpt", "openai-gpt-balanced", "2025-08-07", "2026-12-11", false, ModelGPT5_4Mini, openAIDeprecationsSource),
+	"gpt-5-nano-2025-08-07": openAICatalog("gpt", "openai-gpt-efficient", "2025-08-07", "2026-12-11", false, ModelGPT5_4Nano, openAIDeprecationsSource),
+	"o3-2025-04-16":         openAICatalog("o-series", "openai-gpt-flagship", "2025-04-16", "2026-12-11", false, ModelGPT5_5, openAIDeprecationsSource),
+	"o3-pro-2025-06-10":     openAICatalog("o-series", "openai-gpt-pro", "2025-06-10", "2026-12-11", false, ModelGPT5_5Pro, openAIDeprecationsSource),
+	"gpt-4-turbo-preview":   openAICatalog("gpt", "openai-gpt-flagship", "2023-11-06", "2026-03-26", true, ModelGPT5_5, openAIDeprecationsSource),
 }
 
-// ModelCatalog returns recommendation and lifecycle metadata for a canonical,
+// ModelCatalog returns factual catalog metadata for a canonical,
 // aliased, or dated OpenAI model identifier.
 func (*Provider) ModelCatalog(model string) (llm.ModelCatalogMetadata, bool) {
 	if catalog, ok := openAIExactSnapshotCatalog(model); ok {
@@ -59,7 +59,7 @@ func (*Provider) ModelCatalog(model string) (llm.ModelCatalogMetadata, bool) {
 	return llm.ModelCatalogMetadata{}, false
 }
 
-// ModelCatalogOverrides returns exact deprecated or retired model IDs that
+// ModelCatalogOverrides returns exact EOL or retired model IDs that
 // remain outside Models() so they are not offered for new selections.
 func (*Provider) ModelCatalogOverrides() map[string]llm.ModelCatalogMetadata {
 	return maps.Clone(openAIExactModelCatalogOverrides)
@@ -96,48 +96,62 @@ func openAIDatedSnapshotFamily(model string) (string, bool) {
 func openAIModelCatalog(name string) (llm.ModelCatalogMetadata, bool) {
 	switch name {
 	case ModelGPT5_6Sol:
-		return openAICatalog("gpt", "openai-gpt-flagship", llm.ModelPositioningFrontier, llm.ModelLifecycleActive, "", "", openAIModelsSource), true
+		return openAICatalog("gpt", "openai-gpt-flagship", "2026-07-09", "", false, "", openAIModelsSource), true
 	case ModelGPT5_6Terra:
-		return openAICatalog("gpt", "openai-gpt-balanced", llm.ModelPositioningModern, llm.ModelLifecycleActive, "", "", openAIModelsSource), true
+		return openAICatalog("gpt", "openai-gpt-balanced", "2026-07-09", "", false, "", openAIModelsSource), true
 	case ModelGPT5_6Luna:
-		return openAICatalog("gpt", "openai-gpt-efficient", llm.ModelPositioningModern, llm.ModelLifecycleActive, "", "", openAIModelsSource), true
+		return openAICatalog("gpt", "openai-gpt-efficient", "2026-07-09", "", false, "", openAIModelsSource), true
 
-	case ModelGPT5_5, ModelGPT5_4, ModelGPT5_2, ModelGPT5_1, ModelGPT41:
-		return openAICatalog("gpt", "openai-gpt-flagship", llm.ModelPositioningLegacy, llm.ModelLifecycleActive, "", ModelGPT5_6Sol, openAIModelsSource), true
+	case ModelGPT5_5:
+		return openAICatalog("gpt", "openai-gpt-flagship", "2026-04-23", "", false, ModelGPT5_6Sol, openAIModelsSource), true
+	case ModelGPT5_4:
+		return openAICatalog("gpt", "openai-gpt-flagship", "2026-03-05", "", false, ModelGPT5_6Sol, openAIModelsSource), true
+	case ModelGPT5_2:
+		return openAICatalog("gpt", "openai-gpt-flagship", "2025-12-11", "", false, ModelGPT5_6Sol, openAIModelsSource), true
+	case ModelGPT5_1:
+		return openAICatalog("gpt", "openai-gpt-flagship", "2025-11-13", "", false, ModelGPT5_6Sol, openAIModelsSource), true
+	case ModelGPT41:
+		return openAICatalog("gpt", "openai-gpt-flagship", "2025-04-14", "", false, ModelGPT5_6Sol, openAIModelsSource), true
 	case ModelGPT5_5Pro:
-		return openAICatalog("gpt", "openai-gpt-pro", llm.ModelPositioningModern, llm.ModelLifecycleActive, "", "", openAIModelsSource), true
+		return openAICatalog("gpt", "openai-gpt-pro", "2026-04-23", "", false, "", openAIModelsSource), true
 	case ModelGPT4O:
-		return openAICatalog("gpt", "openai-gpt-flagship", llm.ModelPositioningLegacy, llm.ModelLifecycleDeprecated, "", ModelGPT5_6Sol, openAIModelsSource), true
-	case ModelGPT5_4Mini, ModelGPT41Mini, ModelGPT4OMini:
-		return openAICatalog("gpt", "openai-gpt-balanced", llm.ModelPositioningLegacy, llm.ModelLifecycleActive, "", ModelGPT5_6Terra, openAIModelsSource), true
+		return openAICatalog("gpt", "openai-gpt-flagship", "2024-05-13", "", false, ModelGPT5_6Sol, openAIModelsSource), true
+	case ModelGPT5_4Mini:
+		return openAICatalog("gpt", "openai-gpt-balanced", "2026-03-17", "", false, ModelGPT5_6Terra, openAIModelsSource), true
+	case ModelGPT41Mini:
+		return openAICatalog("gpt", "openai-gpt-balanced", "2025-04-14", "", false, ModelGPT5_6Terra, openAIModelsSource), true
+	case ModelGPT4OMini:
+		return openAICatalog("gpt", "openai-gpt-balanced", "2024-07-18", "", false, ModelGPT5_6Terra, openAIModelsSource), true
 	case ModelGPT5_4Nano:
-		return openAICatalog("gpt", "openai-gpt-efficient", llm.ModelPositioningLegacy, llm.ModelLifecycleActive, "", ModelGPT5_6Luna, openAIModelsSource), true
+		return openAICatalog("gpt", "openai-gpt-efficient", "2026-03-17", "", false, ModelGPT5_6Luna, openAIModelsSource), true
 	case ModelGPT5_2Pro:
-		return openAICatalog("gpt", "openai-gpt-pro", llm.ModelPositioningLegacy, llm.ModelLifecycleActive, "", ModelGPT5_5Pro, openAIModelsSource), true
+		return openAICatalog("gpt", "openai-gpt-pro", "2025-12-11", "", false, ModelGPT5_5Pro, openAIModelsSource), true
 	case ModelGPT5_3Codex:
-		return openAICatalog("codex", "openai-codex", llm.ModelPositioningModern, llm.ModelLifecycleActive, "", "", openAIModelsSource), true
+		return openAICatalog("codex", "openai-codex", "2026-02-05", "", false, "", openAIModelsSource), true
 
 	case ModelGPT5:
-		return openAICatalog("gpt", "openai-gpt-flagship", llm.ModelPositioningLegacy, llm.ModelLifecycleActive, "", ModelGPT5_5, openAIModelsSource), true
+		return openAICatalog("gpt", "openai-gpt-flagship", "2025-08-07", "", false, ModelGPT5_5, openAIModelsSource), true
 	case ModelGPT5Mini:
-		return openAICatalog("gpt", "openai-gpt-balanced", llm.ModelPositioningLegacy, llm.ModelLifecycleActive, "", ModelGPT5_4Mini, openAIModelsSource), true
+		return openAICatalog("gpt", "openai-gpt-balanced", "2025-08-07", "", false, ModelGPT5_4Mini, openAIModelsSource), true
 	case ModelGPT5Nano:
-		return openAICatalog("gpt", "openai-gpt-efficient", llm.ModelPositioningLegacy, llm.ModelLifecycleActive, "", ModelGPT5_4Nano, openAIModelsSource), true
-	case ModelGPT5_2Instant, ModelGPT5_3ChatLatest:
-		return openAICatalog("gpt", "openai-gpt-chat", llm.ModelPositioningLegacy, llm.ModelLifecycleDeprecated, "2026-08-10", ModelGPT5_5, openAIDeprecationsSource), true
+		return openAICatalog("gpt", "openai-gpt-efficient", "2025-08-07", "", false, ModelGPT5_4Nano, openAIModelsSource), true
+	case ModelGPT5_2Instant:
+		return openAICatalog("gpt", "openai-gpt-flagship", "2025-12-11", "2026-08-10", false, ModelGPT5_5, openAIDeprecationsSource), true
+	case ModelGPT5_3ChatLatest:
+		return openAICatalog("gpt", "openai-gpt-flagship", "2026-03-03", "2026-08-10", false, ModelGPT5_5, openAIDeprecationsSource), true
 	case ModelGPT4Turbo:
-		return openAICatalog("gpt", "openai-gpt-flagship", llm.ModelPositioningLegacy, llm.ModelLifecycleDeprecated, "2026-10-23", ModelGPT5_5, openAIDeprecationsSource), true
+		return openAICatalog("gpt", "openai-gpt-flagship", "2024-04-09", "2026-10-23", false, ModelGPT5_5, openAIDeprecationsSource), true
 	case ModelGPT35Turbo:
-		return openAICatalog("gpt", "openai-gpt-balanced", llm.ModelPositioningLegacy, llm.ModelLifecycleDeprecated, "2026-10-23", ModelGPT5_4Mini, openAIDeprecationsSource), true
+		return openAICatalog("gpt", "openai-gpt-balanced", "2024-01-25", "2026-10-23", false, ModelGPT5_4Mini, openAIDeprecationsSource), true
 
 	case ModelO3:
-		return openAICatalog("o-series", "openai-o-reasoning", llm.ModelPositioningLegacy, llm.ModelLifecycleActive, "", ModelGPT5_5, openAIModelsSource), true
+		return openAICatalog("o-series", "openai-gpt-flagship", "2025-04-16", "", false, ModelGPT5_5, openAIModelsSource), true
 	case ModelO3Pro:
-		return openAICatalog("o-series", "openai-o-pro", llm.ModelPositioningLegacy, llm.ModelLifecycleActive, "", ModelGPT5_5Pro, openAIModelsSource), true
+		return openAICatalog("o-series", "openai-gpt-pro", "2025-06-10", "", false, ModelGPT5_5Pro, openAIModelsSource), true
 	case ModelO1Pro:
-		return openAICatalog("o-series", "openai-o-pro", llm.ModelPositioningLegacy, llm.ModelLifecycleDeprecated, "2026-10-23", ModelGPT5_5Pro, openAIDeprecationsSource), true
+		return openAICatalog("o-series", "openai-gpt-pro", "2024-12-05", "2026-10-23", false, ModelGPT5_5Pro, openAIDeprecationsSource), true
 	case ModelO4Mini:
-		return openAICatalog("o-series", "openai-o-efficient", llm.ModelPositioningLegacy, llm.ModelLifecycleDeprecated, "2026-10-23", ModelGPT5_4Mini, openAIDeprecationsSource), true
+		return openAICatalog("o-series", "openai-gpt-balanced", "2025-04-16", "2026-10-23", false, ModelGPT5_4Mini, openAIDeprecationsSource), true
 	default:
 		return llm.ModelCatalogMetadata{}, false
 	}
@@ -146,19 +160,18 @@ func openAIModelCatalog(name string) (llm.ModelCatalogMetadata, bool) {
 func openAICatalog(
 	familyKey string,
 	recommendationGroup string,
-	positioning llm.ModelPositioning,
-	lifecycle llm.ModelLifecycle,
+	releaseDate string,
 	endOfLifeDate string,
+	retired bool,
 	replacement string,
 	source string,
 ) llm.ModelCatalogMetadata {
 	return llm.ModelCatalogMetadata{
 		FamilyKey:           familyKey,
 		RecommendationGroup: recommendationGroup,
-		Positioning:         positioning,
-		Lifecycle:           lifecycle,
-		ReleaseStage:        llm.ModelReleaseStageStable,
+		ReleaseDate:         releaseDate,
 		EndOfLifeDate:       endOfLifeDate,
+		Retired:             retired,
 		Replacement:         replacement,
 		OfficialSourceURL:   source,
 		VerifiedDate:        openAIVerifiedDate,
