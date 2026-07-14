@@ -14,7 +14,12 @@
 
 package google
 
-import "github.com/redpanda-data/ai-sdk-go/llm"
+import (
+	"strings"
+	"unicode"
+
+	"github.com/redpanda-data/ai-sdk-go/llm"
+)
 
 const (
 	googleModelsSource       = "https://ai.google.dev/gemini-api/docs/models"
@@ -25,7 +30,55 @@ const (
 // ModelCatalog returns recommendation and lifecycle metadata for a canonical,
 // aliased, or versioned Gemini model identifier.
 func (*Provider) ModelCatalog(model string) (llm.ModelCatalogMetadata, bool) {
-	return googleModelCatalog(resolveModelFamily(model))
+	model = strings.TrimPrefix(model, "models/")
+
+	if model == ModelGeminiFlashLatest {
+		return googleModelCatalog(ModelGemini35Flash)
+	}
+
+	if catalog, ok := googleRetiredModelCatalog(model); ok {
+		return catalog, true
+	}
+
+	if _, ok := supportedModels[model]; ok {
+		return googleModelCatalog(model)
+	}
+
+	if family, ok := googleVersionedModelFamily(model); ok {
+		return googleModelCatalog(family)
+	}
+
+	return llm.ModelCatalogMetadata{}, false
+}
+
+func googleRetiredModelCatalog(model string) (llm.ModelCatalogMetadata, bool) {
+	switch model {
+	case "gemini-3.1-flash-lite-preview":
+		return googleCatalog("gemini-flash-lite", llm.ModelPositioningLegacy, llm.ModelLifecycleRetired, llm.ModelReleaseStagePreview, "2026-05-25", ModelGemini31FlashLite, googleDeprecationsSource), true
+	case "gemini-2.0-flash":
+		return googleCatalog("gemini-flash", llm.ModelPositioningLegacy, llm.ModelLifecycleRetired, llm.ModelReleaseStageStable, "2026-06-01", ModelGemini35Flash, googleDeprecationsSource), true
+	case "gemini-2.5-pro-preview-03-25", "gemini-2.5-pro-preview-05-06", "gemini-2.5-pro-preview-06-05":
+		return googleCatalog("gemini-pro", llm.ModelPositioningLegacy, llm.ModelLifecycleRetired, llm.ModelReleaseStagePreview, "2025-12-02", ModelGemini31ProPreview, googleDeprecationsSource), true
+	default:
+		return llm.ModelCatalogMetadata{}, false
+	}
+}
+
+func googleVersionedModelFamily(model string) (string, bool) {
+	best := ""
+	for family := range supportedModels {
+		prefix := family + "-"
+		if !strings.HasPrefix(model, prefix) || len(family) <= len(best) {
+			continue
+		}
+
+		version := strings.TrimPrefix(model, prefix)
+		if len(version) == 3 && strings.IndexFunc(version, func(r rune) bool { return !unicode.IsDigit(r) }) == -1 {
+			best = family
+		}
+	}
+
+	return best, best != ""
 }
 
 func googleModelCatalog(name string) (llm.ModelCatalogMetadata, bool) {
@@ -43,7 +96,7 @@ func googleModelCatalog(name string) (llm.ModelCatalogMetadata, bool) {
 	case ModelGemini25Flash:
 		return googleCatalog("gemini-flash", llm.ModelPositioningLegacy, llm.ModelLifecycleDeprecated, llm.ModelReleaseStageStable, "2026-10-16", ModelGemini35Flash, googleDeprecationsSource), true
 	case ModelGemini31FlashLite:
-		return googleCatalog("gemini-flash-lite", llm.ModelPositioningModern, llm.ModelLifecycleDeprecated, llm.ModelReleaseStageStable, "2027-05-07", "", googleDeprecationsSource), true
+		return googleCatalog("gemini-flash-lite", llm.ModelPositioningModern, llm.ModelLifecycleActive, llm.ModelReleaseStageStable, "", "", googleModelsSource), true
 	case ModelGemini25FlashLite:
 		return googleCatalog("gemini-flash-lite", llm.ModelPositioningLegacy, llm.ModelLifecycleDeprecated, llm.ModelReleaseStageStable, "2026-10-16", ModelGemini31FlashLite, googleDeprecationsSource), true
 	default:

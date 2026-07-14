@@ -125,6 +125,7 @@ func TestDirectProviderCatalogRecommendsOnlyNewestUsefulModelsPerFamily(t *testi
 		"google": {
 			provider: &google.Provider{},
 			expected: []string{
+				google.ModelGemini31FlashLite,
 				google.ModelGemini31ProPreview,
 				google.ModelGemini35Flash,
 			},
@@ -132,6 +133,7 @@ func TestDirectProviderCatalogRecommendsOnlyNewestUsefulModelsPerFamily(t *testi
 		"openai": {
 			provider: &openai.Provider{},
 			expected: []string{
+				"gpt-5.3-codex",
 				openai.ModelGPT5_5Pro,
 				openai.ModelGPT5_6Luna,
 				openai.ModelGPT5_6Sol,
@@ -162,16 +164,16 @@ func TestLifecycleRequiresProviderConfirmedStatus(t *testing.T) {
 	// models are deprecated, not retired; dates never advance lifecycle state.
 	require.Equal(t, llm.ModelLifecycleDeprecated, googleModels[google.ModelGemini25Pro].Lifecycle)
 	require.Equal(t, "2026-10-16", googleModels[google.ModelGemini25Pro].EndOfLifeDate)
-	require.Equal(t, llm.ModelLifecycleDeprecated, googleModels[google.ModelGemini31FlashLite].Lifecycle)
-	require.Equal(t, "2027-05-07", googleModels[google.ModelGemini31FlashLite].EndOfLifeDate)
+	require.Equal(t, llm.ModelLifecycleActive, googleModels[google.ModelGemini31FlashLite].Lifecycle)
+	require.Empty(t, googleModels[google.ModelGemini31FlashLite].EndOfLifeDate)
 
 	anthropicModels := catalogByName(t, &anthropic.Provider{})
 	require.Equal(t, llm.ModelLifecycleDeprecated, anthropicModels[anthropic.ModelClaudeOpus41].Lifecycle)
 	require.Equal(t, "2026-08-05", anthropicModels[anthropic.ModelClaudeOpus41].EndOfLifeDate)
 
 	openAIModels := catalogByName(t, &openai.Provider{})
-	require.Equal(t, llm.ModelLifecycleDeprecated, openAIModels[openai.ModelGPT5].Lifecycle)
-	require.Equal(t, "2026-12-11", openAIModels[openai.ModelGPT5].EndOfLifeDate)
+	require.Equal(t, llm.ModelLifecycleActive, openAIModels[openai.ModelGPT5].Lifecycle)
+	require.Empty(t, openAIModels[openai.ModelGPT5].EndOfLifeDate)
 	require.Equal(t, llm.ModelLifecycleDeprecated, openAIModels[openai.ModelGPT4O].Lifecycle)
 }
 

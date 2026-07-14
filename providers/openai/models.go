@@ -272,6 +272,29 @@ var supportedModels = map[string]ModelDefinition{
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortMedium}, // Chat-latest only supports medium
 		Pricing:                   pricing.FlatInfo(1.75, 14.00, 0.175),
 	},
+	ModelGPT5_3Codex: {
+		Name:  ModelGPT5_3Codex,
+		Label: "OpenAI GPT-5.3 Codex",
+		Capabilities: llm.ModelCapabilities{
+			Streaming:        true,
+			Tools:            true,
+			JSONMode:         true,
+			StructuredOutput: true,
+			Vision:           true,
+			MultiTurn:        true,
+			SystemPrompts:    true,
+			Reasoning:        true,
+		},
+		Constraints: llm.ModelConstraints{
+			MaxInputTokens:    400_000,
+			MaxOutputTokens:   128_000,
+			SupportedParams:   []string{"max_tokens", "reasoning_effort", "reasoning_summary"},
+			MutuallyExclusive: [][]string{},
+		},
+		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh},
+		// $1.75 / $14.00 / $0.175 per M (input / output / cached input).
+		Pricing: pricing.FlatInfo(1.75, 14.00, 0.175),
+	},
 
 	// GPT-5.6 Series
 	ModelGPT5_6Luna: {

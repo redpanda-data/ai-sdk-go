@@ -23,6 +23,7 @@ import (
 
 // Model ID constants for Google Gemini models.
 const (
+	ModelGeminiFlashLatest   = "gemini-flash-latest"
 	ModelGemini35Flash       = "gemini-3.5-flash"
 	ModelGemini31ProPreview  = "gemini-3.1-pro-preview"
 	ModelGemini31FlashLite   = "gemini-3.1-flash-lite"

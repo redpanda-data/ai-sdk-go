@@ -1,0 +1,96 @@
+// Copyright 2026 Redpanda Data, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package openai
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/redpanda-data/ai-sdk-go/llm"
+)
+
+func TestModelCatalogPreservesExactAliasAndSnapshotLifecycle(t *testing.T) {
+	t.Parallel()
+
+	provider := &Provider{}
+	tests := []struct {
+		name        string
+		model       string
+		lifecycle   llm.ModelLifecycle
+		endOfLife   string
+		positioning llm.ModelPositioning
+	}{
+		{name: "GPT-5 alias remains active", model: ModelGPT5, lifecycle: llm.ModelLifecycleActive, positioning: llm.ModelPositioningLegacy},
+		{name: "GPT-5 snapshot is deprecated", model: "gpt-5-2025-08-07", lifecycle: llm.ModelLifecycleDeprecated, endOfLife: "2026-12-11", positioning: llm.ModelPositioningLegacy},
+		{name: "O3 alias remains active", model: ModelO3, lifecycle: llm.ModelLifecycleActive, positioning: llm.ModelPositioningLegacy},
+		{name: "O3 snapshot is deprecated", model: "o3-2025-04-16", lifecycle: llm.ModelLifecycleDeprecated, endOfLife: "2026-12-11", positioning: llm.ModelPositioningLegacy},
+		{name: "retired preview stays exact", model: "gpt-4-turbo-preview", lifecycle: llm.ModelLifecycleRetired, endOfLife: "2026-03-26", positioning: llm.ModelPositioningLegacy},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			catalog, ok := provider.ModelCatalog(tt.model)
+			require.True(t, ok)
+			require.Equal(t, tt.lifecycle, catalog.Lifecycle)
+			require.Equal(t, tt.endOfLife, catalog.EndOfLifeDate)
+			require.Equal(t, tt.positioning, catalog.Positioning)
+		})
+	}
+}
+
+func TestModelCatalogRejectsUnrecognizedFamilySiblings(t *testing.T) {
+	t.Parallel()
+
+	provider := &Provider{}
+	for _, model := range []string{
+		"gpt-5-custom",
+		"gpt-4o-transcribe",
+		"gpt-5.6-2026-07-09",
+		"gpt-5-2025-8-7",
+	} {
+		_, ok := provider.ModelCatalog(model)
+		require.False(t, ok, model)
+	}
+}
+
+func TestGPT53CodexIsCurrentSpecializedModel(t *testing.T) {
+	t.Parallel()
+
+	const modelName = "gpt-5.3-codex"
+
+	catalog, ok := (&Provider{}).ModelCatalog(modelName)
+	require.True(t, ok)
+	require.Equal(t, "codex", catalog.FamilyKey)
+	require.Equal(t, "openai-codex", catalog.RecommendationGroup)
+	require.Equal(t, llm.ModelPositioningModern, catalog.Positioning)
+	require.Equal(t, llm.ModelLifecycleActive, catalog.Lifecycle)
+
+	models := (&Provider{}).Models()
+	for _, model := range models {
+		if model.Name == modelName {
+			require.Equal(t, 400_000, model.Constraints.MaxInputTokens)
+			require.Equal(t, 128_000, model.Constraints.MaxOutputTokens)
+			require.True(t, model.Capabilities.Streaming)
+			require.True(t, model.Capabilities.Reasoning)
+
+			return
+		}
+	}
+
+	t.Fatalf("model %q was not discoverable", modelName)
+}

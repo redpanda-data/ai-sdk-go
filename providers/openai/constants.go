@@ -42,6 +42,8 @@ const (
 
 	// ModelGPT5_3ChatLatest is the GPT-5.3 Chat Latest model (speed-optimized, medium-only reasoning).
 	ModelGPT5_3ChatLatest = shared.ChatModelGPT5_3ChatLatest
+	// ModelGPT5_3Codex is OpenAI's agentic coding model in the GPT-5.3 family.
+	ModelGPT5_3Codex = "gpt-5.3-codex"
 
 	// ModelGPT5_6Luna is the cost-optimized GPT-5.6 model.
 	ModelGPT5_6Luna = shared.ChatModelGPT5_6Luna
