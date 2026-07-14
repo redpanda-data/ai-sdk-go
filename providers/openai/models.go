@@ -435,7 +435,11 @@ var supportedModels = map[string]ModelDefinition{
 			MutuallyExclusive: [][]string{},
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh},
-		Pricing:                   pricing.FlatInfo(30.00, 180.00, 0),
+		// $30.00 / $180.00 / $0 per M (input / output / cached input).
+		Pricing: pricing.FlatInfo(30.00, 180.00, 0).
+			// Regional processing has a 10% premium: $33.00 / $198.00 / $0 per M.
+			WithOverride(pricing.Selector{Region: "us"}, pricing.RateCard{Base: pricing.NewRates(33.00, 198.00, 0)}).
+			WithOverride(pricing.Selector{Region: "eu"}, pricing.RateCard{Base: pricing.NewRates(33.00, 198.00, 0)}),
 	},
 
 	// GPT-5.4 Series (March 2026 Flagship)

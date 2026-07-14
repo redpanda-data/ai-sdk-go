@@ -327,6 +327,13 @@ var (
 		SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 	}
 
+	claudeSonnet46Constraints = llm.ModelConstraints{
+		TemperatureRange: [2]float64{0.0, 1.0},
+		MaxInputTokens:   1000000,
+		MaxOutputTokens:  64000,
+		SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
+	}
+
 	// Capability/constraint shapes for Amazon Nova 2 Lite. Unlike the Claude
 	// entries, JSONMode and StructuredOutput are set: Nova supports Bedrock
 	// constrained-decoding structured outputs (response_format / Converse
@@ -536,6 +543,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Opus 4.8 (AU)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext1MConstraints,
+		// Per M: $5.50 input, $27.50 output, $0.55 cache read; cache writes $6.875 (5m), $11.00 (1h), $0 (unknown TTL).
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
 		),
@@ -585,6 +593,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Opus 4.7 (AU)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext1MConstraints,
+		// Per M: $5.50 input, $27.50 output, $0.55 cache read; cache writes $6.875 (5m), $11.00 (1h), $0 (unknown TTL).
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
 		),
@@ -691,7 +700,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:         ModelClaudeSonnet46Global,
 		Label:        "Claude Sonnet 4.6 (Global)",
 		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext200kConstraints,
+		Constraints:  claudeSonnet46Constraints,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0),
 		),
@@ -700,7 +709,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:         ModelClaudeSonnet46US,
 		Label:        "Claude Sonnet 4.6 (US)",
 		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext200kConstraints,
+		Constraints:  claudeSonnet46Constraints,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0),
 		),
@@ -709,7 +718,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:         ModelClaudeSonnet46EU,
 		Label:        "Claude Sonnet 4.6 (EU)",
 		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext200kConstraints,
+		Constraints:  claudeSonnet46Constraints,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0),
 		),
@@ -718,7 +727,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:         ModelClaudeSonnet46AU,
 		Label:        "Claude Sonnet 4.6 (AU)",
 		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext200kConstraints,
+		Constraints:  claudeSonnet46Constraints,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0),
 		),
@@ -727,7 +736,8 @@ var supportedModels = map[string]ModelDefinition{
 		Name:         ModelClaudeSonnet46JP,
 		Label:        "Claude Sonnet 4.6 (JP)",
 		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext200kConstraints,
+		Constraints:  claudeSonnet46Constraints,
+		// Per M: $3.30 input, $16.50 output, $0.33 cache read; cache writes $4.125 (5m), $6.60 (1h), $0 (unknown TTL).
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0),
 		),
@@ -826,6 +836,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Haiku 4.5 (JP)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
+		// Per M: $1.10 input, $5.50 output, $0.11 cache read; cache writes $1.375 (5m), $2.20 (1h), $0 (unknown TTL).
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(1.10, 5.50, 0.11).WithCacheCreation(1.375, 2.20, 0),
 		),

@@ -56,6 +56,23 @@ func TestInferenceProfileRegion(t *testing.T) {
 	}
 }
 
+func TestClaudeSonnet46ConstraintsMatchModelCard(t *testing.T) {
+	t.Parallel()
+
+	for _, model := range []string{
+		ModelClaudeSonnet46Global,
+		ModelClaudeSonnet46US,
+		ModelClaudeSonnet46EU,
+		ModelClaudeSonnet46AU,
+		ModelClaudeSonnet46JP,
+	} {
+		definition, ok := supportedModels[model]
+		require.True(t, ok, model)
+		require.Equal(t, 1_000_000, definition.Constraints.MaxInputTokens, model)
+		require.Equal(t, 64_000, definition.Constraints.MaxOutputTokens, model)
+	}
+}
+
 // ---------- hasRegionPrefix ----------
 
 func TestHasRegionPrefix(t *testing.T) {

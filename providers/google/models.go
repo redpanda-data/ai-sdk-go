@@ -140,6 +140,7 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
 			MutuallyExclusive: [][]string{},
 		},
+		// $0.25 / $1.50 / $0.025 per M (input / output / cached input).
 		Pricing: pricing.FlatInfo(0.25, 1.50, 0.025),
 	},
 	ModelGemini3ProPreview: {

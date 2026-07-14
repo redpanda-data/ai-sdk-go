@@ -121,6 +121,31 @@ func TestGPT56Pricing(t *testing.T) {
 	}
 }
 
+func TestGPT55ProRegionalPricing(t *testing.T) {
+	t.Parallel()
+
+	catalog, err := pricing.NewCatalog(pricing.WithProvider("openai", ModelPricing()))
+	require.NoError(t, err)
+
+	usage := &llm.TokenUsage{InputTokens: 1_000_000, OutputTokens: 1_000_000}
+	defaultCost, err := catalog.Calculate(ModelGPT5_5Pro, usage, pricing.CalcRequest{})
+	require.NoError(t, err)
+	require.Equal(t, int64(21_000_000_000), defaultCost.Total)
+
+	for _, region := range []string{"us", "eu"} {
+		t.Run(region, func(t *testing.T) {
+			t.Parallel()
+
+			cost, err := catalog.Calculate(ModelGPT5_5Pro, usage, pricing.CalcRequest{
+				Selector: pricing.Selector{Region: region},
+			})
+			require.NoError(t, err)
+			require.Equal(t, int64(23_100_000_000), cost.Total)
+			require.Equal(t, pricing.Selector{Region: region}, cost.AppliedSelector)
+		})
+	}
+}
+
 func TestAllModelsHavePricing(t *testing.T) {
 	t.Parallel()
 
