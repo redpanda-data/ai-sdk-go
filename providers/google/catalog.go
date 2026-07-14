@@ -66,6 +66,7 @@ func googleRetiredModelCatalog(model string) (llm.ModelCatalogMetadata, bool) {
 
 func googleVersionedModelFamily(model string) (string, bool) {
 	best := ""
+
 	for family := range supportedModels {
 		prefix := family + "-"
 		if !strings.HasPrefix(model, prefix) || len(family) <= len(best) {

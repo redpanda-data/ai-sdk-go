@@ -122,6 +122,7 @@ func TestRegionalEndpointSetsPricingRegion(t *testing.T) {
 
 			model, err := provider.NewModel(ModelGPT5_5Pro)
 			require.NoError(t, err)
+
 			openAIModel, ok := model.(*Model)
 			require.True(t, ok)
 			require.Equal(t, tt.want, openAIModel.responseMapper.inferenceRegion)

@@ -70,6 +70,7 @@ func openAIExactSnapshotCatalog(model string) (llm.ModelCatalogMetadata, bool) {
 
 func openAIDatedSnapshotFamily(model string) (string, bool) {
 	best := ""
+
 	for family := range supportedModels {
 		prefix := family + "-"
 		if !strings.HasPrefix(model, prefix) || len(family) <= len(best) {
