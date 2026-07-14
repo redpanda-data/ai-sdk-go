@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -30,11 +31,14 @@ import (
 
 // Provider implements the OpenAI model provider.
 type Provider struct {
-	APIKey     string
-	BaseURL    string
-	HTTPClient *http.Client
-	Timeout    time.Duration
-	client     *openai.Client
+	APIKey  string
+	BaseURL string
+	// InferenceRegion selects regional pricing metadata for OpenAI data
+	// residency endpoints. Empty means the global endpoint.
+	InferenceRegion string
+	HTTPClient      *http.Client
+	Timeout         time.Duration
+	client          *openai.Client
 }
 
 // Name returns the provider identifier.
@@ -68,6 +72,10 @@ func NewProvider(apiKey string, opts ...ProviderOption) (*Provider, error) {
 		}
 	}
 
+	if p.InferenceRegion == "" {
+		p.InferenceRegion = inferenceRegionFromBaseURL(p.BaseURL)
+	}
+
 	// Initialize OpenAI client with provider configuration
 	clientOpts := []option.RequestOption{
 		option.WithAPIKey(p.APIKey),
@@ -93,6 +101,39 @@ func WithBaseURL(url string) ProviderOption {
 		p.BaseURL = strings.TrimRight(url, "/")
 
 		return nil
+	}
+}
+
+// WithInferenceRegion sets the canonical pricing region for requests routed
+// through a gateway or proxy whose URL does not identify the OpenAI residency
+// endpoint. OpenAI currently publishes regional pricing for US and EU.
+func WithInferenceRegion(region string) ProviderOption {
+	return func(p *Provider) error {
+		region = strings.ToLower(strings.TrimSpace(region))
+		switch region {
+		case "us", "eu":
+			p.InferenceRegion = region
+
+			return nil
+		default:
+			return fmt.Errorf("inference region must be us or eu, got %q", region)
+		}
+	}
+}
+
+func inferenceRegionFromBaseURL(baseURL string) string {
+	parsed, err := url.Parse(baseURL)
+	if err != nil {
+		return ""
+	}
+
+	switch strings.ToLower(parsed.Hostname()) {
+	case "us.api.openai.com":
+		return "us"
+	case "eu.api.openai.com":
+		return "eu"
+	default:
+		return ""
 	}
 }
 
@@ -184,7 +225,7 @@ func (p *Provider) NewCompatModel(modelName string, def ModelDefinition, opts ..
 		definition:     def,
 		client:         p.client,
 		requestMapper:  NewRequestMapper(cfg),
-		responseMapper: NewResponseMapper(def),
+		responseMapper: NewResponseMapper(def, p.InferenceRegion),
 	}, nil
 }
 

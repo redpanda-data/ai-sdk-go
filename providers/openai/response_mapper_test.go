@@ -29,7 +29,7 @@ import (
 func TestResponseMapper_Metadata(t *testing.T) {
 	t.Parallel()
 
-	mapper := NewResponseMapper(supportedModels[ModelGPT5Mini])
+	mapper := NewResponseMapper(supportedModels[ModelGPT5Mini], "eu")
 
 	resp, err := mapper.FromProvider(&responses.Response{
 		ID:          "resp_123",
@@ -53,6 +53,7 @@ func TestResponseMapper_Metadata(t *testing.T) {
 
 	assert.Equal(t, llm.ServiceTierDefault, resp.ServiceTier)
 	assert.Equal(t, ModelGPT5Mini, resp.InvokedModelID)
+	assert.Equal(t, "eu", resp.InferenceRegion)
 }
 
 func TestResponseMapper_CacheUsageBucketsAreDisjoint(t *testing.T) {

@@ -26,11 +26,17 @@ import (
 // ResponseMapper converts OpenAI Responses API payloads to llm.Response.
 type ResponseMapper struct {
 	modelDefinition ModelDefinition
+	inferenceRegion string
 }
 
 // NewResponseMapper returns a ready-to-use mapper.
-func NewResponseMapper(definition ModelDefinition) *ResponseMapper {
-	return &ResponseMapper{modelDefinition: definition}
+func NewResponseMapper(definition ModelDefinition, inferenceRegion ...string) *ResponseMapper {
+	region := ""
+	if len(inferenceRegion) > 0 {
+		region = inferenceRegion[0]
+	}
+
+	return &ResponseMapper{modelDefinition: definition, inferenceRegion: region}
 }
 
 // FromProvider converts an OpenAI Responses API payload into llm.Response.
@@ -165,10 +171,11 @@ func (m *ResponseMapper) FromProvider(r *responses.Response) (*llm.Response, err
 			Role:    llm.RoleAssistant,
 			Content: content,
 		},
-		FinishReason:   finish,
-		Usage:          usage,
-		ServiceTier:    llm.NormalizeServiceTier(string(r.ServiceTier)),
-		InvokedModelID: r.Model,
+		FinishReason:    finish,
+		Usage:           usage,
+		ServiceTier:     llm.NormalizeServiceTier(string(r.ServiceTier)),
+		InferenceRegion: m.inferenceRegion,
+		InvokedModelID:  r.Model,
 	}, nil
 }
 

@@ -72,6 +72,63 @@ func TestWithBaseURL(t *testing.T) {
 	}
 }
 
+func TestRegionalEndpointSetsPricingRegion(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		opts    []ProviderOption
+		want    string
+		wantErr string
+	}{
+		{
+			name: "EU endpoint is inferred",
+			opts: []ProviderOption{WithBaseURL("https://eu.api.openai.com/v1")},
+			want: "eu",
+		},
+		{
+			name: "US endpoint is inferred",
+			opts: []ProviderOption{WithBaseURL("https://us.api.openai.com/v1")},
+			want: "us",
+		},
+		{
+			name: "explicit region supports gateways",
+			opts: []ProviderOption{
+				WithBaseURL("https://gateway.example.com/openai"),
+				WithInferenceRegion("EU"),
+			},
+			want: "eu",
+		},
+		{
+			name:    "unsupported region is rejected",
+			opts:    []ProviderOption{WithInferenceRegion("apac")},
+			wantErr: "inference region",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			provider, err := NewProvider("sk-test", tt.opts...)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, tt.want, provider.InferenceRegion)
+
+			model, err := provider.NewModel(ModelGPT5_5Pro)
+			require.NoError(t, err)
+			openAIModel, ok := model.(*Model)
+			require.True(t, ok)
+			require.Equal(t, tt.want, openAIModel.responseMapper.inferenceRegion)
+		})
+	}
+}
+
 func TestProviderCreation(t *testing.T) {
 	t.Parallel()
 	// Valid provider creation
