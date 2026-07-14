@@ -50,6 +50,9 @@ func TestModelCatalogPreservesExactAliasAndSnapshotFacts(t *testing.T) {
 			require.Equal(t, tt.endOfLife, catalog.EndOfLifeDate)
 			require.Equal(t, tt.deprecated, catalog.Deprecated)
 			require.Equal(t, tt.retired, catalog.Retired)
+			if tt.model == ModelGPT4O {
+				require.Equal(t, openAIModelsSource, catalog.OfficialSourceURL)
+			}
 		})
 	}
 }
