@@ -371,6 +371,17 @@ type ModelCatalogProvider interface {
 	ModelCatalog(model string) (ModelCatalogMetadata, bool)
 }
 
+// ModelCatalogOverridesProvider optionally enumerates exact lifecycle records
+// for model IDs that are intentionally absent from Provider.Models(). These
+// records let discovery clients classify existing resources that reference a
+// retired or deprecated snapshot without offering that snapshot for new
+// selections. Equivalent active aliases must remain excluded.
+//
+// The returned map is owned by the caller and may be modified safely.
+type ModelCatalogOverridesProvider interface {
+	ModelCatalogOverrides() map[string]ModelCatalogMetadata
+}
+
 // ModelDiscoveryInfo provides metadata about a model that can be discovered at
 // runtime, without constructing the model. It is the static counterpart of the
 // ModelInfo interface: Name, Provider, Capabilities, and Constraints mirror the

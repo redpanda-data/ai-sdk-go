@@ -15,6 +15,7 @@
 package google
 
 import (
+	"maps"
 	"strings"
 	"unicode"
 
@@ -26,6 +27,14 @@ const (
 	googleDeprecationsSource = "https://ai.google.dev/gemini-api/docs/deprecations"
 	googleVerifiedDate       = "2026-07-13"
 )
+
+var googleExactModelCatalogOverrides = map[string]llm.ModelCatalogMetadata{
+	"gemini-3.1-flash-lite-preview": googleCatalog("gemini-flash-lite", llm.ModelPositioningLegacy, llm.ModelLifecycleRetired, llm.ModelReleaseStagePreview, "2026-05-25", ModelGemini31FlashLite, googleDeprecationsSource),
+	"gemini-2.0-flash":              googleCatalog("gemini-flash", llm.ModelPositioningLegacy, llm.ModelLifecycleRetired, llm.ModelReleaseStageStable, "2026-06-01", ModelGemini35Flash, googleDeprecationsSource),
+	"gemini-2.5-pro-preview-03-25":  googleCatalog("gemini-pro", llm.ModelPositioningLegacy, llm.ModelLifecycleRetired, llm.ModelReleaseStagePreview, "2025-12-02", ModelGemini31ProPreview, googleDeprecationsSource),
+	"gemini-2.5-pro-preview-05-06":  googleCatalog("gemini-pro", llm.ModelPositioningLegacy, llm.ModelLifecycleRetired, llm.ModelReleaseStagePreview, "2025-12-02", ModelGemini31ProPreview, googleDeprecationsSource),
+	"gemini-2.5-pro-preview-06-05":  googleCatalog("gemini-pro", llm.ModelPositioningLegacy, llm.ModelLifecycleRetired, llm.ModelReleaseStagePreview, "2025-12-02", ModelGemini31ProPreview, googleDeprecationsSource),
+}
 
 // ModelCatalog returns recommendation and lifecycle metadata for a canonical,
 // aliased, or versioned Gemini model identifier.
@@ -51,17 +60,16 @@ func (*Provider) ModelCatalog(model string) (llm.ModelCatalogMetadata, bool) {
 	return llm.ModelCatalogMetadata{}, false
 }
 
+// ModelCatalogOverrides returns exact deprecated or retired model IDs that
+// remain outside Models() so they are not offered for new selections.
+func (*Provider) ModelCatalogOverrides() map[string]llm.ModelCatalogMetadata {
+	return maps.Clone(googleExactModelCatalogOverrides)
+}
+
 func googleRetiredModelCatalog(model string) (llm.ModelCatalogMetadata, bool) {
-	switch model {
-	case "gemini-3.1-flash-lite-preview":
-		return googleCatalog("gemini-flash-lite", llm.ModelPositioningLegacy, llm.ModelLifecycleRetired, llm.ModelReleaseStagePreview, "2026-05-25", ModelGemini31FlashLite, googleDeprecationsSource), true
-	case "gemini-2.0-flash":
-		return googleCatalog("gemini-flash", llm.ModelPositioningLegacy, llm.ModelLifecycleRetired, llm.ModelReleaseStageStable, "2026-06-01", ModelGemini35Flash, googleDeprecationsSource), true
-	case "gemini-2.5-pro-preview-03-25", "gemini-2.5-pro-preview-05-06", "gemini-2.5-pro-preview-06-05":
-		return googleCatalog("gemini-pro", llm.ModelPositioningLegacy, llm.ModelLifecycleRetired, llm.ModelReleaseStagePreview, "2025-12-02", ModelGemini31ProPreview, googleDeprecationsSource), true
-	default:
-		return llm.ModelCatalogMetadata{}, false
-	}
+	catalog, ok := googleExactModelCatalogOverrides[model]
+
+	return catalog, ok
 }
 
 func googleVersionedModelFamily(model string) (string, bool) {

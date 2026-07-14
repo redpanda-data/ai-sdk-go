@@ -36,6 +36,11 @@ type catalogProvider interface {
 	ModelCatalog(string) (llm.ModelCatalogMetadata, bool)
 }
 
+type catalogOverridesProvider interface {
+	catalogProvider
+	llm.ModelCatalogOverridesProvider
+}
+
 func TestModelCatalogMetadataIsComplete(t *testing.T) {
 	t.Parallel()
 
@@ -89,6 +94,70 @@ func TestModelCatalogMetadataIsComplete(t *testing.T) {
 					require.NotEmpty(t, catalog.OfficialSourceURL, "%s: confirmed retirement needs an official source", model.Name)
 					require.Equal(t, llm.ModelPositioningLegacy, catalog.Positioning, "%s: retired models are legacy", model.Name)
 				}
+			}
+		})
+	}
+}
+
+func TestCatalogOverridesEnumerateEveryExactNonDiscoveryLifecycleID(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		provider catalogOverridesProvider
+		expected map[string]llm.ModelLifecycle
+		excluded []string
+	}{
+		"google": {
+			provider: &google.Provider{},
+			expected: map[string]llm.ModelLifecycle{
+				"gemini-3.1-flash-lite-preview": llm.ModelLifecycleRetired,
+				"gemini-2.0-flash":              llm.ModelLifecycleRetired,
+				"gemini-2.5-pro-preview-03-25":  llm.ModelLifecycleRetired,
+				"gemini-2.5-pro-preview-05-06":  llm.ModelLifecycleRetired,
+				"gemini-2.5-pro-preview-06-05":  llm.ModelLifecycleRetired,
+			},
+			excluded: []string{google.ModelGeminiFlashLatest, google.ModelGemini35Flash},
+		},
+		"openai": {
+			provider: &openai.Provider{},
+			expected: map[string]llm.ModelLifecycle{
+				"gpt-5-2025-08-07":      llm.ModelLifecycleDeprecated,
+				"gpt-5-mini-2025-08-07": llm.ModelLifecycleDeprecated,
+				"gpt-5-nano-2025-08-07": llm.ModelLifecycleDeprecated,
+				"o3-2025-04-16":         llm.ModelLifecycleDeprecated,
+				"o3-pro-2025-06-10":     llm.ModelLifecycleDeprecated,
+				"gpt-4-turbo-preview":   llm.ModelLifecycleRetired,
+			},
+			excluded: []string{openai.ModelGPT5, openai.ModelO3, openai.ModelGPT5_6},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			overrides := tt.provider.ModelCatalogOverrides()
+			require.Len(t, overrides, len(tt.expected))
+
+			discovered := make(map[string]struct{})
+			for _, model := range tt.provider.Models() {
+				discovered[model.Name] = struct{}{}
+			}
+
+			for model, lifecycle := range tt.expected {
+				metadata, ok := overrides[model]
+				require.True(t, ok, model)
+				require.Equal(t, lifecycle, metadata.Lifecycle, model)
+				require.NotEqual(t, llm.ModelLifecycleActive, metadata.Lifecycle, model)
+				require.NotContains(t, discovered, model)
+
+				resolved, ok := tt.provider.ModelCatalog(model)
+				require.True(t, ok, model)
+				require.Equal(t, metadata, resolved, model)
+			}
+
+			for _, model := range tt.excluded {
+				require.NotContains(t, overrides, model)
 			}
 		})
 	}

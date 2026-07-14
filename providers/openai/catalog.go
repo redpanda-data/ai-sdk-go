@@ -15,6 +15,7 @@
 package openai
 
 import (
+	"maps"
 	"strings"
 	"time"
 
@@ -26,6 +27,15 @@ const (
 	openAIDeprecationsSource = "https://developers.openai.com/api/docs/deprecations"
 	openAIVerifiedDate       = "2026-07-13"
 )
+
+var openAIExactModelCatalogOverrides = map[string]llm.ModelCatalogMetadata{
+	"gpt-5-2025-08-07":      openAICatalog("gpt", "openai-gpt-flagship", llm.ModelPositioningLegacy, llm.ModelLifecycleDeprecated, "2026-12-11", ModelGPT5_5, openAIDeprecationsSource),
+	"gpt-5-mini-2025-08-07": openAICatalog("gpt", "openai-gpt-balanced", llm.ModelPositioningLegacy, llm.ModelLifecycleDeprecated, "2026-12-11", ModelGPT5_4Mini, openAIDeprecationsSource),
+	"gpt-5-nano-2025-08-07": openAICatalog("gpt", "openai-gpt-efficient", llm.ModelPositioningLegacy, llm.ModelLifecycleDeprecated, "2026-12-11", ModelGPT5_4Nano, openAIDeprecationsSource),
+	"o3-2025-04-16":         openAICatalog("o-series", "openai-o-reasoning", llm.ModelPositioningLegacy, llm.ModelLifecycleDeprecated, "2026-12-11", ModelGPT5_5, openAIDeprecationsSource),
+	"o3-pro-2025-06-10":     openAICatalog("o-series", "openai-o-pro", llm.ModelPositioningLegacy, llm.ModelLifecycleDeprecated, "2026-12-11", ModelGPT5_5Pro, openAIDeprecationsSource),
+	"gpt-4-turbo-preview":   openAICatalog("gpt", "openai-gpt-flagship", llm.ModelPositioningLegacy, llm.ModelLifecycleRetired, "2026-03-26", ModelGPT5_5, openAIDeprecationsSource),
+}
 
 // ModelCatalog returns recommendation and lifecycle metadata for a canonical,
 // aliased, or dated OpenAI model identifier.
@@ -49,23 +59,16 @@ func (*Provider) ModelCatalog(model string) (llm.ModelCatalogMetadata, bool) {
 	return llm.ModelCatalogMetadata{}, false
 }
 
+// ModelCatalogOverrides returns exact deprecated or retired model IDs that
+// remain outside Models() so they are not offered for new selections.
+func (*Provider) ModelCatalogOverrides() map[string]llm.ModelCatalogMetadata {
+	return maps.Clone(openAIExactModelCatalogOverrides)
+}
+
 func openAIExactSnapshotCatalog(model string) (llm.ModelCatalogMetadata, bool) {
-	switch model {
-	case "gpt-5-2025-08-07":
-		return openAICatalog("gpt", "openai-gpt-flagship", llm.ModelPositioningLegacy, llm.ModelLifecycleDeprecated, "2026-12-11", ModelGPT5_5, openAIDeprecationsSource), true
-	case "gpt-5-mini-2025-08-07":
-		return openAICatalog("gpt", "openai-gpt-balanced", llm.ModelPositioningLegacy, llm.ModelLifecycleDeprecated, "2026-12-11", ModelGPT5_4Mini, openAIDeprecationsSource), true
-	case "gpt-5-nano-2025-08-07":
-		return openAICatalog("gpt", "openai-gpt-efficient", llm.ModelPositioningLegacy, llm.ModelLifecycleDeprecated, "2026-12-11", ModelGPT5_4Nano, openAIDeprecationsSource), true
-	case "o3-2025-04-16":
-		return openAICatalog("o-series", "openai-o-reasoning", llm.ModelPositioningLegacy, llm.ModelLifecycleDeprecated, "2026-12-11", ModelGPT5_5, openAIDeprecationsSource), true
-	case "o3-pro-2025-06-10":
-		return openAICatalog("o-series", "openai-o-pro", llm.ModelPositioningLegacy, llm.ModelLifecycleDeprecated, "2026-12-11", ModelGPT5_5Pro, openAIDeprecationsSource), true
-	case "gpt-4-turbo-preview":
-		return openAICatalog("gpt", "openai-gpt-flagship", llm.ModelPositioningLegacy, llm.ModelLifecycleRetired, "2026-03-26", ModelGPT5_5, openAIDeprecationsSource), true
-	default:
-		return llm.ModelCatalogMetadata{}, false
-	}
+	catalog, ok := openAIExactModelCatalogOverrides[model]
+
+	return catalog, ok
 }
 
 func openAIDatedSnapshotFamily(model string) (string, bool) {
