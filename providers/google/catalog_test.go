@@ -28,6 +28,7 @@ func TestModelCatalogPreservesGeminiAliasAndRetirementFacts(t *testing.T) {
 		name        string
 		model       string
 		releaseDate string
+		deprecated  bool
 		retired     bool
 		endOfLife   string
 		replacement string
@@ -38,14 +39,17 @@ func TestModelCatalogPreservesGeminiAliasAndRetirementFacts(t *testing.T) {
 			releaseDate: "2026-05-19",
 		},
 		{
-			name:        "stable Flash Lite remains active",
+			name:        "deprecated stable Flash Lite remains callable",
 			model:       ModelGemini31FlashLite,
 			releaseDate: "2026-05-07",
+			deprecated:  true,
+			endOfLife:   "2027-05-07",
 		},
 		{
 			name:        "retired Flash Lite preview",
 			model:       "gemini-3.1-flash-lite-preview",
 			releaseDate: "2026-03-03",
+			deprecated:  true,
 			retired:     true,
 			endOfLife:   "2026-05-25",
 			replacement: ModelGemini31FlashLite,
@@ -53,7 +57,8 @@ func TestModelCatalogPreservesGeminiAliasAndRetirementFacts(t *testing.T) {
 		{
 			name:        "retired Gemini 2 Flash",
 			model:       "gemini-2.0-flash",
-			releaseDate: "2024-12-11",
+			releaseDate: "2025-02-05",
+			deprecated:  true,
 			retired:     true,
 			endOfLife:   "2026-06-01",
 			replacement: ModelGemini35Flash,
@@ -62,6 +67,7 @@ func TestModelCatalogPreservesGeminiAliasAndRetirementFacts(t *testing.T) {
 			name:        "retired Gemini 2.5 Pro preview snapshot",
 			model:       "gemini-2.5-pro-preview-06-05",
 			releaseDate: "2025-06-05",
+			deprecated:  true,
 			retired:     true,
 			endOfLife:   "2025-12-02",
 			replacement: ModelGemini31ProPreview,
@@ -75,6 +81,7 @@ func TestModelCatalogPreservesGeminiAliasAndRetirementFacts(t *testing.T) {
 			catalog, ok := provider.ModelCatalog(tt.model)
 			require.True(t, ok)
 			require.Equal(t, tt.releaseDate, catalog.ReleaseDate)
+			require.Equal(t, tt.deprecated, catalog.Deprecated)
 			require.Equal(t, tt.retired, catalog.Retired)
 			require.Equal(t, tt.endOfLife, catalog.EndOfLifeDate)
 			require.Equal(t, tt.replacement, catalog.Replacement)

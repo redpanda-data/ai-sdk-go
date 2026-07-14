@@ -29,13 +29,15 @@ func TestModelCatalogPreservesExactAliasAndSnapshotFacts(t *testing.T) {
 		model       string
 		releaseDate string
 		endOfLife   string
+		deprecated  bool
 		retired     bool
 	}{
 		{name: "GPT-5 alias remains callable", model: ModelGPT5, releaseDate: "2025-08-07"},
-		{name: "GPT-5 snapshot has EOL", model: "gpt-5-2025-08-07", releaseDate: "2025-08-07", endOfLife: "2026-12-11"},
+		{name: "GPT-5 snapshot is deprecated", model: "gpt-5-2025-08-07", releaseDate: "2025-08-07", endOfLife: "2026-12-11", deprecated: true},
 		{name: "O3 alias remains callable", model: ModelO3, releaseDate: "2025-04-16"},
-		{name: "O3 snapshot has EOL", model: "o3-2025-04-16", releaseDate: "2025-04-16", endOfLife: "2026-12-11"},
-		{name: "retired preview stays exact", model: "gpt-4-turbo-preview", releaseDate: "2023-11-06", endOfLife: "2026-03-26", retired: true},
+		{name: "O3 snapshot is deprecated", model: "o3-2025-04-16", releaseDate: "2025-04-16", endOfLife: "2026-12-11", deprecated: true},
+		{name: "GPT-4o deprecation has no inferred EOL", model: ModelGPT4O, releaseDate: "2024-05-13", deprecated: true},
+		{name: "retired preview stays exact", model: "gpt-4-turbo-preview", releaseDate: "2023-11-06", endOfLife: "2026-03-26", deprecated: true, retired: true},
 	}
 
 	for _, tt := range tests {
@@ -46,6 +48,7 @@ func TestModelCatalogPreservesExactAliasAndSnapshotFacts(t *testing.T) {
 			require.True(t, ok)
 			require.Equal(t, tt.releaseDate, catalog.ReleaseDate)
 			require.Equal(t, tt.endOfLife, catalog.EndOfLifeDate)
+			require.Equal(t, tt.deprecated, catalog.Deprecated)
 			require.Equal(t, tt.retired, catalog.Retired)
 		})
 	}

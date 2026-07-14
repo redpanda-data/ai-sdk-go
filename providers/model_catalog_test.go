@@ -73,6 +73,7 @@ func TestModelCatalogMetadataIsComplete(t *testing.T) {
 				}
 
 				if catalog.Retired {
+					require.True(t, catalog.Deprecated, "%s: retired models must also be deprecated", model.Name)
 					require.NotEmpty(t, catalog.EndOfLifeDate, "%s: confirmed retirement needs an end-of-life date", model.Name)
 					require.NotEmpty(t, catalog.OfficialSourceURL, "%s: confirmed retirement needs an official source", model.Name)
 				}
@@ -144,6 +145,7 @@ func TestCatalogOverridesEnumerateEveryExactNonDiscoveryCatalogID(t *testing.T) 
 				metadata, ok := overrides[model]
 				require.True(t, ok, model)
 				require.Equal(t, retired, metadata.Retired, model)
+				require.True(t, metadata.Deprecated, model)
 				require.NotEmpty(t, metadata.EndOfLifeDate, model)
 				requireISODate(t, metadata.ReleaseDate, model+": release date")
 				require.NotContains(t, discovered, model)
@@ -218,28 +220,42 @@ func TestDirectProviderCatalogRecommendsOnlyNewestUsefulModelsPerFamily(t *testi
 	}
 }
 
-func TestRetirementRequiresProviderConfirmedStatus(t *testing.T) {
+func TestLifecycleStatusRequiresProviderConfirmation(t *testing.T) {
 	t.Parallel()
 
 	googleModels := catalogByName(t, &google.Provider{})
+	require.True(t, googleModels[google.ModelGemini3ProPreview].Deprecated)
 	require.True(t, googleModels[google.ModelGemini3ProPreview].Retired)
 	require.Equal(t, "2026-03-09", googleModels[google.ModelGemini3ProPreview].EndOfLifeDate)
 
-	// Announced end-of-life dates are warning facts. They never imply that the
-	// provider has confirmed a model is unavailable.
+	// Announced end-of-life dates are factual schedule data. They do not imply
+	// retirement, but a provider deprecation notice is recorded independently.
+	require.True(t, googleModels[google.ModelGemini25Pro].Deprecated)
 	require.False(t, googleModels[google.ModelGemini25Pro].Retired)
 	require.Equal(t, "2026-10-16", googleModels[google.ModelGemini25Pro].EndOfLifeDate)
+	require.True(t, googleModels[google.ModelGemini31FlashLite].Deprecated)
 	require.False(t, googleModels[google.ModelGemini31FlashLite].Retired)
-	require.Empty(t, googleModels[google.ModelGemini31FlashLite].EndOfLifeDate)
+	require.Equal(t, "2027-05-07", googleModels[google.ModelGemini31FlashLite].EndOfLifeDate)
+	require.False(t, googleModels[google.ModelGemini31ProPreview].Deprecated)
+	require.Empty(t, googleModels[google.ModelGemini31ProPreview].EndOfLifeDate)
 
 	anthropicModels := catalogByName(t, &anthropic.Provider{})
+	require.True(t, anthropicModels[anthropic.ModelClaudeOpus41].Deprecated)
 	require.False(t, anthropicModels[anthropic.ModelClaudeOpus41].Retired)
 	require.Equal(t, "2026-08-05", anthropicModels[anthropic.ModelClaudeOpus41].EndOfLifeDate)
+	require.False(t, anthropicModels[anthropic.ModelClaudeOpus45].Deprecated)
 
 	openAIModels := catalogByName(t, &openai.Provider{})
+	require.False(t, openAIModels[openai.ModelGPT5].Deprecated)
 	require.False(t, openAIModels[openai.ModelGPT5].Retired)
 	require.Empty(t, openAIModels[openai.ModelGPT5].EndOfLifeDate)
+	require.True(t, openAIModels[openai.ModelGPT4O].Deprecated)
 	require.False(t, openAIModels[openai.ModelGPT4O].Retired)
+	require.Empty(t, openAIModels[openai.ModelGPT4O].EndOfLifeDate)
+
+	bedrockModels := catalogByName(t, &bedrock.Provider{})
+	require.False(t, bedrockModels[bedrock.ModelClaudeFable5Global].Deprecated)
+	require.False(t, bedrockModels[bedrock.ModelClaudeFable5Global].Retired)
 }
 
 func TestBedrockRecommendationGroupsKeepNewestModelPerRoutingGeography(t *testing.T) {

@@ -31,25 +31,25 @@ func (*Provider) ModelCatalog(model string) (llm.ModelCatalogMetadata, bool) {
 func anthropicModelCatalog(name string) (llm.ModelCatalogMetadata, bool) {
 	switch name {
 	case ModelClaudeFable5:
-		return anthropicCatalog("claude-fable", "2026-06-09", "", "", anthropicModelsSource), true
+		return anthropicCatalog("claude-fable", "2026-06-09", "", false, "", anthropicModelsSource), true
 	case ModelClaudeOpus48:
-		return anthropicCatalog("claude-opus", "2026-05-28", "", "", anthropicModelsSource), true
+		return anthropicCatalog("claude-opus", "2026-05-28", "", false, "", anthropicModelsSource), true
 	case ModelClaudeOpus47:
-		return anthropicCatalog("claude-opus", "2026-04-16", "", ModelClaudeOpus48, anthropicModelsSource), true
+		return anthropicCatalog("claude-opus", "2026-04-16", "", false, ModelClaudeOpus48, anthropicModelsSource), true
 	case ModelClaudeOpus46:
-		return anthropicCatalog("claude-opus", "2026-02-05", "", ModelClaudeOpus48, anthropicModelsSource), true
+		return anthropicCatalog("claude-opus", "2026-02-05", "", false, ModelClaudeOpus48, anthropicModelsSource), true
 	case ModelClaudeOpus45:
-		return anthropicCatalog("claude-opus", "2025-11-24", "", ModelClaudeOpus48, anthropicModelsSource), true
+		return anthropicCatalog("claude-opus", "2025-11-24", "", false, ModelClaudeOpus48, anthropicModelsSource), true
 	case ModelClaudeOpus41:
-		return anthropicCatalog("claude-opus", "2025-08-05", "2026-08-05", ModelClaudeOpus48, anthropicDeprecationsSource), true
+		return anthropicCatalog("claude-opus", "2025-08-05", "2026-08-05", true, ModelClaudeOpus48, anthropicDeprecationsSource), true
 	case ModelClaudeSonnet5:
-		return anthropicCatalog("claude-sonnet", "2026-06-30", "", "", anthropicModelsSource), true
+		return anthropicCatalog("claude-sonnet", "2026-06-30", "", false, "", anthropicModelsSource), true
 	case ModelClaudeSonnet46:
-		return anthropicCatalog("claude-sonnet", "2026-02-17", "", ModelClaudeSonnet5, anthropicModelsSource), true
+		return anthropicCatalog("claude-sonnet", "2026-02-17", "", false, ModelClaudeSonnet5, anthropicModelsSource), true
 	case ModelClaudeSonnet45:
-		return anthropicCatalog("claude-sonnet", "2025-09-29", "", ModelClaudeSonnet5, anthropicModelsSource), true
+		return anthropicCatalog("claude-sonnet", "2025-09-29", "", false, ModelClaudeSonnet5, anthropicModelsSource), true
 	case ModelClaudeHaiku45:
-		return anthropicCatalog("claude-haiku", "2025-10-15", "", "", anthropicModelsSource), true
+		return anthropicCatalog("claude-haiku", "2025-10-15", "", false, "", anthropicModelsSource), true
 	default:
 		return llm.ModelCatalogMetadata{}, false
 	}
@@ -59,6 +59,7 @@ func anthropicCatalog(
 	familyKey string,
 	releaseDate string,
 	endOfLifeDate string,
+	deprecated bool,
 	replacement string,
 	source string,
 ) llm.ModelCatalogMetadata {
@@ -67,6 +68,7 @@ func anthropicCatalog(
 		RecommendationGroup: "anthropic-" + familyKey,
 		ReleaseDate:         releaseDate,
 		EndOfLifeDate:       endOfLifeDate,
+		Deprecated:          deprecated,
 		Replacement:         replacement,
 		OfficialSourceURL:   source,
 		VerifiedDate:        anthropicVerifiedDate,

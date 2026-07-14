@@ -312,14 +312,17 @@ type ModelCapabilities struct {
 // in every inference profile.
 //
 // ReleaseDate, EndOfLifeDate, and VerifiedDate use ISO 8601 calendar dates
-// (YYYY-MM-DD), not timestamps. EndOfLifeDate is informational. Retired is set
-// only after an official provider source confirms that the model is no longer
-// available; dates never change it implicitly.
+// (YYYY-MM-DD), not timestamps. EndOfLifeDate is informational. Deprecated is
+// set only after an official provider source classifies the model as deprecated
+// or legacy. Retired is set only after an official provider source confirms
+// that the model is no longer available. Dates never change either status
+// implicitly, and every retired model is also deprecated.
 type ModelCatalogMetadata struct {
 	FamilyKey           string
 	RecommendationGroup string
 	ReleaseDate         string
 	EndOfLifeDate       string
+	Deprecated          bool
 	Retired             bool
 	Replacement         string
 	OfficialSourceURL   string
