@@ -23,9 +23,9 @@ import (
 )
 
 const (
-	googleModelsSource       = "https://ai.google.dev/gemini-api/docs/models"
-	googleDeprecationsSource = "https://ai.google.dev/gemini-api/docs/deprecations"
-	googleVerifiedDate       = "2026-07-14"
+	googleModelsSource         = "https://ai.google.dev/gemini-api/docs/models"
+	googleDeprecationsSource   = "https://ai.google.dev/gemini-api/docs/deprecations"
+	googleMetadataVerifiedDate = "2026-07-14"
 )
 
 var googleExactModelCatalogOverrides = map[string]llm.ModelCatalogMetadata{
@@ -119,18 +119,18 @@ func googleCatalog(
 	endOfLifeDate string,
 	deprecated bool,
 	retired bool,
-	replacement string,
+	providerReplacement string,
 	source string,
 ) llm.ModelCatalogMetadata {
 	return llm.ModelCatalogMetadata{
-		FamilyKey:           familyKey,
-		RecommendationGroup: "google-" + familyKey,
-		ReleaseDate:         releaseDate,
-		EndOfLifeDate:       endOfLifeDate,
-		Deprecated:          deprecated,
-		Retired:             retired,
-		Replacement:         replacement,
-		OfficialSourceURL:   source,
-		VerifiedDate:        googleVerifiedDate,
+		FamilyKey:            familyKey,
+		UpgradeGroup:         "google-" + familyKey,
+		ReleaseDate:          releaseDate,
+		EndOfLifeDate:        endOfLifeDate,
+		Deprecated:           deprecated,
+		Retired:              retired,
+		ProviderReplacement:  providerReplacement,
+		OfficialSourceURL:    source,
+		MetadataVerifiedDate: googleMetadataVerifiedDate,
 	}
 }

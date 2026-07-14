@@ -23,9 +23,9 @@ import (
 )
 
 const (
-	openAIModelsSource       = "https://developers.openai.com/api/docs/models"
-	openAIDeprecationsSource = "https://developers.openai.com/api/docs/deprecations"
-	openAIVerifiedDate       = "2026-07-14"
+	openAIModelsSource         = "https://developers.openai.com/api/docs/models"
+	openAIDeprecationsSource   = "https://developers.openai.com/api/docs/deprecations"
+	openAIMetadataVerifiedDate = "2026-07-14"
 )
 
 var openAIExactModelCatalogOverrides = map[string]llm.ModelCatalogMetadata{
@@ -159,23 +159,23 @@ func openAIModelCatalog(name string) (llm.ModelCatalogMetadata, bool) {
 
 func openAICatalog(
 	familyKey string,
-	recommendationGroup string,
+	upgradeGroup string,
 	releaseDate string,
 	endOfLifeDate string,
 	deprecated bool,
 	retired bool,
-	replacement string,
+	providerReplacement string,
 	source string,
 ) llm.ModelCatalogMetadata {
 	return llm.ModelCatalogMetadata{
-		FamilyKey:           familyKey,
-		RecommendationGroup: recommendationGroup,
-		ReleaseDate:         releaseDate,
-		EndOfLifeDate:       endOfLifeDate,
-		Deprecated:          deprecated,
-		Retired:             retired,
-		Replacement:         replacement,
-		OfficialSourceURL:   source,
-		VerifiedDate:        openAIVerifiedDate,
+		FamilyKey:            familyKey,
+		UpgradeGroup:         upgradeGroup,
+		ReleaseDate:          releaseDate,
+		EndOfLifeDate:        endOfLifeDate,
+		Deprecated:           deprecated,
+		Retired:              retired,
+		ProviderReplacement:  providerReplacement,
+		OfficialSourceURL:    source,
+		MetadataVerifiedDate: openAIMetadataVerifiedDate,
 	}
 }

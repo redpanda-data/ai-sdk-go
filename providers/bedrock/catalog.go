@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	bedrockVerifiedDate = "2026-07-14"
-	bedrockGlobalRoute  = "global"
+	bedrockMetadataVerifiedDate = "2026-07-14"
+	bedrockGlobalRoute          = "global"
 
 	bedrockFable5Source        = "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-fable-5.html"
 	bedrockOpus48Source        = "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-4-8.html"
@@ -94,18 +94,18 @@ func bedrockModelCatalog(name string) (llm.ModelCatalogMetadata, bool) {
 
 func bedrockCatalog(
 	familyKey string,
-	recommendationGroup string,
+	upgradeGroup string,
 	releaseDate string,
-	replacement string,
+	providerReplacement string,
 	source string,
 ) llm.ModelCatalogMetadata {
 	return llm.ModelCatalogMetadata{
-		FamilyKey:           familyKey,
-		RecommendationGroup: recommendationGroup,
-		ReleaseDate:         releaseDate,
-		Replacement:         replacement,
-		OfficialSourceURL:   source,
-		VerifiedDate:        bedrockVerifiedDate,
+		FamilyKey:            familyKey,
+		UpgradeGroup:         upgradeGroup,
+		ReleaseDate:          releaseDate,
+		ProviderReplacement:  providerReplacement,
+		OfficialSourceURL:    source,
+		MetadataVerifiedDate: bedrockMetadataVerifiedDate,
 	}
 }
 

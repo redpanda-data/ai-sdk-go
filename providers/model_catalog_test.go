@@ -29,7 +29,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/providers/openai"
 )
 
-const catalogVerificationDate = "2026-07-14"
+const metadataVerificationDate = "2026-07-14"
 
 type catalogProvider interface {
 	Models() []llm.ModelDiscoveryInfo
@@ -62,11 +62,11 @@ func TestModelCatalogMetadataIsComplete(t *testing.T) {
 				catalog, ok := provider.ModelCatalog(model.Name)
 				require.True(t, ok, "%s: catalog metadata", model.Name)
 				require.NotEmpty(t, catalog.FamilyKey, "%s: family key", model.Name)
-				require.NotEmpty(t, catalog.RecommendationGroup, "%s: recommendation group", model.Name)
+				require.NotEmpty(t, catalog.UpgradeGroup, "%s: upgrade group", model.Name)
 				requireISODate(t, catalog.ReleaseDate, model.Name+": release date")
 				requireHTTPSURL(t, catalog.OfficialSourceURL, model.Name)
-				require.Equal(t, catalogVerificationDate, catalog.VerifiedDate, "%s: verified date", model.Name)
-				requireISODate(t, catalog.VerifiedDate, model.Name+": verified date")
+				require.Equal(t, metadataVerificationDate, catalog.MetadataVerifiedDate, "%s: verified date", model.Name)
+				requireISODate(t, catalog.MetadataVerifiedDate, model.Name+": verified date")
 
 				if catalog.EndOfLifeDate != "" {
 					requireISODate(t, catalog.EndOfLifeDate, model.Name+": end-of-life date")
@@ -174,7 +174,7 @@ func TestCatalogIncludesLatestConfirmedModels(t *testing.T) {
 	requireCatalogContains(t, bedrockModels, "jp.anthropic.claude-haiku-4-5-20251001-v1:0")
 }
 
-func TestDirectProviderCatalogRecommendsOnlyNewestUsefulModelsPerFamily(t *testing.T) {
+func TestUpgradeGroupsIdentifyLatestActiveModels(t *testing.T) {
 	t.Parallel()
 
 	tests := map[string]struct {
@@ -193,7 +193,6 @@ func TestDirectProviderCatalogRecommendsOnlyNewestUsefulModelsPerFamily(t *testi
 		"google": {
 			provider: &google.Provider{},
 			expected: []string{
-				google.ModelGemini31FlashLite,
 				google.ModelGemini31ProPreview,
 				google.ModelGemini35Flash,
 			},
@@ -213,7 +212,7 @@ func TestDirectProviderCatalogRecommendsOnlyNewestUsefulModelsPerFamily(t *testi
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			actual := recommendedModelNames(tt.provider)
+			actual := latestActiveModelNames(tt.provider)
 			sort.Strings(tt.expected)
 			require.Equal(t, tt.expected, actual)
 		})
@@ -258,12 +257,12 @@ func TestLifecycleStatusRequiresProviderConfirmation(t *testing.T) {
 	require.False(t, bedrockModels[bedrock.ModelClaudeFable5Global].Retired)
 }
 
-func TestBedrockRecommendationGroupsKeepNewestModelPerRoutingGeography(t *testing.T) {
+func TestBedrockUpgradeGroupsKeepNewestModelPerRoutingGeography(t *testing.T) {
 	t.Parallel()
 
 	models := catalogByName(t, &bedrock.Provider{})
 
-	require.Equal(t, "bedrock-claude-opus-au", models[bedrock.ModelClaudeOpus48AU].RecommendationGroup)
+	require.Equal(t, "bedrock-claude-opus-au", models[bedrock.ModelClaudeOpus48AU].UpgradeGroup)
 	require.Greater(t, models[bedrock.ModelClaudeOpus48AU].ReleaseDate, models[bedrock.ModelClaudeOpus46AU].ReleaseDate)
 	require.False(t, models[bedrock.ModelClaudeFable5EU].Retired)
 
@@ -283,7 +282,7 @@ func TestBedrockMistralLarge3UsesExactModelCard(t *testing.T) {
 	)
 }
 
-func TestCatalogReplacementsAreExactDiscoveredModels(t *testing.T) {
+func TestCatalogProviderReplacementsAreExactDiscoveredModels(t *testing.T) {
 	t.Parallel()
 
 	providers := []catalogProvider{&anthropic.Provider{}, &bedrock.Provider{}, &google.Provider{}, &openai.Provider{}}
@@ -298,19 +297,19 @@ func TestCatalogReplacementsAreExactDiscoveredModels(t *testing.T) {
 			catalog, ok := provider.ModelCatalog(model.Name)
 			require.True(t, ok)
 
-			if catalog.Replacement != "" {
-				require.Contains(t, names, catalog.Replacement, "%s replacement", model.Name)
+			if catalog.ProviderReplacement != "" {
+				require.Contains(t, names, catalog.ProviderReplacement, "%s replacement", model.Name)
 			}
 		}
 	}
 }
 
-func TestOpenAIGPT52ProRecommendsLatestProModel(t *testing.T) {
+func TestOpenAIGPT52ProRecordsProviderMigrationTarget(t *testing.T) {
 	t.Parallel()
 
 	catalog, ok := (&openai.Provider{}).ModelCatalog(openai.ModelGPT5_2Pro)
 	require.True(t, ok)
-	require.Equal(t, openai.ModelGPT5_5Pro, catalog.Replacement)
+	require.Equal(t, openai.ModelGPT5_5Pro, catalog.ProviderReplacement)
 }
 
 func TestOpenAIGPT55ProHasExactCapabilitiesAndPricing(t *testing.T) {
@@ -330,14 +329,14 @@ func TestOpenAIGPT55ProHasExactCapabilitiesAndPricing(t *testing.T) {
 	require.Zero(t, price.Default.Base.CachedInputPerMillion)
 }
 
-func recommendedModelNames(provider catalogProvider) []string {
+func latestActiveModelNames(provider catalogProvider) []string {
 	models := provider.Models()
 	latestReleaseByGroup := make(map[string]string)
 
 	for _, model := range models {
 		catalog, ok := provider.ModelCatalog(model.Name)
-		if ok && !catalog.Retired && catalog.ReleaseDate > latestReleaseByGroup[catalog.RecommendationGroup] {
-			latestReleaseByGroup[catalog.RecommendationGroup] = catalog.ReleaseDate
+		if ok && !catalog.Deprecated && !catalog.Retired && catalog.ReleaseDate > latestReleaseByGroup[catalog.UpgradeGroup] {
+			latestReleaseByGroup[catalog.UpgradeGroup] = catalog.ReleaseDate
 		}
 	}
 
@@ -345,7 +344,7 @@ func recommendedModelNames(provider catalogProvider) []string {
 
 	for _, model := range models {
 		catalog, ok := provider.ModelCatalog(model.Name)
-		if ok && !catalog.Retired && catalog.ReleaseDate == latestReleaseByGroup[catalog.RecommendationGroup] {
+		if ok && !catalog.Deprecated && !catalog.Retired && catalog.ReleaseDate == latestReleaseByGroup[catalog.UpgradeGroup] {
 			names = append(names, model.Name)
 		}
 	}

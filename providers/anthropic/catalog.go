@@ -17,9 +17,9 @@ package anthropic
 import "github.com/redpanda-data/ai-sdk-go/llm"
 
 const (
-	anthropicModelsSource       = "https://platform.claude.com/docs/en/about-claude/models/overview"
-	anthropicDeprecationsSource = "https://platform.claude.com/docs/en/about-claude/model-deprecations"
-	anthropicVerifiedDate       = "2026-07-14"
+	anthropicModelsSource         = "https://platform.claude.com/docs/en/about-claude/models/overview"
+	anthropicDeprecationsSource   = "https://platform.claude.com/docs/en/about-claude/model-deprecations"
+	anthropicMetadataVerifiedDate = "2026-07-14"
 )
 
 // ModelCatalog returns factual catalog metadata for a canonical,
@@ -60,17 +60,17 @@ func anthropicCatalog(
 	releaseDate string,
 	endOfLifeDate string,
 	deprecated bool,
-	replacement string,
+	providerReplacement string,
 	source string,
 ) llm.ModelCatalogMetadata {
 	return llm.ModelCatalogMetadata{
-		FamilyKey:           familyKey,
-		RecommendationGroup: "anthropic-" + familyKey,
-		ReleaseDate:         releaseDate,
-		EndOfLifeDate:       endOfLifeDate,
-		Deprecated:          deprecated,
-		Replacement:         replacement,
-		OfficialSourceURL:   source,
-		VerifiedDate:        anthropicVerifiedDate,
+		FamilyKey:            familyKey,
+		UpgradeGroup:         "anthropic-" + familyKey,
+		ReleaseDate:          releaseDate,
+		EndOfLifeDate:        endOfLifeDate,
+		Deprecated:           deprecated,
+		ProviderReplacement:  providerReplacement,
+		OfficialSourceURL:    source,
+		MetadataVerifiedDate: anthropicMetadataVerifiedDate,
 	}
 }

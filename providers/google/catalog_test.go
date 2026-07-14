@@ -84,7 +84,7 @@ func TestModelCatalogPreservesGeminiAliasAndRetirementFacts(t *testing.T) {
 			require.Equal(t, tt.deprecated, catalog.Deprecated)
 			require.Equal(t, tt.retired, catalog.Retired)
 			require.Equal(t, tt.endOfLife, catalog.EndOfLifeDate)
-			require.Equal(t, tt.replacement, catalog.Replacement)
+			require.Equal(t, tt.replacement, catalog.ProviderReplacement)
 		})
 	}
 }

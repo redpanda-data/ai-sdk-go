@@ -305,28 +305,39 @@ type ModelCapabilities struct {
 }
 
 // ModelCatalogMetadata is provider-scoped factual metadata used by discovery
-// surfaces to derive current recommendations without breaking resources that
-// reference older IDs. FamilyKey is the stable product family used for UI
-// grouping. RecommendationGroup is the narrower upgrade track; Bedrock groups
-// include the routing geography because newer models are not always available
-// in every inference profile.
+// surfaces to group, order, label, and recommend models without breaking
+// resources that reference older IDs.
 //
-// ReleaseDate, EndOfLifeDate, and VerifiedDate use ISO 8601 calendar dates
+// ReleaseDate, EndOfLifeDate, and MetadataVerifiedDate use ISO 8601 calendar dates
 // (YYYY-MM-DD), not timestamps. EndOfLifeDate is informational. Deprecated is
 // set only after an official provider source classifies the model as deprecated
 // or legacy. Retired is set only after an official provider source confirms
 // that the model is no longer available. Dates never change either status
 // implicitly, and every retired model is also deprecated.
 type ModelCatalogMetadata struct {
-	FamilyKey           string
-	RecommendationGroup string
-	ReleaseDate         string
-	EndOfLifeDate       string
-	Deprecated          bool
-	Retired             bool
-	Replacement         string
-	OfficialSourceURL   string
-	VerifiedDate        string
+	// FamilyKey is the stable product family used for UI grouping, such as
+	// claude-opus or gemini-flash.
+	FamilyKey string
+	// UpgradeGroup identifies models whose release dates can be compared to
+	// choose the latest useful version. It is provider-scoped and includes
+	// routing geography where availability differs, such as Amazon Bedrock.
+	UpgradeGroup string
+	// ReleaseDate orders versions within a family or upgrade group.
+	ReleaseDate string
+	// EndOfLifeDate is the provider-announced retirement schedule, when known.
+	EndOfLifeDate string
+	// Deprecated and Retired record explicit provider lifecycle statements.
+	Deprecated bool
+	Retired    bool
+	// ProviderReplacement is an optional migration target named by the
+	// provider. It is not necessarily the latest model and must not be used for
+	// ranking; consumers derive that from UpgradeGroup and ReleaseDate.
+	ProviderReplacement string
+	// OfficialSourceURL identifies the provider evidence for this metadata.
+	OfficialSourceURL string
+	// MetadataVerifiedDate is when a maintainer last checked the metadata
+	// against OfficialSourceURL. It has no lifecycle meaning.
+	MetadataVerifiedDate string
 }
 
 // ModelCatalogProvider exposes typed model-catalog facts
