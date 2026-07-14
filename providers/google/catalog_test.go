@@ -16,8 +16,11 @@ package google
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
 func TestModelCatalogPreservesGeminiAliasAndRetirementFacts(t *testing.T) {
@@ -28,8 +31,7 @@ func TestModelCatalogPreservesGeminiAliasAndRetirementFacts(t *testing.T) {
 		name        string
 		model       string
 		releaseDate string
-		deprecated  bool
-		retired     bool
+		lifecycle   llm.ModelLifecycle
 		endOfLife   string
 		replacement string
 	}{
@@ -37,20 +39,20 @@ func TestModelCatalogPreservesGeminiAliasAndRetirementFacts(t *testing.T) {
 			name:        "current Flash alias",
 			model:       "models/gemini-flash-latest",
 			releaseDate: "2026-05-19",
+			lifecycle:   llm.ModelLifecycleActive,
 		},
 		{
 			name:        "deprecated stable Flash Lite remains callable",
 			model:       ModelGemini31FlashLite,
 			releaseDate: "2026-05-07",
-			deprecated:  true,
+			lifecycle:   llm.ModelLifecycleDeprecated,
 			endOfLife:   "2027-05-07",
 		},
 		{
 			name:        "retired Flash Lite preview",
 			model:       "gemini-3.1-flash-lite-preview",
 			releaseDate: "2026-03-03",
-			deprecated:  true,
-			retired:     true,
+			lifecycle:   llm.ModelLifecycleRetired,
 			endOfLife:   "2026-05-25",
 			replacement: ModelGemini31FlashLite,
 		},
@@ -58,8 +60,7 @@ func TestModelCatalogPreservesGeminiAliasAndRetirementFacts(t *testing.T) {
 			name:        "retired Gemini 2 Flash",
 			model:       "gemini-2.0-flash",
 			releaseDate: "2025-02-05",
-			deprecated:  true,
-			retired:     true,
+			lifecycle:   llm.ModelLifecycleRetired,
 			endOfLife:   "2026-06-01",
 			replacement: ModelGemini35Flash,
 		},
@@ -67,8 +68,7 @@ func TestModelCatalogPreservesGeminiAliasAndRetirementFacts(t *testing.T) {
 			name:        "retired Gemini 2 Flash pinned snapshot",
 			model:       "models/gemini-2.0-flash-001",
 			releaseDate: "2025-02-05",
-			deprecated:  true,
-			retired:     true,
+			lifecycle:   llm.ModelLifecycleRetired,
 			endOfLife:   "2026-06-01",
 			replacement: ModelGemini35Flash,
 		},
@@ -76,8 +76,7 @@ func TestModelCatalogPreservesGeminiAliasAndRetirementFacts(t *testing.T) {
 			name:        "retired Gemini 2 Flash Lite pinned snapshot",
 			model:       "gemini-2.0-flash-lite-001",
 			releaseDate: "2025-02-25",
-			deprecated:  true,
-			retired:     true,
+			lifecycle:   llm.ModelLifecycleRetired,
 			endOfLife:   "2026-06-01",
 			replacement: ModelGemini31FlashLite,
 		},
@@ -85,8 +84,7 @@ func TestModelCatalogPreservesGeminiAliasAndRetirementFacts(t *testing.T) {
 			name:        "retired Gemini 2 Flash Lite preview",
 			model:       "gemini-2.0-flash-lite-preview-02-05",
 			releaseDate: "2025-02-05",
-			deprecated:  true,
-			retired:     true,
+			lifecycle:   llm.ModelLifecycleRetired,
 			endOfLife:   "2025-12-09",
 			replacement: ModelGemini25FlashLite,
 		},
@@ -94,8 +92,7 @@ func TestModelCatalogPreservesGeminiAliasAndRetirementFacts(t *testing.T) {
 			name:        "retired Gemini 2.5 Flash preview",
 			model:       "gemini-2.5-flash-preview-05-20",
 			releaseDate: "2025-05-20",
-			deprecated:  true,
-			retired:     true,
+			lifecycle:   llm.ModelLifecycleRetired,
 			endOfLife:   "2025-11-18",
 			replacement: ModelGemini35Flash,
 		},
@@ -103,8 +100,7 @@ func TestModelCatalogPreservesGeminiAliasAndRetirementFacts(t *testing.T) {
 			name:        "retired Gemini 2.5 Flash Lite preview",
 			model:       "gemini-2.5-flash-lite-preview-09-2025",
 			releaseDate: "2025-09-25",
-			deprecated:  true,
-			retired:     true,
+			lifecycle:   llm.ModelLifecycleRetired,
 			endOfLife:   "2026-03-31",
 			replacement: ModelGemini31FlashLite,
 		},
@@ -112,8 +108,7 @@ func TestModelCatalogPreservesGeminiAliasAndRetirementFacts(t *testing.T) {
 			name:        "retired Gemini 2.5 Pro March preview",
 			model:       "gemini-2.5-pro-preview-03-25",
 			releaseDate: "2025-04-04",
-			deprecated:  true,
-			retired:     true,
+			lifecycle:   llm.ModelLifecycleRetired,
 			endOfLife:   "2025-12-02",
 			replacement: ModelGemini31ProPreview,
 		},
@@ -121,8 +116,7 @@ func TestModelCatalogPreservesGeminiAliasAndRetirementFacts(t *testing.T) {
 			name:        "retired Gemini 2.5 Pro preview snapshot",
 			model:       "gemini-2.5-pro-preview-06-05",
 			releaseDate: "2025-06-05",
-			deprecated:  true,
-			retired:     true,
+			lifecycle:   llm.ModelLifecycleRetired,
 			endOfLife:   "2025-12-02",
 			replacement: ModelGemini31ProPreview,
 		},
@@ -134,10 +128,9 @@ func TestModelCatalogPreservesGeminiAliasAndRetirementFacts(t *testing.T) {
 
 			catalog, ok := provider.ModelCatalog(tt.model)
 			require.True(t, ok)
-			require.Equal(t, tt.releaseDate, catalog.ReleaseDate)
-			require.Equal(t, tt.deprecated, catalog.Deprecated)
-			require.Equal(t, tt.retired, catalog.Retired)
-			require.Equal(t, tt.endOfLife, catalog.EndOfLifeDate)
+			require.Equal(t, tt.releaseDate, catalog.ReleaseDate.Format(time.DateOnly))
+			require.Equal(t, tt.lifecycle, catalog.Lifecycle)
+			require.Equal(t, tt.endOfLife, formatCatalogDate(catalog.EndOfLifeDate))
 			require.Equal(t, tt.replacement, catalog.ProviderReplacement)
 		})
 	}
@@ -167,4 +160,12 @@ func TestModelCatalogUsesLaunchEvidenceForGemini25ProMarchPreview(t *testing.T) 
 	catalog, ok := (&Provider{}).ModelCatalog("gemini-2.5-pro-preview-03-25")
 	require.True(t, ok)
 	require.Equal(t, googleReleaseNotesSource, catalog.OfficialSourceURL)
+}
+
+func formatCatalogDate(date time.Time) string {
+	if date.IsZero() {
+		return ""
+	}
+
+	return date.Format(time.DateOnly)
 }

@@ -17,6 +17,7 @@ package bedrock
 import (
 	"strings"
 
+	"github.com/redpanda-data/ai-sdk-go/internal/catalogdate"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -99,13 +100,21 @@ func bedrockCatalog(
 	providerReplacement string,
 	source string,
 ) llm.ModelCatalogMetadata {
+	release, releaseErr := catalogdate.Parse(releaseDate)
+
+	verified, verifiedErr := catalogdate.Parse(bedrockMetadataVerifiedDate)
+	if releaseErr != nil || verifiedErr != nil {
+		return llm.ModelCatalogMetadata{}
+	}
+
 	return llm.ModelCatalogMetadata{
 		FamilyKey:            familyKey,
 		UpgradeGroup:         upgradeGroup,
-		ReleaseDate:          releaseDate,
+		ReleaseDate:          release,
+		Lifecycle:            llm.ModelLifecycleActive,
 		ProviderReplacement:  providerReplacement,
 		OfficialSourceURL:    source,
-		MetadataVerifiedDate: bedrockMetadataVerifiedDate,
+		MetadataVerifiedDate: verified,
 	}
 }
 

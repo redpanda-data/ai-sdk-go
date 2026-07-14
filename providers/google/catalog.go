@@ -19,6 +19,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/redpanda-data/ai-sdk-go/internal/catalogdate"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -30,21 +31,21 @@ const (
 )
 
 var googleExactModelCatalogOverrides = map[string]llm.ModelCatalogMetadata{
-	"gemini-3.1-flash-lite-preview":         googleCatalog("gemini-flash-lite", "2026-03-03", "2026-05-25", true, true, ModelGemini31FlashLite, googleDeprecationsSource),
-	"gemini-2.0-flash":                      googleCatalog("gemini-flash", "2025-02-05", "2026-06-01", true, true, ModelGemini35Flash, googleDeprecationsSource),
-	"gemini-2.0-flash-001":                  googleCatalog("gemini-flash", "2025-02-05", "2026-06-01", true, true, ModelGemini35Flash, googleDeprecationsSource),
-	"gemini-2.0-flash-lite":                 googleCatalog("gemini-flash-lite", "2025-02-25", "2026-06-01", true, true, ModelGemini31FlashLite, googleDeprecationsSource),
-	"gemini-2.0-flash-lite-001":             googleCatalog("gemini-flash-lite", "2025-02-25", "2026-06-01", true, true, ModelGemini31FlashLite, googleDeprecationsSource),
-	"gemini-2.0-flash-lite-preview":         googleCatalog("gemini-flash-lite", "2025-02-05", "2025-12-09", true, true, ModelGemini25FlashLite, googleDeprecationsSource),
-	"gemini-2.0-flash-lite-preview-02-05":   googleCatalog("gemini-flash-lite", "2025-02-05", "2025-12-09", true, true, ModelGemini25FlashLite, googleDeprecationsSource),
-	"gemini-2.5-flash-lite-preview-09-2025": googleCatalog("gemini-flash-lite", "2025-09-25", "2026-03-31", true, true, ModelGemini31FlashLite, googleDeprecationsSource),
-	"gemini-2.5-flash-preview-05-20":        googleCatalog("gemini-flash", "2025-05-20", "2025-11-18", true, true, ModelGemini35Flash, googleDeprecationsSource),
-	"gemini-2.5-flash-preview-09-25":        googleCatalog("gemini-flash", "2025-09-25", "2026-02-17", true, true, ModelGemini35Flash, googleDeprecationsSource),
+	"gemini-3.1-flash-lite-preview":         googleCatalog("gemini-flash-lite", "2026-03-03", "2026-05-25", llm.ModelLifecycleRetired, ModelGemini31FlashLite, googleDeprecationsSource),
+	"gemini-2.0-flash":                      googleCatalog("gemini-flash", "2025-02-05", "2026-06-01", llm.ModelLifecycleRetired, ModelGemini35Flash, googleDeprecationsSource),
+	"gemini-2.0-flash-001":                  googleCatalog("gemini-flash", "2025-02-05", "2026-06-01", llm.ModelLifecycleRetired, ModelGemini35Flash, googleDeprecationsSource),
+	"gemini-2.0-flash-lite":                 googleCatalog("gemini-flash-lite", "2025-02-25", "2026-06-01", llm.ModelLifecycleRetired, ModelGemini31FlashLite, googleDeprecationsSource),
+	"gemini-2.0-flash-lite-001":             googleCatalog("gemini-flash-lite", "2025-02-25", "2026-06-01", llm.ModelLifecycleRetired, ModelGemini31FlashLite, googleDeprecationsSource),
+	"gemini-2.0-flash-lite-preview":         googleCatalog("gemini-flash-lite", "2025-02-05", "2025-12-09", llm.ModelLifecycleRetired, ModelGemini25FlashLite, googleDeprecationsSource),
+	"gemini-2.0-flash-lite-preview-02-05":   googleCatalog("gemini-flash-lite", "2025-02-05", "2025-12-09", llm.ModelLifecycleRetired, ModelGemini25FlashLite, googleDeprecationsSource),
+	"gemini-2.5-flash-lite-preview-09-2025": googleCatalog("gemini-flash-lite", "2025-09-25", "2026-03-31", llm.ModelLifecycleRetired, ModelGemini31FlashLite, googleDeprecationsSource),
+	"gemini-2.5-flash-preview-05-20":        googleCatalog("gemini-flash", "2025-05-20", "2025-11-18", llm.ModelLifecycleRetired, ModelGemini35Flash, googleDeprecationsSource),
+	"gemini-2.5-flash-preview-09-25":        googleCatalog("gemini-flash", "2025-09-25", "2026-02-17", llm.ModelLifecycleRetired, ModelGemini35Flash, googleDeprecationsSource),
 	// This exact public-preview identifier launched on April 4. The 03-25
 	// experimental identifier is a different model ID.
-	"gemini-2.5-pro-preview-03-25": googleCatalog("gemini-pro", "2025-04-04", "2025-12-02", true, true, ModelGemini31ProPreview, googleReleaseNotesSource),
-	"gemini-2.5-pro-preview-05-06": googleCatalog("gemini-pro", "2025-05-06", "2025-12-02", true, true, ModelGemini31ProPreview, googleDeprecationsSource),
-	"gemini-2.5-pro-preview-06-05": googleCatalog("gemini-pro", "2025-06-05", "2025-12-02", true, true, ModelGemini31ProPreview, googleDeprecationsSource),
+	"gemini-2.5-pro-preview-03-25": googleCatalog("gemini-pro", "2025-04-04", "2025-12-02", llm.ModelLifecycleRetired, ModelGemini31ProPreview, googleReleaseNotesSource),
+	"gemini-2.5-pro-preview-05-06": googleCatalog("gemini-pro", "2025-05-06", "2025-12-02", llm.ModelLifecycleRetired, ModelGemini31ProPreview, googleDeprecationsSource),
+	"gemini-2.5-pro-preview-06-05": googleCatalog("gemini-pro", "2025-06-05", "2025-12-02", llm.ModelLifecycleRetired, ModelGemini31ProPreview, googleDeprecationsSource),
 }
 
 // ModelCatalog returns factual catalog metadata for a canonical,
@@ -104,21 +105,21 @@ func googleVersionedModelFamily(model string) (string, bool) {
 func googleModelCatalog(name string) (llm.ModelCatalogMetadata, bool) {
 	switch name {
 	case ModelGemini31ProPreview:
-		return googleCatalog("gemini-pro", "2026-02-19", "", false, false, "", googleModelsSource), true
+		return googleCatalog("gemini-pro", "2026-02-19", "", llm.ModelLifecycleActive, "", googleModelsSource), true
 	case ModelGemini3ProPreview:
-		return googleCatalog("gemini-pro", "2025-11-18", "2026-03-09", true, true, ModelGemini31ProPreview, googleDeprecationsSource), true
+		return googleCatalog("gemini-pro", "2025-11-18", "2026-03-09", llm.ModelLifecycleRetired, ModelGemini31ProPreview, googleDeprecationsSource), true
 	case ModelGemini25Pro:
-		return googleCatalog("gemini-pro", "2025-06-17", "2026-10-16", true, false, ModelGemini31ProPreview, googleDeprecationsSource), true
+		return googleCatalog("gemini-pro", "2025-06-17", "2026-10-16", llm.ModelLifecycleDeprecated, ModelGemini31ProPreview, googleDeprecationsSource), true
 	case ModelGemini35Flash:
-		return googleCatalog("gemini-flash", "2026-05-19", "", false, false, "", googleModelsSource), true
+		return googleCatalog("gemini-flash", "2026-05-19", "", llm.ModelLifecycleActive, "", googleModelsSource), true
 	case ModelGemini3FlashPreview:
-		return googleCatalog("gemini-flash", "2025-12-17", "", false, false, ModelGemini35Flash, googleModelsSource), true
+		return googleCatalog("gemini-flash", "2025-12-17", "", llm.ModelLifecycleActive, ModelGemini35Flash, googleModelsSource), true
 	case ModelGemini25Flash:
-		return googleCatalog("gemini-flash", "2025-06-17", "2026-10-16", true, false, ModelGemini35Flash, googleDeprecationsSource), true
+		return googleCatalog("gemini-flash", "2025-06-17", "2026-10-16", llm.ModelLifecycleDeprecated, ModelGemini35Flash, googleDeprecationsSource), true
 	case ModelGemini31FlashLite:
-		return googleCatalog("gemini-flash-lite", "2026-05-07", "2027-05-07", true, false, "", googleDeprecationsSource), true
+		return googleCatalog("gemini-flash-lite", "2026-05-07", "2027-05-07", llm.ModelLifecycleDeprecated, "", googleDeprecationsSource), true
 	case ModelGemini25FlashLite:
-		return googleCatalog("gemini-flash-lite", "2025-07-22", "2026-10-16", true, false, ModelGemini31FlashLite, googleDeprecationsSource), true
+		return googleCatalog("gemini-flash-lite", "2025-07-22", "2026-10-16", llm.ModelLifecycleDeprecated, ModelGemini31FlashLite, googleDeprecationsSource), true
 	default:
 		return llm.ModelCatalogMetadata{}, false
 	}
@@ -128,20 +129,26 @@ func googleCatalog(
 	familyKey string,
 	releaseDate string,
 	endOfLifeDate string,
-	deprecated bool,
-	retired bool,
+	lifecycle llm.ModelLifecycle,
 	providerReplacement string,
 	source string,
 ) llm.ModelCatalogMetadata {
+	release, releaseErr := catalogdate.Parse(releaseDate)
+	endOfLife, endOfLifeErr := catalogdate.Parse(endOfLifeDate)
+
+	verified, verifiedErr := catalogdate.Parse(googleMetadataVerifiedDate)
+	if releaseErr != nil || endOfLifeErr != nil || verifiedErr != nil {
+		return llm.ModelCatalogMetadata{}
+	}
+
 	return llm.ModelCatalogMetadata{
 		FamilyKey:            familyKey,
 		UpgradeGroup:         "google-" + familyKey,
-		ReleaseDate:          releaseDate,
-		EndOfLifeDate:        endOfLifeDate,
-		Deprecated:           deprecated,
-		Retired:              retired,
+		ReleaseDate:          release,
+		EndOfLifeDate:        endOfLife,
+		Lifecycle:            lifecycle,
 		ProviderReplacement:  providerReplacement,
 		OfficialSourceURL:    source,
-		MetadataVerifiedDate: googleMetadataVerifiedDate,
+		MetadataVerifiedDate: verified,
 	}
 }

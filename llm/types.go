@@ -14,7 +14,10 @@
 
 package llm
 
-import "maps"
+import (
+	"maps"
+	"time"
+)
 
 // TokenUsage is the normalized, cross-provider accounting of tokens for a
 // single LLM call.
@@ -304,16 +307,24 @@ type ModelCapabilities struct {
 	Reasoning        bool // Supports reasoning controls and exposes reasoning traces
 }
 
+// ModelLifecycle is the provider-confirmed lifecycle state of a model.
+type ModelLifecycle uint8
+
+const (
+	ModelLifecycleUnknown ModelLifecycle = iota
+	ModelLifecycleActive
+	ModelLifecycleDeprecated
+	ModelLifecycleRetired
+)
+
 // ModelCatalogMetadata is provider-scoped factual metadata used by discovery
 // surfaces to group, order, label, and recommend models without breaking
 // resources that reference older IDs.
 //
-// ReleaseDate, EndOfLifeDate, and MetadataVerifiedDate use ISO 8601 calendar dates
-// (YYYY-MM-DD), not timestamps. EndOfLifeDate is informational. Deprecated is
-// set only after an official provider source classifies the model as deprecated
-// or legacy. Retired is set only after an official provider source confirms
-// that the model is no longer available. Dates never change either status
-// implicitly, and every retired model is also deprecated.
+// ReleaseDate, EndOfLifeDate, and MetadataVerifiedDate are UTC-midnight calendar
+// dates, not timestamps. EndOfLifeDate is informational. Lifecycle changes only
+// after an official provider source confirms the corresponding state; dates
+// never change it implicitly.
 type ModelCatalogMetadata struct {
 	// FamilyKey is the stable product family used for UI grouping, such as
 	// claude-opus or gemini-flash.
@@ -323,12 +334,11 @@ type ModelCatalogMetadata struct {
 	// routing geography where availability differs, such as Amazon Bedrock.
 	UpgradeGroup string
 	// ReleaseDate orders versions within a family or upgrade group.
-	ReleaseDate string
+	ReleaseDate time.Time
 	// EndOfLifeDate is the provider-announced retirement schedule, when known.
-	EndOfLifeDate string
-	// Deprecated and Retired record explicit provider lifecycle statements.
-	Deprecated bool
-	Retired    bool
+	EndOfLifeDate time.Time
+	// Lifecycle records the explicit provider lifecycle statement.
+	Lifecycle ModelLifecycle
 	// ProviderReplacement is an optional migration target named by the
 	// provider. It is not necessarily the latest model and must not be used for
 	// ranking; consumers derive that from UpgradeGroup and ReleaseDate.
@@ -337,7 +347,7 @@ type ModelCatalogMetadata struct {
 	OfficialSourceURL string
 	// MetadataVerifiedDate is when a maintainer last checked the metadata
 	// against OfficialSourceURL. It has no lifecycle meaning.
-	MetadataVerifiedDate string
+	MetadataVerifiedDate time.Time
 }
 
 // ModelCatalogProvider exposes typed model-catalog facts

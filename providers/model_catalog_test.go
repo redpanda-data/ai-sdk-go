@@ -29,7 +29,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/providers/openai"
 )
 
-const metadataVerificationDate = "2026-07-14"
+var metadataVerificationDate = time.Date(2026, time.July, 14, 0, 0, 0, 0, time.UTC)
 
 type catalogProvider interface {
 	Models() []llm.ModelDiscoveryInfo
@@ -63,18 +63,18 @@ func TestModelCatalogMetadataIsComplete(t *testing.T) {
 				require.True(t, ok, "%s: catalog metadata", model.Name)
 				require.NotEmpty(t, catalog.FamilyKey, "%s: family key", model.Name)
 				require.NotEmpty(t, catalog.UpgradeGroup, "%s: upgrade group", model.Name)
-				requireISODate(t, catalog.ReleaseDate, model.Name+": release date")
+				requireCatalogDate(t, catalog.ReleaseDate, model.Name+": release date")
+				require.NotEqual(t, llm.ModelLifecycleUnknown, catalog.Lifecycle, "%s: lifecycle", model.Name)
 				requireHTTPSURL(t, catalog.OfficialSourceURL, model.Name)
 				require.Equal(t, metadataVerificationDate, catalog.MetadataVerifiedDate, "%s: verified date", model.Name)
-				requireISODate(t, catalog.MetadataVerifiedDate, model.Name+": verified date")
+				requireCatalogDate(t, catalog.MetadataVerifiedDate, model.Name+": verified date")
 
-				if catalog.EndOfLifeDate != "" {
-					requireISODate(t, catalog.EndOfLifeDate, model.Name+": end-of-life date")
+				if !catalog.EndOfLifeDate.IsZero() {
+					requireCatalogDate(t, catalog.EndOfLifeDate, model.Name+": end-of-life date")
 				}
 
-				if catalog.Retired {
-					require.True(t, catalog.Deprecated, "%s: retired models must also be deprecated", model.Name)
-					require.NotEmpty(t, catalog.EndOfLifeDate, "%s: confirmed retirement needs an end-of-life date", model.Name)
+				if catalog.Lifecycle == llm.ModelLifecycleRetired {
+					require.False(t, catalog.EndOfLifeDate.IsZero(), "%s: confirmed retirement needs an end-of-life date", model.Name)
 					require.NotEmpty(t, catalog.OfficialSourceURL, "%s: confirmed retirement needs an official source", model.Name)
 				}
 			}
@@ -87,13 +87,13 @@ func TestCatalogStoresReleaseFactsInsteadOfMutableRanking(t *testing.T) {
 
 	catalog, ok := (&anthropic.Provider{}).ModelCatalog(anthropic.ModelClaudeOpus48)
 	require.True(t, ok)
-	require.Equal(t, "2026-05-28", catalog.ReleaseDate)
-	require.False(t, catalog.Retired)
+	require.Equal(t, "2026-05-28", catalog.ReleaseDate.Format(time.DateOnly))
+	require.Equal(t, llm.ModelLifecycleActive, catalog.Lifecycle)
 
 	retired, ok := (&google.Provider{}).ModelCatalog("gemini-3.1-flash-lite-preview")
 	require.True(t, ok)
-	require.Equal(t, "2026-03-03", retired.ReleaseDate)
-	require.True(t, retired.Retired)
+	require.Equal(t, "2026-03-03", retired.ReleaseDate.Format(time.DateOnly))
+	require.Equal(t, llm.ModelLifecycleRetired, retired.Lifecycle)
 }
 
 func TestCatalogOverridesEnumerateEveryExactNonDiscoveryCatalogID(t *testing.T) {
@@ -101,42 +101,42 @@ func TestCatalogOverridesEnumerateEveryExactNonDiscoveryCatalogID(t *testing.T) 
 
 	tests := map[string]struct {
 		provider catalogOverridesProvider
-		expected map[string]bool
+		expected map[string]llm.ModelLifecycle
 		excluded []string
 	}{
 		"google": {
 			provider: &google.Provider{},
-			expected: map[string]bool{
-				"gemini-3.1-flash-lite-preview":         true,
-				"gemini-2.0-flash":                      true,
-				"gemini-2.0-flash-001":                  true,
-				"gemini-2.0-flash-lite":                 true,
-				"gemini-2.0-flash-lite-001":             true,
-				"gemini-2.0-flash-lite-preview":         true,
-				"gemini-2.0-flash-lite-preview-02-05":   true,
-				"gemini-2.5-flash-lite-preview-09-2025": true,
-				"gemini-2.5-flash-preview-05-20":        true,
-				"gemini-2.5-flash-preview-09-25":        true,
-				"gemini-2.5-pro-preview-03-25":          true,
-				"gemini-2.5-pro-preview-05-06":          true,
-				"gemini-2.5-pro-preview-06-05":          true,
+			expected: map[string]llm.ModelLifecycle{
+				"gemini-3.1-flash-lite-preview":         llm.ModelLifecycleRetired,
+				"gemini-2.0-flash":                      llm.ModelLifecycleRetired,
+				"gemini-2.0-flash-001":                  llm.ModelLifecycleRetired,
+				"gemini-2.0-flash-lite":                 llm.ModelLifecycleRetired,
+				"gemini-2.0-flash-lite-001":             llm.ModelLifecycleRetired,
+				"gemini-2.0-flash-lite-preview":         llm.ModelLifecycleRetired,
+				"gemini-2.0-flash-lite-preview-02-05":   llm.ModelLifecycleRetired,
+				"gemini-2.5-flash-lite-preview-09-2025": llm.ModelLifecycleRetired,
+				"gemini-2.5-flash-preview-05-20":        llm.ModelLifecycleRetired,
+				"gemini-2.5-flash-preview-09-25":        llm.ModelLifecycleRetired,
+				"gemini-2.5-pro-preview-03-25":          llm.ModelLifecycleRetired,
+				"gemini-2.5-pro-preview-05-06":          llm.ModelLifecycleRetired,
+				"gemini-2.5-pro-preview-06-05":          llm.ModelLifecycleRetired,
 			},
 			excluded: []string{google.ModelGeminiFlashLatest, google.ModelGemini35Flash},
 		},
 		"openai": {
 			provider: &openai.Provider{},
-			expected: map[string]bool{
-				"gpt-5-2025-08-07":       false,
-				"gpt-5-mini-2025-08-07":  false,
-				"gpt-5-nano-2025-08-07":  false,
-				"o3-2025-04-16":          false,
-				"o3-pro-2025-06-10":      false,
-				"gpt-3.5-turbo-0125":     false,
-				"gpt-4-turbo-2024-04-09": false,
-				"gpt-4o-2024-05-13":      false,
-				"o1-pro-2025-03-19":      false,
-				"o4-mini-2025-04-16":     false,
-				"gpt-4-turbo-preview":    true,
+			expected: map[string]llm.ModelLifecycle{
+				"gpt-5-2025-08-07":       llm.ModelLifecycleDeprecated,
+				"gpt-5-mini-2025-08-07":  llm.ModelLifecycleDeprecated,
+				"gpt-5-nano-2025-08-07":  llm.ModelLifecycleDeprecated,
+				"o3-2025-04-16":          llm.ModelLifecycleDeprecated,
+				"o3-pro-2025-06-10":      llm.ModelLifecycleDeprecated,
+				"gpt-3.5-turbo-0125":     llm.ModelLifecycleDeprecated,
+				"gpt-4-turbo-2024-04-09": llm.ModelLifecycleDeprecated,
+				"gpt-4o-2024-05-13":      llm.ModelLifecycleDeprecated,
+				"o1-pro-2025-03-19":      llm.ModelLifecycleDeprecated,
+				"o4-mini-2025-04-16":     llm.ModelLifecycleDeprecated,
+				"gpt-4-turbo-preview":    llm.ModelLifecycleRetired,
 			},
 			excluded: []string{openai.ModelGPT5, openai.ModelO3, openai.ModelGPT5_6},
 		},
@@ -154,13 +154,12 @@ func TestCatalogOverridesEnumerateEveryExactNonDiscoveryCatalogID(t *testing.T) 
 				discovered[model.Name] = struct{}{}
 			}
 
-			for model, retired := range tt.expected {
+			for model, lifecycle := range tt.expected {
 				metadata, ok := overrides[model]
 				require.True(t, ok, model)
-				require.Equal(t, retired, metadata.Retired, model)
-				require.True(t, metadata.Deprecated, model)
-				require.NotEmpty(t, metadata.EndOfLifeDate, model)
-				requireISODate(t, metadata.ReleaseDate, model+": release date")
+				require.Equal(t, lifecycle, metadata.Lifecycle, model)
+				require.False(t, metadata.EndOfLifeDate.IsZero(), model)
+				requireCatalogDate(t, metadata.ReleaseDate, model+": release date")
 				require.NotContains(t, discovered, model)
 
 				resolved, ok := tt.provider.ModelCatalog(model)
@@ -236,38 +235,31 @@ func TestLifecycleStatusRequiresProviderConfirmation(t *testing.T) {
 	t.Parallel()
 
 	googleModels := catalogByName(t, &google.Provider{})
-	require.True(t, googleModels[google.ModelGemini3ProPreview].Deprecated)
-	require.True(t, googleModels[google.ModelGemini3ProPreview].Retired)
-	require.Equal(t, "2026-03-09", googleModels[google.ModelGemini3ProPreview].EndOfLifeDate)
+	require.Equal(t, llm.ModelLifecycleRetired, googleModels[google.ModelGemini3ProPreview].Lifecycle)
+	require.Equal(t, "2026-03-09", googleModels[google.ModelGemini3ProPreview].EndOfLifeDate.Format(time.DateOnly))
 
 	// Announced end-of-life dates are factual schedule data. They do not imply
 	// retirement, but a provider deprecation notice is recorded independently.
-	require.True(t, googleModels[google.ModelGemini25Pro].Deprecated)
-	require.False(t, googleModels[google.ModelGemini25Pro].Retired)
-	require.Equal(t, "2026-10-16", googleModels[google.ModelGemini25Pro].EndOfLifeDate)
-	require.True(t, googleModels[google.ModelGemini31FlashLite].Deprecated)
-	require.False(t, googleModels[google.ModelGemini31FlashLite].Retired)
-	require.Equal(t, "2027-05-07", googleModels[google.ModelGemini31FlashLite].EndOfLifeDate)
-	require.False(t, googleModels[google.ModelGemini31ProPreview].Deprecated)
-	require.Empty(t, googleModels[google.ModelGemini31ProPreview].EndOfLifeDate)
+	require.Equal(t, llm.ModelLifecycleDeprecated, googleModels[google.ModelGemini25Pro].Lifecycle)
+	require.Equal(t, "2026-10-16", googleModels[google.ModelGemini25Pro].EndOfLifeDate.Format(time.DateOnly))
+	require.Equal(t, llm.ModelLifecycleDeprecated, googleModels[google.ModelGemini31FlashLite].Lifecycle)
+	require.Equal(t, "2027-05-07", googleModels[google.ModelGemini31FlashLite].EndOfLifeDate.Format(time.DateOnly))
+	require.Equal(t, llm.ModelLifecycleActive, googleModels[google.ModelGemini31ProPreview].Lifecycle)
+	require.True(t, googleModels[google.ModelGemini31ProPreview].EndOfLifeDate.IsZero())
 
 	anthropicModels := catalogByName(t, &anthropic.Provider{})
-	require.True(t, anthropicModels[anthropic.ModelClaudeOpus41].Deprecated)
-	require.False(t, anthropicModels[anthropic.ModelClaudeOpus41].Retired)
-	require.Equal(t, "2026-08-05", anthropicModels[anthropic.ModelClaudeOpus41].EndOfLifeDate)
-	require.False(t, anthropicModels[anthropic.ModelClaudeOpus45].Deprecated)
+	require.Equal(t, llm.ModelLifecycleDeprecated, anthropicModels[anthropic.ModelClaudeOpus41].Lifecycle)
+	require.Equal(t, "2026-08-05", anthropicModels[anthropic.ModelClaudeOpus41].EndOfLifeDate.Format(time.DateOnly))
+	require.Equal(t, llm.ModelLifecycleActive, anthropicModels[anthropic.ModelClaudeOpus45].Lifecycle)
 
 	openAIModels := catalogByName(t, &openai.Provider{})
-	require.False(t, openAIModels[openai.ModelGPT5].Deprecated)
-	require.False(t, openAIModels[openai.ModelGPT5].Retired)
-	require.Empty(t, openAIModels[openai.ModelGPT5].EndOfLifeDate)
-	require.True(t, openAIModels[openai.ModelGPT4O].Deprecated)
-	require.False(t, openAIModels[openai.ModelGPT4O].Retired)
-	require.Empty(t, openAIModels[openai.ModelGPT4O].EndOfLifeDate)
+	require.Equal(t, llm.ModelLifecycleActive, openAIModels[openai.ModelGPT5].Lifecycle)
+	require.True(t, openAIModels[openai.ModelGPT5].EndOfLifeDate.IsZero())
+	require.Equal(t, llm.ModelLifecycleDeprecated, openAIModels[openai.ModelGPT4O].Lifecycle)
+	require.True(t, openAIModels[openai.ModelGPT4O].EndOfLifeDate.IsZero())
 
 	bedrockModels := catalogByName(t, &bedrock.Provider{})
-	require.False(t, bedrockModels[bedrock.ModelClaudeFable5Global].Deprecated)
-	require.False(t, bedrockModels[bedrock.ModelClaudeFable5Global].Retired)
+	require.Equal(t, llm.ModelLifecycleActive, bedrockModels[bedrock.ModelClaudeFable5Global].Lifecycle)
 }
 
 func TestBedrockUpgradeGroupsKeepNewestModelPerRoutingGeography(t *testing.T) {
@@ -276,11 +268,14 @@ func TestBedrockUpgradeGroupsKeepNewestModelPerRoutingGeography(t *testing.T) {
 	models := catalogByName(t, &bedrock.Provider{})
 
 	require.Equal(t, "bedrock-claude-opus-au", models[bedrock.ModelClaudeOpus48AU].UpgradeGroup)
-	require.Greater(t, models[bedrock.ModelClaudeOpus48AU].ReleaseDate, models[bedrock.ModelClaudeOpus46AU].ReleaseDate)
-	require.False(t, models[bedrock.ModelClaudeFable5EU].Retired)
+	require.True(t, models[bedrock.ModelClaudeOpus48AU].ReleaseDate.After(models[bedrock.ModelClaudeOpus46AU].ReleaseDate))
 
-	require.Greater(t, models[bedrock.ModelClaudeSonnet46EU].ReleaseDate, models[bedrock.ModelClaudeSonnet45EU].ReleaseDate)
-	require.Greater(t, models[bedrock.ModelClaudeSonnet46JP].ReleaseDate, models[bedrock.ModelClaudeSonnet45JP].ReleaseDate)
+	fableEU, ok := (&bedrock.Provider{}).ModelCatalog(bedrock.ModelClaudeFable5EU)
+	require.True(t, ok)
+	require.Equal(t, llm.ModelLifecycleActive, fableEU.Lifecycle)
+
+	require.True(t, models[bedrock.ModelClaudeSonnet46EU].ReleaseDate.After(models[bedrock.ModelClaudeSonnet45EU].ReleaseDate))
+	require.True(t, models[bedrock.ModelClaudeSonnet46JP].ReleaseDate.After(models[bedrock.ModelClaudeSonnet45JP].ReleaseDate))
 }
 
 func TestBedrockMistralLarge3UsesExactModelCard(t *testing.T) {
@@ -344,11 +339,11 @@ func TestOpenAIGPT55ProHasExactCapabilitiesAndPricing(t *testing.T) {
 
 func latestActiveModelNames(provider catalogProvider) []string {
 	models := provider.Models()
-	latestReleaseByGroup := make(map[string]string)
+	latestReleaseByGroup := make(map[string]time.Time)
 
 	for _, model := range models {
 		catalog, ok := provider.ModelCatalog(model.Name)
-		if ok && !catalog.Deprecated && !catalog.Retired && catalog.ReleaseDate > latestReleaseByGroup[catalog.UpgradeGroup] {
+		if ok && catalog.Lifecycle == llm.ModelLifecycleActive && catalog.ReleaseDate.After(latestReleaseByGroup[catalog.UpgradeGroup]) {
 			latestReleaseByGroup[catalog.UpgradeGroup] = catalog.ReleaseDate
 		}
 	}
@@ -357,7 +352,7 @@ func latestActiveModelNames(provider catalogProvider) []string {
 
 	for _, model := range models {
 		catalog, ok := provider.ModelCatalog(model.Name)
-		if ok && !catalog.Deprecated && !catalog.Retired && catalog.ReleaseDate == latestReleaseByGroup[catalog.UpgradeGroup] {
+		if ok && catalog.Lifecycle == llm.ModelLifecycleActive && catalog.ReleaseDate.Equal(latestReleaseByGroup[catalog.UpgradeGroup]) {
 			names = append(names, model.Name)
 		}
 	}
@@ -403,11 +398,15 @@ func requireCatalogContains(t *testing.T, models []llm.ModelDiscoveryInfo, model
 	t.Fatalf("catalog does not contain %q", modelName)
 }
 
-func requireISODate(t *testing.T, value, field string) {
+func requireCatalogDate(t *testing.T, value time.Time, field string) {
 	t.Helper()
 
-	_, err := time.Parse(time.DateOnly, value)
-	require.NoError(t, err, field)
+	require.False(t, value.IsZero(), field)
+	require.Equal(t, time.UTC, value.Location(), field)
+	require.Equal(t, 0, value.Hour(), field)
+	require.Equal(t, 0, value.Minute(), field)
+	require.Equal(t, 0, value.Second(), field)
+	require.Equal(t, 0, value.Nanosecond(), field)
 }
 
 func requireHTTPSURL(t *testing.T, value, modelName string) {

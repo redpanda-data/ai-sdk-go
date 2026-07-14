@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/redpanda-data/ai-sdk-go/internal/catalogdate"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -68,25 +69,25 @@ func anthropicCatalogModel(model string) (string, bool) {
 func anthropicModelCatalog(name string) (llm.ModelCatalogMetadata, bool) {
 	switch name {
 	case ModelClaudeFable5:
-		return anthropicCatalog("claude-fable", "2026-06-09", "", false, "", anthropicModelsSource), true
+		return anthropicCatalog("claude-fable", "2026-06-09", "", llm.ModelLifecycleActive, "", anthropicModelsSource), true
 	case ModelClaudeOpus48:
-		return anthropicCatalog("claude-opus", "2026-05-28", "", false, "", anthropicModelsSource), true
+		return anthropicCatalog("claude-opus", "2026-05-28", "", llm.ModelLifecycleActive, "", anthropicModelsSource), true
 	case ModelClaudeOpus47:
-		return anthropicCatalog("claude-opus", "2026-04-16", "", false, ModelClaudeOpus48, anthropicModelsSource), true
+		return anthropicCatalog("claude-opus", "2026-04-16", "", llm.ModelLifecycleActive, ModelClaudeOpus48, anthropicModelsSource), true
 	case ModelClaudeOpus46:
-		return anthropicCatalog("claude-opus", "2026-02-05", "", false, ModelClaudeOpus48, anthropicModelsSource), true
+		return anthropicCatalog("claude-opus", "2026-02-05", "", llm.ModelLifecycleActive, ModelClaudeOpus48, anthropicModelsSource), true
 	case ModelClaudeOpus45:
-		return anthropicCatalog("claude-opus", "2025-11-24", "", false, ModelClaudeOpus48, anthropicModelsSource), true
+		return anthropicCatalog("claude-opus", "2025-11-24", "", llm.ModelLifecycleActive, ModelClaudeOpus48, anthropicModelsSource), true
 	case ModelClaudeOpus41:
-		return anthropicCatalog("claude-opus", "2025-08-05", "2026-08-05", true, ModelClaudeOpus48, anthropicDeprecationsSource), true
+		return anthropicCatalog("claude-opus", "2025-08-05", "2026-08-05", llm.ModelLifecycleDeprecated, ModelClaudeOpus48, anthropicDeprecationsSource), true
 	case ModelClaudeSonnet5:
-		return anthropicCatalog("claude-sonnet", "2026-06-30", "", false, "", anthropicModelsSource), true
+		return anthropicCatalog("claude-sonnet", "2026-06-30", "", llm.ModelLifecycleActive, "", anthropicModelsSource), true
 	case ModelClaudeSonnet46:
-		return anthropicCatalog("claude-sonnet", "2026-02-17", "", false, ModelClaudeSonnet5, anthropicModelsSource), true
+		return anthropicCatalog("claude-sonnet", "2026-02-17", "", llm.ModelLifecycleActive, ModelClaudeSonnet5, anthropicModelsSource), true
 	case ModelClaudeSonnet45:
-		return anthropicCatalog("claude-sonnet", "2025-09-29", "", false, ModelClaudeSonnet5, anthropicModelsSource), true
+		return anthropicCatalog("claude-sonnet", "2025-09-29", "", llm.ModelLifecycleActive, ModelClaudeSonnet5, anthropicModelsSource), true
 	case ModelClaudeHaiku45:
-		return anthropicCatalog("claude-haiku", "2025-10-15", "", false, "", anthropicModelsSource), true
+		return anthropicCatalog("claude-haiku", "2025-10-15", "", llm.ModelLifecycleActive, "", anthropicModelsSource), true
 	default:
 		return llm.ModelCatalogMetadata{}, false
 	}
@@ -96,18 +97,26 @@ func anthropicCatalog(
 	familyKey string,
 	releaseDate string,
 	endOfLifeDate string,
-	deprecated bool,
+	lifecycle llm.ModelLifecycle,
 	providerReplacement string,
 	source string,
 ) llm.ModelCatalogMetadata {
+	release, releaseErr := catalogdate.Parse(releaseDate)
+	endOfLife, endOfLifeErr := catalogdate.Parse(endOfLifeDate)
+
+	verified, verifiedErr := catalogdate.Parse(anthropicMetadataVerifiedDate)
+	if releaseErr != nil || endOfLifeErr != nil || verifiedErr != nil {
+		return llm.ModelCatalogMetadata{}
+	}
+
 	return llm.ModelCatalogMetadata{
 		FamilyKey:            familyKey,
 		UpgradeGroup:         "anthropic-" + familyKey,
-		ReleaseDate:          releaseDate,
-		EndOfLifeDate:        endOfLifeDate,
-		Deprecated:           deprecated,
+		ReleaseDate:          release,
+		EndOfLifeDate:        endOfLife,
+		Lifecycle:            lifecycle,
 		ProviderReplacement:  providerReplacement,
 		OfficialSourceURL:    source,
-		MetadataVerifiedDate: anthropicMetadataVerifiedDate,
+		MetadataVerifiedDate: verified,
 	}
 }

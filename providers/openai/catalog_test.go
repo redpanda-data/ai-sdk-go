@@ -16,8 +16,11 @@ package openai
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
 func TestModelCatalogPreservesExactAliasAndSnapshotFacts(t *testing.T) {
@@ -29,21 +32,20 @@ func TestModelCatalogPreservesExactAliasAndSnapshotFacts(t *testing.T) {
 		model       string
 		releaseDate string
 		endOfLife   string
-		deprecated  bool
-		retired     bool
+		lifecycle   llm.ModelLifecycle
 		replacement string
 	}{
-		{name: "GPT-5 alias remains callable", model: ModelGPT5, releaseDate: "2025-08-07", replacement: ModelGPT5_5},
-		{name: "GPT-5 snapshot is deprecated", model: "gpt-5-2025-08-07", releaseDate: "2025-08-07", endOfLife: "2026-12-11", deprecated: true, replacement: ModelGPT5_5},
-		{name: "O3 alias remains callable", model: ModelO3, releaseDate: "2025-04-16", replacement: ModelGPT5_5},
-		{name: "O3 snapshot is deprecated", model: "o3-2025-04-16", releaseDate: "2025-04-16", endOfLife: "2026-12-11", deprecated: true, replacement: ModelGPT5_5},
-		{name: "GPT-4o deprecation has no inferred EOL", model: ModelGPT4O, releaseDate: "2024-05-13", deprecated: true, replacement: ModelGPT5_6Sol},
-		{name: "GPT-4o snapshot has exact shutdown facts", model: "gpt-4o-2024-05-13", releaseDate: "2024-05-13", endOfLife: "2026-10-23", deprecated: true, replacement: ModelGPT5_5},
-		{name: "GPT-3.5 snapshot has exact shutdown facts", model: "gpt-3.5-turbo-0125", releaseDate: "2024-01-25", endOfLife: "2026-10-23", deprecated: true, replacement: ModelGPT5_4Mini},
-		{name: "GPT-4 Turbo snapshot has exact shutdown facts", model: "gpt-4-turbo-2024-04-09", releaseDate: "2024-04-09", endOfLife: "2026-10-23", deprecated: true, replacement: ModelGPT5_5},
-		{name: "O1 Pro snapshot has exact shutdown facts", model: "o1-pro-2025-03-19", releaseDate: "2025-03-19", endOfLife: "2026-10-23", deprecated: true, replacement: ModelGPT5_5Pro},
-		{name: "O4 Mini snapshot has exact shutdown facts", model: "o4-mini-2025-04-16", releaseDate: "2025-04-16", endOfLife: "2026-10-23", deprecated: true, replacement: ModelGPT5_4Mini},
-		{name: "retired preview stays exact", model: "gpt-4-turbo-preview", releaseDate: "2023-11-06", endOfLife: "2026-03-26", deprecated: true, retired: true, replacement: ModelGPT5_5},
+		{name: "GPT-5 alias remains callable", model: ModelGPT5, releaseDate: "2025-08-07", lifecycle: llm.ModelLifecycleActive, replacement: ModelGPT5_5},
+		{name: "GPT-5 snapshot is deprecated", model: "gpt-5-2025-08-07", releaseDate: "2025-08-07", endOfLife: "2026-12-11", lifecycle: llm.ModelLifecycleDeprecated, replacement: ModelGPT5_5},
+		{name: "O3 alias remains callable", model: ModelO3, releaseDate: "2025-04-16", lifecycle: llm.ModelLifecycleActive, replacement: ModelGPT5_5},
+		{name: "O3 snapshot is deprecated", model: "o3-2025-04-16", releaseDate: "2025-04-16", endOfLife: "2026-12-11", lifecycle: llm.ModelLifecycleDeprecated, replacement: ModelGPT5_5},
+		{name: "GPT-4o deprecation has no inferred EOL", model: ModelGPT4O, releaseDate: "2024-05-13", lifecycle: llm.ModelLifecycleDeprecated, replacement: ModelGPT5_6Sol},
+		{name: "GPT-4o snapshot has exact shutdown facts", model: "gpt-4o-2024-05-13", releaseDate: "2024-05-13", endOfLife: "2026-10-23", lifecycle: llm.ModelLifecycleDeprecated, replacement: ModelGPT5_5},
+		{name: "GPT-3.5 snapshot has exact shutdown facts", model: "gpt-3.5-turbo-0125", releaseDate: "2024-01-25", endOfLife: "2026-10-23", lifecycle: llm.ModelLifecycleDeprecated, replacement: ModelGPT5_4Mini},
+		{name: "GPT-4 Turbo snapshot has exact shutdown facts", model: "gpt-4-turbo-2024-04-09", releaseDate: "2024-04-09", endOfLife: "2026-10-23", lifecycle: llm.ModelLifecycleDeprecated, replacement: ModelGPT5_5},
+		{name: "O1 Pro snapshot has exact shutdown facts", model: "o1-pro-2025-03-19", releaseDate: "2025-03-19", endOfLife: "2026-10-23", lifecycle: llm.ModelLifecycleDeprecated, replacement: ModelGPT5_5Pro},
+		{name: "O4 Mini snapshot has exact shutdown facts", model: "o4-mini-2025-04-16", releaseDate: "2025-04-16", endOfLife: "2026-10-23", lifecycle: llm.ModelLifecycleDeprecated, replacement: ModelGPT5_4Mini},
+		{name: "retired preview stays exact", model: "gpt-4-turbo-preview", releaseDate: "2023-11-06", endOfLife: "2026-03-26", lifecycle: llm.ModelLifecycleRetired, replacement: ModelGPT5_5},
 	}
 
 	for _, tt := range tests {
@@ -52,10 +54,9 @@ func TestModelCatalogPreservesExactAliasAndSnapshotFacts(t *testing.T) {
 
 			catalog, ok := provider.ModelCatalog(tt.model)
 			require.True(t, ok)
-			require.Equal(t, tt.releaseDate, catalog.ReleaseDate)
-			require.Equal(t, tt.endOfLife, catalog.EndOfLifeDate)
-			require.Equal(t, tt.deprecated, catalog.Deprecated)
-			require.Equal(t, tt.retired, catalog.Retired)
+			require.Equal(t, tt.releaseDate, catalog.ReleaseDate.Format(time.DateOnly))
+			require.Equal(t, tt.endOfLife, formatCatalogDate(catalog.EndOfLifeDate))
+			require.Equal(t, tt.lifecycle, catalog.Lifecycle)
 			require.Equal(t, tt.replacement, catalog.ProviderReplacement)
 
 			if tt.model == ModelGPT4O {
@@ -89,8 +90,8 @@ func TestGPT53CodexUsesCurrentFlagshipUpgradeTrack(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "gpt", catalog.FamilyKey)
 	require.Equal(t, "openai-gpt-flagship", catalog.UpgradeGroup)
-	require.Equal(t, "2026-02-05", catalog.ReleaseDate)
-	require.False(t, catalog.Retired)
+	require.Equal(t, "2026-02-05", catalog.ReleaseDate.Format(time.DateOnly))
+	require.Equal(t, llm.ModelLifecycleActive, catalog.Lifecycle)
 	require.Equal(t, ModelGPT5_6Sol, catalog.ProviderReplacement)
 
 	models := (&Provider{}).Models()
@@ -106,4 +107,12 @@ func TestGPT53CodexUsesCurrentFlagshipUpgradeTrack(t *testing.T) {
 	}
 
 	t.Fatalf("model %q was not discoverable", modelName)
+}
+
+func formatCatalogDate(date time.Time) string {
+	if date.IsZero() {
+		return ""
+	}
+
+	return date.Format(time.DateOnly)
 }
