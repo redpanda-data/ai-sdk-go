@@ -327,6 +327,7 @@ func recommendedModelNames(provider catalogProvider) []string {
 	}
 
 	names := make([]string, 0, len(latestReleaseByGroup))
+
 	for _, model := range models {
 		catalog, ok := provider.ModelCatalog(model.Name)
 		if ok && !catalog.Retired && catalog.ReleaseDate == latestReleaseByGroup[catalog.RecommendationGroup] {
