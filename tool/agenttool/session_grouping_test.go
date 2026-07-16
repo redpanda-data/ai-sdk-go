@@ -54,6 +54,7 @@ func (m *capturingAgent) Run(ctx context.Context, inv *agent.InvocationMetadata)
 		ctxInv, ok := agent.InvocationFromContext(ctx)
 		m.gotContextInvocationPresent = ok
 		m.gotContextInvocationSame = ctxInv == inv
+
 		if ok && ctxInv.Session() != nil {
 			m.gotContextSessionID = ctxInv.Session().ID
 		}
