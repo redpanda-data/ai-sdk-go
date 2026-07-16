@@ -29,6 +29,7 @@ import (
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/plugins/otel/genai"
+	"github.com/redpanda-data/ai-sdk-go/store/session"
 )
 
 // Redpanda-specific and error attributes (not part of OTel Gen AI semconv).
@@ -38,7 +39,33 @@ const (
 	attrToolExecutionDuration = "redpanda.tool.execution.duration"
 	attrToolResultAvailable   = "redpanda.tool.result.available"
 	attrErrorType             = "error.type"
+
+	// Sub-agent linkage attributes. Emitted on a sub-agent's invocation span so
+	// its activity can be told apart from the parent's even though they share a
+	// conversation (session) id.
+	attrAgentParentInvocationID = "redpanda.agent.parent_invocation_id"
+	attrAgentPath               = "redpanda.agent.path"
 )
+
+// subagentAttrs derives sub-agent linkage span attributes from a session's
+// metadata (set by agenttool when a sub-agent shares the parent's session id).
+// Returns nil when the session carries no linkage (i.e. it is not a sub-agent run).
+func subagentAttrs(s *session.State) []attribute.KeyValue {
+	if s == nil {
+		return nil
+	}
+
+	var attrs []attribute.KeyValue
+	if v, _ := s.Metadata[session.MetadataParentInvocationID].(string); v != "" {
+		attrs = append(attrs, attribute.String(attrAgentParentInvocationID, v))
+	}
+
+	if v, _ := s.Metadata[session.MetadataAgentPath].(string); v != "" {
+		attrs = append(attrs, attribute.String(attrAgentPath, v))
+	}
+
+	return attrs
+}
 
 // errorTypeToolError is the error.type value for tool-level errors
 // (analogous to MCP isError=true). Per OTel MCP semconv.
