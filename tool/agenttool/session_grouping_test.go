@@ -191,3 +191,19 @@ func TestExecute_ParentWithNilSession_MintsUniqueID(t *testing.T) {
 		"got %q", child.gotSessionID)
 	assert.Empty(t, child.gotMetadata)
 }
+
+func TestExecute_ParentWithEmptySessionID_NoMetadata(t *testing.T) {
+	t.Parallel()
+
+	// Parent session exists but resolves to an empty conversation id; no junk
+	// empty-string entry may be written into the child's metadata.
+	ctx := parentContext("")
+
+	child := &capturingAgent{mockAgent: mockAgent{name: "search", response: "ok"}}
+	at := agenttool.New(child)
+
+	_, err := at.Execute(ctx, json.RawMessage(`{}`))
+	require.NoError(t, err)
+
+	assert.NotContains(t, child.gotMetadata, session.MetadataConversationID)
+}

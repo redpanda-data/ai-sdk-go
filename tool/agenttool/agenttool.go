@@ -125,8 +125,10 @@ func (at *AgentTool) Execute(ctx context.Context, args json.RawMessage) (json.Ra
 	// (transitively, the root conversation) so the otel plugin groups this
 	// sub-agent under the same gen_ai.conversation.id as the parent without
 	// reusing the parent's session id.
-	if parent, ok := agent.InvocationFromContext(ctx); ok && parent.Session() != nil {
-		metadata[session.MetadataConversationID] = session.ConversationID(parent.Session())
+	if parent, ok := agent.InvocationFromContext(ctx); ok {
+		if cid := session.ConversationID(parent.Session()); cid != "" {
+			metadata[session.MetadataConversationID] = cid
+		}
 	}
 
 	sess := &session.State{
