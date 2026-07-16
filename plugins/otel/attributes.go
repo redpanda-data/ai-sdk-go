@@ -99,7 +99,10 @@ type SpanContext struct {
 	// SpanName is the computed span name (e.g., "invoke_agent my-assistant").
 	SpanName string
 
-	// SessionID is the session/conversation identifier.
+	// SessionID is the conversation grouping id for the span
+	// (gen_ai.conversation.id): for a sub-agent it is the parent/root
+	// conversation id, NOT the sub-agent's own (unique) storage session id.
+	// See session.ConversationID. Use Inv.Session().ID for the storage id.
 	// Empty string if no session is available.
 	SessionID string
 
