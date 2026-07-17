@@ -129,17 +129,12 @@ func WithRecordToolDefinitions(enabled bool) Option {
 //	        if spanCtx.SpanType == pluginotel.SpanTypeInvocation {
 //	            return []attribute.KeyValue{
 //	                attribute.String("langfuse.trace.name", spanCtx.SpanName),
-//	                attribute.String("langfuse.session.id", spanCtx.SessionID),
+//	                attribute.String("langfuse.session.id", spanCtx.ConversationID),
 //	            }
 //	        }
 //	        return nil
 //	    }),
 //	)
-//
-// Note that SpanContext.SessionID carries the conversation grouping id: for an
-// in-process sub-agent it is the parent/root conversation id, not the
-// sub-agent's own storage session id, so session-oriented sinks group the
-// whole parent→sub-agent tree together.
 //
 // Important notes:
 //   - The injector must be thread-safe (tools may execute concurrently)

@@ -15,6 +15,9 @@
 package agent
 
 import (
+	"maps"
+	"sync"
+
 	"github.com/rs/xid"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
@@ -96,7 +99,8 @@ type Info struct {
 //   - TotalUsage() - accumulated by framework after model calls
 //
 // MUTABLE FIELDS (safe for interceptor use):
-//   - Metadata() - use for interceptor-to-interceptor communication
+//   - GetMetadata()/SetMetadata() - interceptor-to-interceptor communication,
+//     safe under concurrent tool interceptors; Metadata() returns a snapshot
 //   - Session() - can be modified, but be careful with message history
 //
 // Interceptors should NOT attempt to mutate immutable fields.
@@ -140,8 +144,11 @@ type InvocationMetadata struct {
 	// Session reference - accessible but modifications should be careful
 	session *session.State
 
-	// Mutable metadata for interceptor communication
-	metadata map[string]any
+	// Mutable metadata for interceptor communication, guarded by metadataMu:
+	// tool interceptors may run concurrently (tools execute in parallel) while
+	// sharing the same invocation.
+	metadataMu sync.Mutex
+	metadata   map[string]any
 }
 
 // NewInvocationMetadata creates a new invocation metadata with agent context.
@@ -240,35 +247,47 @@ func (m *InvocationMetadata) TotalUsage() llm.TokenUsage {
 // GetMetadata retrieves a metadata value by key.
 //
 // Returns nil if the key doesn't exist. Metadata is safe for interceptors
-// to read and write for interceptor-to-interceptor communication.
+// to read and write for interceptor-to-interceptor communication, including
+// from tool interceptors running concurrently (tools execute in parallel
+// while sharing the same invocation).
 //
 // Example use cases:
 //   - Auth interceptor sets user_id, other interceptors read it
 //   - Tracing interceptor sets trace_id for logging
 //   - Rate limiting interceptor sets rate_limit_remaining
 func (m *InvocationMetadata) GetMetadata(key string) any {
+	m.metadataMu.Lock()
+	defer m.metadataMu.Unlock()
+
 	return m.metadata[key]
 }
 
 // SetMetadata sets a metadata value for interceptor communication.
 //
-// This is safe for interceptors to call. Use metadata to pass information
-// between interceptors in the chain.
+// This is safe for interceptors to call, including concurrently from tool
+// interceptors (tools execute in parallel while sharing the same invocation).
+// Use metadata to pass information between interceptors in the chain.
 //
 // Example:
 //   - inv.SetMetadata("user_id", "user-123")
 //   - inv.SetMetadata("trace_id", span.SpanContext().TraceID().String())
 func (m *InvocationMetadata) SetMetadata(key string, value any) {
+	m.metadataMu.Lock()
+	defer m.metadataMu.Unlock()
+
 	m.metadata[key] = value
 }
 
-// Metadata returns the entire metadata map.
+// Metadata returns a snapshot copy of the metadata map.
 //
-// Interceptors can read from and write to this map directly.
-// The map is safe for concurrent access from a single invocation's
-// goroutine (interceptors are called sequentially in a chain).
+// The returned map is the caller's to keep: mutating it does not affect the
+// invocation. Use SetMetadata to write, which is safe even from tool
+// interceptors running concurrently over the same invocation.
 func (m *InvocationMetadata) Metadata() map[string]any {
-	return m.metadata
+	m.metadataMu.Lock()
+	defer m.metadataMu.Unlock()
+
+	return maps.Clone(m.metadata)
 }
 
 // --- Internal mutators (unexported, framework use only) ---

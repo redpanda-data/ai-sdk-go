@@ -35,7 +35,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
+
+	"github.com/rs/xid"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/llm"
@@ -103,51 +104,43 @@ type Result struct {
 //   - For context sharing, pass relevant information explicitly in args
 //
 // Session ID & conversation grouping:
-//   - The sub-agent always gets its own freshly minted, globally unique session
-//     id. It never reuses the parent's id, so it can never collide with the
-//     parent's or a sibling sub-agent's session if it ever reaches a store —
-//     there is no "safe only while unpersisted" caveat.
-//   - When invoked as part of a parent agent's turn (the parent invocation is
-//     present in ctx), the sub-agent records the parent's conversation id in
-//     session metadata (see session.MetadataConversationID). Observability uses
-//     that to group the parent→sub-agent tree under one conversation
-//     (gen_ai.conversation.id) without overloading the storage id.
+//   - The sub-agent always gets its own freshly minted, collision-resistant
+//     session id (xid). It never reuses the parent's id, so it cannot collide
+//     with the parent's or a sibling sub-agent's session if it ever reaches a
+//     store — there is no "safe only while unpersisted" caveat.
+//   - When invoked as part of a parent agent's turn (the calling agent set the
+//     conversation grouping id on ctx, see agent.ContextWithConversationID),
+//     the sub-agent records it as the session's ConversationID (transitively,
+//     the root conversation). Observability uses that to group the
+//     parent→sub-agent tree under one conversation (gen_ai.conversation.id)
+//     without overloading the storage id.
 func (at *AgentTool) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
 	info := at.agent.Info()
 
-	// 1. Mint a unique session id for the sub-agent. Conversation grouping does
-	// NOT rely on this id; it is carried separately in metadata (below) so the
-	// storage id stays unique and safe as a store key.
-	sessionID := fmt.Sprintf("agent-tool-%s-%d", info.Name, time.Now().UnixNano())
-	metadata := map[string]any{}
-
-	// When the parent invocation is available, propagate its conversation id
-	// (transitively, the root conversation) so the otel plugin groups this
-	// sub-agent under the same gen_ai.conversation.id as the parent without
-	// reusing the parent's session id.
-	if parent, ok := agent.InvocationFromContext(ctx); ok {
-		if cid := session.ConversationID(parent.Session()); cid != "" {
-			metadata[session.MetadataConversationID] = cid
-		}
-	}
-
-	sess := &session.State{
-		ID:       sessionID,
-		Messages: []llm.Message{},
-		Metadata: metadata,
-	}
-
-	// 2. Convert args to user message
-	// Args are passed as JSON text (e.g., {"query": "..."})
-	// Child agent receives this in a user message and parses it naturally
+	// Args are passed as JSON text (e.g., {"query": "..."}); the child agent
+	// receives them in a user message and parses them naturally.
 	userMsg := llm.NewMessage(llm.RoleUser, llm.NewTextPart(string(args)))
-	sess.Messages = append(sess.Messages, userMsg)
 
-	// 3. Create invocation metadata
+	// The sub-agent gets its own unique storage session id; conversation
+	// grouping does NOT rely on it. The parent's conversation id (transitively,
+	// the root conversation) is carried separately in ConversationID — empty
+	// when there is no calling conversation — so the otel plugin groups this
+	// sub-agent under the same gen_ai.conversation.id as the parent.
+	sess := &session.State{
+		ID:             fmt.Sprintf("agent-tool-%s-%s", info.Name, xid.New().String()),
+		ConversationID: agent.ConversationIDFromContext(ctx),
+		Messages:       []llm.Message{userMsg},
+		Metadata:       map[string]any{},
+	}
+
 	inv := agent.NewInvocationMetadata(sess, info)
-	ctx = agent.ContextWithInvocation(ctx, inv)
 
-	// 4. Run agent and collect response
+	// Scope the grouping id to the child run so nested sub-agents group under
+	// the same root even when the child agent implementation does not set it
+	// before its own tool calls.
+	ctx = agent.ContextWithConversationID(ctx, session.ConversationID(sess))
+
+	// Run agent and collect the last assistant message as the result.
 	var result string
 
 	for evt, err := range at.agent.Run(ctx, inv) {
@@ -161,7 +154,6 @@ func (at *AgentTool) Execute(ctx context.Context, args json.RawMessage) (json.Ra
 		}
 	}
 
-	// 5. Return result
 	if result == "" {
 		result = "Task completed with no text output."
 	}

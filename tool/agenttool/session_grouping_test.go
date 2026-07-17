@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"iter"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,36 +28,87 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/store/session"
+	"github.com/redpanda-data/ai-sdk-go/tool"
 	"github.com/redpanda-data/ai-sdk-go/tool/agenttool"
 )
 
-// capturingAgent records the session it is invoked with, so tests can assert on
-// the session id, messages, and metadata that agenttool builds for the child.
+// capturingAgent records the session and context it is invoked with, so tests
+// can assert on the session id, messages, and conversation id that agenttool
+// builds for the child.
 type capturingAgent struct {
 	mockAgent
 
-	gotSessionID string
-	gotMessages  []llm.Message
-	gotMetadata  map[string]any
-
-	gotContextInvocationPresent bool
-	gotContextInvocationSame    bool
-	gotContextSessionID         string
+	gotSession           *session.State
+	gotCtxConversationID string
 }
 
 func (m *capturingAgent) Run(ctx context.Context, inv *agent.InvocationMetadata) iter.Seq2[agent.Event, error] {
 	return func(yield func(agent.Event, error) bool) {
-		s := inv.Session()
-		m.gotSessionID = s.ID
-		m.gotMessages = s.Messages
-		m.gotMetadata = s.Metadata
+		m.gotSession = inv.Session()
+		m.gotCtxConversationID = agent.ConversationIDFromContext(ctx)
 
-		ctxInv, ok := agent.InvocationFromContext(ctx)
-		m.gotContextInvocationPresent = ok
-		m.gotContextInvocationSame = ctxInv == inv
+		msg := llm.NewMessage(llm.RoleAssistant, llm.NewTextPart(m.response))
+		if !yield(agent.MessageEvent{Response: llm.Response{Message: msg}}, nil) {
+			return
+		}
 
-		if ok && ctxInv.Session() != nil {
-			m.gotContextSessionID = ctxInv.Session().ID
+		yield(agent.InvocationEndEvent{FinishReason: agent.FinishReasonStop}, nil)
+	}
+}
+
+func TestExecute_GroupsUnderParentConversation(t *testing.T) {
+	t.Parallel()
+
+	// A calling agent sets the conversation grouping id on ctx before the tool
+	// call (llmagent does this from session.ConversationID).
+	ctx := agent.ContextWithConversationID(context.Background(), "parent-sess-123")
+
+	child := &capturingAgent{mockAgent: mockAgent{name: "search", response: "ok"}}
+	at := agenttool.New(child)
+
+	_, err := at.Execute(ctx, json.RawMessage(`{"query":"x"}`))
+	require.NoError(t, err)
+
+	// The sub-agent keeps its OWN unique storage id — it never reuses the
+	// parent's, so it can never collide in a store.
+	assert.True(t, strings.HasPrefix(child.gotSession.ID, "agent-tool-search-"),
+		"got %q", child.gotSession.ID)
+	assert.NotEqual(t, "parent-sess-123", child.gotSession.ID)
+
+	// Conversation grouping is carried as the session's ConversationID
+	// override, so observability groups the two under one conversation.
+	assert.Equal(t, "parent-sess-123", child.gotSession.ConversationID)
+	assert.Equal(t, "parent-sess-123", session.ConversationID(child.gotSession))
+}
+
+func TestExecute_ContextCarriesGroupingForChildRun(t *testing.T) {
+	t.Parallel()
+
+	ctx := agent.ContextWithConversationID(context.Background(), "parent-sess-123")
+	child := &capturingAgent{mockAgent: mockAgent{name: "search", response: "ok"}}
+	at := agenttool.New(child)
+
+	_, err := at.Execute(ctx, json.RawMessage(`{}`))
+	require.NoError(t, err)
+
+	// The child run's ctx carries the resolved grouping id so nested sub-agents
+	// group under the same root even if the child agent sets nothing itself.
+	assert.Equal(t, "parent-sess-123", child.gotCtxConversationID)
+}
+
+// nestingAgent simulates a mid-level agent that itself delegates to an inner
+// agenttool, passing along the ctx it was invoked with — the transitive case.
+type nestingAgent struct {
+	mockAgent
+
+	inner tool.Tool
+}
+
+func (m *nestingAgent) Run(ctx context.Context, _ *agent.InvocationMetadata) iter.Seq2[agent.Event, error] {
+	return func(yield func(agent.Event, error) bool) {
+		if _, err := m.inner.Execute(ctx, json.RawMessage(`{}`)); err != nil {
+			yield(nil, err)
+			return
 		}
 
 		msg := llm.NewMessage(llm.RoleAssistant, llm.NewTextPart(m.response))
@@ -68,84 +120,32 @@ func (m *capturingAgent) Run(ctx context.Context, inv *agent.InvocationMetadata)
 	}
 }
 
-func parentContext(id string, messages ...llm.Message) context.Context {
-	parentSess := &session.State{ID: id, Messages: messages}
-	parentInv := agent.NewInvocationMetadata(parentSess, agent.Info{Name: "root"})
-
-	return agent.ContextWithInvocation(context.Background(), parentInv)
-}
-
-func TestExecute_GroupsUnderParentConversation(t *testing.T) {
+func TestExecute_PropagatesRootConversationIDTransitively(t *testing.T) {
 	t.Parallel()
 
-	ctx := parentContext("parent-sess-123",
-		llm.NewMessage(llm.RoleUser, llm.NewTextPart("parent secret")))
-
-	child := &capturingAgent{mockAgent: mockAgent{name: "search", response: "ok"}}
-	at := agenttool.New(child)
-
-	_, err := at.Execute(ctx, json.RawMessage(`{"query":"x"}`))
-	require.NoError(t, err)
-
-	// The sub-agent keeps its OWN unique storage id — it never reuses the
-	// parent's, so it can never collide in a store.
-	assert.True(t, strings.HasPrefix(child.gotSessionID, "agent-tool-search-"),
-		"got %q", child.gotSessionID)
-	assert.NotEqual(t, "parent-sess-123", child.gotSessionID)
-
-	// Conversation grouping is carried in metadata: the parent's conversation id,
-	// so observability groups the two under one conversation.
-	assert.Equal(t, "parent-sess-123", child.gotMetadata[session.MetadataConversationID])
-
-	// And ConversationID resolves the sub-agent's session to the parent's id.
-	assert.Equal(t, "parent-sess-123",
-		session.ConversationID(&session.State{ID: child.gotSessionID, Metadata: child.gotMetadata}))
-}
-
-func TestExecute_ContextCarriesChildInvocation(t *testing.T) {
-	t.Parallel()
-
-	ctx := parentContext("parent-sess-123")
-	child := &capturingAgent{mockAgent: mockAgent{name: "search", response: "ok"}}
-	at := agenttool.New(child)
-
-	_, err := at.Execute(ctx, json.RawMessage(`{}`))
-	require.NoError(t, err)
-
-	assert.True(t, child.gotContextInvocationPresent)
-	assert.True(t, child.gotContextInvocationSame)
-	assert.Equal(t, child.gotSessionID, child.gotContextSessionID)
-	assert.NotEqual(t, "parent-sess-123", child.gotContextSessionID)
-}
-
-func TestExecute_PropagatesRootConversationID(t *testing.T) {
-	t.Parallel()
-
-	// A parent that is itself a sub-agent already carries a conversation id in
-	// metadata (the root). A nested sub-agent must group under that ROOT, not
-	// under the immediate parent's unique storage id.
-	parentSess := &session.State{
-		ID:       "agent-tool-mid-999",
-		Metadata: map[string]any{session.MetadataConversationID: "root-sess-1"},
+	// root conversation → mid agenttool → leaf agenttool: the leaf must group
+	// under the ROOT conversation, not under the mid sub-agent's unique
+	// storage session id.
+	leaf := &capturingAgent{mockAgent: mockAgent{name: "leaf", response: "ok"}}
+	mid := &nestingAgent{
+		mockAgent: mockAgent{name: "mid", response: "ok"},
+		inner:     agenttool.New(leaf),
 	}
-	parentInv := agent.NewInvocationMetadata(parentSess, agent.Info{Name: "mid"})
-	ctx := agent.ContextWithInvocation(context.Background(), parentInv)
 
-	child := &capturingAgent{mockAgent: mockAgent{name: "leaf", response: "ok"}}
-	at := agenttool.New(child)
+	ctx := agent.ContextWithConversationID(context.Background(), "root-sess-1")
 
-	_, err := at.Execute(ctx, json.RawMessage(`{}`))
+	_, err := agenttool.New(mid).Execute(ctx, json.RawMessage(`{}`))
 	require.NoError(t, err)
 
-	assert.Equal(t, "root-sess-1", child.gotMetadata[session.MetadataConversationID])
-	assert.NotEqual(t, "agent-tool-mid-999", child.gotMetadata[session.MetadataConversationID])
+	assert.Equal(t, "root-sess-1", leaf.gotSession.ConversationID)
+	assert.True(t, strings.HasPrefix(leaf.gotSession.ID, "agent-tool-leaf-"),
+		"got %q", leaf.gotSession.ID)
 }
 
 func TestExecute_ContextIsolatedDespiteGrouping(t *testing.T) {
 	t.Parallel()
 
-	ctx := parentContext("parent-sess-123",
-		llm.NewMessage(llm.RoleUser, llm.NewTextPart("parent secret")))
+	ctx := agent.ContextWithConversationID(context.Background(), "parent-sess-123")
 
 	child := &capturingAgent{mockAgent: mockAgent{name: "search", response: "ok"}}
 	at := agenttool.New(child)
@@ -155,11 +155,11 @@ func TestExecute_ContextIsolatedDespiteGrouping(t *testing.T) {
 
 	// The sub-agent must NOT observe the parent's history: exactly the args
 	// message and nothing from the parent.
-	require.Len(t, child.gotMessages, 1)
-	assert.JSONEq(t, `{"query":"x"}`, child.gotMessages[0].TextContent())
+	require.Len(t, child.gotSession.Messages, 1)
+	assert.JSONEq(t, `{"query":"x"}`, child.gotSession.Messages[0].TextContent())
 }
 
-func TestExecute_NoParentInvocation_MintsUniqueID(t *testing.T) {
+func TestExecute_NoParentConversation_MintsUniqueID(t *testing.T) {
 	t.Parallel()
 
 	child := &capturingAgent{mockAgent: mockAgent{name: "search", response: "ok"}}
@@ -168,43 +168,66 @@ func TestExecute_NoParentInvocation_MintsUniqueID(t *testing.T) {
 	_, err := at.Execute(context.Background(), json.RawMessage(`{}`))
 	require.NoError(t, err)
 
-	// Falls back to the previous behavior: a freshly minted, unique id.
-	assert.True(t, strings.HasPrefix(child.gotSessionID, "agent-tool-search-"),
-		"got %q", child.gotSessionID)
-	// No linkage metadata when there is no parent.
-	assert.Empty(t, child.gotMetadata)
+	// A freshly minted, unique id; no conversation override, so the session is
+	// its own conversation and grouping falls back to the session id.
+	assert.True(t, strings.HasPrefix(child.gotSession.ID, "agent-tool-search-"),
+		"got %q", child.gotSession.ID)
+	assert.Empty(t, child.gotSession.ConversationID)
+	assert.Equal(t, child.gotSession.ID, session.ConversationID(child.gotSession))
+
+	// The child's metadata map stays non-nil so child agents and interceptors
+	// can write to it.
+	assert.NotNil(t, child.gotSession.Metadata)
 }
 
-func TestExecute_ParentWithNilSession_MintsUniqueID(t *testing.T) {
-	t.Parallel()
+// idRecordingAgent reports the session id of every invocation on a channel,
+// safe for concurrent Execute calls on the same AgentTool.
+type idRecordingAgent struct {
+	mockAgent
 
-	// Invocation present in ctx, but it has no session.
-	parentInv := agent.NewInvocationMetadata(nil, agent.Info{Name: "root"})
-	ctx := agent.ContextWithInvocation(context.Background(), parentInv)
-
-	child := &capturingAgent{mockAgent: mockAgent{name: "search", response: "ok"}}
-	at := agenttool.New(child)
-
-	_, err := at.Execute(ctx, json.RawMessage(`{}`))
-	require.NoError(t, err)
-
-	assert.True(t, strings.HasPrefix(child.gotSessionID, "agent-tool-search-"),
-		"got %q", child.gotSessionID)
-	assert.Empty(t, child.gotMetadata)
+	ids chan string
 }
 
-func TestExecute_ParentWithEmptySessionID_NoMetadata(t *testing.T) {
+func (m *idRecordingAgent) Run(_ context.Context, inv *agent.InvocationMetadata) iter.Seq2[agent.Event, error] {
+	return func(yield func(agent.Event, error) bool) {
+		m.ids <- inv.Session().ID
+
+		msg := llm.NewMessage(llm.RoleAssistant, llm.NewTextPart(m.response))
+		if !yield(agent.MessageEvent{Response: llm.Response{Message: msg}}, nil) {
+			return
+		}
+
+		yield(agent.InvocationEndEvent{FinishReason: agent.FinishReasonStop}, nil)
+	}
+}
+
+func TestExecute_ConcurrentCalls_UniqueSessionIDs(t *testing.T) {
 	t.Parallel()
 
-	// Parent session exists but resolves to an empty conversation id; no junk
-	// empty-string entry may be written into the child's metadata.
-	ctx := parentContext("")
+	const calls = 16
 
-	child := &capturingAgent{mockAgent: mockAgent{name: "search", response: "ok"}}
+	child := &idRecordingAgent{
+		mockAgent: mockAgent{name: "search", response: "ok"},
+		ids:       make(chan string, calls),
+	}
 	at := agenttool.New(child)
 
-	_, err := at.Execute(ctx, json.RawMessage(`{}`))
-	require.NoError(t, err)
+	var wg sync.WaitGroup
+	for range calls {
+		wg.Go(func() {
+			_, err := at.Execute(context.Background(), json.RawMessage(`{}`))
+			assert.NoError(t, err)
+		})
+	}
 
-	assert.NotContains(t, child.gotMetadata, session.MetadataConversationID)
+	wg.Wait()
+	close(child.ids)
+
+	seen := make(map[string]bool, calls)
+	for id := range child.ids {
+		assert.False(t, seen[id], "duplicate session id %q", id)
+		seen[id] = true
+	}
+
+	assert.Len(t, seen, calls)
 }

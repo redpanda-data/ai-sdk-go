@@ -24,6 +24,7 @@ import (
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/plugins/otel/genai"
+	"github.com/redpanda-data/ai-sdk-go/store/session"
 )
 
 // TracingInterceptor provides OpenTelemetry tracing for agent operations.
@@ -164,13 +165,11 @@ func (t *TracingInterceptor) startInvocationSpan(
 		genAIOperationName(genai.OperationInvokeAgent),
 	}
 
-	session := inv.Session()
-	if session != nil {
-		// Group under the conversation id (the parent/root for a sub-agent),
-		// not necessarily this session's own (unique) storage id.
-		if cid := conversationID(session); cid != "" {
-			attrs = append(attrs, genAIConversationID(cid))
-		}
+	sess := inv.Session()
+	// Group under the conversation id (the parent/root for a sub-agent),
+	// not necessarily this session's own (unique) storage id.
+	if cid := session.ConversationID(sess); cid != "" {
+		attrs = append(attrs, genAIConversationID(cid))
 	}
 
 	agentSnap := inv.Agent()
@@ -220,13 +219,11 @@ func (t *TracingInterceptor) startInvocationSpan(
 
 	// Call attribute injector if configured (before span creation for sampling)
 	if t.cfg.attributeInjector != nil {
-		// Expose the conversation grouping id (parent/root for a sub-agent) so
-		// session-oriented sinks group the tree.
 		spanCtx := SpanContext{
-			SpanType:  SpanTypeInvocation,
-			SpanName:  spanName,
-			SessionID: conversationID(session),
-			Inv:       inv,
+			SpanType:       SpanTypeInvocation,
+			SpanName:       spanName,
+			ConversationID: session.ConversationID(sess),
+			Inv:            inv,
 		}
 
 		if customAttrs := t.cfg.attributeInjector(ctx, spanCtx); len(customAttrs) > 0 {

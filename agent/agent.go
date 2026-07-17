@@ -69,6 +69,14 @@ type Agent interface {
 	//   - ctx: Standard Go context for cancellation, deadlines, and request-scoped values
 	//   - inv: Invocation metadata (session, turn, usage, metadata)
 	//
+	// # Tool Execution Contract
+	//
+	// Implementations that execute tools should wrap each tool call's context
+	// with ContextWithConversationID (using session.ConversationID of the
+	// invocation's session). Tools that spawn in-process sub-agents (notably
+	// agenttool) rely on it to group the sub-agent's telemetry under the
+	// calling conversation; without it that grouping silently degrades.
+	//
 	// # Error Handling
 	//
 	// Run uses iter.Seq2[Event, error] following the principle:

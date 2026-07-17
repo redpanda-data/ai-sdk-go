@@ -65,9 +65,10 @@ func toProtoSessionState(s *session.State) (*llmpb.SessionState, error) {
 	}
 
 	return &llmpb.SessionState{
-		Id:       s.ID,
-		Messages: pbMessages,
-		Metadata: pbMetadata,
+		Id:             s.ID,
+		ConversationId: s.ConversationID,
+		Messages:       pbMessages,
+		Metadata:       pbMetadata,
 	}, nil
 }
 
@@ -96,9 +97,10 @@ func FromProtoSessionState(pb *llmpb.SessionState) (*session.State, error) {
 	}
 
 	return &session.State{
-		ID:       pb.Id,
-		Messages: messages,
-		Metadata: metadata,
+		ID:             pb.Id,
+		ConversationID: pb.ConversationId,
+		Messages:       messages,
+		Metadata:       metadata,
 	}, nil
 }
 

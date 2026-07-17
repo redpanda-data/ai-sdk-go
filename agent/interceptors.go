@@ -115,7 +115,7 @@ type TurnInterceptor interface {
 	// Interceptors can:
 	//   - Derive a new context (e.g., add timeout) and pass it to next
 	//   - Read from info.Inv (turn number, session, metadata set by previous interceptors)
-	//   - Write to info.Inv.Metadata() to pass data to subsequent interceptors
+	//   - Use info.Inv.SetMetadata to pass data to subsequent interceptors
 	//   - Modify info.Inv.Session() (e.g., inject system messages) - use with caution
 	InterceptTurn(ctx context.Context, info *TurnInfo, next TurnNext) (FinishReason, error)
 }
@@ -181,7 +181,7 @@ type ModelInterceptor interface {
 	//   - Skip calling next entirely (e.g., cache hit)
 	//   - Call next multiple times (e.g., retries)
 	//   - Read from info.Inv (turn number, session, metadata set by previous interceptors)
-	//   - Write to info.Inv.Metadata() to pass data to subsequent interceptors
+	//   - Use info.Inv.SetMetadata to pass data to subsequent interceptors
 	//   - Read info.Model.Name(), info.Model.Capabilities() for observability/routing
 	InterceptModel(ctx context.Context, info *ModelCallInfo, next ModelCallHandler) ModelCallHandler
 }
@@ -236,10 +236,15 @@ type ToolInterceptor interface {
 	//   - Call next multiple times (e.g., retries)
 	//   - Transform the response after next returns
 	//   - Read from info.Inv (turn number, session, metadata set by previous interceptors)
-	//   - Write to info.Inv.Metadata() to pass data to subsequent interceptors
+	//   - Use info.Inv.SetMetadata to pass data to subsequent interceptors
 	//
 	// Tool execution errors are not terminal - they are sent to the LLM as tool errors.
 	// Return an error to indicate the tool failed; the error message will be sent to the LLM.
+	//
+	// IMPORTANT: Tools may execute concurrently, so InterceptToolExecution can
+	// be called from multiple goroutines sharing the same info.Inv. Use
+	// GetMetadata/SetMetadata (which are safe for concurrent use) rather than
+	// caching state on the interceptor without synchronization.
 	//
 	// IMPORTANT: Always pass ctx (or a child context) to next, never context.Background().
 	InterceptToolExecution(ctx context.Context, info *ToolCallInfo, next ToolExecutionNext) (*llm.ToolResponsePart, error)

@@ -25,6 +25,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/plugins/otel/genai"
+	"github.com/redpanda-data/ai-sdk-go/store/session"
 )
 
 // InterceptModel creates a "gen_ai.chat" span wrapping model generation calls.
@@ -36,7 +37,7 @@ func (t *TracingInterceptor) InterceptModel(
 	// Pass the context through - it already has the invocation span as parent
 	// from InterceptTurn calling next(ctx, info). Group under the conversation
 	// id (the parent/root for a sub-agent), not the unique storage session id.
-	convID := conversationID(info.InvocationMetadata.Session())
+	convID := session.ConversationID(info.InvocationMetadata.Session())
 
 	return &tracingModelHandler{
 		tracer:    t.tracer,
@@ -142,10 +143,10 @@ func (h *tracingModelHandler) startSpan(ctx context.Context, req *llm.Request) (
 	// Call attribute injector if configured (before span creation for sampling)
 	if h.cfg.attributeInjector != nil {
 		spanCtx := SpanContext{
-			SpanType:  SpanTypeModel,
-			SpanName:  spanName,
-			SessionID: h.convID,
-			Inv:       h.inv,
+			SpanType:       SpanTypeModel,
+			SpanName:       spanName,
+			ConversationID: h.convID,
+			Inv:            h.inv,
 		}
 		if customAttrs := h.cfg.attributeInjector(ctx, spanCtx); len(customAttrs) > 0 {
 			attrs = append(attrs, customAttrs...)
