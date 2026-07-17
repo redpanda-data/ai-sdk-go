@@ -97,17 +97,44 @@ type Result struct {
 //   - Token usage is tracked separately via interceptors on the agent
 //
 // Session Isolation:
-//   - Each invocation creates a fresh session (no context sharing)
-//   - This prevents context pollution and keeps parent/child boundaries clear
+//   - The sub-agent always runs with a fresh, in-memory Messages slice and its
+//     state is never loaded or persisted, so it cannot observe the parent's
+//     conversation history. Context is isolated regardless of the session id.
 //   - For context sharing, pass relevant information explicitly in args
+//
+// Session ID & conversation grouping:
+//   - The sub-agent always gets its own freshly minted, globally unique session
+//     id. It never reuses the parent's id, so it can never collide with the
+//     parent's or a sibling sub-agent's session if it ever reaches a store —
+//     there is no "safe only while unpersisted" caveat.
+//   - When invoked as part of a parent agent's turn (the parent invocation is
+//     present in ctx), the sub-agent records the parent's conversation id in
+//     session metadata (see session.MetadataConversationID). Observability uses
+//     that to group the parent→sub-agent tree under one conversation
+//     (gen_ai.conversation.id) without overloading the storage id.
 func (at *AgentTool) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
 	info := at.agent.Info()
 
-	// 1. Create fresh session with unique ID to prevent collisions in state stores
+	// 1. Mint a unique session id for the sub-agent. Conversation grouping does
+	// NOT rely on this id; it is carried separately in metadata (below) so the
+	// storage id stays unique and safe as a store key.
+	sessionID := fmt.Sprintf("agent-tool-%s-%d", info.Name, time.Now().UnixNano())
+	metadata := map[string]any{}
+
+	// When the parent invocation is available, propagate its conversation id
+	// (transitively, the root conversation) so the otel plugin groups this
+	// sub-agent under the same gen_ai.conversation.id as the parent without
+	// reusing the parent's session id.
+	if parent, ok := agent.InvocationFromContext(ctx); ok {
+		if cid := session.ConversationID(parent.Session()); cid != "" {
+			metadata[session.MetadataConversationID] = cid
+		}
+	}
+
 	sess := &session.State{
-		ID:       fmt.Sprintf("agent-tool-%s-%d", info.Name, time.Now().UnixNano()),
+		ID:       sessionID,
 		Messages: []llm.Message{},
-		Metadata: map[string]any{},
+		Metadata: metadata,
 	}
 
 	// 2. Convert args to user message
@@ -118,6 +145,7 @@ func (at *AgentTool) Execute(ctx context.Context, args json.RawMessage) (json.Ra
 
 	// 3. Create invocation metadata
 	inv := agent.NewInvocationMetadata(sess, info)
+	ctx = agent.ContextWithInvocation(ctx, inv)
 
 	// 4. Run agent and collect response
 	var result string

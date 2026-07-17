@@ -44,9 +44,10 @@ func (t *TracingInterceptor) InterceptToolExecution(
 		genAIToolCallID(req.ID),
 	}
 
-	// Add conversation ID if session is available
-	if session := info.Inv.Session(); session != nil && session.ID != "" {
-		attrs = append(attrs, genAIConversationID(session.ID))
+	// Add conversation ID (the parent/root for a sub-agent, not the unique
+	// storage session id) if a session is available.
+	if cid := conversationID(info.Inv.Session()); cid != "" {
+		attrs = append(attrs, genAIConversationID(cid))
 	}
 
 	// Add tool type and description if definition is available
@@ -71,15 +72,10 @@ func (t *TracingInterceptor) InterceptToolExecution(
 
 	// Call attribute injector if configured (before span creation for sampling)
 	if t.cfg.attributeInjector != nil {
-		sessionID := ""
-		if session := info.Inv.Session(); session != nil {
-			sessionID = session.ID
-		}
-
 		spanCtx := SpanContext{
 			SpanType:  SpanTypeTool,
 			SpanName:  spanName,
-			SessionID: sessionID,
+			SessionID: conversationID(info.Inv.Session()),
 			Inv:       info.Inv,
 		}
 		if customAttrs := t.cfg.attributeInjector(ctx, spanCtx); len(customAttrs) > 0 {

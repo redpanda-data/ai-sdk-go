@@ -84,6 +84,45 @@ type Store interface {
 	List(ctx context.Context, req *ListRequest) (*ListResponse, error)
 }
 
+// MetadataConversationID records the conversation grouping id on a session's
+// Metadata.
+//
+// When a sub-agent is invoked in-process as part of a parent agent's turn it
+// keeps its own unique session ID (so it can never collide with the parent's or
+// a sibling's session in a store) but records the parent's conversation id here.
+// This lets observability group the whole parent→sub-agent tree under one
+// conversation (see ConversationID) without overloading the storage id.
+//
+// The key is namespaced under "redpanda.agent." so it cannot be mistaken for
+// caller-supplied Metadata, and it matches the OTel span attribute
+// (gen_ai.conversation.id) emitted for the same grouping.
+//
+// MetadataConversationID (string) is the conversation grouping id propagated
+// from the parent (transitively, the root conversation). See ConversationID.
+const MetadataConversationID = "redpanda.agent.conversation_id"
+
+// ConversationID returns the conversation grouping id for a session: the id
+// under which the session's activity should be grouped in conversation-oriented
+// observability (mapped to gen_ai.conversation.id). For a sub-agent session it
+// is the parent/root conversation id recorded in Metadata, so the whole
+// parent→sub-agent tree groups under one conversation; otherwise it is the
+// session's own ID. Returns "" for a nil session.
+//
+// This deliberately decouples the conversation/grouping id from the storage
+// session ID: the ID stays globally unique and safe as a store key, while
+// grouping is expressed purely as a derived value consumed by telemetry.
+func ConversationID(s *State) string {
+	if s == nil {
+		return ""
+	}
+
+	if v, _ := s.Metadata[MetadataConversationID].(string); v != "" {
+		return v
+	}
+
+	return s.ID
+}
+
 // State represents the persistent state of a conversation session.
 //
 // The Messages slice contains the conversation history excluding any system prompts,
