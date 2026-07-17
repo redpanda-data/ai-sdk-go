@@ -136,6 +136,11 @@ func WithRecordToolDefinitions(enabled bool) Option {
 //	    }),
 //	)
 //
+// Note that SpanContext.SessionID carries the conversation grouping id: for an
+// in-process sub-agent it is the parent/root conversation id, not the
+// sub-agent's own storage session id, so session-oriented sinks group the
+// whole parent→sub-agent tree together.
+//
 // Important notes:
 //   - The injector must be thread-safe (tools may execute concurrently)
 //   - Return nil or empty slice if no attributes should be added
