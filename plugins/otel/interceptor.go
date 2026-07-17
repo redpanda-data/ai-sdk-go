@@ -221,7 +221,7 @@ func (t *TracingInterceptor) startInvocationSpan(
 	// Call attribute injector if configured (before span creation for sampling)
 	if t.cfg.attributeInjector != nil {
 		// Expose the conversation grouping id (parent/root for a sub-agent) so
-		// session-oriented sinks (e.g. langfuse.session.id) group the tree.
+		// session-oriented sinks group the tree.
 		spanCtx := SpanContext{
 			SpanType:  SpanTypeInvocation,
 			SpanName:  spanName,
