@@ -29,7 +29,6 @@ import (
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/plugins/otel/genai"
-	"github.com/redpanda-data/ai-sdk-go/store/session"
 )
 
 // Redpanda-specific and error attributes (not part of OTel Gen AI semconv).
@@ -40,17 +39,6 @@ const (
 	attrToolResultAvailable   = "redpanda.tool.result.available"
 	attrErrorType             = "error.type"
 )
-
-// conversationID resolves the conversation grouping id for a session
-// (gen_ai.conversation.id). For a sub-agent it is the parent/root conversation
-// id recorded in metadata, so the whole parent→sub-agent tree groups under one
-// conversation; otherwise it is the session's own id. Empty for a nil session.
-//
-// This keeps grouping decoupled from the storage session id: the id stays
-// globally unique while grouping is a derived value used only by telemetry.
-func conversationID(s *session.State) string {
-	return session.ConversationID(s)
-}
 
 // errorTypeToolError is the error.type value for tool-level errors
 // (analogous to MCP isError=true). Per OTel MCP semconv.
@@ -87,7 +75,7 @@ const (
 //	    if spanCtx.SpanType == SpanTypeInvocation {
 //	        return []attribute.KeyValue{
 //	            attribute.String("langfuse.trace.name", spanCtx.SpanName),
-//	            attribute.String("langfuse.session.id", spanCtx.SessionID),
+//	            attribute.String("langfuse.session.id", spanCtx.ConversationID),
 //	        }
 //	    }
 //	    return nil
@@ -99,12 +87,12 @@ type SpanContext struct {
 	// SpanName is the computed span name (e.g., "invoke_agent my-assistant").
 	SpanName string
 
-	// SessionID is the conversation grouping id for the span
+	// ConversationID is the conversation grouping id for the span
 	// (gen_ai.conversation.id): for a sub-agent it is the parent/root
-	// conversation id, NOT the sub-agent's own (unique) storage session id.
+	// conversation id, not the sub-agent's own (unique) storage session id.
 	// See session.ConversationID. Use Inv.Session().ID for the storage id.
 	// Empty string if no session is available.
-	SessionID string
+	ConversationID string
 
 	// Inv provides full invocation metadata (session, turn, usage, custom metadata).
 	// This is the SDK's primary state carrier.

@@ -32,6 +32,11 @@ message SessionState {
 
   // Arbitrary key-value pairs for session metadata
   google.protobuf.Struct metadata = 3;
+
+  // Optional conversation grouping id override (empty when the session is its
+  // own conversation). Set on in-process sub-agent sessions to the root
+  // conversation's id for observability grouping (gen_ai.conversation.id).
+  string conversation_id = 4;
 }
 
 // Message represents a single message in a conversation.

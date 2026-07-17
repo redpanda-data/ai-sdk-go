@@ -24,6 +24,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/plugins/otel/genai"
+	"github.com/redpanda-data/ai-sdk-go/store/session"
 )
 
 // InterceptToolExecution creates a "gen_ai.tool" span wrapping tool calls.
@@ -46,7 +47,7 @@ func (t *TracingInterceptor) InterceptToolExecution(
 
 	// Add conversation ID (the parent/root for a sub-agent, not the unique
 	// storage session id) if a session is available.
-	if cid := conversationID(info.Inv.Session()); cid != "" {
+	if cid := session.ConversationID(info.Inv.Session()); cid != "" {
 		attrs = append(attrs, genAIConversationID(cid))
 	}
 
@@ -73,10 +74,10 @@ func (t *TracingInterceptor) InterceptToolExecution(
 	// Call attribute injector if configured (before span creation for sampling)
 	if t.cfg.attributeInjector != nil {
 		spanCtx := SpanContext{
-			SpanType:  SpanTypeTool,
-			SpanName:  spanName,
-			SessionID: conversationID(info.Inv.Session()),
-			Inv:       info.Inv,
+			SpanType:       SpanTypeTool,
+			SpanName:       spanName,
+			ConversationID: session.ConversationID(info.Inv.Session()),
+			Inv:            info.Inv,
 		}
 		if customAttrs := t.cfg.attributeInjector(ctx, spanCtx); len(customAttrs) > 0 {
 			attrs = append(attrs, customAttrs...)

@@ -16,28 +16,32 @@ package agent
 
 import "context"
 
-// invocationCtxKey is the unexported key under which the active invocation
-// metadata is stored in a context.
-type invocationCtxKey struct{}
+// conversationIDCtxKey is the unexported key under which the conversation
+// grouping id is stored in a context.
+type conversationIDCtxKey struct{}
 
-// ContextWithInvocation returns a copy of ctx carrying the given invocation
-// metadata. Agents put their invocation into the context before executing tools
-// so that tools (notably agenttool) can access the calling agent's invocation —
-// for example to share the parent's session id with an in-process sub-agent.
+// ContextWithConversationID returns a copy of ctx carrying the conversation
+// grouping id (see session.ConversationID). Agent implementations that execute
+// tools should set it — from session.ConversationID of their invocation's
+// session — for the duration of each tool call, so tools that spawn in-process
+// sub-agents (notably agenttool) can group the sub-agent's telemetry under the
+// calling conversation. Tools that do not read it are unaffected.
 //
-// A nil invocation returns ctx unchanged.
-func ContextWithInvocation(ctx context.Context, inv *InvocationMetadata) context.Context {
-	if inv == nil {
+// An empty id returns ctx unchanged: conversation identity is inherited, so an
+// enclosing conversation id stays visible when a caller has none of its own.
+// The resolved id of a session (session.ConversationID) is never empty for a
+// session with an ID, so producers only hit this path without a usable session.
+func ContextWithConversationID(ctx context.Context, id string) context.Context {
+	if id == "" {
 		return ctx
 	}
 
-	return context.WithValue(ctx, invocationCtxKey{}, inv)
+	return context.WithValue(ctx, conversationIDCtxKey{}, id)
 }
 
-// InvocationFromContext returns the invocation metadata stored in ctx by
-// ContextWithInvocation, if any. The second return value reports whether an
-// invocation was present.
-func InvocationFromContext(ctx context.Context) (*InvocationMetadata, bool) {
-	inv, ok := ctx.Value(invocationCtxKey{}).(*InvocationMetadata)
-	return inv, ok
+// ConversationIDFromContext returns the conversation grouping id stored in ctx
+// by ContextWithConversationID, or "" when none is set.
+func ConversationIDFromContext(ctx context.Context) string {
+	id, _ := ctx.Value(conversationIDCtxKey{}).(string)
+	return id
 }

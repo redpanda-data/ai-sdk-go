@@ -45,6 +45,7 @@
 package session
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"maps"
@@ -84,29 +85,13 @@ type Store interface {
 	List(ctx context.Context, req *ListRequest) (*ListResponse, error)
 }
 
-// MetadataConversationID records the conversation grouping id on a session's
-// Metadata.
-//
-// When a sub-agent is invoked in-process as part of a parent agent's turn it
-// keeps its own unique session ID (so it can never collide with the parent's or
-// a sibling's session in a store) but records the parent's conversation id here.
-// This lets observability group the whole parent→sub-agent tree under one
-// conversation (see ConversationID) without overloading the storage id.
-//
-// The key is namespaced under "redpanda.agent." so it cannot be mistaken for
-// caller-supplied Metadata, and it matches the OTel span attribute
-// (gen_ai.conversation.id) emitted for the same grouping.
-//
-// MetadataConversationID (string) is the conversation grouping id propagated
-// from the parent (transitively, the root conversation). See ConversationID.
-const MetadataConversationID = "redpanda.agent.conversation_id"
-
-// ConversationID returns the conversation grouping id for a session: the id
-// under which the session's activity should be grouped in conversation-oriented
-// observability (mapped to gen_ai.conversation.id). For a sub-agent session it
-// is the parent/root conversation id recorded in Metadata, so the whole
-// parent→sub-agent tree groups under one conversation; otherwise it is the
-// session's own ID. Returns "" for a nil session.
+// ConversationID returns the effective conversation grouping id for a session:
+// the id under which the session's activity should be grouped in
+// conversation-oriented observability (mapped to gen_ai.conversation.id). It is
+// the session's explicit State.ConversationID override when set — for a
+// sub-agent session that is the parent/root conversation id, so the whole
+// parent→sub-agent tree groups under one conversation — and the session's own
+// ID otherwise. Returns "" for a nil session.
 //
 // This deliberately decouples the conversation/grouping id from the storage
 // session ID: the ID stays globally unique and safe as a store key, while
@@ -116,11 +101,7 @@ func ConversationID(s *State) string {
 		return ""
 	}
 
-	if v, _ := s.Metadata[MetadataConversationID].(string); v != "" {
-		return v
-	}
-
-	return s.ID
+	return cmp.Or(s.ConversationID, s.ID)
 }
 
 // State represents the persistent state of a conversation session.
@@ -131,6 +112,14 @@ func ConversationID(s *State) string {
 type State struct {
 	// ID is the unique identifier for this session.
 	ID string `json:"id"`
+
+	// ConversationID optionally overrides the conversation grouping id for
+	// this session (mapped to gen_ai.conversation.id in observability). It is
+	// set on in-process sub-agent sessions to the root conversation's id so the
+	// whole parent→sub-agent tree groups under one conversation. Empty means
+	// the session is its own conversation. It never replaces ID as the storage
+	// key; use the ConversationID function to resolve the effective value.
+	ConversationID string `json:"conversation_id,omitempty"`
 
 	// Messages contains the conversation history (excluding system prompts).
 	// The slice should be treated as append-only to maintain temporal ordering.
@@ -158,10 +147,11 @@ func (s *State) Clone() *State {
 	}
 
 	clone := &State{
-		ID:        s.ID,
-		Messages:  make([]llm.Message, len(s.Messages)),
-		Metadata:  make(map[string]any, len(s.Metadata)),
-		UpdatedAt: s.UpdatedAt,
+		ID:             s.ID,
+		ConversationID: s.ConversationID,
+		Messages:       make([]llm.Message, len(s.Messages)),
+		Metadata:       make(map[string]any, len(s.Metadata)),
+		UpdatedAt:      s.UpdatedAt,
 	}
 
 	for i, msg := range s.Messages {
@@ -188,6 +178,10 @@ var ErrListNotSupported = errors.New("session: listing not supported by this sto
 type Summary struct {
 	// ID is the unique identifier for the session.
 	ID string
+
+	// ConversationID is the session's conversation grouping override, as in
+	// State. Empty when the session is its own conversation.
+	ConversationID string
 
 	// Metadata is the session's metadata, as in State.
 	Metadata map[string]any

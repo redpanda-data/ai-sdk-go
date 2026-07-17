@@ -19,39 +19,42 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
-	"github.com/redpanda-data/ai-sdk-go/store/session"
 )
 
-func TestContextWithInvocation_RoundTrip(t *testing.T) {
+func TestContextWithConversationID_RoundTrip(t *testing.T) {
 	t.Parallel()
 
-	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-1"}, agent.Info{Name: "a"})
+	ctx := agent.ContextWithConversationID(context.Background(), "conv-1")
 
-	ctx := agent.ContextWithInvocation(context.Background(), inv)
-
-	got, ok := agent.InvocationFromContext(ctx)
-	require.True(t, ok)
-	assert.Same(t, inv, got)
+	assert.Equal(t, "conv-1", agent.ConversationIDFromContext(ctx))
 }
 
-func TestInvocationFromContext_Absent(t *testing.T) {
+func TestConversationIDFromContext_Absent(t *testing.T) {
 	t.Parallel()
 
-	got, ok := agent.InvocationFromContext(context.Background())
-	assert.False(t, ok)
-	assert.Nil(t, got)
+	assert.Empty(t, agent.ConversationIDFromContext(context.Background()))
 }
 
-func TestContextWithInvocation_Nil(t *testing.T) {
+func TestContextWithConversationID_EmptyInherits(t *testing.T) {
 	t.Parallel()
 
-	// A nil invocation must not be stored; the context is returned unchanged.
-	ctx := agent.ContextWithInvocation(context.Background(), nil)
+	// An empty id is a no-op: conversation identity is inherited, so an
+	// enclosing conversation id must stay visible.
+	ctx := agent.ContextWithConversationID(context.Background(), "parent")
+	ctx = agent.ContextWithConversationID(ctx, "")
 
-	got, ok := agent.InvocationFromContext(ctx)
-	assert.False(t, ok)
-	assert.Nil(t, got)
+	assert.Equal(t, "parent", agent.ConversationIDFromContext(ctx))
+}
+
+func TestContextWithConversationID_NestedOverrides(t *testing.T) {
+	t.Parallel()
+
+	// A non-empty id shadows an inherited one for the derived context only.
+	outer := agent.ContextWithConversationID(context.Background(), "root")
+	inner := agent.ContextWithConversationID(outer, "child")
+
+	assert.Equal(t, "child", agent.ConversationIDFromContext(inner))
+	assert.Equal(t, "root", agent.ConversationIDFromContext(outer))
 }

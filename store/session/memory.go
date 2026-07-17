@@ -154,9 +154,10 @@ func (s *InMemoryStore) List(_ context.Context, req *ListRequest) (*ListResponse
 		}
 
 		summaries = append(summaries, Summary{
-			ID:        id,
-			Metadata:  maps.Clone(state.Metadata),
-			UpdatedAt: state.UpdatedAt,
+			ID:             id,
+			ConversationID: state.ConversationID,
+			Metadata:       maps.Clone(state.Metadata),
+			UpdatedAt:      state.UpdatedAt,
 		})
 
 		return true

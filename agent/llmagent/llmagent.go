@@ -27,6 +27,7 @@ import (
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/store/session"
 )
 
 // Compile-time check that LLMAgent implements agent.Agent.
@@ -554,10 +555,6 @@ func (a *LLMAgent) executeTools(
 
 	// Create base tool executor
 	baseExecutor := func(ctx context.Context, info *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
-		// Expose the calling agent's invocation to the tool so tools such as
-		// agenttool can access the parent session (e.g. to share its id with an
-		// in-process sub-agent). Tools that do not read it are unaffected.
-		ctx = agent.ContextWithInvocation(ctx, info.Inv)
 		return a.config.tools.Execute(ctx, info.Req)
 	}
 
@@ -579,7 +576,13 @@ func (a *LLMAgent) executeTools(
 				Definition: toolDefMap[req.Name], // Add tool definition
 			}
 
-			resp, err := executor(gctx, toolInfo)
+			// Expose the conversation grouping id for the entire tool call —
+			// interceptors, retries, and the tool itself — so tools that spawn
+			// in-process sub-agents (agenttool) group them under the calling
+			// conversation. Tools that do not read it are unaffected.
+			toolCtx := agent.ContextWithConversationID(gctx, session.ConversationID(inv.Session()))
+
+			resp, err := executor(toolCtx, toolInfo)
 			results <- toolResult{
 				idx:       i,
 				requestID: req.ID,
