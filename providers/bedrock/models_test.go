@@ -55,9 +55,15 @@ func TestWireAPIsForModel(t *testing.T) {
 			wantOK:  true,
 		},
 		{
-			name:    "gemma is mantle (Responses) only",
+			name:    "mistral large 3 answers Converse and OpenAI Chat Completions",
+			modelID: ModelMistralLarge3,
+			want:    []llm.WireAPI{llm.WireAPIBedrockConverse, llm.WireAPIOpenAIChatCompletions},
+			wantOK:  true,
+		},
+		{
+			name:    "gemma is mantle-only, both OpenAI contracts",
 			modelID: ModelGemma431B,
-			want:    []llm.WireAPI{llm.WireAPIOpenAIResponses},
+			want:    []llm.WireAPI{llm.WireAPIOpenAIChatCompletions, llm.WireAPIOpenAIResponses},
 			wantOK:  true,
 		},
 		{
