@@ -32,6 +32,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/agent/llmagent"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/llm/fakellm"
+	"github.com/redpanda-data/ai-sdk-go/pricing"
 	"github.com/redpanda-data/ai-sdk-go/providers/openai"
 	"github.com/redpanda-data/ai-sdk-go/providers/openai/openaitest"
 	"github.com/redpanda-data/ai-sdk-go/runner"
@@ -1130,4 +1131,178 @@ func TestExecutor_ErrorHandling(t *testing.T) {
 	// The error message should contain details about what went wrong, not just "internal error"
 	assert.Contains(t, errorText, "context_length_exceeded", "Error message should contain API error details")
 	assert.Contains(t, errorText, "context window", "Error message should contain human-readable error explanation")
+}
+
+// runExecutorToCompletion drives one Execute call through the broadcast queue
+// pattern and returns every event written, after the final event was seen.
+func runExecutorToCompletion(t *testing.T, executor *Executor, reqCtx *a2asrv.RequestContext) []a2a.Event {
+	t.Helper()
+
+	ctx := context.Background()
+	queueMgr := eventqueue.NewInMemoryManager(eventqueue.WithQueueBufferSize(100))
+	readerQueue, err := queueMgr.GetOrCreate(ctx, reqCtx.TaskID)
+	require.NoError(t, err)
+	writerQueue, err := queueMgr.GetOrCreate(ctx, reqCtx.TaskID)
+	require.NoError(t, err)
+
+	events := []a2a.Event{}
+	eventsDone := make(chan struct{})
+	finalEventSeen := make(chan struct{})
+
+	go func() {
+		defer close(eventsDone)
+
+		for {
+			event, _, err := readerQueue.Read(ctx)
+			if err != nil {
+				return
+			}
+
+			events = append(events, event)
+
+			if statusEvent, ok := event.(*a2a.TaskStatusUpdateEvent); ok && statusEvent.Final {
+				close(finalEventSeen)
+			}
+		}
+	}()
+
+	require.NoError(t, executor.Execute(ctx, reqCtx, writerQueue))
+
+	<-finalEventSeen
+	writerQueue.Close()
+	readerQueue.Close()
+	<-eventsDone
+
+	return events
+}
+
+// usageMaps extracts the "usage" metadata from the assistant-message status
+// update and from the final status update.
+func usageMaps(t *testing.T, events []a2a.Event) (map[string]any, map[string]any) {
+	t.Helper()
+
+	var message, final map[string]any
+
+	for _, event := range events {
+		statusEvent, ok := event.(*a2a.TaskStatusUpdateEvent)
+		if !ok {
+			continue
+		}
+
+		if statusEvent.Final {
+			if u, ok := statusEvent.Metadata["usage"].(map[string]any); ok {
+				final = u
+			}
+
+			continue
+		}
+
+		if msg := statusEvent.Status.Message; msg != nil && msg.Role == a2a.MessageRoleAgent {
+			if u, ok := msg.Metadata["usage"].(map[string]any); ok {
+				message = u
+			}
+		}
+	}
+
+	require.NotNil(t, message, "assistant message status update should carry usage metadata")
+	require.NotNil(t, final, "final status update should carry usage metadata")
+
+	return message, final
+}
+
+func TestExecutor_UsageCostMetadata(t *testing.T) {
+	t.Parallel()
+
+	newExecutorWithUsage := func(t *testing.T, opts ...Option) *Executor {
+		t.Helper()
+
+		model := fakellm.NewFakeModel()
+		model.When(fakellm.Any()).ThenRespondWith(func(_ *llm.Request, _ *fakellm.CallContext) (*llm.Response, error) {
+			return &llm.Response{
+				Message:      llm.NewMessage(llm.RoleAssistant, llm.NewTextPart("done")),
+				FinishReason: llm.FinishReasonStop,
+				Usage: &llm.TokenUsage{
+					InputTokens:           1000,
+					CachedInputTokens:     2000,
+					CacheCreation5mTokens: 3000,
+					OutputTokens:          500,
+				},
+			}, nil
+		})
+
+		agentInstance, err := llmagent.New("test-agent", "You are a helpful assistant.", model)
+		require.NoError(t, err)
+
+		runnerInstance, err := runner.New(agentInstance, session.NewInMemoryStore())
+		require.NoError(t, err)
+
+		return NewExecutor(agentInstance, runnerInstance, slog.Default(), opts...)
+	}
+
+	newReqCtx := func(taskID string) *a2asrv.RequestContext {
+		return &a2asrv.RequestContext{
+			ContextID: "test-context-cost",
+			TaskID:    a2a.TaskID(taskID),
+			Message:   a2a.NewMessage(a2a.MessageRoleUser, a2a.TextPart{Text: "Do the thing."}),
+		}
+	}
+
+	t.Run("priced model reports per-response and cumulative cost", func(t *testing.T) {
+		t.Parallel()
+
+		// $3/M input, $15/M output, $0.30/M cached, $3.75/M 5m cache write.
+		catalog, err := pricing.NewCatalog(pricing.WithProvider("fake", map[string]pricing.Info{
+			"fake-model": pricing.FlatInfoFromRates(pricing.Rates{
+				InputPerMillion:           300_000_000,
+				OutputPerMillion:          1_500_000_000,
+				CachedInputPerMillion:     30_000_000,
+				CacheCreation5mPerMillion: 375_000_000,
+			}),
+		}))
+		require.NoError(t, err)
+
+		executor := newExecutorWithUsage(t, WithPricing(catalog))
+		events := runExecutorToCompletion(t, executor, newReqCtx("test-task-cost-priced"))
+		message, final := usageMaps(t, events)
+
+		// 1000*300 + 500*1500 + 2000*30 + 3000*375 microcents.
+		const wantCost = int64(2_235_000)
+
+		assert.Equal(t, wantCost, message["cost_microcents"])
+		assert.Equal(t, wantCost, final["cost_microcents"])
+
+		// The itemized buckets and the recoverable input side: total - output - reasoning.
+		assert.Equal(t, 3000, message["cache_write_tokens"])
+		assert.Equal(t, 0, message["tool_use_tokens"])
+		assert.Equal(t, 6500, message["total_tokens"])
+		assert.Equal(t, 3000, final["cache_write_tokens"])
+	})
+
+	t.Run("unknown model omits cost but keeps token counts", func(t *testing.T) {
+		t.Parallel()
+
+		catalog, err := pricing.NewCatalog(pricing.WithProvider("fake", map[string]pricing.Info{
+			"some-other-model": pricing.FlatInfo(3, 15, 0.3),
+		}))
+		require.NoError(t, err)
+
+		executor := newExecutorWithUsage(t, WithPricing(catalog))
+		events := runExecutorToCompletion(t, executor, newReqCtx("test-task-cost-unknown"))
+		message, final := usageMaps(t, events)
+
+		assert.NotContains(t, message, "cost_microcents")
+		assert.NotContains(t, final, "cost_microcents", "a partially priced invocation must not understate cumulative cost")
+		assert.Equal(t, 6500, message["total_tokens"])
+	})
+
+	t.Run("no pricing catalog emits no cost fields", func(t *testing.T) {
+		t.Parallel()
+
+		executor := newExecutorWithUsage(t)
+		events := runExecutorToCompletion(t, executor, newReqCtx("test-task-cost-disabled"))
+		message, final := usageMaps(t, events)
+
+		assert.NotContains(t, message, "cost_microcents")
+		assert.NotContains(t, final, "cost_microcents")
+	})
 }
