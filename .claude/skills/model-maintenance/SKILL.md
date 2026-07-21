@@ -12,7 +12,9 @@ description: >-
 When you add a model to any provider's `supportedModels` map you **must** set
 `Pricing` (microcents per million tokens) — see the "Adding New Models" section
 in `CLAUDE.md` for the conversion and the per-provider `TestAllModelsHavePricing`
-requirement. Below is the extra process that is specific to Bedrock.
+requirement. For where to source rates, flat vs context-tiered pricing, and the
+long-context surcharge, see the `model-catalog` skill. Below is the extra process
+that is specific to Bedrock.
 
 ## Adding a new Bedrock model
 
