@@ -294,6 +294,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label: "OpenAI GPT-5.6 Luna",
 		Capabilities: llm.ModelCapabilities{
 			WireAPIs:         openaiWireAPIs,
+			PreferredWire:    llm.WireAPIOpenAIResponses, // rejects tools + non-none reasoning on Chat Completions
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         true,
@@ -326,6 +327,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label: "OpenAI GPT-5.6 Terra",
 		Capabilities: llm.ModelCapabilities{
 			WireAPIs:         openaiWireAPIs,
+			PreferredWire:    llm.WireAPIOpenAIResponses, // rejects tools + non-none reasoning on Chat Completions
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         true,
@@ -358,6 +360,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label: "OpenAI GPT-5.6 Sol",
 		Capabilities: llm.ModelCapabilities{
 			WireAPIs:         openaiWireAPIs,
+			PreferredWire:    llm.WireAPIOpenAIResponses, // rejects tools + non-none reasoning on Chat Completions
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         true,
@@ -740,4 +743,19 @@ func WireAPIsForModel(modelID string) (apis []llm.WireAPI, ok bool) {
 		return nil, false
 	}
 	return def.Capabilities.WireAPIs, true
+}
+
+// PreferredWireForModel reports the wire a consumer should route to when the
+// request needs a feature the model rejects on its default wire — see
+// llm.ModelCapabilities.PreferredWire. Returns ("", false) for models absent
+// from the catalog or with no preference (the common case); callers use their
+// own default wire then. The gpt-5.6 family returns WireAPIOpenAIResponses
+// because it rejects function tools + a non-"none" reasoning effort on Chat
+// Completions.
+func PreferredWireForModel(modelID string) (wire llm.WireAPI, ok bool) {
+	def, found := supportedModels[resolveModelFamily(modelID)]
+	if !found || def.Capabilities.PreferredWire == "" {
+		return "", false
+	}
+	return def.Capabilities.PreferredWire, true
 }

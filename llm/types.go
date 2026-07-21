@@ -345,6 +345,18 @@ type ModelCapabilities struct {
 	// defaults, so populating it is additive. It is authoritative where wire
 	// support varies per model (Bedrock).
 	WireAPIs []WireAPI
+
+	// PreferredWire is the wire a consumer should route to when the request
+	// needs a feature the model rejects on its default wire. It exists because
+	// a model can *list* a wire in WireAPIs yet refuse certain feature
+	// combinations there: gpt-5.6-sol serves both Chat Completions and
+	// Responses, but rejects function tools + a non-"none" reasoning effort on
+	// Chat Completions ("use /v1/responses"). Setting PreferredWire =
+	// WireAPIOpenAIResponses lets a router send tool/reasoning traffic to the
+	// wire that accepts it. Empty means no preference — the consumer uses its
+	// own default wire for the provider. When set, it must also appear in
+	// WireAPIs.
+	PreferredWire WireAPI
 }
 
 // ModelDiscoveryInfo provides metadata about a model that can be discovered at
