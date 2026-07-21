@@ -63,6 +63,11 @@ keep a dollar comment on any non-obvious value.
    provider page + the documented multiplier structure below, and say so in a
    comment.
 
+   License: LiteLLM is MIT (Copyright Berri AI), so referencing or even
+   vendoring the file is fine with attribution. In practice we vendor nothing —
+   we read it as a cross-check, and the rates themselves are facts, not
+   copyrightable expression.
+
 ## Flat vs context-tiered pricing
 
 - **Flat** (rate independent of request size): `pricing.FlatInfoFromRates(base)`.

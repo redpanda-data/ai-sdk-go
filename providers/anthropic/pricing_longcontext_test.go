@@ -52,15 +52,16 @@ func TestLongContextBracketsMatchSurcharge(t *testing.T) {
 		t.Run(id, func(t *testing.T) {
 			t.Parallel()
 
-			cards := []struct {
+			type namedCard struct {
 				name string
 				card pricing.RateCard
-			}{{"default", def.Pricing.Default}}
+			}
+
+			cards := make([]namedCard, 0, 1+len(def.Pricing.Overrides))
+			cards = append(cards, namedCard{"default", def.Pricing.Default})
+
 			for _, ov := range def.Pricing.Overrides {
-				cards = append(cards, struct {
-					name string
-					card pricing.RateCard
-				}{fmt.Sprintf("%+v", ov.Match), ov.RateCard})
+				cards = append(cards, namedCard{fmt.Sprintf("%+v", ov.Match), ov.RateCard})
 			}
 
 			for _, c := range cards {
