@@ -29,7 +29,7 @@ import (
 func TestResponseMapper_Metadata(t *testing.T) {
 	t.Parallel()
 
-	mapper := NewResponseMapper(supportedModels[ModelGPT5Mini])
+	mapper := NewResponseMapper(supportedModels[ModelGPT5Mini], "eu")
 
 	resp, err := mapper.FromProvider(&responses.Response{
 		ID:          "resp_123",
@@ -53,6 +53,7 @@ func TestResponseMapper_Metadata(t *testing.T) {
 
 	assert.Equal(t, llm.ServiceTierDefault, resp.ServiceTier)
 	assert.Equal(t, ModelGPT5Mini, resp.InvokedModelID)
+	assert.Equal(t, "eu", resp.InferenceRegion)
 }
 
 func TestResponseMapper_CacheUsageBucketsAreDisjoint(t *testing.T) {
@@ -83,7 +84,7 @@ func TestResponseMapper_CacheUsageBucketsAreDisjoint(t *testing.T) {
 	var providerResponse responses.Response
 	require.NoError(t, json.Unmarshal([]byte(payload), &providerResponse))
 
-	mapper := NewResponseMapper(supportedModels[ModelGPT5Mini])
+	mapper := NewResponseMapper(supportedModels[ModelGPT5Mini], "")
 	resp, err := mapper.FromProvider(&providerResponse)
 	require.NoError(t, err)
 	require.NotNil(t, resp.Usage)
@@ -126,7 +127,7 @@ func TestResponseMapper_RejectsInvalidUsageCounters(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			mapper := NewResponseMapper(supportedModels[ModelGPT5Mini])
+			mapper := NewResponseMapper(supportedModels[ModelGPT5Mini], "")
 			_, err := mapper.FromProvider(&responses.Response{
 				Status: responses.ResponseStatusCompleted,
 				Output: []responses.ResponseOutputItemUnion{{
@@ -149,7 +150,7 @@ func TestResponseMapper_RejectsInvalidUsageCounters(t *testing.T) {
 func TestResponseMapper_FinishReasonTruncationWithToolCalls(t *testing.T) {
 	t.Parallel()
 
-	mapper := NewResponseMapper(supportedModels[ModelGPT5Mini])
+	mapper := NewResponseMapper(supportedModels[ModelGPT5Mini], "")
 
 	toolOutput := responses.ResponseOutputItemUnion{
 		Type:   outputTypeFunctionCall,
@@ -238,7 +239,7 @@ func TestResponseMapper_FinishReasonTruncationWithToolCalls(t *testing.T) {
 func TestResponseMapper_FunctionCallArgumentsNormalization(t *testing.T) {
 	t.Parallel()
 
-	mapper := NewResponseMapper(supportedModels[ModelGPT5Mini])
+	mapper := NewResponseMapper(supportedModels[ModelGPT5Mini], "")
 
 	cases := []struct {
 		name string

@@ -48,7 +48,9 @@ const (
 	ModelClaudeFable5       = "anthropic.claude-fable-5"
 	ModelClaudeFable5Global = "global." + ModelClaudeFable5
 	ModelClaudeFable5US     = "us." + ModelClaudeFable5
-	ModelClaudeFable5EU     = "eu." + ModelClaudeFable5
+	// ModelClaudeFable5EU is retained for runtime compatibility. The current AWS
+	// model card does not list this profile, so Provider.Models omits it.
+	ModelClaudeFable5EU = "eu." + ModelClaudeFable5
 
 	// ModelClaudeSonnet5 is the bare Bedrock ID for Claude Sonnet 5
 	// (inference-profile-only — invoke via one of the prefixed variants).
@@ -67,6 +69,7 @@ const (
 	ModelClaudeSonnet46US     = "us." + ModelClaudeSonnet46
 	ModelClaudeSonnet46EU     = "eu." + ModelClaudeSonnet46
 	ModelClaudeSonnet46AU     = "au." + ModelClaudeSonnet46
+	ModelClaudeSonnet46JP     = "jp." + ModelClaudeSonnet46
 
 	// ModelClaudeSonnet45 is the bare Bedrock ID for Claude Sonnet 4.5
 	// (inference-profile-only — invoke via one of the prefixed variants).
@@ -84,6 +87,7 @@ const (
 	ModelClaudeHaiku45US     = "us." + ModelClaudeHaiku45
 	ModelClaudeHaiku45EU     = "eu." + ModelClaudeHaiku45
 	ModelClaudeHaiku45AU     = "au." + ModelClaudeHaiku45
+	ModelClaudeHaiku45JP     = "jp." + ModelClaudeHaiku45
 
 	// ModelClaudeOpus48 is the bare Bedrock ID for Claude Opus 4.8
 	// (inference-profile-only — invoke via one of the prefixed variants).
@@ -92,6 +96,7 @@ const (
 	ModelClaudeOpus48US     = "us." + ModelClaudeOpus48
 	ModelClaudeOpus48EU     = "eu." + ModelClaudeOpus48
 	ModelClaudeOpus48JP     = "jp." + ModelClaudeOpus48
+	ModelClaudeOpus48AU     = "au." + ModelClaudeOpus48
 
 	// ModelClaudeOpus47 is the bare Bedrock ID for Claude Opus 4.7
 	// (inference-profile-only — invoke via one of the prefixed variants).
@@ -100,6 +105,7 @@ const (
 	ModelClaudeOpus47US     = "us." + ModelClaudeOpus47
 	ModelClaudeOpus47EU     = "eu." + ModelClaudeOpus47
 	ModelClaudeOpus47JP     = "jp." + ModelClaudeOpus47
+	ModelClaudeOpus47AU     = "au." + ModelClaudeOpus47
 
 	// ModelClaudeOpus46 is the bare Bedrock ID for Claude Opus 4.6
 	// (inference-profile-only — invoke via one of the prefixed variants).
@@ -321,6 +327,13 @@ var (
 		SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 	}
 
+	claudeSonnet46Constraints = llm.ModelConstraints{
+		TemperatureRange: [2]float64{0.0, 1.0},
+		MaxInputTokens:   1000000,
+		MaxOutputTokens:  64000,
+		SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
+	}
+
 	// Capability/constraint shapes for Amazon Nova 2 Lite. Unlike the Claude
 	// entries, JSONMode and StructuredOutput are set: Nova supports Bedrock
 	// constrained-decoding structured outputs (response_format / Converse
@@ -452,8 +465,9 @@ var (
 //     is exactly 10% cheaper than the geo rate for the same model.
 var supportedModels = map[string]ModelDefinition{
 	// ----------------------------------------------------------------
-	// Claude Fable 5 — inference-profile-only, no bare entry. Geo
-	// profiles cover us and eu (jp/au are not published).
+	// Claude Fable 5 — inference-profile-only, no bare entry. The current AWS
+	// model card publishes us and global. The existing eu definition remains for
+	// runtime compatibility but is omitted from provider discovery.
 	// ----------------------------------------------------------------
 	ModelClaudeFable5Global: {
 		Name:                        ModelClaudeFable5Global,
@@ -485,10 +499,8 @@ var supportedModels = map[string]ModelDefinition{
 			pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(13.75, 22.00, 0),
 		),
 	},
-
 	// ----------------------------------------------------------------
-	// Claude Opus 4.8 — inference-profile-only, no bare entry. Geo
-	// profiles cover us, eu, jp (au is not published).
+	// Claude Opus 4.8 — inference-profile-only, no bare entry.
 	// ----------------------------------------------------------------
 	ModelClaudeOpus48Global: {
 		Name:         ModelClaudeOpus48Global,
@@ -526,10 +538,19 @@ var supportedModels = map[string]ModelDefinition{
 			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
 		),
 	},
+	ModelClaudeOpus48AU: {
+		Name:         ModelClaudeOpus48AU,
+		Label:        "Claude Opus 4.8 (AU)",
+		Capabilities: claudeStandardCaps,
+		Constraints:  claudeContext1MConstraints,
+		// Per M: $5.50 input, $27.50 output, $0.55 cache read; cache writes $6.875 (5m), $11.00 (1h), $0 (unknown TTL).
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
+		),
+	},
 
 	// ----------------------------------------------------------------
-	// Claude Opus 4.7 — inference-profile-only, no bare entry. Geo
-	// profiles cover us, eu, jp (au is not published).
+	// Claude Opus 4.7 — inference-profile-only, no bare entry.
 	// ----------------------------------------------------------------
 	ModelClaudeOpus47Global: {
 		Name:         ModelClaudeOpus47Global,
@@ -563,6 +584,16 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Opus 4.7 (JP)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext1MConstraints,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
+		),
+	},
+	ModelClaudeOpus47AU: {
+		Name:         ModelClaudeOpus47AU,
+		Label:        "Claude Opus 4.7 (AU)",
+		Capabilities: claudeStandardCaps,
+		Constraints:  claudeContext1MConstraints,
+		// Per M: $5.50 input, $27.50 output, $0.55 cache read; cache writes $6.875 (5m), $11.00 (1h), $0 (unknown TTL).
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
 		),
@@ -669,7 +700,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:         ModelClaudeSonnet46Global,
 		Label:        "Claude Sonnet 4.6 (Global)",
 		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext200kConstraints,
+		Constraints:  claudeSonnet46Constraints,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0),
 		),
@@ -678,7 +709,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:         ModelClaudeSonnet46US,
 		Label:        "Claude Sonnet 4.6 (US)",
 		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext200kConstraints,
+		Constraints:  claudeSonnet46Constraints,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0),
 		),
@@ -687,7 +718,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:         ModelClaudeSonnet46EU,
 		Label:        "Claude Sonnet 4.6 (EU)",
 		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext200kConstraints,
+		Constraints:  claudeSonnet46Constraints,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0),
 		),
@@ -696,7 +727,17 @@ var supportedModels = map[string]ModelDefinition{
 		Name:         ModelClaudeSonnet46AU,
 		Label:        "Claude Sonnet 4.6 (AU)",
 		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext200kConstraints,
+		Constraints:  claudeSonnet46Constraints,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0),
+		),
+	},
+	ModelClaudeSonnet46JP: {
+		Name:         ModelClaudeSonnet46JP,
+		Label:        "Claude Sonnet 4.6 (JP)",
+		Capabilities: claudeStandardCaps,
+		Constraints:  claudeSonnet46Constraints,
+		// Per M: $3.30 input, $16.50 output, $0.33 cache read; cache writes $4.125 (5m), $6.60 (1h), $0 (unknown TTL).
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0),
 		),
@@ -786,6 +827,16 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Haiku 4.5 (AU)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(1.10, 5.50, 0.11).WithCacheCreation(1.375, 2.20, 0),
+		),
+	},
+	ModelClaudeHaiku45JP: {
+		Name:         ModelClaudeHaiku45JP,
+		Label:        "Claude Haiku 4.5 (JP)",
+		Capabilities: claudeStandardCaps,
+		Constraints:  claudeContext200kConstraints,
+		// Per M: $1.10 input, $5.50 output, $0.11 cache read; cache writes $1.375 (5m), $2.20 (1h), $0 (unknown TTL).
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(1.10, 5.50, 0.11).WithCacheCreation(1.375, 2.20, 0),
 		),

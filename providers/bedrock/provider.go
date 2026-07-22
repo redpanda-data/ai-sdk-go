@@ -265,8 +265,11 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 
 // Models returns all supported Bedrock models with their capabilities.
 func (p *Provider) Models() []llm.ModelDiscoveryInfo {
-	models := make([]llm.ModelDiscoveryInfo, 0, len(supportedModels))
+	models := make([]llm.ModelDiscoveryInfo, 0, len(supportedModels)-1)
 	for _, def := range supportedModels {
+		if def.Name == ModelClaudeFable5EU {
+			continue
+		}
 		models = append(models, llm.ModelDiscoveryInfo{
 			Name:         def.Name,
 			Label:        def.Label,

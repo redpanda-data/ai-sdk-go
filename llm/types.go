@@ -14,7 +14,10 @@
 
 package llm
 
-import "maps"
+import (
+	"maps"
+	"time"
+)
 
 // TokenUsage is the normalized, cross-provider accounting of tokens for a
 // single LLM call.
@@ -302,6 +305,68 @@ type ModelCapabilities struct {
 	MultiTurn        bool // Supports conversation history
 	SystemPrompts    bool // Supports system role messages
 	Reasoning        bool // Supports reasoning controls and exposes reasoning traces
+}
+
+// ModelLifecycle is the provider-confirmed lifecycle state of a model.
+type ModelLifecycle uint8
+
+const (
+	ModelLifecycleUnknown ModelLifecycle = iota
+	ModelLifecycleActive
+	ModelLifecycleDeprecated
+	ModelLifecycleRetired
+)
+
+// ModelCatalogMetadata is provider-scoped factual metadata used by discovery
+// surfaces to group, order, label, and recommend models without breaking
+// resources that reference older IDs.
+//
+// ReleaseDate, EndOfLifeDate, and MetadataVerifiedDate are UTC-midnight calendar
+// dates, not timestamps. EndOfLifeDate is informational. Lifecycle changes only
+// after an official provider source confirms the corresponding state; dates
+// never change it implicitly.
+type ModelCatalogMetadata struct {
+	// FamilyKey is the stable product family used for UI grouping, such as
+	// claude-opus or gemini-flash.
+	FamilyKey string
+	// UpgradeGroup identifies models whose release dates can be compared to
+	// choose the latest useful version. It is provider-scoped and includes
+	// routing geography where availability differs, such as Amazon Bedrock.
+	UpgradeGroup string
+	// ReleaseDate orders versions within a family or upgrade group.
+	ReleaseDate time.Time
+	// EndOfLifeDate is the provider-announced retirement schedule, when known.
+	EndOfLifeDate time.Time
+	// Lifecycle records the explicit provider lifecycle statement.
+	Lifecycle ModelLifecycle
+	// ProviderReplacement is an optional migration target named by the
+	// provider. It is not necessarily the latest model and must not be used for
+	// ranking; consumers derive that from UpgradeGroup and ReleaseDate.
+	ProviderReplacement string
+	// OfficialSourceURL identifies the provider evidence for this metadata.
+	OfficialSourceURL string
+	// MetadataVerifiedDate is when a maintainer last checked the metadata
+	// against OfficialSourceURL. It has no lifecycle meaning.
+	MetadataVerifiedDate time.Time
+}
+
+// ModelCatalogProvider exposes typed model-catalog facts
+// without changing ModelDiscoveryInfo's public struct layout. Implementations
+// resolve official aliases and dated snapshots to the same metadata as their
+// canonical discovery entry.
+type ModelCatalogProvider interface {
+	ModelCatalog(model string) (ModelCatalogMetadata, bool)
+}
+
+// ModelCatalogOverridesProvider optionally enumerates exact catalog records
+// for model IDs that are intentionally absent from Provider.Models(). These
+// records let discovery clients classify existing resources that reference a
+// retired or end-of-life snapshot without offering that snapshot for new
+// selections. Equivalent current aliases must remain excluded.
+//
+// The returned map is owned by the caller and may be modified safely.
+type ModelCatalogOverridesProvider interface {
+	ModelCatalogOverrides() map[string]ModelCatalogMetadata
 }
 
 // ModelDiscoveryInfo provides metadata about a model that can be discovered at

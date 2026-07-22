@@ -31,6 +31,12 @@ type ModelDefinition struct {
 	Pricing                   pricing.Info      // Cost per million tokens (microcents)
 }
 
+func regionalFlatInfo(defaultRates, regionalRates pricing.Rates) pricing.Info {
+	return pricing.FlatInfoFromRates(defaultRates).
+		WithOverride(pricing.Selector{Region: "us"}, pricing.RateCard{Base: regionalRates}).
+		WithOverride(pricing.Selector{Region: "eu"}, pricing.RateCard{Base: regionalRates})
+}
+
 var modelAliases = map[string]string{
 	ModelGPT5_6: ModelGPT5_6Sol,
 }
@@ -272,6 +278,29 @@ var supportedModels = map[string]ModelDefinition{
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortMedium}, // Chat-latest only supports medium
 		Pricing:                   pricing.FlatInfo(1.75, 14.00, 0.175),
 	},
+	ModelGPT5_3Codex: {
+		Name:  ModelGPT5_3Codex,
+		Label: "OpenAI GPT-5.3 Codex",
+		Capabilities: llm.ModelCapabilities{
+			Streaming:        true,
+			Tools:            true,
+			JSONMode:         true,
+			StructuredOutput: true,
+			Vision:           true,
+			MultiTurn:        true,
+			SystemPrompts:    true,
+			Reasoning:        true,
+		},
+		Constraints: llm.ModelConstraints{
+			MaxInputTokens:    400_000,
+			MaxOutputTokens:   128_000,
+			SupportedParams:   []string{"max_tokens", "reasoning_effort", "reasoning_summary"},
+			MutuallyExclusive: [][]string{},
+		},
+		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh},
+		// $1.75 / $14.00 / $0.175 per M (input / output / cached input).
+		Pricing: pricing.FlatInfo(1.75, 14.00, 0.175),
+	},
 
 	// GPT-5.6 Series
 	ModelGPT5_6Luna: {
@@ -391,7 +420,36 @@ var supportedModels = map[string]ModelDefinition{
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh},
-		Pricing:                   pricing.FlatInfo(5.00, 30.00, 0.50),
+		// Regional processing has a 10% premium.
+		Pricing: regionalFlatInfo(
+			pricing.NewRates(5.00, 30.00, 0.50),
+			pricing.NewRates(5.50, 33.00, 0.55),
+		),
+	},
+	ModelGPT5_5Pro: {
+		Name:  ModelGPT5_5Pro,
+		Label: "OpenAI GPT-5.5 Pro",
+		Capabilities: llm.ModelCapabilities{
+			Tools:            true,
+			JSONMode:         true,
+			StructuredOutput: true,
+			Vision:           true,
+			MultiTurn:        true,
+			SystemPrompts:    true,
+			Reasoning:        true,
+		},
+		Constraints: llm.ModelConstraints{
+			MaxInputTokens:    1_050_000,
+			MaxOutputTokens:   128_000,
+			SupportedParams:   []string{"max_tokens", "reasoning_effort", "reasoning_summary"},
+			MutuallyExclusive: [][]string{},
+		},
+		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh},
+		// Regional processing has a 10% premium.
+		Pricing: regionalFlatInfo(
+			pricing.NewRates(30.00, 180.00, 0),
+			pricing.NewRates(33.00, 198.00, 0),
+		),
 	},
 
 	// GPT-5.4 Series (March 2026 Flagship)
@@ -417,7 +475,11 @@ var supportedModels = map[string]ModelDefinition{
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh},
-		Pricing:                   pricing.FlatInfo(2.50, 15.00, 0.25),
+		// Regional processing has a 10% premium.
+		Pricing: regionalFlatInfo(
+			pricing.NewRates(2.50, 15.00, 0.25),
+			pricing.NewRates(2.75, 16.50, 0.275),
+		),
 	},
 	ModelGPT5_4Mini: {
 		Name:  ModelGPT5_4Mini,
@@ -441,7 +503,11 @@ var supportedModels = map[string]ModelDefinition{
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh},
-		Pricing:                   pricing.FlatInfo(0.75, 4.50, 0.075),
+		// Regional processing has a 10% premium.
+		Pricing: regionalFlatInfo(
+			pricing.NewRates(0.75, 4.50, 0.075),
+			pricing.NewRates(0.825, 4.95, 0.0825),
+		),
 	},
 	ModelGPT5_4Nano: {
 		Name:  ModelGPT5_4Nano,
@@ -464,7 +530,11 @@ var supportedModels = map[string]ModelDefinition{
 			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty"},
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
-		Pricing: pricing.FlatInfo(0.20, 1.25, 0.02),
+		// Regional processing has a 10% premium.
+		Pricing: regionalFlatInfo(
+			pricing.NewRates(0.20, 1.25, 0.02),
+			pricing.NewRates(0.22, 1.375, 0.022),
+		),
 	},
 
 	// GPT-4.1 Series (Enhanced Performance)

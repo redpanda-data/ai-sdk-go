@@ -86,6 +86,12 @@ func (m *Model) Generate(ctx context.Context, req *llm.Request) (*llm.Response, 
 // It returns a Go 1.23+ iterator for streaming LLM responses.
 func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[llm.Event, error] {
 	return func(yield func(llm.Event, error) bool) {
+		if !m.definition.Capabilities.Streaming {
+			yield(nil, llm.ErrUnsupportedFeature)
+
+			return
+		}
+
 		// Convert our unified request to Responses API format
 		apiReq, err := m.requestMapper.ToProvider(req)
 		if err != nil {

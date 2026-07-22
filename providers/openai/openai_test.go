@@ -15,7 +15,11 @@
 package openai
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -68,6 +72,64 @@ func TestWithBaseURL(t *testing.T) {
 	}
 }
 
+func TestRegionalEndpointSetsPricingRegion(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		opts    []ProviderOption
+		want    string
+		wantErr string
+	}{
+		{
+			name: "EU endpoint is inferred",
+			opts: []ProviderOption{WithBaseURL("https://eu.api.openai.com/v1")},
+			want: "eu",
+		},
+		{
+			name: "US endpoint is inferred",
+			opts: []ProviderOption{WithBaseURL("https://us.api.openai.com/v1")},
+			want: "us",
+		},
+		{
+			name: "explicit region supports gateways",
+			opts: []ProviderOption{
+				WithBaseURL("https://gateway.example.com/openai"),
+				WithInferenceRegion("EU"),
+			},
+			want: "eu",
+		},
+		{
+			name:    "unsupported region is rejected",
+			opts:    []ProviderOption{WithInferenceRegion("apac")},
+			wantErr: "inference region",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			provider, err := NewProvider("sk-test", tt.opts...)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, tt.want, provider.InferenceRegion)
+
+			model, err := provider.NewModel(ModelGPT5_5Pro)
+			require.NoError(t, err)
+
+			openAIModel, ok := model.(*Model)
+			require.True(t, ok)
+			require.Equal(t, tt.want, openAIModel.responseMapper.inferenceRegion)
+		})
+	}
+}
+
 func TestProviderCreation(t *testing.T) {
 	t.Parallel()
 	// Valid provider creation
@@ -110,7 +172,7 @@ func TestProviderModels(t *testing.T) {
 	}
 
 	// Verify expected models are present
-	expectedModels := []string{"gpt-4o", "gpt-4o-mini", "o3", "gpt-5", "gpt-5.2", "gpt-5.3-chat-latest", "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano"}
+	expectedModels := []string{"gpt-4o", "gpt-4o-mini", "o3", "gpt-5", "gpt-5.2", "gpt-5.3-chat-latest", "gpt-5.3-codex", "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano"}
 	for _, expected := range expectedModels {
 		assert.Contains(t, modelNames, expected, "Should include %s", expected)
 	}
@@ -358,6 +420,41 @@ func TestModelCapabilities(t *testing.T) {
 	assert.True(t, caps.Vision)
 	assert.False(t, caps.Audio)
 	assert.False(t, caps.StructuredOutput)
+}
+
+func TestGPT55ProGenerateEventsRejectsStreamingBeforeRequest(t *testing.T) {
+	t.Parallel()
+
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		http.Error(w, "unexpected streaming request", http.StatusBadRequest)
+	}))
+	t.Cleanup(server.Close)
+
+	provider, err := NewProvider("sk-test-key", WithBaseURL(server.URL))
+	require.NoError(t, err)
+
+	model, err := provider.NewModel(ModelGPT5_5Pro)
+	require.NoError(t, err)
+
+	request := &llm.Request{
+		Messages: []llm.Message{
+			llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hello")),
+		},
+	}
+
+	var streamErr error
+
+	for _, err := range model.GenerateEvents(context.Background(), request) {
+		if err != nil {
+			streamErr = err
+			break
+		}
+	}
+
+	require.ErrorIs(t, streamErr, llm.ErrUnsupportedFeature)
+	require.Zero(t, requests.Load())
 }
 
 func TestRequestMapping(t *testing.T) {

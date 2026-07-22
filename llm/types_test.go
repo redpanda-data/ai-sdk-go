@@ -16,9 +16,25 @@ package llm
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func TestModelCatalogMetadataUsesTypedDatesAndOneLifecycleState(t *testing.T) {
+	t.Parallel()
+
+	releaseDate := time.Date(2026, time.July, 9, 0, 0, 0, 0, time.UTC)
+	metadata := ModelCatalogMetadata{
+		ReleaseDate: releaseDate,
+		Lifecycle:   ModelLifecycleDeprecated,
+	}
+
+	assert.Equal(t, releaseDate, metadata.ReleaseDate)
+	assert.True(t, metadata.EndOfLifeDate.IsZero())
+	assert.Equal(t, ModelLifecycleDeprecated, metadata.Lifecycle)
+	assert.Equal(t, ModelLifecycleUnknown, ModelCatalogMetadata{}.Lifecycle)
+}
 
 func TestTokenUsage_BilledInputTokens(t *testing.T) {
 	t.Parallel()

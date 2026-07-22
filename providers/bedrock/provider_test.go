@@ -56,6 +56,23 @@ func TestInferenceProfileRegion(t *testing.T) {
 	}
 }
 
+func TestClaudeSonnet46ConstraintsMatchModelCard(t *testing.T) {
+	t.Parallel()
+
+	for _, model := range []string{
+		ModelClaudeSonnet46Global,
+		ModelClaudeSonnet46US,
+		ModelClaudeSonnet46EU,
+		ModelClaudeSonnet46AU,
+		ModelClaudeSonnet46JP,
+	} {
+		definition, ok := supportedModels[model]
+		require.True(t, ok, model)
+		require.Equal(t, 1_000_000, definition.Constraints.MaxInputTokens, model)
+		require.Equal(t, 64_000, definition.Constraints.MaxOutputTokens, model)
+	}
+}
+
 // ---------- hasRegionPrefix ----------
 
 func TestHasRegionPrefix(t *testing.T) {
@@ -1113,9 +1130,10 @@ func TestModelsDiscovery(t *testing.T) {
 	p := &Provider{}
 
 	models := p.Models()
-	assert.Len(t, models, len(supportedModels))
+	assert.Len(t, models, len(supportedModels)-1)
 
 	for _, m := range models {
+		assert.NotEqual(t, ModelClaudeFable5EU, m.Name)
 		assert.Equal(t, "aws.bedrock", m.Provider)
 		assert.NotEmpty(t, m.Name)
 		assert.NotEmpty(t, m.Label)
@@ -1144,9 +1162,14 @@ func TestModelsDiscovery_ProviderDataSharingMetadata(t *testing.T) {
 		metadataByName[m.Name] = m.Metadata
 	}
 
-	for _, name := range []string{ModelClaudeFable5Global, ModelClaudeFable5US, ModelClaudeFable5EU} {
+	for _, name := range []string{ModelClaudeFable5Global, ModelClaudeFable5US} {
 		assert.Equal(t, "true", metadataByName[name][ModelMetadataRequiresProviderDataSharing])
 	}
+
+	assert.NotContains(t, metadataByName, ModelClaudeFable5EU)
+
+	_, ok := lookupModel(ModelClaudeFable5EU)
+	require.True(t, ok, "the non-discoverable EU ID remains available for existing runtime configurations")
 
 	assert.Empty(t, metadataByName[ModelClaudeSonnet46US])
 }
