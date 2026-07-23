@@ -224,6 +224,11 @@ func TestHandler_PostValidation(t *testing.T) {
 			want: http.StatusBadRequest,
 		},
 		{
+			name: "unknown-role message",
+			body: `{"id":"chat-1","message":{"role":"unknown","parts":[{"type":"text","text":"x"}]}}`,
+			want: http.StatusBadRequest,
+		},
+		{
 			name: "empty text",
 			body: `{"id":"chat-1","message":{"role":"user","parts":[{"type":"text","text":""}]}}`,
 			want: http.StatusBadRequest,

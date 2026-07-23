@@ -208,7 +208,7 @@ func (m chatMessage) textContent() string {
 // not be able to append assistant or system turns, and tool results only ever
 // originate server-side.
 func convertUserMessage(m chatMessage) (llm.Message, bool) {
-	if m.Role == "assistant" || m.Role == "system" {
+	if m.Role != "user" {
 		return llm.Message{}, false
 	}
 
