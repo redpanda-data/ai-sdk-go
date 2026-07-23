@@ -183,7 +183,7 @@ func (m *ResponseMapper) mapReasoningBlock(value types.ReasoningContentBlock) ll
 		sig = *rt.Value.Signature
 	}
 
-	if text == "" {
+	if text == "" && sig == "" {
 		return nil
 	}
 

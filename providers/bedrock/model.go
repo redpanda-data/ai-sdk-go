@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"iter"
+	"slices"
 
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
@@ -55,6 +56,21 @@ func (m *Model) Capabilities() llm.ModelCapabilities {
 // Constraints returns the model's validation rules and limitations.
 func (m *Model) Constraints() llm.ModelConstraints {
 	return m.definition.Constraints
+}
+
+// SupportedEfforts returns the effort values accepted by adaptive thinking.
+func (m *Model) SupportedEfforts() []Effort {
+	return slices.Clone(modelThinkingCapabilities(m.definition.Name).supportedEfforts)
+}
+
+// SupportsAdaptiveThinking reports whether the model accepts adaptive thinking.
+func (m *Model) SupportsAdaptiveThinking() bool {
+	return modelThinkingCapabilities(m.definition.Name).adaptive
+}
+
+// SupportsThinkingBudget reports whether the model accepts a manual token budget.
+func (m *Model) SupportsThinkingBudget() bool {
+	return modelThinkingCapabilities(m.definition.Name).budget
 }
 
 // Generate performs a single, non-streaming request using the Bedrock Converse API.
@@ -267,7 +283,7 @@ func (m *Model) buildFinalParts(blocks map[int]*contentBlockAccumulator) []llm.P
 			}
 
 		case blockTypeReasoning:
-			if acc.textContent != "" {
+			if acc.textContent != "" || acc.reasoningSignature != "" {
 				parts = append(parts, &llm.ReasoningPart{
 					Text:      acc.textContent,
 					Signature: acc.reasoningSignature,
@@ -370,6 +386,10 @@ func processReasoningDelta(acc *contentBlockAccumulator, delta *types.ContentBlo
 		}, true
 
 	case *types.ReasoningContentBlockDeltaMemberSignature:
+		if acc.blockType == "" {
+			acc.blockType = blockTypeReasoning
+		}
+
 		acc.reasoningSignature = rd.Value
 	}
 

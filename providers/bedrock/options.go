@@ -38,8 +38,10 @@ type Config struct {
 	// EnableThinking enables extended thinking (reasoning traces) via
 	// additionalModelRequestFields. BudgetTokens controls how many tokens
 	// to allocate for the thinking budget.
-	EnableThinking bool
-	BudgetTokens   int
+	EnableThinking   bool
+	BudgetTokens     int
+	AdaptiveThinking bool
+	Effort           *Effort
 
 	// EnableCaching enables prompt caching on Bedrock.
 	EnableCaching bool
@@ -141,8 +143,8 @@ func WithStop(sequences ...string) Option {
 // budgetTokens controls the maximum number of tokens for the thinking budget.
 func WithThinking(budgetTokens int) Option {
 	return func(cfg *Config) error {
-		if budgetTokens < 1 {
-			return fmt.Errorf("%s: budget_tokens must be positive, got %d", cfg.ModelName, budgetTokens)
+		if budgetTokens < 1024 {
+			return fmt.Errorf("%s: budget_tokens must be at least 1024, got %d", cfg.ModelName, budgetTokens)
 		}
 
 		cfg.EnableThinking = true
@@ -152,10 +154,25 @@ func WithThinking(budgetTokens int) Option {
 	}
 }
 
+// WithAdaptiveThinking enables adaptive thinking with the requested effort.
+func WithAdaptiveThinking(effort Effort) Option {
+	return func(cfg *Config) error {
+		cfg.EnableThinking = true
+		cfg.AdaptiveThinking = true
+		cfg.Effort = &effort
+
+		return nil
+	}
+}
+
 // Validate checks if the configuration is valid.
 func (c *Config) Validate() error {
 	if c.ModelName == "" {
 		return fmt.Errorf("%w: model name is required", llm.ErrInvalidConfig)
+	}
+
+	if c.AdaptiveThinking && c.BudgetTokens > 0 {
+		return fmt.Errorf("%w: adaptive thinking and thinking budget cannot be combined", llm.ErrInvalidConfig)
 	}
 
 	for option := range c.setOptions {

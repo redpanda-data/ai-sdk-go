@@ -144,8 +144,23 @@ func (rm *RequestMapper) buildInferenceConfig() *types.InferenceConfiguration {
 }
 
 // buildThinkingFields returns the additionalModelRequestFields document for
-// enabling extended thinking with the configured budget.
+// the configured thinking mode.
 func (rm *RequestMapper) buildThinkingFields() document.Interface {
+	if rm.config.AdaptiveThinking {
+		fields := map[string]any{
+			"thinking": map[string]any{
+				"type": "adaptive",
+			},
+		}
+		if rm.config.Effort != nil {
+			fields["output_config"] = map[string]any{
+				"effort": *rm.config.Effort,
+			}
+		}
+
+		return document.NewLazyDocument(fields)
+	}
+
 	return document.NewLazyDocument(map[string]any{
 		"thinking": map[string]any{
 			"type":          "enabled",
@@ -264,7 +279,7 @@ func (rm *RequestMapper) mapAssistantMessage(msg llm.Message) (types.Message, er
 
 		case *llm.ReasoningPart:
 			// Pass reasoning traces back as reasoning content blocks
-			if p.Text != "" {
+			if p.Text != "" || p.Signature != "" {
 				apiMsg.Content = append(apiMsg.Content, &types.ContentBlockMemberReasoningContent{
 					Value: &types.ReasoningContentBlockMemberReasoningText{
 						Value: types.ReasoningTextBlock{

@@ -19,11 +19,23 @@ import (
 	"fmt"
 	"slices"
 
+	"google.golang.org/genai"
+
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
 // Option configures a Google Gemini model instance using functional options.
 type Option func(*Config) error
+
+// ThinkingLevel controls reasoning depth for Gemini 3 models.
+type ThinkingLevel = genai.ThinkingLevel
+
+const (
+	ThinkingLevelMinimal = genai.ThinkingLevelMinimal
+	ThinkingLevelLow     = genai.ThinkingLevelLow
+	ThinkingLevelMedium  = genai.ThinkingLevelMedium
+	ThinkingLevelHigh    = genai.ThinkingLevelHigh
+)
 
 // Config holds the configuration for a Google Gemini model instance.
 type Config struct {
@@ -42,6 +54,7 @@ type Config struct {
 	// Extended thinking configuration
 	EnableThinking bool   // Enable thinking for reasoning models
 	ThinkingBudget *int32 // Optional thinking budget in tokens
+	ThinkingLevel  *ThinkingLevel
 
 	// Custom model name override (inherits base model capabilities)
 	CustomModelName string
@@ -217,10 +230,23 @@ func WithThinking(enabled bool) Option {
 }
 
 // WithThinkingBudget sets the thinking budget in tokens.
-// Only applicable when thinking is enabled.
+// It implicitly enables thinking.
 func WithThinkingBudget(tokens int32) Option {
 	return func(cfg *Config) error {
+		cfg.EnableThinking = true
 		cfg.ThinkingBudget = &tokens
+
+		return nil
+	}
+}
+
+// WithThinkingLevel sets the reasoning depth for Gemini 3 models and enables
+// thought summaries.
+func WithThinkingLevel(level ThinkingLevel) Option {
+	return func(cfg *Config) error {
+		cfg.EnableThinking = true
+		cfg.ThinkingLevel = &level
+
 		return nil
 	}
 }
@@ -249,6 +275,10 @@ func WithCustomModelName(customName string) Option {
 func (c *Config) Validate() error {
 	if c.ModelName == "" {
 		return fmt.Errorf("%w: model name is required", llm.ErrInvalidConfig)
+	}
+
+	if c.ThinkingLevel != nil && c.ThinkingBudget != nil {
+		return fmt.Errorf("%w: thinking level and thinking budget cannot be combined", llm.ErrInvalidConfig)
 	}
 
 	// Validate that all set options are actually supported

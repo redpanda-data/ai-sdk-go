@@ -34,12 +34,75 @@ const (
 
 // ModelDefinition defines a Gemini model with its capabilities and constraints.
 type ModelDefinition struct {
-	Name         string
-	Label        string
-	Capabilities llm.ModelCapabilities
-	Constraints  llm.ModelConstraints
-	Pricing      pricing.Info
+	Name                    string
+	Label                   string
+	Capabilities            llm.ModelCapabilities
+	Constraints             llm.ModelConstraints
+	SupportedThinkingLevels []ThinkingLevel
+	thinkingBudget          *thinkingBudgetConstraints
+	Pricing                 pricing.Info
 }
+
+type thinkingBudgetConstraints struct {
+	min          int32
+	max          int32
+	allowZero    bool
+	allowDynamic bool
+}
+
+func (c *thinkingBudgetConstraints) supports(budget int32) bool {
+	if c == nil {
+		return false
+	}
+
+	if budget == -1 {
+		return c.allowDynamic
+	}
+
+	if budget == 0 {
+		return c.allowZero
+	}
+
+	return budget >= c.min && budget <= c.max
+}
+
+var (
+	// Gemini 3 uses discrete thinking levels, while Gemini 2.5 uses token
+	// budgets with model-specific ranges:
+	// https://ai.google.dev/gemini-api/docs/generate-content/thinking
+	allGemini3ThinkingLevels = []ThinkingLevel{
+		ThinkingLevelMinimal,
+		ThinkingLevelLow,
+		ThinkingLevelMedium,
+		ThinkingLevelHigh,
+	}
+	gemini3ProThinkingLevels = []ThinkingLevel{
+		ThinkingLevelLow,
+		ThinkingLevelHigh,
+	}
+	gemini31ProThinkingLevels = []ThinkingLevel{
+		ThinkingLevelLow,
+		ThinkingLevelMedium,
+		ThinkingLevelHigh,
+	}
+	gemini25ProThinkingBudget = &thinkingBudgetConstraints{
+		min:          128,
+		max:          32768,
+		allowDynamic: true,
+	}
+	gemini25FlashThinkingBudget = &thinkingBudgetConstraints{
+		min:          1,
+		max:          24576,
+		allowZero:    true,
+		allowDynamic: true,
+	}
+	gemini25FlashLiteThinkingBudget = &thinkingBudgetConstraints{
+		min:          512,
+		max:          24576,
+		allowZero:    true,
+		allowDynamic: true,
+	}
+)
 
 // resolveModelFamily collapses provider-returned versioned model identifiers to
 // the stable model key used by the SDK catalog.
@@ -69,8 +132,9 @@ func resolveModelFamily(model string) string {
 // Based on https://ai.google.dev/gemini-api/docs/models
 var supportedModels = map[string]ModelDefinition{
 	ModelGemini35Flash: {
-		Name:  ModelGemini35Flash,
-		Label: "Gemini 3.5 Flash",
+		Name:                    ModelGemini35Flash,
+		Label:                   "Gemini 3.5 Flash",
+		SupportedThinkingLevels: allGemini3ThinkingLevels,
 		Capabilities: llm.ModelCapabilities{
 			Streaming:        true,
 			Tools:            true,
@@ -91,8 +155,9 @@ var supportedModels = map[string]ModelDefinition{
 		Pricing: pricing.FlatInfo(1.50, 9.00, 0.15),
 	},
 	ModelGemini31ProPreview: {
-		Name:  ModelGemini31ProPreview,
-		Label: "Gemini 3.1 Pro Preview",
+		Name:                    ModelGemini31ProPreview,
+		Label:                   "Gemini 3.1 Pro Preview",
+		SupportedThinkingLevels: gemini31ProThinkingLevels,
 		Capabilities: llm.ModelCapabilities{
 			Streaming:        true,
 			Tools:            true,
@@ -119,8 +184,9 @@ var supportedModels = map[string]ModelDefinition{
 		),
 	},
 	ModelGemini3ProPreview: {
-		Name:  ModelGemini3ProPreview,
-		Label: "Gemini 3 Pro Preview",
+		Name:                    ModelGemini3ProPreview,
+		Label:                   "Gemini 3 Pro Preview",
+		SupportedThinkingLevels: gemini3ProThinkingLevels,
 		Capabilities: llm.ModelCapabilities{
 			Streaming:        true,
 			Tools:            true,
@@ -147,8 +213,9 @@ var supportedModels = map[string]ModelDefinition{
 		),
 	},
 	ModelGemini3FlashPreview: {
-		Name:  ModelGemini3FlashPreview,
-		Label: "Gemini 3 Flash Preview",
+		Name:                    ModelGemini3FlashPreview,
+		Label:                   "Gemini 3 Flash Preview",
+		SupportedThinkingLevels: allGemini3ThinkingLevels,
 		Capabilities: llm.ModelCapabilities{
 			Streaming:        true,
 			Tools:            true,
@@ -169,8 +236,9 @@ var supportedModels = map[string]ModelDefinition{
 		Pricing: pricing.FlatInfo(0.50, 3.00, 0.05),
 	},
 	ModelGemini25Pro: {
-		Name:  ModelGemini25Pro,
-		Label: "Gemini 2.5 Pro",
+		Name:           ModelGemini25Pro,
+		Label:          "Gemini 2.5 Pro",
+		thinkingBudget: gemini25ProThinkingBudget,
 		Capabilities: llm.ModelCapabilities{
 			Streaming:        true,
 			Tools:            true,
@@ -197,8 +265,9 @@ var supportedModels = map[string]ModelDefinition{
 		),
 	},
 	ModelGemini25Flash: {
-		Name:  ModelGemini25Flash,
-		Label: "Gemini 2.5 Flash",
+		Name:           ModelGemini25Flash,
+		Label:          "Gemini 2.5 Flash",
+		thinkingBudget: gemini25FlashThinkingBudget,
 		Capabilities: llm.ModelCapabilities{
 			Streaming:        true,
 			Tools:            true,
@@ -219,8 +288,9 @@ var supportedModels = map[string]ModelDefinition{
 		Pricing: pricing.FlatInfo(0.30, 2.50, 0.03),
 	},
 	ModelGemini25FlashLite: {
-		Name:  ModelGemini25FlashLite,
-		Label: "Gemini 2.5 Flash Lite",
+		Name:           ModelGemini25FlashLite,
+		Label:          "Gemini 2.5 Flash Lite",
+		thinkingBudget: gemini25FlashLiteThinkingBudget,
 		Capabilities: llm.ModelCapabilities{
 			Streaming:        true,
 			Tools:            true,

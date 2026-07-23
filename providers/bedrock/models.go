@@ -184,6 +184,17 @@ const (
 	ModelGemma4E2B = "google.gemma-4-e2b"
 )
 
+// Effort controls reasoning depth for Bedrock models with adaptive thinking.
+type Effort string
+
+const (
+	EffortLow    Effort = "low"
+	EffortMedium Effort = "medium"
+	EffortHigh   Effort = "high"
+	EffortXHigh  Effort = "xhigh"
+	EffortMax    Effort = "max"
+)
+
 // ModelDefinition defines a model with its capabilities and constraints.
 type ModelDefinition struct {
 	Name                        string // Real Bedrock model ID (e.g. "us.anthropic.claude-sonnet-4-6")
@@ -279,6 +290,52 @@ func hasRegionPrefix(modelID string) bool {
 func lookupModel(modelName string) (ModelDefinition, bool) {
 	def, ok := supportedModels[modelName]
 	return def, ok
+}
+
+type thinkingCapabilities struct {
+	supportedEfforts []Effort
+	adaptive         bool
+	budget           bool
+}
+
+var (
+	// Claude 4.6 supports both adaptive thinking and deprecated manual
+	// budgets. Newer frontier models are adaptive-only:
+	// https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking
+	adaptiveThinkingEfforts         = []Effort{EffortLow, EffortMedium, EffortHigh}
+	frontierAdaptiveThinkingEfforts = []Effort{EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax}
+	opus46ThinkingEfforts           = []Effort{EffortLow, EffortMedium, EffortHigh, EffortMax}
+)
+
+func modelThinkingCapabilities(modelID string) thinkingCapabilities {
+	prefix, unprefixed, ok := strings.Cut(modelID, ".")
+	if ok && geoProfilePrefixes[prefix] {
+		modelID = unprefixed
+	}
+
+	switch modelID {
+	case ModelClaudeFable5, ModelClaudeSonnet5, ModelClaudeOpus48, ModelClaudeOpus47:
+		return thinkingCapabilities{
+			supportedEfforts: frontierAdaptiveThinkingEfforts,
+			adaptive:         true,
+		}
+	case ModelClaudeOpus46:
+		return thinkingCapabilities{
+			supportedEfforts: opus46ThinkingEfforts,
+			adaptive:         true,
+			budget:           true,
+		}
+	case ModelClaudeSonnet46:
+		return thinkingCapabilities{
+			supportedEfforts: adaptiveThinkingEfforts,
+			adaptive:         true,
+			budget:           true,
+		}
+	case ModelClaudeOpus45, ModelClaudeSonnet45, ModelClaudeHaiku45:
+		return thinkingCapabilities{budget: true}
+	default:
+		return thinkingCapabilities{}
+	}
 }
 
 // Capability and constraint shapes shared by Claude variants on Bedrock.

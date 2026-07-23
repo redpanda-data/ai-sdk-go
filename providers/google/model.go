@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"iter"
+	"slices"
 
 	"github.com/google/uuid"
 	"google.golang.org/genai"
@@ -57,6 +58,12 @@ func (m *Model) Capabilities() llm.ModelCapabilities {
 // Constraints returns the model's validation rules and limitations.
 func (m *Model) Constraints() llm.ModelConstraints {
 	return m.definition.Constraints
+}
+
+// SupportedThinkingLevels returns the thinking levels accepted by the model.
+// An empty slice means the model uses token budgets instead.
+func (m *Model) SupportedThinkingLevels() []ThinkingLevel {
+	return slices.Clone(m.definition.SupportedThinkingLevels)
 }
 
 // Generate performs a single, non-streaming request to the Google API.
