@@ -42,6 +42,13 @@
 // This file holds the protocol primitives (message conversion, the SSE
 // EventWriter, and the streamWriter span bookkeeping) shared by Handler.
 //
+// Migration: the former model-level Handler, StreamModel,
+// StreamModelWithTools, ToolExecutor, WithSystem, WithTools, and WithMaxTurns
+// APIs were removed. Callers must construct an agent.Agent and use Handler with
+// a session.Store instead. This keeps the system prompt, tools, interceptor
+// chain, and agentic loop at the agent layer rather than duplicating them in a
+// wire-protocol adapter.
+//
 // Known limitations:
 //   - Inbound file/image parts are not forwarded: the llm.Part type has no file
 //     kind yet. Inbound reasoning parts are likewise dropped.

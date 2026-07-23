@@ -85,6 +85,20 @@ The trimmed transport is an optimization, not a requirement: the default transpo
 
 No client-side tool registry is needed: agent tools are runtime-discovered (MCP, subagents), so they stream as `dynamic-tool` parts, not statically-typed `tool-<name>` parts.
 
+## Migrating from the model-level handler
+
+The model-level `Handler`, `StreamModel`, `StreamModelWithTools`, `ToolExecutor`, `WithSystem`, `WithTools`, and `WithMaxTurns` APIs were removed. Replace them with an `agent.Agent` and the handler shown above:
+
+```go
+ag, err := llmagent.New("assistant", systemPrompt, model, llmagent.WithTools(registry))
+if err != nil {
+    return err
+}
+chat := uimessagestream.Handler(ag, store)
+```
+
+The protocol adapter no longer owns a second tool loop. The agent now remains the single owner of its system prompt, tools, interceptors, and execution loop.
+
 ## Routes
 
 Relative to the mount point:
