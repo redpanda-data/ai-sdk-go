@@ -39,7 +39,7 @@
 // packages/ai/src/ui-message-stream/to-ui-message-chunk.ts, and the SSE framing
 // mirrors json-to-sse-transform-stream.ts. Verified against ai@7.0.6.
 //
-// This file holds the protocol primitives (message conversion, the SSE
+// This file holds the protocol primitives (request decoding, the SSE
 // EventWriter, and the streamWriter span bookkeeping) shared by Handler.
 //
 // Migration: the former model-level Handler, StreamModel,
@@ -184,22 +184,6 @@ type messagePart struct {
 	ErrorText  string          `json:"errorText,omitempty"` //nolint:tagliatelle // Vercel AI SDK wire format is camelCase
 }
 
-// isTool reports whether the part is a tool-call part.
-func (p messagePart) isTool() bool {
-	return p.Type == "dynamic-tool" || strings.HasPrefix(p.Type, "tool-")
-}
-
-// toolName returns the tool name for a tool-call part. Static tool parts encode
-// the name in the type suffix ("tool-getWeather"); dynamic tool parts carry it
-// in the toolName field.
-func (p messagePart) toolName() string {
-	if p.Type == "dynamic-tool" {
-		return p.ToolName
-	}
-
-	return strings.TrimPrefix(p.Type, "tool-")
-}
-
 // textContent extracts the text content from a message, supporting both
 // the v7 parts-based format and the legacy content field.
 // All text parts are concatenated to preserve multi-step conversation history.
@@ -224,7 +208,7 @@ func (m chatMessage) textContent() string {
 // not be able to append assistant or system turns, and tool results only ever
 // originate server-side.
 func convertUserMessage(m chatMessage) (llm.Message, bool) {
-	if messageRole(m.Role) != llm.RoleUser {
+	if m.Role == "assistant" || m.Role == "system" {
 		return llm.Message{}, false
 	}
 
@@ -377,157 +361,6 @@ func (sw *streamWriter) writeAbort(ctx context.Context) {
 
 	_ = sw.ew.WriteChunk(chunk)
 	_ = sw.ew.WriteDone()
-}
-
-func convertMessages(msgs []chatMessage) []llm.Message {
-	out := make([]llm.Message, 0, len(msgs))
-
-	// appendMessage coalesces consecutive same-role messages into one, mirroring
-	// how the reference providers merge adjacent same-role model messages (e.g.
-	// Anthropic's groupIntoBlocks). This keeps roles strictly alternating, which
-	// providers such as Anthropic require. Without it, two text-only assistant
-	// steps — or a dropped/incomplete assistant turn between two user turns —
-	// would emit consecutive same-role messages and the provider would reject them.
-	appendMessage := func(m llm.Message) {
-		if n := len(out); n > 0 && out[n-1].Role == m.Role {
-			out[n-1].Content = append(out[n-1].Content, m.Content...)
-			return
-		}
-
-		out = append(out, m)
-	}
-
-	for _, m := range msgs {
-		switch messageRole(m.Role) {
-		case llm.RoleAssistant:
-			for _, am := range reconstructAssistant(m) {
-				appendMessage(am)
-			}
-
-		case llm.RoleSystem:
-			// Inbound system messages are dropped. The agent supplies its own
-			// system prompt; honoring a client-supplied system role would let a
-			// browser inject or override agent-level instructions, since providers
-			// such as Anthropic/Google honor non-leading system messages and
-			// llmagent only strips a single leading one.
-
-		case llm.RoleUser:
-			// User messages forward their concatenated text. Inbound file parts
-			// are dropped: llm.Part has no file kind.
-			text := m.textContent()
-			if text == "" {
-				continue
-			}
-
-			appendMessage(llm.NewMessage(llm.RoleUser, llm.NewTextPart(text)))
-		}
-	}
-
-	return out
-}
-
-// messageRole maps a UI message role string to an llm.MessageRole.
-func messageRole(role string) llm.MessageRole {
-	switch role {
-	case "assistant":
-		return llm.RoleAssistant
-	case "system":
-		return llm.RoleSystem
-	default:
-		return llm.RoleUser
-	}
-}
-
-// reconstructAssistant rebuilds the model messages for an assistant turn from
-// its UI message parts, mirroring convert-to-model-messages.ts. Each step
-// (delimited by "step-start" parts) becomes an assistant message containing its
-// text and tool-call parts, optionally followed by a user message carrying that
-// step's tool results (output-available / output-error). Splitting on steps
-// preserves the call -> result -> answer ordering that providers such as
-// Anthropic require.
-//
-// Inbound reasoning and file parts are not reconstructed: providers vary in
-// accepting reasoning history, and llm.Part has no file kind.
-func reconstructAssistant(m chatMessage) []llm.Message {
-	// Legacy content field (no parts): a single assistant text message.
-	if len(m.Parts) == 0 {
-		if m.Content == "" {
-			return nil
-		}
-
-		return []llm.Message{llm.NewMessage(llm.RoleAssistant, llm.NewTextPart(m.Content))}
-	}
-
-	var (
-		msgs        []llm.Message
-		assistant   []llm.Part
-		toolResults []llm.Part
-	)
-
-	flush := func() {
-		if len(assistant) > 0 {
-			msgs = append(msgs, llm.Message{Role: llm.RoleAssistant, Content: assistant})
-		}
-
-		if len(toolResults) > 0 {
-			msgs = append(msgs, llm.Message{Role: llm.RoleUser, Content: toolResults})
-		}
-
-		assistant = nil
-		toolResults = nil
-	}
-
-	for _, p := range m.Parts {
-		switch {
-		case p.Type == "step-start":
-			// Step boundary: close the current block so its tool results are
-			// ordered before the next step's text/answer.
-			flush()
-
-		case p.Type == "text":
-			if p.Text != "" {
-				assistant = append(assistant, llm.NewTextPart(p.Text))
-			}
-
-		case p.isTool():
-			if p.ToolCallID == "" {
-				continue
-			}
-
-			name := p.toolName()
-
-			// Only reconstruct COMPLETED tool calls — those with a result. A call
-			// still streaming its input, or one that reached input-available but
-			// never produced an output (an aborted/interrupted prior turn the
-			// client re-sends), is dropped entirely: the tool-request part is
-			// emitted ONLY inside the result-bearing states. Emitting a bare
-			// tool-request with no paired tool-response would (a) make providers
-			// such as Anthropic reject the request for an unmatched tool_use, and
-			// (b) let a browser client forge an incomplete assistant tool call
-			// that an agent's crash-recovery path would execute before consulting
-			// the model. Dropping the unresolved call keeps history well-formed
-			// and denies that vector.
-			switch p.State {
-			case "output-available":
-				assistant = append(assistant, llm.NewToolRequestPart(p.ToolCallID, name, p.Input))
-				toolResults = append(toolResults, llm.NewToolResponsePart(p.ToolCallID, name, p.Output, false))
-			case toolStateOutputError:
-				// The new ToolResponsePart carries the error payload in Result
-				// with IsError set, rather than a dedicated error string field.
-				errPayload, mErr := json.Marshal(map[string]string{"error": p.ErrorText})
-				if mErr != nil {
-					errPayload = []byte(`{"error":"tool error"}`)
-				}
-
-				assistant = append(assistant, llm.NewToolRequestPart(p.ToolCallID, name, p.Input))
-				toolResults = append(toolResults, llm.NewToolResponsePart(p.ToolCallID, name, errPayload, true))
-			}
-		}
-	}
-
-	flush()
-
-	return msgs
 }
 
 // setSSEHeaders sets the required HTTP headers for the AI SDK UI Message

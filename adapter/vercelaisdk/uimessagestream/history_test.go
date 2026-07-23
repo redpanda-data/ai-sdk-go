@@ -119,45 +119,6 @@ func TestProjectUIMessages_ReasoningBeforeText(t *testing.T) {
 	assert.Equal(t, messagePart{Type: "text", Text: "answer", State: "done"}, out[0].Parts[2])
 }
 
-func TestProjectUIMessages_RoundTrip(t *testing.T) {
-	t.Parallel()
-
-	// What GET returns, convertMessages must reconstruct to the original model
-	// messages (modulo reasoning, which inbound conversion drops by design).
-	msgs := []llm.Message{
-		llm.NewMessage(llm.RoleUser, llm.NewTextPart("weather?")),
-		llm.NewMessage(llm.RoleAssistant, llm.NewToolRequestPart("c1", "getWeather", []byte(`{"city":"SF"}`))),
-		llm.NewMessage(llm.RoleUser, llm.NewToolResponsePart("c1", "getWeather", []byte(`{"temp":"72F"}`), false)),
-		llm.NewMessage(llm.RoleAssistant, llm.NewTextPart("It is 72F.")),
-		llm.NewMessage(llm.RoleUser, llm.NewTextPart("thanks")),
-	}
-
-	projected := projectUIMessages(msgs, passthroughErrors)
-
-	back := make([]chatMessage, 0, len(projected))
-	for _, m := range projected {
-		back = append(back, chatMessage{Role: m.Role, Parts: m.Parts})
-	}
-
-	got := convertMessages(back)
-
-	require.Len(t, got, len(msgs))
-
-	for i := range msgs {
-		assert.Equal(t, msgs[i].Role, got[i].Role, "message %d role", i)
-		assert.Equal(t, msgs[i].TextContent(), got[i].TextContent(), "message %d text", i)
-	}
-
-	req, ok := got[1].Content[0].(*llm.ToolRequestPart)
-	require.True(t, ok)
-	assert.Equal(t, "c1", req.ID)
-
-	resp, ok := got[2].Content[0].(*llm.ToolResponsePart)
-	require.True(t, ok)
-	assert.Equal(t, "c1", resp.ID)
-	assert.False(t, resp.IsError)
-}
-
 func TestHandler_GetHistorySanitizesToolErrors(t *testing.T) {
 	t.Parallel()
 
