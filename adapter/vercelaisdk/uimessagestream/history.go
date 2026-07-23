@@ -79,7 +79,7 @@ func projectUIMessages(msgs []llm.Message, onError ErrorMapper) []uiMessage {
 		// closePendingTools does — verbatim, it is a control message.
 		for _, idx := range pending {
 			if open.Parts[idx].State == "input-available" {
-				open.Parts[idx].State = "output-error"
+				open.Parts[idx].State = toolStateOutputError
 				open.Parts[idx].ErrorText = pendingToolText
 			}
 		}
@@ -110,7 +110,7 @@ func projectUIMessages(msgs []llm.Message, onError ErrorMapper) []uiMessage {
 				}
 
 				if tr.IsError {
-					open.Parts[idx].State = "output-error"
+					open.Parts[idx].State = toolStateOutputError
 					open.Parts[idx].ErrorText = onError(errors.New(toolErrorText(tr.Result)))
 				} else {
 					open.Parts[idx].State = "output-available"

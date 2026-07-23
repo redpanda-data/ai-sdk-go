@@ -141,8 +141,9 @@ func WithSessionKey(fn SessionKeyFunc) Option {
 
 // Chat lifecycle triggers sent by useChat's DefaultChatTransport.
 const (
-	triggerSubmit     = "submit-message"
-	triggerRegenerate = "regenerate-message"
+	triggerSubmit        = "submit-message"
+	triggerRegenerate    = "regenerate-message"
+	toolStateOutputError = "output-error"
 )
 
 // chatRequest matches the JSON body sent by useChat's DefaultChatTransport.
@@ -510,7 +511,7 @@ func reconstructAssistant(m chatMessage) []llm.Message {
 			case "output-available":
 				assistant = append(assistant, llm.NewToolRequestPart(p.ToolCallID, name, p.Input))
 				toolResults = append(toolResults, llm.NewToolResponsePart(p.ToolCallID, name, p.Output, false))
-			case "output-error":
+			case toolStateOutputError:
 				// The new ToolResponsePart carries the error payload in Result
 				// with IsError set, rather than a dedicated error string field.
 				errPayload, mErr := json.Marshal(map[string]string{"error": p.ErrorText})
