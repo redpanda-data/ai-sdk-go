@@ -44,6 +44,16 @@ var (
 const (
 	reconnectInitialDelay = 200 * time.Millisecond
 	reconnectMaxDelay     = 30 * time.Second
+	// reconnectAttemptTimeout bounds one reconnect handshake (dial +
+	// initialize + notifications/initialized). Without it, an upstream
+	// that accepts the connection but never responds — a half-open
+	// connection through a load balancer, a wedged proxy — blocks the
+	// reconnect loop on that attempt forever and the client never
+	// recovers. Deadlining the attempt is safe: the go-sdk detaches the
+	// connect context from the established session's lifetime
+	// (xcontext.Detach in its streamable client), so cancelling after a
+	// successful connect does not kill the session.
+	reconnectAttemptTimeout = 30 * time.Second
 )
 
 // Client connects to an MCP server to discover and execute tools.
@@ -131,6 +141,9 @@ type clientImpl struct {
 	autoSyncInterval time.Duration
 	shutdownTimeout  time.Duration
 	toolTimeout      time.Duration
+	// reconnectTimeout bounds one reconnect handshake; defaults to
+	// reconnectAttemptTimeout (overridden only in tests).
+	reconnectTimeout time.Duration
 	logger           *slog.Logger
 	toolFilter       ToolFilterFunc
 
@@ -185,6 +198,7 @@ func NewClient(serverID string, transportFactory TransportFactory, opts ...Clien
 	c := &clientImpl{
 		serverID:         serverID,
 		transportFactory: transportFactory,
+		reconnectTimeout: reconnectAttemptTimeout,
 		logger:           slog.Default(),
 		tools:            make(map[string]*toolWrapper),
 		notifyCh:         make(chan struct{}, 1),
@@ -640,10 +654,18 @@ func (c *clientImpl) performReconnect(ctx context.Context) (*sdkmcp.ClientSessio
 		attempt++
 		c.logger.Info("attempting reconnect", "serverID", c.serverID, "attempt", attempt)
 
-		// Don't use a timeout context - the SDK retains the passed context for the
-		// connection's entire lifetime, using it for all HTTP requests including the
-		// long-lived "hanging GET" for SSE streaming. A timeout would kill the connection.
-		session, mcpClient, err := c.connect(ctx)
+		// Bound the attempt so a server that accepts the connection but
+		// never completes the handshake fails this attempt and backs off,
+		// instead of hanging the loop forever. (An earlier comment here
+		// claimed a timeout would kill the established connection because
+		// the SDK retained the connect context for the connection's
+		// lifetime — that is no longer true: the go-sdk detaches it, see
+		// reconnectAttemptTimeout.)
+		attemptCtx, cancel := context.WithTimeout(ctx, c.reconnectTimeout)
+		session, mcpClient, err := c.connect(attemptCtx)
+
+		cancel()
+
 		if err == nil {
 			return session, mcpClient, nil
 		}
