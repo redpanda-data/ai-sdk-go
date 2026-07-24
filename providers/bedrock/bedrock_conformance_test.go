@@ -236,7 +236,7 @@ func TestBedrockAdaptiveThinking_Integration(t *testing.T) {
 
 	model, err := fixture.provider.NewModel(
 		bedrock.ModelClaudeOpus47,
-		bedrock.WithAdaptiveThinking(bedrock.EffortLow),
+		bedrock.WithReasoningEffort(bedrock.ReasoningEffortLow),
 	)
 	if err != nil {
 		t.Fatalf("Failed to create adaptive thinking model: %v", err)

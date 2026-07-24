@@ -125,9 +125,9 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) (anthropic.BetaMessageNewP
 	}
 
 	// Apply effort if configured
-	if rm.config.Effort != nil {
+	if rm.config.ReasoningEffort != nil {
 		apiReq.OutputConfig = anthropic.BetaOutputConfigParam{
-			Effort: anthropic.BetaOutputConfigEffort(*rm.config.Effort),
+			Effort: anthropic.BetaOutputConfigEffort(*rm.config.ReasoningEffort),
 		}
 	}
 

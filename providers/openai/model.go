@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"iter"
+	"slices"
 
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/responses"
@@ -25,7 +26,10 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
-var _ llm.Model = (*Model)(nil)
+var (
+	_ llm.Model                 = (*Model)(nil)
+	_ llm.ReasoningEffortLister = (*Model)(nil)
+)
 
 // Model implements the llm.Model interface for OpenAI models.
 type Model struct {
@@ -59,8 +63,8 @@ func (m *Model) Constraints() llm.ModelConstraints {
 
 // SupportedReasoningEfforts returns the reasoning efforts this model supports, in ascending order (safest/lowest first).
 // Returns empty slice for non-reasoning models.
-func (m *Model) SupportedReasoningEfforts() []ReasoningEffort {
-	return m.definition.SupportedReasoningEfforts
+func (m *Model) SupportedReasoningEfforts() []llm.ReasoningEffort {
+	return slices.Clone(m.definition.SupportedReasoningEfforts)
 }
 
 // Generate performs a single, non-streaming request to the OpenAI Responses API.

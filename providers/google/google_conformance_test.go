@@ -99,8 +99,8 @@ func (f *GoogleFixture) newReasoningModel(t *testing.T, baseModel llm.Model) llm
 	t.Helper()
 
 	options := []google.Option{google.WithThinkingBudget(4096)}
-	if model, ok := baseModel.(*google.Model); ok && len(model.SupportedThinkingLevels()) > 0 {
-		options = []google.Option{google.WithThinkingLevel(google.ThinkingLevelLow)}
+	if lister, ok := baseModel.(llm.ReasoningEffortLister); ok && len(lister.SupportedReasoningEfforts()) > 0 {
+		options = []google.Option{google.WithReasoningEffort(google.ReasoningEffortLow)}
 	}
 
 	model, err := f.provider.NewModel(f.modelName, options...)

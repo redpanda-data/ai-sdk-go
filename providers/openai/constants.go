@@ -17,6 +17,8 @@ package openai
 import (
 	"github.com/openai/openai-go/v3/shared"
 	"github.com/openai/openai-go/v3/shared/constant"
+
+	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
 // Model name constants for commonly used OpenAI models.
@@ -89,7 +91,13 @@ const (
 )
 
 // ReasoningEffort controls the computational effort for reasoning models.
-type ReasoningEffort string
+//
+// It is an alias of [llm.ReasoningEffort] so effort values are portable
+// across provider packages; the constants below declare the values OpenAI
+// models accept (derived from the vendor SDK so they always match the wire
+// format). Which subset a specific model supports is validated against the
+// model catalog in NewModel.
+type ReasoningEffort = llm.ReasoningEffort
 
 const (
 	// ReasoningEffortNone disables reasoning (supported by GPT-5.1+ only).

@@ -180,8 +180,8 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 		return nil, fmt.Errorf("configuration validation failed for %s: %w", modelName, err)
 	}
 
-	if cfg.ThinkingLevel != nil && !slices.Contains(modelDef.SupportedThinkingLevels, *cfg.ThinkingLevel) {
-		return nil, fmt.Errorf("model %s does not support thinking level '%s'", modelName, *cfg.ThinkingLevel)
+	if cfg.ReasoningEffort != nil && !slices.Contains(modelDef.SupportedReasoningEfforts, *cfg.ReasoningEffort) {
+		return nil, fmt.Errorf("model %s does not support reasoning effort %q (supported: %v)", modelName, *cfg.ReasoningEffort, modelDef.SupportedReasoningEfforts)
 	}
 
 	if cfg.ThinkingBudget != nil && !modelDef.thinkingBudget.supports(*cfg.ThinkingBudget) {

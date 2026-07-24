@@ -26,7 +26,11 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
-var _ llm.Model = (*Model)(nil)
+var (
+	_ llm.Model                 = (*Model)(nil)
+	_ llm.ReasoningEffortLister = (*Model)(nil)
+	_ llm.ReasoningEffortLister = (*mantleModel)(nil)
+)
 
 // Model implements the llm.Model interface for Bedrock models via the Converse API.
 type Model struct {
@@ -58,19 +62,20 @@ func (m *Model) Constraints() llm.ModelConstraints {
 	return m.definition.Constraints
 }
 
-// SupportedEfforts returns the effort values accepted by adaptive thinking.
-func (m *Model) SupportedEfforts() []Effort {
-	return slices.Clone(modelThinkingCapabilities(m.definition.Name).supportedEfforts)
+// SupportedReasoningEfforts returns the reasoning efforts this model accepts,
+// in ascending order. Empty for models without effort control.
+func (m *Model) SupportedReasoningEfforts() []llm.ReasoningEffort {
+	return slices.Clone(m.definition.Thinking.ReasoningEfforts)
 }
 
 // SupportsAdaptiveThinking reports whether the model accepts adaptive thinking.
 func (m *Model) SupportsAdaptiveThinking() bool {
-	return modelThinkingCapabilities(m.definition.Name).adaptive
+	return m.definition.Thinking.Adaptive
 }
 
 // SupportsThinkingBudget reports whether the model accepts a manual token budget.
 func (m *Model) SupportsThinkingBudget() bool {
-	return modelThinkingCapabilities(m.definition.Name).budget
+	return m.definition.Thinking.Budget
 }
 
 // Generate performs a single, non-streaming request using the Bedrock Converse API.

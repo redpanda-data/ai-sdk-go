@@ -43,8 +43,8 @@ type Config struct {
 	AdaptiveThinking bool   // Whether model supports adaptive thinking (set from ModelDefinition)
 
 	// Effort and speed configuration
-	Effort *Effort // Output effort level
-	Speed  *Speed  // Inference speed mode
+	ReasoningEffort *ReasoningEffort // Reasoning effort level
+	Speed           *Speed           // Inference speed mode
 
 	// Prompt caching configuration
 	EnableCaching bool // Enable prompt caching by setting cache_control markers
@@ -204,18 +204,19 @@ func WithThinkingBudget(tokens int64) Option {
 	}
 }
 
-// WithEffort sets the output effort level for the model.
-// Only applicable to models with "effort" in SupportedParams.
-// The specific effort value is validated against the model's SupportedEfforts in NewModel().
-func WithEffort(effort Effort) Option {
+// WithReasoningEffort sets how much work the model spends on reasoning.
+// Only applicable to models with "reasoning_effort" in SupportedParams.
+// The specific effort value is validated against the model's
+// SupportedReasoningEfforts in NewModel().
+func WithReasoningEffort(effort ReasoningEffort) Option {
 	return func(cfg *Config) error {
-		err := cfg.Constraints.ValidateParameterSupport("effort")
+		err := cfg.Constraints.ValidateParameterSupport("reasoning_effort")
 		if err != nil {
 			return fmt.Errorf("%s: %w", cfg.ModelName, err)
 		}
 
-		cfg.Effort = &effort
-		cfg.setOptions["effort"] = true
+		cfg.ReasoningEffort = &effort
+		cfg.setOptions["reasoning_effort"] = true
 
 		return nil
 	}

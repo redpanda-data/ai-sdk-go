@@ -25,13 +25,13 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
-func TestThinkingLevelMapsToGemini3Request(t *testing.T) {
+func TestReasoningEffortMapsToGemini3Request(t *testing.T) {
 	t.Parallel()
 
 	provider, err := NewProvider(context.Background(), "test-api-key")
 	require.NoError(t, err)
 
-	model, err := provider.NewModel(ModelGemini3FlashPreview, WithThinkingLevel(ThinkingLevelMedium))
+	model, err := provider.NewModel(ModelGemini3FlashPreview, WithReasoningEffort(ReasoningEffortMedium))
 	require.NoError(t, err)
 
 	googleModel, ok := model.(*Model)
@@ -58,7 +58,7 @@ func TestThinkingLevelMapsToGemini3Request(t *testing.T) {
 	}, wire["thinkingConfig"])
 }
 
-func TestModelSupportedThinkingLevels(t *testing.T) {
+func TestModelSupportedReasoningEfforts(t *testing.T) {
 	t.Parallel()
 
 	provider, err := NewProvider(context.Background(), "test-api-key")
@@ -66,23 +66,23 @@ func TestModelSupportedThinkingLevels(t *testing.T) {
 
 	tests := []struct {
 		model string
-		want  []ThinkingLevel
+		want  []ReasoningEffort
 	}{
 		{
 			model: ModelGemini35Flash,
-			want:  []ThinkingLevel{ThinkingLevelMinimal, ThinkingLevelLow, ThinkingLevelMedium, ThinkingLevelHigh},
+			want:  []ReasoningEffort{ReasoningEffortMinimal, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
 		},
 		{
 			model: ModelGemini31ProPreview,
-			want:  []ThinkingLevel{ThinkingLevelLow, ThinkingLevelMedium, ThinkingLevelHigh},
+			want:  []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
 		},
 		{
 			model: ModelGemini3ProPreview,
-			want:  []ThinkingLevel{ThinkingLevelLow, ThinkingLevelHigh},
+			want:  []ReasoningEffort{ReasoningEffortLow, ReasoningEffortHigh},
 		},
 		{
 			model: ModelGemini3FlashPreview,
-			want:  []ThinkingLevel{ThinkingLevelMinimal, ThinkingLevelLow, ThinkingLevelMedium, ThinkingLevelHigh},
+			want:  []ReasoningEffort{ReasoningEffortMinimal, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
 		},
 		{
 			model: ModelGemini25Flash,
@@ -99,36 +99,36 @@ func TestModelSupportedThinkingLevels(t *testing.T) {
 
 			googleModel, ok := model.(*Model)
 			require.True(t, ok)
-			assert.Equal(t, tt.want, googleModel.SupportedThinkingLevels())
+			assert.Equal(t, tt.want, googleModel.SupportedReasoningEfforts())
 		})
 	}
 }
 
-func TestNewModelRejectsUnsupportedThinkingLevel(t *testing.T) {
+func TestNewModelRejectsUnsupportedReasoningEffort(t *testing.T) {
 	t.Parallel()
 
 	provider, err := NewProvider(context.Background(), "test-api-key")
 	require.NoError(t, err)
 
 	tests := []struct {
-		name  string
-		model string
-		level ThinkingLevel
+		name   string
+		model  string
+		effort ReasoningEffort
 	}{
 		{
-			name:  "unsupported level for Gemini 3",
-			model: ModelGemini3ProPreview,
-			level: ThinkingLevelMedium,
+			name:   "unsupported effort for Gemini 3",
+			model:  ModelGemini3ProPreview,
+			effort: ReasoningEffortMedium,
 		},
 		{
-			name:  "thinking level on Gemini 2.5",
-			model: ModelGemini25Flash,
-			level: ThinkingLevelLow,
+			name:   "reasoning effort on Gemini 2.5",
+			model:  ModelGemini25Flash,
+			effort: ReasoningEffortLow,
 		},
 		{
-			name:  "unknown level",
-			model: ModelGemini3FlashPreview,
-			level: ThinkingLevel("EXTREME"),
+			name:   "unknown effort",
+			model:  ModelGemini3FlashPreview,
+			effort: ReasoningEffort("extreme"),
 		},
 	}
 
@@ -136,9 +136,9 @@ func TestNewModelRejectsUnsupportedThinkingLevel(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, modelErr := provider.NewModel(tt.model, WithThinkingLevel(tt.level))
+			_, modelErr := provider.NewModel(tt.model, WithReasoningEffort(tt.effort))
 			require.Error(t, modelErr)
-			assert.Contains(t, modelErr.Error(), "does not support thinking level")
+			assert.Contains(t, modelErr.Error(), "does not support reasoning effort")
 		})
 	}
 }
@@ -216,7 +216,7 @@ func TestNewModelRejectsUnsupportedThinkingBudget(t *testing.T) {
 	}
 }
 
-func TestNewModelRejectsThinkingLevelAndBudgetTogether(t *testing.T) {
+func TestNewModelRejectsReasoningEffortAndBudgetTogether(t *testing.T) {
 	t.Parallel()
 
 	provider, err := NewProvider(context.Background(), "test-api-key")
@@ -224,9 +224,9 @@ func TestNewModelRejectsThinkingLevelAndBudgetTogether(t *testing.T) {
 
 	_, err = provider.NewModel(
 		ModelGemini3FlashPreview,
-		WithThinkingLevel(ThinkingLevelLow),
+		WithReasoningEffort(ReasoningEffortLow),
 		WithThinkingBudget(4096),
 	)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "thinking level and thinking budget cannot be combined")
+	assert.Contains(t, err.Error(), "reasoning effort and a thinking budget cannot be combined")
 }

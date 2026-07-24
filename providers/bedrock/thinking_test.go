@@ -26,11 +26,11 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
-func TestAdaptiveThinkingMapsToConverseRequest(t *testing.T) {
+func TestReasoningEffortMapsToConverseRequest(t *testing.T) {
 	t.Parallel()
 
 	provider := &Provider{}
-	model, err := provider.NewModel(ModelClaudeOpus47US, WithAdaptiveThinking(EffortMedium))
+	model, err := provider.NewModel(ModelClaudeOpus47US, WithReasoningEffort(ReasoningEffortMedium))
 	require.NoError(t, err)
 
 	bedrockModel, ok := model.(*Model)
@@ -59,14 +59,13 @@ func TestAdaptiveThinkingMapsToConverseRequest(t *testing.T) {
 	}, fields)
 }
 
-func TestAdaptiveThinkingMapperUsesProviderDefaultWithoutEffort(t *testing.T) {
+func TestThinkingWithoutBudgetOrEffortMapsToAdaptive(t *testing.T) {
 	t.Parallel()
 
 	mapper := NewRequestMapper(&Config{
-		ModelName:        ModelClaudeOpus47US,
-		APIModelID:       ModelClaudeOpus47US,
-		EnableThinking:   true,
-		AdaptiveThinking: true,
+		ModelName:      ModelClaudeOpus47US,
+		APIModelID:     ModelClaudeOpus47US,
+		EnableThinking: true,
 	})
 
 	input, err := mapper.ToConverseInput(&llm.Request{
@@ -149,39 +148,39 @@ func TestModelThinkingCapabilities(t *testing.T) {
 
 	tests := []struct {
 		model            string
-		efforts          []Effort
+		efforts          []ReasoningEffort
 		supportsAdaptive bool
 		supportsBudget   bool
 	}{
 		{
 			model:            ModelClaudeFable5US,
-			efforts:          []Effort{EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax},
+			efforts:          []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 			supportsAdaptive: true,
 		},
 		{
 			model:            ModelClaudeSonnet5US,
-			efforts:          []Effort{EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax},
+			efforts:          []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 			supportsAdaptive: true,
 		},
 		{
 			model:            ModelClaudeOpus48US,
-			efforts:          []Effort{EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax},
+			efforts:          []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 			supportsAdaptive: true,
 		},
 		{
 			model:            ModelClaudeOpus47US,
-			efforts:          []Effort{EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax},
+			efforts:          []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 			supportsAdaptive: true,
 		},
 		{
 			model:            ModelClaudeOpus46US,
-			efforts:          []Effort{EffortLow, EffortMedium, EffortHigh, EffortMax},
+			efforts:          []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortMax},
 			supportsAdaptive: true,
 			supportsBudget:   true,
 		},
 		{
 			model:            ModelClaudeSonnet46US,
-			efforts:          []Effort{EffortLow, EffortMedium, EffortHigh},
+			efforts:          []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
 			supportsAdaptive: true,
 			supportsBudget:   true,
 		},
@@ -203,7 +202,7 @@ func TestModelThinkingCapabilities(t *testing.T) {
 
 			bedrockModel, ok := model.(*Model)
 			require.True(t, ok)
-			assert.Equal(t, tt.efforts, bedrockModel.SupportedEfforts())
+			assert.Equal(t, tt.efforts, bedrockModel.SupportedReasoningEfforts())
 			assert.Equal(t, tt.supportsAdaptive, bedrockModel.SupportsAdaptiveThinking())
 			assert.Equal(t, tt.supportsBudget, bedrockModel.SupportsThinkingBudget())
 		})
@@ -225,31 +224,37 @@ func TestNewModelRejectsUnsupportedThinkingConfiguration(t *testing.T) {
 			name:      "manual budget on adaptive-only model",
 			model:     ModelClaudeFable5US,
 			option:    WithThinking(4096),
-			wantError: "does not support a thinking budget",
+			wantError: "does not support a manual thinking budget",
 		},
 		{
-			name:      "adaptive thinking on manual-only model",
+			name:      "reasoning effort on budget-only model",
 			model:     ModelClaudeSonnet45US,
-			option:    WithAdaptiveThinking(EffortLow),
-			wantError: "does not support adaptive thinking",
+			option:    WithReasoningEffort(ReasoningEffortLow),
+			wantError: "does not support reasoning effort",
 		},
 		{
 			name:      "unsupported effort",
 			model:     ModelClaudeSonnet46US,
-			option:    WithAdaptiveThinking(EffortMax),
-			wantError: "does not support effort",
+			option:    WithReasoningEffort(ReasoningEffortMax),
+			wantError: "does not support reasoning effort",
 		},
 		{
 			name:      "unknown effort",
 			model:     ModelClaudeOpus47US,
-			option:    WithAdaptiveThinking(Effort("extreme")),
-			wantError: "does not support effort",
+			option:    WithReasoningEffort(ReasoningEffort("extreme")),
+			wantError: "does not support reasoning effort",
 		},
 		{
 			name:      "Anthropic thinking mode on non-Anthropic model",
 			model:     ModelNova2LiteUS,
 			option:    WithThinking(4096),
-			wantError: "does not support a thinking budget",
+			wantError: "does not support a manual thinking budget",
+		},
+		{
+			name:      "reasoning effort on mantle model without effort control",
+			model:     ModelGemma4E2B,
+			option:    WithReasoningEffort(ReasoningEffortLow),
+			wantError: "does not support reasoning effort",
 		},
 	}
 
@@ -264,17 +269,17 @@ func TestNewModelRejectsUnsupportedThinkingConfiguration(t *testing.T) {
 	}
 }
 
-func TestNewModelRejectsAdaptiveThinkingAndBudgetTogether(t *testing.T) {
+func TestNewModelRejectsReasoningEffortAndBudgetTogether(t *testing.T) {
 	t.Parallel()
 
 	provider := &Provider{}
 	_, err := provider.NewModel(
 		ModelClaudeOpus46US,
-		WithAdaptiveThinking(EffortHigh),
+		WithReasoningEffort(ReasoningEffortHigh),
 		WithThinking(4096),
 	)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "adaptive thinking and thinking budget cannot be combined")
+	assert.Contains(t, err.Error(), "reasoning effort and a manual thinking budget cannot be combined")
 }
 
 func TestThinkingBudgetRequiresProviderMinimum(t *testing.T) {

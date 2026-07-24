@@ -38,10 +38,13 @@ type Config struct {
 	// EnableThinking enables extended thinking (reasoning traces) via
 	// additionalModelRequestFields. BudgetTokens controls how many tokens
 	// to allocate for the thinking budget.
-	EnableThinking   bool
-	BudgetTokens     int
-	AdaptiveThinking bool
-	Effort           *Effort
+	EnableThinking bool
+	BudgetTokens   int
+
+	// ReasoningEffort biases how much work the model spends on reasoning.
+	// On Claude models it requests adaptive thinking; on mantle-served
+	// models it maps to the OpenAI reasoning-effort parameter.
+	ReasoningEffort *ReasoningEffort
 
 	// EnableCaching enables prompt caching on Bedrock.
 	EnableCaching bool
@@ -154,12 +157,14 @@ func WithThinking(budgetTokens int) Option {
 	}
 }
 
-// WithAdaptiveThinking enables adaptive thinking with the requested effort.
-func WithAdaptiveThinking(effort Effort) Option {
+// WithReasoningEffort sets how much work the model spends on reasoning. On
+// Claude models this requests adaptive thinking (thinking.type=adaptive)
+// biased by the effort; on mantle-served models it maps to the OpenAI
+// reasoning-effort parameter. The value is validated against the model's
+// supported efforts in NewModel.
+func WithReasoningEffort(effort ReasoningEffort) Option {
 	return func(cfg *Config) error {
-		cfg.EnableThinking = true
-		cfg.AdaptiveThinking = true
-		cfg.Effort = &effort
+		cfg.ReasoningEffort = &effort
 
 		return nil
 	}
@@ -171,8 +176,8 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("%w: model name is required", llm.ErrInvalidConfig)
 	}
 
-	if c.AdaptiveThinking && c.BudgetTokens > 0 {
-		return fmt.Errorf("%w: adaptive thinking and thinking budget cannot be combined", llm.ErrInvalidConfig)
+	if c.ReasoningEffort != nil && c.BudgetTokens > 0 {
+		return fmt.Errorf("%w: reasoning effort and a manual thinking budget cannot be combined", llm.ErrInvalidConfig)
 	}
 
 	for option := range c.setOptions {

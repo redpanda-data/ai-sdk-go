@@ -248,21 +248,12 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 		return nil, fmt.Errorf("configuration validation failed for %s: %w", modelName, err)
 	}
 
-	thinking := modelThinkingCapabilities(modelDef.Name)
-	if cfg.AdaptiveThinking {
-		if !thinking.adaptive {
-			return nil, fmt.Errorf("model %s does not support adaptive thinking", modelName)
-		}
+	if cfg.ReasoningEffort != nil && !slices.Contains(modelDef.Thinking.ReasoningEfforts, *cfg.ReasoningEffort) {
+		return nil, fmt.Errorf("model %s does not support reasoning effort %q (supported: %v)", modelName, *cfg.ReasoningEffort, modelDef.Thinking.ReasoningEfforts)
+	}
 
-		if cfg.Effort == nil {
-			return nil, fmt.Errorf("model %s requires an effort for adaptive thinking", modelName)
-		}
-
-		if !slices.Contains(thinking.supportedEfforts, *cfg.Effort) {
-			return nil, fmt.Errorf("model %s does not support effort '%s'", modelName, *cfg.Effort)
-		}
-	} else if cfg.EnableThinking && !thinking.budget {
-		return nil, fmt.Errorf("model %s does not support a thinking budget", modelName)
+	if cfg.EnableThinking && !modelDef.Thinking.Budget {
+		return nil, fmt.Errorf("model %s does not support a manual thinking budget", modelName)
 	}
 
 	// Mantle-only models (Gemma 4, gpt-5.x) are not served by the Converse API;

@@ -27,15 +27,35 @@ import (
 // Option configures a Google Gemini model instance using functional options.
 type Option func(*Config) error
 
-// ThinkingLevel controls reasoning depth for Gemini 3 models.
-type ThinkingLevel = genai.ThinkingLevel
+// ReasoningEffort controls reasoning depth for Gemini 3 models (sent as the
+// thinkingLevel field of thinkingConfig). It is an alias of
+// [llm.ReasoningEffort] so effort values are portable across provider
+// packages; the constants below declare the values Gemini models accept.
+// Which subset a specific model supports is validated against the model
+// catalog in NewModel. Gemini 2.5 models use token budgets instead — see
+// WithThinkingBudget.
+type ReasoningEffort = llm.ReasoningEffort
 
 const (
-	ThinkingLevelMinimal = genai.ThinkingLevelMinimal
-	ThinkingLevelLow     = genai.ThinkingLevelLow
-	ThinkingLevelMedium  = genai.ThinkingLevelMedium
-	ThinkingLevelHigh    = genai.ThinkingLevelHigh
+	// ReasoningEffortMinimal spends the least effort while keeping thinking enabled.
+	ReasoningEffortMinimal ReasoningEffort = "minimal"
+	// ReasoningEffortLow biases the model toward fast, shallow reasoning.
+	ReasoningEffortLow ReasoningEffort = "low"
+	// ReasoningEffortMedium is the balanced middle setting.
+	ReasoningEffortMedium ReasoningEffort = "medium"
+	// ReasoningEffortHigh biases the model toward deep reasoning.
+	ReasoningEffortHigh ReasoningEffort = "high"
 )
+
+// geminiThinkingLevels maps portable reasoning efforts onto Gemini's wire
+// enum. Only efforts present in a model's catalog entry pass NewModel
+// validation, so lookups here cannot miss.
+var geminiThinkingLevels = map[ReasoningEffort]genai.ThinkingLevel{
+	ReasoningEffortMinimal: genai.ThinkingLevelMinimal,
+	ReasoningEffortLow:     genai.ThinkingLevelLow,
+	ReasoningEffortMedium:  genai.ThinkingLevelMedium,
+	ReasoningEffortHigh:    genai.ThinkingLevelHigh,
+}
 
 // Config holds the configuration for a Google Gemini model instance.
 type Config struct {
@@ -52,9 +72,9 @@ type Config struct {
 	FrequencyPenalty *float32
 
 	// Extended thinking configuration
-	EnableThinking bool   // Enable thinking for reasoning models
-	ThinkingBudget *int32 // Optional thinking budget in tokens
-	ThinkingLevel  *ThinkingLevel
+	EnableThinking  bool             // Enable thinking for reasoning models
+	ThinkingBudget  *int32           // Optional thinking budget in tokens (Gemini 2.5)
+	ReasoningEffort *ReasoningEffort // Optional reasoning depth (Gemini 3)
 
 	// Custom model name override (inherits base model capabilities)
 	CustomModelName string
@@ -240,12 +260,14 @@ func WithThinkingBudget(tokens int32) Option {
 	}
 }
 
-// WithThinkingLevel sets the reasoning depth for Gemini 3 models and enables
-// thought summaries.
-func WithThinkingLevel(level ThinkingLevel) Option {
+// WithReasoningEffort sets the reasoning depth for Gemini 3 models (sent as
+// the thinkingLevel field) and enables thought summaries. It implicitly
+// enables thinking. The value is validated against the model's supported
+// efforts in NewModel.
+func WithReasoningEffort(effort ReasoningEffort) Option {
 	return func(cfg *Config) error {
 		cfg.EnableThinking = true
-		cfg.ThinkingLevel = &level
+		cfg.ReasoningEffort = &effort
 
 		return nil
 	}
@@ -277,8 +299,8 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("%w: model name is required", llm.ErrInvalidConfig)
 	}
 
-	if c.ThinkingLevel != nil && c.ThinkingBudget != nil {
-		return fmt.Errorf("%w: thinking level and thinking budget cannot be combined", llm.ErrInvalidConfig)
+	if c.ReasoningEffort != nil && c.ThinkingBudget != nil {
+		return fmt.Errorf("%w: reasoning effort and a thinking budget cannot be combined", llm.ErrInvalidConfig)
 	}
 
 	// Validate that all set options are actually supported

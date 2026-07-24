@@ -901,14 +901,14 @@ func TestReasoningEffort(t *testing.T) {
 			model:         ModelGPT5_2,
 			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortMinimal)},
 			wantErr:       true,
-			errContains:   "does not support reasoning effort 'minimal'",
+			errContains:   "does not support reasoning effort \"minimal\"",
 		},
 		{
 			name:          "gpt-5.2-pro with ReasoningEffortNone (unsupported)",
 			model:         ModelGPT5_2Pro,
 			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortNone)},
 			wantErr:       true,
-			errContains:   "does not support reasoning effort 'none'",
+			errContains:   "does not support reasoning effort \"none\"",
 		},
 		{
 			name:          "gpt-5.1 with ReasoningEffortNone (supported)",
@@ -921,7 +921,7 @@ func TestReasoningEffort(t *testing.T) {
 			model:         ModelGPT5_1,
 			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortMinimal)},
 			wantErr:       true,
-			errContains:   "does not support reasoning effort 'minimal'",
+			errContains:   "does not support reasoning effort \"minimal\"",
 		},
 		{
 			name:          "gpt-5 with ReasoningEffortMinimal (supported for older models)",
@@ -940,14 +940,14 @@ func TestReasoningEffort(t *testing.T) {
 			model:         ModelGPT5_5,
 			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortMax)},
 			wantErr:       true,
-			errContains:   "does not support reasoning effort 'max'",
+			errContains:   "does not support reasoning effort \"max\"",
 		},
 		{
 			name:          "gpt-5.4 with ReasoningEffortMinimal (unsupported)",
 			model:         ModelGPT5_4,
 			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortMinimal)},
 			wantErr:       true,
-			errContains:   "does not support reasoning effort 'minimal'",
+			errContains:   "does not support reasoning effort \"minimal\"",
 		},
 		{
 			name:          "gpt-5.3-chat-latest with ReasoningEffortMedium (supported)",
@@ -960,7 +960,7 @@ func TestReasoningEffort(t *testing.T) {
 			model:         ModelGPT5_3ChatLatest,
 			reasoningOpts: []Option{WithReasoningEffort(ReasoningEffortHigh)},
 			wantErr:       true,
-			errContains:   "does not support reasoning effort 'high'",
+			errContains:   "does not support reasoning effort \"high\"",
 		},
 		{
 			name:          "o3 with ReasoningEffortLow (supported)",

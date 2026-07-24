@@ -28,7 +28,10 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
-var _ llm.Model = (*Model)(nil)
+var (
+	_ llm.Model                 = (*Model)(nil)
+	_ llm.ReasoningEffortLister = (*Model)(nil)
+)
 
 // Model implements the llm.Model interface for Google Gemini models.
 type Model struct {
@@ -60,10 +63,11 @@ func (m *Model) Constraints() llm.ModelConstraints {
 	return m.definition.Constraints
 }
 
-// SupportedThinkingLevels returns the thinking levels accepted by the model.
-// An empty slice means the model uses token budgets instead.
-func (m *Model) SupportedThinkingLevels() []ThinkingLevel {
-	return slices.Clone(m.definition.SupportedThinkingLevels)
+// SupportedReasoningEfforts returns the reasoning efforts this model accepts,
+// in ascending order. Empty for Gemini 2.5 models, which use token budgets
+// instead — see WithThinkingBudget.
+func (m *Model) SupportedReasoningEfforts() []llm.ReasoningEffort {
+	return slices.Clone(m.definition.SupportedReasoningEfforts)
 }
 
 // Generate performs a single, non-streaming request to the Google API.

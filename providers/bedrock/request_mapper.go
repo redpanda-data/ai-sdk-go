@@ -93,7 +93,7 @@ func (rm *RequestMapper) buildConverseParams(req *llm.Request) (*converseParams,
 		infConfig: rm.buildInferenceConfig(),
 	}
 
-	if rm.config.EnableThinking {
+	if rm.config.EnableThinking || rm.config.ReasoningEffort != nil {
 		p.thinking = rm.buildThinkingFields()
 	}
 
@@ -146,27 +146,30 @@ func (rm *RequestMapper) buildInferenceConfig() *types.InferenceConfiguration {
 // buildThinkingFields returns the additionalModelRequestFields document for
 // the configured thinking mode.
 func (rm *RequestMapper) buildThinkingFields() document.Interface {
-	if rm.config.AdaptiveThinking {
-		fields := map[string]any{
+	// A manual budget (WithThinking) requests classic extended thinking.
+	if rm.config.BudgetTokens > 0 {
+		return document.NewLazyDocument(map[string]any{
 			"thinking": map[string]any{
-				"type": "adaptive",
+				"type":          "enabled",
+				"budget_tokens": rm.config.BudgetTokens,
 			},
-		}
-		if rm.config.Effort != nil {
-			fields["output_config"] = map[string]any{
-				"effort": *rm.config.Effort,
-			}
-		}
-
-		return document.NewLazyDocument(fields)
+		})
 	}
 
-	return document.NewLazyDocument(map[string]any{
+	// Otherwise thinking is adaptive: the model decides how long to think,
+	// optionally biased by the reasoning effort (WithReasoningEffort).
+	fields := map[string]any{
 		"thinking": map[string]any{
-			"type":          "enabled",
-			"budget_tokens": rm.config.BudgetTokens,
+			"type": "adaptive",
 		},
-	})
+	}
+	if rm.config.ReasoningEffort != nil {
+		fields["output_config"] = map[string]any{
+			"effort": *rm.config.ReasoningEffort,
+		}
+	}
+
+	return document.NewLazyDocument(fields)
 }
 
 // mapMessages converts llm.Messages to Bedrock Converse types, separating system messages.
