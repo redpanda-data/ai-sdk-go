@@ -119,11 +119,15 @@ var supportedModels = map[string]ModelDefinition{
 			Reasoning:        true, // Adaptive thinking only; use effort to bias toward more/less thinking
 		},
 		Constraints: llm.ModelConstraints{
-			MaxInputTokens:  1000000, // 1M context window
-			MaxOutputTokens: 128000,  // 128K output tokens
+			TemperatureRange: [2]float64{1, 1},
+			TopPRange:        [2]float64{0.99, 1},
+			MaxInputTokens:   1000000, // 1M context window
+			MaxOutputTokens:  128000,  // 128K output tokens
 			// Fable 5 rejects thinking.type.enabled — thinking budget is not user-controllable.
+			// It accepts only the default temperature and top_p >= 0.99:
+			// https://platform.claude.com/docs/en/api/messages
 			// Use adaptive thinking + effort to bias reasoning depth. No fast mode, so no "speed".
-			SupportedParams:   []string{"max_tokens", "effort"},
+			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "effort"},
 			MutuallyExclusive: [][]string{},
 		},
 		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax},
@@ -247,9 +251,11 @@ var supportedModels = map[string]ModelDefinition{
 			Reasoning:        true, // Extended thinking + adaptive thinking support
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 1.0},
-			MaxInputTokens:    1000000, // Native 1M context window
-			MaxOutputTokens:   64000,   // 64K output tokens
+			TemperatureRange: [2]float64{0.0, 1.0},
+			MaxInputTokens:   1000000, // Native 1M context window
+			// Native Anthropic supports 128K output; Bedrock currently limits
+			// this model to 64K.
+			MaxOutputTokens:   128000,
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "effort", "thinking_budget"},
 			MutuallyExclusive: [][]string{},
 		},

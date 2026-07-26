@@ -53,7 +53,7 @@ func TestInferenceProfileRegion(t *testing.T) {
 		{"", "us"},
 		{"unknown", ""},
 		{"cn-north-1", ""},
-		{"us-gov-west-1", ""},
+		{"us-gov-west-1", "us"},
 	}
 
 	for _, tt := range tests {
@@ -484,7 +484,7 @@ func TestNewModel_GeoProfileOrGlobalFallback(t *testing.T) {
 func TestNewModel_UnknownRegionFailsAtConstruction(t *testing.T) {
 	t.Parallel()
 
-	for _, region := range []string{"cn-north-1", "us-gov-west-1", "unknown"} {
+	for _, region := range []string{"cn-north-1", "unknown"} {
 		t.Run(region, func(t *testing.T) {
 			t.Parallel()
 
@@ -493,6 +493,43 @@ func TestNewModel_UnknownRegionFailsAtConstruction(t *testing.T) {
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "unsupported Bedrock model")
 			assert.Contains(t, err.Error(), region)
+		})
+	}
+}
+
+func TestNewModel_ModelSpecificUSRouting(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name    string
+		region  string
+		modelID string
+		wantID  string
+		wantErr bool
+	}{
+		{"Sonnet 4.5 from GovCloud", "us-gov-west-1", ModelClaudeSonnet45, ModelClaudeSonnet45US, false},
+		{"Opus 4.8 from GovCloud", "us-gov-west-1", ModelClaudeOpus48, "", true},
+		{"Haiku 4.5 from Calgary", "ca-west-1", ModelClaudeHaiku45, ModelClaudeHaiku45Global, false},
+		{"Opus 4.5 from Calgary", "ca-west-1", ModelClaudeOpus45, ModelClaudeOpus45Global, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			p := &Provider{client: nil, region: tt.region}
+
+			model, err := p.NewModel(tt.modelID)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.region)
+
+				return
+			}
+
+			require.NoError(t, err)
+
+			m, ok := model.(*Model)
+			require.True(t, ok)
+			assert.Equal(t, tt.wantID, m.config.APIModelID)
 		})
 	}
 }
@@ -615,7 +652,6 @@ func TestNewModel_RestrictedClaudeSamplingParametersRejected(t *testing.T) {
 	}
 
 	for _, model := range []string{
-		ModelClaudeFable5,
 		ModelClaudeOpus47US,
 		ModelClaudeOpus48US,
 		ModelClaudeSonnet5US,
@@ -632,6 +668,36 @@ func TestNewModel_RestrictedClaudeSamplingParametersRejected(t *testing.T) {
 					assert.Contains(t, err.Error(), tt.want)
 				})
 			}
+		})
+	}
+}
+
+func TestNewModel_Fable5SamplingParameters(t *testing.T) {
+	t.Parallel()
+
+	p := &Provider{client: nil, region: "us-east-1"}
+
+	for _, tt := range []struct {
+		name    string
+		opt     Option
+		wantErr bool
+	}{
+		{"default temperature", WithTemperature(1), false},
+		{"non-default temperature", WithTemperature(0.5), true},
+		{"minimum top_p", WithTopP(0.99), false},
+		{"top_p below minimum", WithTopP(0.98), true},
+		{"top_p maximum is exclusive", WithTopP(1), true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := p.NewModel(ModelClaudeFable5, tt.opt)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
 		})
 	}
 }
@@ -1302,7 +1368,7 @@ func TestWithTopP_OutOfRange(t *testing.T) {
 
 	_, err := p.NewModel(ModelClaudeSonnet46, WithTopP(1.5))
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "top_p must be 0.0-1.0")
+	assert.Contains(t, err.Error(), "top_p")
 }
 
 func TestWithMaxTokens_Negative(t *testing.T) {

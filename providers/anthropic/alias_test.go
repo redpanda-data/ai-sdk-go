@@ -166,7 +166,7 @@ func TestSonnet46ContextLimits(t *testing.T) {
 	def, ok := supportedModels[ModelClaudeSonnet46]
 	require.True(t, ok)
 	assert.Equal(t, 1_000_000, def.Constraints.MaxInputTokens)
-	assert.Equal(t, 64_000, def.Constraints.MaxOutputTokens)
+	assert.Equal(t, 128_000, def.Constraints.MaxOutputTokens)
 }
 
 func TestUnsupportedModelRejected(t *testing.T) {
@@ -389,7 +389,6 @@ func TestSamplingParametersRejected(t *testing.T) {
 	}
 
 	for _, model := range []string{
-		ModelClaudeFable5,
 		ModelClaudeOpus47,
 		ModelClaudeOpus48,
 		ModelClaudeSonnet5,
@@ -406,6 +405,38 @@ func TestSamplingParametersRejected(t *testing.T) {
 					assert.Contains(t, err.Error(), tt.want)
 				})
 			}
+		})
+	}
+}
+
+func TestFable5SamplingParameters(t *testing.T) {
+	t.Parallel()
+
+	provider, err := NewProvider("test-key")
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		name    string
+		opt     Option
+		wantErr bool
+	}{
+		{"default temperature", WithTemperature(1), false},
+		{"non-default temperature", WithTemperature(0.5), true},
+		{"minimum top_p", WithTopP(0.99), false},
+		{"top_p below minimum", WithTopP(0.98), true},
+		{"top_p maximum", WithTopP(1), false},
+		{"top_k unsupported", WithTopK(10), true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := provider.NewModel(ModelClaudeFable5, tt.opt)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
 		})
 	}
 }

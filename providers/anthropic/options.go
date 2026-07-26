@@ -94,8 +94,8 @@ func WithTopP(topP float64) Option {
 			return fmt.Errorf("%s: %w", cfg.ModelName, err)
 		}
 
-		if topP < 0 || topP > 1 {
-			return fmt.Errorf("%s: top_p must be 0.0-1.0, got %f", cfg.ModelName, topP)
+		if err = cfg.Constraints.ValidateTopP(topP); err != nil {
+			return fmt.Errorf("%s: %w", cfg.ModelName, err)
 		}
 
 		cfg.setOptions["top_p"] = true

@@ -210,9 +210,9 @@ func WithCachingDisabled() ProviderOption {
 // An unprefixed inference-profile model ID prefers the AWS source region's geo
 // profile. If that model has no profile for the geography, NewModel falls back
 // to its global profile, which has different data-residency semantics. Unknown,
-// China, and GovCloud regions fail instead of guessing; an unset region keeps
-// the historical US default. Already-prefixed IDs and exact catalog matches
-// are used as provided.
+// China, and unsupported GovCloud combinations fail instead of guessing; an
+// unset region keeps the historical US default. Already-prefixed IDs and exact
+// catalog matches are used as provided.
 func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error) {
 	// Build the API model ID. Most Bedrock models are cross-region inference
 	// profiles, so an un-prefixed name prefers the source region's geo profile
@@ -228,7 +228,8 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 				apiModelID = geoModelID
 			} else {
 				globalModelID := "global." + apiModelID
-				if _, ok := lookupModel(globalModelID); ok {
+				if _, ok := lookupModel(globalModelID); ok &&
+					(p.region == "" || IsModelAllowedFromRegion(globalModelID, p.region)) {
 					apiModelID = globalModelID
 				}
 			}

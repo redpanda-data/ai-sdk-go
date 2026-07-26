@@ -257,8 +257,9 @@ func InferenceProfileRegion(region string) string {
 // "us.anthropic.claude-sonnet-4-6" or the "global" in
 // "global.anthropic.claude-opus-4-6-v1".
 var geoProfilePrefixes = map[string]bool{
-	"us":     true,
-	"eu":     true,
+	"us": true,
+	"eu": true,
+	// Retained so caller-supplied apac.* IDs are not double-prefixed.
 	"apac":   true,
 	"jp":     true,
 	"au":     true,
@@ -322,6 +323,15 @@ var (
 		MaxInputTokens:  1000000,
 		MaxOutputTokens: 128000,
 		SupportedParams: []string{"max_tokens", "stop"},
+	}
+
+	claudeFable5Constraints = llm.ModelConstraints{
+		TemperatureRange: [2]float64{1, 1},
+		TopPRange:        [2]float64{0.99, 1},
+		TopPMaxExclusive: true,
+		MaxInputTokens:   1000000,
+		MaxOutputTokens:  128000,
+		SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 	}
 
 	claudeContext1M64kConstraints = llm.ModelConstraints{
@@ -477,7 +487,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:                        ModelClaudeFable5Global,
 		Label:                       "Claude Fable 5 (Global)",
 		Capabilities:                claudeStandardCaps,
-		Constraints:                 claudeNoSampling1MConstraints,
+		Constraints:                 claudeFable5Constraints,
 		RequiresProviderDataSharing: true,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(10.00, 50.00, 1.00).WithCacheCreation(12.50, 20.00, 0),
@@ -487,7 +497,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:                        ModelClaudeFable5US,
 		Label:                       "Claude Fable 5 (US)",
 		Capabilities:                claudeStandardCaps,
-		Constraints:                 claudeNoSampling1MConstraints,
+		Constraints:                 claudeFable5Constraints,
 		RequiresProviderDataSharing: true,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(13.75, 22.00, 0),
@@ -667,8 +677,9 @@ var supportedModels = map[string]ModelDefinition{
 	},
 
 	// ----------------------------------------------------------------
-	// Claude Sonnet 5 — inference-profile-only, no bare entry. Only us
-	// and global are published so far (see const block); 1M context.
+	// Claude Sonnet 5 — inference-profile-only, no bare entry. AWS currently
+	// publishes only US and global profiles:
+	// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-5.html
 	// ----------------------------------------------------------------
 	ModelClaudeSonnet5Global: {
 		Name:         ModelClaudeSonnet5Global,

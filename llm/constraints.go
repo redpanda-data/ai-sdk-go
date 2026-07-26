@@ -25,6 +25,12 @@ type ModelConstraints struct {
 	// TemperatureRange defines the valid range for temperature parameter [min, max]
 	TemperatureRange [2]float64
 
+	// TopPRange defines the valid range for top_p. The zero value uses [0, 1].
+	TopPRange [2]float64
+
+	// TopPMaxExclusive makes the upper bound of TopPRange exclusive.
+	TopPMaxExclusive bool
+
 	// MaxInputTokens is the maximum context window size (input tokens)
 	MaxInputTokens int
 
@@ -70,6 +76,30 @@ func (c *ModelConstraints) ValidateTemperature(temp float64) error {
 	minTemp, maxTemp := c.TemperatureRange[0], c.TemperatureRange[1]
 	if temp < minTemp || temp > maxTemp {
 		return fmt.Errorf("temperature %f out of range [%f, %f]", temp, minTemp, maxTemp)
+	}
+
+	return nil
+}
+
+// ValidateTopP checks if a top_p value is valid for these constraints.
+func (c *ModelConstraints) ValidateTopP(topP float64) error {
+	minTopP, maxTopP := c.TopPRange[0], c.TopPRange[1]
+	if c.TopPRange == [2]float64{} {
+		maxTopP = 1
+	}
+
+	outOfRange := topP < minTopP || topP > maxTopP
+	if c.TopPMaxExclusive {
+		outOfRange = outOfRange || topP == maxTopP
+	}
+
+	if outOfRange {
+		closingBracket := "]"
+		if c.TopPMaxExclusive {
+			closingBracket = ")"
+		}
+
+		return fmt.Errorf("top_p %f out of range [%f, %f%s", topP, minTopP, maxTopP, closingBracket)
 	}
 
 	return nil

@@ -19,11 +19,10 @@ import "strings"
 // IsModelAllowedFromRegion reports whether invoking modelID from awsRegion
 // crosses a Bedrock inference-profile geography boundary.
 //
-// Bedrock geo inference profiles (us./eu./au./jp.) only accept source regions
-// in the same geography. The "global." profile is unrestricted, and bare
-// model IDs (no profile prefix) defer to AWS in-region availability. This
-// function returns false only for the cross-geography case — e.g. "eu.*"
-// invoked from us-east-1, or "jp.*" invoked from eu-west-1.
+// Bedrock geo inference profiles (us./eu./au./jp.) accept only the source
+// regions listed on each model card. The "global." profile is unrestricted
+// outside GovCloud, and bare model IDs (no profile prefix) defer to AWS
+// in-region availability.
 //
 // Unknown regions and regions that AWS lists as global-only (no Geo profile
 // at all, e.g. me-central-1, sa-east-1) cause any prefixed call other than
@@ -45,6 +44,13 @@ func IsModelAllowedFromRegion(modelID, awsRegion string) bool {
 	}
 
 	prefix, _, _ := strings.Cut(modelID, ".")
+
+	// The Sonnet 4.5 US profile is the only current Claude profile published
+	// for GovCloud source regions. Global routing is not available there.
+	if strings.HasPrefix(awsRegion, "us-gov-") {
+		return modelID == ModelClaudeSonnet45US
+	}
+
 	if prefix == "global" {
 		return true
 	}
@@ -54,6 +60,8 @@ func IsModelAllowedFromRegion(modelID, awsRegion string) bool {
 	switch modelID {
 	case ModelClaudeOpus47AU, ModelClaudeOpus48AU:
 		return awsRegion == "ap-southeast-2" || awsRegion == "ap-southeast-4"
+	case ModelClaudeHaiku45US, ModelClaudeOpus45US:
+		return awsRegion != "ca-west-1" && prefix == sourceRegionGeoPrefix(awsRegion)
 	}
 
 	return prefix == sourceRegionGeoPrefix(awsRegion)
@@ -70,13 +78,9 @@ func IsModelAllowedFromRegion(modelID, awsRegion string) bool {
 //   - https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-4-7.html
 //   - https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-4-8.html
 //   - https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-haiku-4-5.html
+//   - https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-4-5.html
+//   - https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-4-5.html
 func sourceRegionGeoPrefix(awsRegion string) string {
-	// GovCloud profile availability is model-specific, so the default bare-ID
-	// resolver does not infer a profile there.
-	if strings.HasPrefix(awsRegion, "us-gov-") {
-		return ""
-	}
-
 	// Regions where the geo doesn't match the AWS region prefix —
 	// Canada is part of the US Geo, ap-northeast-* maps to JP, and a
 	// subset of ap-southeast-* maps to AU.
@@ -89,7 +93,7 @@ func sourceRegionGeoPrefix(awsRegion string) string {
 		return "au"
 	}
 
-	// Commercial us-* and eu-* regions line up with their region prefix.
+	// US (including GovCloud) and EU regions line up with their region prefix.
 	idx := strings.IndexByte(awsRegion, '-')
 	if idx <= 0 {
 		return ""
