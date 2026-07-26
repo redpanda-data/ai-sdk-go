@@ -16,6 +16,12 @@ package bedrock
 
 import "strings"
 
+const (
+	awsRegionCalgary   = "ca-west-1"
+	awsRegionMelbourne = "ap-southeast-4"
+	awsRegionSydney    = "ap-southeast-2"
+)
+
 // IsModelAllowedFromRegion reports whether invoking modelID from awsRegion
 // crosses a Bedrock inference-profile geography boundary.
 //
@@ -45,16 +51,20 @@ func IsModelAllowedFromRegion(modelID, awsRegion string) bool {
 
 	prefix, _, _ := strings.Cut(modelID, ".")
 
-	// The Sonnet 4.5 US profile is the only current Claude profile published
-	// for GovCloud in its source-region table. The Opus 4.8 card's summary
-	// claims GovCloud support but its source table omits both GovCloud regions,
-	// so use the stricter source-table interpretation. Global is unavailable.
+	// Sonnet 4.5 US is the only current catalog profile whose source-region
+	// table publishes GovCloud. The Opus 4.8 card's summary claims GovCloud
+	// support but its source table omits both regions, so use the stricter
+	// source-table interpretation. Global is unavailable.
 	if strings.HasPrefix(awsRegion, "us-gov-") {
 		return modelID == ModelClaudeSonnet45US
 	}
 
 	if strings.HasPrefix(awsRegion, "cn-") {
 		return false
+	}
+
+	if allowed, constrained := isNova2LiteSourceRegion(modelID, awsRegion); constrained {
+		return allowed
 	}
 
 	if prefix == "global" {
@@ -65,9 +75,10 @@ func IsModelAllowedFromRegion(modelID, awsRegion string) bool {
 	// Their model cards list New Zealand as global-only.
 	switch modelID {
 	case ModelClaudeOpus47AU, ModelClaudeOpus48AU:
-		return awsRegion == "ap-southeast-2" || awsRegion == "ap-southeast-4"
+		return awsRegion == awsRegionSydney || awsRegion == awsRegionMelbourne
 	case ModelClaudeHaiku45US, ModelClaudeOpus45US, ModelClaudeSonnet45US:
-		return awsRegion != "ca-west-1" && prefix == sourceRegionGeoPrefix(awsRegion)
+		// These cards mark Calgary Geo unsupported and omit it from Geo: US.
+		return awsRegion != awsRegionCalgary && prefix == sourceRegionGeoPrefix(awsRegion)
 	}
 
 	return prefix == sourceRegionGeoPrefix(awsRegion)
@@ -86,16 +97,17 @@ func IsModelAllowedFromRegion(modelID, awsRegion string) bool {
 //   - https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-haiku-4-5.html
 //   - https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-4-5.html
 //   - https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-4-5.html
+//   - https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-amazon-nova-2-lite.html
 func sourceRegionGeoPrefix(awsRegion string) string {
 	// Regions where the geo doesn't match the AWS region prefix —
 	// Canada is part of the US Geo, ap-northeast-* maps to JP, and a
 	// subset of ap-southeast-* maps to AU.
 	switch awsRegion {
-	case "ca-central-1", "ca-west-1":
+	case "ca-central-1", awsRegionCalgary:
 		return "us"
 	case "ap-northeast-1", "ap-northeast-3":
 		return "jp"
-	case "ap-southeast-2", "ap-southeast-4", "ap-southeast-6":
+	case awsRegionSydney, awsRegionMelbourne, "ap-southeast-6":
 		return "au"
 	}
 
@@ -115,4 +127,36 @@ func sourceRegionGeoPrefix(awsRegion string) string {
 
 	// Unknown region.
 	return ""
+}
+
+// isNova2LiteSourceRegion applies Nova 2 Lite's narrower published source
+// tables. It returns constrained=false for every other model.
+func isNova2LiteSourceRegion(modelID, awsRegion string) (bool, bool) {
+	switch modelID {
+	case ModelNova2LiteEU:
+		switch awsRegion {
+		case "eu-central-1", "eu-north-1", "eu-south-1", "eu-south-2", "eu-west-1", "eu-west-3":
+			return true, true
+		default:
+			return false, true
+		}
+	case ModelNova2LiteJP:
+		return awsRegion == "ap-northeast-1", true
+	case ModelNova2LiteGlobal:
+		switch awsRegion {
+		case "us-east-1", "us-east-2", "us-west-1", "us-west-2",
+			"ca-central-1", awsRegionCalgary,
+			"eu-central-1", "eu-north-1", "eu-south-1", "eu-south-2",
+			"eu-west-1", "eu-west-2", "eu-west-3",
+			"il-central-1", "me-central-1",
+			"ap-east-2", "ap-northeast-1", "ap-northeast-2", "ap-south-1",
+			"ap-southeast-1", awsRegionSydney, "ap-southeast-3",
+			awsRegionMelbourne, "ap-southeast-5", "ap-southeast-6", "ap-southeast-7":
+			return true, true
+		default:
+			return false, true
+		}
+	default:
+		return false, false
+	}
 }

@@ -39,7 +39,7 @@ func TestIsModelAllowedFromRegion(t *testing.T) {
 		{"sonnet5 us from eu-west-1 (cross-geo)", ModelClaudeSonnet5US, "eu-west-1", false},
 		{"sonnet5 global from me-central-1", ModelClaudeSonnet5Global, "me-central-1", true},
 
-		// global.* is always allowed.
+		// Published global source regions are allowed.
 		{"global from us", ModelClaudeSonnet46Global, "us-east-1", true},
 		{"global from eu", ModelClaudeSonnet46Global, "eu-west-1", true},
 		{"global from me-central-1", ModelClaudeOpus46Global, "me-central-1", true},
@@ -69,7 +69,11 @@ func TestIsModelAllowedFromRegion(t *testing.T) {
 		{"nova2 bare from us", ModelNova2Lite, "us-east-1", true},
 		{"nova2 us from us-east-1", ModelNova2LiteUS, "us-east-1", true},
 		{"nova2 eu from eu-west-1", ModelNova2LiteEU, "eu-west-1", true},
+		{"nova2 eu from eu-west-2 (London)", ModelNova2LiteEU, "eu-west-2", false},
+		{"nova2 eu from eu-central-2 (Zurich)", ModelNova2LiteEU, "eu-central-2", false},
 		{"nova2 jp from ap-northeast-1 (Tokyo)", ModelNova2LiteJP, "ap-northeast-1", true},
+		{"nova2 jp from ap-northeast-3 (Osaka)", ModelNova2LiteJP, "ap-northeast-3", false},
+		{"nova2 global from ap-northeast-3 (Osaka)", ModelNova2LiteGlobal, "ap-northeast-3", false},
 		{"nova2 global from me-central-1", ModelNova2LiteGlobal, "me-central-1", true},
 		{"nova2 us from eu-west-1 (cross-geo)", ModelNova2LiteUS, "eu-west-1", false},
 		{"nova2 eu from us-east-1 (cross-geo)", ModelNova2LiteEU, "us-east-1", false},

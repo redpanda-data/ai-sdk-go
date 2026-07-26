@@ -510,6 +510,10 @@ func TestNewModel_PrefixedProfileRegionValidation(t *testing.T) {
 	}{
 		{"global from China", "cn-north-1", ModelClaudeSonnet46Global, true},
 		{"EU from US", "us-east-1", ModelClaudeSonnet46EU, true},
+		{"Opus 4.8 AU from New Zealand", "ap-southeast-6", ModelClaudeOpus48AU, true},
+		{"Haiku 4.5 US from Calgary", "ca-west-1", ModelClaudeHaiku45US, true},
+		{"Nova EU from London", "eu-west-2", ModelNova2LiteEU, true},
+		{"Nova JP from Osaka", "ap-northeast-3", ModelNova2LiteJP, true},
 		{"global from unknown region", "unknown", ModelClaudeSonnet46Global, false},
 		{"Sonnet 4.5 US from GovCloud", "us-gov-east-1", ModelClaudeSonnet45US, false},
 	} {
@@ -521,10 +525,46 @@ func TestNewModel_PrefixedProfileRegionValidation(t *testing.T) {
 			_, err := p.NewModel(tt.modelID)
 			if tt.wantErr {
 				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.region)
+
 				return
 			}
 
 			require.NoError(t, err)
+		})
+	}
+}
+
+func TestNewModel_Nova2LiteSourceRouting(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		region  string
+		wantID  string
+		wantErr bool
+	}{
+		{"eu-west-1", ModelNova2LiteEU, false},
+		{"eu-west-2", ModelNova2LiteGlobal, false},
+		{"eu-central-2", "", true},
+		{"ap-northeast-1", ModelNova2LiteJP, false},
+		{"ap-northeast-3", "", true},
+	} {
+		t.Run(tt.region, func(t *testing.T) {
+			t.Parallel()
+
+			p := &Provider{client: nil, region: tt.region}
+
+			model, err := p.NewModel(ModelNova2Lite)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+
+			m, ok := model.(*Model)
+			require.True(t, ok)
+			assert.Equal(t, tt.wantID, m.config.APIModelID)
 		})
 	}
 }
