@@ -64,6 +64,7 @@ func TestNative1MContextPricingStaysFlatEndToEnd(t *testing.T) {
 	usage := &llm.TokenUsage{InputTokens: 100_000, OutputTokens: 1_000}
 
 	totals := make([]int64, 0, 2)
+
 	for _, req := range []pricing.CalcRequest{
 		{},
 		{Selector: pricing.Selector{Speed: SpeedFast}},
