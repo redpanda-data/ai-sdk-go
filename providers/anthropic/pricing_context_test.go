@@ -55,6 +55,21 @@ func TestNative1MModelsStayFlatAcrossContextWindow(t *testing.T) {
 	}
 }
 
+func TestNativeCatalogHasNoContextBrackets(t *testing.T) {
+	t.Parallel()
+
+	for id, def := range supportedModels {
+		assert.Emptyf(t, def.Pricing.Default.Brackets,
+			"native model %s must not have a context pricing bracket", id)
+
+		for _, ov := range def.Pricing.Overrides {
+			assert.Emptyf(t, ov.RateCard.Brackets,
+				"model %s override %s must not have a context pricing bracket",
+				id, fmt.Sprintf("%+v", ov.Match))
+		}
+	}
+}
+
 // TestNative1MContextPricingStaysFlatEndToEnd proves a large Opus 4.8 request
 // uses the same rate card as a small request, including fast mode.
 func TestNative1MContextPricingStaysFlatEndToEnd(t *testing.T) {

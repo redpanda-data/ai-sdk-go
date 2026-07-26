@@ -548,6 +548,9 @@ func TestNewModel_Nova2LiteSourceRouting(t *testing.T) {
 		{"eu-central-2", "", true},
 		{"ap-northeast-1", ModelNova2LiteJP, false},
 		{"ap-northeast-3", "", true},
+		{"ap-southeast-2", ModelNova2LiteGlobal, false},
+		{"ap-southeast-4", ModelNova2LiteGlobal, false},
+		{"ap-southeast-6", ModelNova2LiteGlobal, false},
 	} {
 		t.Run(tt.region, func(t *testing.T) {
 			t.Parallel()

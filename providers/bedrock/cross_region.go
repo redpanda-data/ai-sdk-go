@@ -26,14 +26,15 @@ const (
 // crosses a Bedrock inference-profile geography boundary.
 //
 // Bedrock geo inference profiles (us./eu./au./jp.) accept only the source
-// regions listed on each model card. The "global." profile is unrestricted
-// outside GovCloud and China, and bare model IDs (no profile prefix) defer to AWS
-// in-region availability.
+// regions listed on each model card. Global profiles are generally broad, but
+// a model card may narrow their source regions too. Bare model IDs (no profile
+// prefix) defer to AWS in-region availability.
 //
 // Unknown regions and regions that AWS lists as global-only (no Geo profile at
-// all, e.g. me-central-1, sa-east-1) reject geo-prefixed calls but permit
-// "global.". China rejects every profile because Bedrock does not publish
-// Claude there. The SDK errs on the side of failing before an AWS API call.
+// all, e.g. me-central-1, sa-east-1) reject geo-prefixed calls. A published
+// global profile is allowed unless its model card narrows the source table.
+// China rejects every profile because Bedrock does not publish Claude there.
+// The SDK errs on the side of failing before an AWS API call.
 //
 // Examples:
 //
