@@ -96,6 +96,14 @@ func resolveModelFamily(model string) string {
 
 // supportedModels defines all Claude models with their capabilities and constraints.
 // Based on Anthropic API documentation and model specifications.
+//
+// Anthropic documents that non-default temperature, top_p, and top_k return
+// HTTP 400 on Opus 4.7+ and Sonnet 5:
+// https://platform.claude.com/docs/en/about-claude/models/migration-guide
+//
+// Among the pre-5 models, only Opus 4.8 supports fast mode; Opus 4.7 rejects
+// it and Opus 4.6 runs at standard speed and pricing:
+// https://platform.claude.com/docs/en/build-with-claude/fast-mode#supported-models
 var supportedModels = map[string]ModelDefinition{
 	ModelClaudeFable5: {
 		Name:  ModelClaudeFable5,
