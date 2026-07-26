@@ -235,8 +235,13 @@ func InferenceProfileRegion(region string) string {
 		return geo
 	}
 
-	// Keep the historical default for an unset or unrecognized region.
-	return "us"
+	// Keep the historical default when AWS config has no region. Unknown
+	// regions return empty so model construction fails before an API call.
+	if region == "" {
+		return "us"
+	}
+
+	return ""
 }
 
 // geoProfilePrefixes are the Bedrock cross-region and global inference-profile
@@ -306,17 +311,9 @@ var (
 	}
 
 	claudeNoSampling1MConstraints = llm.ModelConstraints{
-		TemperatureRange: [2]float64{0.0, 1.0},
-		MaxInputTokens:   1000000,
-		MaxOutputTokens:  128000,
-		SupportedParams:  []string{"max_tokens", "stop"},
-	}
-
-	claudeFable5Constraints = llm.ModelConstraints{
-		TemperatureRange: [2]float64{0.0, 1.0},
-		MaxInputTokens:   1000000,
-		MaxOutputTokens:  128000,
-		SupportedParams:  []string{"max_tokens", "stop"},
+		MaxInputTokens:  1000000,
+		MaxOutputTokens: 128000,
+		SupportedParams: []string{"max_tokens", "stop"},
 	}
 
 	claudeContext200kConstraints = llm.ModelConstraints{
@@ -464,7 +461,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:                        ModelClaudeFable5Global,
 		Label:                       "Claude Fable 5 (Global)",
 		Capabilities:                claudeStandardCaps,
-		Constraints:                 claudeFable5Constraints,
+		Constraints:                 claudeNoSampling1MConstraints,
 		RequiresProviderDataSharing: true,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(10.00, 50.00, 1.00).WithCacheCreation(12.50, 20.00, 0),
@@ -474,7 +471,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:                        ModelClaudeFable5US,
 		Label:                       "Claude Fable 5 (US)",
 		Capabilities:                claudeStandardCaps,
-		Constraints:                 claudeFable5Constraints,
+		Constraints:                 claudeNoSampling1MConstraints,
 		RequiresProviderDataSharing: true,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(13.75, 22.00, 0),
@@ -484,7 +481,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:                        ModelClaudeFable5EU,
 		Label:                       "Claude Fable 5 (EU)",
 		Capabilities:                claudeStandardCaps,
-		Constraints:                 claudeFable5Constraints,
+		Constraints:                 claudeNoSampling1MConstraints,
 		RequiresProviderDataSharing: true,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(13.75, 22.00, 0),

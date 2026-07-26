@@ -218,7 +218,18 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 	apiModelID := modelName
 
 	if _, registered := lookupModel(apiModelID); !registered && !hasRegionPrefix(apiModelID) {
-		apiModelID = InferenceProfileRegion(p.region) + "." + apiModelID
+		geo := InferenceProfileRegion(p.region)
+		if geo != "" {
+			geoModelID := geo + "." + apiModelID
+			if _, ok := lookupModel(geoModelID); ok {
+				apiModelID = geoModelID
+			} else {
+				globalModelID := "global." + apiModelID
+				if _, ok := lookupModel(globalModelID); ok {
+					apiModelID = globalModelID
+				}
+			}
+		}
 	}
 
 	// Look up by the prefixed ID — each inference profile variant is a

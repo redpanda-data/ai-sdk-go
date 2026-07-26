@@ -51,7 +51,9 @@ func TestInferenceProfileRegion(t *testing.T) {
 		{"ap-northeast-3", "jp"},
 		{"ap-south-1", "global"},
 		{"", "us"},
-		{"unknown", "us"},
+		{"unknown", ""},
+		{"cn-north-1", ""},
+		{"us-gov-west-1", ""},
 	}
 
 	for _, tt := range tests {
@@ -438,6 +440,67 @@ func TestNewModel_GlobalOnlyRegionSelectsGlobalProfile(t *testing.T) {
 	assert.Equal(t, ModelClaudeHaiku45Global, m.config.APIModelID)
 }
 
+func TestNewModel_GeoProfileOrGlobalFallback(t *testing.T) {
+	t.Parallel()
+
+	models := []string{
+		ModelClaudeFable5,
+		ModelClaudeSonnet5,
+		ModelClaudeSonnet46,
+		ModelClaudeSonnet45,
+		ModelClaudeHaiku45,
+		ModelClaudeOpus48,
+		ModelClaudeOpus47,
+		ModelClaudeOpus46,
+		ModelClaudeOpus45,
+	}
+	regions := []struct {
+		region string
+		geo    string
+	}{
+		{"ap-northeast-1", "jp"},
+		{"ap-southeast-2", "au"},
+	}
+
+	for _, region := range regions {
+		for _, modelID := range models {
+			t.Run(region.region+"/"+modelID, func(t *testing.T) {
+				t.Parallel()
+
+				wantID := region.geo + "." + modelID
+				if _, ok := lookupModel(wantID); !ok {
+					wantID = "global." + modelID
+					_, globalRegistered := lookupModel(wantID)
+					require.True(t, globalRegistered, "missing both %s and global profile", region.geo)
+				}
+
+				p := &Provider{client: nil, region: region.region}
+				model, err := p.NewModel(modelID)
+				require.NoError(t, err)
+
+				m, ok := model.(*Model)
+				require.True(t, ok)
+				assert.Equal(t, wantID, m.config.APIModelID)
+			})
+		}
+	}
+}
+
+func TestNewModel_UnknownRegionFailsAtConstruction(t *testing.T) {
+	t.Parallel()
+
+	for _, region := range []string{"cn-north-1", "us-gov-west-1", "unknown"} {
+		t.Run(region, func(t *testing.T) {
+			t.Parallel()
+
+			p := &Provider{client: nil, region: region}
+			_, err := p.NewModel(ModelClaudeSonnet46)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "unsupported Bedrock model")
+		})
+	}
+}
+
 func TestNewModel_USRegionPrefix(t *testing.T) {
 	t.Parallel()
 
@@ -519,9 +582,13 @@ func TestNewModel_RestrictedClaudeSamplingParametersRejected(t *testing.T) {
 			t.Parallel()
 
 			for _, tt := range options {
-				_, err := p.NewModel(model, tt.opt)
-				require.Error(t, err, tt.name)
-				assert.Contains(t, err.Error(), tt.want, tt.name)
+				t.Run(tt.name, func(t *testing.T) {
+					t.Parallel()
+
+					_, err := p.NewModel(model, tt.opt)
+					require.Error(t, err)
+					assert.Contains(t, err.Error(), tt.want)
+				})
 			}
 		})
 	}

@@ -312,10 +312,10 @@ func TestWithSpeed(t *testing.T) {
 	provider, err := NewProvider("test-key")
 	require.NoError(t, err)
 
-	t.Run("fast speed on Opus 4.6", func(t *testing.T) {
+	t.Run("fast speed on Opus 4.8", func(t *testing.T) {
 		t.Parallel()
 
-		model, err := provider.NewModel(ModelClaudeOpus46, WithSpeed(SpeedFast))
+		model, err := provider.NewModel(ModelClaudeOpus48, WithSpeed(SpeedFast))
 		require.NoError(t, err)
 
 		m, ok := model.(*Model)
@@ -324,41 +324,21 @@ func TestWithSpeed(t *testing.T) {
 		assert.Equal(t, SpeedFast, *m.config.Speed)
 	})
 
-	t.Run("standard speed on Opus 4.6", func(t *testing.T) {
-		t.Parallel()
+	for _, model := range []string{
+		ModelClaudeFable5,
+		ModelClaudeOpus46,
+		ModelClaudeOpus47,
+		ModelClaudeSonnet46,
+		ModelClaudeSonnet45,
+	} {
+		t.Run("rejected on "+model, func(t *testing.T) {
+			t.Parallel()
 
-		model, err := provider.NewModel(ModelClaudeOpus46, WithSpeed(SpeedStandard))
-		require.NoError(t, err)
-
-		m, ok := model.(*Model)
-		require.True(t, ok)
-		require.NotNil(t, m.config.Speed)
-		assert.Equal(t, SpeedStandard, *m.config.Speed)
-	})
-
-	t.Run("rejected on model without speed support", func(t *testing.T) {
-		t.Parallel()
-
-		_, err := provider.NewModel(ModelClaudeSonnet46, WithSpeed(SpeedFast))
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "speed")
-	})
-
-	t.Run("rejected on Sonnet 4.5", func(t *testing.T) {
-		t.Parallel()
-
-		_, err := provider.NewModel(ModelClaudeSonnet45, WithSpeed(SpeedFast))
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "speed")
-	})
-
-	t.Run("rejected on Fable 5", func(t *testing.T) {
-		t.Parallel()
-
-		_, err := provider.NewModel(ModelClaudeFable5, WithSpeed(SpeedFast))
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "speed")
-	})
+			_, err := provider.NewModel(model, WithSpeed(SpeedFast))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "speed")
+		})
+	}
 }
 
 func TestSamplingParametersRejected(t *testing.T) {
@@ -387,9 +367,13 @@ func TestSamplingParametersRejected(t *testing.T) {
 			t.Parallel()
 
 			for _, tt := range options {
-				_, err := provider.NewModel(model, tt.opt)
-				require.Error(t, err, tt.name)
-				assert.Contains(t, err.Error(), tt.want, tt.name)
+				t.Run(tt.name, func(t *testing.T) {
+					t.Parallel()
+
+					_, err := provider.NewModel(model, tt.opt)
+					require.Error(t, err)
+					assert.Contains(t, err.Error(), tt.want)
+				})
 			}
 		})
 	}

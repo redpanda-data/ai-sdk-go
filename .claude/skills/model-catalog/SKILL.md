@@ -95,9 +95,9 @@ page publishes one for that exact model.
 
 Cache rates derive from Anthropic's prompt-caching multipliers off base input:
 5m-write 1.25x, 1h-write 2x, cache-read 0.10x. These stay flat across the native
-1M window. `TestAllModelsStayFlatAcrossContextWindow` and
+1M window. `TestNative1MModelsStayFlatAcrossContextWindow` and
 `TestNative1MContextPricingStaysFlatEndToEnd` in
-`providers/anthropic/pricing_longcontext_test.go` guard this contract.
+`providers/anthropic/pricing_context_test.go` guard this contract.
 
 ## Verify the real context window empirically
 

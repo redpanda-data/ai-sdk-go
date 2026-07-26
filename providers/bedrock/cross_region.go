@@ -60,6 +60,11 @@ func IsModelAllowedFromRegion(modelID, awsRegion string) bool {
 // This is the default profile family used for bare-ID resolution. Individual
 // model cards may narrow availability within a geography.
 func sourceRegionGeoPrefix(awsRegion string) string {
+	// Bedrock does not publish these Claude inference profiles in GovCloud.
+	if strings.HasPrefix(awsRegion, "us-gov-") {
+		return ""
+	}
+
 	// Regions where the geo doesn't match the AWS region prefix —
 	// Canada is part of the US Geo, ap-northeast-* maps to JP, and a
 	// subset of ap-southeast-* maps to AU.
@@ -72,7 +77,7 @@ func sourceRegionGeoPrefix(awsRegion string) string {
 		return "au"
 	}
 
-	// us-* (incl. us-gov-*) and eu-* line up with their region prefix.
+	// Commercial us-* and eu-* regions line up with their region prefix.
 	idx := strings.IndexByte(awsRegion, '-')
 	if idx <= 0 {
 		return ""
