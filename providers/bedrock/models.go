@@ -221,24 +221,22 @@ func (d ModelDefinition) discoveryMetadata() map[string]string {
 // InferenceProfileRegion maps an AWS region to the Bedrock cross-region
 // inference profile geographic prefix.
 //
-// AWS uses these prefixes:
+// AWS commonly uses these prefixes. Exact source-region availability remains
+// model-specific; this function selects the catalog's default profile family:
 //   - "us"   for US regions        (us-east-1, us-west-2, …)
 //   - "eu"   for European regions  (eu-west-1, eu-central-1, …)
-//   - "apac" for Asia Pacific      (ap-southeast-1, ap-northeast-1, …)
+//   - "au"   for Australia/NZ      (ap-southeast-2, ap-southeast-4, ap-southeast-6)
+//   - "jp"   for Japan             (ap-northeast-1, ap-northeast-3)
+//   - "global" for regions without a published Geo profile
 //
 // See https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference-support.html
 func InferenceProfileRegion(region string) string {
-	idx := strings.IndexByte(region, '-')
-	if idx <= 0 {
-		return "us"
+	if geo := sourceRegionGeoPrefix(region); geo != "" {
+		return geo
 	}
 
-	prefix := region[:idx]
-	if prefix == "ap" {
-		return "apac"
-	}
-
-	return prefix
+	// Keep the historical default for an unset or unrecognized region.
+	return "us"
 }
 
 // geoProfilePrefixes are the Bedrock cross-region and global inference-profile
@@ -305,6 +303,13 @@ var (
 		MaxInputTokens:   1000000,
 		MaxOutputTokens:  128000,
 		SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
+	}
+
+	claudeNoSampling1MConstraints = llm.ModelConstraints{
+		TemperatureRange: [2]float64{0.0, 1.0},
+		MaxInputTokens:   1000000,
+		MaxOutputTokens:  128000,
+		SupportedParams:  []string{"max_tokens", "stop"},
 	}
 
 	claudeFable5Constraints = llm.ModelConstraints{
@@ -494,7 +499,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:         ModelClaudeOpus48Global,
 		Label:        "Claude Opus 4.8 (Global)",
 		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext1MConstraints,
+		Constraints:  claudeNoSampling1MConstraints,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
 		),
@@ -503,7 +508,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:         ModelClaudeOpus48US,
 		Label:        "Claude Opus 4.8 (US)",
 		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext1MConstraints,
+		Constraints:  claudeNoSampling1MConstraints,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
 		),
@@ -512,7 +517,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:         ModelClaudeOpus48EU,
 		Label:        "Claude Opus 4.8 (EU)",
 		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext1MConstraints,
+		Constraints:  claudeNoSampling1MConstraints,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
 		),
@@ -521,7 +526,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:         ModelClaudeOpus48JP,
 		Label:        "Claude Opus 4.8 (JP)",
 		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext1MConstraints,
+		Constraints:  claudeNoSampling1MConstraints,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
 		),
@@ -535,7 +540,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:         ModelClaudeOpus47Global,
 		Label:        "Claude Opus 4.7 (Global)",
 		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext1MConstraints,
+		Constraints:  claudeNoSampling1MConstraints,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
 		),
@@ -544,7 +549,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:         ModelClaudeOpus47US,
 		Label:        "Claude Opus 4.7 (US)",
 		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext1MConstraints,
+		Constraints:  claudeNoSampling1MConstraints,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
 		),
@@ -553,7 +558,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:         ModelClaudeOpus47EU,
 		Label:        "Claude Opus 4.7 (EU)",
 		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext1MConstraints,
+		Constraints:  claudeNoSampling1MConstraints,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
 		),
@@ -562,7 +567,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:         ModelClaudeOpus47JP,
 		Label:        "Claude Opus 4.7 (JP)",
 		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext1MConstraints,
+		Constraints:  claudeNoSampling1MConstraints,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
 		),
@@ -647,7 +652,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:         ModelClaudeSonnet5Global,
 		Label:        "Claude Sonnet 5 (Global)",
 		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext1MConstraints,
+		Constraints:  claudeNoSampling1MConstraints,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0),
 		),
@@ -656,7 +661,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:         ModelClaudeSonnet5US,
 		Label:        "Claude Sonnet 5 (US)",
 		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext1MConstraints,
+		Constraints:  claudeNoSampling1MConstraints,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0),
 		),

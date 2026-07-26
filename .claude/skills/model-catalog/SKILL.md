@@ -4,7 +4,7 @@ description: >-
   How to source and encode model pricing in this repo's provider catalogs
   (providers/*/models.go) — where to pull authoritative rates, the microcents
   convention, flat vs context-tiered pricing (TieredInfo/Bracket), Anthropic's
-  >200K long-context surcharge, cache-rate multipliers, and how to empirically
+  native 1M-window pricing, cache-rate multipliers, and how to empirically
   verify a model's real context window. Use when adding or correcting Pricing
   on a catalog entry, or when a large-context request looks mis-costed. Pairs
   with the model-maintenance skill and the "Adding New Models" rules in
@@ -59,9 +59,8 @@ keep a dollar comment on any non-obvious value.
 
    LiteLLM values are USD **per token**; multiply by 1_000_000 for USD/M before
    feeding the dollar constructors. LiteLLM lags new releases — if this repo's
-   catalog is ahead of it (forward-looking model names), derive from the
-   provider page + the documented multiplier structure below, and say so in a
-   comment.
+   catalog is ahead of it (forward-looking model names), use the provider page
+   and say so in a comment rather than extrapolating an older model's tiers.
 
    License: LiteLLM is MIT (Copyright Berri AI), so referencing or even
    vendoring the file is fine with attribution. In practice we vendor nothing —
@@ -85,29 +84,20 @@ override `RateCard` has its **own** `Brackets` — if a model is context-tiered 
 has a fast mode, the fast override needs its own bracket too, or large fast-mode
 requests under-report.
 
-## Anthropic long-context surcharge (>200K)
+## Anthropic native 1M-window pricing
 
-Anthropic bills 1M-window models at a higher rate once a request's context
-exceeds the 200K standard window. The published multiplier, confirmed across
-`claude-sonnet-4/4.5/4.6` on the provider page and LiteLLM's
-`*_above_200k_tokens` fields, is uniform:
+Claude 4.6 and later models include their full native 1M context window at
+standard pricing. Do not add a legacy `200_001` bracket to those models or to a
+fast-mode override: Anthropic explicitly states that both standard and fast
+rates apply across the full window. Older optional 1M beta windows may have
+model-specific premiums, so encode a bracket only when the current provider
+page publishes one for that exact model.
 
-    input                2x base
-    output               1.5x base
-    cache read           2x base
-    cache write (5m/1h)  2x base
-
-Threshold is `MinContextTokens: 200_001` (matches Google's 200K and OpenAI's
-272K tiers). Apply it to **every 1M-window Anthropic model**, on both the default
-and any fast-mode override card. 200K-window models stay flat — no bracket. The
-`TestLongContextBracketsMatchSurcharge` / `TestNonLongContextModelsStayFlat`
-guards in `providers/anthropic/pricing_longcontext_test.go` enforce both
-directions, so the arithmetic is checked for you.
-
-Cache rates themselves derive from Anthropic's prompt-caching multipliers off
-base input: 5m-write 1.25x, 1h-write 2x, cache-read 0.10x. These compose with the
-long-context 2x, which is why the bracket's cache columns are exactly 2x the
-base cache columns.
+Cache rates derive from Anthropic's prompt-caching multipliers off base input:
+5m-write 1.25x, 1h-write 2x, cache-read 0.10x. These stay flat across the native
+1M window. `TestAllModelsStayFlatAcrossContextWindow` and
+`TestNative1MContextPricingStaysFlatEndToEnd` in
+`providers/anthropic/pricing_longcontext_test.go` guard this contract.
 
 ## Verify the real context window empirically
 
@@ -131,7 +121,8 @@ overshoot the threshold with margin, since tokenizers differ per model.
 ## Checklist for a pricing change
 
 - [ ] Base rates match the provider page (cross-checked against LiteLLM).
-- [ ] 1M-window models are `TieredInfo` with a `200_001` bracket; 200K models are flat.
-- [ ] Every override card (fast/region) that needs a bracket has one.
-- [ ] `task test:unit` passes — `TestAllModelsHavePricing`, the long-context guards,
+- [ ] Native 1M-window Anthropic models stay flat; use a bracket only when the
+      provider publishes one for that exact model.
+- [ ] Every override card (fast/region) matches the provider's published tier shape.
+- [ ] `task test:unit` passes — `TestAllModelsHavePricing`, the context-window guards,
       and per-provider ratio tests catch omissions and arithmetic slips.

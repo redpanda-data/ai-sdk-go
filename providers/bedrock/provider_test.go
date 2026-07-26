@@ -39,11 +39,17 @@ func TestInferenceProfileRegion(t *testing.T) {
 	}{
 		{"us-east-1", "us"},
 		{"us-west-2", "us"},
+		{"ca-central-1", "us"},
+		{"ca-west-1", "us"},
 		{"eu-west-1", "eu"},
 		{"eu-central-1", "eu"},
-		{"ap-southeast-1", "apac"},
-		{"ap-northeast-1", "apac"},
-		{"ap-south-1", "apac"},
+		{"ap-southeast-1", "global"},
+		{"ap-southeast-2", "au"},
+		{"ap-southeast-4", "au"},
+		{"ap-southeast-6", "au"},
+		{"ap-northeast-1", "jp"},
+		{"ap-northeast-3", "jp"},
+		{"ap-south-1", "global"},
 		{"", "us"},
 		{"unknown", "us"},
 	}
@@ -416,20 +422,20 @@ func TestNewModel_SupportedModels(t *testing.T) {
 	}
 }
 
-func TestNewModel_APACRegionPrefixHasNoMatchingModel(t *testing.T) {
+func TestNewModel_GlobalOnlyRegionSelectsGlobalProfile(t *testing.T) {
 	t.Parallel()
 
 	// AWS does not publish an "apac." inference profile for any current
 	// Anthropic Claude model — Sonnet 4.5 has "jp." for Japan, and other
-	// Asia-Pacific regions have to use "global." instead. A provider in
-	// ap-southeast-1 calling NewModel with a bare Claude ID therefore fails
-	// at lookup; that's the correct behavior, exposed here as a regression
-	// guard so anyone re-introducing apac. needs to confirm AWS publishes it.
+	// Asia-Pacific regions use "global." instead.
 	p := &Provider{client: nil, region: "ap-southeast-1"}
 
-	_, err := p.NewModel(ModelClaudeHaiku45)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unsupported Bedrock model")
+	model, err := p.NewModel(ModelClaudeHaiku45)
+	require.NoError(t, err)
+
+	m, ok := model.(*Model)
+	require.True(t, ok)
+	assert.Equal(t, ModelClaudeHaiku45Global, m.config.APIModelID)
 }
 
 func TestNewModel_USRegionPrefix(t *testing.T) {
@@ -489,12 +495,12 @@ func TestNewModel_Fable5RegionPrefix(t *testing.T) {
 	assert.Equal(t, ModelClaudeFable5US, m.config.APIModelID)
 }
 
-func TestNewModel_Fable5SamplingParametersRejected(t *testing.T) {
+func TestNewModel_RestrictedClaudeSamplingParametersRejected(t *testing.T) {
 	t.Parallel()
 
 	p := &Provider{client: nil, region: "us-east-1"}
 
-	tests := []struct {
+	options := []struct {
 		name string
 		opt  Option
 		want string
@@ -503,13 +509,20 @@ func TestNewModel_Fable5SamplingParametersRejected(t *testing.T) {
 		{name: "top_p", opt: WithTopP(0.9), want: "top_p"},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, model := range []string{
+		ModelClaudeFable5,
+		ModelClaudeOpus47US,
+		ModelClaudeOpus48US,
+		ModelClaudeSonnet5US,
+	} {
+		t.Run(model, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := p.NewModel(ModelClaudeFable5, tt.opt)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tt.want)
+			for _, tt := range options {
+				_, err := p.NewModel(model, tt.opt)
+				require.Error(t, err, tt.name)
+				assert.Contains(t, err.Error(), tt.want, tt.name)
+			}
 		})
 	}
 }

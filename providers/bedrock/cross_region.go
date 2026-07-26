@@ -54,13 +54,11 @@ func IsModelAllowedFromRegion(modelID, awsRegion string) bool {
 
 // sourceRegionGeoPrefix returns the geo-inference-profile prefix that AWS
 // accepts when calling from awsRegion (e.g. "us-east-1" → "us",
-// "ap-northeast-1" → "jp", "ap-southeast-2" → "au"). Returns "" for regions
-// that have no Geo profile assignment (global-only) or that the SDK does not
-// recognise.
+// "ap-northeast-1" → "jp", "ap-southeast-2" → "au"). It returns "global"
+// for known global-only regions and "" for regions the SDK does not recognize.
 //
-// Source: per-model regional availability tables on the Anthropic Claude
-// model cards in the Bedrock user guide. As of 2026-05 every Claude model
-// uses the same source-region → geo assignments, so a single table is enough.
+// This is the default profile family used for bare-ID resolution. Individual
+// model cards may narrow availability within a geography.
 func sourceRegionGeoPrefix(awsRegion string) string {
 	// Regions where the geo doesn't match the AWS region prefix —
 	// Canada is part of the US Geo, ap-northeast-* maps to JP, and a
@@ -83,10 +81,11 @@ func sourceRegionGeoPrefix(awsRegion string) string {
 	switch awsRegion[:idx] {
 	case "us", "eu":
 		return awsRegion[:idx]
+	case "ap", "il", "me", "af", "sa", "mx":
+		// Remaining listed regions have no default Geo assignment.
+		return "global"
 	}
 
-	// Everything else is global-only as far as Claude on Bedrock is
-	// concerned (ap-east-2, ap-northeast-2, ap-south-*, ap-southeast-1/3/5/7,
-	// il-*, me-*, af-*, sa-*, mx-*).
+	// Unknown region.
 	return ""
 }

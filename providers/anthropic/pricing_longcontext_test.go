@@ -25,86 +25,32 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/pricing"
 )
 
-// longContextThreshold is the inclusive lower bound of Anthropic's >200K
-// long-context pricing tier, mirrored from the catalog entries.
-const longContextThreshold = 200_001
-
-// TestLongContextBracketsMatchSurcharge verifies that every 1M-window model
-// prices requests above 200K tokens at Anthropic's published long-context
-// surcharge, on every rate card (default and each speed/region override):
-//
-//	input  = 2x base
-//	output = 1.5x base
-//	cache reads and writes = 2x base
-//
-// This surcharge is confirmed against Anthropic's Sonnet 1M pricing
-// ($3/$15 -> $6/$22.50 above 200K) and community catalogs (LiteLLM's
-// *_above_200k_tokens fields for claude-sonnet-4/4.5/4.6). Any 1M model that
-// under-reports large-request cost by staying on flat rates fails here.
-func TestLongContextBracketsMatchSurcharge(t *testing.T) {
+// TestAllModelsStayFlatAcrossContextWindow guards Anthropic's current pricing
+// contract: every cataloged model is billed at its base rate across its full
+// advertised context window. Claude 4.6 and later include the native 1M window
+// without the legacy >200K premium.
+func TestAllModelsStayFlatAcrossContextWindow(t *testing.T) {
 	t.Parallel()
 
 	for id, def := range supportedModels {
-		if def.Constraints.MaxInputTokens < 1_000_000 {
-			continue
-		}
-
-		t.Run(id, func(t *testing.T) {
-			t.Parallel()
-
-			type namedCard struct {
-				name string
-				card pricing.RateCard
-			}
-
-			cards := make([]namedCard, 0, 1+len(def.Pricing.Overrides))
-			cards = append(cards, namedCard{"default", def.Pricing.Default})
-
-			for _, ov := range def.Pricing.Overrides {
-				cards = append(cards, namedCard{fmt.Sprintf("%+v", ov.Match), ov.RateCard})
-			}
-
-			for _, c := range cards {
-				bracket := findBracket(c.card.Brackets, longContextThreshold)
-				require.NotNilf(t, bracket,
-					"%s card of 1M model %s has no >200K bracket — large requests under-report cost", c.name, id)
-
-				assertSurcharge(t, c.name, c.card.Base, bracket.Rates)
-			}
-		})
-	}
-}
-
-// TestNonLongContextModelsStayFlat guards the inverse: 200K models must not
-// grow a context bracket, which would silently overcharge above 200K.
-func TestNonLongContextModelsStayFlat(t *testing.T) {
-	t.Parallel()
-
-	for id, def := range supportedModels {
-		if def.Constraints.MaxInputTokens >= 1_000_000 {
-			continue
-		}
-
 		t.Run(id, func(t *testing.T) {
 			t.Parallel()
 
 			assert.Emptyf(t, def.Pricing.Default.Brackets,
-				"200K model %s must not have context brackets", id)
+				"model %s must stay flat across its full context window", id)
 
 			for _, ov := range def.Pricing.Overrides {
 				assert.Emptyf(t, ov.RateCard.Brackets,
-					"200K model %s override %s must not have context brackets", id, fmt.Sprintf("%+v", ov.Match))
+					"model %s override %s must stay flat across its full context window",
+					id, fmt.Sprintf("%+v", ov.Match))
 			}
 		})
 	}
 }
 
-// TestLongContextPricingAppliesEndToEnd drives a real Catalog built from the
-// Anthropic model pricing and proves the >200K bracket actually fires: the same
-// token usage costs 2x on input when the request context crosses 200K, and the
-// applied bracket threshold is reported. This closes the loop from catalog entry
-// to computed cost.
-func TestLongContextPricingAppliesEndToEnd(t *testing.T) {
+// TestNative1MContextPricingStaysFlatEndToEnd proves a large Opus 4.8 request
+// uses the same rate card as a small request, including fast mode.
+func TestNative1MContextPricingStaysFlatEndToEnd(t *testing.T) {
 	t.Parallel()
 
 	cat, err := pricing.NewCatalog(pricing.WithProvider("anthropic", ModelPricing()))
@@ -112,45 +58,25 @@ func TestLongContextPricingAppliesEndToEnd(t *testing.T) {
 
 	usage := &llm.TokenUsage{InputTokens: 100_000, OutputTokens: 1_000}
 
-	below, err := cat.Calculate(ModelClaudeSonnet5, usage, pricing.CalcRequest{ContextTokens: 100_000})
-	require.NoError(t, err)
+	for _, req := range []pricing.CalcRequest{
+		{},
+		{Selector: pricing.Selector{Speed: SpeedFast}},
+	} {
+		belowReq := req
+		belowReq.ContextTokens = 100_000
+		below, err := cat.Calculate(ModelClaudeOpus48, usage, belowReq)
+		require.NoError(t, err)
 
-	above, err := cat.Calculate(ModelClaudeSonnet5, usage, pricing.CalcRequest{ContextTokens: 300_000})
-	require.NoError(t, err)
+		aboveReq := req
+		aboveReq.ContextTokens = 900_000
+		above, err := cat.Calculate(ModelClaudeOpus48, usage, aboveReq)
+		require.NoError(t, err)
 
-	assert.Equal(t, int64(0), below.AppliedBracketMinContextTokens,
-		"a sub-200K request must price on the base card")
-	assert.Equal(t, int64(longContextThreshold), above.AppliedBracketMinContextTokens,
-		"a >200K request must price on the long-context bracket")
-
-	assert.Equal(t,
-		below.Breakdown[pricing.UsageFieldInput]*2, above.Breakdown[pricing.UsageFieldInput],
-		"input above 200K must cost 2x the base rate for identical usage")
-	assert.Greater(t, above.Total, below.Total,
-		"the long-context request must cost more overall")
-}
-
-func findBracket(brackets []pricing.Bracket, minContext int64) *pricing.Bracket {
-	for i := range brackets {
-		if brackets[i].MinContextTokens == minContext {
-			return &brackets[i]
-		}
+		assert.Equal(t, int64(0), below.AppliedBracketMinContextTokens)
+		assert.Equal(t, int64(0), above.AppliedBracketMinContextTokens)
+		assert.Equal(t, below.Total, above.Total,
+			"identical usage must cost the same across the native 1M window")
+		assert.Equal(t, below.Breakdown, above.Breakdown,
+			"rate breakdown must stay unchanged across the native 1M window")
 	}
-
-	return nil
-}
-
-func assertSurcharge(t *testing.T, card string, base, got pricing.Rates) {
-	t.Helper()
-
-	assert.Equalf(t, base.InputPerMillion*2, got.InputPerMillion,
-		"%s: input above 200K must be 2x base", card)
-	assert.Equalf(t, base.OutputPerMillion*3/2, got.OutputPerMillion,
-		"%s: output above 200K must be 1.5x base", card)
-	assert.Equalf(t, base.CachedInputPerMillion*2, got.CachedInputPerMillion,
-		"%s: cache read above 200K must be 2x base", card)
-	assert.Equalf(t, base.CacheCreation5mPerMillion*2, got.CacheCreation5mPerMillion,
-		"%s: 5m cache write above 200K must be 2x base", card)
-	assert.Equalf(t, base.CacheCreation1hPerMillion*2, got.CacheCreation1hPerMillion,
-		"%s: 1h cache write above 200K must be 2x base", card)
 }

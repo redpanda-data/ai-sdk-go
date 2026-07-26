@@ -121,15 +121,10 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax},
 		AdaptiveThinking: true,
-		Pricing: pricing.TieredInfo(
+		Pricing: pricing.FlatInfoFromRates(
 			// Cache rates derived from Anthropic's prompt-caching multipliers
 			// (5m-write = 1.25x base input, 1h-write = 2x, cache-read = 0.10x).
 			pricing.NewRates(10.00, 50.00, 1.00).WithCacheCreation(12.50, 20.00, 0),
-			pricing.Bracket{
-				// Anthropic >200K long-context surcharge: input 2x, output 1.5x, cache 2x.
-				MinContextTokens: 200_001,
-				Rates:            pricing.NewRates(20.00, 75.00, 2.00).WithCacheCreation(25.00, 40.00, 0),
-			},
 		),
 	},
 	ModelClaudeOpus48: {
@@ -150,20 +145,16 @@ var supportedModels = map[string]ModelDefinition{
 			MaxInputTokens:   1000000, // 1M context window
 			MaxOutputTokens:  128000,  // 128K output tokens
 			// Opus 4.8 rejects thinking.type.enabled — thinking budget is not user-controllable.
-			// Use adaptive thinking + effort to bias reasoning depth.
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "effort", "speed"},
+			// Non-default sampling parameters are also rejected. Use adaptive
+			// thinking + effort to bias reasoning depth.
+			SupportedParams:   []string{"max_tokens", "effort", "speed"},
 			MutuallyExclusive: [][]string{},
 		},
 		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax},
 		SupportedSpeeds:  []Speed{SpeedStandard, SpeedFast},
 		AdaptiveThinking: true,
-		Pricing: pricing.TieredInfo(
+		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
-			pricing.Bracket{
-				// Anthropic >200K long-context surcharge: input 2x, output 1.5x, cache 2x.
-				MinContextTokens: 200_001,
-				Rates:            pricing.NewRates(10.00, 37.50, 1.00).WithCacheCreation(12.50, 20.00, 0),
-			},
 		).WithOverride(
 			pricing.Selector{Speed: SpeedFast},
 			pricing.RateCard{
@@ -172,11 +163,6 @@ var supportedModels = map[string]ModelDefinition{
 				// (5m-write = 1.25x base input, 1h-write = 2x, cache-read = 0.10x).
 				Base: pricing.NewRates(10.00, 50.00, 1.00).
 					WithCacheCreation(12.50, 20.00, 0),
-				Brackets: []pricing.Bracket{{
-					// >200K long-context surcharge on fast-mode rates.
-					MinContextTokens: 200_001,
-					Rates:            pricing.NewRates(20.00, 75.00, 2.00).WithCacheCreation(25.00, 40.00, 0),
-				}},
 			},
 		),
 	},
@@ -198,19 +184,15 @@ var supportedModels = map[string]ModelDefinition{
 			MaxInputTokens:   1000000, // 1M context window
 			MaxOutputTokens:  128000,  // 128K output tokens
 			// Opus 4.7 rejects thinking.type.enabled — thinking budget is not user-controllable.
-			// Use adaptive thinking + effort to bias reasoning depth.
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "effort", "speed"},
+			// Non-default sampling parameters are also rejected. Use adaptive
+			// thinking + effort to bias reasoning depth.
+			SupportedParams:   []string{"max_tokens", "effort", "speed"},
 			MutuallyExclusive: [][]string{},
 		},
 		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax},
 		AdaptiveThinking: true,
-		Pricing: pricing.TieredInfo(
+		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
-			pricing.Bracket{
-				// Anthropic >200K long-context surcharge: input 2x, output 1.5x, cache 2x.
-				MinContextTokens: 200_001,
-				Rates:            pricing.NewRates(10.00, 37.50, 1.00).WithCacheCreation(12.50, 20.00, 0),
-			},
 		),
 	},
 	ModelClaudeSonnet5: {
@@ -231,25 +213,20 @@ var supportedModels = map[string]ModelDefinition{
 			MaxInputTokens:   1000000, // 1M context window
 			MaxOutputTokens:  128000,  // 128K output tokens
 			// Sonnet 5 shares Opus 4.7's request surface: manual thinking budget
-			// is removed (adaptive thinking + effort instead), no fast mode.
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "effort"},
+			// and non-default sampling are rejected. It uses adaptive thinking
+			// + effort instead and has no fast mode.
+			SupportedParams:   []string{"max_tokens", "effort"},
 			MutuallyExclusive: [][]string{},
 		},
 		// First Sonnet-tier model with xhigh; supports the full effort range.
 		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax},
 		AdaptiveThinking: true,
-		Pricing: pricing.TieredInfo(
+		Pricing: pricing.FlatInfoFromRates(
 			// List price $3/$15 per MTok (the introductory $2/$10 through
 			// 2026-08-31 is deliberately not tracked here). Cache rates from
 			// Anthropic's prompt-caching multipliers (5m-write 1.25x, 1h-write 2x,
 			// cache-read 0.10x of base input).
 			pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0),
-			pricing.Bracket{
-				// Anthropic >200K long-context surcharge: input 2x, output 1.5x, cache 2x.
-				// Matches Anthropic's published Sonnet 1M pricing ($6/$22.50 above 200K).
-				MinContextTokens: 200_001,
-				Rates:            pricing.NewRates(6.00, 22.50, 0.60).WithCacheCreation(7.50, 12.00, 0),
-			},
 		),
 	},
 	ModelClaudeSonnet46: {
@@ -349,23 +326,13 @@ var supportedModels = map[string]ModelDefinition{
 		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh, EffortMax},
 		SupportedSpeeds:  []Speed{SpeedStandard, SpeedFast},
 		AdaptiveThinking: true,
-		Pricing: pricing.TieredInfo(
+		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
-			pricing.Bracket{
-				// Anthropic >200K long-context surcharge: input 2x, output 1.5x, cache 2x.
-				MinContextTokens: 200_001,
-				Rates:            pricing.NewRates(10.00, 37.50, 1.00).WithCacheCreation(12.50, 20.00, 0),
-			},
 		).WithOverride(
 			pricing.Selector{Speed: SpeedFast},
 			pricing.RateCard{
 				Base: pricing.NewRates(30.00, 150.00, 3.00).
 					WithCacheCreation(37.50, 60.00, 0),
-				Brackets: []pricing.Bracket{{
-					// >200K long-context surcharge on fast-mode rates.
-					MinContextTokens: 200_001,
-					Rates:            pricing.NewRates(60.00, 225.00, 6.00).WithCacheCreation(75.00, 120.00, 0),
-				}},
 			},
 		),
 	},

@@ -361,13 +361,13 @@ func TestWithSpeed(t *testing.T) {
 	})
 }
 
-func TestFable5SamplingParametersRejected(t *testing.T) {
+func TestSamplingParametersRejected(t *testing.T) {
 	t.Parallel()
 
 	provider, err := NewProvider("test-key")
 	require.NoError(t, err)
 
-	tests := []struct {
+	options := []struct {
 		name string
 		opt  Option
 		want string
@@ -377,13 +377,20 @@ func TestFable5SamplingParametersRejected(t *testing.T) {
 		{name: "top_k", opt: WithTopK(10), want: "top_k"},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, model := range []string{
+		ModelClaudeFable5,
+		ModelClaudeOpus47,
+		ModelClaudeOpus48,
+		ModelClaudeSonnet5,
+	} {
+		t.Run(model, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := provider.NewModel(ModelClaudeFable5, tt.opt)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tt.want)
+			for _, tt := range options {
+				_, err := provider.NewModel(model, tt.opt)
+				require.Error(t, err, tt.name)
+				assert.Contains(t, err.Error(), tt.want, tt.name)
+			}
 		})
 	}
 }
