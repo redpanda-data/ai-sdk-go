@@ -166,10 +166,9 @@ func TestLookupModel(t *testing.T) {
 			wantDef: ModelClaudeFable5US,
 		},
 		{
-			name:    "Fable 5 EU profile is its own entry",
-			input:   ModelClaudeFable5EU,
-			wantOK:  true,
-			wantDef: ModelClaudeFable5EU,
+			name:   "Fable 5 EU profile is not published",
+			input:  ModelClaudeFable5EU,
+			wantOK: false,
 		},
 		{
 			name:    "Fable 5 global profile is its own entry",
@@ -408,7 +407,6 @@ func TestNewModel_SupportedModels(t *testing.T) {
 		{"with region prefix", "eu." + ModelClaudeSonnet46},
 		{"opus with region", "global." + ModelClaudeOpus46},
 		{"haiku with region", "eu." + ModelClaudeHaiku45},
-		{"Fable 5 with region prefix", ModelClaudeFable5EU},
 	}
 
 	for _, tt := range tests {
@@ -443,46 +441,43 @@ func TestNewModel_GlobalOnlyRegionSelectsGlobalProfile(t *testing.T) {
 func TestNewModel_GeoProfileOrGlobalFallback(t *testing.T) {
 	t.Parallel()
 
-	models := []string{
-		ModelClaudeFable5,
-		ModelClaudeSonnet5,
-		ModelClaudeSonnet46,
-		ModelClaudeSonnet45,
-		ModelClaudeHaiku45,
-		ModelClaudeOpus48,
-		ModelClaudeOpus47,
-		ModelClaudeOpus46,
-		ModelClaudeOpus45,
-	}
-	regions := []struct {
-		region string
-		geo    string
+	tests := []struct {
+		region  string
+		modelID string
+		wantID  string
 	}{
-		{"ap-northeast-1", "jp"},
-		{"ap-southeast-2", "au"},
+		{"ap-northeast-1", ModelClaudeFable5, ModelClaudeFable5Global},
+		{"ap-northeast-1", ModelClaudeSonnet5, ModelClaudeSonnet5Global},
+		{"ap-northeast-1", ModelClaudeSonnet46, ModelClaudeSonnet46JP},
+		{"ap-northeast-1", ModelClaudeSonnet45, ModelClaudeSonnet45JP},
+		{"ap-northeast-1", ModelClaudeHaiku45, ModelClaudeHaiku45JP},
+		{"ap-northeast-1", ModelClaudeOpus48, ModelClaudeOpus48JP},
+		{"ap-northeast-1", ModelClaudeOpus47, ModelClaudeOpus47JP},
+		{"ap-northeast-1", ModelClaudeOpus46, ModelClaudeOpus46Global},
+		{"ap-northeast-1", ModelClaudeOpus45, ModelClaudeOpus45Global},
+		{"ap-southeast-2", ModelClaudeFable5, ModelClaudeFable5Global},
+		{"ap-southeast-2", ModelClaudeSonnet5, ModelClaudeSonnet5Global},
+		{"ap-southeast-2", ModelClaudeSonnet46, ModelClaudeSonnet46AU},
+		{"ap-southeast-2", ModelClaudeSonnet45, ModelClaudeSonnet45AU},
+		{"ap-southeast-2", ModelClaudeHaiku45, ModelClaudeHaiku45AU},
+		{"ap-southeast-2", ModelClaudeOpus48, ModelClaudeOpus48AU},
+		{"ap-southeast-2", ModelClaudeOpus47, ModelClaudeOpus47AU},
+		{"ap-southeast-2", ModelClaudeOpus46, ModelClaudeOpus46AU},
+		{"ap-southeast-2", ModelClaudeOpus45, ModelClaudeOpus45Global},
 	}
 
-	for _, region := range regions {
-		for _, modelID := range models {
-			t.Run(region.region+"/"+modelID, func(t *testing.T) {
-				t.Parallel()
+	for _, tt := range tests {
+		t.Run(tt.region+"/"+tt.modelID, func(t *testing.T) {
+			t.Parallel()
 
-				wantID := region.geo + "." + modelID
-				if _, ok := lookupModel(wantID); !ok {
-					wantID = "global." + modelID
-					_, globalRegistered := lookupModel(wantID)
-					require.True(t, globalRegistered, "missing both %s and global profile", region.geo)
-				}
+			p := &Provider{client: nil, region: tt.region}
+			model, err := p.NewModel(tt.modelID)
+			require.NoError(t, err)
 
-				p := &Provider{client: nil, region: region.region}
-				model, err := p.NewModel(modelID)
-				require.NoError(t, err)
-
-				m, ok := model.(*Model)
-				require.True(t, ok)
-				assert.Equal(t, wantID, m.config.APIModelID)
-			})
-		}
+			m, ok := model.(*Model)
+			require.True(t, ok)
+			assert.Equal(t, tt.wantID, m.config.APIModelID)
+		})
 	}
 }
 
@@ -497,6 +492,53 @@ func TestNewModel_UnknownRegionFailsAtConstruction(t *testing.T) {
 			_, err := p.NewModel(ModelClaudeSonnet46)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "unsupported Bedrock model")
+			assert.Contains(t, err.Error(), region)
+		})
+	}
+}
+
+func TestNewModel_NZFallsBackWhenAUProfileExcludesRegion(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		modelID string
+		wantID  string
+	}{
+		{ModelClaudeOpus47, ModelClaudeOpus47Global},
+		{ModelClaudeOpus48, ModelClaudeOpus48Global},
+		{ModelClaudeOpus46, ModelClaudeOpus46AU},
+	} {
+		t.Run(tt.modelID, func(t *testing.T) {
+			t.Parallel()
+
+			p := &Provider{client: nil, region: "ap-southeast-6"}
+			model, err := p.NewModel(tt.modelID)
+			require.NoError(t, err)
+
+			m, ok := model.(*Model)
+			require.True(t, ok)
+			assert.Equal(t, tt.wantID, m.config.APIModelID)
+		})
+	}
+}
+
+func TestSonnet46ContextLimits(t *testing.T) {
+	t.Parallel()
+
+	for _, id := range []string{
+		ModelClaudeSonnet46Global,
+		ModelClaudeSonnet46US,
+		ModelClaudeSonnet46EU,
+		ModelClaudeSonnet46AU,
+		ModelClaudeSonnet46JP,
+	} {
+		t.Run(id, func(t *testing.T) {
+			t.Parallel()
+
+			def, ok := supportedModels[id]
+			require.True(t, ok)
+			assert.Equal(t, 1_000_000, def.Constraints.MaxInputTokens)
+			assert.Equal(t, 64_000, def.Constraints.MaxOutputTokens)
 		})
 	}
 }
@@ -1224,7 +1266,7 @@ func TestModelsDiscovery_ProviderDataSharingMetadata(t *testing.T) {
 		metadataByName[m.Name] = m.Metadata
 	}
 
-	for _, name := range []string{ModelClaudeFable5Global, ModelClaudeFable5US, ModelClaudeFable5EU} {
+	for _, name := range []string{ModelClaudeFable5Global, ModelClaudeFable5US} {
 		assert.Equal(t, "true", metadataByName[name][ModelMetadataRequiresProviderDataSharing])
 	}
 

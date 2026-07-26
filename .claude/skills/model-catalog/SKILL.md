@@ -106,7 +106,7 @@ the same as what an account can actually use. Do not trust the number — probe 
 Send a prompt sized just over the threshold with the raw provider SDK and observe:
 
 - A model whose window is genuinely 1M accepts a >200K request with **no** beta
-  header. On current Anthropic 1M models (Sonnet 5, Opus 4.6/4.7/4.8, Fable 5)
+  header. On current Anthropic 1M models (Sonnet 4.6/5, Opus 4.6/4.7/4.8, Fable 5)
   the `context-1m-2025-08-07` beta header is a **no-op** — the window is native,
   so do not add per-request beta plumbing for it.
 - A 200K model returns HTTP 400 `prompt is too long: N tokens > 200000 maximum`,

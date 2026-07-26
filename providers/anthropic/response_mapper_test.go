@@ -27,11 +27,11 @@ import (
 func TestResponseMapper_Metadata(t *testing.T) {
 	t.Parallel()
 
-	mapper := NewResponseMapper(supportedModels[ModelClaudeOpus46])
+	mapper := NewResponseMapper(supportedModels[ModelClaudeOpus48])
 
 	resp, err := mapper.FromProvider(&anthropic.BetaMessage{
 		ID:    "msg_123",
-		Model: anthropic.Model("claude-opus-4-6-20260401"),
+		Model: anthropic.Model(ModelClaudeOpus48),
 		Content: []anthropic.BetaContentBlockUnion{{
 			Type: blockTypeText,
 			Text: "Hello",
@@ -50,7 +50,7 @@ func TestResponseMapper_Metadata(t *testing.T) {
 	assert.Equal(t, llm.ServiceTierDefault, resp.ServiceTier)
 	assert.Equal(t, llm.SpeedFast, resp.Speed)
 	assert.Equal(t, "us-east-1", resp.InferenceRegion)
-	assert.Equal(t, ModelClaudeOpus46, resp.InvokedModelID)
+	assert.Equal(t, ModelClaudeOpus48, resp.InvokedModelID)
 }
 
 // TestResponseMapper_FinishReasonTruncationWithToolCalls locks in the rule

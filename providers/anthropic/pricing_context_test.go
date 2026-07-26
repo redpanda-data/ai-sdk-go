@@ -35,12 +35,14 @@ func TestNative1MModelsStayFlatAcrossContextWindow(t *testing.T) {
 		ModelClaudeOpus46,
 		ModelClaudeOpus47,
 		ModelClaudeOpus48,
+		ModelClaudeSonnet46,
 		ModelClaudeSonnet5,
 	} {
 		t.Run(id, func(t *testing.T) {
 			t.Parallel()
 
-			def := supportedModels[id]
+			def, ok := supportedModels[id]
+			require.True(t, ok, "native 1M model %s must remain registered", id)
 			assert.Emptyf(t, def.Pricing.Default.Brackets,
 				"native 1M model %s must stay flat across its full context window", id)
 

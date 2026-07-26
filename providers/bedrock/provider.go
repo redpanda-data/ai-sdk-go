@@ -206,22 +206,25 @@ func WithCachingDisabled() ProviderOption {
 }
 
 // NewModel creates a new Bedrock model instance with the specified configuration.
+//
+// An unprefixed inference-profile model ID prefers the AWS source region's geo
+// profile. If that model has no profile for the geography, NewModel falls back
+// to its global profile, which has different data-residency semantics. Unknown,
+// China, and GovCloud regions fail instead of guessing; an unset region keeps
+// the historical US default. Already-prefixed IDs and exact catalog matches
+// are used as provided.
 func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error) {
 	// Build the API model ID. Most Bedrock models are cross-region inference
-	// profiles, so an un-prefixed name gets the source region's geo prefix
+	// profiles, so an un-prefixed name prefers the source region's geo profile
 	// (e.g. "anthropic.claude-sonnet-4-6" -> "us.anthropic.claude-sonnet-4-6").
-	// Two cases skip prefixing: a name that already carries a region prefix
-	// (e.g. "eu.anthropic.…"), and a name that is itself a catalog entry — a
-	// few third-party models (e.g. "mistral.mistral-large-3-675b-instruct") are
-	// on-demand / in-region and are invoked by their bare ID, so an exact
-	// catalog match is used as-is.
 	apiModelID := modelName
 
 	if _, registered := lookupModel(apiModelID); !registered && !hasRegionPrefix(apiModelID) {
 		geo := InferenceProfileRegion(p.region)
 		if geo != "" {
 			geoModelID := geo + "." + apiModelID
-			if _, ok := lookupModel(geoModelID); ok {
+			if _, ok := lookupModel(geoModelID); ok &&
+				(p.region == "" || IsModelAllowedFromRegion(geoModelID, p.region)) {
 				apiModelID = geoModelID
 			} else {
 				globalModelID := "global." + apiModelID
@@ -237,6 +240,10 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 	// cross-region premium over the base/global rate).
 	modelDef, ok := lookupModel(apiModelID)
 	if !ok {
+		if p.region != "" {
+			return nil, fmt.Errorf("unsupported Bedrock model: %s in region %s", modelName, p.region)
+		}
+
 		return nil, fmt.Errorf("unsupported Bedrock model: %s", modelName)
 	}
 

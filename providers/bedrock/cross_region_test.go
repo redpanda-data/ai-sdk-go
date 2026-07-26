@@ -57,6 +57,8 @@ func TestIsModelAllowedFromRegion(t *testing.T) {
 		{"au from ap-southeast-2 (Sydney)", ModelClaudeHaiku45AU, "ap-southeast-2", true},
 		{"au from ap-southeast-4 (Melbourne)", ModelClaudeHaiku45AU, "ap-southeast-4", true},
 		{"au from ap-southeast-6 (New Zealand)", ModelClaudeOpus46AU, "ap-southeast-6", true},
+		{"Opus 4.7 AU from New Zealand", ModelClaudeOpus47AU, "ap-southeast-6", false},
+		{"Opus 4.8 AU from New Zealand", ModelClaudeOpus48AU, "ap-southeast-6", false},
 
 		// Amazon Nova 2 Lite — same prefix-based routing as Claude (us/eu/jp
 		// geo profiles + global). Confirms the amazon. namespace routes like

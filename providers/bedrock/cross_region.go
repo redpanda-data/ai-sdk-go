@@ -49,6 +49,13 @@ func IsModelAllowedFromRegion(modelID, awsRegion string) bool {
 		return true
 	}
 
+	// Opus 4.7 and 4.8 narrow the AU profile to Sydney and Melbourne.
+	// Their model cards list New Zealand as global-only.
+	switch modelID {
+	case ModelClaudeOpus47AU, ModelClaudeOpus48AU:
+		return awsRegion == "ap-southeast-2" || awsRegion == "ap-southeast-4"
+	}
+
 	return prefix == sourceRegionGeoPrefix(awsRegion)
 }
 
@@ -58,9 +65,14 @@ func IsModelAllowedFromRegion(modelID, awsRegion string) bool {
 // for known global-only regions and "" for regions the SDK does not recognize.
 //
 // This is the default profile family used for bare-ID resolution. Individual
-// model cards may narrow availability within a geography.
+// model cards may narrow availability within a geography:
+//   - https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-4-6.html
+//   - https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-4-7.html
+//   - https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-4-8.html
+//   - https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-haiku-4-5.html
 func sourceRegionGeoPrefix(awsRegion string) string {
-	// Bedrock does not publish these Claude inference profiles in GovCloud.
+	// GovCloud profile availability is model-specific, so the default bare-ID
+	// resolver does not infer a profile there.
 	if strings.HasPrefix(awsRegion, "us-gov-") {
 		return ""
 	}

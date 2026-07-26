@@ -190,10 +190,11 @@ var supportedModels = map[string]ModelDefinition{
 			// Opus 4.7 rejects thinking.type.enabled — thinking budget is not user-controllable.
 			// Non-default sampling parameters are also rejected. Use adaptive
 			// thinking + effort to bias reasoning depth.
-			SupportedParams:   []string{"max_tokens", "effort"},
+			SupportedParams:   []string{"max_tokens", "effort", "speed"},
 			MutuallyExclusive: [][]string{},
 		},
 		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax},
+		SupportedSpeeds:  []Speed{SpeedStandard},
 		AdaptiveThinking: true,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
@@ -247,8 +248,8 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Constraints: llm.ModelConstraints{
 			TemperatureRange:  [2]float64{0.0, 1.0},
-			MaxInputTokens:    200000, // 200K context window
-			MaxOutputTokens:   64000,  // 64K output tokens
+			MaxInputTokens:    1000000, // Native 1M context window
+			MaxOutputTokens:   64000,   // 64K output tokens
 			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "effort", "thinking_budget"},
 			MutuallyExclusive: [][]string{},
 		},
@@ -325,10 +326,11 @@ var supportedModels = map[string]ModelDefinition{
 			// https://platform.claude.com/docs/en/about-claude/pricing#long-context-pricing
 			MaxInputTokens:    1000000,
 			MaxOutputTokens:   128000, // 128K output tokens
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "effort", "thinking_budget"},
+			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "effort", "thinking_budget", "speed"},
 			MutuallyExclusive: [][]string{},
 		},
 		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh, EffortMax},
+		SupportedSpeeds:  []Speed{SpeedStandard},
 		AdaptiveThinking: true,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),

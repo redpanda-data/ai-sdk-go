@@ -160,6 +160,15 @@ func TestCustomModelName(t *testing.T) {
 	assert.Equal(t, int(200000), m.config.Constraints.MaxInputTokens)
 }
 
+func TestSonnet46ContextLimits(t *testing.T) {
+	t.Parallel()
+
+	def, ok := supportedModels[ModelClaudeSonnet46]
+	require.True(t, ok)
+	assert.Equal(t, 1_000_000, def.Constraints.MaxInputTokens)
+	assert.Equal(t, 64_000, def.Constraints.MaxOutputTokens)
+}
+
 func TestUnsupportedModelRejected(t *testing.T) {
 	t.Parallel()
 
@@ -324,14 +333,36 @@ func TestWithSpeed(t *testing.T) {
 		assert.Equal(t, SpeedFast, *m.config.Speed)
 	})
 
+	for _, model := range []string{ModelClaudeOpus46, ModelClaudeOpus47} {
+		t.Run("standard speed on "+model, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := provider.NewModel(model, WithSpeed(SpeedStandard))
+			require.NoError(t, err)
+
+			m, ok := got.(*Model)
+			require.True(t, ok)
+			require.NotNil(t, m.config.Speed)
+			assert.Equal(t, SpeedStandard, *m.config.Speed)
+		})
+	}
+
 	for _, model := range []string{
 		ModelClaudeFable5,
-		ModelClaudeOpus46,
-		ModelClaudeOpus47,
 		ModelClaudeSonnet46,
 		ModelClaudeSonnet45,
 	} {
 		t.Run("rejected on "+model, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := provider.NewModel(model, WithSpeed(SpeedFast))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "speed")
+		})
+	}
+
+	for _, model := range []string{ModelClaudeOpus46, ModelClaudeOpus47} {
+		t.Run("fast rejected on "+model, func(t *testing.T) {
 			t.Parallel()
 
 			_, err := provider.NewModel(model, WithSpeed(SpeedFast))
