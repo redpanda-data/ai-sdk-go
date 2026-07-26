@@ -46,9 +46,15 @@ func IsModelAllowedFromRegion(modelID, awsRegion string) bool {
 	prefix, _, _ := strings.Cut(modelID, ".")
 
 	// The Sonnet 4.5 US profile is the only current Claude profile published
-	// for GovCloud source regions. Global routing is not available there.
+	// for GovCloud in its source-region table. The Opus 4.8 card's summary
+	// claims GovCloud support but its source table omits both GovCloud regions,
+	// so use the stricter source-table interpretation. Global is unavailable.
 	if strings.HasPrefix(awsRegion, "us-gov-") {
 		return modelID == ModelClaudeSonnet45US
+	}
+
+	if strings.HasPrefix(awsRegion, "cn-") {
+		return false
 	}
 
 	if prefix == "global" {
@@ -60,7 +66,7 @@ func IsModelAllowedFromRegion(modelID, awsRegion string) bool {
 	switch modelID {
 	case ModelClaudeOpus47AU, ModelClaudeOpus48AU:
 		return awsRegion == "ap-southeast-2" || awsRegion == "ap-southeast-4"
-	case ModelClaudeHaiku45US, ModelClaudeOpus45US:
+	case ModelClaudeHaiku45US, ModelClaudeOpus45US, ModelClaudeSonnet45US:
 		return awsRegion != "ca-west-1" && prefix == sourceRegionGeoPrefix(awsRegion)
 	}
 

@@ -424,7 +424,7 @@ func TestFable5SamplingParameters(t *testing.T) {
 		{"non-default temperature", WithTemperature(0.5), true},
 		{"minimum top_p", WithTopP(0.99), false},
 		{"top_p below minimum", WithTopP(0.98), true},
-		{"top_p maximum", WithTopP(1), false},
+		{"top_p maximum is exclusive", WithTopP(1), true},
 		{"top_k unsupported", WithTopK(10), true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

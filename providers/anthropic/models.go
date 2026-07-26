@@ -121,11 +121,13 @@ var supportedModels = map[string]ModelDefinition{
 		Constraints: llm.ModelConstraints{
 			TemperatureRange: [2]float64{1, 1},
 			TopPRange:        [2]float64{0.99, 1},
+			TopPMaxExclusive: true,
 			MaxInputTokens:   1000000, // 1M context window
 			MaxOutputTokens:  128000,  // 128K output tokens
 			// Fable 5 rejects thinking.type.enabled — thinking budget is not user-controllable.
-			// It accepts only the default temperature and top_p >= 0.99:
-			// https://platform.claude.com/docs/en/api/messages
+			// The AWS model card is the only primary source that publishes
+			// Fable-specific sampling bounds, so use its conservative window:
+			// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-fable-5.html
 			// Use adaptive thinking + effort to bias reasoning depth. No fast mode, so no "speed".
 			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "effort"},
 			MutuallyExclusive: [][]string{},

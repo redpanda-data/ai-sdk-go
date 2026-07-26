@@ -511,6 +511,7 @@ func TestNewModel_ModelSpecificUSRouting(t *testing.T) {
 		{"Opus 4.8 from GovCloud", "us-gov-west-1", ModelClaudeOpus48, "", true},
 		{"Haiku 4.5 from Calgary", "ca-west-1", ModelClaudeHaiku45, ModelClaudeHaiku45Global, false},
 		{"Opus 4.5 from Calgary", "ca-west-1", ModelClaudeOpus45, ModelClaudeOpus45Global, false},
+		{"Sonnet 4.5 from Calgary", "ca-west-1", ModelClaudeSonnet45, ModelClaudeSonnet45Global, false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()

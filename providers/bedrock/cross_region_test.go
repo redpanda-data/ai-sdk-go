@@ -52,6 +52,7 @@ func TestIsModelAllowedFromRegion(t *testing.T) {
 		{"us from ca-west-1 (Calgary is US Geo)", ModelClaudeOpus46US, "ca-west-1", true},
 		{"Haiku 4.5 US from Calgary", ModelClaudeHaiku45US, "ca-west-1", false},
 		{"Opus 4.5 US from Calgary", ModelClaudeOpus45US, "ca-west-1", false},
+		{"Sonnet 4.5 US from Calgary", ModelClaudeSonnet45US, "ca-west-1", false},
 		{"eu from eu-west-1", ModelClaudeSonnet46EU, "eu-west-1", true},
 		{"eu from eu-central-2", ModelClaudeSonnet46EU, "eu-central-2", true},
 		{"jp from ap-northeast-1 (Tokyo)", ModelClaudeSonnet45JP, "ap-northeast-1", true},
@@ -98,6 +99,7 @@ func TestIsModelAllowedFromRegion(t *testing.T) {
 		{"Sonnet 4.5 US from GovCloud", ModelClaudeSonnet45US, "us-gov-east-1", true},
 		{"Opus 4.8 US from GovCloud", ModelClaudeOpus48US, "us-gov-east-1", false},
 		{"global from GovCloud", ModelClaudeSonnet45Global, "us-gov-east-1", false},
+		{"global from China", ModelClaudeSonnet46Global, "cn-north-1", false},
 		{"global from unknown region", ModelClaudeSonnet46Global, "xx-fake-1", true},
 		{"bare from unknown region (allowed)", ModelClaudeSonnet45, "xx-fake-1", true},
 

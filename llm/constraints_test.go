@@ -26,6 +26,11 @@ func TestValidateTopP(t *testing.T) {
 	require.NoError(t, (&ModelConstraints{}).ValidateTopP(0))
 	require.NoError(t, (&ModelConstraints{}).ValidateTopP(1))
 
+	inclusive := &ModelConstraints{TopPRange: [2]float64{0.25, 0.75}}
+	require.NoError(t, inclusive.ValidateTopP(0.25))
+	require.NoError(t, inclusive.ValidateTopP(0.75))
+	require.Error(t, inclusive.ValidateTopP(0.751))
+
 	narrow := &ModelConstraints{
 		TopPRange:        [2]float64{0.99, 1},
 		TopPMaxExclusive: true,
