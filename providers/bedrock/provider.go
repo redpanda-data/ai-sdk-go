@@ -211,8 +211,8 @@ func WithCachingDisabled() ProviderOption {
 // profile. If that model has no profile for the geography, NewModel falls back
 // to its global profile, which has different data-residency semantics. Unknown,
 // China, and unsupported GovCloud combinations fail instead of guessing; an
-// unset region keeps the historical US default. Already-prefixed IDs and exact
-// catalog matches are used as provided.
+// unset region keeps the historical US default. Already-prefixed profile IDs
+// remain exact, but are validated against the configured source region.
 func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error) {
 	// Build the API model ID. Most Bedrock models are cross-region inference
 	// profiles, so an un-prefixed name prefers the source region's geo profile
@@ -246,6 +246,11 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 		}
 
 		return nil, fmt.Errorf("unsupported Bedrock model: %s", modelName)
+	}
+
+	if p.region != "" && hasRegionPrefix(apiModelID) &&
+		!IsModelAllowedFromRegion(apiModelID, p.region) {
+		return nil, fmt.Errorf("unsupported Bedrock model: %s in region %s", modelName, p.region)
 	}
 
 	cfg := &Config{

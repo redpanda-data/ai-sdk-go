@@ -464,6 +464,24 @@ func TestNewModel_GeoProfileOrGlobalFallback(t *testing.T) {
 		{"ap-southeast-2", ModelClaudeOpus47, ModelClaudeOpus47AU},
 		{"ap-southeast-2", ModelClaudeOpus46, ModelClaudeOpus46AU},
 		{"ap-southeast-2", ModelClaudeOpus45, ModelClaudeOpus45Global},
+		{"eu-west-1", ModelClaudeFable5, ModelClaudeFable5Global},
+		{"eu-west-1", ModelClaudeSonnet5, ModelClaudeSonnet5Global},
+		{"eu-west-1", ModelClaudeSonnet46, ModelClaudeSonnet46EU},
+		{"eu-west-1", ModelClaudeSonnet45, ModelClaudeSonnet45EU},
+		{"eu-west-1", ModelClaudeHaiku45, ModelClaudeHaiku45EU},
+		{"eu-west-1", ModelClaudeOpus48, ModelClaudeOpus48EU},
+		{"eu-west-1", ModelClaudeOpus47, ModelClaudeOpus47EU},
+		{"eu-west-1", ModelClaudeOpus46, ModelClaudeOpus46EU},
+		{"eu-west-1", ModelClaudeOpus45, ModelClaudeOpus45EU},
+		{"ap-southeast-4", ModelClaudeFable5, ModelClaudeFable5Global},
+		{"ap-southeast-4", ModelClaudeSonnet5, ModelClaudeSonnet5Global},
+		{"ap-southeast-4", ModelClaudeSonnet46, ModelClaudeSonnet46AU},
+		{"ap-southeast-4", ModelClaudeSonnet45, ModelClaudeSonnet45AU},
+		{"ap-southeast-4", ModelClaudeHaiku45, ModelClaudeHaiku45AU},
+		{"ap-southeast-4", ModelClaudeOpus48, ModelClaudeOpus48AU},
+		{"ap-southeast-4", ModelClaudeOpus47, ModelClaudeOpus47AU},
+		{"ap-southeast-4", ModelClaudeOpus46, ModelClaudeOpus46AU},
+		{"ap-southeast-4", ModelClaudeOpus45, ModelClaudeOpus45Global},
 	}
 
 	for _, tt := range tests {
@@ -477,6 +495,36 @@ func TestNewModel_GeoProfileOrGlobalFallback(t *testing.T) {
 			m, ok := model.(*Model)
 			require.True(t, ok)
 			assert.Equal(t, tt.wantID, m.config.APIModelID)
+		})
+	}
+}
+
+func TestNewModel_PrefixedProfileRegionValidation(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name    string
+		region  string
+		modelID string
+		wantErr bool
+	}{
+		{"global from China", "cn-north-1", ModelClaudeSonnet46Global, true},
+		{"EU from US", "us-east-1", ModelClaudeSonnet46EU, true},
+		{"global from unknown region", "unknown", ModelClaudeSonnet46Global, false},
+		{"Sonnet 4.5 US from GovCloud", "us-gov-east-1", ModelClaudeSonnet45US, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			p := &Provider{client: nil, region: tt.region}
+
+			_, err := p.NewModel(tt.modelID)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
 		})
 	}
 }

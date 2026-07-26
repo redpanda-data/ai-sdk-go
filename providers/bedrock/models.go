@@ -236,6 +236,7 @@ func (d ModelDefinition) discoveryMetadata() map[string]string {
 //   - "au"   for Australia/NZ      (ap-southeast-2, ap-southeast-4, ap-southeast-6)
 //   - "jp"   for Japan             (ap-northeast-1, ap-northeast-3)
 //   - "global" for regions without a published Geo profile
+//   - "" for unknown regions and partitions where Bedrock does not publish Claude
 //
 // See https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference-support.html
 func InferenceProfileRegion(region string) string {
@@ -677,8 +678,8 @@ var supportedModels = map[string]ModelDefinition{
 	},
 
 	// ----------------------------------------------------------------
-	// Claude Sonnet 5 — inference-profile-only, no bare entry. AWS currently
-	// publishes only US and global profiles:
+	// Claude Sonnet 5 — inference-profile-only, no bare entry. Verified
+	// 2026-07-26: AWS Programmatic Access publishes only US and global profiles:
 	// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-5.html
 	// ----------------------------------------------------------------
 	ModelClaudeSonnet5Global: {

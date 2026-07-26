@@ -21,14 +21,13 @@ import "strings"
 //
 // Bedrock geo inference profiles (us./eu./au./jp.) accept only the source
 // regions listed on each model card. The "global." profile is unrestricted
-// outside GovCloud, and bare model IDs (no profile prefix) defer to AWS
+// outside GovCloud and China, and bare model IDs (no profile prefix) defer to AWS
 // in-region availability.
 //
-// Unknown regions and regions that AWS lists as global-only (no Geo profile
-// at all, e.g. me-central-1, sa-east-1) cause any prefixed call other than
-// "global." to be rejected — the SDK has no way to know whether AWS would
-// route the call, so we err on the side of failing fast rather than letting
-// the request reach AWS just to be rejected there.
+// Unknown regions and regions that AWS lists as global-only (no Geo profile at
+// all, e.g. me-central-1, sa-east-1) reject geo-prefixed calls but permit
+// "global.". China rejects every profile because Bedrock does not publish
+// Claude there. The SDK errs on the side of failing before an AWS API call.
 //
 // Examples:
 //
@@ -37,6 +36,7 @@ import "strings"
 //	IsModelAllowedFromRegion("us.anthropic.claude-sonnet-4-6", "ca-central-1") → true
 //	IsModelAllowedFromRegion("jp.anthropic.claude-sonnet-4-5-…", "ap-northeast-1") → true
 //	IsModelAllowedFromRegion("global.anthropic.claude-opus-4-6-v1", "me-central-1") → true
+//	IsModelAllowedFromRegion("global.anthropic.claude-sonnet-4-6", "cn-north-1") → false
 //	IsModelAllowedFromRegion("anthropic.claude-sonnet-4-6", "us-east-1") → true (bare)
 func IsModelAllowedFromRegion(modelID, awsRegion string) bool {
 	if !hasRegionPrefix(modelID) {
