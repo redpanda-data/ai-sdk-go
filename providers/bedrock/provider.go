@@ -218,7 +218,20 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 	apiModelID := modelName
 
 	if _, registered := lookupModel(apiModelID); !registered && !hasRegionPrefix(apiModelID) {
-		apiModelID = InferenceProfileRegion(p.region) + "." + apiModelID
+		profileRegion := InferenceProfileRegion(p.region)
+
+		// Per-family resolvers are opt-in. Existing models retain their historical
+		// routing; generalizing validation for them is a separate behavior change.
+		if resolver, ok := profileRegionResolverFor(modelName); ok && p.region != "" {
+			var known bool
+
+			profileRegion, known = resolver(p.region)
+			if !known {
+				return nil, fmt.Errorf("unsupported Bedrock model: %s in region %s", modelName, p.region)
+			}
+		}
+
+		apiModelID = profileRegion + "." + apiModelID
 	}
 
 	// Look up by the prefixed ID — each inference profile variant is a
@@ -227,6 +240,11 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 	modelDef, ok := lookupModel(apiModelID)
 	if !ok {
 		return nil, fmt.Errorf("unsupported Bedrock model: %s", modelName)
+	}
+
+	if _, resolvedByFamily := profileRegionResolverFor(apiModelID); p.region != "" &&
+		resolvedByFamily && !IsModelAllowedFromRegion(apiModelID, p.region) {
+		return nil, fmt.Errorf("unsupported Bedrock model: %s in region %s", modelName, p.region)
 	}
 
 	cfg := &Config{

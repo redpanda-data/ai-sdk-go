@@ -35,13 +35,12 @@ import (
 //     and the two side-by-side Anthropic tables on
 //     https://aws.amazon.com/bedrock/pricing/.
 //
-// This catalog registers inference-profile variants instead of bare Claude
-// IDs so each entry carries the correct routing and pricing metadata. For
-// earlier 4.5+ models, invoking the bare ID via bedrock-runtime returned
-// ValidationException "Invocation of model ID … with on-demand throughput
-// isn't supported" in empirical checks (2026-04); the bare consts below exist
-// only as building blocks for the prefixed variants and are NOT registered in
-// supportedModels.
+// This catalog registers every published inference-profile variant and any
+// bare ID that Bedrock documents as in-region invokable. For earlier 4.5+
+// models, invoking the bare ID via bedrock-runtime returned ValidationException
+// "Invocation of model ID … with on-demand throughput isn't supported" in
+// empirical checks (2026-04); those bare consts remain building blocks for the
+// prefixed variants and are not registered in supportedModels.
 const (
 	// ModelClaudeFable5 is the bare Bedrock ID for Claude Fable 5
 	// (inference-profile-only — invoke via one of the prefixed variants).
@@ -84,6 +83,17 @@ const (
 	ModelClaudeHaiku45US     = "us." + ModelClaudeHaiku45
 	ModelClaudeHaiku45EU     = "eu." + ModelClaudeHaiku45
 	ModelClaudeHaiku45AU     = "au." + ModelClaudeHaiku45
+
+	// ModelClaudeOpus5 is the bare building block for Claude Opus 5 profile IDs.
+	// bedrock-runtime publishes only global, US, EU, and AU profiles. The bare
+	// ID is invokable through bedrock-mantle's Anthropic Messages surface, but
+	// this provider's mantle transport implements only the OpenAI-compatible
+	// Responses surface.
+	ModelClaudeOpus5       = "anthropic.claude-opus-5"
+	ModelClaudeOpus5Global = "global." + ModelClaudeOpus5
+	ModelClaudeOpus5US     = "us." + ModelClaudeOpus5
+	ModelClaudeOpus5EU     = "eu." + ModelClaudeOpus5
+	ModelClaudeOpus5AU     = "au." + ModelClaudeOpus5
 
 	// ModelClaudeOpus48 is the bare Bedrock ID for Claude Opus 4.8
 	// (inference-profile-only — invoke via one of the prefixed variants).
@@ -254,6 +264,19 @@ var geoProfilePrefixes = map[string]bool{
 	"global": true,
 }
 
+// profileRegionResolvers opts model families into exact, model-specific geo
+// routing. Families absent from this map retain the catalog's historical
+// generic routing behavior.
+var profileRegionResolvers = map[string]func(string) (string, bool){
+	ModelClaudeOpus5: claudeOpus5ProfileRegion,
+}
+
+// profileRegionResolverRegions exposes each resolver's complete source-region
+// domain so catalog invariants can verify every returned profile is registered.
+var profileRegionResolverRegions = map[string]map[string]string{
+	ModelClaudeOpus5: claudeOpus5ProfileRegions,
+}
+
 // hasRegionPrefix reports whether a model ID already begins with a Bedrock
 // region/global inference-profile prefix (e.g. "us.anthropic.claude-sonnet-4-6"
 // or "global.anthropic.claude-opus-4-6-v1").
@@ -271,6 +294,17 @@ func hasRegionPrefix(modelID string) bool {
 	}
 
 	return geoProfilePrefixes[prefix]
+}
+
+func profileRegionResolverFor(modelID string) (func(string) (string, bool), bool) {
+	prefix, family, ok := strings.Cut(modelID, ".")
+	if ok && geoProfilePrefixes[prefix] {
+		modelID = family
+	}
+
+	resolver, ok := profileRegionResolvers[modelID]
+
+	return resolver, ok
 }
 
 // lookupModel finds a ModelDefinition by exact model ID. Each inference
@@ -307,11 +341,10 @@ var (
 		SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 	}
 
-	claudeFable5Constraints = llm.ModelConstraints{
-		TemperatureRange: [2]float64{0.0, 1.0},
-		MaxInputTokens:   1000000,
-		MaxOutputTokens:  128000,
-		SupportedParams:  []string{"max_tokens", "stop"},
+	claudeNoSampling1MConstraints = llm.ModelConstraints{
+		MaxInputTokens:  1000000,
+		MaxOutputTokens: 128000,
+		SupportedParams: []string{"max_tokens", "stop"},
 	}
 
 	claudeContext200kConstraints = llm.ModelConstraints{
@@ -459,7 +492,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:                        ModelClaudeFable5Global,
 		Label:                       "Claude Fable 5 (Global)",
 		Capabilities:                claudeStandardCaps,
-		Constraints:                 claudeFable5Constraints,
+		Constraints:                 claudeNoSampling1MConstraints,
 		RequiresProviderDataSharing: true,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(10.00, 50.00, 1.00).WithCacheCreation(12.50, 20.00, 0),
@@ -469,7 +502,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:                        ModelClaudeFable5US,
 		Label:                       "Claude Fable 5 (US)",
 		Capabilities:                claudeStandardCaps,
-		Constraints:                 claudeFable5Constraints,
+		Constraints:                 claudeNoSampling1MConstraints,
 		RequiresProviderDataSharing: true,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(13.75, 22.00, 0),
@@ -479,10 +512,52 @@ var supportedModels = map[string]ModelDefinition{
 		Name:                        ModelClaudeFable5EU,
 		Label:                       "Claude Fable 5 (EU)",
 		Capabilities:                claudeStandardCaps,
-		Constraints:                 claudeFable5Constraints,
+		Constraints:                 claudeNoSampling1MConstraints,
 		RequiresProviderDataSharing: true,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(13.75, 22.00, 0),
+		),
+	},
+
+	// ----------------------------------------------------------------
+	// Claude Opus 5 — inference-profile-only on bedrock-runtime. AWS publishes
+	// global, US, EU, and AU profiles:
+	// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-5.html
+	// ----------------------------------------------------------------
+	ModelClaudeOpus5Global: {
+		Name:         ModelClaudeOpus5Global,
+		Label:        "Claude Opus 5 (Global)",
+		Capabilities: claudeStandardCaps,
+		Constraints:  claudeNoSampling1MConstraints,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
+		),
+	},
+	ModelClaudeOpus5US: {
+		Name:         ModelClaudeOpus5US,
+		Label:        "Claude Opus 5 (US)",
+		Capabilities: claudeStandardCaps,
+		Constraints:  claudeNoSampling1MConstraints,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
+		),
+	},
+	ModelClaudeOpus5EU: {
+		Name:         ModelClaudeOpus5EU,
+		Label:        "Claude Opus 5 (EU)",
+		Capabilities: claudeStandardCaps,
+		Constraints:  claudeNoSampling1MConstraints,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
+		),
+	},
+	ModelClaudeOpus5AU: {
+		Name:         ModelClaudeOpus5AU,
+		Label:        "Claude Opus 5 (AU)",
+		Capabilities: claudeStandardCaps,
+		Constraints:  claudeNoSampling1MConstraints,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
 		),
 	},
 

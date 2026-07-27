@@ -117,6 +117,40 @@ func TestLookupModel(t *testing.T) {
 			wantOK: false,
 		},
 		{
+			name:   "Opus 5 bare ID is not in the bedrock-runtime catalog",
+			input:  ModelClaudeOpus5,
+			wantOK: false,
+		},
+		{
+			name:   "Opus 5 JP profile is not published",
+			input:  "jp." + ModelClaudeOpus5,
+			wantOK: false,
+		},
+		{
+			name:    "Opus 5 US profile is its own entry",
+			input:   ModelClaudeOpus5US,
+			wantOK:  true,
+			wantDef: ModelClaudeOpus5US,
+		},
+		{
+			name:    "Opus 5 EU profile is its own entry",
+			input:   ModelClaudeOpus5EU,
+			wantOK:  true,
+			wantDef: ModelClaudeOpus5EU,
+		},
+		{
+			name:    "Opus 5 AU profile is its own entry",
+			input:   ModelClaudeOpus5AU,
+			wantOK:  true,
+			wantDef: ModelClaudeOpus5AU,
+		},
+		{
+			name:    "Opus 5 global profile is its own entry",
+			input:   ModelClaudeOpus5Global,
+			wantOK:  true,
+			wantDef: ModelClaudeOpus5Global,
+		},
+		{
 			name:   "Sonnet 5 bare ID is not in the catalog",
 			input:  ModelClaudeSonnet5,
 			wantOK: false,
@@ -489,7 +523,64 @@ func TestNewModel_Fable5RegionPrefix(t *testing.T) {
 	assert.Equal(t, ModelClaudeFable5US, m.config.APIModelID)
 }
 
-func TestNewModel_Fable5SamplingParametersRejected(t *testing.T) {
+func TestNewModel_ClaudeOpus5Routing(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		region    string
+		modelName string
+		wantID    string
+		wantErr   bool
+	}{
+		{"bare defaults to US", "", ModelClaudeOpus5, ModelClaudeOpus5US, false},
+		{"bare from US", "us-east-1", ModelClaudeOpus5, ModelClaudeOpus5US, false},
+		{"bare from Canada Central", "ca-central-1", ModelClaudeOpus5, ModelClaudeOpus5US, false},
+		{"bare from Calgary", "ca-west-1", ModelClaudeOpus5, ModelClaudeOpus5US, false},
+		{"bare from EU", "eu-west-1", ModelClaudeOpus5, ModelClaudeOpus5EU, false},
+		{"bare from Sydney", "ap-southeast-2", ModelClaudeOpus5, ModelClaudeOpus5AU, false},
+		{"bare from Melbourne", "ap-southeast-4", ModelClaudeOpus5, ModelClaudeOpus5AU, false},
+		{"bare from New Zealand", "ap-southeast-6", ModelClaudeOpus5, ModelClaudeOpus5Global, false},
+		{"bare from Tokyo", "ap-northeast-1", ModelClaudeOpus5, ModelClaudeOpus5Global, false},
+		{"bare from global-only region", "me-central-1", ModelClaudeOpus5, ModelClaudeOpus5Global, false},
+		{"bare from GovCloud", "us-gov-west-1", ModelClaudeOpus5, "", true},
+		{"bare from China", "cn-north-1", ModelClaudeOpus5, "", true},
+		{"bare from unlisted AP region", "ap-southeast-8", ModelClaudeOpus5, "", true},
+		{"bare from unknown region", "unknown", ModelClaudeOpus5, "", true},
+		{"explicit US from US", "us-east-1", ModelClaudeOpus5US, ModelClaudeOpus5US, false},
+		{"explicit EU from EU", "eu-west-1", ModelClaudeOpus5EU, ModelClaudeOpus5EU, false},
+		{"explicit AU from Sydney", "ap-southeast-2", ModelClaudeOpus5AU, ModelClaudeOpus5AU, false},
+		{"explicit global from UAE", "me-central-1", ModelClaudeOpus5Global, ModelClaudeOpus5Global, false},
+		{"explicit US from EU", "eu-west-1", ModelClaudeOpus5US, "", true},
+		{"explicit AU from New Zealand", "ap-southeast-6", ModelClaudeOpus5AU, "", true},
+		{"explicit global from China", "cn-north-1", ModelClaudeOpus5Global, ModelClaudeOpus5Global, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			p := &Provider{client: nil, region: tt.region}
+
+			model, err := p.NewModel(tt.modelName)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.modelName)
+				assert.Contains(t, err.Error(), tt.region)
+
+				return
+			}
+
+			require.NoError(t, err)
+
+			m, ok := model.(*Model)
+			require.True(t, ok)
+			assert.Equal(t, tt.wantID, m.config.APIModelID)
+		})
+	}
+}
+
+func TestNewModel_RestrictedSamplingParametersRejected(t *testing.T) {
 	t.Parallel()
 
 	p := &Provider{client: nil, region: "us-east-1"}
@@ -503,13 +594,19 @@ func TestNewModel_Fable5SamplingParametersRejected(t *testing.T) {
 		{name: "top_p", opt: WithTopP(0.9), want: "top_p"},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, model := range []string{ModelClaudeFable5, ModelClaudeOpus5} {
+		t.Run(model, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := p.NewModel(ModelClaudeFable5, tt.opt)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tt.want)
+			for _, tt := range tests {
+				t.Run(tt.name, func(t *testing.T) {
+					t.Parallel()
+
+					_, err := p.NewModel(model, tt.opt)
+					require.Error(t, err)
+					assert.Contains(t, err.Error(), tt.want)
+				})
+			}
 		})
 	}
 }

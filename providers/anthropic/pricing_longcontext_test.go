@@ -29,23 +29,26 @@ import (
 // long-context pricing tier, mirrored from the catalog entries.
 const longContextThreshold = 200_001
 
-// TestLongContextBracketsMatchSurcharge verifies that every 1M-window model
-// prices requests above 200K tokens at Anthropic's published long-context
-// surcharge, on every rate card (default and each speed/region override):
+// TestLongContextBracketsMatchSurcharge preserves main's pre-existing
+// assertions for older catalog entries. Anthropic now documents Claude 4.6+
+// pricing as flat across the full 1M context window; Opus 5 is correct here,
+// while removal of the remaining stale brackets is tracked in #183.
 //
 //	input  = 2x base
 //	output = 1.5x base
 //	cache reads and writes = 2x base
 //
-// This surcharge is confirmed against Anthropic's Sonnet 1M pricing
-// ($3/$15 -> $6/$22.50 above 200K) and community catalogs (LiteLLM's
-// *_above_200k_tokens fields for claude-sonnet-4/4.5/4.6). Any 1M model that
-// under-reports large-request cost by staying on flat rates fails here.
+// This narrow exclusion keeps the Opus 5 feature independent from #183 while
+// still guarding the current main-branch behavior for every existing entry.
 func TestLongContextBracketsMatchSurcharge(t *testing.T) {
 	t.Parallel()
 
 	for id, def := range supportedModels {
 		if def.Constraints.MaxInputTokens < 1_000_000 {
+			continue
+		}
+
+		if id == ModelClaudeOpus5 {
 			continue
 		}
 
@@ -72,6 +75,20 @@ func TestLongContextBracketsMatchSurcharge(t *testing.T) {
 				assertSurcharge(t, c.name, c.card.Base, bracket.Rates)
 			}
 		})
+	}
+}
+
+// TestOpus5PricingStaysFlatAcrossContextWindow guards Opus 5's documented
+// exception to Anthropic's older >200K long-context surcharge.
+func TestOpus5PricingStaysFlatAcrossContextWindow(t *testing.T) {
+	t.Parallel()
+
+	def, ok := supportedModels[ModelClaudeOpus5]
+	require.True(t, ok)
+	assert.Empty(t, def.Pricing.Default.Brackets)
+
+	for _, ov := range def.Pricing.Overrides {
+		assert.Empty(t, ov.RateCard.Brackets)
 	}
 }
 

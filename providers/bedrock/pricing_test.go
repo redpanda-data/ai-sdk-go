@@ -20,6 +20,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/redpanda-data/ai-sdk-go/pricing"
 )
 
 // freeCacheWriteModels lists Bedrock models AWS documents as charging nothing
@@ -100,6 +102,29 @@ func TestModelPricingMatchesModels(t *testing.T) {
 	pricingMap := ModelPricing()
 	assert.Len(t, pricingMap, len(supportedModels),
 		"ModelPricing should return exactly one entry per supported model")
+}
+
+func TestClaudeOpus5Pricing(t *testing.T) {
+	t.Parallel()
+
+	global, globalOK := supportedModels[ModelClaudeOpus5Global]
+	require.True(t, globalOK)
+	assert.Equal(t,
+		pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
+		global.Pricing.Default.Base,
+	)
+
+	geoRates := pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0)
+
+	for _, id := range []string{
+		ModelClaudeOpus5US,
+		ModelClaudeOpus5EU,
+		ModelClaudeOpus5AU,
+	} {
+		def, ok := supportedModels[id]
+		require.True(t, ok)
+		assert.Equal(t, geoRates, def.Pricing.Default.Base)
+	}
 }
 
 // TestGeoGlobalRatio pins, per logical model, the relationship between the
