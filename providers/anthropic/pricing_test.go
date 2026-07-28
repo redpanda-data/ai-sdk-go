@@ -58,6 +58,27 @@ func TestFastModeModelsHaveFastPricing(t *testing.T) {
 	}
 }
 
+func TestClaudeOpus5Pricing(t *testing.T) {
+	t.Parallel()
+
+	def, ok := supportedModels[ModelClaudeOpus5]
+	require.True(t, ok)
+
+	assert.Equal(t,
+		pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
+		def.Pricing.Default.Base,
+	)
+	assert.Empty(t, def.Pricing.Default.Brackets)
+
+	fast, found := findFastOverride(def.Pricing.Overrides)
+	require.True(t, found)
+	assert.Equal(t,
+		pricing.NewRates(10.00, 50.00, 1.00).WithCacheCreation(12.50, 20.00, 0),
+		fast.Base,
+	)
+	assert.Empty(t, fast.Brackets)
+}
+
 func TestModelPricingMatchesModels(t *testing.T) {
 	t.Parallel()
 

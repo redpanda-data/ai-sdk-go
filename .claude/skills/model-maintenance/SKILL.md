@@ -18,23 +18,26 @@ that is specific to Bedrock.
 
 ## Adding a new Bedrock model
 
-Bedrock exposes each Claude model only through **cross-region inference
-profiles** (`us.`, `eu.`, `global.`, and so on), never the bare
-`anthropic.<model>` id — invoking the bare id returns a `ValidationException`
-("on-demand throughput isn't supported"), so register one entry per *published
-profile* in `providers/bedrock/models.go` and do **not** add a bare entry.
-Confirm which profiles actually exist by invoking each candidate with a one-token
-`Converse` request rather than guessing: a working profile returns output, an
-unpublished one returns `ValidationException` ("the provided model identifier is
-invalid") even from its home region, and a published-but-unsubscribed one returns
+Bedrock may expose a Claude model through a bare **in-region** ID, cross-region
+inference profiles (`us.`, `eu.`, `global.`, and so on), or both. Check the
+model card's Programmatic Access and Regional Availability tables for the exact
+IDs. Register the bare ID only when the bedrock-runtime row publishes an
+In-Region endpoint URL; a bare Model ID alone is not sufficient. Otherwise,
+invoking it returns `ValidationException` ("on-demand throughput isn't
+supported"). Do not treat a bedrock-mantle Anthropic Messages URL as
+bedrock-runtime support: this provider's mantle transport implements only the
+OpenAI-compatible Responses surface. Confirm uncertain IDs with a one-token
+`Converse` request rather than guessing: a working ID returns output, an
+unpublished one returns `ValidationException` ("the provided model identifier
+is invalid"), and a published-but-unsubscribed one returns
 `AccessDeniedException`. A newly released model is often US- and global-only at
 first, with other geos published later. Pricing is per-profile: the `global.`
-profile is the cheapest and each geo profile is exactly `1.10x` the global rate in
-every column (enforced by `TestGeoGlobalRatio`) — spell every rate out in place,
-and reuse the shared capability/constraint vars when the context window matches an
-existing generation. Add a lookup test (the new profiles present; the bare and any
-unpublished profile absent) plus a region-allow test; the integration conformance
-suite then picks the new entries up automatically through `Models()`.
+profile is the cheapest and each geo or in-region entry is exactly `1.10x` the
+global rate in every column (enforced by `TestGeoGlobalRatio`) — spell every
+rate out in place, and reuse the shared capability/constraint vars when the
+context window matches an existing generation. Add lookup tests for every
+published ID and region-allow tests; the integration conformance suite then
+picks new entries up automatically through `Models()`.
 
 Separately, a catalog entry is not invokable until the **account** has accepted
 the model's Bedrock agreement (an AWS Marketplace subscription) in **every region
