@@ -95,10 +95,10 @@ func TestResponseMapper_FinishReasonTruncationWithToolCalls(t *testing.T) {
 			want:       llm.FinishReasonLength,
 		},
 		{
-			name:       "context_window with tool calls stays Length",
+			name:       "context_window with tool calls maps to ContextOverflow",
 			stopReason: anthropic.BetaStopReasonModelContextWindowExceeded,
 			content:    []anthropic.BetaContentBlockUnion{toolUseBlock},
-			want:       llm.FinishReasonLength,
+			want:       llm.FinishReasonContextOverflow,
 		},
 		{
 			name:       "refusal with tool calls stays ContentFilter",
@@ -111,6 +111,12 @@ func TestResponseMapper_FinishReasonTruncationWithToolCalls(t *testing.T) {
 			stopReason: anthropic.BetaStopReasonMaxTokens,
 			content:    []anthropic.BetaContentBlockUnion{textBlock},
 			want:       llm.FinishReasonLength,
+		},
+		{
+			name:       "context_window without tool calls maps to ContextOverflow",
+			stopReason: anthropic.BetaStopReasonModelContextWindowExceeded,
+			content:    []anthropic.BetaContentBlockUnion{textBlock},
+			want:       llm.FinishReasonContextOverflow,
 		},
 		{
 			name:       "end_turn without tool calls stays Stop",
