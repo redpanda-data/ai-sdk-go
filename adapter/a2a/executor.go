@@ -31,6 +31,12 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/runner"
 )
 
+// contextWindowExceededMessage is the truthful, actionable failure text shown
+// when a turn stops because the conversation does not fit the model's context
+// window. Shared by the two ways that condition surfaces: a 200-response
+// FinishReasonContextOverflow, and a pre-generation llm.ErrContextWindowExceeded.
+const contextWindowExceededMessage = "Agent stopped: the conversation exceeds the model's context window. Start a new conversation or shorten the input."
+
 // Executor implements the a2asrv.AgentExecutor interface, bridging AI SDK agents with A2A protocol.
 type Executor struct {
 	log    *slog.Logger
@@ -143,6 +149,15 @@ func (e *Executor) processEvents(
 				if writeErr := queue.Write(bgCtx, statusEvent); writeErr != nil {
 					e.log.ErrorContext(ctx, "Failed to write canceled status", "error", writeErr)
 				}
+			} else if errors.Is(err, llm.ErrContextWindowExceeded) {
+				// The provider rejected the request before generating because the
+				// conversation does not fit the context window. Terminal, but give the
+				// user the truthful, actionable message rather than the raw provider
+				// error — matching the 200-response FinishReasonContextOverflow case.
+				errMsg := a2a.NewMessage(a2a.MessageRoleAgent, a2a.TextPart{Text: contextWindowExceededMessage})
+				statusEvent := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateFailed, errMsg)
+				statusEvent.Final = true
+				write(statusEvent)
 			} else {
 				// Regular failure - emit failed status with error message
 				errMsg := a2a.NewMessage(a2a.MessageRoleAgent, a2a.TextPart{Text: err.Error()})
@@ -270,7 +285,7 @@ func (e *Executor) processEvents(
 				// so nothing could be generated. Terminal, but say so truthfully.
 				taskState = a2a.TaskStateFailed
 				statusMsg = a2a.NewMessage(a2a.MessageRoleAgent, a2a.TextPart{
-					Text: "Agent stopped: the conversation exceeds the model's context window. Start a new conversation or shorten the input.",
+					Text: contextWindowExceededMessage,
 				})
 			case agent.FinishReasonError:
 				taskState = a2a.TaskStateFailed
