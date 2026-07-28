@@ -66,6 +66,8 @@ func TestProviderModels(t *testing.T) {
 
 	// Verify expected models are present
 	expectedModels := []string{
+		"gemini-3.6-flash",
+		"gemini-3.5-flash-lite",
 		"gemini-3-pro-preview",
 		"gemini-3-flash-preview",
 		"gemini-2.5-pro",
@@ -74,6 +76,58 @@ func TestProviderModels(t *testing.T) {
 	}
 	for _, expected := range expectedModels {
 		assert.Contains(t, modelNames, expected, "Should include %s", expected)
+	}
+}
+
+func TestLatestGeminiModels(t *testing.T) {
+	t.Parallel()
+
+	provider, err := NewProvider(context.Background(), "test-api-key")
+	require.NoError(t, err)
+
+	tests := []struct {
+		name                  string
+		inputMicrocents       int64
+		outputMicrocents      int64
+		cachedInputMicrocents int64
+		maxInputTokens        int
+		maxOutputTokens       int
+	}{
+		{
+			name:                  "gemini-3.6-flash",
+			inputMicrocents:       150_000_000,
+			outputMicrocents:      750_000_000,
+			cachedInputMicrocents: 15_000_000,
+			maxInputTokens:        1_048_576,
+			maxOutputTokens:       65_536,
+		},
+		{
+			name:                  "gemini-3.5-flash-lite",
+			inputMicrocents:       30_000_000,
+			outputMicrocents:      250_000_000,
+			cachedInputMicrocents: 3_000_000,
+			maxInputTokens:        1_048_576,
+			maxOutputTokens:       65_536,
+		},
+	}
+
+	prices := ModelPricing()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			model, err := provider.NewModel(tt.name)
+			require.NoError(t, err)
+			assert.Equal(t, tt.maxInputTokens, model.Constraints().MaxInputTokens)
+			assert.Equal(t, tt.maxOutputTokens, model.Constraints().MaxOutputTokens)
+
+			price, ok := prices[tt.name]
+			require.True(t, ok)
+			assert.Equal(t, tt.inputMicrocents, price.Default.Base.InputPerMillion)
+			assert.Equal(t, tt.outputMicrocents, price.Default.Base.OutputPerMillion)
+			assert.Equal(t, tt.cachedInputMicrocents, price.Default.Base.CachedInputPerMillion)
+		})
 	}
 }
 
