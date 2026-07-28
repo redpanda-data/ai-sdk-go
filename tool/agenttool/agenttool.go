@@ -81,6 +81,12 @@ func (at *AgentTool) Definition() llm.ToolDefinition {
 // Result represents the output from an agent tool execution.
 type Result struct {
 	Result string `json:"result"`
+	// Truncated is true when the sub-agent's turn stopped at its output-token
+	// limit (agent.FinishReasonLength) rather than finishing naturally. The
+	// result then holds only the partial content produced before the cut, so the
+	// parent can tell an incomplete answer apart from a complete one — the
+	// agent-as-tool analogue of the A2A executor's `truncated` marker.
+	Truncated bool `json:"truncated,omitempty"`
 }
 
 // Execute implements tool.Tool by running the agent with a fresh session.
@@ -140,17 +146,24 @@ func (at *AgentTool) Execute(ctx context.Context, args json.RawMessage) (json.Ra
 	// before its own tool calls.
 	ctx = agent.ContextWithConversationID(ctx, session.ConversationID(sess))
 
-	// Run agent and collect the last assistant message as the result.
-	var result string
+	// Run agent, collecting the last assistant message as the result and the
+	// finish reason so a truncated turn can be flagged to the parent.
+	var (
+		result       string
+		finishReason agent.FinishReason
+	)
 
 	for evt, err := range at.agent.Run(ctx, inv) {
 		if err != nil {
 			return nil, fmt.Errorf("agent execution failed: %w", err)
 		}
 
-		// Capture last assistant message as result
-		if msgEvt, ok := evt.(agent.MessageEvent); ok {
-			result = msgEvt.Response.Message.TextContent()
+		switch e := evt.(type) {
+		case agent.MessageEvent:
+			// Capture last assistant message as result.
+			result = e.Response.Message.TextContent()
+		case agent.InvocationEndEvent:
+			finishReason = e.FinishReason
 		}
 	}
 
@@ -158,8 +171,14 @@ func (at *AgentTool) Execute(ctx context.Context, args json.RawMessage) (json.Ra
 		result = "Task completed with no text output."
 	}
 
+	// Output truncation is non-fatal: the sub-agent stopped at its output-token
+	// cap with a partial answer. Deliver the partial content but flag it so the
+	// parent does not mistake it for a complete result.
+	truncated := finishReason == agent.FinishReasonLength
+
 	output := Result{
-		Result: result,
+		Result:    result,
+		Truncated: truncated,
 	}
 
 	return json.Marshal(output)

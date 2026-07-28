@@ -33,11 +33,12 @@ import (
 
 // mockAgent is a simple test agent that returns a predefined response.
 type mockAgent struct {
-	name        string
-	description string
-	inputSchema map[string]any
-	response    string
-	shouldError bool
+	name         string
+	description  string
+	inputSchema  map[string]any
+	response     string
+	shouldError  bool
+	finishReason agent.FinishReason
 }
 
 func (m *mockAgent) Info() agent.Info {
@@ -66,11 +67,18 @@ func (m *mockAgent) Run(_ context.Context, _ *agent.InvocationMetadata) iter.Seq
 			},
 		}
 
-		yield(evt, nil)
+		if !yield(evt, nil) {
+			return
+		}
 
-		// Emit end event
+		// Emit end event. Default to a natural stop unless the test overrides it.
+		finishReason := m.finishReason
+		if finishReason == "" {
+			finishReason = agent.FinishReasonStop
+		}
+
 		endEvt := agent.InvocationEndEvent{
-			FinishReason: agent.FinishReasonStop,
+			FinishReason: finishReason,
 		}
 		yield(endEvt, nil)
 	}
@@ -206,6 +214,50 @@ func TestExecute(t *testing.T) {
 		err = json.Unmarshal(result, &output)
 		require.NoError(t, err)
 		assert.Equal(t, "Response without input", output.Result)
+	})
+
+	t.Run("truncated sub-agent turn is flagged", func(t *testing.T) {
+		t.Parallel()
+
+		mockAgent := &mockAgent{
+			name:         "verbose-agent",
+			response:     "partial answer that got cut off",
+			finishReason: agent.FinishReasonLength,
+		}
+
+		agentTool := agenttool.New(mockAgent)
+
+		result, err := agentTool.Execute(context.Background(), json.RawMessage("{}"))
+		require.NoError(t, err)
+
+		var output agenttool.Result
+		require.NoError(t, json.Unmarshal(result, &output))
+
+		assert.True(t, output.Truncated,
+			"a sub-agent turn that stopped at the output-token cap must be flagged truncated")
+		assert.Contains(t, output.Result, "partial answer that got cut off",
+			"the partial content the sub-agent produced must still be delivered")
+	})
+
+	t.Run("completed sub-agent turn is not flagged", func(t *testing.T) {
+		t.Parallel()
+
+		mockAgent := &mockAgent{
+			name:     "test-agent",
+			response: "complete answer",
+			// finishReason defaults to FinishReasonStop
+		}
+
+		agentTool := agenttool.New(mockAgent)
+
+		result, err := agentTool.Execute(context.Background(), json.RawMessage("{}"))
+		require.NoError(t, err)
+
+		var output agenttool.Result
+		require.NoError(t, json.Unmarshal(result, &output))
+
+		assert.False(t, output.Truncated, "a naturally completed turn must not be flagged truncated")
+		assert.Equal(t, "complete answer", output.Result)
 	})
 
 	t.Run("agent error propagation", func(t *testing.T) {
