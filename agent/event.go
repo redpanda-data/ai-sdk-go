@@ -221,9 +221,18 @@ const (
 	// The agent hit the maximum allowed turns before completing.
 	FinishReasonMaxTurns FinishReason = "max_turns"
 
-	// FinishReasonLength indicates a context/token limit was hit.
-	// The LLM ran out of context space during generation.
+	// FinishReasonLength indicates the turn was truncated at the output-token cap.
+	// Non-fatal: the model produced a partial response and stopped. The turn can
+	// be continued. Distinct from FinishReasonContextOverflow.
 	FinishReasonLength FinishReason = "length"
+
+	// FinishReasonContextOverflow indicates generation stopped because the
+	// conversation exceeds the model's context window. Terminal: the conversation
+	// must be compacted or restarted, not continued. Distinct from
+	// FinishReasonLength (a continuable per-turn output-token cut). Any partial
+	// content produced before the limit is still delivered via the message event;
+	// this reason marks the cause, not that the turn was empty.
+	FinishReasonContextOverflow FinishReason = "context_overflow"
 
 	// FinishReasonInputRequired indicates execution paused waiting for external input.
 	// One or more tools require user input, approval, or external data before continuing.

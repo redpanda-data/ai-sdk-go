@@ -274,8 +274,19 @@ const (
 	// FinishReasonStop indicates the model completed naturally.
 	FinishReasonStop FinishReason = "stop"
 
-	// FinishReasonLength indicates the response was truncated due to length limits.
+	// FinishReasonLength indicates the response was truncated at the output-token
+	// cap. This is a non-fatal, per-turn truncation: the model produced a partial
+	// response and stopped. Distinct from FinishReasonContextOverflow.
 	FinishReasonLength FinishReason = "length"
+
+	// FinishReasonContextOverflow indicates generation stopped because the
+	// conversation exceeds the model's context window (the provider's
+	// context-window stop reason, e.g. Anthropic's model_context_window_exceeded),
+	// as opposed to FinishReasonLength which is a per-turn output-token cut.
+	// Terminal: the conversation must be shortened or restarted, not continued.
+	// Any content the model produced before the limit is still delivered on the
+	// response — this reason marks the cause, it does not imply empty content.
+	FinishReasonContextOverflow FinishReason = "context_overflow"
 
 	// FinishReasonToolCalls indicates the model wants to execute tools.
 	FinishReasonToolCalls FinishReason = "tool_calls"

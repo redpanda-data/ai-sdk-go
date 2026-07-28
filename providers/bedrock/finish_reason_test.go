@@ -80,6 +80,18 @@ func TestResponseMapper_FinishReasonTruncationWithToolCalls(t *testing.T) {
 			want:       llm.FinishReasonLength,
 		},
 		{
+			name:       "context_window with tool calls maps to ContextOverflow",
+			stopReason: types.StopReasonModelContextWindowExceeded,
+			blocks:     []types.ContentBlock{toolUse},
+			want:       llm.FinishReasonContextOverflow,
+		},
+		{
+			name:       "context_window without tool calls maps to ContextOverflow",
+			stopReason: types.StopReasonModelContextWindowExceeded,
+			blocks:     []types.ContentBlock{text},
+			want:       llm.FinishReasonContextOverflow,
+		},
+		{
 			name:       "end_turn without tool calls stays Stop",
 			stopReason: types.StopReasonEndTurn,
 			blocks:     []types.ContentBlock{text},

@@ -477,6 +477,7 @@ func TestHandler_FinishReasonMapping(t *testing.T) {
 	}{
 		{llm.FinishReasonStop, "stop"},
 		{llm.FinishReasonLength, "length"},
+		{llm.FinishReasonContextOverflow, "length"},
 		{llm.FinishReasonContentFilter, "content-filter"},
 		{llm.FinishReasonToolCalls, "tool-calls"},
 		{llm.FinishReasonInterrupted, "other"},

@@ -766,6 +766,12 @@ func mapLLMFinishReason(reason llm.FinishReason) (agent.FinishReason, error) {
 	case llm.FinishReasonLength:
 		return agent.FinishReasonLength, nil
 
+	case llm.FinishReasonContextOverflow:
+		// Terminal but not an error condition — the executor turns this into a
+		// truthful "conversation too long" failure, distinct from output
+		// truncation (FinishReasonLength).
+		return agent.FinishReasonContextOverflow, nil
+
 	case llm.FinishReasonToolCalls:
 		// Not terminal - caller should continue to tool execution
 		return "", nil

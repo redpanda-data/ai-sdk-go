@@ -58,6 +58,11 @@ func mapFinishReason(fr llm.FinishReason) string {
 		return "stop"
 	case llm.FinishReasonLength:
 		return "length"
+	case llm.FinishReasonContextOverflow:
+		// OTel has no dedicated overflow reason; "length" is the token-limit
+		// bucket and matches the value overflow reported before it was split
+		// out from FinishReasonLength.
+		return "length"
 	case llm.FinishReasonContentFilter:
 		return "content_filter"
 	case llm.FinishReasonToolCalls:

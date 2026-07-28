@@ -119,8 +119,14 @@ func (m *ResponseMapper) mapStopReason(reason types.StopReason) llm.FinishReason
 	case types.StopReasonToolUse:
 		return llm.FinishReasonToolCalls
 
-	case types.StopReasonMaxTokens, types.StopReasonModelContextWindowExceeded:
+	case types.StopReasonMaxTokens:
 		return llm.FinishReasonLength
+
+	case types.StopReasonModelContextWindowExceeded:
+		// Input overflowed the context window — a genuinely different condition
+		// from an output-token cut (max_tokens). Keep them distinct so downstream
+		// can deliver-and-continue on truncation but fail truthfully on overflow.
+		return llm.FinishReasonContextOverflow
 
 	case types.StopReasonContentFiltered, types.StopReasonGuardrailIntervened:
 		return llm.FinishReasonContentFilter

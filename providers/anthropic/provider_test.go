@@ -102,6 +102,26 @@ func TestWithBaseURLNormalization(t *testing.T) {
 	}
 }
 
+func TestNewModel_DefaultMaxTokens(t *testing.T) {
+	t.Parallel()
+
+	provider, err := NewProvider("test-key")
+	require.NoError(t, err)
+
+	model, err := provider.NewModel(ModelClaudeSonnet5)
+	require.NoError(t, err)
+
+	m, ok := model.(*Model)
+	require.True(t, ok, "expected *Model")
+
+	// The default output budget must be generous but bounded — large enough not to
+	// truncate ordinary agent turns, yet not the model max, which would reserve so
+	// much context window that long conversations 400 before generating.
+	assert.Equal(t, defaultMaxTokens, m.config.MaxTokens)
+	assert.Greater(t, m.config.MaxTokens, 4096,
+		"default output budget must be large enough for ordinary agent turns")
+}
+
 func TestModelsDiscoveryConstraints(t *testing.T) {
 	t.Parallel()
 
