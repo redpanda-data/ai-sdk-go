@@ -33,12 +33,13 @@ import (
 
 // mockAgent is a simple test agent that returns a predefined response.
 type mockAgent struct {
-	name         string
-	description  string
-	inputSchema  map[string]any
-	response     string
-	shouldError  bool
-	finishReason agent.FinishReason
+	name          string
+	description   string
+	inputSchema   map[string]any
+	response      string
+	shouldError   bool
+	finishReason  agent.FinishReason
+	errorEventErr error // if set, emit a (non-terminal) ErrorEvent before the end event
 }
 
 func (m *mockAgent) Info() agent.Info {
@@ -69,6 +70,15 @@ func (m *mockAgent) Run(_ context.Context, _ *agent.InvocationMetadata) iter.Seq
 
 		if !yield(evt, nil) {
 			return
+		}
+
+		// llmagent carries a fatal cause in a non-terminal ErrorEvent and reports
+		// the terminal condition via the finish reason (both yielded with a nil
+		// iterator error) — mirror that here when the test asks for it.
+		if m.errorEventErr != nil {
+			if !yield(agent.ErrorEvent{Err: m.errorEventErr, Message: m.errorEventErr.Error()}, nil) {
+				return
+			}
 		}
 
 		// Emit end event. Default to a natural stop unless the test overrides it.
@@ -258,6 +268,56 @@ func TestExecute(t *testing.T) {
 
 		assert.Nil(t, output.Metadata, "a naturally completed turn must carry no markers")
 		assert.Equal(t, "complete answer", output.Result)
+	})
+
+	// Terminal states other than output truncation must fail the tool call rather
+	// than return a silent success, mirroring the A2A executor's mapping.
+	terminalFailures := []struct {
+		name         string
+		finishReason agent.FinishReason
+		wantContains string
+	}{
+		{"context overflow", agent.FinishReasonContextOverflow, "context window"},
+		{"max turns", agent.FinishReasonMaxTurns, "maximum iterations"},
+		{"input required", agent.FinishReasonInputRequired, "external input"},
+	}
+
+	for _, tt := range terminalFailures {
+		t.Run(tt.name+" is a tool error", func(t *testing.T) {
+			t.Parallel()
+
+			mockAgent := &mockAgent{
+				name:         "sub-agent",
+				response:     "some partial content",
+				finishReason: tt.finishReason,
+			}
+
+			agentTool := agenttool.New(mockAgent)
+
+			_, err := agentTool.Execute(context.Background(), json.RawMessage("{}"))
+
+			require.Error(t, err, "a %s sub-agent turn must not be returned as a success", tt.name)
+			assert.Contains(t, err.Error(), tt.wantContains)
+		})
+	}
+
+	t.Run("terminal error surfaces the underlying cause", func(t *testing.T) {
+		t.Parallel()
+
+		mockAgent := &mockAgent{
+			name:          "sub-agent",
+			response:      "some partial content",
+			finishReason:  agent.FinishReasonError,
+			errorEventErr: llm.ErrContentPolicyViolation,
+		}
+
+		agentTool := agenttool.New(mockAgent)
+
+		_, err := agentTool.Execute(context.Background(), json.RawMessage("{}"))
+
+		require.Error(t, err)
+		assert.ErrorIs(t, err, llm.ErrContentPolicyViolation,
+			"the sub-agent's underlying error must reach the parent, not be swallowed")
 	})
 
 	t.Run("agent error propagation", func(t *testing.T) {
