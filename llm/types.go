@@ -301,6 +301,43 @@ const (
 	FinishReasonUnknown FinishReason = "unknown"
 )
 
+// WireAPI identifies one request/response wire contract a hosted model can be
+// invoked with. The unit is the wire format, not the provider: the same
+// contract may be served by several providers (Anthropic Messages is spoken
+// by api.anthropic.com and by Bedrock InvokeModel for Claude models), and one
+// provider may serve several contracts for one model.
+//
+// This is the per-model dimension gateways route on: which APIs a model
+// answers varies by model on aggregator platforms — on Bedrock, Claude models
+// accept the Anthropic Messages body via InvokeModel while Nova/Mistral are
+// Converse-only and Gemma is served through the OpenAI-compatible mantle
+// endpoint.
+type WireAPI string
+
+const (
+	// WireAPIOpenAIChatCompletions is the OpenAI Chat Completions contract
+	// (POST …/chat/completions), including OpenAI-compatible endpoints.
+	WireAPIOpenAIChatCompletions WireAPI = "openai_chat_completions"
+
+	// WireAPIOpenAIResponses is the OpenAI Responses contract
+	// (POST …/responses), including OpenAI-compatible endpoints such as
+	// Bedrock mantle.
+	WireAPIOpenAIResponses WireAPI = "openai_responses"
+
+	// WireAPIAnthropicMessages is the Anthropic Messages contract — served
+	// natively (POST /v1/messages) and, for Claude models on Bedrock, via
+	// InvokeModel with the Messages body.
+	WireAPIAnthropicMessages WireAPI = "anthropic_messages"
+
+	// WireAPIGeminiGenerateContent is the Gemini generateContent contract
+	// (POST …/models/{model}:generateContent).
+	WireAPIGeminiGenerateContent WireAPI = "gemini_generate_content"
+
+	// WireAPIBedrockConverse is Bedrock's model-agnostic Converse contract
+	// (POST /model/{id}/converse).
+	WireAPIBedrockConverse WireAPI = "bedrock_converse"
+)
+
 // ModelCapabilities describes what features a model supports.
 // This enables compile-time and runtime validation of requests.
 type ModelCapabilities struct {
@@ -313,6 +350,24 @@ type ModelCapabilities struct {
 	MultiTurn        bool // Supports conversation history
 	SystemPrompts    bool // Supports system role messages
 	Reasoning        bool // Supports reasoning controls and exposes reasoning traces
+
+	// WireAPIs lists the wire contracts this model answers on its provider.
+	// Empty means unspecified — consumers fall back to their provider-level
+	// defaults, so populating it is additive. It is authoritative where wire
+	// support varies per model (Bedrock).
+	WireAPIs []WireAPI
+
+	// PreferredWire is the wire a consumer should route to when the request
+	// needs a feature the model rejects on its default wire. It exists because
+	// a model can *list* a wire in WireAPIs yet refuse certain feature
+	// combinations there: gpt-5.6-sol serves both Chat Completions and
+	// Responses, but rejects function tools + a non-"none" reasoning effort on
+	// Chat Completions ("use /v1/responses"). Setting PreferredWire =
+	// WireAPIOpenAIResponses lets a router send tool/reasoning traffic to the
+	// wire that accepts it. Empty means no preference — the consumer uses its
+	// own default wire for the provider. When set, it must also appear in
+	// WireAPIs.
+	PreferredWire WireAPI
 }
 
 // ModelDiscoveryInfo provides metadata about a model that can be discovered at

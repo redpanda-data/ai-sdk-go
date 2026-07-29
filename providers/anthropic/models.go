@@ -97,11 +97,20 @@ func resolveModelFamily(model string) string {
 
 // supportedModels defines all Claude models with their capabilities and constraints.
 // Based on Anthropic API documentation and model specifications.
+// claudeWireAPIs is the wire set every cataloged Claude model answers on
+// api.anthropic.com: the native Messages API plus the OpenAI-compatible
+// Chat Completions endpoint (Anthropic documents the compat endpoint for
+// current models; verified by live calls against claude-fable-5,
+// claude-sonnet-5, claude-haiku-4-5, and claude-opus-4-8, July 2026).
+// Uniform today; move onto per-model entries if a model ever diverges.
+var claudeWireAPIs = []llm.WireAPI{llm.WireAPIAnthropicMessages, llm.WireAPIOpenAIChatCompletions}
+
 var supportedModels = map[string]ModelDefinition{
 	ModelClaudeFable5: {
 		Name:  ModelClaudeFable5,
 		Label: "Claude Fable 5",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         claudeWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         false, // Anthropic doesn't have native JSON mode
@@ -171,6 +180,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelClaudeOpus48,
 		Label: "Claude Opus 4.8",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         claudeWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         false, // Anthropic doesn't have native JSON mode
@@ -219,6 +229,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelClaudeOpus47,
 		Label: "Claude Opus 4.7",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         claudeWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         false, // Anthropic doesn't have native JSON mode
@@ -252,6 +263,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelClaudeSonnet5,
 		Label: "Claude Sonnet 5",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         claudeWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         false, // Anthropic doesn't have native JSON mode
@@ -291,6 +303,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelClaudeSonnet46,
 		Label: "Claude Sonnet 4.6",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         claudeWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         false, // Anthropic doesn't have native JSON mode
@@ -317,6 +330,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelClaudeSonnet45,
 		Label: "Claude Sonnet 4.5",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         claudeWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         false, // Anthropic doesn't have native JSON mode
@@ -341,6 +355,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelClaudeHaiku45,
 		Label: "Claude Haiku 4.5",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         claudeWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         false, // Anthropic doesn't have native JSON mode
@@ -365,6 +380,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelClaudeOpus46,
 		Label: "Claude Opus 4.6",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         claudeWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         false, // Anthropic doesn't have native JSON mode
@@ -408,6 +424,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelClaudeOpus41,
 		Label: "Claude Opus 4.1",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         claudeWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         false, // Anthropic doesn't have native JSON mode
@@ -433,6 +450,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelClaudeOpus45,
 		Label: "Claude Opus 4.5",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         claudeWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         false, // Anthropic doesn't have native JSON mode
@@ -455,4 +473,16 @@ var supportedModels = map[string]ModelDefinition{
 				WithCacheCreation(6.25, 10.00, 0),
 		),
 	},
+}
+
+// WireAPIsForModel reports which wire contracts an Anthropic-hosted model
+// answers (llm.ModelCapabilities.WireAPIs). Snapshot IDs resolve through the
+// usual family resolution. ok is false for models absent from the catalog;
+// callers decide their own fallback.
+func WireAPIsForModel(modelID string) (apis []llm.WireAPI, ok bool) {
+	def, found := supportedModels[resolveModelFamily(modelID)]
+	if !found {
+		return nil, false
+	}
+	return def.Capabilities.WireAPIs, true
 }

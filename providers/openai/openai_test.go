@@ -159,6 +159,7 @@ func TestGPT56Models(t *testing.T) {
 		MultiTurn:        true,
 		SystemPrompts:    true,
 		Reasoning:        true,
+		WireAPIs:         openaiWireAPIs,
 	}
 	wantEfforts := []ReasoningEffort{
 		ReasoningEffortNone,

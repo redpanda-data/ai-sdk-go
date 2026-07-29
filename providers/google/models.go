@@ -69,6 +69,14 @@ func resolveModelFamily(model string) string {
 
 // supportedModels defines all Gemini models with their capabilities and constraints.
 // Based on https://ai.google.dev/gemini-api/docs/models
+// geminiWireAPIs is the wire set every cataloged Gemini model answers on
+// generativelanguage.googleapis.com: native generateContent plus the
+// OpenAI-compatible Chat Completions endpoint (verified by live calls
+// against gemini-2.5-flash, gemini-3-flash-preview, gemini-3.5-flash, and
+// gemini-3.1-pro-preview, July 2026). Uniform today; move onto per-model
+// entries if a model ever diverges.
+var geminiWireAPIs = []llm.WireAPI{llm.WireAPIGeminiGenerateContent, llm.WireAPIOpenAIChatCompletions}
+
 var supportedModels = map[string]ModelDefinition{
 	ModelGemini36Flash: {
 		Name:  ModelGemini36Flash,
@@ -118,6 +126,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelGemini35Flash,
 		Label: "Gemini 3.5 Flash",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         geminiWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         true,
@@ -140,6 +149,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelGemini31ProPreview,
 		Label: "Gemini 3.1 Pro Preview",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         geminiWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         true,
@@ -168,6 +178,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelGemini3ProPreview,
 		Label: "Gemini 3 Pro Preview",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         geminiWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         true,
@@ -196,6 +207,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelGemini3FlashPreview,
 		Label: "Gemini 3 Flash Preview",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         geminiWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         true,
@@ -218,6 +230,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelGemini25Pro,
 		Label: "Gemini 2.5 Pro",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         geminiWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         true, // Gemini supports JSON mode via response_mime_type
@@ -246,6 +259,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelGemini25Flash,
 		Label: "Gemini 2.5 Flash",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         geminiWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         true,
@@ -268,6 +282,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelGemini25FlashLite,
 		Label: "Gemini 2.5 Flash Lite",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         geminiWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         true,
@@ -286,4 +301,16 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		Pricing: pricing.FlatInfo(0.10, 0.40, 0.01),
 	},
+}
+
+// WireAPIsForModel reports which wire contracts a Google-hosted Gemini model
+// answers (llm.ModelCapabilities.WireAPIs). Versioned IDs resolve through the
+// usual family resolution. ok is false for models absent from the catalog;
+// callers decide their own fallback.
+func WireAPIsForModel(modelID string) (apis []llm.WireAPI, ok bool) {
+	def, found := supportedModels[resolveModelFamily(modelID)]
+	if !found {
+		return nil, false
+	}
+	return def.Capabilities.WireAPIs, true
 }

@@ -75,12 +75,20 @@ func resolveModelFamily(model string) string {
 // supportedModels defines all current OpenAI models with their constraints.
 // Based on current OpenAI API documentation and model specifications.
 // When adding a new model, both capabilities and constraints must be defined here.
+// openaiWireAPIs is the wire set every cataloged OpenAI model answers:
+// Chat Completions plus Responses (verified by live calls against gpt-5.6,
+// o3, and gpt-4o on both endpoints, July 2026). Responses-only models
+// (the -pro / deep-research / computer-use lines) are not in this catalog;
+// give them per-model entries when they are added.
+var openaiWireAPIs = []llm.WireAPI{llm.WireAPIOpenAIChatCompletions, llm.WireAPIOpenAIResponses}
+
 var supportedModels = map[string]ModelDefinition{
 	// GPT-5 Series (2025 Flagship)
 	ModelGPT5: {
 		Name:  ModelGPT5,
 		Label: "OpenAI GPT-5",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         openaiWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         true,
@@ -105,6 +113,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelGPT5Mini,
 		Label: "OpenAI GPT-5 Mini",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         openaiWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         true,
@@ -130,6 +139,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelGPT5Nano,
 		Label: "OpenAI GPT-5 Nano",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         openaiWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         true,
@@ -153,6 +163,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelGPT5_1,
 		Label: "OpenAI GPT-5.1",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         openaiWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         true,
@@ -178,6 +189,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelGPT5_2,
 		Label: "OpenAI GPT-5.2 Thinking",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         openaiWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         true,
@@ -202,6 +214,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelGPT5_2Instant,
 		Label: "OpenAI GPT-5.2 Instant",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         openaiWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         true,
@@ -226,6 +239,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelGPT5_2Pro,
 		Label: "OpenAI GPT-5.2 Pro",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         openaiWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         true,
@@ -252,6 +266,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelGPT5_3ChatLatest,
 		Label: "OpenAI GPT-5.3 Chat Latest",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         openaiWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         true,
@@ -278,6 +293,8 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelGPT5_6Luna,
 		Label: "OpenAI GPT-5.6 Luna",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         openaiWireAPIs,
+			PreferredWire:    llm.WireAPIOpenAIResponses, // rejects tools + non-none reasoning on Chat Completions
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         true,
@@ -309,6 +326,8 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelGPT5_6Terra,
 		Label: "OpenAI GPT-5.6 Terra",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         openaiWireAPIs,
+			PreferredWire:    llm.WireAPIOpenAIResponses, // rejects tools + non-none reasoning on Chat Completions
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         true,
@@ -340,6 +359,8 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelGPT5_6Sol,
 		Label: "OpenAI GPT-5.6 Sol",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         openaiWireAPIs,
+			PreferredWire:    llm.WireAPIOpenAIResponses, // rejects tools + non-none reasoning on Chat Completions
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         true,
@@ -373,6 +394,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelGPT5_5,
 		Label: "OpenAI GPT-5.5",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         openaiWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         true,
@@ -399,6 +421,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelGPT5_4,
 		Label: "OpenAI GPT-5.4",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         openaiWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         true,
@@ -423,6 +446,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelGPT5_4Mini,
 		Label: "OpenAI GPT-5.4 Mini",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         openaiWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         true,
@@ -447,6 +471,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelGPT5_4Nano,
 		Label: "OpenAI GPT-5.4 Nano",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         openaiWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         true,
@@ -472,6 +497,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelGPT41,
 		Label: "OpenAI GPT-4.1",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         openaiWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         true,
@@ -493,6 +519,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelGPT41Mini,
 		Label: "OpenAI GPT-4.1 Mini",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         openaiWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         true,
@@ -516,6 +543,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelO3,
 		Label: "OpenAI o3 (Reasoning)",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:      openaiWireAPIs,
 			Streaming:     true,
 			Tools:         true,
 			Vision:        true, // Supports "thinking with images"
@@ -537,6 +565,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelO4Mini,
 		Label: "OpenAI o4-mini (Fast Reasoning)",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:      openaiWireAPIs,
 			Streaming:     true,
 			Tools:         true,
 			Vision:        true,
@@ -560,6 +589,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelGPT4O,
 		Label: "OpenAI GPT-4o",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         openaiWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         true,
@@ -589,6 +619,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelGPT4OMini,
 		Label: "OpenAI GPT-4o Mini",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         openaiWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         true,
@@ -612,6 +643,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelGPT4Turbo,
 		Label: "OpenAI GPT-4 Turbo",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         openaiWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         true,
@@ -633,6 +665,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelGPT35Turbo,
 		Label: "OpenAI GPT-3.5 Turbo",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:         openaiWireAPIs,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         true,
@@ -656,6 +689,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelO1Pro,
 		Label: "OpenAI o1-pro (Advanced Reasoning)",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:      openaiWireAPIs,
 			Streaming:     true,
 			Tools:         true,
 			Vision:        true,
@@ -679,6 +713,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:  ModelO3Pro,
 		Label: "OpenAI o3-pro (Professional Reasoning)",
 		Capabilities: llm.ModelCapabilities{
+			WireAPIs:      openaiWireAPIs,
 			Streaming:     true,
 			Tools:         true,
 			Vision:        true,
@@ -696,4 +731,31 @@ var supportedModels = map[string]ModelDefinition{
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
 		Pricing:                   pricing.FlatInfo(20.00, 80.00, 0),
 	},
+}
+
+// WireAPIsForModel reports which wire contracts an OpenAI model answers
+// (llm.ModelCapabilities.WireAPIs). Snapshot IDs resolve through the usual
+// family resolution. ok is false for models absent from the catalog; callers
+// decide their own fallback.
+func WireAPIsForModel(modelID string) (apis []llm.WireAPI, ok bool) {
+	def, found := supportedModels[resolveModelFamily(modelID)]
+	if !found {
+		return nil, false
+	}
+	return def.Capabilities.WireAPIs, true
+}
+
+// PreferredWireForModel reports the wire a consumer should route to when the
+// request needs a feature the model rejects on its default wire — see
+// llm.ModelCapabilities.PreferredWire. Returns ("", false) for models absent
+// from the catalog or with no preference (the common case); callers use their
+// own default wire then. The gpt-5.6 family returns WireAPIOpenAIResponses
+// because it rejects function tools + a non-"none" reasoning effort on Chat
+// Completions.
+func PreferredWireForModel(modelID string) (wire llm.WireAPI, ok bool) {
+	def, found := supportedModels[resolveModelFamily(modelID)]
+	if !found || def.Capabilities.PreferredWire == "" {
+		return "", false
+	}
+	return def.Capabilities.PreferredWire, true
 }

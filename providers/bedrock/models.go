@@ -315,6 +315,41 @@ func lookupModel(modelName string) (ModelDefinition, bool) {
 	return def, ok
 }
 
+// WireAPIsForModel reports which wire contracts a Bedrock model answers
+// (llm.ModelCapabilities.WireAPIs) — the per-model dimension gateways route
+// on: Claude models accept the Anthropic Messages body via InvokeModel while
+// Nova/Mistral are Converse-only and Gemma is mantle-only.
+//
+// The model ID is matched exactly, and — because wire support is a property
+// of the model family, not the inference profile — falls back to the bare ID
+// with any geo/global profile prefix stripped, so a profile variant that is
+// not individually registered still resolves. ok is false for models absent
+// from the catalog; callers decide their own fallback (a gateway would fall
+// back to provider-level defaults).
+func WireAPIsForModel(modelID string) (apis []llm.WireAPI, ok bool) {
+	if def, found := lookupModel(modelID); found {
+		return def.Capabilities.WireAPIs, true
+	}
+	// The catalog registers profile variants (us./eu./global.…), not bare
+	// IDs. An unregistered variant (a profile AWS published after the catalog
+	// entry, or a bare ID) still resolves through any registered sibling of
+	// the same family: normalize to the bare ID, then probe each known
+	// prefix.
+	bare := modelID
+	if prefix, rest, found := strings.Cut(modelID, "."); found && geoProfilePrefixes[prefix] {
+		bare = rest
+	}
+	if def, found := lookupModel(bare); found {
+		return def.Capabilities.WireAPIs, true
+	}
+	for prefix := range geoProfilePrefixes {
+		if def, found := lookupModel(prefix + "." + bare); found {
+			return def.Capabilities.WireAPIs, true
+		}
+	}
+	return nil, false
+}
+
 // Capability and constraint shapes shared by Claude variants on Bedrock.
 // These are genuinely fixed per model generation (a Sonnet 4.5 has the same
 // context window in us-east-1 as in eu-west-1), so reusing them across
@@ -332,6 +367,15 @@ var (
 		MultiTurn:     true,
 		SystemPrompts: true,
 		Reasoning:     true,
+		// Claude on Bedrock answers both the model-agnostic Converse API and
+		// the native Anthropic Messages contract — via InvokeModel for every
+		// generation, and additionally via the bedrock-mantle
+		// /anthropic/v1/messages endpoint for Opus 4.7+ / Sonnet 5 / Haiku 4.5
+		// / Fable 5 (AWS models-api-compatibility matrix, July 2026). WireAPIs
+		// records the contract, not the endpoint. No Claude model is on the
+		// OpenAI-compatible surface (Chat Completions / Responses both NO in
+		// the matrix; live probe returns model_not_found).
+		WireAPIs: []llm.WireAPI{llm.WireAPIBedrockConverse, llm.WireAPIAnthropicMessages},
 	}
 
 	claudeContext1MConstraints = llm.ModelConstraints{
@@ -378,6 +422,13 @@ var (
 		MultiTurn:        true,
 		SystemPrompts:    true,
 		Reasoning:        false,
+		// Nova answers Converse plus InvokeModel with the Nova-NATIVE schema
+		// (camelCase inferenceConfig; live probe confirms an Anthropic body is
+		// rejected) — that native schema is not a contract in the WireAPI set,
+		// so Converse is the only routable wire. Not on the OpenAI-compatible
+		// surface (models-api-compatibility: Chat Completions / Responses /
+		// Messages all NO).
+		WireAPIs: []llm.WireAPI{llm.WireAPIBedrockConverse},
 	}
 
 	nova2LiteConstraints = llm.ModelConstraints{
@@ -416,6 +467,13 @@ var (
 		MultiTurn:        true,
 		SystemPrompts:    true,
 		Reasoning:        false,
+		// Mistral Large 3 answers Converse, InvokeModel with the
+		// Mistral-native body (not a modeled contract), AND OpenAI Chat
+		// Completions — the models-api-compatibility matrix marks Large 3
+		// Chat Completions=YES (served on bedrock-mantle and bedrock-runtime;
+		// the neighboring legacy Mistral rows are NO, so it is deliberate
+		// per-model data). Responses=NO.
+		WireAPIs: []llm.WireAPI{llm.WireAPIBedrockConverse, llm.WireAPIOpenAIChatCompletions},
 	}
 
 	mistralLarge3Constraints = llm.ModelConstraints{
@@ -455,6 +513,13 @@ var (
 		MultiTurn:     true,
 		SystemPrompts: true,
 		Reasoning:     true,
+		// Gemma 4 is bedrock-mantle-ONLY (Invoke/Converse/Messages all NO; no
+		// geo/global inference profiles) and answers BOTH OpenAI contracts:
+		// the gemma-4-31b model card lists Chat Completions=YES and
+		// Responses=YES, with the caveat that reasoning content is returned
+		// only via Responses — which is why the SDK drives Gemma through the
+		// Responses mapper.
+		WireAPIs: []llm.WireAPI{llm.WireAPIOpenAIChatCompletions, llm.WireAPIOpenAIResponses},
 	}
 
 	gemma4Context256kConstraints = llm.ModelConstraints{
