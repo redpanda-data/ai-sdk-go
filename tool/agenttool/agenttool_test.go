@@ -233,7 +233,7 @@ func TestExecute(t *testing.T) {
 		var output agenttool.Result
 		require.NoError(t, json.Unmarshal(result, &output))
 
-		assert.True(t, output.Truncated,
+		assert.Equal(t, true, output.Metadata["truncated"],
 			"a sub-agent turn that stopped at the output-token cap must be flagged truncated")
 		assert.Contains(t, output.Result, "partial answer that got cut off",
 			"the partial content the sub-agent produced must still be delivered")
@@ -256,7 +256,7 @@ func TestExecute(t *testing.T) {
 		var output agenttool.Result
 		require.NoError(t, json.Unmarshal(result, &output))
 
-		assert.False(t, output.Truncated, "a naturally completed turn must not be flagged truncated")
+		assert.Nil(t, output.Metadata, "a naturally completed turn must carry no markers")
 		assert.Equal(t, "complete answer", output.Result)
 	})
 

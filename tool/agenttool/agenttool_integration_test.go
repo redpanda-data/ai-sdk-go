@@ -66,10 +66,10 @@ func TestExecute_TruncationFlag_Integration(t *testing.T) {
 	var output agenttool.Result
 	require.NoError(t, json.Unmarshal(raw, &output))
 
-	assert.True(t, output.Truncated,
+	assert.Equal(t, true, output.Metadata["truncated"],
 		"a 16-token cap on a long-essay prompt must surface as a truncated sub-agent result")
 	assert.NotEmpty(t, output.Result,
 		"the partial content the sub-agent produced before the cut must still be delivered")
 
-	t.Logf("truncated=%v result=%q", output.Truncated, output.Result)
+	t.Logf("metadata=%v result=%q", output.Metadata, output.Result)
 }
