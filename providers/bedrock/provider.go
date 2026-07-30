@@ -205,7 +205,6 @@ func WithCachingDisabled() ProviderOption {
 	}
 }
 
-// NewModel creates a new Bedrock model instance with the specified configuration.
 // defaultMaxTokens is a bounded fallback output budget for Claude models on
 // Bedrock. Bedrock sends no max_tokens unless one is set, so AWS applies its own
 // default — 4096 for Claude — which truncates ordinary agent turns. This gives
@@ -217,6 +216,7 @@ func WithCachingDisabled() ProviderOption {
 // conversations.
 const defaultMaxTokens = 16384
 
+// NewModel creates a new Bedrock model instance with the specified configuration.
 func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error) {
 	// Build the API model ID. Most Bedrock models are cross-region inference
 	// profiles, so an un-prefixed name gets the source region's geo prefix
@@ -275,7 +275,12 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 	// Give Claude models a bounded default output budget when the caller set none,
 	// so they are not left at AWS's 4096. Scoped to Claude; clamped to the model's
 	// output cap so it can never exceed the limit. An explicit WithMaxTokens wins.
-	if cfg.MaxTokens == nil && isAnthropicModel(apiModelID) {
+	//
+	// The MaxOutputTokens > 0 guard keeps the budget >= 1 (a catalog entry with an
+	// unset cap would otherwise put max_tokens: 0 on the wire). setOptions is left
+	// untouched on purpose: this is an SDK-injected default, not a caller-set
+	// option, so it must not trip caller-facing conditional rules in Validate.
+	if cfg.MaxTokens == nil && isAnthropicModel(apiModelID) && modelDef.Constraints.MaxOutputTokens > 0 {
 		budget := int32(min(defaultMaxTokens, modelDef.Constraints.MaxOutputTokens)) //nolint:gosec // bounded: 1 <= budget <= MaxOutputTokens
 		cfg.MaxTokens = &budget
 	}

@@ -510,11 +510,56 @@ func TestNewModel_BareInRegionModelNotPrefixed(t *testing.T) {
 	assert.Equal(t, ModelMistralLarge3, m.config.APIModelID)
 }
 
-// TestNewModel_ClaudeDefaultMaxTokens verifies that a Claude model on Bedrock
-// gets a bounded default output budget when the caller sets none — otherwise
-// Bedrock sends no max_tokens and AWS applies its own 4096, which truncates
-// ordinary agent turns.
-func TestNewModel_ClaudeDefaultMaxTokens(t *testing.T) {
+// TestNewModel_DefaultMaxTokens verifies the Claude-scoped default output budget:
+// a Claude model with no budget set gets a bounded default (otherwise Bedrock
+// sends no max_tokens and AWS applies its own 4096, truncating ordinary turns),
+// an explicit WithMaxTokens wins, and non-Claude families are left untouched
+// (their output caps and defaults differ).
+func TestNewModel_DefaultMaxTokens(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		modelName string
+		opts      []Option
+		wantSet   bool
+		want      int32
+	}{
+		{"claude gets bounded default", ModelClaudeSonnet46, nil, true, defaultMaxTokens},
+		{"explicit budget wins", ModelClaudeSonnet46, []Option{WithMaxTokens(4096)}, true, 4096},
+		{"non-claude family untouched", ModelMistralLarge3, nil, false, 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			p := &Provider{client: nil, region: "us-east-1"}
+
+			model, err := p.NewModel(tt.modelName, tt.opts...)
+			require.NoError(t, err)
+
+			m, ok := model.(*Model)
+			require.True(t, ok)
+
+			if !tt.wantSet {
+				assert.Nil(t, m.config.MaxTokens, "no SDK-imposed default expected")
+
+				return
+			}
+
+			require.NotNil(t, m.config.MaxTokens)
+			assert.Equal(t, tt.want, *m.config.MaxTokens)
+			assert.LessOrEqual(t, int(*m.config.MaxTokens), m.config.Constraints.MaxOutputTokens,
+				"the default must never exceed the model's output cap")
+		})
+	}
+}
+
+// TestNewModel_ClaudeDefaultReachesConverseInput proves the injected default
+// actually reaches the wire (InferenceConfig.MaxTokens on the Converse input) —
+// the mechanism the fix depends on — not merely that it lands on the config.
+func TestNewModel_ClaudeDefaultReachesConverseInput(t *testing.T) {
 	t.Parallel()
 
 	p := &Provider{client: nil, region: "us-east-1"}
@@ -525,46 +570,14 @@ func TestNewModel_ClaudeDefaultMaxTokens(t *testing.T) {
 	m, ok := model.(*Model)
 	require.True(t, ok)
 
-	require.NotNil(t, m.config.MaxTokens,
-		"a Claude model must get a bounded default rather than be left at AWS's 4096")
-	assert.Equal(t, int32(defaultMaxTokens), *m.config.MaxTokens)
-	assert.LessOrEqual(t, int(*m.config.MaxTokens), m.config.Constraints.MaxOutputTokens,
-		"the default must never exceed the model's output cap")
-}
-
-// TestNewModel_ExplicitMaxTokensOverridesClaudeDefault verifies an explicit
-// WithMaxTokens wins over the injected default.
-func TestNewModel_ExplicitMaxTokensOverridesClaudeDefault(t *testing.T) {
-	t.Parallel()
-
-	p := &Provider{client: nil, region: "us-east-1"}
-
-	model, err := p.NewModel(ModelClaudeSonnet46, WithMaxTokens(4096))
+	input, err := NewRequestMapper(m.config).ToConverseInput(&llm.Request{
+		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hi"))},
+	})
 	require.NoError(t, err)
 
-	m, ok := model.(*Model)
-	require.True(t, ok)
-
-	require.NotNil(t, m.config.MaxTokens)
-	assert.Equal(t, int32(4096), *m.config.MaxTokens, "an explicit budget must win over the default")
-}
-
-// TestNewModel_NonClaudeModelHasNoDefaultMaxTokens verifies the default is scoped
-// to Claude: other Bedrock families keep AWS's own default, since their output
-// caps and windows differ and their defaults are not the same footgun.
-func TestNewModel_NonClaudeModelHasNoDefaultMaxTokens(t *testing.T) {
-	t.Parallel()
-
-	p := &Provider{client: nil, region: "us-east-1"}
-
-	model, err := p.NewModel(ModelMistralLarge3)
-	require.NoError(t, err)
-
-	m, ok := model.(*Model)
-	require.True(t, ok)
-
-	assert.Nil(t, m.config.MaxTokens,
-		"non-Claude Bedrock models must not get an SDK-imposed max_tokens default")
+	require.NotNil(t, input.InferenceConfig)
+	require.NotNil(t, input.InferenceConfig.MaxTokens)
+	assert.Equal(t, int32(defaultMaxTokens), *input.InferenceConfig.MaxTokens)
 }
 
 func TestNewModel_Fable5RegionPrefix(t *testing.T) {

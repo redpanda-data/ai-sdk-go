@@ -313,7 +313,7 @@ func profileRegionResolverFor(modelID string) (func(string) (string, bool), bool
 // Claude-only behavior (like the default output budget) away from the other
 // Bedrock families, whose output caps and defaults differ.
 func isAnthropicModel(modelID string) bool {
-	return strings.Contains(modelID, "anthropic.")
+	return strings.HasPrefix(modelID, "anthropic.") || strings.Contains(modelID, ".anthropic.")
 }
 
 // lookupModel finds a ModelDefinition by exact model ID. Each inference
