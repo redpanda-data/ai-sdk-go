@@ -526,7 +526,7 @@ func TestNewModel_DefaultMaxTokens(t *testing.T) {
 		want      int32
 	}{
 		{"claude gets bounded default", ModelClaudeSonnet46, nil, true, defaultMaxTokens},
-		{"explicit budget wins", ModelClaudeSonnet46, []Option{WithMaxTokens(4096)}, true, 4096},
+		{"explicit budget wins", ModelClaudeSonnet46, []Option{WithMaxTokens(8192)}, true, 8192},
 		{"non-claude family untouched", ModelMistralLarge3, nil, false, 0},
 	}
 
