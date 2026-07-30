@@ -307,6 +307,15 @@ func profileRegionResolverFor(modelID string) (func(string) (string, bool), bool
 	return resolver, ok
 }
 
+// isAnthropicModel reports whether a resolved Bedrock model ID belongs to the
+// Anthropic (Claude) family — e.g. "anthropic.claude-sonnet-5",
+// "us.anthropic.claude-opus-4-8", "global.anthropic.…". Used to scope
+// Claude-only behavior (like the default output budget) away from the other
+// Bedrock families, whose output caps and defaults differ.
+func isAnthropicModel(modelID string) bool {
+	return strings.Contains(modelID, "anthropic.")
+}
+
 // lookupModel finds a ModelDefinition by exact model ID. Each inference
 // profile variant is registered as its own entry (with its own pricing), so
 // callers must pass the full prefixed ID to get the correct rate card.

@@ -510,6 +510,63 @@ func TestNewModel_BareInRegionModelNotPrefixed(t *testing.T) {
 	assert.Equal(t, ModelMistralLarge3, m.config.APIModelID)
 }
 
+// TestNewModel_ClaudeDefaultMaxTokens verifies that a Claude model on Bedrock
+// gets a bounded default output budget when the caller sets none — otherwise
+// Bedrock sends no max_tokens and AWS applies its own 4096, which truncates
+// ordinary agent turns.
+func TestNewModel_ClaudeDefaultMaxTokens(t *testing.T) {
+	t.Parallel()
+
+	p := &Provider{client: nil, region: "us-east-1"}
+
+	model, err := p.NewModel(ModelClaudeSonnet46)
+	require.NoError(t, err)
+
+	m, ok := model.(*Model)
+	require.True(t, ok)
+
+	require.NotNil(t, m.config.MaxTokens,
+		"a Claude model must get a bounded default rather than be left at AWS's 4096")
+	assert.Equal(t, int32(defaultMaxTokens), *m.config.MaxTokens)
+	assert.LessOrEqual(t, int(*m.config.MaxTokens), m.config.Constraints.MaxOutputTokens,
+		"the default must never exceed the model's output cap")
+}
+
+// TestNewModel_ExplicitMaxTokensOverridesClaudeDefault verifies an explicit
+// WithMaxTokens wins over the injected default.
+func TestNewModel_ExplicitMaxTokensOverridesClaudeDefault(t *testing.T) {
+	t.Parallel()
+
+	p := &Provider{client: nil, region: "us-east-1"}
+
+	model, err := p.NewModel(ModelClaudeSonnet46, WithMaxTokens(4096))
+	require.NoError(t, err)
+
+	m, ok := model.(*Model)
+	require.True(t, ok)
+
+	require.NotNil(t, m.config.MaxTokens)
+	assert.Equal(t, int32(4096), *m.config.MaxTokens, "an explicit budget must win over the default")
+}
+
+// TestNewModel_NonClaudeModelHasNoDefaultMaxTokens verifies the default is scoped
+// to Claude: other Bedrock families keep AWS's own default, since their output
+// caps and windows differ and their defaults are not the same footgun.
+func TestNewModel_NonClaudeModelHasNoDefaultMaxTokens(t *testing.T) {
+	t.Parallel()
+
+	p := &Provider{client: nil, region: "us-east-1"}
+
+	model, err := p.NewModel(ModelMistralLarge3)
+	require.NoError(t, err)
+
+	m, ok := model.(*Model)
+	require.True(t, ok)
+
+	assert.Nil(t, m.config.MaxTokens,
+		"non-Claude Bedrock models must not get an SDK-imposed max_tokens default")
+}
+
 func TestNewModel_Fable5RegionPrefix(t *testing.T) {
 	t.Parallel()
 
