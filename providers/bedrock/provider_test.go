@@ -580,6 +580,31 @@ func TestNewModel_ClaudeDefaultReachesConverseInput(t *testing.T) {
 	assert.Equal(t, int32(defaultMaxTokens), *input.InferenceConfig.MaxTokens)
 }
 
+// TestSupportedModels_ClaudeHaveOutputCap guards the invariant the Claude default
+// output budget relies on. NewModel only injects the default when
+// MaxOutputTokens > 0 (and clamps to it), so a Claude entry that forgot to set a
+// cap would silently revert to AWS's 4096 — the exact footgun this default
+// closes, with no signal. Make that mis-specification a build failure instead.
+func TestSupportedModels_ClaudeHaveOutputCap(t *testing.T) {
+	t.Parallel()
+
+	var checked int
+
+	for id, def := range supportedModels {
+		if isAnthropicModel(id) {
+			checked++
+
+			assert.Positive(t, def.Constraints.MaxOutputTokens,
+				"Claude model %q must set MaxOutputTokens so the default output budget applies", id)
+		}
+	}
+
+	// Guard against a vacuous pass: if isAnthropicModel ever stops matching the
+	// catalog keys, the loop above would assert nothing and still "pass".
+	require.Positive(t, checked, "expected Claude models in the catalog; the filter matched none")
+	t.Logf("checked %d Claude models", checked)
+}
+
 func TestNewModel_Fable5RegionPrefix(t *testing.T) {
 	t.Parallel()
 
