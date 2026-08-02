@@ -43,6 +43,7 @@ func testOptions() []webfetch.Option {
 		webfetch.WithDenyPrivateIPs(false),                     // Allow localhost for testing
 		webfetch.WithAllowedSchemes([]string{"https", "http"}), // Allow both schemes
 		webfetch.WithAllowedPorts(nil),                         // Allow all ports in tests
+		webfetch.WithInsecureSkipVerify(true),                  // Allow self-signed certificates from TLS test servers
 	}
 }
 
@@ -354,7 +355,7 @@ func TestRegistry_WebfetchToolWithLLM_Integration(t *testing.T) {
 	apiKey := openaitest.GetAPIKeyOrSkipTest(t)
 
 	// Create test server that returns JSON data
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(map[string]any{
