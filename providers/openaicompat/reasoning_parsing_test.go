@@ -35,12 +35,12 @@ func TestReasoningContentParsing(t *testing.T) {
 		t.Parallel()
 
 		// Simulate a response with reasoning_content in extra fields
-		// This is what DeepSeek-R1 or vLLM with reasoning parser returns
+		// This is what DeepSeek V4 or vLLM with a reasoning parser returns.
 		rawJSON := `{
 			"id": "test-123",
 			"object": "chat.completion",
 			"created": 1234567890,
-			"model": "deepseek-reasoner",
+			"model": "deepseek-v4-pro",
 			"choices": [{
 				"index": 0,
 				"message": {

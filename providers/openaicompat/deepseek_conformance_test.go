@@ -18,6 +18,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/redpanda-data/ai-sdk-go/internal/testsuite"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/plugins/retry"
@@ -29,9 +32,9 @@ import (
 // DeepSeekFixture implements the conformance.Fixture interface for DeepSeek API.
 // This tests the openaicompat provider against DeepSeek's reasoning models.
 type DeepSeekFixture struct {
-	provider      *openaicompat.Provider
-	standardCaps  llm.ModelCapabilities
-	reasoningCaps llm.ModelCapabilities
+	provider     *openaicompat.Provider
+	capabilities llm.ModelCapabilities
+	constraints  llm.ModelConstraints
 }
 
 // NewDeepSeekFixture creates a new DeepSeek test fixture.
@@ -51,27 +54,27 @@ func NewDeepSeekFixture(t *testing.T) *DeepSeekFixture {
 		t.Fatalf("Failed to create DeepSeek provider: %v", err)
 	}
 
-	// DeepSeek-specific capabilities
-	// DeepSeek supports JSON mode (json_object) but not Structured Outputs (json_schema)
-	deepseekCaps := llm.ModelCapabilities{
-		Streaming:        true,
-		Tools:            true,
-		JSONMode:         true,  // Supports json_object
-		StructuredOutput: false, // Does NOT support json_schema
-		Vision:           true,
-		Audio:            false,
-		MultiTurn:        true,
-		SystemPrompts:    true,
-		Reasoning:        false, // Set per-model below
-	}
+	return newDeepSeekFixture(provider)
+}
 
-	reasoningCaps := deepseekCaps
-	reasoningCaps.Reasoning = true
-
+func newDeepSeekFixture(provider *openaicompat.Provider) *DeepSeekFixture {
 	return &DeepSeekFixture{
-		provider:      provider,
-		standardCaps:  deepseekCaps,
-		reasoningCaps: reasoningCaps,
+		provider: provider,
+		capabilities: llm.ModelCapabilities{
+			Streaming:     true,
+			Tools:         true,
+			JSONMode:      true,
+			MultiTurn:     true,
+			SystemPrompts: true,
+			Reasoning:     true,
+		},
+		constraints: llm.ModelConstraints{
+			TemperatureRange:  [2]float64{0.0, 2.0},
+			MaxInputTokens:    1_000_000,
+			MaxOutputTokens:   384_000,
+			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "logprobs", "stop"},
+			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
+		},
 	}
 }
 
@@ -82,9 +85,9 @@ func (f *DeepSeekFixture) Name() string {
 func (f *DeepSeekFixture) NewStandardModel(t *testing.T) llm.Model {
 	t.Helper()
 
-	model, err := f.provider.NewModel(
+	model, err := f.newModel(
 		openaicompattest.DeepSeekDefaultStandardModel,
-		openaicompat.WithCapabilities(f.standardCaps),
+		openaicompat.WithThinking(false),
 	)
 	if err != nil {
 		t.Fatalf("Failed to create standard model: %v", err)
@@ -96,9 +99,9 @@ func (f *DeepSeekFixture) NewStandardModel(t *testing.T) llm.Model {
 func (f *DeepSeekFixture) NewReasoningModel(t *testing.T) llm.Model {
 	t.Helper()
 
-	model, err := f.provider.NewModel(
+	model, err := f.newModel(
 		openaicompattest.DeepSeekDefaultReasoningModel,
-		openaicompat.WithCapabilities(f.reasoningCaps),
+		openaicompat.WithThinking(true),
 	)
 	if err != nil {
 		t.Fatalf("Failed to create reasoning model: %v", err)
@@ -108,11 +111,36 @@ func (f *DeepSeekFixture) NewReasoningModel(t *testing.T) llm.Model {
 }
 
 func (f *DeepSeekFixture) Models() []llm.ModelDiscoveryInfo {
-	return f.provider.Models()
+	return []llm.ModelDiscoveryInfo{
+		{
+			Name:         openaicompattest.DeepSeekDefaultStandardModel,
+			Label:        "DeepSeek V4 Flash",
+			Capabilities: f.capabilities,
+			Constraints:  f.constraints,
+		},
+		{
+			Name:         openaicompattest.DeepSeekDefaultReasoningModel,
+			Label:        "DeepSeek V4 Pro",
+			Capabilities: f.capabilities,
+			Constraints:  f.constraints,
+		},
+	}
 }
 
 func (f *DeepSeekFixture) NewModel(modelName string) (llm.Model, error) {
-	return f.provider.NewModel(modelName)
+	return f.newModel(modelName)
+}
+
+func (f *DeepSeekFixture) newModel(modelName string, opts ...openaicompat.Option) (llm.Model, error) {
+	opts = append([]openaicompat.Option{
+		openaicompat.WithConstraints(f.constraints),
+		openaicompat.WithCapabilities(f.capabilities),
+	}, opts...)
+
+	return f.provider.NewModel(
+		modelName,
+		opts...,
+	)
 }
 
 // TestDeepSeekConformance_Integration runs the generic conformance test suite against DeepSeek API.
@@ -129,4 +157,48 @@ func TestDeepSeekConformance_Integration(t *testing.T) {
 
 	fixture := NewDeepSeekFixture(t)
 	testsuite.Run(t, conformance.NewSuite(fixture))
+}
+
+func TestDeepSeekV4ConformancePresets(t *testing.T) {
+	t.Parallel()
+
+	provider, err := openaicompat.NewProvider(
+		"sk-test-key",
+		openaicompat.WithBaseURL(openaicompattest.DeepSeekDefaultBaseURL),
+	)
+	require.NoError(t, err)
+
+	fixture := newDeepSeekFixture(provider)
+	wantConstraints := llm.ModelConstraints{
+		TemperatureRange:  [2]float64{0.0, 2.0},
+		MaxInputTokens:    1_000_000,
+		MaxOutputTokens:   384_000,
+		SupportedParams:   []string{"temperature", "top_p", "max_tokens", "logprobs", "stop"},
+		MutuallyExclusive: [][]string{{"temperature", "top_p"}},
+	}
+	wantCapabilities := llm.ModelCapabilities{
+		Streaming:     true,
+		Tools:         true,
+		JSONMode:      true,
+		MultiTurn:     true,
+		SystemPrompts: true,
+		Reasoning:     true,
+	}
+
+	models := fixture.Models()
+	require.Len(t, models, 2)
+	require.Equal(t, []string{"deepseek-v4-flash", "deepseek-v4-pro"}, []string{models[0].Name, models[1].Name})
+
+	for _, info := range models {
+		assert.Equal(t, wantConstraints, info.Constraints)
+		assert.Equal(t, wantCapabilities, info.Capabilities)
+
+		model, err := fixture.NewModel(info.Name)
+		require.NoError(t, err)
+		assert.Equal(t, info.Constraints, model.Constraints())
+		assert.Equal(t, info.Capabilities, model.Capabilities())
+	}
+
+	assert.Equal(t, "deepseek-v4-flash", fixture.NewStandardModel(t).Name())
+	assert.Equal(t, "deepseek-v4-pro", fixture.NewReasoningModel(t).Name())
 }

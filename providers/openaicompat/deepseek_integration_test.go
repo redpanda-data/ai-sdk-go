@@ -37,7 +37,7 @@ import (
 // Optional environment variables:
 //
 //	DEEPSEEK_BASE_URL - API base URL (default: https://api.deepseek.com)
-//	DEEPSEEK_MODEL - Model name (default: deepseek-reasoner)
+//	DEEPSEEK_MODEL - Model name (default: deepseek-v4-pro)
 func TestDeepSeekMultiTurnReasoning(t *testing.T) {
 	t.Parallel()
 
@@ -54,7 +54,7 @@ func TestDeepSeekMultiTurnReasoning(t *testing.T) {
 	require.NoError(t, err, "Failed to create provider")
 
 	// Create reasoning model
-	model, err := provider.NewModel(modelName, openaicompat.WithReasoning())
+	model, err := provider.NewModel(modelName, openaicompat.WithReasoning(), openaicompat.WithThinking(true))
 	require.NoError(t, err, "Failed to create model")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
