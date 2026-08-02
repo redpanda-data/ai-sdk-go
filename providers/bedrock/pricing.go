@@ -18,7 +18,7 @@ import "github.com/redpanda-data/ai-sdk-go/pricing"
 
 // ModelPricing returns a model ID → pricing map for all supported Bedrock models.
 //
-// Source: https://aws.amazon.com/bedrock/pricing/ (as of 2026-04).
+// Source: https://aws.amazon.com/bedrock/pricing/ (as of 2026-08).
 func ModelPricing() map[string]pricing.Info {
 	m := make(map[string]pricing.Info, len(supportedModels))
 	for id, def := range supportedModels {

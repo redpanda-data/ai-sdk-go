@@ -194,6 +194,23 @@ const (
 	ModelGemma4E2B = "google.gemma-4-e2b"
 )
 
+// Model ID constants for OpenAI GPT-5.6 models on Bedrock.
+//
+// All three models are served only through the bedrock-mantle Responses API
+// and use bare, in-region IDs. AWS does not publish Geo or Global inference
+// IDs for them. See
+// https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards-openai.html
+const (
+	// ModelGPT56Sol is OpenAI's flagship GPT-5.6 reasoning model.
+	ModelGPT56Sol = "openai.gpt-5.6-sol"
+
+	// ModelGPT56Terra balances reasoning capability and cost.
+	ModelGPT56Terra = "openai.gpt-5.6-terra"
+
+	// ModelGPT56Luna is optimized for fast, cost-efficient inference.
+	ModelGPT56Luna = "openai.gpt-5.6-luna"
+)
+
 // ModelDefinition defines a model with its capabilities and constraints.
 type ModelDefinition struct {
 	Name                        string // Real Bedrock model ID (e.g. "us.anthropic.claude-sonnet-4-6")
@@ -470,6 +487,31 @@ var (
 		MaxOutputTokens:  128000,
 		SupportedParams:  []string{"temperature", "max_tokens"},
 	}
+
+	// GPT-5.6 is available through the same bedrock-mantle Responses transport
+	// as Gemma 4. AWS advertises a 272K context window for the Bedrock-hosted
+	// variants, rather than the larger first-party OpenAI window. Vision is
+	// false because this SDK does not yet expose an image Part on the shared
+	// Responses mapper, even though the Bedrock models accept image input.
+	// SupportedParams contains only options the mantle adapter serializes.
+	gpt56Caps = llm.ModelCapabilities{
+		Streaming:        true,
+		Tools:            true,
+		JSONMode:         true,
+		StructuredOutput: true,
+		Vision:           false,
+		Audio:            false,
+		MultiTurn:        true,
+		SystemPrompts:    true,
+		Reasoning:        true,
+	}
+
+	gpt56Constraints = llm.ModelConstraints{
+		TemperatureRange: [2]float64{0.0, 2.0},
+		MaxInputTokens:   272000,
+		MaxOutputTokens:  128000,
+		SupportedParams:  []string{"temperature", "max_tokens"},
+	}
 )
 
 // supportedModels is the per-variant Bedrock catalog. Every model ID the SDK
@@ -478,7 +520,7 @@ var (
 // and there is no shared rate constant whose name might survive a price
 // change for a single model.
 //
-// Pricing rule (per AWS https://aws.amazon.com/bedrock/pricing/, 2026-04):
+// Pricing rule (per AWS https://aws.amazon.com/bedrock/pricing/, 2026-08):
 //   - bare ID (when invokable) and geo profiles (us./eu./au./jp.) use the
 //     "Geo and In-region Cross-region Inference" rate.
 //   - global. profiles use the "Global Cross-region Inference" rate, which
@@ -962,6 +1004,50 @@ var supportedModels = map[string]ModelDefinition{
 		Constraints:  mistralLarge3Constraints,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(0.50, 1.50, 0),
+		),
+	},
+
+	// ----------------------------------------------------------------
+	// OpenAI GPT-5.6 family — mantle-only (Mantle: true), invoked by bare
+	// in-region IDs through the Responses API. AWS publishes no Geo or Global
+	// inference IDs. The Bedrock variants have a 272K context window.
+	//
+	// Pricing is the in-region STANDARD-tier rate from
+	// https://aws.amazon.com/bedrock/pricing/ (OpenAI section, 2026-08).
+	// Cache writes have a 30-minute TTL and the Responses usage payload reports
+	// an aggregate cache_write_tokens count, so the write price is stored in the
+	// unknown-TTL bucket consumed by the shared OpenAI response mapper. Exact
+	// cache rates follow AWS's 90% read discount and 1.25x write multiplier (the
+	// pricing table rounds some displayed values to two decimal places).
+	// ----------------------------------------------------------------
+	ModelGPT56Sol: {
+		Name:         ModelGPT56Sol,
+		Label:        "OpenAI GPT-5.6 Sol",
+		Capabilities: gpt56Caps,
+		Constraints:  gpt56Constraints,
+		Mantle:       true,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(5.50, 33.00, 0.55).WithCacheCreation(0, 0, 6.875),
+		),
+	},
+	ModelGPT56Terra: {
+		Name:         ModelGPT56Terra,
+		Label:        "OpenAI GPT-5.6 Terra",
+		Capabilities: gpt56Caps,
+		Constraints:  gpt56Constraints,
+		Mantle:       true,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(2.75, 16.50, 0.275).WithCacheCreation(0, 0, 3.4375),
+		),
+	},
+	ModelGPT56Luna: {
+		Name:         ModelGPT56Luna,
+		Label:        "OpenAI GPT-5.6 Luna",
+		Capabilities: gpt56Caps,
+		Constraints:  gpt56Constraints,
+		Mantle:       true,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(1.10, 6.60, 0.11).WithCacheCreation(0, 0, 1.375),
 		),
 	},
 
