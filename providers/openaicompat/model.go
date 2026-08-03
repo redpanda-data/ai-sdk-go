@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
@@ -67,7 +68,7 @@ func (m *Model) Generate(ctx context.Context, req *llm.Request) (*llm.Response, 
 	}
 
 	// Make the API call using Chat Completion API
-	response, err := m.client.Chat.Completions.New(ctx, apiReq)
+	response, err := m.client.Chat.Completions.New(ctx, apiReq, m.requestOptions()...)
 	if err != nil {
 		// Double-wrap: see anthropic/model.go Generate for rationale.
 		return nil, fmt.Errorf("%w: %w", llm.ErrAPICall, classifyError(err))
@@ -94,7 +95,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 		}
 
 		// Create streaming request using Chat Completion API
-		stream := m.client.Chat.Completions.NewStreaming(ctx, apiReq)
+		stream := m.client.Chat.Completions.NewStreaming(ctx, apiReq, m.requestOptions()...)
 		defer stream.Close() // Automatic cleanup, even on early break
 
 		var (
@@ -236,6 +237,19 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 			yield(nil, fmt.Errorf("%w: stream ended without finish reason", llm.ErrResponseMapping))
 		}
 	}
+}
+
+func (m *Model) requestOptions() []option.RequestOption {
+	if m.config.Thinking == nil {
+		return nil
+	}
+
+	thinkingType := "disabled"
+	if *m.config.Thinking {
+		thinkingType = "enabled"
+	}
+
+	return []option.RequestOption{option.WithJSONSet("thinking.type", thinkingType)}
 }
 
 // buildStreamEndResponse constructs the final unified response for StreamEndEvent

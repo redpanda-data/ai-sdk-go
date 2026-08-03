@@ -16,7 +16,6 @@ package openaicompat_test
 
 import (
 	"context"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -26,6 +25,7 @@ import (
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/providers/openaicompat"
+	"github.com/redpanda-data/ai-sdk-go/providers/openaicompat/openaicompattest"
 )
 
 // TestDeepSeekReasoningContent_Integration tests that reasoning_content is correctly extracted
@@ -33,21 +33,22 @@ import (
 func TestDeepSeekReasoningContent_Integration(t *testing.T) {
 	t.Parallel()
 
-	apiKey := os.Getenv("DEEPSEEK_API_KEY")
-	if apiKey == "" {
-		t.Skip("DEEPSEEK_API_KEY not set, skipping integration test")
-	}
+	apiKey := openaicompattest.GetDeepSeekAPIKeyOrSkipTest(t)
 
 	// Create provider pointing to DeepSeek's API
 	provider, err := openaicompat.NewProvider(
 		apiKey,
-		openaicompat.WithBaseURL("https://api.deepseek.com"),
+		openaicompat.WithBaseURL(openaicompattest.GetDeepSeekBaseURL()),
 		openaicompat.WithTimeout(2*time.Minute),
 	)
 	require.NoError(t, err)
 
 	// Create a reasoning model
-	model, err := provider.NewModel("deepseek-reasoner", openaicompat.WithReasoning())
+	model, err := provider.NewModel(
+		openaicompattest.DeepSeekDefaultReasoningModel,
+		openaicompat.WithReasoning(),
+		openaicompat.WithThinking(true),
+	)
 	require.NoError(t, err)
 
 	ctx := context.Background()

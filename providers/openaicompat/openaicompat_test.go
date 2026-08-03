@@ -16,6 +16,9 @@ package openaicompat
 
 import (
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -138,6 +141,74 @@ func TestModelConstraints(t *testing.T) {
 	_, err = provider.NewModel("any-model", WithTemperature(3.0))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "out of range")
+}
+
+func TestWithConstraints(t *testing.T) {
+	t.Parallel()
+
+	provider, err := NewProvider("sk-test-key")
+	require.NoError(t, err)
+
+	constraints := llm.ModelConstraints{
+		TemperatureRange: [2]float64{0.0, 1.0},
+		MaxInputTokens:   1_000_000,
+		MaxOutputTokens:  384_000,
+		SupportedParams:  []string{"max_tokens"},
+	}
+
+	model, err := provider.NewModel("custom-model", WithConstraints(constraints))
+	require.NoError(t, err)
+	assert.Equal(t, constraints, model.Constraints())
+
+	_, err = provider.NewModel("custom-model", WithConstraints(constraints), WithTemperature(0.5))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "temperature is not supported")
+
+	_, err = provider.NewModel("custom-model", WithConstraints(constraints), WithMaxTokens(384_001))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "max_tokens 384001 exceeds limit 384000")
+}
+
+func TestWithThinking(t *testing.T) {
+	t.Parallel()
+
+	requestBodies := make(chan map[string]any, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+
+		err := json.NewDecoder(r.Body).Decode(&body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		requestBodies <- body
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{
+			"id":"chatcmpl-test",
+			"object":"chat.completion",
+			"created":1,
+			"model":"deepseek-v4-flash",
+			"choices":[{"index":0,"message":{"role":"assistant","content":"OK"},"finish_reason":"stop"}],
+			"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}
+		}`)
+	}))
+	t.Cleanup(server.Close)
+
+	provider, err := NewProvider("sk-test-key", WithBaseURL(server.URL))
+	require.NoError(t, err)
+	model, err := provider.NewModel("deepseek-v4-flash", WithThinking(false))
+	require.NoError(t, err)
+
+	_, err = model.Generate(t.Context(), &llm.Request{Messages: []llm.Message{{
+		Role:    llm.RoleUser,
+		Content: []llm.Part{llm.NewTextPart("Say OK")},
+	}}})
+	require.NoError(t, err)
+
+	body := <-requestBodies
+	assert.Equal(t, map[string]any{"type": "disabled"}, body["thinking"])
 }
 
 func TestModelCapabilities(t *testing.T) {

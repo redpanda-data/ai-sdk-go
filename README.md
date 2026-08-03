@@ -88,8 +88,10 @@ Works with DeepSeek, local models, or any OpenAI-compatible API.
 import "github.com/redpanda-data/ai-sdk-go/providers/openaicompat"
 
 provider, err := openaicompat.NewProvider(apiKey, openaicompat.WithBaseURL("https://api.deepseek.com"))
-model, err := provider.NewModel("deepseek-chat")
+model, err := provider.NewModel("deepseek-v4-flash", openaicompat.WithThinking(false))
 ```
+
+Use `deepseek-v4-pro` with `WithReasoning()` and `WithThinking(true)` for maximum capability.
 
 ## Streaming
 
