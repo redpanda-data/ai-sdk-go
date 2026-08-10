@@ -663,6 +663,11 @@ func mapAgentFinishReason(fr agent.FinishReason) (string, string) {
 		// partial completion (no error chunk), matching the model-level handler,
 		// rather than marking the whole message errored.
 		return "length", ""
+	case agent.FinishReasonContextOverflow:
+		// The Vercel protocol has no dedicated overflow reason. Report it as
+		// "length" — the token-limit bucket — same as the dropped model-level
+		// handler did for llm.FinishReasonContextOverflow.
+		return "length", ""
 	case agent.FinishReasonInputRequired:
 		// HITL is not supported here; resolve the turn visibly rather than
 		// leaving a tool part spinning forever.
