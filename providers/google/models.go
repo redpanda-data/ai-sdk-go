@@ -23,6 +23,8 @@ import (
 
 // Model ID constants for Google Gemini models.
 const (
+	ModelGemini36Flash       = "gemini-3.6-flash"
+	ModelGemini35FlashLite   = "gemini-3.5-flash-lite"
 	ModelGemini35Flash       = "gemini-3.5-flash"
 	ModelGemini31ProPreview  = "gemini-3.1-pro-preview"
 	ModelGemini3ProPreview   = "gemini-3-pro-preview"
@@ -131,6 +133,50 @@ func resolveModelFamily(model string) string {
 // supportedModels defines all Gemini models with their capabilities and constraints.
 // Based on https://ai.google.dev/gemini-api/docs/models
 var supportedModels = map[string]ModelDefinition{
+	ModelGemini36Flash: {
+		Name:  ModelGemini36Flash,
+		Label: "Gemini 3.6 Flash",
+		Capabilities: llm.ModelCapabilities{
+			Streaming:        true,
+			Tools:            true,
+			JSONMode:         true,
+			StructuredOutput: true,
+			Vision:           true,
+			MultiTurn:        true,
+			SystemPrompts:    true,
+			Reasoning:        true,
+		},
+		Constraints: llm.ModelConstraints{
+			TemperatureRange:  [2]float64{0.0, 2.0},
+			MaxInputTokens:    1048576,
+			MaxOutputTokens:   65536,
+			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
+			MutuallyExclusive: [][]string{},
+		},
+		Pricing: pricing.FlatInfo(1.50, 7.50, 0.15),
+	},
+	ModelGemini35FlashLite: {
+		Name:  ModelGemini35FlashLite,
+		Label: "Gemini 3.5 Flash-Lite",
+		Capabilities: llm.ModelCapabilities{
+			Streaming:        true,
+			Tools:            true,
+			JSONMode:         true,
+			StructuredOutput: true,
+			Vision:           true,
+			MultiTurn:        true,
+			SystemPrompts:    true,
+			Reasoning:        true,
+		},
+		Constraints: llm.ModelConstraints{
+			TemperatureRange:  [2]float64{0.0, 2.0},
+			MaxInputTokens:    1048576,
+			MaxOutputTokens:   65536,
+			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
+			MutuallyExclusive: [][]string{},
+		},
+		Pricing: pricing.FlatInfo(0.30, 2.50, 0.03),
+	},
 	ModelGemini35Flash: {
 		Name:                      ModelGemini35Flash,
 		Label:                     "Gemini 3.5 Flash",

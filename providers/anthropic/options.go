@@ -34,7 +34,7 @@ type Config struct {
 	Temperature *float64
 	TopP        *float64
 	TopK        *int
-	MaxTokens   int // Required by Anthropic API, defaults to 4096
+	MaxTokens   int // Required by Anthropic API; defaults to defaultMaxTokens
 	Stop        []string
 
 	// Extended thinking configuration

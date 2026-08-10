@@ -162,7 +162,10 @@ func (m *ResponseMapper) mapStopReason(reason anthropic.BetaStopReason) llm.Fini
 		return llm.FinishReasonContentFilter
 
 	case anthropic.BetaStopReasonModelContextWindowExceeded:
-		return llm.FinishReasonLength
+		// Input overflowed the context window — a genuinely different condition
+		// from an output-token cut (max_tokens). Keep them distinct so downstream
+		// can deliver-and-continue on truncation but fail truthfully on overflow.
+		return llm.FinishReasonContextOverflow
 
 	case anthropic.BetaStopReasonPauseTurn:
 		// Paused turns are a special case - treat as incomplete

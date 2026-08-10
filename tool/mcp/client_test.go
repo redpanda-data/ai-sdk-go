@@ -19,7 +19,9 @@ import (
 	"encoding/json"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -409,4 +411,64 @@ func TestConcurrentAccess(t *testing.T) {
 	}
 
 	wg.Wait()
+}
+
+// hangingTransport simulates an upstream that accepts the connection but
+// never completes the handshake: Connect blocks until the caller's context
+// expires — the shape of a half-open connection through a load balancer.
+type hangingTransport struct{}
+
+func (*hangingTransport) Connect(ctx context.Context) (sdkmcp.Connection, error) {
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+// TestPerformReconnectBoundsHungHandshake pins the per-attempt deadline on
+// the reconnect loop: an attempt whose handshake never completes must fail
+// and back off into the next attempt rather than hang the loop forever
+// (before the deadline existed, attempt 1 blocked indefinitely and the
+// client never recovered until process restart).
+func TestPerformReconnectBoundsHungHandshake(t *testing.T) {
+	t.Parallel()
+
+	var attempts atomic.Int32
+
+	factory := func() (sdkmcp.Transport, error) {
+		attempts.Add(1)
+
+		return &hangingTransport{}, nil
+	}
+
+	cl, err := NewClient("hung-server", factory)
+	require.NoError(t, err)
+
+	c, ok := cl.(*clientImpl)
+	require.True(t, ok)
+
+	c.reconnectTimeout = 50 * time.Millisecond // keep the test fast
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan struct{})
+
+	go func() {
+		_, _, _ = c.performReconnect(ctx)
+
+		close(done)
+	}()
+
+	// Multiple attempts prove the loop advances past a hung handshake.
+	require.Eventually(t, func() bool { return attempts.Load() >= 2 },
+		10*time.Second, 20*time.Millisecond,
+		"reconnect loop must time out a hung handshake and retry, not hang on attempt 1")
+
+	// And it still honors outer-context cancellation.
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("performReconnect did not return after context cancellation")
+	}
 }

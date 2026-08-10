@@ -16,6 +16,8 @@ package bedrock
 
 import "strings"
 
+const globalProfileRegion = "global"
+
 // IsModelAllowedFromRegion reports whether invoking modelID from awsRegion
 // crosses a Bedrock inference-profile geography boundary.
 //
@@ -31,12 +33,16 @@ import "strings"
 // route the call, so we err on the side of failing fast rather than letting
 // the request reach AWS just to be rejected there.
 //
+// Models registered with a per-family profile resolver use their published
+// availability table instead of the shared source-region mapping.
+//
 // Examples:
 //
 //	IsModelAllowedFromRegion("eu.anthropic.claude-sonnet-4-6", "us-east-1") → false
 //	IsModelAllowedFromRegion("us.anthropic.claude-sonnet-4-6", "us-east-1") → true
 //	IsModelAllowedFromRegion("us.anthropic.claude-sonnet-4-6", "ca-central-1") → true
 //	IsModelAllowedFromRegion("jp.anthropic.claude-sonnet-4-5-…", "ap-northeast-1") → true
+//	IsModelAllowedFromRegion("au.anthropic.claude-opus-5", "ap-southeast-6") → false
 //	IsModelAllowedFromRegion("global.anthropic.claude-opus-4-6-v1", "me-central-1") → true
 //	IsModelAllowedFromRegion("anthropic.claude-sonnet-4-6", "us-east-1") → true (bare)
 func IsModelAllowedFromRegion(modelID, awsRegion string) bool {
@@ -45,11 +51,68 @@ func IsModelAllowedFromRegion(modelID, awsRegion string) bool {
 	}
 
 	prefix, _, _ := strings.Cut(modelID, ".")
-	if prefix == "global" {
+	if prefix == globalProfileRegion {
 		return true
 	}
 
+	if resolver, ok := profileRegionResolverFor(modelID); ok {
+		profile, known := resolver(awsRegion)
+
+		return known && prefix == profile
+	}
+
 	return prefix == sourceRegionGeoPrefix(awsRegion)
+}
+
+// claudeOpus5ProfileRegions maps every published source region to its
+// preferred profile. Opus 5 publishes US, EU, AU, and global profiles, with
+// AU limited to Sydney and Melbourne. Other published commercial regions use
+// global.
+//
+// Source: https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-5.html
+var claudeOpus5ProfileRegions = map[string]string{
+	"us-east-1":    "us",
+	"us-east-2":    "us",
+	"us-west-1":    "us",
+	"us-west-2":    "us",
+	"ca-central-1": "us",
+	"ca-west-1":    "us",
+
+	"eu-central-1": "eu",
+	"eu-central-2": "eu",
+	"eu-north-1":   "eu",
+	"eu-south-1":   "eu",
+	"eu-south-2":   "eu",
+	"eu-west-1":    "eu",
+	"eu-west-2":    "eu",
+	"eu-west-3":    "eu",
+
+	"ap-southeast-2": "au",
+	"ap-southeast-4": "au",
+
+	"ap-east-2":      globalProfileRegion,
+	"ap-northeast-1": globalProfileRegion,
+	"ap-northeast-2": globalProfileRegion,
+	"ap-northeast-3": globalProfileRegion,
+	"ap-south-1":     globalProfileRegion,
+	"ap-south-2":     globalProfileRegion,
+	"ap-southeast-1": globalProfileRegion,
+	"ap-southeast-3": globalProfileRegion,
+	"ap-southeast-5": globalProfileRegion,
+	"ap-southeast-6": globalProfileRegion,
+	"ap-southeast-7": globalProfileRegion,
+	"il-central-1":   globalProfileRegion,
+	"me-central-1":   globalProfileRegion,
+	"me-south-1":     globalProfileRegion,
+	"af-south-1":     globalProfileRegion,
+	"sa-east-1":      globalProfileRegion,
+	"mx-central-1":   globalProfileRegion,
+}
+
+func claudeOpus5ProfileRegion(awsRegion string) (string, bool) {
+	profileRegion, ok := claudeOpus5ProfileRegions[awsRegion]
+
+	return profileRegion, ok
 }
 
 // sourceRegionGeoPrefix returns the geo-inference-profile prefix that AWS

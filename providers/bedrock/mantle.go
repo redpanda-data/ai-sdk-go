@@ -49,8 +49,8 @@ const mantlePlaceholderAPIKey = "bedrock-mantle-sigv4"
 // IsMantleModel reports whether modelID is served on the bedrock-mantle
 // endpoint (the OpenAI-compatible Responses / Chat Completions API) rather than
 // the standard bedrock-runtime Converse API. It consults the catalog, so it is
-// true only for registered mantle models — the Google Gemma 4 family today, and
-// OpenAI's gpt-5.x frontier models once added.
+// true only for registered mantle models — currently the Google Gemma 4 and
+// OpenAI GPT-5.6 families.
 //
 // The Redpanda AI Gateway's Bedrock reverse proxy reuses this predicate to
 // decide, per request, when to sign with the bedrock-mantle signing name and
@@ -139,8 +139,8 @@ func newMantleModel(p *Provider, cfg *Config, def ModelDefinition) (llm.Model, e
 // translateMantleOptions maps the concrete parameters resolved on a Bedrock
 // Config into the equivalent OpenAI options for the mantle transport. Only
 // temperature and max_tokens are forwarded — those are the sampling controls
-// the Responses request mapper serializes, and the only ones the Gemma
-// constraints advertise (see gemma4 SupportedParams).
+// the Responses request mapper serializes and the only ones the mantle model
+// constraints advertise.
 func translateMantleOptions(cfg *Config) []openai.Option {
 	var opts []openai.Option
 

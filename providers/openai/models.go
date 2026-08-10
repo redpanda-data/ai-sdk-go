@@ -295,13 +295,13 @@ var supportedModels = map[string]ModelDefinition{
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
-		// Per M tokens: $1.00 input, $6.00 output, $0.10 cached input, $1.25 cache write.
-		// Above 272K: $2.00 input, $9.00 output, $0.20 cached input, $2.50 cache write.
+		// Per M tokens: $0.20 input, $1.20 output, $0.02 cached input, $0.25 cache write.
+		// Above 272K: $0.40 input, $1.80 output, $0.04 cached input, $0.50 cache write.
 		Pricing: pricing.TieredInfo(
-			pricing.NewRates(1.00, 6.00, 0.10).WithCacheCreation(0, 0, 1.25),
+			pricing.NewRates(0.20, 1.20, 0.02).WithCacheCreation(0, 0, 0.25),
 			pricing.Bracket{
 				MinContextTokens: 272_001,
-				Rates:            pricing.NewRates(2.00, 9.00, 0.20).WithCacheCreation(0, 0, 2.50),
+				Rates:            pricing.NewRates(0.40, 1.80, 0.04).WithCacheCreation(0, 0, 0.50),
 			},
 		),
 	},
@@ -326,13 +326,13 @@ var supportedModels = map[string]ModelDefinition{
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
-		// Per M tokens: $2.50 input, $15.00 output, $0.25 cached input, $3.125 cache write.
-		// Above 272K: $5.00 input, $22.50 output, $0.50 cached input, $6.25 cache write.
+		// Per M tokens: $2.00 input, $12.00 output, $0.20 cached input, $2.50 cache write.
+		// Above 272K: $4.00 input, $18.00 output, $0.40 cached input, $5.00 cache write.
 		Pricing: pricing.TieredInfo(
-			pricing.NewRates(2.50, 15.00, 0.25).WithCacheCreation(0, 0, 3.125),
+			pricing.NewRates(2.00, 12.00, 0.20).WithCacheCreation(0, 0, 2.50),
 			pricing.Bracket{
 				MinContextTokens: 272_001,
-				Rates:            pricing.NewRates(5.00, 22.50, 0.50).WithCacheCreation(0, 0, 6.25),
+				Rates:            pricing.NewRates(4.00, 18.00, 0.40).WithCacheCreation(0, 0, 5.00),
 			},
 		),
 	},

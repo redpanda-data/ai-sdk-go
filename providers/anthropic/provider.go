@@ -167,6 +167,21 @@ func WithTimeout(timeout time.Duration) ProviderOption {
 	}
 }
 
+// defaultMaxTokens is a last-resort fallback, NOT a recommended budget.
+//
+// Anthropic requires max_tokens on every request, so the SDK must send some
+// value when neither WithMaxTokens nor a per-request override (RequestOptions)
+// is set. The budget *policy* belongs to the caller, not the SDK — so this value
+// only needs to be a safe default that works out of the box, not the "right"
+// number for any given workload.
+//
+// It is deliberately bounded rather than the model's output max: max_tokens is a
+// reservation against the context window (input + max_tokens must fit), so
+// defaulting to the model max would 400 long conversations. 16K is generous but
+// bounded: enough for long answers, small enough to stay clear of context-window
+// rejections on typical conversations.
+const defaultMaxTokens = 16384
+
 // NewModel creates a new Anthropic model instance with the specified configuration.
 func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error) {
 	family := resolveModelFamily(modelName)
@@ -179,7 +194,7 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 	cfg := &Config{
 		ModelName:        modelName,
 		Constraints:      modelDef.Constraints,
-		MaxTokens:        4096, // Default required by Anthropic API
+		MaxTokens:        defaultMaxTokens, // Required by Anthropic API; see const.
 		EnableCaching:    p.EnableCaching,
 		AdaptiveThinking: modelDef.AdaptiveThinking,
 		setOptions:       make(map[string]bool),

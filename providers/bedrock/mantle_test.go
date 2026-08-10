@@ -104,6 +104,35 @@ func TestNewModel_MantleRoutesToBedrockProvider(t *testing.T) {
 	assert.Equal(t, 256000, m.Constraints().MaxInputTokens)
 }
 
+func TestNewModel_GPT56ModelsUseMantleCatalog(t *testing.T) {
+	t.Parallel()
+
+	p, err := NewProvider(context.Background(), WithRegion("us-east-1"), WithNoAuth())
+	require.NoError(t, err)
+
+	for _, modelID := range []string{
+		ModelGPT56Sol,
+		ModelGPT56Terra,
+		ModelGPT56Luna,
+	} {
+		t.Run(modelID, func(t *testing.T) {
+			t.Parallel()
+
+			m, err := p.NewModel(modelID, WithMaxTokens(128_000))
+			require.NoError(t, err)
+
+			assert.True(t, IsMantleModel(modelID))
+			assert.Equal(t, "aws.bedrock", m.Provider())
+			assert.Equal(t, modelID, m.Name())
+			assert.True(t, m.Capabilities().Streaming)
+			assert.True(t, m.Capabilities().Tools)
+			assert.True(t, m.Capabilities().Reasoning)
+			assert.Equal(t, 272_000, m.Constraints().MaxInputTokens)
+			assert.Equal(t, 128_000, m.Constraints().MaxOutputTokens)
+		})
+	}
+}
+
 func TestNewModel_MantleRejectsUnserializedOptions(t *testing.T) {
 	t.Parallel()
 

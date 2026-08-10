@@ -16,6 +16,9 @@ package bedrock
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestIsModelAllowedFromRegion(t *testing.T) {
@@ -38,6 +41,21 @@ func TestIsModelAllowedFromRegion(t *testing.T) {
 		{"sonnet5 us from ca-central-1 (Canada is US Geo)", ModelClaudeSonnet5US, "ca-central-1", true},
 		{"sonnet5 us from eu-west-1 (cross-geo)", ModelClaudeSonnet5US, "eu-west-1", false},
 		{"sonnet5 global from me-central-1", ModelClaudeSonnet5Global, "me-central-1", true},
+
+		// Opus 5 — US, EU, AU, and global profiles are published.
+		{"opus5 us from us-east-1", ModelClaudeOpus5US, "us-east-1", true},
+		{"opus5 us from unset region", ModelClaudeOpus5US, "", false},
+		{"opus5 us from ca-central-1", ModelClaudeOpus5US, "ca-central-1", true},
+		{"opus5 us from ca-west-1", ModelClaudeOpus5US, "ca-west-1", true},
+		{"opus5 eu from eu-west-1", ModelClaudeOpus5EU, "eu-west-1", true},
+		{"opus5 au from ap-southeast-2", ModelClaudeOpus5AU, "ap-southeast-2", true},
+		{"opus5 au from ap-southeast-4", ModelClaudeOpus5AU, "ap-southeast-4", true},
+		{"opus5 au from ap-southeast-6 (New Zealand is global-only)", ModelClaudeOpus5AU, "ap-southeast-6", false},
+		{"opus5 us from eu-west-1", ModelClaudeOpus5US, "eu-west-1", false},
+		{"opus5 eu from us-east-1", ModelClaudeOpus5EU, "us-east-1", false},
+		{"opus5 global from me-central-1", ModelClaudeOpus5Global, "me-central-1", true},
+		{"opus5 global from China", ModelClaudeOpus5Global, "cn-north-1", true},
+		{"opus5 global from future region", ModelClaudeOpus5Global, "future-north-1", true},
 
 		// global.* is always allowed.
 		{"global from us", ModelClaudeSonnet46Global, "us-east-1", true},
@@ -117,6 +135,64 @@ func TestIsModelAllowedFromRegion(t *testing.T) {
 					tc.modelID, tc.region, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestClaudeOpus5ProfileRegion_UnknownRegions(t *testing.T) {
+	t.Parallel()
+
+	for _, region := range []string{"us-gov-west-1", "cn-north-1", "ap-southeast-8", "unknown"} {
+		t.Run(region, func(t *testing.T) {
+			t.Parallel()
+
+			got, known := claudeOpus5ProfileRegion(region)
+			assert.False(t, known)
+			assert.Empty(t, got)
+		})
+	}
+}
+
+func TestProfileRegionResolverLookup(t *testing.T) {
+	t.Parallel()
+
+	for _, modelID := range []string{
+		ModelClaudeOpus5,
+		ModelClaudeOpus5Global,
+		ModelClaudeOpus5US,
+		ModelClaudeOpus5EU,
+		ModelClaudeOpus5AU,
+	} {
+		t.Run(modelID, func(t *testing.T) {
+			t.Parallel()
+
+			resolver, ok := profileRegionResolverFor(modelID)
+			require.True(t, ok)
+
+			profile, known := resolver("ca-west-1")
+			assert.True(t, known)
+			assert.Equal(t, "us", profile)
+		})
+	}
+
+	_, ok := profileRegionResolverFor(ModelClaudeSonnet5)
+	assert.False(t, ok)
+}
+
+func TestProfileRegionResolversReturnCatalogedProfiles(t *testing.T) {
+	t.Parallel()
+
+	for bareID, resolver := range profileRegionResolvers {
+		regions, ok := profileRegionResolverRegions[bareID]
+		require.Truef(t, ok, "resolver family %s has no source-region table", bareID)
+
+		for region, want := range regions {
+			got, known := resolver(region)
+			require.Truef(t, known, "resolver family %s does not recognize region %s", bareID, region)
+			require.Equalf(t, want, got, "resolver family %s routed region %s incorrectly", bareID, region)
+
+			_, cataloged := supportedModels[got+"."+bareID]
+			assert.Truef(t, cataloged, "resolver family %s returns uncataloged profile %s", bareID, got)
+		}
 	}
 }
 

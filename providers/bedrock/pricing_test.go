@@ -20,6 +20,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/redpanda-data/ai-sdk-go/pricing"
 )
 
 // freeCacheWriteModels lists Bedrock models AWS documents as charging nothing
@@ -44,6 +46,15 @@ var noCacheModels = map[string]bool{
 	ModelGemma431B:     true,
 	ModelGemma426BA4B:  true,
 	ModelGemma4E2B:     true,
+}
+
+// unknownTTLCacheModels report aggregate cache-write tokens without a
+// TTL-specific usage bucket. Their write rate must therefore live only in
+// CacheCreationUnknownTTLPerMillion.
+var unknownTTLCacheModels = map[string]bool{
+	ModelGPT56Sol:   true,
+	ModelGPT56Terra: true,
+	ModelGPT56Luna:  true,
 }
 
 func TestAllModelsHavePricing(t *testing.T) {
@@ -71,6 +82,15 @@ func TestAllModelsHavePricing(t *testing.T) {
 					"model %s is documented no-cache but has a 5m cache-write rate", id)
 				assert.Zero(t, base.CacheCreation1hPerMillion,
 					"model %s is documented no-cache but has a 1h cache-write rate", id)
+			case unknownTTLCacheModels[id]:
+				assert.Positive(t, base.CachedInputPerMillion,
+					"model %s missing cached pricing", id)
+				assert.Zero(t, base.CacheCreation5mPerMillion,
+					"model %s reports aggregate cache writes but has a 5m rate", id)
+				assert.Zero(t, base.CacheCreation1hPerMillion,
+					"model %s reports aggregate cache writes but has a 1h rate", id)
+				assert.Positive(t, base.CacheCreationUnknownTTLPerMillion,
+					"model %s missing aggregate cache-write pricing", id)
 			case freeCacheWriteModels[id]:
 				// Cache reads are billed, but populating the cache is free —
 				// their cache-write usagetype is $0.00 (Amazon Nova 2 Lite).
@@ -94,12 +114,67 @@ func TestAllModelsHavePricing(t *testing.T) {
 	}
 }
 
+func TestGPT56Pricing(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		modelID string
+		rates   pricing.Rates
+	}{
+		{
+			modelID: ModelGPT56Sol,
+			rates:   pricing.NewRates(5.50, 33.00, 0.55).WithCacheCreation(0, 0, 6.875),
+		},
+		{
+			modelID: ModelGPT56Terra,
+			rates:   pricing.NewRates(2.75, 16.50, 0.275).WithCacheCreation(0, 0, 3.4375),
+		},
+		{
+			modelID: ModelGPT56Luna,
+			rates:   pricing.NewRates(1.10, 6.60, 0.11).WithCacheCreation(0, 0, 1.375),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.modelID, func(t *testing.T) {
+			t.Parallel()
+
+			def, ok := supportedModels[tt.modelID]
+			require.True(t, ok)
+			assert.Equal(t, tt.rates, def.Pricing.Default.Base)
+		})
+	}
+}
+
 func TestModelPricingMatchesModels(t *testing.T) {
 	t.Parallel()
 
 	pricingMap := ModelPricing()
 	assert.Len(t, pricingMap, len(supportedModels),
 		"ModelPricing should return exactly one entry per supported model")
+}
+
+func TestClaudeOpus5Pricing(t *testing.T) {
+	t.Parallel()
+
+	global, globalOK := supportedModels[ModelClaudeOpus5Global]
+	require.True(t, globalOK)
+	assert.Equal(t,
+		pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
+		global.Pricing.Default.Base,
+	)
+
+	geoRates := pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0)
+
+	for _, id := range []string{
+		ModelClaudeOpus5US,
+		ModelClaudeOpus5EU,
+		ModelClaudeOpus5AU,
+	} {
+		def, ok := supportedModels[id]
+		require.True(t, ok)
+		assert.Equal(t, geoRates, def.Pricing.Default.Base)
+	}
 }
 
 // TestGeoGlobalRatio pins, per logical model, the relationship between the

@@ -35,13 +35,12 @@ import (
 //     and the two side-by-side Anthropic tables on
 //     https://aws.amazon.com/bedrock/pricing/.
 //
-// This catalog registers inference-profile variants instead of bare Claude
-// IDs so each entry carries the correct routing and pricing metadata. For
-// earlier 4.5+ models, invoking the bare ID via bedrock-runtime returned
-// ValidationException "Invocation of model ID … with on-demand throughput
-// isn't supported" in empirical checks (2026-04); the bare consts below exist
-// only as building blocks for the prefixed variants and are NOT registered in
-// supportedModels.
+// This catalog registers every published inference-profile variant and any
+// bare ID that Bedrock documents as in-region invokable. For earlier 4.5+
+// models, invoking the bare ID via bedrock-runtime returned ValidationException
+// "Invocation of model ID … with on-demand throughput isn't supported" in
+// empirical checks (2026-04); those bare consts remain building blocks for the
+// prefixed variants and are not registered in supportedModels.
 const (
 	// ModelClaudeFable5 is the bare Bedrock ID for Claude Fable 5
 	// (inference-profile-only — invoke via one of the prefixed variants).
@@ -84,6 +83,17 @@ const (
 	ModelClaudeHaiku45US     = "us." + ModelClaudeHaiku45
 	ModelClaudeHaiku45EU     = "eu." + ModelClaudeHaiku45
 	ModelClaudeHaiku45AU     = "au." + ModelClaudeHaiku45
+
+	// ModelClaudeOpus5 is the bare building block for Claude Opus 5 profile IDs.
+	// bedrock-runtime publishes only global, US, EU, and AU profiles. The bare
+	// ID is invokable through bedrock-mantle's Anthropic Messages surface, but
+	// this provider's mantle transport implements only the OpenAI-compatible
+	// Responses surface.
+	ModelClaudeOpus5       = "anthropic.claude-opus-5"
+	ModelClaudeOpus5Global = "global." + ModelClaudeOpus5
+	ModelClaudeOpus5US     = "us." + ModelClaudeOpus5
+	ModelClaudeOpus5EU     = "eu." + ModelClaudeOpus5
+	ModelClaudeOpus5AU     = "au." + ModelClaudeOpus5
 
 	// ModelClaudeOpus48 is the bare Bedrock ID for Claude Opus 4.8
 	// (inference-profile-only — invoke via one of the prefixed variants).
@@ -224,6 +234,23 @@ type ThinkingSupport struct {
 	Budget bool
 }
 
+// Model ID constants for OpenAI GPT-5.6 models on Bedrock.
+//
+// All three models are served only through the bedrock-mantle Responses API
+// and use bare, in-region IDs. AWS does not publish Geo or Global inference
+// IDs for them. See
+// https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards-openai.html
+const (
+	// ModelGPT56Sol is OpenAI's flagship GPT-5.6 reasoning model.
+	ModelGPT56Sol = "openai.gpt-5.6-sol"
+
+	// ModelGPT56Terra balances reasoning capability and cost.
+	ModelGPT56Terra = "openai.gpt-5.6-terra"
+
+	// ModelGPT56Luna is optimized for fast, cost-efficient inference.
+	ModelGPT56Luna = "openai.gpt-5.6-luna"
+)
+
 // ModelDefinition defines a model with its capabilities and constraints.
 type ModelDefinition struct {
 	Name                        string // Real Bedrock model ID (e.g. "us.anthropic.claude-sonnet-4-6")
@@ -295,6 +322,19 @@ var geoProfilePrefixes = map[string]bool{
 	"global": true,
 }
 
+// profileRegionResolvers opts model families into exact, model-specific geo
+// routing. Families absent from this map retain the catalog's historical
+// generic routing behavior.
+var profileRegionResolvers = map[string]func(string) (string, bool){
+	ModelClaudeOpus5: claudeOpus5ProfileRegion,
+}
+
+// profileRegionResolverRegions exposes each resolver's complete source-region
+// domain so catalog invariants can verify every returned profile is registered.
+var profileRegionResolverRegions = map[string]map[string]string{
+	ModelClaudeOpus5: claudeOpus5ProfileRegions,
+}
+
 // hasRegionPrefix reports whether a model ID already begins with a Bedrock
 // region/global inference-profile prefix (e.g. "us.anthropic.claude-sonnet-4-6"
 // or "global.anthropic.claude-opus-4-6-v1").
@@ -312,6 +352,17 @@ func hasRegionPrefix(modelID string) bool {
 	}
 
 	return geoProfilePrefixes[prefix]
+}
+
+func profileRegionResolverFor(modelID string) (func(string) (string, bool), bool) {
+	prefix, family, ok := strings.Cut(modelID, ".")
+	if ok && geoProfilePrefixes[prefix] {
+		modelID = family
+	}
+
+	resolver, ok := profileRegionResolvers[modelID]
+
+	return resolver, ok
 }
 
 // lookupModel finds a ModelDefinition by exact model ID. Each inference
@@ -375,11 +426,10 @@ var (
 		SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 	}
 
-	claudeFable5Constraints = llm.ModelConstraints{
-		TemperatureRange: [2]float64{0.0, 1.0},
-		MaxInputTokens:   1000000,
-		MaxOutputTokens:  128000,
-		SupportedParams:  []string{"max_tokens", "stop"},
+	claudeNoSampling1MConstraints = llm.ModelConstraints{
+		MaxInputTokens:  1000000,
+		MaxOutputTokens: 128000,
+		SupportedParams: []string{"max_tokens", "stop"},
 	}
 
 	claudeContext200kConstraints = llm.ModelConstraints{
@@ -505,6 +555,31 @@ var (
 		MaxOutputTokens:  128000,
 		SupportedParams:  []string{"temperature", "max_tokens"},
 	}
+
+	// GPT-5.6 is available through the same bedrock-mantle Responses transport
+	// as Gemma 4. AWS advertises a 272K context window for the Bedrock-hosted
+	// variants, rather than the larger first-party OpenAI window. Vision is
+	// false because this SDK does not yet expose an image Part on the shared
+	// Responses mapper, even though the Bedrock models accept image input.
+	// SupportedParams contains only options the mantle adapter serializes.
+	gpt56Caps = llm.ModelCapabilities{
+		Streaming:        true,
+		Tools:            true,
+		JSONMode:         true,
+		StructuredOutput: true,
+		Vision:           false,
+		Audio:            false,
+		MultiTurn:        true,
+		SystemPrompts:    true,
+		Reasoning:        true,
+	}
+
+	gpt56Constraints = llm.ModelConstraints{
+		TemperatureRange: [2]float64{0.0, 2.0},
+		MaxInputTokens:   272000,
+		MaxOutputTokens:  128000,
+		SupportedParams:  []string{"temperature", "max_tokens"},
+	}
 )
 
 // supportedModels is the per-variant Bedrock catalog. Every model ID the SDK
@@ -513,7 +588,7 @@ var (
 // and there is no shared rate constant whose name might survive a price
 // change for a single model.
 //
-// Pricing rule (per AWS https://aws.amazon.com/bedrock/pricing/, 2026-04):
+// Pricing rule (per AWS https://aws.amazon.com/bedrock/pricing/, 2026-08):
 //   - bare ID (when invokable) and geo profiles (us./eu./au./jp.) use the
 //     "Geo and In-region Cross-region Inference" rate.
 //   - global. profiles use the "Global Cross-region Inference" rate, which
@@ -527,7 +602,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:                        ModelClaudeFable5Global,
 		Label:                       "Claude Fable 5 (Global)",
 		Capabilities:                claudeStandardCaps,
-		Constraints:                 claudeFable5Constraints,
+		Constraints:                 claudeNoSampling1MConstraints,
 		Thinking:                    frontierClaudeThinking,
 		RequiresProviderDataSharing: true,
 		Pricing: pricing.FlatInfoFromRates(
@@ -538,7 +613,7 @@ var supportedModels = map[string]ModelDefinition{
 		Name:                        ModelClaudeFable5US,
 		Label:                       "Claude Fable 5 (US)",
 		Capabilities:                claudeStandardCaps,
-		Constraints:                 claudeFable5Constraints,
+		Constraints:                 claudeNoSampling1MConstraints,
 		Thinking:                    frontierClaudeThinking,
 		RequiresProviderDataSharing: true,
 		Pricing: pricing.FlatInfoFromRates(
@@ -549,11 +624,53 @@ var supportedModels = map[string]ModelDefinition{
 		Name:                        ModelClaudeFable5EU,
 		Label:                       "Claude Fable 5 (EU)",
 		Capabilities:                claudeStandardCaps,
-		Constraints:                 claudeFable5Constraints,
+		Constraints:                 claudeNoSampling1MConstraints,
 		Thinking:                    frontierClaudeThinking,
 		RequiresProviderDataSharing: true,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(13.75, 22.00, 0),
+		),
+	},
+
+	// ----------------------------------------------------------------
+	// Claude Opus 5 — inference-profile-only on bedrock-runtime. AWS publishes
+	// global, US, EU, and AU profiles:
+	// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-5.html
+	// ----------------------------------------------------------------
+	ModelClaudeOpus5Global: {
+		Name:         ModelClaudeOpus5Global,
+		Label:        "Claude Opus 5 (Global)",
+		Capabilities: claudeStandardCaps,
+		Constraints:  claudeNoSampling1MConstraints,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
+		),
+	},
+	ModelClaudeOpus5US: {
+		Name:         ModelClaudeOpus5US,
+		Label:        "Claude Opus 5 (US)",
+		Capabilities: claudeStandardCaps,
+		Constraints:  claudeNoSampling1MConstraints,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
+		),
+	},
+	ModelClaudeOpus5EU: {
+		Name:         ModelClaudeOpus5EU,
+		Label:        "Claude Opus 5 (EU)",
+		Capabilities: claudeStandardCaps,
+		Constraints:  claudeNoSampling1MConstraints,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
+		),
+	},
+	ModelClaudeOpus5AU: {
+		Name:         ModelClaudeOpus5AU,
+		Label:        "Claude Opus 5 (AU)",
+		Capabilities: claudeStandardCaps,
+		Constraints:  claudeNoSampling1MConstraints,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
 		),
 	},
 
@@ -988,6 +1105,50 @@ var supportedModels = map[string]ModelDefinition{
 		Constraints:  mistralLarge3Constraints,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(0.50, 1.50, 0),
+		),
+	},
+
+	// ----------------------------------------------------------------
+	// OpenAI GPT-5.6 family — mantle-only (Mantle: true), invoked by bare
+	// in-region IDs through the Responses API. AWS publishes no Geo or Global
+	// inference IDs. The Bedrock variants have a 272K context window.
+	//
+	// Pricing is the in-region STANDARD-tier rate from
+	// https://aws.amazon.com/bedrock/pricing/ (OpenAI section, 2026-08).
+	// Cache writes have a 30-minute TTL and the Responses usage payload reports
+	// an aggregate cache_write_tokens count, so the write price is stored in the
+	// unknown-TTL bucket consumed by the shared OpenAI response mapper. Exact
+	// cache rates follow AWS's 90% read discount and 1.25x write multiplier (the
+	// pricing table rounds some displayed values to two decimal places).
+	// ----------------------------------------------------------------
+	ModelGPT56Sol: {
+		Name:         ModelGPT56Sol,
+		Label:        "OpenAI GPT-5.6 Sol",
+		Capabilities: gpt56Caps,
+		Constraints:  gpt56Constraints,
+		Mantle:       true,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(5.50, 33.00, 0.55).WithCacheCreation(0, 0, 6.875),
+		),
+	},
+	ModelGPT56Terra: {
+		Name:         ModelGPT56Terra,
+		Label:        "OpenAI GPT-5.6 Terra",
+		Capabilities: gpt56Caps,
+		Constraints:  gpt56Constraints,
+		Mantle:       true,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(2.75, 16.50, 0.275).WithCacheCreation(0, 0, 3.4375),
+		),
+	},
+	ModelGPT56Luna: {
+		Name:         ModelGPT56Luna,
+		Label:        "OpenAI GPT-5.6 Luna",
+		Capabilities: gpt56Caps,
+		Constraints:  gpt56Constraints,
+		Mantle:       true,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(1.10, 6.60, 0.11).WithCacheCreation(0, 0, 1.375),
 		),
 	},
 

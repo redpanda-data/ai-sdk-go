@@ -32,6 +32,7 @@ type Config struct {
 	// Capability flags
 	SupportsReasoning  bool
 	CustomCapabilities *llm.ModelCapabilities // Override default capabilities if set
+	Thinking           *bool
 
 	// OpenAI-specific parameters
 	Temperature      *float64
@@ -45,6 +46,16 @@ type Config struct {
 
 	// Track which options have been set for conflict detection with model constraints
 	setOptions map[string]bool
+}
+
+// WithConstraints overrides the permissive constraints used for dynamic models.
+// Use this when the target OpenAI-compatible service publishes model-specific
+// token limits or parameter support.
+func WithConstraints(constraints llm.ModelConstraints) Option {
+	return func(cfg *Config) error {
+		cfg.Constraints = constraints
+		return nil
+	}
 }
 
 // WithCapabilities overrides the default model capabilities.
@@ -62,6 +73,15 @@ func WithCapabilities(caps llm.ModelCapabilities) Option {
 func WithReasoning() Option {
 	return func(cfg *Config) error {
 		cfg.SupportsReasoning = true
+		return nil
+	}
+}
+
+// WithThinking toggles thinking mode for compatible APIs such as DeepSeek.
+// The setting is sent as the OpenAI-compatible `thinking.type` extension.
+func WithThinking(enabled bool) Option {
+	return func(cfg *Config) error {
+		cfg.Thinking = &enabled
 		return nil
 	}
 }
@@ -134,8 +154,8 @@ func WithMaxTokens(tokens int) Option {
 			return fmt.Errorf("%s: max_tokens must be positive, got %d", cfg.ModelName, tokens)
 		}
 
-		if tokens > cfg.Constraints.MaxInputTokens {
-			return fmt.Errorf("%s: max_tokens %d exceeds limit %d", cfg.ModelName, tokens, cfg.Constraints.MaxInputTokens)
+		if tokens > cfg.Constraints.MaxOutputTokens {
+			return fmt.Errorf("%s: max_tokens %d exceeds limit %d", cfg.ModelName, tokens, cfg.Constraints.MaxOutputTokens)
 		}
 
 		cfg.MaxTokens = &tokens

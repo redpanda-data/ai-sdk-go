@@ -21,11 +21,11 @@ const (
 	TestReasoningModelName = "o1"
 
 	// DeepSeekDefaultBaseURL is the default API base URL for DeepSeek.
-	DeepSeekDefaultBaseURL = "https://api.deepseek.com/v1"
-	// DeepSeekDefaultStandardModel is the default standard chat model.
-	DeepSeekDefaultStandardModel = "deepseek-chat"
-	// DeepSeekDefaultReasoningModel is the default reasoning model.
-	DeepSeekDefaultReasoningModel = "deepseek-reasoner"
+	DeepSeekDefaultBaseURL = "https://api.deepseek.com"
+	// DeepSeekDefaultStandardModel is the default fast model.
+	DeepSeekDefaultStandardModel = "deepseek-v4-flash"
+	// DeepSeekDefaultReasoningModel is the default high-capability model.
+	DeepSeekDefaultReasoningModel = "deepseek-v4-pro"
 
 	// AnthropicDefaultBaseURL is the Anthropic OpenAI-compatible endpoint.
 	AnthropicDefaultBaseURL = "https://api.anthropic.com/v1"

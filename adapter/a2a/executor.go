@@ -247,9 +247,30 @@ func (e *Executor) processEvents(
 					Text: "Agent stopped: maximum iterations reached",
 				})
 			case agent.FinishReasonLength:
+				// Output truncation is non-fatal: the model produced a partial
+				// response and stopped at the output-token cap. Complete the task,
+				// deliver what we have (already streamed to history), and mark the
+				// turn truncated so the surface can offer a Continue action instead
+				// of a destructive failure card.
+				taskState = a2a.TaskStateCompleted
+				statusMsg = a2a.NewMessage(a2a.MessageRoleAgent, a2a.TextPart{
+					Text: "Response was truncated — the maximum output token limit was reached. Continue to get the rest.",
+				})
+				// The `truncated` marker is the load-bearing contract: it lives on
+				// the message metadata (where consumers read usage), NOT the event
+				// metadata. This notice is a UI affordance, not model output — a
+				// consumer that reconstructs conversation history from agent status
+				// messages MUST skip messages carrying `truncated: true`, otherwise a
+				// "Continue" would resume from a history where the assistant appears
+				// to have said "Continue to get the rest." The partial answer was
+				// already delivered as a separate Working-status MessageEvent.
+				statusMsg.Metadata = map[string]any{"truncated": true}
+			case agent.FinishReasonContextOverflow:
+				// Genuinely too long: the input exceeded the model's context window,
+				// so nothing could be generated. Terminal, but say so truthfully.
 				taskState = a2a.TaskStateFailed
 				statusMsg = a2a.NewMessage(a2a.MessageRoleAgent, a2a.TextPart{
-					Text: "Agent stopped: context length limit exceeded",
+					Text: "Agent stopped: the conversation exceeds the model's context window. Start a new conversation or shorten the input.",
 				})
 			case agent.FinishReasonError:
 				taskState = a2a.TaskStateFailed

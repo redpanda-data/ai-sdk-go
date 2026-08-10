@@ -26,6 +26,17 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
+// RequestOptions carries per-request overrides supplied through
+// llm.Request.Options. It lets a caller (typically the agent harness) vary
+// generation parameters per turn without rebuilding the model. A nil field
+// falls back to the model's configured value. Values are validated/clamped
+// against the model's constraints when applied.
+type RequestOptions struct {
+	// MaxTokens overrides the output-token budget for this single request.
+	// Clamped to the model's MaxOutputTokens; a non-positive value is ignored.
+	MaxTokens *int
+}
+
 // RequestMapper handles conversion from unified Request to Anthropic API format.
 type RequestMapper struct {
 	config       *Config
@@ -53,8 +64,16 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) (anthropic.BetaMessageNewP
 		Model: anthropic.Model(modelName),
 	}
 
-	// MaxTokens is set by provider config (required by Anthropic API)
+	// MaxTokens is required by the Anthropic API. It defaults to the model's
+	// configured budget (WithMaxTokens, or the fallback default), but a caller
+	// may override it per request via llm.Request.Options so the harness owns the
+	// budget policy without rebuilding the model. Per-request values are clamped
+	// to the model's output ceiling.
 	apiReq.MaxTokens = int64(rm.config.MaxTokens)
+
+	if ro, ok := req.Options.(*RequestOptions); ok && ro != nil && ro.MaxTokens != nil && *ro.MaxTokens > 0 {
+		apiReq.MaxTokens = int64(min(*ro.MaxTokens, rm.config.Constraints.MaxOutputTokens))
+	}
 
 	// Map messages and system prompt
 	messages, systemPrompt, err := rm.mapMessages(req.Messages)

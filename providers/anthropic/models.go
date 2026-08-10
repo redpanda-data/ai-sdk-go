@@ -26,6 +26,7 @@ import (
 // accepts them directly and resolves to the latest snapshot.
 const (
 	ModelClaudeFable5   = "claude-fable-5"
+	ModelClaudeOpus5    = "claude-opus-5"
 	ModelClaudeSonnet5  = "claude-sonnet-5"
 	ModelClaudeSonnet46 = "claude-sonnet-4-6"
 	ModelClaudeSonnet45 = "claude-sonnet-4-5"
@@ -121,9 +122,8 @@ var supportedModels = map[string]ModelDefinition{
 			Reasoning:        true, // Adaptive thinking only; use effort to bias toward more/less thinking
 		},
 		Constraints: llm.ModelConstraints{
-			TemperatureRange: [2]float64{0.0, 1.0},
-			MaxInputTokens:   1000000, // 1M context window
-			MaxOutputTokens:  128000,  // 128K output tokens
+			MaxInputTokens:  1000000, // 1M context window
+			MaxOutputTokens: 128000,  // 128K output tokens
 			// Fable 5 rejects thinking.type.enabled — thinking budget is not user-controllable.
 			// Use adaptive thinking + effort to bias reasoning depth. No fast mode, so no "speed".
 			SupportedParams:   []string{"max_tokens", "reasoning_effort"},
@@ -139,6 +139,41 @@ var supportedModels = map[string]ModelDefinition{
 				// Anthropic >200K long-context surcharge: input 2x, output 1.5x, cache 2x.
 				MinContextTokens: 200_001,
 				Rates:            pricing.NewRates(20.00, 75.00, 2.00).WithCacheCreation(25.00, 40.00, 0),
+			},
+		),
+	},
+	ModelClaudeOpus5: {
+		Name:  ModelClaudeOpus5,
+		Label: "Claude Opus 5",
+		Capabilities: llm.ModelCapabilities{
+			Streaming:        true,
+			Tools:            true,
+			JSONMode:         false, // Anthropic doesn't have native JSON mode
+			StructuredOutput: false, // Use tool calling for structured output instead
+			Vision:           true,
+			MultiTurn:        true,
+			SystemPrompts:    true,
+			Reasoning:        true, // Thinking defaults on; use effort to bias reasoning depth
+		},
+		Constraints: llm.ModelConstraints{
+			MaxInputTokens:  1000000, // 1M context window
+			MaxOutputTokens: 128000,  // 128K output tokens
+			// Opus 5 rejects thinking.type.enabled — thinking budget is not user-controllable.
+			// Non-default sampling parameters are also rejected. Use adaptive
+			// thinking + effort to bias reasoning depth.
+			SupportedParams:   []string{"max_tokens", "reasoning_effort", "speed"},
+			MutuallyExclusive: [][]string{},
+		},
+		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+		SupportedSpeeds:  []Speed{SpeedStandard, SpeedFast},
+		AdaptiveThinking: true,
+		Pricing: pricing.FlatInfoFromRates(
+			pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
+		).WithOverride(
+			pricing.Selector{Speed: SpeedFast},
+			pricing.RateCard{
+				Base: pricing.NewRates(10.00, 50.00, 1.00).
+					WithCacheCreation(12.50, 20.00, 0),
 			},
 		),
 	},

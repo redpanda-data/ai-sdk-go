@@ -984,6 +984,11 @@ func mapFinishReason(fr llm.FinishReason) string {
 		return finishReasonStop
 	case llm.FinishReasonLength:
 		return "length"
+	case llm.FinishReasonContextOverflow:
+		// The Vercel protocol has no dedicated overflow reason. Report it as
+		// "length" — the token-limit bucket — which is also the value overflow
+		// wired to before it was split out from FinishReasonLength.
+		return "length"
 	case llm.FinishReasonContentFilter:
 		return "content-filter"
 	case llm.FinishReasonToolCalls:
