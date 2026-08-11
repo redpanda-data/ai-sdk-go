@@ -35,7 +35,6 @@ const (
 	ModelClaudeOpus47   = "claude-opus-4-7"
 	ModelClaudeOpus46   = "claude-opus-4-6"
 	ModelClaudeOpus45   = "claude-opus-4-5"
-	ModelClaudeOpus41   = "claude-opus-4-1"
 )
 
 // Effort controls the output effort level for supported models.
@@ -402,31 +401,6 @@ var supportedModels = map[string]ModelDefinition{
 					Rates:            pricing.NewRates(60.00, 225.00, 6.00).WithCacheCreation(75.00, 120.00, 0),
 				}},
 			},
-		),
-	},
-	ModelClaudeOpus41: {
-		Name:  ModelClaudeOpus41,
-		Label: "Claude Opus 4.1",
-		Capabilities: llm.ModelCapabilities{
-			Streaming:        true,
-			Tools:            true,
-			JSONMode:         false, // Anthropic doesn't have native JSON mode
-			StructuredOutput: false, // Use tool calling for structured output instead
-			Vision:           true,
-			MultiTurn:        true,
-			SystemPrompts:    true,
-			Reasoning:        true, // Extended thinking support
-		},
-		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 1.0},
-			MaxInputTokens:    200000, // 200K context window
-			MaxOutputTokens:   32000,  // 32K output tokens
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens"},
-			MutuallyExclusive: [][]string{},
-		},
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(15.00, 75.00, 1.50).
-				WithCacheCreation(18.75, 30.00, 0),
 		),
 	},
 	ModelClaudeOpus45: {
