@@ -241,7 +241,7 @@ func WithSpeed(speed Speed) Option {
 
 // WithCustomModelName allows overriding the model name sent to the API while
 // inheriting the base model's capabilities and constraints. This is useful for:
-//   - Using newly released models before SDK updates (e.g., "claude-opus-4-2" using claude-opus-4-1 constraints)
+//   - Using newly released models before SDK updates (e.g., "claude-opus-4-9" using claude-opus-4-8 constraints)
 //   - Testing beta/experimental model variants
 //   - Using timestamped versions not yet in the SDK
 //
@@ -250,7 +250,7 @@ func WithSpeed(speed Speed) Option {
 //
 // Example:
 //
-//	provider.NewModel("claude-opus-4-1", WithCustomModelName("claude-opus-4-2-beta"))
+//	provider.NewModel("claude-opus-4-8", WithCustomModelName("claude-opus-4-9-beta"))
 func WithCustomModelName(customName string) Option {
 	return func(cfg *Config) error {
 		if customName == "" {

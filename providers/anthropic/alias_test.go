@@ -114,16 +114,6 @@ func TestModelResolution(t *testing.T) {
 			modelKey:      "claude-opus-4-5-20251101",
 			expectedModel: "claude-opus-4-5-20251101",
 		},
-		{
-			name:          "claude-opus-4-1 family name resolves",
-			modelKey:      "claude-opus-4-1",
-			expectedModel: "claude-opus-4-1",
-		},
-		{
-			name:          "claude-opus-4-1 arbitrary timestamp resolves",
-			modelKey:      "claude-opus-4-1-20240101",
-			expectedModel: "claude-opus-4-1-20240101",
-		},
 	}
 
 	for _, tt := range tests {
@@ -151,8 +141,8 @@ func TestCustomModelName(t *testing.T) {
 	require.NoError(t, err)
 
 	model, err := provider.NewModel(
-		"claude-opus-4-1",
-		WithCustomModelName("claude-opus-4-2-beta"),
+		"claude-opus-4-5",
+		WithCustomModelName("claude-opus-4-9-beta"),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, model)
@@ -160,8 +150,8 @@ func TestCustomModelName(t *testing.T) {
 	m, ok := model.(*Model)
 	require.True(t, ok)
 
-	assert.Equal(t, "claude-opus-4-1", m.config.ModelName)
-	assert.Equal(t, "claude-opus-4-2-beta", m.config.CustomModelName)
+	assert.Equal(t, "claude-opus-4-5", m.config.ModelName)
+	assert.Equal(t, "claude-opus-4-9-beta", m.config.CustomModelName)
 	assert.Equal(t, int(200000), m.config.Constraints.MaxInputTokens)
 }
 
@@ -183,7 +173,7 @@ func TestCustomModelNameValidation(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = provider.NewModel(
-		"claude-opus-4-1",
+		"claude-opus-4-5",
 		WithCustomModelName(""),
 	)
 	require.Error(t, err)
