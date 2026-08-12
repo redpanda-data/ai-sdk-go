@@ -37,13 +37,8 @@ const (
 
 	// ModelGPT5_2 is the GPT-5.2 Thinking model (default variant).
 	ModelGPT5_2 = shared.ChatModelGPT5_2
-	// ModelGPT5_2Instant is the GPT-5.2 Instant model (speed-optimized variant).
-	ModelGPT5_2Instant = shared.ChatModelGPT5_2ChatLatest
 	// ModelGPT5_2Pro is the GPT-5.2 Pro model (maximum accuracy variant).
 	ModelGPT5_2Pro = shared.ChatModelGPT5_2Pro
-
-	// ModelGPT5_3ChatLatest is the GPT-5.3 Chat Latest model (speed-optimized, medium-only reasoning).
-	ModelGPT5_3ChatLatest = shared.ChatModelGPT5_3ChatLatest
 
 	// ModelGPT5_6Luna is the cost-optimized GPT-5.6 model.
 	ModelGPT5_6Luna = shared.ChatModelGPT5_6Luna

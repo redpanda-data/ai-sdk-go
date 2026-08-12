@@ -167,9 +167,7 @@ func TestAllModelsReasoningEffortsIntegration(t *testing.T) {
 		ModelGPT5Mini,
 		ModelGPT5_1,
 		ModelGPT5_2,
-		ModelGPT5_2Instant,
 		ModelGPT5_2Pro,
-		ModelGPT5_3ChatLatest,
 		ModelGPT5_4,
 		ModelGPT5_4Mini,
 		ModelO3,
@@ -307,34 +305,10 @@ func TestUnsupportedReasoningEffortsIntegration(t *testing.T) {
 			reason:       "GPT-5.2-pro doesn't support 'low'",
 		},
 		{
-			model:        ModelGPT5_2Instant,
-			effort:       ReasoningEffortNone,
-			shouldReject: true,
-			reason:       "GPT-5.2-instant only supports 'medium'",
-		},
-		{
-			model:        ModelGPT5_2Instant,
-			effort:       ReasoningEffortLow,
-			shouldReject: true,
-			reason:       "GPT-5.2-instant only supports 'medium'",
-		},
-		{
 			model:        ModelGPT5_4,
 			effort:       ReasoningEffortMinimal,
 			shouldReject: true,
 			reason:       "GPT-5.4 doesn't support 'minimal'",
-		},
-		{
-			model:        ModelGPT5_3ChatLatest,
-			effort:       ReasoningEffortNone,
-			shouldReject: true,
-			reason:       "GPT-5.3-chat-latest only supports 'medium'",
-		},
-		{
-			model:        ModelGPT5_3ChatLatest,
-			effort:       ReasoningEffortHigh,
-			shouldReject: true,
-			reason:       "GPT-5.3-chat-latest only supports 'medium'",
 		},
 	}
 
@@ -397,13 +371,6 @@ func TestSupportedReasoningEfforts(t *testing.T) {
 			model:         ModelGPT5_4,
 			expectedFirst: ReasoningEffortNone,
 			expectNone:    true,
-			expectMinimal: false,
-		},
-		{
-			name:          "gpt-5.3-chat-latest should only have 'medium'",
-			model:         ModelGPT5_3ChatLatest,
-			expectedFirst: ReasoningEffortMedium,
-			expectNone:    false,
 			expectMinimal: false,
 		},
 		{

@@ -198,30 +198,6 @@ var supportedModels = map[string]ModelDefinition{
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh},
 		Pricing:                   pricing.FlatInfo(0.875, 7.00, 0.175),
 	},
-	ModelGPT5_2Instant: {
-		Name:  ModelGPT5_2Instant,
-		Label: "OpenAI GPT-5.2 Instant",
-		Capabilities: llm.ModelCapabilities{
-			Streaming:        true,
-			Tools:            true,
-			JSONMode:         true,
-			StructuredOutput: true,
-			Vision:           true,
-			Audio:            true,
-			MultiTurn:        true,
-			SystemPrompts:    true,
-			Reasoning:        true,
-		},
-		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    400000, // 400K context window
-			MaxOutputTokens:   128000, // 128K output tokens
-			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed", "reasoning_effort", "reasoning_summary"},
-			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
-		},
-		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortMedium}, // Instant variant only supports medium
-		Pricing:                   pricing.FlatInfo(0.875, 7.00, 0.175),
-	},
 	ModelGPT5_2Pro: {
 		Name:  ModelGPT5_2Pro,
 		Label: "OpenAI GPT-5.2 Pro",
@@ -245,32 +221,6 @@ var supportedModels = map[string]ModelDefinition{
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh}, // Pro variant starts at medium
 		Pricing:                   pricing.FlatInfo(10.50, 84.00, 0),
-	},
-
-	// GPT-5.3 Series
-	ModelGPT5_3ChatLatest: {
-		Name:  ModelGPT5_3ChatLatest,
-		Label: "OpenAI GPT-5.3 Chat Latest",
-		Capabilities: llm.ModelCapabilities{
-			Streaming:        true,
-			Tools:            true,
-			JSONMode:         true,
-			StructuredOutput: true,
-			Vision:           true,
-			Audio:            true,
-			MultiTurn:        true,
-			SystemPrompts:    true,
-			Reasoning:        true,
-		},
-		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    400000, // 400K context window
-			MaxOutputTokens:   128000, // 128K output tokens
-			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed", "reasoning_effort", "reasoning_summary"},
-			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
-		},
-		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortMedium}, // Chat-latest only supports medium
-		Pricing:                   pricing.FlatInfo(1.75, 14.00, 0.175),
 	},
 
 	// GPT-5.6 Series
