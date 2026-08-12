@@ -7,7 +7,7 @@ cited answer.
 It exists to demonstrate three things the other examples don't:
 
 - **Parallel tool calls** — the system prompt pushes the model to emit several
-  `web_search` / `fetch_url` calls in a *single* turn, so the registry executes
+  `web_search` / `webfetch` calls in a *single* turn, so the registry executes
   them concurrently.
 - **Multi-turn sessions** — the REPL reuses one session, so follow-up questions
   keep their context.
@@ -48,8 +48,9 @@ failures are logged in red, which makes this a convenient collector smoke test.
 
 [otel-env]: https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/
 
-## Note on `fetch_url`
+## Note on fetching
 
-`fetch_url` issues a plain HTTP GET against whatever URL the model picks, with no
-SSRF allowlist — it's a local dev example. Don't run it against untrusted input
-on a networked host.
+Page reads use the SDK's builtin `tool/builtin/webfetch`: HTTPS-only, private and
+reserved IPs are blocked (including across redirects), responses are limited to
+text-like content types, and fetched content is fenced as untrusted before it
+reaches the model. `web_search` stays hand-rolled as the custom-tool example.

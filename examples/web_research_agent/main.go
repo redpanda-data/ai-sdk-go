@@ -50,6 +50,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/runner"
 	"github.com/redpanda-data/ai-sdk-go/store/session"
 	"github.com/redpanda-data/ai-sdk-go/tool"
+	"github.com/redpanda-data/ai-sdk-go/tool/builtin/webfetch"
 )
 
 const systemPrompt = `You are a diligent research assistant.
@@ -58,7 +59,7 @@ Your process for any non-trivial question:
 1. Decompose it into 2-4 focused sub-topics.
 2. Call web_search for EACH sub-topic IN THE SAME TURN so the searches run in
    parallel. Do not search one at a time.
-3. Read the most promising results with fetch_url (again, issue the fetches
+3. Read the most promising results with webfetch (again, issue the fetches
    together when you need more than one).
 4. Synthesize a concise, well-structured answer that cites the sources you used.
 
@@ -107,7 +108,7 @@ func main() {
 	}
 
 	registry := tool.NewRegistry(tool.RegistryConfig{})
-	for _, t := range []tool.Tool{NewWebSearchTool(tavilyKey), NewFetchURLTool()} {
+	for _, t := range []tool.Tool{NewWebSearchTool(tavilyKey), webfetch.New()} {
 		if err := registry.Register(t); err != nil {
 			log.Fatalf("Failed to register tool: %v", err)
 		}

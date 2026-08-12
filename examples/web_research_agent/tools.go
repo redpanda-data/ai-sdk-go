@@ -19,10 +19,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"html"
 	"io"
 	"net/http"
-	"regexp"
 	"strings"
 	"time"
 
@@ -30,13 +28,11 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
-// These tools make REAL network calls: web_search via the Tavily API and
-// fetch_url via a plain HTTP GET. This is a local dev example — fetch_url will
-// GET any http(s) URL the model chooses (no SSRF allowlist), so don't point it
-// at untrusted inputs on a networked host.
+// web_search makes REAL network calls via the Tavily API.
 
-// maxFetchBytes caps a fetched body so a huge page can't blow up the span it's
-// recorded into (the tool result rides as a gen_ai.tool.call.result attribute).
+// maxFetchBytes caps the Tavily response body so a huge payload can't blow up
+// the span it's recorded into (the tool result rides as a
+// gen_ai.tool.call.result attribute).
 const maxFetchBytes = 256 << 10 // 256 KiB
 
 func mustSchema[T any]() json.RawMessage {
@@ -130,96 +126,4 @@ func (t *WebSearchTool) Execute(ctx context.Context, args json.RawMessage) (json
 		out.Results = append(out.Results, SearchResult{Title: r.Title, URL: r.URL, Snippet: r.Content})
 	}
 	return json.Marshal(out)
-}
-
-// ---- fetch_url (real HTTP GET) --------------------------------------------
-
-// FetchURLTool fetches a URL and returns its (readable) content.
-type FetchURLTool struct {
-	client *http.Client
-}
-
-func NewFetchURLTool() *FetchURLTool {
-	return &FetchURLTool{client: &http.Client{Timeout: 20 * time.Second}}
-}
-
-type FetchURLInput struct {
-	URL string `json:"url" jsonschema:"The absolute http(s) URL to fetch, typically one returned by web_search."`
-}
-
-type FetchURLOutput struct {
-	URL         string `json:"url"`
-	Status      int    `json:"status"`
-	ContentType string `json:"content_type"`
-	Truncated   bool   `json:"truncated"`
-	Content     string `json:"content"`
-}
-
-func (t *FetchURLTool) Definition() llm.ToolDefinition {
-	return llm.ToolDefinition{
-		Name:        "fetch_url",
-		Description: "Fetch an http(s) URL and return its readable text (HTML is stripped to text; JSON is returned verbatim). Use after web_search to read promising results or to hit a known JSON API. Multiple fetch_url calls may be issued in parallel.",
-		Parameters:  mustSchema[FetchURLInput](),
-	}
-}
-
-func (t *FetchURLTool) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
-	var in FetchURLInput
-	if err := json.Unmarshal(args, &in); err != nil {
-		return nil, fmt.Errorf("invalid input: %w", err)
-	}
-	if !strings.HasPrefix(in.URL, "http://") && !strings.HasPrefix(in.URL, "https://") {
-		return nil, fmt.Errorf("url %q must be absolute (http/https)", in.URL)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, in.URL, nil)
-	if err != nil {
-		return nil, err
-	}
-	// Some sites/APIs reject the default Go user agent.
-	req.Header.Set("User-Agent", "ai-sdk-go-research-agent/0.1 (+https://redpanda.com)")
-	req.Header.Set("Accept", "application/json, text/html;q=0.9, */*;q=0.8")
-
-	resp, err := t.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("fetch %s: %w", in.URL, err)
-	}
-	defer resp.Body.Close()
-
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, maxFetchBytes+1))
-	truncated := len(raw) > maxFetchBytes
-	if truncated {
-		raw = raw[:maxFetchBytes]
-	}
-
-	ct := resp.Header.Get("Content-Type")
-	content := string(raw)
-	if strings.Contains(ct, "html") {
-		content = htmlToText(content)
-	}
-
-	return json.Marshal(FetchURLOutput{
-		URL:         in.URL,
-		Status:      resp.StatusCode,
-		ContentType: ct,
-		Truncated:   truncated,
-		Content:     content,
-	})
-}
-
-var (
-	reScriptStyle = regexp.MustCompile(`(?is)<(script|style)[^>]*>.*?</(script|style)>`)
-	reTags        = regexp.MustCompile(`(?s)<[^>]+>`)
-	reWhitespace  = regexp.MustCompile(`\s+`)
-)
-
-// htmlToText does a dependency-free, best-effort HTML→text reduction: drop
-// script/style, strip tags, unescape entities, collapse whitespace. Good enough
-// to feed a model without pulling in a full HTML parser.
-func htmlToText(s string) string {
-	s = reScriptStyle.ReplaceAllString(s, " ")
-	s = reTags.ReplaceAllString(s, " ")
-	s = html.UnescapeString(s)
-	s = reWhitespace.ReplaceAllString(s, " ")
-	return strings.TrimSpace(s)
 }
