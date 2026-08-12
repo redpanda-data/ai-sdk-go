@@ -164,8 +164,8 @@ var supportedModels = map[string]ModelDefinition{
 			MutuallyExclusive: [][]string{},
 		},
 		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
-		SupportedSpeeds:  []Speed{SpeedStandard, SpeedFast},
-		AdaptiveThinking: true,
+		SupportedSpeeds:           []Speed{SpeedStandard, SpeedFast},
+		AdaptiveThinking:          true,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
 		).WithOverride(
