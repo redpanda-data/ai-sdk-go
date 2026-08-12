@@ -595,6 +595,60 @@ func TestTracingInterceptor_InterceptToolExecution_ToolErrorResponse(t *testing.
 	}
 }
 
+func TestTracingInterceptor_InterceptToolExecution_ToolErrorPayloadGatedByRecordOutputs(t *testing.T) {
+	t.Parallel()
+
+	exporter, tp := setupTracer()
+	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
+
+	// No WithRecordOutputs: the error payload is content and must stay out of the span.
+	interceptor := pluginotel.New(
+		pluginotel.WithTracerProvider(tp),
+	)
+
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
+		Name: "test-agent",
+	})
+	ctx := t.Context()
+
+	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+		req := &llm.ToolRequestPart{Name: "query_logs", ID: "tool-call-abc", Arguments: json.RawMessage(`{"query":"errors"}`)}
+
+		toolInfo := &agent.ToolCallInfo{Inv: inv, Req: req}
+		resp, err := interceptor.InterceptToolExecution(ctx, toolInfo,
+			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
+				return &llm.ToolResponsePart{
+					ID:      "tool-call-abc",
+					Name:    "query_logs",
+					IsError: true, Result: json.RawMessage(`{"error":"query failed: secret record 42"}`),
+				}, nil
+			})
+		require.NoError(t, err)
+		assert.NotNil(t, resp)
+
+		return agent.FinishReasonStop, nil
+	})
+
+	spans := exporter.GetSpans()
+	var toolSpan *tracetest.SpanStub
+
+	for i := range spans {
+		if strings.HasPrefix(spans[i].Name, "execute_tool") {
+			toolSpan = &spans[i]
+			break
+		}
+	}
+
+	require.NotNil(t, toolSpan, "Expected execute_tool span")
+
+	// The span still reports the error, but with a generic description.
+	assert.Equal(t, codes.Error, toolSpan.Status.Code)
+	assert.NotContains(t, toolSpan.Status.Description, "secret record 42")
+	assert.Equal(t, "tool returned an error", toolSpan.Status.Description)
+	assertHasAttribute(t, toolSpan.Attributes, "error.type", "tool_error")
+	assertMissingAttribute(t, toolSpan.Attributes, "gen_ai.tool.call.result")
+}
+
 func TestTracingInterceptor_SpanHierarchy(t *testing.T) {
 	t.Parallel()
 
@@ -1421,6 +1475,7 @@ func TestTracingInterceptor_SystemInstructions_Emitted(t *testing.T) {
 
 	interceptor := pluginotel.New(
 		pluginotel.WithTracerProvider(tp),
+		pluginotel.WithRecordInputs(true), // system instructions are content: recorded only with inputs opt-in
 	)
 
 	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
@@ -1448,6 +1503,33 @@ func TestTracingInterceptor_SystemInstructions_Emitted(t *testing.T) {
 	}
 
 	assert.True(t, found, "Expected gen_ai.system_instructions attribute")
+}
+
+func TestTracingInterceptor_SystemInstructions_NotEmittedWithoutRecordInputs(t *testing.T) {
+	t.Parallel()
+
+	exporter, tp := setupTracer()
+	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
+
+	interceptor := pluginotel.New(
+		pluginotel.WithTracerProvider(tp),
+	)
+
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
+		Name:         "test-agent",
+		SystemPrompt: "You are a helpful assistant.",
+	})
+	ctx := t.Context()
+
+	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(_ context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+		return agent.FinishReasonStop, nil
+	})
+
+	spans := exporter.GetSpans()
+	require.Len(t, spans, 1)
+
+	// The system prompt is content: without the inputs opt-in the attribute must be absent.
+	assertMissingAttribute(t, spans[0].Attributes, "gen_ai.system_instructions")
 }
 
 func TestTracingInterceptor_ModelAndProvider_OnInvocationSpan(t *testing.T) {

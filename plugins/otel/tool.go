@@ -132,7 +132,13 @@ func (t *TracingInterceptor) InterceptToolExecution(
 		// Case 2: Tool returned error content (analogous to MCP isError=true).
 		// Per OTel MCP semconv: error.type SHOULD be "tool_error" and span status SHOULD be Error.
 		// gen_ai.tool.call.result is NOT recorded (spec: "if execution was successful").
-		setToolError(span, string(resp.Result))
+		// The error payload carries the same kind of content as a successful result,
+		// so it only reaches the status description when output recording is enabled.
+		if t.cfg.recordOutputs {
+			setToolError(span, string(resp.Result))
+		} else {
+			setToolError(span, "tool returned an error")
+		}
 		span.SetAttributes(toolResultAvailable(false))
 	default:
 		// Case 3: Success
