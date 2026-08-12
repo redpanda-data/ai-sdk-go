@@ -553,9 +553,10 @@ func TestTracingInterceptor_InterceptToolExecution_ToolErrorResponse(t *testing.
 			func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
 				// Tool returns error content (not a Go error) — like a 502 from an upstream API
 				return &llm.ToolResponsePart{
-					ID:    "tool-call-abc",
-					Name:  "query_logs",
-					IsError: true, Result: json.RawMessage(`{"error":"query failed: upstream returned status 502"}`),				}, nil
+					ID:      "tool-call-abc",
+					Name:    "query_logs",
+					IsError: true, Result: json.RawMessage(`{"error":"query failed: upstream returned status 502"}`),
+				}, nil
 			})
 		require.NoError(t, err) // No Go error
 		assert.NotNil(t, resp)

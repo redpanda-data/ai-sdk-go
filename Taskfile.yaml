@@ -73,6 +73,25 @@ tasks:
     cmds:
       - 'GOROOT={{.GO_ROOT}} GOTOOLCHAIN=local {{.GO_BIN}} test -json -cover -parallel 10 -timeout 30m -run Integration ./... | {{.BIN_DIR}}/tparse -follow -all'
 
+  examples:build:
+    desc: Build every example module (examples/ is excluded from the root module)
+    deps:
+      - install:go
+    cmds:
+      # The root go.mod carries `ignore ./examples`, so examples are invisible
+      # to ./... — lint, test and CI all skip them. Each example is its own
+      # module with a replace back to the root, so they only stay compilable if
+      # something builds them explicitly. `go build` also fails on an untidy
+      # go.mod, which catches the common rot: root deps move forward and the
+      # example's pins go stale.
+      - |
+        set -eu
+        for mod in examples/*/go.mod; do
+          dir=$(dirname "$mod")
+          echo "==> building $dir"
+          (cd "$dir" && GOROOT={{.GO_ROOT}} GOTOOLCHAIN=local {{.GO_BIN}} build ./...)
+        done
+
   test:conformance:
     desc: Run the Vercel AI SDK UI message stream conformance suite (requires node + bun)
     dir: adapter/vercelaisdk/uimessagestream/conformance
@@ -90,8 +109,9 @@ tasks:
       - 'GOROOT={{.GO_ROOT}} GOTOOLCHAIN=local {{.BIN_DIR}}/osv-scanner --lockfile go.mod'
 
   ci:
-    desc: Run all CI checks (license, lint, test:unit)
+    desc: Run all CI checks (license, lint, test:unit, examples:build)
     cmds:
       - task: license:check
       - task: lint
       - task: test:unit
+      - task: examples:build

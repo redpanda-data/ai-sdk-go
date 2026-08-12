@@ -609,9 +609,10 @@ func TestMessageMappingWithToolParts(t *testing.T) {
 					Role: llm.RoleUser,
 					Content: []llm.Part{
 						&llm.ToolResponsePart{
-							ID:    "call_123",
-							Name:  "get_weather",
-							IsError: true, Result: json.RawMessage(`{"error":"API rate limit exceeded"}`),						},
+							ID:      "call_123",
+							Name:    "get_weather",
+							IsError: true, Result: json.RawMessage(`{"error":"API rate limit exceeded"}`),
+						},
 					},
 				},
 			},

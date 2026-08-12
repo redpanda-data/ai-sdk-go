@@ -226,7 +226,7 @@ func TestWebFetch_PromptInjectionFencing_Integration(t *testing.T) {
 					Content: response.Message.Content,
 				},
 				{
-					Role: llm.RoleUser,
+					Role:    llm.RoleUser,
 					Content: []llm.Part{toolResponse},
 				},
 			},
@@ -360,7 +360,7 @@ func TestWebFetch_PromptInjectionFencing_Integration(t *testing.T) {
 					Content: response.Message.Content,
 				},
 				{
-					Role: llm.RoleUser,
+					Role:    llm.RoleUser,
 					Content: []llm.Part{toolResponse},
 				},
 			},
