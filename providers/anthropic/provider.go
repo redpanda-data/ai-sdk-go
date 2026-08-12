@@ -215,9 +215,9 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 	}
 
 	// Validate effort against model's supported values
-	if cfg.Effort != nil {
-		if len(modelDef.SupportedEfforts) == 0 || !slices.Contains(modelDef.SupportedEfforts, *cfg.Effort) {
-			return nil, fmt.Errorf("model %s does not support effort '%s'", modelName, *cfg.Effort)
+	if cfg.ReasoningEffort != nil {
+		if !slices.Contains(modelDef.SupportedReasoningEfforts, *cfg.ReasoningEffort) {
+			return nil, fmt.Errorf("model %s does not support reasoning effort %q (supported: %v)", modelName, *cfg.ReasoningEffort, modelDef.SupportedReasoningEfforts)
 		}
 	}
 

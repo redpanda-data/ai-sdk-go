@@ -174,7 +174,7 @@ func (p *Provider) NewCompatModel(modelName string, def ModelDefinition, opts ..
 
 	if cfg.ReasoningEffort != nil && len(def.SupportedReasoningEfforts) > 0 {
 		if !slices.Contains(def.SupportedReasoningEfforts, *cfg.ReasoningEffort) {
-			return nil, fmt.Errorf("model %s does not support reasoning effort '%s'", modelName, *cfg.ReasoningEffort)
+			return nil, fmt.Errorf("model %s does not support reasoning effort %q (supported: %v)", modelName, *cfg.ReasoningEffort, def.SupportedReasoningEfforts)
 		}
 	}
 

@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"sort"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -263,6 +264,14 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("configuration validation failed for %s: %w", modelName, err)
+	}
+
+	if cfg.ReasoningEffort != nil && !slices.Contains(modelDef.Thinking.ReasoningEfforts, *cfg.ReasoningEffort) {
+		return nil, fmt.Errorf("model %s does not support reasoning effort %q (supported: %v)", modelName, *cfg.ReasoningEffort, modelDef.Thinking.ReasoningEfforts)
+	}
+
+	if cfg.EnableThinking && !modelDef.Thinking.Budget {
+		return nil, fmt.Errorf("model %s does not support a manual thinking budget", modelName)
 	}
 
 	// Mantle-only models (Gemma 4, gpt-5.x) are not served by the Converse API;

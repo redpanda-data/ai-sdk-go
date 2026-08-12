@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -116,11 +117,12 @@ func newMantleModel(p *Provider, cfg *Config, def ModelDefinition) (llm.Model, e
 	}
 
 	oaiDef := openai.ModelDefinition{
-		Name:         def.Name,
-		Label:        def.Label,
-		Capabilities: def.Capabilities,
-		Constraints:  def.Constraints,
-		Pricing:      def.Pricing,
+		Name:                      def.Name,
+		Label:                     def.Label,
+		Capabilities:              def.Capabilities,
+		Constraints:               def.Constraints,
+		SupportedReasoningEfforts: def.Thinking.ReasoningEfforts,
+		Pricing:                   def.Pricing,
 	}
 
 	// cfg was already validated against the Bedrock constraints in NewModel;
@@ -150,6 +152,10 @@ func translateMantleOptions(cfg *Config) []openai.Option {
 		opts = append(opts, openai.WithMaxTokens(int(*cfg.MaxTokens)))
 	}
 
+	if cfg.ReasoningEffort != nil {
+		opts = append(opts, openai.WithReasoningEffort(*cfg.ReasoningEffort))
+	}
+
 	return opts
 }
 
@@ -167,6 +173,12 @@ func (m *mantleModel) Name() string                        { return m.name }
 func (*mantleModel) Provider() string                      { return "aws.bedrock" }
 func (m *mantleModel) Capabilities() llm.ModelCapabilities { return m.def.Capabilities }
 func (m *mantleModel) Constraints() llm.ModelConstraints   { return m.def.Constraints }
+
+// SupportedReasoningEfforts returns the reasoning efforts this model accepts,
+// in ascending order. Empty for models without effort control.
+func (m *mantleModel) SupportedReasoningEfforts() []llm.ReasoningEffort {
+	return slices.Clone(m.def.Thinking.ReasoningEfforts)
+}
 
 // mantleTransport is an http.RoundTripper that SigV4-signs OpenAI-shaped
 // requests for the bedrock-mantle endpoint. The OpenAI SDK has no notion of AWS

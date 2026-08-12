@@ -194,6 +194,46 @@ const (
 	ModelGemma4E2B = "google.gemma-4-e2b"
 )
 
+// ReasoningEffort controls how much work a model spends on reasoning. On
+// Claude models it is sent as the "effort" field of output_config together
+// with adaptive thinking; on mantle-served models it maps to the OpenAI
+// reasoning-effort parameter. It is an alias of [llm.ReasoningEffort] so
+// effort values are portable across provider packages; the constants below
+// declare the values Bedrock-hosted models accept. Which subset a specific
+// model supports is validated against the model catalog in NewModel.
+type ReasoningEffort = llm.ReasoningEffort
+
+const (
+	// ReasoningEffortLow biases the model toward fast, shallow reasoning.
+	ReasoningEffortLow ReasoningEffort = "low"
+	// ReasoningEffortMedium is the balanced middle setting.
+	ReasoningEffortMedium ReasoningEffort = "medium"
+	// ReasoningEffortHigh biases the model toward deep reasoning.
+	ReasoningEffortHigh ReasoningEffort = "high"
+	// ReasoningEffortXHigh spends very high effort (frontier models, Opus 4.7+).
+	ReasoningEffortXHigh ReasoningEffort = "xhigh"
+	// ReasoningEffortMax removes all effort ceilings (frontier models, Opus 4.6+).
+	ReasoningEffortMax ReasoningEffort = "max"
+)
+
+// ThinkingSupport describes which provider-native thinking controls a model
+// accepts. It is catalog metadata: each supportedModels entry carries the
+// shape for its generation, and NewModel validates the requested options
+// against it.
+type ThinkingSupport struct {
+	// ReasoningEfforts are the effort values the model accepts, in ascending
+	// order. Empty means the model has no reasoning-effort control.
+	ReasoningEfforts []ReasoningEffort
+
+	// Adaptive reports whether the model accepts adaptive thinking
+	// (thinking.type=adaptive), where the model decides how long to think.
+	Adaptive bool
+
+	// Budget reports whether the model accepts a manual thinking token
+	// budget (thinking.type=enabled with budget_tokens).
+	Budget bool
+}
+
 // Model ID constants for OpenAI GPT-5.6 models on Bedrock.
 //
 // All three models are served only through the bedrock-mantle Responses API
@@ -217,6 +257,7 @@ type ModelDefinition struct {
 	Label                       string
 	Capabilities                llm.ModelCapabilities
 	Constraints                 llm.ModelConstraints
+	Thinking                    ThinkingSupport // Which thinking controls the model accepts
 	Pricing                     pricing.Info
 	RequiresProviderDataSharing bool
 
@@ -331,6 +372,33 @@ func lookupModel(modelName string) (ModelDefinition, bool) {
 	def, ok := supportedModels[modelName]
 	return def, ok
 }
+
+// Thinking-control shapes shared by Claude generations on Bedrock. Like the
+// capability/constraint shapes below, these are fixed per model generation
+// and identical across inference-profile variants. Claude 4.6 supports both
+// adaptive thinking and deprecated manual budgets; newer frontier models are
+// adaptive-only:
+// https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking
+var (
+	frontierClaudeThinking = ThinkingSupport{
+		ReasoningEfforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+		Adaptive:         true,
+	}
+
+	claudeOpus46Thinking = ThinkingSupport{
+		ReasoningEfforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortMax},
+		Adaptive:         true,
+		Budget:           true,
+	}
+
+	claudeSonnet46Thinking = ThinkingSupport{
+		ReasoningEfforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
+		Adaptive:         true,
+		Budget:           true,
+	}
+
+	claude45Thinking = ThinkingSupport{Budget: true}
+)
 
 // Capability and constraint shapes shared by Claude variants on Bedrock.
 // These are genuinely fixed per model generation (a Sonnet 4.5 has the same
@@ -535,6 +603,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:                       "Claude Fable 5 (Global)",
 		Capabilities:                claudeStandardCaps,
 		Constraints:                 claudeNoSampling1MConstraints,
+		Thinking:                    frontierClaudeThinking,
 		RequiresProviderDataSharing: true,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(10.00, 50.00, 1.00).WithCacheCreation(12.50, 20.00, 0),
@@ -545,6 +614,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:                       "Claude Fable 5 (US)",
 		Capabilities:                claudeStandardCaps,
 		Constraints:                 claudeNoSampling1MConstraints,
+		Thinking:                    frontierClaudeThinking,
 		RequiresProviderDataSharing: true,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(13.75, 22.00, 0),
@@ -555,6 +625,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:                       "Claude Fable 5 (EU)",
 		Capabilities:                claudeStandardCaps,
 		Constraints:                 claudeNoSampling1MConstraints,
+		Thinking:                    frontierClaudeThinking,
 		RequiresProviderDataSharing: true,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(13.75, 22.00, 0),
@@ -612,6 +683,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Opus 4.8 (Global)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext1MConstraints,
+		Thinking:     frontierClaudeThinking,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
 		),
@@ -621,6 +693,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Opus 4.8 (US)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext1MConstraints,
+		Thinking:     frontierClaudeThinking,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
 		),
@@ -630,6 +703,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Opus 4.8 (EU)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext1MConstraints,
+		Thinking:     frontierClaudeThinking,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
 		),
@@ -639,6 +713,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Opus 4.8 (JP)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext1MConstraints,
+		Thinking:     frontierClaudeThinking,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
 		),
@@ -653,6 +728,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Opus 4.7 (Global)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext1MConstraints,
+		Thinking:     frontierClaudeThinking,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
 		),
@@ -662,6 +738,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Opus 4.7 (US)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext1MConstraints,
+		Thinking:     frontierClaudeThinking,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
 		),
@@ -671,6 +748,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Opus 4.7 (EU)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext1MConstraints,
+		Thinking:     frontierClaudeThinking,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
 		),
@@ -680,6 +758,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Opus 4.7 (JP)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext1MConstraints,
+		Thinking:     frontierClaudeThinking,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
 		),
@@ -693,6 +772,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Opus 4.6 (Global)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext1MConstraints,
+		Thinking:     claudeOpus46Thinking,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
 		),
@@ -702,6 +782,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Opus 4.6 (US)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext1MConstraints,
+		Thinking:     claudeOpus46Thinking,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
 		),
@@ -711,6 +792,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Opus 4.6 (EU)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext1MConstraints,
+		Thinking:     claudeOpus46Thinking,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
 		),
@@ -720,6 +802,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Opus 4.6 (AU)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext1MConstraints,
+		Thinking:     claudeOpus46Thinking,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
 		),
@@ -733,6 +816,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Opus 4.5 (Global)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
+		Thinking:     claude45Thinking,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
 		),
@@ -742,6 +826,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Opus 4.5 (US)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
+		Thinking:     claude45Thinking,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
 		),
@@ -751,6 +836,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Opus 4.5 (EU)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
+		Thinking:     claude45Thinking,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
 		),
@@ -765,6 +851,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Sonnet 5 (Global)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext1MConstraints,
+		Thinking:     frontierClaudeThinking,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0),
 		),
@@ -774,6 +861,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Sonnet 5 (US)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext1MConstraints,
+		Thinking:     frontierClaudeThinking,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0),
 		),
@@ -787,6 +875,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Sonnet 4.6 (Global)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
+		Thinking:     claudeSonnet46Thinking,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0),
 		),
@@ -796,6 +885,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Sonnet 4.6 (US)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
+		Thinking:     claudeSonnet46Thinking,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0),
 		),
@@ -805,6 +895,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Sonnet 4.6 (EU)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
+		Thinking:     claudeSonnet46Thinking,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0),
 		),
@@ -814,6 +905,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Sonnet 4.6 (AU)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
+		Thinking:     claudeSonnet46Thinking,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0),
 		),
@@ -827,6 +919,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Sonnet 4.5 (Global)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
+		Thinking:     claude45Thinking,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0),
 		),
@@ -836,6 +929,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Sonnet 4.5 (US)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
+		Thinking:     claude45Thinking,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0),
 		),
@@ -845,6 +939,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Sonnet 4.5 (EU)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
+		Thinking:     claude45Thinking,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0),
 		),
@@ -854,6 +949,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Sonnet 4.5 (AU)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
+		Thinking:     claude45Thinking,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0),
 		),
@@ -863,6 +959,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Sonnet 4.5 (JP)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
+		Thinking:     claude45Thinking,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0),
 		),
@@ -876,6 +973,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Haiku 4.5 (Global)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
+		Thinking:     claude45Thinking,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(1.00, 5.00, 0.10).WithCacheCreation(1.25, 2.00, 0),
 		),
@@ -885,6 +983,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Haiku 4.5 (US)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
+		Thinking:     claude45Thinking,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(1.10, 5.50, 0.11).WithCacheCreation(1.375, 2.20, 0),
 		),
@@ -894,6 +993,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Haiku 4.5 (EU)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
+		Thinking:     claude45Thinking,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(1.10, 5.50, 0.11).WithCacheCreation(1.375, 2.20, 0),
 		),
@@ -903,6 +1003,7 @@ var supportedModels = map[string]ModelDefinition{
 		Label:        "Claude Haiku 4.5 (AU)",
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
+		Thinking:     claude45Thinking,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(1.10, 5.50, 0.11).WithCacheCreation(1.375, 2.20, 0),
 		),

@@ -65,12 +65,7 @@ func (f *GoogleFixture) NewStandardModel(t *testing.T) llm.Model {
 	}
 
 	if baseModel.Capabilities().Reasoning {
-		model, err := f.provider.NewModel(f.modelName, google.WithThinking(true), google.WithThinkingBudget(4096))
-		if err != nil {
-			t.Fatalf("Failed to create model %s with thinking: %v", f.modelName, err)
-		}
-
-		return retry.WrapModel(model)
+		return retry.WrapModel(f.newReasoningModel(t, baseModel))
 	}
 
 	return retry.WrapModel(baseModel)
@@ -89,12 +84,7 @@ func (f *GoogleFixture) NewReasoningModel(t *testing.T) llm.Model {
 		return nil
 	}
 
-	model, err := f.provider.NewModel(f.modelName, google.WithThinking(true), google.WithThinkingBudget(4096))
-	if err != nil {
-		t.Fatalf("Failed to create model %s with thinking: %v", f.modelName, err)
-	}
-
-	return retry.WrapModel(model)
+	return retry.WrapModel(f.newReasoningModel(t, baseModel))
 }
 
 func (f *GoogleFixture) Models() []llm.ModelDiscoveryInfo {
@@ -103,6 +93,22 @@ func (f *GoogleFixture) Models() []llm.ModelDiscoveryInfo {
 
 func (f *GoogleFixture) NewModel(modelName string) (llm.Model, error) {
 	return f.provider.NewModel(modelName)
+}
+
+func (f *GoogleFixture) newReasoningModel(t *testing.T, baseModel llm.Model) llm.Model {
+	t.Helper()
+
+	options := []google.Option{google.WithThinkingBudget(4096)}
+	if lister, ok := baseModel.(llm.ReasoningEffortLister); ok && len(lister.SupportedReasoningEfforts()) > 0 {
+		options = []google.Option{google.WithReasoningEffort(google.ReasoningEffortLow)}
+	}
+
+	model, err := f.provider.NewModel(f.modelName, options...)
+	if err != nil {
+		t.Fatalf("Failed to create model %s with thinking: %v", f.modelName, err)
+	}
+
+	return model
 }
 
 // TestGoogleConformance_Integration runs the conformance test suite for Google Gemini models.

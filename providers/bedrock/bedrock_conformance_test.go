@@ -229,6 +229,36 @@ func TestBedrockFable5Invocation_Integration(t *testing.T) {
 	}
 }
 
+func TestBedrockAdaptiveThinking_Integration(t *testing.T) {
+	t.Parallel()
+
+	fixture := NewBedrockFixture(t)
+
+	model, err := fixture.provider.NewModel(
+		bedrock.ModelClaudeOpus47,
+		bedrock.WithReasoningEffort(bedrock.ReasoningEffortLow),
+	)
+	if err != nil {
+		t.Fatalf("Failed to create adaptive thinking model: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	resp, err := retry.WrapModel(model).Generate(ctx, &llm.Request{
+		Messages: []llm.Message{
+			llm.NewMessage(llm.RoleUser, llm.NewTextPart("Reply with ok.")),
+		},
+	})
+	if err != nil {
+		t.Fatalf("Adaptive thinking Bedrock invocation failed: %v", err)
+	}
+
+	if resp == nil || resp.TextContent() == "" {
+		t.Fatal("Adaptive thinking Bedrock invocation returned no text")
+	}
+}
+
 func isProviderDataSharingGate(err error) bool {
 	var providerErr *llm.ProviderError
 	if !errors.As(err, &providerErr) {

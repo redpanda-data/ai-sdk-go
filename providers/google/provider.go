@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"time"
 
 	"google.golang.org/genai"
@@ -177,6 +178,14 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 	err := cfg.Validate()
 	if err != nil {
 		return nil, fmt.Errorf("configuration validation failed for %s: %w", modelName, err)
+	}
+
+	if cfg.ReasoningEffort != nil && !slices.Contains(modelDef.SupportedReasoningEfforts, *cfg.ReasoningEffort) {
+		return nil, fmt.Errorf("model %s does not support reasoning effort %q (supported: %v)", modelName, *cfg.ReasoningEffort, modelDef.SupportedReasoningEfforts)
+	}
+
+	if cfg.ThinkingBudget != nil && !modelDef.thinkingBudget.supports(*cfg.ThinkingBudget) {
+		return nil, fmt.Errorf("model %s does not support thinking budget %d", modelName, *cfg.ThinkingBudget)
 	}
 
 	return &Model{

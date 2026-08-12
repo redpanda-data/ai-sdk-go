@@ -37,15 +37,25 @@ const (
 	ModelClaudeOpus45   = "claude-opus-4-5"
 )
 
-// Effort controls the output effort level for supported models.
-type Effort string
+// ReasoningEffort controls how much work a model spends on reasoning
+// (sent as the "effort" field of Anthropic's output_config). It is an
+// alias of [llm.ReasoningEffort] so effort values are portable across
+// provider packages; the constants below declare the values Claude models
+// accept. Which subset a specific model supports is validated against the
+// model catalog in NewModel.
+type ReasoningEffort = llm.ReasoningEffort
 
 const (
-	EffortLow    Effort = "low"
-	EffortMedium Effort = "medium"
-	EffortHigh   Effort = "high"
-	EffortXHigh  Effort = "xhigh"
-	EffortMax    Effort = "max"
+	// ReasoningEffortLow biases the model toward fast, shallow reasoning.
+	ReasoningEffortLow ReasoningEffort = "low"
+	// ReasoningEffortMedium is the balanced middle setting.
+	ReasoningEffortMedium ReasoningEffort = "medium"
+	// ReasoningEffortHigh biases the model toward deep reasoning.
+	ReasoningEffortHigh ReasoningEffort = "high"
+	// ReasoningEffortXHigh spends very high effort (frontier models, Opus 4.7+).
+	ReasoningEffortXHigh ReasoningEffort = "xhigh"
+	// ReasoningEffortMax removes all effort ceilings (frontier models, Opus 4.6+).
+	ReasoningEffortMax ReasoningEffort = "max"
 )
 
 // Speed controls the inference speed mode for supported models. It is
@@ -60,14 +70,14 @@ const (
 
 // ModelDefinition defines a Claude model with its capabilities and constraints.
 type ModelDefinition struct {
-	Name             string
-	Label            string
-	Capabilities     llm.ModelCapabilities
-	Constraints      llm.ModelConstraints
-	SupportedEfforts []Effort // Which effort values this model accepts
-	SupportedSpeeds  []Speed  // Which speed values this model accepts
-	AdaptiveThinking bool     // Whether model uses adaptive thinking by default
-	Pricing          pricing.Info
+	Name                      string
+	Label                     string
+	Capabilities              llm.ModelCapabilities
+	Constraints               llm.ModelConstraints
+	SupportedReasoningEfforts []ReasoningEffort // Which effort values this model accepts, in ascending order
+	SupportedSpeeds           []Speed           // Which speed values this model accepts
+	AdaptiveThinking          bool              // Whether model uses adaptive thinking by default
+	Pricing                   pricing.Info
 }
 
 // resolveModelFamily returns the model family key for a given model string.
@@ -115,11 +125,11 @@ var supportedModels = map[string]ModelDefinition{
 			MaxOutputTokens: 128000,  // 128K output tokens
 			// Fable 5 rejects thinking.type.enabled — thinking budget is not user-controllable.
 			// Use adaptive thinking + effort to bias reasoning depth. No fast mode, so no "speed".
-			SupportedParams:   []string{"max_tokens", "effort"},
+			SupportedParams:   []string{"max_tokens", "reasoning_effort"},
 			MutuallyExclusive: [][]string{},
 		},
-		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax},
-		AdaptiveThinking: true,
+		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+		AdaptiveThinking:          true,
 		Pricing: pricing.TieredInfo(
 			// Cache rates derived from Anthropic's prompt-caching multipliers
 			// (5m-write = 1.25x base input, 1h-write = 2x, cache-read = 0.10x).
@@ -150,12 +160,12 @@ var supportedModels = map[string]ModelDefinition{
 			// Opus 5 rejects thinking.type.enabled — thinking budget is not user-controllable.
 			// Non-default sampling parameters are also rejected. Use adaptive
 			// thinking + effort to bias reasoning depth.
-			SupportedParams:   []string{"max_tokens", "effort", "speed"},
+			SupportedParams:   []string{"max_tokens", "reasoning_effort", "speed"},
 			MutuallyExclusive: [][]string{},
 		},
-		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax},
-		SupportedSpeeds:  []Speed{SpeedStandard, SpeedFast},
-		AdaptiveThinking: true,
+		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+		SupportedSpeeds:           []Speed{SpeedStandard, SpeedFast},
+		AdaptiveThinking:          true,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
 		).WithOverride(
@@ -185,12 +195,12 @@ var supportedModels = map[string]ModelDefinition{
 			MaxOutputTokens:  128000,  // 128K output tokens
 			// Opus 4.8 rejects thinking.type.enabled — thinking budget is not user-controllable.
 			// Use adaptive thinking + effort to bias reasoning depth.
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "effort", "speed"},
+			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort", "speed"},
 			MutuallyExclusive: [][]string{},
 		},
-		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax},
-		SupportedSpeeds:  []Speed{SpeedStandard, SpeedFast},
-		AdaptiveThinking: true,
+		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+		SupportedSpeeds:           []Speed{SpeedStandard, SpeedFast},
+		AdaptiveThinking:          true,
 		Pricing: pricing.TieredInfo(
 			pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
 			pricing.Bracket{
@@ -233,11 +243,11 @@ var supportedModels = map[string]ModelDefinition{
 			MaxOutputTokens:  128000,  // 128K output tokens
 			// Opus 4.7 rejects thinking.type.enabled — thinking budget is not user-controllable.
 			// Use adaptive thinking + effort to bias reasoning depth.
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "effort", "speed"},
+			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort", "speed"},
 			MutuallyExclusive: [][]string{},
 		},
-		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax},
-		AdaptiveThinking: true,
+		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+		AdaptiveThinking:          true,
 		Pricing: pricing.TieredInfo(
 			pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
 			pricing.Bracket{
@@ -266,12 +276,12 @@ var supportedModels = map[string]ModelDefinition{
 			MaxOutputTokens:  128000,  // 128K output tokens
 			// Sonnet 5 shares Opus 4.7's request surface: manual thinking budget
 			// is removed (adaptive thinking + effort instead), no fast mode.
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "effort"},
+			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort"},
 			MutuallyExclusive: [][]string{},
 		},
 		// First Sonnet-tier model with xhigh; supports the full effort range.
-		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax},
-		AdaptiveThinking: true,
+		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+		AdaptiveThinking:          true,
 		Pricing: pricing.TieredInfo(
 			// List price $3/$15 per MTok (the introductory $2/$10 through
 			// 2026-08-31 is deliberately not tracked here). Cache rates from
@@ -303,11 +313,11 @@ var supportedModels = map[string]ModelDefinition{
 			TemperatureRange:  [2]float64{0.0, 1.0},
 			MaxInputTokens:    200000, // 200K context window
 			MaxOutputTokens:   64000,  // 64K output tokens
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "effort", "thinking_budget"},
+			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort", "thinking_budget"},
 			MutuallyExclusive: [][]string{},
 		},
-		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh},
-		AdaptiveThinking: true,
+		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
+		AdaptiveThinking:          true,
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0),
 		),
@@ -377,12 +387,12 @@ var supportedModels = map[string]ModelDefinition{
 			TemperatureRange:  [2]float64{0.0, 1.0},
 			MaxInputTokens:    1000000, // 1M context window (beta)
 			MaxOutputTokens:   128000,  // 128K output tokens
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "effort", "thinking_budget", "speed"},
+			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort", "thinking_budget", "speed"},
 			MutuallyExclusive: [][]string{},
 		},
-		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh, EffortMax},
-		SupportedSpeeds:  []Speed{SpeedStandard, SpeedFast},
-		AdaptiveThinking: true,
+		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortMax},
+		SupportedSpeeds:           []Speed{SpeedStandard, SpeedFast},
+		AdaptiveThinking:          true,
 		Pricing: pricing.TieredInfo(
 			pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
 			pricing.Bracket{
@@ -420,10 +430,10 @@ var supportedModels = map[string]ModelDefinition{
 			TemperatureRange:  [2]float64{0.0, 1.0},
 			MaxInputTokens:    200000, // 200K context window
 			MaxOutputTokens:   64000,  // 64K output tokens
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "effort"},
+			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort"},
 			MutuallyExclusive: [][]string{},
 		},
-		SupportedEfforts: []Effort{EffortLow, EffortMedium, EffortHigh},
+		SupportedReasoningEfforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
 		Pricing: pricing.FlatInfoFromRates(
 			pricing.NewRates(5.00, 25.00, 0.50).
 				WithCacheCreation(6.25, 10.00, 0),

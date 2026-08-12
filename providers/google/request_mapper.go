@@ -117,6 +117,9 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) ([]*genai.Content, *genai.
 			IncludeThoughts: true,
 			ThinkingBudget:  rm.config.ThinkingBudget,
 		}
+		if rm.config.ReasoningEffort != nil {
+			config.ThinkingConfig.ThinkingLevel = geminiThinkingLevels[*rm.config.ReasoningEffort]
+		}
 	}
 
 	// Apply tool definitions if provided

@@ -93,7 +93,7 @@ func (rm *RequestMapper) buildConverseParams(req *llm.Request) (*converseParams,
 		infConfig: rm.buildInferenceConfig(),
 	}
 
-	if rm.config.EnableThinking {
+	if rm.config.EnableThinking || rm.config.ReasoningEffort != nil {
 		p.thinking = rm.buildThinkingFields()
 	}
 
@@ -144,14 +144,32 @@ func (rm *RequestMapper) buildInferenceConfig() *types.InferenceConfiguration {
 }
 
 // buildThinkingFields returns the additionalModelRequestFields document for
-// enabling extended thinking with the configured budget.
+// the configured thinking mode.
 func (rm *RequestMapper) buildThinkingFields() document.Interface {
-	return document.NewLazyDocument(map[string]any{
+	// A manual budget (WithThinking) requests classic extended thinking.
+	if rm.config.BudgetTokens > 0 {
+		return document.NewLazyDocument(map[string]any{
+			"thinking": map[string]any{
+				"type":          "enabled",
+				"budget_tokens": rm.config.BudgetTokens,
+			},
+		})
+	}
+
+	// Otherwise thinking is adaptive: the model decides how long to think,
+	// optionally biased by the reasoning effort (WithReasoningEffort).
+	fields := map[string]any{
 		"thinking": map[string]any{
-			"type":          "enabled",
-			"budget_tokens": rm.config.BudgetTokens,
+			"type": "adaptive",
 		},
-	})
+	}
+	if rm.config.ReasoningEffort != nil {
+		fields["output_config"] = map[string]any{
+			"effort": *rm.config.ReasoningEffort,
+		}
+	}
+
+	return document.NewLazyDocument(fields)
 }
 
 // mapMessages converts llm.Messages to Bedrock Converse types, separating system messages.
@@ -264,7 +282,7 @@ func (rm *RequestMapper) mapAssistantMessage(msg llm.Message) (types.Message, er
 
 		case *llm.ReasoningPart:
 			// Pass reasoning traces back as reasoning content blocks
-			if p.Text != "" {
+			if p.Text != "" || p.Signature != "" {
 				apiMsg.Content = append(apiMsg.Content, &types.ContentBlockMemberReasoningContent{
 					Value: &types.ReasoningContentBlockMemberReasoningText{
 						Value: types.ReasoningTextBlock{

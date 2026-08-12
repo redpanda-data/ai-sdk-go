@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"iter"
+	"slices"
 
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
@@ -25,7 +26,11 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
-var _ llm.Model = (*Model)(nil)
+var (
+	_ llm.Model                 = (*Model)(nil)
+	_ llm.ReasoningEffortLister = (*Model)(nil)
+	_ llm.ReasoningEffortLister = (*mantleModel)(nil)
+)
 
 // Model implements the llm.Model interface for Bedrock models via the Converse API.
 type Model struct {
@@ -55,6 +60,22 @@ func (m *Model) Capabilities() llm.ModelCapabilities {
 // Constraints returns the model's validation rules and limitations.
 func (m *Model) Constraints() llm.ModelConstraints {
 	return m.definition.Constraints
+}
+
+// SupportedReasoningEfforts returns the reasoning efforts this model accepts,
+// in ascending order. Empty for models without effort control.
+func (m *Model) SupportedReasoningEfforts() []llm.ReasoningEffort {
+	return slices.Clone(m.definition.Thinking.ReasoningEfforts)
+}
+
+// SupportsAdaptiveThinking reports whether the model accepts adaptive thinking.
+func (m *Model) SupportsAdaptiveThinking() bool {
+	return m.definition.Thinking.Adaptive
+}
+
+// SupportsThinkingBudget reports whether the model accepts a manual token budget.
+func (m *Model) SupportsThinkingBudget() bool {
+	return m.definition.Thinking.Budget
 }
 
 // Generate performs a single, non-streaming request using the Bedrock Converse API.
@@ -267,7 +288,7 @@ func (m *Model) buildFinalParts(blocks map[int]*contentBlockAccumulator) []llm.P
 			}
 
 		case blockTypeReasoning:
-			if acc.textContent != "" {
+			if acc.textContent != "" || acc.reasoningSignature != "" {
 				parts = append(parts, &llm.ReasoningPart{
 					Text:      acc.textContent,
 					Signature: acc.reasoningSignature,
@@ -370,6 +391,10 @@ func processReasoningDelta(acc *contentBlockAccumulator, delta *types.ContentBlo
 		}, true
 
 	case *types.ReasoningContentBlockDeltaMemberSignature:
+		if acc.blockType == "" {
+			acc.blockType = blockTypeReasoning
+		}
+
 		acc.reasoningSignature = rd.Value
 	}
 

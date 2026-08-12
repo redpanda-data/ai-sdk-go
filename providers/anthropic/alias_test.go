@@ -232,7 +232,7 @@ func TestWithThinkingBudget(t *testing.T) {
 	})
 }
 
-func TestWithEffort(t *testing.T) {
+func TestWithReasoningEffort(t *testing.T) {
 	t.Parallel()
 
 	provider, err := NewProvider("test-key")
@@ -241,83 +241,83 @@ func TestWithEffort(t *testing.T) {
 	t.Run("valid effort levels on Sonnet 4.6", func(t *testing.T) {
 		t.Parallel()
 
-		for _, effort := range []Effort{EffortLow, EffortMedium, EffortHigh} {
-			model, err := provider.NewModel(ModelClaudeSonnet46, WithEffort(effort))
+		for _, effort := range []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh} {
+			model, err := provider.NewModel(ModelClaudeSonnet46, WithReasoningEffort(effort))
 			require.NoError(t, err)
 
 			m, ok := model.(*Model)
 			require.True(t, ok)
-			require.NotNil(t, m.config.Effort)
-			assert.Equal(t, effort, *m.config.Effort)
+			require.NotNil(t, m.config.ReasoningEffort)
+			assert.Equal(t, effort, *m.config.ReasoningEffort)
 		}
 	})
 
-	t.Run("EffortMax rejected on Sonnet 4.6", func(t *testing.T) {
+	t.Run("ReasoningEffortMax rejected on Sonnet 4.6", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := provider.NewModel(ModelClaudeSonnet46, WithEffort(EffortMax))
+		_, err := provider.NewModel(ModelClaudeSonnet46, WithReasoningEffort(ReasoningEffortMax))
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "does not support effort 'max'")
+		assert.Contains(t, err.Error(), "does not support reasoning effort \"max\"")
 	})
 
-	t.Run("EffortMax accepted on Opus 4.6", func(t *testing.T) {
+	t.Run("ReasoningEffortMax accepted on Opus 4.6", func(t *testing.T) {
 		t.Parallel()
 
-		model, err := provider.NewModel(ModelClaudeOpus46, WithEffort(EffortMax))
+		model, err := provider.NewModel(ModelClaudeOpus46, WithReasoningEffort(ReasoningEffortMax))
 		require.NoError(t, err)
 
 		m, ok := model.(*Model)
 		require.True(t, ok)
-		require.NotNil(t, m.config.Effort)
-		assert.Equal(t, EffortMax, *m.config.Effort)
+		require.NotNil(t, m.config.ReasoningEffort)
+		assert.Equal(t, ReasoningEffortMax, *m.config.ReasoningEffort)
 	})
 
 	t.Run("all effort levels accepted on Sonnet 5", func(t *testing.T) {
 		t.Parallel()
 
-		for _, effort := range []Effort{EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax} {
-			model, err := provider.NewModel(ModelClaudeSonnet5, WithEffort(effort))
+		for _, effort := range []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax} {
+			model, err := provider.NewModel(ModelClaudeSonnet5, WithReasoningEffort(effort))
 			require.NoError(t, err)
 
 			m, ok := model.(*Model)
 			require.True(t, ok)
-			require.NotNil(t, m.config.Effort)
-			assert.Equal(t, effort, *m.config.Effort)
+			require.NotNil(t, m.config.ReasoningEffort)
+			assert.Equal(t, effort, *m.config.ReasoningEffort)
 		}
 	})
 
 	t.Run("all effort levels accepted on Fable 5", func(t *testing.T) {
 		t.Parallel()
 
-		for _, effort := range []Effort{EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax} {
-			model, err := provider.NewModel(ModelClaudeFable5, WithEffort(effort))
+		for _, effort := range []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax} {
+			model, err := provider.NewModel(ModelClaudeFable5, WithReasoningEffort(effort))
 			require.NoError(t, err)
 
 			m, ok := model.(*Model)
 			require.True(t, ok)
-			require.NotNil(t, m.config.Effort)
-			assert.Equal(t, effort, *m.config.Effort)
+			require.NotNil(t, m.config.ReasoningEffort)
+			assert.Equal(t, effort, *m.config.ReasoningEffort)
 		}
 	})
 
 	t.Run("all effort levels accepted on Opus 5", func(t *testing.T) {
 		t.Parallel()
 
-		for _, effort := range []Effort{EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax} {
-			model, err := provider.NewModel(ModelClaudeOpus5, WithEffort(effort))
+		for _, effort := range []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax} {
+			model, err := provider.NewModel(ModelClaudeOpus5, WithReasoningEffort(effort))
 			require.NoError(t, err)
 
 			m, ok := model.(*Model)
 			require.True(t, ok)
-			require.NotNil(t, m.config.Effort)
-			assert.Equal(t, effort, *m.config.Effort)
+			require.NotNil(t, m.config.ReasoningEffort)
+			assert.Equal(t, effort, *m.config.ReasoningEffort)
 		}
 	})
 
 	t.Run("rejected on model without effort support", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := provider.NewModel(ModelClaudeSonnet45, WithEffort(EffortHigh))
+		_, err := provider.NewModel(ModelClaudeSonnet45, WithReasoningEffort(ReasoningEffortHigh))
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "effort")
 	})
