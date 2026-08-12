@@ -1,0 +1,54 @@
+name: "Examples"
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '**.go'
+      - '**/go.mod'
+      - '**/go.sum'
+      - 'Taskfile.yaml'
+      - '.github/workflows/examples.yaml'
+  pull_request:
+    paths:
+      - '**.go'
+      - '**/go.mod'
+      - '**/go.sum'
+      - 'Taskfile.yaml'
+      - '.github/workflows/examples.yaml'
+
+permissions:
+  contents: read
+
+jobs:
+  examples:
+    name: Build Examples
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+
+      - uses: actions/cache@v6
+        with:
+          path: |
+            .build
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: ${{ runner.os }}-build-${{ hashFiles('**/go.sum', 'Taskfile.yaml', 'taskfiles/install.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-build-
+
+      - uses: go-task/setup-task@v2
+
+      # Examples are documentation — a broken example is broken docs. They sit
+      # outside the root module (`ignore ./examples`), so nothing else in CI
+      # compiles them.
+      - name: Build example modules
+        run: task examples:build

@@ -69,9 +69,10 @@ func TestTransformInputMessages_OTelCompliance(t *testing.T) {
 			messages: []llm.Message{
 				llm.NewMessage(llm.RoleUser,
 					&llm.ToolResponsePart{
-						ID:    "call_123",
-						Name:  "search",
-						IsError: true, Result: json.RawMessage(`{"error":"API rate limit exceeded"}`),					},
+						ID:      "call_123",
+						Name:    "search",
+						IsError: true, Result: json.RawMessage(`{"error":"API rate limit exceeded"}`),
+					},
 				),
 			},
 			want: `[{"role":"tool","parts":[{"type":"tool_call_response","id":"call_123","response":{"error":"API rate limit exceeded"}}]}]`,
