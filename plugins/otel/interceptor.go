@@ -174,9 +174,10 @@ func (t *TracingInterceptor) startInvocationSpan(
 
 	agentSnap := inv.Agent()
 
-	// Add system instructions from agent snapshot (not from session messages)
-	// Per OTel spec, system_instructions should be for separately-provided instructions
-	if agentSnap.SystemPrompt != "" {
+	// Add system instructions from agent snapshot (not from session messages).
+	// Per OTel spec, system_instructions carries separately-provided instruction
+	// content and is Opt-In — recorded only when input recording is enabled.
+	if t.cfg.recordInputs && agentSnap.SystemPrompt != "" {
 		// Transform to OTel format (array of parts)
 		systemPart := genai.Part{
 			Type:    genai.PartTypeText,
