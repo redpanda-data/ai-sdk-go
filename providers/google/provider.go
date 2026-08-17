@@ -20,10 +20,12 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 
 	"google.golang.org/genai"
 
+	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -153,16 +155,21 @@ func (p *Provider) Close() error {
 	return nil
 }
 
-// NewModel creates a new Google Gemini model instance with the specified configuration.
+// NewModel creates a new Google Gemini model instance with the specified
+// configuration.
+//
+// modelName is resolved against the catalog (exact ID or versioned
+// variants such as "gemini-2.5-flash-001"); unresolvable names are
+// rejected rather than guessed at.
 func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error) {
-	modelDef, ok := supportedModels[modelName]
+	offering, ok := Catalog().Resolve(strings.TrimPrefix(modelName, "models/"))
 	if !ok {
 		return nil, fmt.Errorf("unsupported model: %s", modelName)
 	}
 
 	cfg := &Config{
 		ModelName:   modelName,
-		Constraints: modelDef.Constraints,
+		Constraints: offering.Constraints,
 		setOptions:  make(map[string]bool),
 	}
 
@@ -180,33 +187,45 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 		return nil, fmt.Errorf("configuration validation failed for %s: %w", modelName, err)
 	}
 
-	if cfg.ReasoningEffort != nil && !slices.Contains(modelDef.SupportedReasoningEfforts, *cfg.ReasoningEffort) {
-		return nil, fmt.Errorf("model %s does not support reasoning effort %q (supported: %v)", modelName, *cfg.ReasoningEffort, modelDef.SupportedReasoningEfforts)
+	if cfg.ReasoningEffort != nil && !slices.Contains(offering.Reasoning.Efforts, *cfg.ReasoningEffort) {
+		return nil, fmt.Errorf("model %s does not support reasoning effort %q (supported: %v)", modelName, *cfg.ReasoningEffort, offering.Reasoning.Efforts)
 	}
 
-	if cfg.ThinkingBudget != nil && !modelDef.thinkingBudget.supports(*cfg.ThinkingBudget) {
+	if cfg.ThinkingBudget != nil && !thinkingBudgets[offering.ID].supports(*cfg.ThinkingBudget) {
 		return nil, fmt.Errorf("model %s does not support thinking budget %d", modelName, *cfg.ThinkingBudget)
 	}
 
 	return &Model{
 		provider:       p,
 		config:         cfg,
-		definition:     modelDef,
+		offering:       offering,
 		client:         p.client,
 		requestMapper:  NewRequestMapper(cfg),
-		responseMapper: NewResponseMapper(modelDef),
+		responseMapper: NewResponseMapper(offering.ID),
 	}, nil
 }
 
+// Catalog implements catalog.Provider: the validated Google model
+// catalog, including pricing and lifecycle metadata.
+func (*Provider) Catalog() *catalog.Catalog {
+	return Catalog()
+}
+
 // Models returns all Gemini models with their capabilities.
+//
+// Deprecated: use Catalog, which additionally carries modalities,
+// pricing, and lifecycle. Models remains only until every provider has
+// migrated to the catalog surface and will be removed with it.
 func (p *Provider) Models() []llm.ModelDiscoveryInfo {
-	models := make([]llm.ModelDiscoveryInfo, 0, len(supportedModels))
-	for _, def := range supportedModels {
+	offerings := Catalog().All()
+
+	models := make([]llm.ModelDiscoveryInfo, 0, len(offerings))
+	for _, o := range offerings {
 		models = append(models, llm.ModelDiscoveryInfo{
-			Name:         def.Name,
-			Label:        def.Label,
-			Capabilities: def.Capabilities,
-			Constraints:  def.Constraints,
+			Name:         o.ID,
+			Label:        o.Label,
+			Capabilities: o.Capabilities,
+			Constraints:  o.Constraints,
 			Provider:     p.Name(),
 		})
 	}

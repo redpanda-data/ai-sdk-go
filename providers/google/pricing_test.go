@@ -23,7 +23,8 @@ import (
 func TestAllModelsHavePricing(t *testing.T) {
 	t.Parallel()
 
-	for id, def := range supportedModels {
+	for _, def := range Catalog().All() {
+		id := def.ID
 		t.Run(id, func(t *testing.T) {
 			t.Parallel()
 
@@ -51,6 +52,6 @@ func TestModelPricingMatchesModels(t *testing.T) {
 	t.Parallel()
 
 	pricingMap := ModelPricing()
-	assert.Len(t, pricingMap, len(supportedModels),
+	assert.Len(t, pricingMap, Catalog().Len(),
 		"ModelPricing should return exactly one entry per supported model")
 }

@@ -256,7 +256,7 @@ func TestModelTokenLimits(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			modelDef, ok := supportedModels[tt.model]
+			modelDef, ok := Catalog().Lookup(tt.model)
 			require.True(t, ok, "Model should be defined")
 
 			assert.Equal(t, tt.expectedMaxIn, modelDef.Constraints.MaxInputTokens,
@@ -270,7 +270,7 @@ func TestModelTokenLimits(t *testing.T) {
 func TestResponseMapper_CachedTokens(t *testing.T) {
 	t.Parallel()
 
-	mapper := NewResponseMapper(supportedModels[ModelGemini25Flash])
+	mapper := NewResponseMapper(ModelGemini25Flash)
 
 	resp, err := mapper.FromProvider(&genai.GenerateContentResponse{
 		ModelVersion: "models/gemini-2.5-flash-001",

@@ -18,6 +18,7 @@ import (
 	"cmp"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"google.golang.org/genai"
@@ -27,12 +28,15 @@ import (
 
 // ResponseMapper converts Google API payloads to llm.Response.
 type ResponseMapper struct {
-	modelDefinition ModelDefinition
+	// offeringID is the catalog offering the model was constructed for;
+	// it is the InvokedModelID fallback when the provider response does
+	// not report a model version.
+	offeringID string
 }
 
 // NewResponseMapper returns a ready-to-use mapper.
-func NewResponseMapper(definition ModelDefinition) *ResponseMapper {
-	return &ResponseMapper{modelDefinition: definition}
+func NewResponseMapper(offeringID string) *ResponseMapper {
+	return &ResponseMapper{offeringID: offeringID}
 }
 
 // FromProvider converts a Google GenerateContentResponse into llm.Response.
@@ -88,7 +92,7 @@ func (m *ResponseMapper) FromProvider(r *genai.GenerateContentResponse) (*llm.Re
 		},
 		FinishReason:   finishReason,
 		Usage:          usage,
-		InvokedModelID: resolvedModelID(r.ModelVersion, m.modelDefinition.Name),
+		InvokedModelID: resolvedModelID(r.ModelVersion, m.offeringID),
 	}, nil
 }
 
@@ -97,12 +101,11 @@ func resolvedModelID(providerModel, fallback string) string {
 		return fallback
 	}
 
-	resolved := resolveModelFamily(providerModel)
-	if resolved == "" {
-		return fallback
+	if offering, ok := Catalog().Resolve(strings.TrimPrefix(providerModel, "models/")); ok {
+		return offering.ID
 	}
 
-	return resolved
+	return providerModel
 }
 
 // mapParts converts Gemini Parts to unified Parts.
