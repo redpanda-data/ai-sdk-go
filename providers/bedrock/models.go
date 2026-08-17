@@ -16,7 +16,9 @@ package bedrock
 
 import (
 	"strings"
+	"sync"
 
+	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/pricing"
 )
@@ -251,40 +253,9 @@ const (
 	ModelGPT56Luna = "openai.gpt-5.6-luna"
 )
 
-// ModelDefinition defines a model with its capabilities and constraints.
-type ModelDefinition struct {
-	Name                        string // Real Bedrock model ID (e.g. "us.anthropic.claude-sonnet-4-6")
-	Label                       string
-	Capabilities                llm.ModelCapabilities
-	Constraints                 llm.ModelConstraints
-	Thinking                    ThinkingSupport // Which thinking controls the model accepts
-	Pricing                     pricing.Info
-	RequiresProviderDataSharing bool
-
-	// Mantle marks a model that is served ONLY on the bedrock-mantle
-	// endpoint (the OpenAI-compatible Responses / Chat Completions API at
-	// bedrock-mantle.{region}.api.aws), not the standard bedrock-runtime
-	// Converse API. NewModel routes these models through a SigV4-signed
-	// OpenAI Responses transport (see mantle.go) instead of Converse. The
-	// Google Gemma 4 family and OpenAI's gpt-5.x frontier models on Bedrock
-	// are mantle-only. See
-	// https://docs.aws.amazon.com/bedrock/latest/userguide/bedrock-mantle.html
-	Mantle bool
-}
-
 // ModelMetadataRequiresProviderDataSharing is set to "true" on discovery
 // metadata for Bedrock models that require provider data sharing.
 const ModelMetadataRequiresProviderDataSharing = "requires_provider_data_sharing"
-
-func (d ModelDefinition) discoveryMetadata() map[string]string {
-	if !d.RequiresProviderDataSharing {
-		return nil
-	}
-
-	return map[string]string{
-		ModelMetadataRequiresProviderDataSharing: "true",
-	}
-}
 
 // InferenceProfileRegion maps an AWS region to the Bedrock cross-region
 // inference profile geographic prefix.
@@ -323,17 +294,11 @@ var geoProfilePrefixes = map[string]bool{
 }
 
 // profileRegionResolvers opts model families into exact, model-specific geo
-// routing. Families absent from this map retain the catalog's historical
-// generic routing behavior.
-var profileRegionResolvers = map[string]func(string) (string, bool){
-	ModelClaudeOpus5: claudeOpus5ProfileRegion,
-}
-
-// profileRegionResolverRegions exposes each resolver's complete source-region
-// domain so catalog invariants can verify every returned profile is registered.
-var profileRegionResolverRegions = map[string]map[string]string{
-	ModelClaudeOpus5: claudeOpus5ProfileRegions,
-}
+// routing; profileRegionResolverRegions exposes each resolver's complete
+// source-region domain so catalog invariants can verify every returned
+// profile is registered. Both are single-sourced from the family
+// declarations (family.ProfileRegions).
+var profileRegionResolvers, profileRegionResolverRegions = buildProfileRegionResolvers(bedrockFamilies)
 
 // hasRegionPrefix reports whether a model ID already begins with a Bedrock
 // region/global inference-profile prefix (e.g. "us.anthropic.claude-sonnet-4-6"
@@ -365,39 +330,38 @@ func profileRegionResolverFor(modelID string) (func(string) (string, bool), bool
 	return resolver, ok
 }
 
-// lookupModel finds a ModelDefinition by exact model ID. Each inference
-// profile variant is registered as its own entry (with its own pricing), so
+// lookupModel finds an offering by exact model ID. Each inference profile
+// variant is registered as its own entry (with its own pricing), so
 // callers must pass the full prefixed ID to get the correct rate card.
-func lookupModel(modelName string) (ModelDefinition, bool) {
-	def, ok := supportedModels[modelName]
-	return def, ok
+func lookupModel(modelName string) (catalog.Offering, bool) {
+	return Catalog().Lookup(modelName)
 }
 
-// Thinking-control shapes shared by Claude generations on Bedrock. Like the
-// capability/constraint shapes below, these are fixed per model generation
-// and identical across inference-profile variants. Claude 4.6 supports both
-// adaptive thinking and deprecated manual budgets; newer frontier models are
-// adaptive-only:
+// Reasoning-control shapes shared by Claude generations on Bedrock. Like
+// the capability/constraint shapes below, these are fixed per model
+// generation and identical across inference-profile variants. Claude 4.6
+// supports both adaptive thinking and deprecated manual budgets; newer
+// frontier models are adaptive-only:
 // https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking
 var (
-	frontierClaudeThinking = ThinkingSupport{
-		ReasoningEfforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
-		Adaptive:         true,
+	frontierClaudeThinking = catalog.ReasoningSupport{
+		Efforts:  []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+		Adaptive: true,
 	}
 
-	claudeOpus46Thinking = ThinkingSupport{
-		ReasoningEfforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortMax},
-		Adaptive:         true,
-		Budget:           true,
+	claudeOpus46Thinking = catalog.ReasoningSupport{
+		Efforts:  []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortMax},
+		Adaptive: true,
+		Budget:   true,
 	}
 
-	claudeSonnet46Thinking = ThinkingSupport{
-		ReasoningEfforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
-		Adaptive:         true,
-		Budget:           true,
+	claudeSonnet46Thinking = catalog.ReasoningSupport{
+		Efforts:  []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
+		Adaptive: true,
+		Budget:   true,
 	}
 
-	claude45Thinking = ThinkingSupport{Budget: true}
+	claude45Thinking = catalog.ReasoningSupport{Budget: true}
 )
 
 // Capability and constraint shapes shared by Claude variants on Bedrock.
@@ -582,624 +546,282 @@ var (
 	}
 )
 
-// supportedModels is the per-variant Bedrock catalog. Every model ID the SDK
-// accepts is a literal key in this map and every rate is spelled out in
-// place — adding, removing, or repricing a variant is a single visible diff,
-// and there is no shared rate constant whose name might survive a price
-// change for a single model.
+// gpt56Reasoning: the Bedrock-hosted GPT-5.6 models expose reasoning but
+// no effort control through the mantle adapter today.
+var gpt56Reasoning = catalog.ReasoningSupport{}
+
+var catalogOnce = sync.OnceValue(func() *catalog.Catalog {
+	entries, _ := expandFamilies(bedrockFamilies)
+	return catalog.MustNew("aws.bedrock", entries)
+})
+
+// mantleModelIDs is the set of bare model IDs served exclusively on the
+// bedrock-mantle endpoint, built from the family declarations.
+var mantleModelIDs = func() map[string]bool {
+	_, mantle := expandFamilies(bedrockFamilies)
+	return mantle
+}()
+
+// Catalog returns the validated Bedrock model catalog: every inference-
+// profile variant with its capabilities, constraints, reasoning controls,
+// pricing, and lifecycle. The catalog is immutable and shared; all reads
+// return deep copies.
+func Catalog() *catalog.Catalog {
+	return catalogOnce()
+}
+
+// bedrockFamilies is the per-family Bedrock catalog. Each family expands
+// to one entry per published inference profile; every rate is authored in
+// place, never derived.
 //
 // Pricing rule (per AWS https://aws.amazon.com/bedrock/pricing/, 2026-08):
 //   - bare ID (when invokable) and geo profiles (us./eu./au./jp.) use the
 //     "Geo and In-region Cross-region Inference" rate.
 //   - global. profiles use the "Global Cross-region Inference" rate, which
-//     is exactly 10% cheaper than the geo rate for the same model.
-var supportedModels = map[string]ModelDefinition{
-	// ----------------------------------------------------------------
-	// Claude Fable 5 — inference-profile-only, no bare entry. Geo
-	// profiles cover us and eu (jp/au are not published).
-	// ----------------------------------------------------------------
-	ModelClaudeFable5Global: {
-		Name:                        ModelClaudeFable5Global,
-		Label:                       "Claude Fable 5 (Global)",
-		Capabilities:                claudeStandardCaps,
-		Constraints:                 claudeNoSampling1MConstraints,
-		Thinking:                    frontierClaudeThinking,
-		RequiresProviderDataSharing: true,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(10.00, 50.00, 1.00).WithCacheCreation(12.50, 20.00, 0),
-		),
-	},
-	ModelClaudeFable5US: {
-		Name:                        ModelClaudeFable5US,
-		Label:                       "Claude Fable 5 (US)",
-		Capabilities:                claudeStandardCaps,
-		Constraints:                 claudeNoSampling1MConstraints,
-		Thinking:                    frontierClaudeThinking,
-		RequiresProviderDataSharing: true,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(13.75, 22.00, 0),
-		),
-	},
-	ModelClaudeFable5EU: {
-		Name:                        ModelClaudeFable5EU,
-		Label:                       "Claude Fable 5 (EU)",
-		Capabilities:                claudeStandardCaps,
-		Constraints:                 claudeNoSampling1MConstraints,
-		Thinking:                    frontierClaudeThinking,
-		RequiresProviderDataSharing: true,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(13.75, 22.00, 0),
-		),
-	},
-
-	// ----------------------------------------------------------------
-	// Claude Opus 5 — inference-profile-only on bedrock-runtime. AWS publishes
-	// global, US, EU, and AU profiles:
-	// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-5.html
-	// ----------------------------------------------------------------
-	ModelClaudeOpus5Global: {
-		Name:         ModelClaudeOpus5Global,
-		Label:        "Claude Opus 5 (Global)",
+//     is exactly 10% cheaper than the geo rate for the same model. That
+//     relationship is pinned by TestGeoGlobalRatio as a tripwire.
+//
+// Lifecycle: Bedrock sets its own availability and retirement schedules
+// (surfaced by ListFoundationModels' modelLifecycle); no catalogued model
+// has an announced deprecation, and per-profile availability dates are not
+// published, so Life stays empty rather than inventing dates.
+var bedrockFamilies = []family{
+	{
+		// Claude Fable 5 — inference-profile-only, no bare entry. Geo
+		// profiles cover us and eu (jp/au are not published).
+		BareID:       ModelClaudeFable5,
+		Model:        catalog.ModelClaudeFable5,
+		Label:        "Claude Fable 5",
+		Profiles:     []string{"global", "us", "eu"},
+		DataSharing:  true,
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeNoSampling1MConstraints,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
-		),
+		Reasoning:    frontierClaudeThinking,
+		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(10.00, 50.00, 1.00).WithCacheCreation(12.50, 20.00, 0)},
+		Rates:        pricing.RateCard{Base: pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(13.75, 22.00, 0)},
 	},
-	ModelClaudeOpus5US: {
-		Name:         ModelClaudeOpus5US,
-		Label:        "Claude Opus 5 (US)",
+	{
+		// Claude Opus 5 — inference-profile-only on bedrock-runtime. AWS
+		// publishes global, US, EU, and AU profiles:
+		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-5.html
+		BareID:       ModelClaudeOpus5,
+		Model:        catalog.ModelClaudeOpus5,
+		Label:        "Claude Opus 5",
+		Profiles:     []string{"global", "us", "eu", "au"},
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeNoSampling1MConstraints,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
-		),
+		Reasoning:    frontierClaudeThinking,
+		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0)},
+		Rates:        pricing.RateCard{Base: pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0)},
+		// Opus 5 opts into exact geo routing (AU is Sydney/Melbourne only).
+		ProfileRegions: claudeOpus5ProfileRegions,
 	},
-	ModelClaudeOpus5EU: {
-		Name:         ModelClaudeOpus5EU,
-		Label:        "Claude Opus 5 (EU)",
-		Capabilities: claudeStandardCaps,
-		Constraints:  claudeNoSampling1MConstraints,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
-		),
-	},
-	ModelClaudeOpus5AU: {
-		Name:         ModelClaudeOpus5AU,
-		Label:        "Claude Opus 5 (AU)",
-		Capabilities: claudeStandardCaps,
-		Constraints:  claudeNoSampling1MConstraints,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
-		),
-	},
-
-	// ----------------------------------------------------------------
-	// Claude Opus 4.8 — inference-profile-only, no bare entry. Geo
-	// profiles cover us, eu, jp (au is not published).
-	// ----------------------------------------------------------------
-	ModelClaudeOpus48Global: {
-		Name:         ModelClaudeOpus48Global,
-		Label:        "Claude Opus 4.8 (Global)",
+	{
+		// Claude Opus 4.8 — inference-profile-only. Geo profiles cover
+		// us, eu, jp (au is not published).
+		BareID:       ModelClaudeOpus48,
+		Model:        catalog.ModelClaudeOpus48,
+		Label:        "Claude Opus 4.8",
+		Profiles:     []string{"global", "us", "eu", "jp"},
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext1MConstraints,
-		Thinking:     frontierClaudeThinking,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
-		),
+		Reasoning:    frontierClaudeThinking,
+		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0)},
+		Rates:        pricing.RateCard{Base: pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0)},
 	},
-	ModelClaudeOpus48US: {
-		Name:         ModelClaudeOpus48US,
-		Label:        "Claude Opus 4.8 (US)",
+	{
+		// Claude Opus 4.7 — inference-profile-only. Geo profiles cover
+		// us, eu, jp (au is not published).
+		BareID:       ModelClaudeOpus47,
+		Model:        catalog.ModelClaudeOpus47,
+		Label:        "Claude Opus 4.7",
+		Profiles:     []string{"global", "us", "eu", "jp"},
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext1MConstraints,
-		Thinking:     frontierClaudeThinking,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
-		),
+		Reasoning:    frontierClaudeThinking,
+		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0)},
+		Rates:        pricing.RateCard{Base: pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0)},
 	},
-	ModelClaudeOpus48EU: {
-		Name:         ModelClaudeOpus48EU,
-		Label:        "Claude Opus 4.8 (EU)",
+	{
+		// Claude Opus 4.6 — inference-profile-only.
+		BareID:       ModelClaudeOpus46,
+		Model:        catalog.ModelClaudeOpus46,
+		Label:        "Claude Opus 4.6",
+		Profiles:     []string{"global", "us", "eu", "au"},
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext1MConstraints,
-		Thinking:     frontierClaudeThinking,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
-		),
+		Reasoning:    claudeOpus46Thinking,
+		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0)},
+		Rates:        pricing.RateCard{Base: pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0)},
 	},
-	ModelClaudeOpus48JP: {
-		Name:         ModelClaudeOpus48JP,
-		Label:        "Claude Opus 4.8 (JP)",
+	{
+		// Claude Opus 4.5 — inference-profile-only.
+		BareID:       ModelClaudeOpus45,
+		Model:        catalog.ModelClaudeOpus45,
+		Label:        "Claude Opus 4.5",
+		Profiles:     []string{"global", "us", "eu"},
+		Capabilities: claudeStandardCaps,
+		Constraints:  claudeContext200kConstraints,
+		Reasoning:    claude45Thinking,
+		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0)},
+		Rates:        pricing.RateCard{Base: pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0)},
+	},
+	{
+		// Claude Sonnet 5 — inference-profile-only; global and us are
+		// published so far.
+		BareID:       ModelClaudeSonnet5,
+		Model:        catalog.ModelClaudeSonnet5,
+		Label:        "Claude Sonnet 5",
+		Profiles:     []string{"global", "us"},
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext1MConstraints,
-		Thinking:     frontierClaudeThinking,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
-		),
+		Reasoning:    frontierClaudeThinking,
+		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0)},
+		Rates:        pricing.RateCard{Base: pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0)},
 	},
-
-	// ----------------------------------------------------------------
-	// Claude Opus 4.7 — inference-profile-only, no bare entry. Geo
-	// profiles cover us, eu, jp (au is not published).
-	// ----------------------------------------------------------------
-	ModelClaudeOpus47Global: {
-		Name:         ModelClaudeOpus47Global,
-		Label:        "Claude Opus 4.7 (Global)",
-		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext1MConstraints,
-		Thinking:     frontierClaudeThinking,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
-		),
-	},
-	ModelClaudeOpus47US: {
-		Name:         ModelClaudeOpus47US,
-		Label:        "Claude Opus 4.7 (US)",
-		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext1MConstraints,
-		Thinking:     frontierClaudeThinking,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
-		),
-	},
-	ModelClaudeOpus47EU: {
-		Name:         ModelClaudeOpus47EU,
-		Label:        "Claude Opus 4.7 (EU)",
-		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext1MConstraints,
-		Thinking:     frontierClaudeThinking,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
-		),
-	},
-	ModelClaudeOpus47JP: {
-		Name:         ModelClaudeOpus47JP,
-		Label:        "Claude Opus 4.7 (JP)",
-		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext1MConstraints,
-		Thinking:     frontierClaudeThinking,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
-		),
-	},
-
-	// ----------------------------------------------------------------
-	// Claude Opus 4.6 — inference-profile-only, no bare entry.
-	// ----------------------------------------------------------------
-	ModelClaudeOpus46Global: {
-		Name:         ModelClaudeOpus46Global,
-		Label:        "Claude Opus 4.6 (Global)",
-		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext1MConstraints,
-		Thinking:     claudeOpus46Thinking,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
-		),
-	},
-	ModelClaudeOpus46US: {
-		Name:         ModelClaudeOpus46US,
-		Label:        "Claude Opus 4.6 (US)",
-		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext1MConstraints,
-		Thinking:     claudeOpus46Thinking,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
-		),
-	},
-	ModelClaudeOpus46EU: {
-		Name:         ModelClaudeOpus46EU,
-		Label:        "Claude Opus 4.6 (EU)",
-		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext1MConstraints,
-		Thinking:     claudeOpus46Thinking,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
-		),
-	},
-	ModelClaudeOpus46AU: {
-		Name:         ModelClaudeOpus46AU,
-		Label:        "Claude Opus 4.6 (AU)",
-		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext1MConstraints,
-		Thinking:     claudeOpus46Thinking,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
-		),
-	},
-
-	// ----------------------------------------------------------------
-	// Claude Opus 4.5 — inference-profile-only, no bare entry.
-	// ----------------------------------------------------------------
-	ModelClaudeOpus45Global: {
-		Name:         ModelClaudeOpus45Global,
-		Label:        "Claude Opus 4.5 (Global)",
+	{
+		// Claude Sonnet 4.6 — inference-profile-only.
+		BareID:       ModelClaudeSonnet46,
+		Model:        catalog.ModelClaudeSonnet46,
+		Label:        "Claude Sonnet 4.6",
+		Profiles:     []string{"global", "us", "eu", "au"},
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
-		Thinking:     claude45Thinking,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
-		),
+		Reasoning:    claudeSonnet46Thinking,
+		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0)},
+		Rates:        pricing.RateCard{Base: pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0)},
 	},
-	ModelClaudeOpus45US: {
-		Name:         ModelClaudeOpus45US,
-		Label:        "Claude Opus 4.5 (US)",
+	{
+		// Claude Sonnet 4.5 — inference-profile-only; the widest geo
+		// coverage of the Claude 4.x line.
+		BareID:       ModelClaudeSonnet45,
+		Model:        catalog.ModelClaudeSonnet45,
+		Label:        "Claude Sonnet 4.5",
+		Profiles:     []string{"global", "us", "eu", "au", "jp"},
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
-		Thinking:     claude45Thinking,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
-		),
+		Reasoning:    claude45Thinking,
+		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0)},
+		Rates:        pricing.RateCard{Base: pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0)},
 	},
-	ModelClaudeOpus45EU: {
-		Name:         ModelClaudeOpus45EU,
-		Label:        "Claude Opus 4.5 (EU)",
+	{
+		// Claude Haiku 4.5 — inference-profile-only.
+		BareID:       ModelClaudeHaiku45,
+		Model:        catalog.ModelClaudeHaiku45,
+		Label:        "Claude Haiku 4.5",
+		Profiles:     []string{"global", "us", "eu", "au"},
 		Capabilities: claudeStandardCaps,
 		Constraints:  claudeContext200kConstraints,
-		Thinking:     claude45Thinking,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
-		),
+		Reasoning:    claude45Thinking,
+		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(1.00, 5.00, 0.10).WithCacheCreation(1.25, 2.00, 0)},
+		Rates:        pricing.RateCard{Base: pricing.NewRates(1.10, 5.50, 0.11).WithCacheCreation(1.375, 2.20, 0)},
 	},
-
-	// ----------------------------------------------------------------
-	// Claude Sonnet 5 — inference-profile-only, no bare entry. Only us
-	// and global are published so far (see const block); 1M context.
-	// ----------------------------------------------------------------
-	ModelClaudeSonnet5Global: {
-		Name:         ModelClaudeSonnet5Global,
-		Label:        "Claude Sonnet 5 (Global)",
-		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext1MConstraints,
-		Thinking:     frontierClaudeThinking,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0),
-		),
-	},
-	ModelClaudeSonnet5US: {
-		Name:         ModelClaudeSonnet5US,
-		Label:        "Claude Sonnet 5 (US)",
-		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext1MConstraints,
-		Thinking:     frontierClaudeThinking,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0),
-		),
-	},
-
-	// ----------------------------------------------------------------
-	// Claude Sonnet 4.6 — inference-profile-only, no bare entry.
-	// ----------------------------------------------------------------
-	ModelClaudeSonnet46Global: {
-		Name:         ModelClaudeSonnet46Global,
-		Label:        "Claude Sonnet 4.6 (Global)",
-		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext200kConstraints,
-		Thinking:     claudeSonnet46Thinking,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0),
-		),
-	},
-	ModelClaudeSonnet46US: {
-		Name:         ModelClaudeSonnet46US,
-		Label:        "Claude Sonnet 4.6 (US)",
-		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext200kConstraints,
-		Thinking:     claudeSonnet46Thinking,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0),
-		),
-	},
-	ModelClaudeSonnet46EU: {
-		Name:         ModelClaudeSonnet46EU,
-		Label:        "Claude Sonnet 4.6 (EU)",
-		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext200kConstraints,
-		Thinking:     claudeSonnet46Thinking,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0),
-		),
-	},
-	ModelClaudeSonnet46AU: {
-		Name:         ModelClaudeSonnet46AU,
-		Label:        "Claude Sonnet 4.6 (AU)",
-		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext200kConstraints,
-		Thinking:     claudeSonnet46Thinking,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0),
-		),
-	},
-
-	// ----------------------------------------------------------------
-	// Claude Sonnet 4.5 — inference-profile-only, widest geo coverage.
-	// ----------------------------------------------------------------
-	ModelClaudeSonnet45Global: {
-		Name:         ModelClaudeSonnet45Global,
-		Label:        "Claude Sonnet 4.5 (Global)",
-		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext200kConstraints,
-		Thinking:     claude45Thinking,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0),
-		),
-	},
-	ModelClaudeSonnet45US: {
-		Name:         ModelClaudeSonnet45US,
-		Label:        "Claude Sonnet 4.5 (US)",
-		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext200kConstraints,
-		Thinking:     claude45Thinking,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0),
-		),
-	},
-	ModelClaudeSonnet45EU: {
-		Name:         ModelClaudeSonnet45EU,
-		Label:        "Claude Sonnet 4.5 (EU)",
-		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext200kConstraints,
-		Thinking:     claude45Thinking,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0),
-		),
-	},
-	ModelClaudeSonnet45AU: {
-		Name:         ModelClaudeSonnet45AU,
-		Label:        "Claude Sonnet 4.5 (AU)",
-		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext200kConstraints,
-		Thinking:     claude45Thinking,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0),
-		),
-	},
-	ModelClaudeSonnet45JP: {
-		Name:         ModelClaudeSonnet45JP,
-		Label:        "Claude Sonnet 4.5 (JP)",
-		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext200kConstraints,
-		Thinking:     claude45Thinking,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0),
-		),
-	},
-
-	// ----------------------------------------------------------------
-	// Claude Haiku 4.5 — inference-profile-only, no bare entry.
-	// ----------------------------------------------------------------
-	ModelClaudeHaiku45Global: {
-		Name:         ModelClaudeHaiku45Global,
-		Label:        "Claude Haiku 4.5 (Global)",
-		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext200kConstraints,
-		Thinking:     claude45Thinking,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(1.00, 5.00, 0.10).WithCacheCreation(1.25, 2.00, 0),
-		),
-	},
-	ModelClaudeHaiku45US: {
-		Name:         ModelClaudeHaiku45US,
-		Label:        "Claude Haiku 4.5 (US)",
-		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext200kConstraints,
-		Thinking:     claude45Thinking,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(1.10, 5.50, 0.11).WithCacheCreation(1.375, 2.20, 0),
-		),
-	},
-	ModelClaudeHaiku45EU: {
-		Name:         ModelClaudeHaiku45EU,
-		Label:        "Claude Haiku 4.5 (EU)",
-		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext200kConstraints,
-		Thinking:     claude45Thinking,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(1.10, 5.50, 0.11).WithCacheCreation(1.375, 2.20, 0),
-		),
-	},
-	ModelClaudeHaiku45AU: {
-		Name:         ModelClaudeHaiku45AU,
-		Label:        "Claude Haiku 4.5 (AU)",
-		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext200kConstraints,
-		Thinking:     claude45Thinking,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(1.10, 5.50, 0.11).WithCacheCreation(1.375, 2.20, 0),
-		),
-	},
-
-	// ----------------------------------------------------------------
-	// Amazon Nova 2 Lite — inference-profile-only, no bare entry. Geo
-	// profiles cover us, eu, jp; global. is also published.
-	//
-	// All rates verified against the AWS Price List bulk API (authoritative,
-	// machine-readable — the pricing web page is JS-rendered and unusable):
-	// offers/v1.0/aws/AmazonBedrock/<ts>/us-east-1/index.json, published
-	// 2026-07-07. Pricing follows the same geo/global split as the Claude
-	// entries above — the global. tier is the round base rate and each geo
-	// profile is exactly 1.10x it (enforced by TestGeoGlobalRatio):
-	//   global (…-cross-region-global): $0.30 in / $2.50 out / $0.075 cache-read
-	//   geo/in-region:                  $0.33 in / $2.75 out / $0.0825 cache-read
-	// Cache reads are billed at 25% of the input rate (75% discount).
-	//
-	// Cache WRITE is FREE: the AWS price list carries an explicit
-	// USE1-Nova2.0Lite-cache-write-input-token-count usagetype priced at
-	// $0.00 in both tiers (Nova charges nothing to populate the cache; only
-	// cache reads are billed, at the discounted rate above). So no
-	// WithCacheCreation is set — the cache-write buckets stay at zero, which
-	// TestAllModelsHavePricing explicitly allows for free-cache-write models.
-	// ----------------------------------------------------------------
-	ModelNova2LiteGlobal: {
-		Name:         ModelNova2LiteGlobal,
-		Label:        "Amazon Nova 2 Lite (Global)",
+	{
+		// Amazon Nova 2 Lite. Cache WRITE is free (the AWS price list
+		// carries an explicit $0.00 cache-write usagetype), so no
+		// WithCacheCreation is set — cache-write buckets stay zero, which
+		// the pricing shape tests explicitly allow for free-cache-write
+		// models.
+		BareID:       ModelNova2Lite,
+		Model:        catalog.ModelNova2Lite,
+		Label:        "Amazon Nova 2 Lite",
+		Profiles:     []string{"global", "us", "eu", "jp"},
 		Capabilities: nova2LiteCaps,
 		Constraints:  nova2LiteConstraints,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(0.30, 2.50, 0.075),
-		),
+		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(0.30, 2.50, 0.075)},
+		Rates:        pricing.RateCard{Base: pricing.NewRates(0.33, 2.75, 0.0825)},
 	},
-	ModelNova2LiteUS: {
-		Name:         ModelNova2LiteUS,
-		Label:        "Amazon Nova 2 Lite (US)",
-		Capabilities: nova2LiteCaps,
-		Constraints:  nova2LiteConstraints,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(0.33, 2.75, 0.0825),
-		),
+	{
+		// Mistral Large 3 — on-demand / in-region, BARE ID only (no
+		// inference profile exists). Does NOT follow the geo/global split:
+		// AWS prices it by service tier under a single usagetype; the
+		// on-demand standard tier is registered here. Rates verified
+		// against the AWS Price List bulk API (mistral...-mantle-
+		// {input,output}-tokens-standard). Prompt caching is not billed
+		// (no cache usagetype published), so cache rates stay zero.
+		BareID:        ModelMistralLarge3,
+		Model:         catalog.ModelMistralLarge3,
+		Label:         "Mistral Large 3",
+		BareInvokable: true,
+		Capabilities:  mistralLarge3Caps,
+		Constraints:   mistralLarge3Constraints,
+		Rates:         pricing.RateCard{Base: pricing.NewRates(0.50, 1.50, 0)},
 	},
-	ModelNova2LiteEU: {
-		Name:         ModelNova2LiteEU,
-		Label:        "Amazon Nova 2 Lite (EU)",
-		Capabilities: nova2LiteCaps,
-		Constraints:  nova2LiteConstraints,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(0.33, 2.75, 0.0825),
-		),
+	{
+		// OpenAI GPT-5.6 family — mantle-only, bare in-region IDs via the
+		// Responses API; AWS publishes no Geo or Global inference IDs.
+		// In-region STANDARD-tier rates from the AWS pricing page (OpenAI
+		// section, 2026-08). Cache writes have a 30-minute TTL and the
+		// Responses usage payload reports an aggregate cache_write_tokens
+		// count, so the write price sits in the unknown-TTL bucket.
+		BareID:        ModelGPT56Sol,
+		Model:         catalog.ModelGPT5_6Sol,
+		Label:         "OpenAI GPT-5.6 Sol",
+		BareInvokable: true,
+		Mantle:        true,
+		Capabilities:  gpt56Caps,
+		Constraints:   gpt56Constraints,
+		Reasoning:     gpt56Reasoning,
+		Rates:         pricing.RateCard{Base: pricing.NewRates(5.50, 33.00, 0.55).WithCacheCreation(0, 0, 6.875)},
 	},
-	ModelNova2LiteJP: {
-		Name:         ModelNova2LiteJP,
-		Label:        "Amazon Nova 2 Lite (JP)",
-		Capabilities: nova2LiteCaps,
-		Constraints:  nova2LiteConstraints,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(0.33, 2.75, 0.0825),
-		),
+	{
+		BareID:        ModelGPT56Terra,
+		Model:         catalog.ModelGPT5_6Terra,
+		Label:         "OpenAI GPT-5.6 Terra",
+		BareInvokable: true,
+		Mantle:        true,
+		Capabilities:  gpt56Caps,
+		Constraints:   gpt56Constraints,
+		Reasoning:     gpt56Reasoning,
+		Rates:         pricing.RateCard{Base: pricing.NewRates(2.75, 16.50, 0.275).WithCacheCreation(0, 0, 3.4375)},
 	},
-
-	// ----------------------------------------------------------------
-	// Mistral Large 3 — on-demand / in-region, registered under the BARE ID
-	// (no inference profile; the "us.mistral..." profile does not exist —
-	// invoking it returns ValidationException "invalid model identifier").
-	// Unlike the Claude/Nova entries it does NOT follow the geo/global 1.10x
-	// split: AWS prices it by service tier (standard/flex/priority/batch) under
-	// a single us-east-1 usagetype, with no global. rate — so there is no
-	// global. sibling and TestGeoGlobalRatio does not apply. We register the
-	// on-demand *standard* tier here (the tier the Converse proxy uses);
-	// flex/priority/batch are not modeled.
-	//
-	// Rates verified against the AWS Price List bulk API (authoritative,
-	// machine-readable — the pricing web page is JS-rendered and unusable):
-	// offers/v1.0/aws/AmazonBedrock/20260707080509/us-east-1/index.json,
-	// usagetype mistral.mistral-large-3-675b-instruct-mantle-{input,output}-
-	// tokens-standard:
-	//   standard: $0.50 / 1M input, $1.50 / 1M output
-	// Cross-checked against LiteLLM's bedrock_converse catalog entry
-	// (input 5e-07, output 1.5e-06 per token; 128K context; supports function
-	// calling + native structured output).
-	//
-	// Prompt caching is NOT billed for Mistral Large 3 (the price list carries
-	// no cache-read/cache-write usagetype), so all cache rates stay zero — the
-	// documented shape for a non-caching provider (see pricing.Rates). This is
-	// why ModelMistralLarge3 is listed in noCacheModels in pricing_test.go.
-	//
-	// Because the bare ID has no geo prefix, this entry is excluded from the
-	// per-region conformance sweep (BedrockFixture.Models filters to the
-	// source region's geo profile); the aigw external_llm integration test
-	// covers live invocation and skips cleanly when access is not granted.
-	// ----------------------------------------------------------------
-	ModelMistralLarge3: {
-		Name:         ModelMistralLarge3,
-		Label:        "Mistral Large 3",
-		Capabilities: mistralLarge3Caps,
-		Constraints:  mistralLarge3Constraints,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(0.50, 1.50, 0),
-		),
+	{
+		BareID:        ModelGPT56Luna,
+		Model:         catalog.ModelGPT5_6Luna,
+		Label:         "OpenAI GPT-5.6 Luna",
+		BareInvokable: true,
+		Mantle:        true,
+		Capabilities:  gpt56Caps,
+		Constraints:   gpt56Constraints,
+		Reasoning:     gpt56Reasoning,
+		Rates:         pricing.RateCard{Base: pricing.NewRates(1.10, 6.60, 0.11).WithCacheCreation(0, 0, 1.375)},
 	},
-
-	// ----------------------------------------------------------------
-	// OpenAI GPT-5.6 family — mantle-only (Mantle: true), invoked by bare
-	// in-region IDs through the Responses API. AWS publishes no Geo or Global
-	// inference IDs. The Bedrock variants have a 272K context window.
-	//
-	// Pricing is the in-region STANDARD-tier rate from
-	// https://aws.amazon.com/bedrock/pricing/ (OpenAI section, 2026-08).
-	// Cache writes have a 30-minute TTL and the Responses usage payload reports
-	// an aggregate cache_write_tokens count, so the write price is stored in the
-	// unknown-TTL bucket consumed by the shared OpenAI response mapper. Exact
-	// cache rates follow AWS's 90% read discount and 1.25x write multiplier (the
-	// pricing table rounds some displayed values to two decimal places).
-	// ----------------------------------------------------------------
-	ModelGPT56Sol: {
-		Name:         ModelGPT56Sol,
-		Label:        "OpenAI GPT-5.6 Sol",
-		Capabilities: gpt56Caps,
-		Constraints:  gpt56Constraints,
-		Mantle:       true,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(5.50, 33.00, 0.55).WithCacheCreation(0, 0, 6.875),
-		),
+	{
+		// Google Gemma 4 family — mantle-only, bare IDs via the
+		// bedrock-mantle Responses endpoint (model cards list Geo/Global =
+		// Not supported). On-demand STANDARD-tier US rates from the AWS
+		// pricing page (Google section, 2026-06); the ~15-20% higher
+		// eu-central-1 rate is not separately modeled (revisit with a
+		// pricing region Override if EU-accurate billing is required). The
+		// mantle endpoint bills only input/output for Gemma — no cache
+		// usagetype is published — so cache rates stay zero.
+		BareID:        ModelGemma431B,
+		Model:         catalog.ModelGemma431B,
+		Label:         "Google Gemma 4 31B",
+		BareInvokable: true,
+		Mantle:        true,
+		Capabilities:  gemma4Caps,
+		Constraints:   gemma4Context256kConstraints,
+		Rates:         pricing.RateCard{Base: pricing.NewRates(0.14, 0.40, 0)},
 	},
-	ModelGPT56Terra: {
-		Name:         ModelGPT56Terra,
-		Label:        "OpenAI GPT-5.6 Terra",
-		Capabilities: gpt56Caps,
-		Constraints:  gpt56Constraints,
-		Mantle:       true,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(2.75, 16.50, 0.275).WithCacheCreation(0, 0, 3.4375),
-		),
+	{
+		BareID:        ModelGemma426BA4B,
+		Model:         catalog.ModelGemma426BA4B,
+		Label:         "Google Gemma 4 26B-A4B",
+		BareInvokable: true,
+		Mantle:        true,
+		Capabilities:  gemma4Caps,
+		Constraints:   gemma4Context256kConstraints,
+		Rates:         pricing.RateCard{Base: pricing.NewRates(0.13, 0.40, 0)},
 	},
-	ModelGPT56Luna: {
-		Name:         ModelGPT56Luna,
-		Label:        "OpenAI GPT-5.6 Luna",
-		Capabilities: gpt56Caps,
-		Constraints:  gpt56Constraints,
-		Mantle:       true,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(1.10, 6.60, 0.11).WithCacheCreation(0, 0, 1.375),
-		),
-	},
-
-	// ----------------------------------------------------------------
-	// Google Gemma 4 family — mantle-only (Mantle: true), invoked by the
-	// bare ID via the bedrock-mantle Responses endpoint (no inference
-	// profile; the model cards list Geo/Global = Not supported). Because the
-	// bare IDs have no geo prefix, these are excluded from the per-region
-	// geo-profile conformance sweep and from TestGeoGlobalRatio (no global.
-	// sibling), and they are listed in noCacheModels in pricing_test.go.
-	//
-	// Pricing is the on-demand STANDARD-tier rate for the US regions
-	// (us-east-1/2, us-west-2), taken from https://aws.amazon.com/bedrock/pricing/
-	// (Google section, 2026-06). AWS also publishes a ~15-20% higher
-	// eu-central-1 (Frankfurt) rate that is NOT separately modeled here (the
-	// catalog keys on model ID, not region, and no existing Bedrock entry
-	// carries a region override): 31B EU $0.17/$0.48, 26B-A4B EU $0.16/$0.48,
-	// E2B EU $0.05/$0.10 per 1M in/out. Revisit with a pricing.Info region
-	// Override if EU-accurate billing is required. The mantle Responses
-	// endpoint bills only input/output (no cache-read/cache-write usagetype
-	// is published for Gemma), so all cache rates stay zero — the documented
-	// shape for a non-caching model (see pricing.Rates / noCacheModels).
-	// ----------------------------------------------------------------
-	ModelGemma431B: {
-		Name:         ModelGemma431B,
-		Label:        "Google Gemma 4 31B",
-		Capabilities: gemma4Caps,
-		Constraints:  gemma4Context256kConstraints,
-		Mantle:       true,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(0.14, 0.40, 0),
-		),
-	},
-	ModelGemma426BA4B: {
-		Name:         ModelGemma426BA4B,
-		Label:        "Google Gemma 4 26B-A4B",
-		Capabilities: gemma4Caps,
-		Constraints:  gemma4Context256kConstraints,
-		Mantle:       true,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(0.13, 0.40, 0),
-		),
-	},
-	ModelGemma4E2B: {
-		Name:         ModelGemma4E2B,
-		Label:        "Google Gemma 4 E2B",
-		Capabilities: gemma4Caps,
-		Constraints:  gemma4Context128kConstraints,
-		Mantle:       true,
-		Pricing: pricing.FlatInfoFromRates(
-			pricing.NewRates(0.04, 0.08, 0),
-		),
+	{
+		BareID:        ModelGemma4E2B,
+		Model:         catalog.ModelGemma4E2B,
+		Label:         "Google Gemma 4 E2B",
+		BareInvokable: true,
+		Mantle:        true,
+		Capabilities:  gemma4Caps,
+		Constraints:   gemma4Context128kConstraints,
+		Rates:         pricing.RateCard{Base: pricing.NewRates(0.04, 0.08, 0)},
 	},
 }

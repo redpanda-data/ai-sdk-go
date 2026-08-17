@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -292,7 +293,7 @@ func TestLookupModel(t *testing.T) {
 			assert.Equal(t, tt.wantOK, ok)
 
 			if tt.wantOK {
-				assert.Equal(t, tt.wantDef, def.Name)
+				assert.Equal(t, tt.wantDef, def.ID)
 			}
 		})
 	}
@@ -1049,12 +1050,23 @@ func TestRequestMapper_StreamInput(t *testing.T) {
 	assert.InDelta(t, 0.5, *input.InferenceConfig.Temperature, 0.001)
 }
 
+// sonnet46USOffering returns the registered Sonnet 4.6 US offering, the
+// fixture the response-mapper tests are constructed against.
+func sonnet46USOffering(tb testing.TB) catalog.Offering {
+	tb.Helper()
+
+	o, ok := Catalog().Lookup(ModelClaudeSonnet46US)
+	require.True(tb, ok, "unknown offering %s", ModelClaudeSonnet46US)
+
+	return o
+}
+
 // ---------- Response mapper ----------
 
 func TestResponseMapper_TextResponse(t *testing.T) {
 	t.Parallel()
 
-	mapper := NewResponseMapper(supportedModels[ModelClaudeSonnet46])
+	mapper := NewResponseMapper(sonnet46USOffering(t))
 
 	output := &types.ConverseOutputMemberMessage{
 		Value: types.Message{
@@ -1107,7 +1119,7 @@ func TestResponseMapper_TextResponse(t *testing.T) {
 func TestResponseMapper_ToolUseResponse(t *testing.T) {
 	t.Parallel()
 
-	mapper := NewResponseMapper(supportedModels[ModelClaudeSonnet46])
+	mapper := NewResponseMapper(sonnet46USOffering(t))
 
 	output := &types.ConverseOutputMemberMessage{
 		Value: types.Message{
@@ -1144,7 +1156,7 @@ func TestResponseMapper_ToolUseResponse(t *testing.T) {
 func TestResponseMapper_StopReasons(t *testing.T) {
 	t.Parallel()
 
-	mapper := NewResponseMapper(supportedModels[ModelClaudeSonnet46])
+	mapper := NewResponseMapper(sonnet46USOffering(t))
 
 	tests := []struct {
 		name     string
@@ -1170,7 +1182,7 @@ func TestResponseMapper_StopReasons(t *testing.T) {
 func TestResponseMapper_NilOutput(t *testing.T) {
 	t.Parallel()
 
-	mapper := NewResponseMapper(supportedModels[ModelClaudeSonnet46])
+	mapper := NewResponseMapper(sonnet46USOffering(t))
 
 	_, err := mapper.FromConverseOutput(types.StopReasonEndTurn, nil, nil, nil, nil, nil)
 	require.Error(t, err)
@@ -1180,7 +1192,7 @@ func TestResponseMapper_NilOutput(t *testing.T) {
 func TestResponseMapper_CachedTokens(t *testing.T) {
 	t.Parallel()
 
-	mapper := NewResponseMapper(supportedModels[ModelClaudeSonnet46])
+	mapper := NewResponseMapper(sonnet46USOffering(t))
 
 	output := &types.ConverseOutputMemberMessage{
 		Value: types.Message{
@@ -1210,7 +1222,7 @@ func TestModelsDiscovery(t *testing.T) {
 	p := &Provider{}
 
 	models := p.Models()
-	assert.Len(t, models, len(supportedModels))
+	assert.Len(t, models, Catalog().Len())
 
 	for _, m := range models {
 		assert.Equal(t, "aws.bedrock", m.Provider)

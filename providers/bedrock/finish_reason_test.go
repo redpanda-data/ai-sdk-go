@@ -32,7 +32,7 @@ import (
 func TestResponseMapper_FinishReasonTruncationWithToolCalls(t *testing.T) {
 	t.Parallel()
 
-	mapper := NewResponseMapper(supportedModels[ModelClaudeSonnet46])
+	mapper := NewResponseMapper(sonnet46USOffering(t))
 
 	toolUse := &types.ContentBlockMemberToolUse{
 		Value: types.ToolUseBlock{

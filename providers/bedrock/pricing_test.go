@@ -60,14 +60,15 @@ var unknownTTLCacheModels = map[string]bool{
 func TestAllModelsHavePricing(t *testing.T) {
 	t.Parallel()
 
-	for id, def := range supportedModels {
+	for _, def := range Catalog().All() {
+		id := def.ID
 		t.Run(id, func(t *testing.T) {
 			t.Parallel()
 
 			assert.Positive(t, def.Pricing.Default.Base.InputPerMillion,
-				"model %s missing input pricing — add Pricing to its ModelDefinition", id)
+				"model %s missing input pricing", id)
 			assert.Positive(t, def.Pricing.Default.Base.OutputPerMillion,
-				"model %s missing output pricing — add Pricing to its ModelDefinition", id)
+				"model %s missing output pricing", id)
 
 			base := def.Pricing.Default.Base
 
@@ -139,7 +140,7 @@ func TestGPT56Pricing(t *testing.T) {
 		t.Run(tt.modelID, func(t *testing.T) {
 			t.Parallel()
 
-			def, ok := supportedModels[tt.modelID]
+			def, ok := Catalog().Lookup(tt.modelID)
 			require.True(t, ok)
 			assert.Equal(t, tt.rates, def.Pricing.Default.Base)
 		})
@@ -150,14 +151,14 @@ func TestModelPricingMatchesModels(t *testing.T) {
 	t.Parallel()
 
 	pricingMap := ModelPricing()
-	assert.Len(t, pricingMap, len(supportedModels),
+	assert.Len(t, pricingMap, Catalog().Len(),
 		"ModelPricing should return exactly one entry per supported model")
 }
 
 func TestClaudeOpus5Pricing(t *testing.T) {
 	t.Parallel()
 
-	global, globalOK := supportedModels[ModelClaudeOpus5Global]
+	global, globalOK := Catalog().Lookup(ModelClaudeOpus5Global)
 	require.True(t, globalOK)
 	assert.Equal(t,
 		pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
@@ -171,7 +172,7 @@ func TestClaudeOpus5Pricing(t *testing.T) {
 		ModelClaudeOpus5EU,
 		ModelClaudeOpus5AU,
 	} {
-		def, ok := supportedModels[id]
+		def, ok := Catalog().Lookup(id)
 		require.True(t, ok)
 		assert.Equal(t, geoRates, def.Pricing.Default.Base)
 	}
@@ -185,14 +186,15 @@ func TestClaudeOpus5Pricing(t *testing.T) {
 // relationship (cf. revert a7f0410), so we encode the direction here to
 // fail loud on any future drift.
 //
-// The check walks supportedModels rather than referencing shared rate
-// constants, because the catalog deliberately spells each rate out per
-// entry — Anthropic's intermediate releases (e.g. Opus 4.1) have priced
-// differently in the past, so there is no per-family rate variable.
+// The check walks the catalog rather than the family declarations, so it
+// guards the expander's output: authored rates are per family, and this
+// tripwire fails loud if AWS ever breaks the 1.10x relationship for one
+// model (making it a data edit) or if the expander mispairs rate cards.
 func TestGeoGlobalRatio(t *testing.T) {
 	t.Parallel()
 
-	for id, def := range supportedModels {
+	for _, def := range Catalog().All() {
+		id := def.ID
 		if !strings.HasPrefix(id, "global.") {
 			continue
 		}
@@ -202,9 +204,9 @@ func TestGeoGlobalRatio(t *testing.T) {
 		// Pick any non-global sibling to compare against. Prefer the bare
 		// entry when it exists, otherwise fall back to the us. profile
 		// (every model in the catalog has at least one geo profile).
-		sibling, ok := supportedModels[bare]
+		sibling, ok := Catalog().Lookup(bare)
 		if !ok {
-			sibling, ok = supportedModels["us."+bare]
+			sibling, ok = Catalog().Lookup("us." + bare)
 		}
 
 		require.True(t, ok, "global. variant %s has no non-global sibling to compare against", id)

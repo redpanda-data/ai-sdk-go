@@ -18,12 +18,11 @@ import "github.com/redpanda-data/ai-sdk-go/pricing"
 
 // ModelPricing returns a model ID → pricing map for all supported Bedrock models.
 //
+// Deprecated: use Catalog().PricingByID(), which this now wraps. It
+// remains only until every provider has migrated to the catalog surface
+// and will be removed with it.
+//
 // Source: https://aws.amazon.com/bedrock/pricing/ (as of 2026-08).
 func ModelPricing() map[string]pricing.Info {
-	m := make(map[string]pricing.Info, len(supportedModels))
-	for id, def := range supportedModels {
-		m[id] = def.Pricing
-	}
-
-	return m
+	return Catalog().PricingByID()
 }

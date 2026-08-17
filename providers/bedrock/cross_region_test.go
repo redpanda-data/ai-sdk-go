@@ -190,7 +190,7 @@ func TestProfileRegionResolversReturnCatalogedProfiles(t *testing.T) {
 			require.Truef(t, known, "resolver family %s does not recognize region %s", bareID, region)
 			require.Equalf(t, want, got, "resolver family %s routed region %s incorrectly", bareID, region)
 
-			_, cataloged := supportedModels[got+"."+bareID]
+			_, cataloged := Catalog().Lookup(got + "." + bareID)
 			assert.Truef(t, cataloged, "resolver family %s returns uncataloged profile %s", bareID, got)
 		}
 	}
@@ -203,7 +203,8 @@ func TestIsModelAllowedFromRegion_AllSupportedModels(t *testing.T) {
 	// (its bare or global. variant from any region; geo variants from a
 	// matching geo). This guards against typos in model constants or geo
 	// profile lists and ensures the catalog and the rule stay in sync.
-	for name := range supportedModels {
+	for _, o := range Catalog().All() {
+		name := o.ID
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
