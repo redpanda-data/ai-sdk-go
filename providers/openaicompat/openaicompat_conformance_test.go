@@ -17,6 +17,7 @@ package openaicompat_test
 import (
 	"testing"
 
+	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/internal/testsuite"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/plugins/retry"
@@ -78,8 +79,9 @@ func (f *OpenAICompatFixture) NewReasoningModel(t *testing.T) llm.Model {
 	return nil
 }
 
-func (f *OpenAICompatFixture) Models() []llm.ModelDiscoveryInfo {
-	return f.provider.Models()
+func (f *OpenAICompatFixture) Catalog() *catalog.Catalog {
+	// openaicompat has no static catalog: model names are caller-defined.
+	return nil
 }
 
 func (f *OpenAICompatFixture) NewModel(modelName string) (llm.Model, error) {

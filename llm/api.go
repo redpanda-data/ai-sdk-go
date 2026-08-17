@@ -26,8 +26,8 @@ import (
 // checking, and routing decisions.
 //
 // To inspect a provider's model catalog without constructing models, use
-// Provider.Models(), which returns the same metadata as ModelDiscoveryInfo
-// values.
+// the provider's Catalog() accessor (package catalog), which carries this
+// metadata plus modalities, pricing, and lifecycle.
 //
 // Example:
 //

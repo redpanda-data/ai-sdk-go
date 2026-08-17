@@ -126,7 +126,7 @@ func TestNonLongContextModelsStayFlat(t *testing.T) {
 func TestLongContextPricingAppliesEndToEnd(t *testing.T) {
 	t.Parallel()
 
-	cat, err := pricing.NewCatalog(pricing.WithProvider("anthropic", ModelPricing()))
+	cat, err := pricing.NewCatalog(pricing.WithProvider("anthropic", Catalog().PricingByID()))
 	require.NoError(t, err)
 
 	usage := &llm.TokenUsage{InputTokens: 100_000, OutputTokens: 1_000}

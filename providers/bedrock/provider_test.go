@@ -1219,38 +1219,32 @@ func TestResponseMapper_CachedTokens(t *testing.T) {
 func TestModelsDiscovery(t *testing.T) {
 	t.Parallel()
 
-	p := &Provider{}
-
-	models := p.Models()
-	assert.Len(t, models, Catalog().Len())
+	models := Catalog().All()
+	assert.NotEmpty(t, models)
 
 	for _, m := range models {
-		assert.Equal(t, "aws.bedrock", m.Provider)
-		assert.NotEmpty(t, m.Name)
+		assert.Equal(t, "aws.bedrock", m.Provider())
+		assert.NotEmpty(t, m.ID)
 		assert.NotEmpty(t, m.Label)
 		assert.Positive(t, m.Constraints.MaxInputTokens,
-			"model %s missing MaxInputTokens — set Constraints in its ModelDefinition", m.Name)
+			"model %s missing MaxInputTokens — set Constraints on its catalog entry", m.ID)
 		assert.Positive(t, m.Constraints.MaxOutputTokens,
-			"model %s missing MaxOutputTokens — set Constraints in its ModelDefinition", m.Name)
+			"model %s missing MaxOutputTokens — set Constraints on its catalog entry", m.ID)
 	}
 
-	// Verify sorted by name
+	// Verify sorted by ID
 	for i := 1; i < len(models); i++ {
-		assert.Less(t, models[i-1].Name, models[i].Name,
-			"Models() should be sorted by Name: %s should come before %s", models[i-1].Name, models[i].Name)
+		assert.Less(t, models[i-1].ID, models[i].ID,
+			"All() should be sorted by ID: %s should come before %s", models[i-1].ID, models[i].ID)
 	}
 }
 
 func TestModelsDiscovery_ProviderDataSharingMetadata(t *testing.T) {
 	t.Parallel()
 
-	p := &Provider{}
-
-	models := p.Models()
-
-	metadataByName := make(map[string]map[string]string, len(models))
-	for _, m := range models {
-		metadataByName[m.Name] = m.Metadata
+	metadataByName := make(map[string]map[string]string)
+	for _, m := range Catalog().All() {
+		metadataByName[m.ID] = m.Attributes
 	}
 
 	for _, name := range []string{ModelClaudeFable5Global, ModelClaudeFable5US, ModelClaudeFable5EU} {

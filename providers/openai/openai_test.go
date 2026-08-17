@@ -93,20 +93,20 @@ func TestProviderModels(t *testing.T) {
 	provider, err := NewProvider("sk-test-key")
 	require.NoError(t, err)
 
-	models := provider.Models()
+	models := provider.Catalog().All()
 	assert.NotEmpty(t, models, "Should return available models")
 
 	// Collect model names for verification
 	modelNames := make([]string, len(models))
 	for i, model := range models {
-		modelNames[i] = model.Name
-		assert.NotEmpty(t, model.Name, "Model name should not be empty")
+		modelNames[i] = model.ID
+		assert.NotEmpty(t, model.ID, "Model ID should not be empty")
 		assert.NotEmpty(t, model.Label, "Model label should not be empty")
-		assert.Equal(t, "openai", model.Provider, "Provider should be 'openai'")
+		assert.Equal(t, "openai", model.Provider(), "Provider should be 'openai'")
 		assert.Positive(t, model.Constraints.MaxInputTokens,
-			"model %s missing MaxInputTokens — set Constraints in its ModelDefinition", model.Name)
+			"model %s missing MaxInputTokens — set Constraints on its catalog entry", model.ID)
 		assert.Positive(t, model.Constraints.MaxOutputTokens,
-			"model %s missing MaxOutputTokens — set Constraints in its ModelDefinition", model.Name)
+			"model %s missing MaxOutputTokens — set Constraints on its catalog entry", model.ID)
 	}
 
 	// Verify expected models are present
@@ -201,17 +201,11 @@ func TestGPT56Models(t *testing.T) {
 			assert.Equal(t, tt.model, apiReq.Model)
 			assert.Equal(t, shared.ReasoningEffortMax, apiReq.Reasoning.Effort)
 
-			for _, discovered := range provider.Models() {
-				if discovered.Name == tt.model {
-					assert.Equal(t, tt.label, discovered.Label)
-					assert.Equal(t, model.Capabilities(), discovered.Capabilities)
-					assert.Equal(t, model.Constraints(), discovered.Constraints)
-
-					return
-				}
-			}
-
-			t.Fatalf("model %q was not discoverable", tt.model)
+			discovered, ok := provider.Catalog().Lookup(tt.model)
+			require.True(t, ok, "model %q was not discoverable", tt.model)
+			assert.Equal(t, tt.label, discovered.Label)
+			assert.Equal(t, model.Capabilities(), discovered.Capabilities)
+			assert.Equal(t, model.Constraints(), discovered.Constraints)
 		})
 	}
 }
@@ -238,8 +232,8 @@ func TestGPT56AliasResolvesToSolWithoutDuplicateDiscovery(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, ModelGPT5_6, apiReq.Model)
 
-	for _, discovered := range provider.Models() {
-		assert.NotEqual(t, ModelGPT5_6, discovered.Name)
+	for _, discovered := range provider.Catalog().All() {
+		assert.NotEqual(t, ModelGPT5_6, discovered.ID)
 	}
 
 	// Suffixed forms of the alias resolve to Sol through boundary-aware

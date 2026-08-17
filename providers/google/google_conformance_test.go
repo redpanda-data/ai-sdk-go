@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/internal/testsuite"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/plugins/retry"
@@ -87,8 +88,8 @@ func (f *GoogleFixture) NewReasoningModel(t *testing.T) llm.Model {
 	return retry.WrapModel(f.newReasoningModel(t, baseModel))
 }
 
-func (f *GoogleFixture) Models() []llm.ModelDiscoveryInfo {
-	return f.provider.Models()
+func (f *GoogleFixture) Catalog() *catalog.Catalog {
+	return f.provider.Catalog()
 }
 
 func (f *GoogleFixture) NewModel(modelName string) (llm.Model, error) {

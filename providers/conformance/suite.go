@@ -1488,33 +1488,37 @@ func testToolExecutionLoop(t *testing.T, fixture Fixture) { //nolint:thelper // 
 }
 
 func testAllSupportedModels(t *testing.T, fixture Fixture) { //nolint:thelper // not a helper, called from t.Run subtest
-	models := fixture.Models()
-	if len(models) == 0 {
+	cat := fixture.Catalog()
+	if cat == nil || cat.Len() == 0 {
 		t.Skip("No models available for testing")
 	}
 
 	t.Run("discovery info exposes constraints", func(t *testing.T) {
-		for _, m := range models {
+		for _, m := range cat.All() {
 			assert.Positive(t, m.Constraints.MaxInputTokens,
-				"model %s missing MaxInputTokens in discovery info", m.Name)
+				"model %s missing MaxInputTokens in discovery info", m.ID)
 			assert.Positive(t, m.Constraints.MaxOutputTokens,
-				"model %s missing MaxOutputTokens in discovery info", m.Name)
+				"model %s missing MaxOutputTokens in discovery info", m.ID)
 
-			model, err := fixture.NewModel(m.Name)
+			model, err := fixture.NewModel(m.ID)
 			if err != nil {
 				continue
 			}
 
 			assert.Equal(t, model.Constraints(), m.Constraints,
-				"discovery constraints for %s should match the instantiated model's constraints", m.Name)
+				"discovery constraints for %s should match the instantiated model's constraints", m.ID)
 		}
 	})
 
 	// Run sequentially (not parallel) to avoid rate limiting across providers.
-	// Each model is wrapped with retry to handle transient errors.
+	// Each model is wrapped with retry to handle transient errors. Only
+	// CURRENT-generation offerings are exercised live: retired offerings
+	// fail at the provider by definition, and deprecated / previous-
+	// generation ones age out of live coverage without churning this suite
+	// (their metadata is still asserted above).
 	t.Run("basic generation works for all supported models", func(t *testing.T) {
-		for _, m := range models {
-			modelName := m.Name
+		for _, m := range cat.Now().Current() {
+			modelName := m.ID
 			t.Run("model_"+modelName, func(t *testing.T) {
 				baseModel, err := fixture.NewModel(modelName)
 				if err != nil {

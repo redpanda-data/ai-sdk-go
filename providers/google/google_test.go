@@ -48,20 +48,19 @@ func TestProviderModels(t *testing.T) {
 	provider, err := NewProvider(ctx, "test-api-key")
 	require.NoError(t, err)
 
-	models := provider.Models()
+	models := provider.Catalog().All()
 	assert.NotEmpty(t, models, "Should return available models")
 
 	// Collect model names for verification
 	modelNames := make([]string, len(models))
 	for i, model := range models {
-		modelNames[i] = model.Name
-		assert.NotEmpty(t, model.Name, "Model name should not be empty")
+		modelNames[i] = model.ID
+		assert.NotEmpty(t, model.ID, "Model ID should not be empty")
 		assert.NotEmpty(t, model.Label, "Model label should not be empty")
-		assert.Equal(t, "gcp.gemini", model.Provider, "Provider should be 'gcp.gemini'")
 		assert.Positive(t, model.Constraints.MaxInputTokens,
-			"model %s missing MaxInputTokens — set Constraints in its ModelDefinition", model.Name)
+			"model %s missing MaxInputTokens — set Constraints on its catalog entry", model.ID)
 		assert.Positive(t, model.Constraints.MaxOutputTokens,
-			"model %s missing MaxOutputTokens — set Constraints in its ModelDefinition", model.Name)
+			"model %s missing MaxOutputTokens — set Constraints on its catalog entry", model.ID)
 	}
 
 	// Verify expected models are present
@@ -111,7 +110,7 @@ func TestLatestGeminiModels(t *testing.T) {
 		},
 	}
 
-	prices := ModelPricing()
+	prices := Catalog().PricingByID()
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

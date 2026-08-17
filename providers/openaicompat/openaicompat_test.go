@@ -95,10 +95,9 @@ func TestProviderModels(t *testing.T) {
 	provider, err := NewProvider("sk-test-key")
 	require.NoError(t, err)
 
-	models := provider.Models()
-	// openaicompat returns empty list - it supports dynamic model names
-	// determined by the OpenAI-compatible API endpoint being used
-	assert.Empty(t, models, "openaicompat should return empty model list - supports any model name")
+	// openaicompat has no static catalog — it supports dynamic model names
+	// determined by the OpenAI-compatible API endpoint being used.
+	assert.Nil(t, provider.Catalog(), "openaicompat should have no static catalog - supports any model name")
 }
 
 func TestModelCreation(t *testing.T) {

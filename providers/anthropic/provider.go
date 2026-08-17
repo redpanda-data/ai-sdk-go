@@ -247,24 +247,3 @@ func (*Provider) Catalog() *catalog.Catalog {
 	return Catalog()
 }
 
-// Models returns all Anthropic models with their capabilities.
-//
-// Deprecated: use Catalog, which additionally carries modalities,
-// pricing, and lifecycle. Models remains only until every provider has
-// migrated to the catalog surface and will be removed with it.
-func (*Provider) Models() []llm.ModelDiscoveryInfo {
-	offerings := Catalog().All()
-
-	models := make([]llm.ModelDiscoveryInfo, 0, len(offerings))
-	for _, o := range offerings {
-		models = append(models, llm.ModelDiscoveryInfo{
-			Name:         o.ID,
-			Label:        o.Label,
-			Capabilities: o.Capabilities,
-			Constraints:  o.Constraints,
-			Provider:     "anthropic",
-		})
-	}
-
-	return models
-}

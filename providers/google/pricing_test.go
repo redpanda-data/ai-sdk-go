@@ -48,10 +48,3 @@ func TestAllModelsHavePricing(t *testing.T) {
 	}
 }
 
-func TestModelPricingMatchesModels(t *testing.T) {
-	t.Parallel()
-
-	pricingMap := ModelPricing()
-	assert.Len(t, pricingMap, Catalog().Len(),
-		"ModelPricing should return exactly one entry per supported model")
-}
