@@ -43,7 +43,8 @@ const longContextThreshold = 200_001
 func TestLongContextBracketsMatchSurcharge(t *testing.T) {
 	t.Parallel()
 
-	for id, def := range supportedModels {
+	for _, def := range Catalog().All() {
+		id := def.ID
 		if def.Constraints.MaxInputTokens < 1_000_000 {
 			continue
 		}
@@ -83,7 +84,7 @@ func TestLongContextBracketsMatchSurcharge(t *testing.T) {
 func TestOpus5PricingStaysFlatAcrossContextWindow(t *testing.T) {
 	t.Parallel()
 
-	def, ok := supportedModels[ModelClaudeOpus5]
+	def, ok := Catalog().Lookup(ModelClaudeOpus5)
 	require.True(t, ok)
 	assert.Empty(t, def.Pricing.Default.Brackets)
 
@@ -97,7 +98,8 @@ func TestOpus5PricingStaysFlatAcrossContextWindow(t *testing.T) {
 func TestNonLongContextModelsStayFlat(t *testing.T) {
 	t.Parallel()
 
-	for id, def := range supportedModels {
+	for _, def := range Catalog().All() {
+		id := def.ID
 		if def.Constraints.MaxInputTokens >= 1_000_000 {
 			continue
 		}

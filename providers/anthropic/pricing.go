@@ -18,11 +18,10 @@ import "github.com/redpanda-data/ai-sdk-go/pricing"
 
 // ModelPricing returns a model ID → pricing map for all supported Anthropic models.
 // Source: https://docs.anthropic.com/en/docs/about-claude/pricing (as of 2026-04).
+//
+// Deprecated: use Catalog().PricingByID(), which this now wraps. It
+// remains only until every provider has migrated to the catalog surface
+// and will be removed with it.
 func ModelPricing() map[string]pricing.Info {
-	m := make(map[string]pricing.Info, len(supportedModels))
-	for id, def := range supportedModels {
-		m[id] = def.Pricing
-	}
-
-	return m
+	return Catalog().PricingByID()
 }

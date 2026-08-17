@@ -126,7 +126,7 @@ func TestModelsDiscoveryConstraints(t *testing.T) {
 	t.Parallel()
 
 	models := (&Provider{}).Models()
-	assert.Len(t, models, len(supportedModels))
+	assert.Len(t, models, Catalog().Len())
 
 	for _, m := range models {
 		assert.Positive(t, m.Constraints.MaxInputTokens,
