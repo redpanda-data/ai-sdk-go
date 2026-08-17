@@ -2,33 +2,32 @@
 name: model-catalog
 description: >-
   How to source and encode model pricing in this repo's provider catalogs
-  (providers/*/models.go) — where to pull authoritative rates, the microcents
-  convention, flat vs context-tiered pricing (TieredInfo/Bracket), Anthropic's
-  >200K long-context surcharge, cache-rate multipliers, and how to empirically
-  verify a model's real context window. Use when adding or correcting Pricing
-  on a catalog entry, or when a large-context request looks mis-costed. Pairs
-  with the model-maintenance skill and the "Adding New Models" rules in
-  CLAUDE.md.
+  (the catalog.Entry values in providers/*/models.go) — where to pull
+  authoritative rates, the USD-per-million constructor convention, flat vs
+  context-tiered pricing (TieredInfo/Bracket), Anthropic's >200K long-context
+  surcharge, cache-rate multipliers, and how to empirically verify a model's
+  real context window. Use when adding or correcting Pricing on a catalog
+  entry, or when a large-context request looks mis-costed. Pairs with the
+  model-maintenance skill and the "Adding New Models" rules in CLAUDE.md.
 ---
 
 # Model catalog pricing
 
-Every entry in a provider's `supportedModels` map carries a `Pricing pricing.Info`.
+Every `catalog.Entry` a provider authors carries a `Pricing pricing.Info`.
 Getting the numbers right — and the *shape* right (flat vs context-tiered) — is
 the point of this skill. Read the "Adding New Models" section in `CLAUDE.md` for
-the microcents rule; this skill covers where the rates come from and how to encode
+the authoring flow; this skill covers where the rates come from and how to encode
 tiers.
 
-## Units: microcents per million tokens
+## Units: constructors take US DOLLARS per million tokens
 
-Rates are stored as `int64` microcents per million tokens.
-
-    dollars_per_million * 100_000_000 = microcents_per_million     # $2.50/M -> 250_000_000
-
-The dollar-valued constructors do this for you: `pricing.NewRates(inUSD, outUSD,
-cachedUSD)` and `.WithCacheCreation(w5mUSD, w1hUSD, unknownUSD)` take USD/M
-directly (see `pricing/rates.go`). Prefer them over hand-writing microcents, and
-keep a dollar comment on any non-obvious value.
+`pricing.NewRates(inUSD, outUSD, cachedUSD)`, `pricing.FlatInfo(...)`, and
+`.WithCacheCreation(w5mUSD, w1hUSD, unknownUSD)` all take **USD per million
+tokens** — `$2.50/M` is written `2.50` (see `pricing/rates.go`). They convert to
+`int64` microcents internally (`dollars × 100_000_000`); never hand-write
+microcent literals into a constructor — `FlatInfo(250_000_000, …)` compiles
+silently and overprices by 10⁸. A `0` input/output rate means *unpriced* and the
+catalog rejects it; a published $0 rate is `pricing.RateFree`.
 
 ## Where to pull the rates
 

@@ -32,35 +32,56 @@ Stop hooks in `.claude/settings.json` automatically run `task license` (adds Apa
 
 ## Adding New Models
 
-When adding a model to a provider's `supportedModels` map, you **must** set the `Pricing` field. The per-provider `TestAllModelsHavePricing` test enforces this.
+Each provider authors `catalog.Entry` values in its `models.go` (`entries()`), frozen into a
+shared `catalog.Catalog` at init — `catalog.MustNew` validates every entry, so a broken entry
+fails every test run with a path-qualified error. Bedrock authors one `family` declaration per
+logical model in `models.go` and `families.go` expands the geo-profile variants.
 
-Prices are in **microcents per million tokens** (see `pricing/pricing.go` for why). To convert from a provider's pricing page:
+Steps for a new model:
+1. Register its host-independent facts once in `catalog/facts_data.go` (canonical `ModelID`
+   like `"anthropic/claude-opus-5"`, display name, **Series** — the non-branching succession
+   line — release date, knowledge cutoff). Two providers offering the same model reference the
+   same `ModelID`; never author facts twice.
+2. Add the provider entry: exported ID constant (keep it greppable), capabilities, constraints,
+   modalities, `Reasoning` (efforts/adaptive/budget), `Pricing`, and `Life` (lifecycle dates —
+   see below). Adding a model must never require editing an existing entry: generation ordering,
+   "superseded by", and price tiers are derived at read time.
+3. Regenerate the committed snapshot: `task catalog:snapshot` (CI fails on a stale
+   `catalog/snapshot.json`). The snapshot diff is the review surface — check it shows exactly
+   what you meant to change.
 
-```
-dollars × 100_000_000 = microcents
-```
+Pricing rules:
+- `pricing.NewRates` / `pricing.FlatInfo` take **US dollars per million tokens** — `$2.50/M`
+  is written `2.50`. (Internally they convert to microcents; never pass microcent literals —
+  `FlatInfo(250_000_000, …)` compiles and overprices by 10⁸.)
+  ```go
+  Pricing: pricing.FlatInfo(2.50, 10.00, 1.25), // $2.50/M in, $10.00/M out, $1.25/M cached
+  ```
+- Sources: OpenAI https://developers.openai.com/api/docs/pricing · Anthropic
+  https://docs.anthropic.com/en/docs/about-claude/pricing · Google
+  https://ai.google.dev/gemini-api/docs/pricing · Bedrock https://aws.amazon.com/bedrock/pricing/
+- Context-tiered pricing (Gemini Pro, Anthropic >200K surcharge) uses `pricing.TieredInfo(...)`;
+  service-tier/speed/region variation uses `Pricing.WithOverride(...)` — never provider-specific
+  pricing fields. An input/output rate of `0` means *unpriced* and is rejected; a published $0
+  rate is `pricing.RateFree`.
 
-Steps:
-1. Find the model's pricing on the provider's page:
-   - OpenAI: https://openai.com/api/pricing/
-   - Anthropic: https://docs.anthropic.com/en/docs/about-claude/pricing
-   - Google: https://ai.google.dev/gemini-api/docs/pricing
-   - Bedrock: https://aws.amazon.com/bedrock/pricing/
-2. Convert each dollar price: `$2.50/M` → `250_000_000`
-3. Add a dollar comment on every value for readability:
-   ```go
-   Pricing: pricing.FlatInfo(
-       250_000_000,   // $2.50/M input
-       1_000_000_000, // $10.00/M output
-       125_000_000,   // $1.25/M cached input
-   ),
-   ```
-4. If the model has tiered pricing (like Gemini Pro), use `pricing.TieredInfo(...)`.
-5. If pricing changes by service tier, speed, or region, add a selector override with `Pricing.WithOverride(...)` instead of introducing provider-specific pricing fields.
+Lifecycle rules:
+- `Life.Retires` is an **exact announced shutdown date only** (inclusive: retired *on* that
+  date). A published "not sooner than" floor goes in `RetirementNotBefore` and never derives
+  retirement. `Life.ReplacedBy` must name an offering in the same catalog; skip it when the
+  provider's recommendation isn't one we carry.
+- **The catalog is append-only.** When a provider retires a model, do NOT delete its entry:
+  set `Life.Retires`, add a `// Deprecated:` doc comment on its ID constant naming the
+  replacement, and leave the entry so historical usage stays priceable. Lifecycle sources:
+  Anthropic platform.claude.com/docs/en/about-claude/model-deprecations · OpenAI
+  developers.openai.com/api/docs/deprecations · Google ai.google.dev/gemini-api/docs/deprecations
+  · Bedrock `ListFoundationModels` (`modelLifecycle`).
 
 ## Project Structure
 
 - `llm/` — Core types and interfaces (Request, Response, Message, Part, Event)
+- `catalog/` — Shared model-metadata read model (facts registry, offerings, lifecycle views,
+  snapshot encoder); `catalog/snapshot.json` is the committed, CI-checked artifact
 - `providers/` — LLM provider implementations (anthropic, openai, google, bedrock, openaicompat)
 - `agent/` — Agent framework; `llmagent/` has the LLM-powered agent with tool calling
 - `tool/` — Tool registry, MCP integration, built-in tools, agent-as-tool

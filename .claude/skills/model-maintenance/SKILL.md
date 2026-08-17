@@ -9,12 +9,15 @@ description: >-
 
 # Model maintenance
 
-When you add a model to any provider's `supportedModels` map you **must** set
-`Pricing` (microcents per million tokens) — see the "Adding New Models" section
-in `CLAUDE.md` for the conversion and the per-provider `TestAllModelsHavePricing`
-requirement. For where to source rates, flat vs context-tiered pricing, and the
-long-context surcharge, see the `model-catalog` skill. Below is the extra process
-that is specific to Bedrock.
+When you add a model you register its facts once in `catalog/facts_data.go`
+(canonical ModelID, Series, release date) and author a `catalog.Entry` in the
+provider's `entries()` — with `Pricing` in **USD per million tokens** (the
+constructors convert; never microcent literals) and `Life` lifecycle dates. See
+the "Adding New Models" section in `CLAUDE.md` for the full flow, and the
+`model-catalog` skill for rate sourcing, flat vs context-tiered pricing, and the
+long-context surcharge. Regenerate `catalog/snapshot.json` with
+`task catalog:snapshot` and review the diff. Below is the extra process that is
+specific to Bedrock.
 
 ## Adding a new Bedrock model
 
@@ -33,11 +36,13 @@ is invalid"), and a published-but-unsubscribed one returns
 `AccessDeniedException`. A newly released model is often US- and global-only at
 first, with other geos published later. Pricing is per-profile: the `global.`
 profile is the cheapest and each geo or in-region entry is exactly `1.10x` the
-global rate in every column (enforced by `TestGeoGlobalRatio`) — spell every
-rate out in place, and reuse the shared capability/constraint vars when the
-context window matches an existing generation. Add lookup tests for every
+global rate in every column (pinned by `TestGeoGlobalRatio` as a tripwire).
+Bedrock models are authored as one `family` declaration in `models.go`
+(expanded by `families.go`): declare the published `Profiles`, the geo `Rates`
+and `GlobalRates` cards, and reuse the shared capability/constraint vars when
+the context window matches an existing generation. Add lookup tests for every
 published ID and region-allow tests; the integration conformance suite then
-picks new entries up automatically through `Models()`.
+picks new entries up automatically through `Catalog()`.
 
 Separately, a catalog entry is not invokable until the **account** has accepted
 the model's Bedrock agreement (an AWS Marketplace subscription) in **every region
