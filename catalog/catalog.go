@@ -483,18 +483,19 @@ func (c *Catalog) PricingByID() map[string]pricing.Info {
 
 // freeze builds the derived indexes once validation has passed.
 func (c *Catalog) freeze() {
+	// Alias indexes point into the authored order; resolve them to owner
+	// IDs before sorting invalidates them.
+	aliasOwner := make(map[string]string, len(c.byAlias))
+	for alias, idx := range c.byAlias {
+		aliasOwner[alias] = c.offerings[idx].ID
+	}
+
 	slices.SortFunc(c.offerings, func(a, b Offering) int {
 		return strings.Compare(a.ID, b.ID)
 	})
 
 	// Sorting invalidated the index maps; rebuild them.
 	clear(c.byID)
-
-	aliasOwner := make(map[string]string, len(c.byAlias))
-	for alias, idx := range c.byAlias {
-		aliasOwner[alias] = c.offerings[idx].ID
-	}
-
 	clear(c.byAlias)
 
 	for idx, o := range c.offerings {

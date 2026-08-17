@@ -132,14 +132,15 @@ func TestAllModelsHavePricing(t *testing.T) {
 		ModelO3Pro:      true, // Pro tier, no caching listed.
 	}
 
-	for id, def := range supportedModels {
+	for _, def := range Catalog().All() {
+		id := def.ID
 		t.Run(id, func(t *testing.T) {
 			t.Parallel()
 
 			assert.Positive(t, def.Pricing.Default.Base.InputPerMillion,
-				"model %s missing input pricing — add Pricing to its ModelDefinition", id)
+				"model %s missing input pricing", id)
 			assert.Positive(t, def.Pricing.Default.Base.OutputPerMillion,
-				"model %s missing output pricing — add Pricing to its ModelDefinition", id)
+				"model %s missing output pricing", id)
 
 			if !noCacheModels[id] {
 				assert.Positive(t, def.Pricing.Default.Base.CachedInputPerMillion,
@@ -155,13 +156,17 @@ func TestGPT56AliasHasSolPricing(t *testing.T) {
 	pricingMap := ModelPricing()
 	aliasPricing, ok := pricingMap[ModelGPT5_6]
 	require.True(t, ok)
-	assert.Equal(t, supportedModels[ModelGPT5_6Sol].Pricing, aliasPricing)
+
+	sol, ok := Catalog().Lookup(ModelGPT5_6Sol)
+	require.True(t, ok)
+	assert.Equal(t, sol.Pricing, aliasPricing)
 }
 
 func TestModelPricingMatchesModels(t *testing.T) {
 	t.Parallel()
 
 	pricingMap := ModelPricing()
-	assert.Len(t, pricingMap, len(supportedModels)+len(modelAliases),
+	// One entry per offering plus the "gpt-5.6" alias.
+	assert.Len(t, pricingMap, Catalog().Len()+1,
 		"ModelPricing should return one entry per supported model and alias")
 }

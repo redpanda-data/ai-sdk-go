@@ -16,17 +16,13 @@ package openai
 
 import "github.com/redpanda-data/ai-sdk-go/pricing"
 
-// ModelPricing returns a model ID → pricing map for all supported OpenAI models.
+// ModelPricing returns a model ID → pricing map for all supported OpenAI
+// models, including official aliases ("gpt-5.6").
 // Source: https://developers.openai.com/api/docs/pricing (as of 2026-08).
+//
+// Deprecated: use Catalog().PricingByID(), which this now wraps. It
+// remains only until every provider has migrated to the catalog surface
+// and will be removed with it.
 func ModelPricing() map[string]pricing.Info {
-	m := make(map[string]pricing.Info, len(supportedModels)+len(modelAliases))
-	for id, def := range supportedModels {
-		m[id] = def.Pricing
-	}
-
-	for alias, family := range modelAliases {
-		m[alias] = supportedModels[family].Pricing
-	}
-
-	return m
+	return Catalog().PricingByID()
 }

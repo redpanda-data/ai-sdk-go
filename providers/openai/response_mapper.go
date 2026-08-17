@@ -24,13 +24,11 @@ import (
 )
 
 // ResponseMapper converts OpenAI Responses API payloads to llm.Response.
-type ResponseMapper struct {
-	modelDefinition ModelDefinition
-}
+type ResponseMapper struct{}
 
 // NewResponseMapper returns a ready-to-use mapper.
-func NewResponseMapper(definition ModelDefinition) *ResponseMapper {
-	return &ResponseMapper{modelDefinition: definition}
+func NewResponseMapper() *ResponseMapper {
+	return &ResponseMapper{}
 }
 
 // FromProvider converts an OpenAI Responses API payload into llm.Response.

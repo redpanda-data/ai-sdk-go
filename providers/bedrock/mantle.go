@@ -29,6 +29,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	signerv4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 
+	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/providers/openai"
 )
@@ -116,13 +117,14 @@ func newMantleModel(p *Provider, cfg *Config, def ModelDefinition) (llm.Model, e
 		return nil, fmt.Errorf("bedrock-mantle: build OpenAI transport: %w", err)
 	}
 
-	oaiDef := openai.ModelDefinition{
-		Name:                      def.Name,
-		Label:                     def.Label,
-		Capabilities:              def.Capabilities,
-		Constraints:               def.Constraints,
-		SupportedReasoningEfforts: def.Thinking.ReasoningEfforts,
-		Pricing:                   def.Pricing,
+	oaiDef := openai.CompatModelDefinition{
+		Capabilities: def.Capabilities,
+		Constraints:  def.Constraints,
+		Reasoning: catalog.ReasoningSupport{
+			Efforts:  def.Thinking.ReasoningEfforts,
+			Adaptive: def.Thinking.Adaptive,
+			Budget:   def.Thinking.Budget,
+		},
 	}
 
 	// cfg was already validated against the Bedrock constraints in NewModel;

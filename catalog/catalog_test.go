@@ -401,6 +401,25 @@ func TestLookupImmutability(t *testing.T) {
 	assert.Equal(t, int64(600_000_000), again.Pricing.Overrides[0].RateCard.Base.InputPerMillion)
 }
 
+func TestResolveAliasSurvivesReordering(t *testing.T) {
+	t.Parallel()
+
+	// The catalog sorts offerings by ID at freeze time. Author the
+	// aliased entry LAST and with the lexicographically largest ID, so
+	// its authored index differs from its sorted index — this is the
+	// regression case where alias indexes captured before sorting would
+	// dangle and the alias would resolve to the wrong offering.
+	wren := validEntry("wren-1", "acme/wren-1")
+	zed := validEntry("robin-3", "acme/robin-3")
+	zed.Aliases = []string{"robin-latest"}
+
+	c := mustCatalog(t, wren, zed)
+
+	o, ok := c.Resolve("robin-latest")
+	require.True(t, ok)
+	assert.Equal(t, "robin-3", o.ID, "alias must resolve to its owner after freeze reordering")
+}
+
 func TestSuccessor(t *testing.T) {
 	t.Parallel()
 

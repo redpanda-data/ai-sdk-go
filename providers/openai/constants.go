@@ -40,6 +40,20 @@ const (
 	// ModelGPT5_2Pro is the GPT-5.2 Pro model (maximum accuracy variant).
 	ModelGPT5_2Pro = shared.ChatModelGPT5_2Pro
 
+	// ModelGPT5_2Instant is the GPT-5.2 Instant model.
+	//
+	// Deprecated: retired by OpenAI on 2026-08-10; requests fail. Use
+	// [ModelGPT5_6Sol]. The catalog entry remains so historical usage
+	// stays priceable.
+	ModelGPT5_2Instant = shared.ChatModelGPT5_2ChatLatest
+
+	// ModelGPT5_3ChatLatest is the GPT-5.3 Chat Latest model.
+	//
+	// Deprecated: retired by OpenAI on 2026-08-10; requests fail. Use
+	// [ModelGPT5_6Sol]. The catalog entry remains so historical usage
+	// stays priceable.
+	ModelGPT5_3ChatLatest = shared.ChatModelGPT5_3ChatLatest
+
 	// ModelGPT5_6Luna is the cost-optimized GPT-5.6 model.
 	ModelGPT5_6Luna = shared.ChatModelGPT5_6Luna
 	// ModelGPT5_6Terra balances capability and cost in the GPT-5.6 family.

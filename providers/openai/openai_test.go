@@ -242,9 +242,13 @@ func TestGPT56AliasResolvesToSolWithoutDuplicateDiscovery(t *testing.T) {
 		assert.NotEqual(t, ModelGPT5_6, discovered.Name)
 	}
 
-	for _, unsupported := range []string{"gpt-5.6-2026-07-09", "gpt-5.6-preview"} {
-		_, err := provider.NewModel(unsupported)
-		require.ErrorContains(t, err, "unsupported OpenAI model")
+	// Suffixed forms of the alias resolve to Sol through boundary-aware
+	// prefix matching — deliberate: a snapshot of the alias is a snapshot
+	// of the model it points at.
+	for _, suffixed := range []string{"gpt-5.6-2026-07-09"} {
+		m, err := provider.NewModel(suffixed)
+		require.NoError(t, err)
+		assert.Equal(t, solModel.Constraints(), m.Constraints())
 	}
 }
 
@@ -255,43 +259,55 @@ func TestResolveModelFamily(t *testing.T) {
 		name     string
 		input    string
 		expected string
+		known    bool
 	}{
 		{
 			name:     "exact match returns unchanged",
 			input:    "o3",
 			expected: "o3",
+			known:    true,
 		},
 		{
 			name:     "timestamped o3 resolves to family",
 			input:    "o3-2025-04-16",
 			expected: "o3",
+			known:    true,
 		},
 		{
 			name:     "timestamped gpt-4o resolves to family",
 			input:    "gpt-4o-2024-11-20",
 			expected: "gpt-4o",
+			known:    true,
 		},
 		{
 			name:     "gpt-4o-mini not confused with gpt-4o",
 			input:    "gpt-4o-mini",
 			expected: "gpt-4o-mini",
+			known:    true,
 		},
 		{
 			name:     "timestamped gpt-4o-mini resolves to gpt-4o-mini not gpt-4o",
 			input:    "gpt-4o-mini-2024-07-18",
 			expected: "gpt-4o-mini",
+			known:    true,
 		},
 		{
-			name:     "unknown model returns unchanged",
-			input:    "unknown-model-2025-01-01",
-			expected: "unknown-model-2025-01-01",
+			name:  "unknown model does not resolve",
+			input: "unknown-model-2025-01-01",
+			known: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tt.expected, resolveModelFamily(tt.input))
+
+			offering, ok := Catalog().Resolve(tt.input)
+			require.Equal(t, tt.known, ok)
+
+			if tt.known {
+				assert.Equal(t, tt.expected, offering.ID)
+			}
 		})
 	}
 }

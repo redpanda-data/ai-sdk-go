@@ -35,7 +35,7 @@ var (
 type Model struct {
 	provider       *Provider
 	config         *Config
-	definition     ModelDefinition
+	definition     CompatModelDefinition
 	client         *openai.Client
 	requestMapper  *RequestMapper
 	responseMapper *ResponseMapper
@@ -64,7 +64,7 @@ func (m *Model) Constraints() llm.ModelConstraints {
 // SupportedReasoningEfforts returns the reasoning efforts this model supports, in ascending order (safest/lowest first).
 // Returns empty slice for non-reasoning models.
 func (m *Model) SupportedReasoningEfforts() []llm.ReasoningEffort {
-	return slices.Clone(m.definition.SupportedReasoningEfforts)
+	return slices.Clone(m.definition.Reasoning.Efforts)
 }
 
 // Generate performs a single, non-streaming request to the OpenAI Responses API.
