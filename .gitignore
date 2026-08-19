@@ -36,3 +36,8 @@ go.work.sum
 
 # Vercel AI SDK reference clone (for adapter cross-checking)
 /vercel-ai-reference*/
+
+# Binaries left behind by `task examples:build`
+/examples/*/agent_as_tool
+/examples/*/agent_hooks
+/examples/*/web_research_agent
