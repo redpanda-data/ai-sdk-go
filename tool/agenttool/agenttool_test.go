@@ -320,6 +320,49 @@ func TestExecute(t *testing.T) {
 			"the sub-agent's underlying error must reach the parent, not be swallowed")
 	})
 
+	// An interruption must name the cause that actually stopped the run:
+	// llmagent reports FinishReasonInterrupted for any ctx.Err() (a deadline as
+	// well as a cancel), and also when the consumer stopped listening, where
+	// there is no context error at all.
+	interruptions := []struct {
+		name       string
+		expiredCtx bool
+		wantCause  error
+	}{
+		{"a deadline that already passed", true, context.DeadlineExceeded},
+		{"a consumer that stopped listening", false, context.Canceled},
+	}
+
+	for _, tt := range interruptions {
+		t.Run("interrupted reports "+tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mockAgent := &mockAgent{
+				name:         "sub-agent",
+				response:     "some partial content",
+				finishReason: agent.FinishReasonInterrupted,
+			}
+
+			agentTool := agenttool.New(mockAgent)
+
+			ctx := context.Background()
+
+			if tt.expiredCtx {
+				var cancel context.CancelFunc
+
+				ctx, cancel = context.WithDeadline(ctx, time.Now().Add(-time.Minute))
+
+				defer cancel()
+			}
+
+			_, err := agentTool.Execute(ctx, json.RawMessage("{}"))
+
+			require.Error(t, err)
+			assert.ErrorIs(t, err, tt.wantCause,
+				"the interruption must report the cause that stopped the sub-agent")
+		})
+	}
+
 	t.Run("agent error propagation", func(t *testing.T) {
 		t.Parallel()
 

@@ -205,7 +205,16 @@ func (at *AgentTool) Execute(ctx context.Context, args json.RawMessage) (json.Ra
 	case agent.FinishReasonInputRequired:
 		return nil, errors.New("agent execution failed: sub-agent requires external input, which agent-as-tool cannot provide")
 	case agent.FinishReasonInterrupted:
-		return nil, fmt.Errorf("agent execution failed: %w", context.Canceled)
+		// llmagent reports this for any ctx.Err() (a deadline as well as a cancel),
+		// so report the actual cause: a parent testing for a sub-agent timeout with
+		// errors.Is(err, context.DeadlineExceeded) must see it.
+		cause := ctx.Err()
+		if cause == nil {
+			// No context error: the consumer stopped listening mid-run.
+			cause = context.Canceled
+		}
+
+		return nil, fmt.Errorf("agent execution failed: %w", cause)
 	case agent.FinishReasonError:
 		if runErr != nil {
 			return nil, fmt.Errorf("agent execution failed: %w", runErr)
