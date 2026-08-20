@@ -75,7 +75,10 @@ var (
 	// callers can give the user an actionable "conversation too long" message. This
 	// is the pre-generation rejection; FinishReasonContextOverflow is the same
 	// condition surfaced on a 200 response.
-	ErrContextWindowExceeded = errors.New("context window exceeded")
+	//
+	// It wraps ErrInvalidInput so callers that branch on the coarser category keep
+	// matching these 400s.
+	ErrContextWindowExceeded = fmt.Errorf("context window exceeded: %w", ErrInvalidInput)
 )
 
 // ProviderError wraps a sentinel error with provider-specific details.

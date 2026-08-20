@@ -211,9 +211,26 @@ func TestClassifyError_ContextWindowExceeded(t *testing.T) {
 			var pe *llm.ProviderError
 			require.ErrorAs(t, result, &pe)
 			require.ErrorIs(t, pe, llm.ErrContextWindowExceeded)
+			require.ErrorIs(t, pe, llm.ErrInvalidInput,
+				"the overflow sentinel must stay a specific case of ErrInvalidInput so existing callers still match")
 			assert.False(t, pe.Retryable, "context-window overflow is not retryable as-is")
 		})
 	}
+}
+
+// TestClassifyError_OverflowPhraseOnlyInEchoedInput guards against matching the
+// whole response body: Anthropic 400s can echo request content (tool schemas,
+// field values), so the phrase must only count when it is the error message.
+func TestClassifyError_OverflowPhraseOnlyInEchoedInput(t *testing.T) {
+	t.Parallel()
+
+	body := `{"type":"error","error":{"type":"invalid_request_error","message":"tools.0.custom.input_schema: Extra inputs are not permitted"},"request":{"tools":[{"name":"check","description":"Reports whether the prompt is too long"}]}}`
+	result := classifyError(badRequest400(t, body))
+
+	var pe *llm.ProviderError
+	require.ErrorAs(t, result, &pe)
+	require.NotErrorIs(t, pe, llm.ErrContextWindowExceeded)
+	assert.Equal(t, "bad_request", pe.Code)
 }
 
 // TestClassifyError_OrdinaryBadRequest guards the detection from over-matching:
