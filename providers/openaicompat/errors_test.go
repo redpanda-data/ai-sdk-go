@@ -40,12 +40,17 @@ func TestClassifyError_Nil(t *testing.T) {
 	assert.NoError(t, classifyError(nil))
 }
 
-func TestClassifyError_UnknownError(t *testing.T) {
+func TestClassifyError_UnrecognisedIsRetryableTransport(t *testing.T) {
 	t.Parallel()
 
-	err := errors.New("something unexpected")
-	result := classifyError(err)
-	assert.Equal(t, err, result)
+	result := classifyError(errors.New("something unexpected"))
+
+	var pe *llm.ProviderError
+	require.ErrorAs(t, result, &pe)
+	require.ErrorIs(t, pe, llm.ErrServerError)
+	assert.Equal(t, codeTransport, pe.Code)
+	assert.True(t, pe.Retryable)
+	assert.True(t, llm.IsRetryable(result))
 }
 
 func TestClassifyHTTPError(t *testing.T) {
@@ -127,7 +132,7 @@ func TestClassifyError_DecodeFailure(t *testing.T) {
 	assert.Contains(t, pe.Message, "unexpected end of JSON input")
 }
 
-func TestClassifyError_DecodeTypeMismatch(t *testing.T) {
+func TestClassifyError_DecodeTypeMismatchIsNotRetryable(t *testing.T) {
 	t.Parallel()
 
 	var target struct {
@@ -141,9 +146,10 @@ func TestClassifyError_DecodeTypeMismatch(t *testing.T) {
 
 	var pe *llm.ProviderError
 	require.ErrorAs(t, result, &pe)
-	require.ErrorIs(t, pe, llm.ErrServerError)
+	require.ErrorIs(t, pe, llm.ErrResponseMapping)
 	assert.Equal(t, codeResponseDecode, pe.Code)
-	assert.True(t, pe.Retryable)
+	assert.False(t, pe.Retryable, "a type mismatch replays identically")
+	assert.False(t, llm.IsRetryable(result))
 }
 
 func TestClassifyError_StreamError(t *testing.T) {
@@ -252,4 +258,47 @@ func TestStreamDecodeErrorIsClassified(t *testing.T) {
 		"API call failed: server error: [response_decode_error] "+
 			"could not decode provider response: unexpected end of JSON input",
 		streamErr.Error())
+}
+
+// Guards the classifier's transport default against being narrowed; see the
+// comment on that arm in errors.go.
+func TestHTTP2StreamResetIsRetryable(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"gen-1","object":"chat.completion","choices":[`))
+
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+
+		// A short Content-Length yields a plain EOF and misses this path.
+		panic(http.ErrAbortHandler) //nolint:forbidigo // aborts h2 with RST_STREAM
+	}))
+	server.EnableHTTP2 = true
+	server.StartTLS()
+	t.Cleanup(server.Close)
+
+	provider, err := NewProvider("sk-test-key",
+		WithBaseURL(server.URL+"/v1"), WithHTTPClient(server.Client()))
+	require.NoError(t, err)
+
+	model, err := provider.NewModel("m")
+	require.NoError(t, err)
+
+	_, err = model.Generate(t.Context(), &llm.Request{
+		Messages: []llm.Message{{
+			Role:    llm.RoleUser,
+			Content: []llm.Part{llm.NewTextPart("hi")},
+		}},
+	})
+	require.Error(t, err)
+	require.ErrorContains(t, err, "INTERNAL_ERROR", "expected an h2 stream reset")
+
+	var pe *llm.ProviderError
+	require.ErrorAs(t, err, &pe)
+	assert.Equal(t, codeTransport, pe.Code)
+	assert.True(t, pe.Retryable)
+	assert.True(t, llm.IsRetryable(err))
 }

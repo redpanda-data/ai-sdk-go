@@ -19,8 +19,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net"
 
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/packages/ssestream"
@@ -28,28 +26,13 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
-// Codes for failures that never got far enough to carry an HTTP status. An
-// OpenAI-compatible upstream has no error taxonomy of its own for these, so we
-// supply one: without it the errors below reach the caller with no category and
-// no code, which is exactly how an openai-go SSE decoding bug presented as a
-// bare "unexpected end of JSON input" with nothing in the error to point at.
 const (
-	// codeResponseDecode: the upstream returned bytes we could not decode as an
-	// OpenAI-shaped response.
 	codeResponseDecode = "response_decode_error"
-
-	// codeTransport: the request failed below HTTP — connection reset,
-	// truncated body, DNS failure.
-	codeTransport = "transport_error"
-
-	// codeStreamError: the upstream reported a failure inside an SSE data frame
-	// instead of as an HTTP error.
-	codeStreamError = "stream_error"
+	codeTransport      = "transport_error"
+	codeStreamError    = "stream_error"
 )
 
-// classifyError maps OpenAI SDK errors to *llm.ProviderError with the
-// appropriate sentinel base and Retryable flag.
-// This is used by both the model and response mapper.
+// classifyError maps SDK errors to *llm.ProviderError.
 func classifyError(err error) error {
 	if err == nil {
 		return nil
@@ -63,22 +46,17 @@ func classifyError(err error) error {
 	return classifyNonHTTPError(err)
 }
 
-// classifyNonHTTPError handles the failures that carry no HTTP status: decode
-// failures, transport failures, and errors the upstream delivered inside an SSE
-// frame. Anything it does not recognise is returned unchanged.
 func classifyNonHTTPError(err error) error {
-	// Cancellation and deadlines belong to the caller, not to the provider.
-	// Return them untouched: ProviderError.Unwrap yields only Base, so wrapping
-	// would sever the chain and break errors.Is at the call site.
+	// Returned untouched: ProviderError.Unwrap yields only Base, so wrapping
+	// these would break errors.Is against them at the call site.
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return err
 	}
 
+	// Not retryable: the frame's payload is opaque here, and a mid-stream
+	// failure is as likely to be terminal as transient.
 	var streamErr *ssestream.StreamError
 	if errors.As(err, &streamErr) {
-		// No status code to map — the error arrived as a data frame. Not marked
-		// retryable: the payload is opaque at this layer, and a mid-stream
-		// failure is as likely to be terminal as transient.
 		return &llm.ProviderError{
 			Base:    llm.ErrAPICall,
 			Code:    codeStreamError,
@@ -86,14 +64,19 @@ func classifyNonHTTPError(err error) error {
 		}
 	}
 
-	var (
-		syntaxErr *json.SyntaxError
-		typeErr   *json.UnmarshalTypeError
-	)
+	// Well-formed JSON disagreeing with our structs replays identically.
+	var typeErr *json.UnmarshalTypeError
+	if errors.As(err, &typeErr) {
+		return &llm.ProviderError{
+			Base:    llm.ErrResponseMapping,
+			Code:    codeResponseDecode,
+			Message: fmt.Sprintf("could not decode provider response: %s", err),
+		}
+	}
 
-	if errors.As(err, &syntaxErr) || errors.As(err, &typeErr) {
-		// Retryable: the usual cause is protocol noise on a slow upstream
-		// response, which the same request often survives on a second attempt.
+	// A mangled stream; a second attempt can land on a clean response.
+	var syntaxErr *json.SyntaxError
+	if errors.As(err, &syntaxErr) {
 		return &llm.ProviderError{
 			Base:      llm.ErrServerError,
 			Code:      codeResponseDecode,
@@ -102,17 +85,17 @@ func classifyNonHTTPError(err error) error {
 		}
 	}
 
-	var netErr net.Error
-	if errors.As(err, &netErr) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, io.EOF) {
-		return &llm.ProviderError{
-			Base:      llm.ErrServerError,
-			Code:      codeTransport,
-			Message:   fmt.Sprintf("transport failure: %s", err),
-			Retryable: true,
-		}
+	// Do not narrow this to net.Error or an errno set. An h2 stream reset is
+	// net/http's unexported http2StreamError: not a net.Error, unreachable by
+	// errors.As, and h2 is the default for https upstreams. Whatever such a
+	// check missed would silently become permanent, which costs the caller's
+	// whole task where a needless retry costs three short attempts.
+	return &llm.ProviderError{
+		Base:      llm.ErrServerError,
+		Code:      codeTransport,
+		Message:   fmt.Sprintf("transport failure: %s", err),
+		Retryable: true,
 	}
-
-	return err
 }
 
 // classifyHTTPError maps an OpenAI HTTP API error to a *llm.ProviderError.
