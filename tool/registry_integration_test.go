@@ -471,8 +471,15 @@ func TestRegistry_WebfetchToolWithLLM_Integration(t *testing.T) {
 				Content: response.Message.Content, // Include the original tool requests
 			},
 			{
-				Role:    llm.RoleUser,
-				Content: []llm.Part{toolResponse},
+				// The trailing instruction matters: the replayed history says
+				// "use the webfetch tool" while ToolChoiceNone forbids tools,
+				// and without a current instruction the model occasionally
+				// resolves that contradiction by refusing.
+				Role: llm.RoleUser,
+				Content: []llm.Part{
+					toolResponse,
+					llm.NewTextPart("Summarize what the fetched page returned."),
+				},
 			},
 		},
 		Tools: toolDefinitions,
@@ -481,27 +488,36 @@ func TestRegistry_WebfetchToolWithLLM_Integration(t *testing.T) {
 		},
 	}
 
-	// Step 5: Get final response from LLM
-	finalResponse, err := model.Generate(ctx, followUpRequest)
-	require.NoError(t, err)
-	require.NotNil(t, finalResponse)
+	// Steps 5+6: Get the final response and verify it references the fetched
+	// data. That check is on model prose, so retry a couple of times rather
+	// than failing on one unhelpful answer.
+	const maxAttempts = 3
 
-	// Step 6: Verify final response
-	assert.Equal(t, llm.FinishReasonStop, finalResponse.FinishReason,
-		"LLM should complete normally after receiving tool results")
+	var finalText string
 
-	finalText := finalResponse.TextContent()
-	assert.NotEmpty(t, finalText, "LLM should provide a final response")
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		finalResponse, err := model.Generate(ctx, followUpRequest)
+		require.NoError(t, err)
+		require.NotNil(t, finalResponse)
 
-	// Verify LLM incorporated the webfetch results
-	finalTextLower := strings.ToLower(finalText)
-	assert.True(t,
-		strings.Contains(finalTextLower, "json") ||
-			strings.Contains(finalTextLower, "slideshow") ||
-			strings.Contains(finalTextLower, "data"),
-		"Final response should reference the fetched data or source. Got: %s", finalText)
+		finalText = finalResponse.TextContent()
 
-	t.Logf("Final LLM response: %s", finalText)
+		lower := strings.ToLower(finalText)
+		if strings.Contains(lower, "json") ||
+			strings.Contains(lower, "slideshow") ||
+			strings.Contains(lower, "data") {
+			assert.Equal(t, llm.FinishReasonStop, finalResponse.FinishReason,
+				"LLM should complete normally after receiving tool results")
+			t.Logf("Final LLM response (attempt %d/%d): %s", attempt, maxAttempts, finalText)
+
+			return
+		}
+
+		t.Logf("Attempt %d/%d: final response did not reference the fetch: %s",
+			attempt, maxAttempts, finalText)
+	}
+
+	t.Fatalf("final response never referenced the fetched data or source; last: %s", finalText)
 }
 
 // mockTool is a simple mock tool for testing ExecuteAll.
