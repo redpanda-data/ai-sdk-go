@@ -26,10 +26,11 @@ import (
 )
 
 // TestExecutor_ContextWindowExceededIsTerminalAndTruthful verifies that when the
-// provider rejects the request before generation because the conversation does
-// not fit the context window (surfaced as llm.ErrContextWindowExceeded), the
-// executor fails the task with the same truthful, actionable message it uses for
-// the 200-response FinishReasonContextOverflow — not the raw provider error.
+// provider rejects the request before generation because it does not fit the
+// context window (surfaced as llm.ErrContextWindowExceeded), the executor fails
+// the task with a truthful, actionable message — not the raw provider error. The
+// rejection also covers input + max_tokens overflowing while the input alone
+// fits, so the message must name lowering the response limit too.
 func TestExecutor_ContextWindowExceededIsTerminalAndTruthful(t *testing.T) {
 	t.Parallel()
 
@@ -44,6 +45,7 @@ func TestExecutor_ContextWindowExceededIsTerminalAndTruthful(t *testing.T) {
 	final := finalStatusEvent(t, events)
 	assert.Equal(t, a2a.TaskStateFailed, final.Status.State,
 		"a context-window overflow is terminal")
-	assert.Contains(t, statusText(final), "Start a new conversation or shorten the input.",
-		"the failure must carry the truthful, actionable overflow message")
+	assert.Contains(t, statusText(final),
+		"Shorten the input or start a new conversation, or lower the response token limit.",
+		"the failure must name both remedies the provider names")
 }
