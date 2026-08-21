@@ -67,6 +67,18 @@ var (
 	// Maps from errors such as: "server_error", "vector_store_timeout", "image_parse_error",
 	//   "failed_to_download_image", "image_file_not_found"
 	ErrServerError = errors.New("server error")
+
+	// ErrContextWindowExceeded indicates the request was rejected before generation
+	// because the input — or the input plus the requested max_tokens — does not fit
+	// the model's context window. Not retryable as-is: the conversation must be
+	// shortened or restarted. A more specific case of ErrInvalidInput, distinct so
+	// callers can give the user an actionable "conversation too long" message. This
+	// is the pre-generation rejection; FinishReasonContextOverflow is the same
+	// condition surfaced on a 200 response.
+	//
+	// It wraps ErrInvalidInput so callers that branch on the coarser category keep
+	// matching these 400s.
+	ErrContextWindowExceeded = fmt.Errorf("context window exceeded: %w", ErrInvalidInput)
 )
 
 // ProviderError wraps a sentinel error with provider-specific details.
