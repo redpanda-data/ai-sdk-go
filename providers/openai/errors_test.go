@@ -170,6 +170,13 @@ func TestClassifyStreamError(t *testing.T) {
 			wantRetry: false,
 		},
 		{
+			name:      "unrecognized code stays non-retryable",
+			payload:   `received error while streaming: {"type":"error","code":"insufficient_quota","message":"You exceeded your current quota, please check your plan and billing details."}`,
+			wantBase:  llm.ErrAPICall,
+			wantCode:  "insufficient_quota",
+			wantRetry: false,
+		},
+		{
 			name:      "mid-stream server error stays retryable",
 			payload:   `received error while streaming: {"error":{"message":"The server had an error processing your request.","type":"server_error","code":"server_error"}}`,
 			wantBase:  llm.ErrServerError,

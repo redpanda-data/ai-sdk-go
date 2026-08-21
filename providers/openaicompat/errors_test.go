@@ -385,6 +385,22 @@ func TestClassifyHTTPError_ContextOverflow(t *testing.T) {
 	}
 }
 
+func TestClassifyStreamError_UnrecognizedCodeNotRetryable(t *testing.T) {
+	t.Parallel()
+
+	streamErr := &ssestream.StreamError{
+		Message: `received error while streaming: {"error":{"message":"You exceeded your current quota.","type":"insufficient_quota","code":"insufficient_quota"}}`,
+	}
+
+	result := classifyError(streamErr)
+
+	var pe *llm.ProviderError
+	require.ErrorAs(t, result, &pe)
+	require.ErrorIs(t, pe, llm.ErrAPICall)
+	assert.False(t, pe.Retryable)
+	assert.False(t, llm.IsRetryable(result))
+}
+
 func TestClassifyStreamError_ContextOverflow(t *testing.T) {
 	t.Parallel()
 

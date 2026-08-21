@@ -182,15 +182,20 @@ func classifyStreamError(streamErr *ssestream.StreamError) *llm.ProviderError {
 		return nil
 	}
 
-	base, retryable := llm.ErrServerError, true
+	// A payload carrying an explicit unrecognized code (insufficient_quota,
+	// content policy, auth) is a semantic failure, not transport noise:
+	// default to non-retryable and let known-transient types opt in.
+	base, retryable := llm.ErrAPICall, false
 
 	switch {
 	case isContextOverflow(code, message):
-		base, retryable = llm.ErrContextOverflow, false
+		base = llm.ErrContextOverflow
 	case errType == "invalid_request_error":
-		base, retryable = llm.ErrInvalidInput, false
+		base = llm.ErrInvalidInput
 	case code == "rate_limit_exceeded" || errType == "rate_limit_error":
 		base, retryable = llm.ErrRateLimitExceeded, true
+	case errType == "server_error" || code == "server_error":
+		base, retryable = llm.ErrServerError, true
 	}
 
 	return &llm.ProviderError{
