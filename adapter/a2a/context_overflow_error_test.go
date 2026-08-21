@@ -27,7 +27,7 @@ import (
 
 // TestExecutor_ContextWindowExceededIsTerminalAndTruthful verifies that when the
 // provider rejects the request before generation because it does not fit the
-// context window (surfaced as llm.ErrContextWindowExceeded), the executor fails
+// context window (surfaced as llm.ErrContextOverflow), the executor fails
 // the task with a truthful, actionable message — not the raw provider error. The
 // rejection also covers input + max_tokens overflowing while the input alone
 // fits, so the message must name lowering the response limit too.
@@ -37,7 +37,7 @@ func TestExecutor_ContextWindowExceededIsTerminalAndTruthful(t *testing.T) {
 	model := fakellm.NewFakeModel()
 	model.When(fakellm.Any()).
 		ThenRespondWith(func(_ *llm.Request, _ *fakellm.CallContext) (*llm.Response, error) {
-			return nil, fmt.Errorf("anthropic generate: %w", llm.ErrContextWindowExceeded)
+			return nil, fmt.Errorf("anthropic generate: %w", llm.ErrContextOverflow)
 		})
 
 	events := runExecutorOnce(t, model, "Summarize this enormous document.")
