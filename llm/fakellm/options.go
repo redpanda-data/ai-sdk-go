@@ -155,3 +155,15 @@ func (defaultTokenizer) Count(text string) int {
 	// Rough approximation: 4 chars per token
 	return (len(runes) + 3) / 4
 }
+
+// WithContextWindow sets the reported context window and enforces it, so an
+// oversized request fails as it would against a real provider.
+//
+// Production windows are 200K-1M tokens; declaring 2,000 makes the same code
+// path reachable in milliseconds.
+func WithContextWindow(maxInputTokens int) Option {
+	return func(m *FakeModel) {
+		m.constraints.MaxInputTokens = maxInputTokens
+		m.enforceWindow = true
+	}
+}
