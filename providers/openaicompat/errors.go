@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/packages/ssestream"
@@ -41,6 +42,15 @@ func classifyError(err error) error {
 	var apiErr *openai.Error
 	if errors.As(err, &apiErr) {
 		return classifyHTTPError(apiErr)
+	}
+
+	// A structured SSE error event (context overflow, mid-stream invalid
+	// request) classifies precisely; anything else falls through to the
+	// generic non-HTTP classification below.
+	if streamErr, ok := errors.AsType[*ssestream.StreamError](err); ok {
+		if pe := classifyStreamError(streamErr); pe != nil {
+			return pe
+		}
 	}
 
 	return classifyNonHTTPError(err)
@@ -102,6 +112,10 @@ func classifyNonHTTPError(err error) error {
 func classifyHTTPError(apiErr *openai.Error) *llm.ProviderError {
 	retryable, base := classifyStatusCode(apiErr.StatusCode)
 
+	if errors.Is(base, llm.ErrInvalidInput) && isContextOverflow(apiErr.Code, apiErr.Message) {
+		base = llm.ErrContextOverflow
+	}
+
 	return &llm.ProviderError{
 		Base:      base,
 		Code:      apiErr.Code,
@@ -128,4 +142,97 @@ func classifyStatusCode(code int) (bool, error) {
 
 		return false, llm.ErrAPICall
 	}
+}
+
+// streamErrorPayload covers both JSON shapes an SSE error event takes: flat
+// {"type","code","message"} events and the same fields nested under "error".
+type streamErrorPayload struct {
+	Type    string `json:"type"`
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	Error   struct {
+		Type    string `json:"type"`
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	} `json:"error"`
+}
+
+// classifyStreamError parses an SSE error ("received error while streaming:
+// {json}") and classifies its payload. Returns nil when the payload carries no
+// recognizable fields, letting the error fall through to classifyNonHTTPError.
+func classifyStreamError(streamErr *ssestream.StreamError) *llm.ProviderError {
+	msg := streamErr.Error()
+
+	start := strings.IndexByte(msg, '{')
+	if start < 0 {
+		return nil
+	}
+
+	var payload streamErrorPayload
+	if err := json.Unmarshal([]byte(msg[start:]), &payload); err != nil {
+		return nil //nolint:nilerr // unparseable payload falls through unclassified
+	}
+
+	errType, code, message := payload.Type, payload.Code, payload.Message
+	if payload.Error.Code != "" || payload.Error.Message != "" {
+		errType, code, message = payload.Error.Type, payload.Error.Code, payload.Error.Message
+	}
+
+	if code == "" && message == "" {
+		return nil
+	}
+
+	base, retryable := llm.ErrServerError, true
+
+	switch {
+	case isContextOverflow(code, message):
+		base, retryable = llm.ErrContextOverflow, false
+	case errType == "invalid_request_error":
+		base, retryable = llm.ErrInvalidInput, false
+	case code == "rate_limit_exceeded" || errType == "rate_limit_error":
+		base, retryable = llm.ErrRateLimitExceeded, true
+	}
+
+	return &llm.ProviderError{
+		Base:      base,
+		Code:      code,
+		Message:   message,
+		Retryable: retryable,
+	}
+}
+
+// isContextOverflow reports whether an error code or message describes the
+// request exceeding the model's context window. Many compatible backends emit
+// only a message, so the pattern list mirrors LiteLLM's cross-provider set.
+func isContextOverflow(code, message string) bool {
+	if code == "context_length_exceeded" {
+		return true
+	}
+
+	// A per-string char cap, not a conversation overflow.
+	if code == "string_above_max_length" {
+		return false
+	}
+
+	msg := strings.ToLower(message)
+
+	for _, pattern := range []string{
+		"context_length_exceeded",
+		"context length exceeded",
+		"exceeds the context window",
+		"maximum context length",
+		"model's maximum context limit",
+		"exceed context limit",
+		"is longer than the model's context length",
+		"input tokens exceed the configured limit",
+		"exceeds the available context size",
+		"exceeds the maximum number of tokens allowed",
+		"`inputs` tokens + `max_new_tokens` must be",
+	} {
+		if strings.Contains(msg, pattern) {
+			return true
+		}
+	}
+
+	return false
 }

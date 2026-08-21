@@ -62,23 +62,17 @@ var (
 	// Note: Soft filtering (incomplete response) uses FinishReasonContentFilter instead.
 	ErrContentPolicyViolation = errors.New("content policy violation")
 
+	// ErrContextOverflow indicates the request did not fit the model's
+	// context window. Not retryable until the conversation is shortened.
+	// Wraps ErrInvalidInput. Distinct from FinishReasonContextOverflow, which
+	// is a completed call whose response may already carry content.
+	ErrContextOverflow = fmt.Errorf("%w: context window exceeded", ErrInvalidInput)
+
 	// ErrServerError indicates a transient provider-side error.
 	// Retryable with backoff.
 	// Maps from errors such as: "server_error", "vector_store_timeout", "image_parse_error",
 	//   "failed_to_download_image", "image_file_not_found"
 	ErrServerError = errors.New("server error")
-
-	// ErrContextWindowExceeded indicates the request was rejected before generation
-	// because the input — or the input plus the requested max_tokens — does not fit
-	// the model's context window. Not retryable as-is: the conversation must be
-	// shortened or restarted. A more specific case of ErrInvalidInput, distinct so
-	// callers can give the user an actionable "conversation too long" message. This
-	// is the pre-generation rejection; FinishReasonContextOverflow is the same
-	// condition surfaced on a 200 response.
-	//
-	// It wraps ErrInvalidInput so callers that branch on the coarser category keep
-	// matching these 400s.
-	ErrContextWindowExceeded = fmt.Errorf("context window exceeded: %w", ErrInvalidInput)
 )
 
 // ProviderError wraps a sentinel error with provider-specific details.
@@ -96,8 +90,9 @@ var (
 //	    log.Printf("Provider error [%s]: %s", perr.Code, perr.Message)
 //	}
 type ProviderError struct {
-	// Base is the sentinel error indicating the category
-	// (ErrRateLimitExceeded, ErrInvalidInput, etc.)
+	// Base is the sentinel error indicating the category (ErrInvalidInput,
+	// ErrRateLimitExceeded, ...) or a refinement of one such as
+	// ErrContextOverflow. Match it with errors.Is, not ==.
 	Base error
 
 	// Code is the provider-specific error code ("rate_limit_exceeded", etc.)

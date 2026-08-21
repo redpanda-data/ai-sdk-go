@@ -302,3 +302,100 @@ func TestHTTP2StreamResetIsRetryable(t *testing.T) {
 	assert.True(t, pe.Retryable)
 	assert.True(t, llm.IsRetryable(err))
 }
+
+// Overflow wordings of OpenAI-compatible backends (DeepSeek, vLLM, llama.cpp, TGI).
+func TestClassifyHTTPError_ContextOverflow(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		code     string
+		message  string
+		wantBase error
+	}{
+		{
+			name:     "openai style code",
+			code:     "context_length_exceeded",
+			message:  "This model's maximum context length is 65536 tokens.",
+			wantBase: llm.ErrContextOverflow,
+		},
+		{
+			name:     "deepseek message without code",
+			code:     "invalid_request_error",
+			message:  "This model's maximum context length is 65536 tokens. However, you requested 81920 tokens.",
+			wantBase: llm.ErrContextOverflow,
+		},
+		{
+			name:     "vllm style",
+			code:     "",
+			message:  "This model's maximum context length is 32768 tokens. However, you requested 33000 tokens in the messages, Please reduce the length of the messages.",
+			wantBase: llm.ErrContextOverflow,
+		},
+		{
+			name:     "llama.cpp style",
+			code:     "",
+			message:  "the request exceeds the available context size. try increasing the context size or enable context shift",
+			wantBase: llm.ErrContextOverflow,
+		},
+		{
+			name:     "tgi style",
+			code:     "",
+			message:  "`inputs` tokens + `max_new_tokens` must be <= 4096",
+			wantBase: llm.ErrContextOverflow,
+		},
+		{
+			name:     "per-string cap stays invalid input",
+			code:     "string_above_max_length",
+			message:  "Invalid 'input': string too long. Expected a string with maximum length 10485760.",
+			wantBase: llm.ErrInvalidInput,
+		},
+		{
+			name:     "unrelated 400 stays invalid input",
+			code:     "invalid_value",
+			message:  "Invalid 'temperature': decimal above maximum value.",
+			wantBase: llm.ErrInvalidInput,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			reqURL, _ := url.Parse("https://api.deepseek.com/v1/chat/completions")
+			apiErr := &openai.Error{
+				StatusCode: 400,
+				Code:       tt.code,
+				Message:    tt.message,
+				Request:    &http.Request{Method: http.MethodPost, URL: reqURL},
+				Response:   &http.Response{StatusCode: http.StatusBadRequest},
+			}
+
+			result := classifyError(apiErr)
+			require.Error(t, result)
+
+			var pe *llm.ProviderError
+			require.ErrorAs(t, result, &pe)
+			require.ErrorIs(t, pe, tt.wantBase)
+			assert.False(t, pe.Retryable)
+
+			if errors.Is(tt.wantBase, llm.ErrInvalidInput) && !errors.Is(tt.wantBase, llm.ErrContextOverflow) {
+				assert.NotErrorIs(t, pe, llm.ErrContextOverflow)
+			}
+		})
+	}
+}
+
+func TestClassifyStreamError_ContextOverflow(t *testing.T) {
+	t.Parallel()
+
+	streamErr := &ssestream.StreamError{
+		Message: `received error while streaming: {"error":{"message":"This model's maximum context length is 65536 tokens.","type":"invalid_request_error","code":"context_length_exceeded"}}`,
+	}
+
+	result := classifyError(streamErr)
+
+	var pe *llm.ProviderError
+	require.ErrorAs(t, result, &pe)
+	require.ErrorIs(t, pe, llm.ErrContextOverflow)
+	assert.False(t, pe.Retryable)
+}

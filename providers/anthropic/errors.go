@@ -26,20 +26,16 @@ import (
 )
 
 // classifyError maps Anthropic SDK errors to *llm.ProviderError with the
-// appropriate sentinel base and Retryable flag.
-//
-// Two error sources are handled:
-//   - HTTP errors: anthropic.Error with StatusCode
-//   - SSE streaming errors: fmt.Errorf("received error while streaming: %s", json)
-//     from the SDK's ssestream package
+// appropriate sentinel base and Retryable flag. It handles HTTP errors
+// (anthropic.Error, also surfaced via stream.Err() for rejected streaming
+// requests) and the SDK's stringly SSE streaming errors.
 func classifyError(err error) error {
 	if err == nil {
 		return nil
 	}
 
 	// Try HTTP API error first
-	var apiErr *anthropic.Error
-	if errors.As(err, &apiErr) {
+	if apiErr, ok := errors.AsType[*anthropic.Error](err); ok {
 		return classifyHTTPError(apiErr)
 	}
 
@@ -52,56 +48,43 @@ func classifyError(err error) error {
 	return err
 }
 
-// errTypeInvalidRequest is the Anthropic error type for pre-generation request
-// rejections, carried by both the HTTP response body and the SSE error payload.
-const errTypeInvalidRequest = "invalid_request_error"
-
 // classifyHTTPError maps an Anthropic HTTP API error to a *llm.ProviderError.
 func classifyHTTPError(apiErr *anthropic.Error) *llm.ProviderError {
 	retryable, base := classifyStatusCode(apiErr.StatusCode)
 	code := statusCodeToString(apiErr.StatusCode)
+	message := apiErr.Error()
 
-	// A 400 whose body says the prompt (optionally plus max_tokens) does not fit
-	// the context window is the "conversation too long" case. Surface it as a
-	// distinct, terminal sentinel so callers can tell it apart from other bad
-	// requests and give the user an actionable message.
-	if apiErr.StatusCode == http.StatusBadRequest && isHTTPContextWindowExceeded(apiErr.RawJSON()) {
-		base = llm.ErrContextWindowExceeded
-		code = "context_window_exceeded"
+	// anthropic.Error exposes no typed error fields; parse the raw body for
+	// the provider's error type and bare message.
+	var payload sseErrorPayload
+	if jsonErr := json.Unmarshal([]byte(apiErr.RawJSON()), &payload); jsonErr == nil && payload.Error.Type != "" {
+		code = payload.Error.Type
+		message = payload.Error.Message
+
+		if apiErr.StatusCode == http.StatusBadRequest && payload.Error.Type == "invalid_request_error" &&
+			isContextOverflowMessage(payload.Error.Message) {
+			base = llm.ErrContextOverflow
+		}
 	}
 
 	return &llm.ProviderError{
 		Base:      base,
 		Code:      code,
-		Message:   apiErr.Error(),
+		Message:   message,
 		Retryable: retryable,
 	}
 }
 
-// isHTTPContextWindowExceeded reports whether a 400 response body is a
-// context-window rejection. It matches only the error.message field: the body
-// can echo request content (tool schemas, field values), so matching the whole
-// raw JSON would misclassify unrelated bad requests. Unparseable bodies fall
-// back to scanning the raw text.
-func isHTTPContextWindowExceeded(rawJSON string) bool {
-	var apiErrPayload sseErrorPayload
-	if err := json.Unmarshal([]byte(rawJSON), &apiErrPayload); err != nil {
-		return isContextWindowExceeded(rawJSON)
-	}
+// isContextOverflowMessage reports whether a message describes the request
+// exceeding the model's context window. Anthropic has no dedicated error type
+// for this, so message text is the only signal. Oversized max_tokens is a
+// config error, not an overflow, and deliberately does not match.
+func isContextOverflowMessage(msg string) bool {
+	msg = strings.ToLower(msg)
 
-	return apiErrPayload.Error.Type == errTypeInvalidRequest &&
-		isContextWindowExceeded(apiErrPayload.Error.Message)
-}
-
-// isContextWindowExceeded reports whether an Anthropic 400 body describes the
-// conversation exceeding the model's context window — either the input alone
-// ("prompt is too long") or the input plus max_tokens ("... exceed context
-// limit"). Both are pre-generation rejections, distinct from other bad requests.
-func isContextWindowExceeded(msg string) bool {
-	m := strings.ToLower(msg)
-
-	return strings.Contains(m, "exceed context limit") ||
-		strings.Contains(m, "prompt is too long")
+	return strings.Contains(msg, "prompt is too long") || // input alone too big, every model
+		strings.Contains(msg, "exceed context limit") || // input + max_tokens, pre-4.5 models
+		strings.Contains(msg, "prompt: length") // Claude-2-era wording
 }
 
 // classifySSEError parses the SDK's SSE streaming error format and classifies it.
@@ -149,24 +132,21 @@ func classifySSEError(err error) *llm.ProviderError {
 	}
 
 	retryable, base := classifySSEErrorType(sseErr.Error.Type)
-	code := sseErr.Error.Type
 
-	// Same context-window overflow surfaced through the streaming error channel.
-	if sseErr.Error.Type == errTypeInvalidRequest && isContextWindowExceeded(sseErr.Error.Message) {
-		base = llm.ErrContextWindowExceeded
-		code = "context_window_exceeded"
+	if errors.Is(base, llm.ErrInvalidInput) && isContextOverflowMessage(sseErr.Error.Message) {
+		base = llm.ErrContextOverflow
 	}
 
 	return &llm.ProviderError{
 		Base:      base,
-		Code:      code,
+		Code:      sseErr.Error.Type,
 		Message:   sseErr.Error.Message,
 		Retryable: retryable,
 	}
 }
 
-// sseErrorPayload represents the JSON payload of an SSE error event. HTTP error
-// response bodies use the same shape.
+// sseErrorPayload represents the JSON payload of an SSE error event. The HTTP
+// error body uses the identical envelope.
 type sseErrorPayload struct {
 	Error struct {
 		Type    string `json:"type"`
@@ -181,7 +161,7 @@ func classifySSEErrorType(errType string) (bool, error) {
 		return true, llm.ErrServerError
 	case "rate_limit_error":
 		return true, llm.ErrRateLimitExceeded
-	case errTypeInvalidRequest:
+	case "invalid_request_error":
 		return false, llm.ErrInvalidInput
 	case "authentication_error", "permission_error":
 		return false, llm.ErrAPICall

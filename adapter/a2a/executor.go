@@ -40,7 +40,7 @@ import (
 const contextOverflowMessage = "Agent stopped: the conversation exceeds the model's context window. Start a new conversation or shorten the input."
 
 // requestTooLargeMessage covers the pre-generation rejection
-// (llm.ErrContextWindowExceeded), which also fires when the input alone fits but
+// (llm.ErrContextOverflow), which also fires when the input alone fits but
 // input plus the reserved response tokens does not — so it names the provider's
 // second remedy, lowering the response limit, which keeps the conversation intact.
 const requestTooLargeMessage = "Agent stopped: the request does not fit the model's context window. Shorten the input or start a new conversation, or lower the response token limit."
@@ -157,7 +157,7 @@ func (e *Executor) processEvents(
 				if writeErr := queue.Write(bgCtx, statusEvent); writeErr != nil {
 					e.log.ErrorContext(ctx, "Failed to write canceled status", "error", writeErr)
 				}
-			} else if errors.Is(err, llm.ErrContextWindowExceeded) {
+			} else if errors.Is(err, llm.ErrContextOverflow) {
 				// The provider rejected the request before generating because it does not
 				// fit the context window. Terminal, but give the user the truthful,
 				// actionable message rather than the raw provider error.
