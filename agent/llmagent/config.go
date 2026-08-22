@@ -44,6 +44,7 @@ type config struct {
 	description          string
 	systemPrompt         string
 	systemPromptProvider SystemPromptProvider
+	inputSchema          map[string]any
 	id                   string
 	version              string
 	model                llm.Model
@@ -100,6 +101,24 @@ type Option func(*config)
 func WithSystemPromptProvider(p SystemPromptProvider) Option {
 	return func(c *config) {
 		c.systemPromptProvider = p
+	}
+}
+
+// WithInputSchema overrides the JSON Schema this agent advertises for its input.
+//
+// It matters for a SUB-agent. agenttool derives the delegation tool's parameters
+// from Agent.InputSchema, and the default is a single freeform `message` string —
+// so a router has exactly one field to say everything in, and anything it forgets
+// to mention is simply gone. A structured schema turns the delegation contract into
+// named arguments the caller must fill, which is how OpenAI's Agents SDK typed
+// handoffs and LangGraph's typed state work.
+//
+// The schema is advertised, not enforced beyond JSON Schema validation: agenttool
+// hands the encoded arguments to the sub-agent as its user message, so the callee
+// sees the JSON.
+func WithInputSchema(schema map[string]any) Option {
+	return func(c *config) {
+		c.inputSchema = schema
 	}
 }
 
