@@ -146,11 +146,18 @@ func hasCacheMarker(cc anthropic.BetaCacheControlEphemeralParam) bool {
 	return cc.Type != ""
 }
 
-// lastMessageHasCacheMarker reports whether any text block in the message
-// carries a cache_control marker.
+// lastMessageHasCacheMarker reports whether any block in the message carries a
+// cache_control marker. It has to cover every block type the mapper can mark,
+// not just text: a helper that only looked at text blocks would report "no
+// marker" for a tool_result turn that is in fact correctly marked.
 func lastMessageHasCacheMarker(msg anthropic.BetaMessageParam) bool {
 	for _, block := range msg.Content {
-		if block.OfText != nil && hasCacheMarker(block.OfText.CacheControl) {
+		switch {
+		case block.OfText != nil && hasCacheMarker(block.OfText.CacheControl):
+			return true
+		case block.OfToolResult != nil && hasCacheMarker(block.OfToolResult.CacheControl):
+			return true
+		case block.OfToolUse != nil && hasCacheMarker(block.OfToolUse.CacheControl):
 			return true
 		}
 	}
