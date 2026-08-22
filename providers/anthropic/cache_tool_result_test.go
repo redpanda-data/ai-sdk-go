@@ -93,6 +93,8 @@ func TestCacheBreakpointOnParallelToolResults(t *testing.T) {
 
 	last := apiReq.Messages[len(apiReq.Messages)-1]
 	require.Len(t, last.Content, 2)
+	require.NotNil(t, last.Content[0].OfToolResult)
+	require.NotNil(t, last.Content[1].OfToolResult)
 
 	assert.False(t, hasCacheMarker(last.Content[0].OfToolResult.CacheControl),
 		"only the final block of the turn gets a breakpoint")
@@ -124,9 +126,46 @@ func TestCacheBreakpointSkipsThinkingBlock(t *testing.T) {
 	last := apiReq.Messages[len(apiReq.Messages)-1]
 	require.Len(t, last.Content, 2)
 	require.NotNil(t, last.Content[1].OfThinking, "trailing block must be the thinking block")
+	require.NotNil(t, last.Content[0].OfText)
 
 	assert.True(t, hasCacheMarker(last.Content[0].OfText.CacheControl),
 		"breakpoint must fall back to the text block preceding the thinking block")
+}
+
+// TestCacheBreakpointOnThinkingOnlyTurn pins the deliberate no-op: when the last
+// message holds nothing but thinking blocks there is no legal place for a
+// breakpoint, so the turn goes uncached rather than earning a 400. Falling back
+// to the previous message's tail would also be valid — a shorter cached prefix
+// still caches — but the shape is rare enough not to be worth the complexity.
+func TestCacheBreakpointOnThinkingOnlyTurn(t *testing.T) {
+	t.Parallel()
+
+	apiReq := mapCachedRequest(t, []llm.Message{
+		{
+			Role:    llm.RoleSystem,
+			Content: []llm.Part{llm.NewTextPart("You are a helpful assistant.")},
+		},
+		{
+			Role:    llm.RoleUser,
+			Content: []llm.Part{llm.NewTextPart("Think.")},
+		},
+		{
+			Role:    llm.RoleAssistant,
+			Content: []llm.Part{llm.NewReasoningPart("internal reasoning")},
+		},
+	})
+
+	last := apiReq.Messages[len(apiReq.Messages)-1]
+	require.Len(t, last.Content, 1)
+	require.NotNil(t, last.Content[0].OfThinking)
+
+	assert.False(t, lastMessageHasCacheMarker(last),
+		"a thinking-only turn must be left unmarked; Anthropic rejects cache_control on thinking blocks")
+
+	// The system-side breakpoint is independent and must survive.
+	require.NotEmpty(t, apiReq.System)
+	assert.True(t, hasCacheMarker(apiReq.System[len(apiReq.System)-1].CacheControl),
+		"skipping the message breakpoint must not disturb the system breakpoint")
 }
 
 // TestCacheBreakpointSerializesOnToolResult proves the marker survives to the

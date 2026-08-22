@@ -233,9 +233,15 @@ func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]anthropic.BetaMe
 // markLastCacheableBlock sets cache_control on the last block of msg that can
 // carry it, walking backwards.
 //
-// Anthropic accepts a breakpoint on text, tool_use and tool_result blocks and
-// rejects it on thinking blocks; those four are exactly what this mapper emits.
-// Anything else is skipped rather than marked, because a 400 on the whole
+// Anthropic accepts a breakpoint on text, image, document, tool_use and
+// tool_result blocks, and rejects it on thinking blocks. Only text, tool_use,
+// tool_result and thinking are reachable from this mapper today; image and
+// document are covered anyway, so that wiring either into mapUserMessage later
+// cannot silently drop the breakpoint. That failure would show up as a
+// cache_read that quietly stops growing — precisely the bug this function
+// exists to prevent, and one with no compile error to catch it.
+//
+// Anything still unrecognized is skipped rather than marked: a 400 on the whole
 // request is a worse outcome than one turn going uncached.
 func markLastCacheableBlock(msg *anthropic.BetaMessageParam) {
 	marker := anthropic.NewBetaCacheControlEphemeralParam()
@@ -250,6 +256,10 @@ func markLastCacheableBlock(msg *anthropic.BetaMessageParam) {
 			block.OfToolResult.CacheControl = marker
 		case block.OfToolUse != nil:
 			block.OfToolUse.CacheControl = marker
+		case block.OfImage != nil:
+			block.OfImage.CacheControl = marker
+		case block.OfDocument != nil:
+			block.OfDocument.CacheControl = marker
 		default:
 			continue
 		}
