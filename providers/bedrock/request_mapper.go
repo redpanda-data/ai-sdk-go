@@ -359,6 +359,23 @@ func (rm *RequestMapper) mapToolConfig(tools []llm.ToolDefinition, choice *llm.T
 		})
 	}
 
+	// Cache the tool definitions.
+	//
+	// Bedrock's toolConfig is a separate top-level field from system and messages,
+	// so a CachePointBlock in either of those does not cover it: without a marker
+	// here the whole tool schema is re-sent uncached on every single call. For a
+	// tool-heavy server that is the largest STABLE block in the request — measured
+	// against a ServiceNow MCP, six generated tools are ~6 KB of JSON Schema, and
+	// an agent making nine calls paid for all of it nine times.
+	//
+	// The marker goes last, after every tool, because a cache point covers the
+	// prefix up to itself and the tool set is fixed for the life of the agent.
+	if rm.config.EnableCaching && len(apiTools) > 0 {
+		apiTools = append(apiTools, &types.ToolMemberCachePoint{
+			Value: types.CachePointBlock{Type: types.CachePointTypeDefault},
+		})
+	}
+
 	config := &types.ToolConfiguration{
 		Tools: apiTools,
 	}
