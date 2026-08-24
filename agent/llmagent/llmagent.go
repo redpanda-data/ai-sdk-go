@@ -103,9 +103,15 @@ func (a *LLMAgent) Info() agent.Info {
 
 // InputSchema returns the expected input schema.
 //
-// For now, this returns a simple text message schema. Future versions
-// may support structured inputs.
+// Defaults to a single freeform text message. WithInputSchema replaces it, which
+// is what a sub-agent wants: the delegation tool's parameters come from here, so a
+// structured schema gives the caller named fields instead of one string to cram
+// everything into.
 func (a *LLMAgent) InputSchema() map[string]any {
+	if a.config.inputSchema != nil {
+		return a.config.inputSchema
+	}
+
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
