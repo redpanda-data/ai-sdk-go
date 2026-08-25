@@ -279,6 +279,10 @@ func (m *FakeModel) Generate(ctx context.Context, req *llm.Request) (*llm.Respon
 		return nil, fmt.Errorf("%w: %w", llm.ErrAPICall, err)
 	}
 
+	if err := m.checkConversation(req, CallGenerate); err != nil {
+		return nil, fmt.Errorf("%w: %w", llm.ErrAPICall, err)
+	}
+
 	var (
 		resp     *llm.Response
 		err      error
@@ -322,6 +326,10 @@ func (m *FakeModel) GenerateEvents(ctx context.Context, req *llm.Request) iter.S
 	// See Generate. The rejection surfaces as an ErrAPICall-wrapped iterator
 	// error, matching what real providers produce on the streaming path.
 	if err := m.checkContextWindow(req, CallGenerateEvents); err != nil {
+		return rejectStream(m, cc, err)
+	}
+
+	if err := m.checkConversation(req, CallGenerateEvents); err != nil {
 		return rejectStream(m, cc, err)
 	}
 
