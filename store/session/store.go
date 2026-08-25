@@ -121,8 +121,11 @@ type State struct {
 	// key; use the ConversationID function to resolve the effective value.
 	ConversationID string `json:"conversation_id,omitempty"`
 
-	// Messages contains the conversation history (excluding system prompts).
-	// The slice should be treated as append-only to maintain temporal ordering.
+	// Messages is the model's working context (excluding system prompts),
+	// owned and maintained by the runtime - not an audit transcript. The
+	// runtime may insert repair messages mid-history and, with compaction
+	// enabled, prune or drop older content in place. Applications that need
+	// a full transcript must persist the event stream themselves.
 	Messages []llm.Message `json:"messages"`
 
 	// Metadata contains arbitrary key-value pairs associated with the session.
