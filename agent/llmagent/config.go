@@ -38,6 +38,22 @@ import (
 // precedence over the static systemPrompt string.
 type SystemPromptProvider func(ctx context.Context, inv *agent.InvocationMetadata) (string, error)
 
+// CompactionConfig configures deterministic context compaction: when a
+// conversation nears the model's context window, already-read tool results
+// are pruned to compact markers first, then the oldest turns are dropped.
+// The zero value of each field selects the derived default. A struct rather
+// than functional options so fields can be added without breaking callers.
+type CompactionConfig struct {
+	// OutputReserve overrides the derived answer-room reservation.
+	// 0 = min(MaxOutputTokens, max(4096, window/10)).
+	OutputReserve int
+
+	// TriggerFraction of the usable window at which compaction runs.
+	// 0 = 0.8. Must exceed the reduction target (0.6) or compaction would
+	// fire again immediately after reducing.
+	TriggerFraction float64
+}
+
 // config holds the internal configuration for an LLMAgent.
 type config struct {
 	name                 string
@@ -52,6 +68,8 @@ type config struct {
 	interceptors         []agent.Interceptor
 	maxTurns             int
 	toolConcurrency      int
+	compaction           *CompactionConfig
+	toolResultLimit      int
 }
 
 // validate checks that the configuration is valid.
@@ -76,6 +94,10 @@ func (c *config) validate() error {
 		return fmt.Errorf("llmagent: toolConcurrency must be positive, got %d", c.toolConcurrency)
 	}
 
+	if err := c.validateCompaction(); err != nil {
+		return err
+	}
+
 	// Validate that all interceptors implement at least one interceptor interface
 	for i, interceptor := range c.interceptors {
 		if !agent.ImplementsAnyInterceptor(interceptor) {
@@ -86,8 +108,65 @@ func (c *config) validate() error {
 	return nil
 }
 
+// validateCompaction fails fast on a compaction or tool-result-limit
+// configuration that could never budget correctly at runtime.
+func (c *config) validateCompaction() error {
+	if c.toolResultLimit < 0 {
+		return fmt.Errorf("llmagent: tool result limit must be positive, got %d", c.toolResultLimit)
+	}
+
+	if c.compaction == nil {
+		return nil
+	}
+
+	window := c.model.Constraints().MaxInputTokens
+	if window <= 0 {
+		return errors.New("llmagent: compaction requires a model with a known context window (Constraints().MaxInputTokens)")
+	}
+
+	if f := c.compaction.TriggerFraction; f != 0 && (f <= targetFraction || f >= 1) {
+		return fmt.Errorf("llmagent: compaction trigger fraction must be in (%.1f, 1), got %v", targetFraction, f)
+	}
+
+	if r := c.compaction.OutputReserve; r < 0 || r >= window {
+		if r != 0 {
+			return fmt.Errorf("llmagent: compaction output reserve %d must be positive and below the model's %d-token window", r, window)
+		}
+	}
+
+	return nil
+}
+
 // Option configures an LLMAgent.
 type Option func(*config)
+
+// WithCompaction enables deterministic context compaction: before every model
+// call, a request whose estimated size crosses the trigger line is reduced by
+// pruning already-read tool results to markers and, if still over, dropping
+// the oldest messages. The unread frontier is never touched; a request that
+// cannot fit the usable window even after reduction fails with a typed error
+// wrapping llm.ErrContextOverflow.
+//
+// Off by default. The session's Messages are rewritten in place - an
+// application that needs a full transcript must persist the event stream
+// itself before enabling compaction.
+func WithCompaction(cfg CompactionConfig) Option {
+	return func(c *config) {
+		c.compaction = &cfg
+	}
+}
+
+// WithToolResultLimit caps every collected tool result at the given estimated
+// token size. An oversized result is replaced at collection time by a marker
+// object carrying the tool name, error status and a preview - never spliced
+// bytes. The limit is a replacement threshold, not an exact output size: the
+// marker itself is ~100 tokens, so limits below that yield the marker, not a
+// smaller result. Useful with or without compaction.
+func WithToolResultLimit(tokens int) Option {
+	return func(c *config) {
+		c.toolResultLimit = tokens
+	}
+}
 
 // WithSystemPromptProvider sets a dynamic system prompt provider.
 //

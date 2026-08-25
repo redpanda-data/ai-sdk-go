@@ -102,6 +102,9 @@ type budgetConfig struct {
 
 	// seed makes the size sequence reproducible.
 	seed uint64
+
+	// agentOpts extends the agent configuration (e.g. compaction).
+	agentOpts []llmagent.Option
 }
 
 // budgetResult is what the harness observed.
@@ -162,11 +165,13 @@ func runBudget(t *testing.T, cfg budgetConfig) budgetResult {
 			}, nil
 		})
 
-	ag, err := llmagent.New("budget-agent", "You are a research assistant.", model,
+	opts := append([]llmagent.Option{
 		llmagent.WithTools(registry),
 		// Generous, so the turn cap is never what stops a run.
 		llmagent.WithMaxTurns(50),
-	)
+	}, cfg.agentOpts...)
+
+	ag, err := llmagent.New("budget-agent", "You are a research assistant.", model, opts...)
 	require.NoError(t, err)
 
 	sess := &session.State{ID: "budget-session"}

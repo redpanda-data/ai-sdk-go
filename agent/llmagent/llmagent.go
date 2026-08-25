@@ -250,12 +250,46 @@ func (a *LLMAgent) executeSingleTurn(
 		return "", fmt.Errorf("llmagent: system prompt: %w", err)
 	}
 
+	var toolDefs []llm.ToolDefinition
+	if a.config.tools != nil {
+		toolDefs = a.config.tools.List()
+	}
+
+	// One compaction check before every model call: this position sees an
+	// oversized fresh user message and every burst of tool results. The
+	// fixed cost (system prompt + schemas) rides on every request, so it is
+	// part of the context budget the history must fit into. Interceptors may
+	// still grow the request after this check; the reactive overflow path
+	// below is the backstop, and its retry re-enters the interceptor chain
+	// (interceptors transform per Generate call, so nothing is lost).
+	fixedTokens := 0
+	scale := tokenScale(inv)
+
+	if a.config.compaction != nil {
+		fixedTokens = estimateMessageTokens(reqMessages[0]) + estimateToolTokens(toolDefs)
+
+		stats, fitErr := a.ensureFits(sess, fixedTokens, scale)
+		if stats.changed() {
+			reqMessages = append([]llm.Message{reqMessages[0]}, sess.Messages...)
+
+			if !yield(agent.StatusEvent{
+				Envelope: makeEnvelope(),
+				Stage:    agent.StatusStageCompaction,
+				Details:  compactionDetails(stats, scale),
+			}, nil) {
+				return agent.FinishReasonInterrupted, nil
+			}
+		}
+
+		if fitErr != nil {
+			return "", fitErr
+		}
+	}
+
 	// Prepare request
 	req := &llm.Request{
 		Messages: reqMessages,
-	}
-	if a.config.tools != nil {
-		req.Tools = a.config.tools.List()
+		Tools:    toolDefs,
 	}
 
 	// Apply model interceptors for this request
@@ -269,6 +303,31 @@ func (a *LLMAgent) executeSingleTurn(
 
 	// Generate response from LLM (with streaming support if available)
 	resp, err := a.generate(ctx, model, req, makeEnvelope, yield)
+	if err != nil && a.config.compaction != nil && errors.Is(err, llm.ErrContextOverflow) {
+		// Reactive path: the provider rejected the request pre-flight, so
+		// nothing was emitted. Force a strictly smaller request - hard
+		// floors, at least 25% below the failed size - and retry once.
+		stats, reduced := a.reduceAfterOverflow(sess, fixedTokens, scale)
+		if !reduced {
+			return "", cannotFitError(stats.afterTokens, a.deriveContextBudget(scale), scale)
+		}
+
+		if !yield(agent.StatusEvent{
+			Envelope: makeEnvelope(),
+			Stage:    agent.StatusStageCompaction,
+			Details:  compactionDetails(stats, scale) + " (after provider overflow)",
+		}, nil) {
+			return agent.FinishReasonInterrupted, nil
+		}
+
+		req.Messages = append([]llm.Message{reqMessages[0]}, sess.Messages...)
+
+		resp, err = a.generate(ctx, model, req, makeEnvelope, yield)
+		if err != nil && errors.Is(err, llm.ErrContextOverflow) {
+			return "", fmt.Errorf("llmagent: request still exceeds the context window after forced compaction: %w", err)
+		}
+	}
+
 	if err != nil {
 		// TERMINAL ERROR: System failure (auth, connection, protocol violation)
 		// Observable errors (rate limits, content filters) come through:
@@ -279,6 +338,15 @@ func (a *LLMAgent) executeSingleTurn(
 
 	// Update usage tracking
 	agent.AddUsage(inv, resp.Usage)
+
+	// Calibrate: the billed input tokens measure the estimator's error on
+	// this session's content; later budget checks this run use the observed
+	// ratio (calibration.go).
+	if a.config.compaction != nil && resp.Usage != nil {
+		estSent := fixedTokens + estimateHistoryTokens(req.Messages[1:])
+		observeUsage(inv, resp.Usage.BilledInputTokens(), estSent)
+		scale = tokenScale(inv)
+	}
 
 	// Add assistant message to session (single source of truth).
 	//
@@ -375,7 +443,13 @@ func (a *LLMAgent) executeSingleTurn(
 		return "", agent.ErrToolRegistry
 	}
 
-	toolParts := a.executeTools(ctx, inv, toolReqs, req.Tools, makeEnvelope, yield)
+	// The per-result cap for this turn is fixed before any tool runs, so a
+	// parallel burst cannot assemble an unfittable frontier and runs are
+	// reproducible regardless of completion order.
+	countedRequest := fixedTokens + estimateHistoryTokens(sess.Messages)
+	resultCap := a.effectiveResultCap(countedRequest, len(toolReqs), scale)
+
+	toolParts := a.executeTools(ctx, inv, toolReqs, req.Tools, resultCap, makeEnvelope, yield)
 
 	// Build single message with all tool response parts
 	toolMsg := llm.NewMessage(llm.RoleUser, toolParts...)
@@ -541,6 +615,7 @@ func (a *LLMAgent) executeTools(
 	inv *agent.InvocationMetadata,
 	toolReqs []*llm.ToolRequestPart,
 	toolDefs []llm.ToolDefinition,
+	resultCap int,
 	makeEnvelope func() agent.EventEnvelope,
 	yield func(agent.Event, error) bool,
 ) []llm.Part {
@@ -601,8 +676,10 @@ func (a *LLMAgent) executeTools(
 		})
 	}
 
-	// Collect tool response parts and yield events as they arrive
-	parts := make([]llm.Part, 0, len(toolReqs))
+	// Collect tool response parts as they arrive. Events are yielded in
+	// completion order, but each part is stored at its request index so the
+	// session content is deterministic regardless of scheduling (I9).
+	parts := make([]llm.Part, len(toolReqs))
 
 	for range toolReqs {
 		result := <-results
@@ -614,36 +691,54 @@ func (a *LLMAgent) executeTools(
 				errPayload = []byte(`{"error":"tool error"}`)
 			}
 
-			errResp := &llm.ToolResponsePart{
+			errResp := capToolResult(&llm.ToolResponsePart{
 				ID:      result.requestID,
 				Name:    result.name,
 				Result:  errPayload,
 				IsError: true,
-			}
-			parts = append(parts, errResp)
+			}, resultCap)
+			parts[result.idx] = errResp
 
 			// Yield error tool result event
 			if !yield(agent.ToolResponseEvent{
 				Envelope: makeEnvelope(),
 				Response: *errResp,
 			}, nil) {
-				return parts // Consumer stopped listening
+				return collectedParts(parts) // Consumer stopped listening
 			}
 		} else {
-			// Tool execution succeeded
-			parts = append(parts, result.response)
+			// Tool execution succeeded. The event carries the capped result -
+			// the same bytes the model will see - so session, events and
+			// prompt never diverge.
+			resp := capToolResult(result.response, resultCap)
+			parts[result.idx] = resp
 
 			// Yield tool result event
 			if !yield(agent.ToolResponseEvent{
 				Envelope: makeEnvelope(),
-				Response: *result.response,
+				Response: *resp,
 			}, nil) {
-				return parts // Consumer stopped listening
+				return collectedParts(parts) // Consumer stopped listening
 			}
 		}
 	}
 
 	return parts
+}
+
+// collectedParts drops the unfilled slots of an index-addressed part slice.
+// Only relevant when the consumer stopped mid-burst: a message must never
+// carry nil parts.
+func collectedParts(parts []llm.Part) []llm.Part {
+	out := parts[:0]
+
+	for _, p := range parts {
+		if p != nil {
+			out = append(out, p)
+		}
+	}
+
+	return out
 }
 
 // recoverIncompleteToolCalls detects and executes incomplete tool calls from a
@@ -698,7 +793,12 @@ func (a *LLMAgent) recoverIncompleteToolCalls(
 
 	// Execute the incomplete tools
 	toolDefs := a.config.tools.List()
-	toolParts := a.executeTools(ctx, inv, incomplete, toolDefs, makeEnvelope, yield)
+	// Recovered results land in the unread frontier, which compaction can
+	// never reduce - so the burst budget applies here exactly as in normal
+	// execution. The system prompt is not resolved yet, so counting history
+	// alone undercounts slightly; the count-high bias absorbs that.
+	resultCap := a.effectiveResultCap(estimateHistoryTokens(sess.Messages), len(incomplete), tokenScale(inv))
+	toolParts := a.executeTools(ctx, inv, incomplete, toolDefs, resultCap, makeEnvelope, yield)
 
 	// Insert tool response message BEFORE the last user message.
 	// Current: [..., assistant(tool_req), user(text)]
