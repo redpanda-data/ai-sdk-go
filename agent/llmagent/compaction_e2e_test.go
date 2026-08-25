@@ -399,7 +399,7 @@ func TestCompaction_BurstDivisionDeterministic(t *testing.T) {
 		_, runErr := runOnce(t, ag, sess)
 		require.NoError(t, runErr)
 
-		var calls []string
+		calls := make([]string, 0, len(model.Calls()))
 
 		for _, call := range model.Calls() {
 			require.LessOrEqual(t, call.InputTokens, window, "burst must never assemble an unfittable frontier")
