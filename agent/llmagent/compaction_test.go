@@ -258,6 +258,63 @@ func TestDrop_PlainTextFrontierFreesPrecedingAssistant(t *testing.T) {
 	require.NoError(t, fakellm.ValidateConversation(out))
 }
 
+// TestDrop_AssistantHeadGetsUserPreamble: when the cut lands on an assistant
+// message (here a small surviving answer), a synthetic user message is
+// prepended - providers reject a conversation that does not start with a
+// user message, and the resulting 400 is not an overflow, so it would wedge
+// the saved session permanently.
+func TestDrop_AssistantHeadGetsUserPreamble(t *testing.T) {
+	t.Parallel()
+
+	msgs := []llm.Message{
+		llm.NewMessage(llm.RoleUser, llm.NewTextPart(strings.Repeat("question ", 4_000))),
+		llm.NewMessage(llm.RoleAssistant, llm.NewTextPart("the answer")),
+		llm.NewMessage(llm.RoleUser, llm.NewTextPart("follow-up")),
+	}
+
+	out, stats := compactMessages(msgs, 0, 1_000, 0, 0)
+
+	require.Len(t, out, 3)
+	assert.Equal(t, 1, stats.droppedMessages)
+	assert.Equal(t, llm.RoleUser, out[0].Role)
+	assert.Equal(t, droppedTurnsPreamble, out[0].TextContent())
+	assert.Equal(t, llm.RoleAssistant, out[1].Role)
+	require.NoError(t, fakellm.ValidateConversation(out))
+
+	// The preamble counts toward the reported footprint.
+	assert.Equal(t, stats.afterTokens,
+		estimateHistoryTokens(out), "afterTokens must include the preamble")
+
+	// A second pass never stacks a second preamble.
+	again, statsAgain := compactMessages(out, 0, 1_000, 0, 0)
+	assert.False(t, statsAgain.changed())
+	assert.Equal(t, out, again)
+}
+
+// TestDrop_ToolTurnWindowStillYieldsUserHead: with tool turns pinning the
+// window, the only droppable prefix ends at an assistant issuer - the cut
+// must still produce a user-role head via the preamble instead of landing
+// illegally or refusing to move.
+func TestDrop_ToolTurnWindowStillYieldsUserHead(t *testing.T) {
+	t.Parallel()
+
+	msgs := []llm.Message{
+		llm.NewMessage(llm.RoleUser, llm.NewTextPart(strings.Repeat("research ", 4_000))),
+		llm.NewMessage(llm.RoleAssistant, llm.NewToolRequestPart("c1", "fetch_records", json.RawMessage(`{}`))),
+		llm.NewMessage(llm.RoleUser, llm.NewToolResponsePart("c1", "fetch_records", json.RawMessage(`{"n":1}`), false)),
+		llm.NewMessage(llm.RoleAssistant, llm.NewToolRequestPart("c2", "fetch_records", json.RawMessage(`{}`))),
+		llm.NewMessage(llm.RoleUser, llm.NewToolResponsePart("c2", "fetch_records", json.RawMessage(`{"n":1}`), false)),
+		llm.NewMessage(llm.RoleUser, llm.NewTextPart("now summarise")),
+	}
+
+	out, stats := compactMessages(msgs, 0, 1_000, 0, 0)
+
+	require.Positive(t, stats.droppedMessages)
+	assert.Equal(t, llm.RoleUser, out[0].Role)
+	assert.Equal(t, droppedTurnsPreamble, out[0].TextContent())
+	require.NoError(t, fakellm.ValidateConversation(out))
+}
+
 // TestCompact_DoesNotMutateInput: the caller's history (and any snapshot
 // aliasing its backing arrays, such as recorded fake calls) must be
 // byte-identical after compaction; the rewrite happens on clones only.
@@ -361,6 +418,10 @@ func TestCompact_Property(t *testing.T) {
 			require.NoError(t, fakellm.ValidateConversation(compacted), "rewrite must stay provider-valid")
 			assert.LessOrEqual(t, stats.afterTokens, stats.beforeTokens, "output never larger than input")
 			assert.Equal(t, frontierCopy, compacted[len(compacted)-len(frontierCopy):], "frontier untouched")
+			assert.Equal(t, llm.RoleUser, compacted[0].Role, "providers require a user-role first message")
+
+			hard, _ := compactMessages(compacted, 0, target, 0, 0)
+			assert.Equal(t, llm.RoleUser, hard[0].Role, "hard mode must also leave a user-role head")
 
 			for _, msg := range compacted {
 				require.NotEmpty(t, msg.Content, "no step may produce an empty message")
