@@ -18,7 +18,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"time"
 
+	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/store/session"
 )
@@ -408,9 +410,14 @@ func cannotFitError(counted int, b contextBudget) error {
 		counted, b.hardLimit, b.window, b.reserve, llm.ErrContextOverflow)
 }
 
-// compactionDetails renders the StatusEvent details line.
-func compactionDetails(stats compactionStats) string {
-	return fmt.Sprintf("pruned %d results, dropped %d messages, %dk -> %dk tokens",
-		stats.prunedResults, stats.droppedMessages,
-		stats.beforeTokens/1000, stats.afterTokens/1000)
+// compactionReport assembles the observability report for one pass.
+func compactionReport(phase agent.CompactionPhase, stats compactionStats, before, after agent.ContextUsage) agent.CompactionReport {
+	return agent.CompactionReport{
+		At:              time.Now().UTC(),
+		Phase:           phase,
+		PrunedResults:   stats.prunedResults,
+		DroppedMessages: stats.droppedMessages,
+		Before:          before,
+		After:           after,
+	}
 }

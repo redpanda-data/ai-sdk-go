@@ -93,10 +93,6 @@ const (
 	StatusStageRunInterrupted StatusStage = "run_canceled"
 	StatusStageTurnStarted    StatusStage = "turn_started"
 	StatusStageTurnCompleted  StatusStage = "turn_completed"
-
-	// StatusStageCompaction is emitted after the runtime rewrote the session
-	// to fit the model's context window; Details reports what was reduced.
-	StatusStageCompaction StatusStage = "compaction"
 )
 
 // MessageEvent carries an assistant message from the LLM.

@@ -113,12 +113,12 @@ func runOnce(t *testing.T, ag *llmagent.LLMAgent, sess *session.State) ([]agent.
 	return events, nil
 }
 
-func compactionEvents(events []agent.Event) []agent.StatusEvent {
-	var out []agent.StatusEvent
+func compactionEvents(events []agent.Event) []agent.CompactionEvent {
+	var out []agent.CompactionEvent
 
 	for _, ev := range events {
-		if st, ok := ev.(agent.StatusEvent); ok && st.Stage == agent.StatusStageCompaction {
-			out = append(out, st)
+		if ce, ok := ev.(agent.CompactionEvent); ok {
+			out = append(out, ce)
 		}
 	}
 
@@ -297,7 +297,7 @@ func TestCompaction_ReactiveRetry(t *testing.T) {
 
 	comps := compactionEvents(events)
 	require.NotEmpty(t, comps)
-	assert.Contains(t, comps[len(comps)-1].Details, "after provider overflow")
+	assert.Equal(t, agent.CompactionPhaseReactive, comps[len(comps)-1].Report.Phase)
 }
 
 // TestCompaction_OverflowFinishReasonIsTerminalButUnwedges: a mid-generation
@@ -460,6 +460,44 @@ func TestCompaction_BurstDivisionDeterministic(t *testing.T) {
 	assert.Equal(t, first, second, "request content must not depend on tool completion order")
 }
 
+// TestCompaction_ReportsContextBreakdown: every pass appends an
+// agent.CompactionReport with a per-category before/after footprint, drained
+// exactly once by whoever consumes it.
+func TestCompaction_ReportsContextBreakdown(t *testing.T) {
+	t.Parallel()
+
+	ag, _ := compactionAgent(t, 16_000, llmagent.WithCompaction(llmagent.CompactionConfig{}))
+
+	sess := &session.State{ID: "report"}
+	sess.Messages = append(sess.Messages, llm.NewMessage(llm.RoleUser, llm.NewTextPart("start")))
+
+	for i := range 6 {
+		oldTurn(sess, i, 3_000)
+	}
+
+	sess.Messages = append(sess.Messages, llm.NewMessage(llm.RoleUser, llm.NewTextPart("summarise")))
+
+	events, runErr := runOnce(t, ag, sess)
+	require.NoError(t, runErr)
+
+	compactions := compactionEvents(events)
+	require.Len(t, compactions, 1)
+
+	rep := compactions[0].Report
+	assert.Equal(t, agent.CompactionPhaseProactive, rep.Phase)
+	assert.Positive(t, rep.PrunedResults)
+	assert.Greater(t, rep.Before.Total, rep.After.Total)
+	assert.Greater(t, rep.Before.ToolResults, rep.After.ToolResults)
+	assert.Positive(t, rep.Before.SystemPrompt)
+	assert.Positive(t, rep.Before.Text)
+	assert.NotEmpty(t, rep.String())
+
+	for _, u := range []agent.ContextUsage{rep.Before, rep.After} {
+		sum := u.SystemPrompt + u.ToolDefinitions + u.Text + u.Reasoning + u.ToolCalls + u.ToolResults + u.Framing
+		assert.Equal(t, u.Total, sum, "categories must sum to the total")
+	}
+}
+
 // hugeTool returns a result far larger than any test window.
 type hugeTool struct{}
 
@@ -568,7 +606,6 @@ func TestCompaction_RecoveryBudgetIncludesFixedCosts(t *testing.T) {
 	require.NotEmpty(t, model.Calls())
 
 	var recovered *llm.ToolResponsePart
-
 	for _, message := range model.Calls()[0].Request.Messages {
 		for _, part := range message.Content {
 			if response, ok := part.(*llm.ToolResponsePart); ok {

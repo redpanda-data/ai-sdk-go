@@ -56,6 +56,11 @@ const (
 	AttrGenAIToolCallResult                = "gen_ai.tool.call.result"
 	AttrGenAIToolType                      = "gen_ai.tool.type"
 	AttrGenAIToolDescription               = "gen_ai.tool.description"
+
+	// AttrGenAIConversationCompacted marks an inference span whose context
+	// is a compacted view of the conversation. Development stability: set
+	// true or leave unset, never false.
+	AttrGenAIConversationCompacted = "gen_ai.conversation.compacted"
 )
 
 // Operation name constants.

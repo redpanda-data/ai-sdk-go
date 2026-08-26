@@ -139,6 +139,7 @@ func (t *TracingInterceptor) InterceptToolExecution(
 		} else {
 			setToolError(span, "tool returned an error")
 		}
+
 		span.SetAttributes(toolResultAvailable(false))
 	default:
 		// Case 3: Success

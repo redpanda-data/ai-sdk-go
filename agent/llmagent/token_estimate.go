@@ -17,6 +17,7 @@ package llmagent
 import (
 	"encoding/json"
 
+	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -102,6 +103,44 @@ func estimateHistoryTokens(msgs []llm.Message) int {
 	}
 
 	return total
+}
+
+// measureContext breaks the estimated request footprint down by category for
+// observability. Unknown part kinds count as text until they earn a category.
+func measureContext(systemTokens, toolDefTokens int, msgs []llm.Message) agent.ContextUsage {
+	var text, reasoning, toolCalls, toolResults, framing int
+
+	for _, msg := range msgs {
+		framing += perMessageOverheadTokens
+
+		for _, part := range msg.Content {
+			size := estimatePartTokens(part)
+
+			switch part.(type) {
+			case *llm.ReasoningPart:
+				reasoning += size
+			case *llm.ToolRequestPart:
+				toolCalls += size
+			case *llm.ToolResponsePart:
+				toolResults += size
+			default:
+				text += size
+			}
+		}
+	}
+
+	u := agent.ContextUsage{
+		SystemPrompt:    systemTokens,
+		ToolDefinitions: toolDefTokens,
+		Text:            text,
+		Reasoning:       reasoning,
+		ToolCalls:       toolCalls,
+		ToolResults:     toolResults,
+		Framing:         framing,
+	}
+	u.Total = u.SystemPrompt + u.ToolDefinitions + u.Text + u.Reasoning + u.ToolCalls + u.ToolResults + u.Framing
+
+	return u
 }
 
 // estimateToolTokens estimates tokens for the tool schemas sent with every request.

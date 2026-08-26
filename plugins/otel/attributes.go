@@ -48,6 +48,11 @@ const errorTypeToolError = "tool_error"
 // This is an internal constant - users should never access this directly.
 const metadataKeyInvocationSpan = "otel.invocation.span"
 
+// Metadata key recording that the conversation's context was compacted.
+// Stored in session metadata so the flag survives across invocations.
+// This is an internal constant - users should never access this directly.
+const metadataKeyConversationCompacted = "otel.conversation.compacted"
+
 // SpanType identifies the category of the operation being traced.
 type SpanType string
 
@@ -160,6 +165,44 @@ func genAISystemInstructions(instructions string) attribute.KeyValue {
 
 func genAIConversationID(id string) attribute.KeyValue {
 	return attribute.String(genai.AttrGenAIConversationID, id)
+}
+
+func genAIConversationCompacted() attribute.KeyValue {
+	return attribute.Bool(genai.AttrGenAIConversationCompacted, true)
+}
+
+// markConversationCompacted records the compaction in invocation metadata
+// and, for later invocations over the same history, session metadata.
+func markConversationCompacted(inv *agent.InvocationMetadata) {
+	inv.SetMetadata(metadataKeyConversationCompacted, true)
+
+	if sess := inv.Session(); sess != nil {
+		if sess.Metadata == nil {
+			sess.Metadata = make(map[string]any)
+		}
+
+		sess.Metadata[metadataKeyConversationCompacted] = true
+	}
+}
+
+// conversationCompacted reports whether this or a prior invocation over the
+// same session recorded a compaction.
+func conversationCompacted(inv *agent.InvocationMetadata) bool {
+	if inv == nil {
+		return false
+	}
+
+	if v, ok := inv.GetMetadata(metadataKeyConversationCompacted).(bool); ok && v {
+		return true
+	}
+
+	if sess := inv.Session(); sess != nil {
+		if v, ok := sess.Metadata[metadataKeyConversationCompacted].(bool); ok && v {
+			return true
+		}
+	}
+
+	return false
 }
 
 func genAIRequestModel(model string) attribute.KeyValue {
