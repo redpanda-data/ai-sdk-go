@@ -85,6 +85,7 @@ var (
 	_ agent.TurnInterceptor  = (*TracingInterceptor)(nil)
 	_ agent.ModelInterceptor = (*TracingInterceptor)(nil)
 	_ agent.ToolInterceptor  = (*TracingInterceptor)(nil)
+	_ agent.EventObserver    = (*TracingInterceptor)(nil)
 )
 
 // New creates a TracingInterceptor with the given options.

@@ -136,6 +136,12 @@ func (a *LLMAgent) InputSchema() map[string]any {
 // The stream always ends with InvocationEndEvent, even on error or cancellation.
 func (a *LLMAgent) Run(ctx context.Context, inv *agent.InvocationMetadata) iter.Seq2[agent.Event, error] {
 	return func(yield func(agent.Event, error) bool) {
+		// Observers see every non-nil event before the consumer. Turn events
+		// are re-wrapped below with the turn context; lifecycle events use
+		// the run context.
+		consumerYield := yield
+		yield = agent.ApplyEventObservers(ctx, inv, a.config.interceptors, consumerYield)
+
 		// Helper: create event envelope
 		makeEnvelope := func() agent.EventEnvelope {
 			return agent.EventEnvelope{
@@ -180,7 +186,10 @@ func (a *LLMAgent) Run(ctx context.Context, inv *agent.InvocationMetadata) iter.
 			// Create turn execution function that can be wrapped by interceptors
 			// This encapsulates the entire turn execution logic
 			executeTurn := func(ctx context.Context, info *agent.TurnInfo) (agent.FinishReason, error) {
-				return a.executeSingleTurn(ctx, info.Inv, makeEnvelope, yield)
+				// Turn events carry the interceptor-derived turn context.
+				turnYield := agent.ApplyEventObservers(ctx, info.Inv, a.config.interceptors, consumerYield)
+
+				return a.executeSingleTurn(ctx, info.Inv, makeEnvelope, turnYield)
 			}
 
 			// Apply turn interceptors
@@ -264,18 +273,26 @@ func (a *LLMAgent) executeSingleTurn(
 	// below is the backstop, and its retry rebuilds the request and interceptor
 	// chain so request-time transformations are applied again.
 	fixedTokens := 0
+	sysTokens := 0
+	toolDefTokens := 0
 
 	if a.config.compaction != nil {
-		fixedTokens = estimateMessageTokens(reqMessages[0]) + estimateToolTokens(toolDefs)
+		sysTokens = estimateMessageTokens(reqMessages[0])
+		toolDefTokens = estimateToolTokens(toolDefs)
+		fixedTokens = sysTokens + toolDefTokens
+
+		before := measureContext(sysTokens, toolDefTokens, sess.Messages)
 
 		stats, fitErr := a.ensureFits(sess, fixedTokens)
 		if stats.changed() {
 			reqMessages = append([]llm.Message{reqMessages[0]}, sess.Messages...)
 
-			if !yield(agent.StatusEvent{
+			report := compactionReport(agent.CompactionPhaseProactive, stats,
+				before, measureContext(sysTokens, toolDefTokens, sess.Messages))
+
+			if !yield(agent.CompactionEvent{
 				Envelope: makeEnvelope(),
-				Stage:    agent.StatusStageCompaction,
-				Details:  compactionDetails(stats),
+				Report:   report,
 			}, nil) {
 				return agent.FinishReasonInterrupted, nil
 			}
@@ -291,21 +308,24 @@ func (a *LLMAgent) executeSingleTurn(
 		// Reactive path: the provider rejected the request pre-flight, so
 		// nothing was emitted. Force a strictly smaller request - hard
 		// floors, at least 25% below the failed size - and retry once.
+		before := measureContext(sysTokens, toolDefTokens, sess.Messages)
+
 		stats, reduced := a.reduceAfterOverflow(sess, fixedTokens)
 		if !reduced {
 			return "", cannotFitError(stats.afterTokens, a.deriveContextBudget())
 		}
 
-		if !yield(agent.StatusEvent{
+		report := compactionReport(agent.CompactionPhaseReactive, stats,
+			before, measureContext(sysTokens, toolDefTokens, sess.Messages))
+
+		if !yield(agent.CompactionEvent{
 			Envelope: makeEnvelope(),
-			Stage:    agent.StatusStageCompaction,
-			Details:  compactionDetails(stats) + " (after provider overflow)",
+			Report:   report,
 		}, nil) {
 			return agent.FinishReasonInterrupted, nil
 		}
 
 		retryMessages := append([]llm.Message{reqMessages[0]}, sess.Messages...)
-
 		resp, sentReq, err = a.generateAttempt(ctx, inv, retryMessages, toolDefs, makeEnvelope, yield)
 		if err != nil && errors.Is(err, llm.ErrContextOverflow) {
 			return "", fmt.Errorf("llmagent: request still exceeds the context window after forced compaction: %w", err)
@@ -492,7 +512,6 @@ func cloneToolDefinitions(defs []llm.ToolDefinition) []llm.ToolDefinition {
 	cloned := make([]llm.ToolDefinition, len(defs))
 	for i, def := range defs {
 		cloned[i] = def
-
 		cloned[i].Parameters = append(json.RawMessage(nil), def.Parameters...)
 		if def.Metadata != nil {
 			cloned[i].Metadata = make(map[string]any, len(def.Metadata))
@@ -828,7 +847,6 @@ func (a *LLMAgent) recoverIncompleteToolCalls(
 	// Execute the incomplete tools.
 	toolDefs := a.config.tools.List()
 	fixedTokens := 0
-
 	if a.config.compaction != nil {
 		reqMessages, err := a.resolveSystemPrompt(ctx, inv, sess.Messages)
 		if err != nil {

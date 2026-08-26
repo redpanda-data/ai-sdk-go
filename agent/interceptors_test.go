@@ -987,3 +987,111 @@ func (m *testModel) GenerateEvents(ctx context.Context, req *llm.Request) iter.S
 		}, nil)
 	}
 }
+
+// eventRecorder is an EventObserver that appends to a shared order recorder.
+type eventRecorder struct {
+	name     string
+	recorder *orderRecorder
+	lastCtx  context.Context //nolint:containedctx // Captured for assertion only
+}
+
+func (e *eventRecorder) ObserveEvent(ctx context.Context, _ *agent.InvocationMetadata, event agent.Event) {
+	e.lastCtx = ctx
+	e.recorder.record(e.name + ":" + eventKind(event))
+}
+
+func eventKind(event agent.Event) string {
+	switch event.(type) {
+	case agent.StatusEvent:
+		return "status"
+	case agent.ErrorEvent:
+		return "error"
+	case agent.CompactionEvent:
+		return "compaction"
+	default:
+		return "other"
+	}
+}
+
+func TestApplyEventObservers_OrderAndErrorContract(t *testing.T) {
+	t.Parallel()
+
+	recorder := &orderRecorder{}
+	obs1 := &eventRecorder{name: "obs1", recorder: recorder}
+	obs2 := &eventRecorder{name: "obs2", recorder: recorder}
+
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess"}, agent.Info{Name: "a"})
+
+	var consumed []agent.Event
+
+	var consumedErrs []error
+
+	yield := agent.ApplyEventObservers(t.Context(), inv, []agent.Interceptor{obs1, obs2},
+		func(ev agent.Event, err error) bool {
+			if ev != nil {
+				recorder.record("consumer:" + eventKind(ev))
+			}
+
+			consumed = append(consumed, ev)
+			consumedErrs = append(consumedErrs, err)
+
+			return true
+		})
+
+	// Non-nil events reach observers in order, before the consumer.
+	require.True(t, yield(agent.StatusEvent{Stage: agent.StatusStageTurnStarted}, nil))
+	require.True(t, yield(agent.ErrorEvent{}, nil))
+
+	// Terminal errors pass through unobserved.
+	require.True(t, yield(nil, errors.New("terminal")))
+
+	assert.Equal(t, []string{
+		"obs1:status", "obs2:status", "consumer:status",
+		"obs1:error", "obs2:error", "consumer:error",
+	}, recorder.get())
+
+	require.Len(t, consumed, 3)
+	assert.Nil(t, consumed[2])
+	require.Error(t, consumedErrs[2])
+}
+
+func TestApplyEventObservers_WrapTimeContext(t *testing.T) {
+	t.Parallel()
+
+	type ctxKey struct{}
+
+	recorder := &orderRecorder{}
+	obs := &eventRecorder{name: "obs", recorder: recorder}
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess"}, agent.Info{Name: "a"})
+
+	ctx := context.WithValue(t.Context(), ctxKey{}, "sentinel")
+
+	yield := agent.ApplyEventObservers(ctx, inv, []agent.Interceptor{obs},
+		func(agent.Event, error) bool { return true })
+
+	yield(agent.StatusEvent{}, nil)
+
+	require.NotNil(t, obs.lastCtx)
+	assert.Equal(t, "sentinel", obs.lastCtx.Value(ctxKey{}))
+}
+
+func TestApplyEventObservers_NoObservers(t *testing.T) {
+	t.Parallel()
+
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess"}, agent.Info{Name: "a"})
+
+	// A non-observer interceptor must not break pass-through behavior.
+	nonObserver := &testModelInterceptor{name: "model-only"}
+
+	var consumed int
+
+	yield := agent.ApplyEventObservers(t.Context(), inv, []agent.Interceptor{nonObserver},
+		func(agent.Event, error) bool {
+			consumed++
+
+			return false
+		})
+
+	assert.False(t, yield(agent.StatusEvent{}, nil), "consumer's return value must pass through")
+	assert.Equal(t, 1, consumed)
+}

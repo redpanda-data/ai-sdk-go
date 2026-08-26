@@ -140,6 +140,11 @@ func (h *tracingModelHandler) startSpan(ctx context.Context, req *llm.Request) (
 		genAIConversationID(h.convID),
 	}
 
+	// Set at span start so sampling can see it; true or unset, never false.
+	if conversationCompacted(h.inv) {
+		attrs = append(attrs, genAIConversationCompacted())
+	}
+
 	// Call attribute injector if configured (before span creation for sampling)
 	if h.cfg.attributeInjector != nil {
 		spanCtx := SpanContext{
