@@ -312,14 +312,12 @@ func frontierNeedsIssuer(msgs []llm.Message, frontier int) bool {
 	return slices.ContainsFunc(msgs[frontier:], hasToolResponse)
 }
 
-// deriveContextBudget derives the context budget in estimate units. scale is
-// the invocation's observed billed/estimated ratio (calibration.go); 1 means
-// uncalibrated. Only called with compaction enabled; construction validated
-// the window is known.
-func (a *LLMAgent) deriveContextBudget(scale float64) contextBudget {
+// deriveContextBudget derives the context budget. It is only called with
+// compaction enabled; construction validated that the window is known.
+func (a *LLMAgent) deriveContextBudget() contextBudget {
 	c := a.config.model.Constraints()
 
-	return newContextBudget(c.MaxInputTokens, c.MaxOutputTokens, *a.config.compaction).scaled(scale)
+	return newContextBudget(c.MaxInputTokens, c.MaxOutputTokens, *a.config.compaction)
 }
 
 // ensureFits is the top-of-turn check: when the counted request crosses the
@@ -328,8 +326,8 @@ func (a *LLMAgent) deriveContextBudget(scale float64) contextBudget {
 // target but fits under hardLimit is sent, not rejected; the typed error is
 // returned only when the request exceeds hardLimit after every safe
 // reduction. fixedTokens is the system prompt plus tool schemas.
-func (a *LLMAgent) ensureFits(sess *session.State, fixedTokens int, scale float64) (compactionStats, error) {
-	b := a.deriveContextBudget(scale)
+func (a *LLMAgent) ensureFits(sess *session.State, fixedTokens int) (compactionStats, error) {
+	b := a.deriveContextBudget()
 
 	stats := compactionStats{beforeTokens: fixedTokens + estimateHistoryTokens(sess.Messages)}
 	stats.afterTokens = stats.beforeTokens
@@ -352,7 +350,7 @@ func (a *LLMAgent) ensureFits(sess *session.State, fixedTokens int, scale float6
 	sess.Messages = msgs
 
 	if stats.afterTokens > b.hardLimit {
-		return stats, cannotFitError(stats.afterTokens, b, scale)
+		return stats, cannotFitError(stats.afterTokens, b)
 	}
 
 	return stats, nil
@@ -363,8 +361,8 @@ func (a *LLMAgent) ensureFits(sess *session.State, fixedTokens int, scale float6
 // at least 25% below the counted size at failure, hard floors, frontier
 // still inviolable. Reports whether the history strictly shrank; a retry
 // with an unreduced request is never acceptable.
-func (a *LLMAgent) reduceAfterOverflow(sess *session.State, fixedTokens int, scale float64) (compactionStats, bool) {
-	b := a.deriveContextBudget(scale)
+func (a *LLMAgent) reduceAfterOverflow(sess *session.State, fixedTokens int) (compactionStats, bool) {
+	b := a.deriveContextBudget()
 	countedAtFailure := fixedTokens + estimateHistoryTokens(sess.Messages)
 	hardTarget := min(b.target, countedAtFailure*3/4)
 
@@ -374,33 +372,18 @@ func (a *LLMAgent) reduceAfterOverflow(sess *session.State, fixedTokens int, sca
 	return stats, stats.afterTokens < countedAtFailure
 }
 
-// realTokens converts internal estimate units back into provider tokens for
-// anything a human or application reads. Internally every count and budget
-// line lives in heuristic-estimate units (calibration deflates the budget
-// rather than inflating each estimate); at the display boundary the same
-// scale converts back, so reported numbers line up with what providers bill.
-func realTokens(estimated int, scale float64) int {
-	if scale <= 1 {
-		return estimated
-	}
-
-	return int(float64(estimated) * scale)
-}
-
 // cannotFitError is the typed failure for a request whose irreducible parts
-// exceed the usable window: actionable numbers in provider tokens, wrapping
-// ErrContextOverflow. b carries scaled (estimate-unit) lines; window and
-// reserve are raw.
-func cannotFitError(counted int, b contextBudget, scale float64) error {
+// exceed the usable window, wrapping ErrContextOverflow.
+func cannotFitError(counted int, b contextBudget) error {
 	return fmt.Errorf("llmagent: cannot fit request: minimum %d tokens exceeds usable window %d "+
 		"(window %d, output reserve %d) - reduce attached content, lower WithToolResultLimit, "+
 		"or use a model with a larger context window: %w",
-		realTokens(counted, scale), realTokens(b.hardLimit, scale), b.window, b.reserve, llm.ErrContextOverflow)
+		counted, b.hardLimit, b.window, b.reserve, llm.ErrContextOverflow)
 }
 
-// compactionDetails renders the StatusEvent details line, in provider tokens.
-func compactionDetails(stats compactionStats, scale float64) string {
+// compactionDetails renders the StatusEvent details line.
+func compactionDetails(stats compactionStats) string {
 	return fmt.Sprintf("pruned %d results, dropped %d messages, %dk -> %dk tokens",
 		stats.prunedResults, stats.droppedMessages,
-		realTokens(stats.beforeTokens, scale)/1000, realTokens(stats.afterTokens, scale)/1000)
+		stats.beforeTokens/1000, stats.afterTokens/1000)
 }

@@ -25,9 +25,10 @@ import (
 )
 
 // SystemPromptProvider is a function that returns the system prompt for a
-// given request. It is called once per LLM call (i.e., every turn in the
-// agentic loop), receiving both the request context and the invocation
-// metadata so callers can draw from either source:
+// given request. It is called when preparing each LLM call, and may also be
+// called while recovering interrupted tool calls so their results can be
+// budgeted against the same prompt. It receives both the request context and
+// the invocation metadata so callers can draw from either source:
 //
 //   - ctx carries request-scoped values (e.g., authenticated identity
 //     injected by HTTP middleware via [context.WithValue]).
@@ -156,12 +157,11 @@ func WithCompaction(cfg CompactionConfig) Option {
 	}
 }
 
-// WithToolResultLimit caps every collected tool result at the given estimated
-// token size. An oversized result is replaced at collection time by a marker
-// object carrying the tool name, error status and a preview - never spliced
-// bytes. The limit is a replacement threshold, not an exact output size: the
-// marker itself is ~100 tokens, so limits below that yield the marker, not a
-// smaller result. Useful with or without compaction.
+// WithToolResultLimit sets the estimated-token threshold for collected tool
+// results. An oversized result is replaced at collection time by a marker
+// carrying the tool name, error status and a preview - never spliced bytes.
+// When the descriptive marker does not fit, a minimal valid-JSON marker is
+// used. Useful with or without compaction.
 func WithToolResultLimit(tokens int) Option {
 	return func(c *config) {
 		c.toolResultLimit = tokens
@@ -170,9 +170,10 @@ func WithToolResultLimit(tokens int) Option {
 
 // WithSystemPromptProvider sets a dynamic system prompt provider.
 //
-// When set, the provider is called every turn to produce the system prompt,
-// and the static systemPrompt argument to [New] is ignored. Pass an empty
-// string for systemPrompt when using a provider.
+// When set, the provider is called for every turn that reaches the model, and
+// may also be called during interrupted-tool recovery for context budgeting.
+// The static systemPrompt argument to [New] is ignored. Pass an empty string
+// for systemPrompt when using a provider.
 //
 // The provider receives both context.Context (for request-scoped values like
 // authenticated identity) and [agent.InvocationMetadata] (for session state,

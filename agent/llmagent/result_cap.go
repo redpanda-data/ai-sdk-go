@@ -23,36 +23,30 @@ import (
 // frontier, so the only defense against a parallel burst of oversized results
 // is to cap each one as it is collected.
 
-// markerFloorTokens guarantees a capped result always has room for at least
-// its marker object.
-const markerFloorTokens = 128
+// minimumResultCapTokens keeps a depleted dynamic budget distinct from the
+// public zero value, which means uncapped.
+const minimumResultCapTokens = 1
 
 // effectiveResultCap divides the remaining budget across a turn's tool calls
 // before any tool runs, so a parallel burst cannot assemble an unfittable
 // frontier. The same cap applies to every result independently of completion
 // order. Without compaction the configured limit applies as-is; zero means
-// uncapped. scale is the invocation's observed billed/estimated ratio.
-//
-// The marker floor wins over the remaining budget: when headroom is already
-// gone, a burst may still exceed it by up to numCalls x markerFloorTokens.
-// That is deliberate - a result smaller than its marker breaks pairing - and
-// bounded small enough that the next turn's ensureFits reclaims it from
-// older history.
-func (a *LLMAgent) effectiveResultCap(countedRequest, numCalls int, scale float64) int {
+// uncapped.
+func (a *LLMAgent) effectiveResultCap(countedRequest, numCalls int) int {
 	capTokens := a.config.toolResultLimit
 
 	if a.config.compaction == nil || numCalls == 0 {
 		return capTokens
 	}
 
-	headroom := a.deriveContextBudget(scale).hardLimit - countedRequest - perMessageOverheadTokens
+	headroom := a.deriveContextBudget().hardLimit - countedRequest - perMessageOverheadTokens
 
 	perCall := headroom / numCalls
 	if capTokens == 0 || perCall < capTokens {
 		capTokens = perCall
 	}
 
-	return max(capTokens, markerFloorTokens)
+	return max(capTokens, minimumResultCapTokens)
 }
 
 // capToolResult replaces a result over the cap with a truncation marker.
@@ -62,10 +56,20 @@ func capToolResult(part *llm.ToolResponsePart, capTokens int) *llm.ToolResponseP
 		return part
 	}
 
-	return &llm.ToolResponsePart{
+	replacement := &llm.ToolResponsePart{
 		ID:      part.ID,
 		Name:    part.Name,
 		Result:  marshalMarker(part, markerTruncated),
 		IsError: part.IsError,
 	}
+	if estimatePartTokens(replacement) <= capTokens {
+		return replacement
+	}
+
+	// The descriptive marker may itself be too large for depleted headroom.
+	// Keep valid JSON and the tool pairing while using the smallest useful
+	// signal. ID, name and IsError remain on the part outside this payload.
+	replacement.Result = []byte(`{"truncated":true}`)
+
+	return replacement
 }

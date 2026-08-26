@@ -47,24 +47,6 @@ type contextBudget struct {
 	hardLimit int
 }
 
-// scaled converts the budget's decision lines into heuristic-estimate units:
-// when reported usage shows real tokens = scale x estimated (calibration.go),
-// an estimate crossing trigger/scale means the real request crossed trigger.
-// window and reserve stay in real tokens - they describe the model, not the
-// estimator.
-func (b contextBudget) scaled(scale float64) contextBudget {
-	if scale <= 1 {
-		return b
-	}
-
-	b.usable = int(float64(b.usable) / scale)
-	b.trigger = int(float64(b.trigger) / scale)
-	b.target = int(float64(b.target) / scale)
-	b.hardLimit = int(float64(b.hardLimit) / scale)
-
-	return b
-}
-
 // newContextBudget derives the context budget from the model's constraints and the resolved
 // compaction config. window must be > 0 (validated at construction).
 func newContextBudget(window, maxOutput int, cfg CompactionConfig) contextBudget {

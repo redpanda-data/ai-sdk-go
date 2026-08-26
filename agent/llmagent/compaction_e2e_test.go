@@ -125,6 +125,37 @@ func compactionEvents(events []agent.Event) []agent.StatusEvent {
 	return out
 }
 
+// applyTimeMarkerInterceptor copies and enriches the request while the model
+// interceptor chain is built. A reactive retry must build the chain again or
+// this transformation disappears when its Messages slice is replaced.
+type applyTimeMarkerInterceptor struct {
+	mu           sync.Mutex
+	applications int
+}
+
+func (i *applyTimeMarkerInterceptor) InterceptModel(
+	_ context.Context,
+	info *agent.ModelCallInfo,
+	next agent.ModelCallHandler,
+) agent.ModelCallHandler {
+	i.mu.Lock()
+	i.applications++
+	i.mu.Unlock()
+
+	info.Req.Messages = append([]llm.Message(nil), info.Req.Messages...)
+	info.Req.Messages[0] = llm.CloneMessage(info.Req.Messages[0])
+	info.Req.Messages[0].Content = append(info.Req.Messages[0].Content, llm.NewTextPart("interceptor marker"))
+
+	return next
+}
+
+func (i *applyTimeMarkerInterceptor) applicationCount() int {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	return i.applications
+}
+
 // oldTurn appends one completed tool turn with a result of ~tokens (in the
 // fake's 4-chars/token terms) to the session.
 func oldTurn(sess *session.State, i, tokens int) {
@@ -230,9 +261,11 @@ func TestCompaction_ReactiveRetry(t *testing.T) {
 	model.When(fakellm.Any()).Named("overflow-once").Times(1).ThenError(overflow)
 	model.When(fakellm.Any()).ThenRespondText("recovered")
 
+	interceptor := &applyTimeMarkerInterceptor{}
 	ag, err := llmagent.New("reactive-agent", "You are a test assistant.", model,
 		llmagent.WithMaxTurns(5),
 		llmagent.WithCompaction(llmagent.CompactionConfig{}),
+		llmagent.WithInterceptors(interceptor),
 	)
 	require.NoError(t, err)
 
@@ -251,6 +284,14 @@ func TestCompaction_ReactiveRetry(t *testing.T) {
 
 	calls := model.Calls()
 	require.Len(t, calls, 2, "exactly one retry")
+	assert.Equal(t, 2, interceptor.applicationCount(), "each attempt rebuilds the interceptor chain")
+
+	for _, call := range calls {
+		require.NotEmpty(t, call.Request.Messages)
+		assert.Contains(t, call.Request.Messages[0].TextContent(), "interceptor marker",
+			"each attempt retains request-time interceptor enrichment")
+	}
+
 	assert.Less(t, calls[1].InputTokens, calls[0].InputTokens,
 		"the retried request must be strictly smaller - even though the estimate already claimed it fit")
 
@@ -419,136 +460,6 @@ func TestCompaction_BurstDivisionDeterministic(t *testing.T) {
 	assert.Equal(t, first, second, "request content must not depend on tool completion order")
 }
 
-// denseTokenizer counts 2 chars per token - content twice as token-dense as
-// the estimator's 3-chars/token bias assumes, like URL- and markup-heavy
-// webfetch output.
-type denseTokenizer struct{}
-
-func (denseTokenizer) Count(text string) int { return (len(text) + 1) / 2 }
-
-// TestCompaction_CalibratesFromReportedUsage: on token-dense content the
-// heuristic undercounts, so the uncalibrated trigger never fires. The billed
-// usage on the first response measures the real ratio and recalibrates the
-// budget, so compaction fires within the run instead of deferring to the
-// reactive overflow path.
-func TestCompaction_CalibratesFromReportedUsage(t *testing.T) {
-	t.Parallel()
-
-	const window = 40_000
-
-	model := fakellm.NewFakeModel(
-		fakellm.WithContextWindow(window),
-		fakellm.WithTokenizer(denseTokenizer{}),
-	)
-	model.When(fakellm.Any()).
-		ThenRespondWith(func(req *llm.Request, _ *fakellm.CallContext) (*llm.Response, error) {
-			usage := &llm.TokenUsage{InputTokens: model.CountRequestTokens(req)}
-
-			if lastMessageHasToolResults(req.Messages) {
-				return &llm.Response{
-					Message:      llm.NewMessage(llm.RoleAssistant, llm.NewTextPart("done")),
-					FinishReason: llm.FinishReasonStop,
-					Usage:        usage,
-				}, nil
-			}
-
-			return &llm.Response{
-				Message: llm.NewMessage(llm.RoleAssistant,
-					llm.NewToolRequestPart("call_dense", "fetch_huge", json.RawMessage(`{}`))),
-				FinishReason: llm.FinishReasonToolCalls,
-				Usage:        usage,
-			}, nil
-		})
-
-	registry := tool.NewRegistry(tool.RegistryConfig{})
-	require.NoError(t, registry.Register(&hugeTool{}))
-
-	ag, err := llmagent.New("dense-agent", "You are a test assistant.", model,
-		llmagent.WithTools(registry),
-		llmagent.WithMaxTurns(5),
-		llmagent.WithCompaction(llmagent.CompactionConfig{}),
-	)
-	require.NoError(t, err)
-
-	// Eight dense turns: the heuristic counts ~22k (under the ~28.7k
-	// trigger), the dense tokenizer counts ~33k (over it, still under the
-	// window). Uncalibrated, compaction never fires here.
-	sess := &session.State{ID: "dense"}
-	sess.Messages = append(sess.Messages, llm.NewMessage(llm.RoleUser, llm.NewTextPart("start")))
-
-	for i := range 8 {
-		oldTurn(sess, i, 2_000)
-	}
-
-	sess.Messages = append(sess.Messages, llm.NewMessage(llm.RoleUser, llm.NewTextPart("summarise")))
-
-	events, runErr := runOnce(t, ag, sess)
-	require.NoError(t, runErr)
-
-	require.NotEmpty(t, compactionEvents(events),
-		"reported usage must recalibrate the trigger on token-dense content")
-
-	for _, call := range model.Calls() {
-		assert.LessOrEqual(t, call.InputTokens, window)
-	}
-}
-
-// TestCompaction_CalibrationPersistsAcrossInvocations: the scale learned from
-// one invocation's billed usage is written to the session metadata, so the
-// next invocation compacts a dense session before its first model call
-// instead of re-learning from scratch.
-func TestCompaction_CalibrationPersistsAcrossInvocations(t *testing.T) {
-	t.Parallel()
-
-	const window = 40_000
-
-	model := fakellm.NewFakeModel(
-		fakellm.WithContextWindow(window),
-		fakellm.WithTokenizer(denseTokenizer{}),
-	)
-	model.When(fakellm.Any()).
-		ThenRespondWith(func(req *llm.Request, _ *fakellm.CallContext) (*llm.Response, error) {
-			return &llm.Response{
-				Message:      llm.NewMessage(llm.RoleAssistant, llm.NewTextPart("noted")),
-				FinishReason: llm.FinishReasonStop,
-				Usage:        &llm.TokenUsage{InputTokens: model.CountRequestTokens(req)},
-			}, nil
-		})
-
-	ag, err := llmagent.New("dense-agent", "You are a test assistant.", model,
-		llmagent.WithMaxTurns(5),
-		llmagent.WithCompaction(llmagent.CompactionConfig{}),
-	)
-	require.NoError(t, err)
-
-	sess := &session.State{ID: "dense-persist"}
-	sess.Messages = append(sess.Messages, llm.NewMessage(llm.RoleUser, llm.NewTextPart("start")))
-
-	for i := range 8 {
-		oldTurn(sess, i, 2_000)
-	}
-
-	// Invocation 1: single call, no tools - uncalibrated, so no compaction,
-	// but the billed usage is measured and persisted on the session.
-	sess.Messages = append(sess.Messages, llm.NewMessage(llm.RoleUser, llm.NewTextPart("first question")))
-	events, runErr := runOnce(t, ag, sess)
-	require.NoError(t, runErr)
-	require.Empty(t, compactionEvents(events), "the first uncalibrated invocation has nothing to trigger on")
-	require.Contains(t, sess.Metadata, "llmagent.token_scale")
-
-	// Invocation 2: the persisted scale tightens the trigger, so the dense
-	// session compacts before this invocation's first model call.
-	sess.Messages = append(sess.Messages, llm.NewMessage(llm.RoleUser, llm.NewTextPart("second question")))
-	events, runErr = runOnce(t, ag, sess)
-	require.NoError(t, runErr)
-	require.NotEmpty(t, compactionEvents(events), "the persisted calibration must carry into the next invocation")
-
-	calls := model.Calls()
-	require.Len(t, calls, 2)
-	assert.Less(t, calls[1].InputTokens, calls[0].InputTokens,
-		"the second invocation must send the compacted history")
-}
-
 // hugeTool returns a result far larger than any test window.
 type hugeTool struct{}
 
@@ -562,6 +473,20 @@ func (*hugeTool) Definition() llm.ToolDefinition {
 
 func (*hugeTool) Execute(context.Context, json.RawMessage) (json.RawMessage, error) {
 	return json.Marshal(map[string]string{"data": strings.Repeat("blob ", 60_000)})
+}
+
+type mediumTool struct{}
+
+func (*mediumTool) Definition() llm.ToolDefinition {
+	return llm.ToolDefinition{
+		Name:        "fetch_medium",
+		Description: "Fetches a medium blob.",
+		Parameters:  json.RawMessage(`{"type":"object"}`),
+	}
+}
+
+func (*mediumTool) Execute(context.Context, json.RawMessage) (json.RawMessage, error) {
+	return json.Marshal(map[string]string{"data": strings.Repeat("x", 15_000)})
 }
 
 // TestCompaction_RecoveredResultIsCapped: a recovered tool result lands in the
@@ -608,6 +533,58 @@ func TestCompaction_RecoveredResultIsCapped(t *testing.T) {
 	for _, call := range model.Calls() {
 		assert.LessOrEqual(t, call.InputTokens, window)
 	}
+}
+
+// TestCompaction_RecoveryBudgetIncludesFixedCosts verifies recovered results
+// reserve room for the system prompt and tool schemas, not just history. The
+// medium result fits a history-only calculation but not the complete request.
+func TestCompaction_RecoveryBudgetIncludesFixedCosts(t *testing.T) {
+	t.Parallel()
+
+	const window = 16_000
+
+	registry := tool.NewRegistry(tool.RegistryConfig{})
+	require.NoError(t, registry.Register(&mediumTool{}))
+
+	model := fakellm.NewFakeModel(fakellm.WithContextWindow(window))
+	model.When(fakellm.Any()).ThenRespondText("noted")
+
+	ag, err := llmagent.New("recovery-budget-agent", strings.Repeat("p", 27_000), model,
+		llmagent.WithTools(registry),
+		llmagent.WithCompaction(llmagent.CompactionConfig{}),
+	)
+	require.NoError(t, err)
+
+	sess := &session.State{ID: "recovery_fixed_costs"}
+	sess.Messages = append(sess.Messages,
+		llm.NewMessage(llm.RoleUser, llm.NewTextPart("fetch it")),
+		llm.NewMessage(llm.RoleAssistant,
+			llm.NewToolRequestPart("call_1", "fetch_medium", json.RawMessage(`{}`))),
+		llm.NewMessage(llm.RoleUser, llm.NewTextPart("summarise it")),
+	)
+
+	_, runErr := runOnce(t, ag, sess)
+	require.NoError(t, runErr)
+	require.NotEmpty(t, model.Calls())
+
+	var recovered *llm.ToolResponsePart
+
+	for _, message := range model.Calls()[0].Request.Messages {
+		for _, part := range message.Content {
+			if response, ok := part.(*llm.ToolResponsePart); ok {
+				recovered = response
+			}
+		}
+	}
+
+	require.NotNil(t, recovered)
+	var marker resultMarkerView
+	require.NoError(t, json.Unmarshal(recovered.Result, &marker))
+	assert.True(t, marker.Truncated, "fixed request costs must force recovery-time capping")
+}
+
+type resultMarkerView struct {
+	Truncated bool `json:"truncated"`
 }
 
 // TestCompaction_ConstructionValidation: each invalid configuration fails

@@ -237,25 +237,6 @@ func TestDrop_HardModeStillProtectsFrontierAndNewestUser(t *testing.T) {
 	require.NoError(t, fakellm.ValidateConversation(compacted))
 }
 
-// TestContextBudgetScaled: calibration converts the decision lines into
-// estimate units; the model-facing numbers stay raw, and a scale at or below
-// 1 is the identity.
-func TestContextBudgetScaled(t *testing.T) {
-	t.Parallel()
-
-	b := newContextBudget(200_000, 64_000, CompactionConfig{})
-	s := b.scaled(1.5)
-
-	assert.Equal(t, 96_000, s.trigger)    // 144_000 / 1.5
-	assert.Equal(t, 72_000, s.target)     // 108_000 / 1.5
-	assert.Equal(t, 120_000, s.hardLimit) // 180_000 / 1.5
-	assert.Equal(t, b.window, s.window)
-	assert.Equal(t, b.reserve, s.reserve)
-
-	assert.Equal(t, b, b.scaled(1), "scale 1 must be the identity")
-	assert.Equal(t, b, b.scaled(0.5), "a scale below 1 must never loosen the budget")
-}
-
 // TestDrop_PlainTextFrontierFreesPrecedingAssistant: when the frontier is
 // plain text (a fresh user message after a normal answer), no tool results
 // depend on the preceding assistant message, so hard mode may drop it. An
@@ -414,4 +395,10 @@ func TestCapToolResult(t *testing.T) {
 	require.NoError(t, json.Unmarshal(capped.Result, &marker))
 	assert.True(t, marker.Truncated)
 	assert.Equal(t, "error", marker.Status)
+
+	tight := capToolResult(failed, 1)
+	require.True(t, json.Valid(tight.Result))
+	assert.JSONEq(t, `{"truncated":true}`, string(tight.Result))
+	assert.Less(t, estimatePartTokens(tight), estimatePartTokens(capped),
+		"tight budgets use the minimal marker")
 }

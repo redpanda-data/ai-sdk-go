@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"maps"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -260,22 +261,21 @@ func (a *LLMAgent) executeSingleTurn(
 	// fixed cost (system prompt + schemas) rides on every request, so it is
 	// part of the context budget the history must fit into. Interceptors may
 	// still grow the request after this check; the reactive overflow path
-	// below is the backstop, and its retry re-enters the interceptor chain
-	// (interceptors transform per Generate call, so nothing is lost).
+	// below is the backstop, and its retry rebuilds the request and interceptor
+	// chain so request-time transformations are applied again.
 	fixedTokens := 0
-	scale := tokenScale(inv)
 
 	if a.config.compaction != nil {
 		fixedTokens = estimateMessageTokens(reqMessages[0]) + estimateToolTokens(toolDefs)
 
-		stats, fitErr := a.ensureFits(sess, fixedTokens, scale)
+		stats, fitErr := a.ensureFits(sess, fixedTokens)
 		if stats.changed() {
 			reqMessages = append([]llm.Message{reqMessages[0]}, sess.Messages...)
 
 			if !yield(agent.StatusEvent{
 				Envelope: makeEnvelope(),
 				Stage:    agent.StatusStageCompaction,
-				Details:  compactionDetails(stats, scale),
+				Details:  compactionDetails(stats),
 			}, nil) {
 				return agent.FinishReasonInterrupted, nil
 			}
@@ -286,43 +286,27 @@ func (a *LLMAgent) executeSingleTurn(
 		}
 	}
 
-	// Prepare request
-	req := &llm.Request{
-		Messages: reqMessages,
-		Tools:    toolDefs,
-	}
-
-	// Apply model interceptors for this request
-	// This wraps the models Generate/GenerateEvents with interceptor logic
-	modelInfo := &agent.ModelCallInfo{
-		InvocationMetadata: inv,
-		Model:              a.config.model,
-		Req:                req,
-	}
-	model := agent.ApplyModelInterceptors(ctx, modelInfo, a.config.model, a.config.interceptors)
-
-	// Generate response from LLM (with streaming support if available)
-	resp, err := a.generate(ctx, model, req, makeEnvelope, yield)
+	resp, sentReq, err := a.generateAttempt(ctx, inv, reqMessages, toolDefs, makeEnvelope, yield)
 	if err != nil && a.config.compaction != nil && errors.Is(err, llm.ErrContextOverflow) {
 		// Reactive path: the provider rejected the request pre-flight, so
 		// nothing was emitted. Force a strictly smaller request - hard
 		// floors, at least 25% below the failed size - and retry once.
-		stats, reduced := a.reduceAfterOverflow(sess, fixedTokens, scale)
+		stats, reduced := a.reduceAfterOverflow(sess, fixedTokens)
 		if !reduced {
-			return "", cannotFitError(stats.afterTokens, a.deriveContextBudget(scale), scale)
+			return "", cannotFitError(stats.afterTokens, a.deriveContextBudget())
 		}
 
 		if !yield(agent.StatusEvent{
 			Envelope: makeEnvelope(),
 			Stage:    agent.StatusStageCompaction,
-			Details:  compactionDetails(stats, scale) + " (after provider overflow)",
+			Details:  compactionDetails(stats) + " (after provider overflow)",
 		}, nil) {
 			return agent.FinishReasonInterrupted, nil
 		}
 
-		req.Messages = append([]llm.Message{reqMessages[0]}, sess.Messages...)
+		retryMessages := append([]llm.Message{reqMessages[0]}, sess.Messages...)
 
-		resp, err = a.generate(ctx, model, req, makeEnvelope, yield)
+		resp, sentReq, err = a.generateAttempt(ctx, inv, retryMessages, toolDefs, makeEnvelope, yield)
 		if err != nil && errors.Is(err, llm.ErrContextOverflow) {
 			return "", fmt.Errorf("llmagent: request still exceeds the context window after forced compaction: %w", err)
 		}
@@ -338,15 +322,6 @@ func (a *LLMAgent) executeSingleTurn(
 
 	// Update usage tracking
 	agent.AddUsage(inv, resp.Usage)
-
-	// Calibrate: the billed input tokens measure the estimator's error on
-	// this session's content; later budget checks this run use the observed
-	// ratio (calibration.go).
-	if a.config.compaction != nil && resp.Usage != nil {
-		estSent := fixedTokens + estimateHistoryTokens(req.Messages[1:])
-		observeUsage(inv, resp.Usage.BilledInputTokens(), estSent)
-		scale = tokenScale(inv)
-	}
 
 	// Add assistant message to session (single source of truth).
 	//
@@ -447,9 +422,9 @@ func (a *LLMAgent) executeSingleTurn(
 	// parallel burst cannot assemble an unfittable frontier and runs are
 	// reproducible regardless of completion order.
 	countedRequest := fixedTokens + estimateHistoryTokens(sess.Messages)
-	resultCap := a.effectiveResultCap(countedRequest, len(toolReqs), scale)
+	resultCap := a.effectiveResultCap(countedRequest, len(toolReqs))
 
-	toolParts := a.executeTools(ctx, inv, toolReqs, req.Tools, resultCap, makeEnvelope, yield)
+	toolParts := a.executeTools(ctx, inv, toolReqs, sentReq.Tools, resultCap, makeEnvelope, yield)
 
 	// Build single message with all tool response parts
 	toolMsg := llm.NewMessage(llm.RoleUser, toolParts...)
@@ -469,11 +444,70 @@ func (a *LLMAgent) executeSingleTurn(
 	return "", nil
 }
 
+// generateAttempt builds an independent request and interceptor chain for one
+// provider attempt. Interceptors may mutate ModelCallInfo.Req while the chain
+// is built, so an overflow retry must not reuse either object.
+func (a *LLMAgent) generateAttempt(
+	ctx context.Context,
+	inv *agent.InvocationMetadata,
+	messages []llm.Message,
+	toolDefs []llm.ToolDefinition,
+	makeEnvelope func() agent.EventEnvelope,
+	yield func(agent.Event, error) bool,
+) (*llm.Response, *llm.Request, error) {
+	req := &llm.Request{
+		Messages: cloneMessages(messages),
+		Tools:    cloneToolDefinitions(toolDefs),
+	}
+	modelInfo := &agent.ModelCallInfo{
+		InvocationMetadata: inv,
+		Model:              a.config.model,
+		Req:                req,
+	}
+	model := agent.ApplyModelInterceptors(ctx, modelInfo, a.config.model, a.config.interceptors)
+
+	resp, err := a.generate(ctx, model, req, makeEnvelope, yield)
+
+	return resp, req, err
+}
+
+func cloneMessages(messages []llm.Message) []llm.Message {
+	if messages == nil {
+		return nil
+	}
+
+	cloned := make([]llm.Message, len(messages))
+	for i, message := range messages {
+		cloned[i] = llm.CloneMessage(message)
+	}
+
+	return cloned
+}
+
+func cloneToolDefinitions(defs []llm.ToolDefinition) []llm.ToolDefinition {
+	if defs == nil {
+		return nil
+	}
+
+	cloned := make([]llm.ToolDefinition, len(defs))
+	for i, def := range defs {
+		cloned[i] = def
+
+		cloned[i].Parameters = append(json.RawMessage(nil), def.Parameters...)
+		if def.Metadata != nil {
+			cloned[i].Metadata = make(map[string]any, len(def.Metadata))
+			maps.Copy(cloned[i].Metadata, def.Metadata)
+		}
+	}
+
+	return cloned
+}
+
 // resolveSystemPrompt produces a transient message list with the system
 // prompt prepended. The system prompt is never persisted to the session.
 //
-// When a [SystemPromptProvider] is configured it is called every turn,
-// receiving both the request context and the invocation metadata.
+// When a [SystemPromptProvider] is configured it is called while preparing
+// the request, receiving both the request context and invocation metadata.
 // Otherwise the static systemPrompt string from the config is used.
 func (a *LLMAgent) resolveSystemPrompt(ctx context.Context, inv *agent.InvocationMetadata, messages []llm.Message) ([]llm.Message, error) {
 	prompt := a.config.systemPrompt
@@ -791,13 +825,25 @@ func (a *LLMAgent) recoverIncompleteToolCalls(
 		return agent.ErrToolRegistry
 	}
 
-	// Execute the incomplete tools
+	// Execute the incomplete tools.
 	toolDefs := a.config.tools.List()
+	fixedTokens := 0
+
+	if a.config.compaction != nil {
+		reqMessages, err := a.resolveSystemPrompt(ctx, inv, sess.Messages)
+		if err != nil {
+			return fmt.Errorf("llmagent: system prompt for recovery budget: %w", err)
+		}
+
+		fixedTokens = estimateMessageTokens(reqMessages[0]) + estimateToolTokens(toolDefs)
+	}
+
 	// Recovered results land in the unread frontier, which compaction can
 	// never reduce - so the burst budget applies here exactly as in normal
-	// execution. The system prompt is not resolved yet, so counting history
-	// alone undercounts slightly; the count-high bias absorbs that.
-	resultCap := a.effectiveResultCap(estimateHistoryTokens(sess.Messages), len(incomplete), tokenScale(inv))
+	// execution. Include every fixed request cost because none of it can be
+	// reclaimed on the following turn.
+	countedRequest := fixedTokens + estimateHistoryTokens(sess.Messages)
+	resultCap := a.effectiveResultCap(countedRequest, len(incomplete))
 	toolParts := a.executeTools(ctx, inv, incomplete, toolDefs, resultCap, makeEnvelope, yield)
 
 	// Insert tool response message BEFORE the last user message.
