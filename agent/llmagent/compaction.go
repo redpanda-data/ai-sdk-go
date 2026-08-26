@@ -38,6 +38,12 @@ const (
 	// far below this line.
 	pruneAboveTokens = 2000
 
+	// droppedTurnsPreamble stands in as the first message when the drop step
+	// leaves an assistant message at the head of the history: providers
+	// (Anthropic, Bedrock; Gemini for model-role turns) reject a
+	// conversation that does not start with a user message.
+	droppedTurnsPreamble = "(earlier turns were removed to fit the context window)"
+
 	// minTailTurns is how many recent turns the drop step retains verbatim in
 	// proactive mode. A turn is an assistant message plus what follows it.
 	minTailTurns = 3
@@ -261,16 +267,17 @@ func compactMessages(msgs []llm.Message, fixedTokens, target, keepRecent, minTai
 	}
 
 	// Drop: advance the cut forward until under target or nothing more is
-	// droppable. The first retained message must carry no ToolResponsePart -
-	// a tool_result whose tool_use was dropped wedges the session permanently.
+	// droppable. The retained head must be a plain user message: providers
+	// reject a history that does not start with a user message, and a
+	// tool_result whose tool_use was dropped wedges the session permanently.
+	// So the cut skips tool-result messages, and an assistant head gets a
+	// synthetic user preamble below - constraining the cut instead would
+	// deadlock when tool turns leave only assistant candidates.
 	//
-	// The cut may reach limit itself: every limit candidate is legal by
-	// construction. The newest user message carries no tool responses by
-	// definition, a tail-floor turn starts at an assistant message, and
-	// frontier-1 is only a bound when the frontier carries tool results -
-	// then it is the assistant message that issued them and dropping it
-	// would orphan them. A frontier of plain text protects nothing before
-	// it: the assistant answer preceding a fresh user message is droppable.
+	// frontier-1 bounds the cut only when the frontier carries tool results:
+	// dropping the assistant that issued them would orphan them. A frontier
+	// of plain text protects nothing before it - the assistant answer
+	// preceding a fresh user message is droppable.
 	limit := min(newestUserIndex(msgs), tailFloorStart(msgs, minTail))
 	if frontier == 0 {
 		limit = 0
@@ -278,26 +285,46 @@ func compactMessages(msgs []llm.Message, fixedTokens, target, keepRecent, minTai
 		limit = min(limit, frontier-1)
 	}
 
-	cut := 0
+	preamble := llm.NewMessage(llm.RoleUser, llm.NewTextPart(droppedTurnsPreamble))
+	preambleTokens := estimateMessageTokens(preamble)
 
-	for counted > target && cut < limit {
+	cut := 0
+	droppedTokens := 0
+	droppedMessages := 0
+
+	for counted-droppedTokens > target && cut < limit {
 		next := cut + 1
 		for next < limit && hasToolResponse(msgs[next]) {
 			next++
 		}
 
 		for i := cut; i < next; i++ {
-			counted -= estimateMessageTokens(msgs[i])
-			stats.droppedMessages++
+			droppedTokens += estimateMessageTokens(msgs[i])
+			droppedMessages++
 		}
 
 		cut = next
 	}
 
+	// A cut landing on an assistant message needs the preamble; when the
+	// prefix it removes is smaller than the preamble itself, dropping would
+	// grow the history - keep the prefix instead.
+	if cut > 0 && msgs[cut].Role == llm.RoleAssistant && droppedTokens <= preambleTokens {
+		cut, droppedTokens, droppedMessages = 0, 0, 0
+	}
+
+	counted -= droppedTokens
+	stats.droppedMessages += droppedMessages
+
 	if cut > 0 {
 		// Clone rather than reslice so the dropped messages' payloads are
 		// released instead of pinned by the shared backing array.
 		msgs = slices.Clone(msgs[cut:])
+
+		if msgs[0].Role == llm.RoleAssistant {
+			msgs = append([]llm.Message{preamble}, msgs...)
+			counted += preambleTokens
+		}
 	}
 
 	stats.afterTokens = counted
