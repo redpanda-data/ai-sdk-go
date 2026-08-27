@@ -33,6 +33,15 @@ import (
 
 const compactionSpanName = "redpanda.compaction"
 
+// TestCompactionSpanNameExported pins the exported constant to the wire
+// value: consumers match spans by this name, so a rename must fail a test
+// here, not silently drop spans downstream.
+func TestCompactionSpanNameExported(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, compactionSpanName, pluginotel.CompactionSpanName)
+}
+
 // TestTracingInterceptor_EmitsCompactionSpan: a compaction event becomes a
 // redpanda.compaction span with phase, counts and before/after breakdown.
 // Observes with a span-free ctx, exercising the metadata fallback path.

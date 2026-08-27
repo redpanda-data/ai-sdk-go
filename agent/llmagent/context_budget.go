@@ -14,26 +14,14 @@
 
 package llmagent
 
-// Context-budget defaults. Named constants, not options — promote to options only
-// when a real caller asks.
-const (
-	// minOutputReserve is the floor for the answer-room reservation.
-	minOutputReserve = 4096
-
-	// triggerFraction of the usable window at which compaction runs.
-	triggerFraction = 0.8
-
-	// targetFraction of the usable window compaction reduces toward. The
-	// trigger-target gap is what makes compaction rare and big-step, so the
-	// prompt-prefix cache is invalidated occasionally, not per-turn.
-	targetFraction = 0.6
-)
+// minOutputReserve is the floor for the answer-room reservation.
+const minOutputReserve = 4096
 
 // contextBudget derives every compaction line from the model's context window.
 //
 //	usable    = window - reserve   // reserve leaves room for the answer
-//	trigger   = 0.8 x usable       // WHEN to compact
-//	target    = 0.6 x usable       // HOW FAR to reduce
+//	trigger   = 0.8 x usable       // WHEN to compact (default)
+//	target    = 0.6 x usable       // HOW FAR to reduce (default)
 //	hardLimit = usable             // never knowingly exceed
 //
 // hardLimit is a safety boundary, not a compaction goal: a request that
@@ -62,7 +50,12 @@ func newContextBudget(window, maxOutput int, cfg CompactionConfig) contextBudget
 
 	trigger := cfg.TriggerFraction
 	if trigger == 0 {
-		trigger = triggerFraction
+		trigger = DefaultTriggerFraction
+	}
+
+	target := cfg.TargetFraction
+	if target == 0 {
+		target = DefaultTargetFraction
 	}
 
 	return contextBudget{
@@ -70,7 +63,7 @@ func newContextBudget(window, maxOutput int, cfg CompactionConfig) contextBudget
 		reserve:   reserve,
 		usable:    usable,
 		trigger:   int(trigger * float64(usable)),
-		target:    int(targetFraction * float64(usable)),
+		target:    int(target * float64(usable)),
 		hardLimit: usable,
 	}
 }

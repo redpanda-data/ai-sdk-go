@@ -39,6 +39,18 @@ import (
 // precedence over the static systemPrompt string.
 type SystemPromptProvider func(ctx context.Context, inv *agent.InvocationMetadata) (string, error)
 
+// Compaction budget defaults, applied where the corresponding
+// [CompactionConfig] field is zero.
+const (
+	// DefaultTriggerFraction of the usable window at which compaction runs.
+	DefaultTriggerFraction = 0.8
+
+	// DefaultTargetFraction of the usable window compaction reduces toward.
+	// The trigger-target gap is what makes compaction rare and big-step, so
+	// the prompt-prefix cache is invalidated occasionally, not per-turn.
+	DefaultTargetFraction = 0.6
+)
+
 // CompactionConfig configures deterministic context compaction: when a
 // conversation nears the model's context window, already-read tool results
 // are pruned to compact markers first, then the oldest turns are dropped.
@@ -50,9 +62,49 @@ type CompactionConfig struct {
 	OutputReserve int
 
 	// TriggerFraction of the usable window at which compaction runs.
-	// 0 = 0.8. Must exceed the reduction target (0.6) or compaction would
-	// fire again immediately after reducing.
+	// 0 = [DefaultTriggerFraction]. Must exceed the target fraction or
+	// compaction would fire again immediately after reducing.
 	TriggerFraction float64
+
+	// TargetFraction of the usable window compaction reduces toward.
+	// 0 = [DefaultTargetFraction]. Must stay below the trigger fraction.
+	TargetFraction float64
+}
+
+// Validate checks the model-independent invariants of the configuration:
+// both fractions in (0, 1), target below trigger (after defaulting), and a
+// non-negative output reserve. [New] runs it as part of construction, plus
+// window-dependent checks against the model; callers that populate the
+// struct from external configuration can run it at load time to reject a
+// bad knob with a field-named error instead of failing agent construction.
+func (c CompactionConfig) Validate() error {
+	trigger := c.TriggerFraction
+	if trigger == 0 {
+		trigger = DefaultTriggerFraction
+	}
+
+	target := c.TargetFraction
+	if target == 0 {
+		target = DefaultTargetFraction
+	}
+
+	if trigger <= 0 || trigger >= 1 {
+		return fmt.Errorf("llmagent: compaction trigger fraction must be in (0, 1), got %v", c.TriggerFraction)
+	}
+
+	if target <= 0 || target >= 1 {
+		return fmt.Errorf("llmagent: compaction target fraction must be in (0, 1), got %v", c.TargetFraction)
+	}
+
+	if target >= trigger {
+		return fmt.Errorf("llmagent: compaction target fraction (%v) must be below the trigger fraction (%v), or compaction would fire again immediately after reducing", target, trigger)
+	}
+
+	if c.OutputReserve < 0 {
+		return fmt.Errorf("llmagent: compaction output reserve must not be negative, got %d", c.OutputReserve)
+	}
+
+	return nil
 }
 
 // config holds the internal configuration for an LLMAgent.
@@ -125,14 +177,12 @@ func (c *config) validateCompaction() error {
 		return errors.New("llmagent: compaction requires a model with a known context window (Constraints().MaxInputTokens)")
 	}
 
-	if f := c.compaction.TriggerFraction; f != 0 && (f <= targetFraction || f >= 1) {
-		return fmt.Errorf("llmagent: compaction trigger fraction must be in (%.1f, 1), got %v", targetFraction, f)
+	if err := c.compaction.Validate(); err != nil {
+		return err
 	}
 
-	if r := c.compaction.OutputReserve; r < 0 || r >= window {
-		if r != 0 {
-			return fmt.Errorf("llmagent: compaction output reserve %d must be positive and below the model's %d-token window", r, window)
-		}
+	if r := c.compaction.OutputReserve; r >= window {
+		return fmt.Errorf("llmagent: compaction output reserve %d must be below the model's %d-token window", r, window)
 	}
 
 	return nil

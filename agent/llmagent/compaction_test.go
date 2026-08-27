@@ -77,6 +77,12 @@ func TestContextBudgetDerivation(t *testing.T) {
 	b = newContextBudget(200_000, 64_000, CompactionConfig{OutputReserve: 8_192, TriggerFraction: 0.9})
 	assert.Equal(t, 8_192, b.reserve)
 	assert.Equal(t, 172627, b.trigger)
+
+	// A low trigger-target pair below the defaults is a valid budget.
+	b = newContextBudget(200_000, 64_000, CompactionConfig{TriggerFraction: 0.4, TargetFraction: 0.3})
+	assert.Equal(t, 72_000, b.trigger)
+	assert.Equal(t, 54_000, b.target)
+	assert.Less(t, b.target, b.trigger)
 }
 
 // TestEstimateNeverUndercountsFake pins the estimator against the fake's tokenizer on

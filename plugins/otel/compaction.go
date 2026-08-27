@@ -23,10 +23,12 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/agent"
 )
 
-// compactionSpanName is the span emitted for each context compaction pass.
-// There is no gen_ai semantic convention for compaction yet, so the span and
-// its attributes live under the redpanda namespace.
-const compactionSpanName = "redpanda.compaction"
+// CompactionSpanName is the name of the span emitted for each context
+// compaction pass. There is no gen_ai semantic convention for compaction yet,
+// so the span and its attributes live under the redpanda namespace. Exported
+// so consumers that filter or match compaction spans can import the name
+// instead of copying the string.
+const CompactionSpanName = "redpanda.compaction"
 
 // ObserveEvent implements agent.EventObserver: each CompactionEvent becomes a
 // zero-duration redpanda.compaction child span of the current emission span,
@@ -56,7 +58,7 @@ func (t *TracingInterceptor) ObserveEvent(ctx context.Context, inv *agent.Invoca
 	attrs = append(attrs, contextUsageAttrs("redpanda.compaction.before", report.Before)...)
 	attrs = append(attrs, contextUsageAttrs("redpanda.compaction.after", report.After)...)
 
-	_, span := t.tracer.Start(ctx, compactionSpanName,
+	_, span := t.tracer.Start(ctx, CompactionSpanName,
 		trace.WithTimestamp(report.At),
 		trace.WithAttributes(attrs...),
 	)
