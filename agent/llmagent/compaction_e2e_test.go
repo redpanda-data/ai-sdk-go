@@ -606,6 +606,7 @@ func TestCompaction_RecoveryBudgetIncludesFixedCosts(t *testing.T) {
 	require.NotEmpty(t, model.Calls())
 
 	var recovered *llm.ToolResponsePart
+
 	for _, message := range model.Calls()[0].Request.Messages {
 		for _, part := range message.Content {
 			if response, ok := part.(*llm.ToolResponsePart); ok {
@@ -645,9 +646,27 @@ func TestCompaction_ConstructionValidation(t *testing.T) {
 			wantErr: "trigger fraction",
 		},
 		{
-			name:    "trigger fraction below the target",
+			name:    "trigger fraction below the default target",
 			model:   valid,
 			opts:    []llmagent.Option{llmagent.WithCompaction(llmagent.CompactionConfig{TriggerFraction: 0.5})},
+			wantErr: "trigger fraction",
+		},
+		{
+			name:    "target fraction above the trigger",
+			model:   valid,
+			opts:    []llmagent.Option{llmagent.WithCompaction(llmagent.CompactionConfig{TargetFraction: 0.9})},
+			wantErr: "target fraction",
+		},
+		{
+			name:    "target fraction above 1",
+			model:   valid,
+			opts:    []llmagent.Option{llmagent.WithCompaction(llmagent.CompactionConfig{TargetFraction: 1.5})},
+			wantErr: "target fraction",
+		},
+		{
+			name:    "negative trigger fraction",
+			model:   valid,
+			opts:    []llmagent.Option{llmagent.WithCompaction(llmagent.CompactionConfig{TriggerFraction: -0.2})},
 			wantErr: "trigger fraction",
 		},
 		{
@@ -679,6 +698,70 @@ func TestCompaction_ConstructionValidation(t *testing.T) {
 			assert.Contains(t, err.Error(), tt.wantErr)
 		})
 	}
+}
+
+// TestCompactionConfigValidate: the exported Validate lets callers reject a
+// bad configuration at load time, and accepts any pair with target below
+// trigger - including pairs below the defaults.
+func TestCompactionConfigValidate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		cfg     llmagent.CompactionConfig
+		wantErr string
+	}{
+		{name: "zero value uses the defaults", cfg: llmagent.CompactionConfig{}},
+		{name: "low pair below the defaults", cfg: llmagent.CompactionConfig{TriggerFraction: 0.4, TargetFraction: 0.3}},
+		{name: "trigger just above an explicit target", cfg: llmagent.CompactionConfig{TriggerFraction: 0.7, TargetFraction: 0.65}},
+		{
+			name:    "trigger below the default target",
+			cfg:     llmagent.CompactionConfig{TriggerFraction: 0.4},
+			wantErr: "target fraction",
+		},
+		{
+			name:    "target equal to the trigger",
+			cfg:     llmagent.CompactionConfig{TriggerFraction: 0.5, TargetFraction: 0.5},
+			wantErr: "target fraction",
+		},
+		{
+			name:    "negative target fraction",
+			cfg:     llmagent.CompactionConfig{TargetFraction: -0.3},
+			wantErr: "target fraction",
+		},
+		{
+			name:    "negative output reserve",
+			cfg:     llmagent.CompactionConfig{OutputReserve: -1},
+			wantErr: "output reserve",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tt.cfg.Validate()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
+}
+
+// TestCompaction_LowBudgetPairConstructs: a trigger-target pair below the
+// defaults is a legal construction, not just a legal Validate - callers that
+// want a smaller working set can express it directly.
+func TestCompaction_LowBudgetPairConstructs(t *testing.T) {
+	t.Parallel()
+
+	model := fakellm.NewFakeModel(fakellm.WithContextWindow(16_000))
+	_, err := llmagent.New("low-budget-agent", "prompt", model,
+		llmagent.WithCompaction(llmagent.CompactionConfig{TriggerFraction: 0.4, TargetFraction: 0.3}))
+	require.NoError(t, err)
 }
 
 // TestCompaction_ErrorSurfaceUnchanged: with compaction on, a genuinely
