@@ -33,6 +33,15 @@ type mockMCPServer struct {
 	mu              sync.Mutex
 	started         bool
 	serverSession   *sdkmcp.ServerSession
+	lastCallMeta    sdkmcp.Meta // _meta of the most recent tools/call, guarded by mu
+}
+
+// lastMeta returns the _meta of the most recent tools/call the server handled.
+func (ms *mockMCPServer) lastMeta() sdkmcp.Meta {
+	ms.mu.Lock()
+	defer ms.mu.Unlock()
+
+	return ms.lastCallMeta
 }
 
 // newMockMCPServer creates a mock MCP server with test tools.
@@ -79,6 +88,12 @@ func newMockMCPServer() *mockMCPServer {
 	// Register tools with handlers
 	for _, t := range ms.tools {
 		ms.server.AddTool(t, func(_ context.Context, req *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
+			// Capture the request _meta so tests can assert what the client
+			// forwarded (e.g. the originating LLM tool-call id).
+			ms.mu.Lock()
+			ms.lastCallMeta = req.Params.Meta
+			ms.mu.Unlock()
+
 			// Parse arguments from raw JSON
 			var args map[string]any
 			if len(req.Params.Arguments) > 0 {
