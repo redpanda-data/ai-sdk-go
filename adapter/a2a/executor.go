@@ -28,6 +28,7 @@ import (
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/pricing"
 	"github.com/redpanda-data/ai-sdk-go/runner"
 )
 
@@ -47,9 +48,26 @@ const requestTooLargeMessage = "Agent stopped: the request does not fit the mode
 
 // Executor implements the a2asrv.AgentExecutor interface, bridging AI SDK agents with A2A protocol.
 type Executor struct {
-	log    *slog.Logger
-	agent  agent.Agent
-	runner *runner.Runner
+	log     *slog.Logger
+	agent   agent.Agent
+	runner  *runner.Runner
+	pricing *pricing.Catalog
+}
+
+// Option configures optional Executor behavior.
+type Option func(*Executor)
+
+// WithPricing enables server-side cost reporting. Each model response's usage
+// metadata gains a "cost_microcents" entry computed against the given catalog,
+// and the final status event carries the invocation's cumulative cost.
+//
+// Pricing on the server is deliberate: the serving side knows the rate card
+// dimensions a UI client cannot see (cache-write vs cache-read rates, service
+// tier, inference region, custom per-deployment pricing). Clients should render
+// the reported cost rather than re-deriving it from token counts and a public
+// price table.
+func WithPricing(catalog *pricing.Catalog) Option {
+	return func(e *Executor) { e.pricing = catalog }
 }
 
 // NewExecutor creates a new A2A executor.
@@ -57,16 +75,22 @@ func NewExecutor(
 	agent agent.Agent,
 	runner *runner.Runner,
 	logger *slog.Logger,
+	opts ...Option,
 ) *Executor {
 	if logger == nil {
 		logger = slog.Default()
 	}
 
-	return &Executor{
+	e := &Executor{
 		log:    logger,
 		agent:  agent,
 		runner: runner,
 	}
+	for _, opt := range opts {
+		opt(e)
+	}
+
+	return e
 }
 
 // Execute implements a2asrv.AgentExecutor.
@@ -122,6 +146,45 @@ func (e *Executor) Cancel(ctx context.Context, reqCtx *a2asrv.RequestContext, qu
 	return nil
 }
 
+// usageMetadata converts token usage into the A2A metadata "usage" map.
+//
+// All counters are disjoint buckets (see llm.TokenUsage): total_tokens is the
+// billed sum of every bucket, so consumers can recover the full input side as
+// total - output - reasoning. cache_write_tokens aggregates the per-TTL
+// cache-creation counters; per-TTL granularity is a pricing concern and stays
+// server-side.
+func usageMetadata(u *llm.TokenUsage) map[string]any {
+	return map[string]any{
+		"input_tokens":       u.InputTokens,
+		"output_tokens":      u.OutputTokens,
+		"total_tokens":       u.TotalBilledTokens(),
+		"cached_tokens":      u.CachedInputTokens,
+		"reasoning_tokens":   u.ReasoningTokens,
+		"cache_write_tokens": u.CacheCreation5mTokens + u.CacheCreation1hTokens + u.CacheCreationUnknownTTLTokens,
+		"tool_use_tokens":    u.ToolUseInputTokens,
+	}
+}
+
+// priceResponse computes the microcent cost of one model call, resolving the
+// rate card from the response's own metadata (invoked model, service tier,
+// speed, region). Returns false when the model is not in the catalog; the
+// response then carries token counts without a cost rather than a guess.
+func (e *Executor) priceResponse(ctx context.Context, resp *llm.Response) (int64, bool) {
+	modelID := resp.InvokedModelID
+	if modelID == "" {
+		modelID = e.agent.Info().ModelName
+	}
+
+	cost, err := e.pricing.Calculate(modelID, resp.Usage, pricing.CalcRequest{Selector: pricing.SelectorFromResponse(resp)})
+	if err != nil {
+		e.log.DebugContext(ctx, "Skipping response cost", "model", modelID, "error", err)
+
+		return 0, false
+	}
+
+	return cost.Total, true
+}
+
 // processEvents handles the event stream from the runner and writes appropriate A2A events to the queue.
 func (e *Executor) processEvents(
 	ctx context.Context,
@@ -137,6 +200,15 @@ func (e *Executor) processEvents(
 
 	// Rolling current artifact ID for streaming text deltas
 	var currentArtifactID a2a.ArtifactID
+
+	// Cumulative cost across all model calls in this invocation. Summing
+	// per-response costs (rather than pricing the summed usage once at the
+	// end) keeps context-bracket rate resolution correct per call. The
+	// cumulative value is only reported when every response was priced, so
+	// a partially-priced invocation never understates its cost.
+	var costMicrocents int64
+
+	costComplete := e.pricing != nil
 
 	for event, err := range events {
 		if err != nil {
@@ -213,15 +285,18 @@ func (e *Executor) processEvents(
 
 			// Attach token usage to the message itself if available
 			if ev.Response.Usage != nil {
-				a2amsg.Metadata = map[string]any{
-					"usage": map[string]any{
-						"input_tokens":     ev.Response.Usage.InputTokens,
-						"output_tokens":    ev.Response.Usage.OutputTokens,
-						"total_tokens":     ev.Response.Usage.TotalBilledTokens(),
-						"cached_tokens":    ev.Response.Usage.CachedInputTokens,
-						"reasoning_tokens": ev.Response.Usage.ReasoningTokens,
-					},
+				usage := usageMetadata(ev.Response.Usage)
+
+				if e.pricing != nil {
+					if cost, ok := e.priceResponse(ctx, &ev.Response); ok {
+						usage["cost_microcents"] = cost
+						costMicrocents += cost
+					} else {
+						costComplete = false
+					}
 				}
+
+				a2amsg.Metadata = map[string]any{"usage": usage}
 			}
 
 			historyStatus := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateWorking, a2amsg)
@@ -318,13 +393,13 @@ func (e *Executor) processEvents(
 			}
 
 			if ev.Usage != nil {
-				metadata["usage"] = map[string]any{
-					"input_tokens":     ev.Usage.InputTokens,
-					"output_tokens":    ev.Usage.OutputTokens,
-					"total_tokens":     ev.Usage.TotalBilledTokens(),
-					"cached_tokens":    ev.Usage.CachedInputTokens,
-					"reasoning_tokens": ev.Usage.ReasoningTokens,
+				usage := usageMetadata(ev.Usage)
+
+				if e.pricing != nil && costComplete {
+					usage["cost_microcents"] = costMicrocents
 				}
+
+				metadata["usage"] = usage
 			}
 
 			statusEvent.Metadata = metadata
