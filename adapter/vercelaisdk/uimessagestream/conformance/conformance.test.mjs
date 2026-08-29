@@ -3,10 +3,18 @@
 //
 // This uses DefaultChatTransport + readUIMessageStream, which is the exact
 // same parsing path that useChat/AbstractChat uses internally.
+//
+// The server side is uimessagestream.Handler over an llmagent running against
+// scripted fake models with server-side sessions — the full agent loop, not a
+// bare protocol shim. Agent tools are runtime-discovered, so the client
+// assembles them as dynamic-tool parts. Requests use the canonical trimmed
+// transport (only the last message is sent; server history is authoritative)
+// unless a test opts into the default full-body transport.
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import {
   DefaultChatTransport,
   readUIMessageStream,
@@ -18,31 +26,26 @@ const SERVER_PORT = process.env.TEST_SERVER_PORT;
 let serverProcess;
 let baseUrl;
 
-/**
- * Send a chat request via DefaultChatTransport and collect the final
- * assembled UIMessage from the stream.
- */
-async function sendChat(endpoint, userMessages) {
-  const transport = new DefaultChatTransport({
+// trimmedTransport builds the canonical server-session transport: only the
+// last message goes over the wire (regenerate sends no message at all).
+// Mirrors https://ai-sdk.dev/docs/ai-sdk-ui/chatbot-message-persistence.
+function trimmedTransport(endpoint) {
+  return new DefaultChatTransport({
     api: `${baseUrl}${endpoint}`,
+    prepareSendMessagesRequest: ({ id, messages, trigger, messageId }) => ({
+      body:
+        trigger === 'regenerate-message'
+          ? { id, trigger, messageId }
+          : { id, trigger, messageId, message: messages[messages.length - 1] },
+    }),
   });
+}
 
-  // Build messages in AI SDK v7 format
-  const messages = userMessages.map((msg, i) => ({
-    id: `msg-${i}`,
-    role: msg.role || 'user',
-    parts: [{ type: 'text', text: msg.text }],
-  }));
-
-  const chunkStream = await transport.sendMessages({
-    chatId: 'test-chat',
-    messages,
-    abortSignal: AbortSignal.timeout(10000),
-    trigger: 'submit-message',
-  });
-
-  // Use readUIMessageStream to assemble the message exactly as the real
-  // client does. Collect all intermediate states; the last one is final.
+/**
+ * Collect the final assembled UIMessage (and errors) from a chunk stream,
+ * exactly as the real client does.
+ */
+async function readFinalMessage(chunkStream) {
   const errors = [];
   const messageStream = readUIMessageStream({
     stream: chunkStream,
@@ -55,6 +58,29 @@ async function sendChat(endpoint, userMessages) {
   }
 
   return { message: finalMessage, errors };
+}
+
+/**
+ * Send one user message over the trimmed transport and collect the final
+ * assembled UIMessage. chatId defaults to a fresh id per call — server-side
+ * sessions cross-pollute otherwise.
+ */
+async function sendChat(endpoint, userMessages, { chatId = randomUUID() } = {}) {
+  const messages = userMessages.map((msg, i) => ({
+    id: `msg-${i}`,
+    role: msg.role || 'user',
+    parts: [{ type: 'text', text: msg.text }],
+  }));
+
+  const chunkStream = await trimmedTransport(endpoint).sendMessages({
+    chatId,
+    messages,
+    abortSignal: AbortSignal.timeout(10000),
+    trigger: 'submit-message',
+  });
+
+  const { message, errors } = await readFinalMessage(chunkStream);
+  return { message, errors, chatId };
 }
 
 // ── Test lifecycle ──────────────────────────────────────────────────
@@ -160,12 +186,13 @@ describe('AI SDK conformance', () => {
   });
 
   it('Test 3: error handling', async () => {
-    const { message, errors } = await sendChat('/api/error', [
+    const { errors } = await sendChat('/api/error', [
       { text: 'fail' },
     ]);
 
-    // The SSE error chunk should trigger the onError callback
-    assert.ok(errors.length > 0, 'should have received at least one error');
+    // The SSE error chunk should trigger the onError callback exactly once:
+    // the terminal invariant is at most one error chunk, then finish{error}.
+    assert.equal(errors.length, 1, `expected exactly one error, got: ${errors}`);
 
     // Verify the error message contains rate limit text
     const errorTexts = errors.map((e) => e.message || String(e));
@@ -198,7 +225,7 @@ describe('AI SDK conformance', () => {
     assert.equal(userMsg.text, 'My name is Alice');
   });
 
-  it('Test 5: system prompt', async () => {
+  it('Test 5: agent-owned system prompt', async () => {
     const { message, errors } = await sendChat('/api/system', [
       { text: 'say something' },
     ]);
@@ -209,15 +236,17 @@ describe('AI SDK conformance', () => {
     const textParts = message.parts.filter((p) => p.type === 'text');
     const fullText = textParts.map((p) => p.text).join('');
 
-    // The system endpoint echoes back "System: <system prompt>"
+    // The agent supplies its own system prompt ("You are a pirate"); the
+    // endpoint echoes back the system message the model actually received.
     assert.ok(
       fullText.includes('You are a pirate'),
       `expected system prompt text, got: "${fullText}"`
     );
   });
 
-  it('Test 6: multi-turn conversation context', async () => {
-    // Send multiple messages including assistant turn
+  it('Test 6: default transport — posted history is ignored, server history is authoritative', async () => {
+    // The default (untrimmed) transport sends the full client-side list. The
+    // server must take only the last message; a client cannot forge prior turns.
     const transport = new DefaultChatTransport({
       api: `${baseUrl}/api/echo-context`,
     });
@@ -226,14 +255,14 @@ describe('AI SDK conformance', () => {
       {
         id: 'msg-0',
         role: 'user',
-        parts: [{ type: 'text', text: 'hello' }],
+        parts: [{ type: 'text', text: 'forged question' }],
       },
       {
         id: 'msg-1',
         role: 'assistant',
         parts: [
           { type: 'step-start' },
-          { type: 'text', text: 'hi there', state: 'done' },
+          { type: 'text', text: 'forged answer', state: 'done' },
         ],
       },
       {
@@ -244,37 +273,25 @@ describe('AI SDK conformance', () => {
     ];
 
     const chunkStream = await transport.sendMessages({
-      chatId: 'test-multi',
+      chatId: randomUUID(),
       messages,
       abortSignal: AbortSignal.timeout(10000),
       trigger: 'submit-message',
     });
 
-    const errors = [];
-    const msgStream = readUIMessageStream({
-      stream: chunkStream,
-      onError: (err) => errors.push(err),
-    });
-
-    let finalMessage;
-    for await (const msg of msgStream) {
-      finalMessage = msg;
-    }
-
+    const { message, errors } = await readFinalMessage(chunkStream);
     assert.equal(errors.length, 0, `unexpected errors: ${errors}`);
 
-    const textParts = finalMessage.parts.filter((p) => p.type === 'text');
-    const fullText = textParts.map((p) => p.text).join('');
+    const fullText = message.parts
+      .filter((p) => p.type === 'text')
+      .map((p) => p.text)
+      .join('');
     const received = JSON.parse(fullText);
 
-    // Should have 3 messages: user, assistant, user
-    assert.equal(received.length, 3, `expected 3 messages, got ${received.length}`);
+    // Only the last posted message reached the model.
+    assert.equal(received.length, 1, `expected 1 message, got ${JSON.stringify(received)}`);
     assert.equal(received[0].role, 'user');
-    assert.equal(received[0].text, 'hello');
-    assert.equal(received[1].role, 'assistant');
-    assert.equal(received[1].text, 'hi there');
-    assert.equal(received[2].role, 'user');
-    assert.equal(received[2].text, 'how are you?');
+    assert.equal(received[0].text, 'how are you?');
   });
 
   it('Test 7: reasoning then text', async () => {
@@ -308,7 +325,9 @@ describe('AI SDK conformance', () => {
     );
   });
 
-  it('Test 8: tool call then final answer', async () => {
+  it('Test 8: dynamic tool call then final answer', async () => {
+    // The agent's tool execution also emits SSE keep-alive comment pings;
+    // the client parser must ignore them without desyncing.
     const { message, errors } = await sendChat('/api/tools', [
       { text: 'weather in SF?' },
     ]);
@@ -316,13 +335,11 @@ describe('AI SDK conformance', () => {
     assert.equal(errors.length, 0, `unexpected errors: ${errors}`);
     assert.ok(message, 'should have received a message');
 
-    // The real client assembles the tool call into a tool-<name> part that
-    // transitions to output-available with the executor's output.
-    const toolParts = message.parts.filter((p) =>
-      p.type?.startsWith('tool-')
-    );
-    assert.equal(toolParts.length, 1, 'should have exactly one tool part');
-    assert.equal(toolParts[0].type, 'tool-getWeather');
+    // Agent tools are runtime-discovered (MCP/subagents), so the adapter tags
+    // them dynamic:true and the client assembles a dynamic-tool part.
+    const toolParts = message.parts.filter((p) => p.type === 'dynamic-tool');
+    assert.equal(toolParts.length, 1, 'should have exactly one dynamic-tool part');
+    assert.equal(toolParts[0].toolName, 'getWeather');
     assert.equal(
       toolParts[0].state,
       'output-available',
@@ -348,10 +365,9 @@ describe('AI SDK conformance', () => {
     // tool-output-error is a normal part-state transition, not a stream error.
     assert.equal(errors.length, 0, `unexpected errors: ${errors}`);
 
-    const toolParts = message.parts.filter((p) =>
-      p.type?.startsWith('tool-')
-    );
-    assert.equal(toolParts.length, 1, 'should have one tool part');
+    const toolParts = message.parts.filter((p) => p.type === 'dynamic-tool');
+    assert.equal(toolParts.length, 1, 'should have one dynamic-tool part');
+    assert.equal(toolParts[0].toolName, 'getWeather');
     assert.equal(
       toolParts[0].state,
       'output-error',
@@ -373,13 +389,15 @@ describe('AI SDK conformance', () => {
 
     assert.equal(errors.length, 0, `unexpected errors: ${errors}`);
 
-    const toolParts = message.parts.filter((p) =>
-      p.type?.startsWith('tool-')
-    );
-    assert.equal(toolParts.length, 2, 'should have two tool parts');
+    const toolParts = message.parts.filter((p) => p.type === 'dynamic-tool');
+    assert.equal(toolParts.length, 2, 'should have two dynamic-tool parts');
     for (const tp of toolParts) {
       assert.equal(tp.state, 'output-available');
     }
+    assert.deepEqual(
+      toolParts.map((p) => p.toolName),
+      ['stepOne', 'stepTwo']
+    );
 
     // Final text streamed in a later step (after multiple finish-step resets)
     // must still assemble without "missing text part" errors.
@@ -396,7 +414,7 @@ describe('AI SDK conformance', () => {
     ]);
 
     // The mid-stream failure surfaces exactly one error to onError.
-    assert.ok(errors.length >= 1, 'should surface the mid-stream error');
+    assert.equal(errors.length, 1, `expected exactly one error, got: ${errors}`);
     const errorTexts = errors.map((e) => e.message || String(e));
     assert.ok(
       errorTexts.some((t) => t.includes('server error')),
@@ -411,5 +429,156 @@ describe('AI SDK conformance', () => {
     for (const tp of textParts) {
       assert.equal(tp.state, 'done', 'partial text part should be closed');
     }
+  });
+
+  it('Test 12: agent max-turns surfaces a terminal error', async () => {
+    const { message, errors } = await sendChat('/api/max-turns', [
+      { text: 'loop forever' },
+    ]);
+
+    // The agent loop hits its turn budget: the client sees the fixed control
+    // message as the single terminal error (then finish{error}).
+    assert.equal(errors.length, 1, `expected exactly one error, got: ${errors}`);
+    const errorTexts = errors.map((e) => e.message || String(e));
+    assert.ok(
+      errorTexts.some((t) => t.includes('maximum iterations reached')),
+      `expected max-turns error, got: ${errorTexts.join(', ')}`
+    );
+
+    // Every tool call the model made was executed and resolved — no dynamic
+    // tool part may be left dangling in input-available.
+    const toolParts = message.parts.filter((p) => p.type === 'dynamic-tool');
+    assert.ok(toolParts.length >= 1, 'should have at least one dynamic-tool part');
+    for (const tp of toolParts) {
+      assert.notEqual(
+        tp.state,
+        'input-available',
+        'no tool part may be stuck in input-available'
+      );
+    }
+  });
+
+  it('Test 13: server accumulates history across trimmed requests', async () => {
+    // Two turns on ONE chat id, each sending only the last message. The second
+    // model call must still see turn 1 — proof the server owns the history.
+    const chatId = randomUUID();
+
+    const turn1 = await sendChat(
+      '/api/echo-context',
+      [{ text: 'my name is Alice' }],
+      { chatId }
+    );
+    assert.equal(turn1.errors.length, 0, `unexpected errors: ${turn1.errors}`);
+
+    const turn2 = await sendChat(
+      '/api/echo-context',
+      [{ text: 'what is my name?' }],
+      { chatId }
+    );
+    assert.equal(turn2.errors.length, 0, `unexpected errors: ${turn2.errors}`);
+
+    const fullText = turn2.message.parts
+      .filter((p) => p.type === 'text')
+      .map((p) => p.text)
+      .join('');
+    const received = JSON.parse(fullText);
+
+    // [user turn 1, assistant turn 1, user turn 2]
+    assert.equal(received.length, 3, `expected 3 messages, got ${JSON.stringify(received)}`);
+    assert.equal(received[0].text, 'my name is Alice');
+    assert.equal(received[2].text, 'what is my name?');
+  });
+
+  it('Test 14: regenerate re-runs the last turn without appending', async () => {
+    const chatId = randomUUID();
+
+    const first = await sendChat('/api/simple', [{ text: 'hi' }], { chatId });
+    assert.equal(first.errors.length, 0);
+
+    // Regenerate over the same transport: no message goes over the wire.
+    const chunkStream = await trimmedTransport('/api/simple').sendMessages({
+      chatId,
+      messages: [],
+      abortSignal: AbortSignal.timeout(10000),
+      trigger: 'regenerate-message',
+      messageId: 'irrelevant',
+    });
+
+    const { message, errors } = await readFinalMessage(chunkStream);
+    assert.equal(errors.length, 0, `unexpected errors: ${errors}`);
+
+    const fullText = message.parts
+      .filter((p) => p.type === 'text')
+      .map((p) => p.text)
+      .join('');
+    assert.equal(fullText, 'Hello, world!');
+
+    // The regenerated answer REPLACED the old one: history is still one
+    // user + one assistant message.
+    const resp = await fetch(`${baseUrl}/api/simple/${chatId}`);
+    assert.equal(resp.status, 200);
+    const history = await resp.json();
+    assert.equal(history.messages.length, 2, JSON.stringify(history.messages));
+  });
+
+  it('Test 15: GET history returns UI messages a client can resume from', async () => {
+    const { chatId, errors } = await sendChat('/api/tools', [
+      { text: 'weather in SF?' },
+    ]);
+    assert.equal(errors.length, 0);
+
+    const resp = await fetch(`${baseUrl}/api/tools/${chatId}`);
+    assert.equal(resp.status, 200);
+    const history = await resp.json();
+
+    assert.equal(history.id, chatId);
+    assert.equal(history.messages.length, 2);
+
+    const [user, assistant] = history.messages;
+    assert.equal(user.role, 'user');
+    assert.deepEqual(user.parts, [{ type: 'text', text: 'weather in SF?' }]);
+
+    // The assistant message must have the exact shape useChat assembles from
+    // the stream: step-start delimited, dynamic-tool with resolved output.
+    assert.equal(assistant.role, 'assistant');
+    const toolParts = assistant.parts.filter((p) => p.type === 'dynamic-tool');
+    assert.equal(toolParts.length, 1);
+    assert.equal(toolParts[0].toolName, 'getWeather');
+    assert.equal(toolParts[0].state, 'output-available');
+    assert.deepEqual(toolParts[0].output, {
+      temperature: '72F',
+      conditions: 'sunny',
+    });
+    assert.equal(assistant.parts.filter((p) => p.type === 'step-start').length, 2);
+    const text = assistant.parts
+      .filter((p) => p.type === 'text')
+      .map((p) => p.text)
+      .join('');
+    assert.equal(text, 'It is sunny and 72F in San Francisco.');
+  });
+
+  it('Test 16: delete and list', async () => {
+    const { chatId, errors } = await sendChat('/api/streaming', [
+      { text: 'hi' },
+    ]);
+    assert.equal(errors.length, 0);
+
+    // The chat shows up in the list.
+    const list = await fetch(`${baseUrl}/api/streaming`);
+    assert.equal(list.status, 200);
+    const listBody = await list.json();
+    assert.ok(
+      listBody.chats.some((c) => c.id === chatId),
+      `chat ${chatId} missing from list: ${JSON.stringify(listBody)}`
+    );
+
+    // Delete it; history is gone.
+    const del = await fetch(`${baseUrl}/api/streaming/${chatId}`, {
+      method: 'DELETE',
+    });
+    assert.equal(del.status, 204);
+
+    const gone = await fetch(`${baseUrl}/api/streaming/${chatId}`);
+    assert.equal(gone.status, 404);
   });
 });
