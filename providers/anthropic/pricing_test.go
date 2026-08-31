@@ -34,11 +34,15 @@ func TestAllModelsHavePricing(t *testing.T) {
 	}
 }
 
+// TestFastModeModelsHaveFastPricing asserts that a model advertising
+// SpeedFast prices it too. Opus 4.6 is the documented exception: it accepts
+// speed:"fast" but runs at standard speed and bills at standard rates, so it
+// must NOT carry a premium override — see TestOpus46FastModeBillsAtStandardRates.
 func TestFastModeModelsHaveFastPricing(t *testing.T) {
 	t.Parallel()
 
 	for _, o := range Catalog().All() {
-		if !slices.Contains(o.Speeds, SpeedFast) {
+		if !slices.Contains(o.Speeds, SpeedFast) || o.ID == ModelClaudeOpus46 {
 			continue
 		}
 
@@ -59,6 +63,20 @@ func TestFastModeModelsHaveFastPricing(t *testing.T) {
 				"model %s supports fast speed but missing fast 1h cache-write rate", o.ID)
 		})
 	}
+}
+
+// TestOpus46FastModeBillsAtStandardRates pins the exception: Opus 4.6
+// accepts speed:"fast" but bills at standard rates, so a fast override here
+// would overcharge every fast request.
+func TestOpus46FastModeBillsAtStandardRates(t *testing.T) {
+	t.Parallel()
+
+	o, ok := Catalog().Lookup(ModelClaudeOpus46)
+	require.True(t, ok)
+	assert.Contains(t, o.Speeds, SpeedFast)
+
+	_, found := findFastOverride(o.Pricing.Overrides)
+	assert.False(t, found, "Opus 4.6 must not carry a fast-mode price override")
 }
 
 func TestClaudeOpus5Pricing(t *testing.T) {

@@ -65,7 +65,7 @@ func Example_standalone() {
 	fmt.Printf("catalog version stamped: %t\n", cost.CatalogVersion != "")
 
 	// Output:
-	// total: $1.1875 (118750000 microcents)
+	// total: $2.3125 (231250000 microcents)
 	// catalog version stamped: true
 }
 
@@ -75,7 +75,7 @@ func Example_standalone() {
 func Example_unknownModelIsAnError() {
 	catalog, _ := pricing.NewCatalog(
 		pricing.WithProvider("openai", map[string]pricing.Info{
-			"gpt-5": pricing.FlatInfo(0.625, 5.00, 0.125),
+			"gpt-5": pricing.FlatInfo(1.25, 10.00, 0.125),
 		}),
 	)
 

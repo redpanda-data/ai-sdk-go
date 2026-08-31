@@ -14,22 +14,46 @@
 
 // Package catalog is the model-metadata read model shared by every
 // provider: identity, capabilities, constraints, modalities, pricing,
-// lifecycle, and harness tuning for each offering, plus the derivations
-// a discovery surface needs (current vs previous generation, successor,
-// retirement, price tier).
+// and lifecycle for each offering, plus the derivations a discovery
+// surface needs (current vs previous generation, successor, retirement,
+// price tier).
 //
 // # Shape
 //
 // Two identity layers keep cross-provider drift structurally impossible:
 //
 //   - A ModelID ("anthropic/claude-opus-5") names the logical model and
-//     keys a Registry of host-independent Facts (display name, series,
+//     keys a Registry of host-independent Facts (display label, series,
 //     release date, knowledge cutoff). Facts are authored once; every
 //     offering references them.
 //   - An offering ID ("us.anthropic.claude-opus-5") names one invokable
 //     row on one provider and carries everything that genuinely varies
-//     per host: capabilities, constraints, modalities, pricing,
-//     lifecycle, tuning.
+//     per host: capabilities, constraints, modalities, pricing, and
+//     lifecycle.
+//
+// # Identity vocabulary
+//
+// One word per concept, used consistently across the SDK:
+//
+//   - ID: the invokable, provider-native offering identifier — what
+//     NewModel accepts and llm.ModelInfo.Name() returns.
+//     "claude-opus-5" on Anthropic, "us.anthropic.claude-opus-5" on
+//     Bedrock.
+//   - ModelID: the canonical cross-provider identity, linking those two
+//     offerings to one model: "anthropic/claude-opus-5". A registry key,
+//     never sent to a provider.
+//   - DisplayName: the human display name: "Claude Opus 5 (EU)"
+//     (Entry.DisplayName, defaulting from the undecorated
+//     Facts.DisplayName "Claude Opus 5"); never resolved or invoked.
+//
+// Timestamped snapshots are minted per revision, so the catalog does not
+// enumerate them: the offering ID is the stable family, and Resolve maps
+// snapshot forms onto it by longest prefix
+// ("claude-sonnet-4-5-20250929" → the "claude-sonnet-4-5" offering).
+// model.Name() keeps the verbatim string (normalizing would unpin the
+// snapshot); response mappers collapse provider-reported snapshots back
+// to the offering ID. Join a model to the catalog with
+// Resolve(model.Name()) — it understands every spelling; Lookup does not.
 //
 // Providers author []Entry values and freeze them with New, which
 // validates and returns an immutable Catalog. All reads deep-copy.

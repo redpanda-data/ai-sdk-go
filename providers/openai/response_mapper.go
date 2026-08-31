@@ -166,8 +166,20 @@ func (m *ResponseMapper) FromProvider(r *responses.Response) (*llm.Response, err
 		FinishReason:   finish,
 		Usage:          usage,
 		ServiceTier:    llm.NormalizeServiceTier(string(r.ServiceTier)),
-		InvokedModelID: r.Model,
+		InvokedModelID: resolveInvokedModelID(r.Model),
 	}, nil
+}
+
+// resolveInvokedModelID collapses a provider-reported model ID (possibly a
+// timestamped snapshot) to its catalog offering ID; IDs the catalog does
+// not know pass through unchanged. Every provider applies this rule, so
+// InvokedModelID has one meaning SDK-wide.
+func resolveInvokedModelID(model string) string {
+	if offering, ok := Catalog().Resolve(model); ok {
+		return offering.ID
+	}
+
+	return model
 }
 
 func (*ResponseMapper) providerErrorFrom(e responses.ResponseError) *llm.ProviderError {

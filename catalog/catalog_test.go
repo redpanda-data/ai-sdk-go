@@ -16,6 +16,7 @@ package catalog
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,19 +32,19 @@ const mutated = "mutated"
 func testRegistry() Registry {
 	return Registry{
 		"acme/robin-1": {
-			Name: "Robin 1", Series: "robin",
+			DisplayName: "Robin 1", Series: "robin",
 			Released: MustDate("2025-01-10"),
 		},
 		"acme/robin-2": {
-			Name: "Robin 2", Series: "robin",
+			DisplayName: "Robin 2", Series: "robin",
 			Released: MustDate("2025-08-01"), Knowledge: MustDate("2025-05-31"),
 		},
 		"acme/robin-3": {
-			Name: "Robin 3", Series: "robin",
+			DisplayName: "Robin 3", Series: "robin",
 			Released: MustDate("2026-03-15"),
 		},
 		"acme/wren-1": {
-			Name: "Wren 1", Series: "wren",
+			DisplayName: "Wren 1", Series: "wren",
 			Released: MustDate("2025-06-01"),
 		},
 	}
@@ -139,17 +140,33 @@ func TestNewValidation(t *testing.T) {
 			wantErr: `Life.Deprecated 2026-05-01 is before Life.Available 2026-06-01`,
 		},
 		{
-			name: "retires and floor both set",
+			name: "lifecycle date with intra-day precision",
 			mutate: func(e *Entry) {
-				e.Life.Retires = MustDate("2027-05-01")
-				e.Life.RetirementNotBefore = MustDate("2027-01-01")
+				e.Life.Retires = time.Date(2027, time.May, 1, 9, 30, 0, 0, time.UTC)
 			},
-			wantErr: `mutually exclusive`,
+			wantErr: `Life.Retires 2027-05-01 09:30:00 +0000 UTC must be date-only`,
+		},
+		{
+			name: "lifecycle date at local midnight",
+			mutate: func(e *Entry) {
+				e.Life.Deprecated = time.Date(2027, time.May, 1, 0, 0, 0, 0, time.FixedZone("CEST", 2*3600))
+			},
+			wantErr: `must be date-only`,
 		},
 		{
 			name:    "efforts without reasoning capability",
 			mutate:  func(e *Entry) { e.Reasoning.Efforts = []llm.ReasoningEffort{"low"} },
 			wantErr: `Reasoning.Efforts is set but Capabilities.Reasoning is false`,
+		},
+		{
+			name:    "adaptive without reasoning capability",
+			mutate:  func(e *Entry) { e.Reasoning.Adaptive = true },
+			wantErr: `Reasoning.Adaptive/Budget is set but Capabilities.Reasoning is false`,
+		},
+		{
+			name:    "budget without reasoning capability",
+			mutate:  func(e *Entry) { e.Reasoning.Budget = true },
+			wantErr: `Reasoning.Adaptive/Budget is set but Capabilities.Reasoning is false`,
 		},
 		{
 			name: "vision without image modality",
@@ -160,25 +177,24 @@ func TestNewValidation(t *testing.T) {
 			wantErr: `Capabilities.Vision is true but Modalities.Input lacks "image"`,
 		},
 		{
-			name: "tuning default exceeds max output",
+			// Omitting Modalities entirely must not slip past the shape
+			// check: it normalizes to text-only, so declaring Vision is
+			// still a contradiction. Validating before normalizing let this
+			// through and published a self-contradictory entry.
+			name: "vision with implicit text-only modalities",
 			mutate: func(e *Entry) {
-				e.Tuning.DefaultMaxOutputTokens = 10_000
+				e.Capabilities.Vision = true
+				e.Modalities = Modalities{}
 			},
-			wantErr: `Tuning.DefaultMaxOutputTokens 10000 must be <= Constraints.MaxOutputTokens 8192`,
+			wantErr: `Capabilities.Vision is true but Modalities.Input lacks "image"`,
 		},
 		{
-			name: "tuning effort not supported",
+			name: "audio with implicit text-only modalities",
 			mutate: func(e *Entry) {
-				e.Tuning.DefaultReasoningEffort = "high"
+				e.Capabilities.Audio = true
+				e.Modalities = Modalities{}
 			},
-			wantErr: `Tuning.DefaultReasoningEffort "high" is not in Reasoning.Efforts`,
-		},
-		{
-			name: "tuning compaction at or above window",
-			mutate: func(e *Entry) {
-				e.Tuning.CompactAtInputTokens = 200_000
-			},
-			wantErr: `Tuning.CompactAtInputTokens 200000 must be < Constraints.MaxInputTokens 200000`,
+			wantErr: `Capabilities.Audio is true but Modalities.Input lacks "audio"`,
 		},
 		{
 			name: "unpriced input",
@@ -272,7 +288,7 @@ func TestNewNormalization(t *testing.T) {
 	t.Parallel()
 
 	e := validEntry("robin-2", "acme/robin-2")
-	require.Empty(t, e.Label)
+	require.Empty(t, e.DisplayName)
 	require.Empty(t, e.Modalities.Input)
 	require.Empty(t, e.Life.Stage)
 
@@ -280,12 +296,12 @@ func TestNewNormalization(t *testing.T) {
 
 	o, ok := c.Lookup("robin-2")
 	require.True(t, ok)
-	assert.Equal(t, "Robin 2", o.Label, "empty Label defaults to Facts.Name")
+	assert.Equal(t, "Robin 2", o.DisplayName, "empty Label defaults to Facts.Name")
 	assert.Equal(t, []Modality{ModalityText}, o.Modalities.Input)
 	assert.Equal(t, []Modality{ModalityText}, o.Modalities.Output)
 	assert.Equal(t, StageGA, o.Life.Stage, "empty Stage defaults to GA")
 	assert.Equal(t, "acme", o.Provider())
-	assert.Equal(t, "Robin 2", o.Facts().Name)
+	assert.Equal(t, "Robin 2", o.Facts().DisplayName)
 }
 
 func TestResolve(t *testing.T) {
@@ -305,17 +321,19 @@ func TestResolve(t *testing.T) {
 		wantID    string
 		wantOK    bool
 	}{
-		{"robin-2", "robin-2", true},                // exact
-		{"robin-latest", "robin-2", true},           // alias
-		{"robin-2-0522", "robin-2-0522", true},      // exact beats prefix
-		{"robin-2-0522-beta", "robin-2-0522", true}, // longest prefix wins over robin-2
-		{"robin-3-20270101", "robin-3", true},       // snapshot suffix, dash boundary
-		{"robin-3@default", "robin-3", true},        // at-sign boundary
-		{"robin-3.1", "robin-3", true},              // dot boundary
-		{"robin-latest-20270101", "robin-2", true},  // alias participates in prefix matching
-		{"robin-30", "", false},                     // no boundary byte: not a prefix match
-		{"robin-9", "", false},                      // unknown model in a known series
-		{"wren-1", "", false},                       // not offered by this provider
+		{"robin-2", "robin-2", true},               // exact
+		{"robin-latest", "robin-2", true},          // alias
+		{"robin-2-0522", "robin-2-0522", true},     // exact beats prefix
+		{"robin-2-0522-1", "robin-2-0522", true},   // longest prefix wins over robin-2
+		{"robin-3-20270101", "robin-3", true},      // snapshot suffix, dash boundary
+		{"robin-3@001", "robin-3", true},           // at-sign version boundary
+		{"robin-3.1", "robin-3", true},             // dot boundary
+		{"robin-latest-20270101", "robin-2", true}, // alias participates in prefix matching
+		{"robin-30", "", false},                    // no boundary byte: not a prefix match
+		{"robin-3-chat-latest", "", false},         // word suffix = different product, never binned into the family
+		{"robin-3@default", "", false},             // word suffix after '@' likewise
+		{"robin-9", "", false},                     // unknown model in a known series
+		{"wren-1", "", false},                      // not offered by this provider
 		{"", "", false},
 	}
 
@@ -528,7 +546,7 @@ func TestDefaultRegistryIntegrity(t *testing.T) {
 	require.NotEmpty(t, reg)
 
 	for id, f := range reg {
-		assert.NotEmpty(t, f.Name, "%s: Name", id)
+		assert.NotEmpty(t, f.DisplayName, "%s: DisplayName", id)
 		assert.NotEmpty(t, f.Series, "%s: Series", id)
 		assert.False(t, f.Released.IsZero(), "%s: Released", id)
 	}
@@ -538,4 +556,44 @@ func TestDefaultRegistryIntegrity(t *testing.T) {
 	first[ModelClaudeOpus5] = Facts{}
 	second := DefaultRegistry()
 	assert.NotEqual(t, first[ModelClaudeOpus5], second[ModelClaudeOpus5])
+}
+
+func TestNewDoesNotAliasAuthoredEntries(t *testing.T) {
+	t.Parallel()
+
+	e := validEntry("robin-2", "acme/robin-2")
+	e.Constraints.ConditionalRules = []llm.ConditionalRule{{
+		Condition: "stream_enabled",
+		Disables:  []string{"logprobs"},
+	}}
+	c := mustCatalog(t, e)
+
+	// Mutating the author's entry after construction must not reach the
+	// catalog — including slices nested inside ConditionalRules.
+	e.Constraints.SupportedParams[0] = mutated
+	e.Constraints.ConditionalRules[0].Disables[0] = mutated
+
+	o, ok := c.Lookup("robin-2")
+	require.True(t, ok)
+	assert.Equal(t, "max_tokens", o.Constraints.SupportedParams[0])
+	assert.Equal(t, "logprobs", o.Constraints.ConditionalRules[0].Disables[0])
+
+	// And the read-side copy must be just as deep.
+	o.Constraints.ConditionalRules[0].Disables[0] = mutated
+	again, ok := c.Lookup("robin-2")
+	require.True(t, ok)
+	assert.Equal(t, "logprobs", again.Constraints.ConditionalRules[0].Disables[0])
+}
+
+func TestVisionAudioDerivedFromModalities(t *testing.T) {
+	t.Parallel()
+
+	e := validEntry("robin-2", "acme/robin-2")
+	e.Modalities.Input = []Modality{ModalityText, ModalityImage, ModalityAudio}
+	c := mustCatalog(t, e)
+
+	o, ok := c.Lookup("robin-2")
+	require.True(t, ok)
+	assert.True(t, o.Capabilities.Vision, "image input modality must derive Vision")
+	assert.True(t, o.Capabilities.Audio, "audio input modality must derive Audio")
 }

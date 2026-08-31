@@ -374,13 +374,25 @@ var (
 // releases (e.g. Opus 4.1 vs 4.5) have priced differently in the past, so
 // each model's rates are spelled out next to its catalog entry.
 var (
+	// JSONMode is false throughout this file for Converse-path models:
+	// outputConfig.textFormat accepts only a JSON schema, so there is no
+	// schemaless JSON mode to advertise.
 	claudeStandardCaps = llm.ModelCapabilities{
-		Streaming:     true,
-		Tools:         true,
-		Vision:        false,
-		MultiTurn:     true,
-		SystemPrompts: true,
-		Reasoning:     true,
+		Streaming:        true,
+		Tools:            true,
+		JSONMode:         false,
+		StructuredOutput: true,
+		Vision:           true,
+		MultiTurn:        true,
+		SystemPrompts:    true,
+		Reasoning:        true,
+	}
+
+	// claudeModalities is shared by every Claude family on Bedrock: text,
+	// image and PDF document input, text output.
+	claudeModalities = catalog.Modalities{
+		Input:  []catalog.Modality{catalog.ModalityText, catalog.ModalityImage, catalog.ModalityDocument},
+		Output: []catalog.Modality{catalog.ModalityText},
 	}
 
 	claudeContext1MConstraints = llm.ModelConstraints{
@@ -403,30 +415,27 @@ var (
 		SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 	}
 
-	// Capability/constraint shapes for Amazon Nova 2 Lite. Unlike the Claude
-	// entries, JSONMode and StructuredOutput are set: Nova supports Bedrock
-	// constrained-decoding structured outputs (response_format / Converse
-	// outputConfig.textFormat), which is the primary reason to reach for it on
-	// extraction workloads. Multimodal image + video input, text output.
+	// Capability/constraint shapes for Amazon Nova 2 Lite: multimodal
+	// text + image + video + document input, text output, Bedrock
+	// constrained-decoding structured outputs, and extended thinking.
 	//
-	// Reasoning is left false even though Nova 2 Lite supports extended
-	// thinking at the model level: the only lever in this SDK — WithThinking —
-	// emits the Anthropic-shaped {"thinking":{"type":"enabled",...}} document
-	// via AdditionalModelRequestFields (request_mapper.go), which Nova does not
-	// accept, so reasoning is not reachable for Nova through the current API.
-	// Flip to true once Nova's reasoning schema is wired through a Bedrock
-	// option. top_k is omitted from SupportedParams for the same reason: the
-	// Converse request mapper only emits temperature/top_p/max_tokens/stop.
+	// top_k is omitted from SupportedParams because the Converse request
+	// mapper only emits temperature/top_p/max_tokens/stop.
 	nova2LiteCaps = llm.ModelCapabilities{
 		Streaming:        true,
 		Tools:            true,
-		JSONMode:         true,
+		JSONMode:         false,
 		StructuredOutput: true,
 		Vision:           true,
 		Audio:            false,
 		MultiTurn:        true,
 		SystemPrompts:    true,
-		Reasoning:        false,
+		Reasoning:        true,
+	}
+
+	nova2LiteModalities = catalog.Modalities{
+		Input:  []catalog.Modality{catalog.ModalityText, catalog.ModalityImage, catalog.ModalityVideo, catalog.ModalityDocument},
+		Output: []catalog.Modality{catalog.ModalityText},
 	}
 
 	nova2LiteConstraints = llm.ModelConstraints{
@@ -436,29 +445,22 @@ var (
 		SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 	}
 
-	// Capability/constraint shapes for Mistral Large 3. Tools and native
-	// structured output (Converse outputConfig.textFormat / response_format)
-	// are set from LiteLLM's bedrock_converse catalog entry, which marks
-	// mistral.mistral-large-3-675b-instruct with supports_function_calling and
-	// supports_native_structured_output; a live Converse call with
-	// outputConfig.textFormat should still confirm constrained decoding before
-	// this leaves draft, since no unit test here exercises it. Vision is false:
+	// Capability/constraint shapes for Mistral Large 3. Vision is false:
 	// Mistral Large 3 is text-only on Bedrock (Pixtral Large is Mistral's
 	// multimodal entry). Reasoning is false — it is not a reasoning model
 	// (Magistral is Mistral's reasoning line), and the only reasoning lever in
 	// this SDK (WithThinking) emits an Anthropic-shaped thinking document that
 	// non-Anthropic Bedrock models reject.
 	//
-	// Context window: LiteLLM's bedrock_converse entry lists a 128K
-	// (max_input_tokens 131072 rounded) input window and an 8,192 max-output
-	// cap for the Bedrock-hosted variant — smaller than Mistral's native API,
-	// so re-confirm the exact output cap when validating live (it may be
-	// raised). top_k is omitted from SupportedParams because the Converse
+	// Context window: the Bedrock-hosted variant lists a 128K (131072)
+	// input window and an 8,192 max-output cap — smaller than Mistral's
+	// native API, so re-confirm the exact output cap when validating live
+	// (it may be raised). top_k is omitted from SupportedParams because the Converse
 	// request mapper only emits temperature/top_p/max_tokens/stop.
 	mistralLarge3Caps = llm.ModelCapabilities{
 		Streaming:        true,
 		Tools:            true,
-		JSONMode:         true,
+		JSONMode:         false,
 		StructuredOutput: true,
 		Vision:           false,
 		Audio:            false,
@@ -476,14 +478,8 @@ var (
 
 	// Capability/constraint shapes for the Google Gemma 4 family on the
 	// bedrock-mantle endpoint. All variants share the same capability surface:
-	// streaming, native function calling (Tools), built-in Reasoning, and text
-	// output. Audio is false, and although Gemma accepts image/video input at
-	// the model level, Vision is left FALSE: the SDK has no image Part and the
-	// reused OpenAI Responses request mapper only serializes text/tool/reasoning
-	// parts, so there is no wired path to send an image today — advertising
-	// Vision would promise input the mapper silently drops. Flip to true once
-	// image input is threaded through the Responses request mapping. JSONMode /
-	// StructuredOutput are false for the same reason: unverified on this path.
+	// streaming, native function calling (Tools), built-in Reasoning, image
+	// and video input, and text output.
 	//
 	// The context windows differ by variant (256K for 31B / 26B-A4B, 128K for
 	// E2B), so each gets its own constraints var. AWS publishes no separate
@@ -499,11 +495,16 @@ var (
 	gemma4Caps = llm.ModelCapabilities{
 		Streaming:     true,
 		Tools:         true,
-		Vision:        false,
+		Vision:        true,
 		Audio:         false,
 		MultiTurn:     true,
 		SystemPrompts: true,
 		Reasoning:     true,
+	}
+
+	gemma4Modalities = catalog.Modalities{
+		Input:  []catalog.Modality{catalog.ModalityText, catalog.ModalityImage, catalog.ModalityVideo},
+		Output: []catalog.Modality{catalog.ModalityText},
 	}
 
 	gemma4Context256kConstraints = llm.ModelConstraints{
@@ -522,20 +523,23 @@ var (
 
 	// GPT-5.6 is available through the same bedrock-mantle Responses transport
 	// as Gemma 4. AWS advertises a 272K context window for the Bedrock-hosted
-	// variants, rather than the larger first-party OpenAI window. Vision is
-	// false because this SDK does not yet expose an image Part on the shared
-	// Responses mapper, even though the Bedrock models accept image input.
+	// variants, rather than the larger first-party OpenAI window.
 	// SupportedParams contains only options the mantle adapter serializes.
 	gpt56Caps = llm.ModelCapabilities{
 		Streaming:        true,
 		Tools:            true,
 		JSONMode:         true,
 		StructuredOutput: true,
-		Vision:           false,
+		Vision:           true,
 		Audio:            false,
 		MultiTurn:        true,
 		SystemPrompts:    true,
 		Reasoning:        true,
+	}
+
+	gpt56Modalities = catalog.Modalities{
+		Input:  []catalog.Modality{catalog.ModalityText, catalog.ModalityImage},
+		Output: []catalog.Modality{catalog.ModalityText},
 	}
 
 	gpt56Constraints = llm.ModelConstraints{
@@ -591,10 +595,11 @@ var bedrockFamilies = []family{
 		// profiles cover us and eu (jp/au are not published).
 		BareID:       ModelClaudeFable5,
 		Model:        catalog.ModelClaudeFable5,
-		Label:        "Claude Fable 5",
+		DisplayName:  "Claude Fable 5",
 		Profiles:     []string{"global", "us", "eu"},
 		DataSharing:  true,
 		Capabilities: claudeStandardCaps,
+		Modalities:   claudeModalities,
 		Constraints:  claudeNoSampling1MConstraints,
 		Reasoning:    frontierClaudeThinking,
 		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(10.00, 50.00, 1.00).WithCacheCreation(12.50, 20.00, 0)},
@@ -606,9 +611,10 @@ var bedrockFamilies = []family{
 		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-5.html
 		BareID:       ModelClaudeOpus5,
 		Model:        catalog.ModelClaudeOpus5,
-		Label:        "Claude Opus 5",
+		DisplayName:  "Claude Opus 5",
 		Profiles:     []string{"global", "us", "eu", "au"},
 		Capabilities: claudeStandardCaps,
+		Modalities:   claudeModalities,
 		Constraints:  claudeNoSampling1MConstraints,
 		Reasoning:    frontierClaudeThinking,
 		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0)},
@@ -621,9 +627,10 @@ var bedrockFamilies = []family{
 		// us, eu, jp (au is not published).
 		BareID:       ModelClaudeOpus48,
 		Model:        catalog.ModelClaudeOpus48,
-		Label:        "Claude Opus 4.8",
+		DisplayName:  "Claude Opus 4.8",
 		Profiles:     []string{"global", "us", "eu", "jp"},
 		Capabilities: claudeStandardCaps,
+		Modalities:   claudeModalities,
 		Constraints:  claudeContext1MConstraints,
 		Reasoning:    frontierClaudeThinking,
 		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0)},
@@ -634,9 +641,10 @@ var bedrockFamilies = []family{
 		// us, eu, jp (au is not published).
 		BareID:       ModelClaudeOpus47,
 		Model:        catalog.ModelClaudeOpus47,
-		Label:        "Claude Opus 4.7",
+		DisplayName:  "Claude Opus 4.7",
 		Profiles:     []string{"global", "us", "eu", "jp"},
 		Capabilities: claudeStandardCaps,
+		Modalities:   claudeModalities,
 		Constraints:  claudeContext1MConstraints,
 		Reasoning:    frontierClaudeThinking,
 		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0)},
@@ -646,9 +654,10 @@ var bedrockFamilies = []family{
 		// Claude Opus 4.6 — inference-profile-only.
 		BareID:       ModelClaudeOpus46,
 		Model:        catalog.ModelClaudeOpus46,
-		Label:        "Claude Opus 4.6",
+		DisplayName:  "Claude Opus 4.6",
 		Profiles:     []string{"global", "us", "eu", "au"},
 		Capabilities: claudeStandardCaps,
+		Modalities:   claudeModalities,
 		Constraints:  claudeContext1MConstraints,
 		Reasoning:    claudeOpus46Thinking,
 		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0)},
@@ -658,9 +667,10 @@ var bedrockFamilies = []family{
 		// Claude Opus 4.5 — inference-profile-only.
 		BareID:       ModelClaudeOpus45,
 		Model:        catalog.ModelClaudeOpus45,
-		Label:        "Claude Opus 4.5",
+		DisplayName:  "Claude Opus 4.5",
 		Profiles:     []string{"global", "us", "eu"},
 		Capabilities: claudeStandardCaps,
+		Modalities:   claudeModalities,
 		Constraints:  claudeContext200kConstraints,
 		Reasoning:    claude45Thinking,
 		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0)},
@@ -671,22 +681,27 @@ var bedrockFamilies = []family{
 		// published so far.
 		BareID:       ModelClaudeSonnet5,
 		Model:        catalog.ModelClaudeSonnet5,
-		Label:        "Claude Sonnet 5",
+		DisplayName:  "Claude Sonnet 5",
 		Profiles:     []string{"global", "us"},
 		Capabilities: claudeStandardCaps,
+		Modalities:   claudeModalities,
 		Constraints:  claudeContext1MConstraints,
 		Reasoning:    frontierClaudeThinking,
-		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0)},
-		Rates:        pricing.RateCard{Base: pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0)},
+		// $2/$10 is Sonnet 5's standard price: the increase to $3/$15 once
+		// scheduled for 2026-09-01 was cancelled.
+		GlobalRates: &pricing.RateCard{Base: pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0)},
+		Rates:       pricing.RateCard{Base: pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(2.75, 4.40, 0)},
 	},
 	{
-		// Claude Sonnet 4.6 — inference-profile-only.
+		// Claude Sonnet 4.6 — inference-profile-only. 1M context on
+		// Bedrock as well as the first-party API.
 		BareID:       ModelClaudeSonnet46,
 		Model:        catalog.ModelClaudeSonnet46,
-		Label:        "Claude Sonnet 4.6",
+		DisplayName:  "Claude Sonnet 4.6",
 		Profiles:     []string{"global", "us", "eu", "au"},
 		Capabilities: claudeStandardCaps,
-		Constraints:  claudeContext200kConstraints,
+		Modalities:   claudeModalities,
+		Constraints:  claudeContext1MConstraints,
 		Reasoning:    claudeSonnet46Thinking,
 		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0)},
 		Rates:        pricing.RateCard{Base: pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0)},
@@ -696,9 +711,10 @@ var bedrockFamilies = []family{
 		// coverage of the Claude 4.x line.
 		BareID:       ModelClaudeSonnet45,
 		Model:        catalog.ModelClaudeSonnet45,
-		Label:        "Claude Sonnet 4.5",
+		DisplayName:  "Claude Sonnet 4.5",
 		Profiles:     []string{"global", "us", "eu", "au", "jp"},
 		Capabilities: claudeStandardCaps,
+		Modalities:   claudeModalities,
 		Constraints:  claudeContext200kConstraints,
 		Reasoning:    claude45Thinking,
 		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0)},
@@ -708,9 +724,10 @@ var bedrockFamilies = []family{
 		// Claude Haiku 4.5 — inference-profile-only.
 		BareID:       ModelClaudeHaiku45,
 		Model:        catalog.ModelClaudeHaiku45,
-		Label:        "Claude Haiku 4.5",
+		DisplayName:  "Claude Haiku 4.5",
 		Profiles:     []string{"global", "us", "eu", "au"},
 		Capabilities: claudeStandardCaps,
+		Modalities:   claudeModalities,
 		Constraints:  claudeContext200kConstraints,
 		Reasoning:    claude45Thinking,
 		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(1.00, 5.00, 0.10).WithCacheCreation(1.25, 2.00, 0)},
@@ -724,9 +741,10 @@ var bedrockFamilies = []family{
 		// models.
 		BareID:       ModelNova2Lite,
 		Model:        catalog.ModelNova2Lite,
-		Label:        "Amazon Nova 2 Lite",
+		DisplayName:  "Amazon Nova 2 Lite",
 		Profiles:     []string{"global", "us", "eu", "jp"},
 		Capabilities: nova2LiteCaps,
+		Modalities:   nova2LiteModalities,
 		Constraints:  nova2LiteConstraints,
 		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(0.30, 2.50, 0.075)},
 		Rates:        pricing.RateCard{Base: pricing.NewRates(0.33, 2.75, 0.0825)},
@@ -741,7 +759,7 @@ var bedrockFamilies = []family{
 		// (no cache usagetype published), so cache rates stay zero.
 		BareID:        ModelMistralLarge3,
 		Model:         catalog.ModelMistralLarge3,
-		Label:         "Mistral Large 3",
+		DisplayName:   "Mistral Large 3",
 		BareInvokable: true,
 		Capabilities:  mistralLarge3Caps,
 		Constraints:   mistralLarge3Constraints,
@@ -756,10 +774,11 @@ var bedrockFamilies = []family{
 		// count, so the write price sits in the unknown-TTL bucket.
 		BareID:        ModelGPT56Sol,
 		Model:         catalog.ModelGPT5_6Sol,
-		Label:         "OpenAI GPT-5.6 Sol",
+		DisplayName:   "OpenAI GPT-5.6 Sol",
 		BareInvokable: true,
 		Mantle:        true,
 		Capabilities:  gpt56Caps,
+		Modalities:    gpt56Modalities,
 		Constraints:   gpt56Constraints,
 		Reasoning:     gpt56Reasoning,
 		Rates:         pricing.RateCard{Base: pricing.NewRates(5.50, 33.00, 0.55).WithCacheCreation(0, 0, 6.875)},
@@ -767,10 +786,11 @@ var bedrockFamilies = []family{
 	{
 		BareID:        ModelGPT56Terra,
 		Model:         catalog.ModelGPT5_6Terra,
-		Label:         "OpenAI GPT-5.6 Terra",
+		DisplayName:   "OpenAI GPT-5.6 Terra",
 		BareInvokable: true,
 		Mantle:        true,
 		Capabilities:  gpt56Caps,
+		Modalities:    gpt56Modalities,
 		Constraints:   gpt56Constraints,
 		Reasoning:     gpt56Reasoning,
 		Rates:         pricing.RateCard{Base: pricing.NewRates(2.75, 16.50, 0.275).WithCacheCreation(0, 0, 3.4375)},
@@ -778,10 +798,11 @@ var bedrockFamilies = []family{
 	{
 		BareID:        ModelGPT56Luna,
 		Model:         catalog.ModelGPT5_6Luna,
-		Label:         "OpenAI GPT-5.6 Luna",
+		DisplayName:   "OpenAI GPT-5.6 Luna",
 		BareInvokable: true,
 		Mantle:        true,
 		Capabilities:  gpt56Caps,
+		Modalities:    gpt56Modalities,
 		Constraints:   gpt56Constraints,
 		Reasoning:     gpt56Reasoning,
 		Rates:         pricing.RateCard{Base: pricing.NewRates(1.10, 6.60, 0.11).WithCacheCreation(0, 0, 1.375)},
@@ -797,30 +818,33 @@ var bedrockFamilies = []family{
 		// usagetype is published — so cache rates stay zero.
 		BareID:        ModelGemma431B,
 		Model:         catalog.ModelGemma431B,
-		Label:         "Google Gemma 4 31B",
+		DisplayName:   "Google Gemma 4 31B",
 		BareInvokable: true,
 		Mantle:        true,
 		Capabilities:  gemma4Caps,
+		Modalities:    gemma4Modalities,
 		Constraints:   gemma4Context256kConstraints,
 		Rates:         pricing.RateCard{Base: pricing.NewRates(0.14, 0.40, 0)},
 	},
 	{
 		BareID:        ModelGemma426BA4B,
 		Model:         catalog.ModelGemma426BA4B,
-		Label:         "Google Gemma 4 26B-A4B",
+		DisplayName:   "Google Gemma 4 26B-A4B",
 		BareInvokable: true,
 		Mantle:        true,
 		Capabilities:  gemma4Caps,
+		Modalities:    gemma4Modalities,
 		Constraints:   gemma4Context256kConstraints,
 		Rates:         pricing.RateCard{Base: pricing.NewRates(0.13, 0.40, 0)},
 	},
 	{
 		BareID:        ModelGemma4E2B,
 		Model:         catalog.ModelGemma4E2B,
-		Label:         "Google Gemma 4 E2B",
+		DisplayName:   "Google Gemma 4 E2B",
 		BareInvokable: true,
 		Mantle:        true,
 		Capabilities:  gemma4Caps,
+		Modalities:    gemma4Modalities,
 		Constraints:   gemma4Context128kConstraints,
 		Rates:         pricing.RateCard{Base: pricing.NewRates(0.04, 0.08, 0)},
 	},

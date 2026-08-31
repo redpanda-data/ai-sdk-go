@@ -14,6 +14,8 @@
 
 package catalog
 
+import "time"
+
 // View is a time-dependent classification of a Catalog. Every predicate
 // that depends on the clock lives here and nowhere else, so nothing on
 // Catalog silently changes meaning when a retirement date passes —
@@ -23,11 +25,13 @@ package catalog
 // c.At(catalog.Today()).
 type View struct {
 	catalog *Catalog
-	asOf    Date
+	asOf    time.Time
 }
 
-// At returns the classification of the catalog as of the given date.
-func (c *Catalog) At(asOf Date) View {
+// At returns the classification of the catalog as of the given instant.
+// Lifecycle dates are midnight UTC and boundaries are inclusive, so any
+// instant within a UTC day classifies as that day; time.Now() is fine.
+func (c *Catalog) At(asOf time.Time) View {
 	return View{catalog: c, asOf: asOf}
 }
 
@@ -36,8 +40,8 @@ func (c *Catalog) Now() View {
 	return c.At(Today())
 }
 
-// AsOf returns the date this view classifies at.
-func (v View) AsOf() Date {
+// AsOf returns the instant this view classifies at.
+func (v View) AsOf() time.Time {
 	return v.asOf
 }
 
@@ -45,8 +49,7 @@ func (v View) AsOf() Date {
 // date. Precedence: retired > deprecated > authored stage.
 //
 // Retirement derives exclusively from Lifecycle.Retires (inclusive
-// boundary). A published RetirementNotBefore floor never retires an
-// offering — a lower bound is not a shutdown date.
+// boundary).
 func (v View) Stage(offeringID string) (Stage, bool) {
 	if v.catalog == nil {
 		return "", false

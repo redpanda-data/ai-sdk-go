@@ -51,6 +51,7 @@ func (rm *RequestMapper) ToConverseInput(req *llm.Request) (*bedrockruntime.Conv
 		InferenceConfig:              p.infConfig,
 		AdditionalModelRequestFields: p.thinking,
 		ToolConfig:                   p.tools,
+		OutputConfig:                 p.outputConfig,
 	}, nil
 }
 
@@ -68,6 +69,7 @@ func (rm *RequestMapper) ToConverseStreamInput(req *llm.Request) (*bedrockruntim
 		InferenceConfig:              p.infConfig,
 		AdditionalModelRequestFields: p.thinking,
 		ToolConfig:                   p.tools,
+		OutputConfig:                 p.outputConfig,
 	}, nil
 }
 
@@ -78,6 +80,9 @@ type converseParams struct {
 	infConfig *types.InferenceConfiguration
 	thinking  document.Interface
 	tools     *types.ToolConfiguration
+	// outputConfig carries structured-output constraints (Converse
+	// outputConfig.textFormat).
+	outputConfig *types.OutputConfig
 }
 
 // buildConverseParams resolves all common request parameters once.
@@ -106,7 +111,54 @@ func (rm *RequestMapper) buildConverseParams(req *llm.Request) (*converseParams,
 		p.tools = toolConfig
 	}
 
+	if req.ResponseFormat != nil {
+		if err := applyResponseFormat(p, req.ResponseFormat); err != nil {
+			return nil, fmt.Errorf("%w: response format mapping failed: %w", llm.ErrRequestMapping, err)
+		}
+	}
+
 	return p, nil
+}
+
+// applyResponseFormat sets Converse's outputConfig.textFormat from a
+// unified ResponseFormat. A text format leaves p.outputConfig nil.
+//
+// Converse only accepts a JSON schema, so ResponseFormatJSONObject is
+// rejected rather than silently downgraded to unconstrained text.
+func applyResponseFormat(p *converseParams, format *llm.ResponseFormat) error {
+	switch format.Type {
+	case llm.ResponseFormatText, "":
+		return nil
+
+	case llm.ResponseFormatJSONSchema:
+		if format.JSONSchema == nil {
+			return errors.New("JSONSchema is required when Type is json_schema")
+		}
+
+		if !json.Valid(format.JSONSchema.Schema) {
+			return errors.New("invalid JSON schema")
+		}
+
+		p.outputConfig = &types.OutputConfig{
+			TextFormat: &types.OutputFormat{
+				Type: types.OutputFormatTypeJsonSchema,
+				Structure: &types.OutputFormatStructureMemberJsonSchema{
+					Value: types.JsonSchemaDefinition{
+						Schema: aws.String(string(format.JSONSchema.Schema)),
+					},
+				},
+			},
+		}
+
+		return nil
+
+	case llm.ResponseFormatJSONObject:
+		return fmt.Errorf("%w: Bedrock requires a schema for JSON output: use %q with a JSONSchema",
+			llm.ErrUnsupportedFeature, llm.ResponseFormatJSONSchema)
+
+	default:
+		return fmt.Errorf("unsupported response format type: %s", format.Type)
+	}
 }
 
 // buildInferenceConfig creates the InferenceConfiguration from config options.
@@ -173,6 +225,9 @@ func (rm *RequestMapper) buildThinkingFields() document.Interface {
 }
 
 // mapMessages converts llm.Messages to Bedrock Converse types, separating system messages.
+// TODO: only text/tool/reasoning parts are mapped. The catalog
+// advertises image (and on some models audio/video/document) input
+// because the models accept it; llm.Part has no binary part yet.
 func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]types.Message, []types.SystemContentBlock, error) {
 	var apiMessages []types.Message
 	var system []types.SystemContentBlock

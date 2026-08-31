@@ -56,7 +56,7 @@ func TestProviderModels(t *testing.T) {
 	for i, model := range models {
 		modelNames[i] = model.ID
 		assert.NotEmpty(t, model.ID, "Model ID should not be empty")
-		assert.NotEmpty(t, model.Label, "Model label should not be empty")
+		assert.NotEmpty(t, model.DisplayName, "Model label should not be empty")
 		assert.Positive(t, model.Constraints.MaxInputTokens,
 			"model %s missing MaxInputTokens — set Constraints on its catalog entry", model.ID)
 		assert.Positive(t, model.Constraints.MaxOutputTokens,
@@ -93,10 +93,11 @@ func TestLatestGeminiModels(t *testing.T) {
 		maxOutputTokens       int
 	}{
 		{
+			// $0.75/$3.75/$0.075 through 2026-12-31; doubles 2027-01-01.
 			name:                  "gemini-3.6-flash",
-			inputMicrocents:       150_000_000,
-			outputMicrocents:      750_000_000,
-			cachedInputMicrocents: 15_000_000,
+			inputMicrocents:       75_000_000,
+			outputMicrocents:      375_000_000,
+			cachedInputMicrocents: 7_500_000,
 			maxInputTokens:        1_048_576,
 			maxOutputTokens:       65_536,
 		},

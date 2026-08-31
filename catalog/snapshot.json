@@ -2,300 +2,353 @@
   "schema_version": 1,
   "facts": {
     "amazon/nova-2-lite": {
-      "name": "Amazon Nova 2 Lite",
+      "label": "Amazon Nova 2 Lite",
+      "description": "Nova 2 Lite is a fast, cost-effective reasoning model for everyday workloads that can process text, images, and videos to generate text.",
       "series": "nova-lite",
       "released": "2025-12-02"
     },
     "anthropic/claude-fable-5": {
-      "name": "Claude Fable 5",
+      "label": "Claude Fable 5",
+      "description": "Claude Fable 5 is a Mythos-class model from Anthropic, built for autonomous knowledge work and coding.",
       "series": "claude-fable",
       "released": "2026-06-07"
     },
     "anthropic/claude-haiku-4-5": {
-      "name": "Claude Haiku 4.5",
+      "label": "Claude Haiku 4.5",
+      "description": "Claude Haiku 4.5 is Anthropic’s fastest and most efficient model, delivering near-frontier intelligence at a fraction of the cost and latency of larger Claude models.",
       "series": "claude-haiku",
       "released": "2025-10-15",
       "knowledge": "2025-02-28"
     },
     "anthropic/claude-opus-4-1": {
-      "name": "Claude Opus 4.1",
+      "label": "Claude Opus 4.1",
+      "description": "Claude Opus 4.1 is an updated version of Anthropic’s flagship model, offering improved performance in coding, reasoning, and agentic tasks.",
       "series": "claude-opus",
       "released": "2025-08-05",
       "knowledge": "2025-03-31"
     },
     "anthropic/claude-opus-4-5": {
-      "name": "Claude Opus 4.5",
+      "label": "Claude Opus 4.5",
+      "description": "Claude Opus 4.5 is Anthropic’s frontier reasoning model optimized for complex software engineering, agentic workflows, and long-horizon computer use.",
       "series": "claude-opus",
       "released": "2025-11-24",
       "knowledge": "2025-05-31"
     },
     "anthropic/claude-opus-4-6": {
-      "name": "Claude Opus 4.6",
+      "label": "Claude Opus 4.6",
+      "description": "Opus 4.6 is Anthropic’s strongest model for coding and long-running professional tasks.",
       "series": "claude-opus",
       "released": "2026-02-04",
       "knowledge": "2025-05-31"
     },
     "anthropic/claude-opus-4-7": {
-      "name": "Claude Opus 4.7",
+      "label": "Claude Opus 4.7",
+      "description": "Opus 4.7 is the next generation of Anthropic's Opus family, built for long-running, asynchronous agents.",
       "series": "claude-opus",
       "released": "2026-04-14",
       "knowledge": "2026-01-31"
     },
     "anthropic/claude-opus-4-8": {
-      "name": "Claude Opus 4.8",
+      "label": "Claude Opus 4.8",
+      "description": "Claude Opus 4.8 is Anthropic's most capable generally available model in the Opus family.",
       "series": "claude-opus",
       "released": "2026-05-28",
       "knowledge": "2026-01-31"
     },
     "anthropic/claude-opus-5": {
-      "name": "Claude Opus 5",
+      "label": "Claude Opus 5",
+      "description": "Claude Opus 5 is Anthropic’s flagship model for demanding reasoning, coding, and long-horizon agentic work.",
       "series": "claude-opus",
       "released": "2026-07-24",
       "knowledge": "2026-05-31"
     },
     "anthropic/claude-sonnet-4-5": {
-      "name": "Claude Sonnet 4.5",
+      "label": "Claude Sonnet 4.5",
+      "description": "Claude Sonnet 4.5 is Anthropic’s most advanced Sonnet model to date, optimized for real-world agents and coding workflows.",
       "series": "claude-sonnet",
       "released": "2025-09-29",
-      "knowledge": "2025-07-31"
+      "knowledge": "2025-01-31"
     },
     "anthropic/claude-sonnet-4-6": {
-      "name": "Claude Sonnet 4.6",
+      "label": "Claude Sonnet 4.6",
+      "description": "Sonnet 4.6 is Anthropic's most capable Sonnet-class model yet, with frontier performance across coding, agents, and professional work.",
       "series": "claude-sonnet",
       "released": "2026-02-17",
       "knowledge": "2025-08-31"
     },
     "anthropic/claude-sonnet-5": {
-      "name": "Claude Sonnet 5",
+      "label": "Claude Sonnet 5",
+      "description": "Sonnet 5 is Anthropic's most capable Sonnet-class model, with frontier performance across coding, agents, and professional work.",
       "series": "claude-sonnet",
       "released": "2026-06-29",
       "knowledge": "2026-01-31"
     },
     "google/gemini-2.5-flash": {
-      "name": "Gemini 2.5 Flash",
+      "label": "Gemini 2.5 Flash",
+      "description": "Gemini 2.5 Flash is Google's state-of-the-art workhorse model, specifically designed for advanced reasoning, coding, mathematics, and scientific tasks.",
       "series": "gemini-flash",
       "released": "2025-06-17",
       "knowledge": "2025-01-31"
     },
     "google/gemini-2.5-flash-lite": {
-      "name": "Gemini 2.5 Flash-Lite",
+      "label": "Gemini 2.5 Flash-Lite",
+      "description": "Gemini 2.5 Flash-Lite is a lightweight reasoning model in the Gemini 2.5 family, optimized for ultra-low latency and cost efficiency.",
       "series": "gemini-flash-lite",
-      "released": "2025-06-17",
+      "released": "2025-07-22",
       "knowledge": "2025-01-31"
     },
     "google/gemini-2.5-pro": {
-      "name": "Gemini 2.5 Pro",
+      "label": "Gemini 2.5 Pro",
+      "description": "Gemini 2.5 Pro is Google’s state-of-the-art AI model designed for advanced reasoning, coding, mathematics, and scientific tasks.",
       "series": "gemini-pro",
       "released": "2025-06-17",
       "knowledge": "2025-01-31"
     },
     "google/gemini-3-flash-preview": {
-      "name": "Gemini 3 Flash Preview",
+      "label": "Gemini 3 Flash Preview",
+      "description": "Gemini 3 Flash Preview is a high speed, high value thinking model designed for agentic workflows, multi turn chat, and coding assistance.",
       "series": "gemini-flash",
       "released": "2025-12-17",
       "knowledge": "2025-01-31"
     },
     "google/gemini-3-pro-preview": {
-      "name": "Gemini 3 Pro Preview",
+      "label": "Gemini 3 Pro Preview",
       "series": "gemini-pro",
       "released": "2025-11-18",
       "knowledge": "2025-01-31"
     },
     "google/gemini-3.1-pro-preview": {
-      "name": "Gemini 3.1 Pro Preview",
+      "label": "Gemini 3.1 Pro Preview",
+      "description": "Gemini 3.1 Pro Preview is Google’s frontier reasoning model, delivering enhanced software engineering performance, improved agentic reliability, and more efficient token usage across complex workflows.",
       "series": "gemini-pro",
       "released": "2026-02-19",
       "knowledge": "2025-01-31"
     },
     "google/gemini-3.5-flash": {
-      "name": "Gemini 3.5 Flash",
+      "label": "Gemini 3.5 Flash",
+      "description": "Gemini 3.5 Flash is Google's high-efficiency multimodal model, bringing near-Pro level coding and reasoning at Flash-tier cost and speed.",
       "series": "gemini-flash",
       "released": "2026-05-19",
       "knowledge": "2025-01-31"
     },
     "google/gemini-3.5-flash-lite": {
-      "name": "Gemini 3.5 Flash-Lite",
+      "label": "Gemini 3.5 Flash-Lite",
+      "description": "Gemini 3.5 Flash Lite is a high-efficiency model from Google with upgraded agentic capabilities. It is suited for subagents that execute focused tasks within complex, multi-agent workflows.",
       "series": "gemini-flash-lite",
       "released": "2026-07-21",
       "knowledge": "2026-03-31"
     },
     "google/gemini-3.6-flash": {
-      "name": "Gemini 3.6 Flash",
+      "label": "Gemini 3.6 Flash",
+      "description": "Gemini 3.6 Flash is a high-efficiency model from Google for coding, agentic workflows, and web and app development.",
       "series": "gemini-flash",
       "released": "2026-07-21",
       "knowledge": "2026-03-31"
     },
+    "google/gemini-3.7-flash": {
+      "label": "Gemini 3.7 Flash",
+      "description": "Gemini 3.7 Flash is a multimodal model from Google for fast agentic workflows, coding, and complex multi-step reasoning.",
+      "series": "gemini-flash",
+      "released": "2026-08-13"
+    },
     "google/gemma-4-26b-a4b": {
-      "name": "Gemma 4 26B A4B",
+      "label": "Gemma 4 26B A4B",
+      "description": "Gemma 4 26B A4B IT is an instruction-tuned Mixture-of-Experts (MoE) model from Google DeepMind.",
       "series": "gemma-26b-a4b",
       "released": "2026-04-02",
       "open_weights": true
     },
     "google/gemma-4-31b": {
-      "name": "Gemma 4 31B",
+      "label": "Gemma 4 31B",
+      "description": "Gemma 4 31B Instruct is Google DeepMind's 30.7B dense multimodal model supporting text and image input with text output.",
       "series": "gemma-31b",
       "released": "2026-04-02",
       "open_weights": true
     },
     "google/gemma-4-e2b": {
-      "name": "Gemma 4 E2B",
+      "label": "Gemma 4 E2B",
       "series": "gemma-e2b",
       "released": "2026-04-02",
       "open_weights": true
     },
     "mistral/mistral-large-3": {
-      "name": "Mistral Large 3",
+      "label": "Mistral Large 3",
+      "description": "Mistral Large 3 2512 is Mistral’s most capable model to date, featuring a sparse mixture-of-experts architecture with 41B active parameters (675B total), and released under the Apache 2.0 license.",
       "series": "mistral-large",
       "released": "2025-12-02",
       "knowledge": "2025-01-31",
       "open_weights": true
     },
     "openai/gpt-3.5-turbo": {
-      "name": "GPT-3.5 Turbo",
+      "label": "GPT-3.5 Turbo",
+      "description": "GPT-3.5 Turbo is OpenAI's fastest model. It can understand and generate natural language or code, and is optimized for chat and traditional completion tasks.",
       "series": "gpt",
       "released": "2023-03-01",
       "knowledge": "2021-09-30"
     },
     "openai/gpt-4-turbo": {
-      "name": "GPT-4 Turbo",
+      "label": "GPT-4 Turbo",
+      "description": "The latest GPT-4 Turbo model with vision capabilities. Vision requests can now use JSON mode and function calling.",
       "series": "gpt",
       "released": "2023-11-06",
       "knowledge": "2023-12-31"
     },
     "openai/gpt-4.1": {
-      "name": "GPT-4.1",
+      "label": "GPT-4.1",
+      "description": "GPT-4.1 is a flagship large language model optimized for advanced instruction following, real-world software engineering, and long-context reasoning.",
       "series": "gpt",
       "released": "2025-04-14",
       "knowledge": "2024-04-30"
     },
     "openai/gpt-4.1-mini": {
-      "name": "GPT-4.1 Mini",
+      "label": "GPT-4.1 Mini",
+      "description": "GPT-4.1 Mini is a mid-sized model delivering performance competitive with GPT-4o at substantially lower latency and cost.",
       "series": "gpt-mini",
       "released": "2025-04-14",
       "knowledge": "2024-04-30"
     },
     "openai/gpt-4o": {
-      "name": "GPT-4o",
+      "label": "GPT-4o",
+      "description": "GPT-4o (\"o\" for \"omni\") is OpenAI's latest AI model, supporting both text and image inputs with text outputs.",
       "series": "gpt",
       "released": "2024-05-13",
       "knowledge": "2023-09-30"
     },
     "openai/gpt-4o-mini": {
-      "name": "GPT-4o Mini",
+      "label": "GPT-4o Mini",
+      "description": "GPT-4o mini is OpenAI's newest model after [GPT-4 Omni](/models/openai/gpt-4o), supporting both text and image inputs with text outputs.",
       "series": "gpt-mini",
       "released": "2024-07-18",
       "knowledge": "2023-09-30"
     },
     "openai/gpt-5": {
-      "name": "GPT-5",
+      "label": "GPT-5",
+      "description": "GPT-5 is OpenAI’s most advanced model, offering major improvements in reasoning, code quality, and user experience.",
       "series": "gpt",
       "released": "2025-08-07",
       "knowledge": "2024-09-30"
     },
     "openai/gpt-5-mini": {
-      "name": "GPT-5 Mini",
+      "label": "GPT-5 Mini",
+      "description": "GPT-5 Mini is a compact version of GPT-5, designed to handle lighter-weight reasoning tasks. It provides the same instruction-following and safety-tuning benefits as GPT-5, but with reduced latency and cost.",
       "series": "gpt-mini",
       "released": "2025-08-07",
       "knowledge": "2024-05-31"
     },
     "openai/gpt-5-nano": {
-      "name": "GPT-5 Nano",
+      "label": "GPT-5 Nano",
+      "description": "GPT-5-Nano is the smallest and fastest variant in the GPT-5 system, optimized for developer tools, rapid interactions, and ultra-low latency environments.",
       "series": "gpt-nano",
       "released": "2025-08-07",
       "knowledge": "2024-05-31"
     },
     "openai/gpt-5.1": {
-      "name": "GPT-5.1",
+      "label": "GPT-5.1",
+      "description": "GPT-5.1 is the latest frontier-grade model in the GPT-5 series, offering stronger general-purpose reasoning, improved instruction adherence, and a more natural conversational style compared to GPT-5.",
       "series": "gpt",
       "released": "2025-11-13",
       "knowledge": "2024-09-30"
     },
     "openai/gpt-5.2": {
-      "name": "GPT-5.2",
+      "label": "GPT-5.2",
+      "description": "GPT-5.2 is the latest frontier-grade model in the GPT-5 series, offering stronger agentic and long context performance compared to GPT-5.1.",
       "series": "gpt",
       "released": "2025-12-11",
       "knowledge": "2025-08-31"
     },
     "openai/gpt-5.2-chat-latest": {
-      "name": "GPT-5.2 Instant",
+      "label": "GPT-5.2 Instant",
+      "description": "GPT-5.2 Chat (AKA Instant) is the fast, lightweight member of the 5.2 family, optimized for low-latency chat while retaining strong general intelligence.",
       "series": "gpt-chat",
       "released": "2025-12-11",
       "knowledge": "2025-08-31"
     },
     "openai/gpt-5.2-pro": {
-      "name": "GPT-5.2 Pro",
+      "label": "GPT-5.2 Pro",
+      "description": "GPT-5.2 Pro is OpenAI’s most advanced model, offering major improvements in agentic coding and long context performance over GPT-5 Pro.",
       "series": "gpt-pro",
       "released": "2025-12-11",
       "knowledge": "2025-08-31"
     },
     "openai/gpt-5.3-chat-latest": {
-      "name": "GPT-5.3 Instant",
+      "label": "GPT-5.3 Instant",
       "series": "gpt-chat",
       "released": "2026-03-03",
       "knowledge": "2025-08-31"
     },
     "openai/gpt-5.4": {
-      "name": "GPT-5.4",
+      "label": "GPT-5.4",
+      "description": "GPT-5.4 is OpenAI’s latest frontier model, unifying the Codex and GPT lines into a single system.",
       "series": "gpt",
       "released": "2026-03-05",
       "knowledge": "2025-08-31"
     },
     "openai/gpt-5.4-mini": {
-      "name": "GPT-5.4 Mini",
+      "label": "GPT-5.4 Mini",
+      "description": "GPT-5.4 mini brings the core capabilities of GPT-5.4 to a faster, more efficient model optimized for high-throughput workloads.",
       "series": "gpt-mini",
       "released": "2026-03-17",
       "knowledge": "2025-08-31"
     },
     "openai/gpt-5.4-nano": {
-      "name": "GPT-5.4 Nano",
+      "label": "GPT-5.4 Nano",
+      "description": "GPT-5.4 nano is the most lightweight and cost-efficient variant of the GPT-5.4 family, optimized for speed-critical and high-volume tasks.",
       "series": "gpt-nano",
       "released": "2026-03-17",
       "knowledge": "2025-08-31"
     },
     "openai/gpt-5.5": {
-      "name": "GPT-5.5",
+      "label": "GPT-5.5",
+      "description": "GPT-5.5 is OpenAI’s frontier model designed for complex professional workloads, building on GPT-5.4 with stronger reasoning, higher reliability, and improved token efficiency on hard tasks.",
       "series": "gpt",
       "released": "2026-04-23",
       "knowledge": "2025-12-01"
     },
     "openai/gpt-5.6-luna": {
-      "name": "GPT-5.6 Luna",
+      "label": "GPT-5.6 Luna",
+      "description": "GPT-5.6 Luna is a fast, cost-efficient model in OpenAI's GPT-5.6 series.",
       "series": "gpt-nano",
       "released": "2026-07-09",
       "knowledge": "2026-02-16"
     },
     "openai/gpt-5.6-sol": {
-      "name": "GPT-5.6 Sol",
+      "label": "GPT-5.6 Sol",
+      "description": "GPT-5.6 Sol is the flagship model in OpenAI's GPT-5.6 series.",
       "series": "gpt",
       "released": "2026-07-09",
       "knowledge": "2026-02-16"
     },
     "openai/gpt-5.6-terra": {
-      "name": "GPT-5.6 Terra",
+      "label": "GPT-5.6 Terra",
+      "description": "GPT-5.6 Terra is a balanced model in OpenAI's GPT-5.6 series, positioned between the flagship Sol tier and the cost-efficient Luna tier.",
       "series": "gpt-mini",
       "released": "2026-07-09",
       "knowledge": "2026-02-16"
     },
     "openai/o1-pro": {
-      "name": "o1-pro",
+      "label": "o1-pro",
+      "description": "The o1 series of models are trained with reinforcement learning to think before they answer and perform complex reasoning.",
       "series": "gpt-pro",
       "released": "2025-03-19",
       "knowledge": "2023-09-30"
     },
     "openai/o3": {
-      "name": "o3",
+      "label": "o3",
+      "description": "o3 is a well-rounded and powerful model across domains. It sets a new standard for math, science, coding, and visual reasoning tasks. It also excels at technical writing and instruction-following.",
       "series": "o",
       "released": "2025-04-16",
       "knowledge": "2024-05-31"
     },
     "openai/o3-pro": {
-      "name": "o3-pro",
+      "label": "o3-pro",
+      "description": "The o-series of models are trained with reinforcement learning to think before they answer and perform complex reasoning.",
       "series": "gpt-pro",
       "released": "2025-06-10",
       "knowledge": "2024-05-31"
     },
     "openai/o4-mini": {
-      "name": "o4-mini",
+      "label": "o4-mini",
+      "description": "OpenAI o4-mini is a compact reasoning model in the o-series, optimized for fast, cost-efficient performance while retaining strong multimodal and agentic capabilities.",
       "series": "o-mini",
       "released": "2025-04-16",
       "knowledge": "2024-05-31"
@@ -315,7 +368,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
             "vision": true
@@ -356,25 +409,12 @@
                 "cached_input_per_million": 100000000,
                 "cache_creation_5m_per_million": 1250000000,
                 "cache_creation_1h_per_million": 2000000000
-              },
-              "brackets": [
-                {
-                  "min_context_tokens": 200001,
-                  "rates": {
-                    "input_per_million": 2000000000,
-                    "output_per_million": 7500000000,
-                    "cached_input_per_million": 200000000,
-                    "cache_creation_5m_per_million": 2500000000,
-                    "cache_creation_1h_per_million": 4000000000
-                  }
-                }
-              ]
+              }
             }
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2026-06-07",
-            "retirement_not_before": "2027-06-09"
+            "available": "2026-06-07"
           },
           "derived": {
             "price_tier": "high"
@@ -390,7 +430,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
             "vision": true
@@ -403,6 +443,10 @@
               "top_p",
               "top_k",
               "max_tokens"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
@@ -429,8 +473,7 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2025-10-15",
-            "retirement_not_before": "2026-10-15"
+            "available": "2025-10-15"
           },
           "derived": {
             "price_tier": "low"
@@ -446,7 +489,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
             "vision": true
@@ -459,6 +502,10 @@
               "top_p",
               "top_k",
               "max_tokens"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
@@ -505,7 +552,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
             "vision": true
@@ -519,6 +566,10 @@
               "top_k",
               "max_tokens",
               "reasoning_effort"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
@@ -551,8 +602,7 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2025-11-24",
-            "retirement_not_before": "2026-11-24"
+            "available": "2025-11-24"
           },
           "derived": {
             "price_tier": "high",
@@ -569,7 +619,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
             "vision": true
@@ -585,6 +635,10 @@
               "reasoning_effort",
               "thinking_budget",
               "speed"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
@@ -619,51 +673,12 @@
                 "cached_input_per_million": 50000000,
                 "cache_creation_5m_per_million": 625000000,
                 "cache_creation_1h_per_million": 1000000000
-              },
-              "brackets": [
-                {
-                  "min_context_tokens": 200001,
-                  "rates": {
-                    "input_per_million": 1000000000,
-                    "output_per_million": 3750000000,
-                    "cached_input_per_million": 100000000,
-                    "cache_creation_5m_per_million": 1250000000,
-                    "cache_creation_1h_per_million": 2000000000
-                  }
-                }
-              ]
-            },
-            "overrides": [
-              {
-                "speed": "fast",
-                "rate_card": {
-                  "base": {
-                    "input_per_million": 3000000000,
-                    "output_per_million": 15000000000,
-                    "cached_input_per_million": 300000000,
-                    "cache_creation_5m_per_million": 3750000000,
-                    "cache_creation_1h_per_million": 6000000000
-                  },
-                  "brackets": [
-                    {
-                      "min_context_tokens": 200001,
-                      "rates": {
-                        "input_per_million": 6000000000,
-                        "output_per_million": 22500000000,
-                        "cached_input_per_million": 600000000,
-                        "cache_creation_5m_per_million": 7500000000,
-                        "cache_creation_1h_per_million": 12000000000
-                      }
-                    }
-                  ]
-                }
               }
-            ]
+            }
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2026-02-04",
-            "retirement_not_before": "2027-02-05"
+            "available": "2026-02-04"
           },
           "derived": {
             "price_tier": "high",
@@ -680,7 +695,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
             "vision": true
@@ -695,6 +710,10 @@
               "max_tokens",
               "reasoning_effort",
               "speed"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
@@ -725,25 +744,12 @@
                 "cached_input_per_million": 50000000,
                 "cache_creation_5m_per_million": 625000000,
                 "cache_creation_1h_per_million": 1000000000
-              },
-              "brackets": [
-                {
-                  "min_context_tokens": 200001,
-                  "rates": {
-                    "input_per_million": 1000000000,
-                    "output_per_million": 3750000000,
-                    "cached_input_per_million": 100000000,
-                    "cache_creation_5m_per_million": 1250000000,
-                    "cache_creation_1h_per_million": 2000000000
-                  }
-                }
-              ]
+              }
             }
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2026-04-14",
-            "retirement_not_before": "2027-04-16"
+            "available": "2026-04-14"
           },
           "derived": {
             "price_tier": "high",
@@ -760,7 +766,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
             "vision": true
@@ -775,6 +781,10 @@
               "max_tokens",
               "reasoning_effort",
               "speed"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
@@ -809,19 +819,7 @@
                 "cached_input_per_million": 50000000,
                 "cache_creation_5m_per_million": 625000000,
                 "cache_creation_1h_per_million": 1000000000
-              },
-              "brackets": [
-                {
-                  "min_context_tokens": 200001,
-                  "rates": {
-                    "input_per_million": 1000000000,
-                    "output_per_million": 3750000000,
-                    "cached_input_per_million": 100000000,
-                    "cache_creation_5m_per_million": 1250000000,
-                    "cache_creation_1h_per_million": 2000000000
-                  }
-                }
-              ]
+              }
             },
             "overrides": [
               {
@@ -833,27 +831,14 @@
                     "cached_input_per_million": 100000000,
                     "cache_creation_5m_per_million": 1250000000,
                     "cache_creation_1h_per_million": 2000000000
-                  },
-                  "brackets": [
-                    {
-                      "min_context_tokens": 200001,
-                      "rates": {
-                        "input_per_million": 2000000000,
-                        "output_per_million": 7500000000,
-                        "cached_input_per_million": 200000000,
-                        "cache_creation_5m_per_million": 2500000000,
-                        "cache_creation_1h_per_million": 4000000000
-                      }
-                    }
-                  ]
+                  }
                 }
               }
             ]
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2026-05-28",
-            "retirement_not_before": "2027-05-28"
+            "available": "2026-05-28"
           },
           "derived": {
             "price_tier": "high",
@@ -870,7 +855,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
             "vision": true
@@ -935,8 +920,7 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2026-07-24",
-            "retirement_not_before": "2027-07-24"
+            "available": "2026-07-24"
           },
           "derived": {
             "price_tier": "high"
@@ -952,7 +936,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
             "vision": true
@@ -965,6 +949,10 @@
               "top_p",
               "top_k",
               "max_tokens"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
@@ -991,8 +979,7 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2025-09-29",
-            "retirement_not_before": "2026-09-29"
+            "available": "2025-09-29"
           },
           "derived": {
             "price_tier": "medium",
@@ -1009,14 +996,14 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
             "vision": true
           },
           "constraints": {
-            "max_input_tokens": 200000,
-            "max_output_tokens": 64000,
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
             "supported_params": [
               "temperature",
               "top_p",
@@ -1024,6 +1011,10 @@
               "max_tokens",
               "reasoning_effort",
               "thinking_budget"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
@@ -1058,8 +1049,7 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2026-02-17",
-            "retirement_not_before": "2027-02-17"
+            "available": "2026-02-17"
           },
           "derived": {
             "price_tier": "medium",
@@ -1076,7 +1066,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
             "vision": true
@@ -1090,6 +1080,10 @@
               "top_k",
               "max_tokens",
               "reasoning_effort"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
@@ -1115,30 +1109,17 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 300000000,
-                "output_per_million": 1500000000,
-                "cached_input_per_million": 30000000,
-                "cache_creation_5m_per_million": 375000000,
-                "cache_creation_1h_per_million": 600000000
-              },
-              "brackets": [
-                {
-                  "min_context_tokens": 200001,
-                  "rates": {
-                    "input_per_million": 600000000,
-                    "output_per_million": 2250000000,
-                    "cached_input_per_million": 60000000,
-                    "cache_creation_5m_per_million": 750000000,
-                    "cache_creation_1h_per_million": 1200000000
-                  }
-                }
-              ]
+                "input_per_million": 200000000,
+                "output_per_million": 1000000000,
+                "cached_input_per_million": 20000000,
+                "cache_creation_5m_per_million": 250000000,
+                "cache_creation_1h_per_million": 400000000
+              }
             }
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2026-06-29",
-            "retirement_not_before": "2027-06-30"
+            "available": "2026-06-29"
           },
           "derived": {
             "price_tier": "medium"
@@ -1159,10 +1140,10 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 200000,
@@ -1172,11 +1153,17 @@
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -1213,10 +1200,10 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 1000000,
@@ -1226,11 +1213,17 @@
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -1275,10 +1268,10 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 1000000,
@@ -1290,7 +1283,9 @@
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -1334,10 +1329,10 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 200000,
@@ -1347,11 +1342,17 @@
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -1389,24 +1390,30 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
-            "max_input_tokens": 200000,
-            "max_output_tokens": 64000,
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
             "supported_params": [
               "temperature",
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -1446,9 +1453,9 @@
           "label": "Amazon Nova 2 Lite (EU)",
           "capabilities": {
             "audio": false,
-            "json_mode": true,
+            "json_mode": false,
             "multi_turn": true,
-            "reasoning": false,
+            "reasoning": true,
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
@@ -1463,11 +1470,18 @@
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "video",
+              "document"
             ],
             "output": [
               "text"
@@ -1500,10 +1514,10 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 1000000,
@@ -1515,7 +1529,9 @@
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -1565,10 +1581,10 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 200000,
@@ -1578,11 +1594,17 @@
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -1619,10 +1641,10 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 200000,
@@ -1632,11 +1654,17 @@
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -1674,10 +1702,10 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 1000000,
@@ -1687,11 +1715,17 @@
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -1736,10 +1770,10 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 1000000,
@@ -1749,11 +1783,17 @@
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -1798,10 +1838,10 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 1000000,
@@ -1811,11 +1851,17 @@
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -1860,10 +1906,10 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 1000000,
@@ -1875,7 +1921,9 @@
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -1919,10 +1967,10 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 200000,
@@ -1932,11 +1980,17 @@
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -1974,24 +2028,30 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
-            "max_input_tokens": 200000,
-            "max_output_tokens": 64000,
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
             "supported_params": [
               "temperature",
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -2031,9 +2091,9 @@
           "label": "Amazon Nova 2 Lite (Global)",
           "capabilities": {
             "audio": false,
-            "json_mode": true,
+            "json_mode": false,
             "multi_turn": true,
-            "reasoning": false,
+            "reasoning": true,
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
@@ -2048,11 +2108,18 @@
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "video",
+              "document"
             ],
             "output": [
               "text"
@@ -2085,10 +2152,10 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 1000000,
@@ -2100,7 +2167,9 @@
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -2150,10 +2219,10 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 200000,
@@ -2163,11 +2232,17 @@
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -2204,10 +2279,10 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 200000,
@@ -2217,11 +2292,17 @@
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -2259,10 +2340,10 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 1000000,
@@ -2272,11 +2353,17 @@
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -2321,10 +2408,10 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 1000000,
@@ -2334,11 +2421,17 @@
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -2383,10 +2476,10 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 1000000,
@@ -2396,11 +2489,17 @@
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -2445,10 +2544,10 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 1000000,
@@ -2460,7 +2559,9 @@
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -2504,10 +2605,10 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 200000,
@@ -2517,11 +2618,17 @@
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -2559,24 +2666,30 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
-            "max_input_tokens": 200000,
-            "max_output_tokens": 64000,
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
             "supported_params": [
               "temperature",
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -2620,10 +2733,10 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 1000000,
@@ -2633,11 +2746,17 @@
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -2656,11 +2775,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 300000000,
-                "output_per_million": 1500000000,
-                "cached_input_per_million": 30000000,
-                "cache_creation_5m_per_million": 375000000,
-                "cache_creation_1h_per_million": 600000000
+                "input_per_million": 200000000,
+                "output_per_million": 1000000000,
+                "cached_input_per_million": 20000000,
+                "cache_creation_5m_per_million": 250000000,
+                "cache_creation_1h_per_million": 400000000
               }
             }
           },
@@ -2684,7 +2803,7 @@
             "structured_output": false,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 256000,
@@ -2692,11 +2811,17 @@
             "supported_params": [
               "temperature",
               "max_tokens"
+            ],
+            "temperature_range": [
+              0,
+              2
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "video"
             ],
             "output": [
               "text"
@@ -2731,7 +2856,7 @@
             "structured_output": false,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 256000,
@@ -2739,11 +2864,17 @@
             "supported_params": [
               "temperature",
               "max_tokens"
+            ],
+            "temperature_range": [
+              0,
+              2
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "video"
             ],
             "output": [
               "text"
@@ -2778,7 +2909,7 @@
             "structured_output": false,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 128000,
@@ -2786,11 +2917,17 @@
             "supported_params": [
               "temperature",
               "max_tokens"
+            ],
+            "temperature_range": [
+              0,
+              2
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "video"
             ],
             "output": [
               "text"
@@ -2818,9 +2955,9 @@
           "label": "Amazon Nova 2 Lite (JP)",
           "capabilities": {
             "audio": false,
-            "json_mode": true,
+            "json_mode": false,
             "multi_turn": true,
-            "reasoning": false,
+            "reasoning": true,
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
@@ -2835,11 +2972,18 @@
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "video",
+              "document"
             ],
             "output": [
               "text"
@@ -2872,10 +3016,10 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 1000000,
@@ -2885,11 +3029,17 @@
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -2934,10 +3084,10 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 1000000,
@@ -2947,11 +3097,17 @@
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -2996,10 +3152,10 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 200000,
@@ -3009,11 +3165,17 @@
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -3047,7 +3209,7 @@
           "label": "Mistral Large 3",
           "capabilities": {
             "audio": false,
-            "json_mode": true,
+            "json_mode": false,
             "multi_turn": true,
             "reasoning": false,
             "streaming": true,
@@ -3064,6 +3226,10 @@
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
@@ -3103,7 +3269,7 @@
             "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 272000,
@@ -3111,11 +3277,16 @@
             "supported_params": [
               "temperature",
               "max_tokens"
+            ],
+            "temperature_range": [
+              0,
+              2
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image"
             ],
             "output": [
               "text"
@@ -3152,7 +3323,7 @@
             "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 272000,
@@ -3160,11 +3331,16 @@
             "supported_params": [
               "temperature",
               "max_tokens"
+            ],
+            "temperature_range": [
+              0,
+              2
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image"
             ],
             "output": [
               "text"
@@ -3201,7 +3377,7 @@
             "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 272000,
@@ -3209,11 +3385,16 @@
             "supported_params": [
               "temperature",
               "max_tokens"
+            ],
+            "temperature_range": [
+              0,
+              2
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image"
             ],
             "output": [
               "text"
@@ -3243,9 +3424,9 @@
           "label": "Amazon Nova 2 Lite (US)",
           "capabilities": {
             "audio": false,
-            "json_mode": true,
+            "json_mode": false,
             "multi_turn": true,
-            "reasoning": false,
+            "reasoning": true,
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
@@ -3260,11 +3441,18 @@
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "video",
+              "document"
             ],
             "output": [
               "text"
@@ -3297,10 +3485,10 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 1000000,
@@ -3312,7 +3500,9 @@
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -3362,10 +3552,10 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 200000,
@@ -3375,11 +3565,17 @@
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -3416,10 +3612,10 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 200000,
@@ -3429,11 +3625,17 @@
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -3471,10 +3673,10 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 1000000,
@@ -3484,11 +3686,17 @@
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -3533,10 +3741,10 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 1000000,
@@ -3546,11 +3754,17 @@
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -3595,10 +3809,10 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 1000000,
@@ -3608,11 +3822,17 @@
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -3657,10 +3877,10 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 1000000,
@@ -3672,7 +3892,9 @@
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -3716,10 +3938,10 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 200000,
@@ -3729,11 +3951,17 @@
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -3771,24 +3999,30 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
-            "max_input_tokens": 200000,
-            "max_output_tokens": 64000,
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
             "supported_params": [
               "temperature",
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -3832,10 +4066,10 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 1000000,
@@ -3845,11 +4079,17 @@
               "top_p",
               "max_tokens",
               "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "document"
             ],
             "output": [
               "text"
@@ -3868,11 +4108,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 330000000,
-                "output_per_million": 1650000000,
-                "cached_input_per_million": 33000000,
-                "cache_creation_5m_per_million": 412500000,
-                "cache_creation_1h_per_million": 660000000
+                "input_per_million": 220000000,
+                "output_per_million": 1100000000,
+                "cached_input_per_million": 22000000,
+                "cache_creation_5m_per_million": 275000000,
+                "cache_creation_1h_per_million": 440000000
               }
             }
           },
@@ -3893,7 +4133,7 @@
           "model": "google/gemini-2.5-flash",
           "label": "Gemini 2.5 Flash",
           "capabilities": {
-            "audio": false,
+            "audio": true,
             "json_mode": true,
             "multi_turn": true,
             "reasoning": true,
@@ -3914,12 +4154,18 @@
               "stop",
               "presence_penalty",
               "frequency_penalty"
+            ],
+            "temperature_range": [
+              0,
+              2
             ]
           },
           "modalities": {
             "input": [
               "text",
               "image",
+              "audio",
+              "video",
               "document"
             ],
             "output": [
@@ -3941,7 +4187,9 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2025-06-17"
+            "available": "2025-06-17",
+            "retires": "2026-10-20",
+            "replaced_by": "gemini-3.5-flash-lite"
           },
           "derived": {
             "price_tier": "low",
@@ -3951,9 +4199,9 @@
         {
           "id": "gemini-2.5-flash-lite",
           "model": "google/gemini-2.5-flash-lite",
-          "label": "Gemini 2.5 Flash Lite",
+          "label": "Gemini 2.5 Flash-Lite",
           "capabilities": {
-            "audio": false,
+            "audio": true,
             "json_mode": true,
             "multi_turn": true,
             "reasoning": true,
@@ -3974,12 +4222,18 @@
               "stop",
               "presence_penalty",
               "frequency_penalty"
+            ],
+            "temperature_range": [
+              0,
+              2
             ]
           },
           "modalities": {
             "input": [
               "text",
               "image",
+              "audio",
+              "video",
               "document"
             ],
             "output": [
@@ -4001,7 +4255,8 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2025-06-17"
+            "available": "2025-07-22",
+            "retires": "2026-10-20"
           },
           "derived": {
             "price_tier": "low",
@@ -4013,7 +4268,7 @@
           "model": "google/gemini-2.5-pro",
           "label": "Gemini 2.5 Pro",
           "capabilities": {
-            "audio": false,
+            "audio": true,
             "json_mode": true,
             "multi_turn": true,
             "reasoning": true,
@@ -4034,12 +4289,18 @@
               "stop",
               "presence_penalty",
               "frequency_penalty"
+            ],
+            "temperature_range": [
+              0,
+              2
             ]
           },
           "modalities": {
             "input": [
               "text",
               "image",
+              "audio",
+              "video",
               "document"
             ],
             "output": [
@@ -4071,7 +4332,9 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2025-06-17"
+            "available": "2025-06-17",
+            "retires": "2026-10-20",
+            "replaced_by": "gemini-3.5-flash"
           },
           "derived": {
             "price_tier": "medium",
@@ -4083,7 +4346,7 @@
           "model": "google/gemini-3-flash-preview",
           "label": "Gemini 3 Flash Preview",
           "capabilities": {
-            "audio": false,
+            "audio": true,
             "json_mode": true,
             "multi_turn": true,
             "reasoning": true,
@@ -4104,12 +4367,18 @@
               "stop",
               "presence_penalty",
               "frequency_penalty"
+            ],
+            "temperature_range": [
+              0,
+              2
             ]
           },
           "modalities": {
             "input": [
               "text",
               "image",
+              "audio",
+              "video",
               "document"
             ],
             "output": [
@@ -4135,7 +4404,8 @@
           },
           "lifecycle": {
             "stage": "preview",
-            "available": "2025-12-17"
+            "available": "2025-12-17",
+            "replaced_by": "gemini-3.6-flash"
           },
           "derived": {
             "price_tier": "low",
@@ -4147,7 +4417,7 @@
           "model": "google/gemini-3-pro-preview",
           "label": "Gemini 3 Pro Preview",
           "capabilities": {
-            "audio": false,
+            "audio": true,
             "json_mode": true,
             "multi_turn": true,
             "reasoning": true,
@@ -4168,12 +4438,18 @@
               "stop",
               "presence_penalty",
               "frequency_penalty"
+            ],
+            "temperature_range": [
+              0,
+              2
             ]
           },
           "modalities": {
             "input": [
               "text",
               "image",
+              "audio",
+              "video",
               "document"
             ],
             "output": [
@@ -4207,7 +4483,9 @@
           },
           "lifecycle": {
             "stage": "preview",
-            "available": "2025-11-18"
+            "available": "2025-11-18",
+            "retires": "2026-03-09",
+            "replaced_by": "gemini-3.1-pro-preview"
           },
           "derived": {
             "price_tier": "medium",
@@ -4219,7 +4497,7 @@
           "model": "google/gemini-3.1-pro-preview",
           "label": "Gemini 3.1 Pro Preview",
           "capabilities": {
-            "audio": false,
+            "audio": true,
             "json_mode": true,
             "multi_turn": true,
             "reasoning": true,
@@ -4240,12 +4518,18 @@
               "stop",
               "presence_penalty",
               "frequency_penalty"
+            ],
+            "temperature_range": [
+              0,
+              2
             ]
           },
           "modalities": {
             "input": [
               "text",
               "image",
+              "audio",
+              "video",
               "document"
             ],
             "output": [
@@ -4291,7 +4575,7 @@
           "model": "google/gemini-3.5-flash",
           "label": "Gemini 3.5 Flash",
           "capabilities": {
-            "audio": false,
+            "audio": true,
             "json_mode": true,
             "multi_turn": true,
             "reasoning": true,
@@ -4312,12 +4596,18 @@
               "stop",
               "presence_penalty",
               "frequency_penalty"
+            ],
+            "temperature_range": [
+              0,
+              2
             ]
           },
           "modalities": {
             "input": [
               "text",
               "image",
+              "audio",
+              "video",
               "document"
             ],
             "output": [
@@ -4355,7 +4645,7 @@
           "model": "google/gemini-3.5-flash-lite",
           "label": "Gemini 3.5 Flash-Lite",
           "capabilities": {
-            "audio": false,
+            "audio": true,
             "json_mode": true,
             "multi_turn": true,
             "reasoning": true,
@@ -4376,12 +4666,18 @@
               "stop",
               "presence_penalty",
               "frequency_penalty"
+            ],
+            "temperature_range": [
+              0,
+              2
             ]
           },
           "modalities": {
             "input": [
               "text",
               "image",
+              "audio",
+              "video",
               "document"
             ],
             "output": [
@@ -4411,7 +4707,7 @@
           "model": "google/gemini-3.6-flash",
           "label": "Gemini 3.6 Flash",
           "capabilities": {
-            "audio": false,
+            "audio": true,
             "json_mode": true,
             "multi_turn": true,
             "reasoning": true,
@@ -4432,12 +4728,18 @@
               "stop",
               "presence_penalty",
               "frequency_penalty"
+            ],
+            "temperature_range": [
+              0,
+              2
             ]
           },
           "modalities": {
             "input": [
               "text",
               "image",
+              "audio",
+              "video",
               "document"
             ],
             "output": [
@@ -4448,9 +4750,9 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 150000000,
-                "output_per_million": 750000000,
-                "cached_input_per_million": 15000000
+                "input_per_million": 75000000,
+                "output_per_million": 375000000,
+                "cached_input_per_million": 7500000
               }
             }
           },
@@ -4459,7 +4761,76 @@
             "available": "2026-07-21"
           },
           "derived": {
-            "price_tier": "medium"
+            "price_tier": "low",
+            "successor": "google/gemini-3.7-flash"
+          }
+        },
+        {
+          "id": "gemini-3.7-flash",
+          "model": "google/gemini-3.7-flash",
+          "label": "Gemini 3.7 Flash",
+          "capabilities": {
+            "audio": true,
+            "json_mode": true,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1048576,
+            "max_output_tokens": 65536,
+            "supported_params": [
+              "temperature",
+              "top_p",
+              "top_k",
+              "max_tokens",
+              "stop",
+              "presence_penalty",
+              "frequency_penalty"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_per_million": 75000000,
+                "output_per_million": 375000000,
+                "cached_input_per_million": 7500000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-08-13"
+          },
+          "derived": {
+            "price_tier": "low"
           }
         }
       ]
@@ -4470,7 +4841,7 @@
         {
           "id": "gpt-3.5-turbo",
           "model": "openai/gpt-3.5-turbo",
-          "label": "OpenAI GPT-3.5 Turbo",
+          "label": "GPT-3.5 Turbo",
           "capabilities": {
             "audio": false,
             "json_mode": true,
@@ -4491,6 +4862,16 @@
               "max_tokens",
               "frequency_penalty",
               "presence_penalty"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ],
+            "mutually_exclusive": [
+              [
+                "temperature",
+                "top_p"
+              ]
             ]
           },
           "modalities": {
@@ -4513,6 +4894,7 @@
           "lifecycle": {
             "stage": "ga",
             "available": "2023-03-01",
+            "deprecated": "2026-04-22",
             "retires": "2026-10-23",
             "replaced_by": "gpt-5.6-terra"
           },
@@ -4524,7 +4906,7 @@
         {
           "id": "gpt-4-turbo",
           "model": "openai/gpt-4-turbo",
-          "label": "OpenAI GPT-4 Turbo",
+          "label": "GPT-4 Turbo",
           "capabilities": {
             "audio": false,
             "json_mode": true,
@@ -4546,6 +4928,16 @@
               "frequency_penalty",
               "presence_penalty",
               "seed"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ],
+            "mutually_exclusive": [
+              [
+                "temperature",
+                "top_p"
+              ]
             ]
           },
           "modalities": {
@@ -4561,24 +4953,27 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 500000000,
-                "output_per_million": 1500000000
+                "input_per_million": 1000000000,
+                "output_per_million": 3000000000
               }
             }
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2023-11-06"
+            "available": "2023-11-06",
+            "deprecated": "2026-04-22",
+            "retires": "2026-10-23",
+            "replaced_by": "gpt-5.6-sol"
           },
           "derived": {
-            "price_tier": "medium",
+            "price_tier": "high",
             "successor": "openai/gpt-4o"
           }
         },
         {
           "id": "gpt-4.1",
           "model": "openai/gpt-4.1",
-          "label": "OpenAI GPT-4.1",
+          "label": "GPT-4.1",
           "capabilities": {
             "audio": false,
             "json_mode": true,
@@ -4600,6 +4995,16 @@
               "frequency_penalty",
               "presence_penalty",
               "seed"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ],
+            "mutually_exclusive": [
+              [
+                "temperature",
+                "top_p"
+              ]
             ]
           },
           "modalities": {
@@ -4633,7 +5038,7 @@
         {
           "id": "gpt-4.1-mini",
           "model": "openai/gpt-4.1-mini",
-          "label": "OpenAI GPT-4.1 Mini",
+          "label": "GPT-4.1 Mini",
           "capabilities": {
             "audio": false,
             "json_mode": true,
@@ -4654,6 +5059,16 @@
               "max_tokens",
               "frequency_penalty",
               "presence_penalty"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ],
+            "mutually_exclusive": [
+              [
+                "temperature",
+                "top_p"
+              ]
             ]
           },
           "modalities": {
@@ -4687,7 +5102,7 @@
         {
           "id": "gpt-4o",
           "model": "openai/gpt-4o",
-          "label": "OpenAI GPT-4o",
+          "label": "GPT-4o",
           "capabilities": {
             "audio": true,
             "json_mode": true,
@@ -4710,6 +5125,25 @@
               "seed",
               "frequency_penalty",
               "presence_penalty"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ],
+            "mutually_exclusive": [
+              [
+                "temperature",
+                "top_p"
+              ]
+            ],
+            "conditional_rules": [
+              {
+                "condition": "stream_enabled",
+                "disables": [
+                  "logprobs"
+                ],
+                "message": "logprobs not supported with streaming"
+              }
             ]
           },
           "modalities": {
@@ -4744,7 +5178,7 @@
         {
           "id": "gpt-4o-mini",
           "model": "openai/gpt-4o-mini",
-          "label": "OpenAI GPT-4o Mini",
+          "label": "GPT-4o Mini",
           "capabilities": {
             "audio": false,
             "json_mode": true,
@@ -4765,6 +5199,16 @@
               "max_tokens",
               "frequency_penalty",
               "presence_penalty"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ],
+            "mutually_exclusive": [
+              [
+                "temperature",
+                "top_p"
+              ]
             ]
           },
           "modalities": {
@@ -4798,7 +5242,7 @@
         {
           "id": "gpt-5",
           "model": "openai/gpt-5",
-          "label": "OpenAI GPT-5",
+          "label": "GPT-5",
           "capabilities": {
             "audio": true,
             "json_mode": true,
@@ -4822,6 +5266,16 @@
               "seed",
               "reasoning_effort",
               "reasoning_summary"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ],
+            "mutually_exclusive": [
+              [
+                "temperature",
+                "top_p"
+              ]
             ]
           },
           "modalities": {
@@ -4845,8 +5299,8 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 62500000,
-                "output_per_million": 500000000,
+                "input_per_million": 125000000,
+                "output_per_million": 1000000000,
                 "cached_input_per_million": 12500000
               }
             }
@@ -4856,17 +5310,17 @@
             "available": "2025-08-07",
             "deprecated": "2026-06-11",
             "retires": "2026-12-11",
-            "replaced_by": "gpt-5.5"
+            "replaced_by": "gpt-5.6-sol"
           },
           "derived": {
-            "price_tier": "low",
+            "price_tier": "medium",
             "successor": "openai/gpt-5.1"
           }
         },
         {
           "id": "gpt-5-mini",
           "model": "openai/gpt-5-mini",
-          "label": "OpenAI GPT-5 Mini",
+          "label": "GPT-5 Mini",
           "capabilities": {
             "audio": true,
             "json_mode": true,
@@ -4889,6 +5343,16 @@
               "presence_penalty",
               "reasoning_effort",
               "reasoning_summary"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ],
+            "mutually_exclusive": [
+              [
+                "temperature",
+                "top_p"
+              ]
             ]
           },
           "modalities": {
@@ -4923,7 +5387,7 @@
             "available": "2025-08-07",
             "deprecated": "2026-06-11",
             "retires": "2026-12-11",
-            "replaced_by": "gpt-5.4-mini"
+            "replaced_by": "gpt-5.6-terra"
           },
           "derived": {
             "price_tier": "low",
@@ -4933,17 +5397,17 @@
         {
           "id": "gpt-5-nano",
           "model": "openai/gpt-5-nano",
-          "label": "OpenAI GPT-5 Nano",
+          "label": "GPT-5 Nano",
           "capabilities": {
             "audio": false,
             "json_mode": true,
             "multi_turn": true,
-            "reasoning": false,
+            "reasoning": true,
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 272000,
@@ -4953,18 +5417,37 @@
               "top_p",
               "max_tokens",
               "frequency_penalty",
-              "presence_penalty"
+              "presence_penalty",
+              "reasoning_effort"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ],
+            "mutually_exclusive": [
+              [
+                "temperature",
+                "top_p"
+              ]
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image"
             ],
             "output": [
               "text"
             ]
           },
-          "reasoning": {},
+          "reasoning": {
+            "efforts": [
+              "minimal",
+              "low",
+              "medium",
+              "high"
+            ]
+          },
           "pricing": {
             "default": {
               "base": {
@@ -4979,7 +5462,7 @@
             "available": "2025-08-07",
             "deprecated": "2026-06-11",
             "retires": "2026-12-11",
-            "replaced_by": "gpt-5.4-nano"
+            "replaced_by": "gpt-5.6-luna"
           },
           "derived": {
             "price_tier": "low",
@@ -4989,7 +5472,7 @@
         {
           "id": "gpt-5.1",
           "model": "openai/gpt-5.1",
-          "label": "OpenAI GPT-5.1",
+          "label": "GPT-5.1",
           "capabilities": {
             "audio": true,
             "json_mode": true,
@@ -5013,6 +5496,16 @@
               "seed",
               "reasoning_effort",
               "reasoning_summary"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ],
+            "mutually_exclusive": [
+              [
+                "temperature",
+                "top_p"
+              ]
             ]
           },
           "modalities": {
@@ -5054,7 +5547,7 @@
         {
           "id": "gpt-5.2",
           "model": "openai/gpt-5.2",
-          "label": "OpenAI GPT-5.2 Thinking",
+          "label": "GPT-5.2",
           "capabilities": {
             "audio": true,
             "json_mode": true,
@@ -5078,6 +5571,16 @@
               "seed",
               "reasoning_effort",
               "reasoning_summary"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ],
+            "mutually_exclusive": [
+              [
+                "temperature",
+                "top_p"
+              ]
             ]
           },
           "modalities": {
@@ -5102,8 +5605,8 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 87500000,
-                "output_per_million": 700000000,
+                "input_per_million": 175000000,
+                "output_per_million": 1400000000,
                 "cached_input_per_million": 17500000
               }
             }
@@ -5113,14 +5616,14 @@
             "available": "2025-12-11"
           },
           "derived": {
-            "price_tier": "low",
+            "price_tier": "medium",
             "successor": "openai/gpt-5.4"
           }
         },
         {
           "id": "gpt-5.2-chat-latest",
           "model": "openai/gpt-5.2-chat-latest",
-          "label": "OpenAI GPT-5.2 Instant",
+          "label": "GPT-5.2 Instant",
           "capabilities": {
             "audio": true,
             "json_mode": true,
@@ -5144,6 +5647,16 @@
               "seed",
               "reasoning_effort",
               "reasoning_summary"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ],
+            "mutually_exclusive": [
+              [
+                "temperature",
+                "top_p"
+              ]
             ]
           },
           "modalities": {
@@ -5164,8 +5677,8 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 87500000,
-                "output_per_million": 700000000,
+                "input_per_million": 175000000,
+                "output_per_million": 1400000000,
                 "cached_input_per_million": 17500000
               }
             }
@@ -5173,18 +5686,19 @@
           "lifecycle": {
             "stage": "ga",
             "available": "2025-12-11",
+            "deprecated": "2026-05-08",
             "retires": "2026-08-10",
             "replaced_by": "gpt-5.6-sol"
           },
           "derived": {
-            "price_tier": "low",
+            "price_tier": "medium",
             "successor": "openai/gpt-5.3-chat-latest"
           }
         },
         {
           "id": "gpt-5.2-pro",
           "model": "openai/gpt-5.2-pro",
-          "label": "OpenAI GPT-5.2 Pro",
+          "label": "GPT-5.2 Pro",
           "capabilities": {
             "audio": true,
             "json_mode": true,
@@ -5208,6 +5722,16 @@
               "seed",
               "reasoning_effort",
               "reasoning_summary"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ],
+            "mutually_exclusive": [
+              [
+                "temperature",
+                "top_p"
+              ]
             ]
           },
           "modalities": {
@@ -5230,8 +5754,8 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 1050000000,
-                "output_per_million": 8400000000
+                "input_per_million": 2100000000,
+                "output_per_million": 16800000000
               }
             }
           },
@@ -5246,7 +5770,7 @@
         {
           "id": "gpt-5.3-chat-latest",
           "model": "openai/gpt-5.3-chat-latest",
-          "label": "OpenAI GPT-5.3 Chat Latest",
+          "label": "GPT-5.3 Instant",
           "capabilities": {
             "audio": true,
             "json_mode": true,
@@ -5270,6 +5794,16 @@
               "seed",
               "reasoning_effort",
               "reasoning_summary"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ],
+            "mutually_exclusive": [
+              [
+                "temperature",
+                "top_p"
+              ]
             ]
           },
           "modalities": {
@@ -5299,6 +5833,7 @@
           "lifecycle": {
             "stage": "ga",
             "available": "2026-03-03",
+            "deprecated": "2026-05-08",
             "retires": "2026-08-10",
             "replaced_by": "gpt-5.6-sol"
           },
@@ -5309,7 +5844,7 @@
         {
           "id": "gpt-5.4",
           "model": "openai/gpt-5.4",
-          "label": "OpenAI GPT-5.4",
+          "label": "GPT-5.4",
           "capabilities": {
             "audio": true,
             "json_mode": true,
@@ -5322,7 +5857,7 @@
             "vision": true
           },
           "constraints": {
-            "max_input_tokens": 272000,
+            "max_input_tokens": 1050000,
             "max_output_tokens": 128000,
             "supported_params": [
               "temperature",
@@ -5333,6 +5868,16 @@
               "seed",
               "reasoning_effort",
               "reasoning_summary"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ],
+            "mutually_exclusive": [
+              [
+                "temperature",
+                "top_p"
+              ]
             ]
           },
           "modalities": {
@@ -5360,7 +5905,17 @@
                 "input_per_million": 250000000,
                 "output_per_million": 1500000000,
                 "cached_input_per_million": 25000000
-              }
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_per_million": 500000000,
+                    "output_per_million": 2250000000,
+                    "cached_input_per_million": 50000000
+                  }
+                }
+              ]
             }
           },
           "lifecycle": {
@@ -5375,7 +5930,7 @@
         {
           "id": "gpt-5.4-mini",
           "model": "openai/gpt-5.4-mini",
-          "label": "OpenAI GPT-5.4 Mini",
+          "label": "GPT-5.4 Mini",
           "capabilities": {
             "audio": true,
             "json_mode": true,
@@ -5399,6 +5954,16 @@
               "seed",
               "reasoning_effort",
               "reasoning_summary"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ],
+            "mutually_exclusive": [
+              [
+                "temperature",
+                "top_p"
+              ]
             ]
           },
           "modalities": {
@@ -5441,17 +6006,17 @@
         {
           "id": "gpt-5.4-nano",
           "model": "openai/gpt-5.4-nano",
-          "label": "OpenAI GPT-5.4 Nano",
+          "label": "GPT-5.4 Nano",
           "capabilities": {
             "audio": false,
             "json_mode": true,
             "multi_turn": true,
-            "reasoning": false,
+            "reasoning": true,
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
             "max_input_tokens": 400000,
@@ -5461,18 +6026,38 @@
               "top_p",
               "max_tokens",
               "frequency_penalty",
-              "presence_penalty"
+              "presence_penalty",
+              "reasoning_effort"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ],
+            "mutually_exclusive": [
+              [
+                "temperature",
+                "top_p"
+              ]
             ]
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image"
             ],
             "output": [
               "text"
             ]
           },
-          "reasoning": {},
+          "reasoning": {
+            "efforts": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh"
+            ]
+          },
           "pricing": {
             "default": {
               "base": {
@@ -5494,7 +6079,7 @@
         {
           "id": "gpt-5.5",
           "model": "openai/gpt-5.5",
-          "label": "OpenAI GPT-5.5",
+          "label": "GPT-5.5",
           "capabilities": {
             "audio": true,
             "json_mode": true,
@@ -5507,7 +6092,7 @@
             "vision": true
           },
           "constraints": {
-            "max_input_tokens": 1048576,
+            "max_input_tokens": 1050000,
             "max_output_tokens": 128000,
             "supported_params": [
               "temperature",
@@ -5518,6 +6103,16 @@
               "seed",
               "reasoning_effort",
               "reasoning_summary"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ],
+            "mutually_exclusive": [
+              [
+                "temperature",
+                "top_p"
+              ]
             ]
           },
           "modalities": {
@@ -5545,7 +6140,17 @@
                 "input_per_million": 500000000,
                 "output_per_million": 3000000000,
                 "cached_input_per_million": 50000000
-              }
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_per_million": 1000000000,
+                    "output_per_million": 4500000000,
+                    "cached_input_per_million": 100000000
+                  }
+                }
+              ]
             }
           },
           "lifecycle": {
@@ -5560,7 +6165,7 @@
         {
           "id": "gpt-5.6-luna",
           "model": "openai/gpt-5.6-luna",
-          "label": "OpenAI GPT-5.6 Luna",
+          "label": "GPT-5.6 Luna",
           "capabilities": {
             "audio": false,
             "json_mode": true,
@@ -5584,6 +6189,16 @@
               "seed",
               "reasoning_effort",
               "reasoning_summary"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ],
+            "mutually_exclusive": [
+              [
+                "temperature",
+                "top_p"
+              ]
             ]
           },
           "modalities": {
@@ -5637,7 +6252,7 @@
         {
           "id": "gpt-5.6-sol",
           "model": "openai/gpt-5.6-sol",
-          "label": "OpenAI GPT-5.6 Sol",
+          "label": "GPT-5.6 Sol",
           "aliases": [
             "gpt-5.6"
           ],
@@ -5664,6 +6279,16 @@
               "seed",
               "reasoning_effort",
               "reasoning_summary"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ],
+            "mutually_exclusive": [
+              [
+                "temperature",
+                "top_p"
+              ]
             ]
           },
           "modalities": {
@@ -5688,19 +6313,19 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 500000000,
-                "output_per_million": 3000000000,
-                "cached_input_per_million": 50000000,
-                "cache_creation_unknown_ttl_per_million": 625000000
+                "input_per_million": 400000000,
+                "output_per_million": 2000000000,
+                "cached_input_per_million": 40000000,
+                "cache_creation_unknown_ttl_per_million": 500000000
               },
               "brackets": [
                 {
                   "min_context_tokens": 272001,
                   "rates": {
-                    "input_per_million": 1000000000,
-                    "output_per_million": 4500000000,
-                    "cached_input_per_million": 100000000,
-                    "cache_creation_unknown_ttl_per_million": 1250000000
+                    "input_per_million": 800000000,
+                    "output_per_million": 3000000000,
+                    "cached_input_per_million": 80000000,
+                    "cache_creation_unknown_ttl_per_million": 1000000000
                   }
                 }
               ]
@@ -5711,13 +6336,13 @@
             "available": "2026-07-09"
           },
           "derived": {
-            "price_tier": "high"
+            "price_tier": "medium"
           }
         },
         {
           "id": "gpt-5.6-terra",
           "model": "openai/gpt-5.6-terra",
-          "label": "OpenAI GPT-5.6 Terra",
+          "label": "GPT-5.6 Terra",
           "capabilities": {
             "audio": false,
             "json_mode": true,
@@ -5741,6 +6366,16 @@
               "seed",
               "reasoning_effort",
               "reasoning_summary"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ],
+            "mutually_exclusive": [
+              [
+                "temperature",
+                "top_p"
+              ]
             ]
           },
           "modalities": {
@@ -5794,7 +6429,7 @@
         {
           "id": "o1-pro",
           "model": "openai/o1-pro",
-          "label": "OpenAI o1-pro (Advanced Reasoning)",
+          "label": "o1-pro",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -5814,6 +6449,10 @@
               "max_tokens",
               "reasoning_effort",
               "reasoning_summary"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
@@ -5843,7 +6482,10 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2025-03-19"
+            "available": "2025-03-19",
+            "deprecated": "2026-04-22",
+            "retires": "2026-10-23",
+            "replaced_by": "gpt-5.6-sol"
           },
           "derived": {
             "price_tier": "high",
@@ -5853,7 +6495,7 @@
         {
           "id": "o3",
           "model": "openai/o3",
-          "label": "OpenAI o3 (Reasoning)",
+          "label": "o3",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -5873,6 +6515,10 @@
               "max_tokens",
               "reasoning_effort",
               "reasoning_summary"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
@@ -5904,7 +6550,8 @@
             "stage": "ga",
             "available": "2025-04-16",
             "deprecated": "2026-06-11",
-            "retires": "2026-12-11"
+            "retires": "2026-12-11",
+            "replaced_by": "gpt-5.6-sol"
           },
           "derived": {
             "price_tier": "medium"
@@ -5913,7 +6560,7 @@
         {
           "id": "o3-pro",
           "model": "openai/o3-pro",
-          "label": "OpenAI o3-pro (Professional Reasoning)",
+          "label": "o3-pro",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -5933,6 +6580,10 @@
               "max_tokens",
               "reasoning_effort",
               "reasoning_summary"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
@@ -5963,7 +6614,8 @@
             "stage": "ga",
             "available": "2025-06-10",
             "deprecated": "2026-06-11",
-            "retires": "2026-12-11"
+            "retires": "2026-12-11",
+            "replaced_by": "gpt-5.6-sol"
           },
           "derived": {
             "price_tier": "high",
@@ -5973,7 +6625,7 @@
         {
           "id": "o4-mini",
           "model": "openai/o4-mini",
-          "label": "OpenAI o4-mini (Fast Reasoning)",
+          "label": "o4-mini",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -5993,6 +6645,10 @@
               "max_tokens",
               "reasoning_effort",
               "reasoning_summary"
+            ],
+            "temperature_range": [
+              0,
+              1
             ]
           },
           "modalities": {
@@ -6023,8 +6679,9 @@
           "lifecycle": {
             "stage": "ga",
             "available": "2025-04-16",
-            "deprecated": "2026-06-11",
-            "retires": "2026-12-11"
+            "deprecated": "2026-04-22",
+            "retires": "2026-10-23",
+            "replaced_by": "gpt-5.6-terra"
           },
           "derived": {
             "price_tier": "low"

@@ -19,44 +19,28 @@ import (
 	"time"
 )
 
-// Date is a UTC calendar date with day granularity. The zero value means
-// "unknown / not set" and is a valid state everywhere a Date appears in
-// this package: an unset Retires means no retirement is announced, an
-// unset Knowledge means the provider does not publish a training cutoff.
-//
-// Dates rather than timestamps are deliberate: every provider publishes
-// model lifecycle as calendar dates ("retired June 15, 2026"), and
-// classification must not flip within a day depending on the caller's
-// clock or timezone.
-//
-//nolint:recvcheck // MarshalText is value, UnmarshalText is pointer — the standard encoding pair, like time.Time.
-type Date struct {
-	Year  int
-	Month time.Month
-	Day   int
-}
+// Lifecycle and fact dates are time.Time values pinned to midnight UTC.
+// Providers publish lifecycle as calendar dates ("retired June 15,
+// 2026"), and classification must not shift with the caller's clock or
+// timezone — so dates carry no finer precision, and New rejects values
+// that do. Construct with MustDate or ParseDate; the zero time.Time
+// means "not set".
 
-// NewDate constructs a Date. It does not validate calendar correctness;
-// use ParseDate or MustDate for validated construction from a string.
-func NewDate(year int, month time.Month, day int) Date {
-	return Date{Year: year, Month: month, Day: day}
-}
-
-// ParseDate parses a "YYYY-MM-DD" string into a Date, rejecting
-// non-calendar dates such as 2026-02-31.
-func ParseDate(s string) (Date, error) {
+// ParseDate parses a "YYYY-MM-DD" string into a date-only time.Time
+// (midnight UTC), rejecting non-calendar dates such as 2026-02-31.
+func ParseDate(s string) (time.Time, error) {
 	t, err := time.ParseInLocation(time.DateOnly, s, time.UTC)
 	if err != nil {
-		return Date{}, fmt.Errorf("catalog: invalid date %q: %w", s, err)
+		return time.Time{}, fmt.Errorf("catalog: invalid date %q: %w", s, err)
 	}
 
-	return Date{Year: t.Year(), Month: t.Month(), Day: t.Day()}, nil
+	return t, nil
 }
 
 // MustDate is ParseDate that panics on malformed input. It is intended
 // for authoring catalog literals, where the string is a compile-time
 // constant and every entry is exercised by tests.
-func MustDate(s string) Date {
+func MustDate(s string) time.Time {
 	d, err := ParseDate(s)
 	if err != nil {
 		panic(err) //nolint:forbidigo // authoring error, not runtime
@@ -65,65 +49,24 @@ func MustDate(s string) Date {
 	return d
 }
 
-// Today returns the current date in UTC.
-func Today() Date {
-	now := time.Now().UTC()
-	return Date{Year: now.Year(), Month: now.Month(), Day: now.Day()}
+// Today returns the current date in UTC, truncated to midnight.
+func Today() time.Time {
+	return time.Now().UTC().Truncate(24 * time.Hour)
 }
 
-// IsZero reports whether the date is unset.
-func (d Date) IsZero() bool {
-	return d == Date{}
+// isDateOnly reports whether t is unset or exactly midnight UTC.
+// Truncate rounds on the absolute timeline, so t's location cannot skew
+// the check.
+func isDateOnly(t time.Time) bool {
+	return t.IsZero() || t.Equal(t.Truncate(24*time.Hour))
 }
 
-// Before reports whether d is strictly earlier than other.
-func (d Date) Before(other Date) bool {
-	if d.Year != other.Year {
-		return d.Year < other.Year
-	}
-
-	if d.Month != other.Month {
-		return d.Month < other.Month
-	}
-
-	return d.Day < other.Day
-}
-
-// After reports whether d is strictly later than other.
-func (d Date) After(other Date) bool {
-	return other.Before(d)
-}
-
-// String renders the date as "YYYY-MM-DD", or "" for the zero value.
-func (d Date) String() string {
-	if d.IsZero() {
+// dateString renders a date as "YYYY-MM-DD", or "" when unset — the
+// snapshot and error-message form.
+func dateString(t time.Time) string {
+	if t.IsZero() {
 		return ""
 	}
 
-	return fmt.Sprintf("%04d-%02d-%02d", d.Year, int(d.Month), d.Day)
-}
-
-// MarshalText encodes the date as "YYYY-MM-DD"; the zero value encodes
-// as an empty string. Implementing encoding.TextMarshaler makes Date
-// work with encoding/json and any other text-based encoder.
-func (d Date) MarshalText() ([]byte, error) {
-	return []byte(d.String()), nil
-}
-
-// UnmarshalText decodes "YYYY-MM-DD"; an empty input yields the zero
-// value.
-func (d *Date) UnmarshalText(text []byte) error {
-	if len(text) == 0 {
-		*d = Date{}
-		return nil
-	}
-
-	parsed, err := ParseDate(string(text))
-	if err != nil {
-		return err
-	}
-
-	*d = parsed
-
-	return nil
+	return t.UTC().Format(time.DateOnly)
 }

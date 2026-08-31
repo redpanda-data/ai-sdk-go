@@ -34,18 +34,24 @@ type Entry struct {
 	ID string
 
 	// Model is the canonical cross-provider identity; it must exist in
-	// the Registry the Catalog is built with.
+	// the Registry the Catalog is built with. Different offerings of the
+	// same model share it: Anthropic's ID "claude-opus-5" and Bedrock's
+	// ID "us.anthropic.claude-opus-5" both set
+	// Model: catalog.ModelClaudeOpus5 ("anthropic/claude-opus-5").
 	Model ModelID
 
-	// Label is the display name including provider decoration:
-	// "Claude Opus 5 (EU)". Empty defaults to the Facts name.
-	Label string
+	// DisplayName is the display name including provider decoration:
+	// "Claude Opus 5 (EU)". Empty defaults to Facts.DisplayName.
+	DisplayName string
 
 	// Aliases are additional exact IDs this provider accepts for this
 	// offering ("gpt-5.6" on the gpt-5.6-sol entry). They participate in
 	// resolution and in PricingByID.
 	Aliases []string
 
+	// Capabilities' Vision/Audio booleans are derived from the Modalities
+	// list (image ⇒ Vision, audio ⇒ Audio); authoring them is optional,
+	// and an authored true without the matching modality is rejected.
 	Capabilities llm.ModelCapabilities
 	Constraints  llm.ModelConstraints
 
@@ -67,12 +73,12 @@ type Entry struct {
 	// Life is the provider's lifecycle schedule for this offering.
 	Life Lifecycle
 
-	// Tuning carries harness defaults; the zero value means no opinion.
-	Tuning Tuning
-
 	// Attributes is a narrow escape hatch for provider-specific
-	// discovery flags (e.g. Bedrock's
-	// "requires_provider_data_sharing": "true"). Keys should be
-	// snake_case; values are strings so the snapshot stays stable.
+	// discovery flags, so one provider's quirk never grows a field on
+	// this shared struct. In use: Bedrock sets
+	// "requires_provider_data_sharing": "true" on models that reject
+	// requests until the account opts in — the conformance suite reads
+	// it to skip those, and UIs badge it. Keys are snake_case; values
+	// are strings so the snapshot stays stable.
 	Attributes map[string]string
 }

@@ -14,6 +14,8 @@
 
 package catalog
 
+import "time"
+
 // Stage is a lifecycle stage of one provider's offering.
 //
 // Only StagePreview and StageGA may be authored on an Entry. Deprecation
@@ -48,6 +50,9 @@ const (
 // that partner platforms (Amazon Bedrock, Google Cloud) set their own
 // retirement schedules, so the same model can be GA on one host and
 // retired on another.
+//
+// All dates are date-only time.Time values (midnight UTC, construct
+// with MustDate); New rejects anything finer. Zero means "not set".
 type Lifecycle struct {
 	// Stage is the authored stage: StagePreview or StageGA (empty
 	// normalizes to StageGA). Later stages are derived from the dates
@@ -58,27 +63,19 @@ type Lifecycle struct {
 	// Zero means "available, exact date unknown" — catalog membership
 	// already implies availability, and a missing date must not force
 	// authors to invent one.
-	Available Date
+	Available time.Time
 
 	// Deprecated is the date the provider announced or applied
 	// deprecation. Zero means not deprecated.
-	Deprecated Date
+	Deprecated time.Time
 
 	// Retires is the provider's EXACT announced shutdown date. The
 	// boundary is inclusive: the offering is retired ON this date,
 	// matching provider wording ("requests to retired models will
-	// fail"). Zero means no shutdown is scheduled.
-	//
-	// A published "not sooner than" floor is NOT a retirement date and
-	// must go in RetirementNotBefore instead — classifying a model as
-	// retired on a floor date would be wrong the moment the floor
-	// passes without an announcement.
-	Retires Date
-
-	// RetirementNotBefore is the provider's published lower bound on
-	// retirement ("not sooner than June 9, 2027"). Informational only:
-	// it never derives StageRetired.
-	RetirementNotBefore Date
+	// fail"). Zero means no shutdown is scheduled. A published "not
+	// sooner than" floor is a lower bound, not a shutdown date — leave
+	// Retires unset until the provider announces an exact date.
+	Retires time.Time
 
 	// ReplacedBy is the provider's announced recommended replacement,
 	// as an offering ID in the same catalog. New validates it resolves.

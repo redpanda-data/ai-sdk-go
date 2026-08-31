@@ -103,9 +103,7 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) (anthropic.BetaMessageNewP
 		apiReq.StopSequences = rm.config.Stop
 	}
 
-	// Apply tool definitions if provided
-	// Note: Anthropic doesn't support response_format (JSON mode or structured output)
-	// Users should use tool calling directly for structured output
+	// Apply tool definitions if provided.
 	if len(req.Tools) > 0 {
 		tools, err := rm.mapToolDefinitions(req.Tools)
 		if err != nil {
@@ -143,10 +141,14 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) (anthropic.BetaMessageNewP
 		}
 	}
 
-	// Apply effort if configured
+	// Effort and response format share output_config, so build it once.
 	if rm.config.ReasoningEffort != nil {
-		apiReq.OutputConfig = anthropic.BetaOutputConfigParam{
-			Effort: anthropic.BetaOutputConfigEffort(*rm.config.ReasoningEffort),
+		apiReq.OutputConfig.Effort = anthropic.BetaOutputConfigEffort(*rm.config.ReasoningEffort)
+	}
+
+	if req.ResponseFormat != nil {
+		if err := applyResponseFormat(&apiReq.OutputConfig, req.ResponseFormat); err != nil {
+			return apiReq, fmt.Errorf("%w: response format mapping failed: %w", llm.ErrRequestMapping, err)
 		}
 	}
 
@@ -160,6 +162,9 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) (anthropic.BetaMessageNewP
 
 // mapMessages converts our unified messages to Anthropic format.
 // It separates system messages from user/assistant messages.
+// TODO: only text/tool/reasoning parts are mapped. The catalog
+// advertises image (and on some models audio/video/document) input
+// because the models accept it; llm.Part has no binary part yet.
 func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]anthropic.BetaMessageParam, []anthropic.BetaTextBlockParam, error) {
 	apiMessages := make([]anthropic.BetaMessageParam, 0, len(messages))
 
@@ -358,6 +363,43 @@ func (rm *RequestMapper) mapToolResultBlock(part *llm.ToolResponsePart) (anthrop
 			IsError:   param.NewOpt(part.IsError),
 		},
 	}, nil
+}
+
+// applyResponseFormat sets Anthropic's output_config.format from a
+// unified ResponseFormat. A text format leaves cfg untouched.
+//
+// Anthropic has no schemaless JSON mode — structured outputs require a
+// schema — so ResponseFormatJSONObject is rejected rather than silently
+// downgraded to unconstrained text. Claude's catalog entries advertise
+// StructuredOutput but not JSONMode for the same reason.
+func applyResponseFormat(cfg *anthropic.BetaOutputConfigParam, format *llm.ResponseFormat) error {
+	switch format.Type {
+	case llm.ResponseFormatText, "":
+		return nil
+
+	case llm.ResponseFormatJSONSchema:
+		if format.JSONSchema == nil {
+			return errors.New("JSONSchema is required when Type is json_schema")
+		}
+
+		var schema map[string]any
+		if err := json.Unmarshal(format.JSONSchema.Schema, &schema); err != nil {
+			return fmt.Errorf("invalid JSON schema: %w", err)
+		}
+
+		adaptSchemaForStructuredOutput(schema)
+
+		cfg.Format = anthropic.BetaJSONOutputFormatParam{Schema: schema}
+
+		return nil
+
+	case llm.ResponseFormatJSONObject:
+		return fmt.Errorf("%w: Anthropic requires a schema for JSON output: use %q with a JSONSchema",
+			llm.ErrUnsupportedFeature, llm.ResponseFormatJSONSchema)
+
+	default:
+		return fmt.Errorf("unsupported response format type: %s", format.Type)
+	}
 }
 
 // mapToolDefinitions converts our tool definitions to Anthropic format.

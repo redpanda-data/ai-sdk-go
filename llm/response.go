@@ -67,13 +67,13 @@ type Response struct {
 	// the same model differently by region.
 	InferenceRegion string `json:"inference_region,omitempty"`
 
-	// InvokedModelID is the model identifier that should be used for SDK lookups
-	// after any provider-side routing has been accounted for.
-	//
-	// Providers sometimes return snapshot/version strings that are more specific
-	// than the stable model keys this SDK exposes. Adapters may normalize those
-	// raw values to the closest supported model ID so pricing and capability
-	// lookup continue to work without a second resolver layer.
+	// InvokedModelID is the model identifier to use for SDK lookups after
+	// any provider-side routing. The contract is uniform across providers:
+	// when the catalog recognizes the provider-reported model (including
+	// timestamped snapshots, via Resolve), this is the catalog offering ID,
+	// so exact-ID pricing and capability lookups work directly; a reported
+	// ID the catalog does not know passes through verbatim and must be
+	// treated as unknown (unpriced), never approximated.
 	InvokedModelID string `json:"invoked_model_id,omitempty"`
 }
 

@@ -121,6 +121,9 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) (responses.ResponseNewPara
 
 // mapMessagesToInputItems converts messages to the Responses API input format.
 // This method handles all message types including regular messages, tool requests, and tool responses.
+// TODO: only text/tool/reasoning parts are mapped. The catalog
+// advertises image (and on some models audio/video/document) input
+// because the models accept it; llm.Part has no binary part yet.
 func (rm *RequestMapper) mapMessagesToInputItems(messages []llm.Message) ([]responses.ResponseInputItemUnionParam, error) {
 	items := make([]responses.ResponseInputItemUnionParam, 0, len(messages)*2) // Pre-allocate for potential expansion
 

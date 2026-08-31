@@ -40,6 +40,9 @@ func TestAnthropicJSONOutput_Integration(t *testing.T) {
 	t.Run("JSON object mode", func(t *testing.T) {
 		t.Parallel()
 
+		// Anthropic has no schemaless JSON mode: structured outputs require a
+		// schema, so json_object is rejected at request mapping rather than
+		// silently downgraded to unconstrained text.
 		req := &llm.Request{
 			Messages: []llm.Message{
 				{
@@ -52,27 +55,8 @@ func TestAnthropicJSONOutput_Integration(t *testing.T) {
 			},
 		}
 
-		resp, err := model.Generate(context.Background(), req)
-		require.NoError(t, err)
-		require.NotNil(t, resp)
-
-		text := resp.TextContent()
-		t.Logf("Raw response: %q", text)
-		t.Logf("First 10 chars: %q", text[:min(10, len(text))])
-
-		// Check if it's wrapped in markdown code blocks
-		if len(text) > 0 && text[0] == '`' {
-			t.Logf("Response is markdown-wrapped JSON")
-		}
-
-		// Try to parse as JSON
-		var jsonData any
-
-		err = json.Unmarshal([]byte(text), &jsonData)
-		if err != nil {
-			t.Logf("Direct JSON parse failed: %v", err)
-			t.Logf("This is expected - Anthropic wraps JSON in markdown code blocks")
-		}
+		_, err := model.Generate(context.Background(), req)
+		require.ErrorIs(t, err, llm.ErrUnsupportedFeature)
 	})
 
 	t.Run("JSON schema mode", func(t *testing.T) {
@@ -113,13 +97,11 @@ func TestAnthropicJSONOutput_Integration(t *testing.T) {
 		text := resp.TextContent()
 		t.Logf("Raw response: %q", text)
 
-		// Try to parse as JSON
-		var jsonData any
-
-		err = json.Unmarshal([]byte(text), &jsonData)
-		if err != nil {
-			t.Logf("Direct JSON parse failed: %v", err)
-			t.Logf("This is expected - Anthropic wraps JSON in markdown code blocks")
-		}
+		// Structured outputs constrain the response to the schema, so the
+		// text must be valid JSON with the required fields.
+		var jsonData map[string]any
+		require.NoError(t, json.Unmarshal([]byte(text), &jsonData))
+		require.Contains(t, jsonData, "name")
+		require.Contains(t, jsonData, "age")
 	})
 }

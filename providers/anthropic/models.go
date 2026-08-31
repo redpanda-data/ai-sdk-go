@@ -89,16 +89,19 @@ func Catalog() *catalog.Catalog {
 	return catalogOnce()
 }
 
-// claudeCaps is the capability set shared by every Claude model:
-// Anthropic has no native JSON mode or structured output (use tool
-// calling instead), and every catalogued Claude is multimodal-in.
+// claudeCaps is the capability set shared by every catalogued Claude
+// model. Structured outputs are generally available via
+// output_config.format with a json_schema; JSONMode is false because
+// Anthropic has no schemaless JSON mode. Every catalogued Claude is
+// multimodal-in.
 var claudeCaps = llm.ModelCapabilities{
-	Streaming:     true,
-	Tools:         true,
-	Vision:        true,
-	MultiTurn:     true,
-	SystemPrompts: true,
-	Reasoning:     true,
+	Streaming:        true,
+	Tools:            true,
+	StructuredOutput: true,
+	Vision:           true,
+	MultiTurn:        true,
+	SystemPrompts:    true,
+	Reasoning:        true,
 }
 
 // claudeModalities is shared by every catalogued Claude model: text,
@@ -113,9 +116,10 @@ var claudeModalities = catalog.Modalities{
 // Lifecycle sourcing: Anthropic's model-deprecations page
 // (https://platform.claude.com/docs/en/about-claude/model-deprecations).
 // Anthropic publishes tentative retirement dates as "not sooner than"
-// floors — those are RetirementNotBefore, never Retires. Available is the
-// first-party launch date (Anthropic is the launch platform, so it equals
-// the model's release date).
+// floors — those are lower bounds, not shutdown dates, so Retires stays
+// unset until an exact date is announced. Available is the first-party
+// launch date (Anthropic is the launch platform, so it equals the
+// model's release date).
 //
 // The catalog is append-only: retired models keep their entries (with
 // Retires in the past) so historical usage stays priceable and the
@@ -125,7 +129,6 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeFable5,
 			Model:        catalog.ModelClaudeFable5,
-			Label:        "Claude Fable 5",
 			Capabilities: claudeCaps,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -134,32 +137,25 @@ func entries() []catalog.Entry {
 				// Fable 5 rejects thinking.type.enabled — thinking budget is not
 				// user-controllable — and rejects non-default sampling parameters.
 				// Use adaptive thinking + effort to bias reasoning depth.
-				SupportedParams:   []string{"max_tokens", "reasoning_effort"},
-				MutuallyExclusive: [][]string{},
+				SupportedParams: []string{"max_tokens", "reasoning_effort"},
 			},
 			Reasoning: catalog.ReasoningSupport{
 				Efforts:  []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 				Adaptive: true,
 			},
 			Life: catalog.Lifecycle{
-				Available:           catalog.MustDate("2026-06-07"),
-				RetirementNotBefore: catalog.MustDate("2027-06-09"),
+				Available: catalog.MustDate("2026-06-07"),
 			},
-			Pricing: pricing.TieredInfo(
-				// Cache rates derived from Anthropic's prompt-caching multipliers
-				// (5m-write = 1.25x base input, 1h-write = 2x, cache-read = 0.10x).
+			// Flat across the full 1M window: Claude 4.6 and later bill long
+			// context at standard rates. Cache rates derived from Anthropic's
+			// multipliers (5m-write = 1.25x input, 1h-write = 2x, read = 0.10x).
+			Pricing: pricing.FlatInfoFromRates(
 				pricing.NewRates(10.00, 50.00, 1.00).WithCacheCreation(12.50, 20.00, 0),
-				pricing.Bracket{
-					// Anthropic >200K long-context surcharge: input 2x, output 1.5x, cache 2x.
-					MinContextTokens: 200_001,
-					Rates:            pricing.NewRates(20.00, 75.00, 2.00).WithCacheCreation(25.00, 40.00, 0),
-				},
 			),
 		},
 		{
 			ID:           ModelClaudeOpus5,
 			Model:        catalog.ModelClaudeOpus5,
-			Label:        "Claude Opus 5",
 			Capabilities: claudeCaps,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -168,8 +164,7 @@ func entries() []catalog.Entry {
 				// Opus 5 rejects thinking.type.enabled — thinking budget is not
 				// user-controllable. Non-default sampling parameters are also
 				// rejected. Use adaptive thinking + effort to bias reasoning depth.
-				SupportedParams:   []string{"max_tokens", "reasoning_effort", "speed"},
-				MutuallyExclusive: [][]string{},
+				SupportedParams: []string{"max_tokens", "reasoning_effort", "speed"},
 			},
 			Reasoning: catalog.ReasoningSupport{
 				Efforts:  []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
@@ -177,8 +172,7 @@ func entries() []catalog.Entry {
 			},
 			Speeds: []Speed{SpeedStandard, SpeedFast},
 			Life: catalog.Lifecycle{
-				Available:           catalog.MustDate("2026-07-24"),
-				RetirementNotBefore: catalog.MustDate("2027-07-24"),
+				Available: catalog.MustDate("2026-07-24"),
 			},
 			Pricing: pricing.FlatInfoFromRates(
 				pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
@@ -193,7 +187,6 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeOpus48,
 			Model:        catalog.ModelClaudeOpus48,
-			Label:        "Claude Opus 4.8",
 			Capabilities: claudeCaps,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -203,8 +196,7 @@ func entries() []catalog.Entry {
 				// Opus 4.8 rejects thinking.type.enabled — thinking budget is not
 				// user-controllable. Use adaptive thinking + effort to bias
 				// reasoning depth.
-				SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort", "speed"},
-				MutuallyExclusive: [][]string{},
+				SupportedParams: []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort", "speed"},
 			},
 			Reasoning: catalog.ReasoningSupport{
 				Efforts:  []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
@@ -212,36 +204,23 @@ func entries() []catalog.Entry {
 			},
 			Speeds: []Speed{SpeedStandard, SpeedFast},
 			Life: catalog.Lifecycle{
-				Available:           catalog.MustDate("2026-05-28"),
-				RetirementNotBefore: catalog.MustDate("2027-05-28"),
+				Available: catalog.MustDate("2026-05-28"),
 			},
-			Pricing: pricing.TieredInfo(
+			Pricing: pricing.FlatInfoFromRates(
 				pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
-				pricing.Bracket{
-					// Anthropic >200K long-context surcharge: input 2x, output 1.5x, cache 2x.
-					MinContextTokens: 200_001,
-					Rates:            pricing.NewRates(10.00, 37.50, 1.00).WithCacheCreation(12.50, 20.00, 0),
-				},
 			).WithOverride(
 				pricing.Selector{Speed: SpeedFast},
 				pricing.RateCard{
-					// Opus 4.8 fast mode is 3x cheaper than Opus 4.6/4.7's fast mode.
-					// Cache rates derived from Anthropic's prompt-caching multipliers
-					// (5m-write = 1.25x base input, 1h-write = 2x, cache-read = 0.10x).
+					// Fast mode is flat across the full window, including
+					// requests over 200K input tokens.
 					Base: pricing.NewRates(10.00, 50.00, 1.00).
 						WithCacheCreation(12.50, 20.00, 0),
-					Brackets: []pricing.Bracket{{
-						// >200K long-context surcharge on fast-mode rates.
-						MinContextTokens: 200_001,
-						Rates:            pricing.NewRates(20.00, 75.00, 2.00).WithCacheCreation(25.00, 40.00, 0),
-					}},
 				},
 			),
 		},
 		{
 			ID:           ModelClaudeOpus47,
 			Model:        catalog.ModelClaudeOpus47,
-			Label:        "Claude Opus 4.7",
 			Capabilities: claudeCaps,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -251,30 +230,22 @@ func entries() []catalog.Entry {
 				// Opus 4.7 rejects thinking.type.enabled — thinking budget is not
 				// user-controllable. Use adaptive thinking + effort to bias
 				// reasoning depth.
-				SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort", "speed"},
-				MutuallyExclusive: [][]string{},
+				SupportedParams: []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort", "speed"},
 			},
 			Reasoning: catalog.ReasoningSupport{
 				Efforts:  []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 				Adaptive: true,
 			},
 			Life: catalog.Lifecycle{
-				Available:           catalog.MustDate("2026-04-14"),
-				RetirementNotBefore: catalog.MustDate("2027-04-16"),
+				Available: catalog.MustDate("2026-04-14"),
 			},
-			Pricing: pricing.TieredInfo(
+			Pricing: pricing.FlatInfoFromRates(
 				pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
-				pricing.Bracket{
-					// Anthropic >200K long-context surcharge: input 2x, output 1.5x, cache 2x.
-					MinContextTokens: 200_001,
-					Rates:            pricing.NewRates(10.00, 37.50, 1.00).WithCacheCreation(12.50, 20.00, 0),
-				},
 			),
 		},
 		{
 			ID:           ModelClaudeSonnet5,
 			Model:        catalog.ModelClaudeSonnet5,
-			Label:        "Claude Sonnet 5",
 			Capabilities: claudeCaps,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -283,8 +254,7 @@ func entries() []catalog.Entry {
 				MaxOutputTokens:  128000,  // 128K output tokens
 				// Sonnet 5 shares Opus 4.7's request surface: manual thinking budget
 				// is removed (adaptive thinking + effort instead), no fast mode.
-				SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort"},
-				MutuallyExclusive: [][]string{},
+				SupportedParams: []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort"},
 			},
 			Reasoning: catalog.ReasoningSupport{
 				// First Sonnet-tier model with xhigh; supports the full effort range.
@@ -292,35 +262,26 @@ func entries() []catalog.Entry {
 				Adaptive: true,
 			},
 			Life: catalog.Lifecycle{
-				Available:           catalog.MustDate("2026-06-29"),
-				RetirementNotBefore: catalog.MustDate("2027-06-30"),
+				Available: catalog.MustDate("2026-06-29"),
 			},
-			Pricing: pricing.TieredInfo(
-				// List price $3/$15 per MTok (the introductory $2/$10 through
-				// 2026-08-31 is deliberately not tracked here). Cache rates from
-				// Anthropic's prompt-caching multipliers (5m-write 1.25x, 1h-write 2x,
-				// cache-read 0.10x of base input).
-				pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0),
-				pricing.Bracket{
-					// Anthropic >200K long-context surcharge: input 2x, output 1.5x, cache 2x.
-					// Matches Anthropic's published Sonnet 1M pricing ($6/$22.50 above 200K).
-					MinContextTokens: 200_001,
-					Rates:            pricing.NewRates(6.00, 22.50, 0.60).WithCacheCreation(7.50, 12.00, 0),
-				},
+			// $2/$10 is Sonnet 5's standard price: announced as introductory
+			// through 2026-08-31, but the increase to $3/$15 scheduled for
+			// 2026-09-01 was cancelled. Cache rates from Anthropic's
+			// multipliers (5m-write 1.25x, 1h-write 2x, read 0.10x).
+			Pricing: pricing.FlatInfoFromRates(
+				pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0),
 			),
 		},
 		{
 			ID:           ModelClaudeSonnet46,
 			Model:        catalog.ModelClaudeSonnet46,
-			Label:        "Claude Sonnet 4.6",
 			Capabilities: claudeCaps,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
-				TemperatureRange:  [2]float64{0.0, 1.0},
-				MaxInputTokens:    200000, // 200K context window
-				MaxOutputTokens:   64000,  // 64K output tokens
-				SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort", "thinking_budget"},
-				MutuallyExclusive: [][]string{},
+				TemperatureRange: [2]float64{0.0, 1.0},
+				MaxInputTokens:   1000000, // 1M context window
+				MaxOutputTokens:  128000,  // 128K output tokens
+				SupportedParams:  []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort", "thinking_budget"},
 			},
 			Reasoning: catalog.ReasoningSupport{
 				Efforts:  []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
@@ -328,8 +289,7 @@ func entries() []catalog.Entry {
 				Budget:   true,
 			},
 			Life: catalog.Lifecycle{
-				Available:           catalog.MustDate("2026-02-17"),
-				RetirementNotBefore: catalog.MustDate("2027-02-17"),
+				Available: catalog.MustDate("2026-02-17"),
 			},
 			Pricing: pricing.FlatInfoFromRates(
 				pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0),
@@ -338,19 +298,16 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeSonnet45,
 			Model:        catalog.ModelClaudeSonnet45,
-			Label:        "Claude Sonnet 4.5",
 			Capabilities: claudeCaps,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
-				TemperatureRange:  [2]float64{0.0, 1.0},
-				MaxInputTokens:    200000, // 200K context window
-				MaxOutputTokens:   64000,  // 64K output tokens
-				SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens"},
-				MutuallyExclusive: [][]string{},
+				TemperatureRange: [2]float64{0.0, 1.0},
+				MaxInputTokens:   200000, // 200K context window
+				MaxOutputTokens:  64000,  // 64K output tokens
+				SupportedParams:  []string{"temperature", "top_p", "top_k", "max_tokens"},
 			},
 			Life: catalog.Lifecycle{
-				Available:           catalog.MustDate("2025-09-29"),
-				RetirementNotBefore: catalog.MustDate("2026-09-29"),
+				Available: catalog.MustDate("2025-09-29"),
 			},
 			Pricing: pricing.FlatInfoFromRates(
 				pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0),
@@ -359,19 +316,16 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeHaiku45,
 			Model:        catalog.ModelClaudeHaiku45,
-			Label:        "Claude Haiku 4.5",
 			Capabilities: claudeCaps,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
-				TemperatureRange:  [2]float64{0.0, 1.0},
-				MaxInputTokens:    200000, // 200K context window
-				MaxOutputTokens:   64000,  // 64K output tokens
-				SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens"},
-				MutuallyExclusive: [][]string{},
+				TemperatureRange: [2]float64{0.0, 1.0},
+				MaxInputTokens:   200000, // 200K context window
+				MaxOutputTokens:  64000,  // 64K output tokens
+				SupportedParams:  []string{"temperature", "top_p", "top_k", "max_tokens"},
 			},
 			Life: catalog.Lifecycle{
-				Available:           catalog.MustDate("2025-10-15"),
-				RetirementNotBefore: catalog.MustDate("2026-10-15"),
+				Available: catalog.MustDate("2025-10-15"),
 			},
 			Pricing: pricing.FlatInfoFromRates(
 				pricing.NewRates(1.00, 5.00, 0.10).WithCacheCreation(1.25, 2.00, 0),
@@ -380,65 +334,45 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeOpus46,
 			Model:        catalog.ModelClaudeOpus46,
-			Label:        "Claude Opus 4.6",
 			Capabilities: claudeCaps,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
-				TemperatureRange:  [2]float64{0.0, 1.0},
-				MaxInputTokens:    1000000, // 1M context window (beta)
-				MaxOutputTokens:   128000,  // 128K output tokens
-				SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort", "thinking_budget", "speed"},
-				MutuallyExclusive: [][]string{},
+				TemperatureRange: [2]float64{0.0, 1.0},
+				MaxInputTokens:   1000000, // 1M context window
+				MaxOutputTokens:  128000,  // 128K output tokens
+				SupportedParams:  []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort", "thinking_budget", "speed"},
 			},
 			Reasoning: catalog.ReasoningSupport{
 				Efforts:  []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortMax},
 				Adaptive: true,
 				Budget:   true,
 			},
+			// Opus 4.6 accepts speed:"fast" but runs at standard speed and
+			// bills at standard rates, so there is no fast-mode override.
 			Speeds: []Speed{SpeedStandard, SpeedFast},
 			Life: catalog.Lifecycle{
-				Available:           catalog.MustDate("2026-02-04"),
-				RetirementNotBefore: catalog.MustDate("2027-02-05"),
+				Available: catalog.MustDate("2026-02-04"),
 			},
-			Pricing: pricing.TieredInfo(
+			Pricing: pricing.FlatInfoFromRates(
 				pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
-				pricing.Bracket{
-					// Anthropic >200K long-context surcharge: input 2x, output 1.5x, cache 2x.
-					MinContextTokens: 200_001,
-					Rates:            pricing.NewRates(10.00, 37.50, 1.00).WithCacheCreation(12.50, 20.00, 0),
-				},
-			).WithOverride(
-				pricing.Selector{Speed: SpeedFast},
-				pricing.RateCard{
-					Base: pricing.NewRates(30.00, 150.00, 3.00).
-						WithCacheCreation(37.50, 60.00, 0),
-					Brackets: []pricing.Bracket{{
-						// >200K long-context surcharge on fast-mode rates.
-						MinContextTokens: 200_001,
-						Rates:            pricing.NewRates(60.00, 225.00, 6.00).WithCacheCreation(75.00, 120.00, 0),
-					}},
-				},
 			),
 		},
 		{
 			ID:           ModelClaudeOpus45,
 			Model:        catalog.ModelClaudeOpus45,
-			Label:        "Claude Opus 4.5",
 			Capabilities: claudeCaps,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
-				TemperatureRange:  [2]float64{0.0, 1.0},
-				MaxInputTokens:    200000, // 200K context window
-				MaxOutputTokens:   64000,  // 64K output tokens
-				SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort"},
-				MutuallyExclusive: [][]string{},
+				TemperatureRange: [2]float64{0.0, 1.0},
+				MaxInputTokens:   200000, // 200K context window
+				MaxOutputTokens:  64000,  // 64K output tokens
+				SupportedParams:  []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort"},
 			},
 			Reasoning: catalog.ReasoningSupport{
 				Efforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
 			},
 			Life: catalog.Lifecycle{
-				Available:           catalog.MustDate("2025-11-24"),
-				RetirementNotBefore: catalog.MustDate("2026-11-24"),
+				Available: catalog.MustDate("2025-11-24"),
 			},
 			Pricing: pricing.FlatInfoFromRates(
 				pricing.NewRates(5.00, 25.00, 0.50).
@@ -452,15 +386,13 @@ func entries() []catalog.Entry {
 			// explainable.
 			ID:           ModelClaudeOpus41,
 			Model:        catalog.ModelClaudeOpus41,
-			Label:        "Claude Opus 4.1",
 			Capabilities: claudeCaps,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
-				TemperatureRange:  [2]float64{0.0, 1.0},
-				MaxInputTokens:    200000, // 200K context window
-				MaxOutputTokens:   32000,  // 32K output tokens
-				SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens"},
-				MutuallyExclusive: [][]string{},
+				TemperatureRange: [2]float64{0.0, 1.0},
+				MaxInputTokens:   200000, // 200K context window
+				MaxOutputTokens:  32000,  // 32K output tokens
+				SupportedParams:  []string{"temperature", "top_p", "top_k", "max_tokens"},
 			},
 			Life: catalog.Lifecycle{
 				Available:  catalog.MustDate("2025-08-05"),

@@ -676,7 +676,8 @@ func TestNewModel_Capabilities(t *testing.T) {
 	caps := model.Capabilities()
 	assert.True(t, caps.Streaming)
 	assert.True(t, caps.Tools)
-	assert.False(t, caps.Vision)
+	assert.True(t, caps.Vision)
+	assert.False(t, caps.Audio)
 	assert.True(t, caps.MultiTurn)
 	assert.True(t, caps.SystemPrompts)
 	assert.True(t, caps.Reasoning)
@@ -1225,7 +1226,7 @@ func TestModelsDiscovery(t *testing.T) {
 	for _, m := range models {
 		assert.Equal(t, "aws.bedrock", m.Provider())
 		assert.NotEmpty(t, m.ID)
-		assert.NotEmpty(t, m.Label)
+		assert.NotEmpty(t, m.DisplayName)
 		assert.Positive(t, m.Constraints.MaxInputTokens,
 			"model %s missing MaxInputTokens — set Constraints on its catalog entry", m.ID)
 		assert.Positive(t, m.Constraints.MaxOutputTokens,
@@ -1294,4 +1295,66 @@ func TestWithMaxTokens_Negative(t *testing.T) {
 	_, err := p.NewModel(ModelClaudeSonnet46, WithMaxTokens(-1))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "must be positive")
+}
+
+func TestRequestMapper_ResponseFormat(t *testing.T) {
+	t.Parallel()
+
+	rm := NewRequestMapper(&Config{APIModelID: ModelClaudeOpus5US, ModelName: ModelClaudeOpus5US})
+
+	t.Run("json schema populates outputConfig.textFormat", func(t *testing.T) {
+		t.Parallel()
+
+		schema := `{"type":"object","properties":{"name":{"type":"string"}}}`
+		in, err := rm.ToConverseInput(&llm.Request{
+			Messages: []llm.Message{{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("hi")}}},
+			ResponseFormat: &llm.ResponseFormat{
+				Type:       llm.ResponseFormatJSONSchema,
+				JSONSchema: &llm.JSONSchema{Name: "person", Schema: []byte(schema)},
+			},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, in.OutputConfig)
+		require.NotNil(t, in.OutputConfig.TextFormat)
+		assert.Equal(t, types.OutputFormatTypeJsonSchema, in.OutputConfig.TextFormat.Type)
+
+		member, ok := in.OutputConfig.TextFormat.Structure.(*types.OutputFormatStructureMemberJsonSchema)
+		require.True(t, ok)
+		assert.JSONEq(t, schema, aws.ToString(member.Value.Schema))
+	})
+
+	t.Run("streaming input carries the same format", func(t *testing.T) {
+		t.Parallel()
+
+		in, err := rm.ToConverseStreamInput(&llm.Request{
+			Messages: []llm.Message{{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("hi")}}},
+			ResponseFormat: &llm.ResponseFormat{
+				Type:       llm.ResponseFormatJSONSchema,
+				JSONSchema: &llm.JSONSchema{Name: "p", Schema: []byte(`{"type":"object"}`)},
+			},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, in.OutputConfig)
+		require.NotNil(t, in.OutputConfig.TextFormat)
+	})
+
+	t.Run("no response format leaves outputConfig nil", func(t *testing.T) {
+		t.Parallel()
+
+		in, err := rm.ToConverseInput(&llm.Request{
+			Messages: []llm.Message{{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("hi")}}},
+		})
+		require.NoError(t, err)
+		assert.Nil(t, in.OutputConfig)
+	})
+
+	t.Run("json object mode is rejected, not silently dropped", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := rm.ToConverseInput(&llm.Request{
+			Messages:       []llm.Message{{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("hi")}}},
+			ResponseFormat: &llm.ResponseFormat{Type: llm.ResponseFormatJSONObject},
+		})
+		require.ErrorIs(t, err, llm.ErrUnsupportedFeature)
+	})
 }

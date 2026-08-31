@@ -314,4 +314,3 @@ type ModelCapabilities struct {
 	SystemPrompts    bool // Supports system role messages
 	Reasoning        bool // Supports reasoning controls and exposes reasoning traces
 }
-

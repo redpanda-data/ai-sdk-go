@@ -47,4 +47,3 @@ func TestAllModelsHavePricing(t *testing.T) {
 		})
 	}
 }
-

@@ -20,6 +20,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/redpanda-data/ai-sdk-go/pricing"
 )
@@ -67,28 +68,23 @@ func WithRegistry(r Registry) Option {
 // New validates a provider's authored entries and freezes them into a
 // Catalog.
 //
-// Validation errors are joined and path-qualified so the offending entry
-// is locatable:
+// There is no external truth to check against — the entry IS the source
+// of truth. Validation catches what the compiler cannot in hand-written
+// literals:
 //
-//	catalog: anthropic: entries[2] "claude-sonnet-5": Tuning.CompactAtInputTokens 1200000 must be < Constraints.MaxInputTokens 1000000
+//   - forgotten fields that compile to harmful zeros: token limits > 0,
+//     input/output rates authored (zero means "unpriced"; free is
+//     spelled pricing.RateFree)
+//   - the same fact authored in two fields: Capabilities.Vision/Audio
+//     must agree with Modalities.Input; Reasoning.Efforts requires
+//     Capabilities.Reasoning
+//   - cross-entry sanity: unique IDs and aliases; Model registered in
+//     the Registry; ReplacedBy resolves; dates ordered and date-only;
+//     deprecated/retired stages never authored (they derive from dates)
 //
-// Rules enforced:
-//   - provider and entry IDs non-empty; IDs unique
-//   - aliases unique, and colliding with no ID and no other alias
-//   - Model registered in the Registry, with a non-zero Facts.Released
-//     and non-empty Facts.Series
-//   - Constraints.MaxInputTokens and MaxOutputTokens > 0
-//   - Pricing valid per pricing.NewCatalog (input+output priced or free)
-//   - authored Stage is empty, StagePreview, or StageGA — deprecation
-//     and retirement are derived from dates, never authored
-//   - Available ≤ Deprecated ≤ Retires, for the dates that are set
-//   - ReplacedBy, when set, names another offering ID in this catalog
-//   - Reasoning.Efforts non-empty ⇒ Capabilities.Reasoning
-//   - Capabilities.Vision ⇒ Modalities.Input contains image (after
-//     normalization), Capabilities.Audio ⇒ input contains audio
-//   - Tuning: DefaultMaxOutputTokens ≤ MaxOutputTokens;
-//     DefaultReasoningEffort ∈ Reasoning.Efforts;
-//     CompactAtInputTokens < MaxInputTokens
+// Errors are joined and path-qualified:
+//
+//	catalog: anthropic: entries[2] "claude-sonnet-5": Constraints.MaxInputTokens must be > 0
 func New(provider string, entries []Entry, opts ...Option) (*Catalog, error) {
 	cfg := config{}
 	for _, opt := range opts {
@@ -141,8 +137,11 @@ func New(provider string, entries []Entry, opts ...Option) (*Catalog, error) {
 			fail(i, e, "Facts for %q have a zero Released date", e.Model)
 		case facts.Series == "":
 			fail(i, e, "Facts for %q have an empty Series", e.Model)
+		case !isDateOnly(facts.Released) || !isDateOnly(facts.Knowledge):
+			fail(i, e, "Facts dates for %q must be date-only (midnight UTC): construct with catalog.MustDate", e.Model)
 		}
 
+		// A zero limit is a forgotten field, not a choice.
 		if e.Constraints.MaxInputTokens <= 0 {
 			fail(i, e, "Constraints.MaxInputTokens must be > 0")
 		}
@@ -151,11 +150,8 @@ func New(provider string, entries []Entry, opts ...Option) (*Catalog, error) {
 			fail(i, e, "Constraints.MaxOutputTokens must be > 0")
 		}
 
-		// The pricing builder treats a zero rate as legal ("unpriced",
-		// surfaced at Calculate time); a catalog entry is held to a
-		// stricter standard — core rates must be authored, either priced
-		// or explicitly free. This is the check that used to live in the
-		// per-provider TestAllModelsHavePricing tests.
+		// A zero rate means "unpriced" downstream, so core rates must be
+		// authored — a truly free rate is pricing.RateFree.
 		if e.Pricing.Default.Base.InputPerMillion == 0 {
 			fail(i, e, "Pricing.Default.Base.InputPerMillion is unpriced: author a rate or pricing.RateFree")
 		}
@@ -164,17 +160,26 @@ func New(provider string, entries []Entry, opts ...Option) (*Catalog, error) {
 			fail(i, e, "Pricing.Default.Base.OutputPerMillion is unpriced: author a rate or pricing.RateFree")
 		}
 
-		validateLifecycle(e, func(format string, args ...any) { fail(i, e, format, args...) })
-		validateShape(e, func(format string, args ...any) { fail(i, e, format, args...) })
-
+		// Normalize before validating: the shape checks compare the
+		// capability booleans against Modalities, and an entry that omits
+		// Modalities entirely only grows its text-only default here.
+		// Validating first would let Vision-with-no-modalities through and
+		// then normalize it into the exact contradiction validateShape
+		// exists to reject.
 		normalized := normalizeEntry(e, facts)
 
+		validateLifecycle(normalized, func(format string, args ...any) { fail(i, e, format, args...) })
+		validateShape(normalized, func(format string, args ...any) { fail(i, e, format, args...) })
+
 		idx := len(c.offerings)
-		c.offerings = append(c.offerings, Offering{
+		// Clone on the way in as well as on the way out: the author keeps
+		// their []Entry (and shared vars inside it), and the catalog must
+		// not alias memory a caller can still write to.
+		c.offerings = append(c.offerings, cloneOffering(Offering{
 			Entry:    normalized,
 			provider: provider,
 			facts:    facts,
-		})
+		}))
 		c.byID[e.ID] = idx
 
 		if ok {
@@ -240,6 +245,9 @@ func MustNew(provider string, entries []Entry, opts ...Option) *Catalog {
 	return c
 }
 
+// validateLifecycle checks date order and rejects authored derived
+// stages: whether a date has passed must never depend on a flag someone
+// remembered to flip.
 func validateLifecycle(e Entry, fail func(string, ...any)) {
 	l := e.Life
 
@@ -251,63 +259,61 @@ func validateLifecycle(e Entry, fail func(string, ...any)) {
 		fail("Life.Stage %q is not a valid stage", l.Stage)
 	}
 
+	// Enforce the midnight-UTC convention, so classification cannot
+	// drift with an author's timezone.
+	for name, d := range map[string]time.Time{
+		"Available": l.Available, "Deprecated": l.Deprecated, "Retires": l.Retires,
+	} {
+		if !isDateOnly(d) {
+			fail("Life.%s %s must be date-only (midnight UTC): construct with catalog.MustDate", name, d)
+		}
+	}
+
 	if !l.Available.IsZero() && !l.Deprecated.IsZero() && l.Deprecated.Before(l.Available) {
-		fail("Life.Deprecated %s is before Life.Available %s", l.Deprecated, l.Available)
+		fail("Life.Deprecated %s is before Life.Available %s", dateString(l.Deprecated), dateString(l.Available))
 	}
 
 	if !l.Deprecated.IsZero() && !l.Retires.IsZero() && l.Retires.Before(l.Deprecated) {
-		fail("Life.Retires %s is before Life.Deprecated %s", l.Retires, l.Deprecated)
+		fail("Life.Retires %s is before Life.Deprecated %s", dateString(l.Retires), dateString(l.Deprecated))
 	}
 
 	if !l.Available.IsZero() && !l.Retires.IsZero() && l.Retires.Before(l.Available) {
-		fail("Life.Retires %s is before Life.Available %s", l.Retires, l.Available)
-	}
-
-	if !l.Retires.IsZero() && !l.RetirementNotBefore.IsZero() {
-		fail("Life.Retires and Life.RetirementNotBefore are mutually exclusive: an exact date supersedes the floor")
+		fail("Life.Retires %s is before Life.Available %s", dateString(l.Retires), dateString(l.Available))
 	}
 }
 
+// validateShape rejects contradictions between overlapping fields: the
+// capability booleans and the modality list state the same fact twice
+// and must not drift apart.
+//
+// It runs on the normalized entry, so Modalities.Input is always
+// populated — declaring Vision without listing ModalityImage is an
+// authoring error even when the modality list was left implicit.
 func validateShape(e Entry, fail func(string, ...any)) {
+	// Reasoning without effort knobs exists (Claude Sonnet 4.5), so only
+	// the reverse — controls without the capability — is impossible.
 	if len(e.Reasoning.Efforts) > 0 && !e.Capabilities.Reasoning {
 		fail("Reasoning.Efforts is set but Capabilities.Reasoning is false")
 	}
 
-	if e.Capabilities.Vision && len(e.Modalities.Input) > 0 && !slices.Contains(e.Modalities.Input, ModalityImage) {
+	if (e.Reasoning.Adaptive || e.Reasoning.Budget) && !e.Capabilities.Reasoning {
+		fail("Reasoning.Adaptive/Budget is set but Capabilities.Reasoning is false")
+	}
+
+	if e.Capabilities.Vision && !slices.Contains(e.Modalities.Input, ModalityImage) {
 		fail("Capabilities.Vision is true but Modalities.Input lacks %q", ModalityImage)
 	}
 
-	if e.Capabilities.Audio && len(e.Modalities.Input) > 0 && !slices.Contains(e.Modalities.Input, ModalityAudio) {
+	if e.Capabilities.Audio && !slices.Contains(e.Modalities.Input, ModalityAudio) {
 		fail("Capabilities.Audio is true but Modalities.Input lacks %q", ModalityAudio)
-	}
-
-	t := e.Tuning
-	if t.DefaultMaxOutputTokens < 0 {
-		fail("Tuning.DefaultMaxOutputTokens must be >= 0")
-	}
-
-	if t.DefaultMaxOutputTokens > 0 && t.DefaultMaxOutputTokens > e.Constraints.MaxOutputTokens {
-		fail("Tuning.DefaultMaxOutputTokens %d must be <= Constraints.MaxOutputTokens %d", t.DefaultMaxOutputTokens, e.Constraints.MaxOutputTokens)
-	}
-
-	if t.DefaultReasoningEffort != "" && !slices.Contains(e.Reasoning.Efforts, t.DefaultReasoningEffort) {
-		fail("Tuning.DefaultReasoningEffort %q is not in Reasoning.Efforts", t.DefaultReasoningEffort)
-	}
-
-	if t.CompactAtInputTokens < 0 {
-		fail("Tuning.CompactAtInputTokens must be >= 0")
-	}
-
-	if t.CompactAtInputTokens > 0 && e.Constraints.MaxInputTokens > 0 && t.CompactAtInputTokens >= e.Constraints.MaxInputTokens {
-		fail("Tuning.CompactAtInputTokens %d must be < Constraints.MaxInputTokens %d", t.CompactAtInputTokens, e.Constraints.MaxInputTokens)
 	}
 }
 
 // normalizeEntry applies authored-shape defaults: display label, explicit
 // modalities, and GA stage.
 func normalizeEntry(e Entry, facts Facts) Entry {
-	if e.Label == "" {
-		e.Label = facts.Name
+	if e.DisplayName == "" {
+		e.DisplayName = facts.DisplayName
 	}
 
 	if len(e.Modalities.Input) == 0 {
@@ -317,6 +323,13 @@ func normalizeEntry(e Entry, facts Facts) Entry {
 	if len(e.Modalities.Output) == 0 {
 		e.Modalities.Output = []Modality{ModalityText}
 	}
+
+	// Modalities are the canonical source for the Vision/Audio booleans:
+	// an image or audio input modality derives the matching capability, so
+	// authors write the fact once. (The reverse — an authored boolean with
+	// no matching modality — is a contradiction validateShape rejects.)
+	e.Capabilities.Vision = e.Capabilities.Vision || slices.Contains(e.Modalities.Input, ModalityImage)
+	e.Capabilities.Audio = e.Capabilities.Audio || slices.Contains(e.Modalities.Input, ModalityAudio)
 
 	if e.Life.Stage == "" {
 		e.Life.Stage = StageGA
@@ -373,9 +386,11 @@ func (c *Catalog) Lookup(offeringID string) (Offering, bool) {
 //     never claude-opus-4).
 //
 // A prefix only matches when the byte after the candidate is one of
-// '-', '.', ':', or '@', so "gpt-5.6-sol" can never be claimed by a
-// hypothetical "gpt-5.6-s" candidate and unrelated longer names do not
-// match shorter ones.
+// '-', '.', ':', or '@' AND the remainder starts with a digit — the
+// shape of a snapshot or version stamp ("-20250929", ".1", "@001").
+// Word suffixes never match: "gpt-5-chat-latest" is a different product
+// than "gpt-5" and must resolve as unknown, not be silently binned into
+// the family's metadata and pricing.
 //
 // ok == false means the catalog does not know this model. Callers must
 // treat unknown as "stop enforcing", not "assume a baseline": no
@@ -404,7 +419,11 @@ func (c *Catalog) Resolve(requested string) (Offering, bool) {
 
 		switch requested[len(cand.id)] {
 		case '-', '.', ':', '@':
-			return cloneOffering(c.offerings[cand.idx]), true
+			// Only snapshot/version-stamp shapes may prefix-match; see
+			// the doc comment above.
+			if rest := requested[len(cand.id)+1:]; len(rest) > 0 && rest[0] >= '0' && rest[0] <= '9' {
+				return cloneOffering(c.offerings[cand.idx]), true
+			}
 		}
 	}
 
@@ -565,7 +584,13 @@ func pricingMap(offerings []Offering) map[string]pricing.Info {
 func cloneOffering(o Offering) Offering {
 	o.Aliases = slices.Clone(o.Aliases)
 	o.Constraints.SupportedParams = slices.Clone(o.Constraints.SupportedParams)
+
+	// ConditionalRules nest a Disables slice; slices.Clone alone would
+	// share its backing array across copies.
 	o.Constraints.ConditionalRules = slices.Clone(o.Constraints.ConditionalRules)
+	for i := range o.Constraints.ConditionalRules {
+		o.Constraints.ConditionalRules[i].Disables = slices.Clone(o.Constraints.ConditionalRules[i].Disables)
+	}
 
 	if o.Constraints.MutuallyExclusive != nil {
 		groups := make([][]string, len(o.Constraints.MutuallyExclusive))

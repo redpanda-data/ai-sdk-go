@@ -246,4 +246,3 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 func (*Provider) Catalog() *catalog.Catalog {
 	return Catalog()
 }
-

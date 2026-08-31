@@ -36,3 +36,6 @@ go.work.sum
 
 # Vercel AI SDK reference clone (for adapter cross-checking)
 /vercel-ai-reference*/
+
+# Locally built snapshot tool (go build ./cmd/catalog-snapshot)
+/catalog-snapshot

@@ -203,4 +203,3 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 		responseMapper: NewResponseMapper(cfg.Constraints),
 	}, nil
 }
-

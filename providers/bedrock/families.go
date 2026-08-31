@@ -38,9 +38,9 @@ type family struct {
 	BareID string
 	// Model is the canonical cross-provider identity.
 	Model catalog.ModelID
-	// Label is the undecorated display name; variants get " (US)" /
+	// DisplayName is the undecorated display name; variants get " (US)" /
 	// " (Global)" style suffixes.
-	Label string
+	DisplayName string
 
 	// Profiles lists the published inference profiles, e.g.
 	// {"global", "us", "eu"}. Empty means the model is bare-only.
@@ -61,8 +61,13 @@ type family struct {
 
 	Capabilities llm.ModelCapabilities
 	Constraints  llm.ModelConstraints
-	Reasoning    catalog.ReasoningSupport
-	Life         catalog.Lifecycle
+	// Modalities lists the input/output content kinds every variant of
+	// the family accepts. Empty normalizes to text-only, so a family
+	// whose Capabilities declare Vision must list ModalityImage here or
+	// catalog.New rejects it.
+	Modalities catalog.Modalities
+	Reasoning  catalog.ReasoningSupport
+	Life       catalog.Lifecycle
 
 	// Rates is the geo / in-region rate card, used for the bare ID and
 	// every non-global profile.
@@ -125,9 +130,10 @@ func expandFamilies(families []family) ([]catalog.Entry, map[string]bool) {
 			return catalog.Entry{
 				ID:           id,
 				Model:        f.Model,
-				Label:        f.Label + labelSuffix,
+				DisplayName:  f.DisplayName + labelSuffix,
 				Capabilities: f.Capabilities,
 				Constraints:  f.Constraints,
+				Modalities:   f.Modalities,
 				Reasoning:    f.Reasoning,
 				Life:         f.Life,
 				Pricing:      pricing.Info{Default: rates},

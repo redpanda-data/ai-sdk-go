@@ -59,24 +59,6 @@ func TestViewRetirementBoundary(t *testing.T) {
 	assert.False(t, v.IsRetired("robin-9"))
 }
 
-func TestViewRetirementFloorNeverRetires(t *testing.T) {
-	t.Parallel()
-
-	// A published "not sooner than" floor is a lower bound, not a
-	// shutdown date: crossing it must not classify the offering as
-	// retired.
-	e := validEntry("robin-2", "acme/robin-2")
-	e.Life.RetirementNotBefore = MustDate("2026-01-01")
-	c := mustCatalog(t, e)
-
-	v := c.At(MustDate("2030-01-01"))
-	assert.False(t, v.IsRetired("robin-2"))
-
-	stage, ok := v.Stage("robin-2")
-	require.True(t, ok)
-	assert.Equal(t, StageGA, stage)
-}
-
 func TestViewDeprecationBoundary(t *testing.T) {
 	t.Parallel()
 

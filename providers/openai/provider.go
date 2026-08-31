@@ -211,4 +211,3 @@ func (p *Provider) NewCompatModel(modelName string, def CompatModelDefinition, o
 func (*Provider) Catalog() *catalog.Catalog {
 	return Catalog()
 }
-

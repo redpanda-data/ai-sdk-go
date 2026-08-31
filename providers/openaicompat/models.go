@@ -41,6 +41,5 @@ func getDefaultConstraints() llm.ModelConstraints {
 		MaxOutputTokens:   16384,  // Conservative default for most models
 		SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed", "logprobs", "stop"},
 		MutuallyExclusive: [][]string{{"temperature", "top_p"}},
-		ConditionalRules:  []llm.ConditionalRule{},
 	}
 }

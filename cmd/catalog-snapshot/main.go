@@ -31,7 +31,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/redpanda-data/ai-sdk-go/catalog"
+	"github.com/redpanda-data/ai-sdk-go/catalog/snapshot"
 	"github.com/redpanda-data/ai-sdk-go/providers/anthropic"
 	"github.com/redpanda-data/ai-sdk-go/providers/bedrock"
 	"github.com/redpanda-data/ai-sdk-go/providers/google"
@@ -46,7 +46,7 @@ func main() {
 
 	var buf bytes.Buffer
 
-	err := catalog.EncodeSnapshot(&buf,
+	err := snapshot.Encode(&buf,
 		anthropic.Catalog(),
 		bedrock.Catalog(),
 		google.Catalog(),

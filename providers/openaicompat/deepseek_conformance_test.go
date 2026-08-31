@@ -119,11 +119,11 @@ func (f *DeepSeekFixture) NewReasoningModel(t *testing.T) llm.Model {
 func (f *DeepSeekFixture) Catalog() *catalog.Catalog {
 	registry := catalog.Registry{
 		"deepseek/v4-flash": {
-			Name: "DeepSeek V4 Flash", Series: "deepseek-flash",
+			DisplayName: "DeepSeek V4 Flash", Series: "deepseek-flash",
 			Released: catalog.MustDate("2026-05-01"),
 		},
 		"deepseek/v4-pro": {
-			Name: "DeepSeek V4 Pro", Series: "deepseek-pro",
+			DisplayName: "DeepSeek V4 Pro", Series: "deepseek-pro",
 			Released: catalog.MustDate("2026-05-01"),
 		},
 	}
@@ -132,7 +132,7 @@ func (f *DeepSeekFixture) Catalog() *catalog.Catalog {
 		{
 			ID:           openaicompattest.DeepSeekDefaultStandardModel,
 			Model:        "deepseek/v4-flash",
-			Label:        "DeepSeek V4 Flash",
+			DisplayName:  "DeepSeek V4 Flash",
 			Capabilities: f.capabilities,
 			Constraints:  f.constraints,
 			Pricing:      pricing.FlatInfo(0.28, 0.42, 0.028),
@@ -140,7 +140,7 @@ func (f *DeepSeekFixture) Catalog() *catalog.Catalog {
 		{
 			ID:           openaicompattest.DeepSeekDefaultReasoningModel,
 			Model:        "deepseek/v4-pro",
-			Label:        "DeepSeek V4 Pro",
+			DisplayName:  "DeepSeek V4 Pro",
 			Capabilities: f.capabilities,
 			Constraints:  f.constraints,
 			Pricing:      pricing.FlatInfo(0.56, 1.68, 0.056),

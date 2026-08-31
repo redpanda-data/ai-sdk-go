@@ -15,7 +15,6 @@
 package catalog
 
 import (
-	"encoding/json"
 	"testing"
 	"time"
 
@@ -28,8 +27,8 @@ func TestDateParse(t *testing.T) {
 
 	d, err := ParseDate("2026-06-15")
 	require.NoError(t, err)
-	assert.Equal(t, Date{Year: 2026, Month: time.June, Day: 15}, d)
-	assert.Equal(t, "2026-06-15", d.String())
+	assert.True(t, d.Equal(time.Date(2026, time.June, 15, 0, 0, 0, 0, time.UTC)))
+	assert.Equal(t, "2026-06-15", dateString(d))
 
 	for _, invalid := range []string{"2026-02-31", "2026-13-01", "June 2026", "2026-6-1", ""} {
 		_, err := ParseDate(invalid)
@@ -39,62 +38,26 @@ func TestDateParse(t *testing.T) {
 	assert.Panics(t, func() { MustDate("not-a-date") })
 }
 
-func TestDateOrdering(t *testing.T) {
+func TestDateOnly(t *testing.T) {
 	t.Parallel()
 
-	a := MustDate("2026-06-14")
-	b := MustDate("2026-06-15")
+	assert.True(t, isDateOnly(time.Time{}), "zero means unset and is legal")
+	assert.True(t, isDateOnly(MustDate("2026-06-15")))
+	// Same instant expressed in another zone is still midnight UTC.
+	assert.True(t, isDateOnly(MustDate("2026-06-15").In(time.FixedZone("CEST", 2*3600))))
 
-	assert.True(t, a.Before(b))
-	assert.False(t, b.Before(a))
-	assert.True(t, b.After(a))
-	assert.False(t, a.Before(a))
-	assert.True(t, MustDate("2025-12-31").Before(MustDate("2026-01-01")))
-	assert.True(t, MustDate("2026-05-31").Before(MustDate("2026-06-01")))
-}
+	assert.False(t, isDateOnly(time.Date(2026, time.June, 15, 9, 30, 0, 0, time.UTC)), "intra-day precision")
+	assert.False(t, isDateOnly(time.Date(2026, time.June, 15, 0, 0, 0, 0, time.FixedZone("CEST", 2*3600))), "local midnight is not UTC midnight")
 
-func TestDateZeroValue(t *testing.T) {
-	t.Parallel()
-
-	var zero Date
-	assert.True(t, zero.IsZero())
-	assert.Empty(t, zero.String())
-	assert.False(t, MustDate("2026-01-01").IsZero())
-}
-
-func TestDateJSONRoundTrip(t *testing.T) {
-	t.Parallel()
-
-	type payload struct {
-		When Date `json:"when"`
-		Zero Date `json:"zero,omitzero"`
-	}
-
-	raw, err := json.Marshal(payload{When: MustDate("2026-06-15")})
-	require.NoError(t, err)
-	assert.JSONEq(t, `{"when":"2026-06-15"}`, string(raw))
-
-	var back payload
-	require.NoError(t, json.Unmarshal(raw, &back))
-	assert.Equal(t, MustDate("2026-06-15"), back.When)
-	assert.True(t, back.Zero.IsZero())
-
-	var fromEmpty payload
-	require.NoError(t, json.Unmarshal([]byte(`{"when":"2026-06-15","zero":""}`), &fromEmpty))
-	assert.True(t, fromEmpty.Zero.IsZero())
-
-	var bad payload
-	assert.Error(t, json.Unmarshal([]byte(`{"when":"2026-02-31"}`), &bad))
+	assert.Empty(t, dateString(time.Time{}))
 }
 
 func TestToday(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now().UTC()
 	d := Today()
+	assert.True(t, isDateOnly(d))
 	// Tolerate a midnight rollover between the two calls.
-	ok := d == Date{Year: now.Year(), Month: now.Month(), Day: now.Day()}
-	next := time.Now().UTC()
-	ok = ok || d == Date{Year: next.Year(), Month: next.Month(), Day: next.Day()}
-	assert.True(t, ok)
+	now := time.Now().UTC()
+	assert.True(t, d.Equal(now.Truncate(24*time.Hour)) || d.Equal(now.Add(-time.Minute).Truncate(24*time.Hour)))
 }

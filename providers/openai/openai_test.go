@@ -101,7 +101,7 @@ func TestProviderModels(t *testing.T) {
 	for i, model := range models {
 		modelNames[i] = model.ID
 		assert.NotEmpty(t, model.ID, "Model ID should not be empty")
-		assert.NotEmpty(t, model.Label, "Model label should not be empty")
+		assert.NotEmpty(t, model.DisplayName, "Model label should not be empty")
 		assert.Equal(t, "openai", model.Provider(), "Provider should be 'openai'")
 		assert.Positive(t, model.Constraints.MaxInputTokens,
 			"model %s missing MaxInputTokens — set Constraints on its catalog entry", model.ID)
@@ -173,9 +173,9 @@ func TestGPT56Models(t *testing.T) {
 		model string
 		label string
 	}{
-		{name: "Luna", model: ModelGPT5_6Luna, label: "OpenAI GPT-5.6 Luna"},
-		{name: "Terra", model: ModelGPT5_6Terra, label: "OpenAI GPT-5.6 Terra"},
-		{name: "Sol", model: ModelGPT5_6Sol, label: "OpenAI GPT-5.6 Sol"},
+		{name: "Luna", model: ModelGPT5_6Luna, label: "GPT-5.6 Luna"},
+		{name: "Terra", model: ModelGPT5_6Terra, label: "GPT-5.6 Terra"},
+		{name: "Sol", model: ModelGPT5_6Sol, label: "GPT-5.6 Sol"},
 	}
 
 	for _, tt := range tests {
@@ -203,7 +203,7 @@ func TestGPT56Models(t *testing.T) {
 
 			discovered, ok := provider.Catalog().Lookup(tt.model)
 			require.True(t, ok, "model %q was not discoverable", tt.model)
-			assert.Equal(t, tt.label, discovered.Label)
+			assert.Equal(t, tt.label, discovered.DisplayName)
 			assert.Equal(t, model.Capabilities(), discovered.Capabilities)
 			assert.Equal(t, model.Constraints(), discovered.Constraints)
 		})

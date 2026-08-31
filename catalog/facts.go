@@ -14,7 +14,10 @@
 
 package catalog
 
-import "maps"
+import (
+	"maps"
+	"time"
+)
 
 // ModelID is the canonical, cross-provider identity of a model:
 // "anthropic/claude-opus-5", "openai/gpt-5.6-sol". The vendor segment names
@@ -34,8 +37,15 @@ type ModelID string
 // do not enable vision; Vertex publishes a long-context pricing tier
 // Anthropic does not).
 type Facts struct {
-	// Name is the undecorated display name: "Claude Opus 5".
-	Name string
+	// DisplayName is the undecorated display name: "Claude Opus 5".
+	// Entry.DisplayName defaults to it (providers add decoration, e.g.
+	// " (EU)"). Not called Name: "name" is reserved for invokable
+	// identifiers, and a display name is never invoked.
+	DisplayName string
+
+	// Description is a short blurb for catalog UIs: what the model is
+	// and what it is good at. Optional.
+	Description string
 
 	// Series is the model's non-branching succession line with the version
 	// stripped: "claude-opus", "gpt", "gpt-mini", "gemini-flash-lite".
@@ -55,11 +65,14 @@ type Facts struct {
 	// required, and it is the sole sort key for generation ordering —
 	// version strings are not comparable across naming-scheme changes
 	// (gpt-4o vs gpt-4.1 vs gpt-5), release dates are.
-	Released Date
+	Released time.Time
 
-	// Knowledge is the training-data cutoff. Zero when the vendor does
-	// not publish one.
-	Knowledge Date
+	// Knowledge is the knowledge cutoff. Zero when the vendor does not
+	// publish one. When a vendor publishes both a "reliable knowledge"
+	// and a broader "training data" cutoff (Anthropic does), this is the
+	// reliable one — the date through which the model's knowledge is
+	// actually dependable.
+	Knowledge time.Time
 
 	// OpenWeights reports whether the model's weights are published.
 	OpenWeights bool

@@ -209,6 +209,9 @@ func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]*genai.Content, 
 }
 
 // mapParts converts unified Parts to Gemini Parts.
+// TODO: only text/tool/reasoning parts are mapped. The catalog
+// advertises image (and on some models audio/video/document) input
+// because the models accept it; llm.Part has no binary part yet.
 func (rm *RequestMapper) mapParts(parts []llm.Part) ([]*genai.Part, error) {
 	geminiParts := make([]*genai.Part, 0, len(parts))
 
