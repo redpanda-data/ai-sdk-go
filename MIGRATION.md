@@ -5,8 +5,8 @@
 The per-provider model metadata surfaces are replaced by one shared,
 validated catalog per provider: `catalog.Catalog`. It carries everything
 the old surfaces did, plus modalities, reasoning controls, lifecycle
-(deprecation/retirement dates, announced replacements), harness tuning
-defaults, and pricing — with derived classification (current vs previous
+(deprecation/retirement dates, announced replacements), and pricing —
+with derived classification (current vs previous
 generation, retired, price tier) computed at read time.
 
 All changes below land in a single breaking release; no release is

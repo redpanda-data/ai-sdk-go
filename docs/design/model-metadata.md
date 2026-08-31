@@ -11,11 +11,11 @@ records the design as implemented.
 One shared read model in `catalog/`; authored shapes live in the provider packages.
 
 - **Identity is layered.** A canonical `catalog.ModelID` ("anthropic/claude-opus-5") names the
-  logical model and keys a `Registry` of host-independent `Facts` (name, series, release date,
+  logical model and keys a `Registry` of host-independent `Facts` (label, series, release date,
   knowledge cutoff, open weights). An offering ID ("us.anthropic.claude-opus-5") names one
   invokable row on one provider and carries everything that genuinely varies per host:
   capabilities, constraints, modalities, reasoning controls, speeds, pricing, lifecycle,
-  tuning, attributes. Facts are *referenced*, never copied — `catalog.New` fails on an
+  attributes. Facts are *referenced*, never copied — `catalog.New` fails on an
   unregistered ModelID, so two providers cannot drift on the same model (the failure that
   shipped in LiteLLM, Vercel's AI SDK, Grafana's ai-sdk, and Catwalk, and twice in this repo).
 - **Derive, never store.** Anything that is a function of the rest of the catalog is computed
@@ -27,8 +27,8 @@ One shared read model in `catalog/`; authored shapes live in the provider packag
 - **Clock-dependent classification lives only on `View`** (`Catalog.At(asOf)` / `.Now()`):
   `Current` / `Previous` (generation, computed per logical model so Bedrock geo variants don't
   compete) are orthogonal to `Deprecated` / `Retired` (lifecycle). Retirement derives
-  exclusively from an exact announced `Retires` date, inclusive, UTC date-only; a published
-  "not sooner than" floor is `RetirementNotBefore` and never retires anything. Artifacts built
+  exclusively from an exact announced `Retires` date, inclusive, UTC date-only; published
+  "not sooner than" floors are deliberately not tracked (nothing surfaces them). Artifacts built
   from `Catalog` alone are therefore reproducible.
 - **Resolution** (`Catalog.Resolve`) is exact → alias → longest boundary-aware prefix, so
   snapshots ("claude-sonnet-4-5-20250929") and official aliases ("gpt-5.6") resolve
@@ -37,11 +37,6 @@ One shared read model in `catalog/`; authored shapes live in the provider packag
 - **Immutability is structural.** `catalog.New` validates (path-qualified, indexed errors) and
   freezes; `Lookup`/`All`/View reads deep-copy (pricing via `pricing.Info.Clone`). An
   architecture test keeps `catalog` linkable without any provider SDK.
-- **Tuning** carries per-offering harness defaults (default max output tokens, default
-  reasoning effort, absolute compaction ceiling `CompactAtInputTokens` — the degradation knee
-  arrives before the window). All zero values mean "no opinion"; nothing in the SDK acts on it
-  yet. Populating opinions and a tool-output cap are follow-ups.
-
 ## Authoring
 
 Providers author `[]catalog.Entry` in `models.go` (`entries()`), frozen via
@@ -83,8 +78,10 @@ all deleted from the old catalogs when they retired — were restored this way.
   `// Deprecated:` constants only. Nothing auto-merges: once `Current()` and the console
   consume `Retires`, dates are behavioural, and no schema test can prove an LLM read the right
   date off a docs page.
-- Populating `Tuning` opinions; `ToolOutputCap` (bytes|tokens) once the agent/gateway
-  implements ingest truncation.
+- Per-offering harness `Tuning` defaults (default max output tokens, compaction ceiling) and a
+  `ToolOutputCap` (bytes|tokens), once the agent/gateway implements something that acts on
+  them. Cut from the migration: shipping the seam before a consumer exists would freeze its
+  shape prematurely, and re-adding fields later is non-breaking.
 - Remote-refreshable catalog for the gateway (three-tier ladder: remote → disk cache →
   embedded; integrity gate; never fatal; startup may fall back, reload must not). The snapshot
   schema is its wire format.
