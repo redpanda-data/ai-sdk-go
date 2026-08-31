@@ -183,6 +183,16 @@ func resolveInvokedModelID(model string) string {
 }
 
 func (*ResponseMapper) providerErrorFrom(e responses.ResponseError) *llm.ProviderError {
+	// response.failed can carry context_length_exceeded, which the typed
+	// ResponseErrorCode enum lacks.
+	if isContextOverflow(string(e.Code), e.Message) {
+		return &llm.ProviderError{
+			Base:    llm.ErrContextOverflow,
+			Code:    string(e.Code),
+			Message: e.Message,
+		}
+	}
+
 	if base, ok := codeToBaseErr[e.Code]; ok {
 		return &llm.ProviderError{
 			Base:    base,

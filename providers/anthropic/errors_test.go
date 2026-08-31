@@ -85,6 +85,103 @@ func TestClassifyHTTPError(t *testing.T) {
 	}
 }
 
+// Error bodies recorded from the live API (2026-08-21).
+func TestClassifyHTTPError_Body(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		statusCode int
+		body       string
+		wantBase   error
+		wantCode   string
+		wantMsg    string
+	}{
+		{
+			name:       "prompt too long",
+			statusCode: 400,
+			body:       `{"type":"error","error":{"type":"invalid_request_error","message":"prompt is too long: 315748 tokens > 200000 maximum"},"request_id":"req_011CeFugQGKwr7eKKApAE4jX"}`,
+			wantBase:   llm.ErrContextOverflow,
+			wantCode:   "invalid_request_error",
+			wantMsg:    "prompt is too long: 315748 tokens > 200000 maximum",
+		},
+		{
+			name:       "input plus max_tokens exceed context limit (pre-4.5 models)",
+			statusCode: 400,
+			body:       "{\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"input length and `max_tokens` exceed context limit: 186433 + 20000 > 200000, decrease input length or max_tokens and try again\"}}",
+			wantBase:   llm.ErrContextOverflow,
+			wantCode:   "invalid_request_error",
+			wantMsg:    "input length and `max_tokens` exceed context limit: 186433 + 20000 > 200000, decrease input length or max_tokens and try again",
+		},
+		{
+			name:       "max_tokens over output cap stays invalid input",
+			statusCode: 400,
+			body:       `{"type":"error","error":{"type":"invalid_request_error","message":"max_tokens: 2000000 > 64000, which is the maximum allowed number of output tokens for claude-haiku-4-5-20251001"}}`,
+			wantBase:   llm.ErrInvalidInput,
+			wantCode:   "invalid_request_error",
+			wantMsg:    "max_tokens: 2000000 > 64000, which is the maximum allowed number of output tokens for claude-haiku-4-5-20251001",
+		},
+		{
+			name:       "unrelated 400 stays invalid input",
+			statusCode: 400,
+			body:       `{"type":"error","error":{"type":"invalid_request_error","message":"temperature: range: 0..1"}}`,
+			wantBase:   llm.ErrInvalidInput,
+			wantCode:   "invalid_request_error",
+			wantMsg:    "temperature: range: 0..1",
+		},
+		{
+			name:       "request too large byte cap stays unclassified as overflow",
+			statusCode: 413,
+			body:       `{"type":"error","error":{"type":"request_too_large","message":"Request body too large"}}`,
+			wantBase:   llm.ErrAPICall,
+			wantCode:   "request_too_large",
+			wantMsg:    "Request body too large",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			reqURL, _ := url.Parse("https://api.anthropic.com/v1/messages")
+			apiErr := &anthropic.Error{}
+			require.NoError(t, apiErr.UnmarshalJSON([]byte(tt.body)))
+			apiErr.StatusCode = tt.statusCode
+			apiErr.Request = &http.Request{Method: http.MethodPost, URL: reqURL}
+			apiErr.Response = &http.Response{StatusCode: tt.statusCode}
+
+			result := classifyError(apiErr)
+			require.Error(t, result)
+
+			var pe *llm.ProviderError
+			require.ErrorAs(t, result, &pe)
+			require.ErrorIs(t, pe, tt.wantBase)
+			assert.False(t, pe.Retryable)
+			assert.Equal(t, tt.wantCode, pe.Code)
+			assert.Equal(t, tt.wantMsg, pe.Message)
+
+			if errors.Is(tt.wantBase, llm.ErrInvalidInput) && !errors.Is(tt.wantBase, llm.ErrContextOverflow) {
+				assert.NotErrorIs(t, pe, llm.ErrContextOverflow)
+			}
+		})
+	}
+}
+
+func TestClassifySSEError_ContextOverflow(t *testing.T) {
+	t.Parallel()
+
+	err := fmt.Errorf("received error while streaming: %s",
+		`{"type":"error","error":{"type":"invalid_request_error","message":"prompt is too long: 243619 tokens > 200000 maximum"}}`)
+
+	result := classifyError(err)
+
+	var pe *llm.ProviderError
+	require.ErrorAs(t, result, &pe)
+	require.ErrorIs(t, pe, llm.ErrContextOverflow)
+	assert.False(t, pe.Retryable)
+	assert.Equal(t, "invalid_request_error", pe.Code)
+}
+
 func TestClassifySSEError(t *testing.T) {
 	t.Parallel()
 
@@ -168,6 +265,99 @@ func TestClassifySSEError_NotSSE(t *testing.T) {
 	err := errors.New("some other error")
 	result := classifySSEError(err)
 	assert.Nil(t, result)
+}
+
+// badRequest400 builds an *anthropic.Error for a 400 response whose body is the
+// given provider JSON, mirroring how the SDK populates it from a real response.
+func badRequest400(t *testing.T, body string) *anthropic.Error {
+	t.Helper()
+
+	reqURL, _ := url.Parse("https://api.anthropic.com/v1/messages")
+	apiErr := &anthropic.Error{}
+	require.NoError(t, apiErr.UnmarshalJSON([]byte(body)))
+	apiErr.StatusCode = 400
+	apiErr.Request = &http.Request{Method: http.MethodPost, URL: reqURL}
+	apiErr.Response = &http.Response{StatusCode: http.StatusBadRequest}
+
+	return apiErr
+}
+
+func TestClassifyError_ContextWindowExceeded(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		body string
+	}{
+		{
+			name: "input plus max_tokens exceed the window",
+			body: `{"type":"error","error":{"type":"invalid_request_error","message":"input length and max_tokens exceed context limit: 188240 + 21333 > 200000, decrease input length or max_tokens and try again"}}`,
+		},
+		{
+			name: "prompt alone is too long",
+			body: `{"type":"error","error":{"type":"invalid_request_error","message":"prompt is too long: 210000 tokens > 200000 maximum"}}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := classifyError(badRequest400(t, tt.body))
+
+			var pe *llm.ProviderError
+			require.ErrorAs(t, result, &pe)
+			require.ErrorIs(t, pe, llm.ErrContextOverflow)
+			require.ErrorIs(t, pe, llm.ErrInvalidInput,
+				"the overflow sentinel must stay a specific case of ErrInvalidInput so existing callers still match")
+			assert.False(t, pe.Retryable, "context-window overflow is not retryable as-is")
+		})
+	}
+}
+
+// TestClassifyError_OverflowPhraseOnlyInEchoedInput guards against matching the
+// whole response body: Anthropic 400s can echo request content (tool schemas,
+// field values), so the phrase must only count when it is the error message.
+func TestClassifyError_OverflowPhraseOnlyInEchoedInput(t *testing.T) {
+	t.Parallel()
+
+	body := `{"type":"error","error":{"type":"invalid_request_error","message":"tools.0.custom.input_schema: Extra inputs are not permitted"},"request":{"tools":[{"name":"check","description":"Reports whether the prompt is too long"}]}}`
+	result := classifyError(badRequest400(t, body))
+
+	var pe *llm.ProviderError
+	require.ErrorAs(t, result, &pe)
+	require.NotErrorIs(t, pe, llm.ErrContextOverflow)
+	assert.Equal(t, "invalid_request_error", pe.Code)
+}
+
+// TestClassifyError_OrdinaryBadRequest guards the detection from over-matching:
+// a plain invalid_request_error must stay ErrInvalidInput, not context overflow.
+func TestClassifyError_OrdinaryBadRequest(t *testing.T) {
+	t.Parallel()
+
+	body := `{"type":"error","error":{"type":"invalid_request_error","message":"messages: at least one message is required"}}`
+	result := classifyError(badRequest400(t, body))
+
+	var pe *llm.ProviderError
+	require.ErrorAs(t, result, &pe)
+	require.ErrorIs(t, pe, llm.ErrInvalidInput)
+	assert.NotErrorIs(t, pe, llm.ErrContextOverflow)
+}
+
+// TestClassifySSEError_ContextWindowExceeded covers the same overflow surfacing
+// through the streaming error path.
+func TestClassifySSEError_ContextWindowExceeded(t *testing.T) {
+	t.Parallel()
+
+	payload := `{"type":"error","error":{"type":"invalid_request_error","message":"input length and max_tokens exceed context limit: 188240 + 21333 > 200000"}}`
+	err := fmt.Errorf("received error while streaming: %s", payload)
+
+	result := classifyError(err)
+
+	var pe *llm.ProviderError
+	require.ErrorAs(t, result, &pe)
+	require.ErrorIs(t, pe, llm.ErrContextOverflow)
+	assert.False(t, pe.Retryable)
 }
 
 func TestIsRetryable_ProviderError(t *testing.T) {

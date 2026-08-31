@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"iter"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -43,6 +44,13 @@ type FakeModel struct {
 	tokenizer Tokenizer
 	latency   LatencyProfile
 	defaults  defaults
+
+	// constraints is what Constraints() reports; WithContextWindow shrinks
+	// MaxInputTokens to make overflow reachable.
+	constraints llm.ModelConstraints
+
+	// enforceWindow rejects requests larger than constraints.MaxInputTokens.
+	enforceWindow bool
 
 	// Conversation tracking
 	sessionKeyFrom func(*llm.Request) string
@@ -123,6 +131,10 @@ type Call struct {
 	// Err is any error that was returned
 	Err error
 
+	// InputTokens is the request's counted size, recorded when the call was
+	// made rather than derived from Request afterwards.
+	InputTokens int
+
 	// RuleName is the name of the rule that matched (empty if no rule matched)
 	RuleName string
 }
@@ -197,7 +209,8 @@ func NewFakeModel(opts ...Option) *FakeModel {
 		state: &modelState{
 			conversations: make(map[string]*conversationState),
 		},
-		tokenizer: defaultTokenizer{},
+		tokenizer:   defaultTokenizer{},
+		constraints: defaultConstraints(),
 		latency: LatencyProfile{
 			Base:     5 * time.Millisecond,
 			PerToken: time.Millisecond,
@@ -231,8 +244,20 @@ func (m *FakeModel) Capabilities() llm.ModelCapabilities {
 	return m.caps
 }
 
-// Constraints returns the model's constraints.
+// Constraints returns the model's constraints. Slice fields are copied so the
+// result cannot alias the fake's own configuration.
 func (m *FakeModel) Constraints() llm.ModelConstraints {
+	out := m.constraints
+	out.SupportedParams = slices.Clone(m.constraints.SupportedParams)
+	out.MutuallyExclusive = slices.Clone(m.constraints.MutuallyExclusive)
+	out.ConditionalRules = slices.Clone(m.constraints.ConditionalRules)
+
+	return out
+}
+
+// defaultConstraints returns the constraints a FakeModel reports unless a
+// test overrides them.
+func defaultConstraints() llm.ModelConstraints {
 	return llm.ModelConstraints{
 		TemperatureRange:  [2]float64{0.0, 2.0},
 		MaxInputTokens:    128000, // Default 128K context window
@@ -246,6 +271,17 @@ func (m *FakeModel) Constraints() llm.ModelConstraints {
 func (m *FakeModel) Generate(ctx context.Context, req *llm.Request) (*llm.Response, error) {
 	cc := m.beginCall(req)
 	defer m.endCall(cc)
+
+	// Checked before rule matching, as a provider validates before the model
+	// runs: no rule can rescue a request that does not fit. Wrapped in
+	// ErrAPICall to match what every real provider returns.
+	if err := m.checkContextWindow(req, CallGenerate); err != nil {
+		return nil, fmt.Errorf("%w: %w", llm.ErrAPICall, err)
+	}
+
+	if err := m.checkConversation(req, CallGenerate); err != nil {
+		return nil, fmt.Errorf("%w: %w", llm.ErrAPICall, err)
+	}
 
 	var (
 		resp     *llm.Response
@@ -286,6 +322,16 @@ func (m *FakeModel) GenerateEvents(ctx context.Context, req *llm.Request) iter.S
 	}
 
 	cc := m.beginCall(req)
+
+	// See Generate. The rejection surfaces as an ErrAPICall-wrapped iterator
+	// error, matching what real providers produce on the streaming path.
+	if err := m.checkContextWindow(req, CallGenerateEvents); err != nil {
+		return rejectStream(m, cc, err)
+	}
+
+	if err := m.checkConversation(req, CallGenerateEvents); err != nil {
+		return rejectStream(m, cc, err)
+	}
 
 	// Find and execute matching rule
 	if action, name := m.findMatchingAction(req, cc); action != nil && action.GenerateEvents != nil {
@@ -453,6 +499,12 @@ func (m *FakeModel) findMatchingAction(req *llm.Request, cc *CallContext) (*acti
 
 // logCall records a call for later assertions.
 func (m *FakeModel) logCall(call Call) {
+	// Counted now, not on read: Call.Request aliases the caller's slice, so a
+	// later recount would reflect any rewrite rather than what was sent.
+	if call.Request != nil {
+		call.InputTokens = m.CountRequestTokens(call.Request)
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -602,14 +654,10 @@ func (m *FakeModel) addUsageAndLatency(ctx context.Context, req *llm.Request, re
 	return resp, nil
 }
 
-// countInputTokens counts tokens in the request messages.
+// countInputTokens delegates to CountRequestTokens so reported usage and window
+// enforcement always agree.
 func (m *FakeModel) countInputTokens(req *llm.Request) int {
-	total := 0
-	for _, msg := range req.Messages {
-		total += m.tokenizer.Count(msg.TextContent())
-	}
-
-	return total
+	return m.CountRequestTokens(req)
 }
 
 // textToStreamEvents converts text into streaming events with chunking.

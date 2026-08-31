@@ -78,6 +78,8 @@ type Generator interface {
 	// Provider errors return *ProviderError with categorized sentinel errors:
 	//   - ErrRateLimitExceeded: Retryable with exponential backoff
 	//   - ErrInvalidInput: Not retryable, caller must fix input
+	//   - ErrContextOverflow: A specific ErrInvalidInput — input does not fit
+	//     the context window; shorten or restart the conversation
 	//   - ErrContentPolicyViolation: Not retryable, policy violation
 	//   - ErrServerError: Retryable, transient provider issue
 	//
@@ -146,6 +148,8 @@ type EventsGenerator interface {
 	//   - Check with errors.Is():
 	//     * ErrRateLimitExceeded: Retryable with backoff
 	//     * ErrInvalidInput: Not retryable, fix input
+	//     * ErrContextOverflow: A specific ErrInvalidInput — shorten or
+	//       restart the conversation
 	//     * ErrContentPolicyViolation: Not retryable, policy violation
 	//     * ErrServerError: Retryable, transient issue
 	//

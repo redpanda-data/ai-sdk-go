@@ -16,6 +16,7 @@ package bedrock
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 	smithy "github.com/aws/smithy-go"
@@ -53,8 +54,13 @@ func classifyError(err error) error {
 
 	var validation *types.ValidationException
 	if errors.As(err, &validation) {
+		base := llm.ErrInvalidInput
+		if isContextOverflowMessage(validation.ErrorMessage()) {
+			base = llm.ErrContextOverflow
+		}
+
 		return &llm.ProviderError{
-			Base:      llm.ErrInvalidInput,
+			Base:      base,
 			Code:      "ValidationException",
 			Message:   validation.ErrorMessage(),
 			Retryable: false,
@@ -153,4 +159,30 @@ func classifyError(err error) error {
 	}
 
 	return err
+}
+
+// isContextOverflowMessage reports whether a ValidationException message
+// describes the request exceeding the model's context window. Bedrock has no
+// machine-readable indicator and the wording varies by model vendor.
+// Oversized max_tokens and the bare "too many tokens" (Bedrock's throttling
+// message) deliberately do not match.
+func isContextOverflowMessage(msg string) bool {
+	msg = strings.ToLower(msg)
+
+	for _, pattern := range []string{
+		"prompt is too long",        // Anthropic
+		"input is too long",         // Bedrock-normalized, several vendors
+		"exceed context limit",      // pre-4.5 Anthropic input+max_tokens
+		"too many input tokens",     // Titan
+		"input tokens exceeded",     // Nova
+		"maximum context length",    // Meta Llama
+		"too many total text bytes", // Anthropic request byte cap
+		"expected maxlength",        // Titan/Llama schema path
+	} {
+		if strings.Contains(msg, pattern) {
+			return true
+		}
+	}
+
+	return false
 }

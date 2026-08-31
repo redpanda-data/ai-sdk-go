@@ -39,3 +39,8 @@ go.work.sum
 
 # Locally built snapshot tool (go build ./cmd/catalog-snapshot)
 /catalog-snapshot
+
+# Binaries left behind by `task examples:build`
+/examples/*/agent_as_tool
+/examples/*/agent_hooks
+/examples/*/web_research_agent

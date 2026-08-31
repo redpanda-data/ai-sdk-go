@@ -250,13 +250,30 @@ type ToolInterceptor interface {
 	InterceptToolExecution(ctx context.Context, info *ToolCallInfo, next ToolExecutionNext) (*llm.ToolResponsePart, error)
 }
 
+// EventObserver is an optional interface an interceptor can implement to
+// observe every event before it reaches the consumer. Observe-only: events
+// cannot be modified or suppressed. Meant for telemetry (spans, structured
+// logs).
+//
+// Observers receive every non-nil event, including ErrorEvent, but never
+// terminal errors yielded as (nil, err). ctx is the emission-scope context:
+// the interceptor-derived turn context for turn events, the run context for
+// lifecycle events.
+//
+// Called synchronously on the yield path; keep observers fast and never
+// block.
+type EventObserver interface {
+	ObserveEvent(ctx context.Context, inv *InvocationMetadata, event Event)
+}
+
 // ImplementsAnyInterceptor checks if interceptor i implements at least one interceptor interface.
 // Used during interceptor registration to catch mistakes early.
 func ImplementsAnyInterceptor(i Interceptor) bool {
 	switch i.(type) {
 	case TurnInterceptor,
 		ModelInterceptor,
-		ToolInterceptor:
+		ToolInterceptor,
+		EventObserver:
 		return true
 	}
 
@@ -373,4 +390,38 @@ func ApplyToolInterceptors(
 	}
 
 	return executor
+}
+
+// ApplyEventObservers wraps yield so every non-nil event reaches each
+// EventObserver, in interceptor order, before the consumer. ctx must be the
+// emission-scope context (see EventObserver).
+//
+// Returns yield unchanged if no interceptor implements EventObserver.
+func ApplyEventObservers(
+	ctx context.Context,
+	inv *InvocationMetadata,
+	interceptors []Interceptor,
+	yield func(Event, error) bool,
+) func(Event, error) bool {
+	var observers []EventObserver
+
+	for _, interceptor := range interceptors {
+		if obs, ok := interceptor.(EventObserver); ok {
+			observers = append(observers, obs)
+		}
+	}
+
+	if len(observers) == 0 {
+		return yield
+	}
+
+	return func(ev Event, err error) bool {
+		if ev != nil {
+			for _, obs := range observers {
+				obs.ObserveEvent(ctx, inv, ev)
+			}
+		}
+
+		return yield(ev, err)
+	}
 }

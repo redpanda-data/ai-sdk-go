@@ -34,6 +34,7 @@ package agenttool
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/rs/xid"
@@ -81,7 +82,20 @@ func (at *AgentTool) Definition() llm.ToolDefinition {
 // Result represents the output from an agent tool execution.
 type Result struct {
 	Result string `json:"result"`
+	// Metadata carries out-of-band markers about the run, keyed the same way as
+	// the A2A executor's status-message metadata so both surfaces share one
+	// vocabulary. Omitted when there is nothing to report. Known keys:
+	//   - "truncated" (bool): the sub-agent stopped at its output-token limit
+	//     (agent.FinishReasonLength) and Result holds only the partial content
+	//     produced before the cut, so the parent can tell an incomplete answer
+	//     apart from a complete one.
+	// The map is the extension point for further markers (e.g. usage).
+	Metadata map[string]any `json:"metadata,omitempty"`
 }
+
+// markerTruncated flags a partial result produced when the sub-agent hit its
+// output-token cap. Matches the A2A executor's metadata key.
+const markerTruncated = "truncated"
 
 // Execute implements tool.Tool by running the agent with a fresh session.
 //
@@ -140,17 +154,29 @@ func (at *AgentTool) Execute(ctx context.Context, args json.RawMessage) (json.Ra
 	// before its own tool calls.
 	ctx = agent.ContextWithConversationID(ctx, session.ConversationID(sess))
 
-	// Run agent and collect the last assistant message as the result.
-	var result string
+	// Run agent, collecting the last assistant message, the terminal finish
+	// reason, and any fatal cause carried in an ErrorEvent.
+	var (
+		result       string
+		finishReason agent.FinishReason
+		runErr       error
+	)
 
 	for evt, err := range at.agent.Run(ctx, inv) {
 		if err != nil {
 			return nil, fmt.Errorf("agent execution failed: %w", err)
 		}
 
-		// Capture last assistant message as result
-		if msgEvt, ok := evt.(agent.MessageEvent); ok {
-			result = msgEvt.Response.Message.TextContent()
+		switch e := evt.(type) {
+		case agent.MessageEvent:
+			// Capture last assistant message as result.
+			result = e.Response.Message.TextContent()
+		case agent.ErrorEvent:
+			// Non-terminal at the runtime layer: llmagent carries the fatal cause
+			// here and reports FinishReasonError on the terminal event.
+			runErr = e.Err
+		case agent.InvocationEndEvent:
+			finishReason = e.FinishReason
 		}
 	}
 
@@ -158,8 +184,50 @@ func (at *AgentTool) Execute(ctx context.Context, args json.RawMessage) (json.Ra
 		result = "Task completed with no text output."
 	}
 
+	// Map the sub-agent's terminal finish reason to a tool outcome, mirroring the
+	// A2A executor so both composition surfaces agree on success vs failure.
+	// llmagent signals most fatal conditions through the finish reason (yielded
+	// with a nil iterator error), so they must be handled here rather than by the
+	// error check above.
+	var metadata map[string]any
+
+	switch finishReason {
+	case agent.FinishReasonStop, agent.FinishReasonTransfer, "":
+		// Natural completion — plain success.
+	case agent.FinishReasonLength:
+		// Output truncation is non-fatal: deliver the partial answer, but mark it
+		// so the parent does not mistake it for a complete result.
+		metadata = map[string]any{markerTruncated: true}
+	case agent.FinishReasonContextOverflow:
+		return nil, errors.New("agent execution failed: the conversation exceeds the model's context window")
+	case agent.FinishReasonMaxTurns:
+		return nil, errors.New("agent execution failed: maximum iterations reached")
+	case agent.FinishReasonInputRequired:
+		return nil, errors.New("agent execution failed: sub-agent requires external input, which agent-as-tool cannot provide")
+	case agent.FinishReasonInterrupted:
+		// llmagent reports this for any ctx.Err() (a deadline as well as a cancel),
+		// so report the actual cause: a parent testing for a sub-agent timeout with
+		// errors.Is(err, context.DeadlineExceeded) must see it.
+		cause := ctx.Err()
+		if cause == nil {
+			// No context error: the consumer stopped listening mid-run.
+			cause = context.Canceled
+		}
+
+		return nil, fmt.Errorf("agent execution failed: %w", cause)
+	case agent.FinishReasonError:
+		if runErr != nil {
+			return nil, fmt.Errorf("agent execution failed: %w", runErr)
+		}
+
+		return nil, errors.New("agent execution failed: sub-agent stopped with an error")
+	default:
+		return nil, fmt.Errorf("agent execution failed: unexpected finish reason %q", finishReason)
+	}
+
 	output := Result{
-		Result: result,
+		Result:   result,
+		Metadata: metadata,
 	}
 
 	return json.Marshal(output)

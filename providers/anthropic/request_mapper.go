@@ -214,22 +214,63 @@ func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]anthropic.BetaMe
 			systemBlocks[lastIdx] = block
 		}
 
-		// Also mark the last text block of the last message
+		// Also mark the tail of the conversation, so the history gets cached
+		// and not just the static tools+system prefix. The marker has to land
+		// on whatever block type ends the turn: in an agentic loop the last
+		// message is usually a user turn carrying nothing but tool_result
+		// blocks, and marking text blocks only left every post-tool-call
+		// request re-paying full input price for the entire history.
+		//
+		// A tail breakpoint is deliberate rather than a fragile index.
+		// Anthropic reads the longest already-cached prefix and writes a fresh
+		// entry at each breakpoint, so marking the newest turn extends the
+		// cached prefix by one turn per request. Anchoring by content to some
+		// stable earlier message would instead re-cache the preamble — a job
+		// the system-block marker above already does.
 		if len(apiMessages) > 0 {
-			lastMsg := &apiMessages[len(apiMessages)-1]
-			for i := len(lastMsg.Content) - 1; i >= 0; i-- {
-				if lastMsg.Content[i].OfText != nil {
-					content := lastMsg.Content[i]
-					content.OfText.CacheControl = anthropic.NewBetaCacheControlEphemeralParam()
-					lastMsg.Content[i] = content
-
-					break
-				}
-			}
+			markLastCacheableBlock(&apiMessages[len(apiMessages)-1])
 		}
 	}
 
 	return apiMessages, systemBlocks, nil
+}
+
+// markLastCacheableBlock sets cache_control on the last block of msg that can
+// carry it, walking backwards.
+//
+// Anthropic accepts a breakpoint on text, image, document, tool_use and
+// tool_result blocks, and rejects it on thinking blocks. Only text, tool_use,
+// tool_result and thinking are reachable from this mapper today; image and
+// document are covered anyway, so that wiring either into mapUserMessage later
+// cannot silently drop the breakpoint. That failure would show up as a
+// cache_read that quietly stops growing — precisely the bug this function
+// exists to prevent, and one with no compile error to catch it.
+//
+// Anything still unrecognized is skipped rather than marked: a 400 on the whole
+// request is a worse outcome than one turn going uncached.
+func markLastCacheableBlock(msg *anthropic.BetaMessageParam) {
+	marker := anthropic.NewBetaCacheControlEphemeralParam()
+
+	for i := len(msg.Content) - 1; i >= 0; i-- {
+		block := msg.Content[i]
+
+		switch {
+		case block.OfText != nil:
+			block.OfText.CacheControl = marker
+		case block.OfToolResult != nil:
+			block.OfToolResult.CacheControl = marker
+		case block.OfToolUse != nil:
+			block.OfToolUse.CacheControl = marker
+		case block.OfImage != nil:
+			block.OfImage.CacheControl = marker
+		case block.OfDocument != nil:
+			block.OfDocument.CacheControl = marker
+		default:
+			continue
+		}
+
+		return
+	}
 }
 
 // mapUserMessage converts a user message to Anthropic format.
