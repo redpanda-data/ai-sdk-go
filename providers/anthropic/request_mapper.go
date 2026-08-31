@@ -23,6 +23,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/packages/param"
 	"github.com/anthropics/anthropic-sdk-go/shared/constant"
 
+	"github.com/redpanda-data/ai-sdk-go/internal/jsonschema"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -428,7 +429,7 @@ func applyResponseFormat(cfg *anthropic.BetaOutputConfigParam, format *llm.Respo
 			return fmt.Errorf("invalid JSON schema: %w", err)
 		}
 
-		adaptSchemaForStructuredOutput(schema)
+		jsonschema.AdaptForStructuredOutput(schema)
 
 		cfg.Format = anthropic.BetaJSONOutputFormatParam{Schema: schema}
 

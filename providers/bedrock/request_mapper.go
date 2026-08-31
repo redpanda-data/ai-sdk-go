@@ -24,6 +24,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/document"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 
+	"github.com/redpanda-data/ai-sdk-go/internal/jsonschema"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -135,8 +136,19 @@ func applyResponseFormat(p *converseParams, format *llm.ResponseFormat) error {
 			return errors.New("JSONSchema is required when Type is json_schema")
 		}
 
-		if !json.Valid(format.JSONSchema.Schema) {
-			return errors.New("invalid JSON schema")
+		var schema map[string]any
+		if err := json.Unmarshal(format.JSONSchema.Schema, &schema); err != nil {
+			return fmt.Errorf("invalid JSON schema: %w", err)
+		}
+
+		// Converse enforces the same structured-output subset as the
+		// Anthropic API (additionalProperties: false on every object, no
+		// constraint keywords), so adapt before sending.
+		jsonschema.AdaptForStructuredOutput(schema)
+
+		adapted, err := json.Marshal(schema)
+		if err != nil {
+			return fmt.Errorf("invalid JSON schema: %w", err)
 		}
 
 		p.outputConfig = &types.OutputConfig{
@@ -144,7 +156,7 @@ func applyResponseFormat(p *converseParams, format *llm.ResponseFormat) error {
 				Type: types.OutputFormatTypeJsonSchema,
 				Structure: &types.OutputFormatStructureMemberJsonSchema{
 					Value: types.JsonSchemaDefinition{
-						Schema: aws.String(string(format.JSONSchema.Schema)),
+						Schema: aws.String(string(adapted)),
 					},
 				},
 			},

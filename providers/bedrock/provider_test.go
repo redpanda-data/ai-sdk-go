@@ -1305,7 +1305,11 @@ func TestRequestMapper_ResponseFormat(t *testing.T) {
 	t.Run("json schema populates outputConfig.textFormat", func(t *testing.T) {
 		t.Parallel()
 
-		schema := `{"type":"object","properties":{"name":{"type":"string"}}}`
+		// Converse enforces the structured-output subset: every object must
+		// set additionalProperties: false and constraint keywords like
+		// "minimum" are rejected, so the schema is adapted before sending.
+		schema := `{"type":"object","properties":{"age":{"type":"integer","minimum":0}}}`
+		adapted := `{"type":"object","properties":{"age":{"type":"integer"}},"additionalProperties":false}`
 		in, err := rm.ToConverseInput(&llm.Request{
 			Messages: []llm.Message{{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("hi")}}},
 			ResponseFormat: &llm.ResponseFormat{
@@ -1320,7 +1324,7 @@ func TestRequestMapper_ResponseFormat(t *testing.T) {
 
 		member, ok := in.OutputConfig.TextFormat.Structure.(*types.OutputFormatStructureMemberJsonSchema)
 		require.True(t, ok)
-		assert.JSONEq(t, schema, aws.ToString(member.Value.Schema))
+		assert.JSONEq(t, adapted, aws.ToString(member.Value.Schema))
 	})
 
 	t.Run("streaming input carries the same format", func(t *testing.T) {

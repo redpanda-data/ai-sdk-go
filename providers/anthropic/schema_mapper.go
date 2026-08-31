@@ -40,38 +40,3 @@ func (*SchemaMapper) AdaptSchemaForAnthropic(schema map[string]any) map[string]a
 
 	return cp
 }
-
-// adaptSchemaForStructuredOutput rewrites schema in place to fit the subset
-// Anthropic structured outputs (output_config.format) accept, which is
-// narrower than what tool input_schema allows: every object node must set
-// additionalProperties to false explicitly, and numeric/string/array
-// constraint keywords are rejected with a 400. The official SDKs strip those
-// constraints before sending; this mirrors that. Dropping a constraint never
-// changes a value's type, so decoding is unaffected.
-func adaptSchemaForStructuredOutput(schema map[string]any) {
-	jsonschema.Walk(schema, func(obj map[string]any) {
-		for _, k := range []string{
-			"minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf",
-			"minLength", "maxLength",
-			"minItems", "maxItems", "uniqueItems",
-		} {
-			delete(obj, k)
-		}
-
-		if isObjectLike(obj) {
-			obj["additionalProperties"] = false
-		}
-	})
-}
-
-// isObjectLike reports whether m describes an object schema, even when "type"
-// is omitted.
-func isObjectLike(m map[string]any) bool {
-	if t, ok := m["type"].(string); ok && t == "object" {
-		return true
-	}
-
-	_, hasProps := m["properties"].(map[string]any)
-
-	return hasProps
-}
