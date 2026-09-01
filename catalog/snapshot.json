@@ -1186,6 +1186,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "au"
+            }
+          ],
           "derived": {
             "price_tier": "low"
           }
@@ -1253,6 +1259,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "au"
+            }
+          ],
           "derived": {
             "price_tier": "high",
             "successor": "anthropic/claude-opus-4-7"
@@ -1315,6 +1327,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "au"
+            }
+          ],
           "derived": {
             "price_tier": "high"
           }
@@ -1375,6 +1393,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "au"
+            }
+          ],
           "derived": {
             "price_tier": "medium",
             "successor": "anthropic/claude-sonnet-4-6"
@@ -1442,6 +1466,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "au"
+            }
+          ],
           "derived": {
             "price_tier": "medium",
             "successor": "anthropic/claude-sonnet-5"
@@ -1500,6 +1530,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "eu"
+            }
+          ],
           "derived": {
             "price_tier": "low"
           }
@@ -1562,6 +1598,10 @@
             "stage": "ga"
           },
           "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "eu"
+            },
             {
               "key": "requires_provider_data_sharing",
               "value": "true"
@@ -1627,6 +1667,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "eu"
+            }
+          ],
           "derived": {
             "price_tier": "low"
           }
@@ -1687,6 +1733,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "eu"
+            }
+          ],
           "derived": {
             "price_tier": "high",
             "successor": "anthropic/claude-opus-4-6"
@@ -1755,6 +1807,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "eu"
+            }
+          ],
           "derived": {
             "price_tier": "high",
             "successor": "anthropic/claude-opus-4-7"
@@ -1823,6 +1881,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "eu"
+            }
+          ],
           "derived": {
             "price_tier": "high",
             "successor": "anthropic/claude-opus-4-8"
@@ -1891,6 +1955,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "eu"
+            }
+          ],
           "derived": {
             "price_tier": "high",
             "successor": "anthropic/claude-opus-5"
@@ -1953,6 +2023,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "eu"
+            }
+          ],
           "derived": {
             "price_tier": "high"
           }
@@ -2013,6 +2089,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "eu"
+            }
+          ],
           "derived": {
             "price_tier": "medium",
             "successor": "anthropic/claude-sonnet-4-6"
@@ -2080,6 +2162,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "eu"
+            }
+          ],
           "derived": {
             "price_tier": "medium",
             "successor": "anthropic/claude-sonnet-5"
@@ -2138,6 +2226,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "global"
+            }
+          ],
           "derived": {
             "price_tier": "low"
           }
@@ -2200,6 +2294,10 @@
             "stage": "ga"
           },
           "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "global"
+            },
             {
               "key": "requires_provider_data_sharing",
               "value": "true"
@@ -2265,6 +2363,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "global"
+            }
+          ],
           "derived": {
             "price_tier": "low"
           }
@@ -2325,6 +2429,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "global"
+            }
+          ],
           "derived": {
             "price_tier": "high",
             "successor": "anthropic/claude-opus-4-6"
@@ -2393,6 +2503,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "global"
+            }
+          ],
           "derived": {
             "price_tier": "high",
             "successor": "anthropic/claude-opus-4-7"
@@ -2461,6 +2577,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "global"
+            }
+          ],
           "derived": {
             "price_tier": "high",
             "successor": "anthropic/claude-opus-4-8"
@@ -2529,6 +2651,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "global"
+            }
+          ],
           "derived": {
             "price_tier": "high",
             "successor": "anthropic/claude-opus-5"
@@ -2591,6 +2719,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "global"
+            }
+          ],
           "derived": {
             "price_tier": "high"
           }
@@ -2651,6 +2785,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "global"
+            }
+          ],
           "derived": {
             "price_tier": "medium",
             "successor": "anthropic/claude-sonnet-4-6"
@@ -2718,6 +2858,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "global"
+            }
+          ],
           "derived": {
             "price_tier": "medium",
             "successor": "anthropic/claude-sonnet-5"
@@ -2786,6 +2932,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "global"
+            }
+          ],
           "derived": {
             "price_tier": "medium"
           }
@@ -3002,6 +3154,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "jp"
+            }
+          ],
           "derived": {
             "price_tier": "low"
           }
@@ -3069,6 +3227,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "jp"
+            }
+          ],
           "derived": {
             "price_tier": "high",
             "successor": "anthropic/claude-opus-4-8"
@@ -3137,6 +3301,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "jp"
+            }
+          ],
           "derived": {
             "price_tier": "high",
             "successor": "anthropic/claude-opus-5"
@@ -3198,6 +3368,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "jp"
+            }
+          ],
           "derived": {
             "price_tier": "medium",
             "successor": "anthropic/claude-sonnet-4-6"
@@ -3471,6 +3647,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "us"
+            }
+          ],
           "derived": {
             "price_tier": "low"
           }
@@ -3533,6 +3715,10 @@
             "stage": "ga"
           },
           "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "us"
+            },
             {
               "key": "requires_provider_data_sharing",
               "value": "true"
@@ -3598,6 +3784,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "us"
+            }
+          ],
           "derived": {
             "price_tier": "low"
           }
@@ -3658,6 +3850,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "us"
+            }
+          ],
           "derived": {
             "price_tier": "high",
             "successor": "anthropic/claude-opus-4-6"
@@ -3726,6 +3924,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "us"
+            }
+          ],
           "derived": {
             "price_tier": "high",
             "successor": "anthropic/claude-opus-4-7"
@@ -3794,6 +3998,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "us"
+            }
+          ],
           "derived": {
             "price_tier": "high",
             "successor": "anthropic/claude-opus-4-8"
@@ -3862,6 +4072,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "us"
+            }
+          ],
           "derived": {
             "price_tier": "high",
             "successor": "anthropic/claude-opus-5"
@@ -3924,6 +4140,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "us"
+            }
+          ],
           "derived": {
             "price_tier": "high"
           }
@@ -3984,6 +4206,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "us"
+            }
+          ],
           "derived": {
             "price_tier": "medium",
             "successor": "anthropic/claude-sonnet-4-6"
@@ -4051,6 +4279,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "us"
+            }
+          ],
           "derived": {
             "price_tier": "medium",
             "successor": "anthropic/claude-sonnet-5"
@@ -4119,6 +4353,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "us"
+            }
+          ],
           "derived": {
             "price_tier": "medium"
           }

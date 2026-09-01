@@ -121,12 +121,21 @@ func expandFamilies(families []family) ([]catalog.Entry, map[string]bool) {
 			panic(fmt.Sprintf("bedrock: family %s must set GlobalRates exactly when the global profile is published", f.BareID)) //nolint:forbidigo // authoring error, not runtime
 		}
 
-		var attrs map[string]string
-		if f.DataSharing {
-			attrs = map[string]string{ModelMetadataRequiresProviderDataSharing: "true"}
-		}
+		// geo is the inference-profile geography ("us", "global", ...);
+		// empty for bare IDs, which run in the calling region.
+		variant := func(id, labelSuffix, geo string, rates pricing.RateCard) catalog.Entry {
+			var attrs map[string]string
+			if f.DataSharing || geo != "" {
+				attrs = make(map[string]string, 2)
+				if f.DataSharing {
+					attrs[ModelMetadataRequiresProviderDataSharing] = "true"
+				}
 
-		variant := func(id, labelSuffix string, rates pricing.RateCard) catalog.Entry {
+				if geo != "" {
+					attrs[ModelMetadataInferenceGeo] = geo
+				}
+			}
+
 			return catalog.Entry{
 				ID:           id,
 				Model:        f.Model,
@@ -142,7 +151,7 @@ func expandFamilies(families []family) ([]catalog.Entry, map[string]bool) {
 		}
 
 		if f.BareInvokable {
-			entries = append(entries, variant(f.BareID, "", f.Rates))
+			entries = append(entries, variant(f.BareID, "", "", f.Rates))
 
 			if f.Mantle {
 				mantle[f.BareID] = true
@@ -155,7 +164,7 @@ func expandFamilies(families []family) ([]catalog.Entry, map[string]bool) {
 				rates = *f.GlobalRates
 			}
 
-			entries = append(entries, variant(p+"."+f.BareID, profileLabels[p], rates))
+			entries = append(entries, variant(p+"."+f.BareID, profileLabels[p], p, rates))
 		}
 	}
 

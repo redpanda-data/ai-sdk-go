@@ -78,7 +78,10 @@ type Entry struct {
 	// this shared struct. In use: Bedrock sets
 	// "requires_provider_data_sharing": "true" on models that reject
 	// requests until the account opts in — the conformance suite reads
-	// it to skip those, and UIs badge it. Keys are snake_case; values
-	// are strings so the snapshot stays stable.
+	// it to skip those, and UIs badge it — and "inference_geo"
+	// ("us", "eu", "jp", "au", "global") on inference-profile variants
+	// whose ID pins inference to a geography, so geography filters need
+	// no ID parsing. Keys are snake_case; values are strings so the
+	// snapshot stays stable.
 	Attributes map[string]string
 }

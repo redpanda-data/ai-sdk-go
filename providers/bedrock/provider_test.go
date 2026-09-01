@@ -17,6 +17,7 @@ package bedrock
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -1252,7 +1253,23 @@ func TestModelsDiscovery_ProviderDataSharingMetadata(t *testing.T) {
 		assert.Equal(t, "true", metadataByName[name][ModelMetadataRequiresProviderDataSharing])
 	}
 
-	assert.Empty(t, metadataByName[ModelClaudeSonnet46US])
+	assert.NotContains(t, metadataByName[ModelClaudeSonnet46US], ModelMetadataRequiresProviderDataSharing)
+}
+
+// TestModelsDiscovery_InferenceGeoMetadata pins the inference_geo
+// attribute to the offering ID's profile prefix: every profile variant
+// carries its geography, bare on-demand IDs carry none.
+func TestModelsDiscovery_InferenceGeoMetadata(t *testing.T) {
+	t.Parallel()
+
+	for _, m := range Catalog().All() {
+		prefix, _, _ := strings.Cut(m.ID, ".")
+		if _, isProfile := profileLabels[prefix]; isProfile {
+			assert.Equal(t, prefix, m.Attributes[ModelMetadataInferenceGeo], "offering %s", m.ID)
+		} else {
+			assert.NotContains(t, m.Attributes, ModelMetadataInferenceGeo, "offering %s", m.ID)
+		}
+	}
 }
 
 // ---------- Options validation ----------

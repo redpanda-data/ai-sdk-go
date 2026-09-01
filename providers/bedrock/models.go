@@ -257,6 +257,18 @@ const (
 // metadata for Bedrock models that require provider data sharing.
 const ModelMetadataRequiresProviderDataSharing = "requires_provider_data_sharing"
 
+// ModelMetadataInferenceGeo is set on inference-profile offerings to the
+// geography the profile pins inference to: "us", "eu", "jp", "au", or
+// "global" (routes to any commercial region, no residency boundary).
+// Bare on-demand IDs carry no value: they run in the calling region.
+//
+// The key is deliberately provider-agnostic vocabulary (it matches
+// Anthropic's inference_geo request parameter) so a future provider whose
+// offerings also encode a geography can reuse it, but where geography is
+// not part of an offering's identity (Vertex endpoints, OpenAI project
+// residency) it stays out of the catalog.
+const ModelMetadataInferenceGeo = "inference_geo"
+
 // InferenceProfileRegion maps an AWS region to the Bedrock cross-region
 // inference profile geographic prefix.
 //
