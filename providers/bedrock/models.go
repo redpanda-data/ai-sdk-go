@@ -218,24 +218,6 @@ const (
 	ReasoningEffortMax ReasoningEffort = "max"
 )
 
-// ThinkingSupport describes which provider-native thinking controls a model
-// accepts. It is catalog metadata: each supportedModels entry carries the
-// shape for its generation, and NewModel validates the requested options
-// against it.
-type ThinkingSupport struct {
-	// ReasoningEfforts are the effort values the model accepts, in ascending
-	// order. Empty means the model has no reasoning-effort control.
-	ReasoningEfforts []ReasoningEffort
-
-	// Adaptive reports whether the model accepts adaptive thinking
-	// (thinking.type=adaptive), where the model decides how long to think.
-	Adaptive bool
-
-	// Budget reports whether the model accepts a manual thinking token
-	// budget (thinking.type=enabled with budget_tokens).
-	Budget bool
-}
-
 // Model ID constants for OpenAI GPT-5.6 models on Bedrock.
 //
 // All three models are served only through the bedrock-mantle Responses API
