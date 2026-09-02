@@ -87,6 +87,128 @@ func TestToConverseInput_StaleToolHistoryWithoutToolConfig(t *testing.T) {
 	assert.Equal(t, `[Tool output: {"tempC":18}]`, toolResultText.Value)
 }
 
+// TestToConverseInput_StaleToolHistoryWithCachingEnabled proves the
+// flattening still works under Bedrock's default configuration (prompt
+// caching on): the CachePointBlock a caching provider appends to the last
+// message must survive alongside the flattened text, not get lost or choke
+// the conversion.
+func TestToConverseInput_StaleToolHistoryWithCachingEnabled(t *testing.T) {
+	t.Parallel()
+
+	p, err := NewProvider(context.Background(), WithAWSConfig(aws.Config{Region: "us-east-1"}))
+	require.NoError(t, err)
+	require.True(t, p.enableCaching, "test relies on default caching to exercise cache-point interaction")
+
+	model, err := p.NewModel(ModelClaudeSonnet46)
+	require.NoError(t, err)
+
+	m, ok := model.(*Model)
+	require.True(t, ok, "NewModel must return *Model")
+
+	req := &llm.Request{
+		Messages: []llm.Message{
+			{Role: llm.RoleAssistant, Content: []llm.Part{
+				llm.NewToolRequestPart("call_1", "get_weather", json.RawMessage(`{"city":"Berlin"}`)),
+			}},
+			{Role: llm.RoleUser, Content: []llm.Part{
+				llm.NewToolResponsePart("call_1", "get_weather", json.RawMessage(`{"tempC":18}`), false),
+			}},
+		},
+		// No Tools: get_weather has since been removed from the agent.
+	}
+
+	input, err := m.requestMapper.ToConverseInput(req)
+	require.NoError(t, err)
+	assert.Nil(t, input.ToolConfig)
+
+	last := input.Messages[len(input.Messages)-1]
+	require.Len(t, last.Content, 2, "flattened text block plus the cache point")
+
+	toolResultText, ok := last.Content[0].(*types.ContentBlockMemberText)
+	require.True(t, ok, "first block must be the flattened text, not the cache point")
+	assert.Equal(t, `[Tool output: {"tempC":18}]`, toolResultText.Value)
+
+	_, ok = last.Content[1].(*types.ContentBlockMemberCachePoint)
+	assert.True(t, ok, "cache point must still be appended after flattening")
+}
+
+// TestConvertToolBlocksToText_MixedContentInSameMessage proves flattening
+// only touches ToolUse blocks: a text block and a reasoning block sharing a
+// message with a stale ToolRequestPart must pass through untouched, in
+// their original order.
+func TestConvertToolBlocksToText_MixedContentInSameMessage(t *testing.T) {
+	t.Parallel()
+
+	p, err := NewProvider(context.Background(), WithAWSConfig(aws.Config{Region: "us-east-1"}), WithCachingDisabled())
+	require.NoError(t, err)
+
+	model, err := p.NewModel(ModelClaudeSonnet46)
+	require.NoError(t, err)
+
+	m, ok := model.(*Model)
+	require.True(t, ok, "NewModel must return *Model")
+
+	req := &llm.Request{
+		Messages: []llm.Message{
+			llm.NewMessage(llm.RoleAssistant,
+				&llm.ReasoningPart{Text: "thinking about the weather", Signature: "sig"},
+				llm.NewTextPart("Let me check that."),
+				llm.NewToolRequestPart("call_1", "get_weather", json.RawMessage(`{"city":"Berlin"}`)),
+			),
+		},
+		// No Tools: get_weather has since been removed from the agent.
+	}
+
+	input, err := m.requestMapper.ToConverseInput(req)
+	require.NoError(t, err)
+	require.Len(t, input.Messages, 1)
+	require.Len(t, input.Messages[0].Content, 3)
+
+	_, ok = input.Messages[0].Content[0].(*types.ContentBlockMemberReasoningContent)
+	assert.True(t, ok, "reasoning block must pass through untouched")
+
+	textBlock, ok := input.Messages[0].Content[1].(*types.ContentBlockMemberText)
+	require.True(t, ok, "existing text block must pass through untouched")
+	assert.Equal(t, "Let me check that.", textBlock.Value)
+
+	flattened, ok := input.Messages[0].Content[2].(*types.ContentBlockMemberText)
+	require.True(t, ok, "tool_use block must be flattened to text")
+	assert.Equal(t, `[Called get_weather with parameters: {"city":"Berlin"}]`, flattened.Value)
+}
+
+// TestConvertToolBlocksToText_ToolResultJSONContent covers the JSON-content
+// branch of a ToolResult block, which llm.ToolResponsePart never produces
+// itself but the Bedrock content-block union still allows.
+func TestConvertToolBlocksToText_ToolResultJSONContent(t *testing.T) {
+	t.Parallel()
+
+	messages := []types.Message{
+		{
+			Role: types.ConversationRoleUser,
+			Content: []types.ContentBlock{
+				&types.ContentBlockMemberToolResult{
+					Value: types.ToolResultBlock{
+						ToolUseId: aws.String("call_1"),
+						Content: []types.ToolResultContentBlock{
+							&types.ToolResultContentBlockMemberJson{
+								Value: document.NewLazyDocument(map[string]any{"tempC": 18}),
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	converted := convertToolBlocksToText(messages)
+
+	require.Len(t, converted, 1)
+	require.Len(t, converted[0].Content, 1)
+	text, ok := converted[0].Content[0].(*types.ContentBlockMemberText)
+	require.True(t, ok)
+	assert.Equal(t, `[Tool output: {"tempC":18}]`, text.Value)
+}
+
 // TestToConverseInput_ToolHistoryPreservedWithToolConfig proves the
 // flattening only kicks in when toolConfig would otherwise be absent: with a
 // live tool list, historical tool blocks must round-trip untouched.
