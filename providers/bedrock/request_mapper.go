@@ -118,7 +118,10 @@ func (rm *RequestMapper) buildConverseParams(req *llm.Request) (*converseParams,
 	// even when the current turn has nothing to offer — e.g. a tool used
 	// earlier in the conversation has since been removed from the agent.
 	// Mirror langchain-aws's fix for the same constraint: flatten the stale
-	// blocks to text instead of failing the whole request.
+	// blocks to text instead of failing the whole request. Reconstructing a
+	// synthetic toolConfig from the tool names in history was considered and
+	// rejected: it would keep the blocks structured, but it re-advertises a
+	// tool the agent no longer has, inviting the model to call it again.
 	// https://github.com/langchain-ai/langchain-aws/pull/595
 	if p.tools == nil && hasToolUseOrResultBlocks(p.messages) {
 		p.messages = convertToolBlocksToText(p.messages)
@@ -535,9 +538,9 @@ func convertToolBlocksToText(messages []types.Message) []types.Message {
 				})
 
 			case *types.ContentBlockMemberToolResult:
-				if text := toolResultText(b.Value); text != "" {
-					out.Content = append(out.Content, &types.ContentBlockMemberText{Value: text})
-				}
+				out.Content = append(out.Content, &types.ContentBlockMemberText{
+					Value: toolResultText(b.Value),
+				})
 
 			default:
 				out.Content = append(out.Content, block)
@@ -565,8 +568,17 @@ func toolUseText(tu types.ToolUseBlock) string {
 	return fmt.Sprintf("[Called %s]", name)
 }
 
-// toolResultText renders a ToolResultBlock's text/JSON content as
-// "[Tool output: {content}]", or "" if it carries no representable content.
+// toolResultText renders a ToolResultBlock as "[Tool output: {content}]", or
+// "[Tool error: {content}]" for a failed call, with "(empty)" standing in for
+// a void result. It must never return "": an empty return would drop the
+// block entirely, and a ToolResult is often the only content in its message —
+// mapUserMessage never mixes it with anything mapAssistantMessage-side would
+// need — so a dropped block can leave the message with no content at all,
+// which Bedrock rejects exactly like it rejects the empty-assistant-turn case
+// this file already guards elsewhere.
+//
+// Only Text and Json content blocks are handled: mapToolResultBlock, the only
+// producer of ToolResultBlock in this package, never emits anything else.
 func toolResultText(tr types.ToolResultBlock) string {
 	var sb strings.Builder
 
@@ -580,13 +592,21 @@ func toolResultText(tr types.ToolResultBlock) string {
 		}
 	}
 
-	if strings.TrimSpace(sb.String()) == "" {
-		return ""
+	content := sb.String()
+	if strings.TrimSpace(content) == "" {
+		content = "(empty)"
 	}
 
-	return fmt.Sprintf("[Tool output: %s]", sb.String())
+	if tr.Status == types.ToolResultStatusError {
+		return fmt.Sprintf("[Tool error: %s]", content)
+	}
+
+	return fmt.Sprintf("[Tool output: %s]", content)
 }
 
+// marshalDocument returns nil, rather than an error, on a marshal failure:
+// callers treat that as "no parameters"/"no content", the same fallback used
+// when a document is absent entirely.
 func marshalDocument(doc document.Interface) []byte {
 	if doc == nil {
 		return nil

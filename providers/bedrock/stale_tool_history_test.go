@@ -283,10 +283,13 @@ func TestConvertToolBlocksToText_NoParameters(t *testing.T) {
 	assert.Equal(t, "[Called ping]", text.Value)
 }
 
-// TestConvertToolBlocksToText_EmptyToolResultIsDropped covers the
-// empty-result branch: a ToolResult block with no representable content is
-// dropped rather than emitted as an empty "[Tool output: ]" block.
-func TestConvertToolBlocksToText_EmptyToolResultIsDropped(t *testing.T) {
+// TestConvertToolBlocksToText_EmptyToolResultBecomesPlaceholder covers the
+// empty-result branch: a ToolResult block with no representable content
+// must still render as a block, not be dropped. A void tool result is a
+// message's only content in practice (mapUserMessage never mixes a
+// ToolResponsePart with anything else), so dropping it would leave the
+// message with zero content blocks — exactly what Bedrock rejects.
+func TestConvertToolBlocksToText_EmptyToolResultBecomesPlaceholder(t *testing.T) {
 	t.Parallel()
 
 	messages := []types.Message{
@@ -306,5 +309,87 @@ func TestConvertToolBlocksToText_EmptyToolResultIsDropped(t *testing.T) {
 	converted := convertToolBlocksToText(messages)
 
 	require.Len(t, converted, 1)
-	assert.Empty(t, converted[0].Content)
+	require.Len(t, converted[0].Content, 1)
+	text, ok := converted[0].Content[0].(*types.ContentBlockMemberText)
+	require.True(t, ok)
+	assert.Equal(t, "[Tool output: (empty)]", text.Value)
+}
+
+// TestConvertToolBlocksToText_ErrorStatusIsMarked proves a failed tool call
+// renders distinguishably from a successful one, rather than both flattening
+// to an identical "[Tool output: ...]" string.
+func TestConvertToolBlocksToText_ErrorStatusIsMarked(t *testing.T) {
+	t.Parallel()
+
+	messages := []types.Message{
+		{
+			Role: types.ConversationRoleUser,
+			Content: []types.ContentBlock{
+				&types.ContentBlockMemberToolResult{
+					Value: types.ToolResultBlock{
+						ToolUseId: aws.String("call_1"),
+						Status:    types.ToolResultStatusError,
+						Content: []types.ToolResultContentBlock{
+							&types.ToolResultContentBlockMemberText{Value: `{"error":"rate limited"}`},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	converted := convertToolBlocksToText(messages)
+
+	require.Len(t, converted, 1)
+	require.Len(t, converted[0].Content, 1)
+	text, ok := converted[0].Content[0].(*types.ContentBlockMemberText)
+	require.True(t, ok)
+	assert.Equal(t, `[Tool error: {"error":"rate limited"}]`, text.Value)
+}
+
+// TestToConverseInput_EmptyToolResultWithCachingDoesNotProduceInvalidMessage
+// is the regression for a real bug found in review: dropping an empty
+// ToolResult left a content-less message when it was a turn's only block,
+// and with caching on (the Bedrock default) the last message flattened down
+// to a cachePoint-only block — both forms Bedrock rejects. A void tool
+// result (Result == nil, e.g. from a tool with no return value) must still
+// produce a real block.
+func TestToConverseInput_EmptyToolResultWithCachingDoesNotProduceInvalidMessage(t *testing.T) {
+	t.Parallel()
+
+	p, err := NewProvider(context.Background(), WithAWSConfig(aws.Config{Region: "us-east-1"}))
+	require.NoError(t, err)
+	require.True(t, p.enableCaching, "test relies on default caching to exercise cache-point interaction")
+
+	model, err := p.NewModel(ModelClaudeSonnet46)
+	require.NoError(t, err)
+
+	m, ok := model.(*Model)
+	require.True(t, ok, "NewModel must return *Model")
+
+	req := &llm.Request{
+		Messages: []llm.Message{
+			{Role: llm.RoleAssistant, Content: []llm.Part{
+				llm.NewToolRequestPart("call_1", "ping", json.RawMessage(`{}`)),
+			}},
+			{Role: llm.RoleUser, Content: []llm.Part{
+				llm.NewToolResponsePart("call_1", "ping", nil, false),
+			}},
+		},
+		// No Tools: ping has since been removed from the agent.
+	}
+
+	input, err := m.requestMapper.ToConverseInput(req)
+	require.NoError(t, err)
+	assert.Nil(t, input.ToolConfig)
+
+	last := input.Messages[len(input.Messages)-1]
+	require.Len(t, last.Content, 2, "placeholder text block plus the cache point")
+
+	text, ok := last.Content[0].(*types.ContentBlockMemberText)
+	require.True(t, ok, "first block must be real text, not the cache point")
+	assert.Equal(t, "[Tool output: (empty)]", text.Value)
+
+	_, ok = last.Content[1].(*types.ContentBlockMemberCachePoint)
+	assert.True(t, ok, "cache point must still be appended after flattening")
 }
