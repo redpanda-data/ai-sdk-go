@@ -175,8 +175,8 @@ func (m *ResponseMapper) FromProvider(r *responses.Response) (*llm.Response, err
 // not know pass through unchanged. Every provider applies this rule, so
 // InvokedModelID has one meaning SDK-wide.
 func resolveInvokedModelID(model string) string {
-	if offering, ok := Catalog().Resolve(model); ok {
-		return offering.ID
+	if id, ok := Catalog().ResolveID(model); ok {
+		return id
 	}
 
 	return model

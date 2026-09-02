@@ -379,55 +379,46 @@ func (c *Catalog) Lookup(offeringID string) (Offering, bool) {
 //
 //  1. exact offering ID
 //  2. exact alias
-//  3. longest boundary-aware prefix over IDs and aliases, so snapshot
-//     forms resolve to their family ("claude-sonnet-4-5-20250929" →
-//     "claude-sonnet-4-5", "o3-2025-04-16" → "o3") and the longest
-//     candidate wins ("claude-opus-4-5-..." resolves to claude-opus-4-5,
-//     never claude-opus-4).
+//  3. longest prefix over IDs and aliases whose remainder is a version
+//     stamp, so snapshot forms resolve to their family
+//     ("claude-sonnet-4-5-20250929" → "claude-sonnet-4-5",
+//     "o3-2025-04-16" → "o3", "gemini-2.5-flash-001" → "gemini-2.5-flash")
+//     and the longest candidate wins ("claude-opus-4-5-..." resolves to
+//     claude-opus-4-5, never claude-opus-4).
 //
-// A prefix only matches when the byte after the candidate is one of
-// '-', '.', ':', or '@' AND the remainder starts with a digit — the
-// shape of a snapshot or version stamp ("-20250929", ".1", "@001").
-// Word suffixes never match: "gpt-5-chat-latest" is a different product
-// than "gpt-5" and must resolve as unknown, not be silently binned into
-// the family's metadata and pricing.
+// A remainder is a version stamp only when it follows a '-' or '@'
+// boundary and consists of digits and dashes with at least three digits
+// in total — the shape of a date ("-20250929", "-2025-04-16") or a
+// revision ("-001", "@001"). Anything else is a different product and
+// resolves as unknown rather than being binned into the family's
+// metadata and pricing: word suffixes ("gpt-5-chat-latest") and, just as
+// importantly, short version bumps ("gpt-5.7", "claude-opus-5-1",
+// "gpt-5.4.1"). A model launched yesterday must report unknown, not
+// inherit its predecessor's constraints and rate card.
 //
 // ok == false means the catalog does not know this model. Callers must
 // treat unknown as "stop enforcing", not "assume a baseline": no
 // capabilities and no pricing may be guessed for it.
 func (c *Catalog) Resolve(requested string) (Offering, bool) {
-	if c == nil || requested == "" {
+	idx, ok := c.resolveIndex(requested)
+	if !ok {
 		return Offering{}, false
 	}
 
-	if idx, ok := c.byID[requested]; ok {
-		return cloneOffering(c.offerings[idx]), true
+	return cloneOffering(c.offerings[idx]), true
+}
+
+// ResolveID is Resolve returning only the offering ID. It does not copy
+// the offering, so it suits hot paths that need the canonical ID alone:
+// response mappers normalizing a provider-reported snapshot, billing
+// lookups keyed by ID.
+func (c *Catalog) ResolveID(requested string) (string, bool) {
+	idx, ok := c.resolveIndex(requested)
+	if !ok {
+		return "", false
 	}
 
-	if idx, ok := c.byAlias[requested]; ok {
-		return cloneOffering(c.offerings[idx]), true
-	}
-
-	for _, cand := range c.prefixIDs {
-		if len(requested) <= len(cand.id) {
-			continue
-		}
-
-		if !strings.HasPrefix(requested, cand.id) {
-			continue
-		}
-
-		switch requested[len(cand.id)] {
-		case '-', '.', ':', '@':
-			// Only snapshot/version-stamp shapes may prefix-match; see
-			// the doc comment above.
-			if rest := requested[len(cand.id)+1:]; len(rest) > 0 && rest[0] >= '0' && rest[0] <= '9' {
-				return cloneOffering(c.offerings[cand.idx]), true
-			}
-		}
-	}
-
-	return Offering{}, false
+	return c.offerings[idx].ID, true
 }
 
 // All returns every offering, deep-copied, sorted by offering ID.
@@ -459,10 +450,9 @@ func (c *Catalog) Facts(id ModelID) (Facts, bool) {
 }
 
 // Successor returns the next-newer model (by Facts.Released) in the same
-// Series, restricted to models offered in this catalog. It is the
-// derived complement of the authored Lifecycle.ReplacedBy: use ReplacedBy
-// when the provider announced a replacement, Successor for generation
-// math.
+// Series, restricted to models offered in this catalog. It is pure
+// generation math and ignores provider announcements; Replacement is the
+// answer to "what should I migrate to".
 func (c *Catalog) Successor(id ModelID) (ModelID, bool) {
 	if c == nil {
 		return "", false
@@ -483,6 +473,53 @@ func (c *Catalog) Successor(id ModelID) (ModelID, bool) {
 	return members[pos+1], true
 }
 
+// Replacement returns the model callers should move to from the given
+// offering: the provider's announced Lifecycle.ReplacedBy when set,
+// otherwise the derived Successor of the offering's model. The
+// precedence lives here so every consumer — SDK users and the gateway
+// console alike — gets the same answer instead of re-implementing it.
+//
+// The result is a ModelID rather than an offering because a model may be
+// served through several offerings (Bedrock geo profiles); Offerings
+// lists them. ok == false means the offering is unknown or has nothing
+// newer to point at.
+func (c *Catalog) Replacement(offeringID string) (ModelID, bool) {
+	if c == nil {
+		return "", false
+	}
+
+	idx, ok := c.byID[offeringID]
+	if !ok {
+		return "", false
+	}
+
+	o := c.offerings[idx]
+	if rb := o.Life.ReplacedBy; rb != "" {
+		return c.offerings[c.byID[rb]].Model, true
+	}
+
+	return c.Successor(o.Model)
+}
+
+// Offerings returns every offering of the given model in this catalog,
+// deep-copied, sorted by offering ID. Empty when the model is not
+// offered here.
+func (c *Catalog) Offerings(id ModelID) []Offering {
+	if c == nil {
+		return nil
+	}
+
+	var out []Offering
+
+	for _, o := range c.offerings {
+		if o.Model == id {
+			out = append(out, cloneOffering(o))
+		}
+	}
+
+	return out
+}
+
 // PricingByID returns a model ID → pricing map covering every offering
 // ID and every exact alias, in the shape pricing.NewCatalog's
 // WithProvider expects:
@@ -498,6 +535,56 @@ func (c *Catalog) PricingByID() map[string]pricing.Info {
 	}
 
 	return pricingMap(c.offerings)
+}
+
+func (c *Catalog) resolveIndex(requested string) (int, bool) {
+	if c == nil || requested == "" {
+		return 0, false
+	}
+
+	if idx, ok := c.byID[requested]; ok {
+		return idx, true
+	}
+
+	if idx, ok := c.byAlias[requested]; ok {
+		return idx, true
+	}
+
+	for _, cand := range c.prefixIDs {
+		if len(requested) <= len(cand.id) || !strings.HasPrefix(requested, cand.id) {
+			continue
+		}
+
+		if isVersionStamp(requested[len(cand.id):]) {
+			return cand.idx, true
+		}
+	}
+
+	return 0, false
+}
+
+// isVersionStamp reports whether rest — the part of a requested ID after
+// a matched prefix — has the shape of a snapshot or revision stamp: a
+// '-' or '@' boundary, then digits and dashes only, with at least three
+// digits. See Resolve for why the rule is this narrow.
+func isVersionStamp(rest string) bool {
+	if len(rest) < 2 || (rest[0] != '-' && rest[0] != '@') {
+		return false
+	}
+
+	digits := 0
+
+	for i := 1; i < len(rest); i++ {
+		switch b := rest[i]; {
+		case b >= '0' && b <= '9':
+			digits++
+		case b == '-':
+		default:
+			return false
+		}
+	}
+
+	return digits >= 3
 }
 
 // freeze builds the derived indexes once validation has passed.

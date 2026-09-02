@@ -16,10 +16,11 @@
 // committed snapshot artifact (catalog/snapshot.json).
 //
 // The snapshot is the review surface for catalog changes — every authored
-// edit and its time-independent derivations (price tier, successor) show
-// up as a plain JSON diff — and the read format for non-Go consumers such
-// as the AI Gateway console. CI regenerates it with -check to fail when
-// the committed artifact is stale.
+// edit and its time-independent derivations (price tier, replacement)
+// show up as a plain JSON diff — and the read format for non-Go consumers
+// such as the AI Gateway console. TestCommittedSnapshotIsFresh fails the
+// unit-test job when the committed artifact is stale; -check does the same
+// from the command line.
 //
 // This command imports every provider package; the catalog library itself
 // deliberately does not (enforced by catalog's architecture test).

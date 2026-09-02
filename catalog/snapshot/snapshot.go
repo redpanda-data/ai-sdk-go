@@ -75,7 +75,7 @@ func Encode(w io.Writer, catalogs ...*catalog.Catalog) error {
 		for _, o := range c.All() {
 			f := o.Facts()
 			dto := factsDTO{
-				Label:       f.DisplayName,
+				DisplayName: f.DisplayName,
 				Description: f.Description,
 				Series:      f.Series,
 				Released:    dateString(f.Released),
@@ -89,15 +89,15 @@ func Encode(w io.Writer, catalogs ...*catalog.Catalog) error {
 
 			snap.Facts[string(o.Model)] = dto
 
-			successor := ""
-			if s, ok := c.Successor(o.Model); ok {
-				successor = string(s)
+			replacement := ""
+			if r, ok := c.Replacement(o.ID); ok {
+				replacement = string(r)
 			}
 
 			prov.Offerings = append(prov.Offerings, offeringDTO{
 				ID:           o.ID,
 				Model:        string(o.Model),
-				Label:        o.DisplayName,
+				DisplayName:  o.DisplayName,
 				Aliases:      o.Aliases,
 				Capabilities: capabilitiesDTO(o.Capabilities),
 				Constraints: constraintsDTO{
@@ -122,8 +122,8 @@ func Encode(w io.Writer, catalogs ...*catalog.Catalog) error {
 				Lifecycle:  lifecycleDTOFrom(o.Life),
 				Attributes: sortedAttributes(o.Attributes),
 				Derived: derivedDTO{
-					PriceTier: string(o.PriceTier()),
-					Successor: successor,
+					PriceTier:   string(o.PriceTier()),
+					Replacement: replacement,
 				},
 			})
 		}
@@ -161,7 +161,7 @@ type snapshotDTO struct {
 }
 
 type factsDTO struct {
-	Label       string `json:"label"`
+	DisplayName string `json:"display_name"`
 	Description string `json:"description,omitempty"`
 	Series      string `json:"series"`
 	Released    string `json:"released"`
@@ -177,7 +177,7 @@ type providerDTO struct {
 type offeringDTO struct {
 	ID           string          `json:"id"`
 	Model        string          `json:"model"`
-	Label        string          `json:"label"`
+	DisplayName  string          `json:"display_name"`
 	Aliases      []string        `json:"aliases,omitempty"`
 	Capabilities map[string]bool `json:"capabilities"`
 	Constraints  constraintsDTO  `json:"constraints"`
@@ -276,14 +276,16 @@ type bracketDTO struct {
 	Rates            ratesDTO `json:"rates"`
 }
 
-// ratesDTO mirrors pricing.Rates in microcents per million tokens.
+// ratesDTO mirrors pricing.Rates. The unit travels in every field name
+// so a consumer typing the schema cannot mistake the values for dollars
+// or cents: microcents per million tokens, i.e. $5.00/M is 500_000_000.
 type ratesDTO struct {
-	Input                   int64 `json:"input_per_million"`
-	Output                  int64 `json:"output_per_million"`
-	CachedInput             int64 `json:"cached_input_per_million,omitempty"`
-	CacheCreation5m         int64 `json:"cache_creation_5m_per_million,omitempty"`
-	CacheCreation1h         int64 `json:"cache_creation_1h_per_million,omitempty"`
-	CacheCreationUnknownTTL int64 `json:"cache_creation_unknown_ttl_per_million,omitempty"`
+	Input                   int64 `json:"input_microcents_per_million"`
+	Output                  int64 `json:"output_microcents_per_million"`
+	CachedInput             int64 `json:"cached_input_microcents_per_million,omitempty"`
+	CacheCreation5m         int64 `json:"cache_creation_5m_microcents_per_million,omitempty"`
+	CacheCreation1h         int64 `json:"cache_creation_1h_microcents_per_million,omitempty"`
+	CacheCreationUnknownTTL int64 `json:"cache_creation_unknown_ttl_microcents_per_million,omitempty"`
 }
 
 func pricingDTOFrom(info pricing.Info) pricingDTO {
@@ -361,7 +363,11 @@ func sortedAttributes(attrs map[string]string) []attributeDTO {
 	return out
 }
 
+// derivedDTO carries the time-independent derivations. Replacement is
+// catalog.Replacement — the announced replaced_by when set, otherwise the
+// series successor — as a ModelID, so consumers never re-implement the
+// precedence.
 type derivedDTO struct {
-	PriceTier string `json:"price_tier"`
-	Successor string `json:"successor,omitempty"`
+	PriceTier   string `json:"price_tier"`
+	Replacement string `json:"replacement,omitempty"`
 }

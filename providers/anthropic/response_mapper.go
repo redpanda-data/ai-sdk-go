@@ -145,8 +145,8 @@ func (m *ResponseMapper) FromProvider(r *anthropic.BetaMessage) (*llm.Response, 
 // timestamped snapshot) to its catalog offering ID; IDs the catalog does
 // not know pass through unchanged.
 func resolveInvokedModelID(model string) string {
-	if offering, ok := Catalog().Resolve(model); ok {
-		return offering.ID
+	if id, ok := Catalog().ResolveID(model); ok {
+		return id
 	}
 
 	return model

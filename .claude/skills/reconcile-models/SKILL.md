@@ -173,7 +173,7 @@ surface** — every change must be visible and intended in
 ```bash
 task catalog:snapshot   # regenerate; review the JSON diff line by line
 task test:unit          # validation + pricing guards
-task catalog:check      # what CI runs
+task catalog:check      # same check TestCommittedSnapshotIsFresh runs under task test:unit
 ```
 
 Every rate/date changed should carry a comment naming the provider source

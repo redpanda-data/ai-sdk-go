@@ -121,7 +121,7 @@ func TestEncodeShape(t *testing.T) {
 
 	robin2Facts, ok := facts["acme/robin-2"].(map[string]any)
 	require.True(t, ok)
-	assert.Equal(t, "Robin 2", robin2Facts["label"])
+	assert.Equal(t, "Robin 2", robin2Facts["display_name"])
 	assert.Equal(t, "robin", robin2Facts["series"])
 	assert.Equal(t, "2025-08-01", robin2Facts["released"])
 
@@ -154,13 +154,29 @@ func TestEncodeShape(t *testing.T) {
 	derived, ok := first["derived"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "medium", derived["price_tier"])
-	assert.Equal(t, "acme/robin-2", derived["successor"])
+	assert.Equal(t, "acme/robin-2", derived["replacement"], "announced replaced_by wins")
 
-	// Attributes are sorted key/value pairs.
+	// robin-2 has no ReplacedBy, so its replacement is the derived
+	// series successor.
 	second, ok := offerings[1].(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, "robin-2", second["id"])
+	assert.Equal(t, "Robin 2", second["display_name"])
 
+	secondDerived, ok := second["derived"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "acme/robin-3", secondDerived["replacement"])
+
+	// Rate fields name their unit.
+	pricingDTO, ok := second["pricing"].(map[string]any)
+	require.True(t, ok)
+	def, ok := pricingDTO["default"].(map[string]any)
+	require.True(t, ok)
+	base, ok := def["base"].(map[string]any)
+	require.True(t, ok)
+	assert.InDelta(t, 300_000_000, base["input_microcents_per_million"], 0, "$3.00/M in microcents")
+
+	// Attributes are sorted key/value pairs.
 	attrs, ok := second["attributes"].([]any)
 	require.True(t, ok)
 	require.Len(t, attrs, 2)

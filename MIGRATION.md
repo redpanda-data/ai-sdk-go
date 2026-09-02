@@ -20,6 +20,8 @@ tagged mid-sequence.
 | `llm.ModelDiscoveryInfo.Name` | `catalog.Offering.ID` |
 | `llm.ModelDiscoveryInfo.Metadata["..."]` | `catalog.Offering.Attributes["..."]` |
 | — | `provider.Catalog().Now().Current()` / `.Previous()` / `.Deprecated()` / `.Retired()` |
+| — | `provider.Catalog().Replacement(offeringID)` (announced `ReplacedBy`, else the series successor) and `.Offerings(modelID)` |
+| — | `provider.Catalog().ResolveID(name)` — `Resolve` without the offering copy, for hot paths |
 
 `llm.ModelDiscoveryInfo` and every `Models()` method are removed.
 `openaicompat` has no static catalog; its `Catalog()` returns nil
@@ -68,6 +70,12 @@ shape.
   Google's `NewModel` now accepts versioned variants
   (`"gemini-2.5-flash-001"`, `"models/..."`) that previously required
   the exact family ID.
+- **Only version stamps prefix-match.** A suffix resolves to its family
+  only when it is a date or revision stamp (`-20250929`, `-2025-04-16`,
+  `-001`, `@001`). Short version bumps such as `"gpt-5.7"` or
+  `"claude-opus-5-1"` are unknown models and `NewModel` rejects them,
+  where the old resolver silently mapped them onto `gpt-5` /
+  `claude-opus-5` with that model's constraints and pricing.
 - **Retired models stay in the catalog.** The catalog is append-only:
   retired offerings remain (with `Life.Retires` in the past and a
   `Deprecated:` marker on their ID constants) so historical usage stays

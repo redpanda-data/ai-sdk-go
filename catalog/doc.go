@@ -15,8 +15,8 @@
 // Package catalog is the model-metadata read model shared by every
 // provider: identity, capabilities, constraints, modalities, pricing,
 // and lifecycle for each offering, plus the derivations a discovery
-// surface needs (current vs previous generation, successor, retirement,
-// price tier).
+// surface needs (current vs previous generation, replacement,
+// retirement, price tier).
 //
 // # Shape
 //
@@ -64,8 +64,8 @@
 // read time: adding a model must never require editing or re-checking
 // existing entries. Generation ordering derives from Facts.Released;
 // succession from series order (Successor) unless the provider announced
-// a replacement (Lifecycle.ReplacedBy); retirement and deprecation from
-// their dates. Clock-dependent classification lives exclusively on View
+// a replacement (Lifecycle.ReplacedBy) — Replacement applies that
+// precedence; retirement and deprecation from their dates. Clock-dependent classification lives exclusively on View
 // (Catalog.At / Catalog.Now), so derived artifacts built from Catalog
 // alone are reproducible.
 //

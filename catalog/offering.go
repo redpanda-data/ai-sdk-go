@@ -18,8 +18,14 @@ import "github.com/redpanda-data/ai-sdk-go/pricing"
 
 // Offering is one resolved, validated catalog row. It is produced by New,
 // never authored directly: the embedded Entry has been normalized
-// (default Label, explicit Modalities, StageGA default) and the facts
-// reference has been resolved against the Registry.
+// (default DisplayName, explicit Modalities, StageGA default) and the
+// facts reference has been resolved against the Registry.
+//
+// Offering is a Go read model, not a wire type: it carries no JSON tags,
+// and its provider and facts are unexported. To serve catalog data over
+// the wire, encode it with the catalog/snapshot package, whose DTOs are
+// the versioned contract; json.Marshal on an Offering yields Go field
+// names and RFC 3339 timestamps and drops the facts.
 type Offering struct {
 	Entry
 

@@ -90,7 +90,8 @@ Exported ID constant (greppable), capabilities, constraints, modalities,
 ## Step 3 — Snapshot
 
 `task catalog:snapshot` regenerates the committed `catalog/snapshot.json`
-(CI fails on a stale file via `task catalog:check`). **The snapshot diff is
+(a stale file fails `TestCommittedSnapshotIsFresh` under `task test:unit`; `task catalog:check`
+is the CLI form). **The snapshot diff is
 the review surface** — confirm it shows exactly what you meant to change and
 nothing else.
 

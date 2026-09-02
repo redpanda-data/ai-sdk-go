@@ -79,7 +79,7 @@ type Lifecycle struct {
 
 	// ReplacedBy is the provider's announced recommended replacement,
 	// as an offering ID in the same catalog. New validates it resolves.
-	// Derived succession (Successor) is computed from Series ordering
-	// and never authored.
+	// Catalog.Replacement returns it when set and falls back to the
+	// derived Successor otherwise; succession itself is never authored.
 	ReplacedBy string
 }

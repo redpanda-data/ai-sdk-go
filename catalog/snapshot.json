@@ -2,177 +2,177 @@
   "schema_version": 1,
   "facts": {
     "amazon/nova-2-lite": {
-      "label": "Amazon Nova 2 Lite",
+      "display_name": "Amazon Nova 2 Lite",
       "description": "Nova 2 Lite is a fast, cost-effective reasoning model for everyday workloads that can process text, images, and videos to generate text.",
       "series": "nova-lite",
       "released": "2025-12-02"
     },
     "anthropic/claude-fable-5": {
-      "label": "Claude Fable 5",
+      "display_name": "Claude Fable 5",
       "description": "Claude Fable 5 is a Mythos-class model from Anthropic, built for autonomous knowledge work and coding.",
       "series": "claude-fable",
       "released": "2026-06-07"
     },
     "anthropic/claude-haiku-4-5": {
-      "label": "Claude Haiku 4.5",
+      "display_name": "Claude Haiku 4.5",
       "description": "Claude Haiku 4.5 is Anthropic’s fastest and most efficient model, delivering near-frontier intelligence at a fraction of the cost and latency of larger Claude models.",
       "series": "claude-haiku",
       "released": "2025-10-15",
       "knowledge": "2025-02-28"
     },
     "anthropic/claude-opus-4-1": {
-      "label": "Claude Opus 4.1",
+      "display_name": "Claude Opus 4.1",
       "description": "Claude Opus 4.1 is an updated version of Anthropic’s flagship model, offering improved performance in coding, reasoning, and agentic tasks.",
       "series": "claude-opus",
       "released": "2025-08-05",
       "knowledge": "2025-03-31"
     },
     "anthropic/claude-opus-4-5": {
-      "label": "Claude Opus 4.5",
+      "display_name": "Claude Opus 4.5",
       "description": "Claude Opus 4.5 is Anthropic’s frontier reasoning model optimized for complex software engineering, agentic workflows, and long-horizon computer use.",
       "series": "claude-opus",
       "released": "2025-11-24",
       "knowledge": "2025-05-31"
     },
     "anthropic/claude-opus-4-6": {
-      "label": "Claude Opus 4.6",
+      "display_name": "Claude Opus 4.6",
       "description": "Opus 4.6 is Anthropic’s strongest model for coding and long-running professional tasks.",
       "series": "claude-opus",
       "released": "2026-02-04",
       "knowledge": "2025-05-31"
     },
     "anthropic/claude-opus-4-7": {
-      "label": "Claude Opus 4.7",
+      "display_name": "Claude Opus 4.7",
       "description": "Opus 4.7 is the next generation of Anthropic's Opus family, built for long-running, asynchronous agents.",
       "series": "claude-opus",
       "released": "2026-04-14",
       "knowledge": "2026-01-31"
     },
     "anthropic/claude-opus-4-8": {
-      "label": "Claude Opus 4.8",
+      "display_name": "Claude Opus 4.8",
       "description": "Claude Opus 4.8 is Anthropic's most capable generally available model in the Opus family.",
       "series": "claude-opus",
       "released": "2026-05-28",
       "knowledge": "2026-01-31"
     },
     "anthropic/claude-opus-5": {
-      "label": "Claude Opus 5",
+      "display_name": "Claude Opus 5",
       "description": "Claude Opus 5 is Anthropic’s flagship model for demanding reasoning, coding, and long-horizon agentic work.",
       "series": "claude-opus",
       "released": "2026-07-24",
       "knowledge": "2026-05-31"
     },
     "anthropic/claude-sonnet-4-5": {
-      "label": "Claude Sonnet 4.5",
+      "display_name": "Claude Sonnet 4.5",
       "description": "Claude Sonnet 4.5 is Anthropic’s most advanced Sonnet model to date, optimized for real-world agents and coding workflows.",
       "series": "claude-sonnet",
       "released": "2025-09-29",
       "knowledge": "2025-01-31"
     },
     "anthropic/claude-sonnet-4-6": {
-      "label": "Claude Sonnet 4.6",
+      "display_name": "Claude Sonnet 4.6",
       "description": "Sonnet 4.6 is Anthropic's most capable Sonnet-class model yet, with frontier performance across coding, agents, and professional work.",
       "series": "claude-sonnet",
       "released": "2026-02-17",
       "knowledge": "2025-08-31"
     },
     "anthropic/claude-sonnet-5": {
-      "label": "Claude Sonnet 5",
+      "display_name": "Claude Sonnet 5",
       "description": "Sonnet 5 is Anthropic's most capable Sonnet-class model, with frontier performance across coding, agents, and professional work.",
       "series": "claude-sonnet",
       "released": "2026-06-29",
       "knowledge": "2026-01-31"
     },
     "google/gemini-2.5-flash": {
-      "label": "Gemini 2.5 Flash",
+      "display_name": "Gemini 2.5 Flash",
       "description": "Gemini 2.5 Flash is Google's state-of-the-art workhorse model, specifically designed for advanced reasoning, coding, mathematics, and scientific tasks.",
       "series": "gemini-flash",
       "released": "2025-06-17",
       "knowledge": "2025-01-31"
     },
     "google/gemini-2.5-flash-lite": {
-      "label": "Gemini 2.5 Flash-Lite",
+      "display_name": "Gemini 2.5 Flash-Lite",
       "description": "Gemini 2.5 Flash-Lite is a lightweight reasoning model in the Gemini 2.5 family, optimized for ultra-low latency and cost efficiency.",
       "series": "gemini-flash-lite",
       "released": "2025-07-22",
       "knowledge": "2025-01-31"
     },
     "google/gemini-2.5-pro": {
-      "label": "Gemini 2.5 Pro",
+      "display_name": "Gemini 2.5 Pro",
       "description": "Gemini 2.5 Pro is Google’s state-of-the-art AI model designed for advanced reasoning, coding, mathematics, and scientific tasks.",
       "series": "gemini-pro",
       "released": "2025-06-17",
       "knowledge": "2025-01-31"
     },
     "google/gemini-3-flash-preview": {
-      "label": "Gemini 3 Flash Preview",
+      "display_name": "Gemini 3 Flash Preview",
       "description": "Gemini 3 Flash Preview is a high speed, high value thinking model designed for agentic workflows, multi turn chat, and coding assistance.",
       "series": "gemini-flash",
       "released": "2025-12-17",
       "knowledge": "2025-01-31"
     },
     "google/gemini-3-pro-preview": {
-      "label": "Gemini 3 Pro Preview",
+      "display_name": "Gemini 3 Pro Preview",
       "series": "gemini-pro",
       "released": "2025-11-18",
       "knowledge": "2025-01-31"
     },
     "google/gemini-3.1-pro-preview": {
-      "label": "Gemini 3.1 Pro Preview",
+      "display_name": "Gemini 3.1 Pro Preview",
       "description": "Gemini 3.1 Pro Preview is Google’s frontier reasoning model, delivering enhanced software engineering performance, improved agentic reliability, and more efficient token usage across complex workflows.",
       "series": "gemini-pro",
       "released": "2026-02-19",
       "knowledge": "2025-01-31"
     },
     "google/gemini-3.5-flash": {
-      "label": "Gemini 3.5 Flash",
+      "display_name": "Gemini 3.5 Flash",
       "description": "Gemini 3.5 Flash is Google's high-efficiency multimodal model, bringing near-Pro level coding and reasoning at Flash-tier cost and speed.",
       "series": "gemini-flash",
       "released": "2026-05-19",
       "knowledge": "2025-01-31"
     },
     "google/gemini-3.5-flash-lite": {
-      "label": "Gemini 3.5 Flash-Lite",
+      "display_name": "Gemini 3.5 Flash-Lite",
       "description": "Gemini 3.5 Flash Lite is a high-efficiency model from Google with upgraded agentic capabilities. It is suited for subagents that execute focused tasks within complex, multi-agent workflows.",
       "series": "gemini-flash-lite",
       "released": "2026-07-21",
       "knowledge": "2026-03-31"
     },
     "google/gemini-3.6-flash": {
-      "label": "Gemini 3.6 Flash",
+      "display_name": "Gemini 3.6 Flash",
       "description": "Gemini 3.6 Flash is a high-efficiency model from Google for coding, agentic workflows, and web and app development.",
       "series": "gemini-flash",
       "released": "2026-07-21",
       "knowledge": "2026-03-31"
     },
     "google/gemini-3.7-flash": {
-      "label": "Gemini 3.7 Flash",
+      "display_name": "Gemini 3.7 Flash",
       "description": "Gemini 3.7 Flash is a multimodal model from Google for fast agentic workflows, coding, and complex multi-step reasoning.",
       "series": "gemini-flash",
       "released": "2026-08-13"
     },
     "google/gemma-4-26b-a4b": {
-      "label": "Gemma 4 26B A4B",
+      "display_name": "Gemma 4 26B A4B",
       "description": "Gemma 4 26B A4B IT is an instruction-tuned Mixture-of-Experts (MoE) model from Google DeepMind.",
       "series": "gemma-26b-a4b",
       "released": "2026-04-02",
       "open_weights": true
     },
     "google/gemma-4-31b": {
-      "label": "Gemma 4 31B",
+      "display_name": "Gemma 4 31B",
       "description": "Gemma 4 31B Instruct is Google DeepMind's 30.7B dense multimodal model supporting text and image input with text output.",
       "series": "gemma-31b",
       "released": "2026-04-02",
       "open_weights": true
     },
     "google/gemma-4-e2b": {
-      "label": "Gemma 4 E2B",
+      "display_name": "Gemma 4 E2B",
       "series": "gemma-e2b",
       "released": "2026-04-02",
       "open_weights": true
     },
     "mistral/mistral-large-3": {
-      "label": "Mistral Large 3",
+      "display_name": "Mistral Large 3",
       "description": "Mistral Large 3 2512 is Mistral’s most capable model to date, featuring a sparse mixture-of-experts architecture with 41B active parameters (675B total), and released under the Apache 2.0 license.",
       "series": "mistral-large",
       "released": "2025-12-02",
@@ -180,174 +180,174 @@
       "open_weights": true
     },
     "openai/gpt-3.5-turbo": {
-      "label": "GPT-3.5 Turbo",
+      "display_name": "GPT-3.5 Turbo",
       "description": "GPT-3.5 Turbo is OpenAI's fastest model. It can understand and generate natural language or code, and is optimized for chat and traditional completion tasks.",
       "series": "gpt",
       "released": "2023-03-01",
       "knowledge": "2021-09-30"
     },
     "openai/gpt-4-turbo": {
-      "label": "GPT-4 Turbo",
+      "display_name": "GPT-4 Turbo",
       "description": "The latest GPT-4 Turbo model with vision capabilities. Vision requests can now use JSON mode and function calling.",
       "series": "gpt",
       "released": "2023-11-06",
       "knowledge": "2023-12-31"
     },
     "openai/gpt-4.1": {
-      "label": "GPT-4.1",
+      "display_name": "GPT-4.1",
       "description": "GPT-4.1 is a flagship large language model optimized for advanced instruction following, real-world software engineering, and long-context reasoning.",
       "series": "gpt",
       "released": "2025-04-14",
       "knowledge": "2024-04-30"
     },
     "openai/gpt-4.1-mini": {
-      "label": "GPT-4.1 Mini",
+      "display_name": "GPT-4.1 Mini",
       "description": "GPT-4.1 Mini is a mid-sized model delivering performance competitive with GPT-4o at substantially lower latency and cost.",
       "series": "gpt-mini",
       "released": "2025-04-14",
       "knowledge": "2024-04-30"
     },
     "openai/gpt-4o": {
-      "label": "GPT-4o",
+      "display_name": "GPT-4o",
       "description": "GPT-4o (\"o\" for \"omni\") is OpenAI's latest AI model, supporting both text and image inputs with text outputs.",
       "series": "gpt",
       "released": "2024-05-13",
       "knowledge": "2023-09-30"
     },
     "openai/gpt-4o-mini": {
-      "label": "GPT-4o Mini",
+      "display_name": "GPT-4o Mini",
       "description": "GPT-4o mini is OpenAI's newest model after [GPT-4 Omni](/models/openai/gpt-4o), supporting both text and image inputs with text outputs.",
       "series": "gpt-mini",
       "released": "2024-07-18",
       "knowledge": "2023-09-30"
     },
     "openai/gpt-5": {
-      "label": "GPT-5",
+      "display_name": "GPT-5",
       "description": "GPT-5 is OpenAI’s most advanced model, offering major improvements in reasoning, code quality, and user experience.",
       "series": "gpt",
       "released": "2025-08-07",
       "knowledge": "2024-09-30"
     },
     "openai/gpt-5-mini": {
-      "label": "GPT-5 Mini",
+      "display_name": "GPT-5 Mini",
       "description": "GPT-5 Mini is a compact version of GPT-5, designed to handle lighter-weight reasoning tasks. It provides the same instruction-following and safety-tuning benefits as GPT-5, but with reduced latency and cost.",
       "series": "gpt-mini",
       "released": "2025-08-07",
       "knowledge": "2024-05-31"
     },
     "openai/gpt-5-nano": {
-      "label": "GPT-5 Nano",
+      "display_name": "GPT-5 Nano",
       "description": "GPT-5-Nano is the smallest and fastest variant in the GPT-5 system, optimized for developer tools, rapid interactions, and ultra-low latency environments.",
       "series": "gpt-nano",
       "released": "2025-08-07",
       "knowledge": "2024-05-31"
     },
     "openai/gpt-5.1": {
-      "label": "GPT-5.1",
+      "display_name": "GPT-5.1",
       "description": "GPT-5.1 is the latest frontier-grade model in the GPT-5 series, offering stronger general-purpose reasoning, improved instruction adherence, and a more natural conversational style compared to GPT-5.",
       "series": "gpt",
       "released": "2025-11-13",
       "knowledge": "2024-09-30"
     },
     "openai/gpt-5.2": {
-      "label": "GPT-5.2",
+      "display_name": "GPT-5.2",
       "description": "GPT-5.2 is the latest frontier-grade model in the GPT-5 series, offering stronger agentic and long context performance compared to GPT-5.1.",
       "series": "gpt",
       "released": "2025-12-11",
       "knowledge": "2025-08-31"
     },
     "openai/gpt-5.2-chat-latest": {
-      "label": "GPT-5.2 Instant",
+      "display_name": "GPT-5.2 Instant",
       "description": "GPT-5.2 Chat (AKA Instant) is the fast, lightweight member of the 5.2 family, optimized for low-latency chat while retaining strong general intelligence.",
       "series": "gpt-chat",
       "released": "2025-12-11",
       "knowledge": "2025-08-31"
     },
     "openai/gpt-5.2-pro": {
-      "label": "GPT-5.2 Pro",
+      "display_name": "GPT-5.2 Pro",
       "description": "GPT-5.2 Pro is OpenAI’s most advanced model, offering major improvements in agentic coding and long context performance over GPT-5 Pro.",
       "series": "gpt-pro",
       "released": "2025-12-11",
       "knowledge": "2025-08-31"
     },
     "openai/gpt-5.3-chat-latest": {
-      "label": "GPT-5.3 Instant",
+      "display_name": "GPT-5.3 Instant",
       "series": "gpt-chat",
       "released": "2026-03-03",
       "knowledge": "2025-08-31"
     },
     "openai/gpt-5.4": {
-      "label": "GPT-5.4",
+      "display_name": "GPT-5.4",
       "description": "GPT-5.4 is OpenAI’s latest frontier model, unifying the Codex and GPT lines into a single system.",
       "series": "gpt",
       "released": "2026-03-05",
       "knowledge": "2025-08-31"
     },
     "openai/gpt-5.4-mini": {
-      "label": "GPT-5.4 Mini",
+      "display_name": "GPT-5.4 Mini",
       "description": "GPT-5.4 mini brings the core capabilities of GPT-5.4 to a faster, more efficient model optimized for high-throughput workloads.",
       "series": "gpt-mini",
       "released": "2026-03-17",
       "knowledge": "2025-08-31"
     },
     "openai/gpt-5.4-nano": {
-      "label": "GPT-5.4 Nano",
+      "display_name": "GPT-5.4 Nano",
       "description": "GPT-5.4 nano is the most lightweight and cost-efficient variant of the GPT-5.4 family, optimized for speed-critical and high-volume tasks.",
       "series": "gpt-nano",
       "released": "2026-03-17",
       "knowledge": "2025-08-31"
     },
     "openai/gpt-5.5": {
-      "label": "GPT-5.5",
+      "display_name": "GPT-5.5",
       "description": "GPT-5.5 is OpenAI’s frontier model designed for complex professional workloads, building on GPT-5.4 with stronger reasoning, higher reliability, and improved token efficiency on hard tasks.",
       "series": "gpt",
       "released": "2026-04-23",
       "knowledge": "2025-12-01"
     },
     "openai/gpt-5.6-luna": {
-      "label": "GPT-5.6 Luna",
+      "display_name": "GPT-5.6 Luna",
       "description": "GPT-5.6 Luna is a fast, cost-efficient model in OpenAI's GPT-5.6 series.",
       "series": "gpt-nano",
       "released": "2026-07-09",
       "knowledge": "2026-02-16"
     },
     "openai/gpt-5.6-sol": {
-      "label": "GPT-5.6 Sol",
+      "display_name": "GPT-5.6 Sol",
       "description": "GPT-5.6 Sol is the flagship model in OpenAI's GPT-5.6 series.",
       "series": "gpt",
       "released": "2026-07-09",
       "knowledge": "2026-02-16"
     },
     "openai/gpt-5.6-terra": {
-      "label": "GPT-5.6 Terra",
+      "display_name": "GPT-5.6 Terra",
       "description": "GPT-5.6 Terra is a balanced model in OpenAI's GPT-5.6 series, positioned between the flagship Sol tier and the cost-efficient Luna tier.",
       "series": "gpt-mini",
       "released": "2026-07-09",
       "knowledge": "2026-02-16"
     },
     "openai/o1-pro": {
-      "label": "o1-pro",
+      "display_name": "o1-pro",
       "description": "The o1 series of models are trained with reinforcement learning to think before they answer and perform complex reasoning.",
       "series": "gpt-pro",
       "released": "2025-03-19",
       "knowledge": "2023-09-30"
     },
     "openai/o3": {
-      "label": "o3",
+      "display_name": "o3",
       "description": "o3 is a well-rounded and powerful model across domains. It sets a new standard for math, science, coding, and visual reasoning tasks. It also excels at technical writing and instruction-following.",
       "series": "o",
       "released": "2025-04-16",
       "knowledge": "2024-05-31"
     },
     "openai/o3-pro": {
-      "label": "o3-pro",
+      "display_name": "o3-pro",
       "description": "The o-series of models are trained with reinforcement learning to think before they answer and perform complex reasoning.",
       "series": "gpt-pro",
       "released": "2025-06-10",
       "knowledge": "2024-05-31"
     },
     "openai/o4-mini": {
-      "label": "o4-mini",
+      "display_name": "o4-mini",
       "description": "OpenAI o4-mini is a compact reasoning model in the o-series, optimized for fast, cost-efficient performance while retaining strong multimodal and agentic capabilities.",
       "series": "o-mini",
       "released": "2025-04-16",
@@ -361,7 +361,7 @@
         {
           "id": "claude-fable-5",
           "model": "anthropic/claude-fable-5",
-          "label": "Claude Fable 5",
+          "display_name": "Claude Fable 5",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -404,11 +404,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 1000000000,
-                "output_per_million": 5000000000,
-                "cached_input_per_million": 100000000,
-                "cache_creation_5m_per_million": 1250000000,
-                "cache_creation_1h_per_million": 2000000000
+                "input_microcents_per_million": 1000000000,
+                "output_microcents_per_million": 5000000000,
+                "cached_input_microcents_per_million": 100000000,
+                "cache_creation_5m_microcents_per_million": 1250000000,
+                "cache_creation_1h_microcents_per_million": 2000000000
               }
             }
           },
@@ -423,7 +423,7 @@
         {
           "id": "claude-haiku-4-5",
           "model": "anthropic/claude-haiku-4-5",
-          "label": "Claude Haiku 4.5",
+          "display_name": "Claude Haiku 4.5",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -463,11 +463,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 100000000,
-                "output_per_million": 500000000,
-                "cached_input_per_million": 10000000,
-                "cache_creation_5m_per_million": 125000000,
-                "cache_creation_1h_per_million": 200000000
+                "input_microcents_per_million": 100000000,
+                "output_microcents_per_million": 500000000,
+                "cached_input_microcents_per_million": 10000000,
+                "cache_creation_5m_microcents_per_million": 125000000,
+                "cache_creation_1h_microcents_per_million": 200000000
               }
             }
           },
@@ -482,7 +482,7 @@
         {
           "id": "claude-opus-4-1",
           "model": "anthropic/claude-opus-4-1",
-          "label": "Claude Opus 4.1",
+          "display_name": "Claude Opus 4.1",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -522,11 +522,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 1500000000,
-                "output_per_million": 7500000000,
-                "cached_input_per_million": 150000000,
-                "cache_creation_5m_per_million": 1875000000,
-                "cache_creation_1h_per_million": 3000000000
+                "input_microcents_per_million": 1500000000,
+                "output_microcents_per_million": 7500000000,
+                "cached_input_microcents_per_million": 150000000,
+                "cache_creation_5m_microcents_per_million": 1875000000,
+                "cache_creation_1h_microcents_per_million": 3000000000
               }
             }
           },
@@ -539,13 +539,13 @@
           },
           "derived": {
             "price_tier": "high",
-            "successor": "anthropic/claude-opus-4-5"
+            "replacement": "anthropic/claude-opus-4-8"
           }
         },
         {
           "id": "claude-opus-4-5",
           "model": "anthropic/claude-opus-4-5",
-          "label": "Claude Opus 4.5",
+          "display_name": "Claude Opus 4.5",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -592,11 +592,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 500000000,
-                "output_per_million": 2500000000,
-                "cached_input_per_million": 50000000,
-                "cache_creation_5m_per_million": 625000000,
-                "cache_creation_1h_per_million": 1000000000
+                "input_microcents_per_million": 500000000,
+                "output_microcents_per_million": 2500000000,
+                "cached_input_microcents_per_million": 50000000,
+                "cache_creation_5m_microcents_per_million": 625000000,
+                "cache_creation_1h_microcents_per_million": 1000000000
               }
             }
           },
@@ -606,13 +606,13 @@
           },
           "derived": {
             "price_tier": "high",
-            "successor": "anthropic/claude-opus-4-6"
+            "replacement": "anthropic/claude-opus-4-6"
           }
         },
         {
           "id": "claude-opus-4-6",
           "model": "anthropic/claude-opus-4-6",
-          "label": "Claude Opus 4.6",
+          "display_name": "Claude Opus 4.6",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -668,11 +668,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 500000000,
-                "output_per_million": 2500000000,
-                "cached_input_per_million": 50000000,
-                "cache_creation_5m_per_million": 625000000,
-                "cache_creation_1h_per_million": 1000000000
+                "input_microcents_per_million": 500000000,
+                "output_microcents_per_million": 2500000000,
+                "cached_input_microcents_per_million": 50000000,
+                "cache_creation_5m_microcents_per_million": 625000000,
+                "cache_creation_1h_microcents_per_million": 1000000000
               }
             }
           },
@@ -682,13 +682,13 @@
           },
           "derived": {
             "price_tier": "high",
-            "successor": "anthropic/claude-opus-4-7"
+            "replacement": "anthropic/claude-opus-4-7"
           }
         },
         {
           "id": "claude-opus-4-7",
           "model": "anthropic/claude-opus-4-7",
-          "label": "Claude Opus 4.7",
+          "display_name": "Claude Opus 4.7",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -739,11 +739,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 500000000,
-                "output_per_million": 2500000000,
-                "cached_input_per_million": 50000000,
-                "cache_creation_5m_per_million": 625000000,
-                "cache_creation_1h_per_million": 1000000000
+                "input_microcents_per_million": 500000000,
+                "output_microcents_per_million": 2500000000,
+                "cached_input_microcents_per_million": 50000000,
+                "cache_creation_5m_microcents_per_million": 625000000,
+                "cache_creation_1h_microcents_per_million": 1000000000
               }
             }
           },
@@ -753,13 +753,13 @@
           },
           "derived": {
             "price_tier": "high",
-            "successor": "anthropic/claude-opus-4-8"
+            "replacement": "anthropic/claude-opus-4-8"
           }
         },
         {
           "id": "claude-opus-4-8",
           "model": "anthropic/claude-opus-4-8",
-          "label": "Claude Opus 4.8",
+          "display_name": "Claude Opus 4.8",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -814,11 +814,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 500000000,
-                "output_per_million": 2500000000,
-                "cached_input_per_million": 50000000,
-                "cache_creation_5m_per_million": 625000000,
-                "cache_creation_1h_per_million": 1000000000
+                "input_microcents_per_million": 500000000,
+                "output_microcents_per_million": 2500000000,
+                "cached_input_microcents_per_million": 50000000,
+                "cache_creation_5m_microcents_per_million": 625000000,
+                "cache_creation_1h_microcents_per_million": 1000000000
               }
             },
             "overrides": [
@@ -826,11 +826,11 @@
                 "speed": "fast",
                 "rate_card": {
                   "base": {
-                    "input_per_million": 1000000000,
-                    "output_per_million": 5000000000,
-                    "cached_input_per_million": 100000000,
-                    "cache_creation_5m_per_million": 1250000000,
-                    "cache_creation_1h_per_million": 2000000000
+                    "input_microcents_per_million": 1000000000,
+                    "output_microcents_per_million": 5000000000,
+                    "cached_input_microcents_per_million": 100000000,
+                    "cache_creation_5m_microcents_per_million": 1250000000,
+                    "cache_creation_1h_microcents_per_million": 2000000000
                   }
                 }
               }
@@ -842,13 +842,13 @@
           },
           "derived": {
             "price_tier": "high",
-            "successor": "anthropic/claude-opus-5"
+            "replacement": "anthropic/claude-opus-5"
           }
         },
         {
           "id": "claude-opus-5",
           "model": "anthropic/claude-opus-5",
-          "label": "Claude Opus 5",
+          "display_name": "Claude Opus 5",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -896,11 +896,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 500000000,
-                "output_per_million": 2500000000,
-                "cached_input_per_million": 50000000,
-                "cache_creation_5m_per_million": 625000000,
-                "cache_creation_1h_per_million": 1000000000
+                "input_microcents_per_million": 500000000,
+                "output_microcents_per_million": 2500000000,
+                "cached_input_microcents_per_million": 50000000,
+                "cache_creation_5m_microcents_per_million": 625000000,
+                "cache_creation_1h_microcents_per_million": 1000000000
               }
             },
             "overrides": [
@@ -908,11 +908,11 @@
                 "speed": "fast",
                 "rate_card": {
                   "base": {
-                    "input_per_million": 1000000000,
-                    "output_per_million": 5000000000,
-                    "cached_input_per_million": 100000000,
-                    "cache_creation_5m_per_million": 1250000000,
-                    "cache_creation_1h_per_million": 2000000000
+                    "input_microcents_per_million": 1000000000,
+                    "output_microcents_per_million": 5000000000,
+                    "cached_input_microcents_per_million": 100000000,
+                    "cache_creation_5m_microcents_per_million": 1250000000,
+                    "cache_creation_1h_microcents_per_million": 2000000000
                   }
                 }
               }
@@ -929,7 +929,7 @@
         {
           "id": "claude-sonnet-4-5",
           "model": "anthropic/claude-sonnet-4-5",
-          "label": "Claude Sonnet 4.5",
+          "display_name": "Claude Sonnet 4.5",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -969,11 +969,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 300000000,
-                "output_per_million": 1500000000,
-                "cached_input_per_million": 30000000,
-                "cache_creation_5m_per_million": 375000000,
-                "cache_creation_1h_per_million": 600000000
+                "input_microcents_per_million": 300000000,
+                "output_microcents_per_million": 1500000000,
+                "cached_input_microcents_per_million": 30000000,
+                "cache_creation_5m_microcents_per_million": 375000000,
+                "cache_creation_1h_microcents_per_million": 600000000
               }
             }
           },
@@ -983,13 +983,13 @@
           },
           "derived": {
             "price_tier": "medium",
-            "successor": "anthropic/claude-sonnet-4-6"
+            "replacement": "anthropic/claude-sonnet-4-6"
           }
         },
         {
           "id": "claude-sonnet-4-6",
           "model": "anthropic/claude-sonnet-4-6",
-          "label": "Claude Sonnet 4.6",
+          "display_name": "Claude Sonnet 4.6",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -1039,11 +1039,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 300000000,
-                "output_per_million": 1500000000,
-                "cached_input_per_million": 30000000,
-                "cache_creation_5m_per_million": 375000000,
-                "cache_creation_1h_per_million": 600000000
+                "input_microcents_per_million": 300000000,
+                "output_microcents_per_million": 1500000000,
+                "cached_input_microcents_per_million": 30000000,
+                "cache_creation_5m_microcents_per_million": 375000000,
+                "cache_creation_1h_microcents_per_million": 600000000
               }
             }
           },
@@ -1053,13 +1053,13 @@
           },
           "derived": {
             "price_tier": "medium",
-            "successor": "anthropic/claude-sonnet-5"
+            "replacement": "anthropic/claude-sonnet-5"
           }
         },
         {
           "id": "claude-sonnet-5",
           "model": "anthropic/claude-sonnet-5",
-          "label": "Claude Sonnet 5",
+          "display_name": "Claude Sonnet 5",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -1109,11 +1109,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 200000000,
-                "output_per_million": 1000000000,
-                "cached_input_per_million": 20000000,
-                "cache_creation_5m_per_million": 250000000,
-                "cache_creation_1h_per_million": 400000000
+                "input_microcents_per_million": 200000000,
+                "output_microcents_per_million": 1000000000,
+                "cached_input_microcents_per_million": 20000000,
+                "cache_creation_5m_microcents_per_million": 250000000,
+                "cache_creation_1h_microcents_per_million": 400000000
               }
             }
           },
@@ -1133,7 +1133,7 @@
         {
           "id": "au.anthropic.claude-haiku-4-5-20251001-v1:0",
           "model": "anthropic/claude-haiku-4-5",
-          "label": "Claude Haiku 4.5 (AU)",
+          "display_name": "Claude Haiku 4.5 (AU)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -1175,11 +1175,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 110000000,
-                "output_per_million": 550000000,
-                "cached_input_per_million": 11000000,
-                "cache_creation_5m_per_million": 137500000,
-                "cache_creation_1h_per_million": 220000000
+                "input_microcents_per_million": 110000000,
+                "output_microcents_per_million": 550000000,
+                "cached_input_microcents_per_million": 11000000,
+                "cache_creation_5m_microcents_per_million": 137500000,
+                "cache_creation_1h_microcents_per_million": 220000000
               }
             }
           },
@@ -1199,7 +1199,7 @@
         {
           "id": "au.anthropic.claude-opus-4-6-v1",
           "model": "anthropic/claude-opus-4-6",
-          "label": "Claude Opus 4.6 (AU)",
+          "display_name": "Claude Opus 4.6 (AU)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -1248,11 +1248,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 550000000,
-                "output_per_million": 2750000000,
-                "cached_input_per_million": 55000000,
-                "cache_creation_5m_per_million": 687500000,
-                "cache_creation_1h_per_million": 1100000000
+                "input_microcents_per_million": 550000000,
+                "output_microcents_per_million": 2750000000,
+                "cached_input_microcents_per_million": 55000000,
+                "cache_creation_5m_microcents_per_million": 687500000,
+                "cache_creation_1h_microcents_per_million": 1100000000
               }
             }
           },
@@ -1267,13 +1267,13 @@
           ],
           "derived": {
             "price_tier": "high",
-            "successor": "anthropic/claude-opus-4-7"
+            "replacement": "anthropic/claude-opus-4-7"
           }
         },
         {
           "id": "au.anthropic.claude-opus-5",
           "model": "anthropic/claude-opus-5",
-          "label": "Claude Opus 5 (AU)",
+          "display_name": "Claude Opus 5 (AU)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -1316,11 +1316,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 550000000,
-                "output_per_million": 2750000000,
-                "cached_input_per_million": 55000000,
-                "cache_creation_5m_per_million": 687500000,
-                "cache_creation_1h_per_million": 1100000000
+                "input_microcents_per_million": 550000000,
+                "output_microcents_per_million": 2750000000,
+                "cached_input_microcents_per_million": 55000000,
+                "cache_creation_5m_microcents_per_million": 687500000,
+                "cache_creation_1h_microcents_per_million": 1100000000
               }
             }
           },
@@ -1340,7 +1340,7 @@
         {
           "id": "au.anthropic.claude-sonnet-4-5-20250929-v1:0",
           "model": "anthropic/claude-sonnet-4-5",
-          "label": "Claude Sonnet 4.5 (AU)",
+          "display_name": "Claude Sonnet 4.5 (AU)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -1382,11 +1382,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 330000000,
-                "output_per_million": 1650000000,
-                "cached_input_per_million": 33000000,
-                "cache_creation_5m_per_million": 412500000,
-                "cache_creation_1h_per_million": 660000000
+                "input_microcents_per_million": 330000000,
+                "output_microcents_per_million": 1650000000,
+                "cached_input_microcents_per_million": 33000000,
+                "cache_creation_5m_microcents_per_million": 412500000,
+                "cache_creation_1h_microcents_per_million": 660000000
               }
             }
           },
@@ -1401,13 +1401,13 @@
           ],
           "derived": {
             "price_tier": "medium",
-            "successor": "anthropic/claude-sonnet-4-6"
+            "replacement": "anthropic/claude-sonnet-4-6"
           }
         },
         {
           "id": "au.anthropic.claude-sonnet-4-6",
           "model": "anthropic/claude-sonnet-4-6",
-          "label": "Claude Sonnet 4.6 (AU)",
+          "display_name": "Claude Sonnet 4.6 (AU)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -1455,11 +1455,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 330000000,
-                "output_per_million": 1650000000,
-                "cached_input_per_million": 33000000,
-                "cache_creation_5m_per_million": 412500000,
-                "cache_creation_1h_per_million": 660000000
+                "input_microcents_per_million": 330000000,
+                "output_microcents_per_million": 1650000000,
+                "cached_input_microcents_per_million": 33000000,
+                "cache_creation_5m_microcents_per_million": 412500000,
+                "cache_creation_1h_microcents_per_million": 660000000
               }
             }
           },
@@ -1474,13 +1474,13 @@
           ],
           "derived": {
             "price_tier": "medium",
-            "successor": "anthropic/claude-sonnet-5"
+            "replacement": "anthropic/claude-sonnet-5"
           }
         },
         {
           "id": "eu.amazon.nova-2-lite-v1:0",
           "model": "amazon/nova-2-lite",
-          "label": "Amazon Nova 2 Lite (EU)",
+          "display_name": "Amazon Nova 2 Lite (EU)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -1521,9 +1521,9 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 33000000,
-                "output_per_million": 275000000,
-                "cached_input_per_million": 8250000
+                "input_microcents_per_million": 33000000,
+                "output_microcents_per_million": 275000000,
+                "cached_input_microcents_per_million": 8250000
               }
             }
           },
@@ -1543,7 +1543,7 @@
         {
           "id": "eu.anthropic.claude-fable-5",
           "model": "anthropic/claude-fable-5",
-          "label": "Claude Fable 5 (EU)",
+          "display_name": "Claude Fable 5 (EU)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -1586,11 +1586,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 1100000000,
-                "output_per_million": 5500000000,
-                "cached_input_per_million": 110000000,
-                "cache_creation_5m_per_million": 1375000000,
-                "cache_creation_1h_per_million": 2200000000
+                "input_microcents_per_million": 1100000000,
+                "output_microcents_per_million": 5500000000,
+                "cached_input_microcents_per_million": 110000000,
+                "cache_creation_5m_microcents_per_million": 1375000000,
+                "cache_creation_1h_microcents_per_million": 2200000000
               }
             }
           },
@@ -1614,7 +1614,7 @@
         {
           "id": "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
           "model": "anthropic/claude-haiku-4-5",
-          "label": "Claude Haiku 4.5 (EU)",
+          "display_name": "Claude Haiku 4.5 (EU)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -1656,11 +1656,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 110000000,
-                "output_per_million": 550000000,
-                "cached_input_per_million": 11000000,
-                "cache_creation_5m_per_million": 137500000,
-                "cache_creation_1h_per_million": 220000000
+                "input_microcents_per_million": 110000000,
+                "output_microcents_per_million": 550000000,
+                "cached_input_microcents_per_million": 11000000,
+                "cache_creation_5m_microcents_per_million": 137500000,
+                "cache_creation_1h_microcents_per_million": 220000000
               }
             }
           },
@@ -1680,7 +1680,7 @@
         {
           "id": "eu.anthropic.claude-opus-4-5-20251101-v1:0",
           "model": "anthropic/claude-opus-4-5",
-          "label": "Claude Opus 4.5 (EU)",
+          "display_name": "Claude Opus 4.5 (EU)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -1722,11 +1722,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 550000000,
-                "output_per_million": 2750000000,
-                "cached_input_per_million": 55000000,
-                "cache_creation_5m_per_million": 687500000,
-                "cache_creation_1h_per_million": 1100000000
+                "input_microcents_per_million": 550000000,
+                "output_microcents_per_million": 2750000000,
+                "cached_input_microcents_per_million": 55000000,
+                "cache_creation_5m_microcents_per_million": 687500000,
+                "cache_creation_1h_microcents_per_million": 1100000000
               }
             }
           },
@@ -1741,13 +1741,13 @@
           ],
           "derived": {
             "price_tier": "high",
-            "successor": "anthropic/claude-opus-4-6"
+            "replacement": "anthropic/claude-opus-4-6"
           }
         },
         {
           "id": "eu.anthropic.claude-opus-4-6-v1",
           "model": "anthropic/claude-opus-4-6",
-          "label": "Claude Opus 4.6 (EU)",
+          "display_name": "Claude Opus 4.6 (EU)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -1796,11 +1796,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 550000000,
-                "output_per_million": 2750000000,
-                "cached_input_per_million": 55000000,
-                "cache_creation_5m_per_million": 687500000,
-                "cache_creation_1h_per_million": 1100000000
+                "input_microcents_per_million": 550000000,
+                "output_microcents_per_million": 2750000000,
+                "cached_input_microcents_per_million": 55000000,
+                "cache_creation_5m_microcents_per_million": 687500000,
+                "cache_creation_1h_microcents_per_million": 1100000000
               }
             }
           },
@@ -1815,13 +1815,13 @@
           ],
           "derived": {
             "price_tier": "high",
-            "successor": "anthropic/claude-opus-4-7"
+            "replacement": "anthropic/claude-opus-4-7"
           }
         },
         {
           "id": "eu.anthropic.claude-opus-4-7",
           "model": "anthropic/claude-opus-4-7",
-          "label": "Claude Opus 4.7 (EU)",
+          "display_name": "Claude Opus 4.7 (EU)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -1870,11 +1870,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 550000000,
-                "output_per_million": 2750000000,
-                "cached_input_per_million": 55000000,
-                "cache_creation_5m_per_million": 687500000,
-                "cache_creation_1h_per_million": 1100000000
+                "input_microcents_per_million": 550000000,
+                "output_microcents_per_million": 2750000000,
+                "cached_input_microcents_per_million": 55000000,
+                "cache_creation_5m_microcents_per_million": 687500000,
+                "cache_creation_1h_microcents_per_million": 1100000000
               }
             }
           },
@@ -1889,13 +1889,13 @@
           ],
           "derived": {
             "price_tier": "high",
-            "successor": "anthropic/claude-opus-4-8"
+            "replacement": "anthropic/claude-opus-4-8"
           }
         },
         {
           "id": "eu.anthropic.claude-opus-4-8",
           "model": "anthropic/claude-opus-4-8",
-          "label": "Claude Opus 4.8 (EU)",
+          "display_name": "Claude Opus 4.8 (EU)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -1944,11 +1944,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 550000000,
-                "output_per_million": 2750000000,
-                "cached_input_per_million": 55000000,
-                "cache_creation_5m_per_million": 687500000,
-                "cache_creation_1h_per_million": 1100000000
+                "input_microcents_per_million": 550000000,
+                "output_microcents_per_million": 2750000000,
+                "cached_input_microcents_per_million": 55000000,
+                "cache_creation_5m_microcents_per_million": 687500000,
+                "cache_creation_1h_microcents_per_million": 1100000000
               }
             }
           },
@@ -1963,13 +1963,13 @@
           ],
           "derived": {
             "price_tier": "high",
-            "successor": "anthropic/claude-opus-5"
+            "replacement": "anthropic/claude-opus-5"
           }
         },
         {
           "id": "eu.anthropic.claude-opus-5",
           "model": "anthropic/claude-opus-5",
-          "label": "Claude Opus 5 (EU)",
+          "display_name": "Claude Opus 5 (EU)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -2012,11 +2012,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 550000000,
-                "output_per_million": 2750000000,
-                "cached_input_per_million": 55000000,
-                "cache_creation_5m_per_million": 687500000,
-                "cache_creation_1h_per_million": 1100000000
+                "input_microcents_per_million": 550000000,
+                "output_microcents_per_million": 2750000000,
+                "cached_input_microcents_per_million": 55000000,
+                "cache_creation_5m_microcents_per_million": 687500000,
+                "cache_creation_1h_microcents_per_million": 1100000000
               }
             }
           },
@@ -2036,7 +2036,7 @@
         {
           "id": "eu.anthropic.claude-sonnet-4-5-20250929-v1:0",
           "model": "anthropic/claude-sonnet-4-5",
-          "label": "Claude Sonnet 4.5 (EU)",
+          "display_name": "Claude Sonnet 4.5 (EU)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -2078,11 +2078,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 330000000,
-                "output_per_million": 1650000000,
-                "cached_input_per_million": 33000000,
-                "cache_creation_5m_per_million": 412500000,
-                "cache_creation_1h_per_million": 660000000
+                "input_microcents_per_million": 330000000,
+                "output_microcents_per_million": 1650000000,
+                "cached_input_microcents_per_million": 33000000,
+                "cache_creation_5m_microcents_per_million": 412500000,
+                "cache_creation_1h_microcents_per_million": 660000000
               }
             }
           },
@@ -2097,13 +2097,13 @@
           ],
           "derived": {
             "price_tier": "medium",
-            "successor": "anthropic/claude-sonnet-4-6"
+            "replacement": "anthropic/claude-sonnet-4-6"
           }
         },
         {
           "id": "eu.anthropic.claude-sonnet-4-6",
           "model": "anthropic/claude-sonnet-4-6",
-          "label": "Claude Sonnet 4.6 (EU)",
+          "display_name": "Claude Sonnet 4.6 (EU)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -2151,11 +2151,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 330000000,
-                "output_per_million": 1650000000,
-                "cached_input_per_million": 33000000,
-                "cache_creation_5m_per_million": 412500000,
-                "cache_creation_1h_per_million": 660000000
+                "input_microcents_per_million": 330000000,
+                "output_microcents_per_million": 1650000000,
+                "cached_input_microcents_per_million": 33000000,
+                "cache_creation_5m_microcents_per_million": 412500000,
+                "cache_creation_1h_microcents_per_million": 660000000
               }
             }
           },
@@ -2170,13 +2170,13 @@
           ],
           "derived": {
             "price_tier": "medium",
-            "successor": "anthropic/claude-sonnet-5"
+            "replacement": "anthropic/claude-sonnet-5"
           }
         },
         {
           "id": "global.amazon.nova-2-lite-v1:0",
           "model": "amazon/nova-2-lite",
-          "label": "Amazon Nova 2 Lite (Global)",
+          "display_name": "Amazon Nova 2 Lite (Global)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -2217,9 +2217,9 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 30000000,
-                "output_per_million": 250000000,
-                "cached_input_per_million": 7500000
+                "input_microcents_per_million": 30000000,
+                "output_microcents_per_million": 250000000,
+                "cached_input_microcents_per_million": 7500000
               }
             }
           },
@@ -2239,7 +2239,7 @@
         {
           "id": "global.anthropic.claude-fable-5",
           "model": "anthropic/claude-fable-5",
-          "label": "Claude Fable 5 (Global)",
+          "display_name": "Claude Fable 5 (Global)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -2282,11 +2282,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 1000000000,
-                "output_per_million": 5000000000,
-                "cached_input_per_million": 100000000,
-                "cache_creation_5m_per_million": 1250000000,
-                "cache_creation_1h_per_million": 2000000000
+                "input_microcents_per_million": 1000000000,
+                "output_microcents_per_million": 5000000000,
+                "cached_input_microcents_per_million": 100000000,
+                "cache_creation_5m_microcents_per_million": 1250000000,
+                "cache_creation_1h_microcents_per_million": 2000000000
               }
             }
           },
@@ -2310,7 +2310,7 @@
         {
           "id": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
           "model": "anthropic/claude-haiku-4-5",
-          "label": "Claude Haiku 4.5 (Global)",
+          "display_name": "Claude Haiku 4.5 (Global)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -2352,11 +2352,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 100000000,
-                "output_per_million": 500000000,
-                "cached_input_per_million": 10000000,
-                "cache_creation_5m_per_million": 125000000,
-                "cache_creation_1h_per_million": 200000000
+                "input_microcents_per_million": 100000000,
+                "output_microcents_per_million": 500000000,
+                "cached_input_microcents_per_million": 10000000,
+                "cache_creation_5m_microcents_per_million": 125000000,
+                "cache_creation_1h_microcents_per_million": 200000000
               }
             }
           },
@@ -2376,7 +2376,7 @@
         {
           "id": "global.anthropic.claude-opus-4-5-20251101-v1:0",
           "model": "anthropic/claude-opus-4-5",
-          "label": "Claude Opus 4.5 (Global)",
+          "display_name": "Claude Opus 4.5 (Global)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -2418,11 +2418,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 500000000,
-                "output_per_million": 2500000000,
-                "cached_input_per_million": 50000000,
-                "cache_creation_5m_per_million": 625000000,
-                "cache_creation_1h_per_million": 1000000000
+                "input_microcents_per_million": 500000000,
+                "output_microcents_per_million": 2500000000,
+                "cached_input_microcents_per_million": 50000000,
+                "cache_creation_5m_microcents_per_million": 625000000,
+                "cache_creation_1h_microcents_per_million": 1000000000
               }
             }
           },
@@ -2437,13 +2437,13 @@
           ],
           "derived": {
             "price_tier": "high",
-            "successor": "anthropic/claude-opus-4-6"
+            "replacement": "anthropic/claude-opus-4-6"
           }
         },
         {
           "id": "global.anthropic.claude-opus-4-6-v1",
           "model": "anthropic/claude-opus-4-6",
-          "label": "Claude Opus 4.6 (Global)",
+          "display_name": "Claude Opus 4.6 (Global)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -2492,11 +2492,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 500000000,
-                "output_per_million": 2500000000,
-                "cached_input_per_million": 50000000,
-                "cache_creation_5m_per_million": 625000000,
-                "cache_creation_1h_per_million": 1000000000
+                "input_microcents_per_million": 500000000,
+                "output_microcents_per_million": 2500000000,
+                "cached_input_microcents_per_million": 50000000,
+                "cache_creation_5m_microcents_per_million": 625000000,
+                "cache_creation_1h_microcents_per_million": 1000000000
               }
             }
           },
@@ -2511,13 +2511,13 @@
           ],
           "derived": {
             "price_tier": "high",
-            "successor": "anthropic/claude-opus-4-7"
+            "replacement": "anthropic/claude-opus-4-7"
           }
         },
         {
           "id": "global.anthropic.claude-opus-4-7",
           "model": "anthropic/claude-opus-4-7",
-          "label": "Claude Opus 4.7 (Global)",
+          "display_name": "Claude Opus 4.7 (Global)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -2566,11 +2566,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 500000000,
-                "output_per_million": 2500000000,
-                "cached_input_per_million": 50000000,
-                "cache_creation_5m_per_million": 625000000,
-                "cache_creation_1h_per_million": 1000000000
+                "input_microcents_per_million": 500000000,
+                "output_microcents_per_million": 2500000000,
+                "cached_input_microcents_per_million": 50000000,
+                "cache_creation_5m_microcents_per_million": 625000000,
+                "cache_creation_1h_microcents_per_million": 1000000000
               }
             }
           },
@@ -2585,13 +2585,13 @@
           ],
           "derived": {
             "price_tier": "high",
-            "successor": "anthropic/claude-opus-4-8"
+            "replacement": "anthropic/claude-opus-4-8"
           }
         },
         {
           "id": "global.anthropic.claude-opus-4-8",
           "model": "anthropic/claude-opus-4-8",
-          "label": "Claude Opus 4.8 (Global)",
+          "display_name": "Claude Opus 4.8 (Global)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -2640,11 +2640,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 500000000,
-                "output_per_million": 2500000000,
-                "cached_input_per_million": 50000000,
-                "cache_creation_5m_per_million": 625000000,
-                "cache_creation_1h_per_million": 1000000000
+                "input_microcents_per_million": 500000000,
+                "output_microcents_per_million": 2500000000,
+                "cached_input_microcents_per_million": 50000000,
+                "cache_creation_5m_microcents_per_million": 625000000,
+                "cache_creation_1h_microcents_per_million": 1000000000
               }
             }
           },
@@ -2659,13 +2659,13 @@
           ],
           "derived": {
             "price_tier": "high",
-            "successor": "anthropic/claude-opus-5"
+            "replacement": "anthropic/claude-opus-5"
           }
         },
         {
           "id": "global.anthropic.claude-opus-5",
           "model": "anthropic/claude-opus-5",
-          "label": "Claude Opus 5 (Global)",
+          "display_name": "Claude Opus 5 (Global)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -2708,11 +2708,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 500000000,
-                "output_per_million": 2500000000,
-                "cached_input_per_million": 50000000,
-                "cache_creation_5m_per_million": 625000000,
-                "cache_creation_1h_per_million": 1000000000
+                "input_microcents_per_million": 500000000,
+                "output_microcents_per_million": 2500000000,
+                "cached_input_microcents_per_million": 50000000,
+                "cache_creation_5m_microcents_per_million": 625000000,
+                "cache_creation_1h_microcents_per_million": 1000000000
               }
             }
           },
@@ -2732,7 +2732,7 @@
         {
           "id": "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
           "model": "anthropic/claude-sonnet-4-5",
-          "label": "Claude Sonnet 4.5 (Global)",
+          "display_name": "Claude Sonnet 4.5 (Global)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -2774,11 +2774,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 300000000,
-                "output_per_million": 1500000000,
-                "cached_input_per_million": 30000000,
-                "cache_creation_5m_per_million": 375000000,
-                "cache_creation_1h_per_million": 600000000
+                "input_microcents_per_million": 300000000,
+                "output_microcents_per_million": 1500000000,
+                "cached_input_microcents_per_million": 30000000,
+                "cache_creation_5m_microcents_per_million": 375000000,
+                "cache_creation_1h_microcents_per_million": 600000000
               }
             }
           },
@@ -2793,13 +2793,13 @@
           ],
           "derived": {
             "price_tier": "medium",
-            "successor": "anthropic/claude-sonnet-4-6"
+            "replacement": "anthropic/claude-sonnet-4-6"
           }
         },
         {
           "id": "global.anthropic.claude-sonnet-4-6",
           "model": "anthropic/claude-sonnet-4-6",
-          "label": "Claude Sonnet 4.6 (Global)",
+          "display_name": "Claude Sonnet 4.6 (Global)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -2847,11 +2847,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 300000000,
-                "output_per_million": 1500000000,
-                "cached_input_per_million": 30000000,
-                "cache_creation_5m_per_million": 375000000,
-                "cache_creation_1h_per_million": 600000000
+                "input_microcents_per_million": 300000000,
+                "output_microcents_per_million": 1500000000,
+                "cached_input_microcents_per_million": 30000000,
+                "cache_creation_5m_microcents_per_million": 375000000,
+                "cache_creation_1h_microcents_per_million": 600000000
               }
             }
           },
@@ -2866,13 +2866,13 @@
           ],
           "derived": {
             "price_tier": "medium",
-            "successor": "anthropic/claude-sonnet-5"
+            "replacement": "anthropic/claude-sonnet-5"
           }
         },
         {
           "id": "global.anthropic.claude-sonnet-5",
           "model": "anthropic/claude-sonnet-5",
-          "label": "Claude Sonnet 5 (Global)",
+          "display_name": "Claude Sonnet 5 (Global)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -2921,11 +2921,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 200000000,
-                "output_per_million": 1000000000,
-                "cached_input_per_million": 20000000,
-                "cache_creation_5m_per_million": 250000000,
-                "cache_creation_1h_per_million": 400000000
+                "input_microcents_per_million": 200000000,
+                "output_microcents_per_million": 1000000000,
+                "cached_input_microcents_per_million": 20000000,
+                "cache_creation_5m_microcents_per_million": 250000000,
+                "cache_creation_1h_microcents_per_million": 400000000
               }
             }
           },
@@ -2945,7 +2945,7 @@
         {
           "id": "google.gemma-4-26b-a4b",
           "model": "google/gemma-4-26b-a4b",
-          "label": "Google Gemma 4 26B-A4B",
+          "display_name": "Google Gemma 4 26B-A4B",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -2983,8 +2983,8 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 13000000,
-                "output_per_million": 40000000
+                "input_microcents_per_million": 13000000,
+                "output_microcents_per_million": 40000000
               }
             }
           },
@@ -2998,7 +2998,7 @@
         {
           "id": "google.gemma-4-31b",
           "model": "google/gemma-4-31b",
-          "label": "Google Gemma 4 31B",
+          "display_name": "Google Gemma 4 31B",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -3036,8 +3036,8 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 14000000,
-                "output_per_million": 40000000
+                "input_microcents_per_million": 14000000,
+                "output_microcents_per_million": 40000000
               }
             }
           },
@@ -3051,7 +3051,7 @@
         {
           "id": "google.gemma-4-e2b",
           "model": "google/gemma-4-e2b",
-          "label": "Google Gemma 4 E2B",
+          "display_name": "Google Gemma 4 E2B",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -3089,8 +3089,8 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 4000000,
-                "output_per_million": 8000000
+                "input_microcents_per_million": 4000000,
+                "output_microcents_per_million": 8000000
               }
             }
           },
@@ -3104,7 +3104,7 @@
         {
           "id": "jp.amazon.nova-2-lite-v1:0",
           "model": "amazon/nova-2-lite",
-          "label": "Amazon Nova 2 Lite (JP)",
+          "display_name": "Amazon Nova 2 Lite (JP)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -3145,9 +3145,9 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 33000000,
-                "output_per_million": 275000000,
-                "cached_input_per_million": 8250000
+                "input_microcents_per_million": 33000000,
+                "output_microcents_per_million": 275000000,
+                "cached_input_microcents_per_million": 8250000
               }
             }
           },
@@ -3167,7 +3167,7 @@
         {
           "id": "jp.anthropic.claude-opus-4-7",
           "model": "anthropic/claude-opus-4-7",
-          "label": "Claude Opus 4.7 (JP)",
+          "display_name": "Claude Opus 4.7 (JP)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -3216,11 +3216,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 550000000,
-                "output_per_million": 2750000000,
-                "cached_input_per_million": 55000000,
-                "cache_creation_5m_per_million": 687500000,
-                "cache_creation_1h_per_million": 1100000000
+                "input_microcents_per_million": 550000000,
+                "output_microcents_per_million": 2750000000,
+                "cached_input_microcents_per_million": 55000000,
+                "cache_creation_5m_microcents_per_million": 687500000,
+                "cache_creation_1h_microcents_per_million": 1100000000
               }
             }
           },
@@ -3235,13 +3235,13 @@
           ],
           "derived": {
             "price_tier": "high",
-            "successor": "anthropic/claude-opus-4-8"
+            "replacement": "anthropic/claude-opus-4-8"
           }
         },
         {
           "id": "jp.anthropic.claude-opus-4-8",
           "model": "anthropic/claude-opus-4-8",
-          "label": "Claude Opus 4.8 (JP)",
+          "display_name": "Claude Opus 4.8 (JP)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -3290,11 +3290,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 550000000,
-                "output_per_million": 2750000000,
-                "cached_input_per_million": 55000000,
-                "cache_creation_5m_per_million": 687500000,
-                "cache_creation_1h_per_million": 1100000000
+                "input_microcents_per_million": 550000000,
+                "output_microcents_per_million": 2750000000,
+                "cached_input_microcents_per_million": 55000000,
+                "cache_creation_5m_microcents_per_million": 687500000,
+                "cache_creation_1h_microcents_per_million": 1100000000
               }
             }
           },
@@ -3309,13 +3309,13 @@
           ],
           "derived": {
             "price_tier": "high",
-            "successor": "anthropic/claude-opus-5"
+            "replacement": "anthropic/claude-opus-5"
           }
         },
         {
           "id": "jp.anthropic.claude-sonnet-4-5-20250929-v1:0",
           "model": "anthropic/claude-sonnet-4-5",
-          "label": "Claude Sonnet 4.5 (JP)",
+          "display_name": "Claude Sonnet 4.5 (JP)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -3357,11 +3357,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 330000000,
-                "output_per_million": 1650000000,
-                "cached_input_per_million": 33000000,
-                "cache_creation_5m_per_million": 412500000,
-                "cache_creation_1h_per_million": 660000000
+                "input_microcents_per_million": 330000000,
+                "output_microcents_per_million": 1650000000,
+                "cached_input_microcents_per_million": 33000000,
+                "cache_creation_5m_microcents_per_million": 412500000,
+                "cache_creation_1h_microcents_per_million": 660000000
               }
             }
           },
@@ -3376,13 +3376,13 @@
           ],
           "derived": {
             "price_tier": "medium",
-            "successor": "anthropic/claude-sonnet-4-6"
+            "replacement": "anthropic/claude-sonnet-4-6"
           }
         },
         {
           "id": "mistral.mistral-large-3-675b-instruct",
           "model": "mistral/mistral-large-3",
-          "label": "Mistral Large 3",
+          "display_name": "Mistral Large 3",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -3420,8 +3420,8 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 50000000,
-                "output_per_million": 150000000
+                "input_microcents_per_million": 50000000,
+                "output_microcents_per_million": 150000000
               }
             }
           },
@@ -3435,7 +3435,7 @@
         {
           "id": "openai.gpt-5.6-luna",
           "model": "openai/gpt-5.6-luna",
-          "label": "OpenAI GPT-5.6 Luna",
+          "display_name": "OpenAI GPT-5.6 Luna",
           "capabilities": {
             "audio": false,
             "json_mode": true,
@@ -3472,10 +3472,10 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 110000000,
-                "output_per_million": 660000000,
-                "cached_input_per_million": 11000000,
-                "cache_creation_unknown_ttl_per_million": 137500000
+                "input_microcents_per_million": 110000000,
+                "output_microcents_per_million": 660000000,
+                "cached_input_microcents_per_million": 11000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 137500000
               }
             }
           },
@@ -3489,7 +3489,7 @@
         {
           "id": "openai.gpt-5.6-sol",
           "model": "openai/gpt-5.6-sol",
-          "label": "OpenAI GPT-5.6 Sol",
+          "display_name": "OpenAI GPT-5.6 Sol",
           "capabilities": {
             "audio": false,
             "json_mode": true,
@@ -3526,10 +3526,10 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 550000000,
-                "output_per_million": 3300000000,
-                "cached_input_per_million": 55000000,
-                "cache_creation_unknown_ttl_per_million": 687500000
+                "input_microcents_per_million": 550000000,
+                "output_microcents_per_million": 3300000000,
+                "cached_input_microcents_per_million": 55000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 687500000
               }
             }
           },
@@ -3543,7 +3543,7 @@
         {
           "id": "openai.gpt-5.6-terra",
           "model": "openai/gpt-5.6-terra",
-          "label": "OpenAI GPT-5.6 Terra",
+          "display_name": "OpenAI GPT-5.6 Terra",
           "capabilities": {
             "audio": false,
             "json_mode": true,
@@ -3580,10 +3580,10 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 275000000,
-                "output_per_million": 1650000000,
-                "cached_input_per_million": 27500000,
-                "cache_creation_unknown_ttl_per_million": 343750000
+                "input_microcents_per_million": 275000000,
+                "output_microcents_per_million": 1650000000,
+                "cached_input_microcents_per_million": 27500000,
+                "cache_creation_unknown_ttl_microcents_per_million": 343750000
               }
             }
           },
@@ -3597,7 +3597,7 @@
         {
           "id": "us.amazon.nova-2-lite-v1:0",
           "model": "amazon/nova-2-lite",
-          "label": "Amazon Nova 2 Lite (US)",
+          "display_name": "Amazon Nova 2 Lite (US)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -3638,9 +3638,9 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 33000000,
-                "output_per_million": 275000000,
-                "cached_input_per_million": 8250000
+                "input_microcents_per_million": 33000000,
+                "output_microcents_per_million": 275000000,
+                "cached_input_microcents_per_million": 8250000
               }
             }
           },
@@ -3660,7 +3660,7 @@
         {
           "id": "us.anthropic.claude-fable-5",
           "model": "anthropic/claude-fable-5",
-          "label": "Claude Fable 5 (US)",
+          "display_name": "Claude Fable 5 (US)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -3703,11 +3703,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 1100000000,
-                "output_per_million": 5500000000,
-                "cached_input_per_million": 110000000,
-                "cache_creation_5m_per_million": 1375000000,
-                "cache_creation_1h_per_million": 2200000000
+                "input_microcents_per_million": 1100000000,
+                "output_microcents_per_million": 5500000000,
+                "cached_input_microcents_per_million": 110000000,
+                "cache_creation_5m_microcents_per_million": 1375000000,
+                "cache_creation_1h_microcents_per_million": 2200000000
               }
             }
           },
@@ -3731,7 +3731,7 @@
         {
           "id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
           "model": "anthropic/claude-haiku-4-5",
-          "label": "Claude Haiku 4.5 (US)",
+          "display_name": "Claude Haiku 4.5 (US)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -3773,11 +3773,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 110000000,
-                "output_per_million": 550000000,
-                "cached_input_per_million": 11000000,
-                "cache_creation_5m_per_million": 137500000,
-                "cache_creation_1h_per_million": 220000000
+                "input_microcents_per_million": 110000000,
+                "output_microcents_per_million": 550000000,
+                "cached_input_microcents_per_million": 11000000,
+                "cache_creation_5m_microcents_per_million": 137500000,
+                "cache_creation_1h_microcents_per_million": 220000000
               }
             }
           },
@@ -3797,7 +3797,7 @@
         {
           "id": "us.anthropic.claude-opus-4-5-20251101-v1:0",
           "model": "anthropic/claude-opus-4-5",
-          "label": "Claude Opus 4.5 (US)",
+          "display_name": "Claude Opus 4.5 (US)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -3839,11 +3839,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 550000000,
-                "output_per_million": 2750000000,
-                "cached_input_per_million": 55000000,
-                "cache_creation_5m_per_million": 687500000,
-                "cache_creation_1h_per_million": 1100000000
+                "input_microcents_per_million": 550000000,
+                "output_microcents_per_million": 2750000000,
+                "cached_input_microcents_per_million": 55000000,
+                "cache_creation_5m_microcents_per_million": 687500000,
+                "cache_creation_1h_microcents_per_million": 1100000000
               }
             }
           },
@@ -3858,13 +3858,13 @@
           ],
           "derived": {
             "price_tier": "high",
-            "successor": "anthropic/claude-opus-4-6"
+            "replacement": "anthropic/claude-opus-4-6"
           }
         },
         {
           "id": "us.anthropic.claude-opus-4-6-v1",
           "model": "anthropic/claude-opus-4-6",
-          "label": "Claude Opus 4.6 (US)",
+          "display_name": "Claude Opus 4.6 (US)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -3913,11 +3913,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 550000000,
-                "output_per_million": 2750000000,
-                "cached_input_per_million": 55000000,
-                "cache_creation_5m_per_million": 687500000,
-                "cache_creation_1h_per_million": 1100000000
+                "input_microcents_per_million": 550000000,
+                "output_microcents_per_million": 2750000000,
+                "cached_input_microcents_per_million": 55000000,
+                "cache_creation_5m_microcents_per_million": 687500000,
+                "cache_creation_1h_microcents_per_million": 1100000000
               }
             }
           },
@@ -3932,13 +3932,13 @@
           ],
           "derived": {
             "price_tier": "high",
-            "successor": "anthropic/claude-opus-4-7"
+            "replacement": "anthropic/claude-opus-4-7"
           }
         },
         {
           "id": "us.anthropic.claude-opus-4-7",
           "model": "anthropic/claude-opus-4-7",
-          "label": "Claude Opus 4.7 (US)",
+          "display_name": "Claude Opus 4.7 (US)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -3987,11 +3987,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 550000000,
-                "output_per_million": 2750000000,
-                "cached_input_per_million": 55000000,
-                "cache_creation_5m_per_million": 687500000,
-                "cache_creation_1h_per_million": 1100000000
+                "input_microcents_per_million": 550000000,
+                "output_microcents_per_million": 2750000000,
+                "cached_input_microcents_per_million": 55000000,
+                "cache_creation_5m_microcents_per_million": 687500000,
+                "cache_creation_1h_microcents_per_million": 1100000000
               }
             }
           },
@@ -4006,13 +4006,13 @@
           ],
           "derived": {
             "price_tier": "high",
-            "successor": "anthropic/claude-opus-4-8"
+            "replacement": "anthropic/claude-opus-4-8"
           }
         },
         {
           "id": "us.anthropic.claude-opus-4-8",
           "model": "anthropic/claude-opus-4-8",
-          "label": "Claude Opus 4.8 (US)",
+          "display_name": "Claude Opus 4.8 (US)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -4061,11 +4061,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 550000000,
-                "output_per_million": 2750000000,
-                "cached_input_per_million": 55000000,
-                "cache_creation_5m_per_million": 687500000,
-                "cache_creation_1h_per_million": 1100000000
+                "input_microcents_per_million": 550000000,
+                "output_microcents_per_million": 2750000000,
+                "cached_input_microcents_per_million": 55000000,
+                "cache_creation_5m_microcents_per_million": 687500000,
+                "cache_creation_1h_microcents_per_million": 1100000000
               }
             }
           },
@@ -4080,13 +4080,13 @@
           ],
           "derived": {
             "price_tier": "high",
-            "successor": "anthropic/claude-opus-5"
+            "replacement": "anthropic/claude-opus-5"
           }
         },
         {
           "id": "us.anthropic.claude-opus-5",
           "model": "anthropic/claude-opus-5",
-          "label": "Claude Opus 5 (US)",
+          "display_name": "Claude Opus 5 (US)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -4129,11 +4129,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 550000000,
-                "output_per_million": 2750000000,
-                "cached_input_per_million": 55000000,
-                "cache_creation_5m_per_million": 687500000,
-                "cache_creation_1h_per_million": 1100000000
+                "input_microcents_per_million": 550000000,
+                "output_microcents_per_million": 2750000000,
+                "cached_input_microcents_per_million": 55000000,
+                "cache_creation_5m_microcents_per_million": 687500000,
+                "cache_creation_1h_microcents_per_million": 1100000000
               }
             }
           },
@@ -4153,7 +4153,7 @@
         {
           "id": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
           "model": "anthropic/claude-sonnet-4-5",
-          "label": "Claude Sonnet 4.5 (US)",
+          "display_name": "Claude Sonnet 4.5 (US)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -4195,11 +4195,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 330000000,
-                "output_per_million": 1650000000,
-                "cached_input_per_million": 33000000,
-                "cache_creation_5m_per_million": 412500000,
-                "cache_creation_1h_per_million": 660000000
+                "input_microcents_per_million": 330000000,
+                "output_microcents_per_million": 1650000000,
+                "cached_input_microcents_per_million": 33000000,
+                "cache_creation_5m_microcents_per_million": 412500000,
+                "cache_creation_1h_microcents_per_million": 660000000
               }
             }
           },
@@ -4214,13 +4214,13 @@
           ],
           "derived": {
             "price_tier": "medium",
-            "successor": "anthropic/claude-sonnet-4-6"
+            "replacement": "anthropic/claude-sonnet-4-6"
           }
         },
         {
           "id": "us.anthropic.claude-sonnet-4-6",
           "model": "anthropic/claude-sonnet-4-6",
-          "label": "Claude Sonnet 4.6 (US)",
+          "display_name": "Claude Sonnet 4.6 (US)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -4268,11 +4268,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 330000000,
-                "output_per_million": 1650000000,
-                "cached_input_per_million": 33000000,
-                "cache_creation_5m_per_million": 412500000,
-                "cache_creation_1h_per_million": 660000000
+                "input_microcents_per_million": 330000000,
+                "output_microcents_per_million": 1650000000,
+                "cached_input_microcents_per_million": 33000000,
+                "cache_creation_5m_microcents_per_million": 412500000,
+                "cache_creation_1h_microcents_per_million": 660000000
               }
             }
           },
@@ -4287,13 +4287,13 @@
           ],
           "derived": {
             "price_tier": "medium",
-            "successor": "anthropic/claude-sonnet-5"
+            "replacement": "anthropic/claude-sonnet-5"
           }
         },
         {
           "id": "us.anthropic.claude-sonnet-5",
           "model": "anthropic/claude-sonnet-5",
-          "label": "Claude Sonnet 5 (US)",
+          "display_name": "Claude Sonnet 5 (US)",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -4342,11 +4342,11 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 220000000,
-                "output_per_million": 1100000000,
-                "cached_input_per_million": 22000000,
-                "cache_creation_5m_per_million": 275000000,
-                "cache_creation_1h_per_million": 440000000
+                "input_microcents_per_million": 220000000,
+                "output_microcents_per_million": 1100000000,
+                "cached_input_microcents_per_million": 22000000,
+                "cache_creation_5m_microcents_per_million": 275000000,
+                "cache_creation_1h_microcents_per_million": 440000000
               }
             }
           },
@@ -4371,7 +4371,7 @@
         {
           "id": "gemini-2.5-flash",
           "model": "google/gemini-2.5-flash",
-          "label": "Gemini 2.5 Flash",
+          "display_name": "Gemini 2.5 Flash",
           "capabilities": {
             "audio": true,
             "json_mode": true,
@@ -4419,9 +4419,9 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 30000000,
-                "output_per_million": 250000000,
-                "cached_input_per_million": 3000000
+                "input_microcents_per_million": 30000000,
+                "output_microcents_per_million": 250000000,
+                "cached_input_microcents_per_million": 3000000
               }
             }
           },
@@ -4433,13 +4433,13 @@
           },
           "derived": {
             "price_tier": "low",
-            "successor": "google/gemini-3-flash-preview"
+            "replacement": "google/gemini-3.5-flash-lite"
           }
         },
         {
           "id": "gemini-2.5-flash-lite",
           "model": "google/gemini-2.5-flash-lite",
-          "label": "Gemini 2.5 Flash-Lite",
+          "display_name": "Gemini 2.5 Flash-Lite",
           "capabilities": {
             "audio": true,
             "json_mode": true,
@@ -4487,9 +4487,9 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 10000000,
-                "output_per_million": 40000000,
-                "cached_input_per_million": 1000000
+                "input_microcents_per_million": 10000000,
+                "output_microcents_per_million": 40000000,
+                "cached_input_microcents_per_million": 1000000
               }
             }
           },
@@ -4500,13 +4500,13 @@
           },
           "derived": {
             "price_tier": "low",
-            "successor": "google/gemini-3.5-flash-lite"
+            "replacement": "google/gemini-3.5-flash-lite"
           }
         },
         {
           "id": "gemini-2.5-pro",
           "model": "google/gemini-2.5-pro",
-          "label": "Gemini 2.5 Pro",
+          "display_name": "Gemini 2.5 Pro",
           "capabilities": {
             "audio": true,
             "json_mode": true,
@@ -4554,17 +4554,17 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 125000000,
-                "output_per_million": 1000000000,
-                "cached_input_per_million": 12500000
+                "input_microcents_per_million": 125000000,
+                "output_microcents_per_million": 1000000000,
+                "cached_input_microcents_per_million": 12500000
               },
               "brackets": [
                 {
                   "min_context_tokens": 200001,
                   "rates": {
-                    "input_per_million": 250000000,
-                    "output_per_million": 1500000000,
-                    "cached_input_per_million": 25000000
+                    "input_microcents_per_million": 250000000,
+                    "output_microcents_per_million": 1500000000,
+                    "cached_input_microcents_per_million": 25000000
                   }
                 }
               ]
@@ -4578,13 +4578,13 @@
           },
           "derived": {
             "price_tier": "medium",
-            "successor": "google/gemini-3-pro-preview"
+            "replacement": "google/gemini-3.5-flash"
           }
         },
         {
           "id": "gemini-3-flash-preview",
           "model": "google/gemini-3-flash-preview",
-          "label": "Gemini 3 Flash Preview",
+          "display_name": "Gemini 3 Flash Preview",
           "capabilities": {
             "audio": true,
             "json_mode": true,
@@ -4636,9 +4636,9 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 50000000,
-                "output_per_million": 300000000,
-                "cached_input_per_million": 5000000
+                "input_microcents_per_million": 50000000,
+                "output_microcents_per_million": 300000000,
+                "cached_input_microcents_per_million": 5000000
               }
             }
           },
@@ -4649,13 +4649,13 @@
           },
           "derived": {
             "price_tier": "low",
-            "successor": "google/gemini-3.5-flash"
+            "replacement": "google/gemini-3.6-flash"
           }
         },
         {
           "id": "gemini-3-pro-preview",
           "model": "google/gemini-3-pro-preview",
-          "label": "Gemini 3 Pro Preview",
+          "display_name": "Gemini 3 Pro Preview",
           "capabilities": {
             "audio": true,
             "json_mode": true,
@@ -4705,17 +4705,17 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 200000000,
-                "output_per_million": 1200000000,
-                "cached_input_per_million": 20000000
+                "input_microcents_per_million": 200000000,
+                "output_microcents_per_million": 1200000000,
+                "cached_input_microcents_per_million": 20000000
               },
               "brackets": [
                 {
                   "min_context_tokens": 200001,
                   "rates": {
-                    "input_per_million": 400000000,
-                    "output_per_million": 1800000000,
-                    "cached_input_per_million": 40000000
+                    "input_microcents_per_million": 400000000,
+                    "output_microcents_per_million": 1800000000,
+                    "cached_input_microcents_per_million": 40000000
                   }
                 }
               ]
@@ -4729,13 +4729,13 @@
           },
           "derived": {
             "price_tier": "medium",
-            "successor": "google/gemini-3.1-pro-preview"
+            "replacement": "google/gemini-3.1-pro-preview"
           }
         },
         {
           "id": "gemini-3.1-pro-preview",
           "model": "google/gemini-3.1-pro-preview",
-          "label": "Gemini 3.1 Pro Preview",
+          "display_name": "Gemini 3.1 Pro Preview",
           "capabilities": {
             "audio": true,
             "json_mode": true,
@@ -4786,17 +4786,17 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 200000000,
-                "output_per_million": 1200000000,
-                "cached_input_per_million": 20000000
+                "input_microcents_per_million": 200000000,
+                "output_microcents_per_million": 1200000000,
+                "cached_input_microcents_per_million": 20000000
               },
               "brackets": [
                 {
                   "min_context_tokens": 200001,
                   "rates": {
-                    "input_per_million": 400000000,
-                    "output_per_million": 1800000000,
-                    "cached_input_per_million": 40000000
+                    "input_microcents_per_million": 400000000,
+                    "output_microcents_per_million": 1800000000,
+                    "cached_input_microcents_per_million": 40000000
                   }
                 }
               ]
@@ -4813,7 +4813,7 @@
         {
           "id": "gemini-3.5-flash",
           "model": "google/gemini-3.5-flash",
-          "label": "Gemini 3.5 Flash",
+          "display_name": "Gemini 3.5 Flash",
           "capabilities": {
             "audio": true,
             "json_mode": true,
@@ -4865,9 +4865,9 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 150000000,
-                "output_per_million": 900000000,
-                "cached_input_per_million": 15000000
+                "input_microcents_per_million": 150000000,
+                "output_microcents_per_million": 900000000,
+                "cached_input_microcents_per_million": 15000000
               }
             }
           },
@@ -4877,13 +4877,13 @@
           },
           "derived": {
             "price_tier": "medium",
-            "successor": "google/gemini-3.6-flash"
+            "replacement": "google/gemini-3.6-flash"
           }
         },
         {
           "id": "gemini-3.5-flash-lite",
           "model": "google/gemini-3.5-flash-lite",
-          "label": "Gemini 3.5 Flash-Lite",
+          "display_name": "Gemini 3.5 Flash-Lite",
           "capabilities": {
             "audio": true,
             "json_mode": true,
@@ -4928,9 +4928,9 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 30000000,
-                "output_per_million": 250000000,
-                "cached_input_per_million": 3000000
+                "input_microcents_per_million": 30000000,
+                "output_microcents_per_million": 250000000,
+                "cached_input_microcents_per_million": 3000000
               }
             }
           },
@@ -4945,7 +4945,7 @@
         {
           "id": "gemini-3.6-flash",
           "model": "google/gemini-3.6-flash",
-          "label": "Gemini 3.6 Flash",
+          "display_name": "Gemini 3.6 Flash",
           "capabilities": {
             "audio": true,
             "json_mode": true,
@@ -4990,9 +4990,9 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 75000000,
-                "output_per_million": 375000000,
-                "cached_input_per_million": 7500000
+                "input_microcents_per_million": 75000000,
+                "output_microcents_per_million": 375000000,
+                "cached_input_microcents_per_million": 7500000
               }
             }
           },
@@ -5002,13 +5002,13 @@
           },
           "derived": {
             "price_tier": "low",
-            "successor": "google/gemini-3.7-flash"
+            "replacement": "google/gemini-3.7-flash"
           }
         },
         {
           "id": "gemini-3.7-flash",
           "model": "google/gemini-3.7-flash",
-          "label": "Gemini 3.7 Flash",
+          "display_name": "Gemini 3.7 Flash",
           "capabilities": {
             "audio": true,
             "json_mode": true,
@@ -5059,9 +5059,9 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 75000000,
-                "output_per_million": 375000000,
-                "cached_input_per_million": 7500000
+                "input_microcents_per_million": 75000000,
+                "output_microcents_per_million": 375000000,
+                "cached_input_microcents_per_million": 7500000
               }
             }
           },
@@ -5081,7 +5081,7 @@
         {
           "id": "gpt-3.5-turbo",
           "model": "openai/gpt-3.5-turbo",
-          "label": "GPT-3.5 Turbo",
+          "display_name": "GPT-3.5 Turbo",
           "capabilities": {
             "audio": false,
             "json_mode": true,
@@ -5126,8 +5126,8 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 50000000,
-                "output_per_million": 150000000
+                "input_microcents_per_million": 50000000,
+                "output_microcents_per_million": 150000000
               }
             }
           },
@@ -5140,13 +5140,13 @@
           },
           "derived": {
             "price_tier": "low",
-            "successor": "openai/gpt-4-turbo"
+            "replacement": "openai/gpt-5.6-terra"
           }
         },
         {
           "id": "gpt-4-turbo",
           "model": "openai/gpt-4-turbo",
-          "label": "GPT-4 Turbo",
+          "display_name": "GPT-4 Turbo",
           "capabilities": {
             "audio": false,
             "json_mode": true,
@@ -5193,8 +5193,8 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 1000000000,
-                "output_per_million": 3000000000
+                "input_microcents_per_million": 1000000000,
+                "output_microcents_per_million": 3000000000
               }
             }
           },
@@ -5207,13 +5207,13 @@
           },
           "derived": {
             "price_tier": "high",
-            "successor": "openai/gpt-4o"
+            "replacement": "openai/gpt-5.6-sol"
           }
         },
         {
           "id": "gpt-4.1",
           "model": "openai/gpt-4.1",
-          "label": "GPT-4.1",
+          "display_name": "GPT-4.1",
           "capabilities": {
             "audio": false,
             "json_mode": true,
@@ -5260,9 +5260,9 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 200000000,
-                "output_per_million": 800000000,
-                "cached_input_per_million": 50000000
+                "input_microcents_per_million": 200000000,
+                "output_microcents_per_million": 800000000,
+                "cached_input_microcents_per_million": 50000000
               }
             }
           },
@@ -5272,13 +5272,13 @@
           },
           "derived": {
             "price_tier": "medium",
-            "successor": "openai/gpt-5"
+            "replacement": "openai/gpt-5"
           }
         },
         {
           "id": "gpt-4.1-mini",
           "model": "openai/gpt-4.1-mini",
-          "label": "GPT-4.1 Mini",
+          "display_name": "GPT-4.1 Mini",
           "capabilities": {
             "audio": false,
             "json_mode": true,
@@ -5324,9 +5324,9 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 40000000,
-                "output_per_million": 160000000,
-                "cached_input_per_million": 10000000
+                "input_microcents_per_million": 40000000,
+                "output_microcents_per_million": 160000000,
+                "cached_input_microcents_per_million": 10000000
               }
             }
           },
@@ -5336,13 +5336,13 @@
           },
           "derived": {
             "price_tier": "low",
-            "successor": "openai/gpt-5-mini"
+            "replacement": "openai/gpt-5-mini"
           }
         },
         {
           "id": "gpt-4o",
           "model": "openai/gpt-4o",
-          "label": "GPT-4o",
+          "display_name": "GPT-4o",
           "capabilities": {
             "audio": true,
             "json_mode": true,
@@ -5400,9 +5400,9 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 250000000,
-                "output_per_million": 1000000000,
-                "cached_input_per_million": 125000000
+                "input_microcents_per_million": 250000000,
+                "output_microcents_per_million": 1000000000,
+                "cached_input_microcents_per_million": 125000000
               }
             }
           },
@@ -5412,13 +5412,13 @@
           },
           "derived": {
             "price_tier": "medium",
-            "successor": "openai/gpt-4.1"
+            "replacement": "openai/gpt-4.1"
           }
         },
         {
           "id": "gpt-4o-mini",
           "model": "openai/gpt-4o-mini",
-          "label": "GPT-4o Mini",
+          "display_name": "GPT-4o Mini",
           "capabilities": {
             "audio": false,
             "json_mode": true,
@@ -5464,9 +5464,9 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 15000000,
-                "output_per_million": 60000000,
-                "cached_input_per_million": 7500000
+                "input_microcents_per_million": 15000000,
+                "output_microcents_per_million": 60000000,
+                "cached_input_microcents_per_million": 7500000
               }
             }
           },
@@ -5476,13 +5476,13 @@
           },
           "derived": {
             "price_tier": "low",
-            "successor": "openai/gpt-4.1-mini"
+            "replacement": "openai/gpt-4.1-mini"
           }
         },
         {
           "id": "gpt-5",
           "model": "openai/gpt-5",
-          "label": "GPT-5",
+          "display_name": "GPT-5",
           "capabilities": {
             "audio": true,
             "json_mode": true,
@@ -5539,9 +5539,9 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 125000000,
-                "output_per_million": 1000000000,
-                "cached_input_per_million": 12500000
+                "input_microcents_per_million": 125000000,
+                "output_microcents_per_million": 1000000000,
+                "cached_input_microcents_per_million": 12500000
               }
             }
           },
@@ -5554,13 +5554,13 @@
           },
           "derived": {
             "price_tier": "medium",
-            "successor": "openai/gpt-5.1"
+            "replacement": "openai/gpt-5.6-sol"
           }
         },
         {
           "id": "gpt-5-mini",
           "model": "openai/gpt-5-mini",
-          "label": "GPT-5 Mini",
+          "display_name": "GPT-5 Mini",
           "capabilities": {
             "audio": true,
             "json_mode": true,
@@ -5616,9 +5616,9 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 25000000,
-                "output_per_million": 200000000,
-                "cached_input_per_million": 2500000
+                "input_microcents_per_million": 25000000,
+                "output_microcents_per_million": 200000000,
+                "cached_input_microcents_per_million": 2500000
               }
             }
           },
@@ -5631,13 +5631,13 @@
           },
           "derived": {
             "price_tier": "low",
-            "successor": "openai/gpt-5.4-mini"
+            "replacement": "openai/gpt-5.6-terra"
           }
         },
         {
           "id": "gpt-5-nano",
           "model": "openai/gpt-5-nano",
-          "label": "GPT-5 Nano",
+          "display_name": "GPT-5 Nano",
           "capabilities": {
             "audio": false,
             "json_mode": true,
@@ -5691,9 +5691,9 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 5000000,
-                "output_per_million": 40000000,
-                "cached_input_per_million": 500000
+                "input_microcents_per_million": 5000000,
+                "output_microcents_per_million": 40000000,
+                "cached_input_microcents_per_million": 500000
               }
             }
           },
@@ -5706,13 +5706,13 @@
           },
           "derived": {
             "price_tier": "low",
-            "successor": "openai/gpt-5.4-nano"
+            "replacement": "openai/gpt-5.6-luna"
           }
         },
         {
           "id": "gpt-5.1",
           "model": "openai/gpt-5.1",
-          "label": "GPT-5.1",
+          "display_name": "GPT-5.1",
           "capabilities": {
             "audio": true,
             "json_mode": true,
@@ -5769,9 +5769,9 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 125000000,
-                "output_per_million": 1000000000,
-                "cached_input_per_million": 12500000
+                "input_microcents_per_million": 125000000,
+                "output_microcents_per_million": 1000000000,
+                "cached_input_microcents_per_million": 12500000
               }
             }
           },
@@ -5781,13 +5781,13 @@
           },
           "derived": {
             "price_tier": "medium",
-            "successor": "openai/gpt-5.2"
+            "replacement": "openai/gpt-5.2"
           }
         },
         {
           "id": "gpt-5.2",
           "model": "openai/gpt-5.2",
-          "label": "GPT-5.2",
+          "display_name": "GPT-5.2",
           "capabilities": {
             "audio": true,
             "json_mode": true,
@@ -5845,9 +5845,9 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 175000000,
-                "output_per_million": 1400000000,
-                "cached_input_per_million": 17500000
+                "input_microcents_per_million": 175000000,
+                "output_microcents_per_million": 1400000000,
+                "cached_input_microcents_per_million": 17500000
               }
             }
           },
@@ -5857,13 +5857,13 @@
           },
           "derived": {
             "price_tier": "medium",
-            "successor": "openai/gpt-5.4"
+            "replacement": "openai/gpt-5.4"
           }
         },
         {
           "id": "gpt-5.2-chat-latest",
           "model": "openai/gpt-5.2-chat-latest",
-          "label": "GPT-5.2 Instant",
+          "display_name": "GPT-5.2 Instant",
           "capabilities": {
             "audio": true,
             "json_mode": true,
@@ -5917,9 +5917,9 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 175000000,
-                "output_per_million": 1400000000,
-                "cached_input_per_million": 17500000
+                "input_microcents_per_million": 175000000,
+                "output_microcents_per_million": 1400000000,
+                "cached_input_microcents_per_million": 17500000
               }
             }
           },
@@ -5932,13 +5932,13 @@
           },
           "derived": {
             "price_tier": "medium",
-            "successor": "openai/gpt-5.3-chat-latest"
+            "replacement": "openai/gpt-5.6-sol"
           }
         },
         {
           "id": "gpt-5.2-pro",
           "model": "openai/gpt-5.2-pro",
-          "label": "GPT-5.2 Pro",
+          "display_name": "GPT-5.2 Pro",
           "capabilities": {
             "audio": true,
             "json_mode": true,
@@ -5994,8 +5994,8 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 2100000000,
-                "output_per_million": 16800000000
+                "input_microcents_per_million": 2100000000,
+                "output_microcents_per_million": 16800000000
               }
             }
           },
@@ -6010,7 +6010,7 @@
         {
           "id": "gpt-5.3-chat-latest",
           "model": "openai/gpt-5.3-chat-latest",
-          "label": "GPT-5.3 Instant",
+          "display_name": "GPT-5.3 Instant",
           "capabilities": {
             "audio": true,
             "json_mode": true,
@@ -6064,9 +6064,9 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 175000000,
-                "output_per_million": 1400000000,
-                "cached_input_per_million": 17500000
+                "input_microcents_per_million": 175000000,
+                "output_microcents_per_million": 1400000000,
+                "cached_input_microcents_per_million": 17500000
               }
             }
           },
@@ -6078,13 +6078,14 @@
             "replaced_by": "gpt-5.6-sol"
           },
           "derived": {
-            "price_tier": "medium"
+            "price_tier": "medium",
+            "replacement": "openai/gpt-5.6-sol"
           }
         },
         {
           "id": "gpt-5.4",
           "model": "openai/gpt-5.4",
-          "label": "GPT-5.4",
+          "display_name": "GPT-5.4",
           "capabilities": {
             "audio": true,
             "json_mode": true,
@@ -6142,17 +6143,17 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 250000000,
-                "output_per_million": 1500000000,
-                "cached_input_per_million": 25000000
+                "input_microcents_per_million": 250000000,
+                "output_microcents_per_million": 1500000000,
+                "cached_input_microcents_per_million": 25000000
               },
               "brackets": [
                 {
                   "min_context_tokens": 272001,
                   "rates": {
-                    "input_per_million": 500000000,
-                    "output_per_million": 2250000000,
-                    "cached_input_per_million": 50000000
+                    "input_microcents_per_million": 500000000,
+                    "output_microcents_per_million": 2250000000,
+                    "cached_input_microcents_per_million": 50000000
                   }
                 }
               ]
@@ -6164,13 +6165,13 @@
           },
           "derived": {
             "price_tier": "medium",
-            "successor": "openai/gpt-5.5"
+            "replacement": "openai/gpt-5.5"
           }
         },
         {
           "id": "gpt-5.4-mini",
           "model": "openai/gpt-5.4-mini",
-          "label": "GPT-5.4 Mini",
+          "display_name": "GPT-5.4 Mini",
           "capabilities": {
             "audio": true,
             "json_mode": true,
@@ -6228,9 +6229,9 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 75000000,
-                "output_per_million": 450000000,
-                "cached_input_per_million": 7500000
+                "input_microcents_per_million": 75000000,
+                "output_microcents_per_million": 450000000,
+                "cached_input_microcents_per_million": 7500000
               }
             }
           },
@@ -6240,13 +6241,13 @@
           },
           "derived": {
             "price_tier": "low",
-            "successor": "openai/gpt-5.6-terra"
+            "replacement": "openai/gpt-5.6-terra"
           }
         },
         {
           "id": "gpt-5.4-nano",
           "model": "openai/gpt-5.4-nano",
-          "label": "GPT-5.4 Nano",
+          "display_name": "GPT-5.4 Nano",
           "capabilities": {
             "audio": false,
             "json_mode": true,
@@ -6301,9 +6302,9 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 20000000,
-                "output_per_million": 125000000,
-                "cached_input_per_million": 2000000
+                "input_microcents_per_million": 20000000,
+                "output_microcents_per_million": 125000000,
+                "cached_input_microcents_per_million": 2000000
               }
             }
           },
@@ -6313,13 +6314,13 @@
           },
           "derived": {
             "price_tier": "low",
-            "successor": "openai/gpt-5.6-luna"
+            "replacement": "openai/gpt-5.6-luna"
           }
         },
         {
           "id": "gpt-5.5",
           "model": "openai/gpt-5.5",
-          "label": "GPT-5.5",
+          "display_name": "GPT-5.5",
           "capabilities": {
             "audio": true,
             "json_mode": true,
@@ -6377,17 +6378,17 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 500000000,
-                "output_per_million": 3000000000,
-                "cached_input_per_million": 50000000
+                "input_microcents_per_million": 500000000,
+                "output_microcents_per_million": 3000000000,
+                "cached_input_microcents_per_million": 50000000
               },
               "brackets": [
                 {
                   "min_context_tokens": 272001,
                   "rates": {
-                    "input_per_million": 1000000000,
-                    "output_per_million": 4500000000,
-                    "cached_input_per_million": 100000000
+                    "input_microcents_per_million": 1000000000,
+                    "output_microcents_per_million": 4500000000,
+                    "cached_input_microcents_per_million": 100000000
                   }
                 }
               ]
@@ -6399,13 +6400,13 @@
           },
           "derived": {
             "price_tier": "high",
-            "successor": "openai/gpt-5.6-sol"
+            "replacement": "openai/gpt-5.6-sol"
           }
         },
         {
           "id": "gpt-5.6-luna",
           "model": "openai/gpt-5.6-luna",
-          "label": "GPT-5.6 Luna",
+          "display_name": "GPT-5.6 Luna",
           "capabilities": {
             "audio": false,
             "json_mode": true,
@@ -6463,19 +6464,19 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 20000000,
-                "output_per_million": 120000000,
-                "cached_input_per_million": 2000000,
-                "cache_creation_unknown_ttl_per_million": 25000000
+                "input_microcents_per_million": 20000000,
+                "output_microcents_per_million": 120000000,
+                "cached_input_microcents_per_million": 2000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 25000000
               },
               "brackets": [
                 {
                   "min_context_tokens": 272001,
                   "rates": {
-                    "input_per_million": 40000000,
-                    "output_per_million": 180000000,
-                    "cached_input_per_million": 4000000,
-                    "cache_creation_unknown_ttl_per_million": 50000000
+                    "input_microcents_per_million": 40000000,
+                    "output_microcents_per_million": 180000000,
+                    "cached_input_microcents_per_million": 4000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 50000000
                   }
                 }
               ]
@@ -6492,7 +6493,7 @@
         {
           "id": "gpt-5.6-sol",
           "model": "openai/gpt-5.6-sol",
-          "label": "GPT-5.6 Sol",
+          "display_name": "GPT-5.6 Sol",
           "aliases": [
             "gpt-5.6"
           ],
@@ -6553,19 +6554,19 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 400000000,
-                "output_per_million": 2000000000,
-                "cached_input_per_million": 40000000,
-                "cache_creation_unknown_ttl_per_million": 500000000
+                "input_microcents_per_million": 400000000,
+                "output_microcents_per_million": 2000000000,
+                "cached_input_microcents_per_million": 40000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 500000000
               },
               "brackets": [
                 {
                   "min_context_tokens": 272001,
                   "rates": {
-                    "input_per_million": 800000000,
-                    "output_per_million": 3000000000,
-                    "cached_input_per_million": 80000000,
-                    "cache_creation_unknown_ttl_per_million": 1000000000
+                    "input_microcents_per_million": 800000000,
+                    "output_microcents_per_million": 3000000000,
+                    "cached_input_microcents_per_million": 80000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 1000000000
                   }
                 }
               ]
@@ -6582,7 +6583,7 @@
         {
           "id": "gpt-5.6-terra",
           "model": "openai/gpt-5.6-terra",
-          "label": "GPT-5.6 Terra",
+          "display_name": "GPT-5.6 Terra",
           "capabilities": {
             "audio": false,
             "json_mode": true,
@@ -6640,19 +6641,19 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 200000000,
-                "output_per_million": 1200000000,
-                "cached_input_per_million": 20000000,
-                "cache_creation_unknown_ttl_per_million": 250000000
+                "input_microcents_per_million": 200000000,
+                "output_microcents_per_million": 1200000000,
+                "cached_input_microcents_per_million": 20000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 250000000
               },
               "brackets": [
                 {
                   "min_context_tokens": 272001,
                   "rates": {
-                    "input_per_million": 400000000,
-                    "output_per_million": 1800000000,
-                    "cached_input_per_million": 40000000,
-                    "cache_creation_unknown_ttl_per_million": 500000000
+                    "input_microcents_per_million": 400000000,
+                    "output_microcents_per_million": 1800000000,
+                    "cached_input_microcents_per_million": 40000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 500000000
                   }
                 }
               ]
@@ -6669,7 +6670,7 @@
         {
           "id": "o1-pro",
           "model": "openai/o1-pro",
-          "label": "o1-pro",
+          "display_name": "o1-pro",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -6714,9 +6715,9 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 15000000000,
-                "output_per_million": 60000000000,
-                "cached_input_per_million": 7500000000
+                "input_microcents_per_million": 15000000000,
+                "output_microcents_per_million": 60000000000,
+                "cached_input_microcents_per_million": 7500000000
               }
             }
           },
@@ -6729,13 +6730,13 @@
           },
           "derived": {
             "price_tier": "high",
-            "successor": "openai/o3-pro"
+            "replacement": "openai/gpt-5.6-sol"
           }
         },
         {
           "id": "o3",
           "model": "openai/o3",
-          "label": "o3",
+          "display_name": "o3",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -6780,9 +6781,9 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 200000000,
-                "output_per_million": 800000000,
-                "cached_input_per_million": 50000000
+                "input_microcents_per_million": 200000000,
+                "output_microcents_per_million": 800000000,
+                "cached_input_microcents_per_million": 50000000
               }
             }
           },
@@ -6794,13 +6795,14 @@
             "replaced_by": "gpt-5.6-sol"
           },
           "derived": {
-            "price_tier": "medium"
+            "price_tier": "medium",
+            "replacement": "openai/gpt-5.6-sol"
           }
         },
         {
           "id": "o3-pro",
           "model": "openai/o3-pro",
-          "label": "o3-pro",
+          "display_name": "o3-pro",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -6845,8 +6847,8 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 2000000000,
-                "output_per_million": 8000000000
+                "input_microcents_per_million": 2000000000,
+                "output_microcents_per_million": 8000000000
               }
             }
           },
@@ -6859,13 +6861,13 @@
           },
           "derived": {
             "price_tier": "high",
-            "successor": "openai/gpt-5.2-pro"
+            "replacement": "openai/gpt-5.6-sol"
           }
         },
         {
           "id": "o4-mini",
           "model": "openai/o4-mini",
-          "label": "o4-mini",
+          "display_name": "o4-mini",
           "capabilities": {
             "audio": false,
             "json_mode": false,
@@ -6910,9 +6912,9 @@
           "pricing": {
             "default": {
               "base": {
-                "input_per_million": 110000000,
-                "output_per_million": 440000000,
-                "cached_input_per_million": 27500000
+                "input_microcents_per_million": 110000000,
+                "output_microcents_per_million": 440000000,
+                "cached_input_microcents_per_million": 27500000
               }
             }
           },
@@ -6924,7 +6926,8 @@
             "replaced_by": "gpt-5.6-terra"
           },
           "derived": {
-            "price_tier": "low"
+            "price_tier": "low",
+            "replacement": "openai/gpt-5.6-terra"
           }
         }
       ]

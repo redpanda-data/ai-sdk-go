@@ -324,14 +324,20 @@ func TestResolve(t *testing.T) {
 		{"robin-2", "robin-2", true},               // exact
 		{"robin-latest", "robin-2", true},          // alias
 		{"robin-2-0522", "robin-2-0522", true},     // exact beats prefix
-		{"robin-2-0522-1", "robin-2-0522", true},   // longest prefix wins over robin-2
+		{"robin-2-0522-001", "robin-2-0522", true}, // longest prefix wins over robin-2
 		{"robin-3-20270101", "robin-3", true},      // snapshot suffix, dash boundary
+		{"robin-3-2027-01-01", "robin-3", true},    // dashed date stamp
+		{"robin-3-001", "robin-3", true},           // revision stamp
 		{"robin-3@001", "robin-3", true},           // at-sign version boundary
-		{"robin-3.1", "robin-3", true},             // dot boundary
 		{"robin-latest-20270101", "robin-2", true}, // alias participates in prefix matching
 		{"robin-30", "", false},                    // no boundary byte: not a prefix match
 		{"robin-3-chat-latest", "", false},         // word suffix = different product, never binned into the family
 		{"robin-3@default", "", false},             // word suffix after '@' likewise
+		{"robin-3.1", "", false},                   // short version bump = a newer model the catalog does not know
+		{"robin-3-1", "", false},                   // likewise with a dash
+		{"robin-3.4.1", "", false},                 // likewise, nested
+		{"robin-3@1", "", false},                   // a one-digit revision is not a stamp
+		{"robin-3.1-codex", "", false},             // version bump plus word suffix
 		{"robin-9", "", false},                     // unknown model in a known series
 		{"wren-1", "", false},                      // not offered by this provider
 		{"", "", false},
@@ -344,8 +350,12 @@ func TestResolve(t *testing.T) {
 			o, ok := c.Resolve(tt.requested)
 			require.Equal(t, tt.wantOK, ok)
 
+			id, idOK := c.ResolveID(tt.requested)
+			require.Equal(t, tt.wantOK, idOK, "ResolveID must agree with Resolve")
+
 			if tt.wantOK {
 				assert.Equal(t, tt.wantID, o.ID)
+				assert.Equal(t, tt.wantID, id)
 			}
 		})
 	}
@@ -467,6 +477,52 @@ func TestSuccessor(t *testing.T) {
 
 	_, ok = c.Successor("acme/unknown")
 	assert.False(t, ok)
+}
+
+func TestReplacement(t *testing.T) {
+	t.Parallel()
+
+	// robin-1 has an announced replacement that skips a generation;
+	// robin-2 relies on the derived successor.
+	robin1 := validEntry("robin-1", "acme/robin-1")
+	robin1.Life.ReplacedBy = "eu.robin-3"
+
+	c := mustCatalog(t,
+		robin1,
+		validEntry("robin-2", "acme/robin-2"),
+		validEntry("robin-3", "acme/robin-3"),
+		validEntry("eu.robin-3", "acme/robin-3"),
+		validEntry("wren-1", "acme/wren-1"),
+	)
+
+	r, ok := c.Replacement("robin-1")
+	require.True(t, ok)
+	assert.Equal(t, ModelID("acme/robin-3"), r, "announced ReplacedBy wins over the series successor")
+
+	r, ok = c.Replacement("robin-2")
+	require.True(t, ok)
+	assert.Equal(t, ModelID("acme/robin-3"), r, "falls back to the derived successor")
+
+	_, ok = c.Replacement("robin-3")
+	assert.False(t, ok, "newest of the series has no replacement")
+
+	_, ok = c.Replacement("wren-1")
+	assert.False(t, ok)
+
+	_, ok = c.Replacement("unknown")
+	assert.False(t, ok)
+
+	ids := func(offs []Offering) []string {
+		out := make([]string, 0, len(offs))
+		for _, o := range offs {
+			out = append(out, o.ID)
+		}
+
+		return out
+	}
+
+	assert.Equal(t, []string{"eu.robin-3", "robin-3"}, ids(c.Offerings("acme/robin-3")), "every offering of the model, sorted by ID")
+	assert.Empty(t, c.Offerings("acme/unknown"))
 }
 
 func TestPriceTier(t *testing.T) {

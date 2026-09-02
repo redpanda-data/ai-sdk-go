@@ -101,8 +101,8 @@ func resolvedModelID(providerModel, fallback string) string {
 		return fallback
 	}
 
-	if offering, ok := Catalog().Resolve(strings.TrimPrefix(providerModel, "models/")); ok {
-		return offering.ID
+	if id, ok := Catalog().ResolveID(strings.TrimPrefix(providerModel, "models/")); ok {
+		return id
 	}
 
 	return providerModel
