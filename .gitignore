@@ -44,3 +44,6 @@ go.work.sum
 /examples/*/agent_as_tool
 /examples/*/agent_hooks
 /examples/*/web_research_agent
+
+# Local design notes, not published
+/docs/design/
