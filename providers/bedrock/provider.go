@@ -20,13 +20,13 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
-	"sort"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	signerv4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 
+	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -266,17 +266,17 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 		return nil, fmt.Errorf("configuration validation failed for %s: %w", modelName, err)
 	}
 
-	if cfg.ReasoningEffort != nil && !slices.Contains(modelDef.Thinking.ReasoningEfforts, *cfg.ReasoningEffort) {
-		return nil, fmt.Errorf("model %s does not support reasoning effort %q (supported: %v)", modelName, *cfg.ReasoningEffort, modelDef.Thinking.ReasoningEfforts)
+	if cfg.ReasoningEffort != nil && !slices.Contains(modelDef.Reasoning.Efforts, *cfg.ReasoningEffort) {
+		return nil, fmt.Errorf("model %s does not support reasoning effort %q (supported: %v)", modelName, *cfg.ReasoningEffort, modelDef.Reasoning.Efforts)
 	}
 
-	if cfg.EnableThinking && !modelDef.Thinking.Budget {
+	if cfg.EnableThinking && !modelDef.Reasoning.Budget {
 		return nil, fmt.Errorf("model %s does not support a manual thinking budget", modelName)
 	}
 
 	// Mantle-only models (Gemma 4, gpt-5.x) are not served by the Converse API;
 	// route them through the SigV4-signed OpenAI Responses transport instead.
-	if modelDef.Mantle {
+	if IsMantleModel(apiModelID) {
 		return newMantleModel(p, cfg, modelDef)
 	}
 
@@ -290,23 +290,8 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 	}, nil
 }
 
-// Models returns all supported Bedrock models with their capabilities.
-func (p *Provider) Models() []llm.ModelDiscoveryInfo {
-	models := make([]llm.ModelDiscoveryInfo, 0, len(supportedModels))
-	for _, def := range supportedModels {
-		models = append(models, llm.ModelDiscoveryInfo{
-			Name:         def.Name,
-			Label:        def.Label,
-			Capabilities: def.Capabilities,
-			Constraints:  def.Constraints,
-			Provider:     p.Name(),
-			Metadata:     def.discoveryMetadata(),
-		})
-	}
-
-	sort.Slice(models, func(i, j int) bool {
-		return models[i].Name < models[j].Name
-	})
-
-	return models
+// Catalog implements catalog.Provider: the validated Bedrock model
+// catalog, including pricing and lifecycle metadata.
+func (*Provider) Catalog() *catalog.Catalog {
+	return Catalog()
 }

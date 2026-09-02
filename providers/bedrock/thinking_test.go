@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -90,7 +91,7 @@ func TestThinkingWithoutBudgetOrEffortMapsToAdaptive(t *testing.T) {
 func TestSignatureOnlyReasoningRoundTrips(t *testing.T) {
 	t.Parallel()
 
-	responseMapper := NewResponseMapper(ModelDefinition{})
+	responseMapper := NewResponseMapper(catalog.Offering{})
 	part := responseMapper.mapReasoningBlock(&types.ReasoningContentBlockMemberReasoningText{
 		Value: types.ReasoningTextBlock{
 			Text:      aws.String(""),

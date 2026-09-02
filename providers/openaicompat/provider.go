@@ -24,6 +24,7 @@ import (
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 
+	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -144,6 +145,14 @@ func WithTimeout(timeout time.Duration) ProviderOption {
 	}
 }
 
+// Catalog implements catalog.Provider. openaicompat has no static
+// catalog — model names are defined by whatever OpenAI-compatible
+// endpoint the provider points at — so this returns nil, which consumers
+// must treat as "no model metadata available", not as an error.
+func (*Provider) Catalog() *catalog.Catalog {
+	return nil
+}
+
 // NewModel creates a new OpenAI-compatible model instance with the specified configuration.
 // Supports any model name string for maximum compatibility with OpenAI-compatible services.
 func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error) {
@@ -193,10 +202,4 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 		requestMapper:  NewRequestMapper(cfg),
 		responseMapper: NewResponseMapper(cfg.Constraints),
 	}, nil
-}
-
-// Models returns an empty list since openaicompat supports dynamic model names.
-// The actual models available depend on the API endpoint being used.
-func (*Provider) Models() []llm.ModelDiscoveryInfo {
-	return []llm.ModelDiscoveryInfo{}
 }

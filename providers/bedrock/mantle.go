@@ -29,6 +29,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	signerv4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 
+	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/providers/openai"
 )
@@ -56,8 +57,7 @@ const mantlePlaceholderAPIKey = "bedrock-mantle-sigv4"
 // decide, per request, when to sign with the bedrock-mantle signing name and
 // route to the mantle host instead of bedrock-runtime.
 func IsMantleModel(modelID string) bool {
-	def, ok := lookupModel(modelID)
-	return ok && def.Mantle
+	return mantleModelIDs[modelID]
 }
 
 // mantleBaseURL returns the OpenAI-compatible base URL for the bedrock-mantle
@@ -78,7 +78,7 @@ func mantleBaseURL(region, baseEndpoint string) string {
 // the catalog). It reuses the OpenAI provider's Responses transport, pointed at
 // the mantle base URL with a SigV4-signing HTTP client, and wraps the result so
 // it reports the Bedrock provider identity.
-func newMantleModel(p *Provider, cfg *Config, def ModelDefinition) (llm.Model, error) {
+func newMantleModel(p *Provider, cfg *Config, def catalog.Offering) (llm.Model, error) {
 	// WithThinking emits an Anthropic-shaped thinking document (Converse-only)
 	// that the mantle Responses API does not accept, and there is no mantle
 	// reasoning-budget lever to translate it to. Reject it rather than silently
@@ -116,13 +116,10 @@ func newMantleModel(p *Provider, cfg *Config, def ModelDefinition) (llm.Model, e
 		return nil, fmt.Errorf("bedrock-mantle: build OpenAI transport: %w", err)
 	}
 
-	oaiDef := openai.ModelDefinition{
-		Name:                      def.Name,
-		Label:                     def.Label,
-		Capabilities:              def.Capabilities,
-		Constraints:               def.Constraints,
-		SupportedReasoningEfforts: def.Thinking.ReasoningEfforts,
-		Pricing:                   def.Pricing,
+	oaiDef := openai.CompatModelDefinition{
+		Capabilities: def.Capabilities,
+		Constraints:  def.Constraints,
+		Reasoning:    def.Reasoning,
 	}
 
 	// cfg was already validated against the Bedrock constraints in NewModel;
@@ -166,7 +163,7 @@ type mantleModel struct {
 	llm.Model // embedded OpenAI Responses model (Generate/GenerateEvents)
 
 	name string
-	def  ModelDefinition
+	def  catalog.Offering
 }
 
 func (m *mantleModel) Name() string                        { return m.name }
@@ -177,7 +174,7 @@ func (m *mantleModel) Constraints() llm.ModelConstraints   { return m.def.Constr
 // SupportedReasoningEfforts returns the reasoning efforts this model accepts,
 // in ascending order. Empty for models without effort control.
 func (m *mantleModel) SupportedReasoningEfforts() []llm.ReasoningEffort {
-	return slices.Clone(m.def.Thinking.ReasoningEfforts)
+	return slices.Clone(m.def.Reasoning.Efforts)
 }
 
 // mantleTransport is an http.RoundTripper that SigV4-signs OpenAI-shaped

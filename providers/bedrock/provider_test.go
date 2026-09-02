@@ -17,6 +17,7 @@ package bedrock
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -25,6 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -292,7 +294,7 @@ func TestLookupModel(t *testing.T) {
 			assert.Equal(t, tt.wantOK, ok)
 
 			if tt.wantOK {
-				assert.Equal(t, tt.wantDef, def.Name)
+				assert.Equal(t, tt.wantDef, def.ID)
 			}
 		})
 	}
@@ -675,7 +677,8 @@ func TestNewModel_Capabilities(t *testing.T) {
 	caps := model.Capabilities()
 	assert.True(t, caps.Streaming)
 	assert.True(t, caps.Tools)
-	assert.False(t, caps.Vision)
+	assert.True(t, caps.Vision)
+	assert.False(t, caps.Audio)
 	assert.True(t, caps.MultiTurn)
 	assert.True(t, caps.SystemPrompts)
 	assert.True(t, caps.Reasoning)
@@ -1049,12 +1052,23 @@ func TestRequestMapper_StreamInput(t *testing.T) {
 	assert.InDelta(t, 0.5, *input.InferenceConfig.Temperature, 0.001)
 }
 
+// sonnet46USOffering returns the registered Sonnet 4.6 US offering, the
+// fixture the response-mapper tests are constructed against.
+func sonnet46USOffering(tb testing.TB) catalog.Offering {
+	tb.Helper()
+
+	o, ok := Catalog().Lookup(ModelClaudeSonnet46US)
+	require.True(tb, ok, "unknown offering %s", ModelClaudeSonnet46US)
+
+	return o
+}
+
 // ---------- Response mapper ----------
 
 func TestResponseMapper_TextResponse(t *testing.T) {
 	t.Parallel()
 
-	mapper := NewResponseMapper(supportedModels[ModelClaudeSonnet46])
+	mapper := NewResponseMapper(sonnet46USOffering(t))
 
 	output := &types.ConverseOutputMemberMessage{
 		Value: types.Message{
@@ -1107,7 +1121,7 @@ func TestResponseMapper_TextResponse(t *testing.T) {
 func TestResponseMapper_ToolUseResponse(t *testing.T) {
 	t.Parallel()
 
-	mapper := NewResponseMapper(supportedModels[ModelClaudeSonnet46])
+	mapper := NewResponseMapper(sonnet46USOffering(t))
 
 	output := &types.ConverseOutputMemberMessage{
 		Value: types.Message{
@@ -1144,7 +1158,7 @@ func TestResponseMapper_ToolUseResponse(t *testing.T) {
 func TestResponseMapper_StopReasons(t *testing.T) {
 	t.Parallel()
 
-	mapper := NewResponseMapper(supportedModels[ModelClaudeSonnet46])
+	mapper := NewResponseMapper(sonnet46USOffering(t))
 
 	tests := []struct {
 		name     string
@@ -1170,7 +1184,7 @@ func TestResponseMapper_StopReasons(t *testing.T) {
 func TestResponseMapper_NilOutput(t *testing.T) {
 	t.Parallel()
 
-	mapper := NewResponseMapper(supportedModels[ModelClaudeSonnet46])
+	mapper := NewResponseMapper(sonnet46USOffering(t))
 
 	_, err := mapper.FromConverseOutput(types.StopReasonEndTurn, nil, nil, nil, nil, nil)
 	require.Error(t, err)
@@ -1180,7 +1194,7 @@ func TestResponseMapper_NilOutput(t *testing.T) {
 func TestResponseMapper_CachedTokens(t *testing.T) {
 	t.Parallel()
 
-	mapper := NewResponseMapper(supportedModels[ModelClaudeSonnet46])
+	mapper := NewResponseMapper(sonnet46USOffering(t))
 
 	output := &types.ConverseOutputMemberMessage{
 		Value: types.Message{
@@ -1207,45 +1221,55 @@ func TestResponseMapper_CachedTokens(t *testing.T) {
 func TestModelsDiscovery(t *testing.T) {
 	t.Parallel()
 
-	p := &Provider{}
-
-	models := p.Models()
-	assert.Len(t, models, len(supportedModels))
+	models := Catalog().All()
+	assert.NotEmpty(t, models)
 
 	for _, m := range models {
-		assert.Equal(t, "aws.bedrock", m.Provider)
-		assert.NotEmpty(t, m.Name)
-		assert.NotEmpty(t, m.Label)
+		assert.Equal(t, "aws.bedrock", m.Provider())
+		assert.NotEmpty(t, m.ID)
+		assert.NotEmpty(t, m.DisplayName)
 		assert.Positive(t, m.Constraints.MaxInputTokens,
-			"model %s missing MaxInputTokens — set Constraints in its ModelDefinition", m.Name)
+			"model %s missing MaxInputTokens — set Constraints on its catalog entry", m.ID)
 		assert.Positive(t, m.Constraints.MaxOutputTokens,
-			"model %s missing MaxOutputTokens — set Constraints in its ModelDefinition", m.Name)
+			"model %s missing MaxOutputTokens — set Constraints on its catalog entry", m.ID)
 	}
 
-	// Verify sorted by name
+	// Verify sorted by ID
 	for i := 1; i < len(models); i++ {
-		assert.Less(t, models[i-1].Name, models[i].Name,
-			"Models() should be sorted by Name: %s should come before %s", models[i-1].Name, models[i].Name)
+		assert.Less(t, models[i-1].ID, models[i].ID,
+			"All() should be sorted by ID: %s should come before %s", models[i-1].ID, models[i].ID)
 	}
 }
 
 func TestModelsDiscovery_ProviderDataSharingMetadata(t *testing.T) {
 	t.Parallel()
 
-	p := &Provider{}
-
-	models := p.Models()
-
-	metadataByName := make(map[string]map[string]string, len(models))
-	for _, m := range models {
-		metadataByName[m.Name] = m.Metadata
+	metadataByName := make(map[string]map[string]string)
+	for _, m := range Catalog().All() {
+		metadataByName[m.ID] = m.Attributes
 	}
 
 	for _, name := range []string{ModelClaudeFable5Global, ModelClaudeFable5US, ModelClaudeFable5EU} {
 		assert.Equal(t, "true", metadataByName[name][ModelMetadataRequiresProviderDataSharing])
 	}
 
-	assert.Empty(t, metadataByName[ModelClaudeSonnet46US])
+	assert.NotContains(t, metadataByName[ModelClaudeSonnet46US], ModelMetadataRequiresProviderDataSharing)
+}
+
+// TestModelsDiscovery_InferenceGeoMetadata pins the inference_geo
+// attribute to the offering ID's profile prefix: every profile variant
+// carries its geography, bare on-demand IDs carry none.
+func TestModelsDiscovery_InferenceGeoMetadata(t *testing.T) {
+	t.Parallel()
+
+	for _, m := range Catalog().All() {
+		prefix, _, _ := strings.Cut(m.ID, ".")
+		if _, isProfile := profileLabels[prefix]; isProfile {
+			assert.Equal(t, prefix, m.Attributes[ModelMetadataInferenceGeo], "offering %s", m.ID)
+		} else {
+			assert.NotContains(t, m.Attributes, ModelMetadataInferenceGeo, "offering %s", m.ID)
+		}
+	}
 }
 
 // ---------- Options validation ----------
@@ -1288,4 +1312,70 @@ func TestWithMaxTokens_Negative(t *testing.T) {
 	_, err := p.NewModel(ModelClaudeSonnet46, WithMaxTokens(-1))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "must be positive")
+}
+
+func TestRequestMapper_ResponseFormat(t *testing.T) {
+	t.Parallel()
+
+	rm := NewRequestMapper(&Config{APIModelID: ModelClaudeOpus5US, ModelName: ModelClaudeOpus5US})
+
+	t.Run("json schema populates outputConfig.textFormat", func(t *testing.T) {
+		t.Parallel()
+
+		// Converse enforces the structured-output subset: every object must
+		// set additionalProperties: false and constraint keywords like
+		// "minimum" are rejected, so the schema is adapted before sending.
+		schema := `{"type":"object","properties":{"age":{"type":"integer","minimum":0}}}`
+		adapted := `{"type":"object","properties":{"age":{"type":"integer"}},"additionalProperties":false}`
+		in, err := rm.ToConverseInput(&llm.Request{
+			Messages: []llm.Message{{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("hi")}}},
+			ResponseFormat: &llm.ResponseFormat{
+				Type:       llm.ResponseFormatJSONSchema,
+				JSONSchema: &llm.JSONSchema{Name: "person", Schema: []byte(schema)},
+			},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, in.OutputConfig)
+		require.NotNil(t, in.OutputConfig.TextFormat)
+		assert.Equal(t, types.OutputFormatTypeJsonSchema, in.OutputConfig.TextFormat.Type)
+
+		member, ok := in.OutputConfig.TextFormat.Structure.(*types.OutputFormatStructureMemberJsonSchema)
+		require.True(t, ok)
+		assert.JSONEq(t, adapted, aws.ToString(member.Value.Schema))
+	})
+
+	t.Run("streaming input carries the same format", func(t *testing.T) {
+		t.Parallel()
+
+		in, err := rm.ToConverseStreamInput(&llm.Request{
+			Messages: []llm.Message{{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("hi")}}},
+			ResponseFormat: &llm.ResponseFormat{
+				Type:       llm.ResponseFormatJSONSchema,
+				JSONSchema: &llm.JSONSchema{Name: "p", Schema: []byte(`{"type":"object"}`)},
+			},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, in.OutputConfig)
+		require.NotNil(t, in.OutputConfig.TextFormat)
+	})
+
+	t.Run("no response format leaves outputConfig nil", func(t *testing.T) {
+		t.Parallel()
+
+		in, err := rm.ToConverseInput(&llm.Request{
+			Messages: []llm.Message{{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("hi")}}},
+		})
+		require.NoError(t, err)
+		assert.Nil(t, in.OutputConfig)
+	})
+
+	t.Run("json object mode is rejected, not silently dropped", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := rm.ToConverseInput(&llm.Request{
+			Messages:       []llm.Message{{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("hi")}}},
+			ResponseFormat: &llm.ResponseFormat{Type: llm.ResponseFormatJSONObject},
+		})
+		require.ErrorIs(t, err, llm.ErrUnsupportedFeature)
+	})
 }

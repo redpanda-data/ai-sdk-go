@@ -20,17 +20,18 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 
+	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
 // ResponseMapper converts Bedrock Converse API responses to llm.Response.
 type ResponseMapper struct {
-	modelDefinition ModelDefinition
+	offering catalog.Offering
 }
 
 // NewResponseMapper returns a ready-to-use mapper.
-func NewResponseMapper(definition ModelDefinition) *ResponseMapper {
-	return &ResponseMapper{modelDefinition: definition}
+func NewResponseMapper(offering catalog.Offering) *ResponseMapper {
+	return &ResponseMapper{offering: offering}
 }
 
 // FromConverseOutput converts a Bedrock ConverseOutput to llm.Response.
@@ -75,7 +76,7 @@ func (m *ResponseMapper) FromConverseOutput(
 		},
 		FinishReason:   finishReason,
 		Usage:          tokenUsage,
-		InvokedModelID: m.modelDefinition.Name,
+		InvokedModelID: m.offering.ID,
 	}
 
 	m.applyResponseMetadata(resp, performanceConfig, serviceTier, promptRouterFromTrace(trace))
@@ -272,7 +273,7 @@ func (m *ResponseMapper) applyResponseMetadata(
 
 	if promptRouter != nil && promptRouter.InvokedModelId != nil && *promptRouter.InvokedModelId != "" {
 		if def, ok := lookupModel(*promptRouter.InvokedModelId); ok {
-			resp.InvokedModelID = def.Name
+			resp.InvokedModelID = def.ID
 			return
 		}
 

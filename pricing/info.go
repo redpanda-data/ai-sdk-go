@@ -31,6 +31,14 @@ type Info struct {
 	Overrides []Override
 }
 
+// Clone returns a deep copy of the Info. Info embeds slices (bracket
+// lists and overrides), so callers that hand Info values across an
+// immutability boundary — the model catalog's deep-copying accessors —
+// clone rather than share.
+func (info Info) Clone() Info {
+	return cloneInfo(info)
+}
+
 // WithOverride returns a copy of the Info with a selector-specific
 // rate card override appended. The builder catches duplicates and
 // ambiguous overlaps at Build time.

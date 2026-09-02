@@ -48,20 +48,19 @@ func TestProviderModels(t *testing.T) {
 	provider, err := NewProvider(ctx, "test-api-key")
 	require.NoError(t, err)
 
-	models := provider.Models()
+	models := provider.Catalog().All()
 	assert.NotEmpty(t, models, "Should return available models")
 
 	// Collect model names for verification
 	modelNames := make([]string, len(models))
 	for i, model := range models {
-		modelNames[i] = model.Name
-		assert.NotEmpty(t, model.Name, "Model name should not be empty")
-		assert.NotEmpty(t, model.Label, "Model label should not be empty")
-		assert.Equal(t, "gcp.gemini", model.Provider, "Provider should be 'gcp.gemini'")
+		modelNames[i] = model.ID
+		assert.NotEmpty(t, model.ID, "Model ID should not be empty")
+		assert.NotEmpty(t, model.DisplayName, "Model label should not be empty")
 		assert.Positive(t, model.Constraints.MaxInputTokens,
-			"model %s missing MaxInputTokens — set Constraints in its ModelDefinition", model.Name)
+			"model %s missing MaxInputTokens — set Constraints on its catalog entry", model.ID)
 		assert.Positive(t, model.Constraints.MaxOutputTokens,
-			"model %s missing MaxOutputTokens — set Constraints in its ModelDefinition", model.Name)
+			"model %s missing MaxOutputTokens — set Constraints on its catalog entry", model.ID)
 	}
 
 	// Verify expected models are present
@@ -94,10 +93,11 @@ func TestLatestGeminiModels(t *testing.T) {
 		maxOutputTokens       int
 	}{
 		{
+			// $0.75/$3.75/$0.075 through 2026-12-31; doubles 2027-01-01.
 			name:                  "gemini-3.6-flash",
-			inputMicrocents:       150_000_000,
-			outputMicrocents:      750_000_000,
-			cachedInputMicrocents: 15_000_000,
+			inputMicrocents:       75_000_000,
+			outputMicrocents:      375_000_000,
+			cachedInputMicrocents: 7_500_000,
 			maxInputTokens:        1_048_576,
 			maxOutputTokens:       65_536,
 		},
@@ -111,7 +111,7 @@ func TestLatestGeminiModels(t *testing.T) {
 		},
 	}
 
-	prices := ModelPricing()
+	prices := Catalog().PricingByID()
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -256,7 +256,7 @@ func TestModelTokenLimits(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			modelDef, ok := supportedModels[tt.model]
+			modelDef, ok := Catalog().Lookup(tt.model)
 			require.True(t, ok, "Model should be defined")
 
 			assert.Equal(t, tt.expectedMaxIn, modelDef.Constraints.MaxInputTokens,
@@ -270,7 +270,7 @@ func TestModelTokenLimits(t *testing.T) {
 func TestResponseMapper_CachedTokens(t *testing.T) {
 	t.Parallel()
 
-	mapper := NewResponseMapper(supportedModels[ModelGemini25Flash])
+	mapper := NewResponseMapper(ModelGemini25Flash)
 
 	resp, err := mapper.FromProvider(&genai.GenerateContentResponse{
 		ModelVersion: "models/gemini-2.5-flash-001",

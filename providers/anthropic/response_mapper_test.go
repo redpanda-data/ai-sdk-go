@@ -27,7 +27,7 @@ import (
 func TestResponseMapper_Metadata(t *testing.T) {
 	t.Parallel()
 
-	mapper := NewResponseMapper(supportedModels[ModelClaudeOpus46])
+	mapper := NewResponseMapper()
 
 	resp, err := mapper.FromProvider(&anthropic.BetaMessage{
 		ID:    "msg_123",
@@ -60,7 +60,7 @@ func TestResponseMapper_Metadata(t *testing.T) {
 func TestResponseMapper_FinishReasonTruncationWithToolCalls(t *testing.T) {
 	t.Parallel()
 
-	mapper := NewResponseMapper(supportedModels[ModelClaudeOpus46])
+	mapper := NewResponseMapper()
 
 	toolUseBlock := anthropic.BetaContentBlockUnion{
 		Type:  blockTypeToolUse,

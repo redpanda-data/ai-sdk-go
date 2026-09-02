@@ -24,13 +24,11 @@ import (
 )
 
 // ResponseMapper converts OpenAI Responses API payloads to llm.Response.
-type ResponseMapper struct {
-	modelDefinition ModelDefinition
-}
+type ResponseMapper struct{}
 
 // NewResponseMapper returns a ready-to-use mapper.
-func NewResponseMapper(definition ModelDefinition) *ResponseMapper {
-	return &ResponseMapper{modelDefinition: definition}
+func NewResponseMapper() *ResponseMapper {
+	return &ResponseMapper{}
 }
 
 // FromProvider converts an OpenAI Responses API payload into llm.Response.
@@ -168,8 +166,20 @@ func (m *ResponseMapper) FromProvider(r *responses.Response) (*llm.Response, err
 		FinishReason:   finish,
 		Usage:          usage,
 		ServiceTier:    llm.NormalizeServiceTier(string(r.ServiceTier)),
-		InvokedModelID: r.Model,
+		InvokedModelID: resolveInvokedModelID(r.Model),
 	}, nil
+}
+
+// resolveInvokedModelID collapses a provider-reported model ID (possibly a
+// timestamped snapshot) to its catalog offering ID; IDs the catalog does
+// not know pass through unchanged. Every provider applies this rule, so
+// InvokedModelID has one meaning SDK-wide.
+func resolveInvokedModelID(model string) string {
+	if id, ok := Catalog().ResolveID(model); ok {
+		return id
+	}
+
+	return model
 }
 
 func (*ResponseMapper) providerErrorFrom(e responses.ResponseError) *llm.ProviderError {

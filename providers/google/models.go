@@ -15,18 +15,25 @@
 package google
 
 import (
-	"strings"
+	"sync"
 
+	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/pricing"
 )
 
 // Model ID constants for Google Gemini models.
 const (
-	ModelGemini36Flash       = "gemini-3.6-flash"
-	ModelGemini35FlashLite   = "gemini-3.5-flash-lite"
-	ModelGemini35Flash       = "gemini-3.5-flash"
-	ModelGemini31ProPreview  = "gemini-3.1-pro-preview"
+	ModelGemini37Flash      = "gemini-3.7-flash"
+	ModelGemini36Flash      = "gemini-3.6-flash"
+	ModelGemini35FlashLite  = "gemini-3.5-flash-lite"
+	ModelGemini35Flash      = "gemini-3.5-flash"
+	ModelGemini31ProPreview = "gemini-3.1-pro-preview"
+	// ModelGemini3ProPreview is Gemini 3 Pro Preview.
+	//
+	// Deprecated: retired by Google on 2026-03-09 and no longer listed by
+	// the models API; requests fail. Use [ModelGemini31ProPreview]. The
+	// catalog entry remains so historical usage stays priceable.
 	ModelGemini3ProPreview   = "gemini-3-pro-preview"
 	ModelGemini3FlashPreview = "gemini-3-flash-preview"
 	ModelGemini25Pro         = "gemini-2.5-pro"
@@ -34,17 +41,23 @@ const (
 	ModelGemini25FlashLite   = "gemini-2.5-flash-lite"
 )
 
-// ModelDefinition defines a Gemini model with its capabilities and constraints.
-type ModelDefinition struct {
-	Name                      string
-	Label                     string
-	Capabilities              llm.ModelCapabilities
-	Constraints               llm.ModelConstraints
-	SupportedReasoningEfforts []ReasoningEffort
-	thinkingBudget            *thinkingBudgetConstraints
-	Pricing                   pricing.Info
+var catalogOnce = sync.OnceValue(func() *catalog.Catalog {
+	return catalog.MustNew("google", entries())
+})
+
+// Catalog returns the validated Google model catalog: every offering with
+// its capabilities, constraints, modalities, reasoning controls, pricing,
+// and lifecycle. The catalog is immutable and shared; all reads return
+// deep copies.
+func Catalog() *catalog.Catalog {
+	return catalogOnce()
 }
 
+// thinkingBudgetConstraints is the wire-level validation for Gemini 2.5's
+// numeric thinking budgets. The public signal that a model accepts a
+// budget is catalog Reasoning.Budget; the exact numeric ranges are a
+// Google wire detail that stays provider-local, keyed by offering ID in
+// thinkingBudgets below.
 type thinkingBudgetConstraints struct {
 	min          int32
 	max          int32
@@ -87,273 +100,299 @@ var (
 		ReasoningEffortMedium,
 		ReasoningEffortHigh,
 	}
-	gemini25ProThinkingBudget = &thinkingBudgetConstraints{
+	// Gemini 3.7 Flash rejects "minimal" ("minimal is not supported and
+	// returns an error" — model page).
+	gemini37FlashReasoningEfforts = []ReasoningEffort{
+		ReasoningEffortLow,
+		ReasoningEffortMedium,
+		ReasoningEffortHigh,
+	}
+)
+
+// thinkingBudgets holds the numeric budget ranges per offering. Every
+// offering with catalog Reasoning.Budget == true must have an entry here
+// and vice versa (pinned by TestThinkingBudgetTableMatchesCatalog).
+var thinkingBudgets = map[string]*thinkingBudgetConstraints{
+	ModelGemini25Pro: {
 		min:          128,
 		max:          32768,
 		allowDynamic: true,
-	}
-	gemini25FlashThinkingBudget = &thinkingBudgetConstraints{
+	},
+	ModelGemini25Flash: {
 		min:          1,
 		max:          24576,
 		allowZero:    true,
 		allowDynamic: true,
-	}
-	gemini25FlashLiteThinkingBudget = &thinkingBudgetConstraints{
+	},
+	ModelGemini25FlashLite: {
 		min:          512,
 		max:          24576,
 		allowZero:    true,
 		allowDynamic: true,
-	}
-)
-
-// resolveModelFamily collapses provider-returned versioned model identifiers to
-// the stable model key used by the SDK catalog.
-//
-// Gemini responses can report values such as "models/gemini-2.5-flash-001",
-// while the SDK catalog is keyed by family IDs like "gemini-2.5-flash". Pricing
-// and capability lookup need the stable family key, so this resolver picks the
-// longest supportedModels prefix after removing the optional "models/" prefix.
-func resolveModelFamily(model string) string {
-	model = strings.TrimPrefix(model, "models/")
-
-	best := ""
-	for family := range supportedModels {
-		if strings.HasPrefix(model, family) && len(family) > len(best) {
-			best = family
-		}
-	}
-
-	if best != "" {
-		return best
-	}
-
-	return model
+	},
 }
 
-// supportedModels defines all Gemini models with their capabilities and constraints.
-// Based on https://ai.google.dev/gemini-api/docs/models
-var supportedModels = map[string]ModelDefinition{
-	ModelGemini36Flash: {
-		Name:  ModelGemini36Flash,
-		Label: "Gemini 3.6 Flash",
-		Capabilities: llm.ModelCapabilities{
-			Streaming:        true,
-			Tools:            true,
-			JSONMode:         true,
-			StructuredOutput: true,
-			Vision:           true,
-			MultiTurn:        true,
-			SystemPrompts:    true,
-			Reasoning:        true,
-		},
-		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    1048576,
-			MaxOutputTokens:   65536,
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
-			MutuallyExclusive: [][]string{},
-		},
-		Pricing: pricing.FlatInfo(1.50, 7.50, 0.15),
+// geminiCaps is the capability set shared by every catalogued Gemini
+// model.
+var geminiCaps = llm.ModelCapabilities{
+	Streaming:        true,
+	Tools:            true,
+	JSONMode:         true, // via response_mime_type
+	StructuredOutput: true,
+	Vision:           true,
+	Audio:            true,
+	MultiTurn:        true,
+	SystemPrompts:    true,
+	Reasoning:        true,
+}
+
+// geminiModalities is shared by every catalogued Gemini model: text,
+// image, audio, video, and PDF inputs; text output.
+var geminiModalities = catalog.Modalities{
+	Input: []catalog.Modality{
+		catalog.ModalityText, catalog.ModalityImage, catalog.ModalityAudio,
+		catalog.ModalityVideo, catalog.ModalityDocument,
 	},
-	ModelGemini35FlashLite: {
-		Name:  ModelGemini35FlashLite,
-		Label: "Gemini 3.5 Flash-Lite",
-		Capabilities: llm.ModelCapabilities{
-			Streaming:        true,
-			Tools:            true,
-			JSONMode:         true,
-			StructuredOutput: true,
-			Vision:           true,
-			MultiTurn:        true,
-			SystemPrompts:    true,
-			Reasoning:        true,
-		},
-		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    1048576,
-			MaxOutputTokens:   65536,
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
-			MutuallyExclusive: [][]string{},
-		},
-		Pricing: pricing.FlatInfo(0.30, 2.50, 0.03),
-	},
-	ModelGemini35Flash: {
-		Name:                      ModelGemini35Flash,
-		Label:                     "Gemini 3.5 Flash",
-		SupportedReasoningEfforts: gemini3ReasoningEfforts,
-		Capabilities: llm.ModelCapabilities{
-			Streaming:        true,
-			Tools:            true,
-			JSONMode:         true,
-			StructuredOutput: true,
-			Vision:           true,
-			MultiTurn:        true,
-			SystemPrompts:    true,
-			Reasoning:        true,
-		},
-		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    1048576,
-			MaxOutputTokens:   65535,
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
-			MutuallyExclusive: [][]string{},
-		},
-		Pricing: pricing.FlatInfo(1.50, 9.00, 0.15),
-	},
-	ModelGemini31ProPreview: {
-		Name:                      ModelGemini31ProPreview,
-		Label:                     "Gemini 3.1 Pro Preview",
-		SupportedReasoningEfforts: gemini31ProReasoningEfforts,
-		Capabilities: llm.ModelCapabilities{
-			Streaming:        true,
-			Tools:            true,
-			JSONMode:         true,
-			StructuredOutput: true,
-			Vision:           true,
-			MultiTurn:        true,
-			SystemPrompts:    true,
-			Reasoning:        true,
-		},
-		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    1048576, // 1M input tokens
-			MaxOutputTokens:   65535,   // 64K output tokens
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
-			MutuallyExclusive: [][]string{},
-		},
-		Pricing: pricing.TieredInfo(
-			pricing.NewRates(2.00, 12.00, 0.20),
-			pricing.Bracket{
-				MinContextTokens: 200_001,
-				Rates:            pricing.NewRates(4.00, 18.00, 0.40),
+	Output: []catalog.Modality{catalog.ModalityText},
+}
+
+// geminiParams is the request-parameter surface shared by every
+// catalogued Gemini model.
+var geminiParams = []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"}
+
+// entries returns the authored Google catalog.
+// Model data: https://ai.google.dev/gemini-api/docs/models
+//
+// Lifecycle sourcing: https://ai.google.dev/gemini-api/docs/deprecations.
+// Google publishes "earliest possible" shutdown dates — those are floors,
+// not exact dates, so Retires stays unset. None of the catalogued models
+// has an announced shutdown.
+func entries() []catalog.Entry {
+	return []catalog.Entry{
+		{
+			ID:           ModelGemini37Flash,
+			Model:        catalog.ModelGemini37Flash,
+			Capabilities: geminiCaps,
+			Modalities:   geminiModalities,
+			Reasoning: catalog.ReasoningSupport{
+				Efforts: gemini37FlashReasoningEfforts,
 			},
-		),
-	},
-	ModelGemini3ProPreview: {
-		Name:                      ModelGemini3ProPreview,
-		Label:                     "Gemini 3 Pro Preview",
-		SupportedReasoningEfforts: gemini3ProReasoningEfforts,
-		Capabilities: llm.ModelCapabilities{
-			Streaming:        true,
-			Tools:            true,
-			JSONMode:         true,
-			StructuredOutput: true,
-			Vision:           true,
-			MultiTurn:        true,
-			SystemPrompts:    true,
-			Reasoning:        true, // Gemini 3 has thinking support
-		},
-		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    1048576, // 1M input tokens
-			MaxOutputTokens:   65535,   // 65K output tokens
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
-			MutuallyExclusive: [][]string{},
-		},
-		Pricing: pricing.TieredInfo(
-			pricing.NewRates(2.00, 12.00, 0.20),
-			pricing.Bracket{
-				MinContextTokens: 200_001,
-				Rates:            pricing.NewRates(4.00, 18.00, 0.40),
+			Constraints: llm.ModelConstraints{
+				TemperatureRange: [2]float64{0.0, 2.0},
+				MaxInputTokens:   1048576,
+				MaxOutputTokens:  65536,
+				SupportedParams:  geminiParams,
 			},
-		),
-	},
-	ModelGemini3FlashPreview: {
-		Name:                      ModelGemini3FlashPreview,
-		Label:                     "Gemini 3 Flash Preview",
-		SupportedReasoningEfforts: gemini3ReasoningEfforts,
-		Capabilities: llm.ModelCapabilities{
-			Streaming:        true,
-			Tools:            true,
-			JSONMode:         true,
-			StructuredOutput: true,
-			Vision:           true,
-			MultiTurn:        true,
-			SystemPrompts:    true,
-			Reasoning:        true, // Gemini 3 has thinking support
-		},
-		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    1048576, // 1M input tokens
-			MaxOutputTokens:   65535,   // 65K output tokens
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
-			MutuallyExclusive: [][]string{},
-		},
-		Pricing: pricing.FlatInfo(0.50, 3.00, 0.05),
-	},
-	ModelGemini25Pro: {
-		Name:           ModelGemini25Pro,
-		Label:          "Gemini 2.5 Pro",
-		thinkingBudget: gemini25ProThinkingBudget,
-		Capabilities: llm.ModelCapabilities{
-			Streaming:        true,
-			Tools:            true,
-			JSONMode:         true, // Gemini supports JSON mode via response_mime_type
-			StructuredOutput: true, // Gemini 2.5 has structured outputs support
-			Vision:           true,
-			MultiTurn:        true,
-			SystemPrompts:    true,
-			Reasoning:        true, // Gemini 2.5 has thinking support
-		},
-		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    1048576, // 1M input tokens
-			MaxOutputTokens:   65535,   // 65K output tokens
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
-			MutuallyExclusive: [][]string{},
-		},
-		Pricing: pricing.TieredInfo(
-			pricing.NewRates(1.25, 10.00, 0.125),
-			pricing.Bracket{
-				MinContextTokens: 200_001,
-				Rates:            pricing.NewRates(2.50, 15.00, 0.25),
+			Life: catalog.Lifecycle{
+				Available: catalog.MustDate("2026-08-13"),
 			},
-		),
-	},
-	ModelGemini25Flash: {
-		Name:           ModelGemini25Flash,
-		Label:          "Gemini 2.5 Flash",
-		thinkingBudget: gemini25FlashThinkingBudget,
-		Capabilities: llm.ModelCapabilities{
-			Streaming:        true,
-			Tools:            true,
-			JSONMode:         true,
-			StructuredOutput: true,
-			Vision:           true,
-			MultiTurn:        true,
-			SystemPrompts:    true,
-			Reasoning:        true, // Thinking support
+			// Google lists $0.75/$3.75 (cache $0.075) through 2026-12-31,
+			// rising to $1.50/$7.50/$0.15 on 2027-01-01. Only the rate in
+			// effect is tracked. No long-context tier is published.
+			Pricing: pricing.FlatInfo(0.75, 3.75, 0.075),
 		},
-		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    1048576, // 1M input tokens
-			MaxOutputTokens:   65535,   // 65K output tokens
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
-			MutuallyExclusive: [][]string{},
+		{
+			ID:           ModelGemini36Flash,
+			Model:        catalog.ModelGemini36Flash,
+			Capabilities: geminiCaps,
+			Modalities:   geminiModalities,
+			Constraints: llm.ModelConstraints{
+				TemperatureRange: [2]float64{0.0, 2.0},
+				MaxInputTokens:   1048576,
+				MaxOutputTokens:  65536,
+				SupportedParams:  geminiParams,
+			},
+			Life: catalog.Lifecycle{
+				Available: catalog.MustDate("2026-07-21"),
+			},
+			// Google lists $0.75/$3.75 through 2026-12-31, rising to
+			// $1.50/$7.50 on 2027-01-01. Only the rate in effect is tracked.
+			Pricing: pricing.FlatInfo(0.75, 3.75, 0.075),
 		},
-		Pricing: pricing.FlatInfo(0.30, 2.50, 0.03),
-	},
-	ModelGemini25FlashLite: {
-		Name:           ModelGemini25FlashLite,
-		Label:          "Gemini 2.5 Flash Lite",
-		thinkingBudget: gemini25FlashLiteThinkingBudget,
-		Capabilities: llm.ModelCapabilities{
-			Streaming:        true,
-			Tools:            true,
-			JSONMode:         true,
-			StructuredOutput: true,
-			Vision:           true,
-			MultiTurn:        true,
-			SystemPrompts:    true,
-			Reasoning:        true, // Thinking support
+		{
+			ID:           ModelGemini35FlashLite,
+			Model:        catalog.ModelGemini35FlashLite,
+			Capabilities: geminiCaps,
+			Modalities:   geminiModalities,
+			Constraints: llm.ModelConstraints{
+				TemperatureRange: [2]float64{0.0, 2.0},
+				MaxInputTokens:   1048576,
+				MaxOutputTokens:  65536,
+				SupportedParams:  geminiParams,
+			},
+			Life: catalog.Lifecycle{
+				Available: catalog.MustDate("2026-07-21"),
+			},
+			Pricing: pricing.FlatInfo(0.30, 2.50, 0.03),
 		},
-		Constraints: llm.ModelConstraints{
-			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    1048576, // 1M input tokens
-			MaxOutputTokens:   65535,   // 65K output tokens
-			SupportedParams:   []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"},
-			MutuallyExclusive: [][]string{},
+		{
+			ID:           ModelGemini35Flash,
+			Model:        catalog.ModelGemini35Flash,
+			Capabilities: geminiCaps,
+			Modalities:   geminiModalities,
+			Reasoning: catalog.ReasoningSupport{
+				Efforts: gemini3ReasoningEfforts,
+			},
+			Constraints: llm.ModelConstraints{
+				TemperatureRange: [2]float64{0.0, 2.0},
+				MaxInputTokens:   1048576,
+				MaxOutputTokens:  65535,
+				SupportedParams:  geminiParams,
+			},
+			Life: catalog.Lifecycle{
+				Available: catalog.MustDate("2026-05-19"),
+			},
+			Pricing: pricing.FlatInfo(1.50, 9.00, 0.15),
 		},
-		Pricing: pricing.FlatInfo(0.10, 0.40, 0.01),
-	},
+		{
+			ID:           ModelGemini31ProPreview,
+			Model:        catalog.ModelGemini31ProPreview,
+			Capabilities: geminiCaps,
+			Modalities:   geminiModalities,
+			Reasoning: catalog.ReasoningSupport{
+				Efforts: gemini31ProReasoningEfforts,
+			},
+			Constraints: llm.ModelConstraints{
+				TemperatureRange: [2]float64{0.0, 2.0},
+				MaxInputTokens:   1048576, // 1M input tokens
+				MaxOutputTokens:  65535,   // 64K output tokens
+				SupportedParams:  geminiParams,
+			},
+			Life: catalog.Lifecycle{
+				Stage:     catalog.StagePreview,
+				Available: catalog.MustDate("2026-02-19"),
+			},
+			Pricing: pricing.TieredInfo(
+				pricing.NewRates(2.00, 12.00, 0.20),
+				pricing.Bracket{
+					MinContextTokens: 200_001,
+					Rates:            pricing.NewRates(4.00, 18.00, 0.40),
+				},
+			),
+		},
+		{
+			ID:           ModelGemini3ProPreview,
+			Model:        catalog.ModelGemini3ProPreview,
+			Capabilities: geminiCaps,
+			Modalities:   geminiModalities,
+			Reasoning: catalog.ReasoningSupport{
+				Efforts: gemini3ProReasoningEfforts,
+			},
+			Constraints: llm.ModelConstraints{
+				TemperatureRange: [2]float64{0.0, 2.0},
+				MaxInputTokens:   1048576, // 1M input tokens
+				MaxOutputTokens:  65535,   // 65K output tokens
+				SupportedParams:  geminiParams,
+			},
+			Life: catalog.Lifecycle{
+				Stage:      catalog.StagePreview,
+				Available:  catalog.MustDate("2025-11-18"),
+				Retires:    catalog.MustDate("2026-03-09"),
+				ReplacedBy: ModelGemini31ProPreview,
+			},
+			Pricing: pricing.TieredInfo(
+				pricing.NewRates(2.00, 12.00, 0.20),
+				pricing.Bracket{
+					MinContextTokens: 200_001,
+					Rates:            pricing.NewRates(4.00, 18.00, 0.40),
+				},
+			),
+		},
+		{
+			ID:           ModelGemini3FlashPreview,
+			Model:        catalog.ModelGemini3FlashPreview,
+			Capabilities: geminiCaps,
+			Modalities:   geminiModalities,
+			Reasoning: catalog.ReasoningSupport{
+				Efforts: gemini3ReasoningEfforts,
+			},
+			Constraints: llm.ModelConstraints{
+				TemperatureRange: [2]float64{0.0, 2.0},
+				MaxInputTokens:   1048576, // 1M input tokens
+				MaxOutputTokens:  65535,   // 65K output tokens
+				SupportedParams:  geminiParams,
+			},
+			Life: catalog.Lifecycle{
+				Stage:      catalog.StagePreview,
+				Available:  catalog.MustDate("2025-12-17"),
+				ReplacedBy: ModelGemini36Flash,
+			},
+			Pricing: pricing.FlatInfo(0.50, 3.00, 0.05),
+		},
+		{
+			ID:           ModelGemini25Pro,
+			Model:        catalog.ModelGemini25Pro,
+			Capabilities: geminiCaps,
+			Modalities:   geminiModalities,
+			Reasoning: catalog.ReasoningSupport{
+				// Gemini 2.5 thinking is controlled by a numeric token budget
+				// (ranges in thinkingBudgets); -1 selects dynamic thinking.
+				Adaptive: true,
+				Budget:   true,
+			},
+			Constraints: llm.ModelConstraints{
+				TemperatureRange: [2]float64{0.0, 2.0},
+				MaxInputTokens:   1048576, // 1M input tokens
+				MaxOutputTokens:  65535,   // 65K output tokens
+				SupportedParams:  geminiParams,
+			},
+			Life: catalog.Lifecycle{
+				Available:  catalog.MustDate("2025-06-17"),
+				Retires:    catalog.MustDate("2026-10-20"),
+				ReplacedBy: ModelGemini35Flash,
+			},
+			Pricing: pricing.TieredInfo(
+				pricing.NewRates(1.25, 10.00, 0.125),
+				pricing.Bracket{
+					MinContextTokens: 200_001,
+					Rates:            pricing.NewRates(2.50, 15.00, 0.25),
+				},
+			),
+		},
+		{
+			ID:           ModelGemini25Flash,
+			Model:        catalog.ModelGemini25Flash,
+			Capabilities: geminiCaps,
+			Modalities:   geminiModalities,
+			Reasoning: catalog.ReasoningSupport{
+				Adaptive: true,
+				Budget:   true,
+			},
+			Constraints: llm.ModelConstraints{
+				TemperatureRange: [2]float64{0.0, 2.0},
+				MaxInputTokens:   1048576, // 1M input tokens
+				MaxOutputTokens:  65535,   // 65K output tokens
+				SupportedParams:  geminiParams,
+			},
+			Life: catalog.Lifecycle{
+				Available:  catalog.MustDate("2025-06-17"),
+				Retires:    catalog.MustDate("2026-10-20"),
+				ReplacedBy: ModelGemini35FlashLite,
+			},
+			Pricing: pricing.FlatInfo(0.30, 2.50, 0.03),
+		},
+		{
+			ID:           ModelGemini25FlashLite,
+			Model:        catalog.ModelGemini25FlashLite,
+			Capabilities: geminiCaps,
+			Modalities:   geminiModalities,
+			Reasoning: catalog.ReasoningSupport{
+				Adaptive: true,
+				Budget:   true,
+			},
+			Constraints: llm.ModelConstraints{
+				TemperatureRange: [2]float64{0.0, 2.0},
+				MaxInputTokens:   1048576, // 1M input tokens
+				MaxOutputTokens:  65535,   // 65K output tokens
+				SupportedParams:  geminiParams,
+			},
+			Life: catalog.Lifecycle{
+				Available: catalog.MustDate("2025-07-22"),
+				Retires:   catalog.MustDate("2026-10-20"),
+				// Google recommends Gemini 3.1 Flash-Lite or Gemma 4; this
+				// catalog carries neither, so ReplacedBy stays unset.
+			},
+			Pricing: pricing.FlatInfo(0.10, 0.40, 0.01),
+		},
+	}
 }

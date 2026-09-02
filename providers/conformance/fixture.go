@@ -17,6 +17,7 @@ package conformance
 import (
 	"testing"
 
+	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -35,9 +36,10 @@ type Fixture interface {
 	// Implementations should call t.Skip when reasoning models are not available.
 	NewReasoningModel(t *testing.T) llm.Model
 
-	// Models returns the list of all models available from this provider
-	// for discovery testing. Returns nil or empty slice to skip model discovery tests.
-	Models() []llm.ModelDiscoveryInfo
+	// Catalog returns the provider's model catalog for discovery testing,
+	// or nil to skip discovery tests (providers whose model space is
+	// caller-defined).
+	Catalog() *catalog.Catalog
 
 	// NewModel creates a new model instance by name for testing.
 	// Used by the TestAllSupportedModels test to verify all models work.

@@ -30,37 +30,24 @@ task security               # Run govulncheck + osv-scanner
 
 Stop hooks in `.claude/settings.json` automatically run `task license` (adds Apache 2.0 headers) and `task lint:new` (golangci-lint with --fix, new issues only) when Claude finishes a turn. Code style (import grouping, gofumpt formatting, forbidden functions, snake_case tags) is enforced by the linter — no need to remember these rules manually.
 
-## Adding New Models
+## Model Catalog
 
-When adding a model to a provider's `supportedModels` map, you **must** set the `Pricing` field. The per-provider `TestAllModelsHavePricing` test enforces this.
+Providers author `catalog.Entry` values in their `models.go`, validated and frozen by
+`catalog.MustNew` at init; `catalog/snapshot.json` is the committed, CI-checked artifact
+(`task catalog:snapshot` regenerates it, and its diff is the review surface for any
+catalog change).
 
-Prices are in **microcents per million tokens** (see `pricing/pricing.go` for why). To convert from a provider's pricing page:
-
-```
-dollars × 100_000_000 = microcents
-```
-
-Steps:
-1. Find the model's pricing on the provider's page:
-   - OpenAI: https://openai.com/api/pricing/
-   - Anthropic: https://docs.anthropic.com/en/docs/about-claude/pricing
-   - Google: https://ai.google.dev/gemini-api/docs/pricing
-   - Bedrock: https://aws.amazon.com/bedrock/pricing/
-2. Convert each dollar price: `$2.50/M` → `250_000_000`
-3. Add a dollar comment on every value for readability:
-   ```go
-   Pricing: pricing.FlatInfo(
-       250_000_000,   // $2.50/M input
-       1_000_000_000, // $10.00/M output
-       125_000_000,   // $1.25/M cached input
-   ),
-   ```
-4. If the model has tiered pricing (like Gemini Pro), use `pricing.TieredInfo(...)`.
-5. If pricing changes by service tier, speed, or region, add a selector override with `Pricing.WithOverride(...)` instead of introducing provider-specific pricing fields.
+Model work is covered by two skills — use them instead of improvising:
+- **add-model** — registering a new model, snapshot, or Bedrock profile variant
+  (facts, entry authoring, pricing encoding, lifecycle rules, Bedrock specifics).
+- **reconcile-models** — auditing existing entries against vendor sources and fixing
+  drift in pricing, limits, lifecycle dates, or capabilities.
 
 ## Project Structure
 
 - `llm/` — Core types and interfaces (Request, Response, Message, Part, Event)
+- `catalog/` — Shared model-metadata read model (facts registry, offerings, lifecycle views,
+  `catalog/snapshot` encoder); `catalog/snapshot.json` is the committed, CI-checked artifact
 - `providers/` — LLM provider implementations (anthropic, openai, google, bedrock, openaicompat)
 - `agent/` — Agent framework; `llmagent/` has the LLM-powered agent with tool calling
 - `tool/` — Tool registry, MCP integration, built-in tools, agent-as-tool

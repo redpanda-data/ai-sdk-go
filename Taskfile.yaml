@@ -108,10 +108,25 @@ tasks:
       - 'GOROOT={{.GO_ROOT}} GOTOOLCHAIN=local {{.BIN_DIR}}/govulncheck ./...'
       - 'GOROOT={{.GO_ROOT}} GOTOOLCHAIN=local {{.BIN_DIR}}/osv-scanner --lockfile go.mod'
 
+  catalog:snapshot:
+    desc: Regenerate the committed model-catalog snapshot (catalog/snapshot.json)
+    deps:
+      - install:go
+    cmds:
+      - 'GOROOT={{.GO_ROOT}} GOTOOLCHAIN=local {{.GO_BIN}} run ./cmd/catalog-snapshot -out catalog/snapshot.json'
+
+  catalog:check:
+    desc: Fail when the committed model-catalog snapshot is stale
+    deps:
+      - install:go
+    cmds:
+      - 'GOROOT={{.GO_ROOT}} GOTOOLCHAIN=local {{.GO_BIN}} run ./cmd/catalog-snapshot -check -out catalog/snapshot.json'
+
   ci:
-    desc: Run all CI checks (license, lint, test:unit, examples:build)
+    desc: Run all CI checks (license, lint, test:unit, catalog:check, examples:build)
     cmds:
       - task: license:check
       - task: lint
       - task: test:unit
+      - task: catalog:check
       - task: examples:build

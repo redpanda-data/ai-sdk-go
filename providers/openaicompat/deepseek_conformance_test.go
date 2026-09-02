@@ -21,9 +21,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/internal/testsuite"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/plugins/retry"
+	"github.com/redpanda-data/ai-sdk-go/pricing"
 	"github.com/redpanda-data/ai-sdk-go/providers/conformance"
 	"github.com/redpanda-data/ai-sdk-go/providers/openaicompat"
 	"github.com/redpanda-data/ai-sdk-go/providers/openaicompat/openaicompattest"
@@ -110,21 +112,40 @@ func (f *DeepSeekFixture) NewReasoningModel(t *testing.T) llm.Model {
 	return retry.WrapModel(model)
 }
 
-func (f *DeepSeekFixture) Models() []llm.ModelDiscoveryInfo {
-	return []llm.ModelDiscoveryInfo{
-		{
-			Name:         openaicompattest.DeepSeekDefaultStandardModel,
-			Label:        "DeepSeek V4 Flash",
-			Capabilities: f.capabilities,
-			Constraints:  f.constraints,
+// Catalog builds a test-local catalog for the two DeepSeek presets: the
+// openaicompat provider has no static catalog, so the fixture authors its
+// own entries (with a fixture-local facts registry) purely for discovery
+// testing.
+func (f *DeepSeekFixture) Catalog() *catalog.Catalog {
+	registry := catalog.Registry{
+		"deepseek/v4-flash": {
+			DisplayName: "DeepSeek V4 Flash", Series: "deepseek-flash",
+			Released: catalog.MustDate("2026-05-01"),
 		},
-		{
-			Name:         openaicompattest.DeepSeekDefaultReasoningModel,
-			Label:        "DeepSeek V4 Pro",
-			Capabilities: f.capabilities,
-			Constraints:  f.constraints,
+		"deepseek/v4-pro": {
+			DisplayName: "DeepSeek V4 Pro", Series: "deepseek-pro",
+			Released: catalog.MustDate("2026-05-01"),
 		},
 	}
+
+	return catalog.MustNew("deepseek", []catalog.Entry{
+		{
+			ID:           openaicompattest.DeepSeekDefaultStandardModel,
+			Model:        "deepseek/v4-flash",
+			DisplayName:  "DeepSeek V4 Flash",
+			Capabilities: f.capabilities,
+			Constraints:  f.constraints,
+			Pricing:      pricing.FlatInfo(0.28, 0.42, 0.028),
+		},
+		{
+			ID:           openaicompattest.DeepSeekDefaultReasoningModel,
+			Model:        "deepseek/v4-pro",
+			DisplayName:  "DeepSeek V4 Pro",
+			Capabilities: f.capabilities,
+			Constraints:  f.constraints,
+			Pricing:      pricing.FlatInfo(0.56, 1.68, 0.056),
+		},
+	}, catalog.WithRegistry(registry))
 }
 
 func (f *DeepSeekFixture) NewModel(modelName string) (llm.Model, error) {
@@ -185,15 +206,15 @@ func TestDeepSeekV4ConformancePresets(t *testing.T) {
 		Reasoning:     true,
 	}
 
-	models := fixture.Models()
+	models := fixture.Catalog().All()
 	require.Len(t, models, 2)
-	require.Equal(t, []string{"deepseek-v4-flash", "deepseek-v4-pro"}, []string{models[0].Name, models[1].Name})
+	require.Equal(t, []string{"deepseek-v4-flash", "deepseek-v4-pro"}, []string{models[0].ID, models[1].ID})
 
 	for _, info := range models {
 		assert.Equal(t, wantConstraints, info.Constraints)
 		assert.Equal(t, wantCapabilities, info.Capabilities)
 
-		model, err := fixture.NewModel(info.Name)
+		model, err := fixture.NewModel(info.ID)
 		require.NoError(t, err)
 		assert.Equal(t, info.Constraints, model.Constraints())
 		assert.Equal(t, info.Capabilities, model.Capabilities())

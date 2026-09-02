@@ -30,16 +30,16 @@ import (
 // machinery to actually send LLM requests.
 //
 // You still import a provider package to pick up its curated pricing
-// map (openai.ModelPricing() here) and the llm package for the
+// map (openai.Catalog().PricingByID() here) and the llm package for the
 // TokenUsage shape — the request/response stack is just not used.
 func Example_standalone() {
 	// 1. Build a catalog from the SDK's shipped pricing data. Mix
 	//    providers as needed; each map is provider-scoped.
 	catalog, err := pricing.NewCatalog(
-		pricing.WithProvider("openai", openai.ModelPricing()),
-		// pricing.WithProvider("anthropic", anthropic.ModelPricing()),
-		// pricing.WithProvider("google",    google.ModelPricing()),
-		// pricing.WithProvider("bedrock",   bedrock.ModelPricing()),
+		pricing.WithProvider("openai", openai.Catalog().PricingByID()),
+		// pricing.WithProvider("anthropic", anthropic.Catalog().PricingByID()),
+		// pricing.WithProvider("google",    google.Catalog().PricingByID()),
+		// pricing.WithProvider("bedrock",   bedrock.Catalog().PricingByID()),
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -65,7 +65,7 @@ func Example_standalone() {
 	fmt.Printf("catalog version stamped: %t\n", cost.CatalogVersion != "")
 
 	// Output:
-	// total: $1.1875 (118750000 microcents)
+	// total: $2.3125 (231250000 microcents)
 	// catalog version stamped: true
 }
 
@@ -75,7 +75,7 @@ func Example_standalone() {
 func Example_unknownModelIsAnError() {
 	catalog, _ := pricing.NewCatalog(
 		pricing.WithProvider("openai", map[string]pricing.Info{
-			"gpt-5": pricing.FlatInfo(0.625, 5.00, 0.125),
+			"gpt-5": pricing.FlatInfo(1.25, 10.00, 0.125),
 		}),
 	)
 

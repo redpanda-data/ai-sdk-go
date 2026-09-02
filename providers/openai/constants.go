@@ -25,10 +25,19 @@ import (
 // These constants help avoid typos and provide IntelliSense support.
 const (
 	// ModelGPT5 is the GPT-5 model.
+	//
+	// Deprecated: OpenAI deprecated GPT-5 on 2026-06-11; it shuts down
+	// 2026-12-11. Use [ModelGPT5_6Sol].
 	ModelGPT5 = shared.ChatModelGPT5
 	// ModelGPT5Mini is the GPT-5 Mini model.
+	//
+	// Deprecated: OpenAI deprecated GPT-5 Mini on 2026-06-11; it shuts
+	// down 2026-12-11. Use [ModelGPT5_6Terra].
 	ModelGPT5Mini = shared.ChatModelGPT5Mini
 	// ModelGPT5Nano is the GPT-5 Nano model.
+	//
+	// Deprecated: OpenAI deprecated GPT-5 Nano on 2026-06-11; it shuts
+	// down 2026-12-11. Use [ModelGPT5_6Luna].
 	ModelGPT5Nano = shared.ChatModelGPT5Nano
 
 	// ModelGPT5_1 is the GPT-5.1 model with configurable adaptive reasoning.
@@ -39,6 +48,20 @@ const (
 	ModelGPT5_2 = shared.ChatModelGPT5_2
 	// ModelGPT5_2Pro is the GPT-5.2 Pro model (maximum accuracy variant).
 	ModelGPT5_2Pro = shared.ChatModelGPT5_2Pro
+
+	// ModelGPT5_2Instant is the GPT-5.2 Instant model.
+	//
+	// Deprecated: retired by OpenAI on 2026-08-10; requests fail. Use
+	// [ModelGPT5_6Sol]. The catalog entry remains so historical usage
+	// stays priceable.
+	ModelGPT5_2Instant = shared.ChatModelGPT5_2ChatLatest
+
+	// ModelGPT5_3ChatLatest is the GPT-5.3 Chat Latest model.
+	//
+	// Deprecated: retired by OpenAI on 2026-08-10; requests fail. Use
+	// [ModelGPT5_6Sol]. The catalog entry remains so historical usage
+	// stays priceable.
+	ModelGPT5_3ChatLatest = shared.ChatModelGPT5_3ChatLatest
 
 	// ModelGPT5_6Luna is the cost-optimized GPT-5.6 model.
 	ModelGPT5_6Luna = shared.ChatModelGPT5_6Luna
@@ -65,9 +88,15 @@ const (
 	// ModelGPT4OMini is the GPT-4o Mini model.
 	ModelGPT4OMini = shared.ChatModelGPT4oMini
 
-	// ModelGPT4Turbo is the legacy GPT-4 Turbo model (still supported).
+	// ModelGPT4Turbo is the legacy GPT-4 Turbo model.
+	//
+	// Deprecated: OpenAI deprecated GPT-4 Turbo on 2026-04-22; it shuts
+	// down 2026-10-23. Use [ModelGPT5_6Sol].
 	ModelGPT4Turbo = shared.ChatModelGPT4Turbo
-	// ModelGPT35Turbo is the legacy GPT-3.5 Turbo model (still supported).
+	// ModelGPT35Turbo is the legacy GPT-3.5 Turbo model.
+	//
+	// Deprecated: OpenAI deprecated GPT-3.5 Turbo on 2026-04-22; it shuts
+	// down 2026-10-23. Use [ModelGPT5_6Terra].
 	ModelGPT35Turbo = shared.ChatModelGPT3_5Turbo
 
 	// ModelGPT41 is the GPT-4.1 model.
@@ -76,12 +105,24 @@ const (
 	ModelGPT41Mini = shared.ChatModelGPT4_1Mini
 
 	// ModelO1Pro is the O1 Pro reasoning model.
+	//
+	// Deprecated: OpenAI deprecated o1-pro on 2026-04-22; it shuts down
+	// 2026-10-23. Use [ModelGPT5_6Sol].
 	ModelO1Pro = shared.ResponsesModelO1Pro
 	// ModelO3 is the O3 reasoning model.
+	//
+	// Deprecated: OpenAI deprecated o3 on 2026-06-11; it shuts down
+	// 2026-12-11. Use [ModelGPT5_6Sol].
 	ModelO3 = shared.ChatModelO3
 	// ModelO3Pro is the O3 Pro reasoning model.
+	//
+	// Deprecated: OpenAI deprecated o3-pro on 2026-06-11; it shuts down
+	// 2026-12-11. Use [ModelGPT5_6Sol].
 	ModelO3Pro = shared.ResponsesModelO3Pro
 	// ModelO4Mini is the O4 Mini reasoning model.
+	//
+	// Deprecated: OpenAI deprecated o4-mini on 2026-04-22; it shuts down
+	// 2026-10-23. Use [ModelGPT5_6Terra].
 	ModelO4Mini = shared.ChatModelO4Mini
 )
 

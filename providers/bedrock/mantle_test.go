@@ -58,19 +58,18 @@ func TestIsMantleModel(t *testing.T) {
 func TestMantleModelsAreFlaggedAndBareID(t *testing.T) {
 	t.Parallel()
 
-	for id, def := range supportedModels {
-		if !def.Mantle {
-			continue
-		}
+	require.NotEmpty(t, mantleModelIDs)
 
+	for id := range mantleModelIDs {
 		t.Run(id, func(t *testing.T) {
 			t.Parallel()
 			// Mantle models are invoked by their bare ID — they must not carry a
 			// geo/global inference-profile prefix (NewModel resolves them as-is).
 			assert.False(t, hasRegionPrefix(id),
 				"mantle model %s should be a bare ID with no geo prefix", id)
-			// The catalog Name must equal the map key.
-			assert.Equal(t, id, def.Name)
+
+			_, ok := Catalog().Lookup(id)
+			assert.True(t, ok, "mantle model %s must be a catalog offering", id)
 		})
 	}
 }

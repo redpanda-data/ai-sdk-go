@@ -25,9 +25,12 @@ import (
 // performing any generation. This is useful for model discovery, capability
 // checking, and routing decisions.
 //
-// To inspect a provider's model catalog without constructing models, use
-// Provider.Models(), which returns the same metadata as ModelDiscoveryInfo
-// values.
+// ModelInfo carries only what the request path needs. Everything else —
+// modalities, pricing, lifecycle, facts (release date, knowledge cutoff)
+// — lives on the provider's Catalog(): Resolve(model.Name()) returns the
+// offering, offering.Facts() the facts. It is not on this interface
+// because llm cannot import catalog, and adding a method would break
+// every implementor.
 //
 // Example:
 //
@@ -36,9 +39,10 @@ import (
 //		// This model supports image inputs
 //	}
 type ModelInfo interface {
-	// Name returns the model identifier (e.g., "gpt-4o", "claude-3.5-sonnet").
-	// The returned name should be consistent and can be used for logging,
-	// metrics, and model selection logic.
+	// Name returns the identifier this instance was constructed with —
+	// the catalog's offering ID ("gpt-5.4"), possibly a timestamped
+	// snapshot ("claude-sonnet-4-5-20250929"). It is invokable, not a
+	// display name; resolve it with Catalog().Resolve.
 	Name() string
 
 	// Provider returns the name of the AI provider (e.g., "openai", "anthropic", "google").

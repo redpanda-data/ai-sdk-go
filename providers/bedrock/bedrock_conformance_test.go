@@ -22,6 +22,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/internal/testsuite"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/plugins/retry"
@@ -87,77 +91,49 @@ func (f *BedrockFixture) NewReasoningModel(t *testing.T) llm.Model {
 	return retry.WrapModel(model)
 }
 
-func (f *BedrockFixture) Models() []llm.ModelDiscoveryInfo {
-	all := f.provider.Models()
-
+func (f *BedrockFixture) Catalog() *catalog.Catalog {
 	// The catalog exposes one entry per inference profile (global. and each
 	// geo). Conformance runs in a single AWS region with limited IAM, so we
-	// only iterate the variants reachable from the test region: the matching
-	// geo profile (e.g. "us." when running in us-east-1). Other geo profiles
-	// fail with ValidationException (cross-geography from a single entry-point
-	// region) and the global. profile resolves to foundation-model ARNs that
-	// the CI's SCP explicitly denies. Per-variant catalog correctness is
-	// covered by unit tests in provider_test.go.
+	// rebuild a test-local catalog holding only the variants reachable from
+	// the test region: the matching geo profile (e.g. "us." when running in
+	// us-east-1). Other geo profiles fail with ValidationException
+	// (cross-geography from a single entry-point region) and the global.
+	// profile resolves to foundation-model ARNs that the CI's SCP explicitly
+	// denies. Per-variant catalog correctness is covered by unit tests in
+	// provider_test.go.
 	geoPrefix := bedrock.InferenceProfileRegion(f.region) + "."
 
-	filtered := make([]llm.ModelDiscoveryInfo, 0, len(all))
+	var entries []catalog.Entry
 
-	for _, m := range all {
+	for _, o := range f.provider.Catalog().All() {
 		// Fable 5 requires Bedrock provider data sharing. Keep the generic
 		// all-model conformance loop on models that CI can fully generate with;
 		// the dedicated Fable integration below still verifies Bedrock wiring by
 		// accepting either a successful response or AWS's explicit Fable access gate.
-		if modelRequiresProviderDataSharing(m) {
+		if o.Attributes[bedrock.ModelMetadataRequiresProviderDataSharing] == "true" {
 			continue
 		}
 
-		if strings.HasPrefix(m.Name, geoPrefix) {
-			filtered = append(filtered, m)
+		if strings.HasPrefix(o.ID, geoPrefix) {
+			entries = append(entries, o.Entry)
 		}
 	}
 
-	return filtered
-}
-
-func modelRequiresProviderDataSharing(model llm.ModelDiscoveryInfo) bool {
-	return model.Metadata[bedrock.ModelMetadataRequiresProviderDataSharing] == "true"
+	return catalog.MustNew(f.provider.Name(), entries)
 }
 
 func TestModelRequiresProviderDataSharing(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name  string
-		model llm.ModelDiscoveryInfo
-		want  bool
-	}{
-		{
-			name: "Fable 5",
-			model: llm.ModelDiscoveryInfo{
-				Name: bedrock.ModelClaudeFable5US,
-				Metadata: map[string]string{
-					bedrock.ModelMetadataRequiresProviderDataSharing: "true",
-				},
-			},
-			want: true,
-		},
-		{
-			name:  "other Claude",
-			model: llm.ModelDiscoveryInfo{Name: bedrock.ModelClaudeSonnet46US},
-			want:  false,
-		},
-	}
+	fable, ok := bedrock.Catalog().Lookup(bedrock.ModelClaudeFable5US)
+	require.True(t, ok)
+	assert.Equal(t, "true", fable.Attributes[bedrock.ModelMetadataRequiresProviderDataSharing],
+		"Fable 5 must be flagged as requiring provider data sharing")
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := modelRequiresProviderDataSharing(tt.model)
-			if got != tt.want {
-				t.Fatalf("modelRequiresProviderDataSharing(%q) = %v, want %v", tt.model.Name, got, tt.want)
-			}
-		})
-	}
+	sonnet, ok := bedrock.Catalog().Lookup(bedrock.ModelClaudeSonnet46US)
+	require.True(t, ok)
+	assert.Empty(t, sonnet.Attributes[bedrock.ModelMetadataRequiresProviderDataSharing],
+		"models without the data-sharing requirement must not be flagged")
 }
 
 func TestIsProviderDataSharingGate(t *testing.T) {

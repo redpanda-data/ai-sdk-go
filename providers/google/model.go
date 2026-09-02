@@ -25,6 +25,7 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/genai"
 
+	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -37,7 +38,7 @@ var (
 type Model struct {
 	provider       *Provider
 	config         *Config
-	definition     ModelDefinition
+	offering       catalog.Offering
 	client         *genai.Client
 	requestMapper  *RequestMapper
 	responseMapper *ResponseMapper
@@ -55,19 +56,19 @@ func (m *Model) Provider() string {
 
 // Capabilities returns what features this model supports.
 func (m *Model) Capabilities() llm.ModelCapabilities {
-	return m.definition.Capabilities
+	return m.offering.Capabilities
 }
 
 // Constraints returns the model's validation rules and limitations.
 func (m *Model) Constraints() llm.ModelConstraints {
-	return m.definition.Constraints
+	return m.offering.Constraints
 }
 
 // SupportedReasoningEfforts returns the reasoning efforts this model accepts,
 // in ascending order. Empty for Gemini 2.5 models, which use token budgets
 // instead — see WithThinkingBudget.
 func (m *Model) SupportedReasoningEfforts() []llm.ReasoningEffort {
-	return slices.Clone(m.definition.SupportedReasoningEfforts)
+	return slices.Clone(m.offering.Reasoning.Efforts)
 }
 
 // Generate performs a single, non-streaming request to the Google API.

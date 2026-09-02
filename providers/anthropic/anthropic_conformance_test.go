@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/internal/testsuite"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/plugins/retry"
@@ -83,8 +84,8 @@ func (f *AnthropicFixture) NewReasoningModel(t *testing.T) llm.Model {
 	return retry.WrapModel(model)
 }
 
-func (f *AnthropicFixture) Models() []llm.ModelDiscoveryInfo {
-	return f.provider.Models()
+func (f *AnthropicFixture) Catalog() *catalog.Catalog {
+	return f.provider.Catalog()
 }
 
 func (f *AnthropicFixture) NewModel(modelName string) (llm.Model, error) {

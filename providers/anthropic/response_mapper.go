@@ -29,13 +29,11 @@ const (
 )
 
 // ResponseMapper converts Anthropic API payloads to llm.Response.
-type ResponseMapper struct {
-	modelDefinition ModelDefinition
-}
+type ResponseMapper struct{}
 
 // NewResponseMapper returns a ready-to-use mapper.
-func NewResponseMapper(definition ModelDefinition) *ResponseMapper {
-	return &ResponseMapper{modelDefinition: definition}
+func NewResponseMapper() *ResponseMapper {
+	return &ResponseMapper{}
 }
 
 // FromProvider converts an Anthropic Beta Messages API payload into llm.Response.
@@ -139,8 +137,19 @@ func (m *ResponseMapper) FromProvider(r *anthropic.BetaMessage) (*llm.Response, 
 		ServiceTier:     llm.NormalizeServiceTier(string(r.Usage.ServiceTier)),
 		Speed:           llm.NormalizeSpeed(string(r.Usage.Speed)),
 		InferenceRegion: r.Usage.InferenceGeo,
-		InvokedModelID:  resolveModelFamily(r.Model),
+		InvokedModelID:  resolveInvokedModelID(r.Model),
 	}, nil
+}
+
+// resolveInvokedModelID collapses a provider-reported model ID (possibly a
+// timestamped snapshot) to its catalog offering ID; IDs the catalog does
+// not know pass through unchanged.
+func resolveInvokedModelID(model string) string {
+	if id, ok := Catalog().ResolveID(model); ok {
+		return id
+	}
+
+	return model
 }
 
 // mapStopReason converts Anthropic's stop reason to our unified finish reason.

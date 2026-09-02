@@ -23,6 +23,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 
+	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -36,7 +37,7 @@ var (
 type Model struct {
 	provider       *Provider
 	config         *Config
-	definition     ModelDefinition
+	definition     catalog.Offering
 	client         *bedrockruntime.Client
 	requestMapper  *RequestMapper
 	responseMapper *ResponseMapper
@@ -65,17 +66,17 @@ func (m *Model) Constraints() llm.ModelConstraints {
 // SupportedReasoningEfforts returns the reasoning efforts this model accepts,
 // in ascending order. Empty for models without effort control.
 func (m *Model) SupportedReasoningEfforts() []llm.ReasoningEffort {
-	return slices.Clone(m.definition.Thinking.ReasoningEfforts)
+	return slices.Clone(m.definition.Reasoning.Efforts)
 }
 
 // SupportsAdaptiveThinking reports whether the model accepts adaptive thinking.
 func (m *Model) SupportsAdaptiveThinking() bool {
-	return m.definition.Thinking.Adaptive
+	return m.definition.Reasoning.Adaptive
 }
 
 // SupportsThinkingBudget reports whether the model accepts a manual token budget.
 func (m *Model) SupportsThinkingBudget() bool {
-	return m.definition.Thinking.Budget
+	return m.definition.Reasoning.Budget
 }
 
 // Generate performs a single, non-streaming request using the Bedrock Converse API.
@@ -244,7 +245,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 			},
 			FinishReason:   finishReason,
 			Usage:          usage,
-			InvokedModelID: m.definition.Name,
+			InvokedModelID: m.definition.ID,
 		}
 		m.responseMapper.applyResponseMetadata(resp, performanceConfig, serviceTier, promptRouter)
 

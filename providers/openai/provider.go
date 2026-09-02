@@ -25,6 +25,7 @@ import (
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 
+	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -130,32 +131,45 @@ func WithTimeout(timeout time.Duration) ProviderOption {
 }
 
 // NewModel creates a new OpenAI model instance with the specified configuration.
-// It accepts both family names (e.g. "o3") and timestamped snapshot IDs
-// (e.g. "o3-2025-04-16"), resolving the latter to the corresponding family
-// for capability/constraint lookup.
+// It accepts family names (e.g. "o3"), official aliases (e.g. "gpt-5.6"),
+// and timestamped snapshot IDs (e.g. "o3-2025-04-16"), resolving them
+// against the catalog for capability/constraint lookup.
 func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error) {
-	family := resolveModelFamily(modelName)
-
-	modelDef, ok := supportedModels[family]
+	offering, ok := Catalog().Resolve(modelName)
 	if !ok {
 		return nil, fmt.Errorf("unsupported OpenAI model: %s", modelName)
 	}
 
-	return p.NewCompatModel(modelName, modelDef, opts...)
+	return p.NewCompatModel(modelName, CompatModelDefinition{
+		Capabilities: offering.Capabilities,
+		Constraints:  offering.Constraints,
+		Reasoning:    offering.Reasoning,
+	}, opts...)
+}
+
+// CompatModelDefinition is the transport configuration NewCompatModel
+// consumes: exactly the three pieces the OpenAI request path uses.
+// It is deliberately not a catalog shape — models served through
+// OpenAI-compatible endpoints (bedrock-mantle, self-hosted gateways)
+// carry their catalog metadata elsewhere.
+type CompatModelDefinition struct {
+	Capabilities llm.ModelCapabilities
+	Constraints  llm.ModelConstraints
+	Reasoning    catalog.ReasoningSupport
 }
 
 // NewCompatModel creates a model for an OpenAI-compatible endpoint using an
-// explicit ModelDefinition, bypassing the built-in supportedModels catalog and
-// the family-name resolver. It is the constructor for OpenAI-shaped models that
-// are not OpenAI's own — e.g. the Google Gemma 4 and OpenAI gpt-5.x models on
-// the AWS bedrock-mantle Responses endpoint, which the Bedrock provider reaches
-// by pointing this provider at a mantle base URL with a SigV4-signing HTTP
-// client (see providers/bedrock/mantle.go).
+// explicit CompatModelDefinition, bypassing the built-in catalog and its
+// name resolver. It is the constructor for OpenAI-shaped models that are
+// not OpenAI's own — e.g. the Google Gemma 4 and OpenAI gpt-5.x models on
+// the AWS bedrock-mantle Responses endpoint, which the Bedrock provider
+// reaches by pointing this provider at a mantle base URL with a
+// SigV4-signing HTTP client (see providers/bedrock/mantle.go).
 //
-// modelName is sent verbatim as the API model ID. def supplies capabilities,
-// constraints, reasoning efforts, and pricing. All request/response/streaming
-// behaviour is identical to NewModel — only catalog lookup differs.
-func (p *Provider) NewCompatModel(modelName string, def ModelDefinition, opts ...Option) (llm.Model, error) {
+// modelName is sent verbatim as the API model ID. All request/response/
+// streaming behaviour is identical to NewModel — only catalog lookup
+// differs.
+func (p *Provider) NewCompatModel(modelName string, def CompatModelDefinition, opts ...Option) (llm.Model, error) {
 	cfg := &Config{
 		ModelName:   modelName,
 		Constraints: def.Constraints,
@@ -172,9 +186,13 @@ func (p *Provider) NewCompatModel(modelName string, def ModelDefinition, opts ..
 		return nil, fmt.Errorf("configuration validation failed for %s: %w", modelName, err)
 	}
 
-	if cfg.ReasoningEffort != nil && len(def.SupportedReasoningEfforts) > 0 {
-		if !slices.Contains(def.SupportedReasoningEfforts, *cfg.ReasoningEffort) {
-			return nil, fmt.Errorf("model %s does not support reasoning effort %q (supported: %v)", modelName, *cfg.ReasoningEffort, def.SupportedReasoningEfforts)
+	// A requested effort is validated against the declared list; an empty
+	// list means the model has no effort control, so any requested effort
+	// is rejected (previously an empty list silently accepted every
+	// value, unlike the other providers).
+	if cfg.ReasoningEffort != nil {
+		if !slices.Contains(def.Reasoning.Efforts, *cfg.ReasoningEffort) {
+			return nil, fmt.Errorf("model %s does not support reasoning effort %q (supported: %v)", modelName, *cfg.ReasoningEffort, def.Reasoning.Efforts)
 		}
 	}
 
@@ -184,22 +202,12 @@ func (p *Provider) NewCompatModel(modelName string, def ModelDefinition, opts ..
 		definition:     def,
 		client:         p.client,
 		requestMapper:  NewRequestMapper(cfg),
-		responseMapper: NewResponseMapper(def),
+		responseMapper: NewResponseMapper(),
 	}, nil
 }
 
-// Models returns all OpenAI models with their capabilities.
-func (*Provider) Models() []llm.ModelDiscoveryInfo {
-	models := make([]llm.ModelDiscoveryInfo, 0, len(supportedModels))
-	for _, def := range supportedModels {
-		models = append(models, llm.ModelDiscoveryInfo{
-			Name:         def.Name,
-			Label:        def.Label,
-			Capabilities: def.Capabilities,
-			Constraints:  def.Constraints,
-			Provider:     "openai",
-		})
-	}
-
-	return models
+// Catalog implements catalog.Provider: the validated OpenAI model
+// catalog, including pricing and lifecycle metadata.
+func (*Provider) Catalog() *catalog.Catalog {
+	return Catalog()
 }

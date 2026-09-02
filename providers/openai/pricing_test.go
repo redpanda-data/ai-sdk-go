@@ -27,7 +27,7 @@ import (
 func TestGPT56Pricing(t *testing.T) {
 	t.Parallel()
 
-	catalog, err := pricing.NewCatalog(pricing.WithProvider("openai", ModelPricing()))
+	catalog, err := pricing.NewCatalog(pricing.WithProvider("openai", Catalog().PricingByID()))
 	require.NoError(t, err)
 
 	usage := &llm.TokenUsage{
@@ -88,20 +88,20 @@ func TestGPT56Pricing(t *testing.T) {
 			name:       "Sol at 272K uses base rates",
 			model:      ModelGPT5_6Sol,
 			context:    272_000,
-			wantInput:  500_000_000,
-			wantCached: 50_000_000,
-			wantWrite:  625_000_000,
-			wantOutput: 3_000_000_000,
+			wantInput:  400_000_000,
+			wantCached: 40_000_000,
+			wantWrite:  500_000_000,
+			wantOutput: 2_000_000_000,
 		},
 		{
 			name:        "Sol above 272K uses long-context rates",
 			model:       ModelGPT5_6Sol,
 			context:     272_001,
 			wantBracket: 272_001,
-			wantInput:   1_000_000_000,
-			wantCached:  100_000_000,
-			wantWrite:   1_250_000_000,
-			wantOutput:  4_500_000_000,
+			wantInput:   800_000_000,
+			wantCached:  80_000_000,
+			wantWrite:   1_000_000_000,
+			wantOutput:  3_000_000_000,
 		},
 	}
 
@@ -132,14 +132,15 @@ func TestAllModelsHavePricing(t *testing.T) {
 		ModelO3Pro:      true, // Pro tier, no caching listed.
 	}
 
-	for id, def := range supportedModels {
+	for _, def := range Catalog().All() {
+		id := def.ID
 		t.Run(id, func(t *testing.T) {
 			t.Parallel()
 
 			assert.Positive(t, def.Pricing.Default.Base.InputPerMillion,
-				"model %s missing input pricing — add Pricing to its ModelDefinition", id)
+				"model %s missing input pricing", id)
 			assert.Positive(t, def.Pricing.Default.Base.OutputPerMillion,
-				"model %s missing output pricing — add Pricing to its ModelDefinition", id)
+				"model %s missing output pricing", id)
 
 			if !noCacheModels[id] {
 				assert.Positive(t, def.Pricing.Default.Base.CachedInputPerMillion,
@@ -152,16 +153,51 @@ func TestAllModelsHavePricing(t *testing.T) {
 func TestGPT56AliasHasSolPricing(t *testing.T) {
 	t.Parallel()
 
-	pricingMap := ModelPricing()
+	pricingMap := Catalog().PricingByID()
 	aliasPricing, ok := pricingMap[ModelGPT5_6]
 	require.True(t, ok)
-	assert.Equal(t, supportedModels[ModelGPT5_6Sol].Pricing, aliasPricing)
+
+	sol, ok := Catalog().Lookup(ModelGPT5_6Sol)
+	require.True(t, ok)
+	assert.Equal(t, sol.Pricing, aliasPricing)
 }
 
-func TestModelPricingMatchesModels(t *testing.T) {
+// TestBillingResolvesInvokedModelIDs pins the supported billing path:
+// llm.Response.InvokedModelID carries the provider-raw model string —
+// including timestamped snapshots pricing's exact-ID Calculate cannot key
+// on — so billing resolves through the catalog first. Official aliases are
+// enumerable in PricingByID and work either way.
+func TestBillingResolvesInvokedModelIDs(t *testing.T) {
 	t.Parallel()
 
-	pricingMap := ModelPricing()
-	assert.Len(t, pricingMap, len(supportedModels)+len(modelAliases),
-		"ModelPricing should return one entry per supported model and alias")
+	priceCat, err := pricing.NewCatalog(
+		pricing.WithProvider("openai", Catalog().PricingByID()),
+	)
+	require.NoError(t, err)
+
+	usage := &llm.TokenUsage{InputTokens: 1_000_000, OutputTokens: 1_000_000}
+
+	// Timestamped snapshot: unpriceable directly, priceable after Resolve.
+	_, err = priceCat.Calculate("gpt-4o-2024-11-20", usage, pricing.CalcRequest{})
+	require.ErrorIs(t, err, pricing.ErrUnknownModel)
+
+	offering, ok := Catalog().Resolve("gpt-4o-2024-11-20")
+	require.True(t, ok)
+
+	resolved, err := priceCat.Calculate(offering.ID, usage, pricing.CalcRequest{})
+	require.NoError(t, err)
+	direct, err := priceCat.Calculate(ModelGPT4O, usage, pricing.CalcRequest{})
+	require.NoError(t, err)
+	assert.Equal(t, direct.Total, resolved.Total)
+
+	// Official alias: exact-ID lookup works without resolving.
+	aliased, err := priceCat.Calculate(ModelGPT5_6, usage, pricing.CalcRequest{})
+	require.NoError(t, err)
+	sol, err := priceCat.Calculate(ModelGPT5_6Sol, usage, pricing.CalcRequest{})
+	require.NoError(t, err)
+	assert.Equal(t, sol.Total, aliased.Total)
+
+	// Unknown model: unpriced, never free.
+	_, err = priceCat.Calculate("gpt-99-experimental", usage, pricing.CalcRequest{})
+	require.ErrorIs(t, err, pricing.ErrUnknownModel)
 }

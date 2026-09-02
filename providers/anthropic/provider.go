@@ -25,6 +25,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 
+	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -183,20 +184,22 @@ func WithTimeout(timeout time.Duration) ProviderOption {
 const defaultMaxTokens = 16384
 
 // NewModel creates a new Anthropic model instance with the specified configuration.
+//
+// modelName is resolved against the catalog (exact ID, alias, or snapshot
+// prefix such as "claude-sonnet-4-5-20250929"); unresolvable names are
+// rejected rather than guessed at.
 func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error) {
-	family := resolveModelFamily(modelName)
-
-	modelDef, ok := supportedModels[family]
+	offering, ok := Catalog().Resolve(modelName)
 	if !ok {
 		return nil, fmt.Errorf("unsupported Anthropic model: %s", modelName)
 	}
 
 	cfg := &Config{
 		ModelName:        modelName,
-		Constraints:      modelDef.Constraints,
+		Constraints:      offering.Constraints,
 		MaxTokens:        defaultMaxTokens, // Required by Anthropic API; see const.
 		EnableCaching:    p.EnableCaching,
-		AdaptiveThinking: modelDef.AdaptiveThinking,
+		AdaptiveThinking: offering.Reasoning.Adaptive,
 		setOptions:       make(map[string]bool),
 	}
 
@@ -216,14 +219,14 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 
 	// Validate effort against model's supported values
 	if cfg.ReasoningEffort != nil {
-		if !slices.Contains(modelDef.SupportedReasoningEfforts, *cfg.ReasoningEffort) {
-			return nil, fmt.Errorf("model %s does not support reasoning effort %q (supported: %v)", modelName, *cfg.ReasoningEffort, modelDef.SupportedReasoningEfforts)
+		if !slices.Contains(offering.Reasoning.Efforts, *cfg.ReasoningEffort) {
+			return nil, fmt.Errorf("model %s does not support reasoning effort %q (supported: %v)", modelName, *cfg.ReasoningEffort, offering.Reasoning.Efforts)
 		}
 	}
 
 	// Validate speed against model's supported values
 	if cfg.Speed != nil {
-		if len(modelDef.SupportedSpeeds) == 0 || !slices.Contains(modelDef.SupportedSpeeds, *cfg.Speed) {
+		if !slices.Contains(offering.Speeds, *cfg.Speed) {
 			return nil, fmt.Errorf("model %s does not support speed '%s'", modelName, *cfg.Speed)
 		}
 	}
@@ -231,25 +234,15 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 	return &Model{
 		provider:       p,
 		config:         cfg,
-		definition:     modelDef,
+		offering:       offering,
 		client:         p.client,
 		requestMapper:  NewRequestMapper(cfg),
-		responseMapper: NewResponseMapper(modelDef),
+		responseMapper: NewResponseMapper(),
 	}, nil
 }
 
-// Models returns all Anthropic models with their capabilities.
-func (*Provider) Models() []llm.ModelDiscoveryInfo {
-	models := make([]llm.ModelDiscoveryInfo, 0, len(supportedModels))
-	for _, def := range supportedModels {
-		models = append(models, llm.ModelDiscoveryInfo{
-			Name:         def.Name,
-			Label:        def.Label,
-			Capabilities: def.Capabilities,
-			Constraints:  def.Constraints,
-			Provider:     "anthropic",
-		})
-	}
-
-	return models
+// Catalog implements catalog.Provider: the validated Anthropic model
+// catalog, including pricing and lifecycle metadata.
+func (*Provider) Catalog() *catalog.Catalog {
+	return Catalog()
 }
