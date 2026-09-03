@@ -13,6 +13,13 @@
       "series": "claude-fable",
       "released": "2026-06-07"
     },
+    "anthropic/claude-fable-5-1": {
+      "display_name": "Claude Fable 5.1",
+      "description": "Claude Fable 5.1 is Anthropic’s most capable Mythos-class model for demanding reasoning and long-horizon agentic work.",
+      "series": "claude-fable",
+      "released": "2026-09-01",
+      "knowledge": "2026-06-30"
+    },
     "anthropic/claude-haiku-4-5": {
       "display_name": "Claude Haiku 4.5",
       "description": "Claude Haiku 4.5 is Anthropic’s fastest and most efficient model, delivering near-frontier intelligence at a fraction of the cost and latency of larger Claude models.",
@@ -415,6 +422,69 @@
           "lifecycle": {
             "stage": "ga",
             "available": "2026-06-07"
+          },
+          "derived": {
+            "price_tier": "high",
+            "replacement": "anthropic/claude-fable-5-1"
+          }
+        },
+        {
+          "id": "claude-fable-5-1",
+          "model": "anthropic/claude-fable-5-1",
+          "display_name": "Claude Fable 5.1",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "reasoning_effort"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 1000000000,
+                "output_microcents_per_million": 5000000000,
+                "cached_input_microcents_per_million": 25000000,
+                "cache_creation_5m_microcents_per_million": 1250000000,
+                "cache_creation_1h_microcents_per_million": 2000000000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-09-01"
           },
           "derived": {
             "price_tier": "high"
