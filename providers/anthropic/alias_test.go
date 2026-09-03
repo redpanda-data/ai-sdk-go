@@ -30,6 +30,11 @@ func TestModelResolution(t *testing.T) {
 		expectedModel string
 	}{
 		{
+			name:          "claude-fable-5-1 family name resolves",
+			modelKey:      ModelClaudeFable51,
+			expectedModel: ModelClaudeFable51,
+		},
+		{
 			name:          "claude-fable-5 family name resolves",
 			modelKey:      "claude-fable-5",
 			expectedModel: "claude-fable-5",
@@ -223,6 +228,14 @@ func TestWithThinkingBudget(t *testing.T) {
 		assert.Contains(t, err.Error(), "thinking_budget")
 	})
 
+	t.Run("rejected on Fable 5.1", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := provider.NewModel(ModelClaudeFable51, WithThinkingBudget(2048))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "thinking_budget")
+	})
+
 	t.Run("rejected on Opus 5", func(t *testing.T) {
 		t.Parallel()
 
@@ -388,6 +401,14 @@ func TestWithSpeed(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "speed")
 	})
+
+	t.Run("rejected on Fable 5.1", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := provider.NewModel(ModelClaudeFable51, WithSpeed(SpeedFast))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "speed")
+	})
 }
 
 func TestRestrictedSamplingParametersRejected(t *testing.T) {
@@ -406,7 +427,7 @@ func TestRestrictedSamplingParametersRejected(t *testing.T) {
 		{name: "top_k", opt: WithTopK(10), want: "top_k"},
 	}
 
-	for _, model := range []string{ModelClaudeFable5, ModelClaudeOpus5} {
+	for _, model := range []string{ModelClaudeFable51, ModelClaudeFable5, ModelClaudeOpus5} {
 		t.Run(model, func(t *testing.T) {
 			t.Parallel()
 

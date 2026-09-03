@@ -21,6 +21,7 @@ package catalog
 const (
 	// Anthropic models.
 
+	ModelClaudeFable51  ModelID = "anthropic/claude-fable-5-1"
 	ModelClaudeFable5   ModelID = "anthropic/claude-fable-5"
 	ModelClaudeOpus5    ModelID = "anthropic/claude-opus-5"
 	ModelClaudeOpus48   ModelID = "anthropic/claude-opus-4-8"
@@ -99,6 +100,13 @@ const (
 // luna ← gpt-nano), matching OpenAI's own recommended replacements.
 var defaultRegistry = Registry{
 	// ---- Anthropic ----
+	ModelClaudeFable51: {
+		DisplayName: "Claude Fable 5.1", Series: "claude-fable",
+		// Released and reliable knowledge cutoff ("Jun 2026") per
+		// platform.claude.com/docs/en/models/fable-5-1/overview.
+		Released: MustDate("2026-09-01"), Knowledge: MustDate("2026-06-30"),
+		Description: "Claude Fable 5.1 is Anthropic’s most capable Mythos-class model for demanding reasoning and long-horizon agentic work.",
+	},
 	ModelClaudeFable5: {
 		DisplayName: "Claude Fable 5", Series: "claude-fable",
 		Released:    MustDate("2026-06-07"),
