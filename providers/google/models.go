@@ -24,6 +24,7 @@ import (
 
 // Model ID constants for Google Gemini models.
 const (
+	ModelGemini38Flash      = "gemini-3.8-flash"
 	ModelGemini37Flash      = "gemini-3.7-flash"
 	ModelGemini36Flash      = "gemini-3.6-flash"
 	ModelGemini35FlashLite  = "gemini-3.5-flash-lite"
@@ -100,8 +101,8 @@ var (
 		ReasoningEffortMedium,
 		ReasoningEffortHigh,
 	}
-	// Gemini 3.7 Flash rejects "minimal" ("minimal is not supported and
-	// returns an error" — model page).
+	// Gemini 3.7 and 3.8 Flash reject "minimal" ("minimal is not supported
+	// and returns an error" — model pages).
 	gemini37FlashReasoningEfforts = []ReasoningEffort{
 		ReasoningEffortLow,
 		ReasoningEffortMedium,
@@ -169,6 +170,28 @@ var geminiParams = []string{"temperature", "top_p", "top_k", "max_tokens", "stop
 // has an announced shutdown.
 func entries() []catalog.Entry {
 	return []catalog.Entry{
+		{
+			ID:           ModelGemini38Flash,
+			Model:        catalog.ModelGemini38Flash,
+			Capabilities: geminiCaps,
+			Modalities:   geminiModalities,
+			Reasoning: catalog.ReasoningSupport{
+				Efforts: gemini37FlashReasoningEfforts,
+			},
+			Constraints: llm.ModelConstraints{
+				TemperatureRange: [2]float64{0.0, 2.0},
+				MaxInputTokens:   1048576,
+				MaxOutputTokens:  65536,
+				SupportedParams:  geminiParams,
+			},
+			Life: catalog.Lifecycle{
+				Available: catalog.MustDate("2026-09-02"),
+			},
+			// Google lists $0.75/$3.75 (cache $0.075) through 2026-12-31,
+			// rising to $1.50/$7.50/$0.15 on 2027-01-01. Only the rate in
+			// effect is tracked. No long-context tier is published.
+			Pricing: pricing.FlatInfo(0.75, 3.75, 0.075),
+		},
 		{
 			ID:           ModelGemini37Flash,
 			Model:        catalog.ModelGemini37Flash,

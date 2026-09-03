@@ -119,6 +119,7 @@ func TestGoogleConformance_Integration(t *testing.T) {
 	t.Parallel()
 
 	modelsToTest := []string{
+		google.ModelGemini38Flash,       // gemini-3.8-flash
 		google.ModelGemini36Flash,       // gemini-3.6-flash
 		google.ModelGemini35FlashLite,   // gemini-3.5-flash-lite
 		google.ModelGemini35Flash,       // gemini-3.5-flash

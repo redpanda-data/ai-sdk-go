@@ -63,6 +63,7 @@ const (
 
 	// Google models.
 
+	ModelGemini38Flash       ModelID = "google/gemini-3.8-flash"
 	ModelGemini37Flash       ModelID = "google/gemini-3.7-flash"
 	ModelGemini36Flash       ModelID = "google/gemini-3.6-flash"
 	ModelGemini35Flash       ModelID = "google/gemini-3.5-flash"
@@ -287,6 +288,13 @@ var defaultRegistry = Registry{
 	},
 
 	// ---- Google ----
+	ModelGemini38Flash: {
+		DisplayName: "Gemini 3.8 Flash", Series: "gemini-flash",
+		// Released 2026-09-02 per the Gemini API changelog and deprecations
+		// page. Knowledge cutoff "March 2026" per the DeepMind model card.
+		Released: MustDate("2026-09-02"), Knowledge: MustDate("2026-03-31"),
+		Description: "Gemini 3.8 Flash is Google's most intelligent Flash model, built for long-horizon software engineering, autonomous agents, and complex enterprise workflows.",
+	},
 	ModelGemini37Flash: {
 		DisplayName: "Gemini 3.7 Flash", Series: "gemini-flash",
 		// Google publishes "Latest update: August 2026" without a day;

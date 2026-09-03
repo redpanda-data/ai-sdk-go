@@ -151,6 +151,13 @@
       "series": "gemini-flash",
       "released": "2026-08-13"
     },
+    "google/gemini-3.8-flash": {
+      "display_name": "Gemini 3.8 Flash",
+      "description": "Gemini 3.8 Flash is Google's most intelligent Flash model, built for long-horizon software engineering, autonomous agents, and complex enterprise workflows.",
+      "series": "gemini-flash",
+      "released": "2026-09-02",
+      "knowledge": "2026-03-31"
+    },
     "google/gemma-4-26b-a4b": {
       "display_name": "Gemma 4 26B A4B",
       "description": "Gemma 4 26B A4B IT is an instruction-tuned Mixture-of-Experts (MoE) model from Google DeepMind.",
@@ -5068,6 +5075,75 @@
           "lifecycle": {
             "stage": "ga",
             "available": "2026-08-13"
+          },
+          "derived": {
+            "price_tier": "low",
+            "replacement": "google/gemini-3.8-flash"
+          }
+        },
+        {
+          "id": "gemini-3.8-flash",
+          "model": "google/gemini-3.8-flash",
+          "display_name": "Gemini 3.8 Flash",
+          "capabilities": {
+            "audio": true,
+            "json_mode": true,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1048576,
+            "max_output_tokens": 65536,
+            "supported_params": [
+              "temperature",
+              "top_p",
+              "top_k",
+              "max_tokens",
+              "stop",
+              "presence_penalty",
+              "frequency_penalty"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 75000000,
+                "output_microcents_per_million": 375000000,
+                "cached_input_microcents_per_million": 7500000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-09-02"
           },
           "derived": {
             "price_tier": "low"
