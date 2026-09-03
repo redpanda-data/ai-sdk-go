@@ -154,6 +154,11 @@ func TestModelThinkingCapabilities(t *testing.T) {
 		supportsBudget   bool
 	}{
 		{
+			model:            ModelClaudeFable51US,
+			efforts:          []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+			supportsAdaptive: true,
+		},
+		{
 			model:            ModelClaudeFable5US,
 			efforts:          []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 			supportsAdaptive: true,

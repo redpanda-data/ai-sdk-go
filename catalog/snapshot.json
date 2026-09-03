@@ -1685,7 +1685,8 @@
             }
           ],
           "derived": {
-            "price_tier": "high"
+            "price_tier": "high",
+            "replacement": "anthropic/claude-fable-5-1"
           }
         },
         {
@@ -2362,6 +2363,78 @@
                 "input_microcents_per_million": 1000000000,
                 "output_microcents_per_million": 5000000000,
                 "cached_input_microcents_per_million": 100000000,
+                "cache_creation_5m_microcents_per_million": 1250000000,
+                "cache_creation_1h_microcents_per_million": 2000000000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "global"
+            },
+            {
+              "key": "requires_provider_data_sharing",
+              "value": "true"
+            }
+          ],
+          "derived": {
+            "price_tier": "high",
+            "replacement": "anthropic/claude-fable-5-1"
+          }
+        },
+        {
+          "id": "global.anthropic.claude-fable-5-1",
+          "model": "anthropic/claude-fable-5-1",
+          "display_name": "Claude Fable 5.1 (Global)",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "stop"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 1000000000,
+                "output_microcents_per_million": 5000000000,
+                "cached_input_microcents_per_million": 25000000,
                 "cache_creation_5m_microcents_per_million": 1250000000,
                 "cache_creation_1h_microcents_per_million": 2000000000
               }
@@ -3783,6 +3856,78 @@
                 "input_microcents_per_million": 1100000000,
                 "output_microcents_per_million": 5500000000,
                 "cached_input_microcents_per_million": 110000000,
+                "cache_creation_5m_microcents_per_million": 1375000000,
+                "cache_creation_1h_microcents_per_million": 2200000000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "us"
+            },
+            {
+              "key": "requires_provider_data_sharing",
+              "value": "true"
+            }
+          ],
+          "derived": {
+            "price_tier": "high",
+            "replacement": "anthropic/claude-fable-5-1"
+          }
+        },
+        {
+          "id": "us.anthropic.claude-fable-5-1",
+          "model": "anthropic/claude-fable-5-1",
+          "display_name": "Claude Fable 5.1 (US)",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "stop"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 1100000000,
+                "output_microcents_per_million": 5500000000,
+                "cached_input_microcents_per_million": 27500000,
                 "cache_creation_5m_microcents_per_million": 1375000000,
                 "cache_creation_1h_microcents_per_million": 2200000000
               }

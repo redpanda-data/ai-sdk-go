@@ -182,6 +182,28 @@ func TestLookupModel(t *testing.T) {
 			wantOK: false,
 		},
 		{
+			name:   "Fable 5.1 bare ID is not in the catalog",
+			input:  ModelClaudeFable51,
+			wantOK: false,
+		},
+		{
+			name:    "Fable 5.1 US profile is its own entry",
+			input:   ModelClaudeFable51US,
+			wantOK:  true,
+			wantDef: ModelClaudeFable51US,
+		},
+		{
+			name:    "Fable 5.1 global profile is its own entry",
+			input:   ModelClaudeFable51Global,
+			wantOK:  true,
+			wantDef: ModelClaudeFable51Global,
+		},
+		{
+			name:   "Fable 5.1 EU profile is not published",
+			input:  "eu." + ModelClaudeFable51,
+			wantOK: false,
+		},
+		{
 			name:    "geo profile is its own entry",
 			input:   ModelClaudeSonnet46EU,
 			wantOK:  true,
@@ -582,6 +604,52 @@ func TestNewModel_ClaudeOpus5Routing(t *testing.T) {
 	}
 }
 
+func TestNewModel_ClaudeFable51Routing(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		region    string
+		modelName string
+		wantID    string
+		wantErr   bool
+	}{
+		{"bare defaults to US", "", ModelClaudeFable51, ModelClaudeFable51US, false},
+		{"bare from US", "us-east-1", ModelClaudeFable51, ModelClaudeFable51US, false},
+		{"bare from Canada Central", "ca-central-1", ModelClaudeFable51, ModelClaudeFable51US, false},
+		{"bare from EU routes global", "eu-west-1", ModelClaudeFable51, ModelClaudeFable51Global, false},
+		{"bare from Sydney routes global", "ap-southeast-2", ModelClaudeFable51, ModelClaudeFable51Global, false},
+		{"bare from Tokyo routes global", "ap-northeast-1", ModelClaudeFable51, ModelClaudeFable51Global, false},
+		{"bare from GovCloud", "us-gov-west-1", ModelClaudeFable51, "", true},
+		{"bare from unknown region", "unknown", ModelClaudeFable51, "", true},
+		{"explicit US from US", "us-east-1", ModelClaudeFable51US, ModelClaudeFable51US, false},
+		{"explicit global from EU", "eu-west-1", ModelClaudeFable51Global, ModelClaudeFable51Global, false},
+		{"explicit US from EU", "eu-west-1", ModelClaudeFable51US, "", true},
+		{"explicit EU is unpublished", "eu-west-1", "eu." + ModelClaudeFable51, "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			p := &Provider{client: nil, region: tt.region}
+
+			model, err := p.NewModel(tt.modelName)
+			if tt.wantErr {
+				require.Error(t, err)
+
+				return
+			}
+
+			require.NoError(t, err)
+
+			m, ok := model.(*Model)
+			require.True(t, ok)
+			assert.Equal(t, tt.wantID, m.config.APIModelID)
+		})
+	}
+}
+
 func TestNewModel_RestrictedSamplingParametersRejected(t *testing.T) {
 	t.Parallel()
 
@@ -596,7 +664,7 @@ func TestNewModel_RestrictedSamplingParametersRejected(t *testing.T) {
 		{name: "top_p", opt: WithTopP(0.9), want: "top_p"},
 	}
 
-	for _, model := range []string{ModelClaudeFable5, ModelClaudeOpus5} {
+	for _, model := range []string{ModelClaudeFable51, ModelClaudeFable5, ModelClaudeOpus5} {
 		t.Run(model, func(t *testing.T) {
 			t.Parallel()
 
@@ -1249,7 +1317,7 @@ func TestModelsDiscovery_ProviderDataSharingMetadata(t *testing.T) {
 		metadataByName[m.ID] = m.Attributes
 	}
 
-	for _, name := range []string{ModelClaudeFable5Global, ModelClaudeFable5US, ModelClaudeFable5EU} {
+	for _, name := range []string{ModelClaudeFable51Global, ModelClaudeFable51US, ModelClaudeFable5Global, ModelClaudeFable5US, ModelClaudeFable5EU} {
 		assert.Equal(t, "true", metadataByName[name][ModelMetadataRequiresProviderDataSharing])
 	}
 
