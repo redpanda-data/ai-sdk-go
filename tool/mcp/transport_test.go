@@ -123,6 +123,21 @@ func TestNewSSETransport(t *testing.T) {
 	})
 }
 
+// headerRT returns the header-injecting round tripper of an HTTP transport,
+// unwrapping the auth-status probe that NewStreamableTransport and
+// NewSSETransport install outermost.
+func headerRT(t *testing.T, rt http.RoundTripper) *headerRoundTripper {
+	t.Helper()
+
+	probed, ok := rt.(*authProbeRoundTripper)
+	require.True(t, ok, "expected the auth-status probe outermost")
+
+	hrt, ok := probed.base.(*headerRoundTripper)
+	require.True(t, ok, "expected headerRoundTripper under the probe")
+
+	return hrt
+}
+
 func TestWithHTTPHeaders(t *testing.T) {
 	t.Parallel()
 
@@ -146,8 +161,7 @@ func TestWithHTTPHeaders(t *testing.T) {
 		// Test that headers are injected via RoundTripper
 		rt := streamable.HTTPClient.Transport
 		require.NotNil(t, rt)
-		hrt, ok := rt.(*headerRoundTripper)
-		require.True(t, ok, "transport should be wrapped with headerRoundTripper")
+		hrt := headerRT(t, rt)
 		assert.Equal(t, "test-key", hrt.headers["X-API-Key"])
 		assert.Equal(t, "custom", hrt.headers["X-Custom-Value"])
 	})
@@ -164,8 +178,7 @@ func TestWithHTTPHeaders(t *testing.T) {
 
 		streamable, ok := transport.(*sdkmcp.StreamableClientTransport)
 		require.True(t, ok, "expected StreamableClientTransport")
-		hrt, ok := streamable.HTTPClient.Transport.(*headerRoundTripper)
-		require.True(t, ok, "expected headerRoundTripper")
+		hrt := headerRT(t, streamable.HTTPClient.Transport)
 		assert.Equal(t, "value1", hrt.headers["X-Key-1"])
 		assert.Equal(t, "value2", hrt.headers["X-Key-2"])
 	})
@@ -186,8 +199,7 @@ func TestWithHTTPHeaders(t *testing.T) {
 		assert.Equal(t, 5*time.Second, streamable.HTTPClient.Timeout)
 
 		// Verify headers are wrapped
-		hrt, ok := streamable.HTTPClient.Transport.(*headerRoundTripper)
-		require.True(t, ok)
+		hrt := headerRT(t, streamable.HTTPClient.Transport)
 		assert.Equal(t, "test", hrt.headers["X-API-Key"])
 	})
 
@@ -202,8 +214,7 @@ func TestWithHTTPHeaders(t *testing.T) {
 
 		sse, ok := transport.(*sdkmcp.SSEClientTransport)
 		require.True(t, ok, "expected SSEClientTransport")
-		hrt, ok := sse.HTTPClient.Transport.(*headerRoundTripper)
-		require.True(t, ok, "expected headerRoundTripper")
+		hrt := headerRT(t, sse.HTTPClient.Transport)
 		assert.Equal(t, "Bearer token", hrt.headers["Authorization"])
 	})
 
@@ -219,8 +230,7 @@ func TestWithHTTPHeaders(t *testing.T) {
 
 		streamable, ok := transport.(*sdkmcp.StreamableClientTransport)
 		require.True(t, ok, "expected StreamableClientTransport")
-		hrt, ok := streamable.HTTPClient.Transport.(*headerRoundTripper)
-		require.True(t, ok, "expected headerRoundTripper")
+		hrt := headerRT(t, streamable.HTTPClient.Transport)
 		assert.Equal(t, "second", hrt.headers["X-Key"])
 	})
 }

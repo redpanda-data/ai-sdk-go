@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -150,6 +151,100 @@ func WithResourceIndicator(resource string) oauth2.AuthCodeOption {
 	return oauth2.SetAuthURLParam("resource", resource)
 }
 
+// authStatusProbe records whether an HTTP response rejected a request on
+// authorization grounds. It exists so the client can classify a failed connect
+// from the status the server actually sent, rather than by parsing the error
+// text: the go-sdk reports a rejected handshake as
+// "rejected by transport: sending \"initialize\": Forbidden", which carries the
+// status only as prose.
+//
+// One probe belongs to one transport, and the client builds a fresh transport
+// for every connect attempt, so a recorded denial always describes the attempt
+// that just failed.
+type authStatusProbe struct {
+	// status holds the first denial status seen, 0 if none.
+	status atomic.Int64
+}
+
+// observe records code if it denies the request in a way reconnecting cannot
+// fix: 401 (unauthenticated), 403 (authenticated but not permitted) and 424
+// (the gateway needs a user OAuth connection first).
+func (p *authStatusProbe) observe(code int) {
+	switch code {
+	case http.StatusUnauthorized, http.StatusForbidden, http.StatusFailedDependency:
+		p.status.CompareAndSwap(0, int64(code))
+	}
+}
+
+// denialStatus returns the recorded status, or 0 if no request was denied.
+func (p *authStatusProbe) denialStatus() int {
+	return int(p.status.Load())
+}
+
+// authProbeRoundTripper reports response status to a probe. It only observes:
+// the response and error pass through unchanged.
+type authProbeRoundTripper struct {
+	base  http.RoundTripper
+	probe *authStatusProbe
+}
+
+func (t *authProbeRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := t.base.RoundTrip(req)
+	if err == nil && resp != nil {
+		t.probe.observe(resp.StatusCode)
+	}
+
+	return resp, err
+}
+
+// authDenialStatus reports the status with which the server denied a request on
+// this transport, or 0 if none did.
+//
+// It returns 0 for any transport that cannot observe HTTP status: a stdio
+// subprocess, or one built by a caller's own TransportFactory rather than by
+// NewStreamableTransport or NewSSETransport. Those clients keep the old
+// behaviour of reconnecting regardless of the reason.
+func authDenialStatus(transport sdkmcp.Transport) int {
+	var httpClient *http.Client
+
+	switch t := transport.(type) {
+	case *sdkmcp.StreamableClientTransport:
+		httpClient = t.HTTPClient
+	case *sdkmcp.SSEClientTransport:
+		httpClient = t.HTTPClient
+	}
+
+	if httpClient == nil {
+		return 0
+	}
+
+	// The probe is installed outermost by newProbedHTTPClient, so one
+	// assertion finds it without unwrapping whatever it wraps.
+	probed, ok := httpClient.Transport.(*authProbeRoundTripper)
+	if !ok {
+		return 0
+	}
+
+	return probed.probe.denialStatus()
+}
+
+// newProbedHTTPClient builds the transport's HTTP client with its responses
+// observed by an authStatusProbe, installed as the outermost round tripper so
+// authDenialStatus can find it again.
+func newProbedHTTPClient(opts []HTTPTransportOption) *http.Client {
+	client := newHTTPTransportClient(opts)
+
+	base := client.Transport
+	if base == nil {
+		base = http.DefaultTransport
+	}
+
+	probed := *client
+	probed.Transport = &authProbeRoundTripper{base: base, probe: &authStatusProbe{}}
+
+	return &probed
+}
+
 // headerRoundTripper wraps an http.RoundTripper to inject custom headers.
 type headerRoundTripper struct {
 	base    http.RoundTripper
@@ -217,7 +312,7 @@ func NewStreamableTransport(endpoint string, opts ...HTTPTransportOption) Transp
 	return func() (sdkmcp.Transport, error) {
 		return &sdkmcp.StreamableClientTransport{
 			Endpoint:   endpoint,
-			HTTPClient: newHTTPTransportClient(opts),
+			HTTPClient: newProbedHTTPClient(opts),
 		}, nil
 	}
 }
@@ -230,7 +325,7 @@ func NewSSETransport(endpoint string, opts ...HTTPTransportOption) TransportFact
 	return func() (sdkmcp.Transport, error) {
 		return &sdkmcp.SSEClientTransport{
 			Endpoint:   endpoint,
-			HTTPClient: newHTTPTransportClient(opts),
+			HTTPClient: newProbedHTTPClient(opts),
 		}, nil
 	}
 }
