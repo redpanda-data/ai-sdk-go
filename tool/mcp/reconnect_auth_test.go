@@ -15,10 +15,13 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -273,10 +276,14 @@ func TestAuthStatusProbe(t *testing.T) {
 
 			probe := &authStatusProbe{}
 			for _, code := range tc.codes {
-				probe.observe(code)
+				probe.observe(code, "tools/list")
 			}
 
 			assert.Equal(t, tc.want, probe.denialStatus())
+
+			if tc.want != 0 {
+				assert.Equal(t, "tools/list", probe.denialMethod())
+			}
 		})
 	}
 }
@@ -309,10 +316,247 @@ func TestAuthDenialStatusFromTransport(t *testing.T) {
 		assert.Equal(t, http.StatusForbidden, authDenialStatus(transport))
 	})
 
+	t.Run("a denial is attributed to its method", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusForbidden)
+		}))
+		t.Cleanup(srv.Close)
+
+		post := func(transport sdkmcp.Transport, body string) {
+			streamable, ok := transport.(*sdkmcp.StreamableClientTransport)
+			require.True(t, ok)
+
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodPost,
+				srv.URL, strings.NewReader(body))
+			require.NoError(t, err)
+
+			resp, err := streamable.HTTPClient.Do(req)
+			require.NoError(t, err)
+			require.NoError(t, resp.Body.Close())
+		}
+
+		// A refused listing is the client's own access.
+		listing, err := NewStreamableTransport(srv.URL)()
+		require.NoError(t, err)
+
+		post(listing, `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`)
+		assert.Equal(t, http.StatusForbidden, clientOwnedDenial(listing))
+
+		// A refused call may belong to one caller of a shared session.
+		call, err := NewStreamableTransport(srv.URL)()
+		require.NoError(t, err)
+
+		post(call, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"x"}}`)
+		assert.Equal(t, http.StatusForbidden, authDenialStatus(call), "the denial is still recorded")
+		assert.Equal(t, 0, clientOwnedDenial(call), "but it is not the client's own")
+	})
+
 	t.Run("a transport that cannot observe status reports none", func(t *testing.T) {
 		t.Parallel()
 
 		assert.Equal(t, 0, authDenialStatus(&mockTransport{}),
 			"a caller's own transport keeps the retry-regardless behaviour")
 	})
+}
+
+// listDenyingMCPServer permits the handshake and refuses tools/list.
+type listDenyingMCPServer struct {
+	*httptest.Server
+
+	denyList   atomic.Bool
+	denyCode   int
+	handshakes atomic.Int64
+	listDenied atomic.Int64
+	callsOK    atomic.Int64
+}
+
+func newListDenyingMCPServer(t *testing.T, denyCode int) *listDenyingMCPServer {
+	t.Helper()
+
+	srv := &listDenyingMCPServer{denyCode: denyCode}
+
+	mcpServer := sdkmcp.NewServer(&sdkmcp.Implementation{
+		Name:    "list-deny-test-server",
+		Version: "1.0.0",
+	}, &sdkmcp.ServerOptions{HasTools: true})
+
+	mcpServer.AddTool(&sdkmcp.Tool{
+		Name:        "ping",
+		Description: "Answers pong",
+		InputSchema: map[string]any{"type": "object"},
+	}, func(context.Context, *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
+		srv.callsOK.Add(1)
+
+		return &sdkmcp.CallToolResult{
+			Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: "pong"}},
+		}, nil
+	})
+
+	handler := sdkmcp.NewStreamableHTTPHandler(
+		func(*http.Request) *sdkmcp.Server { return mcpServer },
+		&sdkmcp.StreamableHTTPOptions{},
+	)
+
+	srv.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		r.Body = io.NopCloser(bytes.NewReader(body))
+
+		switch {
+		case bytes.Contains(body, []byte(`"method":"initialize"`)):
+			srv.handshakes.Add(1)
+		case srv.denyList.Load() && bytes.Contains(body, []byte(`"method":"tools/list"`)):
+			srv.listDenied.Add(1)
+			w.WriteHeader(srv.denyCode)
+
+			return
+		}
+
+		handler.ServeHTTP(w, r)
+	}))
+	t.Cleanup(srv.Close)
+
+	return srv
+}
+
+// TestDeniedListingRetiresClient covers the manifestation that survives a fix
+// aimed only at the handshake: initialize is permitted, so every reconnect
+// succeeds, and it is tools/list that is refused.
+//
+// The result is a churn rather than a spin. The refused listing fails the
+// connection, the session manager reconnects successfully, the post-reconnect
+// sync is refused again, and round it goes with attempt=1 every time -- so the
+// backoff never engages and the loop is tighter than a backed-off one. A
+// client that may not list a server's tools cannot use that server, so the
+// rejection has to retire it.
+func TestDeniedListingRetiresClient(t *testing.T) {
+	t.Parallel()
+
+	for _, code := range []int{http.StatusFailedDependency, http.StatusForbidden} {
+		t.Run(http.StatusText(code), func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
+
+			srv := newListDenyingMCPServer(t, code)
+			registry := newMockRegistry()
+
+			client, err := NewClient("denied-listing", NewStreamableTransport(srv.URL),
+				WithRegistry(registry),
+				WithAutoSync(100*time.Millisecond),
+			)
+			require.NoError(t, err)
+
+			t.Cleanup(func() { _ = client.Close() })
+
+			require.NoError(t, client.Start(ctx))
+			require.Equal(t, 1, registry.count())
+
+			srv.denyList.Store(true)
+
+			require.Eventually(t, func() bool { return registry.count() == 0 },
+				30*time.Second, 25*time.Millisecond,
+				"a client that may not list tools must unregister them, not churn through sessions")
+
+			handshakes, denials := srv.handshakes.Load(), srv.listDenied.Load()
+
+			time.Sleep(time.Second)
+
+			assert.LessOrEqual(t, srv.handshakes.Load(), handshakes+1,
+				"a retired client must stop reconnecting")
+			assert.LessOrEqual(t, srv.listDenied.Load(), denials+1,
+				"a retired client must stop asking for the tool list")
+
+			_, err = client.ExecuteTool(ctx, "denied-listing__ping", nil)
+			require.Error(t, err)
+			assert.True(t, errors.Is(err, ErrAuthDenied) || errors.Is(err, ErrClosed),
+				"want ErrAuthDenied or ErrClosed, got %v", err)
+		})
+	}
+}
+
+// TestDeniedToolCallDoesNotRetireClient is the counterpart, and the reason the
+// classification is method-aware: one session can be shared by several callers,
+// with the server authorizing each call. A refused tools/call may be one
+// caller's missing permission, which must not retire a client that works for
+// everyone else.
+func TestDeniedToolCallDoesNotRetireClient(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	var denyCalls atomic.Bool
+
+	mcpServer := sdkmcp.NewServer(&sdkmcp.Implementation{
+		Name:    "call-deny-test-server",
+		Version: "1.0.0",
+	}, &sdkmcp.ServerOptions{HasTools: true})
+
+	mcpServer.AddTool(&sdkmcp.Tool{
+		Name:        "ping",
+		Description: "Answers pong",
+		InputSchema: map[string]any{"type": "object"},
+	}, func(context.Context, *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
+		return &sdkmcp.CallToolResult{
+			Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: "pong"}},
+		}, nil
+	})
+
+	handler := sdkmcp.NewStreamableHTTPHandler(
+		func(*http.Request) *sdkmcp.Server { return mcpServer },
+		&sdkmcp.StreamableHTTPOptions{},
+	)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		r.Body = io.NopCloser(bytes.NewReader(body))
+
+		if denyCalls.Load() && bytes.Contains(body, []byte(`"method":"tools/call"`)) {
+			w.WriteHeader(http.StatusForbidden)
+
+			return
+		}
+
+		handler.ServeHTTP(w, r)
+	}))
+	t.Cleanup(ts.Close)
+
+	registry := newMockRegistry()
+
+	client, err := NewClient("denied-call", NewStreamableTransport(ts.URL),
+		WithRegistry(registry))
+	require.NoError(t, err)
+
+	t.Cleanup(func() { _ = client.Close() })
+
+	require.NoError(t, client.Start(ctx))
+	require.Equal(t, 1, registry.count())
+
+	denyCalls.Store(true)
+
+	_, err = client.ExecuteTool(ctx, "denied-call__ping", nil)
+	require.Error(t, err, "the refused call must fail")
+
+	// The client itself is not implicated: nothing says it may not use the
+	// server, only that this call was refused.
+	require.NotErrorIs(t, err, ErrAuthDenied,
+		"a refused tools/call must not be reported as the client being denied")
+
+	impl, ok := client.(*clientImpl)
+	require.True(t, ok)
+	require.NoError(t, impl.terminal(), "a refused tools/call must not retire the client")
+
+	denyCalls.Store(false)
+
+	// And the client recovers on its own: the session manager reconnects the
+	// connection that the refusal killed.
+	require.Eventually(t, func() bool {
+		_, err := client.ExecuteTool(ctx, "denied-call__ping", nil)
+
+		return err == nil
+	}, 30*time.Second, 100*time.Millisecond,
+		"the client must keep working once the refusal stops")
 }

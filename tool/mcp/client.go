@@ -196,6 +196,11 @@ type clientImpl struct {
 	// allowing waitForSession to wake up and check for a new session.
 	sessionChanged chan struct{}
 
+	// sessionTransport is the transport that built the current session. Its
+	// status probe is what tells a permanent rejection (401/403/424) from a
+	// transient disconnect once the handshake has already succeeded.
+	sessionTransport sdkmcp.Transport
+
 	// terminalErr is set when the client has given up on this server for good
 	// (an authorization denial, which reconnecting cannot fix). Operations
 	// return it immediately instead of waiting for a session that is not
@@ -463,7 +468,9 @@ func (c *clientImpl) isShutdown() bool {
 	}
 }
 
-// connect creates and connects the MCP client.
+// connect creates and connects the MCP client. The transport it built is
+// recorded as the session's, so a rejection that arrives after the handshake
+// can be classified from the status the server sent.
 func (c *clientImpl) connect(ctx context.Context) (*sdkmcp.ClientSession, *sdkmcp.Client, error) {
 	mcpClient := sdkmcp.NewClient(&sdkmcp.Implementation{
 		Name:    "redpanda-ai-agent-sdk",
@@ -483,6 +490,10 @@ func (c *clientImpl) connect(ctx context.Context) (*sdkmcp.ClientSession, *sdkmc
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create transport: %w", err)
 	}
+
+	c.mu.Lock()
+	c.sessionTransport = transport
+	c.mu.Unlock()
 
 	session, err := mcpClient.Connect(ctx, transport, nil)
 	if err != nil {
@@ -672,6 +683,15 @@ func (c *clientImpl) sessionManagerLoop() {
 
 		if waitErr != nil {
 			c.logger.Warn("MCP session closed with error", "serverID", c.serverID, "err", waitErr)
+
+			// A session that died because the server refused one of this
+			// client's own requests will die the same way after every
+			// reconnect. Give up instead of churning through sessions.
+			if denied := c.sessionDeniedErr(waitErr); denied != nil {
+				c.giveUp(denied)
+
+				return
+			}
 		} else {
 			c.logger.Info("MCP session closed", "serverID", c.serverID)
 		}
@@ -726,6 +746,13 @@ func (c *clientImpl) sessionManagerLoop() {
 			err := c.SyncTools(syncCtx)
 			if err != nil {
 				c.logger.Warn("sync after reconnect failed", "serverID", c.serverID, "err", err)
+
+				// The handshake is permitted and the listing is not: no
+				// further reconnect changes that.
+				//nolint:contextcheck // giveUp shuts down on its own goroutine with its own timeout, by design: see giveUp
+				if errors.Is(err, ErrAuthDenied) {
+					c.giveUp(err)
+				}
 			}
 		}()
 	}
@@ -749,6 +776,38 @@ func (c *clientImpl) giveUp(reason error) {
 				"serverID", c.serverID, "err", err)
 		}
 	}()
+}
+
+// sessionDeniedErr reports the error to give up with when the current
+// session's transport was rejected on authorization grounds for one of the
+// client's own requests -- the handshake, or a capability listing such as
+// tools/list. Returns nil otherwise, including for a rejection that may belong
+// to a single caller of a session several callers share.
+//
+// This is the post-handshake half of the same problem. A server may permit
+// initialize and refuse tools/list, at which point every reconnect succeeds
+// and every sync afterwards fails: the client churns through sessions at the
+// speed of the network, with the backoff never engaging, and never notices
+// that the answer will not change.
+func (c *clientImpl) sessionDeniedErr(cause error) error {
+	c.mu.RLock()
+	transport := c.sessionTransport
+	c.mu.RUnlock()
+
+	if transport == nil {
+		return nil
+	}
+
+	status := clientOwnedDenial(transport)
+	if status == 0 {
+		return nil
+	}
+
+	if cause == nil {
+		return fmt.Errorf("%w with HTTP %d", ErrAuthDenied, status)
+	}
+
+	return fmt.Errorf("%w with HTTP %d: %w", ErrAuthDenied, status, cause)
 }
 
 // terminal reports why the client has given up on the server, or nil while it

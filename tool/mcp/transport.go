@@ -15,8 +15,11 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"maps"
 	"net/http"
 	"os"
@@ -152,27 +155,36 @@ func WithResourceIndicator(resource string) oauth2.AuthCodeOption {
 }
 
 // authStatusProbe records whether an HTTP response rejected a request on
-// authorization grounds. It exists so the client can classify a failed connect
-// from the status the server actually sent, rather than by parsing the error
-// text: the go-sdk reports a rejected handshake as
-// "rejected by transport: sending \"initialize\": Forbidden", which carries the
-// status only as prose.
+// authorization grounds, and which JSON-RPC method was rejected. It exists so
+// the client can classify a rejection from the status the server actually sent,
+// rather than by parsing the error text: the go-sdk reports a rejected
+// handshake as `rejected by transport: sending "initialize": Forbidden`, which
+// carries the status only as prose.
 //
 // One probe belongs to one transport, and the client builds a fresh transport
-// for every connect attempt, so a recorded denial always describes the attempt
-// that just failed.
+// for every connect attempt, so a recorded denial always describes the session
+// (or the failed attempt) that transport served.
 type authStatusProbe struct {
 	// status holds the first denial status seen, 0 if none.
 	status atomic.Int64
+	// method holds the JSON-RPC method that first denial was for, empty when
+	// it could not be determined.
+	method atomic.Value // string
 }
 
 // observe records code if it denies the request in a way reconnecting cannot
 // fix: 401 (unauthenticated), 403 (authenticated but not permitted) and 424
-// (the gateway needs a user OAuth connection first).
-func (p *authStatusProbe) observe(code int) {
+// (the gateway needs a user OAuth connection first). method is the JSON-RPC
+// method of the denied request, empty if unknown.
+func (p *authStatusProbe) observe(code int, method string) {
 	switch code {
 	case http.StatusUnauthorized, http.StatusForbidden, http.StatusFailedDependency:
-		p.status.CompareAndSwap(0, int64(code))
+	default:
+		return
+	}
+
+	if p.status.CompareAndSwap(0, int64(code)) {
+		p.method.Store(method)
 	}
 }
 
@@ -181,20 +193,90 @@ func (p *authStatusProbe) denialStatus() int {
 	return int(p.status.Load())
 }
 
-// authProbeRoundTripper reports response status to a probe. It only observes:
-// the response and error pass through unchanged.
+// denialMethod returns the JSON-RPC method of the recorded denial, or "".
+func (p *authStatusProbe) denialMethod() string {
+	method, _ := p.method.Load().(string)
+
+	return method
+}
+
+// clientOwnedMethods are the requests a client makes for itself rather than for
+// whoever asked it to do something: the handshake and the capability listings.
+// A denial of one of these describes the client's own access, so it retires the
+// client. A denial of anything else -- tools/call above all -- may belong to one
+// caller of a session that several share, and must not.
+var clientOwnedMethods = map[string]bool{
+	"initialize":               true,
+	"tools/list":               true,
+	"prompts/list":             true,
+	"resources/list":           true,
+	"resources/templates/list": true,
+	"ping":                     true,
+}
+
+// authProbeRoundTripper reports response status to a probe, together with the
+// JSON-RPC method it was answering. It only observes: the response and error
+// pass through unchanged.
 type authProbeRoundTripper struct {
 	base  http.RoundTripper
 	probe *authStatusProbe
 }
 
 func (t *authProbeRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Read the method before the body is consumed by the send, and only when a
+	// denial could be recorded from it.
+	method, body, buffered := rpcMethod(req)
+	if buffered {
+		req = req.Clone(req.Context())
+		req.Body = io.NopCloser(bytes.NewReader(body))
+		req.ContentLength = int64(len(body))
+		req.GetBody = func() (io.ReadCloser, error) {
+			return io.NopCloser(bytes.NewReader(body)), nil
+		}
+	}
+
 	resp, err := t.base.RoundTrip(req)
 	if err == nil && resp != nil {
-		t.probe.observe(resp.StatusCode)
+		t.probe.observe(resp.StatusCode, method)
 	}
 
 	return resp, err
+}
+
+// maxBufferedRPCBody caps how much of a request body is read to recover its
+// JSON-RPC method. MCP messages are small; a larger body is left alone.
+const maxBufferedRPCBody = 1 << 20
+
+// rpcMethod reads the JSON-RPC method of an outgoing request, returning it
+// with the buffered body when it had to consume one, so the caller can replace
+// it, and whether it did.
+func rpcMethod(req *http.Request) (string, []byte, bool) {
+	if req.Method != http.MethodPost || req.Body == nil || req.Body == http.NoBody {
+		return "", nil, false
+	}
+
+	if req.ContentLength > maxBufferedRPCBody {
+		return "", nil, false
+	}
+
+	body, err := io.ReadAll(io.LimitReader(req.Body, maxBufferedRPCBody+1))
+	_ = req.Body.Close()
+
+	if err != nil || len(body) == 0 || len(body) > maxBufferedRPCBody {
+		// The body cannot be restored, so the request has to go out as it is;
+		// an empty reader is the honest representation of what is left.
+		return "", body, len(body) <= maxBufferedRPCBody
+	}
+
+	var msg struct {
+		Method string `json:"method"`
+	}
+
+	if err := json.Unmarshal(body, &msg); err != nil {
+		return "", body, true
+	}
+
+	return msg.Method, body, true
 }
 
 // authDenialStatus reports the status with which the server denied a request on
@@ -205,6 +287,35 @@ func (t *authProbeRoundTripper) RoundTrip(req *http.Request) (*http.Response, er
 // NewStreamableTransport or NewSSETransport. Those clients keep the old
 // behaviour of reconnecting regardless of the reason.
 func authDenialStatus(transport sdkmcp.Transport) int {
+	probe := transportProbe(transport)
+	if probe == nil {
+		return 0
+	}
+
+	return probe.denialStatus()
+}
+
+// clientOwnedDenial reports the status of a denial of one of the client's own
+// requests on this transport -- the handshake or a capability listing -- and 0
+// for no denial, an unknown method, or a denial that may belong to a single
+// caller of a shared session.
+func clientOwnedDenial(transport sdkmcp.Transport) int {
+	probe := transportProbe(transport)
+	if probe == nil {
+		return 0
+	}
+
+	status := probe.denialStatus()
+	if status == 0 || !clientOwnedMethods[probe.denialMethod()] {
+		return 0
+	}
+
+	return status
+}
+
+// transportProbe finds the status probe of a transport built here, or nil for
+// one that cannot observe HTTP status.
+func transportProbe(transport sdkmcp.Transport) *authStatusProbe {
 	var httpClient *http.Client
 
 	switch t := transport.(type) {
@@ -215,17 +326,17 @@ func authDenialStatus(transport sdkmcp.Transport) int {
 	}
 
 	if httpClient == nil {
-		return 0
+		return nil
 	}
 
 	// The probe is installed outermost by newProbedHTTPClient, so one
 	// assertion finds it without unwrapping whatever it wraps.
 	probed, ok := httpClient.Transport.(*authProbeRoundTripper)
 	if !ok {
-		return 0
+		return nil
 	}
 
-	return probed.probe.denialStatus()
+	return probed.probe
 }
 
 // newProbedHTTPClient builds the transport's HTTP client with its responses
