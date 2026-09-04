@@ -208,6 +208,49 @@ client, err := mcp.NewClient(
 )
 ```
 
+### Reconnection and authorization denials
+
+Once a session has been established the client owns reconnection: it watches
+the session, and when it drops it reconnects with exponential backoff, capped
+at 30 seconds, for as long as the client lives.
+
+Two failure modes are deliberately not retried, because retrying makes them
+worse:
+
+- **The server denies one of the client's own requests.** A 401, 403 or 424 on
+  the handshake or on a capability listing (`tools/list` and friends) cannot be
+  fixed by connecting again: the credential or the grant has to change first.
+  The client stops reconnecting, unregisters its tools from the registry so a
+  model is no longer offered calls that cannot succeed, and shuts itself down.
+  Operations then fail with `ErrAuthDenied`, and `Start` reports the same error
+  when the *initial* connect is denied.
+
+  The distinction between the client's own requests and the rest matters
+  because one session can be shared by several callers, with the server
+  authorizing each call: a refused `tools/call` may be one caller's missing
+  permission and leaves the client alone, while a refused `tools/list` is about
+  the client itself. Without that rule a server that permits `initialize` and
+  refuses `tools/list` produces a churn instead of a spin — every reconnect
+  succeeds, every sync afterwards fails, and the backoff never engages.
+
+  Detection reads the HTTP status and the JSON-RPC method, so it applies to the
+  transports built by `NewStreamableTransport` and `NewSSETransport`; a stdio
+  transport, or one built by your own `TransportFactory`, keeps reconnecting
+  regardless of the reason.
+- **Waiting for a session forever.** While a reconnect is in flight the client
+  holds no session, so operations wait for one — bounded by 30 seconds, after
+  which they fail with `ErrNoSession`. Without that bound a tool call waits for
+  the caller's deadline instead, which with `WithToolTimeout(10*time.Minute)`
+  turns a reconnect into a ten-minute hang.
+
+```go
+client, err := mcp.NewClient(
+    "github-mcp",
+    transport,
+    mcp.WithSessionWaitTimeout(5*time.Second), // 0 waits for the caller's context
+)
+```
+
 ### Custom Logger
 
 Provide a custom logger for debugging:

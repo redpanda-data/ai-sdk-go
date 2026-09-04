@@ -39,6 +39,19 @@ var (
 
 	// ErrClosed indicates the client has been closed.
 	ErrClosed = errors.New("mcp client closed")
+
+	// ErrAuthDenied indicates the server rejected the connection on
+	// authorization grounds (401, 403 or 424). Reconnecting cannot fix it: the
+	// credential or grant it needs has to change first, and nothing the client
+	// does on its own changes it. A client denied after it was connected shuts
+	// itself down instead of reconnecting forever.
+	ErrAuthDenied = errors.New("mcp server denied authorization")
+
+	// ErrNoSession indicates no live session became available within
+	// sessionWaitTimeout because the client is reconnecting. Operations return
+	// it rather than waiting out the caller's deadline, which for a tool call
+	// can be minutes.
+	ErrNoSession = errors.New("mcp client has no live session")
 )
 
 const (
@@ -54,6 +67,15 @@ const (
 	// (xcontext.Detach in its streamable client), so cancelling after a
 	// successful connect does not kill the session.
 	reconnectAttemptTimeout = 30 * time.Second
+	// defaultSessionWaitTimeout bounds how long an operation waits for a live
+	// session while the client is reconnecting. The session manager clears the
+	// session before it reconnects, and the tools synced while the session was
+	// healthy stay registered, so the model keeps being offered them: without
+	// this bound a tool call blocks for the caller's whole deadline, which is
+	// the tool timeout (minutes, deliberately, for genuinely long calls). It
+	// matches reconnectAttemptTimeout so a call outlives one full handshake
+	// attempt and then fails with a usable error instead of hanging.
+	defaultSessionWaitTimeout = 30 * time.Second
 )
 
 // Client connects to an MCP server to discover and execute tools.
@@ -144,8 +166,11 @@ type clientImpl struct {
 	// reconnectTimeout bounds one reconnect handshake; defaults to
 	// reconnectAttemptTimeout (overridden only in tests).
 	reconnectTimeout time.Duration
-	logger           *slog.Logger
-	toolFilter       ToolFilterFunc
+	// sessionWaitTimeout bounds waiting for a live session; defaults to
+	// defaultSessionWaitTimeout, 0 waits for the caller's context instead.
+	sessionWaitTimeout time.Duration
+	logger             *slog.Logger
+	toolFilter         ToolFilterFunc
 
 	// MCP SDK components
 	mcpClient *sdkmcp.Client
@@ -170,6 +195,17 @@ type clientImpl struct {
 	// sessionChanged is closed and replaced whenever the session pointer is updated,
 	// allowing waitForSession to wake up and check for a new session.
 	sessionChanged chan struct{}
+
+	// sessionTransport is the transport that built the current session. Its
+	// status probe is what tells a permanent rejection (401/403/424) from a
+	// transient disconnect once the handshake has already succeeded.
+	sessionTransport sdkmcp.Transport
+
+	// terminalErr is set when the client has given up on this server for good
+	// (an authorization denial, which reconnecting cannot fix). Operations
+	// return it immediately instead of waiting for a session that is not
+	// coming back.
+	terminalErr atomic.Pointer[error]
 }
 
 // NewClient creates a new MCP client. The client must be started with Start()
@@ -196,14 +232,15 @@ func NewClient(serverID string, transportFactory TransportFactory, opts ...Clien
 	}
 
 	c := &clientImpl{
-		serverID:         serverID,
-		transportFactory: transportFactory,
-		reconnectTimeout: reconnectAttemptTimeout,
-		logger:           slog.Default(),
-		tools:            make(map[string]*toolWrapper),
-		notifyCh:         make(chan struct{}, 1),
-		sessionChanged:   make(chan struct{}),
-		done:             make(chan struct{}),
+		serverID:           serverID,
+		transportFactory:   transportFactory,
+		reconnectTimeout:   reconnectAttemptTimeout,
+		sessionWaitTimeout: defaultSessionWaitTimeout,
+		logger:             slog.Default(),
+		tools:              make(map[string]*toolWrapper),
+		notifyCh:           make(chan struct{}, 1),
+		sessionChanged:     make(chan struct{}),
+		done:               make(chan struct{}),
 	}
 	c.wgDone = sync.OnceValue(func() <-chan struct{} {
 		ch := make(chan struct{})
@@ -431,7 +468,9 @@ func (c *clientImpl) isShutdown() bool {
 	}
 }
 
-// connect creates and connects the MCP client.
+// connect creates and connects the MCP client. The transport it built is
+// recorded as the session's, so a rejection that arrives after the handshake
+// can be classified from the status the server sent.
 func (c *clientImpl) connect(ctx context.Context) (*sdkmcp.ClientSession, *sdkmcp.Client, error) {
 	mcpClient := sdkmcp.NewClient(&sdkmcp.Implementation{
 		Name:    "redpanda-ai-agent-sdk",
@@ -452,8 +491,21 @@ func (c *clientImpl) connect(ctx context.Context) (*sdkmcp.ClientSession, *sdkmc
 		return nil, nil, fmt.Errorf("failed to create transport: %w", err)
 	}
 
+	c.mu.Lock()
+	c.sessionTransport = transport
+	c.mu.Unlock()
+
 	session, err := mcpClient.Connect(ctx, transport, nil)
 	if err != nil {
+		// Classify from the status the server sent, not from the error text:
+		// the go-sdk renders a rejected handshake as
+		// `rejected by transport: sending "initialize": Forbidden`, which
+		// carries the status as prose only.
+		if status := authDenialStatus(transport); status != 0 {
+			return nil, nil, fmt.Errorf("failed to connect to MCP server: %w with HTTP %d: %w",
+				ErrAuthDenied, status, err)
+		}
+
 		return nil, nil, fmt.Errorf("failed to connect to MCP server: %w", err)
 	}
 
@@ -526,14 +578,33 @@ func (c *clientImpl) replaceSessionLocked(session *sdkmcp.ClientSession, client 
 	}
 }
 
-// waitForSession blocks until a live MCP session is available or the provided
-// context (or client) is cancelled. Returns ErrClosed if the client is shutting
-// down.
-func (c *clientImpl) waitForSession(ctx context.Context) (*sdkmcp.ClientSession, context.Context, error) {
+// waitForSession blocks until a live MCP session is available, the wait times
+// out, or the provided context (or client) is cancelled. Returns ErrClosed if
+// the client is shutting down, the terminal error if the client has given up on
+// the server, and ErrNoSession if sessionWaitTimeout elapses while a reconnect
+// is in progress.
+//
+// The bound matters because the session manager clears the session before it
+// reconnects while the tools stay registered: an unbounded wait turns a
+// reconnect into a hang lasting as long as the caller's deadline, and for a
+// tool call that deadline is the tool timeout.
+func (c *clientImpl) waitForSession(callerCtx context.Context) (*sdkmcp.ClientSession, context.Context, error) {
+	ctx := callerCtx
+
+	if c.sessionWaitTimeout > 0 {
+		var cancel context.CancelFunc
+
+		ctx, cancel = context.WithTimeout(callerCtx, c.sessionWaitTimeout)
+		defer cancel()
+	}
+
 	for {
-		ctxErr := ctx.Err()
-		if ctxErr != nil {
-			return nil, nil, ctxErr
+		if err := c.terminal(); err != nil {
+			return nil, nil, err
+		}
+
+		if ctx.Err() != nil {
+			return nil, nil, c.sessionWaitErr(callerCtx, ctx)
 		}
 
 		c.mu.RLock()
@@ -553,13 +624,31 @@ func (c *clientImpl) waitForSession(ctx context.Context) (*sdkmcp.ClientSession,
 
 		select {
 		case <-ctx.Done():
-			return nil, nil, ctx.Err()
+			return nil, nil, c.sessionWaitErr(callerCtx, ctx)
 		case <-bgCtx.Done():
+			// The client is shutting down. Report why if it gave up on the
+			// server, since that is the actionable reason.
+			if err := c.terminal(); err != nil {
+				return nil, nil, err
+			}
+
 			return nil, nil, ErrClosed
 		case <-ch:
 			// Session state changed; re-check.
 		}
 	}
+}
+
+// sessionWaitErr distinguishes the client's own bound on waiting for a session
+// from the caller giving up: only the former means "still reconnecting, and
+// this call cannot be served right now", which is what ErrNoSession says.
+func (c *clientImpl) sessionWaitErr(callerCtx, waitCtx context.Context) error {
+	if callerCtx.Err() == nil {
+		return fmt.Errorf("%w: none available after %s of reconnecting",
+			ErrNoSession, c.sessionWaitTimeout)
+	}
+
+	return waitCtx.Err()
 }
 
 // sessionManagerLoop monitors the active session and automatically reconnects when lost.
@@ -594,6 +683,15 @@ func (c *clientImpl) sessionManagerLoop() {
 
 		if waitErr != nil {
 			c.logger.Warn("MCP session closed with error", "serverID", c.serverID, "err", waitErr)
+
+			// A session that died because the server refused one of this
+			// client's own requests will die the same way after every
+			// reconnect. Give up instead of churning through sessions.
+			if denied := c.sessionDeniedErr(waitErr); denied != nil {
+				c.giveUp(denied)
+
+				return
+			}
 		} else {
 			c.logger.Info("MCP session closed", "serverID", c.serverID)
 		}
@@ -606,8 +704,20 @@ func (c *clientImpl) sessionManagerLoop() {
 		// Perform blocking reconnect with exponential backoff
 		newSession, newClient, err := c.performReconnect(bgCtx)
 		if err != nil {
+			if errors.Is(err, ErrAuthDenied) {
+				// Give up on this server rather than leaving a started client
+				// with no session and its tools still advertised. Shutting
+				// down unregisters those tools, so the model stops being
+				// offered calls that cannot succeed, and cancels bgCtx, so
+				// operations already waiting fail immediately.
+				c.giveUp(err)
+
+				return
+			}
+
 			// Context canceled during reconnect (client shutting down)
 			c.logger.Info("reconnect terminated", "serverID", c.serverID, "err", err)
+
 			return
 		}
 
@@ -636,12 +746,83 @@ func (c *clientImpl) sessionManagerLoop() {
 			err := c.SyncTools(syncCtx)
 			if err != nil {
 				c.logger.Warn("sync after reconnect failed", "serverID", c.serverID, "err", err)
+
+				// The handshake is permitted and the listing is not: no
+				// further reconnect changes that.
+				//nolint:contextcheck // giveUp shuts down on its own goroutine with its own timeout, by design: see giveUp
+				if errors.Is(err, ErrAuthDenied) {
+					c.giveUp(err)
+				}
 			}
 		}()
 	}
 }
 
-// performReconnect attempts reconnection with exponential backoff until success or context cancellation.
+// giveUp records why the client is finished and shuts it down, so its tools
+// stop being advertised and waiting operations fail at once.
+//
+// The shutdown runs on its own goroutine because Shutdown waits for the
+// client's goroutines and the caller here is one of them: closing inline would
+// wait for itself. Callers must return immediately after.
+func (c *clientImpl) giveUp(reason error) {
+	c.terminalErr.CompareAndSwap(nil, &reason)
+
+	c.logger.Error("giving up on MCP server; unregistering its tools, calls will fail fast",
+		"serverID", c.serverID, "err", reason)
+
+	go func() {
+		if err := c.Close(); err != nil {
+			c.logger.Warn("shutting down a client that gave up failed",
+				"serverID", c.serverID, "err", err)
+		}
+	}()
+}
+
+// sessionDeniedErr reports the error to give up with when the current
+// session's transport was rejected on authorization grounds for one of the
+// client's own requests -- the handshake, or a capability listing such as
+// tools/list. Returns nil otherwise, including for a rejection that may belong
+// to a single caller of a session several callers share.
+//
+// This is the post-handshake half of the same problem. A server may permit
+// initialize and refuse tools/list, at which point every reconnect succeeds
+// and every sync afterwards fails: the client churns through sessions at the
+// speed of the network, with the backoff never engaging, and never notices
+// that the answer will not change.
+func (c *clientImpl) sessionDeniedErr(cause error) error {
+	c.mu.RLock()
+	transport := c.sessionTransport
+	c.mu.RUnlock()
+
+	if transport == nil {
+		return nil
+	}
+
+	status := clientOwnedDenial(transport)
+	if status == 0 {
+		return nil
+	}
+
+	if cause == nil {
+		return fmt.Errorf("%w with HTTP %d", ErrAuthDenied, status)
+	}
+
+	return fmt.Errorf("%w with HTTP %d: %w", ErrAuthDenied, status, cause)
+}
+
+// terminal reports why the client has given up on the server, or nil while it
+// is still expected to work.
+func (c *clientImpl) terminal() error {
+	if err := c.terminalErr.Load(); err != nil {
+		return *err
+	}
+
+	return nil
+}
+
+// performReconnect attempts reconnection with exponential backoff, stopping
+// early if the server denies authorization (ErrAuthDenied), which no number of
+// attempts can change.
 func (c *clientImpl) performReconnect(ctx context.Context) (*sdkmcp.ClientSession, *sdkmcp.Client, error) {
 	delay := reconnectInitialDelay
 	attempt := 0
@@ -668,6 +849,19 @@ func (c *clientImpl) performReconnect(ctx context.Context) (*sdkmcp.ClientSessio
 
 		if err == nil {
 			return session, mcpClient, nil
+		}
+
+		if errors.Is(err, ErrAuthDenied) {
+			// Retrying cannot mint the credential or the grant this needs, and
+			// the session manager clears the session before it reconnects, so
+			// looping here leaves the client unusable while it hammers the
+			// server: one denial otherwise produces another every
+			// reconnectMaxDelay until the process is restarted. Report it and
+			// let the caller give up on the server.
+			c.logger.Error("reconnect denied on authorization grounds; not retrying",
+				"serverID", c.serverID, "attempt", attempt, "err", err)
+
+			return nil, nil, err
 		}
 
 		c.logger.Warn("reconnect attempt failed", "serverID", c.serverID, "attempt", attempt, "err", err)
@@ -702,6 +896,12 @@ func (c *clientImpl) beginOp() (func(), error) {
 	// Fast checks without lock
 	if c.closing.Load() {
 		return nil, ErrClosed
+	}
+
+	// A client that gave up on its server reports why, rather than the bare
+	// ErrClosed its imminent shutdown would produce.
+	if err := c.terminal(); err != nil {
+		return nil, err
 	}
 
 	c.mu.RLock()

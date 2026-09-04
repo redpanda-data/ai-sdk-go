@@ -170,6 +170,13 @@ func (c *clientImpl) SyncTools(ctx context.Context) error {
 		// Fetch tools from server (network I/O, outside lock)
 		fetched, err := c.fetchTools(opCtx, session)
 		if err != nil {
+			// A listing the server refuses on authorization grounds is not a
+			// transient failure: report it as such so callers, and the session
+			// manager, stop treating it as one.
+			if denied := c.sessionDeniedErr(err); denied != nil {
+				return nil, denied
+			}
+
 			return nil, err
 		}
 
@@ -378,6 +385,16 @@ func (c *clientImpl) autoSyncLoop() {
 				c.logger.Warn("auto-sync failed",
 					"serverID", c.serverID,
 					"err", err)
+
+				// A refused listing will be refused again on the next tick,
+				// and its failure closes the session, so the client would
+				// otherwise churn: reconnect, sync, fail, repeat.
+				if errors.Is(err, ErrAuthDenied) {
+					cancel()
+					c.giveUp(err)
+
+					return
+				}
 			}
 
 			cancel()
@@ -400,6 +417,13 @@ func (c *clientImpl) autoSyncLoop() {
 				c.logger.Warn("sync after notification failed",
 					"serverID", c.serverID,
 					"err", err)
+
+				if errors.Is(err, ErrAuthDenied) {
+					cancel()
+					c.giveUp(err)
+
+					return
+				}
 			}
 
 			cancel()

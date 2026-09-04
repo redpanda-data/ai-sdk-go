@@ -88,6 +88,21 @@ func WithShutdownTimeout(timeout time.Duration) ClientOption {
 	}
 }
 
+// WithSessionWaitTimeout bounds how long an operation waits for a live session
+// while the client is reconnecting, before failing with ErrNoSession.
+// Defaults to 30 seconds. Setting 0 waits for the caller's context instead,
+// which for a tool call means the tool timeout: a reconnect then presents to
+// the caller as a hang rather than an error.
+//
+// Example:
+//
+//	client, err := NewClient(serverID, transport, WithSessionWaitTimeout(5*time.Second))
+func WithSessionWaitTimeout(timeout time.Duration) ClientOption {
+	return func(c *clientImpl) {
+		c.sessionWaitTimeout = timeout
+	}
+}
+
 // WithToolTimeout sets the execution timeout for all tools registered by this MCP client.
 // This overrides the default 30-second timeout from the tool registry.
 // Setting to 0 uses the tool registry's default timeout.
