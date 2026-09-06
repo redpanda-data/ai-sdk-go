@@ -63,6 +63,9 @@ const (
 	// stays priceable.
 	ModelGPT5_3ChatLatest = shared.ChatModelGPT5_3ChatLatest
 
+	// ModelGPT6Astra is OpenAI's GPT-6 flagship reasoning model.
+	ModelGPT6Astra = "gpt-6-astra"
+
 	// ModelGPT5_6Luna is the cost-optimized GPT-5.6 model.
 	ModelGPT5_6Luna = shared.ChatModelGPT5_6Luna
 	// ModelGPT5_6Terra balances capability and cost in the GPT-5.6 family.
