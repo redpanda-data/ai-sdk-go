@@ -36,6 +36,7 @@ const (
 
 	// OpenAI models.
 
+	ModelGPT6Astra     ModelID = "openai/gpt-6-astra"
 	ModelGPT5          ModelID = "openai/gpt-5"
 	ModelGPT5Mini      ModelID = "openai/gpt-5-mini"
 	ModelGPT5Nano      ModelID = "openai/gpt-5-nano"
@@ -228,6 +229,13 @@ var defaultRegistry = Registry{
 		DisplayName: "GPT-5.5", Series: "gpt",
 		Released: MustDate("2026-04-23"), Knowledge: MustDate("2025-12-01"),
 		Description: "GPT-5.5 is OpenAI’s frontier model designed for complex professional workloads, building on GPT-5.4 with stronger reasoning, higher reliability, and improved token efficiency on hard tasks.",
+	},
+	// Announcement: https://openai.com/index/gpt-6-astra/
+	// Cutoff: https://developers.openai.com/api/docs/models/gpt-6-astra
+	ModelGPT6Astra: {
+		DisplayName: "GPT-6 Astra", Series: "gpt",
+		Released: MustDate("2026-09-03"), Knowledge: MustDate("2026-04-30"),
+		Description: "GPT-6 Astra is OpenAI's flagship model for complex reasoning, coding, and long-running professional work.",
 	},
 	ModelGPT5_6Sol: {
 		DisplayName: "GPT-5.6 Sol", Series: "gpt",
