@@ -185,6 +185,12 @@
       "released": "2026-04-02",
       "open_weights": true
     },
+    "meta/muse-spark-1.3": {
+      "display_name": "Muse Spark 1.3",
+      "description": "Muse Spark 1.3 is Meta's model for coding, long-context reasoning, and multi-step agentic workflows.",
+      "series": "muse-spark",
+      "released": "2026-09-02"
+    },
     "mistral/mistral-large-3": {
       "display_name": "Mistral Large 3",
       "description": "Mistral Large 3 2512 is Mistral’s most capable model to date, featuring a sparse mixture-of-experts architecture with 41B active parameters (675B total), and released under the Apache 2.0 license.",
@@ -5360,6 +5366,94 @@
             "stage": "ga",
             "available": "2026-09-02"
           },
+          "derived": {
+            "price_tier": "low"
+          }
+        }
+      ]
+    },
+    {
+      "provider": "meta",
+      "offerings": [
+        {
+          "id": "muse-spark-1.3",
+          "model": "meta/muse-spark-1.3",
+          "display_name": "Muse Spark 1.3",
+          "capabilities": {
+            "audio": true,
+            "json_mode": true,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1048576,
+            "max_output_tokens": 32768,
+            "supported_params": [
+              "temperature",
+              "top_p",
+              "max_tokens",
+              "frequency_penalty",
+              "presence_penalty",
+              "reasoning_effort",
+              "reasoning_summary"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ],
+            "mutually_exclusive": [
+              [
+                "temperature",
+                "top_p"
+              ]
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "audio",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "minimal",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 125000000,
+                "output_microcents_per_million": 425000000,
+                "cached_input_microcents_per_million": 15000000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-09-02"
+          },
+          "attributes": [
+            {
+              "key": "output_token_limit_source",
+              "value": "sdk_conservative_limit"
+            }
+          ],
           "derived": {
             "price_tier": "low"
           }
