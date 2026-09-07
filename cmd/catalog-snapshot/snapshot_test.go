@@ -27,7 +27,7 @@ import (
 
 // TestCommittedSnapshotIsFresh fails when catalog/snapshot.json no longer
 // matches the authored catalogs. Living in the unit-test suite means the
-// ordinary test job enforces it — no workflow needs to remember a
+// ordinary test job enforces it - no workflow needs to remember a
 // dedicated `task catalog:check` step. Regenerate with
 // `task catalog:snapshot`.
 func TestCommittedSnapshotIsFresh(t *testing.T) {

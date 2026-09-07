@@ -4595,6 +4595,253 @@
       ]
     },
     {
+      "provider": "gcp.vertex",
+      "offerings": [
+        {
+          "id": "vertex.claude-haiku-4-5",
+          "model": "anthropic/claude-haiku-4-5",
+          "display_name": "Claude Haiku 4.5",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 200000,
+            "max_output_tokens": 64000,
+            "supported_params": [
+              "temperature",
+              "top_p",
+              "top_k",
+              "max_tokens"
+            ],
+            "temperature_range": [
+              0,
+              1
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {},
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 100000000,
+                "output_microcents_per_million": 500000000,
+                "cached_input_microcents_per_million": 10000000,
+                "cache_creation_5m_microcents_per_million": 125000000,
+                "cache_creation_1h_microcents_per_million": 200000000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2025-10-15"
+          },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "anthropic"
+            },
+            {
+              "key": "vertex_model",
+              "value": "claude-haiku-4-5"
+            }
+          ],
+          "derived": {
+            "price_tier": "low"
+          }
+        },
+        {
+          "id": "vertex.claude-sonnet-5",
+          "model": "anthropic/claude-sonnet-5",
+          "display_name": "Claude Sonnet 5",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "temperature",
+              "top_p",
+              "top_k",
+              "max_tokens",
+              "reasoning_effort"
+            ],
+            "temperature_range": [
+              0,
+              1
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 200000000,
+                "output_microcents_per_million": 1000000000,
+                "cached_input_microcents_per_million": 20000000,
+                "cache_creation_5m_microcents_per_million": 250000000,
+                "cache_creation_1h_microcents_per_million": 400000000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-06-29"
+          },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "anthropic"
+            },
+            {
+              "key": "vertex_model",
+              "value": "claude-sonnet-5"
+            }
+          ],
+          "derived": {
+            "price_tier": "medium"
+          }
+        },
+        {
+          "id": "vertex.gemini-3.6-flash",
+          "model": "google/gemini-3.6-flash",
+          "display_name": "Gemini 3.6 Flash",
+          "capabilities": {
+            "audio": true,
+            "json_mode": true,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1048576,
+            "max_output_tokens": 65536,
+            "supported_params": [
+              "temperature",
+              "top_p",
+              "top_k",
+              "max_tokens",
+              "stop",
+              "presence_penalty",
+              "frequency_penalty"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {},
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 150000000,
+                "output_microcents_per_million": 750000000,
+                "cached_input_microcents_per_million": 15000000
+              }
+            },
+            "overrides": [
+              {
+                "region": "us",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 165000000,
+                    "output_microcents_per_million": 825000000,
+                    "cached_input_microcents_per_million": 16500000
+                  }
+                }
+              },
+              {
+                "region": "eu",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 165000000,
+                    "output_microcents_per_million": 825000000,
+                    "cached_input_microcents_per_million": 16500000
+                  }
+                }
+              }
+            ]
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-07-21"
+          },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "google"
+            },
+            {
+              "key": "vertex_model",
+              "value": "gemini-3.6-flash"
+            }
+          ],
+          "derived": {
+            "price_tier": "medium"
+          }
+        }
+      ]
+    },
+    {
       "provider": "google",
       "offerings": [
         {

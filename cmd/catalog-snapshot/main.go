@@ -15,9 +15,9 @@
 // Command catalog-snapshot renders every provider's model catalog into the
 // committed snapshot artifact (catalog/snapshot.json).
 //
-// The snapshot is the review surface for catalog changes — every authored
+// The snapshot is the review surface for catalog changes - every authored
 // edit and its time-independent derivations (price tier, replacement)
-// show up as a plain JSON diff — and the read format for non-Go consumers
+// show up as a plain JSON diff - and the read format for non-Go consumers
 // such as the AI Gateway console. TestCommittedSnapshotIsFresh fails the
 // unit-test job when the committed artifact is stale; -check does the same
 // from the command line.
@@ -37,6 +37,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/providers/bedrock"
 	"github.com/redpanda-data/ai-sdk-go/providers/google"
 	"github.com/redpanda-data/ai-sdk-go/providers/openai"
+	"github.com/redpanda-data/ai-sdk-go/providers/vertex"
 )
 
 func main() {
@@ -52,6 +53,7 @@ func main() {
 		bedrock.Catalog(),
 		google.Catalog(),
 		openai.Catalog(),
+		vertex.Catalog(),
 	)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "catalog-snapshot:", err)
@@ -66,7 +68,7 @@ func main() {
 		}
 
 		if !bytes.Equal(existing, buf.Bytes()) {
-			fmt.Fprintf(os.Stderr, "catalog-snapshot: %s is stale — run `task catalog:snapshot` and commit the result\n", *out)
+			fmt.Fprintf(os.Stderr, "catalog-snapshot: %s is stale - run `task catalog:snapshot` and commit the result\n", *out)
 			os.Exit(1)
 		}
 
