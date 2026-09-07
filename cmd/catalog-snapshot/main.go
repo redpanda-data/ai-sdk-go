@@ -36,6 +36,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/providers/anthropic"
 	"github.com/redpanda-data/ai-sdk-go/providers/bedrock"
 	"github.com/redpanda-data/ai-sdk-go/providers/google"
+	"github.com/redpanda-data/ai-sdk-go/providers/meta"
 	"github.com/redpanda-data/ai-sdk-go/providers/openai"
 )
 
@@ -51,6 +52,7 @@ func main() {
 		anthropic.Catalog(),
 		bedrock.Catalog(),
 		google.Catalog(),
+		meta.Catalog(),
 		openai.Catalog(),
 	)
 	if err != nil {
