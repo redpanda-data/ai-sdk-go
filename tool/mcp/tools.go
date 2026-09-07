@@ -219,10 +219,11 @@ func (*clientImpl) fetchTools(ctx context.Context, session *sdkmcp.ClientSession
 	return out, nil
 }
 
-// registryOp represents a deferred registry operation to execute outside the lock.
+// registryOp represents a pending registry operation to execute outside the lock.
 type registryOp struct {
 	register   tool.Tool // non-nil for register operations
 	unregister string    // non-empty for unregister operations
+	serverName string    // server-side tool name, for register operations
 }
 
 // preparedTool holds a tool with its pre-marshalled parameters JSON.
@@ -320,7 +321,7 @@ func (c *clientImpl) computeToolDiff(prepared map[string]*preparedTool) []regist
 			c.tools[namespaced] = w
 
 			if c.registry != nil {
-				ops = append(ops, registryOp{register: w})
+				ops = append(ops, registryOp{register: w, serverName: prep.serverToolName})
 			}
 
 			c.logger.Debug("added tool", "tool", namespaced)
@@ -347,6 +348,8 @@ func (c *clientImpl) executeRegistryOps(ops []registryOp) {
 				opts = append(opts, tool.WithTimeout(c.toolTimeout))
 			}
 
+			opts = append(opts, c.registrationPolicy(op.serverName)...)
+
 			err := c.registry.Register(op.register, opts...)
 			if err != nil {
 				c.logger.Warn("failed to register tool",
@@ -355,6 +358,21 @@ func (c *clientImpl) executeRegistryOps(ops []registryOp) {
 			}
 		}
 	}
+}
+
+// registrationPolicy applies client deferral and grouping options at registration.
+func (c *clientImpl) registrationPolicy(serverToolName string) []tool.Option {
+	group := c.toolGroup
+	if group.Name == "" {
+		group.Name = c.serverID
+	}
+
+	opts := []tool.Option{tool.WithGroup(group)}
+	if c.deferTools && !c.alwaysLoad[serverToolName] {
+		opts = append(opts, tool.WithDeferred())
+	}
+
+	return opts
 }
 
 // autoSyncLoop runs in the background and periodically syncs tools.

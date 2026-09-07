@@ -133,6 +133,42 @@ agent, err := llmagent.New("my-agent", "You are a helpful assistant.", model,
 
 See [`examples/`](examples/) for full working demos.
 
+For larger registries, defer tools whose schemas are only needed occasionally:
+
+```go
+support := tool.NewGroup(llm.ToolGroup{
+	Name:         "support",
+	Description:  "Customer tickets and account lookups",
+	Instructions: "Look up the customer before creating a ticket.",
+})
+support.Add(searchTickets).Defer(createTicket, closeTicket) // Add: always loaded; Defer: on demand
+
+if err := support.Register(registry); err != nil {
+	return err
+}
+
+agent, err := llmagent.New("support", "Help with support requests.", model,
+	llmagent.WithTools(registry),
+)
+```
+
+Nothing else to switch on: an agent whose registry holds a deferred tool lists it by name and
+summary in the system prompt and offers a `tool_search` tool that loads schemas on demand. Loaded
+tools stay available across turns, compaction, and session restarts; a group's instructions join
+the system prompt while any of its tools is loaded. An MCP client is a group by itself:
+`mcp.WithDeferredTools()`, `mcp.WithAlwaysLoad("search_tickets")` and `mcp.WithToolGroup(...)`
+express the same policy per server. `tool.WithGroup` and `tool.WithDeferred` are the per-tool
+registration options underneath. `llmagent.WithToolLoadingConfig` tunes the per-search limits.
+[`examples/lazy_tools`](examples/lazy_tools/) runs the whole thing against public MCP servers, with a
+keyless dry-run mode that prints exactly what the model receives.
+
+Loaded schemas remain in the session. If later loads exhaust its tool capacity, a fresh session
+may have room for those tools. Searches return flat lists of loaded names; explicit `select:`
+queries use the requested order when applying the load budget.
+
+Tool interceptors may edit arguments, deny execution, retry, or transform results. The request
+and response name and ID must remain those of the original call; identity changes return a tool error.
+
 ## Key Packages
 
 - [`llm`](https://pkg.go.dev/github.com/redpanda-data/ai-sdk-go/llm) — Core types: `Model`, `Request`, `Response`, `Event`

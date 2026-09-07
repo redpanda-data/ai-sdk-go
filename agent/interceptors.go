@@ -192,7 +192,8 @@ type ToolCallInfo struct {
 	// Inv provides invocation metadata (session, turn, usage, custom metadata).
 	Inv *InvocationMetadata
 
-	// Req is the tool request from the LLM.
+	// Req is the tool request from the LLM. Its Name and ID are immutable;
+	// interceptors may edit Arguments and Metadata.
 	Req *llm.ToolRequestPart
 
 	// Definition is the full tool definition including description and type.
@@ -231,7 +232,7 @@ type ToolInterceptor interface {
 	//   - next: Continuation function to call the next interceptor or the base tool execution
 	//
 	// You can:
-	//   - Modify info.Req before passing to next
+	//   - Modify info.Req.Arguments or Metadata before passing to next
 	//   - Skip calling next (e.g., deny execution, return mock result)
 	//   - Call next multiple times (e.g., retries)
 	//   - Transform the response after next returns
@@ -240,6 +241,8 @@ type ToolInterceptor interface {
 	//
 	// Tool execution errors are not terminal - they are sent to the LLM as tool errors.
 	// Return an error to indicate the tool failed; the error message will be sent to the LLM.
+	// Request and response Name and ID must match the original call, including
+	// when returning mock results. LLMAgent rejects identity changes as tool errors.
 	//
 	// IMPORTANT: Tools may execute concurrently, so InterceptToolExecution can
 	// be called from multiple goroutines sharing the same info.Inv. Use

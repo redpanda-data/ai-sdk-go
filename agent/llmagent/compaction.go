@@ -421,3 +421,19 @@ func compactionReport(phase agent.CompactionPhase, stats compactionStats, before
 		After:           after,
 	}
 }
+
+// schemaRoom bounds additional fixed request cost by the compaction target.
+// Compaction cannot reclaim loaded schemas. Unknown windows disable this check.
+func (a *LLMAgent) schemaRoom(fixedTokens int) int {
+	c := a.config.model.Constraints()
+	if c.MaxInputTokens <= 0 {
+		return unboundedSchemaRoom
+	}
+
+	cfg := CompactionConfig{}
+	if a.config.compaction != nil {
+		cfg = *a.config.compaction
+	}
+
+	return max(newContextBudget(c.MaxInputTokens, c.MaxOutputTokens, cfg).target-fixedTokens, 0)
+}

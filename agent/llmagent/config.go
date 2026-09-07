@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/llm"
@@ -123,6 +124,7 @@ type config struct {
 	toolConcurrency      int
 	compaction           *CompactionConfig
 	toolResultLimit      int
+	toolLoading          ToolLoadingConfig
 }
 
 // validate checks that the configuration is valid.
@@ -148,6 +150,10 @@ func (c *config) validate() error {
 	}
 
 	if err := c.validateCompaction(); err != nil {
+		return err
+	}
+
+	if err := c.validateToolLoading(); err != nil {
 		return err
 	}
 
@@ -187,6 +193,26 @@ func (c *config) validateCompaction() error {
 
 	return nil
 }
+
+// validateToolLoading checks the loading limits and, when a deferred tool is
+// registered, that the registry does not also hold the reserved tool_search name.
+func (c *config) validateToolLoading() error {
+	if c.toolLoading.MaxLoadTokens < 0 {
+		return fmt.Errorf("llmagent: MaxLoadTokens must not be negative, got %d", c.toolLoading.MaxLoadTokens)
+	}
+
+	if c.tools == nil {
+		return nil
+	}
+
+	if _, err := c.tools.Get(toolSearchName); err == nil && slices.ContainsFunc(c.tools.List(), isDeferred) {
+		return fmt.Errorf("llmagent: lazy loading reserves the tool name %q; rename the registered tool", toolSearchName)
+	}
+
+	return nil
+}
+
+func isDeferred(def llm.ToolDefinition) bool { return def.Deferred }
 
 // Option configures an LLMAgent.
 type Option func(*config)
@@ -302,5 +328,15 @@ func WithID(id string) Option {
 func WithVersion(version string) Option {
 	return func(c *config) {
 		c.version = version
+	}
+}
+
+// WithToolLoadingConfig tunes lazy tool loading. Loading needs no option to
+// enable it: once the registry holds a deferred tool, the agent lists it by
+// name in the system prompt and offers a tool_search tool that loads schemas
+// on demand. Loaded tools persist in the session across compaction and restarts.
+func WithToolLoadingConfig(cfg ToolLoadingConfig) Option {
+	return func(c *config) {
+		c.toolLoading = cfg
 	}
 }

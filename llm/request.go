@@ -68,6 +68,32 @@ type ToolDefinition struct {
 	// Values: "function" (default), "extension", "datastore"
 	// Used for OpenTelemetry gen_ai.tool.type attribute.
 	Type string `json:"type,omitempty"`
+
+	// Deferred withholds the input schema from the model until the model loads
+	// it on demand. Until then the tool is announced by name and summary only.
+	// Set through tool.WithDeferred; providers ignore it.
+	Deferred bool `json:"deferred,omitempty"`
+
+	// Group is the capability group the tool belongs to. Providers ignore it.
+	Group ToolGroup `json:"group,omitzero"`
+}
+
+// ToolGroup is the capability a tool belongs to, typically one MCP server or
+// one feature area. It shapes what the model reads about deferred tools and
+// never changes which tool executes. Tools load individually, not by group.
+//
+// Any member may carry Description and Instructions. A registry rejects
+// conflicting values and reports the resolved value on every member.
+type ToolGroup struct {
+	// Name identifies the group and heads its tools in the system prompt.
+	Name string `json:"name"`
+
+	// Description is shown under the heading and is searchable by tool_search.
+	Description string `json:"description,omitempty"`
+
+	// Instructions are added to the system prompt while any tool of the group
+	// is visible to the model. Use them for rules no single schema conveys.
+	Instructions string `json:"instructions,omitempty"`
 }
 
 // ToolChoice controls how the model should interact with available tools.

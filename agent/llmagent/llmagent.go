@@ -24,8 +24,6 @@ import (
 	"maps"
 	"time"
 
-	"golang.org/x/sync/errgroup"
-
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/store/session"
@@ -45,6 +43,12 @@ var _ agent.Agent = (*LLMAgent)(nil)
 // Events are yielded during execution to provide real-time progress updates.
 type LLMAgent struct {
 	config *config
+
+	// loader is non-nil whenever a tool registry is configured. It owns
+	// everything about deferred tools: which definitions reach the model, the
+	// manifest appended to the system prompt, and the tool_search calls the
+	// model makes. With no deferred tool registered it changes nothing.
+	loader *toolLoader
 }
 
 // New creates a new LLM agent with the given name, system prompt, and model.
@@ -84,9 +88,13 @@ func New(name string, systemPrompt string, model llm.Model, opts ...Option) (*LL
 		return nil, err
 	}
 
-	return &LLMAgent{
-		config: cfg,
-	}, nil
+	llmAgent := &LLMAgent{config: cfg}
+
+	if cfg.tools != nil {
+		llmAgent.loader = newToolLoader(cfg.tools, cfg.toolLoading)
+	}
+
+	return llmAgent, nil
 }
 
 // Info returns the agent's identity snapshot.
@@ -139,7 +147,7 @@ func (a *LLMAgent) Run(ctx context.Context, inv *agent.InvocationMetadata) iter.
 		// Observers see every non-nil event before the consumer. Turn events
 		// are re-wrapped below with the turn context; lifecycle events use
 		// the run context.
-		consumerYield := yield
+		consumerYield := guardYield(yield)
 		yield = agent.ApplyEventObservers(ctx, inv, a.config.interceptors, consumerYield)
 
 		// Helper: create event envelope
@@ -228,6 +236,23 @@ func (a *LLMAgent) Run(ctx context.Context, inv *agent.InvocationMetadata) iter.
 	}
 }
 
+// guardYield wraps yield so calls after it first returns false are dropped
+// instead of panicking. The turn loop emits closing events on several paths
+// after the consumer stops.
+func guardYield(yield func(agent.Event, error) bool) func(agent.Event, error) bool {
+	stopped := false
+
+	return func(ev agent.Event, err error) bool {
+		if stopped {
+			return false
+		}
+
+		stopped = !yield(ev, err)
+
+		return !stopped
+	}
+}
+
 // executeSingleTurn executes a single turn of the agent loop.
 //
 // Returns:
@@ -253,16 +278,23 @@ func (a *LLMAgent) executeSingleTurn(
 		return agent.FinishReasonInterrupted, nil
 	}
 
-	// Build working message list with system prompt (not persisted)
-	// This creates a transient view for the LLM request
-	reqMessages, err := a.resolveSystemPrompt(ctx, inv, sess.Messages)
-	if err != nil {
-		return "", fmt.Errorf("llmagent: system prompt: %w", err)
-	}
-
 	var toolDefs []llm.ToolDefinition
 	if a.config.tools != nil {
 		toolDefs = a.config.tools.List()
+	}
+
+	// Resolve schemas and group instructions together before budgeting the request.
+	var promptSection string
+
+	if a.loader != nil {
+		toolDefs, promptSection = a.loader.prepare(toolDefs, sess)
+	}
+
+	// Build working message list with system prompt (not persisted)
+	// This creates a transient view for the LLM request
+	reqMessages, err := a.resolveSystemPrompt(ctx, inv, sess.Messages, promptSection)
+	if err != nil {
+		return "", fmt.Errorf("llmagent: system prompt: %w", err)
 	}
 
 	// One compaction check before every model call: this position sees an
@@ -276,11 +308,14 @@ func (a *LLMAgent) executeSingleTurn(
 	sysTokens := 0
 	toolDefTokens := 0
 
-	if a.config.compaction != nil {
+	// The fixed cost also sets the lazy-loading admission line.
+	if a.config.compaction != nil || a.loader != nil {
 		sysTokens = estimateMessageTokens(reqMessages[0])
 		toolDefTokens = estimateToolTokens(toolDefs)
 		fixedTokens = sysTokens + toolDefTokens
+	}
 
+	if a.config.compaction != nil {
 		before := measureContext(sysTokens, toolDefTokens, sess.Messages)
 
 		stats, fitErr := a.ensureFits(sess, fixedTokens)
@@ -326,6 +361,7 @@ func (a *LLMAgent) executeSingleTurn(
 		}
 
 		retryMessages := append([]llm.Message{reqMessages[0]}, sess.Messages...)
+
 		resp, sentReq, err = a.generateAttempt(ctx, inv, retryMessages, toolDefs, makeEnvelope, yield)
 		if err != nil && errors.Is(err, llm.ErrContextOverflow) {
 			return "", fmt.Errorf("llmagent: request still exceeds the context window after forced compaction: %w", err)
@@ -444,7 +480,7 @@ func (a *LLMAgent) executeSingleTurn(
 	countedRequest := fixedTokens + estimateHistoryTokens(sess.Messages)
 	resultCap := a.effectiveResultCap(countedRequest, len(toolReqs))
 
-	toolParts := a.executeTools(ctx, inv, toolReqs, sentReq.Tools, resultCap, makeEnvelope, yield)
+	toolParts := a.executeTools(ctx, inv, toolReqs, sentReq.Tools, resultCap, a.schemaRoom(fixedTokens), makeEnvelope, yield)
 
 	// Build single message with all tool response parts
 	toolMsg := llm.NewMessage(llm.RoleUser, toolParts...)
@@ -512,6 +548,7 @@ func cloneToolDefinitions(defs []llm.ToolDefinition) []llm.ToolDefinition {
 	cloned := make([]llm.ToolDefinition, len(defs))
 	for i, def := range defs {
 		cloned[i] = def
+
 		cloned[i].Parameters = append(json.RawMessage(nil), def.Parameters...)
 		if def.Metadata != nil {
 			cloned[i].Metadata = make(map[string]any, len(def.Metadata))
@@ -528,7 +565,12 @@ func cloneToolDefinitions(defs []llm.ToolDefinition) []llm.ToolDefinition {
 // When a [SystemPromptProvider] is configured it is called while preparing
 // the request, receiving both the request context and invocation metadata.
 // Otherwise the static systemPrompt string from the config is used.
-func (a *LLMAgent) resolveSystemPrompt(ctx context.Context, inv *agent.InvocationMetadata, messages []llm.Message) ([]llm.Message, error) {
+func (a *LLMAgent) resolveSystemPrompt(
+	ctx context.Context,
+	inv *agent.InvocationMetadata,
+	messages []llm.Message,
+	generated string,
+) ([]llm.Message, error) {
 	prompt := a.config.systemPrompt
 	if a.config.systemPromptProvider != nil {
 		p, err := a.config.systemPromptProvider(ctx, inv)
@@ -537,6 +579,11 @@ func (a *LLMAgent) resolveSystemPrompt(ctx context.Context, inv *agent.Invocatio
 		}
 
 		prompt = p
+	}
+
+	// Append generated tool instructions after the configured prompt.
+	if generated != "" {
+		prompt = prompt + "\n\n" + generated
 	}
 
 	systemMsg := llm.NewMessage(llm.RoleSystem, llm.NewTextPart(prompt))
@@ -647,151 +694,208 @@ func (a *LLMAgent) generateWithStreaming(
 	return response, nil
 }
 
-// executeTools runs tool calls concurrently.
-//
-// Tool execution is limited by toolConcurrency. Individual tool errors
-// (including context cancellation, timeouts, etc.) are captured and sent
-// to the LLM as error tool responses, allowing the LLM to handle failures
-// gracefully (acknowledge, retry, use different tool, etc.).
-//
-// This follows the pattern from ADK and other SDKs: tool errors are NEVER
-// terminal - they're always sent to the LLM as part of the conversation.
-//
-// ToolResponseEvents are yielded as tools complete.
-//
-// Returns tool response parts in the order they were requested.
-//
-// Future: Will also return list of tool IDs requiring input for
-// StatusStageInputRequired / FinishReasonInputRequired support.
+// executeTools runs a response's tool calls. Loader-owned calls run
+// sequentially in request order so load admission is deterministic; the rest
+// run on a worker pool. Results are returned in request order.
 func (a *LLMAgent) executeTools(
 	ctx context.Context,
 	inv *agent.InvocationMetadata,
 	toolReqs []*llm.ToolRequestPart,
 	toolDefs []llm.ToolDefinition,
 	resultCap int,
+	schemaRoom int,
 	makeEnvelope func() agent.EventEnvelope,
 	yield func(agent.Event, error) bool,
 ) []llm.Part {
-	// Execute tools concurrently with limited parallelism
-	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(min(a.config.toolConcurrency, len(toolReqs)))
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
-	// Results channel (buffered to avoid blocking)
-	type toolResult struct {
-		idx       int
-		requestID string
-		name      string
-		response  *llm.ToolResponsePart
-		err       error
+	ctx = agent.ContextWithConversationID(ctx, session.ConversationID(inv.Session()))
+
+	definitions := make(map[string]*llm.ToolDefinition, len(toolDefs))
+	for i := range toolDefs {
+		definitions[toolDefs[i].Name] = &toolDefs[i]
 	}
 
+	var batch *loadBatch
+	if a.loader != nil {
+		batch = a.loader.newBatch(toolDefs, schemaRoom)
+	}
+
+	var loaderCalls, ordinary []int
+
+	for i, req := range toolReqs {
+		if batch.owns(req) {
+			loaderCalls = append(loaderCalls, i)
+		} else {
+			ordinary = append(ordinary, i)
+		}
+	}
+
+	type toolResult struct {
+		idx      int
+		response *llm.ToolResponsePart
+		loads    []string
+		err      error
+	}
+
+	// Buffered so workers can finish after the consumer stops.
 	results := make(chan toolResult, len(toolReqs))
 
-	// Create base tool executor
-	baseExecutor := func(ctx context.Context, info *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
-		return a.config.tools.Execute(ctx, info.Req)
+	run := func(i int, batch *loadBatch) {
+		req := toolReqs[i]
+
+		resp, loads, err := a.executeTool(ctx, inv, req, definitions[req.Name], batch)
+		results <- toolResult{idx: i, response: resp, loads: loads, err: err}
 	}
 
-	// Apply tool interceptors
-	executor := agent.ApplyToolInterceptors(a.config.interceptors, baseExecutor)
+	if len(loaderCalls) > 0 {
+		go func() {
+			for _, i := range loaderCalls {
+				if ctx.Err() != nil {
+					return
+				}
 
-	// Build tool definition lookup map for interceptors from provided definitions
-	toolDefMap := make(map[string]*llm.ToolDefinition, len(toolDefs))
-	for i := range toolDefs {
-		toolDefMap[toolDefs[i].Name] = &toolDefs[i]
-	}
-
-	// Launch tool executions
-	for i, req := range toolReqs {
-		g.Go(func() error {
-			toolInfo := &agent.ToolCallInfo{
-				Inv:        inv,
-				Req:        req,
-				Definition: toolDefMap[req.Name], // Add tool definition
+				run(i, batch)
 			}
-
-			// Expose the conversation grouping id for the entire tool call —
-			// interceptors, retries, and the tool itself — so tools that spawn
-			// in-process sub-agents (agenttool) group them under the calling
-			// conversation. Tools that do not read it are unaffected.
-			toolCtx := agent.ContextWithConversationID(gctx, session.ConversationID(inv.Session()))
-
-			resp, err := executor(toolCtx, toolInfo)
-			results <- toolResult{
-				idx:       i,
-				requestID: req.ID,
-				name:      req.Name,
-				response:  resp,
-				err:       err,
-			}
-
-			return nil // Never return error to errgroup (we handle errors individually)
-		})
+		}()
 	}
 
-	// Collect tool response parts as they arrive. Events are yielded in
-	// completion order, but each part is stored at its request index so the
-	// session content is deterministic regardless of scheduling (I9).
+	jobs := make(chan int, len(ordinary))
+	for _, i := range ordinary {
+		jobs <- i
+	}
+
+	close(jobs)
+
+	for range min(a.config.toolConcurrency, len(ordinary)) {
+		go func() {
+			for i := range jobs {
+				if ctx.Err() != nil {
+					return
+				}
+
+				run(i, nil)
+			}
+		}()
+	}
+
 	parts := make([]llm.Part, len(toolReqs))
 
 	for range toolReqs {
-		result := <-results
+		var result toolResult
 
-		if result.err != nil {
-			// Tool execution failed - encode error payload into the response.
-			errPayload, mErr := json.Marshal(map[string]string{"error": result.err.Error()})
-			if mErr != nil {
-				errPayload = []byte(`{"error":"tool error"}`)
-			}
+		select {
+		case <-ctx.Done():
+			return interruptedToolParts(parts, toolReqs)
+		case result = <-results:
+		}
 
-			errResp := capToolResult(&llm.ToolResponsePart{
-				ID:      result.requestID,
-				Name:    result.name,
-				Result:  errPayload,
-				IsError: true,
-			}, resultCap)
-			parts[result.idx] = errResp
+		resp := capToolResult(toolResponse(toolReqs[result.idx], result.response, result.err), resultCap)
+		parts[result.idx] = resp
 
-			// Yield error tool result event
-			if !yield(agent.ToolResponseEvent{
-				Envelope: makeEnvelope(),
-				Response: *errResp,
-			}, nil) {
-				return collectedParts(parts) // Consumer stopped listening
-			}
-		} else {
-			// Tool execution succeeded. The event carries the capped result -
-			// the same bytes the model will see - so session, events and
-			// prompt never diverge.
-			resp := capToolResult(result.response, resultCap)
-			parts[result.idx] = resp
+		if a.loader != nil {
+			a.loader.commit(inv.Session(), result.loads)
+		}
 
-			// Yield tool result event
-			if !yield(agent.ToolResponseEvent{
-				Envelope: makeEnvelope(),
-				Response: *resp,
-			}, nil) {
-				return collectedParts(parts) // Consumer stopped listening
-			}
+		if !yield(agent.ToolResponseEvent{Envelope: makeEnvelope(), Response: *resp}, nil) {
+			return interruptedToolParts(parts, toolReqs)
 		}
 	}
 
 	return parts
 }
 
-// collectedParts drops the unfilled slots of an index-addressed part slice.
-// Only relevant when the consumer stopped mid-burst: a message must never
-// carry nil parts.
-func collectedParts(parts []llm.Part) []llm.Part {
-	out := parts[:0]
+// executeTool runs one call through the interceptor chain. A non-nil batch
+// marks a loader-owned call, answered from the batch and returning the loads
+// it caused. A call an interceptor denies loads nothing.
+func (a *LLMAgent) executeTool(
+	ctx context.Context,
+	inv *agent.InvocationMetadata,
+	req *llm.ToolRequestPart,
+	definition *llm.ToolDefinition,
+	batch *loadBatch,
+) (*llm.ToolResponsePart, []string, error) {
+	var loads []string
+	validateIdentity := func(info *agent.ToolCallInfo) error {
+		if info == nil || info.Req == nil || info.Req.Name != req.Name || info.Req.ID != req.ID {
+			return errors.New("llmagent: tool interceptors must preserve the request name and ID")
+		}
 
-	for _, p := range parts {
-		if p != nil {
-			out = append(out, p)
+		return nil
+	}
+
+	base := func(ctx context.Context, info *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+
+		if err := validateIdentity(info); err != nil {
+			return nil, err
+		}
+
+		if batch != nil {
+			if resp, added, owned := a.loader.resolve(batch, info.Req); owned {
+				loads = append(loads, added...)
+
+				return resp, nil
+			}
+		}
+
+		return a.config.tools.Execute(ctx, info.Req)
+	}
+	executor := agent.ApplyToolInterceptors(a.config.interceptors, base)
+
+	// Interceptors edit a copy: the original is the assistant message already
+	// stored in the session.
+	copied := *req
+	copied.Arguments = append(json.RawMessage(nil), req.Arguments...)
+	copied.Metadata = maps.Clone(req.Metadata)
+
+	info := &agent.ToolCallInfo{Inv: inv, Req: &copied, Definition: definition}
+
+	resp, err := executor(ctx, info)
+	if identityErr := validateIdentity(info); identityErr != nil {
+		return nil, loads, identityErr
+	}
+
+	if resp != nil && (resp.Name != req.Name || resp.ID != req.ID) {
+		return nil, loads, errors.New("llmagent: tool interceptors must preserve the response name and ID")
+	}
+
+	return resp, loads, err
+}
+
+// toolResponse normalizes an execution outcome into the part the model reads:
+// an error payload for a failed call, a placeholder for a nil response.
+func toolResponse(req *llm.ToolRequestPart, resp *llm.ToolResponsePart, err error) *llm.ToolResponsePart {
+	switch {
+	case err != nil:
+		payload, mErr := json.Marshal(map[string]string{"error": err.Error()})
+		if mErr != nil {
+			payload = []byte(`{"error":"tool error"}`)
+		}
+
+		return &llm.ToolResponsePart{ID: req.ID, Name: req.Name, Result: payload, IsError: true}
+	case resp == nil:
+		return errorResponse(req, "tool_error", "tool returned no response")
+	default:
+		return resp
+	}
+}
+
+// interruptedToolParts pairs every request with a result so the saved
+// transcript stays valid. Uncollected calls may have run; their outcome is
+// unknown.
+func interruptedToolParts(parts []llm.Part, reqs []*llm.ToolRequestPart) []llm.Part {
+	for i, part := range parts {
+		if part == nil {
+			parts[i] = errorResponse(reqs[i], "interrupted",
+				"Execution was interrupted before the result was collected. The outcome is unknown.")
 		}
 	}
 
-	return out
+	return parts
 }
 
 // recoverIncompleteToolCalls detects and executes incomplete tool calls from a
@@ -846,9 +950,18 @@ func (a *LLMAgent) recoverIncompleteToolCalls(
 
 	// Execute the incomplete tools.
 	toolDefs := a.config.tools.List()
+
+	// Recovery uses the persisted loaded set and the next request's fixed cost.
+	var promptSection string
+
+	if a.loader != nil {
+		toolDefs, promptSection = a.loader.prepare(toolDefs, sess)
+	}
+
 	fixedTokens := 0
-	if a.config.compaction != nil {
-		reqMessages, err := a.resolveSystemPrompt(ctx, inv, sess.Messages)
+
+	if a.config.compaction != nil || a.loader != nil {
+		reqMessages, err := a.resolveSystemPrompt(ctx, inv, sess.Messages, promptSection)
 		if err != nil {
 			return fmt.Errorf("llmagent: system prompt for recovery budget: %w", err)
 		}
@@ -862,7 +975,7 @@ func (a *LLMAgent) recoverIncompleteToolCalls(
 	// reclaimed on the following turn.
 	countedRequest := fixedTokens + estimateHistoryTokens(sess.Messages)
 	resultCap := a.effectiveResultCap(countedRequest, len(incomplete))
-	toolParts := a.executeTools(ctx, inv, incomplete, toolDefs, resultCap, makeEnvelope, yield)
+	toolParts := a.executeTools(ctx, inv, incomplete, toolDefs, resultCap, a.schemaRoom(fixedTokens), makeEnvelope, yield)
 
 	// Insert tool response message BEFORE the last user message.
 	// Current: [..., assistant(tool_req), user(text)]
