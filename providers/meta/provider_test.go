@@ -85,3 +85,28 @@ func TestMuseSpark13Options(t *testing.T) {
 	_, err = NewProvider("")
 	require.Error(t, err)
 }
+
+func TestDeclaredParametersAccepted(t *testing.T) {
+	t.Parallel()
+
+	p, err := NewProvider("test-key")
+	require.NoError(t, err)
+
+	options := map[string]openai.Option{
+		"temperature":       openai.WithTemperature(0.5),
+		"max_tokens":        openai.WithMaxTokens(1024),
+		"reasoning_effort":  openai.WithReasoningEffort(openai.ReasoningEffortHigh),
+		"reasoning_summary": openai.WithReasoningSummary(openai.ReasoningSummaryAuto),
+	}
+	offering, ok := Catalog().Lookup(ModelMuseSpark13)
+	require.True(t, ok)
+	assert.Empty(t, offering.Constraints.MutuallyExclusive)
+
+	for _, param := range offering.Constraints.SupportedParams {
+		option, ok := options[param]
+		if assert.True(t, ok, "unsupported advertised parameter: %s", param) {
+			_, err := p.NewModel(ModelMuseSpark13, option)
+			assert.NoError(t, err, param)
+		}
+	}
+}
