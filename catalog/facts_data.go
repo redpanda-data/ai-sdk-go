@@ -51,6 +51,7 @@ const (
 	ModelGPT5_6Sol     ModelID = "openai/gpt-5.6-sol"
 	ModelGPT5_6Terra   ModelID = "openai/gpt-5.6-terra"
 	ModelGPT5_6Luna    ModelID = "openai/gpt-5.6-luna"
+	ModelGPT6Astra     ModelID = "openai/gpt-6-astra"
 	ModelGPT4o         ModelID = "openai/gpt-4o"
 	ModelGPT4oMini     ModelID = "openai/gpt-4o-mini"
 	ModelGPT4Turbo     ModelID = "openai/gpt-4-turbo"
@@ -167,7 +168,7 @@ var defaultRegistry = Registry{
 	// ---- OpenAI ----
 	//
 	// The flagship line runs gpt-3.5-turbo → gpt-4-turbo → gpt-4o →
-	// gpt-4.1 → gpt-5 → 5.1 → 5.2 → 5.4 → 5.5 → gpt-5.6-sol; the -mini
+	// gpt-4.1 → gpt-5 → 5.1 → 5.2 → 5.4 → 5.5 → gpt-5.6-sol → gpt-6-astra; the -mini
 	// ladder ends in terra, the -nano ladder in luna. The chat-tuned
 	// "instant" models and the pro models are their own lines.
 	ModelGPT5: {
@@ -243,6 +244,13 @@ var defaultRegistry = Registry{
 		DisplayName: "GPT-5.6 Luna", Series: "gpt-nano",
 		Released: MustDate("2026-07-09"), Knowledge: MustDate("2026-02-16"),
 		Description: "GPT-5.6 Luna is a fast, cost-efficient model in OpenAI's GPT-5.6 series.",
+	},
+	// Announcement: https://openai.com/index/gpt-6-astra/
+	// Cutoff: https://developers.openai.com/api/docs/models/gpt-6-astra
+	ModelGPT6Astra: {
+		DisplayName: "GPT-6 Astra", Series: "gpt",
+		Released: MustDate("2026-09-03"), Knowledge: MustDate("2026-04-30"),
+		Description: "GPT-6 Astra is OpenAI's flagship model for complex reasoning, coding, and long-running professional work.",
 	},
 	ModelGPT4o: {
 		DisplayName: "GPT-4o", Series: "gpt",

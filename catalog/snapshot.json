@@ -339,6 +339,13 @@
       "released": "2026-07-09",
       "knowledge": "2026-02-16"
     },
+    "openai/gpt-6-astra": {
+      "display_name": "GPT-6 Astra",
+      "description": "GPT-6 Astra is OpenAI's flagship model for complex reasoning, coding, and long-running professional work.",
+      "series": "gpt",
+      "released": "2026-09-03",
+      "knowledge": "2026-04-30"
+    },
     "openai/o1-pro": {
       "display_name": "o1-pro",
       "description": "The o1 series of models are trained with reinforcement learning to think before they answer and perform complex reasoning.",
@@ -6868,7 +6875,8 @@
             "available": "2026-07-09"
           },
           "derived": {
-            "price_tier": "medium"
+            "price_tier": "medium",
+            "replacement": "openai/gpt-6-astra"
           }
         },
         {
@@ -6956,6 +6964,77 @@
           },
           "derived": {
             "price_tier": "medium"
+          }
+        },
+        {
+          "id": "gpt-6-astra",
+          "model": "openai/gpt-6-astra",
+          "display_name": "GPT-6 Astra",
+          "capabilities": {
+            "audio": false,
+            "json_mode": true,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1050000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "reasoning_effort",
+              "reasoning_summary"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 1000000000,
+                "output_microcents_per_million": 5000000000,
+                "cached_input_microcents_per_million": 100000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 1250000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 2000000000,
+                    "output_microcents_per_million": 7500000000,
+                    "cached_input_microcents_per_million": 200000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 2500000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-09-03"
+          },
+          "derived": {
+            "price_tier": "high"
           }
         },
         {
