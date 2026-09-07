@@ -76,6 +76,8 @@ const (
 	ModelGemini25Flash       ModelID = "google/gemini-2.5-flash"
 	ModelGemini25FlashLite   ModelID = "google/gemini-2.5-flash-lite"
 
+	// Meta models.
+
 	// ModelMuseSpark13 identifies Meta's Muse Spark 1.3.
 	ModelMuseSpark13 ModelID = "meta/muse-spark-1.3"
 
@@ -102,13 +104,6 @@ const (
 // are mapped onto the lines they succeed (sol ← gpt, terra ← gpt-mini,
 // luna ← gpt-nano), matching OpenAI's own recommended replacements.
 var defaultRegistry = Registry{
-	// https://research.meta.ai/blog/introducing-muse-spark-1-3
-	ModelMuseSpark13: {
-		DisplayName: "Muse Spark 1.3", Series: "muse-spark",
-		Released: MustDate("2026-09-02"),
-		// No knowledge cutoff published in the Meta Model API docs.
-		Description: "Muse Spark 1.3 is Meta's model for coding, long-context reasoning, and multi-step agentic workflows.",
-	},
 	// ---- Anthropic ----
 	ModelClaudeFable51: {
 		DisplayName: "Claude Fable 5.1", Series: "claude-fable",
@@ -303,6 +298,15 @@ var defaultRegistry = Registry{
 		DisplayName: "o4-mini", Series: "o-mini",
 		Released: MustDate("2025-04-16"), Knowledge: MustDate("2024-05-31"),
 		Description: "OpenAI o4-mini is a compact reasoning model in the o-series, optimized for fast, cost-efficient performance while retaining strong multimodal and agentic capabilities.",
+	},
+
+	// ---- Meta ----
+	// https://research.meta.ai/blog/introducing-muse-spark-1-3
+	ModelMuseSpark13: {
+		DisplayName: "Muse Spark 1.3", Series: "muse-spark",
+		Released: MustDate("2026-09-02"),
+		// No knowledge cutoff published in the Meta Model API docs.
+		Description: "Muse Spark 1.3 is Meta's model for coding, long-context reasoning, and multi-step agentic workflows.",
 	},
 
 	// ---- Google ----

@@ -5395,22 +5395,13 @@
             "max_output_tokens": 32768,
             "supported_params": [
               "temperature",
-              "top_p",
               "max_tokens",
-              "frequency_penalty",
-              "presence_penalty",
               "reasoning_effort",
               "reasoning_summary"
             ],
             "temperature_range": [
               0,
               2
-            ],
-            "mutually_exclusive": [
-              [
-                "temperature",
-                "top_p"
-              ]
             ]
           },
           "modalities": {

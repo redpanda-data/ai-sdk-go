@@ -28,7 +28,7 @@ import (
 const ModelMuseSpark13 = "muse-spark-1.3"
 
 // maxOutputTokens is a conservative SDK limit, not a published vendor maximum.
-// Keep the draft explicit about this bound until the vendor cap is confirmed.
+// It bounds explicitly supplied budgets; omitted budgets use the server default.
 const maxOutputTokens = 32_768
 
 var catalogOnce = sync.OnceValue(func() *catalog.Catalog {
@@ -57,9 +57,8 @@ func entries() []catalog.Entry {
 			MaxInputTokens:   1_048_576,
 			// Meta publishes the shared context window, not a separate output cap.
 			// This is the SDK-enforced bound, not a claim about the vendor limit.
-			MaxOutputTokens:   maxOutputTokens,
-			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "reasoning_effort", "reasoning_summary"},
-			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
+			MaxOutputTokens: maxOutputTokens,
+			SupportedParams: []string{"temperature", "max_tokens", "reasoning_effort", "reasoning_summary"},
 		},
 		// https://dev.meta.ai/docs/reasoning — max is Standard-tier only.
 		Reasoning: catalog.ReasoningSupport{Efforts: []llm.ReasoningEffort{

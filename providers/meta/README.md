@@ -24,12 +24,13 @@ github.com/redpanda-data/ai-sdk-go/providers/openai for the shared options.
 openai.WithBaseURL, WithHTTPClient, and WithTimeout configure the
 provider. The default endpoint is https://api.meta.ai/v1.
 
-## Draft limits
+## Known limits
 
-- **Output cap requires confirmation before merge.** Meta publishes a
+- Meta publishes a
   1,048,576-token shared context window, but its docs do not state a separate
-  maximum output-token value. This draft uses an explicit **SDK-imposed
-  32,768-token cap**, applied by default and enforced for supplied budgets.
+  maximum output-token value. The SDK uses a conservative **32,768-token ceiling** for explicitly supplied
+  budgets rather than treating the entire shared context as output capacity.
+  When no budget is supplied, the field is omitted and the server chooses its default.
   It is not a verified vendor maximum. Catalog attribute
   output_token_limit_source=sdk_conservative_limit records that distinction.
   The server also enforces its own cap and the combined input/output budget.
@@ -45,13 +46,13 @@ provider. The default endpoint is https://api.meta.ai/v1.
   understanding quality may be degraded.
 - Only Standard tier is registered. Contributor models permit training on
   submitted data and are intentionally excluded.
-- Live invocation and large-context verification still require a Meta key.
+- Live integration and conformance tests require MODEL_API_KEY.
 
 ## Verification
 
 ~~~sh
 go test -short ./providers/meta ./catalog/... ./cmd/catalog-snapshot
-MODEL_API_KEY=... go test ./providers/meta -run TestMuseSpark13_Integration -v
+MODEL_API_KEY=... go test ./providers/meta -run "Integration|Conformance" -v
 ~~~
 
 ## Sources

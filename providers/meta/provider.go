@@ -59,10 +59,6 @@ func (p *Provider) NewModel(modelName string, opts ...openai.Option) (llm.Model,
 	}
 
 	options := append(slices.Clone(opts), func(cfg *openai.Config) error {
-		if cfg.MaxTokens == nil {
-			budget := maxOutputTokens
-			cfg.MaxTokens = &budget
-		}
 		// https://dev.meta.ai/docs/protocols/responses — minimum output budget.
 		if cfg.MaxTokens != nil && (*cfg.MaxTokens < 16 || *cfg.MaxTokens > maxOutputTokens) {
 			return fmt.Errorf("meta: max_tokens must be between 16 and %d (SDK limit)", maxOutputTokens)
