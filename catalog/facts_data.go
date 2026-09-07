@@ -245,14 +245,14 @@ var defaultRegistry = Registry{
 		Released: MustDate("2026-07-09"), Knowledge: MustDate("2026-02-16"),
 		Description: "GPT-5.6 Luna is a fast, cost-efficient model in OpenAI's GPT-5.6 series.",
 	},
-
 	// Announcement: https://openai.com/index/gpt-6-astra/
 	// Cutoff: https://developers.openai.com/api/docs/models/gpt-6-astra
 	ModelGPT6Astra: {
 		DisplayName: "GPT-6 Astra", Series: "gpt",
 		Released: MustDate("2026-09-03"), Knowledge: MustDate("2026-04-30"),
 		Description: "GPT-6 Astra is OpenAI's flagship model for complex reasoning, coding, and long-running professional work.",
-	}, ModelGPT4o: {
+	},
+	ModelGPT4o: {
 		DisplayName: "GPT-4o", Series: "gpt",
 		Released: MustDate("2024-05-13"), Knowledge: MustDate("2023-09-30"),
 		Description: "GPT-4o (\"o\" for \"omni\") is OpenAI's latest AI model, supporting both text and image inputs with text outputs.",
