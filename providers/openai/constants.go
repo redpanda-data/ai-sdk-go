@@ -64,6 +64,7 @@ const (
 	ModelGPT5_3ChatLatest = shared.ChatModelGPT5_3ChatLatest
 
 	// ModelGPT6Astra is OpenAI's GPT-6 flagship reasoning model.
+	// Raw string until the OpenAI SDK adds the constant.
 	ModelGPT6Astra = "gpt-6-astra"
 
 	// ModelGPT5_6Luna is the cost-optimized GPT-5.6 model.

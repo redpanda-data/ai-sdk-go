@@ -28,7 +28,7 @@ import (
 func TestGPT6AstraCatalog(t *testing.T) {
 	t.Parallel()
 
-	offering, ok := Catalog().Lookup("gpt-6-astra")
+	offering, ok := Catalog().Lookup(ModelGPT6Astra)
 	require.True(t, ok)
 	assert.Equal(t, catalog.ModelID("openai/gpt-6-astra"), offering.Model)
 	assert.Equal(t, "GPT-6 Astra", offering.DisplayName)
@@ -45,13 +45,20 @@ func TestGPT6AstraCatalog(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, effort := range offering.Reasoning.Efforts {
-		model, err := provider.NewModel("gpt-6-astra", WithReasoningEffort(effort))
+		model, err := provider.NewModel(ModelGPT6Astra, WithReasoningEffort(effort))
 		require.NoError(t, err)
-		assert.Equal(t, "gpt-6-astra", model.Name())
+		assert.Equal(t, ModelGPT6Astra, model.Name())
+		concrete, ok := model.(*Model)
+		require.True(t, ok)
+
+		request, err := concrete.requestMapper.ToProvider(&llm.Request{Messages: []llm.Message{{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("hello")}}}})
+		require.NoError(t, err)
+		assert.Equal(t, ModelGPT6Astra, request.Model)
+		assert.Equal(t, string(effort), string(request.Reasoning.Effort))
 	}
 
 	for _, option := range []Option{WithReasoningEffort(ReasoningEffortNone), WithReasoningEffort(ReasoningEffortMinimal), WithTemperature(0.5), WithTopP(0.9)} {
-		_, err := provider.NewModel("gpt-6-astra", option)
+		_, err := provider.NewModel(ModelGPT6Astra, option)
 		require.Error(t, err)
 	}
 }
@@ -75,7 +82,7 @@ func TestGPT6AstraPricing(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			cost, err := prices.Calculate("gpt-6-astra", usage, pricing.CalcRequest{ContextTokens: tt.context})
+			cost, err := prices.Calculate(ModelGPT6Astra, usage, pricing.CalcRequest{ContextTokens: tt.context})
 			require.NoError(t, err)
 			assert.Empty(t, cost.Unpriced)
 			assert.Equal(t, tt.input, cost.Breakdown[pricing.UsageFieldInput])
