@@ -4687,8 +4687,7 @@
             ]
           },
           "lifecycle": {
-            "stage": "ga",
-            "available": "2025-10-15"
+            "stage": "ga"
           },
           "attributes": [
             {
@@ -4804,8 +4803,7 @@
             ]
           },
           "lifecycle": {
-            "stage": "ga",
-            "available": "2026-06-29"
+            "stage": "ga"
           },
           "attributes": [
             {
@@ -4898,8 +4896,7 @@
             ]
           },
           "lifecycle": {
-            "stage": "ga",
-            "available": "2026-07-21"
+            "stage": "ga"
           },
           "attributes": [
             {

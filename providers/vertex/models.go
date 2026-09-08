@@ -61,6 +61,18 @@ const (
 	ModelClaudeHaiku45 = "claude-haiku-4-5"
 )
 
+// Offering IDs are the namespaced catalog keys, the vertex. prefix plus the
+// bare model. These are what catalog lookups and the pricing map are keyed
+// on, so a caller uses Offering* for Catalog().Lookup and the pricing map,
+// and the bare Model* for the request path. Composing the key from the same
+// prefix keeps one catalog key per offering, so this adds no alias and does
+// not re-open the collision the package doc argues against.
+const (
+	OfferingGemini36Flash = catalogKeyPrefix + ModelGemini36Flash
+	OfferingClaudeSonnet5 = catalogKeyPrefix + ModelClaudeSonnet5
+	OfferingClaudeHaiku45 = catalogKeyPrefix + ModelClaudeHaiku45
+)
+
 // Publishers own the model on Vertex and name the segment before the
 // model in a Vertex resource path. Stored per offering in Attributes so
 // the runtime provider can build the path without re-deriving it.
@@ -191,13 +203,16 @@ func Catalog() *catalog.Catalog {
 // no SKUs in Google's Billing Catalog, so this page, with its per-region
 // tabs, is the authoritative source.
 //
-// Capabilities, constraints, and lifecycle mirror the same models in the
-// Gemini-API and Anthropic-direct catalogs: the model is the same, only
-// the host differs.
+// Capabilities and constraints mirror the same models in the Gemini-API
+// and Anthropic-direct catalogs: the model is the same, only the host
+// differs. Lifecycle does not mirror them - Available is when Vertex began
+// serving the model, a partner host's own schedule, and Google does not
+// publish those GA dates, so each entry leaves Life at its zero value
+// rather than borrowing the launch platform's date.
 func entries() []catalog.Entry {
 	return []catalog.Entry{
 		{
-			ID:           catalogID(ModelGemini36Flash),
+			ID:           OfferingGemini36Flash,
 			Model:        catalog.ModelGemini36Flash,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
@@ -207,9 +222,9 @@ func entries() []catalog.Entry {
 				MaxOutputTokens:  65536,   // 64K output tokens
 				SupportedParams:  geminiParams,
 			},
-			Life: catalog.Lifecycle{
-				Available: catalog.MustDate("2026-07-21"),
-			},
+			// Vertex's own GA date for this model is not published; the zero
+			// value means "available, exact date unknown" (catalog/lifecycle.go).
+			Life:    catalog.Lifecycle{},
 			Pricing: geminiFlashPricing(),
 			Attributes: map[string]string{
 				ModelMetadataPublisher:   publisherGoogle,
@@ -217,7 +232,7 @@ func entries() []catalog.Entry {
 			},
 		},
 		{
-			ID:           catalogID(ModelClaudeSonnet5),
+			ID:           OfferingClaudeSonnet5,
 			Model:        catalog.ModelClaudeSonnet5,
 			Capabilities: claudeCaps,
 			Modalities:   claudeModalities,
@@ -231,9 +246,9 @@ func entries() []catalog.Entry {
 				Efforts:  []llm.ReasoningEffort{reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortXHigh, reasoningEffortMax},
 				Adaptive: true,
 			},
-			Life: catalog.Lifecycle{
-				Available: catalog.MustDate("2026-06-29"),
-			},
+			// Vertex's own GA date for this model is not published; the zero
+			// value means "available, exact date unknown" (catalog/lifecycle.go).
+			Life:    catalog.Lifecycle{},
 			Pricing: claudeSonnet5Pricing(),
 			Attributes: map[string]string{
 				ModelMetadataPublisher:   publisherAnthropic,
@@ -241,7 +256,7 @@ func entries() []catalog.Entry {
 			},
 		},
 		{
-			ID:           catalogID(ModelClaudeHaiku45),
+			ID:           OfferingClaudeHaiku45,
 			Model:        catalog.ModelClaudeHaiku45,
 			Capabilities: claudeCaps,
 			Modalities:   claudeModalities,
@@ -251,9 +266,9 @@ func entries() []catalog.Entry {
 				MaxOutputTokens:  64000,
 				SupportedParams:  []string{"temperature", "top_p", "top_k", "max_tokens"},
 			},
-			Life: catalog.Lifecycle{
-				Available: catalog.MustDate("2025-10-15"),
-			},
+			// Vertex's own GA date for this model is not published; the zero
+			// value means "available, exact date unknown" (catalog/lifecycle.go).
+			Life:    catalog.Lifecycle{},
 			Pricing: claudeHaiku45Pricing(),
 			Attributes: map[string]string{
 				ModelMetadataPublisher:   publisherAnthropic,

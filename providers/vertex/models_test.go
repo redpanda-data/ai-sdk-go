@@ -26,9 +26,9 @@ import (
 )
 
 const (
-	offeringGemini36Flash = "vertex.gemini-3.6-flash"
-	offeringClaudeSonnet5 = "vertex.claude-sonnet-5"
-	offeringClaudeHaiku45 = "vertex.claude-haiku-4-5"
+	offeringGemini36Flash = vertex.OfferingGemini36Flash
+	offeringClaudeSonnet5 = vertex.OfferingClaudeSonnet5
+	offeringClaudeHaiku45 = vertex.OfferingClaudeHaiku45
 )
 
 // TestCatalogBuildsWithDayOneModels pins the day-one catalog to exactly
@@ -128,6 +128,33 @@ func TestGeminiRegionalOverride(t *testing.T) {
 		assert.Containsf(t, served, ov.Match.Region, "priced region %q is not a served location", ov.Match.Region)
 		assert.NotEqualf(t, vertex.LocationGlobal, ov.Match.Region, "override region must be non-global")
 	}
+
+	// The reverse guard: every served non-global region must carry an
+	// override. Without it, adding a served region to the matrix without a
+	// rate silently bills that region at the global default, ~10% under the
+	// published non-global rate, and nothing goes red.
+	assertEveryNonGlobalRegionPriced(t, served, info.Overrides)
+}
+
+// assertEveryNonGlobalRegionPriced checks the served-implies-priced
+// direction: every served location other than global has a matching rate
+// override. It is the reverse of the Containsf guard in the override loops,
+// which only checks priced-implies-served.
+func assertEveryNonGlobalRegionPriced(t *testing.T, served []string, overrides []pricing.Override) {
+	t.Helper()
+	for _, loc := range served {
+		if loc == vertex.LocationGlobal {
+			continue
+		}
+		priced := false
+		for _, ov := range overrides {
+			if ov.Match.Region == loc {
+				priced = true
+				break
+			}
+		}
+		assert.Truef(t, priced, "served non-global region %q has no rate override", loc)
+	}
 }
 
 // TestClaudeRegionalOverride checks the Claude rates and that Claude
@@ -175,6 +202,11 @@ func TestClaudeRegionalOverride(t *testing.T) {
 			assert.Containsf(t, served, ov.Match.Region, "%s priced region %q is not a served location", id, ov.Match.Region)
 			assert.NotEqualf(t, vertex.LocationGlobal, ov.Match.Region, "%s override region must be non-global", id)
 		}
+
+		// The reverse guard: every served non-global region must be priced,
+		// so a matrix row added without an override goes red instead of
+		// silently billing the global rate.
+		assertEveryNonGlobalRegionPriced(t, served, info.Overrides)
 	}
 }
 
