@@ -186,7 +186,7 @@ func Catalog() *catalog.Catalog {
 // page for the platform (Google renamed Vertex AI to the Gemini Enterprise
 // Agent Platform, so older /vertex-ai/ links redirect here):
 //
-//   https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing
+//	https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing
 //
 // Claude rates come from that page, not Anthropic's list prices: Vertex
 // sets its own Claude rates (including a ~10% non-global premium

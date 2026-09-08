@@ -168,6 +168,7 @@ func TestClaudeRegionalOverride(t *testing.T) {
 		require.NotEmptyf(t, served, "expected served locations for %s", id)
 
 		require.NotEmptyf(t, info.Overrides, "%s must carry a non-global rate override", id)
+
 		for _, ov := range info.Overrides {
 			require.NotEmptyf(t, ov.Match.Region, "%s override has empty Region (would also match global): %+v", id, ov.Match)
 			assert.Equalf(t, want.regional, ov.RateCard.Base, "%s region %q rate", id, ov.Match.Region)
