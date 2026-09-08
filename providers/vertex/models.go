@@ -33,6 +33,7 @@
 package vertex
 
 import (
+	"strings"
 	"sync"
 
 	"github.com/redpanda-data/ai-sdk-go/catalog"
@@ -83,6 +84,24 @@ const (
 // catalogID returns the namespaced offering ID for a bare Vertex model.
 func catalogID(bareModel string) string {
 	return catalogKeyPrefix + bareModel
+}
+
+// bareModelID strips the vertex. catalog-key prefix when present, so a
+// caller may pass either a bare publisher model ID ("claude-sonnet-5")
+// or a namespaced offering ID ("vertex.claude-sonnet-5") and reach the
+// same entry. A string without the prefix is returned unchanged.
+func bareModelID(model string) string {
+	return strings.TrimPrefix(model, catalogKeyPrefix)
+}
+
+// OfferingForModel returns the Vertex offering for a bare publisher model
+// ID, adding the vertex. catalog-key prefix and looking it up. It is the
+// bridge for callers that hold a bare model name rather than a namespaced
+// offering ID, keeping the prefix an internal catalog detail. A model ID
+// that already carries the prefix is accepted as-is. ok is false for a
+// model the catalog does not offer.
+func OfferingForModel(model string) (catalog.Offering, bool) {
+	return Catalog().Lookup(catalogID(bareModelID(model)))
 }
 
 // Claude reasoning-effort values Vertex accepts, mirroring the
@@ -189,11 +208,13 @@ func entries() []catalog.Entry {
 			},
 			// On Vertex, Gemini 3.6 Flash bills at the full SKU rate
 			// ($1.50/$7.50, cache $0.15); the introductory discount the
-			// Gemini-API provider tracks arrives on Vertex as credits, not
-			// a lower price, and ends 2026-12-31. A non-global endpoint
-			// bills ~10% above global across the us/eu multi-regions,
-			// expressed as Region overrides rather than separate model
-			// entries.
+			// Gemini-API provider tracks arrives on Vertex as an
+			// account-level credit, not a lower price, and ends
+			// 2026-12-31. That credit is post-hoc spend accounting, which
+			// the pricing package puts out of scope (pricing/doc.go), so
+			// the catalog tracks the SKU rate. A non-global endpoint bills
+			// ~10% above global across the us/eu multi-regions, expressed
+			// as Region overrides rather than separate model entries.
 			Pricing: geminiFlashPricing(),
 			Attributes: map[string]string{
 				AttrPublisher:   publisherGoogle,
@@ -259,11 +280,16 @@ func entries() []catalog.Entry {
 }
 
 // geminiFlashPricing builds the Gemini 3.6 Flash rate card: the global
-// rate as the default, and the ~10% higher non-global rate as one
-// Region override per non-global location the model serves. The override
-// set is driven by the availability matrix (locations.go) so the two
-// never drift: a location priced high must be a location the model is
-// actually served at.
+// rate as the default, and the ~10% higher non-global rate as one Region
+// override per multi-region that carries the premium.
+//
+// The priced regions are their own literal, not derived from the
+// availability matrix (locations.go). Pricing and availability are
+// separate facts: a region can be served at the plain global rate, so a
+// served location is not automatically a priced one. The direction that
+// must hold is the reverse - a region priced here must be one the model
+// is served at - and TestGeminiRegionalOverride guards exactly that, so
+// the two never contradict without coupling the definitions.
 //
 // The override carries the non-global rate (default = global) because an
 // empty-Region override cannot mean "every non-global region" - an empty
@@ -277,9 +303,9 @@ func geminiFlashPricing() pricing.Info {
 	nonGlobal := pricing.NewRates(1.65, 8.25, 0.165)
 
 	info := pricing.FlatInfoFromRates(global)
-	for _, loc := range nonGlobalLocations(ModelGemini36Flash) {
+	for _, region := range []string{"us", "eu"} {
 		info = info.WithOverride(
-			pricing.Selector{Region: loc},
+			pricing.Selector{Region: region},
 			pricing.RateCard{Base: nonGlobal},
 		)
 	}

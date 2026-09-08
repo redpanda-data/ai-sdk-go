@@ -47,6 +47,25 @@ func TestCatalogBuildsWithDayOneModels(t *testing.T) {
 	assert.ElementsMatch(t, []string{offeringGemini36Flash, offeringClaudeSonnet5, offeringClaudeHaiku45}, got)
 }
 
+// TestOfferingForModel checks the bridge that lets a caller holding a bare
+// publisher model ID reach the namespaced offering, and that passing the
+// already-namespaced ID resolves to the same entry. An unknown model
+// returns ok false.
+func TestOfferingForModel(t *testing.T) {
+	t.Parallel()
+
+	bare, ok := vertex.OfferingForModel(vertex.ModelClaudeSonnet5)
+	require.True(t, ok, "bare model %q should resolve", vertex.ModelClaudeSonnet5)
+	assert.Equal(t, offeringClaudeSonnet5, bare.ID)
+
+	prefixed, ok := vertex.OfferingForModel(offeringClaudeSonnet5)
+	require.True(t, ok, "namespaced id %q should resolve", offeringClaudeSonnet5)
+	assert.Equal(t, offeringClaudeSonnet5, prefixed.ID)
+
+	_, ok = vertex.OfferingForModel("gemini-99-ultra")
+	assert.False(t, ok, "unknown model must not resolve")
+}
+
 // TestOfferingAttributes checks every offering carries the publisher and
 // the bare wire model, and that the bare model is the offering ID minus
 // the vertex. prefix. The runtime provider builds the request path from
@@ -80,9 +99,14 @@ func TestNoBarePricingKey(t *testing.T) {
 
 // TestGeminiRegionalOverride checks the one interface-shaped requirement:
 // the non-global Gemini rate is a Region override on the global default,
-// not a separate model entry. The override set must cover exactly the
-// non-global locations the model is served at, so pricing and
-// availability never disagree.
+// not a separate model entry.
+//
+// Priced regions and served locations are separate facts, so this does not
+// assert the two sets are equal. It asserts the guard direction that
+// matters: every priced region must be a served location (a price at a
+// location the model is not served would be dead), and at least one
+// override must exist at the regional rate. A served location with no
+// override simply falls back to the global default, which is intended.
 func TestGeminiRegionalOverride(t *testing.T) {
 	t.Parallel()
 
@@ -93,26 +117,17 @@ func TestGeminiRegionalOverride(t *testing.T) {
 
 	wantRegional := pricing.NewRates(1.65, 8.25, 0.165)
 
-	// Every non-global served location gets one override at the regional
-	// rate, and nothing else does.
-	var wantRegions []string
+	served := vertex.LocationsForModel(vertex.ModelGemini36Flash)
+	require.NotEmpty(t, served, "expected served locations for Gemini")
 
-	for _, loc := range vertex.LocationsForModel(vertex.ModelGemini36Flash) {
-		if loc != vertex.LocationGlobal {
-			wantRegions = append(wantRegions, loc)
-		}
-	}
+	require.NotEmpty(t, info.Overrides, "expected at least one non-global Gemini rate override")
 
-	require.NotEmpty(t, wantRegions, "expected at least one non-global Gemini location to override")
-
-	gotRegions := make([]string, 0, len(info.Overrides))
 	for _, ov := range info.Overrides {
 		require.NotEmptyf(t, ov.Match.Region, "override has empty Region (would also match global): %+v", ov.Match)
 		assert.Equalf(t, wantRegional, ov.RateCard.Base, "region %q rate", ov.Match.Region)
-		gotRegions = append(gotRegions, ov.Match.Region)
+		assert.Containsf(t, served, ov.Match.Region, "priced region %q is not a served location", ov.Match.Region)
+		assert.NotEqualf(t, vertex.LocationGlobal, ov.Match.Region, "override region must be non-global")
 	}
-
-	assert.ElementsMatch(t, wantRegions, gotRegions, "override regions must equal the non-global served locations")
 }
 
 // TestClaudeFlatPricing checks the Claude rates and that Claude carries no

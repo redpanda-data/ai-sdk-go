@@ -15,6 +15,7 @@
 package vertex_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -26,7 +27,7 @@ import (
 func TestProviderName(t *testing.T) {
 	t.Parallel()
 
-	p, err := vertex.NewProvider()
+	p, err := vertex.NewProvider(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, "gcp.vertex", p.Name())
 }
@@ -37,7 +38,7 @@ func TestProviderName(t *testing.T) {
 func TestProviderCatalog(t *testing.T) {
 	t.Parallel()
 
-	p, err := vertex.NewProvider()
+	p, err := vertex.NewProvider(context.Background())
 	require.NoError(t, err)
 	assert.Same(t, vertex.Catalog(), p.Catalog())
 }

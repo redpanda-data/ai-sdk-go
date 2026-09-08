@@ -14,7 +14,11 @@
 
 package vertex
 
-import "github.com/redpanda-data/ai-sdk-go/catalog"
+import (
+	"context"
+
+	"github.com/redpanda-data/ai-sdk-go/catalog"
+)
 
 // Provider is the Google Vertex AI provider's catalog surface: its name
 // and its validated model catalog. It satisfies catalog.Provider, which
@@ -28,11 +32,12 @@ type Provider struct{}
 
 var _ catalog.Provider = (*Provider)(nil)
 
-// NewProvider returns the Vertex provider. The returned error is always
-// nil today. The (*Provider, error) shape matches the sibling providers
-// and reserves room for the transport milestone (RFC-0014 M8), which will
-// load credentials at construction.
-func NewProvider() (*Provider, error) {
+// NewProvider returns the Vertex provider. ctx is unused today and the
+// returned error is always nil; the (context.Context) (*Provider, error)
+// shape matches the sibling providers and reserves room for the transport
+// milestone (RFC-0014 M8), which will load credentials at construction
+// under the caller's context.
+func NewProvider(ctx context.Context) (*Provider, error) {
 	return &Provider{}, nil
 }
 

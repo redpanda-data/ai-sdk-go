@@ -45,6 +45,10 @@ func TestIsModelAvailableAtLocation(t *testing.T) {
 		// region, so the matrix must not list one.
 		{"sonnet-5 not at named region", vertex.ModelClaudeSonnet5, "us-east5", false},
 		{"haiku at named region", vertex.ModelClaudeHaiku45, "europe-west1", true},
+		// A caller may hold the namespaced vertex. offering ID rather than
+		// the bare publisher model; the prefix is stripped before lookup so
+		// both reach the same row.
+		{"prefixed offering id resolves", offeringClaudeSonnet5, "eu", true},
 		{"unknown model", "gemini-99-ultra", "global", false},
 		{"unknown location", vertex.ModelGemini36Flash, "mars-central1", false},
 		{"empty location", vertex.ModelGemini36Flash, "", false},
@@ -73,6 +77,26 @@ func TestLocationsForModel(t *testing.T) {
 	locs[0] = "tampered"
 	again := vertex.LocationsForModel(vertex.ModelClaudeSonnet5)
 	assert.NotEqual(t, "tampered", again[0], "LocationsForModel returned a slice aliasing the shared table")
+}
+
+// TestServedLocationsMatrix pins the exact served-location set for every
+// catalogued model, so a hand edit to the transcribed matrix that drops or
+// reorders a location is caught rather than silently changing availability.
+// The expected slices are the full transcription dated
+// LocationsMatrixTranscribed; update them together when the matrix changes.
+func TestServedLocationsMatrix(t *testing.T) {
+	t.Parallel()
+
+	want := map[string][]string{
+		vertex.ModelGemini36Flash: {"global", "us", "eu"},
+		vertex.ModelClaudeSonnet5: {"global", "us", "eu"},
+		vertex.ModelClaudeHaiku45: {"global", "us-east5", "europe-west1"},
+	}
+
+	for model, wantLocs := range want {
+		got := vertex.LocationsForModel(model)
+		assert.Equalf(t, wantLocs, got, "served locations for %s", model)
+	}
 }
 
 // TestMatrixProvenance checks the transcription carries a source URL and a
