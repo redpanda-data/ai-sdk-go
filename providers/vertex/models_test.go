@@ -113,9 +113,9 @@ func TestGeminiRegionalOverride(t *testing.T) {
 	info, ok := vertex.Catalog().PricingByID()[offeringGemini36Flash]
 	require.True(t, ok, "no pricing for %s", offeringGemini36Flash)
 
-	assert.Equal(t, pricing.NewRates(1.50, 7.50, 0.15), info.Default.Base, "global default rate")
+	assert.Equal(t, pricing.NewRates(0.75, 3.75, 0.075), info.Default.Base, "global default rate")
 
-	wantRegional := pricing.NewRates(1.65, 8.25, 0.165)
+	wantRegional := pricing.NewRates(0.825, 4.125, 0.0825)
 
 	served := vertex.LocationsForModel(vertex.ModelGemini36Flash)
 	require.NotEmpty(t, served, "expected served locations for Gemini")

@@ -4845,9 +4845,9 @@
           "pricing": {
             "default": {
               "base": {
-                "input_microcents_per_million": 150000000,
-                "output_microcents_per_million": 750000000,
-                "cached_input_microcents_per_million": 15000000
+                "input_microcents_per_million": 75000000,
+                "output_microcents_per_million": 375000000,
+                "cached_input_microcents_per_million": 7500000
               }
             },
             "overrides": [
@@ -4855,9 +4855,9 @@
                 "region": "us",
                 "rate_card": {
                   "base": {
-                    "input_microcents_per_million": 165000000,
-                    "output_microcents_per_million": 825000000,
-                    "cached_input_microcents_per_million": 16500000
+                    "input_microcents_per_million": 82500000,
+                    "output_microcents_per_million": 412500000,
+                    "cached_input_microcents_per_million": 8250000
                   }
                 }
               },
@@ -4865,9 +4865,9 @@
                 "region": "eu",
                 "rate_card": {
                   "base": {
-                    "input_microcents_per_million": 165000000,
-                    "output_microcents_per_million": 825000000,
-                    "cached_input_microcents_per_million": 16500000
+                    "input_microcents_per_million": 82500000,
+                    "output_microcents_per_million": 412500000,
+                    "cached_input_microcents_per_million": 8250000
                   }
                 }
               }
@@ -4888,7 +4888,7 @@
             }
           ],
           "derived": {
-            "price_tier": "medium"
+            "price_tier": "low"
           }
         }
       ]

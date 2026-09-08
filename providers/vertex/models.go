@@ -182,17 +182,17 @@ func Catalog() *catalog.Catalog {
 // pages is an M1 exit condition, because a catalog PR is the last moment a
 // wrong rate costs nothing.
 //
-//   - Google's Vertex Gemini pricing:
-//     https://cloud.google.com/vertex-ai/generative-ai/pricing
-//   - Google's Agent Platform pricing (Claude on Vertex, with the region
-//     selector that carries the per-region rates):
-//     https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing
+// Every rate, Gemini and Claude alike, comes from Google's one pricing
+// page for the platform (Google renamed Vertex AI to the Gemini Enterprise
+// Agent Platform, so older /vertex-ai/ links redirect here):
 //
-// Claude rates come from Google's own page, not Anthropic's list prices:
-// Vertex sets its own Claude rates (including a ~10% non-global premium
+//   https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing
+//
+// Claude rates come from that page, not Anthropic's list prices: Vertex
+// sets its own Claude rates (including a ~10% non-global premium
 // Anthropic-direct does not have), and Anthropic is the one publisher with
-// no SKUs in Google's Billing Catalog, so the Agent Platform page is the
-// authoritative source.
+// no SKUs in Google's Billing Catalog, so this page, with its per-region
+// tabs, is the authoritative source.
 //
 // Capabilities, constraints, and lifecycle mirror the same models in the
 // Gemini-API and Anthropic-direct catalogs: the model is the same, only
@@ -213,15 +213,18 @@ func entries() []catalog.Entry {
 			Life: catalog.Lifecycle{
 				Available: catalog.MustDate("2026-07-21"),
 			},
-			// On Vertex, Gemini 3.6 Flash bills at the full SKU rate
-			// ($1.50/$7.50, cache $0.15); the introductory discount the
-			// Gemini-API provider tracks arrives on Vertex as an
-			// account-level credit, not a lower price, and ends
-			// 2026-12-31. That credit is post-hoc spend accounting, which
-			// the pricing package puts out of scope (pricing/doc.go), so
-			// the catalog tracks the SKU rate. A non-global endpoint bills
+			// On Vertex, Gemini 3.6 Flash bills at the introductory rate
+			// ($0.75/$3.75, cache $0.075) through 2026-12-31, then the
+			// standard rate ($1.50/$7.50, cache $0.15) from 2027-01-01.
+			// The catalog tracks the rate in effect, matching the
+			// Gemini-API provider (providers/google/models.go). This is a
+			// real per-token price, not the separate 50% Provisioned
+			// Throughput promotional credit the page also lists; that
+			// credit is post-hoc spend accounting the pricing package puts
+			// out of scope (pricing/doc.go). A non-global endpoint bills
 			// ~10% above global across the us/eu multi-regions, expressed
 			// as Region overrides rather than separate model entries.
+			// Rates read from the page on 2026-09-08.
 			Pricing: geminiFlashPricing(),
 			Attributes: map[string]string{
 				AttrPublisher:   publisherGoogle,
@@ -302,12 +305,14 @@ func entries() []catalog.Entry {
 // empty-Region override cannot mean "every non-global region" - an empty
 // selector field is a wildcard that would also match global.
 func geminiFlashPricing() pricing.Info {
-	global := pricing.NewRates(1.50, 7.50, 0.15)
-	// The non-global rates ($1.65/$8.25 input/output, $0.165 cache) are the
-	// regional Gemini SKUs Google's Vertex pricing page publishes, verified
-	// against the live page on 2026-09-07: a uniform ~10% markup over the
-	// global rate on input, output, and cache alike.
-	nonGlobal := pricing.NewRates(1.65, 8.25, 0.165)
+	global := pricing.NewRates(0.75, 3.75, 0.075)
+	// The non-global rates ($0.825/$4.125 input/output, $0.0825 cache) are
+	// the regional Gemini rates Google's pricing page publishes, verified
+	// against the live page on 2026-09-08: a uniform ~10% markup over the
+	// global rate on input, output, and cache alike. These are the
+	// introductory rates in effect through 2026-12-31; the standard rates
+	// from 2027-01-01 are $1.50/$7.50 global, $1.65/$8.25 non-global.
+	nonGlobal := pricing.NewRates(0.825, 4.125, 0.0825)
 
 	info := pricing.FlatInfoFromRates(global)
 	for _, region := range []string{"us", "eu"} {
