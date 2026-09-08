@@ -140,8 +140,8 @@ func TestGeminiRegionalOverride(t *testing.T) {
 // exact non-global rate, and the guard direction that matters: every priced
 // region is a served location, and the override region is non-global. The
 // two models differ in which regions carry the premium - Sonnet on the
-// us/eu multi-regions, Haiku on us-east5/europe-west1 - so each is checked
-// against its own served set.
+// us/eu multi-regions plus asia-southeast1, Haiku on us-east5/europe-west1
+// plus asia-east1 - so each is checked against its own served set.
 func TestClaudeRegionalOverride(t *testing.T) {
 	t.Parallel()
 

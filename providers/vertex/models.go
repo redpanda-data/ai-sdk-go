@@ -307,15 +307,23 @@ func geminiFlashPricing() pricing.Info {
 
 // claudeSonnet5Pricing builds the Sonnet 5 rate card: the global rate as
 // the default, and the ~10% higher non-global rate as one Region override
-// per served multi-region.
+// per served non-global region.
 //
 // Claude is not flat. Google's Agent Platform pricing page groups Sonnet 5
 // under "Models with regional pricing" and publishes every non-global rate
 // at exactly global x 1.10 - input, output, cache write, and cache read
-// alike. Rates below read from the page's region tabs on 2026-09-08.
+// alike. The us and eu rates below read from the page's region tabs on
+// 2026-09-08.
 //
-// The override regions are Sonnet's served multi-regions (locations.go), so
-// TestClaudeRegionalOverride can guard that every priced region is served,
+// asia-southeast1 is a served non-global region (locations.go) with its
+// own tab on the pricing page. That tab carries the standard non-global
+// rate - global x 1.10, the same premium as the us and eu multi-regions,
+// flat across the page's =< 200K and > 200K input tiers - confirmed on the
+// tab on 2026-09-08. It is not a special APAC rate, so a customer calling
+// there is billed the same non-global premium as one calling us or eu.
+//
+// The override regions are Sonnet's served non-global regions (locations.go),
+// so TestClaudeRegionalOverride can guard that every priced region is served,
 // the same invariant Gemini carries. Anthropic is absent from Google's
 // Billing Catalog, so this page is the authoritative source, not the SKU
 // API.
@@ -324,7 +332,7 @@ func claudeSonnet5Pricing() pricing.Info {
 	nonGlobal := pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(2.75, 4.40, 0)
 
 	info := pricing.FlatInfoFromRates(global)
-	for _, region := range []string{"us", "eu"} {
+	for _, region := range []string{"us", "eu", "asia-southeast1"} {
 		info = info.WithOverride(
 			pricing.Selector{Region: region},
 			pricing.RateCard{Base: nonGlobal},
@@ -338,17 +346,21 @@ func claudeSonnet5Pricing() pricing.Info {
 // the default, and the ~10% non-global premium as one Region override per
 // served named region.
 //
-// Same shape as Sonnet, rates below read from the Agent Platform pricing
-// page's region tabs on 2026-09-08.
+// Same shape as Sonnet. The us-east5 and europe-west1 rates below read from
+// the Agent Platform pricing page's region tabs on 2026-09-08.
 //
-// Haiku's served named regions are us-east5 and europe-west1 (locations.go),
-// which are exactly the regions the page prices at the premium.
+// asia-east1 is a served named region (locations.go) with its own tab on
+// the pricing page. Haiku 4.5 is a line item on that tab at input $1.10,
+// output $5.50, cache hit $0.11, and cache write $1.375 (5m) / $2.20 (1h) -
+// exactly global x 1.10 and flat across the page's =< 200K and > 200K input
+// tiers, matching the nonGlobal rate below, read from the tab on 2026-09-08.
+// It is the same non-global premium the us-east5 and europe-west1 tabs carry.
 func claudeHaiku45Pricing() pricing.Info {
 	global := pricing.NewRates(1.00, 5.00, 0.10).WithCacheCreation(1.25, 2.00, 0)
 	nonGlobal := pricing.NewRates(1.10, 5.50, 0.11).WithCacheCreation(1.375, 2.20, 0)
 
 	info := pricing.FlatInfoFromRates(global)
-	for _, region := range []string{"us-east5", "europe-west1"} {
+	for _, region := range []string{"us-east5", "europe-west1", "asia-east1"} {
 		info = info.WithOverride(
 			pricing.Selector{Region: region},
 			pricing.RateCard{Base: nonGlobal},

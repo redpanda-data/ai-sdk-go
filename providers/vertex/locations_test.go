@@ -41,10 +41,15 @@ func TestIsModelAvailableAtLocation(t *testing.T) {
 		{"gemini location case-insensitive", vertex.ModelGemini36Flash, "EU", true},
 		{"sonnet-5 at global", vertex.ModelClaudeSonnet5, "global", true},
 		{"sonnet-5 at eu multi-region", vertex.ModelClaudeSonnet5, "eu", true},
-		// Shared-lineage Claude has no pay-as-you-go allocation at a named
-		// region, so the matrix must not list one.
+		// Sonnet is published at asia-southeast1 but not at us-east5; each
+		// model carries only the regions Google's page marks for it.
+		{"sonnet-5 at asia-southeast1", vertex.ModelClaudeSonnet5, "asia-southeast1", true},
 		{"sonnet-5 not at named region", vertex.ModelClaudeSonnet5, "us-east5", false},
 		{"haiku at named region", vertex.ModelClaudeHaiku45, "europe-west1", true},
+		// Haiku is published at asia-east1, not at asia-southeast1 - the
+		// reverse of Sonnet's APAC region.
+		{"haiku at asia-east1", vertex.ModelClaudeHaiku45, "asia-east1", true},
+		{"haiku not at asia-southeast1", vertex.ModelClaudeHaiku45, "asia-southeast1", false},
 		// A caller may hold the namespaced vertex. offering ID rather than
 		// the bare publisher model; the prefix is stripped before lookup so
 		// both reach the same row.
@@ -89,8 +94,8 @@ func TestServedLocationsMatrix(t *testing.T) {
 
 	want := map[string][]string{
 		vertex.ModelGemini36Flash: {"global", "us", "eu"},
-		vertex.ModelClaudeSonnet5: {"global", "us", "eu"},
-		vertex.ModelClaudeHaiku45: {"global", "us-east5", "europe-west1"},
+		vertex.ModelClaudeSonnet5: {"global", "us", "eu", "asia-southeast1"},
+		vertex.ModelClaudeHaiku45: {"global", "us-east5", "europe-west1", "asia-east1"},
 	}
 
 	for model, wantLocs := range want {

@@ -40,29 +40,30 @@ const (
 	// LocationsMatrixTranscribed is the date the matrix below was copied
 	// from LocationsMatrixSource, in YYYY-MM-DD form. The full per-model
 	// availability was reconciled against the live page on this date: every
-	// row below is what LocationsMatrixSource published on 2026-09-07.
-	LocationsMatrixTranscribed = "2026-09-07"
+	// row below is what LocationsMatrixSource published on 2026-09-08.
+	LocationsMatrixTranscribed = "2026-09-08"
 )
 
 // servedLocations maps each catalogued bare model ID to the locations
-// Google both publishes it at and serves a pay-as-you-go call from,
-// transcribed from LocationsMatrixSource on LocationsMatrixTranscribed and
-// cross-checked with live rawPredict and count-tokens calls that day. A
-// location is listed only where a live call is both published and
-// callable, so a published-but-quota-refused region is left out.
+// Google publishes it at, transcribed from LocationsMatrixSource on
+// LocationsMatrixTranscribed. A location is listed wherever Google's page
+// marks the model supported there.
 //
-//   - gemini-3.6-flash is served at global and the us/eu multi-regions
-//     only. Google publishes no named-region availability for it.
-//   - claude-sonnet-5 is served at global and the us/eu multi-regions. It
-//     is on a shared-lineage quota bucket with no pay-as-you-go allocation
-//     at a named region, so a call to any named region (a US or EU one, or
-//     asia-southeast1) earns a 429 rather than a completion.
-//   - claude-haiku-4-5 holds a per-version quota and is served at the
-//     us-east5 and europe-west1 named regions plus global. Google does not
-//     publish it at the us/eu multi-regions. It is published at
-//     asia-southeast1 but a call there returns a 429 (no pay-as-you-go
-//     allocation), and it is not published at asia-east1 at all, so neither
-//     APAC region is listed.
+// The gateway proxies traffic that already runs in the customer's own GCP
+// project, so what governs this map is what Google publishes, not any one
+// project's quota. Every published location is listed so the gateway prices
+// and routes a customer who calls the model there.
+//
+//	                  global  us  eu  us-east5  europe-west1  asia-southeast1  asia-east1
+//	gemini-3.6-flash  Y       Y   Y   -         -             -                -
+//	claude-sonnet-5   Y       Y   Y   -         -             Y                -
+//	claude-haiku-4-5  Y       -   -   Y         Y             -                Y
+//
+// Y = published by Google, so it appears in the map below; - = not
+// published. Gemini publishes no named-region availability at all. Sonnet
+// is published at the us and eu multi-regions and the asia-southeast1 named
+// region. Haiku is published at the us-east5, europe-west1, and asia-east1
+// named regions.
 var servedLocations = map[string][]string{
 	ModelGemini36Flash: {
 		LocationGlobal,
@@ -71,10 +72,12 @@ var servedLocations = map[string][]string{
 	ModelClaudeSonnet5: {
 		LocationGlobal,
 		"us", "eu",
+		"asia-southeast1",
 	},
 	ModelClaudeHaiku45: {
 		LocationGlobal,
 		"us-east5", "europe-west1",
+		"asia-east1",
 	},
 }
 
