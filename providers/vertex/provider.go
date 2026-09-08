@@ -32,12 +32,12 @@ type Provider struct{}
 
 var _ catalog.Provider = (*Provider)(nil)
 
-// NewProvider returns the Vertex provider. ctx is unused today and the
-// returned error is always nil; the (context.Context) (*Provider, error)
-// shape matches the sibling providers and reserves room for the transport
-// milestone (RFC-0014 M8), which will load credentials at construction
-// under the caller's context.
-func NewProvider(ctx context.Context) (*Provider, error) {
+// NewProvider returns the Vertex provider. The context argument is unused
+// today and the returned error is always nil. The (context.Context)
+// (*Provider, error) shape matches the sibling providers and reserves room
+// for the transport milestone (RFC-0014 M8), which will load credentials at
+// construction under the caller's context.
+func NewProvider(_ context.Context) (*Provider, error) {
 	return &Provider{}, nil
 }
 
