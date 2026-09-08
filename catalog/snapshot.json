@@ -4646,7 +4646,33 @@
                 "cache_creation_5m_microcents_per_million": 125000000,
                 "cache_creation_1h_microcents_per_million": 200000000
               }
-            }
+            },
+            "overrides": [
+              {
+                "region": "us-east5",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 110000000,
+                    "output_microcents_per_million": 550000000,
+                    "cached_input_microcents_per_million": 11000000,
+                    "cache_creation_5m_microcents_per_million": 137500000,
+                    "cache_creation_1h_microcents_per_million": 220000000
+                  }
+                }
+              },
+              {
+                "region": "europe-west1",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 110000000,
+                    "output_microcents_per_million": 550000000,
+                    "cached_input_microcents_per_million": 11000000,
+                    "cache_creation_5m_microcents_per_million": 137500000,
+                    "cache_creation_1h_microcents_per_million": 220000000
+                  }
+                }
+              }
+            ]
           },
           "lifecycle": {
             "stage": "ga",
@@ -4725,7 +4751,33 @@
                 "cache_creation_5m_microcents_per_million": 250000000,
                 "cache_creation_1h_microcents_per_million": 400000000
               }
-            }
+            },
+            "overrides": [
+              {
+                "region": "us",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 220000000,
+                    "output_microcents_per_million": 1100000000,
+                    "cached_input_microcents_per_million": 22000000,
+                    "cache_creation_5m_microcents_per_million": 275000000,
+                    "cache_creation_1h_microcents_per_million": 440000000
+                  }
+                }
+              },
+              {
+                "region": "eu",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 220000000,
+                    "output_microcents_per_million": 1100000000,
+                    "cached_input_microcents_per_million": 22000000,
+                    "cache_creation_5m_microcents_per_million": 275000000,
+                    "cache_creation_1h_microcents_per_million": 440000000
+                  }
+                }
+              }
+            ]
           },
           "lifecycle": {
             "stage": "ga",

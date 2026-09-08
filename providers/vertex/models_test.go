@@ -130,22 +130,50 @@ func TestGeminiRegionalOverride(t *testing.T) {
 	}
 }
 
-// TestClaudeFlatPricing checks the Claude rates and that Claude carries no
-// regional premium: the non-global markup is a Gemini-only fact.
-func TestClaudeFlatPricing(t *testing.T) {
+// TestClaudeRegionalOverride checks the Claude rates and that Claude
+// carries the same ~10% non-global premium Gemini does. Google's Agent
+// Platform pricing page groups Sonnet 5 and Haiku 4.5 under "Models with
+// regional pricing" and publishes every non-global rate at exactly global
+// x 1.10 (read from the page's region tabs on 2026-09-08).
+//
+// Like TestGeminiRegionalOverride, it asserts the global default rate, the
+// exact non-global rate, and the guard direction that matters: every priced
+// region is a served location, and the override region is non-global. The
+// two models differ in which regions carry the premium - Sonnet on the
+// us/eu multi-regions, Haiku on us-east5/europe-west1 - so each is checked
+// against its own served set.
+func TestClaudeRegionalOverride(t *testing.T) {
 	t.Parallel()
 
-	cases := map[string]pricing.Rates{
-		offeringClaudeSonnet5: pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0),
-		offeringClaudeHaiku45: pricing.NewRates(1.00, 5.00, 0.10).WithCacheCreation(1.25, 2.00, 0),
+	cases := map[string]struct {
+		global, regional pricing.Rates
+	}{
+		offeringClaudeSonnet5: {
+			global:   pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0),
+			regional: pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(2.75, 4.40, 0),
+		},
+		offeringClaudeHaiku45: {
+			global:   pricing.NewRates(1.00, 5.00, 0.10).WithCacheCreation(1.25, 2.00, 0),
+			regional: pricing.NewRates(1.10, 5.50, 0.11).WithCacheCreation(1.375, 2.20, 0),
+		},
 	}
 
 	prices := vertex.Catalog().PricingByID()
 	for id, want := range cases {
 		info, ok := prices[id]
 		require.Truef(t, ok, "no pricing for %s", id)
-		assert.Equalf(t, want, info.Default.Base, "%s base rate", id)
-		assert.Emptyf(t, info.Overrides, "%s must have no region overrides (Claude has no regional premium)", id)
+		assert.Equalf(t, want.global, info.Default.Base, "%s global default rate", id)
+
+		served := vertex.LocationsForModel(id)
+		require.NotEmptyf(t, served, "expected served locations for %s", id)
+
+		require.NotEmptyf(t, info.Overrides, "%s must carry a non-global rate override", id)
+		for _, ov := range info.Overrides {
+			require.NotEmptyf(t, ov.Match.Region, "%s override has empty Region (would also match global): %+v", id, ov.Match)
+			assert.Equalf(t, want.regional, ov.RateCard.Base, "%s region %q rate", id, ov.Match.Region)
+			assert.Containsf(t, served, ov.Match.Region, "%s priced region %q is not a served location", id, ov.Match.Region)
+			assert.NotEqualf(t, vertex.LocationGlobal, ov.Match.Region, "%s override region must be non-global", id)
+		}
 	}
 }
 

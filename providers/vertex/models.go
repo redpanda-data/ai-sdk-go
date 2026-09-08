@@ -178,14 +178,21 @@ func Catalog() *catalog.Catalog {
 // entries returns the authored Vertex catalog.
 //
 // Rates are USD-per-million-tokens. Every rate here was transcribed from
-// Google's published Vertex pricing (Gemini) and Anthropic's list prices
-// (Claude); re-reading each one against the live pages is an M1 exit
-// condition, because a catalog PR is the last moment a wrong rate costs
-// nothing.
+// Google's published Vertex pricing; re-reading each one against the live
+// pages is an M1 exit condition, because a catalog PR is the last moment a
+// wrong rate costs nothing.
 //
 //   - Google's Vertex Gemini pricing:
 //     https://cloud.google.com/vertex-ai/generative-ai/pricing
-//   - Anthropic pricing: https://platform.claude.com/docs/en/about-claude/pricing
+//   - Google's Agent Platform pricing (Claude on Vertex, with the region
+//     selector that carries the per-region rates):
+//     https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing
+//
+// Claude rates come from Google's own page, not Anthropic's list prices:
+// Vertex sets its own Claude rates (including a ~10% non-global premium
+// Anthropic-direct does not have), and Anthropic is the one publisher with
+// no SKUs in Google's Billing Catalog, so the Agent Platform page is the
+// authoritative source.
 //
 // Capabilities, constraints, and lifecycle mirror the same models in the
 // Gemini-API and Anthropic-direct catalogs: the model is the same, only
@@ -239,14 +246,15 @@ func entries() []catalog.Entry {
 			Life: catalog.Lifecycle{
 				Available: catalog.MustDate("2026-06-29"),
 			},
-			// $2/$10 is Sonnet 5's standard list price, cache reads at the
-			// 0.10x multiplier and writes at 1.25x (5m) / 2x (1h). Anthropic
-			// is the one publisher absent from Google's Billing Catalog, so
-			// Claude rates rest on Anthropic's page. There is no Claude
-			// regional premium: the non-global markup is Gemini-only.
-			Pricing: pricing.FlatInfoFromRates(
-				pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0),
-			),
+			// $2/$10 is Sonnet 5's global list price, cache reads at the
+			// 0.10x multiplier and writes at 1.25x (5m) / 2x (1h). A
+			// non-global endpoint bills ~10% above global, the same premium
+			// Gemini carries, expressed as Region overrides on the served
+			// multi-regions. Anthropic is the one publisher absent from
+			// Google's Billing Catalog, so Claude rates rest on Google's
+			// Agent Platform pricing page, verified 2026-09-08 (see
+			// claudeSonnet5Pricing).
+			Pricing: claudeSonnet5Pricing(),
 			Attributes: map[string]string{
 				AttrPublisher:   publisherAnthropic,
 				AttrVertexModel: ModelClaudeSonnet5,
@@ -266,11 +274,10 @@ func entries() []catalog.Entry {
 			Life: catalog.Lifecycle{
 				Available: catalog.MustDate("2025-10-15"),
 			},
-			// $1/$5 standard list price, cache reads 0.10x, writes 1.25x
-			// (5m) / 2x (1h).
-			Pricing: pricing.FlatInfoFromRates(
-				pricing.NewRates(1.00, 5.00, 0.10).WithCacheCreation(1.25, 2.00, 0),
-			),
+			// $1/$5 global list price, cache reads 0.10x, writes 1.25x
+			// (5m) / 2x (1h), with the same ~10% non-global premium as
+			// Sonnet on the served named regions (see claudeHaiku45Pricing).
+			Pricing: claudeHaiku45Pricing(),
 			Attributes: map[string]string{
 				AttrPublisher:   publisherAnthropic,
 				AttrVertexModel: ModelClaudeHaiku45,
@@ -304,6 +311,65 @@ func geminiFlashPricing() pricing.Info {
 
 	info := pricing.FlatInfoFromRates(global)
 	for _, region := range []string{"us", "eu"} {
+		info = info.WithOverride(
+			pricing.Selector{Region: region},
+			pricing.RateCard{Base: nonGlobal},
+		)
+	}
+
+	return info
+}
+
+// claudeSonnet5Pricing builds the Sonnet 5 rate card: the global rate as
+// the default, and the ~10% higher non-global rate as one Region override
+// per served multi-region.
+//
+// Claude is not flat. Google's Agent Platform pricing page groups Sonnet 5
+// under "Models with regional pricing" and publishes every non-global rate
+// at exactly global x 1.10 - input, output, cache write, and cache read
+// alike. Read from the page's region tabs on 2026-09-08:
+//
+//	Global:  in $2.00, out $10.00, 5m write $2.50, 1h write $4.00, hit $0.20
+//	US / EU: in $2.20, out $11.00, 5m write $2.75, 1h write $4.40, hit $0.22
+//
+// The override regions are Sonnet's served multi-regions (locations.go), so
+// TestClaudeRegionalOverride can guard that every priced region is served,
+// the same invariant Gemini carries. Anthropic is absent from Google's
+// Billing Catalog, so this page is the authoritative source, not the SKU
+// API.
+func claudeSonnet5Pricing() pricing.Info {
+	global := pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0)
+	nonGlobal := pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(2.75, 4.40, 0)
+
+	info := pricing.FlatInfoFromRates(global)
+	for _, region := range []string{"us", "eu"} {
+		info = info.WithOverride(
+			pricing.Selector{Region: region},
+			pricing.RateCard{Base: nonGlobal},
+		)
+	}
+
+	return info
+}
+
+// claudeHaiku45Pricing builds the Haiku 4.5 rate card: the global rate as
+// the default, and the ~10% non-global premium as one Region override per
+// served named region.
+//
+// Same shape as Sonnet. From the Agent Platform pricing page's region tabs
+// on 2026-09-08:
+//
+//	Global:               in $1.00, out $5.00, 5m write $1.25, 1h write $2.00, hit $0.10
+//	us-east5/europe-west1: in $1.10, out $5.50, 5m write $1.375, 1h write $2.20, hit $0.11
+//
+// Haiku's served named regions are us-east5 and europe-west1 (locations.go),
+// which are exactly the regions the page prices at the premium.
+func claudeHaiku45Pricing() pricing.Info {
+	global := pricing.NewRates(1.00, 5.00, 0.10).WithCacheCreation(1.25, 2.00, 0)
+	nonGlobal := pricing.NewRates(1.10, 5.50, 0.11).WithCacheCreation(1.375, 2.20, 0)
+
+	info := pricing.FlatInfoFromRates(global)
+	for _, region := range []string{"us-east5", "europe-west1"} {
 		info = info.WithOverride(
 			pricing.Selector{Region: region},
 			pricing.RateCard{Base: nonGlobal},
