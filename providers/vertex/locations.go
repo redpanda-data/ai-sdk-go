@@ -54,16 +54,10 @@ const (
 // project's quota. Every published location is listed so the gateway prices
 // and routes a customer who calls the model there.
 //
-//	                  global  us  eu  us-east5  europe-west1  asia-southeast1  asia-east1
-//	gemini-3.6-flash  Y       Y   Y   -         -             -                -
-//	claude-sonnet-5   Y       Y   Y   -         -             Y                -
-//	claude-haiku-4-5  Y       -   -   Y         Y             -                Y
-//
-// Y = published by Google, so it appears in the map below; - = not
-// published. Gemini publishes no named-region availability at all. Sonnet
-// is published at the us and eu multi-regions and the asia-southeast1 named
-// region. Haiku is published at the us-east5, europe-west1, and asia-east1
-// named regions.
+// Gemini is published at global and the us and eu multi-regions, with no
+// named-region availability. Sonnet is published at global, the us and eu
+// multi-regions, and the asia-southeast1 named region. Haiku is published
+// at global and the us-east5, europe-west1, and asia-east1 named regions.
 var servedLocations = map[string][]string{
 	ModelGemini36Flash: {
 		LocationGlobal,
