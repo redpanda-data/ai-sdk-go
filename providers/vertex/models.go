@@ -130,8 +130,6 @@ var geminiCaps = llm.ModelCapabilities{
 	Reasoning:        true,
 }
 
-// geminiModalities: text, image, audio, video, and PDF inputs; text
-// output.
 var geminiModalities = catalog.Modalities{
 	Input: []catalog.Modality{
 		catalog.ModalityText, catalog.ModalityImage, catalog.ModalityAudio,
@@ -157,7 +155,6 @@ var claudeCaps = llm.ModelCapabilities{
 	Reasoning:        true,
 }
 
-// claudeModalities: text, image, and PDF inputs; text output.
 var claudeModalities = catalog.Modalities{
 	Input:  []catalog.Modality{catalog.ModalityText, catalog.ModalityImage, catalog.ModalityDocument},
 	Output: []catalog.Modality{catalog.ModalityText},
@@ -213,18 +210,6 @@ func entries() []catalog.Entry {
 			Life: catalog.Lifecycle{
 				Available: catalog.MustDate("2026-07-21"),
 			},
-			// On Vertex, Gemini 3.6 Flash bills at the introductory rate
-			// ($0.75/$3.75, cache $0.075) through 2026-12-31, then the
-			// standard rate ($1.50/$7.50, cache $0.15) from 2027-01-01.
-			// The catalog tracks the rate in effect, matching the
-			// Gemini-API provider (providers/google/models.go). This is a
-			// real per-token price, not the separate 50% Provisioned
-			// Throughput promotional credit the page also lists; that
-			// credit is post-hoc spend accounting the pricing package puts
-			// out of scope (pricing/doc.go). A non-global endpoint bills
-			// ~10% above global across the us/eu multi-regions, expressed
-			// as Region overrides rather than separate model entries.
-			// Rates read from the page on 2026-09-08.
 			Pricing: geminiFlashPricing(),
 			Attributes: map[string]string{
 				AttrPublisher:   publisherGoogle,
@@ -238,8 +223,8 @@ func entries() []catalog.Entry {
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange: [2]float64{0.0, 1.0},
-				MaxInputTokens:   1000000, // 1M context window
-				MaxOutputTokens:  128000,  // 128K output tokens
+				MaxInputTokens:   1000000,
+				MaxOutputTokens:  128000,
 				SupportedParams:  []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort"},
 			},
 			Reasoning: catalog.ReasoningSupport{
@@ -249,14 +234,6 @@ func entries() []catalog.Entry {
 			Life: catalog.Lifecycle{
 				Available: catalog.MustDate("2026-06-29"),
 			},
-			// $2/$10 is Sonnet 5's global list price, cache reads at the
-			// 0.10x multiplier and writes at 1.25x (5m) / 2x (1h). A
-			// non-global endpoint bills ~10% above global, the same premium
-			// Gemini carries, expressed as Region overrides on the served
-			// multi-regions. Anthropic is the one publisher absent from
-			// Google's Billing Catalog, so Claude rates rest on Google's
-			// Agent Platform pricing page, verified 2026-09-08 (see
-			// claudeSonnet5Pricing).
 			Pricing: claudeSonnet5Pricing(),
 			Attributes: map[string]string{
 				AttrPublisher:   publisherAnthropic,
@@ -270,16 +247,13 @@ func entries() []catalog.Entry {
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange: [2]float64{0.0, 1.0},
-				MaxInputTokens:   200000, // 200K context window
-				MaxOutputTokens:  64000,  // 64K output tokens
+				MaxInputTokens:   200000,
+				MaxOutputTokens:  64000,
 				SupportedParams:  []string{"temperature", "top_p", "top_k", "max_tokens"},
 			},
 			Life: catalog.Lifecycle{
 				Available: catalog.MustDate("2025-10-15"),
 			},
-			// $1/$5 global list price, cache reads 0.10x, writes 1.25x
-			// (5m) / 2x (1h), with the same ~10% non-global premium as
-			// Sonnet on the served named regions (see claudeHaiku45Pricing).
 			Pricing: claudeHaiku45Pricing(),
 			Attributes: map[string]string{
 				AttrPublisher:   publisherAnthropic,
@@ -292,6 +266,12 @@ func entries() []catalog.Entry {
 // geminiFlashPricing builds the Gemini 3.6 Flash rate card: the global
 // rate as the default, and the ~10% higher non-global rate as one Region
 // override per multi-region that carries the premium.
+//
+// The default is Gemini 3.6 Flash's introductory per-token rate, tracked
+// like the Gemini-API provider (providers/google/models.go). It is a real
+// per-token price, not the separate 50% Provisioned Throughput credit the
+// page also lists; that credit is post-hoc spend accounting the pricing
+// package excludes (pricing/doc.go).
 //
 // The priced regions are their own literal, not derived from the
 // availability matrix (locations.go). Pricing and availability are
@@ -332,10 +312,7 @@ func geminiFlashPricing() pricing.Info {
 // Claude is not flat. Google's Agent Platform pricing page groups Sonnet 5
 // under "Models with regional pricing" and publishes every non-global rate
 // at exactly global x 1.10 - input, output, cache write, and cache read
-// alike. Read from the page's region tabs on 2026-09-08:
-//
-//	Global:  in $2.00, out $10.00, 5m write $2.50, 1h write $4.00, hit $0.20
-//	US / EU: in $2.20, out $11.00, 5m write $2.75, 1h write $4.40, hit $0.22
+// alike. Rates below read from the page's region tabs on 2026-09-08.
 //
 // The override regions are Sonnet's served multi-regions (locations.go), so
 // TestClaudeRegionalOverride can guard that every priced region is served,
@@ -361,11 +338,8 @@ func claudeSonnet5Pricing() pricing.Info {
 // the default, and the ~10% non-global premium as one Region override per
 // served named region.
 //
-// Same shape as Sonnet. From the Agent Platform pricing page's region tabs
-// on 2026-09-08:
-//
-//	Global:               in $1.00, out $5.00, 5m write $1.25, 1h write $2.00, hit $0.10
-//	us-east5/europe-west1: in $1.10, out $5.50, 5m write $1.375, 1h write $2.20, hit $0.11
+// Same shape as Sonnet, rates below read from the Agent Platform pricing
+// page's region tabs on 2026-09-08.
 //
 // Haiku's served named regions are us-east5 and europe-west1 (locations.go),
 // which are exactly the regions the page prices at the premium.
