@@ -80,8 +80,8 @@ func TestOfferingAttributes(t *testing.T) {
 	}
 
 	for _, o := range vertex.Catalog().All() {
-		assert.Equalf(t, wantPublisher[o.ID], o.Attributes[vertex.AttrPublisher], "%s publisher", o.ID)
-		assert.Equalf(t, strings.TrimPrefix(o.ID, "vertex."), o.Attributes[vertex.AttrVertexModel], "%s vertex_model", o.ID)
+		assert.Equalf(t, wantPublisher[o.ID], o.Attributes[vertex.ModelMetadataPublisher], "%s publisher", o.ID)
+		assert.Equalf(t, strings.TrimPrefix(o.ID, "vertex."), o.Attributes[vertex.ModelMetadataVertexModel], "%s vertex_model", o.ID)
 	}
 }
 
@@ -187,9 +187,51 @@ func TestEveryOfferingHasLocations(t *testing.T) {
 	t.Parallel()
 
 	for _, o := range vertex.Catalog().All() {
-		bare := o.Attributes[vertex.AttrVertexModel]
+		bare := o.Attributes[vertex.ModelMetadataVertexModel]
 		locs := vertex.LocationsForModel(bare)
 		require.NotEmptyf(t, locs, "%s has no servedLocations row for %q", o.ID, bare)
 		assert.Containsf(t, locs, vertex.LocationGlobal, "%s must be served at global", o.ID)
+	}
+}
+
+// TestGlobalToNonGlobalRatio pins the single invariant the whole Vertex
+// pricing rests on: every non-global rate is exactly global x 1.10, on every
+// column, for every offering. Google's Agent Platform page publishes the
+// premium as a flat 10% markup (read from the region tabs on 2026-09-08), so
+// a future rate edit that breaks the ratio - a fat-fingered override, a
+// global rate changed without its non-global sibling - is a transcription
+// bug this test must catch. It mirrors bedrock's TestGeoGlobalRatio.
+//
+// The check is the exact-integer form 11*global == 10*geo, which avoids
+// float rounding in the int64 micro-cent values pricing.NewRates produces.
+// Columns a model does not carry (Gemini has no cache-creation rate) are
+// zero on both sides and pass trivially.
+func TestGlobalToNonGlobalRatio(t *testing.T) {
+	t.Parallel()
+
+	for id, info := range vertex.Catalog().PricingByID() {
+		global := info.Default.Base
+
+		require.NotEmptyf(t, info.Overrides, "%s carries no non-global override to compare", id)
+
+		for _, ov := range info.Overrides {
+			geo := ov.RateCard.Base
+
+			t.Run(id+"/"+ov.Match.Region, func(t *testing.T) {
+				t.Parallel()
+
+				check := func(col string, globalVal, geoVal int64) {
+					assert.Equalf(t, 11*globalVal, 10*geoVal,
+						"%s/%s %s: non-global (%d) must be exactly 1.10x global (%d)",
+						id, ov.Match.Region, col, geoVal, globalVal)
+				}
+
+				check("input", global.InputPerMillion, geo.InputPerMillion)
+				check("output", global.OutputPerMillion, geo.OutputPerMillion)
+				check("cache read", global.CachedInputPerMillion, geo.CachedInputPerMillion)
+				check("cache 5m write", global.CacheCreation5mPerMillion, geo.CacheCreation5mPerMillion)
+				check("cache 1h write", global.CacheCreation1hPerMillion, geo.CacheCreation1hPerMillion)
+			})
+		}
 	}
 }

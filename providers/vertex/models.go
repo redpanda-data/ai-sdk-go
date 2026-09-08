@@ -72,13 +72,13 @@ const (
 // Attribute keys carried on every Vertex offering. Keys are snake_case
 // and values are strings so the committed snapshot stays stable.
 const (
-	// AttrPublisher is the Vertex publisher segment ("google",
+	// ModelMetadataPublisher is the Vertex publisher segment ("google",
 	// "anthropic").
-	AttrPublisher = "publisher"
-	// AttrVertexModel is the bare wire model ID, i.e. the offering ID
-	// with the vertex. prefix stripped. The offering ID is the pricing
+	ModelMetadataPublisher = "publisher"
+	// ModelMetadataVertexModel is the bare wire model ID, i.e. the offering
+	// ID with the vertex. prefix stripped. The offering ID is the pricing
 	// key; this is what goes in the request path.
-	AttrVertexModel = "vertex_model"
+	ModelMetadataVertexModel = "vertex_model"
 )
 
 // catalogID returns the namespaced offering ID for a bare Vertex model.
@@ -212,8 +212,8 @@ func entries() []catalog.Entry {
 			},
 			Pricing: geminiFlashPricing(),
 			Attributes: map[string]string{
-				AttrPublisher:   publisherGoogle,
-				AttrVertexModel: ModelGemini36Flash,
+				ModelMetadataPublisher:   publisherGoogle,
+				ModelMetadataVertexModel: ModelGemini36Flash,
 			},
 		},
 		{
@@ -236,8 +236,8 @@ func entries() []catalog.Entry {
 			},
 			Pricing: claudeSonnet5Pricing(),
 			Attributes: map[string]string{
-				AttrPublisher:   publisherAnthropic,
-				AttrVertexModel: ModelClaudeSonnet5,
+				ModelMetadataPublisher:   publisherAnthropic,
+				ModelMetadataVertexModel: ModelClaudeSonnet5,
 			},
 		},
 		{
@@ -256,8 +256,8 @@ func entries() []catalog.Entry {
 			},
 			Pricing: claudeHaiku45Pricing(),
 			Attributes: map[string]string{
-				AttrPublisher:   publisherAnthropic,
-				AttrVertexModel: ModelClaudeHaiku45,
+				ModelMetadataPublisher:   publisherAnthropic,
+				ModelMetadataVertexModel: ModelClaudeHaiku45,
 			},
 		},
 	}

@@ -73,7 +73,7 @@ func TestVertexPricingDoesNotCollide(t *testing.T) {
 // target.
 //
 // If a vendor's recommended replacement is genuinely not an offering we
-// carry, CLAUDE.md says to skip ReplacedBy - add the ID here with a comment
+// carry, CLAUDE.md says to skip ReplacedBy — add the ID here with a comment
 // naming the uncarried replacement rather than deleting the assertion.
 func TestDeprecatedOfferingsNameAReplacement(t *testing.T) {
 	t.Parallel()

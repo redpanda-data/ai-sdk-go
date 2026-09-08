@@ -48,7 +48,7 @@ Model work is covered by two skills — use them instead of improvising:
 - `llm/` — Core types and interfaces (Request, Response, Message, Part, Event)
 - `catalog/` — Shared model-metadata read model (facts registry, offerings, lifecycle views,
   `catalog/snapshot` encoder); `catalog/snapshot.json` is the committed, CI-checked artifact
-- `providers/` — LLM provider implementations (anthropic, openai, google, bedrock, openaicompat)
+- `providers/` — LLM provider implementations (anthropic, openai, google, bedrock, openaicompat, vertex)
 - `agent/` — Agent framework; `llmagent/` has the LLM-powered agent with tool calling
 - `tool/` — Tool registry, MCP integration, built-in tools, agent-as-tool
 - `adapter/a2a/` — Agent-to-Agent protocol adapter
