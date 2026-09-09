@@ -142,17 +142,21 @@ func TestGeminiRegionalOverride(t *testing.T) {
 // which only checks priced-implies-served.
 func assertEveryNonGlobalRegionPriced(t *testing.T, served []string, overrides []pricing.Override) {
 	t.Helper()
+
 	for _, loc := range served {
 		if loc == vertex.LocationGlobal {
 			continue
 		}
+
 		priced := false
+
 		for _, ov := range overrides {
 			if ov.Match.Region == loc {
 				priced = true
 				break
 			}
 		}
+
 		assert.Truef(t, priced, "served non-global region %q has no rate override", loc)
 	}
 }
