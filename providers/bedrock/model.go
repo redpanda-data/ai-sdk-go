@@ -88,7 +88,7 @@ func (m *Model) Generate(ctx context.Context, req *llm.Request) (*llm.Response, 
 
 	output, err := m.client.Converse(ctx, input)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", llm.ErrAPICall, classifyError(err))
+		return nil, llm.WrapAPICall(classifyError(err))
 	}
 
 	return m.responseMapper.FromConverseOutput(
@@ -113,7 +113,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 		output, err := m.client.ConverseStream(ctx, input)
 		if err != nil {
-			yield(nil, fmt.Errorf("%w: %w", llm.ErrAPICall, classifyError(err)))
+			yield(nil, llm.WrapAPICall(classifyError(err)))
 			return
 		}
 
@@ -212,7 +212,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 		// Check for stream errors
 		if err := stream.Err(); err != nil {
-			yield(nil, fmt.Errorf("%w: %w", llm.ErrAPICall, classifyError(err)))
+			yield(nil, llm.WrapAPICall(classifyError(err)))
 			return
 		}
 
