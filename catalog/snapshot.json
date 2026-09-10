@@ -4619,7 +4619,8 @@
               "temperature",
               "top_p",
               "top_k",
-              "max_tokens"
+              "max_tokens",
+              "reasoning_effort"
             ],
             "temperature_range": [
               0,
@@ -4636,7 +4637,15 @@
               "text"
             ]
           },
-          "reasoning": {},
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "max"
+            ],
+            "adaptive": true
+          },
           "pricing": {
             "default": {
               "base": {
@@ -4687,7 +4696,8 @@
             ]
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "available": "2025-10-15"
           },
           "attributes": [
             {
@@ -4803,7 +4813,8 @@
             ]
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "available": "2026-06-30"
           },
           "attributes": [
             {
@@ -4863,7 +4874,14 @@
               "text"
             ]
           },
-          "reasoning": {},
+          "reasoning": {
+            "efforts": [
+              "minimal",
+              "low",
+              "medium",
+              "high"
+            ]
+          },
           "pricing": {
             "default": {
               "base": {
@@ -4896,7 +4914,8 @@
             ]
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "available": "2026-07-21"
           },
           "attributes": [
             {

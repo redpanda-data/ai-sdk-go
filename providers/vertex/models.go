@@ -113,20 +113,30 @@ func bareModelID(model string) string {
 // that already carries the prefix is accepted as-is. ok is false for a
 // model the catalog does not offer.
 func OfferingForModel(model string) (catalog.Offering, bool) {
-	return Catalog().Lookup(catalogID(bareModelID(model)))
+	return Catalog().Resolve(catalogID(bareModelID(model)))
 }
 
-// Claude reasoning-effort values Vertex accepts, mirroring the
-// Anthropic-direct catalog. llm.ReasoningEffort is an open string type
-// whose valid vocabulary is provider-owned; these are the source of truth
-// for Vertex Claude.
+// Reasoning-effort values Vertex accepts. llm.ReasoningEffort is an open
+// string type whose valid vocabulary is provider-owned, so the two
+// publishers do not share one set: Gemini's thinking levels are
+// minimal/low/medium/high, and Claude's are low/medium/high/xhigh/max
+// (Haiku 4.5 omits xhigh). These mirror the Gemini-API and Anthropic-direct
+// catalogs and are the source of truth for Vertex.
 const (
-	reasoningEffortLow    llm.ReasoningEffort = "low"
-	reasoningEffortMedium llm.ReasoningEffort = "medium"
-	reasoningEffortHigh   llm.ReasoningEffort = "high"
-	reasoningEffortXHigh  llm.ReasoningEffort = "xhigh"
-	reasoningEffortMax    llm.ReasoningEffort = "max"
+	reasoningEffortMinimal llm.ReasoningEffort = "minimal"
+	reasoningEffortLow     llm.ReasoningEffort = "low"
+	reasoningEffortMedium  llm.ReasoningEffort = "medium"
+	reasoningEffortHigh    llm.ReasoningEffort = "high"
+	reasoningEffortXHigh   llm.ReasoningEffort = "xhigh"
+	reasoningEffortMax     llm.ReasoningEffort = "max"
 )
+
+// geminiReasoningEfforts is the thinking-level vocabulary shared by
+// catalogued Gemini models on Vertex, matching the Gemini-API provider's
+// set (providers/google/models.go).
+var geminiReasoningEfforts = []llm.ReasoningEffort{
+	reasoningEffortMinimal, reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh,
+}
 
 // geminiCaps is the capability set shared by every catalogued Gemini
 // model on Vertex, matching the Gemini-API provider's set.
@@ -206,9 +216,11 @@ func Catalog() *catalog.Catalog {
 // Capabilities and constraints mirror the same models in the Gemini-API
 // and Anthropic-direct catalogs: the model is the same, only the host
 // differs. Lifecycle does not mirror them - Available is when Vertex began
-// serving the model, a partner host's own schedule, and Google does not
-// publish those GA dates, so each entry leaves Life at its zero value
-// rather than borrowing the launch platform's date.
+// serving the model, a partner host's own schedule. The Agent Platform's
+// per-model pages publish that as the version's Release date, so each entry
+// sets Available from its own model page (cited at the entry) and leaves
+// Retires unset, because Google publishes only "not sooner than" retirement
+// floors, which are lower bounds rather than shutdown dates.
 func entries() []catalog.Entry {
 	return []catalog.Entry{
 		{
@@ -222,9 +234,12 @@ func entries() []catalog.Entry {
 				MaxOutputTokens:  65536,   // 64K output tokens
 				SupportedParams:  geminiParams,
 			},
-			// Vertex's own GA date for this model is not published; the zero
-			// value means "available, exact date unknown" (catalog/lifecycle.go).
-			Life:    catalog.Lifecycle{},
+			Reasoning: catalog.ReasoningSupport{Efforts: geminiReasoningEfforts},
+			// Vertex began serving Gemini 3.6 Flash at its GA, release date
+			// 2026-07-21 on the model page (docs.cloud.google.com/
+			// gemini-enterprise-agent-platform/models/gemini/3-6-flash, read
+			// 2026-09-10). No retirement published, so Retires stays unset.
+			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-07-21")},
 			Pricing: geminiFlashPricing(),
 			Attributes: map[string]string{
 				ModelMetadataPublisher:   publisherGoogle,
@@ -246,9 +261,13 @@ func entries() []catalog.Entry {
 				Efforts:  []llm.ReasoningEffort{reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortXHigh, reasoningEffortMax},
 				Adaptive: true,
 			},
-			// Vertex's own GA date for this model is not published; the zero
-			// value means "available, exact date unknown" (catalog/lifecycle.go).
-			Life:    catalog.Lifecycle{},
+			// Vertex began serving Claude Sonnet 5 at its GA, release date
+			// 2026-06-30 on the model page; the retirement floor ("not sooner
+			// than 2026-12-24") is a lower bound, not a shutdown date, so
+			// Retires stays unset (docs.cloud.google.com/
+			// gemini-enterprise-agent-platform/models/partner-models/claude/sonnet-5,
+			// read 2026-09-10).
+			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-06-30")},
 			Pricing: claudeSonnet5Pricing(),
 			Attributes: map[string]string{
 				ModelMetadataPublisher:   publisherAnthropic,
@@ -264,11 +283,18 @@ func entries() []catalog.Entry {
 				TemperatureRange: [2]float64{0.0, 1.0},
 				MaxInputTokens:   200000,
 				MaxOutputTokens:  64000,
-				SupportedParams:  []string{"temperature", "top_p", "top_k", "max_tokens"},
+				SupportedParams:  []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort"},
 			},
-			// Vertex's own GA date for this model is not published; the zero
-			// value means "available, exact date unknown" (catalog/lifecycle.go).
-			Life:    catalog.Lifecycle{},
+			Reasoning: catalog.ReasoningSupport{
+				Efforts:  []llm.ReasoningEffort{reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortMax},
+				Adaptive: true,
+			},
+			// Claude Haiku 4.5 GA, release date 2025-10-15 on the model page;
+			// the retirement floor ("not sooner than 2026-10-15") is a lower
+			// bound, not a shutdown date, so Retires stays unset
+			// (docs.cloud.google.com/gemini-enterprise-agent-platform/models/
+			// partner-models/claude/haiku-4-5, read 2026-09-10).
+			Life:    catalog.Lifecycle{Available: catalog.MustDate("2025-10-15")},
 			Pricing: claudeHaiku45Pricing(),
 			Attributes: map[string]string{
 				ModelMetadataPublisher:   publisherAnthropic,
