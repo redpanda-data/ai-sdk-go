@@ -196,31 +196,22 @@ func Catalog() *catalog.Catalog {
 
 // entries returns the authored Vertex catalog.
 //
-// Rates are USD-per-million-tokens. Every rate here was transcribed from
-// Google's published Vertex pricing; re-reading each one against the live
-// pages is an M1 exit condition, because a catalog PR is the last moment a
-// wrong rate costs nothing.
-//
-// Every rate, Gemini and Claude alike, comes from Google's one pricing
-// page for the platform (Google renamed Vertex AI to the Gemini Enterprise
-// Agent Platform, so older /vertex-ai/ links redirect here):
+// Rates are USD-per-million-tokens, from Google's single pricing page for
+// the platform (Vertex AI was renamed the Gemini Enterprise Agent Platform,
+// so older /vertex-ai/ links redirect here):
 //
 //	https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing
 //
-// Claude rates come from that page, not Anthropic's list prices: Vertex
-// sets its own Claude rates (including a ~10% non-global premium
-// Anthropic-direct does not have), and Anthropic is the one publisher with
-// no SKUs in Google's Billing Catalog, so this page, with its per-region
-// tabs, is the authoritative source.
+// Re-reading each rate against the live page is an M1 exit condition. Claude
+// rates come from that page, not Anthropic's list prices: Vertex sets its own
+// Claude rates (a ~10% non-global premium included), and Anthropic has no SKUs
+// in Google's Billing Catalog, so this page is authoritative.
 //
-// Capabilities and constraints mirror the same models in the Gemini-API
-// and Anthropic-direct catalogs: the model is the same, only the host
-// differs. Lifecycle does not mirror them - Available is when Vertex began
-// serving the model, a partner host's own schedule. The Agent Platform's
-// per-model pages publish that as the version's Release date, so each entry
-// sets Available from its own model page (cited at the entry) and leaves
-// Retires unset, because Google publishes only "not sooner than" retirement
-// floors, which are lower bounds rather than shutdown dates.
+// Capabilities and constraints mirror the same models in the Gemini-API and
+// Anthropic-direct catalogs; only the host differs. Lifecycle does not: each
+// entry's Available is when Vertex began serving the model (its model page's
+// Release date, cited at the entry), and Retires stays unset because Google
+// publishes only "not sooner than" floors, not shutdown dates.
 func entries() []catalog.Entry {
 	return []catalog.Entry{
 		{
@@ -304,38 +295,26 @@ func entries() []catalog.Entry {
 	}
 }
 
-// geminiFlashPricing builds the Gemini 3.6 Flash rate card: the global
-// rate as the default, and the ~10% higher non-global rate as one Region
-// override per multi-region that carries the premium.
-//
-// The default is Gemini 3.6 Flash's introductory per-token rate, tracked
-// like the Gemini-API provider (providers/google/models.go). It is a real
-// per-token price, not the separate 50% Provisioned Throughput credit the
-// page also lists; that credit is post-hoc spend accounting the pricing
-// package excludes (pricing/doc.go).
-//
-// The priced regions are their own literal, not derived from the
-// availability matrix (locations.go). Pricing and availability are
-// separate facts: a region can be served at the plain global rate, so a
-// served location is not automatically a priced one. The direction that
-// must hold is the reverse - a region priced here must be one the model
-// is served at - and TestGeminiRegionalOverride guards exactly that, so
-// the two never contradict without coupling the definitions.
-//
-// The override carries the non-global rate (default = global) because an
-// empty-Region override cannot mean "every non-global region" - an empty
-// selector field is a wildcard that would also match global.
+// geminiFlashPricing returns the Gemini 3.6 Flash rate card: the global
+// rate as default, and the 10% higher non-global rate as one override per
+// priced multi-region.
 func geminiFlashPricing() pricing.Info {
+	// Introductory per-token rate through 2026-12-31 (standard from
+	// 2027-01-01: $1.50/$7.50 global, $1.65/$8.25 non-global), tracked like
+	// the Gemini-API provider (providers/google/models.go). Not the separate
+	// 50% Provisioned Throughput credit the page lists, which is post-hoc
+	// spend accounting the pricing package excludes (pricing/doc.go).
 	global := pricing.NewRates(0.75, 3.75, 0.075)
-	// The non-global rates ($0.825/$4.125 input/output, $0.0825 cache) are
-	// the regional Gemini rates Google's pricing page publishes, verified
-	// against the live page on 2026-09-08: a uniform ~10% markup over the
-	// global rate on input, output, and cache alike. These are the
-	// introductory rates in effect through 2026-12-31; the standard rates
-	// from 2027-01-01 are $1.50/$7.50 global, $1.65/$8.25 non-global.
+	// Non-global = global x 1.10 on input, output, and cache alike, from
+	// Google's pricing page, verified live 2026-09-08.
 	nonGlobal := pricing.NewRates(0.825, 4.125, 0.0825)
 
 	info := pricing.FlatInfoFromRates(global)
+	// Priced regions are a literal, not derived from availability
+	// (locations.go): a region may be served at the global rate, so served
+	// does not imply priced. TestGeminiRegionalOverride guards the reverse.
+	// The override carries the non-global rate because an empty-Region
+	// selector is a wildcard that would also match global.
 	for _, region := range []string{"us", "eu"} {
 		info = info.WithOverride(
 			pricing.Selector{Region: region},
@@ -346,33 +325,20 @@ func geminiFlashPricing() pricing.Info {
 	return info
 }
 
-// claudeSonnet5Pricing builds the Sonnet 5 rate card: the global rate as
-// the default, and the ~10% higher non-global rate as one Region override
-// per served non-global region.
-//
-// Claude is not flat. Google's Agent Platform pricing page groups Sonnet 5
-// under "Models with regional pricing" and publishes every non-global rate
-// at exactly global x 1.10 - input, output, cache write, and cache read
-// alike. The us and eu rates below read from the page's region tabs on
-// 2026-09-08.
-//
-// asia-southeast1 is a served non-global region (locations.go) with its
-// own tab on the pricing page. That tab carries the standard non-global
-// rate - global x 1.10, the same premium as the us and eu multi-regions,
-// flat across the page's =< 200K and > 200K input tiers - confirmed on the
-// tab on 2026-09-08. It is not a special APAC rate, so a customer calling
-// there is billed the same non-global premium as one calling us or eu.
-//
-// The override regions are Sonnet's served non-global regions (locations.go),
-// so TestClaudeRegionalOverride can guard that every priced region is served,
-// the same invariant Gemini carries. Anthropic is absent from Google's
-// Billing Catalog, so this page is the authoritative source, not the SKU
-// API.
+// claudeSonnet5Pricing returns the Sonnet 5 rate card: the global rate as
+// default, and Google's flat 10% non-global premium as one override per
+// served non-global region. (Source rationale in entries().)
 func claudeSonnet5Pricing() pricing.Info {
+	// Global, and non-global = global x 1.10 on input, output, cache write,
+	// and cache read alike, from the pricing page's region tabs, read
+	// 2026-09-08. Flat across the page's =< 200K and > 200K input tiers.
 	global := pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0)
 	nonGlobal := pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(2.75, 4.40, 0)
 
 	info := pricing.FlatInfoFromRates(global)
+	// Sonnet's served non-global regions (locations.go); asia-southeast1
+	// carries the same premium, not a special APAC rate.
+	// TestClaudeRegionalOverride guards that every priced region is served.
 	for _, region := range []string{"us", "eu", "asia-southeast1"} {
 		info = info.WithOverride(
 			pricing.Selector{Region: region},
@@ -383,24 +349,17 @@ func claudeSonnet5Pricing() pricing.Info {
 	return info
 }
 
-// claudeHaiku45Pricing builds the Haiku 4.5 rate card: the global rate as
-// the default, and the ~10% non-global premium as one Region override per
-// served named region.
-//
-// Same shape as Sonnet. The us-east5 and europe-west1 rates below read from
-// the Agent Platform pricing page's region tabs on 2026-09-08.
-//
-// asia-east1 is a served named region (locations.go) with its own tab on
-// the pricing page. Haiku 4.5 is a line item on that tab at input $1.10,
-// output $5.50, cache hit $0.11, and cache write $1.375 (5m) / $2.20 (1h) -
-// exactly global x 1.10 and flat across the page's =< 200K and > 200K input
-// tiers, matching the nonGlobal rate below, read from the tab on 2026-09-08.
-// It is the same non-global premium the us-east5 and europe-west1 tabs carry.
+// claudeHaiku45Pricing returns the Haiku 4.5 rate card, same shape as
+// [claudeSonnet5Pricing].
 func claudeHaiku45Pricing() pricing.Info {
+	// Global, and non-global = global x 1.10, from the pricing page's region
+	// tabs, read 2026-09-08. Flat across the =< 200K and > 200K input tiers.
 	global := pricing.NewRates(1.00, 5.00, 0.10).WithCacheCreation(1.25, 2.00, 0)
 	nonGlobal := pricing.NewRates(1.10, 5.50, 0.11).WithCacheCreation(1.375, 2.20, 0)
 
 	info := pricing.FlatInfoFromRates(global)
+	// Served named regions (locations.go); asia-east1 carries the same
+	// premium, not a special rate.
 	for _, region := range []string{"us-east5", "europe-west1", "asia-east1"} {
 		info = info.WithOverride(
 			pricing.Selector{Region: region},

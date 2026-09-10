@@ -20,23 +20,22 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/catalog"
 )
 
-// Provider is the Google Vertex AI provider's catalog surface: its name
-// and its validated model catalog. It satisfies catalog.Provider, which
-// is what the spending pipeline and the catalog snapshot consume.
+// TODO(maciej): add request transport (RFC-0014 M8).
+
+// Provider is the catalog surface for Google's Gemini Enterprise Agent
+// Platform (formerly Vertex AI): its name and validated model catalog. It
+// implements catalog.Provider, consumed by the spending pipeline and the
+// catalog snapshot.
 //
-// It carries no request transport yet. Constructing Vertex requests is a
-// later milestone (RFC-0014 M8); until then the provider contributes its
-// catalog and rates, and the AI Gateway forwards the customer's own
-// native Vertex requests.
+// No request transport yet (RFC-0014 M8): the provider contributes its
+// catalog and rates, and the AI Gateway forwards the customer's own native
+// Vertex requests.
 type Provider struct{}
 
 var _ catalog.Provider = (*Provider)(nil)
 
-// NewProvider returns the Vertex provider. The context argument is unused
-// today and the returned error is always nil; the (context.Context)
-// (*Provider, error) shape matches the sibling providers and reserves room
-// for the transport milestone to load credentials at construction under the
-// caller's context.
+// NewProvider returns a provider for Google's Gemini Enterprise Agent
+// Platform (formerly Vertex AI).
 func NewProvider(_ context.Context) (*Provider, error) {
 	return &Provider{}, nil
 }
