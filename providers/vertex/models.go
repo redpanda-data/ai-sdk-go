@@ -17,19 +17,18 @@
 // alongside partner models such as Anthropic's Claude. One GCP project
 // reaches all of them, billed on that project's own account.
 //
-// This package is the catalog half of the provider (RFC-0014 milestone
-// M1): the day-one Gemini + Claude catalog, ModelPricing through each
-// offering's [catalog.Entry].Pricing, and the location-availability
-// helper in locations.go. The request/response transport (an llm.Model
-// that builds Vertex requests) lands with the managed-agent milestone and
-// is intentionally not part of this package yet.
+// This is the catalog half of the provider (RFC-0014 milestone M1): the
+// day-one Gemini + Claude catalog, ModelPricing through each offering's
+// [catalog.Entry].Pricing, and the location-availability helper in
+// locations.go. The request transport (an llm.Model that builds Vertex
+// requests) lands with RFC-0014 M8 and is intentionally not here yet.
 //
 // Catalog keys are namespaced vertex.<model>. On Vertex a model keeps its
-// publisher's bare ID, so "claude-sonnet-5" is byte-identical to the ID
-// the Anthropic-direct catalog already uses; a shared pricing catalog
-// rejects that collision. The bare wire model and its publisher travel in
-// each entry's Attributes instead of as an alias, because an alias would
-// re-introduce the same collision in a merged catalog.
+// publisher's bare ID, so "claude-sonnet-5" is byte-identical to the ID in
+// the Anthropic-direct catalog, and a shared pricing catalog rejects that
+// collision. The bare wire model and its publisher travel in each entry's
+// Attributes rather than as an alias, because an alias would re-introduce
+// the collision in a merged catalog.
 package vertex
 
 import (
@@ -62,11 +61,10 @@ const (
 )
 
 // Offering IDs are the namespaced catalog keys, the vertex. prefix plus the
-// bare model. These are what catalog lookups and the pricing map are keyed
-// on, so a caller uses Offering* for Catalog().Lookup and the pricing map,
-// and the bare Model* for the request path. Composing the key from the same
-// prefix keeps one catalog key per offering, so this adds no alias and does
-// not re-open the collision the package doc argues against.
+// bare model. Callers use Offering* for Catalog().Lookup and the pricing
+// map, and the bare Model* for the request path. Composing the key from the
+// same prefix keeps one catalog key per offering, so this adds no alias and
+// does not re-open the collision the package doc argues against.
 const (
 	OfferingGemini36Flash = catalogKeyPrefix + ModelGemini36Flash
 	OfferingClaudeSonnet5 = catalogKeyPrefix + ModelClaudeSonnet5
@@ -87,9 +85,8 @@ const (
 	// ModelMetadataPublisher is the Vertex publisher segment ("google",
 	// "anthropic").
 	ModelMetadataPublisher = "publisher"
-	// ModelMetadataVertexModel is the bare wire model ID, i.e. the offering
-	// ID with the vertex. prefix stripped. The offering ID is the pricing
-	// key; this is what goes in the request path.
+	// ModelMetadataVertexModel is the bare wire model ID (the offering ID
+	// without the vertex. prefix), which goes in the request path.
 	ModelMetadataVertexModel = "vertex_model"
 )
 
@@ -99,19 +96,16 @@ func catalogID(bareModel string) string {
 }
 
 // bareModelID strips the vertex. catalog-key prefix when present, so a
-// caller may pass either a bare publisher model ID ("claude-sonnet-5")
-// or a namespaced offering ID ("vertex.claude-sonnet-5") and reach the
-// same entry. A string without the prefix is returned unchanged.
+// bare publisher model ID ("claude-sonnet-5") and a namespaced offering
+// ID ("vertex.claude-sonnet-5") reach the same entry.
 func bareModelID(model string) string {
 	return strings.TrimPrefix(model, catalogKeyPrefix)
 }
 
 // OfferingForModel returns the Vertex offering for a bare publisher model
-// ID, adding the vertex. catalog-key prefix and looking it up. It is the
-// bridge for callers that hold a bare model name rather than a namespaced
-// offering ID, keeping the prefix an internal catalog detail. A model ID
-// that already carries the prefix is accepted as-is. ok is false for a
-// model the catalog does not offer.
+// ID, so callers holding a bare model name need not know the vertex.
+// catalog-key prefix. A model ID that already carries the prefix is
+// accepted as-is. ok is false for a model the catalog does not offer.
 func OfferingForModel(model string) (catalog.Offering, bool) {
 	return Catalog().Resolve(catalogID(bareModelID(model)))
 }
@@ -188,8 +182,7 @@ var catalogOnce = sync.OnceValue(func() *catalog.Catalog {
 
 // Catalog returns the validated Vertex model catalog: every offering with
 // its capabilities, constraints, modalities, reasoning controls, pricing,
-// and lifecycle. The catalog is immutable and shared; all reads return
-// deep copies.
+// and lifecycle. It is shared and immutable, so reads return deep copies.
 func Catalog() *catalog.Catalog {
 	return catalogOnce()
 }
@@ -226,10 +219,9 @@ func entries() []catalog.Entry {
 				SupportedParams:  geminiParams,
 			},
 			Reasoning: catalog.ReasoningSupport{Efforts: geminiReasoningEfforts},
-			// Vertex began serving Gemini 3.6 Flash at its GA, release date
-			// 2026-07-21 on the model page (docs.cloud.google.com/
-			// gemini-enterprise-agent-platform/models/gemini/3-6-flash, read
-			// 2026-09-10). No retirement published, so Retires stays unset.
+			// Gemini 3.6 Flash GA, release date 2026-07-21 on the model page
+			// (docs.cloud.google.com/gemini-enterprise-agent-platform/models/
+			// gemini/3-6-flash, read 2026-09-10). No retirement published.
 			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-07-21")},
 			Pricing: geminiFlashPricing(),
 			Attributes: map[string]string{
@@ -252,10 +244,8 @@ func entries() []catalog.Entry {
 				Efforts:  []llm.ReasoningEffort{reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortXHigh, reasoningEffortMax},
 				Adaptive: true,
 			},
-			// Vertex began serving Claude Sonnet 5 at its GA, release date
-			// 2026-06-30 on the model page; the retirement floor ("not sooner
-			// than 2026-12-24") is a lower bound, not a shutdown date, so
-			// Retires stays unset (docs.cloud.google.com/
+			// Claude Sonnet 5 GA, release date 2026-06-30, retirement floor "not
+			// sooner than 2026-12-24" on the model page (docs.cloud.google.com/
 			// gemini-enterprise-agent-platform/models/partner-models/claude/sonnet-5,
 			// read 2026-09-10).
 			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-06-30")},
@@ -280,11 +270,10 @@ func entries() []catalog.Entry {
 				Efforts:  []llm.ReasoningEffort{reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortMax},
 				Adaptive: true,
 			},
-			// Claude Haiku 4.5 GA, release date 2025-10-15 on the model page;
-			// the retirement floor ("not sooner than 2026-10-15") is a lower
-			// bound, not a shutdown date, so Retires stays unset
-			// (docs.cloud.google.com/gemini-enterprise-agent-platform/models/
-			// partner-models/claude/haiku-4-5, read 2026-09-10).
+			// Claude Haiku 4.5 GA, release date 2025-10-15, retirement floor "not
+			// sooner than 2026-10-15" on the model page (docs.cloud.google.com/
+			// gemini-enterprise-agent-platform/models/partner-models/claude/
+			// haiku-4-5, read 2026-09-10).
 			Life:    catalog.Lifecycle{Available: catalog.MustDate("2025-10-15")},
 			Pricing: claudeHaiku45Pricing(),
 			Attributes: map[string]string{

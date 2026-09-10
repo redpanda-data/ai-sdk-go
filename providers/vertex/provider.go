@@ -24,18 +24,15 @@ import (
 
 // Provider is the catalog surface for Google's Gemini Enterprise Agent
 // Platform (formerly Vertex AI): its name and validated model catalog. It
-// implements catalog.Provider, consumed by the spending pipeline and the
-// catalog snapshot.
-//
-// No request transport yet (RFC-0014 M8): the provider contributes its
-// catalog and rates, and the AI Gateway forwards the customer's own native
-// Vertex requests.
+// implements catalog.Provider for the spending pipeline and the catalog
+// snapshot. There is no request transport yet (RFC-0014 M8): this provider
+// supplies catalog and rates, and the AI Gateway forwards the customer's
+// own native Vertex requests.
 type Provider struct{}
 
 var _ catalog.Provider = (*Provider)(nil)
 
-// NewProvider returns a provider for Google's Gemini Enterprise Agent
-// Platform (formerly Vertex AI).
+// NewProvider returns a Provider.
 func NewProvider(_ context.Context) (*Provider, error) {
 	return &Provider{}, nil
 }
@@ -45,8 +42,7 @@ func (*Provider) Name() string {
 	return providerName
 }
 
-// Catalog implements catalog.Provider: the validated Vertex model
-// catalog, including pricing and lifecycle metadata.
+// Catalog implements catalog.Provider. See the package-level [Catalog].
 func (*Provider) Catalog() *catalog.Catalog {
 	return Catalog()
 }
