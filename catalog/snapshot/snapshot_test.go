@@ -66,6 +66,7 @@ func snapshotFixture(t *testing.T) *catalog.Catalog {
 	robin2 := validEntry("robin-2", "acme/robin-2")
 	robin2.Aliases = []string{"robin-latest"}
 	robin2.Capabilities.Reasoning = true
+	robin2.Capabilities.ToolSearch = true
 	robin2.Reasoning = catalog.ReasoningSupport{
 		Efforts:  []llm.ReasoningEffort{"low", "high"},
 		Adaptive: true,
@@ -162,6 +163,13 @@ func TestEncodeShape(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "robin-2", second["id"])
 	assert.Equal(t, "Robin 2", second["display_name"])
+
+	firstCaps, ok := first["capabilities"].(map[string]any)
+	require.True(t, ok)
+	secondCaps, ok := second["capabilities"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, false, firstCaps["tool_search"])
+	assert.Equal(t, true, secondCaps["tool_search"])
 
 	secondDerived, ok := second["derived"].(map[string]any)
 	require.True(t, ok)

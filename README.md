@@ -133,6 +133,55 @@ agent, err := llmagent.New("my-agent", "You are a helpful assistant.", model,
 
 See [`examples/`](examples/) for full working demos.
 
+For larger registries, defer tools whose schemas are only needed occasionally:
+
+```go
+support := tool.NewGroup(llm.ToolGroup{
+	Name:         "support",
+	Description:  "Customer tickets and account lookups",
+	Instructions: "Look up the customer before creating a ticket.",
+})
+support.Add(searchTickets).AddDeferred(createTicket, closeTicket) // Add: always loaded; AddDeferred: on demand
+
+if err := support.Register(registry); err != nil {
+	return err
+}
+
+agent, err := llmagent.New("support", "Help with support requests.", model,
+	llmagent.WithTools(registry),
+)
+```
+
+Nothing else to switch on. The agent chooses discovery based on the model's capabilities:
+
+- Supported Anthropic models use hosted tool search and native deferred schemas.
+- OpenAI Responses models with tool search support use native deferred functions; tool groups
+  become namespaces. Both native paths keep the tool catalog stable as tools are discovered.
+- Gemini, OpenAI-compatible endpoints, Bedrock Converse, and models without native search
+  support use the local `tool_search` tool. Discovered schemas join the next request's tools
+  array; prefix caching can be invalidated when the set changes.
+
+Loaded tools stay available across turns and session restarts. If compaction removes native
+search references, previously loaded tools become eager in the next request. Native mode puts a
+group directory and all group instructions in the system prompt up front to keep it stable; the
+local fallback includes a name/summary manifest and activates group instructions as tools load.
+
+`mcp.WithDeferredTools()`, `mcp.WithAlwaysLoad("search_tickets")`, and `mcp.WithToolGroup(...)`
+express the same policy per server. `tool.WithGroup` and `tool.WithDeferred` are the per-tool
+registration options underneath. `llmagent.WithToolLoadingConfig` tunes local search limits;
+hosted search controls its own selection and does not use `MaxLoadTokens`. To use local search
+on a model that supports native search, pass
+`llmagent.WithToolLoadingConfig(llmagent.ToolLoadingConfig{ForceLocal: true})`.
+[`examples/lazy_tools`](examples/lazy_tools/) runs against public MCP servers. Its keyless dry-run
+prints the local fallback request.
+
+Loaded schemas remain in the session. If later loads exhaust its tool capacity, a fresh session
+may have room for those tools. Searches return flat lists of loaded names; explicit `select:`
+queries use the requested order when applying the load budget.
+
+Tool interceptors may edit arguments, deny execution, retry, or transform results. The request
+and response name and ID must remain those of the original call; identity changes return a tool error.
+
 ## Key Packages
 
 - [`llm`](https://pkg.go.dev/github.com/redpanda-data/ai-sdk-go/llm) — Core types: `Model`, `Request`, `Response`, `Event`

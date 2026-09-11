@@ -149,6 +149,9 @@ func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]openai.ChatCompl
 				toolRequests = append(toolRequests, p)
 			case *llm.ToolResponsePart:
 				toolResponses = append(toolResponses, p)
+			case *llm.ToolSearchPart:
+				continue
+
 			case *llm.ReasoningPart:
 				// Chat API doesn't have native reasoning support
 				// Skip reasoning parts

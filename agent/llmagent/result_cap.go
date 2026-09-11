@@ -15,6 +15,7 @@
 package llmagent
 
 import (
+	"github.com/redpanda-data/ai-sdk-go/agent/llmagent/internal/tokens"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -39,7 +40,7 @@ func (a *LLMAgent) effectiveResultCap(countedRequest, numCalls int) int {
 		return capTokens
 	}
 
-	headroom := a.deriveContextBudget().hardLimit - countedRequest - perMessageOverheadTokens
+	headroom := a.deriveContextBudget().hardLimit - countedRequest - tokens.PerMessageOverhead
 
 	perCall := headroom / numCalls
 	if capTokens == 0 || perCall < capTokens {
@@ -52,7 +53,7 @@ func (a *LLMAgent) effectiveResultCap(countedRequest, numCalls int) int {
 // capToolResult replaces a result over the cap with a truncation marker.
 // The part's identity and error flag survive; zero cap means uncapped.
 func capToolResult(part *llm.ToolResponsePart, capTokens int) *llm.ToolResponsePart {
-	if capTokens <= 0 || estimatePartTokens(part) <= capTokens {
+	if capTokens <= 0 || tokens.Part(part) <= capTokens {
 		return part
 	}
 
@@ -62,7 +63,7 @@ func capToolResult(part *llm.ToolResponsePart, capTokens int) *llm.ToolResponseP
 		Result:  marshalMarker(part, markerTruncated),
 		IsError: part.IsError,
 	}
-	if estimatePartTokens(replacement) <= capTokens {
+	if tokens.Part(replacement) <= capTokens {
 		return replacement
 	}
 

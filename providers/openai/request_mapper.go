@@ -93,6 +93,9 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) (responses.ResponseNewPara
 			return apiReq, fmt.Errorf("%w: tool mapping failed: %w", llm.ErrRequestMapping, err)
 		}
 
+		if req.ToolSearch {
+			tools = nativeSearchTools(req.Tools, tools)
+		}
 		apiReq.Tools = tools
 
 		// Apply tool choice if specified
@@ -131,6 +134,11 @@ func (rm *RequestMapper) mapMessagesToInputItems(messages []llm.Message) ([]resp
 		// Process each part in the message content
 		for _, part := range msg.Content {
 			switch p := part.(type) {
+			case *llm.ToolSearchPart:
+				if p != nil && p.Provider == providerName {
+					items = append(items, param.Override[responses.ResponseInputItemUnionParam](p.Data))
+				}
+
 			case *llm.TextPart:
 				item, err := rm.mapTextMessage(p, msg.Role)
 				if err != nil {
@@ -212,6 +220,10 @@ func (*RequestMapper) mapToolRequestMessage(part *llm.ToolRequestPart) (response
 		Name:      part.Name,
 		Arguments: string(part.Arguments),
 		Type:      constant.FunctionCall(""),
+	}
+
+	if namespace, ok := part.Metadata["openai_namespace"].(string); ok {
+		functionCall.Namespace = param.NewOpt(namespace)
 	}
 
 	return responses.ResponseInputItemUnionParam{

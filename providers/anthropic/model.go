@@ -16,6 +16,7 @@ package anthropic
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"iter"
 	"slices"
@@ -131,6 +132,9 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 				// For tool_use, save the initial data
 				switch e.ContentBlock.Type {
+				case blockTypeServerToolUse, blockTypeToolSearchResult:
+					acc.nativeSearch = json.RawMessage(e.ContentBlock.RawJSON())
+
 				case blockTypeToolUse:
 					acc.toolUse = &toolUseData{
 						ID:   e.ContentBlock.ID,
@@ -200,6 +204,21 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 					continue
 				}
 
+				if len(acc.nativeSearch) > 0 {
+					block, err := acc.searchBlock()
+					if err != nil {
+						yield(nil, fmt.Errorf("%w: native search block: %w", llm.ErrResponseMapping, err))
+						return
+					}
+
+					acc.completedSearch = &block
+					if part := mapToolSearch(block); part != nil {
+						if !yield(llm.ContentPartEvent{Index: int(e.Index), Part: part}, nil) {
+							return
+						}
+					}
+				}
+
 				// For tool use blocks, emit the complete tool request
 				if acc.blockType == blockTypeToolUse && acc.toolUse != nil {
 					argsJSON, ok := llm.FinalizeToolArgs([]byte(acc.toolArgs))
@@ -260,6 +279,11 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 				}
 
 				switch acc.blockType {
+				case blockTypeServerToolUse, blockTypeToolSearchResult:
+					if acc.completedSearch != nil {
+						finalContent = append(finalContent, *acc.completedSearch)
+					}
+
 				case blockTypeText:
 					finalContent = append(finalContent, anthropic.BetaContentBlockUnion{
 						Type: blockTypeText,
@@ -315,6 +339,8 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 // contentBlockAccumulator tracks state for a single content block during streaming.
 type contentBlockAccumulator struct {
+	nativeSearch      json.RawMessage
+	completedSearch   *anthropic.BetaContentBlockUnion
 	index             int
 	blockType         string // "text", "tool_use", "thinking"
 	textContent       string
@@ -327,4 +353,29 @@ type contentBlockAccumulator struct {
 type toolUseData struct {
 	ID   string
 	Name string
+}
+
+// Search result blocks arrive whole; server search inputs can arrive as deltas.
+func (a *contentBlockAccumulator) searchBlock() (anthropic.BetaContentBlockUnion, error) {
+	raw := a.nativeSearch
+	var block anthropic.BetaContentBlockUnion
+
+	if a.blockType == blockTypeServerToolUse && a.toolArgs != "" {
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &fields); err != nil {
+			return block, err
+		}
+
+		fields["input"] = json.RawMessage(a.toolArgs)
+		var err error
+
+		raw, err = json.Marshal(fields)
+		if err != nil {
+			return block, err
+		}
+	}
+
+	err := json.Unmarshal(raw, &block)
+
+	return block, err
 }

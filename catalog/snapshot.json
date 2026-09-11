@@ -391,6 +391,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": true,
             "tools": true,
             "vision": true
           },
@@ -454,6 +455,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": true,
             "tools": true,
             "vision": true
           },
@@ -516,6 +518,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": true,
             "tools": true,
             "vision": true
           },
@@ -575,6 +578,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -638,6 +642,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": true,
             "tools": true,
             "vision": true
           },
@@ -705,6 +710,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": true,
             "tools": true,
             "vision": true
           },
@@ -781,6 +787,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": true,
             "tools": true,
             "vision": true
           },
@@ -852,6 +859,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": true,
             "tools": true,
             "vision": true
           },
@@ -941,6 +949,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": true,
             "tools": true,
             "vision": true
           },
@@ -1022,6 +1031,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": true,
             "tools": true,
             "vision": true
           },
@@ -1082,6 +1092,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": true,
             "tools": true,
             "vision": true
           },
@@ -1152,6 +1163,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -1226,6 +1238,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -1292,6 +1305,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -1366,6 +1380,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -1433,6 +1448,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -1500,6 +1516,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -1573,6 +1590,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -1636,6 +1654,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -1708,6 +1727,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -1774,6 +1794,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -1841,6 +1862,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -1915,6 +1937,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -1989,6 +2012,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -2063,6 +2087,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -2130,6 +2155,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -2197,6 +2223,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -2270,6 +2297,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -2333,6 +2361,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -2405,6 +2434,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -2476,6 +2506,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -2542,6 +2573,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -2609,6 +2641,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -2683,6 +2716,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -2757,6 +2791,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -2831,6 +2866,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -2898,6 +2934,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -2965,6 +3002,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -3038,6 +3076,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -3111,6 +3150,7 @@
             "streaming": true,
             "structured_output": false,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -3164,6 +3204,7 @@
             "streaming": true,
             "structured_output": false,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -3217,6 +3258,7 @@
             "streaming": true,
             "structured_output": false,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -3270,6 +3312,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -3333,6 +3376,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -3407,6 +3451,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -3481,6 +3526,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -3548,6 +3594,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": false
           },
@@ -3601,6 +3648,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -3655,6 +3703,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -3709,6 +3758,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -3763,6 +3813,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -3826,6 +3877,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -3898,6 +3950,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -3969,6 +4022,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -4035,6 +4089,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -4102,6 +4157,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -4176,6 +4232,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -4250,6 +4307,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -4324,6 +4382,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -4391,6 +4450,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -4458,6 +4518,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -4531,6 +4592,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -4609,6 +4671,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -4725,6 +4788,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -4842,6 +4906,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -4948,6 +5013,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -5016,6 +5082,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -5083,6 +5150,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -5161,6 +5229,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -5232,6 +5301,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -5312,6 +5382,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -5390,6 +5461,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -5460,6 +5532,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -5522,6 +5595,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -5585,6 +5659,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -5654,6 +5729,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -5727,6 +5803,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": false
           },
@@ -5792,6 +5869,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -5859,6 +5937,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -5924,6 +6003,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -5988,6 +6068,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -6064,6 +6145,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -6128,6 +6210,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -6206,6 +6289,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -6283,6 +6367,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -6358,6 +6443,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -6433,6 +6519,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -6509,6 +6596,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -6584,6 +6672,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -6656,6 +6745,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -6731,6 +6821,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": true,
             "tools": true,
             "vision": true
           },
@@ -6817,6 +6908,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": true,
             "tools": true,
             "vision": true
           },
@@ -6893,6 +6985,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": true,
             "tools": true,
             "vision": true
           },
@@ -6966,6 +7059,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": true,
             "tools": true,
             "vision": true
           },
@@ -7052,6 +7146,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": true,
             "tools": true,
             "vision": true
           },
@@ -7142,6 +7237,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": true,
             "tools": true,
             "vision": true
           },
@@ -7230,6 +7326,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": true,
             "tools": true,
             "vision": true
           },
@@ -7317,6 +7414,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
+            "tool_search": true,
             "tools": true,
             "vision": true
           },
@@ -7388,6 +7486,7 @@
             "streaming": true,
             "structured_output": false,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -7454,6 +7553,7 @@
             "streaming": true,
             "structured_output": false,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -7520,6 +7620,7 @@
             "streaming": true,
             "structured_output": false,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
@@ -7585,6 +7686,7 @@
             "streaming": true,
             "structured_output": false,
             "system_prompts": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },

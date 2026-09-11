@@ -146,6 +146,9 @@ type clientImpl struct {
 	reconnectTimeout time.Duration
 	logger           *slog.Logger
 	toolFilter       ToolFilterFunc
+	deferTools       bool
+	alwaysLoad       map[string]bool
+	toolGroup        llm.ToolGroup
 
 	// MCP SDK components
 	mcpClient *sdkmcp.Client

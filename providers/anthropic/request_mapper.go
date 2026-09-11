@@ -111,6 +111,15 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) (anthropic.BetaMessageNewP
 			return apiReq, fmt.Errorf("%w: tool mapping failed: %w", llm.ErrRequestMapping, err)
 		}
 
+		if req.ToolSearch {
+			for i, def := range req.Tools {
+				tools[i].OfTool.DeferLoading = param.NewOpt(def.Deferred)
+			}
+
+			tools = append(tools, anthropic.BetaToolUnionParam{
+				OfToolSearchToolBm25_20251119: &anthropic.BetaToolSearchToolBm25_20251119Param{Type: anthropic.BetaToolSearchToolBm25_20251119TypeToolSearchToolBm25_20251119},
+			})
+		}
 		apiReq.Tools = tools
 
 		// Apply tool choice if specified
@@ -314,6 +323,11 @@ func (rm *RequestMapper) mapAssistantMessage(msg llm.Message) (anthropic.BetaMes
 
 	for _, part := range msg.Content {
 		switch p := part.(type) {
+		case *llm.ToolSearchPart:
+			if p != nil && p.Provider == providerName {
+				apiMsg.Content = append(apiMsg.Content, param.Override[anthropic.BetaContentBlockParamUnion](p.Data))
+			}
+
 		case *llm.TextPart:
 			apiMsg.Content = append(apiMsg.Content, anthropic.BetaContentBlockParamUnion{
 				OfText: &anthropic.BetaTextBlockParam{

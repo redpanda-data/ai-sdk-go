@@ -1,0 +1,25 @@
+## Additional tools
+
+This catalog lists 6 tools available for loading. If a tool is already in your tool list,
+call it directly. Otherwise, load its schema with `tool_search` and then call it.
+Calling a tool before loading its schema will fail.
+
+Load everything you expect to need in ONE `tool_search` call, for example
+`{"query": "select:confluence__get_page,jira__create_issue"}` - loading one tool per call wastes a
+round trip.
+
+Never tell the user you lack a capability without searching for it first.
+
+### confluence
+- `confluence__get_page` - Fetch a Confluence page by id or title
+
+### jira - Jira issues and sprints
+- `jira__create_issue` - Create a Jira issue in a project
+- `jira__search_issues` - Search Jira issues with JQL
+
+### servicenow - ServiceNow incidents, changes and CMDB lookups
+- `servicenow__close_incident` - Close a ServiceNow incident with a resolution code and notes
+- `servicenow__create_incident` - Open a ServiceNow incident on behalf of a caller
+
+### Other
+- `legacy_export` - Export the legacy report bundle
