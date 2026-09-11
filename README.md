@@ -141,7 +141,7 @@ support := tool.NewGroup(llm.ToolGroup{
 	Description:  "Customer tickets and account lookups",
 	Instructions: "Look up the customer before creating a ticket.",
 })
-support.Add(searchTickets).Defer(createTicket, closeTicket) // Add: always loaded; Defer: on demand
+support.Add(searchTickets).AddDeferred(createTicket, closeTicket) // Add: always loaded; AddDeferred: on demand
 
 if err := support.Register(registry); err != nil {
 	return err

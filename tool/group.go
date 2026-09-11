@@ -23,14 +23,15 @@ import (
 
 // Group collects tools written in code under one llm.ToolGroup and registers
 // them in one call, the way an MCP client does for a server. Tools added with
-// Add stay in the model's context; tools added with Defer are loaded on demand.
+// Add stay in the model's context; tools added with AddDeferred are loaded on
+// demand.
 //
 //	servicenow := tool.NewGroup(llm.ToolGroup{
 //	    Name:         "servicenow",
 //	    Description:  "ServiceNow incidents and CMDB lookups",
 //	    Instructions: "Resolve the caller's sys_id before opening an incident.",
 //	})
-//	servicenow.Add(searchIncidents).Defer(createIncident, closeIncident)
+//	servicenow.Add(searchIncidents).AddDeferred(createIncident, closeIncident)
 //
 //	if err := servicenow.Register(registry); err != nil { ... }
 type Group struct {
@@ -51,8 +52,8 @@ func (g *Group) Add(tools ...Tool) *Group {
 	return g
 }
 
-// Defer adds tools whose schemas the model loads on demand.
-func (g *Group) Defer(tools ...Tool) *Group {
+// AddDeferred adds tools whose schemas the model loads on demand.
+func (g *Group) AddDeferred(tools ...Tool) *Group {
 	g.deferred = append(g.deferred, tools...)
 
 	return g

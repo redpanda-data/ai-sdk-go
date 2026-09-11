@@ -40,7 +40,7 @@ func TestGroupRegistersWithPolicy(t *testing.T) {
 
 	err := tool.NewGroup(info).
 		Add(groupProbe("search")).
-		Defer(groupProbe("create"), groupProbe("close")).
+		AddDeferred(groupProbe("create"), groupProbe("close")).
 		Register(registry, tool.WithTimeout(time.Second))
 	require.NoError(t, err)
 
@@ -67,7 +67,7 @@ func TestGroupRegisterRollsBackOnError(t *testing.T) {
 
 	err := tool.NewGroup(llm.ToolGroup{Name: "svc"}).
 		Add(groupProbe("new")).
-		Defer(groupProbe("taken")).
+		AddDeferred(groupProbe("taken")).
 		Register(registry)
 
 	require.ErrorIs(t, err, tool.ErrToolAlreadyRegistered)

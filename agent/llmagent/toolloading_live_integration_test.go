@@ -162,8 +162,8 @@ func liveRegistry(t *testing.T) (tool.Registry, *stubTool, *stubTool) {
 		Name:         "servicenow",
 		Description:  "ServiceNow incidents",
 		Instructions: "Resolve the caller with servicenow__search_users before opening an incident and pass the returned sys_id as caller_sys_id.",
-	}).Add(searchUsers).Defer(create, closeIncident).Register(registry))
-	require.NoError(t, tool.NewGroup(llm.ToolGroup{Name: "jira", Description: "Jira issues"}).Defer(&stubTool{def: llm.ToolDefinition{
+	}).Add(searchUsers).AddDeferred(create, closeIncident).Register(registry))
+	require.NoError(t, tool.NewGroup(llm.ToolGroup{Name: "jira", Description: "Jira issues"}).AddDeferred(&stubTool{def: llm.ToolDefinition{
 		Name: "jira__create_issue", Description: "Create a Jira issue.",
 		Parameters: json.RawMessage(`{"type":"object","properties":{"project":{"type":"string"},"summary":{"type":"string"}},"required":["project","summary"]}`),
 	}}).Register(registry))

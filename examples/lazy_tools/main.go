@@ -129,7 +129,7 @@ func main() {
 		Description:  "A todo list for multi-step work",
 		Instructions: "Plan before you start a task that needs more than two tool calls.",
 	})
-	planning.Add(todo.NewAddTool()).Defer(todo.NewUpdateStateTool())
+	planning.Add(todo.NewAddTool()).AddDeferred(todo.NewUpdateStateTool())
 
 	if err := planning.Register(registry); err != nil {
 		log.Fatal(err)

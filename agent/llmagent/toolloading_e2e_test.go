@@ -58,9 +58,9 @@ func serviceDeskRegistry(t *testing.T) (tool.Registry, *stubTool) {
 		Name:         "servicenow",
 		Description:  "ServiceNow incidents and CMDB lookups",
 		Instructions: "Resolve the caller's sys_id before opening an incident.",
-	}).Defer(incident).Register(registry))
+	}).AddDeferred(incident).Register(registry))
 
-	require.NoError(t, tool.NewGroup(llm.ToolGroup{Name: "jira"}).Defer(&stubTool{def: llm.ToolDefinition{
+	require.NoError(t, tool.NewGroup(llm.ToolGroup{Name: "jira"}).AddDeferred(&stubTool{def: llm.ToolDefinition{
 		Name: "jira__create_issue", Description: "Create a Jira issue in a project.", Parameters: json.RawMessage(`{"type":"object"}`),
 	}}).Register(registry))
 
