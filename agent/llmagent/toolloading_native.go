@@ -20,6 +20,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/redpanda-data/ai-sdk-go/agent/llmagent/internal/tokens"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/store/session"
 )
@@ -157,7 +158,7 @@ func visibleTools(defs []llm.ToolDefinition, sess *session.State, native bool) [
 }
 
 func (a *LLMAgent) toolTokens(defs []llm.ToolDefinition, sess *session.State, native bool) int {
-	total := estimateToolTokens(visibleTools(defs, sess, native))
+	total := tokens.Tools(visibleTools(defs, sess, native))
 	if !native {
 		return total
 	}
@@ -171,11 +172,11 @@ func (a *LLMAgent) toolTokens(defs []llm.ToolDefinition, sess *session.State, na
 		for _, def := range defs {
 			if def.Group.Name != "" && !groups[def.Group.Name] {
 				groups[def.Group.Name] = true
-				total += estimateTextTokens(def.Group.Name) + estimateTextTokens(def.Group.Description)
+				total += tokens.Text(def.Group.Name) + tokens.Text(def.Group.Description)
 			}
 
 			if def.Deferred && !loaded[def.Name] && def.Group.Name == "" {
-				total += estimateTextTokens(def.Name) + estimateTextTokens(def.Description)
+				total += tokens.Text(def.Name) + tokens.Text(def.Description)
 			}
 		}
 	}

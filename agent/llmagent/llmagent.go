@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
+	"github.com/redpanda-data/ai-sdk-go/agent/llmagent/internal/tokens"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/store/session"
 )
@@ -312,7 +313,7 @@ func (a *LLMAgent) executeSingleTurn(
 
 	// The fixed cost also sets the lazy-loading admission line.
 	if a.config.compaction != nil || a.loader != nil {
-		sysTokens = estimateMessageTokens(reqMessages[0])
+		sysTokens = tokens.Message(reqMessages[0])
 		toolDefTokens = a.toolTokens(toolDefs, sess, native)
 		fixedTokens = sysTokens + toolDefTokens
 	}
@@ -490,7 +491,7 @@ func (a *LLMAgent) executeSingleTurn(
 	if native {
 		fixedTokens = sysTokens + a.toolTokens(sentReq.Tools, sess, native)
 	}
-	countedRequest := fixedTokens + estimateHistoryTokens(sess.Messages)
+	countedRequest := fixedTokens + tokens.History(sess.Messages)
 	resultCap := a.effectiveResultCap(countedRequest, len(toolReqs))
 
 	toolParts := a.executeTools(ctx, inv, toolReqs, visibleTools(sentReq.Tools, sess, native), resultCap, a.schemaRoom(fixedTokens), makeEnvelope, yield)
@@ -988,14 +989,14 @@ func (a *LLMAgent) recoverIncompleteToolCalls(
 			return fmt.Errorf("llmagent: system prompt for recovery budget: %w", err)
 		}
 
-		fixedTokens = estimateMessageTokens(reqMessages[0]) + a.toolTokens(toolDefs, sess, native)
+		fixedTokens = tokens.Message(reqMessages[0]) + a.toolTokens(toolDefs, sess, native)
 	}
 
 	// Recovered results land in the unread frontier, which compaction can
 	// never reduce - so the burst budget applies here exactly as in normal
 	// execution. Include every fixed request cost because none of it can be
 	// reclaimed on the following turn.
-	countedRequest := fixedTokens + estimateHistoryTokens(sess.Messages)
+	countedRequest := fixedTokens + tokens.History(sess.Messages)
 	resultCap := a.effectiveResultCap(countedRequest, len(incomplete))
 	toolParts := a.executeTools(ctx, inv, incomplete, visibleTools(toolDefs, sess, native), resultCap, a.schemaRoom(fixedTokens), makeEnvelope, yield)
 

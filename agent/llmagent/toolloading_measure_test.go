@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/redpanda-data/ai-sdk-go/agent/llmagent/internal/tokens"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/llm/fakellm"
 	"github.com/redpanda-data/ai-sdk-go/store/session"
@@ -162,10 +163,10 @@ func TestToolLoadingPrefixCost(t *testing.T) {
 	// high on purpose - ~3 chars per token against a real tokenizer's ~4 - so
 	// treat the absolute figures as a conservative ceiling. The ratio is
 	// tokenizer-independent: both sides go through the same counter.
-	baseTokens := estimateToolTokens(baseline[0].Request.Tools)
-	lazyTokens := estimateToolTokens(lazy[0].Request.Tools)
-	manifestTokens := estimateMessageTokens(lazy[0].Request.Messages[0]) -
-		estimateMessageTokens(baseline[0].Request.Messages[0])
+	baseTokens := tokens.Tools(baseline[0].Request.Tools)
+	lazyTokens := tokens.Tools(lazy[0].Request.Tools)
+	manifestTokens := tokens.Message(lazy[0].Request.Messages[0]) -
+		tokens.Message(baseline[0].Request.Messages[0])
 
 	byteReduction := 100 * (1 - float64(lazyBytes+manifestBytes)/float64(baseBytes))
 	tokenReduction := 100 * (1 - float64(lazyTokens+manifestTokens)/float64(baseTokens))

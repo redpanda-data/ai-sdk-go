@@ -22,6 +22,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/redpanda-data/ai-sdk-go/agent/llmagent/internal/tokens"
 	"github.com/redpanda-data/ai-sdk-go/agent/llmagent/internal/toolsearch"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/store/session"
@@ -380,10 +381,10 @@ func (l *toolLoader) applyLoadBudget(candidates []string, b *loadBatch) ([]strin
 		}
 
 		def := b.byName[name]
-		cost := estimateToolTokens([]llm.ToolDefinition{def})
+		cost := tokens.Tools([]llm.ToolDefinition{def})
 
 		if def.Group.Name != "" && !b.charged[def.Group.Name] {
-			cost += estimateTextTokens(strings.TrimSpace(def.Group.Instructions))
+			cost += tokens.Text(strings.TrimSpace(def.Group.Instructions))
 		}
 
 		if b.schemaRoom != unboundedSchemaRoom && b.spentRoom+cost > b.schemaRoom {

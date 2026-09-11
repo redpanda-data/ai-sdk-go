@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
+	"github.com/redpanda-data/ai-sdk-go/agent/llmagent/internal/tokens"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/store/session"
 )
@@ -93,7 +94,7 @@ func marshalMarker(part *llm.ToolResponsePart, kind markerKind) json.RawMessage 
 	m := resultMarker{
 		Tool:           part.Name,
 		Status:         status,
-		OriginalTokens: estimateTextTokens(string(part.Result)),
+		OriginalTokens: tokens.Text(string(part.Result)),
 		Preview:        preview,
 	}
 
@@ -200,7 +201,7 @@ func (s compactionStats) changed() bool {
 // already fits is a no-op.
 func compactMessages(msgs []llm.Message, fixedTokens, target, keepRecent, minTail int) ([]llm.Message, compactionStats) {
 	stats := compactionStats{
-		beforeTokens: fixedTokens + estimateHistoryTokens(msgs),
+		beforeTokens: fixedTokens + tokens.History(msgs),
 	}
 	stats.afterTokens = stats.beforeTokens
 
@@ -246,7 +247,7 @@ func compactMessages(msgs []llm.Message, fixedTokens, target, keepRecent, minTai
 			continue
 		}
 
-		size := estimatePartTokens(part)
+		size := tokens.Part(part)
 		if size <= pruneAboveTokens {
 			continue
 		}
@@ -264,7 +265,7 @@ func compactMessages(msgs []llm.Message, fixedTokens, target, keepRecent, minTai
 		content[ref.part] = replacement
 		msgs[ref.msg].Content = content
 
-		counted -= size - estimatePartTokens(replacement)
+		counted -= size - tokens.Part(replacement)
 		stats.prunedResults++
 	}
 
@@ -288,7 +289,7 @@ func compactMessages(msgs []llm.Message, fixedTokens, target, keepRecent, minTai
 	}
 
 	preamble := llm.NewMessage(llm.RoleUser, llm.NewTextPart(droppedTurnsPreamble))
-	preambleTokens := estimateMessageTokens(preamble)
+	preambleTokens := tokens.Message(preamble)
 
 	cut := 0
 	droppedTokens := 0
@@ -301,7 +302,7 @@ func compactMessages(msgs []llm.Message, fixedTokens, target, keepRecent, minTai
 		}
 
 		for i := cut; i < next; i++ {
-			droppedTokens += estimateMessageTokens(msgs[i])
+			droppedTokens += tokens.Message(msgs[i])
 			droppedMessages++
 		}
 
@@ -358,7 +359,7 @@ func (a *LLMAgent) deriveContextBudget() contextBudget {
 func (a *LLMAgent) ensureFits(sess *session.State, fixedTokens int) (compactionStats, error) {
 	b := a.deriveContextBudget()
 
-	stats := compactionStats{beforeTokens: fixedTokens + estimateHistoryTokens(sess.Messages)}
+	stats := compactionStats{beforeTokens: fixedTokens + tokens.History(sess.Messages)}
 	stats.afterTokens = stats.beforeTokens
 
 	if stats.beforeTokens <= b.trigger {
@@ -392,7 +393,7 @@ func (a *LLMAgent) ensureFits(sess *session.State, fixedTokens int) (compactionS
 // with an unreduced request is never acceptable.
 func (a *LLMAgent) reduceAfterOverflow(sess *session.State, fixedTokens int) (compactionStats, bool) {
 	b := a.deriveContextBudget()
-	countedAtFailure := fixedTokens + estimateHistoryTokens(sess.Messages)
+	countedAtFailure := fixedTokens + tokens.History(sess.Messages)
 	hardTarget := min(b.target, countedAtFailure*3/4)
 
 	msgs, stats := compactMessages(sess.Messages, fixedTokens, hardTarget, 0, 0)
@@ -436,4 +437,42 @@ func (a *LLMAgent) schemaRoom(fixedTokens int) int {
 	}
 
 	return max(newContextBudget(c.MaxInputTokens, c.MaxOutputTokens, cfg).target-fixedTokens, 0)
+}
+
+// measureContext breaks the estimated request footprint down by category for
+// observability. Unknown part kinds count as text until they earn a category.
+func measureContext(systemTokens, toolDefTokens int, msgs []llm.Message) agent.ContextUsage {
+	var text, reasoning, toolCalls, toolResults, framing int
+
+	for _, msg := range msgs {
+		framing += tokens.PerMessageOverhead
+
+		for _, part := range msg.Content {
+			size := tokens.Part(part)
+
+			switch part.(type) {
+			case *llm.ReasoningPart:
+				reasoning += size
+			case *llm.ToolRequestPart:
+				toolCalls += size
+			case *llm.ToolResponsePart:
+				toolResults += size
+			default:
+				text += size
+			}
+		}
+	}
+
+	u := agent.ContextUsage{
+		SystemPrompt:    systemTokens,
+		ToolDefinitions: toolDefTokens,
+		Text:            text,
+		Reasoning:       reasoning,
+		ToolCalls:       toolCalls,
+		ToolResults:     toolResults,
+		Framing:         framing,
+	}
+	u.Total = u.SystemPrompt + u.ToolDefinitions + u.Text + u.Reasoning + u.ToolCalls + u.ToolResults + u.Framing
+
+	return u
 }
