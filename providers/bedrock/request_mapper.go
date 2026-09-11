@@ -347,6 +347,9 @@ func (rm *RequestMapper) mapAssistantMessage(msg llm.Message) (types.Message, er
 				},
 			})
 
+		case *llm.ToolSearchPart:
+			continue
+
 		case *llm.ReasoningPart:
 			// Pass reasoning traces back as reasoning content blocks
 			if p.Text != "" || p.Signature != "" {

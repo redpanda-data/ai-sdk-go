@@ -316,7 +316,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGPT6Astra,
 			Model:        catalog.ModelGPT6Astra,
-			Capabilities: llm.ModelCapabilities{Streaming: true, Tools: true, JSONMode: true, StructuredOutput: true, Vision: true, MultiTurn: true, SystemPrompts: true, Reasoning: true},
+			Capabilities: llm.ModelCapabilities{Streaming: true, Tools: true, ToolSearch: true, JSONMode: true, StructuredOutput: true, Vision: true, MultiTurn: true, SystemPrompts: true, Reasoning: true},
 			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
 				MaxInputTokens:  1_050_000,
@@ -369,7 +369,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGPT5_5,
 			Model:        catalog.ModelGPT5_5,
-			Capabilities: flagshipCaps,
+			Capabilities: withToolSearch(flagshipCaps),
 			Modalities:   textImageAudio,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange:  [2]float64{0.0, 2.0},
@@ -399,7 +399,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGPT5_4,
 			Model:        catalog.ModelGPT5_4,
-			Capabilities: flagshipCaps,
+			Capabilities: withToolSearch(flagshipCaps),
 			Modalities:   textImageAudio,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange:  [2]float64{0.0, 2.0},
@@ -427,7 +427,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGPT5_4Mini,
 			Model:        catalog.ModelGPT5_4Mini,
-			Capabilities: flagshipCaps,
+			Capabilities: withToolSearch(flagshipCaps),
 			Modalities:   textImageAudio,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange:  [2]float64{0.0, 2.0},
@@ -448,7 +448,7 @@ func entries() []catalog.Entry {
 			ID:    ModelGPT5_4Nano,
 			Model: catalog.ModelGPT5_4Nano,
 			// Nano trades audio for speed but keeps image input and reasoning.
-			Capabilities: nanoCaps,
+			Capabilities: withToolSearch(nanoCaps),
 			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange:  [2]float64{0.0, 2.0},
@@ -701,6 +701,7 @@ func gpt56Entry(id string, model catalog.ModelID, aliases []string, rates pricin
 		Model:   model,
 		Aliases: aliases,
 		Capabilities: llm.ModelCapabilities{
+			ToolSearch:       true,
 			Streaming:        true,
 			Tools:            true,
 			JSONMode:         true,
@@ -726,4 +727,9 @@ func gpt56Entry(id string, model catalog.ModelID, aliases []string, rates pricin
 		},
 		Pricing: rates,
 	}
+}
+
+func withToolSearch(caps llm.ModelCapabilities) llm.ModelCapabilities {
+	caps.ToolSearch = true
+	return caps
 }

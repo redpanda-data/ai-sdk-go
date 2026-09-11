@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"slices"
 	"strings"
 )
 
@@ -80,6 +81,16 @@ type ToolResponsePart struct {
 	IsError bool `json:"is_error,omitempty"`
 }
 
+// ToolSearchPart preserves one provider-hosted discovery call or result in
+// conversation order. It is not an executable tool request. Providers replay
+// Data only for their own protocol; Tools lists registry names discovered by a
+// result so the agent can retain their availability across compaction.
+type ToolSearchPart struct {
+	Provider string          `json:"provider"`
+	Data     json.RawMessage `json:"data"`
+	Tools    []string        `json:"tools,omitempty"`
+}
+
 // ReasoningPart represents reasoning thoughts/traces from the model.
 type ReasoningPart struct {
 	// ID is a unique identifier for this reasoning trace.
@@ -123,6 +134,7 @@ func (*TextPart) isPart()         {}
 func (*ToolRequestPart) isPart()  {}
 func (*ToolResponsePart) isPart() {}
 func (*ReasoningPart) isPart()    {}
+func (*ToolSearchPart) isPart()   {}
 
 // JoinTextParts concatenates the text from every *TextPart in parts.
 // Non-text parts are ignored.
@@ -144,6 +156,7 @@ const (
 	partTypeToolRequest  = "tool_request"
 	partTypeToolResponse = "tool_response"
 	partTypeReasoning    = "reasoning"
+	partTypeToolSearch   = "tool_search"
 )
 
 // MarshalPart encodes a Part as a flat JSON object with a discriminator:
@@ -155,6 +168,16 @@ const (
 // JSON null rather than panicking.
 func MarshalPart(p Part) ([]byte, error) {
 	switch v := p.(type) {
+	case *ToolSearchPart:
+		if v == nil {
+			return []byte("null"), nil
+		}
+
+		return json.Marshal(struct {
+			*ToolSearchPart
+
+			Type string `json:"type"`
+		}{v, partTypeToolSearch})
 	case *TextPart:
 		if v == nil {
 			return []byte("null"), nil
@@ -231,6 +254,13 @@ func UnmarshalPart(data []byte) (Part, error) {
 	}
 
 	switch head.Type {
+	case partTypeToolSearch:
+		var v ToolSearchPart
+		if err := json.Unmarshal(data, &v); err != nil {
+			return nil, fmt.Errorf("llm: decode tool search part: %w", err)
+		}
+
+		return &v, nil
 	case partTypeText:
 		var v TextPart
 
@@ -283,6 +313,16 @@ func UnmarshalPart(data []byte) (Part, error) {
 // the input: mutating one will not affect the other.
 func ClonePart(p Part) Part {
 	switch v := p.(type) {
+	case *ToolSearchPart:
+		if v == nil {
+			return nil
+		}
+
+		out := *v
+		out.Data = cloneRawMessage(v.Data)
+		out.Tools = slices.Clone(v.Tools)
+
+		return &out
 	case *TextPart:
 		if v == nil {
 			return nil

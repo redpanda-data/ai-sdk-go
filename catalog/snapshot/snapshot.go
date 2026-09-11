@@ -196,6 +196,7 @@ func capabilitiesDTO(c llm.ModelCapabilities) map[string]bool {
 	return map[string]bool{
 		"streaming":         c.Streaming,
 		"tools":             c.Tools,
+		"tool_search":       c.ToolSearch,
 		"json_mode":         c.JSONMode,
 		"structured_output": c.StructuredOutput,
 		"vision":            c.Vision,

@@ -40,7 +40,12 @@ const (
 
 // ToolLoadingConfig tunes lazy tool loading. Zero values select defaults.
 type ToolLoadingConfig struct {
-	// MaxLoadTokens limits the estimated schema tokens one search may load.
+	// ForceLocal uses the local tool_search tool even when the model supports
+	// native hosted search. By default, supported models use native search.
+	ForceLocal bool
+
+	// MaxLoadTokens limits the estimated schema tokens one local search may load.
+	// Native hosted search controls its own selection and ignores this limit.
 	// The first tool of a search is always admitted; every load must also fit
 	// the model's context window. Default 4000.
 	MaxLoadTokens int

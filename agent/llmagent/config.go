@@ -332,9 +332,8 @@ func WithVersion(version string) Option {
 }
 
 // WithToolLoadingConfig tunes lazy tool loading. Loading needs no option to
-// enable it: once the registry holds a deferred tool, the agent lists it by
-// name in the system prompt and offers a tool_search tool that loads schemas
-// on demand. Loaded tools persist in the session across compaction and restarts.
+// enable it: deferred tools use native hosted search when supported, or a local
+// tool_search tool otherwise. Loaded tools persist across compaction and restarts.
 func WithToolLoadingConfig(cfg ToolLoadingConfig) Option {
 	return func(c *config) {
 		c.toolLoading = cfg

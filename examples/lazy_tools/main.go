@@ -253,6 +253,11 @@ func turn(ctx context.Context, r *runner.Runner, store session.Store, sessionID,
 
 		switch e := evt.(type) {
 		case agent.MessageEvent:
+			for _, part := range e.Response.Message.Content {
+				if search, ok := part.(*llm.ToolSearchPart); ok && len(search.Tools) > 0 {
+					fmt.Printf("  discovered: %s\n", strings.Join(search.Tools, ", "))
+				}
+			}
 			u := e.Response.Usage
 			fmt.Printf("  usage: input=%d cached=%d output=%d\n", u.InputTokens, u.CachedInputTokens, u.OutputTokens)
 
@@ -276,7 +281,7 @@ func turn(ctx context.Context, r *runner.Runner, store session.Store, sessionID,
 }
 
 // requestLogger prints the tools array of every model call. A load shows up
-// as the array growing on the following call.
+// as the array growing on the fallback path; native discovery keeps it stable.
 type requestLogger struct{ calls int }
 
 func (l *requestLogger) InterceptModel(_ context.Context, info *agent.ModelCallInfo, next agent.ModelCallHandler) agent.ModelCallHandler {
@@ -287,7 +292,7 @@ func (l *requestLogger) InterceptModel(_ context.Context, info *agent.ModelCallI
 		names = append(names, def.Name)
 	}
 
-	fmt.Printf("\nmodel call %d: %d tools [%s]\n", l.calls, len(names), strings.Join(names, " "))
+	fmt.Printf("\nmodel call %d: native search=%t, %d tools [%s]\n", l.calls, info.Req.ToolSearch, len(names), strings.Join(names, " "))
 
 	return next
 }
@@ -299,7 +304,7 @@ func newModel() (llm.Model, error) {
 			return nil, err
 		}
 
-		return provider.NewModel(anthropic.ModelClaudeSonnet5)
+		return provider.NewModel(anthropic.ModelClaudeSonnet46)
 	}
 
 	if key := os.Getenv("OPENAI_API_KEY"); key != "" {

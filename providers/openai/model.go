@@ -143,12 +143,14 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 				if toolCall, ok := e.Item.AsAny().(responses.ResponseFunctionToolCall); ok {
 					if !yield(llm.ContentPartEvent{
 						Index: int(e.OutputIndex),
-						Part: llm.NewToolRequestPart(
-							toolCall.CallID,
-							toolCall.Name,
-							normalizeToolArguments(toolCall.Arguments),
-						),
+						Part:  mapFunctionCall(toolCall),
 					}, nil) {
+						return
+					}
+				}
+
+				if e.Item.Type == outputTypeToolSearchCall || e.Item.Type == outputTypeToolSearchOutput {
+					if !yield(llm.ContentPartEvent{Index: int(e.OutputIndex), Part: mapToolSearch(e.Item)}, nil) {
 						return
 					}
 				}

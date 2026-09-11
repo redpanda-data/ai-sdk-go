@@ -283,11 +283,13 @@ func (a *LLMAgent) executeSingleTurn(
 		toolDefs = a.config.tools.List()
 	}
 
+	native := a.nativeToolSearch(toolDefs)
+
 	// Resolve schemas and group instructions together before budgeting the request.
 	var promptSection string
 
 	if a.loader != nil {
-		toolDefs, promptSection = a.loader.prepare(toolDefs, sess)
+		toolDefs, promptSection = a.prepareTools(toolDefs, sess, native)
 	}
 
 	// Build working message list with system prompt (not persisted)
@@ -311,7 +313,7 @@ func (a *LLMAgent) executeSingleTurn(
 	// The fixed cost also sets the lazy-loading admission line.
 	if a.config.compaction != nil || a.loader != nil {
 		sysTokens = estimateMessageTokens(reqMessages[0])
-		toolDefTokens = estimateToolTokens(toolDefs)
+		toolDefTokens = a.toolTokens(toolDefs, sess, native)
 		fixedTokens = sysTokens + toolDefTokens
 	}
 
@@ -338,7 +340,7 @@ func (a *LLMAgent) executeSingleTurn(
 		}
 	}
 
-	resp, sentReq, err := a.generateAttempt(ctx, inv, reqMessages, toolDefs, makeEnvelope, yield)
+	resp, sentReq, err := a.generateAttempt(ctx, inv, reqMessages, toolDefs, native, makeEnvelope, yield)
 	if err != nil && a.config.compaction != nil && errors.Is(err, llm.ErrContextOverflow) {
 		// Reactive path: the provider rejected the request pre-flight, so
 		// nothing was emitted. Force a strictly smaller request - hard
@@ -362,7 +364,7 @@ func (a *LLMAgent) executeSingleTurn(
 
 		retryMessages := append([]llm.Message{reqMessages[0]}, sess.Messages...)
 
-		resp, sentReq, err = a.generateAttempt(ctx, inv, retryMessages, toolDefs, makeEnvelope, yield)
+		resp, sentReq, err = a.generateAttempt(ctx, inv, retryMessages, toolDefs, native, makeEnvelope, yield)
 		if err != nil && errors.Is(err, llm.ErrContextOverflow) {
 			return "", fmt.Errorf("llmagent: request still exceeds the context window after forced compaction: %w", err)
 		}
@@ -398,6 +400,10 @@ func (a *LLMAgent) executeSingleTurn(
 	if len(resp.Message.Content) > 0 {
 		sess.Messages = append(sess.Messages, resp.Message)
 	}
+
+	// Native discovery may be followed by a real tool call in the same response.
+	// Commit before MessageEvent, where runners persist the session.
+	a.recordNativeLoads(sess, resp.Message)
 
 	// Emit message event
 	if !yield(agent.MessageEvent{
@@ -436,6 +442,10 @@ func (a *LLMAgent) executeSingleTurn(
 	// Check for tool calls
 	toolReqs := resp.ToolRequests()
 	if len(toolReqs) == 0 {
+		if native && resp.FinishReason == llm.FinishReasonToolCalls {
+			// Anthropic pause_turn: replay the hosted search and let it continue.
+			return "", nil
+		}
 		// No tools requested - natural completion
 		// Emit turn completed
 		yield(agent.StatusEvent{
@@ -477,10 +487,13 @@ func (a *LLMAgent) executeSingleTurn(
 	// The per-result cap for this turn is fixed before any tool runs, so a
 	// parallel burst cannot assemble an unfittable frontier and runs are
 	// reproducible regardless of completion order.
+	if native {
+		fixedTokens = sysTokens + a.toolTokens(sentReq.Tools, sess, native)
+	}
 	countedRequest := fixedTokens + estimateHistoryTokens(sess.Messages)
 	resultCap := a.effectiveResultCap(countedRequest, len(toolReqs))
 
-	toolParts := a.executeTools(ctx, inv, toolReqs, sentReq.Tools, resultCap, a.schemaRoom(fixedTokens), makeEnvelope, yield)
+	toolParts := a.executeTools(ctx, inv, toolReqs, visibleTools(sentReq.Tools, sess, native), resultCap, a.schemaRoom(fixedTokens), makeEnvelope, yield)
 
 	// Build single message with all tool response parts
 	toolMsg := llm.NewMessage(llm.RoleUser, toolParts...)
@@ -508,12 +521,20 @@ func (a *LLMAgent) generateAttempt(
 	inv *agent.InvocationMetadata,
 	messages []llm.Message,
 	toolDefs []llm.ToolDefinition,
+	native bool,
 	makeEnvelope func() agent.EventEnvelope,
 	yield func(agent.Event, error) bool,
 ) (*llm.Response, *llm.Request, error) {
+	if native {
+		// Re-evaluate after either proactive compaction or an overflow retry.
+		// The native prompt depends on the full catalog, not the loaded set,
+		// so changing deferral after compaction leaves the prompt unchanged.
+		toolDefs, _ = a.prepareTools(toolDefs, inv.Session(), native)
+	}
 	req := &llm.Request{
-		Messages: cloneMessages(messages),
-		Tools:    cloneToolDefinitions(toolDefs),
+		Messages:   cloneMessages(messages),
+		Tools:      cloneToolDefinitions(toolDefs),
+		ToolSearch: native,
 	}
 	modelInfo := &agent.ModelCallInfo{
 		InvocationMetadata: inv,
@@ -950,12 +971,13 @@ func (a *LLMAgent) recoverIncompleteToolCalls(
 
 	// Execute the incomplete tools.
 	toolDefs := a.config.tools.List()
+	native := a.nativeToolSearch(toolDefs)
 
 	// Recovery uses the persisted loaded set and the next request's fixed cost.
 	var promptSection string
 
 	if a.loader != nil {
-		toolDefs, promptSection = a.loader.prepare(toolDefs, sess)
+		toolDefs, promptSection = a.prepareTools(toolDefs, sess, native)
 	}
 
 	fixedTokens := 0
@@ -966,7 +988,7 @@ func (a *LLMAgent) recoverIncompleteToolCalls(
 			return fmt.Errorf("llmagent: system prompt for recovery budget: %w", err)
 		}
 
-		fixedTokens = estimateMessageTokens(reqMessages[0]) + estimateToolTokens(toolDefs)
+		fixedTokens = estimateMessageTokens(reqMessages[0]) + a.toolTokens(toolDefs, sess, native)
 	}
 
 	// Recovered results land in the unread frontier, which compaction can
@@ -975,7 +997,7 @@ func (a *LLMAgent) recoverIncompleteToolCalls(
 	// reclaimed on the following turn.
 	countedRequest := fixedTokens + estimateHistoryTokens(sess.Messages)
 	resultCap := a.effectiveResultCap(countedRequest, len(incomplete))
-	toolParts := a.executeTools(ctx, inv, incomplete, toolDefs, resultCap, a.schemaRoom(fixedTokens), makeEnvelope, yield)
+	toolParts := a.executeTools(ctx, inv, incomplete, visibleTools(toolDefs, sess, native), resultCap, a.schemaRoom(fixedTokens), makeEnvelope, yield)
 
 	// Insert tool response message BEFORE the last user message.
 	// Current: [..., assistant(tool_req), user(text)]

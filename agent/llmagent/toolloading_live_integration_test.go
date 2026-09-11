@@ -17,6 +17,7 @@ package llmagent
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -93,26 +94,30 @@ func liveModels() map[string]func(t *testing.T) llm.Model {
 	}
 }
 
-// toolsSeen records the tools array of every model call.
+// toolsSeen records discovery settings, tool definitions, and history for each model call.
 type toolsSeen struct {
 	mu    sync.Mutex
-	calls [][]string
+	calls []llm.Request
 }
 
 func (r *toolsSeen) InterceptModel(_ context.Context, info *agent.ModelCallInfo, next agent.ModelCallHandler) agent.ModelCallHandler {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.calls = append(r.calls, requestToolNames(info.Req))
+	r.calls = append(r.calls, llm.Request{
+		ToolSearch: info.Req.ToolSearch,
+		Tools:      cloneToolDefinitions(info.Req.Tools),
+		Messages:   cloneMessages(info.Req.Messages),
+	})
 
 	return next
 }
 
-func (r *toolsSeen) snapshot() [][]string {
+func (r *toolsSeen) snapshot() []llm.Request {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	return append([][]string(nil), r.calls...)
+	return slices.Clone(r.calls)
 }
 
 const adaSysID = "6816f79cc0a8016401c5a33be04be441"
@@ -181,52 +186,113 @@ func TestToolLoadingLiveProviders_Integration(t *testing.T) {
 			t.Parallel()
 
 			model := build(t)
-			registry, create, closeIncident := liveRegistry(t)
-			seen := &toolsSeen{}
 
-			ag, err := New("service-desk",
-				"You are an internal service desk agent. Use the tools to act on the user's request without asking for confirmation.",
-				model, WithTools(registry), WithMaxTurns(8), WithInterceptors(seen))
-			require.NoError(t, err)
-
-			sess := &session.State{ID: "live-" + name, Messages: userMessage("Open an incident for Ada Lovelace: her laptop will not boot.")}
-			require.Equal(t, agent.FinishReasonStop, finishReason(runAgent(t, ag, sess)))
-			logTranscript(t, sess)
-
-			require.Equal(t, int32(1), create.calls.Load(), "create_incident must execute exactly once")
-
-			var args struct {
-				CallerSysID      string `json:"caller_sys_id"`
-				ShortDescription string `json:"short_description"`
+			modes := []string{"local"}
+			if model.Capabilities().ToolSearch {
+				modes = append(modes, "native")
 			}
-			require.NoError(t, json.Unmarshal(create.arguments()[0], &args))
-			assert.Equal(t, adaSysID, args.CallerSysID, "the sys_id must come from search_users, per the group instructions")
-			assert.NotEmpty(t, args.ShortDescription)
-			assert.Contains(t, sess.Metadata[loadedToolsMetadataKey], incidentTool)
 
-			turn1 := len(seen.snapshot())
-			assert.LessOrEqual(t, turn1, 6, "discovery should cost at most a couple of extra round trips")
-
-			// Turn 2: the loaded tool is still present; a second one is discovered.
-			sess.Messages = append(sess.Messages, userMessage("Now close that incident as solved.")...)
-			require.Equal(t, agent.FinishReasonStop, finishReason(runAgent(t, ag, sess)))
-
-			calls := seen.snapshot()
-			assert.Contains(t, calls[turn1], incidentTool, "turn 2 starts with the loaded tool present")
-			assert.NotContains(t, calls[turn1], "servicenow__close_incident")
-			require.Equal(t, int32(1), closeIncident.calls.Load())
-
-			var closeArgs struct {
-				Number         string `json:"number"`
-				ResolutionCode string `json:"resolution_code"`
+			for _, mode := range modes {
+				t.Run(mode, func(t *testing.T) {
+					t.Parallel()
+					testToolLoadingLive(t, model, mode == "native")
+				})
 			}
-			require.NoError(t, json.Unmarshal(closeIncident.arguments()[0], &closeArgs))
-			assert.Equal(t, "INC0012345", closeArgs.Number)
-			assert.Equal(t, "solved", closeArgs.ResolutionCode)
-
-			t.Logf("%s: turn 1 %d model calls, turn 2 %d, loaded %v", name, turn1, len(calls)-turn1, sess.Metadata[loadedToolsMetadataKey])
 		})
 	}
+}
+
+func testToolLoadingLive(t *testing.T, model llm.Model, native bool) {
+	t.Helper()
+
+	registry, create, closeIncident := liveRegistry(t)
+	seen := &toolsSeen{}
+
+	ag, err := New("service-desk",
+		"You are an internal service desk agent. Use the tools to act on the user's request without asking for confirmation.",
+		model, WithTools(registry), WithMaxTurns(8), WithInterceptors(seen),
+		WithToolLoadingConfig(ToolLoadingConfig{ForceLocal: !native}))
+	require.NoError(t, err)
+
+	sess := &session.State{ID: t.Name(), Messages: userMessage("Open an incident for Ada Lovelace: her laptop will not boot.")}
+	require.Equal(t, agent.FinishReasonStop, finishReason(runAgent(t, ag, sess)))
+	logTranscript(t, sess)
+
+	require.Equal(t, int32(1), create.calls.Load(), "create_incident must execute exactly once")
+
+	var args struct {
+		CallerSysID      string `json:"caller_sys_id"`
+		ShortDescription string `json:"short_description"`
+	}
+	require.NoError(t, json.Unmarshal(create.arguments()[0], &args))
+	assert.Equal(t, adaSysID, args.CallerSysID, "the sys_id must come from search_users, per the group instructions")
+	assert.NotEmpty(t, args.ShortDescription)
+	assert.Contains(t, sess.Metadata[loadedToolsMetadataKey], incidentTool)
+
+	firstCalls := seen.snapshot()
+	require.NotEmpty(t, firstCalls)
+	assert.Equal(t, native, firstCalls[0].ToolSearch)
+
+	if native {
+		assert.Equal(t, registry.List(), firstCalls[0].Tools)
+		assert.Contains(t, nativeLoadedTools(sess.Messages, model.Provider()), incidentTool,
+			"native discovery must expose the tool that executed")
+	} else {
+		assert.Contains(t, defNames(firstCalls[0].Tools), toolSearchName)
+		assert.NotContains(t, defNames(firstCalls[0].Tools), incidentTool)
+	}
+
+	loadedAfterTurn1 := loadedToolSet(sess)
+	turn1 := len(firstCalls)
+	assert.LessOrEqual(t, turn1, 6, "discovery should cost at most a couple of extra round trips")
+
+	// Resume persisted history and metadata for the second user turn.
+	stored, err := json.Marshal(sess)
+	require.NoError(t, err)
+	var resumed session.State
+	require.NoError(t, json.Unmarshal(stored, &resumed))
+	sess = &resumed
+
+	// Turn 2: previously loaded tools remain available; discover more if needed.
+	sess.Messages = append(sess.Messages, userMessage("Now close that incident as solved.")...)
+	require.Equal(t, agent.FinishReasonStop, finishReason(runAgent(t, ag, sess)))
+
+	calls := seen.snapshot()
+	require.Greater(t, len(calls), turn1)
+
+	if native {
+		assert.Contains(t, nativeLoadedTools(calls[turn1].Messages, model.Provider()), incidentTool,
+			"turn 2 replays the persisted discovery result")
+		assert.Contains(t, nativeLoadedTools(sess.Messages, model.Provider()), "servicenow__close_incident")
+
+		for _, call := range calls {
+			assert.True(t, call.ToolSearch)
+			assert.Equal(t, firstCalls[0].Tools, call.Tools, "native catalog stays stable across discovery")
+			require.NotEmpty(t, call.Messages)
+			assert.Equal(t, firstCalls[0].Messages[0], call.Messages[0], "native system prompt stays stable")
+		}
+	} else {
+		assert.Contains(t, defNames(calls[turn1].Tools), incidentTool, "turn 2 starts with the loaded tool present")
+		assert.Equal(t, loadedAfterTurn1["servicenow__close_incident"],
+			slices.Contains(defNames(calls[turn1].Tools), "servicenow__close_incident"),
+			"a deferred tool is declared only if it was already discovered")
+
+		for _, call := range calls {
+			assert.False(t, call.ToolSearch)
+		}
+	}
+
+	require.Equal(t, int32(1), closeIncident.calls.Load())
+
+	var closeArgs struct {
+		Number         string `json:"number"`
+		ResolutionCode string `json:"resolution_code"`
+	}
+	require.NoError(t, json.Unmarshal(closeIncident.arguments()[0], &closeArgs))
+	assert.Equal(t, "INC0012345", closeArgs.Number)
+	assert.Equal(t, "solved", closeArgs.ResolutionCode)
+
+	t.Logf("%s: turn 1 %d model calls, turn 2 %d, loaded %v", model.Provider(), turn1, len(calls)-turn1, sess.Metadata[loadedToolsMetadataKey])
 }
 
 // TestToolLoadingStaleHistory_Integration resumes a transcript that references
@@ -270,7 +336,7 @@ func TestToolLoadingStaleHistory_Integration(t *testing.T) {
 			}
 
 			assert.Equal(t, agent.FinishReasonStop, finishReason(runAgent(t, ag, sess)))
-			assert.Equal(t, []string{"todo_write"}, seen.snapshot()[0], "nothing deferred: no tool_search, no stale tool declared")
+			assert.Equal(t, []string{"todo_write"}, defNames(seen.snapshot()[0].Tools), "nothing deferred: no tool_search, no stale tool declared")
 
 			last := sess.Messages[len(sess.Messages)-1]
 			assert.Equal(t, llm.RoleAssistant, last.Role)
@@ -279,12 +345,22 @@ func TestToolLoadingStaleHistory_Integration(t *testing.T) {
 	}
 }
 
-// logTranscript prints every tool call and result, so a run that took more
-// round trips than expected explains itself.
+// logTranscript includes native discovery and model text so early stops and
+// extra round trips can be diagnosed from the live test output.
 func logTranscript(t *testing.T, sess *session.State) {
 	t.Helper()
 
 	for _, msg := range sess.Messages {
+		if text := msg.TextContent(); text != "" {
+			t.Logf("  %s: %s", msg.Role, text)
+		}
+
+		for _, part := range msg.Content {
+			if search, ok := part.(*llm.ToolSearchPart); ok {
+				t.Logf("  native %s: %s", search.Provider, search.Data)
+			}
+		}
+
 		for _, req := range msg.ToolRequests() {
 			t.Logf("  -> %s %s", req.Name, req.Arguments)
 		}

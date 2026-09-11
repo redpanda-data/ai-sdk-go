@@ -28,6 +28,10 @@ type Request struct {
 	// Only used if the model supports tool calling (check Capabilities.Tools).
 	Tools []ToolDefinition `json:"tools,omitempty"`
 
+	// ToolSearch enables provider-hosted discovery of Deferred tools. Requires
+	// Capabilities.ToolSearch. Supply the complete catalog on every request.
+	ToolSearch bool `json:"tool_search,omitempty"`
+
 	// ToolChoice controls how the model should use available tools.
 	// This field is ignored if Tools is empty or the model doesn't support tools.
 	ToolChoice *ToolChoice `json:"tool_choice,omitempty"`
@@ -70,17 +74,18 @@ type ToolDefinition struct {
 	Type string `json:"type,omitempty"`
 
 	// Deferred withholds the input schema from the model until the model loads
-	// it on demand. Until then the tool is announced by name and summary only.
-	// Set through tool.WithDeferred; providers ignore it.
+	// it on demand. Discovery uses tool summaries or native namespaces.
+	// Set through tool.WithDeferred. Native providers honor it with ToolSearch;
+	// the agent implements local discovery on other providers.
 	Deferred bool `json:"deferred,omitempty"`
 
-	// Group is the capability group the tool belongs to. Providers ignore it.
+	// Group organizes discovery. OpenAI native search maps it to a namespace.
 	Group ToolGroup `json:"group,omitzero"`
 }
 
 // ToolGroup is the capability a tool belongs to, typically one MCP server or
 // one feature area. It shapes what the model reads about deferred tools and
-// never changes which tool executes. Tools load individually, not by group.
+// never changes which tool executes. Native providers may load whole groups.
 //
 // Any member may carry Description and Instructions. A registry rejects
 // conflicting values and reports the resolved value on every member.
@@ -92,7 +97,8 @@ type ToolGroup struct {
 	Description string `json:"description,omitempty"`
 
 	// Instructions are added to the system prompt while any tool of the group
-	// is visible to the model. Use them for rules no single schema conveys.
+	// is visible in local mode, and up front in native mode to keep the prompt
+	// stable. Use them for rules no single schema conveys.
 	Instructions string `json:"instructions,omitempty"`
 }
 

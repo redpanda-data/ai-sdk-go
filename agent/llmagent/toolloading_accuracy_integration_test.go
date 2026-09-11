@@ -77,8 +77,9 @@ var accuracyTasks = []accuracyTask{
 }
 
 // TestToolLoadingAccuracyUnderDistractors is the accuracy half of the
-// evaluation plan: can the model reach the right tool, and does it get there in
-// one search, as the number of irrelevant tool groups grows?
+// evaluation plan for local discovery: can the model reach the right tool, and
+// does it get there in one search, as irrelevant tool groups grow? singleShot
+// measures the local select: protocol, not native hosted search.
 func TestToolLoadingAccuracyUnderDistractors_Integration(t *testing.T) {
 	t.Parallel()
 
@@ -100,7 +101,7 @@ func TestToolLoadingAccuracyUnderDistractors_Integration(t *testing.T) {
 		for _, arm := range []struct {
 			name string
 			lazy bool
-		}{{"lazy", true}, {"always-on", false}} {
+		}{{"local-lazy", true}, {"always-on", false}} {
 			t.Run(fmt.Sprintf("distractors=%d/%s", distractors, arm.name), func(t *testing.T) {
 				t.Parallel()
 
@@ -118,8 +119,9 @@ func TestToolLoadingAccuracyUnderDistractors_Integration(t *testing.T) {
 
 					registry := buildAccuracyRegistry(t, groupsFor(task.group, distractors), arm.lazy)
 
-					// The lazy arm needs no agent option: deferral lives in the registry.
-					opts := []Option{WithTools(registry), WithMaxTurns(6)}
+					// Keep the local search metrics comparable when the model gains
+					// native search support. Native behavior has separate live tests.
+					opts := []Option{WithTools(registry), WithMaxTurns(6), WithToolLoadingConfig(ToolLoadingConfig{ForceLocal: true})}
 
 					ag, err := New("service-desk",
 						"You are an internal service desk agent. Use the available tools to act on the "+

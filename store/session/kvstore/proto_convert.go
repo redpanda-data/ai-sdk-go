@@ -223,6 +223,16 @@ func toProtoPart(p llm.Part) (*llmpb.Part, error) {
 			},
 		}
 
+	case *llm.ToolSearchPart:
+		if v == nil {
+			return nil, errors.New("nil *ToolSearchPart")
+		}
+
+		pbPart.Kind = llmpb.PartKind_PART_KIND_TOOL_SEARCH
+		pbPart.Data = &llmpb.Part_ToolSearch{ToolSearch: &llmpb.ToolSearch{
+			Provider: v.Provider, Data: v.Data, Tools: v.Tools,
+		}}
+
 	case *llm.ReasoningPart:
 		if v == nil {
 			return nil, errors.New("nil *ReasoningPart")
@@ -304,6 +314,15 @@ func fromProtoPart(pb *llmpb.Part) (llm.Part, error) {
 		}
 
 		return out, nil
+
+	case *llmpb.Part_ToolSearch:
+		if data.ToolSearch == nil {
+			return nil, errors.New("Part_ToolSearch has nil ToolSearch")
+		}
+
+		return &llm.ToolSearchPart{
+			Provider: data.ToolSearch.Provider, Data: data.ToolSearch.Data, Tools: data.ToolSearch.Tools,
+		}, nil
 
 	case *llmpb.Part_ReasoningTrace:
 		if data.ReasoningTrace == nil {

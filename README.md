@@ -152,15 +152,28 @@ agent, err := llmagent.New("support", "Help with support requests.", model,
 )
 ```
 
-Nothing else to switch on: an agent whose registry holds a deferred tool lists it by name and
-summary in the system prompt and offers a `tool_search` tool that loads schemas on demand. Loaded
-tools stay available across turns, compaction, and session restarts; a group's instructions join
-the system prompt while any of its tools is loaded. An MCP client is a group by itself:
-`mcp.WithDeferredTools()`, `mcp.WithAlwaysLoad("search_tickets")` and `mcp.WithToolGroup(...)`
+Nothing else to switch on. The agent chooses discovery based on the model's capabilities:
+
+- Supported Anthropic models use hosted tool search and native deferred schemas.
+- OpenAI Responses models with tool search support use native deferred functions; tool groups
+  become namespaces. Both native paths keep the tool catalog stable as tools are discovered.
+- Gemini, OpenAI-compatible endpoints, Bedrock Converse, and models without native search
+  support use the local `tool_search` tool. Discovered schemas join the next request's tools
+  array; prefix caching can be invalidated when the set changes.
+
+Loaded tools stay available across turns and session restarts. If compaction removes native
+search references, previously loaded tools become eager in the next request. Native mode puts a
+group directory and all group instructions in the system prompt up front to keep it stable; the
+local fallback includes a name/summary manifest and activates group instructions as tools load.
+
+`mcp.WithDeferredTools()`, `mcp.WithAlwaysLoad("search_tickets")`, and `mcp.WithToolGroup(...)`
 express the same policy per server. `tool.WithGroup` and `tool.WithDeferred` are the per-tool
-registration options underneath. `llmagent.WithToolLoadingConfig` tunes the per-search limits.
-[`examples/lazy_tools`](examples/lazy_tools/) runs the whole thing against public MCP servers, with a
-keyless dry-run mode that prints exactly what the model receives.
+registration options underneath. `llmagent.WithToolLoadingConfig` tunes local search limits;
+hosted search controls its own selection and does not use `MaxLoadTokens`. To use local search
+on a model that supports native search, pass
+`llmagent.WithToolLoadingConfig(llmagent.ToolLoadingConfig{ForceLocal: true})`.
+[`examples/lazy_tools`](examples/lazy_tools/) runs against public MCP servers. Its keyless dry-run
+prints the local fallback request.
 
 Loaded schemas remain in the session. If later loads exhaust its tool capacity, a fresh session
 may have room for those tools. Searches return flat lists of loaded names; explicit `select:`

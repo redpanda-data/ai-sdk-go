@@ -54,6 +54,24 @@ func estimatePartTokens(part llm.Part) int {
 
 		return estimateTextTokens(p.Text)
 
+	case *llm.ToolSearchPart:
+		if p == nil {
+			return 0
+		}
+
+		if len(p.Tools) > 0 {
+			// Loaded schemas are counted in the fixed tool budget, regardless
+			// of whether the provider stores references or schemas in history.
+			total := 100
+			for _, name := range p.Tools {
+				total += estimateTextTokens(name)
+			}
+
+			return total
+		}
+
+		return estimateTextTokens(string(p.Data))
+
 	case *llm.ReasoningPart:
 		if p == nil {
 			return 0

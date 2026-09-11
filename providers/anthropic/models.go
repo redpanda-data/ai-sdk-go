@@ -90,12 +90,12 @@ func Catalog() *catalog.Catalog {
 	return catalogOnce()
 }
 
-// claudeCaps is the capability set shared by every catalogued Claude
-// model. Structured outputs are generally available via
-// output_config.format with a json_schema; JSONMode is false because
-// Anthropic has no schemaless JSON mode. Every catalogued Claude is
-// multimodal-in.
+// claudeCaps covers Claude models with native tool search. Structured outputs
+// are generally available via output_config.format with a json_schema;
+// JSONMode is false because Anthropic has no schemaless JSON mode.
+// Every catalogued Claude is multimodal-in.
 var claudeCaps = llm.ModelCapabilities{
+	ToolSearch:       true,
 	Streaming:        true,
 	Tools:            true,
 	StructuredOutput: true,
@@ -104,6 +104,17 @@ var claudeCaps = llm.ModelCapabilities{
 	SystemPrompts:    true,
 	Reasoning:        true,
 }
+
+// Opus 4.1 is explicitly unsupported. Sonnet 5 is absent from the compatibility
+// list as of 2026-09-11, so its support is unverified; no API failure was observed.
+// Both retain local discovery until native support is documented:
+// https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool#model-compatibility
+var claudeCapsWithoutToolSearch = func() llm.ModelCapabilities {
+	caps := claudeCaps
+	caps.ToolSearch = false
+
+	return caps
+}()
 
 // claudeModalities is shared by every catalogued Claude model: text,
 // image, and PDF inputs; text output.
@@ -274,7 +285,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeSonnet5,
 			Model:        catalog.ModelClaudeSonnet5,
-			Capabilities: claudeCaps,
+			Capabilities: claudeCapsWithoutToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange: [2]float64{0.0, 1.0},
@@ -414,7 +425,7 @@ func entries() []catalog.Entry {
 			// explainable.
 			ID:           ModelClaudeOpus41,
 			Model:        catalog.ModelClaudeOpus41,
-			Capabilities: claudeCaps,
+			Capabilities: claudeCapsWithoutToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange: [2]float64{0.0, 1.0},
