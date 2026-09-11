@@ -22,6 +22,7 @@ import (
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/agent/llmagent/internal/tokens"
+	"github.com/redpanda-data/ai-sdk-go/agent/llmagent/internal/toolloading"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/store/session"
 )
@@ -428,7 +429,7 @@ func compactionReport(phase agent.CompactionPhase, stats compactionStats, before
 func (a *LLMAgent) schemaRoom(fixedTokens int) int {
 	c := a.config.model.Constraints()
 	if c.MaxInputTokens <= 0 {
-		return unboundedSchemaRoom
+		return toolloading.UnboundedSchemaRoom
 	}
 
 	cfg := CompactionConfig{}

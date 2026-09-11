@@ -12,9 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package llmagent
+package toolloading
 
 import (
+	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 	"text/template"
@@ -79,7 +82,7 @@ func buildToolManifest(deferred []llm.ToolDefinition) toolManifest {
 
 	manifest := toolManifest{
 		Count:      len(deferred),
-		SearchTool: toolSearchName,
+		SearchTool: SearchToolName,
 		Groups:     make([]manifestGroup, 0, len(names)),
 	}
 
@@ -211,6 +214,59 @@ func renderGroupInstructions(visible []llm.ToolDefinition) string {
 	if err != nil {
 		// Unreachable, as in renderToolManifest.
 		return ""
+	}
+
+	return strings.TrimRight(out.String(), "\n")
+}
+
+//
+// Group directory (native mode)
+//
+
+// renderGroupDirectory lists the groups that hold deferred tools, one line per
+// group, plus a count of ungrouped deferred tools. Hosted search indexes names
+// and descriptions server-side, so listing individual tools would only spend
+// the tokens deferral saves.
+func renderGroupDirectory(defs []llm.ToolDefinition) string {
+	descriptions := make(map[string]string)
+	ungrouped := 0
+
+	for _, def := range defs {
+		if !def.Deferred {
+			continue
+		}
+
+		if def.Group.Name == "" {
+			ungrouped++
+			continue
+		}
+
+		descriptions[def.Group.Name] = strings.TrimSpace(def.Group.Description)
+	}
+
+	if len(descriptions) == 0 && ungrouped == 0 {
+		return ""
+	}
+
+	names := slices.Sorted(maps.Keys(descriptions))
+
+	var out strings.Builder
+
+	out.WriteString("## Searchable tools\n\n")
+	out.WriteString("More tools can be discovered with tool search. Never tell the user you lack a capability without searching for it first. Available groups:\n")
+
+	for _, name := range names {
+		out.WriteString("- " + name)
+
+		if descriptions[name] != "" {
+			out.WriteString(" - " + descriptions[name])
+		}
+
+		out.WriteString("\n")
+	}
+
+	if ungrouped > 0 {
+		fmt.Fprintf(&out, "- %s - %d ungrouped tools\n", ungroupedHeading, ungrouped)
 	}
 
 	return strings.TrimRight(out.String(), "\n")

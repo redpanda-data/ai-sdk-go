@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package llmagent
+package toolloading
 
 import (
 	"context"
@@ -31,7 +31,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/structpb"
 
-	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/llm/fakellm"
 	"github.com/redpanda-data/ai-sdk-go/store/session"
@@ -39,7 +38,7 @@ import (
 )
 
 //
-// Fixtures shared by every tool-loading test in the package.
+// Fixtures shared by the loader tests.
 //
 
 // stubTool is a registry tool with a canned result that counts its runs and
@@ -67,13 +66,6 @@ func (t *stubTool) Execute(_ context.Context, args json.RawMessage) (json.RawMes
 	}
 
 	return json.RawMessage(`{"ok":true}`), nil
-}
-
-func (t *stubTool) arguments() []json.RawMessage {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	return append([]json.RawMessage(nil), t.received...)
 }
 
 type fixtureTool struct {
@@ -154,15 +146,15 @@ func serviceDeskTools() []fixtureTool {
 	}
 }
 
-func newFixtureLoader(tb testing.TB, tools []fixtureTool, configs ...ToolLoadingConfig) *toolLoader {
+func newFixtureLoader(tb testing.TB, tools []fixtureTool, configs ...Config) *Loader {
 	tb.Helper()
 
-	cfg := ToolLoadingConfig{}
+	cfg := Config{}
 	if len(configs) > 0 {
 		cfg = configs[0]
 	}
 
-	return newToolLoader(newFixtureRegistry(tb, tools...), cfg)
+	return New(newFixtureRegistry(tb, tools...), fakellm.NewFakeModel(), cfg)
 }
 
 func defNames(defs []llm.ToolDefinition) []string {
@@ -176,14 +168,14 @@ func defNames(defs []llm.ToolDefinition) []string {
 
 // batchFor builds the batch executeTools would build for sess: the visible set
 // is exactly what prepare sends.
-func batchFor(loader *toolLoader, sess *session.State, schemaRoom int) *loadBatch {
-	sent, _ := loader.prepare(loader.tools.List(), sess)
+func batchFor(loader *Loader, sess *session.State, schemaRoom int) *Batch {
+	sent, _ := loader.prepareLocal(loader.tools.List(), sess)
 
-	return loader.newBatch(sent, schemaRoom)
+	return loader.NewBatch(sent, schemaRoom)
 }
 
 func searchRequest(id, query string) *llm.ToolRequestPart {
-	return &llm.ToolRequestPart{ID: id, Name: toolSearchName, Arguments: json.RawMessage(`{"query":` + strconv.Quote(query) + `}`)}
+	return &llm.ToolRequestPart{ID: id, Name: SearchToolName, Arguments: json.RawMessage(`{"query":` + strconv.Quote(query) + `}`)}
 }
 
 func decodeSearch(t *testing.T, resp *llm.ToolResponsePart) searchOutput {
@@ -196,64 +188,16 @@ func decodeSearch(t *testing.T, resp *llm.ToolResponsePart) searchOutput {
 }
 
 // runSearch resolves one search the way the agent does and commits its loads.
-func runSearch(t *testing.T, loader *toolLoader, sess *session.State, query string) searchOutput {
+func runSearch(t *testing.T, loader *Loader, sess *session.State, query string) searchOutput {
 	t.Helper()
 
 	req := searchRequest("call-1", query)
-	resp, loads, owned := loader.resolve(batchFor(loader, sess, unboundedSchemaRoom), req)
+	resp, loads, owned := loader.Resolve(batchFor(loader, sess, UnboundedSchemaRoom), req)
 	require.True(t, owned)
 	require.False(t, resp.IsError, string(resp.Result))
-	loader.commit(sess, loads)
+	loader.Commit(sess, loads)
 
 	return decodeSearch(t, resp)
-}
-
-// runAgent drives one invocation to completion and returns its events.
-func runAgent(t *testing.T, ag *LLMAgent, sess *session.State) []agent.Event {
-	t.Helper()
-
-	events := make([]agent.Event, 0, 32)
-
-	for evt, err := range ag.Run(t.Context(), agent.NewInvocationMetadata(sess, agent.Info{})) {
-		require.NoError(t, err)
-
-		events = append(events, evt)
-	}
-
-	return events
-}
-
-func finishReason(events []agent.Event) agent.FinishReason {
-	for i := len(events) - 1; i >= 0; i-- {
-		if end, ok := events[i].(agent.InvocationEndEvent); ok {
-			return end.FinishReason
-		}
-	}
-
-	return ""
-}
-
-func requestToolNames(req *llm.Request) []string {
-	return defNames(req.Tools)
-}
-
-// toolResultsFor returns every result recorded for name, in order.
-func toolResultsFor(msgs []llm.Message, name string) []string {
-	var results []string
-
-	for _, msg := range msgs {
-		for _, resp := range msg.ToolResponses() {
-			if resp.Name == name {
-				results = append(results, string(resp.Result))
-			}
-		}
-	}
-
-	return results
-}
-
-func userMessage(text string) []llm.Message {
-	return []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart(text))}
 }
 
 //
@@ -269,14 +213,14 @@ func TestPrepare(t *testing.T) {
 		loader := newFixtureLoader(t, serviceDeskTools())
 		sess := &session.State{ID: "s"}
 
-		defs, section := loader.prepare(loader.tools.List(), sess)
+		defs, section := loader.prepareLocal(loader.tools.List(), sess)
 		assert.Equal(t, []string{"servicenow__search_incidents", "todo_write", "tool_search"}, defNames(defs),
 			"always-on tools plus tool_search, name-sorted, before anything is loaded")
 		assert.Contains(t, section, "## Additional tools")
 
-		loader.commit(sess, []string{"jira__create_issue", "servicenow__create_incident"})
+		loader.Commit(sess, []string{"jira__create_issue", "servicenow__create_incident"})
 
-		defs, sectionAfter := loader.prepare(loader.tools.List(), sess)
+		defs, sectionAfter := loader.prepareLocal(loader.tools.List(), sess)
 		assert.Equal(t, []string{"jira__create_issue", "servicenow__create_incident", "servicenow__search_incidents", "todo_write", "tool_search"}, defNames(defs))
 		assert.Equal(t, section, sectionAfter, "the catalog lists every deferred tool for the life of the registry")
 	})
@@ -287,7 +231,7 @@ func TestPrepare(t *testing.T) {
 		loader := newFixtureLoader(t, []fixtureTool{{name: "alpha", description: "A"}, {name: "beta", description: "B"}})
 		in := loader.tools.List()
 
-		out, section := loader.prepare(in, &session.State{ID: "s"})
+		out, section := loader.prepareLocal(in, &session.State{ID: "s"})
 		assert.Equal(t, in, out)
 		assert.Empty(t, section)
 	})
@@ -297,17 +241,17 @@ func TestPrepare(t *testing.T) {
 
 		loader := newFixtureLoader(t, serviceDeskTools())
 		live := &session.State{ID: "s"}
-		loader.commit(live, []string{"jira__search_issues", "confluence__get_page"})
+		loader.Commit(live, []string{"jira__search_issues", "confluence__get_page"})
 
 		encoded, err := json.Marshal(live)
 		require.NoError(t, err)
 
 		var restored session.State
 		require.NoError(t, json.Unmarshal(encoded, &restored))
-		require.IsType(t, []any{}, restored.Metadata[loadedToolsMetadataKey], "the round trip must widen the type, or this proves nothing")
+		require.IsType(t, []any{}, restored.Metadata[LoadedToolsMetadataKey], "the round trip must widen the type, or this proves nothing")
 
-		before, _ := loader.prepare(loader.tools.List(), live)
-		after, _ := loader.prepare(loader.tools.List(), &restored)
+		before, _ := loader.prepareLocal(loader.tools.List(), live)
+		after, _ := loader.prepareLocal(loader.tools.List(), &restored)
 		assert.Equal(t, defNames(before), defNames(after))
 	})
 }
@@ -320,21 +264,21 @@ func TestLoadedSetPersistence(t *testing.T) {
 	loader := newFixtureLoader(t, serviceDeskTools())
 	sess := &session.State{ID: "s"}
 
-	loader.commit(sess, []string{"jira__create_issue", "legacy_export"})
-	loader.commit(sess, []string{"legacy_export", "confluence__get_page"})
-	assert.Equal(t, []string{"confluence__get_page", "jira__create_issue", "legacy_export"}, loadedTools(sess))
+	loader.Commit(sess, []string{"jira__create_issue", "legacy_export"})
+	loader.Commit(sess, []string{"legacy_export", "confluence__get_page"})
+	assert.Equal(t, []string{"confluence__get_page", "jira__create_issue", "legacy_export"}, LoadedTools(sess))
 
-	stored := sess.Metadata[loadedToolsMetadataKey]
-	loader.commit(sess, []string{"jira__create_issue"})
-	loader.commit(sess, nil)
-	assert.Equal(t, stored, sess.Metadata[loadedToolsMetadataKey], "a no-op commit leaves the stored value alone")
+	stored := sess.Metadata[LoadedToolsMetadataKey]
+	loader.Commit(sess, []string{"jira__create_issue"})
+	loader.Commit(sess, nil)
+	assert.Equal(t, stored, sess.Metadata[LoadedToolsMetadataKey], "a no-op commit leaves the stored value alone")
 
 	require.IsType(t, []any{}, stored)
 
 	_, err := structpb.NewStruct(sess.Metadata)
 	require.NoError(t, err, "session metadata must survive protobuf serialization")
 
-	loader.commit(nil, []string{"x"}) // must not panic
+	loader.Commit(nil, []string{"x"}) // must not panic
 }
 
 //
@@ -458,10 +402,10 @@ func TestInstructionsFollowVisibleTools(t *testing.T) {
 
 			sess := &session.State{ID: "s"}
 			if tt.loaded != nil {
-				sess.Metadata = map[string]any{loadedToolsMetadataKey: tt.loaded}
+				sess.Metadata = map[string]any{LoadedToolsMetadataKey: tt.loaded}
 			}
 
-			_, section := loader.prepare(loader.tools.List(), sess)
+			_, section := loader.prepareLocal(loader.tools.List(), sess)
 
 			for _, want := range tt.want {
 				assert.Contains(t, section, want)
@@ -475,8 +419,8 @@ func TestInstructionsFollowVisibleTools(t *testing.T) {
 
 	// Groups render sorted by name.
 	loader := newFixtureLoader(t, withGroupInfo(serviceDeskTools(), groups...))
-	sess := &session.State{ID: "s", Metadata: map[string]any{loadedToolsMetadataKey: []any{"jira__create_issue"}}}
-	_, section := loader.prepare(loader.tools.List(), sess)
+	sess := &session.State{ID: "s", Metadata: map[string]any{LoadedToolsMetadataKey: []any{"jira__create_issue"}}}
+	_, section := loader.prepareLocal(loader.tools.List(), sess)
 	assert.Less(t, strings.Index(section, jiraRule), strings.Index(section, snowRule))
 }
 
@@ -492,7 +436,7 @@ func TestGroupMetadataDoesNotDependOnWhichMemberIsLoaded(t *testing.T) {
 		{name: "update", group: "svc", deferred: true},
 	})
 	sess := &session.State{ID: "groups"}
-	_, prompt := loader.prepare(loader.tools.List(), sess)
+	_, prompt := loader.prepareLocal(loader.tools.List(), sess)
 	assert.Contains(t, prompt, instructions, "an unloaded sibling can supply a visible group's instructions")
 
 	out := runSearch(t, loader, sess, "taxonomies")
@@ -505,7 +449,7 @@ func TestGroupMetadataDoesNotDependOnWhichMemberIsLoaded(t *testing.T) {
 		}},
 		{name: "update", group: "svc", deferred: true},
 	})
-	resp, loads, _ := loader.resolve(batchFor(loader, &session.State{ID: "budget"}, 100), searchRequest("c", "select:update"))
+	resp, loads, _ := loader.Resolve(batchFor(loader, &session.State{ID: "budget"}, 100), searchRequest("c", "select:update"))
 	assert.Empty(t, loads)
 	assert.Equal(t, []string{"update"}, decodeSearch(t, resp).TooLarge)
 }
@@ -535,7 +479,7 @@ func TestSearch(t *testing.T) {
 		assert.Equal(t, []string{"nope"}, out.NotFound)
 		assert.Contains(t, out.Note, "3 tool(s) loaded")
 		assert.Contains(t, out.Note, "matched no tool")
-		assert.ElementsMatch(t, out.Loaded, loadedTools(sess))
+		assert.ElementsMatch(t, out.Loaded, LoadedTools(sess))
 
 		again := runSearch(t, loader, sess, "select:jira__create_issue")
 		assert.Empty(t, again.Loaded)
@@ -548,7 +492,7 @@ func TestSearch(t *testing.T) {
 
 		loader := newFixtureLoader(t, serviceDeskTools())
 		sess := &session.State{ID: "s"}
-		loader.commit(sess, []string{"servicenow__close_incident"})
+		loader.Commit(sess, []string{"servicenow__close_incident"})
 
 		out := runSearch(t, loader, sess, "incident")
 		assert.Equal(t, []string{"servicenow__create_incident"}, out.Loaded)
@@ -565,8 +509,8 @@ func TestSearch(t *testing.T) {
 		loader := newFixtureLoader(t, serviceDeskTools())
 
 		for _, arguments := range []string{`["query"]`, `{}`, `{"query":"   "}`} {
-			req := &llm.ToolRequestPart{ID: "c", Name: toolSearchName, Arguments: json.RawMessage(arguments)}
-			resp, loads, owned := loader.resolve(batchFor(loader, &session.State{ID: "s"}, unboundedSchemaRoom), req)
+			req := &llm.ToolRequestPart{ID: "c", Name: SearchToolName, Arguments: json.RawMessage(arguments)}
+			resp, loads, owned := loader.Resolve(batchFor(loader, &session.State{ID: "s"}, UnboundedSchemaRoom), req)
 
 			require.True(t, owned)
 			assert.True(t, resp.IsError, arguments)
@@ -609,7 +553,7 @@ func TestAdmission(t *testing.T) {
 	t.Run("token budget paces a search and reports the rest", func(t *testing.T) {
 		t.Parallel()
 
-		loader := newFixtureLoader(t, fatTools, ToolLoadingConfig{MaxLoadTokens: 3000})
+		loader := newFixtureLoader(t, fatTools, Config{MaxLoadTokens: 3000})
 		sess := &session.State{ID: "s"}
 
 		out := runSearch(t, loader, sess, "select:"+strings.Join(fatNames, ","))
@@ -619,13 +563,13 @@ func TestAdmission(t *testing.T) {
 
 		again := runSearch(t, loader, sess, "select:"+strings.Join(out.OverBudget, ","))
 		assert.Len(t, again.Loaded, 2, "a second search picks up where the first stopped")
-		assert.Len(t, loadedTools(sess), 4)
+		assert.Len(t, LoadedTools(sess), 4)
 	})
 
 	t.Run("first tool is admitted regardless of the budget", func(t *testing.T) {
 		t.Parallel()
 
-		loader := newFixtureLoader(t, oversizedTools(), ToolLoadingConfig{MaxLoadTokens: 500})
+		loader := newFixtureLoader(t, oversizedTools(), Config{MaxLoadTokens: 500})
 		out := runSearch(t, loader, &session.State{ID: "s"}, "select:svc__huge")
 		assert.Equal(t, []string{"svc__huge"}, out.Loaded)
 	})
@@ -633,7 +577,7 @@ func TestAdmission(t *testing.T) {
 	t.Run("explicit selection preserves priority and ignores duplicates", func(t *testing.T) {
 		t.Parallel()
 
-		loader := newFixtureLoader(t, fatTools, ToolLoadingConfig{MaxLoadTokens: 1500})
+		loader := newFixtureLoader(t, fatTools, Config{MaxLoadTokens: 1500})
 		out := runSearch(t, loader, &session.State{ID: "priority"},
 			"select:svc__fat_05,svc__fat_05,svc__fat_00,svc__fat_01")
 		assert.Equal(t, []string{"svc__fat_05"}, out.Loaded)
@@ -646,7 +590,7 @@ func TestAdmission(t *testing.T) {
 		loader := newFixtureLoader(t, oversizedTools())
 		req := searchRequest("c1", "select:svc__huge,svc__small")
 
-		resp, loads, _ := loader.resolve(batchFor(loader, &session.State{ID: "s"}, 200), req)
+		resp, loads, _ := loader.Resolve(batchFor(loader, &session.State{ID: "s"}, 200), req)
 		out := decodeSearch(t, resp)
 		assert.Equal(t, []string{"svc__small"}, loads)
 		assert.Equal(t, []string{"svc__huge"}, out.TooLarge)
@@ -656,11 +600,11 @@ func TestAdmission(t *testing.T) {
 
 		// Instructions of a newly visible group count toward the room.
 		loader = newFixtureLoader(t, withGroupInfo(oversizedTools(), llm.ToolGroup{Name: "svc", Instructions: strings.Repeat("Always confirm first. ", 200)}))
-		resp, _, _ = loader.resolve(batchFor(loader, &session.State{ID: "s"}, 200), searchRequest("c2", "select:svc__small"))
+		resp, _, _ = loader.Resolve(batchFor(loader, &session.State{ID: "s"}, 200), searchRequest("c2", "select:svc__small"))
 		assert.Equal(t, []string{"svc__small"}, decodeSearch(t, resp).TooLarge)
 
 		// An unknown window disables the check.
-		resp, _, _ = loader.resolve(batchFor(loader, &session.State{ID: "s"}, unboundedSchemaRoom), searchRequest("c3", "select:svc__huge"))
+		resp, _, _ = loader.Resolve(batchFor(loader, &session.State{ID: "s"}, UnboundedSchemaRoom), searchRequest("c3", "select:svc__huge"))
 		assert.Equal(t, []string{"svc__huge"}, decodeSearch(t, resp).Loaded)
 	})
 
@@ -674,8 +618,8 @@ func TestAdmission(t *testing.T) {
 		second := searchRequest("c2", "select:svc__other")
 
 		batch := batchFor(loader, &session.State{ID: "s"}, room)
-		firstResp, _, _ := loader.resolve(batch, first)
-		secondResp, secondLoads, _ := loader.resolve(batch, second)
+		firstResp, _, _ := loader.Resolve(batch, first)
+		secondResp, secondLoads, _ := loader.Resolve(batch, second)
 
 		assert.Equal(t, []string{"svc__small"}, decodeSearch(t, firstResp).Loaded)
 		assert.Equal(t, []string{"svc__other"}, decodeSearch(t, secondResp).TooLarge)
@@ -683,18 +627,18 @@ func TestAdmission(t *testing.T) {
 
 		// A repeated name is charged once.
 		batch = batchFor(loader, &session.State{ID: "s"}, room)
-		loader.resolve(batch, first)
-		resp, _, _ := loader.resolve(batch, searchRequest("c3", "select:svc__small"))
+		loader.Resolve(batch, first)
+		resp, _, _ := loader.Resolve(batch, searchRequest("c3", "select:svc__small"))
 		assert.Equal(t, []string{"svc__small"}, decodeSearch(t, resp).Loaded)
 
 		// The self-heal path is admitted like a search.
 		batch = batchFor(loader, &session.State{ID: "s"}, room)
-		resp, loads, owned := loader.resolve(batch, &llm.ToolRequestPart{ID: "h", Name: "svc__huge", Arguments: json.RawMessage(`{}`)})
+		resp, loads, owned := loader.Resolve(batch, &llm.ToolRequestPart{ID: "h", Name: "svc__huge", Arguments: json.RawMessage(`{}`)})
 		require.True(t, owned)
 		assert.Contains(t, string(resp.Result), "tool_too_large")
 		assert.Empty(t, loads)
 
-		resp, loads, _ = loader.resolve(batch, &llm.ToolRequestPart{ID: "s", Name: "svc__small", Arguments: json.RawMessage(`{}`)})
+		resp, loads, _ = loader.Resolve(batch, &llm.ToolRequestPart{ID: "s", Name: "svc__small", Arguments: json.RawMessage(`{}`)})
 		assert.Contains(t, string(resp.Result), "tool_not_loaded")
 		assert.Equal(t, []string{"svc__small"}, loads)
 	})
@@ -715,12 +659,12 @@ func TestResolve(t *testing.T) {
 
 	loader := newFixtureLoader(t, serviceDeskTools())
 	sess := &session.State{ID: "s"}
-	batch := batchFor(loader, sess, unboundedSchemaRoom)
+	batch := batchFor(loader, sess, UnboundedSchemaRoom)
 
 	blind := &llm.ToolRequestPart{ID: "c1", Name: name, Arguments: json.RawMessage(`{"guessed":"argument"}`)}
 
 	for _, req := range []*llm.ToolRequestPart{searchRequest("s1", "select:"+name), blind} {
-		resp, loads, owned := loader.resolve(batch, req)
+		resp, loads, owned := loader.Resolve(batch, req)
 		require.True(t, owned, req.Name)
 		assert.Equal(t, []string{name}, loads, "both propose the load")
 
@@ -728,41 +672,20 @@ func TestResolve(t *testing.T) {
 			assert.Contains(t, string(resp.Result), "tool_not_loaded")
 		}
 
-		loader.commit(sess, loads)
+		loader.Commit(sess, loads)
 	}
 
-	assert.Equal(t, []string{name}, loadedTools(sess))
+	assert.Equal(t, []string{name}, LoadedTools(sess))
 
 	// Against a batch that saw the schema it is an ordinary call, as are
 	// always-on tools and names the model invented.
-	batch = batchFor(loader, sess, unboundedSchemaRoom)
+	batch = batchFor(loader, sess, UnboundedSchemaRoom)
 
 	for _, req := range []*llm.ToolRequestPart{blind, {ID: "c", Name: "todo_write"}, {ID: "c", Name: "servicenow__search_incidents"}, {ID: "c", Name: "does_not_exist"}} {
-		_, _, owned := loader.resolve(batch, req)
+		_, _, owned := loader.Resolve(batch, req)
 		assert.False(t, owned, "%s must reach the registry", req.Name)
 	}
 
-	_, _, owned := loader.resolve(batch, nil)
+	_, _, owned := loader.Resolve(batch, nil)
 	assert.False(t, owned)
-}
-
-// TestToolSearchNameIsReserved: a registry tool of the same name would be
-// declared twice and unreachable, so construction fails with a clear message.
-func TestToolSearchNameIsReserved(t *testing.T) {
-	t.Parallel()
-
-	registry := newFixtureRegistry(t,
-		fixtureTool{name: toolSearchName, description: "an operator's own tool of the same name"},
-		fixtureTool{name: "svc__thing", group: "svc", deferred: true, description: "A thing."},
-	)
-
-	_, err := New("agent", "prompt", fakellm.NewFakeModel(), WithTools(registry))
-	require.ErrorContains(t, err, toolSearchName)
-
-	_, err = New("agent", "prompt", fakellm.NewFakeModel(), WithToolLoadingConfig(ToolLoadingConfig{MaxLoadTokens: -1}))
-	require.ErrorContains(t, err, "MaxLoadTokens")
-
-	// prepare never double-declares even if a registry gains the name later.
-	defs, _ := newToolLoader(registry, ToolLoadingConfig{}).prepare(registry.List(), &session.State{ID: "s"})
-	assert.Equal(t, 1, strings.Count(strings.Join(defNames(defs), ","), toolSearchName))
 }

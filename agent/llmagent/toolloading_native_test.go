@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
+	"github.com/redpanda-data/ai-sdk-go/agent/llmagent/internal/toolloading"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/llm/fakellm"
 	"github.com/redpanda-data/ai-sdk-go/store/session"
@@ -91,7 +92,7 @@ func TestNativeDiscoveryAndRestoration(t *testing.T) {
 			require.Len(t, toolResultsFor(sess.Messages, "fetch"), 1)
 			require.JSONEq(t, `{"ok":true}`, toolResultsFor(sess.Messages, "fetch")[0])
 			require.Empty(t, toolResultsFor(sess.Messages, "tool_search"))
-			require.True(t, loadedToolSet(sess)["fetch"])
+			require.True(t, toolloading.LoadedToolSet(sess)["fetch"])
 			require.True(t, defByName(t, calls[1].Request.Tools, "fetch").Deferred, "history references preserve native deferral")
 
 			// Persist and restore both native history and the loaded set.
@@ -99,12 +100,13 @@ func TestNativeDiscoveryAndRestoration(t *testing.T) {
 			require.NoError(t, err)
 			var resumed session.State
 			require.NoError(t, json.Unmarshal(stored, &resumed))
-			replayed, _ := ag.prepareTools(registry.List(), &resumed, true)
+			replayed := ag.loader.Prepare(registry.List(), &resumed).Tools
 			require.Equal(t, calls[1].Request.Tools, replayed)
 
 			// Simulate compaction dropping native references while metadata survives.
 			sess.Messages = userMessage("continue")
-			restored, section := ag.prepareTools(registry.List(), sess, true)
+			plan := ag.loader.Prepare(registry.List(), sess)
+			restored, section := plan.Tools, plan.Prompt
 			require.False(t, defByName(t, restored, "fetch").Deferred, "a previously loaded tool is now eager")
 			require.True(t, defByName(t, restored, "other").Deferred, "undiscovered tools remain deferred")
 			assert.Contains(t, section, "Use the service carefully.")
@@ -146,7 +148,7 @@ func TestForcedLocalDiscovery(t *testing.T) {
 			registry := newFixtureRegistry(t, fixtureTool{name: "fetch", deferred: true})
 			fake := fakellm.NewFakeModel(fakellm.WithCapabilities(llm.ModelCapabilities{Tools: true, Streaming: true, ToolSearch: true}))
 			fake.When(fakellm.FirstCall()).ThenRespondWith(respondWith(
-				toolCall("search_1", toolSearchName, `{"query":"select:fetch"}`),
+				toolCall("search_1", toolloading.SearchToolName, `{"query":"select:fetch"}`),
 			))
 			fake.When(fakellm.CallNumber(2)).ThenRespondWith(respondWith(toolCall("call_1", "fetch", `{}`)))
 			fake.When(fakellm.Any()).ThenRespondText("Done.")
@@ -164,13 +166,13 @@ func TestForcedLocalDiscovery(t *testing.T) {
 				assert.False(t, call.Request.ToolSearch)
 			}
 
-			assert.Equal(t, []string{toolSearchName}, defNames(calls[0].Request.Tools))
-			assert.Equal(t, []string{"fetch", toolSearchName}, defNames(calls[1].Request.Tools))
-			require.Len(t, toolResultsFor(sess.Messages, toolSearchName), 1)
+			assert.Equal(t, []string{toolloading.SearchToolName}, defNames(calls[0].Request.Tools))
+			assert.Equal(t, []string{"fetch", toolloading.SearchToolName}, defNames(calls[1].Request.Tools))
+			require.Len(t, toolResultsFor(sess.Messages, toolloading.SearchToolName), 1)
 			require.Len(t, toolResultsFor(sess.Messages, "fetch"), 1)
 			assert.JSONEq(t, `{"ok":true}`, toolResultsFor(sess.Messages, "fetch")[0])
-			assert.True(t, loadedToolSet(sess)["fetch"])
-			assert.Empty(t, nativeLoadedTools(sess.Messages, provider))
+			assert.True(t, toolloading.LoadedToolSet(sess)["fetch"])
+			assert.Empty(t, toolloading.NativeLoadedTools(sess.Messages, provider))
 		})
 	}
 }
@@ -192,14 +194,14 @@ func TestNativeDiscoverySurvivesProactiveCompaction(t *testing.T) {
 	}
 
 	sess.Messages = append(sess.Messages, llm.NewMessage(llm.RoleUser, llm.NewTextPart("continue now")))
-	ag.loader.commit(sess, []string{"fetch"})
-	before, _ := ag.prepareTools(registry.List(), sess, true)
+	ag.loader.Commit(sess, []string{"fetch"})
+	before := ag.loader.Prepare(registry.List(), sess).Tools
 	require.True(t, before[0].Deferred, "the search reference is still present before compaction")
 	events := runAgent(t, ag, sess)
 	require.Equal(t, agent.FinishReasonStop, finishReason(events))
 
 	calls := fake.CallsMatching(fakellm.Any())
 	require.Len(t, calls, 1)
-	require.Empty(t, nativeLoadedTools(calls[0].Request.Messages, "anthropic"), "compaction removed the search reference")
+	require.Empty(t, toolloading.NativeLoadedTools(calls[0].Request.Messages, "anthropic"), "compaction removed the search reference")
 	require.False(t, calls[0].Request.Tools[0].Deferred, "restoration is re-evaluated after compaction and before the request")
 }

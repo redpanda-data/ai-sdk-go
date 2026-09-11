@@ -26,6 +26,7 @@ import (
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/agent/llmagent/internal/tokens"
+	"github.com/redpanda-data/ai-sdk-go/agent/llmagent/internal/toolloading"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/store/session"
 )
@@ -49,7 +50,7 @@ type LLMAgent struct {
 	// everything about deferred tools: which definitions reach the model, the
 	// manifest appended to the system prompt, and the tool_search calls the
 	// model makes. With no deferred tool registered it changes nothing.
-	loader *toolLoader
+	loader *toolloading.Loader
 }
 
 // New creates a new LLM agent with the given name, system prompt, and model.
@@ -92,7 +93,10 @@ func New(name string, systemPrompt string, model llm.Model, opts ...Option) (*LL
 	llmAgent := &LLMAgent{config: cfg}
 
 	if cfg.tools != nil {
-		llmAgent.loader = newToolLoader(cfg.tools, cfg.toolLoading)
+		llmAgent.loader = toolloading.New(cfg.tools, cfg.model, toolloading.Config{
+			ForceLocal:    cfg.toolLoading.ForceLocal,
+			MaxLoadTokens: cfg.toolLoading.MaxLoadTokens,
+		})
 	}
 
 	return llmAgent, nil
@@ -284,14 +288,9 @@ func (a *LLMAgent) executeSingleTurn(
 		toolDefs = a.config.tools.List()
 	}
 
-	native := a.nativeToolSearch(toolDefs)
-
 	// Resolve schemas and group instructions together before budgeting the request.
-	var promptSection string
-
-	if a.loader != nil {
-		toolDefs, promptSection = a.prepareTools(toolDefs, sess, native)
-	}
+	plan := a.loader.Prepare(toolDefs, sess)
+	toolDefs, promptSection, native := plan.Tools, plan.Prompt, plan.Native
 
 	// Build working message list with system prompt (not persisted)
 	// This creates a transient view for the LLM request
@@ -314,7 +313,7 @@ func (a *LLMAgent) executeSingleTurn(
 	// The fixed cost also sets the lazy-loading admission line.
 	if a.config.compaction != nil || a.loader != nil {
 		sysTokens = tokens.Message(reqMessages[0])
-		toolDefTokens = a.toolTokens(toolDefs, sess, native)
+		toolDefTokens = a.loader.Tokens(toolDefs, sess, native)
 		fixedTokens = sysTokens + toolDefTokens
 	}
 
@@ -404,7 +403,7 @@ func (a *LLMAgent) executeSingleTurn(
 
 	// Native discovery may be followed by a real tool call in the same response.
 	// Commit before MessageEvent, where runners persist the session.
-	a.recordNativeLoads(sess, resp.Message)
+	a.loader.Record(sess, resp.Message)
 
 	// Emit message event
 	if !yield(agent.MessageEvent{
@@ -489,12 +488,13 @@ func (a *LLMAgent) executeSingleTurn(
 	// parallel burst cannot assemble an unfittable frontier and runs are
 	// reproducible regardless of completion order.
 	if native {
-		fixedTokens = sysTokens + a.toolTokens(sentReq.Tools, sess, native)
+		fixedTokens = sysTokens + a.loader.Tokens(sentReq.Tools, sess, native)
 	}
+
 	countedRequest := fixedTokens + tokens.History(sess.Messages)
 	resultCap := a.effectiveResultCap(countedRequest, len(toolReqs))
 
-	toolParts := a.executeTools(ctx, inv, toolReqs, visibleTools(sentReq.Tools, sess, native), resultCap, a.schemaRoom(fixedTokens), makeEnvelope, yield)
+	toolParts := a.executeTools(ctx, inv, toolReqs, a.loader.Visible(sentReq.Tools, sess, native), resultCap, a.schemaRoom(fixedTokens), makeEnvelope, yield)
 
 	// Build single message with all tool response parts
 	toolMsg := llm.NewMessage(llm.RoleUser, toolParts...)
@@ -530,7 +530,7 @@ func (a *LLMAgent) generateAttempt(
 		// Re-evaluate after either proactive compaction or an overflow retry.
 		// The native prompt depends on the full catalog, not the loaded set,
 		// so changing deferral after compaction leaves the prompt unchanged.
-		toolDefs, _ = a.prepareTools(toolDefs, inv.Session(), native)
+		toolDefs = a.loader.Prepare(toolDefs, inv.Session()).Tools
 	}
 	req := &llm.Request{
 		Messages:   cloneMessages(messages),
@@ -739,15 +739,12 @@ func (a *LLMAgent) executeTools(
 		definitions[toolDefs[i].Name] = &toolDefs[i]
 	}
 
-	var batch *loadBatch
-	if a.loader != nil {
-		batch = a.loader.newBatch(toolDefs, schemaRoom)
-	}
+	batch := a.loader.NewBatch(toolDefs, schemaRoom)
 
 	var loaderCalls, ordinary []int
 
 	for i, req := range toolReqs {
-		if batch.owns(req) {
+		if batch.Owns(req) {
 			loaderCalls = append(loaderCalls, i)
 		} else {
 			ordinary = append(ordinary, i)
@@ -764,7 +761,7 @@ func (a *LLMAgent) executeTools(
 	// Buffered so workers can finish after the consumer stops.
 	results := make(chan toolResult, len(toolReqs))
 
-	run := func(i int, batch *loadBatch) {
+	run := func(i int, batch *toolloading.Batch) {
 		req := toolReqs[i]
 
 		resp, loads, err := a.executeTool(ctx, inv, req, definitions[req.Name], batch)
@@ -816,9 +813,7 @@ func (a *LLMAgent) executeTools(
 		resp := capToolResult(toolResponse(toolReqs[result.idx], result.response, result.err), resultCap)
 		parts[result.idx] = resp
 
-		if a.loader != nil {
-			a.loader.commit(inv.Session(), result.loads)
-		}
+		a.loader.Commit(inv.Session(), result.loads)
 
 		if !yield(agent.ToolResponseEvent{Envelope: makeEnvelope(), Response: *resp}, nil) {
 			return interruptedToolParts(parts, toolReqs)
@@ -836,7 +831,7 @@ func (a *LLMAgent) executeTool(
 	inv *agent.InvocationMetadata,
 	req *llm.ToolRequestPart,
 	definition *llm.ToolDefinition,
-	batch *loadBatch,
+	batch *toolloading.Batch,
 ) (*llm.ToolResponsePart, []string, error) {
 	var loads []string
 	validateIdentity := func(info *agent.ToolCallInfo) error {
@@ -857,7 +852,7 @@ func (a *LLMAgent) executeTool(
 		}
 
 		if batch != nil {
-			if resp, added, owned := a.loader.resolve(batch, info.Req); owned {
+			if resp, added, owned := a.loader.Resolve(batch, info.Req); owned {
 				loads = append(loads, added...)
 
 				return resp, nil
@@ -904,6 +899,17 @@ func toolResponse(req *llm.ToolRequestPart, resp *llm.ToolResponsePart, err erro
 	default:
 		return resp
 	}
+}
+
+// errorResponse builds the error payload the model reads for a call that
+// produced no usable result.
+func errorResponse(req *llm.ToolRequestPart, code, message string) *llm.ToolResponsePart {
+	payload, err := json.Marshal(map[string]string{"error": code, "message": message})
+	if err != nil {
+		payload = []byte(`{"error":"internal"}`)
+	}
+
+	return &llm.ToolResponsePart{ID: req.ID, Name: req.Name, Result: payload, IsError: true}
 }
 
 // interruptedToolParts pairs every request with a result so the saved
@@ -971,15 +977,9 @@ func (a *LLMAgent) recoverIncompleteToolCalls(
 	}
 
 	// Execute the incomplete tools.
-	toolDefs := a.config.tools.List()
-	native := a.nativeToolSearch(toolDefs)
-
 	// Recovery uses the persisted loaded set and the next request's fixed cost.
-	var promptSection string
-
-	if a.loader != nil {
-		toolDefs, promptSection = a.prepareTools(toolDefs, sess, native)
-	}
+	plan := a.loader.Prepare(a.config.tools.List(), sess)
+	toolDefs, promptSection, native := plan.Tools, plan.Prompt, plan.Native
 
 	fixedTokens := 0
 
@@ -989,7 +989,7 @@ func (a *LLMAgent) recoverIncompleteToolCalls(
 			return fmt.Errorf("llmagent: system prompt for recovery budget: %w", err)
 		}
 
-		fixedTokens = tokens.Message(reqMessages[0]) + a.toolTokens(toolDefs, sess, native)
+		fixedTokens = tokens.Message(reqMessages[0]) + a.loader.Tokens(toolDefs, sess, native)
 	}
 
 	// Recovered results land in the unread frontier, which compaction can
@@ -998,7 +998,7 @@ func (a *LLMAgent) recoverIncompleteToolCalls(
 	// reclaimed on the following turn.
 	countedRequest := fixedTokens + tokens.History(sess.Messages)
 	resultCap := a.effectiveResultCap(countedRequest, len(incomplete))
-	toolParts := a.executeTools(ctx, inv, incomplete, visibleTools(toolDefs, sess, native), resultCap, a.schemaRoom(fixedTokens), makeEnvelope, yield)
+	toolParts := a.executeTools(ctx, inv, incomplete, a.loader.Visible(toolDefs, sess, native), resultCap, a.schemaRoom(fixedTokens), makeEnvelope, yield)
 
 	// Insert tool response message BEFORE the last user message.
 	// Current: [..., assistant(tool_req), user(text)]

@@ -12,11 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package llmagent
+package toolloading
 
 import (
-	"fmt"
-	"maps"
 	"slices"
 	"strings"
 
@@ -25,33 +23,35 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/store/session"
 )
 
+// Providers whose hosted search protocol the agent speaks. Compatible
+// endpoints and Bedrock Converse do not, whatever capabilities they claim.
 const (
 	nativeOpenAI    = "openai"
 	nativeAnthropic = "anthropic"
 )
 
-func (a *LLMAgent) nativeToolSearch(defs []llm.ToolDefinition) bool {
-	if a.loader == nil || a.config.toolLoading.ForceLocal || !a.config.model.Capabilities().ToolSearch {
+// native reports whether this request uses provider-hosted discovery.
+func (l *Loader) native() bool {
+	if l.forceLocal || !l.model.Capabilities().ToolSearch {
 		return false
 	}
-	// Compatible endpoints and Bedrock Converse do not speak these protocols.
-	switch a.config.model.Provider() {
+
+	switch l.model.Provider() {
 	case nativeOpenAI, nativeAnthropic:
-		return slices.ContainsFunc(defs, func(d llm.ToolDefinition) bool { return d.Deferred })
+		return slices.ContainsFunc(l.tools.List(), func(d llm.ToolDefinition) bool { return d.Deferred })
 	default:
 		return false
 	}
 }
 
-func (a *LLMAgent) prepareTools(defs []llm.ToolDefinition, sess *session.State, native bool) ([]llm.ToolDefinition, string) {
-	if !native {
-		return a.loader.prepare(defs, sess)
-	}
+// prepareNative returns the complete catalog with deferral flags and a stable
+// system prompt section.
+func (l *Loader) prepareNative(defs []llm.ToolDefinition, sess *session.State) ([]llm.ToolDefinition, string) {
 	// References carry discovery forward in the native protocol. When compaction
 	// removes them (or the provider changes), restore those tools as eager. This
 	// changes the prefix once, at compaction, rather than on every discovery.
-	referenced := nativeLoadedTools(sess.Messages, a.config.model.Provider())
-	loaded := loadedToolSet(sess)
+	referenced := NativeLoadedTools(sess.Messages, l.model.Provider())
+	loaded := LoadedToolSet(sess)
 
 	defs = slices.Clone(defs)
 	for i := range defs {
@@ -64,7 +64,7 @@ func (a *LLMAgent) prepareTools(defs []llm.ToolDefinition, sess *session.State, 
 	// not the restored set, so it stays stable for the life of the registry.
 	var sections []string
 
-	if directory := renderGroupDirectory(a.config.tools.List()); directory != "" {
+	if directory := renderGroupDirectory(l.tools.List()); directory != "" {
 		sections = append(sections, directory)
 	}
 
@@ -75,56 +75,9 @@ func (a *LLMAgent) prepareTools(defs []llm.ToolDefinition, sess *session.State, 
 	return defs, strings.Join(sections, "\n\n")
 }
 
-// renderGroupDirectory lists the groups that hold deferred tools, one line per
-// group, plus a count of ungrouped deferred tools. Hosted search indexes names
-// and descriptions server-side, so listing individual tools would only spend
-// the tokens deferral saves.
-func renderGroupDirectory(defs []llm.ToolDefinition) string {
-	descriptions := make(map[string]string)
-	ungrouped := 0
-
-	for _, def := range defs {
-		if !def.Deferred {
-			continue
-		}
-
-		if def.Group.Name == "" {
-			ungrouped++
-			continue
-		}
-
-		descriptions[def.Group.Name] = strings.TrimSpace(def.Group.Description)
-	}
-
-	if len(descriptions) == 0 && ungrouped == 0 {
-		return ""
-	}
-
-	names := slices.Sorted(maps.Keys(descriptions))
-
-	var out strings.Builder
-
-	out.WriteString("## Searchable tools\n\n")
-	out.WriteString("More tools can be discovered with tool search. Never tell the user you lack a capability without searching for it first. Available groups:\n")
-
-	for _, name := range names {
-		out.WriteString("- " + name)
-
-		if descriptions[name] != "" {
-			out.WriteString(" - " + descriptions[name])
-		}
-
-		out.WriteString("\n")
-	}
-
-	if ungrouped > 0 {
-		fmt.Fprintf(&out, "- %s - %d ungrouped tools\n", ungroupedHeading, ungrouped)
-	}
-
-	return strings.TrimRight(out.String(), "\n")
-}
-
-func nativeLoadedTools(messages []llm.Message, provider string) map[string]bool {
+// NativeLoadedTools returns the tools that hosted search results still in the
+// history have loaded for the given provider.
+func NativeLoadedTools(messages []llm.Message, provider string) map[string]bool {
 	loaded := make(map[string]bool)
 
 	for _, msg := range messages {
@@ -140,12 +93,14 @@ func nativeLoadedTools(messages []llm.Message, provider string) map[string]bool 
 	return loaded
 }
 
-func visibleTools(defs []llm.ToolDefinition, sess *session.State, native bool) []llm.ToolDefinition {
+// Visible returns the tools the model can call from a sent set: in native
+// mode, deferred tools it has not loaded are excluded.
+func (*Loader) Visible(defs []llm.ToolDefinition, sess *session.State, native bool) []llm.ToolDefinition {
 	if !native {
 		return defs
 	}
 
-	loaded := loadedToolSet(sess)
+	loaded := LoadedToolSet(sess)
 
 	visible := make([]llm.ToolDefinition, 0, len(defs))
 	for _, def := range defs {
@@ -157,17 +112,20 @@ func visibleTools(defs []llm.ToolDefinition, sess *session.State, native bool) [
 	return visible
 }
 
-func (a *LLMAgent) toolTokens(defs []llm.ToolDefinition, sess *session.State, native bool) int {
-	total := tokens.Tools(visibleTools(defs, sess, native))
+// Tokens estimates the tool-definition cost of a request with the given
+// tools. In native mode only visible schemas count in full; the search tool
+// and the names and descriptions the provider exposes are added on top.
+func (l *Loader) Tokens(defs []llm.ToolDefinition, sess *session.State, native bool) int {
+	total := tokens.Tools(l.Visible(defs, sess, native))
 	if !native {
 		return total
 	}
 	// Native search has a small schema. OpenAI also exposes names and descriptions
 	// of standalone deferred functions before discovery.
 	total += 200
-	loaded := loadedToolSet(sess)
+	loaded := LoadedToolSet(sess)
 
-	if a.config.model.Provider() == nativeOpenAI {
+	if l.model.Provider() == nativeOpenAI {
 		groups := make(map[string]bool)
 		for _, def := range defs {
 			if def.Group.Name != "" && !groups[def.Group.Name] {
@@ -184,14 +142,17 @@ func (a *LLMAgent) toolTokens(defs []llm.ToolDefinition, sess *session.State, na
 	return total
 }
 
-func (a *LLMAgent) recordNativeLoads(sess *session.State, message llm.Message) {
-	if a.loader == nil {
+// Record commits the tools a response's hosted search results loaded. Native
+// discovery may be followed by a real tool call in the same response, so the
+// agent records before the message is persisted.
+func (l *Loader) Record(sess *session.State, message llm.Message) {
+	if l == nil {
 		return
 	}
 
 	for _, part := range message.Content {
-		if search, ok := part.(*llm.ToolSearchPart); ok && search != nil && search.Provider == a.config.model.Provider() {
-			a.loader.commit(sess, search.Tools)
+		if search, ok := part.(*llm.ToolSearchPart); ok && search != nil && search.Provider == l.model.Provider() {
+			l.Commit(sess, search.Tools)
 		}
 	}
 }

@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
+	"github.com/redpanda-data/ai-sdk-go/agent/llmagent/internal/toolloading"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/providers/anthropic"
 	"github.com/redpanda-data/ai-sdk-go/providers/anthropic/anthropictest"
@@ -227,7 +228,7 @@ func testToolLoadingLive(t *testing.T, model llm.Model, native bool) {
 	require.NoError(t, json.Unmarshal(create.arguments()[0], &args))
 	assert.Equal(t, adaSysID, args.CallerSysID, "the sys_id must come from search_users, per the group instructions")
 	assert.NotEmpty(t, args.ShortDescription)
-	assert.Contains(t, sess.Metadata[loadedToolsMetadataKey], incidentTool)
+	assert.Contains(t, sess.Metadata[toolloading.LoadedToolsMetadataKey], incidentTool)
 
 	firstCalls := seen.snapshot()
 	require.NotEmpty(t, firstCalls)
@@ -235,14 +236,14 @@ func testToolLoadingLive(t *testing.T, model llm.Model, native bool) {
 
 	if native {
 		assert.Equal(t, registry.List(), firstCalls[0].Tools)
-		assert.Contains(t, nativeLoadedTools(sess.Messages, model.Provider()), incidentTool,
+		assert.Contains(t, toolloading.NativeLoadedTools(sess.Messages, model.Provider()), incidentTool,
 			"native discovery must expose the tool that executed")
 	} else {
-		assert.Contains(t, defNames(firstCalls[0].Tools), toolSearchName)
+		assert.Contains(t, defNames(firstCalls[0].Tools), toolloading.SearchToolName)
 		assert.NotContains(t, defNames(firstCalls[0].Tools), incidentTool)
 	}
 
-	loadedAfterTurn1 := loadedToolSet(sess)
+	loadedAfterTurn1 := toolloading.LoadedToolSet(sess)
 	turn1 := len(firstCalls)
 	assert.LessOrEqual(t, turn1, 6, "discovery should cost at most a couple of extra round trips")
 
@@ -261,9 +262,9 @@ func testToolLoadingLive(t *testing.T, model llm.Model, native bool) {
 	require.Greater(t, len(calls), turn1)
 
 	if native {
-		assert.Contains(t, nativeLoadedTools(calls[turn1].Messages, model.Provider()), incidentTool,
+		assert.Contains(t, toolloading.NativeLoadedTools(calls[turn1].Messages, model.Provider()), incidentTool,
 			"turn 2 replays the persisted discovery result")
-		assert.Contains(t, nativeLoadedTools(sess.Messages, model.Provider()), "servicenow__close_incident")
+		assert.Contains(t, toolloading.NativeLoadedTools(sess.Messages, model.Provider()), "servicenow__close_incident")
 
 		for _, call := range calls {
 			assert.True(t, call.ToolSearch)
@@ -292,7 +293,7 @@ func testToolLoadingLive(t *testing.T, model llm.Model, native bool) {
 	assert.Equal(t, "INC0012345", closeArgs.Number)
 	assert.Equal(t, "solved", closeArgs.ResolutionCode)
 
-	t.Logf("%s: turn 1 %d model calls, turn 2 %d, loaded %v", model.Provider(), turn1, len(calls)-turn1, sess.Metadata[loadedToolsMetadataKey])
+	t.Logf("%s: turn 1 %d model calls, turn 2 %d, loaded %v", model.Provider(), turn1, len(calls)-turn1, sess.Metadata[toolloading.LoadedToolsMetadataKey])
 }
 
 // TestToolLoadingStaleHistory_Integration resumes a transcript that references
@@ -323,7 +324,7 @@ func TestToolLoadingStaleHistory_Integration(t *testing.T) {
 
 			sess := &session.State{
 				ID:       "stale-" + name,
-				Metadata: map[string]any{loadedToolsMetadataKey: []any{incidentTool}},
+				Metadata: map[string]any{toolloading.LoadedToolsMetadataKey: []any{incidentTool}},
 				Messages: []llm.Message{
 					llm.NewMessage(llm.RoleUser, llm.NewTextPart("Open an incident for Ada: her laptop will not boot.")),
 					llm.NewMessage(llm.RoleAssistant, toolCall("s1", "tool_search", `{"query":"select:`+incidentTool+`"}`)),

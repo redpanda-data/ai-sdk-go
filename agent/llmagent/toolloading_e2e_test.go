@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
+	"github.com/redpanda-data/ai-sdk-go/agent/llmagent/internal/toolloading"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/llm/fakellm"
 	"github.com/redpanda-data/ai-sdk-go/store/session"
@@ -182,7 +183,7 @@ func TestEndToEnd(t *testing.T) {
 	assert.NotContains(t, prompt(0), "Resolve the caller's sys_id")
 	assert.Contains(t, prompt(1), "Resolve the caller's sys_id", "the group's instructions arrive with its first visible tool")
 	assert.Equal(t, prompt(1), prompt(2))
-	assert.Equal(t, []any{incidentTool}, sess.Metadata[loadedToolsMetadataKey])
+	assert.Equal(t, []any{incidentTool}, sess.Metadata[toolloading.LoadedToolsMetadataKey])
 }
 
 // TestSiblingSearchDoesNotAuthorizeExecution: a response that loads a tool and
@@ -327,9 +328,9 @@ func TestInterceptorsGovernLoads(t *testing.T) {
 			assert.Equal(t, agent.FinishReasonStop, finishReason(events))
 
 			if len(tt.wantLoads) == 0 {
-				assert.Empty(t, sess.Metadata[loadedToolsMetadataKey])
+				assert.Empty(t, sess.Metadata[toolloading.LoadedToolsMetadataKey])
 			} else {
-				assert.Equal(t, tt.wantLoads, sess.Metadata[loadedToolsMetadataKey])
+				assert.Equal(t, tt.wantLoads, sess.Metadata[toolloading.LoadedToolsMetadataKey])
 			}
 
 			calls := model.CallsMatching(fakellm.Any())
@@ -418,7 +419,7 @@ func TestAdmissionOrderedAfterInterception(t *testing.T) {
 		}
 	}
 
-	assert.Equal(t, []any{"export_b"}, sess.Metadata[loadedToolsMetadataKey],
+	assert.Equal(t, []any{"export_b"}, sess.Metadata[toolloading.LoadedToolsMetadataKey],
 		"a denied search leaves the room for the next search")
 }
 
@@ -440,7 +441,7 @@ func TestOutstandingSearchCannotMutateASavedSession(t *testing.T) {
 	stopAtFirstResult(t, newAgent(t, model, registry, WithToolConcurrency(2), WithInterceptors(gate)), sess, gate)
 
 	saved := sess.Clone()
-	assert.Empty(t, saved.Metadata[loadedToolsMetadataKey])
+	assert.Empty(t, saved.Metadata[toolloading.LoadedToolsMetadataKey])
 	responses := saved.Messages[len(saved.Messages)-1].ToolResponses()
 	require.Len(t, responses, 2, "every request needs a result before this transcript can resume")
 	assert.False(t, responses[0].IsError)
@@ -455,7 +456,7 @@ func TestOutstandingSearchCannotMutateASavedSession(t *testing.T) {
 	}
 
 	require.Error(t, gate.ctxErr, "an outstanding worker is cancelled when execution returns")
-	assert.Empty(t, sess.Metadata[loadedToolsMetadataKey], "an uncollected result's loads are never committed")
+	assert.Empty(t, sess.Metadata[toolloading.LoadedToolsMetadataKey], "an uncollected result's loads are never committed")
 }
 
 // TestOversizedLoads: neither two searches in one response nor a blind call to
@@ -504,7 +505,7 @@ func TestOversizedLoads(t *testing.T) {
 		require.Len(t, results, 2)
 		assert.Contains(t, results[0], `"loaded":["legacy__export_a"]`)
 		assert.Contains(t, results[1], `"too_large":["legacy__export_b"]`)
-		assert.Equal(t, []any{"legacy__export_a"}, sess.Metadata[loadedToolsMetadataKey])
+		assert.Equal(t, []any{"legacy__export_a"}, sess.Metadata[toolloading.LoadedToolsMetadataKey])
 	})
 
 	t.Run("blind call to an oversized tool", func(t *testing.T) {
@@ -513,7 +514,7 @@ func TestOversizedLoads(t *testing.T) {
 		sess := run(t, respondWith(toolCall("c1", "legacy__export_all", `{"guessed":true}`)))
 
 		assert.Contains(t, toolResultsFor(sess.Messages, "legacy__export_all")[0], "tool_too_large")
-		assert.Empty(t, sess.Metadata[loadedToolsMetadataKey])
+		assert.Empty(t, sess.Metadata[toolloading.LoadedToolsMetadataKey])
 	})
 }
 
@@ -559,7 +560,7 @@ func TestRegistryChangesBetweenTurns(t *testing.T) {
 	assert.Contains(t, toolResultsFor(sess.Messages, incidentTool)[1], "not found")
 	assert.Equal(t, int32(1), incident.calls.Load(), "the removed tool did not run again")
 	assert.Equal(t, int32(1), page.calls.Load())
-	assert.ElementsMatch(t, []any{"confluence__get_page", incidentTool}, sess.Metadata[loadedToolsMetadataKey],
+	assert.ElementsMatch(t, []any{"confluence__get_page", incidentTool}, sess.Metadata[toolloading.LoadedToolsMetadataKey],
 		"the session keeps the removed name, so the tool is back the moment a sync restores it")
 
 	require.NoError(t, registry.Register(incident, tool.WithDeferred(), tool.WithGroup(llm.ToolGroup{Name: "servicenow"})))
@@ -593,7 +594,7 @@ func TestToolVanishesBetweenResponseAndExecution(t *testing.T) {
 
 	assert.Zero(t, incident.calls.Load())
 	assert.Contains(t, toolResultsFor(sess.Messages, incidentTool)[0], "not found")
-	assert.Equal(t, []any{incidentTool}, sess.Metadata[loadedToolsMetadataKey])
+	assert.Equal(t, []any{incidentTool}, sess.Metadata[toolloading.LoadedToolsMetadataKey])
 }
 
 // TestResumesFromSession: a session whose metadata names a loaded tool sends
@@ -607,7 +608,7 @@ func TestResumesFromSession(t *testing.T) {
 
 	sess := &session.State{
 		ID:       "resumed",
-		Metadata: map[string]any{loadedToolsMetadataKey: []any{"jira__create_issue"}}, // as a store hands it back
+		Metadata: map[string]any{toolloading.LoadedToolsMetadataKey: []any{"jira__create_issue"}}, // as a store hands it back
 		Messages: userMessage("hello"),
 	}
 	runAgent(t, newAgent(t, model, registry), sess)
@@ -642,18 +643,18 @@ func TestNoDeferredToolsSendsEverything(t *testing.T) {
 	assert.Equal(t, []string{"jira__create_issue", incidentTool, "todo_write"}, requestToolNames(first.Request))
 	assert.NotContains(t, first.Request.Messages[0].TextContent(), "## Additional tools")
 	assert.Contains(t, first.Request.Messages[0].TextContent(), "Be brief.", "group instructions apply to always-on tools too")
-	assert.Empty(t, sess.Metadata[loadedToolsMetadataKey])
+	assert.Empty(t, sess.Metadata[toolloading.LoadedToolsMetadataKey])
 }
 
 func TestRegisteredSearchToolRunsWithoutDeferral(t *testing.T) {
 	t.Parallel()
 
 	registry := tool.NewRegistry(tool.RegistryConfig{})
-	search := &stubTool{def: llm.ToolDefinition{Name: toolSearchName, Parameters: json.RawMessage(`{"type":"object"}`)}}
+	search := &stubTool{def: llm.ToolDefinition{Name: toolloading.SearchToolName, Parameters: json.RawMessage(`{"type":"object"}`)}}
 	require.NoError(t, registry.Register(search))
 
 	model := fakellm.NewFakeModel()
-	model.When(fakellm.FirstCall()).ThenRespondWithToolCall(toolSearchName, map[string]any{})
+	model.When(fakellm.FirstCall()).ThenRespondWithToolCall(toolloading.SearchToolName, map[string]any{})
 	model.When(fakellm.Any()).ThenRespondText("Done.")
 	runAgent(t, newAgent(t, model, registry), &session.State{ID: "ordinary-search", Messages: userMessage("Search.")})
 	assert.Equal(t, int32(1), search.calls.Load())
@@ -675,34 +676,34 @@ func TestInterceptorsCannotChangeCallIdentity(t *testing.T) {
 			},
 		},
 		{
-			name: "search renamed to ordinary tool", callName: toolSearchName,
+			name: "search renamed to ordinary tool", callName: toolloading.SearchToolName,
 			interceptor: func(ctx context.Context, info *agent.ToolCallInfo, next agent.ToolExecutionNext) (*llm.ToolResponsePart, error) {
 				info.Req.Name = "todo_write"
 				return next(ctx, info)
 			},
 		},
 		{
-			name: "search ID changed", callName: toolSearchName,
+			name: "search ID changed", callName: toolloading.SearchToolName,
 			interceptor: func(ctx context.Context, info *agent.ToolCallInfo, next agent.ToolExecutionNext) (*llm.ToolResponsePart, error) {
 				info.Req.ID = "different"
 				return next(ctx, info)
 			},
 		},
 		{
-			name: "mock changes request identity", callName: toolSearchName,
+			name: "mock changes request identity", callName: toolloading.SearchToolName,
 			interceptor: func(_ context.Context, info *agent.ToolCallInfo, _ agent.ToolExecutionNext) (*llm.ToolResponsePart, error) {
 				info.Req = toolCall("different", "todo_write", `{}`)
-				return llm.NewToolResponsePart("original", toolSearchName, json.RawMessage(`{}`), false), nil
+				return llm.NewToolResponsePart("original", toolloading.SearchToolName, json.RawMessage(`{}`), false), nil
 			},
 		},
 		{
-			name: "mock changes response name", callName: toolSearchName,
+			name: "mock changes response name", callName: toolloading.SearchToolName,
 			interceptor: func(_ context.Context, info *agent.ToolCallInfo, _ agent.ToolExecutionNext) (*llm.ToolResponsePart, error) {
 				return llm.NewToolResponsePart(info.Req.ID, "different", json.RawMessage(`{}`), false), nil
 			},
 		},
 		{
-			name: "mock changes response ID", callName: toolSearchName,
+			name: "mock changes response ID", callName: toolloading.SearchToolName,
 			interceptor: func(_ context.Context, info *agent.ToolCallInfo, _ agent.ToolExecutionNext) (*llm.ToolResponsePart, error) {
 				return llm.NewToolResponsePart("different", info.Req.Name, json.RawMessage(`{}`), false), nil
 			},
@@ -728,7 +729,7 @@ func TestInterceptorsCannotChangeCallIdentity(t *testing.T) {
 
 			assert.Zero(t, incident.calls.Load())
 			assert.Zero(t, ordinaryTool.calls.Load())
-			assert.Empty(t, sess.Metadata[loadedToolsMetadataKey])
+			assert.Empty(t, sess.Metadata[toolloading.LoadedToolsMetadataKey])
 			responses := sess.Messages[2].ToolResponses()
 			require.Len(t, responses, 1)
 			assert.True(t, responses[0].IsError)

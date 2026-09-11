@@ -21,6 +21,7 @@ import (
 	"slices"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
+	"github.com/redpanda-data/ai-sdk-go/agent/llmagent/internal/toolloading"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/tool"
 )
@@ -205,14 +206,27 @@ func (c *config) validateToolLoading() error {
 		return nil
 	}
 
-	if _, err := c.tools.Get(toolSearchName); err == nil && slices.ContainsFunc(c.tools.List(), isDeferred) {
-		return fmt.Errorf("llmagent: lazy loading reserves the tool name %q; rename the registered tool", toolSearchName)
+	if _, err := c.tools.Get(toolloading.SearchToolName); err == nil && slices.ContainsFunc(c.tools.List(), isDeferred) {
+		return fmt.Errorf("llmagent: lazy loading reserves the tool name %q; rename the registered tool", toolloading.SearchToolName)
 	}
 
 	return nil
 }
 
 func isDeferred(def llm.ToolDefinition) bool { return def.Deferred }
+
+// ToolLoadingConfig tunes lazy tool loading. Zero values select defaults.
+type ToolLoadingConfig struct {
+	// ForceLocal uses the local tool_search tool even when the model supports
+	// native hosted search. By default, supported models use native search.
+	ForceLocal bool
+
+	// MaxLoadTokens limits the estimated schema tokens one local search may load.
+	// Native hosted search controls its own selection and ignores this limit.
+	// The first tool of a search is always admitted; every load must also fit
+	// the model's context window. Default 4000.
+	MaxLoadTokens int
+}
 
 // Option configures an LLMAgent.
 type Option func(*config)

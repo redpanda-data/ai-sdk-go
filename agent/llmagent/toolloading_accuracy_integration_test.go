@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
+	"github.com/redpanda-data/ai-sdk-go/agent/llmagent/internal/toolloading"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/providers/anthropic"
 	"github.com/redpanda-data/ai-sdk-go/providers/anthropic/anthropictest"
@@ -246,7 +247,7 @@ func (o runObservation) scoreAgainst(want string) runOutcome {
 	for i := range o.tools {
 		attempt := o.tools[i]
 
-		if attempt.name == toolSearchName && firstSearch == nil {
+		if attempt.name == toolloading.SearchToolName && firstSearch == nil {
 			firstSearch = &o.tools[i]
 		}
 
