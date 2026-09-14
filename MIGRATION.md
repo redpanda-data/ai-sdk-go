@@ -32,6 +32,14 @@ tagged mid-sequence.
 | Old | New |
 |---|---|
 | `provider.ModelPricing() map[string]pricing.Info` | `provider.Catalog().PricingByID()` |
+| `Lookup(modelID) (Info, bool)` | `Lookup(provider, modelID) (Info, error)` |
+| `Calculate(modelID, …)` | `Calculate(provider, modelID, …)` |
+| `WithOverride(modelID, info)` | `WithOverride(provider, modelID, info)` |
+| `WithProvider(prov.Name(), prov.Catalog().PricingByID())` | `WithSource(prov.Catalog())` |
+| `WithProvider(provider string, …)` | `WithProvider(provider pricing.ProviderKey, …)` — kept for callers holding a bare map |
+| — | `pricing.ProviderKey` — the provider half of every catalog key |
+| — | `pricing.ErrUnknownProvider` — separable from `ErrUnknownModel`; alert on it, don't just log |
+| — | `openai.ProviderName` (also `anthropic.`, `google.`, `bedrock.`, `vertex.ProviderName`) — the key as a const |
 
 `PricingByID` includes official aliases (e.g. OpenAI's `"gpt-5.6"`), so
 exact-ID billing lookups keep working. Timestamped snapshot IDs (as
@@ -43,7 +51,29 @@ off, ok := openai.Catalog().Resolve(resp.InvokedModelID)
 if !ok {
     // unknown model: treat as UNPRICED, never as free
 }
-cost, err := priceCat.Calculate(off.ID, resp.Usage, req)
+// Lookup and Calculate now take a ProviderKey as their first argument,
+// because the catalog keys by {provider, model}: the same bare model ID
+// can carry a different rate card per provider. Lookup returns
+// (Info, error), distinguishing ErrUnknownProvider (a mapping bug worth
+// alerting on) from ErrUnknownModel (a new model) — see pricing/catalog.go.
+//
+// Take the key from the provider, never hand-type it. Each provider
+// exports it as an untyped string const (openai.ProviderName), which
+// converts to pricing.ProviderKey implicitly — no cast, and still not a
+// literal. A hand-typed literal is the one break the compiler cannot
+// catch — "google" instead of "gcp.gemini" registers under a key nothing
+// looks up and prices every Gemini call at $0.
+cost, err := priceCat.Calculate(openai.ProviderName, off.ID, resp.Usage, req)
+switch {
+case errors.Is(err, pricing.ErrUnknownProvider):
+    // Mapping bug: the catalog carries no rates for this provider key at
+    // all, so every call at this site prices at $0. Alert, don't just log.
+case errors.Is(err, pricing.ErrUnknownModel):
+    // A new model under a known provider: emit a metric and treat as
+    // UNPRICED, never as free.
+case err != nil:
+    // other error
+}
 ```
 
 ### Authoring / provider-specific types
@@ -83,6 +113,29 @@ shape.
 - **`llm.Response.InvokedModelID`** now reports catalog offering IDs
   where the provider reports a snapshot the catalog recognises;
   unrecognised IDs pass through unchanged.
+- **The Google catalog's provider key is now `gcp.gemini`, not
+  `google`** — in Go, and in `catalog/snapshot.json`, whose `provider`
+  field read `google`. It is the value `google.Catalog().Provider()` and
+  `google.ProviderName` return. A hand-typed `google` misses every Gemini
+  lookup and prices it at $0. Non-Go consumers that persisted or filter on
+  `"google"` must rewrite it before bumping. Vertex's key is `gcp.vertex`.
+- **Vertex offering IDs are the bare publisher IDs** (`claude-sonnet-5`,
+  not `vertex.claude-sonnet-5`), and `vertex.Offering*` is now
+  `vertex.Model*`. `OfferingForModel`, `LocationsForModel` and
+  `IsModelAvailableAtLocation` no longer strip a `vertex.` prefix: they
+  take a `string`, so a caller still passing the prefixed form compiles
+  clean and gets `ok == false` / `nil` / `false` — a silently missing
+  model, not a compile error. `catalog/snapshot.json` is the read format
+  for non-Go consumers, so these IDs change under them. Consumers that
+  persisted a prefixed ID must rewrite it before bumping; after the
+  first stored row this becomes a data migration, not a revert. The
+  counterpart change in the AI Gateway is tracked as AI-2020, which
+  moves its Vertex pricing path onto the bare publisher ID and
+  `pricing.ProviderKey("gcp.vertex")`.
+- **`Cost.CatalogVersion` changes for every model at this release.** The
+  version hash now folds in the provider (schema `v2`), so identical
+  rate data hashes differently. Stored versions from before the bump
+  stay valid for historical rows and will not recur.
 
 ### Unknown models
 
@@ -90,3 +143,12 @@ shape.
 know the model. Treat unknown as *stop enforcing* — do not assume
 capabilities, constraints, or pricing for it, and never bill it as
 free.
+
+On the pricing side there are now two distinct misses, and an
+`ErrUnknownModel` guard alone does not cover both. A wrong `ProviderKey`
+— a hand-typed `"google"` where the catalog registered `"gcp.gemini"`,
+or any provider the catalog carries no rates for — surfaces as
+`ErrUnknownProvider`, not `ErrUnknownModel`. Code that only checks for
+`ErrUnknownModel` treats that mapping bug as some other error and can let
+every call at the site price at $0. Branch on `ErrUnknownProvider` first
+and alert on it; see the `Calculate` example above.

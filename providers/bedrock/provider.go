@@ -138,7 +138,7 @@ func NewProvider(ctx context.Context, opts ...ProviderOption) (*Provider, error)
 
 // Name returns the provider identifier.
 func (*Provider) Name() string {
-	return "aws.bedrock"
+	return ProviderName
 }
 
 // WithAWSConfig sets a pre-loaded AWS configuration.

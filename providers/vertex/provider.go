@@ -39,7 +39,7 @@ func NewProvider(_ context.Context) (*Provider, error) {
 
 // Name returns the provider identifier used in offerings and telemetry.
 func (*Provider) Name() string {
-	return providerName
+	return ProviderName
 }
 
 // Catalog implements catalog.Provider. See the package-level [Catalog].

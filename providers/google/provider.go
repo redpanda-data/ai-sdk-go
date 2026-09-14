@@ -41,7 +41,7 @@ type Provider struct {
 
 // Name returns the provider identifier.
 func (*Provider) Name() string {
-	return "gcp.gemini"
+	return ProviderName
 }
 
 // ProviderOption configures a Provider instance using functional options.

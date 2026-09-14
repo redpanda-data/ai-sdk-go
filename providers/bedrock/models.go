@@ -556,9 +556,13 @@ var (
 // no effort control through the mantle adapter today.
 var gpt56Reasoning = catalog.ReasoningSupport{}
 
+// ProviderName is this provider's catalog key: the catalog registers
+// under it and Provider.Name() returns it. See pricing.ProviderKey.
+const ProviderName = "aws.bedrock"
+
 var catalogOnce = sync.OnceValue(func() *catalog.Catalog {
 	entries, _ := expandFamilies(bedrockFamilies)
-	return catalog.MustNew("aws.bedrock", entries)
+	return catalog.MustNew(ProviderName, entries)
 })
 
 // mantleModelIDs is the set of bare model IDs served exclusively on the

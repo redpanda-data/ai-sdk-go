@@ -78,8 +78,12 @@ const (
 	SpeedFast     = llm.SpeedFast
 )
 
+// ProviderName is this provider's catalog key: the catalog registers
+// under it and Provider.Name() returns it. See pricing.ProviderKey.
+const ProviderName = "anthropic"
+
 var catalogOnce = sync.OnceValue(func() *catalog.Catalog {
-	return catalog.MustNew("anthropic", entries())
+	return catalog.MustNew(ProviderName, entries())
 })
 
 // Catalog returns the validated Anthropic model catalog: every offering
