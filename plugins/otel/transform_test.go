@@ -317,6 +317,21 @@ func TestTransformPart_AllTypes(t *testing.T) {
 				Content: "First, I need to consider...",
 			},
 		},
+		{
+			// Hosted tool search is recorded as a tool_search call so the
+			// discovery step shows up in transcripts instead of an empty part.
+			name: "tool search part",
+			part: &llm.ToolSearchPart{
+				Provider: "openai",
+				Data:     json.RawMessage(`{"type":"tool_search_output"}`),
+				Tools:    []string{"jira__create_issue"},
+			},
+			want: genai.Part{
+				Type:      "tool_call",
+				Name:      "tool_search",
+				Arguments: json.RawMessage(`{"provider":"openai","tools":["jira__create_issue"],"data":{"type":"tool_search_output"}}`),
+			},
+		},
 	}
 
 	for _, tt := range tests {

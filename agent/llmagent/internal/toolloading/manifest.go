@@ -17,6 +17,7 @@ package toolloading
 import (
 	"fmt"
 	"maps"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -48,9 +49,21 @@ type toolManifest struct {
 // renders last.
 const ungroupedHeading = "Other"
 
+// validToolName is the character set the MCP specification allows for tool
+// names, which every supported provider accepts as well. The manifest renders
+// names into the system prompt verbatim, so a name outside it could close the
+// code span and write its own markdown into the SDK-authored prompt. Such a
+// tool is dropped from the catalog; no provider could have called it anyway.
+var validToolName = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,128}$`)
+
 // buildToolManifest groups name-sorted deferred definitions. It includes loaded
 // tools so the manifest stays unchanged as the session loads schemas.
 func buildToolManifest(deferred []llm.ToolDefinition) toolManifest {
+	// Filter before anything reads the slice: Examples indexes it directly.
+	deferred = slices.DeleteFunc(slices.Clone(deferred), func(def llm.ToolDefinition) bool {
+		return !validToolName.MatchString(def.Name)
+	})
+
 	byGroup := make(map[string][]manifestTool)
 	descriptions := make(map[string]string)
 
@@ -112,7 +125,7 @@ func summarize(description string) string {
 		return ""
 	}
 
-	if idx := strings.IndexAny(collapsed, ".!?\n"); idx > 0 {
+	if idx := sentenceEnd(collapsed); idx > 0 {
 		collapsed = strings.TrimSpace(collapsed[:idx])
 	}
 
@@ -130,6 +143,23 @@ func summarize(description string) string {
 	}
 
 	return strings.TrimRight(truncated, " ,;:-") + "..."
+}
+
+// sentenceEnd returns the index of the first terminator that ends a sentence:
+// one followed by a space or the end of the text. A period inside a version
+// number, hostname or identifier ("v1.2", "api.example.com") does not count.
+// Returns -1 when there is none.
+func sentenceEnd(text string) int {
+	for i := range len(text) {
+		switch text[i] {
+		case '.', '!', '?':
+			if i+1 == len(text) || text[i+1] == ' ' {
+				return i
+			}
+		}
+	}
+
+	return -1
 }
 
 // toolManifestTemplate stays stable as tools are loaded.

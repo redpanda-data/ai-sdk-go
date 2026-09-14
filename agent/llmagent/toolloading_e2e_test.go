@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -233,6 +234,39 @@ func TestSelfHealsAnUnloadedCall(t *testing.T) {
 	assert.Contains(t, requestToolNames(calls[1].Request), incidentTool, "the retry has the schema")
 	assert.Equal(t, int32(1), incident.calls.Load())
 	assert.Contains(t, toolResultsFor(sess.Messages, incidentTool)[0], "tool_not_loaded")
+}
+
+// TestBlindCallGivesInterceptorsTheDefinition: a deferred tool the model calls
+// before loading it is absent from the request, but the registry still knows
+// it. Interceptors read the definition on that path like on any other.
+func TestBlindCallGivesInterceptorsTheDefinition(t *testing.T) {
+	t.Parallel()
+
+	registry, _ := serviceDeskRegistry(t)
+	model := fakellm.NewFakeModel()
+	model.When(fakellm.FirstCall()).ThenRespondWithToolCall(incidentTool, map[string]any{"short_description": "Laptop will not boot"})
+	model.When(fakellm.Any()).ThenRespondText("Done.")
+
+	var seen []string
+
+	var mu sync.Mutex
+
+	interceptor := toolInterceptorFunc(func(ctx context.Context, info *agent.ToolCallInfo, next agent.ToolExecutionNext) (*llm.ToolResponsePart, error) {
+		require.NotNil(t, info.Definition, "definition for %s", info.Req.Name)
+
+		mu.Lock()
+
+		seen = append(seen, info.Definition.Name)
+
+		mu.Unlock()
+
+		return next(ctx, info)
+	})
+
+	sess := &session.State{ID: "blind-definition", Messages: userMessage("My laptop will not boot")}
+	runAgent(t, newAgent(t, model, registry, WithInterceptors(interceptor), WithMaxTurns(2)), sess)
+
+	assert.Contains(t, seen, incidentTool)
 }
 
 // TestInterceptorsGovernLoads: a load is an effect of the tool_search call the

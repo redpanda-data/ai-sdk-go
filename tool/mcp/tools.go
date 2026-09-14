@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -226,6 +227,10 @@ type registryOp struct {
 	serverName string    // server-side tool name, for register operations
 }
 
+// validMCPToolName is the tool-name format the MCP specification allows: 1 to
+// 128 ASCII letters, digits, underscores, hyphens and dots.
+var validMCPToolName = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,128}$`)
+
 // preparedTool holds a tool with its pre-marshalled parameters JSON.
 type preparedTool struct {
 	mcpTool        *sdkmcp.Tool
@@ -247,6 +252,16 @@ func (c *clientImpl) prepareTools(fetched map[string]*sdkmcp.Tool) (map[string]*
 	for _, mcpTool := range fetched {
 		// Apply filter if configured
 		if c.toolFilter != nil && !c.toolFilter(mcpTool.Name, mcpTool.Description) {
+			continue
+		}
+
+		// Server-supplied names are untrusted. One outside the specification's
+		// character set cannot be called through any provider, and it would
+		// otherwise reach the model's instructions verbatim.
+		if !validMCPToolName.MatchString(mcpTool.Name) {
+			c.logger.Warn("skipping tool with invalid name",
+				"tool", mcpTool.Name, "serverID", c.serverID)
+
 			continue
 		}
 
