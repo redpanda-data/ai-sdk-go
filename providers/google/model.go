@@ -89,7 +89,7 @@ func (m *Model) Generate(ctx context.Context, req *llm.Request) (*llm.Response, 
 	response, err := m.client.Models.GenerateContent(ctx, modelName, contents, config)
 	if err != nil {
 		// Double-wrap: see anthropic/model.go Generate for rationale.
-		return nil, fmt.Errorf("%w: %w", llm.ErrAPICall, classifyError(err))
+		return nil, llm.WrapAPICall(classifyError(err))
 	}
 
 	// Convert Gemini response back to our format
@@ -124,7 +124,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 		for response, err := range stream {
 			if err != nil {
 				// Double-wrap: see anthropic/model.go Generate for rationale.
-				yield(nil, fmt.Errorf("%w: %w", llm.ErrAPICall, classifyError(err)))
+				yield(nil, llm.WrapAPICall(classifyError(err)))
 				return
 			}
 

@@ -311,6 +311,27 @@ func entries() []catalog.Entry {
 			Pricing: pricing.FlatInfo(1.75, 14.00, 0.175),
 		},
 
+		// https://developers.openai.com/api/docs/models/gpt-6-astra
+		// Parameter restrictions: /api/docs/guides/latest-model
+		{
+			ID:           ModelGPT6Astra,
+			Model:        catalog.ModelGPT6Astra,
+			Capabilities: llm.ModelCapabilities{Streaming: true, Tools: true, JSONMode: true, StructuredOutput: true, Vision: true, MultiTurn: true, SystemPrompts: true, Reasoning: true},
+			Modalities:   textImage,
+			Constraints: llm.ModelConstraints{
+				MaxInputTokens:  1_050_000,
+				MaxOutputTokens: 128_000,
+				SupportedParams: []string{"max_tokens", "reasoning_effort", "reasoning_summary"},
+			},
+			Reasoning: catalog.ReasoningSupport{Efforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax}},
+			Life:      catalog.Lifecycle{Available: catalog.MustDate("2026-09-03")},
+			// Standard processing; above 272K, the full request uses long-context rates.
+			Pricing: pricing.TieredInfo(
+				pricing.NewRates(10, 50, 1).WithCacheCreation(0, 0, 12.50),
+				pricing.Bracket{MinContextTokens: 272_001, Rates: pricing.NewRates(20, 75, 2).WithCacheCreation(0, 0, 25)},
+			),
+		},
+
 		// GPT-5.6 Series
 		gpt56Entry(ModelGPT5_6Luna, catalog.ModelGPT5_6Luna, nil,
 			// Per M tokens: $0.20 input, $1.20 output, $0.02 cached input, $0.25 cache write.

@@ -37,6 +37,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/providers/bedrock"
 	"github.com/redpanda-data/ai-sdk-go/providers/google"
 	"github.com/redpanda-data/ai-sdk-go/providers/openai"
+	"github.com/redpanda-data/ai-sdk-go/providers/vertex"
 )
 
 func main() {
@@ -52,6 +53,7 @@ func main() {
 		bedrock.Catalog(),
 		google.Catalog(),
 		openai.Catalog(),
+		vertex.Catalog(),
 	)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "catalog-snapshot:", err)

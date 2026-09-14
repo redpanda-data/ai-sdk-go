@@ -16,6 +16,7 @@ package otel
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -61,8 +62,31 @@ func setSpanError(span trace.Span, err error) {
 
 	span.RecordError(err)
 	span.SetStatus(codes.Error, err.Error())
-	// Use concrete error type for better debugging (e.g., "*errors.errorString")
-	span.SetAttributes(errorType(fmt.Sprintf("%T", err)))
+
+	if t, ok := spanErrorType(err); ok {
+		span.SetAttributes(errorType(t))
+	}
+}
+
+// spanErrorType picks the error.type value for err: a low-cardinality class,
+// as the semantic conventions ask for. A *llm.ProviderError anywhere in the
+// chain contributes its provider code ("rate_limit_exceeded",
+// "guardrail_intervened"); other concrete types are named as before. The
+// stdlib wrapper types (fmt.Errorf with %w, errors.New, errors.Join) name
+// nothing about the failure — a wrapped error is always one of them — so they
+// yield no attribute rather than "*fmt.wrapErrors".
+func spanErrorType(err error) (string, bool) {
+	var perr *llm.ProviderError
+	if errors.As(err, &perr) && perr.Code != "" {
+		return perr.Code, true
+	}
+
+	switch t := fmt.Sprintf("%T", err); t {
+	case "*fmt.wrapError", "*fmt.wrapErrors", "*errors.errorString", "*errors.joinError":
+		return "", false
+	default:
+		return t, true
+	}
 }
 
 // setToolError records a tool-level error on a span.

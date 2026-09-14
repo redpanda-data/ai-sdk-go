@@ -80,7 +80,7 @@ func (m *Model) Generate(ctx context.Context, req *llm.Request) (*llm.Response, 
 	if err != nil {
 		// Double-wrap: ErrAPICall (for backward compat) + classified error (e.g.
 		// ErrRateLimitExceeded) so both errors.Is checks work on the same error.
-		return nil, fmt.Errorf("%w: %w", llm.ErrAPICall, classifyError(err))
+		return nil, llm.WrapAPICall(classifyError(err))
 	}
 
 	// Convert Beta Messages API response back to our format
@@ -244,7 +244,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 		// Check for transport/cancellation errors
 		if err := stream.Err(); err != nil {
 			// See Generate for ErrAPICall double-wrap rationale.
-			yield(nil, fmt.Errorf("%w: %w", llm.ErrAPICall, classifyError(err)))
+			yield(nil, llm.WrapAPICall(classifyError(err)))
 			return
 		}
 

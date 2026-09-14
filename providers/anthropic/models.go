@@ -26,6 +26,7 @@ import (
 // These are model family identifiers (non-timestamped). The Anthropic API
 // accepts them directly and resolves to the latest snapshot.
 const (
+	ModelClaudeFable51  = "claude-fable-5-1"
 	ModelClaudeFable5   = "claude-fable-5"
 	ModelClaudeOpus5    = "claude-opus-5"
 	ModelClaudeSonnet5  = "claude-sonnet-5"
@@ -126,6 +127,33 @@ var claudeModalities = catalog.Modalities{
 // failure stays explainable.
 func entries() []catalog.Entry {
 	return []catalog.Entry{
+		{
+			ID:           ModelClaudeFable51,
+			Model:        catalog.ModelClaudeFable51,
+			Capabilities: claudeCaps,
+			Modalities:   claudeModalities,
+			Constraints: llm.ModelConstraints{
+				MaxInputTokens:  1000000, // 1M context window
+				MaxOutputTokens: 128000,  // 128K output tokens
+				// Fable 5.1 keeps Fable 5's surface: thinking is always on
+				// (thinking.type.enabled is rejected) and non-default sampling
+				// parameters return 400. Fast mode is not offered.
+				SupportedParams: []string{"max_tokens", "reasoning_effort"},
+			},
+			Reasoning: catalog.ReasoningSupport{
+				Efforts:  []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+				Adaptive: true,
+			},
+			Life: catalog.Lifecycle{
+				Available: catalog.MustDate("2026-09-01"),
+			},
+			// Same base and cache-write rates as Fable 5. Cache reads are the
+			// exception to Anthropic's 0.10x multiplier: the pricing page
+			// prices Fable 5.1 hits at 0.025x base input ($0.25/MTok).
+			Pricing: pricing.FlatInfoFromRates(
+				pricing.NewRates(10.00, 50.00, 0.25).WithCacheCreation(12.50, 20.00, 0),
+			),
+		},
 		{
 			ID:           ModelClaudeFable5,
 			Model:        catalog.ModelClaudeFable5,

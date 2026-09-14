@@ -106,6 +106,20 @@ type ProviderError struct {
 	Retryable bool
 }
 
+// WrapAPICall marks err as an API-call failure so errors.Is(err, ErrAPICall)
+// holds for callers that only check the category, while keeping the specific
+// classification (rate limit, context overflow, ...) reachable with errors.Is
+// too. A classified error whose category already is ErrAPICall — a
+// *ProviderError for a 401/403 — is returned as is: wrapping it again would
+// repeat the "API call failed" prefix in the message.
+func WrapAPICall(err error) error {
+	if err == nil || errors.Is(err, ErrAPICall) {
+		return err
+	}
+
+	return fmt.Errorf("%w: %w", ErrAPICall, err)
+}
+
 // IsRetryable checks if an error represents a transient condition that may
 // succeed on retry. It works through error wrapping chains.
 //

@@ -79,7 +79,7 @@ func (m *Model) Generate(ctx context.Context, req *llm.Request) (*llm.Response, 
 	response, err := m.client.Responses.New(ctx, apiReq)
 	if err != nil {
 		// Double-wrap: see anthropic/model.go Generate for rationale.
-		return nil, fmt.Errorf("%w: %w", llm.ErrAPICall, classifyError(err))
+		return nil, llm.WrapAPICall(classifyError(err))
 	}
 
 	// Convert Responses API response back to our format
@@ -177,7 +177,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 		// Check for transport/cancellation errors
 		if err := stream.Err(); err != nil {
 			// Double-wrap: see anthropic/model.go Generate for rationale.
-			yield(nil, fmt.Errorf("%w: %w", llm.ErrAPICall, classifyError(err)))
+			yield(nil, llm.WrapAPICall(classifyError(err)))
 			return
 		}
 

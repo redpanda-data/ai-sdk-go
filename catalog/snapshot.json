@@ -13,6 +13,13 @@
       "series": "claude-fable",
       "released": "2026-06-07"
     },
+    "anthropic/claude-fable-5-1": {
+      "display_name": "Claude Fable 5.1",
+      "description": "Claude Fable 5.1 is Anthropic’s most capable Mythos-class model for demanding reasoning and long-horizon agentic work.",
+      "series": "claude-fable",
+      "released": "2026-09-01",
+      "knowledge": "2026-06-30"
+    },
     "anthropic/claude-haiku-4-5": {
       "display_name": "Claude Haiku 4.5",
       "description": "Claude Haiku 4.5 is Anthropic’s fastest and most efficient model, delivering near-frontier intelligence at a fraction of the cost and latency of larger Claude models.",
@@ -150,6 +157,13 @@
       "description": "Gemini 3.7 Flash is a multimodal model from Google for fast agentic workflows, coding, and complex multi-step reasoning.",
       "series": "gemini-flash",
       "released": "2026-08-13"
+    },
+    "google/gemini-3.8-flash": {
+      "display_name": "Gemini 3.8 Flash",
+      "description": "Gemini 3.8 Flash is Google's most intelligent Flash model, built for long-horizon software engineering, autonomous agents, and complex enterprise workflows.",
+      "series": "gemini-flash",
+      "released": "2026-09-02",
+      "knowledge": "2026-03-31"
     },
     "google/gemma-4-26b-a4b": {
       "display_name": "Gemma 4 26B A4B",
@@ -325,6 +339,13 @@
       "released": "2026-07-09",
       "knowledge": "2026-02-16"
     },
+    "openai/gpt-6-astra": {
+      "display_name": "GPT-6 Astra",
+      "description": "GPT-6 Astra is OpenAI's flagship model for complex reasoning, coding, and long-running professional work.",
+      "series": "gpt",
+      "released": "2026-09-03",
+      "knowledge": "2026-04-30"
+    },
     "openai/o1-pro": {
       "display_name": "o1-pro",
       "description": "The o1 series of models are trained with reinforcement learning to think before they answer and perform complex reasoning.",
@@ -415,6 +436,69 @@
           "lifecycle": {
             "stage": "ga",
             "available": "2026-06-07"
+          },
+          "derived": {
+            "price_tier": "high",
+            "replacement": "anthropic/claude-fable-5-1"
+          }
+        },
+        {
+          "id": "claude-fable-5-1",
+          "model": "anthropic/claude-fable-5-1",
+          "display_name": "Claude Fable 5.1",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "reasoning_effort"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 1000000000,
+                "output_microcents_per_million": 5000000000,
+                "cached_input_microcents_per_million": 25000000,
+                "cache_creation_5m_microcents_per_million": 1250000000,
+                "cache_creation_1h_microcents_per_million": 2000000000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-09-01"
           },
           "derived": {
             "price_tier": "high"
@@ -1608,7 +1692,8 @@
             }
           ],
           "derived": {
-            "price_tier": "high"
+            "price_tier": "high",
+            "replacement": "anthropic/claude-fable-5-1"
           }
         },
         {
@@ -2285,6 +2370,78 @@
                 "input_microcents_per_million": 1000000000,
                 "output_microcents_per_million": 5000000000,
                 "cached_input_microcents_per_million": 100000000,
+                "cache_creation_5m_microcents_per_million": 1250000000,
+                "cache_creation_1h_microcents_per_million": 2000000000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "global"
+            },
+            {
+              "key": "requires_provider_data_sharing",
+              "value": "true"
+            }
+          ],
+          "derived": {
+            "price_tier": "high",
+            "replacement": "anthropic/claude-fable-5-1"
+          }
+        },
+        {
+          "id": "global.anthropic.claude-fable-5-1",
+          "model": "anthropic/claude-fable-5-1",
+          "display_name": "Claude Fable 5.1 (Global)",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "stop"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 1000000000,
+                "output_microcents_per_million": 5000000000,
+                "cached_input_microcents_per_million": 25000000,
                 "cache_creation_5m_microcents_per_million": 1250000000,
                 "cache_creation_1h_microcents_per_million": 2000000000
               }
@@ -3725,6 +3882,78 @@
             }
           ],
           "derived": {
+            "price_tier": "high",
+            "replacement": "anthropic/claude-fable-5-1"
+          }
+        },
+        {
+          "id": "us.anthropic.claude-fable-5-1",
+          "model": "anthropic/claude-fable-5-1",
+          "display_name": "Claude Fable 5.1 (US)",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "stop"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 1100000000,
+                "output_microcents_per_million": 5500000000,
+                "cached_input_microcents_per_million": 27500000,
+                "cache_creation_5m_microcents_per_million": 1375000000,
+                "cache_creation_1h_microcents_per_million": 2200000000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "us"
+            },
+            {
+              "key": "requires_provider_data_sharing",
+              "value": "true"
+            }
+          ],
+          "derived": {
             "price_tier": "high"
           }
         },
@@ -4361,6 +4590,345 @@
           ],
           "derived": {
             "price_tier": "medium"
+          }
+        }
+      ]
+    },
+    {
+      "provider": "gcp.vertex",
+      "offerings": [
+        {
+          "id": "vertex.claude-haiku-4-5",
+          "model": "anthropic/claude-haiku-4-5",
+          "display_name": "Claude Haiku 4.5",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 200000,
+            "max_output_tokens": 64000,
+            "supported_params": [
+              "temperature",
+              "top_p",
+              "top_k",
+              "max_tokens",
+              "reasoning_effort"
+            ],
+            "temperature_range": [
+              0,
+              1
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 100000000,
+                "output_microcents_per_million": 500000000,
+                "cached_input_microcents_per_million": 10000000,
+                "cache_creation_5m_microcents_per_million": 125000000,
+                "cache_creation_1h_microcents_per_million": 200000000
+              }
+            },
+            "overrides": [
+              {
+                "region": "us-east5",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 110000000,
+                    "output_microcents_per_million": 550000000,
+                    "cached_input_microcents_per_million": 11000000,
+                    "cache_creation_5m_microcents_per_million": 137500000,
+                    "cache_creation_1h_microcents_per_million": 220000000
+                  }
+                }
+              },
+              {
+                "region": "europe-west1",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 110000000,
+                    "output_microcents_per_million": 550000000,
+                    "cached_input_microcents_per_million": 11000000,
+                    "cache_creation_5m_microcents_per_million": 137500000,
+                    "cache_creation_1h_microcents_per_million": 220000000
+                  }
+                }
+              },
+              {
+                "region": "asia-east1",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 110000000,
+                    "output_microcents_per_million": 550000000,
+                    "cached_input_microcents_per_million": 11000000,
+                    "cache_creation_5m_microcents_per_million": 137500000,
+                    "cache_creation_1h_microcents_per_million": 220000000
+                  }
+                }
+              }
+            ]
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2025-10-15"
+          },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "anthropic"
+            },
+            {
+              "key": "vertex_model",
+              "value": "claude-haiku-4-5"
+            }
+          ],
+          "derived": {
+            "price_tier": "low"
+          }
+        },
+        {
+          "id": "vertex.claude-sonnet-5",
+          "model": "anthropic/claude-sonnet-5",
+          "display_name": "Claude Sonnet 5",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "temperature",
+              "top_p",
+              "top_k",
+              "max_tokens",
+              "reasoning_effort"
+            ],
+            "temperature_range": [
+              0,
+              1
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 200000000,
+                "output_microcents_per_million": 1000000000,
+                "cached_input_microcents_per_million": 20000000,
+                "cache_creation_5m_microcents_per_million": 250000000,
+                "cache_creation_1h_microcents_per_million": 400000000
+              }
+            },
+            "overrides": [
+              {
+                "region": "us",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 220000000,
+                    "output_microcents_per_million": 1100000000,
+                    "cached_input_microcents_per_million": 22000000,
+                    "cache_creation_5m_microcents_per_million": 275000000,
+                    "cache_creation_1h_microcents_per_million": 440000000
+                  }
+                }
+              },
+              {
+                "region": "eu",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 220000000,
+                    "output_microcents_per_million": 1100000000,
+                    "cached_input_microcents_per_million": 22000000,
+                    "cache_creation_5m_microcents_per_million": 275000000,
+                    "cache_creation_1h_microcents_per_million": 440000000
+                  }
+                }
+              },
+              {
+                "region": "asia-southeast1",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 220000000,
+                    "output_microcents_per_million": 1100000000,
+                    "cached_input_microcents_per_million": 22000000,
+                    "cache_creation_5m_microcents_per_million": 275000000,
+                    "cache_creation_1h_microcents_per_million": 440000000
+                  }
+                }
+              }
+            ]
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-06-30"
+          },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "anthropic"
+            },
+            {
+              "key": "vertex_model",
+              "value": "claude-sonnet-5"
+            }
+          ],
+          "derived": {
+            "price_tier": "medium"
+          }
+        },
+        {
+          "id": "vertex.gemini-3.6-flash",
+          "model": "google/gemini-3.6-flash",
+          "display_name": "Gemini 3.6 Flash",
+          "capabilities": {
+            "audio": true,
+            "json_mode": true,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1048576,
+            "max_output_tokens": 65536,
+            "supported_params": [
+              "temperature",
+              "top_p",
+              "top_k",
+              "max_tokens",
+              "stop",
+              "presence_penalty",
+              "frequency_penalty"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "minimal",
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 75000000,
+                "output_microcents_per_million": 375000000,
+                "cached_input_microcents_per_million": 7500000
+              }
+            },
+            "overrides": [
+              {
+                "region": "us",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 82500000,
+                    "output_microcents_per_million": 412500000,
+                    "cached_input_microcents_per_million": 8250000
+                  }
+                }
+              },
+              {
+                "region": "eu",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 82500000,
+                    "output_microcents_per_million": 412500000,
+                    "cached_input_microcents_per_million": 8250000
+                  }
+                }
+              }
+            ]
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-07-21"
+          },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "google"
+            },
+            {
+              "key": "vertex_model",
+              "value": "gemini-3.6-flash"
+            }
+          ],
+          "derived": {
+            "price_tier": "low"
           }
         }
       ]
@@ -5068,6 +5636,75 @@
           "lifecycle": {
             "stage": "ga",
             "available": "2026-08-13"
+          },
+          "derived": {
+            "price_tier": "low",
+            "replacement": "google/gemini-3.8-flash"
+          }
+        },
+        {
+          "id": "gemini-3.8-flash",
+          "model": "google/gemini-3.8-flash",
+          "display_name": "Gemini 3.8 Flash",
+          "capabilities": {
+            "audio": true,
+            "json_mode": true,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1048576,
+            "max_output_tokens": 65536,
+            "supported_params": [
+              "temperature",
+              "top_p",
+              "top_k",
+              "max_tokens",
+              "stop",
+              "presence_penalty",
+              "frequency_penalty"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 75000000,
+                "output_microcents_per_million": 375000000,
+                "cached_input_microcents_per_million": 7500000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-09-02"
           },
           "derived": {
             "price_tier": "low"
@@ -6577,7 +7214,8 @@
             "available": "2026-07-09"
           },
           "derived": {
-            "price_tier": "medium"
+            "price_tier": "medium",
+            "replacement": "openai/gpt-6-astra"
           }
         },
         {
@@ -6665,6 +7303,77 @@
           },
           "derived": {
             "price_tier": "medium"
+          }
+        },
+        {
+          "id": "gpt-6-astra",
+          "model": "openai/gpt-6-astra",
+          "display_name": "GPT-6 Astra",
+          "capabilities": {
+            "audio": false,
+            "json_mode": true,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1050000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "reasoning_effort",
+              "reasoning_summary"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 1000000000,
+                "output_microcents_per_million": 5000000000,
+                "cached_input_microcents_per_million": 100000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 1250000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 2000000000,
+                    "output_microcents_per_million": 7500000000,
+                    "cached_input_microcents_per_million": 200000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 2500000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-09-03"
+          },
+          "derived": {
+            "price_tier": "high"
           }
         },
         {

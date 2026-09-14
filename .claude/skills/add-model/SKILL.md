@@ -105,6 +105,10 @@ Authoritative (always reconcile against these):
   per-model pages (/docs/models/<id>) for window, max input, max output
 - Google: ai.google.dev/gemini-api/docs/pricing · /docs/deprecations ·
   /docs/models
+- Vertex (Google Cloud Agent Platform): cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing
+  (one page, per-region tabs; Claude priced by Google here, not Anthropic) ·
+  per-model pages /models/gemini/<slug> and /models/partner-models/claude/<slug>
+  for launch stage, release date, retirement floor
 - Bedrock: aws.amazon.com/bedrock/pricing/ · per-model cards ·
   `ListFoundationModels` (`modelLifecycle`)
 

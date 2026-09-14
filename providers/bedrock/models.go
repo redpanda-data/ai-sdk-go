@@ -51,6 +51,14 @@ const (
 	ModelClaudeFable5US     = "us." + ModelClaudeFable5
 	ModelClaudeFable5EU     = "eu." + ModelClaudeFable5
 
+	// ModelClaudeFable51 is the bare Bedrock ID for Claude Fable 5.1
+	// (inference-profile-only — invoke via one of the prefixed variants).
+	// AWS publishes only the us. and global. profiles:
+	// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-fable-5-1.html
+	ModelClaudeFable51       = "anthropic.claude-fable-5-1"
+	ModelClaudeFable51Global = "global." + ModelClaudeFable51
+	ModelClaudeFable51US     = "us." + ModelClaudeFable51
+
 	// ModelClaudeSonnet5 is the bare Bedrock ID for Claude Sonnet 5
 	// (inference-profile-only — invoke via one of the prefixed variants).
 	// Only us. and global. profiles are published so far (verified by
@@ -584,6 +592,25 @@ func Catalog() *catalog.Catalog {
 // has an announced deprecation, and per-profile availability dates are not
 // published, so Life stays empty rather than inventing dates.
 var bedrockFamilies = []family{
+	{
+		// Claude Fable 5.1 — inference-profile-only, no bare entry. The
+		// model card publishes a US geo profile and global; EU/JP/AU
+		// regions are global-only, so the family opts into exact routing.
+		// Cache reads are 0.025x base input (matching Anthropic's
+		// first-party rate), not the 0.10x the other Claude families use.
+		BareID:         ModelClaudeFable51,
+		Model:          catalog.ModelClaudeFable51,
+		DisplayName:    "Claude Fable 5.1",
+		Profiles:       []string{"global", "us"},
+		DataSharing:    true,
+		Capabilities:   claudeStandardCaps,
+		Modalities:     claudeModalities,
+		Constraints:    claudeNoSampling1MConstraints,
+		Reasoning:      frontierClaudeThinking,
+		GlobalRates:    &pricing.RateCard{Base: pricing.NewRates(10.00, 50.00, 0.25).WithCacheCreation(12.50, 20.00, 0)},
+		Rates:          pricing.RateCard{Base: pricing.NewRates(11.00, 55.00, 0.275).WithCacheCreation(13.75, 22.00, 0)},
+		ProfileRegions: claudeFable51ProfileRegions,
+	},
 	{
 		// Claude Fable 5 — inference-profile-only, no bare entry. Geo
 		// profiles cover us and eu (jp/au are not published).

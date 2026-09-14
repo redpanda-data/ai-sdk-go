@@ -56,6 +56,19 @@ surface** — every change must be visible and intended in
      (`.../models/gemini/<slug>`, e.g. `2-5-pro`, `3-1-pro`) carry release
      and retirement but NOT the replacement column, so prefer
      `model-versions`.
+   - Vertex (Google Cloud, the Gemini Enterprise Agent Platform) — one host
+     serving first-party Gemini and partner Claude, priced by Google, not by
+     the model's own publisher:
+     - Pricing (one page, per-region tabs; Claude rates here, NOT Anthropic's
+       list prices, and a ~10% non-global premium):
+       `https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing`
+     - Per-model pages carry launch stage, release date, and the retirement
+       floor: Gemini at
+       `https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/<slug>`
+       (e.g. `3-6-flash`), Claude at
+       `.../models/partner-models/claude/<slug>` (e.g. `sonnet-5`,
+       `haiku-4-5`). Google words retirement as "not sooner than" — a floor,
+       so `Retires` stays unset (same rule as Anthropic).
    - Bedrock: `https://aws.amazon.com/bedrock/pricing/` · model cards ·
      `ListFoundationModels` (`modelLifecycle`) · lifecycle/EOL table:
      `https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle.html`
