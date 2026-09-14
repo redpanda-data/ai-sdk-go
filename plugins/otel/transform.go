@@ -134,6 +134,26 @@ func transformPart(part llm.Part) genai.Part {
 			Content: p.Text,
 		}
 
+	case *llm.ToolSearchPart:
+		// Hosted tool search has no part type of its own in the GenAI
+		// conventions. Record it as a tool call named tool_search whose
+		// arguments carry the provider block and the registry names it loaded,
+		// so a transcript shows the turn the model spent discovering tools.
+		args, err := json.Marshal(struct {
+			Provider string          `json:"provider"`
+			Tools    []string        `json:"tools,omitempty"`
+			Data     json.RawMessage `json:"data,omitempty"`
+		}{Provider: p.Provider, Tools: p.Tools, Data: p.Data})
+		if err != nil {
+			args = json.RawMessage("null")
+		}
+
+		return genai.Part{
+			Type:      genai.PartTypeToolCall,
+			Name:      "tool_search",
+			Arguments: args,
+		}
+
 	default:
 		// Unknown part type - create a generic text representation
 		return genai.Part{

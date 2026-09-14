@@ -24,13 +24,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/redpanda-data/ai-sdk-go/agent/llmagent/internal/tokens"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/llm/fakellm"
 )
 
 // bigResult returns a tool result of roughly the given estimated token size.
-func bigResult(id string, tokens int) *llm.ToolResponsePart {
-	payload := fmt.Appendf(nil, `{"data":%q}`, strings.Repeat("x", tokens*charsPerToken))
+func bigResult(id string, size int) *llm.ToolResponsePart {
+	payload := fmt.Appendf(nil, `{"data":%q}`, strings.Repeat("x", size*tokens.CharsPerToken))
 	return llm.NewToolResponsePart(id, "fetch_records", payload, false)
 }
 
@@ -102,7 +103,7 @@ func TestEstimateNeverUndercountsFake(t *testing.T) {
 		}},
 	}
 
-	estimate := estimateHistoryTokens(msgs) + estimateToolTokens(req.Tools)
+	estimate := tokens.History(msgs) + tokens.Tools(req.Tools)
 	actual := model.CountRequestTokens(req)
 
 	assert.GreaterOrEqual(t, estimate, actual, "the estimate must never be lower than a provider's count")
@@ -124,7 +125,7 @@ func TestPrune_GatesAndMarker(t *testing.T) {
 	t.Parallel()
 
 	msgs := history(8, 4_000)
-	before := estimateHistoryTokens(msgs)
+	before := tokens.History(msgs)
 
 	compacted, stats := compactMessages(msgs, 0, before/2, keepRecentResults, minTailTurns)
 
@@ -177,7 +178,7 @@ func TestPrune_ErrorStatusSurvives(t *testing.T) {
 
 	// A target the prune step alone satisfies, so the message survives to be
 	// inspected rather than being dropped outright.
-	target := estimateHistoryTokens(msgs) - 3_000
+	target := tokens.History(msgs) - 3_000
 
 	compacted, stats := compactMessages(msgs, 0, target, 0, 0)
 	require.Positive(t, stats.prunedResults)
@@ -205,7 +206,7 @@ func TestDrop_CutRuleAndFloors(t *testing.T) {
 	t.Parallel()
 
 	msgs := history(10, 500) // unprunable, so only dropping can reduce
-	total := estimateHistoryTokens(msgs)
+	total := tokens.History(msgs)
 
 	compacted, stats := compactMessages(msgs, 0, total/2, keepRecentResults, minTailTurns)
 
@@ -289,7 +290,7 @@ func TestDrop_AssistantHeadGetsUserPreamble(t *testing.T) {
 
 	// The preamble counts toward the reported footprint.
 	assert.Equal(t, stats.afterTokens,
-		estimateHistoryTokens(out), "afterTokens must include the preamble")
+		tokens.History(out), "afterTokens must include the preamble")
 
 	// A second pass never stacks a second preamble.
 	again, statsAgain := compactMessages(out, 0, 1_000, 0, 0)
@@ -345,7 +346,7 @@ func TestCompact_NoOpWhenFitting(t *testing.T) {
 	t.Parallel()
 
 	msgs := history(3, 500)
-	before := estimateHistoryTokens(msgs)
+	before := tokens.History(msgs)
 
 	compacted, stats := compactMessages(msgs, 0, before+1, keepRecentResults, minTailTurns)
 	assert.False(t, stats.changed())
@@ -356,7 +357,7 @@ func TestCompact_Idempotent(t *testing.T) {
 	t.Parallel()
 
 	msgs := history(10, 4_000)
-	target := estimateHistoryTokens(msgs) / 3
+	target := tokens.History(msgs) / 3
 
 	once, statsOnce := compactMessages(msgs, 0, target, keepRecentResults, minTailTurns)
 	twice, statsTwice := compactMessages(once, 0, target, keepRecentResults, minTailTurns)
@@ -416,7 +417,7 @@ func TestCompact_Property(t *testing.T) {
 			frontierCopy := make([]llm.Message, len(msgs[frontier:]))
 			copy(frontierCopy, msgs[frontier:])
 
-			before := estimateHistoryTokens(msgs)
+			before := tokens.History(msgs)
 			target := before / (2 + rng.IntN(3))
 
 			compacted, stats := compactMessages(msgs, 0, target, keepRecentResults, minTailTurns)
@@ -456,7 +457,7 @@ func TestCapToolResult(t *testing.T) {
 	require.NotSame(t, failed, capped)
 	assert.True(t, capped.IsError, "error flag survives capping")
 	assert.Equal(t, "c2", capped.ID)
-	assert.Less(t, estimatePartTokens(capped), 1_000)
+	assert.Less(t, tokens.Part(capped), 1_000)
 
 	var marker resultMarker
 	require.NoError(t, json.Unmarshal(capped.Result, &marker))
@@ -466,6 +467,6 @@ func TestCapToolResult(t *testing.T) {
 	tight := capToolResult(failed, 1)
 	require.True(t, json.Valid(tight.Result))
 	assert.JSONEq(t, `{"truncated":true}`, string(tight.Result))
-	assert.Less(t, estimatePartTokens(tight), estimatePartTokens(capped),
+	assert.Less(t, tokens.Part(tight), tokens.Part(capped),
 		"tight budgets use the minimal marker")
 }

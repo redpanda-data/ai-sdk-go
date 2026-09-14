@@ -28,6 +28,10 @@ type Request struct {
 	// Only used if the model supports tool calling (check Capabilities.Tools).
 	Tools []ToolDefinition `json:"tools,omitempty"`
 
+	// ToolSearch enables provider-hosted discovery of Deferred tools. Requires
+	// Capabilities.ToolSearch. Supply the complete catalog on every request.
+	ToolSearch bool `json:"tool_search,omitempty"`
+
 	// ToolChoice controls how the model should use available tools.
 	// This field is ignored if Tools is empty or the model doesn't support tools.
 	ToolChoice *ToolChoice `json:"tool_choice,omitempty"`
@@ -68,6 +72,34 @@ type ToolDefinition struct {
 	// Values: "function" (default), "extension", "datastore"
 	// Used for OpenTelemetry gen_ai.tool.type attribute.
 	Type string `json:"type,omitempty"`
+
+	// Deferred withholds the input schema from the model until the model loads
+	// it on demand. Discovery uses tool summaries or native namespaces.
+	// Set through tool.WithDeferred. Native providers honor it with ToolSearch;
+	// the agent implements local discovery on other providers.
+	Deferred bool `json:"deferred,omitempty"`
+
+	// Group organizes discovery. OpenAI native search maps it to a namespace.
+	Group ToolGroup `json:"group,omitzero"`
+}
+
+// ToolGroup is the capability a tool belongs to, typically one MCP server or
+// one feature area. It shapes what the model reads about deferred tools and
+// never changes which tool executes. Native providers may load whole groups.
+//
+// Any member may carry Description and Instructions. A registry rejects
+// conflicting values and reports the resolved value on every member.
+type ToolGroup struct {
+	// Name identifies the group and heads its tools in the system prompt.
+	Name string `json:"name"`
+
+	// Description is shown under the heading and is searchable by tool_search.
+	Description string `json:"description,omitempty"`
+
+	// Instructions are added to the system prompt while any tool of the group
+	// is visible in local mode, and up front in native mode to keep the prompt
+	// stable. Use them for rules no single schema conveys.
+	Instructions string `json:"instructions,omitempty"`
 }
 
 // ToolChoice controls how the model should interact with available tools.

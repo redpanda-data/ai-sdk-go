@@ -90,11 +90,12 @@ func Catalog() *catalog.Catalog {
 	return catalogOnce()
 }
 
-// claudeCaps is the capability set shared by every catalogued Claude
-// model. Structured outputs are generally available via
-// output_config.format with a json_schema; JSONMode is false because
-// Anthropic has no schemaless JSON mode. Every catalogued Claude is
-// multimodal-in.
+// claudeCaps is the shared Claude capability set. Structured outputs are
+// generally available via output_config.format with a json_schema; JSONMode is
+// false because Anthropic has no schemaless JSON mode. Every catalogued Claude
+// is multimodal-in. Hosted tool search is off here and opted into per entry
+// with claudeCapsWithToolSearch, so a new model fails closed to local discovery
+// until its support is verified.
 var claudeCaps = llm.ModelCapabilities{
 	Streaming:        true,
 	Tools:            true,
@@ -104,6 +105,19 @@ var claudeCaps = llm.ModelCapabilities{
 	SystemPrompts:    true,
 	Reasoning:        true,
 }
+
+// claudeCapsWithToolSearch marks the models on Anthropic's tool search
+// compatibility list as of 2026-09-14: Fable 5.1, Fable 5, Opus 5, Opus 4.8,
+// 4.7, 4.6 and 4.5, Sonnet 4.6 and 4.5, Haiku 4.5. Opus 4.1 is explicitly
+// unsupported and Sonnet 5 is absent from the list, so both keep claudeCaps and
+// local discovery until native support is documented:
+// https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool#model-compatibility
+var claudeCapsWithToolSearch = func() llm.ModelCapabilities {
+	caps := claudeCaps
+	caps.ToolSearch = true
+
+	return caps
+}()
 
 // claudeModalities is shared by every catalogued Claude model: text,
 // image, and PDF inputs; text output.
@@ -130,7 +144,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeFable51,
 			Model:        catalog.ModelClaudeFable51,
-			Capabilities: claudeCaps,
+			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
 				MaxInputTokens:  1000000, // 1M context window
@@ -157,7 +171,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeFable5,
 			Model:        catalog.ModelClaudeFable5,
-			Capabilities: claudeCaps,
+			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
 				MaxInputTokens:  1000000, // 1M context window
@@ -184,7 +198,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeOpus5,
 			Model:        catalog.ModelClaudeOpus5,
-			Capabilities: claudeCaps,
+			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
 				MaxInputTokens:  1000000, // 1M context window
@@ -215,7 +229,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeOpus48,
 			Model:        catalog.ModelClaudeOpus48,
-			Capabilities: claudeCaps,
+			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange: [2]float64{0.0, 1.0},
@@ -249,7 +263,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeOpus47,
 			Model:        catalog.ModelClaudeOpus47,
-			Capabilities: claudeCaps,
+			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange: [2]float64{0.0, 1.0},
@@ -303,7 +317,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeSonnet46,
 			Model:        catalog.ModelClaudeSonnet46,
-			Capabilities: claudeCaps,
+			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange: [2]float64{0.0, 1.0},
@@ -326,7 +340,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeSonnet45,
 			Model:        catalog.ModelClaudeSonnet45,
-			Capabilities: claudeCaps,
+			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange: [2]float64{0.0, 1.0},
@@ -344,7 +358,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeHaiku45,
 			Model:        catalog.ModelClaudeHaiku45,
-			Capabilities: claudeCaps,
+			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange: [2]float64{0.0, 1.0},
@@ -362,7 +376,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeOpus46,
 			Model:        catalog.ModelClaudeOpus46,
-			Capabilities: claudeCaps,
+			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange: [2]float64{0.0, 1.0},
@@ -388,7 +402,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeOpus45,
 			Model:        catalog.ModelClaudeOpus45,
-			Capabilities: claudeCaps,
+			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange: [2]float64{0.0, 1.0},

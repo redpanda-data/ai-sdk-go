@@ -42,8 +42,8 @@ type Registry interface {
 	// Unregister removes a tool by name
 	Unregister(name string) error
 
-	// List returns tool definitions for use in llm.Request.Tools
-	// These definitions tell the LLM what tools are available
+	// List returns tool definitions for use in llm.Request.Tools.
+	// Every member of a group carries the same resolved group metadata.
 	List() []llm.ToolDefinition
 
 	// Get retrieves a registered tool by name
@@ -127,6 +127,10 @@ func (r *registry) Register(tool Tool, opts ...Option) error {
 		return fmt.Errorf("%w: %q", ErrToolAlreadyRegistered, definition.Name)
 	}
 
+	if err := r.checkGroup(config.Group); err != nil {
+		return fmt.Errorf("%w for tool %q: %w", ErrInvalidToolConfig, definition.Name, err)
+	}
+
 	r.tools[definition.Name] = &registeredTool{
 		tool:   tool,
 		config: *config,
@@ -155,8 +159,28 @@ func (r *registry) List() []llm.ToolDefinition {
 	defer r.mu.RUnlock()
 
 	definitions := make([]llm.ToolDefinition, 0, len(r.tools))
+	groups := make(map[string]llm.ToolGroup)
+
 	for _, registered := range r.tools {
-		definitions = append(definitions, registered.tool.Definition())
+		// The tool describes itself; registration decides deferral and grouping.
+		definition := registered.tool.Definition()
+		definition.Deferred = registered.config.Deferred
+		definition.Group = registered.config.Group
+
+		definitions = append(definitions, definition)
+		if group := definition.Group; group.Name != "" {
+			merged := groups[group.Name]
+			merged.Name = group.Name
+			merged.Description = cmp.Or(merged.Description, group.Description)
+			merged.Instructions = cmp.Or(merged.Instructions, group.Instructions)
+			groups[group.Name] = merged
+		}
+	}
+
+	// Resolve metadata before consumers filter tools for a model request.
+	// Registration rejects conflicts, so the result is independent of map order.
+	for i := range definitions {
+		definitions[i].Group = groups[definitions[i].Group.Name]
 	}
 
 	// Sort by name so the tools array is byte-identical across calls. Ranging a
@@ -307,6 +331,32 @@ func (r *registry) ExecuteAll(ctx context.Context, reqs []*llm.ToolRequestPart, 
 	}
 
 	return results
+}
+
+// checkGroup rejects a group whose description or instructions contradict what
+// an already-registered tool of the same group declared. Empty values defer to
+// the existing ones. Caller holds r.mu.
+func (r *registry) checkGroup(group llm.ToolGroup) error {
+	if group.Name == "" {
+		return nil
+	}
+
+	for _, registered := range r.tools {
+		existing := registered.config.Group
+		if existing.Name != group.Name {
+			continue
+		}
+
+		if group.Description != "" && existing.Description != "" && group.Description != existing.Description {
+			return fmt.Errorf("group %q already has a different description", group.Name)
+		}
+
+		if group.Instructions != "" && existing.Instructions != "" && group.Instructions != existing.Instructions {
+			return fmt.Errorf("group %q already has different instructions", group.Name)
+		}
+	}
+
+	return nil
 }
 
 // enforceResponseSizeLimit checks response size and applies limits/fallbacks.

@@ -128,6 +128,7 @@ func MessageToLLM(msg *a2a.Message) llm.Message {
 //   - llm.PartToolRequest → a2a.DataPart with Metadata["data_type"]="tool_request"
 //   - llm.PartToolResponse → a2a.DataPart with Metadata["data_type"]="tool_response"
 //   - llm.PartReasoning → a2a.TextPart (reasoning text only, type information lost)
+//   - llm.ToolSearchPart → a2a.DataPart with Metadata["data_type"]="tool_search"
 //
 // All complex types (ToolRequest, ToolResponse) are converted to JSON-safe map[string]any
 // for gob-compatibility. The data_type metadata field enables reverse conversion.
@@ -190,6 +191,21 @@ func MessageFromLLM(llmMsg llm.Message) *a2a.Message {
 			// Reasoning trace: store text as TextPart (like regular text)
 			if p.Text != "" {
 				parts = append(parts, a2a.TextPart{Text: p.Text})
+			}
+		case *llm.ToolSearchPart:
+			// Hosted tool search: the model spent part of its turn discovering
+			// tools. Keep it visible to clients instead of dropping the block.
+			data, err := toJSONSafe(p)
+			if err != nil {
+				errMsg := fmt.Sprintf("[ERROR: Failed to serialize tool search: %v]", err)
+				parts = append(parts, a2a.TextPart{Text: errMsg})
+			} else {
+				parts = append(parts, a2a.DataPart{
+					Data: data,
+					Metadata: map[string]any{
+						"data_type": "tool_search",
+					},
+				})
 			}
 		}
 	}

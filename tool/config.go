@@ -17,7 +17,10 @@ package tool
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
+
+	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
 // Config holds configuration for tool registration and execution.
@@ -33,6 +36,12 @@ type Config struct {
 
 	// Custom metadata for the tool
 	Metadata map[string]any
+
+	// Deferred withholds the tool's schema until the model loads it. See WithDeferred.
+	Deferred bool
+
+	// Group is the capability group the tool belongs to. See WithGroup.
+	Group llm.ToolGroup
 }
 
 // Option configures tool registration behavior with validation.
@@ -164,6 +173,32 @@ func WithMetadata(metadata map[string]any) Option {
 		}
 
 		c.Metadata = metadata
+
+		return nil
+	}
+}
+
+// WithDeferred withholds the tool's schema from the model until the model
+// loads it with tool_search. An llmagent lazy-loads automatically once its
+// registry holds a deferred tool.
+func WithDeferred() Option {
+	return func(c *Config) error {
+		c.Deferred = true
+		return nil
+	}
+}
+
+// WithGroup places the tool in a capability group. See llm.ToolGroup for what
+// the group changes. Registration fails if the group's description or
+// instructions conflict with those of an already-registered member.
+// Tools written in code are usually grouped with NewGroup instead.
+func WithGroup(group llm.ToolGroup) Option {
+	return func(c *Config) error {
+		if strings.TrimSpace(group.Name) == "" {
+			return errors.New("tool group name must not be empty")
+		}
+
+		c.Group = group
 
 		return nil
 	}

@@ -98,7 +98,10 @@ func (m *ResponseMapper) FromProvider(r *responses.Response) (*llm.Response, err
 
 			hasToolCalls = true
 
-			content = append(content, llm.NewToolRequestPart(fc.CallID, fc.Name, normalizeToolArguments(fc.Arguments)))
+			content = append(content, mapFunctionCall(fc))
+
+		case outputTypeToolSearchCall, outputTypeToolSearchOutput:
+			content = append(content, mapToolSearch(out))
 
 		case outputTypeReasoning:
 			for i, s := range out.Summary {

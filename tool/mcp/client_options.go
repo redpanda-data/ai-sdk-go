@@ -18,6 +18,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/tool"
 )
 
@@ -33,9 +34,8 @@ func WithRegistry(registry tool.Registry) ClientOption {
 	}
 }
 
-// WithAutoSync enables automatic periodic tool syncing from the MCP server.
-// Setting interval to 0 or negative disables auto-sync.
-// Requires a registry configured via WithRegistry.
+// WithAutoSync enables periodic tool syncing. Non-positive intervals disable it.
+// Requires WithRegistry. Changes to registered tools can invalidate prompt caches.
 func WithAutoSync(interval time.Duration) ClientOption {
 	return func(c *clientImpl) {
 		if interval < 0 {
@@ -100,5 +100,50 @@ func WithShutdownTimeout(timeout time.Duration) ClientOption {
 func WithToolTimeout(timeout time.Duration) ClientOption {
 	return func(c *clientImpl) {
 		c.toolTimeout = timeout
+	}
+}
+
+// WithDeferredTools registers the server's tools with tool.WithDeferred, so an
+// llmagent using the registry loads their schemas on demand. Keep one entry
+// point per server always loaded, typically its search or list tool:
+//
+//	client, err := NewClient("servicenow", transport,
+//	    WithRegistry(registry),
+//	    WithDeferredTools(),
+//	    WithAlwaysLoad("search_incidents"),
+//	)
+func WithDeferredTools() ClientOption {
+	return func(c *clientImpl) {
+		c.deferTools = true
+	}
+}
+
+// WithAlwaysLoad exempts tools from WithDeferredTools, keeping their schemas in
+// the model's context at all times. Names are server-side tool names, before
+// namespacing.
+func WithAlwaysLoad(names ...string) ClientOption {
+	return func(c *clientImpl) {
+		if c.alwaysLoad == nil {
+			c.alwaysLoad = make(map[string]bool, len(names))
+		}
+
+		for _, name := range names {
+			c.alwaysLoad[name] = true
+		}
+	}
+}
+
+// WithToolGroup sets the group metadata for the server's tools. Every server
+// is already a group named after its ID; this option adds the Description and
+// Instructions the model reads. See llm.ToolGroup. An empty Name keeps the
+// server ID:
+//
+//	WithToolGroup(llm.ToolGroup{
+//	    Description:  "ServiceNow incidents and CMDB lookups",
+//	    Instructions: "Resolve the caller's sys_id before opening an incident.",
+//	})
+func WithToolGroup(group llm.ToolGroup) ClientOption {
+	return func(c *clientImpl) {
+		c.toolGroup = group
 	}
 }

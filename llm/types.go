@@ -304,6 +304,8 @@ const (
 // ModelCapabilities describes what features a model supports.
 // This enables compile-time and runtime validation of requests.
 type ModelCapabilities struct {
+	// ToolSearch supports provider-hosted discovery of deferred tool schemas.
+	ToolSearch       bool
 	Streaming        bool // Supports streaming responses
 	Tools            bool // Supports function/tool calling
 	JSONMode         bool // Supports JSON mode (response_format: json_object) - ensures valid JSON output

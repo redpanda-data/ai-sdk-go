@@ -98,6 +98,7 @@ const (
 	PartKind_PART_KIND_TOOL_REQUEST  PartKind = 2
 	PartKind_PART_KIND_TOOL_RESPONSE PartKind = 3
 	PartKind_PART_KIND_REASONING     PartKind = 4
+	PartKind_PART_KIND_TOOL_SEARCH   PartKind = 5
 )
 
 // Enum value maps for PartKind.
@@ -108,6 +109,7 @@ var (
 		2: "PART_KIND_TOOL_REQUEST",
 		3: "PART_KIND_TOOL_RESPONSE",
 		4: "PART_KIND_REASONING",
+		5: "PART_KIND_TOOL_SEARCH",
 	}
 	PartKind_value = map[string]int32{
 		"PART_KIND_UNSPECIFIED":   0,
@@ -115,6 +117,7 @@ var (
 		"PART_KIND_TOOL_REQUEST":  2,
 		"PART_KIND_TOOL_RESPONSE": 3,
 		"PART_KIND_REASONING":     4,
+		"PART_KIND_TOOL_SEARCH":   5,
 	}
 )
 
@@ -216,6 +219,7 @@ type Part struct {
 	//	*Part_ToolRequest
 	//	*Part_ToolResponse
 	//	*Part_ReasoningTrace
+	//	*Part_ToolSearch
 	Data isPart_Data `protobuf_oneof:"data"`
 	// Metadata provides extensible key-value storage for additional information
 	Metadata      *structpb.Struct `protobuf:"bytes,10,opt,name=metadata,proto3" json:"metadata,omitempty"`
@@ -303,6 +307,15 @@ func (x *Part) GetReasoningTrace() *ReasoningTrace {
 	return nil
 }
 
+func (x *Part) GetToolSearch() *ToolSearch {
+	if x != nil {
+		if x, ok := x.Data.(*Part_ToolSearch); ok {
+			return x.ToolSearch
+		}
+	}
+	return nil
+}
+
 func (x *Part) GetMetadata() *structpb.Struct {
 	if x != nil {
 		return x.Metadata
@@ -330,6 +343,10 @@ type Part_ReasoningTrace struct {
 	ReasoningTrace *ReasoningTrace `protobuf:"bytes,5,opt,name=reasoning_trace,json=reasoningTrace,proto3,oneof"`
 }
 
+type Part_ToolSearch struct {
+	ToolSearch *ToolSearch `protobuf:"bytes,6,opt,name=tool_search,json=toolSearch,proto3,oneof"`
+}
+
 func (*Part_Text) isPart_Data() {}
 
 func (*Part_ToolRequest) isPart_Data() {}
@@ -337,6 +354,8 @@ func (*Part_ToolRequest) isPart_Data() {}
 func (*Part_ToolResponse) isPart_Data() {}
 
 func (*Part_ReasoningTrace) isPart_Data() {}
+
+func (*Part_ToolSearch) isPart_Data() {}
 
 // ToolRequest represents a request from the model to execute a tool.
 type ToolRequest struct {
@@ -539,6 +558,67 @@ func (x *ReasoningTrace) GetMetadata() *structpb.Struct {
 	return nil
 }
 
+// Provider-native discovery content, replayed in conversation order.
+type ToolSearch struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Provider      string                 `protobuf:"bytes,1,opt,name=provider,proto3" json:"provider,omitempty"`
+	Data          []byte                 `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	Tools         []string               `protobuf:"bytes,3,rep,name=tools,proto3" json:"tools,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ToolSearch) Reset() {
+	*x = ToolSearch{}
+	mi := &file_redpanda_llm_v1_message_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ToolSearch) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ToolSearch) ProtoMessage() {}
+
+func (x *ToolSearch) ProtoReflect() protoreflect.Message {
+	mi := &file_redpanda_llm_v1_message_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ToolSearch.ProtoReflect.Descriptor instead.
+func (*ToolSearch) Descriptor() ([]byte, []int) {
+	return file_redpanda_llm_v1_message_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *ToolSearch) GetProvider() string {
+	if x != nil {
+		return x.Provider
+	}
+	return ""
+}
+
+func (x *ToolSearch) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+func (x *ToolSearch) GetTools() []string {
+	if x != nil {
+		return x.Tools
+	}
+	return nil
+}
+
 var File_redpanda_llm_v1_message_proto protoreflect.FileDescriptor
 
 const file_redpanda_llm_v1_message_proto_rawDesc = "" +
@@ -546,13 +626,15 @@ const file_redpanda_llm_v1_message_proto_rawDesc = "" +
 	"\x1dredpanda/llm/v1/message.proto\x12\x0fredpanda.llm.v1\x1a\x1cgoogle/protobuf/struct.proto\"l\n" +
 	"\aMessage\x120\n" +
 	"\x04role\x18\x01 \x01(\x0e2\x1c.redpanda.llm.v1.MessageRoleR\x04role\x12/\n" +
-	"\acontent\x18\x02 \x03(\v2\x15.redpanda.llm.v1.PartR\acontent\"\xdd\x02\n" +
+	"\acontent\x18\x02 \x03(\v2\x15.redpanda.llm.v1.PartR\acontent\"\x9d\x03\n" +
 	"\x04Part\x12-\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x19.redpanda.llm.v1.PartKindR\x04kind\x12\x14\n" +
 	"\x04text\x18\x02 \x01(\tH\x00R\x04text\x12A\n" +
 	"\ftool_request\x18\x03 \x01(\v2\x1c.redpanda.llm.v1.ToolRequestH\x00R\vtoolRequest\x12D\n" +
 	"\rtool_response\x18\x04 \x01(\v2\x1d.redpanda.llm.v1.ToolResponseH\x00R\ftoolResponse\x12J\n" +
-	"\x0freasoning_trace\x18\x05 \x01(\v2\x1f.redpanda.llm.v1.ReasoningTraceH\x00R\x0ereasoningTrace\x123\n" +
+	"\x0freasoning_trace\x18\x05 \x01(\v2\x1f.redpanda.llm.v1.ReasoningTraceH\x00R\x0ereasoningTrace\x12>\n" +
+	"\vtool_search\x18\x06 \x01(\v2\x1b.redpanda.llm.v1.ToolSearchH\x00R\n" +
+	"toolSearch\x123\n" +
 	"\bmetadata\x18\n" +
 	" \x01(\v2\x17.google.protobuf.StructR\bmetadataB\x06\n" +
 	"\x04data\"O\n" +
@@ -568,18 +650,24 @@ const file_redpanda_llm_v1_message_proto_rawDesc = "" +
 	"\x0eReasoningTrace\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04text\x18\x02 \x01(\tR\x04text\x123\n" +
-	"\bmetadata\x18\x03 \x01(\v2\x17.google.protobuf.StructR\bmetadata*w\n" +
+	"\bmetadata\x18\x03 \x01(\v2\x17.google.protobuf.StructR\bmetadata\"R\n" +
+	"\n" +
+	"ToolSearch\x12\x1a\n" +
+	"\bprovider\x18\x01 \x01(\tR\bprovider\x12\x12\n" +
+	"\x04data\x18\x02 \x01(\fR\x04data\x12\x14\n" +
+	"\x05tools\x18\x03 \x03(\tR\x05tools*w\n" +
 	"\vMessageRole\x12\x1c\n" +
 	"\x18MESSAGE_ROLE_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11MESSAGE_ROLE_USER\x10\x01\x12\x1a\n" +
 	"\x16MESSAGE_ROLE_ASSISTANT\x10\x02\x12\x17\n" +
-	"\x13MESSAGE_ROLE_SYSTEM\x10\x03*\x8b\x01\n" +
+	"\x13MESSAGE_ROLE_SYSTEM\x10\x03*\xa6\x01\n" +
 	"\bPartKind\x12\x19\n" +
 	"\x15PART_KIND_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0ePART_KIND_TEXT\x10\x01\x12\x1a\n" +
 	"\x16PART_KIND_TOOL_REQUEST\x10\x02\x12\x1b\n" +
 	"\x17PART_KIND_TOOL_RESPONSE\x10\x03\x12\x17\n" +
-	"\x13PART_KIND_REASONING\x10\x04B\xc8\x01\n" +
+	"\x13PART_KIND_REASONING\x10\x04\x12\x19\n" +
+	"\x15PART_KIND_TOOL_SEARCH\x10\x05B\xc8\x01\n" +
 	"\x13com.redpanda.llm.v1B\fMessageProtoP\x01ZEgithub.com/redpanda-data/ai-sdk-go/proto/gen/go/redpanda/llm/v1;llmpb\xa2\x02\x03RLX\xaa\x02\x0fRedpanda.Llm.V1\xca\x02\x0fRedpanda\\Llm\\V1\xe2\x02\x1bRedpanda\\Llm\\V1\\GPBMetadata\xea\x02\x11Redpanda::Llm::V1b\x06proto3"
 
 var (
@@ -595,7 +683,7 @@ func file_redpanda_llm_v1_message_proto_rawDescGZIP() []byte {
 }
 
 var file_redpanda_llm_v1_message_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_redpanda_llm_v1_message_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_redpanda_llm_v1_message_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_redpanda_llm_v1_message_proto_goTypes = []any{
 	(MessageRole)(0),        // 0: redpanda.llm.v1.MessageRole
 	(PartKind)(0),           // 1: redpanda.llm.v1.PartKind
@@ -604,7 +692,8 @@ var file_redpanda_llm_v1_message_proto_goTypes = []any{
 	(*ToolRequest)(nil),     // 4: redpanda.llm.v1.ToolRequest
 	(*ToolResponse)(nil),    // 5: redpanda.llm.v1.ToolResponse
 	(*ReasoningTrace)(nil),  // 6: redpanda.llm.v1.ReasoningTrace
-	(*structpb.Struct)(nil), // 7: google.protobuf.Struct
+	(*ToolSearch)(nil),      // 7: redpanda.llm.v1.ToolSearch
+	(*structpb.Struct)(nil), // 8: google.protobuf.Struct
 }
 var file_redpanda_llm_v1_message_proto_depIdxs = []int32{
 	0, // 0: redpanda.llm.v1.Message.role:type_name -> redpanda.llm.v1.MessageRole
@@ -613,13 +702,14 @@ var file_redpanda_llm_v1_message_proto_depIdxs = []int32{
 	4, // 3: redpanda.llm.v1.Part.tool_request:type_name -> redpanda.llm.v1.ToolRequest
 	5, // 4: redpanda.llm.v1.Part.tool_response:type_name -> redpanda.llm.v1.ToolResponse
 	6, // 5: redpanda.llm.v1.Part.reasoning_trace:type_name -> redpanda.llm.v1.ReasoningTrace
-	7, // 6: redpanda.llm.v1.Part.metadata:type_name -> google.protobuf.Struct
-	7, // 7: redpanda.llm.v1.ReasoningTrace.metadata:type_name -> google.protobuf.Struct
-	8, // [8:8] is the sub-list for method output_type
-	8, // [8:8] is the sub-list for method input_type
-	8, // [8:8] is the sub-list for extension type_name
-	8, // [8:8] is the sub-list for extension extendee
-	0, // [0:8] is the sub-list for field type_name
+	7, // 6: redpanda.llm.v1.Part.tool_search:type_name -> redpanda.llm.v1.ToolSearch
+	8, // 7: redpanda.llm.v1.Part.metadata:type_name -> google.protobuf.Struct
+	8, // 8: redpanda.llm.v1.ReasoningTrace.metadata:type_name -> google.protobuf.Struct
+	9, // [9:9] is the sub-list for method output_type
+	9, // [9:9] is the sub-list for method input_type
+	9, // [9:9] is the sub-list for extension type_name
+	9, // [9:9] is the sub-list for extension extendee
+	0, // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_redpanda_llm_v1_message_proto_init() }
@@ -632,6 +722,7 @@ func file_redpanda_llm_v1_message_proto_init() {
 		(*Part_ToolRequest)(nil),
 		(*Part_ToolResponse)(nil),
 		(*Part_ReasoningTrace)(nil),
+		(*Part_ToolSearch)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -639,7 +730,7 @@ func file_redpanda_llm_v1_message_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_redpanda_llm_v1_message_proto_rawDesc), len(file_redpanda_llm_v1_message_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   5,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

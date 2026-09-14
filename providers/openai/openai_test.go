@@ -151,6 +151,7 @@ func TestGPT56Models(t *testing.T) {
 	require.NoError(t, err)
 
 	wantCapabilities := llm.ModelCapabilities{
+		ToolSearch:       true,
 		Streaming:        true,
 		Tools:            true,
 		JSONMode:         true,

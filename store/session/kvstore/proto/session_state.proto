@@ -70,6 +70,7 @@ message Part {
     ToolRequest tool_request = 3;
     ToolResponse tool_response = 4;
     ReasoningTrace reasoning_trace = 5;
+    ToolSearch tool_search = 6;
   }
 
   // Metadata provides extensible key-value storage for additional information
@@ -83,6 +84,7 @@ enum PartKind {
   PART_KIND_TOOL_REQUEST = 2;
   PART_KIND_TOOL_RESPONSE = 3;
   PART_KIND_REASONING = 4;
+  PART_KIND_TOOL_SEARCH = 5;
 }
 
 // ToolRequest represents a request from the model to execute a tool.
@@ -122,4 +124,11 @@ message ReasoningTrace {
 
   // Additional context about the reasoning trace
   google.protobuf.Struct metadata = 3;
+}
+
+// Provider-native discovery content, replayed in conversation order.
+message ToolSearch {
+  string provider = 1;
+  bytes data = 2;
+  repeated string tools = 3;
 }

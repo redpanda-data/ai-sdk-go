@@ -250,6 +250,9 @@ func (rm *RequestMapper) mapParts(parts []llm.Part) ([]*genai.Part, error) {
 
 			geminiParts = append(geminiParts, genai.NewPartFromFunctionResponse(p.ID, response))
 
+		case *llm.ToolSearchPart:
+			continue
+
 		case *llm.ReasoningPart:
 			// Gemini thinking is handled automatically by the ThinkingConfig
 			// and returned in the response. We don't need to include it in the request.

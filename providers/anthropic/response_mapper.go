@@ -15,6 +15,7 @@
 package anthropic
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/anthropics/anthropic-sdk-go"
@@ -23,9 +24,11 @@ import (
 )
 
 const (
-	blockTypeText     = "text"
-	blockTypeToolUse  = "tool_use"
-	blockTypeThinking = "thinking"
+	blockTypeServerToolUse    = "server_tool_use"
+	blockTypeToolSearchResult = "tool_search_tool_result"
+	blockTypeText             = "text"
+	blockTypeToolUse          = "tool_use"
+	blockTypeThinking         = "thinking"
 )
 
 // ResponseMapper converts Anthropic API payloads to llm.Response.
@@ -59,6 +62,11 @@ func (m *ResponseMapper) FromProvider(r *anthropic.BetaMessage) (*llm.Response, 
 			hasToolCalls = true
 
 			content = append(content, llm.NewToolRequestPart(block.ID, block.Name, block.Input))
+
+		case blockTypeServerToolUse, blockTypeToolSearchResult:
+			if part := mapToolSearch(block); part != nil {
+				content = append(content, part)
+			}
 
 		case blockTypeThinking:
 			// Thinking block (extended thinking / reasoning)
@@ -122,6 +130,14 @@ func (m *ResponseMapper) FromProvider(r *anthropic.BetaMessage) (*llm.Response, 
 	// present — truncation signals must never be masked by tool calls that
 	// happened to complete before the stream was cut short.
 	finishReason := m.mapStopReason(r.StopReason)
+	if r.StopReason == anthropic.BetaStopReasonPauseTurn {
+		for _, part := range content {
+			if _, ok := part.(*llm.ToolSearchPart); ok {
+				finishReason = llm.FinishReasonToolCalls
+				break
+			}
+		}
+	}
 	if hasToolCalls && finishReason == llm.FinishReasonStop {
 		finishReason = llm.FinishReasonToolCalls
 	}
@@ -184,4 +200,19 @@ func (m *ResponseMapper) mapStopReason(reason anthropic.BetaStopReason) llm.Fini
 		// Unknown reason - default to stop
 		return llm.FinishReasonStop
 	}
+}
+
+func mapToolSearch(block anthropic.BetaContentBlockUnion) *llm.ToolSearchPart {
+	if block.Type == blockTypeServerToolUse && block.Name != "tool_search_tool_bm25" && block.Name != "tool_search_tool_regex" {
+		return nil
+	}
+
+	part := &llm.ToolSearchPart{Provider: providerName, Data: json.RawMessage(block.RawJSON())}
+	if block.Type == blockTypeToolSearchResult {
+		for _, ref := range block.Content.ToolReferences {
+			part.Tools = append(part.Tools, ref.ToolName)
+		}
+	}
+
+	return part
 }
