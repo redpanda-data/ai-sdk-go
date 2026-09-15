@@ -3,7 +3,7 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/redpanda-data/ai-sdk-go.svg)](https://pkg.go.dev/github.com/redpanda-data/ai-sdk-go)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-A Go SDK for building AI-powered applications with a unified interface across multiple LLM providers. Supports OpenAI, Anthropic, Google Gemini, AWS Bedrock, and any OpenAI-compatible API.
+A Go SDK for building AI-powered applications with a unified interface across multiple LLM providers. Supports OpenAI, Anthropic, Google Gemini, Meta, AWS Bedrock, and any OpenAI-compatible API.
 
 <p align="center">
   <img src="assets/gopher.png" alt="Redpanda AI SDK Gopher" width="400">
@@ -70,6 +70,23 @@ import "github.com/redpanda-data/ai-sdk-go/providers/google"
 provider, err := google.NewProvider(ctx, os.Getenv("GOOGLE_API_KEY"))
 model, err := provider.NewModel(google.ModelGemini31ProPreview)
 ```
+
+### Meta
+
+```go
+import "github.com/redpanda-data/ai-sdk-go/providers/meta"
+
+provider, err := meta.NewProvider(os.Getenv("MODEL_API_KEY"))
+if err != nil {
+    return err
+}
+model, err := provider.NewModel(meta.ModelMuseSpark13)
+if err != nil {
+    return err
+}
+```
+
+See [Meta provider documentation](providers/meta/README.md) for shared options and known limits.
 
 ### AWS Bedrock
 

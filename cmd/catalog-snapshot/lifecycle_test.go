@@ -26,6 +26,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/providers/anthropic"
 	"github.com/redpanda-data/ai-sdk-go/providers/bedrock"
 	"github.com/redpanda-data/ai-sdk-go/providers/google"
+	"github.com/redpanda-data/ai-sdk-go/providers/meta"
 	"github.com/redpanda-data/ai-sdk-go/providers/openai"
 	"github.com/redpanda-data/ai-sdk-go/providers/vertex"
 )
@@ -35,7 +36,7 @@ import (
 // forbids it there), so cross-provider invariants live here.
 func allCatalogs() []*catalog.Catalog {
 	return []*catalog.Catalog{
-		anthropic.Catalog(), bedrock.Catalog(), google.Catalog(), openai.Catalog(), vertex.Catalog(),
+		anthropic.Catalog(), bedrock.Catalog(), google.Catalog(), meta.Catalog(), openai.Catalog(), vertex.Catalog(),
 	}
 }
 
@@ -55,7 +56,7 @@ func TestVertexPricingDoesNotCollide(t *testing.T) {
 	vertexPricing := vertex.Catalog().PricingByID()
 
 	others := []*catalog.Catalog{
-		anthropic.Catalog(), bedrock.Catalog(), google.Catalog(), openai.Catalog(),
+		anthropic.Catalog(), bedrock.Catalog(), google.Catalog(), meta.Catalog(), openai.Catalog(),
 	}
 
 	for _, other := range others {
