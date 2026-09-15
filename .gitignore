@@ -47,3 +47,6 @@ go.work.sum
 
 # Local design notes, not published
 /docs/design/
+
+# example binaries
+examples/*/durable_agent
