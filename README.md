@@ -182,6 +182,40 @@ queries use the requested order when applying the load budget.
 Tool interceptors may edit arguments, deny execution, retry, or transform results. The request
 and response name and ID must remain those of the original call; identity changes return a tool error.
 
+## Durable Execution
+
+Make an agent run survive the process that started it, with Redpanda topics as the
+only state. The engine journals every message and tool result, so a worker crash
+resumes from the last recorded step instead of re-running the whole conversation;
+tools can suspend a run for days waiting on a human without holding a worker.
+
+```go
+reg.Register(durable.InputTool("request_approval", "Ask an operator to approve.", "approval"))
+
+ag, _ := llmagent.New("support", prompt, model,
+	llmagent.WithTools(reg),
+	llmagent.WithInterceptors(durable.NewInterceptor()),
+)
+
+w, _ := durable.NewWorker(cfg, "support", durable.WorkerOptions{})
+w.Register("support", "v1", ag)
+w.Run(ctx)
+```
+
+An operator answers whenever they get to it, and the run picks up where it stopped:
+
+```go
+client.SendInput(ctx, "refund-1", "approval", map[string]any{"approved": true})
+```
+
+See [`docs/durable-execution.md`](docs/durable-execution.md) for the design and
+[`examples/durable_agent`](examples/durable_agent/) for a runnable demo.
+
+Durable execution is a Redpanda Enterprise feature, licensed under the Redpanda
+Community License Agreement in [`licenses/RCL.md`](licenses/RCL.md) rather than
+Apache 2.0. The rest of the SDK is unaffected; see
+[`licenses/README.md`](licenses/README.md).
+
 ## Key Packages
 
 - [`llm`](https://pkg.go.dev/github.com/redpanda-data/ai-sdk-go/llm) — Core types: `Model`, `Request`, `Response`, `Event`
@@ -191,6 +225,8 @@ and response name and ID must remain those of the original call; identity change
 - [`tool`](https://pkg.go.dev/github.com/redpanda-data/ai-sdk-go/tool) — Tool registry and execution
 - [`tool/mcp`](https://pkg.go.dev/github.com/redpanda-data/ai-sdk-go/tool/mcp) — Model Context Protocol integration
 - [`adapter/a2a`](https://pkg.go.dev/github.com/redpanda-data/ai-sdk-go/adapter/a2a) — Agent-to-Agent protocol adapter
+- [`durable`](https://pkg.go.dev/github.com/redpanda-data/ai-sdk-go/durable) — durable execution on Redpanda: client, worker, suspendable tools
+- [`durable/engine`](https://pkg.go.dev/github.com/redpanda-data/ai-sdk-go/durable/engine) — the controller: journal, leases, retries, timers, rollout, topic trigger
 - [`llm/fakellm`](https://pkg.go.dev/github.com/redpanda-data/ai-sdk-go/llm/fakellm) — Test doubles for LLM models
 
 ## Examples

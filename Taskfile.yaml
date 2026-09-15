@@ -65,6 +65,14 @@ tasks:
     cmds:
       - 'GOROOT={{.GO_ROOT}} GOTOOLCHAIN=local {{.GO_BIN}} test -json -cover -short -parallel 10 ./... | {{.BIN_DIR}}/tparse -follow -all'
 
+  test:durable:
+    desc: Run the durable-execution integration tests (starts a Redpanda container)
+    deps:
+      - install:go
+      - install:tparse
+    cmds:
+      - 'GOROOT={{.GO_ROOT}} GOTOOLCHAIN=local {{.GO_BIN}} test -json -count=1 -timeout 15m ./durable/... ./store/session/journal/... | {{.BIN_DIR}}/tparse -follow -all'
+
   test:integration:
     desc: Run integration tests with coverage (requires OPENAI_API_KEY)
     deps:
