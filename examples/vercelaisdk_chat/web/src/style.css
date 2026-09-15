@@ -1,0 +1,182 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  color: #1a1a2e;
+  background: #f4f5f7;
+}
+
+.layout {
+  display: flex;
+  height: 100vh;
+}
+
+aside {
+  width: 220px;
+  padding: 12px;
+  border-right: 1px solid #ddd;
+  background: #fff;
+  overflow-y: auto;
+}
+
+aside ul {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+}
+
+aside li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+
+aside li.active {
+  background: #e8ecf6;
+}
+
+.chat-link {
+  flex: 1;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 6px 2px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.delete {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #999;
+  font-size: 16px;
+}
+
+.delete:hover {
+  color: #c0392b;
+}
+
+main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 16px;
+  width: 100%;
+}
+
+main.loading {
+  justify-content: center;
+  align-items: center;
+  color: #888;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 12px;
+}
+
+.message {
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid #e3e3e8;
+  white-space: pre-wrap;
+}
+
+.message.user {
+  background: #e8ecf6;
+  align-self: flex-end;
+  max-width: 80%;
+}
+
+.message .role {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #999;
+  margin-bottom: 2px;
+}
+
+.message p {
+  margin: 4px 0;
+}
+
+.reasoning {
+  color: #888;
+  font-style: italic;
+}
+
+.tool {
+  font-size: 13px;
+  background: #f7f7fa;
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin: 4px 0;
+}
+
+.tool pre {
+  margin: 6px 0 0;
+  overflow-x: auto;
+}
+
+.error {
+  color: #c0392b;
+}
+
+form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding-top: 8px;
+  border-top: 1px solid #ddd;
+}
+
+form input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font: inherit;
+}
+
+button.primary {
+  background: #d94f37;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font: inherit;
+  cursor: pointer;
+}
+
+button.primary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+form button:not(.primary) {
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.status {
+  font-size: 12px;
+  color: #999;
+  min-width: 70px;
+}
