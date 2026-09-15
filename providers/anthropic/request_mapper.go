@@ -324,7 +324,7 @@ func (rm *RequestMapper) mapAssistantMessage(msg llm.Message) (anthropic.BetaMes
 	for _, part := range msg.Content {
 		switch p := part.(type) {
 		case *llm.ToolSearchPart:
-			if p != nil && p.Provider == providerName {
+			if p != nil && p.Provider == ProviderName {
 				apiMsg.Content = append(apiMsg.Content, param.Override[anthropic.BetaContentBlockParamUnion](p.Data))
 			}
 

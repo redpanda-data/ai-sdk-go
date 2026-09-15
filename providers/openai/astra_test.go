@@ -66,7 +66,7 @@ func TestGPT6AstraCatalog(t *testing.T) {
 func TestGPT6AstraPricing(t *testing.T) {
 	t.Parallel()
 
-	prices, err := pricing.NewCatalog(pricing.WithProvider("openai", Catalog().PricingByID()))
+	prices, err := pricing.NewCatalog(pricing.WithSource(Catalog()))
 	require.NoError(t, err)
 
 	usage := &llm.TokenUsage{InputTokens: 1_000_000, CachedInputTokens: 1_000_000, CacheCreationUnknownTTLTokens: 1_000_000, OutputTokens: 1_000_000}
@@ -82,7 +82,7 @@ func TestGPT6AstraPricing(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			cost, err := prices.Calculate(ModelGPT6Astra, usage, pricing.CalcRequest{ContextTokens: tt.context})
+			cost, err := prices.Calculate(ProviderName, ModelGPT6Astra, usage, pricing.CalcRequest{ContextTokens: tt.context})
 			require.NoError(t, err)
 			assert.Empty(t, cost.Unpriced)
 			assert.Equal(t, tt.input, cost.Breakdown[pricing.UsageFieldInput])

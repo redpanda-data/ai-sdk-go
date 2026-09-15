@@ -40,7 +40,15 @@ import (
 // rename, removal, or semantic change of an existing field — additions
 // are not version bumps. Tolerant-reader contract: consumers MUST ignore
 // unknown fields and MUST NOT require optional ones.
-const SchemaVersion = 1
+//
+// v2 (AI-2118): the value domain of "id"/"model" changed without the
+// field shape changing. A model ID is no longer unique across the
+// snapshot — Vertex resells Anthropic's "claude-sonnet-5" under its own
+// provider, so the same ID now appears under two providers with different
+// pricing. Consumers MUST key an offering by {provider, id}, never by id
+// alone. The shared "facts" map stays keyed by model ID because facts are
+// provider-independent (Encode rejects any conflict).
+const SchemaVersion = 2
 
 // Encode writes the deterministic JSON snapshot of the given catalogs:
 // providers sorted by name, offerings sorted by ID, facts sorted by

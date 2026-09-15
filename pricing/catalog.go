@@ -22,33 +22,55 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
-// Catalog is an in-memory lookup table of model pricing. The zero
-// value is not usable; construct catalogs through NewCatalog(opts...).
-//
-// Catalogs key on bare model IDs. Provider namespacing is the
-// responsibility of each provider package (Bedrock IDs are prefixed
-// "anthropic.claude-...", OpenAI IDs are "gpt-...", etc.), and the
-// builder errors out if two providers try to register the exact same
-// ID so runtime lookups are always unambiguous.
-type Catalog struct {
-	models  map[string]Info
-	version string
+// ProviderKey is the provider half of a catalog key. It is the name a
+// provider gives itself through its Name() method ("openai",
+// "anthropic", "gcp.gemini", "aws.bedrock", "gcp.vertex"), and it is
+// what a caller must pass at every lookup. Take it from the provider's
+// ProviderName const rather than hand-typing it: a key the catalog was
+// not registered under prices every lookup at that site as a silent
+// zero.
+type ProviderKey string
+
+// modelKey is the composite catalog key: the same bare model ID can
+// carry a different rate card per provider (Vertex and Anthropic both
+// serve "claude-sonnet-5" at their own prices).
+type modelKey struct {
+	provider ProviderKey
+	model    string
 }
 
-// Lookup returns a deep copy of the pricing Info for the given model
-// ID. The copy isolates callers from mutation and keeps the catalog's
-// stored Info values authoritative for CatalogVersion.
-func (c *Catalog) Lookup(modelID string) (Info, bool) {
-	if c == nil {
-		return Info{}, false
+// Catalog is an in-memory lookup table of model pricing, keyed on
+// {provider, model}. The zero value is not usable; construct catalogs
+// through NewCatalog(opts...). The builder rejects only the same model
+// ID twice under one provider, so lookups are always unambiguous.
+type Catalog struct {
+	models    map[modelKey]Info
+	providers map[ProviderKey]struct{}
+	version   string
+}
+
+// ErrUnknownProvider is returned from Lookup and Calculate when the
+// catalog carries no rates for the requested provider at all. Distinct
+// from ErrUnknownModel: it is almost always a mapping bug — a call site
+// passing a key the catalog was never registered under — and it prices
+// every request there as a silent zero, so alert on it.
+var ErrUnknownProvider = errors.New("pricing: unknown provider")
+
+// Lookup returns a deep copy of the pricing Info for the given
+// provider and model ID. The copy isolates callers from mutation and
+// keeps the catalog's stored Info values authoritative for
+// CatalogVersion.
+//
+// A miss is ErrUnknownProvider or ErrUnknownModel; a nil *Catalog
+// reports ErrUnknownProvider, since an unbuilt catalog knows no
+// providers.
+func (c *Catalog) Lookup(provider ProviderKey, modelID string) (Info, error) {
+	info, err := c.find(provider, modelID)
+	if err != nil {
+		return Info{}, err
 	}
 
-	info, ok := c.models[modelID]
-	if !ok {
-		return Info{}, false
-	}
-
-	return cloneInfo(info), true
+	return cloneInfo(info), nil
 }
 
 // Version returns a content-derived hash identifying the pricing data
@@ -62,19 +84,19 @@ func (c *Catalog) Version() string {
 	return c.version
 }
 
-// ErrUnknownModel is returned from Calculate when the requested model
-// ID is not registered in the catalog. Surfacing this as an error
-// (rather than silently pricing as zero) is deliberate: in a
-// billing/logging path a miswired model ID must not be
-// indistinguishable from a free call. Callers that want fail-open cost
-// estimation may ignore the error and still use the returned Cost
-// (which carries CatalogVersion but no breakdown).
+// ErrUnknownModel is returned from Lookup and Calculate when the
+// requested model ID is not registered under an otherwise-known
+// provider. Surfacing this as an error (rather than silently pricing
+// as zero) is deliberate: in a billing/logging path a miswired model
+// ID must not be indistinguishable from a free call. Callers that want
+// fail-open cost estimation may ignore the error and still use the
+// returned Cost (which carries CatalogVersion but no breakdown).
 var ErrUnknownModel = errors.New("pricing: unknown model")
 
 // Calculate prices one model call using the catalog-registered Info
-// for modelID. Resolution runs against the catalog's internal
-// (immutable) Info so callers cannot forge a CatalogVersion by passing
-// a mutated copy.
+// for the given provider and modelID. Resolution runs against the
+// catalog's internal (immutable) Info so callers cannot forge a
+// CatalogVersion by passing a mutated copy.
 //
 // Resolution is:
 //  1. Match the most specific override whose non-empty fields all
@@ -87,22 +109,19 @@ var ErrUnknownModel = errors.New("pricing: unknown model")
 // Buckets with non-zero tokens but no corresponding rate land in
 // Unpriced rather than being silently folded into another bucket.
 //
-// Returns ErrUnknownModel when modelID is not registered. A nil usage
-// is treated as an empty TokenUsage (returns zero Cost with provenance
-// stamped) and is not an error.
-func (c *Catalog) Calculate(modelID string, usage *llm.TokenUsage, req CalcRequest) (Cost, error) {
+// A miss is ErrUnknownProvider or ErrUnknownModel; a nil *Catalog
+// reports ErrUnknownProvider with an empty CatalogVersion. A nil usage
+// is treated as an empty TokenUsage — zero Cost with provenance
+// stamped, not an error.
+func (c *Catalog) Calculate(provider ProviderKey, modelID string, usage *llm.TokenUsage, req CalcRequest) (Cost, error) {
 	cost := Cost{Breakdown: map[UsageField]int64{}}
 	if c != nil {
 		cost.CatalogVersion = c.version
 	}
 
-	if c == nil {
-		return cost, ErrUnknownModel
-	}
-
-	info, ok := c.models[modelID]
-	if !ok {
-		return cost, fmt.Errorf("%w: %q", ErrUnknownModel, modelID)
+	info, err := c.find(provider, modelID)
+	if err != nil {
+		return cost, err
 	}
 
 	if usage == nil {
@@ -110,6 +129,33 @@ func (c *Catalog) Calculate(modelID string, usage *llm.TokenUsage, req CalcReque
 	}
 
 	return c.calculate(info, usage, req), nil
+}
+
+// find resolves the catalog-immutable Info for a {provider, model} key,
+// or the typed miss Lookup and Calculate both surface, keeping the
+// provider-vs-model distinction in one place. It returns the stored
+// Info directly; Lookup clones before handing it out, Calculate reads
+// it immutably.
+func (c *Catalog) find(provider ProviderKey, modelID string) (Info, error) {
+	// Guard the receiver first: reading a nil catalog's providers map
+	// panics. Both misses are ErrUnknownProvider and each carries its own
+	// message, because a responder must tell them apart — a catalog that
+	// never built prices every site at $0, an unregistered provider on a
+	// built catalog means one site holds a stale key.
+	if c == nil {
+		return Info{}, fmt.Errorf("%w: %q (model %q): catalog not built", ErrUnknownProvider, provider, modelID)
+	}
+
+	if _, known := c.providers[provider]; !known {
+		return Info{}, fmt.Errorf("%w: %q (model %q): %d providers registered", ErrUnknownProvider, provider, modelID, len(c.providers))
+	}
+
+	info, ok := c.models[modelKey{provider: provider, model: modelID}]
+	if !ok {
+		return Info{}, fmt.Errorf("%w: %q (provider %q)", ErrUnknownModel, modelID, provider)
+	}
+
+	return info, nil
 }
 
 func (c *Catalog) calculate(info Info, usage *llm.TokenUsage, req CalcRequest) Cost {

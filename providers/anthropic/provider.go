@@ -29,8 +29,6 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
-const providerName = "anthropic"
-
 // normalizeBaseURL ensures the base URL does not end with /v1 for Anthropic API compatibility.
 //
 // The Anthropic SDK expects the base URL without the /v1 path segment
@@ -58,7 +56,7 @@ type Provider struct {
 
 // Name returns the provider identifier.
 func (*Provider) Name() string {
-	return providerName
+	return ProviderName
 }
 
 // ProviderOption configures a Provider instance using functional options.

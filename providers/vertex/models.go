@@ -23,16 +23,15 @@
 // locations.go. The request transport (an llm.Model that builds Vertex
 // requests) lands with RFC-0014 M8 and is intentionally not here yet.
 //
-// Catalog keys are namespaced vertex.<model>. On Vertex a model keeps its
-// publisher's bare ID, so "claude-sonnet-5" is byte-identical to the ID in
-// the Anthropic-direct catalog, and a shared pricing catalog rejects that
-// collision. The bare wire model and its publisher travel in each entry's
-// Attributes rather than as an alias, because an alias would re-introduce
-// the collision in a merged catalog.
+// Catalog keys are the bare publisher model IDs. On Vertex a model keeps
+// its publisher's bare ID, so "claude-sonnet-5" is byte-identical to the
+// ID in the Anthropic-direct catalog; the shared pricing catalog keys by
+// {provider, model}, so the two coexist without a namespacing prefix. The
+// publisher travels in each entry's Attributes so the runtime provider can
+// build the Vertex resource path.
 package vertex
 
 import (
-	"strings"
 	"sync"
 
 	"github.com/redpanda-data/ai-sdk-go/catalog"
@@ -40,14 +39,10 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/pricing"
 )
 
-// providerName is the provider identifier used in offerings and
-// telemetry. It matches the catalog key prefix's stem and mirrors
-// Bedrock's "aws.bedrock": the cloud, then the surface.
-const providerName = "gcp.vertex"
-
-// catalogKeyPrefix namespaces every Vertex offering ID. See the package
-// doc for why the prefix is required rather than optional.
-const catalogKeyPrefix = "vertex."
+// ProviderName is this provider's catalog key: the catalog registers
+// under it and Provider.Name() returns it. It mirrors Bedrock's
+// "aws.bedrock" — the cloud, then the surface. See pricing.ProviderKey.
+const ProviderName = "gcp.vertex"
 
 // Bare Vertex model IDs - exactly the model segment of a Vertex resource
 // path, publishers/{publisher}/models/{model}. The day-one catalog is
@@ -58,17 +53,6 @@ const (
 	ModelGemini36Flash = "gemini-3.6-flash"
 	ModelClaudeSonnet5 = "claude-sonnet-5"
 	ModelClaudeHaiku45 = "claude-haiku-4-5"
-)
-
-// Offering IDs are the namespaced catalog keys, the vertex. prefix plus the
-// bare model. Callers use Offering* for Catalog().Lookup and the pricing
-// map, and the bare Model* for the request path. Composing the key from the
-// same prefix keeps one catalog key per offering, so this adds no alias and
-// does not re-open the collision the package doc argues against.
-const (
-	OfferingGemini36Flash = catalogKeyPrefix + ModelGemini36Flash
-	OfferingClaudeSonnet5 = catalogKeyPrefix + ModelClaudeSonnet5
-	OfferingClaudeHaiku45 = catalogKeyPrefix + ModelClaudeHaiku45
 )
 
 // Publishers own the model on Vertex and name the segment before the
@@ -85,29 +69,17 @@ const (
 	// ModelMetadataPublisher is the Vertex publisher segment ("google",
 	// "anthropic").
 	ModelMetadataPublisher = "publisher"
-	// ModelMetadataVertexModel is the bare wire model ID (the offering ID
-	// without the vertex. prefix), which goes in the request path.
+	// ModelMetadataVertexModel is the bare wire model ID, which equals the
+	// offering ID and goes in the request path. It duplicates the offering
+	// ID today; it is a deliberate carry pending AI-2108, which folds the
+	// wire-ID derivation into the runtime provider and drops this attribute.
 	ModelMetadataVertexModel = "vertex_model"
 )
 
-// catalogID returns the namespaced offering ID for a bare Vertex model.
-func catalogID(bareModel string) string {
-	return catalogKeyPrefix + bareModel
-}
-
-// bareModelID strips the vertex. catalog-key prefix when present, so a
-// bare publisher model ID ("claude-sonnet-5") and a namespaced offering
-// ID ("vertex.claude-sonnet-5") reach the same entry.
-func bareModelID(model string) string {
-	return strings.TrimPrefix(model, catalogKeyPrefix)
-}
-
 // OfferingForModel returns the Vertex offering for a bare publisher model
-// ID, so callers holding a bare model name need not know the vertex.
-// catalog-key prefix. A model ID that already carries the prefix is
-// accepted as-is. ok is false for a model the catalog does not offer.
+// ID. ok is false for a model the catalog does not offer.
 func OfferingForModel(model string) (catalog.Offering, bool) {
-	return Catalog().Resolve(catalogID(bareModelID(model)))
+	return Catalog().Resolve(model)
 }
 
 // Reasoning-effort values Vertex accepts. llm.ReasoningEffort is an open
@@ -177,7 +149,7 @@ var claudeModalities = catalog.Modalities{
 }
 
 var catalogOnce = sync.OnceValue(func() *catalog.Catalog {
-	return catalog.MustNew(providerName, entries())
+	return catalog.MustNew(ProviderName, entries())
 })
 
 // Catalog returns the validated Vertex model catalog: every offering with
@@ -208,7 +180,7 @@ func Catalog() *catalog.Catalog {
 func entries() []catalog.Entry {
 	return []catalog.Entry{
 		{
-			ID:           OfferingGemini36Flash,
+			ID:           ModelGemini36Flash,
 			Model:        catalog.ModelGemini36Flash,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
@@ -230,7 +202,7 @@ func entries() []catalog.Entry {
 			},
 		},
 		{
-			ID:           OfferingClaudeSonnet5,
+			ID:           ModelClaudeSonnet5,
 			Model:        catalog.ModelClaudeSonnet5,
 			Capabilities: claudeCaps,
 			Modalities:   claudeModalities,
@@ -256,7 +228,7 @@ func entries() []catalog.Entry {
 			},
 		},
 		{
-			ID:           OfferingClaudeHaiku45,
+			ID:           ModelClaudeHaiku45,
 			Model:        catalog.ModelClaudeHaiku45,
 			Capabilities: claudeCaps,
 			Modalities:   claudeModalities,

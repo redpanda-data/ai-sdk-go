@@ -220,7 +220,9 @@ func New(provider string, entries []Entry, opts ...Option) (*Catalog, error) {
 
 	// Pricing is validated by the pricing builder, which enforces rate
 	// sanity and override consistency; its errors carry the model ID.
-	if _, err := pricing.NewCatalog(pricing.WithProvider(provider, pricingMap(c.offerings))); err != nil {
+	// WithProvider, not WithSource: c is mid-construction and cannot yet
+	// be a Source.
+	if _, err := pricing.NewCatalog(pricing.WithProvider(pricing.ProviderKey(provider), pricingMap(c.offerings))); err != nil {
 		errs = append(errs, fmt.Errorf("catalog: %s: %w", provider, err))
 	}
 
@@ -520,11 +522,14 @@ func (c *Catalog) Offerings(id ModelID) []Offering {
 	return out
 }
 
+// Catalog satisfies pricing.Source. Anchored here so renaming Provider
+// or PricingByID breaks the build in the package that owes the
+// contract, not only at distant call sites.
+var _ pricing.Source = (*Catalog)(nil)
+
 // PricingByID returns a model ID → pricing map covering every offering
-// ID and every exact alias, in the shape pricing.NewCatalog's
-// WithProvider expects:
-//
-//	pricing.NewCatalog(pricing.WithProvider(prov.Name(), prov.Catalog().PricingByID()))
+// ID and every exact alias, so a catalog registers straight through
+// pricing.WithSource(prov.Catalog()).
 //
 // Aliases are included so exact-ID billing lookups keep working for
 // alias requests; snapshot/timestamped IDs are not enumerable and must

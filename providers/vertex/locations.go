@@ -83,11 +83,10 @@ var servedLocations = map[string][]string{
 // save or hide a model from a picker, never to reject a live request: the
 // transcription is dated and may lag Google's own additions.
 //
-// The model may be given either as a bare publisher ID or as a
-// namespaced vertex. offering ID; the prefix is stripped before lookup.
+// The model is the bare publisher ID, which equals the offering ID.
 // An unknown model or an unknown location returns false.
 func IsModelAvailableAtLocation(model, location string) bool {
-	locs, ok := servedLocations[bareModelID(model)]
+	locs, ok := servedLocations[model]
 	if !ok {
 		return false
 	}
@@ -96,11 +95,11 @@ func IsModelAvailableAtLocation(model, location string) bool {
 }
 
 // LocationsForModel returns the locations the transcribed matrix lists
-// for the given model, or nil for an unknown model. The model may be a
-// bare publisher ID or a namespaced vertex. offering ID. The result is a
-// copy the caller may retain and mutate.
+// for the given model, or nil for an unknown model. The model is the bare
+// publisher ID, which equals the offering ID. The result is a copy the
+// caller may retain and mutate.
 func LocationsForModel(model string) []string {
-	locs, ok := servedLocations[bareModelID(model)]
+	locs, ok := servedLocations[model]
 	if !ok {
 		return nil
 	}
