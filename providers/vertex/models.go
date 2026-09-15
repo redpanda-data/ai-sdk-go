@@ -84,7 +84,11 @@ const (
 const (
 	// ModelMetadataPublisher is the Vertex publisher segment ("google",
 	// "anthropic").
-	ModelMetadataPublisher = "publisher"
+	//
+	// Every catalog declares a publisher now, so the key itself is
+	// catalog.AttributePublisher; this alias stays because callers already
+	// import it from here.
+	ModelMetadataPublisher = catalog.AttributePublisher
 	// ModelMetadataVertexModel is the bare wire model ID (the offering ID
 	// without the vertex. prefix), which goes in the request path.
 	ModelMetadataVertexModel = "vertex_model"

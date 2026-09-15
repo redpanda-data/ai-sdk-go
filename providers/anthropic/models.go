@@ -78,8 +78,13 @@ const (
 	SpeedFast     = llm.SpeedFast
 )
 
+// publisherAnthropic is the vendor every offering in this catalog is
+// published by; Anthropic serves only its own models, so one
+// declaration covers the slice.
+const publisherAnthropic = "anthropic"
+
 var catalogOnce = sync.OnceValue(func() *catalog.Catalog {
-	return catalog.MustNew("anthropic", entries())
+	return catalog.MustNew("anthropic", catalog.DeclarePublisher(publisherAnthropic, entries()))
 })
 
 // Catalog returns the validated Anthropic model catalog: every offering

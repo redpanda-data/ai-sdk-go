@@ -243,6 +243,17 @@ const (
 	ModelGPT56Luna = "openai.gpt-5.6-luna"
 )
 
+// The vendors whose models Bedrock resells. Each is the vendor namespace
+// of a family's BareID, and every family declares one as its Publisher —
+// Bedrock is the only catalog serving more than one vendor.
+const (
+	publisherAmazon    = "amazon"
+	publisherAnthropic = "anthropic"
+	publisherGoogle    = "google"
+	publisherMistral   = "mistral"
+	publisherOpenAI    = "openai"
+)
+
 // ModelMetadataRequiresProviderDataSharing is set to "true" on discovery
 // metadata for Bedrock models that require provider data sharing.
 const ModelMetadataRequiresProviderDataSharing = "requires_provider_data_sharing"
@@ -599,6 +610,7 @@ var bedrockFamilies = []family{
 		// Cache reads are 0.025x base input (matching Anthropic's
 		// first-party rate), not the 0.10x the other Claude families use.
 		BareID:         ModelClaudeFable51,
+		Publisher:      publisherAnthropic,
 		Model:          catalog.ModelClaudeFable51,
 		DisplayName:    "Claude Fable 5.1",
 		Profiles:       []string{"global", "us"},
@@ -615,6 +627,7 @@ var bedrockFamilies = []family{
 		// Claude Fable 5 — inference-profile-only, no bare entry. Geo
 		// profiles cover us and eu (jp/au are not published).
 		BareID:       ModelClaudeFable5,
+		Publisher:    publisherAnthropic,
 		Model:        catalog.ModelClaudeFable5,
 		DisplayName:  "Claude Fable 5",
 		Profiles:     []string{"global", "us", "eu"},
@@ -631,6 +644,7 @@ var bedrockFamilies = []family{
 		// publishes global, US, EU, and AU profiles:
 		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-5.html
 		BareID:       ModelClaudeOpus5,
+		Publisher:    publisherAnthropic,
 		Model:        catalog.ModelClaudeOpus5,
 		DisplayName:  "Claude Opus 5",
 		Profiles:     []string{"global", "us", "eu", "au"},
@@ -647,6 +661,7 @@ var bedrockFamilies = []family{
 		// Claude Opus 4.8 — inference-profile-only. Geo profiles cover
 		// us, eu, jp (au is not published).
 		BareID:       ModelClaudeOpus48,
+		Publisher:    publisherAnthropic,
 		Model:        catalog.ModelClaudeOpus48,
 		DisplayName:  "Claude Opus 4.8",
 		Profiles:     []string{"global", "us", "eu", "jp"},
@@ -661,6 +676,7 @@ var bedrockFamilies = []family{
 		// Claude Opus 4.7 — inference-profile-only. Geo profiles cover
 		// us, eu, jp (au is not published).
 		BareID:       ModelClaudeOpus47,
+		Publisher:    publisherAnthropic,
 		Model:        catalog.ModelClaudeOpus47,
 		DisplayName:  "Claude Opus 4.7",
 		Profiles:     []string{"global", "us", "eu", "jp"},
@@ -674,6 +690,7 @@ var bedrockFamilies = []family{
 	{
 		// Claude Opus 4.6 — inference-profile-only.
 		BareID:       ModelClaudeOpus46,
+		Publisher:    publisherAnthropic,
 		Model:        catalog.ModelClaudeOpus46,
 		DisplayName:  "Claude Opus 4.6",
 		Profiles:     []string{"global", "us", "eu", "au"},
@@ -687,6 +704,7 @@ var bedrockFamilies = []family{
 	{
 		// Claude Opus 4.5 — inference-profile-only.
 		BareID:       ModelClaudeOpus45,
+		Publisher:    publisherAnthropic,
 		Model:        catalog.ModelClaudeOpus45,
 		DisplayName:  "Claude Opus 4.5",
 		Profiles:     []string{"global", "us", "eu"},
@@ -701,6 +719,7 @@ var bedrockFamilies = []family{
 		// Claude Sonnet 5 — inference-profile-only; global and us are
 		// published so far.
 		BareID:       ModelClaudeSonnet5,
+		Publisher:    publisherAnthropic,
 		Model:        catalog.ModelClaudeSonnet5,
 		DisplayName:  "Claude Sonnet 5",
 		Profiles:     []string{"global", "us"},
@@ -717,6 +736,7 @@ var bedrockFamilies = []family{
 		// Claude Sonnet 4.6 — inference-profile-only. 1M context on
 		// Bedrock as well as the first-party API.
 		BareID:       ModelClaudeSonnet46,
+		Publisher:    publisherAnthropic,
 		Model:        catalog.ModelClaudeSonnet46,
 		DisplayName:  "Claude Sonnet 4.6",
 		Profiles:     []string{"global", "us", "eu", "au"},
@@ -731,6 +751,7 @@ var bedrockFamilies = []family{
 		// Claude Sonnet 4.5 — inference-profile-only; the widest geo
 		// coverage of the Claude 4.x line.
 		BareID:       ModelClaudeSonnet45,
+		Publisher:    publisherAnthropic,
 		Model:        catalog.ModelClaudeSonnet45,
 		DisplayName:  "Claude Sonnet 4.5",
 		Profiles:     []string{"global", "us", "eu", "au", "jp"},
@@ -744,6 +765,7 @@ var bedrockFamilies = []family{
 	{
 		// Claude Haiku 4.5 — inference-profile-only.
 		BareID:       ModelClaudeHaiku45,
+		Publisher:    publisherAnthropic,
 		Model:        catalog.ModelClaudeHaiku45,
 		DisplayName:  "Claude Haiku 4.5",
 		Profiles:     []string{"global", "us", "eu", "au"},
@@ -761,6 +783,7 @@ var bedrockFamilies = []family{
 		// the pricing shape tests explicitly allow for free-cache-write
 		// models.
 		BareID:       ModelNova2Lite,
+		Publisher:    publisherAmazon,
 		Model:        catalog.ModelNova2Lite,
 		DisplayName:  "Amazon Nova 2 Lite",
 		Profiles:     []string{"global", "us", "eu", "jp"},
@@ -779,6 +802,7 @@ var bedrockFamilies = []family{
 		// {input,output}-tokens-standard). Prompt caching is not billed
 		// (no cache usagetype published), so cache rates stay zero.
 		BareID:        ModelMistralLarge3,
+		Publisher:     publisherMistral,
 		Model:         catalog.ModelMistralLarge3,
 		DisplayName:   "Mistral Large 3",
 		BareInvokable: true,
@@ -794,6 +818,7 @@ var bedrockFamilies = []family{
 		// Responses usage payload reports an aggregate cache_write_tokens
 		// count, so the write price sits in the unknown-TTL bucket.
 		BareID:        ModelGPT56Sol,
+		Publisher:     publisherOpenAI,
 		Model:         catalog.ModelGPT5_6Sol,
 		DisplayName:   "OpenAI GPT-5.6 Sol",
 		BareInvokable: true,
@@ -806,6 +831,7 @@ var bedrockFamilies = []family{
 	},
 	{
 		BareID:        ModelGPT56Terra,
+		Publisher:     publisherOpenAI,
 		Model:         catalog.ModelGPT5_6Terra,
 		DisplayName:   "OpenAI GPT-5.6 Terra",
 		BareInvokable: true,
@@ -818,6 +844,7 @@ var bedrockFamilies = []family{
 	},
 	{
 		BareID:        ModelGPT56Luna,
+		Publisher:     publisherOpenAI,
 		Model:         catalog.ModelGPT5_6Luna,
 		DisplayName:   "OpenAI GPT-5.6 Luna",
 		BareInvokable: true,
@@ -838,6 +865,7 @@ var bedrockFamilies = []family{
 		// mantle endpoint bills only input/output for Gemma — no cache
 		// usagetype is published — so cache rates stay zero.
 		BareID:        ModelGemma431B,
+		Publisher:     publisherGoogle,
 		Model:         catalog.ModelGemma431B,
 		DisplayName:   "Google Gemma 4 31B",
 		BareInvokable: true,
@@ -849,6 +877,7 @@ var bedrockFamilies = []family{
 	},
 	{
 		BareID:        ModelGemma426BA4B,
+		Publisher:     publisherGoogle,
 		Model:         catalog.ModelGemma426BA4B,
 		DisplayName:   "Google Gemma 4 26B-A4B",
 		BareInvokable: true,
@@ -860,6 +889,7 @@ var bedrockFamilies = []family{
 	},
 	{
 		BareID:        ModelGemma4E2B,
+		Publisher:     publisherGoogle,
 		Model:         catalog.ModelGemma4E2B,
 		DisplayName:   "Google Gemma 4 E2B",
 		BareInvokable: true,

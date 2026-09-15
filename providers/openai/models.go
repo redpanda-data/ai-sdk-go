@@ -22,8 +22,13 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/pricing"
 )
 
+// publisherOpenAI is the vendor every offering in this catalog is
+// published by; OpenAI serves only its own models, so one
+// declaration covers the slice.
+const publisherOpenAI = "openai"
+
 var catalogOnce = sync.OnceValue(func() *catalog.Catalog {
-	return catalog.MustNew("openai", entries())
+	return catalog.MustNew("openai", catalog.DeclarePublisher(publisherOpenAI, entries()))
 })
 
 // Catalog returns the validated OpenAI model catalog: every offering with
