@@ -62,3 +62,44 @@ func WithLogger(logger *slog.Logger) Option {
 		c.logger = logger
 	}
 }
+
+type runConfig struct {
+	attributes map[string]string
+}
+
+// RunOption configures a single Run call, as opposed to Option, which
+// configures the long-lived Runner itself.
+type RunOption func(*runConfig)
+
+// WithAttribute adds one caller-asserted attribute to this run, such as a
+// tenant or plan tier. Attributes are fixed for the run: the otel plugin
+// exports every one on every span it opens, and in-process sub-agents
+// inherit them. An empty key or value is ignored.
+func WithAttribute(key, value string) RunOption {
+	return func(c *runConfig) {
+		if key == "" || value == "" {
+			return
+		}
+
+		if c.attributes == nil {
+			c.attributes = make(map[string]string)
+		}
+
+		c.attributes[key] = value
+	}
+}
+
+// WithUserID records the end user this run is for; it is WithAttribute for
+// agent.AttrUserID. An empty id asserts nothing.
+func WithUserID(id string) RunOption {
+	return WithAttribute(agent.AttrUserID, id)
+}
+
+// WithAttributes adds several attributes at once. See WithAttribute.
+func WithAttributes(attrs map[string]string) RunOption {
+	return func(c *runConfig) {
+		for k, v := range attrs {
+			WithAttribute(k, v)(c)
+		}
+	}
+}

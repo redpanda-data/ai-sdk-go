@@ -158,7 +158,7 @@ Be concise and helpful in your responses.`
 	userID := "example-user"
 
 	var finalMessage string
-	for evt, err := range r.Run(ctx, userID, sessionID, userMessage) {
+	for evt, err := range r.Run(ctx, sessionID, userMessage, runner.WithUserID(userID)) {
 		if err != nil {
 			log.Fatalf("Error during execution: %v", err)
 		}

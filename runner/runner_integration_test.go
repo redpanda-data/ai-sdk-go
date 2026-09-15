@@ -126,7 +126,7 @@ func TestRunner_Integration_WithTools(t *testing.T) {
 	t.Log("Executing with tool calling...")
 
 	userMsg := llm.NewMessage(llm.RoleUser, llm.NewTextPart("Please calculate 10 + 20 for me."))
-	events := collectEventsIntegration(t, r.Run(ctx, "", "test-session-tools", userMsg))
+	events := collectEventsIntegration(t, r.Run(ctx, "test-session-tools", userMsg))
 
 	// Verify tool was called
 	toolCallEvents := filterEventsIntegration[agent.ToolRequestEvent](events)
