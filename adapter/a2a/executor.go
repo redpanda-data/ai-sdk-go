@@ -47,9 +47,23 @@ const requestTooLargeMessage = "Agent stopped: the request does not fit the mode
 
 // Executor implements the a2asrv.AgentExecutor interface, bridging AI SDK agents with A2A protocol.
 type Executor struct {
-	log    *slog.Logger
-	agent  agent.Agent
-	runner *runner.Runner
+	log            *slog.Logger
+	agent          agent.Agent
+	runner         *runner.Runner
+	attributesFunc func(context.Context) map[string]string
+}
+
+// Option configures an Executor.
+type Option func(*Executor)
+
+// WithAttributesFunc sets the function that derives a request's
+// caller-asserted attributes, such as the end user (agent.AttrUserID) or a
+// tenant, which the executor passes to Runner.Run. It is a function because
+// one Executor serves every request, so the values can only come from the
+// request context, typically set by authenticating middleware. Empty entries
+// assert nothing.
+func WithAttributesFunc(fn func(context.Context) map[string]string) Option {
+	return func(e *Executor) { e.attributesFunc = fn }
 }
 
 // NewExecutor creates a new A2A executor.
@@ -57,16 +71,23 @@ func NewExecutor(
 	agent agent.Agent,
 	runner *runner.Runner,
 	logger *slog.Logger,
+	opts ...Option,
 ) *Executor {
 	if logger == nil {
 		logger = slog.Default()
 	}
 
-	return &Executor{
+	e := &Executor{
 		log:    logger,
 		agent:  agent,
 		runner: runner,
 	}
+
+	for _, o := range opts {
+		o(e)
+	}
+
+	return e
 }
 
 // Execute implements a2asrv.AgentExecutor.
@@ -97,7 +118,8 @@ func (e *Executor) Execute(ctx context.Context, reqCtx *a2asrv.RequestContext, q
 	write(workingEvent)
 
 	// Run the agent and process events
-	events := e.runner.Run(ctx, reqCtx.ContextID, MessageToLLM(reqCtx.Message))
+	events := e.runner.Run(ctx, reqCtx.ContextID, MessageToLLM(reqCtx.Message),
+		runner.WithAttributes(e.attributes(ctx)))
 	e.log.InfoContext(ctx, "Runner started, processing events")
 
 	return e.processEvents(ctx, reqCtx, queue, events)
@@ -120,6 +142,14 @@ func (e *Executor) Cancel(ctx context.Context, reqCtx *a2asrv.RequestContext, qu
 	e.log.InfoContext(ctx, "Task canceled successfully", "task_id", reqCtx.TaskID)
 
 	return nil
+}
+
+func (e *Executor) attributes(ctx context.Context) map[string]string {
+	if e.attributesFunc == nil {
+		return nil
+	}
+
+	return e.attributesFunc(ctx)
 }
 
 // processEvents handles the event stream from the runner and writes appropriate A2A events to the queue.
