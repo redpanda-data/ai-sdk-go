@@ -51,6 +51,8 @@ func (t *TracingInterceptor) InterceptToolExecution(
 		attrs = append(attrs, genAIConversationID(cid))
 	}
 
+	attrs = append(attrs, invocationAttributes(info.Inv)...)
+
 	// Add tool type and description if definition is available
 	if info.Definition != nil {
 		if info.Definition.Description != "" {

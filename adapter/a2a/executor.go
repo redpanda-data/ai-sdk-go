@@ -97,7 +97,7 @@ func (e *Executor) Execute(ctx context.Context, reqCtx *a2asrv.RequestContext, q
 	write(workingEvent)
 
 	// Run the agent and process events
-	events := e.runner.Run(ctx, "", reqCtx.ContextID, MessageToLLM(reqCtx.Message))
+	events := e.runner.Run(ctx, reqCtx.ContextID, MessageToLLM(reqCtx.Message))
 	e.log.InfoContext(ctx, "Runner started, processing events")
 
 	return e.processEvents(ctx, reqCtx, queue, events)

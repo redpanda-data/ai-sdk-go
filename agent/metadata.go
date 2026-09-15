@@ -95,6 +95,7 @@ type Info struct {
 //
 // IMMUTABLE FIELDS (framework-managed, read-only for interceptors):
 //   - InvocationID() - set once at creation, uniquely identifies this invocation
+//   - Attributes() - caller-asserted attributes, fixed at creation
 //   - Turn() - incremented by framework between turns
 //   - TotalUsage() - accumulated by framework after model calls
 //
@@ -149,6 +150,10 @@ type InvocationMetadata struct {
 	// sharing the same invocation.
 	metadataMu sync.Mutex
 	metadata   map[string]any
+
+	// Caller-asserted attributes, fixed at construction. String-valued, so
+	// they are safe to copy into a sub-agent and to export as span attributes.
+	attributes map[string]string
 }
 
 // NewInvocationMetadata creates a new invocation metadata with agent context.
@@ -163,14 +168,41 @@ type InvocationMetadata struct {
 // This function is typically called by agent implementations (e.g., llmagent) at the
 // start of execution. For convenience, use NewInvocationMetadataFromAgent if you have
 // an Agent interface.
-func NewInvocationMetadata(sess *session.State, agent Info) *InvocationMetadata {
-	return &InvocationMetadata{
+func NewInvocationMetadata(sess *session.State, agent Info, opts ...InvocationOption) *InvocationMetadata {
+	m := &InvocationMetadata{
 		invocationID: generateInvocationID(),
 		agent:        agent,
 		session:      sess,
 		turn:         0,
 		totalUsage:   llm.TokenUsage{},
 		metadata:     make(map[string]any),
+		attributes:   make(map[string]string),
+	}
+
+	for _, o := range opts {
+		o(m)
+	}
+
+	return m
+}
+
+// InvocationOption configures an InvocationMetadata at construction.
+type InvocationOption func(*InvocationMetadata)
+
+// WithAttributes sets the invocation's caller-asserted attributes: who or
+// what it runs for, such as the end user (AttrUserID) or a tenant. They are
+// fixed for the invocation, exported on every span by the otel plugin, and
+// inherited by in-process sub-agents. Entries with an empty key or value are
+// skipped.
+func WithAttributes(attrs map[string]string) InvocationOption {
+	return func(m *InvocationMetadata) {
+		for k, v := range attrs {
+			if k == "" || v == "" {
+				continue
+			}
+
+			m.attributes[k] = v
+		}
 	}
 }
 
@@ -251,8 +283,9 @@ func (m *InvocationMetadata) TotalUsage() llm.TokenUsage {
 // from tool interceptors running concurrently (tools execute in parallel
 // while sharing the same invocation).
 //
+// Values describing the caller are attributes, not metadata; see Attributes.
+//
 // Example use cases:
-//   - Auth interceptor sets user_id, other interceptors read it
 //   - Tracing interceptor sets trace_id for logging
 //   - Rate limiting interceptor sets rate_limit_remaining
 func (m *InvocationMetadata) GetMetadata(key string) any {
@@ -268,8 +301,10 @@ func (m *InvocationMetadata) GetMetadata(key string) any {
 // interceptors (tools execute in parallel while sharing the same invocation).
 // Use metadata to pass information between interceptors in the chain.
 //
+// Metadata never reaches telemetry and is not inherited by sub-agents.
+// Values describing the caller are attributes; see WithAttributes.
+//
 // Example:
-//   - inv.SetMetadata("user_id", "user-123")
 //   - inv.SetMetadata("trace_id", span.SpanContext().TraceID().String())
 func (m *InvocationMetadata) SetMetadata(key string, value any) {
 	m.metadataMu.Lock()
@@ -288,6 +323,22 @@ func (m *InvocationMetadata) Metadata() map[string]any {
 	defer m.metadataMu.Unlock()
 
 	return maps.Clone(m.metadata)
+}
+
+// AttrUserID is the attribute key for the end user an invocation runs for,
+// exported as the user.id span attribute. The value is the caller's
+// unverified claim and must not be used for authorization.
+const AttrUserID = "user.id"
+
+// Attribute returns the caller-asserted attribute stored under key, or "" if
+// unset.
+func (m *InvocationMetadata) Attribute(key string) string {
+	return m.attributes[key]
+}
+
+// Attributes returns a copy of the caller-asserted attributes.
+func (m *InvocationMetadata) Attributes() map[string]string {
+	return maps.Clone(m.attributes)
 }
 
 // --- Internal mutators (unexported, framework use only) ---

@@ -173,6 +173,8 @@ func (t *TracingInterceptor) startInvocationSpan(
 		attrs = append(attrs, genAIConversationID(cid))
 	}
 
+	attrs = append(attrs, invocationAttributes(inv)...)
+
 	agentSnap := inv.Agent()
 
 	// Add system instructions from agent snapshot (not from session messages).

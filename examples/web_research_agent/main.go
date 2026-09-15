@@ -182,7 +182,7 @@ func main() {
 func runTurn(ctx context.Context, r *runner.Runner, userID, sessionID, question string) {
 	userMessage := llm.NewMessage(llm.RoleUser, llm.NewTextPart(question))
 	var answer string
-	for evt, err := range r.Run(ctx, userID, sessionID, userMessage) {
+	for evt, err := range r.Run(ctx, sessionID, userMessage, runner.WithUserID(userID)) {
 		if err != nil {
 			log.Printf("run error: %v", err)
 			return

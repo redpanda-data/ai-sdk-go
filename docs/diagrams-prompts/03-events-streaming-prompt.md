@@ -100,7 +100,7 @@ Show as a small legend or annotation:
 Show in terminal/monospace style box:
 
 ```go
-for event, err := range runner.Run(ctx, userID, sessionID, msg) {
+for event, err := range runner.Run(ctx, sessionID, msg) {
     switch e := event.(type) {
     case *agent.StatusEvent:         // Turn started, model call, etc.
     case *agent.AssistantDeltaEvent: // Streaming text tokens
