@@ -39,7 +39,7 @@ func TestPublisherMatchesBareIDVendor(t *testing.T) {
 
 	for _, o := range cat.All() {
 		assert.Equalf(t, bareIDVendor(o.ID), o.Attributes[catalog.AttributePublisher],
-			"%s publisher does not match its bare ID vendor", o.ID)
+			"%s publisher does not match its bare ID vendor (add any new geo profile to geoPrefixes)", o.ID)
 	}
 }
 
@@ -58,14 +58,12 @@ var geoPrefixes = map[string]bool{
 // skipping a leading geo prefix: both "anthropic.claude-opus-5" and
 // "us.anthropic.claude-opus-5" yield "anthropic".
 func bareIDVendor(id string) string {
-	head, rest, ok := strings.Cut(id, ".")
-	if !ok {
-		return head
+	first, rest, ok := strings.Cut(id, ".")
+	if !ok || !geoPrefixes[first] {
+		return first
 	}
 
-	if geoPrefixes[head] {
-		head, _, _ = strings.Cut(rest, ".")
-	}
+	vendor, _, _ := strings.Cut(rest, ".")
 
-	return head
+	return vendor
 }
