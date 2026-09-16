@@ -29,6 +29,10 @@ package catalog
 // from the generator's own list in cmd/catalog-snapshot/main.go: a new
 // provider package is guarded only once it is added to both.
 //
+// Shared keys are named Attribute*, and a key only one provider carries
+// stays ModelMetadata* in that provider's own package. This is the first
+// shared one, so it is also the rule.
+//
 // The vocabulary is lowercase vendor names, and it is open: a new vendor
 // appearing in any catalog adds a value. In use across the catalogs today:
 //
