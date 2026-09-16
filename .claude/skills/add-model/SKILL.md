@@ -49,9 +49,9 @@ Exported ID constant (greppable), capabilities, constraints, modalities,
   `mistral`, `meta`), under `catalog.AttributePublisher`. Consumers read a
   model's brand from it, so `TestEveryOfferingDeclaresAPublisher` fails the
   build when one is missing. The single-vendor catalogs declare it once at
-  the catalog root via `catalog.DeclarePublisher`, so a new entry there
+  the catalog root via `catalog.MustDeclarePublisher`, so a new entry there
   inherits it and needs nothing; Bedrock declares it per family (below).
-  A new provider package must wire `catalog.DeclarePublisher` (single-vendor)
+  A new provider package must wire `catalog.MustDeclarePublisher` (single-vendor)
   or author the attribute per entry, and add itself to both catalog lists:
   the `snapshot.Encode` call in `cmd/catalog-snapshot/main.go` (what the
   generator writes) and `allCatalogs` in

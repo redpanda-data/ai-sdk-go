@@ -48,7 +48,7 @@ const (
 const publisherGoogle = "google"
 
 var catalogOnce = sync.OnceValue(func() *catalog.Catalog {
-	return catalog.MustNew("google", catalog.DeclarePublisher(publisherGoogle, entries()))
+	return catalog.MustNew("google", catalog.MustDeclarePublisher(publisherGoogle, entries()))
 })
 
 // Catalog returns the validated Google model catalog: every offering with

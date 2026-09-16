@@ -44,7 +44,7 @@ import (
 //	amazon, anthropic, google, meta, mistral, openai
 const AttributePublisher = "publisher"
 
-// DeclarePublisher declares publisher on every entry in entries and
+// MustDeclarePublisher declares publisher on every entry in entries and
 // returns them, for the single-vendor catalogs where one name covers the
 // whole slice: Anthropic serves only Anthropic models, Meta only Meta's. The
 // value is still authored — one declaration at the catalog's root instead
@@ -58,9 +58,12 @@ const AttributePublisher = "publisher"
 //
 // entries is mutated in place and returned, so call it on a freshly built
 // slice, which is what a provider's entries() returns.
-func DeclarePublisher(publisher string, entries []Entry) []Entry {
+//
+// It carries the Must prefix because it panics on an authoring error,
+// like MustNew in catalog.go and MustDate in date.go.
+func MustDeclarePublisher(publisher string, entries []Entry) []Entry {
 	if publisher == "" {
-		panic(errors.New("catalog: DeclarePublisher needs a publisher")) //nolint:forbidigo // authoring error, not runtime
+		panic(errors.New("catalog: MustDeclarePublisher needs a publisher")) //nolint:forbidigo // authoring error, not runtime
 	}
 
 	for i := range entries {

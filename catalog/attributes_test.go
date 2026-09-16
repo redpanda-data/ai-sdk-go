@@ -23,14 +23,14 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/catalog"
 )
 
-// TestDeclarePublisherDeclaresOnEveryEntry covers the two shapes a
+// TestMustDeclarePublisherDeclaresOnEveryEntry covers the two shapes a
 // single-vendor catalog presents: entries with no attribute map at all
 // (the common case) and entries that already carry provider attributes,
 // which must keep them.
-func TestDeclarePublisherDeclaresOnEveryEntry(t *testing.T) {
+func TestMustDeclarePublisherDeclaresOnEveryEntry(t *testing.T) {
 	t.Parallel()
 
-	got := catalog.DeclarePublisher("anthropic", []catalog.Entry{
+	got := catalog.MustDeclarePublisher("anthropic", []catalog.Entry{
 		{ID: "claude-opus-5"},
 		{ID: "claude-haiku-4-5", Attributes: map[string]string{"inference_geo": "us"}},
 	})
@@ -41,13 +41,13 @@ func TestDeclarePublisherDeclaresOnEveryEntry(t *testing.T) {
 	assert.Equal(t, "us", got[1].Attributes["inference_geo"], "existing attributes must survive")
 }
 
-// TestDeclarePublisherGuards covers the authoring errors the helper
+// TestMustDeclarePublisherGuards covers the authoring errors the helper
 // refuses. Overwriting an authored publisher would hand a consumer the
 // wrong brand mark, and writing an empty one would defer the failure to
 // TestEveryOfferingDeclaresAPublisher two packages away; both fail at the
 // authoring site instead. Re-declaring the same publisher is harmless, so
 // the guard stays narrow.
-func TestDeclarePublisherGuards(t *testing.T) {
+func TestMustDeclarePublisherGuards(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -68,7 +68,7 @@ func TestDeclarePublisherGuards(t *testing.T) {
 			name:      "empty publisher",
 			publisher: "",
 			entries:   []catalog.Entry{{ID: "claude-opus-5"}},
-			wantPanic: "catalog: DeclarePublisher needs a publisher",
+			wantPanic: "catalog: MustDeclarePublisher needs a publisher",
 		},
 		{
 			name:      "matching redeclaration is accepted",
@@ -83,7 +83,7 @@ func TestDeclarePublisherGuards(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			call := func() { catalog.DeclarePublisher(tt.publisher, tt.entries) }
+			call := func() { catalog.MustDeclarePublisher(tt.publisher, tt.entries) }
 
 			if tt.wantPanic == "" {
 				require.NotPanics(t, call)

@@ -84,7 +84,7 @@ const (
 const publisherAnthropic = "anthropic"
 
 var catalogOnce = sync.OnceValue(func() *catalog.Catalog {
-	return catalog.MustNew("anthropic", catalog.DeclarePublisher(publisherAnthropic, entries()))
+	return catalog.MustNew("anthropic", catalog.MustDeclarePublisher(publisherAnthropic, entries()))
 })
 
 // Catalog returns the validated Anthropic model catalog: every offering
