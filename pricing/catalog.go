@@ -45,12 +45,23 @@ type Catalog struct {
 	version   string
 }
 
-// ErrUnknownProvider is returned from Lookup and Calculate when the
-// catalog carries no rates for the requested provider at all. Distinct
-// from ErrUnknownModel: it is almost always a mapping bug — a call site
-// passing a key the catalog was never registered under — and it prices
-// every request there as a silent zero, so alert on it.
-var ErrUnknownProvider = errors.New("pricing: unknown provider")
+// Sentinel errors returned by Lookup and Calculate.
+var (
+	// ErrUnknownProvider means the catalog carries no rates for the
+	// requested provider at all. It is almost always a mapping bug, and
+	// it prices every request at that call site as a silent zero, so
+	// alert on it.
+	ErrUnknownProvider = errors.New("pricing: unknown provider")
+
+	// ErrUnknownModel means the model ID is not registered under an
+	// otherwise-known provider. Surfacing this rather than silently
+	// pricing as zero is deliberate: in a billing or logging path a
+	// miswired model ID must not be indistinguishable from a free call.
+	// Callers that want fail-open cost estimation may ignore the error
+	// and still use the returned Cost, which carries CatalogVersion but
+	// no breakdown.
+	ErrUnknownModel = errors.New("pricing: unknown model")
+)
 
 // Lookup returns a deep copy of the pricing Info for the given
 // provider and model ID. The copy isolates callers from mutation and
@@ -78,15 +89,6 @@ func (c *Catalog) Version() string {
 
 	return c.version
 }
-
-// ErrUnknownModel is returned from Lookup and Calculate when the
-// requested model ID is not registered under an otherwise-known
-// provider. Surfacing this as an error (rather than silently pricing
-// as zero) is deliberate: in a billing/logging path a miswired model
-// ID must not be indistinguishable from a free call. Callers that want
-// fail-open cost estimation may ignore the error and still use the
-// returned Cost (which carries CatalogVersion but no breakdown).
-var ErrUnknownModel = errors.New("pricing: unknown model")
 
 // Calculate prices one model call using the catalog-registered Info
 // for the given provider and modelID. Resolution runs against the
