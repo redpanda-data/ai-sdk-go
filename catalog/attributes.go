@@ -24,9 +24,10 @@ package catalog
 // provider quirk. Consumers read a model's vendor from it instead of
 // pattern-matching the offering ID, and the snapshot command's
 // TestEveryOfferingDeclaresAPublisher fails the build when an offering in
-// any catalog it covers omits it. That test walks allCatalogs, which is
-// hand-kept: a new provider package is only guarded once it is added
-// there, which registering it for the snapshot already requires.
+// any catalog it covers omits it. That test walks allCatalogs in
+// cmd/catalog-snapshot/lifecycle_test.go, which is hand-kept and separate
+// from the generator's own list in cmd/catalog-snapshot/main.go: a new
+// provider package is guarded only once it is added to both.
 //
 // The vocabulary is lowercase vendor names, and it is open: a new vendor
 // appearing in any catalog adds a value. In use across the catalogs today:

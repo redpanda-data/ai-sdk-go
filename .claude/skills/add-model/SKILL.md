@@ -52,8 +52,12 @@ Exported ID constant (greppable), capabilities, constraints, modalities,
   the catalog root via `catalog.DeclarePublisher`, so a new entry there
   inherits it and needs nothing; Bedrock declares it per family (below).
   A new provider package must wire `catalog.DeclarePublisher` (single-vendor)
-  or author the attribute per entry, and add itself to `allCatalogs` in
-  `cmd/catalog-snapshot`.
+  or author the attribute per entry, and add itself to both catalog lists:
+  the `snapshot.Encode` call in `cmd/catalog-snapshot/main.go` (what the
+  generator writes) and `allCatalogs` in
+  `cmd/catalog-snapshot/lifecycle_test.go` (what the invariants walk).
+  Nothing links the two, and adding only the second makes
+  `TestCommittedSnapshotIsFresh` fail with advice that cannot fix it.
 
 - **Capabilities and modalities describe the model as the provider documents
   it**, not what this SDK's request mappers wire yet.
