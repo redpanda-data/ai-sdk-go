@@ -43,7 +43,7 @@ const (
 )
 
 // ProviderName is the catalog key Provider.Name() returns; see
-// pricing.ProviderKey. This pair drifted ("google" vs "gcp.gemini") before AI-2118.
+// pricing.ProviderKey.
 const ProviderName = "gcp.gemini"
 
 var catalogOnce = sync.OnceValue(func() *catalog.Catalog {

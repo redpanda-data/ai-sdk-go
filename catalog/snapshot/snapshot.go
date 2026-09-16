@@ -41,12 +41,12 @@ import (
 // are not version bumps. Tolerant-reader contract: consumers MUST ignore
 // unknown fields and MUST NOT require optional ones.
 //
-// v2 (AI-2118): the value domain of "id"/"model" changed without the
-// field shape changing. A model ID is no longer unique across the
-// snapshot — Vertex resells Anthropic's "claude-sonnet-5" under its own
-// provider, so the same ID now appears under two providers with different
-// pricing. Consumers MUST key an offering by {provider, id}, never by id
-// alone. The shared "facts" map stays keyed by model ID because facts are
+// v2: the value domain of "id"/"model" changed without the field shape
+// changing. A model ID is no longer unique across the snapshot — Vertex
+// resells Anthropic's "claude-sonnet-5" under its own provider, so the
+// same ID now appears under two providers with different pricing.
+// Consumers MUST key an offering by {provider, id}, never by id alone.
+// The shared "facts" map stays keyed by model ID because facts are
 // provider-independent (Encode rejects any conflict).
 const SchemaVersion = 2
 

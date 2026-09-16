@@ -119,10 +119,7 @@ shape.
   model, not a compile error. `catalog/snapshot.json` is the read format
   for non-Go consumers, so these IDs change under them. Consumers that
   persisted a prefixed ID must rewrite it before bumping; after the
-  first stored row this becomes a data migration, not a revert. The
-  counterpart change in the AI Gateway is tracked as AI-2020, which
-  moves its Vertex pricing path onto the bare publisher ID and
-  `pricing.ProviderKey("gcp.vertex")`.
+  first stored row this becomes a data migration, not a revert.
 - **`catalog/snapshot.json` is now `schema_version` 2.** The field shape
   did not change; the value domain of `id` did. A model ID is no longer
   unique across the snapshot — `claude-sonnet-5` appears under both

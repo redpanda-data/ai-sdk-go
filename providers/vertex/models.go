@@ -66,7 +66,7 @@ const (
 	// "anthropic").
 	ModelMetadataPublisher = "publisher"
 	// ModelMetadataVertexModel is the bare wire model ID for the request
-	// path. It equals the offering ID today; AI-2108 drops this attribute.
+	// path. It equals the offering ID today.
 	ModelMetadataVertexModel = "vertex_model"
 )
 
