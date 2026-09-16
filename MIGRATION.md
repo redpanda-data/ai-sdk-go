@@ -123,10 +123,23 @@ shape.
   counterpart change in the AI Gateway is tracked as AI-2020, which
   moves its Vertex pricing path onto the bare publisher ID and
   `pricing.ProviderKey("gcp.vertex")`.
-- **`Cost.CatalogVersion` changes for every model at this release.** The
-  version hash now folds in the provider (schema `v2`), so identical
-  rate data hashes differently. Stored versions from before the bump
-  stay valid for historical rows and will not recur.
+- **`catalog/snapshot.json` is now `schema_version` 2.** The field shape
+  did not change; the value domain of `id` did. A model ID is no longer
+  unique across the snapshot — `claude-sonnet-5` appears under both
+  `anthropic` and `gcp.vertex` with different rate cards — so a consumer
+  MUST key an offering by `{provider, id}` and never by `id` alone. The
+  tolerant-reader contract does not cover this: ignoring unknown fields
+  does not help a consumer that holds one entry per ID. The shared
+  `facts` map stays keyed by model ID, because facts are
+  provider-independent and `Encode` rejects a conflict across providers.
+  This is the exported `snapshot.SchemaVersion`, which is a different
+  constant from the pricing hash seed below.
+- **`Cost.CatalogVersion` changes at this release.** The hash seed moved
+  from `v1` to `v2` — the unexported `pricing.schemaVersion`, not the
+  snapshot version above — and that alone makes every `Version()` differ
+  even where the rate data is byte-identical; the hash now also folds in
+  the provider and the known-provider set. Stored versions from before
+  the bump stay valid for historical rows and will not recur.
 
 ### Unknown models
 
