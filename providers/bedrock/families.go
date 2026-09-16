@@ -135,8 +135,7 @@ func expandFamilies(families []family) ([]catalog.Entry, map[string]bool) {
 		// geo is the inference-profile geography ("us", "global", ...);
 		// empty for bare IDs, which run in the calling region.
 		variant := func(id, labelSuffix, geo string, rates pricing.RateCard) catalog.Entry {
-			// Every variant carries a publisher, so there is no longer a
-			// case where the map stays nil.
+			// Every variant carries a publisher, so the map is never nil.
 			attrs := map[string]string{catalog.AttributePublisher: f.Publisher}
 
 			if f.DataSharing {

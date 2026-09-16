@@ -88,8 +88,8 @@ const (
 	// segment of a resource path.
 	//
 	// Deprecated: use [catalog.AttributePublisher]. Every catalog declares a
-	// publisher now, so the key is no longer Vertex-local; this alias stays
-	// only because callers already import it from here.
+	// publisher, so the key is shared rather than Vertex-local; this alias
+	// stays only because callers import it from here.
 	ModelMetadataPublisher = catalog.AttributePublisher
 	// ModelMetadataVertexModel is the bare wire model ID (the offering ID
 	// without the vertex. prefix), which goes in the request path.

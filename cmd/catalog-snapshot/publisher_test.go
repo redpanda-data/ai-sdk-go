@@ -27,14 +27,12 @@ import (
 // TestEveryOfferingDeclaresAPublisher is the tripwire that keeps a newly
 // added model from shipping without a vendor. The console reads
 // Model.publisher to pick a model's brand mark; an offering with no
-// publisher falls through to a neutral glyph, and the fallback that used
-// to cover it — a hand-kept list of regexes over the model ID — is being
-// deleted.
+// publisher falls through to a neutral glyph, and no fallback covers it.
 //
-// It runs over allCatalogs rather than the four catalogs the change that
-// introduced it touched, so the next provider package fails here until it
-// declares a publisher — from the moment it is added to allCatalogs, which
-// registering it for the snapshot already requires.
+// It runs over allCatalogs rather than a fixed list of provider packages,
+// so a new provider package fails here until it declares a publisher — from
+// the moment it is added to allCatalogs, which registering it for the
+// snapshot already requires.
 func TestEveryOfferingDeclaresAPublisher(t *testing.T) {
 	t.Parallel()
 
