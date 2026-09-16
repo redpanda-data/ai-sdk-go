@@ -26,11 +26,8 @@ import (
 
 const gpt5 = "gpt-5"
 
-// Real provider keys for the synthetic catalogs below. "google" and
-// "bedrock" were the pre-AI-2118 drift; the catalog keys are
-// "gcp.gemini" and "aws.bedrock" (see MIGRATION.md). pricing_test is
-// package pricing (internal), so it cannot import a provider to reach
-// the exported ProviderName const - the value is pinned here instead.
+// Real provider keys, pinned here because package pricing cannot import
+// a provider to reach its ProviderName const.
 const (
 	testGeminiProvider  ProviderKey = "gcp.gemini"
 	testBedrockProvider ProviderKey = "aws.bedrock"
@@ -258,8 +255,6 @@ func TestCalculate_UnpricedBuckets(t *testing.T) {
 	assert.Equal(t, int64(500), cost.Breakdown[UsageFieldToolUseInput])
 }
 
-// TestLookup_MissingID verifies an unknown model ID under a known
-// provider returns ErrUnknownModel, and a hit returns a nil error.
 func TestLookup_MissingID(t *testing.T) {
 	t.Parallel()
 
@@ -275,10 +270,6 @@ func TestLookup_MissingID(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestLookup_UnknownProvider verifies that a model queried under a
-// provider the catalog carries no rates for returns ErrUnknownProvider,
-// distinct from ErrUnknownModel — a mapping bug worth alerting on rather
-// than a merely-new model. (AI-2118 AC 7.)
 func TestLookup_UnknownProvider(t *testing.T) {
 	t.Parallel()
 
@@ -323,11 +314,6 @@ func TestCalculate_UnknownModelReturnsError(t *testing.T) {
 	assert.Equal(t, catalog.Version(), cost.CatalogVersion)
 }
 
-// TestBuilder_SharedModelIDAcrossProviders verifies that two providers
-// registering the same bare model ID is accepted — the whole point of
-// keying by {provider, model} — and each is priced under its own rate
-// card. The duplicate error fires only for the same provider and model.
-// (AI-2118 AC 1.)
 func TestBuilder_SharedModelIDAcrossProviders(t *testing.T) {
 	t.Parallel()
 
@@ -351,12 +337,8 @@ func TestBuilder_SharedModelIDAcrossProviders(t *testing.T) {
 	assert.NotEqual(t, direct.Default.Base.InputPerMillion, bedrock.Default.Base.InputPerMillion)
 }
 
-// TestWithProvider_SameProviderInTwoPieces pins that one provider's
-// pricing may arrive in more than one registration and both pieces
-// resolve. The ticket states this shape explicitly, and it is what
-// cloudv2 needs (two registration sites for one provider). Distinct
-// model IDs under the same provider are additive; only the same model ID
-// twice under one provider is the duplicate-error case.
+// TestWithProvider_SameProviderInTwoPieces pins that one provider may
+// register in several pieces — cloudv2 has two registration sites for one.
 func TestWithProvider_SameProviderInTwoPieces(t *testing.T) {
 	t.Parallel()
 
@@ -600,8 +582,7 @@ func TestCatalogVersion_DeterministicAndSensitive(t *testing.T) {
 	assert.Len(t, baseA.Version(), 16)
 }
 
-// fakeSource is a minimal pricing.Source for exercising WithSource without
-// pulling in a provider package (which pricing must not import).
+// fakeSource stands in for a provider catalog, which pricing cannot import.
 type fakeSource struct {
 	provider string
 	prices   map[string]Info
@@ -610,9 +591,6 @@ type fakeSource struct {
 func (s fakeSource) Provider() string             { return s.provider }
 func (s fakeSource) PricingByID() map[string]Info { return s.prices }
 
-// TestWithSource_RegistersUnderProviderName proves WithSource keys the
-// source's models under ProviderKey(src.Provider()), so a later Lookup
-// must name that provider to reach them. (AI-2118 AC 2.)
 func TestWithSource_RegistersUnderProviderName(t *testing.T) {
 	t.Parallel()
 
@@ -628,19 +606,11 @@ func TestWithSource_RegistersUnderProviderName(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(200_000_000), got.Default.Base.InputPerMillion)
 
-	// The same model under a provider the source did not register is a
-	// provider miss, not a model miss.
+	// Under an unregistered provider the miss is the provider, not the model.
 	_, err = catalog.Lookup("anthropic", "claude-sonnet-5")
 	require.ErrorIs(t, err, ErrUnknownProvider)
 }
 
-// TestWithSource_EmptyProviderFailsBuild proves a source that reports an
-// empty provider name is a build error, never a silent registration under
-// an empty key that no lookup could name. WithSource catches the empty
-// name itself and names the source (%T) in the error, so a joined
-// NewCatalog failure across several registrations is traceable to the
-// option that caused it. (AI-2118 AC 2: an empty provider name is
-// rejected at build.)
 func TestWithSource_EmptyProviderFailsBuild(t *testing.T) {
 	t.Parallel()
 
@@ -654,11 +624,6 @@ func TestWithSource_EmptyProviderFailsBuild(t *testing.T) {
 	assert.Contains(t, err.Error(), "empty provider name")
 }
 
-// TestCatalogVersion_FoldsInProvider proves the version hash folds in the
-// provider key: the same model ID with the same rates under two different
-// providers must produce different catalog versions, so a provider remap
-// is a visible catalog change. (AI-2118 implementation-plan item; no AC of
-// its own — ACs 5 and 6 are the cloudv2 half.)
 func TestCatalogVersion_FoldsInProvider(t *testing.T) {
 	t.Parallel()
 
@@ -676,11 +641,6 @@ func TestCatalogVersion_FoldsInProvider(t *testing.T) {
 		"identical model+rates under a different provider must change the version")
 }
 
-// TestWithProvider_EmptyKeyFailsBuild proves the empty-provider guard sits
-// on the shared registration path, so WithProvider("", ...) is a build
-// error rather than a silent registration under an empty key that no
-// lookup could name. WithSource already refuses an empty name; this covers
-// the WithProvider door into the same registerModels path.
 func TestWithProvider_EmptyKeyFailsBuild(t *testing.T) {
 	t.Parallel()
 
@@ -689,8 +649,6 @@ func TestWithProvider_EmptyKeyFailsBuild(t *testing.T) {
 	assert.Contains(t, err.Error(), "empty provider key")
 }
 
-// TestWithSource_NilSourceFailsBuild proves a nil Source is a build error,
-// not a panic: WithSource must not call Provider() on a nil interface.
 func TestWithSource_NilSourceFailsBuild(t *testing.T) {
 	t.Parallel()
 
@@ -699,12 +657,8 @@ func TestWithSource_NilSourceFailsBuild(t *testing.T) {
 	assert.Contains(t, err.Error(), "nil source")
 }
 
-// TestEmptyProviderMapStaysKnown proves a provider registered with an
-// empty pricing map is still a known provider: a later lookup reports
-// ErrUnknownModel (a new model, log-worthy), never a false
-// ErrUnknownProvider (a mapping bug, alert-worthy). Guards against the
-// providers set being derived from surviving models rather than from the
-// registration itself.
+// TestEmptyProviderMapStaysKnown guards against deriving the known-provider
+// set from surviving models instead of from the registration itself.
 func TestEmptyProviderMapStaysKnown(t *testing.T) {
 	t.Parallel()
 
@@ -717,11 +671,6 @@ func TestEmptyProviderMapStaysKnown(t *testing.T) {
 	require.NotErrorIs(t, err, ErrUnknownProvider)
 }
 
-// TestWithOverride_LandsScopedToProvider proves WithOverride replaces the
-// rate card of exactly the {provider, model} it names: the override hits
-// bedrock's "m" and leaves anthropic's "m" — the same bare ID under a
-// different provider — untouched. Guards the ProviderKey WithOverride
-// gained in AI-2118 against repointing another provider's card. (M6.)
 func TestWithOverride_LandsScopedToProvider(t *testing.T) {
 	t.Parallel()
 
@@ -743,13 +692,9 @@ func TestWithOverride_LandsScopedToProvider(t *testing.T) {
 		"the same model ID under another provider must be untouched by the override")
 }
 
-// TestCatalogVersion_MultiProviderOrderStable proves the version hash is
-// stable across a catalog with several providers each holding several
-// models. The key sort folds provider then model, so neither registration
-// order nor Go's randomised map iteration can flip the stamp. Drop the
-// model tie-break in computeVersion and two providers sharing a model ID
-// hash in map order, so CatalogVersion flips per process and the stamp
-// stored beside every spending event stops being reproducible. (M7.)
+// TestCatalogVersion_MultiProviderOrderStable: drop the model tie-break
+// from computeVersion's sort and two providers sharing a model ID hash in
+// map order, so CatalogVersion flips per process.
 func TestCatalogVersion_MultiProviderOrderStable(t *testing.T) {
 	t.Parallel()
 
@@ -776,10 +721,6 @@ func TestCatalogVersion_MultiProviderOrderStable(t *testing.T) {
 	}
 }
 
-// TestNilCatalog_ReportsUnknownProvider proves a nil *Catalog is not a
-// panic: Lookup and Calculate both report ErrUnknownProvider (an unbuilt
-// catalog knows no providers), and Calculate still returns a zero Cost
-// with an empty CatalogVersion. (N4.)
 func TestNilCatalog_ReportsUnknownProvider(t *testing.T) {
 	t.Parallel()
 

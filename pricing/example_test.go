@@ -35,8 +35,7 @@ import (
 func Example_standalone() {
 	// 1. Build a catalog from the SDK's shipped pricing data. Mix
 	//    providers as needed; WithSource reads each provider's key off
-	//    the source itself, so no caller hand-types it (the keys are
-	//    "gcp.gemini" and "aws.bedrock", not "google"/"bedrock").
+	//    the source, so nothing is hand-typed.
 	catalog, err := pricing.NewCatalog(
 		pricing.WithSource(openai.Catalog()),
 		// pricing.WithSource(anthropic.Catalog()),
@@ -91,11 +90,8 @@ func Example_unknownModelIsAnError() {
 	// unknown model — emit metric, don't bill as $0
 }
 
-// Example_unknownProviderIsAlertable shows the other miss, and the one
-// worth an alert. ErrUnknownProvider means the catalog carries no rates
-// for the provider at all — almost always a mapping bug that prices every
-// call at that site as a silent $0, distinct from ErrUnknownModel (a
-// genuinely new model under a provider the catalog does carry).
+// Example_unknownProviderIsAlertable shows the other miss. ErrUnknownProvider
+// is a mapping bug that prices every call at that site as $0, so alert on it.
 func Example_unknownProviderIsAlertable() {
 	catalog, _ := pricing.NewCatalog(
 		pricing.WithProvider(openai.ProviderName, map[string]pricing.Info{
@@ -182,9 +178,7 @@ func Example_contextBrackets() {
 		}),
 	)
 
-	// Small call — under 200k, base rates apply. The provider key is
-	// "gcp.gemini", the value Google's Provider.Name() returns — not
-	// "google".
+	// Small call — under 200k, base rates apply.
 	small, _ := catalog.Calculate("gcp.gemini", "gemini-2.5-pro", &llm.TokenUsage{
 		InputTokens: 100_000,
 	}, pricing.CalcRequest{ContextTokens: 100_000})

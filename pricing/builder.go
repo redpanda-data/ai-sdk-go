@@ -34,16 +34,12 @@ import (
 // version hash folds the provider in.
 const schemaVersion = "v2"
 
-// Source is the structural pricing surface a catalog registers from.
-// A model provider's *catalog.Catalog satisfies it, so callers pass the
-// source directly and never hand-type a provider name. It is
-// structural because pricing must not import catalog — the dependency
-// runs the other way.
+// Source is what WithSource registers from; a provider's *catalog.Catalog
+// satisfies it. It is an interface because pricing must not import
+// catalog — the dependency runs the other way.
 type Source interface {
-	// Provider is the name the source registers its models under. It
-	// becomes the ProviderKey half of every catalog key.
+	// Provider is the ProviderKey the source's models register under.
 	Provider() string
-	// PricingByID returns the source's model ID -> pricing Info map.
 	PricingByID() map[string]Info
 }
 
@@ -51,12 +47,9 @@ type Source interface {
 type Option func(*catalogBuilder)
 
 // WithSource registers one source's model pricing under
-// ProviderKey(src.Provider()). It is the preferred registration path:
-// the provider name comes from the source itself, so no caller types
-// it. A nil interface, or an empty Provider() (which a nil
-// *catalog.Catalog reports), fails the build rather than panicking or
-// registering under a key no lookup could name. Duplicate handling
-// matches WithProvider.
+// ProviderKey(src.Provider()). Prefer it over WithProvider: the key
+// comes from the source, so no caller hand-types it. A nil src, or one
+// reporting an empty Provider(), fails the build.
 func WithSource(src Source) Option {
 	return func(b *catalogBuilder) {
 		if src == nil {
@@ -66,10 +59,8 @@ func WithSource(src Source) Option {
 			return
 		}
 
-		// A nil *catalog.Catalog boxed into Source is not a nil interface,
-		// so it reaches here reporting an empty Provider(). Name the source:
-		// NewCatalog joins several registrations' errors, so a boot failure
-		// must be traceable to the option that caused it.
+		// A typed-nil *catalog.Catalog is not a nil interface; it lands here
+		// with an empty Provider(). %T names it among joined build errors.
 		if src.Provider() == "" {
 			b.buildErrs = append(b.buildErrs,
 				fmt.Errorf("WithSource: source %T reports an empty provider name (a nil catalog?)", src))
@@ -81,15 +72,11 @@ func WithSource(src Source) Option {
 	}
 }
 
-// WithProvider registers one provider's model pricing definitions
-// under the given ProviderKey. Prefer WithSource, which reads the
-// provider name off the source; WithProvider stays for callers holding
-// a bare pricing map.
-//
-// The same model ID twice under one provider is a duplicate-pricing
-// error from NewCatalog, not a silent clobber; under a different
-// provider it is fine, which is the point of keying by provider.
-// Intentional replacements go through WithOverride.
+// WithProvider registers one provider's model pricing under the given
+// ProviderKey; it stays for callers holding a bare map, WithSource is
+// preferred. The same model ID twice under one provider is a
+// duplicate-pricing error from NewCatalog, never a silent clobber;
+// intentional replacements go through WithOverride.
 func WithProvider(provider ProviderKey, models map[string]Info) Option {
 	return func(b *catalogBuilder) {
 		b.registerModels(provider, models)
@@ -124,12 +111,8 @@ func (b *catalogBuilder) registerModels(provider ProviderKey, models map[string]
 }
 
 // WithOverride replaces the pricing of an existing {provider, model}
-// entry. Unknown pairs surface as errors from NewCatalog.
-//
-// Symmetric with WithProvider: passing the same {provider, modelID}
-// twice is a configuration bug, not "last-writer-wins." NewCatalog
-// returns a duplicate-override error rather than silently keeping only
-// the last value.
+// entry. An unknown pair, or the same pair passed twice, is an error
+// from NewCatalog rather than last-writer-wins.
 func WithOverride(provider ProviderKey, modelID string, info Info) Option {
 	return func(b *catalogBuilder) {
 		key := modelKey{provider: provider, model: modelID}

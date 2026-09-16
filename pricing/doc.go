@@ -52,9 +52,8 @@
 //	Info      — per-model entry: a Default RateCard and zero-or-more
 //	            Selector-scoped Overrides.
 //	Catalog   — immutable in-memory lookup table of Infos, keyed by
-//	            {ProviderKey, model ID}. ProviderKey is the provider
-//	            half of every key; Source is the structural surface a
-//	            *catalog.Catalog registers through.
+//	            {ProviderKey, model ID}; a Source (any *catalog.Catalog)
+//	            registers them.
 //
 // Resolution: Calculate(provider, modelID, usage, req) picks a
 // RateCard (via the best matching Override or Default), picks Rates
