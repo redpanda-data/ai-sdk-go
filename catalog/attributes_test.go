@@ -86,7 +86,13 @@ func TestDeclarePublisherGuards(t *testing.T) {
 			call := func() { catalog.DeclarePublisher(tt.publisher, tt.entries) }
 
 			if tt.wantPanic == "" {
-				assert.NotPanics(t, call)
+				require.NotPanics(t, call)
+
+				// entries is mutated in place, so the declaration is
+				// observable on the input slice.
+				for _, e := range tt.entries {
+					assert.Equalf(t, tt.publisher, e.Attributes[catalog.AttributePublisher], "%s publisher", e.ID)
+				}
 
 				return
 			}
