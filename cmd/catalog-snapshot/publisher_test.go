@@ -37,11 +37,32 @@ func TestEveryOfferingDeclaresAPublisher(t *testing.T) {
 	t.Parallel()
 
 	for _, cat := range allCatalogs() {
+		want, singleVendor := singleVendorPublishers[cat.Provider()]
+
 		for _, o := range cat.All() {
 			assert.NotEmptyf(t, o.Attributes[catalog.AttributePublisher],
 				"%s/%s declares no %s attribute", cat.Provider(), o.ID, catalog.AttributePublisher)
+
+			if singleVendor {
+				assert.Equalf(t, want, o.Attributes[catalog.AttributePublisher],
+					"%s/%s publisher", cat.Provider(), o.ID)
+			}
 		}
 	}
+}
+
+// singleVendorPublishers is the publisher every offering of a
+// single-vendor catalog must carry. The provider name is the publisher
+// for these four, and the two multi-word provider names are the reason
+// this is a lookup rather than blanket equality: aws.bedrock is
+// multi-vendor and covered by TestBedrockPublisherMatchesBareIDVendor,
+// and gcp.vertex publishes google and anthropic models and is covered by
+// a want-map in providers/vertex/models_test.go.
+var singleVendorPublishers = map[string]string{
+	"anthropic": "anthropic",
+	"google":    "google",
+	"meta":      "meta",
+	"openai":    "openai",
 }
 
 // TestBedrockPublisherMatchesBareIDVendor checks the multi-vendor catalog
