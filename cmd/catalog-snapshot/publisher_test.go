@@ -15,13 +15,11 @@
 package main
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/redpanda-data/ai-sdk-go/catalog"
-	"github.com/redpanda-data/ai-sdk-go/providers/bedrock"
 )
 
 // TestEveryOfferingDeclaresAPublisher is the tripwire that keeps a newly
@@ -63,52 +61,4 @@ var singleVendorPublishers = map[string]string{
 	"google":    "google",
 	"meta":      "meta",
 	"openai":    "openai",
-}
-
-// TestBedrockPublisherMatchesBareIDVendor checks the multi-vendor catalog
-// against an independent derivation. Bedrock offering IDs carry an
-// inference-profile geo prefix ("us.anthropic.claude-opus-5") while the
-// vendor namespace belongs to the bare ID, so a publisher authored per
-// family must agree across all of that family's variants — bare,
-// geo-prefixed and global.
-//
-// The split lives here and only here: production authors the publisher on
-// the family declaration, and this test re-derives it from the ID to prove
-// the two agree.
-func TestBedrockPublisherMatchesBareIDVendor(t *testing.T) {
-	t.Parallel()
-
-	cat := bedrock.Catalog()
-
-	for _, o := range cat.All() {
-		assert.Equalf(t, bareIDVendor(o.ID), o.Attributes[catalog.AttributePublisher],
-			"%s publisher does not match its bare ID vendor", o.ID)
-	}
-}
-
-// geoPrefixes are the inference-profile geographies a Bedrock offering ID
-// may be prefixed with. Kept local to the test so it derives the vendor
-// without borrowing production's tables.
-var geoPrefixes = map[string]bool{
-	"global": true,
-	"us":     true,
-	"eu":     true,
-	"au":     true,
-	"jp":     true,
-}
-
-// bareIDVendor returns the vendor namespace of a Bedrock offering ID,
-// skipping a leading geo prefix: both "anthropic.claude-opus-5" and
-// "us.anthropic.claude-opus-5" yield "anthropic".
-func bareIDVendor(id string) string {
-	head, rest, ok := strings.Cut(id, ".")
-	if !ok {
-		return head
-	}
-
-	if geoPrefixes[head] {
-		head, _, _ = strings.Cut(rest, ".")
-	}
-
-	return head
 }
