@@ -247,11 +247,11 @@ const (
 // of a family's BareID, and every family declares one as its Publisher —
 // Bedrock is the only catalog serving more than one vendor.
 const (
-	publisherAmazon    = "amazon"
-	publisherAnthropic = "anthropic"
-	publisherGoogle    = "google"
-	publisherMistral   = "mistral"
-	publisherOpenAI    = "openai"
+	publisherAmazon    = catalog.PublisherAmazon
+	publisherAnthropic = catalog.PublisherAnthropic
+	publisherGoogle    = catalog.PublisherGoogle
+	publisherMistral   = catalog.PublisherMistral
+	publisherOpenAI    = catalog.PublisherOpenAI
 )
 
 // ModelMetadataRequiresProviderDataSharing is set to "true" on discovery

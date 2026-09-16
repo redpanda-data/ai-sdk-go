@@ -45,8 +45,9 @@ Exported ID constant (greppable), capabilities, constraints, modalities,
 `Reasoning` (efforts/adaptive/budget), `Pricing`, `Life`.
 
 - **Every offering must declare a publisher** — the vendor that published
-  the model, lowercase (`anthropic`, `google`, `amazon`, `openai`,
-  `mistral`, `meta`), under `catalog.AttributePublisher`. Consumers read a
+  the model, under `catalog.AttributePublisher`. Use the `catalog.Publisher*`
+  const for it rather than a string literal; a vendor with no const yet adds
+  one there first. Consumers read a
   model's brand from it, so `TestEveryOfferingDeclaresAPublisher` fails the
   build when one is missing. The single-vendor catalogs declare it once at
   the catalog root via `catalog.MustDeclarePublisher`, so a new entry there

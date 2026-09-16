@@ -39,10 +39,23 @@ import (
 // shared one, so it is also the rule.
 //
 // The vocabulary is lowercase vendor names, and it is open: a new vendor
-// appearing in any catalog adds a value. In use across the catalogs today:
-//
-//	amazon, anthropic, google, meta, mistral, openai
+// appearing in any catalog adds a value. The Publisher consts below name
+// the ones in use today.
 const AttributePublisher = "publisher"
+
+// The publisher values in use across the catalogs today. The set stays
+// open: a new vendor adds a const here and its catalog declares it. These
+// exist so a consumer branching on a publisher value compares against a
+// symbol instead of hand-spelling the string, the way http.MethodGet sits
+// beside an arbitrary method string.
+const (
+	PublisherAmazon    = "amazon"
+	PublisherAnthropic = "anthropic"
+	PublisherGoogle    = "google"
+	PublisherMeta      = "meta"
+	PublisherMistral   = "mistral"
+	PublisherOpenAI    = "openai"
+)
 
 // MustDeclarePublisher declares publisher on every entry in entries and
 // returns them, for the single-vendor catalogs where one name covers the

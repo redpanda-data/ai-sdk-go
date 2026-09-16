@@ -42,13 +42,8 @@ const (
 	ModelGemini25FlashLite   = "gemini-2.5-flash-lite"
 )
 
-// publisherGoogle is the vendor every offering in this catalog is
-// published by; Google serves only its own models, so one
-// declaration covers the slice.
-const publisherGoogle = "google"
-
 var catalogOnce = sync.OnceValue(func() *catalog.Catalog {
-	return catalog.MustNew("google", catalog.MustDeclarePublisher(publisherGoogle, entries()))
+	return catalog.MustNew("google", catalog.MustDeclarePublisher(catalog.PublisherGoogle, entries()))
 })
 
 // Catalog returns the validated Google model catalog: every offering with

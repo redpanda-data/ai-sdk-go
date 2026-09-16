@@ -31,13 +31,8 @@ const ModelMuseSpark13 = "muse-spark-1.3"
 // It bounds explicitly supplied budgets; omitted budgets use the server default.
 const maxOutputTokens = 32_768
 
-// publisherMeta is the vendor every offering in this catalog is
-// published by; Meta serves only its own models, so one
-// declaration covers the slice.
-const publisherMeta = "meta"
-
 var catalogOnce = sync.OnceValue(func() *catalog.Catalog {
-	return catalog.MustNew("meta", catalog.MustDeclarePublisher(publisherMeta, entries()))
+	return catalog.MustNew("meta", catalog.MustDeclarePublisher(catalog.PublisherMeta, entries()))
 })
 
 // Catalog returns the immutable Meta Model API catalog.

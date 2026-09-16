@@ -76,8 +76,8 @@ const (
 // path, so the same string serves as the catalog.AttributePublisher value
 // and as the path segment the runtime provider needs.
 const (
-	publisherGoogle    = "google"
-	publisherAnthropic = "anthropic"
+	publisherGoogle    = catalog.PublisherGoogle
+	publisherAnthropic = catalog.PublisherAnthropic
 )
 
 // Attribute keys carried on every Vertex offering. Keys are snake_case
