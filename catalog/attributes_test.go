@@ -91,7 +91,7 @@ func TestDeclarePublisherGuards(t *testing.T) {
 				return
 			}
 
-			assert.PanicsWithValue(t, tt.wantPanic, call)
+			assert.PanicsWithError(t, tt.wantPanic, call)
 		})
 	}
 }

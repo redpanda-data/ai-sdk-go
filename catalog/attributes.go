@@ -14,6 +14,11 @@
 
 package catalog
 
+import (
+	"errors"
+	"fmt"
+)
+
 // AttributePublisher is the Entry.Attributes key naming the vendor that
 // published the model, independent of the provider serving it: Bedrock's
 // "us.anthropic.claude-opus-5" and Anthropic's "claude-opus-5" both
@@ -55,12 +60,12 @@ const AttributePublisher = "publisher"
 // slice, which is what a provider's entries() returns.
 func DeclarePublisher(publisher string, entries []Entry) []Entry {
 	if publisher == "" {
-		panic("catalog: DeclarePublisher needs a publisher") //nolint:forbidigo // authoring error, not runtime
+		panic(errors.New("catalog: DeclarePublisher needs a publisher")) //nolint:forbidigo // authoring error, not runtime
 	}
 
 	for i := range entries {
 		if existing := entries[i].Attributes[AttributePublisher]; existing != "" && existing != publisher {
-			panic("catalog: entry " + entries[i].ID + " declares publisher " + existing + ", not " + publisher) //nolint:forbidigo // authoring error, not runtime
+			panic(fmt.Errorf("catalog: entry %s declares publisher %s, not %s", entries[i].ID, existing, publisher)) //nolint:forbidigo // authoring error, not runtime
 		}
 
 		if entries[i].Attributes == nil {
