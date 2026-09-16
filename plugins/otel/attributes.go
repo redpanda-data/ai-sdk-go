@@ -24,6 +24,9 @@ package otel
 
 import (
 	"context"
+	"maps"
+	"slices"
+	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
 
@@ -183,6 +186,41 @@ func markConversationCompacted(inv *agent.InvocationMetadata) {
 
 		sess.Metadata[metadataKeyConversationCompacted] = true
 	}
+}
+
+// invocationAttributes returns the invocation's caller-asserted attributes as
+// span attributes, sorted by key for deterministic output. Every span kind
+// carries them: a consumer reading a tool span cannot see the root's. Keys in
+// namespaces the plugin owns are dropped so a caller cannot replace
+// SDK-generated values.
+func invocationAttributes(inv *agent.InvocationMetadata) []attribute.KeyValue {
+	if inv == nil {
+		return nil
+	}
+
+	attrs := inv.Attributes()
+	if len(attrs) == 0 {
+		return nil
+	}
+
+	out := make([]attribute.KeyValue, 0, len(attrs))
+	for _, k := range slices.Sorted(maps.Keys(attrs)) {
+		if isReservedAttribute(k) {
+			continue
+		}
+
+		out = append(out, attribute.String(k, attrs[k]))
+	}
+
+	return out
+}
+
+// isReservedAttribute reports whether key belongs to a namespace the plugin
+// sets itself.
+func isReservedAttribute(key string) bool {
+	return strings.HasPrefix(key, "gen_ai.") ||
+		strings.HasPrefix(key, "redpanda.") ||
+		key == attrErrorType
 }
 
 // conversationCompacted reports whether this or a prior invocation over the

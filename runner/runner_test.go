@@ -116,7 +116,7 @@ func TestRun_NewSession(t *testing.T) {
 	ctx := context.Background()
 	userMsg := llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hello"))
 
-	events := collectEvents(t, r.Run(ctx, "", "new-session", userMsg))
+	events := collectEvents(t, r.Run(ctx, "new-session", userMsg))
 
 	// Assert: Should have completion event
 	endEvent := findInvocationEndEvent(events)
@@ -178,7 +178,7 @@ func TestRun_ExistingSession(t *testing.T) {
 
 	// Execute with existing session
 	userMsg := llm.NewMessage(llm.RoleUser, llm.NewTextPart("New message"))
-	events := collectEvents(t, r.Run(ctx, "", "existing-session", userMsg))
+	events := collectEvents(t, r.Run(ctx, "existing-session", userMsg))
 
 	// Assert: Should complete
 	endEvent := findInvocationEndEvent(events)
@@ -225,15 +225,15 @@ func TestRun_MessageAccumulation(t *testing.T) {
 
 	// Execute first invocation
 	userMsg1 := llm.NewMessage(llm.RoleUser, llm.NewTextPart("Message 1"))
-	collectEvents(t, r.Run(ctx, "", "test-session", userMsg1))
+	collectEvents(t, r.Run(ctx, "test-session", userMsg1))
 
 	// Execute second invocation
 	userMsg2 := llm.NewMessage(llm.RoleUser, llm.NewTextPart("Message 2"))
-	collectEvents(t, r.Run(ctx, "", "test-session", userMsg2))
+	collectEvents(t, r.Run(ctx, "test-session", userMsg2))
 
 	// Execute third invocation
 	userMsg3 := llm.NewMessage(llm.RoleUser, llm.NewTextPart("Message 3"))
-	collectEvents(t, r.Run(ctx, "", "test-session", userMsg3))
+	collectEvents(t, r.Run(ctx, "test-session", userMsg3))
 
 	// Verify all messages accumulated
 	savedSess, err := store.Load(ctx, "test-session")
@@ -303,7 +303,7 @@ func TestRun_EventForwarding(t *testing.T) {
 	userMsg := llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hello"))
 
 	// Collect events
-	events := collectEvents(t, r.Run(ctx, "", "test-session", userMsg))
+	events := collectEvents(t, r.Run(ctx, "test-session", userMsg))
 
 	// Verify all events were forwarded
 	require.Len(t, events, 3) // Status, Message, InvocationEnd
@@ -335,7 +335,7 @@ func TestRun_SessionLoadError(t *testing.T) {
 	// Execute - should get error
 	var gotError error
 
-	for _, err := range r.Run(ctx, "", "test-session", userMsg) {
+	for _, err := range r.Run(ctx, "test-session", userMsg) {
 		if err != nil {
 			gotError = err
 			break
@@ -386,7 +386,7 @@ func TestRun_SessionSaveError(t *testing.T) {
 	// Collect events - should get save error after completion
 	var gotError error
 
-	for _, err := range r.Run(ctx, "", "test-session", userMsg) {
+	for _, err := range r.Run(ctx, "test-session", userMsg) {
 		if err != nil {
 			gotError = err
 			// Continue to check if error comes after completion
@@ -449,7 +449,7 @@ func TestRun_SessionSaveError_ConsumerStopsEarly_Panic(t *testing.T) {
 	// Expected behavior: No panic, error should be logged or returned via other means.
 	// Actual behavior (BUG): Panic with "range function continued iteration after function
 	// for loop body returned false"
-	for evt, err := range r.Run(ctx, "", "test-session", userMsg) {
+	for evt, err := range r.Run(ctx, "test-session", userMsg) {
 		if err != nil {
 			t.Logf("got error: %v", err)
 		}
@@ -524,7 +524,7 @@ func TestRun_SessionSaveError_ConsumerBreaksOnMessageSaveError_Panic(t *testing.
 
 	var gotErr error
 
-	for _, err := range r.Run(ctx, "", "test-session", userMsg) {
+	for _, err := range r.Run(ctx, "test-session", userMsg) {
 		if err != nil {
 			gotErr = err
 
@@ -585,12 +585,104 @@ func TestRun_ContextCancellation(t *testing.T) {
 	userMsg := llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hello"))
 
 	// Execute with canceled context
-	events := collectEvents(t, r.Run(ctx, "", "test-session", userMsg))
+	events := collectEvents(t, r.Run(ctx, "test-session", userMsg))
 
 	// Assert: Should get canceled finish reason
 	endEvent := findInvocationEndEvent(events)
 	require.NotNil(t, endEvent)
 	assert.Equal(t, agent.FinishReasonInterrupted, endEvent.FinishReason)
+}
+
+// captureAttributes runs one turn and returns the invocation's attributes.
+func captureAttributes(t *testing.T, opts ...runner.RunOption) map[string]string {
+	t.Helper()
+
+	var got map[string]string
+	ag := &mockAgent{
+		name: "test",
+		runFunc: func(_ context.Context, inv *agent.InvocationMetadata) iter.Seq2[agent.Event, error] {
+			got = inv.Attributes()
+
+			return func(yield func(agent.Event, error) bool) {
+				yield(agent.InvocationEndEvent{}, nil)
+			}
+		},
+	}
+	r, err := runner.New(ag, session.NewInMemoryStore())
+	require.NoError(t, err)
+
+	userMsg := llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hello"))
+	collectEvents(t, r.Run(context.Background(), "sess-1", userMsg, opts...))
+
+	return got
+}
+
+func TestRun_WithUserID(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		userID string
+		want   map[string]string
+	}{
+		{
+			name:   "asserted",
+			userID: "alice@example.test",
+			want:   map[string]string{agent.AttrUserID: "alice@example.test"},
+		},
+		{
+			name:   "not asserted",
+			userID: "",
+			want:   map[string]string{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, tt.want, captureAttributes(t, runner.WithUserID(tt.userID)))
+		})
+	}
+}
+
+func TestRun_ForwardsRunOptionAttributes(t *testing.T) {
+	t.Parallel()
+
+	got := captureAttributes(t,
+		runner.WithUserID("alice@example.test"),
+		runner.WithAttribute("user.tier", "premium"),
+		runner.WithAttributes(map[string]string{"tenant.id": "acme", "region": "eu"}),
+	)
+
+	require.Equal(t, map[string]string{
+		agent.AttrUserID: "alice@example.test",
+		"user.tier":      "premium",
+		"tenant.id":      "acme",
+		"region":         "eu",
+	}, got)
+}
+
+func TestRun_LaterOptionWinsForSameKey(t *testing.T) {
+	t.Parallel()
+
+	got := captureAttributes(t,
+		runner.WithAttribute(agent.AttrUserID, "first@example.test"),
+		runner.WithUserID("second@example.test"))
+
+	require.Equal(t, "second@example.test", got[agent.AttrUserID])
+}
+
+func TestRun_EmptyAttributesAreIgnored(t *testing.T) {
+	t.Parallel()
+
+	got := captureAttributes(t,
+		runner.WithUserID(""),
+		runner.WithAttribute("blank", ""),
+		runner.WithAttribute("", "blank"),
+		runner.WithAttributes(map[string]string{"also-blank": ""}),
+	)
+
+	require.Equal(t, map[string]string{}, got)
 }
 
 // Helper functions

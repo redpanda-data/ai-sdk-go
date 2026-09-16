@@ -14,7 +14,10 @@
 
 package agent
 
-import "context"
+import (
+	"context"
+	"maps"
+)
 
 // conversationIDCtxKey is the unexported key under which the conversation
 // grouping id is stored in a context.
@@ -44,4 +47,27 @@ func ContextWithConversationID(ctx context.Context, id string) context.Context {
 func ConversationIDFromContext(ctx context.Context) string {
 	id, _ := ctx.Value(conversationIDCtxKey{}).(string)
 	return id
+}
+
+// attributesCtxKey is the unexported key for the caller-asserted attributes.
+type attributesCtxKey struct{}
+
+// ContextWithAttributes returns a copy of ctx carrying the running
+// invocation's caller-asserted attributes, so a tool that spawns a sub-agent
+// can pass on its parent's attribution. A non-empty map replaces any
+// inherited set; a nil or empty map returns ctx unchanged, leaving an
+// enclosing invocation's attributes visible.
+func ContextWithAttributes(ctx context.Context, attrs map[string]string) context.Context {
+	if len(attrs) == 0 {
+		return ctx
+	}
+
+	return context.WithValue(ctx, attributesCtxKey{}, maps.Clone(attrs))
+}
+
+// AttributesFromContext returns a copy of the attributes in ctx, or nil.
+func AttributesFromContext(ctx context.Context) map[string]string {
+	attrs, _ := ctx.Value(attributesCtxKey{}).(map[string]string)
+
+	return maps.Clone(attrs)
 }

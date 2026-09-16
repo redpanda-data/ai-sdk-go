@@ -17,7 +17,7 @@ Use a **vertical stack layout** (top to bottom represents the call hierarchy).
 
 ### 1. YOUR APPLICATION (Entry Point)
 - Position: Top of the diagram
-- Shows the call: `Runner.Run(ctx, userID, sessionID, msg)`
+- Shows the call: `Runner.Run(ctx, sessionID, msg)`
 - Color: Dark gray/charcoal (#2D3748)
 
 ### 2. RUNNER (Session Orchestrator)

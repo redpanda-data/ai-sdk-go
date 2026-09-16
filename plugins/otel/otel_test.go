@@ -21,6 +21,7 @@ import (
 	"iter"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1590,6 +1591,131 @@ func TestTracingInterceptor_ModelAndProvider_AbsentForNonLLMAgent(t *testing.T) 
 }
 
 // Helper functions for attribute assertions
+
+// runAllSpanKinds drives one invocation that opens every span kind the plugin
+// creates - invoke_agent, chat, execute_tool, redpanda.compaction - and
+// returns them.
+func runAllSpanKinds(t *testing.T, inv *agent.InvocationMetadata) []tracetest.SpanStub {
+	t.Helper()
+
+	exporter, tp := setupTracer()
+	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
+
+	interceptor := pluginotel.New(pluginotel.WithTracerProvider(tp))
+
+	_, err := interceptor.InterceptTurn(t.Context(), &agent.TurnInfo{Inv: inv},
+		func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+			modelInfo := &agent.ModelCallInfo{
+				InvocationMetadata: inv,
+				Model:              &mockModelInfo{name: "gpt-4", provider: "openai"},
+				Req:                &llm.Request{},
+			}
+			handler := interceptor.InterceptModel(ctx, modelInfo, &mockModelHandler{})
+			_, merr := handler.Generate(ctx, &llm.Request{})
+			require.NoError(t, merr)
+
+			toolInfo := &agent.ToolCallInfo{Inv: inv, Req: &llm.ToolRequestPart{
+				Name: "get_weather",
+				ID:   "tool-call-123",
+			}}
+			_, terr := interceptor.InterceptToolExecution(ctx, toolInfo,
+				func(_ context.Context, _ *agent.ToolCallInfo) (*llm.ToolResponsePart, error) {
+					return &llm.ToolResponsePart{Result: json.RawMessage(`"Sunny, 72F"`)}, nil
+				})
+			require.NoError(t, terr)
+
+			interceptor.ObserveEvent(ctx, inv, agent.CompactionEvent{Report: agent.CompactionReport{
+				At:    time.Now().UTC(),
+				Phase: agent.CompactionPhaseProactive,
+			}})
+
+			return agent.FinishReasonStop, nil
+		})
+	require.NoError(t, err)
+
+	spans := exporter.GetSpans()
+	require.Len(t, spans, 4, "expected invoke_agent, chat, execute_tool and compaction spans")
+
+	return spans
+}
+
+func TestTracingInterceptor_UserIDStampedOnEverySpan(t *testing.T) {
+	t.Parallel()
+
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
+		Name: "test-agent",
+	}, agent.WithAttributes(map[string]string{agent.AttrUserID: "alice@example.test"}))
+
+	for _, span := range runAllSpanKinds(t, inv) {
+		t.Run(span.Name, func(t *testing.T) {
+			t.Parallel()
+			assertHasAttribute(t, span.Attributes, "user.id", "alice@example.test")
+		})
+	}
+}
+
+func TestTracingInterceptor_AllCallerAttributesStampedOnEverySpan(t *testing.T) {
+	t.Parallel()
+
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
+		Name: "test-agent",
+	}, agent.WithAttributes(map[string]string{
+		agent.AttrUserID: "alice@example.test",
+		"user.tier":      "premium",
+		"tenant.id":      "acme",
+	}))
+
+	for _, span := range runAllSpanKinds(t, inv) {
+		t.Run(span.Name, func(t *testing.T) {
+			t.Parallel()
+			assertHasAttribute(t, span.Attributes, "user.id", "alice@example.test")
+			assertHasAttribute(t, span.Attributes, "user.tier", "premium")
+			assertHasAttribute(t, span.Attributes, "tenant.id", "acme")
+		})
+	}
+}
+
+func TestTracingInterceptor_UserIDAbsentWhenNotAsserted(t *testing.T) {
+	t.Parallel()
+
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
+		Name: "test-agent",
+	}, agent.WithAttributes(map[string]string{agent.AttrUserID: ""}))
+
+	for _, span := range runAllSpanKinds(t, inv) {
+		t.Run(span.Name, func(t *testing.T) {
+			t.Parallel()
+			assertMissingAttribute(t, span.Attributes, "user.id")
+		})
+	}
+}
+
+func TestTracingInterceptor_CallerAttributesCannotReplaceSDKKeys(t *testing.T) {
+	t.Parallel()
+
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
+		Name: "test-agent",
+	}, agent.WithAttributes(map[string]string{
+		"gen_ai.conversation.id":    "forged",
+		"gen_ai.tool.call.id":       "forged",
+		"gen_ai.agent.name":         "forged",
+		"redpanda.compaction.phase": "forged",
+		"error.type":                "forged",
+		"tenant.id":                 "acme",
+	}))
+
+	for _, span := range runAllSpanKinds(t, inv) {
+		t.Run(span.Name, func(t *testing.T) {
+			t.Parallel()
+			assertHasAttribute(t, span.Attributes, "tenant.id", "acme")
+			assertMissingAttribute(t, span.Attributes, "error.type")
+
+			for _, attr := range span.Attributes {
+				assert.NotEqual(t, "forged", attr.Value.AsString(), "caller replaced %s", attr.Key)
+			}
+		})
+	}
+}
 
 func assertMissingAttribute(t *testing.T, attrs []attribute.KeyValue, key string) {
 	t.Helper()
