@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/pricing"
 	"github.com/redpanda-data/ai-sdk-go/providers/vertex"
 )
@@ -80,7 +81,7 @@ func TestOfferingAttributes(t *testing.T) {
 	}
 
 	for _, o := range vertex.Catalog().All() {
-		assert.Equalf(t, wantPublisher[o.ID], o.Attributes[vertex.ModelMetadataPublisher], "%s publisher", o.ID)
+		assert.Equalf(t, wantPublisher[o.ID], o.Attributes[catalog.AttributePublisher], "%s publisher", o.ID)
 		assert.Equalf(t, strings.TrimPrefix(o.ID, "vertex."), o.Attributes[vertex.ModelMetadataVertexModel], "%s vertex_model", o.ID)
 	}
 }

@@ -71,9 +71,10 @@ const (
 	OfferingClaudeHaiku45 = catalogKeyPrefix + ModelClaudeHaiku45
 )
 
-// Publishers own the model on Vertex and name the segment before the
-// model in a Vertex resource path. Stored per offering in Attributes so
-// the runtime provider can build the path without re-deriving it.
+// Publisher values for the Vertex offerings. A publisher owns the model
+// on Vertex and names the segment before the model in a Vertex resource
+// path, so the same string serves as the catalog.AttributePublisher value
+// and as the path segment the runtime provider needs.
 const (
 	publisherGoogle    = "google"
 	publisherAnthropic = "anthropic"
@@ -82,12 +83,13 @@ const (
 // Attribute keys carried on every Vertex offering. Keys are snake_case
 // and values are strings so the committed snapshot stays stable.
 const (
-	// ModelMetadataPublisher is the Vertex publisher segment ("google",
-	// "anthropic").
+	// ModelMetadataPublisher is the attribute key holding the publishing
+	// vendor ("google", "anthropic"), which on Vertex is also the publisher
+	// segment of a resource path.
 	//
-	// Every catalog declares a publisher now, so the key itself is
-	// catalog.AttributePublisher; this alias stays because callers already
-	// import it from here.
+	// Deprecated: use [catalog.AttributePublisher]. Every catalog declares a
+	// publisher now, so the key is no longer Vertex-local; this alias stays
+	// only because callers already import it from here.
 	ModelMetadataPublisher = catalog.AttributePublisher
 	// ModelMetadataVertexModel is the bare wire model ID (the offering ID
 	// without the vertex. prefix), which goes in the request path.
