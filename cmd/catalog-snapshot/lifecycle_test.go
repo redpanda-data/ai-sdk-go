@@ -40,19 +40,15 @@ func allCatalogs() []*catalog.Catalog {
 	}
 }
 
-// TestVertexPricingDoesNotCollide is the {provider, model} keying guard.
-// Vertex model names are byte-identical to the Gemini-API and
-// Anthropic-direct providers', so a catalog keyed by bare model ID would
-// reject the shared IDs. Keying by {provider, model} keeps them distinct:
-// Vertex registers under gcp.vertex, the others under their own provider
-// keys, so the same bare "claude-sonnet-5" coexists.
+// TestVertexPricingDoesNotCollide guards the {provider, model} keying:
+// Vertex model IDs are byte-identical to the Gemini-API and
+// Anthropic-direct ones and must still coexist in one pricing catalog.
 //
 // It pairs Vertex against each other provider in turn (rather than merging
 // all five at once) so the check isolates Vertex: a pre-existing collision
 // between two other providers, which production never merges, cannot fail
-// this test. pricing.NewCatalog returns a duplicate-pricing error on any
-// {provider, model} clash, so a NoError result proves the composite key
-// does its job.
+// this test. NewCatalog errors on any {provider, model} clash, so a
+// NoError result proves the composite key does its job.
 func TestVertexPricingDoesNotCollide(t *testing.T) {
 	t.Parallel()
 
@@ -61,10 +57,7 @@ func TestVertexPricingDoesNotCollide(t *testing.T) {
 	}
 
 	for _, other := range others {
-		// Pin the premise: the guard is only meaningful while some other
-		// provider actually shares a bare model ID with Vertex. Anthropic
-		// carries claude-sonnet-5 too, so if that ID ever leaves either
-		// catalog this test would pass vacuously — assert the overlap.
+		// Pin the premise, or the guard passes vacuously once no ID is shared.
 		if other.Provider() == anthropic.ProviderName {
 			require.Contains(t, other.PricingByID(), vertex.ModelClaudeSonnet5,
 				"anthropic must still share the bare claude-sonnet-5 ID for this guard to mean anything")
@@ -78,16 +71,9 @@ func TestVertexPricingDoesNotCollide(t *testing.T) {
 	}
 }
 
-// TestVertexAndAnthropicPriceSonnet5Differently is the other half of
-// AI-2118 AC 3: keying by {provider, model} must let the same bare model
-// ID resolve to a different rate card per provider. Vertex resells
-// claude-sonnet-5 at Anthropic's global rate but adds Google's flat
-// non-global regional premium, so its Info carries region overrides that
-// the Anthropic-direct Info does not.
-//
-// The two share a Default.Base (both NewRates(2.00, 10.00, 0.20)...), so
-// the distinguishing difference is the override set, not the base rate;
-// the assertion compares the whole rate card rather than only the base.
+// TestVertexAndAnthropicPriceSonnet5Differently compares the whole rate
+// card, not Default.Base: Vertex resells claude-sonnet-5 at Anthropic's
+// base rate and differs only in its regional premium overrides.
 func TestVertexAndAnthropicPriceSonnet5Differently(t *testing.T) {
 	t.Parallel()
 
@@ -122,10 +108,7 @@ func TestVertexAndAnthropicPriceSonnet5Differently(t *testing.T) {
 func TestDeprecatedOfferingsNameAReplacement(t *testing.T) {
 	t.Parallel()
 
-	// Keyed by "provider/ID": bare model IDs are no longer unique across
-	// providers (Vertex dropped its "vertex." prefix, so it shares
-	// "claude-sonnet-5" with Anthropic), and an exemption must apply to
-	// exactly the one catalog that earned it.
+	// Keyed by "provider/ID": bare IDs are no longer unique across providers.
 	noCarriedReplacement := map[string]string{
 		// Google recommends Gemini 3.1 Flash-Lite or Gemma 4; the google
 		// catalog carries neither.

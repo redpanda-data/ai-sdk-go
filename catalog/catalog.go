@@ -220,8 +220,7 @@ func New(provider string, entries []Entry, opts ...Option) (*Catalog, error) {
 
 	// Pricing is validated by the pricing builder, which enforces rate
 	// sanity and override consistency; its errors carry the model ID.
-	// WithProvider, not WithSource: c is mid-construction and cannot yet
-	// be a Source.
+	// WithProvider, not WithSource: c is still mid-construction.
 	if _, err := pricing.NewCatalog(pricing.WithProvider(pricing.ProviderKey(provider), pricingMap(c.offerings))); err != nil {
 		errs = append(errs, fmt.Errorf("catalog: %s: %w", provider, err))
 	}
@@ -522,9 +521,6 @@ func (c *Catalog) Offerings(id ModelID) []Offering {
 	return out
 }
 
-// Catalog satisfies pricing.Source. Anchored here so renaming Provider
-// or PricingByID breaks the build in the package that owes the
-// contract, not only at distant call sites.
 var _ pricing.Source = (*Catalog)(nil)
 
 // PricingByID returns a model ID → pricing map covering every offering

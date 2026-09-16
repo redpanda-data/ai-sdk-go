@@ -654,13 +654,9 @@ func TestVisionAudioDerivedFromModalities(t *testing.T) {
 	assert.True(t, o.Capabilities.Audio, "audio input modality must derive Audio")
 }
 
-// TestTypedNilSatisfiesPricingSource pins WithSource's contract for a
-// typed-nil *Catalog: it reports an empty Provider(), so NewCatalog fails
-// with an "empty provider name" build error rather than panicking or
-// registering models under a key no lookup could name. The behaviour rests
-// on (*Catalog).Provider() and PricingByID() each carrying their own nil
-// guard while WithSource calls both eagerly. pricing may not import
-// catalog, so the test lives here where both are in scope.
+// TestTypedNilSatisfiesPricingSource rests on (*Catalog).Provider() and
+// PricingByID() each carrying a nil guard, since WithSource calls both
+// eagerly. It lives here because pricing may not import catalog.
 func TestTypedNilSatisfiesPricingSource(t *testing.T) {
 	t.Parallel()
 
