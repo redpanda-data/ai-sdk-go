@@ -51,26 +51,17 @@ off, ok := openai.Catalog().Resolve(resp.InvokedModelID)
 if !ok {
     // unknown model: treat as UNPRICED, never as free
 }
-// Lookup and Calculate now take a ProviderKey as their first argument,
-// because the catalog keys by {provider, model}: the same bare model ID
-// can carry a different rate card per provider. Lookup returns
-// (Info, error), distinguishing ErrUnknownProvider (a mapping bug worth
-// alerting on) from ErrUnknownModel (a new model) — see pricing/catalog.go.
+// Calculate and Lookup now take the ProviderKey first: the same bare
+// model ID can carry a different rate card per provider.
 //
-// Take the key from the provider, never hand-type it. Each provider
-// exports it as an untyped string const (openai.ProviderName), which
-// converts to pricing.ProviderKey implicitly — no cast, and still not a
-// literal. A hand-typed literal is the one break the compiler cannot
-// catch — "google" instead of "gcp.gemini" registers under a key nothing
-// looks up and prices every Gemini call at $0.
+// Take the key from the provider's ProviderName const (untyped string,
+// no cast); a hand-typed literal is the one break the compiler cannot catch.
 cost, err := priceCat.Calculate(openai.ProviderName, off.ID, resp.Usage, req)
 switch {
 case errors.Is(err, pricing.ErrUnknownProvider):
-    // Mapping bug: the catalog carries no rates for this provider key at
-    // all, so every call at this site prices at $0. Alert, don't just log.
+    // Mapping bug — every call at this site prices at $0. Alert, don't just log.
 case errors.Is(err, pricing.ErrUnknownModel):
-    // A new model under a known provider: emit a metric and treat as
-    // UNPRICED, never as free.
+    // New model under a known provider: treat as UNPRICED, never as free.
 case err != nil:
     // other error
 }
