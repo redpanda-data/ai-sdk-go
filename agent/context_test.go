@@ -58,3 +58,53 @@ func TestContextWithConversationID_NestedOverrides(t *testing.T) {
 	assert.Equal(t, "child", agent.ConversationIDFromContext(inner))
 	assert.Equal(t, "root", agent.ConversationIDFromContext(outer))
 }
+
+func TestContextWithAttributes_RoundTrip(t *testing.T) {
+	t.Parallel()
+
+	ctx := agent.ContextWithAttributes(context.Background(), map[string]string{
+		agent.AttrUserID: "alice@example.test",
+		"user.tier":      "premium",
+	})
+
+	assert.Equal(t, map[string]string{
+		agent.AttrUserID: "alice@example.test",
+		"user.tier":      "premium",
+	}, agent.AttributesFromContext(ctx))
+}
+
+func TestAttributesFromContext_NoneSet(t *testing.T) {
+	t.Parallel()
+
+	assert.Empty(t, agent.AttributesFromContext(context.Background()))
+}
+
+func TestContextWithAttributes_EmptyInherits(t *testing.T) {
+	t.Parallel()
+
+	// Nil and empty are no-ops: attribution is inherited, so an enclosing
+	// invocation's attributes must stay visible.
+	ctx := agent.ContextWithAttributes(context.Background(), map[string]string{"a": "1"})
+	ctx = agent.ContextWithAttributes(ctx, nil)
+	ctx = agent.ContextWithAttributes(ctx, map[string]string{})
+
+	assert.Equal(t, map[string]string{"a": "1"}, agent.AttributesFromContext(ctx))
+}
+
+func TestContextWithAttributes_CopiesSoCallerCannotMutate(t *testing.T) {
+	t.Parallel()
+
+	src := map[string]string{"a": "1"}
+	ctx := agent.ContextWithAttributes(context.Background(), src)
+
+	src["a"] = tampered
+	src["b"] = "added"
+
+	assert.Equal(t, map[string]string{"a": "1"}, agent.AttributesFromContext(ctx))
+
+	// The map handed back is the caller's to keep too.
+	got := agent.AttributesFromContext(ctx)
+	got["a"] = tampered
+
+	assert.Equal(t, map[string]string{"a": "1"}, agent.AttributesFromContext(ctx))
+}

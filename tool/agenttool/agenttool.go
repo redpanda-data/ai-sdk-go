@@ -128,6 +128,11 @@ const markerTruncated = "truncated"
 //     the root conversation). Observability uses that to group the
 //     parent→sub-agent tree under one conversation (gen_ai.conversation.id)
 //     without overloading the storage id.
+//
+// Attribution:
+//   - The sub-agent inherits the calling invocation's attributes (see
+//     agent.ContextWithAttributes), so its spans carry the parent's user.id.
+//     Context isolation is unaffected: attributes are caller metadata.
 func (at *AgentTool) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
 	info := at.agent.Info()
 
@@ -147,7 +152,8 @@ func (at *AgentTool) Execute(ctx context.Context, args json.RawMessage) (json.Ra
 		Metadata:       map[string]any{},
 	}
 
-	inv := agent.NewInvocationMetadata(sess, info)
+	inv := agent.NewInvocationMetadata(sess, info,
+		agent.WithAttributes(agent.AttributesFromContext(ctx)))
 
 	// Scope the grouping id to the child run so nested sub-agents group under
 	// the same root even when the child agent implementation does not set it

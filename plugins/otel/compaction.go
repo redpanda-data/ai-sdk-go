@@ -57,6 +57,7 @@ func (t *TracingInterceptor) ObserveEvent(ctx context.Context, inv *agent.Invoca
 	)
 	attrs = append(attrs, contextUsageAttrs("redpanda.compaction.before", report.Before)...)
 	attrs = append(attrs, contextUsageAttrs("redpanda.compaction.after", report.After)...)
+	attrs = append(attrs, invocationAttributes(inv)...)
 
 	_, span := t.tracer.Start(ctx, CompactionSpanName,
 		trace.WithTimestamp(report.At),

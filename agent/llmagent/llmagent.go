@@ -734,6 +734,8 @@ func (a *LLMAgent) executeTools(
 
 	ctx = agent.ContextWithConversationID(ctx, session.ConversationID(inv.Session()))
 
+	ctx = agent.ContextWithAttributes(ctx, inv.Attributes())
+
 	// Interceptors see the registry definition even for a deferred tool the
 	// model called before loading it, which is exactly when it is not in
 	// toolDefs. Definitions the model saw take precedence.

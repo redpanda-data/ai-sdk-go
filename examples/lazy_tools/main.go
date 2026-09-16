@@ -245,7 +245,7 @@ func dryRun(ctx context.Context, registry tool.Registry) {
 
 // turn runs one user message and prints what the agent did with it.
 func turn(ctx context.Context, r *runner.Runner, store session.Store, sessionID, text string) {
-	for evt, err := range r.Run(ctx, "user", sessionID, llm.NewMessage(llm.RoleUser, llm.NewTextPart(text))) {
+	for evt, err := range r.Run(ctx, sessionID, llm.NewMessage(llm.RoleUser, llm.NewTextPart(text))) {
 		if err != nil {
 			fmt.Printf("error: %v\n", err)
 			return

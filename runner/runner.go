@@ -95,6 +95,14 @@ func New(ag agent.Agent, sessionStore session.Store, opts ...Option) (*Runner, e
 // Events from the agent are forwarded directly to the caller. When
 // execution completes (InvocationEndEvent), the session is saved.
 //
+// # Attributes
+//
+// WithUserID and WithAttribute record what the application knows about the
+// caller, such as the end user or a tenant. Attributes are fixed for the run,
+// exported by the otel plugin on every span, and inherited by in-process
+// sub-agents. Their values are the caller's unverified claims and must not be
+// used for authorization.
+//
 // # Event Flow
 //
 // Events are forwarded from Agent.Run() without modification:
@@ -127,7 +135,7 @@ func New(ag agent.Agent, sessionStore session.Store, opts ...Option) (*Runner, e
 //
 // Consumer pattern:
 //
-//	for evt, err := range runner.Run(ctx, userID, sessionID, userMsg) {
+//	for evt, err := range runner.Run(ctx, sessionID, userMsg) {
 //	    if err != nil {
 //	        // CONTROL FLOW: Fatal error, system can't continue
 //	        return
@@ -142,7 +150,7 @@ func New(ag agent.Agent, sessionStore session.Store, opts ...Option) (*Runner, e
 //
 // # Example
 //
-//	for evt, err := range runner.Run(ctx, "user-123", "session-123", userMsg) {
+//	for evt, err := range runner.Run(ctx, "session-123", userMsg, runner.WithUserID("user-123")) {
 //	    if err != nil {
 //	        log.Printf("Error: %v", err)
 //	        return
@@ -159,10 +167,15 @@ func New(ag agent.Agent, sessionStore session.Store, opts ...Option) (*Runner, e
 //	}
 func (r *Runner) Run(
 	ctx context.Context,
-	_ string, // UserID will be used in the future.
 	sessionID string,
 	userMessage llm.Message,
+	opts ...RunOption,
 ) iter.Seq2[agent.Event, error] {
+	var runCfg runConfig
+	for _, o := range opts {
+		o(&runCfg)
+	}
+
 	return func(yield func(agent.Event, error) bool) {
 		// 1. Load or create session
 		sess, err := r.loadOrCreateSession(ctx, sessionID)
@@ -176,7 +189,8 @@ func (r *Runner) Run(
 
 		// 3. Create invocation metadata with agent snapshot
 		// The snapshot captures agent identity for observability.
-		inv := agent.NewInvocationMetadata(sess, r.config.agent.Info())
+		inv := agent.NewInvocationMetadata(sess, r.config.agent.Info(),
+			agent.WithAttributes(runCfg.attributes))
 
 		// Track whether the consumer stopped iteration (yield returned false).
 		// When yield returns false, we must not call it again or Go panics with
