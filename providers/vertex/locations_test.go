@@ -51,8 +51,6 @@ func TestIsModelAvailableAtLocation(t *testing.T) {
 		{"haiku at asia-east1", vertex.ModelClaudeHaiku45, "asia-east1", true},
 		{"haiku not at asia-southeast1", vertex.ModelClaudeHaiku45, "asia-southeast1", false},
 		{"unknown model", "gemini-99-ultra", "global", false},
-		// A "vertex."-prefixed ID no longer resolves: Vertex keys on the
-		// bare publisher model ID now, so the old prefixed form is unknown.
 		{"prefixed id no longer resolves", "vertex." + vertex.ModelClaudeSonnet5, "eu", false},
 		{"unknown location", vertex.ModelGemini36Flash, "mars-central1", false},
 		{"empty location", vertex.ModelGemini36Flash, "", false},

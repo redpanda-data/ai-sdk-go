@@ -42,10 +42,8 @@ const (
 	ModelGemini25FlashLite   = "gemini-2.5-flash-lite"
 )
 
-// ProviderName is this provider's catalog key: the catalog registers
-// under it and Provider.Name() returns it. This is the pair that
-// drifted ("google" vs "gcp.gemini") before AI-2118. See
-// pricing.ProviderKey.
+// ProviderName is the catalog key Provider.Name() returns; see
+// pricing.ProviderKey. This pair drifted ("google" vs "gcp.gemini") before AI-2118.
 const ProviderName = "gcp.gemini"
 
 var catalogOnce = sync.OnceValue(func() *catalog.Catalog {

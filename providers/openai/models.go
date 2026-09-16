@@ -22,8 +22,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/pricing"
 )
 
-// ProviderName is this provider's catalog key: the catalog registers
-// under it and Provider.Name() returns it. See pricing.ProviderKey.
+// ProviderName is the catalog key Provider.Name() returns; see pricing.ProviderKey.
 const ProviderName = "openai"
 
 var catalogOnce = sync.OnceValue(func() *catalog.Catalog {

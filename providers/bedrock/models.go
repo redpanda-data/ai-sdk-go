@@ -556,8 +556,7 @@ var (
 // no effort control through the mantle adapter today.
 var gpt56Reasoning = catalog.ReasoningSupport{}
 
-// ProviderName is this provider's catalog key: the catalog registers
-// under it and Provider.Name() returns it. See pricing.ProviderKey.
+// ProviderName is the catalog key Provider.Name() returns; see pricing.ProviderKey.
 const ProviderName = "aws.bedrock"
 
 var catalogOnce = sync.OnceValue(func() *catalog.Catalog {

@@ -95,9 +95,8 @@ func IsModelAvailableAtLocation(model, location string) bool {
 }
 
 // LocationsForModel returns the locations the transcribed matrix lists
-// for the given model, or nil for an unknown model. The model is the bare
-// publisher ID, which equals the offering ID. The result is a copy the
-// caller may retain and mutate.
+// for the given model, or nil for an unknown model. The result is a copy
+// the caller may retain and mutate.
 func LocationsForModel(model string) []string {
 	locs, ok := servedLocations[model]
 	if !ok {

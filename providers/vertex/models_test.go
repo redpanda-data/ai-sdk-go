@@ -26,9 +26,7 @@ import (
 )
 
 // TestCatalogBuildsWithDayOneModels pins the day-one catalog to exactly
-// the Gemini + Claude scope: three models, each keyed by its bare
-// publisher ID (no vertex. prefix, since the shared pricing catalog keys
-// by {provider, model}).
+// the Gemini + Claude scope: three models, keyed by bare publisher ID.
 func TestCatalogBuildsWithDayOneModels(t *testing.T) {
 	t.Parallel()
 
@@ -43,21 +41,14 @@ func TestCatalogBuildsWithDayOneModels(t *testing.T) {
 	assert.ElementsMatch(t, []string{vertex.ModelGemini36Flash, vertex.ModelClaudeSonnet5, vertex.ModelClaudeHaiku45}, got)
 }
 
-// TestCatalogProviderName pins the provider key the Vertex catalog
-// registers under. The cross-provider guard
-// TestCatalogProviderMatchesProviderName in cmd/catalog-snapshot already
-// covers Vertex against (*vertex.Provider).Name(); this test pins the
-// literal key inside the package, so a rename of the provider key has to
-// be deliberate. A key other than "gcp.vertex" prices every Vertex lookup
-// at zero.
+// TestCatalogProviderName pins the literal key in-package so a rename has
+// to be deliberate; cmd/catalog-snapshot cross-checks it against Name().
 func TestCatalogProviderName(t *testing.T) {
 	t.Parallel()
 
 	assert.Equal(t, "gcp.vertex", vertex.Catalog().Provider())
 }
 
-// TestOfferingForModel checks the bridge that resolves a bare publisher
-// model ID to its catalog offering. An unknown model returns ok false.
 func TestOfferingForModel(t *testing.T) {
 	t.Parallel()
 
@@ -88,10 +79,6 @@ func TestOfferingAttributes(t *testing.T) {
 	}
 }
 
-// TestNoNamespacedPricingKey is the collision guard, inverted for the
-// {provider, model} catalog. A Vertex model keeps its publisher's bare ID
-// so it coexists with the Anthropic-direct entry under a different
-// provider key; no pricing key may carry the old vertex. prefix.
 func TestNoNamespacedPricingKey(t *testing.T) {
 	t.Parallel()
 

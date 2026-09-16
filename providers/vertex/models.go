@@ -23,12 +23,9 @@
 // locations.go. The request transport (an llm.Model that builds Vertex
 // requests) lands with RFC-0014 M8 and is intentionally not here yet.
 //
-// Catalog keys are the bare publisher model IDs. On Vertex a model keeps
-// its publisher's bare ID, so "claude-sonnet-5" is byte-identical to the
-// ID in the Anthropic-direct catalog; the shared pricing catalog keys by
-// {provider, model}, so the two coexist without a namespacing prefix. The
-// publisher travels in each entry's Attributes so the runtime provider can
-// build the Vertex resource path.
+// Catalog keys are the bare publisher model IDs; "claude-sonnet-5" is
+// byte-identical to the Anthropic-direct ID and coexists with it because
+// the pricing catalog keys by {provider, model}.
 package vertex
 
 import (
@@ -39,9 +36,8 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/pricing"
 )
 
-// ProviderName is this provider's catalog key: the catalog registers
-// under it and Provider.Name() returns it. It mirrors Bedrock's
-// "aws.bedrock" — the cloud, then the surface. See pricing.ProviderKey.
+// ProviderName is the catalog key Provider.Name() returns; see
+// pricing.ProviderKey. It mirrors Bedrock's "aws.bedrock" — cloud, then surface.
 const ProviderName = "gcp.vertex"
 
 // Bare Vertex model IDs - exactly the model segment of a Vertex resource
@@ -69,10 +65,8 @@ const (
 	// ModelMetadataPublisher is the Vertex publisher segment ("google",
 	// "anthropic").
 	ModelMetadataPublisher = "publisher"
-	// ModelMetadataVertexModel is the bare wire model ID, which equals the
-	// offering ID and goes in the request path. It duplicates the offering
-	// ID today; it is a deliberate carry pending AI-2108, which folds the
-	// wire-ID derivation into the runtime provider and drops this attribute.
+	// ModelMetadataVertexModel is the bare wire model ID for the request
+	// path. It equals the offering ID today; AI-2108 drops this attribute.
 	ModelMetadataVertexModel = "vertex_model"
 )
 
