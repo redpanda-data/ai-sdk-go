@@ -1,0 +1,191 @@
+---
+# Composite action: the AI-approved-merge pipeline (DEVPROD-4812).
+#
+# VENDORED COPY. Canonical source: redpanda-data/devprod-infra
+# (.github/actions/ai-merge). See scripts/README.md for the source commit and
+# how to re-sync. Do not edit here without upstreaming the change.
+name: AI Approved Merge
+description: Guardrail + AI review gate that can approve and auto-merge low-risk PRs.
+
+inputs:
+  token:
+    description: GitHub App installation token (posts the review / enables merge).
+    required: true
+  bot_login:
+    description: The App's bot login (e.g. redpanda-ai-merge-bot[bot]); used to find its own prior approvals.
+    required: true
+  anthropic_api_key:
+    required: true
+  model:
+    default: claude-sonnet-5
+  config_path:
+    default: .github/ai-merge.yml
+  repo:
+    required: true
+  pr_number:
+    required: true
+  base_sha:
+    description: SHA of the PR base (config is read from here — trusted).
+    required: true
+  run_url:
+    required: true
+  dry_run:
+    description: When "true", evaluate + comment only — never approve or merge.
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Install python deps
+      shell: bash
+      run: pip install -r "$GITHUB_ACTION_PATH/scripts/requirements.txt"
+
+    - name: Collect PR context (config from trusted base ref)
+      id: ctx
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        REPO: ${{ inputs.repo }}
+        PR: ${{ inputs.pr_number }}
+        BASE_SHA: ${{ inputs.base_sha }}
+        CONFIG_PATH: ${{ inputs.config_path }}
+      run: |
+        set -euo pipefail
+        if gh api "repos/$REPO/contents/$CONFIG_PATH?ref=$BASE_SHA" \
+             -H "Accept: application/vnd.github.raw" > config.yml 2>/dev/null; then
+          echo "config_present=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "config_present=false" >> "$GITHUB_OUTPUT"
+          : > config.yml
+        fi
+        gh api --paginate "repos/$REPO/pulls/$PR/files" \
+          --jq '[.[] | {filename, status, additions, deletions, previous_filename}]' \
+          | jq -s 'add' > files.json
+        gh api "repos/$REPO/pulls/$PR" \
+          --jq '{number, title, body, additions, deletions, changed_files,
+                 author: .user.login, author_association, base: .base.ref,
+                 head_sha: .head.sha}' > pr.json
+        # If the diff cannot be fetched we must NOT proceed with an empty one.
+        gh pr diff "$PR" --repo "$REPO" > pr.diff
+
+    - name: Evaluate guardrails
+      id: guard
+      shell: bash
+      run: |
+        set -euo pipefail
+        python "$GITHUB_ACTION_PATH/scripts/guardrails.py" \
+          --config config.yml --files files.json --pr pr.json \
+          --config-present "${{ steps.ctx.outputs.config_present }}" \
+          --out guardrails.json
+        echo "eligible=$(jq -r .eligible guardrails.json)" >> "$GITHUB_OUTPUT"
+
+    # A dedicated osv-scanner pass is deferred to phase 2: this job does not
+    # check out the PR head (by design), so there is no lockfile tree to scan.
+    # Dependency PRs get the supply-chain checklist against the lockfile diff.
+    - name: AI review (structured verdict)
+      if: steps.guard.outputs.eligible == 'true'
+      shell: bash
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+        ANTHROPIC_MODEL: ${{ inputs.model }}
+      run: |
+        set -euo pipefail
+        python "$GITHUB_ACTION_PATH/scripts/review.py" \
+          --pr pr.json --diff pr.diff --guardrails guardrails.json --out verdict.json
+
+    - name: Decide
+      id: decide
+      shell: bash
+      run: |
+        set -euo pipefail
+        python "$GITHUB_ACTION_PATH/scripts/decide.py" \
+          --guardrails guardrails.json \
+          --verdict "$( [ -f verdict.json ] && echo verdict.json || echo '' )" \
+          --out decision.json
+        echo "approve=$(jq -r .approve decision.json)" >> "$GITHUB_OUTPUT"
+
+    - name: Render audit record (used as the review body)
+      shell: bash
+      run: |
+        set -euo pipefail
+        python "$GITHUB_ACTION_PATH/scripts/audit.py" \
+          --guardrails guardrails.json \
+          --verdict "$( [ -f verdict.json ] && echo verdict.json || echo '' )" \
+          --decision decision.json \
+          --run-url "${{ inputs.run_url }}" --dry-run "${{ inputs.dry_run }}" \
+          --out audit.md
+
+    # Not approving on this run: withdraw any approval this bot gave earlier
+    # so a stale approval cannot carry a new, unreviewed commit to merge.
+    # Best-effort (dismissal on protected branches may need admin); the ruleset
+    # setting "dismiss stale approvals on push" is the REQUIRED primary control.
+    - name: Dismiss prior bot approval (not approving this run)
+      if: steps.decide.outputs.approve != 'true' && inputs.dry_run != 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        REPO: ${{ inputs.repo }}
+        PR: ${{ inputs.pr_number }}
+        BOT: ${{ inputs.bot_login }}
+      run: |
+        set -uo pipefail
+        gh api --paginate "repos/$REPO/pulls/$PR/reviews" \
+          --jq ".[] | select(.state==\"APPROVED\" and .user.login==\"$BOT\") | .id" \
+        | while read -r RID; do
+            gh api --method PUT "repos/$REPO/pulls/$PR/reviews/$RID/dismissals" \
+              -f message="Superseded: the latest commits were not auto-approved." \
+              -f event="DISMISS" >/dev/null || echo "::warning::could not dismiss review $RID"
+          done
+        true
+
+    - name: Approve + enable auto-merge (pinned to the reviewed commit)
+      id: approve
+      if: steps.decide.outputs.approve == 'true' && inputs.dry_run != 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        REPO: ${{ inputs.repo }}
+        PR: ${{ inputs.pr_number }}
+      run: |
+        set -euo pipefail
+        REVIEWED="$(jq -r .head_sha pr.json)"
+        CURRENT="$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha)"
+        if [ "$REVIEWED" != "$CURRENT" ]; then
+          echo "::error::head moved during review ($REVIEWED -> $CURRENT); not approving"
+          exit 1
+        fi
+        # Pin the approval to the exact SHA that was reviewed.
+        gh api --method POST "repos/$REPO/pulls/$PR/reviews" \
+          -f event=APPROVE -f commit_id="$REVIEWED" -F body=@audit.md >/dev/null
+        # GitHub merges only once the ruleset's required checks pass, and only
+        # if the head still matches the reviewed SHA.
+        gh pr merge "$PR" --repo "$REPO" --squash --auto --match-head-commit "$REVIEWED"
+
+    - name: Write audit trail (sticky comment + step summary)
+      if: always()
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        REPO: ${{ inputs.repo }}
+        PR: ${{ inputs.pr_number }}
+      run: |
+        set -euo pipefail
+        python "$GITHUB_ACTION_PATH/scripts/audit.py" \
+          --guardrails guardrails.json \
+          --verdict "$( [ -f verdict.json ] && echo verdict.json || echo '' )" \
+          --decision "$( [ -f decision.json ] && echo decision.json || echo '' )" \
+          --run-url "${{ inputs.run_url }}" --dry-run "${{ inputs.dry_run }}" \
+          --approve-outcome "${{ steps.approve.outcome }}" --out audit.md
+        cat audit.md >> "$GITHUB_STEP_SUMMARY"
+        MARKER='<!-- ai-approved-merge -->'
+        CID=$(gh api --paginate "repos/$REPO/issues/$PR/comments" \
+                --jq "map(select(.body | contains(\"$MARKER\"))) | .[0].id // empty")
+        if [ -n "$CID" ]; then
+          gh api --method PATCH "repos/$REPO/issues/comments/$CID" -F body=@audit.md >/dev/null
+        else
+          gh api --method POST "repos/$REPO/issues/$PR/comments" -F body=@audit.md >/dev/null
+        fi

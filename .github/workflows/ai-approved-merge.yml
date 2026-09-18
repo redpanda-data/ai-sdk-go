@@ -1,8 +1,17 @@
 ---
-# Enrollment in the DevProd AI-approved-merge pilot (DEVPROD-4812).
-# Presence of THIS file is the repo-level opt-in: every PR is evaluated
-# automatically (no per-PR label). Add the `ai-merge-skip` label to a PR to
-# opt it out. All logic lives in the pinned reusable workflow in devprod-infra.
+# AI-approved merges for low-risk PRs (DEVPROD-4812) — vendored pilot.
+#
+# The mechanism (.github/actions/ai-merge) is VENDORED from
+# redpanda-data/devprod-infra (canonical source, private): GitHub does not let a
+# public repo use reusable workflows/actions from a private repo. Source commit
+# and re-sync steps: .github/actions/ai-merge/scripts/README.md
+#
+# Security model: the action runs from the PR's BASE ref, checked out into
+# ./mechanism. The PR head is never checked out, so a PR cannot modify the
+# guardrails that evaluate it. Config is read from the base ref by the action.
+#
+# Repo opt-in: every PR is evaluated automatically (no per-PR label). Add the
+# `ai-merge-skip` label to exclude a PR. Fail-closed: only ever ADDS approvals.
 name: AI Approved Merge
 
 on:
@@ -13,12 +22,61 @@ permissions:
   contents: read
   pull-requests: read
 
+env:
+  AI_MERGE_DRY_RUN: "true"
+  AI_MERGE_MODEL: claude-sonnet-5
+
 jobs:
   ai-merge:
-    uses: redpanda-data/devprod-infra/.github/workflows/ai-approved-merge.yml@ai-merge/v1
-    with:
-      config_path: .github/ai-merge.yml
-    secrets:
-      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-      app_id: ${{ secrets.AI_MERGE_APP_ID }}
-      app_private_key: ${{ secrets.AI_MERGE_APP_PRIVATE_KEY }}
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ai-merge-${{ github.repository }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !contains(github.event.pull_request.labels.*.name, 'ai-merge-skip') &&
+      (github.event.pull_request.author_association == 'MEMBER' ||
+       github.event.pull_request.author_association == 'OWNER')
+    timeout-minutes: 15
+    steps:
+      - name: Check out the mechanism from the BASE ref (never the PR head)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: mechanism
+          sparse-checkout: .github/actions/ai-merge
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Is the mechanism on the base ref?
+        id: present
+        run: |
+          if [ -f mechanism/.github/actions/ai-merge/action.yml ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::ai-merge mechanism is not on the base ref yet (enrollment PR); nothing to evaluate"
+          fi
+
+      - name: Mint GitHub App token (ai-merge bot)
+        id: app
+        if: steps.present.outputs.ok == 'true'
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.AI_MERGE_APP_ID }}
+          private-key: ${{ secrets.AI_MERGE_APP_PRIVATE_KEY }}
+
+      - name: Run AI-approved-merge pipeline
+        if: steps.present.outputs.ok == 'true'
+        uses: ./mechanism/.github/actions/ai-merge
+        with:
+          token: ${{ steps.app.outputs.token }}
+          bot_login: ${{ steps.app.outputs.app-slug }}[bot]
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          model: ${{ env.AI_MERGE_MODEL }}
+          config_path: .github/ai-merge.yml
+          repo: ${{ github.repository }}
+          pr_number: ${{ github.event.pull_request.number }}
+          base_sha: ${{ github.event.pull_request.base.sha }}
+          run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          dry_run: ${{ env.AI_MERGE_DRY_RUN }}
