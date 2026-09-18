@@ -12,7 +12,7 @@ CFG = {
     "min_confidence": 0.8,
     "dependency_paths": ["**/go.mod", "**/go.sum"],
 }
-PR_OK = {"author_association": "MEMBER", "number": 1}
+PR_OK = {"author_is_member": True, "author": "alice", "number": 1}
 
 
 def _files(*specs):
@@ -85,10 +85,16 @@ def test_repo_pattern_with_mid_globstar_matches_direct_child():
         assert not r["eligible"], name
 
 
-def test_collaborator_and_non_member_rejected():
-    for assoc in ("COLLABORATOR", "CONTRIBUTOR", "NONE", ""):
-        r = evaluate(CFG, _files(("a.go", 1, 0)), {"author_association": assoc}, True)
-        assert not r["eligible"], assoc
+def test_non_member_rejected_regardless_of_association():
+    for pr in (
+        {"author_is_member": False, "author_association": "MEMBER"},
+        {"author_is_member": None},
+        {"author_is_member": "true"},
+        {"author_association": "OWNER"},
+        {},
+    ):
+        r = evaluate(CFG, _files(("a.go", 1, 0)), pr, True)
+        assert not r["eligible"], pr
 
 
 def test_size_bounds():

@@ -1,7 +1,7 @@
 # AI-approved merge mechanism (DEVPROD-4812) — VENDORED COPY
 
 > **Canonical source:** `redpanda-data/devprod-infra` → `.github/actions/ai-merge`
-> **Vendored from commit:** `6f3fd35`
+> **Vendored from commit:** `6f3fd35` + org-membership fix (upstream: devprod-infra #829)
 >
 > This repo is public and GitHub does not allow public repos to use reusable
 > workflows or actions from a private repo, so the mechanism is vendored here and
@@ -10,11 +10,17 @@
 > `rsync -a --delete ../devprod-infra/.github/actions/ai-merge/ .github/actions/ai-merge/`
 > and update the commit above.
 >
-> **Enrolling another repo the same way:** copy `.github/actions/ai-merge/`,
-> `.github/workflows/ai-approved-merge.yml` and `.github/workflows/test-ai-merge.yml`;
-> add `.github/ai-merge.yml`; set secrets `AI_MERGE_APP_ID`, `AI_MERGE_APP_PRIVATE_KEY`,
-> `ANTHROPIC_API_KEY`; install the App on the repo; create the `ai-merge-skip` label;
-> ruleset: require 1 approval + dismiss stale approvals on push.
+> **Enrolling another repo:**
+> - **Private repo (most repos): do NOT vendor.** Add a thin caller workflow that uses
+>   `redpanda-data/devprod-infra/.github/workflows/ai-approved-merge.yml@ai-merge/v1`
+>   plus `.github/ai-merge.yml`, the three secrets, App installation, the `ai-merge-skip`
+>   label, and a ruleset (1 approval + dismiss stale approvals on push).
+> - **Public repo:** GitHub blocks public→private reusable workflows, so vendor as done
+>   here: copy `.github/actions/ai-merge/`, `.github/workflows/ai-approved-merge.yml`
+>   and `test-ai-merge.yml`, then the same config/secrets/App/label/ruleset steps.
+>
+> Outsider PRs on public repos are excluded twice: fork PRs never run, and the author
+> must be a verified org member.
 
 
 Decision logic for the reusable workflow `.github/workflows/ai-approved-merge.yml`.
@@ -41,6 +47,9 @@ clean) → approve pinned to the reviewed SHA + `--match-head-commit` auto-merge
 - Baseline exclusions apply in every repo: CI/CD, IaC, release/container tooling,
   `iam/` and `auth/` dirs, credential/secret/key files. Globs have real globstar
   semantics (`**/` = zero or more dirs) — see `common.glob_to_regex`.
+- Org membership is verified via the App token (`GET /orgs/{org}/members/{login}`),
+  never from `author_association`, which misreports members with private
+  membership. The App therefore needs **Organization → Members: Read-only**.
 - Approvals are minted by the **ai-merge GitHub App** (the Actions token cannot
   approve PRs) and are pinned to the reviewed commit. The enrolling ruleset
   **must** enable "dismiss stale approvals on new commits".

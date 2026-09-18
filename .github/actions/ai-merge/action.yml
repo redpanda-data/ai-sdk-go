@@ -69,6 +69,13 @@ runs:
           --jq '{number, title, body, additions, deletions, changed_files,
                  author: .user.login, author_association, base: .base.ref,
                  head_sha: .head.sha}' > pr.json
+        # Org membership is checked against the org via the App token, NOT
+        # inferred from author_association: private membership (GitHub's
+        # default) makes the payload report members as CONTRIBUTOR/NONE.
+        # Requires the App to have Organization -> Members: read.
+        AUTHOR="$(jq -r .author pr.json)"
+        if gh api "orgs/${REPO%%/*}/members/$AUTHOR" >/dev/null 2>&1; then MEMBER=true; else MEMBER=false; fi
+        jq --argjson m "$MEMBER" '. + {author_is_member: $m}' pr.json > pr.tmp && mv pr.tmp pr.json
         # If the diff cannot be fetched we must NOT proceed with an empty one.
         gh pr diff "$PR" --repo "$REPO" > pr.diff
 

@@ -40,10 +40,6 @@ BASELINE_EXCLUDED = [
     "**/*.key",
 ]
 
-# Only true org affiliation counts. COLLABORATOR is an outside collaborator
-# with repo access and is deliberately NOT accepted.
-MEMBER_ASSOCIATIONS = {"MEMBER", "OWNER"}
-
 # `**/` so both root-level and nested (monorepo) lockfiles are detected.
 DEFAULT_DEP_PATHS = [
     "**/go.mod",
@@ -87,11 +83,14 @@ def evaluate(
             reasons.append("config `enabled` is not boolean true")
     version = str(config.get("version", "unknown")) if config_present else "unknown"
 
-    # Defence in depth: the workflow `if:` screens this too, but the audit
-    # trail should record the check.
-    assoc = (pr.get("author_association") or "").upper()
-    if assoc not in MEMBER_ASSOCIATIONS:
-        reasons.append(f"author association {assoc!r} is not an org member")
+    # Membership is verified against the org via the App token by the action
+    # (pr["author_is_member"]). author_association is NOT used: with private
+    # membership (GitHub's default) it reports members as CONTRIBUTOR/NONE.
+    if pr.get("author_is_member") is not True:
+        reasons.append(
+            f"author {pr.get('author')!r} is not a member of the organization "
+            "(verified via API)"
+        )
 
     excluded = BASELINE_EXCLUDED + _as_list(
         config.get("excluded_paths"), "excluded_paths", reasons
