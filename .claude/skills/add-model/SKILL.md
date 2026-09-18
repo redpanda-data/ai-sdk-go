@@ -151,7 +151,7 @@ Bedrock models are one `family` declaration in `models.go`, expanded by
 `families.go` into bare + profile entries (`us.`, `eu.`, `global.`, …).
 
 - **`Publisher` is required** and must be the vendor namespace of
-  `BareID` — `publisherAnthropic` for `anthropic.claude-opus-5`. It is
+  `BareID` — `catalog.PublisherAnthropic` for `anthropic.claude-opus-5`. It is
   authored on the family, not split off the offering ID, so the bare,
   geo-prefixed and global variants all report the same vendor;
   `expandFamilies` panics without it.
