@@ -169,12 +169,8 @@ Bedrock models are one `family` declaration in `models.go`, expanded by
 - Pricing is per-profile: `global.` is cheapest; every geo/in-region rate is
   exactly **1.10x** the global rate (pinned by `TestGeoGlobalRatio` as a
   tripwire — a future exception is a data edit, not a schema change).
-- A new inference profile needs its prefix in two places: `profileLabels`
-  in `families.go`, and the test-local `geoPrefixes` in
-  `providers/bedrock/publisher_test.go`, which derives the vendor from the
-  offering ID without borrowing production's table. Adding only the first
-  fails `TestPublisherMatchesBareIDVendor` with a message about the
-  publisher.
+- A new inference profile needs its prefix in `profileLabels` in
+  `families.go`; `expandFamilies` panics on a profile that is not there.
 - Declare `ProfileRegions` when the model card publishes an exact
   source-region→profile map; add lookup and region-allow tests for every
   published ID.
