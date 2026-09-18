@@ -87,10 +87,21 @@ def evaluate(
     # (pr["author_is_member"]). author_association is NOT used: with private
     # membership (GitHub's default) it reports members as CONTRIBUTOR/NONE.
     if pr.get("author_is_member") is not True:
-        reasons.append(
-            f"author {pr.get('author')!r} is not a member of the organization "
-            "(verified via API)"
-        )
+        status = str(pr.get("membership_check_status", "unknown"))
+        if status == "404":
+            reasons.append(
+                f"author {pr.get('author')!r} is not a member of the organization "
+                "(verified via API)"
+            )
+        else:
+            # The check itself failed (403 = App lacks Members:read, 401, 429,
+            # network). Fail closed, but say so: this is an operator problem,
+            # not an outsider PR.
+            reasons.append(
+                f"org membership check for {pr.get('author')!r} failed (HTTP "
+                f"{status}); treated as non-member. Verify the ai-merge App has "
+                "Organization -> Members: read and see the run log"
+            )
 
     excluded = BASELINE_EXCLUDED + _as_list(
         config.get("excluded_paths"), "excluded_paths", reasons

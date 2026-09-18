@@ -12,7 +12,12 @@ CFG = {
     "min_confidence": 0.8,
     "dependency_paths": ["**/go.mod", "**/go.sum"],
 }
-PR_OK = {"author_is_member": True, "author": "alice", "number": 1}
+PR_OK = {
+    "author_is_member": True,
+    "membership_check_status": "204",
+    "author": "alice",
+    "number": 1,
+}
 
 
 def _files(*specs):
@@ -86,6 +91,8 @@ def test_repo_pattern_with_mid_globstar_matches_direct_child():
 
 
 def test_non_member_rejected_regardless_of_association():
+    # Membership comes from the API check, never from author_association:
+    # even a payload saying MEMBER must not qualify without author_is_member.
     for pr in (
         {"author_is_member": False, "author_association": "MEMBER"},
         {"author_is_member": None},
@@ -146,3 +153,22 @@ def test_renamed_manifest_still_counts_as_dependency_change():
         }
     ]
     assert evaluate(CFG, files, PR_OK, True)["is_dependency"] is True
+
+
+def test_membership_check_failure_is_distinguished_from_non_member():
+    real_404 = {
+        "author_is_member": False,
+        "membership_check_status": "404",
+        "author": "bob",
+    }
+    r = evaluate(CFG, _files(("a.go", 1, 0)), real_404, True)
+    assert not r["eligible"] and any("is not a member" in x for x in r["reasons"])
+    for status in ("403", "401", "429", "unknown"):
+        broken = {
+            "author_is_member": False,
+            "membership_check_status": status,
+            "author": "bob",
+        }
+        r = evaluate(CFG, _files(("a.go", 1, 0)), broken, True)
+        assert not r["eligible"], status
+        assert any("check" in x and "failed" in x for x in r["reasons"]), r["reasons"]

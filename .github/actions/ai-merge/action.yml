@@ -67,15 +67,34 @@ runs:
           | jq -s 'add' > files.json
         gh api "repos/$REPO/pulls/$PR" \
           --jq '{number, title, body, additions, deletions, changed_files,
-                 author: .user.login, author_association, base: .base.ref,
+                 author: .user.login, base: .base.ref,
                  head_sha: .head.sha}' > pr.json
         # Org membership is checked against the org via the App token, NOT
         # inferred from author_association: private membership (GitHub's
         # default) makes the payload report members as CONTRIBUTOR/NONE.
         # Requires the App to have Organization -> Members: read.
+        # 204 = member, 404 = not a member. Anything else (403 = App lacks
+        # Members:read, 401, 429, network) is a CHECK FAILURE: still treated as
+        # non-member (fail closed) but surfaced distinctly.
+        # REQUIREMENT: the distinction must reach the sticky PR audit comment,
+        # not just this run log. A teammate reading "X is not a member" about
+        # an org owner won't open the run; the comment has to say "the check
+        # broke, fix the App permission". That is why membership_check_status
+        # is carried into pr.json and guardrails.py renders a separate reason.
         AUTHOR="$(jq -r .author pr.json)"
-        if gh api "orgs/${REPO%%/*}/members/$AUTHOR" >/dev/null 2>&1; then MEMBER=true; else MEMBER=false; fi
-        jq --argjson m "$MEMBER" '. + {author_is_member: $m}' pr.json > pr.tmp && mv pr.tmp pr.json
+        MEMBER=false
+        MEMBER_STATUS=""
+        if OUT="$(gh api "orgs/${REPO%%/*}/members/$AUTHOR" 2>&1)"; then
+          MEMBER=true
+          MEMBER_STATUS=204
+        else
+          MEMBER_STATUS="$(sed -n 's/.*(HTTP \([0-9]*\)).*/\1/p' <<<"$OUT" | head -1)"
+          if [ "$MEMBER_STATUS" != "404" ]; then
+            echo "::warning::org membership check for '$AUTHOR' returned HTTP ${MEMBER_STATUS:-unknown} (expected 204/404); treating as NON-member. Verify the App has Organization -> Members: read. gh: $OUT"
+          fi
+        fi
+        jq --argjson m "$MEMBER" --arg st "${MEMBER_STATUS:-unknown}" \
+          '. + {author_is_member: $m, membership_check_status: $st}' pr.json > pr.tmp && mv pr.tmp pr.json
         # If the diff cannot be fetched we must NOT proceed with an empty one.
         gh pr diff "$PR" --repo "$REPO" > pr.diff
 

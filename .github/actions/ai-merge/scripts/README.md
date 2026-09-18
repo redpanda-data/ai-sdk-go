@@ -1,14 +1,14 @@
 # AI-approved merge mechanism (DEVPROD-4812) — VENDORED COPY
 
 > **Canonical source:** `redpanda-data/devprod-infra` → `.github/actions/ai-merge`
-> **Vendored from commit:** `6f3fd35` + org-membership fix (upstream: devprod-infra #829)
+> **Vendored from commit:** `da8d5b7` (tag `ai-merge/v1.1.0`)
 >
 > This repo is public and GitHub does not allow public repos to use reusable
 > workflows or actions from a private repo, so the mechanism is vendored here and
 > executed from the PR's **base ref**. Do not edit this copy directly: change it in
 > devprod-infra, then re-sync with
-> `rsync -a --delete ../devprod-infra/.github/actions/ai-merge/ .github/actions/ai-merge/`
-> and update the commit above.
+> `rsync -a --delete ../devprod-infra/.github/actions/ai-merge/ .github/actions/ai-merge/`,
+> re-apply this note and the `action.yml` header, and update the commit above.
 >
 > **Enrolling another repo:**
 > - **Private repo (most repos): do NOT vendor.** Add a thin caller workflow that uses
@@ -21,7 +21,6 @@
 >
 > Outsider PRs on public repos are excluded twice: fork PRs never run, and the author
 > must be a verified org member.
-
 
 Decision logic for the reusable workflow `.github/workflows/ai-approved-merge.yml`.
 Every enrolled repo shares this one implementation.
