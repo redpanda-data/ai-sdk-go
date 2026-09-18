@@ -40,7 +40,7 @@ const schemaVersion = "v2"
 // satisfies it. It is an interface because pricing must not import
 // catalog — the dependency runs the other way.
 type Source interface {
-	// Provider is the ProviderKey the source's models register under.
+	// Provider is the provider key the source's models register under.
 	Provider() llm.ProviderID
 	PricingByID() map[string]Info
 }
