@@ -20,6 +20,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/redpanda-data/ai-sdk-go/catalog"
 )
 
 // TestPublisherMatchesBareIDVendor checks the multi-vendor catalog against
@@ -27,13 +29,15 @@ import (
 // namespace ("anthropic.claude-opus-5") while the publisher is authored
 // separately on the same declaration, so the two must agree.
 //
-// It asserts on the family declarations rather than on the expanded
-// offerings, which is what keeps the derivation free of production's
-// tables: a BareID carries no inference-profile geo prefix, so splitting
-// it needs no list of geographies. Nothing is lost by not walking the
-// offerings - variant copies f.Publisher into every entry of the family
-// unchanged (families.go), and per-offering presence is
-// TestEveryOfferingDeclaresAPublisher in cmd/catalog-snapshot.
+// The family loop carries the exact derivation, and it is exact because a
+// BareID never carries an inference-profile geo prefix: splitting it needs
+// no list of geographies, so the test borrows no table from production.
+//
+// The offering loop then covers what expansion produces, since the work
+// item's criterion is about offerings: a variant's publisher must still be
+// a vendor segment of its own ID, whether or not a geo prefix leads it.
+// That holds without naming the prefixes, which is why it is a segment
+// check rather than a second equality.
 func TestPublisherMatchesBareIDVendor(t *testing.T) {
 	t.Parallel()
 
@@ -41,5 +45,13 @@ func TestPublisherMatchesBareIDVendor(t *testing.T) {
 		vendor, _, ok := strings.Cut(f.BareID, ".")
 		require.Truef(t, ok, "%s carries no vendor namespace", f.BareID)
 		assert.Equalf(t, vendor, f.Publisher, "%s publisher does not match its bare ID vendor", f.BareID)
+	}
+
+	for _, o := range Catalog().All() {
+		publisher := o.Attributes[catalog.AttributePublisher]
+		require.NotEmptyf(t, publisher, "%s declares no publisher", o.ID)
+		assert.Truef(t,
+			strings.HasPrefix(o.ID, publisher+".") || strings.Contains(o.ID, "."+publisher+"."),
+			"%s publisher %q is not a vendor segment of its ID", o.ID, publisher)
 	}
 }
