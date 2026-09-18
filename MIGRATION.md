@@ -19,6 +19,7 @@ tagged mid-sequence.
 | `provider.Models() []llm.ModelDiscoveryInfo` | `provider.Catalog().All() []catalog.Offering` |
 | `llm.ModelDiscoveryInfo.Name` | `catalog.Offering.ID` |
 | `llm.ModelDiscoveryInfo.Metadata["..."]` | `catalog.Offering.Attributes["..."]` |
+| `vertex.ModelMetadataPublisher` | `catalog.AttributePublisher` |
 | — | `provider.Catalog().Now().Current()` / `.Previous()` / `.Deprecated()` / `.Retired()` |
 | — | `provider.Catalog().Replacement(offeringID)` (announced `ReplacedBy`, else the series successor) and `.Offerings(modelID)` |
 | — | `provider.Catalog().ResolveID(name)` — `Resolve` without the offering copy, for hot paths |

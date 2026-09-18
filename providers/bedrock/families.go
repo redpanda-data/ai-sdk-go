@@ -36,6 +36,13 @@ type family struct {
 	// "anthropic.claude-opus-5". Geo variants are derived as
 	// "<profile>." + BareID.
 	BareID string
+	// Publisher is the vendor that published the model, and must equal
+	// the vendor namespace of BareID: "anthropic" for
+	// "anthropic.claude-opus-5". Authored here rather than split off the
+	// offering ID at build time, so every variant of the family — bare,
+	// geo-prefixed and global — reports the same vendor even though their
+	// IDs differ. Required; expandFamilies panics without it.
+	Publisher string
 	// Model is the canonical cross-provider identity.
 	Model catalog.ModelID
 	// DisplayName is the undecorated display name; variants get " (US)" /
@@ -105,6 +112,10 @@ func expandFamilies(families []family) ([]catalog.Entry, map[string]bool) {
 			panic(fmt.Sprintf("bedrock: mantle family %s must be bare-only", f.BareID)) //nolint:forbidigo // authoring error, not runtime
 		}
 
+		if f.Publisher == "" {
+			panic(fmt.Sprintf("bedrock: family %s declares no Publisher", f.BareID)) //nolint:forbidigo // authoring error, not runtime
+		}
+
 		hasGlobal := false
 
 		for _, p := range f.Profiles {
@@ -124,16 +135,14 @@ func expandFamilies(families []family) ([]catalog.Entry, map[string]bool) {
 		// geo is the inference-profile geography ("us", "global", ...);
 		// empty for bare IDs, which run in the calling region.
 		variant := func(id, labelSuffix, geo string, rates pricing.RateCard) catalog.Entry {
-			var attrs map[string]string
-			if f.DataSharing || geo != "" {
-				attrs = make(map[string]string, 2)
-				if f.DataSharing {
-					attrs[ModelMetadataRequiresProviderDataSharing] = "true"
-				}
+			attrs := map[string]string{catalog.AttributePublisher: f.Publisher}
 
-				if geo != "" {
-					attrs[ModelMetadataInferenceGeo] = geo
-				}
+			if f.DataSharing {
+				attrs[ModelMetadataRequiresProviderDataSharing] = "true"
+			}
+
+			if geo != "" {
+				attrs[ModelMetadataInferenceGeo] = geo
 			}
 
 			return catalog.Entry{

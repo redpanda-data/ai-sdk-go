@@ -32,7 +32,7 @@ const ModelMuseSpark13 = "muse-spark-1.3"
 const maxOutputTokens = 32_768
 
 var catalogOnce = sync.OnceValue(func() *catalog.Catalog {
-	return catalog.MustNew("meta", entries())
+	return catalog.MustNew("meta", catalog.MustDeclarePublisher(catalog.PublisherMeta, entries()))
 })
 
 // Catalog returns the immutable Meta Model API catalog.

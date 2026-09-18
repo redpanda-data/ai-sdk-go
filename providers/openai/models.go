@@ -23,7 +23,7 @@ import (
 )
 
 var catalogOnce = sync.OnceValue(func() *catalog.Catalog {
-	return catalog.MustNew("openai", entries())
+	return catalog.MustNew("openai", catalog.MustDeclarePublisher(catalog.PublisherOpenAI, entries()))
 })
 
 // Catalog returns the validated OpenAI model catalog: every offering with

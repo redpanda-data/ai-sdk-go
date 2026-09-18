@@ -44,6 +44,22 @@ host), `DisplayName`, `Description` (short UI blurb), `Series`, `Released`,
 Exported ID constant (greppable), capabilities, constraints, modalities,
 `Reasoning` (efforts/adaptive/budget), `Pricing`, `Life`.
 
+- **Every offering must declare a publisher** — the vendor that published
+  the model, under `catalog.AttributePublisher`. Use the `catalog.Publisher*`
+  const for it rather than a string literal; a vendor with no const yet adds
+  one there first. Consumers read a
+  model's brand from it, so `TestEveryOfferingDeclaresAPublisher` fails the
+  build when one is missing. The single-vendor catalogs declare it once at
+  the catalog root via `catalog.MustDeclarePublisher`, so a new entry there
+  inherits it and needs nothing; Bedrock declares it per family (below).
+  A new provider package must wire `catalog.MustDeclarePublisher` (single-vendor)
+  or author the attribute per entry, and add itself to both catalog lists:
+  the `snapshot.Encode` call in `cmd/catalog-snapshot/main.go` (what the
+  generator writes) and `allCatalogs` in
+  `cmd/catalog-snapshot/lifecycle_test.go` (what the invariants walk).
+  Nothing links the two, and adding only the second makes
+  `TestCommittedSnapshotIsFresh` fail with advice that cannot fix it.
+
 - **Capabilities and modalities describe the model as the provider documents
   it**, not what this SDK's request mappers wire yet.
 - **`Constraints.MaxInputTokens` is the vendor's enforceable input cap**:
@@ -134,6 +150,11 @@ provider page wins.
 Bedrock models are one `family` declaration in `models.go`, expanded by
 `families.go` into bare + profile entries (`us.`, `eu.`, `global.`, …).
 
+- **`Publisher` is required** and must be the vendor namespace of
+  `BareID` — `catalog.PublisherAnthropic` for `anthropic.claude-opus-5`. It is
+  authored on the family, not split off the offering ID, so the bare,
+  geo-prefixed and global variants all report the same vendor;
+  `expandFamilies` panics without it.
 - Check the model card's Programmatic Access and Regional Availability
   tables for exact IDs. Register the bare ID (`BareInvokable`) only when the
   bedrock-runtime row publishes an In-Region endpoint URL — otherwise the
@@ -148,6 +169,8 @@ Bedrock models are one `family` declaration in `models.go`, expanded by
 - Pricing is per-profile: `global.` is cheapest; every geo/in-region rate is
   exactly **1.10x** the global rate (pinned by `TestGeoGlobalRatio` as a
   tripwire — a future exception is a data edit, not a schema change).
+- A new inference profile needs its prefix in `profileLabels` in
+  `families.go`; `expandFamilies` panics on a profile that is not there.
 - Declare `ProfileRegions` when the model card publishes an exact
   source-region→profile map; add lookup and region-allow tests for every
   published ID.

@@ -444,6 +444,12 @@
             "stage": "ga",
             "available": "2026-06-07"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "anthropic"
+            }
+          ],
           "derived": {
             "price_tier": "high",
             "replacement": "anthropic/claude-fable-5-1"
@@ -508,6 +514,12 @@
             "stage": "ga",
             "available": "2026-09-01"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "anthropic"
+            }
+          ],
           "derived": {
             "price_tier": "high"
           }
@@ -568,6 +580,12 @@
             "stage": "ga",
             "available": "2025-10-15"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "anthropic"
+            }
+          ],
           "derived": {
             "price_tier": "low"
           }
@@ -631,6 +649,12 @@
             "retires": "2026-08-05",
             "replaced_by": "claude-opus-4-8"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "anthropic"
+            }
+          ],
           "derived": {
             "price_tier": "high",
             "replacement": "anthropic/claude-opus-4-8"
@@ -699,6 +723,12 @@
             "stage": "ga",
             "available": "2025-11-24"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "anthropic"
+            }
+          ],
           "derived": {
             "price_tier": "high",
             "replacement": "anthropic/claude-opus-4-6"
@@ -776,6 +806,12 @@
             "stage": "ga",
             "available": "2026-02-04"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "anthropic"
+            }
+          ],
           "derived": {
             "price_tier": "high",
             "replacement": "anthropic/claude-opus-4-7"
@@ -848,6 +884,12 @@
             "stage": "ga",
             "available": "2026-04-14"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "anthropic"
+            }
+          ],
           "derived": {
             "price_tier": "high",
             "replacement": "anthropic/claude-opus-4-8"
@@ -938,6 +980,12 @@
             "stage": "ga",
             "available": "2026-05-28"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "anthropic"
+            }
+          ],
           "derived": {
             "price_tier": "high",
             "replacement": "anthropic/claude-opus-5"
@@ -1021,6 +1069,12 @@
             "stage": "ga",
             "available": "2026-07-24"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "anthropic"
+            }
+          ],
           "derived": {
             "price_tier": "high"
           }
@@ -1081,6 +1135,12 @@
             "stage": "ga",
             "available": "2025-09-29"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "anthropic"
+            }
+          ],
           "derived": {
             "price_tier": "medium",
             "replacement": "anthropic/claude-sonnet-4-6"
@@ -1152,6 +1212,12 @@
             "stage": "ga",
             "available": "2026-02-17"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "anthropic"
+            }
+          ],
           "derived": {
             "price_tier": "medium",
             "replacement": "anthropic/claude-sonnet-5"
@@ -1223,6 +1289,12 @@
             "stage": "ga",
             "available": "2026-06-29"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "anthropic"
+            }
+          ],
           "derived": {
             "price_tier": "medium"
           }
@@ -1293,6 +1365,10 @@
             {
               "key": "inference_geo",
               "value": "au"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -1367,6 +1443,10 @@
             {
               "key": "inference_geo",
               "value": "au"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -1436,6 +1516,10 @@
             {
               "key": "inference_geo",
               "value": "au"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -1503,6 +1587,10 @@
             {
               "key": "inference_geo",
               "value": "au"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -1577,6 +1665,10 @@
             {
               "key": "inference_geo",
               "value": "au"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -1642,6 +1734,10 @@
             {
               "key": "inference_geo",
               "value": "eu"
+            },
+            {
+              "key": "publisher",
+              "value": "amazon"
             }
           ],
           "derived": {
@@ -1710,6 +1806,10 @@
             {
               "key": "inference_geo",
               "value": "eu"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             },
             {
               "key": "requires_provider_data_sharing",
@@ -1782,6 +1882,10 @@
             {
               "key": "inference_geo",
               "value": "eu"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -1849,6 +1953,10 @@
             {
               "key": "inference_geo",
               "value": "eu"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -1924,6 +2032,10 @@
             {
               "key": "inference_geo",
               "value": "eu"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -1999,6 +2111,10 @@
             {
               "key": "inference_geo",
               "value": "eu"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -2074,6 +2190,10 @@
             {
               "key": "inference_geo",
               "value": "eu"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -2143,6 +2263,10 @@
             {
               "key": "inference_geo",
               "value": "eu"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -2210,6 +2334,10 @@
             {
               "key": "inference_geo",
               "value": "eu"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -2284,6 +2412,10 @@
             {
               "key": "inference_geo",
               "value": "eu"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -2349,6 +2481,10 @@
             {
               "key": "inference_geo",
               "value": "global"
+            },
+            {
+              "key": "publisher",
+              "value": "amazon"
             }
           ],
           "derived": {
@@ -2417,6 +2553,10 @@
             {
               "key": "inference_geo",
               "value": "global"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             },
             {
               "key": "requires_provider_data_sharing",
@@ -2492,6 +2632,10 @@
               "value": "global"
             },
             {
+              "key": "publisher",
+              "value": "anthropic"
+            },
+            {
               "key": "requires_provider_data_sharing",
               "value": "true"
             }
@@ -2561,6 +2705,10 @@
             {
               "key": "inference_geo",
               "value": "global"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -2628,6 +2776,10 @@
             {
               "key": "inference_geo",
               "value": "global"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -2703,6 +2855,10 @@
             {
               "key": "inference_geo",
               "value": "global"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -2778,6 +2934,10 @@
             {
               "key": "inference_geo",
               "value": "global"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -2853,6 +3013,10 @@
             {
               "key": "inference_geo",
               "value": "global"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -2922,6 +3086,10 @@
             {
               "key": "inference_geo",
               "value": "global"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -2989,6 +3157,10 @@
             {
               "key": "inference_geo",
               "value": "global"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -3063,6 +3235,10 @@
             {
               "key": "inference_geo",
               "value": "global"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -3138,6 +3314,10 @@
             {
               "key": "inference_geo",
               "value": "global"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -3194,6 +3374,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "google"
+            }
+          ],
           "derived": {
             "price_tier": "low"
           }
@@ -3248,6 +3434,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "google"
+            }
+          ],
           "derived": {
             "price_tier": "low"
           }
@@ -3302,6 +3494,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "google"
+            }
+          ],
           "derived": {
             "price_tier": "low"
           }
@@ -3364,6 +3562,10 @@
             {
               "key": "inference_geo",
               "value": "jp"
+            },
+            {
+              "key": "publisher",
+              "value": "amazon"
             }
           ],
           "derived": {
@@ -3438,6 +3640,10 @@
             {
               "key": "inference_geo",
               "value": "jp"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -3513,6 +3719,10 @@
             {
               "key": "inference_geo",
               "value": "jp"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -3581,6 +3791,10 @@
             {
               "key": "inference_geo",
               "value": "jp"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -3638,6 +3852,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "mistral"
+            }
+          ],
           "derived": {
             "price_tier": "low"
           }
@@ -3693,6 +3913,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "openai"
+            }
+          ],
           "derived": {
             "price_tier": "low"
           }
@@ -3748,6 +3974,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "openai"
+            }
+          ],
           "derived": {
             "price_tier": "high"
           }
@@ -3803,6 +4035,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "openai"
+            }
+          ],
           "derived": {
             "price_tier": "medium"
           }
@@ -3865,6 +4103,10 @@
             {
               "key": "inference_geo",
               "value": "us"
+            },
+            {
+              "key": "publisher",
+              "value": "amazon"
             }
           ],
           "derived": {
@@ -3933,6 +4175,10 @@
             {
               "key": "inference_geo",
               "value": "us"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             },
             {
               "key": "requires_provider_data_sharing",
@@ -4008,6 +4254,10 @@
               "value": "us"
             },
             {
+              "key": "publisher",
+              "value": "anthropic"
+            },
+            {
               "key": "requires_provider_data_sharing",
               "value": "true"
             }
@@ -4077,6 +4327,10 @@
             {
               "key": "inference_geo",
               "value": "us"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -4144,6 +4398,10 @@
             {
               "key": "inference_geo",
               "value": "us"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -4219,6 +4477,10 @@
             {
               "key": "inference_geo",
               "value": "us"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -4294,6 +4556,10 @@
             {
               "key": "inference_geo",
               "value": "us"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -4369,6 +4635,10 @@
             {
               "key": "inference_geo",
               "value": "us"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -4438,6 +4708,10 @@
             {
               "key": "inference_geo",
               "value": "us"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -4505,6 +4779,10 @@
             {
               "key": "inference_geo",
               "value": "us"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -4579,6 +4857,10 @@
             {
               "key": "inference_geo",
               "value": "us"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -4654,6 +4936,10 @@
             {
               "key": "inference_geo",
               "value": "us"
+            },
+            {
+              "key": "publisher",
+              "value": "anthropic"
             }
           ],
           "derived": {
@@ -5071,6 +5357,12 @@
             "retires": "2026-10-20",
             "replaced_by": "gemini-3.5-flash-lite"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "google"
+            }
+          ],
           "derived": {
             "price_tier": "low",
             "replacement": "google/gemini-3.5-flash-lite"
@@ -5139,6 +5431,12 @@
             "available": "2025-07-22",
             "retires": "2026-10-20"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "google"
+            }
+          ],
           "derived": {
             "price_tier": "low",
             "replacement": "google/gemini-3.5-flash-lite"
@@ -5218,6 +5516,12 @@
             "retires": "2026-10-20",
             "replaced_by": "gemini-3.5-flash"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "google"
+            }
+          ],
           "derived": {
             "price_tier": "medium",
             "replacement": "google/gemini-3.5-flash"
@@ -5290,6 +5594,12 @@
             "available": "2025-12-17",
             "replaced_by": "gemini-3.6-flash"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "google"
+            }
+          ],
           "derived": {
             "price_tier": "low",
             "replacement": "google/gemini-3.6-flash"
@@ -5371,6 +5681,12 @@
             "retires": "2026-03-09",
             "replaced_by": "gemini-3.1-pro-preview"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "google"
+            }
+          ],
           "derived": {
             "price_tier": "medium",
             "replacement": "google/gemini-3.1-pro-preview"
@@ -5451,6 +5767,12 @@
             "stage": "preview",
             "available": "2026-02-19"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "google"
+            }
+          ],
           "derived": {
             "price_tier": "medium"
           }
@@ -5521,6 +5843,12 @@
             "stage": "ga",
             "available": "2026-05-19"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "google"
+            }
+          ],
           "derived": {
             "price_tier": "medium",
             "replacement": "google/gemini-3.6-flash"
@@ -5585,6 +5913,12 @@
             "stage": "ga",
             "available": "2026-07-21"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "google"
+            }
+          ],
           "derived": {
             "price_tier": "low"
           }
@@ -5648,6 +5982,12 @@
             "stage": "ga",
             "available": "2026-07-21"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "google"
+            }
+          ],
           "derived": {
             "price_tier": "low",
             "replacement": "google/gemini-3.7-flash"
@@ -5718,6 +6058,12 @@
             "stage": "ga",
             "available": "2026-08-13"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "google"
+            }
+          ],
           "derived": {
             "price_tier": "low",
             "replacement": "google/gemini-3.8-flash"
@@ -5788,6 +6134,12 @@
             "stage": "ga",
             "available": "2026-09-02"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "google"
+            }
+          ],
           "derived": {
             "price_tier": "low"
           }
@@ -5866,6 +6218,10 @@
             {
               "key": "output_token_limit_source",
               "value": "sdk_conservative_limit"
+            },
+            {
+              "key": "publisher",
+              "value": "meta"
             }
           ],
           "derived": {
@@ -5938,6 +6294,12 @@
             "retires": "2026-10-23",
             "replaced_by": "gpt-5.6-terra"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "openai"
+            }
+          ],
           "derived": {
             "price_tier": "low",
             "replacement": "openai/gpt-5.6-terra"
@@ -6006,6 +6368,12 @@
             "retires": "2026-10-23",
             "replaced_by": "gpt-5.6-sol"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "openai"
+            }
+          ],
           "derived": {
             "price_tier": "high",
             "replacement": "openai/gpt-5.6-sol"
@@ -6072,6 +6440,12 @@
             "stage": "ga",
             "available": "2025-04-14"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "openai"
+            }
+          ],
           "derived": {
             "price_tier": "medium",
             "replacement": "openai/gpt-5"
@@ -6137,6 +6511,12 @@
             "stage": "ga",
             "available": "2025-04-14"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "openai"
+            }
+          ],
           "derived": {
             "price_tier": "low",
             "replacement": "openai/gpt-5-mini"
@@ -6214,6 +6594,12 @@
             "stage": "ga",
             "available": "2024-05-13"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "openai"
+            }
+          ],
           "derived": {
             "price_tier": "medium",
             "replacement": "openai/gpt-4.1"
@@ -6279,6 +6665,12 @@
             "stage": "ga",
             "available": "2024-07-18"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "openai"
+            }
+          ],
           "derived": {
             "price_tier": "low",
             "replacement": "openai/gpt-4.1-mini"
@@ -6358,6 +6750,12 @@
             "retires": "2026-12-11",
             "replaced_by": "gpt-5.6-sol"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "openai"
+            }
+          ],
           "derived": {
             "price_tier": "medium",
             "replacement": "openai/gpt-5.6-sol"
@@ -6436,6 +6834,12 @@
             "retires": "2026-12-11",
             "replaced_by": "gpt-5.6-terra"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "openai"
+            }
+          ],
           "derived": {
             "price_tier": "low",
             "replacement": "openai/gpt-5.6-terra"
@@ -6512,6 +6916,12 @@
             "retires": "2026-12-11",
             "replaced_by": "gpt-5.6-luna"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "openai"
+            }
+          ],
           "derived": {
             "price_tier": "low",
             "replacement": "openai/gpt-5.6-luna"
@@ -6588,6 +6998,12 @@
             "stage": "ga",
             "available": "2025-11-13"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "openai"
+            }
+          ],
           "derived": {
             "price_tier": "medium",
             "replacement": "openai/gpt-5.2"
@@ -6665,6 +7081,12 @@
             "stage": "ga",
             "available": "2025-12-11"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "openai"
+            }
+          ],
           "derived": {
             "price_tier": "medium",
             "replacement": "openai/gpt-5.4"
@@ -6741,6 +7163,12 @@
             "retires": "2026-08-10",
             "replaced_by": "gpt-5.6-sol"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "openai"
+            }
+          ],
           "derived": {
             "price_tier": "medium",
             "replacement": "openai/gpt-5.6-sol"
@@ -6815,6 +7243,12 @@
             "stage": "ga",
             "available": "2025-12-11"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "openai"
+            }
+          ],
           "derived": {
             "price_tier": "high"
           }
@@ -6890,6 +7324,12 @@
             "retires": "2026-08-10",
             "replaced_by": "gpt-5.6-sol"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "openai"
+            }
+          ],
           "derived": {
             "price_tier": "medium",
             "replacement": "openai/gpt-5.6-sol"
@@ -6977,6 +7417,12 @@
             "stage": "ga",
             "available": "2026-03-05"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "openai"
+            }
+          ],
           "derived": {
             "price_tier": "medium",
             "replacement": "openai/gpt-5.5"
@@ -7054,6 +7500,12 @@
             "stage": "ga",
             "available": "2026-03-17"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "openai"
+            }
+          ],
           "derived": {
             "price_tier": "low",
             "replacement": "openai/gpt-5.6-terra"
@@ -7128,6 +7580,12 @@
             "stage": "ga",
             "available": "2026-03-17"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "openai"
+            }
+          ],
           "derived": {
             "price_tier": "low",
             "replacement": "openai/gpt-5.6-luna"
@@ -7215,6 +7673,12 @@
             "stage": "ga",
             "available": "2026-04-23"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "openai"
+            }
+          ],
           "derived": {
             "price_tier": "high",
             "replacement": "openai/gpt-5.6-sol"
@@ -7304,6 +7768,12 @@
             "stage": "ga",
             "available": "2026-07-09"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "openai"
+            }
+          ],
           "derived": {
             "price_tier": "low"
           }
@@ -7395,6 +7865,12 @@
             "stage": "ga",
             "available": "2026-07-09"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "openai"
+            }
+          ],
           "derived": {
             "price_tier": "medium",
             "replacement": "openai/gpt-6-astra"
@@ -7484,6 +7960,12 @@
             "stage": "ga",
             "available": "2026-07-09"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "openai"
+            }
+          ],
           "derived": {
             "price_tier": "medium"
           }
@@ -7556,6 +8038,12 @@
             "stage": "ga",
             "available": "2026-09-03"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "openai"
+            }
+          ],
           "derived": {
             "price_tier": "high"
           }
@@ -7622,6 +8110,12 @@
             "retires": "2026-10-23",
             "replaced_by": "gpt-5.6-sol"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "openai"
+            }
+          ],
           "derived": {
             "price_tier": "high",
             "replacement": "openai/gpt-5.6-sol"
@@ -7689,6 +8183,12 @@
             "retires": "2026-12-11",
             "replaced_by": "gpt-5.6-sol"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "openai"
+            }
+          ],
           "derived": {
             "price_tier": "medium",
             "replacement": "openai/gpt-5.6-sol"
@@ -7755,6 +8255,12 @@
             "retires": "2026-12-11",
             "replaced_by": "gpt-5.6-sol"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "openai"
+            }
+          ],
           "derived": {
             "price_tier": "high",
             "replacement": "openai/gpt-5.6-sol"
@@ -7822,6 +8328,12 @@
             "retires": "2026-10-23",
             "replaced_by": "gpt-5.6-terra"
           },
+          "attributes": [
+            {
+              "key": "publisher",
+              "value": "openai"
+            }
+          ],
           "derived": {
             "price_tier": "low",
             "replacement": "openai/gpt-5.6-terra"

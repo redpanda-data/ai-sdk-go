@@ -14,9 +14,9 @@
 
 // Package catalog is the model-metadata read model shared by every
 // provider: identity, capabilities, constraints, modalities, pricing,
-// and lifecycle for each offering, plus the derivations a discovery
-// surface needs (current vs previous generation, replacement,
-// retirement, price tier).
+// lifecycle, and the publishing vendor (AttributePublisher) for each
+// offering, plus the derivations a discovery surface needs (current vs
+// previous generation, replacement, retirement, price tier).
 //
 // # Shape
 //

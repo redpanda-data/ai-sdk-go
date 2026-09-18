@@ -75,7 +75,10 @@ type Entry struct {
 
 	// Attributes is a narrow escape hatch for provider-specific
 	// discovery flags, so one provider's quirk never grows a field on
-	// this shared struct. In use: Bedrock sets
+	// this shared struct. The one exception is AttributePublisher, which
+	// every offering carries: it names the vendor that published the
+	// model, so a consumer reads a model's brand from the catalog instead
+	// of pattern-matching its ID. Otherwise, in use: Bedrock sets
 	// "requires_provider_data_sharing": "true" on models that reject
 	// requests until the account opts in — the conformance suite reads
 	// it to skip those, and UIs badge it — and "inference_geo"

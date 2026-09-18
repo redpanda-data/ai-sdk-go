@@ -71,20 +71,27 @@ const (
 	OfferingClaudeHaiku45 = catalogKeyPrefix + ModelClaudeHaiku45
 )
 
-// Publishers own the model on Vertex and name the segment before the
-// model in a Vertex resource path. Stored per offering in Attributes so
-// the runtime provider can build the path without re-deriving it.
+// Publisher values for the Vertex offerings. A publisher owns the model
+// on Vertex and names the segment before the model in a Vertex resource
+// path, so the same string serves as the catalog.AttributePublisher value
+// and as the path segment the runtime provider needs.
 const (
-	publisherGoogle    = "google"
-	publisherAnthropic = "anthropic"
+	publisherGoogle    = catalog.PublisherGoogle
+	publisherAnthropic = catalog.PublisherAnthropic
 )
 
 // Attribute keys carried on every Vertex offering. Keys are snake_case
 // and values are strings so the committed snapshot stays stable.
 const (
-	// ModelMetadataPublisher is the Vertex publisher segment ("google",
-	// "anthropic").
-	ModelMetadataPublisher = "publisher"
+	// ModelMetadataPublisher is the attribute key holding the publishing
+	// vendor ("google", "anthropic"), which on Vertex is also the publisher
+	// segment of a resource path.
+	//
+	// Deprecated: use [catalog.AttributePublisher]. Every catalog declares a
+	// publisher, so the key is shared rather than Vertex-local; this alias
+	// stays only because callers import it from here, and it is removed in
+	// the breaking release MIGRATION.md describes.
+	ModelMetadataPublisher = catalog.AttributePublisher
 	// ModelMetadataVertexModel is the bare wire model ID (the offering ID
 	// without the vertex. prefix), which goes in the request path.
 	ModelMetadataVertexModel = "vertex_model"
@@ -225,8 +232,8 @@ func entries() []catalog.Entry {
 			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-07-21")},
 			Pricing: geminiFlashPricing(),
 			Attributes: map[string]string{
-				ModelMetadataPublisher:   publisherGoogle,
-				ModelMetadataVertexModel: ModelGemini36Flash,
+				catalog.AttributePublisher: publisherGoogle,
+				ModelMetadataVertexModel:   ModelGemini36Flash,
 			},
 		},
 		{
@@ -251,8 +258,8 @@ func entries() []catalog.Entry {
 			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-06-30")},
 			Pricing: claudeSonnet5Pricing(),
 			Attributes: map[string]string{
-				ModelMetadataPublisher:   publisherAnthropic,
-				ModelMetadataVertexModel: ModelClaudeSonnet5,
+				catalog.AttributePublisher: publisherAnthropic,
+				ModelMetadataVertexModel:   ModelClaudeSonnet5,
 			},
 		},
 		{
@@ -277,8 +284,8 @@ func entries() []catalog.Entry {
 			Life:    catalog.Lifecycle{Available: catalog.MustDate("2025-10-15")},
 			Pricing: claudeHaiku45Pricing(),
 			Attributes: map[string]string{
-				ModelMetadataPublisher:   publisherAnthropic,
-				ModelMetadataVertexModel: ModelClaudeHaiku45,
+				catalog.AttributePublisher: publisherAnthropic,
+				ModelMetadataVertexModel:   ModelClaudeHaiku45,
 			},
 		},
 	}
