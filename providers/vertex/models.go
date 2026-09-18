@@ -231,8 +231,8 @@ func entries() []catalog.Entry {
 			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-07-21")},
 			Pricing: geminiFlashPricing(),
 			Attributes: map[string]string{
-				ModelMetadataPublisher:   publisherGoogle,
-				ModelMetadataVertexModel: ModelGemini36Flash,
+				catalog.AttributePublisher: publisherGoogle,
+				ModelMetadataVertexModel:   ModelGemini36Flash,
 			},
 		},
 		{
@@ -257,8 +257,8 @@ func entries() []catalog.Entry {
 			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-06-30")},
 			Pricing: claudeSonnet5Pricing(),
 			Attributes: map[string]string{
-				ModelMetadataPublisher:   publisherAnthropic,
-				ModelMetadataVertexModel: ModelClaudeSonnet5,
+				catalog.AttributePublisher: publisherAnthropic,
+				ModelMetadataVertexModel:   ModelClaudeSonnet5,
 			},
 		},
 		{
@@ -283,8 +283,8 @@ func entries() []catalog.Entry {
 			Life:    catalog.Lifecycle{Available: catalog.MustDate("2025-10-15")},
 			Pricing: claudeHaiku45Pricing(),
 			Attributes: map[string]string{
-				ModelMetadataPublisher:   publisherAnthropic,
-				ModelMetadataVertexModel: ModelClaudeHaiku45,
+				catalog.AttributePublisher: publisherAnthropic,
+				ModelMetadataVertexModel:   ModelClaudeHaiku45,
 			},
 		},
 	}
