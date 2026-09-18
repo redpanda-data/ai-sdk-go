@@ -641,6 +641,29 @@ func TestCatalogVersion_FoldsInProvider(t *testing.T) {
 		"identical model+rates under a different provider must change the version")
 }
 
+// TestCatalogVersion_FoldsInKnownProviderSet pins the known_provider fold
+// in computeVersion. A provider registered with an empty pricing map
+// contributes no model line, so that fold is the only thing separating
+// these two catalogs: drop it and they hash identically while still
+// classifying a miss differently.
+func TestCatalogVersion_FoldsInKnownProviderSet(t *testing.T) {
+	t.Parallel()
+
+	models := map[string]Info{"m": FlatInfo(0.000001, 0.000002, 0.0000005)}
+
+	withoutCohere, err := NewCatalog(WithProvider("openai", models))
+	require.NoError(t, err)
+
+	withCohere, err := NewCatalog(
+		WithProvider("openai", models),
+		WithProvider("cohere", map[string]Info{}),
+	)
+	require.NoError(t, err)
+
+	assert.NotEqual(t, withoutCohere.Version(), withCohere.Version(),
+		"a provider registered with no models must still change the version")
+}
+
 func TestWithProvider_EmptyKeyFailsBuild(t *testing.T) {
 	t.Parallel()
 
