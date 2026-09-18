@@ -67,12 +67,6 @@ const (
 	ModelMetadataPublisher = "publisher"
 )
 
-// OfferingForModel returns the Vertex offering for a bare publisher model
-// ID. ok is false for a model the catalog does not offer.
-func OfferingForModel(model string) (catalog.Offering, bool) {
-	return Catalog().Resolve(model)
-}
-
 // Reasoning-effort values Vertex accepts. llm.ReasoningEffort is an open
 // string type whose valid vocabulary is provider-owned, so the two
 // publishers do not share one set: Gemini's thinking levels are

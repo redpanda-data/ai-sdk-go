@@ -50,17 +50,6 @@ func TestCatalogProviderName(t *testing.T) {
 	assert.Equal(t, llm.ProviderID("gcp.vertex"), vertex.Catalog().Provider())
 }
 
-func TestOfferingForModel(t *testing.T) {
-	t.Parallel()
-
-	got, ok := vertex.OfferingForModel(vertex.ModelClaudeSonnet5)
-	require.True(t, ok, "bare model %q should resolve", vertex.ModelClaudeSonnet5)
-	assert.Equal(t, vertex.ModelClaudeSonnet5, got.ID)
-
-	_, ok = vertex.OfferingForModel("gemini-99-ultra")
-	assert.False(t, ok, "unknown model must not resolve")
-}
-
 // TestOfferingAttributes checks every offering carries its publisher.
 // The publisher is the one attribute the request path needs that the
 // offering ID does not already carry, so a missing or drifted value is a

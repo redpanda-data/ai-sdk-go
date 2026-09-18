@@ -112,14 +112,13 @@ shape.
   `"google"` must rewrite it before bumping. Vertex's key is `gcp.vertex`.
 - **Vertex offering IDs are the bare publisher IDs** (`claude-sonnet-5`,
   not `vertex.claude-sonnet-5`), and `vertex.Offering*` is now
-  `vertex.Model*`. `OfferingForModel`, `LocationsForModel` and
-  `IsModelAvailableAtLocation` no longer strip a `vertex.` prefix: they
-  take a `string`, so a caller still passing the prefixed form compiles
-  clean and gets `ok == false` / `nil` / `false` — a silently missing
-  model, not a compile error. `catalog/snapshot.json` is the read format
-  for non-Go consumers, so these IDs change under them. Consumers that
-  persisted a prefixed ID must rewrite it before bumping; after the
-  first stored row this becomes a data migration, not a revert.
+  `vertex.Model*`. `LocationsForModel` and `IsModelAvailableAtLocation` no
+  longer strip a `vertex.` prefix: they take a `string`, so a caller still
+  passing the prefixed form compiles clean and gets `nil` / `false` — a
+  silently missing model, not a compile error. `catalog/snapshot.json` is
+  the read format for non-Go consumers, so these IDs change under them.
+  Consumers that persisted a prefixed ID must rewrite it before bumping;
+  after the first stored row this becomes a data migration, not a revert.
 - **`vertex.ModelMetadataVertexModel` and its `vertex_model` attribute are
   gone.** The attribute held the bare wire model ID, which was the offering
   ID with the `vertex.` prefix stripped. Now that the prefix is gone the
@@ -128,6 +127,13 @@ shape.
   on the removed constant; non-Go consumers lose the `vertex_model` entry
   from each Vertex offering's `attributes` list in `catalog/snapshot.json`,
   which the tolerant-reader contract already required them not to depend on.
+- **`vertex.OfferingForModel` is gone.** Its only job was translating a
+  bare model ID into the prefixed catalog key. With the prefix gone it was
+  a verbatim one-line alias of `vertex.Catalog().Resolve`. Call
+  `vertex.Catalog().Resolve(model)` instead — same
+  `(catalog.Offering, bool)` signature, same behaviour. Go consumers get a
+  compile error on the removed function; `catalog/snapshot.json` is
+  unaffected, since the function was never part of the read format.
 - **`catalog/snapshot.json` is now `schema_version` 2.** The field shape
   did not change; the value domain of `id` did. A model ID is no longer
   unique across the snapshot — `claude-sonnet-5` appears under both
