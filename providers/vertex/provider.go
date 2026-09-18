@@ -18,6 +18,7 @@ import (
 	"context"
 
 	"github.com/redpanda-data/ai-sdk-go/catalog"
+	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
 // TODO(maciej): add request transport (RFC-0014 M8).
@@ -38,7 +39,7 @@ func NewProvider(_ context.Context) (*Provider, error) {
 }
 
 // Name returns the provider identifier used in offerings and telemetry.
-func (*Provider) Name() string {
+func (*Provider) Name() llm.ProviderID {
 	return ProviderName
 }
 

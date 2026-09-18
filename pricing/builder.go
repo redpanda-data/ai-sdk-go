@@ -23,6 +23,8 @@ import (
 	"io"
 	"maps"
 	"slices"
+
+	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
 // schemaVersion seeds the catalog version hash. Bump it when the
@@ -39,7 +41,7 @@ const schemaVersion = "v2"
 // catalog — the dependency runs the other way.
 type Source interface {
 	// Provider is the ProviderKey the source's models register under.
-	Provider() string
+	Provider() llm.ProviderID
 	PricingByID() map[string]Info
 }
 
@@ -47,8 +49,8 @@ type Source interface {
 type Option func(*catalogBuilder)
 
 // WithSource registers one source's model pricing under
-// ProviderKey(src.Provider()). Prefer it over WithProvider: the key
-// comes from the source, so no caller hand-types it. A nil src, or one
+// src.Provider(). Prefer it over WithProvider: the key comes from the
+// source, so no caller hand-types it. A nil src, or one
 // reporting an empty Provider(), fails the build.
 func WithSource(src Source) Option {
 	return func(b *catalogBuilder) {
@@ -68,7 +70,7 @@ func WithSource(src Source) Option {
 			return
 		}
 
-		b.registerModels(ProviderKey(src.Provider()), src.PricingByID())
+		b.registerModels(src.Provider(), src.PricingByID())
 	}
 }
 

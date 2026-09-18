@@ -40,7 +40,7 @@ type Provider struct {
 }
 
 // Name returns the provider identifier.
-func (*Provider) Name() string {
+func (*Provider) Name() llm.ProviderID {
 	return ProviderName
 }
 

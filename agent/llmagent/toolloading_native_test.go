@@ -32,10 +32,10 @@ import (
 type nativeSearchModel struct {
 	*fakellm.FakeModel
 
-	provider string
+	provider llm.ProviderID
 }
 
-func (m nativeSearchModel) Provider() string { return m.provider }
+func (m nativeSearchModel) Provider() llm.ProviderID { return m.provider }
 
 func defByName(t *testing.T, defs []llm.ToolDefinition, name string) llm.ToolDefinition {
 	t.Helper()
@@ -54,8 +54,8 @@ func defByName(t *testing.T, defs []llm.ToolDefinition, name string) llm.ToolDef
 func TestNativeDiscoveryAndRestoration(t *testing.T) {
 	t.Parallel()
 
-	for _, provider := range []string{"openai", "anthropic"} {
-		t.Run(provider, func(t *testing.T) {
+	for _, provider := range []llm.ProviderID{"openai", "anthropic"} {
+		t.Run(string(provider), func(t *testing.T) {
 			t.Parallel()
 			registry := newFixtureRegistry(t,
 				fixtureTool{name: "fetch", group: "svc", deferred: true, groupInfo: llm.ToolGroup{Description: "Service records", Instructions: "Use the service carefully."}},
@@ -120,8 +120,8 @@ func TestNativeDiscoveryAndRestoration(t *testing.T) {
 func TestNativeSearchCapabilityFallback(t *testing.T) {
 	t.Parallel()
 
-	for _, provider := range []string{"google", "openaicompat", "bedrock", "openai"} {
-		t.Run(provider, func(t *testing.T) {
+	for _, provider := range []llm.ProviderID{"google", "openaicompat", "bedrock", "openai"} {
+		t.Run(string(provider), func(t *testing.T) {
 			t.Parallel()
 			// Even permissive compatibility capabilities must not enable Responses APIs.
 			fake := fakellm.NewFakeModel(fakellm.WithCapabilities(llm.ModelCapabilities{ToolSearch: provider != "openai", Tools: true, Streaming: true}))
@@ -142,8 +142,8 @@ func TestNativeSearchCapabilityFallback(t *testing.T) {
 func TestForcedLocalDiscovery(t *testing.T) {
 	t.Parallel()
 
-	for _, provider := range []string{"openai", "anthropic"} {
-		t.Run(provider, func(t *testing.T) {
+	for _, provider := range []llm.ProviderID{"openai", "anthropic"} {
+		t.Run(string(provider), func(t *testing.T) {
 			t.Parallel()
 			registry := newFixtureRegistry(t, fixtureTool{name: "fetch", deferred: true})
 			fake := fakellm.NewFakeModel(fakellm.WithCapabilities(llm.ModelCapabilities{Tools: true, Streaming: true, ToolSearch: true}))

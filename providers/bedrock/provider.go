@@ -137,7 +137,7 @@ func NewProvider(ctx context.Context, opts ...ProviderOption) (*Provider, error)
 }
 
 // Name returns the provider identifier.
-func (*Provider) Name() string {
+func (*Provider) Name() llm.ProviderID {
 	return ProviderName
 }
 

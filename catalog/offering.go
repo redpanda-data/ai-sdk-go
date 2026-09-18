@@ -14,7 +14,10 @@
 
 package catalog
 
-import "github.com/redpanda-data/ai-sdk-go/pricing"
+import (
+	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/pricing"
+)
 
 // Offering is one resolved, validated catalog row. It is produced by New,
 // never authored directly: the embedded Entry has been normalized
@@ -29,12 +32,12 @@ import "github.com/redpanda-data/ai-sdk-go/pricing"
 type Offering struct {
 	Entry
 
-	provider string
+	provider llm.ProviderID
 	facts    Facts
 }
 
-// Provider returns the name of the provider serving this offering.
-func (o Offering) Provider() string {
+// Provider returns the provider serving this offering.
+func (o Offering) Provider() llm.ProviderID {
 	return o.provider
 }
 

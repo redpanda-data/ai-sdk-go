@@ -584,11 +584,11 @@ func TestCatalogVersion_DeterministicAndSensitive(t *testing.T) {
 
 // fakeSource stands in for a provider catalog, which pricing cannot import.
 type fakeSource struct {
-	provider string
+	provider llm.ProviderID
 	prices   map[string]Info
 }
 
-func (s fakeSource) Provider() string             { return s.provider }
+func (s fakeSource) Provider() llm.ProviderID     { return s.provider }
 func (s fakeSource) PricingByID() map[string]Info { return s.prices }
 
 func TestWithSource_RegistersUnderProviderName(t *testing.T) {

@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/redpanda-data/ai-sdk-go/catalog"
+	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/providers/anthropic"
 	"github.com/redpanda-data/ai-sdk-go/providers/bedrock"
 	"github.com/redpanda-data/ai-sdk-go/providers/google"
@@ -45,7 +46,7 @@ func TestCatalogProviderMatchesProviderName(t *testing.T) {
 	cases := []struct {
 		name     string
 		provider catalog.Provider
-		want     string
+		want     llm.ProviderID
 	}{
 		{"openai", (*openai.Provider)(nil), "openai"},
 		{"anthropic", (*anthropic.Provider)(nil), "anthropic"},
@@ -83,7 +84,7 @@ func TestProviderKeysArePairwiseDistinct(t *testing.T) {
 		"meta":      meta.Catalog(),
 	}
 
-	seen := make(map[string]string, len(catalogs))
+	seen := make(map[llm.ProviderID]string, len(catalogs))
 	for name, cat := range catalogs {
 		key := cat.Provider()
 		require.NotContainsf(t, seen, key,

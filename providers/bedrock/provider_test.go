@@ -469,7 +469,7 @@ func TestNewModel_SupportedModels(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, model)
 			assert.Equal(t, tt.modelName, model.Name())
-			assert.Equal(t, "aws.bedrock", model.Provider())
+			assert.Equal(t, llm.ProviderID("aws.bedrock"), model.Provider())
 		})
 	}
 }
@@ -1293,7 +1293,7 @@ func TestModelsDiscovery(t *testing.T) {
 	assert.NotEmpty(t, models)
 
 	for _, m := range models {
-		assert.Equal(t, "aws.bedrock", m.Provider())
+		assert.Equal(t, llm.ProviderID("aws.bedrock"), m.Provider())
 		assert.NotEmpty(t, m.ID)
 		assert.NotEmpty(t, m.DisplayName)
 		assert.Positive(t, m.Constraints.MaxInputTokens,

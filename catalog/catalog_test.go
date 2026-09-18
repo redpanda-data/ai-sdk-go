@@ -300,7 +300,7 @@ func TestNewNormalization(t *testing.T) {
 	assert.Equal(t, []Modality{ModalityText}, o.Modalities.Input)
 	assert.Equal(t, []Modality{ModalityText}, o.Modalities.Output)
 	assert.Equal(t, StageGA, o.Life.Stage, "empty Stage defaults to GA")
-	assert.Equal(t, "acme", o.Provider())
+	assert.Equal(t, llm.ProviderID("acme"), o.Provider())
 	assert.Equal(t, "Robin 2", o.Facts().DisplayName)
 }
 

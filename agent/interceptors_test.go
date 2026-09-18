@@ -950,7 +950,7 @@ func (m *testModel) Name() string {
 	return m.name
 }
 
-func (m *testModel) Provider() string {
+func (m *testModel) Provider() llm.ProviderID {
 	return "test"
 }
 

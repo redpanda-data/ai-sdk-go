@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/pricing"
 )
 
@@ -30,7 +31,7 @@ import (
 // follows the context.Context / pricing.Catalog convention: it is the
 // package's central concept.
 type Catalog struct {
-	provider  string
+	provider  llm.ProviderID
 	offerings []Offering     // sorted by ID
 	byID      map[string]int // offering ID -> index into offerings
 	byAlias   map[string]int // alias -> index into offerings
@@ -85,7 +86,7 @@ func WithRegistry(r Registry) Option {
 // Errors are joined and path-qualified:
 //
 //	catalog: anthropic: entries[2] "claude-sonnet-5": Constraints.MaxInputTokens must be > 0
-func New(provider string, entries []Entry, opts ...Option) (*Catalog, error) {
+func New(provider llm.ProviderID, entries []Entry, opts ...Option) (*Catalog, error) {
 	cfg := config{}
 	for _, opt := range opts {
 		opt(&cfg)
@@ -221,7 +222,7 @@ func New(provider string, entries []Entry, opts ...Option) (*Catalog, error) {
 	// Pricing is validated by the pricing builder, which enforces rate
 	// sanity and override consistency; its errors carry the model ID.
 	// WithProvider, not WithSource: c is still mid-construction.
-	if _, err := pricing.NewCatalog(pricing.WithProvider(pricing.ProviderKey(provider), pricingMap(c.offerings))); err != nil {
+	if _, err := pricing.NewCatalog(pricing.WithProvider(provider, pricingMap(c.offerings))); err != nil {
 		errs = append(errs, fmt.Errorf("catalog: %s: %w", provider, err))
 	}
 
@@ -237,7 +238,7 @@ func New(provider string, entries []Entry, opts ...Option) (*Catalog, error) {
 // MustNew is New that panics on error. Intended for provider package
 // initialization, where the entries are compile-time literals and every
 // catalog is constructed by tests.
-func MustNew(provider string, entries []Entry, opts ...Option) *Catalog {
+func MustNew(provider llm.ProviderID, entries []Entry, opts ...Option) *Catalog {
 	c, err := New(provider, entries, opts...)
 	if err != nil {
 		panic(err) //nolint:forbidigo // authoring error, not runtime
@@ -339,8 +340,8 @@ func normalizeEntry(e Entry, facts Facts) Entry {
 	return e
 }
 
-// Provider returns the provider name this catalog was built for.
-func (c *Catalog) Provider() string {
+// Provider returns the provider this catalog was built for.
+func (c *Catalog) Provider() llm.ProviderID {
 	if c == nil {
 		return ""
 	}

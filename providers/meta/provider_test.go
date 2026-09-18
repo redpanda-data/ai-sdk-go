@@ -30,7 +30,7 @@ func TestMuseSpark13Catalog(t *testing.T) {
 
 	p, err := NewProvider("test-key")
 	require.NoError(t, err)
-	assert.Equal(t, "meta", p.Name())
+	assert.Equal(t, llm.ProviderID("meta"), p.Name())
 	assert.Equal(t, "https://api.meta.ai/v1", p.transport.BaseURL)
 	require.Len(t, p.Catalog().All(), 1)
 	o, ok := p.Catalog().Lookup("muse-spark-1.3")
@@ -62,7 +62,7 @@ func TestMuseSpark13Options(t *testing.T) {
 	for _, effort := range []llm.ReasoningEffort{openai.ReasoningEffortMinimal, openai.ReasoningEffortLow, openai.ReasoningEffortMedium, openai.ReasoningEffortHigh, openai.ReasoningEffortXHigh, openai.ReasoningEffortMax} {
 		m, err := p.NewModel("muse-spark-1.3", openai.WithReasoningEffort(effort), openai.WithMaxTokens(1024))
 		require.NoError(t, err)
-		assert.Equal(t, "meta", m.Provider())
+		assert.Equal(t, llm.ProviderID("meta"), m.Provider())
 		assert.Equal(t, "muse-spark-1.3", m.Name())
 		lister, ok := m.(llm.ReasoningEffortLister)
 		require.True(t, ok)

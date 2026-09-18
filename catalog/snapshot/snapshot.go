@@ -76,8 +76,11 @@ func Encode(w io.Writer, catalogs ...*catalog.Catalog) error {
 			continue
 		}
 
+		// The DTO keeps primitives: Provider flattens llm.ProviderID the
+		// same way Model flattens catalog.ModelID, so the wire contract
+		// does not move when a Go type does.
 		prov := providerDTO{
-			Provider: c.Provider(),
+			Provider: string(c.Provider()),
 		}
 
 		for _, o := range c.All() {

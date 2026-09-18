@@ -22,11 +22,12 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
-// ProviderKey is the provider half of a catalog key: the name a provider
-// returns from Name() ("openai", "gcp.gemini", "aws.bedrock", ...). Take
-// it from the provider's ProviderName const rather than hand-typing it;
-// see ErrUnknownProvider for what a wrong key costs.
-type ProviderKey string
+// ProviderKey is an alias for llm.ProviderID, the one provider
+// identifier this module has. It keeps its own name because pricing
+// spells this half of the catalog key "provider key" throughout; an
+// alias rather than a distinct type means no conversion sits between the
+// two spellings. See ErrUnknownProvider for what a wrong key costs.
+type ProviderKey = llm.ProviderID
 
 // modelKey is the composite catalog key: the same bare model ID can
 // carry a different rate card per provider (Vertex and Anthropic both

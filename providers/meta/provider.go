@@ -43,7 +43,7 @@ func NewProvider(apiKey string, opts ...openai.ProviderOption) (*Provider, error
 }
 
 // Name returns the provider identity used by catalog and billing consumers.
-func (*Provider) Name() string { return "meta" }
+func (*Provider) Name() llm.ProviderID { return "meta" }
 
 // Catalog returns the Meta model catalog.
 func (*Provider) Catalog() *catalog.Catalog { return Catalog() }
@@ -88,7 +88,7 @@ type metaModel struct {
 	efforts []llm.ReasoningEffort
 }
 
-func (*metaModel) Provider() string { return "meta" }
+func (*metaModel) Provider() llm.ProviderID { return "meta" }
 
 func (m *metaModel) SupportedReasoningEfforts() []llm.ReasoningEffort {
 	return slices.Clone(m.efforts)

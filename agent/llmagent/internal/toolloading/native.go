@@ -77,7 +77,7 @@ func (l *Loader) prepareNative(defs []llm.ToolDefinition, sess *session.State) (
 
 // NativeLoadedTools returns the tools that hosted search results still in the
 // history have loaded for the given provider.
-func NativeLoadedTools(messages []llm.Message, provider string) map[string]bool {
+func NativeLoadedTools(messages []llm.Message, provider llm.ProviderID) map[string]bool {
 	loaded := make(map[string]bool)
 
 	for _, msg := range messages {

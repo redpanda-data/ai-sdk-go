@@ -121,7 +121,7 @@ func TestDeprecatedOfferingsNameAReplacement(t *testing.T) {
 				continue
 			}
 
-			if _, ok := noCarriedReplacement[cat.Provider()+"/"+o.ID]; ok {
+			if _, ok := noCarriedReplacement[string(cat.Provider())+"/"+o.ID]; ok {
 				continue
 			}
 

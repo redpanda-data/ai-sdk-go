@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/pricing"
 	"github.com/redpanda-data/ai-sdk-go/providers/vertex"
 )
@@ -46,7 +47,7 @@ func TestCatalogBuildsWithDayOneModels(t *testing.T) {
 func TestCatalogProviderName(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, "gcp.vertex", vertex.Catalog().Provider())
+	assert.Equal(t, llm.ProviderID("gcp.vertex"), vertex.Catalog().Provider())
 }
 
 func TestOfferingForModel(t *testing.T) {
