@@ -1,0 +1,32 @@
+---
+# AI-approved merge config for redpanda-data/ai-sdk-go (DEVPROD-4812, phase 1).
+# Read from the BASE REF (trusted), so a PR cannot relax its own guardrails.
+# Bump `version` on every change; it is recorded in each PR's audit record.
+#
+# Baseline exclusions always apply on top of this list: .github/**, terraform/**,
+# release/**, Dockerfiles, iam/ and auth/ dirs, *credential*, *secret*, *.pem, *.key.
+version: 1
+enabled: true
+
+# "Low-risk" size ceiling. PR #215 (catalog + tests, ~320 lines) is well inside.
+max_changed_files: 60
+max_total_lines: 1000
+
+min_confidence: 0.8
+
+# Repo-specific paths that always need a human:
+#   providers/*/provider.go  client construction: API keys / SDK credential chains
+#   Taskfile.yaml, taskfiles/**, .golangci.yaml  define what CI enforces (task test/lint/license)
+#   LICENSE, header.txt  license text and the header template
+excluded_paths:
+  - "providers/*/provider.go"
+  - "Taskfile.yaml"
+  - "taskfiles/**"
+  - ".golangci.yaml"
+  - "LICENSE"
+  - "header.txt"
+
+# Dependency changes are in scope (with supply-chain checks), root or nested.
+dependency_paths:
+  - "**/go.mod"
+  - "**/go.sum"
