@@ -65,9 +65,6 @@ const (
 	// ModelMetadataPublisher is the Vertex publisher segment ("google",
 	// "anthropic").
 	ModelMetadataPublisher = "publisher"
-	// ModelMetadataVertexModel is the bare wire model ID for the request
-	// path. It equals the offering ID today.
-	ModelMetadataVertexModel = "vertex_model"
 )
 
 // OfferingForModel returns the Vertex offering for a bare publisher model
@@ -191,8 +188,7 @@ func entries() []catalog.Entry {
 			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-07-21")},
 			Pricing: geminiFlashPricing(),
 			Attributes: map[string]string{
-				ModelMetadataPublisher:   publisherGoogle,
-				ModelMetadataVertexModel: ModelGemini36Flash,
+				ModelMetadataPublisher: publisherGoogle,
 			},
 		},
 		{
@@ -217,8 +213,7 @@ func entries() []catalog.Entry {
 			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-06-30")},
 			Pricing: claudeSonnet5Pricing(),
 			Attributes: map[string]string{
-				ModelMetadataPublisher:   publisherAnthropic,
-				ModelMetadataVertexModel: ModelClaudeSonnet5,
+				ModelMetadataPublisher: publisherAnthropic,
 			},
 		},
 		{
@@ -243,8 +238,7 @@ func entries() []catalog.Entry {
 			Life:    catalog.Lifecycle{Available: catalog.MustDate("2025-10-15")},
 			Pricing: claudeHaiku45Pricing(),
 			Attributes: map[string]string{
-				ModelMetadataPublisher:   publisherAnthropic,
-				ModelMetadataVertexModel: ModelClaudeHaiku45,
+				ModelMetadataPublisher: publisherAnthropic,
 			},
 		},
 	}

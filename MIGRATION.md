@@ -120,6 +120,14 @@ shape.
   for non-Go consumers, so these IDs change under them. Consumers that
   persisted a prefixed ID must rewrite it before bumping; after the
   first stored row this becomes a data migration, not a revert.
+- **`vertex.ModelMetadataVertexModel` and its `vertex_model` attribute are
+  gone.** The attribute held the bare wire model ID, which was the offering
+  ID with the `vertex.` prefix stripped. Now that the prefix is gone the
+  offering ID is already that bare ID, so the attribute duplicated it on
+  every entry. Read `Offering.ID` instead. Go consumers get a compile error
+  on the removed constant; non-Go consumers lose the `vertex_model` entry
+  from each Vertex offering's `attributes` list in `catalog/snapshot.json`,
+  which the tolerant-reader contract already required them not to depend on.
 - **`catalog/snapshot.json` is now `schema_version` 2.** The field shape
   did not change; the value domain of `id` did. A model ID is no longer
   unique across the snapshot — `claude-sonnet-5` appears under both

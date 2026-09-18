@@ -5562,10 +5562,6 @@
             {
               "key": "publisher",
               "value": "anthropic"
-            },
-            {
-              "key": "vertex_model",
-              "value": "claude-haiku-4-5"
             }
           ],
           "derived": {
@@ -5680,10 +5676,6 @@
             {
               "key": "publisher",
               "value": "anthropic"
-            },
-            {
-              "key": "vertex_model",
-              "value": "claude-sonnet-5"
             }
           ],
           "derived": {
@@ -5782,10 +5774,6 @@
             {
               "key": "publisher",
               "value": "google"
-            },
-            {
-              "key": "vertex_model",
-              "value": "gemini-3.6-flash"
             }
           ],
           "derived": {

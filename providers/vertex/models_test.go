@@ -61,10 +61,10 @@ func TestOfferingForModel(t *testing.T) {
 	assert.False(t, ok, "unknown model must not resolve")
 }
 
-// TestOfferingAttributes checks every offering carries the publisher and
-// the bare wire model, and that the bare model equals the offering ID.
-// The runtime provider builds the request path from these, so a missing
-// or drifted value is a routing bug.
+// TestOfferingAttributes checks every offering carries its publisher.
+// The publisher is the one attribute the request path needs that the
+// offering ID does not already carry, so a missing or drifted value is a
+// routing bug.
 func TestOfferingAttributes(t *testing.T) {
 	t.Parallel()
 
@@ -76,7 +76,6 @@ func TestOfferingAttributes(t *testing.T) {
 
 	for _, o := range vertex.Catalog().All() {
 		assert.Equalf(t, wantPublisher[o.ID], o.Attributes[vertex.ModelMetadataPublisher], "%s publisher", o.ID)
-		assert.Equalf(t, o.ID, o.Attributes[vertex.ModelMetadataVertexModel], "%s vertex_model", o.ID)
 	}
 }
 
@@ -214,9 +213,8 @@ func TestEveryOfferingHasLocations(t *testing.T) {
 	t.Parallel()
 
 	for _, o := range vertex.Catalog().All() {
-		bare := o.Attributes[vertex.ModelMetadataVertexModel]
-		locs := vertex.LocationsForModel(bare)
-		require.NotEmptyf(t, locs, "%s has no servedLocations row for %q", o.ID, bare)
+		locs := vertex.LocationsForModel(o.ID)
+		require.NotEmptyf(t, locs, "%s has no servedLocations row", o.ID)
 		assert.Containsf(t, locs, vertex.LocationGlobal, "%s must be served at global", o.ID)
 	}
 }
