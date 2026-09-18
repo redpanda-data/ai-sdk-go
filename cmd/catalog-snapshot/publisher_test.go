@@ -24,8 +24,8 @@ import (
 )
 
 // TestEveryOfferingDeclaresAPublisher is the tripwire that keeps a newly
-// added model from shipping without a vendor. The console reads
-// Model.publisher to pick a model's brand mark; an offering with no
+// added model from shipping without a vendor. A model-discovery UI reads
+// this attribute to pick a model's brand mark; an offering with no
 // publisher falls through to a neutral glyph, and no fallback covers it.
 //
 // It runs over allCatalogs rather than a fixed list of provider packages,
