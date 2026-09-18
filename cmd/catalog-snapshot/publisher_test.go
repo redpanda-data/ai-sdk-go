@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/redpanda-data/ai-sdk-go/catalog"
 )
@@ -35,30 +36,45 @@ func TestEveryOfferingDeclaresAPublisher(t *testing.T) {
 	t.Parallel()
 
 	for _, cat := range allCatalogs() {
-		want, singleVendor := singleVendorPublishers[cat.Provider()]
+		singleVendor := singleVendorProviders[cat.Provider()]
+		require.Truef(t, singleVendor || multiVendorProviders[cat.Provider()],
+			"%s is in neither singleVendorProviders nor multiVendorProviders", cat.Provider())
 
 		for _, o := range cat.All() {
 			assert.NotEmptyf(t, o.Attributes[catalog.AttributePublisher],
 				"%s/%s declares no %s attribute", cat.Provider(), o.ID, catalog.AttributePublisher)
 
 			if singleVendor {
-				assert.Equalf(t, want, o.Attributes[catalog.AttributePublisher],
+				assert.Equalf(t, cat.Provider(), o.Attributes[catalog.AttributePublisher],
 					"%s/%s publisher", cat.Provider(), o.ID)
 			}
 		}
 	}
 }
 
-// singleVendorPublishers is the publisher every offering of a
-// single-vendor catalog must carry. The provider name is the publisher
-// for these four, and the two multi-word provider names are the reason
-// this is a lookup rather than blanket equality: aws.bedrock is
-// multi-vendor and covered by TestBedrockPublisherMatchesBareIDVendor,
-// and gcp.vertex publishes google and anthropic models and is covered by
-// a want-map in providers/vertex/models_test.go.
-var singleVendorPublishers = map[string]string{
-	"anthropic": "anthropic",
-	"google":    "google",
-	"meta":      "meta",
-	"openai":    "openai",
-}
+// singleVendorProviders are the catalogs whose provider name is the
+// publisher of every offering they carry, so equality against the
+// provider name is the whole check.
+//
+// multiVendorProviders are the rest, where a publisher never equals the
+// provider name and the value is checked in the provider's own package:
+// aws.bedrock by TestPublisherMatchesBareIDVendor in
+// providers/bedrock/publisher_test.go, and gcp.vertex by
+// TestOfferingAttributes in providers/vertex/models_test.go.
+//
+// Every catalog must appear in exactly one of the two. A catalog in
+// neither fails the test above rather than silently keeping the presence
+// check and losing the value check.
+var (
+	singleVendorProviders = map[string]bool{
+		"anthropic": true,
+		"google":    true,
+		"meta":      true,
+		"openai":    true,
+	}
+
+	multiVendorProviders = map[string]bool{
+		"aws.bedrock": true,
+		"gcp.vertex":  true,
+	}
+)
