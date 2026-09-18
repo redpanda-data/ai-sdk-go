@@ -34,13 +34,13 @@ type Provider struct {
 	BaseURL    string
 	HTTPClient *http.Client
 	Timeout    time.Duration
-	name       string // Provider name for observability (e.g., "deepseek", "together")
+	name       llm.ProviderID // Provider name for observability (e.g., "deepseek", "together")
 	client     *openai.Client
 }
 
 // Name returns the provider identifier.
 // Returns the configured name, or "openaicompat" if not set.
-func (p *Provider) Name() string {
+func (p *Provider) Name() llm.ProviderID {
 	if p.name != "" {
 		return p.name
 	}
@@ -120,7 +120,7 @@ func WithHTTPClient(client *http.Client) ProviderOption {
 // If not set, defaults to "openaicompat".
 func WithProviderName(name string) ProviderOption {
 	return func(p *Provider) error {
-		p.name = name
+		p.name = llm.ProviderID(name)
 		return nil
 	}
 }

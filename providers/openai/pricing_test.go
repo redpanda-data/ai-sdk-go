@@ -27,7 +27,7 @@ import (
 func TestGPT56Pricing(t *testing.T) {
 	t.Parallel()
 
-	catalog, err := pricing.NewCatalog(pricing.WithProvider("openai", Catalog().PricingByID()))
+	catalog, err := pricing.NewCatalog(pricing.WithSource(Catalog()))
 	require.NoError(t, err)
 
 	usage := &llm.TokenUsage{
@@ -109,7 +109,7 @@ func TestGPT56Pricing(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			cost, err := catalog.Calculate(tt.model, usage, pricing.CalcRequest{ContextTokens: tt.context})
+			cost, err := catalog.Calculate(ProviderName, tt.model, usage, pricing.CalcRequest{ContextTokens: tt.context})
 			require.NoError(t, err)
 			assert.Empty(t, cost.Unpriced)
 			assert.Equal(t, tt.wantBracket, cost.AppliedBracketMinContextTokens)
@@ -171,33 +171,33 @@ func TestBillingResolvesInvokedModelIDs(t *testing.T) {
 	t.Parallel()
 
 	priceCat, err := pricing.NewCatalog(
-		pricing.WithProvider("openai", Catalog().PricingByID()),
+		pricing.WithSource(Catalog()),
 	)
 	require.NoError(t, err)
 
 	usage := &llm.TokenUsage{InputTokens: 1_000_000, OutputTokens: 1_000_000}
 
 	// Timestamped snapshot: unpriceable directly, priceable after Resolve.
-	_, err = priceCat.Calculate("gpt-4o-2024-11-20", usage, pricing.CalcRequest{})
+	_, err = priceCat.Calculate(ProviderName, "gpt-4o-2024-11-20", usage, pricing.CalcRequest{})
 	require.ErrorIs(t, err, pricing.ErrUnknownModel)
 
 	offering, ok := Catalog().Resolve("gpt-4o-2024-11-20")
 	require.True(t, ok)
 
-	resolved, err := priceCat.Calculate(offering.ID, usage, pricing.CalcRequest{})
+	resolved, err := priceCat.Calculate(ProviderName, offering.ID, usage, pricing.CalcRequest{})
 	require.NoError(t, err)
-	direct, err := priceCat.Calculate(ModelGPT4O, usage, pricing.CalcRequest{})
+	direct, err := priceCat.Calculate(ProviderName, ModelGPT4O, usage, pricing.CalcRequest{})
 	require.NoError(t, err)
 	assert.Equal(t, direct.Total, resolved.Total)
 
 	// Official alias: exact-ID lookup works without resolving.
-	aliased, err := priceCat.Calculate(ModelGPT5_6, usage, pricing.CalcRequest{})
+	aliased, err := priceCat.Calculate(ProviderName, ModelGPT5_6, usage, pricing.CalcRequest{})
 	require.NoError(t, err)
-	sol, err := priceCat.Calculate(ModelGPT5_6Sol, usage, pricing.CalcRequest{})
+	sol, err := priceCat.Calculate(ProviderName, ModelGPT5_6Sol, usage, pricing.CalcRequest{})
 	require.NoError(t, err)
 	assert.Equal(t, sol.Total, aliased.Total)
 
 	// Unknown model: unpriced, never free.
-	_, err = priceCat.Calculate("gpt-99-experimental", usage, pricing.CalcRequest{})
+	_, err = priceCat.Calculate(ProviderName, "gpt-99-experimental", usage, pricing.CalcRequest{})
 	require.ErrorIs(t, err, pricing.ErrUnknownModel)
 }

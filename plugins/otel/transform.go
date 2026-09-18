@@ -143,7 +143,7 @@ func transformPart(part llm.Part) genai.Part {
 			Provider string          `json:"provider"`
 			Tools    []string        `json:"tools,omitempty"`
 			Data     json.RawMessage `json:"data,omitempty"`
-		}{Provider: p.Provider, Tools: p.Tools, Data: p.Data})
+		}{Provider: string(p.Provider), Tools: p.Tools, Data: p.Data})
 		if err != nil {
 			args = json.RawMessage("null")
 		}

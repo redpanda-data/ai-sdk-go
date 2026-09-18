@@ -102,7 +102,7 @@ func TestProviderModels(t *testing.T) {
 		modelNames[i] = model.ID
 		assert.NotEmpty(t, model.ID, "Model ID should not be empty")
 		assert.NotEmpty(t, model.DisplayName, "Model label should not be empty")
-		assert.Equal(t, "openai", model.Provider(), "Provider should be 'openai'")
+		assert.Equal(t, llm.ProviderID("openai"), model.Provider(), "Provider should be 'openai'")
 		assert.Positive(t, model.Constraints.MaxInputTokens,
 			"model %s missing MaxInputTokens — set Constraints on its catalog entry", model.ID)
 		assert.Positive(t, model.Constraints.MaxOutputTokens,

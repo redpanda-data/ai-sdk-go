@@ -42,8 +42,12 @@ const (
 	ModelGemini25FlashLite   = "gemini-2.5-flash-lite"
 )
 
+// ProviderName is the catalog key Provider.Name() returns; see
+// pricing.ProviderKey.
+const ProviderName = "gcp.gemini"
+
 var catalogOnce = sync.OnceValue(func() *catalog.Catalog {
-	return catalog.MustNew("google", entries())
+	return catalog.MustNew(ProviderName, entries())
 })
 
 // Catalog returns the validated Google model catalog: every offering with

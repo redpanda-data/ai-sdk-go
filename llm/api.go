@@ -19,6 +19,16 @@ import (
 	"iter"
 )
 
+// ProviderID is the provider identifier: the key a provider registers its
+// catalog and its pricing under ("openai", "anthropic", "aws.bedrock",
+// "gcp.gemini", "gcp.vertex"). It is a named type so a model ID cannot
+// reach a provider slot, and so the model catalog and the pricing catalog
+// name one concept instead of two.
+//
+// Take it from the provider package's ProviderName constant rather than
+// hand-typing it.
+type ProviderID string
+
 // ModelInfo provides metadata about a model.
 //
 // Use ModelInfo when you only need to query model properties without
@@ -45,9 +55,10 @@ type ModelInfo interface {
 	// display name; resolve it with Catalog().Resolve.
 	Name() string
 
-	// Provider returns the name of the AI provider (e.g., "openai", "anthropic", "google").
-	// This is useful for observability, routing decisions, and provider-specific handling.
-	Provider() string
+	// Provider returns the AI provider serving this model ("openai",
+	// "anthropic", "gcp.gemini"). This is useful for observability,
+	// routing decisions, and provider-specific handling.
+	Provider() ProviderID
 
 	// Capabilities returns what features this model supports.
 	// Use this to check if specific features are available before making requests

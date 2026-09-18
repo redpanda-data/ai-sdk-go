@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/providers/vertex"
 )
 
@@ -29,7 +30,7 @@ func TestProviderName(t *testing.T) {
 
 	p, err := vertex.NewProvider(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, "gcp.vertex", p.Name())
+	assert.Equal(t, llm.ProviderID("gcp.vertex"), p.Name())
 }
 
 // TestProviderCatalog checks the provider surfaces the same catalog the

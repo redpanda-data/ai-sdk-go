@@ -47,7 +47,7 @@ func (m *Model) Name() string {
 }
 
 // Provider returns the provider name.
-func (m *Model) Provider() string {
+func (m *Model) Provider() llm.ProviderID {
 	return m.provider.Name()
 }
 

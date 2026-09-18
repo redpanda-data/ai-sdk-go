@@ -135,7 +135,7 @@ func (rm *RequestMapper) mapMessagesToInputItems(messages []llm.Message) ([]resp
 		for _, part := range msg.Content {
 			switch p := part.(type) {
 			case *llm.ToolSearchPart:
-				if p != nil && p.Provider == providerName {
+				if p != nil && p.Provider == ProviderName {
 					items = append(items, param.Override[responses.ResponseInputItemUnionParam](p.Data))
 				}
 

@@ -22,8 +22,11 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/pricing"
 )
 
+// ProviderName is the catalog key Provider.Name() returns; see pricing.ProviderKey.
+const ProviderName = "openai"
+
 var catalogOnce = sync.OnceValue(func() *catalog.Catalog {
-	return catalog.MustNew("openai", entries())
+	return catalog.MustNew(ProviderName, entries())
 })
 
 // Catalog returns the validated OpenAI model catalog: every offering with

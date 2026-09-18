@@ -30,16 +30,17 @@ import (
 // machinery to actually send LLM requests.
 //
 // You still import a provider package to pick up its curated pricing
-// map (openai.Catalog().PricingByID() here) and the llm package for the
-// TokenUsage shape — the request/response stack is just not used.
+// (openai.Catalog() here) and the llm package for the TokenUsage
+// shape — the request/response stack is just not used.
 func Example_standalone() {
 	// 1. Build a catalog from the SDK's shipped pricing data. Mix
-	//    providers as needed; each map is provider-scoped.
+	//    providers as needed; WithSource reads each provider's key off
+	//    the source, so nothing is hand-typed.
 	catalog, err := pricing.NewCatalog(
-		pricing.WithProvider("openai", openai.Catalog().PricingByID()),
-		// pricing.WithProvider("anthropic", anthropic.Catalog().PricingByID()),
-		// pricing.WithProvider("google",    google.Catalog().PricingByID()),
-		// pricing.WithProvider("bedrock",   bedrock.Catalog().PricingByID()),
+		pricing.WithSource(openai.Catalog()),
+		// pricing.WithSource(anthropic.Catalog()),
+		// pricing.WithSource(google.Catalog()),
+		// pricing.WithSource(bedrock.Catalog()),
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -47,7 +48,7 @@ func Example_standalone() {
 
 	// 2. Price a call. Token counts come from wherever you have them;
 	//    wrap them in an llm.TokenUsage.
-	cost, err := catalog.Calculate("gpt-5", &llm.TokenUsage{
+	cost, err := catalog.Calculate(openai.ProviderName, "gpt-5", &llm.TokenUsage{
 		InputTokens:       1_000_000, // 1M fresh input tokens
 		OutputTokens:      100_000,   // 100k output tokens
 		CachedInputTokens: 500_000,   // 500k cache-read tokens
@@ -74,12 +75,12 @@ func Example_standalone() {
 // caller must decide how to surface the miswiring.
 func Example_unknownModelIsAnError() {
 	catalog, _ := pricing.NewCatalog(
-		pricing.WithProvider("openai", map[string]pricing.Info{
+		pricing.WithProvider(openai.ProviderName, map[string]pricing.Info{
 			"gpt-5": pricing.FlatInfo(1.25, 10.00, 0.125),
 		}),
 	)
 
-	_, err := catalog.Calculate("gpt-99", &llm.TokenUsage{InputTokens: 1000}, pricing.CalcRequest{})
+	_, err := catalog.Calculate(openai.ProviderName, "gpt-99", &llm.TokenUsage{InputTokens: 1000}, pricing.CalcRequest{})
 
 	if errors.Is(err, pricing.ErrUnknownModel) {
 		fmt.Println("unknown model — emit metric, don't bill as $0")
@@ -87,6 +88,27 @@ func Example_unknownModelIsAnError() {
 
 	// Output:
 	// unknown model — emit metric, don't bill as $0
+}
+
+// Example_unknownProviderIsAlertable shows the other miss. ErrUnknownProvider
+// is a mapping bug that prices every call at that site as $0, so alert on it.
+func Example_unknownProviderIsAlertable() {
+	catalog, _ := pricing.NewCatalog(
+		pricing.WithProvider(openai.ProviderName, map[string]pricing.Info{
+			"gpt-5": pricing.FlatInfo(1.25, 10.00, 0.125),
+		}),
+	)
+
+	// "google" is not a registered provider key — the Gemini catalog
+	// registers under "gcp.gemini" — so every lookup at this site misses.
+	_, err := catalog.Calculate("google", "gpt-5", &llm.TokenUsage{InputTokens: 1000}, pricing.CalcRequest{})
+
+	if errors.Is(err, pricing.ErrUnknownProvider) {
+		fmt.Println("unknown provider — alert: every call at this site prices at $0")
+	}
+
+	// Output:
+	// unknown provider — alert: every call at this site prices at $0
 }
 
 // Example_selectorOverrides shows how to encode a premium rate card
@@ -116,14 +138,14 @@ func Example_selectorOverrides() {
 	}
 
 	// A fast-mode call matches the override.
-	fast, _ := catalog.Calculate("claude-opus-4-6", &llm.TokenUsage{
+	fast, _ := catalog.Calculate("anthropic", "claude-opus-4-6", &llm.TokenUsage{
 		InputTokens: 1_000_000,
 	}, pricing.CalcRequest{
 		Selector: pricing.Selector{Speed: llm.SpeedFast},
 	})
 
 	// A standard call falls back to the Default rate card.
-	standard, _ := catalog.Calculate("claude-opus-4-6", &llm.TokenUsage{
+	standard, _ := catalog.Calculate("anthropic", "claude-opus-4-6", &llm.TokenUsage{
 		InputTokens: 1_000_000,
 	}, pricing.CalcRequest{})
 
@@ -151,18 +173,18 @@ func Example_contextBrackets() {
 	)
 
 	catalog, _ := pricing.NewCatalog(
-		pricing.WithProvider("google", map[string]pricing.Info{
+		pricing.WithProvider("gcp.gemini", map[string]pricing.Info{
 			"gemini-2.5-pro": info,
 		}),
 	)
 
 	// Small call — under 200k, base rates apply.
-	small, _ := catalog.Calculate("gemini-2.5-pro", &llm.TokenUsage{
+	small, _ := catalog.Calculate("gcp.gemini", "gemini-2.5-pro", &llm.TokenUsage{
 		InputTokens: 100_000,
 	}, pricing.CalcRequest{ContextTokens: 100_000})
 
 	// Large call — above 200k, bracket rates apply.
-	large, _ := catalog.Calculate("gemini-2.5-pro", &llm.TokenUsage{
+	large, _ := catalog.Calculate("gcp.gemini", "gemini-2.5-pro", &llm.TokenUsage{
 		InputTokens: 300_000,
 	}, pricing.CalcRequest{ContextTokens: 300_000})
 
@@ -189,7 +211,7 @@ func Example_unpricedBuckets() {
 		}),
 	)
 
-	cost, _ := catalog.Calculate("m", &llm.TokenUsage{
+	cost, _ := catalog.Calculate("minimal", "m", &llm.TokenUsage{
 		InputTokens:       1_000,
 		OutputTokens:      500,
 		CachedInputTokens: 200, // non-zero but no configured rate

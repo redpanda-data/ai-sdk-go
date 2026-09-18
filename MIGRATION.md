@@ -32,6 +32,14 @@ tagged mid-sequence.
 | Old | New |
 |---|---|
 | `provider.ModelPricing() map[string]pricing.Info` | `provider.Catalog().PricingByID()` |
+| `Lookup(modelID) (Info, bool)` | `Lookup(provider, modelID) (Info, error)` |
+| `Calculate(modelID, …)` | `Calculate(provider, modelID, …)` |
+| `WithOverride(modelID, info)` | `WithOverride(provider, modelID, info)` |
+| `WithProvider(prov.Name(), prov.Catalog().PricingByID())` | `WithSource(prov.Catalog())` |
+| `WithProvider(provider string, …)` | `WithProvider(provider pricing.ProviderKey, …)` — kept for callers holding a bare map |
+| — | `pricing.ProviderKey` — the provider half of every catalog key |
+| — | `pricing.ErrUnknownProvider` — separable from `ErrUnknownModel`; alert on it, don't just log |
+| — | `openai.ProviderName` (also `anthropic.`, `google.`, `bedrock.`, `vertex.ProviderName`) — the key as a const |
 
 `PricingByID` includes official aliases (e.g. OpenAI's `"gpt-5.6"`), so
 exact-ID billing lookups keep working. Timestamped snapshot IDs (as
@@ -43,7 +51,20 @@ off, ok := openai.Catalog().Resolve(resp.InvokedModelID)
 if !ok {
     // unknown model: treat as UNPRICED, never as free
 }
-cost, err := priceCat.Calculate(off.ID, resp.Usage, req)
+// Calculate and Lookup now take the ProviderKey first: the same bare
+// model ID can carry a different rate card per provider.
+//
+// Take the key from the provider's ProviderName const (untyped string,
+// no cast); a hand-typed literal is the one break the compiler cannot catch.
+cost, err := priceCat.Calculate(openai.ProviderName, off.ID, resp.Usage, req)
+switch {
+case errors.Is(err, pricing.ErrUnknownProvider):
+    // Mapping bug — every call at this site prices at $0. Alert, don't just log.
+case errors.Is(err, pricing.ErrUnknownModel):
+    // New model under a known provider: treat as UNPRICED, never as free.
+case err != nil:
+    // other error
+}
 ```
 
 ### Authoring / provider-specific types
@@ -83,6 +104,53 @@ shape.
 - **`llm.Response.InvokedModelID`** now reports catalog offering IDs
   where the provider reports a snapshot the catalog recognises;
   unrecognised IDs pass through unchanged.
+- **The Google catalog's provider key is now `gcp.gemini`, not
+  `google`** — in Go, and in `catalog/snapshot.json`, whose `provider`
+  field read `google`. It is the value `google.Catalog().Provider()` and
+  `google.ProviderName` return. A hand-typed `google` misses every Gemini
+  lookup and prices it at $0. Non-Go consumers that persisted or filter on
+  `"google"` must rewrite it before bumping. Vertex's key is `gcp.vertex`.
+- **Vertex offering IDs are the bare publisher IDs** (`claude-sonnet-5`,
+  not `vertex.claude-sonnet-5`), and `vertex.Offering*` is now
+  `vertex.Model*`. `LocationsForModel` and `IsModelAvailableAtLocation` no
+  longer strip a `vertex.` prefix: they take a `string`, so a caller still
+  passing the prefixed form compiles clean and gets `nil` / `false` — a
+  silently missing model, not a compile error. `catalog/snapshot.json` is
+  the read format for non-Go consumers, so these IDs change under them.
+  Consumers that persisted a prefixed ID must rewrite it before bumping;
+  after the first stored row this becomes a data migration, not a revert.
+- **`vertex.ModelMetadataVertexModel` and its `vertex_model` attribute are
+  gone.** The attribute held the bare wire model ID, which was the offering
+  ID with the `vertex.` prefix stripped. Now that the prefix is gone the
+  offering ID is already that bare ID, so the attribute duplicated it on
+  every entry. Read `Offering.ID` instead. Go consumers get a compile error
+  on the removed constant; non-Go consumers lose the `vertex_model` entry
+  from each Vertex offering's `attributes` list in `catalog/snapshot.json`,
+  which the tolerant-reader contract already required them not to depend on.
+- **`vertex.OfferingForModel` is gone.** Its only job was translating a
+  bare model ID into the prefixed catalog key. With the prefix gone it was
+  a verbatim one-line alias of `vertex.Catalog().Resolve`. Call
+  `vertex.Catalog().Resolve(model)` instead — same
+  `(catalog.Offering, bool)` signature, same behaviour. Go consumers get a
+  compile error on the removed function; `catalog/snapshot.json` is
+  unaffected, since the function was never part of the read format.
+- **`catalog/snapshot.json` is now `schema_version` 2.** The field shape
+  did not change; the value domain of `id` did. A model ID is no longer
+  unique across the snapshot — `claude-sonnet-5` appears under both
+  `anthropic` and `gcp.vertex` with different rate cards — so a consumer
+  MUST key an offering by `{provider, id}` and never by `id` alone. The
+  tolerant-reader contract does not cover this: ignoring unknown fields
+  does not help a consumer that holds one entry per ID. The shared
+  `facts` map stays keyed by model ID, because facts are
+  provider-independent and `Encode` rejects a conflict across providers.
+  This is the exported `snapshot.SchemaVersion`, which is a different
+  constant from the pricing hash seed below.
+- **`Cost.CatalogVersion` changes at this release.** The hash seed moved
+  from `v1` to `v2` — the unexported `pricing.schemaVersion`, not the
+  snapshot version above — and that alone makes every `Version()` differ
+  even where the rate data is byte-identical; the hash now also folds in
+  the provider and the known-provider set. Stored versions from before
+  the bump stay valid for historical rows and will not recur.
 
 ### Unknown models
 
@@ -90,3 +158,12 @@ shape.
 know the model. Treat unknown as *stop enforcing* — do not assume
 capabilities, constraints, or pricing for it, and never bill it as
 free.
+
+On the pricing side there are now two distinct misses, and an
+`ErrUnknownModel` guard alone does not cover both. A wrong `ProviderKey`
+— a hand-typed `"google"` where the catalog registered `"gcp.gemini"`,
+or any provider the catalog carries no rates for — surfaces as
+`ErrUnknownProvider`, not `ErrUnknownModel`. Code that only checks for
+`ErrUnknownModel` treats that mapping bug as some other error and can let
+every call at the site price at $0. Branch on `ErrUnknownProvider` first
+and alert on it; see the `Calculate` example above.

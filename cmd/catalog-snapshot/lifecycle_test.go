@@ -40,32 +40,61 @@ func allCatalogs() []*catalog.Catalog {
 	}
 }
 
-// TestVertexPricingDoesNotCollide is the namespacing guard. Vertex model
-// names are byte-identical to the Gemini-API and Anthropic-direct
-// providers', so a merged pricing catalog would reject the shared bare IDs.
-// Vertex keys every offering vertex.<model> to keep them distinct.
+// TestVertexPricingDoesNotCollide guards the {provider, model} keying:
+// Vertex model IDs are byte-identical to the Gemini-API and
+// Anthropic-direct ones and must still coexist in one pricing catalog.
 //
 // It pairs Vertex against each other provider in turn (rather than merging
 // all five at once) so the check isolates Vertex: a pre-existing collision
 // between two other providers, which production never merges, cannot fail
-// this test. pricing.NewCatalog returns a duplicate-pricing error on any
-// shared key, so a NoError result proves the prefix does its job.
+// this test. NewCatalog errors on any {provider, model} clash, so a
+// NoError result proves the composite key does its job.
 func TestVertexPricingDoesNotCollide(t *testing.T) {
 	t.Parallel()
-
-	vertexPricing := vertex.Catalog().PricingByID()
 
 	others := []*catalog.Catalog{
 		anthropic.Catalog(), bedrock.Catalog(), google.Catalog(), meta.Catalog(), openai.Catalog(),
 	}
 
 	for _, other := range others {
+		// Pin the premise, or the guard passes vacuously once no ID is shared.
+		if other.Provider() == anthropic.ProviderName {
+			require.Contains(t, other.PricingByID(), vertex.ModelClaudeSonnet5,
+				"anthropic must still share the bare claude-sonnet-5 ID for this guard to mean anything")
+		}
+
 		_, err := pricing.NewCatalog(
-			pricing.WithProvider(other.Provider(), other.PricingByID()),
-			pricing.WithProvider(vertex.Catalog().Provider(), vertexPricing),
+			pricing.WithSource(other),
+			pricing.WithSource(vertex.Catalog()),
 		)
 		require.NoErrorf(t, err, "vertex pricing collides with %s", other.Provider())
 	}
+}
+
+// TestVertexAndAnthropicPriceSonnet5Differently compares the whole rate
+// card, not Default.Base: Vertex resells claude-sonnet-5 at Anthropic's
+// base rate and differs only in its regional premium overrides.
+func TestVertexAndAnthropicPriceSonnet5Differently(t *testing.T) {
+	t.Parallel()
+
+	cat, err := pricing.NewCatalog(
+		pricing.WithSource(anthropic.Catalog()),
+		pricing.WithSource(vertex.Catalog()),
+	)
+	require.NoError(t, err)
+
+	direct, err := cat.Lookup(anthropic.ProviderName, anthropic.ModelClaudeSonnet5)
+	require.NoError(t, err)
+
+	viaVertex, err := cat.Lookup(vertex.ProviderName, vertex.ModelClaudeSonnet5)
+	require.NoError(t, err)
+
+	assert.NotEqual(t, direct, viaVertex,
+		"claude-sonnet-5 must price differently under gcp.vertex (regional premiums) than under anthropic-direct")
+	assert.Empty(t, direct.Overrides,
+		"anthropic-direct claude-sonnet-5 has no regional overrides")
+	assert.NotEmpty(t, viaVertex.Overrides,
+		"vertex claude-sonnet-5 carries per-region premium overrides")
 }
 
 // TestDeprecatedOfferingsNameAReplacement is a tripwire: an offering with a
@@ -79,10 +108,11 @@ func TestVertexPricingDoesNotCollide(t *testing.T) {
 func TestDeprecatedOfferingsNameAReplacement(t *testing.T) {
 	t.Parallel()
 
+	// Keyed by "provider/ID": bare IDs are no longer unique across providers.
 	noCarriedReplacement := map[string]string{
 		// Google recommends Gemini 3.1 Flash-Lite or Gemma 4; the google
 		// catalog carries neither.
-		"gemini-2.5-flash-lite": "gemini-3.1-flash-lite / gemma-4",
+		"gcp.gemini/gemini-2.5-flash-lite": "gemini-3.1-flash-lite / gemma-4",
 	}
 
 	for _, cat := range allCatalogs() {
@@ -91,7 +121,7 @@ func TestDeprecatedOfferingsNameAReplacement(t *testing.T) {
 				continue
 			}
 
-			if _, ok := noCarriedReplacement[o.ID]; ok {
+			if _, ok := noCarriedReplacement[string(cat.Provider())+"/"+o.ID]; ok {
 				continue
 			}
 
