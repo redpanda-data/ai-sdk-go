@@ -53,6 +53,17 @@ DEFAULT_DEP_PATHS = [
 ]
 
 
+def _as_number(value, name: str, default, reasons: list[str]):
+    """Numeric config with a reason on garbage (not a crash). bool is not a
+    number here either."""
+    if value is None:
+        return default
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        reasons.append(f"config `{name}` must be a number")
+        return default
+    return value
+
+
 def _as_list(value, name: str, reasons: list[str]) -> list[str]:
     """A YAML scalar where a list was meant becomes a one-element list; any
     other non-list type is a config error and disqualifies the PR."""
@@ -66,13 +77,42 @@ def _as_list(value, name: str, reasons: list[str]) -> list[str]:
     return []
 
 
+def _unreviewable(f: dict[str, Any]) -> bool:
+    """A changed file with no patch is binary or too large for GitHub to
+    render: the model would have nothing to review, yet its additions/deletions
+    can be 0 and slip past the size gate. Pure deletions and zero-change renames
+    also have no patch but hide nothing, so they stay reviewable."""
+    if f.get("has_patch", True):
+        return False
+    zero = int(f.get("additions", 0)) == 0 and int(f.get("deletions", 0)) == 0
+    if f.get("status") == "removed":
+        return False
+    if f.get("status") == "renamed" and zero:
+        return False
+    return True
+
+
 def evaluate(
     config: dict[str, Any],
     files: list[dict[str, Any]],
     pr: dict[str, Any],
     config_present: bool,
+    skipped: bool = False,
 ) -> dict[str, Any]:
     reasons: list[str] = []
+
+    if skipped:
+        reasons.append("opt-out label present: author excluded this PR from AI approval")
+
+    if any(not f.get("filename") for f in files):
+        reasons.append("changed-files list contains an entry without a filename")
+    files = [f for f in files if f.get("filename")]
+    unreviewable = sorted(f["filename"] for f in files if _unreviewable(f))
+    if unreviewable:
+        reasons.append(
+            "file(s) with no reviewable patch (binary or too large): "
+            + ", ".join(unreviewable)
+        )
 
     if not config_present:
         reasons.append("no versioned config at the configured path on the base ref")
@@ -120,8 +160,8 @@ def evaluate(
     if touched_excluded:
         reasons.append("touches excluded path(s): " + ", ".join(touched_excluded))
 
-    max_files = int(config.get("max_changed_files", 50))
-    max_lines = int(config.get("max_total_lines", 800))
+    max_files = int(_as_number(config.get("max_changed_files"), "max_changed_files", 50, reasons))
+    max_lines = int(_as_number(config.get("max_total_lines"), "max_total_lines", 800, reasons))
     changed_files = len(files)
     total_lines = sum(
         int(f.get("additions", 0)) + int(f.get("deletions", 0)) for f in files
@@ -142,6 +182,7 @@ def evaluate(
         for f in files
     )
 
+    threshold = float(_as_number(config.get("min_confidence"), "min_confidence", 0.8, reasons))
     return {
         "eligible": len(reasons) == 0,
         "reasons": reasons,
@@ -149,7 +190,7 @@ def evaluate(
         "is_dependency": is_dependency,
         "changed_files": changed_files,
         "total_lines": total_lines,
-        "confidence_threshold": float(config.get("min_confidence", 0.8)),
+        "confidence_threshold": threshold,
     }
 
 
@@ -159,10 +200,12 @@ def main() -> int:
     ap.add_argument("--files", required=True)
     ap.add_argument("--pr", required=True)
     ap.add_argument("--config-present", default="true")
+    ap.add_argument("--skipped", default="false")
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
 
     present = args.config_present.lower() == "true"
+    skipped = args.skipped.lower() == "true"
     # A malformed config must make the PR ineligible, never crash the step.
     try:
         config = yaml.safe_load(open(args.config).read() or "") or {}
@@ -174,7 +217,7 @@ def main() -> int:
     files = json.load(open(args.files)) or []
     pr = json.load(open(args.pr)) or {}
 
-    result = evaluate(config, files, pr, present)
+    result = evaluate(config, files, pr, present, skipped=skipped)
     with open(args.out, "w") as fh:
         json.dump(result, fh, indent=2)
     print(json.dumps(result, indent=2))

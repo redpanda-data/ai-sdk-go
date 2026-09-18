@@ -32,11 +32,17 @@ inputs:
   dry_run:
     description: When "true", evaluate + comment only — never approve or merge.
     default: "true"
+  skipped:
+    description: >-
+      "true" when the PR carries the opt-out label. Handled INSIDE the run (not
+      by skipping the job) so a label added after an approval still revokes the
+      approval and disables auto-merge.
+    default: "false"
 
 runs:
   using: composite
   steps:
-    - uses: actions/setup-python@v5
+    - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
       with:
         python-version: "3.12"
 
@@ -63,11 +69,12 @@ runs:
           : > config.yml
         fi
         gh api --paginate "repos/$REPO/pulls/$PR/files" \
-          --jq '[.[] | {filename, status, additions, deletions, previous_filename}]' \
+          --jq '[.[] | {filename, status, additions, deletions, previous_filename,
+                         has_patch: (.patch != null)}]' \
           | jq -s 'add' > files.json
         gh api "repos/$REPO/pulls/$PR" \
           --jq '{number, title, body, additions, deletions, changed_files,
-                 author: .user.login, base: .base.ref,
+                 author: .user.login, author_association, base: .base.ref,
                  head_sha: .head.sha}' > pr.json
         # Org membership is checked against the org via the App token, NOT
         # inferred from author_association: private membership (GitHub's
@@ -75,12 +82,8 @@ runs:
         # Requires the App to have Organization -> Members: read.
         # 204 = member, 404 = not a member. Anything else (403 = App lacks
         # Members:read, 401, 429, network) is a CHECK FAILURE: still treated as
-        # non-member (fail closed) but surfaced distinctly.
-        # REQUIREMENT: the distinction must reach the sticky PR audit comment,
-        # not just this run log. A teammate reading "X is not a member" about
-        # an org owner won't open the run; the comment has to say "the check
-        # broke, fix the App permission". That is why membership_check_status
-        # is carried into pr.json and guardrails.py renders a separate reason.
+        # non-member (fail closed) but surfaced distinctly so operators can see
+        # the check itself broke rather than the author being an outsider.
         AUTHOR="$(jq -r .author pr.json)"
         MEMBER=false
         MEMBER_STATUS=""
@@ -88,7 +91,7 @@ runs:
           MEMBER=true
           MEMBER_STATUS=204
         else
-          MEMBER_STATUS="$(sed -n 's/.*(HTTP \([0-9]*\)).*/\1/p' <<<"$OUT" | head -1)"
+          MEMBER_STATUS="$(printf '%s' "$OUT" | grep -oE 'HTTP [0-9]{3}' | head -1 | grep -oE '[0-9]{3}' || true)"
           if [ "$MEMBER_STATUS" != "404" ]; then
             echo "::warning::org membership check for '$AUTHOR' returned HTTP ${MEMBER_STATUS:-unknown} (expected 204/404); treating as NON-member. Verify the App has Organization -> Members: read. gh: $OUT"
           fi
@@ -101,11 +104,15 @@ runs:
     - name: Evaluate guardrails
       id: guard
       shell: bash
+      env:
+        CONFIG_PRESENT: ${{ steps.ctx.outputs.config_present }}
+        SKIPPED: ${{ inputs.skipped }}
       run: |
         set -euo pipefail
         python "$GITHUB_ACTION_PATH/scripts/guardrails.py" \
           --config config.yml --files files.json --pr pr.json \
-          --config-present "${{ steps.ctx.outputs.config_present }}" \
+          --config-present "$CONFIG_PRESENT" \
+          --skipped "$SKIPPED" \
           --out guardrails.json
         echo "eligible=$(jq -r .eligible guardrails.json)" >> "$GITHUB_OUTPUT"
 
@@ -136,20 +143,23 @@ runs:
 
     - name: Render audit record (used as the review body)
       shell: bash
+      env:
+        RUN_URL: ${{ inputs.run_url }}
+        DRY_RUN: ${{ inputs.dry_run }}
       run: |
         set -euo pipefail
         python "$GITHUB_ACTION_PATH/scripts/audit.py" \
           --guardrails guardrails.json \
           --verdict "$( [ -f verdict.json ] && echo verdict.json || echo '' )" \
           --decision decision.json \
-          --run-url "${{ inputs.run_url }}" --dry-run "${{ inputs.dry_run }}" \
+          --run-url "$RUN_URL" --dry-run "$DRY_RUN" \
           --out audit.md
 
     # Not approving on this run: withdraw any approval this bot gave earlier
     # so a stale approval cannot carry a new, unreviewed commit to merge.
     # Best-effort (dismissal on protected branches may need admin); the ruleset
     # setting "dismiss stale approvals on push" is the REQUIRED primary control.
-    - name: Dismiss prior bot approval (not approving this run)
+    - name: Withdraw prior bot approval + disable auto-merge (not approving this run)
       if: steps.decide.outputs.approve != 'true' && inputs.dry_run != 'true'
       shell: bash
       env:
@@ -159,13 +169,16 @@ runs:
         BOT: ${{ inputs.bot_login }}
       run: |
         set -uo pipefail
+        # Covers new commits AND the opt-out label being added after an approval:
+        # the earlier approval must not carry the PR to merge.
         gh api --paginate "repos/$REPO/pulls/$PR/reviews" \
           --jq ".[] | select(.state==\"APPROVED\" and .user.login==\"$BOT\") | .id" \
         | while read -r RID; do
             gh api --method PUT "repos/$REPO/pulls/$PR/reviews/$RID/dismissals" \
-              -f message="Superseded: the latest commits were not auto-approved." \
+              -f message="Withdrawn: this PR is no longer auto-approved (new commits or opt-out)." \
               -f event="DISMISS" >/dev/null || echo "::warning::could not dismiss review $RID"
           done
+        gh pr merge "$PR" --repo "$REPO" --disable-auto >/dev/null 2>&1 || true
         true
 
     - name: Approve + enable auto-merge (pinned to the reviewed commit)
@@ -181,8 +194,8 @@ runs:
         REVIEWED="$(jq -r .head_sha pr.json)"
         CURRENT="$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha)"
         if [ "$REVIEWED" != "$CURRENT" ]; then
-          echo "::error::head moved during review ($REVIEWED -> $CURRENT); not approving"
-          exit 1
+          echo "::notice::head moved during review ($REVIEWED -> $CURRENT); not approving this run — the new push re-evaluates"
+          exit 0
         fi
         # Pin the approval to the exact SHA that was reviewed.
         gh api --method POST "repos/$REPO/pulls/$PR/reviews" \
@@ -198,18 +211,23 @@ runs:
         GH_TOKEN: ${{ inputs.token }}
         REPO: ${{ inputs.repo }}
         PR: ${{ inputs.pr_number }}
+        BOT: ${{ inputs.bot_login }}
+        RUN_URL: ${{ inputs.run_url }}
+        DRY_RUN: ${{ inputs.dry_run }}
+        APPROVE_OUTCOME: ${{ steps.approve.outcome }}
       run: |
         set -euo pipefail
         python "$GITHUB_ACTION_PATH/scripts/audit.py" \
           --guardrails guardrails.json \
           --verdict "$( [ -f verdict.json ] && echo verdict.json || echo '' )" \
           --decision "$( [ -f decision.json ] && echo decision.json || echo '' )" \
-          --run-url "${{ inputs.run_url }}" --dry-run "${{ inputs.dry_run }}" \
-          --approve-outcome "${{ steps.approve.outcome }}" --out audit.md
+          --run-url "$RUN_URL" --dry-run "$DRY_RUN" \
+          --approve-outcome "$APPROVE_OUTCOME" --out audit.md
         cat audit.md >> "$GITHUB_STEP_SUMMARY"
         MARKER='<!-- ai-approved-merge -->'
+        # Match only the bot's own comment: a user could pre-seed the marker.
         CID=$(gh api --paginate "repos/$REPO/issues/$PR/comments" \
-                --jq "map(select(.body | contains(\"$MARKER\"))) | .[0].id // empty")
+                --jq "map(select(.user.login==\"$BOT\" and (.body | contains(\"$MARKER\")))) | .[0].id // empty" | head -1)
         if [ -n "$CID" ]; then
           gh api --method PATCH "repos/$REPO/issues/comments/$CID" -F body=@audit.md >/dev/null
         else

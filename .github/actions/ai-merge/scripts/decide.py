@@ -20,20 +20,16 @@ import sys
 
 from common import load_json
 
-SUPPLY_CHAIN_FLAGS = (
-    "new_maintainers",
-    "unusual_version_jump",
-    "added_install_scripts",
-)
+SUPPLY_CHAIN_FLAGS = ("new_maintainers", "unusual_version_jump", "added_install_scripts")
 
 
 def _unit_float(value):
-    """A finite float in [0, 1], else None. Rejects NaN/inf, which would
-    otherwise slip past a `<` comparison."""
-    try:
-        f = float(value)
-    except (TypeError, ValueError):
+    """A finite float in [0, 1], else None. Accepts only real numerics: bool
+    is rejected explicitly (float(True) == 1.0 would pass any threshold), and
+    strings are rejected because the schema says number, not "0.9"/"NaN"."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
+    f = float(value)
     if math.isnan(f) or math.isinf(f) or not 0.0 <= f <= 1.0:
         return None
     return f

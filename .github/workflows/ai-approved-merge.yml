@@ -6,17 +6,24 @@
 # public repo use reusable workflows/actions from a private repo. Source commit
 # and re-sync steps: .github/actions/ai-merge/scripts/README.md
 #
-# Security model: the action runs from the PR's BASE ref, checked out into
-# ./mechanism. The PR head is never checked out, so a PR cannot modify the
-# guardrails that evaluate it. Config is read from the base ref by the action.
+# Security model (the invariant: a PR can never alter what judges it):
+# - Trigger is `pull_request_target`, so THIS workflow file is read from the
+#   base branch, never from the PR head.
+# - The job runs only when the base is the repository's DEFAULT branch, which
+#   is protected by the ruleset. Otherwise anyone could push a branch with a
+#   modified mechanism and open a PR against it.
+# - The action is checked out from the PR's BASE ref into ./mechanism; the PR
+#   head is never checked out or executed. Config is read from the base ref.
+# - A guardrail tightening on main applies to an open PR on its next sync.
 #
-# Repo opt-in: every PR is evaluated automatically (no per-PR label). Add the
-# `ai-merge-skip` label to exclude a PR. Fail-closed: only ever ADDS approvals.
+# Repo opt-in: every non-draft PR is evaluated automatically (no per-PR label).
+# Add `ai-merge-skip` to exclude a PR; adding it after an approval withdraws the
+# approval and disables auto-merge. Fail-closed: only ever ADDS approvals.
 name: AI Approved Merge
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
 
 permissions:
   contents: read
@@ -32,14 +39,22 @@ jobs:
     concurrency:
       group: ai-merge-${{ github.repository }}-${{ github.event.pull_request.number }}
       cancel-in-progress: true
+    # Gate (all must hold): base is the default branch; same-repo head (no
+    # forks); not a GitHub App bot (member bot USER accounts still qualify);
+    # not a draft; and label events only re-run for the opt-out label so other
+    # labels don't trigger a paid model call. The opt-out itself is handled
+    # INSIDE the run (`skipped`), and org membership is verified by the action.
     if: >-
+      github.event.pull_request.base.ref == github.event.repository.default_branch &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.user.type != 'Bot' &&
-      !contains(github.event.pull_request.labels.*.name, 'ai-merge-skip')
+      github.event.pull_request.draft == false &&
+      ((github.event.action != 'labeled' && github.event.action != 'unlabeled') ||
+       github.event.label.name == 'ai-merge-skip')
     timeout-minutes: 15
     steps:
       - name: Check out the mechanism from the BASE ref (never the PR head)
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           path: mechanism
@@ -54,13 +69,13 @@ jobs:
             echo "ok=true" >> "$GITHUB_OUTPUT"
           else
             echo "ok=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::ai-merge mechanism is not on the base ref yet (enrollment PR); nothing to evaluate"
+            echo "::notice::ai-merge mechanism is not on the base ref yet; nothing to evaluate"
           fi
 
       - name: Mint GitHub App token (ai-merge bot)
         id: app
         if: steps.present.outputs.ok == 'true'
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547  # v1
         with:
           app-id: ${{ secrets.AI_MERGE_APP_ID }}
           private-key: ${{ secrets.AI_MERGE_APP_PRIVATE_KEY }}
@@ -79,3 +94,4 @@ jobs:
           base_sha: ${{ github.event.pull_request.base.sha }}
           run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           dry_run: ${{ env.AI_MERGE_DRY_RUN }}
+          skipped: ${{ contains(github.event.pull_request.labels.*.name, 'ai-merge-skip') }}

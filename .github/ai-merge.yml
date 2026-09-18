@@ -5,7 +5,8 @@
 #
 # Baseline exclusions always apply on top of this list: .github/**, terraform/**,
 # release/**, Dockerfiles, iam/ and auth/ dirs, *credential*, *secret*, *.pem, *.key.
-version: 1
+# Binary or patchless files also make a PR ineligible.
+version: 2
 enabled: true
 
 # "Low-risk" size ceiling. PR #215 (catalog + tests, ~320 lines) is well inside.
@@ -15,11 +16,15 @@ max_total_lines: 1000
 min_confidence: 0.8
 
 # Repo-specific paths that always need a human:
-#   providers/*/provider.go  client construction: API keys / SDK credential chains
-#   Taskfile.yaml, taskfiles/**, .golangci.yaml  define what CI enforces (task test/lint/license)
-#   LICENSE, header.txt  license text and the header template
+#   providers/**/provider.go      client construction: API keys / SDK credential chains
+#                                 (** so nested provider packages are covered too)
+#   providers/bedrock/mantle.go   SigV4 signing transport: retrieves and validates AWS credentials
+#   Taskfile.yaml, taskfiles/**, .golangci.yaml   define what CI enforces (task test/lint/license)
+#   LICENSE, header.txt           license text and the header template
+# Guarded by .github/actions/ai-merge/scripts/test_repo_config.py.
 excluded_paths:
-  - "providers/*/provider.go"
+  - "providers/**/provider.go"
+  - "providers/bedrock/mantle.go"
   - "Taskfile.yaml"
   - "taskfiles/**"
   - ".golangci.yaml"
@@ -27,6 +32,8 @@ excluded_paths:
   - "header.txt"
 
 # Dependency changes are in scope (with supply-chain checks), root or nested.
+# Note: GitHub App bots (dependabot/renovate) are skipped at the gate, so this
+# covers bumps by humans and by bot USER accounts that are org members.
 dependency_paths:
   - "**/go.mod"
   - "**/go.sum"

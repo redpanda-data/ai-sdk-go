@@ -11,7 +11,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
+import time
+import urllib.error
 import urllib.request
 
 # Bump whenever the prompt or schema changes. Recorded in the audit trail.
@@ -69,11 +72,13 @@ If any flag is true, the verdict must be "request_changes".
 FENCE_TAGS = ("pr_title", "pr_body", "diff")
 
 
+_CLOSER = re.compile(r"</\s*(" + "|".join(FENCE_TAGS) + r")\s*>", re.IGNORECASE)
+
+
 def _fence(tag: str, text: str) -> str:
-    """Wrap author-controlled text so it cannot break out of ANY delimiter."""
-    safe = text or ""
-    for t in FENCE_TAGS:
-        safe = safe.replace(f"</{t}>", f"</{t} >")
+    """Wrap author-controlled text so it cannot break out of ANY delimiter
+    (case-insensitive, tolerant of whitespace inside the closing tag)."""
+    safe = _CLOSER.sub(lambda m: f"</{m.group(1).lower()} >", text or "")
     return f"<{tag}>\n{safe}\n</{tag}>"
 
 
@@ -95,11 +100,32 @@ def call_anthropic(model: str, system: str, user: str) -> str:
             }
         ).encode(),
     )
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        body = json.load(resp)
-    return "".join(
+    # Two retries with backoff on transient failures (429/5xx/network); anything
+    # else, or exhausting retries, raises and the caller abstains.
+    last: Exception | None = None
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                body = json.load(resp)
+            break
+        except urllib.error.HTTPError as e:
+            last = e
+            if e.code not in (429, 500, 502, 503, 529) or attempt == 2:
+                raise
+        except (urllib.error.URLError, TimeoutError) as e:
+            last = e
+            if attempt == 2:
+                raise
+        time.sleep(2 ** attempt)
+    else:  # pragma: no cover
+        raise last or RuntimeError("anthropic call failed")
+    text = "".join(
         b.get("text", "") for b in body.get("content", []) if b.get("type") == "text"
     )
+    if body.get("stop_reason") == "max_tokens":
+        # Make a truncated response diagnosable instead of a mystery abstention.
+        raise ValueError("model response truncated (stop_reason=max_tokens)")
+    return text
 
 
 def parse_verdict(text: str) -> dict:
