@@ -114,9 +114,17 @@ func (b *catalogBuilder) registerModels(provider ProviderKey, models map[string]
 
 // WithOverride replaces the pricing of an existing {provider, model}
 // entry. An unknown pair, or the same pair passed twice, is an error
-// from NewCatalog rather than last-writer-wins.
+// from NewCatalog rather than last-writer-wins. An empty provider key
+// is reported as such, rather than as an override of an unknown model.
 func WithOverride(provider ProviderKey, modelID string, info Info) Option {
 	return func(b *catalogBuilder) {
+		if provider == "" {
+			b.buildErrs = append(b.buildErrs,
+				errors.New("WithOverride: empty provider key"))
+
+			return
+		}
+
 		key := modelKey{provider: provider, model: modelID}
 		if _, exists := b.overrides[key]; exists {
 			b.buildErrs = append(b.buildErrs,

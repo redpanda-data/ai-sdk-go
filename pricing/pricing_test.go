@@ -649,6 +649,20 @@ func TestWithProvider_EmptyKeyFailsBuild(t *testing.T) {
 	assert.Contains(t, err.Error(), "empty provider key")
 }
 
+// TestWithOverride_EmptyProviderFailsBuild pins that the empty key is
+// named as such. Without the guard the build still fails, but as an
+// override of an unknown model, which points at the model ID.
+func TestWithOverride_EmptyProviderFailsBuild(t *testing.T) {
+	t.Parallel()
+
+	_, err := NewCatalog(
+		WithProvider("openai", map[string]Info{"m": FlatInfo(1.00, 2.00, 0.10)}),
+		WithOverride("", "m", FlatInfo(9.00, 45.00, 0.90)),
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "WithOverride: empty provider key")
+}
+
 func TestWithSource_NilSourceFailsBuild(t *testing.T) {
 	t.Parallel()
 
