@@ -89,7 +89,8 @@ const (
 	//
 	// Deprecated: use [catalog.AttributePublisher]. Every catalog declares a
 	// publisher, so the key is shared rather than Vertex-local; this alias
-	// stays only because callers import it from here.
+	// stays only because callers import it from here, and it is removed in
+	// the breaking release MIGRATION.md describes.
 	ModelMetadataPublisher = catalog.AttributePublisher
 	// ModelMetadataVertexModel is the bare wire model ID (the offering ID
 	// without the vertex. prefix), which goes in the request path.
