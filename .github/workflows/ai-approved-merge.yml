@@ -1,0 +1,97 @@
+---
+# AI-approved merges for low-risk PRs (DEVPROD-4812) — vendored pilot.
+#
+# The mechanism (.github/actions/ai-merge) is VENDORED from
+# redpanda-data/devprod-infra (canonical source, private): GitHub does not let a
+# public repo use reusable workflows/actions from a private repo. Source commit
+# and re-sync steps: .github/actions/ai-merge/scripts/README.md
+#
+# Security model (the invariant: a PR can never alter what judges it):
+# - Trigger is `pull_request_target`, so THIS workflow file is read from the
+#   base branch, never from the PR head.
+# - The job runs only when the base is the repository's DEFAULT branch, which
+#   is protected by the ruleset. Otherwise anyone could push a branch with a
+#   modified mechanism and open a PR against it.
+# - The action is checked out from the PR's BASE ref into ./mechanism; the PR
+#   head is never checked out or executed. Config is read from the base ref.
+# - A guardrail tightening on main applies to an open PR on its next sync.
+#
+# Repo opt-in: every non-draft PR is evaluated automatically (no per-PR label).
+# Add `ai-merge-skip` to exclude a PR; adding it after an approval withdraws the
+# approval and disables auto-merge. Fail-closed: only ever ADDS approvals.
+name: AI Approved Merge
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  AI_MERGE_DRY_RUN: "true"
+  AI_MERGE_MODEL: claude-sonnet-5
+
+jobs:
+  ai-merge:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ai-merge-${{ github.repository }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    # Gate (all must hold): base is the default branch; same-repo head (no
+    # forks); not a GitHub App bot (member bot USER accounts still qualify);
+    # not a draft; and label events only re-run for the opt-out label so other
+    # labels don't trigger a paid model call. The opt-out itself is handled
+    # INSIDE the run (`skipped`), and org membership is verified by the action.
+    if: >-
+      github.event.pull_request.base.ref == github.event.repository.default_branch &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.type != 'Bot' &&
+      github.event.pull_request.draft == false &&
+      ((github.event.action != 'labeled' && github.event.action != 'unlabeled') ||
+       github.event.label.name == 'ai-merge-skip')
+    timeout-minutes: 15
+    steps:
+      - name: Check out the mechanism from the BASE ref (never the PR head)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: mechanism
+          sparse-checkout: .github/actions/ai-merge
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Is the mechanism on the base ref?
+        id: present
+        run: |
+          if [ -f mechanism/.github/actions/ai-merge/action.yml ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::ai-merge mechanism is not on the base ref yet; nothing to evaluate"
+          fi
+
+      - name: Mint GitHub App token (ai-merge bot)
+        id: app
+        if: steps.present.outputs.ok == 'true'
+        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547  # v1
+        with:
+          app-id: ${{ secrets.AI_MERGE_APP_ID }}
+          private-key: ${{ secrets.AI_MERGE_APP_PRIVATE_KEY }}
+
+      - name: Run AI-approved-merge pipeline
+        if: steps.present.outputs.ok == 'true'
+        uses: ./mechanism/.github/actions/ai-merge
+        with:
+          token: ${{ steps.app.outputs.token }}
+          bot_login: ${{ steps.app.outputs.app-slug }}[bot]
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          model: ${{ env.AI_MERGE_MODEL }}
+          config_path: .github/ai-merge.yml
+          repo: ${{ github.repository }}
+          pr_number: ${{ github.event.pull_request.number }}
+          base_sha: ${{ github.event.pull_request.base.sha }}
+          run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          dry_run: ${{ env.AI_MERGE_DRY_RUN }}
+          skipped: ${{ contains(github.event.pull_request.labels.*.name, 'ai-merge-skip') }}
