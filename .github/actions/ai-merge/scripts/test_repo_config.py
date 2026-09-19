@@ -32,6 +32,7 @@ def test_real_config_excludes_credential_and_ci_defining_files():
         "providers/openai/provider.go",
         "providers/bedrock/provider.go",
         "providers/bedrock/mantle.go",
+        "tool/mcp/transport.go",
         "providers/foo/internal/provider.go",
         "Taskfile.yaml",
         "taskfiles/install.yaml",

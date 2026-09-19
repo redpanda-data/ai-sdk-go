@@ -40,12 +40,14 @@ def render(
         )
     elif approve:
         # Reflect what actually happened, not just what was decided.
-        status = (
-            "✅ Auto-approved"
-            if approve_outcome in ("", "success")
-            else f"⚠️ Approval decided but the approve/merge step did not succeed "
-            f"({approve_outcome}) — see run"
-        )
+        if approve_outcome == "head-moved":
+            status = ("⏸️ Approval decided but NOT posted — new commits arrived during "
+                      "review; the new push is re-evaluated")
+        elif approve_outcome in ("", "success"):
+            status = "✅ Auto-approved"
+        else:
+            status = (f"⚠️ Approval decided but the approve/merge step did not succeed "
+                      f"({approve_outcome}) — see run")
     else:
         status = "⏸️ Human review required"
 

@@ -82,7 +82,8 @@ def _unreviewable(f: dict[str, Any]) -> bool:
     render: the model would have nothing to review, yet its additions/deletions
     can be 0 and slip past the size gate. Pure deletions and zero-change renames
     also have no patch but hide nothing, so they stay reviewable."""
-    if f.get("has_patch", True):
+    # has_patch is REQUIRED (fail closed if the projection ever drops it).
+    if f.get("has_patch") is True:
         return False
     zero = int(f.get("additions", 0)) == 0 and int(f.get("deletions", 0)) == 0
     if f.get("status") == "removed":
@@ -183,6 +184,10 @@ def evaluate(
     )
 
     threshold = float(_as_number(config.get("min_confidence"), "min_confidence", 0.8, reasons))
+    if not 0.0 <= threshold <= 1.0:
+        # An out-of-range threshold (e.g. 95 meaning "95%") must not be silently
+        # replaced by a looser default downstream: refuse the PR instead.
+        reasons.append(f"config `min_confidence` must be between 0 and 1 (got {threshold})")
     return {
         "eligible": len(reasons) == 0,
         "reasons": reasons,

@@ -159,8 +159,38 @@ runs:
     # so a stale approval cannot carry a new, unreviewed commit to merge.
     # Best-effort (dismissal on protected branches may need admin); the ruleset
     # setting "dismiss stale approvals on push" is the REQUIRED primary control.
-    - name: Withdraw prior bot approval + disable auto-merge (not approving this run)
-      if: steps.decide.outputs.approve != 'true' && inputs.dry_run != 'true'
+    - name: Approve + enable auto-merge (pinned to the reviewed commit)
+      id: approve
+      if: steps.decide.outputs.approve == 'true' && inputs.dry_run != 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        REPO: ${{ inputs.repo }}
+        PR: ${{ inputs.pr_number }}
+      run: |
+        set -euo pipefail
+        REVIEWED="$(jq -r .head_sha pr.json)"
+        CURRENT="$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha)"
+        if [ "$REVIEWED" != "$CURRENT" ]; then
+          echo "posted=false" >> "$GITHUB_OUTPUT"
+          echo "::notice::head moved during review ($REVIEWED -> $CURRENT); not approving this run — the new push re-evaluates"
+          exit 0
+        fi
+        # Pin the approval to the exact SHA that was reviewed.
+        gh api --method POST "repos/$REPO/pulls/$PR/reviews" \
+          -f event=APPROVE -f commit_id="$REVIEWED" -F body=@audit.md >/dev/null
+        # GitHub merges only once the ruleset's required checks pass, and only
+        # if the head still matches the reviewed SHA.
+        gh pr merge "$PR" --repo "$REPO" --squash --auto --match-head-commit "$REVIEWED"
+        echo "posted=true" >> "$GITHUB_OUTPUT"
+
+    # Runs even when an earlier step failed (always()), and also when the
+    # approve step decided yes but posted nothing (head moved): in every case
+    # where THIS run did not post an approval, no earlier approval may stand.
+    - name: Withdraw prior bot approval + disable auto-merge (this run posted no approval)
+      if: >-
+        always() && inputs.dry_run != 'true' &&
+        (steps.decide.outputs.approve != 'true' || steps.approve.outputs.posted != 'true')
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.token }}
@@ -181,29 +211,6 @@ runs:
         gh pr merge "$PR" --repo "$REPO" --disable-auto >/dev/null 2>&1 || true
         true
 
-    - name: Approve + enable auto-merge (pinned to the reviewed commit)
-      id: approve
-      if: steps.decide.outputs.approve == 'true' && inputs.dry_run != 'true'
-      shell: bash
-      env:
-        GH_TOKEN: ${{ inputs.token }}
-        REPO: ${{ inputs.repo }}
-        PR: ${{ inputs.pr_number }}
-      run: |
-        set -euo pipefail
-        REVIEWED="$(jq -r .head_sha pr.json)"
-        CURRENT="$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha)"
-        if [ "$REVIEWED" != "$CURRENT" ]; then
-          echo "::notice::head moved during review ($REVIEWED -> $CURRENT); not approving this run — the new push re-evaluates"
-          exit 0
-        fi
-        # Pin the approval to the exact SHA that was reviewed.
-        gh api --method POST "repos/$REPO/pulls/$PR/reviews" \
-          -f event=APPROVE -f commit_id="$REVIEWED" -F body=@audit.md >/dev/null
-        # GitHub merges only once the ruleset's required checks pass, and only
-        # if the head still matches the reviewed SHA.
-        gh pr merge "$PR" --repo "$REPO" --squash --auto --match-head-commit "$REVIEWED"
-
     - name: Write audit trail (sticky comment + step summary)
       if: always()
       shell: bash
@@ -214,7 +221,7 @@ runs:
         BOT: ${{ inputs.bot_login }}
         RUN_URL: ${{ inputs.run_url }}
         DRY_RUN: ${{ inputs.dry_run }}
-        APPROVE_OUTCOME: ${{ steps.approve.outcome }}
+        APPROVE_OUTCOME: ${{ steps.approve.outputs.posted == 'false' && 'head-moved' || steps.approve.outcome }}
       run: |
         set -euo pipefail
         python "$GITHUB_ACTION_PATH/scripts/audit.py" \
@@ -227,7 +234,7 @@ runs:
         MARKER='<!-- ai-approved-merge -->'
         # Match only the bot's own comment: a user could pre-seed the marker.
         CID=$(gh api --paginate "repos/$REPO/issues/$PR/comments" \
-                --jq "map(select(.user.login==\"$BOT\" and (.body | contains(\"$MARKER\")))) | .[0].id // empty" | head -1)
+                --jq "map(select(.user.login==\"$BOT\" and (.body | contains(\"$MARKER\")))) | .[0].id // empty" | awk 'NR==1')
         if [ -n "$CID" ]; then
           gh api --method PATCH "repos/$REPO/issues/comments/$CID" -F body=@audit.md >/dev/null
         else

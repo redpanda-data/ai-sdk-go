@@ -50,7 +50,9 @@ def decide(guardrails: dict, verdict) -> dict:
 
     threshold = _unit_float(guardrails.get("confidence_threshold"))
     if threshold is None:
-        threshold = 0.8
+        # Guardrails already refuses out-of-range thresholds; if one still gets
+        # here, fail closed (nothing satisfies > 1.0) rather than relax to 0.8.
+        threshold = 1.01
     confidence = _unit_float(verdict.get("confidence"))
     if confidence is None or confidence < threshold:
         reasons.append(

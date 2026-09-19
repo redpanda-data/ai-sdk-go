@@ -17,7 +17,7 @@ PR_OK = {"author_is_member": True, "membership_check_status": "204", "author": "
 
 def _files(*specs):
     return [
-        {"filename": n, "status": "modified", "additions": a, "deletions": d}
+        {"filename": n, "status": "modified", "additions": a, "deletions": d, "has_patch": True}
         for n, a, d in specs
     ]
 
@@ -124,6 +124,7 @@ def test_renamed_into_excluded_path():
             "status": "renamed",
             "additions": 0,
             "deletions": 0,
+            "has_patch": True,
         }
     ]
     assert not evaluate(CFG, files, PR_OK, True)["eligible"]
@@ -137,6 +138,7 @@ def test_renamed_manifest_still_counts_as_dependency_change():
             "status": "renamed",
             "additions": 1,
             "deletions": 1,
+            "has_patch": True,
         }
     ]
     assert evaluate(CFG, files, PR_OK, True)["is_dependency"] is True
@@ -192,4 +194,18 @@ def test_non_numeric_config_values_fail_closed_with_reason():
 
 def test_file_entry_without_filename_fails_closed():
     r = evaluate(CFG, [{"status": "added", "additions": 1, "deletions": 0}], PR_OK, True)
+    assert not r["eligible"]
+
+
+def test_out_of_range_min_confidence_fails_closed():
+    for v in (95, -1, 1.5):
+        r = evaluate({**CFG, "min_confidence": v}, _files(("a.go", 1, 0)), PR_OK, True)
+        assert not r["eligible"], v
+        assert any("between 0 and 1" in x for x in r["reasons"]), r["reasons"]
+
+
+def test_missing_has_patch_is_treated_as_unreviewable():
+    # The action always sets has_patch; if the projection ever drops it, fail closed.
+    r = evaluate(CFG, [{"filename": "a.go", "status": "modified", "additions": 1, "deletions": 0}],
+                 PR_OK, True)
     assert not r["eligible"]

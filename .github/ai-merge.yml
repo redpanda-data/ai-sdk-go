@@ -19,12 +19,14 @@ min_confidence: 0.8
 #   providers/**/provider.go      client construction: API keys / SDK credential chains
 #                                 (** so nested provider packages are covered too)
 #   providers/bedrock/mantle.go   SigV4 signing transport: retrieves and validates AWS credentials
+#   tool/mcp/transport.go         spawns stdio MCP servers via exec.Command with caller env
 #   Taskfile.yaml, taskfiles/**, .golangci.yaml   define what CI enforces (task test/lint/license)
 #   LICENSE, header.txt           license text and the header template
 # Guarded by .github/actions/ai-merge/scripts/test_repo_config.py.
 excluded_paths:
   - "providers/**/provider.go"
   - "providers/bedrock/mantle.go"
+  - "tool/mcp/transport.go"
   - "Taskfile.yaml"
   - "taskfiles/**"
   - ".golangci.yaml"
@@ -32,8 +34,11 @@ excluded_paths:
   - "header.txt"
 
 # Dependency changes are in scope (with supply-chain checks), root or nested.
-# Note: GitHub App bots (dependabot/renovate) are skipped at the gate, so this
-# covers bumps by humans and by bot USER accounts that are org members.
+# This list REPLACES the mechanism defaults and is intentionally exhaustive for
+# this Go-only repo; add package.json / requirements*.txt etc. if such manifests
+# ever land, or their bumps get no supply-chain checklist.
+# GitHub App bots (dependabot/renovate) are skipped at the gate, so this covers
+# bumps by humans and by bot USER accounts that are org members.
 dependency_paths:
   - "**/go.mod"
   - "**/go.sum"

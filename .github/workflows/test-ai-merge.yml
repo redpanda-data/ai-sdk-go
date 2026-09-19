@@ -3,9 +3,9 @@ name: test-ai-merge
 on:
   push:
     branches: [main]
-    paths: ['.github/actions/ai-merge/**', '.github/workflows/test-ai-merge.yml']
+    paths: ['.github/actions/ai-merge/**', '.github/ai-merge.yml', '.github/workflows/test-ai-merge.yml']
   pull_request:
-    paths: ['.github/actions/ai-merge/**', '.github/workflows/test-ai-merge.yml']
+    paths: ['.github/actions/ai-merge/**', '.github/ai-merge.yml', '.github/workflows/test-ai-merge.yml']
 jobs:
   pytest:
     runs-on: ubuntu-latest

@@ -158,7 +158,24 @@ def test_fence_neutralises_case_and_spacing_variants():
         "+c", ELIGIBLE,
     )
     inner = p.split("<pr_title>\n", 1)[1].split("\n</pr_title>", 1)[0]
-    # No VALID closing tag (any case, no inner whitespace) may survive inside.
-    assert not re.search(r"</(pr_title|pr_body|diff)>", inner, re.IGNORECASE), inner
+    # Pin the REAL property: nothing the sanitizer itself recognises as a
+    # closing tag may survive inside — using the sanitizer's own detector.
+    assert review._CLOSER.search(inner) is None, inner
+    assert "&lt;/diff&gt;" in inner and "&lt;/pr_body&gt;" in inner
     # ...and the outer fence itself is still intact exactly once.
     assert p.count("\n</pr_title>") == 1
+
+
+def test_unusable_threshold_never_approves():
+    # Guardrails refuses out-of-range thresholds; if one leaks through, decide
+    # must not relax to 0.8.
+    for t in (95, -1, None, "0.8"):
+        g = {**ELIGIBLE, "confidence_threshold": t}
+        assert decide(g, {"verdict": "approve", "confidence": 0.99})["approve"] is False, t
+
+
+def test_audit_head_moved_is_not_reported_as_approved():
+    body = render(ELIGIBLE, {"verdict": "approve", "confidence": 0.9},
+                  {"approve": True, "reasons": []}, "http://run", approve_outcome="head-moved")
+    assert "Auto-approved" not in body.split("\n")[1]
+    assert "NOT posted" in body

@@ -78,7 +78,9 @@ _CLOSER = re.compile(r"</\s*(" + "|".join(FENCE_TAGS) + r")\s*>", re.IGNORECASE)
 def _fence(tag: str, text: str) -> str:
     """Wrap author-controlled text so it cannot break out of ANY delimiter
     (case-insensitive, tolerant of whitespace inside the closing tag)."""
-    safe = _CLOSER.sub(lambda m: f"</{m.group(1).lower()} >", text or "")
+    # Emit entities, not a variant of the tag: `</diff >` still reads as a
+    # closer (and matches _CLOSER itself). `&lt;/diff&gt;` cannot parse as one.
+    safe = _CLOSER.sub(lambda m: f"&lt;/{m.group(1).lower()}&gt;", text or "")
     return f"<{tag}>\n{safe}\n</{tag}>"
 
 
