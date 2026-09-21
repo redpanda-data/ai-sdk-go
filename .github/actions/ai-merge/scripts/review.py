@@ -37,8 +37,8 @@ SCHEMA = """{
   }
 }"""
 
-SYSTEM = f"""You are an automated pull-request reviewer that gates auto-merge for \
-LOW-RISK changes only. A human will NOT look at this PR if you approve it, so \
+SYSTEM = f"""You are an automated pull-request reviewer whose approval COUNTS AS the required human review for \
+LOW-RISK changes only. If you approve, no other reviewer will look at this PR before the author merges it, so \
 approve ONLY when you are confident the change is correct, self-contained and \
 low-risk. When in doubt, do NOT approve: abstain with "comment" or "request_changes".
 
@@ -134,14 +134,35 @@ def parse_verdict(text: str) -> dict:
     return json.loads(text[text.find("{") : text.rfind("}") + 1])
 
 
+def strip_generated(diff: str, generated: list[str]) -> str:
+    """Remove the hunks of CI-verified generated files from a unified diff."""
+    if not generated:
+        return diff
+    gen = set(generated)
+    kept: list[str] = []
+    for section in re.split(r"(?m)^(?=diff --git )", diff):
+        m = re.match(r"diff --git a/(\S+) b/(\S+)", section)
+        if m and (m.group(1) in gen or m.group(2) in gen):
+            continue
+        kept.append(section)
+    return "".join(kept)
+
+
 def build_user_prompt(pr: dict, diff: str, guardrails: dict) -> str:
+    generated = list(guardrails.get("generated_files") or [])
+    diff = strip_generated(diff, generated)
     parts = [
         f"PR #{pr.get('number')} into {pr.get('base', '?')} by {pr.get('author', '?')}",
         _fence("pr_title", pr.get("title", "")),
         _fence("pr_body", pr.get("body") or "(none)"),
-        f"Changed files: {guardrails.get('changed_files')}, "
-        f"lines: {guardrails.get('total_lines')}",
+        f"Reviewable changed files: {guardrails.get('reviewable_files', guardrails.get('changed_files'))}, "
+        f"lines: {guardrails.get('reviewable_lines', guardrails.get('total_lines'))}",
     ]
+    if generated:
+        parts.append(
+            "Generated files also changed (machine-produced, verified by a required CI "
+            "regeneration check; their hunks are omitted below): " + ", ".join(generated)
+        )
     if guardrails.get("is_dependency"):
         parts.append(SUPPLY_CHAIN_ADDENDUM)
     parts.append(_fence("diff", diff))
@@ -172,6 +193,7 @@ def main() -> int:
     guardrails = json.load(open(args.guardrails))
     model = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-5")
 
+    diff = strip_generated(diff, list(guardrails.get("generated_files") or []))
     if len(diff) > MAX_DIFF_CHARS:
         verdict = _abstain(
             f"diff is {len(diff)} chars, over the {MAX_DIFF_CHARS} review limit; "

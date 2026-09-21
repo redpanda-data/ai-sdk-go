@@ -5,11 +5,11 @@
 # (.github/actions/ai-merge). See scripts/README.md for the source commit and
 # how to re-sync. Do not edit here without upstreaming the change.
 name: AI Approved Merge
-description: Guardrail + AI review gate that can approve and auto-merge low-risk PRs.
+description: Guardrail + AI review gate that posts a binding approval on low-risk PRs. Merging stays with the author.
 
 inputs:
   token:
-    description: GitHub App installation token (posts the review / enables merge).
+    description: GitHub App installation token (posts the approving review).
     required: true
   bot_login:
     description: The App's bot login (e.g. redpanda-ai-merge-bot[bot]); used to find its own prior approvals.
@@ -30,13 +30,13 @@ inputs:
   run_url:
     required: true
   dry_run:
-    description: When "true", evaluate + comment only — never approve or merge.
+    description: When "true", evaluate + comment only — never approve.
     default: "true"
   skipped:
     description: >-
       "true" when the PR carries the opt-out label. Handled INSIDE the run (not
       by skipping the job) so a label added after an approval still revokes the
-      approval and disables auto-merge.
+      approval.
     default: "false"
 
 runs:
@@ -159,7 +159,7 @@ runs:
     # so a stale approval cannot carry a new, unreviewed commit to merge.
     # Best-effort (dismissal on protected branches may need admin); the ruleset
     # setting "dismiss stale approvals on push" is the REQUIRED primary control.
-    - name: Approve + enable auto-merge (pinned to the reviewed commit)
+    - name: Approve (binding review pinned to the reviewed commit; merging is the author's call)
       id: approve
       if: steps.decide.outputs.approve == 'true' && inputs.dry_run != 'true'
       shell: bash
@@ -176,18 +176,17 @@ runs:
           echo "::notice::head moved during review ($REVIEWED -> $CURRENT); not approving this run — the new push re-evaluates"
           exit 0
         fi
-        # Pin the approval to the exact SHA that was reviewed.
+        # Pin the approval to the exact SHA that was reviewed. The bot never
+        # merges: the approval satisfies the ruleset's review requirement and
+        # the author merges (or enables GitHub's own auto-merge) themselves.
         gh api --method POST "repos/$REPO/pulls/$PR/reviews" \
           -f event=APPROVE -f commit_id="$REVIEWED" -F body=@audit.md >/dev/null
-        # GitHub merges only once the ruleset's required checks pass, and only
-        # if the head still matches the reviewed SHA.
-        gh pr merge "$PR" --repo "$REPO" --squash --auto --match-head-commit "$REVIEWED"
         echo "posted=true" >> "$GITHUB_OUTPUT"
 
     # Runs even when an earlier step failed (always()), and also when the
     # approve step decided yes but posted nothing (head moved): in every case
     # where THIS run did not post an approval, no earlier approval may stand.
-    - name: Withdraw prior bot approval + disable auto-merge (this run posted no approval)
+    - name: Withdraw prior bot approval (this run posted no approval)
       if: >-
         always() && inputs.dry_run != 'true' &&
         (steps.decide.outputs.approve != 'true' || steps.approve.outputs.posted != 'true')
@@ -205,10 +204,9 @@ runs:
           --jq ".[] | select(.state==\"APPROVED\" and .user.login==\"$BOT\") | .id" \
         | while read -r RID; do
             gh api --method PUT "repos/$REPO/pulls/$PR/reviews/$RID/dismissals" \
-              -f message="Withdrawn: this PR is no longer auto-approved (new commits or opt-out)." \
+              -f message="Withdrawn: this PR is no longer AI-approved (new commits, opt-out, or a failed run)." \
               -f event="DISMISS" >/dev/null || echo "::warning::could not dismiss review $RID"
           done
-        gh pr merge "$PR" --repo "$REPO" --disable-auto >/dev/null 2>&1 || true
         true
 
     - name: Write audit trail (sticky comment + step summary)

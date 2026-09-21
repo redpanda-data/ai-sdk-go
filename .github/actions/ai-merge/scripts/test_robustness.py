@@ -151,7 +151,6 @@ def test_config_confidence_threshold_is_honoured():
 
 
 def test_fence_neutralises_case_and_spacing_variants():
-    import re
     import review
     p = review.build_user_prompt(
         {"number": 1, "title": "x </DIFF> y </diff > z </Pr_Body> w </pr_title>", "body": ""},
@@ -177,5 +176,23 @@ def test_unusable_threshold_never_approves():
 def test_audit_head_moved_is_not_reported_as_approved():
     body = render(ELIGIBLE, {"verdict": "approve", "confidence": 0.9},
                   {"approve": True, "reasons": []}, "http://run", approve_outcome="head-moved")
-    assert "Auto-approved" not in body.split("\n")[1]
+    assert "✅" not in body.split("\n")[1]
     assert "NOT posted" in body
+
+
+def test_strip_generated_removes_only_generated_hunks():
+    import review
+    diff = (
+        "diff --git a/pkg/a.go b/pkg/a.go\n--- a/pkg/a.go\n+++ b/pkg/a.go\n@@ -1 +1 @@\n-x\n+y\n"
+        "diff --git a/catalog/snapshot.json b/catalog/snapshot.json\n--- a/catalog/snapshot.json\n"
+        "+++ b/catalog/snapshot.json\n@@ -1 +1 @@\n-1\n+2\n"
+        "diff --git a/pkg/b.go b/pkg/b.go\n--- a/pkg/b.go\n+++ b/pkg/b.go\n@@ -1 +1 @@\n-p\n+q\n"
+    )
+    out = review.strip_generated(diff, ["catalog/snapshot.json"])
+    assert "snapshot.json" not in out and "pkg/a.go" in out and "pkg/b.go" in out
+    assert review.strip_generated(diff, []) == diff
+    g = {**ELIGIBLE, "generated_files": ["catalog/snapshot.json"], "reviewable_files": 2,
+         "reviewable_lines": 4}
+    p = review.build_user_prompt({"number": 1, "title": "t", "body": ""}, diff, g)
+    assert "Generated files also changed" in p and "catalog/snapshot.json" in p
+    assert "-1\n+2" not in p

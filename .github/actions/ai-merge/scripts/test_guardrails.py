@@ -209,3 +209,43 @@ def test_missing_has_patch_is_treated_as_unreviewable():
     r = evaluate(CFG, [{"filename": "a.go", "status": "modified", "additions": 1, "deletions": 0}],
                  PR_OK, True)
     assert not r["eligible"]
+
+
+GEN_CFG = {**CFG, "generated_paths": ["catalog/snapshot.json", "docs/generated/**"]}
+
+
+def test_generated_files_do_not_count_against_caps():
+    files = _files(("providers/bedrock/models.go", 27, 0), ("catalog/snapshot.json", 6000, 5000))
+    r = evaluate(GEN_CFG, files, PR_OK, True)
+    assert r["eligible"], r["reasons"]
+    assert r["generated_files"] == ["catalog/snapshot.json"]
+    assert r["reviewable_lines"] == 27 and r["generated_lines"] == 11000
+    # Same PR without the generated declaration is over the cap.
+    assert not evaluate(CFG, files, PR_OK, True)["eligible"]
+
+
+def test_generated_sanity_cap_still_applies():
+    files = _files(("catalog/snapshot.json", 30000, 0))
+    assert not evaluate(GEN_CFG, files, PR_OK, True)["eligible"]
+
+
+def test_excluded_path_wins_over_generated():
+    cfg = {**GEN_CFG, "generated_paths": [".github/**"]}
+    r = evaluate(cfg, _files((".github/workflows/x.yml", 3, 0)), PR_OK, True)
+    assert not r["eligible"]
+    assert r["generated_files"] == []
+
+
+def test_generated_file_must_still_be_text():
+    binary = [{"filename": "catalog/snapshot.json", "status": "modified", "additions": 0,
+               "deletions": 0, "has_patch": False}]
+    assert not evaluate(GEN_CFG, binary, PR_OK, True)["eligible"]
+
+
+def test_composition_signals():
+    files = _files(("pkg/a.go", 10, 2), ("pkg/a_test.go", 30, 0), ("catalog/snapshot.json", 100, 0))
+    r = evaluate(GEN_CFG, files, PR_OK, True)
+    assert r["test_lines"] == 30 and r["source_lines"] == 12
+    assert r["tests_changed_with_source"] is True
+    r2 = evaluate(GEN_CFG, _files(("pkg/a.go", 10, 2)), PR_OK, True)
+    assert r2["tests_changed_with_source"] is False

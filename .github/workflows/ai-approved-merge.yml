@@ -17,8 +17,10 @@
 # - A guardrail tightening on main applies to an open PR on its next sync.
 #
 # Repo opt-in: every non-draft PR is evaluated automatically (no per-PR label).
-# Add `ai-merge-skip` to exclude a PR; adding it after an approval withdraws the
-# approval and disables auto-merge. Fail-closed: only ever ADDS approvals.
+# The bot posts a BINDING APPROVAL only — it never merges. The author merges, or
+# enables GitHub's own auto-merge per PR. Add `ai-merge-skip` to exclude a PR;
+# adding it after an approval withdraws the approval. Fail-closed: only ever
+# ADDS approvals, never blocks.
 name: AI Approved Merge
 
 on:

@@ -2,8 +2,12 @@
 
 > **Canonical source:** `redpanda-data/devprod-infra` → `.github/actions/ai-merge`
 > **Vendored from:** `ai-merge/v1.1.0` (`da8d5b7`) **plus the hardening from the
-> Copilot + Claude reviews of ai-sdk-go#227, not yet upstreamed.** Upstream to
+> Copilot + Claude reviews of ai-sdk-go#227, the `generated_paths` sizing model, and
+> the approval-only change (the bot never merges), not yet upstreamed.** Upstream to
 > devprod-infra before enabling any private-repo enrollment via the reusable workflow.
+>
+> **What the bot does:** posts a binding approval on eligible low-risk PRs. It never
+> merges. The author merges, or enables GitHub's own auto-merge per PR.
 >
 > This repo is public and GitHub does not allow public repos to use reusable
 > workflows or actions from a private repo, so the mechanism is vendored here and
@@ -23,10 +27,9 @@
 >   and `test-ai-merge.yml`, then the same config/secrets/App/label/ruleset steps.
 >
 > Outsider PRs on public repos are excluded twice: fork PRs never run, and the author
-> must be a verified org member. GitHub App bots (dependabot/renovate) are skipped at
-> the gate, so dependency bumps are in scope when authored by humans or by bot USER
-> accounts that are org members.
-
+> must be a verified org member (and could not merge anyway). GitHub App bots
+> (dependabot/renovate) are skipped at the gate, so dependency bumps are in scope when
+> authored by humans or by bot USER accounts that are org members.
 
 Decision logic for the reusable workflow `.github/workflows/ai-approved-merge.yml`.
 Every enrolled repo shares this one implementation.
@@ -40,7 +43,7 @@ is then evaluated automatically. A PR opts *out* with the `ai-merge-skip` label.
 size bounds) → `review.py` (Anthropic API, versioned prompt, strict JSON verdict;
 supply-chain checklist on dependency PRs) → `decide.py` (approve only if eligible ∧
 verdict=approve ∧ confidence valid and ≥ threshold ∧ supply chain affirmatively
-clean) → approve pinned to the reviewed SHA + `--match-head-commit` auto-merge →
+clean) → approval pinned to the reviewed SHA (the bot never merges; the author does) →
 `audit.py` (sticky comment; also the review body).
 
 ## Fail-closed guarantees
@@ -51,7 +54,7 @@ clean) → approve pinned to the reviewed SHA + `--match-head-commit` auto-merge
 - The gate only ever **adds** an approval; it never blocks a PR.
 - Binary or patchless files (no reviewable diff) make a PR ineligible.
 - The `ai-merge-skip` opt-out is handled inside the run: adding it after an
-  approval withdraws the bot's approval and disables auto-merge.
+  approval withdraws the bot's approval.
 - Config is read from the **base ref**; a PR cannot relax its own guardrails.
 - Any error (API, malformed model JSON, malformed config, missing file) yields a
   non-approving result and still posts the audit comment.
@@ -62,8 +65,11 @@ clean) → approve pinned to the reviewed SHA + `--match-head-commit` auto-merge
   never from `author_association`, which misreports members with private
   membership. The App therefore needs **Organization → Members: Read-only**.
 - Approvals are minted by the **ai-merge GitHub App** (the Actions token cannot
-  approve PRs) and are pinned to the reviewed commit. The enrolling ruleset
-  **must** enable "dismiss stale approvals on new commits".
+  approve PRs) and are pinned to the reviewed commit. **The bot never merges**:
+  the approval satisfies the ruleset's review requirement and the author merges
+  (or enables GitHub's own auto-merge). App permissions: pull_requests write,
+  contents read, members read. The enrolling ruleset **must** enable "dismiss
+  stale approvals on new commits".
 - `dry_run` defaults **true**.
 
 ## Tests

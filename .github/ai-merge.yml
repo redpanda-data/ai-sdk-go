@@ -6,12 +6,26 @@
 # Baseline exclusions always apply on top of this list: .github/**, terraform/**,
 # release/**, Dockerfiles, iam/ and auth/ dirs, *credential*, *secret*, *.pem, *.key.
 # Binary or patchless files also make a PR ineligible.
-version: 2
+version: 3
 enabled: true
 
-# "Low-risk" size ceiling. PR #215 (catalog + tests, ~320 lines) is well inside.
+# Attention budget for what the model must actually READ: these caps apply to
+# reviewable (non-generated) changes only. They are not a risk score; a risk-
+# scoring layer is a separate follow-up. PR #215 (~320 lines) is well inside.
 max_changed_files: 60
 max_total_lines: 1000
+max_generated_lines: 20000
+
+# Machine-produced files exempt from the caps and omitted from the model's diff.
+# PRECONDITION: each path MUST be regenerated-and-compared by a REQUIRED CI
+# check, so a hand edit fails CI and cannot merge. catalog/snapshot.json is the
+# candidate (`task catalog:check`), but PR CI currently runs `task test`, not
+# `task ci`, and its path filter skips .json-only changes, so the check does
+# not run on PRs yet. Leave EMPTY until ADP (1) runs catalog:check on PRs incl.
+# catalog/** changes and (2) marks it required in the ruleset; then add
+#   - "catalog/snapshot.json"
+# and bump `version`.
+generated_paths: []
 
 min_confidence: 0.8
 

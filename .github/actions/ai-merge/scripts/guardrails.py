@@ -19,7 +19,7 @@ import yaml
 from common import match_any
 
 # Baseline exclusions applied in EVERY repo regardless of local config. These
-# are the never-auto-mergeable categories: CI/CD, infrastructure-as-code,
+# are the never-auto-approvable categories: CI/CD, infrastructure-as-code,
 # release/container tooling, and IAM/auth directories plus credential, secret
 # and key files. Repos add their own layout-specific auth code paths on top.
 BASELINE_EXCLUDED = [
@@ -77,6 +77,10 @@ def _as_list(value, name: str, reasons: list[str]) -> list[str]:
     return []
 
 
+TEST_PATTERNS = ["**/*_test.go", "**/*_test.py", "**/test_*.py", "**/tests/**", "**/*.test.ts",
+                 "**/*.spec.ts", "**/testdata/**"]
+
+
 def _unreviewable(f: dict[str, Any]) -> bool:
     """A changed file with no patch is binary or too large for GitHub to
     render: the model would have nothing to review, yet its additions/deletions
@@ -114,6 +118,13 @@ def evaluate(
             "file(s) with no reviewable patch (binary or too large): "
             + ", ".join(unreviewable)
         )
+
+    # Generated files: machine-produced AND verified by a REQUIRED CI check that
+    # regenerates and compares them (so a hand edit fails CI and cannot merge).
+    # They do not count against the size caps and are not sent to the model;
+    # the model reviews the hand-written delta and is told what was generated.
+    # An excluded path always wins over a generated path.
+    generated_paths = _as_list(config.get("generated_paths"), "generated_paths", reasons)
 
     if not config_present:
         reasons.append("no versioned config at the configured path on the base ref")
@@ -161,16 +172,34 @@ def evaluate(
     if touched_excluded:
         reasons.append("touches excluded path(s): " + ", ".join(touched_excluded))
 
+    def _lines(f):
+        return int(f.get("additions", 0)) + int(f.get("deletions", 0))
+
+    generated = [
+        f for f in files
+        if match_any(f["filename"], generated_paths) and not match_any(f["filename"], excluded)
+    ]
+    generated_names = {f["filename"] for f in generated}
+    reviewable = [f for f in files if f["filename"] not in generated_names]
+    tests = [f for f in reviewable if match_any(f["filename"], TEST_PATTERNS)]
+    source = [f for f in reviewable if f["filename"] not in {t["filename"] for t in tests}]
+
+    # The caps are an attention budget for what the model must actually read:
+    # they apply to REVIEWABLE (non-generated) changes only.
     max_files = int(_as_number(config.get("max_changed_files"), "max_changed_files", 50, reasons))
     max_lines = int(_as_number(config.get("max_total_lines"), "max_total_lines", 800, reasons))
+    max_gen = int(_as_number(config.get("max_generated_lines"), "max_generated_lines", 20000, reasons))
     changed_files = len(files)
-    total_lines = sum(
-        int(f.get("additions", 0)) + int(f.get("deletions", 0)) for f in files
-    )
-    if changed_files > max_files:
-        reasons.append(f"{changed_files} files changed > max {max_files}")
-    if total_lines > max_lines:
-        reasons.append(f"{total_lines} lines changed > max {max_lines}")
+    total_lines = sum(_lines(f) for f in files)
+    reviewable_files = len(reviewable)
+    reviewable_lines = sum(_lines(f) for f in reviewable)
+    generated_lines = sum(_lines(f) for f in generated)
+    if reviewable_files > max_files:
+        reasons.append(f"{reviewable_files} reviewable files changed > max {max_files}")
+    if reviewable_lines > max_lines:
+        reasons.append(f"{reviewable_lines} reviewable lines changed > max {max_lines}")
+    if generated_lines > max_gen:
+        reasons.append(f"{generated_lines} generated lines changed > sanity cap {max_gen}")
 
     dep_paths = _as_list(config.get("dependency_paths"), "dependency_paths", reasons)
     if not dep_paths and "dependency_paths" not in config:
@@ -195,6 +224,15 @@ def evaluate(
         "is_dependency": is_dependency,
         "changed_files": changed_files,
         "total_lines": total_lines,
+        "reviewable_files": reviewable_files,
+        "reviewable_lines": reviewable_lines,
+        "generated_files": sorted(generated_names),
+        "generated_lines": generated_lines,
+        # Composition signals for the audit record (and a future risk-scoring
+        # layer). Informational: they do not gate in v1.
+        "test_lines": sum(_lines(f) for f in tests),
+        "source_lines": sum(_lines(f) for f in source),
+        "tests_changed_with_source": bool(tests) and bool(source),
         "confidence_threshold": threshold,
     }
 
