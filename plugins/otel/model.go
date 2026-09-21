@@ -186,7 +186,7 @@ func (h *tracingModelHandler) addRequestAttributes(span trace.Span, req *llm.Req
 			span.SetAttributes(genAIRequestModel(name))
 		}
 
-		if prov := h.modelInfo.Provider(); prov != "" {
+		if prov := string(h.modelInfo.Provider()); prov != "" {
 			providerName = prov
 			span.SetAttributes(genAIProviderName(prov))
 		}

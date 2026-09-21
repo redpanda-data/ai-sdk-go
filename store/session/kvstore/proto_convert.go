@@ -230,7 +230,7 @@ func toProtoPart(p llm.Part) (*llmpb.Part, error) {
 
 		pbPart.Kind = llmpb.PartKind_PART_KIND_TOOL_SEARCH
 		pbPart.Data = &llmpb.Part_ToolSearch{ToolSearch: &llmpb.ToolSearch{
-			Provider: v.Provider, Data: v.Data, Tools: v.Tools,
+			Provider: string(v.Provider), Data: v.Data, Tools: v.Tools,
 		}}
 
 	case *llm.ReasoningPart:
@@ -321,7 +321,7 @@ func fromProtoPart(pb *llmpb.Part) (llm.Part, error) {
 		}
 
 		return &llm.ToolSearchPart{
-			Provider: data.ToolSearch.Provider, Data: data.ToolSearch.Data, Tools: data.ToolSearch.Tools,
+			Provider: llm.ProviderID(data.ToolSearch.Provider), Data: data.ToolSearch.Data, Tools: data.ToolSearch.Tools,
 		}, nil
 
 	case *llmpb.Part_ReasoningTrace:

@@ -26,6 +26,13 @@ import (
 
 const gpt5 = "gpt-5"
 
+// Real provider keys, pinned here because package pricing cannot import
+// a provider to reach its ProviderName const.
+const (
+	testGeminiProvider  ProviderKey = "gcp.gemini"
+	testBedrockProvider ProviderKey = "aws.bedrock"
+)
+
 func TestCatalogBuilderAndLookup(t *testing.T) {
 	t.Parallel()
 
@@ -36,15 +43,15 @@ func TestCatalogBuilderAndLookup(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	info, ok := catalog.Lookup(gpt5)
-	require.True(t, ok)
+	info, err := catalog.Lookup("openai", gpt5)
+	require.NoError(t, err)
 	assert.Equal(t, int64(62_500_000), info.Default.Base.InputPerMillion)
 	assert.Equal(t, int64(500_000_000), info.Default.Base.OutputPerMillion)
 	assert.Equal(t, int64(12_500_000), info.Default.Base.CachedInputPerMillion)
 
 	// Lookup must return a deep copy so callers can't mutate catalog state.
 	info.Default.Base.InputPerMillion = 999
-	again, _ := catalog.Lookup(gpt5)
+	again, _ := catalog.Lookup("openai", gpt5)
 	assert.Equal(t, int64(62_500_000), again.Default.Base.InputPerMillion)
 }
 
@@ -67,7 +74,7 @@ func TestCalculate_BasicBuckets(t *testing.T) {
 		ReasoningTokens:   50,
 	}
 
-	cost, err := catalog.Calculate(gpt5, usage, CalcRequest{})
+	cost, err := catalog.Calculate("openai", gpt5, usage, CalcRequest{})
 	require.NoError(t, err)
 
 	assert.Equal(t, int64(250_000), cost.Breakdown[UsageFieldInput])
@@ -99,7 +106,7 @@ func TestCalculate_SelectorWildcardOverride(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	cost, err := catalog.Calculate("claude-opus-4-6", &llm.TokenUsage{
+	cost, err := catalog.Calculate("anthropic", "claude-opus-4-6", &llm.TokenUsage{
 		InputTokens:           1_000_000,
 		CachedInputTokens:     100_000,
 		CacheCreation5mTokens: 50_000,
@@ -137,11 +144,11 @@ func TestCalculate_ContextTier(t *testing.T) {
 	)
 
 	catalog, err := NewCatalog(
-		WithProvider("google", map[string]Info{"gemini-2.5-pro": info}),
+		WithProvider(testGeminiProvider, map[string]Info{"gemini-2.5-pro": info}),
 	)
 	require.NoError(t, err)
 
-	cost, err := catalog.Calculate("gemini-2.5-pro", &llm.TokenUsage{
+	cost, err := catalog.Calculate(testGeminiProvider, "gemini-2.5-pro", &llm.TokenUsage{
 		InputTokens:  150_000,
 		OutputTokens: 1_000,
 	}, CalcRequest{
@@ -171,11 +178,11 @@ func TestCalculate_ContextTierFallback_CachedDominant(t *testing.T) {
 	)
 
 	catalog, err := NewCatalog(
-		WithProvider("google", map[string]Info{"gemini-2.5-pro": info}),
+		WithProvider(testGeminiProvider, map[string]Info{"gemini-2.5-pro": info}),
 	)
 	require.NoError(t, err)
 
-	cost, err := catalog.Calculate("gemini-2.5-pro", &llm.TokenUsage{
+	cost, err := catalog.Calculate(testGeminiProvider, "gemini-2.5-pro", &llm.TokenUsage{
 		InputTokens:       10_000,
 		CachedInputTokens: 200_000,
 		OutputTokens:      1_000,
@@ -206,7 +213,7 @@ func TestCalculate_SelectorServiceTierNormalized(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	cost, err := catalog.Calculate(gpt5, &llm.TokenUsage{
+	cost, err := catalog.Calculate("openai", gpt5, &llm.TokenUsage{
 		InputTokens:  1_000,
 		OutputTokens: 500,
 	}, CalcRequest{
@@ -230,7 +237,7 @@ func TestCalculate_UnpricedBuckets(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	cost, err := catalog.Calculate("m", &llm.TokenUsage{
+	cost, err := catalog.Calculate("test", "m", &llm.TokenUsage{
 		InputTokens:           75,
 		CachedInputTokens:     25,
 		CacheCreation1hTokens: 10,
@@ -248,8 +255,6 @@ func TestCalculate_UnpricedBuckets(t *testing.T) {
 	assert.Equal(t, int64(500), cost.Breakdown[UsageFieldToolUseInput])
 }
 
-// TestLookup_MissingID verifies an unknown model ID returns
-// (Info{}, false) rather than panicking.
 func TestLookup_MissingID(t *testing.T) {
 	t.Parallel()
 
@@ -258,11 +263,27 @@ func TestLookup_MissingID(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	_, ok := catalog.Lookup("ghost")
-	assert.False(t, ok)
+	_, err = catalog.Lookup("openai", "ghost")
+	require.ErrorIs(t, err, ErrUnknownModel)
 
-	_, ok = catalog.Lookup(gpt5)
-	assert.True(t, ok)
+	_, err = catalog.Lookup("openai", gpt5)
+	require.NoError(t, err)
+}
+
+func TestLookup_UnknownProvider(t *testing.T) {
+	t.Parallel()
+
+	catalog, err := NewCatalog(
+		WithProvider("openai", map[string]Info{"gpt-5": FlatInfo(0.00000001, 0.00000002, 0.00000003)}),
+	)
+	require.NoError(t, err)
+
+	// "gpt-5" exists, but not under "anthropic": the provider miss wins.
+	_, err = catalog.Lookup("anthropic", gpt5)
+	require.ErrorIs(t, err, ErrUnknownProvider)
+
+	_, err = catalog.Calculate("anthropic", gpt5, &llm.TokenUsage{InputTokens: 1000}, CalcRequest{})
+	require.ErrorIs(t, err, ErrUnknownProvider)
 }
 
 // TestCalculate_UnknownModelReturnsError verifies that an unknown
@@ -278,6 +299,7 @@ func TestCalculate_UnknownModelReturnsError(t *testing.T) {
 	require.NoError(t, err)
 
 	cost, err := catalog.Calculate(
+		"openai",
 		"ghost",
 		&llm.TokenUsage{InputTokens: 1000},
 		CalcRequest{},
@@ -292,26 +314,44 @@ func TestCalculate_UnknownModelReturnsError(t *testing.T) {
 	assert.Equal(t, catalog.Version(), cost.CatalogVersion)
 }
 
-// TestBuilder_DuplicateModelIDAcrossProviders verifies that registering
-// the same model ID from two providers is a build error rather than a
-// silent clobber. Provider packages namespace their IDs (Bedrock uses
-// "anthropic.claude-...") so this is a defense-in-depth check against
-// a misbehaving provider module.
-func TestBuilder_DuplicateModelIDAcrossProviders(t *testing.T) {
+func TestBuilder_SharedModelIDAcrossProviders(t *testing.T) {
 	t.Parallel()
 
-	_, err := NewCatalog(
+	catalog, err := NewCatalog(
 		WithProvider("anthropic", map[string]Info{
 			"claude-sonnet-4-5": FlatInfo(3.00, 15.00, 0.30),
 		}),
-		WithProvider("bedrock", map[string]Info{
+		WithProvider(testBedrockProvider, map[string]Info{
 			"claude-sonnet-4-5": FlatInfo(3.30, 16.50, 0.33),
 		}),
 	)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), `duplicate pricing for model "claude-sonnet-4-5"`)
-	assert.Contains(t, err.Error(), `"anthropic"`)
-	assert.Contains(t, err.Error(), `"bedrock"`)
+	require.NoError(t, err)
+
+	direct, err := catalog.Lookup("anthropic", "claude-sonnet-4-5")
+	require.NoError(t, err)
+	bedrock, err := catalog.Lookup(testBedrockProvider, "claude-sonnet-4-5")
+	require.NoError(t, err)
+
+	assert.Equal(t, int64(300_000_000), direct.Default.Base.InputPerMillion)
+	assert.Equal(t, int64(330_000_000), bedrock.Default.Base.InputPerMillion)
+	assert.NotEqual(t, direct.Default.Base.InputPerMillion, bedrock.Default.Base.InputPerMillion)
+}
+
+// TestWithProvider_SameProviderInTwoPieces pins that one provider may
+// register in several pieces — cloudv2 has two registration sites for one.
+func TestWithProvider_SameProviderInTwoPieces(t *testing.T) {
+	t.Parallel()
+
+	cat, err := NewCatalog(
+		WithProvider("openai", map[string]Info{"gpt-5": FlatInfo(0.00000001, 0.00000002, 0.00000003)}),
+		WithProvider("openai", map[string]Info{"gpt-4o": FlatInfo(0.00000004, 0.00000005, 0.00000006)}),
+	)
+	require.NoError(t, err)
+
+	_, err = cat.Lookup("openai", "gpt-5")
+	require.NoError(t, err)
+	_, err = cat.Lookup("openai", "gpt-4o")
+	require.NoError(t, err)
 }
 
 func TestCatalogBuilder_Errors(t *testing.T) {
@@ -333,7 +373,7 @@ func TestCatalogBuilder_Errors(t *testing.T) {
 
 		_, err := NewCatalog(
 			WithProvider("openai", map[string]Info{"m": FlatInfo(0.00000001, 0.00000002, 0.00000003)}),
-			WithOverride("missing", FlatInfo(0.00000004, 0.00000005, 0.00000006)),
+			WithOverride("openai", "missing", FlatInfo(0.00000004, 0.00000005, 0.00000006)),
 		)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), `override for unknown model "missing"`)
@@ -344,8 +384,8 @@ func TestCatalogBuilder_Errors(t *testing.T) {
 
 		_, err := NewCatalog(
 			WithProvider("openai", map[string]Info{"m": FlatInfo(0.00000001, 0.00000002, 0.00000003)}),
-			WithOverride("m", FlatInfo(0.00000004, 0.00000005, 0.00000006)),
-			WithOverride("m", FlatInfo(0.00000007, 0.00000008, 0.00000009)),
+			WithOverride("openai", "m", FlatInfo(0.00000004, 0.00000005, 0.00000006)),
+			WithOverride("openai", "m", FlatInfo(0.00000007, 0.00000008, 0.00000009)),
 		)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), `duplicate override for model "m"`)
@@ -406,7 +446,7 @@ func TestCatalogBuilder_Errors(t *testing.T) {
 		)
 
 		_, err := NewCatalog(
-			WithProvider("google", map[string]Info{"m": info}),
+			WithProvider(testGeminiProvider, map[string]Info{"m": info}),
 		)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "MinContextTokens must be > 0")
@@ -432,7 +472,7 @@ func TestCalculate_RateFreeIsPriced(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	cost, err := catalog.Calculate("m", &llm.TokenUsage{
+	cost, err := catalog.Calculate("promo", "m", &llm.TokenUsage{
 		InputTokens:           10,
 		CachedInputTokens:     1_000_000,
 		CacheCreation5mTokens: 5,
@@ -469,7 +509,7 @@ func TestCalculate_SelectorServiceTierAlias(t *testing.T) {
 		t.Run(raw, func(t *testing.T) {
 			t.Parallel()
 
-			cost, err := catalog.Calculate(gpt5, &llm.TokenUsage{
+			cost, err := catalog.Calculate("openai", gpt5, &llm.TokenUsage{
 				InputTokens: 1_000,
 			}, CalcRequest{
 				Selector: Selector{ServiceTier: llm.ServiceTier(raw)},
@@ -540,4 +580,194 @@ func TestCatalogVersion_DeterministicAndSensitive(t *testing.T) {
 	assert.Equal(t, baseA.Version(), baseB.Version())
 	assert.NotEqual(t, baseA.Version(), changed.Version())
 	assert.Len(t, baseA.Version(), 16)
+}
+
+// fakeSource stands in for a provider catalog, which pricing cannot import.
+type fakeSource struct {
+	provider llm.ProviderID
+	prices   map[string]Info
+}
+
+func (s fakeSource) Provider() llm.ProviderID     { return s.provider }
+func (s fakeSource) PricingByID() map[string]Info { return s.prices }
+
+func TestWithSource_RegistersUnderProviderName(t *testing.T) {
+	t.Parallel()
+
+	src := fakeSource{
+		provider: "gcp.vertex",
+		prices:   map[string]Info{"claude-sonnet-5": FlatInfo(2.00, 10.00, 0.20)},
+	}
+
+	catalog, err := NewCatalog(WithSource(src))
+	require.NoError(t, err)
+
+	got, err := catalog.Lookup("gcp.vertex", "claude-sonnet-5")
+	require.NoError(t, err)
+	assert.Equal(t, int64(200_000_000), got.Default.Base.InputPerMillion)
+
+	// Under an unregistered provider the miss is the provider, not the model.
+	_, err = catalog.Lookup("anthropic", "claude-sonnet-5")
+	require.ErrorIs(t, err, ErrUnknownProvider)
+}
+
+func TestWithSource_EmptyProviderFailsBuild(t *testing.T) {
+	t.Parallel()
+
+	src := fakeSource{
+		provider: "",
+		prices:   map[string]Info{"m": FlatInfo(1.00, 2.00, 0.10)},
+	}
+
+	_, err := NewCatalog(WithSource(src))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "empty provider name")
+}
+
+func TestCatalogVersion_FoldsInProvider(t *testing.T) {
+	t.Parallel()
+
+	underOpenAI, err := NewCatalog(
+		WithProvider("openai", map[string]Info{"m": FlatInfo(0.000001, 0.000002, 0.0000005)}),
+	)
+	require.NoError(t, err)
+
+	underAnthropic, err := NewCatalog(
+		WithProvider("anthropic", map[string]Info{"m": FlatInfo(0.000001, 0.000002, 0.0000005)}),
+	)
+	require.NoError(t, err)
+
+	assert.NotEqual(t, underOpenAI.Version(), underAnthropic.Version(),
+		"identical model+rates under a different provider must change the version")
+}
+
+// TestCatalogVersion_FoldsInKnownProviderSet pins the known_provider fold
+// in computeVersion. A provider registered with an empty pricing map
+// contributes no model line, so that fold is the only thing separating
+// these two catalogs: drop it and they hash identically while still
+// classifying a miss differently.
+func TestCatalogVersion_FoldsInKnownProviderSet(t *testing.T) {
+	t.Parallel()
+
+	models := map[string]Info{"m": FlatInfo(0.000001, 0.000002, 0.0000005)}
+
+	withoutCohere, err := NewCatalog(WithProvider("openai", models))
+	require.NoError(t, err)
+
+	withCohere, err := NewCatalog(
+		WithProvider("openai", models),
+		WithProvider("cohere", map[string]Info{}),
+	)
+	require.NoError(t, err)
+
+	assert.NotEqual(t, withoutCohere.Version(), withCohere.Version(),
+		"a provider registered with no models must still change the version")
+}
+
+func TestWithProvider_EmptyKeyFailsBuild(t *testing.T) {
+	t.Parallel()
+
+	_, err := NewCatalog(WithProvider("", map[string]Info{"m": FlatInfo(1.00, 2.00, 0.10)}))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "empty provider key")
+}
+
+// TestWithOverride_EmptyProviderFailsBuild pins that the empty key is
+// named as such. Without the guard the build still fails, but as an
+// override of an unknown model, which points at the model ID.
+func TestWithOverride_EmptyProviderFailsBuild(t *testing.T) {
+	t.Parallel()
+
+	_, err := NewCatalog(
+		WithProvider("openai", map[string]Info{"m": FlatInfo(1.00, 2.00, 0.10)}),
+		WithOverride("", "m", FlatInfo(9.00, 45.00, 0.90)),
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "WithOverride: empty provider key")
+}
+
+func TestWithSource_NilSourceFailsBuild(t *testing.T) {
+	t.Parallel()
+
+	_, err := NewCatalog(WithSource(nil))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "nil source")
+}
+
+// TestEmptyProviderMapStaysKnown guards against deriving the known-provider
+// set from surviving models instead of from the registration itself.
+func TestEmptyProviderMapStaysKnown(t *testing.T) {
+	t.Parallel()
+
+	cat, err := NewCatalog(WithProvider("openai", map[string]Info{}))
+	require.NoError(t, err)
+
+	_, err = cat.Lookup("openai", "gpt-5")
+	require.ErrorIs(t, err, ErrUnknownModel,
+		"a known provider with no models must miss on the model, not the provider")
+	require.NotErrorIs(t, err, ErrUnknownProvider)
+}
+
+func TestWithOverride_LandsScopedToProvider(t *testing.T) {
+	t.Parallel()
+
+	cat, err := NewCatalog(
+		WithProvider("anthropic", map[string]Info{"m": FlatInfo(3.00, 15.00, 0.30)}),
+		WithProvider(testBedrockProvider, map[string]Info{"m": FlatInfo(3.00, 15.00, 0.30)}),
+		WithOverride(testBedrockProvider, "m", FlatInfo(9.00, 45.00, 0.90)),
+	)
+	require.NoError(t, err)
+
+	overridden, err := cat.Lookup(testBedrockProvider, "m")
+	require.NoError(t, err)
+	assert.Equal(t, int64(900_000_000), overridden.Default.Base.InputPerMillion,
+		"WithOverride must replace the bedrock rate card")
+
+	untouched, err := cat.Lookup("anthropic", "m")
+	require.NoError(t, err)
+	assert.Equal(t, int64(300_000_000), untouched.Default.Base.InputPerMillion,
+		"the same model ID under another provider must be untouched by the override")
+}
+
+// TestCatalogVersion_MultiProviderOrderStable: drop the model tie-break
+// from computeVersion's sort and two providers sharing a model ID hash in
+// map order, so CatalogVersion flips per process.
+func TestCatalogVersion_MultiProviderOrderStable(t *testing.T) {
+	t.Parallel()
+
+	build := func() *Catalog {
+		c, err := NewCatalog(
+			WithProvider("anthropic", map[string]Info{
+				"m": FlatInfo(3.00, 15.00, 0.30),
+				"n": FlatInfo(1.00, 5.00, 0.10),
+			}),
+			WithProvider(testBedrockProvider, map[string]Info{
+				"m": FlatInfo(3.00, 15.00, 0.30),
+				"n": FlatInfo(1.00, 5.00, 0.10),
+			}),
+		)
+		require.NoError(t, err)
+
+		return c
+	}
+
+	first := build().Version()
+	for range 8 {
+		assert.Equal(t, first, build().Version(),
+			"multi-provider catalog version must not depend on map iteration order")
+	}
+}
+
+func TestNilCatalog_ReportsUnknownProvider(t *testing.T) {
+	t.Parallel()
+
+	var cat *Catalog
+
+	_, err := cat.Lookup("openai", gpt5)
+	require.ErrorIs(t, err, ErrUnknownProvider)
+
+	cost, err := cat.Calculate("openai", gpt5, &llm.TokenUsage{InputTokens: 1000}, CalcRequest{})
+	require.ErrorIs(t, err, ErrUnknownProvider)
+	assert.Equal(t, int64(0), cost.Total)
+	assert.Empty(t, cost.CatalogVersion)
 }

@@ -111,7 +111,7 @@ func (a *LLMAgent) Info() agent.Info {
 		ID:           a.config.id,
 		Version:      a.config.version,
 		ModelName:    a.config.model.Name(),
-		ProviderName: a.config.model.Provider(),
+		ProviderName: string(a.config.model.Provider()),
 	}
 }
 

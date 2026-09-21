@@ -40,11 +40,11 @@ import (
 // mockModelInfo implements llm.ModelInfo for testing.
 type mockModelInfo struct {
 	name     string
-	provider string
+	provider llm.ProviderID
 }
 
-func (m *mockModelInfo) Name() string     { return m.name }
-func (m *mockModelInfo) Provider() string { return m.provider }
+func (m *mockModelInfo) Name() string             { return m.name }
+func (m *mockModelInfo) Provider() llm.ProviderID { return m.provider }
 func (m *mockModelInfo) Capabilities() llm.ModelCapabilities {
 	return llm.ModelCapabilities{}
 }

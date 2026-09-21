@@ -31,8 +31,11 @@ const ModelMuseSpark13 = "muse-spark-1.3"
 // It bounds explicitly supplied budgets; omitted budgets use the server default.
 const maxOutputTokens = 32_768
 
+// ProviderName is the catalog key Provider.Name() returns; see pricing.ProviderKey.
+const ProviderName = "meta"
+
 var catalogOnce = sync.OnceValue(func() *catalog.Catalog {
-	return catalog.MustNew("meta", entries())
+	return catalog.MustNew(ProviderName, entries())
 })
 
 // Catalog returns the immutable Meta Model API catalog.

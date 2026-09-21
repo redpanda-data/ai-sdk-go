@@ -40,8 +40,8 @@ type Provider struct {
 }
 
 // Name returns the provider identifier.
-func (*Provider) Name() string {
-	return "gcp.gemini"
+func (*Provider) Name() llm.ProviderID {
+	return ProviderName
 }
 
 // ProviderOption configures a Provider instance using functional options.

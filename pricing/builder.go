@@ -21,76 +21,133 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"slices"
+
+	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
 // schemaVersion seeds the catalog version hash. Bump it when the
 // calculator's resolution rules, rounding, or Cost shape changes so
 // existing rate data produces a different Version() even if the numbers
 // are identical.
-const schemaVersion = "v1"
+//
+// v2: keys are {provider, model} rather than bare model ID, and the
+// version hash folds the provider in.
+const schemaVersion = "v2"
+
+// Source is what WithSource registers from; a provider's *catalog.Catalog
+// satisfies it. It is an interface because pricing must not import
+// catalog — the dependency runs the other way.
+type Source interface {
+	// Provider is the provider key the source's models register under.
+	Provider() llm.ProviderID
+	PricingByID() map[string]Info
+}
 
 // Option configures a catalog during NewCatalog construction.
 type Option func(*catalogBuilder)
 
-// WithProvider registers one provider's model pricing definitions. The
-// provider argument is used for duplicate diagnostics and scope-
-// prefixed error messages, not for lookup keys — runtime resolution is
-// by bare model ID.
-//
-// If the same model ID is registered twice (from the same or different
-// providers), NewCatalog returns a duplicate-pricing error rather than
-// silently clobbering. Intentional replacements should go through
-// WithOverride.
-func WithProvider(provider string, models map[string]Info) Option {
+// WithSource registers one source's model pricing under
+// src.Provider(). Prefer it over WithProvider: the key comes from the
+// source, so no caller hand-types it. A nil src, or one
+// reporting an empty Provider(), fails the build.
+func WithSource(src Source) Option {
 	return func(b *catalogBuilder) {
-		for id, info := range models {
-			if existing, ok := b.models[id]; ok {
-				b.buildErrs = append(b.buildErrs,
-					fmt.Errorf("duplicate pricing for model %q from providers %q and %q",
-						id, existing.provider, provider))
-
-				continue
-			}
-
-			b.models[id] = catalogEntry{
-				provider: provider,
-				info:     cloneInfo(info),
-			}
-		}
-	}
-}
-
-// WithOverride replaces the pricing of an existing model ID. Unknown
-// IDs surface as errors from NewCatalog.
-//
-// Symmetric with WithProvider: passing the same modelID twice is a
-// configuration bug, not "last-writer-wins." NewCatalog returns a
-// duplicate-override error rather than silently keeping only the last
-// value.
-func WithOverride(modelID string, info Info) Option {
-	return func(b *catalogBuilder) {
-		if _, exists := b.overrides[modelID]; exists {
+		if src == nil {
 			b.buildErrs = append(b.buildErrs,
-				fmt.Errorf("duplicate override for model %q", modelID))
+				errors.New("WithSource given a nil source"))
 
 			return
 		}
 
-		b.overrides[modelID] = cloneInfo(info)
+		// A typed-nil *catalog.Catalog is not a nil interface; it lands here
+		// with an empty Provider(). %T names it among joined build errors.
+		if src.Provider() == "" {
+			b.buildErrs = append(b.buildErrs,
+				fmt.Errorf("WithSource: source %T reports an empty provider name (a nil catalog?)", src))
+
+			return
+		}
+
+		b.registerModels(src.Provider(), src.PricingByID())
+	}
+}
+
+// WithProvider registers one provider's model pricing under the given
+// ProviderKey; it stays for callers holding a bare map, WithSource is
+// preferred. The same model ID twice under one provider is a
+// duplicate-pricing error from NewCatalog, never a silent clobber;
+// intentional replacements go through WithOverride.
+func WithProvider(provider ProviderKey, models map[string]Info) Option {
+	return func(b *catalogBuilder) {
+		b.registerModels(provider, models)
+	}
+}
+
+func (b *catalogBuilder) registerModels(provider ProviderKey, models map[string]Info) {
+	if provider == "" {
+		b.buildErrs = append(b.buildErrs,
+			errors.New("empty provider key"))
+
+		return
+	}
+
+	// Record from the registration intent, not from the models that
+	// survive normalization: a provider registered with an empty pricing
+	// map is still known, so a later lookup reports ErrUnknownModel rather
+	// than a false ErrUnknownProvider.
+	b.providers[provider] = struct{}{}
+
+	for id, info := range models {
+		key := modelKey{provider: provider, model: id}
+		if _, ok := b.models[key]; ok {
+			b.buildErrs = append(b.buildErrs,
+				fmt.Errorf("duplicate pricing for model %q under provider %q", id, provider))
+
+			continue
+		}
+
+		b.models[key] = cloneInfo(info)
+	}
+}
+
+// WithOverride replaces the pricing of an existing {provider, model}
+// entry. An unknown pair, or the same pair passed twice, is an error
+// from NewCatalog rather than last-writer-wins. An empty provider key
+// is reported as such, rather than as an override of an unknown model.
+func WithOverride(provider ProviderKey, modelID string, info Info) Option {
+	return func(b *catalogBuilder) {
+		if provider == "" {
+			b.buildErrs = append(b.buildErrs,
+				errors.New("WithOverride: empty provider key"))
+
+			return
+		}
+
+		key := modelKey{provider: provider, model: modelID}
+		if _, exists := b.overrides[key]; exists {
+			b.buildErrs = append(b.buildErrs,
+				fmt.Errorf("duplicate override for model %q under provider %q", modelID, provider))
+
+			return
+		}
+
+		b.overrides[key] = cloneInfo(info)
 	}
 }
 
 // NewCatalog constructs a validated pricing catalog from the given
-// options. Options apply in order: providers register their models,
-// overrides replace individual entries, and the builder then
-// normalizes and validates the result (duplicate IDs, ambiguous
+// options. Options apply in order: sources and providers register
+// their models, overrides replace individual entries, and the builder
+// then normalizes and validates the result (duplicate keys, ambiguous
 // selectors, malformed rates, etc.) — any of which surface as a joined
 // error.
 func NewCatalog(opts ...Option) (*Catalog, error) {
 	b := &catalogBuilder{
-		models:    make(map[string]catalogEntry),
-		overrides: make(map[string]Info),
+		models:    make(map[modelKey]Info),
+		overrides: make(map[modelKey]Info),
+		providers: make(map[ProviderKey]struct{}),
 	}
 
 	for _, opt := range opts {
@@ -104,46 +161,40 @@ func NewCatalog(opts ...Option) (*Catalog, error) {
 // mutate. It is unexported because the public API is NewCatalog +
 // options; catalogs are built once at startup, not progressively.
 type catalogBuilder struct {
-	models    map[string]catalogEntry
-	overrides map[string]Info
+	models    map[modelKey]Info
+	overrides map[modelKey]Info
+	providers map[ProviderKey]struct{}
 	buildErrs []error
 }
 
-// catalogEntry tracks which provider registered each model so the
-// builder can produce a useful diagnostic when two providers register
-// the exact same ID. Provider is not part of lookups.
-type catalogEntry struct {
-	provider string
-	info     Info
-}
-
 func (b *catalogBuilder) build() (*Catalog, error) {
-	result := make(map[string]Info, len(b.models))
+	result := make(map[modelKey]Info, len(b.models))
+	providers := maps.Clone(b.providers)
 	errs := slices.Clone(b.buildErrs)
 
-	for id, entry := range b.models {
-		normalized, err := normalizeInfo(entry.info, entry.provider+"/"+id)
+	for key, info := range b.models {
+		normalized, err := normalizeInfo(info, string(key.provider)+"/"+key.model)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
 
-		result[id] = normalized
+		result[key] = normalized
 	}
 
-	for id, override := range b.overrides {
-		if _, ok := result[id]; !ok {
-			errs = append(errs, fmt.Errorf("override for unknown model %q", id))
+	for key, override := range b.overrides {
+		if _, ok := result[key]; !ok {
+			errs = append(errs, fmt.Errorf("override for unknown model %q under provider %q", key.model, key.provider))
 			continue
 		}
 
-		normalized, err := normalizeInfo(override, "override/"+id)
+		normalized, err := normalizeInfo(override, "override/"+string(key.provider)+"/"+key.model)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
 
-		result[id] = normalized
+		result[key] = normalized
 	}
 
 	if len(errs) > 0 {
@@ -151,8 +202,9 @@ func (b *catalogBuilder) build() (*Catalog, error) {
 	}
 
 	return &Catalog{
-		models:  result,
-		version: computeVersion(result),
+		models:    result,
+		providers: providers,
+		version:   computeVersion(result, providers),
 	}, nil
 }
 
@@ -290,20 +342,32 @@ func validateOverrides(overrides []Override, scope string) error {
 	return errors.Join(errs...)
 }
 
-func computeVersion(models map[string]Info) string {
-	keys := make([]string, 0, len(models))
+func computeVersion(models map[modelKey]Info, providers map[ProviderKey]struct{}) string {
+	keys := make([]modelKey, 0, len(models))
 	for key := range models {
 		keys = append(keys, key)
 	}
 
-	slices.Sort(keys)
+	slices.SortFunc(keys, func(a, b modelKey) int {
+		return cmp.Or(
+			cmp.Compare(a.provider, b.provider),
+			cmp.Compare(a.model, b.model),
+		)
+	})
 
 	h := sha256.New()
 	fmt.Fprintf(h, "schema=%s\n", schemaVersion)
 
+	// Fold in the known-provider set, not just providers reachable through
+	// a model: an empty-map provider is still known and changes how a miss
+	// is classified, so two catalogs differing only there must hash apart.
+	for _, provider := range slices.Sorted(maps.Keys(providers)) {
+		fmt.Fprintf(h, "known_provider=%q\n", provider)
+	}
+
 	for _, key := range keys {
 		info := models[key]
-		fmt.Fprintf(h, "model=%s\n", key)
+		fmt.Fprintf(h, "provider=%q\nmodel=%q\n", key.provider, key.model)
 		writeRateCard(h, "default", info.Default)
 
 		// Sort so append order does not affect the hash.

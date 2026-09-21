@@ -45,15 +45,15 @@ func TestPricingStaysFlatAcrossContextWindow(t *testing.T) {
 func TestLongContextCostsTheSamePerToken(t *testing.T) {
 	t.Parallel()
 
-	cat, err := pricing.NewCatalog(pricing.WithProvider("anthropic", Catalog().PricingByID()))
+	cat, err := pricing.NewCatalog(pricing.WithSource(Catalog()))
 	require.NoError(t, err)
 
 	usage := &llm.TokenUsage{InputTokens: 100_000, OutputTokens: 1_000}
 
-	below, err := cat.Calculate(ModelClaudeSonnet5, usage, pricing.CalcRequest{ContextTokens: 100_000})
+	below, err := cat.Calculate(ProviderName, ModelClaudeSonnet5, usage, pricing.CalcRequest{ContextTokens: 100_000})
 	require.NoError(t, err)
 
-	above, err := cat.Calculate(ModelClaudeSonnet5, usage, pricing.CalcRequest{ContextTokens: 900_000})
+	above, err := cat.Calculate(ProviderName, ModelClaudeSonnet5, usage, pricing.CalcRequest{ContextTokens: 900_000})
 	require.NoError(t, err)
 
 	assert.Zero(t, below.AppliedBracketMinContextTokens)

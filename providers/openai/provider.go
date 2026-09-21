@@ -29,8 +29,6 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
-const providerName = "openai"
-
 // Provider implements the OpenAI model provider.
 type Provider struct {
 	APIKey     string
@@ -41,8 +39,8 @@ type Provider struct {
 }
 
 // Name returns the provider identifier.
-func (*Provider) Name() string {
-	return providerName
+func (*Provider) Name() llm.ProviderID {
+	return ProviderName
 }
 
 // ProviderOption configures a Provider instance using functional options.

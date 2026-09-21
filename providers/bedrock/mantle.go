@@ -167,7 +167,7 @@ type mantleModel struct {
 }
 
 func (m *mantleModel) Name() string                        { return m.name }
-func (*mantleModel) Provider() string                      { return "aws.bedrock" }
+func (*mantleModel) Provider() llm.ProviderID              { return ProviderName }
 func (m *mantleModel) Capabilities() llm.ModelCapabilities { return m.def.Capabilities }
 func (m *mantleModel) Constraints() llm.ModelConstraints   { return m.def.Constraints }
 

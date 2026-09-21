@@ -67,7 +67,7 @@ func mapFunctionCall(fc responses.ResponseFunctionToolCall) *llm.ToolRequestPart
 }
 
 func mapToolSearch(item responses.ResponseOutputItemUnion) *llm.ToolSearchPart {
-	part := &llm.ToolSearchPart{Provider: providerName, Data: json.RawMessage(item.RawJSON())}
+	part := &llm.ToolSearchPart{Provider: ProviderName, Data: json.RawMessage(item.RawJSON())}
 	if item.Type == outputTypeToolSearchOutput {
 		for _, tool := range item.AsToolSearchOutput().Tools {
 			switch tool.Type {

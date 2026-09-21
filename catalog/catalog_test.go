@@ -300,7 +300,7 @@ func TestNewNormalization(t *testing.T) {
 	assert.Equal(t, []Modality{ModalityText}, o.Modalities.Input)
 	assert.Equal(t, []Modality{ModalityText}, o.Modalities.Output)
 	assert.Equal(t, StageGA, o.Life.Stage, "empty Stage defaults to GA")
-	assert.Equal(t, "acme", o.Provider())
+	assert.Equal(t, llm.ProviderID("acme"), o.Provider())
 	assert.Equal(t, "Robin 2", o.Facts().DisplayName)
 }
 
@@ -652,4 +652,14 @@ func TestVisionAudioDerivedFromModalities(t *testing.T) {
 	require.True(t, ok)
 	assert.True(t, o.Capabilities.Vision, "image input modality must derive Vision")
 	assert.True(t, o.Capabilities.Audio, "audio input modality must derive Audio")
+}
+
+// TestTypedNilSatisfiesPricingSource rests on (*Catalog).Provider() and
+// PricingByID() each carrying a nil guard, since WithSource calls both
+// eagerly. It lives here because pricing may not import catalog.
+func TestTypedNilSatisfiesPricingSource(t *testing.T) {
+	t.Parallel()
+
+	_, err := pricing.NewCatalog(pricing.WithSource((*Catalog)(nil)))
+	require.ErrorContains(t, err, "empty provider name")
 }

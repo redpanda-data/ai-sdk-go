@@ -207,7 +207,7 @@ func mapToolSearch(block anthropic.BetaContentBlockUnion) *llm.ToolSearchPart {
 		return nil
 	}
 
-	part := &llm.ToolSearchPart{Provider: providerName, Data: json.RawMessage(block.RawJSON())}
+	part := &llm.ToolSearchPart{Provider: ProviderName, Data: json.RawMessage(block.RawJSON())}
 	if block.Type == blockTypeToolSearchResult {
 		for _, ref := range block.Content.ToolReferences {
 			part.Tools = append(part.Tools, ref.ToolName)

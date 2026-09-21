@@ -25,6 +25,8 @@ import (
 	signerv4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
 func TestIsMantleModel(t *testing.T) {
@@ -96,7 +98,7 @@ func TestNewModel_MantleRoutesToBedrockProvider(t *testing.T) {
 	require.NoError(t, err)
 
 	// It reports the Bedrock identity, not "openai".
-	assert.Equal(t, "aws.bedrock", m.Provider())
+	assert.Equal(t, llm.ProviderID("aws.bedrock"), m.Provider())
 	assert.Equal(t, ModelGemma431B, m.Name())
 	// Capabilities/constraints come from the Bedrock catalog entry.
 	assert.True(t, m.Capabilities().Reasoning)
@@ -121,7 +123,7 @@ func TestNewModel_GPT56ModelsUseMantleCatalog(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.True(t, IsMantleModel(modelID))
-			assert.Equal(t, "aws.bedrock", m.Provider())
+			assert.Equal(t, llm.ProviderID("aws.bedrock"), m.Provider())
 			assert.Equal(t, modelID, m.Name())
 			assert.True(t, m.Capabilities().Streaming)
 			assert.True(t, m.Capabilities().Tools)

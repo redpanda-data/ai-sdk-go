@@ -14,6 +14,8 @@
 
 package catalog
 
+import "github.com/redpanda-data/ai-sdk-go/llm"
+
 // Provider is the discovery-and-pricing surface a model provider
 // exposes. It lives in this package rather than llm because llm cannot
 // import pricing (the dependency runs the other way), and a catalog
@@ -26,7 +28,7 @@ package catalog
 type Provider interface {
 	// Name returns the provider identifier used in offerings and
 	// telemetry (e.g. "openai", "anthropic", "aws.bedrock").
-	Name() string
+	Name() llm.ProviderID
 
 	// Catalog returns the provider's validated model catalog, or nil
 	// when the provider has no static catalog.

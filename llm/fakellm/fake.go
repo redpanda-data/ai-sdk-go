@@ -235,7 +235,7 @@ func (m *FakeModel) Name() string {
 }
 
 // Provider returns the provider name.
-func (m *FakeModel) Provider() string {
+func (m *FakeModel) Provider() llm.ProviderID {
 	return "fakellm"
 }
 

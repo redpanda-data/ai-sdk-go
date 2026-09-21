@@ -50,11 +50,8 @@ func TestIsModelAvailableAtLocation(t *testing.T) {
 		// reverse of Sonnet's APAC region.
 		{"haiku at asia-east1", vertex.ModelClaudeHaiku45, "asia-east1", true},
 		{"haiku not at asia-southeast1", vertex.ModelClaudeHaiku45, "asia-southeast1", false},
-		// A caller may hold the namespaced vertex. offering ID rather than
-		// the bare publisher model; the prefix is stripped before lookup so
-		// both reach the same row.
-		{"prefixed offering id resolves", offeringClaudeSonnet5, "eu", true},
 		{"unknown model", "gemini-99-ultra", "global", false},
+		{"prefixed id no longer resolves", "vertex." + vertex.ModelClaudeSonnet5, "eu", false},
 		{"unknown location", vertex.ModelGemini36Flash, "mars-central1", false},
 		{"empty location", vertex.ModelGemini36Flash, "", false},
 	}

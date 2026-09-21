@@ -21,18 +21,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/pricing"
 	"github.com/redpanda-data/ai-sdk-go/providers/vertex"
 )
 
-const (
-	offeringGemini36Flash = vertex.OfferingGemini36Flash
-	offeringClaudeSonnet5 = vertex.OfferingClaudeSonnet5
-	offeringClaudeHaiku45 = vertex.OfferingClaudeHaiku45
-)
-
 // TestCatalogBuildsWithDayOneModels pins the day-one catalog to exactly
-// the Gemini + Claude scope: three offerings, each namespaced vertex.*.
+// the Gemini + Claude scope: three models, keyed by bare publisher ID.
 func TestCatalogBuildsWithDayOneModels(t *testing.T) {
 	t.Parallel()
 
@@ -44,56 +39,40 @@ func TestCatalogBuildsWithDayOneModels(t *testing.T) {
 		got = append(got, o.ID)
 	}
 
-	assert.ElementsMatch(t, []string{offeringGemini36Flash, offeringClaudeSonnet5, offeringClaudeHaiku45}, got)
+	assert.ElementsMatch(t, []string{vertex.ModelGemini36Flash, vertex.ModelClaudeSonnet5, vertex.ModelClaudeHaiku45}, got)
 }
 
-// TestOfferingForModel checks the bridge that lets a caller holding a bare
-// publisher model ID reach the namespaced offering, and that passing the
-// already-namespaced ID resolves to the same entry. An unknown model
-// returns ok false.
-func TestOfferingForModel(t *testing.T) {
+// TestCatalogProviderName pins the literal key in-package so a rename has
+// to be deliberate; cmd/catalog-snapshot cross-checks it against Name().
+func TestCatalogProviderName(t *testing.T) {
 	t.Parallel()
 
-	bare, ok := vertex.OfferingForModel(vertex.ModelClaudeSonnet5)
-	require.True(t, ok, "bare model %q should resolve", vertex.ModelClaudeSonnet5)
-	assert.Equal(t, offeringClaudeSonnet5, bare.ID)
-
-	prefixed, ok := vertex.OfferingForModel(offeringClaudeSonnet5)
-	require.True(t, ok, "namespaced id %q should resolve", offeringClaudeSonnet5)
-	assert.Equal(t, offeringClaudeSonnet5, prefixed.ID)
-
-	_, ok = vertex.OfferingForModel("gemini-99-ultra")
-	assert.False(t, ok, "unknown model must not resolve")
+	assert.Equal(t, llm.ProviderID("gcp.vertex"), vertex.Catalog().Provider())
 }
 
-// TestOfferingAttributes checks every offering carries the publisher and
-// the bare wire model, and that the bare model is the offering ID minus
-// the vertex. prefix. The runtime provider builds the request path from
-// these, so a missing or drifted value is a routing bug.
+// TestOfferingAttributes checks every offering carries its publisher.
+// The publisher is the one attribute the request path needs that the
+// offering ID does not already carry, so a missing or drifted value is a
+// routing bug.
 func TestOfferingAttributes(t *testing.T) {
 	t.Parallel()
 
 	wantPublisher := map[string]string{
-		offeringGemini36Flash: "google",
-		offeringClaudeSonnet5: "anthropic",
-		offeringClaudeHaiku45: "anthropic",
+		vertex.ModelGemini36Flash: "google",
+		vertex.ModelClaudeSonnet5: "anthropic",
+		vertex.ModelClaudeHaiku45: "anthropic",
 	}
 
 	for _, o := range vertex.Catalog().All() {
 		assert.Equalf(t, wantPublisher[o.ID], o.Attributes[vertex.ModelMetadataPublisher], "%s publisher", o.ID)
-		assert.Equalf(t, strings.TrimPrefix(o.ID, "vertex."), o.Attributes[vertex.ModelMetadataVertexModel], "%s vertex_model", o.ID)
 	}
 }
 
-// TestNoBarePricingKey is the collision guard. A merged pricing catalog
-// rejects two providers registering the same model ID, so every Vertex
-// pricing key must be namespaced and no bare publisher ID (or alias for
-// one) may leak in.
-func TestNoBarePricingKey(t *testing.T) {
+func TestNoNamespacedPricingKey(t *testing.T) {
 	t.Parallel()
 
 	for id := range vertex.Catalog().PricingByID() {
-		assert.Truef(t, strings.HasPrefix(id, "vertex."), "pricing key %q is not namespaced with the vertex. prefix", id)
+		assert.Falsef(t, strings.HasPrefix(id, "vertex."), "pricing key %q must be a bare model ID, not vertex.-prefixed", id)
 	}
 }
 
@@ -110,8 +89,8 @@ func TestNoBarePricingKey(t *testing.T) {
 func TestGeminiRegionalOverride(t *testing.T) {
 	t.Parallel()
 
-	info, ok := vertex.Catalog().PricingByID()[offeringGemini36Flash]
-	require.True(t, ok, "no pricing for %s", offeringGemini36Flash)
+	info, ok := vertex.Catalog().PricingByID()[vertex.ModelGemini36Flash]
+	require.True(t, ok, "no pricing for %s", vertex.ModelGemini36Flash)
 
 	assert.Equal(t, pricing.NewRates(0.75, 3.75, 0.075), info.Default.Base, "global default rate")
 
@@ -179,11 +158,11 @@ func TestClaudeRegionalOverride(t *testing.T) {
 	cases := map[string]struct {
 		global, regional pricing.Rates
 	}{
-		offeringClaudeSonnet5: {
+		vertex.ModelClaudeSonnet5: {
 			global:   pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0),
 			regional: pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(2.75, 4.40, 0),
 		},
-		offeringClaudeHaiku45: {
+		vertex.ModelClaudeHaiku45: {
 			global:   pricing.NewRates(1.00, 5.00, 0.10).WithCacheCreation(1.25, 2.00, 0),
 			regional: pricing.NewRates(1.10, 5.50, 0.11).WithCacheCreation(1.375, 2.20, 0),
 		},
@@ -223,9 +202,8 @@ func TestEveryOfferingHasLocations(t *testing.T) {
 	t.Parallel()
 
 	for _, o := range vertex.Catalog().All() {
-		bare := o.Attributes[vertex.ModelMetadataVertexModel]
-		locs := vertex.LocationsForModel(bare)
-		require.NotEmptyf(t, locs, "%s has no servedLocations row for %q", o.ID, bare)
+		locs := vertex.LocationsForModel(o.ID)
+		require.NotEmptyf(t, locs, "%s has no servedLocations row", o.ID)
 		assert.Containsf(t, locs, vertex.LocationGlobal, "%s must be served at global", o.ID)
 	}
 }

@@ -86,7 +86,7 @@ type ToolResponsePart struct {
 // Data only for their own protocol; Tools lists registry names discovered by a
 // result so the agent can retain their availability across compaction.
 type ToolSearchPart struct {
-	Provider string          `json:"provider"`
+	Provider ProviderID      `json:"provider"`
 	Data     json.RawMessage `json:"data"`
 	Tools    []string        `json:"tools,omitempty"`
 }
