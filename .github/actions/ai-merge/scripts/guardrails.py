@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from typing import Any
 
@@ -58,8 +59,8 @@ def _as_number(value, name: str, default, reasons: list[str]):
     number here either."""
     if value is None:
         return default
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        reasons.append(f"config `{name}` must be a number")
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        reasons.append(f"config `{name}` must be a finite number")
         return default
     return value
 
@@ -175,10 +176,15 @@ def evaluate(
     def _lines(f):
         return int(f.get("additions", 0)) + int(f.get("deletions", 0))
 
-    generated = [
-        f for f in files
-        if match_any(f["filename"], generated_paths) and not match_any(f["filename"], excluded)
-    ]
+    def _is_generated(f):
+        # Both names must match (mirrors the exclusion matcher): renaming a
+        # hand-written file INTO a generated path must not hide it from review.
+        if not match_any(f["filename"], generated_paths) or match_any(f["filename"], excluded):
+            return False
+        prev = f.get("previous_filename")
+        return not prev or match_any(prev, generated_paths)
+
+    generated = [f for f in files if _is_generated(f)]
     generated_names = {f["filename"] for f in generated}
     reviewable = [f for f in files if f["filename"] not in generated_names]
     tests = [f for f in reviewable if match_any(f["filename"], TEST_PATTERNS)]

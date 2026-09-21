@@ -15,7 +15,13 @@ PR_OK = {"author_is_member": True, "membership_check_status": "204", "author": "
 
 def _cfg():
     if not os.path.exists(CONFIG):
-        return None
+        # Canonical mechanism repo has no repo config: skip VISIBLY under pytest
+        # (rather than a silent green), and fall back gracefully without it.
+        try:
+            import pytest
+            pytest.skip("no repo config at " + CONFIG)
+        except ImportError:
+            return None
     return yaml.safe_load(open(CONFIG))
 
 
@@ -33,6 +39,10 @@ def test_real_config_excludes_credential_and_ci_defining_files():
         "providers/bedrock/provider.go",
         "providers/bedrock/mantle.go",
         "tool/mcp/transport.go",
+        "tool/builtin/webfetch/dial.go",
+        ".claude/settings.json",
+        ".claude-pr/.claude/settings.json",
+        "CLAUDE.md",
         "providers/foo/internal/provider.go",
         "Taskfile.yaml",
         "taskfiles/install.yaml",

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from functools import lru_cache
 
 
 def load_json(path: str):
@@ -18,6 +19,7 @@ def load_json(path: str):
         return None
 
 
+@lru_cache(maxsize=512)
 def glob_to_regex(pattern: str) -> re.Pattern:
     """Compile a glob with real globstar semantics.
 

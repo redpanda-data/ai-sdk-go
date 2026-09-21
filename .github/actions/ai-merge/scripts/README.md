@@ -1,10 +1,10 @@
 # AI-approved merge mechanism (DEVPROD-4812) — VENDORED COPY
 
 > **Canonical source:** `redpanda-data/devprod-infra` → `.github/actions/ai-merge`
-> **Vendored from:** `ai-merge/v1.1.0` (`da8d5b7`) **plus the hardening from the
-> Copilot + Claude reviews of ai-sdk-go#227, the `generated_paths` sizing model, and
-> the approval-only change (the bot never merges), not yet upstreamed.** Upstream to
-> devprod-infra before enabling any private-repo enrollment via the reusable workflow.
+> **Vendored from:** `ai-merge/v1.1.0` (`da8d5b7`) **plus the hardening from three
+> Copilot/Claude review rounds of ai-sdk-go#227, the `generated_paths` sizing model,
+> and the approval-only change (the bot never merges), not yet upstreamed.** Upstream
+> to devprod-infra before enabling any private-repo enrollment via the reusable workflow.
 >
 > **What the bot does:** posts a binding approval on eligible low-risk PRs. It never
 > merges. The author merges, or enables GitHub's own auto-merge per PR.

@@ -249,3 +249,23 @@ def test_composition_signals():
     assert r["tests_changed_with_source"] is True
     r2 = evaluate(GEN_CFG, _files(("pkg/a.go", 10, 2)), PR_OK, True)
     assert r2["tests_changed_with_source"] is False
+
+
+def test_rename_into_generated_path_is_not_treated_as_generated():
+    # A hand-written file moved INTO a generated path must stay reviewable.
+    files = [{"filename": "docs/generated/x.md", "previous_filename": "docs/handwritten.md",
+              "status": "renamed", "additions": 900, "deletions": 0, "has_patch": True}]
+    cfg = {**CFG, "generated_paths": ["docs/generated/**"]}
+    r = evaluate(cfg, files, PR_OK, True)
+    assert r["generated_files"] == [] and r["reviewable_lines"] == 900
+    assert not r["eligible"]  # 900 reviewable lines > 800 cap
+    # A rename WITHIN generated paths stays generated.
+    files[0]["previous_filename"] = "docs/generated/old.md"
+    assert evaluate(cfg, files, PR_OK, True)["generated_files"] == ["docs/generated/x.md"]
+
+
+def test_non_finite_numeric_config_fails_closed_with_reason():
+    for v in (float("inf"), float("-inf"), float("nan")):
+        r = evaluate({**CFG, "max_total_lines": v}, _files(("a.go", 1, 0)), PR_OK, True)
+        assert not r["eligible"], v
+        assert any("finite number" in x for x in r["reasons"]), r["reasons"]

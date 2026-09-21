@@ -6,7 +6,7 @@
 # Baseline exclusions always apply on top of this list: .github/**, terraform/**,
 # release/**, Dockerfiles, iam/ and auth/ dirs, *credential*, *secret*, *.pem, *.key.
 # Binary or patchless files also make a PR ineligible.
-version: 3
+version: 4
 enabled: true
 
 # Attention budget for what the model must actually READ: these caps apply to
@@ -18,11 +18,18 @@ max_generated_lines: 20000
 
 # Machine-produced files exempt from the caps and omitted from the model's diff.
 # PRECONDITION: each path MUST be regenerated-and-compared by a REQUIRED CI
-# check, so a hand edit fails CI and cannot merge. catalog/snapshot.json is the
-# candidate (`task catalog:check`), but PR CI currently runs `task test`, not
-# `task ci`, and its path filter skips .json-only changes, so the check does
-# not run on PRs yet. Leave EMPTY until ADP (1) runs catalog:check on PRs incl.
-# catalog/** changes and (2) marks it required in the ruleset; then add
+# check, so a hand edit fails CI and cannot merge.
+#
+# CURRENT STATE OF THIS REPO'S CI (be explicit, per review): the ruleset has NO
+# required status checks, and all Go workflows path-filter on **.go/go.mod/go.sum,
+# so a .json- or .md-only PR runs NO CI at all. For catalog/snapshot.json that
+# means a small hand edit (under the size cap) would have the AI review as its
+# only gate — and a full regen (~5000 lines) refuses on the cap. Both are
+# unsatisfactory, so this is a GO-LIVE PRECONDITION for ADP, not just a
+# generated_paths one: (1) run `task catalog:check` on PRs, including catalog/**
+# changes; (2) make Test / Golangci Lint / License / catalog:check required
+# status checks (ideally running unconditionally so non-Go PRs don't wait on a
+# check that never reports). Then add
 #   - "catalog/snapshot.json"
 # and bump `version`.
 generated_paths: []
@@ -31,9 +38,15 @@ min_confidence: 0.8
 
 # Repo-specific paths that always need a human:
 #   providers/**/provider.go      client construction: API keys / SDK credential chains
-#                                 (** so nested provider packages are covered too)
+#                                 (** so nested provider packages are covered too).
+#                                 NOTE: catalog/provider.go is NOT matched and that is
+#                                 correct — it is the catalog's provider-ID type, no
+#                                 credentials. Do not broaden to **/provider.go.
 #   providers/bedrock/mantle.go   SigV4 signing transport: retrieves and validates AWS credentials
 #   tool/mcp/transport.go         spawns stdio MCP servers via exec.Command with caller env
+#   tool/builtin/webfetch/**      SSRF guard: private/reserved IP deny list, rebinding-safe dialer
+#   .claude/**, .claude-pr/**, CLAUDE.md   agent config; settings.json runs shell hooks on
+#                                 every contributor's machine — same category as Taskfile
 #   Taskfile.yaml, taskfiles/**, .golangci.yaml   define what CI enforces (task test/lint/license)
 #   LICENSE, header.txt           license text and the header template
 # Guarded by .github/actions/ai-merge/scripts/test_repo_config.py.
@@ -41,6 +54,10 @@ excluded_paths:
   - "providers/**/provider.go"
   - "providers/bedrock/mantle.go"
   - "tool/mcp/transport.go"
+  - "tool/builtin/webfetch/**"
+  - ".claude/**"
+  - ".claude-pr/**"
+  - "CLAUDE.md"
   - "Taskfile.yaml"
   - "taskfiles/**"
   - ".golangci.yaml"

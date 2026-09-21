@@ -142,15 +142,17 @@ def strip_generated(diff: str, generated: list[str]) -> str:
     kept: list[str] = []
     for section in re.split(r"(?m)^(?=diff --git )", diff):
         m = re.match(r"diff --git a/(\S+) b/(\S+)", section)
-        if m and (m.group(1) in gen or m.group(2) in gen):
+        # New path only: guardrails already refused renames INTO a generated
+        # path, so anything here is genuinely generated at its current name.
+        if m and m.group(2) in gen:
             continue
         kept.append(section)
     return "".join(kept)
 
 
 def build_user_prompt(pr: dict, diff: str, guardrails: dict) -> str:
+    """`diff` must already have generated hunks stripped (main() does this once)."""
     generated = list(guardrails.get("generated_files") or [])
-    diff = strip_generated(diff, generated)
     parts = [
         f"PR #{pr.get('number')} into {pr.get('base', '?')} by {pr.get('author', '?')}",
         _fence("pr_title", pr.get("title", "")),
