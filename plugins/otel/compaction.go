@@ -21,6 +21,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
+	"github.com/redpanda-data/ai-sdk-go/store/session"
 )
 
 // CompactionSpanName is the name of the span emitted for each context
@@ -49,7 +50,7 @@ func (t *TracingInterceptor) ObserveEvent(ctx context.Context, inv *agent.Invoca
 
 	report := ce.Report
 
-	attrs := make([]attribute.KeyValue, 0, 19)
+	attrs := make([]attribute.KeyValue, 0, 20)
 	attrs = append(attrs,
 		attribute.String("redpanda.compaction.phase", string(report.Phase)),
 		attribute.Int("redpanda.compaction.pruned_results", report.PrunedResults),
@@ -57,6 +58,16 @@ func (t *TracingInterceptor) ObserveEvent(ctx context.Context, inv *agent.Invoca
 	)
 	attrs = append(attrs, contextUsageAttrs("redpanda.compaction.before", report.Before)...)
 	attrs = append(attrs, contextUsageAttrs("redpanda.compaction.after", report.After)...)
+
+	// Group under the conversation id like every other span of the
+	// invocation: transcript consumers read spans by conversation, and a
+	// compaction span without one is invisible to them.
+	if inv != nil {
+		if cid := session.ConversationID(inv.Session()); cid != "" {
+			attrs = append(attrs, genAIConversationID(cid))
+		}
+	}
+
 	attrs = append(attrs, invocationAttributes(inv)...)
 
 	_, span := t.tracer.Start(ctx, CompactionSpanName,

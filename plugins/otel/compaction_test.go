@@ -103,6 +103,8 @@ func TestTracingInterceptor_EmitsCompactionSpan(t *testing.T) {
 	assert.Equal(t, int64(90_000), attrs["redpanda.compaction.after.tokens"])
 	assert.Equal(t, int64(119_500), attrs["redpanda.compaction.before.tool_results"])
 	assert.Equal(t, int64(2_000), attrs["redpanda.compaction.after.system_prompt"])
+	assert.Equal(t, "sess-compact", attrs["gen_ai.conversation.id"],
+		"transcript consumers group spans by conversation; a compaction span without it is dropped")
 
 	// Child of the invocation span, stamped at the pass time.
 	var invocationSpan *tracetest.SpanStub
