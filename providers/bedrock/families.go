@@ -16,6 +16,7 @@ package bedrock
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/llm"
@@ -36,6 +37,9 @@ type family struct {
 	// "anthropic.claude-opus-5". Geo variants are derived as
 	// "<profile>." + BareID.
 	BareID string
+	// Publisher must equal the vendor namespace of BareID, and
+	// expandFamilies panics when they disagree.
+	Publisher string
 	// Model is the canonical cross-provider identity.
 	Model catalog.ModelID
 	// DisplayName is the undecorated display name; variants get " (US)" /
@@ -105,6 +109,10 @@ func expandFamilies(families []family) ([]catalog.Entry, map[string]bool) {
 			panic(fmt.Sprintf("bedrock: mantle family %s must be bare-only", f.BareID)) //nolint:forbidigo // authoring error, not runtime
 		}
 
+		if vendor, _, ok := strings.Cut(f.BareID, "."); !ok || f.Publisher != vendor {
+			panic(fmt.Sprintf("bedrock: family %s declares Publisher %q, want the vendor namespace of its BareID", f.BareID, f.Publisher)) //nolint:forbidigo // authoring error, not runtime
+		}
+
 		hasGlobal := false
 
 		for _, p := range f.Profiles {
@@ -139,6 +147,7 @@ func expandFamilies(families []family) ([]catalog.Entry, map[string]bool) {
 			return catalog.Entry{
 				ID:           id,
 				Model:        f.Model,
+				Publisher:    f.Publisher,
 				DisplayName:  f.DisplayName + labelSuffix,
 				Capabilities: f.Capabilities,
 				Constraints:  f.Constraints,

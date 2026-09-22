@@ -62,7 +62,8 @@ func validEntry(id string, model ModelID) Entry {
 			MaxOutputTokens: 8_192,
 			SupportedParams: []string{"max_tokens", "temperature"},
 		},
-		Pricing: pricing.FlatInfo(3.00, 15.00, 0.30),
+		Publisher: "acme",
+		Pricing:   pricing.FlatInfo(3.00, 15.00, 0.30),
 	}
 }
 
@@ -204,6 +205,11 @@ func TestNewValidation(t *testing.T) {
 				}}
 			},
 			wantErr: `Pricing.Default.Base.InputPerMillion is unpriced`,
+		},
+		{
+			name:    "no publisher",
+			mutate:  func(e *Entry) { e.Publisher = "" },
+			wantErr: `Publisher is required`,
 		},
 	}
 

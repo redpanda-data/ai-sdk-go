@@ -40,6 +40,14 @@ type Entry struct {
 	// Model: catalog.ModelClaudeOpus5 ("anthropic/claude-opus-5").
 	Model ModelID
 
+	// Publisher is the vendor that published the model, independent of
+	// the provider serving it. Required — New rejects an entry that
+	// leaves it empty. It is authored beside the model and never derived
+	// from the offering ID. Values are lowercase vendor names. The
+	// Publisher* consts name the ones in use today, and a name that is
+	// not among them is still accepted.
+	Publisher string
+
 	// DisplayName is the display name including provider decoration:
 	// "Claude Opus 5 (EU)". Empty defaults to Facts.DisplayName.
 	DisplayName string

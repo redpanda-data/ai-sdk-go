@@ -56,7 +56,8 @@ func validEntry(id string, model catalog.ModelID) catalog.Entry {
 			MaxOutputTokens: 8_192,
 			SupportedParams: []string{"max_tokens", "temperature"},
 		},
-		Pricing: pricing.FlatInfo(3.00, 15.00, 0.30),
+		Publisher: "acme",
+		Pricing:   pricing.FlatInfo(3.00, 15.00, 0.30),
 	}
 }
 
@@ -183,6 +184,8 @@ func TestEncodeShape(t *testing.T) {
 	base, ok := def["base"].(map[string]any)
 	require.True(t, ok)
 	assert.InDelta(t, 300_000_000, base["input_microcents_per_million"], 0, "$3.00/M in microcents")
+
+	assert.Equal(t, "acme", second["publisher"])
 
 	// Attributes are sorted key/value pairs.
 	attrs, ok := second["attributes"].([]any)

@@ -19,6 +19,7 @@ tagged mid-sequence.
 | `provider.Models() []llm.ModelDiscoveryInfo` | `provider.Catalog().All() []catalog.Offering` |
 | `llm.ModelDiscoveryInfo.Name` | `catalog.Offering.ID` |
 | `llm.ModelDiscoveryInfo.Metadata["..."]` | `catalog.Offering.Attributes["..."]` |
+| `vertex.ModelMetadataPublisher` | `catalog.Offering.Publisher` |
 | — | `provider.Catalog().Now().Current()` / `.Previous()` / `.Deprecated()` / `.Retired()` |
 | — | `provider.Catalog().Replacement(offeringID)` (announced `ReplacedBy`, else the series successor) and `.Offerings(modelID)` |
 | — | `provider.Catalog().ResolveID(name)` — `Resolve` without the offering copy, for hot paths |
@@ -101,6 +102,15 @@ shape.
   retired offerings remain (with `Life.Retires` in the past and a
   `Deprecated:` marker on their ID constants) so historical usage stays
   priceable. Use `Catalog().Now()` views to filter by lifecycle.
+- **`catalog.New` rejects an entry with no publisher.** Every offering
+  must set `catalog.Entry.Publisher`, so a catalog built by an external
+  caller that leaves it empty now fails to construct - and
+  `catalog.MustNew` panics. Declare it once at the catalog root with
+  `catalog.MustDeclarePublisher`, or per entry for a multi-vendor catalog.
+- **The snapshot's `publisher` is a top-level offering field**, not an
+  `attributes` entry, and `catalog/snapshot.json` carries
+  `schema_version: 3`. A non-Go consumer that read the publisher out of
+  `attributes` must read `offerings[].publisher` instead.
 - **`llm.Response.InvokedModelID`** now reports catalog offering IDs
   where the provider reports a snapshot the catalog recognises;
   unrecognised IDs pass through unchanged.

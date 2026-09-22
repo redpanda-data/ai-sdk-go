@@ -128,7 +128,7 @@ func (f *DeepSeekFixture) Catalog() *catalog.Catalog {
 		},
 	}
 
-	return catalog.MustNew("deepseek", []catalog.Entry{
+	return catalog.MustNew("deepseek", catalog.MustDeclarePublisher("deepseek", []catalog.Entry{
 		{
 			ID:           openaicompattest.DeepSeekDefaultStandardModel,
 			Model:        "deepseek/v4-flash",
@@ -145,7 +145,7 @@ func (f *DeepSeekFixture) Catalog() *catalog.Catalog {
 			Constraints:  f.constraints,
 			Pricing:      pricing.FlatInfo(0.56, 1.68, 0.056),
 		},
-	}, catalog.WithRegistry(registry))
+	}), catalog.WithRegistry(registry))
 }
 
 func (f *DeepSeekFixture) NewModel(modelName string) (llm.Model, error) {

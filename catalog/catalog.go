@@ -161,6 +161,10 @@ func New(provider llm.ProviderID, entries []Entry, opts ...Option) (*Catalog, er
 			fail(i, e, "Pricing.Default.Base.OutputPerMillion is unpriced: author a rate or pricing.RateFree")
 		}
 
+		if e.Publisher == "" {
+			fail(i, e, "Publisher is required: author one, or use catalog.MustDeclarePublisher for a single-vendor catalog")
+		}
+
 		// Normalize before validating: the shape checks compare the
 		// capability booleans against Modalities, and an entry that omits
 		// Modalities entirely only grows its text-only default here.

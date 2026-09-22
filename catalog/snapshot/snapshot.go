@@ -48,7 +48,7 @@ import (
 // Consumers MUST key an offering by {provider, id}, never by id alone.
 // The shared "facts" map stays keyed by model ID because facts are
 // provider-independent (Encode rejects any conflict).
-const SchemaVersion = 2
+const SchemaVersion = 3
 
 // Encode writes the deterministic JSON snapshot of the given catalogs:
 // providers sorted by name, offerings sorted by ID, facts sorted by
@@ -128,6 +128,7 @@ func Encode(w io.Writer, catalogs ...*catalog.Catalog) error {
 					Adaptive: o.Reasoning.Adaptive,
 					Budget:   o.Reasoning.Budget,
 				},
+				Publisher:  o.Publisher,
 				Speeds:     o.Speeds,
 				Pricing:    pricingDTOFrom(o.Pricing),
 				Lifecycle:  lifecycleDTOFrom(o.Life),
@@ -188,6 +189,7 @@ type providerDTO struct {
 type offeringDTO struct {
 	ID           string          `json:"id"`
 	Model        string          `json:"model"`
+	Publisher    string          `json:"publisher"`
 	DisplayName  string          `json:"display_name"`
 	Aliases      []string        `json:"aliases,omitempty"`
 	Capabilities map[string]bool `json:"capabilities"`
