@@ -23,6 +23,7 @@ const (
 
 	ModelClaudeFable51  ModelID = "anthropic/claude-fable-5-1"
 	ModelClaudeFable5   ModelID = "anthropic/claude-fable-5"
+	ModelClaudeOpus55   ModelID = "anthropic/claude-opus-5-5"
 	ModelClaudeOpus5    ModelID = "anthropic/claude-opus-5"
 	ModelClaudeOpus48   ModelID = "anthropic/claude-opus-4-8"
 	ModelClaudeOpus47   ModelID = "anthropic/claude-opus-4-7"
@@ -117,6 +118,13 @@ var defaultRegistry = Registry{
 		DisplayName: "Claude Fable 5", Series: "claude-fable",
 		Released:    MustDate("2026-06-07"),
 		Description: "Claude Fable 5 is a Mythos-class model from Anthropic, built for autonomous knowledge work and coding.",
+	},
+	ModelClaudeOpus55: {
+		DisplayName: "Claude Opus 5.5", Series: "claude-opus",
+		// Released and reliable knowledge cutoff ("Jun 2026") per
+		// platform.claude.com/docs/en/models/opus-5-5/overview.
+		Released: MustDate("2026-09-22"), Knowledge: MustDate("2026-06-30"),
+		Description: "Claude Opus 5.5 is Anthropic’s flagship model for long-running agentic coding and knowledge work.",
 	},
 	ModelClaudeOpus5: {
 		DisplayName: "Claude Opus 5", Series: "claude-opus",

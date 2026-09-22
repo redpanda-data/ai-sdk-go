@@ -69,6 +69,13 @@
       "released": "2026-07-24",
       "knowledge": "2026-05-31"
     },
+    "anthropic/claude-opus-5-5": {
+      "display_name": "Claude Opus 5.5",
+      "description": "Claude Opus 5.5 is Anthropic’s flagship model for long-running agentic coding and knowledge work.",
+      "series": "claude-opus",
+      "released": "2026-09-22",
+      "knowledge": "2026-06-30"
+    },
     "anthropic/claude-sonnet-4-5": {
       "display_name": "Claude Sonnet 4.5",
       "description": "Claude Sonnet 4.5 is Anthropic’s most advanced Sonnet model to date, optimized for real-world agents and coding workflows.",
@@ -1022,7 +1029,90 @@
             "available": "2026-07-24"
           },
           "derived": {
-            "price_tier": "high"
+            "price_tier": "high",
+            "replacement": "anthropic/claude-opus-5-5"
+          }
+        },
+        {
+          "id": "claude-opus-5-5",
+          "model": "anthropic/claude-opus-5-5",
+          "display_name": "Claude Opus 5.5",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": true,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "reasoning_effort",
+              "speed"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "speeds": [
+            "standard",
+            "fast"
+          ],
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 400000000,
+                "output_microcents_per_million": 2000000000,
+                "cached_input_microcents_per_million": 20000000,
+                "cache_creation_5m_microcents_per_million": 500000000,
+                "cache_creation_1h_microcents_per_million": 800000000
+              }
+            },
+            "overrides": [
+              {
+                "speed": "fast",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 800000000,
+                    "output_microcents_per_million": 4000000000,
+                    "cached_input_microcents_per_million": 40000000,
+                    "cache_creation_5m_microcents_per_million": 1000000000,
+                    "cache_creation_1h_microcents_per_million": 1600000000
+                  }
+                }
+              }
+            ]
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-09-22"
+          },
+          "derived": {
+            "price_tier": "medium"
           }
         },
         {
@@ -1439,7 +1529,76 @@
             }
           ],
           "derived": {
-            "price_tier": "high"
+            "price_tier": "high",
+            "replacement": "anthropic/claude-opus-5-5"
+          }
+        },
+        {
+          "id": "au.anthropic.claude-opus-5-5",
+          "model": "anthropic/claude-opus-5-5",
+          "display_name": "Claude Opus 5.5 (AU)",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "stop"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 440000000,
+                "output_microcents_per_million": 2200000000,
+                "cached_input_microcents_per_million": 22000000,
+                "cache_creation_5m_microcents_per_million": 550000000,
+                "cache_creation_1h_microcents_per_million": 880000000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "au"
+            }
+          ],
+          "derived": {
+            "price_tier": "medium"
           }
         },
         {
@@ -2146,7 +2305,76 @@
             }
           ],
           "derived": {
-            "price_tier": "high"
+            "price_tier": "high",
+            "replacement": "anthropic/claude-opus-5-5"
+          }
+        },
+        {
+          "id": "eu.anthropic.claude-opus-5-5",
+          "model": "anthropic/claude-opus-5-5",
+          "display_name": "Claude Opus 5.5 (EU)",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "stop"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 440000000,
+                "output_microcents_per_million": 2200000000,
+                "cached_input_microcents_per_million": 22000000,
+                "cache_creation_5m_microcents_per_million": 550000000,
+                "cache_creation_1h_microcents_per_million": 880000000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "eu"
+            }
+          ],
+          "derived": {
+            "price_tier": "medium"
           }
         },
         {
@@ -2925,7 +3153,76 @@
             }
           ],
           "derived": {
-            "price_tier": "high"
+            "price_tier": "high",
+            "replacement": "anthropic/claude-opus-5-5"
+          }
+        },
+        {
+          "id": "global.anthropic.claude-opus-5-5",
+          "model": "anthropic/claude-opus-5-5",
+          "display_name": "Claude Opus 5.5 (Global)",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "stop"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 400000000,
+                "output_microcents_per_million": 2000000000,
+                "cached_input_microcents_per_million": 20000000,
+                "cache_creation_5m_microcents_per_million": 500000000,
+                "cache_creation_1h_microcents_per_million": 800000000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "global"
+            }
+          ],
+          "derived": {
+            "price_tier": "medium"
           }
         },
         {
@@ -3518,6 +3815,74 @@
           "derived": {
             "price_tier": "high",
             "replacement": "anthropic/claude-opus-5"
+          }
+        },
+        {
+          "id": "jp.anthropic.claude-opus-5-5",
+          "model": "anthropic/claude-opus-5-5",
+          "display_name": "Claude Opus 5.5 (JP)",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "stop"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 440000000,
+                "output_microcents_per_million": 2200000000,
+                "cached_input_microcents_per_million": 22000000,
+                "cache_creation_5m_microcents_per_million": 550000000,
+                "cache_creation_1h_microcents_per_million": 880000000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "jp"
+            }
+          ],
+          "derived": {
+            "price_tier": "medium"
           }
         },
         {
@@ -4441,7 +4806,76 @@
             }
           ],
           "derived": {
-            "price_tier": "high"
+            "price_tier": "high",
+            "replacement": "anthropic/claude-opus-5-5"
+          }
+        },
+        {
+          "id": "us.anthropic.claude-opus-5-5",
+          "model": "anthropic/claude-opus-5-5",
+          "display_name": "Claude Opus 5.5 (US)",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "stop"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 440000000,
+                "output_microcents_per_million": 2200000000,
+                "cached_input_microcents_per_million": 22000000,
+                "cache_creation_5m_microcents_per_million": 550000000,
+                "cache_creation_1h_microcents_per_million": 880000000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "us"
+            }
+          ],
+          "derived": {
+            "price_tier": "medium"
           }
         },
         {

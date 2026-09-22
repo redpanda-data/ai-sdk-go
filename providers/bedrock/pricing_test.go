@@ -147,6 +147,30 @@ func TestGPT56Pricing(t *testing.T) {
 	}
 }
 
+func TestClaudeOpus55Pricing(t *testing.T) {
+	t.Parallel()
+
+	global, globalOK := Catalog().Lookup(ModelClaudeOpus55Global)
+	require.True(t, globalOK)
+	assert.Equal(t,
+		pricing.NewRates(4.00, 20.00, 0.20).WithCacheCreation(5.00, 8.00, 0),
+		global.Pricing.Default.Base,
+	)
+
+	geoRates := pricing.NewRates(4.40, 22.00, 0.22).WithCacheCreation(5.50, 8.80, 0)
+
+	for _, id := range []string{
+		ModelClaudeOpus55US,
+		ModelClaudeOpus55EU,
+		ModelClaudeOpus55AU,
+		ModelClaudeOpus55JP,
+	} {
+		def, ok := Catalog().Lookup(id)
+		require.True(t, ok)
+		assert.Equal(t, geoRates, def.Pricing.Default.Base)
+	}
+}
+
 func TestClaudeOpus5Pricing(t *testing.T) {
 	t.Parallel()
 

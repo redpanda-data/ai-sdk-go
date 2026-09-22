@@ -119,6 +119,23 @@ func TestLookupModel(t *testing.T) {
 			wantOK: false,
 		},
 		{
+			name:   "Opus 5.5 bare ID is not in the bedrock-runtime catalog",
+			input:  ModelClaudeOpus55,
+			wantOK: false,
+		},
+		{
+			name:    "Opus 5.5 JP profile is its own entry",
+			input:   ModelClaudeOpus55JP,
+			wantOK:  true,
+			wantDef: ModelClaudeOpus55JP,
+		},
+		{
+			name:    "Opus 5.5 global profile is its own entry",
+			input:   ModelClaudeOpus55Global,
+			wantOK:  true,
+			wantDef: ModelClaudeOpus55Global,
+		},
+		{
 			name:   "Opus 5 bare ID is not in the bedrock-runtime catalog",
 			input:  ModelClaudeOpus5,
 			wantOK: false,
@@ -545,6 +562,57 @@ func TestNewModel_Fable5RegionPrefix(t *testing.T) {
 	m, ok := model.(*Model)
 	require.True(t, ok)
 	assert.Equal(t, ModelClaudeFable5US, m.config.APIModelID)
+}
+
+func TestNewModel_ClaudeOpus55Routing(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		region    string
+		modelName string
+		wantID    string
+		wantErr   bool
+	}{
+		{"bare defaults to US", "", ModelClaudeOpus55, ModelClaudeOpus55US, false},
+		{"bare from US", "us-east-1", ModelClaudeOpus55, ModelClaudeOpus55US, false},
+		{"bare from Calgary", "ca-west-1", ModelClaudeOpus55, ModelClaudeOpus55US, false},
+		{"bare from EU", "eu-west-1", ModelClaudeOpus55, ModelClaudeOpus55EU, false},
+		{"bare from Sydney", "ap-southeast-2", ModelClaudeOpus55, ModelClaudeOpus55AU, false},
+		{"bare from Tokyo", "ap-northeast-1", ModelClaudeOpus55, ModelClaudeOpus55JP, false},
+		{"bare from Osaka", "ap-northeast-3", ModelClaudeOpus55, ModelClaudeOpus55JP, false},
+		{"bare from Seoul", "ap-northeast-2", ModelClaudeOpus55, ModelClaudeOpus55Global, false},
+		{"bare from New Zealand", "ap-southeast-6", ModelClaudeOpus55, ModelClaudeOpus55Global, false},
+		{"bare from global-only region", "me-central-1", ModelClaudeOpus55, ModelClaudeOpus55Global, false},
+		{"bare from GovCloud", "us-gov-west-1", ModelClaudeOpus55, "", true},
+		{"bare from unknown region", "unknown", ModelClaudeOpus55, "", true},
+		{"explicit JP from Tokyo", "ap-northeast-1", ModelClaudeOpus55JP, ModelClaudeOpus55JP, false},
+		{"explicit JP from Seoul", "ap-northeast-2", ModelClaudeOpus55JP, "", true},
+		{"explicit global from China", "cn-north-1", ModelClaudeOpus55Global, ModelClaudeOpus55Global, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			p := &Provider{client: nil, region: tt.region}
+
+			model, err := p.NewModel(tt.modelName)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.modelName)
+				assert.Contains(t, err.Error(), tt.region)
+
+				return
+			}
+
+			require.NoError(t, err)
+
+			m, ok := model.(*Model)
+			require.True(t, ok)
+			assert.Equal(t, tt.wantID, m.config.APIModelID)
+		})
+	}
 }
 
 func TestNewModel_ClaudeOpus5Routing(t *testing.T) {

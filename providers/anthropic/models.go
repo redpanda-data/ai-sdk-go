@@ -28,6 +28,7 @@ import (
 const (
 	ModelClaudeFable51  = "claude-fable-5-1"
 	ModelClaudeFable5   = "claude-fable-5"
+	ModelClaudeOpus55   = "claude-opus-5-5"
 	ModelClaudeOpus5    = "claude-opus-5"
 	ModelClaudeSonnet5  = "claude-sonnet-5"
 	ModelClaudeSonnet46 = "claude-sonnet-4-6"
@@ -110,7 +111,7 @@ var claudeCaps = llm.ModelCapabilities{
 }
 
 // claudeCapsWithToolSearch marks the models on Anthropic's tool search
-// compatibility list as of 2026-09-14: Fable 5.1, Fable 5, Opus 5, Opus 4.8,
+// compatibility list as of 2026-09-22: Fable 5.1, Fable 5, Opus 5.5, Opus 5, Opus 4.8,
 // 4.7, 4.6 and 4.5, Sonnet 4.6 and 4.5, Haiku 4.5. Opus 4.1 is explicitly
 // unsupported and Sonnet 5 is absent from the list, so both keep claudeCaps and
 // local discovery until native support is documented:
@@ -196,6 +197,43 @@ func entries() []catalog.Entry {
 			// multipliers (5m-write = 1.25x input, 1h-write = 2x, read = 0.10x).
 			Pricing: pricing.FlatInfoFromRates(
 				pricing.NewRates(10.00, 50.00, 1.00).WithCacheCreation(12.50, 20.00, 0),
+			),
+		},
+		{
+			ID:           ModelClaudeOpus55,
+			Model:        catalog.ModelClaudeOpus55,
+			Capabilities: claudeCapsWithToolSearch,
+			Modalities:   claudeModalities,
+			Constraints: llm.ModelConstraints{
+				MaxInputTokens:  1000000, // 1M context window
+				MaxOutputTokens: 128000,  // 128K output tokens
+				// Opus 5.5 tightens Opus 5's surface: thinking is always on, so
+				// both thinking.type.disabled and a manual budget are rejected,
+				// and non-default sampling parameters stay rejected. Use
+				// adaptive thinking + effort to bias reasoning depth.
+				SupportedParams: []string{"max_tokens", "reasoning_effort", "speed"},
+			},
+			Reasoning: catalog.ReasoningSupport{
+				Efforts:  []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+				Adaptive: true,
+			},
+			Speeds: []Speed{SpeedStandard, SpeedFast},
+			Life: catalog.Lifecycle{
+				Available: catalog.MustDate("2026-09-22"),
+			},
+			// Cache reads are the exception to Anthropic's 0.10x multiplier:
+			// the pricing page prices Opus 5.5 hits at 0.05x base input
+			// ($0.20/MTok). Cache writes keep the 1.25x/2x multipliers.
+			Pricing: pricing.FlatInfoFromRates(
+				pricing.NewRates(4.00, 20.00, 0.20).WithCacheCreation(5.00, 8.00, 0),
+			).WithOverride(
+				pricing.Selector{Speed: SpeedFast},
+				pricing.RateCard{
+					// Fast mode is $8/$40 flat across the full window; the
+					// caching multipliers apply on top of the fast rates.
+					Base: pricing.NewRates(8.00, 40.00, 0.40).
+						WithCacheCreation(10.00, 16.00, 0),
+				},
 			),
 		},
 		{

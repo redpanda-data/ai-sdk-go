@@ -42,6 +42,20 @@ func TestIsModelAllowedFromRegion(t *testing.T) {
 		{"sonnet5 us from eu-west-1 (cross-geo)", ModelClaudeSonnet5US, "eu-west-1", false},
 		{"sonnet5 global from me-central-1", ModelClaudeSonnet5Global, "me-central-1", true},
 
+		// Opus 5.5 — US, EU, AU, JP, and global profiles are published.
+		{"opus55 us from us-east-1", ModelClaudeOpus55US, "us-east-1", true},
+		{"opus55 us from unset region", ModelClaudeOpus55US, "", false},
+		{"opus55 us from ca-west-1", ModelClaudeOpus55US, "ca-west-1", true},
+		{"opus55 eu from eu-west-1", ModelClaudeOpus55EU, "eu-west-1", true},
+		{"opus55 au from ap-southeast-2", ModelClaudeOpus55AU, "ap-southeast-2", true},
+		{"opus55 au from ap-southeast-4", ModelClaudeOpus55AU, "ap-southeast-4", true},
+		{"opus55 au from ap-southeast-6 (New Zealand is global-only)", ModelClaudeOpus55AU, "ap-southeast-6", false},
+		{"opus55 jp from ap-northeast-1", ModelClaudeOpus55JP, "ap-northeast-1", true},
+		{"opus55 jp from ap-northeast-3", ModelClaudeOpus55JP, "ap-northeast-3", true},
+		{"opus55 jp from ap-northeast-2 (Seoul is global-only)", ModelClaudeOpus55JP, "ap-northeast-2", false},
+		{"opus55 eu from us-east-1", ModelClaudeOpus55EU, "us-east-1", false},
+		{"opus55 global from me-central-1", ModelClaudeOpus55Global, "me-central-1", true},
+
 		// Opus 5 — US, EU, AU, and global profiles are published.
 		{"opus5 us from us-east-1", ModelClaudeOpus5US, "us-east-1", true},
 		{"opus5 us from unset region", ModelClaudeOpus5US, "", false},
@@ -156,6 +170,12 @@ func TestProfileRegionResolverLookup(t *testing.T) {
 	t.Parallel()
 
 	for _, modelID := range []string{
+		ModelClaudeOpus55,
+		ModelClaudeOpus55Global,
+		ModelClaudeOpus55US,
+		ModelClaudeOpus55EU,
+		ModelClaudeOpus55AU,
+		ModelClaudeOpus55JP,
 		ModelClaudeOpus5,
 		ModelClaudeOpus5Global,
 		ModelClaudeOpus5US,

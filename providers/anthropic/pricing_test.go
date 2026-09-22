@@ -79,6 +79,28 @@ func TestOpus46FastModeBillsAtStandardRates(t *testing.T) {
 	assert.False(t, found, "Opus 4.6 must not carry a fast-mode price override")
 }
 
+func TestClaudeOpus55Pricing(t *testing.T) {
+	t.Parallel()
+
+	o, ok := Catalog().Lookup(ModelClaudeOpus55)
+	require.True(t, ok)
+
+	// Cache reads are 0.05x base input on Opus 5.5, not the usual 0.10x.
+	assert.Equal(t,
+		pricing.NewRates(4.00, 20.00, 0.20).WithCacheCreation(5.00, 8.00, 0),
+		o.Pricing.Default.Base,
+	)
+	assert.Empty(t, o.Pricing.Default.Brackets)
+
+	fast, found := findFastOverride(o.Pricing.Overrides)
+	require.True(t, found)
+	assert.Equal(t,
+		pricing.NewRates(8.00, 40.00, 0.40).WithCacheCreation(10.00, 16.00, 0),
+		fast.Base,
+	)
+	assert.Empty(t, fast.Brackets)
+}
+
 func TestClaudeOpus5Pricing(t *testing.T) {
 	t.Parallel()
 

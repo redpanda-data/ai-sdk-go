@@ -45,6 +45,11 @@ func TestModelResolution(t *testing.T) {
 			expectedModel: "claude-fable-5-20260604",
 		},
 		{
+			name:          "claude-opus-5-5 family name resolves",
+			modelKey:      ModelClaudeOpus55,
+			expectedModel: ModelClaudeOpus55,
+		},
+		{
 			name:          "claude-opus-5 family name resolves",
 			modelKey:      ModelClaudeOpus5,
 			expectedModel: ModelClaudeOpus5,
@@ -243,6 +248,14 @@ func TestWithThinkingBudget(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "thinking_budget")
 	})
+
+	t.Run("rejected on Opus 5.5", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := provider.NewModel(ModelClaudeOpus55, WithThinkingBudget(2048))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "thinking_budget")
+	})
 }
 
 func TestWithReasoningEffort(t *testing.T) {
@@ -313,6 +326,20 @@ func TestWithReasoningEffort(t *testing.T) {
 		}
 	})
 
+	t.Run("all effort levels accepted on Opus 5.5", func(t *testing.T) {
+		t.Parallel()
+
+		for _, effort := range []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax} {
+			model, err := provider.NewModel(ModelClaudeOpus55, WithReasoningEffort(effort))
+			require.NoError(t, err)
+
+			m, ok := model.(*Model)
+			require.True(t, ok)
+			require.NotNil(t, m.config.ReasoningEffort)
+			assert.Equal(t, effort, *m.config.ReasoningEffort)
+		}
+	})
+
 	t.Run("all effort levels accepted on Opus 5", func(t *testing.T) {
 		t.Parallel()
 
@@ -364,6 +391,18 @@ func TestWithSpeed(t *testing.T) {
 		require.True(t, ok)
 		require.NotNil(t, m.config.Speed)
 		assert.Equal(t, SpeedStandard, *m.config.Speed)
+	})
+
+	t.Run("fast speed on Opus 5.5", func(t *testing.T) {
+		t.Parallel()
+
+		model, err := provider.NewModel(ModelClaudeOpus55, WithSpeed(SpeedFast))
+		require.NoError(t, err)
+
+		m, ok := model.(*Model)
+		require.True(t, ok)
+		require.NotNil(t, m.config.Speed)
+		assert.Equal(t, SpeedFast, *m.config.Speed)
 	})
 
 	t.Run("fast speed on Opus 5", func(t *testing.T) {
@@ -427,7 +466,7 @@ func TestRestrictedSamplingParametersRejected(t *testing.T) {
 		{name: "top_k", opt: WithTopK(10), want: "top_k"},
 	}
 
-	for _, model := range []string{ModelClaudeFable51, ModelClaudeFable5, ModelClaudeOpus5} {
+	for _, model := range []string{ModelClaudeFable51, ModelClaudeFable5, ModelClaudeOpus55, ModelClaudeOpus5} {
 		t.Run(model, func(t *testing.T) {
 			t.Parallel()
 

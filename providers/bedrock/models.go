@@ -94,6 +94,18 @@ const (
 	ModelClaudeHaiku45EU     = "eu." + ModelClaudeHaiku45
 	ModelClaudeHaiku45AU     = "au." + ModelClaudeHaiku45
 
+	// ModelClaudeOpus55 is the bare building block for Claude Opus 5.5 profile
+	// IDs. bedrock-runtime publishes only global, US, EU, AU, and JP profiles
+	// (no In-Region endpoint URL). The bare ID is invokable through
+	// bedrock-mantle's Anthropic Messages surface, but this provider's mantle
+	// transport implements only the OpenAI-compatible Responses surface.
+	ModelClaudeOpus55       = "anthropic.claude-opus-5-5"
+	ModelClaudeOpus55Global = "global." + ModelClaudeOpus55
+	ModelClaudeOpus55US     = "us." + ModelClaudeOpus55
+	ModelClaudeOpus55EU     = "eu." + ModelClaudeOpus55
+	ModelClaudeOpus55AU     = "au." + ModelClaudeOpus55
+	ModelClaudeOpus55JP     = "jp." + ModelClaudeOpus55
+
 	// ModelClaudeOpus5 is the bare building block for Claude Opus 5 profile IDs.
 	// bedrock-runtime publishes only global, US, EU, and AU profiles. The bare
 	// ID is invokable through bedrock-mantle's Anthropic Messages surface, but
@@ -628,6 +640,25 @@ var bedrockFamilies = []family{
 		Reasoning:    frontierClaudeThinking,
 		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(10.00, 50.00, 1.00).WithCacheCreation(12.50, 20.00, 0)},
 		Rates:        pricing.RateCard{Base: pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(13.75, 22.00, 0)},
+	},
+	{
+		// Claude Opus 5.5 — inference-profile-only on bedrock-runtime (the
+		// bare ID publishes no In-Region endpoint URL). AWS publishes
+		// global, US, EU, AU, and JP profiles:
+		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-5-5.html
+		BareID:       ModelClaudeOpus55,
+		Model:        catalog.ModelClaudeOpus55,
+		DisplayName:  "Claude Opus 5.5",
+		Profiles:     []string{"global", "us", "eu", "au", "jp"},
+		Capabilities: claudeStandardCaps,
+		Modalities:   claudeModalities,
+		Constraints:  claudeNoSampling1MConstraints,
+		Reasoning:    frontierClaudeThinking,
+		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(4.00, 20.00, 0.20).WithCacheCreation(5.00, 8.00, 0)},
+		Rates:        pricing.RateCard{Base: pricing.NewRates(4.40, 22.00, 0.22).WithCacheCreation(5.50, 8.80, 0)},
+		// Opus 5.5 opts into exact geo routing: AU is Sydney/Melbourne and
+		// JP is Tokyo/Osaka only, and fast mode is not offered on Bedrock.
+		ProfileRegions: claudeOpus55ProfileRegions,
 	},
 	{
 		// Claude Opus 5 — inference-profile-only on bedrock-runtime. AWS
