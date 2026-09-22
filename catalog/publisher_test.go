@@ -15,6 +15,7 @@
 package catalog_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -23,78 +24,19 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/catalog"
 )
 
-func TestMustDeclarePublisherDeclaresOnEveryEntry(t *testing.T) {
+// TestEveryFactsRecordDeclaresItsPublisher pins each authored publisher
+// against the vendor segment of the ModelID it sits under. The two are
+// authored separately, so nothing in the build path stops a new model
+// naming one vendor in its ID and another in its Publisher.
+func TestEveryFactsRecordDeclaresItsPublisher(t *testing.T) {
 	t.Parallel()
 
-	got := catalog.MustDeclarePublisher("anthropic", []catalog.Entry{
-		{ID: "claude-opus-5"},
-		{ID: "claude-haiku-4-5", Attributes: map[string]string{"inference_geo": "us"}},
-	})
+	registry := catalog.DefaultRegistry()
+	require.NotEmpty(t, registry)
 
-	require.Len(t, got, 2)
-	assert.Equal(t, "anthropic", got[0].Publisher)
-	assert.Equal(t, "anthropic", got[1].Publisher)
-	assert.Equal(t, "us", got[1].Attributes["inference_geo"], "existing attributes must survive")
-}
-
-func TestMustDeclarePublisherLeavesTheArgumentAlone(t *testing.T) {
-	t.Parallel()
-
-	entries := []catalog.Entry{{ID: "claude-opus-5"}}
-
-	got := catalog.MustDeclarePublisher("anthropic", entries)
-
-	assert.Equal(t, "anthropic", got[0].Publisher)
-	assert.Empty(t, entries[0].Publisher, "the caller's slice must be untouched")
-}
-
-func TestMustDeclarePublisherGuards(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name      string
-		publisher string
-		entries   []catalog.Entry
-		wantPanic string
-	}{
-		{
-			name:      "conflicting declaration",
-			publisher: "anthropic",
-			entries:   []catalog.Entry{{ID: "gpt-5.6-sol", Publisher: "openai"}},
-			wantPanic: "catalog: entry gpt-5.6-sol declares publisher openai, not anthropic",
-		},
-		{
-			name:      "empty publisher",
-			publisher: "",
-			entries:   []catalog.Entry{{ID: "claude-opus-5"}},
-			wantPanic: "catalog: MustDeclarePublisher needs a publisher",
-		},
-		{
-			name:      "matching redeclaration is accepted",
-			publisher: "anthropic",
-			entries:   []catalog.Entry{{ID: "claude-opus-5", Publisher: "anthropic"}},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			var got []catalog.Entry
-
-			call := func() { got = catalog.MustDeclarePublisher(tt.publisher, tt.entries) }
-
-			if tt.wantPanic == "" {
-				require.NotPanics(t, call)
-
-				for _, e := range got {
-					assert.Equalf(t, tt.publisher, e.Publisher, "%s publisher", e.ID)
-				}
-
-				return
-			}
-
-			assert.PanicsWithError(t, tt.wantPanic, call)
-		})
+	for id, facts := range registry {
+		vendor, _, ok := strings.Cut(string(id), "/")
+		require.Truef(t, ok, "%s carries no vendor segment", id)
+		assert.Equalf(t, vendor, string(facts.Publisher), "%s publisher", id)
 	}
 }

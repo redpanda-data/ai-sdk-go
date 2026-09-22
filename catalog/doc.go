@@ -14,8 +14,8 @@
 
 // Package catalog is the model-metadata read model shared by every
 // provider: identity, capabilities, constraints, modalities, pricing,
-// lifecycle, and the publishing vendor (Entry.Publisher) for each
-// offering, plus the derivations over them (current vs previous
+// and lifecycle for each offering, plus the publishing vendor
+// (Facts.Publisher) and the derivations over them (current vs previous
 // generation, replacement, retirement, price tier).
 //
 // # Shape
@@ -23,9 +23,9 @@
 // Two identity layers keep cross-provider drift structurally impossible:
 //
 //   - A ModelID ("anthropic/claude-opus-5") names the logical model and
-//     keys a Registry of host-independent Facts (display label, series,
-//     release date, knowledge cutoff). Facts are authored once; every
-//     offering references them.
+//     keys a Registry of host-independent Facts (publishing vendor,
+//     display label, series, release date, knowledge cutoff). Facts are
+//     authored once; every offering references them.
 //   - An offering ID ("us.anthropic.claude-opus-5") names one invokable
 //     row on one provider and carries everything that genuinely varies
 //     per host: capabilities, constraints, modalities, pricing, and

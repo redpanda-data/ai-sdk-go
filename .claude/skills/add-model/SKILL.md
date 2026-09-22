@@ -21,10 +21,17 @@ ordering, succession, and price tiers are derived at read time.
 
 In `catalog/facts_data.go`: canonical `ModelID` constant
 (`"anthropic/claude-opus-5"` — vendor segment names the creator, not the
-host), `DisplayName`, `Description` (short UI blurb), `Series`, `Released`,
-`Knowledge`. Two providers offering the same model reference the same
+host), `Publisher`, `DisplayName`, `Description` (short UI blurb),
+`Series`, `Released`, `Knowledge`. Two providers offering the same model reference the same
 `ModelID`; never author facts twice.
 
+- **Publisher is the vendor that published the model**, independent of any
+  provider serving it. Use the `catalog.Publisher*` const rather than a
+  string literal; a vendor with no const yet adds one to
+  `catalog/publisher.go` first. Consumers read a model's brand from it, so
+  `catalog.New` rejects facts that leave it empty, and
+  `TestEveryFactsRecordDeclaresItsPublisher` fails when it disagrees with
+  the `ModelID`'s own vendor segment.
 - **Series is a non-branching succession line**, not a brand: gpt, gpt-mini,
   and gpt-nano are three series — a mini is not the successor of a base
   model. Vendor renames map onto the line they succeed.
@@ -44,30 +51,14 @@ host), `DisplayName`, `Description` (short UI blurb), `Series`, `Released`,
 Exported ID constant (greppable), capabilities, constraints, modalities,
 `Reasoning` (efforts/adaptive/budget), `Pricing`, `Life`.
 
-- **Every offering must set `catalog.Entry.Publisher`** — the vendor that
-  published the model. Use the `catalog.Publisher*` const rather than a
-  string literal; a vendor with no const yet adds one there first.
-  Consumers read a model's brand from it, so `catalog.New` rejects an entry
-  that leaves it empty. Every catalog goes through `New`, so this holds for
-  a provider package that is on none of the lists below.
-  The single-vendor catalogs declare it once at the catalog root via
-  `catalog.MustDeclarePublisher`, so a new entry there inherits it and needs
-  nothing. Bedrock declares it per family (below).
-  A new provider package must wire `catalog.MustDeclarePublisher`
-  (single-vendor) or set the field per entry, and add itself to three
-  hand-kept lists: the `snapshot.Encode` call in
-  `cmd/catalog-snapshot/main.go` (what the generator writes), `allCatalogs`
-  in `cmd/catalog-snapshot/lifecycle_test.go` (what the invariants walk),
-  and `catalogPublisher` in `cmd/catalog-snapshot/publisher_test.go` (the
-  publisher every one of its offerings carries, or an empty value when the
-  catalog is multi-vendor and the value is checked in the provider's own
-  package). The publisher is not the provider name, so the expected value
-  is authored in that map rather than derived from the catalog key.
-  A catalog absent from it fails `TestEveryOfferingDeclaresAPublisher`
-  outright. That test checks the value is the expected one; `catalog.New`
-  is what checks a value is there at all. Nothing links the three, and
-  adding only the second makes `TestCommittedSnapshotIsFresh` fail with
-  advice that cannot fix it.
+- **An entry declares no publisher** — it comes from the model's facts, so
+  read it back with `o.Facts().Publisher`.
+- A new provider package must add itself to two hand-kept lists: the
+  `snapshot.Encode` call in `cmd/catalog-snapshot/main.go` (what the
+  generator writes) and `allCatalogs` in
+  `cmd/catalog-snapshot/lifecycle_test.go` (what the invariants walk).
+  Nothing links the two, and adding only the second makes
+  `TestCommittedSnapshotIsFresh` fail with advice that cannot fix it.
 
 - **Capabilities and modalities describe the model as the provider documents
   it**, not what this SDK's request mappers wire yet.
@@ -159,11 +150,10 @@ provider page wins.
 Bedrock models are one `family` declaration in `models.go`, expanded by
 `families.go` into bare + profile entries (`us.`, `eu.`, `global.`, …).
 
-- **`Publisher` is required** and must be the vendor namespace of
-  `BareID` — `catalog.PublisherAnthropic` for `anthropic.claude-opus-5`. It is
-  authored on the family, not split off the offering ID, so the bare,
-  geo-prefixed and global variants all report the same vendor;
-  `expandFamilies` panics without it.
+- **A family declares no publisher.** It comes from the model's facts, so
+  the bare, geo-prefixed and global variants all report the same vendor;
+  `TestPublisherMatchesBareIDVendor` pins that vendor against the namespace
+  of `BareID` — `anthropic` for `anthropic.claude-opus-5`.
 - Check the model card's Programmatic Access and Regional Availability
   tables for exact IDs. Register the bare ID (`BareInvokable`) only when the
   bedrock-runtime row publishes an In-Region endpoint URL — otherwise the

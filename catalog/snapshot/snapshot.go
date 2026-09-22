@@ -87,6 +87,7 @@ func Encode(w io.Writer, catalogs ...*catalog.Catalog) error {
 			f := o.Facts()
 			dto := factsDTO{
 				DisplayName: f.DisplayName,
+				Publisher:   string(f.Publisher),
 				Description: f.Description,
 				Series:      f.Series,
 				Released:    dateString(f.Released),
@@ -128,7 +129,6 @@ func Encode(w io.Writer, catalogs ...*catalog.Catalog) error {
 					Adaptive: o.Reasoning.Adaptive,
 					Budget:   o.Reasoning.Budget,
 				},
-				Publisher:  o.Publisher,
 				Speeds:     o.Speeds,
 				Pricing:    pricingDTOFrom(o.Pricing),
 				Lifecycle:  lifecycleDTOFrom(o.Life),
@@ -174,6 +174,7 @@ type snapshotDTO struct {
 
 type factsDTO struct {
 	DisplayName string `json:"display_name"`
+	Publisher   string `json:"publisher"`
 	Description string `json:"description,omitempty"`
 	Series      string `json:"series"`
 	Released    string `json:"released"`
@@ -189,7 +190,6 @@ type providerDTO struct {
 type offeringDTO struct {
 	ID           string          `json:"id"`
 	Model        string          `json:"model"`
-	Publisher    string          `json:"publisher"`
 	DisplayName  string          `json:"display_name"`
 	Aliases      []string        `json:"aliases,omitempty"`
 	Capabilities map[string]bool `json:"capabilities"`

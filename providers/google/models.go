@@ -47,7 +47,7 @@ const (
 const ProviderName = "gcp.gemini"
 
 var catalogOnce = sync.OnceValue(func() *catalog.Catalog {
-	return catalog.MustNew(ProviderName, catalog.MustDeclarePublisher(catalog.PublisherGoogle, entries()))
+	return catalog.MustNew(ProviderName, entries())
 })
 
 // Catalog returns the validated Google model catalog: every offering with

@@ -43,6 +43,12 @@ type Facts struct {
 	// identifiers, and a display name is never invoked.
 	DisplayName string
 
+	// Publisher is the vendor that published the model, independent of
+	// any provider serving it. Required — New rejects Facts that leave
+	// it empty. It is authored beside the model and never derived from
+	// an offering ID.
+	Publisher Publisher
+
 	// Description is a short blurb for catalog UIs: what the model is
 	// and what it is good at. Optional.
 	Description string

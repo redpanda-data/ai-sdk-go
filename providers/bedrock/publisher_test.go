@@ -20,6 +20,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/redpanda-data/ai-sdk-go/catalog"
 )
 
 // TestPublisherMatchesBareIDVendor checks each publisher against the
@@ -30,14 +32,19 @@ import (
 func TestPublisherMatchesBareIDVendor(t *testing.T) {
 	t.Parallel()
 
+	registry := catalog.DefaultRegistry()
+
 	for _, f := range bedrockFamilies {
 		vendor, _, ok := strings.Cut(f.BareID, ".")
 		require.Truef(t, ok, "%s carries no vendor namespace", f.BareID)
-		assert.Equalf(t, vendor, f.Publisher, "%s publisher does not match its bare ID vendor", f.BareID)
+
+		facts, registered := registry[f.Model]
+		require.Truef(t, registered, "%s references unregistered model %s", f.BareID, f.Model)
+		assert.Equalf(t, vendor, string(facts.Publisher), "%s publisher does not match its bare ID vendor", f.BareID)
 	}
 
 	for _, o := range Catalog().All() {
-		publisher := o.Publisher
+		publisher := string(o.Facts().Publisher)
 		require.NotEmptyf(t, publisher, "%s declares no publisher", o.ID)
 		assert.Truef(t,
 			strings.HasPrefix(o.ID, publisher+".") || strings.Contains(o.ID, "."+publisher+"."),

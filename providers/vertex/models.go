@@ -163,9 +163,8 @@ func entries() []catalog.Entry {
 			// Gemini 3.6 Flash GA, release date 2026-07-21 on the model page
 			// (docs.cloud.google.com/gemini-enterprise-agent-platform/models/
 			// gemini/3-6-flash, read 2026-09-10). No retirement published.
-			Life:      catalog.Lifecycle{Available: catalog.MustDate("2026-07-21")},
-			Pricing:   geminiFlashPricing(),
-			Publisher: catalog.PublisherGoogle,
+			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-07-21")},
+			Pricing: geminiFlashPricing(),
 		},
 		{
 			ID:           ModelClaudeSonnet5,
@@ -186,9 +185,8 @@ func entries() []catalog.Entry {
 			// sooner than 2026-12-24" on the model page (docs.cloud.google.com/
 			// gemini-enterprise-agent-platform/models/partner-models/claude/sonnet-5,
 			// read 2026-09-10).
-			Life:      catalog.Lifecycle{Available: catalog.MustDate("2026-06-30")},
-			Pricing:   claudeSonnet5Pricing(),
-			Publisher: catalog.PublisherAnthropic,
+			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-06-30")},
+			Pricing: claudeSonnet5Pricing(),
 		},
 		{
 			ID:           ModelClaudeHaiku45,
@@ -209,9 +207,8 @@ func entries() []catalog.Entry {
 			// sooner than 2026-10-15" on the model page (docs.cloud.google.com/
 			// gemini-enterprise-agent-platform/models/partner-models/claude/
 			// haiku-4-5, read 2026-09-10).
-			Life:      catalog.Lifecycle{Available: catalog.MustDate("2025-10-15")},
-			Pricing:   claudeHaiku45Pricing(),
-			Publisher: catalog.PublisherAnthropic,
+			Life:    catalog.Lifecycle{Available: catalog.MustDate("2025-10-15")},
+			Pricing: claudeHaiku45Pricing(),
 		},
 	}
 }

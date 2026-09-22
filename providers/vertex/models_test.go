@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/pricing"
 	"github.com/redpanda-data/ai-sdk-go/providers/vertex"
@@ -57,7 +58,7 @@ func TestCatalogProviderName(t *testing.T) {
 func TestOfferingAttributes(t *testing.T) {
 	t.Parallel()
 
-	wantPublisher := map[string]string{
+	wantPublisher := map[string]catalog.Publisher{
 		vertex.ModelGemini36Flash: "google",
 		vertex.ModelClaudeSonnet5: "anthropic",
 		vertex.ModelClaudeHaiku45: "anthropic",
@@ -68,7 +69,7 @@ func TestOfferingAttributes(t *testing.T) {
 
 	for _, o := range vertex.Catalog().All() {
 		require.Containsf(t, wantPublisher, o.ID, "%s has no expected publisher", o.ID)
-		assert.Equalf(t, wantPublisher[o.ID], o.Publisher, "%s publisher", o.ID)
+		assert.Equalf(t, wantPublisher[o.ID], o.Facts().Publisher, "%s publisher", o.ID)
 	}
 }
 

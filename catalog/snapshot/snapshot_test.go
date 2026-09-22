@@ -30,15 +30,15 @@ import (
 func testRegistry() catalog.Registry {
 	return catalog.Registry{
 		"acme/robin-1": {
-			DisplayName: "Robin 1", Series: "robin",
+			Publisher: "acme", DisplayName: "Robin 1", Series: "robin",
 			Released: catalog.MustDate("2025-01-10"),
 		},
 		"acme/robin-2": {
-			DisplayName: "Robin 2", Series: "robin",
+			Publisher: "acme", DisplayName: "Robin 2", Series: "robin",
 			Released: catalog.MustDate("2025-08-01"),
 		},
 		"acme/robin-3": {
-			DisplayName: "Robin 3", Series: "robin",
+			Publisher: "acme", DisplayName: "Robin 3", Series: "robin",
 			Released: catalog.MustDate("2026-03-15"),
 		},
 	}
@@ -56,8 +56,7 @@ func validEntry(id string, model catalog.ModelID) catalog.Entry {
 			MaxOutputTokens: 8_192,
 			SupportedParams: []string{"max_tokens", "temperature"},
 		},
-		Publisher: "acme",
-		Pricing:   pricing.FlatInfo(3.00, 15.00, 0.30),
+		Pricing: pricing.FlatInfo(3.00, 15.00, 0.30),
 	}
 }
 
@@ -124,6 +123,7 @@ func TestEncodeShape(t *testing.T) {
 	robin2Facts, ok := facts["acme/robin-2"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "Robin 2", robin2Facts["display_name"])
+	assert.Equal(t, "acme", robin2Facts["publisher"])
 	assert.Equal(t, "robin", robin2Facts["series"])
 	assert.Equal(t, "2025-08-01", robin2Facts["released"])
 
@@ -185,8 +185,6 @@ func TestEncodeShape(t *testing.T) {
 	require.True(t, ok)
 	assert.InDelta(t, 300_000_000, base["input_microcents_per_million"], 0, "$3.00/M in microcents")
 
-	assert.Equal(t, "acme", second["publisher"])
-
 	// Attributes are sorted key/value pairs.
 	attrs, ok := second["attributes"].([]any)
 	require.True(t, ok)
@@ -201,7 +199,7 @@ func TestEncodeRejectsConflictingFacts(t *testing.T) {
 
 	regB := testRegistry()
 	regB["acme/robin-2"] = catalog.Facts{
-		DisplayName: "Robin 2 (divergent)", Series: "robin",
+		Publisher: "acme", DisplayName: "Robin 2 (divergent)", Series: "robin",
 		Released: catalog.MustDate("2025-08-01"),
 	}
 

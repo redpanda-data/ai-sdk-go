@@ -35,7 +35,7 @@ const maxOutputTokens = 32_768
 const ProviderName = "meta"
 
 var catalogOnce = sync.OnceValue(func() *catalog.Catalog {
-	return catalog.MustNew(ProviderName, catalog.MustDeclarePublisher(catalog.PublisherMeta, entries()))
+	return catalog.MustNew(ProviderName, entries())
 })
 
 // Catalog returns the immutable Meta Model API catalog.

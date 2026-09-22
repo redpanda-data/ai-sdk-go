@@ -14,40 +14,17 @@
 
 package catalog
 
-import (
-	"errors"
-	"fmt"
-	"slices"
-)
+// Publisher is the vendor that published a model, independent of the
+// provider serving it. Values are lowercase vendor names. The Publisher*
+// consts name the ones in use across the catalogs today, and a name that
+// is not among them is still accepted.
+type Publisher string
 
-// The publisher values in use across the catalogs today. A new vendor
-// adds a const here and declares it in its catalog.
 const (
-	PublisherAmazon    = "amazon"
-	PublisherAnthropic = "anthropic"
-	PublisherGoogle    = "google"
-	PublisherMeta      = "meta"
-	PublisherMistral   = "mistral"
-	PublisherOpenAI    = "openai"
+	PublisherAmazon    Publisher = "amazon"
+	PublisherAnthropic Publisher = "anthropic"
+	PublisherGoogle    Publisher = "google"
+	PublisherMeta      Publisher = "meta"
+	PublisherMistral   Publisher = "mistral"
+	PublisherOpenAI    Publisher = "openai"
 )
-
-// MustDeclarePublisher returns a copy of entries with [Entry.Publisher]
-// set to publisher. It panics on an empty publisher, or on an entry that
-// already declares a different one.
-func MustDeclarePublisher(publisher string, entries []Entry) []Entry {
-	if publisher == "" {
-		panic(errors.New("catalog: MustDeclarePublisher needs a publisher")) //nolint:forbidigo // authoring error, not runtime
-	}
-
-	out := slices.Clone(entries)
-
-	for i := range out {
-		if existing := out[i].Publisher; existing != "" && existing != publisher {
-			panic(fmt.Errorf("catalog: entry %s declares publisher %s, not %s", out[i].ID, existing, publisher)) //nolint:forbidigo // authoring error, not runtime
-		}
-
-		out[i].Publisher = publisher
-	}
-
-	return out
-}

@@ -138,6 +138,8 @@ func New(provider llm.ProviderID, entries []Entry, opts ...Option) (*Catalog, er
 			fail(i, e, "Facts for %q have a zero Released date", e.Model)
 		case facts.Series == "":
 			fail(i, e, "Facts for %q have an empty Series", e.Model)
+		case facts.Publisher == "":
+			fail(i, e, "Facts for %q have an empty Publisher", e.Model)
 		case !isDateOnly(facts.Released) || !isDateOnly(facts.Knowledge):
 			fail(i, e, "Facts dates for %q must be date-only (midnight UTC): construct with catalog.MustDate", e.Model)
 		}
@@ -159,10 +161,6 @@ func New(provider llm.ProviderID, entries []Entry, opts ...Option) (*Catalog, er
 
 		if e.Pricing.Default.Base.OutputPerMillion == 0 {
 			fail(i, e, "Pricing.Default.Base.OutputPerMillion is unpriced: author a rate or pricing.RateFree")
-		}
-
-		if e.Publisher == "" {
-			fail(i, e, "Publisher is required: author one, or use catalog.MustDeclarePublisher for a single-vendor catalog")
 		}
 
 		// Normalize before validating: the shape checks compare the
