@@ -438,8 +438,9 @@ var defaultRegistry = Registry{
 	ModelGemini31FlashLite: {
 		Publisher:   PublisherGoogle,
 		DisplayName: "Gemini 3.1 Flash-Lite", Series: "gemini-flash-lite",
-		// GA on 2026-05-07 per ai.google.dev/gemini-api/docs/changelog, matching
-		// the 2.5 Flash-Lite GA-date convention; the preview launched 2026-03-03.
+		// gemini-3.1-flash-lite became callable on 2026-05-07 per
+		// ai.google.dev/gemini-api/docs/changelog. The 2026-03-03 preview
+		// shipped under its own ID (gemini-3.1-flash-lite-preview).
 		// Knowledge "Jan 2025" per ai.google.dev/gemini-api/docs/gemini-3.
 		Released: MustDate("2026-05-07"), Knowledge: MustDate("2025-01-31"),
 		Description: "Gemini 3.1 Flash-Lite is a low-latency, cost-effective multimodal model optimized for high-frequency, lightweight tasks.",

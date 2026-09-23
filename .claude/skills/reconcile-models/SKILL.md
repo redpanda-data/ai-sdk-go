@@ -89,8 +89,9 @@ surface** — every change must be visible and intended in
    verdict — resolve it on the provider page. Known aggregator traps:
    LiteLLM prices in USD/token and carries no release dates; OpenRouter
    truncates descriptions mid-sentence, lags new models, and its `created`
-   (a good day-precision Released proxy otherwise) tracks slug listing —
-   wrong for models that re-slugged preview→GA.
+   (a day-precision Released lead) dates the OpenRouter slug, not the
+   vendor's model ID — it can predate the ID (slug first listed for a
+   preview) or run a day early.
 
    **Neither is usable for lifecycle.** OpenRouter has an
    `expiration_date` field that is `null` for every model, retired ones
@@ -168,8 +169,9 @@ surface** — every change must be visible and intended in
     pointing at an already-retired offering). They cannot catch a wrong or
     missing date — that still needs the vendor page.
 - **Facts**: `Knowledge` is the *reliable* cutoff when the vendor publishes
-  both reliable and training dates; `Released` is the first-ship date
-  anywhere; `Description` is a short current blurb.
+  both reliable and training dates; `Released` is the day this exact model
+  ID first became callable by users (a preview under its own ID is a
+  separate model — see add-model); `Description` is a short current blurb.
 
   **Fixed facts vs. mutable data.** `Released`, `Knowledge`, and an
   offering's launch `Available` describe a past event — once correct they

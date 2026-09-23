@@ -38,12 +38,15 @@ host), `Publisher`, `DisplayName`, `Description` (short UI blurb),
 - **Knowledge is the reliable cutoff.** When a vendor publishes both a
   "reliable knowledge" and a broader "training data" date, use the reliable
   one. Month-only cutoffs normalize to the last day of that month.
-- **Released** is the vendor's announcement date when findable. Vendors
-  often publish only a month; OpenRouter's `created` field is a
-  day-precision fallback (it matches launch day for models listed at
-  launch) — but it tracks the *slug's* listing, so it misses the preview
-  launch of models that re-slugged preview→GA. LiteLLM has no release
-  dates. Comment the sourcing when using the fallback.
+- **Released** is the day this exact model ID first became callable by
+  users. Usually that is the announcement day; when an announcement
+  promises a later rollout, use the rollout day. A preview shipped under
+  its own ID (`gemini-3.1-flash-lite-preview`) is a separate model with its
+  own date, so the GA ID's Released is its own first-callable day, not the
+  preview's. Vendors often publish only a month; OpenRouter's `created`
+  field is a day-precision fallback, but it dates the OpenRouter *slug*,
+  which can predate this ID (a slug first listed for a preview) or lag it.
+  LiteLLM has no release dates. Comment the source on every Released.
 - Dates are `catalog.MustDate("YYYY-MM-DD")` (midnight UTC; validated).
 
 ## Step 2 — Author the provider entry

@@ -1775,7 +1775,8 @@
             "efforts": [
               "low",
               "medium",
-              "high"
+              "high",
+              "max"
             ],
             "adaptive": true,
             "budget": true
@@ -2539,7 +2540,8 @@
             "efforts": [
               "low",
               "medium",
-              "high"
+              "high",
+              "max"
             ],
             "adaptive": true,
             "budget": true
@@ -3375,7 +3377,8 @@
             "efforts": [
               "low",
               "medium",
-              "high"
+              "high",
+              "max"
             ],
             "adaptive": true,
             "budget": true
@@ -5170,7 +5173,8 @@
             "efforts": [
               "low",
               "medium",
-              "high"
+              "high",
+              "max"
             ],
             "adaptive": true,
             "budget": true

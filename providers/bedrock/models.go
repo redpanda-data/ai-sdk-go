@@ -376,8 +376,10 @@ var (
 		Budget:   true,
 	}
 
+	// Sonnet 4.6 takes max but not xhigh, per
+	// platform.claude.com/docs/en/build-with-claude/effort.
 	claudeSonnet46Thinking = catalog.ReasoningSupport{
-		Efforts:  []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
+		Efforts:  []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortMax},
 		Adaptive: true,
 		Budget:   true,
 	}

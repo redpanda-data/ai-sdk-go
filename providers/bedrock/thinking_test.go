@@ -186,7 +186,7 @@ func TestModelThinkingCapabilities(t *testing.T) {
 		},
 		{
 			model:            ModelClaudeSonnet46US,
-			efforts:          []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
+			efforts:          []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortMax},
 			supportsAdaptive: true,
 			supportsBudget:   true,
 		},
@@ -241,7 +241,7 @@ func TestNewModelRejectsUnsupportedThinkingConfiguration(t *testing.T) {
 		{
 			name:      "unsupported effort",
 			model:     ModelClaudeSonnet46US,
-			option:    WithReasoningEffort(ReasoningEffortMax),
+			option:    WithReasoningEffort(ReasoningEffortXHigh),
 			wantError: "does not support reasoning effort",
 		},
 		{
