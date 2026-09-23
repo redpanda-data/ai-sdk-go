@@ -119,11 +119,11 @@ func (f *DeepSeekFixture) NewReasoningModel(t *testing.T) llm.Model {
 func (f *DeepSeekFixture) Catalog() *catalog.Catalog {
 	registry := catalog.Registry{
 		"deepseek/v4-flash": {
-			DisplayName: "DeepSeek V4 Flash", Series: "deepseek-flash",
+			Publisher: "deepseek", DisplayName: "DeepSeek V4 Flash", Series: "deepseek-flash",
 			Released: catalog.MustDate("2026-05-01"),
 		},
 		"deepseek/v4-pro": {
-			DisplayName: "DeepSeek V4 Pro", Series: "deepseek-pro",
+			Publisher: "deepseek", DisplayName: "DeepSeek V4 Pro", Series: "deepseek-pro",
 			Released: catalog.MustDate("2026-05-01"),
 		},
 	}

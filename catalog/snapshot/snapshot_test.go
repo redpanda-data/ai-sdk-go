@@ -30,15 +30,15 @@ import (
 func testRegistry() catalog.Registry {
 	return catalog.Registry{
 		"acme/robin-1": {
-			DisplayName: "Robin 1", Series: "robin",
+			Publisher: "acme", DisplayName: "Robin 1", Series: "robin",
 			Released: catalog.MustDate("2025-01-10"),
 		},
 		"acme/robin-2": {
-			DisplayName: "Robin 2", Series: "robin",
+			Publisher: "acme", DisplayName: "Robin 2", Series: "robin",
 			Released: catalog.MustDate("2025-08-01"),
 		},
 		"acme/robin-3": {
-			DisplayName: "Robin 3", Series: "robin",
+			Publisher: "acme", DisplayName: "Robin 3", Series: "robin",
 			Released: catalog.MustDate("2026-03-15"),
 		},
 	}
@@ -123,6 +123,7 @@ func TestEncodeShape(t *testing.T) {
 	robin2Facts, ok := facts["acme/robin-2"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "Robin 2", robin2Facts["display_name"])
+	assert.Equal(t, "acme", robin2Facts["publisher"])
 	assert.Equal(t, "robin", robin2Facts["series"])
 	assert.Equal(t, "2025-08-01", robin2Facts["released"])
 
@@ -198,7 +199,7 @@ func TestEncodeRejectsConflictingFacts(t *testing.T) {
 
 	regB := testRegistry()
 	regB["acme/robin-2"] = catalog.Facts{
-		DisplayName: "Robin 2 (divergent)", Series: "robin",
+		Publisher: "acme", DisplayName: "Robin 2 (divergent)", Series: "robin",
 		Released: catalog.MustDate("2025-08-01"),
 	}
 

@@ -1,20 +1,23 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "facts": {
     "amazon/nova-2-lite": {
       "display_name": "Amazon Nova 2 Lite",
+      "publisher": "amazon",
       "description": "Nova 2 Lite is a fast, cost-effective reasoning model for everyday workloads that can process text, images, and videos to generate text.",
       "series": "nova-lite",
       "released": "2025-12-02"
     },
     "anthropic/claude-fable-5": {
       "display_name": "Claude Fable 5",
+      "publisher": "anthropic",
       "description": "Claude Fable 5 is a Mythos-class model from Anthropic, built for autonomous knowledge work and coding.",
       "series": "claude-fable",
       "released": "2026-06-07"
     },
     "anthropic/claude-fable-5-1": {
       "display_name": "Claude Fable 5.1",
+      "publisher": "anthropic",
       "description": "Claude Fable 5.1 is Anthropic’s most capable Mythos-class model for demanding reasoning and long-horizon agentic work.",
       "series": "claude-fable",
       "released": "2026-09-01",
@@ -22,6 +25,7 @@
     },
     "anthropic/claude-haiku-4-5": {
       "display_name": "Claude Haiku 4.5",
+      "publisher": "anthropic",
       "description": "Claude Haiku 4.5 is Anthropic’s fastest and most efficient model, delivering near-frontier intelligence at a fraction of the cost and latency of larger Claude models.",
       "series": "claude-haiku",
       "released": "2025-10-15",
@@ -29,6 +33,7 @@
     },
     "anthropic/claude-opus-4-1": {
       "display_name": "Claude Opus 4.1",
+      "publisher": "anthropic",
       "description": "Claude Opus 4.1 is an updated version of Anthropic’s flagship model, offering improved performance in coding, reasoning, and agentic tasks.",
       "series": "claude-opus",
       "released": "2025-08-05",
@@ -36,6 +41,7 @@
     },
     "anthropic/claude-opus-4-5": {
       "display_name": "Claude Opus 4.5",
+      "publisher": "anthropic",
       "description": "Claude Opus 4.5 is Anthropic’s frontier reasoning model optimized for complex software engineering, agentic workflows, and long-horizon computer use.",
       "series": "claude-opus",
       "released": "2025-11-24",
@@ -43,6 +49,7 @@
     },
     "anthropic/claude-opus-4-6": {
       "display_name": "Claude Opus 4.6",
+      "publisher": "anthropic",
       "description": "Opus 4.6 is Anthropic’s strongest model for coding and long-running professional tasks.",
       "series": "claude-opus",
       "released": "2026-02-04",
@@ -50,6 +57,7 @@
     },
     "anthropic/claude-opus-4-7": {
       "display_name": "Claude Opus 4.7",
+      "publisher": "anthropic",
       "description": "Opus 4.7 is the next generation of Anthropic's Opus family, built for long-running, asynchronous agents.",
       "series": "claude-opus",
       "released": "2026-04-14",
@@ -57,6 +65,7 @@
     },
     "anthropic/claude-opus-4-8": {
       "display_name": "Claude Opus 4.8",
+      "publisher": "anthropic",
       "description": "Claude Opus 4.8 is Anthropic's most capable generally available model in the Opus family.",
       "series": "claude-opus",
       "released": "2026-05-28",
@@ -64,6 +73,7 @@
     },
     "anthropic/claude-opus-5": {
       "display_name": "Claude Opus 5",
+      "publisher": "anthropic",
       "description": "Claude Opus 5 is Anthropic’s flagship model for demanding reasoning, coding, and long-horizon agentic work.",
       "series": "claude-opus",
       "released": "2026-07-24",
@@ -71,6 +81,7 @@
     },
     "anthropic/claude-sonnet-4-5": {
       "display_name": "Claude Sonnet 4.5",
+      "publisher": "anthropic",
       "description": "Claude Sonnet 4.5 is Anthropic’s most advanced Sonnet model to date, optimized for real-world agents and coding workflows.",
       "series": "claude-sonnet",
       "released": "2025-09-29",
@@ -78,6 +89,7 @@
     },
     "anthropic/claude-sonnet-4-6": {
       "display_name": "Claude Sonnet 4.6",
+      "publisher": "anthropic",
       "description": "Sonnet 4.6 is Anthropic's most capable Sonnet-class model yet, with frontier performance across coding, agents, and professional work.",
       "series": "claude-sonnet",
       "released": "2026-02-17",
@@ -85,6 +97,7 @@
     },
     "anthropic/claude-sonnet-5": {
       "display_name": "Claude Sonnet 5",
+      "publisher": "anthropic",
       "description": "Sonnet 5 is Anthropic's most capable Sonnet-class model, with frontier performance across coding, agents, and professional work.",
       "series": "claude-sonnet",
       "released": "2026-06-29",
@@ -92,6 +105,7 @@
     },
     "google/gemini-2.5-flash": {
       "display_name": "Gemini 2.5 Flash",
+      "publisher": "google",
       "description": "Gemini 2.5 Flash is Google's state-of-the-art workhorse model, specifically designed for advanced reasoning, coding, mathematics, and scientific tasks.",
       "series": "gemini-flash",
       "released": "2025-06-17",
@@ -99,6 +113,7 @@
     },
     "google/gemini-2.5-flash-lite": {
       "display_name": "Gemini 2.5 Flash-Lite",
+      "publisher": "google",
       "description": "Gemini 2.5 Flash-Lite is a lightweight reasoning model in the Gemini 2.5 family, optimized for ultra-low latency and cost efficiency.",
       "series": "gemini-flash-lite",
       "released": "2025-07-22",
@@ -106,6 +121,7 @@
     },
     "google/gemini-2.5-pro": {
       "display_name": "Gemini 2.5 Pro",
+      "publisher": "google",
       "description": "Gemini 2.5 Pro is Google’s state-of-the-art AI model designed for advanced reasoning, coding, mathematics, and scientific tasks.",
       "series": "gemini-pro",
       "released": "2025-06-17",
@@ -113,6 +129,7 @@
     },
     "google/gemini-3-flash-preview": {
       "display_name": "Gemini 3 Flash Preview",
+      "publisher": "google",
       "description": "Gemini 3 Flash Preview is a high speed, high value thinking model designed for agentic workflows, multi turn chat, and coding assistance.",
       "series": "gemini-flash",
       "released": "2025-12-17",
@@ -120,12 +137,14 @@
     },
     "google/gemini-3-pro-preview": {
       "display_name": "Gemini 3 Pro Preview",
+      "publisher": "google",
       "series": "gemini-pro",
       "released": "2025-11-18",
       "knowledge": "2025-01-31"
     },
     "google/gemini-3.1-pro-preview": {
       "display_name": "Gemini 3.1 Pro Preview",
+      "publisher": "google",
       "description": "Gemini 3.1 Pro Preview is Google’s frontier reasoning model, delivering enhanced software engineering performance, improved agentic reliability, and more efficient token usage across complex workflows.",
       "series": "gemini-pro",
       "released": "2026-02-19",
@@ -133,6 +152,7 @@
     },
     "google/gemini-3.5-flash": {
       "display_name": "Gemini 3.5 Flash",
+      "publisher": "google",
       "description": "Gemini 3.5 Flash is Google's high-efficiency multimodal model, bringing near-Pro level coding and reasoning at Flash-tier cost and speed.",
       "series": "gemini-flash",
       "released": "2026-05-19",
@@ -140,6 +160,7 @@
     },
     "google/gemini-3.5-flash-lite": {
       "display_name": "Gemini 3.5 Flash-Lite",
+      "publisher": "google",
       "description": "Gemini 3.5 Flash Lite is a high-efficiency model from Google with upgraded agentic capabilities. It is suited for subagents that execute focused tasks within complex, multi-agent workflows.",
       "series": "gemini-flash-lite",
       "released": "2026-07-21",
@@ -147,6 +168,7 @@
     },
     "google/gemini-3.6-flash": {
       "display_name": "Gemini 3.6 Flash",
+      "publisher": "google",
       "description": "Gemini 3.6 Flash is a high-efficiency model from Google for coding, agentic workflows, and web and app development.",
       "series": "gemini-flash",
       "released": "2026-07-21",
@@ -154,12 +176,14 @@
     },
     "google/gemini-3.7-flash": {
       "display_name": "Gemini 3.7 Flash",
+      "publisher": "google",
       "description": "Gemini 3.7 Flash is a multimodal model from Google for fast agentic workflows, coding, and complex multi-step reasoning.",
       "series": "gemini-flash",
       "released": "2026-08-13"
     },
     "google/gemini-3.8-flash": {
       "display_name": "Gemini 3.8 Flash",
+      "publisher": "google",
       "description": "Gemini 3.8 Flash is Google's most intelligent Flash model, built for long-horizon software engineering, autonomous agents, and complex enterprise workflows.",
       "series": "gemini-flash",
       "released": "2026-09-02",
@@ -167,6 +191,7 @@
     },
     "google/gemma-4-26b-a4b": {
       "display_name": "Gemma 4 26B A4B",
+      "publisher": "google",
       "description": "Gemma 4 26B A4B IT is an instruction-tuned Mixture-of-Experts (MoE) model from Google DeepMind.",
       "series": "gemma-26b-a4b",
       "released": "2026-04-02",
@@ -174,6 +199,7 @@
     },
     "google/gemma-4-31b": {
       "display_name": "Gemma 4 31B",
+      "publisher": "google",
       "description": "Gemma 4 31B Instruct is Google DeepMind's 30.7B dense multimodal model supporting text and image input with text output.",
       "series": "gemma-31b",
       "released": "2026-04-02",
@@ -181,18 +207,21 @@
     },
     "google/gemma-4-e2b": {
       "display_name": "Gemma 4 E2B",
+      "publisher": "google",
       "series": "gemma-e2b",
       "released": "2026-04-02",
       "open_weights": true
     },
     "meta/muse-spark-1.3": {
       "display_name": "Muse Spark 1.3",
+      "publisher": "meta",
       "description": "Muse Spark 1.3 is Meta's model for coding, long-context reasoning, and multi-step agentic workflows.",
       "series": "muse-spark",
       "released": "2026-09-02"
     },
     "mistral/mistral-large-3": {
       "display_name": "Mistral Large 3",
+      "publisher": "mistral",
       "description": "Mistral Large 3 2512 is Mistral’s most capable model to date, featuring a sparse mixture-of-experts architecture with 41B active parameters (675B total), and released under the Apache 2.0 license.",
       "series": "mistral-large",
       "released": "2025-12-02",
@@ -201,6 +230,7 @@
     },
     "openai/gpt-3.5-turbo": {
       "display_name": "GPT-3.5 Turbo",
+      "publisher": "openai",
       "description": "GPT-3.5 Turbo is OpenAI's fastest model. It can understand and generate natural language or code, and is optimized for chat and traditional completion tasks.",
       "series": "gpt",
       "released": "2023-03-01",
@@ -208,6 +238,7 @@
     },
     "openai/gpt-4-turbo": {
       "display_name": "GPT-4 Turbo",
+      "publisher": "openai",
       "description": "The latest GPT-4 Turbo model with vision capabilities. Vision requests can now use JSON mode and function calling.",
       "series": "gpt",
       "released": "2023-11-06",
@@ -215,6 +246,7 @@
     },
     "openai/gpt-4.1": {
       "display_name": "GPT-4.1",
+      "publisher": "openai",
       "description": "GPT-4.1 is a flagship large language model optimized for advanced instruction following, real-world software engineering, and long-context reasoning.",
       "series": "gpt",
       "released": "2025-04-14",
@@ -222,6 +254,7 @@
     },
     "openai/gpt-4.1-mini": {
       "display_name": "GPT-4.1 Mini",
+      "publisher": "openai",
       "description": "GPT-4.1 Mini is a mid-sized model delivering performance competitive with GPT-4o at substantially lower latency and cost.",
       "series": "gpt-mini",
       "released": "2025-04-14",
@@ -229,6 +262,7 @@
     },
     "openai/gpt-4o": {
       "display_name": "GPT-4o",
+      "publisher": "openai",
       "description": "GPT-4o (\"o\" for \"omni\") is OpenAI's latest AI model, supporting both text and image inputs with text outputs.",
       "series": "gpt",
       "released": "2024-05-13",
@@ -236,6 +270,7 @@
     },
     "openai/gpt-4o-mini": {
       "display_name": "GPT-4o Mini",
+      "publisher": "openai",
       "description": "GPT-4o mini is OpenAI's newest model after [GPT-4 Omni](/models/openai/gpt-4o), supporting both text and image inputs with text outputs.",
       "series": "gpt-mini",
       "released": "2024-07-18",
@@ -243,6 +278,7 @@
     },
     "openai/gpt-5": {
       "display_name": "GPT-5",
+      "publisher": "openai",
       "description": "GPT-5 is OpenAI’s most advanced model, offering major improvements in reasoning, code quality, and user experience.",
       "series": "gpt",
       "released": "2025-08-07",
@@ -250,6 +286,7 @@
     },
     "openai/gpt-5-mini": {
       "display_name": "GPT-5 Mini",
+      "publisher": "openai",
       "description": "GPT-5 Mini is a compact version of GPT-5, designed to handle lighter-weight reasoning tasks. It provides the same instruction-following and safety-tuning benefits as GPT-5, but with reduced latency and cost.",
       "series": "gpt-mini",
       "released": "2025-08-07",
@@ -257,6 +294,7 @@
     },
     "openai/gpt-5-nano": {
       "display_name": "GPT-5 Nano",
+      "publisher": "openai",
       "description": "GPT-5-Nano is the smallest and fastest variant in the GPT-5 system, optimized for developer tools, rapid interactions, and ultra-low latency environments.",
       "series": "gpt-nano",
       "released": "2025-08-07",
@@ -264,6 +302,7 @@
     },
     "openai/gpt-5.1": {
       "display_name": "GPT-5.1",
+      "publisher": "openai",
       "description": "GPT-5.1 is the latest frontier-grade model in the GPT-5 series, offering stronger general-purpose reasoning, improved instruction adherence, and a more natural conversational style compared to GPT-5.",
       "series": "gpt",
       "released": "2025-11-13",
@@ -271,6 +310,7 @@
     },
     "openai/gpt-5.2": {
       "display_name": "GPT-5.2",
+      "publisher": "openai",
       "description": "GPT-5.2 is the latest frontier-grade model in the GPT-5 series, offering stronger agentic and long context performance compared to GPT-5.1.",
       "series": "gpt",
       "released": "2025-12-11",
@@ -278,6 +318,7 @@
     },
     "openai/gpt-5.2-chat-latest": {
       "display_name": "GPT-5.2 Instant",
+      "publisher": "openai",
       "description": "GPT-5.2 Chat (AKA Instant) is the fast, lightweight member of the 5.2 family, optimized for low-latency chat while retaining strong general intelligence.",
       "series": "gpt-chat",
       "released": "2025-12-11",
@@ -285,6 +326,7 @@
     },
     "openai/gpt-5.2-pro": {
       "display_name": "GPT-5.2 Pro",
+      "publisher": "openai",
       "description": "GPT-5.2 Pro is OpenAI’s most advanced model, offering major improvements in agentic coding and long context performance over GPT-5 Pro.",
       "series": "gpt-pro",
       "released": "2025-12-11",
@@ -292,12 +334,14 @@
     },
     "openai/gpt-5.3-chat-latest": {
       "display_name": "GPT-5.3 Instant",
+      "publisher": "openai",
       "series": "gpt-chat",
       "released": "2026-03-03",
       "knowledge": "2025-08-31"
     },
     "openai/gpt-5.4": {
       "display_name": "GPT-5.4",
+      "publisher": "openai",
       "description": "GPT-5.4 is OpenAI’s latest frontier model, unifying the Codex and GPT lines into a single system.",
       "series": "gpt",
       "released": "2026-03-05",
@@ -305,6 +349,7 @@
     },
     "openai/gpt-5.4-mini": {
       "display_name": "GPT-5.4 Mini",
+      "publisher": "openai",
       "description": "GPT-5.4 mini brings the core capabilities of GPT-5.4 to a faster, more efficient model optimized for high-throughput workloads.",
       "series": "gpt-mini",
       "released": "2026-03-17",
@@ -312,6 +357,7 @@
     },
     "openai/gpt-5.4-nano": {
       "display_name": "GPT-5.4 Nano",
+      "publisher": "openai",
       "description": "GPT-5.4 nano is the most lightweight and cost-efficient variant of the GPT-5.4 family, optimized for speed-critical and high-volume tasks.",
       "series": "gpt-nano",
       "released": "2026-03-17",
@@ -319,6 +365,7 @@
     },
     "openai/gpt-5.5": {
       "display_name": "GPT-5.5",
+      "publisher": "openai",
       "description": "GPT-5.5 is OpenAI’s frontier model designed for complex professional workloads, building on GPT-5.4 with stronger reasoning, higher reliability, and improved token efficiency on hard tasks.",
       "series": "gpt",
       "released": "2026-04-23",
@@ -326,6 +373,7 @@
     },
     "openai/gpt-5.6-luna": {
       "display_name": "GPT-5.6 Luna",
+      "publisher": "openai",
       "description": "GPT-5.6 Luna is a fast, cost-efficient model in OpenAI's GPT-5.6 series.",
       "series": "gpt-nano",
       "released": "2026-07-09",
@@ -333,6 +381,7 @@
     },
     "openai/gpt-5.6-sol": {
       "display_name": "GPT-5.6 Sol",
+      "publisher": "openai",
       "description": "GPT-5.6 Sol is the flagship model in OpenAI's GPT-5.6 series.",
       "series": "gpt",
       "released": "2026-07-09",
@@ -340,6 +389,7 @@
     },
     "openai/gpt-5.6-terra": {
       "display_name": "GPT-5.6 Terra",
+      "publisher": "openai",
       "description": "GPT-5.6 Terra is a balanced model in OpenAI's GPT-5.6 series, positioned between the flagship Sol tier and the cost-efficient Luna tier.",
       "series": "gpt-mini",
       "released": "2026-07-09",
@@ -347,6 +397,7 @@
     },
     "openai/gpt-6-astra": {
       "display_name": "GPT-6 Astra",
+      "publisher": "openai",
       "description": "GPT-6 Astra is OpenAI's flagship model for complex reasoning, coding, and long-running professional work.",
       "series": "gpt",
       "released": "2026-09-03",
@@ -354,6 +405,7 @@
     },
     "openai/o1-pro": {
       "display_name": "o1-pro",
+      "publisher": "openai",
       "description": "The o1 series of models are trained with reinforcement learning to think before they answer and perform complex reasoning.",
       "series": "gpt-pro",
       "released": "2025-03-19",
@@ -361,6 +413,7 @@
     },
     "openai/o3": {
       "display_name": "o3",
+      "publisher": "openai",
       "description": "o3 is a well-rounded and powerful model across domains. It sets a new standard for math, science, coding, and visual reasoning tasks. It also excels at technical writing and instruction-following.",
       "series": "o",
       "released": "2025-04-16",
@@ -368,6 +421,7 @@
     },
     "openai/o3-pro": {
       "display_name": "o3-pro",
+      "publisher": "openai",
       "description": "The o-series of models are trained with reinforcement learning to think before they answer and perform complex reasoning.",
       "series": "gpt-pro",
       "released": "2025-06-10",
@@ -375,6 +429,7 @@
     },
     "openai/o4-mini": {
       "display_name": "o4-mini",
+      "publisher": "openai",
       "description": "OpenAI o4-mini is a compact reasoning model in the o-series, optimized for fast, cost-efficient performance while retaining strong multimodal and agentic capabilities.",
       "series": "o-mini",
       "released": "2025-04-16",
@@ -5558,12 +5613,6 @@
             "stage": "ga",
             "available": "2025-10-15"
           },
-          "attributes": [
-            {
-              "key": "publisher",
-              "value": "anthropic"
-            }
-          ],
           "derived": {
             "price_tier": "low"
           }
@@ -5672,12 +5721,6 @@
             "stage": "ga",
             "available": "2026-06-30"
           },
-          "attributes": [
-            {
-              "key": "publisher",
-              "value": "anthropic"
-            }
-          ],
           "derived": {
             "price_tier": "medium"
           }
@@ -5770,12 +5813,6 @@
             "stage": "ga",
             "available": "2026-07-21"
           },
-          "attributes": [
-            {
-              "key": "publisher",
-              "value": "google"
-            }
-          ],
           "derived": {
             "price_tier": "low"
           }

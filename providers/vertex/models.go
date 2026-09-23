@@ -51,22 +51,6 @@ const (
 	ModelClaudeHaiku45 = "claude-haiku-4-5"
 )
 
-// Publishers own the model on Vertex and name the segment before the
-// model in a Vertex resource path. Stored per offering in Attributes so
-// the runtime provider can build the path without re-deriving it.
-const (
-	publisherGoogle    = "google"
-	publisherAnthropic = "anthropic"
-)
-
-// Attribute keys carried on every Vertex offering. Keys are snake_case
-// and values are strings so the committed snapshot stays stable.
-const (
-	// ModelMetadataPublisher is the Vertex publisher segment ("google",
-	// "anthropic").
-	ModelMetadataPublisher = "publisher"
-)
-
 // Reasoning-effort values Vertex accepts. llm.ReasoningEffort is an open
 // string type whose valid vocabulary is provider-owned, so the two
 // publishers do not share one set: Gemini's thinking levels are
@@ -181,9 +165,6 @@ func entries() []catalog.Entry {
 			// gemini/3-6-flash, read 2026-09-10). No retirement published.
 			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-07-21")},
 			Pricing: geminiFlashPricing(),
-			Attributes: map[string]string{
-				ModelMetadataPublisher: publisherGoogle,
-			},
 		},
 		{
 			ID:           ModelClaudeSonnet5,
@@ -206,9 +187,6 @@ func entries() []catalog.Entry {
 			// read 2026-09-10).
 			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-06-30")},
 			Pricing: claudeSonnet5Pricing(),
-			Attributes: map[string]string{
-				ModelMetadataPublisher: publisherAnthropic,
-			},
 		},
 		{
 			ID:           ModelClaudeHaiku45,
@@ -231,9 +209,6 @@ func entries() []catalog.Entry {
 			// haiku-4-5, read 2026-09-10).
 			Life:    catalog.Lifecycle{Available: catalog.MustDate("2025-10-15")},
 			Pricing: claudeHaiku45Pricing(),
-			Attributes: map[string]string{
-				ModelMetadataPublisher: publisherAnthropic,
-			},
 		},
 	}
 }

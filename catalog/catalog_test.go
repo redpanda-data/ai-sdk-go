@@ -32,19 +32,19 @@ const mutated = "mutated"
 func testRegistry() Registry {
 	return Registry{
 		"acme/robin-1": {
-			DisplayName: "Robin 1", Series: "robin",
+			Publisher: "acme", DisplayName: "Robin 1", Series: "robin",
 			Released: MustDate("2025-01-10"),
 		},
 		"acme/robin-2": {
-			DisplayName: "Robin 2", Series: "robin",
+			Publisher: "acme", DisplayName: "Robin 2", Series: "robin",
 			Released: MustDate("2025-08-01"), Knowledge: MustDate("2025-05-31"),
 		},
 		"acme/robin-3": {
-			DisplayName: "Robin 3", Series: "robin",
+			Publisher: "acme", DisplayName: "Robin 3", Series: "robin",
 			Released: MustDate("2026-03-15"),
 		},
 		"acme/wren-1": {
-			DisplayName: "Wren 1", Series: "wren",
+			Publisher: "acme", DisplayName: "Wren 1", Series: "wren",
 			Released: MustDate("2025-06-01"),
 		},
 	}
@@ -662,4 +662,16 @@ func TestTypedNilSatisfiesPricingSource(t *testing.T) {
 
 	_, err := pricing.NewCatalog(pricing.WithSource((*Catalog)(nil)))
 	require.ErrorContains(t, err, "empty provider name")
+}
+
+func TestNewRejectsFactsWithNoPublisher(t *testing.T) {
+	t.Parallel()
+
+	registry := testRegistry()
+	facts := registry["acme/robin-2"]
+	facts.Publisher = ""
+	registry["acme/robin-2"] = facts
+
+	_, err := New("acme", []Entry{validEntry("robin-2", "acme/robin-2")}, WithRegistry(registry))
+	require.ErrorContains(t, err, `Facts for "acme/robin-2" have an empty Publisher`)
 }

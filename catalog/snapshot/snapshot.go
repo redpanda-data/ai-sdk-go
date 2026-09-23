@@ -48,7 +48,7 @@ import (
 // Consumers MUST key an offering by {provider, id}, never by id alone.
 // The shared "facts" map stays keyed by model ID because facts are
 // provider-independent (Encode rejects any conflict).
-const SchemaVersion = 2
+const SchemaVersion = 3
 
 // Encode writes the deterministic JSON snapshot of the given catalogs:
 // providers sorted by name, offerings sorted by ID, facts sorted by
@@ -87,6 +87,7 @@ func Encode(w io.Writer, catalogs ...*catalog.Catalog) error {
 			f := o.Facts()
 			dto := factsDTO{
 				DisplayName: f.DisplayName,
+				Publisher:   string(f.Publisher),
 				Description: f.Description,
 				Series:      f.Series,
 				Released:    dateString(f.Released),
@@ -173,6 +174,7 @@ type snapshotDTO struct {
 
 type factsDTO struct {
 	DisplayName string `json:"display_name"`
+	Publisher   string `json:"publisher"`
 	Description string `json:"description,omitempty"`
 	Series      string `json:"series"`
 	Released    string `json:"released"`

@@ -138,6 +138,8 @@ func New(provider llm.ProviderID, entries []Entry, opts ...Option) (*Catalog, er
 			fail(i, e, "Facts for %q have a zero Released date", e.Model)
 		case facts.Series == "":
 			fail(i, e, "Facts for %q have an empty Series", e.Model)
+		case facts.Publisher == "":
+			fail(i, e, "Facts for %q have an empty Publisher", e.Model)
 		case !isDateOnly(facts.Released) || !isDateOnly(facts.Knowledge):
 			fail(i, e, "Facts dates for %q must be date-only (midnight UTC): construct with catalog.MustDate", e.Model)
 		}
