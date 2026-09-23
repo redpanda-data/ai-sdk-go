@@ -645,6 +645,7 @@ var catalogOnce = sync.OnceValue(func() *catalog.Catalog {
 // family, built from the family declarations.
 var noCachePointModelIDs = func() map[string]bool {
 	ids := make(map[string]bool)
+
 	for _, f := range bedrockFamilies {
 		if !f.NoCachePoints {
 			continue

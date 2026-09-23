@@ -104,6 +104,7 @@ var (
 	oSeriesProCaps = func() llm.ModelCapabilities {
 		caps := oSeriesCaps
 		caps.Streaming = false
+
 		return caps
 	}()
 )
