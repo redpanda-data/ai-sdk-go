@@ -94,6 +94,17 @@ const (
 	ModelClaudeHaiku45EU     = "eu." + ModelClaudeHaiku45
 	ModelClaudeHaiku45AU     = "au." + ModelClaudeHaiku45
 
+	// ModelClaudeOpus55 is the bare building block for Claude Opus 5.5 profile
+	// IDs. bedrock-runtime publishes global, US, EU, AU, and JP profiles; as
+	// with Opus 5, the bare ID is served only on bedrock-mantle's Anthropic
+	// Messages surface, which this provider does not implement.
+	ModelClaudeOpus55       = "anthropic.claude-opus-5-5"
+	ModelClaudeOpus55Global = "global." + ModelClaudeOpus55
+	ModelClaudeOpus55US     = "us." + ModelClaudeOpus55
+	ModelClaudeOpus55EU     = "eu." + ModelClaudeOpus55
+	ModelClaudeOpus55AU     = "au." + ModelClaudeOpus55
+	ModelClaudeOpus55JP     = "jp." + ModelClaudeOpus55
+
 	// ModelClaudeOpus5 is the bare building block for Claude Opus 5 profile IDs.
 	// bedrock-runtime publishes only global, US, EU, and AU profiles. The bare
 	// ID is invokable through bedrock-mantle's Anthropic Messages surface, but
@@ -233,6 +244,14 @@ const (
 // IDs for them. See
 // https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards-openai.html
 const (
+	// ModelGPT6Astra is GPT-6 Astra's bare ID. On bedrock-runtime (Converse)
+	// it is not invokable and builds the US and global profile IDs. Invoked
+	// bare, it routes to bedrock-mantle's Responses API, which serves it only
+	// in us-west-2 ("model does not exist" elsewhere).
+	ModelGPT6Astra       = "openai.gpt-6-astra"
+	ModelGPT6AstraGlobal = "global." + ModelGPT6Astra
+	ModelGPT6AstraUS     = "us." + ModelGPT6Astra
+
 	// ModelGPT56Sol is OpenAI's flagship GPT-5.6 reasoning model.
 	ModelGPT56Sol = "openai.gpt-5.6-sol"
 
@@ -404,6 +423,9 @@ var (
 		SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 	}
 
+	// claudeNoSampling1MConstraints covers Claude 4.7 and later, which return
+	// 400 for non-default temperature/top_p/top_k (Anthropic's
+	// model-deprecations API parameter table).
 	claudeNoSampling1MConstraints = llm.ModelConstraints{
 		MaxInputTokens:  1000000,
 		MaxOutputTokens: 128000,
@@ -447,34 +469,36 @@ var (
 		SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 	}
 
-	// Capability/constraint shapes for Mistral Large 3. Vision is false:
-	// Mistral Large 3 is text-only on Bedrock (Pixtral Large is Mistral's
-	// multimodal entry). Reasoning is false — it is not a reasoning model
+	// Capability/constraint shapes for Mistral Large 3. Image input per the
+	// Bedrock model card (model-card-mistral-ai-mistral-large-3). Reasoning is false — it is not a reasoning model
 	// (Magistral is Mistral's reasoning line), and the only reasoning lever in
 	// this SDK (WithThinking) emits an Anthropic-shaped thinking document that
 	// non-Anthropic Bedrock models reject.
 	//
-	// Context window: the Bedrock-hosted variant lists a 128K (131072)
-	// input window and an 8,192 max-output cap — smaller than Mistral's
-	// native API, so re-confirm the exact output cap when validating live
-	// (it may be raised). top_k is omitted from SupportedParams because the Converse
+	// Context window 256K and max output 32K per the Bedrock model card.
+	// top_k is omitted from SupportedParams because the Converse
 	// request mapper only emits temperature/top_p/max_tokens/stop.
 	mistralLarge3Caps = llm.ModelCapabilities{
 		Streaming:        true,
 		Tools:            true,
 		JSONMode:         false,
 		StructuredOutput: true,
-		Vision:           false,
+		Vision:           true,
 		Audio:            false,
 		MultiTurn:        true,
 		SystemPrompts:    true,
 		Reasoning:        false,
 	}
 
+	mistralLarge3Modalities = catalog.Modalities{
+		Input:  []catalog.Modality{catalog.ModalityText, catalog.ModalityImage},
+		Output: []catalog.Modality{catalog.ModalityText},
+	}
+
 	mistralLarge3Constraints = llm.ModelConstraints{
 		TemperatureRange: [2]float64{0.0, 1.0},
-		MaxInputTokens:   128000,
-		MaxOutputTokens:  8192,
+		MaxInputTokens:   256000,
+		MaxOutputTokens:  32000,
 		SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 	}
 
@@ -524,9 +548,10 @@ var (
 	}
 
 	// GPT-5.6 is available through the same bedrock-mantle Responses transport
-	// as Gemma 4. AWS advertises a 272K context window for the Bedrock-hosted
-	// variants, rather than the larger first-party OpenAI window.
-	// SupportedParams contains only options the mantle adapter serializes.
+	// as Gemma 4. The Bedrock model cards list a 1M context window; input is
+	// capped at the model's documented 922K maximum input, which reserves
+	// 128K of the window for output. 272K is only the long-context pricing
+	// boundary. SupportedParams contains only options the mantle adapter serializes.
 	gpt56Caps = llm.ModelCapabilities{
 		Streaming:        true,
 		Tools:            true,
@@ -544,13 +569,65 @@ var (
 		Output: []catalog.Modality{catalog.ModalityText},
 	}
 
+	// GPT-6 Astra on bedrock-runtime Converse. The model card lists
+	// structured outputs as not supported on bedrock-runtime, but Converse
+	// honors outputConfig.textFormat json_schema (probed 2026-09-22). Converse
+	// rejects temperature, topP, and stopSequences for Astra ("This model
+	// doesn't support the ... field", probed 2026-09-22), so only max_tokens
+	// is advertised. Reasoning effort is accepted as additionalModelRequestFields
+	// {"reasoning":{"effort":...}}, but the Converse mapper sends the
+	// Anthropic shape, so no effort control is offered yet.
+	gpt6AstraCaps = llm.ModelCapabilities{
+		Streaming:        true,
+		Tools:            true,
+		StructuredOutput: true,
+		Vision:           true,
+		MultiTurn:        true,
+		SystemPrompts:    true,
+		Reasoning:        true,
+	}
+
+	gpt6AstraConstraints = llm.ModelConstraints{
+		// 1,050,000 window per the card; input capped at the model's
+		// documented 922K maximum input, reserving 128K for output.
+		MaxInputTokens:  922000,
+		MaxOutputTokens: 128000,
+		SupportedParams: []string{"max_tokens"},
+	}
+
+	// GPT-6 Astra on bedrock-mantle (Responses API, us-west-2 only). Probed
+	// 2026-09-22: json_schema output works, temperature is rejected, and
+	// reasoning.effort accepts low through max but not none — the same
+	// surface as OpenAI's first-party Astra.
+	gpt6AstraMantleCaps = llm.ModelCapabilities{
+		Streaming:        true,
+		Tools:            true,
+		JSONMode:         true,
+		StructuredOutput: true,
+		Vision:           true,
+		MultiTurn:        true,
+		SystemPrompts:    true,
+		Reasoning:        true,
+	}
+
+	gpt6AstraMantleConstraints = llm.ModelConstraints{
+		MaxInputTokens:  922000,
+		MaxOutputTokens: 128000,
+		SupportedParams: []string{"max_tokens", "reasoning_effort"},
+	}
+
 	gpt56Constraints = llm.ModelConstraints{
 		TemperatureRange: [2]float64{0.0, 2.0},
-		MaxInputTokens:   272000,
+		MaxInputTokens:   922000,
 		MaxOutputTokens:  128000,
 		SupportedParams:  []string{"temperature", "max_tokens"},
 	}
 )
+
+// converseReasoningNoControls is for non-Anthropic models on Converse whose
+// reasoning is always on: the Converse mapper's thinking fields are
+// Anthropic-shaped, and AWS documents no Converse effort control for them.
+var converseReasoningNoControls = catalog.ReasoningSupport{}
 
 // gpt56Reasoning: the Bedrock-hosted GPT-5.6 models expose reasoning but
 // no effort control through the mantle adapter today.
@@ -563,6 +640,24 @@ var catalogOnce = sync.OnceValue(func() *catalog.Catalog {
 	entries, _ := expandFamilies(bedrockFamilies)
 	return catalog.MustNew(ProviderName, entries)
 })
+
+// noCachePointModelIDs is every bare and profile ID of a NoCachePoints
+// family, built from the family declarations.
+var noCachePointModelIDs = func() map[string]bool {
+	ids := make(map[string]bool)
+	for _, f := range bedrockFamilies {
+		if !f.NoCachePoints {
+			continue
+		}
+
+		ids[f.BareID] = true
+		for _, p := range f.Profiles {
+			ids[p+"."+f.BareID] = true
+		}
+	}
+
+	return ids
+}()
 
 // mantleModelIDs is the set of bare model IDs served exclusively on the
 // bedrock-mantle endpoint, built from the family declarations.
@@ -630,6 +725,25 @@ var bedrockFamilies = []family{
 		Rates:        pricing.RateCard{Base: pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(13.75, 22.00, 0)},
 	},
 	{
+		// Claude Opus 5.5 — inference-profile-only on bedrock-runtime. AWS
+		// publishes global, US, EU, AU, and JP profiles:
+		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-5-5.html
+		// Rates from the AWS pricing page (2026-09-22): cache reads are 0.05x
+		// input, matching Anthropic's Opus 5.5 multiplier. Fast mode is not
+		// offered on Bedrock.
+		BareID:         ModelClaudeOpus55,
+		Model:          catalog.ModelClaudeOpus55,
+		DisplayName:    "Claude Opus 5.5",
+		Profiles:       []string{"global", "us", "eu", "au", "jp"},
+		Capabilities:   claudeStandardCaps,
+		Modalities:     claudeModalities,
+		Constraints:    claudeNoSampling1MConstraints,
+		Reasoning:      frontierClaudeThinking,
+		GlobalRates:    &pricing.RateCard{Base: pricing.NewRates(4.00, 20.00, 0.20).WithCacheCreation(5.00, 8.00, 0)},
+		Rates:          pricing.RateCard{Base: pricing.NewRates(4.40, 22.00, 0.22).WithCacheCreation(5.50, 8.80, 0)},
+		ProfileRegions: claudeOpus55ProfileRegions,
+	},
+	{
 		// Claude Opus 5 — inference-profile-only on bedrock-runtime. AWS
 		// publishes global, US, EU, and AU profiles:
 		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-5.html
@@ -655,7 +769,7 @@ var bedrockFamilies = []family{
 		Profiles:     []string{"global", "us", "eu", "jp"},
 		Capabilities: claudeStandardCaps,
 		Modalities:   claudeModalities,
-		Constraints:  claudeContext1MConstraints,
+		Constraints:  claudeNoSampling1MConstraints,
 		Reasoning:    frontierClaudeThinking,
 		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0)},
 		Rates:        pricing.RateCard{Base: pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0)},
@@ -669,7 +783,7 @@ var bedrockFamilies = []family{
 		Profiles:     []string{"global", "us", "eu", "jp"},
 		Capabilities: claudeStandardCaps,
 		Modalities:   claudeModalities,
-		Constraints:  claudeContext1MConstraints,
+		Constraints:  claudeNoSampling1MConstraints,
 		Reasoning:    frontierClaudeThinking,
 		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0)},
 		Rates:        pricing.RateCard{Base: pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0)},
@@ -709,7 +823,7 @@ var bedrockFamilies = []family{
 		Profiles:     []string{"global", "us"},
 		Capabilities: claudeStandardCaps,
 		Modalities:   claudeModalities,
-		Constraints:  claudeContext1MConstraints,
+		Constraints:  claudeNoSampling1MConstraints,
 		Reasoning:    frontierClaudeThinking,
 		// $2/$10 is Sonnet 5's standard price: the increase to $3/$15 once
 		// scheduled for 2026-09-01 was cancelled.
@@ -785,15 +899,81 @@ var bedrockFamilies = []family{
 		Model:         catalog.ModelMistralLarge3,
 		DisplayName:   "Mistral Large 3",
 		BareInvokable: true,
+		// Converse rejects CachePoint blocks for Mistral Large 3 (probed
+		// 2026-09-22).
+		NoCachePoints: true,
 		Capabilities:  mistralLarge3Caps,
+		Modalities:    mistralLarge3Modalities,
 		Constraints:   mistralLarge3Constraints,
 		Rates:         pricing.RateCard{Base: pricing.NewRates(0.50, 1.50, 0)},
 	},
 	{
+		// OpenAI GPT-6 Astra — inference-profile-only on bedrock-runtime:
+		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-astra.html
+		// Standard-tier rates from the card (launched 2026-09-08): OpenAI's
+		// rates plus a 10% in-region/geo fee, with a long-context card above
+		// 272K input tokens. The 30-minute cache-write TTL sits in the
+		// unknown-TTL bucket, as for GPT-5.6.
+		BareID:      ModelGPT6Astra,
+		Model:       catalog.ModelGPT6Astra,
+		DisplayName: "OpenAI GPT-6 Astra",
+		Profiles:    []string{"global", "us"},
+		// Converse rejects CachePoint blocks for Astra (probed 2026-09-22);
+		// the card lists prompt caching for bedrock-mantle only.
+		NoCachePoints: true,
+		Capabilities:  gpt6AstraCaps,
+		Modalities:    gpt56Modalities,
+		Constraints:   gpt6AstraConstraints,
+		Reasoning:     converseReasoningNoControls,
+		GlobalRates: &pricing.RateCard{
+			Base: pricing.NewRates(10.00, 50.00, 1.00).WithCacheCreation(0, 0, 12.50),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(20.00, 75.00, 2.00).WithCacheCreation(0, 0, 25.00),
+			}},
+		},
+		Rates: pricing.RateCard{
+			Base: pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(0, 0, 13.75),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(22.00, 82.50, 2.20).WithCacheCreation(0, 0, 27.50),
+			}},
+		},
+		// Canada routes to the US profile, so the default prefix rule would
+		// misroute it.
+		ProfileRegions: gpt6AstraProfileRegions,
+	},
+	{
+		// OpenAI GPT-6 Astra on bedrock-mantle — bare in-region ID, us-west-2
+		// only, with the same in-region rates as the geo profile above.
+		// Unlike the Converse profiles, the Responses API takes reasoning
+		// effort.
+		BareID:        ModelGPT6Astra,
+		Model:         catalog.ModelGPT6Astra,
+		DisplayName:   "OpenAI GPT-6 Astra",
+		BareInvokable: true,
+		Mantle:        true,
+		Capabilities:  gpt6AstraMantleCaps,
+		Modalities:    gpt56Modalities,
+		Constraints:   gpt6AstraMantleConstraints,
+		Reasoning: catalog.ReasoningSupport{
+			Efforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+		},
+		Rates: pricing.RateCard{
+			Base: pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(0, 0, 13.75),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(22.00, 82.50, 2.20).WithCacheCreation(0, 0, 27.50),
+			}},
+		},
+	},
+	{
 		// OpenAI GPT-5.6 family — mantle-only, bare in-region IDs via the
 		// Responses API; AWS publishes no Geo or Global inference IDs.
-		// In-region STANDARD-tier rates from the AWS pricing page (OpenAI
-		// section, 2026-08). Cache writes have a 30-minute TTL and the
+		// In-region STANDARD-tier rates from the Bedrock model cards
+		// (model-card-openai-gpt-56-{sol,terra,luna}, 2026-09-22): OpenAI's
+		// rates plus a 10% in-region fee, with a long-context card above
+		// 272K input tokens. Cache writes have a 30-minute TTL and the
 		// Responses usage payload reports an aggregate cache_write_tokens
 		// count, so the write price sits in the unknown-TTL bucket.
 		BareID:        ModelGPT56Sol,
@@ -805,7 +985,13 @@ var bedrockFamilies = []family{
 		Modalities:    gpt56Modalities,
 		Constraints:   gpt56Constraints,
 		Reasoning:     gpt56Reasoning,
-		Rates:         pricing.RateCard{Base: pricing.NewRates(5.50, 33.00, 0.55).WithCacheCreation(0, 0, 6.875)},
+		Rates: pricing.RateCard{
+			Base: pricing.NewRates(4.40, 22.00, 0.44).WithCacheCreation(0, 0, 5.50),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(8.80, 33.00, 0.88).WithCacheCreation(0, 0, 11.00),
+			}},
+		},
 	},
 	{
 		BareID:        ModelGPT56Terra,
@@ -817,7 +1003,13 @@ var bedrockFamilies = []family{
 		Modalities:    gpt56Modalities,
 		Constraints:   gpt56Constraints,
 		Reasoning:     gpt56Reasoning,
-		Rates:         pricing.RateCard{Base: pricing.NewRates(2.75, 16.50, 0.275).WithCacheCreation(0, 0, 3.4375)},
+		Rates: pricing.RateCard{
+			Base: pricing.NewRates(2.20, 13.20, 0.22).WithCacheCreation(0, 0, 2.75),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(4.40, 19.80, 0.44).WithCacheCreation(0, 0, 5.50),
+			}},
+		},
 	},
 	{
 		BareID:        ModelGPT56Luna,
@@ -829,7 +1021,13 @@ var bedrockFamilies = []family{
 		Modalities:    gpt56Modalities,
 		Constraints:   gpt56Constraints,
 		Reasoning:     gpt56Reasoning,
-		Rates:         pricing.RateCard{Base: pricing.NewRates(1.10, 6.60, 0.11).WithCacheCreation(0, 0, 1.375)},
+		Rates: pricing.RateCard{
+			Base: pricing.NewRates(0.22, 1.32, 0.022).WithCacheCreation(0, 0, 0.275),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(0.44, 1.98, 0.044).WithCacheCreation(0, 0, 0.55),
+			}},
+		},
 	},
 	{
 		// Google Gemma 4 family — mantle-only, bare IDs via the

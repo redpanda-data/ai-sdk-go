@@ -47,23 +47,18 @@ var (
 		Input:  []catalog.Modality{catalog.ModalityText, catalog.ModalityImage},
 		Output: []catalog.Modality{catalog.ModalityText},
 	}
-	textImageAudio = catalog.Modalities{
-		Input:  []catalog.Modality{catalog.ModalityText, catalog.ModalityImage, catalog.ModalityAudio},
-		Output: []catalog.Modality{catalog.ModalityText},
-	}
 )
 
 // Capability sets shared by the entries below.
 var (
-	// flagshipCaps is the full multimodal reasoning surface of the GPT-5
-	// flagship and mini lines.
+	// flagshipCaps is the reasoning surface of the GPT-5 line: text and
+	// image in, text out. No catalogued model page lists audio input.
 	flagshipCaps = llm.ModelCapabilities{
 		Streaming:        true,
 		Tools:            true,
 		JSONMode:         true,
 		StructuredOutput: true,
 		Vision:           true,
-		Audio:            true,
 		MultiTurn:        true,
 		SystemPrompts:    true,
 		Reasoning:        true,
@@ -92,12 +87,11 @@ var (
 		SystemPrompts:    true,
 	}
 
-	// nanoCaps covers the GPT-5 nano tiers: image input and reasoning, but
-	// no audio.
-	nanoCaps = llm.ModelCapabilities{
+	// oSeriesCaps covers the o-series reasoning models: vision ("thinking
+	// with images") and structured outputs, but no JSON mode.
+	oSeriesCaps = llm.ModelCapabilities{
 		Streaming:        true,
 		Tools:            true,
-		JSONMode:         true,
 		StructuredOutput: true,
 		Vision:           true,
 		MultiTurn:        true,
@@ -105,16 +99,13 @@ var (
 		Reasoning:        true,
 	}
 
-	// oSeriesCaps covers the o-series reasoning models: vision ("thinking
-	// with images") but no JSON mode or structured output.
-	oSeriesCaps = llm.ModelCapabilities{
-		Streaming:     true,
-		Tools:         true,
-		Vision:        true,
-		MultiTurn:     true,
-		SystemPrompts: true,
-		Reasoning:     true,
-	}
+	// oSeriesProCaps covers o1-pro and o3-pro, whose model pages list no
+	// streaming support.
+	oSeriesProCaps = func() llm.ModelCapabilities {
+		caps := oSeriesCaps
+		caps.Streaming = false
+		return caps
+	}()
 )
 
 // entries returns the authored OpenAI catalog.
@@ -137,7 +128,7 @@ func entries() []catalog.Entry {
 			ID:           ModelGPT5,
 			Model:        catalog.ModelGPT5,
 			Capabilities: flagshipCaps,
-			Modalities:   textImageAudio,
+			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange:  [2]float64{0.0, 2.0},
 				MaxInputTokens:    272000, // documented max input; the 400K window reserves 128K for output
@@ -160,7 +151,7 @@ func entries() []catalog.Entry {
 			ID:           ModelGPT5Mini,
 			Model:        catalog.ModelGPT5Mini,
 			Capabilities: flagshipCaps,
-			Modalities:   textImageAudio,
+			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange:  [2]float64{0.0, 2.0},
 				MaxInputTokens:    272000, // documented max input; the 400K window reserves 128K for output
@@ -184,7 +175,7 @@ func entries() []catalog.Entry {
 			ID:    ModelGPT5Nano,
 			Model: catalog.ModelGPT5Nano,
 			// Nano trades audio for speed but keeps image input and reasoning.
-			Capabilities: nanoCaps,
+			Capabilities: flagshipCaps,
 			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange:  [2]float64{0.0, 2.0},
@@ -208,7 +199,7 @@ func entries() []catalog.Entry {
 			ID:           ModelGPT5_1,
 			Model:        catalog.ModelGPT5_1,
 			Capabilities: flagshipCaps,
-			Modalities:   textImageAudio,
+			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange:  [2]float64{0.0, 2.0},
 				MaxInputTokens:    272000, // documented max input; the 400K window reserves 128K for output
@@ -229,7 +220,7 @@ func entries() []catalog.Entry {
 			ID:           ModelGPT5_2,
 			Model:        catalog.ModelGPT5_2,
 			Capabilities: flagshipCaps,
-			Modalities:   textImageAudio,
+			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange:  [2]float64{0.0, 2.0},
 				MaxInputTokens:    400000, // 400K context window
@@ -250,11 +241,11 @@ func entries() []catalog.Entry {
 			ID:           ModelGPT5_2Instant,
 			Model:        catalog.ModelGPT5_2Instant,
 			Capabilities: flagshipCaps,
-			Modalities:   textImageAudio,
+			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange:  [2]float64{0.0, 2.0},
-				MaxInputTokens:    400000, // 400K context window
-				MaxOutputTokens:   128000, // 128K output tokens
+				MaxInputTokens:    128000, // 128K context window (the page's 272K input cap exceeds it)
+				MaxOutputTokens:   16384,  // 16K output tokens
 				SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed", "reasoning_effort", "reasoning_summary"},
 				MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 			},
@@ -270,10 +261,11 @@ func entries() []catalog.Entry {
 			Pricing: pricing.FlatInfo(1.75, 14.00, 0.175),
 		},
 		{
-			ID:           ModelGPT5_2Pro,
-			Model:        catalog.ModelGPT5_2Pro,
-			Capabilities: flagshipCaps,
-			Modalities:   textImageAudio,
+			ID:    ModelGPT5_2Pro,
+			Model: catalog.ModelGPT5_2Pro,
+			// The model page lists no structured_outputs support.
+			Capabilities: withoutStructuredOutput(flagshipCaps),
+			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange:  [2]float64{0.0, 2.0},
 				MaxInputTokens:    400000, // 400K context window
@@ -294,11 +286,11 @@ func entries() []catalog.Entry {
 			ID:           ModelGPT5_3ChatLatest,
 			Model:        catalog.ModelGPT5_3Instant,
 			Capabilities: flagshipCaps,
-			Modalities:   textImageAudio,
+			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange:  [2]float64{0.0, 2.0},
-				MaxInputTokens:    400000, // 400K context window
-				MaxOutputTokens:   128000, // 128K output tokens
+				MaxInputTokens:    128000, // 128K context window (the page's 272K input cap exceeds it)
+				MaxOutputTokens:   16384,  // 16K output tokens
 				SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed", "reasoning_effort", "reasoning_summary"},
 				MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 			},
@@ -322,7 +314,7 @@ func entries() []catalog.Entry {
 			Capabilities: llm.ModelCapabilities{Streaming: true, Tools: true, ToolSearch: true, JSONMode: true, StructuredOutput: true, Vision: true, MultiTurn: true, SystemPrompts: true, Reasoning: true},
 			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
-				MaxInputTokens:  1_050_000,
+				MaxInputTokens:  922_000, // documented max input; the 1.05M window reserves 128K for output
 				MaxOutputTokens: 128_000,
 				SupportedParams: []string{"max_tokens", "reasoning_effort", "reasoning_summary"},
 			},
@@ -334,6 +326,26 @@ func entries() []catalog.Entry {
 				pricing.Bracket{MinContextTokens: 272_001, Rates: pricing.NewRates(20, 75, 2).WithCacheCreation(0, 0, 25)},
 			),
 		},
+
+		// https://developers.openai.com/api/docs/models/gpt-6-sol
+		// Sampling: /api/docs/guides/latest-model removes temperature and
+		// top_p unless reasoning effort is none; they are not advertised
+		// because SupportedParams cannot express that condition.
+		gpt6Entry(ModelGPT6Sol, catalog.ModelGPT6Sol,
+			// Per M tokens: $2.00 input, $10.00 output, $0.20 cached input, $2.50 cache write.
+			// Above 272K: $4.00 input, $15.00 output, $0.40 cached input, $5.00 cache write.
+			pricing.TieredInfo(
+				pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(0, 0, 2.50),
+				pricing.Bracket{MinContextTokens: 272_001, Rates: pricing.NewRates(4.00, 15.00, 0.40).WithCacheCreation(0, 0, 5.00)},
+			)),
+		// https://developers.openai.com/api/docs/models/gpt-6-luna
+		gpt6Entry(ModelGPT6Luna, catalog.ModelGPT6Luna,
+			// Per M tokens: $0.10 input, $0.50 output, $0.01 cached input, $0.125 cache write.
+			// Above 272K: $0.20 input, $0.75 output, $0.02 cached input, $0.25 cache write.
+			pricing.TieredInfo(
+				pricing.NewRates(0.10, 0.50, 0.01).WithCacheCreation(0, 0, 0.125),
+				pricing.Bracket{MinContextTokens: 272_001, Rates: pricing.NewRates(0.20, 0.75, 0.02).WithCacheCreation(0, 0, 0.25)},
+			)),
 
 		// GPT-5.6 Series
 		gpt56Entry(ModelGPT5_6Luna, catalog.ModelGPT5_6Luna, nil,
@@ -359,6 +371,8 @@ func entries() []catalog.Entry {
 		// "gpt-5.6" is OpenAI's official alias for Sol.
 		gpt56Entry(ModelGPT5_6Sol, catalog.ModelGPT5_6Sol, []string{ModelGPT5_6},
 			// Per M tokens: $4.00 input, $20.00 output, $0.40 cached input, $5.00 cache write.
+			// Promotional pricing, "available at least through November 21, 2026"
+			// per developers.openai.com/api/docs/pricing.
 			// Above 272K: $8.00 input, $30.00 output, $0.80 cached input, $10.00 cache write.
 			pricing.TieredInfo(
 				pricing.NewRates(4.00, 20.00, 0.40).WithCacheCreation(0, 0, 5.00),
@@ -373,7 +387,7 @@ func entries() []catalog.Entry {
 			ID:           ModelGPT5_5,
 			Model:        catalog.ModelGPT5_5,
 			Capabilities: withToolSearch(flagshipCaps),
-			Modalities:   textImageAudio,
+			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange:  [2]float64{0.0, 2.0},
 				MaxInputTokens:    1_050_000, // 1.05M context window
@@ -403,7 +417,7 @@ func entries() []catalog.Entry {
 			ID:           ModelGPT5_4,
 			Model:        catalog.ModelGPT5_4,
 			Capabilities: withToolSearch(flagshipCaps),
-			Modalities:   textImageAudio,
+			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange:  [2]float64{0.0, 2.0},
 				MaxInputTokens:    1_050_000, // 1.05M context window
@@ -431,10 +445,10 @@ func entries() []catalog.Entry {
 			ID:           ModelGPT5_4Mini,
 			Model:        catalog.ModelGPT5_4Mini,
 			Capabilities: withToolSearch(flagshipCaps),
-			Modalities:   textImageAudio,
+			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange:  [2]float64{0.0, 2.0},
-				MaxInputTokens:    400000, // 400K context window
+				MaxInputTokens:    272000, // documented max input; the 400K window reserves 128K for output
 				MaxOutputTokens:   128000, // 128K output tokens
 				SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed", "reasoning_effort", "reasoning_summary"},
 				MutuallyExclusive: [][]string{{"temperature", "top_p"}},
@@ -450,12 +464,12 @@ func entries() []catalog.Entry {
 		{
 			ID:    ModelGPT5_4Nano,
 			Model: catalog.ModelGPT5_4Nano,
-			// Nano trades audio for speed but keeps image input and reasoning.
-			Capabilities: withToolSearch(nanoCaps),
+			// Nano is absent from tool_search in the model page's supported tools.
+			Capabilities: flagshipCaps,
 			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange:  [2]float64{0.0, 2.0},
-				MaxInputTokens:    400000, // 400K context window
+				MaxInputTokens:    272000, // documented max input; the 400K window reserves 128K for output
 				MaxOutputTokens:   128000, // 128K output tokens
 				SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "reasoning_effort"},
 				MutuallyExclusive: [][]string{{"temperature", "top_p"}},
@@ -561,11 +575,10 @@ func entries() []catalog.Entry {
 				JSONMode:         true,
 				StructuredOutput: true,
 				Vision:           true,
-				Audio:            true,
 				MultiTurn:        true,
 				SystemPrompts:    true,
 			},
-			Modalities: textImageAudio,
+			Modalities: textImage,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange:  [2]float64{0.0, 2.0},
 				MaxInputTokens:    128000, // 128K context window
@@ -605,9 +618,10 @@ func entries() []catalog.Entry {
 
 		// Legacy but still supported (2025)
 		{
-			ID:           ModelGPT4Turbo,
-			Model:        catalog.ModelGPT4Turbo,
-			Capabilities: visionChatCaps,
+			ID:    ModelGPT4Turbo,
+			Model: catalog.ModelGPT4Turbo,
+			// The model page lists no structured_outputs support.
+			Capabilities: withoutStructuredOutput(visionChatCaps),
 			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange:  [2]float64{0.0, 2.0},
@@ -649,7 +663,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelO1Pro,
 			Model:        catalog.ModelO1Pro,
-			Capabilities: oSeriesCaps,
+			Capabilities: oSeriesProCaps,
 			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange: [2]float64{0.0, 1.0}, // Reasoning models prefer lower randomness
@@ -666,14 +680,15 @@ func entries() []catalog.Entry {
 				Retires:    catalog.MustDate("2026-10-23"),
 				ReplacedBy: ModelGPT5_6Sol,
 			},
-			Pricing: pricing.FlatInfo(150.00, 600.00, 75.00),
+			// No cached-input rate is published for o1-pro.
+			Pricing: pricing.FlatInfo(150.00, 600.00, 0),
 		},
 
 		// O3 Pro - Professional-grade reasoning
 		{
 			ID:           ModelO3Pro,
 			Model:        catalog.ModelO3Pro,
-			Capabilities: oSeriesCaps,
+			Capabilities: oSeriesProCaps,
 			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange: [2]float64{0.0, 1.0}, // Reasoning models prefer lower randomness
@@ -717,7 +732,7 @@ func gpt56Entry(id string, model catalog.ModelID, aliases []string, rates pricin
 		Modalities: textImage,
 		Constraints: llm.ModelConstraints{
 			TemperatureRange:  [2]float64{0.0, 2.0},
-			MaxInputTokens:    1_050_000,
+			MaxInputTokens:    922_000, // documented max input; the 1.05M window reserves 128K for output
 			MaxOutputTokens:   128_000,
 			SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed", "reasoning_effort", "reasoning_summary"},
 			MutuallyExclusive: [][]string{{"temperature", "top_p"}},
@@ -732,7 +747,33 @@ func gpt56Entry(id string, model catalog.ModelID, aliases []string, rates pricin
 	}
 }
 
+// gpt6Entry builds a GPT-6 Sol or Luna entry. They share Astra's capability
+// surface and limits but, unlike Astra, accept reasoning effort none.
+func gpt6Entry(id string, model catalog.ModelID, rates pricing.Info) catalog.Entry {
+	return catalog.Entry{
+		ID:           id,
+		Model:        model,
+		Capabilities: withToolSearch(flagshipCaps),
+		Modalities:   textImage,
+		Constraints: llm.ModelConstraints{
+			MaxInputTokens:  922_000, // documented max input; the 1.05M window reserves 128K for output
+			MaxOutputTokens: 128_000,
+			SupportedParams: []string{"max_tokens", "reasoning_effort", "reasoning_summary"},
+		},
+		Reasoning: catalog.ReasoningSupport{
+			Efforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+		},
+		Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-09-22")},
+		Pricing: rates,
+	}
+}
+
 func withToolSearch(caps llm.ModelCapabilities) llm.ModelCapabilities {
 	caps.ToolSearch = true
+	return caps
+}
+
+func withoutStructuredOutput(caps llm.ModelCapabilities) llm.ModelCapabilities {
+	caps.StructuredOutput = false
 	return caps
 }

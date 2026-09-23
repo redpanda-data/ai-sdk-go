@@ -32,7 +32,7 @@ func TestGPT6AstraCatalog(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, catalog.ModelID("openai/gpt-6-astra"), offering.Model)
 	assert.Equal(t, "GPT-6 Astra", offering.DisplayName)
-	assert.Equal(t, 1_050_000, offering.Constraints.MaxInputTokens)
+	assert.Equal(t, 922_000, offering.Constraints.MaxInputTokens)
 	assert.Equal(t, 128_000, offering.Constraints.MaxOutputTokens)
 	assert.Equal(t, []llm.ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax}, offering.Reasoning.Efforts)
 	assert.Equal(t, []catalog.Modality{catalog.ModalityText, catalog.ModalityImage}, offering.Modalities.Input)

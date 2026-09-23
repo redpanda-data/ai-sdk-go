@@ -1410,6 +1410,8 @@ func TestRequestMapper_ResponseFormat(t *testing.T) {
 		member, ok := in.OutputConfig.TextFormat.Structure.(*types.OutputFormatStructureMemberJsonSchema)
 		require.True(t, ok)
 		assert.JSONEq(t, adapted, aws.ToString(member.Value.Schema))
+		assert.Equal(t, "person", aws.ToString(member.Value.Name))
+		assert.Nil(t, member.Value.Description)
 	})
 
 	t.Run("streaming input carries the same format", func(t *testing.T) {

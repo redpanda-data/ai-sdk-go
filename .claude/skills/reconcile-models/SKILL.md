@@ -70,8 +70,11 @@ surface** — every change must be visible and intended in
        `haiku-4-5`). Google words retirement as "not sooner than" — a floor,
        so `Retires` stays unset (same rule as Anthropic).
    - Bedrock: `https://aws.amazon.com/bedrock/pricing/` · model cards ·
-     `ListFoundationModels` (`modelLifecycle`) · lifecycle/EOL table:
-     `https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle.html`
+     `ListFoundationModels` (`modelLifecycle`) · lifecycle/EOL tables, split
+     by launch date — models launched on or after 2026-09-07:
+     `https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle.html`;
+     earlier models (the Legacy/EOL table):
+     `https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html`
 2. **Cross-checks (fetch and compare only — never cite in code):**
 
    ```bash
@@ -167,6 +170,26 @@ surface** — every change must be visible and intended in
 - **Facts**: `Knowledge` is the *reliable* cutoff when the vendor publishes
   both reliable and training dates; `Released` is the first-ship date
   anywhere; `Description` is a short current blurb.
+
+  **Fixed facts vs. mutable data.** `Released`, `Knowledge`, and an
+  offering's launch `Available` describe a past event — once correct they
+  never change. Everything else (rates, brackets, limits, lifecycle,
+  `ReplacedBy`, capabilities, `Description`) legitimately moves with the
+  vendor; update it and cite the source.
+
+  So a fixed fact that disagrees with the vendor page is a **conflict to
+  resolve, not an update to apply**:
+  1. Find where the current value came from — its source comment, or
+     `git log -S'MustDate("YYYY-MM-DD")' -- catalog/ providers/`.
+  2. Change it only when the old value was unsourced or an aggregator
+     fallback (OpenRouter `created` runs a day early for several models) and
+     the new one is quoted from the provider page. A newer model in the same
+     series is a new entry, never a reason to edit the old one's dates.
+  3. Pin the corrected value with a comment naming the provider page, so
+     the next run can see it is already vendor-sourced.
+  4. If the old value was already vendor-sourced, the vendor page changed
+     under us. Don't flip it back and forth. Report it as a conflict and
+     leave the value alone until a human decides.
 - **Capabilities/modalities**: provider-documented model facts (JSON mode
   means a schemaless mode — Anthropic has none; document input means the
   API accepts document parts). Bedrock geo ratio stays 1.10x

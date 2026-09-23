@@ -187,7 +187,7 @@ func TestGPT56Models(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tt.model, model.Name())
 			assert.Equal(t, wantCapabilities, model.Capabilities())
-			assert.Equal(t, 1_050_000, model.Constraints().MaxInputTokens)
+			assert.Equal(t, 922_000, model.Constraints().MaxInputTokens)
 			assert.Equal(t, 128_000, model.Constraints().MaxOutputTokens)
 
 			openAIModel, ok := model.(*Model)
@@ -359,7 +359,7 @@ func TestModelCapabilities(t *testing.T) {
 	assert.True(t, caps.Streaming)
 	assert.True(t, caps.Tools)
 	assert.True(t, caps.Vision)
-	assert.True(t, caps.Audio)
+	assert.False(t, caps.Audio)
 
 	// O3 capabilities (different from GPT models)
 	model, err = provider.NewModel(ModelO3)
@@ -368,7 +368,8 @@ func TestModelCapabilities(t *testing.T) {
 	caps = model.Capabilities()
 	assert.True(t, caps.Vision)
 	assert.False(t, caps.Audio)
-	assert.False(t, caps.StructuredOutput)
+	assert.True(t, caps.StructuredOutput)
+	assert.False(t, caps.JSONMode)
 }
 
 func TestRequestMapping(t *testing.T) {

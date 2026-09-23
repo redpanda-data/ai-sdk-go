@@ -130,6 +130,7 @@ func TestAllModelsHavePricing(t *testing.T) {
 		ModelGPT35Turbo: true, // Legacy model, no prompt caching.
 		ModelGPT5_2Pro:  true, // Pro tier, no caching listed.
 		ModelO3Pro:      true, // Pro tier, no caching listed.
+		ModelO1Pro:      true, // Pro tier, no caching listed.
 	}
 
 	for _, def := range Catalog().All() {

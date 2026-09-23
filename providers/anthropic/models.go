@@ -28,6 +28,7 @@ import (
 const (
 	ModelClaudeFable51  = "claude-fable-5-1"
 	ModelClaudeFable5   = "claude-fable-5"
+	ModelClaudeOpus55   = "claude-opus-5-5"
 	ModelClaudeOpus5    = "claude-opus-5"
 	ModelClaudeSonnet5  = "claude-sonnet-5"
 	ModelClaudeSonnet46 = "claude-sonnet-4-6"
@@ -110,7 +111,7 @@ var claudeCaps = llm.ModelCapabilities{
 }
 
 // claudeCapsWithToolSearch marks the models on Anthropic's tool search
-// compatibility list as of 2026-09-14: Fable 5.1, Fable 5, Opus 5, Opus 4.8,
+// compatibility list as of 2026-09-22: Fable 5.1, Fable 5, Opus 5.5, Opus 5, Opus 4.8,
 // 4.7, 4.6 and 4.5, Sonnet 4.6 and 4.5, Haiku 4.5. Opus 4.1 is explicitly
 // unsupported and Sonnet 5 is absent from the list, so both keep claudeCaps and
 // local discovery until native support is documented:
@@ -189,13 +190,50 @@ func entries() []catalog.Entry {
 				Adaptive: true,
 			},
 			Life: catalog.Lifecycle{
-				Available: catalog.MustDate("2026-06-07"),
+				Available: catalog.MustDate("2026-06-09"),
 			},
 			// Flat across the full 1M window: Claude 4.6 and later bill long
 			// context at standard rates. Cache rates derived from Anthropic's
 			// multipliers (5m-write = 1.25x input, 1h-write = 2x, read = 0.10x).
 			Pricing: pricing.FlatInfoFromRates(
 				pricing.NewRates(10.00, 50.00, 1.00).WithCacheCreation(12.50, 20.00, 0),
+			),
+		},
+		{
+			ID:           ModelClaudeOpus55,
+			Model:        catalog.ModelClaudeOpus55,
+			Capabilities: claudeCapsWithToolSearch,
+			Modalities:   claudeModalities,
+			Constraints: llm.ModelConstraints{
+				MaxInputTokens:  1000000, // 1M context window
+				MaxOutputTokens: 128000,  // 128K output tokens
+				// Opus 5.5 thinking is adaptive and always on: thinking.type
+				// disabled and enabled both return 400, as do non-default
+				// sampling parameters. tool_choice "any" and "tool" also return
+				// 400; only "auto" and "none" are accepted.
+				SupportedParams: []string{"max_tokens", "reasoning_effort", "speed"},
+			},
+			Reasoning: catalog.ReasoningSupport{
+				// All five levels; the API default is medium.
+				Efforts:  []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+				Adaptive: true,
+			},
+			Speeds: []Speed{SpeedStandard, SpeedFast},
+			Life: catalog.Lifecycle{
+				Available: catalog.MustDate("2026-09-22"),
+			},
+			// platform.claude.com/docs/en/about-claude/pricing: cache hits on
+			// Opus 5.5 are 0.05x base input, not the usual 0.10x; writes keep
+			// 1.25x (5m) and 2x (1h). Fast mode is $8/$40 across the full
+			// window, with the same cache multipliers applied on top.
+			Pricing: pricing.FlatInfoFromRates(
+				pricing.NewRates(4.00, 20.00, 0.20).WithCacheCreation(5.00, 8.00, 0),
+			).WithOverride(
+				pricing.Selector{Speed: SpeedFast},
+				pricing.RateCard{
+					Base: pricing.NewRates(8.00, 40.00, 0.40).
+						WithCacheCreation(10.00, 16.00, 0),
+				},
 			),
 		},
 		{
@@ -235,13 +273,14 @@ func entries() []catalog.Entry {
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
-				TemperatureRange: [2]float64{0.0, 1.0},
-				MaxInputTokens:   1000000, // 1M context window
-				MaxOutputTokens:  128000,  // 128K output tokens
+				MaxInputTokens:  1000000, // 1M context window
+				MaxOutputTokens: 128000,  // 128K output tokens
 				// Opus 4.8 rejects thinking.type.enabled — thinking budget is not
-				// user-controllable. Use adaptive thinking + effort to bias
+				// user-controllable — and returns 400 for non-default sampling
+				// parameters (Claude 4.7 and later, per the model-deprecations
+				// API parameter table). Use adaptive thinking + effort to bias
 				// reasoning depth.
-				SupportedParams: []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort", "speed"},
+				SupportedParams: []string{"max_tokens", "reasoning_effort", "speed"},
 			},
 			Reasoning: catalog.ReasoningSupport{
 				Efforts:  []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
@@ -269,20 +308,21 @@ func entries() []catalog.Entry {
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
-				TemperatureRange: [2]float64{0.0, 1.0},
-				MaxInputTokens:   1000000, // 1M context window
-				MaxOutputTokens:  128000,  // 128K output tokens
+				MaxInputTokens:  1000000, // 1M context window
+				MaxOutputTokens: 128000,  // 128K output tokens
 				// Opus 4.7 rejects thinking.type.enabled — thinking budget is not
-				// user-controllable. Use adaptive thinking + effort to bias
+				// user-controllable — and returns 400 for non-default sampling
+				// parameters (Claude 4.7 and later, per the model-deprecations
+				// API parameter table). Use adaptive thinking + effort to bias
 				// reasoning depth.
-				SupportedParams: []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort", "speed"},
+				SupportedParams: []string{"max_tokens", "reasoning_effort", "speed"},
 			},
 			Reasoning: catalog.ReasoningSupport{
 				Efforts:  []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 				Adaptive: true,
 			},
 			Life: catalog.Lifecycle{
-				Available: catalog.MustDate("2026-04-14"),
+				Available: catalog.MustDate("2026-04-16"),
 			},
 			Pricing: pricing.FlatInfoFromRates(
 				pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
@@ -294,12 +334,12 @@ func entries() []catalog.Entry {
 			Capabilities: claudeCaps,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
-				TemperatureRange: [2]float64{0.0, 1.0},
-				MaxInputTokens:   1000000, // 1M context window
-				MaxOutputTokens:  128000,  // 128K output tokens
+				MaxInputTokens:  1000000, // 1M context window
+				MaxOutputTokens: 128000,  // 128K output tokens
 				// Sonnet 5 shares Opus 4.7's request surface: manual thinking budget
-				// is removed (adaptive thinking + effort instead), no fast mode.
-				SupportedParams: []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort"},
+				// is removed (adaptive thinking + effort instead), non-default
+				// sampling parameters return 400, no fast mode.
+				SupportedParams: []string{"max_tokens", "reasoning_effort"},
 			},
 			Reasoning: catalog.ReasoningSupport{
 				// First Sonnet-tier model with xhigh; supports the full effort range.
@@ -307,7 +347,7 @@ func entries() []catalog.Entry {
 				Adaptive: true,
 			},
 			Life: catalog.Lifecycle{
-				Available: catalog.MustDate("2026-06-29"),
+				Available: catalog.MustDate("2026-06-30"),
 			},
 			// $2/$10 is Sonnet 5's standard price: announced as introductory
 			// through 2026-08-31, but the increase to $3/$15 scheduled for
@@ -329,7 +369,8 @@ func entries() []catalog.Entry {
 				SupportedParams:  []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort", "thinking_budget"},
 			},
 			Reasoning: catalog.ReasoningSupport{
-				Efforts:  []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
+				// max but not xhigh, per platform.claude.com/docs/en/build-with-claude/effort.
+				Efforts:  []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortMax},
 				Adaptive: true,
 				Budget:   true,
 			},
@@ -396,7 +437,7 @@ func entries() []catalog.Entry {
 			// bills at standard rates, so there is no fast-mode override.
 			Speeds: []Speed{SpeedStandard, SpeedFast},
 			Life: catalog.Lifecycle{
-				Available: catalog.MustDate("2026-02-04"),
+				Available: catalog.MustDate("2026-02-05"),
 			},
 			Pricing: pricing.FlatInfoFromRates(
 				pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),

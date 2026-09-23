@@ -151,14 +151,22 @@ func applyResponseFormat(p *converseParams, format *llm.ResponseFormat) error {
 			return fmt.Errorf("invalid JSON schema: %w", err)
 		}
 
+		// OpenAI models on Converse reject a schema without a name
+		// ("Missing required parameter: 'text.format.name'"); Claude
+		// accepts one.
+		def := types.JsonSchemaDefinition{Schema: aws.String(string(adapted))}
+		if format.JSONSchema.Name != "" {
+			def.Name = aws.String(format.JSONSchema.Name)
+		}
+
+		if format.JSONSchema.Description != "" {
+			def.Description = aws.String(format.JSONSchema.Description)
+		}
+
 		p.outputConfig = &types.OutputConfig{
 			TextFormat: &types.OutputFormat{
-				Type: types.OutputFormatTypeJsonSchema,
-				Structure: &types.OutputFormatStructureMemberJsonSchema{
-					Value: types.JsonSchemaDefinition{
-						Schema: aws.String(string(adapted)),
-					},
-				},
+				Type:      types.OutputFormatTypeJsonSchema,
+				Structure: &types.OutputFormatStructureMemberJsonSchema{Value: def},
 			},
 		}
 

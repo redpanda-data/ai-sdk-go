@@ -41,14 +41,17 @@ import (
 const ProviderName = "gcp.vertex"
 
 // Bare Vertex model IDs - exactly the model segment of a Vertex resource
-// path, publishers/{publisher}/models/{model}. The day-one catalog is
-// Gemini + Claude, enumerated in RFC-0014's Model catalog and pricing
-// section (the F5 scope call). The open-weight families on the
-// OpenAI-compatible route are deferred until a customer asks.
+// path, publishers/{publisher}/models/{model}. The catalog is Gemini +
+// Claude: RFC-0014's day-one set (the F5 scope call) plus later GA
+// releases. The open-weight families on the OpenAI-compatible route are
+// deferred until a customer asks.
 const (
-	ModelGemini36Flash = "gemini-3.6-flash"
-	ModelClaudeSonnet5 = "claude-sonnet-5"
-	ModelClaudeHaiku45 = "claude-haiku-4-5"
+	ModelGemini38Flash     = "gemini-3.8-flash"
+	ModelGemini36Flash     = "gemini-3.6-flash"
+	ModelGemini31FlashLite = "gemini-3.1-flash-lite"
+	ModelClaudeOpus55      = "claude-opus-5-5"
+	ModelClaudeSonnet5     = "claude-sonnet-5"
+	ModelClaudeHaiku45     = "claude-haiku-4-5"
 )
 
 // Reasoning-effort values Vertex accepts. llm.ReasoningEffort is an open
@@ -71,6 +74,12 @@ const (
 // set (providers/google/models.go).
 var geminiReasoningEfforts = []llm.ReasoningEffort{
 	reasoningEffortMinimal, reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh,
+}
+
+// gemini38FlashReasoningEfforts drops minimal: the Gemini 3.8 Flash model
+// page says an explicit MINIMAL "will return an API validation error".
+var gemini38FlashReasoningEfforts = []llm.ReasoningEffort{
+	reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh,
 }
 
 // geminiCaps is the capability set shared by every catalogued Gemini
@@ -98,6 +107,10 @@ var geminiModalities = catalog.Modalities{
 // geminiParams is the request-parameter surface shared by catalogued
 // Gemini models.
 var geminiParams = []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"}
+
+// geminiNoPenaltyParams is for models whose page says custom frequency and
+// presence penalty values "will throw an error" (Gemini 3.6 Flash).
+var geminiNoPenaltyParams = []string{"temperature", "top_p", "top_k", "max_tokens", "stop"}
 
 // claudeCaps is the capability set shared by catalogued Claude models on
 // Vertex. JSONMode is false because Claude has no schemaless JSON mode;
@@ -149,8 +162,49 @@ func Catalog() *catalog.Catalog {
 func entries() []catalog.Entry {
 	return []catalog.Entry{
 		{
+			ID:           ModelGemini38Flash,
+			Model:        catalog.ModelGemini38Flash,
+			Capabilities: geminiCaps,
+			Modalities:   geminiModalities,
+			Constraints: llm.ModelConstraints{
+				TemperatureRange: [2]float64{0.0, 2.0},
+				MaxInputTokens:   1048576, // 1M input tokens
+				MaxOutputTokens:  65536,   // 64K output tokens
+				SupportedParams:  geminiParams,
+			},
+			Reasoning: catalog.ReasoningSupport{Efforts: gemini38FlashReasoningEfforts},
+			// Gemini 3.8 Flash GA, release date 2026-09-02 on the model page
+			// (docs.cloud.google.com/gemini-enterprise-agent-platform/models/
+			// gemini/3-8-flash, read 2026-09-22). No retirement published.
+			Life: catalog.Lifecycle{Available: catalog.MustDate("2026-09-02")},
+			// Same introductory rates and regional premium as 3.6 Flash.
+			Pricing: geminiFlashPricing(),
+		},
+		{
 			ID:           ModelGemini36Flash,
 			Model:        catalog.ModelGemini36Flash,
+			Capabilities: geminiCaps,
+			Modalities:   geminiModalities,
+			Constraints: llm.ModelConstraints{
+				TemperatureRange: [2]float64{0.0, 2.0},
+				MaxInputTokens:   1048576, // 1M input tokens
+				MaxOutputTokens:  65536,   // 64K output tokens
+				SupportedParams:  geminiNoPenaltyParams,
+			},
+			Reasoning: catalog.ReasoningSupport{Efforts: geminiReasoningEfforts},
+			// Gemini 3.6 Flash GA, release date 2026-07-21 on the model page
+			// (docs.cloud.google.com/gemini-enterprise-agent-platform/models/
+			// gemini/3-6-flash, read 2026-09-10). No retirement published.
+			// model-versions names gemini-3.8-flash as the replacement.
+			Life: catalog.Lifecycle{
+				Available:  catalog.MustDate("2026-07-21"),
+				ReplacedBy: ModelGemini38Flash,
+			},
+			Pricing: geminiFlashPricing(),
+		},
+		{
+			ID:           ModelGemini31FlashLite,
+			Model:        catalog.ModelGemini31FlashLite,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Constraints: llm.ModelConstraints{
@@ -160,11 +214,36 @@ func entries() []catalog.Entry {
 				SupportedParams:  geminiParams,
 			},
 			Reasoning: catalog.ReasoningSupport{Efforts: geminiReasoningEfforts},
-			// Gemini 3.6 Flash GA, release date 2026-07-21 on the model page
+			// Gemini 3.1 Flash-Lite GA, release date 2026-05-07, retirement
+			// "May 7, 2027 or later" (a floor) on the model page
 			// (docs.cloud.google.com/gemini-enterprise-agent-platform/models/
-			// gemini/3-6-flash, read 2026-09-10). No retirement published.
-			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-07-21")},
-			Pricing: geminiFlashPricing(),
+			// gemini/3-1-flash-lite, read 2026-09-22).
+			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-05-07")},
+			Pricing: geminiFlashLitePricing(),
+		},
+		{
+			ID:           ModelClaudeOpus55,
+			Model:        catalog.ModelClaudeOpus55,
+			Capabilities: claudeCaps,
+			Modalities:   claudeModalities,
+			Constraints: llm.ModelConstraints{
+				MaxInputTokens:  1000000,
+				MaxOutputTokens: 128000,
+				// Adaptive thinking is always on; non-default sampling
+				// parameters return 400 (Anthropic's model-deprecations page).
+				// Vertex publishes no fast-mode rate, so speed is not offered.
+				SupportedParams: []string{"max_tokens", "reasoning_effort"},
+			},
+			Reasoning: catalog.ReasoningSupport{
+				Efforts:  []llm.ReasoningEffort{reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortXHigh, reasoningEffortMax},
+				Adaptive: true,
+			},
+			// Claude Opus 5.5 GA, release date 2026-09-22, retirement floor "not
+			// sooner than 2027-09-22" on the model page (docs.cloud.google.com/
+			// gemini-enterprise-agent-platform/models/partner-models/claude/
+			// opus-5-5, read 2026-09-22).
+			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-09-22")},
+			Pricing: claudeOpus55Pricing(),
 		},
 		{
 			ID:           ModelClaudeSonnet5,
@@ -172,10 +251,11 @@ func entries() []catalog.Entry {
 			Capabilities: claudeCaps,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
-				TemperatureRange: [2]float64{0.0, 1.0},
-				MaxInputTokens:   1000000,
-				MaxOutputTokens:  128000,
-				SupportedParams:  []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort"},
+				MaxInputTokens:  1000000,
+				MaxOutputTokens: 128000,
+				// Claude 4.7 and later return 400 for non-default sampling
+				// parameters (Anthropic's model-deprecations page).
+				SupportedParams: []string{"max_tokens", "reasoning_effort"},
 			},
 			Reasoning: catalog.ReasoningSupport{
 				Efforts:  []llm.ReasoningEffort{reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortXHigh, reasoningEffortMax},
@@ -213,7 +293,46 @@ func entries() []catalog.Entry {
 	}
 }
 
-// geminiFlashPricing returns the Gemini 3.6 Flash rate card: the global
+// geminiFlashLitePricing returns the Gemini 3.1 Flash-Lite rate card, same
+// shape as [geminiFlashPricing]. Standard rates from the pricing page, read
+// 2026-09-22; no introductory rate. Text/image/video rates only: audio input
+// ($0.50 global, $0.55 non-global) has no per-modality bucket.
+func geminiFlashLitePricing() pricing.Info {
+	global := pricing.NewRates(0.25, 1.50, 0.025)
+	nonGlobal := pricing.NewRates(0.275, 1.65, 0.0275)
+
+	info := pricing.FlatInfoFromRates(global)
+	for _, region := range []string{"us", "eu"} {
+		info = info.WithOverride(
+			pricing.Selector{Region: region},
+			pricing.RateCard{Base: nonGlobal},
+		)
+	}
+
+	return info
+}
+
+// claudeOpus55Pricing returns the Opus 5.5 rate card, same shape as
+// [claudeSonnet5Pricing]. Global, and non-global = global x 1.10, from the
+// pricing page's region tabs, read 2026-09-22; flat across the =< 200K and
+// > 200K input tiers. Cache hits are 0.05x input, as on Anthropic direct.
+// Only the us and eu tabs list Opus 5.5.
+func claudeOpus55Pricing() pricing.Info {
+	global := pricing.NewRates(4.00, 20.00, 0.20).WithCacheCreation(5.00, 8.00, 0)
+	nonGlobal := pricing.NewRates(4.40, 22.00, 0.22).WithCacheCreation(5.50, 8.80, 0)
+
+	info := pricing.FlatInfoFromRates(global)
+	for _, region := range []string{"us", "eu"} {
+		info = info.WithOverride(
+			pricing.Selector{Region: region},
+			pricing.RateCard{Base: nonGlobal},
+		)
+	}
+
+	return info
+}
+
+// geminiFlashPricing returns the Gemini 3.6 and 3.8 Flash rate card: the global
 // rate as default, and the 10% higher non-global rate as one override per
 // priced multi-region.
 func geminiFlashPricing() pricing.Info {

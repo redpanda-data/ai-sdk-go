@@ -66,6 +66,10 @@ const (
 	// ModelGPT6Astra is OpenAI's GPT-6 flagship reasoning model.
 	// Raw string until the OpenAI SDK adds the constant.
 	ModelGPT6Astra = "gpt-6-astra"
+	// ModelGPT6Sol is the mid-tier GPT-6 model, below Astra and above Luna.
+	ModelGPT6Sol = "gpt-6-sol"
+	// ModelGPT6Luna is the most efficient GPT-6 model.
+	ModelGPT6Luna = "gpt-6-luna"
 
 	// ModelGPT5_6Luna is the cost-optimized GPT-5.6 model.
 	ModelGPT5_6Luna = shared.ChatModelGPT5_6Luna

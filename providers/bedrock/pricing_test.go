@@ -55,6 +55,10 @@ var unknownTTLCacheModels = map[string]bool{
 	ModelGPT56Sol:   true,
 	ModelGPT56Terra: true,
 	ModelGPT56Luna:  true,
+
+	ModelGPT6Astra:       true,
+	ModelGPT6AstraGlobal: true,
+	ModelGPT6AstraUS:     true,
 }
 
 func TestAllModelsHavePricing(t *testing.T) {
@@ -119,20 +123,24 @@ func TestGPT56Pricing(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		modelID string
-		rates   pricing.Rates
+		modelID   string
+		rates     pricing.Rates
+		longRates pricing.Rates
 	}{
 		{
-			modelID: ModelGPT56Sol,
-			rates:   pricing.NewRates(5.50, 33.00, 0.55).WithCacheCreation(0, 0, 6.875),
+			modelID:   ModelGPT56Sol,
+			rates:     pricing.NewRates(4.40, 22.00, 0.44).WithCacheCreation(0, 0, 5.50),
+			longRates: pricing.NewRates(8.80, 33.00, 0.88).WithCacheCreation(0, 0, 11.00),
 		},
 		{
-			modelID: ModelGPT56Terra,
-			rates:   pricing.NewRates(2.75, 16.50, 0.275).WithCacheCreation(0, 0, 3.4375),
+			modelID:   ModelGPT56Terra,
+			rates:     pricing.NewRates(2.20, 13.20, 0.22).WithCacheCreation(0, 0, 2.75),
+			longRates: pricing.NewRates(4.40, 19.80, 0.44).WithCacheCreation(0, 0, 5.50),
 		},
 		{
-			modelID: ModelGPT56Luna,
-			rates:   pricing.NewRates(1.10, 6.60, 0.11).WithCacheCreation(0, 0, 1.375),
+			modelID:   ModelGPT56Luna,
+			rates:     pricing.NewRates(0.22, 1.32, 0.022).WithCacheCreation(0, 0, 0.275),
+			longRates: pricing.NewRates(0.44, 1.98, 0.044).WithCacheCreation(0, 0, 0.55),
 		},
 	}
 
@@ -143,7 +151,67 @@ func TestGPT56Pricing(t *testing.T) {
 			def, ok := Catalog().Lookup(tt.modelID)
 			require.True(t, ok)
 			assert.Equal(t, tt.rates, def.Pricing.Default.Base)
+			require.Len(t, def.Pricing.Default.Brackets, 1)
+			assert.Equal(t, int64(272_001), def.Pricing.Default.Brackets[0].MinContextTokens)
+			assert.Equal(t, tt.longRates, def.Pricing.Default.Brackets[0].Rates)
 		})
+	}
+}
+
+func TestGPT6AstraPricing(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		modelID    string
+		base, long pricing.Rates
+	}{
+		{
+			modelID: ModelGPT6AstraGlobal,
+			base:    pricing.NewRates(10.00, 50.00, 1.00).WithCacheCreation(0, 0, 12.50),
+			long:    pricing.NewRates(20.00, 75.00, 2.00).WithCacheCreation(0, 0, 25.00),
+		},
+		{
+			modelID: ModelGPT6AstraUS,
+			base:    pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(0, 0, 13.75),
+			long:    pricing.NewRates(22.00, 82.50, 2.20).WithCacheCreation(0, 0, 27.50),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.modelID, func(t *testing.T) {
+			t.Parallel()
+
+			def, ok := Catalog().Lookup(tt.modelID)
+			require.True(t, ok)
+			assert.Equal(t, tt.base, def.Pricing.Default.Base)
+			require.Len(t, def.Pricing.Default.Brackets, 1)
+			assert.Equal(t, int64(272_001), def.Pricing.Default.Brackets[0].MinContextTokens)
+			assert.Equal(t, tt.long, def.Pricing.Default.Brackets[0].Rates)
+		})
+	}
+}
+
+func TestClaudeOpus55Pricing(t *testing.T) {
+	t.Parallel()
+
+	global, globalOK := Catalog().Lookup(ModelClaudeOpus55Global)
+	require.True(t, globalOK)
+	assert.Equal(t,
+		pricing.NewRates(4.00, 20.00, 0.20).WithCacheCreation(5.00, 8.00, 0),
+		global.Pricing.Default.Base,
+	)
+
+	geoRates := pricing.NewRates(4.40, 22.00, 0.22).WithCacheCreation(5.50, 8.80, 0)
+
+	for _, id := range []string{
+		ModelClaudeOpus55US,
+		ModelClaudeOpus55EU,
+		ModelClaudeOpus55AU,
+		ModelClaudeOpus55JP,
+	} {
+		def, ok := Catalog().Lookup(id)
+		require.True(t, ok)
+		assert.Equal(t, geoRates, def.Pricing.Default.Base)
 	}
 }
 
