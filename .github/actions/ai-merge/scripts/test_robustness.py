@@ -20,12 +20,23 @@ CLEAN_SC = {"checked": True, "new_maintainers": False,
             "unusual_version_jump": False, "added_install_scripts": False}
 
 
+OK_V = {"verdict": "approve", "confidence": 0.9, "reviewed_fully": True}
+
+
 def test_well_formed_approve_approves():
-    assert decide(ELIGIBLE, {"verdict": "approve", "confidence": 0.9})["approve"]
+    assert decide(ELIGIBLE, OK_V)["approve"]
+
+
+def test_approval_requires_reviewed_fully():
+    for rf in (False, None, "true", 1):
+        d = decide(ELIGIBLE, {**OK_V, "reviewed_fully": rf})
+        assert d["approve"] is False, rf
+        assert any("reviewed_fully" in x for x in d["reasons"])
+    assert decide(ELIGIBLE, {"verdict": "approve", "confidence": 0.9})["approve"] is False
 
 
 def test_dependency_with_affirmatively_clean_supply_chain_approves():
-    v = {"verdict": "approve", "confidence": 0.9, "supply_chain": CLEAN_SC}
+    v = {**OK_V, "supply_chain": CLEAN_SC}
     assert decide(ELIGIBLE_DEP, v)["approve"]
 
 
@@ -112,8 +123,8 @@ def test_review_oversized_diff_abstains_without_api():
     import review
     with tempfile.TemporaryDirectory() as td:
         pr = os.path.join(td, "p.json"); json.dump({"number": 1}, open(pr, "w"))
-        g = os.path.join(td, "g.json"); json.dump(ELIGIBLE, open(g, "w"))
-        diff = os.path.join(td, "d.diff"); open(diff, "w").write("x" * (review.MAX_DIFF_CHARS + 1))
+        g = os.path.join(td, "g.json"); json.dump({**ELIGIBLE, "max_diff_chars": 500}, open(g, "w"))
+        diff = os.path.join(td, "d.diff"); open(diff, "w").write("x" * 501)
         out = os.path.join(td, "v.json")
         env = {**os.environ, "ANTHROPIC_API_KEY": "unused"}
         r = subprocess.run(
@@ -122,7 +133,7 @@ def test_review_oversized_diff_abstains_without_api():
         )
         assert r.returncode == 0, r.stderr
         v = json.load(open(out))
-        assert v["verdict"] != "approve" and "limit" in v["summary"]
+        assert v["verdict"] != "approve" and "one pass" in v["summary"] and v["reviewed_fully"] is False
 
 
 def test_review_prompt_fences_untrusted_fields():
@@ -146,8 +157,8 @@ def test_boolean_confidence_is_rejected():
 
 def test_config_confidence_threshold_is_honoured():
     strict = {**ELIGIBLE, "confidence_threshold": 0.95}
-    assert decide(strict, {"verdict": "approve", "confidence": 0.9})["approve"] is False
-    assert decide(strict, {"verdict": "approve", "confidence": 0.96})["approve"] is True
+    assert decide(strict, {**OK_V, "confidence": 0.9})["approve"] is False
+    assert decide(strict, {**OK_V, "confidence": 0.96})["approve"] is True
 
 
 def test_fence_neutralises_case_and_spacing_variants():

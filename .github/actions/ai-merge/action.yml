@@ -1,9 +1,9 @@
 ---
-# Composite action: the AI-approved-merge pipeline (DEVPROD-4812).
+# Composite action: the AI-approved-merge pipeline.
 #
-# VENDORED COPY. Canonical source: redpanda-data/devprod-infra
-# (.github/actions/ai-merge). See scripts/README.md for the source commit and
-# how to re-sync. Do not edit here without upstreaming the change.
+# VENDORED COPY of the canonical mechanism maintained internally by Redpanda
+# DevProd. See scripts/README.md for how it is kept in sync. Do not edit here
+# without upstreaming the change.
 name: AI Approved Merge
 description: Guardrail + AI review gate that posts a binding approval on low-risk PRs. Merging stays with the author.
 

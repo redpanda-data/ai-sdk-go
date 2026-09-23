@@ -190,22 +190,18 @@ def evaluate(
     tests = [f for f in reviewable if match_any(f["filename"], TEST_PATTERNS)]
     source = [f for f in reviewable if f["filename"] not in {t["filename"] for t in tests}]
 
-    # The caps are an attention budget for what the model must actually read:
-    # they apply to REVIEWABLE (non-generated) changes only.
-    max_files = int(_as_number(config.get("max_changed_files"), "max_changed_files", 50, reasons))
-    max_lines = int(_as_number(config.get("max_total_lines"), "max_total_lines", 800, reasons))
-    max_gen = int(_as_number(config.get("max_generated_lines"), "max_generated_lines", 20000, reasons))
+    # Size is NOT a risk score and does not gate here. Counts are recorded as
+    # signals for the audit record and a future risk-scoring layer. The only
+    # size rule is "the whole reviewable diff must fit in one review", which is
+    # enforced downstream by review.py against `max_diff_chars` (config, chars).
     changed_files = len(files)
     total_lines = sum(_lines(f) for f in files)
     reviewable_files = len(reviewable)
     reviewable_lines = sum(_lines(f) for f in reviewable)
     generated_lines = sum(_lines(f) for f in generated)
-    if reviewable_files > max_files:
-        reasons.append(f"{reviewable_files} reviewable files changed > max {max_files}")
-    if reviewable_lines > max_lines:
-        reasons.append(f"{reviewable_lines} reviewable lines changed > max {max_lines}")
-    if generated_lines > max_gen:
-        reasons.append(f"{generated_lines} generated lines changed > sanity cap {max_gen}")
+    max_diff_chars = int(_as_number(config.get("max_diff_chars"), "max_diff_chars", 120_000, reasons))
+    if max_diff_chars <= 0:
+        reasons.append("config `max_diff_chars` must be a positive number")
 
     dep_paths = _as_list(config.get("dependency_paths"), "dependency_paths", reasons)
     if not dep_paths and "dependency_paths" not in config:
@@ -240,6 +236,7 @@ def evaluate(
         "source_lines": sum(_lines(f) for f in source),
         "tests_changed_with_source": bool(tests) and bool(source),
         "confidence_threshold": threshold,
+        "max_diff_chars": max_diff_chars,
     }
 
 

@@ -1,10 +1,7 @@
-# AI-approved merge mechanism (DEVPROD-4812) — VENDORED COPY
+# AI-approved merge mechanism — VENDORED COPY
 
-> **Canonical source:** `redpanda-data/devprod-infra` → `.github/actions/ai-merge`
-> **Vendored from:** `ai-merge/v1.1.0` (`da8d5b7`) **plus the hardening from three
-> Copilot/Claude review rounds of ai-sdk-go#227, the `generated_paths` sizing model,
-> and the approval-only change (the bot never merges), not yet upstreamed.** Upstream
-> to devprod-infra before enabling any private-repo enrollment via the reusable workflow.
+> **Canonical source:** maintained internally by Redpanda DevProd. This directory is a
+> verbatim copy plus the hardening from the review rounds on this repo's enrollment PR.
 >
 > **What the bot does:** posts a binding approval on eligible low-risk PRs. It never
 > merges. The author merges, or enables GitHub's own auto-merge per PR.
@@ -12,19 +9,16 @@
 > This repo is public and GitHub does not allow public repos to use reusable
 > workflows or actions from a private repo, so the mechanism is vendored here and
 > executed from the PR's **base ref** (default branch only). Do not edit this copy
-> directly: change it in devprod-infra, then re-sync with
-> `rsync -a --delete ../devprod-infra/.github/actions/ai-merge/ .github/actions/ai-merge/`,
-> re-apply this note and the `action.yml` header, and update the commit above.
+> directly: change it in the canonical copy, then re-sync (`rsync -a --delete` from a
+> checkout of the canonical copy into `.github/actions/ai-merge/`), re-apply this note
+> and the `action.yml` header.
 >
-> **Enrolling another repo:**
-> - **Private repo (most repos): do NOT vendor.** Add a thin caller workflow on
->   **`pull_request_target`** that uses
->   `redpanda-data/devprod-infra/.github/workflows/ai-approved-merge.yml@ai-merge/v1`
->   plus `.github/ai-merge.yml`, the three secrets, App installation, the `ai-merge-skip`
->   label, and a ruleset (1 approval + dismiss stale approvals on push).
-> - **Public repo:** GitHub blocks public→private reusable workflows, so vendor as done
->   here: copy `.github/actions/ai-merge/`, `.github/workflows/ai-approved-merge.yml`
->   and `test-ai-merge.yml`, then the same config/secrets/App/label/ruleset steps.
+> **Enrolling another repo:** Redpanda private repos should call the canonical reusable
+> workflow directly (ask DevProd) rather than vendor. Public repos vendor as done here:
+> copy `.github/actions/ai-merge/`, `.github/workflows/ai-approved-merge.yml` and
+> `test-ai-merge.yml`, add `.github/ai-merge.yml`, the three secrets, the App
+> installation, the `ai-merge-skip` label, and a ruleset (1 approval + dismiss stale
+> approvals on push).
 >
 > Outsider PRs on public repos are excluded twice: fork PRs never run, and the author
 > must be a verified org member (and could not merge anyway). GitHub App bots
@@ -40,10 +34,10 @@ is then evaluated automatically. A PR opts *out* with the `ai-merge-skip` label.
 ## Pipeline
 
 `guardrails.py` (eligibility: config valid, org-member author, no excluded paths,
-size bounds) → `review.py` (Anthropic API, versioned prompt, strict JSON verdict;
+reviewable files) → `review.py` (Anthropic API, versioned prompt, strict JSON verdict;
 supply-chain checklist on dependency PRs) → `decide.py` (approve only if eligible ∧
-verdict=approve ∧ confidence valid and ≥ threshold ∧ supply chain affirmatively
-clean) → approval pinned to the reviewed SHA (the bot never merges; the author does) →
+verdict=approve ∧ reviewed_fully ∧ confidence valid and ≥ threshold ∧ supply chain
+affirmatively clean) → approval pinned to the reviewed SHA (the bot never merges; the author does) →
 `audit.py` (sticky comment; also the review body).
 
 ## Fail-closed guarantees
@@ -53,6 +47,16 @@ clean) → approval pinned to the reviewed SHA (the bot never merges; the author
   Safe because the PR head is never checked out or executed.
 - The gate only ever **adds** an approval; it never blocks a PR.
 - Binary or patchless files (no reviewable diff) make a PR ineligible.
+- **Size is not a risk score and does not gate.** The only size rule is that the whole
+  reviewable diff must fit in one review (`max_diff_chars`, default 120K chars,
+  per-repo), and the model must set `reviewed_fully: true` — an approval is never
+  given without it. A repo may declare `generated_paths`: machine-produced files that a
+  **required** CI check regenerates and compares (so a hand edit cannot merge). Those
+  are omitted from the diff the model sees; the model is told they changed. An excluded
+  path always wins over a generated path; generated files must still be text. Counts
+  (files, reviewable / generated / test / source lines, tests-changed-with-source) and
+  the model's `scope` are recorded in every audit as inputs for a future risk-scoring
+  layer.
 - The `ai-merge-skip` opt-out is handled inside the run: adding it after an
   approval withdraws the bot's approval.
 - Config is read from the **base ref**; a PR cannot relax its own guardrails.

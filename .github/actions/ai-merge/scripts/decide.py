@@ -3,7 +3,7 @@
 
 Approve ONLY if every condition holds:
   - guardrails eligible
-  - AI verdict == "approve"
+  - AI verdict == "approve" and the model confirms it reviewed the FULL change
   - AI confidence is a finite number in [0, 1] and >= threshold
   - if a dependency update: supply-chain checks are AFFIRMATIVELY clean
     (checked is true and every flag is explicitly false)
@@ -47,6 +47,9 @@ def decide(guardrails: dict, verdict) -> dict:
 
     if verdict.get("verdict") != "approve":
         reasons.append(f"AI verdict is {verdict.get('verdict')!r}")
+
+    if verdict.get("reviewed_fully") is not True:
+        reasons.append("model did not confirm it reviewed the full change (reviewed_fully)")
 
     threshold = _unit_float(guardrails.get("confidence_threshold"))
     if threshold is None:

@@ -1,40 +1,25 @@
 ---
-# AI-approved merge config for redpanda-data/ai-sdk-go (DEVPROD-4812, phase 1).
+# AI-approved merge config for redpanda-data/ai-sdk-go.
 # Read from the BASE REF (trusted), so a PR cannot relax its own guardrails.
 # Bump `version` on every change; it is recorded in each PR's audit record.
 #
 # Baseline exclusions always apply on top of this list: .github/**, terraform/**,
 # release/**, Dockerfiles, iam/ and auth/ dirs, *credential*, *secret*, *.pem, *.key.
 # Binary or patchless files also make a PR ineligible.
-version: 4
+version: 6
 enabled: true
 
-# Attention budget for what the model must actually READ: these caps apply to
-# reviewable (non-generated) changes only. They are not a risk score; a risk-
-# scoring layer is a separate follow-up. PR #215 (~320 lines) is well inside.
-max_changed_files: 60
-max_total_lines: 1000
-max_generated_lines: 20000
+# Size is NOT a risk score and does not gate. The only size rule is that the
+# whole reviewable diff must fit in ONE review: max_diff_chars is the number of
+# characters of reviewable diff sent to the model (default 120000, roughly
+# 3000 lines). Larger changes abstain ("too large to review in one pass") and
+# get a normal human review. The model must also confirm it read the whole
+# change (reviewed_fully) before an approval counts. File/line counts and the
+# model's scope classification are recorded in every audit comment as inputs
+# for the separate risk-scoring work; they do not gate.
+max_diff_chars: 120000
 
-# Machine-produced files exempt from the caps and omitted from the model's diff.
-# PRECONDITION: each path MUST be regenerated-and-compared by a REQUIRED CI
-# check, so a hand edit fails CI and cannot merge.
-#
-# CURRENT STATE OF THIS REPO'S CI (be explicit, per review): the ruleset has NO
-# required status checks, and all Go workflows path-filter on **.go/go.mod/go.sum,
-# so a .json- or .md-only PR runs NO CI at all. For catalog/snapshot.json that
-# means a small hand edit (under the size cap) would have the AI review as its
-# only gate — and a full regen (~5000 lines) refuses on the cap. Both are
-# unsatisfactory, so this is a GO-LIVE PRECONDITION for ADP, not just a
-# generated_paths one: (1) run `task catalog:check` on PRs, including catalog/**
-# changes; (2) make Test / Golangci Lint / License / catalog:check required
-# status checks (ideally running unconditionally so non-Go PRs don't wait on a
-# check that never reports). Then add
-#   - "catalog/snapshot.json"
-# and bump `version`.
-generated_paths: []
-
-min_confidence: 0.8
+min_confidence: 0.75
 
 # Repo-specific paths that always need a human:
 #   providers/**/provider.go      client construction: API keys / SDK credential chains

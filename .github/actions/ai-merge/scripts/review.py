@@ -21,11 +21,14 @@ import urllib.request
 PROMPT_VERSION = "2026-09-17.1"
 
 # Approval boundary: a diff we cannot send in full is a diff we do not approve.
+# Default; a repo may set `max_diff_chars` in its config (passed via guardrails).
 MAX_DIFF_CHARS = 120_000
 
 SCHEMA = """{
   "verdict": "approve" | "request_changes" | "comment",
   "confidence": <float 0.0-1.0>,
+  "reviewed_fully": <bool>,
+  "scope": "mechanical" | "localized" | "broad",
   "summary": "<one short paragraph>",
   "concerns": ["<zero or more specific concerns>"],
   "supply_chain": {
@@ -54,6 +57,12 @@ Rules:
 the change, no security-sensitive surface touched, change is mechanical or clearly scoped.
 - Any uncertainty about correctness, hidden side effects, or scope creep => NOT approve.
 - confidence reflects how sure you are the change is safe to merge unreviewed.
+- reviewed_fully: true ONLY if you actually read every hunk of the diff. If you \
+skimmed, summarised, or could not follow part of it, set false — an approval is \
+never given without it.
+- scope: "mechanical" (generated/renames/formatting/version bumps with no logic \
+change), "localized" (logic change confined to one component), "broad" (touches \
+several components or shared/public surface). Report it honestly; it is recorded.
 - Always fill every supply_chain field with a boolean. If this is not a dependency \
 change, set checked=false and the three flags=false.
 """
@@ -178,6 +187,8 @@ def _abstain(reason: str, error: str | None = None) -> dict:
         "summary": reason,
         "concerns": [error or reason],
         "supply_chain": {"checked": False},
+        "reviewed_fully": False,
+        "scope": "unknown",
         "error": error,
     }
 
@@ -196,10 +207,11 @@ def main() -> int:
     model = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-5")
 
     diff = strip_generated(diff, list(guardrails.get("generated_files") or []))
-    if len(diff) > MAX_DIFF_CHARS:
+    limit = int(guardrails.get("max_diff_chars") or MAX_DIFF_CHARS)
+    if len(diff) > limit:
         verdict = _abstain(
-            f"diff is {len(diff)} chars, over the {MAX_DIFF_CHARS} review limit; "
-            "not sending a partial diff for approval"
+            f"change too large to review in one pass ({len(diff)} chars of reviewable "
+            f"diff, limit {limit}); not sending a partial diff for approval"
         )
     else:
         try:

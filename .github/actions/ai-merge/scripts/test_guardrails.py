@@ -7,8 +7,6 @@ CFG = {
     "version": 1,
     "enabled": True,
     "excluded_paths": ["providers/**/auth*.go"],
-    "max_changed_files": 50,
-    "max_total_lines": 800,
     "min_confidence": 0.8,
     "dependency_paths": ["**/go.mod", "**/go.sum"],
 }
@@ -93,11 +91,6 @@ def test_non_member_rejected_regardless_of_association():
         assert not r["eligible"], pr
 
 
-def test_size_bounds():
-    many = _files(*[(f"pkg/f{i}.go", 1, 0) for i in range(51)])
-    assert not evaluate(CFG, many, PR_OK, True)["eligible"]
-    assert not evaluate(CFG, _files(("big.go", 900, 0)), PR_OK, True)["eligible"]
-
 
 def test_dependency_detection_root_and_nested():
     assert evaluate(CFG, _files(("go.mod", 2, 1)), PR_OK, True)["is_dependency"]
@@ -170,7 +163,7 @@ def test_binary_or_patchless_file_is_ineligible():
     # A text file whose patch GitHub omitted for size is equally unreviewable.
     huge = [{"filename": "gen/big.go", "status": "modified", "additions": 5000,
              "deletions": 0, "has_patch": False}]
-    assert not evaluate({**CFG, "max_total_lines": 10000}, huge, PR_OK, True)["eligible"]
+    assert not evaluate(CFG, huge, PR_OK, True)["eligible"]
 
 
 def test_pure_deletion_and_zero_change_rename_stay_reviewable():
@@ -184,11 +177,13 @@ def test_pure_deletion_and_zero_change_rename_stay_reviewable():
 
 
 def test_non_numeric_config_values_fail_closed_with_reason():
-    for key in ("max_changed_files", "max_total_lines", "min_confidence"):
+    for key in ("min_confidence", "max_diff_chars"):
         r = evaluate({**CFG, key: "sixty"}, _files(("a.go", 1, 0)), PR_OK, True)
         assert not r["eligible"], key
         assert any(key in x and "number" in x for x in r["reasons"]), r["reasons"]
-    r = evaluate({**CFG, "max_total_lines": True}, _files(("a.go", 1, 0)), PR_OK, True)
+    r = evaluate({**CFG, "max_diff_chars": True}, _files(("a.go", 1, 0)), PR_OK, True)
+    assert not r["eligible"]
+    r = evaluate({**CFG, "max_diff_chars": 0}, _files(("a.go", 1, 0)), PR_OK, True)
     assert not r["eligible"]
 
 
@@ -214,19 +209,16 @@ def test_missing_has_patch_is_treated_as_unreviewable():
 GEN_CFG = {**CFG, "generated_paths": ["catalog/snapshot.json", "docs/generated/**"]}
 
 
-def test_generated_files_do_not_count_against_caps():
+def test_generated_files_are_split_out_as_signals():
     files = _files(("providers/bedrock/models.go", 27, 0), ("catalog/snapshot.json", 6000, 5000))
     r = evaluate(GEN_CFG, files, PR_OK, True)
     assert r["eligible"], r["reasons"]
     assert r["generated_files"] == ["catalog/snapshot.json"]
     assert r["reviewable_lines"] == 27 and r["generated_lines"] == 11000
-    # Same PR without the generated declaration is over the cap.
-    assert not evaluate(CFG, files, PR_OK, True)["eligible"]
+    # Without the declaration the snapshot is reviewable; size alone never gates.
+    r2 = evaluate(CFG, files, PR_OK, True)
+    assert r2["eligible"] and r2["reviewable_lines"] == 11027
 
-
-def test_generated_sanity_cap_still_applies():
-    files = _files(("catalog/snapshot.json", 30000, 0))
-    assert not evaluate(GEN_CFG, files, PR_OK, True)["eligible"]
 
 
 def test_excluded_path_wins_over_generated():
@@ -258,7 +250,7 @@ def test_rename_into_generated_path_is_not_treated_as_generated():
     cfg = {**CFG, "generated_paths": ["docs/generated/**"]}
     r = evaluate(cfg, files, PR_OK, True)
     assert r["generated_files"] == [] and r["reviewable_lines"] == 900
-    assert not r["eligible"]  # 900 reviewable lines > 800 cap
+    assert r["eligible"]  # size never gates; the file is simply reviewable
     # A rename WITHIN generated paths stays generated.
     files[0]["previous_filename"] = "docs/generated/old.md"
     assert evaluate(cfg, files, PR_OK, True)["generated_files"] == ["docs/generated/x.md"]
@@ -266,6 +258,13 @@ def test_rename_into_generated_path_is_not_treated_as_generated():
 
 def test_non_finite_numeric_config_fails_closed_with_reason():
     for v in (float("inf"), float("-inf"), float("nan")):
-        r = evaluate({**CFG, "max_total_lines": v}, _files(("a.go", 1, 0)), PR_OK, True)
+        r = evaluate({**CFG, "max_diff_chars": v}, _files(("a.go", 1, 0)), PR_OK, True)
         assert not r["eligible"], v
         assert any("finite number" in x for x in r["reasons"]), r["reasons"]
+
+
+def test_large_hand_written_change_is_not_refused_on_size():
+    r = evaluate(CFG, _files(("pkg/big.go", 4000, 0)), PR_OK, True)
+    assert r["eligible"] and r["reviewable_lines"] == 4000
+    assert r["max_diff_chars"] == 120_000
+    assert evaluate({**CFG, "max_diff_chars": 5000}, _files(("a.go", 1, 0)), PR_OK, True)["max_diff_chars"] == 5000

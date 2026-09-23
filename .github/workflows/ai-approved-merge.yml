@@ -1,10 +1,10 @@
 ---
-# AI-approved merges for low-risk PRs (DEVPROD-4812) — vendored pilot.
+# AI-approved merges for low-risk PRs — vendored pilot.
 #
-# The mechanism (.github/actions/ai-merge) is VENDORED from
-# redpanda-data/devprod-infra (canonical source, private): GitHub does not let a
-# public repo use reusable workflows/actions from a private repo. Source commit
-# and re-sync steps: .github/actions/ai-merge/scripts/README.md
+# The mechanism (.github/actions/ai-merge) is a VENDORED COPY of the canonical
+# mechanism maintained internally by Redpanda DevProd: GitHub does not let a
+# public repo use reusable workflows/actions from a private repo. Sync notes:
+# .github/actions/ai-merge/scripts/README.md
 #
 # Security model (the invariant: a PR can never alter what judges it):
 # - Trigger is `pull_request_target`, so THIS workflow file is read from the
@@ -33,7 +33,7 @@ permissions:
 
 env:
   AI_MERGE_DRY_RUN: "true"
-  AI_MERGE_MODEL: claude-sonnet-5
+  AI_MERGE_MODEL: claude-opus-5
 
 jobs:
   ai-merge:
