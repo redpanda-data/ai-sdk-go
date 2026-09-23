@@ -35,13 +35,15 @@ const LocationGlobal = "global"
 // a live request.
 const (
 	// LocationsMatrixSource is the page the matrix is transcribed from.
-	LocationsMatrixSource = "https://docs.cloud.google.com/vertex-ai/generative-ai/docs/learn/locations"
+	LocationsMatrixSource = "https://docs.cloud.google.com/gemini-enterprise-agent-platform/resources/locations"
 
 	// LocationsMatrixTranscribed is the date the matrix below was copied
 	// from LocationsMatrixSource, in YYYY-MM-DD form. The full per-model
 	// availability was reconciled against the live page on this date: every
-	// row below is what LocationsMatrixSource published on 2026-09-08.
-	LocationsMatrixTranscribed = "2026-09-08"
+	// row below is what LocationsMatrixSource published on 2026-09-22,
+	// except claude-opus-5-5, which the matrix did not yet list; its row is
+	// the model page's "Model availability" section.
+	LocationsMatrixTranscribed = "2026-09-22"
 )
 
 // servedLocations maps each catalogued bare model ID to the locations
@@ -55,11 +57,27 @@ const (
 // and routes a customer who calls the model there.
 //
 // Gemini is published at global and the us and eu multi-regions, with no
-// named-region availability. Sonnet is published at global, the us and eu
+// named-region availability. Opus 5.5 is published at global and the us and
+// eu multi-regions. Sonnet is published at global, the us and eu
 // multi-regions, and the asia-southeast1 named region. Haiku is published
 // at global and the us-east5, europe-west1, and asia-east1 named regions.
 var servedLocations = map[string][]string{
+	ModelGemini38Flash: {
+		LocationGlobal,
+		"us", "eu",
+	},
 	ModelGemini36Flash: {
+		LocationGlobal,
+		"us", "eu",
+	},
+	ModelGemini31FlashLite: {
+		LocationGlobal,
+		"us", "eu",
+	},
+	// From the Opus 5.5 model page (not yet in the matrix). Its "ML
+	// processing" list adds asia-southeast1, but Google publishes neither
+	// availability nor a price there yet.
+	ModelClaudeOpus55: {
 		LocationGlobal,
 		"us", "eu",
 	},

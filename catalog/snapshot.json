@@ -13,7 +13,8 @@
       "publisher": "anthropic",
       "description": "Claude Fable 5 is a Mythos-class model from Anthropic, built for autonomous knowledge work and coding.",
       "series": "claude-fable",
-      "released": "2026-06-07"
+      "released": "2026-06-09",
+      "knowledge": "2026-01-31"
     },
     "anthropic/claude-fable-5-1": {
       "display_name": "Claude Fable 5.1",
@@ -50,9 +51,9 @@
     "anthropic/claude-opus-4-6": {
       "display_name": "Claude Opus 4.6",
       "publisher": "anthropic",
-      "description": "Opus 4.6 is Anthropic’s strongest model for coding and long-running professional tasks.",
+      "description": "Opus 4.6 is an Anthropic Opus model for coding and long-running professional tasks.",
       "series": "claude-opus",
-      "released": "2026-02-04",
+      "released": "2026-02-05",
       "knowledge": "2025-05-31"
     },
     "anthropic/claude-opus-4-7": {
@@ -60,13 +61,13 @@
       "publisher": "anthropic",
       "description": "Opus 4.7 is the next generation of Anthropic's Opus family, built for long-running, asynchronous agents.",
       "series": "claude-opus",
-      "released": "2026-04-14",
+      "released": "2026-04-16",
       "knowledge": "2026-01-31"
     },
     "anthropic/claude-opus-4-8": {
       "display_name": "Claude Opus 4.8",
       "publisher": "anthropic",
-      "description": "Claude Opus 4.8 is Anthropic's most capable generally available model in the Opus family.",
+      "description": "Claude Opus 4.8 is an Anthropic Opus model for complex reasoning, coding, and agentic work.",
       "series": "claude-opus",
       "released": "2026-05-28",
       "knowledge": "2026-01-31"
@@ -74,15 +75,23 @@
     "anthropic/claude-opus-5": {
       "display_name": "Claude Opus 5",
       "publisher": "anthropic",
-      "description": "Claude Opus 5 is Anthropic’s flagship model for demanding reasoning, coding, and long-horizon agentic work.",
+      "description": "Claude Opus 5 is an Anthropic Opus model for demanding reasoning, coding, and long-horizon agentic work.",
       "series": "claude-opus",
       "released": "2026-07-24",
       "knowledge": "2026-05-31"
     },
+    "anthropic/claude-opus-5-5": {
+      "display_name": "Claude Opus 5.5",
+      "publisher": "anthropic",
+      "description": "Claude Opus 5.5 is Anthropic's Opus model for long-running agentic coding and knowledge work.",
+      "series": "claude-opus",
+      "released": "2026-09-22",
+      "knowledge": "2026-06-30"
+    },
     "anthropic/claude-sonnet-4-5": {
       "display_name": "Claude Sonnet 4.5",
       "publisher": "anthropic",
-      "description": "Claude Sonnet 4.5 is Anthropic’s most advanced Sonnet model to date, optimized for real-world agents and coding workflows.",
+      "description": "Claude Sonnet 4.5 is an Anthropic Sonnet model optimized for real-world agents and coding workflows.",
       "series": "claude-sonnet",
       "released": "2025-09-29",
       "knowledge": "2025-01-31"
@@ -90,7 +99,7 @@
     "anthropic/claude-sonnet-4-6": {
       "display_name": "Claude Sonnet 4.6",
       "publisher": "anthropic",
-      "description": "Sonnet 4.6 is Anthropic's most capable Sonnet-class model yet, with frontier performance across coding, agents, and professional work.",
+      "description": "Sonnet 4.6 is an Anthropic Sonnet-class model with frontier performance across coding, agents, and professional work.",
       "series": "claude-sonnet",
       "released": "2026-02-17",
       "knowledge": "2025-08-31"
@@ -100,7 +109,7 @@
       "publisher": "anthropic",
       "description": "Sonnet 5 is Anthropic's most capable Sonnet-class model, with frontier performance across coding, agents, and professional work.",
       "series": "claude-sonnet",
-      "released": "2026-06-29",
+      "released": "2026-06-30",
       "knowledge": "2026-01-31"
     },
     "google/gemini-2.5-flash": {
@@ -142,6 +151,14 @@
       "released": "2025-11-18",
       "knowledge": "2025-01-31"
     },
+    "google/gemini-3.1-flash-lite": {
+      "display_name": "Gemini 3.1 Flash-Lite",
+      "publisher": "google",
+      "description": "Gemini 3.1 Flash-Lite is a low-latency, cost-effective multimodal model optimized for high-frequency, lightweight tasks.",
+      "series": "gemini-flash-lite",
+      "released": "2026-05-07",
+      "knowledge": "2025-01-31"
+    },
     "google/gemini-3.1-pro-preview": {
       "display_name": "Gemini 3.1 Pro Preview",
       "publisher": "google",
@@ -179,7 +196,8 @@
       "publisher": "google",
       "description": "Gemini 3.7 Flash is a multimodal model from Google for fast agentic workflows, coding, and complex multi-step reasoning.",
       "series": "gemini-flash",
-      "released": "2026-08-13"
+      "released": "2026-08-13",
+      "knowledge": "2026-03-31"
     },
     "google/gemini-3.8-flash": {
       "display_name": "Gemini 3.8 Flash",
@@ -234,7 +252,7 @@
       "description": "GPT-3.5 Turbo is OpenAI's fastest model. It can understand and generate natural language or code, and is optimized for chat and traditional completion tasks.",
       "series": "gpt",
       "released": "2023-03-01",
-      "knowledge": "2021-09-30"
+      "knowledge": "2021-09-01"
     },
     "openai/gpt-4-turbo": {
       "display_name": "GPT-4 Turbo",
@@ -242,7 +260,7 @@
       "description": "The latest GPT-4 Turbo model with vision capabilities. Vision requests can now use JSON mode and function calling.",
       "series": "gpt",
       "released": "2023-11-06",
-      "knowledge": "2023-12-31"
+      "knowledge": "2023-12-01"
     },
     "openai/gpt-4.1": {
       "display_name": "GPT-4.1",
@@ -250,7 +268,7 @@
       "description": "GPT-4.1 is a flagship large language model optimized for advanced instruction following, real-world software engineering, and long-context reasoning.",
       "series": "gpt",
       "released": "2025-04-14",
-      "knowledge": "2024-04-30"
+      "knowledge": "2024-06-01"
     },
     "openai/gpt-4.1-mini": {
       "display_name": "GPT-4.1 Mini",
@@ -258,28 +276,28 @@
       "description": "GPT-4.1 Mini is a mid-sized model delivering performance competitive with GPT-4o at substantially lower latency and cost.",
       "series": "gpt-mini",
       "released": "2025-04-14",
-      "knowledge": "2024-04-30"
+      "knowledge": "2024-06-01"
     },
     "openai/gpt-4o": {
       "display_name": "GPT-4o",
       "publisher": "openai",
-      "description": "GPT-4o (\"o\" for \"omni\") is OpenAI's latest AI model, supporting both text and image inputs with text outputs.",
+      "description": "GPT-4o (\"o\" for \"omni\") is an OpenAI multimodal model supporting both text and image inputs with text outputs.",
       "series": "gpt",
       "released": "2024-05-13",
-      "knowledge": "2023-09-30"
+      "knowledge": "2023-10-01"
     },
     "openai/gpt-4o-mini": {
       "display_name": "GPT-4o Mini",
       "publisher": "openai",
-      "description": "GPT-4o mini is OpenAI's newest model after [GPT-4 Omni](/models/openai/gpt-4o), supporting both text and image inputs with text outputs.",
+      "description": "GPT-4o mini is a small, low-cost successor to GPT-4o, supporting both text and image inputs with text outputs.",
       "series": "gpt-mini",
       "released": "2024-07-18",
-      "knowledge": "2023-09-30"
+      "knowledge": "2023-10-01"
     },
     "openai/gpt-5": {
       "display_name": "GPT-5",
       "publisher": "openai",
-      "description": "GPT-5 is OpenAI’s most advanced model, offering major improvements in reasoning, code quality, and user experience.",
+      "description": "GPT-5 is an OpenAI reasoning model offering major improvements in reasoning, code quality, and user experience.",
       "series": "gpt",
       "released": "2025-08-07",
       "knowledge": "2024-09-30"
@@ -303,7 +321,7 @@
     "openai/gpt-5.1": {
       "display_name": "GPT-5.1",
       "publisher": "openai",
-      "description": "GPT-5.1 is the latest frontier-grade model in the GPT-5 series, offering stronger general-purpose reasoning, improved instruction adherence, and a more natural conversational style compared to GPT-5.",
+      "description": "GPT-5.1 is a frontier-grade model in the GPT-5 series, offering stronger general-purpose reasoning, improved instruction adherence, and a more natural conversational style compared to GPT-5.",
       "series": "gpt",
       "released": "2025-11-13",
       "knowledge": "2024-09-30"
@@ -311,7 +329,7 @@
     "openai/gpt-5.2": {
       "display_name": "GPT-5.2",
       "publisher": "openai",
-      "description": "GPT-5.2 is the latest frontier-grade model in the GPT-5 series, offering stronger agentic and long context performance compared to GPT-5.1.",
+      "description": "GPT-5.2 is a frontier-grade model in the GPT-5 series, offering stronger agentic and long context performance compared to GPT-5.1.",
       "series": "gpt",
       "released": "2025-12-11",
       "knowledge": "2025-08-31"
@@ -327,7 +345,7 @@
     "openai/gpt-5.2-pro": {
       "display_name": "GPT-5.2 Pro",
       "publisher": "openai",
-      "description": "GPT-5.2 Pro is OpenAI’s most advanced model, offering major improvements in agentic coding and long context performance over GPT-5 Pro.",
+      "description": "GPT-5.2 Pro is the pro variant of GPT-5.2, offering major improvements in agentic coding and long context performance over GPT-5 Pro.",
       "series": "gpt-pro",
       "released": "2025-12-11",
       "knowledge": "2025-08-31"
@@ -342,7 +360,7 @@
     "openai/gpt-5.4": {
       "display_name": "GPT-5.4",
       "publisher": "openai",
-      "description": "GPT-5.4 is OpenAI’s latest frontier model, unifying the Codex and GPT lines into a single system.",
+      "description": "GPT-5.4 is an OpenAI frontier model unifying the Codex and GPT lines into a single system.",
       "series": "gpt",
       "released": "2026-03-05",
       "knowledge": "2025-08-31"
@@ -403,13 +421,29 @@
       "released": "2026-09-03",
       "knowledge": "2026-04-30"
     },
+    "openai/gpt-6-luna": {
+      "display_name": "GPT-6 Luna",
+      "publisher": "openai",
+      "description": "GPT-6 Luna is OpenAI's most efficient GPT-6 model, for focused, high-volume tasks.",
+      "series": "gpt-nano",
+      "released": "2026-09-22",
+      "knowledge": "2026-05-18"
+    },
+    "openai/gpt-6-sol": {
+      "display_name": "GPT-6 Sol",
+      "publisher": "openai",
+      "description": "GPT-6 Sol is OpenAI's mid-tier GPT-6 model, built for complex coding and agentic workflows.",
+      "series": "gpt-mini",
+      "released": "2026-09-22",
+      "knowledge": "2026-04-20"
+    },
     "openai/o1-pro": {
       "display_name": "o1-pro",
       "publisher": "openai",
       "description": "The o1 series of models are trained with reinforcement learning to think before they answer and perform complex reasoning.",
       "series": "gpt-pro",
       "released": "2025-03-19",
-      "knowledge": "2023-09-30"
+      "knowledge": "2023-10-01"
     },
     "openai/o3": {
       "display_name": "o3",
@@ -417,7 +451,7 @@
       "description": "o3 is a well-rounded and powerful model across domains. It sets a new standard for math, science, coding, and visual reasoning tasks. It also excels at technical writing and instruction-following.",
       "series": "o",
       "released": "2025-04-16",
-      "knowledge": "2024-05-31"
+      "knowledge": "2024-06-01"
     },
     "openai/o3-pro": {
       "display_name": "o3-pro",
@@ -425,7 +459,7 @@
       "description": "The o-series of models are trained with reinforcement learning to think before they answer and perform complex reasoning.",
       "series": "gpt-pro",
       "released": "2025-06-10",
-      "knowledge": "2024-05-31"
+      "knowledge": "2024-06-01"
     },
     "openai/o4-mini": {
       "display_name": "o4-mini",
@@ -433,7 +467,7 @@
       "description": "OpenAI o4-mini is a compact reasoning model in the o-series, optimized for fast, cost-efficient performance while retaining strong multimodal and agentic capabilities.",
       "series": "o-mini",
       "released": "2025-04-16",
-      "knowledge": "2024-05-31"
+      "knowledge": "2024-06-01"
     }
   },
   "providers": [
@@ -497,7 +531,7 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2026-06-07"
+            "available": "2026-06-09"
           },
           "derived": {
             "price_tier": "high",
@@ -829,7 +863,7 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2026-02-04"
+            "available": "2026-02-05"
           },
           "derived": {
             "price_tier": "high",
@@ -856,16 +890,9 @@
             "max_input_tokens": 1000000,
             "max_output_tokens": 128000,
             "supported_params": [
-              "temperature",
-              "top_p",
-              "top_k",
               "max_tokens",
               "reasoning_effort",
               "speed"
-            ],
-            "temperature_range": [
-              0,
-              1
             ]
           },
           "modalities": {
@@ -901,7 +928,7 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2026-04-14"
+            "available": "2026-04-16"
           },
           "derived": {
             "price_tier": "high",
@@ -928,16 +955,9 @@
             "max_input_tokens": 1000000,
             "max_output_tokens": 128000,
             "supported_params": [
-              "temperature",
-              "top_p",
-              "top_k",
               "max_tokens",
               "reasoning_effort",
               "speed"
-            ],
-            "temperature_range": [
-              0,
-              1
             ]
           },
           "modalities": {
@@ -1077,7 +1097,90 @@
             "available": "2026-07-24"
           },
           "derived": {
-            "price_tier": "high"
+            "price_tier": "high",
+            "replacement": "anthropic/claude-opus-5-5"
+          }
+        },
+        {
+          "id": "claude-opus-5-5",
+          "model": "anthropic/claude-opus-5-5",
+          "display_name": "Claude Opus 5.5",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": true,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "reasoning_effort",
+              "speed"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "speeds": [
+            "standard",
+            "fast"
+          ],
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 400000000,
+                "output_microcents_per_million": 2000000000,
+                "cached_input_microcents_per_million": 20000000,
+                "cache_creation_5m_microcents_per_million": 500000000,
+                "cache_creation_1h_microcents_per_million": 800000000
+              }
+            },
+            "overrides": [
+              {
+                "speed": "fast",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 800000000,
+                    "output_microcents_per_million": 4000000000,
+                    "cached_input_microcents_per_million": 40000000,
+                    "cache_creation_5m_microcents_per_million": 1000000000,
+                    "cache_creation_1h_microcents_per_million": 1600000000
+                  }
+                }
+              }
+            ]
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-09-22"
+          },
+          "derived": {
+            "price_tier": "medium"
           }
         },
         {
@@ -1187,7 +1290,8 @@
             "efforts": [
               "low",
               "medium",
-              "high"
+              "high",
+              "max"
             ],
             "adaptive": true,
             "budget": true
@@ -1232,15 +1336,8 @@
             "max_input_tokens": 1000000,
             "max_output_tokens": 128000,
             "supported_params": [
-              "temperature",
-              "top_p",
-              "top_k",
               "max_tokens",
               "reasoning_effort"
-            ],
-            "temperature_range": [
-              0,
-              1
             ]
           },
           "modalities": {
@@ -1276,7 +1373,7 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2026-06-29"
+            "available": "2026-06-30"
           },
           "derived": {
             "price_tier": "medium"
@@ -1494,7 +1591,76 @@
             }
           ],
           "derived": {
-            "price_tier": "high"
+            "price_tier": "high",
+            "replacement": "anthropic/claude-opus-5-5"
+          }
+        },
+        {
+          "id": "au.anthropic.claude-opus-5-5",
+          "model": "anthropic/claude-opus-5-5",
+          "display_name": "Claude Opus 5.5 (AU)",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "stop"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 440000000,
+                "output_microcents_per_million": 2200000000,
+                "cached_input_microcents_per_million": 22000000,
+                "cache_creation_5m_microcents_per_million": 550000000,
+                "cache_creation_1h_microcents_per_million": 880000000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "au"
+            }
+          ],
+          "derived": {
+            "price_tier": "medium"
           }
         },
         {
@@ -1609,7 +1775,8 @@
             "efforts": [
               "low",
               "medium",
-              "high"
+              "high",
+              "max"
             ],
             "adaptive": true,
             "budget": true
@@ -2006,14 +2173,8 @@
             "max_input_tokens": 1000000,
             "max_output_tokens": 128000,
             "supported_params": [
-              "temperature",
-              "top_p",
               "max_tokens",
               "stop"
-            ],
-            "temperature_range": [
-              0,
-              1
             ]
           },
           "modalities": {
@@ -2081,14 +2242,8 @@
             "max_input_tokens": 1000000,
             "max_output_tokens": 128000,
             "supported_params": [
-              "temperature",
-              "top_p",
               "max_tokens",
               "stop"
-            ],
-            "temperature_range": [
-              0,
-              1
             ]
           },
           "modalities": {
@@ -2201,7 +2356,76 @@
             }
           ],
           "derived": {
-            "price_tier": "high"
+            "price_tier": "high",
+            "replacement": "anthropic/claude-opus-5-5"
+          }
+        },
+        {
+          "id": "eu.anthropic.claude-opus-5-5",
+          "model": "anthropic/claude-opus-5-5",
+          "display_name": "Claude Opus 5.5 (EU)",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "stop"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 440000000,
+                "output_microcents_per_million": 2200000000,
+                "cached_input_microcents_per_million": 22000000,
+                "cache_creation_5m_microcents_per_million": 550000000,
+                "cache_creation_1h_microcents_per_million": 880000000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "eu"
+            }
+          ],
+          "derived": {
+            "price_tier": "medium"
           }
         },
         {
@@ -2316,7 +2540,8 @@
             "efforts": [
               "low",
               "medium",
-              "high"
+              "high",
+              "max"
             ],
             "adaptive": true,
             "budget": true
@@ -2785,14 +3010,8 @@
             "max_input_tokens": 1000000,
             "max_output_tokens": 128000,
             "supported_params": [
-              "temperature",
-              "top_p",
               "max_tokens",
               "stop"
-            ],
-            "temperature_range": [
-              0,
-              1
             ]
           },
           "modalities": {
@@ -2860,14 +3079,8 @@
             "max_input_tokens": 1000000,
             "max_output_tokens": 128000,
             "supported_params": [
-              "temperature",
-              "top_p",
               "max_tokens",
               "stop"
-            ],
-            "temperature_range": [
-              0,
-              1
             ]
           },
           "modalities": {
@@ -2980,7 +3193,76 @@
             }
           ],
           "derived": {
-            "price_tier": "high"
+            "price_tier": "high",
+            "replacement": "anthropic/claude-opus-5-5"
+          }
+        },
+        {
+          "id": "global.anthropic.claude-opus-5-5",
+          "model": "anthropic/claude-opus-5-5",
+          "display_name": "Claude Opus 5.5 (Global)",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "stop"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 400000000,
+                "output_microcents_per_million": 2000000000,
+                "cached_input_microcents_per_million": 20000000,
+                "cache_creation_5m_microcents_per_million": 500000000,
+                "cache_creation_1h_microcents_per_million": 800000000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "global"
+            }
+          ],
+          "derived": {
+            "price_tier": "medium"
           }
         },
         {
@@ -3095,7 +3377,8 @@
             "efforts": [
               "low",
               "medium",
-              "high"
+              "high",
+              "max"
             ],
             "adaptive": true,
             "budget": true
@@ -3145,14 +3428,8 @@
             "max_input_tokens": 1000000,
             "max_output_tokens": 128000,
             "supported_params": [
-              "temperature",
-              "top_p",
               "max_tokens",
               "stop"
-            ],
-            "temperature_range": [
-              0,
-              1
             ]
           },
           "modalities": {
@@ -3197,6 +3474,73 @@
           ],
           "derived": {
             "price_tier": "medium"
+          }
+        },
+        {
+          "id": "global.openai.gpt-6-astra",
+          "model": "openai/gpt-6-astra",
+          "display_name": "OpenAI GPT-6 Astra (Global)",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {},
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 1000000000,
+                "output_microcents_per_million": 5000000000,
+                "cached_input_microcents_per_million": 100000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 1250000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 2000000000,
+                    "output_microcents_per_million": 7500000000,
+                    "cached_input_microcents_per_million": 200000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 2500000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "global"
+            }
+          ],
+          "derived": {
+            "price_tier": "high"
           }
         },
         {
@@ -3445,14 +3789,8 @@
             "max_input_tokens": 1000000,
             "max_output_tokens": 128000,
             "supported_params": [
-              "temperature",
-              "top_p",
               "max_tokens",
               "stop"
-            ],
-            "temperature_range": [
-              0,
-              1
             ]
           },
           "modalities": {
@@ -3520,14 +3858,8 @@
             "max_input_tokens": 1000000,
             "max_output_tokens": 128000,
             "supported_params": [
-              "temperature",
-              "top_p",
               "max_tokens",
               "stop"
-            ],
-            "temperature_range": [
-              0,
-              1
             ]
           },
           "modalities": {
@@ -3573,6 +3905,74 @@
           "derived": {
             "price_tier": "high",
             "replacement": "anthropic/claude-opus-5"
+          }
+        },
+        {
+          "id": "jp.anthropic.claude-opus-5-5",
+          "model": "anthropic/claude-opus-5-5",
+          "display_name": "Claude Opus 5.5 (JP)",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "stop"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 440000000,
+                "output_microcents_per_million": 2200000000,
+                "cached_input_microcents_per_million": 22000000,
+                "cache_creation_5m_microcents_per_million": 550000000,
+                "cache_creation_1h_microcents_per_million": 880000000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "jp"
+            }
+          ],
+          "derived": {
+            "price_tier": "medium"
           }
         },
         {
@@ -3657,11 +4057,11 @@
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
-            "vision": false
+            "vision": true
           },
           "constraints": {
-            "max_input_tokens": 128000,
-            "max_output_tokens": 8192,
+            "max_input_tokens": 256000,
+            "max_output_tokens": 32000,
             "supported_params": [
               "temperature",
               "top_p",
@@ -3675,7 +4075,8 @@
           },
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image"
             ],
             "output": [
               "text"
@@ -3714,7 +4115,7 @@
             "vision": true
           },
           "constraints": {
-            "max_input_tokens": 272000,
+            "max_input_tokens": 922000,
             "max_output_tokens": 128000,
             "supported_params": [
               "temperature",
@@ -3738,11 +4139,22 @@
           "pricing": {
             "default": {
               "base": {
-                "input_microcents_per_million": 110000000,
-                "output_microcents_per_million": 660000000,
-                "cached_input_microcents_per_million": 11000000,
-                "cache_creation_unknown_ttl_microcents_per_million": 137500000
-              }
+                "input_microcents_per_million": 22000000,
+                "output_microcents_per_million": 132000000,
+                "cached_input_microcents_per_million": 2200000,
+                "cache_creation_unknown_ttl_microcents_per_million": 27500000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 44000000,
+                    "output_microcents_per_million": 198000000,
+                    "cached_input_microcents_per_million": 4400000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 55000000
+                  }
+                }
+              ]
             }
           },
           "lifecycle": {
@@ -3769,7 +4181,7 @@
             "vision": true
           },
           "constraints": {
-            "max_input_tokens": 272000,
+            "max_input_tokens": 922000,
             "max_output_tokens": 128000,
             "supported_params": [
               "temperature",
@@ -3793,18 +4205,30 @@
           "pricing": {
             "default": {
               "base": {
-                "input_microcents_per_million": 550000000,
-                "output_microcents_per_million": 3300000000,
-                "cached_input_microcents_per_million": 55000000,
-                "cache_creation_unknown_ttl_microcents_per_million": 687500000
-              }
+                "input_microcents_per_million": 440000000,
+                "output_microcents_per_million": 2200000000,
+                "cached_input_microcents_per_million": 44000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 550000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 880000000,
+                    "output_microcents_per_million": 3300000000,
+                    "cached_input_microcents_per_million": 88000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 1100000000
+                  }
+                }
+              ]
             }
           },
           "lifecycle": {
             "stage": "ga"
           },
           "derived": {
-            "price_tier": "high"
+            "price_tier": "medium",
+            "replacement": "openai/gpt-6-astra"
           }
         },
         {
@@ -3824,7 +4248,7 @@
             "vision": true
           },
           "constraints": {
-            "max_input_tokens": 272000,
+            "max_input_tokens": 922000,
             "max_output_tokens": 128000,
             "supported_params": [
               "temperature",
@@ -3848,11 +4272,22 @@
           "pricing": {
             "default": {
               "base": {
-                "input_microcents_per_million": 275000000,
-                "output_microcents_per_million": 1650000000,
-                "cached_input_microcents_per_million": 27500000,
-                "cache_creation_unknown_ttl_microcents_per_million": 343750000
-              }
+                "input_microcents_per_million": 220000000,
+                "output_microcents_per_million": 1320000000,
+                "cached_input_microcents_per_million": 22000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 275000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 440000000,
+                    "output_microcents_per_million": 1980000000,
+                    "cached_input_microcents_per_million": 44000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 550000000
+                  }
+                }
+              ]
             }
           },
           "lifecycle": {
@@ -3860,6 +4295,76 @@
           },
           "derived": {
             "price_tier": "medium"
+          }
+        },
+        {
+          "id": "openai.gpt-6-astra",
+          "model": "openai/gpt-6-astra",
+          "display_name": "OpenAI GPT-6 Astra",
+          "capabilities": {
+            "audio": false,
+            "json_mode": true,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "reasoning_effort"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 1100000000,
+                "output_microcents_per_million": 5500000000,
+                "cached_input_microcents_per_million": 110000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 1375000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 2200000000,
+                    "output_microcents_per_million": 8250000000,
+                    "cached_input_microcents_per_million": 220000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 2750000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "derived": {
+            "price_tier": "high"
           }
         },
         {
@@ -4301,14 +4806,8 @@
             "max_input_tokens": 1000000,
             "max_output_tokens": 128000,
             "supported_params": [
-              "temperature",
-              "top_p",
               "max_tokens",
               "stop"
-            ],
-            "temperature_range": [
-              0,
-              1
             ]
           },
           "modalities": {
@@ -4376,14 +4875,8 @@
             "max_input_tokens": 1000000,
             "max_output_tokens": 128000,
             "supported_params": [
-              "temperature",
-              "top_p",
               "max_tokens",
               "stop"
-            ],
-            "temperature_range": [
-              0,
-              1
             ]
           },
           "modalities": {
@@ -4496,7 +4989,76 @@
             }
           ],
           "derived": {
-            "price_tier": "high"
+            "price_tier": "high",
+            "replacement": "anthropic/claude-opus-5-5"
+          }
+        },
+        {
+          "id": "us.anthropic.claude-opus-5-5",
+          "model": "anthropic/claude-opus-5-5",
+          "display_name": "Claude Opus 5.5 (US)",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "stop"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 440000000,
+                "output_microcents_per_million": 2200000000,
+                "cached_input_microcents_per_million": 22000000,
+                "cache_creation_5m_microcents_per_million": 550000000,
+                "cache_creation_1h_microcents_per_million": 880000000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "us"
+            }
+          ],
+          "derived": {
+            "price_tier": "medium"
           }
         },
         {
@@ -4611,7 +5173,8 @@
             "efforts": [
               "low",
               "medium",
-              "high"
+              "high",
+              "max"
             ],
             "adaptive": true,
             "budget": true
@@ -4661,14 +5224,8 @@
             "max_input_tokens": 1000000,
             "max_output_tokens": 128000,
             "supported_params": [
-              "temperature",
-              "top_p",
               "max_tokens",
               "stop"
-            ],
-            "temperature_range": [
-              0,
-              1
             ]
           },
           "modalities": {
@@ -4713,6 +5270,73 @@
           ],
           "derived": {
             "price_tier": "medium"
+          }
+        },
+        {
+          "id": "us.openai.gpt-6-astra",
+          "model": "openai/gpt-6-astra",
+          "display_name": "OpenAI GPT-6 Astra (US)",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {},
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 1100000000,
+                "output_microcents_per_million": 5500000000,
+                "cached_input_microcents_per_million": 110000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 1375000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 2200000000,
+                    "output_microcents_per_million": 8250000000,
+                    "cached_input_microcents_per_million": 220000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 2750000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "us"
+            }
+          ],
+          "derived": {
+            "price_tier": "high"
           }
         }
       ]
@@ -4850,11 +5474,12 @@
           "lifecycle": {
             "stage": "ga",
             "available": "2025-07-22",
-            "retires": "2026-10-20"
+            "retires": "2026-10-20",
+            "replaced_by": "gemini-3.1-flash-lite"
           },
           "derived": {
             "price_tier": "low",
-            "replacement": "google/gemini-3.5-flash-lite"
+            "replacement": "google/gemini-3.1-flash-lite"
           }
         },
         {
@@ -5090,6 +5715,77 @@
           }
         },
         {
+          "id": "gemini-3.1-flash-lite",
+          "model": "google/gemini-3.1-flash-lite",
+          "display_name": "Gemini 3.1 Flash-Lite",
+          "capabilities": {
+            "audio": true,
+            "json_mode": true,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1048576,
+            "max_output_tokens": 65536,
+            "supported_params": [
+              "temperature",
+              "top_p",
+              "top_k",
+              "max_tokens",
+              "stop",
+              "presence_penalty",
+              "frequency_penalty"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "minimal",
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 25000000,
+                "output_microcents_per_million": 150000000,
+                "cached_input_microcents_per_million": 2500000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-05-07"
+          },
+          "derived": {
+            "price_tier": "low",
+            "replacement": "google/gemini-3.5-flash-lite"
+          }
+        },
+        {
           "id": "gemini-3.1-pro-preview",
           "model": "google/gemini-3.1-pro-preview",
           "display_name": "Gemini 3.1 Pro Preview",
@@ -5263,9 +5959,7 @@
               "top_p",
               "top_k",
               "max_tokens",
-              "stop",
-              "presence_penalty",
-              "frequency_penalty"
+              "stop"
             ],
             "temperature_range": [
               0,
@@ -5284,7 +5978,14 @@
               "text"
             ]
           },
-          "reasoning": {},
+          "reasoning": {
+            "efforts": [
+              "minimal",
+              "low",
+              "medium",
+              "high"
+            ]
+          },
           "pricing": {
             "default": {
               "base": {
@@ -5326,9 +6027,7 @@
               "top_p",
               "top_k",
               "max_tokens",
-              "stop",
-              "presence_penalty",
-              "frequency_penalty"
+              "stop"
             ],
             "temperature_range": [
               0,
@@ -5347,7 +6046,14 @@
               "text"
             ]
           },
-          "reasoning": {},
+          "reasoning": {
+            "efforts": [
+              "minimal",
+              "low",
+              "medium",
+              "high"
+            ]
+          },
           "pricing": {
             "default": {
               "base": {
@@ -5359,11 +6065,12 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2026-07-21"
+            "available": "2026-07-21",
+            "replaced_by": "gemini-3.8-flash"
           },
           "derived": {
             "price_tier": "low",
-            "replacement": "google/gemini-3.7-flash"
+            "replacement": "google/gemini-3.8-flash"
           }
         },
         {
@@ -5429,7 +6136,8 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2026-08-13"
+            "available": "2026-08-13",
+            "replaced_by": "gemini-3.8-flash"
           },
           "derived": {
             "price_tier": "low",
@@ -5618,6 +6326,95 @@
           }
         },
         {
+          "id": "claude-opus-5-5",
+          "model": "anthropic/claude-opus-5-5",
+          "display_name": "Claude Opus 5.5",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "reasoning_effort"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 400000000,
+                "output_microcents_per_million": 2000000000,
+                "cached_input_microcents_per_million": 20000000,
+                "cache_creation_5m_microcents_per_million": 500000000,
+                "cache_creation_1h_microcents_per_million": 800000000
+              }
+            },
+            "overrides": [
+              {
+                "region": "us",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 440000000,
+                    "output_microcents_per_million": 2200000000,
+                    "cached_input_microcents_per_million": 22000000,
+                    "cache_creation_5m_microcents_per_million": 550000000,
+                    "cache_creation_1h_microcents_per_million": 880000000
+                  }
+                }
+              },
+              {
+                "region": "eu",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 440000000,
+                    "output_microcents_per_million": 2200000000,
+                    "cached_input_microcents_per_million": 22000000,
+                    "cache_creation_5m_microcents_per_million": 550000000,
+                    "cache_creation_1h_microcents_per_million": 880000000
+                  }
+                }
+              }
+            ]
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-09-22"
+          },
+          "derived": {
+            "price_tier": "medium"
+          }
+        },
+        {
           "id": "claude-sonnet-5",
           "model": "anthropic/claude-sonnet-5",
           "display_name": "Claude Sonnet 5",
@@ -5637,15 +6434,8 @@
             "max_input_tokens": 1000000,
             "max_output_tokens": 128000,
             "supported_params": [
-              "temperature",
-              "top_p",
-              "top_k",
               "max_tokens",
               "reasoning_effort"
-            ],
-            "temperature_range": [
-              0,
-              1
             ]
           },
           "modalities": {
@@ -5726,9 +6516,9 @@
           }
         },
         {
-          "id": "gemini-3.6-flash",
-          "model": "google/gemini-3.6-flash",
-          "display_name": "Gemini 3.6 Flash",
+          "id": "gemini-3.1-flash-lite",
+          "model": "google/gemini-3.1-flash-lite",
+          "display_name": "Gemini 3.1 Flash-Lite",
           "capabilities": {
             "audio": true,
             "json_mode": true,
@@ -5752,6 +6542,96 @@
               "stop",
               "presence_penalty",
               "frequency_penalty"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "minimal",
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 25000000,
+                "output_microcents_per_million": 150000000,
+                "cached_input_microcents_per_million": 2500000
+              }
+            },
+            "overrides": [
+              {
+                "region": "us",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 27500000,
+                    "output_microcents_per_million": 165000000,
+                    "cached_input_microcents_per_million": 2750000
+                  }
+                }
+              },
+              {
+                "region": "eu",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 27500000,
+                    "output_microcents_per_million": 165000000,
+                    "cached_input_microcents_per_million": 2750000
+                  }
+                }
+              }
+            ]
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-05-07"
+          },
+          "derived": {
+            "price_tier": "low"
+          }
+        },
+        {
+          "id": "gemini-3.6-flash",
+          "model": "google/gemini-3.6-flash",
+          "display_name": "Gemini 3.6 Flash",
+          "capabilities": {
+            "audio": true,
+            "json_mode": true,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1048576,
+            "max_output_tokens": 65536,
+            "supported_params": [
+              "temperature",
+              "top_p",
+              "top_k",
+              "max_tokens",
+              "stop"
             ],
             "temperature_range": [
               0,
@@ -5811,7 +6691,100 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2026-07-21"
+            "available": "2026-07-21",
+            "replaced_by": "gemini-3.8-flash"
+          },
+          "derived": {
+            "price_tier": "low",
+            "replacement": "google/gemini-3.8-flash"
+          }
+        },
+        {
+          "id": "gemini-3.8-flash",
+          "model": "google/gemini-3.8-flash",
+          "display_name": "Gemini 3.8 Flash",
+          "capabilities": {
+            "audio": true,
+            "json_mode": true,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1048576,
+            "max_output_tokens": 65536,
+            "supported_params": [
+              "temperature",
+              "top_p",
+              "top_k",
+              "max_tokens",
+              "stop",
+              "presence_penalty",
+              "frequency_penalty"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 75000000,
+                "output_microcents_per_million": 375000000,
+                "cached_input_microcents_per_million": 7500000
+              }
+            },
+            "overrides": [
+              {
+                "region": "us",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 82500000,
+                    "output_microcents_per_million": 412500000,
+                    "cached_input_microcents_per_million": 8250000
+                  }
+                }
+              },
+              {
+                "region": "eu",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 82500000,
+                    "output_microcents_per_million": 412500000,
+                    "cached_input_microcents_per_million": 8250000
+                  }
+                }
+              }
+            ]
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-09-02"
           },
           "derived": {
             "price_tier": "low"
@@ -5978,7 +6951,7 @@
             "multi_turn": true,
             "reasoning": false,
             "streaming": true,
-            "structured_output": true,
+            "structured_output": false,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -6172,7 +7145,7 @@
           "model": "openai/gpt-4o",
           "display_name": "GPT-4o",
           "capabilities": {
-            "audio": true,
+            "audio": false,
             "json_mode": true,
             "multi_turn": true,
             "reasoning": false,
@@ -6218,8 +7191,7 @@
           "modalities": {
             "input": [
               "text",
-              "image",
-              "audio"
+              "image"
             ],
             "output": [
               "text"
@@ -6314,7 +7286,7 @@
           "model": "openai/gpt-5",
           "display_name": "GPT-5",
           "capabilities": {
-            "audio": true,
+            "audio": false,
             "json_mode": true,
             "multi_turn": true,
             "reasoning": true,
@@ -6352,8 +7324,7 @@
           "modalities": {
             "input": [
               "text",
-              "image",
-              "audio"
+              "image"
             ],
             "output": [
               "text"
@@ -6393,7 +7364,7 @@
           "model": "openai/gpt-5-mini",
           "display_name": "GPT-5 Mini",
           "capabilities": {
-            "audio": true,
+            "audio": false,
             "json_mode": true,
             "multi_turn": true,
             "reasoning": true,
@@ -6430,8 +7401,7 @@
           "modalities": {
             "input": [
               "text",
-              "image",
-              "audio"
+              "image"
             ],
             "output": [
               "text"
@@ -6547,7 +7517,7 @@
           "model": "openai/gpt-5.1",
           "display_name": "GPT-5.1",
           "capabilities": {
-            "audio": true,
+            "audio": false,
             "json_mode": true,
             "multi_turn": true,
             "reasoning": true,
@@ -6585,8 +7555,7 @@
           "modalities": {
             "input": [
               "text",
-              "image",
-              "audio"
+              "image"
             ],
             "output": [
               "text"
@@ -6623,7 +7592,7 @@
           "model": "openai/gpt-5.2",
           "display_name": "GPT-5.2",
           "capabilities": {
-            "audio": true,
+            "audio": false,
             "json_mode": true,
             "multi_turn": true,
             "reasoning": true,
@@ -6661,8 +7630,7 @@
           "modalities": {
             "input": [
               "text",
-              "image",
-              "audio"
+              "image"
             ],
             "output": [
               "text"
@@ -6700,7 +7668,7 @@
           "model": "openai/gpt-5.2-chat-latest",
           "display_name": "GPT-5.2 Instant",
           "capabilities": {
-            "audio": true,
+            "audio": false,
             "json_mode": true,
             "multi_turn": true,
             "reasoning": true,
@@ -6712,8 +7680,8 @@
             "vision": true
           },
           "constraints": {
-            "max_input_tokens": 400000,
-            "max_output_tokens": 128000,
+            "max_input_tokens": 128000,
+            "max_output_tokens": 16384,
             "supported_params": [
               "temperature",
               "top_p",
@@ -6738,8 +7706,7 @@
           "modalities": {
             "input": [
               "text",
-              "image",
-              "audio"
+              "image"
             ],
             "output": [
               "text"
@@ -6776,12 +7743,12 @@
           "model": "openai/gpt-5.2-pro",
           "display_name": "GPT-5.2 Pro",
           "capabilities": {
-            "audio": true,
+            "audio": false,
             "json_mode": true,
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": true,
+            "structured_output": false,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -6814,8 +7781,7 @@
           "modalities": {
             "input": [
               "text",
-              "image",
-              "audio"
+              "image"
             ],
             "output": [
               "text"
@@ -6849,7 +7815,7 @@
           "model": "openai/gpt-5.3-chat-latest",
           "display_name": "GPT-5.3 Instant",
           "capabilities": {
-            "audio": true,
+            "audio": false,
             "json_mode": true,
             "multi_turn": true,
             "reasoning": true,
@@ -6861,8 +7827,8 @@
             "vision": true
           },
           "constraints": {
-            "max_input_tokens": 400000,
-            "max_output_tokens": 128000,
+            "max_input_tokens": 128000,
+            "max_output_tokens": 16384,
             "supported_params": [
               "temperature",
               "top_p",
@@ -6887,8 +7853,7 @@
           "modalities": {
             "input": [
               "text",
-              "image",
-              "audio"
+              "image"
             ],
             "output": [
               "text"
@@ -6925,7 +7890,7 @@
           "model": "openai/gpt-5.4",
           "display_name": "GPT-5.4",
           "capabilities": {
-            "audio": true,
+            "audio": false,
             "json_mode": true,
             "multi_turn": true,
             "reasoning": true,
@@ -6963,8 +7928,7 @@
           "modalities": {
             "input": [
               "text",
-              "image",
-              "audio"
+              "image"
             ],
             "output": [
               "text"
@@ -7012,7 +7976,7 @@
           "model": "openai/gpt-5.4-mini",
           "display_name": "GPT-5.4 Mini",
           "capabilities": {
-            "audio": true,
+            "audio": false,
             "json_mode": true,
             "multi_turn": true,
             "reasoning": true,
@@ -7024,7 +7988,7 @@
             "vision": true
           },
           "constraints": {
-            "max_input_tokens": 400000,
+            "max_input_tokens": 272000,
             "max_output_tokens": 128000,
             "supported_params": [
               "temperature",
@@ -7050,8 +8014,7 @@
           "modalities": {
             "input": [
               "text",
-              "image",
-              "audio"
+              "image"
             ],
             "output": [
               "text"
@@ -7096,12 +8059,12 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
-            "tool_search": true,
+            "tool_search": false,
             "tools": true,
             "vision": true
           },
           "constraints": {
-            "max_input_tokens": 400000,
+            "max_input_tokens": 272000,
             "max_output_tokens": 128000,
             "supported_params": [
               "temperature",
@@ -7163,7 +8126,7 @@
           "model": "openai/gpt-5.5",
           "display_name": "GPT-5.5",
           "capabilities": {
-            "audio": true,
+            "audio": false,
             "json_mode": true,
             "multi_turn": true,
             "reasoning": true,
@@ -7201,8 +8164,7 @@
           "modalities": {
             "input": [
               "text",
-              "image",
-              "audio"
+              "image"
             ],
             "output": [
               "text"
@@ -7262,7 +8224,7 @@
             "vision": true
           },
           "constraints": {
-            "max_input_tokens": 1050000,
+            "max_input_tokens": 922000,
             "max_output_tokens": 128000,
             "supported_params": [
               "temperature",
@@ -7330,7 +8292,8 @@
             "available": "2026-07-09"
           },
           "derived": {
-            "price_tier": "low"
+            "price_tier": "low",
+            "replacement": "openai/gpt-6-luna"
           }
         },
         {
@@ -7353,7 +8316,7 @@
             "vision": true
           },
           "constraints": {
-            "max_input_tokens": 1050000,
+            "max_input_tokens": 922000,
             "max_output_tokens": 128000,
             "supported_params": [
               "temperature",
@@ -7442,7 +8405,7 @@
             "vision": true
           },
           "constraints": {
-            "max_input_tokens": 1050000,
+            "max_input_tokens": 922000,
             "max_output_tokens": 128000,
             "supported_params": [
               "temperature",
@@ -7510,7 +8473,8 @@
             "available": "2026-07-09"
           },
           "derived": {
-            "price_tier": "medium"
+            "price_tier": "medium",
+            "replacement": "openai/gpt-6-sol"
           }
         },
         {
@@ -7530,7 +8494,7 @@
             "vision": true
           },
           "constraints": {
-            "max_input_tokens": 1050000,
+            "max_input_tokens": 922000,
             "max_output_tokens": 128000,
             "supported_params": [
               "max_tokens",
@@ -7586,6 +8550,152 @@
           }
         },
         {
+          "id": "gpt-6-luna",
+          "model": "openai/gpt-6-luna",
+          "display_name": "GPT-6 Luna",
+          "capabilities": {
+            "audio": false,
+            "json_mode": true,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": true,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "reasoning_effort",
+              "reasoning_summary"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 10000000,
+                "output_microcents_per_million": 50000000,
+                "cached_input_microcents_per_million": 1000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 12500000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 20000000,
+                    "output_microcents_per_million": 75000000,
+                    "cached_input_microcents_per_million": 2000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 25000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-09-22"
+          },
+          "derived": {
+            "price_tier": "low"
+          }
+        },
+        {
+          "id": "gpt-6-sol",
+          "model": "openai/gpt-6-sol",
+          "display_name": "GPT-6 Sol",
+          "capabilities": {
+            "audio": false,
+            "json_mode": true,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": true,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "reasoning_effort",
+              "reasoning_summary"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 200000000,
+                "output_microcents_per_million": 1000000000,
+                "cached_input_microcents_per_million": 20000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 250000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 400000000,
+                    "output_microcents_per_million": 1500000000,
+                    "cached_input_microcents_per_million": 40000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 500000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-09-22"
+          },
+          "derived": {
+            "price_tier": "medium"
+          }
+        },
+        {
           "id": "o1-pro",
           "model": "openai/o1-pro",
           "display_name": "o1-pro",
@@ -7594,8 +8704,8 @@
             "json_mode": false,
             "multi_turn": true,
             "reasoning": true,
-            "streaming": true,
-            "structured_output": false,
+            "streaming": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -7635,8 +8745,7 @@
             "default": {
               "base": {
                 "input_microcents_per_million": 15000000000,
-                "output_microcents_per_million": 60000000000,
-                "cached_input_microcents_per_million": 7500000000
+                "output_microcents_per_million": 60000000000
               }
             }
           },
@@ -7662,7 +8771,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -7728,8 +8837,8 @@
             "json_mode": false,
             "multi_turn": true,
             "reasoning": true,
-            "streaming": true,
-            "structured_output": false,
+            "streaming": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -7795,7 +8904,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,

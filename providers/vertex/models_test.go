@@ -28,7 +28,7 @@ import (
 )
 
 // TestCatalogBuildsWithDayOneModels pins the day-one catalog to exactly
-// the Gemini + Claude scope: three models, keyed by bare publisher ID.
+// the Gemini + Claude scope, keyed by bare publisher ID.
 func TestCatalogBuildsWithDayOneModels(t *testing.T) {
 	t.Parallel()
 
@@ -40,7 +40,10 @@ func TestCatalogBuildsWithDayOneModels(t *testing.T) {
 		got = append(got, o.ID)
 	}
 
-	assert.ElementsMatch(t, []string{vertex.ModelGemini36Flash, vertex.ModelClaudeSonnet5, vertex.ModelClaudeHaiku45}, got)
+	assert.ElementsMatch(t, []string{
+		vertex.ModelGemini38Flash, vertex.ModelGemini36Flash, vertex.ModelGemini31FlashLite,
+		vertex.ModelClaudeOpus55, vertex.ModelClaudeSonnet5, vertex.ModelClaudeHaiku45,
+	}, got)
 }
 
 // TestCatalogProviderName pins the literal key in-package so a rename has
@@ -59,9 +62,12 @@ func TestOfferingAttributes(t *testing.T) {
 	t.Parallel()
 
 	wantPublisher := map[string]catalog.Publisher{
-		vertex.ModelGemini36Flash: "google",
-		vertex.ModelClaudeSonnet5: "anthropic",
-		vertex.ModelClaudeHaiku45: "anthropic",
+		vertex.ModelGemini38Flash:     "google",
+		vertex.ModelGemini36Flash:     "google",
+		vertex.ModelGemini31FlashLite: "google",
+		vertex.ModelClaudeOpus55:      "anthropic",
+		vertex.ModelClaudeSonnet5:     "anthropic",
+		vertex.ModelClaudeHaiku45:     "anthropic",
 	}
 
 	require.Len(t, vertex.Catalog().All(), len(wantPublisher),
@@ -94,30 +100,41 @@ func TestNoNamespacedPricingKey(t *testing.T) {
 func TestGeminiRegionalOverride(t *testing.T) {
 	t.Parallel()
 
-	info, ok := vertex.Catalog().PricingByID()[vertex.ModelGemini36Flash]
-	require.True(t, ok, "no pricing for %s", vertex.ModelGemini36Flash)
-
-	assert.Equal(t, pricing.NewRates(0.75, 3.75, 0.075), info.Default.Base, "global default rate")
-
-	wantRegional := pricing.NewRates(0.825, 4.125, 0.0825)
-
-	served := vertex.LocationsForModel(vertex.ModelGemini36Flash)
-	require.NotEmpty(t, served, "expected served locations for Gemini")
-
-	require.NotEmpty(t, info.Overrides, "expected at least one non-global Gemini rate override")
-
-	for _, ov := range info.Overrides {
-		require.NotEmptyf(t, ov.Match.Region, "override has empty Region (would also match global): %+v", ov.Match)
-		assert.Equalf(t, wantRegional, ov.RateCard.Base, "region %q rate", ov.Match.Region)
-		assert.Containsf(t, served, ov.Match.Region, "priced region %q is not a served location", ov.Match.Region)
-		assert.NotEqualf(t, vertex.LocationGlobal, ov.Match.Region, "override region must be non-global")
+	flash := struct{ global, regional pricing.Rates }{
+		pricing.NewRates(0.75, 3.75, 0.075), pricing.NewRates(0.825, 4.125, 0.0825),
+	}
+	cases := map[string]struct{ global, regional pricing.Rates }{
+		vertex.ModelGemini38Flash: flash,
+		vertex.ModelGemini36Flash: flash,
+		vertex.ModelGemini31FlashLite: {
+			pricing.NewRates(0.25, 1.50, 0.025), pricing.NewRates(0.275, 1.65, 0.0275),
+		},
 	}
 
-	// The reverse guard: every served non-global region must carry an
-	// override. Without it, adding a served region to the matrix without a
-	// rate silently bills that region at the global default, ~10% under the
-	// published non-global rate, and nothing goes red.
-	assertEveryNonGlobalRegionPriced(t, served, info.Overrides)
+	for id, want := range cases {
+		info, ok := vertex.Catalog().PricingByID()[id]
+		require.Truef(t, ok, "no pricing for %s", id)
+
+		assert.Equalf(t, want.global, info.Default.Base, "%s global default rate", id)
+
+		served := vertex.LocationsForModel(id)
+		require.NotEmptyf(t, served, "expected served locations for %s", id)
+
+		require.NotEmptyf(t, info.Overrides, "expected at least one non-global rate override for %s", id)
+
+		for _, ov := range info.Overrides {
+			require.NotEmptyf(t, ov.Match.Region, "override has empty Region (would also match global): %+v", ov.Match)
+			assert.Equalf(t, want.regional, ov.RateCard.Base, "%s region %q rate", id, ov.Match.Region)
+			assert.Containsf(t, served, ov.Match.Region, "priced region %q is not a served location", ov.Match.Region)
+			assert.NotEqualf(t, vertex.LocationGlobal, ov.Match.Region, "override region must be non-global")
+		}
+
+		// The reverse guard: every served non-global region must carry an
+		// override. Without it, adding a served region to the matrix without a
+		// rate silently bills that region at the global default, ~10% under the
+		// published non-global rate, and nothing goes red.
+		assertEveryNonGlobalRegionPriced(t, served, info.Overrides)
+	}
 }
 
 // assertEveryNonGlobalRegionPriced checks the served-implies-priced
@@ -163,6 +180,10 @@ func TestClaudeRegionalOverride(t *testing.T) {
 	cases := map[string]struct {
 		global, regional pricing.Rates
 	}{
+		vertex.ModelClaudeOpus55: {
+			global:   pricing.NewRates(4.00, 20.00, 0.20).WithCacheCreation(5.00, 8.00, 0),
+			regional: pricing.NewRates(4.40, 22.00, 0.22).WithCacheCreation(5.50, 8.80, 0),
+		},
 		vertex.ModelClaudeSonnet5: {
 			global:   pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0),
 			regional: pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(2.75, 4.40, 0),

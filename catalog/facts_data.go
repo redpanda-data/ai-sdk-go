@@ -23,6 +23,7 @@ const (
 
 	ModelClaudeFable51  ModelID = "anthropic/claude-fable-5-1"
 	ModelClaudeFable5   ModelID = "anthropic/claude-fable-5"
+	ModelClaudeOpus55   ModelID = "anthropic/claude-opus-5-5"
 	ModelClaudeOpus5    ModelID = "anthropic/claude-opus-5"
 	ModelClaudeOpus48   ModelID = "anthropic/claude-opus-4-8"
 	ModelClaudeOpus47   ModelID = "anthropic/claude-opus-4-7"
@@ -52,6 +53,8 @@ const (
 	ModelGPT5_6Terra   ModelID = "openai/gpt-5.6-terra"
 	ModelGPT5_6Luna    ModelID = "openai/gpt-5.6-luna"
 	ModelGPT6Astra     ModelID = "openai/gpt-6-astra"
+	ModelGPT6Sol       ModelID = "openai/gpt-6-sol"
+	ModelGPT6Luna      ModelID = "openai/gpt-6-luna"
 	ModelGPT4o         ModelID = "openai/gpt-4o"
 	ModelGPT4oMini     ModelID = "openai/gpt-4o-mini"
 	ModelGPT4Turbo     ModelID = "openai/gpt-4-turbo"
@@ -71,6 +74,7 @@ const (
 	ModelGemini35Flash       ModelID = "google/gemini-3.5-flash"
 	ModelGemini35FlashLite   ModelID = "google/gemini-3.5-flash-lite"
 	ModelGemini31ProPreview  ModelID = "google/gemini-3.1-pro-preview"
+	ModelGemini31FlashLite   ModelID = "google/gemini-3.1-flash-lite"
 	ModelGemini3ProPreview   ModelID = "google/gemini-3-pro-preview"
 	ModelGemini3FlashPreview ModelID = "google/gemini-3-flash-preview"
 	ModelGemini25Pro         ModelID = "google/gemini-2.5-pro"
@@ -117,32 +121,44 @@ var defaultRegistry = Registry{
 	ModelClaudeFable5: {
 		Publisher:   PublisherAnthropic,
 		DisplayName: "Claude Fable 5", Series: "claude-fable",
-		Released:    MustDate("2026-06-07"),
+		// Released and reliable knowledge cutoff ("Jan 2026") per
+		// platform.claude.com/docs/en/models/fable-5/overview.
+		Released: MustDate("2026-06-09"), Knowledge: MustDate("2026-01-31"),
 		Description: "Claude Fable 5 is a Mythos-class model from Anthropic, built for autonomous knowledge work and coding.",
+	},
+	ModelClaudeOpus55: {
+		Publisher:   PublisherAnthropic,
+		DisplayName: "Claude Opus 5.5", Series: "claude-opus",
+		// Released and reliable knowledge cutoff ("Jun 2026") per
+		// platform.claude.com/docs/en/models/opus-5-5/overview.
+		Released: MustDate("2026-09-22"), Knowledge: MustDate("2026-06-30"),
+		Description: "Claude Opus 5.5 is Anthropic's Opus model for long-running agentic coding and knowledge work.",
 	},
 	ModelClaudeOpus5: {
 		Publisher:   PublisherAnthropic,
 		DisplayName: "Claude Opus 5", Series: "claude-opus",
 		Released: MustDate("2026-07-24"), Knowledge: MustDate("2026-05-31"),
-		Description: "Claude Opus 5 is Anthropic’s flagship model for demanding reasoning, coding, and long-horizon agentic work.",
+		Description: "Claude Opus 5 is an Anthropic Opus model for demanding reasoning, coding, and long-horizon agentic work.",
 	},
 	ModelClaudeOpus48: {
 		Publisher:   PublisherAnthropic,
 		DisplayName: "Claude Opus 4.8", Series: "claude-opus",
 		Released: MustDate("2026-05-28"), Knowledge: MustDate("2026-01-31"),
-		Description: "Claude Opus 4.8 is Anthropic's most capable generally available model in the Opus family.",
+		Description: "Claude Opus 4.8 is an Anthropic Opus model for complex reasoning, coding, and agentic work.",
 	},
 	ModelClaudeOpus47: {
 		Publisher:   PublisherAnthropic,
 		DisplayName: "Claude Opus 4.7", Series: "claude-opus",
-		Released: MustDate("2026-04-14"), Knowledge: MustDate("2026-01-31"),
+		// Released per platform.claude.com/docs/en/models/opus-4-7/overview.
+		Released: MustDate("2026-04-16"), Knowledge: MustDate("2026-01-31"),
 		Description: "Opus 4.7 is the next generation of Anthropic's Opus family, built for long-running, asynchronous agents.",
 	},
 	ModelClaudeOpus46: {
 		Publisher:   PublisherAnthropic,
 		DisplayName: "Claude Opus 4.6", Series: "claude-opus",
-		Released: MustDate("2026-02-04"), Knowledge: MustDate("2025-05-31"),
-		Description: "Opus 4.6 is Anthropic’s strongest model for coding and long-running professional tasks.",
+		// Released per platform.claude.com/docs/en/models/opus-4-6/overview.
+		Released: MustDate("2026-02-05"), Knowledge: MustDate("2025-05-31"),
+		Description: "Opus 4.6 is an Anthropic Opus model for coding and long-running professional tasks.",
 	},
 	ModelClaudeOpus45: {
 		Publisher:   PublisherAnthropic,
@@ -159,21 +175,22 @@ var defaultRegistry = Registry{
 	ModelClaudeSonnet5: {
 		Publisher:   PublisherAnthropic,
 		DisplayName: "Claude Sonnet 5", Series: "claude-sonnet",
-		Released: MustDate("2026-06-29"), Knowledge: MustDate("2026-01-31"),
+		// Released per platform.claude.com/docs/en/models/sonnet-5/overview.
+		Released: MustDate("2026-06-30"), Knowledge: MustDate("2026-01-31"),
 		Description: "Sonnet 5 is Anthropic's most capable Sonnet-class model, with frontier performance across coding, agents, and professional work.",
 	},
 	ModelClaudeSonnet46: {
 		Publisher:   PublisherAnthropic,
 		DisplayName: "Claude Sonnet 4.6", Series: "claude-sonnet",
 		Released: MustDate("2026-02-17"), Knowledge: MustDate("2025-08-31"),
-		Description: "Sonnet 4.6 is Anthropic's most capable Sonnet-class model yet, with frontier performance across coding, agents, and professional work.",
+		Description: "Sonnet 4.6 is an Anthropic Sonnet-class model with frontier performance across coding, agents, and professional work.",
 	},
 	ModelClaudeSonnet45: {
 		Publisher:   PublisherAnthropic,
 		DisplayName: "Claude Sonnet 4.5", Series: "claude-sonnet",
 		// Reliable knowledge cutoff Jan 2025; training data cutoff is Jul 2025.
 		Released: MustDate("2025-09-29"), Knowledge: MustDate("2025-01-31"),
-		Description: "Claude Sonnet 4.5 is Anthropic’s most advanced Sonnet model to date, optimized for real-world agents and coding workflows.",
+		Description: "Claude Sonnet 4.5 is an Anthropic Sonnet model optimized for real-world agents and coding workflows.",
 	},
 	ModelClaudeHaiku45: {
 		Publisher:   PublisherAnthropic,
@@ -186,13 +203,15 @@ var defaultRegistry = Registry{
 	//
 	// The flagship line runs gpt-3.5-turbo → gpt-4-turbo → gpt-4o →
 	// gpt-4.1 → gpt-5 → 5.1 → 5.2 → 5.4 → 5.5 → gpt-5.6-sol → gpt-6-astra; the -mini
-	// ladder ends in terra, the -nano ladder in luna. The chat-tuned
+	// ladder runs through gpt-5.6-terra to gpt-6-sol, the -nano ladder through
+	// gpt-5.6-luna to gpt-6-luna. GPT-6 moved "Sol" down a tier: Astra is the
+	// flagship, so gpt-6-sol succeeds the mid tier, not gpt-5.6-sol. The chat-tuned
 	// "instant" models and the pro models are their own lines.
 	ModelGPT5: {
 		Publisher:   PublisherOpenAI,
 		DisplayName: "GPT-5", Series: "gpt",
 		Released: MustDate("2025-08-07"), Knowledge: MustDate("2024-09-30"),
-		Description: "GPT-5 is OpenAI’s most advanced model, offering major improvements in reasoning, code quality, and user experience.",
+		Description: "GPT-5 is an OpenAI reasoning model offering major improvements in reasoning, code quality, and user experience.",
 	},
 	ModelGPT5Mini: {
 		Publisher:   PublisherOpenAI,
@@ -210,13 +229,13 @@ var defaultRegistry = Registry{
 		Publisher:   PublisherOpenAI,
 		DisplayName: "GPT-5.1", Series: "gpt",
 		Released: MustDate("2025-11-13"), Knowledge: MustDate("2024-09-30"),
-		Description: "GPT-5.1 is the latest frontier-grade model in the GPT-5 series, offering stronger general-purpose reasoning, improved instruction adherence, and a more natural conversational style compared to GPT-5.",
+		Description: "GPT-5.1 is a frontier-grade model in the GPT-5 series, offering stronger general-purpose reasoning, improved instruction adherence, and a more natural conversational style compared to GPT-5.",
 	},
 	ModelGPT5_2: {
 		Publisher:   PublisherOpenAI,
 		DisplayName: "GPT-5.2", Series: "gpt",
 		Released: MustDate("2025-12-11"), Knowledge: MustDate("2025-08-31"),
-		Description: "GPT-5.2 is the latest frontier-grade model in the GPT-5 series, offering stronger agentic and long context performance compared to GPT-5.1.",
+		Description: "GPT-5.2 is a frontier-grade model in the GPT-5 series, offering stronger agentic and long context performance compared to GPT-5.1.",
 	},
 	ModelGPT5_2Instant: {
 		Publisher:   PublisherOpenAI,
@@ -228,7 +247,7 @@ var defaultRegistry = Registry{
 		Publisher:   PublisherOpenAI,
 		DisplayName: "GPT-5.2 Pro", Series: "gpt-pro",
 		Released: MustDate("2025-12-11"), Knowledge: MustDate("2025-08-31"),
-		Description: "GPT-5.2 Pro is OpenAI’s most advanced model, offering major improvements in agentic coding and long context performance over GPT-5 Pro.",
+		Description: "GPT-5.2 Pro is the pro variant of GPT-5.2, offering major improvements in agentic coding and long context performance over GPT-5 Pro.",
 	},
 	ModelGPT5_3Instant: {
 		Publisher:   PublisherOpenAI,
@@ -239,7 +258,7 @@ var defaultRegistry = Registry{
 		Publisher:   PublisherOpenAI,
 		DisplayName: "GPT-5.4", Series: "gpt",
 		Released: MustDate("2026-03-05"), Knowledge: MustDate("2025-08-31"),
-		Description: "GPT-5.4 is OpenAI’s latest frontier model, unifying the Codex and GPT lines into a single system.",
+		Description: "GPT-5.4 is an OpenAI frontier model unifying the Codex and GPT lines into a single system.",
 	},
 	ModelGPT5_4Mini: {
 		Publisher:   PublisherOpenAI,
@@ -285,64 +304,88 @@ var defaultRegistry = Registry{
 		Released: MustDate("2026-09-03"), Knowledge: MustDate("2026-04-30"),
 		Description: "GPT-6 Astra is OpenAI's flagship model for complex reasoning, coding, and long-running professional work.",
 	},
+	// Released per developers.openai.com/api/docs/changelog (Sep 22);
+	// cutoffs per developers.openai.com/api/docs/models/<id>.
+	ModelGPT6Sol: {
+		Publisher:   PublisherOpenAI,
+		DisplayName: "GPT-6 Sol", Series: "gpt-mini",
+		Released: MustDate("2026-09-22"), Knowledge: MustDate("2026-04-20"),
+		Description: "GPT-6 Sol is OpenAI's mid-tier GPT-6 model, built for complex coding and agentic workflows.",
+	},
+	ModelGPT6Luna: {
+		Publisher:   PublisherOpenAI,
+		DisplayName: "GPT-6 Luna", Series: "gpt-nano",
+		Released: MustDate("2026-09-22"), Knowledge: MustDate("2026-05-18"),
+		Description: "GPT-6 Luna is OpenAI's most efficient GPT-6 model, for focused, high-volume tasks.",
+	},
 	ModelGPT4o: {
 		Publisher:   PublisherOpenAI,
 		DisplayName: "GPT-4o", Series: "gpt",
-		Released: MustDate("2024-05-13"), Knowledge: MustDate("2023-09-30"),
-		Description: "GPT-4o (\"o\" for \"omni\") is OpenAI's latest AI model, supporting both text and image inputs with text outputs.",
+		// Knowledge cutoff (exact day) per developers.openai.com/api/docs/models.
+		Released: MustDate("2024-05-13"), Knowledge: MustDate("2023-10-01"),
+		Description: "GPT-4o (\"o\" for \"omni\") is an OpenAI multimodal model supporting both text and image inputs with text outputs.",
 	},
 	ModelGPT4oMini: {
 		Publisher:   PublisherOpenAI,
 		DisplayName: "GPT-4o Mini", Series: "gpt-mini",
-		Released: MustDate("2024-07-18"), Knowledge: MustDate("2023-09-30"),
-		Description: "GPT-4o mini is OpenAI's newest model after [GPT-4 Omni](/models/openai/gpt-4o), supporting both text and image inputs with text outputs.",
+		// Knowledge cutoff (exact day) per developers.openai.com/api/docs/models.
+		Released: MustDate("2024-07-18"), Knowledge: MustDate("2023-10-01"),
+		Description: "GPT-4o mini is a small, low-cost successor to GPT-4o, supporting both text and image inputs with text outputs.",
 	},
 	ModelGPT4Turbo: {
 		Publisher:   PublisherOpenAI,
 		DisplayName: "GPT-4 Turbo", Series: "gpt",
-		Released: MustDate("2023-11-06"), Knowledge: MustDate("2023-12-31"),
+		// Knowledge cutoff (exact day) per developers.openai.com/api/docs/models.
+		Released: MustDate("2023-11-06"), Knowledge: MustDate("2023-12-01"),
 		Description: "The latest GPT-4 Turbo model with vision capabilities. Vision requests can now use JSON mode and function calling.",
 	},
 	ModelGPT35Turbo: {
 		Publisher:   PublisherOpenAI,
 		DisplayName: "GPT-3.5 Turbo", Series: "gpt",
-		Released: MustDate("2023-03-01"), Knowledge: MustDate("2021-09-30"),
+		// Knowledge cutoff (exact day) per developers.openai.com/api/docs/models.
+		Released: MustDate("2023-03-01"), Knowledge: MustDate("2021-09-01"),
 		Description: "GPT-3.5 Turbo is OpenAI's fastest model. It can understand and generate natural language or code, and is optimized for chat and traditional completion tasks.",
 	},
 	ModelGPT41: {
 		Publisher:   PublisherOpenAI,
 		DisplayName: "GPT-4.1", Series: "gpt",
-		Released: MustDate("2025-04-14"), Knowledge: MustDate("2024-04-30"),
+		// Knowledge cutoff (exact day) per developers.openai.com/api/docs/models.
+		Released: MustDate("2025-04-14"), Knowledge: MustDate("2024-06-01"),
 		Description: "GPT-4.1 is a flagship large language model optimized for advanced instruction following, real-world software engineering, and long-context reasoning.",
 	},
 	ModelGPT41Mini: {
 		Publisher:   PublisherOpenAI,
 		DisplayName: "GPT-4.1 Mini", Series: "gpt-mini",
-		Released: MustDate("2025-04-14"), Knowledge: MustDate("2024-04-30"),
+		// Knowledge cutoff (exact day) per developers.openai.com/api/docs/models.
+		Released: MustDate("2025-04-14"), Knowledge: MustDate("2024-06-01"),
 		Description: "GPT-4.1 Mini is a mid-sized model delivering performance competitive with GPT-4o at substantially lower latency and cost.",
 	},
 	ModelO1Pro: {
 		Publisher:   PublisherOpenAI,
 		DisplayName: "o1-pro", Series: "gpt-pro",
-		Released: MustDate("2025-03-19"), Knowledge: MustDate("2023-09-30"),
+		// Knowledge cutoff (exact day) per developers.openai.com/api/docs/models.
+		Released: MustDate("2025-03-19"), Knowledge: MustDate("2023-10-01"),
 		Description: "The o1 series of models are trained with reinforcement learning to think before they answer and perform complex reasoning.",
 	},
 	ModelO3: {
 		Publisher:   PublisherOpenAI,
 		DisplayName: "o3", Series: "o",
-		Released: MustDate("2025-04-16"), Knowledge: MustDate("2024-05-31"),
+		// Knowledge cutoff (exact day) per developers.openai.com/api/docs/models.
+		Released: MustDate("2025-04-16"), Knowledge: MustDate("2024-06-01"),
 		Description: "o3 is a well-rounded and powerful model across domains. It sets a new standard for math, science, coding, and visual reasoning tasks. It also excels at technical writing and instruction-following.",
 	},
 	ModelO3Pro: {
 		Publisher:   PublisherOpenAI,
 		DisplayName: "o3-pro", Series: "gpt-pro",
-		Released: MustDate("2025-06-10"), Knowledge: MustDate("2024-05-31"),
+		// Knowledge cutoff (exact day) per developers.openai.com/api/docs/models.
+		Released: MustDate("2025-06-10"), Knowledge: MustDate("2024-06-01"),
 		Description: "The o-series of models are trained with reinforcement learning to think before they answer and perform complex reasoning.",
 	},
 	ModelO4Mini: {
 		Publisher:   PublisherOpenAI,
 		DisplayName: "o4-mini", Series: "o-mini",
-		Released: MustDate("2025-04-16"), Knowledge: MustDate("2024-05-31"),
+		// Knowledge cutoff (exact day) per developers.openai.com/api/docs/models.
+		Released: MustDate("2025-04-16"), Knowledge: MustDate("2024-06-01"),
 		Description: "OpenAI o4-mini is a compact reasoning model in the o-series, optimized for fast, cost-efficient performance while retaining strong multimodal and agentic capabilities.",
 	},
 
@@ -369,8 +412,9 @@ var defaultRegistry = Registry{
 		Publisher:   PublisherGoogle,
 		DisplayName: "Gemini 3.7 Flash", Series: "gemini-flash",
 		// Google publishes "Latest update: August 2026" without a day;
-		// 2026-08-13 is the public listing date. No published knowledge cutoff.
-		Released:    MustDate("2026-08-13"),
+		// 2026-08-13 is the public listing date. Knowledge cutoff "March 2026"
+		// per deepmind.google/models/model-cards/gemini-3-7-flash.
+		Released: MustDate("2026-08-13"), Knowledge: MustDate("2026-03-31"),
 		Description: "Gemini 3.7 Flash is a multimodal model from Google for fast agentic workflows, coding, and complex multi-step reasoning.",
 	},
 	ModelGemini36Flash: {
@@ -390,6 +434,16 @@ var defaultRegistry = Registry{
 		DisplayName: "Gemini 3.5 Flash-Lite", Series: "gemini-flash-lite",
 		Released: MustDate("2026-07-21"), Knowledge: MustDate("2026-03-31"),
 		Description: "Gemini 3.5 Flash Lite is a high-efficiency model from Google with upgraded agentic capabilities. It is suited for subagents that execute focused tasks within complex, multi-agent workflows.",
+	},
+	ModelGemini31FlashLite: {
+		Publisher:   PublisherGoogle,
+		DisplayName: "Gemini 3.1 Flash-Lite", Series: "gemini-flash-lite",
+		// gemini-3.1-flash-lite became callable on 2026-05-07 per
+		// ai.google.dev/gemini-api/docs/changelog. The 2026-03-03 preview
+		// shipped under its own ID (gemini-3.1-flash-lite-preview).
+		// Knowledge "Jan 2025" per ai.google.dev/gemini-api/docs/gemini-3.
+		Released: MustDate("2026-05-07"), Knowledge: MustDate("2025-01-31"),
+		Description: "Gemini 3.1 Flash-Lite is a low-latency, cost-effective multimodal model optimized for high-frequency, lightweight tasks.",
 	},
 	ModelGemini31ProPreview: {
 		Publisher:   PublisherGoogle,

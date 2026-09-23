@@ -252,7 +252,7 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 		ModelName:     modelName,
 		APIModelID:    apiModelID,
 		Constraints:   modelDef.Constraints,
-		EnableCaching: p.enableCaching,
+		EnableCaching: p.enableCaching && !noCachePointModelIDs[apiModelID],
 		setOptions:    make(map[string]bool),
 	}
 

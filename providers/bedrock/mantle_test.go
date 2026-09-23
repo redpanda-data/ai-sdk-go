@@ -128,7 +128,7 @@ func TestNewModel_GPT56ModelsUseMantleCatalog(t *testing.T) {
 			assert.True(t, m.Capabilities().Streaming)
 			assert.True(t, m.Capabilities().Tools)
 			assert.True(t, m.Capabilities().Reasoning)
-			assert.Equal(t, 272_000, m.Constraints().MaxInputTokens)
+			assert.Equal(t, 922_000, m.Constraints().MaxInputTokens)
 			assert.Equal(t, 128_000, m.Constraints().MaxOutputTokens)
 		})
 	}

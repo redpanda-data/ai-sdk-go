@@ -90,9 +90,12 @@ func TestServedLocationsMatrix(t *testing.T) {
 	t.Parallel()
 
 	want := map[string][]string{
-		vertex.ModelGemini36Flash: {"global", "us", "eu"},
-		vertex.ModelClaudeSonnet5: {"global", "us", "eu", "asia-southeast1"},
-		vertex.ModelClaudeHaiku45: {"global", "us-east5", "europe-west1", "asia-east1"},
+		vertex.ModelGemini38Flash:     {"global", "us", "eu"},
+		vertex.ModelGemini36Flash:     {"global", "us", "eu"},
+		vertex.ModelGemini31FlashLite: {"global", "us", "eu"},
+		vertex.ModelClaudeOpus55:      {"global", "us", "eu"},
+		vertex.ModelClaudeSonnet5:     {"global", "us", "eu", "asia-southeast1"},
+		vertex.ModelClaudeHaiku45:     {"global", "us-east5", "europe-west1", "asia-east1"},
 	}
 
 	for model, wantLocs := range want {

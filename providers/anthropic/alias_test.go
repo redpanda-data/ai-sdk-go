@@ -265,12 +265,12 @@ func TestWithReasoningEffort(t *testing.T) {
 		}
 	})
 
-	t.Run("ReasoningEffortMax rejected on Sonnet 4.6", func(t *testing.T) {
+	t.Run("ReasoningEffortXHigh rejected on Sonnet 4.6", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := provider.NewModel(ModelClaudeSonnet46, WithReasoningEffort(ReasoningEffortMax))
+		_, err := provider.NewModel(ModelClaudeSonnet46, WithReasoningEffort(ReasoningEffortXHigh))
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "does not support reasoning effort \"max\"")
+		assert.Contains(t, err.Error(), "does not support reasoning effort \"xhigh\"")
 	})
 
 	t.Run("ReasoningEffortMax accepted on Opus 4.6", func(t *testing.T) {

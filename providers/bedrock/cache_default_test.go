@@ -134,3 +134,50 @@ func hasSystemCachePoint(blocks []types.SystemContentBlock) bool {
 
 	return false
 }
+
+// TestNewModel_NoCachePointFamiliesDisableCaching checks that caching-by-default
+// is overridden for families whose Converse endpoint rejects CachePoint blocks.
+func TestNewModel_NoCachePointFamiliesDisableCaching(t *testing.T) {
+	t.Parallel()
+
+	provider, err := NewProvider(context.Background(), WithAWSConfig(aws.Config{Region: "us-east-1"}))
+	require.NoError(t, err)
+
+	for id, wantCaching := range map[string]bool{
+		ModelMistralLarge3:    false,
+		ModelGPT6AstraUS:      false,
+		ModelGPT6AstraGlobal:  false,
+		ModelClaudeSonnet45US: true,
+		ModelClaudeOpus55US:   true,
+	} {
+		t.Run(id, func(t *testing.T) {
+			t.Parallel()
+
+			m, err := provider.NewModel(id)
+			require.NoError(t, err)
+
+			bm, ok := m.(*Model)
+			require.True(t, ok)
+			assert.Equal(t, wantCaching, bm.config.EnableCaching)
+		})
+	}
+}
+
+// TestGPT6AstraRoutesByID checks the two GPT-6 Astra surfaces: the bare ID
+// is a mantle (Responses) model with effort control, while the profiles run
+// on Converse, which offers none.
+func TestGPT6AstraRoutesByID(t *testing.T) {
+	t.Parallel()
+
+	assert.True(t, IsMantleModel(ModelGPT6Astra))
+	assert.False(t, IsMantleModel(ModelGPT6AstraUS))
+	assert.False(t, IsMantleModel(ModelGPT6AstraGlobal))
+
+	bare, ok := Catalog().Lookup(ModelGPT6Astra)
+	require.True(t, ok)
+	assert.Contains(t, bare.Reasoning.Efforts, ReasoningEffortMax)
+
+	profile, ok := Catalog().Lookup(ModelGPT6AstraUS)
+	require.True(t, ok)
+	assert.Empty(t, profile.Reasoning.Efforts)
+}

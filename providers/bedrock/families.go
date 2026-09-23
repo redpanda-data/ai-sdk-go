@@ -54,6 +54,11 @@ type family struct {
 	// OpenAI-compatible endpoint. Mantle families must be bare-only:
 	// AWS publishes no inference profiles for them.
 	Mantle bool
+	// NoCachePoints marks Converse families that reject CachePoint blocks
+	// (AccessDeniedException "your request did not allow prompt caching").
+	// NewModel turns prompt caching off for them regardless of the
+	// provider's caching setting.
+	NoCachePoints bool
 	// DataSharing marks families that require the account to opt in to
 	// provider data sharing; it surfaces as the
 	// ModelMetadataRequiresProviderDataSharing attribute.
