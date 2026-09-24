@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"iter"
 	"maps"
+	"slices"
 	"time"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
@@ -532,6 +533,7 @@ func (a *LLMAgent) generateAttempt(
 		// so changing deferral after compaction leaves the prompt unchanged.
 		toolDefs = a.loader.Prepare(toolDefs, inv.Session()).Tools
 	}
+
 	req := &llm.Request{
 		Messages:   cloneMessages(messages),
 		Tools:      cloneToolDefinitions(toolDefs),
@@ -970,7 +972,7 @@ func (a *LLMAgent) recoverIncompleteToolCalls(
 ) error {
 	sess := inv.Session()
 
-	incomplete := detectIncompleteToolCalls(sess.Messages)
+	incomplete, insertAt := detectIncompleteToolCalls(sess.Messages)
 	if len(incomplete) == 0 {
 		return nil
 	}
@@ -1013,23 +1015,31 @@ func (a *LLMAgent) recoverIncompleteToolCalls(
 	resultCap := a.effectiveResultCap(countedRequest, len(incomplete))
 	toolParts := a.executeTools(ctx, inv, incomplete, a.loader.Visible(toolDefs, sess, native), resultCap, a.schemaRoom(fixedTokens), makeEnvelope, yield)
 
-	// Insert tool response message BEFORE the last user message.
-	// Current: [..., assistant(tool_req), user(text)]
-	// After:   [..., assistant(tool_req), user(tool_resp), user(text)]
+	// Insert the tool response message right after the assistant's requests.
+	// With a trailing user message: [..., assistant(tool_req), user(text)]
+	//                       becomes [..., assistant(tool_req), user(tool_resp), user(text)]
+	// Resumed without one:          [..., assistant(tool_req)]
+	//                       becomes [..., assistant(tool_req), user(tool_resp)]
 	toolMsg := llm.NewMessage(llm.RoleUser, toolParts...)
-	lastIdx := len(sess.Messages) - 1
-	sess.Messages = append(sess.Messages[:lastIdx], toolMsg, sess.Messages[lastIdx])
+	sess.Messages = slices.Insert(sess.Messages, insertAt, toolMsg)
 
 	return nil
 }
 
 // detectIncompleteToolCalls checks if the session ends with incomplete tool calls.
 //
-// Returns the incomplete tool requests if found, nil otherwise.
+// Returns the incomplete tool requests if found (nil otherwise) and the index
+// at which the recovered tool-response message must be inserted.
 //
-// Pattern detected: [..., assistant(tool_requests), user(text_only)]
-// The user message has text but no tool responses, indicating the previous
-// invocation was interrupted after tool requests but before tool execution.
+// Patterns detected:
+//
+//	[..., assistant(tool_requests), user(text_only)]  -> insert before the user message
+//	[..., assistant(tool_requests)]                    -> append
+//
+// The first is the runner's shape: a new user message arrived after a crash.
+// The second is a resumed invocation (durable execution, replay tooling) that
+// continues the same turn with no new user input; the tool calls must be
+// completed before the model can be called again.
 //
 // Why tail-only detection is correct:
 // Incomplete tool calls can only occur at the session tail. The sequence is:
@@ -1042,33 +1052,47 @@ func (a *LLMAgent) recoverIncompleteToolCalls(
 // The incomplete calls are always between the last assistant message and the
 // new user message. Incomplete calls earlier in the session would indicate a
 // different bug (session corruption, not crash recovery).
-func detectIncompleteToolCalls(msgs []llm.Message) []*llm.ToolRequestPart {
-	if len(msgs) < 2 {
-		return nil
+func detectIncompleteToolCalls(msgs []llm.Message) ([]*llm.ToolRequestPart, int) {
+	if len(msgs) == 0 {
+		return nil, 0
 	}
 
 	lastIdx := len(msgs) - 1
 	lastMsg := msgs[lastIdx]
+
+	// Resumed mid-turn: the assistant asked for tools and nothing followed.
+	if lastMsg.Role == llm.RoleAssistant {
+		if toolReqs := lastMsg.ToolRequests(); len(toolReqs) > 0 {
+			return toolReqs, len(msgs)
+		}
+
+		return nil, 0
+	}
+
+	if len(msgs) < 2 {
+		return nil, 0
+	}
+
 	prevMsg := msgs[lastIdx-1]
 
 	// Last should be user (new message from runner), prev should be assistant
 	if lastMsg.Role != llm.RoleUser || prevMsg.Role != llm.RoleAssistant {
-		return nil
+		return nil, 0
 	}
 
 	// Previous (assistant) message must have tool requests
 	toolReqs := prevMsg.ToolRequests()
 	if len(toolReqs) == 0 {
-		return nil
+		return nil, 0
 	}
 
 	// If last (user) message has tool responses, session is valid
 	if len(lastMsg.ToolResponses()) > 0 {
-		return nil
+		return nil, 0
 	}
 
 	// Incomplete tool calls detected
-	return toolReqs
+	return toolReqs, lastIdx
 }
 
 // mapLLMFinishReason converts an llm.FinishReason to an agent.FinishReason.
