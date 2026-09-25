@@ -325,7 +325,7 @@ func (a *LLMAgent) executeSingleTurn(
 			reqMessages = append([]llm.Message{reqMessages[0]}, sess.Messages...)
 
 			report := compactionReport(agent.CompactionPhaseProactive, stats,
-				before, measureContext(sysTokens, toolDefTokens, sess.Messages))
+				before, measureContext(sysTokens, toolDefTokens, sess.Messages), a.deriveContextBudget())
 
 			if !yield(agent.CompactionEvent{
 				Envelope: makeEnvelope(),
@@ -353,7 +353,7 @@ func (a *LLMAgent) executeSingleTurn(
 		}
 
 		report := compactionReport(agent.CompactionPhaseReactive, stats,
-			before, measureContext(sysTokens, toolDefTokens, sess.Messages))
+			before, measureContext(sysTokens, toolDefTokens, sess.Messages), a.deriveContextBudget())
 
 		if !yield(agent.CompactionEvent{
 			Envelope: makeEnvelope(),

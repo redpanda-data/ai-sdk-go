@@ -413,7 +413,7 @@ func cannotFitError(counted int, b contextBudget) error {
 }
 
 // compactionReport assembles the observability report for one pass.
-func compactionReport(phase agent.CompactionPhase, stats compactionStats, before, after agent.ContextUsage) agent.CompactionReport {
+func compactionReport(phase agent.CompactionPhase, stats compactionStats, before, after agent.ContextUsage, b contextBudget) agent.CompactionReport {
 	return agent.CompactionReport{
 		At:              time.Now().UTC(),
 		Phase:           phase,
@@ -421,6 +421,7 @@ func compactionReport(phase agent.CompactionPhase, stats compactionStats, before
 		DroppedMessages: stats.droppedMessages,
 		Before:          before,
 		After:           after,
+		Budget:          agent.ContextBudget{Window: b.window, Trigger: b.trigger, Target: b.target},
 	}
 }
 
