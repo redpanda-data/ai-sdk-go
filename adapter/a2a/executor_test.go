@@ -20,7 +20,9 @@ import (
 	"errors"
 	"log/slog"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/a2aproject/a2a-go/a2a"
 	"github.com/a2aproject/a2a-go/a2asrv"
@@ -1130,4 +1132,256 @@ func TestExecutor_ErrorHandling(t *testing.T) {
 	// The error message should contain details about what went wrong, not just "internal error"
 	assert.Contains(t, errorText, "context_length_exceeded", "Error message should contain API error details")
 	assert.Contains(t, errorText, "context window", "Error message should contain human-readable error explanation")
+}
+
+// storedTask is one entry in a countingTaskStore.
+type storedTask struct {
+	task    *a2a.Task
+	version a2a.TaskVersion
+}
+
+// countingTaskStore is a minimal a2asrv.TaskStore that counts every Save
+// call, so a test can assert how many task transactions a run costs
+// without depending on a2a-go's internal in-memory store.
+type countingTaskStore struct {
+	mu    sync.Mutex
+	tasks map[a2a.TaskID]storedTask
+	saves int
+}
+
+func newCountingTaskStore() *countingTaskStore {
+	return &countingTaskStore{tasks: make(map[a2a.TaskID]storedTask)}
+}
+
+func (s *countingTaskStore) Save(_ context.Context, task *a2a.Task, _ a2a.Event, _ *a2a.Task, prevVersion a2a.TaskVersion) (a2a.TaskVersion, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.saves++
+	version := prevVersion + 1
+	s.tasks[task.ID] = storedTask{task: task, version: version}
+
+	return version, nil
+}
+
+func (s *countingTaskStore) Get(_ context.Context, taskID a2a.TaskID) (*a2a.Task, a2a.TaskVersion, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	st, ok := s.tasks[taskID]
+	if !ok {
+		return nil, 0, a2a.ErrTaskNotFound
+	}
+
+	return st.task, st.version, nil
+}
+
+func (s *countingTaskStore) List(_ context.Context, _ *a2a.ListTasksRequest) (*a2a.ListTasksResponse, error) {
+	return &a2a.ListTasksResponse{}, nil
+}
+
+func (s *countingTaskStore) saveCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.saves
+}
+
+// onlyTask returns the single task this store has saved, failing the test
+// if there is not exactly one.
+func (s *countingTaskStore) onlyTask(t *testing.T) *a2a.Task {
+	t.Helper()
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	require.Len(t, s.tasks, 1)
+
+	for _, st := range s.tasks {
+		return st.task
+	}
+
+	return nil
+}
+
+// TestExecutor_DeltaCoalescing_EndToEnd drives a full a2asrv.Handler over a
+// fakellm stream with coalescing on, and checks that the stored artifact
+// text is complete while the number of task saves is exactly the count a
+// size-bounded run must produce. Interval is set far longer than the run
+// can take, so the size trigger alone bounds the flush count: the
+// expected numbers do not depend on real-clock scheduling.
+func TestExecutor_DeltaCoalescing_EndToEnd(t *testing.T) {
+	t.Parallel()
+
+	const reply = "abcdefghijabcdefghijabcdefghijabcdefghijabcdefghij" +
+		"abcdefghijabcdefghijabcdefghijabcdefghijabcdefghij" +
+		"abcdefghijabcdefghijabcdefghijabcdefghijabcdefghij" +
+		"abcdefghijabcdefghijabcdefghijabcdefghijabcdefghij"
+
+	const maxBytes = 20
+
+	model := fakellm.NewFakeModel()
+	model.When(fakellm.Any()).ThenStreamText(reply, fakellm.StreamConfig{
+		ChunkSize:       1,
+		InterChunkDelay: time.Millisecond,
+	})
+
+	agentInstance, err := llmagent.New("test-agent", "You are a helpful assistant.", model)
+	require.NoError(t, err)
+
+	runnerInstance, err := runner.New(agentInstance, session.NewInMemoryStore())
+	require.NoError(t, err)
+
+	executor := NewExecutor(agentInstance, runnerInstance, slog.Default(),
+		WithDeltaCoalescing(DeltaCoalescing{Interval: 10 * time.Second, MaxBytes: maxBytes}))
+
+	store := newCountingTaskStore()
+	handler := a2asrv.NewHandler(executor, a2asrv.WithTaskStore(store))
+
+	msg := a2a.NewMessage(a2a.MessageRoleUser, a2a.TextPart{Text: "Say something long."})
+
+	var artifactEvents int
+
+	for event, err := range handler.OnSendMessageStream(context.Background(), &a2a.MessageSendParams{Message: msg}) {
+		require.NoError(t, err)
+
+		if _, ok := event.(*a2a.TaskArtifactUpdateEvent); ok {
+			artifactEvents++
+		}
+	}
+
+	// The leading edge takes the first byte; the rest buffers behind
+	// MaxBytes, plus one final LastChunk flush that MessageEvent always
+	// sends, whether or not it still has text in it.
+	wantArtifactEvents := 2 + (len(reply)-1)/maxBytes
+	assert.Equal(t, wantArtifactEvents, artifactEvents)
+
+	// Task saves add the fixed per-run status overhead (submitted, working,
+	// working-with-history, final) on top of the artifact events.
+	assert.Equal(t, wantArtifactEvents+4, store.saveCount())
+
+	task := store.onlyTask(t)
+	require.Len(t, task.Artifacts, 1)
+
+	var storedText strings.Builder
+
+	for _, part := range task.Artifacts[0].Parts {
+		if tp, ok := part.(a2a.TextPart); ok {
+			storedText.WriteString(tp.Text)
+		}
+	}
+
+	assert.Equal(t, reply, storedText.String())
+}
+
+// TestExecutor_DeltaCoalescing_Cancel drives Execute directly against a
+// real streaming fakellm model, waits on the reader (not a fixed sleep)
+// for the leading artifact and one more flush that Interval alone
+// triggers, then calls Cancel. The text delivered before the canceled
+// Final must be a genuine, in-order prefix of the reply, longer than one
+// chunk: the leading chunk alone would otherwise make this pass even if
+// coalescing, or Cancel's own flush, were completely broken.
+func TestExecutor_DeltaCoalescing_Cancel(t *testing.T) {
+	t.Parallel()
+
+	const chunkSize = 5
+
+	fullText := strings.Repeat("chunk", 50)
+
+	model := fakellm.NewFakeModel()
+	model.When(fakellm.Any()).ThenStreamText(fullText, fakellm.StreamConfig{
+		ChunkSize:       chunkSize,
+		InterChunkDelay: 10 * time.Millisecond,
+	})
+
+	agentInstance, err := llmagent.New("test-agent", "You are a helpful assistant.", model)
+	require.NoError(t, err)
+
+	runnerInstance, err := runner.New(agentInstance, session.NewInMemoryStore())
+	require.NoError(t, err)
+
+	// A short Interval, not a size trigger, guarantees at least one flush
+	// of real buffered text on its own, so the test can synchronize on
+	// that via the reader instead of guessing how long to wait.
+	executor := NewExecutor(agentInstance, runnerInstance, slog.Default(),
+		WithDeltaCoalescing(DeltaCoalescing{Interval: 30 * time.Millisecond}))
+
+	reqCtx := &a2asrv.RequestContext{
+		ContextID: "cancel-context",
+		TaskID:    "cancel-task",
+		Message:   a2a.NewMessage(a2a.MessageRoleUser, a2a.TextPart{Text: "Say something long."}),
+	}
+
+	ctx, cancelRun := context.WithCancel(context.Background())
+	defer cancelRun()
+
+	queueMgr := eventqueue.NewInMemoryManager(eventqueue.WithQueueBufferSize(100))
+	readerQueue, err := queueMgr.GetOrCreate(ctx, reqCtx.TaskID)
+	require.NoError(t, err)
+	writerQueue, err := queueMgr.GetOrCreate(ctx, reqCtx.TaskID)
+	require.NoError(t, err)
+
+	execDone := make(chan struct{})
+
+	go func() {
+		defer close(execDone)
+
+		_ = executor.Execute(ctx, reqCtx, writerQueue)
+	}()
+
+	// Wait on the reader for the leading artifact, then for the interval
+	// timer's own flush of whatever buffered after it: real proof that
+	// more than the first chunk is already in flight before Cancel runs.
+	var order []a2a.Event
+
+	artifactsSeen := 0
+	for artifactsSeen < 2 {
+		event, _, readErr := readerQueue.Read(context.Background())
+		require.NoError(t, readErr)
+
+		order = append(order, event)
+
+		if _, ok := event.(*a2a.TaskArtifactUpdateEvent); ok {
+			artifactsSeen++
+		}
+	}
+
+	require.NoError(t, executor.Cancel(context.Background(), reqCtx, writerQueue))
+
+	cancelRun() // Cancel has been recorded; let the stream stop
+
+	for {
+		event, _, readErr := readerQueue.Read(context.Background())
+		require.NoError(t, readErr)
+
+		order = append(order, event)
+
+		if status, ok := event.(*a2a.TaskStatusUpdateEvent); ok && status.Status.State == a2a.TaskStateCanceled && status.Final {
+			break
+		}
+	}
+
+	<-execDone
+	writerQueue.Close()
+	readerQueue.Close()
+
+	final, ok := order[len(order)-1].(*a2a.TaskStatusUpdateEvent)
+	require.True(t, ok)
+	assert.Equal(t, a2a.TaskStateCanceled, final.Status.State)
+	assert.True(t, final.Final)
+
+	var gotText strings.Builder
+
+	for _, event := range order[:len(order)-1] {
+		if artifact, ok := event.(*a2a.TaskArtifactUpdateEvent); ok {
+			for _, part := range artifact.Artifact.Parts {
+				if tp, ok := part.(a2a.TextPart); ok {
+					gotText.WriteString(tp.Text)
+				}
+			}
+		}
+	}
+
+	assert.Greater(t, gotText.Len(), chunkSize, "the text delivered before Final must be more than just the first chunk")
+	assert.True(t, strings.HasPrefix(fullText, gotText.String()), "the delivered text must be an in-order prefix of the reply")
 }

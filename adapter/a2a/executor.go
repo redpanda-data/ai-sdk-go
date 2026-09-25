@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"iter"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/a2aproject/a2a-go/a2a"
@@ -51,6 +52,20 @@ type Executor struct {
 	agent          agent.Agent
 	runner         *runner.Runner
 	attributesFunc func(context.Context) map[string]string
+	coalesce       DeltaCoalescing
+
+	// activeWriters holds the deltaWriter for every task currently running
+	// in processEvents with coalescing on (a2a.TaskID -> *deltaWriter), so
+	// Cancel can flush a task's buffered text before it writes the
+	// canceled status. Coalescing off never registers here, so Cancel
+	// behaves exactly as it always has for every other SDK user.
+	//
+	// If two processEvents calls somehow run for the same TaskID at once,
+	// the later Store overwrites the entry, so Cancel reaches whichever
+	// one is currently registered. Each call's own deferred cleanup uses
+	// CompareAndDelete, so it only ever removes its own writer, never a
+	// newer one that replaced it.
+	activeWriters sync.Map
 }
 
 // Option configures an Executor.
@@ -64,6 +79,14 @@ type Option func(*Executor)
 // assert nothing.
 func WithAttributesFunc(fn func(context.Context) map[string]string) Option {
 	return func(e *Executor) { e.attributesFunc = fn }
+}
+
+// WithDeltaCoalescing turns on leading-edge coalescing of streamed text
+// deltas, bounded by c.Interval and c.MaxBytes. The zero value keeps the
+// executor's default: one artifact event per delta, byte for byte. See
+// [DeltaCoalescing] for the send and flush rules.
+func WithDeltaCoalescing(c DeltaCoalescing) Option {
+	return func(e *Executor) { e.coalesce = c }
 }
 
 // NewExecutor creates a new A2A executor.
@@ -133,7 +156,23 @@ func (e *Executor) Cancel(ctx context.Context, reqCtx *a2asrv.RequestContext, qu
 	statusEvent := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateCanceled, nil)
 	statusEvent.Final = true
 
-	if err := queue.Write(ctx, statusEvent); err != nil {
+	// If this instance is running the task's processEvents loop AND Cancel
+	// was handed the exact same queue that loop is writing to, go through
+	// its deltaWriter so any buffered text is flushed before the canceled
+	// status. Otherwise, write the status directly, as before. The queue
+	// check matters: a2a-go's distributed (cluster) mode hands Execute and
+	// Cancel different queues for the same TaskID (work_queue_handler.go),
+	// so writing the canceled status to the Execute-side queue would leave
+	// Cancel's own consumer waiting forever and leak the work item.
+	writeCanceled := func() error { return queue.Write(ctx, statusEvent) }
+
+	if v, ok := e.activeWriters.Load(reqCtx.TaskID); ok {
+		if dw, ok := v.(*deltaWriter); ok && dw.queue == queue {
+			writeCanceled = func() error { return dw.cancel(ctx, statusEvent) }
+		}
+	}
+
+	if err := writeCanceled(); err != nil {
 		e.log.ErrorContext(ctx, "Failed to write canceled status", "error", err)
 
 		return err
@@ -159,14 +198,27 @@ func (e *Executor) processEvents(
 	queue eventqueue.Queue,
 	events iter.Seq2[agent.Event, error],
 ) error {
-	write := func(event a2a.Event) {
-		if err := queue.Write(ctx, event); err != nil {
+	dw := newDeltaWriter(reqCtx, queue, e.log, e.coalesce)
+
+	// Only register with activeWriters when coalescing can actually buffer
+	// something; off, Cancel must behave exactly as it always has, with no
+	// writer to find.
+	if dw.cfg.Interval > 0 {
+		e.activeWriters.Store(reqCtx.TaskID, dw)
+		defer e.activeWriters.CompareAndDelete(reqCtx.TaskID, dw)
+	}
+
+	defer dw.close()
+
+	// write logs a failed queue write the same way the executor's write
+	// closure always has. Every non-delta write in this loop goes through
+	// it, except the context-canceled branch below, which needs its own,
+	// more specific log message.
+	write := func(ev a2a.Event) {
+		if err := dw.write(ctx, ev); err != nil {
 			e.log.ErrorContext(ctx, "Failed to write to queue", "error", err)
 		}
 	}
-
-	// Rolling current artifact ID for streaming text deltas
-	var currentArtifactID a2a.ArtifactID
 
 	for event, err := range events {
 		if err != nil {
@@ -184,7 +236,7 @@ func (e *Executor) processEvents(
 				statusEvent.Final = true
 
 				//nolint:contextcheck // Must use background context since original context is canceled
-				if writeErr := queue.Write(bgCtx, statusEvent); writeErr != nil {
+				if writeErr := dw.write(bgCtx, statusEvent); writeErr != nil {
 					e.log.ErrorContext(ctx, "Failed to write canceled status", "error", writeErr)
 				}
 			} else if errors.Is(err, llm.ErrContextOverflow) {
@@ -208,15 +260,18 @@ func (e *Executor) processEvents(
 			return nil
 		}
 
-		e.log.DebugContext(ctx, "Processing event", "type", fmt.Sprintf("%T", event))
+		if _, isDelta := event.(agent.AssistantDeltaEvent); !isDelta {
+			e.log.DebugContext(ctx, "Processing event", "type", fmt.Sprintf("%T", event))
+		}
 
 		switch ev := event.(type) {
 		case agent.StatusEvent:
 			e.log.DebugContext(ctx, "Status event", "stage", ev.Stage)
-			// When we receive a "model_call" status, it marks the start of a new LLM response
-			// Reset artifact ID so next delta/message creates a distinct artifact
+			// When we receive a "model_call" status, it marks the start of a new LLM response.
+			// Flush anything still buffered for the old artifact, then forget its ID so the
+			// next delta/message creates a distinct artifact.
 			if ev.Stage == agent.StatusStageModelCall {
-				currentArtifactID = ""
+				dw.resetArtifact(ctx)
 			}
 		case agent.ToolRequestEvent:
 			// Tool request is already in MessageEvent, no separate handling needed
@@ -231,11 +286,7 @@ func (e *Executor) processEvents(
 			write(historyStatus)
 		case agent.MessageEvent:
 			// Mark the streaming artifact as complete if we were streaming
-			if currentArtifactID != "" {
-				finalArtifact := a2a.NewArtifactUpdateEvent(reqCtx, currentArtifactID)
-				finalArtifact.LastChunk = true
-				write(finalArtifact)
-			}
+			dw.endArtifact(ctx)
 
 			// Add agent's message to history via a status update
 			// Convert LLM response to A2A message format
@@ -256,32 +307,13 @@ func (e *Executor) processEvents(
 
 			historyStatus := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateWorking, a2amsg)
 			write(historyStatus)
-			// Reset artifactID so next model_call creates a new one
-			currentArtifactID = ""
 		case agent.StreamResetEvent:
 			// Stream is being retried — abandon current streaming artifact
-			if currentArtifactID != "" {
-				finalArtifact := a2a.NewArtifactUpdateEvent(reqCtx, currentArtifactID)
-				finalArtifact.LastChunk = true
-				write(finalArtifact)
-
-				currentArtifactID = ""
-			}
+			dw.endArtifact(ctx)
 		case agent.AssistantDeltaEvent:
 			// Stream delta updates as incremental artifact chunks
 			if tp, ok := ev.Delta.Part.(*llm.TextPart); ok && tp != nil {
-				var artifact *a2a.TaskArtifactUpdateEvent
-				if currentArtifactID == "" {
-					// Create new artifact for streaming
-					artifact = a2a.NewArtifactEvent(reqCtx, a2a.TextPart{Text: tp.Text})
-					currentArtifactID = artifact.Artifact.ID
-				} else {
-					// Append to existing artifact
-					artifact = a2a.NewArtifactUpdateEvent(reqCtx, currentArtifactID, a2a.TextPart{Text: tp.Text})
-					artifact.Append = true
-				}
-
-				write(artifact)
+				dw.delta(ctx, tp.Text)
 			}
 		case agent.InvocationEndEvent:
 			e.log.DebugContext(ctx, "Invocation end event", "finish_reason", ev.FinishReason)
