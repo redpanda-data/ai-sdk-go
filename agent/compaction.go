@@ -49,6 +49,21 @@ type ContextUsage struct {
 	Framing int `json:"framing"`
 }
 
+// ContextBudget is the budget a compaction pass was measured against,
+// derived from the model's context window. Trigger and Target are token
+// counts rather than fractions so a reader can place Before/After on the
+// window without knowing the agent's compaction configuration.
+type ContextBudget struct {
+	// Window is the model's input context window.
+	Window int `json:"window"`
+
+	// Trigger is the request size at which a proactive pass runs.
+	Trigger int `json:"trigger"`
+
+	// Target is the size a pass reduces the request toward.
+	Target int `json:"target"`
+}
+
 // CompactionPhase identifies which pass produced a CompactionReport.
 type CompactionPhase string
 
@@ -83,6 +98,10 @@ type CompactionReport struct {
 	// Before and After are the request footprint around the pass.
 	Before ContextUsage `json:"before"`
 	After  ContextUsage `json:"after"`
+
+	// Budget is the window, trigger and target the pass was measured
+	// against; zero when the runtime does not derive one.
+	Budget ContextBudget `json:"budget"`
 }
 
 // String renders the report as the one-line human description used by

@@ -50,7 +50,7 @@ func (t *TracingInterceptor) ObserveEvent(ctx context.Context, inv *agent.Invoca
 
 	report := ce.Report
 
-	attrs := make([]attribute.KeyValue, 0, 20)
+	attrs := make([]attribute.KeyValue, 0, 24)
 	attrs = append(attrs,
 		attribute.String("redpanda.compaction.phase", string(report.Phase)),
 		attribute.Int("redpanda.compaction.pruned_results", report.PrunedResults),
@@ -58,6 +58,17 @@ func (t *TracingInterceptor) ObserveEvent(ctx context.Context, inv *agent.Invoca
 	)
 	attrs = append(attrs, contextUsageAttrs("redpanda.compaction.before", report.Before)...)
 	attrs = append(attrs, contextUsageAttrs("redpanda.compaction.after", report.After)...)
+
+	// The budget lets a reader place before/after on the model window and
+	// show the trigger the pass fired at. Omitted when the runtime did not
+	// derive one rather than stamping zeros that look like a 0-token window.
+	if report.Budget.Window > 0 {
+		attrs = append(attrs,
+			attribute.Int("redpanda.compaction.context_window", report.Budget.Window),
+			attribute.Int("redpanda.compaction.trigger_tokens", report.Budget.Trigger),
+			attribute.Int("redpanda.compaction.target_tokens", report.Budget.Target),
+		)
+	}
 
 	// Group under the conversation id like every other span of the
 	// invocation: transcript consumers read spans by conversation, and a
