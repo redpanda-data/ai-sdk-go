@@ -125,7 +125,9 @@ jobs:
             --out out/precheck.json
 
       - name: Wait for CI, then build the engine request envelope (read-only GitHub API)
-        if: steps.present.outputs.ok == 'true' && steps.precheck.outputs.eligible == 'true'
+        if: >-
+          steps.present.outputs.ok == 'true' && steps.precheck.outputs.eligible == 'true' &&
+          steps.precheck.outputs.engine == 'agent-action'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -154,8 +156,12 @@ jobs:
       #   Read(./pr/**) etc. allow-list         file reads scoped to the PR, the base
       #                                         .github tree and ./out; Read rules also
       #                                         govern Grep/Glob/LS (best-effort)
-      #   Read(//proc/**),Read(~/**)...         deny-list: process env, home, system —
-      #                                         deny beats allow; closes /proc/self/environ
+      #   Read(//proc/**),Read(~/.*/**)...      deny-list: process env, system paths, and
+      #                                         the sensitive parts of HOME (dotfiles, the
+      #                                         runner's _temp/_actions/_tool, its binaries).
+      #                                         NOT ~/** or //home/**: the workspace itself is
+      #                                         /home/runner/work/<repo>, and deny beats allow,
+      #                                         so a blanket HOME deny would block ./pr entirely.
       #   Edit(./out/verdict.json)              the ONLY writable path
       #   --setting-sources user                PR's .claude/settings.json (hooks) never loads
       #   --strict-mcp-config                   PR's .mcp.json never spawns servers
@@ -163,7 +169,9 @@ jobs:
       #   (and the trusted job REJECTS any verdict containing a secret-shaped
       #    string, so a leak that beat the tool layer still never gets posted)
       - name: Run the review agent
-        if: steps.present.outputs.ok == 'true' && steps.precheck.outputs.eligible == 'true'
+        if: >-
+          steps.present.outputs.ok == 'true' && steps.precheck.outputs.eligible == 'true' &&
+          steps.precheck.outputs.engine == 'agent-action'
         id: agent
         continue-on-error: true
         uses: anthropics/claude-code-action/base-action@756cc22e19660d20e8cc9496b4f242475a7f7790  # v1
@@ -178,7 +186,7 @@ jobs:
             --model ${{ env.AI_MERGE_MODEL }}
             --max-turns ${{ env.AI_MERGE_AGENT_MAX_TURNS }}
             --allowedTools "Read(./pr/**),Read(./.github/**),Read(./out/**),Glob,Grep,LS,Edit(./out/verdict.json)"
-            --disallowedTools "Bash,NotebookEdit,WebFetch,WebSearch,Task,Agent,TodoWrite,mcp__github__*,mcp__github_comment__*,mcp__github_inline_comment__*,mcp__github_ci__*,mcp__github_file_ops__*,Read(//proc/**),Read(//sys/**),Read(//dev/**),Read(//etc/**),Read(//tmp/**),Read(//var/**),Read(//run/**),Read(//root/**),Read(//home/**),Read(//opt/**),Read(//usr/**),Read(~/**),Read(./.git/**),Read(./pr/.git/**)"
+            --disallowedTools "Bash,NotebookEdit,WebFetch,WebSearch,Task,Agent,TodoWrite,mcp__github__*,mcp__github_comment__*,mcp__github_inline_comment__*,mcp__github_ci__*,mcp__github_file_ops__*,Read(//proc/**),Read(//sys/**),Read(//dev/**),Read(//etc/**),Read(//tmp/**),Read(//var/**),Read(//run/**),Read(//root/**),Read(//opt/**),Read(//usr/**),Read(~/.*/**),Read(~/.*),Read(~/work/_temp/**),Read(~/work/_actions/**),Read(~/work/_tool/**),Read(~/runners/**),Read(./.git/**),Read(./pr/.git/**)"
             --setting-sources user
             --strict-mcp-config
 
@@ -186,12 +194,14 @@ jobs:
         if: steps.present.outputs.ok == 'true'
         run: |
           set -euo pipefail
+          PROMPT_VERSION="agent.md@$(sha256sum .github/actions/ai-merge/prompts/agent.md | cut -c1-12)"
           jq -n --arg engine "agent-action@base-action@756cc22e19660d20e8cc9496b4f242475a7f7790" \
+                --arg prompt_version "$PROMPT_VERSION" \
                 --arg model "${{ env.AI_MERGE_MODEL }}" \
                 --arg head "${{ github.event.pull_request.head.sha }}" \
                 --arg run "${{ github.run_id }}" \
                 --arg outcome "${{ steps.precheck.outputs.eligible != 'true' && 'skipped-precheck' || steps.agent.outcome }}" \
-                '{engine:$engine, model:$model, head_sha:$head, run_id:$run, agent_outcome:$outcome}' \
+                '{engine:$engine, prompt_version:$prompt_version, model:$model, head_sha:$head, run_id:$run, agent_outcome:$outcome}' \
                 > out/meta.json
           if [ "${{ steps.precheck.outputs.eligible }}" != "true" ]; then
             echo "::notice::precheck: not eligible — model not called; the approve job records the reasons"
@@ -216,8 +226,10 @@ jobs:
     needs: agent
     # always(): if the agent failed or produced nothing, we still run, get no
     # valid verdict, ABSTAIN, withdraw any prior approval and write the audit.
+    # Except when a NEWER push cancelled the agent: that run owns the PR now,
+    # and writing a stale audit for the old commit would only be noise.
     if: >-
-      always() &&
+      always() && needs.agent.result != 'cancelled' &&
       github.event.pull_request.base.ref == github.event.repository.default_branch &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.user.type != 'Bot' &&
@@ -232,6 +244,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+      checks: read   # the CI gate queries check runs with the workflow token
       actions: read  # download the agent's artifact from this run
     steps:
       - name: Check out the mechanism from the BASE ref (never the PR head)
@@ -287,3 +300,5 @@ jobs:
           verdict_path: ${{ github.workspace }}/out/verdict.json
           verdict_meta_path: ${{ github.workspace }}/out/meta.json
           run_id: ${{ github.run_id }}
+          ci_token: ${{ github.token }}
+          own_check_names: "review agent (reads PR, never executes it)|gates + approval (trusted)"

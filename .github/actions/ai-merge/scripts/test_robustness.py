@@ -394,3 +394,42 @@ def test_valid_but_unapproved_verdict_shows_real_reasons():
     d = decide(ELIGIBLE, v)
     body = render(ELIGIBLE, v, d, "http://run", dry_run=False)
     assert "AI verdict is 'comment'" in body and "0.6" in body
+
+
+def test_classify_checks():
+    from common import classify_checks as cc
+
+    ok = [{"name": "Test", "status": "completed", "conclusion": "success"}]
+    assert cc(ok) == "passed"
+    assert (
+        cc(ok + [{"name": "Lint", "status": "queued", "conclusion": None}]) == "pending"
+    )
+    assert (
+        cc(ok + [{"name": "Lint", "status": "completed", "conclusion": "failure"}])
+        == "failed"
+    )
+    assert (
+        cc(ok + [{"name": "Lint", "status": "completed", "conclusion": "cancelled"}])
+        == "failed"
+    )
+    assert cc([]) == "none"
+    assert (
+        cc(
+            [
+                {
+                    "name": "Claude Code",
+                    "status": "completed",
+                    "conclusion": "action_required",
+                }
+            ]
+        )
+        == "none"
+    )
+    assert (
+        cc(ok + [{"name": "me", "status": "in_progress", "conclusion": None}], {"me"})
+        == "passed"
+    )
+    assert (
+        cc(ok + [{"name": "Neutral", "status": "completed", "conclusion": "neutral"}])
+        == "passed"
+    )

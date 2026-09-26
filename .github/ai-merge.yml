@@ -6,7 +6,7 @@
 # Baseline exclusions always apply on top of this list: .github/**, terraform/**,
 # release/**, Dockerfiles, iam/ and auth/ dirs, *credential*, *secret*, *.pem, *.key.
 # Binary or patchless files also make a PR ineligible.
-version: 7
+version: 8
 enabled: true
 
 # Size is NOT a risk score and does not gate. The only size rule is that the
@@ -19,7 +19,24 @@ enabled: true
 # for the separate risk-scoring work; they do not gate.
 max_diff_chars: 120000
 
+# Approval requires the model's self-reported confidence to be at or above this.
+# 0.75 rather than 0.8: the deterministic gates (membership, excluded paths,
+# CI, size, evidence, supply chain) carry the risk; this threshold only has to
+# filter out verdicts the model itself flags as uncertain. Tune from dry-run
+# data, not from intuition.
 min_confidence: 0.75
+
+# HARD CI GATE, enforced in the trusted job for every engine (not just in the
+# agent's prompt): the commit's CI must have PASSED for an approval. `failed`
+# and `pending` refuse. `none` (no substantive check ran) refuses too — nothing
+# verified the change.
+# CURRENT STATE OF THIS REPO'S CI, stated plainly: the ruleset has NO required
+# status checks, and the Go workflows path-filter on **.go/go.mod/go.sum, so a
+# .json- or .md-only PR runs no CI and will therefore never be AI-approved
+# until ADP (1) runs `task catalog:check` on PRs incl. catalog/** and (2)
+# makes Test / Golangci Lint / License / catalog:check required and ideally
+# unconditional. That is a GO-LIVE PRECONDITION, not a mechanism setting.
+require_ci_pass: true
 
 # Judgment engine (see .github/actions/ai-merge/docs/verdict-contract.md).
 #   agent-action  Claude Code via claude-code-action in the unprivileged `agent`

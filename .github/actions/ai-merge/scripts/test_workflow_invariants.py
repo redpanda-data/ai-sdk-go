@@ -38,8 +38,13 @@ def test_agent_job_isolation_flags():
         "--max-turns",
         "Read(./pr/**)",  # Read (and best-effort Grep/Glob/LS) scoped to the PR
         "Read(//proc/**)",  # ... and explicitly denied from process env
-        "Read(~/**)",
+        "Read(~/.*/**)",  # dotfiles in HOME denied...
+        "Read(~/work/_temp/**)",  # ...and the runner's own temp/actions dirs
         "Read(//etc/**)",
+        "needs.agent.result != 'cancelled'",  # superseded runs don't write stale audits
+        "checks: read",  # the CI gate queries check runs in the trusted job
+        "ci_token:",
+        "own_check_names:",
         "timeout-minutes:",
         "actions/upload-artifact@",
         "actions/download-artifact@",
@@ -91,3 +96,56 @@ def test_model_call_is_gated_on_precheck_and_ci_wait_is_bounded():
     run_agent = agent.split("- name: Run the review agent", 1)[1]
     assert "steps.precheck.outputs.eligible == 'true'" in run_agent.split("uses:", 1)[0]
     assert "--wait-seconds" in agent and "timeout-minutes: 35" in agent
+
+
+def test_deny_rules_do_not_cover_the_workspace():
+    # The GitHub-hosted workspace is /home/runner/work/<repo>/<repo>. Deny rules
+    # beat allow rules, so ANY deny that matches HOME or /home wholesale would
+    # block Read(./pr/**) and the agent could read nothing (fails closed, but the
+    # engine would abstain on every PR). Pin the interaction, not just presence.
+    s = _wf()
+    if s is None:
+        return
+    import re
+
+    denies = re.search(r'--disallowedTools "([^"]+)"', s).group(1).split(",")
+    reads = [d for d in denies if d.startswith("Read(")]
+    blanket = [
+        d
+        for d in reads
+        if d
+        in (
+            "Read(~/.*/**)Read(~/work/_temp/**)",
+            "Read(//home/**)",
+            "Read(//home/runner/**)",
+            "Read(~/work/**)",
+            "Read(./**)",
+            "Read(**)",
+        )
+    ]
+    assert not blanket, f"deny rules would block the workspace: {blanket}"
+    for d in reads:
+        inner = d[len("Read(") : -1]
+        assert (
+            inner.startswith("//")
+            and not inner.startswith("//home")
+            or inner.startswith("~/.")
+            or inner.startswith("~/work/_")
+            or inner.startswith("~/runners/")
+            or inner.startswith("./.git")
+            or inner.startswith("./pr/.git")
+        ), f"unexpected deny shape: {d}"
+
+
+def test_own_check_names_match_job_names():
+    s = _wf()
+    if s is None:
+        return
+    import re
+    import yaml
+
+    wf = yaml.safe_load(s)
+    job_names = {j.get("name") for j in wf["jobs"].values()}
+    m = re.search(r'own_check_names: "([^"]+)"', s)
+    # '|'-separated: job names contain commas
+    assert m and set(m.group(1).split("|")) == job_names, (m and m.group(1), job_names)

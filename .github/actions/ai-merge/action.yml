@@ -50,6 +50,17 @@ inputs:
   run_id:
     description: This workflow run id (same-run provenance check for external verdicts).
     default: ""
+  ci_token:
+    description: >-
+      Token with checks:read for the CI gate (the workflow GITHUB_TOKEN; the App
+      token has no checks permission). Empty disables the CI query and the gate
+      then fails closed ("CI status could not be determined").
+    default: ""
+  own_check_names:
+    description: >-
+      '|'-separated check-run names of this mechanism's own jobs, ignored by the CI
+      gate (job names may contain commas).
+    default: ""
 
 runs:
   using: composite
@@ -71,6 +82,7 @@ runs:
         PR: ${{ inputs.pr_number }}
         BASE_SHA: ${{ inputs.base_sha }}
         CONFIG_PATH: ${{ inputs.config_path }}
+        CI_TOKEN: ${{ inputs.ci_token }}
       run: |
         set -euo pipefail
         if gh api "repos/$REPO/contents/$CONFIG_PATH?ref=$BASE_SHA" \
@@ -117,6 +129,17 @@ runs:
           '. + {author_is_member: $m, membership_check_status: $st}' pr.json > pr.tmp && mv pr.tmp pr.json
         # If the diff cannot be fetched we must NOT proceed with an empty one.
         gh pr diff "$PR" --repo "$REPO" > pr.diff
+        # CI check runs for the reviewed head, queried HERE (trusted job) with a
+        # checks:read token, so the CI gate never depends on the agent's report.
+        HEAD="$(jq -r .head_sha pr.json)"
+        if [ -n "${CI_TOKEN:-}" ]; then
+          GH_TOKEN="$CI_TOKEN" gh api --paginate "repos/$REPO/commits/$HEAD/check-runs" \
+            --jq '.check_runs[] | {name, status, conclusion}' | jq -s '.' > checks.json \
+            || echo '[]' > checks.json
+        else
+          echo "::warning::no ci_token provided; CI gate will fail closed"
+          : > checks.json
+        fi
 
     - name: Evaluate guardrails
       id: guard
@@ -124,12 +147,18 @@ runs:
       env:
         CONFIG_PRESENT: ${{ steps.ctx.outputs.config_present }}
         SKIPPED: ${{ inputs.skipped }}
+        OWN_CHECKS: ${{ inputs.own_check_names }}
       run: |
         set -euo pipefail
+        CHECKS_ARG=""
+        [ -s checks.json ] && CHECKS_ARG="--checks checks.json"
         python "$GITHUB_ACTION_PATH/scripts/guardrails.py" \
           --config config.yml --files files.json --pr pr.json \
           --config-present "$CONFIG_PRESENT" \
           --skipped "$SKIPPED" \
+          --own-checks "$OWN_CHECKS" \
+          --diff pr.diff \
+          $CHECKS_ARG \
           --out guardrails.json
         echo "eligible=$(jq -r .eligible guardrails.json)" >> "$GITHUB_OUTPUT"
 

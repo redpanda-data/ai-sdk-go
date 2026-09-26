@@ -169,7 +169,7 @@ def validate(
         "evidence": evidence,
         "engine": engine,
         "model": str(meta.get("model", "")) or None,
-        "prompt_version": str(meta.get("prompt_version", "")) or "agent.md",
+        "prompt_version": str(meta.get("prompt_version", "")) or "unknown",
     }
     if isinstance(verdict.get("risk"), dict):
         out["risk"] = verdict["risk"]

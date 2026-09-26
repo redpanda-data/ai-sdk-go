@@ -116,5 +116,13 @@ def sanitize_verdict(v: dict) -> dict:
                         ),
                     }
                 )
-        out["risk"] = {**risk, "factors": facs}
+        score = risk.get("score")
+        out["risk"] = {
+            "score": (
+                float(score)
+                if isinstance(score, (int, float)) and not isinstance(score, bool)
+                else None
+            ),
+            "factors": facs,
+        }
     return out

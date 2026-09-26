@@ -8,6 +8,7 @@ CFG = {
     "enabled": True,
     "excluded_paths": ["providers/**/auth*.go"],
     "min_confidence": 0.8,
+    "require_ci_pass": False,  # CI gate has its own tests below
     "dependency_paths": ["**/go.mod", "**/go.sum"],
 }
 PR_OK = {
@@ -372,3 +373,85 @@ def test_engine_config_validated():
         {**CFG, "shadow_engines": ["nope"]}, _files(("a.go", 1, 0)), PR_OK, True
     )
     assert not r["eligible"]
+
+
+PASSED = [{"name": "Test", "status": "completed", "conclusion": "success"}]
+
+
+def test_ci_gate_refuses_failed_pending_none_and_unknown():
+    cfg = {**CFG, "require_ci_pass": True}
+    ok = evaluate(cfg, _files(("a.go", 1, 0)), PR_OK, True, checks=PASSED)
+    assert ok["eligible"] and ok["ci_status"] == "passed"
+    cases = {
+        "failed": [{"name": "Test", "status": "completed", "conclusion": "failure"}],
+        "pending": [{"name": "Test", "status": "in_progress", "conclusion": None}],
+        "none": [],
+    }
+    for expected, checks in cases.items():
+        r = evaluate(cfg, _files(("a.go", 1, 0)), PR_OK, True, checks=checks)
+        assert not r["eligible"] and r["ci_status"] == expected, (
+            expected,
+            r["reasons"],
+        )
+    r = evaluate(cfg, _files(("a.go", 1, 0)), PR_OK, True)  # checks not supplied
+    assert not r["eligible"] and r["ci_status"] == "unknown"
+
+
+def test_ci_gate_ignores_own_jobs_and_action_required():
+    cfg = {**CFG, "require_ci_pass": True}
+    checks = PASSED + [
+        {
+            "name": "gates + approval (trusted)",
+            "status": "in_progress",
+            "conclusion": None,
+        },
+        {"name": "Claude Code", "status": "completed", "conclusion": "action_required"},
+    ]
+    r = evaluate(
+        cfg,
+        _files(("a.go", 1, 0)),
+        PR_OK,
+        True,
+        checks=checks,
+        own_check_names={"gates + approval (trusted)"},
+    )
+    assert r["eligible"] and r["ci_status"] == "passed"
+
+
+def test_ci_gate_can_be_disabled_only_by_explicit_bool():
+    r = evaluate({**CFG, "require_ci_pass": "no"}, _files(("a.go", 1, 0)), PR_OK, True)
+    assert not r["eligible"] and any("require_ci_pass" in x for x in r["reasons"])
+
+
+def test_diff_size_gate_applies_to_every_engine():
+    diff = (
+        "diff --git a/pkg/a.go b/pkg/a.go\n--- a/pkg/a.go\n+++ b/pkg/a.go\n"
+        + "+x\n" * 3000
+    )
+    cfg = {**CFG, "engine": "agent-action", "max_diff_chars": 1000}
+    r = evaluate(cfg, _files(("pkg/a.go", 3000, 0)), PR_OK, True, diff=diff)
+    assert not r["eligible"] and any(
+        "too large to review in one pass" in x for x in r["reasons"]
+    )
+    assert r["reviewable_diff_chars"] == len(diff)
+    ok = evaluate(
+        {**cfg, "max_diff_chars": 100_000},
+        _files(("pkg/a.go", 3000, 0)),
+        PR_OK,
+        True,
+        diff=diff,
+    )
+    assert ok["eligible"]
+
+
+def test_diff_size_gate_ignores_generated_hunks():
+    gen = (
+        "diff --git a/catalog/snapshot.json b/catalog/snapshot.json\n--- a/catalog/snapshot.json\n"
+        "+++ b/catalog/snapshot.json\n" + "+g\n" * 5000
+    )
+    small = "diff --git a/pkg/a.go b/pkg/a.go\n--- a/pkg/a.go\n+++ b/pkg/a.go\n+x\n"
+    cfg = {**CFG, "generated_paths": ["catalog/snapshot.json"], "max_diff_chars": 500}
+    files = _files(("pkg/a.go", 1, 0), ("catalog/snapshot.json", 5000, 0))
+    r = evaluate(cfg, files, PR_OK, True, diff=gen + small)
+    assert r["eligible"], r["reasons"]
+    assert r["reviewable_diff_chars"] == len(small)

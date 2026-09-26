@@ -53,3 +53,28 @@ def glob_to_regex(pattern: str) -> re.Pattern:
 
 def match_any(path: str, patterns: list[str]) -> bool:
     return any(glob_to_regex(p).match(path) for p in patterns)
+
+
+def classify_checks(checks: list[dict], ignore_names: set[str] | None = None) -> str:
+    """Classify a commit's check runs into passed | failed | pending | none.
+
+    Used by BOTH the agent job (to decide when to start) and the trusted job
+    (to gate the decision), so the two can never disagree on what CI said.
+    `action_required` means "a workflow is waiting for a human to allow it to
+    run" (e.g. an @-mention bot) — not a test result — so it counts as neither.
+    """
+    ignore = ignore_names or set()
+    runs = [c for c in checks if c.get("name") not in ignore]
+    pending = [c for c in runs if c.get("status") != "completed"]
+    substantive = [
+        c
+        for c in runs
+        if c.get("conclusion") not in ("action_required", "skipped", None)
+    ]
+    if not runs or (not substantive and not pending):
+        return "none"
+    if pending:
+        return "pending"
+    if all(c.get("conclusion") in ("success", "neutral") for c in substantive):
+        return "passed"
+    return "failed"

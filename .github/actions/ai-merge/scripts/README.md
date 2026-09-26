@@ -17,12 +17,18 @@
 > (ADP later): `../docs/verdict-contract.md`. `shadow_engines` records the single-call
 > verdict alongside for comparison; it never decides.
 >
+> **THIS COPY IS AHEAD OF THE CANONICAL ONE.** The agent engine, the verdict contract,
+> `validate_verdict.py`, `sanitize.py`, `precheck.py`, `build_envelope.py`, the CI and
+> size gates and the new test suites exist only here until they are upstreamed. **Do not
+> `rsync` from the canonical copy into this directory** until that has happened — it
+> would delete them. Upstream first (canonical ← this copy), then the normal flow
+> (canonical → vendored copies) resumes.
+>
 > This repo is public and GitHub does not allow public repos to use reusable
 > workflows or actions from a private repo, so the mechanism is vendored here and
-> executed from the PR's **base ref** (default branch only). Do not edit this copy
-> directly: change it in the canonical copy, then re-sync (`rsync -a --delete` from a
-> checkout of the canonical copy into `.github/actions/ai-merge/`), re-apply this note
-> and the `action.yml` header.
+> executed from the PR's **base ref** (default branch only). Normal flow once in sync:
+> change the canonical copy, re-sync into `.github/actions/ai-merge/`, re-apply this
+> note and the `action.yml` header.
 >
 > **Enrolling another repo:** Redpanda private repos should call the canonical reusable
 > workflow directly (ask DevProd) rather than vendor. Public repos vendor as done here:

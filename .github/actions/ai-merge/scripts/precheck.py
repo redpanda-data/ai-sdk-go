@@ -55,13 +55,22 @@ def main() -> int:
         "membership_check_status": "204",
         "author": "precheck",
     }
-    r = evaluate(cfg, files, pr, True, skipped=a.skipped.lower() == "true")
+    # CI has not finished at precheck time: evaluate with the CI gate disabled.
+    # The trusted job enforces it for real.
+    r = evaluate(
+        {**cfg, "require_ci_pass": False},
+        files,
+        pr,
+        True,
+        skipped=a.skipped.lower() == "true",
+    )
     with open(a.out, "w") as fh:
         json.dump({"eligible": r["eligible"], "reasons": r["reasons"]}, fh, indent=2)
     gh_out = os.environ.get("GITHUB_OUTPUT")
     if gh_out:
         with open(gh_out, "a") as fh:
             fh.write(f"eligible={'true' if r['eligible'] else 'false'}\n")
+            fh.write(f"engine={r.get('engine', 'single-call')}\n")
     verdict = (
         "eligible" if r["eligible"] else "NOT eligible — " + "; ".join(r["reasons"])
     )

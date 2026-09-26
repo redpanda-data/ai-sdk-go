@@ -107,6 +107,9 @@ def render(
         ),
         f"| Files / lines (all) | {guardrails.get('changed_files', '?')} / "
         f"{guardrails.get('total_lines', '?')} |",
+        f"| CI at this commit | {guardrails.get('ci_status', 'unknown')} |",
+        f"| Reviewable diff | {guardrails.get('reviewable_diff_chars', '?')} chars "
+        f"(limit {guardrails.get('max_diff_chars', '?')}) |",
         f"| Reviewable files / lines | {guardrails.get('reviewable_files', '?')} / "
         f"{guardrails.get('reviewable_lines', '?')} |",
         f"| Generated (CI-verified) files / lines | "

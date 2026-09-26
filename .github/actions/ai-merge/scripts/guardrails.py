@@ -17,7 +17,7 @@ from typing import Any
 
 import yaml
 
-from common import match_any
+from common import classify_checks, load_json, match_any
 
 # Baseline exclusions applied in EVERY repo regardless of local config. These
 # are the never-auto-approvable categories: CI/CD, infrastructure-as-code,
@@ -117,6 +117,9 @@ def evaluate(
     pr: dict[str, Any],
     config_present: bool,
     skipped: bool = False,
+    checks: list[dict[str, Any]] | None = None,
+    own_check_names: set[str] | None = None,
+    diff: str | None = None,
 ) -> dict[str, Any]:
     reasons: list[str] = []
 
@@ -224,6 +227,38 @@ def evaluate(
         _as_number(config.get("max_diff_chars"), "max_diff_chars", 120_000, reasons)
     )
 
+    # CI is a HARD gate, enforced here for every engine (not just in the prompt):
+    # the reviewer reads CI results instead of executing code, so a failed or
+    # still-pending CI must refuse deterministically. `none` (path-filtered CI
+    # ran nothing) is refused too unless the repo opts out — nothing verified
+    # the change. This is what makes "reads, doesn't execute" safe.
+    require_ci = config.get("require_ci_pass", True)
+    if not isinstance(require_ci, bool):
+        reasons.append("config `require_ci_pass` must be a boolean")
+        require_ci = True
+    ci_status = (
+        classify_checks(checks or [], own_check_names or set())
+        if checks is not None
+        else "unknown"
+    )
+    if require_ci and ci_status != "passed":
+        reasons.append(
+            {
+                "failed": "CI failed for this commit",
+                "pending": "CI is still running for this commit",
+                "none": "no CI ran for this commit (path-filtered); nothing verified the change",
+                "unknown": "CI status could not be determined",
+            }[ci_status]
+        )
+
+    # The ONLY size rule, enforced for every engine: the reviewable diff (with
+    # generated hunks stripped) must fit in one review.
+    reviewable_diff_chars = None
+    if diff is not None:
+        from review import strip_generated  # local import: review pulls in urllib
+
+        reviewable_diff_chars = len(strip_generated(diff, sorted(generated_names)))
+
     # Judgment engine selection (docs/verdict-contract.md). Validated here so a
     # typo fails closed with a reason instead of a crash in the action.
     engine = config.get("engine", "single-call")
@@ -240,6 +275,11 @@ def evaluate(
         reasons.append(f"config `shadow_engines` has unknown engine(s): {bad_shadow}")
     if max_diff_chars <= 0:
         reasons.append("config `max_diff_chars` must be a positive number")
+    elif reviewable_diff_chars is not None and reviewable_diff_chars > max_diff_chars:
+        reasons.append(
+            f"reviewable diff is {reviewable_diff_chars} chars, over max_diff_chars "
+            f"{max_diff_chars}: too large to review in one pass"
+        )
 
     dep_paths = _as_list(config.get("dependency_paths"), "dependency_paths", reasons)
     if not dep_paths and "dependency_paths" not in config:
@@ -279,6 +319,8 @@ def evaluate(
         "tests_changed_with_source": bool(tests) and bool(source),
         "confidence_threshold": threshold,
         "max_diff_chars": max_diff_chars,
+        "reviewable_diff_chars": reviewable_diff_chars,
+        "ci_status": ci_status,
         "engine": engine,
         "shadow_engines": shadow_engines,
     }
@@ -291,11 +333,32 @@ def main() -> int:
     ap.add_argument("--pr", required=True)
     ap.add_argument("--config-present", default="true")
     ap.add_argument("--skipped", default="false")
+    ap.add_argument(
+        "--checks", default="", help="check-runs JSON list for the head commit"
+    )
+    ap.add_argument(
+        "--own-checks", default="", help="'|'-separated names of this mechanism's jobs"
+    )
+    ap.add_argument(
+        "--diff", default="", help="unified diff (pr.diff) for the size gate"
+    )
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
 
     present = args.config_present.lower() == "true"
     skipped = args.skipped.lower() == "true"
+    checks = None
+    if args.checks:
+        loaded = load_json(args.checks)
+        checks = loaded if isinstance(loaded, list) else []
+    own = {x.strip() for x in args.own_checks.split("|") if x.strip()}
+    diff = None
+    if args.diff:
+        try:
+            with open(args.diff) as fh:
+                diff = fh.read()
+        except OSError:
+            diff = None
     # A malformed config must make the PR ineligible, never crash the step.
     try:
         config = yaml.safe_load(open(args.config).read() or "") or {}
@@ -307,7 +370,16 @@ def main() -> int:
     files = json.load(open(args.files)) or []
     pr = json.load(open(args.pr)) or {}
 
-    result = evaluate(config, files, pr, present, skipped=skipped)
+    result = evaluate(
+        config,
+        files,
+        pr,
+        present,
+        skipped=skipped,
+        checks=checks,
+        own_check_names=own,
+        diff=diff,
+    )
     with open(args.out, "w") as fh:
         json.dump(result, fh, indent=2)
     print(json.dumps(result, indent=2))

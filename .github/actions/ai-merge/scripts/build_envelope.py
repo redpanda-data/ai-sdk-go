@@ -11,9 +11,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import time
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from common import classify_checks  # noqa: E402
 
 
 def gh(*args: str):
@@ -90,22 +94,7 @@ def main() -> int:
         names = ", ".join(c["name"] for c in pending)[:200]
         print(f"waiting for {len(pending)} check run(s): {names}")
         time.sleep(20)
-    # Classification. `action_required` means "a workflow is waiting for a human
-    # to allow it to run" (e.g. the repo's @claude workflows) — not a test result,
-    # so it neither passes nor fails. Only real outcomes count.
-    substantive = [
-        c
-        for c in checks
-        if c.get("conclusion") not in ("action_required", "skipped", None)
-    ]
-    if not checks or not substantive and not pending:
-        ci_status = "none"  # nothing substantive ran (path-filtered CI, docs-only PR)
-    elif pending:
-        ci_status = "pending"  # timed out waiting
-    elif all(c.get("conclusion") in ("success", "neutral") for c in substantive):
-        ci_status = "passed"
-    else:
-        ci_status = "failed"  # failure / cancelled / timed_out / stale
+    ci_status = classify_checks(checks)
     print(f"ci_status={ci_status} ({len(checks)} check runs)")
 
     envelope = {

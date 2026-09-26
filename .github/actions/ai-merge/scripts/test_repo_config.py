@@ -11,6 +11,7 @@ from guardrails import evaluate
 HERE = os.path.dirname(os.path.abspath(__file__))
 CONFIG = os.path.normpath(os.path.join(HERE, "..", "..", "..", "ai-merge.yml"))
 PR_OK = {"author_is_member": True, "membership_check_status": "204", "author": "a"}
+CI_OK = [{"name": "Test", "status": "completed", "conclusion": "success"}]
 
 
 def _cfg():
@@ -58,7 +59,7 @@ def test_real_config_excludes_credential_and_ci_defining_files():
         "LICENSE",
         "header.txt",
     ):
-        r = evaluate(cfg, _one(path), PR_OK, True)
+        r = evaluate(cfg, _one(path), PR_OK, True, checks=CI_OK)
         assert not r["eligible"], f"{path} must be excluded: {r['reasons']}"
 
 
@@ -72,7 +73,7 @@ def test_real_config_keeps_catalog_work_in_scope():
         "providers/vertex/models.go",
         "providers/bedrock/cross_region.go",
     ):
-        r = evaluate(cfg, _one(path), PR_OK, True)
+        r = evaluate(cfg, _one(path), PR_OK, True, checks=CI_OK)
         assert r["eligible"], f"{path} should be eligible: {r['reasons']}"
 
 
@@ -80,5 +81,18 @@ def test_real_config_flags_dependency_changes():
     cfg = _cfg()
     if cfg is None:
         return
-    assert evaluate(cfg, _one("go.mod", 1, 1), PR_OK, True)["is_dependency"]
-    assert evaluate(cfg, _one("examples/x/go.sum", 2, 2), PR_OK, True)["is_dependency"]
+    assert evaluate(cfg, _one("go.mod", 1, 1), PR_OK, True, checks=CI_OK)[
+        "is_dependency"
+    ]
+    assert evaluate(cfg, _one("examples/x/go.sum", 2, 2), PR_OK, True, checks=CI_OK)[
+        "is_dependency"
+    ]
+
+
+def test_real_config_requires_ci_pass():
+    cfg = _cfg()
+    if cfg is None:
+        return
+    assert cfg.get("require_ci_pass") is True
+    r = evaluate(cfg, _one("providers/bedrock/models.go"), PR_OK, True, checks=[])
+    assert not r["eligible"] and any("no CI ran" in x for x in r["reasons"])
