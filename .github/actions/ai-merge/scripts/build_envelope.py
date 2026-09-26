@@ -14,10 +14,9 @@ import json
 import os
 import subprocess
 import sys
-import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from common import classify_checks  # noqa: E402
+from common import wait_for_checks  # noqa: E402
 
 
 def gh(*args: str):
@@ -74,29 +73,21 @@ def main() -> int:
         f"repos/{a.repo}/pulls/{a.pr}/files",
         ".[] | {path: .filename, status, additions, deletions, previous_filename}",
     )
-    # The agent starts at the same moment as CI. Judging before CI finishes would
-    # make it abstain on every PR, so wait (bounded) for the OTHER check runs on
-    # this commit to complete. Our own jobs are ignored; nothing is executed here.
-    deadline = time.time() + a.wait_seconds
-    ignore = set(a.ignore_check)
-    while True:
-        checks = [
-            c
-            for c in gh_items(
-                f"repos/{a.repo}/commits/{a.head_sha}/check-runs",
-                ".check_runs[] | {name, status, conclusion}",
-            )
-            if c["name"] not in ignore
-        ]
-        pending = [c for c in checks if c.get("status") != "completed"]
-        if not pending or time.time() >= deadline:
-            break
-        names = ", ".join(c["name"] for c in pending)[:200]
-        print(f"waiting for {len(pending)} check run(s): {names}")
-        time.sleep(20)
-    ci_status = classify_checks(checks)
-    print(f"ci_status={ci_status} ({len(checks)} check runs)")
+    # The agent starts at the same moment as CI. Wait (bounded) for the OTHER
+    # check runs on this commit — including the repo's required checks, which
+    # may not even exist yet on the first poll. Our own jobs are ignored.
+    required = list(cfg.get("ci_checks") or []) or None
 
+    def _fetch():
+        return gh_items(
+            f"repos/{a.repo}/commits/{a.head_sha}/check-runs",
+            ".check_runs[] | {name, status, conclusion}",
+        )
+
+    checks, ci_status = wait_for_checks(
+        _fetch, set(a.ignore_check), required, a.wait_seconds
+    )
+    print(f"ci_status={ci_status} ({len(checks)} check runs)")
     envelope = {
         "schema": "1",
         "repo": a.repo,

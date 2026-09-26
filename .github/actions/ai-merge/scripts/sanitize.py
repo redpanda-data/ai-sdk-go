@@ -10,6 +10,7 @@ whole verdict, and all text is length-capped, link-stripped and HTML-escaped.
 from __future__ import annotations
 
 import html
+import math
 import re
 
 # Deliberately broad. A false positive costs one abstain; a false negative
@@ -120,7 +121,10 @@ def sanitize_verdict(v: dict) -> dict:
         out["risk"] = {
             "score": (
                 float(score)
-                if isinstance(score, (int, float)) and not isinstance(score, bool)
+                if isinstance(score, (int, float))
+                and not isinstance(score, bool)
+                and math.isfinite(float(score))
+                and 0.0 <= float(score) <= 1.0
                 else None
             ),
             "factors": facs,

@@ -127,18 +127,30 @@ runs:
         fi
         jq --argjson m "$MEMBER" --arg st "${MEMBER_STATUS:-unknown}" \
           '. + {author_is_member: $m, membership_check_status: $st}' pr.json > pr.tmp && mv pr.tmp pr.json
-        # If the diff cannot be fetched we must NOT proceed with an empty one.
-        gh pr diff "$PR" --repo "$REPO" > pr.diff
+        # The diff. GitHub refuses to render very large diffs (HTTP 406, ~20k
+        # lines): that is a SIZE refusal, reported as such — never an empty diff
+        # and never an "internal error".
+        if gh pr diff "$PR" --repo "$REPO" > pr.diff 2>diff.err; then
+          echo "diff_unavailable=false" >> "$GITHUB_OUTPUT"
+        else
+          echo "::warning::gh pr diff failed: $(head -c 300 diff.err)"
+          : > pr.diff
+          echo "diff_unavailable=true" >> "$GITHUB_OUTPUT"
+        fi
         # CI check runs for the reviewed head, queried HERE (trusted job) with a
         # checks:read token, so the CI gate never depends on the agent's report.
+        # A failed query must read as UNKNOWN (empty file), never as "no CI ran".
         HEAD="$(jq -r .head_sha pr.json)"
+        : > checks.json
         if [ -n "${CI_TOKEN:-}" ]; then
-          GH_TOKEN="$CI_TOKEN" gh api --paginate "repos/$REPO/commits/$HEAD/check-runs" \
-            --jq '.check_runs[] | {name, status, conclusion}' | jq -s '.' > checks.json \
-            || echo '[]' > checks.json
+          if OUT="$(GH_TOKEN="$CI_TOKEN" gh api --paginate "repos/$REPO/commits/$HEAD/check-runs" \
+                 --jq '.check_runs[] | {name, status, conclusion}' 2>&1)"; then
+            printf '%s\n' "$OUT" | jq -s '.' > checks.json
+          else
+            echo "::warning::check-runs query failed; CI status will be UNKNOWN (fail closed): $(printf '%s' "$OUT" | head -c 300)"
+          fi
         else
           echo "::warning::no ci_token provided; CI gate will fail closed"
-          : > checks.json
         fi
 
     - name: Evaluate guardrails
@@ -148,6 +160,7 @@ runs:
         CONFIG_PRESENT: ${{ steps.ctx.outputs.config_present }}
         SKIPPED: ${{ inputs.skipped }}
         OWN_CHECKS: ${{ inputs.own_check_names }}
+        DIFF_UNAVAILABLE: ${{ steps.ctx.outputs.diff_unavailable }}
       run: |
         set -euo pipefail
         CHECKS_ARG=""
@@ -157,7 +170,7 @@ runs:
           --config-present "$CONFIG_PRESENT" \
           --skipped "$SKIPPED" \
           --own-checks "$OWN_CHECKS" \
-          --diff pr.diff \
+          --diff pr.diff --diff-unavailable "${DIFF_UNAVAILABLE:-false}" \
           $CHECKS_ARG \
           --out guardrails.json
         echo "eligible=$(jq -r .eligible guardrails.json)" >> "$GITHUB_OUTPUT"

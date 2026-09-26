@@ -124,10 +124,11 @@ jobs:
             --skipped "${{ contains(github.event.pull_request.labels.*.name, 'ai-merge-skip') }}" \
             --out out/precheck.json
 
+      # Runs for EVERY engine: the approve job starts when this job ends, so the
+      # wait here is what lets a `single-call` repo pass the CI gate too. Only
+      # the model step below is engine-specific.
       - name: Wait for CI, then build the engine request envelope (read-only GitHub API)
-        if: >-
-          steps.present.outputs.ok == 'true' && steps.precheck.outputs.eligible == 'true' &&
-          steps.precheck.outputs.engine == 'agent-action'
+        if: steps.present.outputs.ok == 'true' && steps.precheck.outputs.eligible == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -224,12 +225,14 @@ jobs:
   approve:
     name: gates + approval (trusted)
     needs: agent
-    # always(): if the agent failed or produced nothing, we still run, get no
-    # valid verdict, ABSTAIN, withdraw any prior approval and write the audit.
-    # Except when a NEWER push cancelled the agent: that run owns the PR now,
-    # and writing a stale audit for the old commit would only be noise.
+    # always(): if the agent failed, timed out or produced nothing, we still
+    # run, get no valid verdict, ABSTAIN, withdraw any prior approval and write
+    # the audit. The one case we skip is a STALE run: if the PR head has moved
+    # since this event, a newer run owns the PR and a stale audit is noise —
+    # checked against the live head below, not inferred from job results
+    # (a timed-out agent must still be handled, not skipped).
     if: >-
-      always() && needs.agent.result != 'cancelled' &&
+      always() &&
       github.event.pull_request.base.ref == github.event.repository.default_branch &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.user.type != 'Bot' &&
@@ -256,15 +259,24 @@ jobs:
           persist-credentials: false
           fetch-depth: 1
 
-      - name: Is the mechanism on the base ref?
+      - name: Is the mechanism on the base ref, and is this run still current?
         id: present
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
-          if [ -f mechanism/.github/actions/ai-merge/action.yml ]; then
-            echo "ok=true" >> "$GITHUB_OUTPUT"
-          else
+          if [ ! -f mechanism/.github/actions/ai-merge/action.yml ]; then
             echo "ok=false" >> "$GITHUB_OUTPUT"
             echo "::notice::ai-merge mechanism is not on the base ref yet; nothing to evaluate"
+            exit 0
           fi
+          LIVE="$(gh api "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" --jq .head.sha 2>/dev/null || echo "$EVENT_HEAD")"
+          if [ "$LIVE" != "$EVENT_HEAD" ]; then
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::PR head moved ($EVENT_HEAD -> $LIVE); a newer run owns this PR, skipping"
+            exit 0
+          fi
+          echo "ok=true" >> "$GITHUB_OUTPUT"
 
       - name: Download the agent's verdict (this run only)
         if: steps.present.outputs.ok == 'true'

@@ -120,8 +120,17 @@ def evaluate(
     checks: list[dict[str, Any]] | None = None,
     own_check_names: set[str] | None = None,
     diff: str | None = None,
+    diff_unavailable: bool = False,
 ) -> dict[str, Any]:
     reasons: list[str] = []
+
+    if diff_unavailable:
+        # GitHub refuses to render very large diffs (HTTP 406, ~20k lines). That
+        # is a size refusal, not an internal error.
+        reasons.append(
+            "PR diff could not be fetched from GitHub (too large to render); "
+            "too large to review in one pass"
+        )
 
     if skipped:
         reasons.append(
@@ -236,8 +245,9 @@ def evaluate(
     if not isinstance(require_ci, bool):
         reasons.append("config `require_ci_pass` must be a boolean")
         require_ci = True
+    ci_required = _as_list(config.get("ci_checks"), "ci_checks", reasons) or None
     ci_status = (
-        classify_checks(checks or [], own_check_names or set())
+        classify_checks(checks or [], own_check_names or set(), ci_required)
         if checks is not None
         else "unknown"
     )
@@ -246,7 +256,8 @@ def evaluate(
             {
                 "failed": "CI failed for this commit",
                 "pending": "CI is still running for this commit",
-                "none": "no CI ran for this commit (path-filtered); nothing verified the change",
+                "none": "required CI checks did not run for this commit (path-filtered); "
+                "nothing verified the change",
                 "unknown": "CI status could not be determined",
             }[ci_status]
         )
@@ -342,6 +353,9 @@ def main() -> int:
     ap.add_argument(
         "--diff", default="", help="unified diff (pr.diff) for the size gate"
     )
+    ap.add_argument(
+        "--diff-unavailable", default="false", help="true if gh pr diff failed"
+    )
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
 
@@ -379,6 +393,7 @@ def main() -> int:
         checks=checks,
         own_check_names=own,
         diff=diff,
+        diff_unavailable=args.diff_unavailable.lower() == "true",
     )
     with open(args.out, "w") as fh:
         json.dump(result, fh, indent=2)

@@ -11,7 +11,11 @@ from guardrails import evaluate
 HERE = os.path.dirname(os.path.abspath(__file__))
 CONFIG = os.path.normpath(os.path.join(HERE, "..", "..", "..", "ai-merge.yml"))
 PR_OK = {"author_is_member": True, "membership_check_status": "204", "author": "a"}
-CI_OK = [{"name": "Test", "status": "completed", "conclusion": "success"}]
+CI_OK = [
+    {"name": "Test", "status": "completed", "conclusion": "success"},
+    {"name": "Golangci Lint", "status": "completed", "conclusion": "success"},
+    {"name": "Check License Headers", "status": "completed", "conclusion": "success"},
+]
 
 
 def _cfg():
@@ -95,4 +99,15 @@ def test_real_config_requires_ci_pass():
         return
     assert cfg.get("require_ci_pass") is True
     r = evaluate(cfg, _one("providers/bedrock/models.go"), PR_OK, True, checks=[])
-    assert not r["eligible"] and any("no CI ran" in x for x in r["reasons"])
+    assert not r["eligible"] and any("did not run" in x for x in r["reasons"])
+
+
+def test_real_config_names_the_real_ci_checks():
+    cfg = _cfg()
+    if cfg is None:
+        return
+    assert cfg.get("ci_checks") == ["Test", "Golangci Lint", "Check License Headers"]
+    # the repo's always-on review bot alone must not make CI count as passed
+    bot = [{"name": "claude-review", "status": "completed", "conclusion": "success"}]
+    r = evaluate(cfg, _one("providers/bedrock/models.go"), PR_OK, True, checks=bot)
+    assert not r["eligible"] and r["ci_status"] == "none"

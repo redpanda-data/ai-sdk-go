@@ -433,3 +433,116 @@ def test_classify_checks():
         cc(ok + [{"name": "Neutral", "status": "completed", "conclusion": "neutral"}])
         == "passed"
     )
+
+
+def test_classify_checks_required_allowlist():
+    from common import classify_checks as cc
+
+    req = ["Test", "Golangci Lint"]
+    bot = [{"name": "claude-review", "status": "completed", "conclusion": "success"}]
+    test = [{"name": "Test", "status": "completed", "conclusion": "success"}]
+    lint = [{"name": "Golangci Lint", "status": "completed", "conclusion": "success"}]
+    # a passing bot alone must NEVER count as CI passing
+    assert cc(bot, required_names=req) == "none"
+    assert cc(bot + test, required_names=req) == "none"  # Lint never ran
+    assert cc(bot + test + lint, required_names=req) == "passed"
+    # but an unlisted check can still fail or pend the PR
+    assert (
+        cc(
+            test
+            + lint
+            + [
+                {
+                    "name": "claude-review",
+                    "status": "completed",
+                    "conclusion": "failure",
+                }
+            ],
+            required_names=req,
+        )
+        == "failed"
+    )
+    assert (
+        cc(
+            test
+            + lint
+            + [{"name": "claude-review", "status": "in_progress", "conclusion": None}],
+            required_names=req,
+        )
+        == "pending"
+    )
+    # a required check that was skipped did not run
+    assert (
+        cc(
+            test
+            + [
+                {
+                    "name": "Golangci Lint",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                }
+            ],
+            required_names=req,
+        )
+        == "none"
+    )
+
+
+def test_wait_for_checks_grace_required_and_deadline():
+    from common import wait_for_checks
+
+    t = {"now": 0.0}
+    clock = lambda: t["now"]  # noqa: E731
+
+    def sleep(n):
+        t["now"] += n
+
+    # 1) empty first polls (GitHub hasn't created runs yet) -> keep waiting inside grace,
+    #    then runs appear and complete.
+    seq = [
+        [],
+        [],
+        [{"name": "Test", "status": "in_progress", "conclusion": None}],
+        [{"name": "Test", "status": "completed", "conclusion": "success"}],
+    ]
+    calls = {"n": 0}
+
+    def fetch():
+        i = min(calls["n"], len(seq) - 1)
+        calls["n"] += 1
+        return seq[i]
+
+    checks, status = wait_for_checks(
+        fetch, set(), None, 900, grace_seconds=90, sleep=sleep, clock=clock
+    )
+    assert status == "passed" and calls["n"] == 4
+    # 2) required check never appears -> waits until the budget, then none
+    t["now"] = 0.0
+    calls["n"] = 0
+    checks, status = wait_for_checks(
+        lambda: [], set(), ["Test"], 60, sleep=sleep, clock=clock
+    )
+    assert status == "none" and t["now"] >= 60
+    # 3) pending until the deadline -> pending
+    t["now"] = 0.0
+    checks, status = wait_for_checks(
+        lambda: [{"name": "Test", "status": "queued", "conclusion": None}],
+        set(),
+        None,
+        40,
+        sleep=sleep,
+        clock=clock,
+    )
+    assert status == "pending"
+    # 4) nothing at all, no required list -> none after the grace period, not immediately
+    t["now"] = 0.0
+    n = {"c": 0}
+
+    def fetch_empty():
+        n["c"] += 1
+        return []
+
+    checks, status = wait_for_checks(
+        fetch_empty, set(), None, 900, grace_seconds=90, sleep=sleep, clock=clock
+    )
+    assert status == "none" and n["c"] > 1 and 90 <= t["now"] < 200

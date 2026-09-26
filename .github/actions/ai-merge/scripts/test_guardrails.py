@@ -455,3 +455,22 @@ def test_diff_size_gate_ignores_generated_hunks():
     r = evaluate(cfg, files, PR_OK, True, diff=gen + small)
     assert r["eligible"], r["reasons"]
     assert r["reviewable_diff_chars"] == len(small)
+
+
+def test_ci_gate_with_required_checks_rejects_bot_only_pass():
+    cfg = {**CFG, "require_ci_pass": True, "ci_checks": ["Test", "Golangci Lint"]}
+    bot_only = [
+        {"name": "claude-review", "status": "completed", "conclusion": "success"}
+    ]
+    r = evaluate(cfg, _files(("a.go", 1, 0)), PR_OK, True, checks=bot_only)
+    assert not r["eligible"] and r["ci_status"] == "none"
+    full = bot_only + [
+        {"name": "Test", "status": "completed", "conclusion": "success"},
+        {"name": "Golangci Lint", "status": "completed", "conclusion": "success"},
+    ]
+    assert evaluate(cfg, _files(("a.go", 1, 0)), PR_OK, True, checks=full)["eligible"]
+
+
+def test_diff_unavailable_is_a_size_refusal_not_a_crash():
+    r = evaluate(CFG, _files(("a.go", 1, 0)), PR_OK, True, diff_unavailable=True)
+    assert not r["eligible"] and any("too large to review" in x for x in r["reasons"])

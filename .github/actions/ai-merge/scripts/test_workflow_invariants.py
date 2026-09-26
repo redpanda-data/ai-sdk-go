@@ -41,7 +41,7 @@ def test_agent_job_isolation_flags():
         "Read(~/.*/**)",  # dotfiles in HOME denied...
         "Read(~/work/_temp/**)",  # ...and the runner's own temp/actions dirs
         "Read(//etc/**)",
-        "needs.agent.result != 'cancelled'",  # superseded runs don't write stale audits
+        "PR head moved",  # superseded runs skip via the LIVE head, not job results
         "checks: read",  # the CI gate queries check runs in the trusted job
         "ci_token:",
         "own_check_names:",
@@ -95,7 +95,16 @@ def test_model_call_is_gated_on_precheck_and_ci_wait_is_bounded():
     assert "precheck.py" in agent
     run_agent = agent.split("- name: Run the review agent", 1)[1]
     assert "steps.precheck.outputs.eligible == 'true'" in run_agent.split("uses:", 1)[0]
+    assert (
+        "steps.precheck.outputs.engine == 'agent-action'"
+        in run_agent.split("uses:", 1)[0]
+    )
     assert "--wait-seconds" in agent and "timeout-minutes: 35" in agent
+    # the CI wait must run for EVERY engine (single-call approvals depend on it)
+    wait = agent.split("- name: Wait for CI", 1)[1].split("- name:", 1)[0]
+    assert "steps.precheck.outputs.engine" not in wait
+    # stale runs are detected from the live head, not from needs.agent.result
+    assert "needs.agent.result" not in s
 
 
 def test_deny_rules_do_not_cover_the_workspace():
@@ -115,7 +124,7 @@ def test_deny_rules_do_not_cover_the_workspace():
         for d in reads
         if d
         in (
-            "Read(~/.*/**)Read(~/work/_temp/**)",
+            "Read(~/**)",
             "Read(//home/**)",
             "Read(//home/runner/**)",
             "Read(~/work/**)",

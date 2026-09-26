@@ -6,7 +6,7 @@
 # Baseline exclusions always apply on top of this list: .github/**, terraform/**,
 # release/**, Dockerfiles, iam/ and auth/ dirs, *credential*, *secret*, *.pem, *.key.
 # Binary or patchless files also make a PR ineligible.
-version: 8
+version: 9
 enabled: true
 
 # Size is NOT a risk score and does not gate. The only size rule is that the
@@ -37,6 +37,14 @@ min_confidence: 0.75
 # makes Test / Golangci Lint / License / catalog:check required and ideally
 # unconditional. That is a GO-LIVE PRECONDITION, not a mechanism setting.
 require_ci_pass: true
+# The repo's REAL CI checks (check-run names = job names). `passed` requires
+# every one of these to have run and succeeded. Any other check (e.g. the
+# claude-review bot, which runs on every PR without a path filter) can still
+# fail or pend a PR, but can never on its own make CI count as passed.
+ci_checks:
+  - "Test"
+  - "Golangci Lint"
+  - "Check License Headers"
 
 # Judgment engine (see .github/actions/ai-merge/docs/verdict-contract.md).
 #   agent-action  Claude Code via claude-code-action in the unprivileged `agent`

@@ -69,3 +69,12 @@ over an authenticated channel and return the same verdict.
 `shadow_engines: [single-call]` runs additional engines for the audit record
 only. Their verdicts never decide. Use it to compare engines on real PRs before
 switching `engine:`.
+
+## CI gate scope (canonical note)
+
+The CI gate reads the **Checks API** (`commits/{sha}/check-runs`) only. Repos whose
+CI reports through the legacy **commit Status API** (CircleCI, Buildkite, Jenkins
+status contexts) would have a red status the gate never sees: with `ci_checks` set
+those would classify as `none` (refused); without it, potentially as `passed`. Any
+repo enrolling with non-Actions CI needs the gate extended to
+`commits/{sha}/status` before go-live. All of ai-sdk-go's CI is GitHub Actions.
