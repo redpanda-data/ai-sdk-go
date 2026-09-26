@@ -6,7 +6,7 @@
 # Baseline exclusions always apply on top of this list: .github/**, terraform/**,
 # release/**, Dockerfiles, iam/ and auth/ dirs, *credential*, *secret*, *.pem, *.key.
 # Binary or patchless files also make a PR ineligible.
-version: 9
+version: 10
 enabled: true
 
 # Size is NOT a risk score and does not gate. The only size rule is that the
@@ -36,6 +36,10 @@ min_confidence: 0.75
 # until ADP (1) runs `task catalog:check` on PRs incl. catalog/** and (2)
 # makes Test / Golangci Lint / License / catalog:check required and ideally
 # unconditional. That is a GO-LIVE PRECONDITION, not a mechanism setting.
+# NOTE: the existing `ci:force-tests` label does NOT satisfy this gate — its
+# pull_request_target run attaches its check to the BASE commit, not the PR
+# head, and nothing re-evaluates the PR afterwards. Until the precondition is
+# met, non-Go PRs cannot be AI-approved by any author action.
 require_ci_pass: true
 # The repo's REAL CI checks (check-run names = job names). `passed` requires
 # every one of these to have run and succeeded. Any other check (e.g. the

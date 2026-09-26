@@ -135,7 +135,13 @@ runs:
         else
           echo "::warning::gh pr diff failed: $(head -c 300 diff.err)"
           : > pr.diff
-          echo "diff_unavailable=true" >> "$GITHUB_OUTPUT"
+          # 406 = GitHub will not render a diff this large (a size refusal);
+          # anything else is a transient fetch error and is labelled as such.
+          if grep -qiE 'HTTP 406|too_large|diff exceeded|Not Acceptable' diff.err; then
+            echo "diff_unavailable=too_large" >> "$GITHUB_OUTPUT"
+          else
+            echo "diff_unavailable=error" >> "$GITHUB_OUTPUT"
+          fi
         fi
         # CI check runs for the reviewed head, queried HERE (trusted job) with a
         # checks:read token, so the CI gate never depends on the agent's report.

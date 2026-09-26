@@ -120,16 +120,22 @@ def evaluate(
     checks: list[dict[str, Any]] | None = None,
     own_check_names: set[str] | None = None,
     diff: str | None = None,
-    diff_unavailable: bool = False,
+    diff_unavailable: str | bool = False,
 ) -> dict[str, Any]:
     reasons: list[str] = []
 
-    if diff_unavailable:
-        # GitHub refuses to render very large diffs (HTTP 406, ~20k lines). That
-        # is a size refusal, not an internal error.
+    # diff_unavailable: False | "too_large" | "error". GitHub refuses to render
+    # very large diffs (HTTP 406, ~20k lines) — a SIZE refusal. Anything else
+    # (5xx, rate limit, auth) is a fetch failure and must be labelled as such.
+    if diff_unavailable == "too_large" or diff_unavailable is True:
         reasons.append(
             "PR diff could not be fetched from GitHub (too large to render); "
             "too large to review in one pass"
+        )
+    elif diff_unavailable:
+        reasons.append(
+            "PR diff could not be fetched from GitHub (transient error); "
+            "nothing to review — re-run the workflow"
         )
 
     if skipped:
@@ -354,7 +360,9 @@ def main() -> int:
         "--diff", default="", help="unified diff (pr.diff) for the size gate"
     )
     ap.add_argument(
-        "--diff-unavailable", default="false", help="true if gh pr diff failed"
+        "--diff-unavailable",
+        default="false",
+        help="false | too_large | error (from the collect step)",
     )
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
@@ -393,7 +401,11 @@ def main() -> int:
         checks=checks,
         own_check_names=own,
         diff=diff,
-        diff_unavailable=args.diff_unavailable.lower() == "true",
+        diff_unavailable=(
+            False
+            if args.diff_unavailable.lower() in ("false", "")
+            else args.diff_unavailable
+        ),
     )
     with open(args.out, "w") as fh:
         json.dump(result, fh, indent=2)

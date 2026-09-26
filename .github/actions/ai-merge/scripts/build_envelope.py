@@ -76,7 +76,16 @@ def main() -> int:
     # The agent starts at the same moment as CI. Wait (bounded) for the OTHER
     # check runs on this commit — including the repo's required checks, which
     # may not even exist yet on the first poll. Our own jobs are ignored.
-    required = list(cfg.get("ci_checks") or []) or None
+    raw_required = cfg.get("ci_checks")
+    if raw_required is not None and not (
+        isinstance(raw_required, list) and all(isinstance(x, str) for x in raw_required)
+    ):
+        print(
+            "::warning::config `ci_checks` must be a list of strings; ignoring for the wait "
+            "(the trusted job refuses on it)"
+        )
+        raw_required = None
+    required = list(raw_required or []) or None
 
     def _fetch():
         return gh_items(
@@ -88,6 +97,10 @@ def main() -> int:
         _fetch, set(a.ignore_check), required, a.wait_seconds
     )
     print(f"ci_status={ci_status} ({len(checks)} check runs)")
+    gh_out = os.environ.get("GITHUB_OUTPUT")
+    if gh_out:
+        with open(gh_out, "a") as fh:
+            fh.write(f"ci_status={ci_status}\n")
     envelope = {
         "schema": "1",
         "repo": a.repo,

@@ -99,6 +99,10 @@ def test_model_call_is_gated_on_precheck_and_ci_wait_is_bounded():
         "steps.precheck.outputs.engine == 'agent-action'"
         in run_agent.split("uses:", 1)[0]
     )
+    # the model only runs when CI passed (the trusted job would refuse otherwise)
+    assert (
+        "steps.envelope.outputs.ci_status == 'passed'" in run_agent.split("uses:", 1)[0]
+    )
     assert "--wait-seconds" in agent and "timeout-minutes: 35" in agent
     # the CI wait must run for EVERY engine (single-call approvals depend on it)
     wait = agent.split("- name: Wait for CI", 1)[1].split("- name:", 1)[0]
@@ -158,3 +162,30 @@ def test_own_check_names_match_job_names():
     m = re.search(r'own_check_names: "([^"]+)"', s)
     # '|'-separated: job names contain commas
     assert m and set(m.group(1).split("|")) == job_names, (m and m.group(1), job_names)
+
+
+def test_no_inline_expressions_in_run_blocks():
+    # Trusted values or not, ${{ }} inside run: is the pattern we removed everywhere.
+    s = _wf()
+    if s is None:
+        return
+    import yaml
+
+    wf = yaml.safe_load(s)
+    offenders = []
+    for jname, job in wf["jobs"].items():
+        for st in job.get("steps", []):
+            run = st.get("run")
+            if run and "${{" in run:
+                # allowed: steps.* / env.* / github.run_id style outputs already used via env elsewhere?
+                bad = [
+                    ln.strip()
+                    for ln in run.splitlines()
+                    if "${{" in ln
+                    and "github.repository" in ln
+                    or "${{" in ln
+                    and "pull_request.number" in ln
+                    and "github.event" in ln
+                ]
+                offenders += [f"{jname}: {b}" for b in bad]
+    assert not offenders, offenders

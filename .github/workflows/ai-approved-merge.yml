@@ -114,29 +114,37 @@ jobs:
         id: precheck
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          SKIPPED: ${{ contains(github.event.pull_request.labels.*.name, 'ai-merge-skip') }}
         run: |
           set -euo pipefail
           pip install --quiet -r .github/actions/ai-merge/scripts/requirements.txt
           mkdir -p out
           python .github/actions/ai-merge/scripts/precheck.py \
-            --repo "${{ github.repository }}" --pr "${{ github.event.pull_request.number }}" \
+            --repo "$REPO" --pr "$PR" \
             --config .github/ai-merge.yml \
-            --skipped "${{ contains(github.event.pull_request.labels.*.name, 'ai-merge-skip') }}" \
+            --skipped "$SKIPPED" \
             --out out/precheck.json
 
       # Runs for EVERY engine: the approve job starts when this job ends, so the
       # wait here is what lets a `single-call` repo pass the CI gate too. Only
       # the model step below is engine-specific.
       - name: Wait for CI, then build the engine request envelope (read-only GitHub API)
+        id: envelope
         if: steps.present.outputs.ok == 'true' && steps.precheck.outputs.eligible == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
           python .github/actions/ai-merge/scripts/build_envelope.py \
-            --repo "${{ github.repository }}" --pr "${{ github.event.pull_request.number }}" \
-            --head-sha "${{ github.event.pull_request.head.sha }}" \
-            --base-sha "${{ github.event.pull_request.base.sha }}" \
+            --repo "$REPO" --pr "$PR" \
+            --head-sha "$HEAD_SHA" \
+            --base-sha "$BASE_SHA" \
             --config .github/ai-merge.yml --out out/envelope.json \
             --wait-seconds 900 \
             --ignore-check "review agent (reads PR, never executes it)" \
@@ -169,10 +177,15 @@ jobs:
       #   CLAUDE_CODE_SAFE_MODE=1               CLAUDE.md/plugins/skills/hooks/MCP off
       #   (and the trusted job REJECTS any verdict containing a secret-shaped
       #    string, so a leak that beat the tool layer still never gets posted)
+      # The model runs only when CI PASSED: the trusted job would refuse anything
+      # else regardless, so a model call on a red/absent-CI PR is pure cost (up to
+      # 40 Opus turns for a decision already made). Pure optimisation — the
+      # trusted job still makes its own CI decision.
       - name: Run the review agent
         if: >-
           steps.present.outputs.ok == 'true' && steps.precheck.outputs.eligible == 'true' &&
-          steps.precheck.outputs.engine == 'agent-action'
+          steps.precheck.outputs.engine == 'agent-action' &&
+          steps.envelope.outputs.ci_status == 'passed'
         id: agent
         continue-on-error: true
         uses: anthropics/claude-code-action/base-action@756cc22e19660d20e8cc9496b4f242475a7f7790  # v1
@@ -201,11 +214,13 @@ jobs:
                 --arg model "${{ env.AI_MERGE_MODEL }}" \
                 --arg head "${{ github.event.pull_request.head.sha }}" \
                 --arg run "${{ github.run_id }}" \
-                --arg outcome "${{ steps.precheck.outputs.eligible != 'true' && 'skipped-precheck' || steps.agent.outcome }}" \
+                --arg outcome "${{ steps.precheck.outputs.eligible != 'true' && 'skipped-precheck' || (steps.envelope.outputs.ci_status != 'passed' && 'skipped-ci') || steps.agent.outcome }}" \
                 '{engine:$engine, prompt_version:$prompt_version, model:$model, head_sha:$head, run_id:$run, agent_outcome:$outcome}' \
                 > out/meta.json
           if [ "${{ steps.precheck.outputs.eligible }}" != "true" ]; then
             echo "::notice::precheck: not eligible — model not called; the approve job records the reasons"
+          elif [ "${{ steps.envelope.outputs.ci_status }}" != "passed" ]; then
+            echo "::notice::CI status is '${{ steps.envelope.outputs.ci_status }}' — model not called; the approve job records the reason"
           elif [ ! -f out/verdict.json ]; then
             echo "::warning::agent produced no out/verdict.json (outcome: ${{ steps.agent.outcome }}); the approve job will abstain"
           fi
@@ -264,13 +279,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           EVENT_HEAD: ${{ github.event.pull_request.head.sha }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
         run: |
           if [ ! -f mechanism/.github/actions/ai-merge/action.yml ]; then
             echo "ok=false" >> "$GITHUB_OUTPUT"
             echo "::notice::ai-merge mechanism is not on the base ref yet; nothing to evaluate"
             exit 0
           fi
-          LIVE="$(gh api "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" --jq .head.sha 2>/dev/null || echo "$EVENT_HEAD")"
+          LIVE="$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha 2>/dev/null || echo "$EVENT_HEAD")"
           if [ "$LIVE" != "$EVENT_HEAD" ]; then
             echo "ok=false" >> "$GITHUB_OUTPUT"
             echo "::notice::PR head moved ($EVENT_HEAD -> $LIVE); a newer run owns this PR, skipping"

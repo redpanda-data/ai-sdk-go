@@ -471,6 +471,9 @@ def test_ci_gate_with_required_checks_rejects_bot_only_pass():
     assert evaluate(cfg, _files(("a.go", 1, 0)), PR_OK, True, checks=full)["eligible"]
 
 
-def test_diff_unavailable_is_a_size_refusal_not_a_crash():
-    r = evaluate(CFG, _files(("a.go", 1, 0)), PR_OK, True, diff_unavailable=True)
+def test_diff_unavailable_distinguishes_size_from_fetch_error():
+    r = evaluate(CFG, _files(("a.go", 1, 0)), PR_OK, True, diff_unavailable="too_large")
     assert not r["eligible"] and any("too large to review" in x for x in r["reasons"])
+    r = evaluate(CFG, _files(("a.go", 1, 0)), PR_OK, True, diff_unavailable="error")
+    assert not r["eligible"] and any("transient error" in x for x in r["reasons"])
+    assert not any("too large" in x for x in r["reasons"])

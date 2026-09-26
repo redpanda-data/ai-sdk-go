@@ -516,13 +516,35 @@ def test_wait_for_checks_grace_required_and_deadline():
         fetch, set(), None, 900, grace_seconds=90, sleep=sleep, clock=clock
     )
     assert status == "passed" and calls["n"] == 4
-    # 2) required check never appears -> waits until the budget, then none
+    # 2) required check never appears and nothing else is pending -> none after
+    #    the GRACE period, not the full budget (docs-only PRs: ~90 s, not 15 min)
     t["now"] = 0.0
-    calls["n"] = 0
+    other_done = [
+        {"name": "claude-review", "status": "completed", "conclusion": "success"}
+    ]
     checks, status = wait_for_checks(
-        lambda: [], set(), ["Test"], 60, sleep=sleep, clock=clock
+        lambda: other_done,
+        set(),
+        ["Test"],
+        900,
+        grace_seconds=90,
+        sleep=sleep,
+        clock=clock,
     )
-    assert status == "none" and t["now"] >= 60
+    assert status == "none" and 90 <= t["now"] < 200
+    # 2b) ...but while something is still pending we keep waiting up to the budget
+    t["now"] = 0.0
+    checks, status = wait_for_checks(
+        lambda: [
+            {"name": "claude-review", "status": "in_progress", "conclusion": None}
+        ],
+        set(),
+        ["Test"],
+        100,
+        sleep=sleep,
+        clock=clock,
+    )
+    assert status == "pending" and t["now"] >= 100
     # 3) pending until the deadline -> pending
     t["now"] = 0.0
     checks, status = wait_for_checks(

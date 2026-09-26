@@ -121,15 +121,18 @@ def wait_for_checks(
     while True:
         checks = fetch()
         status = classify_checks(checks, ignore_names, required_names)
-        runs = [c for c in checks if c.get("name") not in ignore_names]
         elapsed = clock() - start
-        settling = status == "pending" or (
-            status == "none"
-            and (required_names or not runs)
-            and elapsed < grace_seconds
-        )
-        if required_names and status == "none" and elapsed < wait_seconds:
-            settling = True  # required checks not created yet: keep waiting
+        if status == "pending":
+            settling = True
+        elif status == "none":
+            # Nothing (or not everything required) has run yet. Inside the grace
+            # period GitHub may simply not have created the runs. After it, if
+            # every other run is complete and a required check still hasn't
+            # appeared, the path filter almost certainly excluded it: stop
+            # waiting — 90 s instead of the full budget on a docs-only PR.
+            settling = elapsed < grace_seconds
+        else:
+            settling = False
         if not settling or elapsed >= wait_seconds:
             return checks, status
         sleep(poll_seconds)
