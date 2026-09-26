@@ -1,26 +1,36 @@
 ---
-# AI-approved merges for low-risk PRs — vendored pilot.
+# AI-approved merges for low-risk PRs — vendored pilot (agent engine).
 #
 # The mechanism (.github/actions/ai-merge) is a VENDORED COPY of the canonical
 # mechanism maintained internally by Redpanda DevProd: GitHub does not let a
 # public repo use reusable workflows/actions from a private repo. Sync notes:
-# .github/actions/ai-merge/scripts/README.md
+# .github/actions/ai-merge/scripts/README.md. Engine contract:
+# .github/actions/ai-merge/docs/verdict-contract.md
 #
-# Security model (the invariant: a PR can never alter what judges it):
-# - Trigger is `pull_request_target`, so THIS workflow file is read from the
-#   base branch, never from the PR head.
-# - The job runs only when the base is the repository's DEFAULT branch, which
-#   is protected by the ruleset. Otherwise anyone could push a branch with a
-#   modified mechanism and open a PR against it.
-# - The action is checked out from the PR's BASE ref into ./mechanism; the PR
-#   head is never checked out or executed. Config is read from the base ref.
-# - A guardrail tightening on main applies to an open PR on its next sync.
+# Two jobs, one invariant: A PR CAN NEVER ALTER WHAT JUDGES IT, AND NOTHING
+# FROM THE PR IS EVER EXECUTED.
 #
-# Repo opt-in: every non-draft PR is evaluated automatically (no per-PR label).
-# The bot posts a BINDING APPROVAL only — it never merges. The author merges, or
-# enables GitHub's own auto-merge per PR. Add `ai-merge-skip` to exclude a PR;
-# adding it after an approval withdraws the approval. Fail-closed: only ever
-# ADDS approvals, never blocks.
+#   agent    unprivileged. Checks the PR out as DATA and lets Claude Code (the
+#            Agent SDK harness, via the bare claude-code-action/base-action —
+#            NOT the GitHub-bot action) READ it: Read/Glob/Grep/LS scoped to the
+#            PR. No shell, no network tools, no GitHub tools or tokens, no hooks,
+#            no MCP servers, no CLAUDE.md auto-loading. It writes one file:
+#            out/verdict.json. It holds no approval credential. The runner is a
+#            fresh GitHub-hosted VM torn down after the job; isolation INSIDE it
+#            is Claude Code's tool permission rules, so the trusted job also
+#            rejects any verdict containing a secret-shaped string.
+#   approve  trusted. Downloads the verdict from THIS run, validates provenance
+#            (same run, same head SHA) and shape, runs the deterministic gates
+#            (org membership via API, excluded paths, reviewable files, config)
+#            and posts a binding approval pinned to the reviewed commit. The bot
+#            never merges; the author does.
+#
+# Both job definitions, the agent prompt and the mechanism come from the base
+# branch (`pull_request_target`, default branch only). Tests are not run by the
+# agent: CI already ran them and the agent reads the check results.
+#
+# Repo opt-in: every non-draft PR by a verified org member is evaluated. Add
+# `ai-merge-skip` to exclude a PR; adding it after an approval withdraws it.
 name: AI Approved Merge
 
 on:
@@ -30,22 +40,30 @@ on:
 permissions:
   contents: read
   pull-requests: read
+  checks: read
 
 env:
   AI_MERGE_DRY_RUN: "true"
-  AI_MERGE_MODEL: claude-opus-5
+  AI_MERGE_MODEL: claude-opus-5-5
+  AI_MERGE_AGENT_MAX_TURNS: "40"
 
 jobs:
-  ai-merge:
+  # ---------------------------------------------------------------------------
+  agent:
+    name: review agent (reads PR, never executes it)
     runs-on: ubuntu-latest
+    # up to 15 min waiting for CI to finish + the review itself
+    timeout-minutes: 35
     concurrency:
-      group: ai-merge-${{ github.repository }}-${{ github.event.pull_request.number }}
+      group: ai-merge-agent-${{ github.repository }}-${{ github.event.pull_request.number }}
       cancel-in-progress: true
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: read
     # Gate (all must hold): base is the default branch; same-repo head (no
-    # forks); not a GitHub App bot (member bot USER accounts still qualify);
-    # not a draft; and label events only re-run for the opt-out label so other
-    # labels don't trigger a paid model call. The opt-out itself is handled
-    # INSIDE the run (`skipped`), and org membership is verified by the action.
+    # forks); not a GitHub App bot; not a draft; label events only for the
+    # opt-out label. Org membership is verified in the approve job.
     if: >-
       github.event.pull_request.base.ref == github.event.repository.default_branch &&
       github.event.pull_request.head.repo.full_name == github.repository &&
@@ -53,7 +71,168 @@ jobs:
       github.event.pull_request.draft == false &&
       ((github.event.action != 'labeled' && github.event.action != 'unlabeled') ||
        github.event.label.name == 'ai-merge-skip')
+    steps:
+      - name: Check out the BASE ref (mechanism, prompt, config) at the workspace root
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          sparse-checkout: .github
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Is the mechanism on the base ref?
+        id: present
+        run: |
+          if [ -f .github/actions/ai-merge/action.yml ] && [ -f .github/actions/ai-merge/prompts/agent.md ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::ai-merge mechanism is not on the base ref yet; nothing to evaluate"
+          fi
+
+      - name: Check out the PR head as DATA (into ./pr, no credentials)
+        if: steps.present.outputs.ok == 'true'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: pr
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Python for the envelope/prompt scripts
+        if: steps.present.outputs.ok == 'true'
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.12"
+
+      # Cheap deterministic precheck (excluded paths, opt-out label, config;
+      # NOT membership — that needs the App token in the approve job). Its only
+      # purpose is to skip the CI wait and the model call on PRs the gates will
+      # refuse anyway. It decides nothing; the approve job re-runs all gates.
+      - name: Precheck eligibility (skip the model for PRs the gates will refuse)
+        if: steps.present.outputs.ok == 'true'
+        id: precheck
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          pip install --quiet -r .github/actions/ai-merge/scripts/requirements.txt
+          mkdir -p out
+          python .github/actions/ai-merge/scripts/precheck.py \
+            --repo "${{ github.repository }}" --pr "${{ github.event.pull_request.number }}" \
+            --config .github/ai-merge.yml \
+            --skipped "${{ contains(github.event.pull_request.labels.*.name, 'ai-merge-skip') }}" \
+            --out out/precheck.json
+
+      - name: Wait for CI, then build the engine request envelope (read-only GitHub API)
+        if: steps.present.outputs.ok == 'true' && steps.precheck.outputs.eligible == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python .github/actions/ai-merge/scripts/build_envelope.py \
+            --repo "${{ github.repository }}" --pr "${{ github.event.pull_request.number }}" \
+            --head-sha "${{ github.event.pull_request.head.sha }}" \
+            --base-sha "${{ github.event.pull_request.base.sha }}" \
+            --config .github/ai-merge.yml --out out/envelope.json \
+            --wait-seconds 900 \
+            --ignore-check "review agent (reads PR, never executes it)" \
+            --ignore-check "gates + approval (trusted)"
+          python .github/actions/ai-merge/scripts/render_agent_prompt.py \
+            --template .github/actions/ai-merge/prompts/agent.md \
+            --envelope out/envelope.json --out out/prompt.md
+
+      # Claude Code (Agent SDK harness) via the BASE action: it only installs the
+      # CLI and runs a prompt file. Its README: "running this action in a
+      # directory is equivalent to running Claude Code in that directory; the
+      # caller is responsible for ensuring the working directory and prompt are
+      # trusted" — the working directory is the BASE-ref checkout and the prompt
+      # is rendered by base-ref code. Isolation, each one a closed risk:
+      #   base-action, not claude-code-action   no GitHub bot behaviour, no GitHub
+      #                                         MCP servers, no Claude App token
+      #   --disallowedTools Bash,...            no execution, no network tools
+      #   Read(./pr/**) etc. allow-list         file reads scoped to the PR, the base
+      #                                         .github tree and ./out; Read rules also
+      #                                         govern Grep/Glob/LS (best-effort)
+      #   Read(//proc/**),Read(~/**)...         deny-list: process env, home, system —
+      #                                         deny beats allow; closes /proc/self/environ
+      #   Edit(./out/verdict.json)              the ONLY writable path
+      #   --setting-sources user                PR's .claude/settings.json (hooks) never loads
+      #   --strict-mcp-config                   PR's .mcp.json never spawns servers
+      #   CLAUDE_CODE_SAFE_MODE=1               CLAUDE.md/plugins/skills/hooks/MCP off
+      #   (and the trusted job REJECTS any verdict containing a secret-shaped
+      #    string, so a leak that beat the tool layer still never gets posted)
+      - name: Run the review agent
+        if: steps.present.outputs.ok == 'true' && steps.precheck.outputs.eligible == 'true'
+        id: agent
+        continue-on-error: true
+        uses: anthropics/claude-code-action/base-action@756cc22e19660d20e8cc9496b4f242475a7f7790  # v1
+        env:
+          CLAUDE_CODE_SAFE_MODE: "1"
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt_file: out/prompt.md
+          claude_env: |
+            CLAUDE_CODE_SAFE_MODE: 1
+          claude_args: >-
+            --model ${{ env.AI_MERGE_MODEL }}
+            --max-turns ${{ env.AI_MERGE_AGENT_MAX_TURNS }}
+            --allowedTools "Read(./pr/**),Read(./.github/**),Read(./out/**),Glob,Grep,LS,Edit(./out/verdict.json)"
+            --disallowedTools "Bash,NotebookEdit,WebFetch,WebSearch,Task,Agent,TodoWrite,mcp__github__*,mcp__github_comment__*,mcp__github_inline_comment__*,mcp__github_ci__*,mcp__github_file_ops__*,Read(//proc/**),Read(//sys/**),Read(//dev/**),Read(//etc/**),Read(//tmp/**),Read(//var/**),Read(//run/**),Read(//root/**),Read(//home/**),Read(//opt/**),Read(//usr/**),Read(~/**),Read(./.git/**),Read(./pr/.git/**)"
+            --setting-sources user
+            --strict-mcp-config
+
+      - name: Stamp verdict metadata (trusted step, never the model)
+        if: steps.present.outputs.ok == 'true'
+        run: |
+          set -euo pipefail
+          jq -n --arg engine "agent-action@base-action@756cc22e19660d20e8cc9496b4f242475a7f7790" \
+                --arg model "${{ env.AI_MERGE_MODEL }}" \
+                --arg head "${{ github.event.pull_request.head.sha }}" \
+                --arg run "${{ github.run_id }}" \
+                --arg outcome "${{ steps.precheck.outputs.eligible != 'true' && 'skipped-precheck' || steps.agent.outcome }}" \
+                '{engine:$engine, model:$model, head_sha:$head, run_id:$run, agent_outcome:$outcome}' \
+                > out/meta.json
+          if [ "${{ steps.precheck.outputs.eligible }}" != "true" ]; then
+            echo "::notice::precheck: not eligible — model not called; the approve job records the reasons"
+          elif [ ! -f out/verdict.json ]; then
+            echo "::warning::agent produced no out/verdict.json (outcome: ${{ steps.agent.outcome }}); the approve job will abstain"
+          fi
+          rm -f out/prompt.md
+          ls -la out
+
+      - name: Upload verdict for the approve job
+        if: steps.present.outputs.ok == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: ai-merge-verdict-${{ github.event.pull_request.number }}-${{ github.run_id }}
+          path: out/
+          retention-days: 7
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------------------
+  approve:
+    name: gates + approval (trusted)
+    needs: agent
+    # always(): if the agent failed or produced nothing, we still run, get no
+    # valid verdict, ABSTAIN, withdraw any prior approval and write the audit.
+    if: >-
+      always() &&
+      github.event.pull_request.base.ref == github.event.repository.default_branch &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.type != 'Bot' &&
+      github.event.pull_request.draft == false &&
+      ((github.event.action != 'labeled' && github.event.action != 'unlabeled') ||
+       github.event.label.name == 'ai-merge-skip')
+    runs-on: ubuntu-latest
     timeout-minutes: 15
+    concurrency:
+      group: ai-merge-approve-${{ github.repository }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read  # download the agent's artifact from this run
     steps:
       - name: Check out the mechanism from the BASE ref (never the PR head)
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
@@ -73,6 +252,14 @@ jobs:
             echo "ok=false" >> "$GITHUB_OUTPUT"
             echo "::notice::ai-merge mechanism is not on the base ref yet; nothing to evaluate"
           fi
+
+      - name: Download the agent's verdict (this run only)
+        if: steps.present.outputs.ok == 'true'
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with:
+          name: ai-merge-verdict-${{ github.event.pull_request.number }}-${{ github.run_id }}
+          path: out
 
       - name: Mint GitHub App token (ai-merge bot)
         id: app
@@ -97,3 +284,6 @@ jobs:
           run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           dry_run: ${{ env.AI_MERGE_DRY_RUN }}
           skipped: ${{ contains(github.event.pull_request.labels.*.name, 'ai-merge-skip') }}
+          verdict_path: ${{ github.workspace }}/out/verdict.json
+          verdict_meta_path: ${{ github.workspace }}/out/meta.json
+          run_id: ${{ github.run_id }}

@@ -20,7 +20,11 @@ import sys
 
 from common import load_json
 
-SUPPLY_CHAIN_FLAGS = ("new_maintainers", "unusual_version_jump", "added_install_scripts")
+SUPPLY_CHAIN_FLAGS = (
+    "new_maintainers",
+    "unusual_version_jump",
+    "added_install_scripts",
+)
 
 
 def _unit_float(value):
@@ -45,11 +49,20 @@ def decide(guardrails: dict, verdict) -> dict:
         reasons.append("no AI verdict produced")
         return {"approve": False, "reasons": reasons}
 
+    # A verdict rejected upstream (validate_verdict / review.py abstain) is a
+    # placeholder, not a judgment. Report the root cause once; scoring the
+    # placeholder's zeroed fields would only add noise to the audit.
+    if verdict.get("error"):
+        reasons.append(f"no valid AI verdict — {verdict['error']}")
+        return {"approve": False, "reasons": reasons}
+
     if verdict.get("verdict") != "approve":
         reasons.append(f"AI verdict is {verdict.get('verdict')!r}")
 
     if verdict.get("reviewed_fully") is not True:
-        reasons.append("model did not confirm it reviewed the full change (reviewed_fully)")
+        reasons.append(
+            "model did not confirm it reviewed the full change (reviewed_fully)"
+        )
 
     threshold = _unit_float(guardrails.get("confidence_threshold"))
     if threshold is None:

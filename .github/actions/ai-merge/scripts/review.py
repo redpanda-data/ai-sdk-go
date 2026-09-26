@@ -40,8 +40,9 @@ SCHEMA = """{
   }
 }"""
 
-SYSTEM = f"""You are an automated pull-request reviewer whose approval COUNTS AS the required human review for \
-LOW-RISK changes only. If you approve, no other reviewer will look at this PR before the author merges it, so \
+SYSTEM = f"""You are an automated pull-request reviewer whose approval COUNTS AS the \
+required human review for LOW-RISK changes only. If you approve, no other reviewer \
+will look at this PR before the author merges it, so \
 approve ONLY when you are confident the change is correct, self-contained and \
 low-risk. When in doubt, do NOT approve: abstain with "comment" or "request_changes".
 
@@ -127,7 +128,7 @@ def call_anthropic(model: str, system: str, user: str) -> str:
             last = e
             if attempt == 2:
                 raise
-        time.sleep(2 ** attempt)
+        time.sleep(2**attempt)
     else:  # pragma: no cover
         raise last or RuntimeError("anthropic call failed")
     text = "".join(
@@ -166,13 +167,15 @@ def build_user_prompt(pr: dict, diff: str, guardrails: dict) -> str:
         f"PR #{pr.get('number')} into {pr.get('base', '?')} by {pr.get('author', '?')}",
         _fence("pr_title", pr.get("title", "")),
         _fence("pr_body", pr.get("body") or "(none)"),
-        f"Reviewable changed files: {guardrails.get('reviewable_files', guardrails.get('changed_files'))}, "
+        f"Reviewable changed files: "
+        f"{guardrails.get('reviewable_files', guardrails.get('changed_files'))}, "
         f"lines: {guardrails.get('reviewable_lines', guardrails.get('total_lines'))}",
     ]
     if generated:
         parts.append(
             "Generated files also changed (machine-produced, verified by a required CI "
-            "regeneration check; their hunks are omitted below): " + ", ".join(generated)
+            "regeneration check; their hunks are omitted below): "
+            + ", ".join(generated)
         )
     if guardrails.get("is_dependency"):
         parts.append(SUPPLY_CHAIN_ADDENDUM)

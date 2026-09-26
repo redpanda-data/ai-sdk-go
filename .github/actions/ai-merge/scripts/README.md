@@ -6,6 +6,17 @@
 > **What the bot does:** posts a binding approval on eligible low-risk PRs. It never
 > merges. The author merges, or enables GitHub's own auto-merge per PR.
 >
+> **Judgment engine:** `agent-action` — Claude Code (the Agent SDK harness) runs in an
+> unprivileged job via the bare `claude-code-action/base-action` (not the GitHub-bot
+> action), after a cheap precheck and after waiting for the repo's CI to finish. It reads
+> the PR with Read/Glob/Grep/LS scoped to the PR checkout (no shell, no network tools, no
+> GitHub tools or tokens, no hooks/MCP/CLAUDE.md from the PR, process env and system paths
+> denied), sees the CI outcome, and writes one verdict file. The trusted job validates it
+> (same run, same head SHA, schema, evidence paths, no secret-shaped strings, comment-safe
+> text) before the deterministic gates decide. Contract and the swap path to other engines
+> (ADP later): `../docs/verdict-contract.md`. `shadow_engines` records the single-call
+> verdict alongside for comparison; it never decides.
+>
 > This repo is public and GitHub does not allow public repos to use reusable
 > workflows or actions from a private repo, so the mechanism is vendored here and
 > executed from the PR's **base ref** (default branch only). Do not edit this copy
@@ -24,6 +35,7 @@
 > must be a verified org member (and could not merge anyway). GitHub App bots
 > (dependabot/renovate) are skipped at the gate, so dependency bumps are in scope when
 > authored by humans or by bot USER accounts that are org members.
+
 
 Decision logic for the reusable workflow `.github/workflows/ai-approved-merge.yml`.
 Every enrolled repo shares this one implementation.

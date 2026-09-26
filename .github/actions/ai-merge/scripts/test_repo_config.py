@@ -19,6 +19,7 @@ def _cfg():
         # (rather than a silent green), and fall back gracefully without it.
         try:
             import pytest
+
             pytest.skip("no repo config at " + CONFIG)
         except ImportError:
             return None
@@ -26,8 +27,15 @@ def _cfg():
 
 
 def _one(path, add=3, dele=0):
-    return [{"filename": path, "status": "modified", "additions": add, "deletions": dele,
-             "has_patch": True}]
+    return [
+        {
+            "filename": path,
+            "status": "modified",
+            "additions": add,
+            "deletions": dele,
+            "has_patch": True,
+        }
+    ]
 
 
 def test_real_config_excludes_credential_and_ci_defining_files():
@@ -58,8 +66,12 @@ def test_real_config_keeps_catalog_work_in_scope():
     cfg = _cfg()
     if cfg is None:
         return
-    for path in ("catalog/snapshot.json", "providers/bedrock/models.go",
-                 "providers/vertex/models.go", "providers/bedrock/cross_region.go"):
+    for path in (
+        "catalog/snapshot.json",
+        "providers/bedrock/models.go",
+        "providers/vertex/models.go",
+        "providers/bedrock/cross_region.go",
+    ):
         r = evaluate(cfg, _one(path), PR_OK, True)
         assert r["eligible"], f"{path} should be eligible: {r['reasons']}"
 

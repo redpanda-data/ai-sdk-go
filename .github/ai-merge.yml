@@ -6,7 +6,7 @@
 # Baseline exclusions always apply on top of this list: .github/**, terraform/**,
 # release/**, Dockerfiles, iam/ and auth/ dirs, *credential*, *secret*, *.pem, *.key.
 # Binary or patchless files also make a PR ineligible.
-version: 6
+version: 7
 enabled: true
 
 # Size is NOT a risk score and does not gate. The only size rule is that the
@@ -20,6 +20,17 @@ enabled: true
 max_diff_chars: 120000
 
 min_confidence: 0.75
+
+# Judgment engine (see .github/actions/ai-merge/docs/verdict-contract.md).
+#   agent-action  Claude Code via claude-code-action in the unprivileged `agent`
+#                 job: reads the whole PR with Read/Glob/Grep/LS, no execution,
+#                 writes one verdict file validated by the trusted job.
+#   single-call   one model call over the diff in the trusted job (fallback).
+# shadow_engines run for the audit record only and never decide; use them to
+# compare engines on real PRs before switching `engine`.
+engine: agent-action
+shadow_engines:
+  - single-call
 
 # Repo-specific paths that always need a human:
 #   providers/**/provider.go      client construction: API keys / SDK credential chains

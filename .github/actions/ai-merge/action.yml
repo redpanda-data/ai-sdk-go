@@ -38,6 +38,18 @@ inputs:
       by skipping the job) so a label added after an approval still revokes the
       approval.
     default: "false"
+  verdict_path:
+    description: >-
+      Path to a verdict produced by an external engine (the agent job). Used
+      when the repo config selects `engine: agent-action`. Validated against
+      docs/verdict-contract.md before use; anything invalid fails closed.
+    default: ""
+  verdict_meta_path:
+    description: Path to the engine job's metadata (engine, model, head_sha, run_id).
+    default: ""
+  run_id:
+    description: This workflow run id (same-run provenance check for external verdicts).
+    default: ""
 
 runs:
   using: composite
@@ -74,7 +86,7 @@ runs:
           | jq -s 'add' > files.json
         gh api "repos/$REPO/pulls/$PR" \
           --jq '{number, title, body, additions, deletions, changed_files,
-                 author: .user.login, author_association, base: .base.ref,
+                 author: .user.login, base: .base.ref,
                  head_sha: .head.sha}' > pr.json
         # Org membership is checked against the org via the App token, NOT
         # inferred from author_association: private membership (GitHub's
@@ -82,8 +94,12 @@ runs:
         # Requires the App to have Organization -> Members: read.
         # 204 = member, 404 = not a member. Anything else (403 = App lacks
         # Members:read, 401, 429, network) is a CHECK FAILURE: still treated as
-        # non-member (fail closed) but surfaced distinctly so operators can see
-        # the check itself broke rather than the author being an outsider.
+        # non-member (fail closed) but surfaced distinctly.
+        # REQUIREMENT: the distinction must reach the sticky PR audit comment,
+        # not just this run log. A teammate reading "X is not a member" about
+        # an org owner won't open the run; the comment has to say "the check
+        # broke, fix the App permission". That is why membership_check_status
+        # is carried into pr.json and guardrails.py renders a separate reason.
         AUTHOR="$(jq -r .author pr.json)"
         MEMBER=false
         MEMBER_STATUS=""
@@ -91,9 +107,10 @@ runs:
           MEMBER=true
           MEMBER_STATUS=204
         else
-          MEMBER_STATUS="$(printf '%s' "$OUT" | grep -oE 'HTTP [0-9]{3}' | head -1 | grep -oE '[0-9]{3}' || true)"
+          MEMBER_STATUS="$(sed -n 's/.*(HTTP \([0-9]*\)).*/\1/p' <<<"$OUT" | head -1)"
           if [ "$MEMBER_STATUS" != "404" ]; then
-            echo "::warning::org membership check for '$AUTHOR' returned HTTP ${MEMBER_STATUS:-unknown} (expected 204/404); treating as NON-member. Verify the App has Organization -> Members: read. gh: $OUT"
+            echo "::warning::org membership check for '$AUTHOR' returned HTTP ${MEMBER_STATUS:-unknown}" \
+                 "(expected 204/404); treating as NON-member. Verify the App has Organization -> Members: read. gh: $OUT"
           fi
         fi
         jq --argjson m "$MEMBER" --arg st "${MEMBER_STATUS:-unknown}" \
@@ -119,16 +136,65 @@ runs:
     # A dedicated osv-scanner pass is deferred to phase 2: this job does not
     # check out the PR head (by design), so there is no lockfile tree to scan.
     # Dependency PRs get the supply-chain checklist against the lockfile diff.
-    - name: AI review (structured verdict)
+    # ---- Judgment engine (pluggable; see docs/verdict-contract.md) ----------
+    # `engine` and `shadow_engines` come from the repo config on the BASE ref
+    # (guardrails.json). single-call: one model call here. agent-action: a
+    # verdict produced by the unprivileged agent job, validated for provenance
+    # (same run, same head) and shape before it is allowed to mean anything.
+    - name: Judgment engine — primary
+      if: steps.guard.outputs.eligible == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        REPO: ${{ inputs.repo }}
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+        ANTHROPIC_MODEL: ${{ inputs.model }}
+        VERDICT_PATH: ${{ inputs.verdict_path }}
+        VERDICT_META_PATH: ${{ inputs.verdict_meta_path }}
+        RUN_ID: ${{ inputs.run_id }}
+      run: |
+        set -euo pipefail
+        ENGINE="$(jq -r '.engine // "single-call"' guardrails.json)"
+        HEAD="$(jq -r .head_sha pr.json)"
+        echo "engine=$ENGINE"
+        case "$ENGINE" in
+          single-call)
+            python "$GITHUB_ACTION_PATH/scripts/review.py" \
+              --pr pr.json --diff pr.diff --guardrails guardrails.json --out verdict.json
+            ;;
+          agent-action)
+            # Tree at head for evidence-path validation (paths only, no content).
+            gh api --paginate "repos/$REPO/git/trees/$HEAD?recursive=1" \
+              --jq '.tree[] | select(.type=="blob") | .path' > tree.txt || : > tree.txt
+            python "$GITHUB_ACTION_PATH/scripts/validate_verdict.py" \
+              --verdict "${VERDICT_PATH:-/nonexistent}" --meta "${VERDICT_META_PATH:-/nonexistent}" \
+              --head-sha "$HEAD" --run-id "$RUN_ID" --tree tree.txt --files files.json \
+              --out verdict.json
+            ;;
+          *)
+            echo "::error::unknown engine '$ENGINE'"; exit 1 ;;
+        esac
+
+    - name: Judgment engine — shadows (audit only, never decide)
       if: steps.guard.outputs.eligible == 'true'
       shell: bash
       env:
         ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
         ANTHROPIC_MODEL: ${{ inputs.model }}
       run: |
-        set -euo pipefail
-        python "$GITHUB_ACTION_PATH/scripts/review.py" \
-          --pr pr.json --diff pr.diff --guardrails guardrails.json --out verdict.json
+        set -uo pipefail
+        for SH in $(jq -r '.shadow_engines[]? // empty' guardrails.json); do
+          PRIMARY="$(jq -r '.engine // "single-call"' guardrails.json)"
+          [ "$SH" = "$PRIMARY" ] && continue
+          case "$SH" in
+            single-call)
+              python "$GITHUB_ACTION_PATH/scripts/review.py" \
+                --pr pr.json --diff pr.diff --guardrails guardrails.json --out "shadow-$SH.json" \
+                || echo "::warning::shadow engine $SH failed (audit only)" ;;
+            *) echo "::warning::shadow engine '$SH' not runnable here (audit only)" ;;
+          esac
+        done
+        true
 
     - name: Decide
       id: decide
@@ -152,6 +218,7 @@ runs:
           --guardrails guardrails.json \
           --verdict "$( [ -f verdict.json ] && echo verdict.json || echo '' )" \
           --decision decision.json \
+          --shadows "$(ls shadow-*.json 2>/dev/null | tr '\n' ',' )" \
           --run-url "$RUN_URL" --dry-run "$DRY_RUN" \
           --out audit.md
 
@@ -226,6 +293,7 @@ runs:
           --guardrails guardrails.json \
           --verdict "$( [ -f verdict.json ] && echo verdict.json || echo '' )" \
           --decision "$( [ -f decision.json ] && echo decision.json || echo '' )" \
+          --shadows "$(ls shadow-*.json 2>/dev/null | tr '\n' ',' )" \
           --run-url "$RUN_URL" --dry-run "$DRY_RUN" \
           --approve-outcome "$APPROVE_OUTCOME" --out audit.md
         cat audit.md >> "$GITHUB_STEP_SUMMARY"

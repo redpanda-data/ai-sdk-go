@@ -59,7 +59,11 @@ def _as_number(value, name: str, default, reasons: list[str]):
     number here either."""
     if value is None:
         return default
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(value)
+    ):
         reasons.append(f"config `{name}` must be a finite number")
         return default
     return value
@@ -78,8 +82,17 @@ def _as_list(value, name: str, reasons: list[str]) -> list[str]:
     return []
 
 
-TEST_PATTERNS = ["**/*_test.go", "**/*_test.py", "**/test_*.py", "**/tests/**", "**/*.test.ts",
-                 "**/*.spec.ts", "**/testdata/**"]
+ENGINES = {"single-call", "agent-action"}
+
+TEST_PATTERNS = [
+    "**/*_test.go",
+    "**/*_test.py",
+    "**/test_*.py",
+    "**/tests/**",
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "**/testdata/**",
+]
 
 
 def _unreviewable(f: dict[str, Any]) -> bool:
@@ -108,7 +121,9 @@ def evaluate(
     reasons: list[str] = []
 
     if skipped:
-        reasons.append("opt-out label present: author excluded this PR from AI approval")
+        reasons.append(
+            "opt-out label present: author excluded this PR from AI approval"
+        )
 
     if any(not f.get("filename") for f in files):
         reasons.append("changed-files list contains an entry without a filename")
@@ -125,7 +140,9 @@ def evaluate(
     # They do not count against the size caps and are not sent to the model;
     # the model reviews the hand-written delta and is told what was generated.
     # An excluded path always wins over a generated path.
-    generated_paths = _as_list(config.get("generated_paths"), "generated_paths", reasons)
+    generated_paths = _as_list(
+        config.get("generated_paths"), "generated_paths", reasons
+    )
 
     if not config_present:
         reasons.append("no versioned config at the configured path on the base ref")
@@ -179,7 +196,9 @@ def evaluate(
     def _is_generated(f):
         # Both names must match (mirrors the exclusion matcher): renaming a
         # hand-written file INTO a generated path must not hide it from review.
-        if not match_any(f["filename"], generated_paths) or match_any(f["filename"], excluded):
+        if not match_any(f["filename"], generated_paths) or match_any(
+            f["filename"], excluded
+        ):
             return False
         prev = f.get("previous_filename")
         return not prev or match_any(prev, generated_paths)
@@ -188,7 +207,9 @@ def evaluate(
     generated_names = {f["filename"] for f in generated}
     reviewable = [f for f in files if f["filename"] not in generated_names]
     tests = [f for f in reviewable if match_any(f["filename"], TEST_PATTERNS)]
-    source = [f for f in reviewable if f["filename"] not in {t["filename"] for t in tests}]
+    source = [
+        f for f in reviewable if f["filename"] not in {t["filename"] for t in tests}
+    ]
 
     # Size is NOT a risk score and does not gate here. Counts are recorded as
     # signals for the audit record and a future risk-scoring layer. The only
@@ -199,7 +220,24 @@ def evaluate(
     reviewable_files = len(reviewable)
     reviewable_lines = sum(_lines(f) for f in reviewable)
     generated_lines = sum(_lines(f) for f in generated)
-    max_diff_chars = int(_as_number(config.get("max_diff_chars"), "max_diff_chars", 120_000, reasons))
+    max_diff_chars = int(
+        _as_number(config.get("max_diff_chars"), "max_diff_chars", 120_000, reasons)
+    )
+
+    # Judgment engine selection (docs/verdict-contract.md). Validated here so a
+    # typo fails closed with a reason instead of a crash in the action.
+    engine = config.get("engine", "single-call")
+    if engine not in ENGINES:
+        reasons.append(f"config `engine` must be one of {sorted(ENGINES)}")
+        engine = "single-call"
+    shadow_engines = [
+        e
+        for e in _as_list(config.get("shadow_engines"), "shadow_engines", reasons)
+        if e != engine
+    ]
+    bad_shadow = [e for e in shadow_engines if e not in ENGINES]
+    if bad_shadow:
+        reasons.append(f"config `shadow_engines` has unknown engine(s): {bad_shadow}")
     if max_diff_chars <= 0:
         reasons.append("config `max_diff_chars` must be a positive number")
 
@@ -214,11 +252,15 @@ def evaluate(
         for f in files
     )
 
-    threshold = float(_as_number(config.get("min_confidence"), "min_confidence", 0.8, reasons))
+    threshold = float(
+        _as_number(config.get("min_confidence"), "min_confidence", 0.8, reasons)
+    )
     if not 0.0 <= threshold <= 1.0:
         # An out-of-range threshold (e.g. 95 meaning "95%") must not be silently
         # replaced by a looser default downstream: refuse the PR instead.
-        reasons.append(f"config `min_confidence` must be between 0 and 1 (got {threshold})")
+        reasons.append(
+            f"config `min_confidence` must be between 0 and 1 (got {threshold})"
+        )
     return {
         "eligible": len(reasons) == 0,
         "reasons": reasons,
@@ -237,6 +279,8 @@ def evaluate(
         "tests_changed_with_source": bool(tests) and bool(source),
         "confidence_threshold": threshold,
         "max_diff_chars": max_diff_chars,
+        "engine": engine,
+        "shadow_engines": shadow_engines,
     }
 
 

@@ -10,12 +10,23 @@ CFG = {
     "min_confidence": 0.8,
     "dependency_paths": ["**/go.mod", "**/go.sum"],
 }
-PR_OK = {"author_is_member": True, "membership_check_status": "204", "author": "alice", "number": 1}
+PR_OK = {
+    "author_is_member": True,
+    "membership_check_status": "204",
+    "author": "alice",
+    "number": 1,
+}
 
 
 def _files(*specs):
     return [
-        {"filename": n, "status": "modified", "additions": a, "deletions": d, "has_patch": True}
+        {
+            "filename": n,
+            "status": "modified",
+            "additions": a,
+            "deletions": d,
+            "has_patch": True,
+        }
         for n, a, d in specs
     ]
 
@@ -23,7 +34,9 @@ def _files(*specs):
 def test_happy_path_eligible():
     r = evaluate(
         CFG,
-        _files(("providers/bedrock/models.go", 27, 0), ("catalog/snapshot.json", 146, 1)),
+        _files(
+            ("providers/bedrock/models.go", 27, 0), ("catalog/snapshot.json", 146, 1)
+        ),
         PR_OK,
         True,
     )
@@ -39,13 +52,17 @@ def test_config_must_have_version_and_boolean_enabled():
     no_version = {k: v for k, v in CFG.items() if k != "version"}
     assert not evaluate(no_version, _files(("a.go", 1, 0)), PR_OK, True)["eligible"]
     for bad in (False, "true", 1, None):
-        assert not evaluate({**CFG, "enabled": bad}, _files(("a.go", 1, 0)), PR_OK, True)[
-            "eligible"
-        ], f"enabled={bad!r} must not qualify"
+        assert not evaluate(
+            {**CFG, "enabled": bad}, _files(("a.go", 1, 0)), PR_OK, True
+        )["eligible"], f"enabled={bad!r} must not qualify"
 
 
 def test_baseline_excludes_ci_and_iac():
-    for name in (".github/workflows/test.yaml", "terraform/main.tf", ".buildkite/pipeline.yml"):
+    for name in (
+        ".github/workflows/test.yaml",
+        "terraform/main.tf",
+        ".buildkite/pipeline.yml",
+    ):
         r = evaluate(CFG, _files((name, 3, 0)), PR_OK, True)
         assert not r["eligible"], name
 
@@ -91,10 +108,11 @@ def test_non_member_rejected_regardless_of_association():
         assert not r["eligible"], pr
 
 
-
 def test_dependency_detection_root_and_nested():
     assert evaluate(CFG, _files(("go.mod", 2, 1)), PR_OK, True)["is_dependency"]
-    assert evaluate(CFG, _files(("services/api/go.sum", 2, 1)), PR_OK, True)["is_dependency"]
+    assert evaluate(CFG, _files(("services/api/go.sum", 2, 1)), PR_OK, True)[
+        "is_dependency"
+    ]
 
 
 def test_scalar_dependency_paths_is_coerced_not_exploded():
@@ -138,11 +156,19 @@ def test_renamed_manifest_still_counts_as_dependency_change():
 
 
 def test_membership_check_failure_is_distinguished_from_non_member():
-    real_404 = {"author_is_member": False, "membership_check_status": "404", "author": "bob"}
+    real_404 = {
+        "author_is_member": False,
+        "membership_check_status": "404",
+        "author": "bob",
+    }
     r = evaluate(CFG, _files(("a.go", 1, 0)), real_404, True)
     assert not r["eligible"] and any("is not a member" in x for x in r["reasons"])
     for status in ("403", "401", "429", "unknown"):
-        broken = {"author_is_member": False, "membership_check_status": status, "author": "bob"}
+        broken = {
+            "author_is_member": False,
+            "membership_check_status": status,
+            "author": "bob",
+        }
         r = evaluate(CFG, _files(("a.go", 1, 0)), broken, True)
         assert not r["eligible"], status
         assert any("check" in x and "failed" in x for x in r["reasons"]), r["reasons"]
@@ -155,23 +181,48 @@ def test_opt_out_label_makes_pr_ineligible():
 
 
 def test_binary_or_patchless_file_is_ineligible():
-    binary = [{"filename": "assets/logo.png", "status": "added", "additions": 0,
-               "deletions": 0, "has_patch": False}]
+    binary = [
+        {
+            "filename": "assets/logo.png",
+            "status": "added",
+            "additions": 0,
+            "deletions": 0,
+            "has_patch": False,
+        }
+    ]
     r = evaluate(CFG, binary, PR_OK, True)
     assert not r["eligible"]
     assert any("no reviewable patch" in x for x in r["reasons"])
     # A text file whose patch GitHub omitted for size is equally unreviewable.
-    huge = [{"filename": "gen/big.go", "status": "modified", "additions": 5000,
-             "deletions": 0, "has_patch": False}]
+    huge = [
+        {
+            "filename": "gen/big.go",
+            "status": "modified",
+            "additions": 5000,
+            "deletions": 0,
+            "has_patch": False,
+        }
+    ]
     assert not evaluate(CFG, huge, PR_OK, True)["eligible"]
 
 
 def test_pure_deletion_and_zero_change_rename_stay_reviewable():
     files = [
-        {"filename": "old.bin", "status": "removed", "additions": 0, "deletions": 0,
-         "has_patch": False},
-        {"filename": "b.go", "previous_filename": "a.go", "status": "renamed",
-         "additions": 0, "deletions": 0, "has_patch": False},
+        {
+            "filename": "old.bin",
+            "status": "removed",
+            "additions": 0,
+            "deletions": 0,
+            "has_patch": False,
+        },
+        {
+            "filename": "b.go",
+            "previous_filename": "a.go",
+            "status": "renamed",
+            "additions": 0,
+            "deletions": 0,
+            "has_patch": False,
+        },
     ]
     assert evaluate(CFG, files, PR_OK, True)["eligible"]
 
@@ -188,7 +239,9 @@ def test_non_numeric_config_values_fail_closed_with_reason():
 
 
 def test_file_entry_without_filename_fails_closed():
-    r = evaluate(CFG, [{"status": "added", "additions": 1, "deletions": 0}], PR_OK, True)
+    r = evaluate(
+        CFG, [{"status": "added", "additions": 1, "deletions": 0}], PR_OK, True
+    )
     assert not r["eligible"]
 
 
@@ -201,8 +254,12 @@ def test_out_of_range_min_confidence_fails_closed():
 
 def test_missing_has_patch_is_treated_as_unreviewable():
     # The action always sets has_patch; if the projection ever drops it, fail closed.
-    r = evaluate(CFG, [{"filename": "a.go", "status": "modified", "additions": 1, "deletions": 0}],
-                 PR_OK, True)
+    r = evaluate(
+        CFG,
+        [{"filename": "a.go", "status": "modified", "additions": 1, "deletions": 0}],
+        PR_OK,
+        True,
+    )
     assert not r["eligible"]
 
 
@@ -210,7 +267,9 @@ GEN_CFG = {**CFG, "generated_paths": ["catalog/snapshot.json", "docs/generated/*
 
 
 def test_generated_files_are_split_out_as_signals():
-    files = _files(("providers/bedrock/models.go", 27, 0), ("catalog/snapshot.json", 6000, 5000))
+    files = _files(
+        ("providers/bedrock/models.go", 27, 0), ("catalog/snapshot.json", 6000, 5000)
+    )
     r = evaluate(GEN_CFG, files, PR_OK, True)
     assert r["eligible"], r["reasons"]
     assert r["generated_files"] == ["catalog/snapshot.json"]
@@ -218,7 +277,6 @@ def test_generated_files_are_split_out_as_signals():
     # Without the declaration the snapshot is reviewable; size alone never gates.
     r2 = evaluate(CFG, files, PR_OK, True)
     assert r2["eligible"] and r2["reviewable_lines"] == 11027
-
 
 
 def test_excluded_path_wins_over_generated():
@@ -229,13 +287,22 @@ def test_excluded_path_wins_over_generated():
 
 
 def test_generated_file_must_still_be_text():
-    binary = [{"filename": "catalog/snapshot.json", "status": "modified", "additions": 0,
-               "deletions": 0, "has_patch": False}]
+    binary = [
+        {
+            "filename": "catalog/snapshot.json",
+            "status": "modified",
+            "additions": 0,
+            "deletions": 0,
+            "has_patch": False,
+        }
+    ]
     assert not evaluate(GEN_CFG, binary, PR_OK, True)["eligible"]
 
 
 def test_composition_signals():
-    files = _files(("pkg/a.go", 10, 2), ("pkg/a_test.go", 30, 0), ("catalog/snapshot.json", 100, 0))
+    files = _files(
+        ("pkg/a.go", 10, 2), ("pkg/a_test.go", 30, 0), ("catalog/snapshot.json", 100, 0)
+    )
     r = evaluate(GEN_CFG, files, PR_OK, True)
     assert r["test_lines"] == 30 and r["source_lines"] == 12
     assert r["tests_changed_with_source"] is True
@@ -245,15 +312,25 @@ def test_composition_signals():
 
 def test_rename_into_generated_path_is_not_treated_as_generated():
     # A hand-written file moved INTO a generated path must stay reviewable.
-    files = [{"filename": "docs/generated/x.md", "previous_filename": "docs/handwritten.md",
-              "status": "renamed", "additions": 900, "deletions": 0, "has_patch": True}]
+    files = [
+        {
+            "filename": "docs/generated/x.md",
+            "previous_filename": "docs/handwritten.md",
+            "status": "renamed",
+            "additions": 900,
+            "deletions": 0,
+            "has_patch": True,
+        }
+    ]
     cfg = {**CFG, "generated_paths": ["docs/generated/**"]}
     r = evaluate(cfg, files, PR_OK, True)
     assert r["generated_files"] == [] and r["reviewable_lines"] == 900
     assert r["eligible"]  # size never gates; the file is simply reviewable
     # A rename WITHIN generated paths stays generated.
     files[0]["previous_filename"] = "docs/generated/old.md"
-    assert evaluate(cfg, files, PR_OK, True)["generated_files"] == ["docs/generated/x.md"]
+    assert evaluate(cfg, files, PR_OK, True)["generated_files"] == [
+        "docs/generated/x.md"
+    ]
 
 
 def test_non_finite_numeric_config_fails_closed_with_reason():
@@ -267,4 +344,31 @@ def test_large_hand_written_change_is_not_refused_on_size():
     r = evaluate(CFG, _files(("pkg/big.go", 4000, 0)), PR_OK, True)
     assert r["eligible"] and r["reviewable_lines"] == 4000
     assert r["max_diff_chars"] == 120_000
-    assert evaluate({**CFG, "max_diff_chars": 5000}, _files(("a.go", 1, 0)), PR_OK, True)["max_diff_chars"] == 5000
+    assert (
+        evaluate({**CFG, "max_diff_chars": 5000}, _files(("a.go", 1, 0)), PR_OK, True)[
+            "max_diff_chars"
+        ]
+        == 5000
+    )
+
+
+def test_engine_config_validated():
+    r = evaluate(
+        {
+            **CFG,
+            "engine": "agent-action",
+            "shadow_engines": ["single-call", "agent-action"],
+        },
+        _files(("a.go", 1, 0)),
+        PR_OK,
+        True,
+    )
+    assert r["eligible"] and r["engine"] == "agent-action"
+    assert r["shadow_engines"] == ["single-call"]  # primary is dropped from shadows
+    assert evaluate(CFG, _files(("a.go", 1, 0)), PR_OK, True)["engine"] == "single-call"
+    r = evaluate({**CFG, "engine": "adp"}, _files(("a.go", 1, 0)), PR_OK, True)
+    assert not r["eligible"] and any("engine" in x for x in r["reasons"])
+    r = evaluate(
+        {**CFG, "shadow_engines": ["nope"]}, _files(("a.go", 1, 0)), PR_OK, True
+    )
+    assert not r["eligible"]
