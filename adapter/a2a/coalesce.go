@@ -26,44 +26,25 @@ import (
 	"github.com/a2aproject/a2a-go/a2asrv/eventqueue"
 )
 
-// DeltaCoalescing bounds how long a streamed text delta waits before the
-// executor turns it into an A2A artifact event.
+// DeltaCoalescing bounds how long a streamed text delta waits before it
+// becomes an A2A artifact event.
 //
-// Interval is the longest a streamed text delta waits before it is sent; a
-// zero Interval turns coalescing off, and the executor sends one artifact
-// event per delta, byte for byte, as it always has. MaxBytes is a flush
-// threshold, not a hard cap: once the buffer holds at least that many
-// bytes it flushes at once, but the single delta that crosses the
-// threshold can itself be larger than MaxBytes, so one flushed event's
-// text can exceed it. A zero MaxBytes means no size trigger. Negative
-// values in either field count as zero.
+// Interval is the longest a delta waits; zero turns coalescing off and
+// every delta is sent immediately, byte for byte, as before. MaxBytes
+// flushes once the buffer holds at least that many bytes; zero disables
+// the size trigger. Negative values count as zero. Each flushed event
+// carries exactly one TextPart.
 //
-// Per streamed artifact, the first delta goes out at once, so the time to
-// first token does not change. Every later delta is buffered and flushed
-// on the size trigger, on the age trigger, or on a MessageEvent,
-// StreamReset, or any other event that ends or interrupts the artifact.
-// Every flushed event carries exactly one TextPart.
-//
-// tasks/get can lag the live stream by up to Interval, because buffered
-// text is not in the stored task until the next flush. Executor.Cancel
-// flushes the buffer before writing the canceled status only when it is
-// handed the exact same queue the running task is writing to; a2a-go's
-// distributed (cluster) mode already gives Execute and Cancel different
-// queues for the same task, in which case Cancel writes the status
-// directly, as it always has, and up to Interval of already-streamed text
-// can be missing from the stored artifact. Nothing already saved is lost.
+// Cancel does not flush: up to one Interval of buffered text is dropped,
+// not saved. The stored task still matches what was actually streamed.
 type DeltaCoalescing struct {
 	Interval time.Duration
 	MaxBytes int
 }
 
-// deltaWriter buffers one streamed artifact's text for one processEvents
-// call and flushes it on a size trigger, an age trigger, or any event that
-// is not itself a delta. It holds no context.Context: the flush timer's
-// AfterFunc closure captures the ctx that was live the first time the
-// timer was armed for the current buffer, and keeps using that same ctx
-// across any later Reset (Reset reschedules the existing callback; it
-// does not rebind its captured ctx).
+// deltaWriter buffers one streamed artifact's text for a single
+// processEvents call and flushes it on a size trigger, an age trigger, or
+// any non-delta event.
 type deltaWriter struct {
 	mu sync.Mutex
 
@@ -79,8 +60,7 @@ type deltaWriter struct {
 	closed     bool
 }
 
-// newDeltaWriter creates a deltaWriter that writes to queue on behalf of
-// reqCtx. A negative Interval or MaxBytes in cfg is treated as zero.
+// newDeltaWriter treats a negative Interval or MaxBytes in cfg as zero.
 func newDeltaWriter(reqCtx *a2asrv.RequestContext, queue eventqueue.Queue, log *slog.Logger, cfg DeltaCoalescing) *deltaWriter {
 	if cfg.Interval < 0 {
 		cfg.Interval = 0
@@ -98,10 +78,8 @@ func newDeltaWriter(reqCtx *a2asrv.RequestContext, queue eventqueue.Queue, log *
 	}
 }
 
-// delta handles one streamed text chunk. With coalescing off it sends the
-// chunk at once, exactly as the executor always has. Otherwise the first
-// chunk of an artifact still goes out at once; later chunks buffer until a
-// size or age trigger flushes them.
+// delta buffers one streamed text chunk. With coalescing off it is sent
+// immediately, as its own artifact event.
 func (w *deltaWriter) delta(ctx context.Context, text string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -138,9 +116,7 @@ func (w *deltaWriter) delta(ctx context.Context, text string) {
 	w.armTimerLocked(ctx, w.cfg.Interval-elapsed)
 }
 
-// sendImmediateLocked reproduces the executor's original per-delta
-// behavior: every chunk becomes its own artifact event. The caller must
-// hold w.mu.
+// sendImmediateLocked sends text as its own artifact event. Caller holds w.mu.
 func (w *deltaWriter) sendImmediateLocked(ctx context.Context, text string) {
 	var artifact *a2a.TaskArtifactUpdateEvent
 
@@ -154,13 +130,9 @@ func (w *deltaWriter) sendImmediateLocked(ctx context.Context, text string) {
 	_ = w.queueWrite(ctx, artifact)
 }
 
-// flushLocked sends the buffered text as one append to the current
-// artifact. With an empty buffer it does nothing unless lastChunk is set,
-// in which case it sends the empty LastChunk event that ends the
-// artifact. If the write fails, the buffer, lastSent and timer are left
-// as they are, so a later flush (the next delta, the retry timer, or a
-// terminal write) gets another chance to deliver the text instead of
-// losing it. The caller must hold w.mu.
+// flushLocked sends the buffered text as one append. An empty buffer with
+// lastChunk false does nothing. A failed write keeps the buffer for the
+// next attempt. Caller holds w.mu.
 func (w *deltaWriter) flushLocked(ctx context.Context, lastChunk bool) {
 	if w.buf.Len() == 0 && !lastChunk {
 		return
@@ -184,8 +156,7 @@ func (w *deltaWriter) flushLocked(ctx context.Context, lastChunk bool) {
 	w.stopTimerLocked()
 }
 
-// endArtifact flushes any pending text into the artifact's LastChunk event
-// and forgets the artifact ID, so the next delta opens a new artifact.
+// endArtifact flushes into a LastChunk event and clears the artifact ID.
 func (w *deltaWriter) endArtifact(ctx context.Context) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -198,10 +169,7 @@ func (w *deltaWriter) endArtifact(ctx context.Context) {
 	w.artifactID = ""
 }
 
-// resetArtifact flushes any pending text as a non-final append to the
-// current artifact and forgets its ID, without sending a LastChunk event.
-// A model_call status uses this: the old artifact is done, but nothing
-// else tells the client so.
+// resetArtifact flushes as a non-final append and clears the artifact ID.
 func (w *deltaWriter) resetArtifact(ctx context.Context) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -210,12 +178,7 @@ func (w *deltaWriter) resetArtifact(ctx context.Context) {
 	w.artifactID = ""
 }
 
-// write flushes any pending text and then writes ev, in that order, so
-// buffered text always reaches the queue before the event that follows
-// it, and returns ev's own write error (not the flush's, which is already
-// logged by queueWrite). A closed writer skips the flush and only passes
-// ev through, which lets the cancel branch's own canceled status still
-// get written.
+// write flushes any pending text, then writes ev and returns its error.
 func (w *deltaWriter) write(ctx context.Context, ev a2a.Event) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -227,34 +190,7 @@ func (w *deltaWriter) write(ctx context.Context, ev a2a.Event) error {
 	return w.queue.Write(ctx, ev)
 }
 
-// cancel flushes any pending text, then writes ev with a write bounded to
-// 30 seconds (the same bound the executor's own context-canceled branch
-// uses for its background context), so a stuck queue cannot make Cancel
-// hold w.mu forever. closed is set, and the timer stopped, only once ev
-// is actually written: a failed cancel leaves the writer running normally
-// rather than silently disabling it.
-func (w *deltaWriter) cancel(ctx context.Context, ev a2a.Event) error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
-	w.flushLocked(ctx, false)
-
-	writeCtx, stop := context.WithTimeout(ctx, 30*time.Second)
-	defer stop()
-
-	if err := w.queue.Write(writeCtx, ev); err != nil {
-		return err
-	}
-
-	w.closed = true
-	w.stopTimerLocked()
-
-	return nil
-}
-
-// onTimer is the time.AfterFunc callback. It flushes the pending text once
-// Interval passes without a new delta, unless the writer is already
-// closed, so a timer that fires after the request ends is harmless.
+// onTimer is the flush timer's callback; it no-ops once closed is set.
 func (w *deltaWriter) onTimer(ctx context.Context) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -266,8 +202,7 @@ func (w *deltaWriter) onTimer(ctx context.Context) {
 	w.flushLocked(ctx, false)
 }
 
-// close stops the timer and marks the writer closed, so a timer callback
-// already in flight becomes a no-op once it acquires w.mu.
+// close stops the timer and marks the writer closed.
 func (w *deltaWriter) close() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -276,8 +211,6 @@ func (w *deltaWriter) close() {
 	w.closed = true
 }
 
-// stopTimerLocked stops the pending flush timer, if any. The caller must
-// hold w.mu.
 func (w *deltaWriter) stopTimerLocked() {
 	if w.timer != nil {
 		w.timer.Stop()
@@ -285,10 +218,7 @@ func (w *deltaWriter) stopTimerLocked() {
 }
 
 // armTimerLocked arms (or re-arms) the flush timer for d. The AfterFunc
-// closure captures ctx rather than storing it on the struct; Reset reuses
-// that same closure, so onTimer keeps running with the ctx captured the
-// first time this artifact's timer was armed, not a later one. The caller
-// must hold w.mu.
+// closure captures ctx instead of storing it on the struct.
 func (w *deltaWriter) armTimerLocked(ctx context.Context, d time.Duration) {
 	if w.timer == nil {
 		w.timer = time.AfterFunc(d, func() { w.onTimer(ctx) })
@@ -298,8 +228,6 @@ func (w *deltaWriter) armTimerLocked(ctx context.Context, d time.Duration) {
 	w.timer.Reset(d)
 }
 
-// queueWrite writes ev to the queue and logs a failure the same way the
-// executor's write closure always has. The caller must hold w.mu.
 func (w *deltaWriter) queueWrite(ctx context.Context, ev a2a.Event) error {
 	err := w.queue.Write(ctx, ev)
 	if err != nil {

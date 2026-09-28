@@ -452,77 +452,6 @@ func TestDeltaCoalescing_DisabledIsByteIdentical(t *testing.T) {
 		assert.Equal(t, a2a.TaskStateFailed, status.Status.State)
 		assert.True(t, status.Final)
 	})
-
-	t.Run("cancel never registers a writer and does not touch the running loop", func(t *testing.T) {
-		t.Parallel()
-
-		queue := newRecordingQueue()
-		exec := newCoalesceTestExecutor(DeltaCoalescing{})
-		reqCtx := testReqCtx()
-
-		stalled := make(chan struct{})
-		release := make(chan struct{})
-
-		seqFn := func(yield func(agent.Event, error) bool) {
-			if !yield(deltaEvent("a"), nil) {
-				return
-			}
-
-			close(stalled)
-			<-release
-
-			if !yield(deltaEvent("b"), nil) {
-				return
-			}
-
-			yield(invocationEnd(), nil)
-		}
-
-		done := make(chan struct{})
-
-		go func() {
-			defer close(done)
-
-			_ = exec.processEvents(context.Background(), reqCtx, queue, seqFn)
-		}()
-
-		<-stalled
-
-		_, registered := exec.activeWriters.Load(reqCtx.TaskID)
-		assert.False(t, registered, "coalescing off must never register a writer")
-
-		require.NoError(t, exec.Cancel(context.Background(), reqCtx, queue))
-
-		close(release)
-		<-done
-
-		// Cancel and the still-running loop write independently, exactly as
-		// the base code always has: Cancel has no writer to go through, so
-		// it never touches the loop, which keeps sending its own deltas and
-		// its own completion status.
-		got := queue.snapshot()
-		artifacts := filterArtifacts(got)
-		require.Len(t, artifacts, 2)
-		assert.Equal(t, "a", artifactText(artifacts[0]))
-		assert.Equal(t, "b", artifactText(artifacts[1]))
-		assert.True(t, artifacts[1].Append, "nothing between a and b resets the artifact ID, so b appends to a's artifact")
-		assert.Equal(t, artifacts[0].Artifact.ID, artifacts[1].Artifact.ID)
-
-		var sawCanceled, sawFinal bool
-
-		for _, status := range filterStatuses(got) {
-			if status.Status.State == a2a.TaskStateCanceled {
-				sawCanceled = true
-			}
-
-			if status.Final {
-				sawFinal = true
-			}
-		}
-
-		assert.True(t, sawCanceled, "Cancel's own write still lands on the queue")
-		assert.True(t, sawFinal, "the loop's own completion status still lands too")
-	})
 }
 
 // TestDeltaCoalescing_FirstDeltaImmediate checks that the leading edge of a
@@ -699,153 +628,135 @@ func TestDeltaCoalescing_TimerFlushOnStall(t *testing.T) {
 	})
 }
 
-// TestDeltaCoalescing_MessageEventCarriesTail checks that the pending text
-// rides in the existing LastChunk event at MessageEvent, rather than
-// getting its own event in addition to an empty LastChunk.
-func TestDeltaCoalescing_MessageEventCarriesTail(t *testing.T) {
-	t.Parallel()
+// wantEvent describes one expected queued event: either an artifact
+// (text/append/lastChunk) or a status (state/final).
+type wantEvent struct {
+	text      string
+	append    bool
+	lastChunk bool
 
-	queue := newRecordingQueue()
-	exec := newCoalesceTestExecutor(DeltaCoalescing{Interval: time.Hour})
-	reqCtx := testReqCtx()
-
-	require.NoError(t, exec.processEvents(context.Background(), reqCtx, queue, events(
-		deltaEvent("hello"),
-		deltaEvent(" world"),
-		messageEvent("hello world"),
-		invocationEnd(),
-	)))
-
-	got := queue.snapshot()
-	require.Len(t, got, 4, "leading delta, tail LastChunk, working status, final status")
-
-	tail, ok := got[1].(*a2a.TaskArtifactUpdateEvent)
-	require.True(t, ok)
-	assert.True(t, tail.LastChunk)
-	require.Len(t, tail.Artifact.Parts, 1)
-	assert.Equal(t, " world", artifactText(tail))
-
-	working, ok := got[2].(*a2a.TaskStatusUpdateEvent)
-	require.True(t, ok)
-	assert.Equal(t, a2a.TaskStateWorking, working.Status.State)
+	isStatus bool
+	state    a2a.TaskState
+	final    bool
 }
 
-// TestDeltaCoalescing_StreamReset checks that a retry flushes the pending
-// text into the abandoned artifact's LastChunk event, and that the next
-// delta opens a fresh artifact.
-func TestDeltaCoalescing_StreamReset(t *testing.T) {
-	t.Parallel()
-
-	queue := newRecordingQueue()
-	exec := newCoalesceTestExecutor(DeltaCoalescing{Interval: time.Hour})
-	reqCtx := testReqCtx()
-
-	require.NoError(t, exec.processEvents(context.Background(), reqCtx, queue, events(
-		deltaEvent("partial"),
-		deltaEvent(" more"), // buffered, still pending when the reset arrives
-		streamReset(),
-		deltaEvent("restart"),
-		invocationEnd(),
-	)))
-
-	artifacts := filterArtifacts(queue.snapshot())
-	require.Len(t, artifacts, 3)
-
-	assert.False(t, artifacts[0].Append)
-	assert.Equal(t, "partial", artifactText(artifacts[0]))
-
-	tail := artifacts[1]
-	assert.True(t, tail.LastChunk)
-	require.Len(t, tail.Artifact.Parts, 1, "the pending ' more' text must ride in the LastChunk event")
-	assert.Equal(t, " more", artifactText(tail))
-	assert.Equal(t, artifacts[0].Artifact.ID, tail.Artifact.ID)
-
-	restarted := artifacts[2]
-	assert.False(t, restarted.Append)
-	assert.NotEqual(t, artifacts[0].Artifact.ID, restarted.Artifact.ID)
-	assert.Equal(t, "restart", artifactText(restarted))
+func wantArtifact(text string, isAppend, lastChunk bool) wantEvent {
+	return wantEvent{text: text, append: isAppend, lastChunk: lastChunk}
 }
 
-// TestDeltaCoalescing_ModelCallStatusFlushes checks that a model_call status
-// flushes the pending text as a non-final append to the OLD artifact,
-// before the artifact ID resets for the next model call.
-func TestDeltaCoalescing_ModelCallStatusFlushes(t *testing.T) {
-	t.Parallel()
-
-	queue := newRecordingQueue()
-	exec := newCoalesceTestExecutor(DeltaCoalescing{Interval: time.Hour})
-	reqCtx := testReqCtx()
-
-	require.NoError(t, exec.processEvents(context.Background(), reqCtx, queue, events(
-		deltaEvent("lead"),
-		deltaEvent("tail"),
-		modelCallStatus(),
-		deltaEvent("newlead"),
-		invocationEnd(),
-	)))
-
-	artifacts := filterArtifacts(queue.snapshot())
-	require.Len(t, artifacts, 3)
-
-	lead, tail, newLead := artifacts[0], artifacts[1], artifacts[2]
-
-	assert.False(t, lead.Append)
-	assert.Equal(t, "lead", artifactText(lead))
-
-	assert.True(t, tail.Append)
-	assert.False(t, tail.LastChunk)
-	assert.Equal(t, lead.Artifact.ID, tail.Artifact.ID, "the flush before the reset targets the old artifact")
-	assert.Equal(t, "tail", artifactText(tail))
-
-	assert.False(t, newLead.Append)
-	assert.NotEqual(t, lead.Artifact.ID, newLead.Artifact.ID)
-	assert.Equal(t, "newlead", artifactText(newLead))
+func wantStatus(state a2a.TaskState, final bool) wantEvent {
+	return wantEvent{isStatus: true, state: state, final: final}
 }
 
-// TestDeltaCoalescing_ToolResponseFlushesFirst checks that a tool-response
-// history status is preceded by a flush of any pending text.
-func TestDeltaCoalescing_ToolResponseFlushesFirst(t *testing.T) {
-	t.Parallel()
+// assertEvents checks got against want, event by event, and that an
+// Append artifact shares the previous artifact's ID while a non-Append
+// one starts a new one.
+func assertEvents(t *testing.T, got []a2a.Event, want []wantEvent) {
+	t.Helper()
 
-	queue := newRecordingQueue()
-	exec := newCoalesceTestExecutor(DeltaCoalescing{Interval: time.Hour})
-	reqCtx := testReqCtx()
+	require.Len(t, got, len(want))
 
-	require.NoError(t, exec.processEvents(context.Background(), reqCtx, queue, events(
-		deltaEvent("lead"),
-		deltaEvent("buffered"),
-		toolResponseEvent("get_weather"),
-		invocationEnd(),
-	)))
+	var lastArtifactID a2a.ArtifactID
 
-	got := queue.snapshot()
-	require.Len(t, got, 4)
+	for i, w := range want {
+		if w.isStatus {
+			s, ok := got[i].(*a2a.TaskStatusUpdateEvent)
+			require.True(t, ok, "event %d", i)
+			assert.Equal(t, w.state, s.Status.State, "event %d", i)
+			assert.Equal(t, w.final, s.Final, "event %d", i)
 
-	_, ok := got[0].(*a2a.TaskArtifactUpdateEvent)
-	require.True(t, ok)
+			continue
+		}
 
-	flush, ok := got[1].(*a2a.TaskArtifactUpdateEvent)
-	require.True(t, ok, "the buffered tail must flush before the tool-response history status")
-	assert.Equal(t, "buffered", artifactText(flush))
+		a, ok := got[i].(*a2a.TaskArtifactUpdateEvent)
+		require.True(t, ok, "event %d", i)
+		assert.Equal(t, w.append, a.Append, "event %d", i)
+		assert.Equal(t, w.lastChunk, a.LastChunk, "event %d", i)
+		assert.Equal(t, w.text, artifactText(a), "event %d", i)
 
-	history, ok := got[2].(*a2a.TaskStatusUpdateEvent)
-	require.True(t, ok)
-	assert.Equal(t, a2a.TaskStateWorking, history.Status.State)
+		if w.append {
+			assert.Equal(t, lastArtifactID, a.Artifact.ID, "event %d", i)
+		} else if lastArtifactID != "" {
+			assert.NotEqual(t, lastArtifactID, a.Artifact.ID, "event %d", i)
+		}
+
+		lastArtifactID = a.Artifact.ID
+	}
 }
 
-// TestDeltaCoalescing_ErrorPaths checks that every terminal error path
-// flushes pending text before writing its status.
-func TestDeltaCoalescing_ErrorPaths(t *testing.T) {
+// TestDeltaCoalescing_FlushesBeforeNonDeltaEvent checks that MessageEvent,
+// StreamReset, a model_call status, and a tool response all flush pending
+// text before doing their own thing.
+func TestDeltaCoalescing_FlushesBeforeNonDeltaEvent(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name      string
-		err       error
-		wantState a2a.TaskState
+		name string
+		seq  iter.Seq2[agent.Event, error]
+		want []wantEvent
 	}{
-		{name: "generic failure", err: errors.New("boom"), wantState: a2a.TaskStateFailed},
-		{name: "context overflow", err: llm.ErrContextOverflow, wantState: a2a.TaskStateFailed},
-		{name: "canceled", err: context.Canceled, wantState: a2a.TaskStateCanceled},
+		{
+			name: "message event carries the tail into LastChunk",
+			seq: events(
+				deltaEvent("hello"),
+				deltaEvent(" world"),
+				messageEvent("hello world"),
+				invocationEnd(),
+			),
+			want: []wantEvent{
+				wantArtifact("hello", false, false),
+				wantArtifact(" world", true, true),
+				wantStatus(a2a.TaskStateWorking, false),
+				wantStatus(a2a.TaskStateCompleted, true),
+			},
+		},
+		{
+			name: "stream reset flushes the tail, then restarts",
+			seq: events(
+				deltaEvent("partial"),
+				deltaEvent(" more"),
+				streamReset(),
+				deltaEvent("restart"),
+				invocationEnd(),
+			),
+			want: []wantEvent{
+				wantArtifact("partial", false, false),
+				wantArtifact(" more", true, true),
+				wantArtifact("restart", false, false),
+				wantStatus(a2a.TaskStateCompleted, true),
+			},
+		},
+		{
+			name: "model_call status flushes the old artifact, non-final",
+			seq: events(
+				deltaEvent("lead"),
+				deltaEvent("tail"),
+				modelCallStatus(),
+				deltaEvent("newlead"),
+				invocationEnd(),
+			),
+			want: []wantEvent{
+				wantArtifact("lead", false, false),
+				wantArtifact("tail", true, false),
+				wantArtifact("newlead", false, false),
+				wantStatus(a2a.TaskStateCompleted, true),
+			},
+		},
+		{
+			name: "tool response flushes before the history status",
+			seq: events(
+				deltaEvent("lead"),
+				deltaEvent("buffered"),
+				toolResponseEvent("get_weather"),
+				invocationEnd(),
+			),
+			want: []wantEvent{
+				wantArtifact("lead", false, false),
+				wantArtifact("buffered", true, false),
+				wantStatus(a2a.TaskStateWorking, false),
+				wantStatus(a2a.TaskStateCompleted, true),
+			},
+		},
 	}
 
 	for _, tc := range cases {
@@ -856,188 +767,78 @@ func TestDeltaCoalescing_ErrorPaths(t *testing.T) {
 			exec := newCoalesceTestExecutor(DeltaCoalescing{Interval: time.Hour})
 			reqCtx := testReqCtx()
 
-			require.NoError(t, exec.processEvents(context.Background(), reqCtx, queue, eventsThenErr(tc.err,
-				deltaEvent("lead"),
-				deltaEvent("buffered"),
-			)))
-
-			got := queue.snapshot()
-			require.Len(t, got, 3, "leading delta, buffered-tail flush, terminal status")
-
-			_, ok := got[0].(*a2a.TaskArtifactUpdateEvent)
-			require.True(t, ok)
-
-			flush, ok := got[1].(*a2a.TaskArtifactUpdateEvent)
-			require.True(t, ok, "the buffered tail must flush before the terminal status")
-			assert.Equal(t, "buffered", artifactText(flush))
-
-			status, ok := got[2].(*a2a.TaskStatusUpdateEvent)
-			require.True(t, ok)
-			assert.Equal(t, tc.wantState, status.Status.State)
-			assert.True(t, status.Final)
+			require.NoError(t, exec.processEvents(context.Background(), reqCtx, queue, tc.seq))
+			assertEvents(t, queue.snapshot(), tc.want)
 		})
 	}
 }
 
-// TestDeltaCoalescing_ExternalCancel checks that Executor.Cancel flushes a
-// running task's buffered text before writing the canceled status when it
-// can find the task's writer, and falls back to writing the status alone
-// when it cannot.
-func TestDeltaCoalescing_ExternalCancel(t *testing.T) {
+// TestDeltaCoalescing_FlushesBeforeTerminalStatus checks that every
+// terminal path - a runner error or a missing InvocationEndEvent -
+// flushes pending text before writing its status.
+func TestDeltaCoalescing_FlushesBeforeTerminalStatus(t *testing.T) {
 	t.Parallel()
 
-	t.Run("writer registered", func(t *testing.T) {
-		t.Parallel()
+	cases := []struct {
+		name      string
+		err       error // nil means the sequence just ends, with no InvocationEnd
+		wantState a2a.TaskState
+		wantErr   bool
+	}{
+		{name: "generic failure", err: errors.New("boom"), wantState: a2a.TaskStateFailed},
+		{name: "context overflow", err: llm.ErrContextOverflow, wantState: a2a.TaskStateFailed},
+		{name: "canceled", err: context.Canceled, wantState: a2a.TaskStateCanceled},
+		{name: "missing invocation end", wantState: a2a.TaskStateFailed, wantErr: true},
+	}
 
-		queue := newRecordingQueue()
-		exec := newCoalesceTestExecutor(DeltaCoalescing{Interval: time.Hour})
-		reqCtx := testReqCtx()
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		stalled := make(chan struct{})
-		release := make(chan struct{})
+			queue := newRecordingQueue()
+			exec := newCoalesceTestExecutor(DeltaCoalescing{Interval: time.Hour})
+			reqCtx := testReqCtx()
 
-		seqFn := func(yield func(agent.Event, error) bool) {
-			if !yield(deltaEvent("lead"), nil) {
-				return
+			seq := events(deltaEvent("lead"), deltaEvent("buffered"))
+			if tc.err != nil {
+				seq = eventsThenErr(tc.err, deltaEvent("lead"), deltaEvent("buffered"))
 			}
 
-			if !yield(deltaEvent("buffered"), nil) {
-				return
+			err := exec.processEvents(context.Background(), reqCtx, queue, seq)
+			if tc.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
 			}
 
-			close(stalled)
-			<-release
+			assertEvents(t, queue.snapshot(), []wantEvent{
+				wantArtifact("lead", false, false),
+				wantArtifact("buffered", true, false),
+				wantStatus(tc.wantState, true),
+			})
+		})
+	}
+}
 
-			// The model keeps streaming after Cancel already reached this
-			// writer; a closed writer must drop these silently.
-			if !yield(deltaEvent("ignored-1"), nil) {
-				return
-			}
+// TestDeltaCoalescing_CancelUnaffected checks that Cancel behaves exactly
+// as it always has when coalescing is on: it writes the canceled status
+// to the given queue and does nothing else - no panic, no leak.
+func TestDeltaCoalescing_CancelUnaffected(t *testing.T) {
+	t.Parallel()
 
-			yield(deltaEvent("ignored-2"), nil)
-		}
+	queue := newRecordingQueue()
+	exec := newCoalesceTestExecutor(DeltaCoalescing{Interval: 100 * time.Millisecond, MaxBytes: 512})
+	reqCtx := testReqCtx()
 
-		done := make(chan struct{})
+	require.NoError(t, exec.Cancel(context.Background(), reqCtx, queue))
 
-		go func() {
-			defer close(done)
+	got := queue.snapshot()
+	require.Len(t, got, 1)
 
-			_ = exec.processEvents(context.Background(), reqCtx, queue, seqFn)
-		}()
-
-		<-stalled
-
-		require.NoError(t, exec.Cancel(context.Background(), reqCtx, queue))
-
-		close(release)
-		<-done
-
-		// processEvents keeps running its own loop after Cancel writes the
-		// canceled Final: nothing in this package stops it, since that job
-		// belongs to a2a-go's consumer, which stops reading at the first
-		// Final event. A raw queue like this one keeps whatever lands after
-		// it too, so only the prefix up to the canceled Final is checked.
-		got := queue.snapshot()
-		require.GreaterOrEqual(t, len(got), 3)
-
-		_, ok := got[0].(*a2a.TaskArtifactUpdateEvent)
-		require.True(t, ok)
-
-		flush, ok := got[1].(*a2a.TaskArtifactUpdateEvent)
-		require.True(t, ok)
-		assert.Equal(t, "buffered", artifactText(flush))
-
-		canceled, ok := got[2].(*a2a.TaskStatusUpdateEvent)
-		require.True(t, ok)
-		assert.Equal(t, a2a.TaskStateCanceled, canceled.Status.State)
-		assert.True(t, canceled.Final)
-
-		// The deltas sent after Cancel must produce nothing at all: the
-		// writer is closed, so delta() is a no-op for both of them.
-		artifacts := filterArtifacts(got)
-		require.Len(t, artifacts, 2, "ignored-1 and ignored-2 must not appear as artifact events")
-	})
-
-	t.Run("no writer registered", func(t *testing.T) {
-		t.Parallel()
-
-		queue := newRecordingQueue()
-		exec := newCoalesceTestExecutor(DeltaCoalescing{Interval: time.Hour})
-		reqCtx := testReqCtx()
-		reqCtx.TaskID = "unregistered-task"
-
-		require.NoError(t, exec.Cancel(context.Background(), reqCtx, queue))
-
-		got := queue.snapshot()
-		require.Len(t, got, 1)
-
-		canceled, ok := got[0].(*a2a.TaskStatusUpdateEvent)
-		require.True(t, ok)
-		assert.Equal(t, a2a.TaskStateCanceled, canceled.Status.State)
-	})
-
-	t.Run("different queue than the running task", func(t *testing.T) {
-		t.Parallel()
-
-		// a2a-go's distributed (cluster) mode hands Execute and Cancel
-		// different queues for the same task (work_queue_handler.go).
-		// queueA is what the running task is writing to; queueB is what
-		// Cancel is handed - a different pipe, as in that mode.
-		queueA := newRecordingQueue()
-		queueB := newRecordingQueue()
-		exec := newCoalesceTestExecutor(DeltaCoalescing{Interval: time.Hour})
-		reqCtx := testReqCtx()
-
-		stalled := make(chan struct{})
-		release := make(chan struct{})
-
-		seqFn := func(yield func(agent.Event, error) bool) {
-			if !yield(deltaEvent("lead"), nil) {
-				return
-			}
-
-			if !yield(deltaEvent("buffered"), nil) {
-				return
-			}
-
-			close(stalled)
-			<-release
-		}
-
-		done := make(chan struct{})
-
-		go func() {
-			defer close(done)
-
-			_ = exec.processEvents(context.Background(), reqCtx, queueA, seqFn)
-		}()
-
-		<-stalled
-
-		require.NoError(t, exec.Cancel(context.Background(), reqCtx, queueB))
-
-		close(release)
-		<-done
-
-		// queueB gets exactly the canceled status, written directly: dw
-		// belongs to queueA, a different queue, so Cancel must not touch it.
-		gotB := queueB.snapshot()
-		require.Len(t, gotB, 1)
-
-		canceled, ok := gotB[0].(*a2a.TaskStatusUpdateEvent)
-		require.True(t, ok)
-		assert.Equal(t, a2a.TaskStateCanceled, canceled.Status.State)
-		assert.True(t, canceled.Final)
-
-		// queueA is untouched by the mismatched Cancel: no canceled status
-		// lands there, and the running task's own writer is free to flush
-		// "buffered" there on its own terms.
-		for _, ev := range queueA.snapshot() {
-			if status, ok := ev.(*a2a.TaskStatusUpdateEvent); ok {
-				assert.NotEqual(t, a2a.TaskStateCanceled, status.Status.State)
-			}
-		}
-	})
+	status, ok := got[0].(*a2a.TaskStatusUpdateEvent)
+	require.True(t, ok)
+	assert.Equal(t, a2a.TaskStateCanceled, status.Status.State)
+	assert.True(t, status.Final)
 }
 
 // TestDeltaCoalescing_CanceledFlushesWithBackgroundCtx proves that the
@@ -1086,39 +887,6 @@ func TestDeltaCoalescing_CanceledFlushesWithBackgroundCtx(t *testing.T) {
 	assert.True(t, status.Final)
 }
 
-// TestDeltaCoalescing_MissingInvocationEnd checks the fallback path taken
-// when the event stream ends without an InvocationEndEvent: the pending
-// text still flushes before the failed status, and processEvents still
-// reports its error.
-func TestDeltaCoalescing_MissingInvocationEnd(t *testing.T) {
-	t.Parallel()
-
-	queue := newRecordingQueue()
-	exec := newCoalesceTestExecutor(DeltaCoalescing{Interval: time.Hour})
-	reqCtx := testReqCtx()
-
-	err := exec.processEvents(context.Background(), reqCtx, queue, events(
-		deltaEvent("lead"),
-		deltaEvent("buffered"),
-	))
-	require.Error(t, err)
-
-	got := queue.snapshot()
-	require.Len(t, got, 3)
-
-	_, ok := got[0].(*a2a.TaskArtifactUpdateEvent)
-	require.True(t, ok)
-
-	flush, ok := got[1].(*a2a.TaskArtifactUpdateEvent)
-	require.True(t, ok)
-	assert.Equal(t, "buffered", artifactText(flush))
-
-	status, ok := got[2].(*a2a.TaskStatusUpdateEvent)
-	require.True(t, ok)
-	assert.Equal(t, a2a.TaskStateFailed, status.Status.State)
-	assert.True(t, status.Final)
-}
-
 // TestDeltaCoalescing_NoWriteAfterReturn checks that close() stops a still
 // -armed flush timer when processEvents returns, so it cannot write
 // anything once the writer is closed, even after its Interval passes. The
@@ -1142,9 +910,6 @@ func TestDeltaCoalescing_NoWriteAfterReturn(t *testing.T) {
 			deltaEvent("buffered"), // arms the flush timer
 			invocationEnd(),        // its own flush attempt fails; Final still gets written
 		)))
-
-		_, stillActive := exec.activeWriters.Load(reqCtx.TaskID)
-		assert.False(t, stillActive, "processEvents must remove its writer from activeWriters on return")
 
 		before := queue.attempts.Load()
 
@@ -1231,4 +996,47 @@ func TestDeltaCoalescing_TimerVsLoop(t *testing.T) {
 		require.True(t, ok)
 		assert.True(t, final.Final)
 	})
+}
+
+// discardQueue implements eventqueue.Queue by doing nothing, so a
+// benchmark measures the coalescer, not a queue's own overhead.
+type discardQueue struct{}
+
+func (discardQueue) Write(context.Context, a2a.Event) error { return nil }
+
+func (discardQueue) WriteVersioned(context.Context, a2a.Event, a2a.TaskVersion) error { return nil }
+
+func (discardQueue) Read(context.Context) (a2a.Event, a2a.TaskVersion, error) {
+	return nil, 0, errors.New("discardQueue: Read is not supported")
+}
+
+func (discardQueue) Close() error { return nil }
+
+// BenchmarkDeltaCoalescing measures the per-delta path with coalescing off
+// (today's behavior) and on (a 256-byte flush threshold, so the buffer
+// stays bounded across the run instead of growing without limit).
+func BenchmarkDeltaCoalescing(b *testing.B) {
+	reqCtx := testReqCtx()
+	ctx := context.Background()
+
+	cases := []struct {
+		name string
+		cfg  DeltaCoalescing
+	}{
+		{name: "off", cfg: DeltaCoalescing{}},
+		{name: "on", cfg: DeltaCoalescing{Interval: time.Hour, MaxBytes: 256}},
+	}
+
+	for _, tc := range cases {
+		b.Run(tc.name, func(b *testing.B) {
+			b.ReportAllocs()
+
+			dw := newDeltaWriter(reqCtx, discardQueue{}, slog.Default(), tc.cfg)
+			defer dw.close()
+
+			for range b.N {
+				dw.delta(ctx, "the quick brown fox jumps over the lazy dog")
+			}
+		})
+	}
 }
