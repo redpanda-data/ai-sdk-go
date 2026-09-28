@@ -213,13 +213,9 @@ func (e *Executor) processEvents(
 			return nil
 		}
 
-		// The Enabled check skips the %T formatting on every streamed delta.
+		// The Enabled check skips the fmt.Sprintf on every streamed delta.
 		if e.log.Enabled(ctx, slog.LevelDebug) {
 			e.log.DebugContext(ctx, "Processing event", "type", fmt.Sprintf("%T", event))
-		}
-
-		if _, isDelta := event.(agent.AssistantDeltaEvent); !isDelta {
-			dw.tick(ctx)
 		}
 
 		switch ev := event.(type) {
@@ -270,8 +266,6 @@ func (e *Executor) processEvents(
 			// Stream delta updates as incremental artifact chunks
 			if tp, ok := ev.Delta.Part.(*llm.TextPart); ok && tp != nil {
 				dw.delta(ctx, tp.Text)
-			} else {
-				dw.tick(ctx)
 			}
 		case agent.InvocationEndEvent:
 			e.log.DebugContext(ctx, "Invocation end event", "finish_reason", ev.FinishReason)
@@ -355,6 +349,10 @@ func (e *Executor) processEvents(
 		default:
 			e.log.DebugContext(ctx, "Received unhandled event", "type", fmt.Sprintf("%T", event))
 		}
+
+		// After the switch, so an aged tail at MessageEvent or StreamReset goes
+		// into the LastChunk event. A no-op when the event already flushed.
+		dw.tick(ctx)
 	}
 
 	// If we exit the loop without receiving InvocationEndEvent, write a completion status anyway

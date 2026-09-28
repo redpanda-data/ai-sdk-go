@@ -377,6 +377,18 @@ func TestDeltaCoalescing(t *testing.T) {
 			},
 		},
 		{
+			name:  "aged tail goes into the LastChunk at a message event",
+			cfg:   ms100,
+			steps: steps(deltaEvent("lead"), deltaEvent("tail"), 200*time.Millisecond, messageEvent("leadtail"), invocationEnd()),
+			want:  []wantEvent{lead, wantArtifact("tail", true, true), working, completed},
+		},
+		{
+			name:  "aged tail goes into the LastChunk at a stream reset",
+			cfg:   ms100,
+			steps: steps(deltaEvent("lead"), deltaEvent("tail"), 200*time.Millisecond, streamReset(), deltaEvent("new"), invocationEnd()),
+			want:  []wantEvent{lead, wantArtifact("tail", true, true), wantArtifact("new", false, false), completed},
+		},
+		{
 			name:       "age trigger on a tool-call delta",
 			cfg:        ms100,
 			steps:      steps(deltaEvent("lead"), deltaEvent("tail"), 200*time.Millisecond, toolCallDelta(), probe, invocationEnd()),
