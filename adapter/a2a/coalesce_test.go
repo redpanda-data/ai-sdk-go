@@ -17,13 +17,8 @@ package a2a
 import (
 	"context"
 	"errors"
-	"fmt"
-	"iter"
 	"log/slog"
-	"strconv"
 	"strings"
-	"sync"
-	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -37,34 +32,16 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
-// newCoalesceTestExecutor builds an Executor configured with cfg for tests
-// that drive processEvents directly, without a real agent or runner.
-func newCoalesceTestExecutor(cfg DeltaCoalescing) *Executor {
-	return &Executor{
-		log:      slog.Default(),
-		coalesce: cfg,
-	}
-}
-
-// testReqCtx returns a RequestContext for tests that call processEvents
-// directly rather than through Execute.
 func testReqCtx() *a2asrv.RequestContext {
-	return &a2asrv.RequestContext{
-		ContextID: "test-context",
-		TaskID:    a2a.TaskID("test-task"),
-	}
+	return &a2asrv.RequestContext{ContextID: "test-context", TaskID: a2a.TaskID("test-task")}
 }
 
-// recordingQueue is a minimal eventqueue.Queue that only records what is
-// written to it, in order, behind a mutex. Tests that drive processEvents
-// directly do not need a real queue's subscriber fan-out.
+// recordingQueue records successful writes. It fails write number failAt
+// (1-based, 0 means never) and rejects writes on a done ctx.
 type recordingQueue struct {
-	mu     sync.Mutex
+	failAt int
+	writes int
 	events []a2a.Event
-}
-
-func newRecordingQueue() *recordingQueue {
-	return &recordingQueue{}
 }
 
 func (q *recordingQueue) Write(ctx context.Context, event a2a.Event) error {
@@ -72,8 +49,10 @@ func (q *recordingQueue) Write(ctx context.Context, event a2a.Event) error {
 		return err
 	}
 
-	q.mu.Lock()
-	defer q.mu.Unlock()
+	q.writes++
+	if q.writes == q.failAt {
+		return errors.New("simulated write failure")
+	}
 
 	q.events = append(q.events, event)
 
@@ -84,552 +63,126 @@ func (q *recordingQueue) WriteVersioned(ctx context.Context, event a2a.Event, _ 
 	return q.Write(ctx, event)
 }
 
-func (q *recordingQueue) Read(_ context.Context) (a2a.Event, a2a.TaskVersion, error) {
+func (q *recordingQueue) Read(context.Context) (a2a.Event, a2a.TaskVersion, error) {
 	return nil, 0, errors.New("recordingQueue: Read is not supported")
 }
 
-func (q *recordingQueue) Close() error {
-	return nil
-}
-
-func (q *recordingQueue) snapshot() []a2a.Event {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-
-	out := make([]a2a.Event, len(q.events))
-	copy(out, q.events)
-
-	return out
-}
-
-// flakyQueue wraps a recordingQueue and fails writes for which shouldFail
-// returns true, without recording them. attempts counts every call,
-// successful or not, so a test can prove that nothing was even attempted
-// after some point, not just that nothing new was recorded.
-type flakyQueue struct {
-	*recordingQueue
-
-	shouldFail func(a2a.Event) bool
-	attempts   atomic.Int64
-}
-
-func newFlakyQueue(shouldFail func(a2a.Event) bool) *flakyQueue {
-	return &flakyQueue{recordingQueue: newRecordingQueue(), shouldFail: shouldFail}
-}
-
-func (q *flakyQueue) Write(ctx context.Context, event a2a.Event) error {
-	q.attempts.Add(1)
-
-	if q.shouldFail(event) {
-		return errors.New("simulated write failure")
-	}
-
-	return q.recordingQueue.Write(ctx, event)
-}
-
-// seqStep is one step of a hand-built agent event sequence: an optional
-// sleep before the step, then the event (or error) to yield.
-type seqStep struct {
-	sleep time.Duration
-	event agent.Event
-	err   error
-}
-
-// seq builds an iter.Seq2[agent.Event, error] out of steps, sleeping
-// between them as requested. A sleep inside a synctest bubble advances the
-// bubble's fake clock instead of real time.
-func seq(steps ...seqStep) iter.Seq2[agent.Event, error] {
-	return func(yield func(agent.Event, error) bool) {
-		for _, step := range steps {
-			if step.sleep > 0 {
-				time.Sleep(step.sleep)
-			}
-
-			if !yield(step.event, step.err) {
-				return
-			}
-		}
-	}
-}
-
-// events builds a sequence of events with no delays and no error.
-func events(evs ...agent.Event) iter.Seq2[agent.Event, error] {
-	steps := make([]seqStep, len(evs))
-	for i, ev := range evs {
-		steps[i] = seqStep{event: ev}
-	}
-
-	return seq(steps...)
-}
-
-// eventsThenErr builds a sequence of events followed by a runner error, the
-// shape processEvents sees when the model stream fails or is canceled.
-func eventsThenErr(err error, evs ...agent.Event) iter.Seq2[agent.Event, error] {
-	return func(yield func(agent.Event, error) bool) {
-		for _, ev := range evs {
-			if !yield(ev, nil) {
-				return
-			}
-		}
-
-		yield(nil, err)
-	}
-}
+func (q *recordingQueue) Close() error { return nil }
 
 func deltaEvent(text string) agent.AssistantDeltaEvent {
 	return agent.AssistantDeltaEvent{Delta: llm.ContentPartEvent{Part: &llm.TextPart{Text: text}}}
+}
+
+func toolCallDelta() agent.AssistantDeltaEvent {
+	return agent.AssistantDeltaEvent{Delta: llm.ContentPartEvent{Part: llm.NewToolRequestPart("1", "get_weather", nil)}}
 }
 
 func messageEvent(text string) agent.MessageEvent {
 	return agent.MessageEvent{Response: llm.Response{Message: llm.NewMessage(llm.RoleAssistant, llm.NewTextPart(text))}}
 }
 
-func modelCallStatus() agent.StatusEvent {
-	return agent.StatusEvent{Stage: agent.StatusStageModelCall}
-}
+func statusEvent(stage agent.StatusStage) agent.StatusEvent { return agent.StatusEvent{Stage: stage} }
 
-func streamReset() agent.StreamResetEvent {
-	return agent.StreamResetEvent{Attempt: 1, Reason: "retry"}
-}
+func streamReset() agent.StreamResetEvent { return agent.StreamResetEvent{Attempt: 1, Reason: "retry"} }
 
-func toolResponseEvent(name string) agent.ToolResponseEvent {
-	return agent.ToolResponseEvent{Response: llm.ToolResponsePart{ID: "1", Name: name}}
+func toolResponseEvent() agent.ToolResponseEvent {
+	return agent.ToolResponseEvent{Response: llm.ToolResponsePart{ID: "1", Name: "get_weather"}}
 }
 
 func invocationEnd() agent.InvocationEndEvent {
 	return agent.InvocationEndEvent{FinishReason: agent.FinishReasonStop}
 }
 
-func filterArtifacts(evs []a2a.Event) []*a2a.TaskArtifactUpdateEvent {
-	var out []*a2a.TaskArtifactUpdateEvent
+// probeMark is a step that records how many events the queue holds.
+type probeMark struct{}
 
-	for _, ev := range evs {
-		if a, ok := ev.(*a2a.TaskArtifactUpdateEvent); ok {
-			out = append(out, a)
+var probe = probeMark{}
+
+// seqStep is one runner step: a sleep, a probe, an event, or an error.
+type seqStep struct {
+	sleep time.Duration
+	probe bool
+	event agent.Event
+	err   error
+}
+
+// steps turns agent events, errors, durations (sleeps) and probe into steps.
+func steps(items ...any) []seqStep {
+	out := make([]seqStep, 0, len(items))
+
+	for _, it := range items {
+		switch v := it.(type) {
+		case time.Duration:
+			out = append(out, seqStep{sleep: v})
+		case probeMark:
+			out = append(out, seqStep{probe: true})
+		case error:
+			out = append(out, seqStep{err: v})
+		case agent.Event:
+			out = append(out, seqStep{event: v})
 		}
 	}
 
 	return out
 }
 
-func filterStatuses(evs []a2a.Event) []*a2a.TaskStatusUpdateEvent {
-	var out []*a2a.TaskStatusUpdateEvent
-
-	for _, ev := range evs {
-		if s, ok := ev.(*a2a.TaskStatusUpdateEvent); ok {
-			out = append(out, s)
-		}
-	}
-
-	return out
+type coalesceCase struct {
+	name       string
+	cfg        DeltaCoalescing
+	steps      []seqStep
+	failWrite  int // 1-based queue write to fail
+	wantErr    bool
+	want       []wantEvent
+	wantProbes []int
 }
 
-func artifactText(a *a2a.TaskArtifactUpdateEvent) string {
-	var text strings.Builder
-
-	for _, part := range a.Artifact.Parts {
-		if tp, ok := part.(a2a.TextPart); ok {
-			text.WriteString(tp.Text)
-		}
-	}
-
-	return text.String()
-}
-
-func concatText(as []*a2a.TaskArtifactUpdateEvent) string {
-	var text strings.Builder
-
-	for _, a := range as {
-		text.WriteString(artifactText(a))
-	}
-
-	return text.String()
-}
-
-// TestDeltaCoalescing_DisabledIsByteIdentical pins the zero-value contract:
-// with coalescing off, the executor must send the exact same, fully
-// ordered event sequence it always has, byte for byte, for every event
-// kind processEvents and Cancel can produce.
-func TestDeltaCoalescing_DisabledIsByteIdentical(t *testing.T) {
-	t.Parallel()
-
-	t.Run("deltas and message", func(t *testing.T) {
-		t.Parallel()
-
-		queue := newRecordingQueue()
-		exec := newCoalesceTestExecutor(DeltaCoalescing{})
-		reqCtx := testReqCtx()
-
-		require.NoError(t, exec.processEvents(context.Background(), reqCtx, queue, events(
-			deltaEvent("a"),
-			deltaEvent("b"),
-			deltaEvent("c"),
-			messageEvent("abc"),
-			invocationEnd(),
-		)))
-
-		got := queue.snapshot()
-		artifacts := filterArtifacts(got)
-		require.Len(t, artifacts, 4, "3 delta events plus the empty LastChunk event")
-
-		assert.False(t, artifacts[0].Append)
-		assert.False(t, artifacts[0].LastChunk)
-		require.Len(t, artifacts[0].Artifact.Parts, 1)
-		assert.Equal(t, "a", artifactText(artifacts[0]))
-
-		for i, want := range []string{"b", "c"} {
-			a := artifacts[i+1]
-			assert.True(t, a.Append)
-			assert.False(t, a.LastChunk)
-			require.Len(t, a.Artifact.Parts, 1)
-			assert.Equal(t, want, artifactText(a))
-			assert.Equal(t, artifacts[0].Artifact.ID, a.Artifact.ID)
-		}
-
-		last := artifacts[3]
-		assert.True(t, last.Append)
-		assert.True(t, last.LastChunk)
-		assert.Empty(t, last.Artifact.Parts)
-
-		statuses := filterStatuses(got)
-		require.Len(t, statuses, 2)
-		assert.Equal(t, a2a.TaskStateWorking, statuses[0].Status.State)
-		assert.False(t, statuses[0].Final)
-		assert.Equal(t, a2a.TaskStateCompleted, statuses[1].Status.State)
-		assert.True(t, statuses[1].Final)
-	})
-
-	t.Run("stream reset", func(t *testing.T) {
-		t.Parallel()
-
-		queue := newRecordingQueue()
-		exec := newCoalesceTestExecutor(DeltaCoalescing{})
-		reqCtx := testReqCtx()
-
-		require.NoError(t, exec.processEvents(context.Background(), reqCtx, queue, events(
-			deltaEvent("a"),
-			deltaEvent("b"),
-			streamReset(),
-			deltaEvent("c"),
-			invocationEnd(),
-		)))
-
-		got := queue.snapshot()
-		artifacts := filterArtifacts(got)
-		require.Len(t, artifacts, 4, "a, b, the empty LastChunk from reset, c")
-
-		assert.False(t, artifacts[0].Append)
-		assert.Equal(t, "a", artifactText(artifacts[0]))
-
-		assert.True(t, artifacts[1].Append)
-		assert.False(t, artifacts[1].LastChunk)
-		assert.Equal(t, "b", artifactText(artifacts[1]))
-		assert.Equal(t, artifacts[0].Artifact.ID, artifacts[1].Artifact.ID)
-
-		assert.True(t, artifacts[2].Append)
-		assert.True(t, artifacts[2].LastChunk)
-		assert.Empty(t, artifacts[2].Artifact.Parts)
-		assert.Equal(t, artifacts[0].Artifact.ID, artifacts[2].Artifact.ID)
-
-		assert.False(t, artifacts[3].Append)
-		assert.Equal(t, "c", artifactText(artifacts[3]))
-		assert.NotEqual(t, artifacts[0].Artifact.ID, artifacts[3].Artifact.ID)
-
-		statuses := filterStatuses(got)
-		require.Len(t, statuses, 1)
-		assert.True(t, statuses[0].Final)
-	})
-
-	t.Run("model_call status writes nothing by itself", func(t *testing.T) {
-		t.Parallel()
-
-		queue := newRecordingQueue()
-		exec := newCoalesceTestExecutor(DeltaCoalescing{})
-		reqCtx := testReqCtx()
-
-		require.NoError(t, exec.processEvents(context.Background(), reqCtx, queue, events(
-			deltaEvent("a"),
-			modelCallStatus(),
-			deltaEvent("b"),
-			invocationEnd(),
-		)))
-
-		got := queue.snapshot()
-		artifacts := filterArtifacts(got)
-		require.Len(t, artifacts, 2, "model_call only resets the artifact ID; it writes nothing")
-
-		assert.False(t, artifacts[0].Append)
-		assert.Equal(t, "a", artifactText(artifacts[0]))
-		assert.False(t, artifacts[1].Append)
-		assert.Equal(t, "b", artifactText(artifacts[1]))
-		assert.NotEqual(t, artifacts[0].Artifact.ID, artifacts[1].Artifact.ID)
-
-		statuses := filterStatuses(got)
-		require.Len(t, statuses, 1)
-		assert.True(t, statuses[0].Final)
-	})
-
-	t.Run("tool response writes history directly", func(t *testing.T) {
-		t.Parallel()
-
-		queue := newRecordingQueue()
-		exec := newCoalesceTestExecutor(DeltaCoalescing{})
-		reqCtx := testReqCtx()
-
-		require.NoError(t, exec.processEvents(context.Background(), reqCtx, queue, events(
-			deltaEvent("a"),
-			toolResponseEvent("get_weather"),
-			invocationEnd(),
-		)))
-
-		got := queue.snapshot()
-		require.Len(t, got, 3, "artifact, tool-response history status, final status - no extra flush")
-
-		_, ok := got[0].(*a2a.TaskArtifactUpdateEvent)
-		require.True(t, ok)
-
-		history, ok := got[1].(*a2a.TaskStatusUpdateEvent)
-		require.True(t, ok)
-		assert.Equal(t, a2a.TaskStateWorking, history.Status.State)
-		assert.False(t, history.Final)
-
-		final, ok := got[2].(*a2a.TaskStatusUpdateEvent)
-		require.True(t, ok)
-		assert.True(t, final.Final)
-	})
-
-	errCases := []struct {
-		name      string
-		err       error
-		wantState a2a.TaskState
-	}{
-		{name: "error: generic failure", err: errors.New("boom"), wantState: a2a.TaskStateFailed},
-		{name: "error: context overflow", err: llm.ErrContextOverflow, wantState: a2a.TaskStateFailed},
-		{name: "error: canceled via background context", err: context.Canceled, wantState: a2a.TaskStateCanceled},
-	}
-
-	for _, tc := range errCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			queue := newRecordingQueue()
-			exec := newCoalesceTestExecutor(DeltaCoalescing{})
-			reqCtx := testReqCtx()
-
-			require.NoError(t, exec.processEvents(context.Background(), reqCtx, queue, eventsThenErr(tc.err, deltaEvent("a"))))
-
-			got := queue.snapshot()
-			require.Len(t, got, 2, "off mode never buffers, so there is no tail to flush before the terminal status")
-
-			_, ok := got[0].(*a2a.TaskArtifactUpdateEvent)
-			require.True(t, ok)
-
-			status, ok := got[1].(*a2a.TaskStatusUpdateEvent)
-			require.True(t, ok)
-			assert.Equal(t, tc.wantState, status.Status.State)
-			assert.True(t, status.Final)
-		})
-	}
-
-	t.Run("missing invocation end", func(t *testing.T) {
-		t.Parallel()
-
-		queue := newRecordingQueue()
-		exec := newCoalesceTestExecutor(DeltaCoalescing{})
-		reqCtx := testReqCtx()
-
-		err := exec.processEvents(context.Background(), reqCtx, queue, events(deltaEvent("a")))
-		require.Error(t, err)
-
-		got := queue.snapshot()
-		require.Len(t, got, 2)
-
-		_, ok := got[0].(*a2a.TaskArtifactUpdateEvent)
-		require.True(t, ok)
-
-		status, ok := got[1].(*a2a.TaskStatusUpdateEvent)
-		require.True(t, ok)
-		assert.Equal(t, a2a.TaskStateFailed, status.Status.State)
-		assert.True(t, status.Final)
-	})
-}
-
-// TestDeltaCoalescing_FirstDeltaImmediate checks that the leading edge of a
-// streamed artifact goes out at once, before any time-based trigger could
-// fire, so time to first token does not change.
-func TestDeltaCoalescing_FirstDeltaImmediate(t *testing.T) {
-	t.Parallel()
+// run drives processEvents in a synctest bubble, so sleeps move a fake
+// clock. A context.Canceled step cancels the parent ctx first, as a real
+// cancellation does.
+func (tc coalesceCase) run(t *testing.T) {
+	t.Helper()
 
 	synctest.Test(t, func(t *testing.T) {
-		queue := newRecordingQueue()
-		exec := newCoalesceTestExecutor(DeltaCoalescing{Interval: 100 * time.Millisecond, MaxBytes: 512})
-		reqCtx := testReqCtx()
+		queue := &recordingQueue{failAt: tc.failWrite}
+		exec := &Executor{log: slog.Default(), coalesce: tc.cfg}
 
-		release := make(chan struct{})
-		seqFn := func(yield func(agent.Event, error) bool) {
-			if !yield(deltaEvent("hello"), nil) {
-				return
-			}
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
-			<-release
+		var probes []int
 
-			yield(invocationEnd(), nil)
-		}
+		seq := func(yield func(agent.Event, error) bool) {
+			for _, s := range tc.steps {
+				switch {
+				case s.sleep > 0:
+					time.Sleep(s.sleep)
+				case s.probe:
+					probes = append(probes, len(queue.events))
+				default:
+					if errors.Is(s.err, context.Canceled) {
+						cancel()
+					}
 
-		done := make(chan struct{})
-
-		go func() {
-			defer close(done)
-
-			_ = exec.processEvents(context.Background(), reqCtx, queue, seqFn)
-		}()
-
-		synctest.Wait()
-
-		artifacts := filterArtifacts(queue.snapshot())
-		require.Len(t, artifacts, 1)
-		assert.False(t, artifacts[0].Append)
-		assert.Equal(t, "hello", artifactText(artifacts[0]))
-
-		close(release)
-		<-done
-	})
-}
-
-// TestDeltaCoalescing_IntervalFlush drives 100 deltas 10ms apart with a
-// 100ms interval, and checks that the number of artifact events is bounded
-// by time rather than by the delta count, while every byte still arrives.
-func TestDeltaCoalescing_IntervalFlush(t *testing.T) {
-	t.Parallel()
-
-	synctest.Test(t, func(t *testing.T) {
-		const n = 100
-
-		var want strings.Builder
-
-		steps := make([]seqStep, 0, n+2)
-
-		for i := range n {
-			chunk := strconv.Itoa(i % 10)
-			want.WriteString(chunk)
-			steps = append(steps, seqStep{sleep: 10 * time.Millisecond, event: deltaEvent(chunk)})
-		}
-
-		steps = append(steps, seqStep{event: messageEvent(want.String())})
-		steps = append(steps, seqStep{event: invocationEnd()})
-
-		queue := newRecordingQueue()
-		exec := newCoalesceTestExecutor(DeltaCoalescing{Interval: 100 * time.Millisecond})
-		reqCtx := testReqCtx()
-
-		require.NoError(t, exec.processEvents(context.Background(), reqCtx, queue, seq(steps...)))
-
-		artifacts := filterArtifacts(queue.snapshot())
-		assert.GreaterOrEqual(t, len(artifacts), 10)
-		assert.LessOrEqual(t, len(artifacts), 12)
-		assert.Equal(t, want.String(), concatText(artifacts))
-
-		assert.False(t, artifacts[0].Append)
-
-		for _, a := range artifacts[1:] {
-			assert.True(t, a.Append)
-
-			if len(a.Artifact.Parts) > 0 {
-				assert.Len(t, a.Artifact.Parts, 1)
-			}
-		}
-	})
-}
-
-// TestDeltaCoalescing_SizeFlush checks the byte-size trigger in isolation,
-// with an interval long enough that it never fires.
-func TestDeltaCoalescing_SizeFlush(t *testing.T) {
-	t.Parallel()
-
-	queue := newRecordingQueue()
-	exec := newCoalesceTestExecutor(DeltaCoalescing{Interval: time.Hour, MaxBytes: 16})
-	reqCtx := testReqCtx()
-
-	require.NoError(t, exec.processEvents(context.Background(), reqCtx, queue, events(
-		deltaEvent("aaaaa"), // leading edge, sent at once
-		deltaEvent("bbbbb"), // buf: 5 bytes
-		deltaEvent("ccccc"), // buf: 10 bytes
-		deltaEvent("ddddd"), // buf: 15 bytes
-		deltaEvent("eeeee"), // buf: 20 bytes >= 16, flushes
-		messageEvent("aaaaabbbbbcccccdddddeeeee"),
-		invocationEnd(),
-	)))
-
-	artifacts := filterArtifacts(queue.snapshot())
-	require.Len(t, artifacts, 3, "leading edge, one size-triggered flush, one empty LastChunk")
-
-	assert.False(t, artifacts[0].Append)
-	assert.Equal(t, "aaaaa", artifactText(artifacts[0]))
-
-	assert.True(t, artifacts[1].Append)
-	assert.False(t, artifacts[1].LastChunk)
-	assert.Equal(t, "bbbbbcccccdddddeeeee", artifactText(artifacts[1]))
-
-	assert.True(t, artifacts[2].LastChunk)
-	assert.Empty(t, artifacts[2].Artifact.Parts)
-}
-
-// TestDeltaCoalescing_TimerFlushOnStall checks that a stalled model does not
-// hold buffered text past Interval: the timer flushes it on its own, before
-// the next real event arrives.
-func TestDeltaCoalescing_TimerFlushOnStall(t *testing.T) {
-	t.Parallel()
-
-	synctest.Test(t, func(t *testing.T) {
-		queue := newRecordingQueue()
-		exec := newCoalesceTestExecutor(DeltaCoalescing{Interval: 100 * time.Millisecond})
-		reqCtx := testReqCtx()
-
-		seqFn := func(yield func(agent.Event, error) bool) {
-			for _, text := range []string{"one", "two", "three"} {
-				if !yield(deltaEvent(text), nil) {
-					return
+					if !yield(s.event, s.err) {
+						return
+					}
 				}
 			}
-
-			time.Sleep(500 * time.Millisecond)
-
-			yield(invocationEnd(), nil)
 		}
 
-		done := make(chan struct{})
+		err := exec.processEvents(ctx, testReqCtx(), queue, seq)
+		if tc.wantErr {
+			require.Error(t, err)
+		} else {
+			require.NoError(t, err)
+		}
 
-		go func() {
-			defer close(done)
-
-			_ = exec.processEvents(context.Background(), reqCtx, queue, seqFn)
-		}()
-
-		// Sleep well past Interval but short of the 500ms stall, so the fake
-		// clock is forced through the flush timer's deadline before we look.
-		// A bare synctest.Wait() here would return immediately: the goroutine
-		// is already durably blocked in its own 500ms sleep, and Wait does
-		// not itself advance the clock to fire timers that nothing is
-		// waiting on.
-		time.Sleep(200 * time.Millisecond)
-		synctest.Wait()
-
-		artifacts := filterArtifacts(queue.snapshot())
-		require.Len(t, artifacts, 2, "leading delta plus one interval flush of the stalled buffer")
-
-		assert.False(t, artifacts[0].Append)
-		assert.Equal(t, "one", artifactText(artifacts[0]))
-
-		assert.True(t, artifacts[1].Append)
-		assert.False(t, artifacts[1].LastChunk)
-		assert.Equal(t, "twothree", artifactText(artifacts[1]))
-
-		<-done
+		assertEvents(t, queue.events, tc.want)
+		assert.Equal(t, tc.wantProbes, probes)
 	})
 }
 
-// wantEvent describes one expected queued event: either an artifact
-// (text/append/lastChunk) or a status (state/final).
+// wantEvent is one expected queued event: an artifact or a status.
 type wantEvent struct {
 	text      string
 	append    bool
@@ -648,15 +201,29 @@ func wantStatus(state a2a.TaskState, final bool) wantEvent {
 	return wantEvent{isStatus: true, state: state, final: final}
 }
 
-// assertEvents checks got against want, event by event, and that an
-// Append artifact shares the previous artifact's ID while a non-Append
-// one starts a new one.
+func artifactText(a *a2a.TaskArtifactUpdateEvent) string {
+	var text strings.Builder
+
+	for _, part := range a.Artifact.Parts {
+		if tp, ok := part.(a2a.TextPart); ok {
+			text.WriteString(tp.Text)
+		}
+	}
+
+	return text.String()
+}
+
+// assertEvents checks got against want. Each artifact has a non-empty ID and
+// at most one part. An append targets the previous artifact, which a recorded
+// create made. A create uses a new ID.
 func assertEvents(t *testing.T, got []a2a.Event, want []wantEvent) {
 	t.Helper()
 
 	require.Len(t, got, len(want))
 
-	var lastArtifactID a2a.ArtifactID
+	var lastID a2a.ArtifactID
+
+	created := map[a2a.ArtifactID]bool{}
 
 	for i, w := range want {
 		if w.isStatus {
@@ -670,336 +237,197 @@ func assertEvents(t *testing.T, got []a2a.Event, want []wantEvent) {
 
 		a, ok := got[i].(*a2a.TaskArtifactUpdateEvent)
 		require.True(t, ok, "event %d", i)
+		require.NotEmpty(t, a.Artifact.ID, "event %d", i)
 		assert.Equal(t, w.append, a.Append, "event %d", i)
 		assert.Equal(t, w.lastChunk, a.LastChunk, "event %d", i)
 		assert.Equal(t, w.text, artifactText(a), "event %d", i)
+		assert.LessOrEqual(t, len(a.Artifact.Parts), 1, "event %d", i)
 
-		if w.append {
-			assert.Equal(t, lastArtifactID, a.Artifact.ID, "event %d", i)
-		} else if lastArtifactID != "" {
-			assert.NotEqual(t, lastArtifactID, a.Artifact.ID, "event %d", i)
+		if a.Append {
+			assert.True(t, created[a.Artifact.ID], "event %d appends to an artifact that was never created", i)
+			assert.Equal(t, lastID, a.Artifact.ID, "event %d", i)
+		} else {
+			assert.False(t, created[a.Artifact.ID], "event %d", i)
+			created[a.Artifact.ID] = true
 		}
 
-		lastArtifactID = a.Artifact.ID
+		lastID = a.Artifact.ID
 	}
 }
 
-// TestDeltaCoalescing_FlushesBeforeNonDeltaEvent checks that MessageEvent,
-// StreamReset, a model_call status, and a tool response all flush pending
-// text before doing their own thing.
-func TestDeltaCoalescing_FlushesBeforeNonDeltaEvent(t *testing.T) {
+var (
+	working   = wantStatus(a2a.TaskStateWorking, false)
+	completed = wantStatus(a2a.TaskStateCompleted, true)
+	failed    = wantStatus(a2a.TaskStateFailed, true)
+	canceled  = wantStatus(a2a.TaskStateCanceled, true)
+)
+
+// TestDeltaCoalescing_DisabledIsByteIdentical pins the Interval == 0 event
+// sequence to the one processEvents sent before coalescing existed.
+func TestDeltaCoalescing_DisabledIsByteIdentical(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name string
-		seq  iter.Seq2[agent.Event, error]
-		want []wantEvent
-	}{
+	a := wantArtifact("a", false, false)
+	cases := []coalesceCase{
 		{
-			name: "message event carries the tail into LastChunk",
-			seq: events(
-				deltaEvent("hello"),
-				deltaEvent(" world"),
-				messageEvent("hello world"),
-				invocationEnd(),
-			),
+			name:  "deltas and message",
+			steps: steps(deltaEvent("a"), deltaEvent("b"), deltaEvent("c"), messageEvent("abc"), invocationEnd()),
 			want: []wantEvent{
-				wantArtifact("hello", false, false),
-				wantArtifact(" world", true, true),
-				wantStatus(a2a.TaskStateWorking, false),
-				wantStatus(a2a.TaskStateCompleted, true),
+				a, wantArtifact("b", true, false), wantArtifact("c", true, false),
+				wantArtifact("", true, true), working, completed,
 			},
 		},
 		{
-			name: "stream reset flushes the tail, then restarts",
-			seq: events(
-				deltaEvent("partial"),
-				deltaEvent(" more"),
-				streamReset(),
-				deltaEvent("restart"),
-				invocationEnd(),
-			),
+			name:  "stream reset",
+			steps: steps(deltaEvent("a"), deltaEvent("b"), streamReset(), deltaEvent("c"), invocationEnd()),
 			want: []wantEvent{
-				wantArtifact("partial", false, false),
-				wantArtifact(" more", true, true),
-				wantArtifact("restart", false, false),
-				wantStatus(a2a.TaskStateCompleted, true),
+				a, wantArtifact("b", true, false), wantArtifact("", true, true),
+				wantArtifact("c", false, false), completed,
 			},
 		},
 		{
-			name: "model_call status flushes the old artifact, non-final",
-			seq: events(
-				deltaEvent("lead"),
-				deltaEvent("tail"),
-				modelCallStatus(),
-				deltaEvent("newlead"),
-				invocationEnd(),
-			),
+			name:  "model_call writes nothing",
+			steps: steps(deltaEvent("a"), statusEvent(agent.StatusStageModelCall), deltaEvent("b"), invocationEnd()),
+			want:  []wantEvent{a, wantArtifact("b", false, false), completed},
+		},
+		{
+			name:  "tool response",
+			steps: steps(deltaEvent("a"), toolResponseEvent(), invocationEnd()),
+			want:  []wantEvent{a, working, completed},
+		},
+		{name: "generic failure", steps: steps(deltaEvent("a"), errors.New("boom")), want: []wantEvent{a, failed}},
+		{name: "context overflow", steps: steps(deltaEvent("a"), llm.ErrContextOverflow), want: []wantEvent{a, failed}},
+		{name: "canceled", steps: steps(deltaEvent("a"), context.Canceled), want: []wantEvent{a, canceled}},
+		{name: "missing invocation end", steps: steps(deltaEvent("a")), wantErr: true, want: []wantEvent{a, failed}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tc.run(t)
+		})
+	}
+}
+
+func TestDeltaCoalescing(t *testing.T) {
+	t.Parallel()
+
+	hour := DeltaCoalescing{Interval: time.Hour}
+	ms100 := DeltaCoalescing{Interval: 100 * time.Millisecond}
+	lead := wantArtifact("lead", false, false)
+	tail := wantArtifact("tail", true, false)
+
+	cases := []coalesceCase{
+		{
+			name:  "message event carries the tail into LastChunk",
+			cfg:   hour,
+			steps: steps(deltaEvent("lead"), deltaEvent("tail"), messageEvent("leadtail"), invocationEnd()),
+			want:  []wantEvent{lead, wantArtifact("tail", true, true), working, completed},
+		},
+		{
+			name:  "stream reset flushes the tail, then restarts",
+			cfg:   hour,
+			steps: steps(deltaEvent("lead"), deltaEvent("tail"), streamReset(), deltaEvent("new"), invocationEnd()),
+			want:  []wantEvent{lead, wantArtifact("tail", true, true), wantArtifact("new", false, false), completed},
+		},
+		{
+			name:  "model_call flushes the old artifact, non-final",
+			cfg:   hour,
+			steps: steps(deltaEvent("lead"), deltaEvent("tail"), statusEvent(agent.StatusStageModelCall), deltaEvent("new"), invocationEnd()),
+			want:  []wantEvent{lead, tail, wantArtifact("new", false, false), completed},
+		},
+		{
+			name:  "tool response flushes before the history status",
+			cfg:   hour,
+			steps: steps(deltaEvent("lead"), deltaEvent("tail"), toolResponseEvent(), invocationEnd()),
+			want:  []wantEvent{lead, tail, working, completed},
+		},
+		{name: "generic failure flushes first", cfg: hour, steps: steps(deltaEvent("lead"), deltaEvent("tail"), errors.New("boom")), want: []wantEvent{lead, tail, failed}},
+		{name: "context overflow flushes first", cfg: hour, steps: steps(deltaEvent("lead"), deltaEvent("tail"), llm.ErrContextOverflow), want: []wantEvent{lead, tail, failed}},
+		// The parent ctx is done, so these writes pass only on the background ctx.
+		{name: "canceled flushes with the background ctx", cfg: hour, steps: steps(deltaEvent("lead"), deltaEvent("tail"), context.Canceled), want: []wantEvent{lead, tail, canceled}},
+		{name: "missing invocation end flushes first", cfg: hour, steps: steps(deltaEvent("lead"), deltaEvent("tail")), wantErr: true, want: []wantEvent{lead, tail, failed}},
+		{
+			name: "size trigger",
+			cfg:  DeltaCoalescing{Interval: time.Hour, MaxBytes: 16},
+			steps: steps(deltaEvent("aaaaa"), deltaEvent("bbbbb"), deltaEvent("ccccc"), deltaEvent("ddddd"),
+				deltaEvent("eeeee"), messageEvent("x"), invocationEnd()),
 			want: []wantEvent{
-				wantArtifact("lead", false, false),
-				wantArtifact("tail", true, false),
-				wantArtifact("newlead", false, false),
-				wantStatus(a2a.TaskStateCompleted, true),
+				wantArtifact("aaaaa", false, false), wantArtifact("bbbbbcccccdddddeeeee", true, false),
+				wantArtifact("", true, true), working, completed,
 			},
 		},
 		{
-			name: "tool response flushes before the history status",
-			seq: events(
-				deltaEvent("lead"),
-				deltaEvent("buffered"),
-				toolResponseEvent("get_weather"),
-				invocationEnd(),
-			),
+			name:       "first delta is sent before the next event",
+			cfg:        DeltaCoalescing{Interval: time.Hour, MaxBytes: 512},
+			steps:      steps(deltaEvent("lead"), probe, invocationEnd()),
+			want:       []wantEvent{lead, completed},
+			wantProbes: []int{1},
+		},
+		{
+			// Deltas at 0, 40, 80, 120, 160 and 200ms: the one at 120ms fires the age trigger.
+			name: "age trigger on a text delta",
+			cfg:  ms100,
+			steps: steps(deltaEvent("a"), 40*time.Millisecond, deltaEvent("b"), 40*time.Millisecond, deltaEvent("c"),
+				40*time.Millisecond, deltaEvent("d"), 40*time.Millisecond, deltaEvent("e"), 40*time.Millisecond,
+				deltaEvent("f"), messageEvent("abcdef"), invocationEnd()),
 			want: []wantEvent{
-				wantArtifact("lead", false, false),
-				wantArtifact("buffered", true, false),
-				wantStatus(a2a.TaskStateWorking, false),
-				wantStatus(a2a.TaskStateCompleted, true),
+				wantArtifact("a", false, false), wantArtifact("bcd", true, false), wantArtifact("ef", true, true),
+				working, completed,
 			},
+		},
+		{
+			name:       "age trigger on a tool-call delta",
+			cfg:        ms100,
+			steps:      steps(deltaEvent("lead"), deltaEvent("tail"), 200*time.Millisecond, toolCallDelta(), probe, invocationEnd()),
+			want:       []wantEvent{lead, tail, completed},
+			wantProbes: []int{2},
+		},
+		{
+			name: "age trigger on a status event that writes nothing",
+			cfg:  ms100,
+			steps: steps(deltaEvent("lead"), deltaEvent("tail"), 200*time.Millisecond,
+				statusEvent(agent.StatusStageToolExec), probe, invocationEnd()),
+			want:       []wantEvent{lead, tail, completed},
+			wantProbes: []int{2},
+		},
+		{
+			name:       "text waits while no event arrives",
+			cfg:        ms100,
+			steps:      steps(deltaEvent("lead"), deltaEvent("tail"), 500*time.Millisecond, probe, invocationEnd()),
+			want:       []wantEvent{lead, tail, completed},
+			wantProbes: []int{1},
+		},
+		{
+			// Write 2 is the LastChunk "tail". The next response must start a new artifact.
+			name: "failed LastChunk, then model_call and more deltas",
+			cfg:  hour,
+			steps: steps(deltaEvent("lead"), deltaEvent("tail"), messageEvent("leadtail"),
+				statusEvent(agent.StatusStageModelCall), deltaEvent("next"), deltaEvent("more"),
+				messageEvent("nextmore"), invocationEnd()),
+			failWrite: 2,
+			want: []wantEvent{
+				lead, working, wantArtifact("next", false, false), wantArtifact("more", true, true), working, completed,
+			},
+		},
+		{
+			name:      "failed first write, next delta creates a new artifact",
+			cfg:       hour,
+			steps:     steps(deltaEvent("lost"), deltaEvent("lead"), deltaEvent("tail"), messageEvent("x"), invocationEnd()),
+			failWrite: 1,
+			want:      []wantEvent{lead, wantArtifact("tail", true, true), working, completed},
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-
-			queue := newRecordingQueue()
-			exec := newCoalesceTestExecutor(DeltaCoalescing{Interval: time.Hour})
-			reqCtx := testReqCtx()
-
-			require.NoError(t, exec.processEvents(context.Background(), reqCtx, queue, tc.seq))
-			assertEvents(t, queue.snapshot(), tc.want)
+			tc.run(t)
 		})
 	}
 }
 
-// TestDeltaCoalescing_FlushesBeforeTerminalStatus checks that every
-// terminal path - a runner error or a missing InvocationEndEvent -
-// flushes pending text before writing its status.
-func TestDeltaCoalescing_FlushesBeforeTerminalStatus(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		name      string
-		err       error // nil means the sequence just ends, with no InvocationEnd
-		wantState a2a.TaskState
-		wantErr   bool
-	}{
-		{name: "generic failure", err: errors.New("boom"), wantState: a2a.TaskStateFailed},
-		{name: "context overflow", err: llm.ErrContextOverflow, wantState: a2a.TaskStateFailed},
-		{name: "canceled", err: context.Canceled, wantState: a2a.TaskStateCanceled},
-		{name: "missing invocation end", wantState: a2a.TaskStateFailed, wantErr: true},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			queue := newRecordingQueue()
-			exec := newCoalesceTestExecutor(DeltaCoalescing{Interval: time.Hour})
-			reqCtx := testReqCtx()
-
-			seq := events(deltaEvent("lead"), deltaEvent("buffered"))
-			if tc.err != nil {
-				seq = eventsThenErr(tc.err, deltaEvent("lead"), deltaEvent("buffered"))
-			}
-
-			err := exec.processEvents(context.Background(), reqCtx, queue, seq)
-			if tc.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-
-			assertEvents(t, queue.snapshot(), []wantEvent{
-				wantArtifact("lead", false, false),
-				wantArtifact("buffered", true, false),
-				wantStatus(tc.wantState, true),
-			})
-		})
-	}
-}
-
-// TestDeltaCoalescing_CancelUnaffected checks that Cancel behaves exactly
-// as it always has when coalescing is on: it writes the canceled status
-// to the given queue and does nothing else - no panic, no leak.
-func TestDeltaCoalescing_CancelUnaffected(t *testing.T) {
-	t.Parallel()
-
-	queue := newRecordingQueue()
-	exec := newCoalesceTestExecutor(DeltaCoalescing{Interval: 100 * time.Millisecond, MaxBytes: 512})
-	reqCtx := testReqCtx()
-
-	require.NoError(t, exec.Cancel(context.Background(), reqCtx, queue))
-
-	got := queue.snapshot()
-	require.Len(t, got, 1)
-
-	status, ok := got[0].(*a2a.TaskStatusUpdateEvent)
-	require.True(t, ok)
-	assert.Equal(t, a2a.TaskStateCanceled, status.Status.State)
-	assert.True(t, status.Final)
-}
-
-// TestDeltaCoalescing_CanceledFlushesWithBackgroundCtx proves that the
-// context-canceled branch flushes and writes its status through the
-// background context, not the already-canceled loop ctx. A queue that
-// honors ctx (like recordingQueue) would silently drop both writes if the
-// code used the wrong one, so this would fail if that regressed.
-func TestDeltaCoalescing_CanceledFlushesWithBackgroundCtx(t *testing.T) {
-	t.Parallel()
-
-	queue := newRecordingQueue()
-	exec := newCoalesceTestExecutor(DeltaCoalescing{Interval: time.Hour})
-	reqCtx := testReqCtx()
-
-	ctx, cancelCtx := context.WithCancel(context.Background())
-
-	seqFn := func(yield func(agent.Event, error) bool) {
-		if !yield(deltaEvent("lead"), nil) {
-			return
-		}
-
-		if !yield(deltaEvent("buffered"), nil) {
-			return
-		}
-
-		cancelCtx() // the parent ctx is now done, as on a real cancellation
-
-		yield(nil, context.Canceled)
-	}
-
-	require.NoError(t, exec.processEvents(ctx, reqCtx, queue, seqFn))
-
-	got := queue.snapshot()
-	require.Len(t, got, 3, "leading delta, buffered-tail flush, canceled status - all via the background context")
-
-	_, ok := got[0].(*a2a.TaskArtifactUpdateEvent)
-	require.True(t, ok)
-
-	flush, ok := got[1].(*a2a.TaskArtifactUpdateEvent)
-	require.True(t, ok, "the flush must use the background context to get through the already-canceled loop ctx")
-	assert.Equal(t, "buffered", artifactText(flush))
-
-	status, ok := got[2].(*a2a.TaskStatusUpdateEvent)
-	require.True(t, ok)
-	assert.Equal(t, a2a.TaskStateCanceled, status.Status.State)
-	assert.True(t, status.Final)
-}
-
-// TestDeltaCoalescing_NoWriteAfterReturn checks that close() stops a still
-// -armed flush timer when processEvents returns, so it cannot write
-// anything once the writer is closed, even after its Interval passes. The
-// queue fails every buffered-tail flush, so InvocationEnd's own flush
-// attempt does not itself stop the timer first: without close() actually
-// stopping it, the timer would still be armed, and a later fire would be
-// observable as another write attempt.
-func TestDeltaCoalescing_NoWriteAfterReturn(t *testing.T) {
-	t.Parallel()
-
-	synctest.Test(t, func(t *testing.T) {
-		queue := newFlakyQueue(func(ev a2a.Event) bool {
-			a, ok := ev.(*a2a.TaskArtifactUpdateEvent)
-			return ok && a.Append && !a.LastChunk
-		})
-		exec := newCoalesceTestExecutor(DeltaCoalescing{Interval: 100 * time.Millisecond})
-		reqCtx := testReqCtx()
-
-		require.NoError(t, exec.processEvents(context.Background(), reqCtx, queue, events(
-			deltaEvent("lead"),
-			deltaEvent("buffered"), // arms the flush timer
-			invocationEnd(),        // its own flush attempt fails; Final still gets written
-		)))
-
-		before := queue.attempts.Load()
-
-		time.Sleep(200 * time.Millisecond) // advance well past Interval
-		synctest.Wait()
-
-		after := queue.attempts.Load()
-		assert.Equal(t, before, after, "close() must stop the pending timer so no further write is even attempted")
-
-		got := queue.snapshot()
-		last := got[len(got)-1]
-		status, ok := last.(*a2a.TaskStatusUpdateEvent)
-		require.True(t, ok)
-		assert.True(t, status.Final)
-	})
-}
-
-// TestDeltaCoalescing_TimerVsLoop stresses the main loop and the flush
-// timer against each other: deltas arrive faster than Interval, so some
-// flushes come from delta() noticing its own trigger and some come from
-// onTimer on a different goroutine. Every write goes through the same
-// mutex, so the result must still be well-ordered and complete.
-//
-// A manual `go test -race -count=20 ./adapter/a2a/...` run is the receipt
-// that this ordering actually needs the mutex; `task test:unit` runs
-// without -race.
-func TestDeltaCoalescing_TimerVsLoop(t *testing.T) {
-	t.Parallel()
-
-	synctest.Test(t, func(t *testing.T) {
-		const (
-			n        = 50
-			interval = 10 * time.Millisecond
-			delay    = 3 * time.Millisecond // faster than interval, so some deltas race the timer
-		)
-
-		var want strings.Builder
-
-		steps := make([]seqStep, 0, n+2)
-
-		for i := range n {
-			chunk := fmt.Sprintf("[%02d]", i)
-			want.WriteString(chunk)
-			steps = append(steps, seqStep{sleep: delay, event: deltaEvent(chunk)})
-		}
-
-		steps = append(steps, seqStep{event: messageEvent(want.String())})
-		steps = append(steps, seqStep{event: invocationEnd()})
-
-		queue := newRecordingQueue()
-		exec := newCoalesceTestExecutor(DeltaCoalescing{Interval: interval})
-		reqCtx := testReqCtx()
-
-		require.NoError(t, exec.processEvents(context.Background(), reqCtx, queue, seq(steps...)))
-
-		got := queue.snapshot()
-		artifacts := filterArtifacts(got)
-		require.NotEmpty(t, artifacts)
-		assert.Equal(t, want.String(), concatText(artifacts))
-
-		for _, a := range artifacts {
-			if len(a.Artifact.Parts) > 0 {
-				assert.Len(t, a.Artifact.Parts, 1)
-			}
-		}
-
-		lastArtifactIdx, firstStatusIdx := -1, -1
-
-		for i, ev := range got {
-			switch ev.(type) {
-			case *a2a.TaskArtifactUpdateEvent:
-				lastArtifactIdx = i
-			case *a2a.TaskStatusUpdateEvent:
-				if firstStatusIdx == -1 {
-					firstStatusIdx = i
-				}
-			}
-		}
-
-		require.NotEqual(t, -1, firstStatusIdx)
-		assert.Less(t, lastArtifactIdx, firstStatusIdx, "every artifact event precedes the status events")
-
-		final, ok := got[len(got)-1].(*a2a.TaskStatusUpdateEvent)
-		require.True(t, ok)
-		assert.True(t, final.Final)
-	})
-}
-
-// discardQueue implements eventqueue.Queue by doing nothing, so a
-// benchmark measures the coalescer, not a queue's own overhead.
+// discardQueue drops every event, so the benchmark measures the writer only.
 type discardQueue struct{}
 
 func (discardQueue) Write(context.Context, a2a.Event) error { return nil }
@@ -1012,9 +440,6 @@ func (discardQueue) Read(context.Context) (a2a.Event, a2a.TaskVersion, error) {
 
 func (discardQueue) Close() error { return nil }
 
-// BenchmarkDeltaCoalescing measures the per-delta path with coalescing off
-// (today's behavior) and on (a 256-byte flush threshold, so the buffer
-// stays bounded across the run instead of growing without limit).
 func BenchmarkDeltaCoalescing(b *testing.B) {
 	reqCtx := testReqCtx()
 	ctx := context.Background()
@@ -1032,7 +457,6 @@ func BenchmarkDeltaCoalescing(b *testing.B) {
 			b.ReportAllocs()
 
 			dw := newDeltaWriter(reqCtx, discardQueue{}, slog.Default(), tc.cfg)
-			defer dw.close()
 
 			for range b.N {
 				dw.delta(ctx, "the quick brown fox jumps over the lazy dog")

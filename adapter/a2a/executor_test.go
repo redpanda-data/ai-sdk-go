@@ -1204,21 +1204,11 @@ func (s *countingTaskStore) onlyTask(t *testing.T) *a2a.Task {
 	return nil
 }
 
-// TestExecutor_DeltaCoalescing_EndToEnd drives a full a2asrv.Handler over a
-// fakellm stream with coalescing on, and checks that the stored artifact
-// text is complete while the number of task saves is exactly the count a
-// size-bounded run must produce. Interval is set far longer than the run
-// can take, so the size trigger alone bounds the flush count: the
-// expected numbers do not depend on real-clock scheduling.
-func TestExecutor_DeltaCoalescing_EndToEnd(t *testing.T) {
-	t.Parallel()
-
-	const reply = "abcdefghijabcdefghijabcdefghijabcdefghijabcdefghij" +
-		"abcdefghijabcdefghijabcdefghijabcdefghijabcdefghij" +
-		"abcdefghijabcdefghijabcdefghijabcdefghijabcdefghij" +
-		"abcdefghijabcdefghijabcdefghijabcdefghijabcdefghij"
-
-	const maxBytes = 20
+// runCoalescingStream streams reply through a full a2asrv.Handler with cfg
+// and returns the artifact event count, the task save count and the stored
+// artifact text.
+func runCoalescingStream(t *testing.T, reply string, cfg DeltaCoalescing) (int, int, string) {
+	t.Helper()
 
 	model := fakellm.NewFakeModel()
 	model.When(fakellm.Any()).ThenStreamText(reply, fakellm.StreamConfig{
@@ -1232,12 +1222,9 @@ func TestExecutor_DeltaCoalescing_EndToEnd(t *testing.T) {
 	runnerInstance, err := runner.New(agentInstance, session.NewInMemoryStore())
 	require.NoError(t, err)
 
-	executor := NewExecutor(agentInstance, runnerInstance, slog.Default(),
-		WithDeltaCoalescing(DeltaCoalescing{Interval: 10 * time.Second, MaxBytes: maxBytes}))
-
+	executor := NewExecutor(agentInstance, runnerInstance, slog.Default(), WithDeltaCoalescing(cfg))
 	store := newCountingTaskStore()
 	handler := a2asrv.NewHandler(executor, a2asrv.WithTaskStore(store))
-
 	msg := a2a.NewMessage(a2a.MessageRoleUser, a2a.TextPart{Text: "Say something long."})
 
 	var artifactEvents int
@@ -1250,16 +1237,6 @@ func TestExecutor_DeltaCoalescing_EndToEnd(t *testing.T) {
 		}
 	}
 
-	// The leading edge takes the first byte; the rest buffers behind
-	// MaxBytes, plus one final LastChunk flush that MessageEvent always
-	// sends, whether or not it still has text in it.
-	wantArtifactEvents := 2 + (len(reply)-1)/maxBytes
-	assert.Equal(t, wantArtifactEvents, artifactEvents)
-
-	// Task saves add the fixed per-run status overhead (submitted, working,
-	// working-with-history, final) on top of the artifact events.
-	assert.Equal(t, wantArtifactEvents+4, store.saveCount())
-
 	task := store.onlyTask(t)
 	require.Len(t, task.Artifacts, 1)
 
@@ -1271,5 +1248,28 @@ func TestExecutor_DeltaCoalescing_EndToEnd(t *testing.T) {
 		}
 	}
 
-	assert.Equal(t, reply, storedText.String())
+	return artifactEvents, store.saveCount(), storedText.String()
+}
+
+// TestExecutor_DeltaCoalescing_EndToEnd checks that a size-bounded run stores
+// the complete text with fewer task saves than the same stream with
+// coalescing off. Interval is longer than the run, so only MaxBytes flushes.
+func TestExecutor_DeltaCoalescing_EndToEnd(t *testing.T) {
+	t.Parallel()
+
+	reply := strings.Repeat("abcdefghij", 20)
+
+	const maxBytes = 20
+
+	events, saves, text := runCoalescingStream(t, reply, DeltaCoalescing{Interval: 10 * time.Second, MaxBytes: maxBytes})
+	_, offSaves, offText := runCoalescingStream(t, reply, DeltaCoalescing{})
+
+	// The first byte, one event per MaxBytes of the rest, and the LastChunk.
+	wantArtifactEvents := 2 + (len(reply)-1)/maxBytes
+	assert.Equal(t, wantArtifactEvents, events)
+	// Status saves are a2a-go's own; allow up to four of them per run.
+	assert.LessOrEqual(t, saves, wantArtifactEvents+4)
+	assert.Less(t, saves, offSaves)
+	assert.Equal(t, reply, text)
+	assert.Equal(t, reply, offText)
 }

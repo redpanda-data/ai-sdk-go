@@ -166,7 +166,6 @@ func (e *Executor) processEvents(
 	events iter.Seq2[agent.Event, error],
 ) error {
 	dw := newDeltaWriter(reqCtx, queue, e.log, e.coalesce)
-	defer dw.close()
 
 	write := func(ev a2a.Event) {
 		if err := dw.write(ctx, ev); err != nil {
@@ -214,8 +213,13 @@ func (e *Executor) processEvents(
 			return nil
 		}
 
-		if _, isDelta := event.(agent.AssistantDeltaEvent); !isDelta {
+		// The Enabled check skips the %T formatting on every streamed delta.
+		if e.log.Enabled(ctx, slog.LevelDebug) {
 			e.log.DebugContext(ctx, "Processing event", "type", fmt.Sprintf("%T", event))
+		}
+
+		if _, isDelta := event.(agent.AssistantDeltaEvent); !isDelta {
+			dw.tick(ctx)
 		}
 
 		switch ev := event.(type) {
@@ -266,6 +270,8 @@ func (e *Executor) processEvents(
 			// Stream delta updates as incremental artifact chunks
 			if tp, ok := ev.Delta.Part.(*llm.TextPart); ok && tp != nil {
 				dw.delta(ctx, tp.Text)
+			} else {
+				dw.tick(ctx)
 			}
 		case agent.InvocationEndEvent:
 			e.log.DebugContext(ctx, "Invocation end event", "finish_reason", ev.FinishReason)
