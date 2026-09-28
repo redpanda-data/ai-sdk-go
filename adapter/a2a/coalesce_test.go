@@ -19,6 +19,7 @@ import (
 	"errors"
 	"log/slog"
 	"strings"
+	"sync"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -37,8 +38,10 @@ func testReqCtx() *a2asrv.RequestContext {
 }
 
 // recordingQueue records successful writes. It fails write number failAt
-// (1-based, 0 means never) and rejects writes on a done ctx.
+// (1-based, 0 means never) and rejects writes on a done ctx. The flush timer
+// writes from its own goroutine, so access is locked.
 type recordingQueue struct {
+	mu     sync.Mutex
 	failAt int
 	writes int
 	events []a2a.Event
@@ -48,6 +51,9 @@ func (q *recordingQueue) Write(ctx context.Context, event a2a.Event) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+
+	q.mu.Lock()
+	defer q.mu.Unlock()
 
 	q.writes++
 	if q.writes == q.failAt {
@@ -68,6 +74,13 @@ func (q *recordingQueue) Read(context.Context) (a2a.Event, a2a.TaskVersion, erro
 }
 
 func (q *recordingQueue) Close() error { return nil }
+
+func (q *recordingQueue) recorded() []a2a.Event {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	return append([]a2a.Event(nil), q.events...)
+}
 
 func deltaEvent(text string) agent.AssistantDeltaEvent {
 	return agent.AssistantDeltaEvent{Delta: llm.ContentPartEvent{Part: &llm.TextPart{Text: text}}}
@@ -157,7 +170,7 @@ func (tc coalesceCase) run(t *testing.T) {
 				case s.sleep > 0:
 					time.Sleep(s.sleep)
 				case s.probe:
-					probes = append(probes, len(queue.events))
+					probes = append(probes, len(queue.recorded()))
 				default:
 					if errors.Is(s.err, context.Canceled) {
 						cancel()
@@ -177,7 +190,7 @@ func (tc coalesceCase) run(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		assertEvents(t, queue.events, tc.want)
+		assertEvents(t, queue.recorded(), tc.want)
 		assert.Equal(t, tc.wantProbes, probes)
 	})
 }
@@ -365,28 +378,28 @@ func TestDeltaCoalescing(t *testing.T) {
 			wantProbes: []int{1},
 		},
 		{
-			// Deltas at 0, 40, 80, 120, 160 and 200ms: the one at 120ms fires the age trigger.
-			name: "age trigger on a text delta",
+			// Deltas at 0, 40, 80, 120, 160 and 190ms: the timer fires at 100ms only.
+			name: "timer flushes during a steady stream",
 			cfg:  ms100,
 			steps: steps(deltaEvent("a"), 40*time.Millisecond, deltaEvent("b"), 40*time.Millisecond, deltaEvent("c"),
-				40*time.Millisecond, deltaEvent("d"), 40*time.Millisecond, deltaEvent("e"), 40*time.Millisecond,
+				40*time.Millisecond, deltaEvent("d"), 40*time.Millisecond, deltaEvent("e"), 30*time.Millisecond,
 				deltaEvent("f"), messageEvent("abcdef"), invocationEnd()),
 			want: []wantEvent{
-				wantArtifact("a", false, false), wantArtifact("bcd", true, false), wantArtifact("ef", true, true),
+				wantArtifact("a", false, false), wantArtifact("bc", true, false), wantArtifact("def", true, true),
 				working, completed,
 			},
 		},
 		{
-			name:  "aged tail goes into the LastChunk at a message event",
+			name:  "timer flushes a tail before a late message event",
 			cfg:   ms100,
 			steps: steps(deltaEvent("lead"), deltaEvent("tail"), 200*time.Millisecond, messageEvent("leadtail"), invocationEnd()),
-			want:  []wantEvent{lead, wantArtifact("tail", true, true), working, completed},
+			want:  []wantEvent{lead, tail, wantArtifact("", true, true), working, completed},
 		},
 		{
-			name:  "aged tail goes into the LastChunk at a stream reset",
+			name:  "timer flushes a tail before a late stream reset",
 			cfg:   ms100,
 			steps: steps(deltaEvent("lead"), deltaEvent("tail"), 200*time.Millisecond, streamReset(), deltaEvent("new"), invocationEnd()),
-			want:  []wantEvent{lead, wantArtifact("tail", true, true), wantArtifact("new", false, false), completed},
+			want:  []wantEvent{lead, tail, wantArtifact("", true, true), wantArtifact("new", false, false), completed},
 		},
 		{
 			name:       "age trigger on a tool-call delta",
@@ -404,11 +417,11 @@ func TestDeltaCoalescing(t *testing.T) {
 			wantProbes: []int{2},
 		},
 		{
-			name:       "text waits while no event arrives",
+			name:       "timer flushes during a provider stall",
 			cfg:        ms100,
 			steps:      steps(deltaEvent("lead"), deltaEvent("tail"), 500*time.Millisecond, probe, invocationEnd()),
 			want:       []wantEvent{lead, tail, completed},
-			wantProbes: []int{1},
+			wantProbes: []int{2},
 		},
 		{
 			// Write 2 is the LastChunk "tail". The next response must start a new artifact.
@@ -472,7 +485,6 @@ func BenchmarkDeltaCoalescing(b *testing.B) {
 
 			for range b.N {
 				dw.delta(ctx, "the quick brown fox jumps over the lazy dog")
-				dw.tick(ctx)
 			}
 		})
 	}

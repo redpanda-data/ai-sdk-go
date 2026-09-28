@@ -166,6 +166,7 @@ func (e *Executor) processEvents(
 	events iter.Seq2[agent.Event, error],
 ) error {
 	dw := newDeltaWriter(reqCtx, queue, e.log, e.coalesce)
+	defer dw.close()
 
 	write := func(ev a2a.Event) {
 		if err := dw.write(ctx, ev); err != nil {
@@ -349,10 +350,6 @@ func (e *Executor) processEvents(
 		default:
 			e.log.DebugContext(ctx, "Received unhandled event", "type", fmt.Sprintf("%T", event))
 		}
-
-		// After the switch, so an aged tail at MessageEvent or StreamReset goes
-		// into the LastChunk event. A no-op when the event already flushed.
-		dw.tick(ctx)
 	}
 
 	// If we exit the loop without receiving InvocationEndEvent, write a completion status anyway

@@ -18,6 +18,7 @@ import (
 	"context"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/a2aproject/a2a-go/a2a"
@@ -29,17 +30,16 @@ import (
 // becomes an A2A artifact event.
 //
 // The first delta of an artifact is sent immediately. Later deltas are
-// buffered and sent as one append on a size trigger, an age trigger, or any
-// non-delta event. The age is checked when the next event arrives, so text
-// can wait longer than Interval while the provider sends nothing. Each
-// flushed event carries at most one TextPart. A failed write drops its text,
-// as it does with coalescing off.
+// buffered and sent as one append on a size trigger, when Interval has
+// passed (a timer covers a provider stall), or on any non-delta event. Each
+// flushed event carries at most one TextPart. A failed write drops its
+// text, as it does with coalescing off.
 //
-// Executor.Cancel does not flush: the unsent buffer is dropped, not saved.
-// The stored task still matches what was actually streamed.
+// Executor.Cancel does not flush: up to one Interval of buffered text is
+// dropped, not saved. The stored task still matches what was streamed.
 type DeltaCoalescing struct {
-	// Interval is how long buffered text waits before it is sent. Zero turns
-	// coalescing off: every delta is sent immediately, as before, and
+	// Interval is the longest buffered text waits before it is sent. Zero
+	// turns coalescing off: every delta is sent immediately, as before, and
 	// MaxBytes has no effect. A negative value counts as zero.
 	Interval time.Duration
 	// MaxBytes sends the buffer once it holds at least this many bytes. Zero
@@ -49,8 +49,11 @@ type DeltaCoalescing struct {
 }
 
 // deltaWriter buffers one streamed artifact's text for a single
-// processEvents call. It is not safe for concurrent use.
+// processEvents call. The mutex serializes the event loop and the flush
+// timer.
 type deltaWriter struct {
+	mu sync.Mutex
+
 	reqCtx *a2asrv.RequestContext
 	queue  eventqueue.Queue
 	log    *slog.Logger
@@ -59,6 +62,8 @@ type deltaWriter struct {
 	artifactID a2a.ArtifactID
 	buf        strings.Builder
 	lastSent   time.Time
+	timer      *time.Timer
+	closed     bool
 }
 
 func newDeltaWriter(reqCtx *a2asrv.RequestContext, queue eventqueue.Queue, log *slog.Logger, cfg DeltaCoalescing) *deltaWriter {
@@ -81,8 +86,15 @@ func newDeltaWriter(reqCtx *a2asrv.RequestContext, queue eventqueue.Queue, log *
 // delta handles one streamed text chunk. With coalescing off it is sent
 // immediately, as its own artifact event.
 func (w *deltaWriter) delta(ctx context.Context, text string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	if w.closed {
+		return
+	}
+
 	if w.cfg.Interval == 0 {
-		w.sendImmediate(ctx, text)
+		w.sendImmediateLocked(ctx, text)
 		return
 	}
 
@@ -101,21 +113,18 @@ func (w *deltaWriter) delta(ctx context.Context, text string) {
 
 	w.buf.WriteString(text)
 
-	if w.cfg.MaxBytes > 0 && w.buf.Len() >= w.cfg.MaxBytes {
-		w.flush(ctx, false)
+	elapsed := time.Since(w.lastSent)
+	if (w.cfg.MaxBytes > 0 && w.buf.Len() >= w.cfg.MaxBytes) || elapsed >= w.cfg.Interval {
+		w.flushLocked(ctx, false)
+		return
 	}
+
+	w.armTimerLocked(ctx, w.cfg.Interval-elapsed)
 }
 
-// tick sends the buffer once it is older than Interval. processEvents calls
-// it after every event.
-func (w *deltaWriter) tick(ctx context.Context) {
-	if w.buf.Len() > 0 && time.Since(w.lastSent) >= w.cfg.Interval {
-		w.flush(ctx, false)
-	}
-}
-
-// sendImmediate is the coalescing-off path, unchanged from before.
-func (w *deltaWriter) sendImmediate(ctx context.Context, text string) {
+// sendImmediateLocked is the coalescing-off path, unchanged from before.
+// Caller holds w.mu.
+func (w *deltaWriter) sendImmediateLocked(ctx context.Context, text string) {
 	var artifact *a2a.TaskArtifactUpdateEvent
 
 	if w.artifactID == "" {
@@ -128,11 +137,11 @@ func (w *deltaWriter) sendImmediate(ctx context.Context, text string) {
 	_ = w.queueWrite(ctx, artifact)
 }
 
-// flush sends the buffered text as one append and empties the buffer, also
-// when the write fails: a retry could send the text twice, because the
-// queue can fail after it delivered the event. An empty buffer with
-// lastChunk false does nothing.
-func (w *deltaWriter) flush(ctx context.Context, lastChunk bool) {
+// flushLocked sends the buffered text as one append and empties the
+// buffer, also when the write fails: a retry could send the text twice,
+// because the queue can fail after it delivered the event. An empty buffer
+// with lastChunk false does nothing. Caller holds w.mu.
+func (w *deltaWriter) flushLocked(ctx context.Context, lastChunk bool) {
 	if w.buf.Len() == 0 && !lastChunk {
 		return
 	}
@@ -150,29 +159,80 @@ func (w *deltaWriter) flush(ctx context.Context, lastChunk bool) {
 
 	w.buf.Reset()
 	w.lastSent = time.Now()
+	w.stopTimerLocked()
 }
 
 // endArtifact flushes into a LastChunk event and clears the artifact ID.
 func (w *deltaWriter) endArtifact(ctx context.Context) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
 	if w.artifactID == "" {
 		return
 	}
 
-	w.flush(ctx, true)
+	w.flushLocked(ctx, true)
 	w.artifactID = ""
 }
 
 // resetArtifact flushes as a non-final append and clears the artifact ID.
 func (w *deltaWriter) resetArtifact(ctx context.Context) {
-	w.flush(ctx, false)
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	w.flushLocked(ctx, false)
 	w.artifactID = ""
 }
 
 // write flushes any pending text, then writes ev and returns its error.
 func (w *deltaWriter) write(ctx context.Context, ev a2a.Event) error {
-	w.flush(ctx, false)
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	if !w.closed {
+		w.flushLocked(ctx, false)
+	}
 
 	return w.queue.Write(ctx, ev)
+}
+
+// onTimer is the flush timer's callback; it does nothing once closed.
+func (w *deltaWriter) onTimer(ctx context.Context) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	if w.closed {
+		return
+	}
+
+	w.flushLocked(ctx, false)
+}
+
+// close stops the timer. processEvents defers it, so the timer never
+// writes after processEvents returns.
+func (w *deltaWriter) close() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	w.stopTimerLocked()
+	w.closed = true
+}
+
+func (w *deltaWriter) stopTimerLocked() {
+	if w.timer != nil {
+		w.timer.Stop()
+	}
+}
+
+// armTimerLocked arms (or re-arms) the flush timer for d. The closure
+// captures ctx instead of storing it on the struct.
+func (w *deltaWriter) armTimerLocked(ctx context.Context, d time.Duration) {
+	if w.timer == nil {
+		w.timer = time.AfterFunc(d, func() { w.onTimer(ctx) })
+		return
+	}
+
+	w.timer.Reset(d)
 }
 
 func (w *deltaWriter) queueWrite(ctx context.Context, ev a2a.Event) error {
