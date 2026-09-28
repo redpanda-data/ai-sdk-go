@@ -472,6 +472,7 @@ func BenchmarkDeltaCoalescing(b *testing.B) {
 
 			for range b.N {
 				dw.delta(ctx, "the quick brown fox jumps over the lazy dog")
+				dw.tick(ctx)
 			}
 		})
 	}

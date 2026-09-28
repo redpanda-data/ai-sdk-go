@@ -35,8 +35,8 @@ import (
 // flushed event carries at most one TextPart. A failed write drops its text,
 // as it does with coalescing off.
 //
-// Executor.Cancel does not flush: up to one Interval of buffered text is dropped,
-// not saved. The stored task still matches what was actually streamed.
+// Executor.Cancel does not flush: the unsent buffer is dropped, not saved.
+// The stored task still matches what was actually streamed.
 type DeltaCoalescing struct {
 	// Interval is how long buffered text waits before it is sent. Zero turns
 	// coalescing off: every delta is sent immediately, as before, and
@@ -103,10 +103,7 @@ func (w *deltaWriter) delta(ctx context.Context, text string) {
 
 	if w.cfg.MaxBytes > 0 && w.buf.Len() >= w.cfg.MaxBytes {
 		w.flush(ctx, false)
-		return
 	}
-
-	w.tick(ctx)
 }
 
 // tick sends the buffer once it is older than Interval. processEvents calls
