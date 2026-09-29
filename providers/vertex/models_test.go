@@ -42,7 +42,7 @@ func TestCatalogBuildsWithDayOneModels(t *testing.T) {
 
 	assert.ElementsMatch(t, []string{
 		vertex.ModelGemini38Flash, vertex.ModelGemini36Flash, vertex.ModelGemini31FlashLite,
-		vertex.ModelClaudeOpus55, vertex.ModelClaudeSonnet5, vertex.ModelClaudeHaiku45,
+		vertex.ModelClaudeOpus55, vertex.ModelClaudeSonnet55, vertex.ModelClaudeSonnet5, vertex.ModelClaudeHaiku45,
 	}, got)
 }
 
@@ -66,6 +66,7 @@ func TestOfferingAttributes(t *testing.T) {
 		vertex.ModelGemini36Flash:     "google",
 		vertex.ModelGemini31FlashLite: "google",
 		vertex.ModelClaudeOpus55:      "anthropic",
+		vertex.ModelClaudeSonnet55:    "anthropic",
 		vertex.ModelClaudeSonnet5:     "anthropic",
 		vertex.ModelClaudeHaiku45:     "anthropic",
 	}
@@ -183,6 +184,10 @@ func TestClaudeRegionalOverride(t *testing.T) {
 		vertex.ModelClaudeOpus55: {
 			global:   pricing.NewRates(4.00, 20.00, 0.20).WithCacheCreation(5.00, 8.00, 0),
 			regional: pricing.NewRates(4.40, 22.00, 0.22).WithCacheCreation(5.50, 8.80, 0),
+		},
+		vertex.ModelClaudeSonnet55: {
+			global:   pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0),
+			regional: pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(2.75, 4.40, 0),
 		},
 		vertex.ModelClaudeSonnet5: {
 			global:   pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0),

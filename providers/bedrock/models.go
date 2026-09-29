@@ -59,6 +59,11 @@ const (
 	ModelClaudeFable51Global = "global." + ModelClaudeFable51
 	ModelClaudeFable51US     = "us." + ModelClaudeFable51
 
+	// ModelClaudeSonnet55 is the bare Bedrock ID for Claude Sonnet 5.5
+	// (global-profile-only; invoke via ModelClaudeSonnet55Global).
+	ModelClaudeSonnet55       = "anthropic.claude-sonnet-5-5"
+	ModelClaudeSonnet55Global = "global." + ModelClaudeSonnet55
+
 	// ModelClaudeSonnet5 is the bare Bedrock ID for Claude Sonnet 5
 	// (inference-profile-only — invoke via one of the prefixed variants).
 	// Only us. and global. profiles are published so far (verified by
@@ -411,6 +416,15 @@ var (
 		Reasoning:        true,
 	}
 
+	// claudeNoSchemaCaps is for Opus 4.7+, Sonnet 5+, and Fable, whose
+	// Converse endpoint rejects structured output.
+	claudeNoSchemaCaps = func() llm.ModelCapabilities {
+		caps := claudeStandardCaps
+		caps.StructuredOutput = false
+
+		return caps
+	}()
+
 	// claudeModalities is shared by every Claude family on Bedrock: text,
 	// image and PDF document input, text output.
 	claudeModalities = catalog.Modalities{
@@ -704,7 +718,7 @@ var bedrockFamilies = []family{
 		DisplayName:    "Claude Fable 5.1",
 		Profiles:       []string{"global", "us"},
 		DataSharing:    true,
-		Capabilities:   claudeStandardCaps,
+		Capabilities:   claudeNoSchemaCaps,
 		Modalities:     claudeModalities,
 		Constraints:    claudeNoSampling1MConstraints,
 		Reasoning:      frontierClaudeThinking,
@@ -720,7 +734,7 @@ var bedrockFamilies = []family{
 		DisplayName:  "Claude Fable 5",
 		Profiles:     []string{"global", "us", "eu"},
 		DataSharing:  true,
-		Capabilities: claudeStandardCaps,
+		Capabilities: claudeNoSchemaCaps,
 		Modalities:   claudeModalities,
 		Constraints:  claudeNoSampling1MConstraints,
 		Reasoning:    frontierClaudeThinking,
@@ -738,7 +752,7 @@ var bedrockFamilies = []family{
 		Model:          catalog.ModelClaudeOpus55,
 		DisplayName:    "Claude Opus 5.5",
 		Profiles:       []string{"global", "us", "eu", "au", "jp"},
-		Capabilities:   claudeStandardCaps,
+		Capabilities:   claudeNoSchemaCaps,
 		Modalities:     claudeModalities,
 		Constraints:    claudeNoSampling1MConstraints,
 		Reasoning:      frontierClaudeThinking,
@@ -754,7 +768,7 @@ var bedrockFamilies = []family{
 		Model:        catalog.ModelClaudeOpus5,
 		DisplayName:  "Claude Opus 5",
 		Profiles:     []string{"global", "us", "eu", "au"},
-		Capabilities: claudeStandardCaps,
+		Capabilities: claudeNoSchemaCaps,
 		Modalities:   claudeModalities,
 		Constraints:  claudeNoSampling1MConstraints,
 		Reasoning:    frontierClaudeThinking,
@@ -770,7 +784,7 @@ var bedrockFamilies = []family{
 		Model:        catalog.ModelClaudeOpus48,
 		DisplayName:  "Claude Opus 4.8",
 		Profiles:     []string{"global", "us", "eu", "jp"},
-		Capabilities: claudeStandardCaps,
+		Capabilities: claudeNoSchemaCaps,
 		Modalities:   claudeModalities,
 		Constraints:  claudeNoSampling1MConstraints,
 		Reasoning:    frontierClaudeThinking,
@@ -784,7 +798,7 @@ var bedrockFamilies = []family{
 		Model:        catalog.ModelClaudeOpus47,
 		DisplayName:  "Claude Opus 4.7",
 		Profiles:     []string{"global", "us", "eu", "jp"},
-		Capabilities: claudeStandardCaps,
+		Capabilities: claudeNoSchemaCaps,
 		Modalities:   claudeModalities,
 		Constraints:  claudeNoSampling1MConstraints,
 		Reasoning:    frontierClaudeThinking,
@@ -818,13 +832,28 @@ var bedrockFamilies = []family{
 		Rates:        pricing.RateCard{Base: pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0)},
 	},
 	{
+		// Claude Sonnet 5.5 — global-profile-only. Rates is the published
+		// non-global rate, unused until AWS adds a geo profile.
+		BareID:         ModelClaudeSonnet55,
+		Model:          catalog.ModelClaudeSonnet55,
+		DisplayName:    "Claude Sonnet 5.5",
+		Profiles:       []string{"global"},
+		Capabilities:   claudeNoSchemaCaps,
+		Modalities:     claudeModalities,
+		Constraints:    claudeNoSampling1MConstraints,
+		Reasoning:      frontierClaudeThinking,
+		GlobalRates:    &pricing.RateCard{Base: pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0)},
+		Rates:          pricing.RateCard{Base: pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(2.75, 4.40, 0)},
+		ProfileRegions: claudeSonnet55ProfileRegions,
+	},
+	{
 		// Claude Sonnet 5 — inference-profile-only; global and us are
 		// published so far.
 		BareID:       ModelClaudeSonnet5,
 		Model:        catalog.ModelClaudeSonnet5,
 		DisplayName:  "Claude Sonnet 5",
 		Profiles:     []string{"global", "us"},
-		Capabilities: claudeStandardCaps,
+		Capabilities: claudeNoSchemaCaps,
 		Modalities:   claudeModalities,
 		Constraints:  claudeNoSampling1MConstraints,
 		Reasoning:    frontierClaudeThinking,

@@ -650,6 +650,48 @@ func TestNewModel_ClaudeFable51Routing(t *testing.T) {
 	}
 }
 
+func TestNewModel_ClaudeSonnet55Routing(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		region    string
+		modelName string
+		wantID    string
+		wantErr   bool
+	}{
+		{"bare with unset region has no US profile", "", ModelClaudeSonnet55, "", true},
+		{"bare from US routes global", "us-east-1", ModelClaudeSonnet55, ModelClaudeSonnet55Global, false},
+		{"bare from EU routes global", "eu-west-1", ModelClaudeSonnet55, ModelClaudeSonnet55Global, false},
+		{"bare from Tokyo routes global", "ap-northeast-1", ModelClaudeSonnet55, ModelClaudeSonnet55Global, false},
+		{"bare from GovCloud", "us-gov-west-1", ModelClaudeSonnet55, "", true},
+		{"bare from unknown region", "unknown", ModelClaudeSonnet55, "", true},
+		{"explicit global from US", "us-east-1", ModelClaudeSonnet55Global, ModelClaudeSonnet55Global, false},
+		{"explicit US is unpublished", "us-east-1", "us." + ModelClaudeSonnet55, "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			p := &Provider{client: nil, region: tt.region}
+
+			model, err := p.NewModel(tt.modelName)
+			if tt.wantErr {
+				require.Error(t, err)
+
+				return
+			}
+
+			require.NoError(t, err)
+
+			m, ok := model.(*Model)
+			require.True(t, ok)
+			assert.Equal(t, tt.wantID, m.config.APIModelID)
+		})
+	}
+}
+
 func TestNewModel_RestrictedSamplingParametersRejected(t *testing.T) {
 	t.Parallel()
 
