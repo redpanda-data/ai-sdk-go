@@ -47,6 +47,10 @@ type ContextUsage struct {
 
 	// Framing is the per-message protocol overhead.
 	Framing int `json:"framing"`
+
+	// MaxContextSize is the model's input context window the footprint is
+	// measured against; zero when the runtime does not know it.
+	MaxContextSize int `json:"max_context_size"`
 }
 
 // CompactionPhase identifies which pass produced a CompactionReport.
