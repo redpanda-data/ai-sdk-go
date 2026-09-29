@@ -108,12 +108,8 @@ var claudeFable51ProfileRegions = map[string]string{
 	"mx-central-1":   globalProfileRegion,
 }
 
-// claudeSonnet55ProfileRegions maps every published source region to its
-// preferred profile. Sonnet 5.5 publishes only the global profile, so every
-// published commercial region routes through global (GovCloud is geo-only
-// and out of scope).
-//
-// Source: https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-5-5.html
+// claudeSonnet55ProfileRegions routes every commercial source region to
+// global, the only profile Sonnet 5.5 publishes.
 var claudeSonnet55ProfileRegions = map[string]string{
 	"us-east-1":    globalProfileRegion,
 	"us-east-2":    globalProfileRegion,

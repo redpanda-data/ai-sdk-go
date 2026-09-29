@@ -22,10 +22,7 @@ import (
 )
 
 // TestClaudeStructuredOutputCapability pins which Claude families advertise
-// structured output. Converse rejects outputConfig.textFormat on Opus 4.7 and
-// later, Sonnet 5 and later, and Fable ("output_config.format: Extra inputs
-// are not permitted", probed 2026-09-29), so a caller trusting the capability
-// would send a request that fails. Every variant of a family must agree.
+// structured output; every variant of a family must agree.
 func TestClaudeStructuredOutputCapability(t *testing.T) {
 	t.Parallel()
 

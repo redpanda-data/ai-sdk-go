@@ -41,9 +41,8 @@ const (
 	// from LocationsMatrixSource, in YYYY-MM-DD form. The full per-model
 	// availability was reconciled against the live page on this date: every
 	// row below is what LocationsMatrixSource published on 2026-09-22,
-	// except claude-opus-5-5 and claude-sonnet-5-5 (added 2026-09-29), which
-	// the matrix did not yet list; their rows are each model page's "Model
-	// availability" section.
+	// except claude-opus-5-5 and claude-sonnet-5-5, which come from their
+	// model pages.
 	LocationsMatrixTranscribed = "2026-09-22"
 )
 
@@ -59,8 +58,8 @@ const (
 //
 // Gemini is published at global and the us and eu multi-regions, with no
 // named-region availability. Opus 5.5 and Sonnet 5.5 are published at
-// global and the us and eu multi-regions. Sonnet 5 is published at global, the us and eu
-// multi-regions, and the asia-southeast1 named region. Haiku is published
+// global and the us and eu multi-regions. Sonnet 5 adds the asia-southeast1
+// named region. Haiku is published
 // at global and the us-east5, europe-west1, and asia-east1 named regions.
 var servedLocations = map[string][]string{
 	ModelGemini38Flash: {
@@ -82,9 +81,7 @@ var servedLocations = map[string][]string{
 		LocationGlobal,
 		"us", "eu",
 	},
-	// From the Sonnet 5.5 model page (not yet in the matrix). As with Opus
-	// 5.5, its "ML processing" list adds asia-southeast1 without publishing
-	// availability or a price there.
+	// From the Sonnet 5.5 model page (not yet in the matrix).
 	ModelClaudeSonnet55: {
 		LocationGlobal,
 		"us", "eu",

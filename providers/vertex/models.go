@@ -254,19 +254,14 @@ func entries() []catalog.Entry {
 			Constraints: llm.ModelConstraints{
 				MaxInputTokens:  1000000,
 				MaxOutputTokens: 128000,
-				// Adaptive thinking; thinking.type disabled returns 400
-				// (between_tools is the lowest setting), as do non-default
-				// sampling parameters (Anthropic's Sonnet 5.5 model page).
+				// Adaptive thinking only; sampling parameters return 400.
 				SupportedParams: []string{"max_tokens", "reasoning_effort"},
 			},
 			Reasoning: catalog.ReasoningSupport{
 				Efforts:  []llm.ReasoningEffort{reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortXHigh, reasoningEffortMax},
 				Adaptive: true,
 			},
-			// Claude Sonnet 5.5 GA, release date 2026-09-28, retirement floor
-			// "not sooner than 2027-09-28" on the model page (docs.cloud.google.com/
-			// gemini-enterprise-agent-platform/models/partner-models/claude/
-			// sonnet-5-5, read 2026-09-29).
+			// GA 2026-09-28; retirement floor 2027-09-28 is not an exact date.
 			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-09-28")},
 			Pricing: claudeSonnet55Pricing(),
 		},
@@ -357,10 +352,8 @@ func claudeOpus55Pricing() pricing.Info {
 	return info
 }
 
-// claudeSonnet55Pricing returns the Sonnet 5.5 rate card, same shape as
-// [claudeOpus55Pricing]. Global, and non-global = global x 1.10, from the
-// pricing page's region tabs, read 2026-09-29; flat across the =< 200K and
-// > 200K input tiers. Only the us and eu tabs list Sonnet 5.5.
+// claudeSonnet55Pricing returns the Sonnet 5.5 rate card: global, plus
+// global x 1.10 for us and eu.
 func claudeSonnet55Pricing() pricing.Info {
 	global := pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0)
 	nonGlobal := pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(2.75, 4.40, 0)

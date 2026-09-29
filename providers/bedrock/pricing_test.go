@@ -249,9 +249,7 @@ func TestClaudeOpus5Pricing(t *testing.T) {
 	}
 }
 
-// globalOnlyFamilies lists the families AWS publishes under the global
-// profile alone; TestGeoGlobalRatio has no catalogued sibling to compare
-// them against.
+// globalOnlyFamilies have no non-global sibling to compare against.
 var globalOnlyFamilies = map[string]bool{
 	ModelClaudeSonnet55: true,
 }

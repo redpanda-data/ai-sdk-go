@@ -337,23 +337,17 @@ func entries() []catalog.Entry {
 			Constraints: llm.ModelConstraints{
 				MaxInputTokens:  1000000, // 1M context window
 				MaxOutputTokens: 128000,  // 128K output tokens
-				// Sonnet 5.5 thinking is adaptive: thinking.type disabled and
-				// enabled both return 400 (between_tools is the lowest
-				// setting), as do non-default sampling parameters. tool_choice
-				// "any" and "tool" also return 400; only "auto" and "none" are
-				// accepted. No fast mode.
+				// Adaptive thinking only; sampling parameters and forced
+				// tool_choice return 400. No fast mode.
 				SupportedParams: []string{"max_tokens", "reasoning_effort"},
 			},
 			Reasoning: catalog.ReasoningSupport{
-				// All five levels; the API default is high.
 				Efforts:  []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 				Adaptive: true,
 			},
 			Life: catalog.Lifecycle{
 				Available: catalog.MustDate("2026-09-28"),
 			},
-			// Same rates as Sonnet 5, per the pricing page. Cache rates from
-			// Anthropic's multipliers (5m-write 1.25x, 1h-write 2x, read 0.10x).
 			Pricing: pricing.FlatInfoFromRates(
 				pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0),
 			),

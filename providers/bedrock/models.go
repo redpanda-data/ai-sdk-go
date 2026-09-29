@@ -59,11 +59,8 @@ const (
 	ModelClaudeFable51Global = "global." + ModelClaudeFable51
 	ModelClaudeFable51US     = "us." + ModelClaudeFable51
 
-	// ModelClaudeSonnet55 is the bare building block for the Claude Sonnet
-	// 5.5 profile ID. bedrock-runtime publishes only the global profile; the
-	// bare ID is served only on bedrock-mantle's Anthropic Messages surface,
-	// which this provider does not implement:
-	// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-5-5.html
+	// ModelClaudeSonnet55 is the bare Bedrock ID for Claude Sonnet 5.5
+	// (global-profile-only; invoke via ModelClaudeSonnet55Global).
 	ModelClaudeSonnet55       = "anthropic.claude-sonnet-5-5"
 	ModelClaudeSonnet55Global = "global." + ModelClaudeSonnet55
 
@@ -419,14 +416,8 @@ var (
 		Reasoning:        true,
 	}
 
-	// claudeNoSchemaCaps is claudeStandardCaps without structured output, for
-	// the Claude generations Bedrock serves through its newer Messages-API
-	// integration (Opus 4.7 and later, Sonnet 5 and later, Fable). Converse
-	// rejects outputConfig.textFormat on them with ValidationException
-	// "output_config.format: Extra inputs are not permitted" (probed
-	// 2026-09-29), and their model cards list structured outputs as not
-	// supported on bedrock-runtime. Opus 4.6 and earlier, Sonnet 4.6 and 4.5,
-	// and Haiku 4.5 honor it.
+	// claudeNoSchemaCaps is for Opus 4.7+, Sonnet 5+, and Fable, whose
+	// Converse endpoint rejects structured output.
 	claudeNoSchemaCaps = func() llm.ModelCapabilities {
 		caps := claudeStandardCaps
 		caps.StructuredOutput = false
@@ -841,10 +832,7 @@ var bedrockFamilies = []family{
 		Rates:        pricing.RateCard{Base: pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0)},
 	},
 	{
-		// Claude Sonnet 5.5 — global-profile-only on bedrock-runtime (every
-		// commercial source region routes through global; GovCloud is
-		// geo-only and out of scope). Rates from the AWS price list
-		// (2026-09-29), the same as Sonnet 5. Rates is the published
+		// Claude Sonnet 5.5 — global-profile-only. Rates is the published
 		// non-global rate, unused until AWS adds a geo profile.
 		BareID:         ModelClaudeSonnet55,
 		Model:          catalog.ModelClaudeSonnet55,
