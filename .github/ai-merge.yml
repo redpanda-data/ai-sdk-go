@@ -1,0 +1,100 @@
+---
+# AI-approved merge config for redpanda-data/ai-sdk-go.
+# Read from the BASE REF (trusted), so a PR cannot relax its own guardrails.
+# Bump `version` on every change; it is recorded in each PR's audit record.
+#
+# Baseline exclusions always apply on top of this list: .github/**, terraform/**,
+# release/**, Dockerfiles, iam/ and auth/ dirs, *credential*, *secret*, *.pem, *.key.
+# Binary or patchless files also make a PR ineligible.
+version: 10
+enabled: true
+
+# Size is NOT a risk score and does not gate. The only size rule is that the
+# whole reviewable diff must fit in ONE review: max_diff_chars is the number of
+# characters of reviewable diff sent to the model (default 120000, roughly
+# 3000 lines). Larger changes abstain ("too large to review in one pass") and
+# get a normal human review. The model must also confirm it read the whole
+# change (reviewed_fully) before an approval counts. File/line counts and the
+# model's scope classification are recorded in every audit comment as inputs
+# for the separate risk-scoring work; they do not gate.
+max_diff_chars: 120000
+
+# Approval requires the model's self-reported confidence to be at or above this.
+# 0.75 rather than 0.8: the deterministic gates (membership, excluded paths,
+# CI, size, evidence, supply chain) carry the risk; this threshold only has to
+# filter out verdicts the model itself flags as uncertain. Tune from dry-run
+# data, not from intuition.
+min_confidence: 0.75
+
+# HARD CI GATE, enforced in the trusted job for every engine (not just in the
+# agent's prompt): the commit's CI must have PASSED for an approval. `failed`
+# and `pending` refuse. `none` (no substantive check ran) refuses too — nothing
+# verified the change.
+# CURRENT STATE OF THIS REPO'S CI, stated plainly: the ruleset has NO required
+# status checks, and the Go workflows path-filter on **.go/go.mod/go.sum, so a
+# .json- or .md-only PR runs no CI and will therefore never be AI-approved
+# until ADP (1) runs `task catalog:check` on PRs incl. catalog/** and (2)
+# makes Test / Golangci Lint / License / catalog:check required and ideally
+# unconditional. That is a GO-LIVE PRECONDITION, not a mechanism setting.
+# NOTE: the existing `ci:force-tests` label does NOT satisfy this gate — its
+# pull_request_target run attaches its check to the BASE commit, not the PR
+# head, and nothing re-evaluates the PR afterwards. Until the precondition is
+# met, non-Go PRs cannot be AI-approved by any author action.
+require_ci_pass: true
+# The repo's REAL CI checks (check-run names = job names). `passed` requires
+# every one of these to have run and succeeded. Any other check (e.g. the
+# claude-review bot, which runs on every PR without a path filter) can still
+# fail or pend a PR, but can never on its own make CI count as passed.
+ci_checks:
+  - "Test"
+  - "Golangci Lint"
+  - "Check License Headers"
+
+# Judgment engine (see .github/actions/ai-merge/docs/verdict-contract.md).
+#   agent-action  Claude Code via claude-code-action in the unprivileged `agent`
+#                 job: reads the whole PR with Read/Glob/Grep/LS, no execution,
+#                 writes one verdict file validated by the trusted job.
+#   single-call   one model call over the diff in the trusted job (fallback).
+# shadow_engines run for the audit record only and never decide; use them to
+# compare engines on real PRs before switching `engine`.
+engine: agent-action
+shadow_engines:
+  - single-call
+
+# Repo-specific paths that always need a human:
+#   providers/**/provider.go      client construction: API keys / SDK credential chains
+#                                 (** so nested provider packages are covered too).
+#                                 NOTE: catalog/provider.go is NOT matched and that is
+#                                 correct — it is the catalog's provider-ID type, no
+#                                 credentials. Do not broaden to **/provider.go.
+#   providers/bedrock/mantle.go   SigV4 signing transport: retrieves and validates AWS credentials
+#   tool/mcp/transport.go         spawns stdio MCP servers via exec.Command with caller env
+#   tool/builtin/webfetch/**      SSRF guard: private/reserved IP deny list, rebinding-safe dialer
+#   .claude/**, .claude-pr/**, CLAUDE.md   agent config; settings.json runs shell hooks on
+#                                 every contributor's machine — same category as Taskfile
+#   Taskfile.yaml, taskfiles/**, .golangci.yaml   define what CI enforces (task test/lint/license)
+#   LICENSE, header.txt           license text and the header template
+# Guarded by .github/actions/ai-merge/scripts/test_repo_config.py.
+excluded_paths:
+  - "providers/**/provider.go"
+  - "providers/bedrock/mantle.go"
+  - "tool/mcp/transport.go"
+  - "tool/builtin/webfetch/**"
+  - ".claude/**"
+  - ".claude-pr/**"
+  - "CLAUDE.md"
+  - "Taskfile.yaml"
+  - "taskfiles/**"
+  - ".golangci.yaml"
+  - "LICENSE"
+  - "header.txt"
+
+# Dependency changes are in scope (with supply-chain checks), root or nested.
+# This list REPLACES the mechanism defaults and is intentionally exhaustive for
+# this Go-only repo; add package.json / requirements*.txt etc. if such manifests
+# ever land, or their bumps get no supply-chain checklist.
+# GitHub App bots (dependabot/renovate) are skipped at the gate, so this covers
+# bumps by humans and by bot USER accounts that are org members.
+dependency_paths:
+  - "**/go.mod"
+  - "**/go.sum"

@@ -1,0 +1,356 @@
+---
+# Composite action: the AI-approved-merge pipeline.
+#
+# VENDORED COPY of the canonical mechanism maintained internally by Redpanda
+# DevProd. See scripts/README.md for how it is kept in sync. Do not edit here
+# without upstreaming the change.
+name: AI Approved Merge
+description: Guardrail + AI review gate that posts a binding approval on low-risk PRs. Merging stays with the author.
+
+inputs:
+  token:
+    description: GitHub App installation token (posts the approving review).
+    required: true
+  bot_login:
+    description: The App's bot login (e.g. redpanda-ai-merge-bot[bot]); used to find its own prior approvals.
+    required: true
+  anthropic_api_key:
+    required: true
+  model:
+    default: claude-sonnet-5
+  config_path:
+    default: .github/ai-merge.yml
+  repo:
+    required: true
+  pr_number:
+    required: true
+  base_sha:
+    description: SHA of the PR base (config is read from here — trusted).
+    required: true
+  run_url:
+    required: true
+  dry_run:
+    description: When "true", evaluate + comment only — never approve.
+    default: "true"
+  skipped:
+    description: >-
+      "true" when the PR carries the opt-out label. Handled INSIDE the run (not
+      by skipping the job) so a label added after an approval still revokes the
+      approval.
+    default: "false"
+  verdict_path:
+    description: >-
+      Path to a verdict produced by an external engine (the agent job). Used
+      when the repo config selects `engine: agent-action`. Validated against
+      docs/verdict-contract.md before use; anything invalid fails closed.
+    default: ""
+  verdict_meta_path:
+    description: Path to the engine job's metadata (engine, model, head_sha, run_id).
+    default: ""
+  run_id:
+    description: This workflow run id (same-run provenance check for external verdicts).
+    default: ""
+  ci_token:
+    description: >-
+      Token with checks:read for the CI gate (the workflow GITHUB_TOKEN; the App
+      token has no checks permission). Empty disables the CI query and the gate
+      then fails closed ("CI status could not be determined").
+    default: ""
+  own_check_names:
+    description: >-
+      '|'-separated check-run names of this mechanism's own jobs, ignored by the CI
+      gate (job names may contain commas).
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+      with:
+        python-version: "3.12"
+
+    - name: Install python deps
+      shell: bash
+      run: pip install -r "$GITHUB_ACTION_PATH/scripts/requirements.txt"
+
+    - name: Collect PR context (config from trusted base ref)
+      id: ctx
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        REPO: ${{ inputs.repo }}
+        PR: ${{ inputs.pr_number }}
+        BASE_SHA: ${{ inputs.base_sha }}
+        CONFIG_PATH: ${{ inputs.config_path }}
+        CI_TOKEN: ${{ inputs.ci_token }}
+      run: |
+        set -euo pipefail
+        if gh api "repos/$REPO/contents/$CONFIG_PATH?ref=$BASE_SHA" \
+             -H "Accept: application/vnd.github.raw" > config.yml 2>/dev/null; then
+          echo "config_present=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "config_present=false" >> "$GITHUB_OUTPUT"
+          : > config.yml
+        fi
+        gh api --paginate "repos/$REPO/pulls/$PR/files" \
+          --jq '[.[] | {filename, status, additions, deletions, previous_filename,
+                         has_patch: (.patch != null)}]' \
+          | jq -s 'add' > files.json
+        gh api "repos/$REPO/pulls/$PR" \
+          --jq '{number, title, body, additions, deletions, changed_files,
+                 author: .user.login, base: .base.ref,
+                 head_sha: .head.sha}' > pr.json
+        # Org membership is checked against the org via the App token, NOT
+        # inferred from author_association: private membership (GitHub's
+        # default) makes the payload report members as CONTRIBUTOR/NONE.
+        # Requires the App to have Organization -> Members: read.
+        # 204 = member, 404 = not a member. Anything else (403 = App lacks
+        # Members:read, 401, 429, network) is a CHECK FAILURE: still treated as
+        # non-member (fail closed) but surfaced distinctly.
+        # REQUIREMENT: the distinction must reach the sticky PR audit comment,
+        # not just this run log. A teammate reading "X is not a member" about
+        # an org owner won't open the run; the comment has to say "the check
+        # broke, fix the App permission". That is why membership_check_status
+        # is carried into pr.json and guardrails.py renders a separate reason.
+        AUTHOR="$(jq -r .author pr.json)"
+        MEMBER=false
+        MEMBER_STATUS=""
+        if OUT="$(gh api "orgs/${REPO%%/*}/members/$AUTHOR" 2>&1)"; then
+          MEMBER=true
+          MEMBER_STATUS=204
+        else
+          MEMBER_STATUS="$(sed -n 's/.*(HTTP \([0-9]*\)).*/\1/p' <<<"$OUT" | head -1)"
+          if [ "$MEMBER_STATUS" != "404" ]; then
+            echo "::warning::org membership check for '$AUTHOR' returned HTTP ${MEMBER_STATUS:-unknown}" \
+                 "(expected 204/404); treating as NON-member. Verify the App has Organization -> Members: read. gh: $OUT"
+          fi
+        fi
+        jq --argjson m "$MEMBER" --arg st "${MEMBER_STATUS:-unknown}" \
+          '. + {author_is_member: $m, membership_check_status: $st}' pr.json > pr.tmp && mv pr.tmp pr.json
+        # The diff. GitHub refuses to render very large diffs (HTTP 406, ~20k
+        # lines): that is a SIZE refusal, reported as such — never an empty diff
+        # and never an "internal error".
+        if gh pr diff "$PR" --repo "$REPO" > pr.diff 2>diff.err; then
+          echo "diff_unavailable=false" >> "$GITHUB_OUTPUT"
+        else
+          echo "::warning::gh pr diff failed: $(head -c 300 diff.err)"
+          : > pr.diff
+          # 406 = GitHub will not render a diff this large (a size refusal);
+          # anything else is a transient fetch error and is labelled as such.
+          if grep -qiE 'HTTP 406|too_large|diff exceeded|Not Acceptable' diff.err; then
+            echo "diff_unavailable=too_large" >> "$GITHUB_OUTPUT"
+          else
+            echo "diff_unavailable=error" >> "$GITHUB_OUTPUT"
+          fi
+        fi
+        # CI check runs for the reviewed head, queried HERE (trusted job) with a
+        # checks:read token, so the CI gate never depends on the agent's report.
+        # A failed query must read as UNKNOWN (empty file), never as "no CI ran".
+        HEAD="$(jq -r .head_sha pr.json)"
+        : > checks.json
+        if [ -n "${CI_TOKEN:-}" ]; then
+          if OUT="$(GH_TOKEN="$CI_TOKEN" gh api --paginate "repos/$REPO/commits/$HEAD/check-runs" \
+                 --jq '.check_runs[] | {name, status, conclusion}' 2>&1)"; then
+            printf '%s\n' "$OUT" | jq -s '.' > checks.json
+          else
+            echo "::warning::check-runs query failed; CI status will be UNKNOWN (fail closed): $(printf '%s' "$OUT" | head -c 300)"
+          fi
+        else
+          echo "::warning::no ci_token provided; CI gate will fail closed"
+        fi
+
+    - name: Evaluate guardrails
+      id: guard
+      shell: bash
+      env:
+        CONFIG_PRESENT: ${{ steps.ctx.outputs.config_present }}
+        SKIPPED: ${{ inputs.skipped }}
+        OWN_CHECKS: ${{ inputs.own_check_names }}
+        DIFF_UNAVAILABLE: ${{ steps.ctx.outputs.diff_unavailable }}
+      run: |
+        set -euo pipefail
+        CHECKS_ARG=""
+        [ -s checks.json ] && CHECKS_ARG="--checks checks.json"
+        python "$GITHUB_ACTION_PATH/scripts/guardrails.py" \
+          --config config.yml --files files.json --pr pr.json \
+          --config-present "$CONFIG_PRESENT" \
+          --skipped "$SKIPPED" \
+          --own-checks "$OWN_CHECKS" \
+          --diff pr.diff --diff-unavailable "${DIFF_UNAVAILABLE:-false}" \
+          $CHECKS_ARG \
+          --out guardrails.json
+        echo "eligible=$(jq -r .eligible guardrails.json)" >> "$GITHUB_OUTPUT"
+
+    # A dedicated osv-scanner pass is deferred to phase 2: this job does not
+    # check out the PR head (by design), so there is no lockfile tree to scan.
+    # Dependency PRs get the supply-chain checklist against the lockfile diff.
+    # ---- Judgment engine (pluggable; see docs/verdict-contract.md) ----------
+    # `engine` and `shadow_engines` come from the repo config on the BASE ref
+    # (guardrails.json). single-call: one model call here. agent-action: a
+    # verdict produced by the unprivileged agent job, validated for provenance
+    # (same run, same head) and shape before it is allowed to mean anything.
+    - name: Judgment engine — primary
+      if: steps.guard.outputs.eligible == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        REPO: ${{ inputs.repo }}
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+        ANTHROPIC_MODEL: ${{ inputs.model }}
+        VERDICT_PATH: ${{ inputs.verdict_path }}
+        VERDICT_META_PATH: ${{ inputs.verdict_meta_path }}
+        RUN_ID: ${{ inputs.run_id }}
+      run: |
+        set -euo pipefail
+        ENGINE="$(jq -r '.engine // "single-call"' guardrails.json)"
+        HEAD="$(jq -r .head_sha pr.json)"
+        echo "engine=$ENGINE"
+        case "$ENGINE" in
+          single-call)
+            python "$GITHUB_ACTION_PATH/scripts/review.py" \
+              --pr pr.json --diff pr.diff --guardrails guardrails.json --out verdict.json
+            ;;
+          agent-action)
+            # Tree at head for evidence-path validation (paths only, no content).
+            gh api --paginate "repos/$REPO/git/trees/$HEAD?recursive=1" \
+              --jq '.tree[] | select(.type=="blob") | .path' > tree.txt || : > tree.txt
+            python "$GITHUB_ACTION_PATH/scripts/validate_verdict.py" \
+              --verdict "${VERDICT_PATH:-/nonexistent}" --meta "${VERDICT_META_PATH:-/nonexistent}" \
+              --head-sha "$HEAD" --run-id "$RUN_ID" --tree tree.txt --files files.json \
+              --out verdict.json
+            ;;
+          *)
+            echo "::error::unknown engine '$ENGINE'"; exit 1 ;;
+        esac
+
+    - name: Judgment engine — shadows (audit only, never decide)
+      if: steps.guard.outputs.eligible == 'true'
+      shell: bash
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+        ANTHROPIC_MODEL: ${{ inputs.model }}
+      run: |
+        set -uo pipefail
+        for SH in $(jq -r '.shadow_engines[]? // empty' guardrails.json); do
+          PRIMARY="$(jq -r '.engine // "single-call"' guardrails.json)"
+          [ "$SH" = "$PRIMARY" ] && continue
+          case "$SH" in
+            single-call)
+              python "$GITHUB_ACTION_PATH/scripts/review.py" \
+                --pr pr.json --diff pr.diff --guardrails guardrails.json --out "shadow-$SH.json" \
+                || echo "::warning::shadow engine $SH failed (audit only)" ;;
+            *) echo "::warning::shadow engine '$SH' not runnable here (audit only)" ;;
+          esac
+        done
+        true
+
+    - name: Decide
+      id: decide
+      shell: bash
+      run: |
+        set -euo pipefail
+        python "$GITHUB_ACTION_PATH/scripts/decide.py" \
+          --guardrails guardrails.json \
+          --verdict "$( [ -f verdict.json ] && echo verdict.json || echo '' )" \
+          --out decision.json
+        echo "approve=$(jq -r .approve decision.json)" >> "$GITHUB_OUTPUT"
+
+    - name: Render audit record (used as the review body)
+      shell: bash
+      env:
+        RUN_URL: ${{ inputs.run_url }}
+        DRY_RUN: ${{ inputs.dry_run }}
+      run: |
+        set -euo pipefail
+        python "$GITHUB_ACTION_PATH/scripts/audit.py" \
+          --guardrails guardrails.json \
+          --verdict "$( [ -f verdict.json ] && echo verdict.json || echo '' )" \
+          --decision decision.json \
+          --shadows "$(ls shadow-*.json 2>/dev/null | tr '\n' ',' )" \
+          --run-url "$RUN_URL" --dry-run "$DRY_RUN" \
+          --out audit.md
+
+    # Not approving on this run: withdraw any approval this bot gave earlier
+    # so a stale approval cannot carry a new, unreviewed commit to merge.
+    # Best-effort (dismissal on protected branches may need admin); the ruleset
+    # setting "dismiss stale approvals on push" is the REQUIRED primary control.
+    - name: Approve (binding review pinned to the reviewed commit; merging is the author's call)
+      id: approve
+      if: steps.decide.outputs.approve == 'true' && inputs.dry_run != 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        REPO: ${{ inputs.repo }}
+        PR: ${{ inputs.pr_number }}
+      run: |
+        set -euo pipefail
+        REVIEWED="$(jq -r .head_sha pr.json)"
+        CURRENT="$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha)"
+        if [ "$REVIEWED" != "$CURRENT" ]; then
+          echo "posted=false" >> "$GITHUB_OUTPUT"
+          echo "::notice::head moved during review ($REVIEWED -> $CURRENT); not approving this run — the new push re-evaluates"
+          exit 0
+        fi
+        # Pin the approval to the exact SHA that was reviewed. The bot never
+        # merges: the approval satisfies the ruleset's review requirement and
+        # the author merges (or enables GitHub's own auto-merge) themselves.
+        gh api --method POST "repos/$REPO/pulls/$PR/reviews" \
+          -f event=APPROVE -f commit_id="$REVIEWED" -F body=@audit.md >/dev/null
+        echo "posted=true" >> "$GITHUB_OUTPUT"
+
+    # Runs even when an earlier step failed (always()), and also when the
+    # approve step decided yes but posted nothing (head moved): in every case
+    # where THIS run did not post an approval, no earlier approval may stand.
+    - name: Withdraw prior bot approval (this run posted no approval)
+      if: >-
+        always() && inputs.dry_run != 'true' &&
+        (steps.decide.outputs.approve != 'true' || steps.approve.outputs.posted != 'true')
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        REPO: ${{ inputs.repo }}
+        PR: ${{ inputs.pr_number }}
+        BOT: ${{ inputs.bot_login }}
+      run: |
+        set -uo pipefail
+        # Covers new commits AND the opt-out label being added after an approval:
+        # the earlier approval must not carry the PR to merge.
+        gh api --paginate "repos/$REPO/pulls/$PR/reviews" \
+          --jq ".[] | select(.state==\"APPROVED\" and .user.login==\"$BOT\") | .id" \
+        | while read -r RID; do
+            gh api --method PUT "repos/$REPO/pulls/$PR/reviews/$RID/dismissals" \
+              -f message="Withdrawn: this PR is no longer AI-approved (new commits, opt-out, or a failed run)." \
+              -f event="DISMISS" >/dev/null || echo "::warning::could not dismiss review $RID"
+          done
+        true
+
+    - name: Write audit trail (sticky comment + step summary)
+      if: always()
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        REPO: ${{ inputs.repo }}
+        PR: ${{ inputs.pr_number }}
+        BOT: ${{ inputs.bot_login }}
+        RUN_URL: ${{ inputs.run_url }}
+        DRY_RUN: ${{ inputs.dry_run }}
+        APPROVE_OUTCOME: ${{ steps.approve.outputs.posted == 'false' && 'head-moved' || steps.approve.outcome }}
+      run: |
+        set -euo pipefail
+        python "$GITHUB_ACTION_PATH/scripts/audit.py" \
+          --guardrails guardrails.json \
+          --verdict "$( [ -f verdict.json ] && echo verdict.json || echo '' )" \
+          --decision "$( [ -f decision.json ] && echo decision.json || echo '' )" \
+          --shadows "$(ls shadow-*.json 2>/dev/null | tr '\n' ',' )" \
+          --run-url "$RUN_URL" --dry-run "$DRY_RUN" \
+          --approve-outcome "$APPROVE_OUTCOME" --out audit.md
+        cat audit.md >> "$GITHUB_STEP_SUMMARY"
+        MARKER='<!-- ai-approved-merge -->'
+        # Match only the bot's own comment: a user could pre-seed the marker.
+        CID=$(gh api --paginate "repos/$REPO/issues/$PR/comments" \
+                --jq "map(select(.user.login==\"$BOT\" and (.body | contains(\"$MARKER\")))) | .[0].id // empty" | awk 'NR==1')
+        if [ -n "$CID" ]; then
+          gh api --method PATCH "repos/$REPO/issues/comments/$CID" -F body=@audit.md >/dev/null
+        else
+          gh api --method POST "repos/$REPO/issues/$PR/comments" -F body=@audit.md >/dev/null
+        fi
