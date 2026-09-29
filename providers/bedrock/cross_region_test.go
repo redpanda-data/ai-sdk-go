@@ -42,6 +42,11 @@ func TestIsModelAllowedFromRegion(t *testing.T) {
 		{"sonnet5 us from eu-west-1 (cross-geo)", ModelClaudeSonnet5US, "eu-west-1", false},
 		{"sonnet5 global from me-central-1", ModelClaudeSonnet5Global, "me-central-1", true},
 
+		// Sonnet 5.5 — only global. is published.
+		{"sonnet5.5 global from us-east-1", ModelClaudeSonnet55Global, "us-east-1", true},
+		{"sonnet5.5 global from eu-west-1", ModelClaudeSonnet55Global, "eu-west-1", true},
+		{"sonnet5.5 unpublished us from us-east-1", "us." + ModelClaudeSonnet55, "us-east-1", false},
+
 		// Opus 5 — US, EU, AU, and global profiles are published.
 		{"opus5 us from us-east-1", ModelClaudeOpus5US, "us-east-1", true},
 		{"opus5 us from unset region", ModelClaudeOpus5US, "", false},

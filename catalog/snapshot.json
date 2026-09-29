@@ -112,6 +112,14 @@
       "released": "2026-06-30",
       "knowledge": "2026-01-31"
     },
+    "anthropic/claude-sonnet-5-5": {
+      "display_name": "Claude Sonnet 5.5",
+      "publisher": "anthropic",
+      "description": "Claude Sonnet 5.5 is Anthropic's Sonnet-class model for well-scoped everyday work, succeeding Claude Sonnet 5 as a direct upgrade.",
+      "series": "claude-sonnet",
+      "released": "2026-09-28",
+      "knowledge": "2026-06-30"
+    },
     "google/gemini-2.5-flash": {
       "display_name": "Gemini 2.5 Flash",
       "publisher": "google",
@@ -1374,6 +1382,70 @@
           "lifecycle": {
             "stage": "ga",
             "available": "2026-06-30"
+          },
+          "derived": {
+            "price_tier": "medium",
+            "replacement": "anthropic/claude-sonnet-5-5"
+          }
+        },
+        {
+          "id": "claude-sonnet-5-5",
+          "model": "anthropic/claude-sonnet-5-5",
+          "display_name": "Claude Sonnet 5.5",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": true,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "reasoning_effort"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 200000000,
+                "output_microcents_per_million": 1000000000,
+                "cached_input_microcents_per_million": 20000000,
+                "cache_creation_5m_microcents_per_million": 250000000,
+                "cache_creation_1h_microcents_per_million": 400000000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-09-28"
           },
           "derived": {
             "price_tier": "medium"
@@ -3473,6 +3545,75 @@
             }
           ],
           "derived": {
+            "price_tier": "medium",
+            "replacement": "anthropic/claude-sonnet-5-5"
+          }
+        },
+        {
+          "id": "global.anthropic.claude-sonnet-5-5",
+          "model": "anthropic/claude-sonnet-5-5",
+          "display_name": "Claude Sonnet 5.5 (Global)",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "stop"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 200000000,
+                "output_microcents_per_million": 1000000000,
+                "cached_input_microcents_per_million": 20000000,
+                "cache_creation_5m_microcents_per_million": 250000000,
+                "cache_creation_1h_microcents_per_million": 400000000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "global"
+            }
+          ],
+          "derived": {
             "price_tier": "medium"
           }
         },
@@ -5269,7 +5410,8 @@
             }
           ],
           "derived": {
-            "price_tier": "medium"
+            "price_tier": "medium",
+            "replacement": "anthropic/claude-sonnet-5-5"
           }
         },
         {
@@ -6510,6 +6652,96 @@
           "lifecycle": {
             "stage": "ga",
             "available": "2026-06-30"
+          },
+          "derived": {
+            "price_tier": "medium",
+            "replacement": "anthropic/claude-sonnet-5-5"
+          }
+        },
+        {
+          "id": "claude-sonnet-5-5",
+          "model": "anthropic/claude-sonnet-5-5",
+          "display_name": "Claude Sonnet 5.5",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "reasoning_effort"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 200000000,
+                "output_microcents_per_million": 1000000000,
+                "cached_input_microcents_per_million": 20000000,
+                "cache_creation_5m_microcents_per_million": 250000000,
+                "cache_creation_1h_microcents_per_million": 400000000
+              }
+            },
+            "overrides": [
+              {
+                "region": "us",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 220000000,
+                    "output_microcents_per_million": 1100000000,
+                    "cached_input_microcents_per_million": 22000000,
+                    "cache_creation_5m_microcents_per_million": 275000000,
+                    "cache_creation_1h_microcents_per_million": 440000000
+                  }
+                }
+              },
+              {
+                "region": "eu",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 220000000,
+                    "output_microcents_per_million": 1100000000,
+                    "cached_input_microcents_per_million": 22000000,
+                    "cache_creation_5m_microcents_per_million": 275000000,
+                    "cache_creation_1h_microcents_per_million": 440000000
+                  }
+                }
+              }
+            ]
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-09-28"
           },
           "derived": {
             "price_tier": "medium"

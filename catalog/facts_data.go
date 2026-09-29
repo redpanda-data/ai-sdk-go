@@ -30,6 +30,7 @@ const (
 	ModelClaudeOpus46   ModelID = "anthropic/claude-opus-4-6"
 	ModelClaudeOpus45   ModelID = "anthropic/claude-opus-4-5"
 	ModelClaudeOpus41   ModelID = "anthropic/claude-opus-4-1"
+	ModelClaudeSonnet55 ModelID = "anthropic/claude-sonnet-5-5"
 	ModelClaudeSonnet5  ModelID = "anthropic/claude-sonnet-5"
 	ModelClaudeSonnet46 ModelID = "anthropic/claude-sonnet-4-6"
 	ModelClaudeSonnet45 ModelID = "anthropic/claude-sonnet-4-5"
@@ -171,6 +172,14 @@ var defaultRegistry = Registry{
 		DisplayName: "Claude Opus 4.1", Series: "claude-opus",
 		Released: MustDate("2025-08-05"), Knowledge: MustDate("2025-03-31"),
 		Description: "Claude Opus 4.1 is an updated version of Anthropic’s flagship model, offering improved performance in coding, reasoning, and agentic tasks.",
+	},
+	ModelClaudeSonnet55: {
+		Publisher:   PublisherAnthropic,
+		DisplayName: "Claude Sonnet 5.5", Series: "claude-sonnet",
+		// Released and reliable knowledge cutoff ("Jun 2026") per
+		// platform.claude.com/docs/en/models/sonnet-5-5/overview.
+		Released: MustDate("2026-09-28"), Knowledge: MustDate("2026-06-30"),
+		Description: "Claude Sonnet 5.5 is Anthropic's Sonnet-class model for well-scoped everyday work, succeeding Claude Sonnet 5 as a direct upgrade.",
 	},
 	ModelClaudeSonnet5: {
 		Publisher:   PublisherAnthropic,

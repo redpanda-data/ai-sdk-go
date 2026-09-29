@@ -59,6 +59,14 @@ const (
 	ModelClaudeFable51Global = "global." + ModelClaudeFable51
 	ModelClaudeFable51US     = "us." + ModelClaudeFable51
 
+	// ModelClaudeSonnet55 is the bare building block for the Claude Sonnet
+	// 5.5 profile ID. bedrock-runtime publishes only the global profile; the
+	// bare ID is served only on bedrock-mantle's Anthropic Messages surface,
+	// which this provider does not implement:
+	// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-5-5.html
+	ModelClaudeSonnet55       = "anthropic.claude-sonnet-5-5"
+	ModelClaudeSonnet55Global = "global." + ModelClaudeSonnet55
+
 	// ModelClaudeSonnet5 is the bare Bedrock ID for Claude Sonnet 5
 	// (inference-profile-only — invoke via one of the prefixed variants).
 	// Only us. and global. profiles are published so far (verified by
@@ -816,6 +824,24 @@ var bedrockFamilies = []family{
 		Reasoning:    claude45Thinking,
 		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0)},
 		Rates:        pricing.RateCard{Base: pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0)},
+	},
+	{
+		// Claude Sonnet 5.5 — global-profile-only on bedrock-runtime (every
+		// commercial source region routes through global; GovCloud is
+		// geo-only and out of scope). Rates from the AWS price list
+		// (2026-09-29), the same as Sonnet 5. Rates is the published
+		// non-global rate, unused until AWS adds a geo profile.
+		BareID:         ModelClaudeSonnet55,
+		Model:          catalog.ModelClaudeSonnet55,
+		DisplayName:    "Claude Sonnet 5.5",
+		Profiles:       []string{"global"},
+		Capabilities:   claudeStandardCaps,
+		Modalities:     claudeModalities,
+		Constraints:    claudeNoSampling1MConstraints,
+		Reasoning:      frontierClaudeThinking,
+		GlobalRates:    &pricing.RateCard{Base: pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0)},
+		Rates:          pricing.RateCard{Base: pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(2.75, 4.40, 0)},
+		ProfileRegions: claudeSonnet55ProfileRegions,
 	},
 	{
 		// Claude Sonnet 5 — inference-profile-only; global and us are

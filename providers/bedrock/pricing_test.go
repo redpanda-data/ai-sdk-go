@@ -191,6 +191,17 @@ func TestGPT6AstraPricing(t *testing.T) {
 	}
 }
 
+func TestClaudeSonnet55Pricing(t *testing.T) {
+	t.Parallel()
+
+	global, ok := Catalog().Lookup(ModelClaudeSonnet55Global)
+	require.True(t, ok)
+	assert.Equal(t,
+		pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0),
+		global.Pricing.Default.Base,
+	)
+}
+
 func TestClaudeOpus55Pricing(t *testing.T) {
 	t.Parallel()
 
@@ -238,6 +249,13 @@ func TestClaudeOpus5Pricing(t *testing.T) {
 	}
 }
 
+// globalOnlyFamilies lists the families AWS publishes under the global
+// profile alone; TestGeoGlobalRatio has no catalogued sibling to compare
+// them against.
+var globalOnlyFamilies = map[string]bool{
+	ModelClaudeSonnet55: true,
+}
+
 // TestGeoGlobalRatio pins, per logical model, the relationship between the
 // catalog's global. variant and any of its non-global siblings (bare /
 // us. / eu. / au. / jp.): geo == 1.10 * global, exactly, in every priced
@@ -267,6 +285,10 @@ func TestGeoGlobalRatio(t *testing.T) {
 		sibling, ok := Catalog().Lookup(bare)
 		if !ok {
 			sibling, ok = Catalog().Lookup("us." + bare)
+		}
+
+		if !ok && globalOnlyFamilies[bare] {
+			continue
 		}
 
 		require.True(t, ok, "global. variant %s has no non-global sibling to compare against", id)

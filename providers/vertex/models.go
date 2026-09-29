@@ -50,6 +50,7 @@ const (
 	ModelGemini36Flash     = "gemini-3.6-flash"
 	ModelGemini31FlashLite = "gemini-3.1-flash-lite"
 	ModelClaudeOpus55      = "claude-opus-5-5"
+	ModelClaudeSonnet55    = "claude-sonnet-5-5"
 	ModelClaudeSonnet5     = "claude-sonnet-5"
 	ModelClaudeHaiku45     = "claude-haiku-4-5"
 )
@@ -246,6 +247,30 @@ func entries() []catalog.Entry {
 			Pricing: claudeOpus55Pricing(),
 		},
 		{
+			ID:           ModelClaudeSonnet55,
+			Model:        catalog.ModelClaudeSonnet55,
+			Capabilities: claudeCaps,
+			Modalities:   claudeModalities,
+			Constraints: llm.ModelConstraints{
+				MaxInputTokens:  1000000,
+				MaxOutputTokens: 128000,
+				// Adaptive thinking; thinking.type disabled returns 400
+				// (between_tools is the lowest setting), as do non-default
+				// sampling parameters (Anthropic's Sonnet 5.5 model page).
+				SupportedParams: []string{"max_tokens", "reasoning_effort"},
+			},
+			Reasoning: catalog.ReasoningSupport{
+				Efforts:  []llm.ReasoningEffort{reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortXHigh, reasoningEffortMax},
+				Adaptive: true,
+			},
+			// Claude Sonnet 5.5 GA, release date 2026-09-28, retirement floor
+			// "not sooner than 2027-09-28" on the model page (docs.cloud.google.com/
+			// gemini-enterprise-agent-platform/models/partner-models/claude/
+			// sonnet-5-5, read 2026-09-29).
+			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-09-28")},
+			Pricing: claudeSonnet55Pricing(),
+		},
+		{
 			ID:           ModelClaudeSonnet5,
 			Model:        catalog.ModelClaudeSonnet5,
 			Capabilities: claudeCaps,
@@ -320,6 +345,25 @@ func geminiFlashLitePricing() pricing.Info {
 func claudeOpus55Pricing() pricing.Info {
 	global := pricing.NewRates(4.00, 20.00, 0.20).WithCacheCreation(5.00, 8.00, 0)
 	nonGlobal := pricing.NewRates(4.40, 22.00, 0.22).WithCacheCreation(5.50, 8.80, 0)
+
+	info := pricing.FlatInfoFromRates(global)
+	for _, region := range []string{"us", "eu"} {
+		info = info.WithOverride(
+			pricing.Selector{Region: region},
+			pricing.RateCard{Base: nonGlobal},
+		)
+	}
+
+	return info
+}
+
+// claudeSonnet55Pricing returns the Sonnet 5.5 rate card, same shape as
+// [claudeOpus55Pricing]. Global, and non-global = global x 1.10, from the
+// pricing page's region tabs, read 2026-09-29; flat across the =< 200K and
+// > 200K input tiers. Only the us and eu tabs list Sonnet 5.5.
+func claudeSonnet55Pricing() pricing.Info {
+	global := pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0)
+	nonGlobal := pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(2.75, 4.40, 0)
 
 	info := pricing.FlatInfoFromRates(global)
 	for _, region := range []string{"us", "eu"} {

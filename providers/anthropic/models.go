@@ -30,6 +30,7 @@ const (
 	ModelClaudeFable5   = "claude-fable-5"
 	ModelClaudeOpus55   = "claude-opus-5-5"
 	ModelClaudeOpus5    = "claude-opus-5"
+	ModelClaudeSonnet55 = "claude-sonnet-5-5"
 	ModelClaudeSonnet5  = "claude-sonnet-5"
 	ModelClaudeSonnet46 = "claude-sonnet-4-6"
 	ModelClaudeSonnet45 = "claude-sonnet-4-5"
@@ -111,8 +112,8 @@ var claudeCaps = llm.ModelCapabilities{
 }
 
 // claudeCapsWithToolSearch marks the models on Anthropic's tool search
-// compatibility list as of 2026-09-22: Fable 5.1, Fable 5, Opus 5.5, Opus 5, Opus 4.8,
-// 4.7, 4.6 and 4.5, Sonnet 4.6 and 4.5, Haiku 4.5. Opus 4.1 is explicitly
+// compatibility list as of 2026-09-29: Fable 5.1, Fable 5, Opus 5.5, Opus 5, Opus 4.8,
+// 4.7, 4.6 and 4.5, Sonnet 5.5, 4.6 and 4.5, Haiku 4.5. Opus 4.1 is explicitly
 // unsupported and Sonnet 5 is absent from the list, so both keep claudeCaps and
 // local discovery until native support is documented:
 // https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool#model-compatibility
@@ -326,6 +327,35 @@ func entries() []catalog.Entry {
 			},
 			Pricing: pricing.FlatInfoFromRates(
 				pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
+			),
+		},
+		{
+			ID:           ModelClaudeSonnet55,
+			Model:        catalog.ModelClaudeSonnet55,
+			Capabilities: claudeCapsWithToolSearch,
+			Modalities:   claudeModalities,
+			Constraints: llm.ModelConstraints{
+				MaxInputTokens:  1000000, // 1M context window
+				MaxOutputTokens: 128000,  // 128K output tokens
+				// Sonnet 5.5 thinking is adaptive: thinking.type disabled and
+				// enabled both return 400 (between_tools is the lowest
+				// setting), as do non-default sampling parameters. tool_choice
+				// "any" and "tool" also return 400; only "auto" and "none" are
+				// accepted. No fast mode.
+				SupportedParams: []string{"max_tokens", "reasoning_effort"},
+			},
+			Reasoning: catalog.ReasoningSupport{
+				// All five levels; the API default is high.
+				Efforts:  []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+				Adaptive: true,
+			},
+			Life: catalog.Lifecycle{
+				Available: catalog.MustDate("2026-09-28"),
+			},
+			// Same rates as Sonnet 5, per the pricing page. Cache rates from
+			// Anthropic's multipliers (5m-write 1.25x, 1h-write 2x, read 0.10x).
+			Pricing: pricing.FlatInfoFromRates(
+				pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0),
 			),
 		},
 		{
