@@ -174,11 +174,8 @@ var geminiNoPenaltyParams = []string{"temperature", "top_p", "top_k", "max_token
 // entries returns the authored Google catalog.
 // Model data: https://ai.google.dev/gemini-api/docs/models
 //
-// Lifecycle sourcing: the GA model-versions table
-// (https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/model-versions),
-// where a bare date is a firm shutdown (Retires) and "or later" is a floor
-// (unset), plus https://ai.google.dev/gemini-api/docs/deprecations for
-// previews. ReplacedBy follows model-versions' recommended replacement.
+// Lifecycle comes from the Gemini API's deprecations page and changelog,
+// never from Vertex. Their dates are floors, so Retires stays unset.
 func entries() []catalog.Entry {
 	return []catalog.Entry{
 		{
@@ -217,11 +214,8 @@ func entries() []catalog.Entry {
 				MaxOutputTokens:  65536,
 				SupportedParams:  geminiParams,
 			},
-			// model-versions names gemini-3.8-flash as the replacement; no
-			// retirement date is announced.
 			Life: catalog.Lifecycle{
-				Available:  catalog.MustDate("2026-08-13"),
-				ReplacedBy: ModelGemini38Flash,
+				Available: catalog.MustDate("2026-08-13"),
 			},
 			// Google lists $0.75/$3.75 (cache $0.075) through 2026-12-31,
 			// rising to $1.50/$7.50/$0.15 on 2027-01-01. Only the rate in
@@ -243,11 +237,8 @@ func entries() []catalog.Entry {
 				MaxOutputTokens:  65536,
 				SupportedParams:  geminiNoPenaltyParams,
 			},
-			// model-versions names gemini-3.8-flash as the replacement; no
-			// retirement date is announced.
 			Life: catalog.Lifecycle{
-				Available:  catalog.MustDate("2026-07-21"),
-				ReplacedBy: ModelGemini38Flash,
+				Available: catalog.MustDate("2026-07-21"),
 			},
 			// Google lists $0.75/$3.75 through 2026-12-31, rising to
 			// $1.50/$7.50 on 2027-01-01. Only the rate in effect is tracked.
@@ -290,10 +281,10 @@ func entries() []catalog.Entry {
 				MaxOutputTokens:  65536,
 				SupportedParams:  geminiParams,
 			},
-			// model-versions: "May 7, 2027 or later" is a floor, so Retires
-			// stays unset, and it names no replacement.
+			// May 7, 2027 is a floor, so Retires stays unset.
 			Life: catalog.Lifecycle{
-				Available: catalog.MustDate("2026-05-07"),
+				Available:  catalog.MustDate("2026-05-07"),
+				ReplacedBy: ModelGemini35FlashLite,
 			},
 			// Text/image/video rates. Audio input is $0.50 (cache $0.05); the
 			// pricing package has no per-modality bucket.
@@ -411,9 +402,9 @@ func entries() []catalog.Entry {
 				SupportedParams:  geminiParams,
 			},
 			Life: catalog.Lifecycle{
-				Available:  catalog.MustDate("2025-06-17"),
-				Retires:    catalog.MustDate("2026-10-20"),
-				ReplacedBy: ModelGemini35Flash,
+				Available: catalog.MustDate("2025-06-17"),
+				// Google recommends 3.8 Flash; no stable Pro successor exists.
+				ReplacedBy: ModelGemini38Flash,
 			},
 			Pricing: pricing.TieredInfo(
 				pricing.NewRates(1.25, 10.00, 0.125),
@@ -440,8 +431,7 @@ func entries() []catalog.Entry {
 			},
 			Life: catalog.Lifecycle{
 				Available:  catalog.MustDate("2025-06-17"),
-				Retires:    catalog.MustDate("2026-10-20"),
-				ReplacedBy: ModelGemini35FlashLite,
+				ReplacedBy: ModelGemini38Flash,
 			},
 			Pricing: pricing.FlatInfo(0.30, 2.50, 0.03),
 		},
@@ -461,10 +451,8 @@ func entries() []catalog.Entry {
 				SupportedParams:  geminiParams,
 			},
 			Life: catalog.Lifecycle{
-				Available: catalog.MustDate("2025-07-22"),
-				Retires:   catalog.MustDate("2026-10-20"),
-				// model-versions recommends Gemini 3.1 Flash-Lite or Gemma 4.
-				ReplacedBy: ModelGemini31FlashLite,
+				Available:  catalog.MustDate("2025-07-22"),
+				ReplacedBy: ModelGemini35FlashLite,
 			},
 			Pricing: pricing.FlatInfo(0.10, 0.40, 0.01),
 		},
