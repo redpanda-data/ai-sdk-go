@@ -100,6 +100,9 @@ Exported ID constant (greppable), capabilities, constraints, modalities,
   retired *on* that date). A published "not sooner than" floor is a lower
   bound, not a shutdown date — leave `Retires` unset until an exact date is
   announced.
+- **Lifecycle comes from the page for the surface being catalogued**, never
+  from another host of the same model: the Gemini API and Vertex schedule
+  the same Gemini model differently.
 - `Life.ReplacedBy` must name an offering in the same catalog; skip it when
   the provider's recommendation isn't one we carry.
 - **The catalog is append-only**: never delete a retired model's entry — set
@@ -127,7 +130,8 @@ Authoritative (always reconcile against these):
 - Vertex (Google Cloud Agent Platform): cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing
   (one page, per-region tabs; Claude priced by Google here, not Anthropic) ·
   per-model pages /models/gemini/<slug> and /models/partner-models/claude/<slug>
-  for launch stage, release date, retirement floor
+  for launch stage, release date, retirement floor · /models/model-versions
+  for Gemini retirement and replacement
 - Bedrock: aws.amazon.com/bedrock/pricing/ · per-model cards ·
   `ListFoundationModels` (`modelLifecycle`)
 
