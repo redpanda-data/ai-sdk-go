@@ -100,9 +100,8 @@ Exported ID constant (greppable), capabilities, constraints, modalities,
   retired *on* that date). A published "not sooner than" floor is a lower
   bound, not a shutdown date — leave `Retires` unset until an exact date is
   announced.
-- **Lifecycle comes from the page for the surface being catalogued**, never
-  from another host of the same model: the Gemini API and Vertex schedule
-  the same Gemini model differently.
+- **Lifecycle comes from the surface being catalogued**, never from another
+  host of the same model (Gemini API and Vertex schedule Gemini differently).
 - `Life.ReplacedBy` must name an offering in the same catalog; skip it when
   the provider's recommendation isn't one we carry.
 - **The catalog is append-only**: never delete a retired model's entry — set

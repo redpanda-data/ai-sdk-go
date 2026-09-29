@@ -40,22 +40,14 @@ surface** — every change must be visible and intended in
      all. Fetch the `.md`, then grep it — the tables are the data.
    - Google (Gemini API, `providers/google`):
      - Pricing: `https://ai.google.dev/gemini-api/docs/pricing`
-     - **Lifecycle** (the only source, GA and preview alike):
-       `https://ai.google.dev/gemini-api/docs/deprecations` — fetch
-       `.../deprecations.md.txt` for clean markdown and grep the tables.
-       Every date in its shutdown column is a floor ("the earliest possible
-       dates"), so none fills `Retires`; the replacement column feeds
-       `ReplacedBy`. Google also recommends successors outside that table —
-       in the changelog and in notes on model pages (e.g. the 2.5 models
-       are "not deprecated", but new projects should use 3.8 Flash or 3.5
-       Flash-Lite). Such a recommendation is a `ReplacedBy` too; check the
-       changelog on every pass.
+     - **Lifecycle**: `https://ai.google.dev/gemini-api/docs/deprecations`
+       (fetch `.../deprecations.md.txt`) plus the changelog
+       (`.../docs/changelog`). Every shutdown date is a floor, so none fills
+       `Retires`. `ReplacedBy` comes from the replacement column or a
+       changelog recommendation.
 
-     **Each Google surface keeps its own schedule — never copy lifecycle
-     between them.** Vertex's `model-versions` table retired the Gemini 2.5
-     models on 2026-10-20 while the Gemini API still serves them with no
-     date; copying Vertex's dates into `providers/google` would have hidden
-     live models from every model list.
+     **Never copy lifecycle between Google surfaces.** Vertex retired the
+     Gemini 2.5 models on 2026-10-20; the Gemini API still serves them.
    - Vertex (Google Cloud, the Gemini Enterprise Agent Platform) — one host
      serving first-party Gemini and partner Claude, priced by Google, not by
      the model's own publisher:
@@ -137,9 +129,8 @@ surface** — every change must be visible and intended in
     - Anthropic — "Tentative retirement date / Not sooner than X" is a
       floor → leave `Retires` unset.
     - OpenAI — announces exact shutdown dates → `Retires`.
-    - Gemini API (`ai.google.dev/.../deprecations`) — every date is a floor
-      → `Retires` stays unset until Google announces the exact date, or the
-      model vanishes from the live models list (below).
+    - Gemini API — every date is a floor → unset until Google announces an
+      exact date or the model leaves the live models list (below).
     - Vertex (`model-versions`) — a bare date is firm → `Retires`; "or
       later" is a floor → unset.
   - **Take the whole row, and check which batch it belongs to.** Every
