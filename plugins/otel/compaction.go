@@ -50,7 +50,7 @@ func (t *TracingInterceptor) ObserveEvent(ctx context.Context, inv *agent.Invoca
 
 	report := ce.Report
 
-	attrs := make([]attribute.KeyValue, 0, 20)
+	attrs := make([]attribute.KeyValue, 0, 24)
 	attrs = append(attrs,
 		attribute.String("redpanda.compaction.phase", string(report.Phase)),
 		attribute.Int("redpanda.compaction.pruned_results", report.PrunedResults),
@@ -83,7 +83,7 @@ func (t *TracingInterceptor) ObserveEvent(ctx context.Context, inv *agent.Invoca
 // contextUsageAttrs flattens one side of a report's context breakdown.
 // Values are conservative heuristic token estimates.
 func contextUsageAttrs(prefix string, u agent.ContextUsage) []attribute.KeyValue {
-	return []attribute.KeyValue{
+	attrs := []attribute.KeyValue{
 		attribute.Int(prefix+".tokens", u.Total),
 		attribute.Int(prefix+".system_prompt", u.SystemPrompt),
 		attribute.Int(prefix+".tool_definitions", u.ToolDefinitions),
@@ -93,4 +93,12 @@ func contextUsageAttrs(prefix string, u agent.ContextUsage) []attribute.KeyValue
 		attribute.Int(prefix+".tool_results", u.ToolResults),
 		attribute.Int(prefix+".framing", u.Framing),
 	}
+
+	// Omitted rather than stamped as 0 when the window is unknown: a zero
+	// would read as a 0-token window to anyone scaling the footprint by it.
+	if u.MaxContextSize > 0 {
+		attrs = append(attrs, attribute.Int(prefix+".max_context_size", u.MaxContextSize))
+	}
+
+	return attrs
 }

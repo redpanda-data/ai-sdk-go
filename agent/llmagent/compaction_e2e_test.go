@@ -297,7 +297,12 @@ func TestCompaction_ReactiveRetry(t *testing.T) {
 
 	comps := compactionEvents(events)
 	require.NotEmpty(t, comps)
-	assert.Equal(t, agent.CompactionPhaseReactive, comps[len(comps)-1].Report.Phase)
+	last := comps[len(comps)-1].Report
+	assert.Equal(t, agent.CompactionPhaseReactive, last.Phase)
+
+	assert.Positive(t, last.Before.MaxContextSize, "the footprint carries the model window it was measured against")
+	assert.Equal(t, last.Before.MaxContextSize, last.After.MaxContextSize)
+	assert.Less(t, last.After.Total, last.Before.MaxContextSize)
 }
 
 // TestCompaction_OverflowFinishReasonIsTerminalButUnwedges: a mid-generation

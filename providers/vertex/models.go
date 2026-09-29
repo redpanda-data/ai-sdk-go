@@ -50,6 +50,7 @@ const (
 	ModelGemini36Flash     = "gemini-3.6-flash"
 	ModelGemini31FlashLite = "gemini-3.1-flash-lite"
 	ModelClaudeOpus55      = "claude-opus-5-5"
+	ModelClaudeSonnet55    = "claude-sonnet-5-5"
 	ModelClaudeSonnet5     = "claude-sonnet-5"
 	ModelClaudeHaiku45     = "claude-haiku-4-5"
 )
@@ -246,6 +247,25 @@ func entries() []catalog.Entry {
 			Pricing: claudeOpus55Pricing(),
 		},
 		{
+			ID:           ModelClaudeSonnet55,
+			Model:        catalog.ModelClaudeSonnet55,
+			Capabilities: claudeCaps,
+			Modalities:   claudeModalities,
+			Constraints: llm.ModelConstraints{
+				MaxInputTokens:  1000000,
+				MaxOutputTokens: 128000,
+				// Adaptive thinking only; sampling parameters return 400.
+				SupportedParams: []string{"max_tokens", "reasoning_effort"},
+			},
+			Reasoning: catalog.ReasoningSupport{
+				Efforts:  []llm.ReasoningEffort{reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortXHigh, reasoningEffortMax},
+				Adaptive: true,
+			},
+			// GA 2026-09-28; retirement floor 2027-09-28 is not an exact date.
+			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-09-28")},
+			Pricing: claudeSonnet55Pricing(),
+		},
+		{
 			ID:           ModelClaudeSonnet5,
 			Model:        catalog.ModelClaudeSonnet5,
 			Capabilities: claudeCaps,
@@ -320,6 +340,23 @@ func geminiFlashLitePricing() pricing.Info {
 func claudeOpus55Pricing() pricing.Info {
 	global := pricing.NewRates(4.00, 20.00, 0.20).WithCacheCreation(5.00, 8.00, 0)
 	nonGlobal := pricing.NewRates(4.40, 22.00, 0.22).WithCacheCreation(5.50, 8.80, 0)
+
+	info := pricing.FlatInfoFromRates(global)
+	for _, region := range []string{"us", "eu"} {
+		info = info.WithOverride(
+			pricing.Selector{Region: region},
+			pricing.RateCard{Base: nonGlobal},
+		)
+	}
+
+	return info
+}
+
+// claudeSonnet55Pricing returns the Sonnet 5.5 rate card: global, plus
+// global x 1.10 for us and eu.
+func claudeSonnet55Pricing() pricing.Info {
+	global := pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0)
+	nonGlobal := pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(2.75, 4.40, 0)
 
 	info := pricing.FlatInfoFromRates(global)
 	for _, region := range []string{"us", "eu"} {
