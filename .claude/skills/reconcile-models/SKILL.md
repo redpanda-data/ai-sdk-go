@@ -45,7 +45,11 @@ surface** — every change must be visible and intended in
        `.../deprecations.md.txt` for clean markdown and grep the tables.
        Every date in its shutdown column is a floor ("the earliest possible
        dates"), so none fills `Retires`; the replacement column feeds
-       `ReplacedBy`.
+       `ReplacedBy`. Google also recommends successors outside that table —
+       in the changelog and in notes on model pages (e.g. the 2.5 models
+       are "not deprecated", but new projects should use 3.8 Flash or 3.5
+       Flash-Lite). Such a recommendation is a `ReplacedBy` too; check the
+       changelog on every pass.
 
      **Each Google surface keeps its own schedule — never copy lifecycle
      between them.** Vertex's `model-versions` table retired the Gemini 2.5

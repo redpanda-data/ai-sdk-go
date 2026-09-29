@@ -5546,11 +5546,12 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2025-06-17"
+            "available": "2025-06-17",
+            "replaced_by": "gemini-3.8-flash"
           },
           "derived": {
             "price_tier": "low",
-            "replacement": "google/gemini-3-flash-preview"
+            "replacement": "google/gemini-3.8-flash"
           }
         },
         {
@@ -5613,11 +5614,12 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2025-07-22"
+            "available": "2025-07-22",
+            "replaced_by": "gemini-3.5-flash-lite"
           },
           "derived": {
             "price_tier": "low",
-            "replacement": "google/gemini-3.1-flash-lite"
+            "replacement": "google/gemini-3.5-flash-lite"
           }
         },
         {
@@ -5690,11 +5692,12 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2025-06-17"
+            "available": "2025-06-17",
+            "replaced_by": "gemini-3.8-flash"
           },
           "derived": {
             "price_tier": "medium",
-            "replacement": "google/gemini-3-pro-preview"
+            "replacement": "google/gemini-3.8-flash"
           }
         },
         {

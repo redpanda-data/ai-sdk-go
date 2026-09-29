@@ -177,8 +177,10 @@ var geminiNoPenaltyParams = []string{"temperature", "top_p", "top_k", "max_token
 // Lifecycle sourcing: https://ai.google.dev/gemini-api/docs/deprecations,
 // the Gemini API's own schedule. Its dates are floors ("earliest possible"),
 // so Retires stays unset until Google announces an exact date; ReplacedBy
-// follows its replacement column. Vertex's model-versions table schedules a
-// different surface and is not copied here.
+// follows its replacement column. The 2.5 models are not deprecated, but
+// Google points new projects at 3.8 Flash or 3.5 Flash-Lite (changelog,
+// 2026-09-18), so each gets the one matching its tier. Vertex's
+// model-versions table schedules a different surface and is not copied here.
 func entries() []catalog.Entry {
 	return []catalog.Entry{
 		{
@@ -405,7 +407,8 @@ func entries() []catalog.Entry {
 				SupportedParams:  geminiParams,
 			},
 			Life: catalog.Lifecycle{
-				Available: catalog.MustDate("2025-06-17"),
+				Available:  catalog.MustDate("2025-06-17"),
+				ReplacedBy: ModelGemini38Flash,
 			},
 			Pricing: pricing.TieredInfo(
 				pricing.NewRates(1.25, 10.00, 0.125),
@@ -431,7 +434,8 @@ func entries() []catalog.Entry {
 				SupportedParams:  geminiParams,
 			},
 			Life: catalog.Lifecycle{
-				Available: catalog.MustDate("2025-06-17"),
+				Available:  catalog.MustDate("2025-06-17"),
+				ReplacedBy: ModelGemini38Flash,
 			},
 			Pricing: pricing.FlatInfo(0.30, 2.50, 0.03),
 		},
@@ -451,7 +455,8 @@ func entries() []catalog.Entry {
 				SupportedParams:  geminiParams,
 			},
 			Life: catalog.Lifecycle{
-				Available: catalog.MustDate("2025-07-22"),
+				Available:  catalog.MustDate("2025-07-22"),
+				ReplacedBy: ModelGemini35FlashLite,
 			},
 			Pricing: pricing.FlatInfo(0.10, 0.40, 0.01),
 		},
