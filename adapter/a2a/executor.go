@@ -51,6 +51,7 @@ type Executor struct {
 	agent          agent.Agent
 	runner         *runner.Runner
 	attributesFunc func(context.Context) map[string]string
+	coalesce       DeltaCoalescing
 }
 
 // Option configures an Executor.
@@ -64,6 +65,11 @@ type Option func(*Executor)
 // assert nothing.
 func WithAttributesFunc(fn func(context.Context) map[string]string) Option {
 	return func(e *Executor) { e.attributesFunc = fn }
+}
+
+// WithDeltaCoalescing enables delta coalescing. See [DeltaCoalescing].
+func WithDeltaCoalescing(c DeltaCoalescing) Option {
+	return func(e *Executor) { e.coalesce = c }
 }
 
 // NewExecutor creates a new A2A executor.
@@ -159,14 +165,14 @@ func (e *Executor) processEvents(
 	queue eventqueue.Queue,
 	events iter.Seq2[agent.Event, error],
 ) error {
-	write := func(event a2a.Event) {
-		if err := queue.Write(ctx, event); err != nil {
+	dw := newDeltaWriter(reqCtx, queue, e.log, e.coalesce)
+	defer dw.close()
+
+	write := func(ev a2a.Event) {
+		if err := dw.write(ctx, ev); err != nil {
 			e.log.ErrorContext(ctx, "Failed to write to queue", "error", err)
 		}
 	}
-
-	// Rolling current artifact ID for streaming text deltas
-	var currentArtifactID a2a.ArtifactID
 
 	for event, err := range events {
 		if err != nil {
@@ -184,7 +190,7 @@ func (e *Executor) processEvents(
 				statusEvent.Final = true
 
 				//nolint:contextcheck // Must use background context since original context is canceled
-				if writeErr := queue.Write(bgCtx, statusEvent); writeErr != nil {
+				if writeErr := dw.write(bgCtx, statusEvent); writeErr != nil {
 					e.log.ErrorContext(ctx, "Failed to write canceled status", "error", writeErr)
 				}
 			} else if errors.Is(err, llm.ErrContextOverflow) {
@@ -208,15 +214,17 @@ func (e *Executor) processEvents(
 			return nil
 		}
 
-		e.log.DebugContext(ctx, "Processing event", "type", fmt.Sprintf("%T", event))
+		// The Enabled check skips the fmt.Sprintf on every streamed delta.
+		if e.log.Enabled(ctx, slog.LevelDebug) {
+			e.log.DebugContext(ctx, "Processing event", "type", fmt.Sprintf("%T", event))
+		}
 
 		switch ev := event.(type) {
 		case agent.StatusEvent:
 			e.log.DebugContext(ctx, "Status event", "stage", ev.Stage)
-			// When we receive a "model_call" status, it marks the start of a new LLM response
-			// Reset artifact ID so next delta/message creates a distinct artifact
+			// model_call starts a new LLM response: flush the old artifact's buffer and reset it.
 			if ev.Stage == agent.StatusStageModelCall {
-				currentArtifactID = ""
+				dw.resetArtifact(ctx)
 			}
 		case agent.ToolRequestEvent:
 			// Tool request is already in MessageEvent, no separate handling needed
@@ -231,11 +239,7 @@ func (e *Executor) processEvents(
 			write(historyStatus)
 		case agent.MessageEvent:
 			// Mark the streaming artifact as complete if we were streaming
-			if currentArtifactID != "" {
-				finalArtifact := a2a.NewArtifactUpdateEvent(reqCtx, currentArtifactID)
-				finalArtifact.LastChunk = true
-				write(finalArtifact)
-			}
+			dw.endArtifact(ctx)
 
 			// Add agent's message to history via a status update
 			// Convert LLM response to A2A message format
@@ -256,32 +260,13 @@ func (e *Executor) processEvents(
 
 			historyStatus := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateWorking, a2amsg)
 			write(historyStatus)
-			// Reset artifactID so next model_call creates a new one
-			currentArtifactID = ""
 		case agent.StreamResetEvent:
 			// Stream is being retried — abandon current streaming artifact
-			if currentArtifactID != "" {
-				finalArtifact := a2a.NewArtifactUpdateEvent(reqCtx, currentArtifactID)
-				finalArtifact.LastChunk = true
-				write(finalArtifact)
-
-				currentArtifactID = ""
-			}
+			dw.endArtifact(ctx)
 		case agent.AssistantDeltaEvent:
 			// Stream delta updates as incremental artifact chunks
 			if tp, ok := ev.Delta.Part.(*llm.TextPart); ok && tp != nil {
-				var artifact *a2a.TaskArtifactUpdateEvent
-				if currentArtifactID == "" {
-					// Create new artifact for streaming
-					artifact = a2a.NewArtifactEvent(reqCtx, a2a.TextPart{Text: tp.Text})
-					currentArtifactID = artifact.Artifact.ID
-				} else {
-					// Append to existing artifact
-					artifact = a2a.NewArtifactUpdateEvent(reqCtx, currentArtifactID, a2a.TextPart{Text: tp.Text})
-					artifact.Append = true
-				}
-
-				write(artifact)
+				dw.delta(ctx, tp.Text)
 			}
 		case agent.InvocationEndEvent:
 			e.log.DebugContext(ctx, "Invocation end event", "finish_reason", ev.FinishReason)

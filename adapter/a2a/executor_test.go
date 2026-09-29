@@ -20,7 +20,9 @@ import (
 	"errors"
 	"log/slog"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/a2aproject/a2a-go/a2a"
 	"github.com/a2aproject/a2a-go/a2asrv"
@@ -1130,4 +1132,144 @@ func TestExecutor_ErrorHandling(t *testing.T) {
 	// The error message should contain details about what went wrong, not just "internal error"
 	assert.Contains(t, errorText, "context_length_exceeded", "Error message should contain API error details")
 	assert.Contains(t, errorText, "context window", "Error message should contain human-readable error explanation")
+}
+
+// storedTask is one entry in a countingTaskStore.
+type storedTask struct {
+	task    *a2a.Task
+	version a2a.TaskVersion
+}
+
+// countingTaskStore is a minimal a2asrv.TaskStore that counts every Save
+// call, so a test can assert how many task transactions a run costs
+// without depending on a2a-go's internal in-memory store.
+type countingTaskStore struct {
+	mu    sync.Mutex
+	tasks map[a2a.TaskID]storedTask
+	saves int
+}
+
+func newCountingTaskStore() *countingTaskStore {
+	return &countingTaskStore{tasks: make(map[a2a.TaskID]storedTask)}
+}
+
+func (s *countingTaskStore) Save(_ context.Context, task *a2a.Task, _ a2a.Event, _ *a2a.Task, prevVersion a2a.TaskVersion) (a2a.TaskVersion, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.saves++
+	version := prevVersion + 1
+	s.tasks[task.ID] = storedTask{task: task, version: version}
+
+	return version, nil
+}
+
+func (s *countingTaskStore) Get(_ context.Context, taskID a2a.TaskID) (*a2a.Task, a2a.TaskVersion, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	st, ok := s.tasks[taskID]
+	if !ok {
+		return nil, 0, a2a.ErrTaskNotFound
+	}
+
+	return st.task, st.version, nil
+}
+
+func (s *countingTaskStore) List(_ context.Context, _ *a2a.ListTasksRequest) (*a2a.ListTasksResponse, error) {
+	return &a2a.ListTasksResponse{}, nil
+}
+
+func (s *countingTaskStore) saveCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.saves
+}
+
+// onlyTask returns the single task this store has saved, failing the test
+// if there is not exactly one.
+func (s *countingTaskStore) onlyTask(t *testing.T) *a2a.Task {
+	t.Helper()
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	require.Len(t, s.tasks, 1)
+
+	for _, st := range s.tasks {
+		return st.task
+	}
+
+	return nil
+}
+
+// runCoalescingStream streams reply through a full a2asrv.Handler with cfg
+// and returns the artifact event count, the task save count and the stored
+// artifact text.
+func runCoalescingStream(t *testing.T, reply string, cfg DeltaCoalescing) (int, int, string) {
+	t.Helper()
+
+	model := fakellm.NewFakeModel()
+	model.When(fakellm.Any()).ThenStreamText(reply, fakellm.StreamConfig{
+		ChunkSize:       1,
+		InterChunkDelay: time.Millisecond,
+	})
+
+	agentInstance, err := llmagent.New("test-agent", "You are a helpful assistant.", model)
+	require.NoError(t, err)
+
+	runnerInstance, err := runner.New(agentInstance, session.NewInMemoryStore())
+	require.NoError(t, err)
+
+	executor := NewExecutor(agentInstance, runnerInstance, slog.Default(), WithDeltaCoalescing(cfg))
+	store := newCountingTaskStore()
+	handler := a2asrv.NewHandler(executor, a2asrv.WithTaskStore(store))
+	msg := a2a.NewMessage(a2a.MessageRoleUser, a2a.TextPart{Text: "Say something long."})
+
+	var artifactEvents int
+
+	for event, err := range handler.OnSendMessageStream(context.Background(), &a2a.MessageSendParams{Message: msg}) {
+		require.NoError(t, err)
+
+		if _, ok := event.(*a2a.TaskArtifactUpdateEvent); ok {
+			artifactEvents++
+		}
+	}
+
+	task := store.onlyTask(t)
+	require.Len(t, task.Artifacts, 1)
+
+	var storedText strings.Builder
+
+	for _, part := range task.Artifacts[0].Parts {
+		if tp, ok := part.(a2a.TextPart); ok {
+			storedText.WriteString(tp.Text)
+		}
+	}
+
+	return artifactEvents, store.saveCount(), storedText.String()
+}
+
+// TestExecutor_DeltaCoalescing_EndToEnd checks that a size-bounded run stores
+// the complete text with fewer task saves than the same stream with
+// coalescing off. Interval is longer than the run, so only MaxBytes flushes.
+func TestExecutor_DeltaCoalescing_EndToEnd(t *testing.T) {
+	t.Parallel()
+
+	reply := strings.Repeat("abcdefghij", 20)
+
+	const maxBytes = 20
+
+	events, saves, text := runCoalescingStream(t, reply, DeltaCoalescing{Interval: 10 * time.Second, MaxBytes: maxBytes})
+	_, offSaves, offText := runCoalescingStream(t, reply, DeltaCoalescing{})
+
+	// The first byte, one event per MaxBytes of the rest, and the LastChunk.
+	wantArtifactEvents := 2 + (len(reply)-1)/maxBytes
+	assert.Equal(t, wantArtifactEvents, events)
+	// Status saves are a2a-go's own; allow up to four of them per run.
+	assert.LessOrEqual(t, saves, wantArtifactEvents+4)
+	assert.Less(t, saves, offSaves)
+	assert.Equal(t, reply, text)
+	assert.Equal(t, reply, offText)
 }
