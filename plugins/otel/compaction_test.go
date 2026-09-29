@@ -63,12 +63,13 @@ func TestTracingInterceptor_EmitsCompactionSpan(t *testing.T) {
 		Before: agent.ContextUsage{
 			Total: 150_000, SystemPrompt: 2_000, ToolDefinitions: 1_000,
 			Text: 20_000, ToolCalls: 7_000, ToolResults: 119_500, Framing: 500,
+			MaxContextSize: 200_000,
 		},
 		After: agent.ContextUsage{
 			Total: 90_000, SystemPrompt: 2_000, ToolDefinitions: 1_000,
 			Text: 20_000, ToolCalls: 7_000, ToolResults: 59_600, Framing: 400,
+			MaxContextSize: 200_000,
 		},
-		Budget: agent.ContextBudget{Window: 200_000, Trigger: 144_000, Target: 108_000},
 	}
 
 	_, err := interceptor.InterceptTurn(t.Context(), &agent.TurnInfo{Inv: inv},
@@ -104,9 +105,8 @@ func TestTracingInterceptor_EmitsCompactionSpan(t *testing.T) {
 	assert.Equal(t, int64(90_000), attrs["redpanda.compaction.after.tokens"])
 	assert.Equal(t, int64(119_500), attrs["redpanda.compaction.before.tool_results"])
 	assert.Equal(t, int64(2_000), attrs["redpanda.compaction.after.system_prompt"])
-	assert.Equal(t, int64(200_000), attrs["redpanda.compaction.context_window"])
-	assert.Equal(t, int64(144_000), attrs["redpanda.compaction.trigger_tokens"])
-	assert.Equal(t, int64(108_000), attrs["redpanda.compaction.target_tokens"])
+	assert.Equal(t, int64(200_000), attrs["redpanda.compaction.before.max_context_size"])
+	assert.Equal(t, int64(200_000), attrs["redpanda.compaction.after.max_context_size"])
 	assert.Equal(t, "sess-compact", attrs["gen_ai.conversation.id"],
 		"transcript consumers group spans by conversation; a compaction span without it is dropped")
 

@@ -300,11 +300,9 @@ func TestCompaction_ReactiveRetry(t *testing.T) {
 	last := comps[len(comps)-1].Report
 	assert.Equal(t, agent.CompactionPhaseReactive, last.Phase)
 
-	budget := last.Budget
-	assert.Positive(t, budget.Window, "the report carries the model window it was measured against")
-	assert.Less(t, budget.Trigger, budget.Window)
-	assert.Less(t, budget.Target, budget.Trigger)
-	assert.Positive(t, budget.Target)
+	assert.Positive(t, last.Before.MaxContextSize, "the footprint carries the model window it was measured against")
+	assert.Equal(t, last.Before.MaxContextSize, last.After.MaxContextSize)
+	assert.Less(t, last.After.Total, last.Before.MaxContextSize)
 }
 
 // TestCompaction_OverflowFinishReasonIsTerminalButUnwedges: a mid-generation

@@ -59,17 +59,6 @@ func (t *TracingInterceptor) ObserveEvent(ctx context.Context, inv *agent.Invoca
 	attrs = append(attrs, contextUsageAttrs("redpanda.compaction.before", report.Before)...)
 	attrs = append(attrs, contextUsageAttrs("redpanda.compaction.after", report.After)...)
 
-	// The budget lets a reader place before/after on the model window and
-	// show the trigger the pass fired at. Omitted when the runtime did not
-	// derive one rather than stamping zeros that look like a 0-token window.
-	if report.Budget.Window > 0 {
-		attrs = append(attrs,
-			attribute.Int("redpanda.compaction.context_window", report.Budget.Window),
-			attribute.Int("redpanda.compaction.trigger_tokens", report.Budget.Trigger),
-			attribute.Int("redpanda.compaction.target_tokens", report.Budget.Target),
-		)
-	}
-
 	// Group under the conversation id like every other span of the
 	// invocation: transcript consumers read spans by conversation, and a
 	// compaction span without one is invisible to them.
@@ -94,7 +83,7 @@ func (t *TracingInterceptor) ObserveEvent(ctx context.Context, inv *agent.Invoca
 // contextUsageAttrs flattens one side of a report's context breakdown.
 // Values are conservative heuristic token estimates.
 func contextUsageAttrs(prefix string, u agent.ContextUsage) []attribute.KeyValue {
-	return []attribute.KeyValue{
+	attrs := []attribute.KeyValue{
 		attribute.Int(prefix+".tokens", u.Total),
 		attribute.Int(prefix+".system_prompt", u.SystemPrompt),
 		attribute.Int(prefix+".tool_definitions", u.ToolDefinitions),
@@ -104,4 +93,12 @@ func contextUsageAttrs(prefix string, u agent.ContextUsage) []attribute.KeyValue
 		attribute.Int(prefix+".tool_results", u.ToolResults),
 		attribute.Int(prefix+".framing", u.Framing),
 	}
+
+	// Omitted rather than stamped as 0 when the window is unknown: a zero
+	// would read as a 0-token window to anyone scaling the footprint by it.
+	if u.MaxContextSize > 0 {
+		attrs = append(attrs, attribute.Int(prefix+".max_context_size", u.MaxContextSize))
+	}
+
+	return attrs
 }
