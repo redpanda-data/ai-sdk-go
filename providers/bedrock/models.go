@@ -419,6 +419,21 @@ var (
 		Reasoning:        true,
 	}
 
+	// claudeNoSchemaCaps is claudeStandardCaps without structured output, for
+	// the Claude generations Bedrock serves through its newer Messages-API
+	// integration (Opus 4.7 and later, Sonnet 5 and later, Fable). Converse
+	// rejects outputConfig.textFormat on them with ValidationException
+	// "output_config.format: Extra inputs are not permitted" (probed
+	// 2026-09-29), and their model cards list structured outputs as not
+	// supported on bedrock-runtime. Opus 4.6 and earlier, Sonnet 4.6 and 4.5,
+	// and Haiku 4.5 honor it.
+	claudeNoSchemaCaps = func() llm.ModelCapabilities {
+		caps := claudeStandardCaps
+		caps.StructuredOutput = false
+
+		return caps
+	}()
+
 	// claudeModalities is shared by every Claude family on Bedrock: text,
 	// image and PDF document input, text output.
 	claudeModalities = catalog.Modalities{
@@ -712,7 +727,7 @@ var bedrockFamilies = []family{
 		DisplayName:    "Claude Fable 5.1",
 		Profiles:       []string{"global", "us"},
 		DataSharing:    true,
-		Capabilities:   claudeStandardCaps,
+		Capabilities:   claudeNoSchemaCaps,
 		Modalities:     claudeModalities,
 		Constraints:    claudeNoSampling1MConstraints,
 		Reasoning:      frontierClaudeThinking,
@@ -728,7 +743,7 @@ var bedrockFamilies = []family{
 		DisplayName:  "Claude Fable 5",
 		Profiles:     []string{"global", "us", "eu"},
 		DataSharing:  true,
-		Capabilities: claudeStandardCaps,
+		Capabilities: claudeNoSchemaCaps,
 		Modalities:   claudeModalities,
 		Constraints:  claudeNoSampling1MConstraints,
 		Reasoning:    frontierClaudeThinking,
@@ -746,7 +761,7 @@ var bedrockFamilies = []family{
 		Model:          catalog.ModelClaudeOpus55,
 		DisplayName:    "Claude Opus 5.5",
 		Profiles:       []string{"global", "us", "eu", "au", "jp"},
-		Capabilities:   claudeStandardCaps,
+		Capabilities:   claudeNoSchemaCaps,
 		Modalities:     claudeModalities,
 		Constraints:    claudeNoSampling1MConstraints,
 		Reasoning:      frontierClaudeThinking,
@@ -762,7 +777,7 @@ var bedrockFamilies = []family{
 		Model:        catalog.ModelClaudeOpus5,
 		DisplayName:  "Claude Opus 5",
 		Profiles:     []string{"global", "us", "eu", "au"},
-		Capabilities: claudeStandardCaps,
+		Capabilities: claudeNoSchemaCaps,
 		Modalities:   claudeModalities,
 		Constraints:  claudeNoSampling1MConstraints,
 		Reasoning:    frontierClaudeThinking,
@@ -778,7 +793,7 @@ var bedrockFamilies = []family{
 		Model:        catalog.ModelClaudeOpus48,
 		DisplayName:  "Claude Opus 4.8",
 		Profiles:     []string{"global", "us", "eu", "jp"},
-		Capabilities: claudeStandardCaps,
+		Capabilities: claudeNoSchemaCaps,
 		Modalities:   claudeModalities,
 		Constraints:  claudeNoSampling1MConstraints,
 		Reasoning:    frontierClaudeThinking,
@@ -792,7 +807,7 @@ var bedrockFamilies = []family{
 		Model:        catalog.ModelClaudeOpus47,
 		DisplayName:  "Claude Opus 4.7",
 		Profiles:     []string{"global", "us", "eu", "jp"},
-		Capabilities: claudeStandardCaps,
+		Capabilities: claudeNoSchemaCaps,
 		Modalities:   claudeModalities,
 		Constraints:  claudeNoSampling1MConstraints,
 		Reasoning:    frontierClaudeThinking,
@@ -835,7 +850,7 @@ var bedrockFamilies = []family{
 		Model:          catalog.ModelClaudeSonnet55,
 		DisplayName:    "Claude Sonnet 5.5",
 		Profiles:       []string{"global"},
-		Capabilities:   claudeStandardCaps,
+		Capabilities:   claudeNoSchemaCaps,
 		Modalities:     claudeModalities,
 		Constraints:    claudeNoSampling1MConstraints,
 		Reasoning:      frontierClaudeThinking,
@@ -850,7 +865,7 @@ var bedrockFamilies = []family{
 		Model:        catalog.ModelClaudeSonnet5,
 		DisplayName:  "Claude Sonnet 5",
 		Profiles:     []string{"global", "us"},
-		Capabilities: claudeStandardCaps,
+		Capabilities: claudeNoSchemaCaps,
 		Modalities:   claudeModalities,
 		Constraints:  claudeNoSampling1MConstraints,
 		Reasoning:    frontierClaudeThinking,
