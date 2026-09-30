@@ -134,6 +134,20 @@ func (t *TracingInterceptor) InterceptTurn(
 	return reason, err
 }
 
+// ObserveEvent implements [agent.EventObserver].
+//
+// InvocationEndEvent closes the invocation span: the turn loop can end an
+// invocation without any turn returning a finish reason (max turns, or
+// cancellation between turns), and InterceptTurn never sees those endings.
+func (t *TracingInterceptor) ObserveEvent(ctx context.Context, inv *agent.InvocationMetadata, event agent.Event) {
+	switch ev := event.(type) {
+	case agent.CompactionEvent:
+		t.recordCompaction(ctx, inv, ev)
+	case agent.InvocationEndEvent:
+		t.endInvocationSpan(inv, nil)
+	}
+}
+
 // withInvocationSpan ensures the invocation span exists and is in the context.
 // On turn 0, it creates the invocation span. On subsequent turns, it re-parents the context.
 func (t *TracingInterceptor) withInvocationSpan(
@@ -263,4 +277,7 @@ func (t *TracingInterceptor) endInvocationSpan(inv *agent.InvocationMetadata, er
 
 	setSpanError(span, err)
 	span.End()
+
+	// Both InterceptTurn and the trailing InvocationEndEvent may end the span.
+	inv.SetMetadata(metadataKeyInvocationSpan, nil)
 }
