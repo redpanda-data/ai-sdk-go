@@ -1740,6 +1740,8 @@ func assertHasAttribute(t *testing.T, attrs []attribute.KeyValue, key string, ex
 				assert.Equal(t, v, attr.Value.AsInt64(), "Attribute %s", key)
 			case int:
 				assert.Equal(t, int64(v), attr.Value.AsInt64(), "Attribute %s", key)
+			case []string:
+				assert.Equal(t, v, attr.Value.AsStringSlice(), "Attribute %s", key)
 			default:
 				t.Fatalf("Unsupported expected type for attribute %s: %T", key, expected)
 			}

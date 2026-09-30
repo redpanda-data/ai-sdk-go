@@ -21,6 +21,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/agent/llmagent"
@@ -86,21 +89,80 @@ func TestTracingInterceptor_EndsInvocationSpanOnMaxTurns(t *testing.T) {
 	spans := exporter.GetSpans()
 	exported := make(map[string]bool, len(spans))
 
-	var invocationSpans int
+	var invocationSpans []tracetest.SpanStub
 
 	for _, s := range spans {
 		exported[s.SpanContext.SpanID().String()] = true
 
 		if s.Name == "invoke_agent looping-agent" {
-			invocationSpans++
+			invocationSpans = append(invocationSpans, s)
 		}
 	}
 
-	require.Equal(t, 1, invocationSpans, "invocation span must be exported exactly once")
+	require.Len(t, invocationSpans, 1, "invocation span must be exported exactly once")
+
+	invocationSpan := invocationSpans[0]
+	assert.Equal(t, codes.Error, invocationSpan.Status.Code)
+	assertHasAttribute(t, invocationSpan.Attributes, "error.type", "max_turns")
+	assertHasAttribute(t, invocationSpan.Attributes, "gen_ai.response.finish_reasons", []string{"max_turns"})
 
 	for _, s := range spans {
 		if s.Parent.IsValid() {
 			assert.True(t, exported[s.Parent.SpanID().String()], "span %q has an unexported parent", s.Name)
 		}
+	}
+}
+
+func TestTracingInterceptor_InvocationSpanStatusFromFinishReason(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		reason    agent.FinishReason
+		wantError bool
+	}{
+		{agent.FinishReasonStop, false},
+		{agent.FinishReasonLength, false},
+		{agent.FinishReasonInputRequired, false},
+		{agent.FinishReasonInterrupted, false},
+		{agent.FinishReasonContextOverflow, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.reason), func(t *testing.T) {
+			t.Parallel()
+
+			exporter, tp := setupTracer()
+			defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
+
+			interceptor := pluginotel.New(pluginotel.WithTracerProvider(tp))
+			inv := agent.NewInvocationMetadata(&session.State{ID: "sess"}, agent.Info{Name: "a"})
+
+			_, err := interceptor.InterceptTurn(t.Context(), &agent.TurnInfo{Inv: inv},
+				func(context.Context, *agent.TurnInfo) (agent.FinishReason, error) { return tt.reason, nil })
+			require.NoError(t, err)
+
+			// The loop's trailing end event must not end or re-mark the span.
+			interceptor.ObserveEvent(t.Context(), inv, agent.InvocationEndEvent{FinishReason: tt.reason})
+
+			spans := exporter.GetSpans()
+			require.Len(t, spans, 1)
+			assertHasAttribute(t, spans[0].Attributes, "gen_ai.response.finish_reasons", []string{string(tt.reason)})
+
+			if tt.wantError {
+				assert.Equal(t, codes.Error, spans[0].Status.Code)
+				assertHasAttribute(t, spans[0].Attributes, "error.type", string(tt.reason))
+			} else {
+				assert.NotEqual(t, codes.Error, spans[0].Status.Code)
+				assertNoAttribute(t, spans[0].Attributes, "error.type")
+			}
+		})
+	}
+}
+
+func assertNoAttribute(t *testing.T, attrs []attribute.KeyValue, key string) {
+	t.Helper()
+
+	for _, attr := range attrs {
+		assert.NotEqual(t, key, string(attr.Key), "unexpected attribute %s=%s", key, attr.Value.String())
 	}
 }

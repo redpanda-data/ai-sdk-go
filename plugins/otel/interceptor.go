@@ -20,6 +20,7 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
@@ -128,7 +129,7 @@ func (t *TracingInterceptor) InterceptTurn(
 
 	// End invocation span on terminal conditions
 	if reason != "" || err != nil {
-		t.endInvocationSpan(inv, err)
+		t.endInvocationSpan(inv, reason, err)
 	}
 
 	return reason, err
@@ -144,7 +145,7 @@ func (t *TracingInterceptor) ObserveEvent(ctx context.Context, inv *agent.Invoca
 	case agent.CompactionEvent:
 		t.recordCompaction(ctx, inv, ev)
 	case agent.InvocationEndEvent:
-		t.endInvocationSpan(inv, nil)
+		t.endInvocationSpan(inv, ev.FinishReason, nil)
 	}
 }
 
@@ -264,8 +265,9 @@ func getInvocationSpan(inv *agent.InvocationMetadata) (trace.Span, bool) {
 	return span, ok
 }
 
-// endInvocationSpan finalizes the invocation span with usage stats and optional error.
-func (t *TracingInterceptor) endInvocationSpan(inv *agent.InvocationMetadata, err error) {
+// endInvocationSpan finalizes the invocation span with usage stats, the finish
+// reason and optional error.
+func (t *TracingInterceptor) endInvocationSpan(inv *agent.InvocationMetadata, reason agent.FinishReason, err error) {
 	span, ok := getInvocationSpan(inv)
 	if !ok {
 		return
@@ -275,9 +277,34 @@ func (t *TracingInterceptor) endInvocationSpan(inv *agent.InvocationMetadata, er
 	usage := inv.TotalUsage()
 	setUsageAttributes(span, &usage)
 
-	setSpanError(span, err)
+	if reason != "" {
+		span.SetAttributes(genAIResponseFinishReasons(string(reason)))
+	}
+
+	if err != nil {
+		setSpanError(span, err)
+	} else if failedFinishReason(reason) {
+		span.SetStatus(codes.Error, "agent stopped: "+string(reason))
+		span.SetAttributes(errorType(string(reason)))
+	}
+
 	span.End()
 
 	// Both InterceptTurn and the trailing InvocationEndEvent may end the span.
 	inv.SetMetadata(metadataKeyInvocationSpan, nil)
+}
+
+// failedFinishReason reports whether the agent stopped without completing its
+// task. Callers still get a normal InvocationEndEvent, but the a2a executor
+// and agenttool both surface these as failures, so the span must too.
+func failedFinishReason(reason agent.FinishReason) bool {
+	switch reason {
+	case agent.FinishReasonMaxTurns, agent.FinishReasonContextOverflow, agent.FinishReasonError:
+		return true
+	case agent.FinishReasonStop, agent.FinishReasonLength, agent.FinishReasonInputRequired,
+		agent.FinishReasonInterrupted, agent.FinishReasonTransfer:
+		return false
+	default:
+		return false
+	}
 }
