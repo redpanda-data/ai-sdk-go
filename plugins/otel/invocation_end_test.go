@@ -44,9 +44,9 @@ func (loopTool) Execute(context.Context, json.RawMessage) (json.RawMessage, erro
 	return json.RawMessage(`{}`), nil
 }
 
-// The loop, not a turn, ends an invocation that exhausts its turn budget, so
-// the invocation span must be closed from the InvocationEndEvent; otherwise
-// every chat span of the run points at a parent that is never exported.
+// The loop, not a turn, ends an invocation that exhausts its turn budget. The
+// span must still close, or every chat span of the run points at a parent that
+// is never exported.
 func TestTracingInterceptor_EndsInvocationSpanOnMaxTurns(t *testing.T) {
 	t.Parallel()
 
@@ -113,6 +113,54 @@ func TestTracingInterceptor_EndsInvocationSpanOnMaxTurns(t *testing.T) {
 	}
 }
 
+// A consumer that stops iterating between turns gets no InvocationEndEvent,
+// but the invocation span must still be exported.
+func TestTracingInterceptor_EndsInvocationSpanWhenConsumerStops(t *testing.T) {
+	t.Parallel()
+
+	exporter, tp := setupTracer()
+	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
+
+	registry := tool.NewRegistry(tool.RegistryConfig{})
+	require.NoError(t, registry.Register(loopTool{}))
+
+	model := fakellm.NewFakeModel()
+	model.When(fakellm.Any()).ThenRespondWithToolCall("loop", map[string]any{})
+
+	ag, err := llmagent.New(
+		"stopped-agent",
+		"You are a test assistant",
+		model,
+		llmagent.WithTools(registry),
+		llmagent.WithInterceptors(pluginotel.New(pluginotel.WithTracerProvider(tp))),
+	)
+	require.NoError(t, err)
+
+	sess := &session.State{
+		ID:       "sess-consumer-stop",
+		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("go"))},
+	}
+
+	for ev, err := range ag.Run(t.Context(), agent.NewInvocationMetadata(sess, agent.Info{Name: "stopped-agent"})) {
+		require.NoError(t, err)
+
+		if status, ok := ev.(agent.StatusEvent); ok && status.Stage == agent.StatusStageTurnStarted && status.Envelope.Turn == 1 {
+			break
+		}
+	}
+
+	var invocationSpans []tracetest.SpanStub
+
+	for _, s := range exporter.GetSpans() {
+		if s.Name == "invoke_agent stopped-agent" {
+			invocationSpans = append(invocationSpans, s)
+		}
+	}
+
+	require.Len(t, invocationSpans, 1, "invocation span must be exported exactly once")
+	assertHasAttribute(t, invocationSpans[0].Attributes, "gen_ai.response.finish_reasons", []string{"interrupted"})
+}
+
 func TestTracingInterceptor_InvocationSpanStatusFromFinishReason(t *testing.T) {
 	t.Parallel()
 
@@ -137,12 +185,9 @@ func TestTracingInterceptor_InvocationSpanStatusFromFinishReason(t *testing.T) {
 			interceptor := pluginotel.New(pluginotel.WithTracerProvider(tp))
 			inv := agent.NewInvocationMetadata(&session.State{ID: "sess"}, agent.Info{Name: "a"})
 
-			_, err := interceptor.InterceptTurn(t.Context(), &agent.TurnInfo{Inv: inv},
-				func(context.Context, *agent.TurnInfo) (agent.FinishReason, error) { return tt.reason, nil })
+			_, err := interceptor.InterceptInvocation(t.Context(), &agent.InvocationInfo{Inv: inv},
+				func(context.Context, *agent.InvocationInfo) (agent.FinishReason, error) { return tt.reason, nil })
 			require.NoError(t, err)
-
-			// The loop's trailing end event must not end or re-mark the span.
-			interceptor.ObserveEvent(t.Context(), inv, agent.InvocationEndEvent{FinishReason: tt.reason})
 
 			spans := exporter.GetSpans()
 			require.Len(t, spans, 1)

@@ -105,7 +105,7 @@ func setupTracer() (*tracetest.InMemoryExporter, *sdktrace.TracerProvider) {
 	return exporter, tp
 }
 
-func TestTracingInterceptor_InterceptTurn_CreatesInvocationSpan(t *testing.T) {
+func TestTracingInterceptor_InterceptInvocation_CreatesInvocationSpan(t *testing.T) {
 	t.Parallel()
 
 	exporter, tp := setupTracer()
@@ -122,7 +122,7 @@ func TestTracingInterceptor_InterceptTurn_CreatesInvocationSpan(t *testing.T) {
 	ctx := t.Context()
 
 	// Simulate a single turn that completes
-	reason, err := interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(_ context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+	reason, err := interceptor.InterceptInvocation(ctx, &agent.InvocationInfo{Inv: inv}, func(_ context.Context, _ *agent.InvocationInfo) (agent.FinishReason, error) {
 		return agent.FinishReasonStop, nil
 	})
 
@@ -144,48 +144,7 @@ func TestTracingInterceptor_InterceptTurn_CreatesInvocationSpan(t *testing.T) {
 	assertHasAttribute(t, invocationSpan.Attributes, "gen_ai.agent.name", "test-agent")
 }
 
-func TestTracingInterceptor_InterceptTurn_MultipleTurns(t *testing.T) {
-	t.Parallel()
-
-	exporter, tp := setupTracer()
-	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
-
-	interceptor := pluginotel.New(
-		pluginotel.WithTracerProvider(tp),
-	)
-
-	inv := agent.NewInvocationMetadata(&session.State{ID: "sess-123"}, agent.Info{
-		Name:        "test-agent",
-		Description: "Test agent for OpenTelemetry tracing",
-	})
-	ctx := t.Context()
-
-	// Turn 0 - continues
-	reason, err := interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(_ context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
-		return "", nil // No finish reason = continue
-	})
-	require.NoError(t, err)
-	assert.Empty(t, reason)
-
-	// Increment turn (normally done by agent framework)
-	agent.IncrementTurn(inv)
-
-	// Turn 1 - completes
-	reason, err = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(_ context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
-		return agent.FinishReasonStop, nil
-	})
-	require.NoError(t, err)
-	assert.Equal(t, agent.FinishReasonStop, reason)
-
-	// Check spans - should only have invocation span (created on turn 0, ended on turn 1)
-	spans := exporter.GetSpans()
-	require.Len(t, spans, 1, "Expected 1 invocation span across multiple turns")
-
-	invocationSpan := spans[0]
-	assertHasAttribute(t, invocationSpan.Attributes, "gen_ai.operation.name", "invoke_agent")
-}
-
-func TestTracingInterceptor_InterceptTurn_ErrorRecording(t *testing.T) {
+func TestTracingInterceptor_InterceptInvocation_ErrorRecording(t *testing.T) {
 	t.Parallel()
 
 	exporter, tp := setupTracer()
@@ -202,7 +161,7 @@ func TestTracingInterceptor_InterceptTurn_ErrorRecording(t *testing.T) {
 	ctx := t.Context()
 	testErr := errors.New("turn failed")
 
-	reason, err := interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(_ context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+	reason, err := interceptor.InterceptInvocation(ctx, &agent.InvocationInfo{Inv: inv}, func(_ context.Context, _ *agent.InvocationInfo) (agent.FinishReason, error) {
 		return "", testErr
 	})
 
@@ -234,7 +193,7 @@ func TestTracingInterceptor_InterceptModel_Generate(t *testing.T) {
 	ctx := t.Context()
 
 	// First create a turn to establish parent span
-	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+	_, _ = interceptor.InterceptInvocation(ctx, &agent.InvocationInfo{Inv: inv}, func(ctx context.Context, _ *agent.InvocationInfo) (agent.FinishReason, error) {
 		// Within turn, intercept model call
 		modelInfo := &agent.ModelCallInfo{
 			InvocationMetadata: inv,
@@ -290,7 +249,7 @@ func TestTracingInterceptor_InterceptModel_GenerateEvents(t *testing.T) {
 	})
 	ctx := t.Context()
 
-	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+	_, _ = interceptor.InterceptInvocation(ctx, &agent.InvocationInfo{Inv: inv}, func(ctx context.Context, _ *agent.InvocationInfo) (agent.FinishReason, error) {
 		modelInfo := &agent.ModelCallInfo{
 			InvocationMetadata: inv,
 			Model:              &mockModelInfo{name: "test-model", provider: "test"},
@@ -340,7 +299,7 @@ func TestTracingInterceptor_InterceptToolExecution(t *testing.T) {
 	})
 	ctx := t.Context()
 
-	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+	_, _ = interceptor.InterceptInvocation(ctx, &agent.InvocationInfo{Inv: inv}, func(ctx context.Context, _ *agent.InvocationInfo) (agent.FinishReason, error) {
 		req := &llm.ToolRequestPart{
 			Name:      "get_weather",
 			ID:        "tool-call-123",
@@ -398,7 +357,7 @@ func TestTracingInterceptor_InterceptToolExecution_WithRecordInputs(t *testing.T
 	})
 	ctx := t.Context()
 
-	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+	_, _ = interceptor.InterceptInvocation(ctx, &agent.InvocationInfo{Inv: inv}, func(ctx context.Context, _ *agent.InvocationInfo) (agent.FinishReason, error) {
 		req := &llm.ToolRequestPart{
 			Name:      "get_weather",
 			ID:        "tool-call-123",
@@ -449,7 +408,7 @@ func TestTracingInterceptor_InterceptToolExecution_WithRecordOutputs(t *testing.
 	})
 	ctx := t.Context()
 
-	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+	_, _ = interceptor.InterceptInvocation(ctx, &agent.InvocationInfo{Inv: inv}, func(ctx context.Context, _ *agent.InvocationInfo) (agent.FinishReason, error) {
 		req := &llm.ToolRequestPart{
 			Name:      "get_weather",
 			ID:        "tool-call-123",
@@ -499,7 +458,7 @@ func TestTracingInterceptor_InterceptToolExecution_Error(t *testing.T) {
 	ctx := t.Context()
 	toolErr := errors.New("tool execution failed")
 
-	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+	_, _ = interceptor.InterceptInvocation(ctx, &agent.InvocationInfo{Inv: inv}, func(ctx context.Context, _ *agent.InvocationInfo) (agent.FinishReason, error) {
 		req := &llm.ToolRequestPart{Name: "failing_tool", ID: "tool-123"}
 
 		toolInfo := &agent.ToolCallInfo{Inv: inv, Req: req}
@@ -546,7 +505,7 @@ func TestTracingInterceptor_InterceptToolExecution_ToolErrorResponse(t *testing.
 	})
 	ctx := t.Context()
 
-	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+	_, _ = interceptor.InterceptInvocation(ctx, &agent.InvocationInfo{Inv: inv}, func(ctx context.Context, _ *agent.InvocationInfo) (agent.FinishReason, error) {
 		req := &llm.ToolRequestPart{Name: "query_logs", ID: "tool-call-abc", Arguments: json.RawMessage(`{"query":"errors"}`)}
 
 		toolInfo := &agent.ToolCallInfo{Inv: inv, Req: req}
@@ -612,7 +571,7 @@ func TestTracingInterceptor_InterceptToolExecution_ToolErrorPayloadGatedByRecord
 	})
 	ctx := t.Context()
 
-	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+	_, _ = interceptor.InterceptInvocation(ctx, &agent.InvocationInfo{Inv: inv}, func(ctx context.Context, _ *agent.InvocationInfo) (agent.FinishReason, error) {
 		req := &llm.ToolRequestPart{Name: "query_logs", ID: "tool-call-abc", Arguments: json.RawMessage(`{"query":"errors"}`)}
 
 		toolInfo := &agent.ToolCallInfo{Inv: inv, Req: req}
@@ -666,7 +625,7 @@ func TestTracingInterceptor_SpanHierarchy(t *testing.T) {
 	})
 	ctx := t.Context()
 
-	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+	_, _ = interceptor.InterceptInvocation(ctx, &agent.InvocationInfo{Inv: inv}, func(ctx context.Context, _ *agent.InvocationInfo) (agent.FinishReason, error) {
 		// Model call
 		modelInfo := &agent.ModelCallInfo{
 			InvocationMetadata: inv,
@@ -744,7 +703,7 @@ func TestTracingInterceptor_ContentRecording(t *testing.T) {
 	})
 	ctx := t.Context()
 
-	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+	_, _ = interceptor.InterceptInvocation(ctx, &agent.InvocationInfo{Inv: inv}, func(ctx context.Context, _ *agent.InvocationInfo) (agent.FinishReason, error) {
 		// Model call with messages
 		req := &llm.Request{
 			Messages: []llm.Message{
@@ -818,7 +777,7 @@ func TestTracingInterceptor_ContextPropagation(t *testing.T) {
 
 	var contextWasPropagated bool
 
-	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+	_, _ = interceptor.InterceptInvocation(ctx, &agent.InvocationInfo{Inv: inv}, func(ctx context.Context, _ *agent.InvocationInfo) (agent.FinishReason, error) {
 		modelInfo := &agent.ModelCallInfo{
 			InvocationMetadata: inv,
 			Model:              &mockModelInfo{name: "test-model", provider: "test"},
@@ -866,7 +825,7 @@ func TestTracingInterceptor_InterceptToolExecution_WithToolTypeAndDescription(t 
 	})
 	ctx := t.Context()
 
-	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+	_, _ = interceptor.InterceptInvocation(ctx, &agent.InvocationInfo{Inv: inv}, func(ctx context.Context, _ *agent.InvocationInfo) (agent.FinishReason, error) {
 		req := &llm.ToolRequestPart{
 			Name:      "get_weather",
 			ID:        "tool-call-123",
@@ -930,7 +889,7 @@ func TestTracingInterceptor_InterceptToolExecution_ToolTypeDefaultsToFunction(t 
 	})
 	ctx := t.Context()
 
-	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+	_, _ = interceptor.InterceptInvocation(ctx, &agent.InvocationInfo{Inv: inv}, func(ctx context.Context, _ *agent.InvocationInfo) (agent.FinishReason, error) {
 		req := &llm.ToolRequestPart{
 			Name:      "custom_tool",
 			ID:        "tool-call-456",
@@ -1003,7 +962,7 @@ func TestTracingInterceptor_InterceptToolExecution_WithDifferentToolTypes(t *tes
 			})
 			ctx := t.Context()
 
-			_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+			_, _ = interceptor.InterceptInvocation(ctx, &agent.InvocationInfo{Inv: inv}, func(ctx context.Context, _ *agent.InvocationInfo) (agent.FinishReason, error) {
 				req := &llm.ToolRequestPart{
 					Name:      "test_tool",
 					ID:        "tool-call-789",
@@ -1065,7 +1024,7 @@ func TestTracingInterceptor_InterceptToolExecution_WithoutDefinition(t *testing.
 	})
 	ctx := t.Context()
 
-	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+	_, _ = interceptor.InterceptInvocation(ctx, &agent.InvocationInfo{Inv: inv}, func(ctx context.Context, _ *agent.InvocationInfo) (agent.FinishReason, error) {
 		req := &llm.ToolRequestPart{
 			Name:      "unknown_tool",
 			ID:        "tool-call-999",
@@ -1125,7 +1084,7 @@ func TestTracingInterceptor_InterceptToolExecution_InvalidToolTypeDefaultsToFunc
 	})
 	ctx := t.Context()
 
-	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+	_, _ = interceptor.InterceptInvocation(ctx, &agent.InvocationInfo{Inv: inv}, func(ctx context.Context, _ *agent.InvocationInfo) (agent.FinishReason, error) {
 		req := &llm.ToolRequestPart{
 			Name:      "invalid_type_tool",
 			ID:        "tool-call-invalid",
@@ -1188,7 +1147,7 @@ func TestTracingInterceptor_AgentIDAndVersion_Present(t *testing.T) {
 	})
 	ctx := t.Context()
 
-	reason, err := interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(_ context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+	reason, err := interceptor.InterceptInvocation(ctx, &agent.InvocationInfo{Inv: inv}, func(_ context.Context, _ *agent.InvocationInfo) (agent.FinishReason, error) {
 		return agent.FinishReasonStop, nil
 	})
 
@@ -1218,7 +1177,7 @@ func TestTracingInterceptor_AgentIDAndVersion_Absent(t *testing.T) {
 	})
 	ctx := t.Context()
 
-	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(_ context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+	_, _ = interceptor.InterceptInvocation(ctx, &agent.InvocationInfo{Inv: inv}, func(_ context.Context, _ *agent.InvocationInfo) (agent.FinishReason, error) {
 		return agent.FinishReasonStop, nil
 	})
 
@@ -1244,7 +1203,7 @@ func TestTracingInterceptor_CacheReadTokens_OnModelSpan(t *testing.T) {
 	})
 	ctx := t.Context()
 
-	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+	_, _ = interceptor.InterceptInvocation(ctx, &agent.InvocationInfo{Inv: inv}, func(ctx context.Context, _ *agent.InvocationInfo) (agent.FinishReason, error) {
 		modelInfo := &agent.ModelCallInfo{
 			InvocationMetadata: inv,
 			Model:              &mockModelInfo{name: "gpt-4", provider: "openai"},
@@ -1298,7 +1257,7 @@ func TestTracingInterceptor_OptionalUsageAttrs_AbsentWhenZero(t *testing.T) {
 	})
 	ctx := t.Context()
 
-	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+	_, _ = interceptor.InterceptInvocation(ctx, &agent.InvocationInfo{Inv: inv}, func(ctx context.Context, _ *agent.InvocationInfo) (agent.FinishReason, error) {
 		modelInfo := &agent.ModelCallInfo{
 			InvocationMetadata: inv,
 			Model:              &mockModelInfo{name: "gpt-4", provider: "openai"},
@@ -1344,7 +1303,7 @@ func TestTracingInterceptor_CacheReadTokens_OnInvocationSpan(t *testing.T) {
 	ctx := t.Context()
 
 	// Simulate a model call that adds cached tokens to the invocation usage
-	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(_ context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+	_, _ = interceptor.InterceptInvocation(ctx, &agent.InvocationInfo{Inv: inv}, func(_ context.Context, _ *agent.InvocationInfo) (agent.FinishReason, error) {
 		// Manually add usage with cached tokens to the invocation
 		agent.AddUsage(inv, &llm.TokenUsage{
 			InputTokens:       100,
@@ -1400,7 +1359,7 @@ func TestTracingInterceptor_UsageAttributesAreSemconvCompliant(t *testing.T) {
 	//   gen_ai.usage.output_tokens = 60 + 40 = 100
 	//   cache_read.input_tokens    = 30
 	//   cache_creation.input_tokens = 20 + 10 + 5 = 35
-	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+	_, _ = interceptor.InterceptInvocation(ctx, &agent.InvocationInfo{Inv: inv}, func(ctx context.Context, _ *agent.InvocationInfo) (agent.FinishReason, error) {
 		modelInfo := &agent.ModelCallInfo{
 			InvocationMetadata: inv,
 			Model:              &mockModelInfo{name: "claude-sonnet-4-5", provider: "anthropic"},
@@ -1485,7 +1444,7 @@ func TestTracingInterceptor_SystemInstructions_Emitted(t *testing.T) {
 	})
 	ctx := t.Context()
 
-	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(_ context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+	_, _ = interceptor.InterceptInvocation(ctx, &agent.InvocationInfo{Inv: inv}, func(_ context.Context, _ *agent.InvocationInfo) (agent.FinishReason, error) {
 		return agent.FinishReasonStop, nil
 	})
 
@@ -1522,7 +1481,7 @@ func TestTracingInterceptor_SystemInstructions_NotEmittedWithoutRecordInputs(t *
 	})
 	ctx := t.Context()
 
-	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(_ context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+	_, _ = interceptor.InterceptInvocation(ctx, &agent.InvocationInfo{Inv: inv}, func(_ context.Context, _ *agent.InvocationInfo) (agent.FinishReason, error) {
 		return agent.FinishReasonStop, nil
 	})
 
@@ -1551,7 +1510,7 @@ func TestTracingInterceptor_ModelAndProvider_OnInvocationSpan(t *testing.T) {
 	ctx := t.Context()
 
 	// Complete immediately without any model call
-	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(_ context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+	_, _ = interceptor.InterceptInvocation(ctx, &agent.InvocationInfo{Inv: inv}, func(_ context.Context, _ *agent.InvocationInfo) (agent.FinishReason, error) {
 		return agent.FinishReasonStop, nil
 	})
 
@@ -1579,7 +1538,7 @@ func TestTracingInterceptor_ModelAndProvider_AbsentForNonLLMAgent(t *testing.T) 
 	})
 	ctx := t.Context()
 
-	_, _ = interceptor.InterceptTurn(ctx, &agent.TurnInfo{Inv: inv}, func(_ context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+	_, _ = interceptor.InterceptInvocation(ctx, &agent.InvocationInfo{Inv: inv}, func(_ context.Context, _ *agent.InvocationInfo) (agent.FinishReason, error) {
 		return agent.FinishReasonStop, nil
 	})
 
@@ -1603,8 +1562,8 @@ func runAllSpanKinds(t *testing.T, inv *agent.InvocationMetadata) []tracetest.Sp
 
 	interceptor := pluginotel.New(pluginotel.WithTracerProvider(tp))
 
-	_, err := interceptor.InterceptTurn(t.Context(), &agent.TurnInfo{Inv: inv},
-		func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+	_, err := interceptor.InterceptInvocation(t.Context(), &agent.InvocationInfo{Inv: inv},
+		func(ctx context.Context, _ *agent.InvocationInfo) (agent.FinishReason, error) {
 			modelInfo := &agent.ModelCallInfo{
 				InvocationMetadata: inv,
 				Model:              &mockModelInfo{name: "gpt-4", provider: "openai"},

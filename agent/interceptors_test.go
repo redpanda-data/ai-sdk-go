@@ -630,6 +630,11 @@ func TestImplementsAnyInterceptor(t *testing.T) {
 		wantOK      bool
 	}{
 		{
+			name:        "valid invocation interceptor",
+			interceptor: &testInvocationInterceptor{},
+			wantOK:      true,
+		},
+		{
 			name:        "valid turn interceptor",
 			interceptor: &testTurnInterceptor{},
 			wantOK:      true,
@@ -664,6 +669,48 @@ func TestImplementsAnyInterceptor(t *testing.T) {
 			assert.Equal(t, tt.wantOK, ok)
 		})
 	}
+}
+
+// TestInvocationInterceptor_Ordering verifies that invocation interceptors are
+// applied in reverse order (first registered interceptor = outermost wrapper).
+func TestInvocationInterceptor_Ordering(t *testing.T) {
+	t.Parallel()
+
+	recorder := newOrderRecorder()
+
+	recording := func(name string) *testInvocationInterceptor {
+		return &testInvocationInterceptor{
+			intercept: func(ctx context.Context, info *agent.InvocationInfo, next agent.InvocationNext) (agent.FinishReason, error) {
+				recorder.record(name + "-before")
+				defer recorder.record(name + "-after")
+
+				return next(ctx, info)
+			},
+		}
+	}
+
+	base := func(_ context.Context, _ *agent.InvocationInfo) (agent.FinishReason, error) {
+		recorder.record("base")
+		return agent.FinishReasonMaxTurns, nil
+	}
+
+	run := agent.ApplyInvocationInterceptors(
+		[]agent.Interceptor{recording("interceptor1"), &testTurnInterceptor{}, recording("interceptor2")},
+		base,
+	)
+
+	inv := agent.NewInvocationMetadata(&session.State{ID: "test"}, agent.Info{})
+	reason, err := run(t.Context(), &agent.InvocationInfo{Inv: inv})
+	require.NoError(t, err)
+	assert.Equal(t, agent.FinishReasonMaxTurns, reason)
+
+	assert.Equal(t, []string{
+		"interceptor1-before",
+		"interceptor2-before",
+		"base",
+		"interceptor2-after",
+		"interceptor1-after",
+	}, recorder.get())
 }
 
 // TestTurnInterceptor_Ordering verifies that turn interceptors are applied
@@ -856,6 +903,22 @@ func TestEmptyInterceptors(t *testing.T) {
 }
 
 // testTurnInterceptor is a test implementation of TurnInterceptor.
+type testInvocationInterceptor struct {
+	intercept func(ctx context.Context, info *agent.InvocationInfo, next agent.InvocationNext) (agent.FinishReason, error)
+}
+
+func (i *testInvocationInterceptor) InterceptInvocation(
+	ctx context.Context,
+	info *agent.InvocationInfo,
+	next agent.InvocationNext,
+) (agent.FinishReason, error) {
+	if i.intercept != nil {
+		return i.intercept(ctx, info, next)
+	}
+
+	return next(ctx, info)
+}
+
 type testTurnInterceptor struct {
 	intercept func(ctx context.Context, info *agent.TurnInfo, next agent.TurnNext) (agent.FinishReason, error)
 }

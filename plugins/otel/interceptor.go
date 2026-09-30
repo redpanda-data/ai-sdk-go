@@ -30,7 +30,7 @@ import (
 
 // TracingInterceptor provides OpenTelemetry tracing for agent operations.
 //
-// It implements [agent.TurnInterceptor], [agent.ModelInterceptor], and [agent.ToolInterceptor]
+// It implements [agent.InvocationInterceptor], [agent.ModelInterceptor], and [agent.ToolInterceptor]
 // to create a span hierarchy following OTel Gen AI semantic conventions:
 //
 //	invoke_agent my-assistant
@@ -83,10 +83,10 @@ type TracingInterceptor struct {
 
 // Compile-time interface checks.
 var (
-	_ agent.TurnInterceptor  = (*TracingInterceptor)(nil)
-	_ agent.ModelInterceptor = (*TracingInterceptor)(nil)
-	_ agent.ToolInterceptor  = (*TracingInterceptor)(nil)
-	_ agent.EventObserver    = (*TracingInterceptor)(nil)
+	_ agent.InvocationInterceptor = (*TracingInterceptor)(nil)
+	_ agent.ModelInterceptor      = (*TracingInterceptor)(nil)
+	_ agent.ToolInterceptor       = (*TracingInterceptor)(nil)
+	_ agent.EventObserver         = (*TracingInterceptor)(nil)
 )
 
 // New creates a TracingInterceptor with the given options.
@@ -110,66 +110,36 @@ func New(opts ...Option) *TracingInterceptor {
 	}
 }
 
-// InterceptTurn creates a span for the agent invocation.
-//
-// On turn 0, it creates the root "gen_ai.agent" span (invoke_agent) that covers the entire invocation.
-// Model and tool spans are created as direct children of the invocation span.
-func (t *TracingInterceptor) InterceptTurn(
+// InterceptInvocation creates the root "gen_ai.agent" span (invoke_agent)
+// covering the entire invocation. Model and tool spans are its direct children
+// through the context passed to next.
+func (t *TracingInterceptor) InterceptInvocation(
 	ctx context.Context,
-	info *agent.TurnInfo,
-	next agent.TurnNext,
+	info *agent.InvocationInfo,
+	next agent.InvocationNext,
 ) (agent.FinishReason, error) {
-	inv := info.Inv
+	ctx, span := t.startInvocationSpan(ctx, info.Inv)
+	// Model and compaction spans read it back to annotate the invocation span.
+	info.Inv.SetMetadata(metadataKeyInvocationSpan, span)
 
-	// Ensure we have the invocation span in the context when we call next
-	ctx = t.withInvocationSpan(ctx, inv)
+	var (
+		reason agent.FinishReason
+		err    error
+	)
 
-	// Execute the turn with invocation context so model/tool spans are children of invocation span
-	reason, err := next(ctx, info)
+	// Deferred so a panicking loop still exports the span.
+	defer func() { endInvocationSpan(span, info.Inv, reason, err) }()
 
-	// End invocation span on terminal conditions
-	if reason != "" || err != nil {
-		t.endInvocationSpan(inv, reason, err)
-	}
+	reason, err = next(ctx, info)
 
 	return reason, err
 }
 
 // ObserveEvent implements [agent.EventObserver].
-//
-// InvocationEndEvent closes the invocation span: the turn loop can end an
-// invocation without any turn returning a finish reason (max turns, or
-// cancellation between turns), and InterceptTurn never sees those endings.
 func (t *TracingInterceptor) ObserveEvent(ctx context.Context, inv *agent.InvocationMetadata, event agent.Event) {
-	switch ev := event.(type) {
-	case agent.CompactionEvent:
-		t.recordCompaction(ctx, inv, ev)
-	case agent.InvocationEndEvent:
-		t.endInvocationSpan(inv, ev.FinishReason, nil)
+	if ce, ok := event.(agent.CompactionEvent); ok {
+		t.recordCompaction(ctx, inv, ce)
 	}
-}
-
-// withInvocationSpan ensures the invocation span exists and is in the context.
-// On turn 0, it creates the invocation span. On subsequent turns, it re-parents the context.
-func (t *TracingInterceptor) withInvocationSpan(
-	ctx context.Context,
-	inv *agent.InvocationMetadata,
-) context.Context {
-	if inv.Turn() == 0 {
-		ctx, span := t.startInvocationSpan(ctx, inv)
-		// Store only the span (not context) for later retrieval
-		inv.SetMetadata(metadataKeyInvocationSpan, span)
-
-		return ctx
-	}
-
-	if span, ok := getInvocationSpan(inv); ok {
-		// Re-parent context to the existing invocation span while
-		// preserving deadlines/cancellation
-		return trace.ContextWithSpan(ctx, span)
-	}
-
-	return ctx
 }
 
 // startInvocationSpan creates the root invocation span with all required attributes.
@@ -267,12 +237,7 @@ func getInvocationSpan(inv *agent.InvocationMetadata) (trace.Span, bool) {
 
 // endInvocationSpan finalizes the invocation span with usage stats, the finish
 // reason and optional error.
-func (t *TracingInterceptor) endInvocationSpan(inv *agent.InvocationMetadata, reason agent.FinishReason, err error) {
-	span, ok := getInvocationSpan(inv)
-	if !ok {
-		return
-	}
-
+func endInvocationSpan(span trace.Span, inv *agent.InvocationMetadata, reason agent.FinishReason, err error) {
 	// Add final usage stats to invocation span
 	usage := inv.TotalUsage()
 	setUsageAttributes(span, &usage)
@@ -289,9 +254,6 @@ func (t *TracingInterceptor) endInvocationSpan(inv *agent.InvocationMetadata, re
 	}
 
 	span.End()
-
-	// Both InterceptTurn and the trailing InvocationEndEvent may end the span.
-	inv.SetMetadata(metadataKeyInvocationSpan, nil)
 }
 
 // failedFinishReason reports whether the agent stopped without completing its

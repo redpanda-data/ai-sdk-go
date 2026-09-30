@@ -149,9 +149,9 @@ func (a *LLMAgent) InputSchema() map[string]any {
 // The stream always ends with InvocationEndEvent, even on error or cancellation.
 func (a *LLMAgent) Run(ctx context.Context, inv *agent.InvocationMetadata) iter.Seq2[agent.Event, error] {
 	return func(yield func(agent.Event, error) bool) {
-		// Observers see every non-nil event before the consumer. Turn events
-		// are re-wrapped below with the turn context; lifecycle events use
-		// the run context.
+		// Observers see every non-nil event before the consumer. Events inside
+		// the turn loop are re-wrapped with the invocation or turn context;
+		// events outside it use the run context.
 		consumerYield := guardYield(yield)
 		yield = agent.ApplyEventObservers(ctx, inv, a.config.interceptors, consumerYield)
 
@@ -174,71 +174,68 @@ func (a *LLMAgent) Run(ctx context.Context, inv *agent.InvocationMetadata) iter.
 			return
 		}
 
-		// Execute turn loop
-		for inv.Turn() < a.config.maxTurns {
-			// Emit turn started
-			if !yield(agent.StatusEvent{
-				Envelope: makeEnvelope(),
-				Stage:    agent.StatusStageTurnStarted,
-				Details:  fmt.Sprintf("turn %d started", inv.Turn()),
-			}, nil) {
-				return
-			}
-
-			// Check context cancellation
-			if ctx.Err() != nil {
-				yield(agent.InvocationEndEvent{
-					Envelope:     makeEnvelope(),
-					FinishReason: agent.FinishReasonInterrupted,
-					Usage:        new(inv.TotalUsage()),
-				}, nil)
-
-				return
-			}
-
-			// Create turn execution function that can be wrapped by interceptors
-			// This encapsulates the entire turn execution logic
-			executeTurn := func(ctx context.Context, info *agent.TurnInfo) (agent.FinishReason, error) {
-				// Turn events carry the interceptor-derived turn context.
-				turnYield := agent.ApplyEventObservers(ctx, info.Inv, a.config.interceptors, consumerYield)
-
-				return a.executeSingleTurn(ctx, info.Inv, makeEnvelope, turnYield)
-			}
-
-			// Apply turn interceptors
-			wrappedTurn := agent.ApplyTurnInterceptors(a.config.interceptors, executeTurn)
-
-			// Execute the turn (wrapped by interceptors)
-			finishReason, err := wrappedTurn(ctx, &agent.TurnInfo{Inv: inv})
-			if err != nil {
-				// Terminal error from turn execution
-				yield(nil, err)
-				return
-			}
-
-			// Check if interceptor or turn logic wants to end execution
-			if finishReason != "" {
-				// Emit terminal event
-				yield(agent.InvocationEndEvent{
-					Envelope:     makeEnvelope(),
-					FinishReason: finishReason,
-					Usage:        new(inv.TotalUsage()),
-				}, nil)
-
-				return
-			}
-
-			// Increment turn for next iteration
-			agent.IncrementTurn(inv)
+		runTurns := func(ctx context.Context, info *agent.InvocationInfo) (agent.FinishReason, error) {
+			return a.runTurns(ctx, info.Inv, makeEnvelope, consumerYield)
 		}
 
-		// Max turns reached
+		finishReason, err := agent.ApplyInvocationInterceptors(a.config.interceptors, runTurns)(
+			ctx, &agent.InvocationInfo{Inv: inv},
+		)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+
 		yield(agent.InvocationEndEvent{
 			Envelope:     makeEnvelope(),
-			FinishReason: agent.FinishReasonMaxTurns,
+			FinishReason: finishReason,
 			Usage:        new(inv.TotalUsage()),
 		}, nil)
 	}
+}
+
+// runTurns executes the turn loop and returns why the invocation ended. Every
+// exit returns, including the consumer stopping iteration, so invocation
+// interceptors observe each invocation's end exactly once.
+func (a *LLMAgent) runTurns(
+	ctx context.Context,
+	inv *agent.InvocationMetadata,
+	makeEnvelope func() agent.EventEnvelope,
+	consumerYield func(agent.Event, error) bool,
+) (agent.FinishReason, error) {
+	yield := agent.ApplyEventObservers(ctx, inv, a.config.interceptors, consumerYield)
+
+	for inv.Turn() < a.config.maxTurns {
+		if !yield(agent.StatusEvent{
+			Envelope: makeEnvelope(),
+			Stage:    agent.StatusStageTurnStarted,
+			Details:  fmt.Sprintf("turn %d started", inv.Turn()),
+		}, nil) {
+			return agent.FinishReasonInterrupted, nil
+		}
+
+		if ctx.Err() != nil {
+			return agent.FinishReasonInterrupted, nil //nolint:nilerr // cancellation between turns ends the run, not an error
+		}
+
+		executeTurn := func(ctx context.Context, info *agent.TurnInfo) (agent.FinishReason, error) {
+			// Turn events carry the interceptor-derived turn context.
+			turnYield := agent.ApplyEventObservers(ctx, info.Inv, a.config.interceptors, consumerYield)
+
+			return a.executeSingleTurn(ctx, info.Inv, makeEnvelope, turnYield)
+		}
+
+		finishReason, err := agent.ApplyTurnInterceptors(a.config.interceptors, executeTurn)(
+			ctx, &agent.TurnInfo{Inv: inv},
+		)
+		if err != nil || finishReason != "" {
+			return finishReason, err
+		}
+
+		agent.IncrementTurn(inv)
+	}
+
+	return agent.FinishReasonMaxTurns, nil
 }
 
 // guardYield wraps yield so calls after it first returns false are dropped

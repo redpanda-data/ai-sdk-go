@@ -72,8 +72,8 @@ func TestTracingInterceptor_EmitsCompactionSpan(t *testing.T) {
 		},
 	}
 
-	_, err := interceptor.InterceptTurn(t.Context(), &agent.TurnInfo{Inv: inv},
-		func(ctx context.Context, info *agent.TurnInfo) (agent.FinishReason, error) {
+	_, err := interceptor.InterceptInvocation(t.Context(), &agent.InvocationInfo{Inv: inv},
+		func(ctx context.Context, info *agent.InvocationInfo) (agent.FinishReason, error) {
 			// Strip the span from the context to force the fallback.
 			ctx = trace.ContextWithSpanContext(ctx, trace.SpanContext{})
 			interceptor.ObserveEvent(ctx, info.Inv, agent.CompactionEvent{Report: report})
@@ -139,8 +139,8 @@ func TestTracingInterceptor_CompactionParentsUnderEmissionSpan(t *testing.T) {
 
 	var emissionSpanID trace.SpanID
 
-	_, err := interceptor.InterceptTurn(t.Context(), &agent.TurnInfo{Inv: inv},
-		func(ctx context.Context, info *agent.TurnInfo) (agent.FinishReason, error) {
+	_, err := interceptor.InterceptInvocation(t.Context(), &agent.InvocationInfo{Inv: inv},
+		func(ctx context.Context, info *agent.InvocationInfo) (agent.FinishReason, error) {
 			// Distinct from the invocation span stored in metadata.
 			ctx, emissionSpan := tp.Tracer("test").Start(ctx, "emission-scope")
 			defer emissionSpan.End()
@@ -197,8 +197,8 @@ func TestTracingInterceptor_MarksLaterChatSpansCompacted(t *testing.T) {
 
 	inv := agent.NewInvocationMetadata(sess, agent.Info{Name: "test-agent"})
 
-	_, err := interceptor.InterceptTurn(t.Context(), &agent.TurnInfo{Inv: inv},
-		func(ctx context.Context, info *agent.TurnInfo) (agent.FinishReason, error) {
+	_, err := interceptor.InterceptInvocation(t.Context(), &agent.InvocationInfo{Inv: inv},
+		func(ctx context.Context, info *agent.InvocationInfo) (agent.FinishReason, error) {
 			chat(ctx, info.Inv) // before compaction
 
 			interceptor.ObserveEvent(ctx, info.Inv, agent.CompactionEvent{Report: agent.CompactionReport{
@@ -215,8 +215,8 @@ func TestTracingInterceptor_MarksLaterChatSpansCompacted(t *testing.T) {
 	// Second invocation over the same (rewritten, persisted) session.
 	inv2 := agent.NewInvocationMetadata(sess, agent.Info{Name: "test-agent"})
 
-	_, err = interceptor.InterceptTurn(t.Context(), &agent.TurnInfo{Inv: inv2},
-		func(ctx context.Context, info *agent.TurnInfo) (agent.FinishReason, error) {
+	_, err = interceptor.InterceptInvocation(t.Context(), &agent.InvocationInfo{Inv: inv2},
+		func(ctx context.Context, info *agent.InvocationInfo) (agent.FinishReason, error) {
 			chat(ctx, info.Inv)
 
 			return agent.FinishReasonStop, nil
