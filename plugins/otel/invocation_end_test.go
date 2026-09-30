@@ -161,6 +161,41 @@ func TestTracingInterceptor_EndsInvocationSpanWhenConsumerStops(t *testing.T) {
 	assertHasAttribute(t, invocationSpans[0].Attributes, "gen_ai.response.finish_reasons", []string{"interrupted"})
 }
 
+func TestTracingInterceptor_MarksInvocationSpanFailedOnPanic(t *testing.T) {
+	t.Parallel()
+
+	exporter, tp := setupTracer()
+	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
+
+	interceptor := pluginotel.New(pluginotel.WithTracerProvider(tp))
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess"}, agent.Info{Name: "a"})
+
+	require.PanicsWithValue(t, "boom", func() {
+		_, _ = interceptor.InterceptInvocation(t.Context(), &agent.InvocationInfo{Inv: inv},
+			func(context.Context, *agent.InvocationInfo) (agent.FinishReason, error) { panic("boom") }) //nolint:forbidigo // simulates a crashing loop
+	})
+
+	spans := exporter.GetSpans()
+	require.Len(t, spans, 1)
+	assert.Equal(t, codes.Error, spans[0].Status.Code)
+	assert.Equal(t, "panic: boom", spans[0].Status.Description)
+	assertHasAttribute(t, spans[0].Attributes, "error.type", "panic")
+
+	require.Len(t, spans[0].Events, 1)
+	assert.Equal(t, "exception", spans[0].Events[0].Name)
+	assertHasAttribute(t, spans[0].Events[0].Attributes, "exception.message", "panic: boom")
+
+	var stack string
+
+	for _, attr := range spans[0].Events[0].Attributes {
+		if attr.Key == "exception.stacktrace" {
+			stack = attr.Value.AsString()
+		}
+	}
+
+	assert.Contains(t, stack, "TestTracingInterceptor_MarksInvocationSpanFailedOnPanic", "stack trace must point at the panic site")
+}
+
 func TestTracingInterceptor_InvocationSpanStatusFromFinishReason(t *testing.T) {
 	t.Parallel()
 

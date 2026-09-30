@@ -17,6 +17,7 @@ package otel
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -127,8 +128,15 @@ func (t *TracingInterceptor) InterceptInvocation(
 		err    error
 	)
 
-	// Deferred so a panicking loop still exports the span.
-	defer func() { endInvocationSpan(span, info.Inv, reason, err) }()
+	defer func() {
+		if r := recover(); r != nil {
+			recordPanic(span, r)
+			endInvocationSpan(span, info.Inv, "", nil)
+			panic(r) //nolint:forbidigo // re-raise after recording; the caller still sees the panic
+		}
+
+		endInvocationSpan(span, info.Inv, reason, err)
+	}()
 
 	reason, err = next(ctx, info)
 
@@ -254,6 +262,16 @@ func endInvocationSpan(span trace.Span, inv *agent.InvocationMetadata, reason ag
 	}
 
 	span.End()
+}
+
+// recordPanic marks the span failed with an exception event. It runs in the
+// deferred recover, before the stack unwinds, so the recorded stack trace
+// still points at the panic site.
+func recordPanic(span trace.Span, r any) {
+	err := fmt.Errorf("panic: %v", r)
+	span.RecordError(err, trace.WithStackTrace(true))
+	span.SetStatus(codes.Error, err.Error())
+	span.SetAttributes(errorType("panic"))
 }
 
 // failedFinishReason reports whether the agent stopped without completing its
