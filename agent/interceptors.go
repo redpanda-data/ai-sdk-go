@@ -24,7 +24,7 @@ import (
 // Interceptor is a marker interface for all interceptors.
 //
 // Interceptors can implement any combination of the interceptor interfaces defined in this package
-// (TurnInterceptor, ModelInterceptor, ToolInterceptor). The agent checks at runtime which
+// (InvocationInterceptor, TurnInterceptor, ModelInterceptor, ToolInterceptor). The agent checks at runtime which
 // interfaces your interceptor implements and calls them at the appropriate points during execution.
 //
 // This allows you to:
@@ -76,6 +76,34 @@ import (
 type Interceptor any
 
 // NOTE: When adding new interceptor interfaces, update ImplementsAnyInterceptor below.
+
+// InvocationInfo contains context for invocation interception.
+// New fields can be added without breaking existing interceptor implementations.
+type InvocationInfo struct {
+	// Inv provides invocation metadata (session, turn, usage, custom metadata).
+	Inv *InvocationMetadata
+}
+
+// InvocationNext is the continuation function for invocation interception. It
+// runs the whole turn loop and returns why the invocation ended.
+type InvocationNext func(ctx context.Context, info *InvocationInfo) (FinishReason, error)
+
+// InvocationInterceptor wraps an entire invocation: every turn of the agentic
+// loop, from the first turn starting to the loop ending.
+//
+// next returns on every way the loop can end (a terminal finish reason, max
+// turns, cancellation, the consumer stopping iteration, or an error), so work
+// deferred around next always runs exactly once per invocation. Use it for
+// anything whose lifetime is the invocation, such as a tracing span.
+//
+// The final InvocationEndEvent is emitted after the interceptor chain returns.
+type InvocationInterceptor interface {
+	// InterceptInvocation wraps the invocation's turn loop.
+	//
+	// The ctx passed to next is the parent of every turn, model call and tool
+	// call in the invocation. Return without calling next to skip the loop.
+	InterceptInvocation(ctx context.Context, info *InvocationInfo, next InvocationNext) (FinishReason, error)
+}
 
 // TurnInfo contains context for turn interception.
 // New fields can be added without breaking existing interceptor implementations.
@@ -273,7 +301,8 @@ type EventObserver interface {
 // Used during interceptor registration to catch mistakes early.
 func ImplementsAnyInterceptor(i Interceptor) bool {
 	switch i.(type) {
-	case TurnInterceptor,
+	case InvocationInterceptor,
+		TurnInterceptor,
 		ModelInterceptor,
 		ToolInterceptor,
 		EventObserver:
@@ -337,6 +366,31 @@ func (m *interceptedModel) Generate(ctx context.Context, req *llm.Request) (*llm
 // GenerateEvents delegates to the intercepted handler chain.
 func (m *interceptedModel) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[llm.Event, error] {
 	return m.handler.GenerateEvents(ctx, req)
+}
+
+// ApplyInvocationInterceptors wraps an invocation's turn loop with the
+// invocation interceptor chain.
+//
+// Returns the base function unchanged if no InvocationInterceptor interceptors are present.
+func ApplyInvocationInterceptors(
+	interceptors []Interceptor,
+	base InvocationNext,
+) InvocationNext {
+	run := base
+
+	// Apply interceptors in reverse order (first interceptor = outermost wrapper)
+	for i := len(interceptors) - 1; i >= 0; i-- {
+		if interceptor, ok := interceptors[i].(InvocationInterceptor); ok {
+			next := run
+			ic := interceptor
+
+			run = func(ctx context.Context, info *InvocationInfo) (FinishReason, error) {
+				return ic.InterceptInvocation(ctx, info, next)
+			}
+		}
+	}
+
+	return run
 }
 
 // ApplyTurnInterceptors wraps a turn execution function with the turn interceptor chain.

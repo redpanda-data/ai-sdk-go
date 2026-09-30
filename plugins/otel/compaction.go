@@ -31,16 +31,10 @@ import (
 // instead of copying the string.
 const CompactionSpanName = "redpanda.compaction"
 
-// ObserveEvent implements agent.EventObserver: each CompactionEvent becomes a
-// zero-duration redpanda.compaction child span of the current emission span,
-// falling back to the invocation span, stamped at the time the pass ran.
-// Other events are ignored.
-func (t *TracingInterceptor) ObserveEvent(ctx context.Context, inv *agent.InvocationMetadata, event agent.Event) {
-	ce, ok := event.(agent.CompactionEvent)
-	if !ok {
-		return
-	}
-
+// recordCompaction turns a CompactionEvent into a zero-duration
+// redpanda.compaction child span of the current emission span, falling back to
+// the invocation span, stamped at the time the pass ran.
+func (t *TracingInterceptor) recordCompaction(ctx context.Context, inv *agent.InvocationMetadata, ce agent.CompactionEvent) {
 	// Prefer the span in ctx; fall back to the stored invocation span.
 	if !trace.SpanContextFromContext(ctx).IsValid() {
 		if invSpan, found := getInvocationSpan(inv); found {

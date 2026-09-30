@@ -66,7 +66,7 @@ func TestTracingInterceptor_SubAgentConversationGrouping(t *testing.T) {
 		ConversationID: "root-conv",
 	}, agent.Info{Name: "child-agent"})
 
-	_, _ = interceptor.InterceptTurn(t.Context(), &agent.TurnInfo{Inv: inv}, func(ctx context.Context, _ *agent.TurnInfo) (agent.FinishReason, error) {
+	_, _ = interceptor.InterceptInvocation(t.Context(), &agent.InvocationInfo{Inv: inv}, func(ctx context.Context, _ *agent.InvocationInfo) (agent.FinishReason, error) {
 		modelInfo := &agent.ModelCallInfo{
 			InvocationMetadata: inv,
 			Model:              &mockModelInfo{name: "gpt-4", provider: "openai"},

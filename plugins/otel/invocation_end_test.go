@@ -1,0 +1,248 @@
+// Copyright 2026 Redpanda Data, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package otel_test
+
+import (
+	"context"
+	"encoding/json"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+
+	"github.com/redpanda-data/ai-sdk-go/agent"
+	"github.com/redpanda-data/ai-sdk-go/agent/llmagent"
+	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/llm/fakellm"
+	pluginotel "github.com/redpanda-data/ai-sdk-go/plugins/otel"
+	"github.com/redpanda-data/ai-sdk-go/store/session"
+	"github.com/redpanda-data/ai-sdk-go/tool"
+)
+
+type loopTool struct{}
+
+func (loopTool) Definition() llm.ToolDefinition {
+	return llm.ToolDefinition{Name: "loop", Description: "always asks for another turn"}
+}
+
+func (loopTool) Execute(context.Context, json.RawMessage) (json.RawMessage, error) {
+	return json.RawMessage(`{}`), nil
+}
+
+// The loop, not a turn, ends an invocation that exhausts its turn budget. The
+// span must still close, or every chat span of the run points at a parent that
+// is never exported.
+func TestTracingInterceptor_EndsInvocationSpanOnMaxTurns(t *testing.T) {
+	t.Parallel()
+
+	exporter, tp := setupTracer()
+	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
+
+	registry := tool.NewRegistry(tool.RegistryConfig{})
+	require.NoError(t, registry.Register(loopTool{}))
+
+	model := fakellm.NewFakeModel()
+	model.When(fakellm.Any()).ThenRespondWithToolCall("loop", map[string]any{})
+
+	ag, err := llmagent.New(
+		"looping-agent",
+		"You are a test assistant",
+		model,
+		llmagent.WithTools(registry),
+		llmagent.WithMaxTurns(2),
+		llmagent.WithInterceptors(pluginotel.New(pluginotel.WithTracerProvider(tp))),
+	)
+	require.NoError(t, err)
+
+	sess := &session.State{
+		ID:       "sess-max-turns",
+		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("go"))},
+	}
+
+	var finish agent.FinishReason
+
+	for ev, err := range ag.Run(t.Context(), agent.NewInvocationMetadata(sess, agent.Info{Name: "looping-agent"})) {
+		require.NoError(t, err)
+
+		if end, ok := ev.(agent.InvocationEndEvent); ok {
+			finish = end.FinishReason
+		}
+	}
+
+	require.Equal(t, agent.FinishReasonMaxTurns, finish)
+
+	spans := exporter.GetSpans()
+	exported := make(map[string]bool, len(spans))
+
+	var invocationSpans []tracetest.SpanStub
+
+	for _, s := range spans {
+		exported[s.SpanContext.SpanID().String()] = true
+
+		if s.Name == "invoke_agent looping-agent" {
+			invocationSpans = append(invocationSpans, s)
+		}
+	}
+
+	require.Len(t, invocationSpans, 1, "invocation span must be exported exactly once")
+
+	invocationSpan := invocationSpans[0]
+	assert.Equal(t, codes.Error, invocationSpan.Status.Code)
+	assertHasAttribute(t, invocationSpan.Attributes, "error.type", "max_turns")
+	assertHasAttribute(t, invocationSpan.Attributes, "gen_ai.response.finish_reasons", []string{"max_turns"})
+
+	for _, s := range spans {
+		if s.Parent.IsValid() {
+			assert.True(t, exported[s.Parent.SpanID().String()], "span %q has an unexported parent", s.Name)
+		}
+	}
+}
+
+// A consumer that stops iterating between turns gets no InvocationEndEvent,
+// but the invocation span must still be exported.
+func TestTracingInterceptor_EndsInvocationSpanWhenConsumerStops(t *testing.T) {
+	t.Parallel()
+
+	exporter, tp := setupTracer()
+	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
+
+	registry := tool.NewRegistry(tool.RegistryConfig{})
+	require.NoError(t, registry.Register(loopTool{}))
+
+	model := fakellm.NewFakeModel()
+	model.When(fakellm.Any()).ThenRespondWithToolCall("loop", map[string]any{})
+
+	ag, err := llmagent.New(
+		"stopped-agent",
+		"You are a test assistant",
+		model,
+		llmagent.WithTools(registry),
+		llmagent.WithInterceptors(pluginotel.New(pluginotel.WithTracerProvider(tp))),
+	)
+	require.NoError(t, err)
+
+	sess := &session.State{
+		ID:       "sess-consumer-stop",
+		Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("go"))},
+	}
+
+	for ev, err := range ag.Run(t.Context(), agent.NewInvocationMetadata(sess, agent.Info{Name: "stopped-agent"})) {
+		require.NoError(t, err)
+
+		if status, ok := ev.(agent.StatusEvent); ok && status.Stage == agent.StatusStageTurnStarted && status.Envelope.Turn == 1 {
+			break
+		}
+	}
+
+	var invocationSpans []tracetest.SpanStub
+
+	for _, s := range exporter.GetSpans() {
+		if s.Name == "invoke_agent stopped-agent" {
+			invocationSpans = append(invocationSpans, s)
+		}
+	}
+
+	require.Len(t, invocationSpans, 1, "invocation span must be exported exactly once")
+	assertHasAttribute(t, invocationSpans[0].Attributes, "gen_ai.response.finish_reasons", []string{"interrupted"})
+}
+
+func TestTracingInterceptor_MarksInvocationSpanFailedOnPanic(t *testing.T) {
+	t.Parallel()
+
+	exporter, tp := setupTracer()
+	defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
+
+	interceptor := pluginotel.New(pluginotel.WithTracerProvider(tp))
+	inv := agent.NewInvocationMetadata(&session.State{ID: "sess"}, agent.Info{Name: "a"})
+
+	require.PanicsWithValue(t, "boom", func() {
+		_, _ = interceptor.InterceptInvocation(t.Context(), &agent.InvocationInfo{Inv: inv},
+			func(context.Context, *agent.InvocationInfo) (agent.FinishReason, error) { panic("boom") }) //nolint:forbidigo // simulates a crashing loop
+	})
+
+	spans := exporter.GetSpans()
+	require.Len(t, spans, 1)
+	assert.Equal(t, codes.Error, spans[0].Status.Code)
+	assert.Equal(t, "panic: boom", spans[0].Status.Description)
+	assertHasAttribute(t, spans[0].Attributes, "error.type", "panic")
+
+	require.Len(t, spans[0].Events, 1)
+	assert.Equal(t, "exception", spans[0].Events[0].Name)
+	assertHasAttribute(t, spans[0].Events[0].Attributes, "exception.message", "panic: boom")
+
+	var stack string
+
+	for _, attr := range spans[0].Events[0].Attributes {
+		if attr.Key == "exception.stacktrace" {
+			stack = attr.Value.AsString()
+		}
+	}
+
+	assert.Contains(t, stack, "TestTracingInterceptor_MarksInvocationSpanFailedOnPanic", "stack trace must point at the panic site")
+}
+
+func TestTracingInterceptor_InvocationSpanStatusFromFinishReason(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		reason    agent.FinishReason
+		wantError bool
+	}{
+		{agent.FinishReasonStop, false},
+		{agent.FinishReasonLength, false},
+		{agent.FinishReasonInputRequired, false},
+		{agent.FinishReasonInterrupted, false},
+		{agent.FinishReasonContextOverflow, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.reason), func(t *testing.T) {
+			t.Parallel()
+
+			exporter, tp := setupTracer()
+			defer tp.Shutdown(t.Context()) //nolint:errcheck // Test cleanup
+
+			interceptor := pluginotel.New(pluginotel.WithTracerProvider(tp))
+			inv := agent.NewInvocationMetadata(&session.State{ID: "sess"}, agent.Info{Name: "a"})
+
+			_, err := interceptor.InterceptInvocation(t.Context(), &agent.InvocationInfo{Inv: inv},
+				func(context.Context, *agent.InvocationInfo) (agent.FinishReason, error) { return tt.reason, nil })
+			require.NoError(t, err)
+
+			spans := exporter.GetSpans()
+			require.Len(t, spans, 1)
+			assertHasAttribute(t, spans[0].Attributes, "gen_ai.response.finish_reasons", []string{string(tt.reason)})
+
+			if tt.wantError {
+				assert.Equal(t, codes.Error, spans[0].Status.Code)
+				assertHasAttribute(t, spans[0].Attributes, "error.type", string(tt.reason))
+			} else {
+				assert.NotEqual(t, codes.Error, spans[0].Status.Code)
+				assertNoAttribute(t, spans[0].Attributes, "error.type")
+			}
+		})
+	}
+}
+
+func assertNoAttribute(t *testing.T, attrs []attribute.KeyValue, key string) {
+	t.Helper()
+
+	for _, attr := range attrs {
+		assert.NotEqual(t, key, string(attr.Key), "unexpected attribute %s=%s", key, attr.Value.String())
+	}
+}

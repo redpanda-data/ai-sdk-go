@@ -17,9 +17,11 @@ package otel
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
@@ -29,7 +31,7 @@ import (
 
 // TracingInterceptor provides OpenTelemetry tracing for agent operations.
 //
-// It implements [agent.TurnInterceptor], [agent.ModelInterceptor], and [agent.ToolInterceptor]
+// It implements [agent.InvocationInterceptor], [agent.ModelInterceptor], and [agent.ToolInterceptor]
 // to create a span hierarchy following OTel Gen AI semantic conventions:
 //
 //	invoke_agent my-assistant
@@ -82,10 +84,10 @@ type TracingInterceptor struct {
 
 // Compile-time interface checks.
 var (
-	_ agent.TurnInterceptor  = (*TracingInterceptor)(nil)
-	_ agent.ModelInterceptor = (*TracingInterceptor)(nil)
-	_ agent.ToolInterceptor  = (*TracingInterceptor)(nil)
-	_ agent.EventObserver    = (*TracingInterceptor)(nil)
+	_ agent.InvocationInterceptor = (*TracingInterceptor)(nil)
+	_ agent.ModelInterceptor      = (*TracingInterceptor)(nil)
+	_ agent.ToolInterceptor       = (*TracingInterceptor)(nil)
+	_ agent.EventObserver         = (*TracingInterceptor)(nil)
 )
 
 // New creates a TracingInterceptor with the given options.
@@ -109,52 +111,43 @@ func New(opts ...Option) *TracingInterceptor {
 	}
 }
 
-// InterceptTurn creates a span for the agent invocation.
-//
-// On turn 0, it creates the root "gen_ai.agent" span (invoke_agent) that covers the entire invocation.
-// Model and tool spans are created as direct children of the invocation span.
-func (t *TracingInterceptor) InterceptTurn(
+// InterceptInvocation creates the root "gen_ai.agent" span (invoke_agent)
+// covering the entire invocation. Model and tool spans are its direct children
+// through the context passed to next.
+func (t *TracingInterceptor) InterceptInvocation(
 	ctx context.Context,
-	info *agent.TurnInfo,
-	next agent.TurnNext,
+	info *agent.InvocationInfo,
+	next agent.InvocationNext,
 ) (agent.FinishReason, error) {
-	inv := info.Inv
+	ctx, span := t.startInvocationSpan(ctx, info.Inv)
+	// Model and compaction spans read it back to annotate the invocation span.
+	info.Inv.SetMetadata(metadataKeyInvocationSpan, span)
 
-	// Ensure we have the invocation span in the context when we call next
-	ctx = t.withInvocationSpan(ctx, inv)
+	var (
+		reason agent.FinishReason
+		err    error
+	)
 
-	// Execute the turn with invocation context so model/tool spans are children of invocation span
-	reason, err := next(ctx, info)
+	defer func() {
+		if r := recover(); r != nil {
+			recordPanic(span, r)
+			endInvocationSpan(span, info.Inv, "", nil)
+			panic(r) //nolint:forbidigo // re-raise after recording; the caller still sees the panic
+		}
 
-	// End invocation span on terminal conditions
-	if reason != "" || err != nil {
-		t.endInvocationSpan(inv, err)
-	}
+		endInvocationSpan(span, info.Inv, reason, err)
+	}()
+
+	reason, err = next(ctx, info)
 
 	return reason, err
 }
 
-// withInvocationSpan ensures the invocation span exists and is in the context.
-// On turn 0, it creates the invocation span. On subsequent turns, it re-parents the context.
-func (t *TracingInterceptor) withInvocationSpan(
-	ctx context.Context,
-	inv *agent.InvocationMetadata,
-) context.Context {
-	if inv.Turn() == 0 {
-		ctx, span := t.startInvocationSpan(ctx, inv)
-		// Store only the span (not context) for later retrieval
-		inv.SetMetadata(metadataKeyInvocationSpan, span)
-
-		return ctx
+// ObserveEvent implements [agent.EventObserver].
+func (t *TracingInterceptor) ObserveEvent(ctx context.Context, inv *agent.InvocationMetadata, event agent.Event) {
+	if ce, ok := event.(agent.CompactionEvent); ok {
+		t.recordCompaction(ctx, inv, ce)
 	}
-
-	if span, ok := getInvocationSpan(inv); ok {
-		// Re-parent context to the existing invocation span while
-		// preserving deadlines/cancellation
-		return trace.ContextWithSpan(ctx, span)
-	}
-
-	return ctx
 }
 
 // startInvocationSpan creates the root invocation span with all required attributes.
@@ -250,17 +243,48 @@ func getInvocationSpan(inv *agent.InvocationMetadata) (trace.Span, bool) {
 	return span, ok
 }
 
-// endInvocationSpan finalizes the invocation span with usage stats and optional error.
-func (t *TracingInterceptor) endInvocationSpan(inv *agent.InvocationMetadata, err error) {
-	span, ok := getInvocationSpan(inv)
-	if !ok {
-		return
-	}
-
+// endInvocationSpan finalizes the invocation span with usage stats, the finish
+// reason and optional error.
+func endInvocationSpan(span trace.Span, inv *agent.InvocationMetadata, reason agent.FinishReason, err error) {
 	// Add final usage stats to invocation span
 	usage := inv.TotalUsage()
 	setUsageAttributes(span, &usage)
 
-	setSpanError(span, err)
+	if reason != "" {
+		span.SetAttributes(genAIResponseFinishReasons(string(reason)))
+	}
+
+	if err != nil {
+		setSpanError(span, err)
+	} else if failedFinishReason(reason) {
+		span.SetStatus(codes.Error, "agent stopped: "+string(reason))
+		span.SetAttributes(errorType(string(reason)))
+	}
+
 	span.End()
+}
+
+// recordPanic marks the span failed with an exception event. It runs in the
+// deferred recover, before the stack unwinds, so the recorded stack trace
+// still points at the panic site.
+func recordPanic(span trace.Span, r any) {
+	err := fmt.Errorf("panic: %v", r)
+	span.RecordError(err, trace.WithStackTrace(true))
+	span.SetStatus(codes.Error, err.Error())
+	span.SetAttributes(errorType("panic"))
+}
+
+// failedFinishReason reports whether the agent stopped without completing its
+// task. Callers still get a normal InvocationEndEvent, but the a2a executor
+// and agenttool both surface these as failures, so the span must too.
+func failedFinishReason(reason agent.FinishReason) bool {
+	switch reason {
+	case agent.FinishReasonMaxTurns, agent.FinishReasonContextOverflow, agent.FinishReasonError:
+		return true
+	case agent.FinishReasonStop, agent.FinishReasonLength, agent.FinishReasonInputRequired,
+		agent.FinishReasonInterrupted, agent.FinishReasonTransfer:
+		return false
+	default:
+		return false
+	}
 }

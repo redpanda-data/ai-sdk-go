@@ -35,7 +35,7 @@ func (t *TracingInterceptor) InterceptModel(
 	next agent.ModelCallHandler,
 ) agent.ModelCallHandler {
 	// Pass the context through - it already has the invocation span as parent
-	// from InterceptTurn calling next(ctx, info). Group under the conversation
+	// from InterceptInvocation calling next(ctx, info). Group under the conversation
 	// id (the parent/root for a sub-agent), not the unique storage session id.
 	convID := session.ConversationID(info.InvocationMetadata.Session())
 
