@@ -68,6 +68,10 @@ def main() -> int:
         "EXCLUDED_PATHS": ", ".join(cfg["excluded_paths"]) or "(none)",
         "GENERATED_PATHS": ", ".join(cfg["generated_paths"]) or "(none)",
         "DEPENDENCY_PATHS": ", ".join(cfg["dependency_paths"]) or "(none)",
+        "REVIEW_GUIDANCE": (
+            str(cfg.get("review_guidance") or "").strip()
+            or "(none provided — apply the general rules above)"
+        ),
     }
     # One pass over the template: a placeholder-looking string inside a PR
     # title/body is inserted verbatim and never expanded.
