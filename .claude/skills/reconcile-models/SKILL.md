@@ -62,8 +62,11 @@ surface** — every change must be visible and intended in
        `https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/<slug>`
        (e.g. `3-6-flash`), Claude at
        `.../models/partner-models/claude/<slug>` (e.g. `sonnet-5`,
-       `haiku-4-5`). Google words retirement as "not sooner than" — a floor,
-       so `Retires` stays unset (same rule as Anthropic).
+       `haiku-4-5`). On the Claude pages Google words retirement as "not
+       sooner than" — a floor, so `Retires` stays unset (same rule as
+       Anthropic). Gemini lifecycle comes from `model-versions`, where a
+       bare date is firm and goes in `Retires` (the Gemini 2.5 models carry
+       2026-10-20).
    - Bedrock: `https://aws.amazon.com/bedrock/pricing/` · model cards ·
      `ListFoundationModels` (`modelLifecycle`) · lifecycle/EOL tables, split
      by launch date — models launched on or after 2026-09-07:

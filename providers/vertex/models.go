@@ -13,19 +13,8 @@
 // limitations under the License.
 
 // Package vertex is the model catalog, pricing, and location-availability
-// data for Google Vertex AI, where Google Cloud hosts first-party Gemini
-// alongside partner models such as Anthropic's Claude. One GCP project
-// reaches all of them, billed on that project's own account.
-//
-// This is the catalog half of the provider (RFC-0014 milestone M1): the
-// day-one Gemini + Claude catalog, ModelPricing through each offering's
-// [catalog.Entry].Pricing, and the location-availability helper in
-// locations.go. The request transport (an llm.Model that builds Vertex
-// requests) lands with RFC-0014 M8 and is intentionally not here yet.
-//
-// Catalog keys are the bare publisher model IDs; "claude-sonnet-5" is
-// byte-identical to the Anthropic-direct ID and coexists with it because
-// the pricing catalog keys by {provider, model}.
+// data for Google Vertex AI. It has no request transport (an llm.Model that
+// builds Vertex requests).
 package vertex
 
 import (
@@ -40,18 +29,38 @@ import (
 // pricing.ProviderKey. It mirrors Bedrock's "aws.bedrock" — cloud, then surface.
 const ProviderName = "gcp.vertex"
 
-// Bare Vertex model IDs - exactly the model segment of a Vertex resource
-// path, publishers/{publisher}/models/{model}. The catalog is Gemini +
-// Claude: RFC-0014's day-one set (the F5 scope call) plus later GA
-// releases. The open-weight families on the OpenAI-compatible route are
-// deferred until a customer asks.
+// Vertex model IDs are exactly the model segment of a Vertex resource path,
+// publishers/{publisher}/models/{model}.
 const (
-	ModelGemini38Flash     = "gemini-3.8-flash"
-	ModelGemini36Flash     = "gemini-3.6-flash"
-	ModelGemini31FlashLite = "gemini-3.1-flash-lite"
+	ModelGemini38Flash       = "gemini-3.8-flash"
+	ModelGemini37Flash       = "gemini-3.7-flash"
+	ModelGemini36Flash       = "gemini-3.6-flash"
+	ModelGemini35Flash       = "gemini-3.5-flash"
+	ModelGemini35FlashLite   = "gemini-3.5-flash-lite"
+	ModelGemini31FlashLite   = "gemini-3.1-flash-lite"
+	ModelGemini31ProPreview  = "gemini-3.1-pro-preview"
+	ModelGemini3FlashPreview = "gemini-3-flash-preview"
+	// Deprecated: Google retires Gemini 2.5 Pro on 2026-10-20. Use
+	// [ModelGemini35Flash].
+	ModelGemini25Pro = "gemini-2.5-pro"
+	// Deprecated: Google retires Gemini 2.5 Flash on 2026-10-20. Use
+	// [ModelGemini35FlashLite].
+	ModelGemini25Flash = "gemini-2.5-flash"
+	// Deprecated: Google retires Gemini 2.5 Flash-Lite on 2026-10-20. Use
+	// [ModelGemini31FlashLite].
+	ModelGemini25FlashLite = "gemini-2.5-flash-lite"
+	ModelClaudeFable51     = "claude-fable-5-1"
+	ModelClaudeFable5      = "claude-fable-5"
 	ModelClaudeOpus55      = "claude-opus-5-5"
+	ModelClaudeOpus5       = "claude-opus-5"
+	ModelClaudeOpus48      = "claude-opus-4-8"
+	ModelClaudeOpus47      = "claude-opus-4-7"
+	ModelClaudeOpus46      = "claude-opus-4-6"
+	ModelClaudeOpus45      = "claude-opus-4-5@20251101"
 	ModelClaudeSonnet55    = "claude-sonnet-5-5"
 	ModelClaudeSonnet5     = "claude-sonnet-5"
+	ModelClaudeSonnet46    = "claude-sonnet-4-6"
+	ModelClaudeSonnet45    = "claude-sonnet-4-5@20250929"
 	ModelClaudeHaiku45     = "claude-haiku-4-5"
 )
 
@@ -77,9 +86,9 @@ var geminiReasoningEfforts = []llm.ReasoningEffort{
 	reasoningEffortMinimal, reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh,
 }
 
-// gemini38FlashReasoningEfforts drops minimal: the Gemini 3.8 Flash model
-// page says an explicit MINIMAL "will return an API validation error".
-var gemini38FlashReasoningEfforts = []llm.ReasoningEffort{
+// geminiNoMinimalReasoningEfforts drops minimal: the Gemini 3.7 and 3.8 Flash
+// model pages say an explicit MINIMAL "will return an API validation error".
+var geminiNoMinimalReasoningEfforts = []llm.ReasoningEffort{
 	reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh,
 }
 
@@ -109,8 +118,10 @@ var geminiModalities = catalog.Modalities{
 // Gemini models.
 var geminiParams = []string{"temperature", "top_p", "top_k", "max_tokens", "stop", "presence_penalty", "frequency_penalty"}
 
-// geminiNoPenaltyParams is for models whose page says custom frequency and
-// presence penalty values "will throw an error" (Gemini 3.6 Flash).
+// geminiNoPenaltyParams is for models that return an error on a custom
+// frequency or presence penalty: Gemini 3.6 Flash and later, per the
+// content-generation parameters page, and 3.5 Flash-Lite, per its model
+// page (both read 2026-09-28).
 var geminiNoPenaltyParams = []string{"temperature", "top_p", "top_k", "max_tokens", "stop"}
 
 // claudeCaps is the capability set shared by catalogued Claude models on
@@ -124,6 +135,20 @@ var claudeCaps = llm.ModelCapabilities{
 	MultiTurn:        true,
 	SystemPrompts:    true,
 	Reasoning:        true,
+}
+
+// claudeCapsWithToolSearch is claudeCaps plus hosted tool search, which
+// Vertex serves: rawPredict at global returned a tool_search_tool_result
+// for both tool types on 2026-09-29.
+var claudeCapsWithToolSearch = func() llm.ModelCapabilities {
+	caps := claudeCaps
+	caps.ToolSearch = true
+
+	return caps
+}()
+
+var claudeAllEfforts = []llm.ReasoningEffort{
+	reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortXHigh, reasoningEffortMax,
 }
 
 var claudeModalities = catalog.Modalities{
@@ -142,24 +167,24 @@ func Catalog() *catalog.Catalog {
 	return catalogOnce()
 }
 
-// entries returns the authored Vertex catalog.
-//
-// Rates are USD-per-million-tokens, from Google's single pricing page for
-// the platform (Vertex AI was renamed the Gemini Enterprise Agent Platform,
-// so older /vertex-ai/ links redirect here):
+// entries returns the authored Vertex catalog. Rates are
+// USD-per-million-tokens from Google's pricing page, Claude rates included
+// (not Anthropic's list prices):
 //
 //	https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing
 //
-// Re-reading each rate against the live page is an M1 exit condition. Claude
-// rates come from that page, not Anthropic's list prices: Vertex sets its own
-// Claude rates (a ~10% non-global premium included), and Anthropic has no SKUs
-// in Google's Billing Catalog, so this page is authoritative.
-//
 // Capabilities and constraints mirror the same models in the Gemini-API and
-// Anthropic-direct catalogs; only the host differs. Lifecycle does not: each
-// entry's Available is when Vertex began serving the model (its model page's
-// Release date, cited at the entry), and Retires stays unset because Google
-// publishes only "not sooner than" floors, not shutdown dates.
+// Anthropic-direct catalogs, with four exceptions. No Claude entry offers
+// speed; Vertex publishes no Claude fast-mode rate. Several Gemini entries
+// cap output at 65536 where the Gemini-API catalog says 65535. Gemini 3.7
+// and 3.8 Flash take no presence or frequency penalty, which the Gemini-API
+// catalog lists. Claude Opus 4.5, Sonnet 4.5 and Haiku 4.5 take a manual
+// thinking budget, which the Anthropic-direct catalog does not set.
+//
+// Lifecycle does not mirror them: each entry's Available is when Vertex
+// began serving the model (its model page's Release date). Retires is set
+// only where Google announced a shutdown date; a "not sooner than" floor
+// leaves it unset.
 func entries() []catalog.Entry {
 	return []catalog.Entry{
 		{
@@ -171,14 +196,35 @@ func entries() []catalog.Entry {
 				TemperatureRange: [2]float64{0.0, 2.0},
 				MaxInputTokens:   1048576, // 1M input tokens
 				MaxOutputTokens:  65536,   // 64K output tokens
-				SupportedParams:  geminiParams,
+				SupportedParams:  geminiNoPenaltyParams,
 			},
-			Reasoning: catalog.ReasoningSupport{Efforts: gemini38FlashReasoningEfforts},
-			// Gemini 3.8 Flash GA, release date 2026-09-02 on the model page
-			// (docs.cloud.google.com/gemini-enterprise-agent-platform/models/
-			// gemini/3-8-flash, read 2026-09-22). No retirement published.
+			Reasoning: catalog.ReasoningSupport{Efforts: geminiNoMinimalReasoningEfforts},
+			// Gemini 3.8 Flash GA on the model page (docs.cloud.google.com/
+			// gemini-enterprise-agent-platform/models/gemini/3-8-flash, read
+			// 2026-09-22). No retirement published.
 			Life: catalog.Lifecycle{Available: catalog.MustDate("2026-09-02")},
 			// Same introductory rates and regional premium as 3.6 Flash.
+			Pricing: geminiFlashPricing(),
+		},
+		{
+			ID:           ModelGemini37Flash,
+			Model:        catalog.ModelGemini37Flash,
+			Capabilities: geminiCaps,
+			Modalities:   geminiModalities,
+			Constraints: llm.ModelConstraints{
+				TemperatureRange: [2]float64{0.0, 2.0},
+				MaxInputTokens:   1048576, // 1M input tokens
+				MaxOutputTokens:  65536,   // 64K output tokens
+				SupportedParams:  geminiNoPenaltyParams,
+			},
+			Reasoning: catalog.ReasoningSupport{Efforts: geminiNoMinimalReasoningEfforts},
+			// Gemini 3.7 Flash GA, "No retirement date announced" on the model page
+			// (docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/
+			// 3-7-flash, read 2026-09-28).
+			Life: catalog.Lifecycle{
+				Available:  catalog.MustDate("2026-08-13"),
+				ReplacedBy: ModelGemini38Flash,
+			},
 			Pricing: geminiFlashPricing(),
 		},
 		{
@@ -193,15 +239,51 @@ func entries() []catalog.Entry {
 				SupportedParams:  geminiNoPenaltyParams,
 			},
 			Reasoning: catalog.ReasoningSupport{Efforts: geminiReasoningEfforts},
-			// Gemini 3.6 Flash GA, release date 2026-07-21 on the model page
-			// (docs.cloud.google.com/gemini-enterprise-agent-platform/models/
-			// gemini/3-6-flash, read 2026-09-10). No retirement published.
+			// Gemini 3.6 Flash GA on the model page (docs.cloud.google.com/
+			// gemini-enterprise-agent-platform/models/gemini/3-6-flash, read
+			// 2026-09-10). No retirement published.
 			// model-versions names gemini-3.8-flash as the replacement.
 			Life: catalog.Lifecycle{
 				Available:  catalog.MustDate("2026-07-21"),
 				ReplacedBy: ModelGemini38Flash,
 			},
 			Pricing: geminiFlashPricing(),
+		},
+		{
+			ID:           ModelGemini35Flash,
+			Model:        catalog.ModelGemini35Flash,
+			Capabilities: geminiCaps,
+			Modalities:   geminiModalities,
+			Constraints: llm.ModelConstraints{
+				TemperatureRange: [2]float64{0.0, 2.0},
+				MaxInputTokens:   1048576, // 1M input tokens
+				MaxOutputTokens:  65536,   // 64K output tokens
+				SupportedParams:  geminiParams,
+			},
+			Reasoning: catalog.ReasoningSupport{Efforts: geminiReasoningEfforts},
+			// Gemini 3.5 Flash GA, retirement "May 19, 2027 or later" (a floor) on
+			// the model page (docs.cloud.google.com/gemini-enterprise-agent-platform/
+			// models/gemini/3-5-flash, read 2026-09-28).
+			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-05-19")},
+			Pricing: gemini35FlashPricing(),
+		},
+		{
+			ID:           ModelGemini35FlashLite,
+			Model:        catalog.ModelGemini35FlashLite,
+			Capabilities: geminiCaps,
+			Modalities:   geminiModalities,
+			Constraints: llm.ModelConstraints{
+				TemperatureRange: [2]float64{0.0, 2.0},
+				MaxInputTokens:   1048576, // 1M input tokens
+				MaxOutputTokens:  65536,   // 64K output tokens
+				SupportedParams:  geminiNoPenaltyParams,
+			},
+			Reasoning: catalog.ReasoningSupport{Efforts: geminiReasoningEfforts},
+			// Gemini 3.5 Flash-Lite GA, retirement "July 21, 2027 or later" (a floor)
+			// on the model page (docs.cloud.google.com/gemini-enterprise-agent-
+			// platform/models/gemini/3-5-flash-lite, read 2026-09-28).
+			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-07-21")},
+			Pricing: gemini35FlashLitePricing(),
 		},
 		{
 			ID:           ModelGemini31FlashLite,
@@ -215,17 +297,206 @@ func entries() []catalog.Entry {
 				SupportedParams:  geminiParams,
 			},
 			Reasoning: catalog.ReasoningSupport{Efforts: geminiReasoningEfforts},
-			// Gemini 3.1 Flash-Lite GA, release date 2026-05-07, retirement
-			// "May 7, 2027 or later" (a floor) on the model page
-			// (docs.cloud.google.com/gemini-enterprise-agent-platform/models/
-			// gemini/3-1-flash-lite, read 2026-09-22).
+			// Gemini 3.1 Flash-Lite GA, retirement "May 7, 2027 or later" (a floor)
+			// on the model page (docs.cloud.google.com/gemini-enterprise-agent-
+			// platform/models/gemini/3-1-flash-lite, read 2026-09-22).
 			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-05-07")},
 			Pricing: geminiFlashLitePricing(),
 		},
 		{
+			ID:           ModelGemini31ProPreview,
+			Model:        catalog.ModelGemini31ProPreview,
+			Capabilities: geminiCaps,
+			Modalities:   geminiModalities,
+			Constraints: llm.ModelConstraints{
+				TemperatureRange: [2]float64{0.0, 2.0},
+				MaxInputTokens:   1048576, // 1M input tokens
+				MaxOutputTokens:  65536,   // 64K output tokens
+				SupportedParams:  geminiParams,
+			},
+			// Thinking cannot be turned off; high is the default.
+			Reasoning: catalog.ReasoningSupport{Efforts: []llm.ReasoningEffort{
+				reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh,
+			}},
+			// Gemini 3.1 Pro public preview on the model page (docs.cloud.google.com/
+			// gemini-enterprise-agent-platform/models/gemini/3-1-pro, read
+			// 2026-09-28). No retirement published.
+			Life: catalog.Lifecycle{
+				Stage:     catalog.StagePreview,
+				Available: catalog.MustDate("2026-02-19"),
+			},
+			// Served at global only. Standard rates from the pricing page, read
+			// 2026-09-28.
+			Pricing: pricing.TieredInfo(
+				pricing.NewRates(2.00, 12.00, 0.20),
+				pricing.Bracket{
+					MinContextTokens: 200_001,
+					Rates:            pricing.NewRates(4.00, 18.00, 0.40),
+				},
+			),
+		},
+		{
+			ID:           ModelGemini3FlashPreview,
+			Model:        catalog.ModelGemini3FlashPreview,
+			Capabilities: geminiCaps,
+			Modalities:   geminiModalities,
+			Constraints: llm.ModelConstraints{
+				TemperatureRange: [2]float64{0.0, 2.0},
+				MaxInputTokens:   1048576, // 1M input tokens
+				MaxOutputTokens:  65536,   // 64K output tokens
+				SupportedParams:  geminiParams,
+			},
+			Reasoning: catalog.ReasoningSupport{Efforts: geminiReasoningEfforts},
+			// Gemini 3 Flash public preview on the model page (docs.cloud.google.com/
+			// gemini-enterprise-agent-platform/models/gemini/3-flash, read
+			// 2026-09-28). No retirement published.
+			Life: catalog.Lifecycle{
+				Stage:     catalog.StagePreview,
+				Available: catalog.MustDate("2025-12-17"),
+			},
+			// Served at global only. The pricing page's Standard table omits this
+			// model's output row (read 2026-09-28); the Cloud Billing Catalog
+			// publishes all three rates for Vertex AI (service C7E2-9256-1C43,
+			// region global, read 2026-09-28): input SKU 7EBE-3B46-F75C,
+			// output SKU 0127-F0B7-365E, cache read SKU E5C2-A033-7712.
+			Pricing: pricing.FlatInfo(0.50, 3.00, 0.05),
+		},
+		{
+			ID:           ModelGemini25Pro,
+			Model:        catalog.ModelGemini25Pro,
+			Capabilities: geminiCaps,
+			Modalities:   geminiModalities,
+			Constraints: llm.ModelConstraints{
+				TemperatureRange: [2]float64{0.0, 2.0},
+				MaxInputTokens:   1048576, // 1M input tokens
+				MaxOutputTokens:  65536,   // 64K output tokens
+				SupportedParams:  geminiParams,
+			},
+			// The thinking budget on 2.5 Pro is 128 to 32,768 tokens.
+			Reasoning: catalog.ReasoningSupport{Adaptive: true, Budget: true},
+			// Gemini 2.5 Pro GA on the model page
+			// (docs.cloud.google.com/gemini-enterprise-agent-platform/models/
+			// gemini/2-5-pro, read 2026-09-28). Retires is the bare retirement
+			// date on that page and on model-versions, both last updated
+			// 2026-09-25. Google may extend it but won't move it earlier
+			// (model-versions).
+			Life: catalog.Lifecycle{
+				Available:  catalog.MustDate("2025-06-17"),
+				Retires:    catalog.MustDate("2026-10-20"),
+				ReplacedBy: ModelGemini35Flash,
+			},
+			// Flat across locations.
+			Pricing: pricing.TieredInfo(
+				pricing.NewRates(1.25, 10.00, 0.125),
+				pricing.Bracket{
+					MinContextTokens: 200_001,
+					Rates:            pricing.NewRates(2.50, 15.00, 0.25),
+				},
+			),
+		},
+		{
+			ID:           ModelGemini25Flash,
+			Model:        catalog.ModelGemini25Flash,
+			Capabilities: geminiCaps,
+			Modalities:   geminiModalities,
+			Constraints: llm.ModelConstraints{
+				TemperatureRange: [2]float64{0.0, 2.0},
+				MaxInputTokens:   1048576, // 1M input tokens
+				MaxOutputTokens:  65536,   // 64K output tokens
+				SupportedParams:  geminiParams,
+			},
+			Reasoning: catalog.ReasoningSupport{Adaptive: true, Budget: true},
+			// Gemini 2.5 Flash GA on the model page
+			// (docs.cloud.google.com/gemini-enterprise-agent-platform/models/
+			// gemini/2-5-flash, read 2026-09-28). Retires is the bare
+			// retirement date on the model page and model-versions.
+			Life: catalog.Lifecycle{
+				Available:  catalog.MustDate("2025-06-17"),
+				Retires:    catalog.MustDate("2026-10-20"),
+				ReplacedBy: ModelGemini35FlashLite,
+			},
+			// Text/image/video rate only; audio input is $1.00.
+			Pricing: pricing.FlatInfo(0.30, 2.50, 0.03),
+		},
+		{
+			ID:           ModelGemini25FlashLite,
+			Model:        catalog.ModelGemini25FlashLite,
+			Capabilities: geminiCaps,
+			Modalities:   geminiModalities,
+			Constraints: llm.ModelConstraints{
+				TemperatureRange: [2]float64{0.0, 2.0},
+				MaxInputTokens:   1048576, // 1M input tokens
+				MaxOutputTokens:  65536,   // 64K output tokens
+				SupportedParams:  geminiParams,
+			},
+			Reasoning: catalog.ReasoningSupport{Adaptive: true, Budget: true},
+			// Gemini 2.5 Flash-Lite GA on the model page
+			// (docs.cloud.google.com/gemini-enterprise-agent-platform/models/
+			// gemini/2-5-flash-lite, read 2026-09-28). Retires is the bare
+			// retirement date on the model page and model-versions.
+			// model-versions recommends Gemini 3.1 Flash-Lite or Gemma 4.
+			Life: catalog.Lifecycle{
+				Available:  catalog.MustDate("2025-07-22"),
+				Retires:    catalog.MustDate("2026-10-20"),
+				ReplacedBy: ModelGemini31FlashLite,
+			},
+			// Text/image/video rate only; audio input is $0.30.
+			Pricing: pricing.FlatInfo(0.10, 0.40, 0.01),
+		},
+		{
+			ID:           ModelClaudeFable51,
+			Model:        catalog.ModelClaudeFable51,
+			Capabilities: claudeCapsWithToolSearch,
+			Modalities:   claudeModalities,
+			Constraints: llm.ModelConstraints{
+				MaxInputTokens:  1000000,
+				MaxOutputTokens: 128000,
+				// Thinking is always on; non-default sampling parameters
+				// return 400.
+				SupportedParams: []string{"max_tokens", "reasoning_effort"},
+			},
+			Reasoning: catalog.ReasoningSupport{Efforts: claudeAllEfforts, Adaptive: true},
+			// Claude Fable 5.1 GA, retirement floor "No sooner than March 1, 2027"
+			// on the model page (docs.cloud.google.com/gemini-enterprise-agent-
+			// platform/models/partner-models/claude/fable-5-1, read 2026-09-28).
+			Life: catalog.Lifecycle{Available: catalog.MustDate("2026-09-01")},
+			// Cache hits are 0.025x input; the pricing page prints it in every
+			// tab (read 2026-09-28).
+			Pricing: regionalPricing(
+				pricing.NewRates(10.00, 50.00, 0.25).WithCacheCreation(12.50, 20.00, 0),
+				pricing.NewRates(11.00, 55.00, 0.275).WithCacheCreation(13.75, 22.00, 0),
+				"us", "eu",
+			),
+		},
+		{
+			ID:           ModelClaudeFable5,
+			Model:        catalog.ModelClaudeFable5,
+			Capabilities: claudeCapsWithToolSearch,
+			Modalities:   claudeModalities,
+			Constraints: llm.ModelConstraints{
+				MaxInputTokens:  1000000,
+				MaxOutputTokens: 128000,
+				SupportedParams: []string{"max_tokens", "reasoning_effort"},
+			},
+			Reasoning: catalog.ReasoningSupport{Efforts: claudeAllEfforts, Adaptive: true},
+			// Claude Fable 5 GA, retirement floor "Not sooner than June 8, 2027"
+			// on the model page (docs.cloud.google.com/gemini-enterprise-agent-
+			// platform/models/partner-models/claude/fable-5, read 2026-09-28).
+			Life: catalog.Lifecycle{Available: catalog.MustDate("2026-06-09")},
+			// asia-southeast1 carries the 10% premium that Anthropic's pricing
+			// page (platform.claude.com/docs/en/about-claude/pricing, read
+			// 2026-09-28) puts on every Google Cloud regional and multi-region
+			// endpoint for Claude 4.5 and later models.
+			Pricing: regionalPricing(
+				pricing.NewRates(10.00, 50.00, 1.00).WithCacheCreation(12.50, 20.00, 0),
+				pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(13.75, 22.00, 0),
+				"us", "eu", "asia-southeast1",
+			),
+		},
+		{
 			ID:           ModelClaudeOpus55,
 			Model:        catalog.ModelClaudeOpus55,
-			Capabilities: claudeCaps,
+			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
 				MaxInputTokens:  1000000,
@@ -239,17 +510,120 @@ func entries() []catalog.Entry {
 				Efforts:  []llm.ReasoningEffort{reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortXHigh, reasoningEffortMax},
 				Adaptive: true,
 			},
-			// Claude Opus 5.5 GA, release date 2026-09-22, retirement floor "not
-			// sooner than 2027-09-22" on the model page (docs.cloud.google.com/
-			// gemini-enterprise-agent-platform/models/partner-models/claude/
-			// opus-5-5, read 2026-09-22).
+			// Claude Opus 5.5 GA, retirement floor "not sooner than 2027-09-22" on
+			// the model page (docs.cloud.google.com/gemini-enterprise-agent-platform/
+			// models/partner-models/claude/opus-5-5, read 2026-09-22).
 			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-09-22")},
 			Pricing: claudeOpus55Pricing(),
 		},
 		{
+			ID:           ModelClaudeOpus5,
+			Model:        catalog.ModelClaudeOpus5,
+			Capabilities: claudeCapsWithToolSearch,
+			Modalities:   claudeModalities,
+			Constraints: llm.ModelConstraints{
+				MaxInputTokens:  1000000,
+				MaxOutputTokens: 128000,
+				SupportedParams: []string{"max_tokens", "reasoning_effort"},
+			},
+			Reasoning: catalog.ReasoningSupport{Efforts: claudeAllEfforts, Adaptive: true},
+			// Claude Opus 5 GA, retirement floor "Not sooner than January 24,
+			// 2027" on the model page (docs.cloud.google.com/gemini-enterprise-
+			// agent-platform/models/partner-models/claude/opus-5, read 2026-09-28).
+			Life: catalog.Lifecycle{Available: catalog.MustDate("2026-07-24")},
+			// asia-southeast1 has no pricing tab for this model. Anthropic's
+			// pricing page (platform.claude.com/docs/en/about-claude/pricing,
+			// read 2026-09-28) puts a 10% premium on every Google Cloud regional
+			// and multi-region endpoint for Claude 4.5 and later models.
+			Pricing: claudeOpusPricing("us", "eu", "asia-southeast1"),
+		},
+		{
+			ID:           ModelClaudeOpus48,
+			Model:        catalog.ModelClaudeOpus48,
+			Capabilities: claudeCapsWithToolSearch,
+			Modalities:   claudeModalities,
+			Constraints: llm.ModelConstraints{
+				MaxInputTokens:  1000000,
+				MaxOutputTokens: 128000,
+				SupportedParams: []string{"max_tokens", "reasoning_effort"},
+			},
+			Reasoning: catalog.ReasoningSupport{Efforts: claudeAllEfforts, Adaptive: true},
+			// Claude Opus 4.8 GA, retirement floor "Not sooner than May 28, 2027"
+			// on the model page (docs.cloud.google.com/gemini-enterprise-agent-
+			// platform/models/partner-models/claude/opus-4-8, read 2026-09-28).
+			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-05-28")},
+			Pricing: claudeOpusPricing("us", "eu"),
+		},
+		{
+			ID:           ModelClaudeOpus47,
+			Model:        catalog.ModelClaudeOpus47,
+			Capabilities: claudeCapsWithToolSearch,
+			Modalities:   claudeModalities,
+			Constraints: llm.ModelConstraints{
+				MaxInputTokens:  1000000,
+				MaxOutputTokens: 128000,
+				SupportedParams: []string{"max_tokens", "reasoning_effort"},
+			},
+			Reasoning: catalog.ReasoningSupport{Efforts: claudeAllEfforts, Adaptive: true},
+			// Claude Opus 4.7 GA, retirement floor "Not sooner than April 16,
+			// 2027" on the model page (docs.cloud.google.com/gemini-enterprise-
+			// agent-platform/models/partner-models/claude/opus-4-7, read 2026-09-28).
+			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-04-15")},
+			Pricing: claudeOpusPricing("us", "eu"),
+		},
+		{
+			ID:           ModelClaudeOpus46,
+			Model:        catalog.ModelClaudeOpus46,
+			Capabilities: claudeCapsWithToolSearch,
+			Modalities:   claudeModalities,
+			Constraints: llm.ModelConstraints{
+				TemperatureRange: [2]float64{0.0, 1.0},
+				MaxInputTokens:   1000000,
+				MaxOutputTokens:  128000,
+				SupportedParams:  []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort", "thinking_budget"},
+			},
+			Reasoning: catalog.ReasoningSupport{
+				Efforts:  []llm.ReasoningEffort{reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortMax},
+				Adaptive: true,
+				Budget:   true,
+			},
+			// Claude Opus 4.6 GA, retirement floor "Not sooner than February 5,
+			// 2027" on the model page (docs.cloud.google.com/gemini-enterprise-
+			// agent-platform/models/partner-models/claude/opus-4-6, read 2026-09-28).
+			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-02-05")},
+			Pricing: claudeOpusPricing("us-east5", "europe-west1", "asia-southeast1"),
+		},
+		{
+			ID:    ModelClaudeOpus45,
+			Model: catalog.ModelClaudeOpus45,
+			// Vertex serves the bare ID as the same model version (rawPredict
+			// at global and us-east5, 2026-09-28).
+			Aliases:      []string{"claude-opus-4-5"},
+			Capabilities: claudeCapsWithToolSearch,
+			Modalities:   claudeModalities,
+			Constraints: llm.ModelConstraints{
+				TemperatureRange: [2]float64{0.0, 1.0},
+				MaxInputTokens:   200000,
+				MaxOutputTokens:  64000,
+				SupportedParams:  []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort", "thinking_budget"},
+			},
+			// thinking.type adaptive returns 400; effort is set alongside
+			// budget_tokens.
+			Reasoning: catalog.ReasoningSupport{
+				Efforts: []llm.ReasoningEffort{reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh},
+				Budget:  true,
+			},
+			// Claude Opus 4.5 GA on the model page (docs.cloud.google.com/
+			// gemini-enterprise-agent-platform/models/partner-models/claude/
+			// opus-4-5, read 2026-09-28); retirement floor "not sooner than:
+			// November 24, 2026".
+			Life:    catalog.Lifecycle{Available: catalog.MustDate("2025-11-24")},
+			Pricing: claudeOpusPricing("us-east5", "europe-west1", "asia-southeast1"),
+		},
+		{
 			ID:           ModelClaudeSonnet55,
 			Model:        catalog.ModelClaudeSonnet55,
-			Capabilities: claudeCaps,
+			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
 				MaxInputTokens:  1000000,
@@ -281,32 +655,79 @@ func entries() []catalog.Entry {
 				Efforts:  []llm.ReasoningEffort{reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortXHigh, reasoningEffortMax},
 				Adaptive: true,
 			},
-			// Claude Sonnet 5 GA, release date 2026-06-30, retirement floor "not
-			// sooner than 2026-12-24" on the model page (docs.cloud.google.com/
-			// gemini-enterprise-agent-platform/models/partner-models/claude/sonnet-5,
-			// read 2026-09-10).
+			// Claude Sonnet 5 GA, retirement floor "not sooner than 2026-12-24" on
+			// the model page (docs.cloud.google.com/gemini-enterprise-agent-platform/
+			// models/partner-models/claude/sonnet-5, read 2026-09-10).
 			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-06-30")},
 			Pricing: claudeSonnet5Pricing(),
 		},
 		{
+			ID:           ModelClaudeSonnet46,
+			Model:        catalog.ModelClaudeSonnet46,
+			Capabilities: claudeCapsWithToolSearch,
+			Modalities:   claudeModalities,
+			Constraints: llm.ModelConstraints{
+				TemperatureRange: [2]float64{0.0, 1.0},
+				MaxInputTokens:   1000000,
+				MaxOutputTokens:  128000,
+				SupportedParams:  []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort", "thinking_budget"},
+			},
+			Reasoning: catalog.ReasoningSupport{
+				Efforts:  []llm.ReasoningEffort{reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortMax},
+				Adaptive: true,
+				Budget:   true,
+			},
+			// Claude Sonnet 4.6 GA on the model page (docs.cloud.google.com/
+			// gemini-enterprise-agent-platform/models/partner-models/claude/
+			// sonnet-4-6, read 2026-09-28), which shows no retirement date.
+			Life: catalog.Lifecycle{Available: catalog.MustDate("2026-02-17")},
+			Pricing: regionalPricing(
+				pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0),
+				pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0),
+				"us-east5", "europe-west1", "asia-southeast1",
+			),
+		},
+		{
+			ID:    ModelClaudeSonnet45,
+			Model: catalog.ModelClaudeSonnet45,
+			// Vertex serves the bare ID as the same model version (rawPredict
+			// at global and us-east5, 2026-09-28).
+			Aliases:      []string{"claude-sonnet-4-5"},
+			Capabilities: claudeCapsWithToolSearch,
+			Modalities:   claudeModalities,
+			Constraints: llm.ModelConstraints{
+				TemperatureRange: [2]float64{0.0, 1.0},
+				// 200K is the GA window; the 1M window is a preview.
+				MaxInputTokens:  200000,
+				MaxOutputTokens: 64000,
+				SupportedParams: []string{"temperature", "top_p", "top_k", "max_tokens", "thinking_budget"},
+			},
+			// A thinking.type of adaptive returns 400.
+			Reasoning: catalog.ReasoningSupport{Budget: true},
+			// Claude Sonnet 4.5 GA, retirement floor "not sooner than: September
+			// 29, 2026" on the model page (docs.cloud.google.com/
+			// gemini-enterprise-agent-platform/models/partner-models/claude/
+			// sonnet-4-5, read 2026-09-28).
+			Life:    catalog.Lifecycle{Available: catalog.MustDate("2025-09-29")},
+			Pricing: claudeSonnet45Pricing(),
+		},
+		{
 			ID:           ModelClaudeHaiku45,
 			Model:        catalog.ModelClaudeHaiku45,
-			Capabilities: claudeCaps,
+			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange: [2]float64{0.0, 1.0},
 				MaxInputTokens:   200000,
 				MaxOutputTokens:  64000,
-				SupportedParams:  []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort"},
+				SupportedParams:  []string{"temperature", "top_p", "top_k", "max_tokens", "thinking_budget"},
 			},
-			Reasoning: catalog.ReasoningSupport{
-				Efforts:  []llm.ReasoningEffort{reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortMax},
-				Adaptive: true,
-			},
-			// Claude Haiku 4.5 GA, release date 2025-10-15, retirement floor "not
-			// sooner than 2026-10-15" on the model page (docs.cloud.google.com/
-			// gemini-enterprise-agent-platform/models/partner-models/claude/
-			// haiku-4-5, read 2026-09-10).
+			// A thinking.type of adaptive returns 400 (Anthropic's
+			// thinking-troubleshooting page, and rawPredict at global, 2026-09-28).
+			Reasoning: catalog.ReasoningSupport{Budget: true},
+			// Claude Haiku 4.5 GA, retirement floor "not sooner than 2026-10-15" on
+			// the model page (docs.cloud.google.com/gemini-enterprise-agent-platform/
+			// models/partner-models/claude/haiku-4-5, read 2026-09-10).
 			Life:    catalog.Lifecycle{Available: catalog.MustDate("2025-10-15")},
 			Pricing: claudeHaiku45Pricing(),
 		},
@@ -369,26 +790,19 @@ func claudeSonnet55Pricing() pricing.Info {
 	return info
 }
 
-// geminiFlashPricing returns the Gemini 3.6 and 3.8 Flash rate card: the global
-// rate as default, and the 10% higher non-global rate as one override per
-// priced multi-region.
+// geminiFlashPricing returns the Gemini 3.6, 3.7 and 3.8 Flash rate card.
 func geminiFlashPricing() pricing.Info {
-	// Introductory per-token rate through 2026-12-31 (standard from
-	// 2027-01-01: $1.50/$7.50 global, $1.65/$8.25 non-global), tracked like
-	// the Gemini-API provider (providers/google/models.go). Not the separate
-	// 50% Provisioned Throughput credit the page lists, which is post-hoc
-	// spend accounting the pricing package excludes (pricing/doc.go).
+	// Promotional net rate through 2026-12-31 (pricing page footnote, read
+	// 2026-09-28): the billing SKUs stay at the standard $1.50/$7.50/$0.15
+	// global and $1.65/$8.25 non-global, and Google returns 50% as credits
+	// back on net spend. The standard rate applies from 2027-01-01.
 	global := pricing.NewRates(0.75, 3.75, 0.075)
 	// Non-global = global x 1.10 on input, output, and cache alike, from
 	// Google's pricing page, verified live 2026-09-08.
 	nonGlobal := pricing.NewRates(0.825, 4.125, 0.0825)
 
 	info := pricing.FlatInfoFromRates(global)
-	// Priced regions are a literal, not derived from availability
-	// (locations.go): a region may be served at the global rate, so served
-	// does not imply priced. TestGeminiRegionalOverride guards the reverse.
-	// The override carries the non-global rate because an empty-Region
-	// selector is a wildcard that would also match global.
+	// An empty-Region selector is a wildcard that also matches global.
 	for _, region := range []string{"us", "eu"} {
 		info = info.WithOverride(
 			pricing.Selector{Region: region},
@@ -410,9 +824,10 @@ func claudeSonnet5Pricing() pricing.Info {
 	nonGlobal := pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(2.75, 4.40, 0)
 
 	info := pricing.FlatInfoFromRates(global)
-	// Sonnet's served non-global regions (locations.go); asia-southeast1
-	// carries the same premium, not a special APAC rate.
-	// TestClaudeRegionalOverride guards that every priced region is served.
+	// asia-southeast1 has no pricing tab for Sonnet 5; its premium is from
+	// Anthropic's pricing page (platform.claude.com/docs/en/about-claude/
+	// pricing, read 2026-09-28), which puts it on every Google Cloud regional
+	// and multi-region endpoint for Claude 4.5 and later models.
 	for _, region := range []string{"us", "eu", "asia-southeast1"} {
 		info = info.WithOverride(
 			pricing.Selector{Region: region},
@@ -432,13 +847,87 @@ func claudeHaiku45Pricing() pricing.Info {
 	nonGlobal := pricing.NewRates(1.10, 5.50, 0.11).WithCacheCreation(1.375, 2.20, 0)
 
 	info := pricing.FlatInfoFromRates(global)
-	// Served named regions (locations.go); asia-east1 carries the same
-	// premium, not a special rate.
-	for _, region := range []string{"us-east5", "europe-west1", "asia-east1"} {
+	for _, region := range []string{"us-east5", "europe-west1"} {
 		info = info.WithOverride(
 			pricing.Selector{Region: region},
 			pricing.RateCard{Base: nonGlobal},
 		)
+	}
+
+	return info
+}
+
+// regionalPricing returns a rate card with the global rate as default and
+// the non-global rate (global x 1.10) as one override per priced location.
+// Claude rates added with it are from the pricing page's region tabs, read
+// 2026-09-28, and flat across the =< 200K and > 200K input tiers, except
+// Fable 5 and Opus 5 at asia-southeast1, which has no tab for them.
+func regionalPricing(global, nonGlobal pricing.Rates, regions ...string) pricing.Info {
+	info := pricing.FlatInfoFromRates(global)
+	for _, region := range regions {
+		info = info.WithOverride(
+			pricing.Selector{Region: region},
+			pricing.RateCard{Base: nonGlobal},
+		)
+	}
+
+	return info
+}
+
+// gemini35FlashPricing returns the Gemini 3.5 Flash rate card. Standard
+// rates from the pricing page, read 2026-09-28; its one "Non-global" row
+// applies at every served non-global location, the named regions included.
+func gemini35FlashPricing() pricing.Info {
+	return regionalPricing(
+		pricing.NewRates(1.50, 9.00, 0.15),
+		pricing.NewRates(1.65, 9.90, 0.165),
+		"us", "eu",
+		"northamerica-northeast1", "europe-west2", "europe-west3",
+		"asia-northeast1", "asia-south1", "asia-southeast1", "australia-southeast1",
+	)
+}
+
+// gemini35FlashLitePricing returns the Gemini 3.5 Flash-Lite rate card.
+// Standard rates from the pricing page, read 2026-09-28.
+func gemini35FlashLitePricing() pricing.Info {
+	return regionalPricing(
+		pricing.NewRates(0.30, 2.50, 0.03),
+		pricing.NewRates(0.33, 2.75, 0.033),
+		"us", "eu",
+	)
+}
+
+// claudeOpusPricing returns the rate card Opus 4.5 through Opus 5 share on
+// Vertex, priced at the given locations.
+func claudeOpusPricing(regions ...string) pricing.Info {
+	return regionalPricing(
+		pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
+		pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
+		regions...,
+	)
+}
+
+// claudeSonnet45Pricing returns the Sonnet 4.5 rate card, the one Claude
+// model Vertex bills higher above 200K input tokens. Rates from the pricing
+// page's region tabs, read 2026-09-28.
+func claudeSonnet45Pricing() pricing.Info {
+	info := pricing.TieredInfo(
+		pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0),
+		pricing.Bracket{
+			MinContextTokens: 200_001,
+			Rates:            pricing.NewRates(6.00, 22.50, 0.60).WithCacheCreation(7.50, 12.00, 0),
+		},
+	)
+	regional := pricing.RateCard{
+		Base: pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0),
+		Brackets: []pricing.Bracket{{
+			MinContextTokens: 200_001,
+			Rates:            pricing.NewRates(6.60, 24.75, 0.66).WithCacheCreation(8.25, 13.20, 0),
+		}},
+	}
+
+	for _, region := range []string{"us-east5", "europe-west1", "asia-southeast1"} {
+		info = info.WithOverride(pricing.Selector{Region: region}, regional)
 	}
 
 	return info

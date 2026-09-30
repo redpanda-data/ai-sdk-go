@@ -46,9 +46,8 @@ func TestIsModelAvailableAtLocation(t *testing.T) {
 		{"sonnet-5 at asia-southeast1", vertex.ModelClaudeSonnet5, "asia-southeast1", true},
 		{"sonnet-5 not at named region", vertex.ModelClaudeSonnet5, "us-east5", false},
 		{"haiku at named region", vertex.ModelClaudeHaiku45, "europe-west1", true},
-		// Haiku is published at asia-east1, not at asia-southeast1 - the
-		// reverse of Sonnet's APAC region.
-		{"haiku at asia-east1", vertex.ModelClaudeHaiku45, "asia-east1", true},
+		// The matrix lists asia-east1 for Haiku.
+		{"haiku not at asia-east1", vertex.ModelClaudeHaiku45, "asia-east1", false},
 		{"haiku not at asia-southeast1", vertex.ModelClaudeHaiku45, "asia-southeast1", false},
 		{"unknown model", "gemini-99-ultra", "global", false},
 		{"prefixed id no longer resolves", "vertex." + vertex.ModelClaudeSonnet5, "eu", false},
@@ -89,15 +88,59 @@ func TestLocationsForModel(t *testing.T) {
 func TestServedLocationsMatrix(t *testing.T) {
 	t.Parallel()
 
-	want := map[string][]string{
-		vertex.ModelGemini38Flash:     {"global", "us", "eu"},
-		vertex.ModelGemini36Flash:     {"global", "us", "eu"},
-		vertex.ModelGemini31FlashLite: {"global", "us", "eu"},
-		vertex.ModelClaudeOpus55:      {"global", "us", "eu"},
-		vertex.ModelClaudeSonnet55:    {"global", "us", "eu"},
-		vertex.ModelClaudeSonnet5:     {"global", "us", "eu", "asia-southeast1"},
-		vertex.ModelClaudeHaiku45:     {"global", "us-east5", "europe-west1", "asia-east1"},
+	usRegions := []string{"us-central1", "us-east1", "us-east4", "us-east5", "us-south1", "us-west1", "us-west4"}
+	globalPlus := func(parts ...[]string) []string {
+		out := []string{"global"}
+		for _, p := range parts {
+			out = append(out, p...)
+		}
+
+		return out
 	}
+	namedClaude := []string{"global", "us-east5", "europe-west1", "asia-southeast1"}
+
+	want := map[string][]string{
+		vertex.ModelGemini38Flash: {"global", "us", "eu"},
+		vertex.ModelGemini37Flash: {"global", "us", "eu"},
+		vertex.ModelGemini36Flash: {"global", "us", "eu"},
+		vertex.ModelGemini35Flash: {
+			"global", "us", "eu",
+			"northamerica-northeast1", "europe-west2", "europe-west3",
+			"asia-northeast1", "asia-south1", "asia-southeast1", "australia-southeast1",
+		},
+		vertex.ModelGemini35FlashLite:   {"global", "us", "eu"},
+		vertex.ModelGemini31FlashLite:   {"global", "us", "eu"},
+		vertex.ModelGemini31ProPreview:  {"global"},
+		vertex.ModelGemini3FlashPreview: {"global"},
+		vertex.ModelGemini25Pro: globalPlus(usRegions,
+			[]string{"northamerica-northeast1"},
+			[]string{"europe-central2", "europe-north1", "europe-southwest1", "europe-west1", "europe-west4", "europe-west8", "europe-west9"},
+			[]string{"asia-northeast1"},
+		),
+		vertex.ModelGemini25Flash: globalPlus(usRegions,
+			[]string{"northamerica-northeast1", "southamerica-east1"},
+			[]string{"europe-central2", "europe-north1", "europe-southwest1", "europe-west1", "europe-west2", "europe-west3", "europe-west4", "europe-west8", "europe-west9"},
+			[]string{"asia-northeast1", "asia-northeast3", "asia-south1", "asia-southeast1", "australia-southeast1"},
+		),
+		vertex.ModelGemini25FlashLite: globalPlus(usRegions,
+			[]string{"europe-central2", "europe-north1", "europe-southwest1", "europe-west1", "europe-west4", "europe-west8", "europe-west9"},
+		),
+		vertex.ModelClaudeFable51:  {"global", "us", "eu"},
+		vertex.ModelClaudeFable5:   {"global", "us", "eu", "asia-southeast1"},
+		vertex.ModelClaudeOpus55:   {"global", "us", "eu"},
+		vertex.ModelClaudeOpus5:    {"global", "us", "eu", "asia-southeast1"},
+		vertex.ModelClaudeOpus48:   {"global", "us", "eu"},
+		vertex.ModelClaudeOpus47:   {"global", "us", "eu"},
+		vertex.ModelClaudeOpus46:   namedClaude,
+		vertex.ModelClaudeOpus45:   namedClaude,
+		vertex.ModelClaudeSonnet55: {"global", "us", "eu"},
+		vertex.ModelClaudeSonnet5:  {"global", "us", "eu", "asia-southeast1"},
+		vertex.ModelClaudeSonnet46: namedClaude,
+		vertex.ModelClaudeSonnet45: namedClaude,
+		vertex.ModelClaudeHaiku45:  {"global", "us-east5", "europe-west1"},
+	}
+
+	require.Len(t, want, vertex.Catalog().Len(), "want covers every offering")
 
 	for model, wantLocs := range want {
 		got := vertex.LocationsForModel(model)
@@ -115,4 +158,18 @@ func TestMatrixProvenance(t *testing.T) {
 
 	_, err := time.Parse("2006-01-02", vertex.LocationsMatrixTranscribed)
 	assert.NoError(t, err, "LocationsMatrixTranscribed must be a YYYY-MM-DD date")
+}
+
+// TestLocationsFollowCatalogAliases checks a bare alias answers as its dated
+// offering.
+func TestLocationsFollowCatalogAliases(t *testing.T) {
+	t.Parallel()
+
+	for alias, id := range map[string]string{
+		"claude-opus-4-5":   vertex.ModelClaudeOpus45,
+		"claude-sonnet-4-5": vertex.ModelClaudeSonnet45,
+	} {
+		assert.Truef(t, vertex.IsModelAvailableAtLocation(alias, "us-east5"), "%s at us-east5", alias)
+		assert.Equalf(t, vertex.LocationsForModel(id), vertex.LocationsForModel(alias), "%s locations", alias)
+	}
 }
