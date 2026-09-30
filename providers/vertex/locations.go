@@ -37,32 +37,27 @@ const (
 	// LocationsMatrixSource is the page the matrix is transcribed from.
 	LocationsMatrixSource = "https://docs.cloud.google.com/gemini-enterprise-agent-platform/resources/locations"
 
-	// LocationsMatrixTranscribed is the date the matrix below was copied
-	// from LocationsMatrixSource, in YYYY-MM-DD form. The full per-model
-	// availability was reconciled against the live page on this date: every
-	// row below is what LocationsMatrixSource published on 2026-09-22,
-	// except claude-opus-5-5 and claude-sonnet-5-5, which come from their
-	// model pages.
+	// LocationsMatrixTranscribed is the date, in YYYY-MM-DD form, the matrix
+	// below was copied from LocationsMatrixSource. Every row present on this
+	// date is what LocationsMatrixSource published on 2026-09-22, except
+	// claude-opus-5-5, whose row is its model page's "Model availability"
+	// section. Rows added on 2026-09-28 were read from the page on that day,
+	// and the claude-fable-5-1 and gemini-3.5-flash rows come from their
+	// model pages. The claude-sonnet-5-5 row, added 2026-09-29, is its model
+	// page's section.
 	LocationsMatrixTranscribed = "2026-09-22"
 )
 
 // servedLocations maps each catalogued bare model ID to the locations
-// Google publishes it at, transcribed from LocationsMatrixSource on
-// LocationsMatrixTranscribed. A location is listed wherever Google's page
-// marks the model supported there.
-//
-// The gateway proxies traffic that already runs in the customer's own GCP
-// project, so what governs this map is what Google publishes, not any one
-// project's quota. Every published location is listed so the gateway prices
-// and routes a customer who calls the model there.
-//
-// Gemini is published at global and the us and eu multi-regions, with no
-// named-region availability. Opus 5.5 and Sonnet 5.5 are published at
-// global and the us and eu multi-regions. Sonnet 5 adds the asia-southeast1
-// named region. Haiku is published
-// at global and the us-east5, europe-west1, and asia-east1 named regions.
+// Google publishes it at. A location is listed wherever Google's page marks
+// the model supported there, not by any one project's quota; the one
+// exception is claude-haiku-4-5 at asia-east1.
 var servedLocations = map[string][]string{
 	ModelGemini38Flash: {
+		LocationGlobal,
+		"us", "eu",
+	},
+	ModelGemini37Flash: {
 		LocationGlobal,
 		"us", "eu",
 	},
@@ -70,9 +65,54 @@ var servedLocations = map[string][]string{
 		LocationGlobal,
 		"us", "eu",
 	},
+	// This row is the model page's "Model availability" list; its Standard
+	// PayGo line names only global, us and eu.
+	ModelGemini35Flash: {
+		LocationGlobal,
+		"us", "eu",
+		"northamerica-northeast1", "europe-west2", "europe-west3",
+		"asia-northeast1", "asia-south1", "asia-southeast1", "australia-southeast1",
+	},
+	ModelGemini35FlashLite: {
+		LocationGlobal,
+		"us", "eu",
+	},
 	ModelGemini31FlashLite: {
 		LocationGlobal,
 		"us", "eu",
+	},
+	ModelGemini31ProPreview:  {LocationGlobal},
+	ModelGemini3FlashPreview: {LocationGlobal},
+	ModelGemini25Pro: {
+		LocationGlobal,
+		"us-central1", "us-east1", "us-east4", "us-east5", "us-south1", "us-west1", "us-west4",
+		"northamerica-northeast1",
+		"europe-central2", "europe-north1", "europe-southwest1", "europe-west1", "europe-west4", "europe-west8", "europe-west9",
+		"asia-northeast1",
+	},
+	ModelGemini25Flash: {
+		LocationGlobal,
+		"us-central1", "us-east1", "us-east4", "us-east5", "us-south1", "us-west1", "us-west4",
+		"northamerica-northeast1", "southamerica-east1",
+		"europe-central2", "europe-north1", "europe-southwest1", "europe-west1", "europe-west2", "europe-west3", "europe-west4", "europe-west8", "europe-west9",
+		"asia-northeast1", "asia-northeast3", "asia-south1", "asia-southeast1", "australia-southeast1",
+	},
+	ModelGemini25FlashLite: {
+		LocationGlobal,
+		"us-central1", "us-east1", "us-east4", "us-east5", "us-south1", "us-west1", "us-west4",
+		"europe-central2", "europe-north1", "europe-southwest1", "europe-west1", "europe-west4", "europe-west8", "europe-west9",
+	},
+	// From the Fable 5.1 model page (not yet in the matrix). Its "ML
+	// processing" list adds asia-southeast1, but Google publishes neither
+	// availability nor a price there yet.
+	ModelClaudeFable51: {
+		LocationGlobal,
+		"us", "eu",
+	},
+	ModelClaudeFable5: {
+		LocationGlobal,
+		"us", "eu",
+		"asia-southeast1",
 	},
 	// From the Opus 5.5 model page (not yet in the matrix). Its "ML
 	// processing" list adds asia-southeast1, but Google publishes neither
@@ -80,6 +120,29 @@ var servedLocations = map[string][]string{
 	ModelClaudeOpus55: {
 		LocationGlobal,
 		"us", "eu",
+	},
+	ModelClaudeOpus5: {
+		LocationGlobal,
+		"us", "eu",
+		"asia-southeast1",
+	},
+	ModelClaudeOpus48: {
+		LocationGlobal,
+		"us", "eu",
+	},
+	ModelClaudeOpus47: {
+		LocationGlobal,
+		"us", "eu",
+	},
+	ModelClaudeOpus46: {
+		LocationGlobal,
+		"us-east5", "europe-west1",
+		"asia-southeast1",
+	},
+	ModelClaudeOpus45: {
+		LocationGlobal,
+		"us-east5", "europe-west1",
+		"asia-southeast1",
 	},
 	// From the Sonnet 5.5 model page (not yet in the matrix).
 	ModelClaudeSonnet55: {
@@ -91,42 +154,47 @@ var servedLocations = map[string][]string{
 		"us", "eu",
 		"asia-southeast1",
 	},
+	ModelClaudeSonnet46: {
+		LocationGlobal,
+		"us-east5", "europe-west1",
+		"asia-southeast1",
+	},
+	ModelClaudeSonnet45: {
+		LocationGlobal,
+		"us-east5", "europe-west1",
+		"asia-southeast1",
+	},
+	// The matrix and a pricing tab also list asia-east1, but the model page
+	// does not, and rawPredict there returns 404 "Publisher model ... was
+	// not found" (2026-09-29) from a project the other three serve.
 	ModelClaudeHaiku45: {
 		LocationGlobal,
 		"us-east5", "europe-west1",
-		"asia-east1",
 	},
 }
 
 // IsModelAvailableAtLocation reports whether the transcribed matrix lists
-// the given bare model as served at the given location - that is, both
-// published by Google and callable on a pay-as-you-go plan.
-//
-// It answers config-time questions only. A false is a reason to refuse a
-// save or hide a model from a picker, never to reject a live request: the
-// transcription is dated and may lag Google's own additions.
-//
-// The model is the bare publisher ID, which equals the offering ID.
-// An unknown model or an unknown location returns false.
+// the given bare model as published by Google at the given location. An
+// alias or a version-stamped ID answers as the offering it resolves to. An
+// unknown model or an unknown location returns false.
 func IsModelAvailableAtLocation(model, location string) bool {
-	locs, ok := servedLocations[model]
-	if !ok {
-		return false
-	}
-
-	return slices.Contains(locs, normalizeLocation(location))
+	return slices.Contains(servedLocationsFor(model), normalizeLocation(location))
 }
 
 // LocationsForModel returns the locations the transcribed matrix lists
-// for the given model, or nil for an unknown model. The result is a copy
-// the caller may retain and mutate.
+// for the given model, or nil for an unknown model. The model resolves as in
+// IsModelAvailableAtLocation.
 func LocationsForModel(model string) []string {
-	locs, ok := servedLocations[model]
+	return slices.Clone(servedLocationsFor(model))
+}
+
+func servedLocationsFor(model string) []string {
+	id, ok := Catalog().ResolveID(model)
 	if !ok {
 		return nil
 	}
 
-	return slices.Clone(locs)
+	return servedLocations[id]
 }
 
 // normalizeLocation matches pricing.Selector's region normalization
