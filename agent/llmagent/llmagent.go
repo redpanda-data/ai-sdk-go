@@ -315,13 +315,14 @@ func (a *LLMAgent) executeSingleTurn(
 	}
 
 	if a.config.compaction != nil {
+		started := time.Now()
 		before := measureContext(sysTokens, toolDefTokens, sess.Messages)
 
 		stats, fitErr := a.ensureFits(sess, fixedTokens)
 		if stats.changed() {
 			reqMessages = append([]llm.Message{reqMessages[0]}, sess.Messages...)
 
-			report := compactionReport(agent.CompactionPhaseProactive, stats,
+			report := compactionReport(started, agent.CompactionPhaseProactive, stats,
 				before, measureContext(sysTokens, toolDefTokens, sess.Messages), a.deriveContextBudget())
 
 			if !yield(agent.CompactionEvent{
@@ -342,6 +343,7 @@ func (a *LLMAgent) executeSingleTurn(
 		// Reactive path: the provider rejected the request pre-flight, so
 		// nothing was emitted. Force a strictly smaller request - hard
 		// floors, at least 25% below the failed size - and retry once.
+		started := time.Now()
 		before := measureContext(sysTokens, toolDefTokens, sess.Messages)
 
 		stats, reduced := a.reduceAfterOverflow(sess, fixedTokens)
@@ -349,7 +351,7 @@ func (a *LLMAgent) executeSingleTurn(
 			return "", cannotFitError(stats.afterTokens, a.deriveContextBudget())
 		}
 
-		report := compactionReport(agent.CompactionPhaseReactive, stats,
+		report := compactionReport(started, agent.CompactionPhaseReactive, stats,
 			before, measureContext(sysTokens, toolDefTokens, sess.Messages), a.deriveContextBudget())
 
 		if !yield(agent.CompactionEvent{
