@@ -52,6 +52,10 @@ const (
 	// ServiceTierScale is OpenAI's scale tier.
 	ServiceTierScale ServiceTier = "scale"
 
+	// ServiceTierUltrafast is OpenAI's premium speed tier; OpenAI and
+	// Amazon Bedrock report it as "ultrafast" in a response's service_tier.
+	ServiceTierUltrafast ServiceTier = "ultrafast"
+
 	// ServiceTierReserved is a reserved-capacity tier.
 	ServiceTierReserved ServiceTier = "reserved"
 
@@ -90,6 +94,9 @@ func NormalizeServiceTier(raw string) ServiceTier {
 
 	case "scale":
 		return ServiceTierScale
+
+	case "ultrafast":
+		return ServiceTierUltrafast
 
 	case "reserved":
 		return ServiceTierReserved
