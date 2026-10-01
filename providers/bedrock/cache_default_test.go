@@ -147,6 +147,8 @@ func TestNewModel_NoCachePointFamiliesDisableCaching(t *testing.T) {
 		ModelMistralLarge3:    false,
 		ModelGPT6AstraUS:      false,
 		ModelGPT6AstraGlobal:  false,
+		ModelGPT61SolUS:       false,
+		ModelGPT61SolGlobal:   false,
 		ModelClaudeSonnet45US: true,
 		ModelClaudeOpus55US:   true,
 	} {
@@ -163,21 +165,32 @@ func TestNewModel_NoCachePointFamiliesDisableCaching(t *testing.T) {
 	}
 }
 
-// TestGPT6AstraRoutesByID checks the two GPT-6 Astra surfaces: the bare ID
-// is a mantle (Responses) model with effort control, while the profiles run
-// on Converse, which offers none.
-func TestGPT6AstraRoutesByID(t *testing.T) {
+// TestGPT6RoutesByID checks the two surfaces of each GPT-6 model on
+// Bedrock: the bare ID is a mantle (Responses) model with effort control,
+// while the profiles run on Converse, which offers none.
+func TestGPT6RoutesByID(t *testing.T) {
 	t.Parallel()
 
-	assert.True(t, IsMantleModel(ModelGPT6Astra))
-	assert.False(t, IsMantleModel(ModelGPT6AstraUS))
-	assert.False(t, IsMantleModel(ModelGPT6AstraGlobal))
+	for _, tt := range []struct{ bare, us, global string }{
+		{ModelGPT6Astra, ModelGPT6AstraUS, ModelGPT6AstraGlobal},
+		{ModelGPT61Sol, ModelGPT61SolUS, ModelGPT61SolGlobal},
+	} {
+		t.Run(tt.bare, func(t *testing.T) {
+			t.Parallel()
 
-	bare, ok := Catalog().Lookup(ModelGPT6Astra)
-	require.True(t, ok)
-	assert.Contains(t, bare.Reasoning.Efforts, ReasoningEffortMax)
+			assert.True(t, IsMantleModel(tt.bare))
+			assert.False(t, IsMantleModel(tt.us))
+			assert.False(t, IsMantleModel(tt.global))
 
-	profile, ok := Catalog().Lookup(ModelGPT6AstraUS)
-	require.True(t, ok)
-	assert.Empty(t, profile.Reasoning.Efforts)
+			bare, ok := Catalog().Lookup(tt.bare)
+			require.True(t, ok)
+			assert.Equal(t, []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax}, bare.Reasoning.Efforts)
+
+			for _, id := range []string{tt.us, tt.global} {
+				profile, ok := Catalog().Lookup(id)
+				require.True(t, ok)
+				assert.Empty(t, profile.Reasoning.Efforts)
+			}
+		})
+	}
 }

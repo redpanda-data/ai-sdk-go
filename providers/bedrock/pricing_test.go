@@ -59,6 +59,10 @@ var unknownTTLCacheModels = map[string]bool{
 	ModelGPT6Astra:       true,
 	ModelGPT6AstraGlobal: true,
 	ModelGPT6AstraUS:     true,
+
+	ModelGPT61Sol:       true,
+	ModelGPT61SolGlobal: true,
+	ModelGPT61SolUS:     true,
 }
 
 func TestAllModelsHavePricing(t *testing.T) {
@@ -158,7 +162,7 @@ func TestGPT56Pricing(t *testing.T) {
 	}
 }
 
-func TestGPT6AstraPricing(t *testing.T) {
+func TestGPT6Pricing(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -174,6 +178,21 @@ func TestGPT6AstraPricing(t *testing.T) {
 			modelID: ModelGPT6AstraUS,
 			base:    pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(0, 0, 13.75),
 			long:    pricing.NewRates(22.00, 82.50, 2.20).WithCacheCreation(0, 0, 27.50),
+		},
+		{
+			modelID: ModelGPT61SolGlobal,
+			base:    pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(0, 0, 2.50),
+			long:    pricing.NewRates(4.00, 15.00, 0.20).WithCacheCreation(0, 0, 5.00),
+		},
+		{
+			modelID: ModelGPT61SolUS,
+			base:    pricing.NewRates(2.20, 11.00, 0.11).WithCacheCreation(0, 0, 2.75),
+			long:    pricing.NewRates(4.40, 16.50, 0.22).WithCacheCreation(0, 0, 5.50),
+		},
+		{
+			modelID: ModelGPT61Sol,
+			base:    pricing.NewRates(2.20, 11.00, 0.11).WithCacheCreation(0, 0, 2.75),
+			long:    pricing.NewRates(4.40, 16.50, 0.22).WithCacheCreation(0, 0, 5.50),
 		},
 	}
 

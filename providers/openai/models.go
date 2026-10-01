@@ -16,6 +16,7 @@ package openai
 
 import (
 	"sync"
+	"time"
 
 	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/llm"
@@ -333,6 +334,8 @@ func entries() []catalog.Entry {
 		// top_p unless reasoning effort is none; they are not advertised
 		// because SupportedParams cannot express that condition.
 		gpt6Entry(ModelGPT6Sol, catalog.ModelGPT6Sol,
+			[]ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+			catalog.MustDate("2026-09-22"),
 			// Per M tokens: $2.00 input, $10.00 output, $0.20 cached input, $2.50 cache write.
 			// Above 272K: $4.00 input, $15.00 output, $0.40 cached input, $5.00 cache write.
 			pricing.TieredInfo(
@@ -341,11 +344,27 @@ func entries() []catalog.Entry {
 			)),
 		// https://developers.openai.com/api/docs/models/gpt-6-luna
 		gpt6Entry(ModelGPT6Luna, catalog.ModelGPT6Luna,
+			[]ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+			catalog.MustDate("2026-09-22"),
 			// Per M tokens: $0.10 input, $0.50 output, $0.01 cached input, $0.125 cache write.
 			// Above 272K: $0.20 input, $0.75 output, $0.02 cached input, $0.25 cache write.
 			pricing.TieredInfo(
 				pricing.NewRates(0.10, 0.50, 0.01).WithCacheCreation(0, 0, 0.125),
 				pricing.Bracket{MinContextTokens: 272_001, Rates: pricing.NewRates(0.20, 0.75, 0.02).WithCacheCreation(0, 0, 0.25)},
+			)),
+		// https://developers.openai.com/api/docs/models/gpt-6.1-sol
+		// Like Astra, effort none is unsupported, so
+		// /api/docs/guides/latest-model's temperature and top_p removal
+		// always applies.
+		gpt6Entry(ModelGPT6_1Sol, catalog.ModelGPT6_1Sol,
+			[]ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+			catalog.MustDate("2026-09-29"),
+			// Per M tokens: $2.00 input, $10.00 output, $0.10 cached input, $2.50 cache write.
+			// Above 272K: $4.00 input, $15.00 output, $0.20 cached input, $5.00 cache write.
+			// developers.openai.com/api/docs/pricing lists no Ultrafast rate for it.
+			pricing.TieredInfo(
+				pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(0, 0, 2.50),
+				pricing.Bracket{MinContextTokens: 272_001, Rates: pricing.NewRates(4.00, 15.00, 0.20).WithCacheCreation(0, 0, 5.00)},
 			)),
 
 		// GPT-5.6 Series
@@ -748,9 +767,11 @@ func gpt56Entry(id string, model catalog.ModelID, aliases []string, rates pricin
 	}
 }
 
-// gpt6Entry builds a GPT-6 Sol or Luna entry. They share Astra's capability
-// surface and limits but, unlike Astra, accept reasoning effort none.
-func gpt6Entry(id string, model catalog.ModelID, rates pricing.Info) catalog.Entry {
+// gpt6Entry builds a GPT-6 Sol, GPT-6 Luna, or GPT-6.1 Sol entry. They
+// share Astra's capability surface and limits and differ in identity,
+// efforts, availability, and rates: GPT-6 Sol and Luna, unlike Astra,
+// accept reasoning effort none; GPT-6.1 Sol does not.
+func gpt6Entry(id string, model catalog.ModelID, efforts []ReasoningEffort, available time.Time, rates pricing.Info) catalog.Entry {
 	return catalog.Entry{
 		ID:           id,
 		Model:        model,
@@ -761,11 +782,9 @@ func gpt6Entry(id string, model catalog.ModelID, rates pricing.Info) catalog.Ent
 			MaxOutputTokens: 128_000,
 			SupportedParams: []string{"max_tokens", "reasoning_effort", "reasoning_summary"},
 		},
-		Reasoning: catalog.ReasoningSupport{
-			Efforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
-		},
-		Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-09-22")},
-		Pricing: rates,
+		Reasoning: catalog.ReasoningSupport{Efforts: efforts},
+		Life:      catalog.Lifecycle{Available: available},
+		Pricing:   rates,
 	}
 }
 
