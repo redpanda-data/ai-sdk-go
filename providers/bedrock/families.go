@@ -54,6 +54,13 @@ type family struct {
 	// OpenAI-compatible endpoint. Mantle families must be bare-only:
 	// AWS publishes no inference profiles for them.
 	Mantle bool
+	// MantleRegions records the bedrock-mantle regions the model card
+	// publishes, registered in mantleRegions. It never blocks a call: the
+	// list is copied by hand and AWS adds regions without notice, so a
+	// stale list must not refuse requests that would work. It only adds a
+	// region hint to a model-not-found error from another region. Valid
+	// only with Mantle and BareInvokable.
+	MantleRegions []string
 	// NoCachePoints marks Converse families that reject CachePoint blocks
 	// (AccessDeniedException "your request did not allow prompt caching").
 	// NewModel turns prompt caching off for them regardless of the
@@ -108,6 +115,10 @@ func expandFamilies(families []family) ([]catalog.Entry, map[string]bool) {
 	for _, f := range families {
 		if f.Mantle && (len(f.Profiles) > 0 || !f.BareInvokable) {
 			panic(fmt.Sprintf("bedrock: mantle family %s must be bare-only", f.BareID)) //nolint:forbidigo // authoring error, not runtime
+		}
+
+		if len(f.MantleRegions) > 0 && (!f.Mantle || !f.BareInvokable) {
+			panic(fmt.Sprintf("bedrock: family %s sets MantleRegions without Mantle and BareInvokable", f.BareID)) //nolint:forbidigo // authoring error, not runtime
 		}
 
 		hasGlobal := false
@@ -198,4 +209,26 @@ func buildProfileRegionResolvers(families []family) (map[string]func(string) (st
 	}
 
 	return resolvers, regions
+}
+
+// buildMantleRegions collects each mantle family's published regions into
+// the bare-ID → region set behind the mantle model-not-found hint,
+// single-sourced from the family declarations (family.MantleRegions).
+func buildMantleRegions(families []family) map[string]map[string]bool {
+	regions := make(map[string]map[string]bool)
+
+	for _, f := range families {
+		if len(f.MantleRegions) == 0 {
+			continue
+		}
+
+		set := make(map[string]bool, len(f.MantleRegions))
+		for _, r := range f.MantleRegions {
+			set[r] = true
+		}
+
+		regions[f.BareID] = set
+	}
+
+	return regions
 }

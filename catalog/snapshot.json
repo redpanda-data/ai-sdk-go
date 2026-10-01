@@ -3761,6 +3761,74 @@
           }
         },
         {
+          "id": "global.openai.gpt-6-sol",
+          "model": "openai/gpt-6-sol",
+          "display_name": "OpenAI GPT-6 Sol (Global)",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {},
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 200000000,
+                "output_microcents_per_million": 1000000000,
+                "cached_input_microcents_per_million": 20000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 250000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 400000000,
+                    "output_microcents_per_million": 1500000000,
+                    "cached_input_microcents_per_million": 40000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 500000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "global"
+            }
+          ],
+          "derived": {
+            "price_tier": "medium",
+            "replacement": "openai/gpt-6.1-sol"
+          }
+        },
+        {
           "id": "global.openai.gpt-6.1-sol",
           "model": "openai/gpt-6.1-sol",
           "display_name": "OpenAI GPT-6.1 Sol (Global)",
@@ -4579,7 +4647,7 @@
           },
           "derived": {
             "price_tier": "medium",
-            "replacement": "openai/gpt-6.1-sol"
+            "replacement": "openai/gpt-6-sol"
           }
         },
         {
@@ -4650,6 +4718,78 @@
           },
           "derived": {
             "price_tier": "high"
+          }
+        },
+        {
+          "id": "openai.gpt-6-sol",
+          "model": "openai/gpt-6-sol",
+          "display_name": "OpenAI GPT-6 Sol",
+          "capabilities": {
+            "audio": false,
+            "json_mode": true,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "reasoning_effort"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 220000000,
+                "output_microcents_per_million": 1100000000,
+                "cached_input_microcents_per_million": 22000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 275000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 440000000,
+                    "output_microcents_per_million": 1650000000,
+                    "cached_input_microcents_per_million": 44000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 550000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "derived": {
+            "price_tier": "medium",
+            "replacement": "openai/gpt-6.1-sol"
           }
         },
         {
@@ -5761,6 +5901,74 @@
           ],
           "derived": {
             "price_tier": "high"
+          }
+        },
+        {
+          "id": "us.openai.gpt-6-sol",
+          "model": "openai/gpt-6-sol",
+          "display_name": "OpenAI GPT-6 Sol (US)",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {},
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 220000000,
+                "output_microcents_per_million": 1100000000,
+                "cached_input_microcents_per_million": 22000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 275000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 440000000,
+                    "output_microcents_per_million": 1650000000,
+                    "cached_input_microcents_per_million": 44000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 550000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "us"
+            }
+          ],
+          "derived": {
+            "price_tier": "medium",
+            "replacement": "openai/gpt-6.1-sol"
           }
         },
         {
