@@ -149,6 +149,8 @@ func TestNewModel_NoCachePointFamiliesDisableCaching(t *testing.T) {
 		ModelGPT6AstraGlobal:  false,
 		ModelGPT61SolUS:       false,
 		ModelGPT61SolGlobal:   false,
+		ModelGPT6SolUS:        false,
+		ModelGPT6SolGlobal:    false,
 		ModelClaudeSonnet45US: true,
 		ModelClaudeOpus55US:   true,
 	} {
@@ -171,9 +173,15 @@ func TestNewModel_NoCachePointFamiliesDisableCaching(t *testing.T) {
 func TestGPT6RoutesByID(t *testing.T) {
 	t.Parallel()
 
-	for _, tt := range []struct{ bare, us, global string }{
-		{ModelGPT6Astra, ModelGPT6AstraUS, ModelGPT6AstraGlobal},
-		{ModelGPT61Sol, ModelGPT61SolUS, ModelGPT61SolGlobal},
+	lowToMax := []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax}
+
+	for _, tt := range []struct {
+		bare, us, global string
+		efforts          []ReasoningEffort
+	}{
+		{ModelGPT6Astra, ModelGPT6AstraUS, ModelGPT6AstraGlobal, lowToMax},
+		{ModelGPT61Sol, ModelGPT61SolUS, ModelGPT61SolGlobal, lowToMax},
+		{ModelGPT6Sol, ModelGPT6SolUS, ModelGPT6SolGlobal, append([]ReasoningEffort{ReasoningEffortNone}, lowToMax...)},
 	} {
 		t.Run(tt.bare, func(t *testing.T) {
 			t.Parallel()
@@ -184,7 +192,7 @@ func TestGPT6RoutesByID(t *testing.T) {
 
 			bare, ok := Catalog().Lookup(tt.bare)
 			require.True(t, ok)
-			assert.Equal(t, []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax}, bare.Reasoning.Efforts)
+			assert.Equal(t, tt.efforts, bare.Reasoning.Efforts)
 
 			for _, id := range []string{tt.us, tt.global} {
 				profile, ok := Catalog().Lookup(id)

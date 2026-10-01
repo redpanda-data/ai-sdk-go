@@ -63,6 +63,10 @@ var unknownTTLCacheModels = map[string]bool{
 	ModelGPT61Sol:       true,
 	ModelGPT61SolGlobal: true,
 	ModelGPT61SolUS:     true,
+
+	ModelGPT6Sol:       true,
+	ModelGPT6SolGlobal: true,
+	ModelGPT6SolUS:     true,
 }
 
 func TestAllModelsHavePricing(t *testing.T) {
@@ -193,6 +197,21 @@ func TestGPT6Pricing(t *testing.T) {
 			modelID: ModelGPT61Sol,
 			base:    pricing.NewRates(2.20, 11.00, 0.11).WithCacheCreation(0, 0, 2.75),
 			long:    pricing.NewRates(4.40, 16.50, 0.22).WithCacheCreation(0, 0, 5.50),
+		},
+		{
+			modelID: ModelGPT6SolGlobal,
+			base:    pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(0, 0, 2.50),
+			long:    pricing.NewRates(4.00, 15.00, 0.40).WithCacheCreation(0, 0, 5.00),
+		},
+		{
+			modelID: ModelGPT6SolUS,
+			base:    pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(0, 0, 2.75),
+			long:    pricing.NewRates(4.40, 16.50, 0.44).WithCacheCreation(0, 0, 5.50),
+		},
+		{
+			modelID: ModelGPT6Sol,
+			base:    pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(0, 0, 2.75),
+			long:    pricing.NewRates(4.40, 16.50, 0.44).WithCacheCreation(0, 0, 5.50),
 		},
 	}
 
