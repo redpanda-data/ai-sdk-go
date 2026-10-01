@@ -42,10 +42,14 @@ func TestIsModelAllowedFromRegion(t *testing.T) {
 		{"sonnet5 us from eu-west-1 (cross-geo)", ModelClaudeSonnet5US, "eu-west-1", false},
 		{"sonnet5 global from me-central-1", ModelClaudeSonnet5Global, "me-central-1", true},
 
-		// Sonnet 5.5 — only global. is published.
-		{"sonnet5.5 global from us-east-1", ModelClaudeSonnet55Global, "us-east-1", true},
-		{"sonnet5.5 global from eu-west-1", ModelClaudeSonnet55Global, "eu-west-1", true},
-		{"sonnet5.5 unpublished us from us-east-1", "us." + ModelClaudeSonnet55, "us-east-1", false},
+		// Sonnet 5.5 — US, EU, and global profiles are published.
+		{"sonnet5.5 us from us-east-1", ModelClaudeSonnet55US, "us-east-1", true},
+		{"sonnet5.5 us from ca-west-1", ModelClaudeSonnet55US, "ca-west-1", true},
+		{"sonnet5.5 us from eu-west-1 (cross-geo)", ModelClaudeSonnet55US, "eu-west-1", false},
+		{"sonnet5.5 eu from eu-central-2", ModelClaudeSonnet55EU, "eu-central-2", true},
+		{"sonnet5.5 eu from us-east-1 (cross-geo)", ModelClaudeSonnet55EU, "us-east-1", false},
+		{"sonnet5.5 global from ap-northeast-1", ModelClaudeSonnet55Global, "ap-northeast-1", true},
+		{"sonnet5.5 unpublished jp from ap-northeast-1", "jp." + ModelClaudeSonnet55, "ap-northeast-1", false},
 
 		// Opus 5 — US, EU, AU, and global profiles are published.
 		{"opus5 us from us-east-1", ModelClaudeOpus5US, "us-east-1", true},
@@ -182,6 +186,10 @@ func TestProfileRegionResolverLookup(t *testing.T) {
 		ModelClaudeOpus5US,
 		ModelClaudeOpus5EU,
 		ModelClaudeOpus5AU,
+		ModelClaudeSonnet55,
+		ModelClaudeSonnet55Global,
+		ModelClaudeSonnet55US,
+		ModelClaudeSonnet55EU,
 	} {
 		t.Run(modelID, func(t *testing.T) {
 			t.Parallel()

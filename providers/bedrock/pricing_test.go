@@ -200,6 +200,14 @@ func TestClaudeSonnet55Pricing(t *testing.T) {
 		pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0),
 		global.Pricing.Default.Base,
 	)
+
+	geoRates := pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(2.75, 4.40, 0)
+
+	for _, id := range []string{ModelClaudeSonnet55US, ModelClaudeSonnet55EU} {
+		def, ok := Catalog().Lookup(id)
+		require.True(t, ok)
+		assert.Equal(t, geoRates, def.Pricing.Default.Base)
+	}
 }
 
 func TestClaudeOpus55Pricing(t *testing.T) {
@@ -249,11 +257,6 @@ func TestClaudeOpus5Pricing(t *testing.T) {
 	}
 }
 
-// globalOnlyFamilies have no non-global sibling to compare against.
-var globalOnlyFamilies = map[string]bool{
-	ModelClaudeSonnet55: true,
-}
-
 // TestGeoGlobalRatio pins, per logical model, the relationship between the
 // catalog's global. variant and any of its non-global siblings (bare /
 // us. / eu. / au. / jp.): geo == 1.10 * global, exactly, in every priced
@@ -283,10 +286,6 @@ func TestGeoGlobalRatio(t *testing.T) {
 		sibling, ok := Catalog().Lookup(bare)
 		if !ok {
 			sibling, ok = Catalog().Lookup("us." + bare)
-		}
-
-		if !ok && globalOnlyFamilies[bare] {
-			continue
 		}
 
 		require.True(t, ok, "global. variant %s has no non-global sibling to compare against", id)
