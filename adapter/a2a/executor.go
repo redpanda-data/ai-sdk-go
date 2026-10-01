@@ -113,10 +113,10 @@ func (e *Executor) Execute(ctx context.Context, reqCtx *a2asrv.RequestContext, q
 		}
 	}
 
-	// Create new task if necessary. Otherwise, StoredTask will provide it.
+	// A new task opens with a Task snapshot, which A2A v1.0 requires as the
+	// first event. Otherwise, StoredTask already provides it.
 	if reqCtx.StoredTask == nil {
-		event := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateSubmitted, nil)
-		write(event)
+		write(a2a.NewSubmittedTask(reqCtx, reqCtx.Message))
 	}
 
 	// Emit working status before starting runner

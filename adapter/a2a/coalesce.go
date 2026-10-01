@@ -20,6 +20,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/a2aproject/a2a-go/a2a"
 	"github.com/a2aproject/a2a-go/a2asrv"
@@ -32,8 +33,13 @@ import (
 // The first delta of an artifact is sent immediately. Later deltas are
 // buffered and sent as one append on a size trigger, when Interval has
 // passed (a timer covers a provider stall), or on any non-delta event. Each
-// flushed event carries at most one TextPart. A failed write drops its
+// flushed event carries one non-empty TextPart. A failed write drops its
 // text, as it does with coalescing off.
+//
+// With or without coalescing, the last character of the text streamed so far
+// is held back until the next send, so the event that closes an artifact
+// always has text to carry LastChunk: A2A v1.0 rejects an artifact update
+// without parts.
 //
 // Executor.Cancel does not flush: up to one Interval of buffered text is
 // dropped, not saved. The stored task still matches what was streamed.
@@ -61,10 +67,24 @@ type deltaWriter struct {
 
 	artifactID a2a.ArtifactID
 	buf        strings.Builder
-	lastSent   time.Time
-	timer      *time.Timer
-	closed     bool
+	// held is the last character of the artifact's text, not yet sent.
+	held     string
+	lastSent time.Time
+	timer    *time.Timer
+	closed   bool
 }
+
+// sendMode says how much of the pending text a send writes.
+type sendMode int
+
+const (
+	// sendHold writes all but the last character, which stays held.
+	sendHold sendMode = iota
+	// sendDrain writes everything without closing the artifact.
+	sendDrain
+	// sendClose writes everything and marks the artifact complete.
+	sendClose
+)
 
 func newDeltaWriter(reqCtx *a2asrv.RequestContext, queue eventqueue.Queue, log *slog.Logger, cfg DeltaCoalescing) *deltaWriter {
 	if cfg.Interval < 0 {
@@ -89,25 +109,12 @@ func (w *deltaWriter) delta(ctx context.Context, text string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	if w.closed {
+	if w.closed || text == "" {
 		return
 	}
 
-	if w.cfg.Interval == 0 {
-		w.sendImmediateLocked(ctx, text)
-		return
-	}
-
-	if w.artifactID == "" {
-		// Keep the ID only when the artifact exists, so later appends
-		// never target an artifact the task does not have.
-		artifact := a2a.NewArtifactEvent(w.reqCtx, a2a.TextPart{Text: text})
-		w.lastSent = time.Now()
-
-		if w.queueWrite(ctx, artifact) == nil {
-			w.artifactID = artifact.Artifact.ID
-		}
-
+	if w.cfg.Interval == 0 || w.artifactID == "" {
+		w.sendLocked(ctx, text, sendHold)
 		return
 	}
 
@@ -115,82 +122,100 @@ func (w *deltaWriter) delta(ctx context.Context, text string) {
 
 	elapsed := time.Since(w.lastSent)
 	if (w.cfg.MaxBytes > 0 && w.buf.Len() >= w.cfg.MaxBytes) || elapsed >= w.cfg.Interval {
-		w.flushLocked(ctx, false)
+		w.flushLocked(ctx, sendHold)
 		return
 	}
 
 	w.armTimerLocked(ctx, w.cfg.Interval-elapsed)
 }
 
-// sendImmediateLocked is the coalescing-off path, unchanged from before.
-// Caller holds w.mu.
-func (w *deltaWriter) sendImmediateLocked(ctx context.Context, text string) {
+// sendLocked writes the held character, then text, as the artifact's next
+// event, keeping the last character back in sendHold mode. Nothing is written
+// when that leaves no text. The first event creates the artifact. With
+// coalescing on, the ID is kept only when that write succeeds, so later
+// appends never target an artifact the task does not have, and the held
+// character is dropped with the failed write. Caller holds w.mu.
+func (w *deltaWriter) sendLocked(ctx context.Context, text string, mode sendMode) {
+	text = w.held + text
+	w.held = ""
+
+	if mode == sendHold {
+		_, size := utf8.DecodeLastRuneInString(text)
+		text, w.held = text[:len(text)-size], text[len(text)-size:]
+	}
+
+	if text == "" {
+		return
+	}
+
 	var artifact *a2a.TaskArtifactUpdateEvent
 
-	if w.artifactID == "" {
+	creates := w.artifactID == ""
+	if creates {
 		artifact = a2a.NewArtifactEvent(w.reqCtx, a2a.TextPart{Text: text})
-		w.artifactID = artifact.Artifact.ID
 	} else {
 		artifact = a2a.NewArtifactUpdateEvent(w.reqCtx, w.artifactID, a2a.TextPart{Text: text})
 	}
 
-	_ = w.queueWrite(ctx, artifact)
+	artifact.LastChunk = mode == sendClose
+	w.lastSent = time.Now()
+
+	err := w.queueWrite(ctx, artifact)
+
+	switch {
+	case !creates:
+	case err == nil || w.cfg.Interval == 0:
+		w.artifactID = artifact.Artifact.ID
+	default:
+		w.held = ""
+	}
 }
 
-// flushLocked sends the buffered text as one append and empties the
-// buffer, also when the write fails: a retry could send the text twice,
-// because the queue can fail after it delivered the event. An empty buffer
-// with lastChunk false does nothing. Caller holds w.mu.
-func (w *deltaWriter) flushLocked(ctx context.Context, lastChunk bool) {
-	if w.buf.Len() == 0 && !lastChunk {
+// flushLocked sends the buffered text and empties the buffer, also when the
+// write fails: a retry could send the text twice, because the queue can fail
+// after it delivered the event. Caller holds w.mu.
+func (w *deltaWriter) flushLocked(ctx context.Context, mode sendMode) {
+	if w.buf.Len() == 0 && mode == sendHold {
 		return
 	}
 
-	var artifact *a2a.TaskArtifactUpdateEvent
-	if w.buf.Len() > 0 {
-		artifact = a2a.NewArtifactUpdateEvent(w.reqCtx, w.artifactID, a2a.TextPart{Text: w.buf.String()})
-	} else {
-		artifact = a2a.NewArtifactUpdateEvent(w.reqCtx, w.artifactID)
-	}
-
-	artifact.LastChunk = lastChunk
-
-	_ = w.queueWrite(ctx, artifact)
-
+	text := w.buf.String()
 	w.buf.Reset()
-	w.lastSent = time.Now()
+	w.sendLocked(ctx, text, mode)
 	w.stopTimerLocked()
 }
 
-// endArtifact flushes into a LastChunk event and clears the artifact ID.
+// endArtifact sends the remaining text as the artifact's LastChunk and
+// clears the artifact ID.
 func (w *deltaWriter) endArtifact(ctx context.Context) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	if w.artifactID == "" {
+	if w.artifactID == "" && w.held == "" {
 		return
 	}
 
-	w.flushLocked(ctx, true)
+	w.flushLocked(ctx, sendClose)
 	w.artifactID = ""
 }
 
-// resetArtifact flushes as a non-final append and clears the artifact ID.
+// resetArtifact sends the remaining text as a non-final append and clears
+// the artifact ID.
 func (w *deltaWriter) resetArtifact(ctx context.Context) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	w.flushLocked(ctx, false)
+	w.flushLocked(ctx, sendDrain)
 	w.artifactID = ""
 }
 
-// write flushes any pending text, then writes ev and returns its error.
+// write sends any pending text, then writes ev and returns its error.
 func (w *deltaWriter) write(ctx context.Context, ev a2a.Event) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
 	if !w.closed {
-		w.flushLocked(ctx, false)
+		w.flushLocked(ctx, sendDrain)
 	}
 
 	return w.queue.Write(ctx, ev)
@@ -205,7 +230,7 @@ func (w *deltaWriter) onTimer(ctx context.Context) {
 		return
 	}
 
-	w.flushLocked(ctx, false)
+	w.flushLocked(ctx, sendHold)
 }
 
 // close stops the timer. processEvents defers it, so the timer never

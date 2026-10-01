@@ -141,7 +141,7 @@ func TestExecutor_Integration_OpenAI(t *testing.T) {
 
 	t.Logf("Total events written: %d", len(events))
 
-	// Check for task submitted event
+	// Check for the submitted task snapshot
 	hasSubmitted := false
 	hasArtifact := false
 	hasCompleted := false
@@ -150,12 +150,12 @@ func TestExecutor_Integration_OpenAI(t *testing.T) {
 		t.Logf("Event %d: %T", i, event)
 
 		switch ev := event.(type) {
-		case *a2a.TaskStatusUpdateEvent:
-			t.Logf("  Status: %s, Final: %v", ev.Status.State, ev.Final)
-
+		case *a2a.Task:
 			if ev.Status.State == a2a.TaskStateSubmitted {
 				hasSubmitted = true
 			}
+		case *a2a.TaskStatusUpdateEvent:
+			t.Logf("  Status: %s, Final: %v", ev.Status.State, ev.Final)
 
 			// Check for per-message usage metadata on working state events with agent messages
 			isWorkingAgentMessage := ev.Status.State == a2a.TaskStateWorking &&
@@ -210,7 +210,7 @@ func TestExecutor_Integration_OpenAI(t *testing.T) {
 		}
 	}
 
-	assert.True(t, hasSubmitted, "Should have submitted status event")
+	assert.True(t, hasSubmitted, "Should open with a submitted task snapshot")
 	assert.True(t, hasArtifact, "Should have artifact events with response text")
 	assert.True(t, hasCompleted, "Should have completed status event")
 
@@ -928,6 +928,7 @@ func TestExecutor_SessionPersistence_Cancelled(t *testing.T) {
 
 	events := []a2a.Event{}
 	eventsDone := make(chan struct{})
+	finalEventSeen := make(chan struct{})
 
 	// Use background context for reading queue so we can receive the canceled status event
 	readCtx := context.Background()
@@ -948,11 +949,22 @@ func TestExecutor_SessionPersistence_Cancelled(t *testing.T) {
 				t.Log("Cancelling context after receiving artifact")
 				cancel()
 			}
+
+			if statusEvent, ok := event.(*a2a.TaskStatusUpdateEvent); ok && statusEvent.Final {
+				close(finalEventSeen)
+			}
 		}
 	}()
 
 	err = executor.Execute(ctx, reqCtx, writerQueue)
 	require.NoError(t, err, "Execute should not return error even for cancellation")
+
+	// Closing the queues drops unread events, so wait for the final one first.
+	select {
+	case <-finalEventSeen:
+	case <-time.After(10 * time.Second):
+		t.Fatal("no final status event")
+	}
 
 	writerQueue.Close()
 	readerQueue.Close()
@@ -1272,4 +1284,68 @@ func TestExecutor_DeltaCoalescing_EndToEnd(t *testing.T) {
 	assert.Less(t, saves, offSaves)
 	assert.Equal(t, reply, text)
 	assert.Equal(t, reply, offText)
+}
+
+func newTestExecutor(t *testing.T) *Executor {
+	t.Helper()
+
+	model := fakellm.NewFakeModel()
+	model.When(fakellm.Any()).ThenRespondText("hi")
+
+	agentInstance, err := llmagent.New("test-agent", "You are a helpful assistant.", model)
+	require.NoError(t, err)
+
+	runnerInstance, err := runner.New(agentInstance, session.NewInMemoryStore())
+	require.NoError(t, err)
+
+	return NewExecutor(agentInstance, runnerInstance, slog.Default())
+}
+
+// TestExecutor_NewTaskOpensWithTaskSnapshot pins the first event of a new task
+// to a Task carrying the request message: A2A v1.0 requires it, and v0.3
+// stores the same task either way.
+func TestExecutor_NewTaskOpensWithTaskSnapshot(t *testing.T) {
+	t.Parallel()
+
+	message := a2a.NewMessage(a2a.MessageRoleUser, a2a.TextPart{Text: "hello"})
+	reqCtx := &a2asrv.RequestContext{ContextID: "ctx-1", TaskID: "task-1", Message: message}
+	queue := &recordingQueue{}
+
+	require.NoError(t, newTestExecutor(t).Execute(t.Context(), reqCtx, queue))
+
+	events := queue.recorded()
+	require.GreaterOrEqual(t, len(events), 2)
+
+	task, ok := events[0].(*a2a.Task)
+	require.Truef(t, ok, "first event = %T, want *a2a.Task", events[0])
+	assert.Equal(t, a2a.TaskID("task-1"), task.ID)
+	assert.Equal(t, "ctx-1", task.ContextID)
+	assert.Equal(t, a2a.TaskStateSubmitted, task.Status.State)
+	assert.Equal(t, []*a2a.Message{message}, task.History)
+
+	working, ok := events[1].(*a2a.TaskStatusUpdateEvent)
+	require.Truef(t, ok, "second event = %T, want a status update", events[1])
+	assert.Equal(t, a2a.TaskStateWorking, working.Status.State)
+}
+
+func TestExecutor_ContinuedTaskOpensWithWorkingStatus(t *testing.T) {
+	t.Parallel()
+
+	stored := &a2a.Task{ID: "task-1", ContextID: "ctx-1", Status: a2a.TaskStatus{State: a2a.TaskStateInputRequired}}
+	reqCtx := &a2asrv.RequestContext{
+		ContextID:  "ctx-1",
+		TaskID:     "task-1",
+		StoredTask: stored,
+		Message:    a2a.NewMessage(a2a.MessageRoleUser, a2a.TextPart{Text: "more"}),
+	}
+	queue := &recordingQueue{}
+
+	require.NoError(t, newTestExecutor(t).Execute(t.Context(), reqCtx, queue))
+
+	events := queue.recorded()
+	require.NotEmpty(t, events)
+
+	working, ok := events[0].(*a2a.TaskStatusUpdateEvent)
+	require.Truef(t, ok, "first event = %T, want a status update", events[0])
+	assert.Equal(t, a2a.TaskStateWorking, working.Status.State)
 }

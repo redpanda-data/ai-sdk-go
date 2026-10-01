@@ -227,7 +227,7 @@ func artifactText(a *a2a.TaskArtifactUpdateEvent) string {
 }
 
 // assertEvents checks got against want. Each artifact has a non-empty ID and
-// at most one part. An append targets the previous artifact, which a recorded
+// exactly one part with text, since A2A v1.0 rejects an update without parts. An append targets the previous artifact, which a recorded
 // create made. A create uses a new ID.
 func assertEvents(t *testing.T, got []a2a.Event, want []wantEvent) {
 	t.Helper()
@@ -254,7 +254,8 @@ func assertEvents(t *testing.T, got []a2a.Event, want []wantEvent) {
 		assert.Equal(t, w.append, a.Append, "event %d", i)
 		assert.Equal(t, w.lastChunk, a.LastChunk, "event %d", i)
 		assert.Equal(t, w.text, artifactText(a), "event %d", i)
-		assert.LessOrEqual(t, len(a.Artifact.Parts), 1, "event %d", i)
+		assert.Len(t, a.Artifact.Parts, 1, "event %d", i)
+		assert.NotEmpty(t, artifactText(a), "event %d", i)
 
 		if a.Append {
 			assert.True(t, created[a.Artifact.ID], "event %d appends to an artifact that was never created", i)
@@ -275,9 +276,10 @@ var (
 	canceled  = wantStatus(a2a.TaskStateCanceled, true)
 )
 
-// TestDeltaCoalescing_DisabledIsByteIdentical pins the Interval == 0 event
-// sequence to the one processEvents sent before coalescing existed.
-func TestDeltaCoalescing_DisabledIsByteIdentical(t *testing.T) {
+// TestDeltaCoalescing_Disabled pins the Interval == 0 event sequence: one
+// event per delta, shifted by the held last character, so the closing event
+// carries text and LastChunk instead of being an empty append.
+func TestDeltaCoalescing_Disabled(t *testing.T) {
 	t.Parallel()
 
 	a := wantArtifact("a", false, false)
@@ -286,16 +288,14 @@ func TestDeltaCoalescing_DisabledIsByteIdentical(t *testing.T) {
 			name:  "deltas and message",
 			steps: steps(deltaEvent("a"), deltaEvent("b"), deltaEvent("c"), messageEvent("abc"), invocationEnd()),
 			want: []wantEvent{
-				a, wantArtifact("b", true, false), wantArtifact("c", true, false),
-				wantArtifact("", true, true), working, completed,
+				a, wantArtifact("b", true, false), wantArtifact("c", true, true), working, completed,
 			},
 		},
 		{
 			name:  "stream reset",
 			steps: steps(deltaEvent("a"), deltaEvent("b"), streamReset(), deltaEvent("c"), invocationEnd()),
 			want: []wantEvent{
-				a, wantArtifact("b", true, false), wantArtifact("", true, true),
-				wantArtifact("c", false, false), completed,
+				a, wantArtifact("b", true, true), wantArtifact("c", false, false), completed,
 			},
 		},
 		{
@@ -312,6 +312,22 @@ func TestDeltaCoalescing_DisabledIsByteIdentical(t *testing.T) {
 		{name: "context overflow", steps: steps(deltaEvent("a"), llm.ErrContextOverflow), want: []wantEvent{a, failed}},
 		{name: "canceled", steps: steps(deltaEvent("a"), context.Canceled), want: []wantEvent{a, canceled}},
 		{name: "missing invocation end", steps: steps(deltaEvent("a")), wantErr: true, want: []wantEvent{a, failed}},
+		{
+			name:  "multi-character deltas hold back only the last character",
+			steps: steps(deltaEvent("Hello"), deltaEvent(", world"), messageEvent("Hello, world"), invocationEnd()),
+			want: []wantEvent{
+				wantArtifact("Hell", false, false), wantArtifact("o, worl", true, false),
+				wantArtifact("d", true, true), working, completed,
+			},
+		},
+		{
+			name:  "a held multi-byte character is never split",
+			steps: steps(deltaEvent("café"), deltaEvent("☕"), messageEvent("café☕"), invocationEnd()),
+			want: []wantEvent{
+				wantArtifact("caf", false, false), wantArtifact("é", true, false),
+				wantArtifact("☕", true, true), working, completed,
+			},
+		},
 	}
 
 	for _, tc := range cases {
@@ -327,27 +343,31 @@ func TestDeltaCoalescing(t *testing.T) {
 
 	hour := DeltaCoalescing{Interval: time.Hour}
 	ms100 := DeltaCoalescing{Interval: 100 * time.Millisecond}
-	lead := wantArtifact("lead", false, false)
-	tail := wantArtifact("tail", true, false)
+	// "lead" goes out at once minus its held "d", which the next send carries.
+	lead := wantArtifact("lea", false, false)
+	tail := wantArtifact("dtail", true, false)
 
 	cases := []coalesceCase{
 		{
 			name:  "message event carries the tail into LastChunk",
 			cfg:   hour,
 			steps: steps(deltaEvent("lead"), deltaEvent("tail"), messageEvent("leadtail"), invocationEnd()),
-			want:  []wantEvent{lead, wantArtifact("tail", true, true), working, completed},
+			want:  []wantEvent{lead, wantArtifact("dtail", true, true), working, completed},
 		},
 		{
 			name:  "stream reset flushes the tail, then restarts",
 			cfg:   hour,
 			steps: steps(deltaEvent("lead"), deltaEvent("tail"), streamReset(), deltaEvent("new"), invocationEnd()),
-			want:  []wantEvent{lead, wantArtifact("tail", true, true), wantArtifact("new", false, false), completed},
+			want: []wantEvent{
+				lead, wantArtifact("dtail", true, true), wantArtifact("ne", false, false),
+				wantArtifact("w", true, false), completed,
+			},
 		},
 		{
 			name:  "model_call flushes the old artifact, non-final",
 			cfg:   hour,
 			steps: steps(deltaEvent("lead"), deltaEvent("tail"), statusEvent(agent.StatusStageModelCall), deltaEvent("new"), invocationEnd()),
-			want:  []wantEvent{lead, tail, wantArtifact("new", false, false), completed},
+			want:  []wantEvent{lead, tail, wantArtifact("ne", false, false), wantArtifact("w", true, false), completed},
 		},
 		{
 			name:  "tool response flushes before the history status",
@@ -366,15 +386,15 @@ func TestDeltaCoalescing(t *testing.T) {
 			steps: steps(deltaEvent("aaaaa"), deltaEvent("bbbbb"), deltaEvent("ccccc"), deltaEvent("ddddd"),
 				deltaEvent("eeeee"), messageEvent("x"), invocationEnd()),
 			want: []wantEvent{
-				wantArtifact("aaaaa", false, false), wantArtifact("bbbbbcccccdddddeeeee", true, false),
-				wantArtifact("", true, true), working, completed,
+				wantArtifact("aaaa", false, false), wantArtifact("abbbbbcccccdddddeeee", true, false),
+				wantArtifact("e", true, true), working, completed,
 			},
 		},
 		{
 			name:       "first delta is sent before the next event",
 			cfg:        DeltaCoalescing{Interval: time.Hour, MaxBytes: 512},
 			steps:      steps(deltaEvent("lead"), probe, invocationEnd()),
-			want:       []wantEvent{lead, completed},
+			want:       []wantEvent{lead, wantArtifact("d", true, false), completed},
 			wantProbes: []int{1},
 		},
 		{
@@ -393,19 +413,22 @@ func TestDeltaCoalescing(t *testing.T) {
 			name:  "timer flushes a tail before a late message event",
 			cfg:   ms100,
 			steps: steps(deltaEvent("lead"), deltaEvent("tail"), 200*time.Millisecond, messageEvent("leadtail"), invocationEnd()),
-			want:  []wantEvent{lead, tail, wantArtifact("", true, true), working, completed},
+			want:  []wantEvent{lead, wantArtifact("dtai", true, false), wantArtifact("l", true, true), working, completed},
 		},
 		{
 			name:  "timer flushes a tail before a late stream reset",
 			cfg:   ms100,
 			steps: steps(deltaEvent("lead"), deltaEvent("tail"), 200*time.Millisecond, streamReset(), deltaEvent("new"), invocationEnd()),
-			want:  []wantEvent{lead, tail, wantArtifact("", true, true), wantArtifact("new", false, false), completed},
+			want: []wantEvent{
+				lead, wantArtifact("dtai", true, false), wantArtifact("l", true, true),
+				wantArtifact("ne", false, false), wantArtifact("w", true, false), completed,
+			},
 		},
 		{
 			name:       "age trigger on a tool-call delta",
 			cfg:        ms100,
 			steps:      steps(deltaEvent("lead"), deltaEvent("tail"), 200*time.Millisecond, toolCallDelta(), probe, invocationEnd()),
-			want:       []wantEvent{lead, tail, completed},
+			want:       []wantEvent{lead, wantArtifact("dtai", true, false), wantArtifact("l", true, false), completed},
 			wantProbes: []int{2},
 		},
 		{
@@ -413,18 +436,18 @@ func TestDeltaCoalescing(t *testing.T) {
 			cfg:  ms100,
 			steps: steps(deltaEvent("lead"), deltaEvent("tail"), 200*time.Millisecond,
 				statusEvent(agent.StatusStageToolExec), probe, invocationEnd()),
-			want:       []wantEvent{lead, tail, completed},
+			want:       []wantEvent{lead, wantArtifact("dtai", true, false), wantArtifact("l", true, false), completed},
 			wantProbes: []int{2},
 		},
 		{
 			name:       "timer flushes during a provider stall",
 			cfg:        ms100,
 			steps:      steps(deltaEvent("lead"), deltaEvent("tail"), 500*time.Millisecond, probe, invocationEnd()),
-			want:       []wantEvent{lead, tail, completed},
+			want:       []wantEvent{lead, wantArtifact("dtai", true, false), wantArtifact("l", true, false), completed},
 			wantProbes: []int{2},
 		},
 		{
-			// Write 2 is the LastChunk "tail". The next response must start a new artifact.
+			// Write 2 is the LastChunk "dtail". The next response must start a new artifact.
 			name: "failed LastChunk, then model_call and more deltas",
 			cfg:  hour,
 			steps: steps(deltaEvent("lead"), deltaEvent("tail"), messageEvent("leadtail"),
@@ -432,7 +455,7 @@ func TestDeltaCoalescing(t *testing.T) {
 				messageEvent("nextmore"), invocationEnd()),
 			failWrite: 2,
 			want: []wantEvent{
-				lead, working, wantArtifact("next", false, false), wantArtifact("more", true, true), working, completed,
+				lead, working, wantArtifact("nex", false, false), wantArtifact("tmore", true, true), working, completed,
 			},
 		},
 		{
@@ -440,7 +463,8 @@ func TestDeltaCoalescing(t *testing.T) {
 			cfg:       hour,
 			steps:     steps(deltaEvent("lost"), deltaEvent("lead"), deltaEvent("tail"), messageEvent("x"), invocationEnd()),
 			failWrite: 1,
-			want:      []wantEvent{lead, wantArtifact("tail", true, true), working, completed},
+			// The failed create drops its held "t" too, so it cannot leak into the next artifact.
+			want: []wantEvent{lead, wantArtifact("dtail", true, true), working, completed},
 		},
 	}
 
