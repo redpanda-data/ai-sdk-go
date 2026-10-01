@@ -157,6 +157,9 @@ func TestNewModel_GPT6MantleRegions(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct{ modelID, region string }{
+		{ModelGPT6Astra, "us-east-1"},
+		{ModelGPT6Astra, "us-west-2"},
+		{ModelGPT6Astra, "eu-west-1"},
 		{ModelGPT6Sol, "us-east-1"},
 		{ModelGPT6Sol, "eu-west-1"},
 		{ModelGPT61Sol, "us-east-1"},
@@ -194,6 +197,8 @@ func TestMantleModelNotFoundRegionHint(t *testing.T) {
 	}{
 		{"unlisted region", ModelGPT6Sol, "eu-west-1", "(openai.gpt-6-sol is listed for bedrock-mantle in us-east-1 only; it may not be available in eu-west-1.)"},
 		{"listed region", ModelGPT6Sol, "us-east-1", ""},
+		{"unlisted region, two listed", ModelGPT6Astra, "eu-west-1", "(openai.gpt-6-astra is listed for bedrock-mantle in us-east-1, us-west-2 only; it may not be available in eu-west-1.)"},
+		{"second listed region", ModelGPT6Astra, "us-west-2", ""},
 		{"no MantleRegions", ModelGPT56Sol, "eu-west-1", ""},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
