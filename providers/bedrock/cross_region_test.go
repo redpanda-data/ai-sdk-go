@@ -38,6 +38,9 @@ func TestIsModelAllowedFromRegion(t *testing.T) {
 
 		// MantleRegions is advisory: bare mantle IDs still defer to AWS
 		// outside their published regions.
+		{"gpt-6-astra bare (mantle) from us-east-1", ModelGPT6Astra, "us-east-1", true},
+		{"gpt-6-astra bare (mantle) from us-west-2", ModelGPT6Astra, "us-west-2", true},
+		{"gpt-6-astra bare (mantle) from eu-west-1", ModelGPT6Astra, "eu-west-1", true},
 		{"gpt-6-sol bare (mantle) from us-east-1", ModelGPT6Sol, "us-east-1", true},
 		{"gpt-6-sol bare (mantle) from eu-west-1", ModelGPT6Sol, "eu-west-1", true},
 		{"gpt-6.1-sol bare (mantle) from us-east-1", ModelGPT61Sol, "us-east-1", true},
