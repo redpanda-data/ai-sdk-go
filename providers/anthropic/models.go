@@ -33,6 +33,11 @@ const (
 	ModelClaudeSonnet55 = "claude-sonnet-5-5"
 	ModelClaudeSonnet5  = "claude-sonnet-5"
 	ModelClaudeSonnet46 = "claude-sonnet-4-6"
+
+	// ModelClaudeSonnet45 is Claude Sonnet 4.5.
+	//
+	// Deprecated: Anthropic deprecated Claude Sonnet 4.5 on 2026-09-30; it
+	// retires 2026-11-30. Use [ModelClaudeSonnet55].
 	ModelClaudeSonnet45 = "claude-sonnet-4-5"
 	ModelClaudeHaiku45  = "claude-haiku-4-5"
 	ModelClaudeOpus48   = "claude-opus-4-8"
@@ -406,6 +411,10 @@ func entries() []catalog.Entry {
 			),
 		},
 		{
+			// The model-deprecations page retires claude-sonnet-4-5-20250929,
+			// the snapshot this alias resolves to, on an exact date (not a
+			// "not sooner than" floor). Bedrock and Vertex keep their own
+			// schedules.
 			ID:           ModelClaudeSonnet45,
 			Model:        catalog.ModelClaudeSonnet45,
 			Capabilities: claudeCapsWithToolSearch,
@@ -417,7 +426,10 @@ func entries() []catalog.Entry {
 				SupportedParams:  []string{"temperature", "top_p", "top_k", "max_tokens"},
 			},
 			Life: catalog.Lifecycle{
-				Available: catalog.MustDate("2025-09-29"),
+				Available:  catalog.MustDate("2025-09-29"),
+				Deprecated: catalog.MustDate("2026-09-30"),
+				Retires:    catalog.MustDate("2026-11-30"),
+				ReplacedBy: ModelClaudeSonnet55,
 			},
 			Pricing: pricing.FlatInfoFromRates(
 				pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0),
