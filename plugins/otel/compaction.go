@@ -31,9 +31,9 @@ import (
 // instead of copying the string.
 const CompactionSpanName = "redpanda.compaction"
 
-// recordCompaction turns a CompactionEvent into a zero-duration
-// redpanda.compaction child span of the current emission span, falling back to
-// the invocation span, stamped at the time the pass ran.
+// recordCompaction turns a CompactionEvent into a redpanda.compaction child
+// span of the current emission span, falling back to the invocation span,
+// covering the pass from its start for its reported duration.
 func (t *TracingInterceptor) recordCompaction(ctx context.Context, inv *agent.InvocationMetadata, ce agent.CompactionEvent) {
 	// Prefer the span in ctx; fall back to the stored invocation span.
 	if !trace.SpanContextFromContext(ctx).IsValid() {
@@ -68,7 +68,7 @@ func (t *TracingInterceptor) recordCompaction(ctx context.Context, inv *agent.In
 		trace.WithTimestamp(report.At),
 		trace.WithAttributes(attrs...),
 	)
-	span.End(trace.WithTimestamp(report.At))
+	span.End(trace.WithTimestamp(report.At.Add(report.Duration)))
 
 	// Later chat spans carry gen_ai.conversation.compacted.
 	markConversationCompacted(inv)

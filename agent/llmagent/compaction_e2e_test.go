@@ -299,6 +299,7 @@ func TestCompaction_ReactiveRetry(t *testing.T) {
 	require.NotEmpty(t, comps)
 	last := comps[len(comps)-1].Report
 	assert.Equal(t, agent.CompactionPhaseReactive, last.Phase)
+	assert.Positive(t, last.Duration, "the report times the pass")
 
 	assert.Positive(t, last.Before.MaxContextSize, "the footprint carries the model window it was measured against")
 	assert.Equal(t, last.Before.MaxContextSize, last.After.MaxContextSize)
@@ -490,6 +491,7 @@ func TestCompaction_ReportsContextBreakdown(t *testing.T) {
 
 	rep := compactions[0].Report
 	assert.Equal(t, agent.CompactionPhaseProactive, rep.Phase)
+	assert.Positive(t, rep.Duration, "the report times the pass")
 	assert.Positive(t, rep.PrunedResults)
 	assert.Greater(t, rep.Before.Total, rep.After.Total)
 	assert.Greater(t, rep.Before.ToolResults, rep.After.ToolResults)

@@ -72,8 +72,11 @@ const (
 // Aggregate only - applications needing a full transcript must persist the
 // event stream separately.
 type CompactionReport struct {
-	// At is when the pass ran.
+	// At is when the pass started.
 	At time.Time `json:"at"`
+
+	// Duration is how long the pass took.
+	Duration time.Duration `json:"duration"`
 
 	// Phase is CompactionPhaseProactive or CompactionPhaseReactive.
 	Phase CompactionPhase `json:"phase"`

@@ -57,6 +57,7 @@ func TestTracingInterceptor_EmitsCompactionSpan(t *testing.T) {
 
 	report := agent.CompactionReport{
 		At:              time.Now().UTC(),
+		Duration:        3 * time.Millisecond,
 		Phase:           agent.CompactionPhaseProactive,
 		PrunedResults:   3,
 		DroppedMessages: 1,
@@ -110,7 +111,7 @@ func TestTracingInterceptor_EmitsCompactionSpan(t *testing.T) {
 	assert.Equal(t, "sess-compact", attrs["gen_ai.conversation.id"],
 		"transcript consumers group spans by conversation; a compaction span without it is dropped")
 
-	// Child of the invocation span, stamped at the pass time.
+	// Child of the invocation span, covering the pass.
 	var invocationSpan *tracetest.SpanStub
 
 	for i := range spans {
@@ -122,6 +123,7 @@ func TestTracingInterceptor_EmitsCompactionSpan(t *testing.T) {
 	require.NotNil(t, invocationSpan)
 	assert.Equal(t, invocationSpan.SpanContext.SpanID(), compactionSpan.Parent.SpanID())
 	assert.Equal(t, report.At, compactionSpan.StartTime)
+	assert.Equal(t, report.At.Add(report.Duration), compactionSpan.EndTime)
 }
 
 // TestTracingInterceptor_CompactionParentsUnderEmissionSpan: with a live
