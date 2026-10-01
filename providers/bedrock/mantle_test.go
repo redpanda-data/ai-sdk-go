@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/pricing"
 )
 
 func TestIsMantleModel(t *testing.T) {
@@ -130,6 +131,148 @@ func TestNewModel_GPT56ModelsUseMantleCatalog(t *testing.T) {
 			assert.True(t, m.Capabilities().Reasoning)
 			assert.Equal(t, 922_000, m.Constraints().MaxInputTokens)
 			assert.Equal(t, 128_000, m.Constraints().MaxOutputTokens)
+		})
+	}
+}
+
+// TestNewModel_GPT6MantleEffortNone checks that NewModel accepts effort none
+// on mantle for GPT-6 Sol, whose card lists it, and rejects it for GPT-6.1 Sol.
+func TestNewModel_GPT6MantleEffortNone(t *testing.T) {
+	t.Parallel()
+
+	p, err := NewProvider(context.Background(), WithRegion("us-east-1"), WithNoAuth())
+	require.NoError(t, err)
+
+	_, err = p.NewModel(ModelGPT6Sol, WithReasoningEffort(ReasoningEffortNone))
+	require.NoError(t, err)
+
+	_, err = p.NewModel(ModelGPT61Sol, WithReasoningEffort(ReasoningEffortNone))
+	require.ErrorContains(t, err, "does not support reasoning effort")
+}
+
+// TestNewModel_GPT6MantleRegions checks that a bare GPT-6 ID reaches
+// bedrock-mantle in the caller's region whether or not its model card
+// publishes that region: MantleRegions never blocks a call.
+func TestNewModel_GPT6MantleRegions(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct{ modelID, region string }{
+		{ModelGPT6Sol, "us-east-1"},
+		{ModelGPT6Sol, "eu-west-1"},
+		{ModelGPT61Sol, "us-east-1"},
+		{ModelGPT61Sol, "eu-west-1"},
+	} {
+		t.Run(tt.modelID+"/"+tt.region, func(t *testing.T) {
+			t.Parallel()
+
+			capture := &captureRoundTripper{}
+			p, err := NewProvider(context.Background(), WithRegion(tt.region), WithNoAuth(), WithHTTPClient(&http.Client{Transport: capture}))
+			require.NoError(t, err)
+
+			m, err := p.NewModel(tt.modelID)
+			require.NoError(t, err)
+
+			// The canned "{}" body is not a valid response; only the request matters.
+			_, _ = m.Generate(context.Background(), &llm.Request{Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("hi"))}})
+
+			require.NotNil(t, capture.req)
+			assert.Equal(t, "bedrock-mantle."+tt.region+".api.aws", capture.req.URL.Host)
+			assert.Equal(t, "/openai/v1/responses", capture.req.URL.Path)
+		})
+	}
+}
+
+// TestMantleModelNotFoundRegionHint checks that a bedrock-mantle
+// model-not-found error names the published regions when the caller's
+// region is not among them, on both Generate and GenerateEvents, and is left
+// alone from a published region or for a family without MantleRegions.
+func TestMantleModelNotFoundRegionHint(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name, modelID, region, hint string
+	}{
+		{"unlisted region", ModelGPT6Sol, "eu-west-1", "(openai.gpt-6-sol is listed for bedrock-mantle in us-east-1 only; it may not be available in eu-west-1.)"},
+		{"listed region", ModelGPT6Sol, "us-east-1", ""},
+		{"no MantleRegions", ModelGPT56Sol, "eu-west-1", ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			p, err := NewProvider(context.Background(), WithRegion(tt.region), WithNoAuth(),
+				WithHTTPClient(&http.Client{Transport: modelNotFoundRoundTripper{}}))
+			require.NoError(t, err)
+
+			m, err := p.NewModel(tt.modelID)
+			require.NoError(t, err)
+
+			req := &llm.Request{Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("hi"))}}
+
+			_, genErr := m.Generate(context.Background(), req)
+
+			var streamErr error
+
+			for _, err := range m.GenerateEvents(context.Background(), req) {
+				if err != nil {
+					streamErr = err
+					break
+				}
+			}
+
+			for _, err := range []error{genErr, streamErr} {
+				require.Error(t, err)
+				require.ErrorIs(t, err, llm.ErrAPICall)
+
+				if tt.hint == "" {
+					assert.NotContains(t, err.Error(), "is listed for bedrock-mantle")
+				} else {
+					assert.True(t, strings.HasSuffix(err.Error(), " "+tt.hint), err.Error())
+				}
+			}
+		})
+	}
+}
+
+// modelNotFoundRoundTripper answers every request the way bedrock-mantle
+// answers for a model it does not serve in the called region.
+type modelNotFoundRoundTripper struct{}
+
+func (modelNotFoundRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
+	return &http.Response{
+		StatusCode: http.StatusNotFound,
+		Body: io.NopCloser(strings.NewReader(
+			`{"error":{"message":"The model does not exist or you do not have access to it.","type":"invalid_request_error","code":"model_not_found"}}`)),
+		Header:  http.Header{"Content-Type": []string{"application/json"}},
+		Request: r,
+	}, nil
+}
+
+// TestExpandFamiliesRejectsMantleRegionsOutsideMantle checks the authoring
+// guard: only a bare-invokable mantle family may declare MantleRegions, not
+// (for example) the Converse sibling that shares its bare ID.
+func TestExpandFamiliesRejectsMantleRegionsOutsideMantle(t *testing.T) {
+	t.Parallel()
+
+	for name, f := range map[string]family{
+		"bare Converse": {
+			BareID:        "openai.example",
+			BareInvokable: true,
+			Rates:         pricing.RateCard{Base: pricing.NewRates(1, 2, 0)},
+			MantleRegions: []string{"us-east-1"},
+		},
+		"profile-only Converse": {
+			BareID:        "openai.example",
+			Profiles:      []string{"us"},
+			Rates:         pricing.RateCard{Base: pricing.NewRates(1, 2, 0)},
+			MantleRegions: []string{"us-east-1"},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.PanicsWithValue(t, "bedrock: family openai.example sets MantleRegions without Mantle and BareInvokable", func() {
+				expandFamilies([]family{f})
+			})
 		})
 	}
 }

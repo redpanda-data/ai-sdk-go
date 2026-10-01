@@ -30,10 +30,18 @@ func TestIsModelAllowedFromRegion(t *testing.T) {
 		region  string
 		want    bool
 	}{
-		// Bare model IDs are always allowed — AWS handles in-region availability.
+		// Bare model IDs are allowed from anywhere — AWS handles in-region availability.
 		{"bare from us", ModelClaudeSonnet45, "us-east-1", true},
 		{"bare from eu", ModelClaudeSonnet45, "eu-west-1", true},
 		{"bare from unknown region", ModelClaudeSonnet45, "xx-fake-1", true},
+		{"mantle bare without MantleRegions from eu", ModelGPT56Sol, "eu-west-1", true},
+
+		// MantleRegions is advisory: bare mantle IDs still defer to AWS
+		// outside their published regions.
+		{"gpt-6-sol bare (mantle) from us-east-1", ModelGPT6Sol, "us-east-1", true},
+		{"gpt-6-sol bare (mantle) from eu-west-1", ModelGPT6Sol, "eu-west-1", true},
+		{"gpt-6.1-sol bare (mantle) from us-east-1", ModelGPT61Sol, "us-east-1", true},
+		{"gpt-6.1-sol bare (mantle) from eu-west-1", ModelGPT61Sol, "eu-west-1", true},
 
 		// Sonnet 5 — only us. and global. are published; us. honours geo rules.
 		{"sonnet5 bare from eu", ModelClaudeSonnet5, "eu-west-1", true},
@@ -62,6 +70,12 @@ func TestIsModelAllowedFromRegion(t *testing.T) {
 		{"gpt-6.1-sol us from us-east-1", ModelGPT61SolUS, "us-east-1", true},
 		{"gpt-6.1-sol us from eu-west-1", ModelGPT61SolUS, "eu-west-1", false},
 		{"gpt-6.1-sol global from eu-west-1", ModelGPT61SolGlobal, "eu-west-1", true},
+		{"gpt-6-sol us from us-east-1", ModelGPT6SolUS, "us-east-1", true},
+		{"gpt-6-sol us from ca-west-1", ModelGPT6SolUS, "ca-west-1", true},
+		{"gpt-6-sol us from eu-west-1", ModelGPT6SolUS, "eu-west-1", false},
+		{"gpt-6-sol us from GovCloud (unpublished)", ModelGPT6SolUS, "us-gov-west-1", false},
+		{"gpt-6-sol global from eu-west-1", ModelGPT6SolGlobal, "eu-west-1", true},
+		{"gpt-6-sol global from mx-central-1", ModelGPT6SolGlobal, "mx-central-1", true},
 		{"opus5.5 jp from ap-northeast-1", ModelClaudeOpus55JP, "ap-northeast-1", true},
 		{"opus5.5 jp from ap-northeast-3", ModelClaudeOpus55JP, "ap-northeast-3", true},
 		{"opus5.5 jp from ap-northeast-2 (Seoul is global-only)", ModelClaudeOpus55JP, "ap-northeast-2", false},
@@ -193,6 +207,9 @@ func TestProfileRegionResolverLookup(t *testing.T) {
 		ModelClaudeSonnet55Global,
 		ModelClaudeSonnet55US,
 		ModelClaudeSonnet55EU,
+		ModelGPT6Sol,
+		ModelGPT6SolGlobal,
+		ModelGPT6SolUS,
 	} {
 		t.Run(modelID, func(t *testing.T) {
 			t.Parallel()

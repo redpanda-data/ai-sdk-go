@@ -16,11 +16,14 @@ package bedrock
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"iter"
+	"maps"
 	"net/http"
 	"slices"
 	"strings"
@@ -130,7 +133,13 @@ func newMantleModel(p *Provider, cfg *Config, def catalog.Offering) (llm.Model, 
 		return nil, fmt.Errorf("bedrock-mantle: build model %s: %w", cfg.ModelName, err)
 	}
 
-	return &mantleModel{Model: inner, name: cfg.ModelName, def: def}, nil
+	return &mantleModel{
+		Model:   inner,
+		name:    cfg.ModelName,
+		def:     def,
+		region:  p.region,
+		regions: mantleRegions[cfg.APIModelID],
+	}, nil
 }
 
 // translateMantleOptions maps the concrete parameters resolved on a Bedrock
@@ -164,6 +173,32 @@ type mantleModel struct {
 
 	name string
 	def  catalog.Offering
+
+	// region is the caller's AWS region; regions is the family's published
+	// bedrock-mantle region set (nil when the family declares none). Both
+	// only feed regionHint.
+	region  string
+	regions map[string]bool
+}
+
+// Generate delegates to the embedded model and adds a region hint to a
+// model-not-found error.
+func (m *mantleModel) Generate(ctx context.Context, req *llm.Request) (*llm.Response, error) {
+	resp, err := m.Model.Generate(ctx, req)
+
+	return resp, m.regionHint(err)
+}
+
+// GenerateEvents delegates to the embedded model and adds a region hint to
+// a model-not-found error.
+func (m *mantleModel) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[llm.Event, error] {
+	return func(yield func(llm.Event, error) bool) {
+		for evt, err := range m.Model.GenerateEvents(ctx, req) {
+			if !yield(evt, m.regionHint(err)) {
+				return
+			}
+		}
+	}
 }
 
 func (m *mantleModel) Name() string                        { return m.name }
@@ -175,6 +210,29 @@ func (m *mantleModel) Constraints() llm.ModelConstraints   { return m.def.Constr
 // in ascending order. Empty for models without effort control.
 func (m *mantleModel) SupportedReasoningEfforts() []llm.ReasoningEffort {
 	return slices.Clone(m.def.Reasoning.Efforts)
+}
+
+// regionHint annotates a bedrock-mantle model-not-found error when the
+// caller's region is not one the model card publishes for this model. It
+// only explains AWS's error; the call itself was never blocked.
+func (m *mantleModel) regionHint(err error) error {
+	if err == nil || m.region == "" || len(m.regions) == 0 || m.regions[m.region] || !isMantleModelNotFound(err) {
+		return err
+	}
+
+	return fmt.Errorf("%w (%s is listed for bedrock-mantle in %s only; it may not be available in %s.)",
+		err, m.name, strings.Join(slices.Sorted(maps.Keys(m.regions)), ", "), m.region)
+}
+
+// isMantleModelNotFound reports whether err is bedrock-mantle rejecting a
+// model it does not serve in the called region: the OpenAI-style
+// "model_not_found" code, or a "does not exist" message.
+func isMantleModelNotFound(err error) bool {
+	if pe, ok := errors.AsType[*llm.ProviderError](err); ok && pe.Code == "model_not_found" {
+		return true
+	}
+
+	return strings.Contains(strings.ToLower(err.Error()), "does not exist")
 }
 
 // mantleTransport is an http.RoundTripper that SigV4-signs OpenAI-shaped
