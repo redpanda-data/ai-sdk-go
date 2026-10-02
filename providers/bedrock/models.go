@@ -1170,3 +1170,5 @@ var bedrockFamilies = []family{
 		Rates:         pricing.RateCard{Base: pricing.NewRates(0.04, 0.08, 0)},
 	},
 }
+
+// ai-merge dry-run probe: trivial, reviewable change; will be closed without merging.
