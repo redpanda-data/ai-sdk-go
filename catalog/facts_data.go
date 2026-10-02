@@ -177,7 +177,8 @@ var defaultRegistry = Registry{
 	ModelClaudeSonnet55: {
 		Publisher:   PublisherAnthropic,
 		DisplayName: "Claude Sonnet 5.5", Series: "claude-sonnet",
-		// Released and knowledge cutoff per Anthropic's Sonnet 5.5 page.
+		// Released and reliable knowledge cutoff (Jun 2026) per
+		// platform.claude.com/docs/en/models/sonnet-5-5/overview.
 		Released: MustDate("2026-09-28"), Knowledge: MustDate("2026-06-30"),
 		Description: "Claude Sonnet 5.5 is Anthropic's Sonnet-class model for well-scoped everyday work, succeeding Claude Sonnet 5 as a direct upgrade.",
 	},

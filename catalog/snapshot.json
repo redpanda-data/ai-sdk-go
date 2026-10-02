@@ -2652,6 +2652,74 @@
           }
         },
         {
+          "id": "eu.anthropic.claude-sonnet-5-5",
+          "model": "anthropic/claude-sonnet-5-5",
+          "display_name": "Claude Sonnet 5.5 (EU)",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": false,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "stop"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 220000000,
+                "output_microcents_per_million": 1100000000,
+                "cached_input_microcents_per_million": 22000000,
+                "cache_creation_5m_microcents_per_million": 275000000,
+                "cache_creation_1h_microcents_per_million": 440000000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "eu"
+            }
+          ],
+          "derived": {
+            "price_tier": "medium"
+          }
+        },
+        {
           "id": "global.amazon.nova-2-lite-v1:0",
           "model": "amazon/nova-2-lite",
           "display_name": "Amazon Nova 2 Lite (Global)",
@@ -5558,6 +5626,74 @@
           "derived": {
             "price_tier": "medium",
             "replacement": "anthropic/claude-sonnet-5-5"
+          }
+        },
+        {
+          "id": "us.anthropic.claude-sonnet-5-5",
+          "model": "anthropic/claude-sonnet-5-5",
+          "display_name": "Claude Sonnet 5.5 (US)",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": false,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "stop"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 220000000,
+                "output_microcents_per_million": 1100000000,
+                "cached_input_microcents_per_million": 22000000,
+                "cache_creation_5m_microcents_per_million": 275000000,
+                "cache_creation_1h_microcents_per_million": 440000000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "us"
+            }
+          ],
+          "derived": {
+            "price_tier": "medium"
           }
         },
         {

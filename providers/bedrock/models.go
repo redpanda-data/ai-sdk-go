@@ -60,9 +60,13 @@ const (
 	ModelClaudeFable51US     = "us." + ModelClaudeFable51
 
 	// ModelClaudeSonnet55 is the bare Bedrock ID for Claude Sonnet 5.5
-	// (global-profile-only; invoke via ModelClaudeSonnet55Global).
+	// (inference-profile-only — invoke via one of the prefixed variants).
+	// AWS publishes the global, us., and eu. profiles:
+	// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-5-5.html
 	ModelClaudeSonnet55       = "anthropic.claude-sonnet-5-5"
 	ModelClaudeSonnet55Global = "global." + ModelClaudeSonnet55
+	ModelClaudeSonnet55US     = "us." + ModelClaudeSonnet55
+	ModelClaudeSonnet55EU     = "eu." + ModelClaudeSonnet55
 
 	// ModelClaudeSonnet5 is the bare Bedrock ID for Claude Sonnet 5
 	// (inference-profile-only — invoke via one of the prefixed variants).
@@ -840,12 +844,16 @@ var bedrockFamilies = []family{
 		Rates:        pricing.RateCard{Base: pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0)},
 	},
 	{
-		// Claude Sonnet 5.5 — global-profile-only. Rates is the published
-		// non-global rate, unused until AWS adds a geo profile.
+		// Claude Sonnet 5.5 — inference-profile-only on bedrock-runtime. AWS
+		// publishes global, US, and EU profiles (the geo IDs were added to
+		// the model card after launch):
+		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-5-5.html
+		// Rates from the AWS pricing page; cache reads are the standard 0.10x
+		// input, unlike Opus 5.5.
 		BareID:         ModelClaudeSonnet55,
 		Model:          catalog.ModelClaudeSonnet55,
 		DisplayName:    "Claude Sonnet 5.5",
-		Profiles:       []string{"global"},
+		Profiles:       []string{"global", "us", "eu"},
 		Capabilities:   claudeNoSchemaCaps,
 		Modalities:     claudeModalities,
 		Constraints:    claudeNoSampling1MConstraints,

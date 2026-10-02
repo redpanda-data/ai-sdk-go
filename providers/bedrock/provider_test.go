@@ -660,14 +660,23 @@ func TestNewModel_ClaudeSonnet55Routing(t *testing.T) {
 		wantID    string
 		wantErr   bool
 	}{
-		{"bare with unset region has no US profile", "", ModelClaudeSonnet55, "", true},
-		{"bare from US routes global", "us-east-1", ModelClaudeSonnet55, ModelClaudeSonnet55Global, false},
-		{"bare from EU routes global", "eu-west-1", ModelClaudeSonnet55, ModelClaudeSonnet55Global, false},
+		// An unset region skips the family table; "us" is InferenceProfileRegion's fallback.
+		{"bare with unset region falls back to US", "", ModelClaudeSonnet55, ModelClaudeSonnet55US, false},
+		{"bare from US", "us-east-1", ModelClaudeSonnet55, ModelClaudeSonnet55US, false},
+		{"bare from Calgary", "ca-west-1", ModelClaudeSonnet55, ModelClaudeSonnet55US, false},
+		{"bare from EU", "eu-west-1", ModelClaudeSonnet55, ModelClaudeSonnet55EU, false},
+		{"bare from Zurich", "eu-central-2", ModelClaudeSonnet55, ModelClaudeSonnet55EU, false},
+		{"bare from Sydney routes global", "ap-southeast-2", ModelClaudeSonnet55, ModelClaudeSonnet55Global, false},
 		{"bare from Tokyo routes global", "ap-northeast-1", ModelClaudeSonnet55, ModelClaudeSonnet55Global, false},
 		{"bare from GovCloud", "us-gov-west-1", ModelClaudeSonnet55, "", true},
 		{"bare from unknown region", "unknown", ModelClaudeSonnet55, "", true},
+		{"explicit US from US", "us-east-1", ModelClaudeSonnet55US, ModelClaudeSonnet55US, false},
+		{"explicit EU from EU", "eu-west-1", ModelClaudeSonnet55EU, ModelClaudeSonnet55EU, false},
 		{"explicit global from US", "us-east-1", ModelClaudeSonnet55Global, ModelClaudeSonnet55Global, false},
-		{"explicit US is unpublished", "us-east-1", "us." + ModelClaudeSonnet55, "", true},
+		{"explicit US from EU", "eu-west-1", ModelClaudeSonnet55US, "", true},
+		{"explicit EU from US", "us-east-1", ModelClaudeSonnet55EU, "", true},
+		{"explicit AU is unpublished", "ap-southeast-2", "au." + ModelClaudeSonnet55, "", true},
+		{"explicit JP is unpublished", "ap-northeast-1", "jp." + ModelClaudeSonnet55, "", true},
 	}
 
 	for _, tt := range tests {
