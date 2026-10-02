@@ -16,6 +16,7 @@ package bedrock
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -160,6 +161,68 @@ func TestNewModel_MantleRejectsThinking(t *testing.T) {
 	// it must error rather than being silently dropped.
 	_, err = p.NewModel(ModelGemma431B, WithThinking(1024))
 	require.Error(t, err)
+}
+
+// TestNewModel_MantleForwardsServiceTier checks that WithServiceTier reaches
+// the bedrock-mantle Responses request as service_tier, and is absent when
+// unset.
+func TestNewModel_MantleForwardsServiceTier(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name string
+		opts []Option
+		want string
+	}{
+		{"unset", nil, ""},
+		{"flex", []Option{WithServiceTier(llm.ServiceTierFlex)}, "flex"},
+		{"priority", []Option{WithServiceTier(llm.ServiceTierPriority)}, "priority"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			capture := &captureRoundTripper{}
+			p, err := NewProvider(context.Background(), WithRegion("us-east-1"), WithNoAuth(), WithHTTPClient(&http.Client{Transport: capture}))
+			require.NoError(t, err)
+
+			m, err := p.NewModel(ModelGPT56Sol, tt.opts...)
+			require.NoError(t, err)
+
+			// The canned "{}" body is not a valid response; only the request matters.
+			_, _ = m.Generate(context.Background(), &llm.Request{Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("hi"))}})
+
+			require.NotNil(t, capture.req)
+			body, err := io.ReadAll(capture.req.Body)
+			require.NoError(t, err)
+
+			var fields map[string]any
+			require.NoError(t, json.Unmarshal(body, &fields))
+
+			got, present := fields["service_tier"]
+			if tt.want == "" {
+				assert.False(t, present, "service_tier must be omitted when unset, got %v", got)
+				return
+			}
+
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestNewModel_ConverseRejectsServiceTier checks that a Converse model
+// rejects WithServiceTier rather than silently dropping the tier, and that
+// mantle rejects a tier the Responses API cannot be asked for.
+func TestNewModel_ConverseRejectsServiceTier(t *testing.T) {
+	t.Parallel()
+
+	p, err := NewProvider(context.Background(), WithRegion("us-east-1"), WithNoAuth())
+	require.NoError(t, err)
+
+	_, err = p.NewModel(ModelClaudeSonnet55, WithServiceTier(llm.ServiceTierPriority))
+	require.ErrorContains(t, err, "service tier")
+
+	_, err = p.NewModel(ModelGPT56Sol, WithServiceTier(llm.ServiceTierBatch))
+	require.ErrorContains(t, err, "service tier")
 }
 
 func TestMantleTransport_EmptyAccessKeyErrors(t *testing.T) {

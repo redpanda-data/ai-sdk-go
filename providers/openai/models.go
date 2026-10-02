@@ -123,6 +123,15 @@ var (
 // The catalog is append-only: retired models keep their entries (with
 // Retires in the past) so historical usage stays priceable and the
 // failure stays explainable.
+//
+// Service-tier sourcing: the Batch, Flex, and Fast tables on
+// developers.openai.com/api/docs/pricing, read 2026-10-03. A
+// model carries a tier card only when that table lists its own row (the
+// gpt-4o card uses the gpt-4o row, not gpt-4o-2024-05-13's; Batch lists
+// no gpt-3.5-turbo row, only dated snapshots, so it gets none). A rate the
+// table leaves "-" stays 0 (unpriced), as on the Standard cards, and rates
+// are copied as printed, including rounded ones (gpt-5.4 Batch and Flex
+// cached input $0.13, o4-mini Flex cached input $0.138).
 func entries() []catalog.Entry {
 	return []catalog.Entry{
 		// GPT-5 Series (2025 Flagship)
@@ -147,7 +156,10 @@ func entries() []catalog.Entry {
 				Retires:    catalog.MustDate("2026-12-11"),
 				ReplacedBy: ModelGPT5_6Sol,
 			},
-			Pricing: pricing.FlatInfo(1.25, 10.00, 0.125),
+			Pricing: pricing.FlatInfo(1.25, 10.00, 0.125).
+				WithOverride(batchTier, flatCard(0.625, 5.00, 0.0625)).
+				WithOverride(flexTier, flatCard(0.625, 5.00, 0.0625)).
+				WithOverride(fastTier, flatCard(2.50, 20.00, 0.25)),
 		},
 		{
 			ID:           ModelGPT5Mini,
@@ -171,7 +183,10 @@ func entries() []catalog.Entry {
 				ReplacedBy: ModelGPT5_6Terra,
 			},
 			// $0.25 / $2.00 / $0.025 per M (input / output / cached input).
-			Pricing: pricing.FlatInfo(0.25, 2.00, 0.025),
+			Pricing: pricing.FlatInfo(0.25, 2.00, 0.025).
+				WithOverride(batchTier, flatCard(0.125, 1.00, 0.0125)).
+				WithOverride(flexTier, flatCard(0.125, 1.00, 0.0125)).
+				WithOverride(fastTier, flatCard(0.45, 3.60, 0.045)),
 		},
 		{
 			ID:    ModelGPT5Nano,
@@ -195,7 +210,9 @@ func entries() []catalog.Entry {
 				Retires:    catalog.MustDate("2026-12-11"),
 				ReplacedBy: ModelGPT5_6Luna,
 			},
-			Pricing: pricing.FlatInfo(0.05, 0.40, 0.005),
+			Pricing: pricing.FlatInfo(0.05, 0.40, 0.005).
+				WithOverride(batchTier, flatCard(0.025, 0.20, 0.0025)).
+				WithOverride(flexTier, flatCard(0.025, 0.20, 0.0025)),
 		},
 		{
 			ID:           ModelGPT5_1,
@@ -216,7 +233,10 @@ func entries() []catalog.Entry {
 				Available: catalog.MustDate("2025-11-13"),
 			},
 			// $1.25 / $10.00 / $0.125 per M (input / output / cached input).
-			Pricing: pricing.FlatInfo(1.25, 10.00, 0.125),
+			Pricing: pricing.FlatInfo(1.25, 10.00, 0.125).
+				WithOverride(batchTier, flatCard(0.625, 5.00, 0.0625)).
+				WithOverride(flexTier, flatCard(0.625, 5.00, 0.0625)).
+				WithOverride(fastTier, flatCard(2.50, 20.00, 0.25)),
 		},
 		{
 			ID:           ModelGPT5_2,
@@ -236,7 +256,10 @@ func entries() []catalog.Entry {
 			Life: catalog.Lifecycle{
 				Available: catalog.MustDate("2025-12-11"),
 			},
-			Pricing: pricing.FlatInfo(1.75, 14.00, 0.175),
+			Pricing: pricing.FlatInfo(1.75, 14.00, 0.175).
+				WithOverride(batchTier, flatCard(0.875, 7.00, 0.0875)).
+				WithOverride(flexTier, flatCard(0.875, 7.00, 0.0875)).
+				WithOverride(fastTier, flatCard(3.50, 28.00, 0.35)),
 		},
 		{
 			// Retired 2026-08-10; entry retained (append-only catalog).
@@ -281,7 +304,8 @@ func entries() []catalog.Entry {
 			Life: catalog.Lifecycle{
 				Available: catalog.MustDate("2025-12-11"),
 			},
-			Pricing: pricing.FlatInfo(21.00, 168.00, 0),
+			Pricing: pricing.FlatInfo(21.00, 168.00, 0).
+				WithOverride(batchTier, flatCard(10.50, 84.00, 0)),
 		},
 		{
 			// Retired 2026-08-10; entry retained (append-only catalog).
@@ -326,7 +350,19 @@ func entries() []catalog.Entry {
 			Pricing: pricing.TieredInfo(
 				pricing.NewRates(10, 50, 1).WithCacheCreation(0, 0, 12.50),
 				pricing.Bracket{MinContextTokens: 272_001, Rates: pricing.NewRates(20, 75, 2).WithCacheCreation(0, 0, 25)},
-			),
+			).
+				WithOverride(batchTier, tieredCard(
+					pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(0, 0, 6.25),
+					pricing.NewRates(10.00, 37.50, 1.00).WithCacheCreation(0, 0, 12.50),
+				)).
+				WithOverride(flexTier, tieredCard(
+					pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(0, 0, 6.25),
+					pricing.NewRates(10.00, 37.50, 1.00).WithCacheCreation(0, 0, 12.50),
+				)).
+				WithOverride(fastTier, tieredCard(
+					pricing.NewRates(20.00, 100.00, 2.00).WithCacheCreation(0, 0, 25.00),
+					pricing.NewRates(40.00, 150.00, 4.00).WithCacheCreation(0, 0, 50.00),
+				)),
 		},
 
 		// https://developers.openai.com/api/docs/models/gpt-6-sol
@@ -341,7 +377,19 @@ func entries() []catalog.Entry {
 			pricing.TieredInfo(
 				pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(0, 0, 2.50),
 				pricing.Bracket{MinContextTokens: 272_001, Rates: pricing.NewRates(4.00, 15.00, 0.40).WithCacheCreation(0, 0, 5.00)},
-			)),
+			).
+				WithOverride(batchTier, tieredCard(
+					pricing.NewRates(1.00, 5.00, 0.10).WithCacheCreation(0, 0, 1.25),
+					pricing.NewRates(2.00, 7.50, 0.20).WithCacheCreation(0, 0, 2.50),
+				)).
+				WithOverride(flexTier, tieredCard(
+					pricing.NewRates(1.00, 5.00, 0.10).WithCacheCreation(0, 0, 1.25),
+					pricing.NewRates(2.00, 7.50, 0.20).WithCacheCreation(0, 0, 2.50),
+				)).
+				WithOverride(fastTier, tieredCard(
+					pricing.NewRates(4.00, 20.00, 0.40).WithCacheCreation(0, 0, 5.00),
+					pricing.NewRates(8.00, 30.00, 0.80).WithCacheCreation(0, 0, 10.00),
+				))),
 		// https://developers.openai.com/api/docs/models/gpt-6-luna
 		gpt6Entry(ModelGPT6Luna, catalog.ModelGPT6Luna,
 			[]ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
@@ -351,7 +399,19 @@ func entries() []catalog.Entry {
 			pricing.TieredInfo(
 				pricing.NewRates(0.10, 0.50, 0.01).WithCacheCreation(0, 0, 0.125),
 				pricing.Bracket{MinContextTokens: 272_001, Rates: pricing.NewRates(0.20, 0.75, 0.02).WithCacheCreation(0, 0, 0.25)},
-			)),
+			).
+				WithOverride(batchTier, tieredCard(
+					pricing.NewRates(0.05, 0.25, 0.005).WithCacheCreation(0, 0, 0.0625),
+					pricing.NewRates(0.10, 0.375, 0.01).WithCacheCreation(0, 0, 0.125),
+				)).
+				WithOverride(flexTier, tieredCard(
+					pricing.NewRates(0.05, 0.25, 0.005).WithCacheCreation(0, 0, 0.0625),
+					pricing.NewRates(0.10, 0.375, 0.01).WithCacheCreation(0, 0, 0.125),
+				)).
+				WithOverride(fastTier, tieredCard(
+					pricing.NewRates(0.20, 1.00, 0.02).WithCacheCreation(0, 0, 0.25),
+					pricing.NewRates(0.40, 1.50, 0.04).WithCacheCreation(0, 0, 0.50),
+				))),
 		// https://developers.openai.com/api/docs/models/gpt-6.1-sol
 		// Like Astra, effort none is unsupported, so
 		// /api/docs/guides/latest-model's temperature and top_p removal
@@ -365,7 +425,19 @@ func entries() []catalog.Entry {
 			pricing.TieredInfo(
 				pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(0, 0, 2.50),
 				pricing.Bracket{MinContextTokens: 272_001, Rates: pricing.NewRates(4.00, 15.00, 0.20).WithCacheCreation(0, 0, 5.00)},
-			)),
+			).
+				WithOverride(batchTier, tieredCard(
+					pricing.NewRates(1.00, 5.00, 0.05).WithCacheCreation(0, 0, 1.25),
+					pricing.NewRates(2.00, 7.50, 0.10).WithCacheCreation(0, 0, 2.50),
+				)).
+				WithOverride(flexTier, tieredCard(
+					pricing.NewRates(1.00, 5.00, 0.05).WithCacheCreation(0, 0, 1.25),
+					pricing.NewRates(2.00, 7.50, 0.10).WithCacheCreation(0, 0, 2.50),
+				)).
+				WithOverride(fastTier, tieredCard(
+					pricing.NewRates(4.00, 20.00, 0.20).WithCacheCreation(0, 0, 5.00),
+					pricing.NewRates(8.00, 30.00, 0.40).WithCacheCreation(0, 0, 10.00),
+				))),
 
 		// GPT-5.6 Series
 		gpt56Entry(ModelGPT5_6Luna, catalog.ModelGPT5_6Luna, nil,
@@ -377,7 +449,19 @@ func entries() []catalog.Entry {
 					MinContextTokens: 272_001,
 					Rates:            pricing.NewRates(0.40, 1.80, 0.04).WithCacheCreation(0, 0, 0.50),
 				},
-			)),
+			).
+				WithOverride(batchTier, tieredCard(
+					pricing.NewRates(0.10, 0.60, 0.01).WithCacheCreation(0, 0, 0.125),
+					pricing.NewRates(0.20, 0.90, 0.02).WithCacheCreation(0, 0, 0.25),
+				)).
+				WithOverride(flexTier, tieredCard(
+					pricing.NewRates(0.10, 0.60, 0.01).WithCacheCreation(0, 0, 0.125),
+					pricing.NewRates(0.20, 0.90, 0.02).WithCacheCreation(0, 0, 0.25),
+				)).
+				WithOverride(fastTier, tieredCard(
+					pricing.NewRates(0.40, 2.40, 0.04).WithCacheCreation(0, 0, 0.50),
+					pricing.NewRates(0.80, 3.60, 0.08).WithCacheCreation(0, 0, 1.00),
+				))),
 		gpt56Entry(ModelGPT5_6Terra, catalog.ModelGPT5_6Terra, nil,
 			// Per M tokens: $2.00 input, $12.00 output, $0.20 cached input, $2.50 cache write.
 			// Above 272K: $4.00 input, $18.00 output, $0.40 cached input, $5.00 cache write.
@@ -387,12 +471,25 @@ func entries() []catalog.Entry {
 					MinContextTokens: 272_001,
 					Rates:            pricing.NewRates(4.00, 18.00, 0.40).WithCacheCreation(0, 0, 5.00),
 				},
-			)),
+			).
+				WithOverride(batchTier, tieredCard(
+					pricing.NewRates(1.00, 6.00, 0.10).WithCacheCreation(0, 0, 1.25),
+					pricing.NewRates(2.00, 9.00, 0.20).WithCacheCreation(0, 0, 2.50),
+				)).
+				WithOverride(flexTier, tieredCard(
+					pricing.NewRates(1.00, 6.00, 0.10).WithCacheCreation(0, 0, 1.25),
+					pricing.NewRates(2.00, 9.00, 0.20).WithCacheCreation(0, 0, 2.50),
+				)).
+				WithOverride(fastTier, tieredCard(
+					pricing.NewRates(4.00, 24.00, 0.40).WithCacheCreation(0, 0, 5.00),
+					pricing.NewRates(8.00, 36.00, 0.80).WithCacheCreation(0, 0, 10.00),
+				))),
 		// "gpt-5.6" is OpenAI's official alias for Sol.
 		gpt56Entry(ModelGPT5_6Sol, catalog.ModelGPT5_6Sol, []string{ModelGPT5_6},
 			// Per M tokens: $4.00 input, $20.00 output, $0.40 cached input, $5.00 cache write.
 			// Promotional pricing, "available at least through November 21, 2026"
-			// per developers.openai.com/api/docs/pricing.
+			// per developers.openai.com/api/docs/pricing; the Batch, Flex, and
+			// Fast cards below are priced off the same promotional rates.
 			// Above 272K: $8.00 input, $30.00 output, $0.80 cached input, $10.00 cache write.
 			pricing.TieredInfo(
 				pricing.NewRates(4.00, 20.00, 0.40).WithCacheCreation(0, 0, 5.00),
@@ -400,7 +497,19 @@ func entries() []catalog.Entry {
 					MinContextTokens: 272_001,
 					Rates:            pricing.NewRates(8.00, 30.00, 0.80).WithCacheCreation(0, 0, 10.00),
 				},
-			)),
+			).
+				WithOverride(batchTier, tieredCard(
+					pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(0, 0, 2.50),
+					pricing.NewRates(4.00, 15.00, 0.40).WithCacheCreation(0, 0, 5.00),
+				)).
+				WithOverride(flexTier, tieredCard(
+					pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(0, 0, 2.50),
+					pricing.NewRates(4.00, 15.00, 0.40).WithCacheCreation(0, 0, 5.00),
+				)).
+				WithOverride(fastTier, tieredCard(
+					pricing.NewRates(8.00, 40.00, 0.80).WithCacheCreation(0, 0, 10.00),
+					pricing.NewRates(16.00, 60.00, 1.60).WithCacheCreation(0, 0, 20.00),
+				))),
 
 		// GPT-5.5 (May 2026 Flagship)
 		{
@@ -429,7 +538,14 @@ func entries() []catalog.Entry {
 					MinContextTokens: 272_001,
 					Rates:            pricing.NewRates(10.00, 45.00, 1.00),
 				},
-			),
+			).
+				WithOverride(batchTier, tieredCard(pricing.NewRates(2.50, 15.00, 0.25), pricing.NewRates(5.00, 22.50, 0.50))).
+				WithOverride(flexTier, tieredCard(pricing.NewRates(2.50, 15.00, 0.25), pricing.NewRates(5.00, 22.50, 0.50))).
+				// The page publishes no long-context Fast rate (the model page prices
+				// long context for Standard, Batch, and Flex only), so the bracket
+				// leaves Fast requests above 272K unpriced rather than billing them at
+				// short-context Fast rates.
+				WithOverride(fastTier, tieredCard(pricing.NewRates(12.50, 75.00, 1.25), pricing.Rates{})),
 		},
 
 		// GPT-5.4 Series (March 2026 Flagship)
@@ -459,7 +575,11 @@ func entries() []catalog.Entry {
 					MinContextTokens: 272_001,
 					Rates:            pricing.NewRates(5.00, 22.50, 0.50),
 				},
-			),
+			).
+				WithOverride(batchTier, tieredCard(pricing.NewRates(1.25, 7.50, 0.13), pricing.NewRates(2.50, 11.25, 0.25))).
+				WithOverride(flexTier, tieredCard(pricing.NewRates(1.25, 7.50, 0.13), pricing.NewRates(2.50, 11.25, 0.25))).
+				// No long-context Fast rate is published; see GPT-5.5.
+				WithOverride(fastTier, tieredCard(pricing.NewRates(5.00, 30.00, 0.50), pricing.Rates{})),
 		},
 		{
 			ID:           ModelGPT5_4Mini,
@@ -479,7 +599,10 @@ func entries() []catalog.Entry {
 			Life: catalog.Lifecycle{
 				Available: catalog.MustDate("2026-03-17"),
 			},
-			Pricing: pricing.FlatInfo(0.75, 4.50, 0.075),
+			Pricing: pricing.FlatInfo(0.75, 4.50, 0.075).
+				WithOverride(batchTier, flatCard(0.375, 2.25, 0.0375)).
+				WithOverride(flexTier, flatCard(0.375, 2.25, 0.0375)).
+				WithOverride(fastTier, flatCard(1.50, 9.00, 0.15)),
 		},
 		{
 			ID:    ModelGPT5_4Nano,
@@ -500,7 +623,9 @@ func entries() []catalog.Entry {
 			Life: catalog.Lifecycle{
 				Available: catalog.MustDate("2026-03-17"),
 			},
-			Pricing: pricing.FlatInfo(0.20, 1.25, 0.02),
+			Pricing: pricing.FlatInfo(0.20, 1.25, 0.02).
+				WithOverride(batchTier, flatCard(0.10, 0.625, 0.01)).
+				WithOverride(flexTier, flatCard(0.10, 0.625, 0.01)),
 		},
 
 		// GPT-4.1 Series (Enhanced Performance)
@@ -519,7 +644,9 @@ func entries() []catalog.Entry {
 			Life: catalog.Lifecycle{
 				Available: catalog.MustDate("2025-04-14"),
 			},
-			Pricing: pricing.FlatInfo(2.00, 8.00, 0.50),
+			Pricing: pricing.FlatInfo(2.00, 8.00, 0.50).
+				WithOverride(batchTier, flatCard(1.00, 4.00, 0)).
+				WithOverride(fastTier, flatCard(3.50, 14.00, 0.875)),
 		},
 		{
 			ID:           ModelGPT41Mini,
@@ -536,7 +663,9 @@ func entries() []catalog.Entry {
 			Life: catalog.Lifecycle{
 				Available: catalog.MustDate("2025-04-14"),
 			},
-			Pricing: pricing.FlatInfo(0.40, 1.60, 0.10),
+			Pricing: pricing.FlatInfo(0.40, 1.60, 0.10).
+				WithOverride(batchTier, flatCard(0.20, 0.80, 0)).
+				WithOverride(fastTier, flatCard(0.70, 2.80, 0.175)),
 		},
 
 		// O-Series Reasoning Models
@@ -560,7 +689,10 @@ func entries() []catalog.Entry {
 				Retires:    catalog.MustDate("2026-12-11"),
 				ReplacedBy: ModelGPT5_6Sol,
 			},
-			Pricing: pricing.FlatInfo(2.00, 8.00, 0.50),
+			Pricing: pricing.FlatInfo(2.00, 8.00, 0.50).
+				WithOverride(batchTier, flatCard(1.00, 4.00, 0)).
+				WithOverride(flexTier, flatCard(1.00, 4.00, 0.25)).
+				WithOverride(fastTier, flatCard(3.50, 14.00, 0.875)),
 		},
 		{
 			ID:           ModelO4Mini,
@@ -582,7 +714,10 @@ func entries() []catalog.Entry {
 				Retires:    catalog.MustDate("2026-10-23"),
 				ReplacedBy: ModelGPT5_6Terra,
 			},
-			Pricing: pricing.FlatInfo(1.10, 4.40, 0.275),
+			Pricing: pricing.FlatInfo(1.10, 4.40, 0.275).
+				WithOverride(batchTier, flatCard(0.55, 2.20, 0)).
+				WithOverride(flexTier, flatCard(0.55, 2.20, 0.138)).
+				WithOverride(fastTier, flatCard(2.00, 8.00, 0.50)),
 		},
 
 		// GPT-4o Series (Multimodal)
@@ -616,7 +751,9 @@ func entries() []catalog.Entry {
 			Life: catalog.Lifecycle{
 				Available: catalog.MustDate("2024-05-13"),
 			},
-			Pricing: pricing.FlatInfo(2.50, 10.00, 1.25),
+			Pricing: pricing.FlatInfo(2.50, 10.00, 1.25).
+				WithOverride(batchTier, flatCard(1.25, 5.00, 0)).
+				WithOverride(fastTier, flatCard(4.25, 17.00, 2.125)),
 		},
 		{
 			ID:           ModelGPT4OMini,
@@ -633,7 +770,9 @@ func entries() []catalog.Entry {
 			Life: catalog.Lifecycle{
 				Available: catalog.MustDate("2024-07-18"),
 			},
-			Pricing: pricing.FlatInfo(0.15, 0.60, 0.075),
+			Pricing: pricing.FlatInfo(0.15, 0.60, 0.075).
+				WithOverride(batchTier, flatCard(0.075, 0.30, 0)).
+				WithOverride(fastTier, flatCard(0.25, 1.00, 0.125)),
 		},
 
 		// Legacy but still supported (2025)
@@ -656,7 +795,11 @@ func entries() []catalog.Entry {
 				Retires:    catalog.MustDate("2026-10-23"),
 				ReplacedBy: ModelGPT5_6Sol,
 			},
-			Pricing: pricing.FlatInfo(10.00, 30.00, 0),
+			// Every pricing table lists GPT-4 Turbo only as
+			// gpt-4-turbo-2024-04-09, the alias's sole snapshot; Standard and
+			// Batch both come from that row.
+			Pricing: pricing.FlatInfo(10.00, 30.00, 0).
+				WithOverride(batchTier, flatCard(5.00, 15.00, 0)),
 		},
 		{
 			ID:           ModelGPT35Turbo,
@@ -701,7 +844,8 @@ func entries() []catalog.Entry {
 				ReplacedBy: ModelGPT5_6Sol,
 			},
 			// No cached-input rate is published for o1-pro.
-			Pricing: pricing.FlatInfo(150.00, 600.00, 0),
+			Pricing: pricing.FlatInfo(150.00, 600.00, 0).
+				WithOverride(batchTier, flatCard(75.00, 300.00, 0)),
 		},
 
 		// O3 Pro - Professional-grade reasoning
@@ -725,7 +869,8 @@ func entries() []catalog.Entry {
 				Retires:    catalog.MustDate("2026-12-11"),
 				ReplacedBy: ModelGPT5_6Sol,
 			},
-			Pricing: pricing.FlatInfo(20.00, 80.00, 0),
+			Pricing: pricing.FlatInfo(20.00, 80.00, 0).
+				WithOverride(batchTier, flatCard(10.00, 40.00, 0)),
 		},
 	}
 }
@@ -785,6 +930,37 @@ func gpt6Entry(id string, model catalog.ModelID, efforts []ReasoningEffort, avai
 		Reasoning: catalog.ReasoningSupport{Efforts: efforts},
 		Life:      catalog.Lifecycle{Available: available},
 		Pricing:   rates,
+	}
+}
+
+// Selectors for the Batch, Flex, and Fast rate cards. Each keys on the tier
+// OpenAI reports in a response's service_tier, which is what pricing
+// matches: "flex" for Flex, and "priority" for Fast mode. OpenAI's
+// fast-mode guide says GPT-5.6 and earlier report "priority" whether the
+// request asked for "priority" or "fast"; later models may report "fast",
+// which llm.NormalizeServiceTier folds into the same tier. The service_tier
+// enum has no batch value, so Batch rates apply only when a caller pricing
+// Batch API usage selects llm.ServiceTierBatch.
+var (
+	batchTier = pricing.Selector{ServiceTier: llm.ServiceTierBatch}
+	flexTier  = pricing.Selector{ServiceTier: llm.ServiceTierFlex}
+	fastTier  = pricing.Selector{ServiceTier: llm.ServiceTierPriority}
+)
+
+// flatCard is a tier rate card for a model priced flat across its window.
+// Arguments follow pricing.NewRates: USD per million input, output, and
+// cached-input tokens.
+func flatCard(input, output, cached float64) pricing.RateCard {
+	return pricing.RateCard{Base: pricing.NewRates(input, output, cached)}
+}
+
+// tieredCard is a tier rate card whose long rates replace the short ones
+// for the full request above 272K input tokens, the threshold the Standard
+// cards bracket at.
+func tieredCard(short, long pricing.Rates) pricing.RateCard {
+	return pricing.RateCard{
+		Base:     short,
+		Brackets: []pricing.Bracket{{MinContextTokens: 272_001, Rates: long}},
 	}
 }
 

@@ -86,6 +86,11 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) (responses.ResponseNewPara
 		apiReq.Reasoning = reasoningConfig
 	}
 
+	// The SDK's canonical tier names are OpenAI's wire values.
+	if rm.config.ServiceTier != nil {
+		apiReq.ServiceTier = responses.ResponseNewParamsServiceTier(*rm.config.ServiceTier)
+	}
+
 	// Apply tool definitions if provided
 	if len(req.Tools) > 0 {
 		tools, err := rm.mapToolDefinitions(req.Tools)
