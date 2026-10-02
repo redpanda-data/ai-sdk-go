@@ -25,6 +25,15 @@ MISSING_GUARDRAILS = {
 }
 
 
+def _not_consulted_reason(guardrails: dict) -> str:
+    if not guardrails.get("eligible"):
+        return "gates refused before the model ran"
+    ci = guardrails.get("ci_status")
+    if ci and ci != "passed":
+        return f"CI {ci}"
+    return "no verdict produced"
+
+
 def render(
     guardrails: dict,
     verdict: dict | None,
@@ -100,6 +109,8 @@ def render(
         (
             "| AI verdict | rejected — see reasons |"
             if v.get("error")
+            else f"| AI verdict | not consulted ({_not_consulted_reason(guardrails)}) |"
+            if not verdict
             else f"| AI verdict | `{v.get('verdict', 'n/a')}` "
             f"(confidence {v.get('confidence', 'n/a')}, "
             f"reviewed fully: {v.get('reviewed_fully', 'n/a')}, "
