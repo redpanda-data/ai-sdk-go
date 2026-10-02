@@ -43,7 +43,9 @@ const (
 	// ServiceTierFlex is a discounted, best-effort tier.
 	ServiceTierFlex ServiceTier = "flex"
 
-	// ServiceTierPriority is a premium lower-latency tier.
+	// ServiceTierPriority is a premium lower-latency tier. OpenAI renamed
+	// Priority processing to Fast mode and accepts and reports either
+	// "priority" or "fast" for it, so both normalize here.
 	ServiceTierPriority ServiceTier = "priority"
 
 	// ServiceTierBatch is an asynchronous discounted tier.
@@ -62,11 +64,11 @@ const (
 // NormalizeServiceTier maps a provider-native tier string onto the SDK's
 // canonical ServiceTier values.
 //
-// Aliases ("standard", "auto") collapse to the canonical constant. Unknown
-// non-empty tiers are preserved verbatim (lower-cased, trimmed, with dashes
-// converted to underscores) so consumers can still branch on them. The empty
-// input yields the empty ServiceTier, which callers should treat as "not
-// reported" rather than as "default".
+// Aliases ("standard", "auto", and OpenAI's "fast") collapse to the
+// canonical constant. Unknown non-empty tiers are preserved verbatim
+// (lower-cased, trimmed, with dashes converted to underscores) so consumers
+// can still branch on them. The empty input yields the empty ServiceTier,
+// which callers should treat as "not reported" rather than as "default".
 func NormalizeServiceTier(raw string) ServiceTier {
 	raw = strings.ToLower(strings.TrimSpace(raw))
 	if raw == "" {
@@ -82,7 +84,7 @@ func NormalizeServiceTier(raw string) ServiceTier {
 	case "flex":
 		return ServiceTierFlex
 
-	case "priority":
+	case "priority", "fast":
 		return ServiceTierPriority
 
 	case "batch":

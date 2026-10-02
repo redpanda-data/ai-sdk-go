@@ -43,6 +43,10 @@ type Config struct {
 	ReasoningEffort  *ReasoningEffort  // Defaults to medium if not specified
 	ReasoningSummary *ReasoningSummary // Optional, no default
 
+	// ServiceTier is the processing tier sent as service_tier. Unset, OpenAI
+	// uses the project's configured tier.
+	ServiceTier *llm.ServiceTier
+
 	// Track which options have been set for conflict detection with model constraints
 	setOptions map[string]bool
 }
@@ -260,6 +264,50 @@ func WithReasoningSummary(summary ReasoningSummary) Option {
 		default:
 			return fmt.Errorf("%s: invalid reasoning summary %q", cfg.ModelName, summary)
 		}
+	}
+}
+
+// unrequestableServiceTiers are canonical tiers that are not Responses API
+// service_tier values: Batch is the separate Batch API, and reserved and
+// provisioned throughput are Bedrock capacity modes.
+var unrequestableServiceTiers = []llm.ServiceTier{
+	llm.ServiceTierBatch,
+	llm.ServiceTierReserved,
+	llm.ServiceTierProvisionedThroughput,
+}
+
+// WithServiceTier selects the processing tier OpenAI serves the request on,
+// sent as the Responses API service_tier: llm.ServiceTierFlex for Flex
+// processing, llm.ServiceTierPriority for Fast mode (formerly Priority
+// processing; OpenAI accepts "priority" and "fast" alike),
+// llm.ServiceTierScale for Scale Tier, or llm.ServiceTierDefault to force
+// Standard processing. Without this option OpenAI applies the project's
+// configured tier ("auto").
+//
+// The tier is normalized with llm.NormalizeServiceTier, so "fast" selects
+// Fast mode and "auto" collapses to Default; leave the option unset to keep
+// the project's tier. A tier the SDK does not name yet is sent as given, and
+// OpenAI rejects a tier the model does not offer; Batch, reserved, and
+// provisioned-throughput tiers cannot be requested here and fail.
+//
+// The response reports the tier that actually served the request in
+// llm.Response.ServiceTier, which pricing keys on. It can differ from the
+// requested tier: Fast mode reports "default" when OpenAI's ramp-rate limit
+// downgrades a request to Standard.
+func WithServiceTier(tier llm.ServiceTier) Option {
+	return func(cfg *Config) error {
+		normalized := llm.NormalizeServiceTier(string(tier))
+		if normalized == "" {
+			return fmt.Errorf("%s: service tier cannot be empty", cfg.ModelName)
+		}
+
+		if slices.Contains(unrequestableServiceTiers, normalized) {
+			return fmt.Errorf("%s: service tier %q cannot be requested on the Responses API", cfg.ModelName, normalized)
+		}
+
+		cfg.ServiceTier = &normalized
+
+		return nil
 	}
 }
 

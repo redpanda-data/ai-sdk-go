@@ -165,6 +165,25 @@ func TestNewModel_NoCachePointFamiliesDisableCaching(t *testing.T) {
 	}
 }
 
+// TestNoCachePointModelIDs checks that a NoCachePoints family opts out every
+// profile ID but its bare ID only when invokable, so the flag does not leak
+// onto a mantle family that shares the bare ID.
+func TestNoCachePointModelIDs(t *testing.T) {
+	t.Parallel()
+
+	for id, want := range map[string]bool{
+		ModelMistralLarge3:   true,
+		ModelGPT6AstraUS:     true,
+		ModelGPT6AstraGlobal: true,
+		ModelGPT61SolUS:      true,
+		ModelGPT61SolGlobal:  true,
+		ModelGPT6Astra:       false,
+		ModelGPT61Sol:        false,
+	} {
+		assert.Equal(t, want, noCachePointModelIDs[id], id)
+	}
+}
+
 // TestGPT6RoutesByID checks the two surfaces of each GPT-6 model on
 // Bedrock: the bare ID is a mantle (Responses) model with effort control,
 // while the profiles run on Converse, which offers none.

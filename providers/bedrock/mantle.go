@@ -50,8 +50,9 @@ const mantlePlaceholderAPIKey = "bedrock-mantle-sigv4"
 // IsMantleModel reports whether modelID is served on the bedrock-mantle
 // endpoint (the OpenAI-compatible Responses / Chat Completions API) rather than
 // the standard bedrock-runtime Converse API. It consults the catalog, so it is
-// true only for registered mantle models — currently the Google Gemma 4 and
-// OpenAI GPT-5.6 families.
+// true exactly for the bare IDs of families declared with Mantle: true; an
+// inference-profile ID always runs on Converse, even when its bare ID is also
+// served on mantle.
 //
 // The Redpanda AI Gateway's Bedrock reverse proxy reuses this predicate to
 // decide, per request, when to sign with the bedrock-mantle signing name and
@@ -65,7 +66,7 @@ func IsMantleModel(modelID string) bool {
 // region, e.g. "https://bedrock-mantle.us-east-1.api.aws/openai/v1". When a
 // baseEndpoint is set (proxy/gateway mode, via WithAWSConfig) it routes through
 // that host instead. Either way the OpenAI SDK appends "/responses" (or
-// "/chat/completions"), producing the paths the Gemma 4 model cards document.
+// "/chat/completions"), producing the paths the mantle model cards document.
 func mantleBaseURL(region, baseEndpoint string) string {
 	if baseEndpoint != "" {
 		return strings.TrimRight(baseEndpoint, "/") + "/openai/v1"
@@ -82,8 +83,8 @@ func newMantleModel(p *Provider, cfg *Config, def catalog.Offering) (llm.Model, 
 	// WithThinking emits an Anthropic-shaped thinking document (Converse-only)
 	// that the mantle Responses API does not accept, and there is no mantle
 	// reasoning-budget lever to translate it to. Reject it rather than silently
-	// dropping the caller's budget — Gemma's built-in reasoning runs in its
-	// default mode when no thinking option is set.
+	// dropping the caller's budget — a mantle model's built-in reasoning runs
+	// in its default mode when no thinking option is set.
 	if cfg.EnableThinking {
 		return nil, fmt.Errorf("bedrock-mantle: WithThinking is not supported for mantle model %s", cfg.ModelName)
 	}
@@ -135,8 +136,9 @@ func newMantleModel(p *Provider, cfg *Config, def catalog.Offering) (llm.Model, 
 
 // translateMantleOptions maps the concrete parameters resolved on a Bedrock
 // Config into the equivalent OpenAI options for the mantle transport. Only
-// temperature and max_tokens are forwarded — those are the sampling controls
-// the Responses request mapper serializes and the only ones the mantle model
+// temperature, max_tokens, reasoning_effort, and service_tier are forwarded —
+// those are the controls the Responses request mapper serializes, and
+// temperature and max_tokens are the only sampling controls the mantle model
 // constraints advertise.
 func translateMantleOptions(cfg *Config) []openai.Option {
 	var opts []openai.Option
@@ -151,6 +153,10 @@ func translateMantleOptions(cfg *Config) []openai.Option {
 
 	if cfg.ReasoningEffort != nil {
 		opts = append(opts, openai.WithReasoningEffort(*cfg.ReasoningEffort))
+	}
+
+	if cfg.ServiceTier != nil {
+		opts = append(opts, openai.WithServiceTier(*cfg.ServiceTier))
 	}
 
 	return opts

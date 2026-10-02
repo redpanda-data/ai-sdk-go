@@ -669,8 +669,10 @@ var catalogOnce = sync.OnceValue(func() *catalog.Catalog {
 	return catalog.MustNew(ProviderName, entries)
 })
 
-// noCachePointModelIDs is every bare and profile ID of a NoCachePoints
-// family, built from the family declarations.
+// noCachePointModelIDs is every invokable bare ID and profile ID of a
+// NoCachePoints family, built from the family declarations. A
+// non-invokable bare ID is skipped so the flag does not leak onto a mantle
+// family that shares it.
 var noCachePointModelIDs = func() map[string]bool {
 	ids := make(map[string]bool)
 
@@ -679,7 +681,10 @@ var noCachePointModelIDs = func() map[string]bool {
 			continue
 		}
 
-		ids[f.BareID] = true
+		if f.BareInvokable {
+			ids[f.BareID] = true
+		}
+
 		for _, p := range f.Profiles {
 			ids[p+"."+f.BareID] = true
 		}
