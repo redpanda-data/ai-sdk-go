@@ -445,6 +445,14 @@
       "released": "2026-09-22",
       "knowledge": "2026-04-20"
     },
+    "openai/gpt-6.1-sol": {
+      "display_name": "GPT-6.1 Sol",
+      "publisher": "openai",
+      "description": "GPT-6.1 Sol is OpenAI's upgraded mid-tier GPT-6 model, delivering near-Astra performance at a lower cost for complex coding, computer use, and professional work.",
+      "series": "gpt-mini",
+      "released": "2026-09-29",
+      "knowledge": "2026-04-30"
+    },
     "openai/o1-pro": {
       "display_name": "o1-pro",
       "publisher": "openai",
@@ -3685,6 +3693,73 @@
           }
         },
         {
+          "id": "global.openai.gpt-6.1-sol",
+          "model": "openai/gpt-6.1-sol",
+          "display_name": "OpenAI GPT-6.1 Sol (Global)",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {},
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 200000000,
+                "output_microcents_per_million": 1000000000,
+                "cached_input_microcents_per_million": 10000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 250000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 400000000,
+                    "output_microcents_per_million": 1500000000,
+                    "cached_input_microcents_per_million": 20000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 500000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "global"
+            }
+          ],
+          "derived": {
+            "price_tier": "medium"
+          }
+        },
+        {
           "id": "google.gemma-4-26b-a4b",
           "model": "google/gemma-4-26b-a4b",
           "display_name": "Google Gemma 4 26B-A4B",
@@ -4435,7 +4510,8 @@
             "stage": "ga"
           },
           "derived": {
-            "price_tier": "medium"
+            "price_tier": "medium",
+            "replacement": "openai/gpt-6.1-sol"
           }
         },
         {
@@ -4506,6 +4582,76 @@
           },
           "derived": {
             "price_tier": "high"
+          }
+        },
+        {
+          "id": "openai.gpt-6.1-sol",
+          "model": "openai/gpt-6.1-sol",
+          "display_name": "OpenAI GPT-6.1 Sol",
+          "capabilities": {
+            "audio": false,
+            "json_mode": true,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "reasoning_effort"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 220000000,
+                "output_microcents_per_million": 1100000000,
+                "cached_input_microcents_per_million": 11000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 275000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 440000000,
+                    "output_microcents_per_million": 1650000000,
+                    "cached_input_microcents_per_million": 22000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 550000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "derived": {
+            "price_tier": "medium"
           }
         },
         {
@@ -5479,6 +5625,73 @@
           ],
           "derived": {
             "price_tier": "high"
+          }
+        },
+        {
+          "id": "us.openai.gpt-6.1-sol",
+          "model": "openai/gpt-6.1-sol",
+          "display_name": "OpenAI GPT-6.1 Sol (US)",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {},
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 220000000,
+                "output_microcents_per_million": 1100000000,
+                "cached_input_microcents_per_million": 11000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 275000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 440000000,
+                    "output_microcents_per_million": 1650000000,
+                    "cached_input_microcents_per_million": 22000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 550000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "us"
+            }
+          ],
+          "derived": {
+            "price_tier": "medium"
           }
         }
       ]
@@ -10567,6 +10780,79 @@
           "lifecycle": {
             "stage": "ga",
             "available": "2026-09-22"
+          },
+          "derived": {
+            "price_tier": "medium",
+            "replacement": "openai/gpt-6.1-sol"
+          }
+        },
+        {
+          "id": "gpt-6.1-sol",
+          "model": "openai/gpt-6.1-sol",
+          "display_name": "GPT-6.1 Sol",
+          "capabilities": {
+            "audio": false,
+            "json_mode": true,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": true,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "reasoning_effort",
+              "reasoning_summary"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 200000000,
+                "output_microcents_per_million": 1000000000,
+                "cached_input_microcents_per_million": 10000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 250000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 400000000,
+                    "output_microcents_per_million": 1500000000,
+                    "cached_input_microcents_per_million": 20000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 500000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-09-29"
           },
           "derived": {
             "price_tier": "medium"
