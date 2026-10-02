@@ -66,6 +66,8 @@ func TestMaxTokens_PerRequestOverride_Integration(t *testing.T) {
 		assert.Equal(t, llm.FinishReasonLength, resp.FinishReason,
 			"a 16-token cap on a long-essay prompt must truncate")
 
+		// The cut may land inside an adaptive thinking block, which is why no
+		// text is asserted: output_tokens counts thinking, so the cap still binds.
 		require.NotNil(t, resp.Usage)
 		assert.LessOrEqual(t, resp.Usage.OutputTokens, 16,
 			"output tokens must not exceed the per-request cap; got %d", resp.Usage.OutputTokens)
