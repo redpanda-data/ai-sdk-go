@@ -25,11 +25,16 @@ import (
 	"fmt"
 	"iter"
 	"log/slog"
+	"time"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/store/session"
 )
+
+// sessionSaveTimeout bounds the session save that ends a run. That save runs
+// detached from the run's cancellation (see Run).
+const sessionSaveTimeout = 10 * time.Second
 
 // Runner orchestrates agent execution with session management.
 //
@@ -197,9 +202,15 @@ func (r *Runner) Run(
 		// "range function continued iteration after function for loop body returned false".
 		consumerStopped := false
 
-		// 4. Save session on exit (handles normal completion, cancellation, errors)
+		// 4. Save session on exit (handles normal completion, cancellation, errors).
+		// A canceled ctx is how a caller stops a turn, and a save on it fails, so
+		// the turn and the user's message would be lost. The save keeps ctx's
+		// values but not its cancellation, and sessionSaveTimeout bounds it.
 		defer func() {
-			if err := r.config.sessionStore.Save(ctx, sess); err != nil {
+			saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), sessionSaveTimeout)
+			defer cancel()
+
+			if err := r.config.sessionStore.Save(saveCtx, sess); err != nil {
 				// Only yield error if consumer hasn't explicitly stopped iteration.
 				// If consumer broke out of their for loop (yield returned false),
 				// calling yield again would panic.

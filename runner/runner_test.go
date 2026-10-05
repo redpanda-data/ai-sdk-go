@@ -17,7 +17,9 @@ package runner_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"iter"
+	"sync"
 	"testing"
 	"time"
 
@@ -591,6 +593,89 @@ func TestRun_ContextCancellation(t *testing.T) {
 	endEvent := findInvocationEndEvent(events)
 	require.NotNil(t, endEvent)
 	assert.Equal(t, agent.FinishReasonInterrupted, endEvent.FinishReason)
+}
+
+// A turn the caller cancels is still saved with the user's message, on a
+// context the cancel didn't reach, whether or not the caller keeps reading.
+func TestRun_CanceledTurnIsSaved(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		stopOnCancel bool
+	}{
+		{name: "the caller keeps reading"},
+		{name: "the caller stops reading", stopOnCancel: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				mu       sync.Mutex
+				saveErrs []error
+				saved    []llm.Message
+			)
+
+			store := &mockSessionStore{
+				saveFunc: func(ctx context.Context, state *session.State) error {
+					mu.Lock()
+					defer mu.Unlock()
+
+					saveErrs = append(saveErrs, ctx.Err())
+					saved = append([]llm.Message(nil), state.Messages...)
+
+					return ctx.Err()
+				},
+			}
+
+			ag := &mockAgent{
+				name: "test-agent",
+				runFunc: func(ctx context.Context, inv *agent.InvocationMetadata) iter.Seq2[agent.Event, error] {
+					return func(yield func(agent.Event, error) bool) {
+						if !yield(agent.StatusEvent{
+							Envelope: agent.EventEnvelope{
+								InvocationID: inv.InvocationID(),
+								SessionID:    inv.Session().ID,
+								At:           time.Now().UTC(),
+							},
+							Stage: agent.StatusStageModelCall,
+						}, nil) {
+							return
+						}
+						// The model call runs until the caller cancels.
+						<-ctx.Done()
+						yield(nil, fmt.Errorf("model generation failed: %w", ctx.Err()))
+					}
+				},
+			}
+
+			r, err := runner.New(ag, store)
+			require.NoError(t, err)
+
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+
+			userMsg := llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hello"))
+			for evt, err := range r.Run(ctx, "test-session", userMsg) {
+				if _, ok := evt.(agent.StatusEvent); ok {
+					cancel()
+				}
+
+				if err != nil && tt.stopOnCancel {
+					break
+				}
+			}
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			require.Len(t, saveErrs, 1, "the turn is saved once, when it ends")
+			require.NoError(t, saveErrs[0], "the save must not see the cancel")
+			require.Len(t, saved, 1)
+			assert.Equal(t, llm.RoleUser, saved[0].Role, "the user's message is kept")
+		})
+	}
 }
 
 // captureAttributes runs one turn and returns the invocation's attributes.
