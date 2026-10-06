@@ -13,8 +13,8 @@
 // limitations under the License.
 
 // Package vertex is the model catalog, pricing, and location-availability
-// data for Google Vertex AI. It has no request transport (an llm.Model that
-// builds Vertex requests).
+// data for Google Vertex AI, and an llm.Model for its Gemini and Claude
+// models (Provider.NewModel).
 package vertex
 
 import (
