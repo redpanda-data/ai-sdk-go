@@ -42,6 +42,16 @@ type Config struct {
 	ThinkingBudget   *int64 // Explicit thinking budget in tokens (min 1024)
 	AdaptiveThinking bool   // Whether model supports adaptive thinking (set from ModelDefinition)
 
+	// ThinkingPrefixCheck marks models whose API checks replayed thinking
+	// blocks against an unchanged prefix (set from the catalog model). Their
+	// requests ask the API to drop failing blocks unless
+	// DisableThinkingBlockBinding is set; see applyThinkingBlockBinding.
+	ThinkingPrefixCheck bool
+
+	// DisableThinkingBlockBinding withholds that request (set by
+	// WithThinkingBlockBinding(false)).
+	DisableThinkingBlockBinding bool
+
 	// Effort and speed configuration
 	ReasoningEffort *ReasoningEffort // Reasoning effort level
 	Speed           *Speed           // Inference speed mode
@@ -178,6 +188,30 @@ func WithStop(sequences ...string) Option {
 func WithThinking(enabled bool) Option {
 	return func(cfg *Config) error {
 		cfg.EnableThinking = enabled
+		return nil
+	}
+}
+
+// WithThinkingBlockBinding controls the thinking block binding sent to Claude
+// Fable 5.1, Opus 5.5 and Sonnet 5.5, on by default for those models: thinking
+// {type: adaptive, block_binding: {prefix_mismatch_behavior: drop_block}} and
+// the thinking-binding-controls-2026-08-01 beta, so the API drops a replayed
+// thinking block whose prefix changed instead of rejecting the request (see
+// applyThinkingBlockBinding). Pass false to send neither, for an endpoint that
+// rejects them, such as a gateway reached through WithBaseURL that validates
+// the request body. The API's own handling of a failed prefix check then
+// applies, which is a 400 for accounts created on or after 2026-08-31. Other
+// models never get the binding, so true has no effect on them.
+//
+// WithThinking(false) does not turn the binding off. These models think
+// adaptively whether thinking is requested or not (Opus 5.5 rejects disabled
+// thinking with a 400), so their responses still carry thinking blocks for
+// later requests to replay, and the prefix check still applies. Thinking off
+// is also the default, so tying the two would drop the binding for every
+// caller that sets neither option.
+func WithThinkingBlockBinding(enabled bool) Option {
+	return func(cfg *Config) error {
+		cfg.DisableThinkingBlockBinding = !enabled
 		return nil
 	}
 }

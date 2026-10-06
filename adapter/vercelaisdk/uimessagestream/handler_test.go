@@ -1890,6 +1890,80 @@ func TestStreamModelWithTools_RequestFieldsForwarded(t *testing.T) {
 	assert.Equal(t, opts, capturedOptions[1], "turn 2 should have options")
 }
 
+// TestStreamModelWithTools_ReplaysFinalAssistantMessage verifies the follow-up
+// request carries the assistant turn as the provider finalized it. Claude's
+// omitted-display thinking streams no delta, only a signature in the final
+// response, and must be passed back with the tool results. The tool results
+// answer the streamed tool calls, so a final message whose tool calls differ
+// from them is not replayed.
+func TestStreamModelWithTools_ReplaysFinalAssistantMessage(t *testing.T) {
+	t.Parallel()
+
+	thinking := &llm.ReasoningPart{Signature: "sig-omitted"}
+	call := llm.NewToolRequestPart("call-1", "lookup", json.RawMessage(`{}`))
+	otherCall := llm.NewToolRequestPart("call-2", "lookup", json.RawMessage(`{}`))
+
+	cases := []struct {
+		name  string
+		final []llm.Part
+		want  []llm.Part
+	}{
+		{name: "final message with the streamed tool calls", final: []llm.Part{thinking, call}, want: []llm.Part{thinking, call}},
+		{name: "empty final message falls back to the streamed tool calls", want: []llm.Part{call}},
+		{name: "final message with other tool calls falls back", final: []llm.Part{thinking, otherCall}, want: []llm.Part{call}},
+		{name: "final message missing a streamed tool call falls back", final: []llm.Part{thinking}, want: []llm.Part{call}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var requests [][]llm.Message
+
+			model := &callbackModel{
+				fn: func(_ context.Context, req *llm.Request) iter.Seq2[llm.Event, error] {
+					requests = append(requests, append([]llm.Message(nil), req.Messages...))
+					turn := len(requests)
+
+					return func(yield func(llm.Event, error) bool) {
+						if turn == 1 {
+							if !yield(llm.ContentPartEvent{Index: 1, Part: call}, nil) {
+								return
+							}
+
+							yield(llm.StreamEndEvent{Response: &llm.Response{
+								Message:      llm.Message{Role: llm.RoleAssistant, Content: tc.final},
+								FinishReason: llm.FinishReasonToolCalls,
+							}}, nil)
+
+							return
+						}
+
+						if !yield(llm.ContentPartEvent{Index: 0, Part: llm.NewTextPart("done")}, nil) {
+							return
+						}
+
+						yield(llm.StreamEndEvent{Response: &llm.Response{FinishReason: llm.FinishReasonStop}}, nil)
+					}
+				},
+			}
+
+			executor := func(_ context.Context, _ string, _ json.RawMessage) (json.RawMessage, error) {
+				return json.RawMessage(`"ok"`), nil
+			}
+
+			StreamModelWithTools(context.Background(), model, &llm.Request{
+				Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("go"))},
+				Tools:    []llm.ToolDefinition{{Name: "lookup"}},
+			}, NewEventWriter(httptest.NewRecorder()), nil, executor, 0, nil)
+
+			require.Len(t, requests, 2, "expected 2 model calls")
+			require.Len(t, requests[1], 3, "follow-up carries user, assistant, and tool result turns")
+			assert.Equal(t, tc.want, requests[1][1].Content)
+		})
+	}
+}
+
 // callbackModel delegates GenerateEvents to a callback function.
 type callbackModel struct {
 	errorStreamModel

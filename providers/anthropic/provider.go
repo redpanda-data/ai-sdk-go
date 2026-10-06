@@ -183,6 +183,17 @@ func WithTimeout(timeout time.Duration) ProviderOption {
 // rejections on typical conversations.
 const defaultMaxTokens = 16384
 
+// thinkingPrefixCheckModels are the models whose API checks each replayed
+// thinking block against an unchanged prefix; their requests carry a block
+// binding unless WithThinkingBlockBinding(false) is set (see
+// applyThinkingBlockBinding). Keyed on the catalog model so a
+// WithCustomModelName alias keeps it.
+var thinkingPrefixCheckModels = []catalog.ModelID{
+	catalog.ModelClaudeFable51,
+	catalog.ModelClaudeOpus55,
+	catalog.ModelClaudeSonnet55,
+}
+
 // NewModel creates a new Anthropic model instance with the specified configuration.
 //
 // modelName is resolved against the catalog (exact ID, alias, or snapshot
@@ -201,6 +212,8 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 		EnableCaching:    p.EnableCaching,
 		AdaptiveThinking: offering.Reasoning.Adaptive,
 		setOptions:       make(map[string]bool),
+
+		ThinkingPrefixCheck: slices.Contains(thinkingPrefixCheckModels, offering.Model),
 	}
 
 	// Apply all options with validation

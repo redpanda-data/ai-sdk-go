@@ -151,6 +151,8 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) (anthropic.BetaMessageNewP
 		}
 	}
 
+	applyThinkingBlockBinding(&apiReq, rm.config)
+
 	// Effort and response format share output_config, so build it once.
 	if rm.config.ReasoningEffort != nil {
 		apiReq.OutputConfig.Effort = anthropic.BetaOutputConfigEffort(*rm.config.ReasoningEffort)
@@ -168,6 +170,49 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) (anthropic.BetaMessageNewP
 	}
 
 	return apiReq, nil
+}
+
+// betaThinkingBindingControls enables thinking.block_binding.
+const betaThinkingBindingControls = "thinking-binding-controls-2026-08-01"
+
+// applyThinkingBlockBinding asks the API to drop, rather than reject,
+// replayed thinking blocks that fail the preserved-thinking prefix check.
+//
+// On Claude Fable 5.1, Opus 5.5 and Sonnet 5.5 a thinking block stays valid
+// only while the system prompt, the tools and every earlier message are
+// unchanged since it was produced. Accounts created on or after 2026-08-31
+// get a 400 by default when the check fails, and llmagent edits the prefix in
+// normal operation: compaction prunes tool results and drops leading turns,
+// and lazy tool loading changes the tools and the system prompt. With
+// prefix_mismatch_behavior "drop_block" the API drops each failing block
+// instead (unbilled; the model answers without that reasoning), the request
+// succeeds, and the drop is listed in the response's input_transformations.
+//
+// These models think adaptively by default, so sending adaptive explicitly
+// changes nothing else, and adaptive fields already set are kept.
+// WithThinkingBlockBinding(false) turns the binding off. block_binding is
+// invalid with a manual budget, so enabled thinking is left as is; that check
+// is defensive, since NewModel rejects WithThinkingBudget for these models and
+// their thinking is adaptive, so only a hand-built Config can reach it. The
+// SDK has no block_binding field yet, hence SetExtraFields.
+//
+// https://platform.claude.com/docs/en/build-with-claude/preserved-thinking
+func applyThinkingBlockBinding(apiReq *anthropic.BetaMessageNewParams, cfg *Config) {
+	if !cfg.ThinkingPrefixCheck || cfg.DisableThinkingBlockBinding || apiReq.Thinking.OfEnabled != nil {
+		return
+	}
+
+	adaptive := apiReq.Thinking.OfAdaptive
+	if adaptive == nil {
+		adaptive = &anthropic.BetaThinkingConfigAdaptiveParam{}
+		apiReq.Thinking = anthropic.BetaThinkingConfigParamUnion{OfAdaptive: adaptive}
+	}
+
+	adaptive.SetExtraFields(map[string]any{
+		"block_binding": map[string]any{"prefix_mismatch_behavior": "drop_block"},
+	})
+
+	apiReq.Betas = append(apiReq.Betas, betaThinkingBindingControls)
 }
 
 // mapMessages converts our unified messages to Anthropic format.
@@ -353,7 +398,28 @@ func (rm *RequestMapper) mapAssistantMessage(msg llm.Message) (anthropic.BetaMes
 			})
 
 		case *llm.ReasoningPart:
-			// Map reasoning to thinking block
+			// Replay reasoning exactly as the response mapper recorded it.
+			// An omitted-display thinking block goes back with its empty
+			// text and signature, which Anthropic accepts as-is.
+			if redacted, _ := p.Metadata[reasoningMetadataRedacted].(bool); redacted {
+				// Only data this provider recorded can go back; see
+				// reasoningMetadataRedactedProvider. Sessions persisted
+				// before redacted data was recorded hold only the
+				// placeholder text, so there is nothing to replay either.
+				if producer, _ := p.Metadata[reasoningMetadataRedactedProvider].(string); producer != ProviderName || p.Signature == "" {
+					continue
+				}
+
+				apiMsg.Content = append(apiMsg.Content, anthropic.BetaContentBlockParamUnion{
+					OfRedactedThinking: &anthropic.BetaRedactedThinkingBlockParam{
+						Type: constant.RedactedThinking(""),
+						Data: p.Signature,
+					},
+				})
+
+				continue
+			}
+
 			apiMsg.Content = append(apiMsg.Content, anthropic.BetaContentBlockParamUnion{
 				OfThinking: &anthropic.BetaThinkingBlockParam{
 					Type:      constant.Thinking(""),
