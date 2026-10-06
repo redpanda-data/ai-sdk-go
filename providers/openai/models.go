@@ -323,9 +323,22 @@ func entries() []catalog.Entry {
 			Reasoning: catalog.ReasoningSupport{Efforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax}},
 			Life:      catalog.Lifecycle{Available: catalog.MustDate("2026-09-03")},
 			// Standard processing; above 272K, the full request uses long-context rates.
+			// Ultrafast (Responses API, service_tier "ultrafast", added 2026-09-29 per
+			// /api/docs/changelog) is 6x Standard with its own long-context bracket,
+			// per /api/docs/pricing. OpenAI reports it in the response's service_tier,
+			// so the card keys on ServiceTier, not Speed.
 			Pricing: pricing.TieredInfo(
 				pricing.NewRates(10, 50, 1).WithCacheCreation(0, 0, 12.50),
 				pricing.Bracket{MinContextTokens: 272_001, Rates: pricing.NewRates(20, 75, 2).WithCacheCreation(0, 0, 25)},
+			).WithOverride(
+				pricing.Selector{ServiceTier: llm.ServiceTierUltrafast},
+				pricing.RateCard{
+					Base: pricing.NewRates(60, 300, 6).WithCacheCreation(0, 0, 75),
+					Brackets: []pricing.Bracket{{
+						MinContextTokens: 272_001,
+						Rates:            pricing.NewRates(120, 450, 12).WithCacheCreation(0, 0, 150),
+					}},
+				},
 			),
 		},
 

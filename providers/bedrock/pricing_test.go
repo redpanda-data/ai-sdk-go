@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/pricing"
 )
 
@@ -63,6 +64,10 @@ var unknownTTLCacheModels = map[string]bool{
 	ModelGPT61Sol:       true,
 	ModelGPT61SolGlobal: true,
 	ModelGPT61SolUS:     true,
+
+	ModelGPT6Sol:       true,
+	ModelGPT6SolGlobal: true,
+	ModelGPT6SolUS:     true,
 }
 
 func TestAllModelsHavePricing(t *testing.T) {
@@ -165,19 +170,33 @@ func TestGPT56Pricing(t *testing.T) {
 func TestGPT6Pricing(t *testing.T) {
 	t.Parallel()
 
+	// Ultrafast is six times Standard on every Astra route, with its own
+	// long-context bracket; zero ultrafast rates mean no Ultrafast card.
 	tests := []struct {
-		modelID    string
-		base, long pricing.Rates
+		modelID                  string
+		base, long               pricing.Rates
+		ultrafast, ultrafastLong pricing.Rates
 	}{
 		{
-			modelID: ModelGPT6AstraGlobal,
-			base:    pricing.NewRates(10.00, 50.00, 1.00).WithCacheCreation(0, 0, 12.50),
-			long:    pricing.NewRates(20.00, 75.00, 2.00).WithCacheCreation(0, 0, 25.00),
+			modelID:       ModelGPT6AstraGlobal,
+			base:          pricing.NewRates(10.00, 50.00, 1.00).WithCacheCreation(0, 0, 12.50),
+			long:          pricing.NewRates(20.00, 75.00, 2.00).WithCacheCreation(0, 0, 25.00),
+			ultrafast:     pricing.NewRates(60.00, 300.00, 6.00).WithCacheCreation(0, 0, 75.00),
+			ultrafastLong: pricing.NewRates(120.00, 450.00, 12.00).WithCacheCreation(0, 0, 150.00),
 		},
 		{
-			modelID: ModelGPT6AstraUS,
-			base:    pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(0, 0, 13.75),
-			long:    pricing.NewRates(22.00, 82.50, 2.20).WithCacheCreation(0, 0, 27.50),
+			modelID:       ModelGPT6AstraUS,
+			base:          pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(0, 0, 13.75),
+			long:          pricing.NewRates(22.00, 82.50, 2.20).WithCacheCreation(0, 0, 27.50),
+			ultrafast:     pricing.NewRates(66.00, 330.00, 6.60).WithCacheCreation(0, 0, 82.50),
+			ultrafastLong: pricing.NewRates(132.00, 495.00, 13.20).WithCacheCreation(0, 0, 165.00),
+		},
+		{
+			modelID:       ModelGPT6Astra,
+			base:          pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(0, 0, 13.75),
+			long:          pricing.NewRates(22.00, 82.50, 2.20).WithCacheCreation(0, 0, 27.50),
+			ultrafast:     pricing.NewRates(66.00, 330.00, 6.60).WithCacheCreation(0, 0, 82.50),
+			ultrafastLong: pricing.NewRates(132.00, 495.00, 13.20).WithCacheCreation(0, 0, 165.00),
 		},
 		{
 			modelID: ModelGPT61SolGlobal,
@@ -194,6 +213,21 @@ func TestGPT6Pricing(t *testing.T) {
 			base:    pricing.NewRates(2.20, 11.00, 0.11).WithCacheCreation(0, 0, 2.75),
 			long:    pricing.NewRates(4.40, 16.50, 0.22).WithCacheCreation(0, 0, 5.50),
 		},
+		{
+			modelID: ModelGPT6SolGlobal,
+			base:    pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(0, 0, 2.50),
+			long:    pricing.NewRates(4.00, 15.00, 0.40).WithCacheCreation(0, 0, 5.00),
+		},
+		{
+			modelID: ModelGPT6SolUS,
+			base:    pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(0, 0, 2.75),
+			long:    pricing.NewRates(4.40, 16.50, 0.44).WithCacheCreation(0, 0, 5.50),
+		},
+		{
+			modelID: ModelGPT6Sol,
+			base:    pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(0, 0, 2.75),
+			long:    pricing.NewRates(4.40, 16.50, 0.44).WithCacheCreation(0, 0, 5.50),
+		},
 	}
 
 	for _, tt := range tests {
@@ -206,6 +240,19 @@ func TestGPT6Pricing(t *testing.T) {
 			require.Len(t, def.Pricing.Default.Brackets, 1)
 			assert.Equal(t, int64(272_001), def.Pricing.Default.Brackets[0].MinContextTokens)
 			assert.Equal(t, tt.long, def.Pricing.Default.Brackets[0].Rates)
+
+			if tt.ultrafast == (pricing.Rates{}) {
+				assert.Empty(t, def.Pricing.Overrides)
+				return
+			}
+
+			require.Len(t, def.Pricing.Overrides, 1)
+			override := def.Pricing.Overrides[0]
+			assert.Equal(t, pricing.Selector{ServiceTier: llm.ServiceTierUltrafast}, override.Match)
+			assert.Equal(t, tt.ultrafast, override.RateCard.Base)
+			require.Len(t, override.RateCard.Brackets, 1)
+			assert.Equal(t, int64(272_001), override.RateCard.Brackets[0].MinContextTokens)
+			assert.Equal(t, tt.ultrafastLong, override.RateCard.Brackets[0].Rates)
 		})
 	}
 }
@@ -329,6 +376,48 @@ func TestGeoGlobalRatio(t *testing.T) {
 			check("cache read", geo.CachedInputPerMillion, gl.CachedInputPerMillion)
 			check("cache 5m write", geo.CacheCreation5mPerMillion, gl.CacheCreation5mPerMillion)
 			check("cache 1h write", geo.CacheCreation1hPerMillion, gl.CacheCreation1hPerMillion)
+		})
+	}
+}
+
+// TestExpandFamiliesRejectsUnpairedOverrides checks each override guard by
+// its exact message, so a different guard firing fails the test.
+func TestExpandFamiliesRejectsUnpairedOverrides(t *testing.T) {
+	t.Parallel()
+
+	rates := pricing.RateCard{Base: pricing.NewRates(1, 2, 0)}
+
+	for _, tt := range []struct {
+		name string
+		f    family
+		want string
+	}{
+		{
+			name: "GlobalOverrides without the global profile",
+			f: family{
+				BareID:          "openai.example",
+				BareInvokable:   true,
+				Rates:           rates,
+				GlobalOverrides: gpt6AstraUltrafastGlobal,
+			},
+			want: "bedrock: family openai.example sets GlobalOverrides without the global profile",
+		},
+		{
+			name: "Overrides without GlobalOverrides on a global family",
+			f: family{
+				BareID:      "openai.example",
+				Profiles:    []string{"global", "us"},
+				Rates:       rates,
+				GlobalRates: &rates,
+				Overrides:   gpt6AstraUltrafast,
+			},
+			want: "bedrock: family openai.example sets Overrides without GlobalOverrides for the global profile",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.PanicsWithValue(t, tt.want, func() { expandFamilies([]family{tt.f}) })
 		})
 	}
 }
