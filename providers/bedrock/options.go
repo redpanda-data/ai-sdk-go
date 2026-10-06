@@ -19,6 +19,7 @@ import (
 	"slices"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/providers/openai"
 )
 
 // Option configures a Bedrock model instance using functional options.
@@ -48,6 +49,10 @@ type Config struct {
 
 	// EnableCaching enables prompt caching on Bedrock.
 	EnableCaching bool
+
+	// ServiceTier is the processing tier a bedrock-mantle model is served
+	// on, forwarded as the OpenAI Responses service_tier.
+	ServiceTier *llm.ServiceTier
 
 	// Track which options have been set for conflict detection.
 	setOptions map[string]bool
@@ -165,6 +170,26 @@ func WithThinking(budgetTokens int) Option {
 func WithReasoningEffort(effort ReasoningEffort) Option {
 	return func(cfg *Config) error {
 		cfg.ReasoningEffort = &effort
+
+		return nil
+	}
+}
+
+// WithServiceTier selects the processing tier for a bedrock-mantle model,
+// forwarded as the OpenAI Responses API service_tier; see
+// openai.WithServiceTier for the accepted values. The tier is validated and
+// normalized by openai.ResponsesServiceTier, so Config.ServiceTier holds the
+// same value as on the OpenAI provider. The model card lists the tiers a
+// model offers, and AWS rejects the rest. Converse models take no tier from
+// this SDK, so NewModel rejects the option for them rather than dropping it.
+func WithServiceTier(tier llm.ServiceTier) Option {
+	return func(cfg *Config) error {
+		normalized, err := openai.ResponsesServiceTier(tier)
+		if err != nil {
+			return fmt.Errorf("%s: %w", cfg.ModelName, err)
+		}
+
+		cfg.ServiceTier = &normalized
 
 		return nil
 	}

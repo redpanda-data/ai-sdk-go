@@ -43,8 +43,10 @@ func TestExecute_TruncationFlag_Integration(t *testing.T) {
 	provider, err := anthropic.NewProvider(apiKey)
 	require.NoError(t, err)
 
-	// A tiny output budget guarantees the long-essay prompt truncates.
-	model, err := provider.NewModel(anthropictest.TestModelName, anthropic.WithMaxTokens(16))
+	// A tiny output budget guarantees the long-essay prompt truncates. The
+	// no-thinking model spends it on text; an adaptive thinker would spend it
+	// on a thinking block with no visible text, leaving no partial content.
+	model, err := provider.NewModel(anthropictest.TestNoThinkingModelName, anthropic.WithMaxTokens(16))
 	require.NoError(t, err)
 
 	subAgent, err := llmagent.New("essayist", "You are a helpful assistant.", model)

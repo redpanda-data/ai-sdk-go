@@ -45,8 +45,8 @@ func TestAnthropicCachedTokens_Integration(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Anthropic requires large prompts for caching (minimum 1024 tokens for Sonnet)
-	// Generate a large system prompt - need ~1400 tokens worth of characters to get 1024+ tokens
+	// Anthropic only caches prompts above a per-model minimum (512 tokens on
+	// Sonnet 5.5, 1024 on earlier Sonnets); this prompt clears either.
 	longSystemPrompt := testutil.GenerateLargePrompt(1800)
 
 	// System message with cache breakpoint - will be reused across all requests

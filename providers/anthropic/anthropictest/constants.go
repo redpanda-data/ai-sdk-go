@@ -14,13 +14,29 @@
 
 package anthropictest
 
+import "github.com/redpanda-data/ai-sdk-go/providers/anthropic"
+
 const (
 	// TestModelName is the model to use for integration tests.
-	TestModelName = "claude-sonnet-4-5"
+	// Sonnet 5.5 thinks adaptively even when thinking is not requested
+	// (max_tokens caps thinking plus text), and it rejects non-default
+	// sampling parameters and forced tool_choice.
+	TestModelName = anthropic.ModelClaudeSonnet55
 	// TestReasoningModelName is the model for reasoning tests.
 	// Uses a model with forced (non-adaptive) extended thinking so the
 	// conformance reasoning test can reliably assert thinking traces.
-	TestReasoningModelName = "claude-opus-4-5"
-	// TestAdaptiveModelName is the model for adaptive thinking tests.
-	TestAdaptiveModelName = "claude-sonnet-4-6"
+	TestReasoningModelName = anthropic.ModelClaudeOpus45
+	// TestAdaptiveModelName is the model for adaptive thinking tests. They
+	// request thinking explicitly (WithThinking(true)), so any model with
+	// adaptive thinking works. It currently coincides with
+	// TestNoThinkingModelName, which has the opposite requirement; repoint
+	// the two independently.
+	TestAdaptiveModelName = anthropic.ModelClaudeSonnet46
+	// TestNoThinkingModelName is for tests that need visible text inside a
+	// tiny output budget. It does not think unless thinking is requested;
+	// TestModelName would spend such a budget on a thinking block whose text
+	// the API omits by default. It currently coincides with
+	// TestAdaptiveModelName; keep it on a model that does not think
+	// unprompted, because tool/agenttool's truncation test depends on that.
+	TestNoThinkingModelName = anthropic.ModelClaudeSonnet46
 )

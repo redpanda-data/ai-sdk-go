@@ -274,8 +274,13 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 		return nil, fmt.Errorf("model %s does not support a manual thinking budget", modelName)
 	}
 
-	// Mantle-only models (Gemma 4, gpt-5.x) are not served by the Converse API;
-	// route them through the SigV4-signed OpenAI Responses transport instead.
+	if cfg.ServiceTier != nil && !IsMantleModel(apiModelID) {
+		return nil, fmt.Errorf("model %s does not support a service tier: only bedrock-mantle models forward one", modelName)
+	}
+
+	// Mantle model IDs (bare IDs of Mantle: true families) are not served by
+	// the Converse API; route them through the SigV4-signed OpenAI Responses
+	// transport instead.
 	if IsMantleModel(apiModelID) {
 		return newMantleModel(p, cfg, modelDef)
 	}

@@ -557,7 +557,8 @@ func TestNewModel_ClaudeOpus5Routing(t *testing.T) {
 		wantID    string
 		wantErr   bool
 	}{
-		{"bare defaults to US", "", ModelClaudeOpus5, ModelClaudeOpus5US, false},
+		// An unset region skips the family table; "us" is InferenceProfileRegion's fallback.
+		{"bare with unset region falls back to US", "", ModelClaudeOpus5, ModelClaudeOpus5US, false},
 		{"bare from US", "us-east-1", ModelClaudeOpus5, ModelClaudeOpus5US, false},
 		{"bare from Canada Central", "ca-central-1", ModelClaudeOpus5, ModelClaudeOpus5US, false},
 		{"bare from Calgary", "ca-west-1", ModelClaudeOpus5, ModelClaudeOpus5US, false},
@@ -614,7 +615,8 @@ func TestNewModel_ClaudeFable51Routing(t *testing.T) {
 		wantID    string
 		wantErr   bool
 	}{
-		{"bare defaults to US", "", ModelClaudeFable51, ModelClaudeFable51US, false},
+		// An unset region skips the family table; "us" is InferenceProfileRegion's fallback.
+		{"bare with unset region falls back to US", "", ModelClaudeFable51, ModelClaudeFable51US, false},
 		{"bare from US", "us-east-1", ModelClaudeFable51, ModelClaudeFable51US, false},
 		{"bare from Canada Central", "ca-central-1", ModelClaudeFable51, ModelClaudeFable51US, false},
 		{"bare from EU routes global", "eu-west-1", ModelClaudeFable51, ModelClaudeFable51Global, false},

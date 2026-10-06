@@ -15,8 +15,10 @@
 package openai
 
 import (
+	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
@@ -42,6 +44,10 @@ type Config struct {
 	// Reasoning model parameters (GPT-5, O-series)
 	ReasoningEffort  *ReasoningEffort  // Defaults to medium if not specified
 	ReasoningSummary *ReasoningSummary // Optional, no default
+
+	// ServiceTier is the processing tier sent as service_tier. Unset, OpenAI
+	// uses the project's configured tier.
+	ServiceTier *llm.ServiceTier
 
 	// Track which options have been set for conflict detection with model constraints
 	setOptions map[string]bool
@@ -261,6 +267,71 @@ func WithReasoningSummary(summary ReasoningSummary) Option {
 			return fmt.Errorf("%s: invalid reasoning summary %q", cfg.ModelName, summary)
 		}
 	}
+}
+
+// unrequestableServiceTiers are canonical tiers that are not Responses API
+// service_tier values: Batch is the separate Batch API, and reserved and
+// provisioned throughput are Bedrock capacity modes.
+var unrequestableServiceTiers = []llm.ServiceTier{
+	llm.ServiceTierBatch,
+	llm.ServiceTierReserved,
+	llm.ServiceTierProvisionedThroughput,
+}
+
+// WithServiceTier selects the processing tier OpenAI serves the request on,
+// sent as the Responses API service_tier: llm.ServiceTierFlex for Flex
+// processing, llm.ServiceTierPriority for Fast mode (formerly Priority
+// processing; OpenAI accepts "priority" and "fast" alike),
+// llm.ServiceTierScale for Scale Tier, or llm.ServiceTierDefault to force
+// Standard processing. Without this option OpenAI applies the project's
+// configured tier ("auto").
+//
+// The tier is validated and normalized by ResponsesServiceTier, so "fast"
+// selects Fast mode. "auto" is rejected: it is OpenAI's default, which
+// leaving the option unset already keeps, and normalizing it to Default
+// would silently force Standard. A tier the SDK does not name yet is sent as
+// given, and OpenAI rejects a tier the model does not offer; Batch, reserved,
+// and provisioned-throughput tiers cannot be requested here and fail.
+//
+// The response reports the tier that actually served the request in
+// llm.Response.ServiceTier, which pricing keys on. It can differ from the
+// requested tier: Fast mode reports "default" when OpenAI's ramp-rate limit
+// downgrades a request to Standard.
+func WithServiceTier(tier llm.ServiceTier) Option {
+	return func(cfg *Config) error {
+		normalized, err := ResponsesServiceTier(tier)
+		if err != nil {
+			return fmt.Errorf("%s: %w", cfg.ModelName, err)
+		}
+
+		cfg.ServiceTier = &normalized
+
+		return nil
+	}
+}
+
+// ResponsesServiceTier normalizes tier with llm.NormalizeServiceTier and
+// reports whether it can be sent as a Responses API service_tier. It rejects
+// the empty tier; "auto", OpenAI's default, which an unset service tier
+// already keeps and which normalization would turn into a forced Standard;
+// and the Batch, reserved, and provisioned-throughput tiers, which are not
+// request values. Providers that forward a tier to the Responses API share
+// it so their configs hold the same normalized value.
+func ResponsesServiceTier(tier llm.ServiceTier) (llm.ServiceTier, error) {
+	if strings.EqualFold(strings.TrimSpace(string(tier)), "auto") {
+		return "", errors.New(`service tier "auto" is OpenAI's default: leave the service tier unset to keep the project's configured tier`)
+	}
+
+	normalized := llm.NormalizeServiceTier(string(tier))
+	if normalized == "" {
+		return "", errors.New("service tier cannot be empty")
+	}
+
+	if slices.Contains(unrequestableServiceTiers, normalized) {
+		return "", fmt.Errorf("service tier %q cannot be requested on the Responses API", normalized)
+	}
+
+	return normalized, nil
 }
 
 // Validate checks if the configuration is valid.
