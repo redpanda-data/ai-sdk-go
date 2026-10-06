@@ -234,6 +234,8 @@ const (
 type ReasoningEffort = llm.ReasoningEffort
 
 const (
+	// ReasoningEffortNone turns reasoning off (mantle-served GPT-6 Sol).
+	ReasoningEffortNone ReasoningEffort = "none"
 	// ReasoningEffortLow biases the model toward fast, shallow reasoning.
 	ReasoningEffortLow ReasoningEffort = "low"
 	// ReasoningEffortMedium is the balanced middle setting.
@@ -255,8 +257,8 @@ const (
 const (
 	// ModelGPT6Astra is GPT-6 Astra's bare ID. On bedrock-runtime (Converse)
 	// it is not invokable and builds the US and global profile IDs. Invoked
-	// bare, it routes to bedrock-mantle's Responses API, which serves it only
-	// in us-west-2 ("model does not exist" elsewhere).
+	// bare, it routes to bedrock-mantle's Responses API, which the model card
+	// publishes in us-east-1 and us-west-2.
 	ModelGPT6Astra       = "openai.gpt-6-astra"
 	ModelGPT6AstraGlobal = "global." + ModelGPT6Astra
 	ModelGPT6AstraUS     = "us." + ModelGPT6Astra
@@ -268,6 +270,14 @@ const (
 	ModelGPT61Sol       = "openai.gpt-6.1-sol"
 	ModelGPT61SolGlobal = "global." + ModelGPT61Sol
 	ModelGPT61SolUS     = "us." + ModelGPT61Sol
+
+	// ModelGPT6Sol is GPT-6 Sol's bare ID, split the same way as Astra's: on
+	// bedrock-runtime it only builds the US and global profile IDs, and
+	// invoked bare it routes to bedrock-mantle, which serves it only in
+	// us-east-1.
+	ModelGPT6Sol       = "openai.gpt-6-sol"
+	ModelGPT6SolGlobal = "global." + ModelGPT6Sol
+	ModelGPT6SolUS     = "us." + ModelGPT6Sol
 
 	// ModelGPT56Sol is OpenAI's flagship GPT-5.6 reasoning model.
 	ModelGPT56Sol = "openai.gpt-5.6-sol"
@@ -337,6 +347,12 @@ var geoProfilePrefixes = map[string]bool{
 // profile is registered. Both are single-sourced from the family
 // declarations (family.ProfileRegions).
 var profileRegionResolvers, profileRegionResolverRegions = buildProfileRegionResolvers(bedrockFamilies)
+
+// mantleRegions maps each bare mantle ID whose family declares
+// MantleRegions to the bedrock-mantle regions its model card publishes.
+// It is advisory: calls from other regions still go to AWS, and a
+// model-not-found error from one carries the published list as a hint.
+var mantleRegions = buildMantleRegions(bedrockFamilies)
 
 // hasRegionPrefix reports whether a model ID already begins with a Bedrock
 // region/global inference-profile prefix (e.g. "us.anthropic.claude-sonnet-4-6"
@@ -597,9 +613,11 @@ var (
 		Output: []catalog.Modality{catalog.ModalityText},
 	}
 
-	// GPT-6 Astra on bedrock-runtime Converse. The model card lists
-	// structured outputs as not supported on bedrock-runtime, but Converse
-	// honors outputConfig.textFormat json_schema (probed 2026-09-22). Converse
+	// GPT-6 Astra on bedrock-runtime Converse. The model card lists JSON
+	// Schema structured outputs as supported on bedrock-runtime
+	// (non-streaming; Converse also needs
+	// additionalModelRequestFields.text.format.strict), and Converse honors
+	// outputConfig.textFormat json_schema (probed 2026-09-22). Converse
 	// rejects temperature, topP, and stopSequences for Astra ("This model
 	// doesn't support the ... field", probed 2026-09-22), so only max_tokens
 	// is advertised. Reasoning effort is accepted as additionalModelRequestFields
@@ -623,10 +641,11 @@ var (
 		SupportedParams: []string{"max_tokens"},
 	}
 
-	// GPT-6 Astra on bedrock-mantle (Responses API, us-west-2 only). Probed
-	// 2026-09-22: json_schema output works, temperature is rejected, and
-	// reasoning.effort accepts low through max but not none — the same
-	// surface as OpenAI's first-party Astra.
+	// GPT-6 Astra on bedrock-mantle (Responses API, us-east-1 and
+	// us-west-2), shared by the GPT-6 Sol and GPT-6.1 Sol mantle families.
+	// Probed 2026-09-22: json_schema output works and temperature is
+	// rejected. Efforts differ per model, so each family declares its own
+	// Reasoning.
 	gpt6AstraMantleCaps = llm.ModelCapabilities{
 		Streaming:        true,
 		Tools:            true,
@@ -643,6 +662,31 @@ var (
 		MaxOutputTokens: 128000,
 		SupportedParams: []string{"max_tokens", "reasoning_effort"},
 	}
+
+	// GPT-6 Astra's Ultrafast tier (service_tier "ultrafast"), six times
+	// Standard per the model card, with its own long-context card above
+	// 272K input tokens. gpt6AstraUltrafast is the US CRIS and in-region
+	// (mantle us-east-1) card; gpt6AstraUltrafastGlobal is Global CRIS.
+	gpt6AstraUltrafast = []pricing.Override{{
+		Match: pricing.Selector{ServiceTier: llm.ServiceTierUltrafast},
+		RateCard: pricing.RateCard{
+			Base: pricing.NewRates(66.00, 330.00, 6.60).WithCacheCreation(0, 0, 82.50),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(132.00, 495.00, 13.20).WithCacheCreation(0, 0, 165.00),
+			}},
+		},
+	}}
+	gpt6AstraUltrafastGlobal = []pricing.Override{{
+		Match: pricing.Selector{ServiceTier: llm.ServiceTierUltrafast},
+		RateCard: pricing.RateCard{
+			Base: pricing.NewRates(60.00, 300.00, 6.00).WithCacheCreation(0, 0, 75.00),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(120.00, 450.00, 12.00).WithCacheCreation(0, 0, 150.00),
+			}},
+		},
+	}}
 
 	gpt56Constraints = llm.ModelConstraints{
 		TemperatureRange: [2]float64{0.0, 2.0},
@@ -961,7 +1005,14 @@ var bedrockFamilies = []family{
 		// Standard-tier rates from the card (launched 2026-09-08): OpenAI's
 		// rates plus a 10% in-region/geo fee, with a long-context card above
 		// 272K input tokens. The 30-minute cache-write TTL sits in the
-		// unknown-TTL bucket, as for GPT-5.6.
+		// unknown-TTL bucket, as for GPT-5.6. Both profiles also carry
+		// Ultrafast: the card says "On bedrock-runtime, Ultrafast is
+		// available through both US geographic CRIS and Global CRIS. On
+		// bedrock-mantle, Ultrafast is available in us-east-1." and lists
+		// Responses among its "APIs supported on bedrock-runtime". This SDK
+		// reaches the profiles through Converse, which selects no tier, so
+		// these cards price Responses-API usage of the same IDs. Priority
+		// and Flex are unsupported.
 		BareID:      ModelGPT6Astra,
 		Model:       catalog.ModelGPT6Astra,
 		DisplayName: "OpenAI GPT-6 Astra",
@@ -987,20 +1038,26 @@ var bedrockFamilies = []family{
 				Rates:            pricing.NewRates(22.00, 82.50, 2.20).WithCacheCreation(0, 0, 27.50),
 			}},
 		},
+		Overrides:       gpt6AstraUltrafast,
+		GlobalOverrides: gpt6AstraUltrafastGlobal,
 		// Canada routes to the US profile, so the default prefix rule would
 		// misroute it.
 		ProfileRegions: gpt6AstraProfileRegions,
 	},
 	{
-		// OpenAI GPT-6 Astra on bedrock-mantle — bare in-region ID, us-west-2
-		// only, with the same in-region rates as the geo profile above.
-		// Unlike the Converse profiles, the Responses API takes reasoning
-		// effort.
+		// OpenAI GPT-6 Astra on bedrock-mantle — bare in-region ID in
+		// us-east-1 and us-west-2, with the same in-region rates as the geo
+		// profile above. Unlike the Converse profiles, the Responses API takes
+		// reasoning effort: low through max but not none (probed 2026-09-22),
+		// the same surface as OpenAI's first-party Astra. Ultrafast runs only
+		// in us-east-1 (us-west-2 is Standard only); mantle responses report
+		// no region, so its card cannot be scoped to us-east-1.
 		BareID:        ModelGPT6Astra,
 		Model:         catalog.ModelGPT6Astra,
 		DisplayName:   "OpenAI GPT-6 Astra",
 		BareInvokable: true,
 		Mantle:        true,
+		MantleRegions: []string{"us-east-1", "us-west-2"},
 		Capabilities:  gpt6AstraMantleCaps,
 		Modalities:    gpt56Modalities,
 		Constraints:   gpt6AstraMantleConstraints,
@@ -1014,6 +1071,7 @@ var bedrockFamilies = []family{
 				Rates:            pricing.NewRates(22.00, 82.50, 2.20).WithCacheCreation(0, 0, 27.50),
 			}},
 		},
+		Overrides: gpt6AstraUltrafast,
 	},
 	{
 		// OpenAI GPT-6.1 Sol — inference-profile-only on bedrock-runtime:
@@ -1060,6 +1118,7 @@ var bedrockFamilies = []family{
 		DisplayName:   "OpenAI GPT-6.1 Sol",
 		BareInvokable: true,
 		Mantle:        true,
+		MantleRegions: []string{"us-east-1"},
 		Capabilities:  gpt6AstraMantleCaps,
 		Modalities:    gpt56Modalities,
 		Constraints:   gpt6AstraMantleConstraints,
@@ -1071,6 +1130,74 @@ var bedrockFamilies = []family{
 			Brackets: []pricing.Bracket{{
 				MinContextTokens: 272_001,
 				Rates:            pricing.NewRates(4.40, 16.50, 0.22).WithCacheCreation(0, 0, 5.50),
+			}},
+		},
+	},
+	{
+		// OpenAI GPT-6 Sol — inference-profile-only on bedrock-runtime:
+		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-sol.html
+		// Standard-tier rates from the card (launched 2026-09-22): global
+		// matches OpenAI's rates and US CRIS adds 10%, with a long-context
+		// card above 272K input tokens. The card names no cache-write TTL, so
+		// writes sit in the unknown-TTL bucket. Unprobed: the card documents
+		// Astra's Converse surface and limits (1,050,000 window, 128,000 max
+		// output), so the family reuses Astra's capabilities and constraints.
+		// The card publishes no input cap; the 922K MaxInputTokens is
+		// OpenAI's documented max input, the 1.05M window less the 128K
+		// reserved for output.
+		BareID:      ModelGPT6Sol,
+		Model:       catalog.ModelGPT6Sol,
+		DisplayName: "OpenAI GPT-6 Sol",
+		Profiles:    []string{"global", "us"},
+		// The card lists bedrock-runtime prompt caching for the Responses API
+		// only, not Converse.
+		NoCachePoints: true,
+		// StructuredOutput follows the card, which marks JSON Schema
+		// structured outputs as supported on bedrock-runtime; Converse needs
+		// additionalModelRequestFields.text.format.strict set to true
+		// (unprobed).
+		Capabilities: gpt6AstraCaps,
+		Modalities:   gpt56Modalities,
+		Constraints:  gpt6AstraConstraints,
+		Reasoning:    converseReasoningNoControls,
+		GlobalRates: &pricing.RateCard{
+			Base: pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(0, 0, 2.50),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(4.00, 15.00, 0.40).WithCacheCreation(0, 0, 5.00),
+			}},
+		},
+		Rates: pricing.RateCard{
+			Base: pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(0, 0, 2.75),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(4.40, 16.50, 0.44).WithCacheCreation(0, 0, 5.50),
+			}},
+		},
+		ProfileRegions: gpt6SolProfileRegions,
+	},
+	{
+		// OpenAI GPT-6 Sol on bedrock-mantle — bare in-region ID, us-east-1
+		// only, at the card's "Mantle in-Region" rates, which equal the US
+		// profile's. The card lists effort none through max, as on OpenAI's
+		// own gpt-6-sol; otherwise it shares Astra's mantle surface (unprobed).
+		BareID:        ModelGPT6Sol,
+		Model:         catalog.ModelGPT6Sol,
+		DisplayName:   "OpenAI GPT-6 Sol",
+		BareInvokable: true,
+		Mantle:        true,
+		MantleRegions: []string{"us-east-1"},
+		Capabilities:  gpt6AstraMantleCaps,
+		Modalities:    gpt56Modalities,
+		Constraints:   gpt6AstraMantleConstraints,
+		Reasoning: catalog.ReasoningSupport{
+			Efforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+		},
+		Rates: pricing.RateCard{
+			Base: pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(0, 0, 2.75),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(4.40, 16.50, 0.44).WithCacheCreation(0, 0, 5.50),
 			}},
 		},
 	},

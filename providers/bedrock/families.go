@@ -54,6 +54,13 @@ type family struct {
 	// OpenAI-compatible endpoint. Mantle families must be bare-only:
 	// AWS publishes no inference profiles for them.
 	Mantle bool
+	// MantleRegions records the bedrock-mantle regions the model card
+	// publishes, registered in mantleRegions. It never blocks a call: the
+	// list is copied by hand and AWS adds regions without notice, so a
+	// stale list must not refuse requests that would work. It only adds a
+	// region hint to a model-not-found error from another region. Valid
+	// only with Mantle and BareInvokable.
+	MantleRegions []string
 	// NoCachePoints marks Converse families that reject CachePoint blocks
 	// (AccessDeniedException "your request did not allow prompt caching").
 	// NewModel turns prompt caching off for them regardless of the
@@ -80,6 +87,14 @@ type family struct {
 	// GlobalRates is the global-profile rate card; required exactly when
 	// "global" is in Profiles.
 	GlobalRates *pricing.RateCard
+	// Overrides layers selector-keyed rate cards (a speed or service
+	// tier) on Rates, for the same variants. Each card carries its own
+	// brackets.
+	Overrides []pricing.Override
+	// GlobalOverrides layers the same way on GlobalRates; allowed only
+	// when "global" is in Profiles, and required there when Overrides is
+	// set.
+	GlobalOverrides []pricing.Override
 
 	// ProfileRegions opts the family into exact geo routing: a source
 	// region → profile map registered in profileRegionResolvers.
@@ -110,6 +125,10 @@ func expandFamilies(families []family) ([]catalog.Entry, map[string]bool) {
 			panic(fmt.Sprintf("bedrock: mantle family %s must be bare-only", f.BareID)) //nolint:forbidigo // authoring error, not runtime
 		}
 
+		if len(f.MantleRegions) > 0 && (!f.Mantle || !f.BareInvokable) {
+			panic(fmt.Sprintf("bedrock: family %s sets MantleRegions without Mantle and BareInvokable", f.BareID)) //nolint:forbidigo // authoring error, not runtime
+		}
+
 		hasGlobal := false
 
 		for _, p := range f.Profiles {
@@ -126,9 +145,17 @@ func expandFamilies(families []family) ([]catalog.Entry, map[string]bool) {
 			panic(fmt.Sprintf("bedrock: family %s must set GlobalRates exactly when the global profile is published", f.BareID)) //nolint:forbidigo // authoring error, not runtime
 		}
 
+		if !hasGlobal && len(f.GlobalOverrides) > 0 {
+			panic(fmt.Sprintf("bedrock: family %s sets GlobalOverrides without the global profile", f.BareID)) //nolint:forbidigo // authoring error, not runtime
+		}
+
+		if hasGlobal && len(f.Overrides) > 0 && len(f.GlobalOverrides) == 0 {
+			panic(fmt.Sprintf("bedrock: family %s sets Overrides without GlobalOverrides for the global profile", f.BareID)) //nolint:forbidigo // authoring error, not runtime
+		}
+
 		// geo is the inference-profile geography ("us", "global", ...);
 		// empty for bare IDs, which run in the calling region.
-		variant := func(id, labelSuffix, geo string, rates pricing.RateCard) catalog.Entry {
+		variant := func(id, labelSuffix, geo string, rates pricing.RateCard, overrides []pricing.Override) catalog.Entry {
 			var attrs map[string]string
 			if f.DataSharing || geo != "" {
 				attrs = make(map[string]string, 2)
@@ -150,13 +177,13 @@ func expandFamilies(families []family) ([]catalog.Entry, map[string]bool) {
 				Modalities:   f.Modalities,
 				Reasoning:    f.Reasoning,
 				Life:         f.Life,
-				Pricing:      pricing.Info{Default: rates},
+				Pricing:      rateInfo(rates, overrides),
 				Attributes:   attrs,
 			}
 		}
 
 		if f.BareInvokable {
-			entries = append(entries, variant(f.BareID, "", "", f.Rates))
+			entries = append(entries, variant(f.BareID, "", "", f.Rates, f.Overrides))
 
 			if f.Mantle {
 				mantle[f.BareID] = true
@@ -164,16 +191,27 @@ func expandFamilies(families []family) ([]catalog.Entry, map[string]bool) {
 		}
 
 		for _, p := range f.Profiles {
-			rates := f.Rates
+			rates, overrides := f.Rates, f.Overrides
 			if p == "global" {
-				rates = *f.GlobalRates
+				rates, overrides = *f.GlobalRates, f.GlobalOverrides
 			}
 
-			entries = append(entries, variant(p+"."+f.BareID, profileLabels[p], p, rates))
+			entries = append(entries, variant(p+"."+f.BareID, profileLabels[p], p, rates, overrides))
 		}
 	}
 
 	return entries, mantle
+}
+
+// rateInfo builds a variant's pricing from its default card and any
+// selector overrides.
+func rateInfo(card pricing.RateCard, overrides []pricing.Override) pricing.Info {
+	info := pricing.Info{Default: card}
+	for _, o := range overrides {
+		info = info.WithOverride(o.Match, o.RateCard)
+	}
+
+	return info
 }
 
 // buildProfileRegionResolvers collects the per-family geo routing maps
@@ -198,4 +236,26 @@ func buildProfileRegionResolvers(families []family) (map[string]func(string) (st
 	}
 
 	return resolvers, regions
+}
+
+// buildMantleRegions collects each mantle family's published regions into
+// the bare-ID → region set behind the mantle model-not-found hint,
+// single-sourced from the family declarations (family.MantleRegions).
+func buildMantleRegions(families []family) map[string]map[string]bool {
+	regions := make(map[string]map[string]bool)
+
+	for _, f := range families {
+		if len(f.MantleRegions) == 0 {
+			continue
+		}
+
+		set := make(map[string]bool, len(f.MantleRegions))
+		for _, r := range f.MantleRegions {
+			set[r] = true
+		}
+
+		regions[f.BareID] = set
+	}
+
+	return regions
 }
