@@ -1,3 +1,6 @@
+# protoc-gen-go copies the license comment above `syntax` in each .proto to
+# the top of its .pb.go, and `task license:check` requires it there. Keep
+# that comment in new .proto files; `task license` skips generated files.
 version: v2
 managed:
   enabled: true
