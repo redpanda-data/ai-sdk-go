@@ -110,6 +110,22 @@ func hello() *llm.Request {
 	return &llm.Request{Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("hi"))}}
 }
 
+// newGatewayProvider returns a provider at my-project and us-east5 that
+// sends through fake as an AI Gateway provider URL, with the tenant bearer.
+func newGatewayProvider(t *testing.T, fake *fakeVertex) *vertex.Provider {
+	t.Helper()
+
+	p, err := vertex.NewProvider(context.Background(),
+		vertex.WithProject("my-project"),
+		vertex.WithLocation("us-east5"),
+		vertex.WithBaseURL(fake.server.URL+"/llm/v1/providers/my-vertex"),
+		vertex.WithHTTPClient(bearerClient()),
+	)
+	require.NoError(t, err)
+
+	return p
+}
+
 const geminiResponse = `{
   "candidates": [{"content": {"role": "model", "parts": [{"text": "hello from gemini"}]}, "finishReason": "STOP"}],
   "usageMetadata": {"promptTokenCount": 3, "candidatesTokenCount": 4, "totalTokenCount": 7}
@@ -120,15 +136,7 @@ func TestNewModel_GeminiThroughGateway(t *testing.T) {
 
 	fake := newFakeVertex(t, "application/json", geminiResponse)
 
-	p, err := vertex.NewProvider(context.Background(),
-		vertex.WithProject("my-project"),
-		vertex.WithLocation("us-east5"),
-		vertex.WithBaseURL(fake.server.URL+"/llm/v1/providers/my-vertex"),
-		vertex.WithHTTPClient(bearerClient()),
-	)
-	require.NoError(t, err)
-
-	m, err := p.NewModel(vertex.ModelGemini25Flash)
+	m, err := newGatewayProvider(t, fake).NewModel(vertex.ModelGemini25Flash)
 	require.NoError(t, err)
 	assert.Equal(t, llm.ProviderID("gcp.vertex"), m.Provider())
 	assert.Equal(t, vertex.ModelGemini25Flash, m.Name())
@@ -151,15 +159,7 @@ func TestNewModel_GeminiSendsCatalogID(t *testing.T) {
 
 	fake := newFakeVertex(t, "application/json", geminiResponse)
 
-	p, err := vertex.NewProvider(context.Background(),
-		vertex.WithProject("my-project"),
-		vertex.WithLocation("us-east5"),
-		vertex.WithBaseURL(fake.server.URL+"/llm/v1/providers/my-vertex"),
-		vertex.WithHTTPClient(bearerClient()),
-	)
-	require.NoError(t, err)
-
-	m, err := p.NewModel(vertex.ModelGemini25Flash + "-001")
+	m, err := newGatewayProvider(t, fake).NewModel(vertex.ModelGemini25Flash + "-001")
 	require.NoError(t, err)
 	assert.Equal(t, vertex.ModelGemini25Flash+"-001", m.Name())
 
@@ -265,15 +265,7 @@ data: {"type":"message_stop"}
 func newGatewayClaude(t *testing.T, fake *fakeVertex) llm.Model {
 	t.Helper()
 
-	p, err := vertex.NewProvider(context.Background(),
-		vertex.WithProject("my-project"),
-		vertex.WithLocation("us-east5"),
-		vertex.WithBaseURL(fake.server.URL+"/llm/v1/providers/my-vertex"),
-		vertex.WithHTTPClient(bearerClient()),
-	)
-	require.NoError(t, err)
-
-	m, err := p.NewModel(vertex.ModelClaudeHaiku45)
+	m, err := newGatewayProvider(t, fake).NewModel(vertex.ModelClaudeHaiku45)
 	require.NoError(t, err)
 
 	return m
@@ -325,15 +317,7 @@ func TestNewModel_GeminiStreamsThroughGateway(t *testing.T) {
 
 	fake := newFakeVertex(t, "text/event-stream", "data: "+strings.ReplaceAll(geminiResponse, "\n", "")+"\n\n")
 
-	p, err := vertex.NewProvider(context.Background(),
-		vertex.WithProject("my-project"),
-		vertex.WithLocation("us-east5"),
-		vertex.WithBaseURL(fake.server.URL+"/llm/v1/providers/my-vertex"),
-		vertex.WithHTTPClient(bearerClient()),
-	)
-	require.NoError(t, err)
-
-	m, err := p.NewModel(vertex.ModelGemini25Flash)
+	m, err := newGatewayProvider(t, fake).NewModel(vertex.ModelGemini25Flash)
 	require.NoError(t, err)
 
 	var text strings.Builder
