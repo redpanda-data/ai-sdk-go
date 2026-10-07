@@ -35,23 +35,6 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/providers/google"
 )
 
-// Option configures a model built by Provider.NewModel.
-type Option func(*modelConfig) error
-
-type modelConfig struct {
-	reasoningEffort *llm.ReasoningEffort
-}
-
-// WithReasoningEffort sets the reasoning effort. The model's offering
-// lists the efforts it accepts; any other is refused.
-func WithReasoningEffort(effort llm.ReasoningEffort) Option {
-	return func(c *modelConfig) error {
-		c.reasoningEffort = &effort
-
-		return nil
-	}
-}
-
 // NewModel returns an llm.Model for a catalogued Vertex model at the
 // provider's project and location. Gemini models reuse providers/google
 // over genai's Vertex backend, and Claude models reuse providers/anthropic;
