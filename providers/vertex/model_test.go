@@ -143,9 +143,9 @@ func TestNewModel_GeminiThroughGateway(t *testing.T) {
 	assert.Equal(t, "Bearer tenant-token", got.Authorization)
 }
 
-// TestNewModel_GeminiSendsCatalogID checks a Gemini model requests the
-// catalog's ID, not the name the caller resolved it by, the way the Claude
-// path does: the AI Gateway keys spend on the model in the path.
+// TestNewModel_GeminiSendsCatalogID checks a Gemini model's request path
+// names the catalog's ID, not the name the caller resolved it by, as the
+// Claude path does.
 func TestNewModel_GeminiSendsCatalogID(t *testing.T) {
 	t.Parallel()
 
