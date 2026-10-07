@@ -188,8 +188,9 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 }
 
 // NewModelFromOffering creates a model from an offering the caller resolved
-// from its own catalog, such as a Vertex AI one. modelName is sent verbatim,
-// and the model reports the offering's provider.
+// from its own catalog, such as a Vertex AI one. Requests name modelName, or
+// the WithCustomModelName value when set, and the model reports the
+// offering's provider.
 func (p *Provider) NewModelFromOffering(modelName string, offering catalog.Offering, opts ...Option) (llm.Model, error) {
 	cfg := &Config{
 		ModelName:   modelName,
