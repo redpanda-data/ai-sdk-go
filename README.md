@@ -3,7 +3,7 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/redpanda-data/ai-sdk-go.svg)](https://pkg.go.dev/github.com/redpanda-data/ai-sdk-go)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-A Go SDK for building AI-powered applications with a unified interface across multiple LLM providers. Supports OpenAI, Anthropic, Google Gemini, Meta, AWS Bedrock, and any OpenAI-compatible API.
+A Go SDK for building AI-powered applications with a unified interface across multiple LLM providers. Supports OpenAI, Anthropic, Google Gemini, Google Vertex AI, Meta, AWS Bedrock, and any OpenAI-compatible API.
 
 <p align="center">
   <img src="assets/gopher.png" alt="Redpanda AI SDK Gopher" width="400">
@@ -95,6 +95,21 @@ import "github.com/redpanda-data/ai-sdk-go/providers/bedrock"
 
 provider, err := bedrock.NewProvider(ctx) // uses AWS credential chain
 model, err := provider.NewModel(bedrock.ModelClaudeOpus46)
+```
+
+### Google Vertex AI
+
+Serves Gemini and Claude models from one Google Cloud project and location. The HTTP client must add the credential itself.
+
+```go
+import "github.com/redpanda-data/ai-sdk-go/providers/vertex"
+
+provider, err := vertex.NewProvider(ctx,
+    vertex.WithProject("my-project"),
+    vertex.WithLocation("us-east5"),
+    vertex.WithHTTPClient(authClient), // adds a bearer token to every request
+)
+model, err := provider.NewModel(vertex.ModelClaudeHaiku45)
 ```
 
 ### OpenAI-Compatible
