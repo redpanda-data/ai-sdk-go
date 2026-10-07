@@ -189,6 +189,42 @@ func TestNewModel_ClaudeSendsCatalogID(t *testing.T) {
 	assert.Equal(t, "/llm/v1/providers/my-vertex/v1/projects/my-project/locations/us-east5/publishers/anthropic/models/"+vertex.ModelClaudeOpus45+":rawPredict", got.Path)
 }
 
+// TestNewModel_ReasoningEffortReachesRequest checks WithReasoningEffort is
+// refused for an effort the offering does not list, and reaches the Gemini
+// and the Claude request otherwise.
+func TestNewModel_ReasoningEffortReachesRequest(t *testing.T) {
+	t.Parallel()
+
+	_, err := newGatewayProvider(t, newFakeVertex(t, "application/json", geminiResponse)).
+		NewModel(vertex.ModelGemini35Flash, vertex.WithReasoningEffort("bogus"))
+	require.ErrorContains(t, err, `reasoning effort "bogus"`)
+
+	tests := []struct {
+		model    string
+		response string
+		path     string
+		want     string
+	}{
+		{model: vertex.ModelGemini35Flash, response: geminiResponse, path: "generationConfig.thinkingConfig.thinkingLevel", want: "HIGH"},
+		{model: vertex.ModelClaudeSonnet46, response: claudeResponse, path: "output_config.effort", want: "high"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.model, func(t *testing.T) {
+			t.Parallel()
+
+			fake := newFakeVertex(t, "application/json", tt.response)
+
+			m, err := newGatewayProvider(t, fake).NewModel(tt.model, vertex.WithReasoningEffort("high"))
+			require.NoError(t, err)
+
+			_, err = m.Generate(context.Background(), hello())
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, gjson.Get(fake.only(t).Body, tt.path).String())
+		})
+	}
+}
+
 // hostRecorder records the scheme and host of the request it is sent, then
 // fails it, so a test sees where a model would send without a network call.
 type hostRecorder struct{ origin string }
