@@ -16,6 +16,7 @@ package vertex_test
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -168,6 +169,55 @@ func TestNewModel_GeminiSendsCatalogID(t *testing.T) {
 
 	got := fake.only(t)
 	assert.Equal(t, "/llm/v1/providers/my-vertex/v1/projects/my-project/locations/us-east5/publishers/google/models/gemini-2.5-flash:generateContent", got.Path)
+}
+
+// hostRecorder records the scheme and host of the request it is sent, then
+// fails it, so a test sees where a model would send without a network call.
+type hostRecorder struct{ origin string }
+
+func (h *hostRecorder) RoundTrip(r *http.Request) (*http.Response, error) {
+	h.origin = r.URL.Scheme + "://" + r.URL.Host
+
+	return nil, errors.New("recorded")
+}
+
+// TestNewModel_DefaultEndpoint checks the Vertex host a model sends to when
+// no base URL is set, for the global endpoint, each multi-region, and a
+// region.
+func TestNewModel_DefaultEndpoint(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		location string
+		want     string
+	}{
+		{location: "global", want: "https://aiplatform.googleapis.com"},
+		{location: "us", want: "https://aiplatform.us.rep.googleapis.com"},
+		{location: "eu", want: "https://aiplatform.eu.rep.googleapis.com"},
+		{location: "us-east5", want: "https://us-east5-aiplatform.googleapis.com"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.location, func(t *testing.T) {
+			t.Parallel()
+
+			rec := &hostRecorder{}
+
+			p, err := vertex.NewProvider(context.Background(),
+				vertex.WithProject("my-project"),
+				vertex.WithLocation(tt.location),
+				vertex.WithHTTPClient(&http.Client{Transport: rec}),
+			)
+			require.NoError(t, err)
+
+			m, err := p.NewModel(vertex.ModelGemini25Flash)
+			require.NoError(t, err)
+
+			_, err = m.Generate(context.Background(), hello())
+			require.Error(t, err)
+			assert.Equal(t, tt.want, rec.origin)
+		})
+	}
 }
 
 // TestNewModel_NeverDetectsADC proves a negative: building and calling a
