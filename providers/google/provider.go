@@ -41,7 +41,7 @@ type Provider struct {
 
 // NewProviderWithClient creates a provider over a genai client the caller
 // built. It takes no API key: whatever authenticates the client is already
-// on it. providers/vertex uses it for a client on the Vertex AI backend.
+// on it.
 //
 //nolint:contextcheck // Context is intentionally stored for Gemini client operations
 func NewProviderWithClient(ctx context.Context, client *genai.Client) (*Provider, error) {
