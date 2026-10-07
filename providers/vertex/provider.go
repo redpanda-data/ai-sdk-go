@@ -79,6 +79,10 @@ func WithLocation(location string) ProviderOption {
 			return errors.New("location cannot be empty")
 		}
 
+		if len(location) > maxLocationLen || !locationPattern.MatchString(location) {
+			return fmt.Errorf("invalid location %q", location)
+		}
+
 		p.location = location
 
 		return nil

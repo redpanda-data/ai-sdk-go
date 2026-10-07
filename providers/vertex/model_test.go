@@ -235,6 +235,37 @@ func (h *hostRecorder) RoundTrip(r *http.Request) (*http.Response, error) {
 	return nil, errors.New("recorded")
 }
 
+// TestNewModel_LocationNeverLeavesGoogleAPIs checks a location string
+// cannot move the host a bearer-carrying request is sent to: it is either
+// refused, or the request still goes to a googleapis.com host.
+func TestNewModel_LocationNeverLeavesGoogleAPIs(t *testing.T) {
+	t.Parallel()
+
+	for _, location := range []string{"attacker.example#", "evil.com/", "us-east5.evil", "us-central1@evil"} {
+		t.Run(location, func(t *testing.T) {
+			t.Parallel()
+
+			rec := &hostRecorder{}
+
+			p, err := vertex.NewProvider(context.Background(),
+				vertex.WithProject("my-project"),
+				vertex.WithLocation(location),
+				vertex.WithHTTPClient(&http.Client{Transport: rec}),
+			)
+			if err != nil {
+				return // refused: the location never reaches a host
+			}
+
+			m, err := p.NewModel(vertex.ModelGemini25Flash)
+			require.NoError(t, err)
+
+			_, _ = m.Generate(context.Background(), hello())
+
+			assert.True(t, strings.HasSuffix(rec.origin, ".googleapis.com"), "request sent to %q", rec.origin)
+		})
+	}
+}
+
 // TestNewModel_DefaultEndpoint checks the Vertex host a model sends to when
 // no base URL is set, for the global endpoint, each multi-region, and a
 // region.

@@ -16,6 +16,7 @@ package vertex_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -42,4 +43,21 @@ func TestProviderCatalog(t *testing.T) {
 	p, err := vertex.NewProvider(context.Background())
 	require.NoError(t, err)
 	assert.Same(t, vertex.Catalog(), p.Catalog())
+}
+
+// TestWithLocation_Shape checks WithLocation takes the location shape
+// cloudv2 stores (llm_provider.proto, VertexConfig.location) and refuses
+// anything else.
+func TestWithLocation_Shape(t *testing.T) {
+	t.Parallel()
+
+	for _, location := range []string{"global", "us", "eu", "us-east5", "northamerica-northeast1", "europe-west12", " US-East5 "} {
+		_, err := vertex.NewProvider(context.Background(), vertex.WithLocation(location))
+		require.NoError(t, err, location)
+	}
+
+	for _, location := range []string{"attacker.example#", "evil.com/", "us-central1@evil", "us-", "1abc", "us--east5", "a" + strings.Repeat("b", 63)} {
+		_, err := vertex.NewProvider(context.Background(), vertex.WithLocation(location))
+		assert.Error(t, err, location)
+	}
 }
