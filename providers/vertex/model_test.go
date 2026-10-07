@@ -342,6 +342,34 @@ func TestNewModel_ClaudeThroughGateway(t *testing.T) {
 	assert.Equal(t, "vertex-2023-10-16", gjson.Get(got.Body, "anthropic_version").String())
 }
 
+// TestNewModel_ClaudeRewindResendsRewrittenBody checks a request net/http
+// rewinds, here on a 307 redirect, still carries the rewritten body.
+func TestNewModel_ClaudeRewindResendsRewrittenBody(t *testing.T) {
+	t.Parallel()
+
+	fake := newFakeVertex(t, "application/json", claudeResponse)
+	redirect := httptest.NewServer(http.RedirectHandler(fake.server.URL+"/moved", http.StatusTemporaryRedirect))
+	t.Cleanup(redirect.Close)
+
+	p, err := vertex.NewProvider(context.Background(),
+		vertex.WithProject("my-project"),
+		vertex.WithLocation("us-east5"),
+		vertex.WithBaseURL(redirect.URL),
+		vertex.WithHTTPClient(bearerClient()),
+	)
+	require.NoError(t, err)
+
+	m, err := p.NewModel(vertex.ModelClaudeHaiku45)
+	require.NoError(t, err)
+
+	_, err = m.Generate(context.Background(), hello())
+	require.NoError(t, err)
+
+	got := fake.only(t)
+	assert.False(t, gjson.Get(got.Body, "model").Exists())
+	assert.Equal(t, "vertex-2023-10-16", gjson.Get(got.Body, "anthropic_version").String())
+}
+
 func TestNewModel_ClaudeStreamsThroughGateway(t *testing.T) {
 	t.Parallel()
 

@@ -212,8 +212,8 @@ func (p *Provider) rawPredictMiddleware(model string) option.Middleware {
 		// parameter; Vertex takes beta opt-ins in the anthropic-beta header.
 		r.URL.RawQuery = ""
 
-		// GetBody too, because the SDK retries, and a retry that cannot
-		// rewind the body sends an empty one.
+		// GetBody too, so a rewind by net/http, on a redirect or an HTTP/2
+		// retry, resends the rewritten body and not the SDK's original one.
 		r.Body = io.NopCloser(bytes.NewReader(body))
 		r.GetBody = func() (io.ReadCloser, error) {
 			return io.NopCloser(bytes.NewReader(body)), nil
