@@ -125,9 +125,9 @@ func (*Provider) Catalog() *catalog.Catalog {
 }
 
 // endpoint is the base URL models send to: the configured one, or the
-// location's Vertex host. genai derives a host from the location too, but
-// for us and eu it derives us-aiplatform.googleapis.com, which resolves
-// through wildcard DNS and serves an HTML page.
+// location's Vertex host. The multi-regions us and eu are served at
+// aiplatform.<location>.rep.googleapis.com, not the
+// <location>-aiplatform.googleapis.com host genai derives.
 func (p *Provider) endpoint() string {
 	if p.baseURL != "" {
 		return p.baseURL
