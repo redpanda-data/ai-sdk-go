@@ -171,6 +171,24 @@ func TestNewModel_GeminiSendsCatalogID(t *testing.T) {
 	assert.Equal(t, "/llm/v1/providers/my-vertex/v1/projects/my-project/locations/us-east5/publishers/google/models/gemini-2.5-flash:generateContent", got.Path)
 }
 
+// TestNewModel_ClaudeSendsCatalogID checks a Claude model reached by alias
+// requests the catalog's ID, as the Gemini path does.
+func TestNewModel_ClaudeSendsCatalogID(t *testing.T) {
+	t.Parallel()
+
+	fake := newFakeVertex(t, "application/json", claudeResponse)
+
+	m, err := newGatewayProvider(t, fake).NewModel("claude-opus-4-5")
+	require.NoError(t, err)
+	assert.Equal(t, "claude-opus-4-5", m.Name())
+
+	_, err = m.Generate(context.Background(), hello())
+	require.NoError(t, err)
+
+	got := fake.only(t)
+	assert.Equal(t, "/llm/v1/providers/my-vertex/v1/projects/my-project/locations/us-east5/publishers/anthropic/models/"+vertex.ModelClaudeOpus45+":rawPredict", got.Path)
+}
+
 // hostRecorder records the scheme and host of the request it is sent, then
 // fails it, so a test sees where a model would send without a network call.
 type hostRecorder struct{ origin string }
