@@ -146,3 +146,19 @@ func TestProviderOptionsCombination(t *testing.T) {
 	assert.Equal(t, 5*time.Minute, provider.Timeout)
 	assert.Equal(t, 5*time.Minute, provider.HTTPClient.Timeout)
 }
+
+// TestModelProvider_ReportsOfferingProvider checks a model built from this
+// package's catalog reports this provider, and a nil client is refused.
+func TestModelProvider_ReportsOfferingProvider(t *testing.T) {
+	t.Parallel()
+
+	p, err := NewProvider(context.Background(), "test-key")
+	require.NoError(t, err)
+
+	m, err := p.NewModel(ModelGemini38Flash)
+	require.NoError(t, err)
+	assert.Equal(t, p.Name(), m.Provider())
+
+	_, err = NewProviderWithClient(context.Background(), nil)
+	require.Error(t, err)
+}
