@@ -143,6 +143,33 @@ func TestNewModel_GeminiThroughGateway(t *testing.T) {
 	assert.Equal(t, "Bearer tenant-token", got.Authorization)
 }
 
+// TestNewModel_GeminiSendsCatalogID checks a Gemini model requests the
+// catalog's ID, not the name the caller resolved it by, the way the Claude
+// path does: the AI Gateway keys spend on the model in the path.
+func TestNewModel_GeminiSendsCatalogID(t *testing.T) {
+	t.Parallel()
+
+	fake := newFakeVertex(t, "application/json", geminiResponse)
+
+	p, err := vertex.NewProvider(context.Background(),
+		vertex.WithProject("my-project"),
+		vertex.WithLocation("us-east5"),
+		vertex.WithBaseURL(fake.server.URL+"/llm/v1/providers/my-vertex"),
+		vertex.WithHTTPClient(bearerClient()),
+	)
+	require.NoError(t, err)
+
+	m, err := p.NewModel(vertex.ModelGemini25Flash + "-001")
+	require.NoError(t, err)
+	assert.Equal(t, vertex.ModelGemini25Flash+"-001", m.Name())
+
+	_, err = m.Generate(context.Background(), hello())
+	require.NoError(t, err)
+
+	got := fake.only(t)
+	assert.Equal(t, "/llm/v1/providers/my-vertex/v1/projects/my-project/locations/us-east5/publishers/google/models/gemini-2.5-flash:generateContent", got.Path)
+}
+
 // TestNewModel_NeverDetectsADC proves a negative: building and calling a
 // model never runs Application Default Credentials detection. ADC is
 // poisoned with a credentials file that does not exist, so detection would

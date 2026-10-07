@@ -132,7 +132,10 @@ func (p *Provider) newGeminiModel(modelName string, offering catalog.Offering, c
 		return nil, fmt.Errorf("vertex: %w", err)
 	}
 
-	var opts []google.Option
+	// The request names the catalog ID, as the Claude path does, so a model
+	// reached by alias or snapshot reaches the AI Gateway, and its spend
+	// rows, under one name.
+	opts := []google.Option{google.WithCustomModelName(offering.ID)}
 	if cfg.reasoningEffort != nil {
 		opts = append(opts, google.WithReasoningEffort(*cfg.reasoningEffort))
 	}
