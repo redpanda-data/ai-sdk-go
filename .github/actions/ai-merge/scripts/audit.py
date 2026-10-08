@@ -13,6 +13,12 @@ from common import load_json
 from sanitize import sanitize_verdict, scan_for_secrets
 
 MARKER = "<!-- ai-approved-merge -->"
+HEAD_MARKER_PREFIX = "<!-- ai-merge-head:"
+
+
+def head_marker(sha: str) -> str:
+    return f"{HEAD_MARKER_PREFIX}{sha} -->"
+
 
 MISSING_GUARDRAILS = {
     "eligible": False,
@@ -25,6 +31,15 @@ MISSING_GUARDRAILS = {
 }
 
 
+def _not_consulted_reason(guardrails: dict) -> str:
+    if not guardrails.get("eligible"):
+        return "gates refused before the model ran"
+    ci = guardrails.get("ci_status")
+    if ci and ci != "passed":
+        return f"CI {ci}"
+    return "no verdict produced"
+
+
 def render(
     guardrails: dict,
     verdict: dict | None,
@@ -33,6 +48,7 @@ def render(
     dry_run: bool = False,
     approve_outcome: str = "",
     shadows: dict | None = None,
+    head_sha: str = "",
 ) -> str:
     approve = bool((decision or {}).get("approve"))
     # Second layer: never render model text unsanitised, whichever engine produced it.
@@ -87,6 +103,11 @@ def render(
     v = verdict or {}
     lines = [
         MARKER,
+        # Hidden: which head this audit is for. The scheduled sweep compares it with
+        # the PR's current head to find PRs that became eligible without an event
+        # (GitHub's automatic base change after a stacked PR's base merges fires
+        # nothing) and re-triggers them.
+        head_marker(head_sha) if head_sha else "",
         f"### {status}",
         "",
         "| Field | Value |",
@@ -100,6 +121,8 @@ def render(
         (
             "| AI verdict | rejected — see reasons |"
             if v.get("error")
+            else f"| AI verdict | not consulted ({_not_consulted_reason(guardrails)}) |"
+            if not verdict
             else f"| AI verdict | `{v.get('verdict', 'n/a')}` "
             f"(confidence {v.get('confidence', 'n/a')}, "
             f"reviewed fully: {v.get('reviewed_fully', 'n/a')}, "
@@ -201,6 +224,9 @@ def main() -> int:
     ap.add_argument("--dry-run", default="false")
     ap.add_argument("--approve-outcome", default="")
     ap.add_argument(
+        "--head-sha", default="", help="reviewed head; written as a hidden marker"
+    )
+    ap.add_argument(
         "--shadows", default="", help="comma-separated shadow-<engine>.json paths"
     )
     ap.add_argument("--out", required=True)
@@ -225,6 +251,7 @@ def main() -> int:
         dry_run=str(args.dry_run).lower() == "true",
         approve_outcome=args.approve_outcome,
         shadows=shadows,
+        head_sha=args.head_sha,
     )
     with open(args.out, "w") as fh:
         fh.write(body)

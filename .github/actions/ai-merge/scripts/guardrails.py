@@ -276,6 +276,12 @@ def evaluate(
 
         reviewable_diff_chars = len(strip_generated(diff, sorted(generated_names)))
 
+    rg = config.get("review_guidance", "")
+    if rg is not None and not isinstance(rg, str):
+        reasons.append("config `review_guidance` must be a string")
+    elif isinstance(rg, str) and len(rg) > 6000:
+        reasons.append("config `review_guidance` is too long (max 6000 chars)")
+
     # Judgment engine selection (docs/verdict-contract.md). Validated here so a
     # typo fails closed with a reason instead of a crash in the action.
     engine = config.get("engine", "single-call")

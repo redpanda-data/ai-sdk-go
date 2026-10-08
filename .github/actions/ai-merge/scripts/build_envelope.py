@@ -118,6 +118,11 @@ def main() -> int:
             "generated_paths": cfg.get("generated_paths", []),
             "dependency_paths": cfg.get("dependency_paths", []),
             "prompt_profile": cfg.get("prompt_profile", "code"),
+            "review_guidance": (
+                cfg.get("review_guidance")
+                if isinstance(cfg.get("review_guidance"), str)
+                else ""
+            ),
         },
     }
     with open(a.out, "w") as fh:

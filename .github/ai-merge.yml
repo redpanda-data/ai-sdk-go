@@ -6,7 +6,7 @@
 # Baseline exclusions always apply on top of this list: .github/**, terraform/**,
 # release/**, Dockerfiles, iam/ and auth/ dirs, *credential*, *secret*, *.pem, *.key.
 # Binary or patchless files also make a PR ineligible.
-version: 10
+version: 11
 enabled: true
 
 # Size is NOT a risk score and does not gate. The only size rule is that the
@@ -25,6 +25,31 @@ max_diff_chars: 120000
 # filter out verdicts the model itself flags as uncertain. Tune from dry-run
 # data, not from intuition.
 min_confidence: 0.75
+
+# Repo-specific guidance rendered verbatim into the reviewer's prompt. Owned by
+# this repository's maintainers: this is where the team's definition of
+# "routine" lives. Plain text, a few short paragraphs; read from the base
+# branch like everything else, so a PR cannot change how it is reviewed.
+review_guidance: |
+  This SDK's main day-to-day change is model metadata: catalog entries, IDs,
+  pricing rate cards, regional availability, lifecycle dates, capability flags,
+  and the regenerated catalog/snapshot.json that mirrors them. Additions that
+  follow the existing sibling patterns are ROUTINE and low-risk: approve when
+  the new entries are internally consistent (same values in every provider
+  that lists them, same shape as their siblings), tests are updated to cover
+  them, and CI is green. Do not treat unverifiable vendor facts (prices, dates,
+  availability, tool-search inclusion) as concerns.
+
+  Capability-flag changes on EXISTING models (for example StructuredOutput, or
+  a lifecycle/retirement change) are behaviour changes for current users:
+  approve when they come with a pinning test and green CI, and state the
+  change plainly in the summary so the author sees it. Raise a concern only
+  when providers disagree about the same model with no explanation in the PR,
+  or when a flag flips without any test covering it.
+
+  Changes to request mapping, transports, credential handling, auth, or the
+  provider clients' wire behaviour are NOT routine even when small; review
+  them as code.
 
 # HARD CI GATE, enforced in the trusted job for every engine (not just in the
 # agent's prompt): the commit's CI must have PASSED for an approval. `failed`
@@ -70,8 +95,12 @@ shadow_engines:
 #   providers/bedrock/mantle.go   SigV4 signing transport: retrieves and validates AWS credentials
 #   tool/mcp/transport.go         spawns stdio MCP servers via exec.Command with caller env
 #   tool/builtin/webfetch/**      SSRF guard: private/reserved IP deny list, rebinding-safe dialer
-#   .claude/**, .claude-pr/**, CLAUDE.md   agent config; settings.json runs shell hooks on
-#                                 every contributor's machine — same category as Taskfile
+#   .claude/settings*.json, .claude/hooks/**, .claude/**/*.sh|*.py, .mcp.json, .claude-pr/**
+#                                 agent config that EXECUTES on every contributor's machine
+#                                 (hooks, MCP servers, scripts) — same category as Taskfile.
+#                                 Instruction markdown (.claude/skills/**/*.md, CLAUDE.md) is
+#                                 NOT excluded: the team edits it as part of routine model-add
+#                                 work, and the reviewer can read it like any other text.
 #   Taskfile.yaml, taskfiles/**, .golangci.yaml   define what CI enforces (task test/lint/license)
 #   LICENSE, header.txt           license text and the header template
 # Guarded by .github/actions/ai-merge/scripts/test_repo_config.py.
@@ -80,9 +109,13 @@ excluded_paths:
   - "providers/bedrock/mantle.go"
   - "tool/mcp/transport.go"
   - "tool/builtin/webfetch/**"
-  - ".claude/**"
+  - ".claude/settings.json"
+  - ".claude/settings.local.json"
+  - ".claude/hooks/**"
+  - ".claude/**/*.sh"
+  - ".claude/**/*.py"
+  - ".mcp.json"
   - ".claude-pr/**"
-  - "CLAUDE.md"
   - "Taskfile.yaml"
   - "taskfiles/**"
   - ".golangci.yaml"
