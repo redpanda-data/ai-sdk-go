@@ -84,10 +84,15 @@ jobs:
        github.event.label.name == 'ai-merge-skip' ||
        (github.event.action == 'labeled' && github.event.label.name == 'ai-merge-reevaluate'))
     steps:
-      - name: Check out the BASE ref (mechanism, prompt, config) at the workspace root
+      # The TIP of the default branch, by name — not pull_request.base.sha. That
+      # field is a snapshot taken when the PR was last pushed, so with it every
+      # open PR would keep running whatever mechanism version was on main back
+      # then, and mechanism updates would only apply after the author rebased.
+      # Same trusted branch either way; this just makes updates apply now.
+      - name: Check out the default branch tip (mechanism, prompt, config) at the workspace root
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: ${{ github.event.repository.default_branch }}
           sparse-checkout: .github
           persist-credentials: false
           fetch-depth: 1
@@ -95,6 +100,7 @@ jobs:
       - name: Is the mechanism on the base ref?
         id: present
         run: |
+          echo "mechanism_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           if [ -f .github/actions/ai-merge/action.yml ] && [ -f .github/actions/ai-merge/prompts/agent.md ]; then
             echo "ok=true" >> "$GITHUB_OUTPUT"
           else
@@ -150,7 +156,7 @@ jobs:
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_SHA: ${{ steps.present.outputs.mechanism_sha }}
         run: |
           set -euo pipefail
           python .github/actions/ai-merge/scripts/build_envelope.py \
@@ -282,10 +288,10 @@ jobs:
       checks: read   # the CI gate queries check runs with the workflow token
       actions: read  # download the agent's artifact from this run
     steps:
-      - name: Check out the mechanism from the BASE ref (never the PR head)
+      - name: Check out the mechanism from the default branch tip (never the PR head)
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: ${{ github.event.repository.default_branch }}
           path: mechanism
           sparse-checkout: .github/actions/ai-merge
           persist-credentials: false
@@ -311,6 +317,7 @@ jobs:
             exit 0
           fi
           echo "ok=true" >> "$GITHUB_OUTPUT"
+          echo "mechanism_sha=$(git -C mechanism rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Download the agent's verdict (this run only)
         if: steps.present.outputs.ok == 'true'
@@ -339,7 +346,7 @@ jobs:
           config_path: .github/ai-merge.yml
           repo: ${{ github.repository }}
           pr_number: ${{ github.event.pull_request.number }}
-          base_sha: ${{ github.event.pull_request.base.sha }}
+          base_sha: ${{ steps.present.outputs.mechanism_sha }}  # config is read at this commit
           run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           dry_run: ${{ env.AI_MERGE_DRY_RUN }}
           skipped: ${{ contains(github.event.pull_request.labels.*.name, 'ai-merge-skip') }}
@@ -373,7 +380,7 @@ jobs:
     steps:
       - name: App token (comment only)
         id: app
-        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547  # v1
+        uses: actions/create-github-app-token@v1
         with:
           app-id: ${{ secrets.AI_MERGE_APP_ID }}
           private-key: ${{ secrets.AI_MERGE_APP_PRIVATE_KEY }}
@@ -417,7 +424,7 @@ jobs:
     steps:
       - name: App token (label only)
         id: app
-        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547  # v1
+        uses: actions/create-github-app-token@v1
         with:
           app-id: ${{ secrets.AI_MERGE_APP_ID }}
           private-key: ${{ secrets.AI_MERGE_APP_PRIVATE_KEY }}
@@ -436,7 +443,7 @@ jobs:
             case "$AUTHOR" in *"[bot]") continue;; esac
             [ "$HEADREPO" = "$REPO" ] || continue
             # still labelled = a previous re-trigger did not complete; never loop on it
-            case ",$LABELS," in *",ai-merge-reevaluate,"*) echo "PR #$NUM: re-evaluate label still present; skipping"; continue;; esac
+            case ",$LABELS," in *",ai-merge-reevaluate,"*) echo "::warning::PR #$NUM still carries ai-merge-reevaluate — a previous re-trigger did not complete; remove the label to retry"; continue;; esac
             MARKED="$(gh api --paginate "repos/$REPO/issues/$NUM/comments" \
               --jq "map(select(.user.login==\"$BOT\" and (.body | contains(\"<!-- ai-approved-merge -->\")))) | .[0].body // \"\"" \
               | sed -n 's/.*<!-- ai-merge-head:\([0-9a-f]*\) -->.*/\1/p' | head -1)"
