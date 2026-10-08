@@ -227,3 +227,60 @@ def test_explain_skip_job_is_comment_only():
         "claude-code-action",
     ):
         assert forbidden not in job, forbidden
+
+
+def test_reconciler_sweep_exists_and_is_label_only():
+    # Automatic base changes fire no pull_request event, so a scheduled sweep
+    # must exist, and it may only read PRs/comments and add ONE label.
+    s = _wf()
+    if s is None:
+        return
+    import yaml
+
+    wf = yaml.safe_load(s)
+    on = wf[True] if True in wf else wf["on"]
+    assert "schedule" in on and "workflow_dispatch" in on
+    assert "sweep" in wf["jobs"]
+    job = s.split("  sweep:", 1)[1]
+    assert "ai-merge-head:" in job and "ai-merge-reevaluate" in job
+    for forbidden in (
+        "event=APPROVE",
+        "gh pr merge",
+        "actions/checkout",
+        "claude-code-action",
+        "--method PATCH",
+        "--method DELETE",
+        "--method PUT",
+    ):
+        assert forbidden not in job, forbidden
+    # PR-event jobs never run on the schedule
+    for jname in ("agent", "approve", "explain-skip"):
+        assert (
+            "github.event_name == 'pull_request_target'" in wf["jobs"][jname]["if"]
+        ), jname
+    # and the gates accept the sweep's label as a re-trigger, but not its removal
+    for jname in ("agent", "approve"):
+        cond = wf["jobs"][jname]["if"]
+        assert (
+            "github.event.action == 'labeled' && github.event.label.name == 'ai-merge-reevaluate'"
+            in cond
+        )
+
+
+def test_audit_carries_head_marker_for_the_sweep():
+    import audit
+
+    body = audit.render(
+        {
+            "eligible": True,
+            "reasons": [],
+            "engine": "agent-action",
+            "ci_status": "passed",
+        },
+        None,
+        {"approve": False, "reasons": ["x"]},
+        "http://run",
+        dry_run=True,
+        head_sha="abc123",
+    )
+    assert audit.head_marker("abc123") in body
