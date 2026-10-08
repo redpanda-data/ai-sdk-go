@@ -39,6 +39,7 @@ func TestClaudeStructuredOutputCapability(t *testing.T) {
 		ModelClaudeSonnet5:  false,
 		ModelClaudeSonnet46: true,
 		ModelClaudeSonnet45: true,
+		ModelClaudeHaiku55:  false,
 		ModelClaudeHaiku45:  true,
 	}
 
