@@ -164,6 +164,13 @@ var servedLocations = map[string][]string{
 		"us-east5", "europe-west1",
 		"asia-southeast1",
 	},
+	// From the Haiku 5.5 model page (not yet in the matrix). A europe-west1
+	// pricing tab lists it too, but the page publishes availability only for
+	// the US and EU multi-regions and the global endpoint.
+	ModelClaudeHaiku55: {
+		LocationGlobal,
+		"us", "eu",
+	},
 	// The matrix and a pricing tab also list asia-east1, but the model page
 	// does not, and rawPredict there returns 404 "Publisher model ... was
 	// not found" (2026-09-29) from a project the other three serve.
