@@ -32,6 +32,14 @@
       "released": "2025-10-15",
       "knowledge": "2025-02-28"
     },
+    "anthropic/claude-haiku-5-5": {
+      "display_name": "Claude Haiku 5.5",
+      "publisher": "anthropic",
+      "description": "Claude Haiku 5.5 is Anthropic's fastest model, built for high-volume, latency-sensitive work such as classification, routing, extraction, and subagent tasks.",
+      "series": "claude-haiku",
+      "released": "2026-10-07",
+      "knowledge": "2026-06-30"
+    },
     "anthropic/claude-opus-4-1": {
       "display_name": "Claude Opus 4.1",
       "publisher": "anthropic",
@@ -672,6 +680,82 @@
           "lifecycle": {
             "stage": "ga",
             "available": "2025-10-15"
+          },
+          "derived": {
+            "price_tier": "low",
+            "replacement": "anthropic/claude-haiku-5-5"
+          }
+        },
+        {
+          "id": "claude-haiku-5-5",
+          "model": "anthropic/claude-haiku-5-5",
+          "display_name": "Claude Haiku 5.5",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": true,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "reasoning_effort"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 10000000,
+                "output_microcents_per_million": 50000000,
+                "cached_input_microcents_per_million": 1000000,
+                "cache_creation_5m_microcents_per_million": 12500000,
+                "cache_creation_1h_microcents_per_million": 20000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 100001,
+                  "rates": {
+                    "input_microcents_per_million": 50000000,
+                    "output_microcents_per_million": 250000000,
+                    "cached_input_microcents_per_million": 5000000,
+                    "cache_creation_5m_microcents_per_million": 62500000,
+                    "cache_creation_1h_microcents_per_million": 100000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-10-07"
           },
           "derived": {
             "price_tier": "low"
