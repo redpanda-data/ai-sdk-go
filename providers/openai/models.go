@@ -230,7 +230,10 @@ func entries() []catalog.Entry {
 				Efforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
 			},
 			Life: catalog.Lifecycle{
-				Available: catalog.MustDate("2025-11-13"),
+				Available:  catalog.MustDate("2025-11-13"),
+				Deprecated: catalog.MustDate("2026-10-01"),
+				Retires:    catalog.MustDate("2027-04-01"),
+				ReplacedBy: ModelGPT6Sol,
 			},
 			// $1.25 / $10.00 / $0.125 per M (input / output / cached input).
 			Pricing: pricing.FlatInfo(1.25, 10.00, 0.125).
@@ -536,7 +539,7 @@ func entries() []catalog.Entry {
 				Efforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh},
 			},
 			Life: catalog.Lifecycle{
-				Available: catalog.MustDate("2026-04-23"),
+				Available: catalog.MustDate("2026-04-24"),
 			},
 			// Per M tokens: $5.00 input, $30.00 output, $0.50 cached input.
 			// Above 272K: $10.00 input, $45.00 output, $1.00 cached input.
@@ -631,7 +634,10 @@ func entries() []catalog.Entry {
 				Efforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh},
 			},
 			Life: catalog.Lifecycle{
-				Available: catalog.MustDate("2026-03-17"),
+				Available:  catalog.MustDate("2026-03-17"),
+				Deprecated: catalog.MustDate("2026-10-01"),
+				Retires:    catalog.MustDate("2027-04-01"),
+				ReplacedBy: ModelGPT6Luna,
 			},
 			Pricing: pricing.FlatInfo(0.20, 1.25, 0.02).
 				WithOverride(batchTier, flatCard(0.10, 0.625, 0.01)).
@@ -800,7 +806,7 @@ func entries() []catalog.Entry {
 				MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 			},
 			Life: catalog.Lifecycle{
-				Available:  catalog.MustDate("2023-11-06"),
+				Available:  catalog.MustDate("2024-04-09"),
 				Deprecated: catalog.MustDate("2026-04-22"),
 				Retires:    catalog.MustDate("2026-10-23"),
 				ReplacedBy: ModelGPT5_6Sol,
@@ -812,9 +818,10 @@ func entries() []catalog.Entry {
 				WithOverride(batchTier, flatCard(5.00, 15.00, 0)),
 		},
 		{
-			ID:           ModelGPT35Turbo,
-			Model:        catalog.ModelGPT35Turbo,
-			Capabilities: textChatCaps,
+			ID:    ModelGPT35Turbo,
+			Model: catalog.ModelGPT35Turbo,
+			// The model page lists no structured_outputs support.
+			Capabilities: withoutStructuredOutput(textChatCaps),
 			Modalities:   textOnly,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange:  [2]float64{0.0, 2.0},

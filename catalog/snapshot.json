@@ -267,7 +267,7 @@
       "publisher": "openai",
       "description": "The latest GPT-4 Turbo model with vision capabilities. Vision requests can now use JSON mode and function calling.",
       "series": "gpt",
-      "released": "2023-11-06",
+      "released": "2024-04-09",
       "knowledge": "2023-12-01"
     },
     "openai/gpt-4.1": {
@@ -394,7 +394,7 @@
       "publisher": "openai",
       "description": "GPT-5.5 is OpenAI’s frontier model designed for complex professional workloads, building on GPT-5.4 with stronger reasoning, higher reliability, and improved token efficiency on hard tasks.",
       "series": "gpt",
-      "released": "2026-04-23",
+      "released": "2026-04-24",
       "knowledge": "2025-12-01"
     },
     "openai/gpt-5.6-luna": {
@@ -9394,7 +9394,7 @@
             "multi_turn": true,
             "reasoning": false,
             "streaming": true,
-            "structured_output": true,
+            "structured_output": false,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -9519,7 +9519,7 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2023-11-06",
+            "available": "2024-04-09",
             "deprecated": "2026-04-22",
             "retires": "2026-10-23",
             "replaced_by": "gpt-5.6-sol"
@@ -10302,11 +10302,14 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2025-11-13"
+            "available": "2025-11-13",
+            "deprecated": "2026-10-01",
+            "retires": "2027-04-01",
+            "replaced_by": "gpt-6-sol"
           },
           "derived": {
             "price_tier": "medium",
-            "replacement": "openai/gpt-5.2"
+            "replacement": "openai/gpt-6-sol"
           }
         },
         {
@@ -10985,11 +10988,14 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2026-03-17"
+            "available": "2026-03-17",
+            "deprecated": "2026-10-01",
+            "retires": "2027-04-01",
+            "replaced_by": "gpt-6-luna"
           },
           "derived": {
             "price_tier": "low",
-            "replacement": "openai/gpt-5.6-luna"
+            "replacement": "openai/gpt-6-luna"
           }
         },
         {
@@ -11123,7 +11129,7 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2026-04-23"
+            "available": "2026-04-24"
           },
           "derived": {
             "price_tier": "high",
