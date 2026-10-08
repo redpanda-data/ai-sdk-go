@@ -514,7 +514,10 @@ var defaultRegistry = Registry{
 	ModelNova2Lite: {
 		Publisher:   PublisherAmazon,
 		DisplayName: "Amazon Nova 2 Lite", Series: "nova-lite",
+		// Knowledge cutoff ("Oct 2025") per Amazon's Bedrock model card,
+		// docs.aws.amazon.com/bedrock/latest/userguide/model-card-amazon-nova-2-lite.html.
 		Released:    MustDate("2025-12-02"),
+		Knowledge:   MustDate("2025-10-31"),
 		Description: "Nova 2 Lite is a fast, cost-effective reasoning model for everyday workloads that can process text, images, and videos to generate text.",
 	},
 	ModelGemma4E2B: {

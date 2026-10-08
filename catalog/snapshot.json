@@ -6,7 +6,8 @@
       "publisher": "amazon",
       "description": "Nova 2 Lite is a fast, cost-effective reasoning model for everyday workloads that can process text, images, and videos to generate text.",
       "series": "nova-lite",
-      "released": "2025-12-02"
+      "released": "2025-12-02",
+      "knowledge": "2025-10-31"
     },
     "anthropic/claude-fable-5": {
       "display_name": "Claude Fable 5",
@@ -1832,7 +1833,7 @@
           },
           "constraints": {
             "max_input_tokens": 1000000,
-            "max_output_tokens": 128000,
+            "max_output_tokens": 64000,
             "supported_params": [
               "temperature",
               "top_p",
@@ -2597,7 +2598,7 @@
           },
           "constraints": {
             "max_input_tokens": 1000000,
-            "max_output_tokens": 128000,
+            "max_output_tokens": 64000,
             "supported_params": [
               "temperature",
               "top_p",
@@ -3502,7 +3503,7 @@
           },
           "constraints": {
             "max_input_tokens": 1000000,
-            "max_output_tokens": 128000,
+            "max_output_tokens": 64000,
             "supported_params": [
               "temperature",
               "top_p",
@@ -5693,7 +5694,7 @@
           },
           "constraints": {
             "max_input_tokens": 1000000,
-            "max_output_tokens": 128000,
+            "max_output_tokens": 64000,
             "supported_params": [
               "temperature",
               "top_p",
