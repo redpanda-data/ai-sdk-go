@@ -1,0 +1,168 @@
+name: reconcile-models
+
+on:
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: Provider to reconcile
+        type: choice
+        options: [anthropic]
+        default: anthropic
+      dry_run:
+        description: Stop before pushing a branch or opening a PR
+        type: boolean
+        default: true
+  # TEMPORARY, for testing on the PoC branch only. Remove before merging.
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/reconcile-models.yml
+      - .github/reconcile-models/**
+
+permissions: {}
+
+concurrency:
+  group: reconcile-models-${{ inputs.provider || 'anthropic' }}
+  cancel-in-progress: false
+
+env:
+  PROVIDER: ${{ inputs.provider || 'anthropic' }}
+  DRY_RUN: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run }}
+
+jobs:
+  agent:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
+    steps:
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          persist-credentials: false
+      - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e  # v2.2.0
+      - name: Install subprocess isolation
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends bubblewrap socat
+      - name: Prepare prompt and schema
+        id: inputs
+        run: |
+          {
+            echo "prompt<<EOF_PROMPT"
+            sed "s/{{PROVIDER}}/${PROVIDER}/g" .github/reconcile-models/prompt.md
+            echo "EOF_PROMPT"
+            echo "schema=$(jq -c . .github/reconcile-models/report.schema.json)"
+          } >>"$GITHUB_OUTPUT"
+      - name: Run reconcile-models
+        id: claude
+        uses: anthropics/claude-code-action@6fed3ca145920b639991cb756090506e1bcaf515  # v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
+          prompt: ${{ steps.inputs.outputs.prompt }}
+          settings: '{"disableAllHooks": true}'
+          claude_args: >-
+            --model claude-opus-5-5
+            --max-turns 40
+            --allowedTools "Skill,Read,Grep,Glob,Edit(./providers/${{ env.PROVIDER }}/models.go),Edit(./catalog/facts_data.go),Bash(curl:*),Bash(grep:*),Bash(jq:*),Bash(task catalog:snapshot),Bash(task test:unit),Bash(git diff:*)"
+            --disallowedTools "WebFetch,WebSearch,Bash(git push:*),Bash(git commit:*),Bash(gh:*),AskUserQuestion,Task,Agent"
+            --json-schema '${{ steps.inputs.outputs.schema }}'
+      - name: Collect patch and report
+        env:
+          REPORT: ${{ steps.claude.outputs.structured_output }}
+        run: |
+          mkdir -p out
+          printf '%s' "$REPORT" >out/report.json
+          git diff -- "providers/${PROVIDER}/models.go" catalog/facts_data.go >out/patch.diff
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: reconcile-agent-${{ env.PROVIDER }}
+          path: out/
+          retention-days: 7
+
+  pr:
+    needs: agent
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: read
+      id-token: write # only used outside dry runs, to read the bot token
+    steps:
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          persist-credentials: false
+      - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e  # v2.2.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with:
+          name: reconcile-agent-${{ env.PROVIDER }}
+          path: out
+      - name: Check the patch (no model)
+        id: check
+        run: |
+          task install:go
+          export PATH="$(dirname "$(ls -d "$PWD"/.build/go*/bin/go | tail -1)"):$PATH"
+          GOTOOLCHAIN=local .github/reconcile-models/pr-job.sh "$PROVIDER" out
+      - name: Job summary
+        if: always()
+        run: if [[ -f out/body.md ]]; then cat out/body.md >>"$GITHUB_STEP_SUMMARY"; fi
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        if: always()
+        with:
+          name: reconcile-pr-${{ env.PROVIDER }}
+          path: |
+            out/body.md
+            out/snapshot.diff
+          retention-days: 7
+      - name: Skip if a person's PR touches the same files
+        id: race
+        if: env.DRY_RUN != 'true' && steps.check.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: bot/reconcile-models/${{ env.PROVIDER }}
+        run: |
+          others="$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json number,headRefName,files \
+            --jq '[.[] | select(.headRefName != env.BRANCH) | select(any(.files[]; .path == "providers/" + env.PROVIDER + "/models.go" or .path == "catalog/facts_data.go")) | .number] | map(tostring) | join(",")')"
+          if [[ -n "$others" ]]; then
+            echo "Skipped: open PRs touch the same files: $others" | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "skip=true" >>"$GITHUB_OUTPUT"
+          fi
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd  # v6.3.0
+        if: env.DRY_RUN != 'true' && steps.check.outputs.changed == 'true' && steps.race.outputs.skip != 'true'
+        with:
+          aws-region: ${{ vars.RP_AWS_CRED_REGION }}
+          role-to-assume: arn:aws:iam::${{ secrets.RP_AWS_CRED_ACCOUNT_ID }}:role/${{ vars.RP_AWS_CRED_BASE_ROLE_NAME }}${{ github.event.repository.name }}
+      - uses: aws-actions/aws-secretsmanager-get-secrets@2297f9a879480a9e3af9b293ed15c70caf8e1c88  # v3.0.2
+        if: env.DRY_RUN != 'true' && steps.check.outputs.changed == 'true' && steps.race.outputs.skip != 'true'
+        with:
+          secret-ids: |
+            ,sdlc/prod/github/actions_bot_token
+          parse-json-secrets: true
+      - name: Push the rolling branch and open or update the draft PR
+        if: env.DRY_RUN != 'true' && steps.check.outputs.changed == 'true' && steps.race.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ env.ACTIONS_BOT_TOKEN }}
+          BRANCH: bot/reconcile-models/${{ env.PROVIDER }}
+        run: |
+          bot_id="$(gh api users/vbotbuildovich --jq .id)"
+          git config user.name vbotbuildovich
+          git config user.email "${bot_id}+vbotbuildovich@users.noreply.github.com"
+          git switch -C "$BRANCH"
+          git add "providers/${PROVIDER}/models.go" catalog/facts_data.go catalog/snapshot.json
+          git commit -m "chore(catalog): reconcile ${PROVIDER} models"
+          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${BRANCH}"
+          existing="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number --jq '.[0].number // empty')"
+          if [[ -n "$existing" ]]; then
+            gh pr edit "$existing" --repo "$GITHUB_REPOSITORY" --body-file out/body.md
+          else
+            gh pr create --repo "$GITHUB_REPOSITORY" --draft --base main --head "$BRANCH" \
+              --title "chore(catalog): reconcile ${PROVIDER} models" --body-file out/body.md \
+              --label ai-merge-skip --reviewer adamwownysz-redpanda
+          fi
