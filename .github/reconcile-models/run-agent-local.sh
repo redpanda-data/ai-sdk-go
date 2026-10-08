@@ -10,7 +10,13 @@ mkdir -p "$out"
 prompt="$(sed "s/{{PROVIDER}}/${provider}/g" .github/reconcile-models/prompt.md)"
 schema="$(jq -c . .github/reconcile-models/report.schema.json)"
 
-CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1 claude -p "$prompt" \
+# An empty config dir gives the run what a CI runner sees: project settings and
+# skills only, no user settings, plugins, MCP servers or CLAUDE.md, and no
+# stored login: set ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN.
+config_dir="$(mktemp -d)"
+trap 'rm -rf "$config_dir"' EXIT
+
+CLAUDE_CONFIG_DIR="$config_dir" CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1 claude -p "$prompt" \
   --model claude-opus-5-5 \
   --max-turns 40 \
   --settings '{"disableAllHooks": true}' \
