@@ -189,3 +189,41 @@ def test_no_inline_expressions_in_run_blocks():
                 ]
                 offenders += [f"{jname}: {b}" for b in bad]
     assert not offenders, offenders
+
+
+def test_retarget_triggers_and_plain_edits_do_not():
+    s = _wf()
+    if s is None:
+        return
+    import yaml
+
+    wf = yaml.safe_load(s)
+    types = (
+        wf[True]["pull_request_target"]["types"]
+        if True in wf
+        else wf["on"]["pull_request_target"]["types"]
+    )
+    assert "edited" in types and "ready_for_review" in types
+    # every job gate that evaluates must ignore edits that did not change the base
+    for jname in ("agent", "approve", "explain-skip"):
+        cond = wf["jobs"][jname]["if"]
+        assert (
+            "github.event.action != 'edited' || github.event.changes.base != null"
+            in cond
+        ), jname
+
+
+def test_explain_skip_job_is_comment_only():
+    s = _wf()
+    if s is None:
+        return
+    job = s.split("  explain-skip:", 1)[1]
+    assert "base.ref != github.event.repository.default_branch" in job
+    assert "ai-approved-merge -->" in job and "not evaluated" in job
+    for forbidden in (
+        "event=APPROVE",
+        "gh pr merge",
+        "actions/checkout",
+        "claude-code-action",
+    ):
+        assert forbidden not in job, forbidden
