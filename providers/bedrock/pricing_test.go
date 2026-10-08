@@ -282,28 +282,21 @@ func TestClaudeSonnet55Pricing(t *testing.T) {
 func TestClaudeHaiku55Pricing(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	globalBase := pricing.NewRates(0.10, 0.50, 0.01).WithCacheCreation(0.125, 0.20, 0)
+	globalLong := pricing.NewRates(0.50, 2.50, 0.05).WithCacheCreation(0.625, 1.00, 0)
+	geoBase := pricing.NewRates(0.11, 0.55, 0.011).WithCacheCreation(0.1375, 0.22, 0)
+	geoLong := pricing.NewRates(0.55, 2.75, 0.055).WithCacheCreation(0.6875, 1.10, 0)
+
+	for _, tt := range []struct {
 		id         string
 		base, long pricing.Rates
 	}{
-		{
-			id:   ModelClaudeHaiku55Global,
-			base: pricing.NewRates(0.10, 0.50, 0.01).WithCacheCreation(0.125, 0.20, 0),
-			long: pricing.NewRates(0.50, 2.50, 0.05).WithCacheCreation(0.625, 1.00, 0),
-		},
-	}
-	for _, id := range []string{ModelClaudeHaiku55US, ModelClaudeHaiku55EU, ModelClaudeHaiku55AU, ModelClaudeHaiku55JP} {
-		tests = append(tests, struct {
-			id         string
-			base, long pricing.Rates
-		}{
-			id:   id,
-			base: pricing.NewRates(0.11, 0.55, 0.011).WithCacheCreation(0.1375, 0.22, 0),
-			long: pricing.NewRates(0.55, 2.75, 0.055).WithCacheCreation(0.6875, 1.10, 0),
-		})
-	}
-
-	for _, tt := range tests {
+		{ModelClaudeHaiku55Global, globalBase, globalLong},
+		{ModelClaudeHaiku55US, geoBase, geoLong},
+		{ModelClaudeHaiku55EU, geoBase, geoLong},
+		{ModelClaudeHaiku55AU, geoBase, geoLong},
+		{ModelClaudeHaiku55JP, geoBase, geoLong},
+	} {
 		t.Run(tt.id, func(t *testing.T) {
 			t.Parallel()
 
