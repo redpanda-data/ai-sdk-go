@@ -56,6 +56,15 @@ func TestValidate(t *testing.T) {
 		{"backtick in value", func(r *Report) { r.Changes[0].Old = "`4`" }, "value"},
 		{"http source", func(r *Report) { r.Changes[0].SourceURL = "http://platform.claude.com/x" }, "source"},
 		{"foreign host", func(r *Report) { r.Changes[0].SourceURL = "https://evil.example/pricing" }, "source"},
+		{"source with markdown", func(r *Report) {
+			r.Changes[0].SourceURL = "https://platform.claude.com/x)|[click](https://evil.example)"
+		}, "source"},
+		{"source with pipe", func(r *Report) { r.Changes[0].SourceURL = "https://platform.claude.com/a|b" }, "source"},
+		{"source with html", func(r *Report) { r.NeedsHuman[0].SourceURLs[0] = "https://platform.claude.com/<img src=x>" }, "source"},
+		{"source with space", func(r *Report) { r.Changes[0].SourceURL = "https://platform.claude.com/a b" }, "source"},
+		{"source with anchor and query", func(r *Report) {
+			r.Changes[0].SourceURL = "https://platform.claude.com/docs/en/pricing?tab=batch&x=1#model-pricing"
+		}, ""},
 		{"missing needs_human source", func(r *Report) { r.NeedsHuman[0].SourceURLs = nil }, "source"},
 	}
 	for _, tt := range tests {
@@ -76,26 +85,95 @@ func TestValidate(t *testing.T) {
 	}
 }
 
-func TestParseRejectsInvalidJSON(t *testing.T) {
+func TestParse(t *testing.T) {
 	t.Parallel()
 
-	_, err := Parse([]byte(`{"changes": [`))
-	require.Error(t, err)
-	_, err = Parse([]byte(`{"changes": [], "extra": 1}`))
-	require.Error(t, err, "unknown fields are rejected")
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{"all three arrays", `{"changes": [], "needs_human": [], "skipped": []}`, false},
+		{"truncated json", `{"changes": [`, true},
+		{"unknown field", `{"changes": [], "needs_human": [], "skipped": [], "extra": 1}`, true},
+		{"null", `null`, true},
+		{"empty object", `{}`, true},
+		{"missing changes", `{"needs_human": [], "skipped": []}`, true},
+		{"missing needs_human", `{"changes": [], "skipped": []}`, true},
+		{"missing skipped", `{"changes": [], "needs_human": []}`, true},
+		{"null array", `{"changes": null, "needs_human": [], "skipped": []}`, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := Parse([]byte(tt.input))
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+		})
+	}
 }
 
 func TestRender(t *testing.T) {
 	t.Parallel()
 
-	body := Render(validReport(), "anthropic", "-  \"input\": 4\n+  \"input\": 5\n")
-	assert.Contains(t, body, "## Catalogue drift: anthropic")
-	assert.Contains(t, body, "| `claude-opus-5-5` | price | `4.00` | `5.00` | [platform.claude.com](https://platform.claude.com/docs/en/about-claude/pricing.md) |")
-	assert.Contains(t, body, "`65535`, `65536`")
-	assert.Contains(t, body, "| `claude-haiku-4-5` | conflicting_sources |")
-	assert.Contains(t, body, "```diff")
+	diff := "-  \"input\": 4\n+  \"input\": 5\n"
 
-	empty := Render(Report{}, "anthropic", "")
-	assert.Contains(t, empty, "No drift found")
-	assert.NotContains(t, empty, "```diff")
+	tests := []struct {
+		name        string
+		report      Report
+		diff        string
+		contains    []string
+		notContains []string
+	}{
+		{
+			name:   "full report",
+			report: validReport(),
+			diff:   diff,
+			contains: []string{
+				"## Catalogue drift: anthropic",
+				"| `claude-opus-5-5` | price | `4.00` | `5.00` | [platform.claude.com](https://platform.claude.com/docs/en/about-claude/pricing.md) |",
+				"`65535`, `65536`",
+				"| `claude-haiku-4-5` | conflicting_sources |",
+				"```diff",
+			},
+		},
+		{
+			name:        "no drift",
+			report:      Report{},
+			contains:    []string{"No drift found"},
+			notContains: []string{"```diff"},
+		},
+		{
+			name:        "empty report keeps diff",
+			report:      Report{},
+			diff:        diff,
+			contains:    []string{"```diff", "+  \"input\": 5"},
+			notContains: []string{"No drift found"},
+		},
+		{
+			name:     "says not to push to the branch",
+			report:   validReport(),
+			diff:     diff,
+			contains: []string{"Don't push commits to this branch"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			body := Render(tt.report, "anthropic", tt.diff)
+			for _, want := range tt.contains {
+				assert.Contains(t, body, want)
+			}
+
+			for _, unwanted := range tt.notContains {
+				assert.NotContains(t, body, unwanted)
+			}
+		})
+	}
 }

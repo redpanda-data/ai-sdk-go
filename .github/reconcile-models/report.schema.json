@@ -10,14 +10,14 @@
         "field": {"enum": ["new_model", "price", "limit", "lifecycle", "replacement", "knowledge_cutoff", "release_date", "capability"]},
         "old": {"type": "string", "pattern": "^[A-Za-z0-9 ._:/+-]{0,64}$"},
         "new": {"type": "string", "pattern": "^[A-Za-z0-9 ._:/+-]{0,64}$"},
-        "source_url": {"type": "string", "pattern": "^https://"}}}},
+        "source_url": {"type": "string", "pattern": "^https://[A-Za-z0-9.-]+(/[A-Za-z0-9._~/%#?=&+:-]*)?$"}}}},
     "needs_human": {"type": "array", "items": {"type": "object", "additionalProperties": false,
       "required": ["offering", "field", "values", "source_urls"],
       "properties": {
         "offering": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._:-]{0,79}$"},
         "field": {"enum": ["new_model", "price", "limit", "lifecycle", "replacement", "knowledge_cutoff", "release_date", "capability"]},
         "values": {"type": "array", "items": {"type": "string", "pattern": "^[A-Za-z0-9 ._:/+-]{0,64}$"}},
-        "source_urls": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^https://"}}}}},
+        "source_urls": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^https://[A-Za-z0-9.-]+(/[A-Za-z0-9._~/%#?=&+:-]*)?$"}}}}},
     "skipped": {"type": "array", "items": {"type": "object", "additionalProperties": false,
       "required": ["offering", "reason"],
       "properties": {

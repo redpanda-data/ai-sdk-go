@@ -17,6 +17,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -61,19 +62,33 @@ var (
 	reasons         = []string{"not_on_named_sources", "conflicting_sources", "needs_new_pricing_shape", "out_of_scope"}
 	offeringPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._:-]{0,79}$`)
 	valuePattern    = regexp.MustCompile(`^[A-Za-z0-9 ._:/+-]{0,64}$`)
+	// sourcePattern allows only characters that can't end a markdown link,
+	// end a table cell or start HTML, so a URL always renders as one link.
+	sourcePattern = regexp.MustCompile(`^https://[A-Za-z0-9.-]+(/[A-Za-z0-9._~/%#?=&+:-]*)?$`)
 )
 
-// Parse decodes a report strictly: unknown fields are an error.
+// Parse decodes a report strictly: unknown fields are an error, and all three
+// arrays must be present, so a missing or null report never reads as "no drift".
 func Parse(data []byte) (Report, error) {
-	var report Report
+	// Pointers tell a missing or null array apart from an empty one.
+	var raw struct {
+		Changes    *[]Change     `json:"changes"`
+		NeedsHuman *[]NeedsHuman `json:"needs_human"`
+		Skipped    *[]Skipped    `json:"skipped"`
+	}
+
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 
-	if err := decoder.Decode(&report); err != nil {
+	if err := decoder.Decode(&raw); err != nil {
 		return Report{}, fmt.Errorf("parse report: %w", err)
 	}
 
-	return report, nil
+	if raw.Changes == nil || raw.NeedsHuman == nil || raw.Skipped == nil {
+		return Report{}, errors.New("parse report: changes, needs_human and skipped are required")
+	}
+
+	return Report{Changes: *raw.Changes, NeedsHuman: *raw.NeedsHuman, Skipped: *raw.Skipped}, nil
 }
 
 // Validate lists every problem that would make the report unsafe to render.
@@ -92,7 +107,7 @@ func Validate(report Report, hosts []string) []string {
 
 	checkSource := func(where, raw string) {
 		parsed, err := url.Parse(raw)
-		if err != nil || parsed.Scheme != "https" || !slices.Contains(hosts, parsed.Hostname()) {
+		if err != nil || !sourcePattern.MatchString(raw) || parsed.Scheme != "https" || !slices.Contains(hosts, parsed.Hostname()) {
 			problems = append(problems, where+": source not on a named-source host: "+fmt.Sprintf("%q", raw))
 		}
 	}
@@ -158,12 +173,12 @@ func Render(report Report, provider, snapshotDiff string) string {
 	var body strings.Builder
 	body.WriteString("## Catalogue drift: " + provider + "\n\n")
 
-	if len(report.Changes)+len(report.NeedsHuman)+len(report.Skipped) == 0 {
+	if len(report.Changes)+len(report.NeedsHuman)+len(report.Skipped) == 0 && snapshotDiff == "" {
 		body.WriteString("No drift found.\n")
 		return body.String()
 	}
 
-	body.WriteString("Proposed by the reconcile-models workflow. The tables come from the agent's structured report; the PR job checked its format and that every source is a named source. Check each value against its source before approving.\n\n")
+	body.WriteString("Proposed by the reconcile-models workflow. The tables come from the agent's structured report; the PR job checked its format and that every source is a named source. Check each value against its source before approving.\n\nDon't push commits to this branch: each run rebuilds it from main and force-pushes, so they would be lost. Comment on the PR instead.\n\n")
 
 	if len(report.Changes) > 0 {
 		fmt.Fprintf(&body, "### Changes (%d)\n\n| Offering | Field | Old | New | Source |\n|---|---|---|---|---|\n", len(report.Changes))
