@@ -42,9 +42,19 @@ git apply "$patch"
 go run ./cmd/catalog-guard -base "$out/base-models.go" -patched "$models"
 go run ./cmd/catalog-guard -base "$out/base-facts.go" -patched "$facts"
 
+# A patch must come with reported changes, so the PR body never shows less than the diff.
+if ! jq -e '.changes | length > 0' "$report" >/dev/null; then
+  echo "pr-job: the patch changes files but the report lists no changes" >&2
+  exit 1
+fi
+
 task catalog:snapshot
 task catalog:check
 task test:unit
+# The agent job runs with hooks off, so lint here. Only the patched lines (--new),
+# and without --fix, which would change files after the checks.
+task install:golangci-lint
+GOROOT="$(go env GOROOT)" .build/.bin/golangci-lint run --new --timeout 10m "./providers/${provider}/..." ./catalog/...
 task license:check
 
 unexpected="$(git diff --name-only | grep -vxF -e "$models" -e "$facts" -e catalog/snapshot.json || true)"
