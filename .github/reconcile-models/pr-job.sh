@@ -16,6 +16,14 @@ emit() { if [[ -n "${GITHUB_OUTPUT:-}" ]]; then echo "$1" >>"$GITHUB_OUTPUT"; fi
 [[ -n "$hosts" ]] || { echo "pr-job: no named sources for $provider" >&2; exit 1; }
 [[ -s "$report" ]] || { echo "pr-job: no report from the agent job" >&2; exit 1; }
 
+# A clean run lists nothing. If every offering was skipped because no named
+# source could be read, the agent checked nothing, so fail instead of passing.
+if jq -e '(.changes | length) == 0 and (.needs_human | length) == 0 and (.skipped | length) > 0
+          and all(.skipped[]; .reason == "not_on_named_sources")' "$report" >/dev/null; then
+  echo "pr-job: the agent read no named source (every offering skipped as not_on_named_sources)" >&2
+  exit 1
+fi
+
 if [[ ! -s "$patch" ]]; then
   go run ./cmd/catalog-report -report "$report" -provider "$provider" -hosts "$hosts" -out "$out/body.md"
   emit changed=false
