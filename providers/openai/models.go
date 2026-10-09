@@ -539,6 +539,7 @@ func entries() []catalog.Entry {
 				Efforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh},
 			},
 			Life: catalog.Lifecycle{
+				// Available per developers.openai.com/api/docs/changelog (Apr 24, 2026).
 				Available: catalog.MustDate("2026-04-24"),
 			},
 			// Per M tokens: $5.00 input, $30.00 output, $0.50 cached input.
@@ -806,6 +807,8 @@ func entries() []catalog.Entry {
 				MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 			},
 			Life: catalog.Lifecycle{
+				// Available per developers.openai.com/api/docs/changelog (Apr 9, 2024):
+				// GPT-4 Turbo GA.
 				Available:  catalog.MustDate("2024-04-09"),
 				Deprecated: catalog.MustDate("2026-04-22"),
 				Retires:    catalog.MustDate("2026-10-23"),
