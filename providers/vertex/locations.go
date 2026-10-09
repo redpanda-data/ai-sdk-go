@@ -15,6 +15,7 @@
 package vertex
 
 import (
+	"regexp"
 	"slices"
 	"strings"
 )
@@ -203,3 +204,13 @@ func servedLocationsFor(model string) []string {
 func normalizeLocation(location string) string {
 	return strings.ToLower(strings.TrimSpace(location))
 }
+
+// locationPattern and maxLocationLen are the shape cloudv2 stores a Vertex
+// provider's location in (llm_provider.proto, VertexConfig.location), so
+// the SDK accepts every location cloudv2 accepts. The location becomes part
+// of the request host, and the pattern admits no character that can move
+// the host off googleapis.com. It checks shape only: an unlisted region
+// passes.
+var locationPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`)
+
+const maxLocationLen = 63

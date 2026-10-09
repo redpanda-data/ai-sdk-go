@@ -132,3 +132,19 @@ func TestModelsDiscoveryConstraints(t *testing.T) {
 			"model %s missing MaxOutputTokens — set Constraints on its catalog entry", m.ID)
 	}
 }
+
+// TestModelProvider_ReportsOfferingProvider checks a model built from this
+// package's catalog reports this provider, and a nil client is refused.
+func TestModelProvider_ReportsOfferingProvider(t *testing.T) {
+	t.Parallel()
+
+	p, err := NewProvider("test-key")
+	require.NoError(t, err)
+
+	m, err := p.NewModel(ModelClaudeFable51)
+	require.NoError(t, err)
+	assert.Equal(t, p.Name(), m.Provider())
+
+	_, err = NewProviderWithClient(nil)
+	require.Error(t, err)
+}

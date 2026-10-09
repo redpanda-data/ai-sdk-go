@@ -54,6 +54,18 @@ type Provider struct {
 	client        *anthropic.Client
 }
 
+// NewProviderWithClient returns a provider over a pre-built Anthropic client,
+// for a caller that owns the transport, such as a platform that serves
+// Claude behind its own endpoint and credential. Prompt caching is on, as
+// with NewProvider; set EnableCaching to turn it off.
+func NewProviderWithClient(client *anthropic.Client) (*Provider, error) {
+	if client == nil {
+		return nil, errors.New("anthropic client is required")
+	}
+
+	return &Provider{client: client, EnableCaching: true}, nil
+}
+
 // Name returns the provider identifier.
 func (*Provider) Name() llm.ProviderID {
 	return ProviderName
@@ -194,6 +206,13 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 		return nil, fmt.Errorf("unsupported Anthropic model: %s", modelName)
 	}
 
+	return p.NewModelFromOffering(modelName, offering, opts...)
+}
+
+// NewModelFromOffering creates a model for an offering resolved elsewhere,
+// such as another platform's catalog that serves the same Claude models. The
+// model reports the offering's provider, facts and pricing.
+func (p *Provider) NewModelFromOffering(modelName string, offering catalog.Offering, opts ...Option) (llm.Model, error) {
 	cfg := &Config{
 		ModelName:        modelName,
 		Constraints:      offering.Constraints,
@@ -232,7 +251,6 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 	}
 
 	return &Model{
-		provider:       p,
 		config:         cfg,
 		offering:       offering,
 		client:         p.client,
