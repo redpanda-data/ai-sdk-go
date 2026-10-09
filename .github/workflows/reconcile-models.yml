@@ -74,14 +74,19 @@ jobs:
       - name: Collect patch and report
         env:
           REPORT: ${{ steps.claude.outputs.structured_output }}
+        # Start from an empty out/ and hand over only these two files, so
+        # nothing else the agent wrote reaches the PR job.
         run: |
-          mkdir -p out
+          rm -rf out && mkdir out
           printf '%s' "$REPORT" >out/report.json
           git diff -- "providers/${PROVIDER}/models.go" catalog/facts_data.go >out/patch.diff
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: reconcile-agent-${{ env.PROVIDER }}
-          path: out/
+          path: |
+            out/report.json
+            out/patch.diff
+          if-no-files-found: error
           retention-days: 7
 
   pr:
@@ -107,6 +112,7 @@ jobs:
       - name: Check the patch (no model)
         id: check
         run: |
+          rm -f out/body.md out/snapshot.diff  # only pr-job.sh writes these
           task install:go
           export PATH="$(dirname "$(ls -d "$PWD"/.build/go*/bin/go | tail -1)"):$PATH"
           GOTOOLCHAIN=local .github/reconcile-models/pr-job.sh "$PROVIDER" out
