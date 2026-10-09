@@ -43,8 +43,8 @@ const (
 	// claude-opus-5-5, whose row is its model page's "Model availability"
 	// section. Rows added on 2026-09-28 were read from the page on that day,
 	// and the claude-fable-5-1 and gemini-3.5-flash rows come from their
-	// model pages. The claude-sonnet-5-5 row, added 2026-09-29, is its model
-	// page's section.
+	// model pages. The claude-sonnet-5-5 row, added 2026-09-29, and the
+	// claude-haiku-5-5 row, added 2026-10-08, are their model pages' sections.
 	LocationsMatrixTranscribed = "2026-09-22"
 )
 

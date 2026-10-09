@@ -455,8 +455,8 @@ var (
 		Reasoning:        true,
 	}
 
-	// claudeNoSchemaCaps is for Opus 4.7+, Sonnet 5+, and Fable, whose
-	// Converse endpoint rejects structured output.
+	// claudeNoSchemaCaps is for Opus 4.7+, Sonnet 5+, Haiku 5.5, and Fable,
+	// whose Converse endpoint rejects structured output.
 	claudeNoSchemaCaps = func() llm.ModelCapabilities {
 		caps := claudeStandardCaps
 		caps.StructuredOutput = false

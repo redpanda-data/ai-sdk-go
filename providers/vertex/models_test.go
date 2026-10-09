@@ -187,9 +187,6 @@ func assertEveryNonGlobalRegionPriced(t *testing.T, served []string, overrides [
 	}
 }
 
-// TestClaudeRegionalOverride checks the Claude rates. Google's Agent Platform
-// pricing page groups Sonnet 5 and Haiku 4.5 under "Models with regional
-// pricing" (read 2026-09-08).
 // TestClaudeHaiku55PromptLengthTier pins Haiku 5.5's bracket above 100K input
 // tokens on the global card and on every regional override.
 func TestClaudeHaiku55PromptLengthTier(t *testing.T) {
@@ -212,6 +209,9 @@ func TestClaudeHaiku55PromptLengthTier(t *testing.T) {
 	}
 }
 
+// TestClaudeRegionalOverride checks the Claude rates. Google's Agent Platform
+// pricing page groups Sonnet 5 and Haiku 4.5 under "Models with regional
+// pricing" (read 2026-09-08).
 func TestClaudeRegionalOverride(t *testing.T) {
 	t.Parallel()
 
