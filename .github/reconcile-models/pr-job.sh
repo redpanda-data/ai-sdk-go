@@ -44,11 +44,15 @@ while IFS=$'\t' read -r _ _ path; do
 done < <(git apply --numstat "$patch")
 
 git apply --check "$patch"
-git show "HEAD:$models" >"$out/base-models.go"
-git show "HEAD:$facts" >"$out/base-facts.go"
+# Keep the unpatched copies outside the checkout: OUT_DIR may be inside it,
+# and stray .go files there would break `go test ./...` and lint.
+base="$(mktemp -d)"
+trap 'rm -rf "$base"' EXIT
+git show "HEAD:$models" >"$base/models.go"
+git show "HEAD:$facts" >"$base/facts.go"
 git apply "$patch"
-go run ./cmd/catalog-guard -base "$out/base-models.go" -patched "$models"
-go run ./cmd/catalog-guard -base "$out/base-facts.go" -patched "$facts"
+go run ./cmd/catalog-guard -base "$base/models.go" -patched "$models"
+go run ./cmd/catalog-guard -base "$base/facts.go" -patched "$facts"
 
 # A patch must come with reported changes, so the PR body never shows less than the diff.
 if ! jq -e '.changes | length > 0' "$report" >/dev/null; then
