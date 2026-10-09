@@ -467,6 +467,16 @@ var (
 		SupportedParams:  []string{"temperature", "top_p", "max_tokens", "stop"},
 	}
 
+	// claudeSonnet46Constraints caps output at the 64K the Bedrock model
+	// card publishes for Sonnet 4.6, half of the first-party API's 128K:
+	// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-4-6.html
+	claudeSonnet46Constraints = func() llm.ModelConstraints {
+		c := claudeContext1MConstraints
+		c.MaxOutputTokens = 64000
+
+		return c
+	}()
+
 	// claudeNoSampling1MConstraints covers Claude 4.7 and later, which return
 	// 400 for non-default temperature/top_p/top_k (Anthropic's
 	// model-deprecations API parameter table).
@@ -936,7 +946,7 @@ var bedrockFamilies = []family{
 		Profiles:     []string{"global", "us", "eu", "au"},
 		Capabilities: claudeStandardCaps,
 		Modalities:   claudeModalities,
-		Constraints:  claudeContext1MConstraints,
+		Constraints:  claudeSonnet46Constraints,
 		Reasoning:    claudeSonnet46Thinking,
 		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0)},
 		Rates:        pricing.RateCard{Base: pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0)},

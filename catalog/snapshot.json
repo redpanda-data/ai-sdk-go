@@ -6,7 +6,8 @@
       "publisher": "amazon",
       "description": "Nova 2 Lite is a fast, cost-effective reasoning model for everyday workloads that can process text, images, and videos to generate text.",
       "series": "nova-lite",
-      "released": "2025-12-02"
+      "released": "2025-12-02",
+      "knowledge": "2025-10-31"
     },
     "anthropic/claude-fable-5": {
       "display_name": "Claude Fable 5",
@@ -267,7 +268,7 @@
       "publisher": "openai",
       "description": "The latest GPT-4 Turbo model with vision capabilities. Vision requests can now use JSON mode and function calling.",
       "series": "gpt",
-      "released": "2023-11-06",
+      "released": "2024-04-09",
       "knowledge": "2023-12-01"
     },
     "openai/gpt-4.1": {
@@ -394,7 +395,7 @@
       "publisher": "openai",
       "description": "GPT-5.5 is OpenAI’s frontier model designed for complex professional workloads, building on GPT-5.4 with stronger reasoning, higher reliability, and improved token efficiency on hard tasks.",
       "series": "gpt",
-      "released": "2026-04-23",
+      "released": "2026-04-24",
       "knowledge": "2025-12-01"
     },
     "openai/gpt-5.6-luna": {
@@ -1832,7 +1833,7 @@
           },
           "constraints": {
             "max_input_tokens": 1000000,
-            "max_output_tokens": 128000,
+            "max_output_tokens": 64000,
             "supported_params": [
               "temperature",
               "top_p",
@@ -2597,7 +2598,7 @@
           },
           "constraints": {
             "max_input_tokens": 1000000,
-            "max_output_tokens": 128000,
+            "max_output_tokens": 64000,
             "supported_params": [
               "temperature",
               "top_p",
@@ -3502,7 +3503,7 @@
           },
           "constraints": {
             "max_input_tokens": 1000000,
-            "max_output_tokens": 128000,
+            "max_output_tokens": 64000,
             "supported_params": [
               "temperature",
               "top_p",
@@ -5693,7 +5694,7 @@
           },
           "constraints": {
             "max_input_tokens": 1000000,
-            "max_output_tokens": 128000,
+            "max_output_tokens": 64000,
             "supported_params": [
               "temperature",
               "top_p",
@@ -8376,11 +8377,11 @@
             "stage": "ga",
             "available": "2025-06-17",
             "retires": "2026-10-20",
-            "replaced_by": "gemini-3.5-flash-lite"
+            "replaced_by": "gemini-3.8-flash"
           },
           "derived": {
             "price_tier": "low",
-            "replacement": "google/gemini-3.5-flash-lite"
+            "replacement": "google/gemini-3.8-flash"
           }
         },
         {
@@ -8445,11 +8446,11 @@
             "stage": "ga",
             "available": "2025-07-22",
             "retires": "2026-10-20",
-            "replaced_by": "gemini-3.1-flash-lite"
+            "replaced_by": "gemini-3.8-flash"
           },
           "derived": {
             "price_tier": "low",
-            "replacement": "google/gemini-3.1-flash-lite"
+            "replacement": "google/gemini-3.8-flash"
           }
         },
         {
@@ -8524,11 +8525,11 @@
             "stage": "ga",
             "available": "2025-06-17",
             "retires": "2026-10-20",
-            "replaced_by": "gemini-3.5-flash"
+            "replaced_by": "gemini-3.8-flash"
           },
           "derived": {
             "price_tier": "medium",
-            "replacement": "google/gemini-3.5-flash"
+            "replacement": "google/gemini-3.8-flash"
           }
         },
         {
@@ -9394,7 +9395,7 @@
             "multi_turn": true,
             "reasoning": false,
             "streaming": true,
-            "structured_output": true,
+            "structured_output": false,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -9519,7 +9520,7 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2023-11-06",
+            "available": "2024-04-09",
             "deprecated": "2026-04-22",
             "retires": "2026-10-23",
             "replaced_by": "gpt-5.6-sol"
@@ -10302,11 +10303,14 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2025-11-13"
+            "available": "2025-11-13",
+            "deprecated": "2026-10-01",
+            "retires": "2027-04-01",
+            "replaced_by": "gpt-6-sol"
           },
           "derived": {
             "price_tier": "medium",
-            "replacement": "openai/gpt-5.2"
+            "replacement": "openai/gpt-6-sol"
           }
         },
         {
@@ -10985,11 +10989,14 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2026-03-17"
+            "available": "2026-03-17",
+            "deprecated": "2026-10-01",
+            "retires": "2027-04-01",
+            "replaced_by": "gpt-6-luna"
           },
           "derived": {
             "price_tier": "low",
-            "replacement": "openai/gpt-5.6-luna"
+            "replacement": "openai/gpt-6-luna"
           }
         },
         {
@@ -11123,7 +11130,7 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2026-04-23"
+            "available": "2026-04-24"
           },
           "derived": {
             "price_tier": "high",

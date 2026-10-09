@@ -285,7 +285,8 @@ var defaultRegistry = Registry{
 	ModelGPT5_5: {
 		Publisher:   PublisherOpenAI,
 		DisplayName: "GPT-5.5", Series: "gpt",
-		Released: MustDate("2026-04-23"), Knowledge: MustDate("2025-12-01"),
+		// Released per developers.openai.com/api/docs/changelog (Apr 24, 2026).
+		Released: MustDate("2026-04-24"), Knowledge: MustDate("2025-12-01"),
 		Description: "GPT-5.5 is OpenAI’s frontier model designed for complex professional workloads, building on GPT-5.4 with stronger reasoning, higher reliability, and improved token efficiency on hard tasks.",
 	},
 	ModelGPT5_6Sol: {
@@ -354,7 +355,9 @@ var defaultRegistry = Registry{
 		Publisher:   PublisherOpenAI,
 		DisplayName: "GPT-4 Turbo", Series: "gpt",
 		// Knowledge cutoff (exact day) per developers.openai.com/api/docs/models.
-		Released: MustDate("2023-11-06"), Knowledge: MustDate("2023-12-01"),
+		// Released per developers.openai.com/api/docs/changelog (Apr 9, 2024):
+		// GPT-4 Turbo GA. The Nov 6, 2023 release was the gpt-4-1106-preview ID.
+		Released: MustDate("2024-04-09"), Knowledge: MustDate("2023-12-01"),
 		Description: "The latest GPT-4 Turbo model with vision capabilities. Vision requests can now use JSON mode and function calling.",
 	},
 	ModelGPT35Turbo: {
@@ -511,7 +514,10 @@ var defaultRegistry = Registry{
 	ModelNova2Lite: {
 		Publisher:   PublisherAmazon,
 		DisplayName: "Amazon Nova 2 Lite", Series: "nova-lite",
+		// Knowledge cutoff ("Oct 2025") per Amazon's Bedrock model card,
+		// docs.aws.amazon.com/bedrock/latest/userguide/model-card-amazon-nova-2-lite.html.
 		Released:    MustDate("2025-12-02"),
+		Knowledge:   MustDate("2025-10-31"),
 		Description: "Nova 2 Lite is a fast, cost-effective reasoning model for everyday workloads that can process text, images, and videos to generate text.",
 	},
 	ModelGemma4E2B: {
