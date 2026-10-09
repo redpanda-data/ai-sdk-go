@@ -45,5 +45,8 @@ go.work.sum
 /examples/*/agent_hooks
 /examples/*/web_research_agent
 
+# Binary left behind by `go build` in the Vercel conformance test server
+/adapter/vercelaisdk/uimessagestream/conformance/testserver/testserver
+
 # Local design notes, not published
 /docs/design/

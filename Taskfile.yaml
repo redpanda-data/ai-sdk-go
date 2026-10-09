@@ -26,14 +26,40 @@ tasks:
     deps:
       - install:addlicense
     cmds:
-      - '{{.BIN_DIR}}/addlicense -f header.txt -ignore ".build/**" **/*.go'
+      # git ls-files, not a **/*.go glob: Task's shell has no globstar, so
+      # ** matched only one directory level and skipped deeper packages.
+      # --others keeps new, not-yet-committed files in scope; -z with
+      # xargs -0 passes each path verbatim. pipefail fails the task when
+      # git does (no .git), and -r skips addlicense on an empty list.
+      # addlicense skips generated files ("Code generated ... DO NOT EDIT");
+      # license:check still holds them to the exact header, which they get
+      # from the comment above `syntax` in their source .proto.
+      - 'set -o pipefail; git ls-files -z --cached --others --exclude-standard "*.go" | xargs -0 -r {{.BIN_DIR}}/addlicense -f header.txt'
 
   license:check:
     desc: Check that all Go files have Apache 2.0 license headers
     deps:
       - install:addlicense
     cmds:
-      - '{{.BIN_DIR}}/addlicense -f header.txt -ignore ".build/**" -check **/*.go'
+      # Same file set as license, so a local task ci fails on a new,
+      # unheadered file before CI does; CI's fresh checkout has no
+      # untracked files to trip over.
+      - 'set -o pipefail; git ls-files -z --cached --others --exclude-standard "*.go" | xargs -0 -r {{.BIN_DIR}}/addlicense -f header.txt -check'
+      # addlicense -check accepts any Copyright or SPDX line, so also require
+      # the exact rendered header.txt as each file's first lines.
+      - |
+        set -o pipefail
+        want="{{.BUILD_ROOT}}/license-header.go.txt"
+        mkdir -p "{{.BUILD_ROOT}}"
+        sed -e 's|^|// |' -e 's| *$||' header.txt > "$want"
+        git ls-files -z --cached --others --exclude-standard "*.go" |
+          xargs -0 -r sh -c '
+            want=$1; n=$(($(wc -l < "$want"))); shift; status=0
+            for f; do
+              [ -f "$f" ] || continue # tracked but deleted, not yet staged
+              head -n "$n" "$f" | cmp -s - "$want" || { echo "$f: license header differs from header.txt" >&2; status=1; }
+            done
+            exit $status' check "$want"
 
   lint:
     desc: Run golangci-lint on all directories with Go files (excluding build/)
