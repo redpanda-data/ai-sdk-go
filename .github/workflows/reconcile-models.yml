@@ -46,8 +46,17 @@ jobs:
         with:
           persist-credentials: false
       - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e  # v2.2.0
-      - name: Install subprocess isolation
-        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends bubblewrap socat
+      # claude-code-action prints the agent's whole conversation when debug
+      # logging is on, and this repository's logs are public, so refuse it.
+      - name: Refuse debug logging
+        env:
+          STEP_DEBUG_SECRET: ${{ secrets.ACTIONS_STEP_DEBUG }}
+          STEP_DEBUG_VAR: ${{ vars.ACTIONS_STEP_DEBUG }}
+        run: |
+          if [[ "${RUNNER_DEBUG:-}" == "1" || "$STEP_DEBUG_SECRET" == "true" || "$STEP_DEBUG_VAR" == "true" ]]; then
+            echo "::error::Debug logging is on, which would print the agent's conversation into this public log. Re-run without debug logging."
+            exit 1
+          fi
       - name: Prepare prompt and schema
         id: inputs
         run: |
@@ -80,6 +89,24 @@ jobs:
           rm -rf out && mkdir out
           printf '%s' "$REPORT" >out/report.json
           git diff -- "providers/${PROVIDER}/models.go" catalog/facts_data.go >out/patch.diff
+      - name: Run stats
+        if: always()
+        env:
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+        run: .github/reconcile-models/run-stats.sh "$EXECUTION_FILE" out/report.json
+      # TEMPORARY: prints the denied commands once, to diagnose the first CI
+      # run's denials. Remove before merge.
+      - name: Denied commands (temporary)
+        if: always() && steps.claude.outputs.execution_file != ''
+        env:
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+        run: |
+          token="$(openssl rand -hex 16)"
+          echo "::stop-commands::$token"
+          jq -n -r '[inputs] | map(if type == "array" then .[] else . end) | map(select(.type == "result")) | last
+            | .permission_denials // [] | .[]
+            | "denied \(.tool_name | tostring | .[0:40] | @json): \((.tool_input.command // .tool_input.file_path // "") | tostring | .[0:200] | @json)"' "$EXECUTION_FILE"
+          echo "::$token::"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: reconcile-agent-${{ env.PROVIDER }}
