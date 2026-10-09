@@ -284,3 +284,37 @@ def test_audit_carries_head_marker_for_the_sweep():
         head_sha="abc123",
     )
     assert audit.head_marker("abc123") in body
+
+
+def test_mechanism_and_config_come_from_the_default_branch_tip():
+    # pull_request.base.sha is a snapshot taken when the PR was last pushed; using it
+    # pins every open PR to an old mechanism version until the author rebases (seen
+    # live on #249: Config version 10 ran after version 11 was on main). The mechanism,
+    # prompt and config must come from the TIP of the default branch, by name.
+    s = _wf()
+    if s is None:
+        return
+    import yaml
+
+    wf = yaml.safe_load(s)
+    assert "github.event.pull_request.base.sha" not in s.replace(
+        "# field is a snapshot", ""
+    ) or all(
+        "base.sha" in ln and ln.strip().startswith("#")
+        for ln in s.splitlines()
+        if "base.sha" in ln
+    )
+    for jname in ("agent", "approve"):
+        checkouts = [
+            st
+            for st in wf["jobs"][jname]["steps"]
+            if str(st.get("uses", "")).startswith("actions/checkout")
+            and "head.sha" not in str(st.get("with", {}).get("ref", ""))
+        ]
+        assert checkouts, jname
+        for st in checkouts:
+            assert (
+                st["with"]["ref"] == "${{ github.event.repository.default_branch }}"
+            ), (jname, st["with"]["ref"])
+    assert "base_sha: ${{ steps.present.outputs.mechanism_sha }}" in s
+    assert "BASE_SHA: ${{ steps.present.outputs.mechanism_sha }}" in s
