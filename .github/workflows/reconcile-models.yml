@@ -46,6 +46,15 @@ jobs:
         with:
           persist-credentials: false
       - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e  # v2.2.0
+      # Claude Code needs bubblewrap to scrub secrets from subprocesses. The
+      # action installs it only for non-write users, so do it here, the same way.
+      - name: Install subprocess isolation
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends bubblewrap socat
+          # Ubuntu 24.04 restricts unprivileged user namespaces, which bubblewrap needs.
+          if [[ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
       # claude-code-action prints the agent's whole conversation when debug
       # logging is on, and this repository's logs are public, so refuse it.
       - name: Refuse debug logging
