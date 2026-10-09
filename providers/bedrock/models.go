@@ -95,6 +95,17 @@ const (
 	ModelClaudeSonnet45AU     = "au." + ModelClaudeSonnet45
 	ModelClaudeSonnet45JP     = "jp." + ModelClaudeSonnet45
 
+	// ModelClaudeHaiku55 is the bare Bedrock ID for Claude Haiku 5.5
+	// (inference-profile-only — invoke via one of the prefixed variants).
+	// AWS publishes the global, us., eu., au., and jp. profiles:
+	// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-haiku-5-5.html
+	ModelClaudeHaiku55       = "anthropic.claude-haiku-5-5"
+	ModelClaudeHaiku55Global = "global." + ModelClaudeHaiku55
+	ModelClaudeHaiku55US     = "us." + ModelClaudeHaiku55
+	ModelClaudeHaiku55EU     = "eu." + ModelClaudeHaiku55
+	ModelClaudeHaiku55AU     = "au." + ModelClaudeHaiku55
+	ModelClaudeHaiku55JP     = "jp." + ModelClaudeHaiku55
+
 	// ModelClaudeHaiku45 is the bare Bedrock ID for Claude Haiku 4.5
 	// (inference-profile-only — invoke via one of the prefixed variants).
 	ModelClaudeHaiku45       = "anthropic.claude-haiku-4-5-20251001-v1:0"
@@ -444,8 +455,8 @@ var (
 		Reasoning:        true,
 	}
 
-	// claudeNoSchemaCaps is for Opus 4.7+, Sonnet 5+, and Fable, whose
-	// Converse endpoint rejects structured output.
+	// claudeNoSchemaCaps is for Opus 4.7+, Sonnet 5+, Haiku 5.5, and Fable,
+	// whose Converse endpoint rejects structured output.
 	claudeNoSchemaCaps = func() llm.ModelCapabilities {
 		caps := claudeStandardCaps
 		caps.StructuredOutput = false
@@ -954,6 +965,39 @@ var bedrockFamilies = []family{
 		Reasoning:    claude45Thinking,
 		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0)},
 		Rates:        pricing.RateCard{Base: pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0)},
+	},
+	{
+		// Claude Haiku 5.5 — inference-profile-only on bedrock-runtime, with
+		// global, US, EU, AU, and JP profiles:
+		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-haiku-5-5.html
+		// Rates from the AWS pricing page (published 2026-10-07): global
+		// matches Anthropic's first-party rates, geo/in-region is 1.10x. Like
+		// Anthropic, AWS prices it in two tiers, but labels the higher one
+		// only "long-context" without a threshold; the bracket assumes
+		// Anthropic's 100,000-token boundary (unprobed).
+		BareID:       ModelClaudeHaiku55,
+		Model:        catalog.ModelClaudeHaiku55,
+		DisplayName:  "Claude Haiku 5.5",
+		Profiles:     []string{"global", "us", "eu", "au", "jp"},
+		Capabilities: claudeNoSchemaCaps,
+		Modalities:   claudeModalities,
+		Constraints:  claudeNoSampling1MConstraints,
+		Reasoning:    frontierClaudeThinking,
+		GlobalRates: &pricing.RateCard{
+			Base: pricing.NewRates(0.10, 0.50, 0.01).WithCacheCreation(0.125, 0.20, 0),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 100_001,
+				Rates:            pricing.NewRates(0.50, 2.50, 0.05).WithCacheCreation(0.625, 1.00, 0),
+			}},
+		},
+		Rates: pricing.RateCard{
+			Base: pricing.NewRates(0.11, 0.55, 0.011).WithCacheCreation(0.1375, 0.22, 0),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 100_001,
+				Rates:            pricing.NewRates(0.55, 2.75, 0.055).WithCacheCreation(0.6875, 1.10, 0),
+			}},
+		},
+		ProfileRegions: claudeHaiku55ProfileRegions,
 	},
 	{
 		// Claude Haiku 4.5 — inference-profile-only.

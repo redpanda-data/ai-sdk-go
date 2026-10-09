@@ -201,6 +201,53 @@ var claudeOpus5ProfileRegions = map[string]string{
 	"mx-central-1":   globalProfileRegion,
 }
 
+// claudeHaiku55ProfileRegions maps every published source region to its
+// preferred profile. Haiku 5.5 publishes US, EU, AU, JP, and global profiles
+// with the same source regions as Opus 5.5: JP covers Tokyo and Osaka, AU
+// Sydney and Melbourne, and other published commercial regions use global.
+// GovCloud (us-gov-*) is intentionally omitted.
+//
+// Source: https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-haiku-5-5.html
+var claudeHaiku55ProfileRegions = map[string]string{
+	"us-east-1":    "us",
+	"us-east-2":    "us",
+	"us-west-1":    "us",
+	"us-west-2":    "us",
+	"ca-central-1": "us",
+	"ca-west-1":    "us",
+
+	"eu-central-1": "eu",
+	"eu-central-2": "eu",
+	"eu-north-1":   "eu",
+	"eu-south-1":   "eu",
+	"eu-south-2":   "eu",
+	"eu-west-1":    "eu",
+	"eu-west-2":    "eu",
+	"eu-west-3":    "eu",
+
+	"ap-southeast-2": "au",
+	"ap-southeast-4": "au",
+
+	"ap-northeast-1": "jp",
+	"ap-northeast-3": "jp",
+
+	"ap-east-2":      globalProfileRegion,
+	"ap-northeast-2": globalProfileRegion,
+	"ap-south-1":     globalProfileRegion,
+	"ap-south-2":     globalProfileRegion,
+	"ap-southeast-1": globalProfileRegion,
+	"ap-southeast-3": globalProfileRegion,
+	"ap-southeast-5": globalProfileRegion,
+	"ap-southeast-6": globalProfileRegion,
+	"ap-southeast-7": globalProfileRegion,
+	"il-central-1":   globalProfileRegion,
+	"me-central-1":   globalProfileRegion,
+	"me-south-1":     globalProfileRegion,
+	"af-south-1":     globalProfileRegion,
+	"sa-east-1":      globalProfileRegion,
+	"mx-central-1":   globalProfileRegion,
+}
+
 // claudeOpus55ProfileRegions maps every published source region to its
 // preferred profile. Opus 5.5 publishes US, EU, AU, JP, and global profiles;
 // JP covers Tokyo and Osaka and AU is limited to Sydney and Melbourne. Other

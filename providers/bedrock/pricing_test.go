@@ -276,6 +276,40 @@ func TestClaudeSonnet55Pricing(t *testing.T) {
 	}
 }
 
+// TestClaudeHaiku55Pricing pins Haiku 5.5's two tiers on every profile:
+// global at Anthropic's rates, geo at 1.10x, each with its own bracket above
+// 100,000 tokens.
+func TestClaudeHaiku55Pricing(t *testing.T) {
+	t.Parallel()
+
+	globalBase := pricing.NewRates(0.10, 0.50, 0.01).WithCacheCreation(0.125, 0.20, 0)
+	globalLong := pricing.NewRates(0.50, 2.50, 0.05).WithCacheCreation(0.625, 1.00, 0)
+	geoBase := pricing.NewRates(0.11, 0.55, 0.011).WithCacheCreation(0.1375, 0.22, 0)
+	geoLong := pricing.NewRates(0.55, 2.75, 0.055).WithCacheCreation(0.6875, 1.10, 0)
+
+	for _, tt := range []struct {
+		id         string
+		base, long pricing.Rates
+	}{
+		{ModelClaudeHaiku55Global, globalBase, globalLong},
+		{ModelClaudeHaiku55US, geoBase, geoLong},
+		{ModelClaudeHaiku55EU, geoBase, geoLong},
+		{ModelClaudeHaiku55AU, geoBase, geoLong},
+		{ModelClaudeHaiku55JP, geoBase, geoLong},
+	} {
+		t.Run(tt.id, func(t *testing.T) {
+			t.Parallel()
+
+			def, ok := Catalog().Lookup(tt.id)
+			require.True(t, ok)
+			assert.Equal(t, tt.base, def.Pricing.Default.Base)
+			require.Len(t, def.Pricing.Default.Brackets, 1)
+			assert.Equal(t, int64(100_001), def.Pricing.Default.Brackets[0].MinContextTokens)
+			assert.Equal(t, tt.long, def.Pricing.Default.Brackets[0].Rates)
+		})
+	}
+}
+
 func TestClaudeOpus55Pricing(t *testing.T) {
 	t.Parallel()
 

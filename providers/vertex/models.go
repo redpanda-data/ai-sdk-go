@@ -61,6 +61,7 @@ const (
 	ModelClaudeSonnet5     = "claude-sonnet-5"
 	ModelClaudeSonnet46    = "claude-sonnet-4-6"
 	ModelClaudeSonnet45    = "claude-sonnet-4-5@20250929"
+	ModelClaudeHaiku55     = "claude-haiku-5-5"
 	ModelClaudeHaiku45     = "claude-haiku-4-5"
 )
 
@@ -712,6 +713,28 @@ func entries() []catalog.Entry {
 			Pricing: claudeSonnet45Pricing(),
 		},
 		{
+			ID:           ModelClaudeHaiku55,
+			Model:        catalog.ModelClaudeHaiku55,
+			Capabilities: claudeCapsWithToolSearch,
+			Modalities:   claudeModalities,
+			Constraints: llm.ModelConstraints{
+				MaxInputTokens:  1000000,
+				MaxOutputTokens: 128000,
+				// Adaptive thinking only; sampling parameters return 400.
+				SupportedParams: []string{"max_tokens", "reasoning_effort"},
+			},
+			Reasoning: catalog.ReasoningSupport{
+				Efforts:  []llm.ReasoningEffort{reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortXHigh, reasoningEffortMax},
+				Adaptive: true,
+			},
+			// Claude Haiku 5.5 GA, released 2026-10-07; retirement floor "not
+			// sooner than: October 7, 2027" is not an exact date
+			// (docs.cloud.google.com/gemini-enterprise-agent-platform/models/
+			// partner-models/claude/haiku-5-5, last updated 2026-10-07).
+			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-10-07")},
+			Pricing: claudeHaiku55Pricing(),
+		},
+		{
 			ID:           ModelClaudeHaiku45,
 			Model:        catalog.ModelClaudeHaiku45,
 			Capabilities: claudeCapsWithToolSearch,
@@ -832,6 +855,31 @@ func claudeSonnet5Pricing() pricing.Info {
 		info = info.WithOverride(
 			pricing.Selector{Region: region},
 			pricing.RateCard{Base: nonGlobal},
+		)
+	}
+
+	return info
+}
+
+// claudeHaiku55Pricing returns the Haiku 5.5 rate card: global, plus global
+// x 1.10 for us and eu, each with a bracket above 100K input tokens that
+// covers every rate. From the pricing page's region tabs, read 2026-10-08.
+func claudeHaiku55Pricing() pricing.Info {
+	const longContext = 100_001
+
+	global := pricing.NewRates(0.10, 0.50, 0.01).WithCacheCreation(0.125, 0.20, 0)
+	globalLong := pricing.NewRates(0.50, 2.50, 0.05).WithCacheCreation(0.625, 1.00, 0)
+	nonGlobal := pricing.NewRates(0.11, 0.55, 0.011).WithCacheCreation(0.1375, 0.22, 0)
+	nonGlobalLong := pricing.NewRates(0.55, 2.75, 0.055).WithCacheCreation(0.6875, 1.10, 0)
+
+	info := pricing.TieredInfo(global, pricing.Bracket{MinContextTokens: longContext, Rates: globalLong})
+	for _, region := range []string{"us", "eu"} {
+		info = info.WithOverride(
+			pricing.Selector{Region: region},
+			pricing.RateCard{
+				Base:     nonGlobal,
+				Brackets: []pricing.Bracket{{MinContextTokens: longContext, Rates: nonGlobalLong}},
+			},
 		)
 	}
 
