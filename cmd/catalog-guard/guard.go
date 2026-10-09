@@ -88,16 +88,38 @@ func compareImports(base, patched *ast.File) []string {
 	return []string{fmt.Sprintf("imports changed: %v -> %v", before, after)}
 }
 
-func funcDecls(file *ast.File) map[string]*ast.FuncDecl {
-	funcs := map[string]*ast.FuncDecl{}
-
-	for _, decl := range file.Decls {
-		if fn, ok := decl.(*ast.FuncDecl); ok {
-			funcs[fn.Name.Name] = fn
-		}
+// funcKey names a function by its receiver and name, so a method can't stand
+// in for a package-level function with the same name.
+func funcKey(fset *token.FileSet, fn *ast.FuncDecl) string {
+	if fn.Recv == nil || len(fn.Recv.List) == 0 {
+		return fn.Name.Name
 	}
 
-	return funcs
+	return "(" + render(fset, fn.Recv.List[0].Type) + ")." + fn.Name.Name
+}
+
+// funcDecls maps each function by funcKey and lists any key declared twice,
+// since a second declaration would hide the first from the comparison.
+func funcDecls(fset *token.FileSet, file *ast.File) (map[string]*ast.FuncDecl, []string) {
+	funcs := map[string]*ast.FuncDecl{}
+
+	var duplicates []string
+
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok {
+			continue
+		}
+
+		key := funcKey(fset, fn)
+		if _, seen := funcs[key]; seen {
+			duplicates = append(duplicates, "duplicate function "+key)
+		}
+
+		funcs[key] = fn
+	}
+
+	return funcs, duplicates
 }
 
 // isDataReturn reports whether fn's body is exactly `return <composite literal>`.
@@ -117,8 +139,8 @@ func isDataReturn(fn *ast.FuncDecl) bool {
 }
 
 func compareFuncs(fset *token.FileSet, base, patched *ast.File) []string {
-	before, after := funcDecls(base), funcDecls(patched)
-	var problems []string
+	before, _ := funcDecls(fset, base)
+	after, problems := funcDecls(fset, patched)
 
 	for name, fn := range after {
 		old, ok := before[name]

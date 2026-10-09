@@ -99,6 +99,20 @@ func TestCheck(t *testing.T) {
 		{name: "new var", appendSrc: "\nvar extra = 1\n", wantErr: "vars changed"},
 		{name: "const with call", edits: []replacement{{`ModelA = "model-a"`, `ModelA = catalog.Make("a")`}}, wantErr: "non-literal value"},
 		{name: "invalid go", appendSrc: "\nfunc {", wantErr: "parse patched"},
+		{
+			name:      "method hides a body change",
+			edits:     []replacement{{"return catalog.MustNew(entries())", "return nil"}},
+			appendSrc: "\nfunc (*Model) Catalog() *catalog.Catalog { return catalog.MustNew(entries()) }\n",
+			wantErr:   "body changed: Catalog",
+		},
+		{name: "receiver added", edits: []replacement{{"func Catalog()", "func (*Model) Catalog()"}}, wantErr: "new function (*Model).Catalog"},
+		{name: "new method", appendSrc: "\nfunc (*Model) Extra() int { return 1 }\n", wantErr: "new function (*Model).Extra"},
+		{
+			name:      "duplicate function",
+			edits:     []replacement{{"return catalog.MustNew(entries())", "return nil"}},
+			appendSrc: "\nfunc Catalog() *catalog.Catalog { return catalog.MustNew(entries()) }\n",
+			wantErr:   "duplicate function Catalog",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
