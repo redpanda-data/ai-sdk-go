@@ -42,15 +42,14 @@ func Check(base, patched []byte) []string {
 		return []string{"parse patched: " + err.Error()}
 	}
 
-	var problems []string
-	problems = append(problems, compareImports(baseFile, patchedFile)...)
-	problems = append(problems, compareFuncs(fset, baseFile, patchedFile)...)
-	problems = append(problems, compareFuncLits(fset, baseFile, patchedFile)...)
-	problems = append(problems, compareNames(fset, baseFile, patchedFile)...)
-	problems = append(problems, checkConsts(patchedFile)...)
-	problems = append(problems, compareCalls(baseFile, patchedFile)...)
-
-	return problems
+	return slices.Concat(
+		compareImports(baseFile, patchedFile),
+		compareFuncs(fset, baseFile, patchedFile),
+		compareFuncLits(fset, baseFile, patchedFile),
+		compareNames(fset, baseFile, patchedFile),
+		checkConsts(patchedFile),
+		compareCalls(baseFile, patchedFile),
+	)
 }
 
 func render(fset *token.FileSet, node ast.Node) string {
