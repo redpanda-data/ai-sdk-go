@@ -5,8 +5,10 @@
 # Usage: run-stats.sh EXECUTION_FILE REPORT
 set -euo pipefail
 
-execution="${1:?usage: run-stats.sh EXECUTION_FILE REPORT}"
-report="${2:?usage: run-stats.sh EXECUTION_FILE REPORT}"
+# EXECUTION_FILE may be empty: the action sets no path when Claude didn't run.
+[[ $# -eq 2 ]] || { echo "usage: run-stats.sh EXECUTION_FILE REPORT" >&2; exit 2; }
+execution="$1"
+report="$2"
 summary="${GITHUB_STEP_SUMMARY:-/dev/stdout}"
 
 if [[ ! -s "$execution" ]]; then
