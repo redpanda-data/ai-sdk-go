@@ -993,6 +993,9 @@ func TestRequestMapper_ToolResponse(t *testing.T) {
 				},
 			),
 		},
+		Tools: []llm.ToolDefinition{
+			{Name: "search", Description: "Search", Parameters: json.RawMessage(`{"type":"object"}`)},
+		},
 	}
 
 	input, err := mapper.ToConverseInput(req)
@@ -1027,6 +1030,9 @@ func TestRequestMapper_ToolResponseError(t *testing.T) {
 				},
 			),
 		},
+		Tools: []llm.ToolDefinition{
+			{Name: "search", Description: "Search", Parameters: json.RawMessage(`{"type":"object"}`)},
+		},
 	}
 
 	input, err := mapper.ToConverseInput(req)
@@ -1057,6 +1063,9 @@ func TestRequestMapper_AssistantWithToolUse(t *testing.T) {
 					Arguments: json.RawMessage(`{"query":"cats"}`),
 				},
 			),
+		},
+		Tools: []llm.ToolDefinition{
+			{Name: "search", Description: "Search", Parameters: json.RawMessage(`{"type":"object"}`)},
 		},
 	}
 
