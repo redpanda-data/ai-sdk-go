@@ -52,7 +52,7 @@ permissions:
   checks: read
 
 env:
-  AI_MERGE_DRY_RUN: "true"
+  AI_MERGE_DRY_RUN: "false"
   AI_MERGE_MODEL: claude-opus-5-5
   AI_MERGE_AGENT_MAX_TURNS: "40"
 
