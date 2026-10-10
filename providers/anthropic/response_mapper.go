@@ -29,6 +29,27 @@ const (
 	blockTypeText             = "text"
 	blockTypeToolUse          = "tool_use"
 	blockTypeThinking         = "thinking"
+	blockTypeRedactedThinking = "redacted_thinking"
+)
+
+// A redacted_thinking block maps to a ReasoningPart whose Signature carries
+// the block's data string verbatim, with Metadata[reasoningMetadataRedacted]
+// true and Metadata[reasoningMetadataRedactedProvider] set to ProviderName;
+// Text holds a display placeholder only. These fields survive session
+// persistence, and the request mapper replays such a part as
+// redacted_thinking rather than thinking.
+//
+// The Bedrock provider marks its redacted reasoning with the same keys but
+// stores base64 of the raw Converse redactedContent bytes in Signature (see
+// reasoningMetadataRedacted in providers/bedrock). Neither API is documented
+// to accept the other's payload, so each request mapper replays a redacted
+// part only when the stamp is its own ProviderName. It skips any other part,
+// including one persisted before the stamp existed: a session resumed on the
+// other provider loses that redacted reasoning instead of failing the request.
+const (
+	reasoningMetadataRedacted         = "redacted"
+	reasoningMetadataRedactedProvider = "redacted_provider"
+	redactedThinkingText              = "[redacted thinking]"
 )
 
 // ResponseMapper converts Anthropic API payloads to llm.Response.
@@ -69,20 +90,27 @@ func (m *ResponseMapper) FromProvider(r *anthropic.BetaMessage) (*llm.Response, 
 			}
 
 		case blockTypeThinking:
-			// Thinking block (extended thinking / reasoning)
-			if block.Thinking != "" {
+			// Thinking block (extended thinking / reasoning). With display
+			// "omitted" (the default on Claude Opus 5.5 and Sonnet 5.5) the
+			// text is empty and the signature alone carries the reasoning,
+			// so keep the block whenever either is present: Anthropic needs
+			// it back unchanged on the next request of a tool-use loop.
+			if block.Thinking != "" || block.Signature != "" {
 				content = append(content, &llm.ReasoningPart{
 					Text:      block.Thinking,
 					Signature: block.Signature,
 				})
 			}
 
-		case "redacted_thinking":
-			// Redacted thinking block - include metadata but no text
+		case blockTypeRedactedThinking:
+			// Redacted thinking block: the encrypted payload is in Data.
 			content = append(content, &llm.ReasoningPart{
-				Text:      "[redacted thinking]",
-				Signature: block.Signature,
-				Metadata:  map[string]any{"redacted": true},
+				Text:      redactedThinkingText,
+				Signature: block.Data,
+				Metadata: map[string]any{
+					reasoningMetadataRedacted:         true,
+					reasoningMetadataRedactedProvider: ProviderName,
+				},
 			})
 
 		default:
@@ -142,7 +170,7 @@ func (m *ResponseMapper) FromProvider(r *anthropic.BetaMessage) (*llm.Response, 
 		finishReason = llm.FinishReasonToolCalls
 	}
 
-	return &llm.Response{
+	resp := &llm.Response{
 		ID: r.ID,
 		Message: llm.Message{
 			Role:    llm.RoleAssistant,
@@ -154,7 +182,34 @@ func (m *ResponseMapper) FromProvider(r *anthropic.BetaMessage) (*llm.Response, 
 		Speed:           llm.NormalizeSpeed(string(r.Usage.Speed)),
 		InferenceRegion: r.Usage.InferenceGeo,
 		InvokedModelID:  resolveInvokedModelID(r.Model),
-	}, nil
+	}
+
+	if transformations := inputTransformations(r); transformations != nil {
+		resp.Raw = map[string]any{"input_transformations": transformations}
+	}
+
+	return resp, nil
+}
+
+// inputTransformations returns the response's input_transformations entries,
+// or nil when there are none. The API lists each replayed thinking block it
+// dropped there (reason prefix_binding_mismatch under the block binding that
+// applyThinkingBlockBinding sends), so callers can see reasoning they lost.
+// The SDK has no typed field for it yet, and keeps unknown fields raw (never
+// Valid). The list is diagnostic only, so an undecodable value is ignored
+// rather than failing the response.
+func inputTransformations(r *anthropic.BetaMessage) []map[string]any {
+	field, ok := r.JSON.ExtraFields["input_transformations"]
+	if !ok {
+		return nil
+	}
+
+	var entries []map[string]any
+	if err := json.Unmarshal([]byte(field.Raw()), &entries); err != nil || len(entries) == 0 {
+		return nil
+	}
+
+	return entries
 }
 
 // resolveInvokedModelID collapses a provider-reported model ID (possibly a

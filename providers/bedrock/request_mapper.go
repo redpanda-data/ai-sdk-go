@@ -15,6 +15,7 @@
 package bedrock
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -359,6 +360,29 @@ func (rm *RequestMapper) mapAssistantMessage(msg llm.Message) (types.Message, er
 			continue
 
 		case *llm.ReasoningPart:
+			// Redacted reasoning goes back as the original redactedContent
+			// bytes (see redactedReasoningPart), never as reasoning text, and
+			// only when this provider recorded it (see
+			// reasoningMetadataRedactedProvider). A part with no decodable
+			// payload has nothing to replay: skip it rather than fail every
+			// later turn of the session.
+			if redacted, _ := p.Metadata[reasoningMetadataRedacted].(bool); redacted {
+				if producer, _ := p.Metadata[reasoningMetadataRedactedProvider].(string); producer != ProviderName {
+					continue
+				}
+
+				data, err := base64.StdEncoding.DecodeString(p.Signature)
+				if err != nil || len(data) == 0 {
+					continue
+				}
+
+				apiMsg.Content = append(apiMsg.Content, &types.ContentBlockMemberReasoningContent{
+					Value: &types.ReasoningContentBlockMemberRedactedContent{Value: data},
+				})
+
+				continue
+			}
+
 			// Pass reasoning traces back as reasoning content blocks
 			if p.Text != "" || p.Signature != "" {
 				apiMsg.Content = append(apiMsg.Content, &types.ContentBlockMemberReasoningContent{

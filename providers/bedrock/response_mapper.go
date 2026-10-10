@@ -15,6 +15,7 @@
 package bedrock
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 
@@ -176,6 +177,14 @@ func (m *ResponseMapper) mapReasoningBlock(value types.ReasoningContentBlock) ll
 		return nil
 	}
 
+	if rc, ok := value.(*types.ReasoningContentBlockMemberRedactedContent); ok {
+		if len(rc.Value) == 0 {
+			return nil
+		}
+
+		return redactedReasoningPart(rc.Value)
+	}
+
 	rt, ok := value.(*types.ReasoningContentBlockMemberReasoningText)
 	if !ok {
 		return nil
@@ -197,6 +206,39 @@ func (m *ResponseMapper) mapReasoningBlock(value types.ReasoningContentBlock) ll
 	return &llm.ReasoningPart{
 		Text:      text,
 		Signature: sig,
+	}
+}
+
+// Redacted reasoning (Claude's safety-redacted thinking) maps to a
+// ReasoningPart whose Signature is the base64-encoded redactedContent bytes,
+// with Metadata[reasoningMetadataRedacted] true and
+// Metadata[reasoningMetadataRedactedProvider] set to ProviderName; Text is a
+// display placeholder only. Base64 keeps the binary payload intact through
+// JSON session persistence, and the request mapper decodes it to replay the
+// block as redactedContent, which Claude requires back unchanged.
+//
+// The Anthropic provider marks its redacted_thinking blocks with the same
+// keys but stores the block's data string verbatim in Signature (see
+// reasoningMetadataRedacted in providers/anthropic). Neither API is
+// documented to accept the other's payload, so each request mapper replays a
+// redacted part only when the stamp is its own ProviderName. It skips any
+// other part, including one persisted before the stamp existed: a session
+// resumed on the other provider loses that redacted reasoning instead of
+// failing the request.
+const (
+	reasoningMetadataRedacted         = "redacted"
+	reasoningMetadataRedactedProvider = "redacted_provider"
+	redactedReasoningText             = "[redacted thinking]"
+)
+
+func redactedReasoningPart(data []byte) *llm.ReasoningPart {
+	return &llm.ReasoningPart{
+		Text:      redactedReasoningText,
+		Signature: base64.StdEncoding.EncodeToString(data),
+		Metadata: map[string]any{
+			reasoningMetadataRedacted:         true,
+			reasoningMetadataRedactedProvider: ProviderName,
+		},
 	}
 }
 
