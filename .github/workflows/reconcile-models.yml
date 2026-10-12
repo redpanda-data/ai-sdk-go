@@ -1,0 +1,30 @@
+name: reconcile-models
+
+# Placeholder. GitHub runs workflow_dispatch only for workflows whose file is
+# on the default branch; with this file on main, the real workflow can be run
+# from its branch before it merges:
+#   gh workflow run reconcile-models.yml --ref <branch>
+# The real workflow replaces this file when it merges.
+
+on:
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: Provider to reconcile
+        type: choice
+        options: [anthropic]
+        default: anthropic
+      dry_run:
+        description: Stop before pushing a branch or opening a PR
+        type: boolean
+        default: true
+
+permissions: {}
+
+jobs:
+  placeholder:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Placeholder
+        run: echo "Placeholder only. Run this workflow from the branch that contains the real one."
