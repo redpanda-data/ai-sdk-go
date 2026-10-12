@@ -354,8 +354,11 @@ func entries() []catalog.Entry {
 			Life: catalog.Lifecycle{
 				Available: catalog.MustDate("2026-09-28"),
 			},
+			// platform.claude.com/docs/en/about-claude/pricing: cache hits on
+			// Sonnet 5.5 are 0.05x base input ($0.10/MTok), not the usual
+			// 0.10x; writes keep 1.25x (5m) and 2x (1h).
 			Pricing: pricing.FlatInfoFromRates(
-				pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0),
+				pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(2.50, 4.00, 0),
 			),
 		},
 		{
