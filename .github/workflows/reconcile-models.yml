@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       provider:
-        description: Provider to reconcile
+        description: Vendor to reconcile (its models on every provider that sells them)
         type: choice
         options: [anthropic]
         default: anthropic
