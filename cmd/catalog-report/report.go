@@ -195,8 +195,8 @@ func link(raw string) string {
 }
 
 // Render writes the PR body. Call it only on a report Validate accepted and
-// code files ValidateCodeFiles accepted. codeFiles are the non-data files the
-// patch changes, listed first so a reviewer reads them as code.
+// code files ValidateCodeFiles accepted. codeFiles are the files whose change
+// isn't data only, listed first so a reviewer reads them as code.
 func Render(report Report, provider, snapshotDiff string, codeFiles []string) string {
 	var body strings.Builder
 	body.WriteString("## Catalogue drift: " + provider + "\n\n")
@@ -209,7 +209,7 @@ func Render(report Report, provider, snapshotDiff string, codeFiles []string) st
 	body.WriteString("Proposed by the reconcile-models workflow. The tables come from the agent's structured report; the PR job checked its format and that every source is a named source. Check each value against its source before approving.\n\nDon't push commits to this branch: each run rebuilds it from main and force-pushes, so they would be lost. Comment on the PR instead.\n\n")
 
 	if len(codeFiles) > 0 {
-		fmt.Fprintf(&body, "### Code changed (%d)\n\nThe patch also changes these files. Review them as code, not data:\n\n", len(codeFiles))
+		fmt.Fprintf(&body, "### Code changed (%d)\n\nThese files change code, not only data. Review them as code before marking the PR ready: marking it ready runs them with secrets.\n\n", len(codeFiles))
 
 		for _, file := range codeFiles {
 			body.WriteString("- " + code(file) + "\n")

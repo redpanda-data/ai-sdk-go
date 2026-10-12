@@ -10,12 +10,15 @@ set -euo pipefail
 provider="${1:?usage: pr-job.sh PROVIDER OUT_DIR}"
 out="$(cd "${2:?usage: pr-job.sh PROVIDER OUT_DIR}" && pwd -P)"
 repo="$(pwd -P)"
-models="providers/${provider}/models.go"
 facts="catalog/facts_data.go"
-hosts="$(jq -r --arg p "$provider" '.[$p] // empty | join(",")' .github/reconcile-models/named-sources.json)"
+# A run owns its vendor's models in every provider package that sells them
+# (e.g. Claude in anthropic, vertex and bedrock), and reads those docs sites.
+sources=.github/reconcile-models/named-sources.json
+owned="$(jq -r --arg p "$provider" '.[$p].providers // empty | join("|")' "$sources")"
+hosts="$(jq -r --arg p "$provider" '.[$p].hosts // empty | join(",")' "$sources")"
 emit() { if [[ -n "${GITHUB_OUTPUT:-}" ]]; then echo "$1" >>"$GITHUB_OUTPUT"; fi; }
 
-[[ -n "$hosts" ]] || { echo "pr-job: no named sources for $provider" >&2; exit 1; }
+[[ -n "$hosts" && "$owned" =~ ^[a-z0-9|]+$ ]] || { echo "pr-job: no named sources for $provider" >&2; exit 1; }
 [[ -s "$out/report.json" ]] || { echo "pr-job: no report from the agent job" >&2; exit 1; }
 
 # Work from private copies of the inputs and the tools, outside the checkout
@@ -46,10 +49,11 @@ if [[ ! -s "$patch" ]]; then
   exit 0
 fi
 
-# Allowed: the guarded data files, and the provider's tests (new test files too).
-# Runtime code, other packages and every other path stay out of reach.
-tests_re="^providers/${provider}/[a-z0-9_]+_test\.go$"
-allowed() { [[ "$1" == "$models" || "$1" == "$facts" || "$1" =~ $tests_re ]]; }
+# Allowed: any Go file in the owned providers' packages (new files too) and
+# catalog/facts_data.go. Workflows, dependencies and other packages stay out of
+# reach: they would take effect before review, or for every provider.
+go_re="^providers/(${owned})/[a-z0-9_]+\.go$"
+allowed() { [[ "$1" == "$facts" || "$1" =~ $go_re ]]; }
 
 summary="$(git apply --summary "$patch")"
 if grep -qE '^ (delete|rename|copy|mode)' <<<"$summary"; then
@@ -57,7 +61,7 @@ if grep -qE '^ (delete|rename|copy|mode)' <<<"$summary"; then
   exit 1
 fi
 while read -r _ _ _ path; do
-  if [[ ! "$path" =~ $tests_re ]]; then
+  if [[ ! "$path" =~ $go_re ]]; then
     echo "pr-job: the patch creates $path" >&2
     exit 1
   fi
@@ -131,11 +135,21 @@ if ! RECONCILE_PROBE_SECRET=probe sandbox bash -c '
 fi
 
 git apply --check "$patch"
-git show "HEAD:$models" >"$priv/base-models.go"
-git show "HEAD:$facts" >"$priv/base-facts.go"
+for path in "${patched[@]}"; do
+  if git cat-file -e "HEAD:$path" 2>/dev/null; then git show "HEAD:$path" >"$priv/base-${path//\//_}"; fi
+done
 git apply "$patch"
-"$priv/catalog-guard" -base "$priv/base-models.go" -patched "$models"
-"$priv/catalog-guard" -base "$priv/base-facts.go" -patched "$facts"
+
+# The data-only check labels files instead of gating them: tests, new files
+# and any change that is more than data are listed in the PR body as code.
+code=()
+for path in "${patched[@]}"; do
+  base="$priv/base-${path//\//_}"
+  if [[ "$path" == *_test.go || ! -f "$base" ]] || ! "$priv/catalog-guard" -base "$base" -patched "$path"; then
+    echo "pr-job: $path changes code; listed for review" >&2
+    code+=("$path")
+  fi
+done
 
 # A patch must come with reported changes, so the PR body never shows less than the diff.
 if ! jq -e '.changes | length > 0' "$report" >/dev/null; then
@@ -147,6 +161,7 @@ fi
 # imports them. Tests needing Docker or the network can't run in the sandbox;
 # the full suite runs in the PR's own CI. -count=1: never reuse cached results.
 module="$(go list -m)"
+lint_pkgs="$(printf './providers/%s/... ' ${owned//|/ })"
 affected="$(go list -test -f '{{.ImportPath}} {{join .Deps " "}}' ./... |
   awk -v a="$module/providers/$provider" -v b="$module/catalog" '{for (i = 1; i <= NF; i++) if ($i == a || $i == b) { print $1; next }}' |
   sed -E 's/ \[.*//; s/\.test$//; s/_test$//' | sort -u | tr '\n' ' ')"
@@ -159,7 +174,7 @@ sandbox bash -c "
   task catalog:snapshot
   task catalog:check
   go test -short -count=1 $affected
-  .build/.bin/golangci-lint run --new --timeout 10m ./providers/${provider}/... ./catalog/...
+  .build/.bin/golangci-lint run --new --timeout 10m $lint_pkgs ./catalog/...
   task license:check"
 
 # Nothing but the patched files and the snapshot may have changed, tracked or
@@ -179,7 +194,7 @@ done < <(git status --porcelain --untracked-files=all)
 printf '%s\n' "${patched[@]}" catalog/snapshot.json >"$out/files.txt"
 git diff -- catalog/snapshot.json >"$out/snapshot.diff"
 # Non-data files go into the body's "Code changed" list, so reviewers read them as code.
-printf '%s\n' "${patched[@]}" | grep -vxF -e "$models" -e "$facts" >"$priv/code-files.txt" || true
+for path in "${code[@]+"${code[@]}"}"; do echo "$path"; done >"$priv/code-files.txt"
 render -diff "$out/snapshot.diff" -code-files "$priv/code-files.txt"
 emit changed=true
 echo "pr-job: patch accepted"

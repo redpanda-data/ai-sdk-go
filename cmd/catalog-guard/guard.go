@@ -271,9 +271,7 @@ func checkConsts(patched *ast.File) []string {
 			}
 
 			for index, expr := range value.Values {
-				switch expr.(type) {
-				case *ast.BasicLit, *ast.Ident, *ast.SelectorExpr:
-				default:
+				if !isConstData(expr) {
 					name := value.Names[min(index, len(value.Names)-1)].Name
 					problems = append(problems, "const "+name+" has a non-literal value")
 				}
@@ -282,6 +280,21 @@ func checkConsts(patched *ast.File) []string {
 	}
 
 	return problems
+}
+
+// isConstData reports whether a const value is literals and names, joined by
+// operators such as + ("global." + ModelX), with no calls.
+func isConstData(expr ast.Expr) bool {
+	switch typed := expr.(type) {
+	case *ast.BasicLit, *ast.Ident, *ast.SelectorExpr:
+		return true
+	case *ast.ParenExpr:
+		return isConstData(typed.X)
+	case *ast.BinaryExpr:
+		return isConstData(typed.X) && isConstData(typed.Y)
+	default:
+		return false
+	}
 }
 
 func callName(fun ast.Expr) string {

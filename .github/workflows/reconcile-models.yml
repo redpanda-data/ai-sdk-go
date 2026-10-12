@@ -71,10 +71,14 @@ jobs:
         run: |
           {
             echo "prompt<<EOF_PROMPT"
-            hosts="$(jq -r --arg p "$PROVIDER" '.[$p] | join(", ")' .github/reconcile-models/named-sources.json)"
-            sed -e "s/{{PROVIDER}}/${PROVIDER}/g" -e "s/{{HOSTS}}/${hosts}/g" .github/reconcile-models/prompt.md
+            sources=.github/reconcile-models/named-sources.json
+            hosts="$(jq -r --arg p "$PROVIDER" '.[$p].hosts | join(", ")' "$sources")"
+            owned="$(jq -r --arg p "$PROVIDER" '.[$p].providers | join(", ")' "$sources")"
+            sed -e "s/{{PROVIDER}}/${PROVIDER}/g" -e "s/{{HOSTS}}/${hosts}/g" -e "s/{{PROVIDERS}}/${owned}/g" .github/reconcile-models/prompt.md
             echo "EOF_PROMPT"
             echo "schema=$(jq -c . .github/reconcile-models/report.schema.json)"
+            # Edit rights on the Go files of each owned provider.
+            echo "edits=$(jq -r --arg p "$PROVIDER" '.[$p].providers | map("Edit(./providers/\(.)/*.go)") | join(",")' "$sources")"
           } >>"$GITHUB_OUTPUT"
       - name: Run reconcile-models
         id: claude
@@ -86,8 +90,8 @@ jobs:
           settings: '{"disableAllHooks": true}'
           claude_args: >-
             --model claude-opus-5-5
-            --max-turns 80
-            --allowedTools "Skill,Read,Grep,Glob,Edit(./providers/${{ env.PROVIDER }}/models.go),Edit(./catalog/facts_data.go),Edit(./providers/${{ env.PROVIDER }}/*_test.go),Bash(curl:*),Bash(grep:*),Bash(jq:*),Bash(task catalog:snapshot),Bash(task test:unit),Bash(task lint:new),Bash(git diff:*)"
+            --max-turns 120
+            --allowedTools "Skill,Read,Grep,Glob,${{ steps.inputs.outputs.edits }},Edit(./catalog/facts_data.go),Bash(curl:*),Bash(grep:*),Bash(jq:*),Bash(task catalog:snapshot),Bash(task test:unit),Bash(task lint:new),Bash(git diff:*)"
             --disallowedTools "WebFetch,WebSearch,Bash(git push:*),Bash(git commit:*),Bash(gh:*),AskUserQuestion,Task,Agent"
             --json-schema '${{ steps.inputs.outputs.schema }}'
       - name: Collect patch and report
@@ -100,9 +104,10 @@ jobs:
         run: |
           rm -rf out && mkdir out
           printf '%s' "$REPORT" >out/report.json
-          # New test files are untracked; mark them so the diff includes them.
-          git ls-files --others --exclude-standard -- ":(glob)providers/${PROVIDER}/*_test.go" | xargs -r git add -N --
-          git diff -- "providers/${PROVIDER}/models.go" catalog/facts_data.go ":(glob)providers/${PROVIDER}/*_test.go" >out/patch.diff
+          # New files are untracked; mark them so the diff includes them.
+          # pr-job.sh rejects any file outside the run's own providers.
+          git ls-files --others --exclude-standard -- ":(glob)providers/*/*.go" | xargs -r git add -N --
+          git diff -- ":(glob)providers/*/*.go" catalog/facts_data.go >out/patch.diff
       - name: Run stats
         if: always()
         env:
@@ -183,22 +188,23 @@ jobs:
             out/body.md
             out/snapshot.diff
           retention-days: 7
-      # Only a person's recent, non-draft PR on the provider's models.go blocks the
-      # bot: facts_data.go is shared by every provider, and long-lived PRs and
-      # drafts would block it indefinitely.
-      - name: Skip if a recent PR touches the provider's models.go
+      # Only a person's recent, non-draft PR on a models.go this patch changes
+      # blocks the bot: facts_data.go is shared by every provider, and long-lived
+      # PRs and drafts would block it indefinitely.
+      - name: Skip if a recent PR touches a models.go the patch changes
         id: race
         if: env.DRY_RUN != 'true' && steps.check.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          others="$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json number,headRefName,files,isDraft,createdAt \
+          touched="$(grep -E '^providers/[a-z0-9]+/models\.go$' out/files.txt | tr '\n' ' ' || true)"
+          others="$(TOUCHED="$touched" gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json number,headRefName,files,isDraft,createdAt \
             --jq '[.[] | select(.headRefName != env.BRANCH) | select(.isDraft | not)
               | select((.createdAt | fromdateiso8601) > (now - 7 * 86400))
-              | select(any(.files[]; .path == "providers/" + env.PROVIDER + "/models.go"))
+              | select(any(.files[].path; . as $f | any(env.TOUCHED | split(" ")[]; . == $f)))
               | .number] | map(tostring) | join(",")')"
           if [[ -n "$others" ]]; then
-            echo "Skipped: recent open PRs touch providers/${PROVIDER}/models.go: $others" | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "Skipped: recent open PRs touch ${touched}: $others" | tee -a "$GITHUB_STEP_SUMMARY"
             echo "skip=true" >>"$GITHUB_OUTPUT"
           fi
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd  # v6.3.0

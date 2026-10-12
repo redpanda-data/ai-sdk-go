@@ -169,7 +169,10 @@ func TestRender(t *testing.T) {
 			report:    validReport(),
 			diff:      diff,
 			codeFiles: []string{"providers/anthropic/alias_test.go"},
-			contains:  []string{"### Code changed (1)", "- `providers/anthropic/alias_test.go`"},
+			contains: []string{
+				"### Code changed (1)", "- `providers/anthropic/alias_test.go`",
+				"marking it ready runs them with secrets",
+			},
 		},
 		{
 			name: "empty old shows none",

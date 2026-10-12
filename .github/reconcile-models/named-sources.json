@@ -1,1 +1,6 @@
-{"anthropic": ["platform.claude.com"]}
+{
+  "anthropic": {
+    "providers": ["anthropic", "vertex", "bedrock"],
+    "hosts": ["platform.claude.com", "cloud.google.com", "docs.cloud.google.com", "aws.amazon.com", "docs.aws.amazon.com"]
+  }
+}

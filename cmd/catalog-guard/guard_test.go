@@ -102,6 +102,8 @@ func TestCheck(t *testing.T) {
 		}}},
 		{name: "new var", appendSrc: "\nvar extra = 1\n", wantErr: "vars changed"},
 		{name: "const with call", edits: []replacement{{`ModelA = "model-a"`, `ModelA = catalog.Make("a")`}}, wantErr: "non-literal value"},
+		{name: "const built from another const", edits: []replacement{{`ModelA = "model-a"`, "ModelA = \"model-a\"\n\tModelAGlobal = \"global.\" + (ModelA)"}}},
+		{name: "const concatenation hides a call", edits: []replacement{{`ModelA = "model-a"`, `ModelA = "a." + catalog.Make("a")`}}, wantErr: "non-literal value"},
 		{name: "invalid go", appendSrc: "\nfunc {", wantErr: "parse patched"},
 		{
 			name:      "method hides a body change",
