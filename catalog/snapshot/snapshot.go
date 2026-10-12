@@ -126,9 +126,10 @@ func Encode(w io.Writer, catalogs ...*catalog.Catalog) error {
 					Output: o.Modalities.Output,
 				},
 				Reasoning: reasoningDTO{
-					Efforts:  o.Reasoning.Efforts,
-					Adaptive: o.Reasoning.Adaptive,
-					Budget:   o.Reasoning.Budget,
+					Efforts:             o.Reasoning.Efforts,
+					Adaptive:            o.Reasoning.Adaptive,
+					Budget:              o.Reasoning.Budget,
+					ThinkingPrefixCheck: o.Reasoning.ThinkingPrefixCheck,
 				},
 				Speeds:     o.Speeds,
 				Pricing:    pricingDTOFrom(o.Pricing),
@@ -283,9 +284,10 @@ type modalitiesDTO struct {
 }
 
 type reasoningDTO struct {
-	Efforts  []llm.ReasoningEffort `json:"efforts,omitempty"`
-	Adaptive bool                  `json:"adaptive,omitempty"`
-	Budget   bool                  `json:"budget,omitempty"`
+	Efforts             []llm.ReasoningEffort `json:"efforts,omitempty"`
+	Adaptive            bool                  `json:"adaptive,omitempty"`
+	Budget              bool                  `json:"budget,omitempty"`
+	ThinkingPrefixCheck bool                  `json:"thinking_prefix_check,omitempty"`
 }
 
 type pricingDTO struct {

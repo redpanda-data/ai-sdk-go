@@ -203,6 +203,11 @@ surface** — every change must be visible and intended in
   Empty metadata is unknown, never permission to guess a provider default.
   Regenerate the snapshot; unrelated prices, lifecycle, and capability fields
   must stay unchanged during a wire-only reconciliation.
+- **Thinking prefix check**: `Reasoning.ThinkingPrefixCheck` must match the
+  model list in Anthropic's preserved-thinking page ("Keeping the prefix
+  unchanged"). A newly listed model needs the flag, or its replayed thinking
+  can 400 on newer accounts; `TestThinkingPrefixCheckComesFromTheCatalog`
+  pins the set, so update it with the entries.
 - **Capabilities/modalities**: provider-documented model facts (JSON mode
   means a schemaless mode — Anthropic has none; document input means the
   API accepts document parts). Bedrock geo ratio stays 1.10x

@@ -142,6 +142,9 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 				case blockTypeThinking:
 					acc.thinkingSignature = e.ContentBlock.Signature
 					acc.textContent = e.ContentBlock.Thinking
+				case blockTypeRedactedThinking:
+					// Redacted blocks arrive whole, with no deltas.
+					acc.redactedData = e.ContentBlock.Data
 				case blockTypeText:
 					acc.textContent = e.ContentBlock.Text
 				}
@@ -296,6 +299,12 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 						Signature: acc.thinkingSignature,
 					})
 
+				case blockTypeRedactedThinking:
+					finalContent = append(finalContent, anthropic.BetaContentBlockUnion{
+						Type: blockTypeRedactedThinking,
+						Data: acc.redactedData,
+					})
+
 				case blockTypeToolUse:
 					if acc.toolUse != nil {
 						argsJSON, ok := llm.FinalizeToolArgs([]byte(acc.toolArgs))
@@ -341,11 +350,12 @@ type contentBlockAccumulator struct {
 	nativeSearch      json.RawMessage
 	completedSearch   *anthropic.BetaContentBlockUnion
 	index             int
-	blockType         string // "text", "tool_use", "thinking"
+	blockType         string // "text", "tool_use", "thinking", "redacted_thinking"
 	textContent       string
 	toolArgs          string
 	toolUse           *toolUseData // Store tool use data
 	thinkingSignature string
+	redactedData      string
 }
 
 // toolUseData stores tool use information during streaming.

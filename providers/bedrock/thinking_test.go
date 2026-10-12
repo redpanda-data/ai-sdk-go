@@ -142,6 +142,117 @@ func TestSignatureOnlyReasoningSurvivesStreamingFinalization(t *testing.T) {
 	assert.Equal(t, "opaque-signature", reasoning.Signature)
 }
 
+// redactedPayload is binary on purpose: Converse returns redactedContent as
+// bytes, and they must survive JSON persistence of the session unchanged.
+var redactedPayload = []byte{0x00, 0xff, 0x10, 'x', 0xc3}
+
+func TestRedactedReasoningRoundTrips(t *testing.T) {
+	t.Parallel()
+
+	part := NewResponseMapper(catalog.Offering{}).mapReasoningBlock(&types.ReasoningContentBlockMemberRedactedContent{
+		Value: redactedPayload,
+	})
+	require.NotNil(t, part)
+
+	reasoning, ok := part.(*llm.ReasoningPart)
+	require.True(t, ok)
+	assert.Equal(t, map[string]any{"redacted": true, "redacted_provider": "aws.bedrock"}, reasoning.Metadata)
+
+	assertReplaysRedacted(t, reasoning)
+}
+
+func TestRedactedReasoningSurvivesStreamingFinalization(t *testing.T) {
+	t.Parallel()
+
+	acc := &contentBlockAccumulator{}
+	event, yielded := processReasoningDelta(acc, &types.ContentBlockDeltaMemberReasoningContent{
+		Value: &types.ReasoningContentBlockDeltaMemberRedactedContent{
+			Value: redactedPayload,
+		},
+	}, 0)
+	assert.False(t, yielded)
+	assert.Nil(t, event)
+
+	parts := (&Model{}).buildFinalParts(map[int]*contentBlockAccumulator{0: acc})
+	require.Len(t, parts, 1)
+
+	reasoning, ok := parts[0].(*llm.ReasoningPart)
+	require.True(t, ok)
+
+	assertReplaysRedacted(t, reasoning)
+}
+
+// TestRequestMapper_SkipsUnreplayableRedactedReasoning covers redacted parts
+// the mapper cannot send back as the original redactedContent. Dropping the
+// block lets the conversation continue; failing the request would fail every
+// later turn of a persisted session too.
+func TestRequestMapper_SkipsUnreplayableRedactedReasoning(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		part *llm.ReasoningPart
+	}{
+		{
+			name: "missing data",
+			part: &llm.ReasoningPart{Text: "[redacted thinking]", Metadata: map[string]any{"redacted": true, "redacted_provider": "aws.bedrock"}},
+		},
+		{
+			name: "data that is not base64",
+			part: &llm.ReasoningPart{Text: "[redacted thinking]", Signature: "not base64!", Metadata: map[string]any{"redacted": true, "redacted_provider": "aws.bedrock"}},
+		},
+		{
+			name: "persisted before the provider stamp",
+			part: &llm.ReasoningPart{Text: "[redacted thinking]", Signature: "AP8QeMM=", Metadata: map[string]any{"redacted": true}},
+		},
+		{
+			// Anthropic stores the redacted_thinking data string verbatim. It
+			// can decode as base64, so only the stamp keeps it off the wire.
+			name: "produced by Anthropic",
+			part: &llm.ReasoningPart{
+				Text:      "[redacted thinking]",
+				Signature: "RW5jcnlwdGVkIHJlYXNvbmluZw==",
+				Metadata:  map[string]any{"redacted": true, "redacted_provider": "anthropic"},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			message, err := NewRequestMapper(&Config{}).mapAssistantMessage(
+				llm.NewMessage(llm.RoleAssistant, tc.part, llm.NewTextPart("hello")),
+			)
+			require.NoError(t, err)
+			assert.Equal(t, []types.ContentBlock{&types.ContentBlockMemberText{Value: "hello"}}, message.Content)
+		})
+	}
+}
+
+// assertReplaysRedacted persists part the way a session store does and checks
+// the request mapper sends it back as redactedContent with the original bytes.
+func assertReplaysRedacted(t *testing.T, part *llm.ReasoningPart) {
+	t.Helper()
+
+	persisted, err := json.Marshal(llm.NewMessage(llm.RoleAssistant, part))
+	require.NoError(t, err)
+
+	var restored llm.Message
+	require.NoError(t, json.Unmarshal(persisted, &restored))
+
+	message, err := NewRequestMapper(&Config{}).mapAssistantMessage(restored)
+	require.NoError(t, err)
+	require.Len(t, message.Content, 1)
+
+	block, ok := message.Content[0].(*types.ContentBlockMemberReasoningContent)
+	require.True(t, ok)
+
+	redacted, ok := block.Value.(*types.ReasoningContentBlockMemberRedactedContent)
+	require.True(t, ok, "redacted reasoning must not be replayed as reasoningText")
+	assert.Equal(t, redactedPayload, redacted.Value)
+}
+
 func TestModelThinkingCapabilities(t *testing.T) {
 	t.Parallel()
 
