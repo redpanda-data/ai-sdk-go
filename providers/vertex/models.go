@@ -41,13 +41,14 @@ const (
 	ModelGemini31ProPreview  = "gemini-3.1-pro-preview"
 	ModelGemini3FlashPreview = "gemini-3-flash-preview"
 	// Deprecated: Google retires Gemini 2.5 Pro on 2026-10-20. Use
-	// [ModelGemini35Flash].
+	// [ModelGemini38Flash] or [ModelGemini35Flash].
 	ModelGemini25Pro = "gemini-2.5-pro"
 	// Deprecated: Google retires Gemini 2.5 Flash on 2026-10-20. Use
-	// [ModelGemini35FlashLite].
+	// [ModelGemini38Flash], [ModelGemini35FlashLite] or
+	// [ModelGemini31FlashLite].
 	ModelGemini25Flash = "gemini-2.5-flash"
 	// Deprecated: Google retires Gemini 2.5 Flash-Lite on 2026-10-20. Use
-	// [ModelGemini31FlashLite].
+	// [ModelGemini38Flash] or [ModelGemini31FlashLite].
 	ModelGemini25FlashLite = "gemini-2.5-flash-lite"
 	ModelClaudeFable51     = "claude-fable-5-1"
 	ModelClaudeFable5      = "claude-fable-5"
@@ -379,11 +380,13 @@ func entries() []catalog.Entry {
 			// gemini/2-5-pro, read 2026-09-28). Retires is the bare retirement
 			// date on that page and on model-versions, both last updated
 			// 2026-09-25. Google may extend it but won't move it earlier
-			// (model-versions).
+			// (model-versions). ReplacedBy is the first replacement
+			// model-versions lists, "gemini-3.8-flash or gemini-3.5-flash"
+			// (last updated 2026-10-07).
 			Life: catalog.Lifecycle{
 				Available:  catalog.MustDate("2025-06-17"),
 				Retires:    catalog.MustDate("2026-10-20"),
-				ReplacedBy: ModelGemini35Flash,
+				ReplacedBy: ModelGemini38Flash,
 			},
 			// Flat across locations.
 			Pricing: pricing.TieredInfo(
@@ -410,10 +413,13 @@ func entries() []catalog.Entry {
 			// (docs.cloud.google.com/gemini-enterprise-agent-platform/models/
 			// gemini/2-5-flash, read 2026-09-28). Retires is the bare
 			// retirement date on the model page and model-versions.
+			// ReplacedBy is the first replacement model-versions lists,
+			// "gemini-3.8-flash or gemini-3.5-flash-lite or
+			// gemini-3.1-flash-lite" (last updated 2026-10-07).
 			Life: catalog.Lifecycle{
 				Available:  catalog.MustDate("2025-06-17"),
 				Retires:    catalog.MustDate("2026-10-20"),
-				ReplacedBy: ModelGemini35FlashLite,
+				ReplacedBy: ModelGemini38Flash,
 			},
 			// Text/image/video rate only; audio input is $1.00.
 			Pricing: pricing.FlatInfo(0.30, 2.50, 0.03),
@@ -434,11 +440,13 @@ func entries() []catalog.Entry {
 			// (docs.cloud.google.com/gemini-enterprise-agent-platform/models/
 			// gemini/2-5-flash-lite, read 2026-09-28). Retires is the bare
 			// retirement date on the model page and model-versions.
-			// model-versions recommends Gemini 3.1 Flash-Lite or Gemma 4.
+			// ReplacedBy is the first replacement model-versions lists,
+			// "gemini-3.8-flash or gemini-3.1-flash-lite or Gemma 4" (last
+			// updated 2026-10-07).
 			Life: catalog.Lifecycle{
 				Available:  catalog.MustDate("2025-07-22"),
 				Retires:    catalog.MustDate("2026-10-20"),
-				ReplacedBy: ModelGemini31FlashLite,
+				ReplacedBy: ModelGemini38Flash,
 			},
 			// Text/image/video rate only; audio input is $0.30.
 			Pricing: pricing.FlatInfo(0.10, 0.40, 0.01),

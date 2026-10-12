@@ -167,8 +167,10 @@ surface** — every change must be visible and intended in
     missing date — that still needs the vendor page.
 - **Facts**: `Knowledge` is the *reliable* cutoff when the vendor publishes
   both reliable and training dates; `Released` is the day this exact model
-  ID first became callable by users (a preview under its own ID is a
-  separate model — see add-model); `Description` is a short current blurb.
+  ID first became callable by users anywhere, including the vendor's own
+  apps, not only its API (the API launch day is the offering's `Available`;
+  a preview under its own ID is a separate model — see add-model);
+  `Description` is a short current blurb.
 
   **Fixed facts vs. mutable data.** `Released`, `Knowledge`, and an
   offering's launch `Available` describe a past event — once correct they
