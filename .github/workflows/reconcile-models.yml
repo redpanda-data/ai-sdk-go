@@ -139,6 +139,12 @@ jobs:
       contents: read
       pull-requests: read
       id-token: write # only used outside dry runs, to read the bot token
+    env:
+      # A run from main opens the real PR into main. A run from any other
+      # branch opens a test PR into that branch, from its own bot branch, so it
+      # shows only the bot's commit and never touches the real PR.
+      BASE: ${{ github.ref_name }}
+      BRANCH: ${{ github.ref_name == 'main' && 'bot/reconcile-models' || 'bot/reconcile-models-test' }}/${{ inputs.provider || 'anthropic' }}
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
         with:
@@ -185,7 +191,6 @@ jobs:
         if: env.DRY_RUN != 'true' && steps.check.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          BRANCH: bot/reconcile-models/${{ env.PROVIDER }}
         run: |
           others="$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json number,headRefName,files,isDraft,createdAt \
             --jq '[.[] | select(.headRefName != env.BRANCH) | select(.isDraft | not)
@@ -211,7 +216,6 @@ jobs:
         if: env.DRY_RUN != 'true' && steps.check.outputs.changed == 'true' && steps.race.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ env.ACTIONS_BOT_TOKEN }}
-          BRANCH: bot/reconcile-models/${{ env.PROVIDER }}
         run: |
           bot_id="$(gh api users/vbotbuildovich --jq .id)"
           git config user.name vbotbuildovich
@@ -227,9 +231,9 @@ jobs:
           fi
           git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${BRANCH}"
           if [[ -n "$existing" ]]; then
-            gh pr edit "$existing" --repo "$GITHUB_REPOSITORY" --body-file out/body.md
+            gh pr edit "$existing" --repo "$GITHUB_REPOSITORY" --base "$BASE" --body-file out/body.md
           else
-            gh pr create --repo "$GITHUB_REPOSITORY" --draft --base main --head "$BRANCH" \
+            gh pr create --repo "$GITHUB_REPOSITORY" --draft --base "$BASE" --head "$BRANCH" \
               --title "chore(catalog): reconcile ${PROVIDER} models" --body-file out/body.md \
               --label ai-merge-skip --reviewer adamwownysz-redpanda
           fi
