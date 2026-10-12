@@ -32,11 +32,12 @@ func main() {
 	hostList := flag.String("hosts", "", "comma-separated named-source hosts")
 	diffPath := flag.String("diff", "", "optional snapshot diff to include")
 	outPath := flag.String("out", "", "where to write the PR body")
+	codeFilesPath := flag.String("code-files", "", "optional file listing the non-data files the patch changes, one per line")
 
 	flag.Parse()
 
 	if *reportPath == "" || *provider == "" || *hostList == "" || *outPath == "" {
-		fmt.Fprintln(os.Stderr, "usage: catalog-report -report FILE -provider P -hosts h1,h2 [-diff FILE] -out FILE")
+		fmt.Fprintln(os.Stderr, "usage: catalog-report -report FILE -provider P -hosts h1,h2 [-diff FILE] [-code-files FILE] -out FILE")
 		os.Exit(2)
 	}
 
@@ -75,7 +76,27 @@ func main() {
 		}
 	}
 
-	if err := os.WriteFile(*outPath, []byte(Render(report, *provider, diff)), 0o600); err != nil {
+	var codeFiles []string
+
+	if *codeFilesPath != "" {
+		raw, err := os.ReadFile(*codeFilesPath)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "catalog-report:", err)
+			os.Exit(1)
+		}
+
+		// One path per line; spaces stay in the path, so ValidateCodeFiles rejects them.
+		codeFiles = strings.FieldsFunc(string(raw), func(r rune) bool { return r == '\n' })
+		if problems := ValidateCodeFiles(codeFiles); len(problems) > 0 {
+			for _, problem := range problems {
+				fmt.Fprintln(os.Stderr, "catalog-report:", problem)
+			}
+
+			os.Exit(1)
+		}
+	}
+
+	if err := os.WriteFile(*outPath, []byte(Render(report, *provider, diff, codeFiles)), 0o600); err != nil {
 		fmt.Fprintln(os.Stderr, "catalog-report:", err)
 		os.Exit(1)
 	}

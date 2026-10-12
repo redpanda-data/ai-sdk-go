@@ -129,6 +129,7 @@ func TestRender(t *testing.T) {
 		name        string
 		report      Report
 		diff        string
+		codeFiles   []string
 		contains    []string
 		notContains []string
 	}{
@@ -163,12 +164,25 @@ func TestRender(t *testing.T) {
 			diff:     diff,
 			contains: []string{"Don't push commits to this branch"},
 		},
+		{
+			name:      "lists code files changed",
+			report:    validReport(),
+			diff:      diff,
+			codeFiles: []string{"providers/anthropic/alias_test.go"},
+			contains:  []string{"### Code changed (1)", "- `providers/anthropic/alias_test.go`"},
+		},
+		{
+			name:        "no code section for a data-only patch",
+			report:      validReport(),
+			diff:        diff,
+			notContains: []string{"Code changed"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			body := Render(tt.report, "anthropic", tt.diff)
+			body := Render(tt.report, "anthropic", tt.diff, tt.codeFiles)
 			for _, want := range tt.contains {
 				assert.Contains(t, body, want)
 			}
@@ -176,6 +190,34 @@ func TestRender(t *testing.T) {
 			for _, unwanted := range tt.notContains {
 				assert.NotContains(t, body, unwanted)
 			}
+		})
+	}
+}
+
+func TestValidateCodeFiles(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		file    string
+		wantErr bool
+	}{
+		{"provider test file", "providers/anthropic/alias_test.go", false},
+		{"backtick", "providers/anthropic/a`b_test.go", true},
+		{"markdown link", "providers/anthropic/[x](https://evil.example).go", true},
+		{"space", "providers/anthropic/a b_test.go", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			problems := ValidateCodeFiles([]string{tt.file})
+			if tt.wantErr {
+				assert.NotEmpty(t, problems)
+				return
+			}
+
+			assert.Empty(t, problems)
 		})
 	}
 }

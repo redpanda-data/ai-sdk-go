@@ -170,6 +170,8 @@ done < <(git status --porcelain --untracked-files=all)
 # The files a PR commits: what the patch touched, plus the regenerated snapshot.
 printf '%s\n' "${patched[@]}" catalog/snapshot.json >"$out/files.txt"
 git diff -- catalog/snapshot.json >"$out/snapshot.diff"
-render -diff "$out/snapshot.diff"
+# Non-data files go into the body's "Code changed" list, so reviewers read them as code.
+printf '%s\n' "${patched[@]}" | grep -vxF -e "$models" -e "$facts" >"$priv/code-files.txt" || true
+render -diff "$out/snapshot.diff" -code-files "$priv/code-files.txt"
 emit changed=true
 echo "pr-job: patch accepted"

@@ -65,7 +65,23 @@ var (
 	// sourcePattern allows only characters that can't end a markdown link,
 	// end a table cell or start HTML, so a URL always renders as one link.
 	sourcePattern = regexp.MustCompile(`^https://[A-Za-z0-9.-]+(/[A-Za-z0-9._~/%#?=&+:-]*)?$`)
+	// codeFilePattern keeps listed file paths to plain path characters, so a
+	// path can't break out of its code span in the PR body.
+	codeFilePattern = regexp.MustCompile(`^[A-Za-z0-9_./-]{1,200}$`)
 )
+
+// ValidateCodeFiles lists every path that would be unsafe to render.
+func ValidateCodeFiles(files []string) []string {
+	var problems []string
+
+	for _, file := range files {
+		if !codeFilePattern.MatchString(file) {
+			problems = append(problems, "bad code file path "+fmt.Sprintf("%q", file))
+		}
+	}
+
+	return problems
+}
 
 // Parse decodes a report strictly: unknown fields are an error, and all three
 // arrays must be present, so a missing or null report never reads as "no drift".
@@ -168,8 +184,10 @@ func link(raw string) string {
 	return "[" + parsed.Hostname() + "](" + raw + ")"
 }
 
-// Render writes the PR body. Call it only on a report Validate accepted.
-func Render(report Report, provider, snapshotDiff string) string {
+// Render writes the PR body. Call it only on a report Validate accepted and
+// code files ValidateCodeFiles accepted. codeFiles are the non-data files the
+// patch changes, listed first so a reviewer reads them as code.
+func Render(report Report, provider, snapshotDiff string, codeFiles []string) string {
 	var body strings.Builder
 	body.WriteString("## Catalogue drift: " + provider + "\n\n")
 
@@ -179,6 +197,16 @@ func Render(report Report, provider, snapshotDiff string) string {
 	}
 
 	body.WriteString("Proposed by the reconcile-models workflow. The tables come from the agent's structured report; the PR job checked its format and that every source is a named source. Check each value against its source before approving.\n\nDon't push commits to this branch: each run rebuilds it from main and force-pushes, so they would be lost. Comment on the PR instead.\n\n")
+
+	if len(codeFiles) > 0 {
+		fmt.Fprintf(&body, "### Code changed (%d)\n\nThe patch also changes these files. Review them as code, not data:\n\n", len(codeFiles))
+
+		for _, file := range codeFiles {
+			body.WriteString("- " + code(file) + "\n")
+		}
+
+		body.WriteString("\n")
+	}
 
 	if len(report.Changes) > 0 {
 		fmt.Fprintf(&body, "### Changes (%d)\n\n| Offering | Field | Old | New | Source |\n|---|---|---|---|---|\n", len(report.Changes))
