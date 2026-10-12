@@ -67,3 +67,26 @@ func TestProtoSessionState_EmptyConversationID(t *testing.T) {
 	assert.Empty(t, got.ConversationID)
 	assert.Equal(t, "root-1", session.ConversationID(got))
 }
+
+// TestProtoPart_ReplayableReasoningRoundTrip guards the fields providers need
+// to replay Claude thinking: a signature with no text, and a redacted block's
+// payload with its Metadata["redacted"] marker and producing provider.
+func TestProtoPart_ReplayableReasoningRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	for _, part := range []*llm.ReasoningPart{
+		{Signature: "sig-omitted"},
+		{
+			Text:      "[redacted thinking]",
+			Signature: "opaque-data",
+			Metadata:  map[string]any{"redacted": true, "redacted_provider": "anthropic"},
+		},
+	} {
+		encoded, err := toProtoPart(part)
+		require.NoError(t, err)
+
+		restored, err := fromProtoPart(encoded)
+		require.NoError(t, err)
+		assert.Equal(t, part, restored)
+	}
+}

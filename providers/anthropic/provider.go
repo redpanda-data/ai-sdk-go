@@ -201,6 +201,8 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 		EnableCaching:    p.EnableCaching,
 		AdaptiveThinking: offering.Reasoning.Adaptive,
 		setOptions:       make(map[string]bool),
+
+		ThinkingPrefixCheck: offering.Reasoning.ThinkingPrefixCheck,
 	}
 
 	// Apply all options with validation

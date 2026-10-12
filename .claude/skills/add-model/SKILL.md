@@ -56,8 +56,14 @@ host), `Publisher`, `DisplayName`, `Description` (short UI blurb),
 ## Step 2 — Author the provider entry
 
 Exported ID constant (greppable), capabilities, constraints, modalities,
-`Reasoning` (efforts/adaptive/budget), `Pricing`, `Life`.
+`Reasoning` (efforts/adaptive/budget/thinking prefix check), `Pricing`, `Life`.
 
+- **`Reasoning.ThinkingPrefixCheck`** marks a model whose provider checks
+  replayed thinking against an unchanged prefix (Anthropic's preserved
+  thinking: platform.claude.com/docs/en/build-with-claude/preserved-thinking,
+  "Keeping the prefix unchanged"). The Anthropic request mapper then sends
+  `block_binding: drop_block`. Set it only on a surface whose docs list the
+  model, and only with adaptive thinking (`TestThinkingPrefixCheckComesFromTheCatalog`).
 - **An entry declares no publisher** — it comes from the model's facts, so
   read it back with `o.Facts().Publisher`.
 - A new provider package must add itself to two hand-kept lists: the
