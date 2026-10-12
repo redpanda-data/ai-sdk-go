@@ -175,6 +175,16 @@ func Validate(report Report, hosts []string) []string {
 
 func code(value string) string { return "`" + value + "`" }
 
+// value renders a report value as code, or "none" when it's empty (e.g. the
+// old value of a new model), since an empty code span shows as stray backticks.
+func value(v string) string {
+	if v == "" {
+		return "none"
+	}
+
+	return code(v)
+}
+
 func link(raw string) string {
 	parsed, err := url.Parse(raw)
 	if err != nil {
@@ -212,7 +222,7 @@ func Render(report Report, provider, snapshotDiff string, codeFiles []string) st
 		fmt.Fprintf(&body, "### Changes (%d)\n\n| Offering | Field | Old | New | Source |\n|---|---|---|---|---|\n", len(report.Changes))
 
 		for _, change := range report.Changes {
-			fmt.Fprintf(&body, "| %s | %s | %s | %s | %s |\n", code(change.Offering), change.Field, code(change.Old), code(change.New), link(change.SourceURL))
+			fmt.Fprintf(&body, "| %s | %s | %s | %s | %s |\n", code(change.Offering), change.Field, value(change.Old), value(change.New), link(change.SourceURL))
 		}
 
 		body.WriteString("\n")
@@ -223,8 +233,8 @@ func Render(report Report, provider, snapshotDiff string, codeFiles []string) st
 
 		for _, item := range report.NeedsHuman {
 			values := make([]string, 0, len(item.Values))
-			for _, value := range item.Values {
-				values = append(values, code(value))
+			for _, v := range item.Values {
+				values = append(values, value(v))
 			}
 
 			sources := make([]string, 0, len(item.SourceURLs))

@@ -172,6 +172,16 @@ func TestRender(t *testing.T) {
 			contains:  []string{"### Code changed (1)", "- `providers/anthropic/alias_test.go`"},
 		},
 		{
+			name: "empty old shows none",
+			report: Report{Changes: []Change{{
+				Offering: "claude-haiku-5-5", Field: "new_model", Old: "", New: "claude-haiku-5-5",
+				SourceURL: "https://platform.claude.com/docs/en/about-claude/pricing",
+			}}},
+			diff:        diff,
+			contains:    []string{"| new_model | none | `claude-haiku-5-5` |"},
+			notContains: []string{"| `` |"},
+		},
+		{
 			name:        "no code section for a data-only patch",
 			report:      validReport(),
 			diff:        diff,
