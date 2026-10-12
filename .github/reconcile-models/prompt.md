@@ -12,7 +12,7 @@ Which models to track:
 - Don't track models from these vendors: xAI (Grok). Report any you find in `skipped` with the reason `vendor_excluded`.
 - Preview models with their own IDs are tracked like any other model.
 - Add a model that has no entry in `catalog/facts_data.go` only if it was released in the last 90 days. Report an older one in `skipped` with the reason `out_of_scope`.
-- Don't add a model to another provider package if any host lists it as legacy, deprecated or retired. Report it in `skipped` with the reason `out_of_scope`.
+- Don't add a model to a provider package that doesn't carry it yet if any host has announced a deprecation or retirement date for it. Report it in `skipped` with the reason `out_of_scope`. A "legacy models" list of older models that are still available doesn't count, and new regional copies of a model the package already carries aren't affected by this rule.
 - On Bedrock, a bare model ID whose `bedrock-runtime` In-Region endpoint is N/A isn't an offering. Don't list it.
 
 What you may change:
