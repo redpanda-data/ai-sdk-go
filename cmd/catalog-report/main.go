@@ -94,7 +94,8 @@ func main() {
 		}
 	}
 
-	if err := os.WriteFile(*outPath, []byte(RenderCapped(report, *provider, diff, codeFiles, maxBodyBytes)), 0o600); err != nil {
+	body := RenderCapped(report, *provider, diff, codeFiles, maxBodyBytes)
+	if err := os.WriteFile(*outPath, []byte(body), 0o600); err != nil { //nolint:gosec // -out is set by pr-job.sh, not by the report
 		fmt.Fprintln(os.Stderr, "catalog-report:", err)
 		os.Exit(1)
 	}
