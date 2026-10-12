@@ -41,13 +41,14 @@ const (
 	ModelGemini31ProPreview  = "gemini-3.1-pro-preview"
 	ModelGemini3FlashPreview = "gemini-3-flash-preview"
 	// Deprecated: Google retires Gemini 2.5 Pro on 2026-10-20. Use
-	// [ModelGemini35Flash].
+	// [ModelGemini38Flash] or [ModelGemini35Flash].
 	ModelGemini25Pro = "gemini-2.5-pro"
 	// Deprecated: Google retires Gemini 2.5 Flash on 2026-10-20. Use
-	// [ModelGemini35FlashLite].
+	// [ModelGemini38Flash], [ModelGemini35FlashLite] or
+	// [ModelGemini31FlashLite].
 	ModelGemini25Flash = "gemini-2.5-flash"
 	// Deprecated: Google retires Gemini 2.5 Flash-Lite on 2026-10-20. Use
-	// [ModelGemini31FlashLite].
+	// [ModelGemini38Flash] or [ModelGemini31FlashLite].
 	ModelGemini25FlashLite = "gemini-2.5-flash-lite"
 	ModelClaudeFable51     = "claude-fable-5-1"
 	ModelClaudeFable5      = "claude-fable-5"
@@ -61,6 +62,7 @@ const (
 	ModelClaudeSonnet5     = "claude-sonnet-5"
 	ModelClaudeSonnet46    = "claude-sonnet-4-6"
 	ModelClaudeSonnet45    = "claude-sonnet-4-5@20250929"
+	ModelClaudeHaiku55     = "claude-haiku-5-5"
 	ModelClaudeHaiku45     = "claude-haiku-4-5"
 )
 
@@ -379,11 +381,13 @@ func entries() []catalog.Entry {
 			// gemini/2-5-pro, read 2026-09-28). Retires is the bare retirement
 			// date on that page and on model-versions, both last updated
 			// 2026-09-25. Google may extend it but won't move it earlier
-			// (model-versions).
+			// (model-versions). ReplacedBy is the first replacement
+			// model-versions lists, "gemini-3.8-flash or gemini-3.5-flash"
+			// (last updated 2026-10-07).
 			Life: catalog.Lifecycle{
 				Available:  catalog.MustDate("2025-06-17"),
 				Retires:    catalog.MustDate("2026-10-20"),
-				ReplacedBy: ModelGemini35Flash,
+				ReplacedBy: ModelGemini38Flash,
 			},
 			// Flat across locations.
 			Pricing: pricing.TieredInfo(
@@ -410,10 +414,13 @@ func entries() []catalog.Entry {
 			// (docs.cloud.google.com/gemini-enterprise-agent-platform/models/
 			// gemini/2-5-flash, read 2026-09-28). Retires is the bare
 			// retirement date on the model page and model-versions.
+			// ReplacedBy is the first replacement model-versions lists,
+			// "gemini-3.8-flash or gemini-3.5-flash-lite or
+			// gemini-3.1-flash-lite" (last updated 2026-10-07).
 			Life: catalog.Lifecycle{
 				Available:  catalog.MustDate("2025-06-17"),
 				Retires:    catalog.MustDate("2026-10-20"),
-				ReplacedBy: ModelGemini35FlashLite,
+				ReplacedBy: ModelGemini38Flash,
 			},
 			// Text/image/video rate only; audio input is $1.00.
 			Pricing: pricing.FlatInfo(0.30, 2.50, 0.03),
@@ -434,11 +441,13 @@ func entries() []catalog.Entry {
 			// (docs.cloud.google.com/gemini-enterprise-agent-platform/models/
 			// gemini/2-5-flash-lite, read 2026-09-28). Retires is the bare
 			// retirement date on the model page and model-versions.
-			// model-versions recommends Gemini 3.1 Flash-Lite or Gemma 4.
+			// ReplacedBy is the first replacement model-versions lists,
+			// "gemini-3.8-flash or gemini-3.1-flash-lite or Gemma 4" (last
+			// updated 2026-10-07).
 			Life: catalog.Lifecycle{
 				Available:  catalog.MustDate("2025-07-22"),
 				Retires:    catalog.MustDate("2026-10-20"),
-				ReplacedBy: ModelGemini31FlashLite,
+				ReplacedBy: ModelGemini38Flash,
 			},
 			// Text/image/video rate only; audio input is $0.30.
 			Pricing: pricing.FlatInfo(0.10, 0.40, 0.01),
@@ -712,6 +721,28 @@ func entries() []catalog.Entry {
 			Pricing: claudeSonnet45Pricing(),
 		},
 		{
+			ID:           ModelClaudeHaiku55,
+			Model:        catalog.ModelClaudeHaiku55,
+			Capabilities: claudeCapsWithToolSearch,
+			Modalities:   claudeModalities,
+			Constraints: llm.ModelConstraints{
+				MaxInputTokens:  1000000,
+				MaxOutputTokens: 128000,
+				// Adaptive thinking only; sampling parameters return 400.
+				SupportedParams: []string{"max_tokens", "reasoning_effort"},
+			},
+			Reasoning: catalog.ReasoningSupport{
+				Efforts:  []llm.ReasoningEffort{reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortXHigh, reasoningEffortMax},
+				Adaptive: true,
+			},
+			// Claude Haiku 5.5 GA, released 2026-10-07; retirement floor "not
+			// sooner than: October 7, 2027" is not an exact date
+			// (docs.cloud.google.com/gemini-enterprise-agent-platform/models/
+			// partner-models/claude/haiku-5-5, last updated 2026-10-07).
+			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-10-07")},
+			Pricing: claudeHaiku55Pricing(),
+		},
+		{
 			ID:           ModelClaudeHaiku45,
 			Model:        catalog.ModelClaudeHaiku45,
 			Capabilities: claudeCapsWithToolSearch,
@@ -832,6 +863,31 @@ func claudeSonnet5Pricing() pricing.Info {
 		info = info.WithOverride(
 			pricing.Selector{Region: region},
 			pricing.RateCard{Base: nonGlobal},
+		)
+	}
+
+	return info
+}
+
+// claudeHaiku55Pricing returns the Haiku 5.5 rate card: global, plus global
+// x 1.10 for us and eu, each with a bracket above 100K input tokens that
+// covers every rate. From the pricing page's region tabs, read 2026-10-08.
+func claudeHaiku55Pricing() pricing.Info {
+	const longContext = 100_001
+
+	global := pricing.NewRates(0.10, 0.50, 0.01).WithCacheCreation(0.125, 0.20, 0)
+	globalLong := pricing.NewRates(0.50, 2.50, 0.05).WithCacheCreation(0.625, 1.00, 0)
+	nonGlobal := pricing.NewRates(0.11, 0.55, 0.011).WithCacheCreation(0.1375, 0.22, 0)
+	nonGlobalLong := pricing.NewRates(0.55, 2.75, 0.055).WithCacheCreation(0.6875, 1.10, 0)
+
+	info := pricing.TieredInfo(global, pricing.Bracket{MinContextTokens: longContext, Rates: globalLong})
+	for _, region := range []string{"us", "eu"} {
+		info = info.WithOverride(
+			pricing.Selector{Region: region},
+			pricing.RateCard{
+				Base:     nonGlobal,
+				Brackets: []pricing.Bracket{{MinContextTokens: longContext, Rates: nonGlobalLong}},
+			},
 		)
 	}
 

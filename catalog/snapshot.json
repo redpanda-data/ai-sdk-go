@@ -6,7 +6,8 @@
       "publisher": "amazon",
       "description": "Nova 2 Lite is a fast, cost-effective reasoning model for everyday workloads that can process text, images, and videos to generate text.",
       "series": "nova-lite",
-      "released": "2025-12-02"
+      "released": "2025-12-02",
+      "knowledge": "2025-10-31"
     },
     "anthropic/claude-fable-5": {
       "display_name": "Claude Fable 5",
@@ -31,6 +32,14 @@
       "series": "claude-haiku",
       "released": "2025-10-15",
       "knowledge": "2025-02-28"
+    },
+    "anthropic/claude-haiku-5-5": {
+      "display_name": "Claude Haiku 5.5",
+      "publisher": "anthropic",
+      "description": "Claude Haiku 5.5 is Anthropic's fastest model, built for high-volume, latency-sensitive work such as classification, routing, extraction, and subagent tasks.",
+      "series": "claude-haiku",
+      "released": "2026-10-07",
+      "knowledge": "2026-06-30"
     },
     "anthropic/claude-opus-4-1": {
       "display_name": "Claude Opus 4.1",
@@ -267,7 +276,7 @@
       "publisher": "openai",
       "description": "The latest GPT-4 Turbo model with vision capabilities. Vision requests can now use JSON mode and function calling.",
       "series": "gpt",
-      "released": "2023-11-06",
+      "released": "2024-04-09",
       "knowledge": "2023-12-01"
     },
     "openai/gpt-4.1": {
@@ -672,6 +681,82 @@
           "lifecycle": {
             "stage": "ga",
             "available": "2025-10-15"
+          },
+          "derived": {
+            "price_tier": "low",
+            "replacement": "anthropic/claude-haiku-5-5"
+          }
+        },
+        {
+          "id": "claude-haiku-5-5",
+          "model": "anthropic/claude-haiku-5-5",
+          "display_name": "Claude Haiku 5.5",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": true,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "reasoning_effort"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 10000000,
+                "output_microcents_per_million": 50000000,
+                "cached_input_microcents_per_million": 1000000,
+                "cache_creation_5m_microcents_per_million": 12500000,
+                "cache_creation_1h_microcents_per_million": 20000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 100001,
+                  "rates": {
+                    "input_microcents_per_million": 50000000,
+                    "output_microcents_per_million": 250000000,
+                    "cached_input_microcents_per_million": 5000000,
+                    "cache_creation_5m_microcents_per_million": 62500000,
+                    "cache_creation_1h_microcents_per_million": 100000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-10-07"
           },
           "derived": {
             "price_tier": "low"
@@ -1531,6 +1616,87 @@
             }
           ],
           "derived": {
+            "price_tier": "low",
+            "replacement": "anthropic/claude-haiku-5-5"
+          }
+        },
+        {
+          "id": "au.anthropic.claude-haiku-5-5",
+          "model": "anthropic/claude-haiku-5-5",
+          "display_name": "Claude Haiku 5.5 (AU)",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": false,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "stop"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 11000000,
+                "output_microcents_per_million": 55000000,
+                "cached_input_microcents_per_million": 1100000,
+                "cache_creation_5m_microcents_per_million": 13750000,
+                "cache_creation_1h_microcents_per_million": 22000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 100001,
+                  "rates": {
+                    "input_microcents_per_million": 55000000,
+                    "output_microcents_per_million": 275000000,
+                    "cached_input_microcents_per_million": 5500000,
+                    "cache_creation_5m_microcents_per_million": 68750000,
+                    "cache_creation_1h_microcents_per_million": 110000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "au"
+            }
+          ],
+          "derived": {
             "price_tier": "low"
           }
         },
@@ -1832,7 +1998,7 @@
           },
           "constraints": {
             "max_input_tokens": 1000000,
-            "max_output_tokens": 128000,
+            "max_output_tokens": 64000,
             "supported_params": [
               "temperature",
               "top_p",
@@ -2078,6 +2244,87 @@
                 "cache_creation_5m_microcents_per_million": 137500000,
                 "cache_creation_1h_microcents_per_million": 220000000
               }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "eu"
+            }
+          ],
+          "derived": {
+            "price_tier": "low",
+            "replacement": "anthropic/claude-haiku-5-5"
+          }
+        },
+        {
+          "id": "eu.anthropic.claude-haiku-5-5",
+          "model": "anthropic/claude-haiku-5-5",
+          "display_name": "Claude Haiku 5.5 (EU)",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": false,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "stop"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 11000000,
+                "output_microcents_per_million": 55000000,
+                "cached_input_microcents_per_million": 1100000,
+                "cache_creation_5m_microcents_per_million": 13750000,
+                "cache_creation_1h_microcents_per_million": 22000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 100001,
+                  "rates": {
+                    "input_microcents_per_million": 55000000,
+                    "output_microcents_per_million": 275000000,
+                    "cached_input_microcents_per_million": 5500000,
+                    "cache_creation_5m_microcents_per_million": 68750000,
+                    "cache_creation_1h_microcents_per_million": 110000000
+                  }
+                }
+              ]
             }
           },
           "lifecycle": {
@@ -2597,7 +2844,7 @@
           },
           "constraints": {
             "max_input_tokens": 1000000,
-            "max_output_tokens": 128000,
+            "max_output_tokens": 64000,
             "supported_params": [
               "temperature",
               "top_p",
@@ -2983,6 +3230,87 @@
                 "cache_creation_5m_microcents_per_million": 125000000,
                 "cache_creation_1h_microcents_per_million": 200000000
               }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "global"
+            }
+          ],
+          "derived": {
+            "price_tier": "low",
+            "replacement": "anthropic/claude-haiku-5-5"
+          }
+        },
+        {
+          "id": "global.anthropic.claude-haiku-5-5",
+          "model": "anthropic/claude-haiku-5-5",
+          "display_name": "Claude Haiku 5.5 (Global)",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": false,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "stop"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 10000000,
+                "output_microcents_per_million": 50000000,
+                "cached_input_microcents_per_million": 1000000,
+                "cache_creation_5m_microcents_per_million": 12500000,
+                "cache_creation_1h_microcents_per_million": 20000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 100001,
+                  "rates": {
+                    "input_microcents_per_million": 50000000,
+                    "output_microcents_per_million": 250000000,
+                    "cached_input_microcents_per_million": 5000000,
+                    "cache_creation_5m_microcents_per_million": 62500000,
+                    "cache_creation_1h_microcents_per_million": 100000000
+                  }
+                }
+              ]
             }
           },
           "lifecycle": {
@@ -3502,7 +3830,7 @@
           },
           "constraints": {
             "max_input_tokens": 1000000,
-            "max_output_tokens": 128000,
+            "max_output_tokens": 64000,
             "supported_params": [
               "temperature",
               "top_p",
@@ -4133,6 +4461,86 @@
                 "output_microcents_per_million": 275000000,
                 "cached_input_microcents_per_million": 8250000
               }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "jp"
+            }
+          ],
+          "derived": {
+            "price_tier": "low"
+          }
+        },
+        {
+          "id": "jp.anthropic.claude-haiku-5-5",
+          "model": "anthropic/claude-haiku-5-5",
+          "display_name": "Claude Haiku 5.5 (JP)",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": false,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "stop"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 11000000,
+                "output_microcents_per_million": 55000000,
+                "cached_input_microcents_per_million": 1100000,
+                "cache_creation_5m_microcents_per_million": 13750000,
+                "cache_creation_1h_microcents_per_million": 22000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 100001,
+                  "rates": {
+                    "input_microcents_per_million": 55000000,
+                    "output_microcents_per_million": 275000000,
+                    "cached_input_microcents_per_million": 5500000,
+                    "cache_creation_5m_microcents_per_million": 68750000,
+                    "cache_creation_1h_microcents_per_million": 110000000
+                  }
+                }
+              ]
             }
           },
           "lifecycle": {
@@ -5186,6 +5594,87 @@
             }
           ],
           "derived": {
+            "price_tier": "low",
+            "replacement": "anthropic/claude-haiku-5-5"
+          }
+        },
+        {
+          "id": "us.anthropic.claude-haiku-5-5",
+          "model": "anthropic/claude-haiku-5-5",
+          "display_name": "Claude Haiku 5.5 (US)",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": false,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "stop"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 11000000,
+                "output_microcents_per_million": 55000000,
+                "cached_input_microcents_per_million": 1100000,
+                "cache_creation_5m_microcents_per_million": 13750000,
+                "cache_creation_1h_microcents_per_million": 22000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 100001,
+                  "rates": {
+                    "input_microcents_per_million": 55000000,
+                    "output_microcents_per_million": 275000000,
+                    "cached_input_microcents_per_million": 5500000,
+                    "cache_creation_5m_microcents_per_million": 68750000,
+                    "cache_creation_1h_microcents_per_million": 110000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "us"
+            }
+          ],
+          "derived": {
             "price_tier": "low"
           }
         },
@@ -5693,7 +6182,7 @@
           },
           "constraints": {
             "max_input_tokens": 1000000,
-            "max_output_tokens": 128000,
+            "max_output_tokens": 64000,
             "supported_params": [
               "temperature",
               "top_p",
@@ -7265,6 +7754,132 @@
             "available": "2025-10-15"
           },
           "derived": {
+            "price_tier": "low",
+            "replacement": "anthropic/claude-haiku-5-5"
+          }
+        },
+        {
+          "id": "claude-haiku-5-5",
+          "model": "anthropic/claude-haiku-5-5",
+          "display_name": "Claude Haiku 5.5",
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": true,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "reasoning_effort"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 10000000,
+                "output_microcents_per_million": 50000000,
+                "cached_input_microcents_per_million": 1000000,
+                "cache_creation_5m_microcents_per_million": 12500000,
+                "cache_creation_1h_microcents_per_million": 20000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 100001,
+                  "rates": {
+                    "input_microcents_per_million": 50000000,
+                    "output_microcents_per_million": 250000000,
+                    "cached_input_microcents_per_million": 5000000,
+                    "cache_creation_5m_microcents_per_million": 62500000,
+                    "cache_creation_1h_microcents_per_million": 100000000
+                  }
+                }
+              ]
+            },
+            "overrides": [
+              {
+                "region": "us",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 11000000,
+                    "output_microcents_per_million": 55000000,
+                    "cached_input_microcents_per_million": 1100000,
+                    "cache_creation_5m_microcents_per_million": 13750000,
+                    "cache_creation_1h_microcents_per_million": 22000000
+                  },
+                  "brackets": [
+                    {
+                      "min_context_tokens": 100001,
+                      "rates": {
+                        "input_microcents_per_million": 55000000,
+                        "output_microcents_per_million": 275000000,
+                        "cached_input_microcents_per_million": 5500000,
+                        "cache_creation_5m_microcents_per_million": 68750000,
+                        "cache_creation_1h_microcents_per_million": 110000000
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "region": "eu",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 11000000,
+                    "output_microcents_per_million": 55000000,
+                    "cached_input_microcents_per_million": 1100000,
+                    "cache_creation_5m_microcents_per_million": 13750000,
+                    "cache_creation_1h_microcents_per_million": 22000000
+                  },
+                  "brackets": [
+                    {
+                      "min_context_tokens": 100001,
+                      "rates": {
+                        "input_microcents_per_million": 55000000,
+                        "output_microcents_per_million": 275000000,
+                        "cached_input_microcents_per_million": 5500000,
+                        "cache_creation_5m_microcents_per_million": 68750000,
+                        "cache_creation_1h_microcents_per_million": 110000000
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-10-07"
+          },
+          "derived": {
             "price_tier": "low"
           }
         },
@@ -8376,11 +8991,11 @@
             "stage": "ga",
             "available": "2025-06-17",
             "retires": "2026-10-20",
-            "replaced_by": "gemini-3.5-flash-lite"
+            "replaced_by": "gemini-3.8-flash"
           },
           "derived": {
             "price_tier": "low",
-            "replacement": "google/gemini-3.5-flash-lite"
+            "replacement": "google/gemini-3.8-flash"
           }
         },
         {
@@ -8445,11 +9060,11 @@
             "stage": "ga",
             "available": "2025-07-22",
             "retires": "2026-10-20",
-            "replaced_by": "gemini-3.1-flash-lite"
+            "replaced_by": "gemini-3.8-flash"
           },
           "derived": {
             "price_tier": "low",
-            "replacement": "google/gemini-3.1-flash-lite"
+            "replacement": "google/gemini-3.8-flash"
           }
         },
         {
@@ -8524,11 +9139,11 @@
             "stage": "ga",
             "available": "2025-06-17",
             "retires": "2026-10-20",
-            "replaced_by": "gemini-3.5-flash"
+            "replaced_by": "gemini-3.8-flash"
           },
           "derived": {
             "price_tier": "medium",
-            "replacement": "google/gemini-3.5-flash"
+            "replacement": "google/gemini-3.8-flash"
           }
         },
         {
@@ -9394,7 +10009,7 @@
             "multi_turn": true,
             "reasoning": false,
             "streaming": true,
-            "structured_output": true,
+            "structured_output": false,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -9519,7 +10134,7 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2023-11-06",
+            "available": "2024-04-09",
             "deprecated": "2026-04-22",
             "retires": "2026-10-23",
             "replaced_by": "gpt-5.6-sol"
@@ -10302,11 +10917,14 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2025-11-13"
+            "available": "2025-11-13",
+            "deprecated": "2026-10-01",
+            "retires": "2027-04-01",
+            "replaced_by": "gpt-6-sol"
           },
           "derived": {
             "price_tier": "medium",
-            "replacement": "openai/gpt-5.2"
+            "replacement": "openai/gpt-6-sol"
           }
         },
         {
@@ -10985,11 +11603,14 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2026-03-17"
+            "available": "2026-03-17",
+            "deprecated": "2026-10-01",
+            "retires": "2027-04-01",
+            "replaced_by": "gpt-6-luna"
           },
           "derived": {
             "price_tier": "low",
-            "replacement": "openai/gpt-5.6-luna"
+            "replacement": "openai/gpt-6-luna"
           }
         },
         {
@@ -11123,7 +11744,7 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2026-04-23"
+            "available": "2026-04-24"
           },
           "derived": {
             "price_tier": "high",

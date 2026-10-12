@@ -477,3 +477,20 @@ def test_diff_unavailable_distinguishes_size_from_fetch_error():
     r = evaluate(CFG, _files(("a.go", 1, 0)), PR_OK, True, diff_unavailable="error")
     assert not r["eligible"] and any("transient error" in x for x in r["reasons"])
     assert not any("too large" in x for x in r["reasons"])
+
+
+def test_review_guidance_must_be_string_and_bounded():
+    r = evaluate(
+        {**CFG, "review_guidance": ["a", "b"]}, _files(("a.go", 1, 0)), PR_OK, True
+    )
+    assert not r["eligible"] and any("review_guidance" in x for x in r["reasons"])
+    r = evaluate(
+        {**CFG, "review_guidance": "x" * 6001}, _files(("a.go", 1, 0)), PR_OK, True
+    )
+    assert not r["eligible"] and any("too long" in x for x in r["reasons"])
+    assert evaluate(
+        {**CFG, "review_guidance": "short guidance"},
+        _files(("a.go", 1, 0)),
+        PR_OK,
+        True,
+    )["eligible"]

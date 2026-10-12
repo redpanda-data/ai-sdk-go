@@ -268,7 +268,7 @@ runs:
           --decision decision.json \
           --shadows "$(ls shadow-*.json 2>/dev/null | tr '\n' ',' )" \
           --run-url "$RUN_URL" --dry-run "$DRY_RUN" \
-          --out audit.md
+          --head-sha "$(jq -r .head_sha pr.json)" --out audit.md
 
     # Not approving on this run: withdraw any approval this bot gave earlier
     # so a stale approval cannot carry a new, unreviewed commit to merge.
@@ -343,7 +343,7 @@ runs:
           --decision "$( [ -f decision.json ] && echo decision.json || echo '' )" \
           --shadows "$(ls shadow-*.json 2>/dev/null | tr '\n' ',' )" \
           --run-url "$RUN_URL" --dry-run "$DRY_RUN" \
-          --approve-outcome "$APPROVE_OUTCOME" --out audit.md
+          --approve-outcome "$APPROVE_OUTCOME" --head-sha "$(jq -r .head_sha pr.json)" --out audit.md
         cat audit.md >> "$GITHUB_STEP_SUMMARY"
         MARKER='<!-- ai-approved-merge -->'
         # Match only the bot's own comment: a user could pre-seed the marker.
@@ -354,3 +354,17 @@ runs:
         else
           gh api --method POST "repos/$REPO/issues/$PR/comments" -F body=@audit.md >/dev/null
         fi
+
+    # Only after a COMPLETED evaluation: if an earlier step failed, the label stays
+    # on the PR, the sweep skips PRs that still carry it, and a human sees it —
+    # rather than the sweep re-triggering a broken evaluation every 15 minutes.
+    - name: Clear the re-evaluate label (set by the scheduled sweep)
+      if: success() && steps.ctx.outputs.config_present == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        REPO: ${{ inputs.repo }}
+        PR: ${{ inputs.pr_number }}
+      run: |
+        gh api --method DELETE "repos/$REPO/issues/$PR/labels/ai-merge-reevaluate" > /dev/null 2>&1 \
+          && echo "re-evaluate label cleared" || true

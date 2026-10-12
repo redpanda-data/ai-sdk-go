@@ -42,6 +42,9 @@ const (
 
 	// ModelGPT5_1 is the GPT-5.1 model with configurable adaptive reasoning.
 	// Unlike GPT-5, reasoning defaults to 'none' - use WithReasoningEffort() to enable.
+	//
+	// Deprecated: OpenAI deprecated GPT-5.1 on 2026-10-01; it shuts down
+	// 2027-04-01. Use [ModelGPT6Sol].
 	ModelGPT5_1 = shared.ChatModelGPT5_1
 
 	// ModelGPT5_2 is the GPT-5.2 Thinking model (default variant).
@@ -92,6 +95,9 @@ const (
 	// ModelGPT5_4Mini is the GPT-5.4 Mini model (efficient, full reasoning, 400K context).
 	ModelGPT5_4Mini = shared.ChatModelGPT5_4Mini
 	// ModelGPT5_4Nano is the GPT-5.4 Nano model (speed-optimized, no reasoning/vision/audio).
+	//
+	// Deprecated: OpenAI deprecated GPT-5.4 Nano on 2026-10-01; it shuts
+	// down 2027-04-01. Use [ModelGPT6Luna].
 	ModelGPT5_4Nano = shared.ChatModelGPT5_4Nano
 
 	// ModelGPT4O is the GPT-4o model.

@@ -7,11 +7,15 @@ on:
     paths:
       - '**.go'
       - 'header.txt'
+      - 'Taskfile.yaml'
+      - 'taskfiles/**'
       - '.github/workflows/license.yaml'
   pull_request:
     paths:
       - '**.go'
       - 'header.txt'
+      - 'Taskfile.yaml'
+      - 'taskfiles/**'
       - '.github/workflows/license.yaml'
 
 permissions:

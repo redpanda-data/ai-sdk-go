@@ -568,3 +568,18 @@ def test_wait_for_checks_grace_required_and_deadline():
         fetch_empty, set(), None, 900, grace_seconds=90, sleep=sleep, clock=clock
     )
     assert status == "none" and n["c"] > 1 and 90 <= t["now"] < 200
+
+
+def test_audit_says_not_consulted_when_model_did_not_run():
+    g = {
+        **ELIGIBLE,
+        "ci_status": "failed",
+        "eligible": False,
+        "reasons": ["CI failed for this commit"],
+    }
+    body = render(g, None, decide(g, None), "http://run", dry_run=True)
+    assert "not consulted (gates refused before the model ran)" in body
+    assert "confidence n/a" not in body
+    g2 = {**ELIGIBLE, "ci_status": "pending"}
+    body = render(g2, None, decide(g2, None), "http://run", dry_run=True)
+    assert "not consulted (CI pending)" in body

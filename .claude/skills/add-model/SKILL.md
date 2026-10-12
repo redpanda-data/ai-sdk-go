@@ -39,14 +39,18 @@ host), `Publisher`, `DisplayName`, `Description` (short UI blurb),
   "reliable knowledge" and a broader "training data" date, use the reliable
   one. Month-only cutoffs normalize to the last day of that month.
 - **Released** is the day this exact model ID first became callable by
-  users. Usually that is the announcement day; when an announcement
-  promises a later rollout, use the rollout day. A preview shipped under
-  its own ID (`gemini-3.1-flash-lite-preview`) is a separate model with its
-  own date, so the GA ID's Released is its own first-callable day, not the
-  preview's. Vendors often publish only a month; OpenRouter's `created`
-  field is a day-precision fallback, but it dates the OpenRouter *slug*,
-  which can predate this ID (a slug first listed for a preview) or lag it.
-  LiteLLM has no release dates. Comment the source on every Released.
+  users anywhere, including the vendor's own apps (ChatGPT, Codex), not
+  only its API. The provider's API launch day goes on that offering's
+  `Lifecycle.Available` (GPT-5.5: Released Apr 23 in ChatGPT and Codex,
+  Available Apr 24 in the API). Usually Released is the announcement day;
+  when an announcement promises a later rollout, use the rollout day. A
+  preview shipped under its own ID (`gemini-3.1-flash-lite-preview`) is a
+  separate model with its own date, so the GA ID's Released is its own
+  first-callable day, not the preview's. Vendors often publish only a
+  month; OpenRouter's `created` field is a day-precision fallback, but it
+  dates the OpenRouter *slug*, which can predate this ID (a slug first
+  listed for a preview) or lag it. LiteLLM has no release dates. Comment
+  the source on every Released.
 - Dates are `catalog.MustDate("YYYY-MM-DD")` (midnight UTC; validated).
 
 ## Step 2 — Author the provider entry

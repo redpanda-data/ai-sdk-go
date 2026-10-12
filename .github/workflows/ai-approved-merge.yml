@@ -35,7 +35,16 @@ name: AI Approved Merge
 
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+    # `edited` is only acted on when the BASE changed (manual retarget), see the gates.
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled, edited]
+  # Reconciler. GitHub's AUTOMATIC base change (a stacked PR whose base branch
+  # merges and is deleted) fires NO pull_request event at all, so such a PR
+  # becomes eligible silently. Every 15 minutes the `sweep` job finds open PRs
+  # into the default branch whose current head has no audit yet and re-triggers
+  # them via the `ai-merge-reevaluate` label (App-set labels do fire workflows).
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -43,7 +52,7 @@ permissions:
   checks: read
 
 env:
-  AI_MERGE_DRY_RUN: "true"
+  AI_MERGE_DRY_RUN: "false"
   AI_MERGE_MODEL: claude-opus-5-5
   AI_MERGE_AGENT_MAX_TURNS: "40"
 
@@ -65,17 +74,25 @@ jobs:
     # forks); not a GitHub App bot; not a draft; label events only for the
     # opt-out label. Org membership is verified in the approve job.
     if: >-
+      github.event_name == 'pull_request_target' &&
       github.event.pull_request.base.ref == github.event.repository.default_branch &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.user.type != 'Bot' &&
       github.event.pull_request.draft == false &&
+      (github.event.action != 'edited' || github.event.changes.base != null) &&
       ((github.event.action != 'labeled' && github.event.action != 'unlabeled') ||
-       github.event.label.name == 'ai-merge-skip')
+       github.event.label.name == 'ai-merge-skip' ||
+       (github.event.action == 'labeled' && github.event.label.name == 'ai-merge-reevaluate'))
     steps:
-      - name: Check out the BASE ref (mechanism, prompt, config) at the workspace root
+      # The TIP of the default branch, by name — not pull_request.base.sha. That
+      # field is a snapshot taken when the PR was last pushed, so with it every
+      # open PR would keep running whatever mechanism version was on main back
+      # then, and mechanism updates would only apply after the author rebased.
+      # Same trusted branch either way; this just makes updates apply now.
+      - name: Check out the default branch tip (mechanism, prompt, config) at the workspace root
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: ${{ github.event.repository.default_branch }}
           sparse-checkout: .github
           persist-credentials: false
           fetch-depth: 1
@@ -83,6 +100,7 @@ jobs:
       - name: Is the mechanism on the base ref?
         id: present
         run: |
+          echo "mechanism_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           if [ -f .github/actions/ai-merge/action.yml ] && [ -f .github/actions/ai-merge/prompts/agent.md ]; then
             echo "ok=true" >> "$GITHUB_OUTPUT"
           else
@@ -138,7 +156,7 @@ jobs:
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_SHA: ${{ steps.present.outputs.mechanism_sha }}
         run: |
           set -euo pipefail
           python .github/actions/ai-merge/scripts/build_envelope.py \
@@ -148,7 +166,9 @@ jobs:
             --config .github/ai-merge.yml --out out/envelope.json \
             --wait-seconds 900 \
             --ignore-check "review agent (reads PR, never executes it)" \
-            --ignore-check "gates + approval (trusted)"
+            --ignore-check "gates + approval (trusted)" \
+            --ignore-check "explain why this PR is not evaluated" \
+            --ignore-check "sweep for PRs that became eligible without an event"
           python .github/actions/ai-merge/scripts/render_agent_prompt.py \
             --template .github/actions/ai-merge/prompts/agent.md \
             --envelope out/envelope.json --out out/prompt.md
@@ -247,13 +267,16 @@ jobs:
     # checked against the live head below, not inferred from job results
     # (a timed-out agent must still be handled, not skipped).
     if: >-
+      github.event_name == 'pull_request_target' &&
       always() &&
       github.event.pull_request.base.ref == github.event.repository.default_branch &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.user.type != 'Bot' &&
       github.event.pull_request.draft == false &&
+      (github.event.action != 'edited' || github.event.changes.base != null) &&
       ((github.event.action != 'labeled' && github.event.action != 'unlabeled') ||
-       github.event.label.name == 'ai-merge-skip')
+       github.event.label.name == 'ai-merge-skip' ||
+       (github.event.action == 'labeled' && github.event.label.name == 'ai-merge-reevaluate'))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
@@ -265,10 +288,10 @@ jobs:
       checks: read   # the CI gate queries check runs with the workflow token
       actions: read  # download the agent's artifact from this run
     steps:
-      - name: Check out the mechanism from the BASE ref (never the PR head)
+      - name: Check out the mechanism from the default branch tip (never the PR head)
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: ${{ github.event.repository.default_branch }}
           path: mechanism
           sparse-checkout: .github/actions/ai-merge
           persist-credentials: false
@@ -294,6 +317,7 @@ jobs:
             exit 0
           fi
           echo "ok=true" >> "$GITHUB_OUTPUT"
+          echo "mechanism_sha=$(git -C mechanism rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Download the agent's verdict (this run only)
         if: steps.present.outputs.ok == 'true'
@@ -322,7 +346,7 @@ jobs:
           config_path: .github/ai-merge.yml
           repo: ${{ github.repository }}
           pr_number: ${{ github.event.pull_request.number }}
-          base_sha: ${{ github.event.pull_request.base.sha }}
+          base_sha: ${{ steps.present.outputs.mechanism_sha }}  # config is read at this commit
           run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           dry_run: ${{ env.AI_MERGE_DRY_RUN }}
           skipped: ${{ contains(github.event.pull_request.labels.*.name, 'ai-merge-skip') }}
@@ -330,4 +354,104 @@ jobs:
           verdict_meta_path: ${{ github.workspace }}/out/meta.json
           run_id: ${{ github.run_id }}
           ci_token: ${{ github.token }}
-          own_check_names: "review agent (reads PR, never executes it)|gates + approval (trusted)"
+          own_check_names: "review agent (reads PR, never executes it)|gates + approval (trusted)|explain why this PR is not evaluated|sweep for PRs that became eligible without an event"
+
+  # ---------------------------------------------------------------------------
+  # explain-skip: when a same-repo, non-draft PR targets a branch other than the
+  # default branch, nothing above runs by design (stacked PRs). Say so in one
+  # line, so the author knows it will be reviewed once retargeted, instead of
+  # wondering why the bot was silent. Uses the same sticky comment, which the
+  # real audit replaces after a retarget.
+  # ---------------------------------------------------------------------------
+  explain-skip:
+    name: explain why this PR is not evaluated
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: >-
+      github.event_name == 'pull_request_target' &&
+      github.event.pull_request.base.ref != github.event.repository.default_branch &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.draft == false &&
+      (github.event.action != 'edited' || github.event.changes.base != null) &&
+      !endsWith(github.event.pull_request.user.login, '[bot]')
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: App token (comment only)
+        id: app
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.AI_MERGE_APP_ID }}
+          private-key: ${{ secrets.AI_MERGE_APP_PRIVATE_KEY }}
+      - name: Post or update the note
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          BASE: ${{ github.event.pull_request.base.ref }}
+          DEFAULT: ${{ github.event.repository.default_branch }}
+          BOT: redpanda-ai-merge-bot[bot]
+        run: |
+          set -euo pipefail
+          MARKER='<!-- ai-approved-merge -->'
+          BODY="$(printf '%s\n### ⏸️ AI review: not evaluated — this PR targets `%s`, not `%s`\n\nOnly pull requests into the default branch are evaluated. This PR will be reviewed automatically once it is retargeted to `%s` (retargeting re-triggers the evaluation).\n\n_Generated by the AI review gate._' "$MARKER" "$BASE" "$DEFAULT" "$DEFAULT")"
+          CID="$(gh api --paginate "repos/$REPO/issues/$PR/comments" \
+            --jq "map(select(.user.login==\"$BOT\" and (.body | contains(\"$MARKER\")))) | .[0].id // empty" | head -1)"
+          if [ -n "$CID" ]; then
+            gh api --method PATCH "repos/$REPO/issues/comments/$CID" -f body="$BODY" > /dev/null
+          else
+            gh api --method POST "repos/$REPO/issues/$PR/comments" -f body="$BODY" > /dev/null
+          fi
+          echo "noted: base=$BASE (default=$DEFAULT)"
+
+  # ---------------------------------------------------------------------------
+  # sweep (schedule / manual): the reconciler. Finds open, non-draft, same-repo,
+  # human-authored PRs into the default branch whose current head has no audit
+  # (hidden `<!-- ai-merge-head:SHA -->` marker) and re-triggers them by adding
+  # the `ai-merge-reevaluate` label with the App token. The resulting `labeled`
+  # event runs the normal evaluation with full PR context; the approve job
+  # removes the label at the end. Comment-and-label only; nothing else.
+  # ---------------------------------------------------------------------------
+  sweep:
+    name: sweep for PRs that became eligible without an event
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: App token (label only)
+        id: app
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.AI_MERGE_APP_ID }}
+          private-key: ${{ secrets.AI_MERGE_APP_PRIVATE_KEY }}
+      - name: Find and re-trigger
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          REPO: ${{ github.repository }}
+          DEFAULT: ${{ github.event.repository.default_branch }}
+          BOT: redpanda-ai-merge-bot[bot]
+        run: |
+          set -euo pipefail
+          n=0; t=0
+          while IFS=$'\t' read -r NUM HEAD AUTHOR HEADREPO LABELS; do
+            [ -n "$NUM" ] || continue
+            n=$((n+1))
+            case "$AUTHOR" in *"[bot]") continue;; esac
+            [ "$HEADREPO" = "$REPO" ] || continue
+            # still labelled = a previous re-trigger did not complete; never loop on it
+            case ",$LABELS," in *",ai-merge-reevaluate,"*) echo "::warning::PR #$NUM still carries ai-merge-reevaluate — a previous re-trigger did not complete; remove the label to retry"; continue;; esac
+            MARKED="$(gh api --paginate "repos/$REPO/issues/$NUM/comments" \
+              --jq "map(select(.user.login==\"$BOT\" and (.body | contains(\"<!-- ai-approved-merge -->\")))) | .[0].body // \"\"" \
+              | sed -n 's/.*<!-- ai-merge-head:\([0-9a-f]*\) -->.*/\1/p' | head -1)"
+            if [ "$MARKED" = "$HEAD" ]; then continue; fi
+            echo "PR #$NUM: head $HEAD has no audit (last audited: ${MARKED:-none}); re-triggering"
+            gh api --method POST "repos/$REPO/issues/$NUM/labels" -f 'labels[]=ai-merge-reevaluate' > /dev/null
+            t=$((t+1))
+          done < <(gh pr list --repo "$REPO" --state open --base "$DEFAULT" --limit 100 \
+                     --json number,headRefOid,isDraft,author,headRepository,headRepositoryOwner,labels \
+                     --jq '.[] | select(.isDraft | not) | [.number, .headRefOid, .author.login, (.headRepositoryOwner.login + "/" + .headRepository.name), ([.labels[].name] | join(","))] | @tsv')
+          echo "sweep: $n open PRs into $DEFAULT checked, $t re-triggered"

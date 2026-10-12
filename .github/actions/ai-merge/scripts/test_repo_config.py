@@ -54,8 +54,11 @@ def test_real_config_excludes_credential_and_ci_defining_files():
         "tool/mcp/transport.go",
         "tool/builtin/webfetch/dial.go",
         ".claude/settings.json",
+        ".claude/settings.local.json",
+        ".claude/hooks/pre-commit.sh",
+        ".claude/skills/add-model/scripts/fetch.py",
+        ".mcp.json",
         ".claude-pr/.claude/settings.json",
-        "CLAUDE.md",
         "providers/foo/internal/provider.go",
         "Taskfile.yaml",
         "taskfiles/install.yaml",
@@ -111,3 +114,37 @@ def test_real_config_names_the_real_ci_checks():
     bot = [{"name": "claude-review", "status": "completed", "conclusion": "success"}]
     r = evaluate(cfg, _one("providers/bedrock/models.go"), PR_OK, True, checks=bot)
     assert not r["eligible"] and r["ci_status"] == "none"
+
+
+def test_real_config_agent_instruction_markdown_is_reviewable():
+    cfg = _cfg()
+    if cfg is None:
+        return
+    # skills/instructions markdown is routine work for the team and executes nothing
+    for path in (
+        ".claude/skills/add-model/SKILL.md",
+        ".claude/skills/reconcile-models/SKILL.md",
+        "CLAUDE.md",
+    ):
+        r = evaluate(cfg, _one(path), PR_OK, True, checks=CI_OK)
+        assert r["eligible"], (path, r["reasons"])
+    # but anything that executes on a contributor's machine stays excluded
+    for path in (
+        ".claude/settings.json",
+        ".claude/settings.local.json",
+        ".claude/hooks/x.sh",
+        ".claude/skills/add-model/scripts/fetch.py",
+        ".mcp.json",
+        ".claude-pr/config.json",
+    ):
+        r = evaluate(cfg, _one(path), PR_OK, True, checks=CI_OK)
+        assert not r["eligible"], path
+
+
+def test_real_config_has_review_guidance():
+    cfg = _cfg()
+    if cfg is None:
+        return
+    rg = cfg.get("review_guidance")
+    assert isinstance(rg, str) and "ROUTINE" in rg and "NOT routine" in rg
+    assert len(rg) <= 6000
