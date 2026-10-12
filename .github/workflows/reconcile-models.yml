@@ -71,7 +71,8 @@ jobs:
         run: |
           {
             echo "prompt<<EOF_PROMPT"
-            sed "s/{{PROVIDER}}/${PROVIDER}/g" .github/reconcile-models/prompt.md
+            hosts="$(jq -r --arg p "$PROVIDER" '.[$p] | join(", ")' .github/reconcile-models/named-sources.json)"
+            sed -e "s/{{PROVIDER}}/${PROVIDER}/g" -e "s/{{HOSTS}}/${hosts}/g" .github/reconcile-models/prompt.md
             echo "EOF_PROMPT"
             echo "schema=$(jq -c . .github/reconcile-models/report.schema.json)"
           } >>"$GITHUB_OUTPUT"

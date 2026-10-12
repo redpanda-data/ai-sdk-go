@@ -7,7 +7,8 @@ set -euo pipefail
 provider="${1:?usage: run-agent-local.sh PROVIDER OUT_DIR}"
 out="${2:?usage: run-agent-local.sh PROVIDER OUT_DIR}"
 mkdir -p "$out"
-prompt="$(sed "s/{{PROVIDER}}/${provider}/g" .github/reconcile-models/prompt.md)"
+hosts="$(jq -r --arg p "$provider" '.[$p] | join(", ")' .github/reconcile-models/named-sources.json)"
+prompt="$(sed -e "s/{{PROVIDER}}/${provider}/g" -e "s/{{HOSTS}}/${hosts}/g" .github/reconcile-models/prompt.md)"
 schema="$(jq -c . .github/reconcile-models/report.schema.json)"
 
 # An empty config dir gives the run what a CI runner sees: project settings and
