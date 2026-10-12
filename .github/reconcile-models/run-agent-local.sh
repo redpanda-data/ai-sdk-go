@@ -18,13 +18,14 @@ trap 'rm -rf "$config_dir"' EXIT
 
 CLAUDE_CONFIG_DIR="$config_dir" CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1 claude -p "$prompt" \
   --model claude-opus-5-5 \
-  --max-turns 40 \
+  --max-turns 60 \
   --settings '{"disableAllHooks": true}' \
-  --allowedTools "Skill,Read,Grep,Glob,Edit(./providers/${provider}/models.go),Edit(./catalog/facts_data.go),Bash(curl:*),Bash(grep:*),Bash(jq:*),Bash(task catalog:snapshot),Bash(task test:unit),Bash(git diff:*)" \
+  --allowedTools "Skill,Read,Grep,Glob,Edit(./providers/${provider}/models.go),Edit(./catalog/facts_data.go),Edit(./providers/${provider}/*_test.go),Bash(curl:*),Bash(grep:*),Bash(jq:*),Bash(task catalog:snapshot),Bash(task test:unit),Bash(task lint:new),Bash(git diff:*)" \
   --disallowedTools "WebFetch,WebSearch,Bash(git push:*),Bash(git commit:*),Bash(gh:*),AskUserQuestion,Task,Agent" \
   --json-schema "$schema" \
   --output-format json >"$out/run.json"
 
 jq '.structured_output' "$out/run.json" >"$out/report.json"
-git diff -- "providers/${provider}/models.go" catalog/facts_data.go >"$out/patch.diff"
+git ls-files --others --exclude-standard -- ":(glob)providers/${provider}/*_test.go" | xargs -r git add -N --
+git diff -- "providers/${provider}/models.go" catalog/facts_data.go ":(glob)providers/${provider}/*_test.go" >"$out/patch.diff"
 jq '{num_turns, total_cost_usd, duration_ms, is_error}' "$out/run.json"
