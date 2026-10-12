@@ -143,6 +143,14 @@ if ! jq -e '.changes | length > 0' "$report" >/dev/null; then
   exit 1
 fi
 
+# Test the packages the patch can affect: the patched ones and everything that
+# imports them. Tests needing Docker or the network can't run in the sandbox;
+# the full suite runs in the PR's own CI. -count=1: never reuse cached results.
+module="$(go list -m)"
+affected="$(go list -test -f '{{.ImportPath}} {{join .Deps " "}}' ./... |
+  awk -v a="$module/providers/$provider" -v b="$module/catalog" '{for (i = 1; i <= NF; i++) if ($i == a || $i == b) { print $1; next }}' |
+  sed -E 's/ \[.*//; s/\.test$//; s/_test$//' | sort -u | tr '\n' ' ')"
+
 # The only place patched code runs. The agent job runs with hooks off, so lint
 # here: only the patched lines (--new), and without --fix, which would change
 # files after the checks.
@@ -150,7 +158,7 @@ sandbox bash -c "
   set -euo pipefail
   task catalog:snapshot
   task catalog:check
-  task test:unit
+  go test -short -count=1 $affected
   .build/.bin/golangci-lint run --new --timeout 10m ./providers/${provider}/... ./catalog/...
   task license:check"
 
