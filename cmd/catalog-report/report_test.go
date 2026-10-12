@@ -50,6 +50,8 @@ func TestValidate(t *testing.T) {
 		{"empty report", func(r *Report) { *r = Report{} }, ""},
 		{"unknown field", func(r *Report) { r.Changes[0].Field = "notes" }, "field"},
 		{"unknown reason", func(r *Report) { r.Skipped[0].Reason = "because" }, "reason"},
+		{"limited availability reason", func(r *Report) { r.Skipped[0].Reason = "limited_availability" }, ""},
+		{"excluded vendor reason", func(r *Report) { r.Skipped[0].Reason = "vendor_excluded" }, ""},
 		{"bad offering", func(r *Report) { r.Changes[0].Offering = "Claude <b>" }, "offering"},
 		{"markdown in value", func(r *Report) { r.Changes[0].New = "[x](https://evil.example)" }, "value"},
 		{"html in value", func(r *Report) { r.NeedsHuman[0].Values[0] = "<img src=x>" }, "value"},
