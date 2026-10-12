@@ -1,6 +1,6 @@
 {
   "anthropic": {
     "providers": ["anthropic", "vertex", "bedrock"],
-    "hosts": ["platform.claude.com", "cloud.google.com", "docs.cloud.google.com", "aws.amazon.com", "docs.aws.amazon.com"]
+    "hosts": ["platform.claude.com", "cloud.google.com", "docs.cloud.google.com", "aws.amazon.com", "docs.aws.amazon.com", "pricing.us-east-1.amazonaws.com"]
   }
 }
