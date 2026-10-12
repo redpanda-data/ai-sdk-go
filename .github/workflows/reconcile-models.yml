@@ -174,17 +174,23 @@ jobs:
             out/body.md
             out/snapshot.diff
           retention-days: 7
-      - name: Skip if a person's PR touches the same files
+      # Only a person's recent, non-draft PR on the provider's models.go blocks the
+      # bot: facts_data.go is shared by every provider, and long-lived PRs and
+      # drafts would block it indefinitely.
+      - name: Skip if a recent PR touches the provider's models.go
         id: race
         if: env.DRY_RUN != 'true' && steps.check.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           BRANCH: bot/reconcile-models/${{ env.PROVIDER }}
         run: |
-          others="$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json number,headRefName,files \
-            --jq '[.[] | select(.headRefName != env.BRANCH) | select(any(.files[]; .path == "providers/" + env.PROVIDER + "/models.go" or .path == "catalog/facts_data.go")) | .number] | map(tostring) | join(",")')"
+          others="$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json number,headRefName,files,isDraft,createdAt \
+            --jq '[.[] | select(.headRefName != env.BRANCH) | select(.isDraft | not)
+              | select((.createdAt | fromdateiso8601) > (now - 7 * 86400))
+              | select(any(.files[]; .path == "providers/" + env.PROVIDER + "/models.go"))
+              | .number] | map(tostring) | join(",")')"
           if [[ -n "$others" ]]; then
-            echo "Skipped: open PRs touch the same files: $others" | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "Skipped: recent open PRs touch providers/${PROVIDER}/models.go: $others" | tee -a "$GITHUB_STEP_SUMMARY"
             echo "skip=true" >>"$GITHUB_OUTPUT"
           fi
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd  # v6.3.0
