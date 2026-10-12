@@ -158,6 +158,26 @@ jobs:
           task install:go
           export PATH="$(dirname "$(ls -d "$PWD"/.build/go*/bin/go | tail -1)"):$PATH"
           GOTOOLCHAIN=local .github/reconcile-models/pr-job.sh "$PROVIDER" out
+      # A person's recent, non-draft PR on a models.go this patch changes doesn't
+      # stop the bot: the PR body names it, so the reviewer can merge theirs
+      # first, and the next run leaves out what it already contains. Drafts and
+      # PRs older than 7 days aren't named, or long-lived PRs would always be.
+      - name: Name recent PRs that touch the same models.go
+        if: steps.check.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          touched="$(grep -E '^providers/[a-z0-9]+/models\.go$' out/files.txt | tr '\n' ' ' || true)"
+          others="$(TOUCHED="$touched" gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json number,headRefName,files,isDraft,createdAt \
+            --jq '[.[] | select(.headRefName != env.BRANCH) | select(.isDraft | not)
+              | select((.createdAt | fromdateiso8601) > (now - 7 * 86400))
+              | select(any(.files[].path; . as $f | any(env.TOUCHED | split(" ")[]; . == $f)))
+              | .number] | map(tostring) | join(",")')"
+          if [[ -n "$others" ]]; then
+            echo "Recent open PRs touch ${touched}: $others"
+            note="> **Open PRs touch the same files:** $(sed -E 's/[0-9]+/#&/g; s/,/, /g' <<<"$others"). If they overlap, merge theirs first: the next run leaves out what they already contain."
+            { head -n 2 out/body.md; echo "$note"; echo; tail -n +3 out/body.md; } >out/body.next && mv out/body.next out/body.md
+          fi
       - name: Job summary
         if: always()
         run: if [[ -f out/body.md ]]; then cat out/body.md >>"$GITHUB_STEP_SUMMARY"; fi
@@ -169,38 +189,19 @@ jobs:
             out/body.md
             out/snapshot.diff
           retention-days: 7
-      # Only a person's recent, non-draft PR on a models.go this patch changes
-      # blocks the bot: facts_data.go is shared by every provider, and long-lived
-      # PRs and drafts would block it indefinitely.
-      - name: Skip if a recent PR touches a models.go the patch changes
-        id: race
-        if: env.DRY_RUN != 'true' && steps.check.outputs.changed == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          touched="$(grep -E '^providers/[a-z0-9]+/models\.go$' out/files.txt | tr '\n' ' ' || true)"
-          others="$(TOUCHED="$touched" gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json number,headRefName,files,isDraft,createdAt \
-            --jq '[.[] | select(.headRefName != env.BRANCH) | select(.isDraft | not)
-              | select((.createdAt | fromdateiso8601) > (now - 7 * 86400))
-              | select(any(.files[].path; . as $f | any(env.TOUCHED | split(" ")[]; . == $f)))
-              | .number] | map(tostring) | join(",")')"
-          if [[ -n "$others" ]]; then
-            echo "Skipped: recent open PRs touch ${touched}: $others" | tee -a "$GITHUB_STEP_SUMMARY"
-            echo "skip=true" >>"$GITHUB_OUTPUT"
-          fi
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd  # v6.3.0
-        if: env.DRY_RUN != 'true' && steps.check.outputs.changed == 'true' && steps.race.outputs.skip != 'true'
+        if: env.DRY_RUN != 'true' && steps.check.outputs.changed == 'true'
         with:
           aws-region: ${{ vars.RP_AWS_CRED_REGION }}
           role-to-assume: arn:aws:iam::${{ secrets.RP_AWS_CRED_ACCOUNT_ID }}:role/${{ vars.RP_AWS_CRED_BASE_ROLE_NAME }}${{ github.event.repository.name }}
       - uses: aws-actions/aws-secretsmanager-get-secrets@2297f9a879480a9e3af9b293ed15c70caf8e1c88  # v3.0.2
-        if: env.DRY_RUN != 'true' && steps.check.outputs.changed == 'true' && steps.race.outputs.skip != 'true'
+        if: env.DRY_RUN != 'true' && steps.check.outputs.changed == 'true'
         with:
           secret-ids: |
             ,sdlc/prod/github/actions_bot_token
           parse-json-secrets: true
       - name: Push the rolling branch and open or update the draft PR
-        if: env.DRY_RUN != 'true' && steps.check.outputs.changed == 'true' && steps.race.outputs.skip != 'true'
+        if: env.DRY_RUN != 'true' && steps.check.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ env.ACTIONS_BOT_TOKEN }}
         run: |
