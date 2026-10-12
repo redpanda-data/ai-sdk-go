@@ -10,6 +10,9 @@ on:
       - 'go.sum'
       - '.github/workflows/test.yaml'
   pull_request:
+    # ready_for_review starts the full run on the reconcile bot's PRs (see the
+    # jobs below); on everyone else's PRs it does nothing.
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - '**.go'
       - 'go.mod'
@@ -25,9 +28,17 @@ permissions:
 jobs:
   test:
     name: Test
+    # The reconcile bot's draft PRs contain unreviewed, agent-written code, so
+    # they get the job below instead; the full run starts once a person marks
+    # the PR ready for review. Other PRs behave exactly as before.
     if: >-
-      github.event_name != 'pull_request_target' ||
-      github.event.label.name == 'ci:force-tests'
+      (github.event_name != 'pull_request_target' ||
+      github.event.label.name == 'ci:force-tests') &&
+      !(github.event_name == 'pull_request' &&
+      github.event.pull_request.user.login == 'vbotbuildovich' &&
+      github.event.pull_request.draft) &&
+      !(github.event.action == 'ready_for_review' &&
+      github.event.pull_request.user.login != 'vbotbuildovich')
     runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 20
     steps:
@@ -65,3 +76,31 @@ jobs:
           CONTEXT7_API_KEY: ${{ secrets.CONTEXT7_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+
+  test-untrusted:
+    name: Test (bot draft, no secrets)
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.user.login == 'vbotbuildovich' &&
+      github.event.pull_request.draft
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # No id-token and no secrets; no caches either, so untrusted code can't
+    # poison what the trusted job restores.
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - uses: go-task/setup-task@v1
+
+      - name: Run unit tests
+        run: task test:unit
