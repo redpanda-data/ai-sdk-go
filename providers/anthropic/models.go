@@ -39,6 +39,7 @@ const (
 	// Deprecated: Anthropic deprecated Claude Sonnet 4.5 on 2026-09-30; it
 	// retires 2026-11-30. Use [ModelClaudeSonnet55].
 	ModelClaudeSonnet45 = "claude-sonnet-4-5"
+	ModelClaudeHaiku55  = "claude-haiku-5-5"
 	ModelClaudeHaiku45  = "claude-haiku-4-5"
 	ModelClaudeOpus48   = "claude-opus-4-8"
 	ModelClaudeOpus47   = "claude-opus-4-7"
@@ -117,8 +118,8 @@ var claudeCaps = llm.ModelCapabilities{
 }
 
 // claudeCapsWithToolSearch marks the models on Anthropic's tool search
-// compatibility list as of 2026-09-29: Fable 5.1, Fable 5, Opus 5.5, Opus 5, Opus 4.8,
-// 4.7, 4.6 and 4.5, Sonnet 5.5, 4.6 and 4.5, Haiku 4.5. Opus 4.1 is explicitly
+// compatibility list as of 2026-10-08: Fable 5.1, Fable 5, Opus 5.5, Opus 5, Opus 4.8,
+// 4.7, 4.6 and 4.5, Sonnet 5.5, 4.6 and 4.5, Haiku 5.5 and 4.5. Opus 4.1 is explicitly
 // unsupported and Sonnet 5 is absent from the list, so both keep claudeCaps and
 // local discovery until native support is documented:
 // https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool#model-compatibility
@@ -433,6 +434,38 @@ func entries() []catalog.Entry {
 			},
 			Pricing: pricing.FlatInfoFromRates(
 				pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0),
+			),
+		},
+		{
+			ID:           ModelClaudeHaiku55,
+			Model:        catalog.ModelClaudeHaiku55,
+			Capabilities: claudeCapsWithToolSearch,
+			Modalities:   claudeModalities,
+			Constraints: llm.ModelConstraints{
+				MaxInputTokens:  1000000, // 1M context window
+				MaxOutputTokens: 128000,  // 128K output tokens
+				// Adaptive thinking only, on by default; a non-default
+				// temperature, top_p or top_k returns 400. No fast mode.
+				SupportedParams: []string{"max_tokens", "reasoning_effort"},
+			},
+			Reasoning: catalog.ReasoningSupport{
+				// All five levels; the API default is medium.
+				Efforts:  []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+				Adaptive: true,
+			},
+			Life: catalog.Lifecycle{
+				Available: catalog.MustDate("2026-10-07"),
+			},
+			// platform.claude.com/docs/en/about-claude/pricing: the only Claude
+			// 4.6+ model priced by prompt length. Prompts over 100,000 tokens
+			// pay the higher row for every rate, cache included. Cache rates
+			// keep the standard multipliers (5m 1.25x, 1h 2x, read 0.10x).
+			Pricing: pricing.TieredInfo(
+				pricing.NewRates(0.10, 0.50, 0.01).WithCacheCreation(0.125, 0.20, 0),
+				pricing.Bracket{
+					MinContextTokens: 100_001,
+					Rates:            pricing.NewRates(0.50, 2.50, 0.05).WithCacheCreation(0.625, 1.00, 0),
+				},
 			),
 		},
 		{

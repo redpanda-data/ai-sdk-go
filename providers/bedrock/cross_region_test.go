@@ -79,6 +79,13 @@ func TestIsModelAllowedFromRegion(t *testing.T) {
 		{"gpt-6-sol us from GovCloud (unpublished)", ModelGPT6SolUS, "us-gov-west-1", false},
 		{"gpt-6-sol global from eu-west-1", ModelGPT6SolGlobal, "eu-west-1", true},
 		{"gpt-6-sol global from mx-central-1", ModelGPT6SolGlobal, "mx-central-1", true},
+		{"haiku5.5 us from ca-west-1", ModelClaudeHaiku55US, "ca-west-1", true},
+		{"haiku5.5 eu from eu-south-2", ModelClaudeHaiku55EU, "eu-south-2", true},
+		{"haiku5.5 au from ap-southeast-4", ModelClaudeHaiku55AU, "ap-southeast-4", true},
+		{"haiku5.5 jp from ap-northeast-3", ModelClaudeHaiku55JP, "ap-northeast-3", true},
+		{"haiku5.5 jp from ap-northeast-2 (Seoul is global-only)", ModelClaudeHaiku55JP, "ap-northeast-2", false},
+		{"haiku5.5 us from eu-west-1 (cross-geo)", ModelClaudeHaiku55US, "eu-west-1", false},
+		{"haiku5.5 global from sa-east-1", ModelClaudeHaiku55Global, "sa-east-1", true},
 		{"opus5.5 jp from ap-northeast-1", ModelClaudeOpus55JP, "ap-northeast-1", true},
 		{"opus5.5 jp from ap-northeast-3", ModelClaudeOpus55JP, "ap-northeast-3", true},
 		{"opus5.5 jp from ap-northeast-2 (Seoul is global-only)", ModelClaudeOpus55JP, "ap-northeast-2", false},
@@ -195,6 +202,12 @@ func TestProfileRegionResolverLookup(t *testing.T) {
 	t.Parallel()
 
 	for _, modelID := range []string{
+		ModelClaudeHaiku55,
+		ModelClaudeHaiku55Global,
+		ModelClaudeHaiku55US,
+		ModelClaudeHaiku55EU,
+		ModelClaudeHaiku55AU,
+		ModelClaudeHaiku55JP,
 		ModelClaudeOpus55,
 		ModelClaudeOpus55Global,
 		ModelClaudeOpus55US,

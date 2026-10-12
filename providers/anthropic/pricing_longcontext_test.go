@@ -33,11 +33,18 @@ import (
 //
 // Claude 4 and 4.5 once charged a >200K surcharge (input 2x, output 1.5x);
 // that tier no longer exists on any catalogued model.
+//
+// Claude Haiku 5.5 is the documented exception ("Claude 4.6 and later models
+// (except Claude Haiku 5.5)"): it is priced by prompt length, so
+// TestHaiku55PricesByPromptLength covers it instead.
 func TestPricingStaysFlatAcrossContextWindow(t *testing.T) {
 	t.Parallel()
 
 	for _, def := range Catalog().All() {
 		id := def.ID
+		if id == ModelClaudeHaiku55 {
+			continue
+		}
 
 		t.Run(id, func(t *testing.T) {
 			t.Parallel()
@@ -78,4 +85,37 @@ func TestLongContextCostsTheSamePerToken(t *testing.T) {
 		"input must cost the same per token across the full 1M window")
 	assert.Equal(t, below.Total, above.Total,
 		"identical usage must cost the same regardless of context size")
+}
+
+// TestHaiku55PricesByPromptLength pins Haiku 5.5's prompt-length tier: a
+// prompt of up to 100,000 tokens bills at the base rates and anything over
+// it at the higher row, for every rate including cache.
+func TestHaiku55PricesByPromptLength(t *testing.T) {
+	t.Parallel()
+
+	cat, err := pricing.NewCatalog(pricing.WithSource(Catalog()))
+	require.NoError(t, err)
+
+	usage := &llm.TokenUsage{InputTokens: 1_000_000, OutputTokens: 1_000_000, CachedInputTokens: 1_000_000}
+
+	for _, tt := range []struct {
+		name                  string
+		context               int64
+		bracket               int64
+		input, output, cached int64
+	}{
+		{"at 100,000 tokens", 100_000, 0, 10_000_000, 50_000_000, 1_000_000},
+		{"over 100,000 tokens", 100_001, 100_001, 50_000_000, 250_000_000, 5_000_000},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cost, err := cat.Calculate(ProviderName, ModelClaudeHaiku55, usage, pricing.CalcRequest{ContextTokens: tt.context})
+			require.NoError(t, err)
+			assert.Equal(t, tt.bracket, cost.AppliedBracketMinContextTokens)
+			assert.Equal(t, tt.input, cost.Breakdown[pricing.UsageFieldInput])
+			assert.Equal(t, tt.output, cost.Breakdown[pricing.UsageFieldOutput])
+			assert.Equal(t, tt.cached, cost.Breakdown[pricing.UsageFieldCachedInput])
+		})
+	}
 }

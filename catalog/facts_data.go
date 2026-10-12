@@ -34,6 +34,7 @@ const (
 	ModelClaudeSonnet5  ModelID = "anthropic/claude-sonnet-5"
 	ModelClaudeSonnet46 ModelID = "anthropic/claude-sonnet-4-6"
 	ModelClaudeSonnet45 ModelID = "anthropic/claude-sonnet-4-5"
+	ModelClaudeHaiku55  ModelID = "anthropic/claude-haiku-5-5"
 	ModelClaudeHaiku45  ModelID = "anthropic/claude-haiku-4-5"
 
 	// OpenAI models.
@@ -201,6 +202,14 @@ var defaultRegistry = Registry{
 		// Reliable knowledge cutoff Jan 2025; training data cutoff is Jul 2025.
 		Released: MustDate("2025-09-29"), Knowledge: MustDate("2025-01-31"),
 		Description: "Claude Sonnet 4.5 is an Anthropic Sonnet model optimized for real-world agents and coding workflows.",
+	},
+	ModelClaudeHaiku55: {
+		Publisher:   PublisherAnthropic,
+		DisplayName: "Claude Haiku 5.5", Series: "claude-haiku",
+		// Released and reliable knowledge cutoff (Jun 2026) per
+		// platform.claude.com/docs/en/models/haiku-5-5/overview.
+		Released: MustDate("2026-10-07"), Knowledge: MustDate("2026-06-30"),
+		Description: "Claude Haiku 5.5 is Anthropic's fastest model, built for high-volume, latency-sensitive work such as classification, routing, extraction, and subagent tasks.",
 	},
 	ModelClaudeHaiku45: {
 		Publisher:   PublisherAnthropic,

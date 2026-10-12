@@ -49,6 +49,12 @@ func TestIsModelAvailableAtLocation(t *testing.T) {
 		// The matrix lists asia-east1 for Haiku.
 		{"haiku not at asia-east1", vertex.ModelClaudeHaiku45, "asia-east1", false},
 		{"haiku not at asia-southeast1", vertex.ModelClaudeHaiku45, "asia-southeast1", false},
+		{"haiku-5-5 at us multi-region", vertex.ModelClaudeHaiku55, "us", true},
+		// A europe-west1 pricing tab lists Haiku 5.5, but its model page
+		// publishes only the multi-regions and global.
+		{"haiku-5-5 not at europe-west1", vertex.ModelClaudeHaiku55, "europe-west1", false},
+		// asia-southeast1 is an ML-processing location only.
+		{"haiku-5-5 not at asia-southeast1", vertex.ModelClaudeHaiku55, "asia-southeast1", false},
 		{"unknown model", "gemini-99-ultra", "global", false},
 		{"prefixed id no longer resolves", "vertex." + vertex.ModelClaudeSonnet5, "eu", false},
 		{"unknown location", vertex.ModelGemini36Flash, "mars-central1", false},
@@ -137,6 +143,7 @@ func TestServedLocationsMatrix(t *testing.T) {
 		vertex.ModelClaudeSonnet5:  {"global", "us", "eu", "asia-southeast1"},
 		vertex.ModelClaudeSonnet46: namedClaude,
 		vertex.ModelClaudeSonnet45: namedClaude,
+		vertex.ModelClaudeHaiku55:  {"global", "us", "eu"},
 		vertex.ModelClaudeHaiku45:  {"global", "us-east5", "europe-west1"},
 	}
 

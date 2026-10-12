@@ -51,7 +51,7 @@ func TestCatalogModelSet(t *testing.T) {
 		"claude-fable-5-1", "claude-fable-5", "claude-opus-5-5", "claude-opus-5",
 		"claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6", "claude-opus-4-5@20251101",
 		"claude-sonnet-5-5", "claude-sonnet-5", "claude-sonnet-4-6", "claude-sonnet-4-5@20250929",
-		"claude-haiku-4-5",
+		"claude-haiku-5-5", "claude-haiku-4-5",
 	}, got)
 }
 
@@ -94,6 +94,7 @@ func TestOfferingAttributes(t *testing.T) {
 		vertex.ModelClaudeSonnet5:       "anthropic",
 		vertex.ModelClaudeSonnet46:      "anthropic",
 		vertex.ModelClaudeSonnet45:      "anthropic",
+		vertex.ModelClaudeHaiku55:       "anthropic",
 		vertex.ModelClaudeHaiku45:       "anthropic",
 	}
 
@@ -186,6 +187,28 @@ func assertEveryNonGlobalRegionPriced(t *testing.T, served []string, overrides [
 	}
 }
 
+// TestClaudeHaiku55PromptLengthTier pins Haiku 5.5's bracket above 100K input
+// tokens on the global card and on every regional override.
+func TestClaudeHaiku55PromptLengthTier(t *testing.T) {
+	t.Parallel()
+
+	info, ok := vertex.Catalog().PricingByID()[vertex.ModelClaudeHaiku55]
+	require.True(t, ok)
+
+	require.Len(t, info.Default.Brackets, 1)
+	assert.Equal(t, int64(100_001), info.Default.Brackets[0].MinContextTokens)
+	assert.Equal(t, pricing.NewRates(0.50, 2.50, 0.05).WithCacheCreation(0.625, 1.00, 0), info.Default.Brackets[0].Rates)
+
+	require.Len(t, info.Overrides, 2)
+
+	for _, ov := range info.Overrides {
+		require.Lenf(t, ov.RateCard.Brackets, 1, "region %q", ov.Match.Region)
+		assert.Equal(t, int64(100_001), ov.RateCard.Brackets[0].MinContextTokens)
+		assert.Equalf(t, pricing.NewRates(0.55, 2.75, 0.055).WithCacheCreation(0.6875, 1.10, 0),
+			ov.RateCard.Brackets[0].Rates, "region %q", ov.Match.Region)
+	}
+}
+
 // TestClaudeRegionalOverride checks the Claude rates. Google's Agent Platform
 // pricing page groups Sonnet 5 and Haiku 4.5 under "Models with regional
 // pricing" (read 2026-09-08).
@@ -230,6 +253,10 @@ func TestClaudeRegionalOverride(t *testing.T) {
 		},
 		vertex.ModelClaudeSonnet46: sonnet4,
 		vertex.ModelClaudeSonnet45: sonnet4,
+		vertex.ModelClaudeHaiku55: {
+			global:   pricing.NewRates(0.10, 0.50, 0.01).WithCacheCreation(0.125, 0.20, 0),
+			regional: pricing.NewRates(0.11, 0.55, 0.011).WithCacheCreation(0.1375, 0.22, 0),
+		},
 		vertex.ModelClaudeHaiku45: {
 			global:   pricing.NewRates(1.00, 5.00, 0.10).WithCacheCreation(1.25, 2.00, 0),
 			regional: pricing.NewRates(1.10, 5.50, 0.11).WithCacheCreation(1.375, 2.20, 0),
@@ -426,6 +453,7 @@ func TestManualThinkingBudget(t *testing.T) {
 		vertex.ModelClaudeOpus45:   true,
 		vertex.ModelClaudeSonnet46: true,
 		vertex.ModelClaudeSonnet45: true,
+		vertex.ModelClaudeHaiku55:  false,
 		vertex.ModelClaudeHaiku45:  true,
 	}
 
