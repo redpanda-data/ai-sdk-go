@@ -44,6 +44,12 @@ fi
 
 if [[ ! -s "$patch" ]]; then
   render
+  # The agent said it changed values its patch doesn't contain: fail, so the
+  # drift doesn't hide behind a green run.
+  if jq -e '.changes | length > 0' "$report" >/dev/null; then
+    echo "pr-job: the report lists changes but the patch is empty" >&2
+    exit 1
+  fi
   emit changed=false
   echo "pr-job: no changes"
   exit 0
@@ -56,8 +62,9 @@ go_re="^providers/(${owned})/[a-z0-9_]+\.go$"
 allowed() { [[ "$1" == "$facts" || "$1" =~ $go_re ]]; }
 
 summary="$(git apply --summary "$patch")"
-if grep -qE '^ (delete|rename|copy|mode)' <<<"$summary"; then
-  echo "pr-job: the patch deletes, renames or copies files, or changes a mode" >&2
+refused="$(grep -E '^ (delete|rename|copy|mode)' <<<"$summary" | sed 's/^ //' | paste -s -d ';' - || true)"
+if [[ -n "$refused" ]]; then
+  echo "pr-job: the patch deletes, renames or copies files, or changes a mode: $refused" >&2
   exit 1
 fi
 while read -r _ _ _ path; do

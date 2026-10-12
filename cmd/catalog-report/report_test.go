@@ -15,6 +15,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -56,6 +57,8 @@ func TestValidate(t *testing.T) {
 		{"markdown in value", func(r *Report) { r.Changes[0].New = "[x](https://evil.example)" }, "value"},
 		{"html in value", func(r *Report) { r.NeedsHuman[0].Values[0] = "<img src=x>" }, "value"},
 		{"backtick in value", func(r *Report) { r.Changes[0].Old = "`4`" }, "value"},
+		{"plain link in value", func(r *Report) { r.Changes[0].New = "https://evil.example/x" }, "value"},
+		{"slash in value", func(r *Report) { r.Changes[0].New = "us/eu cache read 0.11" }, ""},
 		{"http source", func(r *Report) { r.Changes[0].SourceURL = "http://platform.claude.com/x" }, "source"},
 		{"foreign host", func(r *Report) { r.Changes[0].SourceURL = "https://evil.example/pricing" }, "source"},
 		{"source with markdown", func(r *Report) {
@@ -233,4 +236,39 @@ func TestValidateCodeFiles(t *testing.T) {
 			assert.Empty(t, problems)
 		})
 	}
+}
+
+func TestRenderCapped(t *testing.T) {
+	t.Parallel()
+
+	lines := make([]string, 0, 200)
+	for i := range 200 {
+		lines = append(lines, fmt.Sprintf("+  \"line\": %03d, \"pad\": %q", i, strings.Repeat("x", 60)))
+	}
+
+	diff := strings.Join(lines, "\n")
+	report := validReport()
+
+	t.Run("fits: unchanged", func(t *testing.T) {
+		t.Parallel()
+		assert.Equal(t, Render(report, "anthropic", diff, nil), RenderCapped(report, "anthropic", diff, nil, 1<<20))
+	})
+
+	t.Run("too long: diff cut on a line, body within the limit", func(t *testing.T) {
+		t.Parallel()
+
+		const limit = 6000
+
+		body := RenderCapped(report, "anthropic", diff, nil, limit)
+		assert.LessOrEqual(t, len(body), limit)
+		assert.Contains(t, body, "### Changes (1)")
+		assert.Contains(t, body, "truncated; see the workflow artifact")
+		assert.Contains(t, body, lines[0]+"\n")
+		assert.NotContains(t, body, lines[len(lines)-1])
+
+		kept := body[strings.Index(body, lines[0]):strings.Index(body, "\n… (truncated")]
+		for line := range strings.SplitSeq(kept, "\n") {
+			assert.Contains(t, lines, line, "the diff is cut only between lines")
+		}
+	})
 }

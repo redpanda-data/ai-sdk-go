@@ -24,7 +24,8 @@ import (
 	"strings"
 )
 
-const maxDiffBytes = 60000
+// maxBodyBytes keeps the PR body under GitHub's limit of 65,536 characters.
+const maxBodyBytes = 64000
 
 func main() {
 	reportPath := flag.String("report", "", "the agent's report.json")
@@ -71,9 +72,6 @@ func main() {
 		}
 
 		diff = string(raw)
-		if len(diff) > maxDiffBytes {
-			diff = diff[:maxDiffBytes] + "\n… (truncated; see the workflow artifact)"
-		}
 	}
 
 	var codeFiles []string
@@ -96,7 +94,7 @@ func main() {
 		}
 	}
 
-	if err := os.WriteFile(*outPath, []byte(Render(report, *provider, diff, codeFiles)), 0o600); err != nil {
+	if err := os.WriteFile(*outPath, []byte(RenderCapped(report, *provider, diff, codeFiles, maxBodyBytes)), 0o600); err != nil {
 		fmt.Fprintln(os.Stderr, "catalog-report:", err)
 		os.Exit(1)
 	}

@@ -116,7 +116,9 @@ func Validate(report Report, hosts []string) []string {
 		}
 	}
 	checkValue := func(where, value string) {
-		if !valuePattern.MatchString(value) {
+		// "//" keeps a bare URL out of the tables: honest values (prices,
+		// dates, IDs, "us/eu …") never contain it.
+		if !valuePattern.MatchString(value) || strings.Contains(value, "//") {
 			problems = append(problems, where+": bad value "+fmt.Sprintf("%q", value))
 		}
 	}
@@ -263,4 +265,26 @@ func Render(report Report, provider, snapshotDiff string, codeFiles []string) st
 	}
 
 	return body.String()
+}
+
+// truncatedNote ends a snapshot diff that RenderCapped shortened.
+const truncatedNote = "\n… (truncated; see the workflow artifact)"
+
+// RenderCapped is Render, kept within limit bytes so GitHub accepts the PR
+// body. Only the snapshot diff is shortened, and only between lines.
+func RenderCapped(report Report, provider, snapshotDiff string, codeFiles []string, limit int) string {
+	body := Render(report, provider, snapshotDiff, codeFiles)
+	if len(body) <= limit {
+		return body
+	}
+
+	room := limit - len(Render(report, provider, truncatedNote, codeFiles))
+	diff := ""
+
+	if room > 0 {
+		diff = snapshotDiff[:min(room, len(snapshotDiff))]
+		diff = diff[:max(strings.LastIndexByte(diff, '\n'), 0)]
+	}
+
+	return Render(report, provider, diff+truncatedNote, codeFiles)
 }
