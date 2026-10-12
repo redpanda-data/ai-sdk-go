@@ -12,12 +12,6 @@ on:
         description: Stop before pushing a branch or opening a PR
         type: boolean
         default: true
-  # TEMPORARY, for testing on the PoC branch only. Remove before merging.
-  pull_request:
-    branches: [main]
-    paths:
-      - .github/workflows/reconcile-models.yml
-      - .github/reconcile-models/**
 
 permissions: {}
 
@@ -27,11 +21,10 @@ concurrency:
 
 env:
   PROVIDER: ${{ inputs.provider || 'anthropic' }}
-  DRY_RUN: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run }}
+  DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
 
 jobs:
   agent:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     # A launch across three hosts took 17 minutes and 163 turns (run 12).
     timeout-minutes: 60
@@ -114,19 +107,6 @@ jobs:
         env:
           EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
         run: .github/reconcile-models/run-stats.sh "$EXECUTION_FILE" out/report.json
-      # TEMPORARY: prints the denied commands once, to diagnose the first CI
-      # run's denials. Remove before merge.
-      - name: Denied commands (temporary)
-        if: always() && steps.claude.outputs.execution_file != ''
-        env:
-          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
-        run: |
-          token="$(openssl rand -hex 16)"
-          echo "::stop-commands::$token"
-          jq -n -r '[inputs] | map(if type == "array" then .[] else . end) | map(select(.type == "result")) | last
-            | .permission_denials // [] | .[]
-            | "denied \(.tool_name | tostring | .[0:40] | @json): \((.tool_input.command // .tool_input.file_path // "") | tostring | .[0:200] | @json)"' "$EXECUTION_FILE"
-          echo "::$token::"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         if: always()
         with:
