@@ -95,7 +95,7 @@ func main() {
 	}
 
 	body := RenderCapped(report, *provider, diff, codeFiles, maxBodyBytes)
-	if err := os.WriteFile(*outPath, []byte(body), 0o600); err != nil { //nolint:gosec // -out is set by pr-job.sh, not by the report
+	if err := os.WriteFile(*outPath, []byte(body), 0o600); err != nil { //nolint:gosec,nolintlint // -out is set by pr-job.sh, not by the report; nolintlint: older linters don't know this gosec rule
 		fmt.Fprintln(os.Stderr, "catalog-report:", err)
 		os.Exit(1)
 	}
