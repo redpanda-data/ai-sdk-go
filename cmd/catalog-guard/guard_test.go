@@ -96,6 +96,10 @@ func TestCheck(t *testing.T) {
 		{name: "entries gains code", edits: []replacement{{"\treturn []catalog.Entry{", "\t_ = caps\n\treturn []catalog.Entry{"}}, wantErr: "body changed: entries"},
 		{name: "new function literal", edits: []replacement{{"ID:      ModelA,", "ID:      func() string { return ModelA }(),"}}, wantErr: "function literals changed"},
 		{name: "new call", edits: []replacement{{"ID:      ModelA,", "ID:      catalog.Download(ModelA),"}}, wantErr: "new call: catalog.Download"},
+		{name: "new pricing call", edits: []replacement{{
+			"pricing.FlatInfoFromRates(pricing.NewRates(1.00, 2.00, 0.10).WithCacheCreation(1.25, 2.00, 0))",
+			"pricing.TieredInfo(pricing.NewRates(1.00, 2.00, 0.10), pricing.Bracket{MinContextTokens: 100_001, Rates: pricing.NewRates(2.00, 4.00, 0.20)})",
+		}}},
 		{name: "new var", appendSrc: "\nvar extra = 1\n", wantErr: "vars changed"},
 		{name: "const with call", edits: []replacement{{`ModelA = "model-a"`, `ModelA = catalog.Make("a")`}}, wantErr: "non-literal value"},
 		{name: "invalid go", appendSrc: "\nfunc {", wantErr: "parse patched"},

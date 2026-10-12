@@ -23,6 +23,7 @@ import (
 	"go/token"
 	"slices"
 	"sort"
+	"strings"
 )
 
 // Check reports every way patched differs from base beyond catalogue data.
@@ -320,6 +321,13 @@ func compareCalls(base, patched *ast.File) []string {
 	var problems []string
 
 	for name := range callNames(patched) {
+		// The pricing package only builds rate data and does no I/O, and
+		// compareImports keeps the name bound to it, so new pricing calls
+		// (e.g. pricing.TieredInfo for a new model) are data, not code.
+		if strings.HasPrefix(name, "pricing.") {
+			continue
+		}
+
 		if !before[name] {
 			problems = append(problems, "new call: "+name)
 		}

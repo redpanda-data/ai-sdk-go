@@ -148,7 +148,7 @@ jobs:
       - name: Check the patch (no model)
         id: check
         run: |
-          rm -f out/body.md out/snapshot.diff  # only pr-job.sh writes these
+          rm -f out/body.md out/snapshot.diff out/files.txt  # only pr-job.sh writes these
           task install:go
           export PATH="$(dirname "$(ls -d "$PWD"/.build/go*/bin/go | tail -1)"):$PATH"
           GOTOOLCHAIN=local .github/reconcile-models/pr-job.sh "$PROVIDER" out
@@ -197,7 +197,7 @@ jobs:
           git config user.name vbotbuildovich
           git config user.email "${bot_id}+vbotbuildovich@users.noreply.github.com"
           git switch -C "$BRANCH"
-          git add "providers/${PROVIDER}/models.go" catalog/facts_data.go catalog/snapshot.json
+          xargs -r -a out/files.txt git add --  # the files pr-job.sh checked
           git commit -m "chore(catalog): reconcile ${PROVIDER} models"
           git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${BRANCH}"
           existing="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number --jq '.[0].number // empty')"

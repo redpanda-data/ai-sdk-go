@@ -31,16 +31,30 @@ if [[ ! -s "$patch" ]]; then
   exit 0
 fi
 
-# Reject file creation, deletion, renames and mode changes, then any path outside the allowlist.
-if git apply --summary "$patch" | grep -E '^ (create|delete|rename|mode)'; then
-  echo "pr-job: the patch creates, deletes or renames files" >&2
+# Allowed: the guarded data files, and the provider's tests (new test files too).
+# Runtime code, other packages and every other path stay out of reach.
+tests_re="^providers/${provider}/[a-z0-9_]+_test\.go$"
+allowed() { [[ "$1" == "$models" || "$1" == "$facts" || "$1" =~ $tests_re ]]; }
+
+summary="$(git apply --summary "$patch")"
+if grep -qE '^ (delete|rename|copy|mode)' <<<"$summary"; then
+  echo "pr-job: the patch deletes, renames or copies files, or changes a mode" >&2
   exit 1
 fi
+while read -r _ _ _ path; do
+  if [[ ! "$path" =~ $tests_re ]]; then
+    echo "pr-job: the patch creates $path" >&2
+    exit 1
+  fi
+done < <(grep -E '^ create mode' <<<"$summary" || true)
+
+patched=()
 while IFS=$'\t' read -r _ _ path; do
-  if [[ "$path" != "$models" && "$path" != "$facts" ]]; then
+  if ! allowed "$path"; then
     echo "pr-job: the patch touches $path" >&2
     exit 1
   fi
+  patched+=("$path")
 done < <(git apply --numstat "$patch")
 
 git apply --check "$patch"
@@ -69,8 +83,10 @@ task install:golangci-lint
 GOROOT="$(go env GOROOT)" .build/.bin/golangci-lint run --new --timeout 10m "./providers/${provider}/..." ./catalog/...
 task license:check
 
-unexpected="$(git diff --name-only | grep -vxF -e "$models" -e "$facts" -e catalog/snapshot.json || true)"
+unexpected="$(git diff --name-only | grep -vxF -f <(printf '%s\n' "${patched[@]}" catalog/snapshot.json) || true)"
 [[ -z "$unexpected" ]] || { echo "pr-job: unexpected changes: $unexpected" >&2; exit 1; }
+# The files a PR commits: what the patch touched, plus the regenerated snapshot.
+printf '%s\n' "${patched[@]}" catalog/snapshot.json >"$out/files.txt"
 
 git diff -- catalog/snapshot.json >"$out/snapshot.diff"
 go run ./cmd/catalog-report -report "$report" -provider "$provider" -hosts "$hosts" -diff "$out/snapshot.diff" -out "$out/body.md"
