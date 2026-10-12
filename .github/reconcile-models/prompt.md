@@ -19,7 +19,9 @@ What you may change:
 - If a change needs any other file (another package, `go.mod`, workflows), don't make it. Put it in `needs_human`, with a value naming the file.
 
 Checks:
-- Check your edits with `task catalog:snapshot`, `task test:unit` and `task lint:new`. Don't commit, push or open pull requests.
+- Check your edits with `task catalog:snapshot`, `task test:unit` and `task lint:new`, each run exactly as written, with no pipes or redirects. Don't commit, push or open pull requests.
+- `task test:unit` runs every package. Some tests outside the packages you may edit (for example `store/session/kvstore`) need Docker or a network this job doesn't have, and fail for that reason: ignore them, and don't run them on their own.
+- When a page or a command's output is saved to a file, read it with Read or Grep, not with shell commands.
 - If a test outside those packages fails because of your change, don't debug it. Leave that change out, and list it in `needs_human`, naming the test.
 
 Report:

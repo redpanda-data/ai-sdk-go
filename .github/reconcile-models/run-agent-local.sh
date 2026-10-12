@@ -22,7 +22,7 @@ trap 'rm -rf "$config_dir"' EXIT
 
 CLAUDE_CONFIG_DIR="$config_dir" CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1 claude -p "$prompt" \
   --model claude-opus-5-5 \
-  --max-turns 120 \
+  --max-turns 300 \
   --settings '{"disableAllHooks": true}' \
   --allowedTools "Skill,Read,Grep,Glob,${edits},Edit(./catalog/facts_data.go),Bash(curl:*),Bash(grep:*),Bash(jq:*),Bash(task catalog:snapshot),Bash(task test:unit),Bash(task lint:new),Bash(git diff:*)" \
   --disallowedTools "WebFetch,WebSearch,Bash(git push:*),Bash(git commit:*),Bash(gh:*),AskUserQuestion,Task,Agent" \

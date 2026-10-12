@@ -22,23 +22,30 @@ stats="$(jq -n -r '
   def safe($re): if type == "string" and test($re) then . else "other" end;
   def num: if type == "number" then (. * 100 | round / 100 | tostring) else "?" end;
   def program:
-    (split(" ") | map(select(length > 0))) as $words
+    (split(" ") | map(select(length > 0) | gsub("[\"\u0027]"; ""))) as $words
     | ($words[0] // "" | sub(".*/"; "") | safe("^[a-z0-9._-]{1,24}$")) as $first
-    | if ($first | IN("git", "go", "task", "gh")) then $first + " " + ($words[1] // "" | safe("^[a-z0-9:._-]{1,24}$")) else $first end;
-  def denial:
-    (.tool_name | safe("^[A-Za-z0-9_]{1,40}$")) as $tool
-    | if $tool == "Bash" then
-        "Bash: " + ([.tool_input.command // "" | splits("\\s*(\\|\\||&&|\\||;|\\n)\\s*") | select(length > 0) | program][:6] | join(" + "))
-      else $tool end;
+    | if ($first | IN("git", "go", "task", "gh")) then $first + " " + ($words[1] // "" | safe("^[a-z0-9:._-]{1,24}$"))
+      elif $first == "curl" then "curl " + (($words | map(select(test("^https?://"))) | first | capture("^https?://(?<h>[^/?#]+)").h) // "" | safe("^[a-z0-9.-]{1,60}$"))
+      else $first end;
+  # A tool call named by its tool, and for Bash by the programs it runs.
+  def call_name($tool; $command):
+    ($tool | safe("^[A-Za-z0-9_]{1,40}$")) as $t
+    | if $t == "Bash" then
+        "Bash: " + ([$command // "" | splits("\\s*(\\|\\||&&|\\||;|\\n)\\s*") | select(length > 0) | program][:6] | join(" + "))
+      else $t end;
+  def counts: group_by(.) | map({name: .[0], n: length}) | sort_by(-.n, .name) | map("`\(.name)` (×\(.n))") | join(", ");
   [inputs] | map(if type == "array" then .[] else . end)
   | (map(select(.type == "result")) | last) as $r
-  | ($r.permission_denials // [] | map(denial)) as $denied
+  | ($r.permission_denials // [] | map(call_name(.tool_name; .tool_input.command))) as $denied
+  | ([.[] | select(.type == "assistant") | .message.content[]? | select(.type == "tool_use") | call_name(.name; .input.command)]) as $calls
   | [
       "| Result | Turns | Cost (USD) | Duration (s) | Denied tool calls |",
       "|---|---|---|---|---|",
       "| \($r.subtype | safe("^[a-z_]{1,30}$")) | \($r.num_turns | num) | \($r.total_cost_usd | num) | \(($r.duration_ms // null) | if type == "number" then (. / 1000 | round | tostring) else "?" end) | \($denied | length) |",
       "",
-      (if ($denied | length) > 0 then "Denied: " + ($denied | group_by(.) | map("`\(.[0])` (×\(length))") | join(", ")) else "No denied tool calls." end),
+      (if ($calls | length) > 0 then "Tool calls (\($calls | length)): " + ($calls | counts) else "No tool calls recorded." end),
+      "",
+      (if ($denied | length) > 0 then "Denied: " + ($denied | counts) else "No denied tool calls." end),
       "@@DENIED@@" + ($denied | unique | join("; "))
     ] | .[]
 ' "$execution")"

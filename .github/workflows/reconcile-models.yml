@@ -33,7 +33,8 @@ jobs:
   agent:
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    # A launch across three hosts took 17 minutes and 163 turns (run 12).
+    timeout-minutes: 60
     permissions:
       contents: read
     env:
@@ -90,7 +91,7 @@ jobs:
           settings: '{"disableAllHooks": true}'
           claude_args: >-
             --model claude-opus-5-5
-            --max-turns 120
+            --max-turns 300
             --allowedTools "Skill,Read,Grep,Glob,${{ steps.inputs.outputs.edits }},Edit(./catalog/facts_data.go),Bash(curl:*),Bash(grep:*),Bash(jq:*),Bash(task catalog:snapshot),Bash(task test:unit),Bash(task lint:new),Bash(git diff:*)"
             --disallowedTools "WebFetch,WebSearch,Bash(git push:*),Bash(git commit:*),Bash(gh:*),AskUserQuestion,Task,Agent"
             --json-schema '${{ steps.inputs.outputs.schema }}'
