@@ -17,6 +17,7 @@ What you may change:
 
 Checks:
 - Check your edits with `task catalog:snapshot`, `task test:unit` and `task lint:new`. Don't commit, push or open pull requests.
+- If a test outside `providers/{{PROVIDER}}/` fails because of your change, don't debug it. Leave that change out, and list it in `needs_human`, naming the test.
 
 Report:
 - There is no person in this run, so don't ask questions. Put anything that needs a decision in `needs_human`.

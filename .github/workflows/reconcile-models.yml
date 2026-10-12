@@ -86,11 +86,13 @@ jobs:
           settings: '{"disableAllHooks": true}'
           claude_args: >-
             --model claude-opus-5-5
-            --max-turns 60
+            --max-turns 80
             --allowedTools "Skill,Read,Grep,Glob,Edit(./providers/${{ env.PROVIDER }}/models.go),Edit(./catalog/facts_data.go),Edit(./providers/${{ env.PROVIDER }}/*_test.go),Bash(curl:*),Bash(grep:*),Bash(jq:*),Bash(task catalog:snapshot),Bash(task test:unit),Bash(task lint:new),Bash(git diff:*)"
             --disallowedTools "WebFetch,WebSearch,Bash(git push:*),Bash(git commit:*),Bash(gh:*),AskUserQuestion,Task,Agent"
             --json-schema '${{ steps.inputs.outputs.schema }}'
       - name: Collect patch and report
+        # Also after a failed agent step, so the run leaves evidence to inspect.
+        if: always()
         env:
           REPORT: ${{ steps.claude.outputs.structured_output }}
         # Start from an empty out/ and hand over only these two files, so
@@ -120,6 +122,7 @@ jobs:
             | "denied \(.tool_name | tostring | .[0:40] | @json): \((.tool_input.command // .tool_input.file_path // "") | tostring | .[0:200] | @json)"' "$EXECUTION_FILE"
           echo "::$token::"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        if: always()
         with:
           name: reconcile-agent-${{ env.PROVIDER }}
           path: |
