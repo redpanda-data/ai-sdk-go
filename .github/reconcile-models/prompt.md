@@ -11,6 +11,9 @@ Which models to track:
 - Leave out models that are available only after a signup or an access request (limited availability). Report each one in `skipped` with the reason `limited_availability`.
 - Don't track models from these vendors: xAI (Grok). Report any you find in `skipped` with the reason `vendor_excluded`.
 - Preview models with their own IDs are tracked like any other model.
+- Add a model that has no entry in `catalog/facts_data.go` only if it was released in the last 90 days. Report an older one in `skipped` with the reason `out_of_scope`.
+- Don't add a model to another provider package if any host lists it as legacy, deprecated or retired. Report it in `skipped` with the reason `out_of_scope`.
+- On Bedrock, a bare model ID whose `bedrock-runtime` In-Region endpoint is N/A isn't an offering. Don't list it.
 
 What you may change:
 - Fix drift in existing entries in those packages' `models.go` and in `catalog/facts_data.go`, with a source comment for each change, as the skill describes.
