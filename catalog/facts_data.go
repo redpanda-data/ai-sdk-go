@@ -285,8 +285,11 @@ var defaultRegistry = Registry{
 	ModelGPT5_5: {
 		Publisher:   PublisherOpenAI,
 		DisplayName: "GPT-5.5", Series: "gpt",
-		// Released per developers.openai.com/api/docs/changelog (Apr 24, 2026).
-		Released: MustDate("2026-04-24"), Knowledge: MustDate("2025-12-01"),
+		// Released is the first ship date anywhere: ChatGPT and Codex on
+		// Apr 23, 2026 (learn.chatgpt.com/docs/changelog). The API followed on
+		// Apr 24 (developers.openai.com/api/docs/changelog); that date is the
+		// OpenAI offering's Available, not Released.
+		Released: MustDate("2026-04-23"), Knowledge: MustDate("2025-12-01"),
 		Description: "GPT-5.5 is OpenAI’s frontier model designed for complex professional workloads, building on GPT-5.4 with stronger reasoning, higher reliability, and improved token efficiency on hard tasks.",
 	},
 	ModelGPT5_6Sol: {
