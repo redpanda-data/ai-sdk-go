@@ -91,11 +91,12 @@ func entries() []catalog.Entry {
 		Constraints: llm.ModelConstraints{
 			TemperatureRange: [2]float64{0, 2},
 			MaxInputTokens:   1_048_576,
-			// The shared context window is not a separate vendor output cap.
+			// Meta publishes the shared context window, not a separate output cap.
+			// This is the SDK-enforced bound, not a claim about the vendor limit.
 			MaxOutputTokens: maxOutputTokens,
 			SupportedParams: []string{"temperature", "max_tokens", "reasoning_effort", "reasoning_summary"},
 		},
-		// https://dev.meta.ai/docs/reasoning
+		// https://dev.meta.ai/docs/reasoning — max is Standard-tier only.
 		Reasoning: catalog.ReasoningSupport{Efforts: []llm.ReasoningEffort{
 			openai.ReasoningEffortMinimal, openai.ReasoningEffortLow, openai.ReasoningEffortMedium,
 			openai.ReasoningEffortHigh, openai.ReasoningEffortXHigh, openai.ReasoningEffortMax,

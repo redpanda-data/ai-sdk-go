@@ -426,14 +426,6 @@ var defaultRegistry = Registry{
 	},
 
 	// ---- Meta ----
-	// https://about.fb.com/news/2026/10/introducing-muse-wonder-models/
-	ModelMuseWonder10: {
-		Publisher:   PublisherMeta,
-		DisplayName: "Muse Wonder 1.0", Series: "muse-wonder",
-		Released: MustDate("2026-10-12"),
-		// No knowledge cutoff published in the Meta Model API docs.
-		Description: "Muse Wonder 1.0 is Meta's model for complex software engineering and long-horizon agentic work.",
-	},
 	// https://research.meta.ai/blog/introducing-muse-spark-1-3
 	ModelMuseSpark13: {
 		Publisher:   PublisherMeta,
@@ -441,6 +433,14 @@ var defaultRegistry = Registry{
 		Released: MustDate("2026-09-02"),
 		// No knowledge cutoff published in the Meta Model API docs.
 		Description: "Muse Spark 1.3 is Meta's model for coding, long-context reasoning, and multi-step agentic workflows.",
+	},
+	// https://about.fb.com/news/2026/10/introducing-muse-wonder-models/
+	ModelMuseWonder10: {
+		Publisher:   PublisherMeta,
+		DisplayName: "Muse Wonder 1.0", Series: "muse-wonder",
+		Released: MustDate("2026-10-12"),
+		// No knowledge cutoff published in the Meta Model API docs.
+		Description: "Muse Wonder 1.0 is Meta's model for complex software engineering and long-horizon agentic work.",
 	},
 
 	// ---- Google ----

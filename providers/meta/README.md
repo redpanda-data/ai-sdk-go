@@ -4,13 +4,17 @@ Direct access to Standard-tier Muse Wonder 1.0 and Muse Spark 1.3, reusing the
 SDK's OpenAI Responses transport. No extra dependency or separate protocol
 implementation.
 
+Muse Wonder 1.0 is in preview and has different token pricing from Muse Spark
+1.3. The root quickstart keeps Muse Spark as its default. See [pricing](https://dev.meta.ai/docs/pricing-rate-limits)
+before selecting Wonder.
+
 ~~~go
 provider, err := meta.NewProvider(os.Getenv("MODEL_API_KEY"))
 if err != nil {
     return err
 }
 model, err := provider.NewModel(
-    meta.ModelMuseWonder10, // Use meta.ModelMuseSpark13 for Muse Spark.
+    meta.ModelMuseWonder10, // Preview. Use meta.ModelMuseSpark13 for Muse Spark.
     openai.WithReasoningEffort(openai.ReasoningEffortHigh),
     openai.WithMaxTokens(8192),
 )
@@ -49,7 +53,12 @@ provider. The default endpoint is https://api.meta.ai/v1.
   submitted data and are intentionally excluded. Muse Wonder Full is available
   only in Muse Code, not through Model API. Setting reasoning effort to max
   does not select Muse Wonder Full.
-- Live integration and conformance tests require MODEL_API_KEY.
+- Native tool search remains disabled in this provider's catalog until the
+  shared transport is verified against Meta's hosted tool-search endpoint.
+  Meta documents [tool search](https://dev.meta.ai/docs/tool-search), but this
+  SDK integration has not been tested with live Meta credentials.
+- Live integration and conformance tests require MODEL_API_KEY. Both the
+  provider and agent conformance suites run separately for every registered model.
 
 ## Verification
 

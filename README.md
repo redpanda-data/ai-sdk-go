@@ -80,7 +80,7 @@ provider, err := meta.NewProvider(os.Getenv("MODEL_API_KEY"))
 if err != nil {
     return err
 }
-model, err := provider.NewModel(meta.ModelMuseWonder10)
+model, err := provider.NewModel(meta.ModelMuseSpark13)
 if err != nil {
     return err
 }
