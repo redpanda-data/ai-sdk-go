@@ -18,7 +18,7 @@ fi
 
 # The execution log is a JSON array of messages, or one message per line;
 # the last "result" message holds the totals and the permission denials.
-stats="$(jq -n -r '
+stats="$(jq -n -r --arg ws "${GITHUB_WORKSPACE:-$PWD}" '
   def safe($re): if type == "string" and test($re) then . else "other" end;
   def num: if type == "number" then (. * 100 | round / 100 | tostring) else "?" end;
   def program:
@@ -27,17 +27,21 @@ stats="$(jq -n -r '
     | if ($first | IN("git", "go", "task", "gh")) then $first + " " + ($words[1] // "" | safe("^[a-z0-9:._-]{1,24}$"))
       elif $first == "curl" then "curl " + (($words | map(select(test("^https?://"))) | first | capture("^https?://(?<h>[^/?#]+)").h) // "" | safe("^[a-z0-9.-]{1,60}$"))
       else $first end;
-  # A tool call named by its tool, and for Bash by the programs it runs.
-  def call_name($tool; $command):
+  # A file path relative to the checkout; one the agent passed relatively keeps a "./" so it stands out.
+  def rel: if startswith($ws + "/") then .[($ws | length) + 1:] elif startswith("/") then . else "./" + . end;
+  # A tool call named by its tool, for Bash by the programs it runs, and for
+  # a denied file tool by its file.
+  def call_name($tool; $command; $path):
     ($tool | safe("^[A-Za-z0-9_]{1,40}$")) as $t
     | if $t == "Bash" then
         "Bash: " + ([$command // "" | splits("\\s*(\\|\\||&&|\\||;|\\n)\\s*") | select(length > 0) | program][:6] | join(" + "))
+      elif ($path | type) == "string" then $t + " " + ($path | rel | safe("^[A-Za-z0-9_./-]{1,160}$"))
       else $t end;
   def counts: group_by(.) | map({name: .[0], n: length}) | sort_by(-.n, .name) | map("`\(.name)` (×\(.n))") | join(", ");
   [inputs] | map(if type == "array" then .[] else . end)
   | (map(select(.type == "result")) | last) as $r
-  | ($r.permission_denials // [] | map(call_name(.tool_name; .tool_input.command))) as $denied
-  | ([.[] | select(.type == "assistant") | .message.content[]? | select(.type == "tool_use") | call_name(.name; .input.command)]) as $calls
+  | ($r.permission_denials // [] | map(call_name(.tool_name; .tool_input.command; .tool_input.file_path))) as $denied
+  | ([.[] | select(.type == "assistant") | .message.content[]? | select(.type == "tool_use") | call_name(.name; .input.command; null)]) as $calls
   | [
       "| Result | Turns | Cost (USD) | Duration (s) | Denied tool calls |",
       "|---|---|---|---|---|",
