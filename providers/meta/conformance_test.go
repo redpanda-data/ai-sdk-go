@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	agentconformance "github.com/redpanda-data/ai-sdk-go/agent/conformance"
@@ -33,9 +34,37 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/tool"
 )
 
-type metaFixture struct{ provider *meta.Provider }
+type metaFixture struct {
+	provider  *meta.Provider
+	modelName string
+}
 
-func newMetaFixture(t *testing.T) *metaFixture {
+func TestMetaFixtureModels(t *testing.T) {
+	t.Parallel()
+
+	provider, err := meta.NewProvider("test-key")
+	require.NoError(t, err)
+
+	for _, offering := range meta.Catalog().All() {
+		t.Run(offering.ID, func(t *testing.T) {
+			t.Parallel()
+
+			fixture := &metaFixture{provider: provider, modelName: offering.ID}
+			assert.Equal(t, offering.ID, fixture.NewStandardModel(t).Name())
+			assert.Equal(t, offering.ID, fixture.NewReasoningModel(t).Name())
+
+			standardAgent, err := fixture.StandardAgent(nil)
+			require.NoError(t, err)
+			assert.Equal(t, offering.ID, standardAgent.Info().ModelName)
+
+			reasoningAgent, err := fixture.ReasoningAgent(nil)
+			require.NoError(t, err)
+			assert.Equal(t, offering.ID, reasoningAgent.Info().ModelName)
+		})
+	}
+}
+
+func newMetaFixture(t *testing.T, modelName string) *metaFixture {
 	t.Helper()
 
 	if testing.Short() {
@@ -50,7 +79,7 @@ func newMetaFixture(t *testing.T) *metaFixture {
 	provider, err := meta.NewProvider(key, openai.WithTimeout(2*time.Minute))
 	require.NoError(t, err)
 
-	return &metaFixture{provider: provider}
+	return &metaFixture{provider: provider, modelName: modelName}
 }
 func (f *metaFixture) Name() string                            { return "Meta" }
 func (f *metaFixture) Catalog() *catalog.Catalog               { return f.provider.Catalog() }
@@ -58,7 +87,7 @@ func (f *metaFixture) NewModel(name string) (llm.Model, error) { return f.provid
 func (f *metaFixture) NewStandardModel(t *testing.T) llm.Model {
 	t.Helper()
 
-	model, err := f.provider.NewModel(meta.ModelMuseSpark13, openai.WithReasoningEffort(openai.ReasoningEffortMinimal))
+	model, err := f.provider.NewModel(f.modelName, openai.WithReasoningEffort(openai.ReasoningEffortMinimal))
 	require.NoError(t, err)
 
 	return retry.WrapModel(model)
@@ -67,14 +96,14 @@ func (f *metaFixture) NewStandardModel(t *testing.T) llm.Model {
 func (f *metaFixture) NewReasoningModel(t *testing.T) llm.Model {
 	t.Helper()
 
-	model, err := f.provider.NewModel(meta.ModelMuseSpark13, openai.WithReasoningEffort(openai.ReasoningEffortHigh))
+	model, err := f.provider.NewModel(f.modelName, openai.WithReasoningEffort(openai.ReasoningEffortHigh))
 	require.NoError(t, err)
 
 	return retry.WrapModel(model)
 }
 
 func (f *metaFixture) StandardAgent(tools tool.Registry) (*llmagent.LLMAgent, error) {
-	model, err := f.provider.NewModel(meta.ModelMuseSpark13, openai.WithReasoningEffort(openai.ReasoningEffortMinimal))
+	model, err := f.provider.NewModel(f.modelName, openai.WithReasoningEffort(openai.ReasoningEffortMinimal))
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +112,7 @@ func (f *metaFixture) StandardAgent(tools tool.Registry) (*llmagent.LLMAgent, er
 }
 
 func (f *metaFixture) ReasoningAgent(tools tool.Registry) (*llmagent.LLMAgent, error) {
-	model, err := f.provider.NewModel(meta.ModelMuseSpark13, openai.WithReasoningEffort(openai.ReasoningEffortHigh))
+	model, err := f.provider.NewModel(f.modelName, openai.WithReasoningEffort(openai.ReasoningEffortHigh))
 	if err != nil {
 		return nil, err
 	}
@@ -93,12 +122,24 @@ func (f *metaFixture) ReasoningAgent(tools tool.Registry) (*llmagent.LLMAgent, e
 
 func TestMetaConformance_Integration(t *testing.T) {
 	t.Parallel()
-	testsuite.Run(t, conformance.NewSuite(newMetaFixture(t)))
+
+	for _, offering := range meta.Catalog().All() {
+		t.Run(offering.ID, func(t *testing.T) {
+			t.Parallel()
+			testsuite.Run(t, conformance.NewSuite(newMetaFixture(t, offering.ID)))
+		})
+	}
 }
 
 func TestMetaAgentConformance_Integration(t *testing.T) {
 	t.Parallel()
-	testsuite.Run(t, agentconformance.NewSuite(newMetaFixture(t)))
+
+	for _, offering := range meta.Catalog().All() {
+		t.Run(offering.ID, func(t *testing.T) {
+			t.Parallel()
+			testsuite.Run(t, agentconformance.NewSuite(newMetaFixture(t, offering.ID)))
+		})
+	}
 }
 
 var (
