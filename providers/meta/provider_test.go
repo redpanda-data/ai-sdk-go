@@ -25,6 +25,37 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/providers/openai"
 )
 
+func TestMuseWonder10Catalog(t *testing.T) {
+	t.Parallel()
+
+	p, err := NewProvider("test-key")
+	require.NoError(t, err)
+
+	model, err := p.NewModel("muse-wonder-1.0", openai.WithReasoningEffort(openai.ReasoningEffortMax))
+	require.NoError(t, err)
+	assert.Equal(t, llm.ProviderID("meta"), model.Provider())
+	assert.Equal(t, "muse-wonder-1.0", model.Name())
+
+	o, ok := p.Catalog().Lookup("muse-wonder-1.0")
+	require.True(t, ok)
+	assert.Equal(t, catalog.ModelID("meta/muse-wonder-1.0"), o.Model)
+	assert.Equal(t, "Muse Wonder 1.0", o.DisplayName)
+	assert.Equal(t, "2026-10-12", o.Life.Available.Format("2006-01-02"))
+	assert.Equal(t, 1_048_576, o.Constraints.MaxInputTokens)
+	assert.Equal(t, 32_768, o.Constraints.MaxOutputTokens)
+	assert.Equal(t, "sdk_conservative_limit", o.Attributes["output_token_limit_source"])
+	assert.Equal(t, catalog.StagePreview, o.Life.Stage)
+	assert.Equal(t, int64(400_000_000), o.Pricing.Default.Base.InputPerMillion)
+	assert.Equal(t, int64(2_000_000_000), o.Pricing.Default.Base.OutputPerMillion)
+	assert.Equal(t, int64(20_000_000), o.Pricing.Default.Base.CachedInputPerMillion)
+	assert.Empty(t, o.Pricing.Default.Brackets)
+
+	for _, name := range []string{"muse-wonder-full", "muse-wonder-1.0-contributor"} {
+		_, err := p.NewModel(name)
+		require.Error(t, err)
+	}
+}
+
 func TestMuseSpark13Catalog(t *testing.T) {
 	t.Parallel()
 
@@ -32,7 +63,7 @@ func TestMuseSpark13Catalog(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, llm.ProviderID("meta"), p.Name())
 	assert.Equal(t, "https://api.meta.ai/v1", p.transport.BaseURL)
-	require.Len(t, p.Catalog().All(), 1)
+	require.Len(t, p.Catalog().All(), 2)
 	o, ok := p.Catalog().Lookup("muse-spark-1.3")
 	require.True(t, ok)
 	assert.Equal(t, catalog.ModelID("meta/muse-spark-1.3"), o.Model)
@@ -53,32 +84,38 @@ func TestMuseSpark13Catalog(t *testing.T) {
 	assert.Empty(t, o.Pricing.Default.Brackets)
 }
 
-func TestMuseSpark13Options(t *testing.T) {
+func TestMetaModelOptions(t *testing.T) {
 	t.Parallel()
 
 	p, err := NewProvider("test-key")
 	require.NoError(t, err)
 
-	for _, effort := range []llm.ReasoningEffort{openai.ReasoningEffortMinimal, openai.ReasoningEffortLow, openai.ReasoningEffortMedium, openai.ReasoningEffortHigh, openai.ReasoningEffortXHigh, openai.ReasoningEffortMax} {
-		m, err := p.NewModel("muse-spark-1.3", openai.WithReasoningEffort(effort), openai.WithMaxTokens(1024))
-		require.NoError(t, err)
-		assert.Equal(t, llm.ProviderID("meta"), m.Provider())
-		assert.Equal(t, "muse-spark-1.3", m.Name())
-		lister, ok := m.(llm.ReasoningEffortLister)
-		require.True(t, ok)
-		assert.Contains(t, lister.SupportedReasoningEfforts(), effort)
-		efforts := lister.SupportedReasoningEfforts()
-		efforts[0] = openai.ReasoningEffortNone
-		assert.NotContains(t, lister.SupportedReasoningEfforts(), openai.ReasoningEffortNone)
+	for _, modelName := range []string{ModelMuseSpark13, ModelMuseWonder10} {
+		t.Run(modelName, func(t *testing.T) {
+			t.Parallel()
+
+			for _, effort := range []llm.ReasoningEffort{openai.ReasoningEffortMinimal, openai.ReasoningEffortLow, openai.ReasoningEffortMedium, openai.ReasoningEffortHigh, openai.ReasoningEffortXHigh, openai.ReasoningEffortMax} {
+				m, err := p.NewModel(modelName, openai.WithReasoningEffort(effort), openai.WithMaxTokens(1024))
+				require.NoError(t, err)
+				assert.Equal(t, llm.ProviderID("meta"), m.Provider())
+				assert.Equal(t, modelName, m.Name())
+				lister, ok := m.(llm.ReasoningEffortLister)
+				require.True(t, ok)
+				assert.Contains(t, lister.SupportedReasoningEfforts(), effort)
+				efforts := lister.SupportedReasoningEfforts()
+				efforts[0] = openai.ReasoningEffortNone
+				assert.NotContains(t, lister.SupportedReasoningEfforts(), openai.ReasoningEffortNone)
+			}
+
+			for _, option := range []openai.Option{openai.WithReasoningEffort(openai.ReasoningEffortNone), openai.WithMaxTokens(15), openai.WithMaxTokens(32_769), openai.WithMaxTokens(1_048_577), openai.WithTopP(0.9), openai.WithFrequencyPenalty(0.5), openai.WithPresencePenalty(0.5), openai.WithSeed(1)} {
+				_, err := p.NewModel(modelName, option)
+				require.Error(t, err)
+			}
+		})
 	}
 
-	for _, name := range []string{"", "muse-spark-1.3-contributor", "gpt-5.6-sol", "muse-spark-1.3-unknown"} {
+	for _, name := range []string{"", "muse-spark-1.3-contributor", "gpt-5.6-sol", "muse-spark-1.3-unknown", "muse-wonder-1.0-unknown"} {
 		_, err := p.NewModel(name)
-		require.Error(t, err)
-	}
-
-	for _, option := range []openai.Option{openai.WithReasoningEffort(openai.ReasoningEffortNone), openai.WithMaxTokens(15), openai.WithMaxTokens(32_769), openai.WithMaxTokens(1_048_577), openai.WithTopP(0.9), openai.WithFrequencyPenalty(0.5), openai.WithPresencePenalty(0.5), openai.WithSeed(1)} {
-		_, err := p.NewModel("muse-spark-1.3", option)
 		require.Error(t, err)
 	}
 
@@ -98,15 +135,19 @@ func TestDeclaredParametersAccepted(t *testing.T) {
 		"reasoning_effort":  openai.WithReasoningEffort(openai.ReasoningEffortHigh),
 		"reasoning_summary": openai.WithReasoningSummary(openai.ReasoningSummaryAuto),
 	}
-	offering, ok := Catalog().Lookup(ModelMuseSpark13)
-	require.True(t, ok)
-	assert.Empty(t, offering.Constraints.MutuallyExclusive)
 
-	for _, param := range offering.Constraints.SupportedParams {
-		option, ok := options[param]
-		if assert.True(t, ok, "unsupported advertised parameter: %s", param) {
-			_, err := p.NewModel(ModelMuseSpark13, option)
-			assert.NoError(t, err, param)
-		}
+	for _, offering := range Catalog().All() {
+		t.Run(offering.ID, func(t *testing.T) {
+			t.Parallel()
+			assert.Empty(t, offering.Constraints.MutuallyExclusive)
+
+			for _, param := range offering.Constraints.SupportedParams {
+				option, ok := options[param]
+				if assert.True(t, ok, "unsupported advertised parameter: %s", param) {
+					_, err := p.NewModel(offering.ID, option)
+					assert.NoError(t, err, param)
+				}
+			}
+		})
 	}
 }

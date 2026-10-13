@@ -89,6 +89,9 @@ const (
 	// ModelMuseSpark13 identifies Meta's Muse Spark 1.3.
 	ModelMuseSpark13 ModelID = "meta/muse-spark-1.3"
 
+	// ModelMuseWonder10 identifies Meta's Muse Wonder 1.0.
+	ModelMuseWonder10 ModelID = "meta/muse-wonder-1.0"
+
 	// Models from vendors offered only through Bedrock.
 
 	ModelMistralLarge3 ModelID = "mistral/mistral-large-3"
@@ -423,6 +426,14 @@ var defaultRegistry = Registry{
 	},
 
 	// ---- Meta ----
+	// https://about.fb.com/news/2026/10/introducing-muse-wonder-models/
+	ModelMuseWonder10: {
+		Publisher:   PublisherMeta,
+		DisplayName: "Muse Wonder 1.0", Series: "muse-wonder",
+		Released: MustDate("2026-10-12"),
+		// No knowledge cutoff published in the Meta Model API docs.
+		Description: "Muse Wonder 1.0 is Meta's model for complex software engineering and long-horizon agentic work.",
+	},
 	// https://research.meta.ai/blog/introducing-muse-spark-1-3
 	ModelMuseSpark13: {
 		Publisher:   PublisherMeta,

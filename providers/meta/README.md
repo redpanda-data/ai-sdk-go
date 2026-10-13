@@ -1,7 +1,8 @@
 # Meta Model API
 
-Direct access to Standard-tier Muse Spark 1.3, reusing the SDK's OpenAI
-Responses transport. No extra dependency or separate protocol implementation.
+Direct access to Standard-tier Muse Wonder 1.0 and Muse Spark 1.3, reusing the
+SDK's OpenAI Responses transport. No extra dependency or separate protocol
+implementation.
 
 ~~~go
 provider, err := meta.NewProvider(os.Getenv("MODEL_API_KEY"))
@@ -9,7 +10,7 @@ if err != nil {
     return err
 }
 model, err := provider.NewModel(
-    meta.ModelMuseSpark13,
+    meta.ModelMuseWonder10, // Use meta.ModelMuseSpark13 for Muse Spark.
     openai.WithReasoningEffort(openai.ReasoningEffortHigh),
     openai.WithMaxTokens(8192),
 )
@@ -45,7 +46,9 @@ provider. The default endpoint is https://api.meta.ai/v1.
   vendor capabilities, not transport coverage. Meta warns that 1.3 audio
   understanding quality may be degraded.
 - Only Standard tier is registered. Contributor models permit training on
-  submitted data and are intentionally excluded.
+  submitted data and are intentionally excluded. Muse Wonder Full is available
+  only in Muse Code, not through Model API. Setting reasoning effort to max
+  does not select Muse Wonder Full.
 - Live integration and conformance tests require MODEL_API_KEY.
 
 ## Verification
@@ -61,4 +64,5 @@ MODEL_API_KEY=... go test ./providers/meta -run "Integration|Conformance" -v
 - [Pricing](https://dev.meta.ai/docs/pricing-rate-limits)
 - [Reasoning](https://dev.meta.ai/docs/reasoning)
 - [Responses API](https://dev.meta.ai/docs/protocols/responses)
-- [Announcement](https://research.meta.ai/blog/introducing-muse-spark-1-3)
+- [Muse Spark announcement](https://research.meta.ai/blog/introducing-muse-spark-1-3)
+- [Muse Wonder announcement](https://about.fb.com/news/2026/10/introducing-muse-wonder-models/)

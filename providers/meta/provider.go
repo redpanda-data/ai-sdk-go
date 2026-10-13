@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package meta provides Muse Spark through Meta's OpenAI-compatible Responses API.
+// Package meta provides Muse models through Meta's OpenAI-compatible Responses API.
 package meta
 
 import (

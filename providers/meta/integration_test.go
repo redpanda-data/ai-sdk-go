@@ -26,7 +26,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/providers/openai"
 )
 
-func TestMuseSpark13_Integration(t *testing.T) {
+func TestMeta_Integration(t *testing.T) {
 	t.Parallel()
 
 	if testing.Short() {
@@ -40,11 +40,18 @@ func TestMuseSpark13_Integration(t *testing.T) {
 
 	p, err := NewProvider(key, openai.WithTimeout(60*time.Second))
 	require.NoError(t, err)
-	m, err := p.NewModel(ModelMuseSpark13, openai.WithMaxTokens(1024), openai.WithReasoningEffort(openai.ReasoningEffortMinimal))
-	require.NoError(t, err)
 
-	req := &llm.Request{Messages: []llm.Message{{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("Reply with exactly: META_OK")}}}}
-	result, err := m.Generate(t.Context(), req)
-	require.NoError(t, err)
-	assert.Contains(t, result.TextContent(), "META_OK")
+	for _, modelName := range []string{ModelMuseSpark13, ModelMuseWonder10} {
+		t.Run(modelName, func(t *testing.T) {
+			t.Parallel()
+
+			m, err := p.NewModel(modelName, openai.WithMaxTokens(1024), openai.WithReasoningEffort(openai.ReasoningEffortMinimal))
+			require.NoError(t, err)
+
+			req := &llm.Request{Messages: []llm.Message{{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("Reply with exactly: META_OK")}}}}
+			result, err := m.Generate(t.Context(), req)
+			require.NoError(t, err)
+			assert.Contains(t, result.TextContent(), "META_OK")
+		})
+	}
 }
