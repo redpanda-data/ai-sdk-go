@@ -128,8 +128,8 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 							ID:   e.ItemID,
 							Text: e.Delta,
 							Metadata: map[string]any{
-								"sequence_number": e.SequenceNumber,
-								"summary_index":   e.SummaryIndex,
+								"sequence_number":             e.SequenceNumber,
+								reasoningMetadataSummaryIndex: e.SummaryIndex,
 							},
 						},
 					}, nil) {

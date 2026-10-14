@@ -168,6 +168,9 @@ func entries() []catalog.Entry {
 			Reasoning: catalog.ReasoningSupport{
 				Efforts:  []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 				Adaptive: true,
+				// Replayed thinking must keep an unchanged prefix; see
+				// platform.claude.com/docs/en/build-with-claude/preserved-thinking.
+				ThinkingPrefixCheck: true,
 			},
 			Life: catalog.Lifecycle{
 				Available: catalog.MustDate("2026-09-01"),
@@ -224,6 +227,9 @@ func entries() []catalog.Entry {
 				// All five levels; the API default is medium.
 				Efforts:  []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 				Adaptive: true,
+				// Replayed thinking must keep an unchanged prefix; see
+				// platform.claude.com/docs/en/build-with-claude/preserved-thinking.
+				ThinkingPrefixCheck: true,
 			},
 			Speeds: []Speed{SpeedStandard, SpeedFast},
 			Life: catalog.Lifecycle{
@@ -350,6 +356,9 @@ func entries() []catalog.Entry {
 			Reasoning: catalog.ReasoningSupport{
 				Efforts:  []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 				Adaptive: true,
+				// Replayed thinking must keep an unchanged prefix; see
+				// platform.claude.com/docs/en/build-with-claude/preserved-thinking.
+				ThinkingPrefixCheck: true,
 			},
 			Life: catalog.Lifecycle{
 				Available: catalog.MustDate("2026-09-28"),
@@ -452,6 +461,9 @@ func entries() []catalog.Entry {
 				// All five levels; the API default is medium.
 				Efforts:  []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 				Adaptive: true,
+				// Replayed thinking must keep an unchanged prefix; see
+				// platform.claude.com/docs/en/build-with-claude/preserved-thinking.
+				ThinkingPrefixCheck: true,
 			},
 			Life: catalog.Lifecycle{
 				Available: catalog.MustDate("2026-10-07"),

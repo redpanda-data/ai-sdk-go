@@ -51,6 +51,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"net/http"
 	"slices"
 	"strings"
@@ -610,7 +611,7 @@ func StreamModelWithTools(ctx context.Context, model llm.Model, req *llm.Request
 	lastFinishReason := finishReasonOther
 
 	for range maxTurns {
-		finishReason, toolRequests := streamToolTurn(ctx, model, req, messages, sw, ew, logger)
+		finishReason, toolRequests, finalContent := streamToolTurn(ctx, model, req, messages, sw, ew, logger)
 
 		// Empty finishReason means the stream was aborted (ctx cancel or write failure).
 		if finishReason == "" {
@@ -626,9 +627,20 @@ func StreamModelWithTools(ctx context.Context, model llm.Model, req *llm.Request
 			return
 		}
 
-		assistantParts := make([]llm.Part, 0, len(toolRequests))
-		for _, tr := range toolRequests {
-			assistantParts = append(assistantParts, tr)
+		// Replay the turn as the provider finalized it: it carries blocks
+		// that stream no delta, such as Claude's omitted-display thinking,
+		// which must go back unchanged alongside the tool results. The
+		// results answer the streamed tool calls, so a final message with
+		// other tool calls, or none (a provider may leave it empty), falls
+		// back to the streamed tool calls alone.
+		assistantParts := finalContent
+
+		final := llm.Message{Content: finalContent}
+		if !maps.Equal(toolCallIDs(final.ToolRequests()), toolCallIDs(toolRequests)) {
+			assistantParts = make([]llm.Part, 0, len(toolRequests))
+			for _, tr := range toolRequests {
+				assistantParts = append(assistantParts, tr)
+			}
 		}
 
 		messages = append(messages, llm.Message{Role: llm.RoleAssistant, Content: assistantParts})
@@ -655,12 +667,15 @@ func streamToolTurn(
 	sw *streamWriter,
 	ew *EventWriter,
 	logger *slog.Logger,
-) (string, []*llm.ToolRequestPart) {
+) (string, []*llm.ToolRequestPart, []llm.Part) {
 	if err := ew.WriteChunk(Chunk{"type": "start-step"}); err != nil {
-		return "", nil
+		return "", nil, nil
 	}
 
-	var toolRequests []*llm.ToolRequestPart
+	var (
+		toolRequests []*llm.ToolRequestPart
+		finalContent []llm.Part
+	)
 
 	iterReq := *req
 	iterReq.Messages = messages
@@ -671,7 +686,7 @@ func streamToolTurn(
 		if err != nil {
 			if ctx.Err() != nil {
 				sw.writeAbort(ctx)
-				return "", nil
+				return "", nil, nil
 			}
 
 			logger.Error("stream error", "error", err)
@@ -688,29 +703,29 @@ func streamToolTurn(
 			_ = ew.WriteChunk(Chunk{"type": "error", "errorText": sw.onError(err)})
 			_ = ew.WriteChunk(Chunk{"type": "finish-step"})
 
-			return finishReasonError, nil
+			return finishReasonError, nil, nil
 		}
 
 		switch e := event.(type) {
 		case llm.ContentPartEvent:
 			if abort := handleToolTurnPart(e, sw, &toolRequests); abort {
-				return "", nil
+				return "", nil, nil
 			}
 
 		case llm.ErrorEvent:
 			logger.Warn("recoverable LLM error", "message", e.Message)
 
 			if err := ew.WriteChunk(Chunk{"type": "error", "errorText": sw.onError(errorEventErr(e))}); err != nil {
-				return "", nil
+				return "", nil, nil
 			}
 
 		case llm.StreamResetEvent:
 			if err := sw.endTextAndAdvance(); err != nil {
-				return "", nil
+				return "", nil, nil
 			}
 
 			if err := sw.endReasoning(); err != nil {
-				return "", nil
+				return "", nil, nil
 			}
 
 			for _, tr := range toolRequests {
@@ -734,11 +749,23 @@ func streamToolTurn(
 				}
 
 				toolRequests = nil
+			} else if e.Response != nil {
+				finalContent = e.Response.Message.Content
 			}
 		}
 	}
 
-	return finishReason, toolRequests
+	return finishReason, toolRequests, finalContent
+}
+
+// toolCallIDs returns the set of IDs of calls.
+func toolCallIDs(calls []*llm.ToolRequestPart) map[string]bool {
+	ids := make(map[string]bool, len(calls))
+	for _, tr := range calls {
+		ids[tr.ID] = true
+	}
+
+	return ids
 }
 
 func handleToolTurnPart(e llm.ContentPartEvent, sw *streamWriter, toolRequests *[]*llm.ToolRequestPart) bool {
