@@ -1364,3 +1364,5 @@ var bedrockFamilies = []family{
 		Rates:         pricing.RateCard{Base: pricing.NewRates(0.04, 0.08, 0)},
 	},
 }
+
+// ai-merge probe 2: does the bot approval satisfy the ruleset? will be closed without merging.
