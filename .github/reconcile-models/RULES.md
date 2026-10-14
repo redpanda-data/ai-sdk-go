@@ -89,7 +89,7 @@ The report's skip reasons and fields. `TestRulesFile` keeps both lists equal to 
 | L4 | Retirement is append-only: keep the entry, set `Retires`, and add a `// Deprecated:` comment on its ID constant that names the replacement. Never delete an entry. | Old usage must stay priceable. | change | none* |
 | L5 | Read the whole deprecation page on every run and re-check every `ReplacedBy`. A row for a dated snapshot counts for the entry whose ID points at that snapshot (Anthropic lists only dated IDs), but not for an alias that now points at a newer snapshot. | Nothing in the repo fails when a vendor announces a date, and an alias is deprecated only when the snapshot it points at is. | change | prompt |
 | L6 | Bedrock lifecycle depends on the model's Bedrock launch date. For models launched before 2026-09-07, `model-lifecycle-legacy.html` lists only Legacy and EOL models, so a model missing from it has no announced end of life. For later models, the model card's EOL date is the source: `N/A` means none is announced, and "EOL no sooner than" is a floor (L1). | AWS moved newer models' end-of-life dates to their model cards. | change | prompt |
-| L7 | *Open.* A regional copy that disappears from a model card with no announced end of life is kept and goes to `needs_human` on every run, until a recorded decision covers it (D1). | A card dropping a copy is not a retirement. | needs_human | prompt |
+| L7 | *Open.* A regional copy that disappears from a model card with no announced end of life is kept and goes to `needs_human` on every run. Once a recorded decision covers it, the PR shows the row as held (D2). | A card dropping a copy is not a retirement. | needs_human | prompt |
 
 ## B · Bedrock
 
@@ -145,7 +145,7 @@ The report's skip reasons and fields. `TestRulesFile` keeps both lists equal to 
 | ID | Rule | Why | Produces | Enforced |
 |---|---|---|---|---|
 | D1 | Review decisions live in `.github/reconcile-models/decisions.yaml` and change only through reviewed PRs. Each names one offering and field, its kind (`keep` pins a value to a lock in its snapshot shape; `hold` keeps an offering out), a public reason and a review-by date. | Later runs shouldn't reopen what a review settled. | – | PR job (P1) |
-| D2 | Read `decisions.yaml` before proposing changes, and don't change a decided value. A patch that moves a locked value, removes a kept offering or adds a held one fails the run, and so does any PR to the repo that does. | Agreed answers stop flipping, even if the agent ignores them. | rejected | prompt, tests (`TestDecisionsHold`, in the sandbox and every PR's CI) |
+| D2 | Read `decisions.yaml` before proposing changes, and don't change a decided value. Still report the rows the rules call for: the PR shows a row a decision answers as held, linked to the decision, not as a question. A patch that moves a locked value, removes a kept offering or adds a held one fails the run, and so does any PR to the repo that does. | Agreed answers stop flipping, even if the agent ignores them. | rejected | prompt, tests (`TestDecisionsHold`, in the sandbox and every PR's CI), validator (held rows) |
 | D3 | A decision covers one offering and field. It never widens sources, paths or gates, and a case that would need many decisions becomes a rule here instead. | Rules stay general, and decisions stay single cases. | – | none |
 
 ## Changing this file

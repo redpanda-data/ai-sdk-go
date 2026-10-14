@@ -21,35 +21,14 @@ import (
 	"regexp"
 	"strings"
 
-	"gopkg.in/yaml.v3"
-
 	"github.com/redpanda-data/ai-sdk-go/catalog"
+	"github.com/redpanda-data/ai-sdk-go/internal/reconcile"
 	"github.com/redpanda-data/ai-sdk-go/providers/anthropic"
 	"github.com/redpanda-data/ai-sdk-go/providers/bedrock"
 	"github.com/redpanda-data/ai-sdk-go/providers/google"
 	"github.com/redpanda-data/ai-sdk-go/providers/meta"
 	"github.com/redpanda-data/ai-sdk-go/providers/openai"
 	"github.com/redpanda-data/ai-sdk-go/providers/vertex"
-)
-
-// decision is one entry in .github/reconcile-models/decisions.yaml (RULES.md D1).
-type decision struct {
-	ID       string `yaml:"id"`
-	Offering string `yaml:"offering"`
-	Field    string `yaml:"field"`
-	Kind     string `yaml:"kind"`
-	Lock     any    `yaml:"lock"`
-	Reason   string `yaml:"reason"`
-	Decided  string `yaml:"decided"`
-	ReviewBy string `yaml:"review_by"`
-	PR       int    `yaml:"pr"`
-}
-
-// The two kinds of decision, and the field a hold applies to.
-const (
-	kindKeep      = "keep"
-	kindHold      = "hold"
-	fieldNewModel = "new_model"
 )
 
 // decisionProviders maps an offering's package prefix to its snapshot provider.
@@ -67,14 +46,14 @@ var decisionProviders = map[string]string{
 // on its model. A field with one key locks that value; one with several locks
 // an object of those present, keyed by their last part.
 var lockedKeys = map[string][]string{
-	fieldNewModel:      nil,
-	"price":            {"pricing"},
-	"limit":            {"constraints.max_input_tokens", "constraints.max_output_tokens"},
-	"capability":       {"capabilities", "modalities", "reasoning", "speeds"},
-	"lifecycle":        {"lifecycle.stage", "lifecycle.available", "lifecycle.deprecated", "lifecycle.retires"},
-	"replacement":      {"lifecycle.replaced_by"},
-	"release_date":     {"facts.released"},
-	"knowledge_cutoff": {"facts.knowledge"},
+	reconcile.FieldNewModel: nil,
+	"price":                 {"pricing"},
+	"limit":                 {"constraints.max_input_tokens", "constraints.max_output_tokens"},
+	"capability":            {"capabilities", "modalities", "reasoning", "speeds"},
+	"lifecycle":             {"lifecycle.stage", "lifecycle.available", "lifecycle.deprecated", "lifecycle.retires"},
+	"replacement":           {"lifecycle.replaced_by"},
+	"release_date":          {"facts.released"},
+	"knowledge_cutoff":      {"facts.knowledge"},
 }
 
 var decisionID = regexp.MustCompile(`^DEC-[0-9]{3}$`)
@@ -91,14 +70,8 @@ type snapshotDoc struct {
 // checkDecisions returns one problem per decision that is malformed or that
 // the snapshot contradicts.
 func checkDecisions(file, snapshotJSON []byte) []string {
-	var doc struct {
-		Decisions []decision `yaml:"decisions"`
-	}
-
-	decoder := yaml.NewDecoder(bytes.NewReader(file))
-	decoder.KnownFields(true)
-
-	if err := decoder.Decode(&doc); err != nil {
+	entries, err := reconcile.ParseDecisions(file)
+	if err != nil {
 		return []string{"decisions.yaml: " + err.Error()}
 	}
 
@@ -125,10 +98,10 @@ func checkDecisions(file, snapshotJSON []byte) []string {
 
 	ids, keys := map[string]bool{}, map[string]string{}
 
-	for _, d := range doc.Decisions {
+	for _, d := range entries {
 		key := d.Offering + " " + d.Field
 
-		switch problem := d.malformed(); {
+		switch problem := malformed(d); {
 		case problem != "":
 			problems = append(problems, d.ID+": "+problem)
 			continue
@@ -147,9 +120,9 @@ func checkDecisions(file, snapshotJSON []byte) []string {
 		where := fmt.Sprintf("%s %s %s %s: ", d.ID, d.Kind, d.Offering, d.Field)
 
 		switch {
-		case d.Kind == kindHold && exists:
+		case d.Kind == reconcile.KindHold && exists:
 			problems = append(problems, where+"the offering is in the catalogue")
-		case d.Kind == kindKeep && !exists:
+		case d.Kind == reconcile.KindKeep && !exists:
 			problems = append(problems, where+"the offering is missing")
 		case d.Lock != nil:
 			if got, want := canonical(lockedPart(d.Field, offering, snap.Facts)), canonical(d.Lock); got != want {
@@ -161,7 +134,7 @@ func checkDecisions(file, snapshotJSON []byte) []string {
 	return problems
 }
 
-func (d decision) malformed() string {
+func malformed(d reconcile.Decision) string {
 	pkg, id, _ := strings.Cut(d.Offering, ":")
 	_, knownField := lockedKeys[d.Field]
 	_, decidedErr := catalog.ParseDate(d.Decided)
@@ -170,7 +143,7 @@ func (d decision) malformed() string {
 	switch {
 	case !decisionID.MatchString(d.ID):
 		return "an ID is DEC- and three digits"
-	case d.Kind != kindKeep && d.Kind != kindHold:
+	case d.Kind != reconcile.KindKeep && d.Kind != reconcile.KindHold:
 		return "kind is keep or hold"
 	case decisionProviders[pkg] == "":
 		return "unknown package " + pkg
@@ -178,11 +151,11 @@ func (d decision) malformed() string {
 		return "an offering is <package>:<model ID>"
 	case !knownField:
 		return "unknown field " + d.Field
-	case d.Kind == kindHold && d.Field != fieldNewModel:
+	case d.Kind == reconcile.KindHold && d.Field != reconcile.FieldNewModel:
 		return "a hold applies only to new_model"
-	case d.Field == fieldNewModel && d.Lock != nil:
+	case d.Field == reconcile.FieldNewModel && d.Lock != nil:
 		return "new_model takes no lock"
-	case d.Field != fieldNewModel && d.Lock == nil:
+	case d.Field != reconcile.FieldNewModel && d.Lock == nil:
 		return "a keep needs a lock"
 	case d.Reason == "":
 		return "a decision needs a reason"

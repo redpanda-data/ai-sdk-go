@@ -22,6 +22,9 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
+
+	"github.com/redpanda-data/ai-sdk-go/internal/reconcile"
 )
 
 // maxBodyBytes keeps the PR body under GitHub's limit of 65,536 characters.
@@ -34,11 +37,13 @@ func main() {
 	diffPath := flag.String("diff", "", "optional snapshot diff to include")
 	outPath := flag.String("out", "", "where to write the PR body")
 	codeFilesPath := flag.String("code-files", "", "optional file listing the non-data files the patch changes, one per line")
+	decisionsPath := flag.String("decisions", "", "optional decisions.yaml, for the held table")
+	baseURL := flag.String("base-url", "", "optional link prefix for repo files at the base commit, e.g. https://github.com/OWNER/REPO/blob/SHA")
 
 	flag.Parse()
 
 	if *reportPath == "" || *provider == "" || *hostList == "" || *outPath == "" {
-		fmt.Fprintln(os.Stderr, "usage: catalog-report -report FILE -provider P -hosts h1,h2 [-diff FILE] [-code-files FILE] -out FILE")
+		fmt.Fprintln(os.Stderr, "usage: catalog-report -report FILE -provider P -hosts h1,h2 [-diff FILE] [-code-files FILE] [-decisions FILE] [-base-url URL] -out FILE")
 		os.Exit(2)
 	}
 
@@ -94,7 +99,23 @@ func main() {
 		}
 	}
 
-	body := RenderCapped(report, *provider, diff, codeFiles, maxBodyBytes)
+	base := Base{URL: *baseURL, Today: time.Now().UTC().Format(time.DateOnly)}
+
+	if *decisionsPath != "" {
+		raw, err := os.ReadFile(*decisionsPath)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "catalog-report:", err)
+			os.Exit(1)
+		}
+
+		base.Decisions, err = reconcile.ParseDecisions(raw)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "catalog-report: decisions.yaml:", err)
+			os.Exit(1)
+		}
+	}
+
+	body := RenderCapped(report, *provider, diff, codeFiles, base, maxBodyBytes)
 	if err := os.WriteFile(*outPath, []byte(body), 0o600); err != nil { //nolint:gosec,nolintlint // -out is set by pr-job.sh, not by the report; nolintlint: older linters don't know this gosec rule
 		fmt.Fprintln(os.Stderr, "catalog-report:", err)
 		os.Exit(1)

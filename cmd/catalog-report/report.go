@@ -23,6 +23,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/redpanda-data/ai-sdk-go/internal/reconcile"
 )
 
 // Report is the agent job's structured output. It deliberately has no
@@ -196,19 +198,131 @@ func link(raw string) string {
 	return "[" + parsed.Hostname() + "](" + raw + ")"
 }
 
+// valueList renders report values as comma-separated code spans.
+func valueList(values []string) string {
+	rendered := make([]string, 0, len(values))
+	for _, v := range values {
+		rendered = append(rendered, value(v))
+	}
+
+	return strings.Join(rendered, ", ")
+}
+
+// Base is what Render reads from the base commit: a link prefix for its
+// files (empty for no links), its decisions, and today as YYYY-MM-DD.
+type Base struct {
+	URL       string
+	Decisions []reconcile.Decision
+	Today     string
+}
+
+// fileLink links text to a repo file at the base commit, at line when it's
+// above 0. Without a base URL it's a code span.
+func (base Base) fileLink(text, path string, line int) string {
+	if base.URL == "" {
+		return code(text)
+	}
+
+	target := base.URL + "/" + path
+	if line > 0 {
+		target += fmt.Sprintf("#L%d", line)
+	}
+
+	return "[" + text + "](" + target + ")"
+}
+
+// sameOffering reports whether a report offering names a decision's. Report
+// offerings in the run's own package have no prefix (RULES.md R2); Bedrock
+// IDs contain ":", so the prefix can't be told apart by looking for one.
+func sameOffering(reported, provider, decided string) bool {
+	return decided == reported || decided == provider+":"+reported
+}
+
+// hold takes the needs_human and skipped rows a decision already answers out
+// of the report, and returns the rest with the held table's rows.
+func (base Base) hold(report Report, provider string) (Report, []string) {
+	find := func(offering, field string) (reconcile.Decision, bool) {
+		for _, d := range base.Decisions {
+			if d.Field == field && sameOffering(offering, provider, d.Offering) {
+				return d, true
+			}
+		}
+
+		return reconcile.Decision{}, false
+	}
+	row := func(d reconcile.Decision, offering, saw string) string {
+		return fmt.Sprintf("| %s | %s | %s | %s | %s |\n", base.fileLink(d.ID, reconcile.DecisionsPath, d.Line),
+			code(offering), d.Field, saw, strings.ReplaceAll(d.Reason, "|", `\|`))
+	}
+
+	var held []string
+
+	// Fresh slices: RenderCapped renders the same report more than once.
+	var needs []NeedsHuman
+
+	for _, item := range report.NeedsHuman {
+		if d, ok := find(item.Offering, item.Field); ok {
+			held = append(held, row(d, item.Offering, valueList(item.Values)))
+		} else {
+			needs = append(needs, item)
+		}
+	}
+
+	var skipped []Skipped
+
+	for _, item := range report.Skipped {
+		if d, ok := find(item.Offering, reconcile.FieldNewModel); ok {
+			held = append(held, row(d, item.Offering, item.Reason))
+		} else {
+			skipped = append(skipped, item)
+		}
+	}
+
+	report.NeedsHuman, report.Skipped = needs, skipped
+
+	return report, held
+}
+
+// summary is one line about decisions.yaml itself: how many decisions it
+// holds, and which are past their review date. It shows on every run.
+func (base Base) summary() string {
+	if len(base.Decisions) == 0 {
+		return ""
+	}
+
+	var overdue []string
+
+	for _, d := range base.Decisions {
+		if d.ReviewBy < base.Today {
+			overdue = append(overdue, d.ID)
+		}
+	}
+
+	due := "none."
+	if len(overdue) > 0 {
+		due = strings.Join(overdue, ", ") + " (still enforced)."
+	}
+
+	return fmt.Sprintf("Recorded decisions: %d, in %s. Past their review date: %s\n\n",
+		len(base.Decisions), base.fileLink("decisions.yaml", reconcile.DecisionsPath, 0), due)
+}
+
 // Render writes the PR body. Call it only on a report Validate accepted and
 // code files ValidateCodeFiles accepted. codeFiles are the files whose change
 // isn't data only, listed first so a reviewer reads them as code.
-func Render(report Report, provider, snapshotDiff string, codeFiles []string) string {
+func Render(report Report, provider, snapshotDiff string, codeFiles []string, base Base) string {
 	var body strings.Builder
 	body.WriteString("## Catalogue drift: " + provider + "\n\n")
 
-	if len(report.Changes)+len(report.NeedsHuman)+len(report.Skipped) == 0 && snapshotDiff == "" {
-		body.WriteString("No drift found.\n")
+	report, held := base.hold(report, provider)
+
+	if len(report.Changes)+len(report.NeedsHuman)+len(report.Skipped)+len(held) == 0 && snapshotDiff == "" {
+		body.WriteString("No drift found.\n\n" + base.summary())
 		return body.String()
 	}
 
-	body.WriteString("Proposed by the reconcile-models workflow. The tables come from the agent's structured report; the PR job checked its format and that every source is a named source. Check each value against its source before approving.\n\nDon't push commits to this branch: each run rebuilds it from main and force-pushes, so they would be lost. Comment on the PR instead.\n\n")
+	body.WriteString("Proposed by the reconcile-models workflow. The tables come from the agent's structured report; the PR job checked its format and that every source is a named source. Check each value against its source before approving.\n\nDon't push commits to this branch: each run rebuilds it from main and force-pushes, so they would be lost. To settle a row, merge a fix on main or record a decision in `.github/reconcile-models/decisions.yaml`. Later runs don't read PR comments.\n\n")
+	body.WriteString(base.summary())
 
 	if len(codeFiles) > 0 {
 		fmt.Fprintf(&body, "### Code changed (%d)\n\nThese files change code, not only data. Review them as code before marking the PR ready: marking it ready runs them with secrets.\n\n", len(codeFiles))
@@ -234,20 +348,20 @@ func Render(report Report, provider, snapshotDiff string, codeFiles []string) st
 		fmt.Fprintf(&body, "### Needs a human (%d)\n\n| Offering | Field | Values | Sources |\n|---|---|---|---|\n", len(report.NeedsHuman))
 
 		for _, item := range report.NeedsHuman {
-			values := make([]string, 0, len(item.Values))
-			for _, v := range item.Values {
-				values = append(values, value(v))
-			}
-
 			sources := make([]string, 0, len(item.SourceURLs))
 			for _, source := range item.SourceURLs {
 				sources = append(sources, link(source))
 			}
 
-			fmt.Fprintf(&body, "| %s | %s | %s | %s |\n", code(item.Offering), item.Field, strings.Join(values, ", "), strings.Join(sources, ", "))
+			fmt.Fprintf(&body, "| %s | %s | %s | %s |\n", code(item.Offering), item.Field, valueList(item.Values), strings.Join(sources, ", "))
 		}
 
 		body.WriteString("\n")
+	}
+
+	if len(held) > 0 {
+		fmt.Fprintf(&body, "### Held by decisions (%d)\n\nQuestions a recorded decision already answers. Nothing here changes.\n\n| Decision | Offering | Field | What the bot saw | Why it's settled |\n|---|---|---|---|---|\n", len(held))
+		body.WriteString(strings.Join(held, "") + "\n")
 	}
 
 	if len(report.Skipped) > 0 {
@@ -272,13 +386,13 @@ const truncatedNote = "\n… (truncated; see the workflow artifact)"
 
 // RenderCapped is Render, kept within limit bytes so GitHub accepts the PR
 // body. Only the snapshot diff is shortened, and only between lines.
-func RenderCapped(report Report, provider, snapshotDiff string, codeFiles []string, limit int) string {
-	body := Render(report, provider, snapshotDiff, codeFiles)
+func RenderCapped(report Report, provider, snapshotDiff string, codeFiles []string, base Base, limit int) string {
+	body := Render(report, provider, snapshotDiff, codeFiles, base)
 	if len(body) <= limit {
 		return body
 	}
 
-	room := limit - len(Render(report, provider, truncatedNote, codeFiles))
+	room := limit - len(Render(report, provider, truncatedNote, codeFiles, base))
 	diff := ""
 
 	if room > 0 {
@@ -286,5 +400,5 @@ func RenderCapped(report Report, provider, snapshotDiff string, codeFiles []stri
 		diff = diff[:max(strings.LastIndexByte(diff, '\n'), 0)]
 	}
 
-	return Render(report, provider, diff+truncatedNote, codeFiles)
+	return Render(report, provider, diff+truncatedNote, codeFiles, base)
 }

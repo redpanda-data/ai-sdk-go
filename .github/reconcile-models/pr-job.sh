@@ -27,12 +27,21 @@ priv="$(mktemp -d)"
 priv="$(cd "$priv" && pwd -P)"
 trap 'rm -rf "$priv"' EXIT
 cp "$out/report.json" "$priv/report.json"
+cp .github/reconcile-models/decisions.yaml "$priv/decisions.yaml"
 if [[ -f "$out/patch.diff" ]]; then cp "$out/patch.diff" "$priv/patch.diff"; else : >"$priv/patch.diff"; fi
 report="$priv/report.json"
 patch="$priv/patch.diff"
 go build -o "$priv/catalog-report" ./cmd/catalog-report
 go build -o "$priv/catalog-guard" ./cmd/catalog-guard
-render() { "$priv/catalog-report" -report "$report" -provider "$provider" -hosts "$hosts" -out "$out/body.md" "$@"; }
+# The PR body links repo files at the base commit.
+base_url=""
+if [[ -n "${GITHUB_REPOSITORY:-}" ]]; then
+  base_url="${GITHUB_SERVER_URL:-https://github.com}/$GITHUB_REPOSITORY/blob/$(git rev-parse HEAD)"
+fi
+render() {
+  "$priv/catalog-report" -report "$report" -provider "$provider" -hosts "$hosts" \
+    -decisions "$priv/decisions.yaml" -base-url "$base_url" -out "$out/body.md" "$@"
+}
 
 # A clean run lists nothing. If every offering was skipped because no named
 # source could be read, the agent checked nothing, so fail instead of passing.

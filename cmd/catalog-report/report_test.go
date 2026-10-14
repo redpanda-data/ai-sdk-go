@@ -25,6 +25,8 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/redpanda-data/ai-sdk-go/internal/reconcile"
 )
 
 var hosts = []string{"platform.claude.com"}
@@ -132,11 +134,26 @@ func TestRender(t *testing.T) {
 
 	diff := "-  \"input\": 4\n+  \"input\": 5\n"
 
+	const baseURL = "https://example.test/blob/abc"
+
+	decisionsURL := baseURL + "/" + reconcile.DecisionsPath
+	keepLimit := reconcile.Decision{
+		ID: "DEC-001", Offering: "anthropic:claude-sonnet-5-5", Field: "limit", Kind: reconcile.KindKeep,
+		Reason: "Agreed in review.", ReviewBy: "2027-01-13", Line: 3,
+	}
+	holdOld := reconcile.Decision{
+		ID: "DEC-002", Offering: "vertex:claude-haiku-4-5", Field: reconcile.FieldNewModel, Kind: reconcile.KindHold,
+		Reason: "Not offered to users.", ReviewBy: "2027-01-13", Line: 12,
+	}
+	otherField := keepLimit
+	otherField.Field = "price"
+
 	tests := []struct {
 		name        string
 		report      Report
 		diff        string
 		codeFiles   []string
+		base        Base
 		contains    []string
 		notContains []string
 	}{
@@ -166,10 +183,49 @@ func TestRender(t *testing.T) {
 			notContains: []string{"No drift found"},
 		},
 		{
-			name:     "says not to push to the branch",
-			report:   validReport(),
-			diff:     diff,
-			contains: []string{"Don't push commits to this branch"},
+			name:        "says not to push to the branch, and how to settle a row",
+			report:      validReport(),
+			diff:        diff,
+			contains:    []string{"Don't push commits to this branch", "record a decision in `.github/reconcile-models/decisions.yaml`"},
+			notContains: []string{"Comment on the PR instead", "Recorded decisions"},
+		},
+		{
+			name:   "a needs_human row a decision answers is held, not asked",
+			report: validReport(),
+			base:   Base{URL: baseURL, Decisions: []reconcile.Decision{keepLimit}, Today: "2026-10-14"},
+			contains: []string{
+				"### Held by decisions (1)",
+				"| [DEC-001](" + decisionsURL + "#L3) | `claude-sonnet-5-5` | limit | `65535`, `65536` | Agreed in review. |",
+				"Recorded decisions: 1, in [decisions.yaml](" + decisionsURL + "). Past their review date: none.",
+			},
+			notContains: []string{"### Needs a human"},
+		},
+		{
+			name:        "a skipped offering under a hold is held",
+			report:      Report{Skipped: []Skipped{{Offering: "vertex:claude-haiku-4-5", Reason: "out_of_scope"}}},
+			base:        Base{URL: baseURL, Decisions: []reconcile.Decision{holdOld}, Today: "2026-10-14"},
+			contains:    []string{"| [DEC-002](" + decisionsURL + "#L12) | `vertex:claude-haiku-4-5` | new_model | out_of_scope | Not offered to users. |"},
+			notContains: []string{"### Skipped"},
+		},
+		{
+			name:        "a decision on another field holds nothing",
+			report:      validReport(),
+			base:        Base{URL: baseURL, Decisions: []reconcile.Decision{otherField}, Today: "2026-10-14"},
+			contains:    []string{"### Needs a human (1)"},
+			notContains: []string{"### Held by decisions"},
+		},
+		{
+			name:     "an overdue decision is named even with no drift",
+			report:   Report{},
+			base:     Base{URL: baseURL, Decisions: []reconcile.Decision{keepLimit}, Today: "2027-02-01"},
+			contains: []string{"No drift found", "Past their review date: DEC-001 (still enforced)."},
+		},
+		{
+			name:        "no links without a base URL",
+			report:      validReport(),
+			base:        Base{Decisions: []reconcile.Decision{keepLimit}, Today: "2026-10-14"},
+			contains:    []string{"| `DEC-001` | `claude-sonnet-5-5` |", "Recorded decisions: 1, in `decisions.yaml`."},
+			notContains: []string{"](#L"},
 		},
 		{
 			name:      "lists code files changed",
@@ -202,7 +258,7 @@ func TestRender(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			body := Render(tt.report, "anthropic", tt.diff, tt.codeFiles)
+			body := Render(tt.report, "anthropic", tt.diff, tt.codeFiles, tt.base)
 			for _, want := range tt.contains {
 				assert.Contains(t, body, want)
 			}
@@ -255,7 +311,7 @@ func TestRenderCapped(t *testing.T) {
 
 	t.Run("fits: unchanged", func(t *testing.T) {
 		t.Parallel()
-		assert.Equal(t, Render(report, "anthropic", diff, nil), RenderCapped(report, "anthropic", diff, nil, 1<<20))
+		assert.Equal(t, Render(report, "anthropic", diff, nil, Base{}), RenderCapped(report, "anthropic", diff, nil, Base{}, 1<<20))
 	})
 
 	t.Run("too long: diff cut on a line, body within the limit", func(t *testing.T) {
@@ -263,7 +319,7 @@ func TestRenderCapped(t *testing.T) {
 
 		const limit = 6000
 
-		body := RenderCapped(report, "anthropic", diff, nil, limit)
+		body := RenderCapped(report, "anthropic", diff, nil, Base{}, limit)
 		assert.LessOrEqual(t, len(body), limit)
 		assert.Contains(t, body, "### Changes (1)")
 		assert.Contains(t, body, "truncated; see the workflow artifact")
