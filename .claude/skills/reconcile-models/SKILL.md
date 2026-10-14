@@ -17,6 +17,9 @@ our entries, fix, regenerate the snapshot. **The snapshot diff is the review
 surface** — every change must be visible and intended in
 `catalog/snapshot.json`.
 
+CI runs follow `.github/reconcile-models/RULES.md`; its rows marked **CI**
+differ from this skill.
+
 ## Sources, in order of authority
 
 1. **Provider pages (authoritative — the only sources cited in code):**

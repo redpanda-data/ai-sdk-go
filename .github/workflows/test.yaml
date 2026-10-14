@@ -11,6 +11,8 @@ on:
       - '.github/workflows/test.yaml'
       - '.github/reconcile-models/RULES.md'
       - '.github/reconcile-models/report.schema.json'
+      - '.github/reconcile-models/prompt.md'
+      - '.github/workflows/reconcile-models.yml'
   pull_request:
     # ready_for_review starts the full run on the reconcile bot's PRs (see the
     # jobs below); on everyone else's PRs it does nothing.
@@ -22,6 +24,8 @@ on:
       - '.github/workflows/test.yaml'
       - '.github/reconcile-models/RULES.md'
       - '.github/reconcile-models/report.schema.json'
+      - '.github/reconcile-models/prompt.md'
+      - '.github/workflows/reconcile-models.yml'
   pull_request_target:
     types: [labeled]
 

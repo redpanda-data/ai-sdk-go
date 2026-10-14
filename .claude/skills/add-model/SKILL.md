@@ -17,6 +17,9 @@ entry, so a broken entry fails every test run with a path-qualified error.
 Adding a model must never require editing an existing entry: generation
 ordering, succession, and price tiers are derived at read time.
 
+CI runs follow `.github/reconcile-models/RULES.md`; its rows marked **CI**
+differ from this skill.
+
 ## Step 1 — Register facts (once per logical model)
 
 In `catalog/facts_data.go`: canonical `ModelID` constant

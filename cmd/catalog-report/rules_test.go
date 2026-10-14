@@ -198,3 +198,21 @@ func TestRulesFile(t *testing.T) {
 	assert.ElementsMatch(t, reasons, file.reasons, "skip reasons in RULES.md vs report.go")
 	assert.ElementsMatch(t, fields, file.fields, "fields in RULES.md vs report.go")
 }
+
+func TestRulesReachTheAgent(t *testing.T) {
+	t.Parallel()
+
+	workflow, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", "reconcile-models.yml"))
+	require.NoError(t, err)
+	assert.Contains(t, string(workflow), "--append-system-prompt-file .github/reconcile-models/RULES.md",
+		"the workflow must hand RULES.md to the agent")
+
+	prompt, err := os.ReadFile(filepath.Join("..", "..", ".github", "reconcile-models", "prompt.md"))
+	require.NoError(t, err)
+
+	// The rules live in RULES.md alone: a skip reason or field named in the
+	// prompt means a rule was copied there.
+	for _, word := range slices.Concat(reasons, fields) {
+		assert.NotContains(t, string(prompt), "`"+word+"`", "prompt.md restates a rule")
+	}
+}
