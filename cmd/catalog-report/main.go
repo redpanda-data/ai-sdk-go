@@ -37,13 +37,14 @@ func main() {
 	diffPath := flag.String("diff", "", "optional snapshot diff to include")
 	outPath := flag.String("out", "", "where to write the PR body")
 	codeFilesPath := flag.String("code-files", "", "optional file listing the non-data files the patch changes, one per line")
+	rulesPath := flag.String("rules", "", "RULES.md, for the rule each row names")
 	decisionsPath := flag.String("decisions", "", "optional decisions.yaml, for the held table")
 	baseURL := flag.String("base-url", "", "optional link prefix for repo files at the base commit, e.g. https://github.com/OWNER/REPO/blob/SHA")
 
 	flag.Parse()
 
-	if *reportPath == "" || *provider == "" || *hostList == "" || *outPath == "" {
-		fmt.Fprintln(os.Stderr, "usage: catalog-report -report FILE -provider P -hosts h1,h2 [-diff FILE] [-code-files FILE] [-decisions FILE] [-base-url URL] -out FILE")
+	if *reportPath == "" || *provider == "" || *hostList == "" || *rulesPath == "" || *outPath == "" {
+		fmt.Fprintln(os.Stderr, "usage: catalog-report -report FILE -provider P -hosts h1,h2 -rules FILE [-diff FILE] [-code-files FILE] [-decisions FILE] [-base-url URL] -out FILE")
 		os.Exit(2)
 	}
 
@@ -59,7 +60,22 @@ func main() {
 		os.Exit(1)
 	}
 
-	if problems := Validate(report, strings.Split(*hostList, ",")); len(problems) > 0 {
+	rawRules, err := os.ReadFile(*rulesPath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "catalog-report:", err)
+		os.Exit(1)
+	}
+
+	rules, problems := reconcile.ParseRules(rawRules)
+	if len(problems) > 0 {
+		for _, problem := range problems {
+			fmt.Fprintln(os.Stderr, "catalog-report: RULES.md:", problem)
+		}
+
+		os.Exit(1)
+	}
+
+	if problems := Validate(report, strings.Split(*hostList, ","), rules); len(problems) > 0 {
 		for _, problem := range problems {
 			fmt.Fprintln(os.Stderr, "catalog-report:", problem)
 		}
@@ -99,7 +115,7 @@ func main() {
 		}
 	}
 
-	base := Base{URL: *baseURL, Today: time.Now().UTC().Format(time.DateOnly)}
+	base := Base{URL: *baseURL, Rules: rules, Today: time.Now().UTC().Format(time.DateOnly)}
 
 	if *decisionsPath != "" {
 		raw, err := os.ReadFile(*decisionsPath)

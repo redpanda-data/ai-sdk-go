@@ -19,7 +19,6 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -52,22 +51,11 @@ func TestDecisionsHold(t *testing.T) {
 func TestDecisionFieldsMatchRules(t *testing.T) {
 	t.Parallel()
 
-	raw, err := os.ReadFile(filepath.Join("..", "..", ".github", "reconcile-models", "RULES.md"))
+	raw, err := os.ReadFile(filepath.Join("..", "..", reconcile.RulesPath))
 	require.NoError(t, err)
 
-	_, table, found := strings.Cut(string(raw), "| Field | Covers |")
-	require.True(t, found, "RULES.md has no Field table")
-
-	table, _, _ = strings.Cut(table, "\n\n")
-
-	rows := regexp.MustCompile("(?m)^\\| `([a-z_]+)` \\|").FindAllStringSubmatch(table, -1)
-
-	ruled := make([]string, 0, len(rows))
-	for _, row := range rows {
-		ruled = append(ruled, row[1])
-	}
-
-	assert.ElementsMatch(t, ruled, slices.Collect(maps.Keys(lockedKeys)))
+	rules, _ := reconcile.ParseRules(raw)
+	assert.ElementsMatch(t, slices.Collect(maps.Keys(rules.Fields)), slices.Collect(maps.Keys(lockedKeys)))
 }
 
 func TestCheckDecisions(t *testing.T) {

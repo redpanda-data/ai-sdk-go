@@ -27,7 +27,7 @@ priv="$(mktemp -d)"
 priv="$(cd "$priv" && pwd -P)"
 trap 'rm -rf "$priv"' EXIT
 cp "$out/report.json" "$priv/report.json"
-cp .github/reconcile-models/decisions.yaml "$priv/decisions.yaml"
+cp .github/reconcile-models/decisions.yaml .github/reconcile-models/RULES.md "$priv/"
 if [[ -f "$out/patch.diff" ]]; then cp "$out/patch.diff" "$priv/patch.diff"; else : >"$priv/patch.diff"; fi
 report="$priv/report.json"
 patch="$priv/patch.diff"
@@ -40,7 +40,7 @@ if [[ -n "${GITHUB_REPOSITORY:-}" ]]; then
 fi
 render() {
   "$priv/catalog-report" -report "$report" -provider "$provider" -hosts "$hosts" \
-    -decisions "$priv/decisions.yaml" -base-url "$base_url" -out "$out/body.md" "$@"
+    -rules "$priv/RULES.md" -decisions "$priv/decisions.yaml" -base-url "$base_url" -out "$out/body.md" "$@"
 }
 
 # A clean run lists nothing. If every offering was skipped because no named

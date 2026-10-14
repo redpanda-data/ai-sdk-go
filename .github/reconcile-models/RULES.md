@@ -18,7 +18,7 @@ The report's skip reasons and fields. `TestRulesFile` keeps both lists equal to 
 | `limited_availability` | the model needs a signup or an access request |
 | `vendor_excluded` | the model's vendor isn't tracked |
 | `out_of_scope` | the catalogue doesn't take this model on: too old, or on its way out |
-| `not_on_named_sources` | no named-source page carries the offering's values, so it couldn't be checked |
+| `not_on_named_sources` | no named-source page carries the offering's values, so it couldn't be checked (R7) |
 | `conflicting_sources` | no rule uses it yet (R6) |
 | `needs_new_pricing_shape` | no rule uses it yet (R6) |
 
@@ -32,6 +32,24 @@ The report's skip reasons and fields. `TestRulesFile` keeps both lists equal to 
 | `knowledge_cutoff` | `Knowledge` |
 | `release_date` | `Released` |
 | `capability` | capabilities, modalities, reasoning and speeds |
+
+## Questions for a person
+
+Each rule that can send a row to `needs_human` asks one fixed question, shown in the PR above what the bot found. The bot writes no question text.
+
+| Rule | Question for a person |
+|---|---|
+| C3 | A fixed fact differs from its source page. Which value is right? |
+| C6 | The vendor gives only a month for this release. Which day is `Released`? |
+| C14 | No override or bracket can express this price. Add a pricing type, or keep the current price? |
+| L3 | The catalogue doesn't carry this model's replacement. Add an exception in `cmd/catalog-snapshot/lifecycle_test.go`, or choose a replacement it carries? |
+| L7 | This regional copy is gone from its model card, with no announced end of life. Keep it (record a decision), or retire it? |
+| B5 | This needs a region prefix the code doesn't know, and it would change routing for existing callers in that region. Offer the region? |
+| B7 | The only replacement for this retiring copy is in another region. Accept the move, or choose another replacement? |
+| V4 | Anthropic's overview doesn't list Vertex as supporting tool search, or lists it as beta. Change Vertex to match Anthropic anyway? |
+| P2 | The fix needs a file the bot may not edit (named below). Make the change by hand? |
+| G3 | The change breaks a test outside the bot's packages (named below). Fix the test, or drop the change? |
+| R4 | What should change? If this can happen again, add a rule. |
 
 ## S · Sources
 
@@ -136,9 +154,10 @@ The report's skip reasons and fields. `TestRulesFile` keeps both lists equal to 
 | R1 | The report is one JSON object with exactly `changes`, `needs_human` and `skipped`, all present arrays. It holds no free text: fields and skip reasons come from the tables above, and values are short strings without links. | Nothing in the PR body can carry markup or links, and a missing report never reads as "no drift". | rejected | validator, schema |
 | R2 | Name offerings in `providers/<vendor>` by the bare model ID, and offerings elsewhere as `<package>:<model ID>`, e.g. `vertex:claude-sonnet-5`. | Each row maps to one package. | – | prompt* |
 | R3 | One `changes` row per value changed or model added, citing the exact page. A new model is a `new_model` row with an empty old value and the model ID as the new one. A patch with no `changes` rows, or `changes` rows with no patch, fails the run. | The table must match the diff. | change, rejected (a patch without rows, or rows without a patch) | PR job (patch and rows together), prompt* (one row per value) |
-| R4 | No person takes part in a run, so the agent asks no questions. Anything that needs a decision goes in `needs_human`, with values naming the file, test or competing values, and at least one source. List an offering in `skipped` only when a rule leaves it out or it couldn't be checked, and never if it has a `needs_human` row. | A reviewer gets everything needed to decide, and a skip always means something. | needs_human | tools (no `AskUserQuestion`), prompt* (no double listing), validator (shape) |
+| R4 | No person takes part in a run, so the agent asks no questions. Anything that needs a decision goes in `needs_human`, with values naming the file, test or competing values, and at least one source. List an offering in `skipped` only when a rule leaves it out, and never if it has a `needs_human` row. Each `skipped` and `needs_human` row names the rule whose Produces gives its outcome, or R4 when none does. | A reviewer gets everything needed to decide, and a skip always means something. | needs_human | tools (no `AskUserQuestion`), prompt* (no double listing), validator (shape, the rule fits the row) |
 | R5 | A report with no `changes` or `needs_human` rows, whose every skip is `not_on_named_sources`, fails the run. An empty report passes as "No drift found." | A run that read nothing must not pass. | rejected | PR job |
 | R6 | *Open.* No rule produces `conflicting_sources` or `needs_new_pricing_shape`. Those cases go to `needs_human`: a fixed fact that differs from its page (C3), a price no override or bracket can express (C14), and any other disagreement between named sources, with both values (R4). | Two buckets for one case make reports differ between runs. | – | prompt* (the schema and validator still accept both reasons) |
+| R7 | Skip an offering as `not_on_named_sources` when no named-source page carries its values, so it couldn't be checked. | A skip says why the offering went unchecked, and R5 fails a run that checked nothing. | skip:`not_on_named_sources` | prompt |
 
 ## D · Recorded decisions
 
@@ -150,4 +169,4 @@ The report's skip reasons and fields. `TestRulesFile` keeps both lists equal to 
 
 ## Changing this file
 
-Change a rule only in a reviewed PR. A new Produces or Enforced word goes in the legend first, and the skip reasons and fields above must match `cmd/catalog-report`; `TestRulesFile` fails until they do.
+Change a rule only in a reviewed PR. A new Produces or Enforced word goes in the legend first, the skip reasons and fields above must match `cmd/catalog-report`, and a rule that can produce `needs_human` needs a question; `TestRulesFile` fails until they do.

@@ -31,6 +31,15 @@ import (
 
 var hosts = []string{"platform.claude.com"}
 
+// testRules is a RULES.md with one skip rule, one rule that asks a person,
+// and R4 for rows no rule covers.
+var testRules = reconcile.Rules{
+	Lines:     map[string]int{"T1": 40, "L3": 80, "R4": 120},
+	Reasons:   map[string]string{"limited_availability": "the model needs a signup", "conflicting_sources": "no rule uses it yet"},
+	Questions: map[string]string{"L3": "Which replacement?", "R4": "No rule covers this. Decide."},
+	Produces:  map[string][]string{"T1": {"skip:`limited_availability`"}, "L3": {"needs_human"}, "R4": {"needs_human"}},
+}
+
 func validReport() Report {
 	return Report{
 		Changes: []Change{{
@@ -38,10 +47,10 @@ func validReport() Report {
 			SourceURL: "https://platform.claude.com/docs/en/about-claude/pricing.md",
 		}},
 		NeedsHuman: []NeedsHuman{{
-			Offering: "claude-sonnet-5-5", Field: "limit", Values: []string{"65535", "65536"},
+			Offering: "claude-sonnet-5-5", Field: "limit", Values: []string{"65535", "65536"}, Rule: "R4",
 			SourceURLs: []string{"https://platform.claude.com/docs/en/about-claude/models/overview.md"},
 		}},
-		Skipped: []Skipped{{Offering: "claude-haiku-4-5", Reason: "conflicting_sources"}},
+		Skipped: []Skipped{{Offering: "claude-haiku-4-5", Reason: "conflicting_sources", Rule: "R4"}},
 	}
 }
 
@@ -77,6 +86,10 @@ func TestValidate(t *testing.T) {
 			r.Changes[0].SourceURL = "https://platform.claude.com/docs/en/pricing?tab=batch&x=1#model-pricing"
 		}, ""},
 		{"missing needs_human source", func(r *Report) { r.NeedsHuman[0].SourceURLs = nil }, "source"},
+		{"rule RULES.md doesn't have", func(r *Report) { r.Skipped[0].Rule = "Z9" }, `skipped[0]: unknown rule "Z9"`},
+		{"needs_human rule that never asks a person", func(r *Report) { r.NeedsHuman[0].Rule = "T1" }, "needs_human[0]: rule T1 doesn't produce needs_human"},
+		{"skip rule for another reason", func(r *Report) { r.Skipped[0].Rule = "T1" }, "skipped[0]: rule T1 doesn't produce skip:`conflicting_sources`"},
+		{"skip rule for this reason", func(r *Report) { r.Skipped[0] = Skipped{Offering: "x", Reason: "limited_availability", Rule: "T1"} }, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -85,7 +98,7 @@ func TestValidate(t *testing.T) {
 			report := validReport()
 			tt.mutate(&report)
 
-			problems := Validate(report, hosts)
+			problems := Validate(report, hosts, testRules)
 			if tt.wantErr == "" {
 				assert.Empty(t, problems)
 				return
@@ -137,6 +150,12 @@ func TestRender(t *testing.T) {
 	const baseURL = "https://example.test/blob/abc"
 
 	decisionsURL := baseURL + "/" + reconcile.DecisionsPath
+	rulesURL := baseURL + "/" + reconcile.RulesPath + "?plain=1"
+	twoAsks := validReport()
+	twoAsks.NeedsHuman = append(twoAsks.NeedsHuman, NeedsHuman{
+		Offering: "claude-opus-4-1", Field: "replacement", Rule: "L3",
+		SourceURLs: []string{"https://platform.claude.com/docs/en/about-claude/model-deprecations.md"},
+	})
 	keepLimit := reconcile.Decision{
 		ID: "DEC-001", Offering: "anthropic:claude-sonnet-5-5", Field: "limit", Kind: reconcile.KindKeep,
 		Reason: "Agreed in review.", ReviewBy: "2027-01-13", Line: 3,
@@ -165,7 +184,7 @@ func TestRender(t *testing.T) {
 				"## Catalogue drift: anthropic",
 				"| `claude-opus-5-5` | price | `4.00` | `5.00` | [platform.claude.com](https://platform.claude.com/docs/en/about-claude/pricing.md) |",
 				"`65535`, `65536`",
-				"| `claude-haiku-4-5` | conflicting_sources |",
+				"| ⚠ `R4` | `conflicting_sources` | `claude-haiku-4-5` |",
 				"```diff",
 			},
 		},
@@ -206,6 +225,34 @@ func TestRender(t *testing.T) {
 			base:        Base{URL: baseURL, Decisions: []reconcile.Decision{holdOld}, Today: "2026-10-14"},
 			contains:    []string{"| [DEC-002](" + decisionsURL + "#L12) | `vertex:claude-haiku-4-5` | new_model | out_of_scope | Not offered to users. |"},
 			notContains: []string{"### Skipped"},
+		},
+		{
+			name:   "needs a human is a block per row, marked when no rule covers it",
+			report: twoAsks,
+			base:   Base{URL: baseURL, Rules: testRules},
+			contains: []string{
+				"### Needs a human (2): 1 by a rule, 1 with no rule",
+				"**1. `claude-sonnet-5-5` · limit · ⚠ no rule covers this ([R4](" + rulesURL + "#L120))**",
+				"- **Question:** No rule covers this. Decide.",
+				"- **Found:** `65535`, `65536`",
+				"- **Sources:** [platform.claude.com](https://platform.claude.com/docs/en/about-claude/models/overview.md)",
+				"**2. `claude-opus-4-1` · replacement · rule [L3](" + rulesURL + "#L80)**\n- **Question:** Which replacement?\n- **Sources:**",
+			},
+			notContains: []string{"| Offering | Field | Values |"},
+		},
+		{
+			name: "skipped rows are grouped by rule",
+			report: Report{Skipped: []Skipped{
+				{Offering: "claude-mythos-5", Reason: "limited_availability", Rule: "T1"},
+				{Offering: "claude-haiku-4-5", Reason: "conflicting_sources", Rule: "R4"},
+				{Offering: "claude-mythos-5-1", Reason: "limited_availability", Rule: "T1"},
+			}},
+			base: Base{URL: baseURL, Rules: testRules},
+			contains: []string{
+				"### Skipped (3)\n\n| Rule | Why | Offerings |",
+				"| [T1](" + rulesURL + "#L40) | the model needs a signup (`limited_availability`) | `claude-mythos-5`, `claude-mythos-5-1` |",
+				"| ⚠ [R4](" + rulesURL + "#L120) | no rule uses it yet (`conflicting_sources`) | `claude-haiku-4-5` |",
+			},
 		},
 		{
 			name:        "a decision on another field holds nothing",

@@ -45,18 +45,21 @@ type Change struct {
 	SourceURL string `json:"source_url"`
 }
 
-// NeedsHuman is a value the agent couldn't decide.
+// NeedsHuman is a value the agent couldn't decide. Rule is the RULES.md rule
+// that sent it to a person, or R4 when no rule covers the case.
 type NeedsHuman struct {
 	Offering   string   `json:"offering"`
 	Field      string   `json:"field"`
 	Values     []string `json:"values"`
 	SourceURLs []string `json:"source_urls"`
+	Rule       string   `json:"rule"`
 }
 
-// Skipped is an offering the agent left alone.
+// Skipped is an offering the agent left alone, and the rule that left it out.
 type Skipped struct {
 	Offering string `json:"offering"`
 	Reason   string `json:"reason"`
+	Rule     string `json:"rule"`
 }
 
 var (
@@ -109,9 +112,18 @@ func Parse(data []byte) (Report, error) {
 	return Report{Changes: *raw.Changes, NeedsHuman: *raw.NeedsHuman, Skipped: *raw.Skipped}, nil
 }
 
-// Validate lists every problem that would make the report unsafe to render.
-func Validate(report Report, hosts []string) []string {
+// Validate lists every problem that would make the report unsafe to render,
+// including a row that names a rule RULES.md doesn't have.
+func Validate(report Report, hosts []string, rules reconcile.Rules) []string {
 	var problems []string
+	// A row's rule must exist and produce the row's outcome (RULES.md R4).
+	checkRule := func(where, id, outcome string) {
+		if _, ok := rules.Lines[id]; !ok {
+			problems = append(problems, where+": unknown rule "+fmt.Sprintf("%q", id))
+		} else if !rules.Fits(id, outcome) {
+			problems = append(problems, where+": rule "+id+" doesn't produce "+outcome)
+		}
+	}
 	checkOffering := func(where, offering string) {
 		if !offeringPattern.MatchString(offering) {
 			problems = append(problems, where+": bad offering "+fmt.Sprintf("%q", offering))
@@ -163,6 +175,8 @@ func Validate(report Report, hosts []string) []string {
 		for _, source := range item.SourceURLs {
 			checkSource(where, source)
 		}
+
+		checkRule(where, item.Rule, "needs_human")
 	}
 
 	for index, item := range report.Skipped {
@@ -172,6 +186,8 @@ func Validate(report Report, hosts []string) []string {
 		if !slices.Contains(reasons, item.Reason) {
 			problems = append(problems, where+": unknown reason "+fmt.Sprintf("%q", item.Reason))
 		}
+
+		checkRule(where, item.Rule, "skip:"+code(item.Reason))
 	}
 
 	return problems
@@ -209,15 +225,17 @@ func valueList(values []string) string {
 }
 
 // Base is what Render reads from the base commit: a link prefix for its
-// files (empty for no links), its decisions, and today as YYYY-MM-DD.
+// files (empty for no links), its rules and decisions, and today as YYYY-MM-DD.
 type Base struct {
 	URL       string
+	Rules     reconcile.Rules
 	Decisions []reconcile.Decision
 	Today     string
 }
 
 // fileLink links text to a repo file at the base commit, at line when it's
-// above 0. Without a base URL it's a code span.
+// above 0. Without a base URL it's a code span. GitHub renders markdown
+// files, so a line link to one needs ?plain=1.
 func (base Base) fileLink(text, path string, line int) string {
 	if base.URL == "" {
 		return code(text)
@@ -225,10 +243,85 @@ func (base Base) fileLink(text, path string, line int) string {
 
 	target := base.URL + "/" + path
 	if line > 0 {
+		if strings.HasSuffix(path, ".md") {
+			target += "?plain=1"
+		}
+
 		target += fmt.Sprintf("#L%d", line)
 	}
 
 	return "[" + text + "](" + target + ")"
+}
+
+// ruleLink links a rule ID to its row in RULES.md.
+func (base Base) ruleLink(id string) string {
+	return base.fileLink(id, reconcile.RulesPath, base.Rules.Lines[id])
+}
+
+// ruleCell names a row's rule, flagged when no rule covers the case.
+func (base Base) ruleCell(id string) string {
+	if id == reconcile.JudgmentRule {
+		return "⚠ " + base.ruleLink(id)
+	}
+
+	return base.ruleLink(id)
+}
+
+// skippedRows groups skipped offerings by the rule and reason that left them
+// out, in the order the report first names each group.
+func (base Base) skippedRows(skipped []Skipped) []string {
+	type group struct{ rule, reason string }
+
+	var groups []group
+
+	offerings := map[group][]string{}
+
+	for _, item := range skipped {
+		key := group{item.Rule, item.Reason}
+		if _, seen := offerings[key]; !seen {
+			groups = append(groups, key)
+		}
+
+		offerings[key] = append(offerings[key], item.Offering)
+	}
+
+	rows := make([]string, 0, len(groups))
+
+	for _, key := range groups {
+		why := code(key.reason)
+		if meaning := base.Rules.Reasons[key.reason]; meaning != "" {
+			why = meaning + " (" + why + ")"
+		}
+
+		rows = append(rows, fmt.Sprintf("| %s | %s | %s |\n", base.ruleCell(key.rule), why, valueList(offerings[key])))
+	}
+
+	return rows
+}
+
+// needsHumanBlock renders one needs_human row: its rule, the rule's fixed
+// question, what the bot found, and the sources.
+func (base Base) needsHumanBlock(number int, item NeedsHuman) string {
+	why := "rule " + base.ruleLink(item.Rule)
+	if item.Rule == reconcile.JudgmentRule {
+		why = "⚠ no rule covers this (" + base.ruleLink(item.Rule) + ")"
+	}
+
+	sources := make([]string, 0, len(item.SourceURLs))
+	for _, source := range item.SourceURLs {
+		sources = append(sources, link(source))
+	}
+
+	block := fmt.Sprintf("**%d. %s · %s · %s**\n", number, code(item.Offering), item.Field, why)
+	if question := base.Rules.Questions[item.Rule]; question != "" {
+		block += "- **Question:** " + question + "\n"
+	}
+
+	if len(item.Values) > 0 {
+		block += "- **Found:** " + valueList(item.Values) + "\n"
+	}
+
+	return block + "- **Sources:** " + strings.Join(sources, ", ") + "\n\n"
 }
 
 // sameOffering reports whether a report offering names a decision's. Report
@@ -345,18 +438,19 @@ func Render(report Report, provider, snapshotDiff string, codeFiles []string, ba
 	}
 
 	if len(report.NeedsHuman) > 0 {
-		fmt.Fprintf(&body, "### Needs a human (%d)\n\n| Offering | Field | Values | Sources |\n|---|---|---|---|\n", len(report.NeedsHuman))
+		judged := 0
 
 		for _, item := range report.NeedsHuman {
-			sources := make([]string, 0, len(item.SourceURLs))
-			for _, source := range item.SourceURLs {
-				sources = append(sources, link(source))
+			if item.Rule == reconcile.JudgmentRule {
+				judged++
 			}
-
-			fmt.Fprintf(&body, "| %s | %s | %s | %s |\n", code(item.Offering), item.Field, valueList(item.Values), strings.Join(sources, ", "))
 		}
 
-		body.WriteString("\n")
+		fmt.Fprintf(&body, "### Needs a human (%d): %d by a rule, %d with no rule\n\n", len(report.NeedsHuman), len(report.NeedsHuman)-judged, judged)
+
+		for index, item := range report.NeedsHuman {
+			body.WriteString(base.needsHumanBlock(index+1, item))
+		}
 	}
 
 	if len(held) > 0 {
@@ -365,13 +459,8 @@ func Render(report Report, provider, snapshotDiff string, codeFiles []string, ba
 	}
 
 	if len(report.Skipped) > 0 {
-		fmt.Fprintf(&body, "### Skipped (%d)\n\n| Offering | Reason |\n|---|---|\n", len(report.Skipped))
-
-		for _, item := range report.Skipped {
-			fmt.Fprintf(&body, "| %s | %s |\n", code(item.Offering), item.Reason)
-		}
-
-		body.WriteString("\n")
+		fmt.Fprintf(&body, "### Skipped (%d)\n\n| Rule | Why | Offerings |\n|---|---|---|\n", len(report.Skipped))
+		body.WriteString(strings.Join(base.skippedRows(report.Skipped), "") + "\n")
 	}
 
 	if snapshotDiff != "" {
