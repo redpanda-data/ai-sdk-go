@@ -55,6 +55,12 @@ type Entry struct {
 	Capabilities llm.ModelCapabilities
 	Constraints  llm.ModelConstraints
 
+	// WireAPIs is the set of supported protocol/transport bindings, sorted
+	// by protocol then transport in the catalog. Empty means unknown, not
+	// unsupported; consumers must not infer provider defaults. This does
+	// not select the SDK's runtime transport.
+	WireAPIs []WireAPI
+
 	// Modalities lists input/output content kinds. Empty normalizes to
 	// text-only.
 	Modalities Modalities

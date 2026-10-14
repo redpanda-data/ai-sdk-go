@@ -16,6 +16,7 @@ package bedrock
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/llm"
@@ -71,6 +72,8 @@ type family struct {
 	// ModelMetadataRequiresProviderDataSharing attribute.
 	DataSharing bool
 
+	WireAPIs     []catalog.WireAPI
+	WireAPIsByID map[string][]catalog.WireAPI
 	Capabilities llm.ModelCapabilities
 	Constraints  llm.ModelConstraints
 	// Modalities lists the input/output content kinds every variant of
@@ -145,6 +148,17 @@ func expandFamilies(families []family) ([]catalog.Entry, map[string]bool) {
 			panic(fmt.Sprintf("bedrock: family %s must set GlobalRates exactly when the global profile is published", f.BareID)) //nolint:forbidigo // authoring error, not runtime
 		}
 
+		for id := range f.WireAPIsByID {
+			registered := f.BareInvokable && id == f.BareID
+			for _, profile := range f.Profiles {
+				registered = registered || id == profile+"."+f.BareID
+			}
+
+			if !registered {
+				panic(fmt.Sprintf("bedrock: family %s overrides WireAPIs for unregistered offering %s", f.BareID, id)) //nolint:forbidigo // authoring error, not runtime
+			}
+		}
+
 		if !hasGlobal && len(f.GlobalOverrides) > 0 {
 			panic(fmt.Sprintf("bedrock: family %s sets GlobalOverrides without the global profile", f.BareID)) //nolint:forbidigo // authoring error, not runtime
 		}
@@ -168,8 +182,14 @@ func expandFamilies(families []family) ([]catalog.Entry, map[string]bool) {
 				}
 			}
 
+			wireAPIs := f.WireAPIs
+			if override, ok := f.WireAPIsByID[id]; ok {
+				wireAPIs = override
+			}
+
 			return catalog.Entry{
 				ID:           id,
+				WireAPIs:     slices.Clone(wireAPIs),
 				Model:        f.Model,
 				DisplayName:  f.DisplayName + labelSuffix,
 				Capabilities: f.Capabilities,

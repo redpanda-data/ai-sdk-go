@@ -170,6 +170,15 @@ func Catalog() *catalog.Catalog {
 	return catalogOnce()
 }
 
+var (
+	geminiWireAPIs = []catalog.WireAPI{
+		{Protocol: catalog.WireProtocolGeminiGenerateContent, Transport: catalog.WireTransportVertex},
+	}
+	claudeWireAPIs = []catalog.WireAPI{
+		{Protocol: catalog.WireProtocolAnthropicMessages, Transport: catalog.WireTransportVertex},
+	}
+)
+
 // entries returns the authored Vertex catalog. Rates are
 // USD-per-million-tokens from Google's pricing page, Claude rates included
 // (not Anthropic's list prices):
@@ -193,6 +202,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini4Argon,
 			Model:        catalog.ModelGemini4Argon,
+			WireAPIs:     geminiWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			// The 1M window is shared by input and output. 65536 is the
@@ -216,6 +226,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini38Flash,
 			Model:        catalog.ModelGemini38Flash,
+			WireAPIs:     geminiWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Constraints: llm.ModelConstraints{
@@ -235,6 +246,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini37Flash,
 			Model:        catalog.ModelGemini37Flash,
+			WireAPIs:     geminiWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Constraints: llm.ModelConstraints{
@@ -256,6 +268,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini36Flash,
 			Model:        catalog.ModelGemini36Flash,
+			WireAPIs:     geminiWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Constraints: llm.ModelConstraints{
@@ -278,6 +291,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini35Flash,
 			Model:        catalog.ModelGemini35Flash,
+			WireAPIs:     geminiWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Constraints: llm.ModelConstraints{
@@ -296,6 +310,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini35FlashLite,
 			Model:        catalog.ModelGemini35FlashLite,
+			WireAPIs:     geminiWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Constraints: llm.ModelConstraints{
@@ -314,6 +329,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini31FlashLite,
 			Model:        catalog.ModelGemini31FlashLite,
+			WireAPIs:     geminiWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Constraints: llm.ModelConstraints{
@@ -332,6 +348,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini31ProPreview,
 			Model:        catalog.ModelGemini31ProPreview,
+			WireAPIs:     geminiWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Constraints: llm.ModelConstraints{
@@ -364,6 +381,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini3FlashPreview,
 			Model:        catalog.ModelGemini3FlashPreview,
+			WireAPIs:     geminiWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Constraints: llm.ModelConstraints{
@@ -390,6 +408,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini25Pro,
 			Model:        catalog.ModelGemini25Pro,
+			WireAPIs:     geminiWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Constraints: llm.ModelConstraints{
@@ -425,6 +444,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini25Flash,
 			Model:        catalog.ModelGemini25Flash,
+			WireAPIs:     geminiWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Constraints: llm.ModelConstraints{
@@ -452,6 +472,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini25FlashLite,
 			Model:        catalog.ModelGemini25FlashLite,
+			WireAPIs:     geminiWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Constraints: llm.ModelConstraints{
@@ -479,6 +500,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeFable51,
 			Model:        catalog.ModelClaudeFable51,
+			WireAPIs:     claudeWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -504,6 +526,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeFable5,
 			Model:        catalog.ModelClaudeFable5,
+			WireAPIs:     claudeWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -529,6 +552,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeOpus55,
 			Model:        catalog.ModelClaudeOpus55,
+			WireAPIs:     claudeWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -552,6 +576,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeOpus5,
 			Model:        catalog.ModelClaudeOpus5,
+			WireAPIs:     claudeWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -573,6 +598,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeOpus48,
 			Model:        catalog.ModelClaudeOpus48,
+			WireAPIs:     claudeWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -590,6 +616,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeOpus47,
 			Model:        catalog.ModelClaudeOpus47,
+			WireAPIs:     claudeWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -607,6 +634,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeOpus46,
 			Model:        catalog.ModelClaudeOpus46,
+			WireAPIs:     claudeWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -627,8 +655,9 @@ func entries() []catalog.Entry {
 			Pricing: claudeOpusPricing("us-east5", "europe-west1", "asia-southeast1"),
 		},
 		{
-			ID:    ModelClaudeOpus45,
-			Model: catalog.ModelClaudeOpus45,
+			ID:       ModelClaudeOpus45,
+			Model:    catalog.ModelClaudeOpus45,
+			WireAPIs: claudeWireAPIs,
 			// Vertex serves the bare ID as the same model version (rawPredict
 			// at global and us-east5, 2026-09-28).
 			Aliases:      []string{"claude-opus-4-5"},
@@ -656,6 +685,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeSonnet55,
 			Model:        catalog.ModelClaudeSonnet55,
+			WireAPIs:     claudeWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -675,6 +705,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeSonnet5,
 			Model:        catalog.ModelClaudeSonnet5,
+			WireAPIs:     claudeWireAPIs,
 			Capabilities: claudeCaps,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -697,6 +728,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeSonnet46,
 			Model:        catalog.ModelClaudeSonnet46,
+			WireAPIs:     claudeWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -721,8 +753,9 @@ func entries() []catalog.Entry {
 			),
 		},
 		{
-			ID:    ModelClaudeSonnet45,
-			Model: catalog.ModelClaudeSonnet45,
+			ID:       ModelClaudeSonnet45,
+			Model:    catalog.ModelClaudeSonnet45,
+			WireAPIs: claudeWireAPIs,
 			// Vertex serves the bare ID as the same model version (rawPredict
 			// at global and us-east5, 2026-09-28).
 			Aliases:      []string{"claude-sonnet-4-5"},
@@ -747,6 +780,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeHaiku55,
 			Model:        catalog.ModelClaudeHaiku55,
+			WireAPIs:     claudeWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -769,6 +803,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeHaiku45,
 			Model:        catalog.ModelClaudeHaiku45,
+			WireAPIs:     claudeWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{

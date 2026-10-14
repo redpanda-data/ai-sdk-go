@@ -773,6 +773,42 @@ func Catalog() *catalog.Catalog {
 	return catalogOnce()
 }
 
+var (
+	// InvokeModel's versioned Messages body is not the native endpoint;
+	// older cards list only Invoke/Converse: https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-4-6.html
+	claudeInvokeWireAPIs = []catalog.WireAPI{
+		{Protocol: catalog.WireProtocolAnthropicMessages, Transport: catalog.WireTransportBedrockInvokeModel},
+		{Protocol: catalog.WireProtocolBedrockConverse, Transport: catalog.WireTransportBedrockRuntime},
+	}
+	claudeMessagesWireAPIs = []catalog.WireAPI{
+		{Protocol: catalog.WireProtocolAnthropicMessages, Transport: catalog.WireTransportBedrockInvokeModel},
+		{Protocol: catalog.WireProtocolAnthropicMessages, Transport: catalog.WireTransportBedrockRuntime},
+		{Protocol: catalog.WireProtocolBedrockConverse, Transport: catalog.WireTransportBedrockRuntime},
+	}
+	converseWireAPIs = []catalog.WireAPI{
+		{Protocol: catalog.WireProtocolBedrockConverse, Transport: catalog.WireTransportBedrockRuntime},
+	}
+	// Nova and Mistral also support vendor-specific InvokeModel bodies,
+	// which are not protocols represented here. Mistral's card lists Chat
+	// Completions on both endpoints: https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-mistral-ai-mistral-large-3.html
+	mistralLarge3WireAPIs = []catalog.WireAPI{
+		{Protocol: catalog.WireProtocolBedrockConverse, Transport: catalog.WireTransportBedrockRuntime},
+		{Protocol: catalog.WireProtocolOpenAIChatCompletions, Transport: catalog.WireTransportBedrockRuntime},
+		{Protocol: catalog.WireProtocolOpenAIChatCompletions, Transport: catalog.WireTransportBedrockMantle},
+	}
+	openAIRuntimeWireAPIs = []catalog.WireAPI{
+		{Protocol: catalog.WireProtocolBedrockConverse, Transport: catalog.WireTransportBedrockRuntime},
+		{Protocol: catalog.WireProtocolOpenAIChatCompletions, Transport: catalog.WireTransportBedrockRuntime},
+		{Protocol: catalog.WireProtocolOpenAIResponses, Transport: catalog.WireTransportBedrockRuntime},
+	}
+	// Gemma is Mantle-only: https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-google-gemma-4-31b.html
+	// OpenAI runtime bindings require distinct profile IDs, as on Astra's card.
+	openAIMantleWireAPIs = []catalog.WireAPI{
+		{Protocol: catalog.WireProtocolOpenAIChatCompletions, Transport: catalog.WireTransportBedrockMantle},
+		{Protocol: catalog.WireProtocolOpenAIResponses, Transport: catalog.WireTransportBedrockMantle},
+	}
+)
+
 // bedrockFamilies is the per-family Bedrock catalog. Each family expands
 // to one entry per published inference profile; every rate is authored in
 // place, never derived.
@@ -796,6 +832,7 @@ var bedrockFamilies = []family{
 		// Cache reads are 0.025x base input (matching Anthropic's
 		// first-party rate), not the 0.10x the other Claude families use.
 		BareID:         ModelClaudeFable51,
+		WireAPIs:       claudeMessagesWireAPIs,
 		Model:          catalog.ModelClaudeFable51,
 		DisplayName:    "Claude Fable 5.1",
 		Profiles:       []string{"global", "us"},
@@ -811,7 +848,11 @@ var bedrockFamilies = []family{
 	{
 		// Claude Fable 5 — inference-profile-only, no bare entry. Geo
 		// profiles cover us and eu (jp/au are not published).
-		BareID:       ModelClaudeFable5,
+		BareID:   ModelClaudeFable5,
+		WireAPIs: claudeMessagesWireAPIs,
+		// The current card publishes no EU profile; its wire support is unknown:
+		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-fable-5.html
+		WireAPIsByID: map[string][]catalog.WireAPI{ModelClaudeFable5EU: nil},
 		Model:        catalog.ModelClaudeFable5,
 		DisplayName:  "Claude Fable 5",
 		Profiles:     []string{"global", "us", "eu"},
@@ -831,6 +872,7 @@ var bedrockFamilies = []family{
 		// input, matching Anthropic's Opus 5.5 multiplier. Fast mode is not
 		// offered on Bedrock.
 		BareID:         ModelClaudeOpus55,
+		WireAPIs:       claudeMessagesWireAPIs,
 		Model:          catalog.ModelClaudeOpus55,
 		DisplayName:    "Claude Opus 5.5",
 		Profiles:       []string{"global", "us", "eu", "au", "jp"},
@@ -847,6 +889,7 @@ var bedrockFamilies = []family{
 		// publishes global, US, EU, and AU profiles:
 		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-5.html
 		BareID:       ModelClaudeOpus5,
+		WireAPIs:     claudeMessagesWireAPIs,
 		Model:        catalog.ModelClaudeOpus5,
 		DisplayName:  "Claude Opus 5",
 		Profiles:     []string{"global", "us", "eu", "au"},
@@ -863,6 +906,7 @@ var bedrockFamilies = []family{
 		// Claude Opus 4.8 — inference-profile-only. Geo profiles cover
 		// us, eu, jp (au is not published).
 		BareID:       ModelClaudeOpus48,
+		WireAPIs:     claudeMessagesWireAPIs,
 		Model:        catalog.ModelClaudeOpus48,
 		DisplayName:  "Claude Opus 4.8",
 		Profiles:     []string{"global", "us", "eu", "jp"},
@@ -877,6 +921,7 @@ var bedrockFamilies = []family{
 		// Claude Opus 4.7 — inference-profile-only. Geo profiles cover
 		// us, eu, jp (au is not published).
 		BareID:       ModelClaudeOpus47,
+		WireAPIs:     claudeMessagesWireAPIs,
 		Model:        catalog.ModelClaudeOpus47,
 		DisplayName:  "Claude Opus 4.7",
 		Profiles:     []string{"global", "us", "eu", "jp"},
@@ -890,6 +935,7 @@ var bedrockFamilies = []family{
 	{
 		// Claude Opus 4.6 — inference-profile-only.
 		BareID:       ModelClaudeOpus46,
+		WireAPIs:     claudeInvokeWireAPIs,
 		Model:        catalog.ModelClaudeOpus46,
 		DisplayName:  "Claude Opus 4.6",
 		Profiles:     []string{"global", "us", "eu", "au"},
@@ -903,6 +949,7 @@ var bedrockFamilies = []family{
 	{
 		// Claude Opus 4.5 — inference-profile-only.
 		BareID:       ModelClaudeOpus45,
+		WireAPIs:     claudeInvokeWireAPIs,
 		Model:        catalog.ModelClaudeOpus45,
 		DisplayName:  "Claude Opus 4.5",
 		Profiles:     []string{"global", "us", "eu"},
@@ -921,6 +968,7 @@ var bedrockFamilies = []family{
 		// Rates from the AWS pricing page; cache reads are the standard 0.10x
 		// input, unlike Opus 5.5.
 		BareID:         ModelClaudeSonnet55,
+		WireAPIs:       claudeMessagesWireAPIs,
 		Model:          catalog.ModelClaudeSonnet55,
 		DisplayName:    "Claude Sonnet 5.5",
 		Profiles:       []string{"global", "us", "eu"},
@@ -936,6 +984,7 @@ var bedrockFamilies = []family{
 		// Claude Sonnet 5 — inference-profile-only; global and us are
 		// published so far.
 		BareID:       ModelClaudeSonnet5,
+		WireAPIs:     claudeMessagesWireAPIs,
 		Model:        catalog.ModelClaudeSonnet5,
 		DisplayName:  "Claude Sonnet 5",
 		Profiles:     []string{"global", "us"},
@@ -952,6 +1001,7 @@ var bedrockFamilies = []family{
 		// Claude Sonnet 4.6 — inference-profile-only. 1M context on
 		// Bedrock as well as the first-party API.
 		BareID:       ModelClaudeSonnet46,
+		WireAPIs:     claudeInvokeWireAPIs,
 		Model:        catalog.ModelClaudeSonnet46,
 		DisplayName:  "Claude Sonnet 4.6",
 		Profiles:     []string{"global", "us", "eu", "au"},
@@ -966,6 +1016,7 @@ var bedrockFamilies = []family{
 		// Claude Sonnet 4.5 — inference-profile-only; the widest geo
 		// coverage of the Claude 4.x line.
 		BareID:       ModelClaudeSonnet45,
+		WireAPIs:     claudeInvokeWireAPIs,
 		Model:        catalog.ModelClaudeSonnet45,
 		DisplayName:  "Claude Sonnet 4.5",
 		Profiles:     []string{"global", "us", "eu", "au", "jp"},
@@ -986,6 +1037,7 @@ var bedrockFamilies = []family{
 		// only "long-context" without a threshold; the bracket assumes
 		// Anthropic's 100,000-token boundary (unprobed).
 		BareID:       ModelClaudeHaiku55,
+		WireAPIs:     claudeMessagesWireAPIs,
 		Model:        catalog.ModelClaudeHaiku55,
 		DisplayName:  "Claude Haiku 5.5",
 		Profiles:     []string{"global", "us", "eu", "au", "jp"},
@@ -1012,6 +1064,7 @@ var bedrockFamilies = []family{
 	{
 		// Claude Haiku 4.5 — inference-profile-only.
 		BareID:       ModelClaudeHaiku45,
+		WireAPIs:     claudeMessagesWireAPIs,
 		Model:        catalog.ModelClaudeHaiku45,
 		DisplayName:  "Claude Haiku 4.5",
 		Profiles:     []string{"global", "us", "eu", "au"},
@@ -1029,6 +1082,7 @@ var bedrockFamilies = []family{
 		// the pricing shape tests explicitly allow for free-cache-write
 		// models.
 		BareID:       ModelNova2Lite,
+		WireAPIs:     converseWireAPIs,
 		Model:        catalog.ModelNova2Lite,
 		DisplayName:  "Amazon Nova 2 Lite",
 		Profiles:     []string{"global", "us", "eu", "jp"},
@@ -1047,6 +1101,7 @@ var bedrockFamilies = []family{
 		// {input,output}-tokens-standard). Prompt caching is not billed
 		// (no cache usagetype published), so cache rates stay zero.
 		BareID:        ModelMistralLarge3,
+		WireAPIs:      mistralLarge3WireAPIs,
 		Model:         catalog.ModelMistralLarge3,
 		DisplayName:   "Mistral Large 3",
 		BareInvokable: true,
@@ -1073,6 +1128,7 @@ var bedrockFamilies = []family{
 		// these cards price Responses-API usage of the same IDs. Priority
 		// and Flex are unsupported.
 		BareID:      ModelGPT6Astra,
+		WireAPIs:    openAIRuntimeWireAPIs,
 		Model:       catalog.ModelGPT6Astra,
 		DisplayName: "OpenAI GPT-6 Astra",
 		Profiles:    []string{"global", "us"},
@@ -1112,6 +1168,7 @@ var bedrockFamilies = []family{
 		// in us-east-1 (us-west-2 is Standard only); mantle responses report
 		// no region, so its card cannot be scoped to us-east-1.
 		BareID:        ModelGPT6Astra,
+		WireAPIs:      openAIMantleWireAPIs,
 		Model:         catalog.ModelGPT6Astra,
 		DisplayName:   "OpenAI GPT-6 Astra",
 		BareInvokable: true,
@@ -1143,6 +1200,7 @@ var bedrockFamilies = []family{
 		// and limits. The card's 131,072 max output tokens exceeds OpenAI's
 		// documented 128,000, so the lower limit stands until probed.
 		BareID:      ModelGPT61Sol,
+		WireAPIs:    openAIRuntimeWireAPIs,
 		Model:       catalog.ModelGPT6_1Sol,
 		DisplayName: "OpenAI GPT-6.1 Sol",
 		Profiles:    []string{"global", "us"},
@@ -1173,6 +1231,7 @@ var bedrockFamilies = []family{
 		// the US profile's. Effort runs low through max (no none), as on
 		// OpenAI's own gpt-6.1-sol, so it shares Astra's mantle surface.
 		BareID:        ModelGPT61Sol,
+		WireAPIs:      openAIMantleWireAPIs,
 		Model:         catalog.ModelGPT6_1Sol,
 		DisplayName:   "OpenAI GPT-6.1 Sol",
 		BareInvokable: true,
@@ -1205,6 +1264,7 @@ var bedrockFamilies = []family{
 		// OpenAI's documented max input, the 1.05M window less the 128K
 		// reserved for output.
 		BareID:      ModelGPT6Sol,
+		WireAPIs:    openAIRuntimeWireAPIs,
 		Model:       catalog.ModelGPT6Sol,
 		DisplayName: "OpenAI GPT-6 Sol",
 		Profiles:    []string{"global", "us"},
@@ -1241,6 +1301,7 @@ var bedrockFamilies = []family{
 		// profile's. The card lists effort none through max, as on OpenAI's
 		// own gpt-6-sol; otherwise it shares Astra's mantle surface (unprobed).
 		BareID:        ModelGPT6Sol,
+		WireAPIs:      openAIMantleWireAPIs,
 		Model:         catalog.ModelGPT6Sol,
 		DisplayName:   "OpenAI GPT-6 Sol",
 		BareInvokable: true,
@@ -1270,6 +1331,7 @@ var bedrockFamilies = []family{
 		// Responses usage payload reports an aggregate cache_write_tokens
 		// count, so the write price sits in the unknown-TTL bucket.
 		BareID:        ModelGPT56Sol,
+		WireAPIs:      openAIMantleWireAPIs,
 		Model:         catalog.ModelGPT5_6Sol,
 		DisplayName:   "OpenAI GPT-5.6 Sol",
 		BareInvokable: true,
@@ -1288,6 +1350,7 @@ var bedrockFamilies = []family{
 	},
 	{
 		BareID:        ModelGPT56Terra,
+		WireAPIs:      openAIMantleWireAPIs,
 		Model:         catalog.ModelGPT5_6Terra,
 		DisplayName:   "OpenAI GPT-5.6 Terra",
 		BareInvokable: true,
@@ -1306,6 +1369,7 @@ var bedrockFamilies = []family{
 	},
 	{
 		BareID:        ModelGPT56Luna,
+		WireAPIs:      openAIMantleWireAPIs,
 		Model:         catalog.ModelGPT5_6Luna,
 		DisplayName:   "OpenAI GPT-5.6 Luna",
 		BareInvokable: true,
@@ -1332,6 +1396,7 @@ var bedrockFamilies = []family{
 		// mantle endpoint bills only input/output for Gemma — no cache
 		// usagetype is published — so cache rates stay zero.
 		BareID:        ModelGemma431B,
+		WireAPIs:      openAIMantleWireAPIs,
 		Model:         catalog.ModelGemma431B,
 		DisplayName:   "Google Gemma 4 31B",
 		BareInvokable: true,
@@ -1343,6 +1408,7 @@ var bedrockFamilies = []family{
 	},
 	{
 		BareID:        ModelGemma426BA4B,
+		WireAPIs:      openAIMantleWireAPIs,
 		Model:         catalog.ModelGemma426BA4B,
 		DisplayName:   "Google Gemma 4 26B-A4B",
 		BareInvokable: true,
@@ -1354,6 +1420,7 @@ var bedrockFamilies = []family{
 	},
 	{
 		BareID:        ModelGemma4E2B,
+		WireAPIs:      openAIMantleWireAPIs,
 		Model:         catalog.ModelGemma4E2B,
 		DisplayName:   "Google Gemma 4 E2B",
 		BareInvokable: true,

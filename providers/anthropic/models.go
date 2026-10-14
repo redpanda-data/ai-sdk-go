@@ -137,6 +137,10 @@ var claudeModalities = catalog.Modalities{
 	Output: []catalog.Modality{catalog.ModalityText},
 }
 
+var messagesWireAPIs = []catalog.WireAPI{
+	{Protocol: catalog.WireProtocolAnthropicMessages, Transport: catalog.WireTransportDirect},
+}
+
 // entries returns the authored Anthropic catalog.
 //
 // Lifecycle sourcing: Anthropic's model-deprecations page
@@ -155,6 +159,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeFable51,
 			Model:        catalog.ModelClaudeFable51,
+			WireAPIs:     messagesWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -182,6 +187,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeFable5,
 			Model:        catalog.ModelClaudeFable5,
+			WireAPIs:     messagesWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -209,6 +215,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeOpus55,
 			Model:        catalog.ModelClaudeOpus55,
+			WireAPIs:     messagesWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -246,6 +253,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeOpus5,
 			Model:        catalog.ModelClaudeOpus5,
+			WireAPIs:     messagesWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -277,6 +285,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeOpus48,
 			Model:        catalog.ModelClaudeOpus48,
+			WireAPIs:     messagesWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -312,6 +321,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeOpus47,
 			Model:        catalog.ModelClaudeOpus47,
+			WireAPIs:     messagesWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -338,6 +348,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeSonnet55,
 			Model:        catalog.ModelClaudeSonnet55,
+			WireAPIs:     messagesWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -361,6 +372,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeSonnet5,
 			Model:        catalog.ModelClaudeSonnet5,
+			WireAPIs:     messagesWireAPIs,
 			Capabilities: claudeCaps,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -390,6 +402,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeSonnet46,
 			Model:        catalog.ModelClaudeSonnet46,
+			WireAPIs:     messagesWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -418,6 +431,7 @@ func entries() []catalog.Entry {
 			// schedules.
 			ID:           ModelClaudeSonnet45,
 			Model:        catalog.ModelClaudeSonnet45,
+			WireAPIs:     messagesWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -439,6 +453,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeHaiku55,
 			Model:        catalog.ModelClaudeHaiku55,
+			WireAPIs:     messagesWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -471,6 +486,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeHaiku45,
 			Model:        catalog.ModelClaudeHaiku45,
+			WireAPIs:     messagesWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -489,6 +505,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeOpus46,
 			Model:        catalog.ModelClaudeOpus46,
+			WireAPIs:     messagesWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -515,6 +532,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeOpus45,
 			Model:        catalog.ModelClaudeOpus45,
+			WireAPIs:     messagesWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -541,6 +559,7 @@ func entries() []catalog.Entry {
 			// explainable.
 			ID:           ModelClaudeOpus41,
 			Model:        catalog.ModelClaudeOpus41,
+			WireAPIs:     messagesWireAPIs,
 			Capabilities: claudeCaps,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
