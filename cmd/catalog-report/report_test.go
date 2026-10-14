@@ -15,10 +15,14 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -271,4 +275,27 @@ func TestRenderCapped(t *testing.T) {
 			assert.Contains(t, lines, line, "the diff is cut only between lines")
 		}
 	})
+}
+
+// The agent's schema and the validator must accept the same fields and skip
+// reasons.
+func TestSchemaMatchesValidator(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile(filepath.Join("..", "..", ".github", "reconcile-models", "report.schema.json"))
+	require.NoError(t, err)
+
+	var schema jsonschema.Schema
+	require.NoError(t, json.Unmarshal(raw, &schema))
+
+	enum := func(array, property string) []any {
+		items := schema.Properties[array].Items
+		require.NotNil(t, items, "schema has no %s items", array)
+
+		return items.Properties[property].Enum
+	}
+
+	assert.ElementsMatch(t, reasons, enum("skipped", "reason"), "skip reasons")
+	assert.ElementsMatch(t, fields, enum("changes", "field"), "changes fields")
+	assert.ElementsMatch(t, fields, enum("needs_human", "field"), "needs_human fields")
 }

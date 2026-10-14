@@ -9,6 +9,8 @@ on:
       - 'go.mod'
       - 'go.sum'
       - '.github/workflows/test.yaml'
+      - '.github/reconcile-models/RULES.md'
+      - '.github/reconcile-models/report.schema.json'
   pull_request:
     # ready_for_review starts the full run on the reconcile bot's PRs (see the
     # jobs below); on everyone else's PRs it does nothing.
@@ -18,6 +20,8 @@ on:
       - 'go.mod'
       - 'go.sum'
       - '.github/workflows/test.yaml'
+      - '.github/reconcile-models/RULES.md'
+      - '.github/reconcile-models/report.schema.json'
   pull_request_target:
     types: [labeled]
 
