@@ -71,6 +71,7 @@ const (
 
 	// Google models.
 
+	ModelGemini4Argon        ModelID = "google/gemini-4-argon"
 	ModelGemini38Flash       ModelID = "google/gemini-3.8-flash"
 	ModelGemini37Flash       ModelID = "google/gemini-3.7-flash"
 	ModelGemini36Flash       ModelID = "google/gemini-3.6-flash"
@@ -433,6 +434,15 @@ var defaultRegistry = Registry{
 	},
 
 	// ---- Google ----
+	ModelGemini4Argon: {
+		Publisher:   PublisherGoogle,
+		DisplayName: "Gemini 4 Argon", Series: "gemini-pro",
+		// Announced 2026-09-30 for a staged rollout; gemini-4-argon became
+		// generally available on 2026-10-13 per the Gemini API changelog.
+		// Knowledge cutoff "March 2026" per the DeepMind model card.
+		Released: MustDate("2026-10-13"), Knowledge: MustDate("2026-03-31"),
+		Description: "Gemini 4 Argon is Google's flagship reasoning model, built for complex software engineering, math and science problems, and autonomous multi-step agents.",
+	},
 	ModelGemini38Flash: {
 		Publisher:   PublisherGoogle,
 		DisplayName: "Gemini 3.8 Flash", Series: "gemini-flash",

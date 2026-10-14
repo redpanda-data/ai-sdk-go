@@ -32,6 +32,7 @@ const ProviderName = "gcp.vertex"
 // Vertex model IDs are exactly the model segment of a Vertex resource path,
 // publishers/{publisher}/models/{model}.
 const (
+	ModelGemini4Argon        = "gemini-4-argon"
 	ModelGemini38Flash       = "gemini-3.8-flash"
 	ModelGemini37Flash       = "gemini-3.7-flash"
 	ModelGemini36Flash       = "gemini-3.6-flash"
@@ -88,8 +89,8 @@ var geminiReasoningEfforts = []llm.ReasoningEffort{
 	reasoningEffortMinimal, reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh,
 }
 
-// geminiNoMinimalReasoningEfforts drops minimal: the Gemini 3.7 and 3.8 Flash
-// model pages say an explicit MINIMAL "will return an API validation error".
+// geminiNoMinimalReasoningEfforts drops minimal: the Gemini 3.7 Flash, 3.8
+// Flash, and 4 Argon model pages say an explicit MINIMAL returns an error.
 var geminiNoMinimalReasoningEfforts = []llm.ReasoningEffort{
 	reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh,
 }
@@ -189,6 +190,29 @@ func Catalog() *catalog.Catalog {
 // leaves it unset.
 func entries() []catalog.Entry {
 	return []catalog.Entry{
+		{
+			ID:           ModelGemini4Argon,
+			Model:        catalog.ModelGemini4Argon,
+			Capabilities: geminiCaps,
+			Modalities:   geminiModalities,
+			// The 1M window is shared by input and output. 65536 is the
+			// synchronous output cap; long decode (v1beta1 only) extends it
+			// to the full window. Custom temperature, top_p, and top_k are
+			// ignored; penalties return HTTP 400.
+			Constraints: llm.ModelConstraints{
+				TemperatureRange: [2]float64{0.0, 2.0},
+				MaxInputTokens:   1048576, // 1M input tokens
+				MaxOutputTokens:  65536,   // 64K output tokens
+				SupportedParams:  geminiNoPenaltyParams,
+			},
+			// LOW, MEDIUM (default), HIGH; thinking_budget returns HTTP 400.
+			Reasoning: catalog.ReasoningSupport{Efforts: geminiNoMinimalReasoningEfforts},
+			// Gemini 4 Argon GA, release date 2026-10-13, on the model page
+			// (docs.cloud.google.com/gemini-enterprise-agent-platform/models/
+			// gemini/4-argon, read 2026-10-14). No retirement published.
+			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-10-13")},
+			Pricing: gemini4ArgonPricing(),
+		},
 		{
 			ID:           ModelGemini38Flash,
 			Model:        catalog.ModelGemini38Flash,
@@ -822,6 +846,27 @@ func claudeSonnet55Pricing() pricing.Info {
 }
 
 // geminiFlashPricing returns the Gemini 3.6, 3.7 and 3.8 Flash rate card.
+// gemini4ArgonPricing returns the Gemini 4 Argon rate card: the global
+// rate as default and the non-global rate as a us and eu override.
+func gemini4ArgonPricing() pricing.Info {
+	// Promotional net rate through 2026-11-30 (pricing page footnote, read
+	// 2026-10-14): 50% credits back on net spend. The $4/$20/$0.20 global
+	// and $4.40/$22/$0.22 non-global rate applies from 2026-12-01.
+	global := pricing.NewRates(2.00, 10.00, 0.10)
+	nonGlobal := pricing.NewRates(2.20, 11.00, 0.11)
+
+	info := pricing.FlatInfoFromRates(global)
+	// An empty-Region selector is a wildcard that also matches global.
+	for _, region := range []string{"us", "eu"} {
+		info = info.WithOverride(
+			pricing.Selector{Region: region},
+			pricing.RateCard{Base: nonGlobal},
+		)
+	}
+
+	return info
+}
+
 func geminiFlashPricing() pricing.Info {
 	// Promotional net rate through 2026-12-31 (pricing page footnote, read
 	// 2026-09-28): the billing SKUs stay at the standard $1.50/$7.50/$0.15

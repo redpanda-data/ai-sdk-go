@@ -224,6 +224,14 @@
       "released": "2026-09-02",
       "knowledge": "2026-03-31"
     },
+    "google/gemini-4-argon": {
+      "display_name": "Gemini 4 Argon",
+      "publisher": "google",
+      "description": "Gemini 4 Argon is Google's flagship reasoning model, built for complex software engineering, math and science problems, and autonomous multi-step agents.",
+      "series": "gemini-pro",
+      "released": "2026-10-13",
+      "knowledge": "2026-03-31"
+    },
     "google/gemma-4-26b-a4b": {
       "display_name": "Gemma 4 26B A4B",
       "publisher": "google",
@@ -7122,7 +7130,8 @@
             "available": "2026-02-19"
           },
           "derived": {
-            "price_tier": "medium"
+            "price_tier": "medium",
+            "replacement": "google/gemini-4-argon"
           }
         },
         {
@@ -7470,6 +7479,73 @@
           },
           "derived": {
             "price_tier": "low"
+          }
+        },
+        {
+          "id": "gemini-4-argon",
+          "model": "google/gemini-4-argon",
+          "display_name": "Gemini 4 Argon",
+          "capabilities": {
+            "audio": true,
+            "json_mode": true,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1048576,
+            "max_output_tokens": 65536,
+            "supported_params": [
+              "temperature",
+              "top_p",
+              "top_k",
+              "max_tokens",
+              "stop"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 200000000,
+                "output_microcents_per_million": 1000000000,
+                "cached_input_microcents_per_million": 10000000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-10-13"
+          },
+          "derived": {
+            "price_tier": "medium"
           }
         }
       ]
@@ -9386,7 +9462,8 @@
             "available": "2026-02-19"
           },
           "derived": {
-            "price_tier": "medium"
+            "price_tier": "medium",
+            "replacement": "google/gemini-4-argon"
           }
         },
         {
@@ -9912,6 +9989,95 @@
           },
           "derived": {
             "price_tier": "low"
+          }
+        },
+        {
+          "id": "gemini-4-argon",
+          "model": "google/gemini-4-argon",
+          "display_name": "Gemini 4 Argon",
+          "capabilities": {
+            "audio": true,
+            "json_mode": true,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1048576,
+            "max_output_tokens": 65536,
+            "supported_params": [
+              "temperature",
+              "top_p",
+              "top_k",
+              "max_tokens",
+              "stop"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 200000000,
+                "output_microcents_per_million": 1000000000,
+                "cached_input_microcents_per_million": 10000000
+              }
+            },
+            "overrides": [
+              {
+                "region": "us",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 220000000,
+                    "output_microcents_per_million": 1100000000,
+                    "cached_input_microcents_per_million": 11000000
+                  }
+                }
+              },
+              {
+                "region": "eu",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 220000000,
+                    "output_microcents_per_million": 1100000000,
+                    "cached_input_microcents_per_million": 11000000
+                  }
+                }
+              }
+            ]
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-10-13"
+          },
+          "derived": {
+            "price_tier": "medium"
           }
         }
       ]
