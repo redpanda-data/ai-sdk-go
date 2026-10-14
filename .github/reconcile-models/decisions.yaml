@@ -1,0 +1,15 @@
+# Review decisions for reconcile-models runs; the rules are RULES.md section D.
+# Public file: no people, customers, internal systems or ticket keys.
+# An offering is <package>:<model ID>. A keep's lock uses the field's shape in
+# catalog/snapshot.json; a hold is on new_model with no lock. TestDecisionsHold
+# fails on a contradiction and prints the current value to paste as a lock.
+decisions:
+  - id: DEC-001
+    offering: bedrock:eu.anthropic.claude-fable-5
+    field: lifecycle
+    kind: keep
+    lock: {"stage": "ga"}
+    reason: "The model card no longer lists the EU profile, but AWS has announced no end of life for it. Keep it until AWS publishes a date."
+    decided: 2026-10-13
+    review_by: 2027-01-13
+    pr: 259

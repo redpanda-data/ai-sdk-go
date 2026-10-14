@@ -12,6 +12,7 @@ on:
       - '.github/reconcile-models/RULES.md'
       - '.github/reconcile-models/report.schema.json'
       - '.github/reconcile-models/prompt.md'
+      - '.github/reconcile-models/decisions.yaml'
       - '.github/workflows/reconcile-models.yml'
   pull_request:
     # ready_for_review starts the full run on the reconcile bot's PRs (see the
@@ -25,6 +26,7 @@ on:
       - '.github/reconcile-models/RULES.md'
       - '.github/reconcile-models/report.schema.json'
       - '.github/reconcile-models/prompt.md'
+      - '.github/reconcile-models/decisions.yaml'
       - '.github/workflows/reconcile-models.yml'
   pull_request_target:
     types: [labeled]

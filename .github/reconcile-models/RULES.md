@@ -144,8 +144,8 @@ The report's skip reasons and fields. `TestRulesFile` keeps both lists equal to 
 
 | ID | Rule | Why | Produces | Enforced |
 |---|---|---|---|---|
-| D1 | *Planned.* Review decisions live in `.github/reconcile-models/decisions.yaml` and change only through reviewed PRs. Each names one offering and field, its kind (`keep` pins a value; `hold` keeps an offering out), a public reason and a review-by date. | Later runs shouldn't reopen what a review settled. | – | PR job (P1) |
-| D2 | *Planned.* The agent doesn't propose against a decision. A patch that moves a decided value fails the run. | Agreed answers stop flipping, even if the agent ignores them. | rejected | prompt, tests |
+| D1 | Review decisions live in `.github/reconcile-models/decisions.yaml` and change only through reviewed PRs. Each names one offering and field, its kind (`keep` pins a value to a lock in its snapshot shape; `hold` keeps an offering out), a public reason and a review-by date. | Later runs shouldn't reopen what a review settled. | – | PR job (P1) |
+| D2 | Read `decisions.yaml` before proposing changes, and don't change a decided value. A patch that moves a locked value, removes a kept offering or adds a held one fails the run, and so does any PR to the repo that does. | Agreed answers stop flipping, even if the agent ignores them. | rejected | prompt, tests (`TestDecisionsHold`, in the sandbox and every PR's CI) |
 | D3 | A decision covers one offering and field. It never widens sources, paths or gates, and a case that would need many decisions becomes a rule here instead. | Rules stay general, and decisions stay single cases. | – | none |
 
 ## Changing this file
