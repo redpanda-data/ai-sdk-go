@@ -1058,7 +1058,7 @@ func TestRun_EventOrdering(t *testing.T) {
 func collectEvents(t *testing.T, iter func(func(agent.Event, error) bool)) []agent.Event {
 	t.Helper()
 
-	var events []agent.Event //nolint:prealloc // size unknown, depends on iterator
+	var events []agent.Event
 
 	for evt, err := range iter {
 		require.NoError(t, err, "unexpected error in event stream")

@@ -54,4 +54,8 @@ Model work is covered by two skills — use them instead of improvising:
 - `adapter/a2a/` — Agent-to-Agent protocol adapter
 - `runner/` — Agent execution runner with session management
 - `plugins/` — Interceptor plugins (retry, OpenTelemetry)
+- `durable/` — Durable execution on Redpanda: `Client`/`Worker`, suspendable tools,
+  and `durable/engine` (the controller: journal fold, leases, retries, timers,
+  rollout, topic trigger). Design: `docs/durable-execution.md`
+- `store/session/journal/` — append-only-topic `session.Store` (durable transcripts)
 - `examples/` — Example applications (also in go.work workspace)
