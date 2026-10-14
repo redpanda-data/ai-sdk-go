@@ -43,8 +43,9 @@ const (
 	// claude-opus-5-5, whose row is its model page's "Model availability"
 	// section. Rows added on 2026-09-28 were read from the page on that day,
 	// and the claude-fable-5-1 and gemini-3.5-flash rows come from their
-	// model pages. The claude-sonnet-5-5 row, added 2026-09-29, and the
-	// claude-haiku-5-5 row, added 2026-10-08, are their model pages' sections.
+	// model pages. The claude-sonnet-5-5 row, added 2026-09-29, the
+	// claude-haiku-5-5 row, added 2026-10-08, and the gemini-4-argon row,
+	// added 2026-10-14, are their model pages' sections.
 	LocationsMatrixTranscribed = "2026-09-22"
 )
 
@@ -53,6 +54,10 @@ const (
 // the model supported there, not by any one project's quota; the one
 // exception is claude-haiku-4-5 at asia-east1.
 var servedLocations = map[string][]string{
+	ModelGemini4Argon: {
+		LocationGlobal,
+		"us", "eu",
+	},
 	ModelGemini38Flash: {
 		LocationGlobal,
 		"us", "eu",
