@@ -151,8 +151,10 @@ if ! RECONCILE_PROBE_SECRET=probe sandbox bash -c '
 fi
 
 git apply --check "$patch"
-# The catalogue before the patch, for each change's effect note.
+# The catalogue and Bedrock routes before the patch, for each change's effect
+# note and the body's routing changes. This is the base code, not the agent's.
 git show HEAD:catalog/snapshot.json >"$priv/base-snapshot.json"
+go run ./cmd/catalog-routes >"$priv/base-routes.txt"
 for path in "${patched[@]}"; do
   if git cat-file -e "HEAD:$path" 2>/dev/null; then git show "HEAD:$path" >"$priv/base-${path//\//_}"; fi
 done
@@ -195,6 +197,10 @@ sandbox bash -c "
   .build/.bin/golangci-lint run --new --timeout 10m $lint_pkgs ./catalog/...
   task license:check"
 
+# Where bare Bedrock names go now: patched code, so in the sandbox. Its
+# output is checked line by line before the body uses it.
+sandbox go run ./cmd/catalog-routes >"$priv/routes.txt"
+
 # Nothing but the patched files and the snapshot may have changed, tracked or
 # untracked (OUT_DIR excepted when it sits inside the checkout).
 out_rel=""
@@ -214,6 +220,7 @@ git diff -- catalog/snapshot.json >"$out/snapshot.diff"
 # Non-data files go into the body's "Code changed" list, so reviewers read them as code.
 for path in "${code[@]+"${code[@]}"}"; do echo "$path"; done >"$priv/code-files.txt"
 cp catalog/snapshot.json "$priv/snapshot.json"
-render -diff "$out/snapshot.diff" -code-files "$priv/code-files.txt" -base-snapshot "$priv/base-snapshot.json" -snapshot "$priv/snapshot.json"
+render -diff "$out/snapshot.diff" -code-files "$priv/code-files.txt" -base-snapshot "$priv/base-snapshot.json" -snapshot "$priv/snapshot.json" \
+  -base-routes "$priv/base-routes.txt" -routes "$priv/routes.txt"
 emit changed=true
 echo "pr-job: patch accepted"

@@ -217,6 +217,9 @@ type Base struct {
 	Today     string
 
 	Before, After *reconcile.Snapshot
+	// RoutesBefore and RoutesAfter are where bare Bedrock names go before
+	// and after the patch, for the Routing changes section.
+	RoutesBefore, RoutesAfter Routes
 }
 
 // fileLink links text to a repo file at the base commit, at line when it's
@@ -253,30 +256,30 @@ func (base Base) ruleCell(id string) string {
 	return base.ruleLink(id)
 }
 
-// groupOfferings groups skipped offerings by key, in the order the report
-// first names each group.
-func groupOfferings[K comparable](skipped []Skipped, key func(Skipped) K) ([]K, map[K][]string) {
+// groupBy collects one string per item under the item's key, keys in the
+// order first seen.
+func groupBy[T any, K comparable](items []T, key func(T) (K, string)) ([]K, map[K][]string) {
 	var keys []K
 
-	offerings := map[K][]string{}
+	groups := map[K][]string{}
 
-	for _, item := range skipped {
-		k := key(item)
-		if _, seen := offerings[k]; !seen {
+	for _, item := range items {
+		k, value := key(item)
+		if _, seen := groups[k]; !seen {
 			keys = append(keys, k)
 		}
 
-		offerings[k] = append(offerings[k], item.Offering)
+		groups[k] = append(groups[k], value)
 	}
 
-	return keys, offerings
+	return keys, groups
 }
 
 // skippedRows groups skipped offerings by the rule and reason that left them out.
 func (base Base) skippedRows(skipped []Skipped) []string {
 	type group struct{ rule, reason string }
 
-	groups, offerings := groupOfferings(skipped, func(item Skipped) group { return group{item.Rule, item.Reason} })
+	groups, offerings := groupBy(skipped, func(item Skipped) (group, string) { return group{item.Rule, item.Reason}, item.Offering })
 	rows := make([]string, 0, len(groups))
 
 	for _, key := range groups {
@@ -295,9 +298,9 @@ func (base Base) skippedRows(skipped []Skipped) []string {
 func waitingLines(skipped []Skipped) []string {
 	type region struct{ host, prefix string }
 
-	regions, offerings := groupOfferings(skipped, func(item Skipped) region {
+	regions, offerings := groupBy(skipped, func(item Skipped) (region, string) {
 		host, prefix, _ := regionOf(item.Offering)
-		return region{host, prefix}
+		return region{host, prefix}, item.Offering
 	})
 	lines := make([]string, 0, len(regions))
 
@@ -480,6 +483,11 @@ func Render(report Report, provider, snapshotDiff string, codeFiles []string, ba
 		}
 
 		body.WriteString("\n")
+	}
+
+	if lines := base.routingLines(); len(lines) > 0 {
+		fmt.Fprintf(&body, "### Routing changes (%d)\n\nBare-name calls from these regions now go to another copy. Check the price and where the data is processed.\n\n", len(lines))
+		body.WriteString(strings.Join(lines, "") + "\n")
 	}
 
 	if len(report.NeedsHuman) > 0 {

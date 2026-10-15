@@ -143,9 +143,8 @@ func (base Base) replacementNote(pkg string, after map[string]any) string {
 
 	note := fmt.Sprintf("⚑ no %s copy of %s: callers who follow it leave %s", code(geo), code(model), code(geo))
 
-	from, to := baseRates(after)["input_microcents_per_million"], baseRates(target)["input_microcents_per_million"]
-	if from > 0 && to > 0 {
-		note += "; input " + percent(from, to)
+	if change := inputChange(after, target); change != "" {
+		note += "; " + change
 	}
 
 	if lost := lostFeatures(after, target); len(lost) > 0 {
@@ -243,6 +242,17 @@ func baseRates(offering map[string]any) map[string]int64 {
 	}
 
 	return rates
+}
+
+// inputChange is "input ±N%" between two offerings' base input rates, or ""
+// when either has none.
+func inputChange(from, to map[string]any) string {
+	old, now := baseRates(from)["input_microcents_per_million"], baseRates(to)["input_microcents_per_million"]
+	if old <= 0 || now <= 0 {
+		return ""
+	}
+
+	return "input " + percent(old, now)
 }
 
 // dollars writes a microcent rate as dollars per million tokens.

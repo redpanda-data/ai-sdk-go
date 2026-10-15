@@ -216,6 +216,15 @@ func TestRender(t *testing.T) {
 
 	before, after := effectSnapshots(t)
 	withEffects := Base{Before: before, After: after, Today: "2026-10-15"}
+	routesBefore, err := ParseRoutes([]byte("ap-southeast-2 anthropic.claude-sonnet-5-5 global.anthropic.claude-sonnet-5-5\n" +
+		"ap-southeast-4 anthropic.claude-sonnet-5-5 global.anthropic.claude-sonnet-5-5\nus-east-1 anthropic.claude-sonnet-5-5 us.anthropic.claude-sonnet-5-5\n"))
+	require.NoError(t, err)
+	routesAfter, err := ParseRoutes([]byte("ap-southeast-2 anthropic.claude-sonnet-5-5 au.anthropic.claude-sonnet-5-5\n" +
+		"ap-southeast-4 anthropic.claude-sonnet-5-5 au.anthropic.claude-sonnet-5-5\nus-east-1 anthropic.claude-sonnet-5-5 us.anthropic.claude-sonnet-5-5\n"))
+	require.NoError(t, err)
+
+	withRoutes := withEffects
+	withRoutes.RoutesBefore, withRoutes.RoutesAfter = routesBefore, routesAfter
 	changes := func(rows ...Change) Report {
 		for i := range rows {
 			rows[i].SourceURL = "https://platform.claude.com/docs/en/about-claude/pricing"
@@ -265,6 +274,16 @@ func TestRender(t *testing.T) {
 			base: withEffects,
 			contains: []string{"| ⚑ no `jp` copy of `anthropic/claude-sonnet-5-5`: callers who follow it leave `jp`; input -39%; " +
 				"loses `image input`, `structured_output`, `temperature`, `top_p` |"},
+		},
+		{
+			name:   "a route that moves is flagged",
+			report: changes(Change{Offering: "bedrock:au.anthropic.claude-sonnet-5-5", Field: "new_model", New: "au.anthropic.claude-sonnet-5-5"}),
+			base:   withRoutes,
+			contains: []string{
+				"### Routing changes (1)\n\nBare-name calls from these regions now go to another copy. Check the price and where the data is processed.\n\n",
+				"- ⚑ `anthropic.claude-sonnet-5-5` from `ap-southeast-2`, `ap-southeast-4`: `global.anthropic.claude-sonnet-5-5` → `au.anthropic.claude-sonnet-5-5` (input +10%)\n",
+			},
+			notContains: []string{"us-east-1"},
 		},
 		{
 			name:        "unsafe snapshot strings stay out of the body",
@@ -554,4 +573,32 @@ func TestPercent(t *testing.T) {
 	assert.Equal(t, "-50%", percent(20000000, 10000000))
 	assert.Equal(t, "-39%", percent(330000000, 200000000), "rounded, not cut")
 	assert.Equal(t, "+0.4%", percent(250000000, 251000000), "a small change keeps a decimal")
+}
+
+func TestParseRoutes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name, routes, wantErr string
+	}{
+		{"routes and refusals", "us-east-1 anthropic.claude-sonnet-5-5 us.anthropic.claude-sonnet-5-5\nus-gov-west-1 anthropic.claude-sonnet-5-5 -\n", ""},
+		{"malformed routes fail closed", "us-east-1 anthropic.claude-sonnet-5-5\n", "route line 1"},
+		{"markup in a route", "us-east-1 anthropic.claude-sonnet-5-5 [x](https://evil.example)\n", "route line 1"},
+		{"a bad region", "Sydney anthropic.claude-sonnet-5-5 au.anthropic.claude-sonnet-5-5\n", "route line 1"},
+		{"a pair twice", "us-east-1 a.b us.a.b\nus-east-1 a.b global.a.b\n", "route line 2"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := ParseRoutes([]byte(tt.routes))
+			if tt.wantErr == "" {
+				assert.NoError(t, err)
+				return
+			}
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
 }

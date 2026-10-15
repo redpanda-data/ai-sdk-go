@@ -42,11 +42,13 @@ func main() {
 	baseURL := flag.String("base-url", "", "optional link prefix for repo files at the base commit, e.g. https://github.com/OWNER/REPO/blob/SHA")
 	beforePath := flag.String("base-snapshot", "", "optional catalog/snapshot.json before the patch; with -snapshot, each change gets an effect note")
 	afterPath := flag.String("snapshot", "", "optional catalog/snapshot.json after the patch")
+	routesBeforePath := flag.String("base-routes", "", "optional catalog-routes output before the patch; with -routes, the body names routing changes")
+	routesAfterPath := flag.String("routes", "", "optional catalog-routes output after the patch")
 
 	flag.Parse()
 
-	if *reportPath == "" || *provider == "" || *hostList == "" || *rulesPath == "" || *outPath == "" || (*beforePath == "") != (*afterPath == "") {
-		fmt.Fprintln(os.Stderr, "usage: catalog-report -report FILE -provider P -hosts h1,h2 -rules FILE [-diff FILE] [-code-files FILE] [-decisions FILE] [-base-url URL] [-base-snapshot FILE -snapshot FILE] -out FILE")
+	if *reportPath == "" || *provider == "" || *hostList == "" || *rulesPath == "" || *outPath == "" || (*beforePath == "") != (*afterPath == "") || (*routesBeforePath == "") != (*routesAfterPath == "") {
+		fmt.Fprintln(os.Stderr, "usage: catalog-report -report FILE -provider P -hosts h1,h2 -rules FILE [-diff FILE] [-code-files FILE] [-decisions FILE] [-base-url URL] [-base-snapshot FILE -snapshot FILE] [-base-routes FILE -routes FILE] -out FILE")
 		os.Exit(2)
 	}
 
@@ -133,27 +135,16 @@ func main() {
 		}
 	}
 
-	// The patched snapshot comes from code the agent wrote: one that doesn't
-	// parse fails the run rather than rendering without its notes.
-	load := func(path string) *reconcile.Snapshot {
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "catalog-report:", err)
-			os.Exit(1)
-		}
-
-		parsed, err := reconcile.ParseSnapshot(raw)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "catalog-report:", path+":", err)
-			os.Exit(1)
-		}
-
-		return &parsed
+	// The patched snapshot and routes come from code the agent wrote: one
+	// that doesn't parse fails the run rather than rendering without it. The
+	// usage check above allows both of a pair or neither.
+	if *beforePath != "" {
+		before, after := mustLoad(*beforePath, reconcile.ParseSnapshot), mustLoad(*afterPath, reconcile.ParseSnapshot)
+		base.Before, base.After = &before, &after
 	}
 
-	// The usage check above allows both snapshots or neither.
-	if *beforePath != "" {
-		base.Before, base.After = load(*beforePath), load(*afterPath)
+	if *routesBeforePath != "" {
+		base.RoutesBefore, base.RoutesAfter = mustLoad(*routesBeforePath, ParseRoutes), mustLoad(*routesAfterPath, ParseRoutes)
 	}
 
 	body := RenderCapped(report, *provider, diff, codeFiles, base, maxBodyBytes)
@@ -161,4 +152,21 @@ func main() {
 		fmt.Fprintln(os.Stderr, "catalog-report:", err)
 		os.Exit(1)
 	}
+}
+
+// mustLoad reads and parses one input file, or exits.
+func mustLoad[T any](path string, parse func([]byte) (T, error)) T {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "catalog-report:", err)
+		os.Exit(1)
+	}
+
+	parsed, err := parse(raw)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "catalog-report:", path+":", err)
+		os.Exit(1)
+	}
+
+	return parsed
 }
