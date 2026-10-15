@@ -868,10 +868,11 @@ func claudeOpus55Pricing() pricing.Info {
 }
 
 // claudeSonnet55Pricing returns the Sonnet 5.5 rate card: global, plus
-// global x 1.10 for us and eu.
+// global x 1.10 for us and eu. Cache hits verified 2026-10-15:
+// https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing
 func claudeSonnet55Pricing() pricing.Info {
-	global := pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0)
-	nonGlobal := pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(2.75, 4.40, 0)
+	global := pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(2.50, 4.00, 0)
+	nonGlobal := pricing.NewRates(2.20, 11.00, 0.11).WithCacheCreation(2.75, 4.40, 0)
 
 	info := pricing.FlatInfoFromRates(global)
 	for _, region := range []string{"us", "eu"} {

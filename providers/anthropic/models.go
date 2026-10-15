@@ -346,6 +346,8 @@ func entries() []catalog.Entry {
 			),
 		},
 		{
+			// Cache hits: $0.10/MTok, verified 2026-10-15.
+			// https://platform.claude.com/docs/en/about-claude/pricing
 			ID:           ModelClaudeSonnet55,
 			Model:        catalog.ModelClaudeSonnet55,
 			WireAPIs:     messagesWireAPIs,
@@ -366,7 +368,7 @@ func entries() []catalog.Entry {
 				Available: catalog.MustDate("2026-09-28"),
 			},
 			Pricing: pricing.FlatInfoFromRates(
-				pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0),
+				pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(2.50, 4.00, 0),
 			),
 		},
 		{

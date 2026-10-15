@@ -124,3 +124,13 @@ func findFastOverride(overrides []pricing.Override) (pricing.RateCard, bool) {
 
 	return pricing.RateCard{}, false
 }
+
+// Cache hits are $0.10/MTok, not the generic 0.1x input multiplier.
+// https://platform.claude.com/docs/en/about-claude/pricing
+func TestClaudeSonnet55Pricing(t *testing.T) {
+	t.Parallel()
+
+	o, ok := Catalog().Lookup(ModelClaudeSonnet55)
+	require.True(t, ok)
+	assert.Equal(t, pricing.NewRates(2, 10, 0.10).WithCacheCreation(2.50, 4, 0), o.Pricing.Default.Base)
+}

@@ -1631,7 +1631,7 @@
               "base": {
                 "input_microcents_per_million": 200000000,
                 "output_microcents_per_million": 1000000000,
-                "cached_input_microcents_per_million": 20000000,
+                "cached_input_microcents_per_million": 10000000,
                 "cache_creation_5m_microcents_per_million": 250000000,
                 "cache_creation_1h_microcents_per_million": 400000000
               }
@@ -3278,7 +3278,7 @@
               "base": {
                 "input_microcents_per_million": 220000000,
                 "output_microcents_per_million": 1100000000,
-                "cached_input_microcents_per_million": 22000000,
+                "cached_input_microcents_per_million": 11000000,
                 "cache_creation_5m_microcents_per_million": 275000000,
                 "cache_creation_1h_microcents_per_million": 440000000
               }
@@ -4519,7 +4519,7 @@
               "base": {
                 "input_microcents_per_million": 200000000,
                 "output_microcents_per_million": 1000000000,
-                "cached_input_microcents_per_million": 20000000,
+                "cached_input_microcents_per_million": 10000000,
                 "cache_creation_5m_microcents_per_million": 250000000,
                 "cache_creation_1h_microcents_per_million": 400000000
               }
@@ -7275,7 +7275,7 @@
               "base": {
                 "input_microcents_per_million": 220000000,
                 "output_microcents_per_million": 1100000000,
-                "cached_input_microcents_per_million": 22000000,
+                "cached_input_microcents_per_million": 11000000,
                 "cache_creation_5m_microcents_per_million": 275000000,
                 "cache_creation_1h_microcents_per_million": 440000000
               }
@@ -10043,7 +10043,7 @@
               "base": {
                 "input_microcents_per_million": 200000000,
                 "output_microcents_per_million": 1000000000,
-                "cached_input_microcents_per_million": 20000000,
+                "cached_input_microcents_per_million": 10000000,
                 "cache_creation_5m_microcents_per_million": 250000000,
                 "cache_creation_1h_microcents_per_million": 400000000
               }
@@ -10055,7 +10055,7 @@
                   "base": {
                     "input_microcents_per_million": 220000000,
                     "output_microcents_per_million": 1100000000,
-                    "cached_input_microcents_per_million": 22000000,
+                    "cached_input_microcents_per_million": 11000000,
                     "cache_creation_5m_microcents_per_million": 275000000,
                     "cache_creation_1h_microcents_per_million": 440000000
                   }
@@ -10067,7 +10067,7 @@
                   "base": {
                     "input_microcents_per_million": 220000000,
                     "output_microcents_per_million": 1100000000,
-                    "cached_input_microcents_per_million": 22000000,
+                    "cached_input_microcents_per_million": 11000000,
                     "cache_creation_5m_microcents_per_million": 275000000,
                     "cache_creation_1h_microcents_per_million": 440000000
                   }

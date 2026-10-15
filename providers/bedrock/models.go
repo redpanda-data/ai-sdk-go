@@ -965,8 +965,8 @@ var bedrockFamilies = []family{
 		// publishes global, US, and EU profiles (the geo IDs were added to
 		// the model card after launch):
 		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-5-5.html
-		// Rates from the AWS pricing page; cache reads are the standard 0.10x
-		// input, unlike Opus 5.5.
+		// Cache reads reduced 50% effective 2026-10-07 ($0.10 global, $0.11 geo).
+		// https://aws.amazon.com/bedrock/pricing/
 		BareID:         ModelClaudeSonnet55,
 		WireAPIs:       claudeMessagesWireAPIs,
 		Model:          catalog.ModelClaudeSonnet55,
@@ -976,8 +976,8 @@ var bedrockFamilies = []family{
 		Modalities:     claudeModalities,
 		Constraints:    claudeNoSampling1MConstraints,
 		Reasoning:      frontierClaudeThinking,
-		GlobalRates:    &pricing.RateCard{Base: pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0)},
-		Rates:          pricing.RateCard{Base: pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(2.75, 4.40, 0)},
+		GlobalRates:    &pricing.RateCard{Base: pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(2.50, 4.00, 0)},
+		Rates:          pricing.RateCard{Base: pricing.NewRates(2.20, 11.00, 0.11).WithCacheCreation(2.75, 4.40, 0)},
 		ProfileRegions: claudeSonnet55ProfileRegions,
 	},
 	{
