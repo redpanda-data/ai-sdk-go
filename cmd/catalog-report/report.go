@@ -474,6 +474,36 @@ func (base Base) changesSection(changes []Change, provider string) string {
 	return section.String()
 }
 
+// suggestions drafts a Defaults row for each field that two or more no-rule
+// rows share this run, with the values all of them found, so a person can
+// turn a repeated case into a rule. Code writes it, so it never varies.
+func suggestions(needs []NeedsHuman) []string {
+	type group struct{ rule, field string }
+
+	keys, found := groupBy(needs, func(item NeedsHuman) (group, []string) { return group{item.Rule, item.Field}, item.Values })
+	lines := make([]string, 0, len(keys))
+
+	for _, key := range keys {
+		if key.rule != reconcile.JudgmentRule || len(found[key]) < 2 {
+			continue
+		}
+
+		shared := slices.Clone(found[key][0])
+		for _, values := range found[key][1:] {
+			shared = slices.DeleteFunc(shared, func(v string) bool { return !slices.Contains(values, v) })
+		}
+
+		when := fmt.Sprintf("%d rows this run", len(found[key]))
+		if len(shared) > 0 {
+			when += ", all with " + valueList(shared)
+		}
+
+		lines = append(lines, fmt.Sprintf("| new-default | %s | %s | ? | ? | ? |\n", code(key.field), when))
+	}
+
+	return lines
+}
+
 // splitWaiting takes the region_not_offered rows out of the skipped ones.
 func splitWaiting(report Report) (Report, []Skipped) {
 	// Fresh slices, as in hold.
@@ -574,6 +604,12 @@ func Render(report Report, provider, snapshotDiff string, codeFiles []string, ba
 		for index, item := range report.NeedsHuman {
 			body.WriteString(base.needsHumanBlock(index+1, item))
 		}
+	}
+
+	if lines := suggestions(report.NeedsHuman); len(lines) > 0 {
+		fmt.Fprintf(&body, "### Suggested rules (%d)\n\nSome rows under Needs a human went to a person under no-rule and share a field. If the case can come back, add a Default to RULES.md: give it a slug, write When as the condition, and replace each ?.\n\n| Default | Field | When | Bot does | Why | Outcome |\n|---|---|---|---|---|---|\n",
+			len(lines))
+		body.WriteString(strings.Join(lines, "") + "\n")
 	}
 
 	if lines := waitingLines(waiting); len(lines) > 0 {

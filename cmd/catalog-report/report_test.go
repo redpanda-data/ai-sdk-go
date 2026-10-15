@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -644,6 +645,73 @@ func TestUnreported(t *testing.T) {
 		base := Base{Before: snapshot("2026-09-30", "x"), After: snapshot("2026-09-30", "<b>evil</b>")}
 		assert.Equal(t, []string{"x (removed)", "1 offering with an ID that isn't safe to print"}, base.unreported(Report{}, "anthropic"))
 	})
+}
+
+// TestRenderSuggestedRules uses #259's three Sonnet 4.5 lifecycle rows, which
+// went to a person under no-rule before the lifecycle Defaults existed.
+func TestRenderSuggestedRules(t *testing.T) {
+	t.Parallel()
+
+	found := []string{"Legacy 2026-10-08", "EOL 2027-04-08", "AWS names no replacement"}
+	ask := func(geo string, values ...string) NeedsHuman {
+		return NeedsHuman{
+			Offering: "bedrock:" + geo + ".anthropic.claude-sonnet-4-5-20250929-v1:0", Field: "lifecycle", Rule: "no-rule",
+			Values: values, SourceURLs: []string{"https://platform.claude.com/x"},
+		}
+	}
+	held := reconcile.Decision{
+		ID: "DEC-009", Offering: "bedrock:eu.anthropic.claude-sonnet-4-5-20250929-v1:0", Field: "lifecycle", Kind: reconcile.KindKeep,
+		Reason: "Agreed in review.", ReviewBy: "2027-01-13",
+	}
+
+	tests := []struct {
+		name        string
+		asks        []NeedsHuman
+		decisions   []reconcile.Decision
+		contains    []string
+		notContains []string
+	}{
+		{
+			name: "two no-rule rows on one field suggest a rule",
+			asks: []NeedsHuman{ask("global", found...), ask("us", found...), ask("eu", slices.Concat(found, []string{"only on eu"})...)},
+			contains: []string{
+				"### Suggested rules (1)\n\nSome rows under Needs a human went to a person under no-rule and share a field. If the case can come back, add a Default to RULES.md: give it a slug, write When as the condition, and replace each ?.\n\n" +
+					"| Default | Field | When | Bot does | Why | Outcome |\n|---|---|---|---|---|---|\n" +
+					"| new-default | `lifecycle` | 3 rows this run, all with `Legacy 2026-10-08`, `EOL 2027-04-08`, `AWS names no replacement` | ? | ? | ? |\n",
+			},
+		},
+		{name: "one row suggests nothing", asks: []NeedsHuman{ask("global", found...)}, notContains: []string{"Suggested rules"}},
+		{
+			name: "held rows don't count", asks: []NeedsHuman{ask("global", found...), ask("eu", found...)}, decisions: []reconcile.Decision{held},
+			notContains: []string{"Suggested rules"},
+		},
+	}
+
+	t.Run("a pasted row fails until a person fills it in", func(t *testing.T) {
+		t.Parallel()
+
+		lines := suggestions([]NeedsHuman{ask("global", found...), ask("us", found...)})
+		require.Len(t, lines, 1)
+
+		_, problems := reconcile.ParseRules([]byte("- **Outcome.** `change` (a hunk)\n\n| Field | Covers |\n|---|---|\n| `lifecycle` | dates |\n\n" +
+			"| Default | Field | When | Bot does | Why | Outcome |\n|---|---|---|---|---|---|\n" + lines[0]))
+		assert.Contains(t, problems, "new-default: unknown outcome ?")
+	})
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			body := Render(Report{NeedsHuman: tt.asks}, "anthropic", "", nil, Base{Rules: testRules, Decisions: tt.decisions, Today: "2026-10-15"})
+			for _, want := range tt.contains {
+				assert.Contains(t, body, want)
+			}
+
+			for _, unwanted := range tt.notContains {
+				assert.NotContains(t, body, unwanted)
+			}
+		})
+	}
 }
 
 func TestPercent(t *testing.T) {
