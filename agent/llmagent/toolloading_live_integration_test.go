@@ -189,7 +189,7 @@ func TestToolLoadingLiveProviders_Integration(t *testing.T) {
 			model := build(t)
 
 			modes := []string{"local"}
-			if model.Capabilities().ToolSearch {
+			if model.Capabilities().ToolSearchProtocol != "" {
 				modes = append(modes, "native")
 			}
 

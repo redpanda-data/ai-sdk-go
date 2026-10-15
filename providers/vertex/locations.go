@@ -15,6 +15,7 @@
 package vertex
 
 import (
+	"regexp"
 	"slices"
 	"strings"
 )
@@ -215,3 +216,13 @@ func servedLocationsFor(model string) []string {
 func normalizeLocation(location string) string {
 	return strings.ToLower(strings.TrimSpace(location))
 }
+
+// locationPattern and maxLocationLen are the shape of a Vertex location:
+// global, a multi-region such as us or eu, or a region such as us-east5.
+// That is at most 63 characters, lowercase letters and digits in parts
+// joined by single hyphens, starting with a letter. The pattern admits no
+// character that can move the request host off googleapis.com. It checks
+// shape only, and an unlisted region passes.
+var locationPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`)
+
+const maxLocationLen = 63

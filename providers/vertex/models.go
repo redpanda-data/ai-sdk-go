@@ -13,8 +13,8 @@
 // limitations under the License.
 
 // Package vertex is the model catalog, pricing, and location-availability
-// data for Google Vertex AI. It has no request transport (an llm.Model that
-// builds Vertex requests).
+// data for Google Vertex AI, and an llm.Model for its Gemini and Claude
+// models (Provider.NewModel).
 package vertex
 
 import (
@@ -23,6 +23,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/pricing"
+	"github.com/redpanda-data/ai-sdk-go/providers/anthropic"
 )
 
 // ProviderName is the catalog key Provider.Name() returns; see
@@ -67,32 +68,44 @@ const (
 	ModelClaudeHaiku45     = "claude-haiku-4-5"
 )
 
-// Reasoning-effort values Vertex accepts. llm.ReasoningEffort is an open
-// string type whose valid vocabulary is provider-owned, so the two
-// publishers do not share one set: Gemini's thinking levels are
-// minimal/low/medium/high, and Claude's are low/medium/high/xhigh/max
-// (Haiku 4.5 omits xhigh). These mirror the Gemini-API and Anthropic-direct
-// catalogs and are the source of truth for Vertex.
+// ReasoningEffort controls how much work a model spends on reasoning before
+// it answers. The constants below declare the values Vertex models accept
+// and are the source of truth for Vertex. Gemini's thinking levels are
+// minimal/low/medium/high, and Claude's are low/medium/high/xhigh/max. A
+// model may take only some of them, or none. Catalog().Resolve(id) reports
+// a model's efforts in Reasoning.Efforts. NewModel validates the subset a
+// specific model supports against the model catalog.
+type ReasoningEffort = llm.ReasoningEffort
+
 const (
-	reasoningEffortMinimal llm.ReasoningEffort = "minimal"
-	reasoningEffortLow     llm.ReasoningEffort = "low"
-	reasoningEffortMedium  llm.ReasoningEffort = "medium"
-	reasoningEffortHigh    llm.ReasoningEffort = "high"
-	reasoningEffortXHigh   llm.ReasoningEffort = "xhigh"
-	reasoningEffortMax     llm.ReasoningEffort = "max"
+	// ReasoningEffortMinimal spends the least effort while keeping thinking
+	// enabled. Gemini only.
+	ReasoningEffortMinimal ReasoningEffort = "minimal"
+	// ReasoningEffortLow biases the model toward fast, shallow reasoning.
+	// Gemini and Claude.
+	ReasoningEffortLow ReasoningEffort = "low"
+	// ReasoningEffortMedium is the balanced middle setting. Gemini and Claude.
+	ReasoningEffortMedium ReasoningEffort = "medium"
+	// ReasoningEffortHigh biases the model toward deep reasoning. Gemini and
+	// Claude.
+	ReasoningEffortHigh ReasoningEffort = "high"
+	// ReasoningEffortXHigh spends very high effort. Claude only.
+	ReasoningEffortXHigh ReasoningEffort = "xhigh"
+	// ReasoningEffortMax removes all effort ceilings. Claude only.
+	ReasoningEffortMax ReasoningEffort = "max"
 )
 
 // geminiReasoningEfforts is the thinking-level vocabulary shared by
 // catalogued Gemini models on Vertex, matching the Gemini-API provider's
 // set (providers/google/models.go).
 var geminiReasoningEfforts = []llm.ReasoningEffort{
-	reasoningEffortMinimal, reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh,
+	ReasoningEffortMinimal, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh,
 }
 
 // geminiNoMinimalReasoningEfforts drops minimal: the Gemini 3.7 Flash, 3.8
 // Flash, and 4 Argon model pages say an explicit MINIMAL returns an error.
 var geminiNoMinimalReasoningEfforts = []llm.ReasoningEffort{
-	reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh,
+	ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh,
 }
 
 // geminiCaps is the capability set shared by every catalogued Gemini
@@ -145,13 +158,13 @@ var claudeCaps = llm.ModelCapabilities{
 // for both tool types on 2026-09-29.
 var claudeCapsWithToolSearch = func() llm.ModelCapabilities {
 	caps := claudeCaps
-	caps.ToolSearch = true
+	caps.ToolSearchProtocol = anthropic.ProviderName
 
 	return caps
 }()
 
 var claudeAllEfforts = []llm.ReasoningEffort{
-	reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortXHigh, reasoningEffortMax,
+	ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax,
 }
 
 var claudeModalities = catalog.Modalities{
@@ -342,7 +355,7 @@ func entries() []catalog.Entry {
 			},
 			// Thinking cannot be turned off; high is the default.
 			Reasoning: catalog.ReasoningSupport{Efforts: []llm.ReasoningEffort{
-				reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh,
+				ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh,
 			}},
 			// Gemini 3.1 Pro public preview on the model page (docs.cloud.google.com/
 			// gemini-enterprise-agent-platform/models/gemini/3-1-pro, read
@@ -540,7 +553,7 @@ func entries() []catalog.Entry {
 				SupportedParams: []string{"max_tokens", "reasoning_effort"},
 			},
 			Reasoning: catalog.ReasoningSupport{
-				Efforts:  []llm.ReasoningEffort{reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortXHigh, reasoningEffortMax},
+				Efforts:  []llm.ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 				Adaptive: true,
 			},
 			// Claude Opus 5.5 GA, retirement floor "not sooner than 2027-09-22" on
@@ -616,7 +629,7 @@ func entries() []catalog.Entry {
 				SupportedParams:  []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort", "thinking_budget"},
 			},
 			Reasoning: catalog.ReasoningSupport{
-				Efforts:  []llm.ReasoningEffort{reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortMax},
+				Efforts:  []llm.ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortMax},
 				Adaptive: true,
 				Budget:   true,
 			},
@@ -643,7 +656,7 @@ func entries() []catalog.Entry {
 			// thinking.type adaptive returns 400; effort is set alongside
 			// budget_tokens.
 			Reasoning: catalog.ReasoningSupport{
-				Efforts: []llm.ReasoningEffort{reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh},
+				Efforts: []llm.ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
 				Budget:  true,
 			},
 			// Claude Opus 4.5 GA on the model page (docs.cloud.google.com/
@@ -665,7 +678,7 @@ func entries() []catalog.Entry {
 				SupportedParams: []string{"max_tokens", "reasoning_effort"},
 			},
 			Reasoning: catalog.ReasoningSupport{
-				Efforts:  []llm.ReasoningEffort{reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortXHigh, reasoningEffortMax},
+				Efforts:  []llm.ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 				Adaptive: true,
 			},
 			// GA 2026-09-28; retirement floor 2027-09-28 is not an exact date.
@@ -685,7 +698,7 @@ func entries() []catalog.Entry {
 				SupportedParams: []string{"max_tokens", "reasoning_effort"},
 			},
 			Reasoning: catalog.ReasoningSupport{
-				Efforts:  []llm.ReasoningEffort{reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortXHigh, reasoningEffortMax},
+				Efforts:  []llm.ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 				Adaptive: true,
 			},
 			// Claude Sonnet 5 GA, retirement floor "not sooner than 2026-12-24" on
@@ -706,7 +719,7 @@ func entries() []catalog.Entry {
 				SupportedParams:  []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort", "thinking_budget"},
 			},
 			Reasoning: catalog.ReasoningSupport{
-				Efforts:  []llm.ReasoningEffort{reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortMax},
+				Efforts:  []llm.ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortMax},
 				Adaptive: true,
 				Budget:   true,
 			},
@@ -756,7 +769,7 @@ func entries() []catalog.Entry {
 				SupportedParams: []string{"max_tokens", "reasoning_effort"},
 			},
 			Reasoning: catalog.ReasoningSupport{
-				Efforts:  []llm.ReasoningEffort{reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortXHigh, reasoningEffortMax},
+				Efforts:  []llm.ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 				Adaptive: true,
 			},
 			// Claude Haiku 5.5 GA, released 2026-10-07; retirement floor "not

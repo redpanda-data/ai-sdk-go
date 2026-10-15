@@ -32,7 +32,11 @@ const (
 )
 
 // ResponseMapper converts Anthropic API payloads to llm.Response.
-type ResponseMapper struct{}
+type ResponseMapper struct {
+	// offeringID, when set, is reported as InvokedModelID: the model was
+	// built from another platform's offering that pins the served model.
+	offeringID string
+}
 
 // NewResponseMapper returns a ready-to-use mapper.
 func NewResponseMapper() *ResponseMapper {
@@ -153,8 +157,16 @@ func (m *ResponseMapper) FromProvider(r *anthropic.BetaMessage) (*llm.Response, 
 		ServiceTier:     llm.NormalizeServiceTier(string(r.Usage.ServiceTier)),
 		Speed:           llm.NormalizeSpeed(string(r.Usage.Speed)),
 		InferenceRegion: r.Usage.InferenceGeo,
-		InvokedModelID:  resolveInvokedModelID(r.Model),
+		InvokedModelID:  m.invokedModelID(r.Model),
 	}, nil
+}
+
+func (m *ResponseMapper) invokedModelID(model string) string {
+	if m.offeringID != "" {
+		return m.offeringID
+	}
+
+	return resolveInvokedModelID(model)
 }
 
 // resolveInvokedModelID collapses a provider-reported model ID (possibly a

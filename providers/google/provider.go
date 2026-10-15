@@ -39,6 +39,23 @@ type Provider struct {
 	context    context.Context //nolint:containedctx // Context required for Gemini client lifetime management
 }
 
+// NewProviderWithClient creates a provider over a genai client the caller
+// built. It takes no API key: whatever authenticates the client is already
+// on it.
+//
+//nolint:contextcheck // Context is intentionally stored for Gemini client operations
+func NewProviderWithClient(ctx context.Context, client *genai.Client) (*Provider, error) {
+	if client == nil {
+		return nil, errors.New("genai client is required")
+	}
+
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	return &Provider{client: client, context: ctx}, nil
+}
+
 // Name returns the provider identifier.
 func (*Provider) Name() llm.ProviderID {
 	return ProviderName
@@ -167,6 +184,14 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 		return nil, fmt.Errorf("unsupported model: %s", modelName)
 	}
 
+	return p.NewModelFromOffering(modelName, offering, opts...)
+}
+
+// NewModelFromOffering creates a model from an offering the caller resolved
+// from its own catalog. Requests name modelName, or the WithCustomModelName
+// value when set. The model reports the offering's provider. It reports the
+// offering ID as InvokedModelID when the offering is not Google's.
+func (p *Provider) NewModelFromOffering(modelName string, offering catalog.Offering, opts ...Option) (llm.Model, error) {
 	cfg := &Config{
 		ModelName:   modelName,
 		Constraints: offering.Constraints,
@@ -195,13 +220,15 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 		return nil, fmt.Errorf("model %s does not support thinking budget %d", modelName, *cfg.ThinkingBudget)
 	}
 
+	responseMapper := NewResponseMapper(offering.ID)
+	responseMapper.reportOffering = offering.Provider() != ProviderName
+
 	return &Model{
-		provider:       p,
 		config:         cfg,
 		offering:       offering,
 		client:         p.client,
 		requestMapper:  NewRequestMapper(cfg),
-		responseMapper: NewResponseMapper(offering.ID),
+		responseMapper: responseMapper,
 	}, nil
 }
 

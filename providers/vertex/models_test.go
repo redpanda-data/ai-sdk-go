@@ -540,6 +540,6 @@ func TestClaudeToolSearchMirrorsAnthropic(t *testing.T) {
 		bare, _, _ := strings.Cut(o.ID, "@")
 		direct, ok := anthropic.Catalog().Lookup(bare)
 		require.Truef(t, ok, "%s has no Anthropic-direct entry", o.ID)
-		assert.Equalf(t, direct.Capabilities.ToolSearch, o.Capabilities.ToolSearch, "%s ToolSearch", o.ID)
+		assert.Equalf(t, direct.Capabilities.ToolSearchProtocol, o.Capabilities.ToolSearchProtocol, "%s ToolSearchProtocol", o.ID)
 	}
 }
