@@ -109,39 +109,6 @@ func TestValidate(t *testing.T) {
 	}
 }
 
-func TestParse(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		input   string
-		wantErr bool
-	}{
-		{"all three arrays", `{"changes": [], "needs_human": [], "skipped": []}`, false},
-		{"truncated json", `{"changes": [`, true},
-		{"unknown field", `{"changes": [], "needs_human": [], "skipped": [], "extra": 1}`, true},
-		{"null", `null`, true},
-		{"empty object", `{}`, true},
-		{"missing changes", `{"needs_human": [], "skipped": []}`, true},
-		{"missing needs_human", `{"changes": [], "skipped": []}`, true},
-		{"missing skipped", `{"changes": [], "needs_human": []}`, true},
-		{"null array", `{"changes": null, "needs_human": [], "skipped": []}`, true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			_, err := Parse([]byte(tt.input))
-			if tt.wantErr {
-				require.Error(t, err)
-				return
-			}
-
-			require.NoError(t, err)
-		})
-	}
-}
-
 func TestRender(t *testing.T) {
 	t.Parallel()
 

@@ -15,9 +15,6 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -27,46 +24,19 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/internal/reconcile"
 )
 
-// Report is the agent job's structured output. It deliberately has no
-// free-text fields: everything rendered into a PR is an ID, an enum value,
-// a short value matching valuePattern, or a URL on a named-source host.
-type Report struct {
-	Changes    []Change     `json:"changes"`
-	NeedsHuman []NeedsHuman `json:"needs_human"`
-	Skipped    []Skipped    `json:"skipped"`
-}
-
-// Change is one value the agent changed.
-type Change struct {
-	Offering  string `json:"offering"`
-	Field     string `json:"field"`
-	Old       string `json:"old"`
-	New       string `json:"new"`
-	SourceURL string `json:"source_url"`
-}
-
-// NeedsHuman is a value the agent couldn't decide. Rule is the RULES.md rule
-// that sent it to a person, or R4 when no rule covers the case.
-type NeedsHuman struct {
-	Offering   string   `json:"offering"`
-	Field      string   `json:"field"`
-	Values     []string `json:"values"`
-	SourceURLs []string `json:"source_urls"`
-	Rule       string   `json:"rule"`
-}
-
-// Skipped is an offering the agent left alone, and the rule that left it out.
-type Skipped struct {
-	Offering string `json:"offering"`
-	Reason   string `json:"reason"`
-	Rule     string `json:"rule"`
-}
+// The agent's report types live in internal/reconcile, shared with
+// cmd/catalog-gate; these names keep this package's code and tests short.
+type (
+	Report     = reconcile.Report
+	Change     = reconcile.Change
+	NeedsHuman = reconcile.NeedsHuman
+	Skipped    = reconcile.Skipped
+)
 
 var (
-	fields          = []string{"new_model", "price", "limit", "lifecycle", "replacement", "knowledge_cutoff", "release_date", "capability"}
-	reasons         = []string{"not_on_named_sources", "conflicting_sources", "needs_new_pricing_shape", "out_of_scope", "limited_availability", "vendor_excluded"}
-	offeringPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._:-]{0,79}$`)
-	valuePattern    = regexp.MustCompile(`^[A-Za-z0-9 ._:/+-]{0,64}$`)
+	fields       = []string{"new_model", "price", "limit", "lifecycle", "replacement", "knowledge_cutoff", "release_date", "capability"}
+	reasons      = []string{"not_on_named_sources", "conflicting_sources", "needs_new_pricing_shape", "out_of_scope", "limited_availability", "vendor_excluded"}
+	valuePattern = regexp.MustCompile(`^[A-Za-z0-9 ._:/+-]{0,64}$`)
 	// sourcePattern allows only characters that can't end a markdown link,
 	// end a table cell or start HTML, so a URL always renders as one link.
 	sourcePattern = regexp.MustCompile(`^https://[A-Za-z0-9.-]+(/[A-Za-z0-9._~/%#?=&+:-]*)?$`)
@@ -88,30 +58,6 @@ func ValidateCodeFiles(files []string) []string {
 	return problems
 }
 
-// Parse decodes a report strictly: unknown fields are an error, and all three
-// arrays must be present, so a missing or null report never reads as "no drift".
-func Parse(data []byte) (Report, error) {
-	// Pointers tell a missing or null array apart from an empty one.
-	var raw struct {
-		Changes    *[]Change     `json:"changes"`
-		NeedsHuman *[]NeedsHuman `json:"needs_human"`
-		Skipped    *[]Skipped    `json:"skipped"`
-	}
-
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-
-	if err := decoder.Decode(&raw); err != nil {
-		return Report{}, fmt.Errorf("parse report: %w", err)
-	}
-
-	if raw.Changes == nil || raw.NeedsHuman == nil || raw.Skipped == nil {
-		return Report{}, errors.New("parse report: changes, needs_human and skipped are required")
-	}
-
-	return Report{Changes: *raw.Changes, NeedsHuman: *raw.NeedsHuman, Skipped: *raw.Skipped}, nil
-}
-
 // Validate lists every problem that would make the report unsafe to render,
 // including a row that names a rule RULES.md doesn't have.
 func Validate(report Report, hosts []string, rules reconcile.Rules) []string {
@@ -125,7 +71,7 @@ func Validate(report Report, hosts []string, rules reconcile.Rules) []string {
 		}
 	}
 	checkOffering := func(where, offering string) {
-		if !offeringPattern.MatchString(offering) {
+		if !reconcile.OfferingPattern.MatchString(offering) {
 			problems = append(problems, where+": bad offering "+fmt.Sprintf("%q", offering))
 		}
 	}

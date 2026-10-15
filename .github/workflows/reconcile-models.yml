@@ -12,6 +12,14 @@ on:
         description: Stop before pushing a branch or opening a PR
         type: boolean
         default: true
+      force:
+        description: Run the agent even if the gate finds nothing changed
+        type: boolean
+        default: false
+  # Daily, only the gate runs (no model, no PR): in shadow mode it measures
+  # how often the sources change before the gate is trusted to skip runs.
+  schedule:
+    - cron: "17 6 * * *"
 
 permissions: {}
 
@@ -22,9 +30,78 @@ concurrency:
 env:
   PROVIDER: ${{ inputs.provider || 'anthropic' }}
   DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+  FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
+  # shadow: the gate reports "would skip" but the agent always runs. Switch to
+  # enforce once the record job's comparisons show skips would lose nothing.
+  GATE_MODE: shadow
+  # The oldest baseline the gate relies on.
+  MAX_AGE: 60h
 
 jobs:
+  # No model. Fingerprints the vendor's pages and the run's inputs, and
+  # compares them with the last successful real run's, to skip the agent
+  # when nothing changed. Anything it can't prove unchanged runs the agent.
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read # to find and download the last real run's fingerprints
+    outputs:
+      run_agent: ${{ steps.gate.outputs.run_agent }}
+      verdict: ${{ steps.gate.outputs.verdict }}
+    steps:
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          persist-credentials: false
+      - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e  # v2.2.0
+      - name: Find the last real run's fingerprints
+        id: baseline
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NAME: reconcile-fingerprints-${{ env.PROVIDER }}
+          BRANCH: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
+          REPO_ID: ${{ github.repository_id }}
+          WORKFLOW_PATH: .github/workflows/reconcile-models.yml
+        run: .github/reconcile-models/find-baseline.sh >>"$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        if: steps.baseline.outputs.run_id != ''
+        continue-on-error: true
+        with:
+          name: reconcile-fingerprints-${{ env.PROVIDER }}
+          run-id: ${{ steps.baseline.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: out/gate/baseline
+      - name: Fingerprint the sources (no model)
+        id: gate
+        # A failed gate leaves run_agent empty, which runs the agent.
+        continue-on-error: true
+        env:
+          BASE_RUN: ${{ steps.baseline.outputs.run_id }}
+        run: |
+          task catalog:gate -- -provider "$PROVIDER" -mode "$GATE_MODE" -force="$FORCE" -max-age "$MAX_AGE" \
+            -baseline out/gate/baseline/fingerprints.json -baseline-run "$BASE_RUN" -out out/gate >>"$GITHUB_OUTPUT"
+          cat out/gate/summary.md >>"$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        if: always()
+        with:
+          name: reconcile-gate-${{ env.PROVIDER }}
+          path: out/gate/
+          retention-days: 14
+
   agent:
+    needs: gate
+    # A failed gate runs the agent too (!cancelled() lifts the implicit
+    # success() check). Scheduled runs are gate-only for now; note that
+    # DRY_RUN is false on a schedule, so without this a scheduled run would
+    # open a real PR.
+    if: ${{ !cancelled() && needs.gate.outputs.run_agent != 'false' && github.event_name != 'schedule' }}
     runs-on: ubuntu-24.04
     # A launch across three hosts took 17 minutes and 163 turns (run 12).
     timeout-minutes: 60
@@ -226,3 +303,46 @@ jobs:
               --title "chore(catalog): reconcile ${PROVIDER} models" --body-file out/body.md \
               --label ai-merge-skip --reviewer adamwownysz-redpanda
           fi
+
+  # No model, on a fresh runner. After a green agent and PR job, dry runs
+  # included, it compares the run with the gate's page list and the baseline
+  # run's findings; outside dry runs it then saves this run's fingerprints as
+  # the next baseline. It runs nothing from the patch.
+  record:
+    needs: [gate, agent, pr]
+    if: needs.gate.outputs.verdict != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          persist-credentials: false
+      - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e  # v2.2.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with:
+          name: reconcile-gate-${{ env.PROVIDER }}
+          path: gate
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with:
+          name: reconcile-agent-${{ env.PROVIDER }}
+          path: gate/agent
+      - name: Compare with the page list and the baseline run
+        # A failed comparison must not stop the baseline from being saved.
+        continue-on-error: true
+        run: |
+          task catalog:gate -- -compare -gate gate -report gate/agent/report.json \
+            -baseline-report gate/baseline/report.json >>"$GITHUB_STEP_SUMMARY"
+      - name: Collect the next baseline
+        run: mkdir -p keep && cp -r gate/fingerprints.json gate/text gate/agent/report.json keep/
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        if: env.DRY_RUN != 'true'
+        with:
+          name: reconcile-fingerprints-${{ env.PROVIDER }}
+          path: keep/
+          if-no-files-found: error
+          retention-days: 90

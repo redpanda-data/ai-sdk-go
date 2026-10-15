@@ -141,6 +141,13 @@ tasks:
     cmds:
       - 'GOROOT={{.GO_ROOT}} GOTOOLCHAIN=local {{.GO_BIN}} run ./cmd/catalog-snapshot -out catalog/snapshot.json'
 
+  catalog:gate:
+    desc: Run the reconcile workflow's fingerprint gate (cmd/catalog-gate); pass its flags after --
+    deps:
+      - install:go
+    cmds:
+      - 'GOROOT={{.GO_ROOT}} GOTOOLCHAIN=local {{.GO_BIN}} run ./cmd/catalog-gate {{.CLI_ARGS}}'
+
   catalog:check:
     desc: Fail when the committed model-catalog snapshot is stale
     deps:

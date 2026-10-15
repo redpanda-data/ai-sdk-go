@@ -54,7 +54,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	report, err := Parse(data)
+	report, err := reconcile.ParseReport(data)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "catalog-report:", err)
 		os.Exit(1)

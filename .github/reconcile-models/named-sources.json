@@ -1,6 +1,30 @@
 {
   "anthropic": {
     "providers": ["anthropic", "vertex", "bedrock"],
-    "hosts": ["platform.claude.com", "cloud.google.com", "docs.cloud.google.com", "aws.amazon.com", "docs.aws.amazon.com", "pricing.us-east-1.amazonaws.com"]
+    "hosts": ["platform.claude.com", "cloud.google.com", "docs.cloud.google.com", "aws.amazon.com", "docs.aws.amazon.com", "pricing.us-east-1.amazonaws.com"],
+    "gate": {
+      "model_prefix": "anthropic/claude-",
+      "must_contain": "Claude",
+      "pages": [
+        {"id": "anthropic-pricing", "type": "markdown", "url": "https://platform.claude.com/docs/en/about-claude/pricing.md"},
+        {"id": "anthropic-models", "type": "markdown", "url": "https://platform.claude.com/docs/en/models/overview.md"},
+        {"id": "anthropic-deprecations", "type": "markdown", "url": "https://platform.claude.com/docs/en/about-claude/model-deprecations.md"},
+        {"id": "anthropic-tool-search", "type": "markdown", "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool.md"},
+        {"id": "anthropic-features", "type": "markdown", "url": "https://platform.claude.com/docs/en/build-with-claude/overview.md"},
+        {"id": "anthropic-effort", "type": "markdown", "url": "https://platform.claude.com/docs/en/build-with-claude/effort.md"},
+        {"id": "vertex-pricing", "type": "html", "url": "https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing?hl=en", "fragment": "anthropics-claude-models"},
+        {"id": "vertex-claude", "type": "html", "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/partner-models/claude?hl=en"},
+        {"id": "vertex-locations", "type": "html", "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/resources/locations?hl=en"},
+        {"id": "bedrock-model-cards", "type": "markdown", "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards-anthropic.md"},
+        {"id": "bedrock-lifecycle-legacy", "type": "markdown", "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.md"},
+        {"id": "bedrock-lifecycle", "type": "markdown", "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle.md", "must_contain": "Model lifecycle"},
+        {"id": "aws-price-list", "type": "pricelist", "url": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrockFoundationModels/current/index.json", "match": "^Claude .*\\(Amazon Bedrock Edition\\)$", "min_lines": 100}
+      ],
+      "per_model": [
+        {"provider": "anthropic", "id": "anthropic-model-{slug}", "type": "markdown", "url": "https://platform.claude.com/docs/en/models/{slug}/overview.md"},
+        {"provider": "gcp.vertex", "id": "vertex-model-{slug}", "type": "html", "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/partner-models/claude/{slug}?hl=en"},
+        {"provider": "aws.bedrock", "id": "bedrock-card-{slug}", "type": "markdown", "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-{slug}.md"}
+      ]
+    }
   }
 }
