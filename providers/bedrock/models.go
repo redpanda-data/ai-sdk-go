@@ -709,6 +709,30 @@ var (
 		},
 	}}
 
+	// GPT-6.1 Sol Ultrafast: six times Standard, including 30-minute cache writes
+	// (represented in the unknown-TTL bucket). Verified 2026-10-15:
+	// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-1-sol.html
+	gpt61SolUltrafast = []pricing.Override{{
+		Match: pricing.Selector{ServiceTier: llm.ServiceTierUltrafast},
+		RateCard: pricing.RateCard{
+			Base: pricing.NewRates(13.20, 66.00, 0.66).WithCacheCreation(0, 0, 16.50),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(26.40, 99.00, 1.32).WithCacheCreation(0, 0, 33.00),
+			}},
+		},
+	}}
+	gpt61SolUltrafastGlobal = []pricing.Override{{
+		Match: pricing.Selector{ServiceTier: llm.ServiceTierUltrafast},
+		RateCard: pricing.RateCard{
+			Base: pricing.NewRates(12.00, 60.00, 0.60).WithCacheCreation(0, 0, 15.00),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(24.00, 90.00, 1.20).WithCacheCreation(0, 0, 30.00),
+			}},
+		},
+	}}
+
 	gpt56Constraints = llm.ModelConstraints{
 		TemperatureRange: [2]float64{0.0, 2.0},
 		MaxInputTokens:   922000,
@@ -1194,9 +1218,10 @@ var bedrockFamilies = []family{
 		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-1-sol.html
 		// Standard-tier rates from the card (launched 2026-09-29): global
 		// matches OpenAI's rates and US CRIS adds 10%, with a long-context
-		// card above 272K input tokens. The card names no cache-write TTL, so
-		// writes sit in the unknown-TTL bucket. Unprobed: the card documents
-		// Astra's Converse surface, so the family reuses Astra's capabilities
+		// card above 272K input tokens. The 30-minute cache-write TTL sits
+		// in the unknown-TTL bucket. Ultrafast cards also price Responses
+		// usage of these IDs; this SDK still invokes profiles via Converse.
+		// Unprobed: the card documents Astra's Converse surface, so the family reuses Astra's capabilities
 		// and limits. The card's 131,072 max output tokens exceeds OpenAI's
 		// documented 128,000, so the lower limit stands until probed.
 		BareID:      ModelGPT61Sol,
@@ -1224,6 +1249,8 @@ var bedrockFamilies = []family{
 				Rates:            pricing.NewRates(4.40, 16.50, 0.22).WithCacheCreation(0, 0, 5.50),
 			}},
 		},
+		Overrides:       gpt61SolUltrafast,
+		GlobalOverrides: gpt61SolUltrafastGlobal,
 	},
 	{
 		// OpenAI GPT-6.1 Sol on bedrock-mantle — bare in-region ID, us-east-1
@@ -1250,6 +1277,7 @@ var bedrockFamilies = []family{
 				Rates:            pricing.NewRates(4.40, 16.50, 0.22).WithCacheCreation(0, 0, 5.50),
 			}},
 		},
+		Overrides: gpt61SolUltrafast,
 	},
 	{
 		// OpenAI GPT-6 Sol — inference-profile-only on bedrock-runtime:

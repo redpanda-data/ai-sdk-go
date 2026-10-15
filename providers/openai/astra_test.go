@@ -104,6 +104,8 @@ func TestGPT6TieredPricing(t *testing.T) {
 		{"Astra Ultrafast above threshold", ModelGPT6Astra, ultrafast, 272_001, 12_000_000_000, 1_200_000_000, 15_000_000_000, 45_000_000_000},
 		{"6.1 Sol at threshold", ModelGPT6_1Sol, standard, 272_000, 200_000_000, 10_000_000, 250_000_000, 1_000_000_000},
 		{"6.1 Sol above threshold", ModelGPT6_1Sol, standard, 272_001, 400_000_000, 20_000_000, 500_000_000, 1_500_000_000},
+		{"6.1 Sol Ultrafast at threshold", ModelGPT6_1Sol, ultrafast, 272_000, 1_200_000_000, 60_000_000, 1_500_000_000, 6_000_000_000},
+		{"6.1 Sol Ultrafast above threshold", ModelGPT6_1Sol, ultrafast, 272_001, 2_400_000_000, 120_000_000, 3_000_000_000, 9_000_000_000},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
