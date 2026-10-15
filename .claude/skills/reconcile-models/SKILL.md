@@ -17,128 +17,79 @@ our entries, fix, regenerate the snapshot. **The snapshot diff is the review
 surface** — every change must be visible and intended in
 `catalog/snapshot.json`.
 
-CI runs follow `.github/reconcile-models/RULES.md`; its rows marked **CI**
-differ from this skill.
+Every run, hand runs included, follows `.github/reconcile-models/RULES.md`,
+which decides what to change, skip or ask. The host pages in
+`.claude/skills/reconcile-models/hosts/` say where each host publishes its
+facts: start with `shared.md`, then the page for each package. This skill is
+the workflow.
 
-## Sources, in order of authority
+## Sources
 
-1. **Provider pages (authoritative — the only sources cited in code):**
-   - Anthropic:
-     - Pricing (includes the fast-mode, long-context, cache and batch
-       sections): `https://platform.claude.com/docs/en/about-claude/pricing`
-     - Lifecycle: `https://platform.claude.com/docs/en/about-claude/model-deprecations`
-     - Per-model specs: `https://platform.claude.com/docs/en/models/<slug>/overview`
-       (e.g. `sonnet-4-6`) — window, max output, both knowledge cutoffs
-   - OpenAI:
-     - Pricing: `https://developers.openai.com/api/docs/pricing`
-     - **Lifecycle** (the only source for deprecation and shutdown dates):
-       `https://developers.openai.com/api/docs/deprecations`
-     - Per-model specs: `https://developers.openai.com/api/docs/models/<id>`
-       — window, **maximum input tokens**, max output, per-tier pricing notes
+Facts come only from the hosts' own pages, and code cites only those.
 
-     Append `.md` to any of these to get clean markdown
-     (`.../deprecations.md`). Do this for the deprecations page especially:
-     it is long, and summarizing it lossily has produced flatly
-     contradictory answers about whether `o3`/`o3-pro` are deprecated at
-     all. Fetch the `.md`, then grep it — the tables are the data.
-   - Google (Gemini API, `providers/google`):
-     - Pricing: `https://ai.google.dev/gemini-api/docs/pricing`
-     - **Lifecycle**: `https://ai.google.dev/gemini-api/docs/deprecations`
-       (fetch `.../deprecations.md.txt`) plus the changelog
-       (`.../docs/changelog`). Every shutdown date is a floor, so none fills
-       `Retires`. `ReplacedBy` comes from the replacement column or a
-       changelog recommendation.
+- **Anthropic API, Claude on Vertex, Bedrock:** their host pages
+  (`hosts/anthropic.md`, `hosts/vertex.md`, `hosts/bedrock.md`).
+- **OpenAI** (`providers/openai`):
+  - Pricing: `https://developers.openai.com/api/docs/pricing`
+  - **Lifecycle** (the only source for deprecation and shutdown dates):
+    `https://developers.openai.com/api/docs/deprecations`
+  - Per-model specs: `https://developers.openai.com/api/docs/models/<id>`
+    gives window, **maximum input tokens**, max output, per-tier pricing notes
 
-     **Never copy lifecycle between Google surfaces.** Vertex retired the
-     Gemini 2.5 models on 2026-10-20; the Gemini API still serves them.
-   - Vertex (Google Cloud, the Gemini Enterprise Agent Platform) — one host
-     serving first-party Gemini and partner Claude, priced by Google, not by
-     the model's own publisher:
-     - Pricing (one page, per-region tabs; Claude rates here, NOT Anthropic's
-       list prices, and a ~10% non-global premium):
-       `https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing`
-     - Gemini lifecycle (release, retirement, recommended replacement in one
-       table): `https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/model-versions`.
-       A bare date is firm → `Retires`; "or later" is a floor → unset.
-     - Per-model pages carry launch stage, release date, and the retirement
-       floor: Gemini at
-       `https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/<slug>`
-       (e.g. `3-6-flash`), Claude at
-       `.../models/partner-models/claude/<slug>` (e.g. `sonnet-5`,
-       `haiku-4-5`). On the Claude pages Google words retirement as "not
-       sooner than" — a floor, so `Retires` stays unset (same rule as
-       Anthropic). Gemini lifecycle comes from `model-versions`, where a
-       bare date is firm and goes in `Retires` (the Gemini 2.5 models carry
-       2026-10-20).
-   - Bedrock: `https://aws.amazon.com/bedrock/pricing/` · model cards ·
-     `ListFoundationModels` (`modelLifecycle`) · lifecycle/EOL tables, split
-     by launch date — models launched on or after 2026-09-07:
-     `https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle.html`;
-     earlier models (the Legacy/EOL table):
-     `https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html`
-2. **Cross-checks (fetch and compare only — never cite in code):**
+  Append `.md` to any of these to get clean markdown
+  (`.../deprecations.md`). Do this for the deprecations page especially:
+  it is long, and summarizing it lossily has produced flatly
+  contradictory answers about whether `o3`/`o3-pro` are deprecated at
+  all. Fetch the `.md`, then grep it: the tables are the data.
+- **Google** (Gemini API, `providers/google`):
+  - Pricing: `https://ai.google.dev/gemini-api/docs/pricing`
+  - Per-model limits: `https://ai.google.dev/gemini-api/docs/models`
+  - **Lifecycle**: `https://ai.google.dev/gemini-api/docs/deprecations`
+    (fetch `.../deprecations.md.txt`) plus the changelog
+    (`.../docs/changelog`). `ReplacedBy` comes from the replacement column
+    or a changelog recommendation.
 
-   ```bash
-   curl -s https://openrouter.ai/api/v1/models -o /tmp/openrouter.json
-   jq '.data[] | select(.id=="openai/gpt-5.4") | {pricing, context_length, top_provider}' /tmp/openrouter.json
-
-   curl -sL https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json -o /tmp/litellm.json
-   jq '."gpt-5.4"' /tmp/litellm.json   # values are USD PER TOKEN — ×1e6 for $/M
-   ```
-
-   A disagreement between an aggregator and our entry is a *lead*, not a
-   verdict — resolve it on the provider page. Known aggregator traps:
-   LiteLLM prices in USD/token and carries no release dates; OpenRouter
-   truncates descriptions mid-sentence, lags new models, and its `created`
-   (a day-precision Released lead) dates the OpenRouter slug, not the
-   vendor's model ID — it can predate the ID (slug first listed for a
-   preview) or run a day early.
-
-   **Neither is usable for lifecycle.** OpenRouter has an
-   `expiration_date` field that is `null` for every model, retired ones
-   included; a model silently *vanishing* from its list is the only
-   lifecycle signal it gives. LiteLLM's single `deprecation_date` conflates
-   three meanings, measured over our catalog: the exact shutdown date for
-   OpenAI models and Gemini previews (correct wherever present — it is what
-   catches a mis-filed batch like `o4-mini`); Anthropic's "not sooner than"
-   *floor* for all 10 active Claude models (trusting it would falsely
-   retire the entire live lineup); and simply absent for `gpt-5` and `o3`,
-   which do have announced dates. Use it to generate
-   leads, never to set a date.
+  **Never copy lifecycle between Google surfaces.** Vertex retired the
+  Gemini 2.5 models on 2026-10-20; the Gemini API still serves them.
+- **Gemini on Vertex** (`providers/vertex`; `hosts/vertex.md` covers only
+  its Claude models):
+  - Pricing: the Gemini sections of
+    `https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing`,
+    one tab per region. The self-check in `hosts/vertex.md` applies to
+    Gemini too.
+  - Lifecycle (release, retirement and recommended replacement in one
+    table): `https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/model-versions`.
+  - Per-model pages carry launch stage and release date:
+    `https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/<slug>`
+    (e.g. `3-6-flash`).
+- **Aggregators:** see `hosts/shared.md` ("Hand runs: LiteLLM leads").
 
 ## Per-entry checklist
 
-- **Rates**: base input/output/cached against the provider table. Check
-  every override card (fast/speed/tier/region) and every bracket — an
-  override card needs its own brackets, or large requests on that card
-  underbill. Encode only the rate in effect today; scheduled future rates
-  are comments, never data. Watch for intro-pricing notes ("introductory
-  through …" — and vendors sometimes make intro prices permanent).
-- **Tier thresholds**: only author a `Bracket` the vendor currently
-  publishes. When a vendor raises a model's window, check whether a
-  long-context surcharge came with it — a bigger window without its tier
-  underbills; a tier the vendor dropped overbills.
-- **Limits**: `MaxInputTokens` is the enforceable input cap (vendor's
-  "maximum input tokens" when published; the window only when input isn't
-  separately capped). `MaxOutputTokens` from the model page.
-- **Lifecycle**: `Retires` only for exact announced shutdown dates —
-  "not sooner than" floors stay out. Deprecations get `Life.Deprecated` +
-  `ReplacedBy` (only if the replacement is in the same catalog). Retirement
-  is append-only: keep the entry, add `Retires` and a `// Deprecated:` doc
+- **Rates**: base input, output and cache rates against the host's table,
+  and every override card (fast, speed, tier, region) and bracket
+  (price-follow). `hosts/shared.md` ("Writing prices") says how to encode
+  them. Watch for intro-pricing notes ("introductory through …"); vendors
+  sometimes make intro prices permanent.
+- **Limits**: `MaxInputTokens` and `MaxOutputTokens` (limit-follow).
+- **Lifecycle**: dates follow lifecycle-exact-date, and `ReplacedBy`
+  follows replacement-host-pick or replacement-publisher-pick. When the
+  catalog doesn't carry the replacement, follow replacement-not-carried.
+  Retirement is append-only: keep the entry, and add a `// Deprecated:` doc
   comment on the ID constant.
 
   Lifecycle is the field most likely to be silently stale, because nothing
   in the repo goes red when a vendor announces a date. Work the whole
-  deprecation page, not just the models you suspect:
+  deprecation page, not just the models you suspect. The host pages say
+  how Anthropic, Vertex's Claude pages and Bedrock word their dates; for
+  the rest:
   - **Read each vendor's date wording before copying it**, and note that
     each vendor words it differently:
-    - Anthropic — "Tentative retirement date / Not sooner than X" is a
-      floor → leave `Retires` unset.
-    - OpenAI — announces exact shutdown dates → `Retires`.
-    - Gemini API — every date is a floor → unset until Google announces an
-      exact date or the model leaves the live models list (below).
-    - Vertex (`model-versions`) — a bare date is firm → `Retires`; "or
-      later" is a floor → unset.
+    - OpenAI: announces exact shutdown dates → `Retires`.
+    - Gemini API: every date is a floor → unset until Google announces an
+      exact date (lifecycle-exact-date).
+    - Gemini on Vertex (`model-versions`): a bare date is firm →
+      `Retires`; "or later" is a floor → unset.
   - **Take the whole row, and check which batch it belongs to.** Every
     OpenAI deprecation lives under a dated `### YYYY-MM-DD:` heading — that
     heading is `Life.Deprecated`, the row's date is `Life.Retires`. Models
@@ -151,62 +102,46 @@ differ from this skill.
     Vendors revise recommendations as newer models ship (the gpt-5 snapshots
     moved from the 5.4/5.5 line to 5.6). A stale target is invisible until a
     user follows it.
-  - **Probe when a date has passed.** For Gemini, the models list is
-    authoritative about what still exists:
+  - **Probe when a date has passed (hand runs only; it needs a key).** For
+    Gemini, the models list shows what still exists:
     ```bash
     curl -s "https://generativelanguage.googleapis.com/v1beta/models?key=$GOOGLE_API_KEY&pageSize=200" \
       | jq -r '.models[].name' | sed 's|^models/||' | sort
     ```
-    A model absent here is retired regardless of how the column is worded
-    (this is how `gemini-3-pro-preview` was confirmed retired).
-  - **Bedrock sets its own schedule and publishes only Legacy/EOL models**
-    on the model-lifecycle page — that table omits Active models, so an
-    absence there means "no EOL announced", not "unchecked". `Available` is
-    genuinely unknown per inference profile without
-    `ListFoundationModels`; leave it unset rather than guessing.
+    A model absent here no longer serves (this is how `gemini-3-pro-preview`
+    was confirmed retired). `Retires` still comes only from a page's exact
+    date (lifecycle-exact-date); tell the person what the list shows.
   - Two guards in `cmd/catalog-snapshot/lifecycle_test.go` catch the
     mechanical half (deprecated-without-`ReplacedBy`, and `ReplacedBy`
     pointing at an already-retired offering). They cannot catch a wrong or
     missing date — that still needs the vendor page.
-- **Facts**: `Knowledge` is the *reliable* cutoff when the vendor publishes
-  both reliable and training dates; `Released` is the day this exact model
-  ID first became callable by users anywhere, including the vendor's own
-  apps, not only its API (the API launch day is the offering's `Available`;
-  a preview under its own ID is a separate model — see add-model);
-  `Description` is a short current blurb.
+- **Facts**: `Knowledge` follows knowledge-month-end, `Released` follows
+  released-first-callable, and an offering's launch `Available` follows
+  available-host-launch. A month-only release date follows
+  release-month-only. A preview under its own ID is a separate model; see
+  add-model. An existing `Description` stays as it is.
 
   **Fixed facts vs. mutable data.** `Released`, `Knowledge`, and an
-  offering's launch `Available` describe a past event — once correct they
+  offering's launch `Available` describe a past event: once correct they
   never change. Everything else (rates, brackets, limits, lifecycle,
-  `ReplacedBy`, capabilities, `Description`) legitimately moves with the
-  vendor; update it and cite the source.
+  `ReplacedBy`, capabilities) legitimately moves with the vendor; update it
+  and cite the source.
 
-  So a fixed fact that disagrees with the vendor page is a **conflict to
-  resolve, not an update to apply**:
-  1. Find where the current value came from — its source comment, or
-     `git log -S'MustDate("YYYY-MM-DD")' -- catalog/ providers/`.
-  2. Change it only when the old value was unsourced or an aggregator
-     fallback (OpenRouter `created` runs a day early for several models) and
-     the new one is quoted from the provider page. A newer model in the same
-     series is a new entry, never a reason to edit the old one's dates.
-  3. Pin the corrected value with a comment naming the provider page, so
-     the next run can see it is already vendor-sourced.
-  4. If the old value was already vendor-sourced, the vendor page changed
-     under us. Don't flip it back and forth. Report it as a conflict and
-     leave the value alone until a human decides.
-- **Capabilities/modalities**: provider-documented model facts (JSON mode
-  means a schemaless mode — Anthropic has none; document input means the
-  API accepts document parts). Bedrock geo ratio stays 1.10x
-  (`TestGeoGlobalRatio` trips if AWS changes it).
+  So a fixed fact that disagrees with its page follows label-fact-unproven
+  or label-fact-differs, which turn on its source comment. A newer model in
+  the same series is a new entry, never a reason to edit the old one's
+  dates. In a hand run, also find where the current value came from before
+  you change it, and tell the person what you found:
+  `git log -S'MustDate("YYYY-MM-DD")' -- catalog/ providers/`.
+- **Capabilities/modalities**: provider-documented model facts
+  (capability-follow). JSON mode means a schemaless mode (Anthropic has
+  none); document input means the API accepts document parts.
 
-## When the docs are ambiguous, probe
+## When the docs are ambiguous, probe (hand runs only)
 
-- Context window: send a prompt just over the claimed threshold with the
-  raw SDK (~4 chars/token, overshoot with margin); a 200K model returns
-  "prompt is too long", a genuine 1M model accepts without beta headers.
-- Bedrock IDs: a one-token `Converse` call distinguishes working /
-  unpublished (`ValidationException`) / unsubscribed
-  (`AccessDeniedException`).
+`hosts/shared.md` ("Probes (hand runs only)") has the context-window probe,
+and each host page lists its own, such as Bedrock's `Converse` ID check in
+`hosts/bedrock.md`.
 
 ## Finish
 

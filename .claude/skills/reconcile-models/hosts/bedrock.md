@@ -12,6 +12,8 @@ Where Amazon Bedrock publishes facts for the models it serves. AWS sets its own 
 | Lifecycle, older models | `https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.md` | the table of Legacy and EOL models |
 | Lifecycle, newer models | `https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle.md` | the policy for models launched on or after 2026-09-07: Legacy and EOL, and when a card gains its EOL date |
 
+The table names Anthropic's cards. The other vendors `providers/bedrock` carries (Amazon Nova, Mistral, OpenAI, Google Gemma) have cards with the same sections, linked from each vendor's model-cards page, for example `https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards-openai.md`.
+
 ## IDs and copies
 
 - A model is one family declaration in `providers/bedrock/models.go`. `families.go` expands it into a bare entry and one entry per profile in its `Profiles`.
@@ -29,6 +31,7 @@ Where Amazon Bedrock publishes facts for the models it serves. AWS sets its own 
   ```bash
   curl -sL https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrockFoundationModels/current/us-east-1/index.json | jq -r '. as $l | .products[] | select(.attributes.servicename == "Claude Sonnet 5.5 (Amazon Bedrock Edition)") | .sku as $s | [.attributes.usagetype, ($l.terms.OnDemand[$s][]?.priceDimensions[] | .unit, .pricePerUnit.USD)] | @tsv'
   ```
+- That file (`AmazonBedrockFoundationModels`) holds the Claude models and some OpenAI ones (GPT-6 Astra), each under its own `servicename`; `jq -r '[.products[].attributes.servicename] | unique[]'` lists them. Amazon's own models and most other vendors' (Nova, Mistral, Gemma, GPT OSS) are in the `AmazonBedrock` offer instead (`.../offers/v1.0/aws/AmazonBedrock/current/<region>/index.json`), where `servicename` is "Amazon Bedrock" for every row and the `model` attribute names the model (read 2026-10-15).
 - Each file holds one source region's rates, per 1M tokens; `region_index.json` in the same folder lists the regions. Read `us.` and `global.` from `us-east-1`, and each other profile from one of its source regions (for example `eu-central-1`, `ap-southeast-2`, `ap-northeast-1`).
 - The usage type names the rate. Newer models use `input_tokens_standard`, `output_tokens_standard`, `cache_read_tokens_standard`, `cache_write_tokens_standard` (5 minutes) and `cache_write_tokens_1h_standard`; older ones use `InputTokenCount`, `OutputTokenCount`, `CacheReadInputTokenCount`, `CacheWriteInputTokenCount` and `CacheWrite1hInputTokenCount`. A name with `global` in it is the `global.` rate; without it, the geo and in-region rate. Ignore `Batch`, `Reserved` and provisioned-throughput rows.
 - `long_ctx` in a usage type marks a long-context tier. Neither the price list nor the card gives its threshold.
@@ -54,5 +57,5 @@ Where Amazon Bedrock publishes facts for the models it serves. AWS sets its own 
 
 ## Probes (hand runs only)
 
-- A one-token `Converse` request tells a working ID (it answers) from an unpublished one (`ValidationException`, "model identifier is invalid") and one the account hasn't subscribed to (`AccessDeniedException`). Cards and the API have disagreed before, so hand runs confirm each new ID this way.
+- A one-token `Converse` request tells a working ID (it answers) from an unpublished one (`ValidationException`, "model identifier is invalid") and one the account hasn't subscribed to (`AccessDeniedException`). A bare ID with no on-demand endpoint returns `ValidationException` ("on-demand throughput isn't supported"). Cards and the API have disagreed before, so hand runs confirm each new ID this way.
 - In CI there are no AWS credentials, so new copies come from the card alone (new-copy-offered-region). The full Test job later calls copies only from its own region.

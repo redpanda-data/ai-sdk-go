@@ -72,6 +72,14 @@ func TestRulesReachTheAgent(t *testing.T) {
 
 	pages := map[string]string{"prompt.md": string(prompt)}
 
+	// Both skills follow RULES.md in every run, so they hold no rule either.
+	for _, skill := range []string{"reconcile-models", "add-model"} {
+		text, err := os.ReadFile(filepath.Join("..", "..", ".claude", "skills", skill, "SKILL.md"))
+		require.NoError(t, err)
+
+		pages[skill+"/SKILL.md"] = string(text)
+	}
+
 	for _, run := range runs {
 		for _, pkg := range append([]string{"shared"}, run.Providers...) {
 			page, err := os.ReadFile(filepath.Join("..", "..", ".claude", "skills", "reconcile-models", "hosts", pkg+".md"))

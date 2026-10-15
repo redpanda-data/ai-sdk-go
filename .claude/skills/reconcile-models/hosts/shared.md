@@ -13,7 +13,7 @@ How to find a fact and write it down, whatever the host. `.github/reconcile-mode
 
 - `catalog/facts_data.go` holds one facts record per model, shared by every host: `Publisher`, `DisplayName`, `Description`, `Series`, `Released`, `Knowledge`.
 - `providers/<package>/models.go` holds one entry per offering: capabilities, modalities, constraints, reasoning, pricing and `Life` (`Available`, `Deprecated`, `Retires`, `ReplacedBy`).
-- The add-model skill shows how to write both.
+- The add-model skill shows how to author both. "Writing prices" below says how to encode prices.
 
 ## Source comments
 
@@ -23,11 +23,11 @@ How to find a fact and write it down, whatever the host. `.github/reconcile-mode
 ## Writing prices
 
 - Rates are US dollars per million tokens: `$2.50/M` is `2.50` in `pricing.NewRates`, `pricing.FlatInfo` and `.WithCacheCreation(w5m, w1h, 0)`. Never write microcent literals: `FlatInfo(250_000_000, ...)` compiles and overprices by 10^8.
-- A 0 rate means unpriced. A published $0 base input or output rate is `pricing.RateFree`; a 0 cache rate, bracket rate or override rate is allowed.
+- A 0 rate means unpriced, and `catalog.New` rejects a 0 base input or output rate: a published $0 one is `pricing.RateFree`. A 0 cache rate, bracket rate or override rate is allowed.
 - Context tiers are `pricing.TieredInfo(base, pricing.Bracket{...})`. A bracket's rates replace the base above `MinContextTokens`, so write every field of the bracket, not only the ones that change.
-- Variation by speed, tier or region is `Pricing.WithOverride(selector, pricing.RateCard{...})`. An override card has its own brackets: a tiered model with a fast mode needs the bracket on the fast card too, or large fast requests underbill.
+- Variation by speed, tier or region is `Pricing.WithOverride(selector, pricing.RateCard{...})`, never a provider-specific field. An override card has its own brackets: a tiered model with a fast mode needs the bracket on the fast card too, or large fast requests underbill.
 - When a host raises a model's context window, look on its pricing page for a long-context surcharge that came with it.
-- Vendors often print a scheduled rate next to today's in the same cell; read the cell's note before copying a number (price-follow).
+- Vendors often print a scheduled rate next to today's in the same cell; read the cell's note before copying a number. `pricing.Info` has no effective date, so only today's rate can be data (price-follow).
 
 ## Reading lifecycle pages
 
@@ -37,8 +37,20 @@ How to find a fact and write it down, whatever the host. `.github/reconcile-mode
 
 ## Probes (hand runs only)
 
-- Context window: send a prompt just over the claimed size with the raw SDK (about 4 characters per token, with a margin). A real 1M model accepts it with no beta header; a 200K model answers "prompt is too long". Turn caching off while measuring.
+- Context window: send a prompt just over the claimed size with the raw SDK (about 4 characters per token, with a margin). A real 1M model accepts it with no beta header; a 200K model answers "prompt is too long". Turn caching off while measuring, or sum `BilledInputTokens()`.
 - Each host page lists its own probes.
+
+## Hand runs: LiteLLM leads
+
+- CI reads no aggregator. A hand run may compare LiteLLM's numbers with an entry: prices and input and output limits, nothing else.
+- A number that differs is a lead. Show it to the person, then settle the value on the host's own page and cite that page. Never write a LiteLLM number as a value, never use LiteLLM for a release date or a lifecycle date, and never copy its text into `Description`.
+- Pull only those numbers for one model, here `claude-opus-4-5`:
+  ```bash
+  curl -sL https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json | jq '."claude-opus-4-5" | with_entries(select((.key | test("cost|^max_(input|output)_tokens$")) and (.value | type == "number")))'
+  ```
+- Cost keys with `per_token` or `token_cost` in their name are US dollars per token: multiply by 1e6 for dollars per million. Other cost keys name their own unit. `max_input_tokens` and `max_output_tokens` compare with `MaxInputTokens` and `MaxOutputTokens`.
+- LiteLLM files host copies under their own IDs: Vertex copies under `vertex_ai/...`, Bedrock copies under their Bedrock model IDs. Look up the copy for the package you are checking.
+- OpenRouter isn't read in any run until someone has read its terms.
 
 ## In CI
 

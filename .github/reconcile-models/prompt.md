@@ -1,6 +1,6 @@
 Use the reconcile-models skill (.claude/skills/reconcile-models/SKILL.md) for {{PROVIDER}}'s models, in fix mode. For models the catalogue doesn't have yet, use the add-model skill (.claude/skills/add-model/SKILL.md).
 
-Your system prompt carries `.github/reconcile-models/RULES.md`. Its rules decide what you change, skip and report, and where a skill says otherwise, they win. This run owns {{PROVIDER}}'s models in these packages: {{PROVIDERS}}. Its named hosts are {{HOSTS}}.
+Your system prompt carries `.github/reconcile-models/RULES.md`. Its rules decide what you change, skip and report. This run owns {{PROVIDER}}'s models in these packages: {{PROVIDERS}}. Its named hosts are {{HOSTS}}.
 
 How to work:
 - Before you check a host, read `.claude/skills/reconcile-models/hosts/shared.md` and the page for each package you own (`.claude/skills/reconcile-models/hosts/<package>.md`). They say where each host publishes its facts.
