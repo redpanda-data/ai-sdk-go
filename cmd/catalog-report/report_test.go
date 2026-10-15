@@ -31,15 +31,16 @@ import (
 
 var hosts = []string{"platform.claude.com"}
 
-// testRules is a RULES.md with three skip rules, one rule that asks a person,
+// testRules is a RULES.md with four skip rules, one rule that asks a person,
 // R4 for rows no rule covers, and Bedrock's offered regions.
 var testRules = reconcile.Rules{
-	Lines:     map[string]int{"T1": 40, "L3": 80, "R4": 120, "region-not-offered": 20, "copy-gone-no-eol": 22},
+	Lines:     map[string]int{"T1": 40, "L3": 80, "R4": 120, "region-not-offered": 20, "copy-gone-no-eol": 22, "label-fact-differs": 24},
 	Reasons:   map[string]string{"limited_availability": "the model needs a signup", "conflicting_sources": "no rule uses it yet"},
 	Questions: map[string]string{"L3": "Which replacement?", "R4": "No rule covers this. Decide."},
 	Produces: map[string][]string{
 		"T1": {"skip:`limited_availability`"}, "L3": {"needs_human"}, "R4": {"needs_human"},
 		"region-not-offered": {"skip:`region_not_offered`"}, "copy-gone-no-eol": {"skip:`copy_unlisted`"},
+		"label-fact-differs": {"skip:`fixed_fact_differs`"},
 	},
 	Offered: map[string][]string{"bedrock": {"global", "us", "eu", "au", "jp"}},
 }
@@ -102,6 +103,9 @@ func TestValidate(t *testing.T) {
 		}, "skipped[0]: region us is offered on bedrock"},
 		{"copy unlisted", func(r *Report) {
 			r.Skipped[0] = Skipped{Offering: "bedrock:eu.anthropic.claude-fable-5", Reason: "copy_unlisted", Rule: "copy-gone-no-eol"}
+		}, ""},
+		{"fixed fact differs", func(r *Report) {
+			r.Skipped[0] = Skipped{Offering: "claude-sonnet-5", Reason: "fixed_fact_differs", Rule: "label-fact-differs"}
 		}, ""},
 		{"region not offered on a host with no Offered row", func(r *Report) {
 			r.Skipped[0] = Skipped{Offering: "vertex:in.claude-opus-5", Reason: "region_not_offered", Rule: "region-not-offered"}

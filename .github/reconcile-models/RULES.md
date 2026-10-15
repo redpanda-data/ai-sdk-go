@@ -23,6 +23,7 @@ The report's skip reasons and fields. `TestRulesFile` keeps both lists equal to 
 | `needs_new_pricing_shape` | no rule uses it yet (R6) |
 | `region_not_offered` | a model card lists a copy in a region this catalogue doesn't offer (region-not-offered) |
 | `copy_unlisted` | a regional copy is gone from its model card with no announced end of life (copy-gone-no-eol) |
+| `fixed_fact_differs` | a fixed fact (`Released`, `Knowledge`, an offering's launch `Available`) differs from its source page (label-fact-differs) |
 
 | Field | Covers |
 |---|---|
@@ -41,11 +42,9 @@ Each rule that can send a row to `needs_human` asks one fixed question, shown in
 
 | Rule | Question for a person |
 |---|---|
-| C3 | A fixed fact differs from its source page. Which value is right? |
-| C6 | The vendor gives only a month for this release. Which day is `Released`? |
+| release-month-only | Another model in this series was released the same month. Which day is `Released`? |
 | C14 | No override or bracket can express this price. Add a pricing type, or keep the current price? |
 | L3 | The catalogue doesn't carry this model's replacement. Add an exception in `cmd/catalog-snapshot/lifecycle_test.go`, or choose a replacement it carries? |
-| V4 | Anthropic's overview doesn't list Vertex as supporting tool search, or lists it as beta. Change Vertex to match Anthropic anyway? |
 | P2 | The fix needs a file the bot may not edit (named below). Make the change by hand? |
 | G3 | The change breaks a test outside the bot's packages (named below). Fix the test, or drop the change? |
 | R4 | What should change? If this can happen again, add a rule. |
@@ -60,7 +59,7 @@ The regions each host's catalogue offers. Offering another one is a product deci
 
 ## Defaults
 
-Answers agreed in advance for cases the vendor pages don't settle. The bot applies them without asking, and each row names its rule.
+Answers agreed in advance for cases the vendor pages don't settle. The bot applies them without asking, and each row names its rule. A field that only labels a model gets a written default; a person is asked only when every option changes what existing callers are billed, routed to, shown or allowed to send, or when the bot can't make the change.
 
 | ID | Rule | Why | Produces | Enforced |
 |---|---|---|---|---|
@@ -68,6 +67,9 @@ Answers agreed in advance for cases the vendor pages don't settle. The bot appli
 | replacement-publisher-pick | When a model is deprecated or retired and its host names no replacement, `ReplacedBy` is the model its publisher names (for Claude, Anthropic's model deprecations page). On Bedrock it names the replacement's `global.` copy, because the family's copies share one lifecycle (lifecycle-exact-date). | Hosts' lifecycle pages rarely name a replacement (AWS's tables have no column for one), and the publisher's pick is the same on every host. | change | tests (Bedrock's `ReplacedBy` matches the publisher's own catalogue, on the global copy), prompt |
 | lifecycle-exact-date | On Bedrock, a model's Legacy date sets `Deprecated` and its EOL date sets `Retires` (an exact date only, L1). Set them once, on the family: every copy of a family shares one lifecycle. | AWS gives one Legacy and one EOL date per model. | change | prompt |
 | copy-gone-no-eol | A Bedrock regional copy that disappears from its model card, with no announced end of life, stays as it is. | A card dropping a copy is not a retirement, and nothing announces an end date to set. | skip:`copy_unlisted` | prompt |
+| release-month-only | **CI.** A new model's vendor gives only a month for its release. `Released` is the earliest exact day for this ID on any named page (a changelog, a host's launch date); failing that, the last day of the month, or the run date if that's earlier, with a source comment ending `day defaulted`. Ask only when another model in the same series already has a `Released` in that month. | `Released` only orders models within a series, which picks each model's successor, so a late day is safe unless a sibling shipped the same month. | change, needs_human (a same-series sibling that month) | prompt |
+| label-fact-differs | **CI.** C3 doesn't allow changing a fixed fact that differs from its source page: keep the current value. | These facts label a model or order its series, so keeping one changes nothing for callers. | skip:`fixed_fact_differs` | prompt |
+| capability-mirror-unprobed | *Needs a probe.* Claude's tool-search support must match in `providers/anthropic` and `providers/vertex` (`TestClaudeToolSearchMirrorsAnthropic`). While `providers/vertex` has no request transport, when Anthropic's tool-search page changes a model, change both packages in the same patch, citing that page, even if Anthropic's features overview doesn't list Vertex or marks it beta. This is an exception to S2. Bedrock follows its own docs (C7). | Google's docs never mention tool search, and this SDK sends no requests to Vertex yet, so there the flag only describes the model. Holding it back would also hold back the Anthropic change, which does change requests. | change | tests, prompt |
 
 ## S · Sources
 
@@ -97,10 +99,10 @@ Answers agreed in advance for cases the vendor pages don't settle. The bot appli
 |---|---|---|---|---|
 | C1 | Fix drift in mutable data: rates, brackets, limits, lifecycle, `ReplacedBy` and capabilities. Each change gets a source comment naming its page. | These move with the vendor, and the comment records where each value came from. | change, code (a test edit, G3) | prompt, none* (comments) |
 | C2 | **CI.** Leave an existing `Description` as it is, though the skill updates it. | No report field covers it, so the change couldn't be listed (R3). | – | prompt* |
-| C3 | **CI.** Fixed facts (`Released`, `Knowledge`, an offering's launch `Available`) don't flip. If one differs from the vendor page, change it only when it has no source comment or its comment names an aggregator; otherwise report both values. A changed fact gets a source comment naming the vendor page. The run has no git history, so the skill's `git log -S` check is skipped. | They describe past events, so a difference means the page changed under us, and the comment stops the next run from flipping it. | needs_human, change (no source comment, or an aggregator) | prompt |
+| C3 | **CI.** Fixed facts (`Released`, `Knowledge`, an offering's launch `Available`) don't flip. If one differs from the vendor page, change it only when it has no source comment, its comment names an aggregator, or it ends `day defaulted` (release-month-only); otherwise keep it (label-fact-differs). A changed fact gets a source comment naming the vendor page. The run has no git history, so the skill's `git log -S` check is skipped. | They describe past events, so a difference means the page changed under us, and the comment stops the next run from flipping it. | change | prompt |
 | C4 | Adding a model never edits an existing entry. A newer model in the same series is a new entry, never a reason to edit an older model's dates. | Ordering, succession and price tiers are derived at read time, and history stays intact. | – | none* |
 | C5 | `Released` is the day this exact ID first became callable anywhere, vendor apps included. A host's own launch day goes in that offering's `Available`. `Knowledge` is the reliable cutoff; a month-only cutoff becomes the last day of that month. | Dates mean the same thing on every host. | change | prompt, tests (format) |
-| C6 | *Open.* **CI.** A new model whose vendor gives only a month for its release goes to `needs_human` (`release_date`). The skills' fallback (OpenRouter) is ruled out by S1. | No approved source has day precision. | needs_human | prompt |
+| C6 | *Retired.* Replaced by release-month-only. | A month-only date has a safe default. | – | none |
 | C7 | Capabilities and modalities record what the host documents, not what this SDK's request mappers support yet. | The catalogue describes the model. | change | prompt |
 | C8 | `MaxInputTokens` is the published input cap if the vendor gives one, otherwise the context window. `MaxOutputTokens` comes from the model page. | Callers rely on the limits the vendor enforces. | change | prompt |
 
@@ -146,7 +148,7 @@ Answers agreed in advance for cases the vendor pages don't settle. The bot appli
 | V1 | Price Claude on Vertex from Google's Vertex pricing page (one tab per region), not from Anthropic's prices. A served region with no tab takes the 10% regional premium from Anthropic's pricing page, citing that page. | Google sets its own rates, but has no tab for some regions. | change | prompt |
 | V2 | Every non-global rate, brackets included, is exactly 1.10x the global rate. Every offering has served locations that include global, and every served region is priced. | Catches a mistyped override or a missing location row. | rejected (if broken) | tests (`TestGlobalToNonGlobalRatio` checks base rates only, `TestEveryOfferingHasLocations`, `TestEveryServedRegionPriced`), prompt* (brackets) |
 | V3 | Vertex's per-model Claude pages give the launch stage and the offering's `Available` (their release date; `Released` stays the model-wide date, C5). Their "not sooner than" retirement floor goes in a source comment, and `Retires` stays unset (L1). | They are that host's own facts (S2). | change | prompt |
-| V4 | *Needs a probe.* Claude's tool-search support must match in `providers/anthropic` and `providers/vertex` (`TestClaudeToolSearchMirrorsAnthropic`). When Anthropic's tool-search page changes a model, change both packages in the same patch, citing that page, as long as Anthropic's features overview lists Vertex as supported and not as beta. Otherwise change neither and report it. This is an exception to S2. Bedrock follows its own docs (C7). | Google's docs never mention tool search, even for models a real call showed working, so Anthropic's overview is the only named source on Vertex support. | change, needs_human (the overview drops Vertex or marks it beta) | tests, prompt |
+| V4 | *Retired.* Replaced by capability-mirror-unprobed. | It asked a person about a flag that changes no request. | – | none |
 
 ## P · Patch
 
@@ -174,7 +176,7 @@ Answers agreed in advance for cases the vendor pages don't settle. The bot appli
 | R3 | One `changes` row per value changed or model added, citing the exact page. A new model is a `new_model` row with an empty old value and the model ID as the new one. A patch with no `changes` rows, or `changes` rows with no patch, fails the run. | The table must match the diff. | change, rejected (a patch without rows, or rows without a patch) | PR job (patch and rows together), prompt* (one row per value) |
 | R4 | No person takes part in a run, so the agent asks no questions. Anything that needs a decision goes in `needs_human`, with values naming the file, test or competing values, and at least one source. List an offering in `skipped` only when a rule leaves it out, and never if it has a `needs_human` row. Each `skipped` and `needs_human` row names the rule whose Produces gives its outcome, or R4 when none does. | A reviewer gets everything needed to decide, and a skip always means something. | needs_human | tools (no `AskUserQuestion`), prompt* (no double listing), validator (shape, the rule fits the row) |
 | R5 | A report with no `changes` or `needs_human` rows, whose every skip is `not_on_named_sources`, fails the run. An empty report passes as "No drift found." | A run that read nothing must not pass. | rejected | PR job |
-| R6 | *Open.* No rule produces `conflicting_sources` or `needs_new_pricing_shape`. Those cases go to `needs_human`: a fixed fact that differs from its page (C3), a price no override or bracket can express (C14), and any other disagreement between named sources, with both values (R4). | Two buckets for one case make reports differ between runs. | – | prompt* (the schema and validator still accept both reasons) |
+| R6 | *Open.* No rule produces `conflicting_sources` or `needs_new_pricing_shape`. Those cases go to `needs_human`: a price no override or bracket can express (C14), and any other disagreement between named sources, with both values (R4). | Two buckets for one case make reports differ between runs. | – | prompt* (the schema and validator still accept both reasons) |
 | R7 | Skip an offering as `not_on_named_sources` when no named-source page carries its values, so it couldn't be checked. A Bedrock copy that left its model card is copy-gone-no-eol instead. | A skip says why the offering went unchecked, and R5 fails a run that checked nothing. | skip:`not_on_named_sources` | prompt |
 
 ## D · Recorded decisions

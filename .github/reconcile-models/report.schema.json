@@ -23,7 +23,7 @@
       "required": ["offering", "reason", "rule"],
       "properties": {
         "offering": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._:-]{0,79}$"},
-        "reason": {"enum": ["not_on_named_sources", "conflicting_sources", "needs_new_pricing_shape", "out_of_scope", "limited_availability", "vendor_excluded", "region_not_offered", "copy_unlisted"]},
+        "reason": {"enum": ["not_on_named_sources", "conflicting_sources", "needs_new_pricing_shape", "out_of_scope", "limited_availability", "vendor_excluded", "region_not_offered", "copy_unlisted", "fixed_fact_differs"]},
         "rule": {"type": "string", "pattern": "^([A-Z][0-9]{1,2}|[a-z]+(-[a-z0-9]+)+)$"}}}}
   }
 }

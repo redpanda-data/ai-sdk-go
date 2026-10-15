@@ -35,7 +35,7 @@ type (
 
 var (
 	fields       = []string{"new_model", "price", "limit", "lifecycle", "replacement", "knowledge_cutoff", "release_date", "capability"}
-	reasons      = []string{"not_on_named_sources", "conflicting_sources", "needs_new_pricing_shape", "out_of_scope", "limited_availability", "vendor_excluded", regionNotOffered, "copy_unlisted"}
+	reasons      = []string{"not_on_named_sources", "conflicting_sources", "needs_new_pricing_shape", "out_of_scope", "limited_availability", "vendor_excluded", regionNotOffered, "copy_unlisted", "fixed_fact_differs"}
 	valuePattern = regexp.MustCompile(`^[A-Za-z0-9 ._:/+-]{0,64}$`)
 	// sourcePattern allows only characters that can't end a markdown link,
 	// end a table cell or start HTML, so a URL always renders as one link.
