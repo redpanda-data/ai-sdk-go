@@ -118,6 +118,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 		// Track accumulated content for final response
 		var allParts []*genai.Part
 		var finalResponse *genai.GenerateContentResponse
+		var modelVersion string
 
 		// Process streaming events
 		for response, err := range stream {
@@ -129,6 +130,11 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 			// Store the last response for final event
 			finalResponse = response
+
+			// Keep the last reported model version, since a chunk may leave it empty
+			if response.ModelVersion != "" {
+				modelVersion = response.ModelVersion
+			}
 
 			// Process each candidate (typically only one)
 			if len(response.Candidates) == 0 {
@@ -211,6 +217,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 			// Reconstruct the final response with all accumulated parts
 			reconstructed := &genai.GenerateContentResponse{
 				ResponseID:    finalResponse.ResponseID,
+				ModelVersion:  modelVersion,
 				UsageMetadata: finalResponse.UsageMetadata,
 				Candidates:    finalResponse.Candidates,
 			}
