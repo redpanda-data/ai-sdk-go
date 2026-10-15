@@ -381,7 +381,7 @@ func newFakeVertexModel(t *testing.T, name string, responses ...string) (llm.Mod
 		mu.Unlock()
 
 		if n >= len(responses) {
-			http.Error(w, "unexpected request", http.StatusInternalServerError)
+			http.Error(w, "unexpected request", http.StatusBadRequest)
 
 			return
 		}
