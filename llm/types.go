@@ -304,15 +304,18 @@ const (
 // ModelCapabilities describes what features a model supports.
 // This enables compile-time and runtime validation of requests.
 type ModelCapabilities struct {
-	// ToolSearch supports provider-hosted discovery of deferred tool schemas.
-	ToolSearch       bool
-	Streaming        bool // Supports streaming responses
-	Tools            bool // Supports function/tool calling
-	JSONMode         bool // Supports JSON mode (response_format: json_object) - ensures valid JSON output
-	StructuredOutput bool // Supports Structured Outputs (response_format: json_schema) - ensures schema adherence
-	Vision           bool // Supports image inputs
-	Audio            bool // Supports audio inputs
-	MultiTurn        bool // Supports conversation history
-	SystemPrompts    bool // Supports system role messages
-	Reasoning        bool // Supports reasoning controls and exposes reasoning traces
+	// ToolSearchProtocol is the provider whose hosted discovery of deferred
+	// tool schemas the model speaks, such as "anthropic" for a Claude model
+	// on Vertex AI. Empty means the model has no hosted tool search. Set it
+	// only when the model's request mapper implements that protocol.
+	ToolSearchProtocol ProviderID
+	Streaming          bool // Supports streaming responses
+	Tools              bool // Supports function/tool calling
+	JSONMode           bool // Supports JSON mode (response_format: json_object) - ensures valid JSON output
+	StructuredOutput   bool // Supports Structured Outputs (response_format: json_schema) - ensures schema adherence
+	Vision             bool // Supports image inputs
+	Audio              bool // Supports audio inputs
+	MultiTurn          bool // Supports conversation history
+	SystemPrompts      bool // Supports system role messages
+	Reasoning          bool // Supports reasoning controls and exposes reasoning traces
 }

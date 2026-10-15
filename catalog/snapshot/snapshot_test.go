@@ -66,7 +66,7 @@ func snapshotFixture(t *testing.T) *catalog.Catalog {
 	robin2 := validEntry("robin-2", "acme/robin-2")
 	robin2.Aliases = []string{"robin-latest"}
 	robin2.Capabilities.Reasoning = true
-	robin2.Capabilities.ToolSearch = true
+	robin2.Capabilities.ToolSearchProtocol = "acme"
 	robin2.Reasoning = catalog.ReasoningSupport{
 		Efforts:  []llm.ReasoningEffort{"low", "high"},
 		Adaptive: true,

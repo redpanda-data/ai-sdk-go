@@ -32,6 +32,12 @@ type ResponseMapper struct {
 	// it is the InvokedModelID fallback when the provider response does
 	// not report a model version.
 	offeringID string
+
+	// reportOffering, when set, reports offeringID as InvokedModelID
+	// whatever model version the response names: the model was built from
+	// another platform's offering, and this package's catalog would
+	// resolve the version against Google's own IDs.
+	reportOffering bool
 }
 
 // NewResponseMapper returns a ready-to-use mapper.
@@ -92,8 +98,16 @@ func (m *ResponseMapper) FromProvider(r *genai.GenerateContentResponse) (*llm.Re
 		},
 		FinishReason:   finishReason,
 		Usage:          usage,
-		InvokedModelID: resolvedModelID(r.ModelVersion, m.offeringID),
+		InvokedModelID: m.invokedModelID(r.ModelVersion),
 	}, nil
+}
+
+func (m *ResponseMapper) invokedModelID(providerModel string) string {
+	if m.reportOffering {
+		return m.offeringID
+	}
+
+	return resolvedModelID(providerModel, m.offeringID)
 }
 
 func resolvedModelID(providerModel, fallback string) string {
