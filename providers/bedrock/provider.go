@@ -285,13 +285,16 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 		return newMantleModel(p, cfg, modelDef)
 	}
 
+	responseMapper := NewResponseMapper(modelDef)
+	responseMapper.region = p.region
+
 	return &Model{
 		provider:       p,
 		config:         cfg,
 		definition:     modelDef,
 		client:         p.client,
 		requestMapper:  NewRequestMapper(cfg),
-		responseMapper: NewResponseMapper(modelDef),
+		responseMapper: responseMapper,
 	}, nil
 }
 

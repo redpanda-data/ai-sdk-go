@@ -461,3 +461,45 @@ func TestExpandFamiliesRejectsUnpairedOverrides(t *testing.T) {
 		})
 	}
 }
+
+// Published regional on-demand rates, not a blanket multiplier.
+// https://aws.amazon.com/bedrock/pricing/ (2026-10-15)
+func TestRegionalOnDemandPricing(t *testing.T) {
+	t.Parallel()
+	const (
+		regionFrankfurt = "eu-central-1"
+		regionMumbai    = "ap-south-1"
+		regionTokyo     = "ap-northeast-1"
+		regionSaoPaulo  = "sa-east-1"
+		regionSydney    = "ap-southeast-2"
+		regionVirginia  = "us-east-1"
+		regionOregon    = "us-west-2"
+	)
+
+	prices, err := pricing.NewCatalog(pricing.WithSource(Catalog()))
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		model, region string
+		input, output int64
+	}{
+		{ModelGemma431B, regionVirginia, 14_000_000, 40_000_000},
+		{ModelGemma431B, regionFrankfurt, 17_000_000, 48_000_000},
+		{ModelGemma426BA4B, regionFrankfurt, 16_000_000, 48_000_000},
+		{ModelGemma4E2B, regionFrankfurt, 5_000_000, 10_000_000},
+		{ModelMistralLarge3, regionOregon, 50_000_000, 150_000_000},
+		{ModelMistralLarge3, regionMumbai, 59_000_000, 176_000_000},
+		{ModelMistralLarge3, regionTokyo, 61_000_000, 182_000_000},
+		{ModelMistralLarge3, regionSaoPaulo, 61_000_000, 182_000_000},
+		{ModelMistralLarge3, regionSydney, 51_500_000, 154_500_000},
+	} {
+		t.Run(tt.model+"/"+tt.region, func(t *testing.T) {
+			t.Parallel()
+
+			cost, err := prices.Calculate(ProviderName, tt.model, &llm.TokenUsage{InputTokens: 1_000_000, OutputTokens: 1_000_000}, pricing.CalcRequest{Selector: pricing.Selector{Region: tt.region}})
+			require.NoError(t, err)
+			assert.Equal(t, tt.input, cost.Breakdown[pricing.UsageFieldInput])
+			assert.Equal(t, tt.output, cost.Breakdown[pricing.UsageFieldOutput])
+		})
+	}
+}

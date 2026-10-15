@@ -27,6 +27,7 @@ import (
 // ResponseMapper converts Bedrock Converse API responses to llm.Response.
 type ResponseMapper struct {
 	offering catalog.Offering
+	region   string
 }
 
 // NewResponseMapper returns a ready-to-use mapper.
@@ -261,6 +262,12 @@ func (m *ResponseMapper) applyResponseMetadata(
 ) {
 	if resp == nil {
 		return
+	}
+
+	// Direct, bare-ID invocation executes in the configured endpoint region.
+	// Never label a cross-region profile with its source region.
+	if !hasRegionPrefix(m.offering.ID) {
+		resp.InferenceRegion = m.region
 	}
 
 	if performanceConfig != nil && performanceConfig.Latency != "" {

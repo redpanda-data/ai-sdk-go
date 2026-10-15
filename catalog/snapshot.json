@@ -4885,7 +4885,18 @@
                 "input_microcents_per_million": 13000000,
                 "output_microcents_per_million": 40000000
               }
-            }
+            },
+            "overrides": [
+              {
+                "region": "eu-central-1",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 16000000,
+                    "output_microcents_per_million": 48000000
+                  }
+                }
+              }
+            ]
           },
           "lifecycle": {
             "stage": "ga"
@@ -4949,7 +4960,18 @@
                 "input_microcents_per_million": 14000000,
                 "output_microcents_per_million": 40000000
               }
-            }
+            },
+            "overrides": [
+              {
+                "region": "eu-central-1",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 17000000,
+                    "output_microcents_per_million": 48000000
+                  }
+                }
+              }
+            ]
           },
           "lifecycle": {
             "stage": "ga"
@@ -5013,7 +5035,18 @@
                 "input_microcents_per_million": 4000000,
                 "output_microcents_per_million": 8000000
               }
-            }
+            },
+            "overrides": [
+              {
+                "region": "eu-central-1",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 5000000,
+                    "output_microcents_per_million": 10000000
+                  }
+                }
+              }
+            ]
           },
           "lifecycle": {
             "stage": "ga"
@@ -5572,7 +5605,45 @@
                 "input_microcents_per_million": 50000000,
                 "output_microcents_per_million": 150000000
               }
-            }
+            },
+            "overrides": [
+              {
+                "region": "ap-south-1",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 59000000,
+                    "output_microcents_per_million": 176000000
+                  }
+                }
+              },
+              {
+                "region": "ap-northeast-1",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 61000000,
+                    "output_microcents_per_million": 182000000
+                  }
+                }
+              },
+              {
+                "region": "sa-east-1",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 61000000,
+                    "output_microcents_per_million": 182000000
+                  }
+                }
+              },
+              {
+                "region": "ap-southeast-2",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 51500000,
+                    "output_microcents_per_million": 154500000
+                  }
+                }
+              }
+            ]
           },
           "lifecycle": {
             "stage": "ga"
