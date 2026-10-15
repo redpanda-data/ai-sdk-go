@@ -846,8 +846,8 @@ var bedrockFamilies = []family{
 		ProfileRegions: claudeFable51ProfileRegions,
 	},
 	{
-		// Claude Fable 5 — inference-profile-only, no bare entry. Geo
-		// profiles cover us and eu (jp/au are not published).
+		// Claude Fable 5 — inference-profile-only, no bare entry. The legacy
+		// EU entry is retained for compatibility; its wire support is unknown.
 		BareID:   ModelClaudeFable5,
 		WireAPIs: claudeMessagesWireAPIs,
 		// The current card publishes no EU profile; its wire support is unknown:
