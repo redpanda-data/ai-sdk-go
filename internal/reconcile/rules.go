@@ -23,30 +23,31 @@ import (
 // RulesPath is RULES.md in the repo: the rules a reconcile run follows.
 const RulesPath = ".github/reconcile-models/RULES.md"
 
-// JudgmentRule is the rule a report row names when no other rule covers its
-// case (RULES.md R4), so the row rests on the agent's own judgment.
-const JudgmentRule = "R4"
+// JudgmentRule is the Ask a report row names when no other rule covers its
+// case, so the row rests on the agent's own judgment.
+const JudgmentRule = "no-rule"
 
 // Rules is what RULES.md defines, keyed for the report and its PR body.
 type Rules struct {
-	Lines     map[string]int      // rule ID: its line, for links
-	Produces  map[string][]string // rule ID: its Produces cell, one outcome per item, notes dropped
-	Reasons   map[string]string   // skip reason: what it means
-	Fields    map[string]string   // report field: what it covers
-	Questions map[string]string   // rule ID: what a person decides for its needs_human rows
-	Offered   map[string][]string // host package: the region prefixes it offers
+	Lines      map[string]int      // rule ID: its line, for links
+	Outcomes   map[string][]string // rule ID: its outcomes, one per item, notes dropped
+	RuleFields map[string][]string // Default ID: the report fields its change rows are about
+	Reasons    map[string]string   // skip reason: what it means
+	Fields     map[string]string   // report field: what it covers
+	Questions  map[string]string   // Ask ID: what a person decides for its needs_human rows
+	Offered    map[string][]string // host package: the region prefixes it offers
 }
 
 // Fits reports whether a rule can produce an outcome ("needs_human" or
 // "skip:`<reason>`"). JudgmentRule fits any row no other rule covers.
 func (rules Rules) Fits(id, outcome string) bool {
-	return id == JudgmentRule || slices.Contains(rules.Produces[id], outcome)
+	return id == JudgmentRule || slices.Contains(rules.Outcomes[id], outcome)
 }
 
 var (
-	// RuleIDPattern is a rule ID: an area letter and a number (B7), or a slug
+	// RuleIDPattern is a rule ID: a slug that names the rule's behaviour
 	// (region-not-offered). report.schema.json uses the same pattern.
-	RuleIDPattern = regexp.MustCompile(`^([A-Z][0-9]{1,2}|[a-z]+(-[a-z0-9]+)+)$`)
+	RuleIDPattern = regexp.MustCompile(`^[a-z]+(-[a-z0-9]+)+$`)
 	parenthetical = regexp.MustCompile(`\([^)]*\)`)
 	// A legend word is an item's first code term, cut at a placeholder:
 	// "`skip:<reason>`" gives "skip:".
@@ -77,29 +78,26 @@ func legendWords(line string) []string {
 	return words
 }
 
-// ParseRules reads RULES.md and lists every way it is malformed: a rule row
-// with a bad shape or a word its legend doesn't define, or a question that
-// doesn't match exactly the rules that send rows to a person. A table's kind
-// is its header's first cell.
+// ParseRules reads RULES.md and lists every way it is malformed. A table's
+// kind is its header's first cell: Defaults ("Default") and Always asks
+// ("Ask") hold the rules. The Outcome legend and the Skip reason and Field
+// tables hold the values Defaults use, so they come before them in the file.
 func ParseRules(markdown []byte) (Rules, []string) {
 	rules := Rules{
-		Lines: map[string]int{}, Produces: map[string][]string{},
+		Lines: map[string]int{}, Outcomes: map[string][]string{}, RuleFields: map[string][]string{},
 		Reasons: map[string]string{}, Fields: map[string]string{}, Questions: map[string]string{},
 		Offered: map[string][]string{},
 	}
-	twoColumn := map[string]map[string]string{"Skip reason": rules.Reasons, "Field": rules.Fields, "Rule": rules.Questions}
+	twoColumn := map[string]map[string]string{"Skip reason": rules.Reasons, "Field": rules.Fields}
 
 	var (
-		produces, enforced, problems []string
-		header                       string
+		legend, problems []string
+		header           string
 	)
 
 	for index, line := range strings.Split(string(markdown), "\n") {
-		switch {
-		case strings.HasPrefix(line, "- **Produces.**"):
-			produces = legendWords(line)
-		case strings.HasPrefix(line, "- **Enforced.**"):
-			enforced = legendWords(line)
+		if strings.HasPrefix(line, "- **Outcome.**") {
+			legend = legendWords(line)
 		}
 
 		if !strings.HasPrefix(strings.TrimSpace(line), "|") {
@@ -113,8 +111,10 @@ func ParseRules(markdown []byte) (Rules, []string) {
 		case header == "":
 			header = row[0]
 		case strings.HasPrefix(row[0], "---"):
-		case header == "ID":
-			problems = append(problems, rules.addRule(row, index+1, produces, enforced)...)
+		case header == "Default":
+			problems = append(problems, rules.addDefault(row, index+1, legend)...)
+		case header == "Ask":
+			problems = append(problems, rules.addAsk(row, index+1)...)
 		case header == "Host" && len(row) > 1:
 			for _, term := range codeTerm.FindAllStringSubmatch(row[1], -1) {
 				rules.Offered[row[0]] = append(rules.Offered[row[0]], term[1])
@@ -124,35 +124,16 @@ func ParseRules(markdown []byte) (Rules, []string) {
 		}
 	}
 
-	for id := range rules.Lines {
-		asks := slices.Contains(rules.Produces[id], "needs_human")
-
-		switch question := rules.Questions[id]; {
-		case asks && question == "":
-			problems = append(problems, id+" can send a row to a person but has no question")
-		case !asks && question != "":
-			problems = append(problems, id+" has a question but never sends a row to a person")
-		}
-	}
-
-	for id := range rules.Questions {
-		if _, ok := rules.Lines[id]; !ok {
-			problems = append(problems, "a question for unknown rule "+id)
-		}
-	}
-
 	return rules, problems
 }
 
-// addRule records one rule row and returns what's wrong with it.
-func (rules Rules) addRule(row []string, line int, produces, enforced []string) []string {
-	if len(row) != 5 {
-		return []string{"rule row without 5 cells: " + strings.Join(row, " | ")}
-	}
-
+// addRule records a rule's ID (its first cell) and line, and checks its
+// cells are filled.
+func (rules Rules) addRule(row []string, line int) []string {
 	var problems []string
 
 	id := row[0]
+
 	if !RuleIDPattern.MatchString(id) {
 		problems = append(problems, "bad rule ID "+id)
 	}
@@ -163,35 +144,64 @@ func (rules Rules) addRule(row []string, line int, produces, enforced []string) 
 
 	rules.Lines[id] = line
 
-	if row[1] == "" || row[2] == "" {
-		problems = append(problems, id+": empty rule or why")
+	if slices.Contains(row, "") {
+		problems = append(problems, id+": empty cell")
 	}
 
-	for part := range strings.SplitSeq(parenthetical.ReplaceAllString(row[3], ""), ",") {
-		rules.Produces[id] = append(rules.Produces[id], strings.TrimSpace(part))
-	}
-
-	return slices.Concat(problems, rules.checkWords(id, "Produces", row[3], produces), rules.checkWords(id, "Enforced", row[4], enforced))
+	return problems
 }
 
-// checkWords reports each comma-separated part of a cell that doesn't start
-// with a legend word, and each skip reason the file doesn't list. Notes in
-// brackets may hold commas, so they go first.
-func (rules Rules) checkWords(id, column, cell string, words []string) []string {
-	var problems []string
+// addDefault records a Defaults row: Default | Field | When | Bot does | Why |
+// Outcome. A Default never sends a row to a person; that case is an Ask.
+func (rules Rules) addDefault(row []string, line int, legend []string) []string {
+	if len(row) != 6 {
+		return []string{row[0] + ": a Default row has 6 cells"}
+	}
 
-	for part := range strings.SplitSeq(parenthetical.ReplaceAllString(cell, ""), ",") {
-		part = strings.TrimSpace(part)
-		if !slices.ContainsFunc(words, func(word string) bool { return strings.HasPrefix(part, word) }) {
-			problems = append(problems, id+": unknown "+column+" "+part)
-		}
+	id := row[0]
+	problems := rules.addRule(row, line)
 
-		if reason, ok := strings.CutPrefix(part, "skip:"); ok {
+	for part := range strings.SplitSeq(parenthetical.ReplaceAllString(row[5], ""), ",") {
+		outcome := strings.TrimSpace(part)
+		rules.Outcomes[id] = append(rules.Outcomes[id], outcome)
+
+		switch reason, skip := strings.CutPrefix(outcome, "skip:"); {
+		case outcome == "needs_human":
+			problems = append(problems, id+": a Default can't send a row to a person; make it an Ask")
+		case !slices.ContainsFunc(legend, func(word string) bool { return strings.HasPrefix(outcome, word) }):
+			problems = append(problems, id+": unknown outcome "+outcome)
+		case skip:
 			if _, known := rules.Reasons[strings.Trim(reason, "`")]; !known {
 				problems = append(problems, id+": unknown skip reason "+reason)
 			}
 		}
 	}
 
+	for _, term := range codeTerm.FindAllStringSubmatch(row[1], -1) {
+		if _, known := rules.Fields[term[1]]; !known {
+			problems = append(problems, id+": unknown field "+term[1])
+		}
+
+		rules.RuleFields[id] = append(rules.RuleFields[id], term[1])
+	}
+
+	if slices.Contains(rules.Outcomes[id], "change") && len(rules.RuleFields[id]) == 0 {
+		problems = append(problems, id+": a rule that makes a change names its field")
+	}
+
 	return problems
+}
+
+// addAsk records an Always asks row: Ask | When | Question | Why. Its rows go
+// to a person with its fixed question.
+func (rules Rules) addAsk(row []string, line int) []string {
+	if len(row) != 4 {
+		return []string{row[0] + ": an Ask row has 4 cells"}
+	}
+
+	id := row[0]
+	rules.Outcomes[id] = []string{"needs_human"}
+	rules.Questions[id] = row[2]
+
+	return rules.addRule(row, line)
 }

@@ -1,4 +1,4 @@
-# Review decisions for reconcile-models runs; the rules are RULES.md section D.
+# Review decisions for reconcile-models runs; RULES.md (Principles) says how they work.
 # Public file: no people, customers, internal systems or ticket keys.
 # An offering is <package>:<model ID>. A keep's lock uses the field's shape in
 # catalog/snapshot.json; a hold is on new_model with no lock. TestDecisionsHold

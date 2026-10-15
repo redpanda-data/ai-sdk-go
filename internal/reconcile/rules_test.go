@@ -24,42 +24,28 @@ import (
 func TestParseRules(t *testing.T) {
 	t.Parallel()
 
-	const preamble = "- **Produces.** `change` (a hunk) · `skip:<reason>` (a row) · `needs_human` (asks)\n" +
-		"- **Enforced.** `prompt` (told) · `PR job` · `none`. A `*` marks a gap.\n\n" +
+	const preamble = "- **Outcome.** `change` (a hunk) · `skip:<reason>` (a row) · `not listed` (no row) · `code` (listed as code) · `needs_human` (asks)\n\n" +
 		"| Skip reason | Meaning |\n|---|---|\n| `out_of_scope` | not tracked |\n\n" +
-		"| Field | Covers |\n|---|---|\n| `price` | rates |\n\n" +
-		"| ID | Rule | Why | Produces | Enforced |\n|---|---|---|---|---|\n"
+		"| Field | Covers |\n|---|---|\n| `price` | rates |\n| `lifecycle` | dates |\n\n"
+	const defaults = "| Default | Field | When | Bot does | Why | Outcome |\n|---|---|---|---|---|---|\n"
+	const asks = "| Ask | When | Question | Why |\n|---|---|---|---|\n"
 
-	t.Run("reads lines, meanings, fields and questions", func(t *testing.T) {
+	t.Run("reads defaults, asks, fields and offered regions", func(t *testing.T) {
 		t.Parallel()
 
 		rules, problems := ParseRules([]byte(preamble +
-			"| T1 | A rule. | A reason. | skip:`out_of_scope` | prompt* (note, with a comma) |\n" +
-			"| L3 | A rule. | A reason. | needs_human (a note) | prompt, PR job |\n\n" +
-			"| Rule | Question for a person |\n|---|---|\n| L3 | Which replacement? |\n"))
+			"| Host | Offered | Not offered |\n|---|---|---|\n| bedrock | `global` `us` | `in` (asked 2026-10-15) |\n\n" + defaults +
+			"| price-follow | `price` | A host rate differs. | Set it. | Rates move. | change |\n" +
+			"| too-old | – | Released over 90 days ago. | Leave it out. | Left out on purpose. | skip:`out_of_scope` (a note, with a comma) |\n\n" + asks +
+			"| no-rule | No rule fits. | What should change? | A person decides. |\n"))
 		assert.Empty(t, problems)
-		assert.Equal(t, map[string]int{"T1": 14, "L3": 15}, rules.Lines)
+		assert.Equal(t, map[string]int{"price-follow": 18, "too-old": 19, "no-rule": 23}, rules.Lines)
+		assert.Equal(t, map[string][]string{"price-follow": {"change"}, "too-old": {"skip:`out_of_scope`"}, "no-rule": {"needs_human"}}, rules.Outcomes)
+		assert.Equal(t, map[string][]string{"price-follow": {"price"}}, rules.RuleFields)
+		assert.Equal(t, map[string]string{"no-rule": "What should change?"}, rules.Questions)
 		assert.Equal(t, map[string]string{"out_of_scope": "not tracked"}, rules.Reasons)
-		assert.Equal(t, map[string]string{"price": "rates"}, rules.Fields)
-		assert.Equal(t, map[string]string{"L3": "Which replacement?"}, rules.Questions)
-		assert.Equal(t, map[string][]string{"T1": {"skip:`out_of_scope`"}, "L3": {"needs_human"}}, rules.Produces)
-	})
-
-	t.Run("slug rule ID", func(t *testing.T) {
-		t.Parallel()
-
-		rules, problems := ParseRules([]byte(preamble + "| region-not-offered | A rule. | A reason. | skip:`out_of_scope` | prompt |\n"))
-		assert.Empty(t, problems)
-		assert.Equal(t, map[string]int{"region-not-offered": 14}, rules.Lines)
-	})
-
-	t.Run("offered regions table", func(t *testing.T) {
-		t.Parallel()
-
-		rules, problems := ParseRules([]byte("| Host | Offered | Not offered |\n|---|---|---|\n" +
-			"| bedrock | `global` `us` `eu` | `in` (asked 2026-10-15) |\n"))
-		assert.Empty(t, problems)
-		assert.Equal(t, map[string][]string{"bedrock": {"global", "us", "eu"}}, rules.Offered)
+		assert.Equal(t, map[string]string{"price": "rates", "lifecycle": "dates"}, rules.Fields)
+		assert.Equal(t, map[string][]string{"bedrock": {"global", "us"}}, rules.Offered)
 	})
 
 	tests := []struct {
@@ -67,16 +53,18 @@ func TestParseRules(t *testing.T) {
 		rows        string
 		wantProblem string
 	}{
-		{"duplicate ID", "| T1 | A. | B. | change | prompt |\n| T1 | C. | D. | change | prompt |\n", "duplicate rule ID T1"},
-		{"short row", "| T1 | A. | B. | change |\n", "without 5 cells"},
-		{"bad ID", "| t1 | A. | B. | change | prompt |\n", "bad rule ID"},
-		{"empty why", "| T1 | A. |  | change | prompt |\n", "empty rule or why"},
-		{"unknown produces", "| T1 | A. | B. | change, maybe | prompt |\n", "unknown Produces maybe"},
-		{"unknown skip reason", "| T1 | A. | B. | skip:`typo` | prompt |\n", "unknown skip reason"},
-		{"unknown enforced", "| T1 | A. | B. | change | prompt, hope |\n", "unknown Enforced hope"},
-		{"a rule that asks a person needs a question", "| L3 | A. | B. | change, needs_human | prompt |\n", "L3 can send a row to a person but has no question"},
-		{"a question for an unknown rule", "| T1 | A. | B. | change | prompt |\n\n| Rule | Question for a person |\n|---|---|\n| X9 | Why? |\n", "a question for unknown rule X9"},
-		{"a question for a rule that asks nobody", "| T1 | A. | B. | change | prompt |\n\n| Rule | Question for a person |\n|---|---|\n| T1 | Why? |\n", "T1 has a question but never sends a row to a person"},
+		{"letter ID rejected", defaults + "| T1 | `price` | A. | B. | C. | change |\n", "bad rule ID T1"},
+		{"slug without a hyphen", defaults + "| t1 | `price` | A. | B. | C. | change |\n", "bad rule ID t1"},
+		{"duplicate ID", defaults + "| price-follow | `price` | A. | B. | C. | change |\n\n" + asks + "| price-follow | A. | B? | C. |\n", "duplicate rule ID price-follow"},
+		{"short default row", defaults + "| price-follow | `price` | A. | B. | change |\n", "price-follow: a Default row has 6 cells"},
+		{"short ask row", asks + "| no-rule | A. | B? |\n", "no-rule: an Ask row has 4 cells"},
+		{"empty cell", defaults + "| price-follow | `price` | A. |  | C. | change |\n", "price-follow: empty cell"},
+		{"unknown outcome", defaults + "| price-follow | `price` | A. | B. | C. | change, maybe |\n", "price-follow: unknown outcome maybe"},
+		{"unknown skip reason", defaults + "| too-old | – | A. | B. | C. | skip:`typo` |\n", "too-old: unknown skip reason `typo`"},
+		{"a default can't ask a person", defaults + "| price-follow | `price` | A. | B. | C. | change, needs_human |\n", "price-follow: a Default can't send a row to a person; make it an Ask"},
+		{"an ask needs a question", asks + "| no-rule | A. |  | C. |\n", "no-rule: empty cell"},
+		{"unknown field", defaults + "| price-follow | `colour` | A. | B. | C. | change |\n", "price-follow: unknown field colour"},
+		{"a change needs a field", defaults + "| price-follow | – | A. | B. | C. | change |\n", "price-follow: a rule that makes a change names its field"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

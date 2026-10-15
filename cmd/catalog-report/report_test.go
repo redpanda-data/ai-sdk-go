@@ -32,13 +32,13 @@ import (
 var hosts = []string{"platform.claude.com"}
 
 // testRules is a RULES.md with four skip rules, one rule that asks a person,
-// R4 for rows no rule covers, and Bedrock's offered regions.
+// no-rule for rows no rule covers, and Bedrock's offered regions.
 var testRules = reconcile.Rules{
-	Lines:     map[string]int{"T1": 40, "L3": 80, "R4": 120, "region-not-offered": 20, "copy-gone-no-eol": 22, "label-fact-differs": 24},
+	Lines:     map[string]int{"limited-availability": 40, "replacement-not-carried": 80, "no-rule": 120, "region-not-offered": 20, "copy-gone-no-eol": 22, "label-fact-differs": 24},
 	Reasons:   map[string]string{"limited_availability": "the model needs a signup", "conflicting_sources": "no rule uses it yet"},
-	Questions: map[string]string{"L3": "Which replacement?", "R4": "No rule covers this. Decide."},
-	Produces: map[string][]string{
-		"T1": {"skip:`limited_availability`"}, "L3": {"needs_human"}, "R4": {"needs_human"},
+	Questions: map[string]string{"replacement-not-carried": "Which replacement?", "no-rule": "No rule covers this. Decide."},
+	Outcomes: map[string][]string{
+		"limited-availability": {"skip:`limited_availability`"}, "replacement-not-carried": {"needs_human"}, "no-rule": {"needs_human"},
 		"region-not-offered": {"skip:`region_not_offered`"}, "copy-gone-no-eol": {"skip:`copy_unlisted`"},
 		"label-fact-differs": {"skip:`fixed_fact_differs`"},
 	},
@@ -52,10 +52,10 @@ func validReport() Report {
 			SourceURL: "https://platform.claude.com/docs/en/about-claude/pricing.md",
 		}},
 		NeedsHuman: []NeedsHuman{{
-			Offering: "claude-sonnet-5-5", Field: "limit", Values: []string{"65535", "65536"}, Rule: "R4",
+			Offering: "claude-sonnet-5-5", Field: "limit", Values: []string{"65535", "65536"}, Rule: "no-rule",
 			SourceURLs: []string{"https://platform.claude.com/docs/en/about-claude/models/overview.md"},
 		}},
-		Skipped: []Skipped{{Offering: "claude-haiku-4-5", Reason: "conflicting_sources", Rule: "R4"}},
+		Skipped: []Skipped{{Offering: "claude-haiku-4-5", Reason: "conflicting_sources", Rule: "no-rule"}},
 	}
 }
 
@@ -91,10 +91,12 @@ func TestValidate(t *testing.T) {
 			r.Changes[0].SourceURL = "https://platform.claude.com/docs/en/pricing?tab=batch&x=1#model-pricing"
 		}, ""},
 		{"missing needs_human source", func(r *Report) { r.NeedsHuman[0].SourceURLs = nil }, "source"},
-		{"rule RULES.md doesn't have", func(r *Report) { r.Skipped[0].Rule = "Z9" }, `skipped[0]: unknown rule "Z9"`},
-		{"needs_human rule that never asks a person", func(r *Report) { r.NeedsHuman[0].Rule = "T1" }, "needs_human[0]: rule T1 doesn't produce needs_human"},
-		{"skip rule for another reason", func(r *Report) { r.Skipped[0].Rule = "T1" }, "skipped[0]: rule T1 doesn't produce skip:`conflicting_sources`"},
-		{"skip rule for this reason", func(r *Report) { r.Skipped[0] = Skipped{Offering: "x", Reason: "limited_availability", Rule: "T1"} }, ""},
+		{"rule RULES.md doesn't have", func(r *Report) { r.Skipped[0].Rule = "no-such-rule" }, `skipped[0]: unknown rule "no-such-rule"`},
+		{"needs_human rule that never asks a person", func(r *Report) { r.NeedsHuman[0].Rule = "limited-availability" }, "needs_human[0]: rule limited-availability doesn't produce needs_human"},
+		{"skip rule for another reason", func(r *Report) { r.Skipped[0].Rule = "limited-availability" }, "skipped[0]: rule limited-availability doesn't produce skip:`conflicting_sources`"},
+		{"skip rule for this reason", func(r *Report) {
+			r.Skipped[0] = Skipped{Offering: "x", Reason: "limited_availability", Rule: "limited-availability"}
+		}, ""},
 		{"region not offered", func(r *Report) {
 			r.Skipped[0] = Skipped{Offering: "bedrock:in.anthropic.claude-opus-5", Reason: "region_not_offered", Rule: "region-not-offered"}
 		}, ""},
@@ -193,7 +195,7 @@ func TestRender(t *testing.T) {
 	rulesURL := baseURL + "/" + reconcile.RulesPath + "?plain=1"
 	twoAsks := validReport()
 	twoAsks.NeedsHuman = append(twoAsks.NeedsHuman, NeedsHuman{
-		Offering: "claude-opus-4-1", Field: "replacement", Rule: "L3",
+		Offering: "claude-opus-4-1", Field: "replacement", Rule: "replacement-not-carried",
 		SourceURLs: []string{"https://platform.claude.com/docs/en/about-claude/model-deprecations.md"},
 	})
 	keepLimit := reconcile.Decision{
@@ -309,7 +311,7 @@ func TestRender(t *testing.T) {
 				"## Catalogue drift: anthropic",
 				"| `claude-opus-5-5` | price | `4.00` | `5.00` | [platform.claude.com](https://platform.claude.com/docs/en/about-claude/pricing.md) |",
 				"`65535`, `65536`",
-				"| ⚠ `R4` | `conflicting_sources` | `claude-haiku-4-5` |",
+				"| ⚠ `no-rule` | `conflicting_sources` | `claude-haiku-4-5` |",
 				"```diff",
 			},
 		},
@@ -357,26 +359,26 @@ func TestRender(t *testing.T) {
 			base:   Base{URL: baseURL, Rules: testRules},
 			contains: []string{
 				"### Needs a human (2): 1 by a rule, 1 with no rule",
-				"**1. `claude-sonnet-5-5` · limit · ⚠ no rule covers this ([R4](" + rulesURL + "#L120))**",
+				"**1. `claude-sonnet-5-5` · limit · ⚠ no rule covers this ([no-rule](" + rulesURL + "#L120))**",
 				"- **Question:** No rule covers this. Decide.",
 				"- **Found:** `65535`, `65536`",
 				"- **Sources:** [platform.claude.com](https://platform.claude.com/docs/en/about-claude/models/overview.md)",
-				"**2. `claude-opus-4-1` · replacement · rule [L3](" + rulesURL + "#L80)**\n- **Question:** Which replacement?\n- **Sources:**",
+				"**2. `claude-opus-4-1` · replacement · rule [replacement-not-carried](" + rulesURL + "#L80)**\n- **Question:** Which replacement?\n- **Sources:**",
 			},
 			notContains: []string{"| Offering | Field | Values |"},
 		},
 		{
 			name: "skipped rows are grouped by rule",
 			report: Report{Skipped: []Skipped{
-				{Offering: "claude-mythos-5", Reason: "limited_availability", Rule: "T1"},
-				{Offering: "claude-haiku-4-5", Reason: "conflicting_sources", Rule: "R4"},
-				{Offering: "claude-mythos-5-1", Reason: "limited_availability", Rule: "T1"},
+				{Offering: "claude-mythos-5", Reason: "limited_availability", Rule: "limited-availability"},
+				{Offering: "claude-haiku-4-5", Reason: "conflicting_sources", Rule: "no-rule"},
+				{Offering: "claude-mythos-5-1", Reason: "limited_availability", Rule: "limited-availability"},
 			}},
 			base: Base{URL: baseURL, Rules: testRules},
 			contains: []string{
 				"### Skipped (3)\n\n| Rule | Why | Offerings |",
-				"| [T1](" + rulesURL + "#L40) | the model needs a signup (`limited_availability`) | `claude-mythos-5`, `claude-mythos-5-1` |",
-				"| ⚠ [R4](" + rulesURL + "#L120) | no rule uses it yet (`conflicting_sources`) | `claude-haiku-4-5` |",
+				"| [limited-availability](" + rulesURL + "#L40) | the model needs a signup (`limited_availability`) | `claude-mythos-5`, `claude-mythos-5-1` |",
+				"| ⚠ [no-rule](" + rulesURL + "#L120) | no rule uses it yet (`conflicting_sources`) | `claude-haiku-4-5` |",
 			},
 		},
 		{
@@ -393,7 +395,7 @@ func TestRender(t *testing.T) {
 		},
 		{
 			name:        "waiting rows aren't listed as skipped",
-			report:      Report{Skipped: append([]Skipped{{Offering: "claude-mythos-5", Reason: "limited_availability", Rule: "T1"}}, waiting...)},
+			report:      Report{Skipped: append([]Skipped{{Offering: "claude-mythos-5", Reason: "limited_availability", Rule: "limited-availability"}}, waiting...)},
 			base:        Base{URL: baseURL, Rules: testRules},
 			contains:    []string{"### Skipped (1)"},
 			notContains: []string{"`region_not_offered`"},

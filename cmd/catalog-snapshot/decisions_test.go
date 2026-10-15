@@ -31,7 +31,7 @@ import (
 )
 
 // TestDecisionsHold fails when the catalogue the code builds contradicts a
-// recorded review decision (RULES.md section D). It checks the snapshot
+// recorded review decision (RULES.md, Principles). It checks the snapshot
 // encoded from the code, not the committed file.
 func TestDecisionsHold(t *testing.T) {
 	t.Parallel()

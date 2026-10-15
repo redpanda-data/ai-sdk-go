@@ -75,7 +75,7 @@ func (base Base) effect(change Change, provider string) string {
 }
 
 // packageOf names a report offering's package and ID: <package>:<id>, or an
-// ID in the run's own package (RULES.md R2). Bedrock IDs contain ":", so only
+// ID in the run's own package (RULES.md, Report values). Bedrock IDs contain ":", so only
 // a known package counts as a prefix.
 func packageOf(offering, provider string) (string, string) {
 	if pkg, id, found := strings.Cut(offering, ":"); found && reconcile.PackageProviders[pkg] != "" {

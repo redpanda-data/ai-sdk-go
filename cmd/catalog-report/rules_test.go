@@ -15,10 +15,13 @@
 package main
 
 import (
+	"encoding/json"
 	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -56,9 +59,53 @@ func TestRulesReachTheAgent(t *testing.T) {
 	prompt, err := os.ReadFile(filepath.Join("..", "..", ".github", "reconcile-models", "prompt.md"))
 	require.NoError(t, err)
 
+	assert.Contains(t, string(prompt), ".claude/skills/reconcile-models/hosts/", "the prompt must send the agent to the host pages")
+
+	// Every package a run owns has a how-to page, next to the shared one.
+	raw, err := os.ReadFile(filepath.Join("..", "..", ".github", "reconcile-models", "named-sources.json"))
+	require.NoError(t, err)
+
+	var runs map[string]struct {
+		Providers []string `json:"providers"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &runs))
+
+	pages := map[string]string{"prompt.md": string(prompt)}
+
+	for _, run := range runs {
+		for _, pkg := range append([]string{"shared"}, run.Providers...) {
+			page, err := os.ReadFile(filepath.Join("..", "..", ".claude", "skills", "reconcile-models", "hosts", pkg+".md"))
+			require.NoError(t, err, "no host page for %s", pkg)
+
+			pages["hosts/"+pkg+".md"] = string(page)
+		}
+	}
+
 	// The rules live in RULES.md alone: a skip reason or field named in the
-	// prompt means a rule was copied there.
-	for _, word := range slices.Concat(reasons, fields) {
-		assert.NotContains(t, string(prompt), "`"+word+"`", "prompt.md restates a rule")
+	// prompt or a host page means a rule was copied there.
+	restated := slices.Concat(reasons, fields)
+	for name, text := range pages {
+		for _, word := range restated {
+			assert.NotContains(t, text, "`"+word+"`", "%s restates a rule", name)
+		}
+	}
+
+	// A rule that goes is deleted, so every rule a page cites in parentheses,
+	// RULES.md's own prose included, must still exist.
+	rulesFile, err := os.ReadFile(filepath.Join("..", "..", reconcile.RulesPath))
+	require.NoError(t, err)
+
+	rules, _ := reconcile.ParseRules(rulesFile)
+	pages[reconcile.RulesPath] = string(rulesFile)
+	cited := regexp.MustCompile(`\(([a-z]+(?:-[a-z0-9]+)+(?:, [a-z]+(?:-[a-z0-9]+)+)*)\)`)
+
+	for name, text := range pages {
+		for _, match := range cited.FindAllStringSubmatch(text, -1) {
+			for id := range strings.SplitSeq(match[1], ", ") {
+				if !slices.Contains(reconcile.AWSRegions, id) {
+					assert.Contains(t, rules.Lines, id, "%s cites %s, which RULES.md doesn't define", name, id)
+				}
+			}
+		}
 	}
 }

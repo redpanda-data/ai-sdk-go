@@ -23,7 +23,7 @@ import (
 )
 
 // OfferingPattern is how a report names an offering: a model ID, or
-// <package>:<model ID> outside the run's own package (RULES.md R2).
+// <package>:<model ID> outside the run's own package (RULES.md, Report values).
 var OfferingPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._:-]{0,79}$`)
 
 // Report is the agent job's structured output. It deliberately has no
@@ -45,7 +45,7 @@ type Change struct {
 }
 
 // NeedsHuman is a value the agent couldn't decide. Rule is the RULES.md rule
-// that sent it to a person, or R4 when no rule covers the case.
+// that sent it to a person, or no-rule when no rule covers the case.
 type NeedsHuman struct {
 	Offering   string   `json:"offering"`
 	Field      string   `json:"field"`

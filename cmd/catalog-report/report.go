@@ -86,7 +86,7 @@ func ValidateCodeFiles(files []string) []string {
 // including a row that names a rule RULES.md doesn't have.
 func Validate(report Report, hosts []string, rules reconcile.Rules) []string {
 	var problems []string
-	// A row's rule must exist and produce the row's outcome (RULES.md R4).
+	// A row's rule must exist and produce the row's outcome (RULES.md, Report values).
 	checkRule := func(where, id, outcome string) {
 		if _, ok := rules.Lines[id]; !ok {
 			problems = append(problems, where+": unknown rule "+fmt.Sprintf("%q", id))
@@ -342,7 +342,7 @@ func (base Base) needsHumanBlock(number int, item NeedsHuman) string {
 }
 
 // sameOffering reports whether a report offering names a decision's. Report
-// offerings in the run's own package have no prefix (RULES.md R2); Bedrock
+// offerings in the run's own package have no prefix (RULES.md, Report values); Bedrock
 // IDs contain ":", so the prefix can't be told apart by looking for one.
 func sameOffering(reported, provider, decided string) bool {
 	return decided == reported || decided == provider+":"+reported

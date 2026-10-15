@@ -24,7 +24,7 @@ import (
 )
 
 // DecisionsPath is decisions.yaml in the repo: the reviewed answers a
-// reconcile run must not reopen (RULES.md section D).
+// reconcile run must not reopen (RULES.md, Principles).
 const DecisionsPath = ".github/reconcile-models/decisions.yaml"
 
 // The two kinds of decision, and the field a hold applies to.
