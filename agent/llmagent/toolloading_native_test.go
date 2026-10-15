@@ -20,7 +20,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -58,11 +60,23 @@ func defByName(t *testing.T, defs []llm.ToolDefinition, name string) llm.ToolDef
 	return llm.ToolDefinition{}
 }
 
+// nativeSearchCases pairs the provider a model reports with the hosted search
+// protocol it speaks. A Claude model on Vertex AI reports gcp.vertex but
+// speaks, and tags its search results with, anthropic.
+var nativeSearchCases = []struct {
+	provider llm.ProviderID
+	protocol llm.ToolSearchProtocol
+}{
+	{provider: "openai", protocol: "openai"},
+	{provider: "anthropic", protocol: "anthropic"},
+	{provider: "gcp.vertex", protocol: "anthropic"},
+}
+
 func TestNativeDiscoveryAndRestoration(t *testing.T) {
 	t.Parallel()
 
-	for _, provider := range []llm.ProviderID{"openai", "anthropic"} {
-		t.Run(string(provider), func(t *testing.T) {
+	for _, tc := range nativeSearchCases {
+		t.Run(string(tc.provider), func(t *testing.T) {
 			t.Parallel()
 			registry := newFixtureRegistry(t,
 				fixtureTool{name: "fetch", group: "svc", deferred: true, groupInfo: llm.ToolGroup{Description: "Service records", Instructions: "Use the service carefully."}},
@@ -70,13 +84,13 @@ func TestNativeDiscoveryAndRestoration(t *testing.T) {
 				fixtureTool{name: "solo", deferred: true},
 				fixtureTool{name: "eager", group: "always"},
 			)
-			fake := fakellm.NewFakeModel(fakellm.WithCapabilities(llm.ModelCapabilities{Tools: true, Streaming: true, ToolSearchProtocol: llm.ToolSearchProtocol(provider)}))
+			fake := fakellm.NewFakeModel(fakellm.WithCapabilities(llm.ModelCapabilities{Tools: true, Streaming: true, ToolSearchProtocol: tc.protocol}))
 			fake.When(fakellm.FirstCall()).ThenRespondWith(respondWith(
-				&llm.ToolSearchPart{Provider: provider, Data: json.RawMessage(`{"type":"native_search_result"}`), Tools: []string{"fetch"}},
+				&llm.ToolSearchPart{Provider: llm.ProviderID(tc.protocol), Data: json.RawMessage(`{"type":"native_search_result"}`), Tools: []string{"fetch"}},
 				llm.NewToolRequestPart("call_1", "fetch", json.RawMessage(`{}`)),
 			))
 			fake.When(fakellm.Any()).ThenRespondText("Done.")
-			model := nativeSearchModel{FakeModel: fake, provider: provider}
+			model := nativeSearchModel{FakeModel: fake, provider: tc.provider}
 			ag, err := New("native", "prompt", model, WithTools(registry))
 			require.NoError(t, err)
 
@@ -154,17 +168,17 @@ func TestNativeSearchCapabilityFallback(t *testing.T) {
 func TestForcedLocalDiscovery(t *testing.T) {
 	t.Parallel()
 
-	for _, provider := range []llm.ProviderID{"openai", "anthropic"} {
-		t.Run(string(provider), func(t *testing.T) {
+	for _, tc := range nativeSearchCases {
+		t.Run(string(tc.provider), func(t *testing.T) {
 			t.Parallel()
 			registry := newFixtureRegistry(t, fixtureTool{name: "fetch", deferred: true})
-			fake := fakellm.NewFakeModel(fakellm.WithCapabilities(llm.ModelCapabilities{Tools: true, Streaming: true, ToolSearchProtocol: llm.ToolSearchProtocol(provider)}))
+			fake := fakellm.NewFakeModel(fakellm.WithCapabilities(llm.ModelCapabilities{Tools: true, Streaming: true, ToolSearchProtocol: tc.protocol}))
 			fake.When(fakellm.FirstCall()).ThenRespondWith(respondWith(
 				toolCall("search_1", toolloading.SearchToolName, `{"query":"select:fetch"}`),
 			))
 			fake.When(fakellm.CallNumber(2)).ThenRespondWith(respondWith(toolCall("call_1", "fetch", `{}`)))
 			fake.When(fakellm.Any()).ThenRespondText("Done.")
-			model := nativeSearchModel{FakeModel: fake, provider: provider}
+			model := nativeSearchModel{FakeModel: fake, provider: tc.provider}
 			ag, err := New("local", "prompt", model, WithTools(registry), WithToolLoadingConfig(ToolLoadingConfig{ForceLocal: true}))
 			require.NoError(t, err)
 
@@ -184,7 +198,7 @@ func TestForcedLocalDiscovery(t *testing.T) {
 			require.Len(t, toolResultsFor(sess.Messages, "fetch"), 1)
 			assert.JSONEq(t, `{"ok":true}`, toolResultsFor(sess.Messages, "fetch")[0])
 			assert.True(t, toolloading.LoadedToolSet(sess)["fetch"])
-			assert.Empty(t, toolloading.NativeLoadedTools(sess.Messages, llm.ToolSearchProtocol(provider)))
+			assert.Empty(t, toolloading.NativeLoadedTools(sess.Messages, tc.protocol))
 		})
 	}
 }
@@ -248,6 +262,7 @@ func TestVertexClaudeUsesNativeToolSearch(t *testing.T) {
 	runAgent(t, ag, &session.State{ID: "s", Messages: userMessage("hi")})
 
 	require.Equal(t, "tool_search_tool_bm25_20251119", gjson.GetBytes(body, `tools.#(type%"tool_search*").type`).String(), "tools sent: %s", gjson.GetBytes(body, "tools.#.name"))
+	require.True(t, gjson.GetBytes(body, `tools.#(name=="fetch").defer_loading`).Bool(), "tools sent: %s", gjson.GetBytes(body, "tools"))
 }
 
 func TestRetryWrappedVertexClaudeUsesNativeToolSearch(t *testing.T) {
@@ -277,6 +292,180 @@ func TestRetryWrappedVertexClaudeUsesNativeToolSearch(t *testing.T) {
 
 	require.Equal(t, "tool_search_tool_bm25_20251119", gjson.GetBytes(body, `tools.#(type%"tool_search*").type`).String(), "tools sent: %s", gjson.GetBytes(body, "tools.#.name"))
 }
+
+// TestVertexGeminiUsesLocalToolSearch checks a Gemini model on Vertex AI,
+// whose offering names no ToolSearchProtocol, keeps local discovery: it
+// sends the local tool_search function, not Anthropic's search tool or
+// defer_loading.
+func TestVertexGeminiUsesLocalToolSearch(t *testing.T) {
+	t.Parallel()
+
+	model, bodies := newFakeVertexModel(t, vertex.ModelGemini38Flash, geminiDoneStream)
+	require.Empty(t, model.Capabilities().ToolSearchProtocol)
+
+	ag, err := New("vertex", "prompt", model, WithTools(newFixtureRegistry(t, fixtureTool{name: "fetch", deferred: true})))
+	require.NoError(t, err)
+	runAgent(t, ag, &session.State{ID: "s", Messages: userMessage("hi")})
+
+	require.Len(t, bodies(), 1)
+	body := bodies()[0]
+	assert.Equal(t, `["tool_search"]`, gjson.GetBytes(body, "tools.0.functionDeclarations.#.name").Raw, "tools sent: %s", gjson.GetBytes(body, "tools"))
+	assert.NotContains(t, string(body), "tool_search_tool_bm25")
+	assert.NotContains(t, string(body), "defer_loading")
+}
+
+// TestVertexClaudeToolSearchLoadsAcrossTurns checks a tool that Vertex AI's
+// hosted search finds is loaded in the session: it is callable in the same
+// response, callable on the next turn without another search, and still
+// loaded once compaction drops the search result from the history.
+func TestVertexClaudeToolSearchLoadsAcrossTurns(t *testing.T) {
+	t.Parallel()
+
+	model, bodies := newFakeVertexModel(t, vertex.ModelClaudeSonnet46,
+		claudeSearchStream, claudeDoneStream, // turn 1: search, call fetch, answer
+		claudeFetchStream, claudeDoneStream, // turn 2: call fetch, answer
+		claudeDoneStream, // turn 3, after compaction
+	)
+	ag, err := New("vertex", "prompt", model, WithTools(newFixtureRegistry(t, fixtureTool{name: "fetch", deferred: true})))
+	require.NoError(t, err)
+
+	sess := &session.State{ID: "s", Messages: userMessage("fetch it")}
+	require.Equal(t, agent.FinishReasonStop, finishReason(runAgent(t, ag, sess)))
+	require.True(t, toolloading.LoadedToolSet(sess)["fetch"])
+	require.Len(t, toolResultsFor(sess.Messages, "fetch"), 1)
+	// A call to a tool the search did not load also loads it, but answers
+	// tool_not_loaded, so only a real result proves the search loaded fetch.
+	require.JSONEq(t, `{"ok":true}`, toolResultsFor(sess.Messages, "fetch")[0])
+
+	sess.Messages = append(sess.Messages, llm.NewMessage(llm.RoleUser, llm.NewTextPart("again")))
+	require.Equal(t, agent.FinishReasonStop, finishReason(runAgent(t, ag, sess)))
+
+	results := toolResultsFor(sess.Messages, "fetch")
+	require.Len(t, results, 2, "fetch stays callable on the next turn without another search")
+	require.JSONEq(t, `{"ok":true}`, results[1])
+
+	// Simulate compaction dropping the search result: only the loaded set
+	// remembers fetch now, so it goes out eager.
+	sess.Messages = userMessage("continue")
+	require.Equal(t, agent.FinishReasonStop, finishReason(runAgent(t, ag, sess)))
+
+	sent := bodies()
+	require.Len(t, sent, 5)
+
+	turn2Request, turn3Request := sent[2], sent[4]
+	assert.Contains(t, string(turn2Request), `"tool_search_tool_result"`, "the search result is replayed on the next turn")
+	assert.True(t, gjson.GetBytes(turn2Request, `tools.#(name=="fetch").defer_loading`).Bool(), "the replayed search result keeps fetch deferred: %s", gjson.GetBytes(turn2Request, "tools"))
+	require.True(t, gjson.GetBytes(turn3Request, `tools.#(name=="fetch")`).Exists(), "fetch is still sent: %s", gjson.GetBytes(turn3Request, "tools"))
+	assert.False(t, gjson.GetBytes(turn3Request, `tools.#(name=="fetch").defer_loading`).Bool(), "a loaded fetch is eager once its search result is gone: %s", gjson.GetBytes(turn3Request, "tools"))
+}
+
+// newFakeVertexModel returns a Vertex AI model whose requests reach a test
+// server that answers the nth request with the nth response, and a func that
+// returns the request bodies it received.
+func newFakeVertexModel(t *testing.T, name string, responses ...string) (llm.Model, func() [][]byte) {
+	t.Helper()
+
+	var (
+		mu     sync.Mutex
+		bodies [][]byte
+	)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+
+		mu.Lock()
+
+		n := len(bodies)
+		bodies = append(bodies, body)
+
+		mu.Unlock()
+
+		if n >= len(responses) {
+			http.Error(w, "unexpected request", http.StatusInternalServerError)
+
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, responses[n])
+	}))
+	t.Cleanup(srv.Close)
+
+	p, err := vertex.NewProvider(context.Background(),
+		vertex.WithProject("my-project"), vertex.WithLocation("global"),
+		vertex.WithBaseURL(srv.URL), vertex.WithHTTPClient(srv.Client()))
+	require.NoError(t, err)
+
+	model, err := p.NewModel(name)
+	require.NoError(t, err)
+
+	return model, func() [][]byte {
+		mu.Lock()
+		defer mu.Unlock()
+
+		return slices.Clone(bodies)
+	}
+}
+
+const geminiDoneStream = "data: " + `{"candidates":[{"content":{"role":"model","parts":[{"text":"Done."}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":1,"candidatesTokenCount":1,"totalTokenCount":2}}` + "\n\n"
+
+// claudeSearchStream follows the block sequence Vertex AI streamed in a probe
+// on 2026-10-07 - a bm25 search, its result, then a call to the found tool -
+// with fetch as that tool.
+const claudeSearchStream = `event: message_start
+data: {"type":"message_start","message":{"id":"m","type":"message","role":"assistant","model":"x","content":[],"stop_reason":null,"usage":{"input_tokens":1,"output_tokens":0}}}
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"server_tool_use","id":"srv_1","name":"tool_search_tool_bm25","input":{}}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"query\":\"fetch\"}"}}
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0}
+
+event: content_block_start
+data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_search_tool_result","tool_use_id":"srv_1","content":{"type":"tool_search_tool_search_result","tool_references":[{"type":"tool_reference","tool_name":"fetch"}]}}}
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":1}
+
+event: content_block_start
+data: {"type":"content_block_start","index":2,"content_block":{"type":"tool_use","id":"call_1","name":"fetch","input":{}}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"{}"}}
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":2}
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":1}}
+
+event: message_stop
+data: {"type":"message_stop"}
+
+`
+
+const claudeFetchStream = `event: message_start
+data: {"type":"message_start","message":{"id":"m","type":"message","role":"assistant","model":"x","content":[],"stop_reason":null,"usage":{"input_tokens":1,"output_tokens":0}}}
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"call_2","name":"fetch","input":{}}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{}"}}
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0}
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":1}}
+
+event: message_stop
+data: {"type":"message_stop"}
+
+`
 
 const claudeDoneStream = `event: message_start
 data: {"type":"message_start","message":{"id":"m","type":"message","role":"assistant","model":"x","content":[],"stop_reason":null,"usage":{"input_tokens":1,"output_tokens":0}}}
