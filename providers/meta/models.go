@@ -27,6 +27,9 @@ import (
 // not used for training. The Contributor tier is intentionally not registered.
 const ModelMuseSpark13 = "muse-spark-1.3"
 
+// ModelMuseWonder10 is Muse Wonder Standard; Full and Contributor are not API models.
+const ModelMuseWonder10 = "muse-wonder-1.0"
+
 // maxOutputTokens is a conservative SDK limit, not a published vendor maximum.
 // It bounds explicitly supplied budgets; omitted budgets use the server default.
 const maxOutputTokens = 32_768
@@ -42,7 +45,7 @@ var catalogOnce = sync.OnceValue(func() *catalog.Catalog {
 func Catalog() *catalog.Catalog { return catalogOnce() }
 
 func entries() []catalog.Entry {
-	return []catalog.Entry{{
+	spark := catalog.Entry{
 		ID:    ModelMuseSpark13,
 		Model: catalog.ModelMuseSpark13,
 		WireAPIs: []catalog.WireAPI{
@@ -76,5 +79,16 @@ func entries() []catalog.Entry {
 		Life:       catalog.Lifecycle{Available: catalog.MustDate("2026-09-02")},
 		// https://dev.meta.ai/docs/pricing-rate-limits — no long-context premium.
 		Pricing: pricing.FlatInfo(1.25, 4.25, 0.15),
-	}}
+	}
+	// Meta documents the same requests and context for Wonder and Spark.
+	// Keep the shared SDK-conservative output cap; no vendor cap is published.
+	// https://dev.meta.ai/docs/models
+	wonder := spark
+	wonder.ID = ModelMuseWonder10
+	wonder.Model = catalog.ModelMuseWonder10
+	wonder.Life = catalog.Lifecycle{Available: catalog.MustDate("2026-10-12")}
+	// https://dev.meta.ai/docs/pricing-rate-limits (checked 2026-10-15)
+	wonder.Pricing = pricing.FlatInfo(4.00, 20.00, 0.20)
+
+	return []catalog.Entry{spark, wonder}
 }

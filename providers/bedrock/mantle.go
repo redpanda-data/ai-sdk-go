@@ -202,6 +202,11 @@ func (m *mantleModel) Generate(ctx context.Context, req *llm.Request) (*llm.Resp
 // a model-not-found error.
 func (m *mantleModel) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[llm.Event, error] {
 	return func(yield func(llm.Event, error) bool) {
+		if err := validateStreamingResponseFormat(m.def.ID, req.ResponseFormat); err != nil {
+			yield(nil, err)
+			return
+		}
+
 		for evt, err := range m.Model.GenerateEvents(ctx, req) {
 			if end, ok := evt.(llm.StreamEndEvent); ok && err == nil && end.Error == nil && end.Response != nil && end.Response.InferenceRegion == "" {
 				end.Response.InferenceRegion = m.region

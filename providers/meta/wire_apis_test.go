@@ -28,14 +28,16 @@ func TestCatalogWireAPIs(t *testing.T) {
 	t.Parallel()
 
 	all := meta.Catalog().All()
-	require.Len(t, all, 1)
+	require.Len(t, all, 2)
 
-	o, ok := meta.Catalog().Lookup("muse-spark-1.3")
-	require.True(t, ok)
-	assert.Equal(t, "muse-spark-1.3", o.ID)
-	assert.Equal(t, catalog.ModelID("meta/muse-spark-1.3"), o.Model)
-	assert.ElementsMatch(t, []catalog.WireAPI{
-		{Protocol: catalog.WireProtocolOpenAIChatCompletions, Transport: catalog.WireTransportDirect},
-		{Protocol: catalog.WireProtocolOpenAIResponses, Transport: catalog.WireTransportDirect},
-	}, o.WireAPIs)
+	for _, id := range []string{"muse-spark-1.3", "muse-wonder-1.0"} {
+		o, ok := meta.Catalog().Lookup(id)
+		require.True(t, ok)
+		assert.Equal(t, id, o.ID)
+		assert.Equal(t, catalog.ModelID("meta/"+id), o.Model)
+		assert.ElementsMatch(t, []catalog.WireAPI{
+			{Protocol: catalog.WireProtocolOpenAIChatCompletions, Transport: catalog.WireTransportDirect},
+			{Protocol: catalog.WireProtocolOpenAIResponses, Transport: catalog.WireTransportDirect},
+		}, o.WireAPIs)
+	}
 }

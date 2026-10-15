@@ -53,6 +53,7 @@ var noCacheModels = map[string]bool{
 // TTL-specific usage bucket. Their write rate must therefore live only in
 // CacheCreationUnknownTTLPerMillion.
 var unknownTTLCacheModels = map[string]bool{
+	ModelGPT6Luna: true, ModelGPT6LunaUS: true, ModelGPT6LunaGlobal: true,
 	ModelGPT56Sol:   true,
 	ModelGPT56Terra: true,
 	ModelGPT56Luna:  true,
@@ -513,4 +514,44 @@ func TestRegionalNonStandardPricingFallback(t *testing.T) {
 	assert.Equal(t, int64(17_000_000), cost.Total)
 	assert.Equal(t, pricing.Selector{Region: regionFrankfurt}, cost.AppliedSelector)
 	assert.Equal(t, []pricing.Fallback{{Requested: requested, Resolved: pricing.Selector{Region: regionFrankfurt}}}, cost.Fallbacks)
+}
+
+func TestGPT6LunaPricing(t *testing.T) {
+	t.Parallel()
+
+	prices, err := pricing.NewCatalog(pricing.WithSource(Catalog()))
+	require.NoError(t, err)
+
+	globalBase := pricing.NewRates(0.10, 0.50, 0.01).WithCacheCreation(0, 0, 0.125)
+	globalLong := pricing.NewRates(0.20, 0.75, 0.02).WithCacheCreation(0, 0, 0.25)
+	usBase := pricing.NewRates(0.11, 0.55, 0.011).WithCacheCreation(0, 0, 0.1375)
+
+	usLong := pricing.NewRates(0.22, 0.825, 0.022).WithCacheCreation(0, 0, 0.275)
+	for _, tt := range []struct {
+		id          string
+		short, long pricing.Rates
+	}{
+		{"global.openai.gpt-6-luna", globalBase, globalLong},
+		{"us.openai.gpt-6-luna", usBase, usLong},
+		{"openai.gpt-6-luna", usBase, usLong},
+	} {
+		t.Run(tt.id, func(t *testing.T) {
+			t.Parallel()
+
+			for _, tokens := range []int64{272_000, 272_001} {
+				cost, err := prices.Calculate(ProviderName, tt.id, &llm.TokenUsage{InputTokens: 1_000_000, CachedInputTokens: 1_000_000, CacheCreationUnknownTTLTokens: 1_000_000, OutputTokens: 1_000_000}, pricing.CalcRequest{ContextTokens: tokens})
+				require.NoError(t, err)
+
+				want := tt.short
+				if tokens > 272_000 {
+					want = tt.long
+				}
+
+				assert.Equal(t, want.InputPerMillion, cost.Breakdown[pricing.UsageFieldInput])
+				assert.Equal(t, want.CachedInputPerMillion, cost.Breakdown[pricing.UsageFieldCachedInput])
+				assert.Equal(t, want.CacheCreationUnknownTTLPerMillion, cost.Breakdown[pricing.UsageFieldCacheCreationUnknownTTL])
+				assert.Equal(t, want.OutputPerMillion, cost.Breakdown[pricing.UsageFieldOutput])
+			}
+		})
+	}
 }

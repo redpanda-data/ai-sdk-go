@@ -15,6 +15,7 @@
 package bedrock
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -668,7 +669,7 @@ func TestNewModel_ClaudeSonnet55Routing(t *testing.T) {
 		{"bare from Calgary", "ca-west-1", ModelClaudeSonnet55, ModelClaudeSonnet55US, false},
 		{"bare from EU", "eu-west-1", ModelClaudeSonnet55, ModelClaudeSonnet55EU, false},
 		{"bare from Zurich", "eu-central-2", ModelClaudeSonnet55, ModelClaudeSonnet55EU, false},
-		{"bare from Sydney routes global", "ap-southeast-2", ModelClaudeSonnet55, ModelClaudeSonnet55Global, false},
+		{"bare from Sydney routes AU", "ap-southeast-2", ModelClaudeSonnet55, "au." + ModelClaudeSonnet55, false},
 		{"bare from Tokyo routes global", "ap-northeast-1", ModelClaudeSonnet55, ModelClaudeSonnet55Global, false},
 		{"bare from GovCloud", "us-gov-west-1", ModelClaudeSonnet55, "", true},
 		{"bare from unknown region", "unknown", ModelClaudeSonnet55, "", true},
@@ -677,7 +678,7 @@ func TestNewModel_ClaudeSonnet55Routing(t *testing.T) {
 		{"explicit global from US", "us-east-1", ModelClaudeSonnet55Global, ModelClaudeSonnet55Global, false},
 		{"explicit US from EU", "eu-west-1", ModelClaudeSonnet55US, "", true},
 		{"explicit EU from US", "us-east-1", ModelClaudeSonnet55EU, "", true},
-		{"explicit AU is unpublished", "ap-southeast-2", "au." + ModelClaudeSonnet55, "", true},
+		{"explicit AU from Sydney", "ap-southeast-2", "au." + ModelClaudeSonnet55, "au." + ModelClaudeSonnet55, false},
 		{"explicit JP is unpublished", "ap-northeast-1", "jp." + ModelClaudeSonnet55, "", true},
 	}
 
@@ -1537,4 +1538,33 @@ func TestRequestMapper_OpenAISchemaStrict(t *testing.T) {
 			assert.Nil(t, text.AdditionalModelRequestFields)
 		})
 	}
+}
+
+func TestGPT6LunaSchemaContract(t *testing.T) {
+	t.Parallel()
+
+	req := &llm.Request{ResponseFormat: &llm.ResponseFormat{Type: llm.ResponseFormatJSONSchema, JSONSchema: &llm.JSONSchema{Name: "answer", Schema: json.RawMessage(`{"type":"object","properties":{"ok":{"type":"boolean"}},"required":["ok"],"additionalProperties":false}`)}}}
+	mapper := NewRequestMapper(&Config{APIModelID: ModelGPT6LunaGlobal})
+	in, err := mapper.ToConverseInput(req)
+	require.NoError(t, err)
+	require.NotNil(t, in.AdditionalModelRequestFields)
+	fields, err := in.AdditionalModelRequestFields.MarshalSmithyDocument()
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"text":{"format":{"strict":true}}}`, string(fields))
+
+	_, err = mapper.ToConverseStreamInput(req)
+	require.ErrorIs(t, err, llm.ErrUnsupportedFeature)
+	p, err := NewProvider(context.Background(), WithRegion("us-east-1"), WithNoAuth())
+	require.NoError(t, err)
+	m, err := p.NewModel(ModelGPT6Luna)
+	require.NoError(t, err)
+
+	seen := false
+	for _, err := range m.GenerateEvents(context.Background(), req) {
+		seen = true
+
+		require.ErrorIs(t, err, llm.ErrUnsupportedFeature)
+	}
+
+	require.True(t, seen, "streaming schema must fail explicitly, not return an empty iterator")
 }
