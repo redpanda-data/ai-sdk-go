@@ -32,9 +32,11 @@ const ProviderName = "gcp.vertex"
 // Vertex model IDs are exactly the model segment of a Vertex resource path,
 // publishers/{publisher}/models/{model}.
 const (
-	ModelGemini4Argon        = "gemini-4-argon"
-	ModelGemini38Flash       = "gemini-3.8-flash"
-	ModelGemini37Flash       = "gemini-3.7-flash"
+	ModelGemini4Argon  = "gemini-4-argon"
+	ModelGemini38Flash = "gemini-3.8-flash"
+	// Deprecated: retires 2027-01-28. Use [ModelGemini38Flash].
+	ModelGemini37Flash = "gemini-3.7-flash"
+	// Deprecated: retires 2026-11-19. Use [ModelGemini38Flash].
 	ModelGemini36Flash       = "gemini-3.6-flash"
 	ModelGemini35Flash       = "gemini-3.5-flash"
 	ModelGemini35FlashLite   = "gemini-3.5-flash-lite"
@@ -268,10 +270,13 @@ func entries() []catalog.Entry {
 				SupportedParams:  geminiNoPenaltyParams,
 			},
 			Reasoning: catalog.ReasoningSupport{Efforts: geminiNoMinimalReasoningEfforts},
-			// Gemini 3.7 Flash GA, "No retirement date announced" on the model page
+			// Gemini 3.7 Flash GA on the model page
 			// (docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/
 			// 3-7-flash, read 2026-09-28).
+			// Exact retirement per model-versions, checked 2026-10-15:
+			// https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/model-versions
 			Life: catalog.Lifecycle{
+				Retires:    catalog.MustDate("2027-01-28"),
 				Available:  catalog.MustDate("2026-08-13"),
 				ReplacedBy: ModelGemini38Flash,
 			},
@@ -292,9 +297,12 @@ func entries() []catalog.Entry {
 			Reasoning: catalog.ReasoningSupport{Efforts: geminiReasoningEfforts},
 			// Gemini 3.6 Flash GA on the model page (docs.cloud.google.com/
 			// gemini-enterprise-agent-platform/models/gemini/3-6-flash, read
-			// 2026-09-10). No retirement published.
+			// 2026-09-10).
 			// model-versions names gemini-3.8-flash as the replacement.
+			// Exact retirement per model-versions, checked 2026-10-15:
+			// https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/model-versions
 			Life: catalog.Lifecycle{
+				Retires:    catalog.MustDate("2026-11-19"),
 				Available:  catalog.MustDate("2026-07-21"),
 				ReplacedBy: ModelGemini38Flash,
 			},

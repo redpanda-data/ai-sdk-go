@@ -415,6 +415,8 @@ func TestLifecycle(t *testing.T) {
 	t.Parallel()
 
 	wantRetires := map[string]string{
+		vertex.ModelGemini36Flash:     "2026-11-19",
+		vertex.ModelGemini37Flash:     "2027-01-28",
 		vertex.ModelGemini25FlashLite: "2026-10-20",
 		vertex.ModelGemini25Flash:     "2026-10-20",
 		vertex.ModelGemini25Pro:       "2026-10-20",

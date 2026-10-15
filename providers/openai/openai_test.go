@@ -269,9 +269,9 @@ func TestResolveModelFamily(t *testing.T) {
 			known:    true,
 		},
 		{
-			name:     "timestamped gpt-4o resolves to family",
+			name:     "registered gpt-4o snapshot retains identity",
 			input:    "gpt-4o-2024-11-20",
-			expected: "gpt-4o",
+			expected: "gpt-4o-2024-11-20",
 			known:    true,
 		},
 		{
@@ -281,9 +281,9 @@ func TestResolveModelFamily(t *testing.T) {
 			known:    true,
 		},
 		{
-			name:     "timestamped gpt-4o-mini resolves to gpt-4o-mini not gpt-4o",
+			name:     "registered gpt-4o-mini snapshot retains identity",
 			input:    "gpt-4o-mini-2024-07-18",
-			expected: "gpt-4o-mini",
+			expected: "gpt-4o-mini-2024-07-18",
 			known:    true,
 		},
 		{

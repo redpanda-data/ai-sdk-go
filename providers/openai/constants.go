@@ -105,6 +105,31 @@ const (
 	// ModelGPT4OMini is the GPT-4o Mini model.
 	ModelGPT4OMini = shared.ChatModelGPT4oMini
 
+	// ModelGPT4O20240513 is the original GPT-4o snapshot.
+	//
+	// Deprecated: shuts down 2026-10-23. Use [ModelGPT5_6Sol].
+	ModelGPT4O20240513 = "gpt-4o-2024-05-13"
+	// ModelGPT4O20240806 is the August GPT-4o snapshot.
+	//
+	// Deprecated: shuts down 2027-01-14. Use [ModelGPT6Luna].
+	ModelGPT4O20240806 = "gpt-4o-2024-08-06"
+	// ModelGPT4O20241120 is the November GPT-4o snapshot.
+	//
+	// Deprecated: shuts down 2027-01-14. Use [ModelGPT6Luna].
+	ModelGPT4O20241120 = "gpt-4o-2024-11-20"
+	// ModelGPT4OMini20240718 is the GPT-4o mini snapshot.
+	//
+	// Deprecated: shuts down 2027-01-14. Use [ModelGPT6Luna].
+	ModelGPT4OMini20240718 = "gpt-4o-mini-2024-07-18"
+	// ModelGPT4120250414 is the GPT-4.1 snapshot.
+	//
+	// Deprecated: shuts down 2027-01-14. Use [ModelGPT6Luna].
+	ModelGPT4120250414 = "gpt-4.1-2025-04-14"
+	// ModelGPT41Mini20250414 is the GPT-4.1 mini snapshot.
+	//
+	// Deprecated: shuts down 2027-01-14. Use [ModelGPT6Luna].
+	ModelGPT41Mini20250414 = "gpt-4.1-mini-2025-04-14"
+
 	// ModelGPT4Turbo is the legacy GPT-4 Turbo model.
 	//
 	// Deprecated: OpenAI deprecated GPT-4 Turbo on 2026-04-22; it shuts

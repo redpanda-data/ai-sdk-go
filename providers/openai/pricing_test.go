@@ -126,11 +126,12 @@ func TestAllModelsHavePricing(t *testing.T) {
 
 	// Models that predate prompt caching or don't support it.
 	noCacheModels := map[string]bool{
-		ModelGPT4Turbo:  true, // Legacy model, no prompt caching.
-		ModelGPT35Turbo: true, // Legacy model, no prompt caching.
-		ModelGPT5_2Pro:  true, // Pro tier, no caching listed.
-		ModelO3Pro:      true, // Pro tier, no caching listed.
-		ModelO1Pro:      true, // Pro tier, no caching listed.
+		ModelGPT4O20240513: true,
+		ModelGPT4Turbo:     true, // Legacy model, no prompt caching.
+		ModelGPT35Turbo:    true, // Legacy model, no prompt caching.
+		ModelGPT5_2Pro:     true, // Pro tier, no caching listed.
+		ModelO3Pro:         true, // Pro tier, no caching listed.
+		ModelO1Pro:         true, // Pro tier, no caching listed.
 	}
 
 	for _, def := range Catalog().All() {
@@ -179,15 +180,15 @@ func TestBillingResolvesInvokedModelIDs(t *testing.T) {
 	usage := &llm.TokenUsage{InputTokens: 1_000_000, OutputTokens: 1_000_000}
 
 	// Timestamped snapshot: unpriceable directly, priceable after Resolve.
-	_, err = priceCat.Calculate(ProviderName, "gpt-4o-2024-11-20", usage, pricing.CalcRequest{})
+	_, err = priceCat.Calculate(ProviderName, "gpt-5-2025-08-07", usage, pricing.CalcRequest{})
 	require.ErrorIs(t, err, pricing.ErrUnknownModel)
 
-	offering, ok := Catalog().Resolve("gpt-4o-2024-11-20")
+	offering, ok := Catalog().Resolve("gpt-5-2025-08-07")
 	require.True(t, ok)
 
 	resolved, err := priceCat.Calculate(ProviderName, offering.ID, usage, pricing.CalcRequest{})
 	require.NoError(t, err)
-	direct, err := priceCat.Calculate(ProviderName, ModelGPT4O, usage, pricing.CalcRequest{})
+	direct, err := priceCat.Calculate(ProviderName, ModelGPT5, usage, pricing.CalcRequest{})
 	require.NoError(t, err)
 	assert.Equal(t, direct.Total, resolved.Total)
 

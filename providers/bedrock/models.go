@@ -792,7 +792,7 @@ var mantleModelIDs = func() map[string]bool {
 // Catalog returns the validated Bedrock model catalog: every inference-
 // profile variant with its capabilities, constraints, reasoning controls,
 // pricing, and lifecycle. The catalog is immutable and shared; all reads
-// return deep copies.
+// return deep copies. Use [LifecycleForRegion] for region-scoped AWS notices.
 func Catalog() *catalog.Catalog {
 	return catalogOnce()
 }
@@ -845,9 +845,8 @@ var (
 //     relationship is pinned by TestGeoGlobalRatio as a tripwire.
 //
 // Lifecycle: Bedrock sets its own availability and retirement schedules
-// (surfaced by ListFoundationModels' modelLifecycle); no catalogued model
-// has an announced deprecation, and per-profile availability dates are not
-// published, so Life stays empty rather than inventing dates.
+// (surfaced by ListFoundationModels' modelLifecycle). Region-scoped notices
+// are exposed by LifecycleForRegion rather than a worldwide retirement date.
 var bedrockFamilies = []family{
 	{
 		// Claude Fable 5.1 — inference-profile-only, no bare entry. The

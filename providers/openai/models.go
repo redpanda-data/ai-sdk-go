@@ -143,7 +143,7 @@ var (
 // are copied as printed, including rounded ones (gpt-5.4 Batch and Flex
 // cached input $0.13, o4-mini Flex cached input $0.138).
 func entries() []catalog.Entry {
-	return []catalog.Entry{
+	entries := []catalog.Entry{
 		// GPT-5 Series (2025 Flagship)
 		{
 			ID:           ModelGPT5,
@@ -931,6 +931,8 @@ func entries() []catalog.Entry {
 				WithOverride(batchTier, flatCard(10.00, 40.00, 0)),
 		},
 	}
+
+	return appendDatedSnapshots(entries)
 }
 
 // gpt56Entry builds one GPT-5.6 family entry. Sol, Terra, and Luna share
