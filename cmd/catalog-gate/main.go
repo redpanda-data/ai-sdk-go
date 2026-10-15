@@ -87,13 +87,25 @@ func runGate(provider, outDir, baselinePath, baselineRun string, opts options) e
 		return err
 	}
 
-	if err := os.MkdirAll(filepath.Join(outDir, "text"), 0o750); err != nil {
+	// Writes go through an os.Root at the output directory, so a page id
+	// can't name a file outside it.
+	if err := os.MkdirAll(outDir, 0o750); err != nil {
+		return err
+	}
+
+	out, err := os.OpenRoot(outDir)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	if err := out.MkdirAll("text", 0o750); err != nil {
 		return err
 	}
 
 	current := fingerprints{
 		Version: 1, Provider: provider, Commit: os.Getenv("GITHUB_SHA"), FetchedAt: opts.Now,
-		Sources: map[string]source{}, Inputs: hashInputs(inputPaths),
+		Sources: map[string]source{}, Inputs: hashInputs(".", inputPaths),
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), fetchDeadline)
@@ -106,7 +118,7 @@ func runGate(provider, outDir, baselinePath, baselineRun string, opts options) e
 		current.Sources[p.ID] = s
 
 		if text != "" {
-			if err := os.WriteFile(filepath.Join(outDir, "text", p.ID+".txt"), []byte(text), 0o600); err != nil {
+			if err := out.WriteFile("text/"+p.ID+".txt", []byte(text), 0o600); err != nil {
 				return err
 			}
 		}
@@ -129,7 +141,7 @@ func runGate(provider, outDir, baselinePath, baselineRun string, opts options) e
 			return err
 		}
 
-		if err := os.WriteFile(filepath.Join(outDir, name), append(raw, '\n'), 0o600); err != nil {
+		if err := out.WriteFile(name, append(raw, '\n'), 0o600); err != nil {
 			return err
 		}
 	}
@@ -139,7 +151,7 @@ func runGate(provider, outDir, baselinePath, baselineRun string, opts options) e
 		baselineURL = server + "/" + repo + "/actions/runs/" + baselineRun
 	}
 
-	if err := os.WriteFile(filepath.Join(outDir, "summary.md"), []byte(summary(d, baselineURL)), 0o600); err != nil {
+	if err := out.WriteFile("summary.md", []byte(summary(d, baselineURL)), 0o600); err != nil {
 		return err
 	}
 

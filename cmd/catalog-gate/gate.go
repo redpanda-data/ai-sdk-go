@@ -26,7 +26,6 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -73,29 +72,43 @@ type fingerprints struct {
 	Inputs    map[string]string `json:"inputs"`
 }
 
-// hashInputs hashes every file under the input paths, keyed by its path. A
-// path that can't be read is recorded, so it can't match a baseline.
-func hashInputs(paths []string) map[string]string {
+// hashInputs hashes every file under the input paths, which are relative to
+// base, keyed by its path. Reads go through an os.Root at base, so a symlink
+// can't lead outside it. A path that can't be read is recorded, so it can't
+// match a baseline.
+func hashInputs(base string, paths []string) map[string]string {
 	inputs := map[string]string{}
 
-	for _, root := range paths {
-		err := filepath.WalkDir(root, func(file string, entry fs.DirEntry, err error) error {
+	root, err := os.OpenRoot(base)
+	if err != nil {
+		for _, path := range paths {
+			inputs[path] = "unreadable: " + err.Error()
+		}
+
+		return inputs
+	}
+	defer root.Close()
+
+	files := root.FS()
+
+	for _, path := range paths {
+		err := fs.WalkDir(files, path, func(file string, entry fs.DirEntry, err error) error {
 			if err != nil || entry.IsDir() {
 				return err
 			}
 
-			raw, err := os.ReadFile(file)
+			raw, err := fs.ReadFile(files, file)
 			if err != nil {
 				return err
 			}
 
 			sum := sha256.Sum256(raw)
-			inputs[filepath.ToSlash(file)] = hex.EncodeToString(sum[:])
+			inputs[file] = hex.EncodeToString(sum[:])
 
 			return nil
 		})
 		if err != nil {
-			inputs[root] = "unreadable: " + err.Error()
+			inputs[path] = "unreadable: " + err.Error()
 		}
 	}
 

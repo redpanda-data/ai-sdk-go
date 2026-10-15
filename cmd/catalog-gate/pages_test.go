@@ -18,7 +18,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -64,6 +63,10 @@ func TestLoadPages(t *testing.T) {
 	duplicate := strings.Replace(sources, `"anthropic-model-{slug}"`, `"anthropic-pricing"`, 1)
 	_, err = loadPages([]byte(duplicate), []byte(snapshot), "anthropic", "2026-10-15")
 	require.ErrorContains(t, err, "duplicate page id")
+
+	unsafe := strings.Replace(sources, `"anthropic-pricing"`, `"../escape"`, 1)
+	_, err = loadPages([]byte(unsafe), []byte(snapshot), "anthropic", "2026-10-15")
+	require.ErrorContains(t, err, "isn't safe as a file name", "an id names a file in the gate's output")
 }
 
 // TestSourcesFile checks the real page list against the real snapshot.
@@ -79,8 +82,6 @@ func TestSourcesFile(t *testing.T) {
 	vendors, err := readSources(sources)
 	require.NoError(t, err)
 
-	safeID := regexp.MustCompile(`^[a-z0-9-]{1,80}$`)
-
 	for vendor, config := range vendors {
 		pages, err := loadPages(sources, snapshot, vendor, time.Now().UTC().Format(time.DateOnly))
 		require.NoError(t, err)
@@ -89,7 +90,6 @@ func TestSourcesFile(t *testing.T) {
 			parsed, err := url.Parse(p.URL)
 			require.NoError(t, err, p.ID)
 
-			assert.Regexp(t, safeID, p.ID, "an id names a file in the gate's artifact")
 			assert.Contains(t, config.Hosts, parsed.Hostname(), "%s: every page is on a named host", p.ID)
 			assert.Contains(t, []string{typeMarkdown, typeHTML, typePriceList}, p.Type, p.ID)
 			assert.NotEmpty(t, p.MustContain, "%s: every page has a content floor", p.ID)

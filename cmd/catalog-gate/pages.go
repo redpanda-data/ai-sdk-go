@@ -18,6 +18,7 @@ import (
 	"cmp"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 )
@@ -38,6 +39,9 @@ type page struct {
 	// Match picks a price list's services.
 	Match string `json:"match,omitempty"`
 }
+
+// safeID is what a page id may be: it names the page's file in the gate's output.
+var safeID = regexp.MustCompile(`^[a-z0-9-]{1,80}$`)
 
 // sourcesPath is named-sources.json in the repo: each vendor's packages,
 // named hosts and the pages the gate fingerprints.
@@ -135,7 +139,10 @@ func loadPages(sources, snapshotJSON []byte, vendor, today string) ([]page, erro
 	seen := map[string]bool{}
 
 	for i, p := range pages {
-		if seen[p.ID] {
+		switch {
+		case !safeID.MatchString(p.ID):
+			return nil, fmt.Errorf("page id %q isn't safe as a file name", p.ID)
+		case seen[p.ID]:
 			return nil, fmt.Errorf("duplicate page id %q", p.ID)
 		}
 

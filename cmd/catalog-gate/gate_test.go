@@ -187,8 +187,8 @@ func TestHashInputs(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "skill", "SKILL.md"), []byte("a"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "skill", "references", "new.md"), []byte("b"), 0o600))
 
-	inputs := hashInputs([]string{filepath.Join(dir, "skill"), filepath.Join(dir, "gone")})
+	inputs := hashInputs(dir, []string{"skill", "gone"})
 	assert.Len(t, inputs, 3, "every file under a folder, and the missing path")
-	assert.Contains(t, inputs, filepath.ToSlash(filepath.Join(dir, "skill", "references", "new.md")), "a file the skill starts using is covered")
-	assert.Contains(t, inputs[filepath.ToSlash(filepath.Join(dir, "gone"))], "unreadable")
+	assert.Contains(t, inputs, "skill/references/new.md", "a file the skill starts using is covered")
+	assert.Contains(t, inputs["gone"], "unreadable")
 }
