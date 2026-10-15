@@ -24,7 +24,9 @@ import (
 func TestCompareRuns(t *testing.T) {
 	t.Parallel()
 
-	const priceRow = `{"offering": "claude-opus-5-5", "field": "price", "old": "4", "new": "5", "source_url": "https://platform.claude.com/docs/en/about-claude/pricing"}`
+	const priceRow = `{"offering": "claude-opus-5-5", "field": "price", "old": "4", "new": "5", "source_url": "https://platform.claude.com/docs/en/about-claude/pricing", "rule": "price-follow"}`
+	// A baseline from before change rows named their rule.
+	const oldPriceRow = `{"offering": "claude-opus-5-5", "field": "price", "old": "4", "new": "5", "source_url": "https://platform.claude.com/docs/en/about-claude/pricing"}`
 	const askRow = `{"offering": "bedrock:eu.anthropic.claude-fable-5", "field": "lifecycle", "values": [], "rule": "copy-gone-no-eol", "source_urls": ["https://docs.aws.amazon.com/bedrock/latest/userguide/some-other-page.html"]}`
 	report := func(changes, asks string) string {
 		return `{"changes": [` + changes + `], "needs_human": [` + asks + `], "skipped": []}`
@@ -47,6 +49,10 @@ func TestCompareRuns(t *testing.T) {
 				"**Cited sources the gate doesn't fingerprint (1):**", "`https://docs.aws.amazon.com/bedrock/latest/userguide/some-other-page.html`",
 			},
 			notContains: []string{"`https://platform.claude.com/docs/en/about-claude/pricing`"},
+		},
+		{
+			name: "baseline from before change rules", baseline: report(oldPriceRow, askRow), same: true,
+			contains: []string{"**A skip would have lost nothing:**"},
 		},
 		{
 			name: "the baseline run missed a change", baseline: report("", askRow), same: true,

@@ -31,14 +31,15 @@ import (
 
 var hosts = []string{"platform.claude.com"}
 
-// testRules is a RULES.md with four skip rules, one rule that asks a person,
+// testRules is a RULES.md with a price Default, four skip Defaults, one Ask,
 // no-rule for rows no rule covers, and Bedrock's offered regions.
 var testRules = reconcile.Rules{
-	Lines:     map[string]int{"limited-availability": 40, "replacement-not-carried": 80, "no-rule": 120, "region-not-offered": 20, "copy-gone-no-eol": 22, "label-fact-differs": 24},
-	Reasons:   map[string]string{"limited_availability": "the model needs a signup", "conflicting_sources": "no rule uses it yet"},
-	Questions: map[string]string{"replacement-not-carried": "Which replacement?", "no-rule": "No rule covers this. Decide."},
+	Lines:      map[string]int{"price-follow": 30, "new-copy-offered-region": 32, "limited-availability": 40, "replacement-not-carried": 80, "no-rule": 120, "region-not-offered": 20, "copy-gone-no-eol": 22, "label-fact-differs": 24},
+	Reasons:    map[string]string{"limited_availability": "the model needs a signup", "conflicting_sources": "no rule uses it yet"},
+	Questions:  map[string]string{"replacement-not-carried": "Which replacement?", "no-rule": "No rule covers this. Decide."},
+	RuleFields: map[string][]string{"price-follow": {"price"}},
 	Outcomes: map[string][]string{
-		"limited-availability": {"skip:`limited_availability`"}, "replacement-not-carried": {"needs_human"}, "no-rule": {"needs_human"},
+		"price-follow": {"change"}, "limited-availability": {"skip:`limited_availability`"}, "replacement-not-carried": {"needs_human"}, "no-rule": {"needs_human"},
 		"region-not-offered": {"skip:`region_not_offered`"}, "copy-gone-no-eol": {"skip:`copy_unlisted`"},
 		"label-fact-differs": {"skip:`fixed_fact_differs`"},
 	},
@@ -48,7 +49,7 @@ var testRules = reconcile.Rules{
 func validReport() Report {
 	return Report{
 		Changes: []Change{{
-			Offering: "claude-opus-5-5", Field: "price", Old: "4.00", New: "5.00",
+			Offering: "claude-opus-5-5", Field: "price", Old: "4.00", New: "5.00", Rule: "price-follow",
 			SourceURL: "https://platform.claude.com/docs/en/about-claude/pricing.md",
 		}},
 		NeedsHuman: []NeedsHuman{{
@@ -97,6 +98,9 @@ func TestValidate(t *testing.T) {
 		{"skip rule for this reason", func(r *Report) {
 			r.Skipped[0] = Skipped{Offering: "x", Reason: "limited_availability", Rule: "limited-availability"}
 		}, ""},
+		{"change without a rule", func(r *Report) { r.Changes[0].Rule = "" }, `changes[0]: unknown rule ""`},
+		{"change under a rule for another field", func(r *Report) { r.Changes[0].Field = "limit" }, "changes[0]: rule price-follow covers price, not limit"},
+		{"change resting on judgment", func(r *Report) { r.Changes[0].Rule = "no-rule" }, "changes[0]: a change needs a Default, not no-rule"},
 		{"region not offered", func(r *Report) {
 			r.Skipped[0] = Skipped{Offering: "bedrock:in.anthropic.claude-opus-5", Reason: "region_not_offered", Rule: "region-not-offered"}
 		}, ""},
@@ -276,6 +280,21 @@ func TestRender(t *testing.T) {
 			base: withEffects,
 			contains: []string{"| ⚑ no `jp` copy of `anthropic/claude-sonnet-5-5`: callers who follow it leave `jp`; input -39%; " +
 				"loses `image input`, `structured_output`, `temperature`, `top_p` |"},
+		},
+		{
+			name: "changes grouped by rule",
+			report: Report{Changes: []Change{
+				{Offering: "vertex:claude-sonnet-5-5", Field: "price", Old: "0.22", New: "0.11", Rule: "price-follow", SourceURL: "https://platform.claude.com/a"},
+				{Offering: "bedrock:au.anthropic.claude-sonnet-5-5", Field: "new_model", New: "au.anthropic.claude-sonnet-5-5", Rule: "new-copy-offered-region", SourceURL: "https://platform.claude.com/b"},
+				{Offering: "claude-sonnet-5-5", Field: "price", Old: "0.20", New: "0.10", Rule: "price-follow", SourceURL: "https://platform.claude.com/c"},
+			}},
+			base: Base{URL: baseURL, Rules: testRules},
+			contains: []string{
+				"### Changes (3)\n\n**[price-follow](" + rulesURL + "#L30)** (2)\n\n| Offering | Field | Old | New | Source |\n|---|---|---|---|---|\n" +
+					"| `claude-sonnet-5-5` | price | `0.20` | `0.10` | [platform.claude.com](https://platform.claude.com/c) |\n" +
+					"| `vertex:claude-sonnet-5-5` | price | `0.22` | `0.11` | [platform.claude.com](https://platform.claude.com/a) |\n\n" +
+					"**[new-copy-offered-region](" + rulesURL + "#L32)** (1)\n\n| Offering |",
+			},
 		},
 		{
 			name:   "a route that moves is flagged",
@@ -563,10 +582,68 @@ func TestSchemaMatchesValidator(t *testing.T) {
 	assert.ElementsMatch(t, fields, enum("changes", "field"), "changes fields")
 	assert.ElementsMatch(t, fields, enum("needs_human", "field"), "needs_human fields")
 
-	// The agent can name only the rules the schema's pattern accepts.
-	for _, array := range []string{"needs_human", "skipped"} {
+	// Every row names a rule, and the agent can name only the rules the
+	// schema's pattern accepts.
+	for _, array := range []string{"changes", "needs_human", "skipped"} {
+		assert.Contains(t, items(array).Required, "rule", "%s rows require a rule", array)
+		require.Contains(t, items(array).Properties, "rule", "%s rows have no rule", array)
 		assert.Equal(t, reconcile.RuleIDPattern.String(), items(array).Properties["rule"].Pattern, "%s rule pattern", array)
 	}
+}
+
+// TestRenderNotesOnce checks the catalogue-written notes against the rows:
+// two rows on one offering and field share one note, and an offering the
+// patch changes with no row of its own is still named.
+func TestRenderNotesOnce(t *testing.T) {
+	t.Parallel()
+
+	before, after := effectSnapshots(t)
+	source := "https://platform.claude.com/docs/en/about-claude/pricing"
+	report := Report{Changes: []Change{
+		{Offering: "claude-sonnet-5-5", Field: "price", Old: "cache read 0.20", New: "cache read 0.10", Rule: "price-follow", SourceURL: source},
+		{Offering: "claude-sonnet-5-5", Field: "price", Old: "input 2.00", New: "input 2.00", Rule: "price-follow", SourceURL: source},
+	}}
+
+	body := Render(report, "anthropic", "", nil, Base{Before: before, After: after, Today: "2026-10-15"})
+
+	t.Run("a repeated note shows once", func(t *testing.T) {
+		t.Parallel()
+		assert.Equal(t, 1, strings.Count(body, "cache read 0.2 → 0.1 (-50%)"))
+	})
+
+	t.Run("an offering changed with no row is named", func(t *testing.T) {
+		t.Parallel()
+		assert.Contains(t, body, "### Changed with no row (3)\n\nThe patch changes these offerings, but the report has no row for them. "+
+			"Check them in the snapshot diff.\n\n- `bedrock:au.anthropic.claude-sonnet-5-5`, `bedrock:jp.anthropic.claude-sonnet-4-5`, `bedrock:us.anthropic.claude-sonnet-4-5`\n")
+		assert.NotContains(t, body, "- `claude-sonnet-5-5`", "it has a row")
+	})
+}
+
+func TestUnreported(t *testing.T) {
+	t.Parallel()
+
+	snapshot := func(released, id string) *reconcile.Snapshot {
+		snap, err := reconcile.ParseSnapshot([]byte(`{"facts": {"anthropic/claude-sonnet-5-5": {"released": "` + released + `"}},
+			"providers": [{"provider": "anthropic", "offerings": [{"id": "claude-sonnet-5-5", "model": "anthropic/claude-sonnet-5-5"}, {"id": "` + id + `"}]}]}`))
+		require.NoError(t, err)
+
+		return &snap
+	}
+
+	t.Run("a model's facts changed with no row", func(t *testing.T) {
+		t.Parallel()
+
+		base := Base{Before: snapshot("2026-09-30", "x"), After: snapshot("2026-09-29", "x")}
+		assert.Equal(t, []string{"anthropic/claude-sonnet-5-5 (facts)"}, base.unreported(Report{}, "anthropic"))
+		assert.Empty(t, base.unreported(Report{Changes: []Change{{Offering: "claude-sonnet-5-5"}}}, "anthropic"), "a row on one of its offerings covers it")
+	})
+
+	t.Run("an unprintable ID is counted", func(t *testing.T) {
+		t.Parallel()
+
+		base := Base{Before: snapshot("2026-09-30", "x"), After: snapshot("2026-09-30", "<b>evil</b>")}
+		assert.Equal(t, []string{"x (removed)", "1 offering with an ID that isn't safe to print"}, base.unreported(Report{}, "anthropic"))
+	})
 }
 
 func TestPercent(t *testing.T) {

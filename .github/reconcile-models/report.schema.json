@@ -4,13 +4,14 @@
   "required": ["changes", "needs_human", "skipped"],
   "properties": {
     "changes": {"type": "array", "items": {"type": "object", "additionalProperties": false,
-      "required": ["offering", "field", "old", "new", "source_url"],
+      "required": ["offering", "field", "old", "new", "source_url", "rule"],
       "properties": {
         "offering": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._:-]{0,79}$"},
         "field": {"enum": ["new_model", "price", "limit", "lifecycle", "replacement", "knowledge_cutoff", "release_date", "capability"]},
         "old": {"type": "string", "pattern": "^[A-Za-z0-9 ._:/+-]{0,64}$"},
         "new": {"type": "string", "pattern": "^[A-Za-z0-9 ._:/+-]{0,64}$"},
-        "source_url": {"type": "string", "pattern": "^https://[A-Za-z0-9.-]+(/[A-Za-z0-9._~/%#?=&+:-]*)?$"}}}},
+        "source_url": {"type": "string", "pattern": "^https://[A-Za-z0-9.-]+(/[A-Za-z0-9._~/%#?=&+:-]*)?$"},
+        "rule": {"type": "string", "pattern": "^[a-z]+(-[a-z0-9]+)+$"}}}},
     "needs_human": {"type": "array", "items": {"type": "object", "additionalProperties": false,
       "required": ["offering", "field", "values", "source_urls", "rule"],
       "properties": {

@@ -35,13 +35,14 @@ type Report struct {
 	Skipped    []Skipped    `json:"skipped"`
 }
 
-// Change is one value the agent changed.
+// Change is one value the agent changed, and the Default that changed it.
 type Change struct {
 	Offering  string `json:"offering"`
 	Field     string `json:"field"`
 	Old       string `json:"old"`
 	New       string `json:"new"`
 	SourceURL string `json:"source_url"`
+	Rule      string `json:"rule"`
 }
 
 // NeedsHuman is a value the agent couldn't decide. Rule is the RULES.md rule

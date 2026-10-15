@@ -74,6 +74,101 @@ func (base Base) effect(change Change, provider string) string {
 	return ""
 }
 
+// unreported names each offering the patch adds, changes or removes, and
+// each model whose facts it changes, that no report row names, as the report
+// would (RULES.md, Report values). Derived values change with their
+// neighbours, so they don't count. IDs that aren't safe to print are counted.
+func (base Base) unreported(report Report, provider string) []string {
+	if base.Before == nil || base.After == nil {
+		return nil
+	}
+
+	named, models := map[[2]string]bool{}, map[string]bool{}
+	name := func(offering string) {
+		pkg, id := packageOf(offering, provider)
+		named[[2]string{pkg, id}] = true
+
+		for _, snapshot := range []*reconcile.Snapshot{base.Before, base.After} {
+			if o, found := snapshot.Offering(pkg, id); found {
+				models[text(o["model"])] = true
+			}
+		}
+	}
+
+	for _, row := range report.Changes {
+		name(row.Offering)
+	}
+
+	for _, row := range report.NeedsHuman {
+		name(row.Offering)
+	}
+
+	for _, row := range report.Skipped {
+		name(row.Offering)
+	}
+
+	own := func(o map[string]any) map[string]any {
+		o = maps.Clone(o)
+		delete(o, "derived")
+
+		return o
+	}
+
+	var names []string
+
+	unprintable := 0
+
+	for pkg := range reconcile.PackageProviders {
+		ids := map[string]bool{}
+
+		for _, snapshot := range []*reconcile.Snapshot{base.Before, base.After} {
+			for _, o := range snapshot.Offerings(pkg) {
+				id, _ := o["id"].(string)
+				ids[id] = true
+			}
+		}
+
+		for id := range ids {
+			before, _ := base.Before.Offering(pkg, id)
+			after, _ := base.After.Offering(pkg, id)
+
+			switch {
+			case named[[2]string{pkg, id}] || reflect.DeepEqual(own(before), own(after)):
+			case text(id) == "":
+				unprintable++
+			default:
+				label := pkg + ":" + id
+				if pkg == provider {
+					label = id
+				}
+
+				if after == nil {
+					label += " (removed)"
+				}
+
+				names = append(names, label)
+			}
+		}
+	}
+
+	for model := range base.After.Facts {
+		if !models[model] && text(model) != "" && !reflect.DeepEqual(base.Before.Facts[model], base.After.Facts[model]) {
+			names = append(names, model+" (facts)")
+		}
+	}
+
+	slices.Sort(names)
+
+	switch {
+	case unprintable == 1:
+		names = append(names, "1 offering with an ID that isn't safe to print")
+	case unprintable > 1:
+		names = append(names, fmt.Sprintf("%d offerings with IDs that aren't safe to print", unprintable))
+	}
+
+	return names
+}
+
 // packageOf names a report offering's package and ID: <package>:<id>, or an
 // ID in the run's own package (RULES.md, Report values). Bedrock IDs contain ":", so only
 // a known package counts as a prefix.

@@ -15,6 +15,7 @@
 package main
 
 import (
+	"cmp"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -87,12 +88,18 @@ func ValidateCodeFiles(files []string) []string {
 func Validate(report Report, hosts []string, rules reconcile.Rules) []string {
 	var problems []string
 	// A row's rule must exist and produce the row's outcome (RULES.md, Report values).
-	checkRule := func(where, id, outcome string) {
+	checkRule := func(where, id, outcome string) bool {
 		if _, ok := rules.Lines[id]; !ok {
 			problems = append(problems, where+": unknown rule "+fmt.Sprintf("%q", id))
-		} else if !rules.Fits(id, outcome) {
-			problems = append(problems, where+": rule "+id+" doesn't produce "+outcome)
+			return false
 		}
+
+		if !rules.Fits(id, outcome) {
+			problems = append(problems, where+": rule "+id+" doesn't produce "+outcome)
+			return false
+		}
+
+		return true
 	}
 	checkOffering := func(where, offering string) {
 		if !reconcile.OfferingPattern.MatchString(offering) {
@@ -122,6 +129,17 @@ func Validate(report Report, hosts []string, rules reconcile.Rules) []string {
 		checkValue(where, change.Old)
 		checkValue(where, change.New)
 		checkSource(where, change.SourceURL)
+
+		// A change rests on a Default for its field, never on judgment, so
+		// rows of one kind always name the same rule.
+		if change.Rule == reconcile.JudgmentRule {
+			problems = append(problems, where+": a change needs a Default, not "+reconcile.JudgmentRule)
+			continue
+		}
+
+		if covered := rules.RuleFields[change.Rule]; checkRule(where, change.Rule, "change") && !slices.Contains(covered, change.Field) {
+			problems = append(problems, where+": rule "+change.Rule+" covers "+strings.Join(covered, ", ")+", not "+change.Field)
+		}
 	}
 
 	for index, item := range report.NeedsHuman {
@@ -256,12 +274,12 @@ func (base Base) ruleCell(id string) string {
 	return base.ruleLink(id)
 }
 
-// groupBy collects one string per item under the item's key, keys in the
+// groupBy collects one value per item under the item's key, keys in the
 // order first seen.
-func groupBy[T any, K comparable](items []T, key func(T) (K, string)) ([]K, map[K][]string) {
+func groupBy[T any, K comparable, V any](items []T, key func(T) (K, V)) ([]K, map[K][]V) {
 	var keys []K
 
-	groups := map[K][]string{}
+	groups := map[K][]V{}
 
 	for _, item := range items {
 		k, value := key(item)
@@ -393,6 +411,69 @@ func (base Base) hold(report Report, provider string) (Report, []string) {
 	return report, held
 }
 
+// byRule groups change rows by rule, in RULES.md's order so every run lists
+// them alike, each group sorted by package and model.
+func (base Base) byRule(changes []Change, provider string) ([]string, map[string][]Change) {
+	key := func(change Change) string {
+		pkg, id := packageOf(change.Offering, provider)
+
+		var offering map[string]any
+		if base.After != nil {
+			offering, _ = base.After.Offering(pkg, id)
+		}
+
+		return pkg + " " + cmp.Or(text(offering["model"]), id) + " " + id
+	}
+
+	sorted := slices.Clone(changes)
+	slices.SortStableFunc(sorted, func(a, b Change) int {
+		return cmp.Or(cmp.Compare(base.Rules.Lines[a.Rule], base.Rules.Lines[b.Rule]), cmp.Compare(a.Rule, b.Rule), cmp.Compare(key(a), key(b)))
+	})
+
+	return groupBy(sorted, func(change Change) (string, Change) { return change.Rule, change })
+}
+
+// changesSection renders the Changes table, one small table per rule. A note
+// describes an offering's field, so rows that share one show it once per rule.
+func (base Base) changesSection(changes []Change, provider string) string {
+	effects := base.Before != nil && base.After != nil
+
+	header := []string{"Offering", "Field", "Old", "New", "Source"}
+	if effects {
+		header = slices.Insert(header, 4, "Effect")
+	}
+
+	table := fmt.Sprintf("| %s |\n|%s\n", strings.Join(header, " | "), strings.Repeat("---|", len(header)))
+	noted := map[[3]string]bool{}
+
+	var section strings.Builder
+
+	fmt.Fprintf(&section, "### Changes (%d)\n\n", len(changes))
+
+	rules, groups := base.byRule(changes, provider)
+	for _, rule := range rules {
+		fmt.Fprintf(&section, "**%s** (%d)\n\n%s", base.ruleLink(rule), len(groups[rule]), table)
+
+		for _, change := range groups[rule] {
+			cells := []string{code(change.Offering), change.Field, value(change.Old), value(change.New)}
+			if key := [3]string{rule, change.Offering, change.Field}; effects {
+				note := ""
+				if !noted[key] {
+					note, noted[key] = base.effect(change, provider), true
+				}
+
+				cells = append(cells, note)
+			}
+
+			fmt.Fprintf(&section, "| %s |\n", strings.Join(append(cells, link(change.SourceURL)), " | "))
+		}
+
+		section.WriteString("\n")
+	}
+
+	return section.String()
+}
+
 // splitWaiting takes the region_not_offered rows out of the skipped ones.
 func splitWaiting(report Report) (Report, []Skipped) {
 	// Fresh slices, as in hold.
@@ -442,6 +523,8 @@ func Render(report Report, provider, snapshotDiff string, codeFiles []string, ba
 	var body strings.Builder
 	body.WriteString("## Catalogue drift: " + provider + "\n\n")
 
+	// Held and waiting rows still count as rows for "Changed with no row".
+	reported := report
 	report, held := base.hold(report, provider)
 	report, waiting := splitWaiting(report)
 
@@ -464,25 +547,12 @@ func Render(report Report, provider, snapshotDiff string, codeFiles []string, ba
 	}
 
 	if len(report.Changes) > 0 {
-		effects := base.Before != nil && base.After != nil
+		body.WriteString(base.changesSection(report.Changes, provider))
+	}
 
-		header := []string{"Offering", "Field", "Old", "New", "Source"}
-		if effects {
-			header = slices.Insert(header, 4, "Effect")
-		}
-
-		fmt.Fprintf(&body, "### Changes (%d)\n\n| %s |\n|%s\n", len(report.Changes), strings.Join(header, " | "), strings.Repeat("---|", len(header)))
-
-		for _, change := range report.Changes {
-			cells := []string{code(change.Offering), change.Field, value(change.Old), value(change.New)}
-			if effects {
-				cells = append(cells, base.effect(change, provider))
-			}
-
-			fmt.Fprintf(&body, "| %s |\n", strings.Join(append(cells, link(change.SourceURL)), " | "))
-		}
-
-		body.WriteString("\n")
+	if names := base.unreported(reported, provider); len(names) > 0 {
+		fmt.Fprintf(&body, "### Changed with no row (%d)\n\nThe patch changes these offerings, but the report has no row for them. Check them in the snapshot diff.\n\n- %s\n\n",
+			len(names), valueList(names))
 	}
 
 	if lines := base.routingLines(); len(lines) > 0 {
