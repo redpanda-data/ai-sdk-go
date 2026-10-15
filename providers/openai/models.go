@@ -359,7 +359,7 @@ func entries() []catalog.Entry {
 			ID:           ModelGPT6Astra,
 			Model:        catalog.ModelGPT6Astra,
 			WireAPIs:     chatAndResponsesWireAPIs,
-			Capabilities: llm.ModelCapabilities{Streaming: true, Tools: true, ToolSearchProtocol: ProviderName, JSONMode: true, StructuredOutput: true, Vision: true, MultiTurn: true, SystemPrompts: true, Reasoning: true},
+			Capabilities: llm.ModelCapabilities{Streaming: true, Tools: true, ToolSearchProtocol: llm.ToolSearchProtocolOpenAI, JSONMode: true, StructuredOutput: true, Vision: true, MultiTurn: true, SystemPrompts: true, Reasoning: true},
 			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
 				MaxInputTokens:  922_000, // documented max input; the 1.05M window reserves 128K for output
@@ -938,7 +938,7 @@ func gpt56Entry(id string, model catalog.ModelID, aliases []string, rates pricin
 		WireAPIs: chatAndResponsesWireAPIs,
 		Aliases:  aliases,
 		Capabilities: llm.ModelCapabilities{
-			ToolSearchProtocol: ProviderName,
+			ToolSearchProtocol: llm.ToolSearchProtocolOpenAI,
 			Streaming:          true,
 			Tools:              true,
 			JSONMode:           true,
@@ -1022,7 +1022,7 @@ func tieredCard(short, long pricing.Rates) pricing.RateCard {
 }
 
 func withToolSearch(caps llm.ModelCapabilities) llm.ModelCapabilities {
-	caps.ToolSearchProtocol = ProviderName
+	caps.ToolSearchProtocol = llm.ToolSearchProtocolOpenAI
 	return caps
 }
 

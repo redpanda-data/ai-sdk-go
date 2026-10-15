@@ -301,14 +301,30 @@ const (
 	FinishReasonUnknown FinishReason = "unknown"
 )
 
+// ToolSearchProtocol names a hosted protocol for discovering deferred tool
+// schemas. The agent speaks the protocols below and falls back to local
+// discovery for any other value. A provider that hosts another vendor's
+// models, such as Vertex AI hosting Claude, reports the protocol its models
+// speak, not its own ProviderID.
+type ToolSearchProtocol string
+
+const (
+	// ToolSearchProtocolOpenAI is OpenAI's hosted tool search.
+	ToolSearchProtocolOpenAI ToolSearchProtocol = "openai"
+
+	// ToolSearchProtocolAnthropic is Anthropic's hosted tool search, also
+	// spoken by Claude models on Vertex AI.
+	ToolSearchProtocolAnthropic ToolSearchProtocol = "anthropic"
+)
+
 // ModelCapabilities describes what features a model supports.
 // This enables compile-time and runtime validation of requests.
 type ModelCapabilities struct {
-	// ToolSearchProtocol is the provider whose hosted discovery of deferred
-	// tool schemas the model speaks, such as "anthropic" for a Claude model
-	// on Vertex AI. Empty means the model has no hosted tool search. Set it
-	// only when the model's request mapper implements that protocol.
-	ToolSearchProtocol ProviderID
+	// ToolSearchProtocol is the hosted discovery of deferred tool schemas the
+	// model speaks, such as ToolSearchProtocolAnthropic for a Claude model on
+	// Vertex AI. Empty means the model has no hosted tool search. Set it only
+	// when the model's request mapper implements that protocol.
+	ToolSearchProtocol ToolSearchProtocol
 	Streaming          bool // Supports streaming responses
 	Tools              bool // Supports function/tool calling
 	JSONMode           bool // Supports JSON mode (response_format: json_object) - ensures valid JSON output

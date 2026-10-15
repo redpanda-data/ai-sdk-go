@@ -23,7 +23,6 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/pricing"
-	"github.com/redpanda-data/ai-sdk-go/providers/anthropic"
 )
 
 // ProviderName is the catalog key Provider.Name() returns; see
@@ -158,7 +157,7 @@ var claudeCaps = llm.ModelCapabilities{
 // for both tool types on 2026-09-29.
 var claudeCapsWithToolSearch = func() llm.ModelCapabilities {
 	caps := claudeCaps
-	caps.ToolSearchProtocol = anthropic.ProviderName
+	caps.ToolSearchProtocol = llm.ToolSearchProtocolAnthropic
 
 	return caps
 }()

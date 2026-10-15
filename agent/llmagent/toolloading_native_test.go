@@ -70,7 +70,7 @@ func TestNativeDiscoveryAndRestoration(t *testing.T) {
 				fixtureTool{name: "solo", deferred: true},
 				fixtureTool{name: "eager", group: "always"},
 			)
-			fake := fakellm.NewFakeModel(fakellm.WithCapabilities(llm.ModelCapabilities{Tools: true, Streaming: true, ToolSearchProtocol: provider}))
+			fake := fakellm.NewFakeModel(fakellm.WithCapabilities(llm.ModelCapabilities{Tools: true, Streaming: true, ToolSearchProtocol: llm.ToolSearchProtocol(provider)}))
 			fake.When(fakellm.FirstCall()).ThenRespondWith(respondWith(
 				&llm.ToolSearchPart{Provider: provider, Data: json.RawMessage(`{"type":"native_search_result"}`), Tools: []string{"fetch"}},
 				llm.NewToolRequestPart("call_1", "fetch", json.RawMessage(`{}`)),
@@ -131,7 +131,7 @@ func TestNativeSearchCapabilityFallback(t *testing.T) {
 		t.Run(string(provider), func(t *testing.T) {
 			t.Parallel()
 			// A protocol the agent does not speak, or none, keeps local discovery.
-			protocol := provider
+			protocol := llm.ToolSearchProtocol(provider)
 			if provider == "openai" {
 				protocol = ""
 			}
@@ -158,7 +158,7 @@ func TestForcedLocalDiscovery(t *testing.T) {
 		t.Run(string(provider), func(t *testing.T) {
 			t.Parallel()
 			registry := newFixtureRegistry(t, fixtureTool{name: "fetch", deferred: true})
-			fake := fakellm.NewFakeModel(fakellm.WithCapabilities(llm.ModelCapabilities{Tools: true, Streaming: true, ToolSearchProtocol: provider}))
+			fake := fakellm.NewFakeModel(fakellm.WithCapabilities(llm.ModelCapabilities{Tools: true, Streaming: true, ToolSearchProtocol: llm.ToolSearchProtocol(provider)}))
 			fake.When(fakellm.FirstCall()).ThenRespondWith(respondWith(
 				toolCall("search_1", toolloading.SearchToolName, `{"query":"select:fetch"}`),
 			))
@@ -184,7 +184,7 @@ func TestForcedLocalDiscovery(t *testing.T) {
 			require.Len(t, toolResultsFor(sess.Messages, "fetch"), 1)
 			assert.JSONEq(t, `{"ok":true}`, toolResultsFor(sess.Messages, "fetch")[0])
 			assert.True(t, toolloading.LoadedToolSet(sess)["fetch"])
-			assert.Empty(t, toolloading.NativeLoadedTools(sess.Messages, provider))
+			assert.Empty(t, toolloading.NativeLoadedTools(sess.Messages, llm.ToolSearchProtocol(provider)))
 		})
 	}
 }
@@ -241,7 +241,7 @@ func TestVertexClaudeUsesNativeToolSearch(t *testing.T) {
 
 	model, err := p.NewModel(vertex.ModelClaudeSonnet46)
 	require.NoError(t, err)
-	require.Equal(t, llm.ProviderID("anthropic"), model.Capabilities().ToolSearchProtocol)
+	require.Equal(t, llm.ToolSearchProtocolAnthropic, model.Capabilities().ToolSearchProtocol)
 
 	ag, err := New("vertex", "prompt", model, WithTools(newFixtureRegistry(t, fixtureTool{name: "fetch", deferred: true})))
 	require.NoError(t, err)
