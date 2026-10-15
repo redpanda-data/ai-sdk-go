@@ -29,6 +29,14 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
+// The agent matches a ToolSearchPart to the model's ToolSearchProtocol by the
+// part's Provider, which this package stamps with ProviderName. Renaming
+// ProviderName would silently turn hosted tool search off.
+func TestToolSearchProtocolMatchesProviderName(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, ProviderName, string(llm.ToolSearchProtocolAnthropic))
+}
+
 func TestNativeToolSearchWire(t *testing.T) {
 	t.Parallel()
 	const searchCall = `{"type":"server_tool_use","id":"srv_1","name":"tool_search_tool_bm25","input":{"query":"fetch a record"}}`

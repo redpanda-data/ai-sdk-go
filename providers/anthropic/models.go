@@ -125,7 +125,7 @@ var claudeCaps = llm.ModelCapabilities{
 // https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool#model-compatibility
 var claudeCapsWithToolSearch = func() llm.ModelCapabilities {
 	caps := claudeCaps
-	caps.ToolSearchProtocol = ProviderName
+	caps.ToolSearchProtocol = llm.ToolSearchProtocolAnthropic
 
 	return caps
 }()
