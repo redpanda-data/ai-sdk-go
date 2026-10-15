@@ -70,7 +70,7 @@ func snapshotFixture(t *testing.T) *catalog.Catalog {
 		{Protocol: catalog.WireProtocolOpenAIChatCompletions, Transport: catalog.WireTransportDirect},
 	}
 	robin2.Capabilities.Reasoning = true
-	robin2.Capabilities.ToolSearch = true
+	robin2.Capabilities.ToolSearchProtocol = "acme"
 	robin2.Reasoning = catalog.ReasoningSupport{
 		Efforts:  []llm.ReasoningEffort{"low", "high"},
 		Adaptive: true,

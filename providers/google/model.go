@@ -36,7 +36,6 @@ var (
 
 // Model implements the llm.Model interface for Google Gemini models.
 type Model struct {
-	provider       *Provider
 	config         *Config
 	offering       catalog.Offering
 	client         *genai.Client
@@ -49,9 +48,9 @@ func (m *Model) Name() string {
 	return m.config.ModelName
 }
 
-// Provider returns the provider name.
+// Provider returns the provider of the model's offering.
 func (m *Model) Provider() llm.ProviderID {
-	return m.provider.Name()
+	return m.offering.Provider()
 }
 
 // Capabilities returns what features this model supports.

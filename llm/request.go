@@ -29,7 +29,8 @@ type Request struct {
 	Tools []ToolDefinition `json:"tools,omitempty"`
 
 	// ToolSearch enables provider-hosted discovery of Deferred tools. Requires
-	// Capabilities.ToolSearch. Supply the complete catalog on every request.
+	// Capabilities.ToolSearchProtocol. Supply the complete catalog on every
+	// request.
 	ToolSearch bool `json:"tool_search,omitempty"`
 
 	// ToolChoice controls how the model should use available tools.

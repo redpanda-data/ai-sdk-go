@@ -15,17 +15,24 @@
 package llmagent
 
 import (
+	"context"
 	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
 	"github.com/redpanda-data/ai-sdk-go/agent/llmagent/internal/toolloading"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/llm/fakellm"
+	"github.com/redpanda-data/ai-sdk-go/plugins/retry"
+	"github.com/redpanda-data/ai-sdk-go/providers/vertex"
 	"github.com/redpanda-data/ai-sdk-go/store/session"
 )
 
@@ -63,7 +70,7 @@ func TestNativeDiscoveryAndRestoration(t *testing.T) {
 				fixtureTool{name: "solo", deferred: true},
 				fixtureTool{name: "eager", group: "always"},
 			)
-			fake := fakellm.NewFakeModel(fakellm.WithCapabilities(llm.ModelCapabilities{Tools: true, Streaming: true, ToolSearch: true}))
+			fake := fakellm.NewFakeModel(fakellm.WithCapabilities(llm.ModelCapabilities{Tools: true, Streaming: true, ToolSearchProtocol: provider}))
 			fake.When(fakellm.FirstCall()).ThenRespondWith(respondWith(
 				&llm.ToolSearchPart{Provider: provider, Data: json.RawMessage(`{"type":"native_search_result"}`), Tools: []string{"fetch"}},
 				llm.NewToolRequestPart("call_1", "fetch", json.RawMessage(`{}`)),
@@ -123,8 +130,13 @@ func TestNativeSearchCapabilityFallback(t *testing.T) {
 	for _, provider := range []llm.ProviderID{"google", "openaicompat", "bedrock", "openai"} {
 		t.Run(string(provider), func(t *testing.T) {
 			t.Parallel()
-			// Even permissive compatibility capabilities must not enable Responses APIs.
-			fake := fakellm.NewFakeModel(fakellm.WithCapabilities(llm.ModelCapabilities{ToolSearch: provider != "openai", Tools: true, Streaming: true}))
+			// A protocol the agent does not speak, or none, keeps local discovery.
+			protocol := provider
+			if provider == "openai" {
+				protocol = ""
+			}
+
+			fake := fakellm.NewFakeModel(fakellm.WithCapabilities(llm.ModelCapabilities{ToolSearchProtocol: protocol, Tools: true, Streaming: true}))
 			fake.When(fakellm.Any()).ThenRespondText("Done.")
 			model := nativeSearchModel{FakeModel: fake, provider: provider}
 			registry := newFixtureRegistry(t, fixtureTool{name: "fetch", deferred: true})
@@ -146,7 +158,7 @@ func TestForcedLocalDiscovery(t *testing.T) {
 		t.Run(string(provider), func(t *testing.T) {
 			t.Parallel()
 			registry := newFixtureRegistry(t, fixtureTool{name: "fetch", deferred: true})
-			fake := fakellm.NewFakeModel(fakellm.WithCapabilities(llm.ModelCapabilities{Tools: true, Streaming: true, ToolSearch: true}))
+			fake := fakellm.NewFakeModel(fakellm.WithCapabilities(llm.ModelCapabilities{Tools: true, Streaming: true, ToolSearchProtocol: provider}))
 			fake.When(fakellm.FirstCall()).ThenRespondWith(respondWith(
 				toolCall("search_1", toolloading.SearchToolName, `{"query":"select:fetch"}`),
 			))
@@ -180,7 +192,7 @@ func TestForcedLocalDiscovery(t *testing.T) {
 func TestNativeDiscoverySurvivesProactiveCompaction(t *testing.T) {
 	t.Parallel()
 	registry := newFixtureRegistry(t, fixtureTool{name: "fetch", deferred: true})
-	fake := fakellm.NewFakeModel(fakellm.WithCapabilities(llm.ModelCapabilities{Tools: true, Streaming: true, ToolSearch: true}), fakellm.WithContextWindow(20_000))
+	fake := fakellm.NewFakeModel(fakellm.WithCapabilities(llm.ModelCapabilities{Tools: true, Streaming: true, ToolSearchProtocol: "anthropic"}), fakellm.WithContextWindow(20_000))
 	fake.When(fakellm.Any()).ThenRespondText("Done.")
 	model := nativeSearchModel{FakeModel: fake, provider: "anthropic"}
 	ag, err := New("native", "prompt", model, WithTools(registry), WithCompaction(CompactionConfig{}))
@@ -205,3 +217,83 @@ func TestNativeDiscoverySurvivesProactiveCompaction(t *testing.T) {
 	require.Empty(t, toolloading.NativeLoadedTools(calls[0].Request.Messages, "anthropic"), "compaction removed the search reference")
 	require.False(t, calls[0].Request.Tools[0].Deferred, "restoration is re-evaluated after compaction and before the request")
 }
+
+// TestVertexClaudeUsesNativeToolSearch checks a Vertex Claude model, which
+// speaks the Anthropic Messages protocol and whose offering names it as
+// ToolSearchProtocol, gets hosted tool search like a direct Anthropic model.
+func TestVertexClaudeUsesNativeToolSearch(t *testing.T) {
+	t.Parallel()
+
+	var body []byte
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ = io.ReadAll(r.Body)
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, claudeDoneStream)
+	}))
+	t.Cleanup(srv.Close)
+
+	p, err := vertex.NewProvider(context.Background(),
+		vertex.WithProject("my-project"), vertex.WithLocation("global"),
+		vertex.WithBaseURL(srv.URL), vertex.WithHTTPClient(srv.Client()))
+	require.NoError(t, err)
+
+	model, err := p.NewModel(vertex.ModelClaudeSonnet46)
+	require.NoError(t, err)
+	require.Equal(t, llm.ProviderID("anthropic"), model.Capabilities().ToolSearchProtocol)
+
+	ag, err := New("vertex", "prompt", model, WithTools(newFixtureRegistry(t, fixtureTool{name: "fetch", deferred: true})))
+	require.NoError(t, err)
+	runAgent(t, ag, &session.State{ID: "s", Messages: userMessage("hi")})
+
+	require.Equal(t, "tool_search_tool_bm25_20251119", gjson.GetBytes(body, `tools.#(type%"tool_search*").type`).String(), "tools sent: %s", gjson.GetBytes(body, "tools.#.name"))
+}
+
+func TestRetryWrappedVertexClaudeUsesNativeToolSearch(t *testing.T) {
+	t.Parallel()
+
+	var body []byte
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ = io.ReadAll(r.Body)
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, claudeDoneStream)
+	}))
+	t.Cleanup(srv.Close)
+
+	p, err := vertex.NewProvider(context.Background(),
+		vertex.WithProject("my-project"), vertex.WithLocation("global"),
+		vertex.WithBaseURL(srv.URL), vertex.WithHTTPClient(srv.Client()))
+	require.NoError(t, err)
+
+	model, err := p.NewModel(vertex.ModelClaudeSonnet46)
+	require.NoError(t, err)
+
+	ag, err := New("vertex", "prompt", retry.WrapModel(model), WithTools(newFixtureRegistry(t, fixtureTool{name: "fetch", deferred: true})))
+	require.NoError(t, err)
+	runAgent(t, ag, &session.State{ID: "s", Messages: userMessage("hi")})
+
+	require.Equal(t, "tool_search_tool_bm25_20251119", gjson.GetBytes(body, `tools.#(type%"tool_search*").type`).String(), "tools sent: %s", gjson.GetBytes(body, "tools.#.name"))
+}
+
+const claudeDoneStream = `event: message_start
+data: {"type":"message_start","message":{"id":"m","type":"message","role":"assistant","model":"x","content":[],"stop_reason":null,"usage":{"input_tokens":1,"output_tokens":0}}}
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Done."}}
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0}
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":1}}
+
+event: message_stop
+data: {"type":"message_stop"}
+
+`

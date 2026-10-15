@@ -23,8 +23,8 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/store/session"
 )
 
-// Providers whose hosted search protocol the agent speaks. Compatible
-// endpoints and Bedrock Converse do not, whatever capabilities they claim.
+// Hosted search protocols the agent speaks. A model with any other
+// ModelCapabilities.ToolSearchProtocol, or none, uses local discovery.
 const (
 	nativeOpenAI    = "openai"
 	nativeAnthropic = "anthropic"
@@ -32,11 +32,11 @@ const (
 
 // native reports whether this request uses provider-hosted discovery.
 func (l *Loader) native() bool {
-	if l.forceLocal || !l.model.Capabilities().ToolSearch {
+	if l.forceLocal {
 		return false
 	}
 
-	switch l.model.Provider() {
+	switch l.model.Capabilities().ToolSearchProtocol {
 	case nativeOpenAI, nativeAnthropic:
 		return slices.ContainsFunc(l.tools.List(), func(d llm.ToolDefinition) bool { return d.Deferred })
 	default:
@@ -50,7 +50,7 @@ func (l *Loader) prepareNative(defs []llm.ToolDefinition, sess *session.State) (
 	// References carry discovery forward in the native protocol. When compaction
 	// removes them (or the provider changes), restore those tools as eager. This
 	// changes the prefix once, at compaction, rather than on every discovery.
-	referenced := NativeLoadedTools(sess.Messages, l.model.Provider())
+	referenced := NativeLoadedTools(sess.Messages, l.model.Capabilities().ToolSearchProtocol)
 	loaded := LoadedToolSet(sess)
 
 	defs = slices.Clone(defs)
@@ -125,7 +125,7 @@ func (l *Loader) Tokens(defs []llm.ToolDefinition, sess *session.State, native b
 	total += 200
 	loaded := LoadedToolSet(sess)
 
-	if l.model.Provider() == nativeOpenAI {
+	if l.model.Capabilities().ToolSearchProtocol == nativeOpenAI {
 		groups := make(map[string]bool)
 		for _, def := range defs {
 			if def.Group.Name != "" && !groups[def.Group.Name] {
@@ -151,7 +151,7 @@ func (l *Loader) Record(sess *session.State, message llm.Message) {
 	}
 
 	for _, part := range message.Content {
-		if search, ok := part.(*llm.ToolSearchPart); ok && search != nil && search.Provider == l.model.Provider() {
+		if search, ok := part.(*llm.ToolSearchPart); ok && search != nil && search.Provider == l.model.Capabilities().ToolSearchProtocol {
 			l.Commit(sess, search.Tools)
 		}
 	}
