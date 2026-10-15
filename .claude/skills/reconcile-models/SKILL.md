@@ -191,6 +191,18 @@ surface** — every change must be visible and intended in
   4. If the old value was already vendor-sourced, the vendor page changed
      under us. Don't flip it back and forth. Report it as a conflict and
      leave the value alone until a human decides.
+- **Wire APIs**: verify each offering's `WireAPIs` protocol/transport pairs
+  against vendor API-compatibility matrices and the exact model/profile's
+  programmatic-access page. Review API support separately from the SDK's
+  selected transport: InvokeModel, direct runtime Messages, Mantle, and Vertex
+  envelopes are not interchangeable. Reconcile exceptions per offering, not
+  by publisher or a uniform provider default. Check OpenAI Responses-only
+  models and Bedrock bare-vs-profile IDs explicitly. Do not advertise
+  degraded/experimental compatibility layers as native equivalents or infer
+  account access, feature parity, new IDs, or runtime routing from this list.
+  Empty metadata is unknown, never permission to guess a provider default.
+  Regenerate the snapshot; unrelated prices, lifecycle, and capability fields
+  must stay unchanged during a wire-only reconciliation.
 - **Capabilities/modalities**: provider-documented model facts (JSON mode
   means a schemaless mode — Anthropic has none; document input means the
   API accepts document parts). Bedrock geo ratio stays 1.10x

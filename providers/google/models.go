@@ -172,6 +172,10 @@ var geminiParams = []string{"temperature", "top_p", "top_k", "max_tokens", "stop
 // 3.5 Flash-Lite).
 var geminiNoPenaltyParams = []string{"temperature", "top_p", "top_k", "max_tokens", "stop"}
 
+var generateContentWireAPIs = []catalog.WireAPI{
+	{Protocol: catalog.WireProtocolGeminiGenerateContent, Transport: catalog.WireTransportDirect},
+}
+
 // entries returns the authored Google catalog.
 // Model data: https://ai.google.dev/gemini-api/docs/models
 //
@@ -183,6 +187,7 @@ func entries() []catalog.Entry {
 			// https://ai.google.dev/gemini-api/docs/models/gemini-4-argon
 			ID:           ModelGemini4Argon,
 			Model:        catalog.ModelGemini4Argon,
+			WireAPIs:     generateContentWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			// low, medium (default), high; no thinking budget.
@@ -210,6 +215,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini38Flash,
 			Model:        catalog.ModelGemini38Flash,
+			WireAPIs:     generateContentWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Reasoning: catalog.ReasoningSupport{
@@ -232,6 +238,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini37Flash,
 			Model:        catalog.ModelGemini37Flash,
+			WireAPIs:     generateContentWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Reasoning: catalog.ReasoningSupport{
@@ -254,6 +261,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini36Flash,
 			Model:        catalog.ModelGemini36Flash,
+			WireAPIs:     generateContentWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			// Thinking levels per ai.google.dev/gemini-api/docs/thinking.
@@ -276,6 +284,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini35FlashLite,
 			Model:        catalog.ModelGemini35FlashLite,
+			WireAPIs:     generateContentWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			// Thinking levels per ai.google.dev/gemini-api/docs/thinking.
@@ -297,6 +306,7 @@ func entries() []catalog.Entry {
 			// https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite
 			ID:           ModelGemini31FlashLite,
 			Model:        catalog.ModelGemini31FlashLite,
+			WireAPIs:     generateContentWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			// minimal (default), low, medium, high per
@@ -322,6 +332,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini35Flash,
 			Model:        catalog.ModelGemini35Flash,
+			WireAPIs:     generateContentWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Reasoning: catalog.ReasoningSupport{
@@ -341,6 +352,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini31ProPreview,
 			Model:        catalog.ModelGemini31ProPreview,
+			WireAPIs:     generateContentWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Reasoning: catalog.ReasoningSupport{
@@ -367,6 +379,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini3ProPreview,
 			Model:        catalog.ModelGemini3ProPreview,
+			WireAPIs:     generateContentWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Reasoning: catalog.ReasoningSupport{
@@ -395,6 +408,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini3FlashPreview,
 			Model:        catalog.ModelGemini3FlashPreview,
+			WireAPIs:     generateContentWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Reasoning: catalog.ReasoningSupport{
@@ -416,6 +430,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini25Pro,
 			Model:        catalog.ModelGemini25Pro,
+			WireAPIs:     generateContentWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Reasoning: catalog.ReasoningSupport{
@@ -446,6 +461,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini25Flash,
 			Model:        catalog.ModelGemini25Flash,
+			WireAPIs:     generateContentWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Reasoning: catalog.ReasoningSupport{
@@ -467,6 +483,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini25FlashLite,
 			Model:        catalog.ModelGemini25FlashLite,
+			WireAPIs:     generateContentWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Reasoning: catalog.ReasoningSupport{

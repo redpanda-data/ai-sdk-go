@@ -110,6 +110,16 @@ var (
 	}()
 )
 
+var (
+	chatAndResponsesWireAPIs = []catalog.WireAPI{
+		{Protocol: catalog.WireProtocolOpenAIChatCompletions, Transport: catalog.WireTransportDirect},
+		{Protocol: catalog.WireProtocolOpenAIResponses, Transport: catalog.WireTransportDirect},
+	}
+	responsesOnlyWireAPIs = []catalog.WireAPI{
+		{Protocol: catalog.WireProtocolOpenAIResponses, Transport: catalog.WireTransportDirect},
+	}
+)
+
 // entries returns the authored OpenAI catalog.
 //
 // Lifecycle sourcing: OpenAI's deprecations page
@@ -138,6 +148,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGPT5,
 			Model:        catalog.ModelGPT5,
+			WireAPIs:     chatAndResponsesWireAPIs,
 			Capabilities: flagshipCaps,
 			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
@@ -164,6 +175,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGPT5Mini,
 			Model:        catalog.ModelGPT5Mini,
+			WireAPIs:     chatAndResponsesWireAPIs,
 			Capabilities: flagshipCaps,
 			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
@@ -189,8 +201,9 @@ func entries() []catalog.Entry {
 				WithOverride(fastTier, flatCard(0.45, 3.60, 0.045)),
 		},
 		{
-			ID:    ModelGPT5Nano,
-			Model: catalog.ModelGPT5Nano,
+			ID:       ModelGPT5Nano,
+			Model:    catalog.ModelGPT5Nano,
+			WireAPIs: chatAndResponsesWireAPIs,
 			// Nano trades audio for speed but keeps image input and reasoning.
 			Capabilities: flagshipCaps,
 			Modalities:   textImage,
@@ -217,6 +230,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGPT5_1,
 			Model:        catalog.ModelGPT5_1,
+			WireAPIs:     chatAndResponsesWireAPIs,
 			Capabilities: flagshipCaps,
 			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
@@ -244,6 +258,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGPT5_2,
 			Model:        catalog.ModelGPT5_2,
+			WireAPIs:     chatAndResponsesWireAPIs,
 			Capabilities: flagshipCaps,
 			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
@@ -268,6 +283,7 @@ func entries() []catalog.Entry {
 			// Retired 2026-08-10; entry retained (append-only catalog).
 			ID:           ModelGPT5_2Instant,
 			Model:        catalog.ModelGPT5_2Instant,
+			WireAPIs:     chatAndResponsesWireAPIs,
 			Capabilities: flagshipCaps,
 			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
@@ -289,8 +305,9 @@ func entries() []catalog.Entry {
 			Pricing: pricing.FlatInfo(1.75, 14.00, 0.175),
 		},
 		{
-			ID:    ModelGPT5_2Pro,
-			Model: catalog.ModelGPT5_2Pro,
+			ID:       ModelGPT5_2Pro,
+			Model:    catalog.ModelGPT5_2Pro,
+			WireAPIs: responsesOnlyWireAPIs,
 			// The model page lists no structured_outputs support.
 			Capabilities: withoutStructuredOutput(flagshipCaps),
 			Modalities:   textImage,
@@ -314,6 +331,7 @@ func entries() []catalog.Entry {
 			// Retired 2026-08-10; entry retained (append-only catalog).
 			ID:           ModelGPT5_3ChatLatest,
 			Model:        catalog.ModelGPT5_3Instant,
+			WireAPIs:     chatAndResponsesWireAPIs,
 			Capabilities: flagshipCaps,
 			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
@@ -340,6 +358,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGPT6Astra,
 			Model:        catalog.ModelGPT6Astra,
+			WireAPIs:     chatAndResponsesWireAPIs,
 			Capabilities: llm.ModelCapabilities{Streaming: true, Tools: true, ToolSearchProtocol: ProviderName, JSONMode: true, StructuredOutput: true, Vision: true, MultiTurn: true, SystemPrompts: true, Reasoning: true},
 			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
@@ -526,6 +545,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGPT5_5,
 			Model:        catalog.ModelGPT5_5,
+			WireAPIs:     chatAndResponsesWireAPIs,
 			Capabilities: withToolSearch(flagshipCaps),
 			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
@@ -565,6 +585,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGPT5_4,
 			Model:        catalog.ModelGPT5_4,
+			WireAPIs:     chatAndResponsesWireAPIs,
 			Capabilities: withToolSearch(flagshipCaps),
 			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
@@ -598,6 +619,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGPT5_4Mini,
 			Model:        catalog.ModelGPT5_4Mini,
+			WireAPIs:     chatAndResponsesWireAPIs,
 			Capabilities: withToolSearch(flagshipCaps),
 			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
@@ -619,8 +641,9 @@ func entries() []catalog.Entry {
 				WithOverride(fastTier, flatCard(1.50, 9.00, 0.15)),
 		},
 		{
-			ID:    ModelGPT5_4Nano,
-			Model: catalog.ModelGPT5_4Nano,
+			ID:       ModelGPT5_4Nano,
+			Model:    catalog.ModelGPT5_4Nano,
+			WireAPIs: chatAndResponsesWireAPIs,
 			// Nano is absent from tool_search in the model page's supported tools.
 			Capabilities: flagshipCaps,
 			Modalities:   textImage,
@@ -649,6 +672,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGPT41,
 			Model:        catalog.ModelGPT41,
+			WireAPIs:     chatAndResponsesWireAPIs,
 			Capabilities: visionChatCaps,
 			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
@@ -668,6 +692,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGPT41Mini,
 			Model:        catalog.ModelGPT41Mini,
+			WireAPIs:     chatAndResponsesWireAPIs,
 			Capabilities: visionChatCaps,
 			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
@@ -689,6 +714,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelO3,
 			Model:        catalog.ModelO3,
+			WireAPIs:     chatAndResponsesWireAPIs,
 			Capabilities: oSeriesCaps,
 			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
@@ -714,6 +740,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelO4Mini,
 			Model:        catalog.ModelO4Mini,
+			WireAPIs:     chatAndResponsesWireAPIs,
 			Capabilities: oSeriesCaps,
 			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
@@ -739,8 +766,9 @@ func entries() []catalog.Entry {
 
 		// GPT-4o Series (Multimodal)
 		{
-			ID:    ModelGPT4O,
-			Model: catalog.ModelGPT4o,
+			ID:       ModelGPT4O,
+			Model:    catalog.ModelGPT4o,
+			WireAPIs: chatAndResponsesWireAPIs,
 			Capabilities: llm.ModelCapabilities{
 				Streaming:        true,
 				Tools:            true,
@@ -775,6 +803,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGPT4OMini,
 			Model:        catalog.ModelGPT4oMini,
+			WireAPIs:     chatAndResponsesWireAPIs,
 			Capabilities: visionChatCaps,
 			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
@@ -794,8 +823,9 @@ func entries() []catalog.Entry {
 
 		// Legacy but still supported (2025)
 		{
-			ID:    ModelGPT4Turbo,
-			Model: catalog.ModelGPT4Turbo,
+			ID:       ModelGPT4Turbo,
+			Model:    catalog.ModelGPT4Turbo,
+			WireAPIs: chatAndResponsesWireAPIs,
 			// The model page lists no structured_outputs support.
 			Capabilities: withoutStructuredOutput(visionChatCaps),
 			Modalities:   textImage,
@@ -821,8 +851,9 @@ func entries() []catalog.Entry {
 				WithOverride(batchTier, flatCard(5.00, 15.00, 0)),
 		},
 		{
-			ID:    ModelGPT35Turbo,
-			Model: catalog.ModelGPT35Turbo,
+			ID:       ModelGPT35Turbo,
+			Model:    catalog.ModelGPT35Turbo,
+			WireAPIs: chatAndResponsesWireAPIs,
 			// The model page lists no structured_outputs support.
 			Capabilities: withoutStructuredOutput(textChatCaps),
 			Modalities:   textOnly,
@@ -846,6 +877,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelO1Pro,
 			Model:        catalog.ModelO1Pro,
+			WireAPIs:     responsesOnlyWireAPIs,
 			Capabilities: oSeriesProCaps,
 			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
@@ -872,6 +904,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelO3Pro,
 			Model:        catalog.ModelO3Pro,
+			WireAPIs:     responsesOnlyWireAPIs,
 			Capabilities: oSeriesProCaps,
 			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
@@ -900,9 +933,10 @@ func entries() []catalog.Entry {
 // in identity and rates.
 func gpt56Entry(id string, model catalog.ModelID, aliases []string, rates pricing.Info) catalog.Entry {
 	return catalog.Entry{
-		ID:      id,
-		Model:   model,
-		Aliases: aliases,
+		ID:       id,
+		Model:    model,
+		WireAPIs: chatAndResponsesWireAPIs,
+		Aliases:  aliases,
 		Capabilities: llm.ModelCapabilities{
 			ToolSearchProtocol: ProviderName,
 			Streaming:          true,
@@ -940,6 +974,7 @@ func gpt6Entry(id string, model catalog.ModelID, efforts []ReasoningEffort, avai
 	return catalog.Entry{
 		ID:           id,
 		Model:        model,
+		WireAPIs:     chatAndResponsesWireAPIs,
 		Capabilities: withToolSearch(flagshipCaps),
 		Modalities:   textImage,
 		Constraints: llm.ModelConstraints{

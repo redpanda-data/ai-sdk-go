@@ -56,7 +56,7 @@ host), `Publisher`, `DisplayName`, `Description` (short UI blurb),
 ## Step 2 — Author the provider entry
 
 Exported ID constant (greppable), capabilities, constraints, modalities,
-`Reasoning` (efforts/adaptive/budget), `Pricing`, `Life`.
+`WireAPIs`, `Reasoning` (efforts/adaptive/budget), `Pricing`, `Life`.
 
 - **An entry declares no publisher** — it comes from the model's facts, so
   read it back with `o.Facts().Publisher`.
@@ -67,6 +67,21 @@ Exported ID constant (greppable), capabilities, constraints, modalities,
   Nothing links the two, and adding only the second makes
   `TestCommittedSnapshotIsFresh` fail with advice that cannot fix it.
 
+- **Wire APIs belong to each offering, not shared model facts.** Author
+  `WireAPIs` as `catalog.WireAPI{Protocol, Transport}` pairs verified for that
+  exact provider-native ID. A protocol does not identify its transport:
+  Anthropic Messages through Bedrock InvokeModel needs a different envelope
+  from direct Messages, runtime Messages, Mantle, or Vertex rawPredict.
+  Verify per-model API support from vendor model pages/API matrices; do not
+  infer it from publisher, model-name patterns, the SDK's current mapper, or
+  another offering's geo/profile variant. OpenAI Pro models can be
+  Responses-only while other OpenAI models support both APIs.
+  Advertise production-grade bindings, not degraded/experimental compatibility
+  layers as interchangeable native APIs. Availability does not promise feature
+  parity or account entitlement. An empty list means unknown, not a provider
+  default. The list is a set, not a preference order; catalog construction
+  sorts and copies it. No endpoint URLs, credentials, regions, or model-ID
+  remapping belong in this field.
 - **Capabilities and modalities describe the model as the provider documents
   it**, not what this SDK's request mappers wire yet.
 - **`Constraints.MaxInputTokens` is the vendor's enforceable input cap**:
@@ -168,9 +183,10 @@ Bedrock models are one `family` declaration in `models.go`, expanded by
   tables for exact IDs. Register the bare ID (`BareInvokable`) only when the
   bedrock-runtime row publishes an In-Region endpoint URL — otherwise the
   bare ID returns `ValidationException` ("on-demand throughput isn't
-  supported"). A bedrock-mantle Anthropic Messages URL is NOT bedrock-runtime
-  support: the mantle transport implements only the OpenAI-compatible
-  Responses surface.
+  supported"). A bedrock-mantle Anthropic Messages URL is NOT evidence of
+  bedrock-runtime support. This SDK's current Mantle adapter implements only
+  the OpenAI-compatible Responses surface; that implementation limit is not
+  the offering's vendor wire-API inventory.
 - Confirm uncertain IDs with a one-token `Converse` request: working IDs
   return output; unpublished ones return `ValidationException` ("model
   identifier is invalid"); published-but-unsubscribed ones return
@@ -183,6 +199,11 @@ Bedrock models are one `family` declaration in `models.go`, expanded by
 - Declare `ProfileRegions` when the model card publishes an exact
   source-region→profile map; add lookup and region-allow tests for every
   published ID.
+- Author the family's wire API bindings and explicit per-profile exceptions
+  where documented. A bare Mantle ID does not imply a runtime binding, and a
+  registered runtime profile does not imply its ID works on Mantle. Do not
+  synthesize metadata for unpublished siblings. Keep the SDK's existing
+  runtime routing unchanged when updating catalog availability metadata.
 - Invocation also requires the **account** to have accepted the model's AWS
   Marketplace agreement in every region the profile routes across. Until
   then invocation returns `AccessDeniedException`; the conformance suite's
