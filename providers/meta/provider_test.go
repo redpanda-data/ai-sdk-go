@@ -32,7 +32,7 @@ func TestMuseSpark13Catalog(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, llm.ProviderID("meta"), p.Name())
 	assert.Equal(t, "https://api.meta.ai/v1", p.transport.BaseURL)
-	require.Len(t, p.Catalog().All(), 1)
+	require.Len(t, p.Catalog().All(), 2)
 	o, ok := p.Catalog().Lookup("muse-spark-1.3")
 	require.True(t, ok)
 	assert.Equal(t, catalog.ModelID("meta/muse-spark-1.3"), o.Model)
@@ -109,4 +109,26 @@ func TestDeclaredParametersAccepted(t *testing.T) {
 			assert.NoError(t, err, param)
 		}
 	}
+}
+
+func TestMuseWonderCatalogAndConstruction(t *testing.T) {
+	t.Parallel()
+
+	o, ok := Catalog().Lookup("muse-wonder-1.0")
+	require.True(t, ok)
+	assert.Equal(t, catalog.ModelID("meta/muse-wonder-1.0"), o.Model)
+	assert.Equal(t, 1_048_576, o.Constraints.MaxInputTokens)
+	assert.Equal(t, int64(400_000_000), o.Pricing.Default.Base.InputPerMillion)
+	assert.Equal(t, int64(2_000_000_000), o.Pricing.Default.Base.OutputPerMillion)
+	assert.Equal(t, int64(20_000_000), o.Pricing.Default.Base.CachedInputPerMillion)
+	assert.Equal(t, "2026-10-12", o.Life.Available.Format("2006-01-02"))
+
+	p, err := NewProvider("test-key")
+	require.NoError(t, err)
+	m, err := p.NewModel("muse-wonder-1.0", openai.WithReasoningEffort(openai.ReasoningEffortMax))
+	require.NoError(t, err)
+	assert.Equal(t, "muse-wonder-1.0", m.Name())
+
+	_, err = p.NewModel("muse-wonder-1.0-contributor")
+	require.Error(t, err)
 }
