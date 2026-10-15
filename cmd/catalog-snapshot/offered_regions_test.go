@@ -56,7 +56,7 @@ func TestOfferedRegionsMatchCode(t *testing.T) {
 	}
 
 	for host, offered := range rules.Offered {
-		assert.ElementsMatch(t, offered, slices.Collect(maps.Keys(regions[decisionProviders[host]])),
+		assert.ElementsMatch(t, offered, slices.Collect(maps.Keys(regions[reconcile.PackageProviders[host]])),
 			"%s: RULES.md's Offered regions (A) vs the regions its catalogue has copies in (B)", host)
 	}
 }

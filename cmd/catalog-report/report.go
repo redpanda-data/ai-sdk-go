@@ -45,6 +45,13 @@ var (
 	codeFilePattern = regexp.MustCompile(`^[A-Za-z0-9_./-]{1,200}$`)
 )
 
+// safeValue reports whether a value can go into the PR body as it is. "//"
+// keeps a bare URL out of the tables: honest values (prices, dates, IDs,
+// "us/eu …") never contain it.
+func safeValue(v string) bool {
+	return valuePattern.MatchString(v) && !strings.Contains(v, "//")
+}
+
 // A copy in a region its host doesn't offer is skipped with regionNotOffered,
 // under RULES.md's regionRule.
 const (
@@ -93,9 +100,7 @@ func Validate(report Report, hosts []string, rules reconcile.Rules) []string {
 		}
 	}
 	checkValue := func(where, value string) {
-		// "//" keeps a bare URL out of the tables: honest values (prices,
-		// dates, IDs, "us/eu …") never contain it.
-		if !valuePattern.MatchString(value) || strings.Contains(value, "//") {
+		if !safeValue(value) {
 			problems = append(problems, where+": bad value "+fmt.Sprintf("%q", value))
 		}
 	}
@@ -201,13 +206,17 @@ func valueList(values []string) string {
 	return strings.Join(rendered, ", ")
 }
 
-// Base is what Render reads from the base commit: a link prefix for its
-// files (empty for no links), its rules and decisions, and today as YYYY-MM-DD.
+// Base is what Render reads besides the report: a link prefix for files at the
+// base commit (empty for no links), that commit's rules and decisions, today
+// as YYYY-MM-DD, and the catalogue before and after the patch for each
+// change's effect. Without both catalogues the Changes table has no Effect column.
 type Base struct {
 	URL       string
 	Rules     reconcile.Rules
 	Decisions []reconcile.Decision
 	Today     string
+
+	Before, After *reconcile.Snapshot
 }
 
 // fileLink links text to a repo file at the base commit, at line when it's
@@ -452,10 +461,22 @@ func Render(report Report, provider, snapshotDiff string, codeFiles []string, ba
 	}
 
 	if len(report.Changes) > 0 {
-		fmt.Fprintf(&body, "### Changes (%d)\n\n| Offering | Field | Old | New | Source |\n|---|---|---|---|---|\n", len(report.Changes))
+		effects := base.Before != nil && base.After != nil
+
+		header := []string{"Offering", "Field", "Old", "New", "Source"}
+		if effects {
+			header = slices.Insert(header, 4, "Effect")
+		}
+
+		fmt.Fprintf(&body, "### Changes (%d)\n\n| %s |\n|%s\n", len(report.Changes), strings.Join(header, " | "), strings.Repeat("---|", len(header)))
 
 		for _, change := range report.Changes {
-			fmt.Fprintf(&body, "| %s | %s | %s | %s | %s |\n", code(change.Offering), change.Field, value(change.Old), value(change.New), link(change.SourceURL))
+			cells := []string{code(change.Offering), change.Field, value(change.Old), value(change.New)}
+			if effects {
+				cells = append(cells, base.effect(change, provider))
+			}
+
+			fmt.Fprintf(&body, "| %s |\n", strings.Join(append(cells, link(change.SourceURL)), " | "))
 		}
 
 		body.WriteString("\n")

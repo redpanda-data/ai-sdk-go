@@ -151,6 +151,8 @@ if ! RECONCILE_PROBE_SECRET=probe sandbox bash -c '
 fi
 
 git apply --check "$patch"
+# The catalogue before the patch, for each change's effect note.
+git show HEAD:catalog/snapshot.json >"$priv/base-snapshot.json"
 for path in "${patched[@]}"; do
   if git cat-file -e "HEAD:$path" 2>/dev/null; then git show "HEAD:$path" >"$priv/base-${path//\//_}"; fi
 done
@@ -211,6 +213,7 @@ printf '%s\n' "${patched[@]}" catalog/snapshot.json >"$out/files.txt"
 git diff -- catalog/snapshot.json >"$out/snapshot.diff"
 # Non-data files go into the body's "Code changed" list, so reviewers read them as code.
 for path in "${code[@]+"${code[@]}"}"; do echo "$path"; done >"$priv/code-files.txt"
-render -diff "$out/snapshot.diff" -code-files "$priv/code-files.txt"
+cp catalog/snapshot.json "$priv/snapshot.json"
+render -diff "$out/snapshot.diff" -code-files "$priv/code-files.txt" -base-snapshot "$priv/base-snapshot.json" -snapshot "$priv/snapshot.json"
 emit changed=true
 echo "pr-job: patch accepted"

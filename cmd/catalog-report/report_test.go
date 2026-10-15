@@ -132,6 +132,56 @@ func TestValidate(t *testing.T) {
 	}
 }
 
+// effectSnapshots are the catalogue before and after a patch, cut from #259:
+// Sonnet 5.5's cache read halves, an AU copy is added, and Sonnet 4.5's JP
+// and US copies retire with the global Sonnet 5.5 as their replacement.
+func effectSnapshots(t *testing.T) (*reconcile.Snapshot, *reconcile.Snapshot) {
+	t.Helper()
+
+	sonnet45 := func(geo, life string) string {
+		return `{"id": "` + geo + `.anthropic.claude-sonnet-4-5", "model": "anthropic/claude-sonnet-4-5",
+			"attributes": [{"key": "inference_geo", "value": "` + geo + `"}],
+			"capabilities": {"structured_output": true, "tools": true}, "modalities": {"input": ["text", "image"]},
+			"constraints": {"supported_params": ["temperature", "top_p", "max_tokens", "stop"]},
+			"pricing": {"default": {"base": {"input_microcents_per_million": 330000000}}}, "lifecycle": ` + life + `}`
+	}
+	sonnet55 := func(geo string, input int) string {
+		return fmt.Sprintf(`{"id": "%s.anthropic.claude-sonnet-5-5", "model": "anthropic/claude-sonnet-5-5",
+			"attributes": [{"key": "inference_geo", "value": "%s"}],
+			"capabilities": {"structured_output": false, "tools": true}, "modalities": {"input": ["text"]},
+			"constraints": {"supported_params": ["max_tokens", "stop"]},
+			"pricing": {"default": {"base": {"input_microcents_per_million": %d}}}, "lifecycle": {"stage": "ga"}}`, geo, geo, input)
+	}
+	direct := func(cacheRead int) string {
+		return fmt.Sprintf(`{"provider": "anthropic", "offerings": [{"id": "claude-sonnet-5-5", "model": "anthropic/claude-sonnet-5-5",
+			"pricing": {"default": {"base": {"input_microcents_per_million": 200000000, "cached_input_microcents_per_million": %d}}}}]}`, cacheRead)
+	}
+	retiring := `{"stage": "ga", "deprecated": "2026-10-08", "retires": "2027-04-08", "replaced_by": "global.anthropic.claude-sonnet-5-5"}`
+
+	before, err := reconcile.ParseSnapshot([]byte(`{"providers": [` + direct(20000000) + `, {"provider": "aws.bedrock", "offerings": [` +
+		strings.Join([]string{sonnet45("jp", `{"stage": "ga"}`), sonnet45("us", `{"stage": "ga"}`), sonnet55("global", 200000000), sonnet55("us", 220000000)}, ",") + `]}]}`))
+	require.NoError(t, err)
+
+	after, err := reconcile.ParseSnapshot([]byte(`{"providers": [` + direct(10000000) + `, {"provider": "aws.bedrock", "offerings": [` +
+		strings.Join([]string{sonnet45("jp", retiring), sonnet45("us", retiring), sonnet55("global", 200000000), sonnet55("us", 220000000), sonnet55("au", 220000000)}, ",") + `]}]}`))
+	require.NoError(t, err)
+
+	return &before, &after
+}
+
+// tampered is after with the AU copy's region set to markup, as patched code could.
+func tampered(t *testing.T, after *reconcile.Snapshot) *reconcile.Snapshot {
+	t.Helper()
+
+	raw, err := json.Marshal(after)
+	require.NoError(t, err)
+
+	snap, err := reconcile.ParseSnapshot([]byte(strings.Replace(string(raw), `"value":"au"`, `"value":"[evil](https://evil.example)"`, 1)))
+	require.NoError(t, err)
+
+	return &snap
+}
+
 func TestRender(t *testing.T) {
 	t.Parallel()
 
@@ -164,6 +214,16 @@ func TestRender(t *testing.T) {
 		{Offering: "bedrock:in.anthropic.claude-haiku-4-5-20251001-v1:0", Reason: "region_not_offered", Rule: "region-not-offered"},
 	}
 
+	before, after := effectSnapshots(t)
+	withEffects := Base{Before: before, After: after, Today: "2026-10-15"}
+	changes := func(rows ...Change) Report {
+		for i := range rows {
+			rows[i].SourceURL = "https://platform.claude.com/docs/en/about-claude/pricing"
+		}
+
+		return Report{Changes: rows}
+	}
+
 	tests := []struct {
 		name        string
 		report      Report
@@ -173,6 +233,55 @@ func TestRender(t *testing.T) {
 		contains    []string
 		notContains []string
 	}{
+		{
+			name:     "price note with percent",
+			report:   changes(Change{Offering: "claude-sonnet-5-5", Field: "price", Old: "cache read 0.20", New: "cache read 0.10"}),
+			base:     withEffects,
+			contains: []string{"| Offering | Field | Old | New | Effect | Source |", "| `cache read 0.10` | cache read 0.2 → 0.1 (-50%) |"},
+		},
+		{
+			name:     "notes ignore report values",
+			report:   changes(Change{Offering: "claude-sonnet-5-5", Field: "price", Old: "input 9.00", New: "input 1.00"}),
+			base:     withEffects,
+			contains: []string{"| `input 1.00` | cache read 0.2 → 0.1 (-50%) |"},
+		},
+		{
+			name:     "retirement note counts days",
+			report:   changes(Change{Offering: "bedrock:us.anthropic.claude-sonnet-4-5", Field: "lifecycle", Old: "ga", New: "retires 2027-04-08"}),
+			base:     withEffects,
+			contains: []string{"| retires 2027-04-08, in 175 days |"},
+		},
+		{
+			name:     "copies added per host",
+			report:   changes(Change{Offering: "bedrock:au.anthropic.claude-sonnet-5-5", Field: "new_model", New: "au.anthropic.claude-sonnet-5-5"}),
+			base:     withEffects,
+			contains: []string{"| new on bedrock, region `au` |"},
+		},
+		{
+			name: "jp replacement flagged",
+			report: changes(Change{
+				Offering: "bedrock:jp.anthropic.claude-sonnet-4-5", Field: "replacement", New: "global.anthropic.claude-sonnet-5-5",
+			}),
+			base: withEffects,
+			contains: []string{"| ⚑ no `jp` copy of `anthropic/claude-sonnet-5-5`: callers who follow it leave `jp`; input -39%; " +
+				"loses `image input`, `structured_output`, `temperature`, `top_p` |"},
+		},
+		{
+			name:        "unsafe snapshot strings stay out of the body",
+			report:      changes(Change{Offering: "bedrock:au.anthropic.claude-sonnet-5-5", Field: "new_model", New: "au.anthropic.claude-sonnet-5-5"}),
+			base:        Base{Before: before, After: tampered(t, after), Today: "2026-10-15"},
+			contains:    []string{"| new on bedrock |"},
+			notContains: []string{"evil"},
+		},
+		{
+			name: "us replacement not flagged",
+			report: changes(Change{
+				Offering: "bedrock:us.anthropic.claude-sonnet-4-5", Field: "replacement", New: "global.anthropic.claude-sonnet-5-5",
+			}),
+			base:        withEffects,
+			contains:    []string{"| `global.anthropic.claude-sonnet-5-5` |  |"},
+			notContains: []string{"⚑"},
+		},
 		{
 			name:   "full report",
 			report: validReport(),
@@ -394,6 +503,20 @@ func TestRenderCapped(t *testing.T) {
 			assert.Contains(t, lines, line, "the diff is cut only between lines")
 		}
 	})
+
+	t.Run("notes stay when the diff is cut", func(t *testing.T) {
+		t.Parallel()
+
+		before, after := effectSnapshots(t)
+		priced := Report{Changes: []Change{{
+			Offering: "claude-sonnet-5-5", Field: "price", Old: "cache read 0.20", New: "cache read 0.10",
+			SourceURL: "https://platform.claude.com/docs/en/about-claude/pricing",
+		}}}
+
+		body := RenderCapped(priced, "anthropic", diff, nil, Base{Before: before, After: after}, 6000)
+		assert.Contains(t, body, "truncated; see the workflow artifact")
+		assert.Contains(t, body, "| cache read 0.2 → 0.1 (-50%) |")
+	})
 }
 
 // The agent's schema and the validator must accept the same fields and skip
@@ -423,4 +546,12 @@ func TestSchemaMatchesValidator(t *testing.T) {
 	for _, array := range []string{"needs_human", "skipped"} {
 		assert.Equal(t, reconcile.RuleIDPattern.String(), items(array).Properties["rule"].Pattern, "%s rule pattern", array)
 	}
+}
+
+func TestPercent(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "-50%", percent(20000000, 10000000))
+	assert.Equal(t, "-39%", percent(330000000, 200000000), "rounded, not cut")
+	assert.Equal(t, "+0.4%", percent(250000000, 251000000), "a small change keeps a decimal")
 }

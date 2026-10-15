@@ -15,7 +15,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -23,23 +22,7 @@ import (
 
 	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/internal/reconcile"
-	"github.com/redpanda-data/ai-sdk-go/providers/anthropic"
-	"github.com/redpanda-data/ai-sdk-go/providers/bedrock"
-	"github.com/redpanda-data/ai-sdk-go/providers/google"
-	"github.com/redpanda-data/ai-sdk-go/providers/meta"
-	"github.com/redpanda-data/ai-sdk-go/providers/openai"
-	"github.com/redpanda-data/ai-sdk-go/providers/vertex"
 )
-
-// decisionProviders maps an offering's package prefix to its snapshot provider.
-var decisionProviders = map[string]string{
-	"anthropic": anthropic.ProviderName,
-	"bedrock":   bedrock.ProviderName,
-	"google":    google.ProviderName,
-	"meta":      meta.ProviderName,
-	"openai":    openai.ProviderName,
-	"vertex":    vertex.ProviderName,
-}
 
 // lockedKeys lists, for each field in RULES.md's Field table, the snapshot
 // keys a lock covers: "key" or "key.subkey" on the offering, or "facts.key"
@@ -58,15 +41,6 @@ var lockedKeys = map[string][]string{
 
 var decisionID = regexp.MustCompile(`^DEC-[0-9]{3}$`)
 
-// snapshotDoc is the part of catalog/snapshot.json a decision can lock.
-type snapshotDoc struct {
-	Facts     map[string]map[string]any `json:"facts"`
-	Providers []struct {
-		Provider  string           `json:"provider"`
-		Offerings []map[string]any `json:"offerings"`
-	} `json:"providers"`
-}
-
 // checkDecisions returns one problem per decision that is malformed or that
 // the snapshot contradicts.
 func checkDecisions(file, snapshotJSON []byte) []string {
@@ -75,23 +49,9 @@ func checkDecisions(file, snapshotJSON []byte) []string {
 		return []string{"decisions.yaml: " + err.Error()}
 	}
 
-	// json.Number keeps the snapshot's numbers exactly as written.
-	var snap snapshotDoc
-
-	jsonDecoder := json.NewDecoder(bytes.NewReader(snapshotJSON))
-	jsonDecoder.UseNumber()
-
-	if err := jsonDecoder.Decode(&snap); err != nil {
-		return []string{"snapshot: " + err.Error()}
-	}
-
-	offerings := map[string]map[string]any{}
-
-	for _, provider := range snap.Providers {
-		for _, offering := range provider.Offerings {
-			id, _ := offering["id"].(string)
-			offerings[provider.Provider+"/"+id] = offering
-		}
+	snap, err := reconcile.ParseSnapshot(snapshotJSON)
+	if err != nil {
+		return []string{err.Error()}
 	}
 
 	var problems []string
@@ -116,7 +76,7 @@ func checkDecisions(file, snapshotJSON []byte) []string {
 		ids[d.ID], keys[key] = true, d.ID
 
 		pkg, id, _ := strings.Cut(d.Offering, ":")
-		offering, exists := offerings[decisionProviders[pkg]+"/"+id]
+		offering, exists := snap.Offering(pkg, id)
 		where := fmt.Sprintf("%s %s %s %s: ", d.ID, d.Kind, d.Offering, d.Field)
 
 		switch {
@@ -145,7 +105,7 @@ func malformed(d reconcile.Decision) string {
 		return "an ID is DEC- and three digits"
 	case d.Kind != reconcile.KindKeep && d.Kind != reconcile.KindHold:
 		return "kind is keep or hold"
-	case decisionProviders[pkg] == "":
+	case reconcile.PackageProviders[pkg] == "":
 		return "unknown package " + pkg
 	case id == "":
 		return "an offering is <package>:<model ID>"
