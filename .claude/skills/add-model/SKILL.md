@@ -181,8 +181,21 @@ Bedrock models are one `family` declaration in `models.go`, expanded by
 - Pricing is per-profile: `global.` is cheapest; every geo/in-region rate is
   exactly **1.10x** the global rate (pinned by `TestGeoGlobalRatio` as a
   tripwire — a future exception is a data edit, not a schema change).
-- A new inference profile needs its prefix in `profileLabels` in
-  `families.go`; `expandFamilies` panics on a profile that is not there.
+- A profile in a region the catalogue doesn't offer yet (a new prefix,
+  e.g. `in.`) is a product decision (`region-not-offered` in
+  `.github/reconcile-models/RULES.md`). Don't add one unless a person asked
+  for it. Offering one takes every place below, in one PR:
+  - `profileLabels` in `families.go` (`expandFamilies` panics on a profile
+    that isn't there) and `geoProfilePrefixes` in `models.go`;
+    `TestModelsDiscovery_InferenceGeoMetadata` fails until both have it;
+  - `sourceRegionGeoPrefix` in `cross_region.go`, for the source regions
+    the new geography covers, and each `ProfileRegions` map that should
+    route those regions to it;
+  - the family's `Profiles`, and the prefix list passed to `hasGeoPrefix`
+    in `TestIsModelAllowedFromRegion_AllSupportedModels`
+    (`cross_region_test.go`);
+  - the *Offered regions* row in `.github/reconcile-models/RULES.md`;
+    `TestOfferedRegionsMatchCode` fails until it matches the catalogue.
 - Declare `ProfileRegions` when the model card publishes an exact
   source-region→profile map; add lookup and region-allow tests for every
   published ID.

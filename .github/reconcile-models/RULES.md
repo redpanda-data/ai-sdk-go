@@ -52,7 +52,7 @@ Each rule that can send a row to `needs_human` asks one fixed question, shown in
 
 ## Offered regions
 
-The regions each host's catalogue offers. Offering another one is a product decision: a person adds it here, with its code, in a reviewed PR.
+The regions each host's catalogue offers. Offering another one is a product decision: a person adds it here, with its code (the add-model skill lists the places), in a reviewed PR.
 
 | Host | Offered | Not offered |
 |---|---|---|
@@ -64,8 +64,8 @@ Answers agreed in advance for cases the vendor pages don't settle. The bot appli
 
 | ID | Rule | Why | Produces | Enforced |
 |---|---|---|---|---|
-| region-not-offered | Don't add a copy whose region prefix isn't in its host's *Offered regions*. The PR names each host and region once, under "Waiting on a product decision". | A new region changes routing, price and where data is processed for existing callers there, so offering one is a product decision. Skipping changes nothing, so it doesn't block the PR. | skip:`region_not_offered` | validator (the prefix isn't offered), prompt |
-| replacement-publisher-pick | When a model is deprecated or retired and its host names no replacement, `ReplacedBy` is the model its publisher names (for Claude, Anthropic's model deprecations page). On Bedrock it names the replacement's `global.` copy, because the family's copies share one lifecycle (lifecycle-exact-date). | Hosts' lifecycle pages rarely name a replacement (AWS's tables have no column for one), and the publisher's pick is the same on every host. | change | prompt |
+| region-not-offered | Don't add a copy whose region prefix isn't in its host's *Offered regions*. The PR names each host and region once, under "Waiting on a product decision". | A new region changes routing, price and where data is processed for existing callers there, so offering one is a product decision. Skipping changes nothing, so it doesn't block the PR. | skip:`region_not_offered` | validator (the prefix isn't offered), tests (`TestOfferedRegionsMatchCode`, in the sandbox), prompt |
+| replacement-publisher-pick | When a model is deprecated or retired and its host names no replacement, `ReplacedBy` is the model its publisher names (for Claude, Anthropic's model deprecations page). On Bedrock it names the replacement's `global.` copy, because the family's copies share one lifecycle (lifecycle-exact-date). | Hosts' lifecycle pages rarely name a replacement (AWS's tables have no column for one), and the publisher's pick is the same on every host. | change | tests (Bedrock's `ReplacedBy` matches the publisher's own catalogue, on the global copy), prompt |
 | lifecycle-exact-date | On Bedrock, a model's Legacy date sets `Deprecated` and its EOL date sets `Retires` (an exact date only, L1). Set them once, on the family: every copy of a family shares one lifecycle. | AWS gives one Legacy and one EOL date per model. | change | prompt |
 | copy-gone-no-eol | A Bedrock regional copy that disappears from its model card, with no announced end of life, stays as it is. | A card dropping a copy is not a retirement, and nothing announces an end date to set. | skip:`copy_unlisted` | prompt |
 

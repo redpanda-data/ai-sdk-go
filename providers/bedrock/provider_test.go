@@ -1385,7 +1385,11 @@ func TestModelsDiscovery_InferenceGeoMetadata(t *testing.T) {
 
 	for _, m := range Catalog().All() {
 		prefix, _, _ := strings.Cut(m.ID, ".")
-		if _, isProfile := profileLabels[prefix]; isProfile {
+		_, isProfile := profileLabels[prefix]
+		// A profile NewModel doesn't recognise as one would get a second prefix.
+		assert.Equal(t, isProfile, hasRegionPrefix(m.ID), "offering %s: profile labels and routing prefixes disagree", m.ID)
+
+		if isProfile {
 			assert.Equal(t, prefix, m.Attributes[ModelMetadataInferenceGeo], "offering %s", m.ID)
 		} else {
 			assert.NotContains(t, m.Attributes, ModelMetadataInferenceGeo, "offering %s", m.ID)
