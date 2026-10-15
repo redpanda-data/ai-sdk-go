@@ -16,11 +16,15 @@ package google
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/genai"
+
+	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
 func TestProviderCreation(t *testing.T) {
@@ -297,4 +301,86 @@ func TestResponseMapper_CachedTokens(t *testing.T) {
 	assert.Equal(t, 10, resp.Usage.OutputTokens)
 	assert.Equal(t, 110, resp.Usage.TotalBilledTokens(), "should equal Google's total")
 	assert.Equal(t, ModelGemini25Flash, resp.InvokedModelID)
+}
+
+func TestGenerateEvents_InvokedModelID(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		chunks []string
+		want   string
+	}{
+		{
+			name: "unknown version on the last chunk passes through",
+			chunks: []string{
+				`{"candidates":[{"content":{"role":"model","parts":[{"text":"Hel"}]}}]}`,
+				`{"candidates":[{"content":{"role":"model","parts":[{"text":"lo"}]},"finishReason":"STOP"}],"modelVersion":"models/gemini-unreleased-exp"}`,
+			},
+			want: "models/gemini-unreleased-exp",
+		},
+		{
+			name: "known version on an earlier chunk resolves to its catalog ID",
+			chunks: []string{
+				`{"candidates":[{"content":{"role":"model","parts":[{"text":"Hel"}]}}],"modelVersion":"models/gemini-2.5-pro-001"}`,
+				`{"candidates":[{"content":{"role":"model","parts":[{"text":"lo"}]},"finishReason":"STOP"}]}`,
+			},
+			want: ModelGemini25Pro,
+		},
+		{
+			name: "a later version replaces an earlier one",
+			chunks: []string{
+				`{"candidates":[{"content":{"role":"model","parts":[{"text":"Hel"}]}}],"modelVersion":"models/gemini-2.5-pro-001"}`,
+				`{"candidates":[{"content":{"role":"model","parts":[{"text":"lo"}]},"finishReason":"STOP"}],"modelVersion":"models/gemini-unreleased-exp"}`,
+			},
+			want: "models/gemini-unreleased-exp",
+		},
+		{
+			name: "version on a chunk without candidates is kept",
+			chunks: []string{
+				`{"candidates":[{"content":{"role":"model","parts":[{"text":"Hello"}]}}]}`,
+				`{"modelVersion":"models/gemini-unreleased-exp"}`,
+				`{"candidates":[{"content":{"role":"model","parts":[{"text":"!"}]},"finishReason":"STOP"}]}`,
+			},
+			want: "models/gemini-unreleased-exp",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "text/event-stream")
+
+				for _, chunk := range tt.chunks {
+					_, _ = w.Write([]byte("data: " + chunk + "\n\n"))
+				}
+			}))
+			t.Cleanup(srv.Close)
+
+			provider, err := NewProvider(context.Background(), "test-key", WithBaseURL(srv.URL))
+			require.NoError(t, err)
+
+			model, err := provider.NewModel(ModelGemini25Flash)
+			require.NoError(t, err)
+
+			var end *llm.StreamEndEvent
+
+			for event, err := range model.GenerateEvents(context.Background(), &llm.Request{
+				Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hi"))},
+			}) {
+				require.NoError(t, err)
+
+				if e, ok := event.(llm.StreamEndEvent); ok {
+					end = &e
+				}
+			}
+
+			require.NotNil(t, end)
+			require.NoError(t, end.Error)
+			require.NotNil(t, end.Response)
+			assert.Equal(t, tt.want, end.Response.InvokedModelID)
+		})
+	}
 }
