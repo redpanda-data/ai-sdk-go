@@ -140,14 +140,20 @@ func (c *clientImpl) ExecuteTool(ctx context.Context, toolName string, args json
 		return nil, fmt.Errorf("tool %q execution failed: %w", toolName, err)
 	}
 
-	// Log tool-level errors (IsError indicates tool execution failed)
+	content, err := json.Marshal(result.Content)
+	if err != nil {
+		return nil, err
+	}
+
 	if result.IsError {
 		c.logger.Debug("tool execution returned error",
 			"tool", toolName,
 			"serverID", c.serverID)
+
+		return content, &tool.ResultError{Result: content}
 	}
 
-	return json.Marshal(result.Content)
+	return content, nil
 }
 
 // SyncTools fetches tools from the MCP server and reconciles with local state

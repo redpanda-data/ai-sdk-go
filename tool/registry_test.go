@@ -15,6 +15,8 @@
 package tool_test
 
 import (
+	"context"
+	"encoding/json"
 	"sort"
 	"strings"
 	"testing"
@@ -81,4 +83,28 @@ func definitionNames(defs []llm.ToolDefinition) []string {
 	}
 
 	return names
+}
+
+// TestRegistryExecuteResultError covers a tool that ran and reported a failure
+// in its own result (MCP isError): the response is flagged as an error but
+// keeps the tool's payload verbatim instead of the {"error": ...} wrapper used
+// for execution failures.
+func TestRegistryExecuteResultError(t *testing.T) {
+	t.Parallel()
+
+	payload := json.RawMessage(`[{"type":"text","text":"HTTP 400: missing field q"}]`)
+	registry := tool.NewRegistry(tool.RegistryConfig{})
+	require.NoError(t, registry.Register(&mockTool{
+		name: "search",
+		execFunc: func(context.Context, json.RawMessage) (json.RawMessage, error) {
+			return payload, &tool.ResultError{Result: payload}
+		},
+	}))
+
+	resp, err := registry.Execute(t.Context(), &llm.ToolRequestPart{ID: "call_1", Name: "search", Arguments: json.RawMessage(`{}`)})
+	require.NoError(t, err)
+	assert.True(t, resp.IsError)
+	assert.JSONEq(t, string(payload), string(resp.Result))
+	assert.NotContains(t, (&tool.ResultError{Result: payload}).Error(), "missing field q",
+		"the error string must not leak the tool payload into span status")
 }
