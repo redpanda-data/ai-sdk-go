@@ -18,12 +18,12 @@
         "field": {"enum": ["new_model", "price", "limit", "lifecycle", "replacement", "knowledge_cutoff", "release_date", "capability"]},
         "values": {"type": "array", "items": {"type": "string", "pattern": "^[A-Za-z0-9 ._:/+-]{0,64}$"}},
         "source_urls": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^https://[A-Za-z0-9.-]+(/[A-Za-z0-9._~/%#?=&+:-]*)?$"}},
-        "rule": {"type": "string", "pattern": "^[A-Z][0-9]{1,2}$"}}}},
+        "rule": {"type": "string", "pattern": "^([A-Z][0-9]{1,2}|[a-z]+(-[a-z0-9]+)+)$"}}}},
     "skipped": {"type": "array", "items": {"type": "object", "additionalProperties": false,
       "required": ["offering", "reason", "rule"],
       "properties": {
         "offering": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._:-]{0,79}$"},
-        "reason": {"enum": ["not_on_named_sources", "conflicting_sources", "needs_new_pricing_shape", "out_of_scope", "limited_availability", "vendor_excluded"]},
-        "rule": {"type": "string", "pattern": "^[A-Z][0-9]{1,2}$"}}}}
+        "reason": {"enum": ["not_on_named_sources", "conflicting_sources", "needs_new_pricing_shape", "out_of_scope", "limited_availability", "vendor_excluded", "region_not_offered", "copy_unlisted"]},
+        "rule": {"type": "string", "pattern": "^([A-Z][0-9]{1,2}|[a-z]+(-[a-z0-9]+)+)$"}}}}
   }
 }

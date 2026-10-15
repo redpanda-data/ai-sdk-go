@@ -37,6 +37,7 @@ func TestRulesFile(t *testing.T) {
 	assert.Empty(t, problems)
 	assert.NotEmpty(t, rules.Lines, "RULES.md lists no rules")
 	assert.Contains(t, rules.Questions, reconcile.JudgmentRule, "rows with no rule need a question too")
+	assert.Contains(t, rules.Lines, regionRule, "the waiting section links this rule")
 
 	// RULES.md and the validator must list the same values; the schema is
 	// held to the validator by TestSchemaMatchesValidator.

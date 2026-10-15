@@ -34,6 +34,7 @@ type Rules struct {
 	Reasons   map[string]string   // skip reason: what it means
 	Fields    map[string]string   // report field: what it covers
 	Questions map[string]string   // rule ID: what a person decides for its needs_human rows
+	Offered   map[string][]string // host package: the region prefixes it offers
 }
 
 // Fits reports whether a rule can produce an outcome ("needs_human" or
@@ -43,11 +44,14 @@ func (rules Rules) Fits(id, outcome string) bool {
 }
 
 var (
-	ruleIDPattern = regexp.MustCompile(`^[A-Z][0-9]{1,2}$`)
+	// RuleIDPattern is a rule ID: an area letter and a number (B7), or a slug
+	// (region-not-offered). report.schema.json uses the same pattern.
+	RuleIDPattern = regexp.MustCompile(`^([A-Z][0-9]{1,2}|[a-z]+(-[a-z0-9]+)+)$`)
 	parenthetical = regexp.MustCompile(`\([^)]*\)`)
 	// A legend word is an item's first code term, cut at a placeholder:
 	// "`skip:<reason>`" gives "skip:".
 	legendTerm = regexp.MustCompile("`([^`<]+)")
+	codeTerm   = regexp.MustCompile("`([^`]+)`")
 )
 
 // cells splits one markdown table row into trimmed cells.
@@ -81,6 +85,7 @@ func ParseRules(markdown []byte) (Rules, []string) {
 	rules := Rules{
 		Lines: map[string]int{}, Produces: map[string][]string{},
 		Reasons: map[string]string{}, Fields: map[string]string{}, Questions: map[string]string{},
+		Offered: map[string][]string{},
 	}
 	twoColumn := map[string]map[string]string{"Skip reason": rules.Reasons, "Field": rules.Fields, "Rule": rules.Questions}
 
@@ -110,6 +115,10 @@ func ParseRules(markdown []byte) (Rules, []string) {
 		case strings.HasPrefix(row[0], "---"):
 		case header == "ID":
 			problems = append(problems, rules.addRule(row, index+1, produces, enforced)...)
+		case header == "Host" && len(row) > 1:
+			for _, term := range codeTerm.FindAllStringSubmatch(row[1], -1) {
+				rules.Offered[row[0]] = append(rules.Offered[row[0]], term[1])
+			}
 		case twoColumn[header] != nil && len(row) > 1:
 			twoColumn[header][strings.Trim(row[0], "`")] = row[1]
 		}
@@ -144,7 +153,7 @@ func (rules Rules) addRule(row []string, line int, produces, enforced []string) 
 	var problems []string
 
 	id := row[0]
-	if !ruleIDPattern.MatchString(id) {
+	if !RuleIDPattern.MatchString(id) {
 		problems = append(problems, "bad rule ID "+id)
 	}
 

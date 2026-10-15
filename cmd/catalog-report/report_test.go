@@ -31,13 +31,17 @@ import (
 
 var hosts = []string{"platform.claude.com"}
 
-// testRules is a RULES.md with one skip rule, one rule that asks a person,
-// and R4 for rows no rule covers.
+// testRules is a RULES.md with three skip rules, one rule that asks a person,
+// R4 for rows no rule covers, and Bedrock's offered regions.
 var testRules = reconcile.Rules{
-	Lines:     map[string]int{"T1": 40, "L3": 80, "R4": 120},
+	Lines:     map[string]int{"T1": 40, "L3": 80, "R4": 120, "region-not-offered": 20, "copy-gone-no-eol": 22},
 	Reasons:   map[string]string{"limited_availability": "the model needs a signup", "conflicting_sources": "no rule uses it yet"},
 	Questions: map[string]string{"L3": "Which replacement?", "R4": "No rule covers this. Decide."},
-	Produces:  map[string][]string{"T1": {"skip:`limited_availability`"}, "L3": {"needs_human"}, "R4": {"needs_human"}},
+	Produces: map[string][]string{
+		"T1": {"skip:`limited_availability`"}, "L3": {"needs_human"}, "R4": {"needs_human"},
+		"region-not-offered": {"skip:`region_not_offered`"}, "copy-gone-no-eol": {"skip:`copy_unlisted`"},
+	},
+	Offered: map[string][]string{"bedrock": {"global", "us", "eu", "au", "jp"}},
 }
 
 func validReport() Report {
@@ -90,6 +94,21 @@ func TestValidate(t *testing.T) {
 		{"needs_human rule that never asks a person", func(r *Report) { r.NeedsHuman[0].Rule = "T1" }, "needs_human[0]: rule T1 doesn't produce needs_human"},
 		{"skip rule for another reason", func(r *Report) { r.Skipped[0].Rule = "T1" }, "skipped[0]: rule T1 doesn't produce skip:`conflicting_sources`"},
 		{"skip rule for this reason", func(r *Report) { r.Skipped[0] = Skipped{Offering: "x", Reason: "limited_availability", Rule: "T1"} }, ""},
+		{"region not offered", func(r *Report) {
+			r.Skipped[0] = Skipped{Offering: "bedrock:in.anthropic.claude-opus-5", Reason: "region_not_offered", Rule: "region-not-offered"}
+		}, ""},
+		{"region not offered for an offered region", func(r *Report) {
+			r.Skipped[0] = Skipped{Offering: "bedrock:us.anthropic.claude-opus-5", Reason: "region_not_offered", Rule: "region-not-offered"}
+		}, "skipped[0]: region us is offered on bedrock"},
+		{"copy unlisted", func(r *Report) {
+			r.Skipped[0] = Skipped{Offering: "bedrock:eu.anthropic.claude-fable-5", Reason: "copy_unlisted", Rule: "copy-gone-no-eol"}
+		}, ""},
+		{"region not offered on a host with no Offered row", func(r *Report) {
+			r.Skipped[0] = Skipped{Offering: "vertex:in.claude-opus-5", Reason: "region_not_offered", Rule: "region-not-offered"}
+		}, "skipped[0]: vertex has no Offered regions row"},
+		{"region not offered without a package", func(r *Report) {
+			r.Skipped[0] = Skipped{Offering: "in.anthropic.claude-opus-5", Reason: "region_not_offered", Rule: "region-not-offered"}
+		}, "skipped[0]: in.anthropic.claude-opus-5 names no package"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -133,6 +152,13 @@ func TestRender(t *testing.T) {
 	}
 	otherField := keepLimit
 	otherField.Field = "price"
+	// #259's copies in India, which Bedrock doesn't offer, and one in a second region.
+	waiting := []Skipped{
+		{Offering: "bedrock:in.anthropic.claude-opus-5", Reason: "region_not_offered", Rule: "region-not-offered"},
+		{Offering: "bedrock:in.anthropic.claude-sonnet-5", Reason: "region_not_offered", Rule: "region-not-offered"},
+		{Offering: "bedrock:ca.anthropic.claude-opus-5", Reason: "region_not_offered", Rule: "region-not-offered"},
+		{Offering: "bedrock:in.anthropic.claude-haiku-4-5-20251001-v1:0", Reason: "region_not_offered", Rule: "region-not-offered"},
+	}
 
 	tests := []struct {
 		name        string
@@ -220,6 +246,25 @@ func TestRender(t *testing.T) {
 				"| [T1](" + rulesURL + "#L40) | the model needs a signup (`limited_availability`) | `claude-mythos-5`, `claude-mythos-5-1` |",
 				"| ⚠ [R4](" + rulesURL + "#L120) | no rule uses it yet (`conflicting_sources`) | `claude-haiku-4-5` |",
 			},
+		},
+		{
+			name:   "one waiting line per region",
+			report: Report{Skipped: waiting},
+			base:   Base{URL: baseURL, Rules: testRules},
+			contains: []string{
+				"### Waiting on a product decision (2)\n\nModel cards list copies in regions this catalogue doesn't offer, so the bot left them out " +
+					"(rule [region-not-offered](" + rulesURL + "#L20)). Nothing changes until someone decides, and they don't block the PR.\n\n",
+				"- Offer `in` on bedrock? 3 copies: `bedrock:in.anthropic.claude-opus-5`, `bedrock:in.anthropic.claude-sonnet-5`, " +
+					"`bedrock:in.anthropic.claude-haiku-4-5-20251001-v1:0`\n",
+				"- Offer `ca` on bedrock? 1 copy: `bedrock:ca.anthropic.claude-opus-5`\n",
+			},
+		},
+		{
+			name:        "waiting rows aren't listed as skipped",
+			report:      Report{Skipped: append([]Skipped{{Offering: "claude-mythos-5", Reason: "limited_availability", Rule: "T1"}}, waiting...)},
+			base:        Base{URL: baseURL, Rules: testRules},
+			contains:    []string{"### Skipped (1)"},
+			notContains: []string{"`region_not_offered`"},
 		},
 		{
 			name:        "a decision on another field holds nothing",
@@ -358,14 +403,20 @@ func TestSchemaMatchesValidator(t *testing.T) {
 	var schema jsonschema.Schema
 	require.NoError(t, json.Unmarshal(raw, &schema))
 
-	enum := func(array, property string) []any {
+	items := func(array string) *jsonschema.Schema {
 		items := schema.Properties[array].Items
 		require.NotNil(t, items, "schema has no %s items", array)
 
-		return items.Properties[property].Enum
+		return items
 	}
+	enum := func(array, property string) []any { return items(array).Properties[property].Enum }
 
 	assert.ElementsMatch(t, reasons, enum("skipped", "reason"), "skip reasons")
 	assert.ElementsMatch(t, fields, enum("changes", "field"), "changes fields")
 	assert.ElementsMatch(t, fields, enum("needs_human", "field"), "needs_human fields")
+
+	// The agent can name only the rules the schema's pattern accepts.
+	for _, array := range []string{"needs_human", "skipped"} {
+		assert.Equal(t, reconcile.RuleIDPattern.String(), items(array).Properties["rule"].Pattern, "%s rule pattern", array)
+	}
 }

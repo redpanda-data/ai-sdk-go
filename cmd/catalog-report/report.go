@@ -35,7 +35,7 @@ type (
 
 var (
 	fields       = []string{"new_model", "price", "limit", "lifecycle", "replacement", "knowledge_cutoff", "release_date", "capability"}
-	reasons      = []string{"not_on_named_sources", "conflicting_sources", "needs_new_pricing_shape", "out_of_scope", "limited_availability", "vendor_excluded"}
+	reasons      = []string{"not_on_named_sources", "conflicting_sources", "needs_new_pricing_shape", "out_of_scope", "limited_availability", "vendor_excluded", regionNotOffered, "copy_unlisted"}
 	valuePattern = regexp.MustCompile(`^[A-Za-z0-9 ._:/+-]{0,64}$`)
 	// sourcePattern allows only characters that can't end a markdown link,
 	// end a table cell or start HTML, so a URL always renders as one link.
@@ -44,6 +44,23 @@ var (
 	// path can't break out of its code span in the PR body.
 	codeFilePattern = regexp.MustCompile(`^[A-Za-z0-9_./-]{1,200}$`)
 )
+
+// A copy in a region its host doesn't offer is skipped with regionNotOffered,
+// under RULES.md's regionRule.
+const (
+	regionNotOffered = "region_not_offered"
+	regionRule       = "region-not-offered"
+)
+
+// regionOf splits a <package>:<prefix>.<model ID> offering into its package and
+// region prefix, and is false without a package. Bedrock IDs contain ":", so
+// only the first one separates.
+func regionOf(offering string) (string, string, bool) {
+	host, id, named := strings.Cut(offering, ":")
+	prefix, _, _ := strings.Cut(id, ".")
+
+	return host, prefix, named
+}
 
 // ValidateCodeFiles lists every path that would be unsafe to render.
 func ValidateCodeFiles(files []string) []string {
@@ -134,6 +151,20 @@ func Validate(report Report, hosts []string, rules reconcile.Rules) []string {
 		}
 
 		checkRule(where, item.Rule, "skip:"+code(item.Reason))
+
+		// Only a host's own Offered row can show a region isn't offered.
+		if item.Reason == regionNotOffered {
+			host, prefix, named := regionOf(item.Offering)
+
+			switch offered, listed := rules.Offered[host]; {
+			case !named:
+				problems = append(problems, where+": "+item.Offering+" names no package")
+			case !listed:
+				problems = append(problems, where+": "+host+" has no Offered regions row")
+			case slices.Contains(offered, prefix):
+				problems = append(problems, where+": region "+prefix+" is offered on "+host)
+			}
+		}
 	}
 
 	return problems
@@ -213,24 +244,30 @@ func (base Base) ruleCell(id string) string {
 	return base.ruleLink(id)
 }
 
-// skippedRows groups skipped offerings by the rule and reason that left them
-// out, in the order the report first names each group.
+// groupOfferings groups skipped offerings by key, in the order the report
+// first names each group.
+func groupOfferings[K comparable](skipped []Skipped, key func(Skipped) K) ([]K, map[K][]string) {
+	var keys []K
+
+	offerings := map[K][]string{}
+
+	for _, item := range skipped {
+		k := key(item)
+		if _, seen := offerings[k]; !seen {
+			keys = append(keys, k)
+		}
+
+		offerings[k] = append(offerings[k], item.Offering)
+	}
+
+	return keys, offerings
+}
+
+// skippedRows groups skipped offerings by the rule and reason that left them out.
 func (base Base) skippedRows(skipped []Skipped) []string {
 	type group struct{ rule, reason string }
 
-	var groups []group
-
-	offerings := map[group][]string{}
-
-	for _, item := range skipped {
-		key := group{item.Rule, item.Reason}
-		if _, seen := offerings[key]; !seen {
-			groups = append(groups, key)
-		}
-
-		offerings[key] = append(offerings[key], item.Offering)
-	}
-
+	groups, offerings := groupOfferings(skipped, func(item Skipped) group { return group{item.Rule, item.Reason} })
 	rows := make([]string, 0, len(groups))
 
 	for _, key := range groups {
@@ -243,6 +280,28 @@ func (base Base) skippedRows(skipped []Skipped) []string {
 	}
 
 	return rows
+}
+
+// waitingLines names each host and region a region_not_offered row is in, once.
+func waitingLines(skipped []Skipped) []string {
+	type region struct{ host, prefix string }
+
+	regions, offerings := groupOfferings(skipped, func(item Skipped) region {
+		host, prefix, _ := regionOf(item.Offering)
+		return region{host, prefix}
+	})
+	lines := make([]string, 0, len(regions))
+
+	for _, key := range regions {
+		copies := fmt.Sprintf("%d copies", len(offerings[key]))
+		if len(offerings[key]) == 1 {
+			copies = "1 copy"
+		}
+
+		lines = append(lines, fmt.Sprintf("- Offer %s on %s? %s: %s\n", code(key.prefix), key.host, copies, valueList(offerings[key])))
+	}
+
+	return lines
 }
 
 // needsHumanBlock renders one needs_human row: its rule, the rule's fixed
@@ -322,6 +381,24 @@ func (base Base) hold(report Report, provider string) (Report, []string) {
 	return report, held
 }
 
+// splitWaiting takes the region_not_offered rows out of the skipped ones.
+func splitWaiting(report Report) (Report, []Skipped) {
+	// Fresh slices, as in hold.
+	var waiting, skipped []Skipped
+
+	for _, item := range report.Skipped {
+		if item.Reason == regionNotOffered {
+			waiting = append(waiting, item)
+		} else {
+			skipped = append(skipped, item)
+		}
+	}
+
+	report.Skipped = skipped
+
+	return report, waiting
+}
+
 // summary is one line about decisions.yaml itself: how many decisions it
 // holds, and which are past their review date. It shows on every run.
 func (base Base) summary() string {
@@ -354,8 +431,9 @@ func Render(report Report, provider, snapshotDiff string, codeFiles []string, ba
 	body.WriteString("## Catalogue drift: " + provider + "\n\n")
 
 	report, held := base.hold(report, provider)
+	report, waiting := splitWaiting(report)
 
-	if len(report.Changes)+len(report.NeedsHuman)+len(report.Skipped)+len(held) == 0 && snapshotDiff == "" {
+	if len(report.Changes)+len(report.NeedsHuman)+len(report.Skipped)+len(waiting)+len(held) == 0 && snapshotDiff == "" {
 		body.WriteString("No drift found.\n\n" + base.summary())
 		return body.String()
 	}
@@ -397,6 +475,12 @@ func Render(report Report, provider, snapshotDiff string, codeFiles []string, ba
 		for index, item := range report.NeedsHuman {
 			body.WriteString(base.needsHumanBlock(index+1, item))
 		}
+	}
+
+	if lines := waitingLines(waiting); len(lines) > 0 {
+		fmt.Fprintf(&body, "### Waiting on a product decision (%d)\n\nModel cards list copies in regions this catalogue doesn't offer, so the bot left them out (rule %s). Nothing changes until someone decides, and they don't block the PR.\n\n",
+			len(lines), base.ruleLink(regionRule))
+		body.WriteString(strings.Join(lines, "") + "\n")
 	}
 
 	if len(held) > 0 {

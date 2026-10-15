@@ -45,6 +45,23 @@ func TestParseRules(t *testing.T) {
 		assert.Equal(t, map[string][]string{"T1": {"skip:`out_of_scope`"}, "L3": {"needs_human"}}, rules.Produces)
 	})
 
+	t.Run("slug rule ID", func(t *testing.T) {
+		t.Parallel()
+
+		rules, problems := ParseRules([]byte(preamble + "| region-not-offered | A rule. | A reason. | skip:`out_of_scope` | prompt |\n"))
+		assert.Empty(t, problems)
+		assert.Equal(t, map[string]int{"region-not-offered": 14}, rules.Lines)
+	})
+
+	t.Run("offered regions table", func(t *testing.T) {
+		t.Parallel()
+
+		rules, problems := ParseRules([]byte("| Host | Offered | Not offered |\n|---|---|---|\n" +
+			"| bedrock | `global` `us` `eu` | `in` (asked 2026-10-15) |\n"))
+		assert.Empty(t, problems)
+		assert.Equal(t, map[string][]string{"bedrock": {"global", "us", "eu"}}, rules.Offered)
+	})
+
 	tests := []struct {
 		name        string
 		rows        string
