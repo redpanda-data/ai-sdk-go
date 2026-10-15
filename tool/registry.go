@@ -235,6 +235,17 @@ func (r *registry) Execute(ctx context.Context, req *llm.ToolRequestPart) (*llm.
 
 	// Execute the tool
 	result, err := registered.tool.Execute(executeCtx, req.Arguments)
+
+	var resultErr *ResultError
+	if errors.As(err, &resultErr) {
+		processedResult, sizeErr := r.enforceResponseSizeLimit(resultErr.Result, &registered.config)
+		if sizeErr != nil {
+			return errorToolResponse(req, fmt.Sprintf("failed to process response: %v", sizeErr)), nil
+		}
+
+		return &llm.ToolResponsePart{ID: req.ID, Name: req.Name, Result: processedResult, IsError: true}, nil
+	}
+
 	// Handle execution errors
 	if err != nil {
 		// Check if it's a timeout

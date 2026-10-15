@@ -499,3 +499,30 @@ func TestPerformReconnectBoundsHungHandshake(t *testing.T) {
 		t.Fatal("performReconnect did not return after context cancellation")
 	}
 }
+
+func TestExecuteToolIsErrorReturnsResultError(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	server := newMockMCPServer()
+	server.toolExecutor = func(string, map[string]any) ([]sdkmcp.Content, error) {
+		return nil, errors.New("HTTP 400: missing field q")
+	}
+
+	transport, err := server.start(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = server.stop() })
+
+	client, err := NewClient("test-server", func() (sdkmcp.Transport, error) { return transport, nil })
+	require.NoError(t, err)
+	require.NoError(t, client.Start(ctx))
+	t.Cleanup(func() { _ = client.Close() })
+
+	result, err := client.ExecuteTool(ctx, "test-server__echo", json.RawMessage(`{"message":"hi"}`))
+
+	var resultErr *tool.ResultError
+	require.ErrorAs(t, err, &resultErr)
+	assert.Contains(t, string(resultErr.Result), "HTTP 400: missing field q")
+	assert.Equal(t, resultErr.Result, result, "the content is returned alongside the error")
+}
