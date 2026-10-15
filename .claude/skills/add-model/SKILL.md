@@ -57,7 +57,7 @@ vendor's own pages),
 ## Step 2 — Author the provider entry
 
 Exported ID constant (greppable), capabilities, constraints, modalities,
-`Reasoning` (efforts/adaptive/budget), `Pricing`, `Life`.
+`WireAPIs`, `Reasoning` (efforts/adaptive/budget), `Pricing`, `Life`.
 
 - **An entry declares no publisher** — it comes from the model's facts, so
   read it back with `o.Facts().Publisher`.
@@ -68,6 +68,21 @@ Exported ID constant (greppable), capabilities, constraints, modalities,
   Nothing links the two, and adding only the second makes
   `TestCommittedSnapshotIsFresh` fail with advice that cannot fix it.
 
+- **Wire APIs belong to each offering, not shared model facts.** Author
+  `WireAPIs` as `catalog.WireAPI{Protocol, Transport}` pairs verified for that
+  exact provider-native ID. A protocol does not identify its transport:
+  Anthropic Messages through Bedrock InvokeModel needs a different envelope
+  from direct Messages, runtime Messages, Mantle, or Vertex rawPredict.
+  Verify per-model API support from vendor model pages and API matrices; do
+  not infer it from the publisher, model-name patterns, the SDK's current
+  mapper, or another offering's geo or profile variant. OpenAI Pro models can
+  be Responses-only while other OpenAI models support both APIs. Advertise
+  production-grade bindings, not degraded or experimental compatibility
+  layers. Availability does not promise feature parity or account
+  entitlement. An empty list means unknown, not a provider default. The list
+  is a set, not a preference order; catalog construction sorts and copies it.
+  No endpoint URLs, credentials, regions, or model-ID remapping belong in
+  this field.
 - **Capabilities and modalities** follow capability-follow.
 - **`Constraints.MaxInputTokens` and `MaxOutputTokens`** follow
   limit-follow. OpenAI's GPT-5 caps input at 272K within its 400K window,
@@ -142,6 +157,13 @@ Bedrock models are one `family` declaration in `models.go`, expanded by
 - Declare `ProfileRegions` when the model card publishes an exact
   source-region→profile map; add lookup and region-allow tests for every
   published ID.
+- Author the family's wire API bindings and explicit per-profile exceptions
+  where documented. A bare Mantle ID does not imply a runtime binding, and a
+  registered runtime profile does not imply its ID works on Mantle. This
+  SDK's Mantle adapter implementing only the Responses surface is an SDK
+  limit, not the offering's wire-API inventory. Do not synthesize metadata
+  for unpublished siblings, and keep the SDK's existing runtime routing
+  unchanged when updating this metadata.
 - Invocation also requires the **account** to have accepted the model's AWS
   Marketplace agreement in every region the profile routes across. Until
   then invocation returns `AccessDeniedException`; the conformance suite's

@@ -24,6 +24,7 @@ import (
 
 // Model ID constants for Google Gemini models.
 const (
+	ModelGemini4Argon       = "gemini-4-argon"
 	ModelGemini38Flash      = "gemini-3.8-flash"
 	ModelGemini37Flash      = "gemini-3.7-flash"
 	ModelGemini36Flash      = "gemini-3.6-flash"
@@ -106,8 +107,8 @@ var (
 		ReasoningEffortMedium,
 		ReasoningEffortHigh,
 	}
-	// Gemini 3.7 and 3.8 Flash reject "minimal" ("minimal is not supported
-	// and returns an error" — model pages).
+	// Gemini 3.7 Flash, 3.8 Flash, and 4 Argon reject "minimal" ("minimal
+	// is not supported and returns an error" — model pages).
 	gemini37FlashReasoningEfforts = []ReasoningEffort{
 		ReasoningEffortLow,
 		ReasoningEffortMedium,
@@ -171,6 +172,10 @@ var geminiParams = []string{"temperature", "top_p", "top_k", "max_tokens", "stop
 // 3.5 Flash-Lite).
 var geminiNoPenaltyParams = []string{"temperature", "top_p", "top_k", "max_tokens", "stop"}
 
+var generateContentWireAPIs = []catalog.WireAPI{
+	{Protocol: catalog.WireProtocolGeminiGenerateContent, Transport: catalog.WireTransportDirect},
+}
+
 // entries returns the authored Google catalog.
 // Model data: https://ai.google.dev/gemini-api/docs/models
 //
@@ -179,8 +184,38 @@ var geminiNoPenaltyParams = []string{"temperature", "top_p", "top_k", "max_token
 func entries() []catalog.Entry {
 	return []catalog.Entry{
 		{
+			// https://ai.google.dev/gemini-api/docs/models/gemini-4-argon
+			ID:           ModelGemini4Argon,
+			Model:        catalog.ModelGemini4Argon,
+			WireAPIs:     generateContentWireAPIs,
+			Capabilities: geminiCaps,
+			Modalities:   geminiModalities,
+			// low, medium (default), high; no thinking budget.
+			Reasoning: catalog.ReasoningSupport{
+				Efforts: gemini37FlashReasoningEfforts,
+			},
+			// The 1M window is shared by input and output. 65536 is the
+			// synchronous output cap; long decode up to the full window
+			// needs a background request. Custom temperature, top_p, and
+			// top_k are accepted but ignored; penalties return HTTP 400.
+			Constraints: llm.ModelConstraints{
+				TemperatureRange: [2]float64{0.0, 2.0},
+				MaxInputTokens:   1048576,
+				MaxOutputTokens:  65536,
+				SupportedParams:  geminiNoPenaltyParams,
+			},
+			Life: catalog.Lifecycle{
+				Available: catalog.MustDate("2026-10-13"),
+			},
+			// Google lists $2/$10 (cache $0.10) through 2026-11-30, rising
+			// to $4/$20/$0.20 on 2026-12-01. Only the rate in effect is
+			// tracked. No long-context tier is published.
+			Pricing: pricing.FlatInfo(2.00, 10.00, 0.10),
+		},
+		{
 			ID:           ModelGemini38Flash,
 			Model:        catalog.ModelGemini38Flash,
+			WireAPIs:     generateContentWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Reasoning: catalog.ReasoningSupport{
@@ -203,6 +238,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini37Flash,
 			Model:        catalog.ModelGemini37Flash,
+			WireAPIs:     generateContentWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Reasoning: catalog.ReasoningSupport{
@@ -225,6 +261,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini36Flash,
 			Model:        catalog.ModelGemini36Flash,
+			WireAPIs:     generateContentWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			// Thinking levels per ai.google.dev/gemini-api/docs/thinking.
@@ -247,6 +284,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini35FlashLite,
 			Model:        catalog.ModelGemini35FlashLite,
+			WireAPIs:     generateContentWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			// Thinking levels per ai.google.dev/gemini-api/docs/thinking.
@@ -268,6 +306,7 @@ func entries() []catalog.Entry {
 			// https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite
 			ID:           ModelGemini31FlashLite,
 			Model:        catalog.ModelGemini31FlashLite,
+			WireAPIs:     generateContentWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			// minimal (default), low, medium, high per
@@ -293,6 +332,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini35Flash,
 			Model:        catalog.ModelGemini35Flash,
+			WireAPIs:     generateContentWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Reasoning: catalog.ReasoningSupport{
@@ -312,6 +352,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini31ProPreview,
 			Model:        catalog.ModelGemini31ProPreview,
+			WireAPIs:     generateContentWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Reasoning: catalog.ReasoningSupport{
@@ -338,6 +379,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini3ProPreview,
 			Model:        catalog.ModelGemini3ProPreview,
+			WireAPIs:     generateContentWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Reasoning: catalog.ReasoningSupport{
@@ -366,6 +408,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini3FlashPreview,
 			Model:        catalog.ModelGemini3FlashPreview,
+			WireAPIs:     generateContentWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Reasoning: catalog.ReasoningSupport{
@@ -387,6 +430,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini25Pro,
 			Model:        catalog.ModelGemini25Pro,
+			WireAPIs:     generateContentWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Reasoning: catalog.ReasoningSupport{
@@ -417,6 +461,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini25Flash,
 			Model:        catalog.ModelGemini25Flash,
+			WireAPIs:     generateContentWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Reasoning: catalog.ReasoningSupport{
@@ -438,6 +483,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini25FlashLite,
 			Model:        catalog.ModelGemini25FlashLite,
+			WireAPIs:     generateContentWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Reasoning: catalog.ReasoningSupport{

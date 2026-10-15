@@ -14,7 +14,10 @@
 
 package tool
 
-import "errors"
+import (
+	"encoding/json"
+	"errors"
+)
 
 // Sentinel errors for tool registry operations.
 // These errors provide structured error handling and enable testing.
@@ -43,3 +46,18 @@ var (
 	// ErrInvalidToolConfig indicates that the tool configuration is invalid.
 	ErrInvalidToolConfig = errors.New("invalid tool configuration")
 )
+
+// ResultError is returned by Tool.Execute when the tool ran but reported a
+// failure in its own result, such as an MCP result with isError set. Result
+// is the payload the model reads, unchanged; callers mark the response as an
+// error instead of replacing the payload with the error message.
+//
+// Error() deliberately omits Result: tracing records error strings
+// unconditionally, while tool output is recorded only when opted in.
+type ResultError struct {
+	Result json.RawMessage
+}
+
+func (*ResultError) Error() string {
+	return "tool returned an error"
+}

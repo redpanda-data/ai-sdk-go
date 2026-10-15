@@ -16,6 +16,7 @@ package vertex_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -42,4 +43,36 @@ func TestProviderCatalog(t *testing.T) {
 	p, err := vertex.NewProvider(context.Background())
 	require.NoError(t, err)
 	assert.Same(t, vertex.Catalog(), p.Catalog())
+}
+
+// TestWithLocation_Shape checks WithLocation takes a well-formed Vertex
+// location and refuses a malformed one.
+func TestWithLocation_Shape(t *testing.T) {
+	t.Parallel()
+
+	for _, location := range []string{"global", "us", "eu", "us-east5", "northamerica-northeast1", "europe-west12", " US-East5 "} {
+		_, err := vertex.NewProvider(context.Background(), vertex.WithLocation(location))
+		require.NoError(t, err, location)
+	}
+
+	for _, location := range []string{"attacker.example#", "evil.com/", "us-central1@evil", "us-", "1abc", "us--east5", "a" + strings.Repeat("b", 63)} {
+		_, err := vertex.NewProvider(context.Background(), vertex.WithLocation(location))
+		assert.Error(t, err, location)
+	}
+}
+
+// TestWithProject_Shape checks WithProject takes a well-formed Google Cloud
+// project ID and refuses anything that could move the request path.
+func TestWithProject_Shape(t *testing.T) {
+	t.Parallel()
+
+	for _, project := range []string{"my-project", "example-123456", "a1b2c3"} {
+		_, err := vertex.NewProvider(context.Background(), vertex.WithProject(project))
+		require.NoError(t, err, project)
+	}
+
+	for _, project := range []string{"../../../other-vertex/v1/projects/victim", "my/project", "my.project", "My-Project", "abc", "my-project-", "1project", "a" + strings.Repeat("b", 30)} {
+		_, err := vertex.NewProvider(context.Background(), vertex.WithProject(project))
+		assert.Error(t, err, project)
+	}
 }

@@ -29,6 +29,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/agent/llmagent/internal/toolloading"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/store/session"
+	"github.com/redpanda-data/ai-sdk-go/tool"
 )
 
 // Compile-time check that LLMAgent implements agent.Agent.
@@ -898,7 +899,11 @@ func (a *LLMAgent) executeTool(
 // toolResponse normalizes an execution outcome into the part the model reads:
 // an error payload for a failed call, a placeholder for a nil response.
 func toolResponse(req *llm.ToolRequestPart, resp *llm.ToolResponsePart, err error) *llm.ToolResponsePart {
+	var resultErr *tool.ResultError
+
 	switch {
+	case errors.As(err, &resultErr):
+		return &llm.ToolResponsePart{ID: req.ID, Name: req.Name, Result: resultErr.Result, IsError: true}
 	case err != nil:
 		payload, mErr := json.Marshal(map[string]string{"error": err.Error()})
 		if mErr != nil {

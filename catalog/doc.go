@@ -13,8 +13,8 @@
 // limitations under the License.
 
 // Package catalog is the model-metadata read model shared by every
-// provider: identity, capabilities, constraints, modalities, pricing,
-// and lifecycle for each offering, plus the publishing vendor
+// provider: identity, capabilities, constraints, modalities, wire APIs,
+// pricing, and lifecycle for each offering, plus the publishing vendor
 // (Facts.Publisher) and the derivations over them (current vs previous
 // generation, replacement, retirement, price tier).
 //
@@ -28,8 +28,8 @@
 //     authored once; every offering references them.
 //   - An offering ID ("us.anthropic.claude-opus-5") names one invokable
 //     row on one provider and carries everything that genuinely varies
-//     per host: capabilities, constraints, modalities, pricing, and
-//     lifecycle.
+//     per host: capabilities, constraints, modalities, wire APIs, pricing,
+//     and lifecycle.
 //
 // # Identity vocabulary
 //
@@ -58,6 +58,15 @@
 // Providers author []Entry values and freeze them with New, which
 // validates and returns an immutable Catalog. All reads deep-copy.
 //
+// # Wire APIs
+//
+// Entry.WireAPIs is a set of supported protocol and transport pairs for
+// that offering, not its publisher or logical model. Transport distinguishes
+// a direct endpoint from Bedrock InvokeModel, runtime, Mantle, or Vertex's
+// envelope. API availability does not imply feature parity, account access,
+// or an SDK implementation. The metadata neither selects a runtime route
+// nor changes the offering ID. Set ordering is deterministic, not a preference.
+//
 // # Derive, never store
 //
 // Anything that is a function of the rest of the catalog is computed at
@@ -73,7 +82,7 @@
 //
 // Resolve reports ok == false for models the catalog does not know.
 // Unknown means "stop enforcing", never "assume a baseline": callers
-// must not guess capabilities, constraints, or pricing for it. In
+// must not guess capabilities, constraints, wire APIs, or pricing for it. In
 // particular, pricing lookups for unknown models must surface as
 // unpriced rather than free.
 package catalog

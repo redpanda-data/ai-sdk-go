@@ -111,6 +111,7 @@ func Encode(w io.Writer, catalogs ...*catalog.Catalog) error {
 				Model:        string(o.Model),
 				DisplayName:  o.DisplayName,
 				Aliases:      o.Aliases,
+				WireAPIs:     wireAPIsDTO(o.WireAPIs),
 				Capabilities: capabilitiesDTO(o.Capabilities),
 				Constraints: constraintsDTO{
 					MaxInputTokens:    o.Constraints.MaxInputTokens,
@@ -192,6 +193,7 @@ type offeringDTO struct {
 	Model        string          `json:"model"`
 	DisplayName  string          `json:"display_name"`
 	Aliases      []string        `json:"aliases,omitempty"`
+	WireAPIs     []wireAPIDTO    `json:"wire_apis,omitempty"`
 	Capabilities map[string]bool `json:"capabilities"`
 	Constraints  constraintsDTO  `json:"constraints"`
 	Modalities   modalitiesDTO   `json:"modalities"`
@@ -203,13 +205,31 @@ type offeringDTO struct {
 	Derived      derivedDTO      `json:"derived"`
 }
 
+type wireAPIDTO struct {
+	Protocol  string `json:"protocol"`
+	Transport string `json:"transport"`
+}
+
+func wireAPIsDTO(apis []catalog.WireAPI) []wireAPIDTO {
+	if len(apis) == 0 {
+		return nil
+	}
+
+	out := make([]wireAPIDTO, len(apis))
+	for i, api := range apis {
+		out[i] = wireAPIDTO{Protocol: string(api.Protocol), Transport: string(api.Transport)}
+	}
+
+	return out
+}
+
 func capabilitiesDTO(c llm.ModelCapabilities) map[string]bool {
 	// A map keeps the snapshot additive when llm.ModelCapabilities
 	// grows; encoding/json sorts the keys.
 	return map[string]bool{
 		"streaming":         c.Streaming,
 		"tools":             c.Tools,
-		"tool_search":       c.ToolSearch,
+		"tool_search":       c.ToolSearchProtocol != "",
 		"json_mode":         c.JSONMode,
 		"structured_output": c.StructuredOutput,
 		"vision":            c.Vision,

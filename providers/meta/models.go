@@ -45,6 +45,10 @@ func entries() []catalog.Entry {
 	return []catalog.Entry{{
 		ID:    ModelMuseSpark13,
 		Model: catalog.ModelMuseSpark13,
+		WireAPIs: []catalog.WireAPI{
+			{Protocol: catalog.WireProtocolOpenAIChatCompletions, Transport: catalog.WireTransportDirect},
+			{Protocol: catalog.WireProtocolOpenAIResponses, Transport: catalog.WireTransportDirect},
+		},
 		// https://dev.meta.ai/docs/models
 		Capabilities: llm.ModelCapabilities{
 			Streaming: true, Tools: true, JSONMode: true, StructuredOutput: true,

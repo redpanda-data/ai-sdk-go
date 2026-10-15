@@ -23,21 +23,16 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/store/session"
 )
 
-// Providers whose hosted search protocol the agent speaks. Compatible
-// endpoints and Bedrock Converse do not, whatever capabilities they claim.
-const (
-	nativeOpenAI    = "openai"
-	nativeAnthropic = "anthropic"
-)
-
-// native reports whether this request uses provider-hosted discovery.
+// native reports whether this request uses provider-hosted discovery. A model
+// with a ModelCapabilities.ToolSearchProtocol the agent does not speak, or
+// none, uses local discovery.
 func (l *Loader) native() bool {
-	if l.forceLocal || !l.model.Capabilities().ToolSearch {
+	if l.forceLocal {
 		return false
 	}
 
-	switch l.model.Provider() {
-	case nativeOpenAI, nativeAnthropic:
+	switch l.model.Capabilities().ToolSearchProtocol {
+	case llm.ToolSearchProtocolOpenAI, llm.ToolSearchProtocolAnthropic:
 		return slices.ContainsFunc(l.tools.List(), func(d llm.ToolDefinition) bool { return d.Deferred })
 	default:
 		return false
@@ -50,7 +45,7 @@ func (l *Loader) prepareNative(defs []llm.ToolDefinition, sess *session.State) (
 	// References carry discovery forward in the native protocol. When compaction
 	// removes them (or the provider changes), restore those tools as eager. This
 	// changes the prefix once, at compaction, rather than on every discovery.
-	referenced := NativeLoadedTools(sess.Messages, l.model.Provider())
+	referenced := NativeLoadedTools(sess.Messages, l.model.Capabilities().ToolSearchProtocol)
 	loaded := LoadedToolSet(sess)
 
 	defs = slices.Clone(defs)
@@ -76,13 +71,13 @@ func (l *Loader) prepareNative(defs []llm.ToolDefinition, sess *session.State) (
 }
 
 // NativeLoadedTools returns the tools that hosted search results still in the
-// history have loaded for the given provider.
-func NativeLoadedTools(messages []llm.Message, provider llm.ProviderID) map[string]bool {
+// history have loaded for the given protocol.
+func NativeLoadedTools(messages []llm.Message, protocol llm.ToolSearchProtocol) map[string]bool {
 	loaded := make(map[string]bool)
 
 	for _, msg := range messages {
 		for _, part := range msg.Content {
-			if search, ok := part.(*llm.ToolSearchPart); ok && search != nil && search.Provider == provider {
+			if search, ok := part.(*llm.ToolSearchPart); ok && search != nil && llm.ToolSearchProtocol(search.Provider) == protocol {
 				for _, name := range search.Tools {
 					loaded[name] = true
 				}
@@ -125,7 +120,7 @@ func (l *Loader) Tokens(defs []llm.ToolDefinition, sess *session.State, native b
 	total += 200
 	loaded := LoadedToolSet(sess)
 
-	if l.model.Provider() == nativeOpenAI {
+	if l.model.Capabilities().ToolSearchProtocol == llm.ToolSearchProtocolOpenAI {
 		groups := make(map[string]bool)
 		for _, def := range defs {
 			if def.Group.Name != "" && !groups[def.Group.Name] {
@@ -151,7 +146,7 @@ func (l *Loader) Record(sess *session.State, message llm.Message) {
 	}
 
 	for _, part := range message.Content {
-		if search, ok := part.(*llm.ToolSearchPart); ok && search != nil && search.Provider == l.model.Provider() {
+		if search, ok := part.(*llm.ToolSearchPart); ok && search != nil && llm.ToolSearchProtocol(search.Provider) == l.model.Capabilities().ToolSearchProtocol {
 			l.Commit(sess, search.Tools)
 		}
 	}

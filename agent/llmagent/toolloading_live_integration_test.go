@@ -189,7 +189,7 @@ func TestToolLoadingLiveProviders_Integration(t *testing.T) {
 			model := build(t)
 
 			modes := []string{"local"}
-			if model.Capabilities().ToolSearch {
+			if model.Capabilities().ToolSearchProtocol != "" {
 				modes = append(modes, "native")
 			}
 
@@ -236,7 +236,7 @@ func testToolLoadingLive(t *testing.T, model llm.Model, native bool) {
 
 	if native {
 		assert.Equal(t, registry.List(), firstCalls[0].Tools)
-		assert.Contains(t, toolloading.NativeLoadedTools(sess.Messages, model.Provider()), incidentTool,
+		assert.Contains(t, toolloading.NativeLoadedTools(sess.Messages, model.Capabilities().ToolSearchProtocol), incidentTool,
 			"native discovery must expose the tool that executed")
 	} else {
 		assert.Contains(t, defNames(firstCalls[0].Tools), toolloading.SearchToolName)
@@ -262,9 +262,9 @@ func testToolLoadingLive(t *testing.T, model llm.Model, native bool) {
 	require.Greater(t, len(calls), turn1)
 
 	if native {
-		assert.Contains(t, toolloading.NativeLoadedTools(calls[turn1].Messages, model.Provider()), incidentTool,
+		assert.Contains(t, toolloading.NativeLoadedTools(calls[turn1].Messages, model.Capabilities().ToolSearchProtocol), incidentTool,
 			"turn 2 replays the persisted discovery result")
-		assert.Contains(t, toolloading.NativeLoadedTools(sess.Messages, model.Provider()), "servicenow__close_incident")
+		assert.Contains(t, toolloading.NativeLoadedTools(sess.Messages, model.Capabilities().ToolSearchProtocol), "servicenow__close_incident")
 
 		for _, call := range calls {
 			assert.True(t, call.ToolSearch)

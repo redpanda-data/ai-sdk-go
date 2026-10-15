@@ -13,8 +13,8 @@
 // limitations under the License.
 
 // Package vertex is the model catalog, pricing, and location-availability
-// data for Google Vertex AI. It has no request transport (an llm.Model that
-// builds Vertex requests).
+// data for Google Vertex AI, and an llm.Model for its Gemini and Claude
+// models (Provider.NewModel).
 package vertex
 
 import (
@@ -32,6 +32,7 @@ const ProviderName = "gcp.vertex"
 // Vertex model IDs are exactly the model segment of a Vertex resource path,
 // publishers/{publisher}/models/{model}.
 const (
+	ModelGemini4Argon        = "gemini-4-argon"
 	ModelGemini38Flash       = "gemini-3.8-flash"
 	ModelGemini37Flash       = "gemini-3.7-flash"
 	ModelGemini36Flash       = "gemini-3.6-flash"
@@ -66,32 +67,44 @@ const (
 	ModelClaudeHaiku45     = "claude-haiku-4-5"
 )
 
-// Reasoning-effort values Vertex accepts. llm.ReasoningEffort is an open
-// string type whose valid vocabulary is provider-owned, so the two
-// publishers do not share one set: Gemini's thinking levels are
-// minimal/low/medium/high, and Claude's are low/medium/high/xhigh/max
-// (Haiku 4.5 omits xhigh). These mirror the Gemini-API and Anthropic-direct
-// catalogs and are the source of truth for Vertex.
+// ReasoningEffort controls how much work a model spends on reasoning before
+// it answers. The constants below declare the values Vertex models accept
+// and are the source of truth for Vertex. Gemini's thinking levels are
+// minimal/low/medium/high, and Claude's are low/medium/high/xhigh/max. A
+// model may take only some of them, or none. Catalog().Resolve(id) reports
+// a model's efforts in Reasoning.Efforts. NewModel validates the subset a
+// specific model supports against the model catalog.
+type ReasoningEffort = llm.ReasoningEffort
+
 const (
-	reasoningEffortMinimal llm.ReasoningEffort = "minimal"
-	reasoningEffortLow     llm.ReasoningEffort = "low"
-	reasoningEffortMedium  llm.ReasoningEffort = "medium"
-	reasoningEffortHigh    llm.ReasoningEffort = "high"
-	reasoningEffortXHigh   llm.ReasoningEffort = "xhigh"
-	reasoningEffortMax     llm.ReasoningEffort = "max"
+	// ReasoningEffortMinimal spends the least effort while keeping thinking
+	// enabled. Gemini only.
+	ReasoningEffortMinimal ReasoningEffort = "minimal"
+	// ReasoningEffortLow biases the model toward fast, shallow reasoning.
+	// Gemini and Claude.
+	ReasoningEffortLow ReasoningEffort = "low"
+	// ReasoningEffortMedium is the balanced middle setting. Gemini and Claude.
+	ReasoningEffortMedium ReasoningEffort = "medium"
+	// ReasoningEffortHigh biases the model toward deep reasoning. Gemini and
+	// Claude.
+	ReasoningEffortHigh ReasoningEffort = "high"
+	// ReasoningEffortXHigh spends very high effort. Claude only.
+	ReasoningEffortXHigh ReasoningEffort = "xhigh"
+	// ReasoningEffortMax removes all effort ceilings. Claude only.
+	ReasoningEffortMax ReasoningEffort = "max"
 )
 
 // geminiReasoningEfforts is the thinking-level vocabulary shared by
 // catalogued Gemini models on Vertex, matching the Gemini-API provider's
 // set (providers/google/models.go).
 var geminiReasoningEfforts = []llm.ReasoningEffort{
-	reasoningEffortMinimal, reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh,
+	ReasoningEffortMinimal, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh,
 }
 
-// geminiNoMinimalReasoningEfforts drops minimal: the Gemini 3.7 and 3.8 Flash
-// model pages say an explicit MINIMAL "will return an API validation error".
+// geminiNoMinimalReasoningEfforts drops minimal: the Gemini 3.7 Flash, 3.8
+// Flash, and 4 Argon model pages say an explicit MINIMAL returns an error.
 var geminiNoMinimalReasoningEfforts = []llm.ReasoningEffort{
-	reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh,
+	ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh,
 }
 
 // geminiCaps is the capability set shared by every catalogued Gemini
@@ -147,13 +160,13 @@ var claudeCaps = llm.ModelCapabilities{
 // capability-mirror-unprobed).
 var claudeCapsWithToolSearch = func() llm.ModelCapabilities {
 	caps := claudeCaps
-	caps.ToolSearch = true
+	caps.ToolSearchProtocol = llm.ToolSearchProtocolAnthropic
 
 	return caps
 }()
 
 var claudeAllEfforts = []llm.ReasoningEffort{
-	reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortXHigh, reasoningEffortMax,
+	ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax,
 }
 
 var claudeModalities = catalog.Modalities{
@@ -171,6 +184,15 @@ var catalogOnce = sync.OnceValue(func() *catalog.Catalog {
 func Catalog() *catalog.Catalog {
 	return catalogOnce()
 }
+
+var (
+	geminiWireAPIs = []catalog.WireAPI{
+		{Protocol: catalog.WireProtocolGeminiGenerateContent, Transport: catalog.WireTransportVertex},
+	}
+	claudeWireAPIs = []catalog.WireAPI{
+		{Protocol: catalog.WireProtocolAnthropicMessages, Transport: catalog.WireTransportVertex},
+	}
+)
 
 // entries returns the authored Vertex catalog. Rates are
 // USD-per-million-tokens from Google's pricing page, Claude rates included
@@ -193,8 +215,33 @@ func Catalog() *catalog.Catalog {
 func entries() []catalog.Entry {
 	return []catalog.Entry{
 		{
+			ID:           ModelGemini4Argon,
+			Model:        catalog.ModelGemini4Argon,
+			WireAPIs:     geminiWireAPIs,
+			Capabilities: geminiCaps,
+			Modalities:   geminiModalities,
+			// The 1M window is shared by input and output. 65536 is the
+			// synchronous output cap; long decode (v1beta1 only) extends it
+			// to the full window. Custom temperature, top_p, and top_k are
+			// ignored; penalties return HTTP 400.
+			Constraints: llm.ModelConstraints{
+				TemperatureRange: [2]float64{0.0, 2.0},
+				MaxInputTokens:   1048576, // 1M input tokens
+				MaxOutputTokens:  65536,   // 64K output tokens
+				SupportedParams:  geminiNoPenaltyParams,
+			},
+			// LOW, MEDIUM (default), HIGH; thinking_budget returns HTTP 400.
+			Reasoning: catalog.ReasoningSupport{Efforts: geminiNoMinimalReasoningEfforts},
+			// Gemini 4 Argon GA, release date 2026-10-13, on the model page
+			// (docs.cloud.google.com/gemini-enterprise-agent-platform/models/
+			// gemini/4-argon, read 2026-10-14). No retirement published.
+			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-10-13")},
+			Pricing: gemini4ArgonPricing(),
+		},
+		{
 			ID:           ModelGemini38Flash,
 			Model:        catalog.ModelGemini38Flash,
+			WireAPIs:     geminiWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Constraints: llm.ModelConstraints{
@@ -214,6 +261,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini37Flash,
 			Model:        catalog.ModelGemini37Flash,
+			WireAPIs:     geminiWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Constraints: llm.ModelConstraints{
@@ -235,6 +283,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini36Flash,
 			Model:        catalog.ModelGemini36Flash,
+			WireAPIs:     geminiWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Constraints: llm.ModelConstraints{
@@ -257,6 +306,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini35Flash,
 			Model:        catalog.ModelGemini35Flash,
+			WireAPIs:     geminiWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Constraints: llm.ModelConstraints{
@@ -275,6 +325,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini35FlashLite,
 			Model:        catalog.ModelGemini35FlashLite,
+			WireAPIs:     geminiWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Constraints: llm.ModelConstraints{
@@ -293,6 +344,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini31FlashLite,
 			Model:        catalog.ModelGemini31FlashLite,
+			WireAPIs:     geminiWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Constraints: llm.ModelConstraints{
@@ -311,6 +363,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini31ProPreview,
 			Model:        catalog.ModelGemini31ProPreview,
+			WireAPIs:     geminiWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Constraints: llm.ModelConstraints{
@@ -321,7 +374,7 @@ func entries() []catalog.Entry {
 			},
 			// Thinking cannot be turned off; high is the default.
 			Reasoning: catalog.ReasoningSupport{Efforts: []llm.ReasoningEffort{
-				reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh,
+				ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh,
 			}},
 			// Gemini 3.1 Pro public preview on the model page (docs.cloud.google.com/
 			// gemini-enterprise-agent-platform/models/gemini/3-1-pro, read
@@ -343,6 +396,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini3FlashPreview,
 			Model:        catalog.ModelGemini3FlashPreview,
+			WireAPIs:     geminiWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Constraints: llm.ModelConstraints{
@@ -369,6 +423,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini25Pro,
 			Model:        catalog.ModelGemini25Pro,
+			WireAPIs:     geminiWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Constraints: llm.ModelConstraints{
@@ -404,6 +459,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini25Flash,
 			Model:        catalog.ModelGemini25Flash,
+			WireAPIs:     geminiWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Constraints: llm.ModelConstraints{
@@ -431,6 +487,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelGemini25FlashLite,
 			Model:        catalog.ModelGemini25FlashLite,
+			WireAPIs:     geminiWireAPIs,
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			Constraints: llm.ModelConstraints{
@@ -458,6 +515,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeFable51,
 			Model:        catalog.ModelClaudeFable51,
+			WireAPIs:     claudeWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -483,6 +541,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeFable5,
 			Model:        catalog.ModelClaudeFable5,
+			WireAPIs:     claudeWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -508,6 +567,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeOpus55,
 			Model:        catalog.ModelClaudeOpus55,
+			WireAPIs:     claudeWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -519,7 +579,7 @@ func entries() []catalog.Entry {
 				SupportedParams: []string{"max_tokens", "reasoning_effort"},
 			},
 			Reasoning: catalog.ReasoningSupport{
-				Efforts:  []llm.ReasoningEffort{reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortXHigh, reasoningEffortMax},
+				Efforts:  []llm.ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 				Adaptive: true,
 			},
 			// Claude Opus 5.5 GA, retirement floor "not sooner than 2027-09-22" on
@@ -531,6 +591,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeOpus5,
 			Model:        catalog.ModelClaudeOpus5,
+			WireAPIs:     claudeWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -552,6 +613,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeOpus48,
 			Model:        catalog.ModelClaudeOpus48,
+			WireAPIs:     claudeWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -569,6 +631,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeOpus47,
 			Model:        catalog.ModelClaudeOpus47,
+			WireAPIs:     claudeWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -586,6 +649,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeOpus46,
 			Model:        catalog.ModelClaudeOpus46,
+			WireAPIs:     claudeWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -595,7 +659,7 @@ func entries() []catalog.Entry {
 				SupportedParams:  []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort", "thinking_budget"},
 			},
 			Reasoning: catalog.ReasoningSupport{
-				Efforts:  []llm.ReasoningEffort{reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortMax},
+				Efforts:  []llm.ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortMax},
 				Adaptive: true,
 				Budget:   true,
 			},
@@ -606,8 +670,9 @@ func entries() []catalog.Entry {
 			Pricing: claudeOpusPricing("us-east5", "europe-west1", "asia-southeast1"),
 		},
 		{
-			ID:    ModelClaudeOpus45,
-			Model: catalog.ModelClaudeOpus45,
+			ID:       ModelClaudeOpus45,
+			Model:    catalog.ModelClaudeOpus45,
+			WireAPIs: claudeWireAPIs,
 			// Vertex serves the bare ID as the same model version (rawPredict
 			// at global and us-east5, 2026-09-28).
 			Aliases:      []string{"claude-opus-4-5"},
@@ -622,7 +687,7 @@ func entries() []catalog.Entry {
 			// thinking.type adaptive returns 400; effort is set alongside
 			// budget_tokens.
 			Reasoning: catalog.ReasoningSupport{
-				Efforts: []llm.ReasoningEffort{reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh},
+				Efforts: []llm.ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
 				Budget:  true,
 			},
 			// Claude Opus 4.5 GA on the model page (docs.cloud.google.com/
@@ -635,6 +700,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeSonnet55,
 			Model:        catalog.ModelClaudeSonnet55,
+			WireAPIs:     claudeWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -644,7 +710,7 @@ func entries() []catalog.Entry {
 				SupportedParams: []string{"max_tokens", "reasoning_effort"},
 			},
 			Reasoning: catalog.ReasoningSupport{
-				Efforts:  []llm.ReasoningEffort{reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortXHigh, reasoningEffortMax},
+				Efforts:  []llm.ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 				Adaptive: true,
 			},
 			// GA 2026-09-28; retirement floor 2027-09-28 is not an exact date.
@@ -654,6 +720,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeSonnet5,
 			Model:        catalog.ModelClaudeSonnet5,
+			WireAPIs:     claudeWireAPIs,
 			Capabilities: claudeCaps,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -664,7 +731,7 @@ func entries() []catalog.Entry {
 				SupportedParams: []string{"max_tokens", "reasoning_effort"},
 			},
 			Reasoning: catalog.ReasoningSupport{
-				Efforts:  []llm.ReasoningEffort{reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortXHigh, reasoningEffortMax},
+				Efforts:  []llm.ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 				Adaptive: true,
 			},
 			// Claude Sonnet 5 GA, retirement floor "not sooner than 2026-12-24" on
@@ -676,6 +743,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeSonnet46,
 			Model:        catalog.ModelClaudeSonnet46,
+			WireAPIs:     claudeWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -685,7 +753,7 @@ func entries() []catalog.Entry {
 				SupportedParams:  []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort", "thinking_budget"},
 			},
 			Reasoning: catalog.ReasoningSupport{
-				Efforts:  []llm.ReasoningEffort{reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortMax},
+				Efforts:  []llm.ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortMax},
 				Adaptive: true,
 				Budget:   true,
 			},
@@ -700,8 +768,9 @@ func entries() []catalog.Entry {
 			),
 		},
 		{
-			ID:    ModelClaudeSonnet45,
-			Model: catalog.ModelClaudeSonnet45,
+			ID:       ModelClaudeSonnet45,
+			Model:    catalog.ModelClaudeSonnet45,
+			WireAPIs: claudeWireAPIs,
 			// Vertex serves the bare ID as the same model version (rawPredict
 			// at global and us-east5, 2026-09-28).
 			Aliases:      []string{"claude-sonnet-4-5"},
@@ -726,6 +795,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeHaiku55,
 			Model:        catalog.ModelClaudeHaiku55,
+			WireAPIs:     claudeWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -735,7 +805,7 @@ func entries() []catalog.Entry {
 				SupportedParams: []string{"max_tokens", "reasoning_effort"},
 			},
 			Reasoning: catalog.ReasoningSupport{
-				Efforts:  []llm.ReasoningEffort{reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortXHigh, reasoningEffortMax},
+				Efforts:  []llm.ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 				Adaptive: true,
 			},
 			// Claude Haiku 5.5 GA, released 2026-10-07; retirement floor "not
@@ -748,6 +818,7 @@ func entries() []catalog.Entry {
 		{
 			ID:           ModelClaudeHaiku45,
 			Model:        catalog.ModelClaudeHaiku45,
+			WireAPIs:     claudeWireAPIs,
 			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
@@ -825,6 +896,27 @@ func claudeSonnet55Pricing() pricing.Info {
 }
 
 // geminiFlashPricing returns the Gemini 3.6, 3.7 and 3.8 Flash rate card.
+// gemini4ArgonPricing returns the Gemini 4 Argon rate card: the global
+// rate as default and the non-global rate as a us and eu override.
+func gemini4ArgonPricing() pricing.Info {
+	// Promotional net rate through 2026-11-30 (pricing page footnote, read
+	// 2026-10-14): 50% credits back on net spend. The $4/$20/$0.20 global
+	// and $4.40/$22/$0.22 non-global rate applies from 2026-12-01.
+	global := pricing.NewRates(2.00, 10.00, 0.10)
+	nonGlobal := pricing.NewRates(2.20, 11.00, 0.11)
+
+	info := pricing.FlatInfoFromRates(global)
+	// An empty-Region selector is a wildcard that also matches global.
+	for _, region := range []string{"us", "eu"} {
+		info = info.WithOverride(
+			pricing.Selector{Region: region},
+			pricing.RateCard{Base: nonGlobal},
+		)
+	}
+
+	return info
+}
+
 func geminiFlashPricing() pricing.Info {
 	// Promotional net rate through 2026-12-31 (pricing page footnote, read
 	// 2026-09-28): the billing SKUs stay at the standard $1.50/$7.50/$0.15

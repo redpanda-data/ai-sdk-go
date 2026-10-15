@@ -151,15 +151,15 @@ func TestGPT56Models(t *testing.T) {
 	require.NoError(t, err)
 
 	wantCapabilities := llm.ModelCapabilities{
-		ToolSearch:       true,
-		Streaming:        true,
-		Tools:            true,
-		JSONMode:         true,
-		StructuredOutput: true,
-		Vision:           true,
-		MultiTurn:        true,
-		SystemPrompts:    true,
-		Reasoning:        true,
+		ToolSearchProtocol: ProviderName,
+		Streaming:          true,
+		Tools:              true,
+		JSONMode:           true,
+		StructuredOutput:   true,
+		Vision:             true,
+		MultiTurn:          true,
+		SystemPrompts:      true,
+		Reasoning:          true,
 	}
 	wantEfforts := []ReasoningEffort{
 		ReasoningEffortNone,

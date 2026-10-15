@@ -65,8 +65,12 @@ func snapshotFixture(t *testing.T) *catalog.Catalog {
 
 	robin2 := validEntry("robin-2", "acme/robin-2")
 	robin2.Aliases = []string{"robin-latest"}
+	robin2.WireAPIs = []catalog.WireAPI{
+		{Protocol: catalog.WireProtocolOpenAIResponses, Transport: catalog.WireTransportDirect},
+		{Protocol: catalog.WireProtocolOpenAIChatCompletions, Transport: catalog.WireTransportDirect},
+	}
 	robin2.Capabilities.Reasoning = true
-	robin2.Capabilities.ToolSearch = true
+	robin2.Capabilities.ToolSearchProtocol = "acme"
 	robin2.Reasoning = catalog.ReasoningSupport{
 		Efforts:  []llm.ReasoningEffort{"low", "high"},
 		Adaptive: true,
@@ -79,6 +83,7 @@ func snapshotFixture(t *testing.T) *catalog.Catalog {
 	robin2.Attributes = map[string]string{"zone": "a", "alpha": "1"}
 
 	robin3 := validEntry("robin-3", "acme/robin-3")
+	robin3.WireAPIs = []catalog.WireAPI{}
 	robin3.Life.Stage = catalog.StagePreview
 
 	robin1 := validEntry("robin-1", "acme/robin-1")
@@ -164,6 +169,15 @@ func TestEncodeShape(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "robin-2", second["id"])
 	assert.Equal(t, "Robin 2", second["display_name"])
+	assert.Equal(t, []any{
+		map[string]any{"protocol": "openai_chat_completions", "transport": "direct"},
+		map[string]any{"protocol": "openai_responses", "transport": "direct"},
+	}, second["wire_apis"])
+	assert.NotContains(t, first, "wire_apis", "nil bindings are omitted, not defaulted")
+
+	third, ok := offerings[2].(map[string]any)
+	require.True(t, ok)
+	assert.NotContains(t, third, "wire_apis", "empty bindings are omitted, not defaulted")
 
 	firstCaps, ok := first["capabilities"].(map[string]any)
 	require.True(t, ok)
@@ -171,6 +185,12 @@ func TestEncodeShape(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, false, firstCaps["tool_search"])
 	assert.Equal(t, true, secondCaps["tool_search"])
+
+	for _, caps := range []map[string]any{firstCaps, secondCaps} {
+		for name, value := range caps {
+			assert.IsType(t, false, value, "capabilities.%s must remain boolean", name)
+		}
+	}
 
 	secondDerived, ok := second["derived"].(map[string]any)
 	require.True(t, ok)
@@ -217,4 +237,50 @@ func TestEncodeRejectsConflictingFacts(t *testing.T) {
 	err = Encode(&buf, a, b)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "conflicting facts")
+}
+
+func TestEncodeWireAPIsPerOffering(t *testing.T) {
+	t.Parallel()
+
+	newCatalog := func(provider llm.ProviderID, apis []catalog.WireAPI) *catalog.Catalog {
+		t.Helper()
+
+		e := validEntry("robin-2", "acme/robin-2")
+		e.WireAPIs = apis
+		c, err := catalog.New(provider, []catalog.Entry{e}, catalog.WithRegistry(testRegistry()))
+		require.NoError(t, err)
+
+		return c
+	}
+	apis := []catalog.WireAPI{
+		{Protocol: catalog.WireProtocolAnthropicMessages, Transport: catalog.WireTransportBedrockRuntime},
+		{Protocol: catalog.WireProtocolAnthropicMessages, Transport: catalog.WireTransportBedrockInvokeModel},
+	}
+	direct := newCatalog("acme", []catalog.WireAPI{
+		{Protocol: catalog.WireProtocolAnthropicMessages, Transport: catalog.WireTransportDirect},
+	})
+	hosted := newCatalog("emca", apis)
+	reordered := newCatalog("emca", []catalog.WireAPI{apis[1], apis[0]})
+
+	var a, b bytes.Buffer
+	require.NoError(t, Encode(&a, direct, hosted))
+	require.NoError(t, Encode(&b, reordered, direct))
+	assert.Equal(t, a.String(), b.String(), "provider and binding author order must not change the snapshot")
+
+	var snap snapshotDTO
+	require.NoError(t, json.Unmarshal(a.Bytes(), &snap))
+	require.Len(t, snap.Facts, 1, "different host bindings must share the same model facts")
+	require.Len(t, snap.Providers, 2)
+	require.Len(t, snap.Providers[0].Offerings, 1)
+	require.Len(t, snap.Providers[1].Offerings, 1)
+	assert.Equal(t, "acme", snap.Providers[0].Provider)
+	assert.Equal(t, "emca", snap.Providers[1].Provider)
+	directOffering := snap.Providers[0].Offerings[0]
+	hostedOffering := snap.Providers[1].Offerings[0]
+	assert.Equal(t, directOffering.Model, hostedOffering.Model)
+	assert.Equal(t, []wireAPIDTO{{Protocol: "anthropic_messages", Transport: "direct"}}, directOffering.WireAPIs)
+	assert.Equal(t, []wireAPIDTO{
+		{Protocol: "anthropic_messages", Transport: "bedrock_invoke_model"},
+		{Protocol: "anthropic_messages", Transport: "bedrock_runtime"},
+	}, hostedOffering.WireAPIs)
 }

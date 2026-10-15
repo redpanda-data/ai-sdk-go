@@ -44,7 +44,7 @@ func TestCatalogModelSet(t *testing.T) {
 	}
 
 	assert.ElementsMatch(t, []string{
-		"gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash",
+		"gemini-4-argon", "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash",
 		"gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite",
 		"gemini-3.1-pro-preview", "gemini-3-flash-preview",
 		"gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite",
@@ -71,6 +71,7 @@ func TestOfferingAttributes(t *testing.T) {
 	t.Parallel()
 
 	wantPublisher := map[string]catalog.Publisher{
+		vertex.ModelGemini4Argon:        "google",
 		vertex.ModelGemini38Flash:       "google",
 		vertex.ModelGemini37Flash:       "google",
 		vertex.ModelGemini36Flash:       "google",
@@ -122,6 +123,9 @@ func TestGeminiRegionalOverride(t *testing.T) {
 		pricing.NewRates(0.75, 3.75, 0.075), pricing.NewRates(0.825, 4.125, 0.0825),
 	}
 	cases := map[string]struct{ global, regional pricing.Rates }{
+		vertex.ModelGemini4Argon: {
+			pricing.NewRates(2.00, 10.00, 0.10), pricing.NewRates(2.20, 11.00, 0.11),
+		},
 		vertex.ModelGemini38Flash: flash,
 		vertex.ModelGemini37Flash: flash,
 		vertex.ModelGemini36Flash: flash,
@@ -465,12 +469,13 @@ func TestManualThinkingBudget(t *testing.T) {
 	}
 }
 
-// TestGeminiPenaltyParams covers Gemini 3.6 Flash and later, and 3.5
+// TestGeminiPenaltyParams covers Gemini 3.6 Flash and later, 4 Argon, and 3.5
 // Flash-Lite, which return an error on a custom penalty value.
 func TestGeminiPenaltyParams(t *testing.T) {
 	t.Parallel()
 
 	noPenalty := map[string]bool{
+		vertex.ModelGemini4Argon:      true,
 		vertex.ModelGemini38Flash:     true,
 		vertex.ModelGemini37Flash:     true,
 		vertex.ModelGemini36Flash:     true,
@@ -535,6 +540,6 @@ func TestClaudeToolSearchMirrorsAnthropic(t *testing.T) {
 		bare, _, _ := strings.Cut(o.ID, "@")
 		direct, ok := anthropic.Catalog().Lookup(bare)
 		require.Truef(t, ok, "%s has no Anthropic-direct entry", o.ID)
-		assert.Equalf(t, direct.Capabilities.ToolSearch, o.Capabilities.ToolSearch, "%s ToolSearch", o.ID)
+		assert.Equalf(t, direct.Capabilities.ToolSearchProtocol, o.Capabilities.ToolSearchProtocol, "%s ToolSearchProtocol", o.ID)
 	}
 }

@@ -53,7 +53,7 @@ func TestAstraSurfaceCatalog(t *testing.T) {
 			assert.Equal(t, []catalog.Modality{catalog.ModalityText, catalog.ModalityImage}, offering.Modalities.Input)
 			assert.Equal(t, []catalog.Modality{catalog.ModalityText}, offering.Modalities.Output)
 			assert.True(t, offering.Capabilities.Tools)
-			assert.True(t, offering.Capabilities.ToolSearch)
+			assert.Equal(t, llm.ToolSearchProtocolOpenAI, offering.Capabilities.ToolSearchProtocol)
 			assert.True(t, offering.Capabilities.StructuredOutput)
 			assert.True(t, offering.Capabilities.Streaming)
 
