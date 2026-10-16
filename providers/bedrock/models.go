@@ -23,6 +23,15 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/pricing"
 )
 
+// Regions with distinct on-demand rate cards.
+const (
+	regionFrankfurt = "eu-central-1"
+	regionMumbai    = "ap-south-1"
+	regionTokyo     = "ap-northeast-1"
+	regionSaoPaulo  = "sa-east-1"
+	regionSydney    = "ap-southeast-2"
+)
+
 // Model ID constants for Claude models on Bedrock.
 //
 // Each logical Claude model is exposed as multiple Bedrock model IDs, one per
@@ -1139,6 +1148,16 @@ var bedrockFamilies = []family{
 		Modalities:    mistralLarge3Modalities,
 		Constraints:   mistralLarge3Constraints,
 		Rates:         pricing.RateCard{Base: pricing.NewRates(0.50, 1.50, 0)},
+		// Published regional Standard rates, checked 2026-10-15.
+		// Other tiers use these Standard estimates with Cost.Fallbacks;
+		// unmatched regions (including US) use the base card with a fallback.
+		// https://aws.amazon.com/bedrock/pricing/
+		Overrides: []pricing.Override{
+			{Match: pricing.Selector{Region: regionMumbai}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.59, 1.76, 0)}},
+			{Match: pricing.Selector{Region: regionTokyo}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.61, 1.82, 0)}},
+			{Match: pricing.Selector{Region: regionSaoPaulo}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.61, 1.82, 0)}},
+			{Match: pricing.Selector{Region: regionSydney}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.515, 1.545, 0)}},
+		},
 	},
 	{
 		// OpenAI GPT-6 Astra — inference-profile-only on bedrock-runtime:
@@ -1424,9 +1443,7 @@ var bedrockFamilies = []family{
 		// Google Gemma 4 family — mantle-only, bare IDs via the
 		// bedrock-mantle Responses endpoint (model cards list Geo/Global =
 		// Not supported). On-demand STANDARD-tier US rates from the AWS
-		// pricing page (Google section, 2026-06); the ~15-20% higher
-		// eu-central-1 rate is not separately modeled (revisit with a
-		// pricing region Override if EU-accurate billing is required). The
+		// pricing page (Google section); Frankfurt has a regional override. The
 		// mantle endpoint bills only input/output for Gemma — no cache
 		// usagetype is published — so cache rates stay zero.
 		BareID:        ModelGemma431B,
@@ -1439,6 +1456,13 @@ var bedrockFamilies = []family{
 		Modalities:    gemma4Modalities,
 		Constraints:   gemma4Context256kConstraints,
 		Rates:         pricing.RateCard{Base: pricing.NewRates(0.14, 0.40, 0)},
+		// Published regional Standard rates, checked 2026-10-15.
+		// Other tiers use these Standard estimates with Cost.Fallbacks;
+		// unmatched regions (including US) use the base card with a fallback.
+		// https://aws.amazon.com/bedrock/pricing/
+		Overrides: []pricing.Override{
+			{Match: pricing.Selector{Region: regionFrankfurt}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.17, 0.48, 0)}},
+		},
 	},
 	{
 		BareID:        ModelGemma426BA4B,
@@ -1451,6 +1475,13 @@ var bedrockFamilies = []family{
 		Modalities:    gemma4Modalities,
 		Constraints:   gemma4Context256kConstraints,
 		Rates:         pricing.RateCard{Base: pricing.NewRates(0.13, 0.40, 0)},
+		// Published regional Standard rates, checked 2026-10-15.
+		// Other tiers use these Standard estimates with Cost.Fallbacks;
+		// unmatched regions (including US) use the base card with a fallback.
+		// https://aws.amazon.com/bedrock/pricing/
+		Overrides: []pricing.Override{
+			{Match: pricing.Selector{Region: regionFrankfurt}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.16, 0.48, 0)}},
+		},
 	},
 	{
 		BareID:        ModelGemma4E2B,
@@ -1463,5 +1494,12 @@ var bedrockFamilies = []family{
 		Modalities:    gemma4Modalities,
 		Constraints:   gemma4Context128kConstraints,
 		Rates:         pricing.RateCard{Base: pricing.NewRates(0.04, 0.08, 0)},
+		// Published regional Standard rates, checked 2026-10-15.
+		// Other tiers use these Standard estimates with Cost.Fallbacks;
+		// unmatched regions (including US) use the base card with a fallback.
+		// https://aws.amazon.com/bedrock/pricing/
+		Overrides: []pricing.Override{
+			{Match: pricing.Selector{Region: regionFrankfurt}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.05, 0.1, 0)}},
+		},
 	},
 }
