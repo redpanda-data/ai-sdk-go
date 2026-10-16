@@ -529,7 +529,11 @@ func TestBareClaudeIDAliases(t *testing.T) {
 	}
 }
 
-func TestClaudeToolSearchMirrorsAnthropic(t *testing.T) {
+// TestVertexToolSearchNeedsAnthropic fails a Claude model whose tool search is
+// on in Vertex but not in providers/anthropic. Vertex follows Anthropic's
+// tool-search list only to turn it off; a person turns it on after a call on
+// Vertex (RULES.md, vertex-tool-search-one-way).
+func TestVertexToolSearchNeedsAnthropic(t *testing.T) {
 	t.Parallel()
 
 	for _, o := range vertex.Catalog().All() {
@@ -540,6 +544,10 @@ func TestClaudeToolSearchMirrorsAnthropic(t *testing.T) {
 		bare, _, _ := strings.Cut(o.ID, "@")
 		direct, ok := anthropic.Catalog().Lookup(bare)
 		require.Truef(t, ok, "%s has no Anthropic-direct entry", o.ID)
-		assert.Equalf(t, direct.Capabilities.ToolSearchProtocol, o.Capabilities.ToolSearchProtocol, "%s ToolSearchProtocol", o.ID)
+
+		if o.Capabilities.ToolSearchProtocol != "" {
+			assert.Equalf(t, o.Capabilities.ToolSearchProtocol, direct.Capabilities.ToolSearchProtocol,
+				"%s: tool search is on in Vertex but not in providers/anthropic", o.ID)
+		}
 	}
 }

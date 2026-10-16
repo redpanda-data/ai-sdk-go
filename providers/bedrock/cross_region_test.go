@@ -19,6 +19,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/redpanda-data/ai-sdk-go/internal/reconcile"
 )
 
 func TestIsModelAllowedFromRegion(t *testing.T) {
@@ -241,6 +243,17 @@ func TestProfileRegionResolverLookup(t *testing.T) {
 
 	_, ok := profileRegionResolverFor(ModelClaudeSonnet5)
 	assert.False(t, ok)
+}
+
+// TestRoutesCoverEveryRegion keeps cmd/catalog-routes' region list a superset
+// of every source region the routing tables name, so a routing change for a
+// region can't hide from the reconcile PR body.
+func TestRoutesCoverEveryRegion(t *testing.T) {
+	t.Parallel()
+
+	for family, table := range profileRegionResolverRegions {
+		assert.Subset(t, reconcile.AWSRegions, table, "%s routes from a region the list lacks", family)
+	}
 }
 
 func TestProfileRegionResolversReturnCatalogedProfiles(t *testing.T) {

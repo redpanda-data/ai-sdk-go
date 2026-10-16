@@ -15,6 +15,7 @@
 package main
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -159,4 +160,131 @@ func TestReplacementsAreNotThemselvesRetired(t *testing.T) {
 				cat.Provider(), o.ID, target.ID, target.Life.Retires.Format(time.DateOnly))
 		}
 	}
+}
+
+// TestBedrockReplacementFollowsPublisher holds every Bedrock ReplacedBy to the
+// model the publisher's own catalogue names, on the global copy when there is
+// one (RULES.md replacement-publisher-pick). No Bedrock copy names a
+// replacement yet, so this binds the first patch that sets one.
+func TestBedrockReplacementFollowsPublisher(t *testing.T) {
+	t.Parallel()
+
+	assert.Empty(t, checkReplacements(bedrockCopies(), publisherPicks()))
+}
+
+func TestCheckReplacements(t *testing.T) {
+	t.Parallel()
+
+	const (
+		old  = "anthropic/claude-sonnet-4-5"
+		pick = "anthropic/claude-sonnet-5-5"
+	)
+
+	picks := map[string]string{old: pick}
+	retiring := func(geo, replacedBy string) regionalCopy {
+		return regionalCopy{id: geo + ".anthropic.claude-sonnet-4-5", model: old, geo: geo, replacedBy: replacedBy}
+	}
+	sonnet55 := []regionalCopy{
+		{id: "global.anthropic.claude-sonnet-5-5", model: pick, geo: "global"},
+		{id: "us.anthropic.claude-sonnet-5-5", model: pick, geo: "us"},
+	}
+	opus5 := regionalCopy{id: "global.anthropic.claude-opus-5", model: "anthropic/claude-opus-5", geo: "global"}
+
+	tests := []struct {
+		name        string
+		copies      []regionalCopy
+		picks       map[string]string
+		wantProblem string
+	}{
+		{"global copy of the publisher's pick", append(sonnet55, retiring("jp", "global.anthropic.claude-sonnet-5-5")), picks, ""},
+		{
+			"another model", append(sonnet55, opus5, retiring("jp", "global.anthropic.claude-opus-5")), picks,
+			"jp.anthropic.claude-sonnet-4-5: ReplacedBy global.anthropic.claude-opus-5 is anthropic/claude-opus-5, but its publisher names anthropic/claude-sonnet-5-5",
+		},
+		{
+			"regional copy when a global one exists", append(sonnet55, retiring("us", "us.anthropic.claude-sonnet-5-5")), picks,
+			"us.anthropic.claude-sonnet-4-5: ReplacedBy us.anthropic.claude-sonnet-5-5, not the global copy global.anthropic.claude-sonnet-5-5",
+		},
+		{"publisher names none", append(sonnet55, opus5, retiring("jp", "global.anthropic.claude-opus-5")), nil, ""},
+		{"regional-only target", append(sonnet55[1:], retiring("us", "us.anthropic.claude-sonnet-5-5")), picks, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			problems := checkReplacements(tt.copies, tt.picks)
+			if tt.wantProblem == "" {
+				assert.Empty(t, problems)
+				return
+			}
+
+			assert.Contains(t, problems, tt.wantProblem)
+		})
+	}
+}
+
+// regionalCopy is the part of a Bedrock offering the replacement check reads.
+type regionalCopy struct{ id, model, geo, replacedBy string }
+
+func bedrockCopies() []regionalCopy {
+	offerings := bedrock.Catalog().All()
+	copies := make([]regionalCopy, 0, len(offerings))
+
+	for _, o := range offerings {
+		copies = append(copies, regionalCopy{
+			id: o.ID, model: string(o.Model), geo: o.Attributes[bedrock.ModelMetadataInferenceGeo], replacedBy: o.Life.ReplacedBy,
+		})
+	}
+
+	return copies
+}
+
+// publisherPicks maps each model to the model its publisher's own catalogue
+// names as its replacement. Resellers (bedrock, vertex) aren't publishers.
+func publisherPicks() map[string]string {
+	picks := map[string]string{}
+
+	for _, cat := range []*catalog.Catalog{anthropic.Catalog(), google.Catalog(), meta.Catalog(), openai.Catalog()} {
+		for _, o := range cat.All() {
+			if target, ok := cat.Lookup(o.Life.ReplacedBy); ok {
+				picks[string(o.Model)] = string(target.Model)
+			}
+		}
+	}
+
+	return picks
+}
+
+// checkReplacements lists each copy whose ReplacedBy names another model than
+// its publisher's pick, or a regional copy when the pick has a global one.
+func checkReplacements(copies []regionalCopy, picks map[string]string) []string {
+	byID, global := map[string]regionalCopy{}, map[string]string{}
+
+	for _, c := range copies {
+		byID[c.id] = c
+		if c.geo == "global" {
+			global[c.model] = c.id
+		}
+	}
+
+	var problems []string
+
+	for _, c := range copies {
+		pick, named := picks[c.model]
+		target, found := byID[c.replacedBy]
+
+		// catalog.New already rejects a ReplacedBy that doesn't resolve.
+		if !named || !found {
+			continue
+		}
+
+		switch {
+		case target.model != pick:
+			problems = append(problems, fmt.Sprintf("%s: ReplacedBy %s is %s, but its publisher names %s", c.id, c.replacedBy, target.model, pick))
+		case global[pick] != "" && c.replacedBy != global[pick]:
+			problems = append(problems, fmt.Sprintf("%s: ReplacedBy %s, not the global copy %s", c.id, c.replacedBy, global[pick]))
+		}
+	}
+
+	return problems
 }
