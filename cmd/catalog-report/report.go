@@ -130,6 +130,12 @@ func Validate(report Report, hosts []string, rules reconcile.Rules) []string {
 		checkValue(where, change.New)
 		checkSource(where, change.SourceURL)
 
+		// A Bedrock family's source regions route its bare names, so only a
+		// new copy moves them (RULES.md, location-follow).
+		if host, _, _ := regionOf(change.Offering); change.Field == "location" && host == "bedrock" {
+			problems = append(problems, where+": a location change on bedrock re-routes callers, so it goes to a person")
+		}
+
 		// A change rests on a Default for its field, never on judgment, so
 		// rows of one kind always name the same rule.
 		if change.Rule == reconcile.JudgmentRule {
@@ -455,10 +461,10 @@ func (base Base) waitingAlert(waiting []Skipped) string {
 	return "> [!NOTE]\n> **" + decisions + " waiting** (" + they + " block this PR): " + strings.Join(asked, " ") + "\n\n"
 }
 
-// needsHumanBlock renders one needs_human row: its rule, what the catalogue
-// and the page say, anything else the bot found, the question, and the
-// sources. A no-rule row with both sides asks to keep one or take the other;
-// any other row asks its rule's fixed question.
+// needsHumanBlock renders one needs_human row: its rule, the rule's fixed
+// question, what the catalogue and the page say, anything else the bot
+// found, and the sources. A no-rule row with both sides asks instead, after
+// them, to keep one or take the other.
 func (base Base) needsHumanBlock(number int, item NeedsHuman) string {
 	why := "rule " + base.ruleLink(item.Rule)
 	if item.Rule == reconcile.JudgmentRule {
@@ -471,6 +477,12 @@ func (base Base) needsHumanBlock(number int, item NeedsHuman) string {
 	}
 
 	block := fmt.Sprintf("**%d. %s · %s · %s**\n", number, code(item.Offering), item.Field, why)
+
+	decide := item.Rule == reconcile.JudgmentRule && item.Catalogue != "" && item.Page != ""
+	if question := base.Rules.Questions[item.Rule]; question != "" && !decide {
+		block += "- **Question:** " + question + "\n"
+	}
+
 	if item.Catalogue != "" {
 		block += "- **Catalogue:** " + code(item.Catalogue) + "\n"
 	}
@@ -483,11 +495,8 @@ func (base Base) needsHumanBlock(number int, item NeedsHuman) string {
 		block += "- **Also found:** " + valueList(item.Values) + "\n"
 	}
 
-	switch question := base.Rules.Questions[item.Rule]; {
-	case item.Rule == reconcile.JudgmentRule && item.Catalogue != "" && item.Page != "":
+	if decide {
 		block += "- **Decide:** keep " + code(item.Catalogue) + ", or change to " + code(item.Page) + ". If this can come back, add a rule.\n"
-	case question != "":
-		block += "- **Question:** " + question + "\n"
 	}
 
 	return block + "- **Sources:** " + strings.Join(sources, ", ") + "\n\n"

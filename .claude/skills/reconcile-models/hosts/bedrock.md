@@ -21,7 +21,7 @@ The table names Anthropic's cards. The other vendors `providers/bedrock` carries
 - The card's Regional Availability tables say, for each source region, whether In-Region, Geo and Global work, and list the source regions each geo profile serves.
 - Before declaring a profile, compare its prefix with RULES.md's Offered regions (new-copy-offered-region, region-not-offered). New models often start with only US and global profiles.
 - A bare ID is callable on demand only with an In-Region endpoint URL on `bedrock-runtime`, or on `bedrock-mantle`'s Responses API. A `bedrock-mantle` Anthropic Messages URL (`.../anthropic/v1/messages`) doesn't count: this SDK's mantle transport speaks only the Responses API (bare-id-needs-endpoint).
-- Routing: a family's `ProfileRegions` map, in `cross_region.go`, sends bare-name calls from each source region to one profile. Its entries come from the card's per-geo source-region tables.
+- Routing: a family's `ProfileRegions` map, in `cross_region.go`, sends bare-name calls from each source region to one profile. Its entries come from the card's per-geo source-region tables. A new copy points its source regions there (new-copy-offered-region); any other change to the map moves or blocks existing callers, so it goes to a person (no-rule).
 - A copy the card no longer lists shows up when you compare the card's tables with the family's `Profiles` (copy-gone-no-eol).
 
 ## Prices

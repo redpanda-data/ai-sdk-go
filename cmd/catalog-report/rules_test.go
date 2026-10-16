@@ -59,6 +59,21 @@ func TestRulesFile(t *testing.T) {
 		SourceURL: "https://docs.cloud.google.com/gemini-enterprise-agent-platform/resources/locations", Rule: "location-follow",
 	}}}
 	assert.Empty(t, Validate(located, []string{"docs.cloud.google.com"}, rules), "a location change under location-follow")
+
+	// The locations table has listed a location the model page leaves out,
+	// so the Default must say which of the two wins.
+	require.Contains(t, rules.Lines, "location-follow")
+	follow := strings.Split(string(raw), "\n")[rules.Lines["location-follow"]-1]
+	assert.Contains(t, follow, "wins over the locations table", "location-follow must say which source wins")
+
+	// On Bedrock a source region routes bare names, so changing one moves
+	// callers and goes to a person.
+	routed := Report{Changes: []Change{{
+		Offering: "bedrock:us.anthropic.claude-sonnet-5-5", Field: "location", Old: "ca-west-1 us-east-1", New: "us-east-1",
+		SourceURL: "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-5-5.md", Rule: "location-follow",
+	}}}
+	assert.Equal(t, []string{"changes[0]: a location change on bedrock re-routes callers, so it goes to a person"},
+		Validate(routed, []string{"docs.aws.amazon.com"}, rules))
 }
 
 func TestRulesReachTheAgent(t *testing.T) {

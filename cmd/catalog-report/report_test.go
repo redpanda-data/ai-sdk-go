@@ -517,8 +517,8 @@ func TestRender(t *testing.T) {
 			base:   Base{URL: baseURL, Rules: testRules},
 			contains: []string{
 				"### Resolve before merging (2): 1 by a rule, 1 with no rule",
-				"**1. `claude-sonnet-5-5` · limit · ⚠ no rule covers this ([no-rule](" + rulesURL + "#L120))**",
-				"- **Also found:** `65535`, `65536`\n- **Question:** No rule covers this. Decide.\n",
+				"**1. `claude-sonnet-5-5` · limit · ⚠ no rule covers this ([no-rule](" + rulesURL + "#L120))**\n" +
+					"- **Question:** No rule covers this. Decide.\n- **Also found:** `65535`, `65536`\n",
 				"- **Sources:** [platform.claude.com](https://platform.claude.com/docs/en/about-claude/models/overview.md)",
 				"**2. `claude-opus-4-1` · replacement · rule [replacement-not-carried](" + rulesURL + "#L80)**\n- **Question:** Which replacement?\n- **Sources:**",
 			},
@@ -825,8 +825,9 @@ func TestSchemaValues(t *testing.T) {
 	}
 }
 
-// TestRenderQuestionBlock checks one Resolve before merging row: the two
-// sides first, then other values, then the question, then the sources.
+// TestRenderQuestionBlock checks one Resolve before merging row: a rule's
+// fixed question first, then the two sides and other values, then a no-rule
+// row's keep-or-change line, then the sources.
 func TestRenderQuestionBlock(t *testing.T) {
 	t.Parallel()
 
@@ -861,18 +862,18 @@ func TestRenderQuestionBlock(t *testing.T) {
 		{
 			name: "a rule's row keeps its question",
 			item: ask("replacement-not-carried", "none", "claude-opus-5"),
-			want: "**1. `claude-sonnet-5-5` · limit · rule `replacement-not-carried`**\n- **Catalogue:** `none`\n- **Page:** `claude-opus-5`\n" +
-				"- **Question:** Which replacement?\n" + sources,
+			want: "**1. `claude-sonnet-5-5` · limit · rule `replacement-not-carried`**\n- **Question:** Which replacement?\n" +
+				"- **Catalogue:** `none`\n- **Page:** `claude-opus-5`\n" + sources,
 		},
 		{
 			name: "one side alone keeps the question",
 			item: ask("no-rule", "", "65536"),
-			want: noRule + "- **Page:** `65536`\n- **Question:** No rule covers this. Decide.\n" + sources,
+			want: noRule + "- **Question:** No rule covers this. Decide.\n- **Page:** `65536`\n" + sources,
 		},
 		{
-			name: "no sides: also found, then the question",
+			name: "no sides: the question, then also found",
 			item: ask("no-rule", "", "", "65535", "65536"),
-			want: noRule + "- **Also found:** `65535`, `65536`\n- **Question:** No rule covers this. Decide.\n" + sources,
+			want: noRule + "- **Question:** No rule covers this. Decide.\n- **Also found:** `65535`, `65536`\n" + sources,
 		},
 	}
 	for _, tt := range tests {
