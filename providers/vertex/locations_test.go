@@ -41,10 +41,13 @@ func TestIsModelAvailableAtLocation(t *testing.T) {
 		{"gemini location case-insensitive", vertex.ModelGemini36Flash, "EU", true},
 		{"sonnet-5 at global", vertex.ModelClaudeSonnet5, "global", true},
 		{"sonnet-5 at eu multi-region", vertex.ModelClaudeSonnet5, "eu", true},
-		// Sonnet is published at asia-southeast1 but not at us-east5; each
-		// model carries only the regions Google's page marks for it.
-		{"sonnet-5 at asia-southeast1", vertex.ModelClaudeSonnet5, "asia-southeast1", true},
 		{"sonnet-5 not at named region", vertex.ModelClaudeSonnet5, "us-east5", false},
+		// Fable 5, Opus 5 and Sonnet 5 list asia-southeast1 for ML processing
+		// only; Google's locations page does not mark them there.
+		{"fable-5 not at asia-southeast1", vertex.ModelClaudeFable5, "asia-southeast1", false},
+		{"opus-5 not at asia-southeast1", vertex.ModelClaudeOpus5, "asia-southeast1", false},
+		{"sonnet-5 not at asia-southeast1", vertex.ModelClaudeSonnet5, "asia-southeast1", false},
+		{"sonnet-4-6 at asia-southeast1", vertex.ModelClaudeSonnet46, "asia-southeast1", true},
 		{"haiku at named region", vertex.ModelClaudeHaiku45, "europe-west1", true},
 		// The matrix lists asia-east1 for Haiku.
 		{"haiku not at asia-east1", vertex.ModelClaudeHaiku45, "asia-east1", false},
@@ -133,15 +136,15 @@ func TestServedLocationsMatrix(t *testing.T) {
 			[]string{"europe-central2", "europe-north1", "europe-southwest1", "europe-west1", "europe-west4", "europe-west8", "europe-west9"},
 		),
 		vertex.ModelClaudeFable51:  {"global", "us", "eu"},
-		vertex.ModelClaudeFable5:   {"global", "us", "eu", "asia-southeast1"},
+		vertex.ModelClaudeFable5:   {"global", "us", "eu"},
 		vertex.ModelClaudeOpus55:   {"global", "us", "eu"},
-		vertex.ModelClaudeOpus5:    {"global", "us", "eu", "asia-southeast1"},
+		vertex.ModelClaudeOpus5:    {"global", "us", "eu"},
 		vertex.ModelClaudeOpus48:   {"global", "us", "eu"},
 		vertex.ModelClaudeOpus47:   {"global", "us", "eu"},
 		vertex.ModelClaudeOpus46:   namedClaude,
 		vertex.ModelClaudeOpus45:   namedClaude,
 		vertex.ModelClaudeSonnet55: {"global", "us", "eu"},
-		vertex.ModelClaudeSonnet5:  {"global", "us", "eu", "asia-southeast1"},
+		vertex.ModelClaudeSonnet5:  {"global", "us", "eu"},
 		vertex.ModelClaudeSonnet46: namedClaude,
 		vertex.ModelClaudeSonnet45: namedClaude,
 		vertex.ModelClaudeHaiku55:  {"global", "us", "eu"},
