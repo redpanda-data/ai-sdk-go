@@ -1456,6 +1456,7 @@ func TestRequestMapper_ResponseFormat(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
+		assert.Nil(t, in.AdditionalModelRequestFields, "Claude must not receive OpenAI strict fields")
 		require.NotNil(t, in.OutputConfig)
 		require.NotNil(t, in.OutputConfig.TextFormat)
 		assert.Equal(t, types.OutputFormatTypeJsonSchema, in.OutputConfig.TextFormat.Type)
@@ -1501,4 +1502,39 @@ func TestRequestMapper_ResponseFormat(t *testing.T) {
 		})
 		require.ErrorIs(t, err, llm.ErrUnsupportedFeature)
 	})
+}
+
+// AWS requires strict in additionalModelRequestFields as well as outputConfig.
+// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-1-sol.html
+func TestRequestMapper_OpenAISchemaStrict(t *testing.T) {
+	t.Parallel()
+
+	for _, id := range []string{ModelGPT6AstraGlobal, ModelGPT6AstraUS, ModelGPT6SolGlobal, ModelGPT6SolUS, ModelGPT61SolGlobal, ModelGPT61SolUS} {
+		t.Run(id, func(t *testing.T) {
+			t.Parallel()
+
+			mapper := NewRequestMapper(&Config{APIModelID: id})
+			req := &llm.Request{ResponseFormat: &llm.ResponseFormat{Type: llm.ResponseFormatJSONSchema, JSONSchema: &llm.JSONSchema{Name: "answer", Description: "an answer", Schema: json.RawMessage(`{"type":"object","properties":{"ok":{"type":"boolean"}},"required":["ok"],"additionalProperties":false}`)}}}
+			in, err := mapper.ToConverseInput(req)
+			require.NoError(t, err)
+			stream, err := mapper.ToConverseStreamInput(req)
+			require.NoError(t, err)
+			assert.Equal(t, in.OutputConfig, stream.OutputConfig)
+			member, ok := in.OutputConfig.TextFormat.Structure.(*types.OutputFormatStructureMemberJsonSchema)
+			require.True(t, ok)
+			assert.Equal(t, "answer", aws.ToString(member.Value.Name))
+			assert.Equal(t, "an answer", aws.ToString(member.Value.Description))
+
+			for _, fields := range []document.Interface{in.AdditionalModelRequestFields, stream.AdditionalModelRequestFields} {
+				require.NotNil(t, fields)
+				payload, err := fields.MarshalSmithyDocument()
+				require.NoError(t, err)
+				assert.JSONEq(t, `{"text":{"format":{"strict":true}}}`, string(payload))
+			}
+
+			text, err := mapper.ToConverseInput(&llm.Request{ResponseFormat: &llm.ResponseFormat{Type: llm.ResponseFormatText}})
+			require.NoError(t, err)
+			assert.Nil(t, text.AdditionalModelRequestFields)
+		})
+	}
 }
