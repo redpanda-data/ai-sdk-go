@@ -42,13 +42,14 @@ const (
 	// below was copied from LocationsMatrixSource. Every row present on this
 	// date is what LocationsMatrixSource published on 2026-09-22, except
 	// claude-opus-5-5, whose row is its model page's "Model availability"
-	// section. Rows added on 2026-09-28 were read from the page on that day,
-	// and the claude-fable-5-1 and gemini-3.5-flash rows come from their
-	// model pages. The claude-sonnet-5-5 row, added 2026-09-29, the
-	// claude-haiku-5-5 row, added 2026-10-08, and the gemini-4-argon row,
-	// added 2026-10-14, are their model pages' sections. The claude-fable-5,
-	// claude-opus-5 and claude-sonnet-5 rows were re-read from
-	// LocationsMatrixSource on 2026-10-16.
+	// section, and claude-sonnet-5, covered below. Rows added on 2026-09-28,
+	// except claude-fable-5 and claude-opus-5, covered below, were read from
+	// the page on that day, and the claude-fable-5-1 and gemini-3.5-flash
+	// rows come from their model pages. The claude-sonnet-5-5 row, added
+	// 2026-09-29, the claude-haiku-5-5 row, added 2026-10-08, and the
+	// gemini-4-argon row, added 2026-10-14, are their model pages' sections.
+	// The claude-fable-5, claude-opus-5 and claude-sonnet-5 rows are their
+	// model pages' sections, read 2026-10-15.
 	LocationsMatrixTranscribed = "2026-09-22"
 )
 
@@ -117,8 +118,9 @@ var servedLocations = map[string][]string{
 		LocationGlobal,
 		"us", "eu",
 	},
-	// The model page's "ML processing" list adds asia-southeast1, but
-	// neither it nor the matrix marks the model available there.
+	// From the Fable 5 model page, read 2026-10-15. Its "ML processing" list
+	// adds asia-southeast1, but Google publishes neither availability nor a
+	// price there.
 	ModelClaudeFable5: {
 		LocationGlobal,
 		"us", "eu",
@@ -130,8 +132,9 @@ var servedLocations = map[string][]string{
 		LocationGlobal,
 		"us", "eu",
 	},
-	// The model page's "ML processing" list adds asia-southeast1, but
-	// neither it nor the matrix marks the model available there.
+	// From the Opus 5 model page, read 2026-10-15. Its "ML processing" list
+	// adds asia-southeast1, but Google publishes neither availability nor a
+	// price there.
 	ModelClaudeOpus5: {
 		LocationGlobal,
 		"us", "eu",
@@ -159,8 +162,9 @@ var servedLocations = map[string][]string{
 		LocationGlobal,
 		"us", "eu",
 	},
-	// The model page's "ML processing" list adds asia-southeast1, but
-	// neither it nor the matrix marks the model available there.
+	// From the Sonnet 5 model page, read 2026-10-15. Its "ML processing" list
+	// adds asia-southeast1, but Google publishes neither availability nor a
+	// price there.
 	ModelClaudeSonnet5: {
 		LocationGlobal,
 		"us", "eu",

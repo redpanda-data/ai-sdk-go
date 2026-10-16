@@ -41,10 +41,13 @@ func TestIsModelAvailableAtLocation(t *testing.T) {
 		{"gemini location case-insensitive", vertex.ModelGemini36Flash, "EU", true},
 		{"sonnet-5 at global", vertex.ModelClaudeSonnet5, "global", true},
 		{"sonnet-5 at eu multi-region", vertex.ModelClaudeSonnet5, "eu", true},
-		// asia-southeast1 is an ML-processing location only; each model
-		// carries only the regions Google's page marks for it.
-		{"sonnet-5 not at asia-southeast1", vertex.ModelClaudeSonnet5, "asia-southeast1", false},
 		{"sonnet-5 not at named region", vertex.ModelClaudeSonnet5, "us-east5", false},
+		// Fable 5, Opus 5 and Sonnet 5 list asia-southeast1 for ML processing
+		// only; Google's locations page does not mark them there.
+		{"fable-5 not at asia-southeast1", vertex.ModelClaudeFable5, "asia-southeast1", false},
+		{"opus-5 not at asia-southeast1", vertex.ModelClaudeOpus5, "asia-southeast1", false},
+		{"sonnet-5 not at asia-southeast1", vertex.ModelClaudeSonnet5, "asia-southeast1", false},
+		{"sonnet-4-6 at asia-southeast1", vertex.ModelClaudeSonnet46, "asia-southeast1", true},
 		{"haiku at named region", vertex.ModelClaudeHaiku45, "europe-west1", true},
 		// The matrix lists asia-east1 for Haiku.
 		{"haiku not at asia-east1", vertex.ModelClaudeHaiku45, "asia-east1", false},
