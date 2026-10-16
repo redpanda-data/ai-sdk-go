@@ -965,7 +965,10 @@ var bedrockFamilies = []family{
 		// publishes global, US, and EU profiles (the geo IDs were added to
 		// the model card after launch):
 		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-5-5.html
-		// Cache reads reduced 50% effective 2026-10-07 ($0.10 global, $0.11 geo).
+		// Standard cache hits: $0.10 global/$0.11 geo, verified 2026-10-16.
+		// Current rates only; historical usage is not effective-dated. AWS
+		// dates its 50% cache-read reduction to 2026-10-07; that date is not
+		// evidence of when Anthropic or Google changed their own prices.
 		// https://aws.amazon.com/bedrock/pricing/
 		BareID:         ModelClaudeSonnet55,
 		WireAPIs:       claudeMessagesWireAPIs,

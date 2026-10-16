@@ -868,7 +868,10 @@ func claudeOpus55Pricing() pricing.Info {
 }
 
 // claudeSonnet55Pricing returns the Sonnet 5.5 rate card: global, plus
-// global x 1.10 for us and eu. Cache hits verified 2026-10-15:
+// global x 1.10 for us and eu. Standard Cache Hit rows are $0.10/$0.11
+// (Batch Cache Hit rows are $0.05/$0.055), verified 2026-10-16.
+// Current rates only; historical usage is not effective-dated.
+// Source:
 // https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing
 func claudeSonnet55Pricing() pricing.Info {
 	global := pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(2.50, 4.00, 0)
