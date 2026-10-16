@@ -155,9 +155,10 @@ var claudeCaps = llm.ModelCapabilities{
 // claudeCapsWithToolSearch is claudeCaps plus hosted tool search. A
 // rawPredict call at global on 2026-09-29 returned a tool_search_tool_result
 // for both tool types on four models, which showed that Vertex serves tool
-// search. Each model's flag is copied from Anthropic's tool-search list, not
-// probed one by one (TestClaudeToolSearchMirrorsAnthropic; RULES.md
-// capability-mirror-unprobed).
+// search. The other flags were copied from Anthropic's tool-search list. A
+// model leaves tool search here when Anthropic drops it; turning it on takes a
+// person's call on Vertex (TestVertexToolSearchNeedsAnthropic; RULES.md
+// vertex-tool-search-one-way).
 var claudeCapsWithToolSearch = func() llm.ModelCapabilities {
 	caps := claudeCaps
 	caps.ToolSearchProtocol = llm.ToolSearchProtocolAnthropic

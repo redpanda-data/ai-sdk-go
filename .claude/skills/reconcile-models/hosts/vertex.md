@@ -20,7 +20,7 @@ Where Google Cloud's Vertex (the Gemini Enterprise Agent Platform) publishes fac
 - Limits: the model page's Token limits, "Maximum input tokens" and "Maximum output tokens" (limit-follow).
 - Locations: `servedLocations` in `providers/vertex/locations.go` is copied from the locations table, or from a model page's Model availability section when the table lacks the model. Note the source and the day you read it in the comment above it.
 - Rates: each region tab holds that region's rates; read global and each served region. A region the model is served in with no tab: region-premium-no-tab. The code writes the two cards with `regionalPricing(global, nonGlobal, regions...)`, or with one `WithOverride` per region for a model that needs it.
-- Tool search: Google's docs never mention it. While `providers/vertex` has no request transport, Vertex's flag follows Anthropic's tool-search page (capability-mirror-unprobed).
+- Tool search: Google's docs never mention it. A model's flag goes off when Anthropic's tool-search page drops it, and a person turns it on once a call on Vertex returns a tool search result (vertex-tool-search-one-way).
 
 ## Self-check
 
