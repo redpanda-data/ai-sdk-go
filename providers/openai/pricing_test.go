@@ -126,7 +126,7 @@ func TestAllModelsHavePricing(t *testing.T) {
 
 	// Models that predate prompt caching or don't support it.
 	noCacheModels := map[string]bool{
-		ModelGPT4O20240513: true,
+		ModelGPT4O20240513: true, // Original snapshot has no cached-input rate.
 		ModelGPT4Turbo:     true, // Legacy model, no prompt caching.
 		ModelGPT35Turbo:    true, // Legacy model, no prompt caching.
 		ModelGPT5_2Pro:     true, // Pro tier, no caching listed.

@@ -23,7 +23,8 @@ import (
 
 // LifecycleForRegion returns an exact catalog offering's lifecycle with any
 // region-specific AWS notice applied. It does not check model availability or
-// account access. An unknown offering returns false. Unlisted regions retain
+// account access or validate profile/source-region compatibility. Pass the exact
+// AWS source-region ID. An unknown offering returns false. Unlisted regions retain
 // the offering's unscoped lifecycle; absence of a date is not a promise of
 // indefinite availability. Catalog().At cannot apply region-specific notices.
 func LifecycleForRegion(modelID, region string) (catalog.Lifecycle, bool) {
@@ -34,8 +35,8 @@ func LifecycleForRegion(modelID, region string) (catalog.Lifecycle, bool) {
 
 	life := offering.Life
 	if offering.Model == catalog.ModelClaudeSonnet45 && slices.Contains(sonnet45LegacyRegions, region) {
-		life.Deprecated = catalog.MustDate("2026-10-08")
-		life.Retires = catalog.MustDate("2027-04-08")
+		life.Deprecated = sonnet45LegacyDate
+		life.Retires = sonnet45EOLDate
 	}
 
 	return life, true
@@ -53,3 +54,8 @@ var sonnet45LegacyRegions = strings.Fields(`
  eu-south-1 eu-south-2 eu-west-1 eu-west-2 eu-west-3
  il-central-1 mx-central-1 sa-east-1 us-east-1 us-east-2 us-west-1 us-west-2
 `)
+
+var (
+	sonnet45LegacyDate = catalog.MustDate("2026-10-08")
+	sonnet45EOLDate    = catalog.MustDate("2027-04-08")
+)

@@ -33,12 +33,12 @@ func TestDatedSnapshotLifecycle(t *testing.T) {
 		retires    = "2027-01-14"
 	)
 	for _, tt := range []struct{ id, deprecated, retires, replacement string }{
-		{"gpt-4o-2024-05-13", "2026-04-22", "2026-10-23", ModelGPT5_6Sol},
-		{"gpt-4o-2024-08-06", deprecated, retires, ModelGPT6Luna},
+		{ModelGPT4O20240513, "2026-04-22", "2026-10-23", ModelGPT5_6Sol},
+		{ModelGPT4O20240806, deprecated, retires, ModelGPT6Luna},
 		{ModelGPT4O20241120, deprecated, retires, ModelGPT6Luna},
 		{ModelGPT4OMini20240718, deprecated, retires, ModelGPT6Luna},
-		{"gpt-4.1-2025-04-14", deprecated, retires, ModelGPT6Luna},
-		{"gpt-4.1-mini-2025-04-14", deprecated, retires, ModelGPT6Luna},
+		{ModelGPT41Snapshot20250414, deprecated, retires, ModelGPT6Luna},
+		{ModelGPT41MiniSnapshot20250414, deprecated, retires, ModelGPT6Luna},
 	} {
 		t.Run(tt.id, func(t *testing.T) {
 			t.Parallel()
@@ -58,7 +58,7 @@ func TestDatedSnapshotLifecycle(t *testing.T) {
 	for _, id := range []string{ModelGPT4O, ModelGPT4OMini, ModelGPT41, ModelGPT41Mini} {
 		o, ok := Catalog().Lookup(id)
 		require.True(t, ok)
-		assert.True(t, o.Life.Retires.IsZero(), "snapshot-only notices must not retire aliases")
+		assert.True(t, o.Life.Retires.IsZero(), "alias retirement is not derived from registered snapshots")
 	}
 }
 
@@ -67,11 +67,11 @@ func TestOriginalGPT4oSnapshotDoesNotInheritAliasPricing(t *testing.T) {
 
 	prices, err := pricing.NewCatalog(pricing.WithSource(Catalog()))
 	require.NoError(t, err)
-	cost, err := prices.Calculate(ProviderName, "gpt-4o-2024-05-13", &llm.TokenUsage{InputTokens: 1_000_000, OutputTokens: 1_000_000}, pricing.CalcRequest{})
+	cost, err := prices.Calculate(ProviderName, ModelGPT4O20240513, &llm.TokenUsage{InputTokens: 1_000_000, OutputTokens: 1_000_000}, pricing.CalcRequest{})
 	require.NoError(t, err)
 	assert.Equal(t, int64(2_000_000_000), cost.Total) // $5 input + $15 output
 
-	o, ok := Catalog().Lookup("gpt-4o-2024-05-13")
+	o, ok := Catalog().Lookup(ModelGPT4O20240513)
 	require.True(t, ok)
 	assert.False(t, o.Capabilities.StructuredOutput)
 	assert.Equal(t, 4096, o.Constraints.MaxOutputTokens)

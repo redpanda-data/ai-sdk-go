@@ -56,10 +56,19 @@ func TestSonnet45RegionalLifecycle(t *testing.T) {
 	}
 
 	for _, region := range []string{"me-south-1", govCloud, "", "unannounced-region"} {
-		life, ok := LifecycleForRegion(ModelClaudeSonnet45Global, region)
-		require.True(t, ok)
-		assert.True(t, life.Deprecated.IsZero())
-		assert.True(t, life.Retires.IsZero())
+		name := region
+		if name == "" {
+			name = "unset region"
+		}
+
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			life, ok := LifecycleForRegion(ModelClaudeSonnet45Global, region)
+			require.True(t, ok)
+			assert.True(t, life.Deprecated.IsZero())
+			assert.True(t, life.Retires.IsZero())
+		})
 	}
 
 	life, ok := LifecycleForRegion(ModelClaudeSonnet55Global, virginia)

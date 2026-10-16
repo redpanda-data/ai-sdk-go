@@ -121,14 +121,14 @@ const (
 	//
 	// Deprecated: shuts down 2027-01-14. Use [ModelGPT6Luna].
 	ModelGPT4OMini20240718 = "gpt-4o-mini-2024-07-18"
-	// ModelGPT4120250414 is the GPT-4.1 snapshot.
+	// ModelGPT41Snapshot20250414 is the GPT-4.1 snapshot.
 	//
 	// Deprecated: shuts down 2027-01-14. Use [ModelGPT6Luna].
-	ModelGPT4120250414 = "gpt-4.1-2025-04-14"
-	// ModelGPT41Mini20250414 is the GPT-4.1 mini snapshot.
+	ModelGPT41Snapshot20250414 = "gpt-4.1-2025-04-14"
+	// ModelGPT41MiniSnapshot20250414 is the GPT-4.1 mini snapshot.
 	//
 	// Deprecated: shuts down 2027-01-14. Use [ModelGPT6Luna].
-	ModelGPT41Mini20250414 = "gpt-4.1-mini-2025-04-14"
+	ModelGPT41MiniSnapshot20250414 = "gpt-4.1-mini-2025-04-14"
 
 	// ModelGPT4Turbo is the legacy GPT-4 Turbo model.
 	//

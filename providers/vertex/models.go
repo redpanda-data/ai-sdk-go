@@ -34,9 +34,9 @@ const ProviderName = "gcp.vertex"
 const (
 	ModelGemini4Argon  = "gemini-4-argon"
 	ModelGemini38Flash = "gemini-3.8-flash"
-	// Deprecated: retires 2027-01-28. Use [ModelGemini38Flash].
+	// ModelGemini37Flash retires 2027-01-28; no deprecation date is announced.
 	ModelGemini37Flash = "gemini-3.7-flash"
-	// Deprecated: retires 2026-11-19. Use [ModelGemini38Flash].
+	// ModelGemini36Flash retires 2026-11-19; no deprecation date is announced.
 	ModelGemini36Flash       = "gemini-3.6-flash"
 	ModelGemini35Flash       = "gemini-3.5-flash"
 	ModelGemini35FlashLite   = "gemini-3.5-flash-lite"
@@ -276,8 +276,8 @@ func entries() []catalog.Entry {
 			// Exact retirement per model-versions, checked 2026-10-15:
 			// https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/model-versions
 			Life: catalog.Lifecycle{
-				Retires:    catalog.MustDate("2027-01-28"),
 				Available:  catalog.MustDate("2026-08-13"),
+				Retires:    catalog.MustDate("2027-01-28"),
 				ReplacedBy: ModelGemini38Flash,
 			},
 			Pricing: geminiFlashPricing(),
@@ -302,8 +302,8 @@ func entries() []catalog.Entry {
 			// Exact retirement per model-versions, checked 2026-10-15:
 			// https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/model-versions
 			Life: catalog.Lifecycle{
-				Retires:    catalog.MustDate("2026-11-19"),
 				Available:  catalog.MustDate("2026-07-21"),
+				Retires:    catalog.MustDate("2026-11-19"),
 				ReplacedBy: ModelGemini38Flash,
 			},
 			Pricing: geminiFlashPricing(),

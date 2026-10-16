@@ -175,7 +175,10 @@ func (m *ResponseMapper) FromProvider(r *responses.Response) (*llm.Response, err
 
 // resolveInvokedModelID collapses a provider-reported model ID (possibly a
 // timestamped snapshot) to its catalog offering ID; IDs the catalog does
-// not know pass through unchanged. Every provider applies this rule, so
+// not know pass through unchanged. Explicitly registered snapshots keep their
+// own ID, even when the request used a movable alias. Usage aggregation by
+// InvokedModelID therefore distinguishes those snapshots from their alias.
+// Every provider applies this rule, so
 // InvokedModelID has one meaning SDK-wide.
 func resolveInvokedModelID(model string) string {
 	if id, ok := Catalog().ResolveID(model); ok {

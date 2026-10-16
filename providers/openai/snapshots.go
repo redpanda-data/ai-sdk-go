@@ -15,6 +15,8 @@
 package openai
 
 import (
+	"fmt"
+
 	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/pricing"
 )
@@ -22,6 +24,9 @@ import (
 // Explicit snapshots outrank family resolution, preserving snapshot-specific
 // retirement while leaving movable aliases untouched. Rates and capabilities
 // follow the family except the original May 2024 snapshot noted below.
+// The notice lists dated IDs, not movable aliases. Alias retirement is not
+// derived from the last registered snapshot: aliases can be repointed, and an
+// unset retirement is unknown, not a promise that the alias outlives snapshots.
 // https://developers.openai.com/api/docs/deprecations (checked 2026-10-15)
 func appendDatedSnapshots(entries []catalog.Entry) []catalog.Entry {
 	const (
@@ -39,18 +44,29 @@ func appendDatedSnapshots(entries []catalog.Entry) []catalog.Entry {
 		{ModelGPT4O, ModelGPT4O20240806, "2024-08-06", deprecated, retires, ModelGPT6Luna},
 		{ModelGPT4O, ModelGPT4O20241120, "2024-11-20", deprecated, retires, ModelGPT6Luna},
 		{ModelGPT4OMini, ModelGPT4OMini20240718, "2024-07-18", deprecated, retires, ModelGPT6Luna},
-		{ModelGPT41, ModelGPT4120250414, "2025-04-14", deprecated, retires, ModelGPT6Luna},
-		{ModelGPT41Mini, ModelGPT41Mini20250414, "2025-04-14", deprecated, retires, ModelGPT6Luna},
+		{ModelGPT41, ModelGPT41Snapshot20250414, "2025-04-14", deprecated, retires, ModelGPT6Luna},
+		{ModelGPT41Mini, ModelGPT41MiniSnapshot20250414, "2025-04-14", deprecated, retires, ModelGPT6Luna},
 	} {
-		entry := byID[snapshot.base]
+		entry, ok := byID[snapshot.base]
+		if !ok {
+			panic(fmt.Sprintf("openai: snapshot %s has unknown base %s", snapshot.id, snapshot.base)) //nolint:forbidigo // catalog authoring error
+		}
+
 		entry.ID = snapshot.id
 		entry.Aliases = nil
 
-		entry.Life = catalog.Lifecycle{Available: catalog.MustDate(snapshot.available), Deprecated: catalog.MustDate(snapshot.deprecated), Retires: catalog.MustDate(snapshot.retires), ReplacedBy: snapshot.replacement}
+		entry.Life = catalog.Lifecycle{
+			Available:  catalog.MustDate(snapshot.available),
+			Deprecated: catalog.MustDate(snapshot.deprecated),
+			Retires:    catalog.MustDate(snapshot.retires),
+			ReplacedBy: snapshot.replacement,
+		}
 		if entry.ID == ModelGPT4O20240513 {
 			// The original snapshot predates structured response formats; keep a
 			// conservative 4K SDK output bound, not the current alias's 16K cap.
 			// https://openai.com/index/introducing-structured-outputs-in-the-api/
+			// The Responses create model enum includes this dated snapshot.
+			// https://developers.openai.com/api/reference/resources/responses/methods/create
 			entry.Capabilities.StructuredOutput = false
 			entry.Constraints.MaxOutputTokens = 4096
 			// The May snapshot has its own published legacy rates and no cache rate.
