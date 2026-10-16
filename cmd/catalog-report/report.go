@@ -238,6 +238,9 @@ type Base struct {
 	// RoutesBefore and RoutesAfter are where bare Bedrock names go before
 	// and after the patch, for the Routing changes section.
 	RoutesBefore, RoutesAfter Routes
+	// Branch is the branch each run rebuilds the bot branch from, named in
+	// the body.
+	Branch string
 }
 
 // fileLink links text to a repo file at the base commit, at line when it's
@@ -563,7 +566,7 @@ func Render(report Report, provider, snapshotDiff string, codeFiles []string, ba
 		return body.String()
 	}
 
-	body.WriteString("Proposed by the reconcile-models workflow. The tables come from the agent's structured report; the PR job checked its format and that every source is a named source. Check each value against its source before approving.\n\nDon't push commits to this branch: each run rebuilds it from main and force-pushes, so they would be lost. To settle a row, merge a fix on main or record a decision in `.github/reconcile-models/decisions.yaml`. Later runs don't read PR comments.\n\n")
+	fmt.Fprintf(&body, "Proposed by the reconcile-models workflow. The tables come from the agent's structured report; the PR job checked its format and that every source is a named source. Check each value against its source before approving.\n\nDon't push commits to this branch: each run rebuilds it from %[1]s and force-pushes, so they would be lost. To settle a row, merge a fix on %[1]s or record a decision in `.github/reconcile-models/decisions.yaml`. Later runs don't read PR comments.\n\n", base.Branch)
 	body.WriteString(base.summary())
 
 	if len(codeFiles) > 0 {

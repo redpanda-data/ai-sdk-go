@@ -41,7 +41,7 @@ if [[ -n "${GITHUB_REPOSITORY:-}" ]]; then
 fi
 render() {
   "$priv/catalog-report" -report "$report" -provider "$provider" -hosts "$hosts" \
-    -rules "$priv/RULES.md" -decisions "$priv/decisions.yaml" -base-url "$base_url" -out "$out/body.md" "$@"
+    -rules "$priv/RULES.md" -decisions "$priv/decisions.yaml" -base-url "$base_url" -base-branch "${BASE:-main}" -out "$out/body.md" "$@"
 }
 
 # A clean run lists nothing. If every offering was skipped because no named

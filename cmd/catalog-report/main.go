@@ -44,12 +44,19 @@ func main() {
 	afterPath := flag.String("snapshot", "", "optional catalog/snapshot.json after the patch")
 	routesBeforePath := flag.String("base-routes", "", "optional catalog-routes output before the patch; with -routes, the body names routing changes")
 	routesAfterPath := flag.String("routes", "", "optional catalog-routes output after the patch")
+	baseBranch := flag.String("base-branch", "main", "the branch each run rebuilds the bot branch from, named in the body")
 
 	flag.Parse()
 
 	if *reportPath == "" || *provider == "" || *hostList == "" || *rulesPath == "" || *outPath == "" || (*beforePath == "") != (*afterPath == "") || (*routesBeforePath == "") != (*routesAfterPath == "") {
-		fmt.Fprintln(os.Stderr, "usage: catalog-report -report FILE -provider P -hosts h1,h2 -rules FILE [-diff FILE] [-code-files FILE] [-decisions FILE] [-base-url URL] [-base-snapshot FILE -snapshot FILE] [-base-routes FILE -routes FILE] -out FILE")
+		fmt.Fprintln(os.Stderr, "usage: catalog-report -report FILE -provider P -hosts h1,h2 -rules FILE [-diff FILE] [-code-files FILE] [-decisions FILE] [-base-url URL] [-base-snapshot FILE -snapshot FILE] [-base-routes FILE -routes FILE] [-base-branch B] -out FILE")
 		os.Exit(2)
+	}
+
+	// The branch goes into the body as plain text.
+	if *baseBranch == "" || !safeValue(*baseBranch) {
+		fmt.Fprintf(os.Stderr, "catalog-report: bad base branch %q\n", *baseBranch)
+		os.Exit(1)
 	}
 
 	data, err := os.ReadFile(*reportPath)
@@ -119,7 +126,7 @@ func main() {
 		}
 	}
 
-	base := Base{URL: *baseURL, Rules: rules, Today: time.Now().UTC().Format(time.DateOnly)}
+	base := Base{URL: *baseURL, Rules: rules, Today: time.Now().UTC().Format(time.DateOnly), Branch: *baseBranch}
 
 	if *decisionsPath != "" {
 		raw, err := os.ReadFile(*decisionsPath)

@@ -349,11 +349,21 @@ func TestRender(t *testing.T) {
 			notContains: []string{"No drift found"},
 		},
 		{
-			name:        "says not to push to the branch, and how to settle a row",
+			name:   "says not to push to the branch, and how to settle a row",
+			report: validReport(),
+			diff:   diff,
+			base:   Base{Branch: "main"},
+			contains: []string{"Don't push commits to this branch: each run rebuilds it from main and force-pushes, so they would be lost. " +
+				"To settle a row, merge a fix on main or record a decision in `.github/reconcile-models/decisions.yaml`."},
+			notContains: []string{"Comment on the PR instead", "Recorded decisions"},
+		},
+		{
+			name:        "names the branch a run from another branch rebuilds from",
 			report:      validReport(),
 			diff:        diff,
-			contains:    []string{"Don't push commits to this branch", "record a decision in `.github/reconcile-models/decisions.yaml`"},
-			notContains: []string{"Comment on the PR instead", "Recorded decisions"},
+			base:        Base{Branch: "feature-x"},
+			contains:    []string{"each run rebuilds it from feature-x and force-pushes", "merge a fix on feature-x or record a decision"},
+			notContains: []string{"from main", "on main"},
 		},
 		{
 			name:   "a needs_human row a decision answers is held, not asked",
