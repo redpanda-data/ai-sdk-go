@@ -4791,7 +4791,31 @@
                   }
                 }
               ]
-            }
+            },
+            "overrides": [
+              {
+                "service_tier": "ultrafast",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 1200000000,
+                    "output_microcents_per_million": 6000000000,
+                    "cached_input_microcents_per_million": 60000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 1500000000
+                  },
+                  "brackets": [
+                    {
+                      "min_context_tokens": 272001,
+                      "rates": {
+                        "input_microcents_per_million": 2400000000,
+                        "output_microcents_per_million": 9000000000,
+                        "cached_input_microcents_per_million": 120000000,
+                        "cache_creation_unknown_ttl_microcents_per_million": 3000000000
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
           },
           "lifecycle": {
             "stage": "ga"
@@ -6044,7 +6068,31 @@
                   }
                 }
               ]
-            }
+            },
+            "overrides": [
+              {
+                "service_tier": "ultrafast",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 1320000000,
+                    "output_microcents_per_million": 6600000000,
+                    "cached_input_microcents_per_million": 66000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 1650000000
+                  },
+                  "brackets": [
+                    {
+                      "min_context_tokens": 272001,
+                      "rates": {
+                        "input_microcents_per_million": 2640000000,
+                        "output_microcents_per_million": 9900000000,
+                        "cached_input_microcents_per_million": 132000000,
+                        "cache_creation_unknown_ttl_microcents_per_million": 3300000000
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
           },
           "lifecycle": {
             "stage": "ga"
@@ -7547,7 +7595,31 @@
                   }
                 }
               ]
-            }
+            },
+            "overrides": [
+              {
+                "service_tier": "ultrafast",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 1320000000,
+                    "output_microcents_per_million": 6600000000,
+                    "cached_input_microcents_per_million": 66000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 1650000000
+                  },
+                  "brackets": [
+                    {
+                      "min_context_tokens": 272001,
+                      "rates": {
+                        "input_microcents_per_million": 2640000000,
+                        "output_microcents_per_million": 9900000000,
+                        "cached_input_microcents_per_million": 132000000,
+                        "cache_creation_unknown_ttl_microcents_per_million": 3300000000
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
           },
           "lifecycle": {
             "stage": "ga"
@@ -14367,6 +14439,28 @@
                         "output_microcents_per_million": 3000000000,
                         "cached_input_microcents_per_million": 40000000,
                         "cache_creation_unknown_ttl_microcents_per_million": 1000000000
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "service_tier": "ultrafast",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 1200000000,
+                    "output_microcents_per_million": 6000000000,
+                    "cached_input_microcents_per_million": 60000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 1500000000
+                  },
+                  "brackets": [
+                    {
+                      "min_context_tokens": 272001,
+                      "rates": {
+                        "input_microcents_per_million": 2400000000,
+                        "output_microcents_per_million": 9000000000,
+                        "cached_input_microcents_per_million": 120000000,
+                        "cache_creation_unknown_ttl_microcents_per_million": 3000000000
                       }
                     }
                   ]
