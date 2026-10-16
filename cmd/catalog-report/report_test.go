@@ -32,15 +32,15 @@ import (
 
 var hosts = []string{"platform.claude.com"}
 
-// testRules is a RULES.md with a price Default, four skip Defaults, one Ask,
-// no-rule for rows no rule covers, and Bedrock's offered regions.
+// testRules is a RULES.md with a price Default, a copy Default, four skip
+// Defaults, one Ask, no-rule for rows no rule covers, and Bedrock's offered regions.
 var testRules = reconcile.Rules{
 	Lines:      map[string]int{"price-follow": 30, "new-copy-offered-region": 32, "limited-availability": 40, "replacement-not-carried": 80, "no-rule": 120, "region-not-offered": 20, "copy-gone-no-eol": 22, "label-fact-differs": 24},
 	Reasons:    map[string]string{"limited_availability": "the model needs a signup", "conflicting_sources": "no rule uses it yet"},
 	Questions:  map[string]string{"replacement-not-carried": "Which replacement?", "no-rule": "No rule covers this. Decide."},
-	RuleFields: map[string][]string{"price-follow": {"price"}},
+	RuleFields: map[string][]string{"price-follow": {"price"}, "new-copy-offered-region": {"new_copy"}},
 	Outcomes: map[string][]string{
-		"price-follow": {"change"}, "limited-availability": {"skip:`limited_availability`"}, "replacement-not-carried": {"needs_human"}, "no-rule": {"needs_human"},
+		"price-follow": {"change"}, "new-copy-offered-region": {"change"}, "limited-availability": {"skip:`limited_availability`"}, "replacement-not-carried": {"needs_human"}, "no-rule": {"needs_human"},
 		"region-not-offered": {"skip:`region_not_offered`"}, "copy-gone-no-eol": {"skip:`copy_unlisted`"},
 		"label-fact-differs": {"skip:`fixed_fact_differs`"},
 	},
@@ -102,6 +102,7 @@ func TestValidate(t *testing.T) {
 		{"change without a rule", func(r *Report) { r.Changes[0].Rule = "" }, `changes[0]: unknown rule ""`},
 		{"change under a rule for another field", func(r *Report) { r.Changes[0].Field = "limit" }, "changes[0]: rule price-follow covers price, not limit"},
 		{"change resting on judgment", func(r *Report) { r.Changes[0].Rule = "no-rule" }, "changes[0]: a change needs a Default, not no-rule"},
+		{"new copy", func(r *Report) { r.Changes[0].Field, r.Changes[0].Rule = "new_copy", "new-copy-offered-region" }, ""},
 		{"region not offered", func(r *Report) {
 			r.Skipped[0] = Skipped{Offering: "bedrock:in.anthropic.claude-opus-5", Reason: "region_not_offered", Rule: "region-not-offered"}
 		}, ""},
@@ -189,6 +190,75 @@ func tampered(t *testing.T, after *reconcile.Snapshot) *reconcile.Snapshot {
 	return &snap
 }
 
+// addedSnapshots are the catalogue before and after a patch that adds an AU
+// copy of Sonnet 5.5, which the catalogue carries, and Haiku 5.5, which it
+// doesn't, on the Anthropic API and Bedrock.
+func addedSnapshots(t *testing.T) (*reconcile.Snapshot, *reconcile.Snapshot) {
+	t.Helper()
+
+	const sonnet = `{"id": "global.anthropic.claude-sonnet-5-5", "model": "anthropic/claude-sonnet-5-5"}`
+
+	before, err := reconcile.ParseSnapshot([]byte(`{"facts": {"anthropic/claude-sonnet-5-5": {"released": "2026-09-30"}},
+		"providers": [{"provider": "aws.bedrock", "offerings": [` + sonnet + `]}]}`))
+	require.NoError(t, err)
+
+	after, err := reconcile.ParseSnapshot([]byte(`{"facts": {"anthropic/claude-sonnet-5-5": {"released": "2026-09-30"},
+			"anthropic/claude-haiku-5-5": {"released": "2026-10-15"}},
+		"providers": [{"provider": "anthropic", "offerings": [{"id": "claude-haiku-5-5", "model": "anthropic/claude-haiku-5-5"}]},
+			{"provider": "aws.bedrock", "offerings": [` + sonnet + `,
+				{"id": "au.anthropic.claude-sonnet-5-5", "model": "anthropic/claude-sonnet-5-5"},
+				{"id": "global.anthropic.claude-haiku-5-5", "model": "anthropic/claude-haiku-5-5"}]}]}`))
+	require.NoError(t, err)
+
+	return &before, &after
+}
+
+func TestValidateAdded(t *testing.T) {
+	t.Parallel()
+
+	before, after := addedSnapshots(t)
+	withSnapshots := Base{Before: before, After: after}
+
+	tests := []struct {
+		name        string
+		change      Change
+		base        Base
+		wantProblem string
+	}{
+		{
+			name:        "a copy reported as a new model",
+			change:      Change{Offering: "bedrock:au.anthropic.claude-sonnet-5-5", Field: "new_model"},
+			base:        withSnapshots,
+			wantProblem: `changes[0]: the catalogue already carries "anthropic/claude-sonnet-5-5", so the field is new_copy, not new_model`,
+		},
+		{
+			name:        "a new model reported as a copy",
+			change:      Change{Offering: "claude-haiku-5-5", Field: "new_copy"},
+			base:        withSnapshots,
+			wantProblem: `changes[0]: the catalogue doesn't carry "anthropic/claude-haiku-5-5", so the field is new_model, not new_copy`,
+		},
+		{name: "a copy", change: Change{Offering: "bedrock:au.anthropic.claude-sonnet-5-5", Field: "new_copy"}, base: withSnapshots},
+		{name: "a new model", change: Change{Offering: "claude-haiku-5-5", Field: "new_model"}, base: withSnapshots},
+		{name: "a new model's Bedrock copy", change: Change{Offering: "bedrock:global.anthropic.claude-haiku-5-5", Field: "new_model"}, base: withSnapshots},
+		{name: "an offering not in the patched catalogue", change: Change{Offering: "claude-opus-5-5", Field: "new_copy"}, base: withSnapshots},
+		{name: "another field", change: Change{Offering: "bedrock:au.anthropic.claude-sonnet-5-5", Field: "price"}, base: withSnapshots},
+		{name: "no snapshots, no check", change: Change{Offering: "bedrock:au.anthropic.claude-sonnet-5-5", Field: "new_model"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			problems := tt.base.ValidateAdded(Report{Changes: []Change{tt.change}}, "anthropic")
+			if tt.wantProblem == "" {
+				assert.Empty(t, problems)
+				return
+			}
+
+			assert.Equal(t, []string{tt.wantProblem}, problems)
+		})
+	}
+}
+
 func TestRender(t *testing.T) {
 	t.Parallel()
 
@@ -211,6 +281,8 @@ func TestRender(t *testing.T) {
 		ID: "DEC-002", Offering: "vertex:claude-haiku-4-5", Field: reconcile.FieldNewModel, Kind: reconcile.KindHold,
 		Reason: "Not offered to users.", ReviewBy: "2027-01-13", Line: 12,
 	}
+	holdCopy := holdOld
+	holdCopy.Field = reconcile.FieldNewCopy
 	otherField := keepLimit
 	otherField.Field = "price"
 	// #259's copies in India, which Bedrock doesn't offer, and one in a second region.
@@ -223,6 +295,7 @@ func TestRender(t *testing.T) {
 
 	before, after := effectSnapshots(t)
 	withEffects := Base{Before: before, After: after, Today: "2026-10-15"}
+	addedBefore, addedAfter := addedSnapshots(t)
 	routesBefore, err := ParseRoutes([]byte("ap-southeast-2 anthropic.claude-sonnet-5-5 global.anthropic.claude-sonnet-5-5\n" +
 		"ap-southeast-4 anthropic.claude-sonnet-5-5 global.anthropic.claude-sonnet-5-5\nus-east-1 anthropic.claude-sonnet-5-5 us.anthropic.claude-sonnet-5-5\n"))
 	require.NoError(t, err)
@@ -269,7 +342,7 @@ func TestRender(t *testing.T) {
 		},
 		{
 			name:     "copies added per host",
-			report:   changes(Change{Offering: "bedrock:au.anthropic.claude-sonnet-5-5", Field: "new_model", New: "au.anthropic.claude-sonnet-5-5"}),
+			report:   changes(Change{Offering: "bedrock:au.anthropic.claude-sonnet-5-5", Field: "new_copy", New: "au.anthropic.claude-sonnet-5-5"}),
 			base:     withEffects,
 			contains: []string{"| new on bedrock, region `au` |"},
 		},
@@ -286,7 +359,7 @@ func TestRender(t *testing.T) {
 			name: "changes grouped by rule",
 			report: Report{Changes: []Change{
 				{Offering: "vertex:claude-sonnet-5-5", Field: "price", Old: "0.22", New: "0.11", Rule: "price-follow", SourceURL: "https://platform.claude.com/a"},
-				{Offering: "bedrock:au.anthropic.claude-sonnet-5-5", Field: "new_model", New: "au.anthropic.claude-sonnet-5-5", Rule: "new-copy-offered-region", SourceURL: "https://platform.claude.com/b"},
+				{Offering: "bedrock:au.anthropic.claude-sonnet-5-5", Field: "new_copy", New: "au.anthropic.claude-sonnet-5-5", Rule: "new-copy-offered-region", SourceURL: "https://platform.claude.com/b"},
 				{Offering: "claude-sonnet-5-5", Field: "price", Old: "0.20", New: "0.10", Rule: "price-follow", SourceURL: "https://platform.claude.com/c"},
 			}},
 			base: Base{URL: baseURL, Rules: testRules},
@@ -299,7 +372,7 @@ func TestRender(t *testing.T) {
 		},
 		{
 			name:   "a route that moves is flagged",
-			report: changes(Change{Offering: "bedrock:au.anthropic.claude-sonnet-5-5", Field: "new_model", New: "au.anthropic.claude-sonnet-5-5"}),
+			report: changes(Change{Offering: "bedrock:au.anthropic.claude-sonnet-5-5", Field: "new_copy", New: "au.anthropic.claude-sonnet-5-5"}),
 			base:   withRoutes,
 			contains: []string{
 				"### Routing changes (1)\n\nBare-name calls from these regions now go to another copy. Check the price and where the data is processed.\n\n",
@@ -309,7 +382,7 @@ func TestRender(t *testing.T) {
 		},
 		{
 			name:        "unsafe snapshot strings stay out of the body",
-			report:      changes(Change{Offering: "bedrock:au.anthropic.claude-sonnet-5-5", Field: "new_model", New: "au.anthropic.claude-sonnet-5-5"}),
+			report:      changes(Change{Offering: "bedrock:au.anthropic.claude-sonnet-5-5", Field: "new_copy", New: "au.anthropic.claude-sonnet-5-5"}),
 			base:        Base{Before: before, After: tampered(t, after), Today: "2026-10-15"},
 			contains:    []string{"| new on bedrock |"},
 			notContains: []string{"evil"},
@@ -382,6 +455,19 @@ func TestRender(t *testing.T) {
 			base:        Base{URL: baseURL, Decisions: []reconcile.Decision{holdOld}, Today: "2026-10-14"},
 			contains:    []string{"| [DEC-002](" + decisionsURL + "#L12) | `vertex:claude-haiku-4-5` | new_model | out_of_scope | Not offered to users. |"},
 			notContains: []string{"### Skipped"},
+		},
+		{
+			name:        "a skipped copy under a hold on new_copy is held",
+			report:      Report{Skipped: []Skipped{{Offering: "vertex:claude-haiku-4-5", Reason: "out_of_scope"}}},
+			base:        Base{URL: baseURL, Decisions: []reconcile.Decision{holdCopy}, Today: "2026-10-14"},
+			contains:    []string{"| [DEC-002](" + decisionsURL + "#L12) | `vertex:claude-haiku-4-5` | new_copy | out_of_scope | Not offered to users. |"},
+			notContains: []string{"### Skipped"},
+		},
+		{
+			name:     "a new model is new on its host",
+			report:   changes(Change{Offering: "claude-haiku-5-5", Field: "new_model", New: "claude-haiku-5-5"}),
+			base:     Base{Before: addedBefore, After: addedAfter},
+			contains: []string{"| new_model | none | `claude-haiku-5-5` | new on anthropic |"},
 		},
 		{
 			name:   "needs a human is a block per row, marked when no rule covers it",

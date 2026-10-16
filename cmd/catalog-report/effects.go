@@ -55,7 +55,7 @@ func (base Base) effect(change Change, provider string) string {
 	switch change.Field {
 	case "price":
 		return priceNote(before, after)
-	case reconcile.FieldNewModel:
+	case reconcile.FieldNewModel, reconcile.FieldNewCopy:
 		if before != nil {
 			return ""
 		}

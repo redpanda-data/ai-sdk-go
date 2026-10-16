@@ -80,6 +80,7 @@ func TestCheckDecisions(t *testing.T) {
 	keep := func(field, lock string) string { return item("DEC-001", field, reconcile.KindKeep, "lock: "+lock) }
 	keepGA := keep("lifecycle", `{"stage": "ga"}`)
 	hold := item("DEC-002", reconcile.FieldNewModel, reconcile.KindHold)
+	holdCopy := item("DEC-002", reconcile.FieldNewCopy, reconcile.KindHold)
 
 	tests := []struct {
 		name        string
@@ -93,16 +94,20 @@ func TestCheckDecisions(t *testing.T) {
 		{"capability lock holds", keep("capability", `{"capabilities": {"tools": true}}`), fable, ""},
 		{"release date lock holds", keep("release_date", `"2026-05-01"`), fable, ""},
 		{"kept model present", item("DEC-003", reconcile.FieldNewModel, reconcile.KindKeep), fable, ""},
+		{"kept copy present", item("DEC-003", reconcile.FieldNewCopy, reconcile.KindKeep), fable, ""},
 		{"held offering absent", hold, `{}`, ""},
+		{"held copy absent", holdCopy, `{}`, ""},
 		{"kept offering removed", keepGA, `{}`, "DEC-001 keep bedrock:eu.anthropic.claude-fable-5 lifecycle: the offering is missing"},
 		{"locked value moved", keep("lifecycle", `{"stage": "deprecated"}`), fable, `DEC-001 keep bedrock:eu.anthropic.claude-fable-5 lifecycle: got {"stage":"ga"}`},
 		{"held offering added", hold, fable, "DEC-002 hold bedrock:eu.anthropic.claude-fable-5 new_model: the offering is in the catalogue"},
+		{"held copy added", holdCopy, fable, "DEC-002 hold bedrock:eu.anthropic.claude-fable-5 new_copy: the offering is in the catalogue"},
 		{"unknown key", keepGA + "    colour: red\n", fable, "decisions.yaml"},
 		{"duplicate ID", keepGA + keepGA, fable, "DEC-001: duplicate ID"},
 		{"two decisions on one field", keepGA + item("DEC-004", "lifecycle", reconcile.KindKeep, `lock: {"stage": "ga"}`), fable, "DEC-004: DEC-001 already covers"},
 		{"keep without a lock", keep("lifecycle", "null"), fable, "a keep needs a lock"},
 		{"lock on new_model", item("DEC-003", reconcile.FieldNewModel, reconcile.KindKeep, `lock: {"stage": "ga"}`), fable, "new_model takes no lock"},
-		{"hold on another field", item("DEC-002", "price", reconcile.KindHold), fable, "a hold applies only to new_model"},
+		{"lock on new_copy", item("DEC-003", reconcile.FieldNewCopy, reconcile.KindKeep, `lock: {"stage": "ga"}`), fable, "new_copy takes no lock"},
+		{"hold on another field", item("DEC-002", "price", reconcile.KindHold), fable, "a hold applies only to new_model or new_copy"},
 		{"unknown package", strings.Replace(keepGA, "bedrock:", "azure:", 1), fable, "unknown package azure"},
 		{"bad date", strings.Replace(keepGA, "2027-01-13", "soon", 1), fable, "review_by"},
 	}

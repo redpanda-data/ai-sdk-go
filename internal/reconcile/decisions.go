@@ -27,11 +27,13 @@ import (
 // reconcile run must not reopen (RULES.md, Principles).
 const DecisionsPath = ".github/reconcile-models/decisions.yaml"
 
-// The two kinds of decision, and the field a hold applies to.
+// The two kinds of decision, and the fields a hold applies to: a model the
+// catalogue doesn't carry yet, and another copy of one it does.
 const (
 	KindKeep      = "keep"
 	KindHold      = "hold"
 	FieldNewModel = "new_model"
+	FieldNewCopy  = "new_copy"
 )
 
 // Decision is one entry in decisions.yaml. A keep pins one field of an offering to Lock,

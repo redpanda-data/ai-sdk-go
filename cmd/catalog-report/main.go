@@ -40,7 +40,7 @@ func main() {
 	rulesPath := flag.String("rules", "", "RULES.md, for the rule each row names")
 	decisionsPath := flag.String("decisions", "", "optional decisions.yaml, for the held table")
 	baseURL := flag.String("base-url", "", "optional link prefix for repo files at the base commit, e.g. https://github.com/OWNER/REPO/blob/SHA")
-	beforePath := flag.String("base-snapshot", "", "optional catalog/snapshot.json before the patch; with -snapshot, each change gets an effect note")
+	beforePath := flag.String("base-snapshot", "", "optional catalog/snapshot.json before the patch; with -snapshot, each change gets an effect note and each added offering's field is checked")
 	afterPath := flag.String("snapshot", "", "optional catalog/snapshot.json after the patch")
 	routesBeforePath := flag.String("base-routes", "", "optional catalog-routes output before the patch; with -routes, the body names routing changes")
 	routesAfterPath := flag.String("routes", "", "optional catalog-routes output after the patch")
@@ -148,6 +148,14 @@ func main() {
 	if *beforePath != "" {
 		before, after := mustLoad(*beforePath, reconcile.ParseSnapshot), mustLoad(*afterPath, reconcile.ParseSnapshot)
 		base.Before, base.After = &before, &after
+	}
+
+	if problems := base.ValidateAdded(report, *provider); len(problems) > 0 {
+		for _, problem := range problems {
+			fmt.Fprintln(os.Stderr, "catalog-report:", problem)
+		}
+
+		os.Exit(1)
 	}
 
 	if *routesBeforePath != "" {

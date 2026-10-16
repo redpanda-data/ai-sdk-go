@@ -35,7 +35,7 @@ type (
 )
 
 var (
-	fields       = []string{"new_model", "price", "limit", "lifecycle", "replacement", "knowledge_cutoff", "release_date", "capability"}
+	fields       = []string{"new_model", "new_copy", "price", "limit", "lifecycle", "replacement", "knowledge_cutoff", "release_date", "capability"}
 	reasons      = []string{"not_on_named_sources", "conflicting_sources", "needs_new_pricing_shape", "out_of_scope", "limited_availability", "vendor_excluded", regionNotOffered, "copy_unlisted", "fixed_fact_differs"}
 	valuePattern = regexp.MustCompile(`^[A-Za-z0-9 ._:/+-]{0,64}$`)
 	// sourcePattern allows only characters that can't end a markdown link,
@@ -187,6 +187,44 @@ func Validate(report Report, hosts []string, rules reconcile.Rules) []string {
 			case slices.Contains(offered, prefix):
 				problems = append(problems, where+": region "+prefix+" is offered on "+host)
 			}
+		}
+	}
+
+	return problems
+}
+
+// ValidateAdded lists each new_model or new_copy row whose field the
+// catalogue contradicts: a row adding an offering of a model the catalogue
+// before the patch has facts for is a new_copy, and any other a new_model
+// (RULES.md, Report values). Without both catalogues it checks nothing.
+func (base Base) ValidateAdded(report Report, provider string) []string {
+	if base.Before == nil || base.After == nil {
+		return nil
+	}
+
+	var problems []string
+
+	for index, change := range report.Changes {
+		if change.Field != reconcile.FieldNewModel && change.Field != reconcile.FieldNewCopy {
+			continue
+		}
+
+		pkg, id := packageOf(change.Offering, provider)
+
+		offering, found := base.After.Offering(pkg, id)
+		if !found {
+			continue
+		}
+
+		model, _ := offering["model"].(string)
+
+		want, carries := reconcile.FieldNewModel, "doesn't carry"
+		if _, ok := base.Before.Facts[model]; ok {
+			want, carries = reconcile.FieldNewCopy, "already carries"
+		}
+
+		if change.Field != want {
+			problems = append(problems, fmt.Sprintf("changes[%d]: the catalogue %s %q, so the field is %s, not %s", index, carries, model, want, change.Field))
 		}
 	}
 
@@ -372,9 +410,9 @@ func sameOffering(reported, provider, decided string) bool {
 // hold takes the needs_human and skipped rows a decision already answers out
 // of the report, and returns the rest with the held table's rows.
 func (base Base) hold(report Report, provider string) (Report, []string) {
-	find := func(offering, field string) (reconcile.Decision, bool) {
+	find := func(offering string, wanted ...string) (reconcile.Decision, bool) {
 		for _, d := range base.Decisions {
-			if d.Field == field && sameOffering(offering, provider, d.Offering) {
+			if slices.Contains(wanted, d.Field) && sameOffering(offering, provider, d.Offering) {
 				return d, true
 			}
 		}
@@ -402,7 +440,7 @@ func (base Base) hold(report Report, provider string) (Report, []string) {
 	var skipped []Skipped
 
 	for _, item := range report.Skipped {
-		if d, ok := find(item.Offering, reconcile.FieldNewModel); ok {
+		if d, ok := find(item.Offering, reconcile.FieldNewModel, reconcile.FieldNewCopy); ok {
 			held = append(held, row(d, item.Offering, item.Reason))
 		} else {
 			skipped = append(skipped, item)

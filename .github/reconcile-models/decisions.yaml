@@ -1,6 +1,7 @@
 # Review decisions for reconcile-models runs; RULES.md (Principles) says how they work.
 # Public file: no people, customers, internal systems or ticket keys.
 # An offering is <package>:<model ID>. A keep's lock uses the field's shape in
-# catalog/snapshot.json; a hold is on new_model with no lock. TestDecisionsHold
-# fails on a contradiction and prints the current value to paste as a lock.
+# catalog/snapshot.json; a hold is on new_model or new_copy with no lock.
+# TestDecisionsHold fails on a contradiction and prints the current value to
+# paste as a lock.
 decisions: []

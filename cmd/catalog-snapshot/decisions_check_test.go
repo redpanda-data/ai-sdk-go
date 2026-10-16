@@ -30,6 +30,7 @@ import (
 // an object of those present, keyed by their last part.
 var lockedKeys = map[string][]string{
 	reconcile.FieldNewModel: nil,
+	reconcile.FieldNewCopy:  nil,
 	"price":                 {"pricing"},
 	"limit":                 {"constraints.max_input_tokens", "constraints.max_output_tokens"},
 	"capability":            {"capabilities", "modalities", "reasoning", "speeds"},
@@ -99,6 +100,7 @@ func malformed(d reconcile.Decision) string {
 	_, knownField := lockedKeys[d.Field]
 	_, decidedErr := catalog.ParseDate(d.Decided)
 	_, reviewErr := catalog.ParseDate(d.ReviewBy)
+	added := d.Field == reconcile.FieldNewModel || d.Field == reconcile.FieldNewCopy
 
 	switch {
 	case !decisionID.MatchString(d.ID):
@@ -111,11 +113,11 @@ func malformed(d reconcile.Decision) string {
 		return "an offering is <package>:<model ID>"
 	case !knownField:
 		return "unknown field " + d.Field
-	case d.Kind == reconcile.KindHold && d.Field != reconcile.FieldNewModel:
-		return "a hold applies only to new_model"
-	case d.Field == reconcile.FieldNewModel && d.Lock != nil:
-		return "new_model takes no lock"
-	case d.Field != reconcile.FieldNewModel && d.Lock == nil:
+	case d.Kind == reconcile.KindHold && !added:
+		return "a hold applies only to new_model or new_copy"
+	case added && d.Lock != nil:
+		return d.Field + " takes no lock"
+	case !added && d.Lock == nil:
 		return "a keep needs a lock"
 	case d.Reason == "":
 		return "a decision needs a reason"
