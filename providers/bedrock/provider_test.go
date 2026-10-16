@@ -170,8 +170,14 @@ func TestLookupModel(t *testing.T) {
 			wantDef: ModelClaudeSonnet5Global,
 		},
 		{
-			name:   "Sonnet 5 eu profile is not published yet",
-			input:  "eu." + ModelClaudeSonnet5,
+			name:    "Sonnet 5 eu profile is its own entry",
+			input:   ModelClaudeSonnet5EU,
+			wantOK:  true,
+			wantDef: ModelClaudeSonnet5EU,
+		},
+		{
+			name:   "Sonnet 5 jp profile is not published",
+			input:  "jp." + ModelClaudeSonnet5,
 			wantOK: false,
 		},
 		{
@@ -668,7 +674,7 @@ func TestNewModel_ClaudeSonnet55Routing(t *testing.T) {
 		{"bare from Calgary", "ca-west-1", ModelClaudeSonnet55, ModelClaudeSonnet55US, false},
 		{"bare from EU", "eu-west-1", ModelClaudeSonnet55, ModelClaudeSonnet55EU, false},
 		{"bare from Zurich", "eu-central-2", ModelClaudeSonnet55, ModelClaudeSonnet55EU, false},
-		{"bare from Sydney routes global", "ap-southeast-2", ModelClaudeSonnet55, ModelClaudeSonnet55Global, false},
+		{"bare from Sydney routes AU", "ap-southeast-2", ModelClaudeSonnet55, ModelClaudeSonnet55AU, false},
 		{"bare from Tokyo routes global", "ap-northeast-1", ModelClaudeSonnet55, ModelClaudeSonnet55Global, false},
 		{"bare from GovCloud", "us-gov-west-1", ModelClaudeSonnet55, "", true},
 		{"bare from unknown region", "unknown", ModelClaudeSonnet55, "", true},
@@ -677,7 +683,8 @@ func TestNewModel_ClaudeSonnet55Routing(t *testing.T) {
 		{"explicit global from US", "us-east-1", ModelClaudeSonnet55Global, ModelClaudeSonnet55Global, false},
 		{"explicit US from EU", "eu-west-1", ModelClaudeSonnet55US, "", true},
 		{"explicit EU from US", "us-east-1", ModelClaudeSonnet55EU, "", true},
-		{"explicit AU is unpublished", "ap-southeast-2", "au." + ModelClaudeSonnet55, "", true},
+		{"explicit AU from Sydney", "ap-southeast-2", ModelClaudeSonnet55AU, ModelClaudeSonnet55AU, false},
+		{"explicit AU from US", "us-east-1", ModelClaudeSonnet55AU, "", true},
 		{"explicit JP is unpublished", "ap-northeast-1", "jp." + ModelClaudeSonnet55, "", true},
 	}
 

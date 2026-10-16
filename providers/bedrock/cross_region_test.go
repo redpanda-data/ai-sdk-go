@@ -55,7 +55,9 @@ func TestIsModelAllowedFromRegion(t *testing.T) {
 		{"sonnet5 us from eu-west-1 (cross-geo)", ModelClaudeSonnet5US, "eu-west-1", false},
 		{"sonnet5 global from me-central-1", ModelClaudeSonnet5Global, "me-central-1", true},
 
-		// Sonnet 5.5 — US, EU, and global profiles are published.
+		// Sonnet 5.5 — US, EU, AU, and global profiles are published.
+		{"sonnet5.5 au from ap-southeast-4", ModelClaudeSonnet55AU, "ap-southeast-4", true},
+		{"sonnet5.5 au from ap-southeast-6 (outside AU geo)", ModelClaudeSonnet55AU, "ap-southeast-6", false},
 		{"sonnet5.5 us from us-east-1", ModelClaudeSonnet55US, "us-east-1", true},
 		{"sonnet5.5 us from ca-west-1", ModelClaudeSonnet55US, "ca-west-1", true},
 		{"sonnet5.5 us from eu-west-1 (cross-geo)", ModelClaudeSonnet55US, "eu-west-1", false},
@@ -225,6 +227,7 @@ func TestProfileRegionResolverLookup(t *testing.T) {
 		ModelClaudeSonnet55Global,
 		ModelClaudeSonnet55US,
 		ModelClaudeSonnet55EU,
+		ModelClaudeSonnet55AU,
 		ModelGPT6Sol,
 		ModelGPT6SolGlobal,
 		ModelGPT6SolUS,

@@ -718,10 +718,13 @@ func entries() []catalog.Entry {
 			Pricing: claudeSonnet55Pricing(),
 		},
 		{
-			ID:           ModelClaudeSonnet5,
-			Model:        catalog.ModelClaudeSonnet5,
-			WireAPIs:     claudeWireAPIs,
-			Capabilities: claudeCaps,
+			ID:       ModelClaudeSonnet5,
+			Model:    catalog.ModelClaudeSonnet5,
+			WireAPIs: claudeWireAPIs,
+			// Tool search per Anthropic's tool-search compatibility list
+			// (https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool,
+			// read 2026-10-15; RULES.md capability-mirror-unprobed).
+			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
 				MaxInputTokens:  1000000,
@@ -879,10 +882,13 @@ func claudeOpus55Pricing() pricing.Info {
 }
 
 // claudeSonnet55Pricing returns the Sonnet 5.5 rate card: global, plus
-// global x 1.10 for us and eu.
+// global x 1.10 for us and eu. Cache hits are 0.05x input ($0.10 global,
+// $0.11 non-global), from the pricing page's region tabs
+// (https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing,
+// read 2026-10-15).
 func claudeSonnet55Pricing() pricing.Info {
-	global := pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0)
-	nonGlobal := pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(2.75, 4.40, 0)
+	global := pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(2.50, 4.00, 0)
+	nonGlobal := pricing.NewRates(2.20, 11.00, 0.11).WithCacheCreation(2.75, 4.40, 0)
 
 	info := pricing.FlatInfoFromRates(global)
 	for _, region := range []string{"us", "eu"} {

@@ -118,10 +118,9 @@ var claudeCaps = llm.ModelCapabilities{
 }
 
 // claudeCapsWithToolSearch marks the models on Anthropic's tool search
-// compatibility list as of 2026-10-08: Fable 5.1, Fable 5, Opus 5.5, Opus 5, Opus 4.8,
-// 4.7, 4.6 and 4.5, Sonnet 5.5, 4.6 and 4.5, Haiku 5.5 and 4.5. Opus 4.1 is explicitly
-// unsupported and Sonnet 5 is absent from the list, so both keep claudeCaps and
-// local discovery until native support is documented:
+// compatibility list as of 2026-10-15: Fable 5.1, Fable 5, Opus 5.5, Opus 5, Opus 4.8,
+// 4.7, 4.6 and 4.5, Sonnet 5.5, 5, 4.6 and 4.5, Haiku 5.5 and 4.5. Opus 4.1 is
+// explicitly unsupported, so it keeps claudeCaps and local discovery:
 // https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool#model-compatibility
 var claudeCapsWithToolSearch = func() llm.ModelCapabilities {
 	caps := claudeCaps
@@ -365,15 +364,17 @@ func entries() []catalog.Entry {
 			Life: catalog.Lifecycle{
 				Available: catalog.MustDate("2026-09-28"),
 			},
+			// Cache hits are 0.05x base input ($0.10/MTok), per
+			// https://platform.claude.com/docs/en/about-claude/pricing (read 2026-10-15).
 			Pricing: pricing.FlatInfoFromRates(
-				pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0),
+				pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(2.50, 4.00, 0),
 			),
 		},
 		{
 			ID:           ModelClaudeSonnet5,
 			Model:        catalog.ModelClaudeSonnet5,
 			WireAPIs:     messagesWireAPIs,
-			Capabilities: claudeCaps,
+			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
 				MaxInputTokens:  1000000, // 1M context window

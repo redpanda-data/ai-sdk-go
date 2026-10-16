@@ -248,8 +248,8 @@ func TestClaudeRegionalOverride(t *testing.T) {
 		vertex.ModelClaudeOpus46: opus,
 		vertex.ModelClaudeOpus45: opus,
 		vertex.ModelClaudeSonnet55: {
-			global:   pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0),
-			regional: pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(2.75, 4.40, 0),
+			global:   pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(2.50, 4.00, 0),
+			regional: pricing.NewRates(2.20, 11.00, 0.11).WithCacheCreation(2.75, 4.40, 0),
 		},
 		vertex.ModelClaudeSonnet5: {
 			global:   pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0),
