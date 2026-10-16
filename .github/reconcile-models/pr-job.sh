@@ -116,7 +116,7 @@ sandbox() {
     Linux)
       "${env[@]}" bwrap --die-with-parent --new-session --unshare-net --unshare-pid \
         --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp --dir /tmp/sandbox-home \
-        --bind "$gocache" "$gocache" --bind "$gomodcache" "$gomodcache" \
+        --ro-bind "$repo" "$repo" --bind "$gocache" "$gocache" --bind "$gomodcache" "$gomodcache" \
         --bind "$repo/catalog/snapshot.json" "$repo/catalog/snapshot.json" \
         --ro-bind "$git_dir" "$git_dir" --ro-bind "$git_common" "$git_common" --ro-bind "$out" "$out" \
         "$@"
