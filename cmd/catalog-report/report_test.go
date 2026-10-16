@@ -311,6 +311,25 @@ func TestRender(t *testing.T) {
 
 	withRoutes := withEffects
 	withRoutes.RoutesBefore, withRoutes.RoutesAfter = routesBefore, routesAfter
+
+	// A pair the SDK refused that now has a copy, and one the patch removes.
+	failsBefore, err := ParseRoutes([]byte("us-east-1 anthropic.claude-sonnet-5-5 -\nus-west-2 anthropic.claude-haiku-5-5 us.anthropic.claude-haiku-5-5\n"))
+	require.NoError(t, err)
+	failsAfter, err := ParseRoutes([]byte("us-east-1 anthropic.claude-sonnet-5-5 global.anthropic.claude-sonnet-5-5\n"))
+	require.NoError(t, err)
+
+	withFails := withEffects
+	withFails.RoutesBefore, withFails.RoutesAfter = failsBefore, failsAfter
+	// Seven questions, and two waiting regions: one with a name, one without.
+	manyAsks := Report{Skipped: []Skipped{
+		{Offering: "bedrock:us-gov.anthropic.claude-opus-5", Reason: "region_not_offered", Rule: "region-not-offered"},
+		{Offering: "bedrock:zz.anthropic.claude-opus-5", Reason: "region_not_offered", Rule: "region-not-offered"},
+	}}
+
+	for _, model := range []string{"claude-opus-5", "claude-opus-5-5", "claude-sonnet-5", "claude-sonnet-5-5", "claude-haiku-5", "claude-haiku-5-5", "claude-fable-5"} {
+		manyAsks.NeedsHuman = append(manyAsks.NeedsHuman, NeedsHuman{Offering: model, Field: "limit", Rule: "no-rule", SourceURLs: []string{"https://platform.claude.com/a"}})
+	}
+
 	changes := func(rows ...Change) Report {
 		for i := range rows {
 			rows[i].SourceURL = "https://platform.claude.com/docs/en/about-claude/pricing"
@@ -381,10 +400,23 @@ func TestRender(t *testing.T) {
 			report: changes(Change{Offering: "bedrock:au.anthropic.claude-sonnet-5-5", Field: "new_copy", New: "au.anthropic.claude-sonnet-5-5"}),
 			base:   withRoutes,
 			contains: []string{
-				"### Routing changes (1)\n\nBare-name calls from these regions now go to another copy. Check the price and where the data is processed.\n\n",
-				"- ⚑ `anthropic.claude-sonnet-5-5` from `ap-southeast-2`, `ap-southeast-4`: `global.anthropic.claude-sonnet-5-5` → `au.anthropic.claude-sonnet-5-5` (input +10%)\n",
+				"### Routing changes (1)\n\n⚑ Bare-name calls from these regions now go to another copy. Check the price and where the data is processed.\n\n" +
+					"| Model | Callers in | Today | After | Input price | Data processed in |\n|---|---|---|---|---|---|\n" +
+					"| `anthropic.claude-sonnet-5-5` | `ap-southeast-2`, `ap-southeast-4` | `global.anthropic.claude-sonnet-5-5` | `au.anthropic.claude-sonnet-5-5` | +10% | Australia |\n\n",
 			},
 			notContains: []string{"us-east-1"},
+		},
+		{
+			name:   "a route that had no copy, or loses it, reads as a call that fails",
+			report: changes(Change{Offering: "bedrock:au.anthropic.claude-sonnet-5-5", Field: "new_copy", New: "au.anthropic.claude-sonnet-5-5"}),
+			base:   withFails,
+			contains: []string{
+				"### Routing changes (2)\n\n",
+				"|---|---|---|---|---|---|\n" +
+					"| `anthropic.claude-haiku-5-5` | `us-west-2` | `us.anthropic.claude-haiku-5-5` | call fails (no copy) | — | — |\n" +
+					"| `anthropic.claude-sonnet-5-5` | `us-east-1` | call fails (no copy) | `global.anthropic.claude-sonnet-5-5` | — | any region |\n\n",
+			},
+			notContains: []string{"refused"},
 		},
 		{
 			name:        "unsafe snapshot strings stay out of the body",
@@ -515,8 +547,10 @@ func TestRender(t *testing.T) {
 				"- Offer `in` on bedrock (asked since 2026-10-15)? 3 copies: `bedrock:in.anthropic.claude-opus-5`, `bedrock:in.anthropic.claude-sonnet-5`, " +
 					"`bedrock:in.anthropic.claude-haiku-4-5-20251001-v1:0`\n",
 				"- Offer `ca` on bedrock (not in the table yet)? 1 copy: `bedrock:ca.anthropic.claude-opus-5`\n",
-				"Questions for people: 0 for the reviewer, 2 for product, waiting on a product decision: `in` on bedrock since 2026-10-15, `ca` on bedrock (new).\n\n",
+				"> [!NOTE]\n> **2 product decisions waiting** (they don't block this PR): " +
+					"offer `in` on bedrock (India, asked since 2026-10-15)? offer `ca` on bedrock (Canada, new)?\n\n",
 			},
+			notContains: []string{"[!IMPORTANT]"},
 		},
 		{
 			name:   "a declined region's copies are skipped, not waiting",
@@ -525,7 +559,7 @@ func TestRender(t *testing.T) {
 			contains: []string{
 				"### Waiting on a product decision (1)",
 				"### Skipped (1)\n\n| Rule | Why | Offerings |\n|---|---|---|\n| [region-not-offered](" + rulesURL + "#L20) | `region_not_offered` | `bedrock:ca.anthropic.claude-opus-5` |\n",
-				"Questions for people: 0 for the reviewer, 1 for product, waiting on a product decision: `in` on bedrock since 2026-10-15.\n\n",
+				"> [!NOTE]\n> **1 product decision waiting** (it doesn't block this PR): offer `in` on bedrock (India, asked since 2026-10-15)?\n\n",
 			},
 			notContains: []string{"Offer `ca`", "`ca` on bedrock"},
 		},
@@ -534,22 +568,35 @@ func TestRender(t *testing.T) {
 			report: withWaiting,
 			base:   Base{Rules: testRules},
 			contains: []string{
-				"Later runs don't read PR comments.\n\nQuestions for people: 1 for the reviewer (Resolve before merging), 2 for product, waiting on a product decision: " +
-					"`in` on bedrock since 2026-10-15, `ca` on bedrock (new).\n\n### Changes (1)",
+				"Later runs don't read PR comments.\n\n> [!IMPORTANT]\n> **Resolve 1 question before merging:** `claude-sonnet-5-5` limit. See Resolve before merging below.\n\n" +
+					"> [!NOTE]\n> **2 product decisions waiting** (they don't block this PR): " +
+					"offer `in` on bedrock (India, asked since 2026-10-15)? offer `ca` on bedrock (Canada, new)?\n\n### Changes (1)",
 			},
 		},
 		{
-			name:     "held rows aren't questions",
-			report:   twoAsks,
-			base:     Base{Decisions: []reconcile.Decision{keepLimit}, Today: "2026-10-14"},
-			contains: []string{"Questions for people: 1 for the reviewer (Resolve before merging), 0 for product.\n\n"},
+			name:        "held rows aren't questions",
+			report:      twoAsks,
+			base:        Base{Decisions: []reconcile.Decision{keepLimit}, Today: "2026-10-14"},
+			contains:    []string{"> [!IMPORTANT]\n> **Resolve 1 question before merging:** `claude-opus-4-1` replacement. See Resolve before merging below.\n\n"},
+			notContains: []string{"`claude-sonnet-5-5` limit", "[!NOTE]"},
 		},
 		{
-			name:        "no questions, no line",
+			name:   "more than five questions are cut, and a region with no name shows none",
+			report: manyAsks,
+			base:   Base{Rules: testRules},
+			contains: []string{
+				"> [!IMPORTANT]\n> **Resolve 7 questions before merging:** `claude-opus-5` limit, `claude-opus-5-5` limit, `claude-sonnet-5` limit, " +
+					"`claude-sonnet-5-5` limit, `claude-haiku-5` limit and 2 more. See Resolve before merging below.\n\n",
+				"> [!NOTE]\n> **2 product decisions waiting** (they don't block this PR): " +
+					"offer `us-gov` on bedrock (GovCloud (US), new)? offer `zz` on bedrock (new)?\n\n",
+			},
+		},
+		{
+			name:        "no questions, no alerts",
 			report:      Report{Skipped: waiting[2:3]},
 			base:        Base{Rules: declinedCA},
 			contains:    []string{"### Skipped (1)"},
-			notContains: []string{"Questions for people", "### Waiting on a product decision"},
+			notContains: []string{"[!IMPORTANT]", "[!NOTE]", "### Waiting on a product decision"},
 		},
 		{
 			name:        "waiting rows aren't listed as skipped",

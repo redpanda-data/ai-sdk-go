@@ -26,3 +26,11 @@ var AWSRegions = []string{
 	"eu-west-1", "eu-west-2", "eu-west-3", "il-central-1", "me-central-1", "me-south-1", "mx-central-1", "sa-east-1",
 	"us-east-1", "us-east-2", "us-gov-east-1", "us-gov-west-1", "us-west-1", "us-west-2",
 }
+
+// PrefixNames names, in plain words for the PR body, where each Bedrock
+// inference-profile prefix processes data: the prefixes the Bedrock profile
+// tables know, and the ones model cards list that aren't offered yet.
+var PrefixNames = map[string]string{
+	"global": "any region", "us": "United States", "us-gov": "GovCloud (US)", "eu": "Europe",
+	"apac": "Asia Pacific", "au": "Australia", "jp": "Japan", "in": "India", "ca": "Canada",
+}

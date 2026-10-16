@@ -395,37 +395,64 @@ func (base Base) waitingLines(skipped []Skipped) []string {
 	return lines
 }
 
-// questions is one line on what the run asks of people: the "Resolve before
-// merging" rows for the reviewer, and the waiting regions for product. It
-// shows only when there is a question.
-func (base Base) questions(needs []NeedsHuman, waiting []Skipped) string {
-	regions, _ := byRegion(waiting)
-	if len(needs)+len(regions) == 0 {
+// resolveAlert is the alert at the top for the reviewer: how many "Resolve
+// before merging" rows block the merge, naming the first five. It shows only
+// when there is one.
+func resolveAlert(needs []NeedsHuman) string {
+	if len(needs) == 0 {
 		return ""
 	}
 
-	reviewer := fmt.Sprintf("%d for the reviewer", len(needs))
-	if len(needs) > 0 {
-		reviewer += " (Resolve before merging)"
+	shown := needs[:min(len(needs), 5)]
+	named := make([]string, 0, len(shown))
+
+	for _, item := range shown {
+		named = append(named, code(item.Offering)+" "+item.Field)
 	}
 
-	product := fmt.Sprintf("%d for product", len(regions))
-	if len(regions) > 0 {
-		asked := make([]string, 0, len(regions))
+	list := strings.Join(named, ", ")
+	if more := len(needs) - len(shown); more > 0 {
+		list += fmt.Sprintf(" and %d more", more)
+	}
 
-		for _, key := range regions {
-			since := " (new)"
-			if answer, date := base.answer(key); answer == "asked" {
-				since = " since " + date
-			}
+	questions := "1 question"
+	if len(needs) > 1 {
+		questions = fmt.Sprintf("%d questions", len(needs))
+	}
 
-			asked = append(asked, code(key.prefix)+" on "+key.host+since)
+	return "> [!IMPORTANT]\n> **Resolve " + questions + " before merging:** " + list + ". See Resolve before merging below.\n\n"
+}
+
+// waitingAlert is the alert at the top for product: each waiting host and
+// region, with where it processes data and since when it has been asked. It
+// shows only when there is one.
+func (base Base) waitingAlert(waiting []Skipped) string {
+	regions, _ := byRegion(waiting)
+	if len(regions) == 0 {
+		return ""
+	}
+
+	asked := make([]string, 0, len(regions))
+
+	for _, key := range regions {
+		status := "new"
+		if answer, date := base.answer(key); answer == "asked" {
+			status = "asked since " + date
 		}
 
-		product += ", waiting on a product decision: " + strings.Join(asked, ", ")
+		if name := reconcile.PrefixNames[key.prefix]; name != "" {
+			status = name + ", " + status
+		}
+
+		asked = append(asked, "offer "+code(key.prefix)+" on "+key.host+" ("+status+")?")
 	}
 
-	return "Questions for people: " + reviewer + ", " + product + ".\n\n"
+	decisions, they := "1 product decision", "it doesn't"
+	if len(regions) > 1 {
+		decisions, they = fmt.Sprintf("%d product decisions", len(regions)), "they don't"
+	}
+
+	return "> [!NOTE]\n> **" + decisions + " waiting** (" + they + " block this PR): " + strings.Join(asked, " ") + "\n\n"
 }
 
 // needsHumanBlock renders one needs_human row: its rule, the rule's fixed
@@ -660,7 +687,7 @@ func Render(report Report, provider, snapshotDiff string, codeFiles []string, ba
 	}
 
 	fmt.Fprintf(&body, "Proposed by the reconcile-models workflow. The tables come from the agent's structured report; the PR job checked its format and that every source is a named source. Check each value against its source before approving.\n\nDon't push commits to this branch: each run rebuilds it from %[1]s and force-pushes, so they would be lost. To settle a row, merge a fix on %[1]s or record a decision in `.github/reconcile-models/decisions.yaml`. Later runs don't read PR comments.\n\n", base.Branch)
-	body.WriteString(base.questions(report.NeedsHuman, waiting))
+	body.WriteString(resolveAlert(report.NeedsHuman) + base.waitingAlert(waiting))
 	body.WriteString(base.summary())
 
 	if len(codeFiles) > 0 {
@@ -682,9 +709,10 @@ func Render(report Report, provider, snapshotDiff string, codeFiles []string, ba
 			len(names), valueList(names))
 	}
 
-	if lines := base.routingLines(); len(lines) > 0 {
-		fmt.Fprintf(&body, "### Routing changes (%d)\n\nBare-name calls from these regions now go to another copy. Check the price and where the data is processed.\n\n", len(lines))
-		body.WriteString(strings.Join(lines, "") + "\n")
+	if rows := base.routingRows(); len(rows) > 0 {
+		fmt.Fprintf(&body, "### Routing changes (%d)\n\n⚑ Bare-name calls from these regions now go to another copy. Check the price and where the data is processed.\n\n"+
+			"| Model | Callers in | Today | After | Input price | Data processed in |\n|---|---|---|---|---|---|\n", len(rows))
+		body.WriteString(strings.Join(rows, "") + "\n")
 	}
 
 	if len(report.NeedsHuman) > 0 {

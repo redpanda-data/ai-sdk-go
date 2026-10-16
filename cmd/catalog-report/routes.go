@@ -54,10 +54,11 @@ func ParseRoutes(data []byte) (Routes, error) {
 	return routes, nil
 }
 
-// routingLines names each bare name whose calls from some regions now go to
-// another copy, once per name and move, with the regions and the input price
-// change. A pair the patch removes reads as refused.
-func (base Base) routingLines() []string {
+// routingRows names each bare name whose calls from some regions now go to
+// another copy, once per name and move, with the regions, the input price
+// change and where the new copy processes data. A pair the SDK refuses, or
+// the patch removes, reads as a call that fails.
+func (base Base) routingRows() []string {
 	type move struct{ name, from, to string }
 
 	after := func(key routeKey) string { return cmp.Or(base.RoutesAfter[key], "-") }
@@ -68,37 +69,40 @@ func (base Base) routingLines() []string {
 	moves, regions := groupBy(keys, func(key routeKey) (move, string) {
 		return move{key.name, base.RoutesBefore[key], after(key)}, key.region
 	})
-	lines := make([]string, 0, len(moves))
+	rows := make([]string, 0, len(moves))
 
 	for _, m := range moves {
-		lines = append(lines, fmt.Sprintf("- ⚑ %s from %s: %s → %s%s\n",
-			code(m.name), valueList(regions[m]), routed(m.from), routed(m.to), base.routeInputChange(m.from, m.to)))
+		rows = append(rows, fmt.Sprintf("| %s | %s | %s | %s | %s | %s |\n",
+			code(m.name), valueList(regions[m]), routed(m.from), routed(m.to), base.routeInputChange(m.from, m.to), processedIn(m.to)))
 	}
 
-	return lines
+	return rows
 }
 
 func routed(id string) string {
 	if id == "-" {
-		return "refused"
+		return "call fails (no copy)"
 	}
 
 	return code(id)
 }
 
+// processedIn names where a copy processes data, from its profile prefix, or
+// "—" for no copy or a prefix with no name.
+func processedIn(id string) string {
+	prefix, _, _ := strings.Cut(id, ".")
+	return cmp.Or(reconcile.PrefixNames[prefix], "—")
+}
+
 // routeInputChange is the input price change between two Bedrock copies,
-// from the catalogue after the patch.
+// from the catalogue after the patch, or "—" without one.
 func (base Base) routeInputChange(from, to string) string {
 	if base.After == nil {
-		return ""
+		return "—"
 	}
 
 	source, _ := base.After.Offering("bedrock", from)
 	target, _ := base.After.Offering("bedrock", to)
 
-	if change := inputChange(source, target); change != "" {
-		return " (" + change + ")"
-	}
-
-	return ""
+	return cmp.Or(strings.TrimPrefix(inputChange(source, target), "input "), "—")
 }
