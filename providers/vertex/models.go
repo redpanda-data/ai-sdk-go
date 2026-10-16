@@ -551,14 +551,10 @@ func entries() []catalog.Entry {
 			// on the model page (docs.cloud.google.com/gemini-enterprise-agent-
 			// platform/models/partner-models/claude/fable-5, read 2026-09-28).
 			Life: catalog.Lifecycle{Available: catalog.MustDate("2026-06-09")},
-			// asia-southeast1 carries the 10% premium that Anthropic's pricing
-			// page (platform.claude.com/docs/en/about-claude/pricing, read
-			// 2026-09-28) puts on every Google Cloud regional and multi-region
-			// endpoint for Claude 4.5 and later models.
 			Pricing: regionalPricing(
 				pricing.NewRates(10.00, 50.00, 1.00).WithCacheCreation(12.50, 20.00, 0),
 				pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(13.75, 22.00, 0),
-				"us", "eu", "asia-southeast1",
+				"us", "eu",
 			),
 		},
 		{
@@ -600,12 +596,8 @@ func entries() []catalog.Entry {
 			// Claude Opus 5 GA, retirement floor "Not sooner than January 24,
 			// 2027" on the model page (docs.cloud.google.com/gemini-enterprise-
 			// agent-platform/models/partner-models/claude/opus-5, read 2026-09-28).
-			Life: catalog.Lifecycle{Available: catalog.MustDate("2026-07-24")},
-			// asia-southeast1 has no pricing tab for this model. Anthropic's
-			// pricing page (platform.claude.com/docs/en/about-claude/pricing,
-			// read 2026-09-28) puts a 10% premium on every Google Cloud regional
-			// and multi-region endpoint for Claude 4.5 and later models.
-			Pricing: claudeOpusPricing("us", "eu", "asia-southeast1"),
+			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-07-24")},
+			Pricing: claudeOpusPricing("us", "eu"),
 		},
 		{
 			ID:           ModelClaudeOpus48,
@@ -947,11 +939,7 @@ func claudeSonnet5Pricing() pricing.Info {
 	nonGlobal := pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(2.75, 4.40, 0)
 
 	info := pricing.FlatInfoFromRates(global)
-	// asia-southeast1 has no pricing tab for Sonnet 5; its premium is from
-	// Anthropic's pricing page (platform.claude.com/docs/en/about-claude/
-	// pricing, read 2026-09-28), which puts it on every Google Cloud regional
-	// and multi-region endpoint for Claude 4.5 and later models.
-	for _, region := range []string{"us", "eu", "asia-southeast1"} {
+	for _, region := range []string{"us", "eu"} {
 		info = info.WithOverride(
 			pricing.Selector{Region: region},
 			pricing.RateCard{Base: nonGlobal},
@@ -1008,8 +996,7 @@ func claudeHaiku45Pricing() pricing.Info {
 // regionalPricing returns a rate card with the global rate as default and
 // the non-global rate (global x 1.10) as one override per priced location.
 // Claude rates added with it are from the pricing page's region tabs, read
-// 2026-09-28, and flat across the =< 200K and > 200K input tiers, except
-// Fable 5 and Opus 5 at asia-southeast1, which has no tab for them.
+// 2026-09-28, and flat across the =< 200K and > 200K input tiers.
 func regionalPricing(global, nonGlobal pricing.Rates, regions ...string) pricing.Info {
 	info := pricing.FlatInfoFromRates(global)
 	for _, region := range regions {
