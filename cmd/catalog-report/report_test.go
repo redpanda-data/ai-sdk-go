@@ -453,7 +453,7 @@ func TestRender(t *testing.T) {
 				"| [DEC-001](" + decisionsURL + "#L3) | `claude-sonnet-5-5` | limit | `65535`, `65536` | Agreed in review. |",
 				"Recorded decisions: 1, in [decisions.yaml](" + decisionsURL + "). Past their review date: none.",
 			},
-			notContains: []string{"### Needs a human"},
+			notContains: []string{"### Resolve before merging"},
 		},
 		{
 			name:        "a skipped offering under a hold is held",
@@ -480,7 +480,7 @@ func TestRender(t *testing.T) {
 			report: twoAsks,
 			base:   Base{URL: baseURL, Rules: testRules},
 			contains: []string{
-				"### Needs a human (2): 1 by a rule, 1 with no rule",
+				"### Resolve before merging (2): 1 by a rule, 1 with no rule",
 				"**1. `claude-sonnet-5-5` · limit · ⚠ no rule covers this ([no-rule](" + rulesURL + "#L120))**",
 				"- **Question:** No rule covers this. Decide.",
 				"- **Found:** `65535`, `65536`",
@@ -534,7 +534,7 @@ func TestRender(t *testing.T) {
 			report: withWaiting,
 			base:   Base{Rules: testRules},
 			contains: []string{
-				"Later runs don't read PR comments.\n\nQuestions for people: 1 for the reviewer (Needs a human), 2 for product, waiting on a product decision: " +
+				"Later runs don't read PR comments.\n\nQuestions for people: 1 for the reviewer (Resolve before merging), 2 for product, waiting on a product decision: " +
 					"`in` on bedrock since 2026-10-15, `ca` on bedrock (new).\n\n### Changes (1)",
 			},
 		},
@@ -542,7 +542,7 @@ func TestRender(t *testing.T) {
 			name:     "held rows aren't questions",
 			report:   twoAsks,
 			base:     Base{Decisions: []reconcile.Decision{keepLimit}, Today: "2026-10-14"},
-			contains: []string{"Questions for people: 1 for the reviewer (Needs a human), 0 for product.\n\n"},
+			contains: []string{"Questions for people: 1 for the reviewer (Resolve before merging), 0 for product.\n\n"},
 		},
 		{
 			name:        "no questions, no line",
@@ -562,7 +562,7 @@ func TestRender(t *testing.T) {
 			name:        "a decision on another field holds nothing",
 			report:      validReport(),
 			base:        Base{URL: baseURL, Decisions: []reconcile.Decision{otherField}, Today: "2026-10-14"},
-			contains:    []string{"### Needs a human (1)"},
+			contains:    []string{"### Resolve before merging (1)"},
 			notContains: []string{"### Held by decisions"},
 		},
 		{
@@ -813,7 +813,7 @@ func TestRenderSuggestedRules(t *testing.T) {
 			name: "two no-rule rows on one field suggest a rule",
 			asks: []NeedsHuman{ask("global", found...), ask("us", found...), ask("eu", slices.Concat(found, []string{"only on eu"})...)},
 			contains: []string{
-				"### Suggested rules (1)\n\nSome rows under Needs a human went to a person under no-rule and share a field. If the case can come back, add a Default to RULES.md: give it a slug, write When as the condition, and replace each ?.\n\n" +
+				"### Suggested rules (1)\n\nSome rows under Resolve before merging went to a person under no-rule and share a field. If the case can come back, add a Default to RULES.md: give it a slug, write When as the condition, and replace each ?.\n\n" +
 					"| Default | Field | When | Bot does | Why | Outcome |\n|---|---|---|---|---|---|\n" +
 					"| new-default | `lifecycle` | 3 rows this run, all with `Legacy 2026-10-08`, `EOL 2027-04-08`, `AWS names no replacement` | ? | ? | ? |\n",
 			},

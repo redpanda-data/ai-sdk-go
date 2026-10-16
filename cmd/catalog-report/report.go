@@ -395,9 +395,9 @@ func (base Base) waitingLines(skipped []Skipped) []string {
 	return lines
 }
 
-// questions is one line on what the run asks of people: the Needs a human
-// rows for the reviewer, and the waiting regions for product. It shows only
-// when there is a question.
+// questions is one line on what the run asks of people: the "Resolve before
+// merging" rows for the reviewer, and the waiting regions for product. It
+// shows only when there is a question.
 func (base Base) questions(needs []NeedsHuman, waiting []Skipped) string {
 	regions, _ := byRegion(waiting)
 	if len(needs)+len(regions) == 0 {
@@ -406,7 +406,7 @@ func (base Base) questions(needs []NeedsHuman, waiting []Skipped) string {
 
 	reviewer := fmt.Sprintf("%d for the reviewer", len(needs))
 	if len(needs) > 0 {
-		reviewer += " (Needs a human)"
+		reviewer += " (Resolve before merging)"
 	}
 
 	product := fmt.Sprintf("%d for product", len(regions))
@@ -696,7 +696,7 @@ func Render(report Report, provider, snapshotDiff string, codeFiles []string, ba
 			}
 		}
 
-		fmt.Fprintf(&body, "### Needs a human (%d): %d by a rule, %d with no rule\n\n", len(report.NeedsHuman), len(report.NeedsHuman)-judged, judged)
+		fmt.Fprintf(&body, "### Resolve before merging (%d): %d by a rule, %d with no rule\n\n", len(report.NeedsHuman), len(report.NeedsHuman)-judged, judged)
 
 		for index, item := range report.NeedsHuman {
 			body.WriteString(base.needsHumanBlock(index+1, item))
@@ -704,7 +704,7 @@ func Render(report Report, provider, snapshotDiff string, codeFiles []string, ba
 	}
 
 	if lines := suggestions(report.NeedsHuman); len(lines) > 0 {
-		fmt.Fprintf(&body, "### Suggested rules (%d)\n\nSome rows under Needs a human went to a person under no-rule and share a field. If the case can come back, add a Default to RULES.md: give it a slug, write When as the condition, and replace each ?.\n\n| Default | Field | When | Bot does | Why | Outcome |\n|---|---|---|---|---|---|\n",
+		fmt.Fprintf(&body, "### Suggested rules (%d)\n\nSome rows under Resolve before merging went to a person under no-rule and share a field. If the case can come back, add a Default to RULES.md: give it a slug, write When as the condition, and replace each ?.\n\n| Default | Field | When | Bot does | Why | Outcome |\n|---|---|---|---|---|---|\n",
 			len(lines))
 		body.WriteString(strings.Join(lines, "") + "\n")
 	}
