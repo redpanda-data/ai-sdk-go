@@ -353,14 +353,29 @@ func (base Base) skippedRows(skipped []Skipped) []string {
 	return rows
 }
 
-// waitingLines names each host and region a region_not_offered row is in, once.
-func waitingLines(skipped []Skipped) []string {
-	type region struct{ host, prefix string }
+// region is a host package and one of its region prefixes.
+type region struct{ host, prefix string }
 
-	regions, offerings := groupBy(skipped, func(item Skipped) (region, string) {
+// byRegion groups region_not_offered rows by host and region, in the order
+// first seen.
+func byRegion(skipped []Skipped) ([]region, map[region][]string) {
+	return groupBy(skipped, func(item Skipped) (region, string) {
 		host, prefix, _ := regionOf(item.Offering)
 		return region{host, prefix}, item.Offering
 	})
+}
+
+// answer reads a region's note in RULES.md's Not offered column: "asked" or
+// "declined" and its date, or empty strings when the column doesn't list it.
+func (base Base) answer(key region) (string, string) {
+	answer, date, _ := strings.Cut(base.Rules.NotOffered[key.host][key.prefix], " ")
+	return answer, date
+}
+
+// waitingLines names each host and region a waiting row is in, once, with
+// since when it has been asked.
+func (base Base) waitingLines(skipped []Skipped) []string {
+	regions, offerings := byRegion(skipped)
 	lines := make([]string, 0, len(regions))
 
 	for _, key := range regions {
@@ -369,10 +384,48 @@ func waitingLines(skipped []Skipped) []string {
 			copies = "1 copy"
 		}
 
-		lines = append(lines, fmt.Sprintf("- Offer %s on %s? %s: %s\n", code(key.prefix), key.host, copies, valueList(offerings[key])))
+		status := "not in the table yet"
+		if answer, date := base.answer(key); answer == "asked" {
+			status = "asked since " + date
+		}
+
+		lines = append(lines, fmt.Sprintf("- Offer %s on %s (%s)? %s: %s\n", code(key.prefix), key.host, status, copies, valueList(offerings[key])))
 	}
 
 	return lines
+}
+
+// questions is one line on what the run asks of people: the Needs a human
+// rows for the reviewer, and the waiting regions for product. It shows only
+// when there is a question.
+func (base Base) questions(needs []NeedsHuman, waiting []Skipped) string {
+	regions, _ := byRegion(waiting)
+	if len(needs)+len(regions) == 0 {
+		return ""
+	}
+
+	reviewer := fmt.Sprintf("%d for the reviewer", len(needs))
+	if len(needs) > 0 {
+		reviewer += " (Needs a human)"
+	}
+
+	product := fmt.Sprintf("%d for product", len(regions))
+	if len(regions) > 0 {
+		asked := make([]string, 0, len(regions))
+
+		for _, key := range regions {
+			since := " (not in the table yet)"
+			if answer, date := base.answer(key); answer == "asked" {
+				since = " since " + date
+			}
+
+			asked = append(asked, code(key.prefix)+" on "+key.host+since)
+		}
+
+		product += " (Waiting on a product decision: " + strings.Join(asked, ", ") + ")"
+	}
+
+	return "Questions for people: " + reviewer + ", " + product + ".\n\n"
 }
 
 // needsHumanBlock renders one needs_human row: its rule, the rule's fixed
@@ -545,13 +598,15 @@ func suggestions(needs []NeedsHuman) []string {
 	return lines
 }
 
-// splitWaiting takes the region_not_offered rows out of the skipped ones.
-func splitWaiting(report Report) (Report, []Skipped) {
+// splitWaiting takes the region_not_offered rows out of the skipped ones,
+// except those in a region RULES.md records as declined.
+func (base Base) splitWaiting(report Report) (Report, []Skipped) {
 	// Fresh slices, as in hold.
 	var waiting, skipped []Skipped
 
 	for _, item := range report.Skipped {
-		if item.Reason == regionNotOffered {
+		host, prefix, _ := regionOf(item.Offering)
+		if answer, _ := base.answer(region{host, prefix}); item.Reason == regionNotOffered && answer != "declined" {
 			waiting = append(waiting, item)
 		} else {
 			skipped = append(skipped, item)
@@ -597,7 +652,7 @@ func Render(report Report, provider, snapshotDiff string, codeFiles []string, ba
 	// Held and waiting rows still count as rows for "Changed with no row".
 	reported := report
 	report, held := base.hold(report, provider)
-	report, waiting := splitWaiting(report)
+	report, waiting := base.splitWaiting(report)
 
 	if len(report.Changes)+len(report.NeedsHuman)+len(report.Skipped)+len(waiting)+len(held) == 0 && snapshotDiff == "" {
 		body.WriteString("No drift found.\n\n" + base.summary())
@@ -605,6 +660,7 @@ func Render(report Report, provider, snapshotDiff string, codeFiles []string, ba
 	}
 
 	fmt.Fprintf(&body, "Proposed by the reconcile-models workflow. The tables come from the agent's structured report; the PR job checked its format and that every source is a named source. Check each value against its source before approving.\n\nDon't push commits to this branch: each run rebuilds it from %[1]s and force-pushes, so they would be lost. To settle a row, merge a fix on %[1]s or record a decision in `.github/reconcile-models/decisions.yaml`. Later runs don't read PR comments.\n\n", base.Branch)
+	body.WriteString(base.questions(report.NeedsHuman, waiting))
 	body.WriteString(base.summary())
 
 	if len(codeFiles) > 0 {
@@ -653,9 +709,10 @@ func Render(report Report, provider, snapshotDiff string, codeFiles []string, ba
 		body.WriteString(strings.Join(lines, "") + "\n")
 	}
 
-	if lines := waitingLines(waiting); len(lines) > 0 {
-		fmt.Fprintf(&body, "### Waiting on a product decision (%d)\n\nModel cards list copies in regions this catalogue doesn't offer, so the bot left them out (rule %s). Nothing changes until someone decides, and they don't block the PR.\n\n",
-			len(lines), base.ruleLink(regionRule))
+	if lines := base.waitingLines(waiting); len(lines) > 0 {
+		fmt.Fprintf(&body, "### Waiting on a product decision (%d)\n\nModel cards list copies in regions this catalogue doesn't offer, so the bot left them out (rule %s). Nothing changes until someone decides, and they don't block the PR. "+
+			"To answer, either offer the region (move its prefix to Offered in %s, with its code, in a reviewed PR) or decline it (write it under Not offered as `` `<prefix>` (declined YYYY-MM-DD) ``, and its copies show under Skipped from then on).\n\n",
+			len(lines), base.ruleLink(regionRule), base.fileLink("RULES.md", reconcile.RulesPath, 0))
 		body.WriteString(strings.Join(lines, "") + "\n")
 	}
 

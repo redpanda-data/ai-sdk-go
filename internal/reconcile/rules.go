@@ -15,6 +15,7 @@
 package reconcile
 
 import (
+	"fmt"
 	"regexp"
 	"slices"
 	"strings"
@@ -36,6 +37,9 @@ type Rules struct {
 	Fields     map[string]string   // report field: what it covers
 	Questions  map[string]string   // Ask ID: what a person decides for its needs_human rows
 	Offered    map[string][]string // host package: the region prefixes it offers
+	// NotOffered is, per host package, each region prefix asked about and
+	// its note: "asked YYYY-MM-DD" or "declined YYYY-MM-DD".
+	NotOffered map[string]map[string]string
 }
 
 // Fits reports whether a rule can produce an outcome ("needs_human" or
@@ -53,6 +57,10 @@ var (
 	// "`skip:<reason>`" gives "skip:".
 	legendTerm = regexp.MustCompile("`([^`<]+)")
 	codeTerm   = regexp.MustCompile("`([^`]+)`")
+	// A Not offered item is a region prefix in code and the text after it,
+	// which must be its note: "`in` (asked 2026-10-15)".
+	notOfferedItem = regexp.MustCompile("`([^`]+)`([^`]*)")
+	regionNote     = regexp.MustCompile(`^\(((?:asked|declined) \d{4}-\d{2}-\d{2})\)$`)
 )
 
 // cells splits one markdown table row into trimmed cells.
@@ -82,11 +90,12 @@ func legendWords(line string) []string {
 // kind is its header's first cell: Defaults ("Default") and Always asks
 // ("Ask") hold the rules. The Outcome legend and the Skip reason and Field
 // tables hold the values Defaults use, so they come before them in the file.
+// Offered regions ("Host") holds each host's offered and not offered regions.
 func ParseRules(markdown []byte) (Rules, []string) {
 	rules := Rules{
 		Lines: map[string]int{}, Outcomes: map[string][]string{}, RuleFields: map[string][]string{},
 		Reasons: map[string]string{}, Fields: map[string]string{}, Questions: map[string]string{},
-		Offered: map[string][]string{},
+		Offered: map[string][]string{}, NotOffered: map[string]map[string]string{},
 	}
 	twoColumn := map[string]map[string]string{"Skip reason": rules.Reasons, "Field": rules.Fields}
 
@@ -119,12 +128,41 @@ func ParseRules(markdown []byte) (Rules, []string) {
 			for _, term := range codeTerm.FindAllStringSubmatch(row[1], -1) {
 				rules.Offered[row[0]] = append(rules.Offered[row[0]], term[1])
 			}
+
+			if len(row) > 2 {
+				problems = append(problems, rules.addNotOffered(row[0], row[2])...)
+			}
 		case twoColumn[header] != nil && len(row) > 1:
 			twoColumn[header][strings.Trim(row[0], "`")] = row[1]
 		}
 	}
 
 	return rules, problems
+}
+
+// addNotOffered records a host's Not offered cell: each region prefix in code,
+// followed by "(asked YYYY-MM-DD)" while the question waits or
+// "(declined YYYY-MM-DD)" once the answer is no.
+func (rules Rules) addNotOffered(host, cell string) []string {
+	var problems []string
+
+	for _, item := range notOfferedItem.FindAllStringSubmatch(cell, -1) {
+		prefix, text := item[1], strings.TrimSpace(item[2])
+
+		note := regionNote.FindStringSubmatch(text)
+		if note == nil {
+			problems = append(problems, fmt.Sprintf("%s: Not offered %s: want (asked YYYY-MM-DD) or (declined YYYY-MM-DD), got %q", host, prefix, text))
+			continue
+		}
+
+		if rules.NotOffered[host] == nil {
+			rules.NotOffered[host] = map[string]string{}
+		}
+
+		rules.NotOffered[host][prefix] = note[1]
+	}
+
+	return problems
 }
 
 // addRule records a rule's ID (its first cell) and line, and checks its

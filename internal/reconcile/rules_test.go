@@ -29,12 +29,13 @@ func TestParseRules(t *testing.T) {
 		"| Field | Covers |\n|---|---|\n| `price` | rates |\n| `lifecycle` | dates |\n\n"
 	const defaults = "| Default | Field | When | Bot does | Why | Outcome |\n|---|---|---|---|---|---|\n"
 	const asks = "| Ask | When | Question | Why |\n|---|---|---|---|\n"
+	const hostsTable = "| Host | Offered | Not offered |\n|---|---|---|\n"
 
 	t.Run("reads defaults, asks, fields and offered regions", func(t *testing.T) {
 		t.Parallel()
 
 		rules, problems := ParseRules([]byte(preamble +
-			"| Host | Offered | Not offered |\n|---|---|---|\n| bedrock | `global` `us` | `in` (asked 2026-10-15) |\n\n" + defaults +
+			hostsTable + "| bedrock | `global` `us` | `in` (asked 2026-10-15) `ca` (declined 2026-10-20) |\n\n" + defaults +
 			"| price-follow | `price` | A host rate differs. | Set it. | Rates move. | change |\n" +
 			"| too-old | – | Released over 90 days ago. | Leave it out. | Left out on purpose. | skip:`out_of_scope` (a note, with a comma) |\n\n" + asks +
 			"| no-rule | No rule fits. | What should change? | A person decides. |\n"))
@@ -45,7 +46,8 @@ func TestParseRules(t *testing.T) {
 		assert.Equal(t, map[string]string{"no-rule": "What should change?"}, rules.Questions)
 		assert.Equal(t, map[string]string{"out_of_scope": "not tracked"}, rules.Reasons)
 		assert.Equal(t, map[string]string{"price": "rates", "lifecycle": "dates"}, rules.Fields)
-		assert.Equal(t, map[string][]string{"bedrock": {"global", "us"}}, rules.Offered)
+		assert.Equal(t, map[string][]string{"bedrock": {"global", "us"}}, rules.Offered, "Not offered regions stay out of Offered")
+		assert.Equal(t, map[string]map[string]string{"bedrock": {"in": "asked 2026-10-15", "ca": "declined 2026-10-20"}}, rules.NotOffered)
 	})
 
 	tests := []struct {
@@ -65,6 +67,9 @@ func TestParseRules(t *testing.T) {
 		{"an ask needs a question", asks + "| no-rule | A. |  | C. |\n", "no-rule: empty cell"},
 		{"unknown field", defaults + "| price-follow | `colour` | A. | B. | C. | change |\n", "price-follow: unknown field colour"},
 		{"a change needs a field", defaults + "| price-follow | – | A. | B. | C. | change |\n", "price-follow: a rule that makes a change names its field"},
+		{"a region not offered needs a note", hostsTable + "| bedrock | `us` | `in` |\n", `bedrock: Not offered in: want (asked YYYY-MM-DD) or (declined YYYY-MM-DD), got ""`},
+		{"an unknown answer", hostsTable + "| bedrock | `us` | `in` (maybe 2026-10-15) |\n", `bedrock: Not offered in: want (asked YYYY-MM-DD) or (declined YYYY-MM-DD), got "(maybe 2026-10-15)"`},
+		{"an answer needs its date", hostsTable + "| bedrock | `us` | `in` (declined 20 Oct) |\n", `bedrock: Not offered in: want (asked YYYY-MM-DD) or (declined YYYY-MM-DD), got "(declined 20 Oct)"`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

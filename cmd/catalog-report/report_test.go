@@ -33,7 +33,8 @@ import (
 var hosts = []string{"platform.claude.com"}
 
 // testRules is a RULES.md with a price Default, a copy Default, four skip
-// Defaults, one Ask, no-rule for rows no rule covers, and Bedrock's offered regions.
+// Defaults, one Ask, no-rule for rows no rule covers, and Bedrock's offered
+// regions, with `in` asked about.
 var testRules = reconcile.Rules{
 	Lines:      map[string]int{"price-follow": 30, "new-copy-offered-region": 32, "limited-availability": 40, "replacement-not-carried": 80, "no-rule": 120, "region-not-offered": 20, "copy-gone-no-eol": 22, "label-fact-differs": 24},
 	Reasons:    map[string]string{"limited_availability": "the model needs a signup", "conflicting_sources": "no rule uses it yet"},
@@ -44,7 +45,8 @@ var testRules = reconcile.Rules{
 		"region-not-offered": {"skip:`region_not_offered`"}, "copy-gone-no-eol": {"skip:`copy_unlisted`"},
 		"label-fact-differs": {"skip:`fixed_fact_differs`"},
 	},
-	Offered: map[string][]string{"bedrock": {"global", "us", "eu", "au", "jp"}},
+	Offered:    map[string][]string{"bedrock": {"global", "us", "eu", "au", "jp"}},
+	NotOffered: map[string]map[string]string{"bedrock": {"in": "asked 2026-10-15"}},
 }
 
 func validReport() Report {
@@ -292,6 +294,10 @@ func TestRender(t *testing.T) {
 		{Offering: "bedrock:ca.anthropic.claude-opus-5", Reason: "region_not_offered", Rule: "region-not-offered"},
 		{Offering: "bedrock:in.anthropic.claude-haiku-4-5-20251001-v1:0", Reason: "region_not_offered", Rule: "region-not-offered"},
 	}
+	declinedCA := testRules
+	declinedCA.NotOffered = map[string]map[string]string{"bedrock": {"in": "asked 2026-10-15", "ca": "declined 2026-10-20"}}
+	withWaiting := validReport()
+	withWaiting.Skipped = append(withWaiting.Skipped, waiting...)
 
 	before, after := effectSnapshots(t)
 	withEffects := Base{Before: before, After: after, Today: "2026-10-15"}
@@ -498,16 +504,52 @@ func TestRender(t *testing.T) {
 			},
 		},
 		{
-			name:   "one waiting line per region",
+			name:   "one waiting line per region, with since when it has been asked",
 			report: Report{Skipped: waiting},
 			base:   Base{URL: baseURL, Rules: testRules},
 			contains: []string{
 				"### Waiting on a product decision (2)\n\nModel cards list copies in regions this catalogue doesn't offer, so the bot left them out " +
-					"(rule [region-not-offered](" + rulesURL + "#L20)). Nothing changes until someone decides, and they don't block the PR.\n\n",
-				"- Offer `in` on bedrock? 3 copies: `bedrock:in.anthropic.claude-opus-5`, `bedrock:in.anthropic.claude-sonnet-5`, " +
+					"(rule [region-not-offered](" + rulesURL + "#L20)). Nothing changes until someone decides, and they don't block the PR. " +
+					"To answer, either offer the region (move its prefix to Offered in [RULES.md](" + baseURL + "/" + reconcile.RulesPath + "), with its code, in a reviewed PR) " +
+					"or decline it (write it under Not offered as `` `<prefix>` (declined YYYY-MM-DD) ``, and its copies show under Skipped from then on).\n\n",
+				"- Offer `in` on bedrock (asked since 2026-10-15)? 3 copies: `bedrock:in.anthropic.claude-opus-5`, `bedrock:in.anthropic.claude-sonnet-5`, " +
 					"`bedrock:in.anthropic.claude-haiku-4-5-20251001-v1:0`\n",
-				"- Offer `ca` on bedrock? 1 copy: `bedrock:ca.anthropic.claude-opus-5`\n",
+				"- Offer `ca` on bedrock (not in the table yet)? 1 copy: `bedrock:ca.anthropic.claude-opus-5`\n",
+				"Questions for people: 0 for the reviewer, 2 for product (Waiting on a product decision: `in` on bedrock since 2026-10-15, `ca` on bedrock (not in the table yet)).\n\n",
 			},
+		},
+		{
+			name:   "a declined region's copies are skipped, not waiting",
+			report: Report{Skipped: waiting},
+			base:   Base{URL: baseURL, Rules: declinedCA},
+			contains: []string{
+				"### Waiting on a product decision (1)",
+				"### Skipped (1)\n\n| Rule | Why | Offerings |\n|---|---|---|\n| [region-not-offered](" + rulesURL + "#L20) | `region_not_offered` | `bedrock:ca.anthropic.claude-opus-5` |\n",
+				"Questions for people: 0 for the reviewer, 1 for product (Waiting on a product decision: `in` on bedrock since 2026-10-15).\n\n",
+			},
+			notContains: []string{"Offer `ca`", "`ca` on bedrock"},
+		},
+		{
+			name:   "questions for people come after the intro, before the first section",
+			report: withWaiting,
+			base:   Base{Rules: testRules},
+			contains: []string{
+				"Later runs don't read PR comments.\n\nQuestions for people: 1 for the reviewer (Needs a human), 2 for product (Waiting on a product decision: " +
+					"`in` on bedrock since 2026-10-15, `ca` on bedrock (not in the table yet)).\n\n### Changes (1)",
+			},
+		},
+		{
+			name:     "held rows aren't questions",
+			report:   twoAsks,
+			base:     Base{Decisions: []reconcile.Decision{keepLimit}, Today: "2026-10-14"},
+			contains: []string{"Questions for people: 1 for the reviewer (Needs a human), 0 for product.\n\n"},
+		},
+		{
+			name:        "no questions, no line",
+			report:      Report{Skipped: waiting[2:3]},
+			base:        Base{Rules: declinedCA},
+			contains:    []string{"### Skipped (1)"},
+			notContains: []string{"Questions for people", "### Waiting on a product decision"},
 		},
 		{
 			name:        "waiting rows aren't listed as skipped",
