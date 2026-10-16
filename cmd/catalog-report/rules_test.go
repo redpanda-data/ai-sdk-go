@@ -46,6 +46,12 @@ func TestRulesFile(t *testing.T) {
 	// held to the validator by TestSchemaMatchesValidator.
 	assert.ElementsMatch(t, reasons, slices.Collect(maps.Keys(rules.Reasons)), "skip reasons in RULES.md vs report.go")
 	assert.ElementsMatch(t, fields, slices.Collect(maps.Keys(rules.Fields)), "fields in RULES.md vs report.go")
+
+	// ValidateAdded picks new_model or new_copy from the catalogue before the
+	// patch, so a model this run adds on one host isn't a copy on the next.
+	for _, field := range []string{reconcile.FieldNewModel, reconcile.FieldNewCopy} {
+		assert.Contains(t, rules.Fields[field], "before this run", "the %s cell must say which catalogue it reads", field)
+	}
 }
 
 func TestRulesReachTheAgent(t *testing.T) {

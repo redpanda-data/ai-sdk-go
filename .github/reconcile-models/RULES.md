@@ -37,8 +37,8 @@ The report's skip reasons and fields. `TestRulesFile` keeps both lists equal to 
 
 | Field | Covers |
 |---|---|
-| `new_model` | a model the catalogue doesn't carry on any host yet |
-| `new_copy` | another host or regional copy of a model the catalogue already carries |
+| `new_model` | a model the catalogue didn't carry on any host before this run: every offering this run adds for it, its host and regional copies included |
+| `new_copy` | another host or regional copy of a model the catalogue already carried before this run |
 | `price` | rates, brackets and overrides |
 | `limit` | `MaxInputTokens`, `MaxOutputTokens` |
 | `lifecycle` | launch stage, `Available`, `Deprecated`, `Retires` |
