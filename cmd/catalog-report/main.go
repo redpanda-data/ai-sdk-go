@@ -78,21 +78,8 @@ func main() {
 	}
 
 	rules, problems := reconcile.ParseRules(rawRules)
-	if len(problems) > 0 {
-		for _, problem := range problems {
-			fmt.Fprintln(os.Stderr, "catalog-report: RULES.md:", problem)
-		}
-
-		os.Exit(1)
-	}
-
-	if problems := Validate(report, strings.Split(*hostList, ","), rules); len(problems) > 0 {
-		for _, problem := range problems {
-			fmt.Fprintln(os.Stderr, "catalog-report:", problem)
-		}
-
-		os.Exit(1)
-	}
+	exitOn("catalog-report: RULES.md:", problems)
+	exitOn("catalog-report:", Validate(report, strings.Split(*hostList, ","), rules))
 
 	diff := ""
 
@@ -117,13 +104,7 @@ func main() {
 
 		// One path per line; spaces stay in the path, so ValidateCodeFiles rejects them.
 		codeFiles = strings.FieldsFunc(string(raw), func(r rune) bool { return r == '\n' })
-		if problems := ValidateCodeFiles(codeFiles); len(problems) > 0 {
-			for _, problem := range problems {
-				fmt.Fprintln(os.Stderr, "catalog-report:", problem)
-			}
-
-			os.Exit(1)
-		}
+		exitOn("catalog-report:", ValidateCodeFiles(codeFiles))
 	}
 
 	base := Base{URL: *baseURL, Rules: rules, Today: time.Now().UTC().Format(time.DateOnly), Branch: *baseBranch}
@@ -150,13 +131,7 @@ func main() {
 		base.Before, base.After = &before, &after
 	}
 
-	if problems := base.ValidateAdded(report, *provider); len(problems) > 0 {
-		for _, problem := range problems {
-			fmt.Fprintln(os.Stderr, "catalog-report:", problem)
-		}
-
-		os.Exit(1)
-	}
+	exitOn("catalog-report:", base.ValidateAdded(report, *provider))
 
 	if *routesBeforePath != "" {
 		base.RoutesBefore, base.RoutesAfter = mustLoad(*routesBeforePath, ParseRoutes), mustLoad(*routesAfterPath, ParseRoutes)
@@ -167,6 +142,19 @@ func main() {
 		fmt.Fprintln(os.Stderr, "catalog-report:", err)
 		os.Exit(1)
 	}
+}
+
+// exitOn prints each problem after prefix and exits when there are any.
+func exitOn(prefix string, problems []string) {
+	if len(problems) == 0 {
+		return
+	}
+
+	for _, problem := range problems {
+		fmt.Fprintln(os.Stderr, prefix, problem)
+	}
+
+	os.Exit(1)
 }
 
 // mustLoad reads and parses one input file, or exits.
