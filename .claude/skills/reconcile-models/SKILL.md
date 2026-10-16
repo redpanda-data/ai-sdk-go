@@ -145,8 +145,8 @@ Facts come only from the hosts' own pages, and code cites only those.
   Empty metadata is unknown, never permission to guess a provider default.
   Regenerate the snapshot; unrelated prices, lifecycle, and capability fields
   must stay unchanged during a wire-only reconciliation.
-- **Capabilities/modalities**: provider-documented model facts
-  (capability-follow). JSON mode means a schemaless mode (Anthropic has
+- **Capabilities, modalities and reasoning** (thinking mode, effort
+  levels): provider-documented model facts (capability-follow). JSON mode means a schemaless mode (Anthropic has
   none); document input means the API accepts document parts.
 
 ## When the docs are ambiguous, probe (hand runs only)

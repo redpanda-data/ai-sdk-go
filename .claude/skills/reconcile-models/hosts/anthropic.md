@@ -8,7 +8,7 @@ Where the Claude API publishes each fact. Anthropic is also Claude's publisher, 
 |---|---|---|
 | Rates | `https://platform.claude.com/docs/en/about-claude/pricing.md` | the model table (base input, 5-minute and 1-hour cache writes, cache hits, output), and the long-context, fast-mode and batch sections |
 | IDs, limits, cutoffs | `https://platform.claude.com/docs/en/models/overview.md` | the Compare models table: Claude API ID and alias, context window, max output, reliable knowledge cutoff, training data cutoff, retirement |
-| One model | `https://platform.claude.com/docs/en/models/{slug}/overview.md` | the "Released" line at the top, then Specifications (model IDs, pricing, capabilities) |
+| One model | `https://platform.claude.com/docs/en/models/{slug}/overview.md` | the "Released" line at the top, then Specifications (model IDs, pricing, capabilities), including its Thinking and Default effort rows |
 | Deprecations | `https://platform.claude.com/docs/en/about-claude/model-deprecations.md` | the Model status table, then one dated section per deprecation under Deprecation history |
 | Release days | `https://platform.claude.com/docs/en/release-notes/overview.md` | one heading per day |
 | Tool search | `https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool.md` | the model compatibility list |
@@ -25,5 +25,6 @@ Where the Claude API publishes each fact. Anthropic is also Claude's publisher, 
 - `Knowledge`: the reliable knowledge cutoff, not the training data cutoff (knowledge-month-end).
 - Limits: the overview's context window and max output (limit-follow). Max output there is the synchronous Messages API limit; the larger batch limit is a beta.
 - Cache rates: the pricing page lists each model's cache write and cache hit rates. The cache hit share of the input rate differs between models, so copy each rate (price-follow).
+- Thinking: each model page's Thinking row, checked for every model the catalogue carries, not only new ones (capability-follow). "Adaptive" or "Adaptive (always on)" sets `Adaptive`. "Extended" sets `Budget` and adds `thinking_budget` to `SupportedParams`. "Adaptive (extended deprecated)" sets both, with `thinking_budget`. A Default effort of "Not supported" means no effort levels; otherwise the effort page lists them.
 - Tool search: a model on the compatibility list has hosted tool search; one marked unsupported, or absent, doesn't. While `providers/vertex` has no request transport, the same list drives Vertex's flag (capability-mirror-unprobed).
 - The overview and model pages also list Bedrock and Vertex IDs and say those hosts set their own dates. Take those hosts' facts from their own pages.
