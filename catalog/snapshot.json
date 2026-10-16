@@ -262,13 +262,6 @@
       "series": "muse-spark",
       "released": "2026-09-02"
     },
-    "meta/muse-wonder-1.0": {
-      "display_name": "Muse Wonder 1.0",
-      "publisher": "meta",
-      "description": "Muse Wonder is Meta's frontier model for complex coding and long-horizon agentic work.",
-      "series": "muse-wonder",
-      "released": "2026-10-12"
-    },
     "mistral/mistral-large-3": {
       "display_name": "Mistral Large 3",
       "publisher": "mistral",
@@ -11762,91 +11755,6 @@
           ],
           "derived": {
             "price_tier": "low"
-          }
-        },
-        {
-          "id": "muse-wonder-1.0",
-          "model": "meta/muse-wonder-1.0",
-          "display_name": "Muse Wonder 1.0",
-          "wire_apis": [
-            {
-              "protocol": "openai_chat_completions",
-              "transport": "direct"
-            },
-            {
-              "protocol": "openai_responses",
-              "transport": "direct"
-            }
-          ],
-          "capabilities": {
-            "audio": true,
-            "json_mode": true,
-            "multi_turn": true,
-            "reasoning": true,
-            "streaming": true,
-            "structured_output": true,
-            "system_prompts": true,
-            "tool_search": false,
-            "tools": true,
-            "vision": true
-          },
-          "constraints": {
-            "max_input_tokens": 1048576,
-            "max_output_tokens": 32768,
-            "supported_params": [
-              "temperature",
-              "max_tokens",
-              "reasoning_effort",
-              "reasoning_summary"
-            ],
-            "temperature_range": [
-              0,
-              2
-            ]
-          },
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video",
-              "audio",
-              "document"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "reasoning": {
-            "efforts": [
-              "minimal",
-              "low",
-              "medium",
-              "high",
-              "xhigh",
-              "max"
-            ]
-          },
-          "pricing": {
-            "default": {
-              "base": {
-                "input_microcents_per_million": 400000000,
-                "output_microcents_per_million": 2000000000,
-                "cached_input_microcents_per_million": 20000000
-              }
-            }
-          },
-          "lifecycle": {
-            "stage": "ga",
-            "available": "2026-10-12"
-          },
-          "attributes": [
-            {
-              "key": "output_token_limit_source",
-              "value": "sdk_conservative_limit"
-            }
-          ],
-          "derived": {
-            "price_tier": "medium"
           }
         }
       ]
