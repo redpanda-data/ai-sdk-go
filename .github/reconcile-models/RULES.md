@@ -46,10 +46,11 @@ The report's skip reasons and fields. `TestRulesFile` keeps both lists equal to 
 | `knowledge_cutoff` | `Knowledge` |
 | `release_date` | `Released` |
 | `capability` | capabilities, modalities, reasoning and speeds |
+| `location` | the locations or regions a host serves a copy in |
 
 - **Offerings.** Name an offering in `providers/<vendor>` by its bare model ID, and one in another package as `<package>:<model ID>`, for example `vertex:claude-sonnet-5`, so each row maps to one package.
 - **`changes` rows.** One row per value changed or model added, citing the exact page. A Bedrock family edit gets one row for each copy it changes. A `new_model` or `new_copy` row has an empty old value and the model ID as the new one.
-- **`needs_human` rows.** The values name the file, the test or the competing values, and the row cites at least one source.
+- **`needs_human` rows.** Fill `catalogue` (what the catalogue has now) and `page` (what the cited page says) on every row where they apply, and keep any other details in the values: the file, the test or further competing values. The row cites at least one source.
 
 ## Offered regions
 
@@ -76,6 +77,7 @@ Answers agreed in advance for cases the named-source pages don't settle. The bot
 | copy-gone-no-eol | `lifecycle` | A Bedrock regional copy is gone from its model card, and no end of life is announced. | Leave the copy as it is. | A card dropping a copy is not a retirement, and nothing announces an end date to set. | skip:`copy_unlisted` |
 | price-follow | `price` | A host's published rate, bracket or override differs from the entry. | Set the rate in effect today, and put an announced future rate in a comment. Author only the brackets the host publishes now, and remove a tier it has dropped. Copy cache write and read rates as published, never computed from multipliers. | The data is what a request costs today: a dropped tier overbills, a missing one underbills, and multipliers differ between models. | change |
 | region-premium-no-tab | `price` | Vertex serves a Claude model in a region that has no tab on Google's pricing page. | Price that region at the global rate plus the 10% regional premium from Anthropic's pricing page, citing that page. | Google sets its own rates but has no tab for some regions, so the premium comes from the publisher. | change |
+| location-follow | `location` | A host's locations table, or a model page's availability section, serves a copy in other locations than the catalogue lists. | Set the served locations to the ones the page lists as served. A location named only under "ML processing", with no availability or price, is not served. | Callers reach a model only where the host serves it, and a location with no price can't be billed. | change |
 | limit-follow | `limit` | A host's published limits differ from the entry. | Set `MaxInputTokens` to the published input cap if the host gives one, otherwise the context window, and `MaxOutputTokens` from the host's model page. | Callers rely on the limits the host enforces. | change |
 | capability-follow | `capability` | A host documents capabilities, modalities, reasoning or speeds that differ from the entry. | Set what the host documents, even where this SDK's request mappers don't support it yet. | The catalogue describes the model, not this SDK. | change |
 | vertex-tool-search-one-way | `capability` | *Needs a probe.* Anthropic's tool-search page adds or drops a Claude model that `providers/vertex` carries, or `providers/vertex` adds a Claude model. | A drop: turn tool search off on Vertex too, in the same patch, citing that page. An add: leave the Vertex flag as it is. A new Vertex entry starts with it off (`claudeCaps`), whatever Anthropic's page says. A person turns it on once a call on Vertex returns a tool search result. The Anthropic row names capability-follow. Bedrock follows its own docs (capability-follow). | Hosted tool search is live on Vertex, so a wrong "on" fails agent calls there, while "off" falls back to local search. Google's docs never mention tool search. | change, not listed |
@@ -105,7 +107,7 @@ Each Ask sends its rows to a person with one fixed question, shown in the PR abo
 | file-out-of-reach | The fix needs a file outside the bot's files; the row's values name it. | The fix needs a file the bot may not edit (named below). Make the change by hand? | Those files would take effect before review, or for every vendor. |
 | test-out-of-reach | A change makes a test outside the owned packages fail; leave the change out, and the row's values name the test. | The change breaks a test outside the bot's packages (named below). Fix the test, or drop the change? | The bot can't fix code it may not edit. |
 | sources-disagree | *Open.* Two named sources give different values for one fact, and neither principle 2 nor a Default says which wins; the row's values list both. | Two named sources disagree (both values below). Which is right? | Only a person can tell which page is wrong, and one home for the case keeps runs consistent. |
-| no-rule | No other rule covers the case; the row's values name the file, test or competing values. | What should change? If this can happen again, add a rule. | A reviewer gets everything needed to decide, and a repeated case shows where a rule is missing. |
+| no-rule | No other rule covers the case; the row's catalogue and page give the competing values, and its values name the file or test. | What should change? If this can happen again, add a rule. | A reviewer gets everything needed to decide, and a repeated case shows where a rule is missing. |
 
 ## CI rejects a run
 

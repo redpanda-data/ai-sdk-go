@@ -38,6 +38,9 @@ var lockedKeys = map[string][]string{
 	"replacement":           {"lifecycle.replaced_by"},
 	"release_date":          {"facts.released"},
 	"knowledge_cutoff":      {"facts.knowledge"},
+	// Served locations aren't in the snapshot, so malformed refuses a
+	// decision on them.
+	"location": nil,
 }
 
 var decisionID = regexp.MustCompile(`^DEC-[0-9]{3}$`)
@@ -113,6 +116,8 @@ func malformed(d reconcile.Decision) string {
 		return "an offering is <package>:<model ID>"
 	case !knownField:
 		return "unknown field " + d.Field
+	case d.Field == "location":
+		return "location takes no decision yet: served locations are not in the snapshot"
 	case d.Kind == reconcile.KindHold && !added:
 		return "a hold applies only to new_model or new_copy"
 	case added && d.Lock != nil:

@@ -52,6 +52,13 @@ func TestRulesFile(t *testing.T) {
 	for _, field := range []string{reconcile.FieldNewModel, reconcile.FieldNewCopy} {
 		assert.Contains(t, rules.Fields[field], "before this run", "the %s cell must say which catalogue it reads", field)
 	}
+
+	// A host's served locations change under their own Default.
+	located := Report{Changes: []Change{{
+		Offering: "vertex:claude-sonnet-5", Field: "location", Old: "global us-east5", New: "global us-east5 europe-west1",
+		SourceURL: "https://docs.cloud.google.com/gemini-enterprise-agent-platform/resources/locations", Rule: "location-follow",
+	}}}
+	assert.Empty(t, Validate(located, []string{"docs.cloud.google.com"}, rules), "a location change under location-follow")
 }
 
 func TestRulesReachTheAgent(t *testing.T) {

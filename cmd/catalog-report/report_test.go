@@ -95,6 +95,10 @@ func TestValidate(t *testing.T) {
 			r.Changes[0].SourceURL = "https://platform.claude.com/docs/en/pricing?tab=batch&x=1#model-pricing"
 		}, ""},
 		{"missing needs_human source", func(r *Report) { r.NeedsHuman[0].SourceURLs = nil }, "source"},
+		{"a question with both sides", func(r *Report) { r.NeedsHuman[0].Catalogue, r.NeedsHuman[0].Page = "65535", "65536" }, ""},
+		{"html in the catalogue side", func(r *Report) { r.NeedsHuman[0].Catalogue = "<b>65535</b>" }, `needs_human[0]: bad value "<b>65535</b>"`},
+		{"a link on the page side", func(r *Report) { r.NeedsHuman[0].Page = "https://evil.example/x" }, `needs_human[0]: bad value "https://evil.example/x"`},
+		{"a long page side", func(r *Report) { r.NeedsHuman[0].Page = strings.Repeat("9", 65) }, "needs_human[0]: bad value"},
 		{"rule RULES.md doesn't have", func(r *Report) { r.Skipped[0].Rule = "no-such-rule" }, `skipped[0]: unknown rule "no-such-rule"`},
 		{"needs_human rule that never asks a person", func(r *Report) { r.NeedsHuman[0].Rule = "limited-availability" }, "needs_human[0]: rule limited-availability doesn't produce needs_human"},
 		{"skip rule for another reason", func(r *Report) { r.Skipped[0].Rule = "limited-availability" }, "skipped[0]: rule limited-availability doesn't produce skip:`conflicting_sources`"},
@@ -514,8 +518,7 @@ func TestRender(t *testing.T) {
 			contains: []string{
 				"### Resolve before merging (2): 1 by a rule, 1 with no rule",
 				"**1. `claude-sonnet-5-5` · limit · ⚠ no rule covers this ([no-rule](" + rulesURL + "#L120))**",
-				"- **Question:** No rule covers this. Decide.",
-				"- **Found:** `65535`, `65536`",
+				"- **Also found:** `65535`, `65536`\n- **Question:** No rule covers this. Decide.\n",
 				"- **Sources:** [platform.claude.com](https://platform.claude.com/docs/en/about-claude/models/overview.md)",
 				"**2. `claude-opus-4-1` · replacement · rule [replacement-not-carried](" + rulesURL + "#L80)**\n- **Question:** Which replacement?\n- **Sources:**",
 			},
@@ -774,6 +777,111 @@ func TestSchemaMatchesValidator(t *testing.T) {
 		assert.Contains(t, items(array).Required, "rule", "%s rows require a rule", array)
 		require.Contains(t, items(array).Properties, "rule", "%s rows have no rule", array)
 		assert.Equal(t, reconcile.RuleIDPattern.String(), items(array).Properties["rule"].Pattern, "%s rule pattern", array)
+	}
+}
+
+// The schema takes a question's two sides as the same short values the
+// validator takes, and the location field on a question.
+func TestSchemaValues(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile(filepath.Join("..", "..", ".github", "reconcile-models", "report.schema.json"))
+	require.NoError(t, err)
+
+	var schema jsonschema.Schema
+	require.NoError(t, json.Unmarshal(raw, &schema))
+
+	resolved, err := schema.Resolve(nil)
+	require.NoError(t, err)
+
+	question := func(field, sides string) string {
+		return `{"changes": [], "skipped": [], "needs_human": [{"offering": "claude-sonnet-5-5", "field": "` + field + `", "values": [], ` +
+			`"source_urls": ["https://platform.claude.com/a"], "rule": "no-rule"` + sides + `}]}`
+	}
+
+	tests := []struct {
+		name, report string
+		wantErr      bool
+	}{
+		{"no sides", question("limit", ""), false},
+		{"both sides", question("limit", `, "catalogue": "65535", "page": "65536"`), false},
+		{"html in a side", question("limit", `, "catalogue": "<b>65535</b>"`), true},
+		{"a long side", question("limit", `, "page": "`+strings.Repeat("9", 65)+`"`), true},
+		{"a location question", question("location", `, "catalogue": "global us-east5", "page": "global us-east5 europe-west1"`), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var instance any
+			require.NoError(t, json.Unmarshal([]byte(tt.report), &instance))
+
+			if err := resolved.Validate(instance); tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestRenderQuestionBlock checks one Resolve before merging row: the two
+// sides first, then other values, then the question, then the sources.
+func TestRenderQuestionBlock(t *testing.T) {
+	t.Parallel()
+
+	const (
+		noRule  = "**1. `claude-sonnet-5-5` · limit · ⚠ no rule covers this (`no-rule`)**\n"
+		sources = "- **Sources:** [platform.claude.com](https://platform.claude.com/a)\n\n"
+	)
+
+	ask := func(rule, catalogue, page string, values ...string) NeedsHuman {
+		return NeedsHuman{
+			Offering: "claude-sonnet-5-5", Field: "limit", Catalogue: catalogue, Page: page, Values: values,
+			Rule: rule, SourceURLs: []string{"https://platform.claude.com/a"},
+		}
+	}
+
+	tests := []struct {
+		name string
+		item NeedsHuman
+		want string
+	}{
+		{
+			name: "no rule, both sides: keep or change",
+			item: ask("no-rule", "65535", "65536", "providers/anthropic/models.go"),
+			want: noRule + "- **Catalogue:** `65535`\n- **Page:** `65536`\n- **Also found:** `providers/anthropic/models.go`\n" +
+				"- **Decide:** keep `65535`, or change to `65536`. If this can come back, add a rule.\n" + sources,
+		},
+		{
+			name: "both sides and nothing else found",
+			item: ask("no-rule", "65535", "65536"),
+			want: noRule + "- **Catalogue:** `65535`\n- **Page:** `65536`\n- **Decide:** keep `65535`, or change to `65536`. If this can come back, add a rule.\n" + sources,
+		},
+		{
+			name: "a rule's row keeps its question",
+			item: ask("replacement-not-carried", "none", "claude-opus-5"),
+			want: "**1. `claude-sonnet-5-5` · limit · rule `replacement-not-carried`**\n- **Catalogue:** `none`\n- **Page:** `claude-opus-5`\n" +
+				"- **Question:** Which replacement?\n" + sources,
+		},
+		{
+			name: "one side alone keeps the question",
+			item: ask("no-rule", "", "65536"),
+			want: noRule + "- **Page:** `65536`\n- **Question:** No rule covers this. Decide.\n" + sources,
+		},
+		{
+			name: "no sides: also found, then the question",
+			item: ask("no-rule", "", "", "65535", "65536"),
+			want: noRule + "- **Also found:** `65535`, `65536`\n- **Question:** No rule covers this. Decide.\n" + sources,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			body := Render(Report{NeedsHuman: []NeedsHuman{tt.item}}, "anthropic", "", nil, Base{Rules: testRules})
+			assert.Contains(t, body, tt.want)
+		})
 	}
 }
 

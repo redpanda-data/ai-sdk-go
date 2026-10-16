@@ -37,6 +37,8 @@ func TestParseReport(t *testing.T) {
 		{"missing needs_human", `{"changes": [], "skipped": []}`, true},
 		{"missing skipped", `{"changes": [], "needs_human": []}`, true},
 		{"null array", `{"changes": null, "needs_human": [], "skipped": []}`, true},
+		{"a question with both sides", `{"changes": [], "needs_human": [{"offering": "x", "catalogue": "65535", "page": "65536"}], "skipped": []}`, false},
+		{"both sides only on questions", `{"changes": [{"offering": "x", "catalogue": "65535"}], "needs_human": [], "skipped": []}`, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -108,6 +108,8 @@ func TestCheckDecisions(t *testing.T) {
 		{"lock on new_model", item("DEC-003", reconcile.FieldNewModel, reconcile.KindKeep, `lock: {"stage": "ga"}`), fable, "new_model takes no lock"},
 		{"lock on new_copy", item("DEC-003", reconcile.FieldNewCopy, reconcile.KindKeep, `lock: {"stage": "ga"}`), fable, "new_copy takes no lock"},
 		{"hold on another field", item("DEC-002", "price", reconcile.KindHold), fable, "a hold applies only to new_model or new_copy"},
+		{"keep on location", keep("location", `["global"]`), fable, "DEC-001: location takes no decision yet: served locations are not in the snapshot"},
+		{"hold on location", item("DEC-002", "location", reconcile.KindHold), `{}`, "DEC-002: location takes no decision yet: served locations are not in the snapshot"},
 		{"unknown package", strings.Replace(keepGA, "bedrock:", "azure:", 1), fable, "unknown package azure"},
 		{"bad date", strings.Replace(keepGA, "2027-01-13", "soon", 1), fable, "review_by"},
 	}

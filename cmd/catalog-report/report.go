@@ -35,7 +35,7 @@ type (
 )
 
 var (
-	fields       = []string{"new_model", "new_copy", "price", "limit", "lifecycle", "replacement", "knowledge_cutoff", "release_date", "capability"}
+	fields       = []string{"new_model", "new_copy", "price", "limit", "lifecycle", "replacement", "knowledge_cutoff", "release_date", "capability", "location"}
 	reasons      = []string{"not_on_named_sources", "conflicting_sources", "needs_new_pricing_shape", "out_of_scope", "limited_availability", "vendor_excluded", regionNotOffered, "copy_unlisted", "fixed_fact_differs"}
 	valuePattern = regexp.MustCompile(`^[A-Za-z0-9 ._:/+-]{0,64}$`)
 	// sourcePattern allows only characters that can't end a markdown link,
@@ -150,7 +150,7 @@ func Validate(report Report, hosts []string, rules reconcile.Rules) []string {
 			problems = append(problems, where+": unknown field "+fmt.Sprintf("%q", item.Field))
 		}
 
-		for _, value := range item.Values {
+		for _, value := range append([]string{item.Catalogue, item.Page}, item.Values...) {
 			checkValue(where, value)
 		}
 
@@ -455,8 +455,10 @@ func (base Base) waitingAlert(waiting []Skipped) string {
 	return "> [!NOTE]\n> **" + decisions + " waiting** (" + they + " block this PR): " + strings.Join(asked, " ") + "\n\n"
 }
 
-// needsHumanBlock renders one needs_human row: its rule, the rule's fixed
-// question, what the bot found, and the sources.
+// needsHumanBlock renders one needs_human row: its rule, what the catalogue
+// and the page say, anything else the bot found, the question, and the
+// sources. A no-rule row with both sides asks to keep one or take the other;
+// any other row asks its rule's fixed question.
 func (base Base) needsHumanBlock(number int, item NeedsHuman) string {
 	why := "rule " + base.ruleLink(item.Rule)
 	if item.Rule == reconcile.JudgmentRule {
@@ -469,12 +471,23 @@ func (base Base) needsHumanBlock(number int, item NeedsHuman) string {
 	}
 
 	block := fmt.Sprintf("**%d. %s · %s · %s**\n", number, code(item.Offering), item.Field, why)
-	if question := base.Rules.Questions[item.Rule]; question != "" {
-		block += "- **Question:** " + question + "\n"
+	if item.Catalogue != "" {
+		block += "- **Catalogue:** " + code(item.Catalogue) + "\n"
+	}
+
+	if item.Page != "" {
+		block += "- **Page:** " + code(item.Page) + "\n"
 	}
 
 	if len(item.Values) > 0 {
-		block += "- **Found:** " + valueList(item.Values) + "\n"
+		block += "- **Also found:** " + valueList(item.Values) + "\n"
+	}
+
+	switch question := base.Rules.Questions[item.Rule]; {
+	case item.Rule == reconcile.JudgmentRule && item.Catalogue != "" && item.Page != "":
+		block += "- **Decide:** keep " + code(item.Catalogue) + ", or change to " + code(item.Page) + ". If this can come back, add a rule.\n"
+	case question != "":
+		block += "- **Question:** " + question + "\n"
 	}
 
 	return block + "- **Sources:** " + strings.Join(sources, ", ") + "\n\n"

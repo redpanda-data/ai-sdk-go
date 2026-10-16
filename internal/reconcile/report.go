@@ -47,9 +47,13 @@ type Change struct {
 
 // NeedsHuman is a value the agent couldn't decide. Rule is the RULES.md rule
 // that sent it to a person, or no-rule when no rule covers the case.
+// Catalogue and Page, when the case has them, are what the catalogue has now
+// and what the cited page says; Values holds any other details.
 type NeedsHuman struct {
 	Offering   string   `json:"offering"`
 	Field      string   `json:"field"`
+	Catalogue  string   `json:"catalogue"`
+	Page       string   `json:"page"`
 	Values     []string `json:"values"`
 	SourceURLs []string `json:"source_urls"`
 	Rule       string   `json:"rule"`
