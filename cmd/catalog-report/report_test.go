@@ -515,7 +515,7 @@ func TestRender(t *testing.T) {
 				"- Offer `in` on bedrock (asked since 2026-10-15)? 3 copies: `bedrock:in.anthropic.claude-opus-5`, `bedrock:in.anthropic.claude-sonnet-5`, " +
 					"`bedrock:in.anthropic.claude-haiku-4-5-20251001-v1:0`\n",
 				"- Offer `ca` on bedrock (not in the table yet)? 1 copy: `bedrock:ca.anthropic.claude-opus-5`\n",
-				"Questions for people: 0 for the reviewer, 2 for product (Waiting on a product decision: `in` on bedrock since 2026-10-15, `ca` on bedrock (not in the table yet)).\n\n",
+				"Questions for people: 0 for the reviewer, 2 for product, waiting on a product decision: `in` on bedrock since 2026-10-15, `ca` on bedrock (new).\n\n",
 			},
 		},
 		{
@@ -525,7 +525,7 @@ func TestRender(t *testing.T) {
 			contains: []string{
 				"### Waiting on a product decision (1)",
 				"### Skipped (1)\n\n| Rule | Why | Offerings |\n|---|---|---|\n| [region-not-offered](" + rulesURL + "#L20) | `region_not_offered` | `bedrock:ca.anthropic.claude-opus-5` |\n",
-				"Questions for people: 0 for the reviewer, 1 for product (Waiting on a product decision: `in` on bedrock since 2026-10-15).\n\n",
+				"Questions for people: 0 for the reviewer, 1 for product, waiting on a product decision: `in` on bedrock since 2026-10-15.\n\n",
 			},
 			notContains: []string{"Offer `ca`", "`ca` on bedrock"},
 		},
@@ -534,8 +534,8 @@ func TestRender(t *testing.T) {
 			report: withWaiting,
 			base:   Base{Rules: testRules},
 			contains: []string{
-				"Later runs don't read PR comments.\n\nQuestions for people: 1 for the reviewer (Needs a human), 2 for product (Waiting on a product decision: " +
-					"`in` on bedrock since 2026-10-15, `ca` on bedrock (not in the table yet)).\n\n### Changes (1)",
+				"Later runs don't read PR comments.\n\nQuestions for people: 1 for the reviewer (Needs a human), 2 for product, waiting on a product decision: " +
+					"`in` on bedrock since 2026-10-15, `ca` on bedrock (new).\n\n### Changes (1)",
 			},
 		},
 		{

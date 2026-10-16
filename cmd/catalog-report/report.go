@@ -414,7 +414,7 @@ func (base Base) questions(needs []NeedsHuman, waiting []Skipped) string {
 		asked := make([]string, 0, len(regions))
 
 		for _, key := range regions {
-			since := " (not in the table yet)"
+			since := " (new)"
 			if answer, date := base.answer(key); answer == "asked" {
 				since = " since " + date
 			}
@@ -422,7 +422,7 @@ func (base Base) questions(needs []NeedsHuman, waiting []Skipped) string {
 			asked = append(asked, code(key.prefix)+" on "+key.host+since)
 		}
 
-		product += " (Waiting on a product decision: " + strings.Join(asked, ", ") + ")"
+		product += ", waiting on a product decision: " + strings.Join(asked, ", ")
 	}
 
 	return "Questions for people: " + reviewer + ", " + product + ".\n\n"
