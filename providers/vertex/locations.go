@@ -46,7 +46,9 @@ const (
 	// and the claude-fable-5-1 and gemini-3.5-flash rows come from their
 	// model pages. The claude-sonnet-5-5 row, added 2026-09-29, the
 	// claude-haiku-5-5 row, added 2026-10-08, and the gemini-4-argon row,
-	// added 2026-10-14, are their model pages' sections.
+	// added 2026-10-14, are their model pages' sections. The claude-fable-5,
+	// claude-opus-5 and claude-sonnet-5 rows were re-read from
+	// LocationsMatrixSource on 2026-10-16.
 	LocationsMatrixTranscribed = "2026-09-22"
 )
 
@@ -115,10 +117,11 @@ var servedLocations = map[string][]string{
 		LocationGlobal,
 		"us", "eu",
 	},
+	// The model page's "ML processing" list adds asia-southeast1, but
+	// neither it nor the matrix marks the model available there.
 	ModelClaudeFable5: {
 		LocationGlobal,
 		"us", "eu",
-		"asia-southeast1",
 	},
 	// From the Opus 5.5 model page (not yet in the matrix). Its "ML
 	// processing" list adds asia-southeast1, but Google publishes neither
@@ -127,10 +130,11 @@ var servedLocations = map[string][]string{
 		LocationGlobal,
 		"us", "eu",
 	},
+	// The model page's "ML processing" list adds asia-southeast1, but
+	// neither it nor the matrix marks the model available there.
 	ModelClaudeOpus5: {
 		LocationGlobal,
 		"us", "eu",
-		"asia-southeast1",
 	},
 	ModelClaudeOpus48: {
 		LocationGlobal,
@@ -155,10 +159,11 @@ var servedLocations = map[string][]string{
 		LocationGlobal,
 		"us", "eu",
 	},
+	// The model page's "ML processing" list adds asia-southeast1, but
+	// neither it nor the matrix marks the model available there.
 	ModelClaudeSonnet5: {
 		LocationGlobal,
 		"us", "eu",
-		"asia-southeast1",
 	},
 	ModelClaudeSonnet46: {
 		LocationGlobal,
