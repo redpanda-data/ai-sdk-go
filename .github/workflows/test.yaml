@@ -45,12 +45,17 @@ jobs:
     # The reconcile bot's draft PRs contain unreviewed, agent-written code, so
     # they get the job below instead, and the ci:force-tests label doesn't
     # override that; the full run starts once a person marks the PR ready for
-    # review. Other PRs behave exactly as before.
+    # review. A PR someone else opens from the bot's branch also gets the job
+    # below, ready or not: the bot's next force-push puts new agent code in it.
+    # Other PRs behave exactly as before.
     if: >-
       (github.event_name != 'pull_request_target' ||
       github.event.label.name == 'ci:force-tests') &&
       !(github.event.pull_request.user.login == 'vbotbuildovich' &&
       github.event.pull_request.draft) &&
+      !(github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.event.pull_request.head.ref, 'bot/reconcile-models') &&
+      github.event.pull_request.user.login != 'vbotbuildovich') &&
       !(github.event.action == 'ready_for_review' &&
       github.event.pull_request.user.login != 'vbotbuildovich')
     runs-on: blacksmith-8vcpu-ubuntu-2404
@@ -95,8 +100,11 @@ jobs:
     name: Test (bot draft, no secrets)
     if: >-
       github.event_name == 'pull_request' &&
-      github.event.pull_request.user.login == 'vbotbuildovich' &&
-      github.event.pull_request.draft
+      ((github.event.pull_request.user.login == 'vbotbuildovich' &&
+      github.event.pull_request.draft) ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.event.pull_request.head.ref, 'bot/reconcile-models') &&
+      github.event.pull_request.user.login != 'vbotbuildovich'))
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     # No id-token and no secrets; no caches either, so untrusted code can't

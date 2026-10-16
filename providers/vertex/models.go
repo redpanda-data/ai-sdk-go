@@ -141,7 +141,10 @@ var geminiNoPenaltyParams = []string{"temperature", "top_p", "top_k", "max_token
 
 // claudeCaps is the capability set shared by catalogued Claude models on
 // Vertex. JSONMode is false because Claude has no schemaless JSON mode;
-// structured output is via output_config with a json_schema.
+// structured output is via output_config with a json_schema. Hosted tool
+// search is off here and opted into per entry with claudeCapsWithToolSearch,
+// so a new model fails closed to local discovery until a call on Vertex shows
+// it works.
 var claudeCaps = llm.ModelCapabilities{
 	Streaming:        true,
 	Tools:            true,
@@ -202,12 +205,15 @@ var (
 //	https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing
 //
 // Capabilities and constraints mirror the same models in the Gemini-API and
-// Anthropic-direct catalogs, with four exceptions. No Claude entry offers
+// Anthropic-direct catalogs, with five exceptions. No Claude entry offers
 // speed; Vertex publishes no Claude fast-mode rate. Several Gemini entries
 // cap output at 65536 where the Gemini-API catalog says 65535. Gemini 3.7
 // and 3.8 Flash take no presence or frequency penalty, which the Gemini-API
 // catalog lists. Claude Opus 4.5, Sonnet 4.5 and Haiku 4.5 take a manual
-// thinking budget, which the Anthropic-direct catalog does not set.
+// thinking budget, which the Anthropic-direct catalog does not set. Claude
+// tool search can be off where Anthropic-direct has it on: a new entry
+// starts with claudeCaps, and a person turns it on once a call on Vertex
+// returns a tool search result (RULES.md vertex-tool-search-one-way).
 //
 // Lifecycle does not mirror them: each entry's Available is when Vertex
 // began serving the model (its model page's Release date). Retires is set

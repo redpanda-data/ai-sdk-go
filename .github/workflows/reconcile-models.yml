@@ -289,6 +289,14 @@ jobs:
           git switch -C "$BRANCH"
           xargs -r -a out/files.txt git add --  # the files pr-job.sh checked
           git -c core.hooksPath=/dev/null commit -m "chore(catalog): reconcile ${PROVIDER} models"
+          # The push below changes the code in every PR from this repo whose head
+          # is $BRANCH, so stop if anyone but the bot has one open.
+          others="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number,author,isCrossRepository \
+            --jq '[.[] | select((.isCrossRepository | not) and .author.login != "vbotbuildovich") | "#\(.number)"] | join(", ")')"
+          if [[ -n "$others" ]]; then
+            echo "::error::Open PRs from ${BRANCH} by someone other than vbotbuildovich: ${others}. The push would put new agent code in them; close them or open them from another branch, then re-run."
+            exit 1
+          fi
           # A PR a person marked ready goes back to draft before the push, so new
           # agent code runs only test.yaml's no-secrets job until reviewed again.
           # Only the bot's own PR from this repo: --head matches a fork's PR
