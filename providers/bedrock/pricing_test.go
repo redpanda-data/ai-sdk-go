@@ -170,8 +170,8 @@ func TestGPT56Pricing(t *testing.T) {
 func TestGPT6Pricing(t *testing.T) {
 	t.Parallel()
 
-	// Ultrafast is six times Standard on every Astra route, with its own
-	// long-context bracket; zero ultrafast rates mean no Ultrafast card.
+	// Ultrafast is six times Standard on every Astra and GPT-6.1 Sol route,
+	// with its own long-context bracket; zero rates mean no Ultrafast card.
 	tests := []struct {
 		modelID                  string
 		base, long               pricing.Rates
@@ -202,22 +202,22 @@ func TestGPT6Pricing(t *testing.T) {
 			modelID:       ModelGPT61SolGlobal,
 			base:          pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(0, 0, 2.50),
 			long:          pricing.NewRates(4.00, 15.00, 0.20).WithCacheCreation(0, 0, 5.00),
-			ultrafast:     pricing.NewRates(12, 60, 0.60).WithCacheCreation(0, 0, 15),
-			ultrafastLong: pricing.NewRates(24, 90, 1.20).WithCacheCreation(0, 0, 30),
+			ultrafast:     pricing.NewRates(12.00, 60.00, 0.60).WithCacheCreation(0, 0, 15.00),
+			ultrafastLong: pricing.NewRates(24.00, 90.00, 1.20).WithCacheCreation(0, 0, 30.00),
 		},
 		{
 			modelID:       ModelGPT61SolUS,
 			base:          pricing.NewRates(2.20, 11.00, 0.11).WithCacheCreation(0, 0, 2.75),
 			long:          pricing.NewRates(4.40, 16.50, 0.22).WithCacheCreation(0, 0, 5.50),
-			ultrafast:     pricing.NewRates(13.20, 66, 0.66).WithCacheCreation(0, 0, 16.50),
-			ultrafastLong: pricing.NewRates(26.40, 99, 1.32).WithCacheCreation(0, 0, 33),
+			ultrafast:     pricing.NewRates(13.20, 66.00, 0.66).WithCacheCreation(0, 0, 16.50),
+			ultrafastLong: pricing.NewRates(26.40, 99.00, 1.32).WithCacheCreation(0, 0, 33.00),
 		},
 		{
 			modelID:       ModelGPT61Sol,
 			base:          pricing.NewRates(2.20, 11.00, 0.11).WithCacheCreation(0, 0, 2.75),
 			long:          pricing.NewRates(4.40, 16.50, 0.22).WithCacheCreation(0, 0, 5.50),
-			ultrafast:     pricing.NewRates(13.20, 66, 0.66).WithCacheCreation(0, 0, 16.50),
-			ultrafastLong: pricing.NewRates(26.40, 99, 1.32).WithCacheCreation(0, 0, 33),
+			ultrafast:     pricing.NewRates(13.20, 66.00, 0.66).WithCacheCreation(0, 0, 16.50),
+			ultrafastLong: pricing.NewRates(26.40, 99.00, 1.32).WithCacheCreation(0, 0, 33.00),
 		},
 		{
 			modelID: ModelGPT6SolGlobal,

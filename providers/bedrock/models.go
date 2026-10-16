@@ -1219,11 +1219,14 @@ var bedrockFamilies = []family{
 		// Standard-tier rates from the card (launched 2026-09-29): global
 		// matches OpenAI's rates and US CRIS adds 10%, with a long-context
 		// card above 272K input tokens. The 30-minute cache-write TTL sits
-		// in the unknown-TTL bucket. Ultrafast cards also price Responses
+		// in the unknown-TTL bucket. Converse caching is implicit; explicit
+		// cache points remain unsupported. Ultrafast cards also price Responses
 		// usage of these IDs; this SDK still invokes profiles via Converse.
-		// Unprobed: the card documents Astra's Converse surface, so the family reuses Astra's capabilities
-		// and limits. The card's 131,072 max output tokens exceeds OpenAI's
-		// documented 128,000, so the lower limit stands until probed.
+		// Unprobed: the card documents Astra's Converse surface, so the family
+		// reuses Astra's capability flags and conservative limits. Unlike Astra,
+		// the current card explicitly supports streaming schemas (2026-10-16).
+		// Its 131,072 max output tokens exceeds OpenAI's documented 128,000,
+		// so the lower limit stands until probed.
 		BareID:      ModelGPT61Sol,
 		WireAPIs:    openAIRuntimeWireAPIs,
 		Model:       catalog.ModelGPT6_1Sol,
