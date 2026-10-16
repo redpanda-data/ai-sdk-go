@@ -49,8 +49,10 @@ tasks:
       # the exact rendered header.txt as each file's first lines.
       - |
         set -o pipefail
-        want="{{.BUILD_ROOT}}/license-header.go.txt"
-        mkdir -p "{{.BUILD_ROOT}}"
+        # A temp file, not one under .build: the reconcile PR job runs this
+        # check in a sandbox where the checkout is read-only.
+        want="$(mktemp)"
+        trap 'rm -f "$want"' EXIT
         sed -e 's|^|// |' -e 's| *$||' header.txt > "$want"
         git ls-files -z --cached --others --exclude-standard "*.go" |
           xargs -0 -r sh -c '

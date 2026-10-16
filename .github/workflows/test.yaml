@@ -43,13 +43,13 @@ jobs:
   test:
     name: Test
     # The reconcile bot's draft PRs contain unreviewed, agent-written code, so
-    # they get the job below instead; the full run starts once a person marks
-    # the PR ready for review. Other PRs behave exactly as before.
+    # they get the job below instead, and the ci:force-tests label doesn't
+    # override that; the full run starts once a person marks the PR ready for
+    # review. Other PRs behave exactly as before.
     if: >-
       (github.event_name != 'pull_request_target' ||
       github.event.label.name == 'ci:force-tests') &&
-      !(github.event_name == 'pull_request' &&
-      github.event.pull_request.user.login == 'vbotbuildovich' &&
+      !(github.event.pull_request.user.login == 'vbotbuildovich' &&
       github.event.pull_request.draft) &&
       !(github.event.action == 'ready_for_review' &&
       github.event.pull_request.user.login != 'vbotbuildovich')

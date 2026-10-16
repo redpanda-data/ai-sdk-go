@@ -291,13 +291,17 @@ jobs:
           git -c core.hooksPath=/dev/null commit -m "chore(catalog): reconcile ${PROVIDER} models"
           # A PR a person marked ready goes back to draft before the push, so new
           # agent code runs only test.yaml's no-secrets job until reviewed again.
-          existing="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number --jq '.[0].number // empty')"
+          # Only the bot's own PR from this repo: --head matches a fork's PR
+          # from a branch with the same name too.
+          existing="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number,author,isCrossRepository \
+            --jq '[.[] | select(.author.login == "vbotbuildovich" and (.isCrossRepository | not))][0].number // empty')"
           if [[ -n "$existing" && "$(gh pr view "$existing" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" == "false" ]]; then
             gh pr ready "$existing" --repo "$GITHUB_REPOSITORY" --undo
           fi
           git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${BRANCH}"
           if [[ -n "$existing" ]]; then
-            gh pr edit "$existing" --repo "$GITHUB_REPOSITORY" --base "$BASE" --body-file out/body.md
+            # The label again on every update: a person may have removed it.
+            gh pr edit "$existing" --repo "$GITHUB_REPOSITORY" --base "$BASE" --body-file out/body.md --add-label ai-merge-skip
           else
             gh pr create --repo "$GITHUB_REPOSITORY" --draft --base "$BASE" --head "$BRANCH" \
               --title "chore(catalog): reconcile ${PROVIDER} models" --body-file out/body.md \

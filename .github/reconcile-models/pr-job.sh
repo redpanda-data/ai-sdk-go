@@ -2,8 +2,9 @@
 # Applies the reconcile-models agent's patch to a clean checkout and checks
 # it with no model involved. Used by the workflow's PR job; runs locally too.
 # Patched code runs only inside a sandbox with no network, an empty
-# environment and read-only .git, OUT_DIR and tool copies, so code the agent
-# wrote can't reach secrets or change what runs after the checks.
+# environment and a read-only checkout (only catalog/snapshot.json, which it
+# regenerates, is writable), so code the agent wrote can't reach secrets or
+# change what runs after the checks.
 # Usage: pr-job.sh PROVIDER OUT_DIR
 set -euo pipefail
 
@@ -115,7 +116,8 @@ sandbox() {
     Linux)
       "${env[@]}" bwrap --die-with-parent --new-session --unshare-net --unshare-pid \
         --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp --dir /tmp/sandbox-home \
-        --bind "$repo" "$repo" --bind "$gocache" "$gocache" --bind "$gomodcache" "$gomodcache" \
+        --bind "$gocache" "$gocache" --bind "$gomodcache" "$gomodcache" \
+        --bind "$repo/catalog/snapshot.json" "$repo/catalog/snapshot.json" \
         --ro-bind "$git_dir" "$git_dir" --ro-bind "$git_common" "$git_common" --ro-bind "$out" "$out" \
         "$@"
       ;;
@@ -125,8 +127,10 @@ sandbox() {
         (deny network-outbound)
         (allow network-outbound (remote ip \"localhost:*\") (remote unix-socket))
         (deny file-write*)
-        (allow file-write* (subpath \"$repo\") (subpath \"$gocache\") (subpath \"$gomodcache\")
+        (allow file-write* (subpath \"$gocache\") (subpath \"$gomodcache\")
           (subpath \"$tmp\") (subpath \"/private/tmp\") (regex #\"^/dev/\"))
+        (deny file-write* (subpath \"$repo\"))
+        (allow file-write* (literal \"$repo/catalog/snapshot.json\") (subpath \"$gocache\") (subpath \"$gomodcache\"))
         (deny file-write* (subpath \"$git_dir\") (subpath \"$git_common\") (subpath \"$out\") (subpath \"$priv\"))" \
         "$@"
       ;;
@@ -138,14 +142,14 @@ sandbox() {
 }
 
 # Fail closed unless the sandbox hides the environment, blocks the network and
-# keeps .git, OUT_DIR and the private copies read-only.
+# keeps the checkout, .git, OUT_DIR and the private copies read-only.
 if ! RECONCILE_PROBE_SECRET=probe sandbox bash -c '
   [[ -z "${RECONCILE_PROBE_SECRET:-}" ]] || exit 11
   if curl -sS --max-time 5 -o /dev/null https://proxy.golang.org 2>/dev/null; then exit 12; fi
   for dir in "$@"; do
     if touch "$dir/.reconcile-probe" 2>/dev/null; then exit 13; fi
-  done' _ "$git_common" "$out" "$priv"; then
-  rm -f "$git_common/.reconcile-probe" "$out/.reconcile-probe" "$priv/.reconcile-probe"
+  done' _ "$repo" "$repo/.build" "$git_common" "$out" "$priv"; then
+  rm -f "$repo/.reconcile-probe" "$repo/.build/.reconcile-probe" "$git_common/.reconcile-probe" "$out/.reconcile-probe" "$priv/.reconcile-probe"
   echo "pr-job: the sandbox check failed" >&2
   exit 1
 fi
