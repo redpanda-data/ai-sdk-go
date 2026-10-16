@@ -346,6 +346,9 @@ func entries() []catalog.Entry {
 			),
 		},
 		{
+			// Standard cache hits: $0.10/MTok (0.05x input), verified 2026-10-16.
+			// Current rates only; historical usage is not effective-dated.
+			// https://platform.claude.com/docs/en/about-claude/pricing
 			ID:           ModelClaudeSonnet55,
 			Model:        catalog.ModelClaudeSonnet55,
 			WireAPIs:     messagesWireAPIs,
@@ -366,7 +369,7 @@ func entries() []catalog.Entry {
 				Available: catalog.MustDate("2026-09-28"),
 			},
 			Pricing: pricing.FlatInfoFromRates(
-				pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0),
+				pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(2.50, 4.00, 0),
 			),
 		},
 		{
@@ -394,7 +397,8 @@ func entries() []catalog.Entry {
 			// $2/$10 is Sonnet 5's standard price: announced as introductory
 			// through 2026-08-31, but the increase to $3/$15 scheduled for
 			// 2026-09-01 was cancelled. Cache rates from Anthropic's
-			// multipliers (5m-write 1.25x, 1h-write 2x, read 0.10x).
+			// multipliers (5m-write 1.25x, 1h-write 2x, read 0.10x). Sonnet 5.5
+			// instead uses 0.05x reads; its write multipliers are unchanged.
 			Pricing: pricing.FlatInfoFromRates(
 				pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0),
 			),
