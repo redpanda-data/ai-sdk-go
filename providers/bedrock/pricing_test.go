@@ -467,13 +467,8 @@ func TestExpandFamiliesRejectsUnpairedOverrides(t *testing.T) {
 func TestRegionalOnDemandPricing(t *testing.T) {
 	t.Parallel()
 	const (
-		regionFrankfurt = "eu-central-1"
-		regionMumbai    = "ap-south-1"
-		regionTokyo     = "ap-northeast-1"
-		regionSaoPaulo  = "sa-east-1"
-		regionSydney    = "ap-southeast-2"
-		regionVirginia  = "us-east-1"
-		regionOregon    = "us-west-2"
+		regionVirginia = "us-east-1"
+		regionOregon   = "us-west-2"
 	)
 
 	prices, err := pricing.NewCatalog(pricing.WithSource(Catalog()))
@@ -502,4 +497,20 @@ func TestRegionalOnDemandPricing(t *testing.T) {
 			assert.Equal(t, tt.output, cost.Breakdown[pricing.UsageFieldOutput])
 		})
 	}
+}
+
+// Regional Standard cards intentionally estimate other tiers at Standard rates.
+// Fallbacks expose that the requested tier was not priced exactly.
+func TestRegionalNonStandardPricingFallback(t *testing.T) {
+	t.Parallel()
+
+	prices, err := pricing.NewCatalog(pricing.WithSource(Catalog()))
+	require.NoError(t, err)
+
+	requested := pricing.Selector{Region: regionFrankfurt, ServiceTier: llm.ServiceTierPriority}
+	cost, err := prices.Calculate(ProviderName, ModelGemma431B, &llm.TokenUsage{InputTokens: 1_000_000}, pricing.CalcRequest{Selector: requested})
+	require.NoError(t, err)
+	assert.Equal(t, int64(17_000_000), cost.Total)
+	assert.Equal(t, pricing.Selector{Region: regionFrankfurt}, cost.AppliedSelector)
+	assert.Equal(t, []pricing.Fallback{{Requested: requested, Resolved: pricing.Selector{Region: regionFrankfurt}}}, cost.Fallbacks)
 }

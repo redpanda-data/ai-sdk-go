@@ -1149,6 +1149,8 @@ var bedrockFamilies = []family{
 		Constraints:   mistralLarge3Constraints,
 		Rates:         pricing.RateCard{Base: pricing.NewRates(0.50, 1.50, 0)},
 		// Published regional Standard rates, checked 2026-10-15.
+		// Other tiers use these Standard estimates with Cost.Fallbacks;
+		// unmatched regions (including US) use the base card with a fallback.
 		// https://aws.amazon.com/bedrock/pricing/
 		Overrides: []pricing.Override{
 			{Match: pricing.Selector{Region: regionMumbai}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.59, 1.76, 0)}},
@@ -1455,6 +1457,8 @@ var bedrockFamilies = []family{
 		Constraints:   gemma4Context256kConstraints,
 		Rates:         pricing.RateCard{Base: pricing.NewRates(0.14, 0.40, 0)},
 		// Published regional Standard rates, checked 2026-10-15.
+		// Other tiers use these Standard estimates with Cost.Fallbacks;
+		// unmatched regions (including US) use the base card with a fallback.
 		// https://aws.amazon.com/bedrock/pricing/
 		Overrides: []pricing.Override{
 			{Match: pricing.Selector{Region: regionFrankfurt}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.17, 0.48, 0)}},
@@ -1472,6 +1476,8 @@ var bedrockFamilies = []family{
 		Constraints:   gemma4Context256kConstraints,
 		Rates:         pricing.RateCard{Base: pricing.NewRates(0.13, 0.40, 0)},
 		// Published regional Standard rates, checked 2026-10-15.
+		// Other tiers use these Standard estimates with Cost.Fallbacks;
+		// unmatched regions (including US) use the base card with a fallback.
 		// https://aws.amazon.com/bedrock/pricing/
 		Overrides: []pricing.Override{
 			{Match: pricing.Selector{Region: regionFrankfurt}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.16, 0.48, 0)}},
@@ -1489,6 +1495,8 @@ var bedrockFamilies = []family{
 		Constraints:   gemma4Context128kConstraints,
 		Rates:         pricing.RateCard{Base: pricing.NewRates(0.04, 0.08, 0)},
 		// Published regional Standard rates, checked 2026-10-15.
+		// Other tiers use these Standard estimates with Cost.Fallbacks;
+		// unmatched regions (including US) use the base card with a fallback.
 		// https://aws.amazon.com/bedrock/pricing/
 		Overrides: []pricing.Override{
 			{Match: pricing.Selector{Region: regionFrankfurt}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.05, 0.1, 0)}},

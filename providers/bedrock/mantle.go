@@ -191,7 +191,7 @@ type mantleModel struct {
 // model-not-found error.
 func (m *mantleModel) Generate(ctx context.Context, req *llm.Request) (*llm.Response, error) {
 	resp, err := m.Model.Generate(ctx, req)
-	if resp != nil && resp.InferenceRegion == "" {
+	if err == nil && resp != nil && resp.InferenceRegion == "" {
 		resp.InferenceRegion = m.region
 	}
 
@@ -203,7 +203,7 @@ func (m *mantleModel) Generate(ctx context.Context, req *llm.Request) (*llm.Resp
 func (m *mantleModel) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[llm.Event, error] {
 	return func(yield func(llm.Event, error) bool) {
 		for evt, err := range m.Model.GenerateEvents(ctx, req) {
-			if end, ok := evt.(llm.StreamEndEvent); ok && end.Response != nil && end.Response.InferenceRegion == "" {
+			if end, ok := evt.(llm.StreamEndEvent); ok && err == nil && end.Error == nil && end.Response != nil && end.Response.InferenceRegion == "" {
 				end.Response.InferenceRegion = m.region
 			}
 			if !yield(evt, m.regionHint(err)) {
