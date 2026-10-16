@@ -15,7 +15,6 @@
 package bedrock
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -622,6 +621,9 @@ func TestNewModel_ClaudeFable51Routing(t *testing.T) {
 		{"bare from Canada Central", "ca-central-1", ModelClaudeFable51, ModelClaudeFable51US, false},
 		{"bare from EU routes global", "eu-west-1", ModelClaudeFable51, ModelClaudeFable51Global, false},
 		{"bare from Sydney routes global", "ap-southeast-2", ModelClaudeFable51, ModelClaudeFable51Global, false},
+		{"bare from Melbourne routes AU", "ap-southeast-4", ModelClaudeSonnet55, ModelClaudeSonnet55AU, false},
+		{"explicit AU from Tokyo", "ap-northeast-1", ModelClaudeSonnet55AU, "", true},
+		{"explicit AU from US", "us-east-1", ModelClaudeSonnet55AU, "", true},
 		{"bare from Tokyo routes global", "ap-northeast-1", ModelClaudeFable51, ModelClaudeFable51Global, false},
 		{"bare from GovCloud", "us-gov-west-1", ModelClaudeFable51, "", true},
 		{"bare from unknown region", "unknown", ModelClaudeFable51, "", true},
@@ -669,7 +671,10 @@ func TestNewModel_ClaudeSonnet55Routing(t *testing.T) {
 		{"bare from Calgary", "ca-west-1", ModelClaudeSonnet55, ModelClaudeSonnet55US, false},
 		{"bare from EU", "eu-west-1", ModelClaudeSonnet55, ModelClaudeSonnet55EU, false},
 		{"bare from Zurich", "eu-central-2", ModelClaudeSonnet55, ModelClaudeSonnet55EU, false},
-		{"bare from Sydney routes AU", "ap-southeast-2", ModelClaudeSonnet55, "au." + ModelClaudeSonnet55, false},
+		{"bare from Sydney routes AU", "ap-southeast-2", ModelClaudeSonnet55, ModelClaudeSonnet55AU, false},
+		{"bare from Melbourne routes AU", "ap-southeast-4", ModelClaudeSonnet55, ModelClaudeSonnet55AU, false},
+		{"explicit AU from Tokyo", "ap-northeast-1", ModelClaudeSonnet55AU, "", true},
+		{"explicit AU from US", "us-east-1", ModelClaudeSonnet55AU, "", true},
 		{"bare from Tokyo routes global", "ap-northeast-1", ModelClaudeSonnet55, ModelClaudeSonnet55Global, false},
 		{"bare from GovCloud", "us-gov-west-1", ModelClaudeSonnet55, "", true},
 		{"bare from unknown region", "unknown", ModelClaudeSonnet55, "", true},
@@ -678,7 +683,7 @@ func TestNewModel_ClaudeSonnet55Routing(t *testing.T) {
 		{"explicit global from US", "us-east-1", ModelClaudeSonnet55Global, ModelClaudeSonnet55Global, false},
 		{"explicit US from EU", "eu-west-1", ModelClaudeSonnet55US, "", true},
 		{"explicit EU from US", "us-east-1", ModelClaudeSonnet55EU, "", true},
-		{"explicit AU from Sydney", "ap-southeast-2", "au." + ModelClaudeSonnet55, "au." + ModelClaudeSonnet55, false},
+		{"explicit AU from Sydney", "ap-southeast-2", "au." + ModelClaudeSonnet55, ModelClaudeSonnet55AU, false},
 		{"explicit JP is unpublished", "ap-northeast-1", "jp." + ModelClaudeSonnet55, "", true},
 	}
 
@@ -1458,6 +1463,12 @@ func TestRequestMapper_ResponseFormat(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.Nil(t, in.AdditionalModelRequestFields, "Claude must not receive OpenAI strict fields")
+
+		stream, err := rm.ToConverseStreamInput(&llm.Request{
+			ResponseFormat: &llm.ResponseFormat{Type: llm.ResponseFormatJSONSchema, JSONSchema: &llm.JSONSchema{Name: "person", Schema: []byte(schema)}},
+		})
+		require.NoError(t, err, "Claude streaming schemas are not subject to the GPT-6 restriction")
+		assert.Equal(t, in.OutputConfig, stream.OutputConfig)
 		require.NotNil(t, in.OutputConfig)
 		require.NotNil(t, in.OutputConfig.TextFormat)
 		assert.Equal(t, types.OutputFormatTypeJsonSchema, in.OutputConfig.TextFormat.Type)
@@ -1510,7 +1521,7 @@ func TestRequestMapper_ResponseFormat(t *testing.T) {
 func TestRequestMapper_OpenAISchemaStrict(t *testing.T) {
 	t.Parallel()
 
-	for _, id := range []string{ModelGPT6AstraGlobal, ModelGPT6AstraUS, ModelGPT6SolGlobal, ModelGPT6SolUS, ModelGPT61SolGlobal, ModelGPT61SolUS} {
+	for _, id := range []string{ModelGPT6AstraGlobal, ModelGPT6AstraUS, ModelGPT6SolGlobal, ModelGPT6SolUS, ModelGPT61SolGlobal, ModelGPT61SolUS, ModelGPT6LunaGlobal, ModelGPT6LunaUS} {
 		t.Run(id, func(t *testing.T) {
 			t.Parallel()
 
@@ -1519,52 +1530,36 @@ func TestRequestMapper_OpenAISchemaStrict(t *testing.T) {
 			in, err := mapper.ToConverseInput(req)
 			require.NoError(t, err)
 			stream, err := mapper.ToConverseStreamInput(req)
-			require.NoError(t, err)
-			assert.Equal(t, in.OutputConfig, stream.OutputConfig)
+			offering, ok := Catalog().Lookup(id)
+			require.True(t, ok)
+			// GPT-6.1 Sol explicitly documents ConverseStream schema support.
+			if id == ModelGPT61SolGlobal || id == ModelGPT61SolUS {
+				require.NoError(t, err)
+				assert.Equal(t, in.OutputConfig, stream.OutputConfig)
+				payload, err := stream.AdditionalModelRequestFields.MarshalSmithyDocument()
+				require.NoError(t, err)
+				assert.JSONEq(t, `{"text":{"format":{"strict":true}}}`, string(payload))
+				assert.NotContains(t, offering.Attributes, ModelMetadataStructuredOutputStreaming)
+			} else {
+				require.ErrorIs(t, err, llm.ErrUnsupportedFeature)
+				assert.Equal(t, "false", offering.Attributes[ModelMetadataStructuredOutputStreaming])
+			}
 			member, ok := in.OutputConfig.TextFormat.Structure.(*types.OutputFormatStructureMemberJsonSchema)
 			require.True(t, ok)
 			assert.Equal(t, "answer", aws.ToString(member.Value.Name))
 			assert.Equal(t, "an answer", aws.ToString(member.Value.Description))
 
-			for _, fields := range []document.Interface{in.AdditionalModelRequestFields, stream.AdditionalModelRequestFields} {
-				require.NotNil(t, fields)
-				payload, err := fields.MarshalSmithyDocument()
-				require.NoError(t, err)
-				assert.JSONEq(t, `{"text":{"format":{"strict":true}}}`, string(payload))
-			}
+			require.NotNil(t, in.AdditionalModelRequestFields)
+			payload, err := in.AdditionalModelRequestFields.MarshalSmithyDocument()
+			require.NoError(t, err)
+			assert.JSONEq(t, `{"text":{"format":{"strict":true}}}`, string(payload))
 
 			text, err := mapper.ToConverseInput(&llm.Request{ResponseFormat: &llm.ResponseFormat{Type: llm.ResponseFormatText}})
 			require.NoError(t, err)
 			assert.Nil(t, text.AdditionalModelRequestFields)
+
+			_, err = mapper.ToConverseStreamInput(&llm.Request{ResponseFormat: &llm.ResponseFormat{Type: llm.ResponseFormatText}})
+			require.NoError(t, err)
 		})
 	}
-}
-
-func TestGPT6LunaSchemaContract(t *testing.T) {
-	t.Parallel()
-
-	req := &llm.Request{ResponseFormat: &llm.ResponseFormat{Type: llm.ResponseFormatJSONSchema, JSONSchema: &llm.JSONSchema{Name: "answer", Schema: json.RawMessage(`{"type":"object","properties":{"ok":{"type":"boolean"}},"required":["ok"],"additionalProperties":false}`)}}}
-	mapper := NewRequestMapper(&Config{APIModelID: ModelGPT6LunaGlobal})
-	in, err := mapper.ToConverseInput(req)
-	require.NoError(t, err)
-	require.NotNil(t, in.AdditionalModelRequestFields)
-	fields, err := in.AdditionalModelRequestFields.MarshalSmithyDocument()
-	require.NoError(t, err)
-	assert.JSONEq(t, `{"text":{"format":{"strict":true}}}`, string(fields))
-
-	_, err = mapper.ToConverseStreamInput(req)
-	require.ErrorIs(t, err, llm.ErrUnsupportedFeature)
-	p, err := NewProvider(context.Background(), WithRegion("us-east-1"), WithNoAuth())
-	require.NoError(t, err)
-	m, err := p.NewModel(ModelGPT6Luna)
-	require.NoError(t, err)
-
-	seen := false
-	for _, err := range m.GenerateEvents(context.Background(), req) {
-		seen = true
-
-		require.ErrorIs(t, err, llm.ErrUnsupportedFeature)
-	}
-
-	require.True(t, seen, "streaming schema must fail explicitly, not return an empty iterator")
 }
