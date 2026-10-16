@@ -111,9 +111,10 @@ var claudeFable51ProfileRegions = map[string]string{
 }
 
 // claudeSonnet55ProfileRegions maps every published source region to its
-// preferred profile. Sonnet 5.5 publishes US, EU, and global profiles: the
-// US geo covers the US and Canada regions, the EU geo the EU regions, and
-// every other published commercial region is global-only. GovCloud
+// preferred profile. Sonnet 5.5 publishes US, EU, AU, and global profiles:
+// the US geo covers the US and Canada regions, the EU geo the EU regions, the
+// AU geo Sydney and Melbourne (card read 2026-10-16), and every other
+// published commercial region is global-only. GovCloud
 // (us-gov-*) is intentionally omitted, so bare and geo-prefixed calls from
 // it fail fast rather than reaching AWS.
 //
@@ -135,6 +136,9 @@ var claudeSonnet55ProfileRegions = map[string]string{
 	"eu-west-2":    "eu",
 	"eu-west-3":    "eu",
 
+	"ap-southeast-2": "au",
+	"ap-southeast-4": "au",
+
 	"ap-east-2":      globalProfileRegion,
 	"ap-northeast-1": globalProfileRegion,
 	"ap-northeast-2": globalProfileRegion,
@@ -142,9 +146,7 @@ var claudeSonnet55ProfileRegions = map[string]string{
 	"ap-south-1":     globalProfileRegion,
 	"ap-south-2":     globalProfileRegion,
 	"ap-southeast-1": globalProfileRegion,
-	"ap-southeast-2": globalProfileRegion,
 	"ap-southeast-3": globalProfileRegion,
-	"ap-southeast-4": globalProfileRegion,
 	"ap-southeast-5": globalProfileRegion,
 	"ap-southeast-6": globalProfileRegion,
 	"ap-southeast-7": globalProfileRegion,

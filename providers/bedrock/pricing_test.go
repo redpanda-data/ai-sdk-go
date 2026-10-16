@@ -263,13 +263,13 @@ func TestClaudeSonnet55Pricing(t *testing.T) {
 	global, ok := Catalog().Lookup(ModelClaudeSonnet55Global)
 	require.True(t, ok)
 	assert.Equal(t,
-		pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0),
+		pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(2.50, 4.00, 0),
 		global.Pricing.Default.Base,
 	)
 
-	geoRates := pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(2.75, 4.40, 0)
+	geoRates := pricing.NewRates(2.20, 11.00, 0.11).WithCacheCreation(2.75, 4.40, 0)
 
-	for _, id := range []string{ModelClaudeSonnet55US, ModelClaudeSonnet55EU} {
+	for _, id := range []string{ModelClaudeSonnet55US, ModelClaudeSonnet55EU, ModelClaudeSonnet55AU} {
 		def, ok := Catalog().Lookup(id)
 		require.True(t, ok)
 		assert.Equal(t, geoRates, def.Pricing.Default.Base)

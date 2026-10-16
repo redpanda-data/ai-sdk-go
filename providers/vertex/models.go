@@ -205,12 +205,11 @@ var (
 //	https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing
 //
 // Capabilities and constraints mirror the same models in the Gemini-API and
-// Anthropic-direct catalogs, with five exceptions. No Claude entry offers
+// Anthropic-direct catalogs, with four exceptions. No Claude entry offers
 // speed; Vertex publishes no Claude fast-mode rate. Several Gemini entries
 // cap output at 65536 where the Gemini-API catalog says 65535. Gemini 3.7
 // and 3.8 Flash take no presence or frequency penalty, which the Gemini-API
-// catalog lists. Claude Opus 4.5, Sonnet 4.5 and Haiku 4.5 take a manual
-// thinking budget, which the Anthropic-direct catalog does not set. Claude
+// catalog lists. Claude
 // tool search can be off where Anthropic-direct has it on: a new entry
 // starts with claudeCaps, and a person turns it on once a call on Vertex
 // returns a tool search result (RULES.md vertex-tool-search-one-way).
@@ -878,10 +877,11 @@ func claudeOpus55Pricing() pricing.Info {
 }
 
 // claudeSonnet55Pricing returns the Sonnet 5.5 rate card: global, plus
-// global x 1.10 for us and eu.
+// global x 1.10 for us and eu. Cache hits are 0.05x input ($0.10 global,
+// $0.11 us and eu), from the pricing page's region tabs, read 2026-10-16.
 func claudeSonnet55Pricing() pricing.Info {
-	global := pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0)
-	nonGlobal := pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(2.75, 4.40, 0)
+	global := pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(2.50, 4.00, 0)
+	nonGlobal := pricing.NewRates(2.20, 11.00, 0.11).WithCacheCreation(2.75, 4.40, 0)
 
 	info := pricing.FlatInfoFromRates(global)
 	for _, region := range []string{"us", "eu"} {

@@ -225,6 +225,7 @@ func TestProfileRegionResolverLookup(t *testing.T) {
 		ModelClaudeSonnet55Global,
 		ModelClaudeSonnet55US,
 		ModelClaudeSonnet55EU,
+		ModelClaudeSonnet55AU,
 		ModelGPT6Sol,
 		ModelGPT6SolGlobal,
 		ModelGPT6SolUS,
