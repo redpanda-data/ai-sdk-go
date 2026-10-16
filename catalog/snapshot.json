@@ -2309,7 +2309,7 @@
               "base": {
                 "input_microcents_per_million": 220000000,
                 "output_microcents_per_million": 1100000000,
-                "cached_input_microcents_per_million": 22000000,
+                "cached_input_microcents_per_million": 11000000,
                 "cache_creation_5m_microcents_per_million": 275000000,
                 "cache_creation_1h_microcents_per_million": 440000000
               }
@@ -4726,6 +4726,10 @@
             {
               "key": "inference_geo",
               "value": "global"
+            },
+            {
+              "key": "structured_output_streaming",
+              "value": "false"
             }
           ],
           "derived": {
@@ -4808,6 +4812,10 @@
             {
               "key": "inference_geo",
               "value": "global"
+            },
+            {
+              "key": "structured_output_streaming",
+              "value": "false"
             }
           ],
           "derived": {
@@ -4889,6 +4897,10 @@
             {
               "key": "inference_geo",
               "value": "global"
+            },
+            {
+              "key": "structured_output_streaming",
+              "value": "false"
             }
           ],
           "derived": {
@@ -6165,6 +6177,12 @@
             "stage": "ga",
             "available": "2026-09-22"
           },
+          "attributes": [
+            {
+              "key": "structured_output_streaming",
+              "value": "false"
+            }
+          ],
           "derived": {
             "price_tier": "low"
           }
@@ -6246,6 +6264,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "structured_output_streaming",
+              "value": "false"
+            }
+          ],
           "derived": {
             "price_tier": "medium",
             "replacement": "openai/gpt-6.1-sol"
@@ -7695,6 +7719,10 @@
             {
               "key": "inference_geo",
               "value": "us"
+            },
+            {
+              "key": "structured_output_streaming",
+              "value": "false"
             }
           ],
           "derived": {
@@ -7777,6 +7805,10 @@
             {
               "key": "inference_geo",
               "value": "us"
+            },
+            {
+              "key": "structured_output_streaming",
+              "value": "false"
             }
           ],
           "derived": {
@@ -7858,6 +7890,10 @@
             {
               "key": "inference_geo",
               "value": "us"
+            },
+            {
+              "key": "structured_output_streaming",
+              "value": "false"
             }
           ],
           "derived": {

@@ -529,15 +529,17 @@ func (rm *RequestMapper) mapToolChoice(choice *llm.ToolChoice) (types.ToolChoice
 	}
 }
 
-// The Luna card documents JSON-schema output only for non-streaming calls.
+// Each offering records its endpoint-specific non-streaming schema contract.
+// Astra limits runtime schemas to non-streaming; Sol and Luna apply that
+// limit to both endpoints. GPT-6.1 Sol explicitly supports streaming schemas.
 // https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-luna.html
 func validateStreamingResponseFormat(modelID string, format *llm.ResponseFormat) error {
 	if format == nil || format.Type != llm.ResponseFormatJSONSchema {
 		return nil
 	}
 
-	if offering, ok := lookupModel(modelID); ok && offering.Model == catalog.ModelGPT6Luna {
-		return fmt.Errorf("%w: GPT-6 Luna JSON schema output requires non-streaming requests", llm.ErrUnsupportedFeature)
+	if offering, ok := lookupModel(modelID); ok && offering.Attributes[ModelMetadataStructuredOutputStreaming] == "false" {
+		return fmt.Errorf("%w: %s JSON schema output requires non-streaming requests", llm.ErrUnsupportedFeature, modelID)
 	}
 
 	return nil

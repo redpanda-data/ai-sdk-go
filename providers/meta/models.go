@@ -45,6 +45,7 @@ var catalogOnce = sync.OnceValue(func() *catalog.Catalog {
 func Catalog() *catalog.Catalog { return catalogOnce() }
 
 func entries() []catalog.Entry {
+	// Spark 1.3 accepts audio, but Meta warns its audio quality is degraded.
 	spark := catalog.Entry{
 		ID:    ModelMuseSpark13,
 		Model: catalog.ModelMuseSpark13,
@@ -58,7 +59,6 @@ func entries() []catalog.Entry {
 			Vision: true, Audio: true, MultiTurn: true, SystemPrompts: true, Reasoning: true,
 		},
 		Modalities: catalog.Modalities{
-			// Audio is accepted, but Meta warns that 1.3 audio quality is degraded.
 			Input:  []catalog.Modality{catalog.ModalityText, catalog.ModalityImage, catalog.ModalityVideo, catalog.ModalityAudio, catalog.ModalityDocument},
 			Output: []catalog.Modality{catalog.ModalityText},
 		},
@@ -80,7 +80,9 @@ func entries() []catalog.Entry {
 		// https://dev.meta.ai/docs/pricing-rate-limits — no long-context premium.
 		Pricing: pricing.FlatInfo(1.25, 4.25, 0.15),
 	}
-	// Meta documents the same requests and context for Wonder and Spark.
+	// Meta lists Wonder with text, image, video, audio and PDF inputs, text
+	// output, and the same requests, context and reasoning efforts as Spark.
+	// As of 2026-10-16 the model page lists it as available, not preview.
 	// Keep the shared SDK-conservative output cap; no vendor cap is published.
 	// https://dev.meta.ai/docs/models
 	wonder := spark

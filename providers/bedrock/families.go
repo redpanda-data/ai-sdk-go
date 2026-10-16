@@ -72,6 +72,10 @@ type family struct {
 	// ModelMetadataRequiresProviderDataSharing attribute.
 	DataSharing bool
 
+	// NoStreamingSchema records an endpoint-specific JSON-schema limitation.
+	// It drives request validation and discoverable catalog metadata.
+	NoStreamingSchema bool
+
 	WireAPIs     []catalog.WireAPI
 	WireAPIsByID map[string][]catalog.WireAPI
 	Capabilities llm.ModelCapabilities
@@ -171,8 +175,12 @@ func expandFamilies(families []family) ([]catalog.Entry, map[string]bool) {
 		// empty for bare IDs, which run in the calling region.
 		variant := func(id, labelSuffix, geo string, rates pricing.RateCard, overrides []pricing.Override) catalog.Entry {
 			var attrs map[string]string
-			if f.DataSharing || geo != "" {
+			if f.DataSharing || f.NoStreamingSchema || geo != "" {
 				attrs = make(map[string]string, 2)
+				if f.NoStreamingSchema {
+					attrs[ModelMetadataStructuredOutputStreaming] = "false"
+				}
+
 				if f.DataSharing {
 					attrs[ModelMetadataRequiresProviderDataSharing] = "true"
 				}

@@ -53,7 +53,10 @@ var noCacheModels = map[string]bool{
 // TTL-specific usage bucket. Their write rate must therefore live only in
 // CacheCreationUnknownTTLPerMillion.
 var unknownTTLCacheModels = map[string]bool{
-	ModelGPT6Luna: true, ModelGPT6LunaUS: true, ModelGPT6LunaGlobal: true,
+	ModelGPT6Luna:       true,
+	ModelGPT6LunaUS:     true,
+	ModelGPT6LunaGlobal: true,
+
 	ModelGPT56Sol:   true,
 	ModelGPT56Terra: true,
 	ModelGPT56Luna:  true,
@@ -486,7 +489,12 @@ func TestGPT6LunaPricing(t *testing.T) {
 			t.Parallel()
 
 			for _, tokens := range []int64{272_000, 272_001} {
-				cost, err := prices.Calculate(ProviderName, tt.id, &llm.TokenUsage{InputTokens: 1_000_000, CachedInputTokens: 1_000_000, CacheCreationUnknownTTLTokens: 1_000_000, OutputTokens: 1_000_000}, pricing.CalcRequest{ContextTokens: tokens})
+				cost, err := prices.Calculate(ProviderName, tt.id, &llm.TokenUsage{
+					InputTokens:                   1_000_000,
+					CachedInputTokens:             1_000_000,
+					CacheCreationUnknownTTLTokens: 1_000_000,
+					OutputTokens:                  1_000_000,
+				}, pricing.CalcRequest{ContextTokens: tokens})
 				require.NoError(t, err)
 
 				want := tt.short

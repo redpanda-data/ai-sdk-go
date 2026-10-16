@@ -200,7 +200,7 @@ func (m *mantleModel) Generate(ctx context.Context, req *llm.Request) (*llm.Resp
 func (m *mantleModel) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[llm.Event, error] {
 	return func(yield func(llm.Event, error) bool) {
 		if err := validateStreamingResponseFormat(m.def.ID, req.ResponseFormat); err != nil {
-			yield(nil, err)
+			yield(nil, fmt.Errorf("%w: %w", llm.ErrRequestMapping, err))
 			return
 		}
 
