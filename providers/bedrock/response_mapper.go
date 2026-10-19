@@ -27,11 +27,27 @@ import (
 // ResponseMapper converts Bedrock Converse API responses to llm.Response.
 type ResponseMapper struct {
 	offering catalog.Offering
+	region   string
 }
 
-// NewResponseMapper returns a ready-to-use mapper.
-func NewResponseMapper(offering catalog.Offering) *ResponseMapper {
-	return &ResponseMapper{offering: offering}
+// ResponseMapperOption configures response metadata.
+type ResponseMapperOption func(*ResponseMapper)
+
+// WithResponseMapperRegion supplies the configured endpoint region for direct
+// invocations. Cross-region profiles never treat their source as execution region.
+func WithResponseMapperRegion(region string) ResponseMapperOption {
+	return func(mapper *ResponseMapper) { mapper.region = region }
+}
+
+// NewResponseMapper returns a ready-to-use mapper. Omit the region option when
+// the endpoint region is unknown; no region is inferred from the model ID.
+func NewResponseMapper(offering catalog.Offering, options ...ResponseMapperOption) *ResponseMapper {
+	mapper := &ResponseMapper{offering: offering}
+	for _, option := range options {
+		option(mapper)
+	}
+
+	return mapper
 }
 
 // FromConverseOutput converts a Bedrock ConverseOutput to llm.Response.
@@ -261,6 +277,13 @@ func (m *ResponseMapper) applyResponseMetadata(
 ) {
 	if resp == nil {
 		return
+	}
+
+	// Direct, bare-ID invocation executes in the configured endpoint region.
+	// Never label a cross-region profile with its source region. Pricing a
+	// future source-region-specific CRIS card needs a separate source signal.
+	if !hasRegionPrefix(m.offering.ID) {
+		resp.InferenceRegion = m.region
 	}
 
 	if performanceConfig != nil && performanceConfig.Latency != "" {
