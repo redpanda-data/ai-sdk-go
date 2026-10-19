@@ -394,7 +394,7 @@ func TestThinkingBlockBinding_RoundTrip(t *testing.T) {
 	)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotBetas = r.Header.Values("anthropic-beta")
+		gotBetas = r.Header.Values("Anthropic-Beta")
 		gotBody, _ = io.ReadAll(r.Body)
 
 		w.Header().Set("Content-Type", "text/event-stream")
