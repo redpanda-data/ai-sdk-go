@@ -59,6 +59,10 @@ func (rm *RequestMapper) ToConverseInput(req *llm.Request) (*bedrockruntime.Conv
 
 // ToConverseStreamInput converts an llm.Request to a bedrockruntime.ConverseStreamInput.
 func (rm *RequestMapper) ToConverseStreamInput(req *llm.Request) (*bedrockruntime.ConverseStreamInput, error) {
+	if err := validateStreamingResponseFormat(rm.config.APIModelID, req.ResponseFormat); err != nil {
+		return nil, err
+	}
+
 	p, err := rm.buildConverseParams(req)
 	if err != nil {
 		return nil, err
@@ -141,7 +145,7 @@ func (rm *RequestMapper) buildConverseParams(req *llm.Request) (*converseParams,
 // requiresConverseStrict limits the extra field to the documented GPT-6 contracts.
 func requiresConverseStrict(modelID string) bool {
 	offering, ok := lookupModel(modelID)
-	return ok && (offering.Model == catalog.ModelGPT6Astra || offering.Model == catalog.ModelGPT6Sol || offering.Model == catalog.ModelGPT6_1Sol)
+	return ok && (offering.Model == catalog.ModelGPT6Astra || offering.Model == catalog.ModelGPT6Sol || offering.Model == catalog.ModelGPT6_1Sol || offering.Model == catalog.ModelGPT6Luna)
 }
 
 // applyResponseFormat sets Converse's outputConfig.textFormat from a
@@ -523,4 +527,20 @@ func (rm *RequestMapper) mapToolChoice(choice *llm.ToolChoice) (types.ToolChoice
 	default:
 		return nil, fmt.Errorf("unsupported tool choice type: %s", choice.Type)
 	}
+}
+
+// Each offering records its endpoint-specific non-streaming schema contract.
+// Astra limits runtime schemas to non-streaming; Sol and Luna apply that
+// limit to both endpoints. GPT-6.1 Sol explicitly supports streaming schemas.
+// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-luna.html
+func validateStreamingResponseFormat(modelID string, format *llm.ResponseFormat) error {
+	if format == nil || format.Type != llm.ResponseFormatJSONSchema {
+		return nil
+	}
+
+	if offering, ok := lookupModel(modelID); ok && offering.Attributes[ModelMetadataStructuredOutputStreaming] == "false" {
+		return fmt.Errorf("%w: %s JSON schema output requires non-streaming requests", llm.ErrUnsupportedFeature, modelID)
+	}
+
+	return nil
 }

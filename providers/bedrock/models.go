@@ -70,12 +70,13 @@ const (
 
 	// ModelClaudeSonnet55 is the bare Bedrock ID for Claude Sonnet 5.5
 	// (inference-profile-only — invoke via one of the prefixed variants).
-	// AWS publishes the global, us., and eu. profiles:
+	// AWS publishes the global, us., eu., and au. profiles:
 	// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-5-5.html
 	ModelClaudeSonnet55       = "anthropic.claude-sonnet-5-5"
 	ModelClaudeSonnet55Global = "global." + ModelClaudeSonnet55
 	ModelClaudeSonnet55US     = "us." + ModelClaudeSonnet55
 	ModelClaudeSonnet55EU     = "eu." + ModelClaudeSonnet55
+	ModelClaudeSonnet55AU     = "au." + ModelClaudeSonnet55
 
 	// ModelClaudeSonnet5 is the bare Bedrock ID for Claude Sonnet 5
 	// (inference-profile-only — invoke via one of the prefixed variants).
@@ -175,6 +176,14 @@ const (
 	ModelClaudeOpus45Global = "global." + ModelClaudeOpus45
 	ModelClaudeOpus45US     = "us." + ModelClaudeOpus45
 	ModelClaudeOpus45EU     = "eu." + ModelClaudeOpus45
+)
+
+// Model IDs for GPT-6 Luna: bare Mantle, or runtime inference profiles.
+// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-luna.html
+const (
+	ModelGPT6Luna       = "openai.gpt-6-luna"
+	ModelGPT6LunaUS     = "us." + ModelGPT6Luna
+	ModelGPT6LunaGlobal = "global." + ModelGPT6Luna
 )
 
 // Model ID constants for Amazon Nova models on Bedrock.
@@ -324,6 +333,11 @@ const ModelMetadataRequiresProviderDataSharing = "requires_provider_data_sharing
 // not part of an offering's identity (Vertex endpoints, OpenAI project
 // residency) it stays out of the catalog.
 const ModelMetadataInferenceGeo = "inference_geo"
+
+// ModelMetadataStructuredOutputStreaming is "false" when the offering supports
+// JSON-schema output only without streaming. An absent value is unspecified;
+// Streaming and StructuredOutput capabilities independently describe support.
+const ModelMetadataStructuredOutputStreaming = "structured_output_streaming"
 
 // InferenceProfileRegion maps an AWS region to the Bedrock cross-region
 // inference profile geographic prefix.
@@ -995,7 +1009,7 @@ var bedrockFamilies = []family{
 	},
 	{
 		// Claude Sonnet 5.5 — inference-profile-only on bedrock-runtime. AWS
-		// publishes global, US, and EU profiles (the geo IDs were added to
+		// publishes global, US, EU, and AU profiles (the geo IDs were added to
 		// the model card after launch):
 		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-5-5.html
 		// Standard cache hits: $0.10 global/$0.11 geo, verified 2026-10-16.
@@ -1007,7 +1021,7 @@ var bedrockFamilies = []family{
 		WireAPIs:       claudeMessagesWireAPIs,
 		Model:          catalog.ModelClaudeSonnet55,
 		DisplayName:    "Claude Sonnet 5.5",
-		Profiles:       []string{"global", "us", "eu"},
+		Profiles:       []string{"global", "us", "eu", "au"},
 		Capabilities:   claudeNoSchemaCaps,
 		Modalities:     claudeModalities,
 		Constraints:    claudeNoSampling1MConstraints,
@@ -1173,11 +1187,12 @@ var bedrockFamilies = []family{
 		// reaches the profiles through Converse, which selects no tier, so
 		// these cards price Responses-API usage of the same IDs. Priority
 		// and Flex are unsupported.
-		BareID:      ModelGPT6Astra,
-		WireAPIs:    openAIRuntimeWireAPIs,
-		Model:       catalog.ModelGPT6Astra,
-		DisplayName: "OpenAI GPT-6 Astra",
-		Profiles:    []string{"global", "us"},
+		BareID:            ModelGPT6Astra,
+		NoStreamingSchema: true,
+		WireAPIs:          openAIRuntimeWireAPIs,
+		Model:             catalog.ModelGPT6Astra,
+		DisplayName:       "OpenAI GPT-6 Astra",
+		Profiles:          []string{"global", "us"},
 		// Converse rejects CachePoint blocks for Astra (probed 2026-09-22);
 		// the card lists prompt caching for bedrock-mantle only.
 		NoCachePoints: true,
@@ -1235,6 +1250,68 @@ var bedrockFamilies = []family{
 		},
 		Overrides: gpt6AstraUltrafast,
 	},
+	{
+		// GPT-6 Luna runtime profiles: Standard only. Converse rejects explicit
+		// cache points; caching is implicit. JSON Schema is non-streaming only.
+		// No exact EOL; the card's September 22, 2027 date is a floor.
+		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-luna.html
+		BareID:            ModelGPT6Luna,
+		NoStreamingSchema: true,
+		Model:             catalog.ModelGPT6Luna,
+		DisplayName:       "OpenAI GPT-6 Luna",
+		WireAPIs:          openAIRuntimeWireAPIs,
+		Profiles:          []string{"global", "us"},
+		// The Luna and Sol cards publish the same source-region table.
+		ProfileRegions: gpt6SolProfileRegions,
+		NoCachePoints:  true,
+		Capabilities:   gpt6AstraCaps,
+		Modalities:     gpt56Modalities,
+		Constraints:    gpt6AstraConstraints,
+		Reasoning:      converseReasoningNoControls,
+		Life:           catalog.Lifecycle{Available: catalog.MustDate("2026-09-22")},
+		GlobalRates: &pricing.RateCard{
+			Base: pricing.NewRates(0.10, 0.50, 0.01).WithCacheCreation(0, 0, 0.125),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(0.20, 0.75, 0.02).WithCacheCreation(0, 0, 0.25),
+			}},
+		},
+		Rates: pricing.RateCard{
+			Base: pricing.NewRates(0.11, 0.55, 0.011).WithCacheCreation(0, 0, 0.1375),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(0.22, 0.825, 0.022).WithCacheCreation(0, 0, 0.275),
+			}},
+		},
+	},
+	{
+		// Same Standard-tier US premium on Mantle, us-east-1 only.
+		// The Luna JSON Schema section explicitly covers both endpoints and
+		// limits JSON Schema to non-streaming requests (checked 2026-10-16).
+		// 30-minute cache writes use the unknown-TTL bucket; no premium tiers.
+		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-luna.html
+		BareID:            ModelGPT6Luna,
+		NoStreamingSchema: true,
+		Model:             catalog.ModelGPT6Luna,
+		DisplayName:       "OpenAI GPT-6 Luna",
+		WireAPIs:          openAIMantleWireAPIs,
+		BareInvokable:     true,
+		Mantle:            true,
+		MantleRegions:     []string{"us-east-1"},
+		Capabilities:      gpt6AstraMantleCaps,
+		Modalities:        gpt56Modalities,
+		Constraints:       gpt6AstraMantleConstraints,
+		Reasoning:         catalog.ReasoningSupport{Efforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax}},
+		Life:              catalog.Lifecycle{Available: catalog.MustDate("2026-09-22")},
+		Rates: pricing.RateCard{
+			Base: pricing.NewRates(0.11, 0.55, 0.011).WithCacheCreation(0, 0, 0.1375),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(0.22, 0.825, 0.022).WithCacheCreation(0, 0, 0.275),
+			}},
+		},
+	},
+
 	{
 		// OpenAI GPT-6.1 Sol — inference-profile-only on bedrock-runtime:
 		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-1-sol.html
@@ -1316,11 +1393,12 @@ var bedrockFamilies = []family{
 		// The card publishes no input cap; the 922K MaxInputTokens is
 		// OpenAI's documented max input, the 1.05M window less the 128K
 		// reserved for output.
-		BareID:      ModelGPT6Sol,
-		WireAPIs:    openAIRuntimeWireAPIs,
-		Model:       catalog.ModelGPT6Sol,
-		DisplayName: "OpenAI GPT-6 Sol",
-		Profiles:    []string{"global", "us"},
+		BareID:            ModelGPT6Sol,
+		NoStreamingSchema: true,
+		WireAPIs:          openAIRuntimeWireAPIs,
+		Model:             catalog.ModelGPT6Sol,
+		DisplayName:       "OpenAI GPT-6 Sol",
+		Profiles:          []string{"global", "us"},
 		// The card lists bedrock-runtime prompt caching for the Responses API
 		// only, not Converse.
 		NoCachePoints: true,
@@ -1353,16 +1431,17 @@ var bedrockFamilies = []family{
 		// only, at the card's "Mantle in-Region" rates, which equal the US
 		// profile's. The card lists effort none through max, as on OpenAI's
 		// own gpt-6-sol; otherwise it shares Astra's mantle surface (unprobed).
-		BareID:        ModelGPT6Sol,
-		WireAPIs:      openAIMantleWireAPIs,
-		Model:         catalog.ModelGPT6Sol,
-		DisplayName:   "OpenAI GPT-6 Sol",
-		BareInvokable: true,
-		Mantle:        true,
-		MantleRegions: []string{"us-east-1"},
-		Capabilities:  gpt6AstraMantleCaps,
-		Modalities:    gpt56Modalities,
-		Constraints:   gpt6AstraMantleConstraints,
+		BareID:            ModelGPT6Sol,
+		NoStreamingSchema: true,
+		WireAPIs:          openAIMantleWireAPIs,
+		Model:             catalog.ModelGPT6Sol,
+		DisplayName:       "OpenAI GPT-6 Sol",
+		BareInvokable:     true,
+		Mantle:            true,
+		MantleRegions:     []string{"us-east-1"},
+		Capabilities:      gpt6AstraMantleCaps,
+		Modalities:        gpt56Modalities,
+		Constraints:       gpt6AstraMantleConstraints,
 		Reasoning: catalog.ReasoningSupport{
 			Efforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 		},
