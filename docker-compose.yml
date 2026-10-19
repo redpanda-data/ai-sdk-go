@@ -1,0 +1,38 @@
+# Single-node Redpanda for the durable execution example and integration tests.
+#   docker compose up -d
+# Kafka API: localhost:19092   Console: http://localhost:8081
+services:
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v25.2.1
+    container_name: ai-sdk-redpanda
+    command:
+      - redpanda start
+      - --smp 1
+      - --memory 1G
+      - --overprovisioned
+      - --node-id 0
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr internal://redpanda:9092,external://localhost:19092
+      - --rpc-addr redpanda:33145
+      - --advertise-rpc-addr redpanda:33145
+      - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:18081
+      - --mode dev-container
+    ports:
+      - "19092:19092"
+      - "18081:18081"
+      - "19644:9644"
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.+true' || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  console:
+    image: docker.redpanda.com/redpandadata/console:v3.1.0
+    container_name: ai-sdk-console
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+    ports:
+      - "8081:8080"
