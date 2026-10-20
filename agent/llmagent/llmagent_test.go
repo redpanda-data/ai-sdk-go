@@ -1054,6 +1054,95 @@ func TestRun_EventOrdering(t *testing.T) {
 
 // Helper functions
 
+// Recovery of an interrupted tool call takes the same dispatch path as a live
+// turn: the call is announced with a ToolRequestEvent before it executes, so
+// an event-stream gate sees it (CoreBreak Finding 1). The legitimate
+// interrupted-turn repair is unchanged.
+func TestRecovery_AnnouncesRecoveredCallBeforeExecuting(t *testing.T) {
+	t.Parallel()
+
+	args := json.RawMessage(`{"order":"9999","amount":1000000}`)
+
+	registry := tool.NewRegistry(tool.RegistryConfig{})
+	require.NoError(t, registry.Register(&mockTool{
+		name: "issue_refund",
+		definition: llm.ToolDefinition{
+			Name:        "issue_refund",
+			Description: "Issue a refund",
+			Parameters:  json.RawMessage(`{"type":"object","properties":{}}`),
+		},
+		executeFn: func(_ context.Context, _ json.RawMessage) (json.RawMessage, error) {
+			return json.RawMessage(`{"status":"refunded"}`), nil
+		},
+	}))
+
+	model := fakellm.NewFakeModel().When(fakellm.Any()).ThenRespondText("Done.")
+
+	ag, err := llmagent.New("test-agent", "You are a helpful assistant", model, llmagent.WithTools(registry))
+	require.NoError(t, err)
+
+	// The tail an interrupted invocation leaves once the runner appends the
+	// next user message: a tool request with no result, then user text.
+	sess := &session.State{
+		ID: "interrupted",
+		Messages: []llm.Message{
+			llm.NewMessage(llm.RoleUser, llm.NewTextPart("Refund order 9999.")),
+			llm.NewMessage(llm.RoleAssistant, llm.NewToolRequestPart("call-1", "issue_refund", args)),
+			llm.NewMessage(llm.RoleUser, llm.NewTextPart("thanks")),
+		},
+	}
+	inv := agent.NewInvocationMetadata(sess, agent.Info{})
+
+	events := collectEvents(t, ag.Run(t.Context(), inv))
+
+	reqIdx, statusIdx, respIdx := -1, -1, -1
+
+	for i, evt := range events {
+		switch e := evt.(type) {
+		case agent.ToolRequestEvent:
+			if e.Request.ID == "call-1" && reqIdx < 0 {
+				reqIdx = i
+
+				assert.Equal(t, "issue_refund", e.Request.Name)
+				assert.Equal(t, string(args), string(e.Request.Arguments), "announced with the stored arguments")
+			}
+		case agent.StatusEvent:
+			if e.Stage == agent.StatusStageToolExec && statusIdx < 0 {
+				statusIdx = i
+
+				assert.Contains(t, e.Details, "recovering 1 incomplete tool call")
+			}
+		case agent.ToolResponseEvent:
+			if e.Response.ID == "call-1" && respIdx < 0 {
+				respIdx = i
+			}
+		}
+	}
+
+	require.GreaterOrEqual(t, reqIdx, 0, "recovered call must be announced with a ToolRequestEvent")
+	require.GreaterOrEqual(t, statusIdx, 0, "recovery reports the tool-exec status")
+	require.GreaterOrEqual(t, respIdx, 0, "recovered call must produce a ToolResponseEvent")
+	assert.Less(t, reqIdx, statusIdx, "the request is announced before the tool-exec status")
+	assert.Less(t, statusIdx, respIdx, "the status precedes the result")
+
+	// The session is repaired in place and the turn completes normally.
+	endEvent := findInvocationEndEvent(events)
+	require.NotNil(t, endEvent)
+	assert.Equal(t, agent.FinishReasonStop, endEvent.FinishReason)
+	assert.Equal(t, 1, model.CallCount(), "one model turn, after recovery")
+
+	// The result is inserted before the user's new message:
+	// [user, assistant(req), user(resp), user(thanks), ...]. The fake's
+	// streaming fallback ends with a content-less response, which the agent
+	// deliberately does not persist, so only the repaired prefix is asserted.
+	require.GreaterOrEqual(t, len(sess.Messages), 4)
+
+	resps := sess.Messages[2].ToolResponses()
+	require.Len(t, resps, 1)
+	assert.Equal(t, "call-1", resps[0].ID)
+	assert.Equal(t, "thanks", sess.Messages[3].TextContent())
+}
+
 // collectEvents collects all events from an iterator into a slice.
 func collectEvents(t *testing.T, iter func(func(agent.Event, error) bool)) []agent.Event {
 	t.Helper()

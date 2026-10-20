@@ -47,6 +47,14 @@ var (
 	// This may be a transient error (network, database connection) that can be retried.
 	ErrSessionSave = errors.New("agent: failed to save session")
 
+	// ErrInvalidUserMessage is returned by Runner.Run when the inbound message
+	// is not a plain user turn: its role is not RoleUser, or it carries a part
+	// other than text. Tool requests and results enter a session only through
+	// the agent, never from the request body; a caller that could write them
+	// would also decide what crash recovery executes.
+	// This is a client error, not a transient error.
+	ErrInvalidUserMessage = errors.New("agent: invalid user message")
+
 	// ────────────────────────────────────────────────────────────────────────────────
 	// Agent execution errors
 	// These are returned during agent execution (model generation, tool execution).

@@ -80,22 +80,18 @@ func toJSONSafe(v any) (map[string]any, error) {
 // have native support for structured data or file parts yet. This preserves all
 // information while maintaining compatibility.
 //
+// Every inbound message lands as llm.RoleUser, whatever role the client
+// declared. At this boundary the remote party is the caller, even when it is
+// itself an agent, and a caller must never be able to write history as this
+// agent: an assistant-role message carrying a tool request would otherwise look
+// to crash recovery like a pending call of the agent's own to execute. The
+// declared role is ignored rather than validated so a misbehaving client gets
+// an ordinary turn, not an error, and the runner's own input check
+// (agent.ErrInvalidUserMessage) stays a backstop rather than the first line.
+//
 // Note: This conversion is one-directional. State tracking should use the session
 // store's llm.Message format, not A2A message history.
 func MessageToLLM(msg *a2a.Message) llm.Message {
-	var role llm.MessageRole
-
-	switch msg.Role {
-	case a2a.MessageRoleUser:
-		role = llm.RoleUser
-	case a2a.MessageRoleAgent:
-		role = llm.RoleAssistant
-	case a2a.MessageRoleUnspecified:
-		role = llm.RoleAssistant
-	default:
-		role = llm.RoleAssistant
-	}
-
 	parts := make([]llm.Part, 0, len(msg.Parts))
 	for _, part := range msg.Parts {
 		switch p := part.(type) {
@@ -116,7 +112,7 @@ func MessageToLLM(msg *a2a.Message) llm.Message {
 		}
 	}
 
-	return llm.NewMessage(role, parts...)
+	return llm.NewMessage(llm.RoleUser, parts...)
 }
 
 // MessageFromLLM converts an LLM SDK message to A2A message format.
