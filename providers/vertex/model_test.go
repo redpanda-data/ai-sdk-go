@@ -38,6 +38,7 @@ type capturedRequest struct {
 	RawQuery      string
 	Authorization string
 	APIKey        string
+	AnthropicBeta string
 	Body          string
 }
 
@@ -62,6 +63,7 @@ func newFakeVertex(t *testing.T, contentType, body string) *fakeVertex {
 			RawQuery:      r.URL.RawQuery,
 			Authorization: r.Header.Get("Authorization"),
 			APIKey:        r.Header.Get("X-Api-Key"),
+			AnthropicBeta: r.Header.Get("Anthropic-Beta"),
 			Body:          string(b),
 		})
 		f.mu.Unlock()
@@ -440,6 +442,78 @@ func TestNewModel_ClaudeInvokedModelIDIsVertexOffering(t *testing.T) {
 
 	_, ok := vertex.Catalog().Lookup(resp.InvokedModelID)
 	assert.True(t, ok, "InvokedModelID %q is not a Vertex offering ID", resp.InvokedModelID)
+}
+
+// Prefix-checked models must opt into dropping stale thinking after a
+// caller compacts earlier history, on both Vertex Messages transports.
+func TestNewModel_ClaudeThinkingBlockBinding(t *testing.T) {
+	t.Parallel()
+
+	models := []struct {
+		id      string
+		checked bool
+	}{
+		{id: vertex.ModelClaudeFable51, checked: true},
+		{id: vertex.ModelClaudeOpus55, checked: true},
+		{id: vertex.ModelClaudeSonnet55, checked: true},
+		{id: vertex.ModelClaudeHaiku55, checked: true},
+		{id: vertex.ModelClaudeSonnet5},
+	}
+
+	for _, model := range models {
+		for _, stream := range []bool{false, true} {
+			name := model.id + "/generate"
+			contentType, response := "application/json", claudeResponse
+
+			if stream {
+				name = model.id + "/stream"
+				contentType, response = "text/event-stream", claudeStream
+			}
+
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+
+				fake := newFakeVertex(t, contentType, response)
+				m, err := newGatewayProvider(t, fake).NewModel(model.id)
+				require.NoError(t, err)
+
+				req := &llm.Request{Messages: []llm.Message{
+					llm.NewMessage(llm.RoleUser, llm.NewTextPart("Compacted earlier conversation")),
+					llm.NewMessage(llm.RoleAssistant, &llm.ReasoningPart{Signature: "saved-signature"}),
+					llm.NewMessage(llm.RoleUser, llm.NewTextPart("Continue")),
+				}}
+
+				if stream {
+					var text strings.Builder
+
+					for event, err := range m.GenerateEvents(context.Background(), req) {
+						require.NoError(t, err)
+
+						if delta, ok := event.(llm.ContentPartEvent); ok {
+							text.WriteString(llm.JoinTextParts([]llm.Part{delta.Part}))
+						}
+					}
+
+					assert.Equal(t, "hello from claude", text.String())
+				} else {
+					resp, err := m.Generate(context.Background(), req)
+					require.NoError(t, err)
+					assert.Equal(t, "hello from claude", resp.TextContent())
+				}
+
+				got := fake.only(t)
+				assert.Equal(t, "saved-signature", gjson.Get(got.Body, "messages.1.content.0.signature").String())
+
+				if model.checked {
+					assert.JSONEq(t, `{"type":"adaptive","block_binding":{"prefix_mismatch_behavior":"drop_block"}}`, gjson.Get(got.Body, "thinking").Raw)
+					assert.Contains(t, got.AnthropicBeta, "thinking-binding-controls-2026-08-01")
+				} else {
+					assert.False(t, gjson.Get(got.Body, "thinking.block_binding").Exists())
+					assert.NotContains(t, got.AnthropicBeta, "thinking-binding-controls-2026-08-01")
+				}
+			})
+		}
+	}
 }
 
 // TestNewModel_GeminiInvokedModelIDIsVertexOffering checks a Vertex Gemini

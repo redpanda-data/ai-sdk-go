@@ -204,6 +204,9 @@ var (
 // and 3.8 Flash take no presence or frequency penalty, which the Gemini-API
 // catalog lists. Claude Opus 4.5, Sonnet 4.5 and Haiku 4.5 take a manual
 // thinking budget, which the Anthropic-direct catalog does not set.
+// The four preserved-thinking models also enforce prefix checks on Google
+// Cloud; see platform.claude.com/docs/en/build-with-claude/preserved-thinking
+// (verified 2026-10-21). Their flags drive the shared Anthropic mapper.
 //
 // Lifecycle does not mirror them: each entry's Available is when Vertex
 // began serving the model (its model page's Release date). Retires is set
@@ -522,7 +525,11 @@ func entries() []catalog.Entry {
 				// return 400.
 				SupportedParams: []string{"max_tokens", "reasoning_effort"},
 			},
-			Reasoning: catalog.ReasoningSupport{Efforts: claudeAllEfforts, Adaptive: true},
+			Reasoning: catalog.ReasoningSupport{
+				Efforts:             claudeAllEfforts,
+				Adaptive:            true,
+				ThinkingPrefixCheck: true,
+			},
 			// Claude Fable 5.1 GA, retirement floor "No sooner than March 1, 2027"
 			// on the model page (docs.cloud.google.com/gemini-enterprise-agent-
 			// platform/models/partner-models/claude/fable-5-1, read 2026-09-28).
@@ -572,8 +579,9 @@ func entries() []catalog.Entry {
 				SupportedParams: []string{"max_tokens", "reasoning_effort"},
 			},
 			Reasoning: catalog.ReasoningSupport{
-				Efforts:  []llm.ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
-				Adaptive: true,
+				Efforts:             []llm.ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+				Adaptive:            true,
+				ThinkingPrefixCheck: true,
 			},
 			// Claude Opus 5.5 GA, retirement floor "not sooner than 2027-09-22" on
 			// the model page (docs.cloud.google.com/gemini-enterprise-agent-platform/
@@ -699,8 +707,9 @@ func entries() []catalog.Entry {
 				SupportedParams: []string{"max_tokens", "reasoning_effort"},
 			},
 			Reasoning: catalog.ReasoningSupport{
-				Efforts:  []llm.ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
-				Adaptive: true,
+				Efforts:             []llm.ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+				Adaptive:            true,
+				ThinkingPrefixCheck: true,
 			},
 			// GA 2026-09-28; retirement floor 2027-09-28 is not an exact date.
 			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-09-28")},
@@ -794,8 +803,9 @@ func entries() []catalog.Entry {
 				SupportedParams: []string{"max_tokens", "reasoning_effort"},
 			},
 			Reasoning: catalog.ReasoningSupport{
-				Efforts:  []llm.ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
-				Adaptive: true,
+				Efforts:             []llm.ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+				Adaptive:            true,
+				ThinkingPrefixCheck: true,
 			},
 			// Claude Haiku 5.5 GA, released 2026-10-07; retirement floor "not
 			// sooner than: October 7, 2027" is not an exact date
