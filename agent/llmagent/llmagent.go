@@ -166,14 +166,9 @@ func (a *LLMAgent) Run(ctx context.Context, inv *agent.InvocationMetadata) iter.
 			}
 		}
 
-		// Recover incomplete tool calls before the first turn executes.
-		// This handles sessions where the previous invocation was interrupted
-		// after the assistant emitted tool requests but before tool responses
-		// were added to the session.
-		if err := a.recoverIncompleteToolCalls(ctx, inv, makeEnvelope, yield); err != nil {
-			yield(nil, err)
-			return
-		}
+		// Answer tool calls a previous invocation left without results before
+		// the first turn executes. They are never re-executed here.
+		repairIncompleteToolCalls(inv.Session())
 
 		runTurns := func(ctx context.Context, info *agent.InvocationInfo) (agent.FinishReason, error) {
 			return a.runTurns(ctx, info.Inv, makeEnvelope, consumerYield)
@@ -532,6 +527,7 @@ func (a *LLMAgent) generateAttempt(
 		// so changing deferral after compaction leaves the prompt unchanged.
 		toolDefs = a.loader.Prepare(toolDefs, inv.Session()).Tools
 	}
+
 	req := &llm.Request{
 		Messages:   cloneMessages(messages),
 		Tools:      cloneToolDefinitions(toolDefs),
@@ -943,88 +939,37 @@ func interruptedToolParts(parts []llm.Part, reqs []*llm.ToolRequestPart) []llm.P
 	return parts
 }
 
-// recoverIncompleteToolCalls detects and executes incomplete tool calls from a
-// previous interrupted invocation.
+// repairIncompleteToolCalls answers tool calls a previous invocation left
+// without results, so the session is valid before the first turn runs.
 //
 // An incomplete tool call occurs when:
 //  1. The assistant responds with tool requests
 //  2. The session is saved (runner saves after MessageEvent)
-//  3. The process crashes/disconnects before tool execution completes
+//  3. The invocation ends before results are appended: the process crashes,
+//     or the consumer stops iterating before the tools run
 //  4. A new user message arrives, appended to the session by the runner
 //
 // The resulting session has: [..., assistant(tool_request), user(text)] with no
 // tool response in between. LLMs reject this with "No tool output found for function call".
 //
-// This method detects the pattern, executes the incomplete tools, and inserts the
-// tool response message before the new user message, repairing the session.
-//
-// Error handling:
-//   - Tool execution errors are captured in ToolResponse.Error and become part
-//     of the repaired session. The LLM can reason about these failures.
-//   - Context cancellation stops the yield loop, terminating recovery gracefully.
-//   - If yield returns false (consumer stopped), recovery aborts without error.
-//
-// Observability: A StatusEvent with stage ToolExec is emitted before executing
-// incomplete tools, indicating how many are being recovered.
-func (a *LLMAgent) recoverIncompleteToolCalls(
-	ctx context.Context,
-	inv *agent.InvocationMetadata,
-	makeEnvelope func() agent.EventEnvelope,
-	yield func(agent.Event, error) bool,
-) error {
-	sess := inv.Session()
-
+// Each incomplete call is answered with the same "interrupted" error result a
+// canceled invocation records, inserted before the new user message. Nothing
+// is executed: a call may already have run before the interruption, or may
+// have been stopped on purpose. If the call is still needed, the model
+// requests it again and it runs as an ordinary call.
+func repairIncompleteToolCalls(sess *session.State) {
 	incomplete := detectIncompleteToolCalls(sess.Messages)
 	if len(incomplete) == 0 {
-		return nil
+		return
 	}
-
-	// Emit status: recovering incomplete tools
-	if !yield(agent.StatusEvent{
-		Envelope: makeEnvelope(),
-		Stage:    agent.StatusStageToolExec,
-		Details:  fmt.Sprintf("recovering %d incomplete tool calls from interrupted session", len(incomplete)),
-	}, nil) {
-		return nil // Consumer stopped
-	}
-
-	// Need tool registry to execute
-	if a.config.tools == nil {
-		return agent.ErrToolRegistry
-	}
-
-	// Execute the incomplete tools.
-	// Recovery uses the persisted loaded set and the next request's fixed cost.
-	plan := a.loader.Prepare(a.config.tools.List(), sess)
-	toolDefs, promptSection, native := plan.Tools, plan.Prompt, plan.Native
-
-	fixedTokens := 0
-
-	if a.config.compaction != nil || a.loader != nil {
-		reqMessages, err := a.resolveSystemPrompt(ctx, inv, sess.Messages, promptSection)
-		if err != nil {
-			return fmt.Errorf("llmagent: system prompt for recovery budget: %w", err)
-		}
-
-		fixedTokens = tokens.Message(reqMessages[0]) + a.loader.Tokens(toolDefs, sess, native)
-	}
-
-	// Recovered results land in the unread frontier, which compaction can
-	// never reduce - so the burst budget applies here exactly as in normal
-	// execution. Include every fixed request cost because none of it can be
-	// reclaimed on the following turn.
-	countedRequest := fixedTokens + tokens.History(sess.Messages)
-	resultCap := a.effectiveResultCap(countedRequest, len(incomplete))
-	toolParts := a.executeTools(ctx, inv, incomplete, a.loader.Visible(toolDefs, sess, native), resultCap, a.schemaRoom(fixedTokens), makeEnvelope, yield)
 
 	// Insert tool response message BEFORE the last user message.
 	// Current: [..., assistant(tool_req), user(text)]
 	// After:   [..., assistant(tool_req), user(tool_resp), user(text)]
+	toolParts := interruptedToolParts(make([]llm.Part, len(incomplete)), incomplete)
 	toolMsg := llm.NewMessage(llm.RoleUser, toolParts...)
 	lastIdx := len(sess.Messages) - 1
 	sess.Messages = append(sess.Messages[:lastIdx], toolMsg, sess.Messages[lastIdx])
-
-	return nil
 }
 
 // detectIncompleteToolCalls checks if the session ends with incomplete tool calls.
