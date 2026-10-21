@@ -43,6 +43,11 @@ Model work is covered by two skills — use them instead of improvising:
 - **reconcile-models** — auditing existing entries against vendor sources and fixing
   drift in pricing, limits, lifecycle dates, or capabilities.
 
+## Reviewing changes
+
+For pull request reviews, read [REVIEW.md](REVIEW.md) for SDK-specific failure
+modes, evidence requirements, generated-file handling, and the nit budget.
+
 ## Project Structure
 
 - `llm/` — Core types and interfaces (Request, Response, Message, Part, Event)
