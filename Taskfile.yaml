@@ -135,11 +135,15 @@ tasks:
         set -eu
         # Scan each module independently, even if a parent or future go.work exists.
         export GOWORK=off GOROOT="{{.GO_ROOT}}" GOTOOLCHAIN=local PATH="{{.GO_ROOT}}/bin:$PATH"
+        status=0
         for mod in go.mod examples/*/go.mod; do
           dir=$(dirname "$mod")
           echo "==> scanning $dir (govulncheck + OSV)"
-          (cd "$dir" && "{{.BIN_DIR}}/govulncheck" ./... && "{{.BIN_DIR}}/osv-scanner" scan source --lockfile=go.mod)
+          # Show every scanner's findings before failing the task.
+          (cd "$dir" && "{{.BIN_DIR}}/govulncheck" ./...) || status=1
+          (cd "$dir" && "{{.BIN_DIR}}/osv-scanner" scan source --lockfile=go.mod) || status=1
         done
+        exit "$status"
 
   catalog:snapshot:
     desc: Regenerate the committed model-catalog snapshot (catalog/snapshot.json)
