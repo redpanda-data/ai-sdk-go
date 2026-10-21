@@ -1,8 +1,8 @@
 # Review guidelines
 
-Review diff-introduced defects, not preferences. Report at most five actionable
-findings, each with a caller or input, consequence, and source location. Keep
-style-only nits out of the review.
+Report every diff-introduced, impactful defect, not preferences. Each finding
+needs a caller or input, consequence, and source location. Omit style-only nits
+and optional future work.
 
 ## SDK failure modes
 

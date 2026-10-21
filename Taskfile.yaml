@@ -125,14 +125,21 @@ tasks:
       - bash run.sh
 
   security:
-    desc: Run security vulnerability checks (govulncheck + osv-scanner)
+    desc: Scan the root and example modules (govulncheck + osv-scanner)
     deps:
       - install:go
       - install:govulncheck
       - install:osv-scanner
     cmds:
-      - 'GOROOT={{.GO_ROOT}} GOTOOLCHAIN=local {{.BIN_DIR}}/govulncheck ./...'
-      - 'GOROOT={{.GO_ROOT}} GOTOOLCHAIN=local {{.BIN_DIR}}/osv-scanner --lockfile go.mod'
+      - |
+        set -eu
+        # Scan each module independently, even if a parent or future go.work exists.
+        export GOWORK=off GOROOT="{{.GO_ROOT}}" GOTOOLCHAIN=local PATH="{{.GO_ROOT}}/bin:$PATH"
+        for mod in go.mod examples/*/go.mod; do
+          dir=$(dirname "$mod")
+          echo "==> scanning $dir (govulncheck + OSV)"
+          (cd "$dir" && "{{.BIN_DIR}}/govulncheck" ./... && "{{.BIN_DIR}}/osv-scanner" scan source --lockfile=go.mod)
+        done
 
   catalog:snapshot:
     desc: Regenerate the committed model-catalog snapshot (catalog/snapshot.json)

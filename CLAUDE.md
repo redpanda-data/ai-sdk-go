@@ -46,7 +46,7 @@ Model work is covered by two skills — use them instead of improvising:
 ## Reviewing changes
 
 For pull request reviews, read [REVIEW.md](REVIEW.md) for SDK-specific failure
-modes, evidence requirements, generated-file handling, and the nit budget.
+modes, evidence requirements, generated-file handling, and finding criteria.
 
 ## Project Structure
 

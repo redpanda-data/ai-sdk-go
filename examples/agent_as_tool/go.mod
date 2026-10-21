@@ -2,7 +2,7 @@ module github.com/redpanda-data/ai-sdk-go/examples/agent_as_tool
 
 go 1.26.0
 
-toolchain go1.26.3
+toolchain go1.26.10
 
 require github.com/redpanda-data/ai-sdk-go v0.0.0
 
