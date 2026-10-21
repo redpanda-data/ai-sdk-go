@@ -108,6 +108,14 @@ func New(ag agent.Agent, sessionStore session.Store, opts ...Option) (*Runner, e
 // sub-agents. Their values are the caller's unverified claims and must not be
 // used for authorization.
 //
+// # Input
+//
+// userMessage must be a user turn made of text parts. Run rejects any other
+// role, and any tool request, tool response, reasoning or tool-search part,
+// with agent.ErrInvalidUserMessage before the session is loaded. Tool history
+// is rebuilt from the session store, never from the request body, so a caller
+// cannot shape what the agent's crash recovery executes.
+//
 // # Event Flow
 //
 // Events are forwarded from Agent.Run() without modification:
@@ -182,6 +190,12 @@ func (r *Runner) Run(
 	}
 
 	return func(yield func(agent.Event, error) bool) {
+		// 0. Accept only a plain user turn; see the Input section above.
+		if err := validateUserMessage(userMessage); err != nil {
+			yield(nil, err)
+			return
+		}
+
 		// 1. Load or create session
 		sess, err := r.loadOrCreateSession(ctx, sessionID)
 		if err != nil {
@@ -265,6 +279,23 @@ func (r *Runner) Run(
 			}
 		}
 	}
+}
+
+// validateUserMessage enforces Run's input contract: the caller contributes a
+// user turn made of text. Any other role, or any part that is not text, is
+// rejected with agent.ErrInvalidUserMessage.
+func validateUserMessage(msg llm.Message) error {
+	if msg.Role != llm.RoleUser {
+		return fmt.Errorf("%w: role must be %q, got %q", agent.ErrInvalidUserMessage, llm.RoleUser, msg.Role)
+	}
+
+	for i, part := range msg.Content {
+		if text, ok := part.(*llm.TextPart); !ok || text == nil {
+			return fmt.Errorf("%w: part %d is %T, but a caller contributes user text only", agent.ErrInvalidUserMessage, i, part)
+		}
+	}
+
+	return nil
 }
 
 // loadOrCreateSession loads an existing session or creates a new one.

@@ -458,32 +458,6 @@ func (a *LLMAgent) executeSingleTurn(
 		return agent.FinishReasonStop, nil
 	}
 
-	// Emit tool call events
-	for _, toolReq := range toolReqs {
-		if !yield(agent.ToolRequestEvent{
-			Envelope: makeEnvelope(),
-			Request:  *toolReq,
-		}, nil) {
-			// Consumer stopped listening
-			return agent.FinishReasonInterrupted, nil
-		}
-	}
-
-	// Emit tool execution status
-	if !yield(agent.StatusEvent{
-		Envelope: makeEnvelope(),
-		Stage:    agent.StatusStageToolExec,
-		Details:  fmt.Sprintf("executing %d tools", len(toolReqs)),
-	}, nil) {
-		// Consumer stopped listening
-		return agent.FinishReasonInterrupted, nil
-	}
-
-	// Execute tools and collect results
-	if a.config.tools == nil {
-		return "", agent.ErrToolRegistry
-	}
-
 	// The per-result cap for this turn is fixed before any tool runs, so a
 	// parallel burst cannot assemble an unfittable frontier and runs are
 	// reproducible regardless of completion order.
@@ -494,7 +468,16 @@ func (a *LLMAgent) executeSingleTurn(
 	countedRequest := fixedTokens + tokens.History(sess.Messages)
 	resultCap := a.effectiveResultCap(countedRequest, len(toolReqs))
 
-	toolParts := a.executeTools(ctx, inv, toolReqs, a.loader.Visible(sentReq.Tools, sess, native), resultCap, a.schemaRoom(fixedTokens), makeEnvelope, yield)
+	toolParts, ok, err := a.dispatchToolCalls(ctx, inv, toolReqs, a.loader.Visible(sentReq.Tools, sess, native),
+		resultCap, a.schemaRoom(fixedTokens), fmt.Sprintf("executing %d tools", len(toolReqs)), makeEnvelope, yield)
+	if err != nil {
+		return "", err
+	}
+
+	if !ok {
+		// Consumer stopped listening
+		return agent.FinishReasonInterrupted, nil
+	}
 
 	// Build single message with all tool response parts
 	toolMsg := llm.NewMessage(llm.RoleUser, toolParts...)
@@ -512,6 +495,50 @@ func (a *LLMAgent) executeSingleTurn(
 
 	// Turn completed normally - continue loop
 	return "", nil
+}
+
+// dispatchToolCalls is the single path from a batch of tool requests to their
+// results, for a live model turn and for crash recovery alike. It announces
+// each call with a ToolRequestEvent, emits the tool-exec status, then runs the
+// batch through executeTools and so the tool interceptor chain. Because every
+// call is announced here before it runs, a gate watching the event stream sees
+// a recovered call exactly as it sees one the model has just made.
+//
+// ok is false when the consumer stopped listening before execution began. err
+// is agent.ErrToolRegistry when tools were requested but none are configured.
+func (a *LLMAgent) dispatchToolCalls(
+	ctx context.Context,
+	inv *agent.InvocationMetadata,
+	toolReqs []*llm.ToolRequestPart,
+	toolDefs []llm.ToolDefinition,
+	resultCap int,
+	schemaRoom int,
+	statusDetails string,
+	makeEnvelope func() agent.EventEnvelope,
+	yield func(agent.Event, error) bool,
+) ([]llm.Part, bool, error) {
+	for _, toolReq := range toolReqs {
+		if !yield(agent.ToolRequestEvent{
+			Envelope: makeEnvelope(),
+			Request:  *toolReq,
+		}, nil) {
+			return nil, false, nil
+		}
+	}
+
+	if !yield(agent.StatusEvent{
+		Envelope: makeEnvelope(),
+		Stage:    agent.StatusStageToolExec,
+		Details:  statusDetails,
+	}, nil) {
+		return nil, false, nil
+	}
+
+	if a.config.tools == nil {
+		return nil, true, agent.ErrToolRegistry
+	}
+
+	return a.executeTools(ctx, inv, toolReqs, toolDefs, resultCap, schemaRoom, makeEnvelope, yield), true, nil
 }
 
 // generateAttempt builds an independent request and interceptor chain for one
@@ -964,8 +991,12 @@ func interruptedToolParts(parts []llm.Part, reqs []*llm.ToolRequestPart) []llm.P
 //   - Context cancellation stops the yield loop, terminating recovery gracefully.
 //   - If yield returns false (consumer stopped), recovery aborts without error.
 //
-// Observability: A StatusEvent with stage ToolExec is emitted before executing
-// incomplete tools, indicating how many are being recovered.
+// Observability: recovered calls take the same dispatch path as a live turn
+// (dispatchToolCalls). Each is announced with a ToolRequestEvent carrying the
+// stored ID, name and arguments, then a StatusEvent with stage ToolExec reports
+// how many are being recovered, then each result arrives as a ToolResponseEvent.
+// A gate that watches the event stream therefore sees a recovered call before
+// it runs, exactly as it sees a call the model has just made.
 func (a *LLMAgent) recoverIncompleteToolCalls(
 	ctx context.Context,
 	inv *agent.InvocationMetadata,
@@ -979,16 +1010,7 @@ func (a *LLMAgent) recoverIncompleteToolCalls(
 		return nil
 	}
 
-	// Emit status: recovering incomplete tools
-	if !yield(agent.StatusEvent{
-		Envelope: makeEnvelope(),
-		Stage:    agent.StatusStageToolExec,
-		Details:  fmt.Sprintf("recovering %d incomplete tool calls from interrupted session", len(incomplete)),
-	}, nil) {
-		return nil // Consumer stopped
-	}
-
-	// Need tool registry to execute
+	// Need tool registry to execute, and to budget the results below.
 	if a.config.tools == nil {
 		return agent.ErrToolRegistry
 	}
@@ -1015,7 +1037,20 @@ func (a *LLMAgent) recoverIncompleteToolCalls(
 	// reclaimed on the following turn.
 	countedRequest := fixedTokens + tokens.History(sess.Messages)
 	resultCap := a.effectiveResultCap(countedRequest, len(incomplete))
-	toolParts := a.executeTools(ctx, inv, incomplete, a.loader.Visible(toolDefs, sess, native), resultCap, a.schemaRoom(fixedTokens), makeEnvelope, yield)
+
+	// Same dispatch path as a live turn: every recovered call is announced
+	// with a ToolRequestEvent before it runs.
+	toolParts, ok, err := a.dispatchToolCalls(ctx, inv, incomplete, a.loader.Visible(toolDefs, sess, native),
+		resultCap, a.schemaRoom(fixedTokens),
+		fmt.Sprintf("recovering %d incomplete tool calls from interrupted session", len(incomplete)),
+		makeEnvelope, yield)
+	if err != nil {
+		return err
+	}
+
+	if !ok {
+		return nil // Consumer stopped
+	}
 
 	// Insert tool response message BEFORE the last user message.
 	// Current: [..., assistant(tool_req), user(text)]

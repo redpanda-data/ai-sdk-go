@@ -227,7 +227,9 @@ func (e *Executor) processEvents(
 				dw.resetArtifact(ctx)
 			}
 		case agent.ToolRequestEvent:
-			// Tool request is already in MessageEvent, no separate handling needed
+			// The request itself is carried by the assistant message already in
+			// history: written on its MessageEvent for a live turn, or by the
+			// interrupted run for a call crash recovery re-announces. Nothing to add.
 		case agent.ToolResponseEvent:
 			e.log.DebugContext(ctx, "Tool response event", "tool", ev.Response.Name)
 
