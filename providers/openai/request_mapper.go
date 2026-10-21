@@ -18,6 +18,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/packages/param"
@@ -179,12 +181,7 @@ func (rm *RequestMapper) mapMessagesToInputItems(messages []llm.Message) ([]resp
 				items = append(items, item)
 
 			case *llm.ReasoningPart:
-				item, err := rm.mapReasoningMessage(p)
-				if err != nil {
-					return nil, err
-				}
-
-				items = append(items, item)
+				items = appendReasoningItem(items, p)
 
 			default:
 				return nil, fmt.Errorf("failed mapping unknown part type: %T", part)
@@ -257,26 +254,68 @@ func (*RequestMapper) mapToolResponseMessage(part *llm.ToolResponsePart) (respon
 	}, nil
 }
 
-// mapReasoningMessage converts a reasoning part to a reasoning input item.
-func (*RequestMapper) mapReasoningMessage(part *llm.ReasoningPart) (responses.ResponseInputItemUnionParam, error) {
-	if part == nil {
-		return responses.ResponseInputItemUnionParam{}, errors.New("nil ReasoningPart")
+// appendReasoningItem adds a reasoning part to items as part of the
+// reasoning item OpenAI issued: a part whose item ID matches the reasoning
+// item just before it joins that item as its next summary. OpenAI looks a
+// replayed reasoning item up by ID, so the ID must be the issued one, and a
+// part with no item ID (for example another provider's thinking) has nothing
+// to reference and is skipped.
+func appendReasoningItem(items []responses.ResponseInputItemUnionParam, part *llm.ReasoningPart) []responses.ResponseInputItemUnionParam {
+	id := reasoningItemID(part)
+	if id == "" {
+		return items
+	}
+
+	summary := responses.ResponseReasoningItemSummaryParam{
+		Text: part.Text,
+		Type: constant.SummaryText(""),
+	}
+
+	if last := len(items) - 1; last >= 0 && items[last].OfReasoning != nil && items[last].OfReasoning.ID == id {
+		items[last].OfReasoning.Summary = append(items[last].OfReasoning.Summary, summary)
+		if part.Signature != "" && !items[last].OfReasoning.EncryptedContent.Valid() {
+			items[last].OfReasoning.EncryptedContent = param.NewOpt(part.Signature)
+		}
+
+		return items
 	}
 
 	reasoning := &responses.ResponseReasoningItemParam{
-		ID:   part.ID,
-		Type: constant.Reasoning(""),
-		Summary: []responses.ResponseReasoningItemSummaryParam{
-			{
-				Text: part.Text,
-				Type: constant.SummaryText(""),
-			},
-		},
+		ID:      id,
+		Type:    constant.Reasoning(""),
+		Summary: []responses.ResponseReasoningItemSummaryParam{summary},
+	}
+	if part.Signature != "" {
+		reasoning.EncryptedContent = param.NewOpt(part.Signature)
 	}
 
-	return responses.ResponseInputItemUnionParam{
-		OfReasoning: reasoning,
-	}, nil
+	return append(items, responses.ResponseInputItemUnionParam{OfReasoning: reasoning})
+}
+
+// reasoningItemID returns the ID of the reasoning item a part came from.
+// Sessions saved before parts kept the item ID hold "<item id>-<summary
+// index>"; the suffix is dropped when it matches the part's recorded index.
+func reasoningItemID(part *llm.ReasoningPart) string {
+	if idx, ok := summaryIndex(part.Metadata[reasoningMetadataSummaryIndex]); ok {
+		return strings.TrimSuffix(part.ID, "-"+strconv.Itoa(idx))
+	}
+
+	return part.ID
+}
+
+// summaryIndex reads a summary index recorded in memory (int, int64) or
+// read back from JSON (float64).
+func summaryIndex(v any) (int, bool) {
+	switch n := v.(type) {
+	case int:
+		return n, true
+	case int64:
+		return int(n), true
+	case float64:
+		return int(n), n == float64(int(n))
+	default:
+		return 0, false
+	}
 }
 
 // mapResponseFormat converts unified ResponseFormat to OpenAI Responses API format.

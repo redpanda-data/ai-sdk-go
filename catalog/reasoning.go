@@ -40,4 +40,12 @@ type ReasoningSupport struct {
 	// Budget reports whether the offering accepts a manual thinking
 	// token budget.
 	Budget bool
+
+	// ThinkingPrefixCheck reports whether the provider checks each
+	// replayed thinking block against an unchanged prefix (system prompt,
+	// tools, and earlier messages), as Anthropic's preserved thinking does
+	// for its newest models. Set it only where the provider documents the
+	// check for this surface. The provider's request mapper then asks for
+	// a failing block to be dropped rather than the request rejected.
+	ThinkingPrefixCheck bool
 }

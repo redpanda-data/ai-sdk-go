@@ -215,6 +215,33 @@ func TestTransformOutputMessage_OTelCompliance(t *testing.T) {
 			finishReason: "length",
 			want:         `{"role":"assistant","parts":[{"type":"text","content":"This is a very long response that was cut off..."}],"finish_reason":"length"}`,
 		},
+		{
+			// Claude's omitted-display thinking carries only a signature. The
+			// schema requires content on a reasoning part, and there is no
+			// readable reasoning to record, so the part is left out.
+			name: "signature-only reasoning is omitted",
+			message: llm.NewMessage(llm.RoleAssistant,
+				&llm.ReasoningPart{Signature: "sig-omitted"},
+				&llm.ToolRequestPart{ID: "call_1", Name: "lookup", Arguments: json.RawMessage(`{}`)},
+			),
+			finishReason: "tool_call",
+			want:         `{"role":"assistant","parts":[{"type":"tool_call","name":"lookup","id":"call_1","arguments":{}}],"finish_reason":"tool_call"}`,
+		},
+		{
+			// Redacted thinking carries an encrypted payload and a display
+			// placeholder, not text the model produced, so it is left out too.
+			name: "redacted reasoning is omitted",
+			message: llm.NewMessage(llm.RoleAssistant,
+				&llm.ReasoningPart{
+					Text:      "[redacted thinking]",
+					Signature: "opaque-data",
+					Metadata:  map[string]any{"redacted": true, "redacted_provider": "anthropic"},
+				},
+				llm.NewTextPart("The answer is 4."),
+			),
+			finishReason: "stop",
+			want:         `{"role":"assistant","parts":[{"type":"text","content":"The answer is 4."}],"finish_reason":"stop"}`,
+		},
 	}
 
 	for _, tt := range tests {

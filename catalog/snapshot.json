@@ -625,7 +625,8 @@
               "xhigh",
               "max"
             ],
-            "adaptive": true
+            "adaptive": true,
+            "thinking_prefix_check": true
           },
           "pricing": {
             "default": {
@@ -761,7 +762,8 @@
               "xhigh",
               "max"
             ],
-            "adaptive": true
+            "adaptive": true,
+            "thinking_prefix_check": true
           },
           "pricing": {
             "default": {
@@ -1319,7 +1321,8 @@
               "xhigh",
               "max"
             ],
-            "adaptive": true
+            "adaptive": true,
+            "thinking_prefix_check": true
           },
           "speeds": [
             "standard",
@@ -1624,7 +1627,8 @@
               "xhigh",
               "max"
             ],
-            "adaptive": true
+            "adaptive": true,
+            "thinking_prefix_check": true
           },
           "pricing": {
             "default": {
@@ -9235,7 +9239,8 @@
               "xhigh",
               "max"
             ],
-            "adaptive": true
+            "adaptive": true,
+            "thinking_prefix_check": true
           },
           "pricing": {
             "default": {
@@ -9426,7 +9431,8 @@
               "xhigh",
               "max"
             ],
-            "adaptive": true
+            "adaptive": true,
+            "thinking_prefix_check": true
           },
           "pricing": {
             "default": {
@@ -10078,7 +10084,8 @@
               "xhigh",
               "max"
             ],
-            "adaptive": true
+            "adaptive": true,
+            "thinking_prefix_check": true
           },
           "pricing": {
             "default": {
@@ -10544,7 +10551,8 @@
               "xhigh",
               "max"
             ],
-            "adaptive": true
+            "adaptive": true,
+            "thinking_prefix_check": true
           },
           "pricing": {
             "default": {

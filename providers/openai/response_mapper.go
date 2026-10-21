@@ -26,6 +26,11 @@ import (
 // ResponseMapper converts OpenAI Responses API payloads to llm.Response.
 type ResponseMapper struct{}
 
+// reasoningMetadataSummaryIndex records a reasoning part's position in its
+// reasoning item's summary list. Every summary part of one item shares the
+// item's ID, so the request mapper can send the item back as OpenAI issued it.
+const reasoningMetadataSummaryIndex = "summary_index"
+
 // NewResponseMapper returns a ready-to-use mapper.
 func NewResponseMapper() *ResponseMapper {
 	return &ResponseMapper{}
@@ -104,16 +109,23 @@ func (m *ResponseMapper) FromProvider(r *responses.Response) (*llm.Response, err
 			content = append(content, mapToolSearch(out))
 
 		case outputTypeReasoning:
+			// One part per summary, each carrying the item's own ID, so the
+			// request mapper can send the item back as OpenAI issued it. The
+			// encrypted reasoning (stateless requests) rides on the first part.
+			encrypted := out.EncryptedContent
+
 			for i, s := range out.Summary {
 				if s.Text == "" {
 					continue
 				}
 
 				content = append(content, &llm.ReasoningPart{
-					ID:       fmt.Sprintf("%s-%d", out.ID, i),
-					Text:     s.Text,
-					Metadata: map[string]any{"summary_index": i},
+					ID:        out.ID,
+					Text:      s.Text,
+					Signature: encrypted,
+					Metadata:  map[string]any{reasoningMetadataSummaryIndex: i},
 				})
+				encrypted = ""
 			}
 
 		default:
