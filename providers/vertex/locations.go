@@ -57,6 +57,23 @@ const (
 // Google publishes it at. A location is listed wherever Google's page marks
 // the model supported there, not by any one project's quota; the one
 // exception is claude-haiku-4-5 at asia-east1.
+//
+// Refresh it when Google adds a location or a model:
+//
+//  1. Update the rows from LocationsMatrixSource. A new model that page does
+//     not list yet takes its row from the model page's "Model availability"
+//     section, said in a comment on the row. Change
+//     LocationsMatrixTranscribed only after re-reading every row from
+//     LocationsMatrixSource. For a partial update, keep the date and add a
+//     line to its comment naming the rows changed, their source and the date
+//     they were read.
+//  2. Update TestServedLocationsMatrix, which pins every row. A new
+//     non-global location fails TestEveryServedRegionPriced until the
+//     model's price function in models.go has a regional override for it,
+//     taken from Google's pricing page. A model in flatPriced is the
+//     exception: TestFlatPricedModelsCarryNoOverride requires it to carry
+//     no override.
+//  3. Run go test ./providers/vertex/...
 var servedLocations = map[string][]string{
 	ModelGemini4Argon: {
 		LocationGlobal,
