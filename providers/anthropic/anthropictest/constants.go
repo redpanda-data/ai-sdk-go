@@ -23,9 +23,7 @@ const (
 	// sampling parameters and forced tool_choice.
 	TestModelName = anthropic.ModelClaudeSonnet55
 	// TestReasoningModelName is the model for reasoning tests.
-	// Uses a model with forced (non-adaptive) extended thinking so the
-	// conformance reasoning test can reliably assert thinking traces.
-	TestReasoningModelName = anthropic.ModelClaudeOpus45
+	TestReasoningModelName = anthropic.ModelClaudeOpus55
 	// TestAdaptiveModelName is the model for adaptive thinking tests. They
 	// request thinking explicitly (WithThinking(true)), so any model with
 	// adaptive thinking works. It currently coincides with

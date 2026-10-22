@@ -17,6 +17,7 @@ package anthropic
 import (
 	"testing"
 
+	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -106,4 +107,60 @@ func TestMapResponseFormat(t *testing.T) {
 		_, err := rm.ToProvider(req)
 		require.ErrorIs(t, err, llm.ErrRequestMapping)
 	})
+}
+
+func TestAdaptiveThinkingRequestsSummarizedDisplay(t *testing.T) {
+	t.Parallel()
+
+	effort := ReasoningEffortHigh
+
+	tests := []struct {
+		name         string
+		cfg          Config
+		wantAdaptive bool
+	}{
+		{
+			name:         "thinking enabled",
+			cfg:          Config{EnableThinking: true, AdaptiveThinking: true},
+			wantAdaptive: true,
+		},
+		{
+			name:         "effort only on adaptive model",
+			cfg:          Config{AdaptiveThinking: true, ReasoningEffort: &effort},
+			wantAdaptive: true,
+		},
+		{
+			name: "effort only on non-adaptive model",
+			cfg:  Config{ReasoningEffort: &effort},
+		},
+		{
+			name: "neither thinking nor effort",
+			cfg:  Config{AdaptiveThinking: true},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := tt.cfg
+			cfg.ModelName = ModelClaudeOpus55
+			cfg.MaxTokens = 1024
+
+			apiReq, err := NewRequestMapper(&cfg).ToProvider(&llm.Request{
+				Messages: []llm.Message{{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("hi")}}},
+			})
+			require.NoError(t, err)
+
+			if !tt.wantAdaptive {
+				assert.Nil(t, apiReq.Thinking.OfAdaptive)
+				assert.Nil(t, apiReq.Thinking.OfEnabled)
+
+				return
+			}
+
+			require.NotNil(t, apiReq.Thinking.OfAdaptive)
+			assert.Equal(t, anthropic.BetaThinkingConfigAdaptiveDisplaySummarized, apiReq.Thinking.OfAdaptive.Display)
+		})
+	}
 }

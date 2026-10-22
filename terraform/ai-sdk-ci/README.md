@@ -6,7 +6,7 @@ Terraform configuration for AWS resources needed to run Bedrock conformance test
 
 - **GitHub Actions OIDC provider** — allows GitHub Actions to assume an IAM role without static credentials
 - **IAM role** (`ai-sdk-go-ci-bedrock`) — assumed by the `redpanda-data/ai-sdk-go` repo via OIDC
-- **IAM policy** — grants Bedrock Converse API access (invoke, list models, inference profiles)
+- **IAM policy** — grants Bedrock Converse API access (invoke, list models, inference profiles) and the AWS Marketplace subscribe actions Bedrock uses to enable new models
 
 ## Architecture
 
@@ -59,30 +59,15 @@ terraform plan -var="create_oidc_provider=false"   # if the GitHub OIDC provider
 terraform apply -var="create_oidc_provider=false"
 ```
 
-### 3. Enable Bedrock model access (manual)
+### 3. Bedrock model access
 
-Models must be enabled individually via the AWS CLI. Get the offer token, then create the agreement:
+The role may call `aws-marketplace:Subscribe`, so Bedrock enables each new model through its
+AWS Marketplace subscription on the first invocation. No per-model step is needed. A fresh
+subscription can take a few minutes to activate, so the first CI run against a new model may
+fail with `AccessDeniedException` and pass on a re-run.
 
-```bash
-OFFER_TOKEN=$(aws bedrock list-foundation-model-agreement-offers \
-  --model-id anthropic.claude-sonnet-4-5-20250929-v1:0 \
-  --region us-east-1 \
-  --query 'offers[0].offerToken' --output text)
-
-aws bedrock create-foundation-model-agreement \
-  --model-id anthropic.claude-sonnet-4-5-20250929-v1:0 \
-  --offer-token "$OFFER_TOKEN" \
-  --region us-east-1
-```
-
-Repeat for each model needed. The following models are currently enabled:
-
-- `anthropic.claude-sonnet-4-5-20250929-v1:0`
-- `anthropic.claude-sonnet-4-6`
-- `anthropic.claude-haiku-4-5-20251001-v1:0`
-- `anthropic.claude-opus-4-5-20251101-v1:0`
-- `anthropic.claude-opus-4-6-v1`
-- `anthropic.claude-opus-4-7`
+Anthropic models also need the account's one-time use-case form, which is already submitted
+for this account.
 
 ### 4. Update the GitHub Actions workflow
 

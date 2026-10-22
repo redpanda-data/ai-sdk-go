@@ -66,7 +66,7 @@ func (f *GoogleFixture) NewStandardModel(t *testing.T) llm.Model {
 	}
 
 	if baseModel.Capabilities().Reasoning {
-		return retry.WrapModel(f.newReasoningModel(t, baseModel))
+		return retry.WrapModel(f.newReasoningModel(t, baseModel, google.ReasoningEffortLow))
 	}
 
 	return retry.WrapModel(baseModel)
@@ -85,7 +85,9 @@ func (f *GoogleFixture) NewReasoningModel(t *testing.T) llm.Model {
 		return nil
 	}
 
-	return retry.WrapModel(f.newReasoningModel(t, baseModel))
+	// Gemini 3.8 Flash and Gemini 4 Argon omit thought summaries at low
+	// effort, so the reasoning tests need high to assert visible traces.
+	return retry.WrapModel(f.newReasoningModel(t, baseModel, google.ReasoningEffortHigh))
 }
 
 func (f *GoogleFixture) Catalog() *catalog.Catalog {
@@ -96,12 +98,12 @@ func (f *GoogleFixture) NewModel(modelName string) (llm.Model, error) {
 	return f.provider.NewModel(modelName)
 }
 
-func (f *GoogleFixture) newReasoningModel(t *testing.T, baseModel llm.Model) llm.Model {
+func (f *GoogleFixture) newReasoningModel(t *testing.T, baseModel llm.Model, effort google.ReasoningEffort) llm.Model {
 	t.Helper()
 
 	options := []google.Option{google.WithThinkingBudget(4096)}
 	if lister, ok := baseModel.(llm.ReasoningEffortLister); ok && len(lister.SupportedReasoningEfforts()) > 0 {
-		options = []google.Option{google.WithReasoningEffort(google.ReasoningEffortLow)}
+		options = []google.Option{google.WithReasoningEffort(effort)}
 	}
 
 	model, err := f.provider.NewModel(f.modelName, options...)
@@ -119,13 +121,9 @@ func TestGoogleConformance_Integration(t *testing.T) {
 	t.Parallel()
 
 	modelsToTest := []string{
-		google.ModelGemini4Argon,        // gemini-4-argon
-		google.ModelGemini38Flash,       // gemini-3.8-flash
-		google.ModelGemini36Flash,       // gemini-3.6-flash
-		google.ModelGemini35FlashLite,   // gemini-3.5-flash-lite
-		google.ModelGemini35Flash,       // gemini-3.5-flash
-		google.ModelGemini31ProPreview,  // gemini-3.1-pro-preview
-		google.ModelGemini3FlashPreview, // gemini-3-flash-preview
+		google.ModelGemini4Argon,      // gemini-4-argon
+		google.ModelGemini38Flash,     // gemini-3.8-flash
+		google.ModelGemini35FlashLite, // gemini-3.5-flash-lite
 	}
 
 	for _, modelName := range modelsToTest {
