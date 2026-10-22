@@ -152,6 +152,18 @@ data "aws_iam_policy_document" "bedrock" {
     ]
     resources = ["*"]
   }
+
+  # Bedrock enables a newly released model through an AWS Marketplace
+  # subscription on its first invocation. Without these, every new model
+  # fails with AccessDeniedException until someone enables it by hand.
+  statement {
+    effect = "Allow"
+    actions = [
+      "aws-marketplace:ViewSubscriptions",
+      "aws-marketplace:Subscribe",
+    ]
+    resources = ["*"]
+  }
 }
 
 resource "aws_iam_policy" "bedrock" {

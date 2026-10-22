@@ -68,7 +68,9 @@ func (f *OpenAIAgentFixture) StandardAgent(tools tool.Registry) (*llmagent.LLMAg
 func (f *OpenAIAgentFixture) ReasoningAgent(tools tool.Registry) (*llmagent.LLMAgent, error) {
 	model, err := f.provider.NewModel(openaitest.TestReasoningModelName,
 		openai.WithReasoningEffort(openai.ReasoningEffortHigh),
-		openai.WithReasoningSummary(openai.ReasoningSummaryDetailed),
+		// GPT-6 models mostly return empty summaries at the detailed level;
+		// concise returns them reliably.
+		openai.WithReasoningSummary(openai.ReasoningSummaryConcise),
 	)
 	if err != nil {
 		return nil, err

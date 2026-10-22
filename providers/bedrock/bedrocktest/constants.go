@@ -16,11 +16,7 @@ package bedrocktest
 
 const (
 	// TestModelName is the model to use for integration tests.
-	TestModelName = "anthropic.claude-sonnet-4-5-20250929-v1:0"
-	// TestReasoningModelName is the model for reasoning tests.
-	// Uses a model with forced (non-adaptive) extended thinking so generic
-	// conformance can reliably assert visible reasoning traces.
-	TestReasoningModelName = "anthropic.claude-opus-4-5-20251101-v1:0"
+	TestModelName = "us.anthropic.claude-sonnet-5-5"
 	// TestRegion is the default AWS region for tests, overridable via AWS_REGION.
 	TestRegion = "us-east-1"
 )

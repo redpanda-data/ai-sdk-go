@@ -78,7 +78,9 @@ func (f *OpenAIFixture) NewReasoningModel(t *testing.T) llm.Model {
 
 	model, err := f.reasoningProvider.NewModel(openaitest.TestReasoningModelName,
 		openai.WithReasoningEffort(openai.ReasoningEffortHigh),
-		openai.WithReasoningSummary(openai.ReasoningSummaryDetailed),
+		// GPT-6 models mostly return empty summaries at the detailed level;
+		// concise returns them reliably.
+		openai.WithReasoningSummary(openai.ReasoningSummaryConcise),
 	)
 	if err != nil {
 		t.Skipf("No reasoning model available: %v", err)

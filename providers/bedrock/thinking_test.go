@@ -52,7 +52,8 @@ func TestReasoningEffortMapsToConverseRequest(t *testing.T) {
 	require.NoError(t, json.Unmarshal(payload, &fields))
 	assert.Equal(t, map[string]any{
 		"thinking": map[string]any{
-			"type": "adaptive",
+			"type":    "adaptive",
+			"display": "summarized",
 		},
 		"output_config": map[string]any{
 			"effort": "medium",
@@ -83,7 +84,8 @@ func TestThinkingWithoutBudgetOrEffortMapsToAdaptive(t *testing.T) {
 	require.NoError(t, json.Unmarshal(payload, &fields))
 	assert.Equal(t, map[string]any{
 		"thinking": map[string]any{
-			"type": "adaptive",
+			"type":    "adaptive",
+			"display": "summarized",
 		},
 	}, fields)
 }
