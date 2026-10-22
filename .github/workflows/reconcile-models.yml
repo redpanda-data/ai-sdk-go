@@ -201,6 +201,12 @@ jobs:
             --allowedTools "Skill,Read,Grep,Glob,${{ steps.inputs.outputs.edits }},Edit(./catalog/facts_data.go),Bash(curl:*),Bash(grep:*),Bash(jq:*),Bash(task catalog:snapshot),Bash(task test:unit),Bash(task lint:new),Bash(git diff:*)"
             --disallowedTools "WebFetch,WebSearch,Bash(git push:*),Bash(git commit:*),Bash(gh:*),AskUserQuestion,Task,Agent,Read(//proc/**)"
             --json-schema '${{ steps.inputs.outputs.schema }}'
+      - name: Count the model key in the agent's transcript (test branch only)
+        if: always()
+        env:
+          KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+        run: echo "The model key appears $(grep -cF -- "$KEY" "$EXECUTION_FILE" || true) times in the agent's transcript."
       - name: Collect patch and report
         # Also after a failed agent step, so the run leaves evidence to inspect.
         if: always()
