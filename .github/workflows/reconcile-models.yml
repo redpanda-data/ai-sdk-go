@@ -340,10 +340,26 @@ jobs:
           # from a branch with the same name too.
           existing="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number,author,isCrossRepository \
             --jq '[.[] | select(.author.login == "vbotbuildovich" and (.isCrossRepository | not))][0].number // empty')"
-          if [[ -n "$existing" && "$(gh pr view "$existing" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" == "false" ]]; then
-            gh pr ready "$existing" --repo "$GITHUB_REPOSITORY" --undo
+          # The push is leased to the head read here, so it fails if anyone
+          # pushes to the branch after this point; an empty head means the
+          # branch must not exist yet.
+          head="$(git ls-remote origin "refs/heads/${BRANCH}" | cut -f1)"
+          if [[ -n "$existing" ]]; then
+            # Keep anyone else's commit on the bot PR: say what this run found
+            # instead of pushing over it.
+            commits="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${existing}/commits?per_page=100")"
+            theirs="$(.github/reconcile-models/others-commits.sh vbotbuildovich <<<"$commits")"
+            if [[ -n "$theirs" ]]; then
+              run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+              gh pr comment "$existing" --repo "$GITHUB_REPOSITORY" --body "This run found catalog changes but didn't update this PR, because the update would remove commits that aren't the bot's (${theirs}). Merge or close this PR to let the next run update it. [The run](${run_url}) shows what it found."
+              echo "::notice::Left #${existing} unchanged: it has commits that aren't the bot's (${theirs})."
+              exit 0
+            fi
+            if [[ "$(gh pr view "$existing" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" == "false" ]]; then
+              gh pr ready "$existing" --repo "$GITHUB_REPOSITORY" --undo
+            fi
           fi
-          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${BRANCH}"
+          git push --force-with-lease="refs/heads/${BRANCH}:${head}" "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${BRANCH}"
           if [[ -n "$existing" ]]; then
             # The label again on every update: a person may have removed it.
             gh pr edit "$existing" --repo "$GITHUB_REPOSITORY" --base "$BASE" --body-file out/body.md --add-label ai-merge-skip

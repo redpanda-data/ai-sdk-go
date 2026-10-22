@@ -17,6 +17,7 @@ package main
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -61,8 +62,8 @@ type workflowJob struct {
 	Steps []workflowStep    `yaml:"steps"`
 }
 
-// agentJob reads the agent job from the workflow file.
-func agentJob(t *testing.T) workflowJob {
+// readJob reads one job from the workflow file.
+func readJob(t *testing.T, name string) workflowJob {
 	t.Helper()
 
 	raw, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", "reconcile-models.yml"))
@@ -73,22 +74,26 @@ func agentJob(t *testing.T) workflowJob {
 	}
 	require.NoError(t, yaml.Unmarshal(raw, &workflow))
 
-	job := workflow.Jobs["agent"]
-	require.NotEmpty(t, job.Steps, "the workflow has no agent job steps")
+	job := workflow.Jobs[name]
+	require.NotEmpty(t, job.Steps, "the workflow has no %s job steps", name)
 
 	return job
 }
 
-// claudeStep is the index of the agent job's claude-code-action step.
-func claudeStep(t *testing.T, steps []workflowStep) int {
+// stepIndex is the index of the first step that matches; what names the step
+// in the failure message.
+func stepIndex(t *testing.T, steps []workflowStep, what string, match func(workflowStep) bool) int {
 	t.Helper()
 
-	i := slices.IndexFunc(steps, func(s workflowStep) bool {
-		return strings.HasPrefix(s.Uses, "anthropics/claude-code-action@")
-	})
-	require.NotEqual(t, -1, i, "the agent job has no claude-code-action step")
+	i := slices.IndexFunc(steps, match)
+	require.NotEqual(t, -1, i, "the job has no %s step", what)
 
 	return i
+}
+
+// isClaude matches the agent job's claude-code-action step.
+func isClaude(s workflowStep) bool {
+	return strings.HasPrefix(s.Uses, "anthropics/claude-code-action@")
 }
 
 // TestAgentEgressAllowsNamedSources checks that Harden-Runner blocks the agent
@@ -98,7 +103,7 @@ func claudeStep(t *testing.T, steps []workflowStep) int {
 func TestAgentEgressAllowsNamedSources(t *testing.T) {
 	t.Parallel()
 
-	first := agentJob(t).Steps[0]
+	first := readJob(t, "agent").Steps[0]
 	require.True(t, strings.HasPrefix(first.Uses, "step-security/harden-runner@"),
 		"Harden-Runner must be the agent job's first step, got %q", first.Uses)
 	assert.Equal(t, "block", first.With["egress-policy"])
@@ -119,8 +124,8 @@ func TestAgentEgressAllowsNamedSources(t *testing.T) {
 func TestAgentChecksEgressBeforeClaude(t *testing.T) {
 	t.Parallel()
 
-	steps := agentJob(t).Steps
-	claude := claudeStep(t, steps)
+	steps := readJob(t, "agent").Steps
+	claude := stepIndex(t, steps, "claude-code-action", isClaude)
 
 	assert.True(t, slices.ContainsFunc(steps[:claude], func(s workflowStep) bool {
 		return strings.Contains(s.Run, ".github/reconcile-models/check-egress.sh")
@@ -132,11 +137,65 @@ func TestAgentChecksEgressBeforeClaude(t *testing.T) {
 func TestAgentCannotReadProcessFiles(t *testing.T) {
 	t.Parallel()
 
-	job := agentJob(t)
+	job := readJob(t, "agent")
 	assert.Equal(t, "1", job.Env["CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"], "the agent's shell must run without the job's secrets")
 
-	args := job.Steps[claudeStep(t, job.Steps)].With["claude_args"]
+	args := job.Steps[stepIndex(t, job.Steps, "claude-code-action", isClaude)].With["claude_args"]
 	disallowed := regexp.MustCompile(`--disallowedTools "([^"]*)"`).FindStringSubmatch(args)
 	require.NotNil(t, disallowed, "the Claude step passes no --disallowedTools list")
 	assert.Contains(t, strings.Split(disallowed[1], ","), "Read(//proc/**)")
+}
+
+// TestOthersCommitsFindsEveryNonBotCommit runs others-commits.sh on trimmed
+// answers of GitHub's list of a pull request's commits.
+func TestOthersCommitsFindsEveryNonBotCommit(t *testing.T) {
+	t.Parallel()
+
+	script := filepath.Join("..", "..", ".github", "reconcile-models", "others-commits.sh")
+	tests := []struct {
+		sample string
+		want   string
+	}{
+		{sample: "bot-only", want: ""},
+		{sample: "person-commit", want: "b2c3d4e"},
+		{sample: "update-branch", want: "c3d4e5f"},
+		{sample: "amended", want: "d4e5f60"},
+		{sample: "unlinked-author", want: "e5f6071, f607182"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.sample, func(t *testing.T) {
+			t.Parallel()
+
+			sample, err := os.Open(filepath.Join("testdata", "others-commits", tt.sample+".json"))
+			require.NoError(t, err)
+
+			defer sample.Close()
+
+			cmd := exec.CommandContext(t.Context(), "bash", script, "vbotbuildovich")
+			cmd.Stdin = sample
+
+			out, err := cmd.Output()
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, strings.TrimSpace(string(out)))
+		})
+	}
+}
+
+// TestPushChecksOthersCommitsFirst checks that the PR job looks for other
+// people's commits on the bot PR before it pushes, and that the push is leased
+// to the branch head it read, so a commit pushed in between isn't lost either.
+func TestPushChecksOthersCommitsFirst(t *testing.T) {
+	t.Parallel()
+
+	steps := readJob(t, "pr").Steps
+	run := steps[stepIndex(t, steps, "leased push", func(s workflowStep) bool {
+		return strings.Contains(s.Run, "git push --force-with-lease=")
+	})].Run
+
+	assert.NotContains(t, run, "git push --force ", "the push must be leased, not a plain force-push")
+
+	check := strings.Index(run, ".github/reconcile-models/others-commits.sh")
+	require.NotEqual(t, -1, check, "the push step doesn't run others-commits.sh")
+	assert.Less(t, check, strings.Index(run, "git push --force-with-lease="), "others-commits.sh must run before the push")
 }
