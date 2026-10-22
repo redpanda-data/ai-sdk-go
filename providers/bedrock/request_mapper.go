@@ -15,6 +15,7 @@
 package bedrock
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,6 +25,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/document"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 
+	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/internal/jsonschema"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
@@ -50,7 +52,7 @@ func (rm *RequestMapper) ToConverseInput(req *llm.Request) (*bedrockruntime.Conv
 		Messages:                     p.messages,
 		System:                       p.system,
 		InferenceConfig:              p.infConfig,
-		AdditionalModelRequestFields: p.thinking,
+		AdditionalModelRequestFields: p.additionalFields,
 		ToolConfig:                   p.tools,
 		OutputConfig:                 p.outputConfig,
 	}, nil
@@ -58,6 +60,10 @@ func (rm *RequestMapper) ToConverseInput(req *llm.Request) (*bedrockruntime.Conv
 
 // ToConverseStreamInput converts an llm.Request to a bedrockruntime.ConverseStreamInput.
 func (rm *RequestMapper) ToConverseStreamInput(req *llm.Request) (*bedrockruntime.ConverseStreamInput, error) {
+	if err := validateStreamingResponseFormat(rm.config.APIModelID, req.ResponseFormat); err != nil {
+		return nil, err
+	}
+
 	p, err := rm.buildConverseParams(req)
 	if err != nil {
 		return nil, err
@@ -68,7 +74,7 @@ func (rm *RequestMapper) ToConverseStreamInput(req *llm.Request) (*bedrockruntim
 		Messages:                     p.messages,
 		System:                       p.system,
 		InferenceConfig:              p.infConfig,
-		AdditionalModelRequestFields: p.thinking,
+		AdditionalModelRequestFields: p.additionalFields,
 		ToolConfig:                   p.tools,
 		OutputConfig:                 p.outputConfig,
 	}, nil
@@ -76,11 +82,11 @@ func (rm *RequestMapper) ToConverseStreamInput(req *llm.Request) (*bedrockruntim
 
 // converseParams holds the resolved fields shared by Converse and ConverseStream.
 type converseParams struct {
-	messages  []types.Message
-	system    []types.SystemContentBlock
-	infConfig *types.InferenceConfiguration
-	thinking  document.Interface
-	tools     *types.ToolConfiguration
+	messages         []types.Message
+	system           []types.SystemContentBlock
+	infConfig        *types.InferenceConfiguration
+	additionalFields document.Interface
+	tools            *types.ToolConfiguration
 	// outputConfig carries structured-output constraints (Converse
 	// outputConfig.textFormat).
 	outputConfig *types.OutputConfig
@@ -99,8 +105,9 @@ func (rm *RequestMapper) buildConverseParams(req *llm.Request) (*converseParams,
 		infConfig: rm.buildInferenceConfig(),
 	}
 
+	var additional map[string]any
 	if rm.config.EnableThinking || rm.config.ReasoningEffort != nil {
-		p.thinking = rm.buildThinkingFields()
+		additional = rm.buildThinkingFields()
 	}
 
 	if len(req.Tools) > 0 {
@@ -118,7 +125,28 @@ func (rm *RequestMapper) buildConverseParams(req *llm.Request) (*converseParams,
 		}
 	}
 
+	// OpenAI's Converse contract requires strict outside outputConfig.
+	// Other publishers must not receive OpenAI-specific request fields.
+	// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-1-sol.html
+	if p.outputConfig != nil && requiresConverseStrict(rm.config.APIModelID) {
+		if additional == nil {
+			additional = make(map[string]any)
+		}
+
+		additional["text"] = map[string]any{"format": map[string]any{"strict": true}}
+	}
+
+	if len(additional) > 0 {
+		p.additionalFields = document.NewLazyDocument(additional)
+	}
+
 	return p, nil
+}
+
+// requiresConverseStrict limits the extra field to the documented GPT-6 contracts.
+func requiresConverseStrict(modelID string) bool {
+	offering, ok := lookupModel(modelID)
+	return ok && (offering.Model == catalog.ModelGPT6Astra || offering.Model == catalog.ModelGPT6Sol || offering.Model == catalog.ModelGPT6_1Sol || offering.Model == catalog.ModelGPT6Luna)
 }
 
 // applyResponseFormat sets Converse's outputConfig.textFormat from a
@@ -215,17 +243,17 @@ func (rm *RequestMapper) buildInferenceConfig() *types.InferenceConfiguration {
 	return &cfg
 }
 
-// buildThinkingFields returns the additionalModelRequestFields document for
+// buildThinkingFields returns additionalModelRequestFields entries for
 // the configured thinking mode.
-func (rm *RequestMapper) buildThinkingFields() document.Interface {
+func (rm *RequestMapper) buildThinkingFields() map[string]any {
 	// A manual budget (WithThinking) requests classic extended thinking.
 	if rm.config.BudgetTokens > 0 {
-		return document.NewLazyDocument(map[string]any{
+		return map[string]any{
 			"thinking": map[string]any{
 				"type":          "enabled",
 				"budget_tokens": rm.config.BudgetTokens,
 			},
-		})
+		}
 	}
 
 	// Otherwise thinking is adaptive: the model decides how long to think,
@@ -241,7 +269,7 @@ func (rm *RequestMapper) buildThinkingFields() document.Interface {
 		}
 	}
 
-	return document.NewLazyDocument(fields)
+	return fields
 }
 
 // mapMessages converts llm.Messages to Bedrock Converse types, separating system messages.
@@ -359,6 +387,29 @@ func (rm *RequestMapper) mapAssistantMessage(msg llm.Message) (types.Message, er
 			continue
 
 		case *llm.ReasoningPart:
+			// Redacted reasoning goes back as the original redactedContent
+			// bytes (see redactedReasoningPart), never as reasoning text, and
+			// only when this provider recorded it (see
+			// reasoningMetadataRedactedProvider). A part with no decodable
+			// payload has nothing to replay: skip it rather than fail every
+			// later turn of the session.
+			if redacted, _ := p.Metadata[reasoningMetadataRedacted].(bool); redacted {
+				if producer, _ := p.Metadata[reasoningMetadataRedactedProvider].(string); producer != ProviderName {
+					continue
+				}
+
+				data, err := base64.StdEncoding.DecodeString(p.Signature)
+				if err != nil || len(data) == 0 {
+					continue
+				}
+
+				apiMsg.Content = append(apiMsg.Content, &types.ContentBlockMemberReasoningContent{
+					Value: &types.ReasoningContentBlockMemberRedactedContent{Value: data},
+				})
+
+				continue
+			}
+
 			// Pass reasoning traces back as reasoning content blocks
 			if p.Text != "" || p.Signature != "" {
 				apiMsg.Content = append(apiMsg.Content, &types.ContentBlockMemberReasoningContent{
@@ -500,4 +551,20 @@ func (rm *RequestMapper) mapToolChoice(choice *llm.ToolChoice) (types.ToolChoice
 	default:
 		return nil, fmt.Errorf("unsupported tool choice type: %s", choice.Type)
 	}
+}
+
+// Each offering records its endpoint-specific non-streaming schema contract.
+// Astra limits runtime schemas to non-streaming; Sol and Luna apply that
+// limit to both endpoints. GPT-6.1 Sol explicitly supports streaming schemas.
+// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-luna.html
+func validateStreamingResponseFormat(modelID string, format *llm.ResponseFormat) error {
+	if format == nil || format.Type != llm.ResponseFormatJSONSchema {
+		return nil
+	}
+
+	if offering, ok := lookupModel(modelID); ok && offering.Attributes[ModelMetadataStructuredOutputStreaming] == "false" {
+		return fmt.Errorf("%w: %s JSON schema output requires non-streaming requests", llm.ErrUnsupportedFeature, modelID)
+	}
+
+	return nil
 }

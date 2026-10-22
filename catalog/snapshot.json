@@ -625,7 +625,8 @@
               "xhigh",
               "max"
             ],
-            "adaptive": true
+            "adaptive": true,
+            "thinking_prefix_check": true
           },
           "pricing": {
             "default": {
@@ -761,7 +762,8 @@
               "xhigh",
               "max"
             ],
-            "adaptive": true
+            "adaptive": true,
+            "thinking_prefix_check": true
           },
           "pricing": {
             "default": {
@@ -1319,7 +1321,8 @@
               "xhigh",
               "max"
             ],
-            "adaptive": true
+            "adaptive": true,
+            "thinking_prefix_check": true
           },
           "speeds": [
             "standard",
@@ -1624,14 +1627,15 @@
               "xhigh",
               "max"
             ],
-            "adaptive": true
+            "adaptive": true,
+            "thinking_prefix_check": true
           },
           "pricing": {
             "default": {
               "base": {
                 "input_microcents_per_million": 200000000,
                 "output_microcents_per_million": 1000000000,
-                "cached_input_microcents_per_million": 20000000,
+                "cached_input_microcents_per_million": 10000000,
                 "cache_creation_5m_microcents_per_million": 250000000,
                 "cache_creation_1h_microcents_per_million": 400000000
               }
@@ -2237,6 +2241,88 @@
           "derived": {
             "price_tier": "medium",
             "replacement": "anthropic/claude-sonnet-5"
+          }
+        },
+        {
+          "id": "au.anthropic.claude-sonnet-5-5",
+          "model": "anthropic/claude-sonnet-5-5",
+          "display_name": "Claude Sonnet 5.5 (AU)",
+          "wire_apis": [
+            {
+              "protocol": "anthropic_messages",
+              "transport": "bedrock_invoke_model"
+            },
+            {
+              "protocol": "anthropic_messages",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "bedrock_converse",
+              "transport": "bedrock_runtime"
+            }
+          ],
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": false,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "stop"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 220000000,
+                "output_microcents_per_million": 1100000000,
+                "cached_input_microcents_per_million": 11000000,
+                "cache_creation_5m_microcents_per_million": 275000000,
+                "cache_creation_1h_microcents_per_million": 440000000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "au"
+            }
+          ],
+          "derived": {
+            "price_tier": "medium"
           }
         },
         {
@@ -3278,7 +3364,7 @@
               "base": {
                 "input_microcents_per_million": 220000000,
                 "output_microcents_per_million": 1100000000,
-                "cached_input_microcents_per_million": 22000000,
+                "cached_input_microcents_per_million": 11000000,
                 "cache_creation_5m_microcents_per_million": 275000000,
                 "cache_creation_1h_microcents_per_million": 440000000
               }
@@ -4519,7 +4605,7 @@
               "base": {
                 "input_microcents_per_million": 200000000,
                 "output_microcents_per_million": 1000000000,
-                "cached_input_microcents_per_million": 20000000,
+                "cached_input_microcents_per_million": 10000000,
                 "cache_creation_5m_microcents_per_million": 250000000,
                 "cache_creation_1h_microcents_per_million": 400000000
               }
@@ -4637,10 +4723,100 @@
             {
               "key": "inference_geo",
               "value": "global"
+            },
+            {
+              "key": "structured_output_streaming",
+              "value": "false"
             }
           ],
           "derived": {
             "price_tier": "high"
+          }
+        },
+        {
+          "id": "global.openai.gpt-6-luna",
+          "model": "openai/gpt-6-luna",
+          "display_name": "OpenAI GPT-6 Luna (Global)",
+          "wire_apis": [
+            {
+              "protocol": "bedrock_converse",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_chat_completions",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_responses",
+              "transport": "bedrock_runtime"
+            }
+          ],
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {},
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 10000000,
+                "output_microcents_per_million": 50000000,
+                "cached_input_microcents_per_million": 1000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 12500000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 20000000,
+                    "output_microcents_per_million": 75000000,
+                    "cached_input_microcents_per_million": 2000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 25000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-09-22"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "global"
+            },
+            {
+              "key": "structured_output_streaming",
+              "value": "false"
+            }
+          ],
+          "derived": {
+            "price_tier": "low"
           }
         },
         {
@@ -4718,6 +4894,10 @@
             {
               "key": "inference_geo",
               "value": "global"
+            },
+            {
+              "key": "structured_output_streaming",
+              "value": "false"
             }
           ],
           "derived": {
@@ -4791,7 +4971,31 @@
                   }
                 }
               ]
-            }
+            },
+            "overrides": [
+              {
+                "service_tier": "ultrafast",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 1200000000,
+                    "output_microcents_per_million": 6000000000,
+                    "cached_input_microcents_per_million": 60000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 1500000000
+                  },
+                  "brackets": [
+                    {
+                      "min_context_tokens": 272001,
+                      "rates": {
+                        "input_microcents_per_million": 2400000000,
+                        "output_microcents_per_million": 9000000000,
+                        "cached_input_microcents_per_million": 120000000,
+                        "cache_creation_unknown_ttl_microcents_per_million": 3000000000
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
           },
           "lifecycle": {
             "stage": "ga"
@@ -4861,7 +5065,18 @@
                 "input_microcents_per_million": 13000000,
                 "output_microcents_per_million": 40000000
               }
-            }
+            },
+            "overrides": [
+              {
+                "region": "eu-central-1",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 16000000,
+                    "output_microcents_per_million": 48000000
+                  }
+                }
+              }
+            ]
           },
           "lifecycle": {
             "stage": "ga"
@@ -4925,7 +5140,18 @@
                 "input_microcents_per_million": 14000000,
                 "output_microcents_per_million": 40000000
               }
-            }
+            },
+            "overrides": [
+              {
+                "region": "eu-central-1",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 17000000,
+                    "output_microcents_per_million": 48000000
+                  }
+                }
+              }
+            ]
           },
           "lifecycle": {
             "stage": "ga"
@@ -4989,7 +5215,18 @@
                 "input_microcents_per_million": 4000000,
                 "output_microcents_per_million": 8000000
               }
-            }
+            },
+            "overrides": [
+              {
+                "region": "eu-central-1",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 5000000,
+                    "output_microcents_per_million": 10000000
+                  }
+                }
+              }
+            ]
           },
           "lifecycle": {
             "stage": "ga"
@@ -5548,7 +5785,45 @@
                 "input_microcents_per_million": 50000000,
                 "output_microcents_per_million": 150000000
               }
-            }
+            },
+            "overrides": [
+              {
+                "region": "ap-south-1",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 59000000,
+                    "output_microcents_per_million": 176000000
+                  }
+                }
+              },
+              {
+                "region": "ap-northeast-1",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 61000000,
+                    "output_microcents_per_million": 182000000
+                  }
+                }
+              },
+              {
+                "region": "sa-east-1",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 61000000,
+                    "output_microcents_per_million": 182000000
+                  }
+                }
+              },
+              {
+                "region": "ap-southeast-2",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 51500000,
+                    "output_microcents_per_million": 154500000
+                  }
+                }
+              }
+            ]
           },
           "lifecycle": {
             "stage": "ga"
@@ -5630,7 +5905,8 @@
             "stage": "ga"
           },
           "derived": {
-            "price_tier": "low"
+            "price_tier": "low",
+            "replacement": "openai/gpt-6-luna"
           }
         },
         {
@@ -5892,6 +6168,94 @@
           }
         },
         {
+          "id": "openai.gpt-6-luna",
+          "model": "openai/gpt-6-luna",
+          "display_name": "OpenAI GPT-6 Luna",
+          "wire_apis": [
+            {
+              "protocol": "openai_chat_completions",
+              "transport": "bedrock_mantle"
+            },
+            {
+              "protocol": "openai_responses",
+              "transport": "bedrock_mantle"
+            }
+          ],
+          "capabilities": {
+            "audio": false,
+            "json_mode": true,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "reasoning_effort"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 11000000,
+                "output_microcents_per_million": 55000000,
+                "cached_input_microcents_per_million": 1100000,
+                "cache_creation_unknown_ttl_microcents_per_million": 13750000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 22000000,
+                    "output_microcents_per_million": 82500000,
+                    "cached_input_microcents_per_million": 2200000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 27500000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-09-22"
+          },
+          "attributes": [
+            {
+              "key": "structured_output_streaming",
+              "value": "false"
+            }
+          ],
+          "derived": {
+            "price_tier": "low"
+          }
+        },
+        {
           "id": "openai.gpt-6-sol",
           "model": "openai/gpt-6-sol",
           "display_name": "OpenAI GPT-6 Sol",
@@ -5968,6 +6332,12 @@
           "lifecycle": {
             "stage": "ga"
           },
+          "attributes": [
+            {
+              "key": "structured_output_streaming",
+              "value": "false"
+            }
+          ],
           "derived": {
             "price_tier": "medium",
             "replacement": "openai/gpt-6.1-sol"
@@ -6044,7 +6414,31 @@
                   }
                 }
               ]
-            }
+            },
+            "overrides": [
+              {
+                "service_tier": "ultrafast",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 1320000000,
+                    "output_microcents_per_million": 6600000000,
+                    "cached_input_microcents_per_million": 66000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 1650000000
+                  },
+                  "brackets": [
+                    {
+                      "min_context_tokens": 272001,
+                      "rates": {
+                        "input_microcents_per_million": 2640000000,
+                        "output_microcents_per_million": 9900000000,
+                        "cached_input_microcents_per_million": 132000000,
+                        "cache_creation_unknown_ttl_microcents_per_million": 3300000000
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
           },
           "lifecycle": {
             "stage": "ga"
@@ -7275,7 +7669,7 @@
               "base": {
                 "input_microcents_per_million": 220000000,
                 "output_microcents_per_million": 1100000000,
-                "cached_input_microcents_per_million": 22000000,
+                "cached_input_microcents_per_million": 11000000,
                 "cache_creation_5m_microcents_per_million": 275000000,
                 "cache_creation_1h_microcents_per_million": 440000000
               }
@@ -7393,10 +7787,100 @@
             {
               "key": "inference_geo",
               "value": "us"
+            },
+            {
+              "key": "structured_output_streaming",
+              "value": "false"
             }
           ],
           "derived": {
             "price_tier": "high"
+          }
+        },
+        {
+          "id": "us.openai.gpt-6-luna",
+          "model": "openai/gpt-6-luna",
+          "display_name": "OpenAI GPT-6 Luna (US)",
+          "wire_apis": [
+            {
+              "protocol": "bedrock_converse",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_chat_completions",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_responses",
+              "transport": "bedrock_runtime"
+            }
+          ],
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {},
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 11000000,
+                "output_microcents_per_million": 55000000,
+                "cached_input_microcents_per_million": 1100000,
+                "cache_creation_unknown_ttl_microcents_per_million": 13750000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 22000000,
+                    "output_microcents_per_million": 82500000,
+                    "cached_input_microcents_per_million": 2200000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 27500000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-09-22"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "us"
+            },
+            {
+              "key": "structured_output_streaming",
+              "value": "false"
+            }
+          ],
+          "derived": {
+            "price_tier": "low"
           }
         },
         {
@@ -7474,6 +7958,10 @@
             {
               "key": "inference_geo",
               "value": "us"
+            },
+            {
+              "key": "structured_output_streaming",
+              "value": "false"
             }
           ],
           "derived": {
@@ -7547,7 +8035,31 @@
                   }
                 }
               ]
-            }
+            },
+            "overrides": [
+              {
+                "service_tier": "ultrafast",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 1320000000,
+                    "output_microcents_per_million": 6600000000,
+                    "cached_input_microcents_per_million": 66000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 1650000000
+                  },
+                  "brackets": [
+                    {
+                      "min_context_tokens": 272001,
+                      "rates": {
+                        "input_microcents_per_million": 2640000000,
+                        "output_microcents_per_million": 9900000000,
+                        "cached_input_microcents_per_million": 132000000,
+                        "cache_creation_unknown_ttl_microcents_per_million": 3300000000
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
           },
           "lifecycle": {
             "stage": "ga"
@@ -8727,7 +9239,8 @@
               "xhigh",
               "max"
             ],
-            "adaptive": true
+            "adaptive": true,
+            "thinking_prefix_check": true
           },
           "pricing": {
             "default": {
@@ -8918,7 +9431,8 @@
               "xhigh",
               "max"
             ],
-            "adaptive": true
+            "adaptive": true,
+            "thinking_prefix_check": true
           },
           "pricing": {
             "default": {
@@ -9570,7 +10084,8 @@
               "xhigh",
               "max"
             ],
-            "adaptive": true
+            "adaptive": true,
+            "thinking_prefix_check": true
           },
           "pricing": {
             "default": {
@@ -10036,14 +10551,15 @@
               "xhigh",
               "max"
             ],
-            "adaptive": true
+            "adaptive": true,
+            "thinking_prefix_check": true
           },
           "pricing": {
             "default": {
               "base": {
                 "input_microcents_per_million": 200000000,
                 "output_microcents_per_million": 1000000000,
-                "cached_input_microcents_per_million": 20000000,
+                "cached_input_microcents_per_million": 10000000,
                 "cache_creation_5m_microcents_per_million": 250000000,
                 "cache_creation_1h_microcents_per_million": 400000000
               }
@@ -10055,7 +10571,7 @@
                   "base": {
                     "input_microcents_per_million": 220000000,
                     "output_microcents_per_million": 1100000000,
-                    "cached_input_microcents_per_million": 22000000,
+                    "cached_input_microcents_per_million": 11000000,
                     "cache_creation_5m_microcents_per_million": 275000000,
                     "cache_creation_1h_microcents_per_million": 440000000
                   }
@@ -10067,7 +10583,7 @@
                   "base": {
                     "input_microcents_per_million": 220000000,
                     "output_microcents_per_million": 1100000000,
-                    "cached_input_microcents_per_million": 22000000,
+                    "cached_input_microcents_per_million": 11000000,
                     "cache_creation_5m_microcents_per_million": 275000000,
                     "cache_creation_1h_microcents_per_million": 440000000
                   }
@@ -14367,6 +14883,28 @@
                         "output_microcents_per_million": 3000000000,
                         "cached_input_microcents_per_million": 40000000,
                         "cache_creation_unknown_ttl_microcents_per_million": 1000000000
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "service_tier": "ultrafast",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 1200000000,
+                    "output_microcents_per_million": 6000000000,
+                    "cached_input_microcents_per_million": 60000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 1500000000
+                  },
+                  "brackets": [
+                    {
+                      "min_context_tokens": 272001,
+                      "rates": {
+                        "input_microcents_per_million": 2400000000,
+                        "output_microcents_per_million": 9000000000,
+                        "cached_input_microcents_per_million": 120000000,
+                        "cache_creation_unknown_ttl_microcents_per_million": 3000000000
                       }
                     }
                   ]

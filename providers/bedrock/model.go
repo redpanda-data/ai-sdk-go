@@ -295,6 +295,11 @@ func (m *Model) buildFinalParts(blocks map[int]*contentBlockAccumulator) []llm.P
 					Signature: acc.reasoningSignature,
 				})
 			}
+
+		case blockTypeRedactedReasoning:
+			if len(acc.redactedContent) > 0 {
+				parts = append(parts, redactedReasoningPart(acc.redactedContent))
+			}
 		}
 	}
 
@@ -302,9 +307,10 @@ func (m *Model) buildFinalParts(blocks map[int]*contentBlockAccumulator) []llm.P
 }
 
 const (
-	blockTypeText      = "text"
-	blockTypeToolUse   = "tool_use"
-	blockTypeReasoning = "reasoning"
+	blockTypeText              = "text"
+	blockTypeToolUse           = "tool_use"
+	blockTypeReasoning         = "reasoning"
+	blockTypeRedactedReasoning = "redacted_reasoning"
 )
 
 // contentBlockAccumulator tracks state for a single content block during streaming.
@@ -315,6 +321,7 @@ type contentBlockAccumulator struct {
 	toolArgs           string
 	toolUse            *toolUseData
 	reasoningSignature string
+	redactedContent    []byte
 }
 
 // toolUseData stores tool use information during streaming.
@@ -397,6 +404,14 @@ func processReasoningDelta(acc *contentBlockAccumulator, delta *types.ContentBlo
 		}
 
 		acc.reasoningSignature = rd.Value
+
+	case *types.ReasoningContentBlockDeltaMemberRedactedContent:
+		// Encrypted reasoning: nothing to display, kept for replay.
+		if acc.blockType == "" {
+			acc.blockType = blockTypeRedactedReasoning
+		}
+
+		acc.redactedContent = append(acc.redactedContent, rd.Value...)
 	}
 
 	return nil, false

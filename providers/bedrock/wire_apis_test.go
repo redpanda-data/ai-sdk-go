@@ -48,7 +48,7 @@ func TestCatalogWireAPIs(t *testing.T) {
 			name: "native runtime Messages and versioned InvokeModel are separate bindings",
 			ids: []string{
 				ModelClaudeOpus47US, ModelClaudeOpus48JP, ModelClaudeOpus5AU, ModelClaudeOpus55EU,
-				ModelClaudeSonnet5Global, ModelClaudeSonnet55EU, ModelClaudeHaiku45US, ModelClaudeHaiku55JP,
+				ModelClaudeSonnet5Global, ModelClaudeSonnet55EU, ModelClaudeSonnet55AU, ModelClaudeHaiku45US, ModelClaudeHaiku55JP,
 				ModelClaudeFable5US, ModelClaudeFable5Global, ModelClaudeFable51Global,
 			},
 			want: []catalog.WireAPI{invoke, messages, converse},
@@ -65,14 +65,14 @@ func TestCatalogWireAPIs(t *testing.T) {
 		},
 		{
 			name: "bare OpenAI IDs have only Mantle bindings",
-			ids:  []string{ModelGPT6Astra, ModelGPT61Sol, ModelGPT6Sol, ModelGPT56Sol, ModelGPT56Terra, ModelGPT56Luna},
+			ids:  []string{ModelGPT6Luna, ModelGPT6Astra, ModelGPT61Sol, ModelGPT6Sol, ModelGPT56Sol, ModelGPT56Terra, ModelGPT56Luna},
 			want: []catalog.WireAPI{chatMantle, responsesMantle},
 		},
 		{
 			name: "OpenAI profile IDs have runtime bindings",
 			ids: []string{
 				ModelGPT6AstraUS, ModelGPT6AstraGlobal, ModelGPT61SolUS, ModelGPT61SolGlobal,
-				ModelGPT6SolUS, ModelGPT6SolGlobal,
+				ModelGPT6SolUS, ModelGPT6SolGlobal, ModelGPT6LunaUS, ModelGPT6LunaGlobal,
 			},
 			want: []catalog.WireAPI{converse, chatRuntime, responsesRuntime},
 		},

@@ -92,6 +92,17 @@ func transformMessage(msg llm.Message, finishReason string) genai.Message {
 			continue
 		}
 
+		// Signature-only reasoning (Claude's omitted thinking display) has
+		// no readable content, which the reasoning part schema requires.
+		// Redacted reasoning, marked Metadata["redacted"] by the Anthropic
+		// and Bedrock providers, holds only a display placeholder, which is
+		// not model output either.
+		if rp, ok := part.(*llm.ReasoningPart); ok {
+			if redacted, _ := rp.Metadata["redacted"].(bool); redacted || rp.Text == "" {
+				continue
+			}
+		}
+
 		otelMsg.Parts = append(otelMsg.Parts, transformPart(part))
 	}
 

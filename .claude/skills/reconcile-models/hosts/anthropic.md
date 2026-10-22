@@ -14,6 +14,7 @@ Where the Claude API publishes each fact. Anthropic is also Claude's publisher, 
 | Tool search | `https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool.md` | the model compatibility list |
 | Features by platform | `https://platform.claude.com/docs/en/build-with-claude/overview.md` | which platforms have each feature, and where it is beta |
 | Effort | `https://platform.claude.com/docs/en/build-with-claude/effort.md` | the effort levels each model accepts |
+| Preserved thinking | `https://platform.claude.com/docs/en/build-with-claude/preserved-thinking.md` | the model list under "Keeping the prefix unchanged" |
 
 ## Reading them
 
@@ -26,5 +27,6 @@ Where the Claude API publishes each fact. Anthropic is also Claude's publisher, 
 - Limits: the overview's context window and max output (limit-follow). Max output there is the synchronous Messages API limit; the larger batch limit is a beta.
 - Cache rates: the pricing page lists each model's cache write and cache hit rates. The cache hit share of the input rate differs between models, so copy each rate (price-follow).
 - Thinking: each model page's Thinking row, checked for every model the catalogue carries, not only new ones (capability-follow). "Adaptive" or "Adaptive (always on)" sets `Adaptive`. "Extended" sets `Budget` and adds `thinking_budget` to `SupportedParams`. "Adaptive (extended deprecated)" sets both, with `thinking_budget`. A Default effort of "Not supported" means no effort levels; otherwise the effort page lists them.
+- Thinking prefix check: `Reasoning.ThinkingPrefixCheck` must match the preserved-thinking page's model list (capability-follow). A newly listed model needs the flag, or its replayed thinking can 400 on newer accounts. `TestThinkingPrefixCheckComesFromTheCatalog` pins the set, so update it with the entries (owned-test-update).
 - Tool search: a model on the compatibility list has hosted tool search; one marked unsupported, or absent, doesn't. On Vertex the same list only turns tool search off (vertex-tool-search-one-way).
 - The overview and model pages also list Bedrock and Vertex IDs and say those hosts set their own dates. Take those hosts' facts from their own pages.

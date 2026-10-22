@@ -182,7 +182,7 @@ type mantleModel struct {
 
 	// region is the caller's AWS region; regions is the family's published
 	// bedrock-mantle region set (nil when the family declares none). Both
-	// only feed regionHint.
+	// supply response pricing metadata and regionHint.
 	region  string
 	regions map[string]bool
 }
@@ -191,6 +191,9 @@ type mantleModel struct {
 // model-not-found error.
 func (m *mantleModel) Generate(ctx context.Context, req *llm.Request) (*llm.Response, error) {
 	resp, err := m.Model.Generate(ctx, req)
+	if err == nil && resp != nil && resp.InferenceRegion == "" {
+		resp.InferenceRegion = m.region
+	}
 
 	return resp, m.regionHint(err)
 }
@@ -199,7 +202,15 @@ func (m *mantleModel) Generate(ctx context.Context, req *llm.Request) (*llm.Resp
 // a model-not-found error.
 func (m *mantleModel) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[llm.Event, error] {
 	return func(yield func(llm.Event, error) bool) {
+		if err := validateStreamingResponseFormat(m.def.ID, req.ResponseFormat); err != nil {
+			yield(nil, fmt.Errorf("%w: %w", llm.ErrRequestMapping, err))
+			return
+		}
+
 		for evt, err := range m.Model.GenerateEvents(ctx, req) {
+			if end, ok := evt.(llm.StreamEndEvent); ok && err == nil && end.Error == nil && end.Response != nil && end.Response.InferenceRegion == "" {
+				end.Response.InferenceRegion = m.region
+			}
 			if !yield(evt, m.regionHint(err)) {
 				return
 			}

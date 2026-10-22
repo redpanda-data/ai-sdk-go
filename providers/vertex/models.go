@@ -214,6 +214,9 @@ var (
 // tool search can be off where Anthropic-direct has it on: a new entry
 // starts with claudeCaps, and a person turns it on once a call on Vertex
 // returns a tool search result (RULES.md vertex-tool-search-one-way).
+// The four preserved-thinking models also enforce prefix checks on Google
+// Cloud; see platform.claude.com/docs/en/build-with-claude/preserved-thinking
+// (verified 2026-10-21). Their flags drive the shared Anthropic mapper.
 //
 // Lifecycle does not mirror them: each entry's Available is when Vertex
 // began serving the model (its model page's Release date). Retires is set
@@ -532,7 +535,11 @@ func entries() []catalog.Entry {
 				// return 400.
 				SupportedParams: []string{"max_tokens", "reasoning_effort"},
 			},
-			Reasoning: catalog.ReasoningSupport{Efforts: claudeAllEfforts, Adaptive: true},
+			Reasoning: catalog.ReasoningSupport{
+				Efforts:             claudeAllEfforts,
+				Adaptive:            true,
+				ThinkingPrefixCheck: true,
+			},
 			// Claude Fable 5.1 GA, retirement floor "No sooner than March 1, 2027"
 			// on the model page (docs.cloud.google.com/gemini-enterprise-agent-
 			// platform/models/partner-models/claude/fable-5-1, read 2026-09-28).
@@ -582,8 +589,9 @@ func entries() []catalog.Entry {
 				SupportedParams: []string{"max_tokens", "reasoning_effort"},
 			},
 			Reasoning: catalog.ReasoningSupport{
-				Efforts:  []llm.ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
-				Adaptive: true,
+				Efforts:             []llm.ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+				Adaptive:            true,
+				ThinkingPrefixCheck: true,
 			},
 			// Claude Opus 5.5 GA, retirement floor "not sooner than 2027-09-22" on
 			// the model page (docs.cloud.google.com/gemini-enterprise-agent-platform/
@@ -709,8 +717,9 @@ func entries() []catalog.Entry {
 				SupportedParams: []string{"max_tokens", "reasoning_effort"},
 			},
 			Reasoning: catalog.ReasoningSupport{
-				Efforts:  []llm.ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
-				Adaptive: true,
+				Efforts:             []llm.ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+				Adaptive:            true,
+				ThinkingPrefixCheck: true,
 			},
 			// GA 2026-09-28; retirement floor 2027-09-28 is not an exact date.
 			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-09-28")},
@@ -804,8 +813,9 @@ func entries() []catalog.Entry {
 				SupportedParams: []string{"max_tokens", "reasoning_effort"},
 			},
 			Reasoning: catalog.ReasoningSupport{
-				Efforts:  []llm.ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
-				Adaptive: true,
+				Efforts:             []llm.ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+				Adaptive:            true,
+				ThinkingPrefixCheck: true,
 			},
 			// Claude Haiku 5.5 GA, released 2026-10-07; retirement floor "not
 			// sooner than: October 7, 2027" is not an exact date
@@ -878,10 +888,14 @@ func claudeOpus55Pricing() pricing.Info {
 }
 
 // claudeSonnet55Pricing returns the Sonnet 5.5 rate card: global, plus
-// global x 1.10 for us and eu.
+// global x 1.10 for us and eu. Standard Cache Hit rows are $0.10/$0.11
+// (Batch Cache Hit rows are $0.05/$0.055), verified 2026-10-16.
+// Current rates only; historical usage is not effective-dated.
+// Source:
+// https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing
 func claudeSonnet55Pricing() pricing.Info {
-	global := pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0)
-	nonGlobal := pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(2.75, 4.40, 0)
+	global := pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(2.50, 4.00, 0)
+	nonGlobal := pricing.NewRates(2.20, 11.00, 0.11).WithCacheCreation(2.75, 4.40, 0)
 
 	info := pricing.FlatInfoFromRates(global)
 	for _, region := range []string{"us", "eu"} {

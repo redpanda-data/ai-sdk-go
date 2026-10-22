@@ -5,7 +5,7 @@ dotenv: ['.env.local', '.env']
 vars:
   BUILD_ROOT: "{{.ROOT_DIR}}/.build"
   BIN_DIR: "{{.BUILD_ROOT}}/.bin"
-  GO_VERSION: 1.26.5
+  GO_VERSION: 1.26.10
   GO_ROOT: "{{.BUILD_ROOT}}/go{{.GO_VERSION}}"
   GO_BIN: "{{.GO_ROOT}}/bin/go"
   MODULE_PATH: github.com/redpanda-data/ai-sdk-go
@@ -127,14 +127,25 @@ tasks:
       - bash run.sh
 
   security:
-    desc: Run security vulnerability checks (govulncheck + osv-scanner)
+    desc: Scan the root and example modules (govulncheck + osv-scanner)
     deps:
       - install:go
       - install:govulncheck
       - install:osv-scanner
     cmds:
-      - 'GOROOT={{.GO_ROOT}} GOTOOLCHAIN=local {{.BIN_DIR}}/govulncheck ./...'
-      - 'GOROOT={{.GO_ROOT}} GOTOOLCHAIN=local {{.BIN_DIR}}/osv-scanner --lockfile go.mod'
+      - |
+        set -eu
+        # Scan each module independently, even if a parent or future go.work exists.
+        export GOWORK=off GOROOT="{{.GO_ROOT}}" GOTOOLCHAIN=local PATH="{{.GO_ROOT}}/bin:$PATH"
+        status=0
+        for mod in go.mod examples/*/go.mod; do
+          dir=$(dirname "$mod")
+          echo "==> scanning $dir (govulncheck + OSV)"
+          # Show every scanner's findings before failing the task.
+          (cd "$dir" && "{{.BIN_DIR}}/govulncheck" ./...) || status=1
+          (cd "$dir" && "{{.BIN_DIR}}/osv-scanner" scan source --lockfile=go.mod) || status=1
+        done
+        exit "$status"
 
   catalog:snapshot:
     desc: Regenerate the committed model-catalog snapshot (catalog/snapshot.json)

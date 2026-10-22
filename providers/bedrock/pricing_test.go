@@ -53,6 +53,10 @@ var noCacheModels = map[string]bool{
 // TTL-specific usage bucket. Their write rate must therefore live only in
 // CacheCreationUnknownTTLPerMillion.
 var unknownTTLCacheModels = map[string]bool{
+	ModelGPT6Luna:       true,
+	ModelGPT6LunaUS:     true,
+	ModelGPT6LunaGlobal: true,
+
 	ModelGPT56Sol:   true,
 	ModelGPT56Terra: true,
 	ModelGPT56Luna:  true,
@@ -170,8 +174,8 @@ func TestGPT56Pricing(t *testing.T) {
 func TestGPT6Pricing(t *testing.T) {
 	t.Parallel()
 
-	// Ultrafast is six times Standard on every Astra route, with its own
-	// long-context bracket; zero ultrafast rates mean no Ultrafast card.
+	// Ultrafast is six times Standard on every Astra and GPT-6.1 Sol route,
+	// with its own long-context bracket; zero rates mean no Ultrafast card.
 	tests := []struct {
 		modelID                  string
 		base, long               pricing.Rates
@@ -199,19 +203,25 @@ func TestGPT6Pricing(t *testing.T) {
 			ultrafastLong: pricing.NewRates(132.00, 495.00, 13.20).WithCacheCreation(0, 0, 165.00),
 		},
 		{
-			modelID: ModelGPT61SolGlobal,
-			base:    pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(0, 0, 2.50),
-			long:    pricing.NewRates(4.00, 15.00, 0.20).WithCacheCreation(0, 0, 5.00),
+			modelID:       ModelGPT61SolGlobal,
+			base:          pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(0, 0, 2.50),
+			long:          pricing.NewRates(4.00, 15.00, 0.20).WithCacheCreation(0, 0, 5.00),
+			ultrafast:     pricing.NewRates(12.00, 60.00, 0.60).WithCacheCreation(0, 0, 15.00),
+			ultrafastLong: pricing.NewRates(24.00, 90.00, 1.20).WithCacheCreation(0, 0, 30.00),
 		},
 		{
-			modelID: ModelGPT61SolUS,
-			base:    pricing.NewRates(2.20, 11.00, 0.11).WithCacheCreation(0, 0, 2.75),
-			long:    pricing.NewRates(4.40, 16.50, 0.22).WithCacheCreation(0, 0, 5.50),
+			modelID:       ModelGPT61SolUS,
+			base:          pricing.NewRates(2.20, 11.00, 0.11).WithCacheCreation(0, 0, 2.75),
+			long:          pricing.NewRates(4.40, 16.50, 0.22).WithCacheCreation(0, 0, 5.50),
+			ultrafast:     pricing.NewRates(13.20, 66.00, 0.66).WithCacheCreation(0, 0, 16.50),
+			ultrafastLong: pricing.NewRates(26.40, 99.00, 1.32).WithCacheCreation(0, 0, 33.00),
 		},
 		{
-			modelID: ModelGPT61Sol,
-			base:    pricing.NewRates(2.20, 11.00, 0.11).WithCacheCreation(0, 0, 2.75),
-			long:    pricing.NewRates(4.40, 16.50, 0.22).WithCacheCreation(0, 0, 5.50),
+			modelID:       ModelGPT61Sol,
+			base:          pricing.NewRates(2.20, 11.00, 0.11).WithCacheCreation(0, 0, 2.75),
+			long:          pricing.NewRates(4.40, 16.50, 0.22).WithCacheCreation(0, 0, 5.50),
+			ultrafast:     pricing.NewRates(13.20, 66.00, 0.66).WithCacheCreation(0, 0, 16.50),
+			ultrafastLong: pricing.NewRates(26.40, 99.00, 1.32).WithCacheCreation(0, 0, 33.00),
 		},
 		{
 			modelID: ModelGPT6SolGlobal,
@@ -263,11 +273,11 @@ func TestClaudeSonnet55Pricing(t *testing.T) {
 	global, ok := Catalog().Lookup(ModelClaudeSonnet55Global)
 	require.True(t, ok)
 	assert.Equal(t,
-		pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0),
+		pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(2.50, 4.00, 0),
 		global.Pricing.Default.Base,
 	)
 
-	geoRates := pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(2.75, 4.40, 0)
+	geoRates := pricing.NewRates(2.20, 11.00, 0.11).WithCacheCreation(2.75, 4.40, 0)
 
 	for _, id := range []string{ModelClaudeSonnet55US, ModelClaudeSonnet55EU} {
 		def, ok := Catalog().Lookup(id)
@@ -452,6 +462,104 @@ func TestExpandFamiliesRejectsUnpairedOverrides(t *testing.T) {
 			t.Parallel()
 
 			assert.PanicsWithValue(t, tt.want, func() { expandFamilies([]family{tt.f}) })
+		})
+	}
+}
+
+// Published regional on-demand rates, not a blanket multiplier.
+// https://aws.amazon.com/bedrock/pricing/ (2026-10-15)
+func TestRegionalOnDemandPricing(t *testing.T) {
+	t.Parallel()
+	const (
+		regionVirginia = "us-east-1"
+		regionOregon   = "us-west-2"
+	)
+
+	prices, err := pricing.NewCatalog(pricing.WithSource(Catalog()))
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		model, region string
+		input, output int64
+	}{
+		{ModelGemma431B, regionVirginia, 14_000_000, 40_000_000},
+		{ModelGemma431B, regionFrankfurt, 17_000_000, 48_000_000},
+		{ModelGemma426BA4B, regionFrankfurt, 16_000_000, 48_000_000},
+		{ModelGemma4E2B, regionFrankfurt, 5_000_000, 10_000_000},
+		{ModelMistralLarge3, regionOregon, 50_000_000, 150_000_000},
+		{ModelMistralLarge3, regionMumbai, 59_000_000, 176_000_000},
+		{ModelMistralLarge3, regionTokyo, 61_000_000, 182_000_000},
+		{ModelMistralLarge3, regionSaoPaulo, 61_000_000, 182_000_000},
+		{ModelMistralLarge3, regionSydney, 51_500_000, 154_500_000},
+	} {
+		t.Run(tt.model+"/"+tt.region, func(t *testing.T) {
+			t.Parallel()
+
+			cost, err := prices.Calculate(ProviderName, tt.model, &llm.TokenUsage{InputTokens: 1_000_000, OutputTokens: 1_000_000}, pricing.CalcRequest{Selector: pricing.Selector{Region: tt.region}})
+			require.NoError(t, err)
+			assert.Equal(t, tt.input, cost.Breakdown[pricing.UsageFieldInput])
+			assert.Equal(t, tt.output, cost.Breakdown[pricing.UsageFieldOutput])
+		})
+	}
+}
+
+// Regional Standard cards intentionally estimate other tiers at Standard rates.
+// Fallbacks expose that the requested tier was not priced exactly.
+func TestRegionalNonStandardPricingFallback(t *testing.T) {
+	t.Parallel()
+
+	prices, err := pricing.NewCatalog(pricing.WithSource(Catalog()))
+	require.NoError(t, err)
+
+	requested := pricing.Selector{Region: regionFrankfurt, ServiceTier: llm.ServiceTierPriority}
+	cost, err := prices.Calculate(ProviderName, ModelGemma431B, &llm.TokenUsage{InputTokens: 1_000_000}, pricing.CalcRequest{Selector: requested})
+	require.NoError(t, err)
+	assert.Equal(t, int64(17_000_000), cost.Total)
+	assert.Equal(t, pricing.Selector{Region: regionFrankfurt}, cost.AppliedSelector)
+	assert.Equal(t, []pricing.Fallback{{Requested: requested, Resolved: pricing.Selector{Region: regionFrankfurt}}}, cost.Fallbacks)
+}
+
+func TestGPT6LunaPricing(t *testing.T) {
+	t.Parallel()
+
+	prices, err := pricing.NewCatalog(pricing.WithSource(Catalog()))
+	require.NoError(t, err)
+
+	globalBase := pricing.NewRates(0.10, 0.50, 0.01).WithCacheCreation(0, 0, 0.125)
+	globalLong := pricing.NewRates(0.20, 0.75, 0.02).WithCacheCreation(0, 0, 0.25)
+	usBase := pricing.NewRates(0.11, 0.55, 0.011).WithCacheCreation(0, 0, 0.1375)
+
+	usLong := pricing.NewRates(0.22, 0.825, 0.022).WithCacheCreation(0, 0, 0.275)
+	for _, tt := range []struct {
+		id          string
+		short, long pricing.Rates
+	}{
+		{"global.openai.gpt-6-luna", globalBase, globalLong},
+		{"us.openai.gpt-6-luna", usBase, usLong},
+		{"openai.gpt-6-luna", usBase, usLong},
+	} {
+		t.Run(tt.id, func(t *testing.T) {
+			t.Parallel()
+
+			for _, tokens := range []int64{272_000, 272_001} {
+				cost, err := prices.Calculate(ProviderName, tt.id, &llm.TokenUsage{
+					InputTokens:                   1_000_000,
+					CachedInputTokens:             1_000_000,
+					CacheCreationUnknownTTLTokens: 1_000_000,
+					OutputTokens:                  1_000_000,
+				}, pricing.CalcRequest{ContextTokens: tokens})
+				require.NoError(t, err)
+
+				want := tt.short
+				if tokens > 272_000 {
+					want = tt.long
+				}
+
+				assert.Equal(t, want.InputPerMillion, cost.Breakdown[pricing.UsageFieldInput])
+				assert.Equal(t, want.CachedInputPerMillion, cost.Breakdown[pricing.UsageFieldCachedInput])
+				assert.Equal(t, want.CacheCreationUnknownTTLPerMillion, cost.Breakdown[pricing.UsageFieldCacheCreationUnknownTTL])
+				assert.Equal(t, want.OutputPerMillion, cost.Breakdown[pricing.UsageFieldOutput])
+			}
 		})
 	}
 }

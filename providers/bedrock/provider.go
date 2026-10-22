@@ -141,7 +141,10 @@ func (*Provider) Name() llm.ProviderID {
 	return ProviderName
 }
 
-// WithAWSConfig sets a pre-loaded AWS configuration.
+// WithAWSConfig sets a pre-loaded AWS configuration. Its Region supplies
+// direct-response InferenceRegion metadata; WithRegion is ignored when an
+// explicit AWS configuration is supplied.
+// A custom endpoint or proxy may execute in a different region.
 func WithAWSConfig(awsCfg aws.Config) ProviderOption {
 	return func(cfg *providerConfig) error {
 		cfg.awsCfg = &awsCfg
@@ -162,7 +165,9 @@ func WithHTTPClient(client *http.Client) ProviderOption {
 	}
 }
 
-// WithRegion sets the AWS region for the Bedrock endpoint.
+// WithRegion sets the AWS region for the Bedrock endpoint. Direct responses
+// report this configured region; custom endpoints or proxies may execute
+// elsewhere. Cross-region profiles do not report it as InferenceRegion.
 func WithRegion(region string) ProviderOption {
 	return func(cfg *providerConfig) error {
 		if region == "" {
@@ -285,13 +290,15 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 		return newMantleModel(p, cfg, modelDef)
 	}
 
+	responseMapper := NewResponseMapper(modelDef, WithResponseMapperRegion(p.region))
+
 	return &Model{
 		provider:       p,
 		config:         cfg,
 		definition:     modelDef,
 		client:         p.client,
 		requestMapper:  NewRequestMapper(cfg),
-		responseMapper: NewResponseMapper(modelDef),
+		responseMapper: responseMapper,
 	}, nil
 }
 

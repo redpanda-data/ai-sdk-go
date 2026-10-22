@@ -21,7 +21,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -543,4 +545,78 @@ func TestMantleTransport_AnonymousForwardsUnsigned(t *testing.T) {
 
 	// No signing, and the placeholder bearer is still stripped.
 	assert.Empty(t, capture.req.Header.Get("Authorization"))
+}
+
+// Luna documents non-streaming schemas on both endpoints; Astra only on
+// runtime. Sol also limits both endpoints; GPT-6.1 Sol supports both modes.
+// Exercise the public Mantle path to prevent a blanket GPT-6 ban.
+func TestMantleStreamingSchema(t *testing.T) {
+	t.Parallel()
+	const credential = "test"
+
+	for _, tt := range []struct {
+		id       string
+		rejected bool
+	}{
+		{ModelGPT6Luna, true},
+		{ModelGPT6Astra, false},
+		{ModelGPT6Sol, true},
+		{ModelGPT61Sol, false},
+	} {
+		t.Run(tt.id, func(t *testing.T) {
+			t.Parallel()
+			var requests atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				requests.Add(1)
+				w.Header().Set("Content-Type", "text/event-stream")
+
+				response := fmt.Sprintf(`{"id":"resp_test","model":%q,"status":"completed",`+
+					`"output":[{"id":"msg_test","type":"message","role":"assistant","status":"completed",`+
+					`"content":[{"type":"output_text","text":"{\"ok\":true}","annotations":[]}]}],`+
+					`"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`, tt.id)
+				_, _ = fmt.Fprintf(w, "event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":%s}\n\n", response)
+			}))
+			t.Cleanup(server.Close)
+			provider, err := NewProvider(context.Background(), WithAWSConfig(aws.Config{
+				Region: "us-east-1", BaseEndpoint: aws.String(server.URL),
+				Credentials: aws.CredentialsProviderFunc(func(context.Context) (aws.Credentials, error) {
+					return aws.Credentials{AccessKeyID: credential, SecretAccessKey: credential}, nil
+				}),
+			}), WithNoAuth())
+			require.NoError(t, err)
+			model, err := provider.NewModel(tt.id)
+			require.NoError(t, err)
+
+			req := &llm.Request{ResponseFormat: &llm.ResponseFormat{Type: llm.ResponseFormatJSONSchema, JSONSchema: &llm.JSONSchema{Name: "answer", Schema: json.RawMessage(`{"type":"object","properties":{"ok":{"type":"boolean"}},"required":["ok"],"additionalProperties":false}`)}}}
+
+			var ended, rejected bool
+			for event, err := range model.GenerateEvents(context.Background(), req) {
+				if tt.rejected {
+					require.ErrorIs(t, err, llm.ErrUnsupportedFeature)
+					require.ErrorIs(t, err, llm.ErrRequestMapping)
+
+					rejected = true
+
+					continue
+				}
+
+				require.NoError(t, err)
+
+				if end, ok := event.(llm.StreamEndEvent); ok {
+					require.NoError(t, end.Error)
+
+					ended = true
+				}
+			}
+
+			assert.Equal(t, tt.rejected, rejected)
+			assert.Equal(t, !tt.rejected, ended)
+
+			if tt.rejected {
+				assert.Zero(t, requests.Load())
+			} else {
+				assert.Equal(t, int32(1), requests.Load())
+			}
+		})
+	}
 }

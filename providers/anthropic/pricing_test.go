@@ -124,3 +124,16 @@ func findFastOverride(overrides []pricing.Override) (pricing.RateCard, bool) {
 
 	return pricing.RateCard{}, false
 }
+
+// Sonnet 5.5 cache hits use 0.05x input; Sonnet 5 still uses 0.10x.
+// https://platform.claude.com/docs/en/about-claude/pricing
+func TestClaudeSonnet55Pricing(t *testing.T) {
+	t.Parallel()
+
+	o, ok := Catalog().Lookup(ModelClaudeSonnet55)
+	require.True(t, ok)
+
+	base := o.Pricing.Default.Base
+	assert.Equal(t, pricing.NewRates(2, 10, 0.10).WithCacheCreation(2.50, 4, 0), base)
+	assert.Equal(t, base.InputPerMillion, 20*base.CachedInputPerMillion, "Sonnet 5.5 cache reads cost 5% of input")
+}

@@ -451,7 +451,8 @@ func entries() []catalog.Entry {
 			catalog.MustDate("2026-09-29"),
 			// Per M tokens: $2.00 input, $10.00 output, $0.10 cached input, $2.50 cache write.
 			// Above 272K: $4.00 input, $15.00 output, $0.20 cached input, $5.00 cache write.
-			// developers.openai.com/api/docs/pricing lists no Ultrafast rate for it.
+			// Ultrafast rates (6x Standard), verified 2026-10-15:
+			// https://developers.openai.com/api/docs/pricing
 			pricing.TieredInfo(
 				pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(0, 0, 2.50),
 				pricing.Bracket{MinContextTokens: 272_001, Rates: pricing.NewRates(4.00, 15.00, 0.20).WithCacheCreation(0, 0, 5.00)},
@@ -467,6 +468,10 @@ func entries() []catalog.Entry {
 				WithOverride(fastTier, tieredCard(
 					pricing.NewRates(4.00, 20.00, 0.20).WithCacheCreation(0, 0, 5.00),
 					pricing.NewRates(8.00, 30.00, 0.40).WithCacheCreation(0, 0, 10.00),
+				)).
+				WithOverride(ultrafastTier, tieredCard(
+					pricing.NewRates(12.00, 60.00, 0.60).WithCacheCreation(0, 0, 15.00),
+					pricing.NewRates(24.00, 90.00, 1.20).WithCacheCreation(0, 0, 30.00),
 				))),
 
 		// GPT-5.6 Series

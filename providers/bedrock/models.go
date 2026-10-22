@@ -23,6 +23,15 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/pricing"
 )
 
+// Regions with distinct on-demand rate cards.
+const (
+	regionFrankfurt = "eu-central-1"
+	regionMumbai    = "ap-south-1"
+	regionTokyo     = "ap-northeast-1"
+	regionSaoPaulo  = "sa-east-1"
+	regionSydney    = "ap-southeast-2"
+)
+
 // Model ID constants for Claude models on Bedrock.
 //
 // Each logical Claude model is exposed as multiple Bedrock model IDs, one per
@@ -61,12 +70,13 @@ const (
 
 	// ModelClaudeSonnet55 is the bare Bedrock ID for Claude Sonnet 5.5
 	// (inference-profile-only — invoke via one of the prefixed variants).
-	// AWS publishes the global, us., and eu. profiles:
+	// AWS publishes the global, us., eu., and au. profiles:
 	// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-5-5.html
 	ModelClaudeSonnet55       = "anthropic.claude-sonnet-5-5"
 	ModelClaudeSonnet55Global = "global." + ModelClaudeSonnet55
 	ModelClaudeSonnet55US     = "us." + ModelClaudeSonnet55
 	ModelClaudeSonnet55EU     = "eu." + ModelClaudeSonnet55
+	ModelClaudeSonnet55AU     = "au." + ModelClaudeSonnet55
 
 	// ModelClaudeSonnet5 is the bare Bedrock ID for Claude Sonnet 5
 	// (inference-profile-only — invoke via one of the prefixed variants).
@@ -166,6 +176,14 @@ const (
 	ModelClaudeOpus45Global = "global." + ModelClaudeOpus45
 	ModelClaudeOpus45US     = "us." + ModelClaudeOpus45
 	ModelClaudeOpus45EU     = "eu." + ModelClaudeOpus45
+)
+
+// Model IDs for GPT-6 Luna: bare Mantle, or runtime inference profiles.
+// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-luna.html
+const (
+	ModelGPT6Luna       = "openai.gpt-6-luna"
+	ModelGPT6LunaUS     = "us." + ModelGPT6Luna
+	ModelGPT6LunaGlobal = "global." + ModelGPT6Luna
 )
 
 // Model ID constants for Amazon Nova models on Bedrock.
@@ -315,6 +333,11 @@ const ModelMetadataRequiresProviderDataSharing = "requires_provider_data_sharing
 // not part of an offering's identity (Vertex endpoints, OpenAI project
 // residency) it stays out of the catalog.
 const ModelMetadataInferenceGeo = "inference_geo"
+
+// ModelMetadataStructuredOutputStreaming is "false" when the offering supports
+// JSON-schema output only without streaming. An absent value is unspecified;
+// Streaming and StructuredOutput capabilities independently describe support.
+const ModelMetadataStructuredOutputStreaming = "structured_output_streaming"
 
 // InferenceProfileRegion maps an AWS region to the Bedrock cross-region
 // inference profile geographic prefix.
@@ -709,6 +732,30 @@ var (
 		},
 	}}
 
+	// GPT-6.1 Sol Ultrafast: six times Standard, including 30-minute cache writes
+	// (represented in the unknown-TTL bucket). Verified 2026-10-15:
+	// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-1-sol.html
+	gpt61SolUltrafast = []pricing.Override{{
+		Match: pricing.Selector{ServiceTier: llm.ServiceTierUltrafast},
+		RateCard: pricing.RateCard{
+			Base: pricing.NewRates(13.20, 66.00, 0.66).WithCacheCreation(0, 0, 16.50),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(26.40, 99.00, 1.32).WithCacheCreation(0, 0, 33.00),
+			}},
+		},
+	}}
+	gpt61SolUltrafastGlobal = []pricing.Override{{
+		Match: pricing.Selector{ServiceTier: llm.ServiceTierUltrafast},
+		RateCard: pricing.RateCard{
+			Base: pricing.NewRates(12.00, 60.00, 0.60).WithCacheCreation(0, 0, 15.00),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(24.00, 90.00, 1.20).WithCacheCreation(0, 0, 30.00),
+			}},
+		},
+	}}
+
 	gpt56Constraints = llm.ModelConstraints{
 		TemperatureRange: [2]float64{0.0, 2.0},
 		MaxInputTokens:   922000,
@@ -962,22 +1009,25 @@ var bedrockFamilies = []family{
 	},
 	{
 		// Claude Sonnet 5.5 — inference-profile-only on bedrock-runtime. AWS
-		// publishes global, US, and EU profiles (the geo IDs were added to
+		// publishes global, US, EU, and AU profiles (the geo IDs were added to
 		// the model card after launch):
 		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-5-5.html
-		// Rates from the AWS pricing page; cache reads are the standard 0.10x
-		// input, unlike Opus 5.5.
+		// Standard cache hits: $0.10 global/$0.11 geo, verified 2026-10-16.
+		// Current rates only; historical usage is not effective-dated. AWS
+		// dates its 50% cache-read reduction to 2026-10-07; that date is not
+		// evidence of when Anthropic or Google changed their own prices.
+		// https://aws.amazon.com/bedrock/pricing/
 		BareID:         ModelClaudeSonnet55,
 		WireAPIs:       claudeMessagesWireAPIs,
 		Model:          catalog.ModelClaudeSonnet55,
 		DisplayName:    "Claude Sonnet 5.5",
-		Profiles:       []string{"global", "us", "eu"},
+		Profiles:       []string{"global", "us", "eu", "au"},
 		Capabilities:   claudeNoSchemaCaps,
 		Modalities:     claudeModalities,
 		Constraints:    claudeNoSampling1MConstraints,
 		Reasoning:      frontierClaudeThinking,
-		GlobalRates:    &pricing.RateCard{Base: pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0)},
-		Rates:          pricing.RateCard{Base: pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(2.75, 4.40, 0)},
+		GlobalRates:    &pricing.RateCard{Base: pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(2.50, 4.00, 0)},
+		Rates:          pricing.RateCard{Base: pricing.NewRates(2.20, 11.00, 0.11).WithCacheCreation(2.75, 4.40, 0)},
 		ProfileRegions: claudeSonnet55ProfileRegions,
 	},
 	{
@@ -1112,6 +1162,16 @@ var bedrockFamilies = []family{
 		Modalities:    mistralLarge3Modalities,
 		Constraints:   mistralLarge3Constraints,
 		Rates:         pricing.RateCard{Base: pricing.NewRates(0.50, 1.50, 0)},
+		// Published regional Standard rates, checked 2026-10-15.
+		// Other tiers use these Standard estimates with Cost.Fallbacks;
+		// unmatched regions (including US) use the base card with a fallback.
+		// https://aws.amazon.com/bedrock/pricing/
+		Overrides: []pricing.Override{
+			{Match: pricing.Selector{Region: regionMumbai}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.59, 1.76, 0)}},
+			{Match: pricing.Selector{Region: regionTokyo}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.61, 1.82, 0)}},
+			{Match: pricing.Selector{Region: regionSaoPaulo}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.61, 1.82, 0)}},
+			{Match: pricing.Selector{Region: regionSydney}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.515, 1.545, 0)}},
+		},
 	},
 	{
 		// OpenAI GPT-6 Astra — inference-profile-only on bedrock-runtime:
@@ -1127,11 +1187,12 @@ var bedrockFamilies = []family{
 		// reaches the profiles through Converse, which selects no tier, so
 		// these cards price Responses-API usage of the same IDs. Priority
 		// and Flex are unsupported.
-		BareID:      ModelGPT6Astra,
-		WireAPIs:    openAIRuntimeWireAPIs,
-		Model:       catalog.ModelGPT6Astra,
-		DisplayName: "OpenAI GPT-6 Astra",
-		Profiles:    []string{"global", "us"},
+		BareID:            ModelGPT6Astra,
+		NoStreamingSchema: true,
+		WireAPIs:          openAIRuntimeWireAPIs,
+		Model:             catalog.ModelGPT6Astra,
+		DisplayName:       "OpenAI GPT-6 Astra",
+		Profiles:          []string{"global", "us"},
 		// Converse rejects CachePoint blocks for Astra (probed 2026-09-22);
 		// the card lists prompt caching for bedrock-mantle only.
 		NoCachePoints: true,
@@ -1190,15 +1251,81 @@ var bedrockFamilies = []family{
 		Overrides: gpt6AstraUltrafast,
 	},
 	{
+		// GPT-6 Luna runtime profiles: Standard only. Converse rejects explicit
+		// cache points; caching is implicit. JSON Schema is non-streaming only.
+		// No exact EOL; the card's September 22, 2027 date is a floor.
+		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-luna.html
+		BareID:            ModelGPT6Luna,
+		NoStreamingSchema: true,
+		Model:             catalog.ModelGPT6Luna,
+		DisplayName:       "OpenAI GPT-6 Luna",
+		WireAPIs:          openAIRuntimeWireAPIs,
+		Profiles:          []string{"global", "us"},
+		// The Luna and Sol cards publish the same source-region table.
+		ProfileRegions: gpt6SolProfileRegions,
+		NoCachePoints:  true,
+		Capabilities:   gpt6AstraCaps,
+		Modalities:     gpt56Modalities,
+		Constraints:    gpt6AstraConstraints,
+		Reasoning:      converseReasoningNoControls,
+		Life:           catalog.Lifecycle{Available: catalog.MustDate("2026-09-22")},
+		GlobalRates: &pricing.RateCard{
+			Base: pricing.NewRates(0.10, 0.50, 0.01).WithCacheCreation(0, 0, 0.125),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(0.20, 0.75, 0.02).WithCacheCreation(0, 0, 0.25),
+			}},
+		},
+		Rates: pricing.RateCard{
+			Base: pricing.NewRates(0.11, 0.55, 0.011).WithCacheCreation(0, 0, 0.1375),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(0.22, 0.825, 0.022).WithCacheCreation(0, 0, 0.275),
+			}},
+		},
+	},
+	{
+		// Same Standard-tier US premium on Mantle, us-east-1 only.
+		// The Luna JSON Schema section explicitly covers both endpoints and
+		// limits JSON Schema to non-streaming requests (checked 2026-10-16).
+		// 30-minute cache writes use the unknown-TTL bucket; no premium tiers.
+		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-luna.html
+		BareID:            ModelGPT6Luna,
+		NoStreamingSchema: true,
+		Model:             catalog.ModelGPT6Luna,
+		DisplayName:       "OpenAI GPT-6 Luna",
+		WireAPIs:          openAIMantleWireAPIs,
+		BareInvokable:     true,
+		Mantle:            true,
+		MantleRegions:     []string{"us-east-1"},
+		Capabilities:      gpt6AstraMantleCaps,
+		Modalities:        gpt56Modalities,
+		Constraints:       gpt6AstraMantleConstraints,
+		Reasoning:         catalog.ReasoningSupport{Efforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax}},
+		Life:              catalog.Lifecycle{Available: catalog.MustDate("2026-09-22")},
+		Rates: pricing.RateCard{
+			Base: pricing.NewRates(0.11, 0.55, 0.011).WithCacheCreation(0, 0, 0.1375),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(0.22, 0.825, 0.022).WithCacheCreation(0, 0, 0.275),
+			}},
+		},
+	},
+
+	{
 		// OpenAI GPT-6.1 Sol — inference-profile-only on bedrock-runtime:
 		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-1-sol.html
 		// Standard-tier rates from the card (launched 2026-09-29): global
 		// matches OpenAI's rates and US CRIS adds 10%, with a long-context
-		// card above 272K input tokens. The card names no cache-write TTL, so
-		// writes sit in the unknown-TTL bucket. Unprobed: the card documents
-		// Astra's Converse surface, so the family reuses Astra's capabilities
-		// and limits. The card's 131,072 max output tokens exceeds OpenAI's
-		// documented 128,000, so the lower limit stands until probed.
+		// card above 272K input tokens. The 30-minute cache-write TTL sits
+		// in the unknown-TTL bucket. Converse caching is implicit; explicit
+		// cache points remain unsupported. Ultrafast cards also price Responses
+		// usage of these IDs; this SDK still invokes profiles via Converse.
+		// Unprobed: the card documents Astra's Converse surface, so the family
+		// reuses Astra's capability flags and conservative limits. Unlike Astra,
+		// the current card explicitly supports streaming schemas (2026-10-16).
+		// Its 131,072 max output tokens exceeds OpenAI's documented 128,000,
+		// so the lower limit stands until probed.
 		BareID:      ModelGPT61Sol,
 		WireAPIs:    openAIRuntimeWireAPIs,
 		Model:       catalog.ModelGPT6_1Sol,
@@ -1224,6 +1351,8 @@ var bedrockFamilies = []family{
 				Rates:            pricing.NewRates(4.40, 16.50, 0.22).WithCacheCreation(0, 0, 5.50),
 			}},
 		},
+		Overrides:       gpt61SolUltrafast,
+		GlobalOverrides: gpt61SolUltrafastGlobal,
 	},
 	{
 		// OpenAI GPT-6.1 Sol on bedrock-mantle — bare in-region ID, us-east-1
@@ -1250,6 +1379,7 @@ var bedrockFamilies = []family{
 				Rates:            pricing.NewRates(4.40, 16.50, 0.22).WithCacheCreation(0, 0, 5.50),
 			}},
 		},
+		Overrides: gpt61SolUltrafast,
 	},
 	{
 		// OpenAI GPT-6 Sol — inference-profile-only on bedrock-runtime:
@@ -1263,11 +1393,12 @@ var bedrockFamilies = []family{
 		// The card publishes no input cap; the 922K MaxInputTokens is
 		// OpenAI's documented max input, the 1.05M window less the 128K
 		// reserved for output.
-		BareID:      ModelGPT6Sol,
-		WireAPIs:    openAIRuntimeWireAPIs,
-		Model:       catalog.ModelGPT6Sol,
-		DisplayName: "OpenAI GPT-6 Sol",
-		Profiles:    []string{"global", "us"},
+		BareID:            ModelGPT6Sol,
+		NoStreamingSchema: true,
+		WireAPIs:          openAIRuntimeWireAPIs,
+		Model:             catalog.ModelGPT6Sol,
+		DisplayName:       "OpenAI GPT-6 Sol",
+		Profiles:          []string{"global", "us"},
 		// The card lists bedrock-runtime prompt caching for the Responses API
 		// only, not Converse.
 		NoCachePoints: true,
@@ -1300,16 +1431,17 @@ var bedrockFamilies = []family{
 		// only, at the card's "Mantle in-Region" rates, which equal the US
 		// profile's. The card lists effort none through max, as on OpenAI's
 		// own gpt-6-sol; otherwise it shares Astra's mantle surface (unprobed).
-		BareID:        ModelGPT6Sol,
-		WireAPIs:      openAIMantleWireAPIs,
-		Model:         catalog.ModelGPT6Sol,
-		DisplayName:   "OpenAI GPT-6 Sol",
-		BareInvokable: true,
-		Mantle:        true,
-		MantleRegions: []string{"us-east-1"},
-		Capabilities:  gpt6AstraMantleCaps,
-		Modalities:    gpt56Modalities,
-		Constraints:   gpt6AstraMantleConstraints,
+		BareID:            ModelGPT6Sol,
+		NoStreamingSchema: true,
+		WireAPIs:          openAIMantleWireAPIs,
+		Model:             catalog.ModelGPT6Sol,
+		DisplayName:       "OpenAI GPT-6 Sol",
+		BareInvokable:     true,
+		Mantle:            true,
+		MantleRegions:     []string{"us-east-1"},
+		Capabilities:      gpt6AstraMantleCaps,
+		Modalities:        gpt56Modalities,
+		Constraints:       gpt6AstraMantleConstraints,
 		Reasoning: catalog.ReasoningSupport{
 			Efforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 		},
@@ -1390,9 +1522,7 @@ var bedrockFamilies = []family{
 		// Google Gemma 4 family — mantle-only, bare IDs via the
 		// bedrock-mantle Responses endpoint (model cards list Geo/Global =
 		// Not supported). On-demand STANDARD-tier US rates from the AWS
-		// pricing page (Google section, 2026-06); the ~15-20% higher
-		// eu-central-1 rate is not separately modeled (revisit with a
-		// pricing region Override if EU-accurate billing is required). The
+		// pricing page (Google section); Frankfurt has a regional override. The
 		// mantle endpoint bills only input/output for Gemma — no cache
 		// usagetype is published — so cache rates stay zero.
 		BareID:        ModelGemma431B,
@@ -1405,6 +1535,13 @@ var bedrockFamilies = []family{
 		Modalities:    gemma4Modalities,
 		Constraints:   gemma4Context256kConstraints,
 		Rates:         pricing.RateCard{Base: pricing.NewRates(0.14, 0.40, 0)},
+		// Published regional Standard rates, checked 2026-10-15.
+		// Other tiers use these Standard estimates with Cost.Fallbacks;
+		// unmatched regions (including US) use the base card with a fallback.
+		// https://aws.amazon.com/bedrock/pricing/
+		Overrides: []pricing.Override{
+			{Match: pricing.Selector{Region: regionFrankfurt}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.17, 0.48, 0)}},
+		},
 	},
 	{
 		BareID:        ModelGemma426BA4B,
@@ -1417,6 +1554,13 @@ var bedrockFamilies = []family{
 		Modalities:    gemma4Modalities,
 		Constraints:   gemma4Context256kConstraints,
 		Rates:         pricing.RateCard{Base: pricing.NewRates(0.13, 0.40, 0)},
+		// Published regional Standard rates, checked 2026-10-15.
+		// Other tiers use these Standard estimates with Cost.Fallbacks;
+		// unmatched regions (including US) use the base card with a fallback.
+		// https://aws.amazon.com/bedrock/pricing/
+		Overrides: []pricing.Override{
+			{Match: pricing.Selector{Region: regionFrankfurt}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.16, 0.48, 0)}},
+		},
 	},
 	{
 		BareID:        ModelGemma4E2B,
@@ -1429,5 +1573,12 @@ var bedrockFamilies = []family{
 		Modalities:    gemma4Modalities,
 		Constraints:   gemma4Context128kConstraints,
 		Rates:         pricing.RateCard{Base: pricing.NewRates(0.04, 0.08, 0)},
+		// Published regional Standard rates, checked 2026-10-15.
+		// Other tiers use these Standard estimates with Cost.Fallbacks;
+		// unmatched regions (including US) use the base card with a fallback.
+		// https://aws.amazon.com/bedrock/pricing/
+		Overrides: []pricing.Override{
+			{Match: pricing.Selector{Region: regionFrankfurt}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.05, 0.1, 0)}},
+		},
 	},
 }
