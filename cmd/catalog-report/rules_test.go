@@ -15,7 +15,6 @@
 package main
 
 import (
-	"encoding/json"
 	"maps"
 	"os"
 	"path/filepath"
@@ -90,14 +89,7 @@ func TestRulesReachTheAgent(t *testing.T) {
 	assert.Contains(t, string(prompt), ".claude/skills/reconcile-models/hosts/", "the prompt must send the agent to the host pages")
 
 	// Every package a run owns has a how-to page, next to the shared one.
-	raw, err := os.ReadFile(filepath.Join("..", "..", ".github", "reconcile-models", "named-sources.json"))
-	require.NoError(t, err)
-
-	var runs map[string]struct {
-		Providers []string `json:"providers"`
-	}
-	require.NoError(t, json.Unmarshal(raw, &runs))
-
+	runs := namedSources(t)
 	pages := map[string]string{"prompt.md": string(prompt)}
 
 	// Both skills follow RULES.md in every run, so they hold no rule either.
