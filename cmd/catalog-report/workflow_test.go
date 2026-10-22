@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -54,24 +55,40 @@ func namedSources(t *testing.T) map[string]namedSource {
 	return runs
 }
 
-// agentSteps reads the agent job's steps from the workflow file.
-func agentSteps(t *testing.T) []workflowStep {
+// workflowJob is one job in reconcile-models.yml.
+type workflowJob struct {
+	Env   map[string]string `yaml:"env"`
+	Steps []workflowStep    `yaml:"steps"`
+}
+
+// agentJob reads the agent job from the workflow file.
+func agentJob(t *testing.T) workflowJob {
 	t.Helper()
 
 	raw, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", "reconcile-models.yml"))
 	require.NoError(t, err)
 
 	var workflow struct {
-		Jobs map[string]struct {
-			Steps []workflowStep `yaml:"steps"`
-		} `yaml:"jobs"`
+		Jobs map[string]workflowJob `yaml:"jobs"`
 	}
 	require.NoError(t, yaml.Unmarshal(raw, &workflow))
 
-	steps := workflow.Jobs["agent"].Steps
-	require.NotEmpty(t, steps, "the workflow has no agent job steps")
+	job := workflow.Jobs["agent"]
+	require.NotEmpty(t, job.Steps, "the workflow has no agent job steps")
 
-	return steps
+	return job
+}
+
+// claudeStep is the index of the agent job's claude-code-action step.
+func claudeStep(t *testing.T, steps []workflowStep) int {
+	t.Helper()
+
+	i := slices.IndexFunc(steps, func(s workflowStep) bool {
+		return strings.HasPrefix(s.Uses, "anthropics/claude-code-action@")
+	})
+	require.NotEqual(t, -1, i, "the agent job has no claude-code-action step")
+
+	return i
 }
 
 // TestAgentEgressAllowsNamedSources checks that Harden-Runner blocks the agent
@@ -81,7 +98,7 @@ func agentSteps(t *testing.T) []workflowStep {
 func TestAgentEgressAllowsNamedSources(t *testing.T) {
 	t.Parallel()
 
-	first := agentSteps(t)[0]
+	first := agentJob(t).Steps[0]
 	require.True(t, strings.HasPrefix(first.Uses, "step-security/harden-runner@"),
 		"Harden-Runner must be the agent job's first step, got %q", first.Uses)
 	assert.Equal(t, "block", first.With["egress-policy"])
@@ -102,13 +119,24 @@ func TestAgentEgressAllowsNamedSources(t *testing.T) {
 func TestAgentChecksEgressBeforeClaude(t *testing.T) {
 	t.Parallel()
 
-	steps := agentSteps(t)
-	claude := slices.IndexFunc(steps, func(s workflowStep) bool {
-		return strings.HasPrefix(s.Uses, "anthropics/claude-code-action@")
-	})
-	require.NotEqual(t, -1, claude, "the agent job has no claude-code-action step")
+	steps := agentJob(t).Steps
+	claude := claudeStep(t, steps)
 
 	assert.True(t, slices.ContainsFunc(steps[:claude], func(s workflowStep) bool {
 		return strings.Contains(s.Run, ".github/reconcile-models/check-egress.sh")
 	}), "check-egress.sh must run before Claude starts")
+}
+
+// TestAgentCannotReadProcessFiles checks that the agent's file tools are denied
+// /proc and that its shell commands run with the job's secrets scrubbed.
+func TestAgentCannotReadProcessFiles(t *testing.T) {
+	t.Parallel()
+
+	job := agentJob(t)
+	assert.Equal(t, "1", job.Env["CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"], "the agent's shell must run without the job's secrets")
+
+	args := job.Steps[claudeStep(t, job.Steps)].With["claude_args"]
+	disallowed := regexp.MustCompile(`--disallowedTools "([^"]*)"`).FindStringSubmatch(args)
+	require.NotNil(t, disallowed, "the Claude step passes no --disallowedTools list")
+	assert.Contains(t, strings.Split(disallowed[1], ","), "Read(//proc/**)")
 }

@@ -184,6 +184,8 @@ jobs:
             # Edit rights on the Go files of each owned provider.
             echo "edits=$(jq -r --arg p "$PROVIDER" '.[$p].providers | map("Edit(./providers/\(.)/*.go)") | join(",")' "$sources")"
           } >>"$GITHUB_OUTPUT"
+      # Read(//proc/**): any process's environment is readable under /proc,
+      # including this step's model key. The shell already runs without it.
       - name: Run reconcile-models
         id: claude
         uses: anthropics/claude-code-action@6fed3ca145920b639991cb756090506e1bcaf515  # v1
@@ -197,7 +199,7 @@ jobs:
             --max-turns 300
             --append-system-prompt-file .github/reconcile-models/RULES.md
             --allowedTools "Skill,Read,Grep,Glob,${{ steps.inputs.outputs.edits }},Edit(./catalog/facts_data.go),Bash(curl:*),Bash(grep:*),Bash(jq:*),Bash(task catalog:snapshot),Bash(task test:unit),Bash(task lint:new),Bash(git diff:*)"
-            --disallowedTools "WebFetch,WebSearch,Bash(git push:*),Bash(git commit:*),Bash(gh:*),AskUserQuestion,Task,Agent"
+            --disallowedTools "WebFetch,WebSearch,Bash(git push:*),Bash(git commit:*),Bash(gh:*),AskUserQuestion,Task,Agent,Read(//proc/**)"
             --json-schema '${{ steps.inputs.outputs.schema }}'
       - name: Collect patch and report
         # Also after a failed agent step, so the run leaves evidence to inspect.
