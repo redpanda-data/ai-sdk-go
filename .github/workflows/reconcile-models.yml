@@ -109,13 +109,46 @@ jobs:
       contents: read
     env:
       CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
+      # No telemetry, error reports or update checks, so their hosts stay off
+      # the allowlist below.
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"
     steps:
+      # Every later step reaches only these hosts; a request to any other host
+      # fails by itself without failing the job. The list is what recorded runs
+      # reached: the model, the named sources, then installs (Claude Code,
+      # GitHub, Go and its modules, apt). Harden-Runner also always allows
+      # GitHub's Actions domains, private ranges and Azure's VM address.
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
         with:
-          egress-policy: audit
+          egress-policy: block
+          allowed-endpoints: >
+            api.anthropic.com:443
+            platform.claude.com:443
+            cloud.google.com:443
+            docs.cloud.google.com:443
+            aws.amazon.com:443
+            docs.aws.amazon.com:443
+            pricing.us-east-1.amazonaws.com:443
+            downloads.claude.ai:443
+            claude.ai:443
+            registry.npmjs.org:443
+            github.com:443
+            api.github.com:443
+            release-assets.githubusercontent.com:443
+            *.githubapp.com:443
+            go.dev:443
+            dl.google.com:443
+            proxy.golang.org:443
+            sum.golang.org:443
+            storage.googleapis.com:443
+            azure.archive.ubuntu.com:80
+            packages.microsoft.com:443
+            esm.ubuntu.com:443
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
         with:
           persist-credentials: false
+      - name: Check the egress block
+        run: .github/reconcile-models/check-egress.sh
       - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e  # v2.2.0
       # Claude Code needs bubblewrap to scrub secrets from subprocesses. The
       # action installs it only for non-write users, so do it here, the same way.
