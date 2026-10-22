@@ -144,6 +144,7 @@ jobs:
             azure.archive.ubuntu.com:80
             packages.microsoft.com:443
             esm.ubuntu.com:443
+            egress-check-probe.invalid:443
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
         with:
           persist-credentials: false
