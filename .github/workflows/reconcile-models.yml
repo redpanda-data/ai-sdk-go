@@ -206,7 +206,10 @@ jobs:
         env:
           KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
-        run: echo "The model key appears $(grep -cF -- "$KEY" "$EXECUTION_FILE" || true) times in the agent's transcript."
+        run: |
+          echo "The model key appears $(grep -cF -- "$KEY" "$EXECUTION_FILE" || true) times in the agent's transcript."
+          echo "Tool calls that touched /proc:"
+          jq -n -r -f .github/reconcile-models/test-proc-attempts.jq "$EXECUTION_FILE"
       - name: Collect patch and report
         # Also after a failed agent step, so the run leaves evidence to inspect.
         if: always()
