@@ -223,6 +223,8 @@ jobs:
           git diff -- ":(glob)providers/*/*.go" catalog/facts_data.go >out/patch.diff
       - name: Run stats
         if: always()
+        # Diagnostics only: a failure here must not stop the PR job.
+        continue-on-error: true
         env:
           EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
         run: .github/reconcile-models/run-stats.sh "$EXECUTION_FILE" out/report.json
