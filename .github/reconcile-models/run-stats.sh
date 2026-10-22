@@ -25,7 +25,7 @@ stats="$(jq -n -r --arg ws "${GITHUB_WORKSPACE:-$PWD}" '
     (split(" ") | map(select(length > 0) | gsub("[\"\u0027]"; ""))) as $words
     | ($words[0] // "" | sub(".*/"; "") | safe("^[a-z0-9._-]{1,24}$")) as $first
     | if ($first | IN("git", "go", "task", "gh")) then $first + " " + ($words[1] // "" | safe("^[a-z0-9:._-]{1,24}$"))
-      elif $first == "curl" then "curl " + (($words | map(select(test("^https?://"))) | first | capture("^https?://(?<h>[^/?#]+)").h) // "" | safe("^[a-z0-9.-]{1,60}$"))
+      elif $first == "curl" then "curl " + (first($words[] | capture("^https?://(?<h>[^/?#]+)").h) // "" | safe("^[a-z0-9.-]{1,60}$"))
       else $first end;
   # A file path relative to the checkout; one the agent passed relatively keeps a "./" so it stands out.
   def rel: if startswith($ws + "/") then .[($ws | length) + 1:] elif startswith("/") then . else "./" + . end;
