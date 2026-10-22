@@ -27,10 +27,9 @@ import (
 )
 
 // SystemPromptProvider is a function that returns the system prompt for a
-// given request. It is called when preparing each LLM call, and may also be
-// called while recovering interrupted tool calls so their results can be
-// budgeted against the same prompt. It receives both the request context and
-// the invocation metadata so callers can draw from either source:
+// given request. It is called when preparing each LLM call. It receives both
+// the request context and the invocation metadata so callers can draw from
+// either source:
 //
 //   - ctx carries request-scoped values (e.g., authenticated identity
 //     injected by HTTP middleware via [context.WithValue]).
@@ -260,8 +259,7 @@ func WithToolResultLimit(tokens int) Option {
 
 // WithSystemPromptProvider sets a dynamic system prompt provider.
 //
-// When set, the provider is called for every turn that reaches the model, and
-// may also be called during interrupted-tool recovery for context budgeting.
+// When set, the provider is called for every turn that reaches the model.
 // The static systemPrompt argument to [New] is ignored. Pass an empty string
 // for systemPrompt when using a provider.
 //

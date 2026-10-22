@@ -122,7 +122,7 @@ func marshalMarker(part *llm.ToolResponsePart, kind markerKind) json.RawMessage 
 // frontier: everything after the last assistant message. The model has read
 // nothing there, so nothing at or past this index may be pruned or dropped.
 // Derived structurally at call time, never a tracked index -
-// recoverIncompleteToolCalls inserts messages mid-history.
+// repairIncompleteToolCalls inserts messages mid-history.
 func frontierStart(msgs []llm.Message) int {
 	for i, msg := range slices.Backward(msgs) {
 		if msg.Role == llm.RoleAssistant {
