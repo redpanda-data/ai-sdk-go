@@ -137,3 +137,28 @@ func TestRulesReachTheAgent(t *testing.T) {
 		}
 	}
 }
+
+// TestReviewGuideMatchesTheBody checks that REVIEW.md has the section every
+// bot PR body links to, and that each PR body section the guide names in
+// quotes is still one Render writes.
+func TestReviewGuideMatchesTheBody(t *testing.T) {
+	t.Parallel()
+
+	guide, err := os.ReadFile(filepath.Join("..", "..", "REVIEW.md"))
+	require.NoError(t, err)
+
+	_, section, found := strings.Cut(string(guide), "\n## Bot catalog PRs\n")
+	require.True(t, found, `REVIEW.md has no "Bot catalog PRs" section for the PR body's link`)
+
+	section, _, _ = strings.Cut(section, "\n## ")
+
+	renderer, err := os.ReadFile("report.go")
+	require.NoError(t, err)
+
+	names := regexp.MustCompile(`"([A-Z][a-z]+(?: [a-z]+)*)"`).FindAllStringSubmatch(section, -1)
+	require.NotEmpty(t, names, "the guide names no PR body sections")
+
+	for _, name := range names {
+		assert.Contains(t, string(renderer), "### "+name[1], "REVIEW.md names a PR body section %q that Render doesn't write", name[1])
+	}
+}

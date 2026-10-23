@@ -468,9 +468,19 @@ func TestRender(t *testing.T) {
 			report: validReport(),
 			diff:   diff,
 			base:   Base{Branch: "main"},
-			contains: []string{"Each run rebuilds this branch from main. A commit you push here stays, but runs then stop updating this PR until it's merged or closed. " +
-				"To settle a row, merge a fix on main or record a decision in `.github/reconcile-models/decisions.yaml`."},
+			contains: []string{
+				"Each run rebuilds this branch from main. A commit you push here stays, but runs then stop updating this PR until it's merged or closed. " +
+					"To settle a row, merge a fix on main or record a decision in `.github/reconcile-models/decisions.yaml`.",
+				`The "Bot catalog PRs" section of ` + "`REVIEW.md`" + ` says what else to check.`,
+			},
 			notContains: []string{"Don't push", "Comment on the PR instead", "Recorded decisions"},
+		},
+		{
+			name:     "links the review guide at the base commit",
+			report:   validReport(),
+			diff:     diff,
+			base:     Base{URL: baseURL, Branch: "main"},
+			contains: []string{`The "Bot catalog PRs" section of [REVIEW.md](` + baseURL + `/REVIEW.md#bot-catalog-prs) says what else to check.`},
 		},
 		{
 			name:        "names the branch a run from another branch rebuilds from",

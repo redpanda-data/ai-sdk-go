@@ -708,7 +708,7 @@ func Render(report Report, provider, snapshotDiff string, codeFiles []string, ba
 		return body.String()
 	}
 
-	fmt.Fprintf(&body, "Proposed by the reconcile-models workflow. The tables come from the agent's structured report; the PR job checked its format and that every source is a named source. Check each value against its source before approving.\n\nEach run rebuilds this branch from %[1]s. A commit you push here stays, but runs then stop updating this PR until it's merged or closed. To settle a row, merge a fix on %[1]s or record a decision in `.github/reconcile-models/decisions.yaml`. Later runs don't read PR comments.\n\n", base.Branch)
+	fmt.Fprintf(&body, "Proposed by the reconcile-models workflow. The tables come from the agent's structured report; the PR job checked its format and that every source is a named source. Check each value against its source before approving. The \"Bot catalog PRs\" section of %[2]s says what else to check.\n\nEach run rebuilds this branch from %[1]s. A commit you push here stays, but runs then stop updating this PR until it's merged or closed. To settle a row, merge a fix on %[1]s or record a decision in `.github/reconcile-models/decisions.yaml`. Later runs don't read PR comments.\n\n", base.Branch, base.fileLink("REVIEW.md", "REVIEW.md#bot-catalog-prs", 0))
 	body.WriteString(resolveAlert(report.NeedsHuman) + base.waitingAlert(waiting))
 	body.WriteString(base.summary())
 
