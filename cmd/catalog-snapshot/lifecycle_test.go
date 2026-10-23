@@ -164,7 +164,7 @@ func TestReplacementsAreNotThemselvesRetired(t *testing.T) {
 
 // TestBedrockReplacementFollowsPublisher holds every Bedrock ReplacedBy to the
 // model the publisher's own catalogue names, on the global copy when there is
-// one (RULES.md replacement-publisher-pick). No Bedrock copy names a
+// one (RULES.md replacement-pick). No Bedrock copy names a
 // replacement yet, so this binds the first patch that sets one.
 func TestBedrockReplacementFollowsPublisher(t *testing.T) {
 	t.Parallel()

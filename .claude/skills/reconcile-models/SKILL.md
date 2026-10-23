@@ -72,9 +72,8 @@ Facts come only from the hosts' own pages, and code cites only those.
   them. Watch for intro-pricing notes ("introductory through …"); vendors
   sometimes make intro prices permanent.
 - **Limits**: `MaxInputTokens` and `MaxOutputTokens` (limit-follow).
-- **Lifecycle**: dates follow lifecycle-exact-date, and `ReplacedBy`
-  follows replacement-host-pick or replacement-publisher-pick. When the
-  catalog doesn't carry the replacement, follow replacement-not-carried.
+- **Lifecycle**: dates and `ReplacedBy` follow RULES.md
+  (lifecycle-exact-date, replacement-pick, out-of-reach).
   Retirement is append-only: keep the entry, and add a `// Deprecated:` doc
   comment on the ID constant.
 

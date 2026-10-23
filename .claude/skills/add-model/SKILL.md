@@ -107,9 +107,7 @@ Exported ID constant (greppable), capabilities, constraints, modalities,
   model is retired *on* that date.
 - **Lifecycle is a host fact** (RULES.md principle 2, *Host facts*): the
   Gemini API and Vertex schedule Gemini differently.
-- **`Life.ReplacedBy`** follows replacement-host-pick or
-  replacement-publisher-pick. When the catalog doesn't carry the
-  replacement, follow replacement-not-carried.
+- **`Life.ReplacedBy`** follows RULES.md (replacement-pick, out-of-reach).
 - **A retired model keeps its entry** (RULES.md principle 6,
   *Append-only*); `reconcile-models/hosts/shared.md` ("Reading lifecycle
   pages") says how to mark it.
@@ -140,9 +138,9 @@ Bedrock models are one `family` declaration in `models.go`, expanded by
   `TestPublisherMatchesBareIDVendor` pins that vendor against the namespace
   of `BareID` — `anthropic` for `anthropic.claude-opus-5`.
 - Take exact IDs from the model card (`reconcile-models/hosts/bedrock.md`,
-  "IDs and copies"). Register the bare ID (`BareInvokable`) only when the
-  card gives it an endpoint this SDK can call on demand
-  (bare-id-needs-endpoint); that host page says which endpoints count.
+  "IDs and copies"). Register the bare ID (`BareInvokable`) only as RULES.md
+  allows (bare-id-unregistered); that host page says which endpoints
+  count.
 - `reconcile-models/hosts/bedrock.md` says how to confirm an uncertain ID
   ("Probes"), where each rate comes from and which rate card it fills
   ("Prices"), and how to check the geo-to-global ratio ("Self-check").

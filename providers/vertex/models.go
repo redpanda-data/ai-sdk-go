@@ -161,7 +161,7 @@ var claudeCaps = llm.ModelCapabilities{
 // search. The other flags were copied from Anthropic's tool-search list. A
 // model leaves tool search here when Anthropic drops it; turning it on takes a
 // person's call on Vertex (TestVertexToolSearchNeedsAnthropic; RULES.md
-// vertex-tool-search-one-way).
+// vertex-capability-one-way).
 var claudeCapsWithToolSearch = func() llm.ModelCapabilities {
 	caps := claudeCaps
 	caps.ToolSearchProtocol = llm.ToolSearchProtocolAnthropic
@@ -213,7 +213,7 @@ var (
 // thinking budget, which the Anthropic-direct catalog does not set. Claude
 // tool search can be off where Anthropic-direct has it on: a new entry
 // starts with claudeCaps, and a person turns it on once a call on Vertex
-// returns a tool search result (RULES.md vertex-tool-search-one-way).
+// returns a tool search result (RULES.md vertex-capability-one-way).
 // The four preserved-thinking models also enforce prefix checks on Google
 // Cloud; see platform.claude.com/docs/en/build-with-claude/preserved-thinking
 // (verified 2026-10-21). Their flags drive the shared Anthropic mapper.
