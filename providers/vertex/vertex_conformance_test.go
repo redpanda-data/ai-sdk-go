@@ -174,12 +174,11 @@ func (f *VertexFixture) isUngranted(modelName string) bool {
 	return f.publisher == catalog.PublisherAnthropic && !grantedClaudeModels[modelName]
 }
 
-// ungrantedModels lists the current models of this half that Catalog leaves
-// out.
+// ungrantedModels lists every model of this half that Catalog leaves out.
 func (f *VertexFixture) ungrantedModels() []string {
 	var names []string
 
-	for _, o := range f.provider.Catalog().Now().Current() {
+	for _, o := range f.provider.Catalog().All() {
 		if o.Facts().Publisher == f.publisher && f.isUngranted(o.ID) {
 			names = append(names, o.ID)
 		}
@@ -288,6 +287,7 @@ func TestVertexFixtureUngrantedModels(t *testing.T) {
 
 	ungranted := newVertexFixture(provider, catalog.PublisherAnthropic).ungrantedModels()
 	assert.Contains(t, ungranted, vertex.ModelClaudeOpus55)
+	assert.Contains(t, ungranted, vertex.ModelClaudeSonnet45, "an older ungranted model must be named too")
 	assert.NotContains(t, ungranted, vertex.ModelClaudeHaiku45)
 	assert.NotContains(t, ungranted, vertex.ModelClaudeSonnet5)
 
