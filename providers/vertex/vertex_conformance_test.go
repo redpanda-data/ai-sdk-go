@@ -162,7 +162,7 @@ func (f *VertexFixture) Catalog() *catalog.Catalog {
 
 func (f *VertexFixture) NewModel(modelName string) (llm.Model, error) {
 	if f.isUngranted(modelName) {
-		return nil, fmt.Errorf("%s is not granted in %s", modelName, testProject)
+		return nil, fmt.Errorf("vertex: %s is not granted in %s", modelName, testProject)
 	}
 
 	return f.provider.NewModel(modelName)
