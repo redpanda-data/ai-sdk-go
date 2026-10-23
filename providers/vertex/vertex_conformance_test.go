@@ -383,17 +383,14 @@ func TestVertexClaudeStandardModel_SkipsStructuredOutputsWhenDenied(t *testing.T
 	_ = (*conformance.Suite).TestStructuredOutputs
 
 	for name, wantSkip := range map[string]bool{"TestStructuredOutputs": true, "TestGenerate": false} {
-		var skipped bool
-
-		// The subtest is parallel, so it ends only after this function returns.
-		t.Cleanup(func() {
-			assert.Equal(t, wantSkip, skipped, "a denied policy must skip only the structured-outputs test: %s", name)
-		})
-
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			defer func() { skipped = t.Skipped() }()
+			// t.Skipf ends the subtest with runtime.Goexit, which still runs
+			// deferred calls.
+			defer func() {
+				assert.Equal(t, wantSkip, t.Skipped(), "a denied policy must skip only the structured-outputs test")
+			}()
 
 			fixture.NewStandardModel(t)
 		})
