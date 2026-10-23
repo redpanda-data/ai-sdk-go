@@ -148,6 +148,60 @@ func TestAgentChecksEgressBeforeClaude(t *testing.T) {
 	}), "check-egress.sh must run before Claude starts")
 }
 
+// TestEgressCheckWaitsForTheBlock runs check-egress.sh with a stand-in
+// Harden-Runner status file, curl and sleep.
+func TestEgressCheckWaitsForTheBlock(t *testing.T) {
+	t.Parallel()
+
+	script := filepath.Join("..", "..", ".github", "reconcile-models", "check-egress.sh")
+	tests := []struct {
+		name     string
+		on       string // when the status file says Initialized: "start", "late" or never
+		curlExit string // 0 reaches the probe; 7 is a refused connection
+		passes   bool
+	}{
+		{name: "on from the start", on: "start", curlExit: "7", passes: true},
+		{name: "on after a slow start", on: "late", curlExit: "7", passes: true},
+		{name: "never on", curlExit: "7", passes: false},
+		{name: "on, but the probe gets through", on: "start", curlExit: "0", passes: false},
+	}
+
+	// The stand-ins are shared, since a new executable is slow to start the
+	// first time on macOS. The sleep returns at once, writing the status if it's late.
+	stubs := t.TempDir()
+	for name, body := range map[string]string{
+		"curl":  "#!/bin/sh\nexit \"$CURL_EXIT\"\n",
+		"sleep": "#!/bin/sh\n[ -z \"$LATE_STATUS\" ] || printf Initialized >\"$LATE_STATUS\"\n",
+	} {
+		require.NoError(t, os.WriteFile(filepath.Join(stubs, name), []byte(body), 0o700)) //nolint:gosec // stand-ins must be executable
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			status := filepath.Join(t.TempDir(), "agent.status")
+
+			if tt.on == "start" {
+				require.NoError(t, os.WriteFile(status, []byte("Initialized"), 0o600))
+			}
+
+			late := ""
+			if tt.on == "late" {
+				late = status
+			}
+
+			cmd := exec.CommandContext(t.Context(), "bash", script, status)
+
+			cmd.Env = append(os.Environ(), "PATH="+stubs+string(os.PathListSeparator)+os.Getenv("PATH"),
+				"CURL_EXIT="+tt.curlExit, "LATE_STATUS="+late)
+
+			out, err := cmd.CombinedOutput()
+			assert.Equal(t, tt.passes, err == nil, "%s", out)
+		})
+	}
+}
+
 // TestAgentCannotReadProcessFiles checks that the agent's file tools are denied
 // /proc and that its shell commands run with the job's secrets scrubbed.
 func TestAgentCannotReadProcessFiles(t *testing.T) {
