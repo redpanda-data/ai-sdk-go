@@ -54,10 +54,10 @@ const (
 	claudeTestReasoningModel = vertex.ModelClaudeSonnet5
 )
 
-// grantedClaudeModels are the Claude models DEVPROD-5004 enabled in
-// testProject's Model Garden. Vertex answers any other Claude model with a
-// 404 that the shared suite does not read as an access gate, so the fixture
-// refuses it up front and the sweep skips it with that reason.
+// grantedClaudeModels are the Claude models enabled in testProject's Model
+// Garden. Vertex answers any other Claude model with a 404 that the shared
+// suite does not read as an access gate, so the Claude catalog holds only
+// these, and NewModel refuses any other with a named reason.
 var grantedClaudeModels = map[string]bool{
 	vertex.ModelClaudeHaiku45: true,
 	vertex.ModelClaudeSonnet5: true,
@@ -150,14 +150,19 @@ func (f *VertexFixture) NewReasoningModel(t *testing.T) llm.Model {
 }
 
 func (f *VertexFixture) Catalog() *catalog.Catalog {
-	// Each fixture sweeps its own publisher's models, so the Gemini and
-	// Claude paths of NewModel each run every model once.
 	var entries []catalog.Entry
 
 	for _, o := range f.provider.Catalog().All() {
-		if o.Facts().Publisher == f.publisher {
-			entries = append(entries, o.Entry)
+		if o.Facts().Publisher != f.publisher {
+			continue
 		}
+		// The sweep calls only the newest model of each series, so an
+		// ungranted newer Claude model would hide a granted older one.
+		if f.publisher == catalog.PublisherAnthropic && !grantedClaudeModels[o.ID] {
+			continue
+		}
+
+		entries = append(entries, o.Entry)
 	}
 
 	return catalog.MustNew(f.provider.Name(), entries)
@@ -205,8 +210,18 @@ func TestVertexFixtureCatalog_OnePublisherHalf(t *testing.T) {
 
 	_, ok := claude.Lookup(vertex.ModelClaudeSonnet5)
 	assert.True(t, ok, "Claude half must hold Sonnet 5")
+	_, ok = claude.Lookup(vertex.ModelClaudeOpus55)
+	assert.False(t, ok, "Claude half must not hold ungranted Opus 5.5")
 	_, ok = claude.Lookup(vertex.ModelGemini36Flash)
 	assert.False(t, ok, "Claude half must not hold Gemini 3.6 Flash")
+
+	var current []string
+	for _, o := range claude.Now().Current() {
+		current = append(current, o.ID)
+	}
+
+	assert.ElementsMatch(t, []string{vertex.ModelClaudeHaiku45, vertex.ModelClaudeSonnet5}, current,
+		"the sweep must reach every granted Claude model")
 
 	gemini := newVertexFixture(provider, catalog.PublisherGoogle).Catalog()
 	require.NotNil(t, gemini)
