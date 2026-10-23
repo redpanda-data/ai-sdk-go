@@ -150,9 +150,10 @@ func (f *VertexFixture) NewReasoningModel(t *testing.T) llm.Model {
 }
 
 func (f *VertexFixture) Catalog() *catalog.Catalog {
-	var entries []catalog.Entry
+	all := f.provider.Catalog().All()
+	entries := make([]catalog.Entry, 0, len(all))
 
-	for _, o := range f.provider.Catalog().All() {
+	for _, o := range all {
 		if o.Facts().Publisher != f.publisher {
 			continue
 		}
@@ -215,8 +216,10 @@ func TestVertexFixtureCatalog_OnePublisherHalf(t *testing.T) {
 	_, ok = claude.Lookup(vertex.ModelGemini36Flash)
 	assert.False(t, ok, "Claude half must not hold Gemini 3.6 Flash")
 
-	var current []string
-	for _, o := range claude.Now().Current() {
+	sweep := claude.Now().Current()
+	current := make([]string, 0, len(sweep))
+
+	for _, o := range sweep {
 		current = append(current, o.ID)
 	}
 
