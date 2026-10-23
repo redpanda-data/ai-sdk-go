@@ -1,3 +1,6 @@
-# Workflows can run with repository secrets, so a change to one needs an
-# owner's review.
+# Workflows can run with repository secrets, so a change to one asks the
+# owners for review. The review is required only while the main ruleset sets
+# require_code_owner_review. This file is listed too, so the entry above
+# cannot be removed without the same review.
 /.github/workflows/ @redpanda-data/team-ai
+/.github/CODEOWNERS @redpanda-data/team-ai
