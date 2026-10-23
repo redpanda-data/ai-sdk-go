@@ -38,8 +38,8 @@ jobs:
           cache: true
           cache-dependency-path: go.sum
 
-      # Dependencies and the test binary are built before any credential is
-      # in the job.
+      # Dependencies and the test binary are built before the AWS credentials
+      # and the key are in the job.
       - name: Build the test binary
         run: go test -c -o "$RUNNER_TEMP/vertex.test" ./providers/vertex/
 
@@ -92,14 +92,15 @@ jobs:
         # Without the key every live test skips, which would pass as green.
         run: |
           [ -s "$VERTEX_KEY_FILE" ] || { echo "::error::no Vertex AI service-account key"; exit 1; }
+          # The OIDC request variables would let the test binary mint a token
+          # for any role that trusts this repo, so it never starts with them.
           # A renamed test would match nothing in -test.run and pass as green.
-          "$RUNNER_TEMP/vertex.test" -test.list '^TestVertexConformance_Integration$' \
+          env -u ACTIONS_ID_TOKEN_REQUEST_TOKEN -u ACTIONS_ID_TOKEN_REQUEST_URL \
+            "$RUNNER_TEMP/vertex.test" -test.list '^TestVertexConformance_Integration$' \
             | grep -qx TestVertexConformance_Integration \
             || { echo "::error::TestVertexConformance_Integration not found"; exit 1; }
           VERTEX_CREDENTIALS_JSON="$(cat "$VERTEX_KEY_FILE")"
           export VERTEX_CREDENTIALS_JSON
-          # The OIDC request variables would let the test mint a token for
-          # any role that trusts this repo, so the test runs without them.
           env -u ACTIONS_ID_TOKEN_REQUEST_TOKEN -u ACTIONS_ID_TOKEN_REQUEST_URL \
             "$RUNNER_TEMP/vertex.test" -test.run '^TestVertexConformance_Integration$' -test.v -test.timeout 35m
 
