@@ -14,8 +14,9 @@
 
 // Command catalog-guard checks that a patched catalogue file differs from
 // its base only in data: literal values, new constants and catalogue
-// entries. The reconcile-models workflow runs it on every patch before
-// regenerating the snapshot.
+// entries. Only a provider's models.go and catalog/facts_data.go count as
+// catalogue files. The reconcile-models workflow runs it on every patch
+// before regenerating the snapshot.
 package main
 
 import (
@@ -33,6 +34,11 @@ func main() {
 	if *basePath == "" || *patchedPath == "" {
 		fmt.Fprintln(os.Stderr, "usage: catalog-guard -base FILE -patched FILE")
 		os.Exit(2)
+	}
+
+	if !dataFile(*patchedPath) {
+		fmt.Fprintf(os.Stderr, "catalog-guard: %s: only a provider's models.go and catalog/facts_data.go hold catalogue data\n", *patchedPath)
+		os.Exit(1)
 	}
 
 	base, err := os.ReadFile(*basePath)

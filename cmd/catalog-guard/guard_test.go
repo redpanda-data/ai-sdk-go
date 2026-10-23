@@ -136,3 +136,32 @@ func TestCheck(t *testing.T) {
 		})
 	}
 }
+
+// TestDataFile checks which files may hold data-only changes: other files in
+// the owned packages hold wire constants and helpers, where a changed literal
+// changes behaviour.
+func TestDataFile(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		path string
+		want bool
+	}{
+		{path: "providers/anthropic/models.go", want: true},
+		{path: "providers/bedrock/models.go", want: true},
+		{path: "catalog/facts_data.go", want: true},
+		{path: "providers/vertex/model.go"},
+		{path: "providers/vertex/locations.go"},
+		{path: "providers/bedrock/cross_region.go"},
+		{path: "providers/anthropic/models_test.go"},
+		{path: "providers/anthropic/sub/models.go"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, dataFile(tt.path))
+		})
+	}
+}

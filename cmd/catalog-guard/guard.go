@@ -21,10 +21,22 @@ import (
 	"go/parser"
 	"go/printer"
 	"go/token"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
 )
+
+// dataFilePath matches the files that hold catalogue data: each provider's
+// catalogue and the facts registry.
+var dataFilePath = regexp.MustCompile(`^(providers/[a-z0-9]+/models\.go|catalog/facts_data\.go)$`)
+
+// dataFile reports whether path may hold data-only changes. The owned
+// packages' other files hold wire constants and helpers, where a changed
+// literal changes behaviour, so every change to them counts as code.
+func dataFile(path string) bool {
+	return dataFilePath.MatchString(path)
+}
 
 // Check reports every way patched differs from base beyond catalogue data.
 // Allowed: changed literal values and comments, new constants with literal
