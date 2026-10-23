@@ -168,8 +168,9 @@ func (f *VertexFixture) NewModel(modelName string) (llm.Model, error) {
 	return f.provider.NewModel(modelName)
 }
 
-// isUngranted reports whether modelName is a Claude model that testProject
-// has not enabled.
+// isUngranted reports whether f is the Claude half and modelName is not one
+// of the models testProject has enabled. It does not check what publisher
+// modelName belongs to.
 func (f *VertexFixture) isUngranted(modelName string) bool {
 	return f.publisher == catalog.PublisherAnthropic && !grantedClaudeModels[modelName]
 }
