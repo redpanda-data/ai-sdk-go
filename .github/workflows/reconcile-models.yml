@@ -16,10 +16,10 @@ on:
         description: Run the agent even if the gate finds nothing changed
         type: boolean
         default: false
-  # Daily, only the gate runs (no model, no PR): in shadow mode it measures
-  # how often the sources change before the gate is trusted to skip runs.
+  # Weekly, a full run: the agent, and a draft PR into main when the catalog
+  # drifted. Schedules run only from the default branch.
   schedule:
-    - cron: "17 6 * * *"
+    - cron: "17 6 * * 1"
 
 permissions: {}
 
@@ -34,8 +34,9 @@ env:
   # shadow: the gate reports "would skip" but the agent always runs. Switch to
   # enforce once the record job's comparisons show skips would lose nothing.
   GATE_MODE: shadow
-  # The oldest baseline the gate relies on.
-  MAX_AGE: 60h
+  # The oldest baseline the gate relies on: past a week, so last week's
+  # scheduled run still counts.
+  MAX_AGE: 192h
 
 jobs:
   # No model. Fingerprints the vendor's pages and the run's inputs, and
@@ -98,10 +99,8 @@ jobs:
   agent:
     needs: gate
     # A failed gate runs the agent too (!cancelled() lifts the implicit
-    # success() check). Scheduled runs are gate-only for now; note that
-    # DRY_RUN is false on a schedule, so without this a scheduled run would
-    # open a real PR.
-    if: ${{ !cancelled() && needs.gate.outputs.run_agent != 'false' && github.event_name != 'schedule' }}
+    # success() check).
+    if: ${{ !cancelled() && needs.gate.outputs.run_agent != 'false' }}
     runs-on: ubuntu-24.04
     # A launch across three hosts took 17 minutes and 163 turns (run 12).
     timeout-minutes: 60

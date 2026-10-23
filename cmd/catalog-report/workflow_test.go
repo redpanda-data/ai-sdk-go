@@ -58,23 +58,39 @@ func namedSources(t *testing.T) map[string]namedSource {
 
 // workflowJob is one job in reconcile-models.yml.
 type workflowJob struct {
+	If    string            `yaml:"if"`
 	Env   map[string]string `yaml:"env"`
 	Steps []workflowStep    `yaml:"steps"`
+}
+
+// workflow is reconcile-models.yml: its triggers and its jobs.
+type workflow struct {
+	On struct {
+		Schedule []struct {
+			Cron string `yaml:"cron"`
+		} `yaml:"schedule"`
+	} `yaml:"on"`
+	Jobs map[string]workflowJob `yaml:"jobs"`
+}
+
+// readWorkflow reads the workflow file.
+func readWorkflow(t *testing.T) workflow {
+	t.Helper()
+
+	raw, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", "reconcile-models.yml"))
+	require.NoError(t, err)
+
+	var wf workflow
+	require.NoError(t, yaml.Unmarshal(raw, &wf))
+
+	return wf
 }
 
 // readJob reads one job from the workflow file.
 func readJob(t *testing.T, name string) workflowJob {
 	t.Helper()
 
-	raw, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", "reconcile-models.yml"))
-	require.NoError(t, err)
-
-	var workflow struct {
-		Jobs map[string]workflowJob `yaml:"jobs"`
-	}
-	require.NoError(t, yaml.Unmarshal(raw, &workflow))
-
-	job := workflow.Jobs[name]
+	job := readWorkflow(t).Jobs[name]
 	require.NotEmpty(t, job.Steps, "the workflow has no %s job steps", name)
 
 	return job
@@ -198,4 +214,14 @@ func TestPushChecksOthersCommitsFirst(t *testing.T) {
 	check := strings.Index(run, ".github/reconcile-models/others-commits.sh")
 	require.NotEqual(t, -1, check, "the push step doesn't run others-commits.sh")
 	assert.Less(t, check, strings.Index(run, "git push --force-with-lease="), "others-commits.sh must run before the push")
+}
+
+// TestScheduledRunsReachThePR checks that the workflow has a schedule and that
+// the agent job doesn't skip scheduled runs.
+func TestScheduledRunsReachThePR(t *testing.T) {
+	t.Parallel()
+
+	wf := readWorkflow(t)
+	require.NotEmpty(t, wf.On.Schedule, "the workflow has no schedule")
+	assert.NotContains(t, wf.Jobs["agent"].If, "schedule", "the agent job must run on a schedule too")
 }
