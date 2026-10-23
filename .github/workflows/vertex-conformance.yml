@@ -87,8 +87,6 @@ jobs:
 
       - name: Run the Vertex AI conformance suite
         working-directory: providers/vertex
-        env:
-          VERTEX_PROJECT_ID: cloudv2-testing-project
         # Without the key every live test skips, which would pass as green.
         run: |
           [ -s "$VERTEX_KEY_FILE" ] || { echo "::error::no Vertex AI service-account key"; exit 1; }
