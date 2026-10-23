@@ -258,9 +258,11 @@ func (rm *RequestMapper) buildThinkingFields() map[string]any {
 
 	// Otherwise thinking is adaptive: the model decides how long to think,
 	// optionally biased by the reasoning effort (WithReasoningEffort).
+	// Newer models omit the thinking text unless display is set.
 	fields := map[string]any{
 		"thinking": map[string]any{
-			"type": "adaptive",
+			"type":    "adaptive",
+			"display": "summarized",
 		},
 	}
 	if rm.config.ReasoningEffort != nil {

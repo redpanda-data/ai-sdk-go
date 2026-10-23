@@ -120,6 +120,7 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) (anthropic.BetaMessageNewP
 				OfToolSearchToolBm25_20251119: &anthropic.BetaToolSearchToolBm25_20251119Param{Type: anthropic.BetaToolSearchToolBm25_20251119TypeToolSearchToolBm25_20251119},
 			})
 		}
+
 		apiReq.Tools = tools
 
 		// Apply tool choice if specified
@@ -133,16 +134,20 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) (anthropic.BetaMessageNewP
 		}
 	}
 
-	// Enable extended thinking if configured
-	if rm.config.EnableThinking {
+	// Enable extended thinking if configured. On adaptive models a reasoning
+	// effort alone also requests thinking, matching the Bedrock provider.
+	if rm.config.EnableThinking || (rm.config.AdaptiveThinking && rm.config.ReasoningEffort != nil) {
 		switch {
 		case rm.config.ThinkingBudget != nil:
 			// Explicit budget: manual thinking with user-specified tokens
 			apiReq.Thinking = anthropic.BetaThinkingConfigParamOfEnabled(*rm.config.ThinkingBudget)
 		case rm.config.AdaptiveThinking:
-			// Model supports adaptive thinking: let the API decide the budget
+			// Model supports adaptive thinking: let the API decide the budget.
+			// Newer models omit the thinking text unless display is set.
 			apiReq.Thinking = anthropic.BetaThinkingConfigParamUnion{
-				OfAdaptive: &anthropic.BetaThinkingConfigAdaptiveParam{},
+				OfAdaptive: &anthropic.BetaThinkingConfigAdaptiveParam{
+					Display: anthropic.BetaThinkingConfigAdaptiveDisplaySummarized,
+				},
 			}
 		default:
 			// Legacy fallback: 25% of max tokens with minimum of 1024

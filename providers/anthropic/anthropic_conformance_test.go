@@ -33,11 +33,15 @@ import (
 
 // AnthropicFixture implements the conformance.Fixture interface for Anthropic provider.
 type AnthropicFixture struct {
-	provider *anthropic.Provider
+	provider  *anthropic.Provider
+	modelName string
+	// discovery enables the catalog-wide tests, which only need to run once
+	// rather than once per model.
+	discovery bool
 }
 
 // NewAnthropicFixture creates a new Anthropic test fixture.
-func NewAnthropicFixture(t *testing.T) *AnthropicFixture {
+func NewAnthropicFixture(t *testing.T, modelName string, discovery bool) *AnthropicFixture {
 	t.Helper()
 
 	// Check for API key (skips test if not set)
@@ -50,7 +54,9 @@ func NewAnthropicFixture(t *testing.T) *AnthropicFixture {
 	}
 
 	return &AnthropicFixture{
-		provider: provider,
+		provider:  provider,
+		modelName: modelName,
+		discovery: discovery,
 	}
 }
 
@@ -61,9 +67,9 @@ func (f *AnthropicFixture) Name() string {
 func (f *AnthropicFixture) NewStandardModel(t *testing.T) llm.Model {
 	t.Helper()
 
-	model, err := f.provider.NewModel(anthropictest.TestModelName)
+	model, err := f.provider.NewModel(f.modelName)
 	if err != nil {
-		t.Fatalf("Failed to create standard model: %v", err)
+		t.Fatalf("Failed to create model %s: %v", f.modelName, err)
 	}
 
 	return retry.WrapModel(model)
@@ -72,7 +78,7 @@ func (f *AnthropicFixture) NewStandardModel(t *testing.T) llm.Model {
 func (f *AnthropicFixture) NewReasoningModel(t *testing.T) llm.Model {
 	t.Helper()
 
-	model, err := f.provider.NewModel(anthropictest.TestReasoningModelName,
+	model, err := f.provider.NewModel(f.modelName,
 		anthropic.WithThinking(true),
 		anthropic.WithMaxTokens(16384),
 	)
@@ -85,6 +91,10 @@ func (f *AnthropicFixture) NewReasoningModel(t *testing.T) llm.Model {
 }
 
 func (f *AnthropicFixture) Catalog() *catalog.Catalog {
+	if !f.discovery {
+		return nil
+	}
+
 	return f.provider.Catalog()
 }
 
@@ -96,8 +106,21 @@ func (f *AnthropicFixture) NewModel(modelName string) (llm.Model, error) {
 func TestAnthropicConformance_Integration(t *testing.T) {
 	t.Parallel()
 
-	fixture := NewAnthropicFixture(t)
-	testsuite.Run(t, conformance.NewSuite(fixture))
+	modelsToTest := []string{
+		anthropic.ModelClaudeSonnet55,
+		anthropic.ModelClaudeOpus55,
+		anthropic.ModelClaudeFable51,
+		anthropic.ModelClaudeHaiku55,
+	}
+
+	for i, modelName := range modelsToTest {
+		t.Run(modelName, func(t *testing.T) {
+			t.Parallel()
+
+			fixture := NewAnthropicFixture(t, modelName, i == 0)
+			testsuite.Run(t, conformance.NewSuite(fixture))
+		})
+	}
 }
 
 // TestAnthropicAdaptiveThinking_Integration tests adaptive thinking with Sonnet 4.6.
