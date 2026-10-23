@@ -3,7 +3,9 @@ name: Vertex AI Conformance
 # Runs the shared conformance suite against providers/vertex with live
 # Vertex AI calls. No pull-request trigger: a PR could change this file and
 # read the key. The key is read through the vertex-conformance environment,
-# whose deployment branch rule admits main only.
+# whose deployment branch rule admits main only. Create the environment with
+# that rule before this file lands on main: a run that names a missing
+# environment creates it with no protection rules.
 on:
   schedule:
     - cron: "41 4 * * *"
@@ -46,8 +48,8 @@ jobs:
           aws-region: ${{ vars.RP_AWS_CRED_REGION }}
           role-to-assume: arn:aws:iam::${{ secrets.RP_AWS_CRED_ACCOUNT_ID }}:role/${{ vars.RP_AWS_CRED_BASE_ROLE_NAME }}${{ github.event.repository.name }}
 
-      # The key cloudv2's nightly-external-llm-tests reads. parse-json-secrets
-      # stays off: it would split the key file into one variable per field.
+      # parse-json-secrets stays off: it would split the key file into one
+      # variable per field.
       - name: Fetch Vertex AI service-account key
         uses: aws-actions/aws-secretsmanager-get-secrets@2297f9a879480a9e3af9b293ed15c70caf8e1c88  # v3.0.2
         with:
