@@ -1,4 +1,4 @@
-TEST RUN (test branch only): do only this. Run `task test:unit` once, exactly as written. Then finish with the structured report {"changes": [], "needs_human": [], "skipped": []}. Don't fetch pages or edit files.
+TEST RUN (test branch only): do only this. Run `task test:unit` once, exactly as written. TestA8Probe in providers/anthropic fails on purpose, and each of its failure lines starts with `a8: `. Then finish with the structured report: no changes, no skipped rows, and one needs_human row with offering `claude-opus-5-5`, field `limit`, rule `no-rule`, source_urls ["https://platform.claude.com/docs/en/about-claude/models/overview.md"], and as values the text after `a8: ` of each such line, in order, each at most 60 characters. Don't fetch pages or edit files.
 
 Use the reconcile-models skill (.claude/skills/reconcile-models/SKILL.md) for {{PROVIDER}}'s models, in fix mode. For models the catalogue doesn't have yet, use the add-model skill (.claude/skills/add-model/SKILL.md).
 

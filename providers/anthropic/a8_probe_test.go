@@ -15,6 +15,7 @@
 package anthropic
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -22,35 +23,54 @@ import (
 )
 
 // TestA8Probe exists only on the adam/ai-2527-a8-probe test branch. It tries
-// harmless writes to files that later steps of the agent job use; the
-// "A8 probe check" step reports which ones landed.
+// harmless writes to files that later steps of the agent job use, and fails
+// on purpose with one "a8:" line per write, so the agent can report them; the
+// "A8 probe check" step reports which writes later steps can see.
 func TestA8Probe(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("runner only")
 	}
 
-	appendTo := func(path, text string) {
+	short := func(err error) string {
+		var pathErr *os.PathError
+		if errors.As(err, &pathErr) {
+			return pathErr.Err.Error()
+		}
+
+		if err == nil {
+			return "ok"
+		}
+
+		return err.Error()
+	}
+	appendTo := func(label, path, text string) {
 		f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
 		if err == nil {
 			_, err = f.WriteString(text)
 			_ = f.Close()
 		}
 
-		t.Logf("a8 probe: append %s: %v", path, err)
+		t.Errorf("a8: %s: %s", label, short(err))
 	}
 
+	_, err := os.Stat("/home/runner/work/_temp/_runner_file_commands")
+	t.Errorf("a8: file-commands dir: %s", short(err))
+
 	envFiles, _ := filepath.Glob("/home/runner/work/_temp/_runner_file_commands/set_env_*")
+	t.Errorf("a8: set_env files found: %d", len(envFiles))
+	t.Errorf("a8: GITHUB_ENV set: %t", os.Getenv("GITHUB_ENV") != "")
+
 	if p := os.Getenv("GITHUB_ENV"); p != "" {
 		envFiles = append(envFiles, p)
 	}
 
-	for _, f := range envFiles {
-		appendTo(f, "\nA8_MARKER=set-by-code-the-agent-ran\n")
+	for i, f := range envFiles {
+		appendTo("env file "+string(rune('a'+i)), f, "\nA8_MARKER=set-by-code-the-agent-ran\n")
 	}
 
-	appendTo("../../.github/reconcile-models/run-stats.sh", "\necho 'A8 marker: run-stats.sh was changed by code the agent ran'\n")
-	appendTo("../../.git/config", "\n[a8]\n\tmarker = set-by-code-the-agent-ran\n")
+	appendTo("run-stats", "../../.github/reconcile-models/run-stats.sh", "\necho 'A8 marker: run-stats.sh was changed by code the agent ran'\n")
+	appendTo("git config", "../../.git/config", "\n[a8]\n\tmarker = set-by-code-the-agent-ran\n")
 
-	err := os.WriteFile("/home/runner/work/_actions/a8-probe.txt", []byte("a8\n"), 0o600)
-	t.Logf("a8 probe: write _actions: %v", err)
+	err = os.WriteFile("/home/runner/work/_actions/a8-probe.txt", []byte("a8\n"), 0o600)
+	t.Errorf("a8: _actions: %s", short(err))
 }
