@@ -154,7 +154,7 @@ var defaultRegistry = Registry{
 		Publisher:   PublisherAnthropic,
 		DisplayName: "Claude Opus 4.7", Series: "claude-opus",
 		// Released per platform.claude.com/docs/en/models/opus-4-7/overview.
-		Released: MustDate("2026-04-16"), Knowledge: MustDate("2026-01-31"),
+		Released: MustDate("2026-04-23"), Knowledge: MustDate("2026-01-31"),
 		Description: "Opus 4.7 is the next generation of Anthropic's Opus family, built for long-running, asynchronous agents.",
 	},
 	ModelClaudeOpus46: {
@@ -188,7 +188,7 @@ var defaultRegistry = Registry{
 		Publisher:   PublisherAnthropic,
 		DisplayName: "Claude Sonnet 5", Series: "claude-sonnet",
 		// Released per platform.claude.com/docs/en/models/sonnet-5/overview.
-		Released: MustDate("2026-06-30"), Knowledge: MustDate("2026-01-31"),
+		Released: MustDate("2026-06-30"), Knowledge: MustDate("2025-10-31"),
 		Description: "Sonnet 5 is Anthropic's most capable Sonnet-class model, with frontier performance across coding, agents, and professional work.",
 	},
 	ModelClaudeSonnet46: {

@@ -70,7 +70,7 @@
       "publisher": "anthropic",
       "description": "Opus 4.7 is the next generation of Anthropic's Opus family, built for long-running, asynchronous agents.",
       "series": "claude-opus",
-      "released": "2026-04-16",
+      "released": "2026-04-23",
       "knowledge": "2026-01-31"
     },
     "anthropic/claude-opus-4-8": {
@@ -119,7 +119,7 @@
       "description": "Sonnet 5 is Anthropic's most capable Sonnet-class model, with frontier performance across coding, agents, and professional work.",
       "series": "claude-sonnet",
       "released": "2026-06-30",
-      "knowledge": "2026-01-31"
+      "knowledge": "2025-10-31"
     },
     "anthropic/claude-sonnet-5-5": {
       "display_name": "Claude Sonnet 5.5",
@@ -1140,7 +1140,6 @@
               "low",
               "medium",
               "high",
-              "xhigh",
               "max"
             ],
             "adaptive": true
@@ -1423,7 +1422,7 @@
             "stage": "ga",
             "available": "2025-09-29",
             "deprecated": "2026-09-30",
-            "retires": "2026-11-30",
+            "retires": "2027-01-31",
             "replaced_by": "claude-sonnet-5-5"
           },
           "derived": {
@@ -1563,7 +1562,7 @@
             "default": {
               "base": {
                 "input_microcents_per_million": 200000000,
-                "output_microcents_per_million": 1000000000,
+                "output_microcents_per_million": 1200000000,
                 "cached_input_microcents_per_million": 20000000,
                 "cache_creation_5m_microcents_per_million": 250000000,
                 "cache_creation_1h_microcents_per_million": 400000000
@@ -10060,7 +10059,7 @@
           },
           "constraints": {
             "max_input_tokens": 1000000,
-            "max_output_tokens": 128000,
+            "max_output_tokens": 64000,
             "supported_params": [
               "max_tokens",
               "reasoning_effort"

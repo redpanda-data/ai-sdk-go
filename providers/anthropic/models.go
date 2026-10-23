@@ -305,7 +305,7 @@ func entries() []catalog.Entry {
 				SupportedParams: []string{"max_tokens", "reasoning_effort", "speed"},
 			},
 			Reasoning: catalog.ReasoningSupport{
-				Efforts:  []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+				Efforts:  []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortMax},
 				Adaptive: true,
 			},
 			Speeds: []Speed{SpeedStandard, SpeedFast},
@@ -403,13 +403,13 @@ func entries() []catalog.Entry {
 			Life: catalog.Lifecycle{
 				Available: catalog.MustDate("2026-06-30"),
 			},
-			// $2/$10 is Sonnet 5's standard price: announced as introductory
+			// $2/$12 is Sonnet 5's standard price: announced as introductory
 			// through 2026-08-31, but the increase to $3/$15 scheduled for
 			// 2026-09-01 was cancelled. Cache rates from Anthropic's
 			// multipliers (5m-write 1.25x, 1h-write 2x, read 0.10x). Sonnet 5.5
 			// instead uses 0.05x reads; its write multipliers are unchanged.
 			Pricing: pricing.FlatInfoFromRates(
-				pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0),
+				pricing.NewRates(2.00, 12.00, 0.20).WithCacheCreation(2.50, 4.00, 0),
 			),
 		},
 		{
@@ -456,7 +456,7 @@ func entries() []catalog.Entry {
 			Life: catalog.Lifecycle{
 				Available:  catalog.MustDate("2025-09-29"),
 				Deprecated: catalog.MustDate("2026-09-30"),
-				Retires:    catalog.MustDate("2026-11-30"),
+				Retires:    catalog.MustDate("2027-01-31"),
 				ReplacedBy: ModelClaudeSonnet55,
 			},
 			Pricing: pricing.FlatInfoFromRates(

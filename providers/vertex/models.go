@@ -582,7 +582,7 @@ func entries() []catalog.Entry {
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
 				MaxInputTokens:  1000000,
-				MaxOutputTokens: 128000,
+				MaxOutputTokens: 64000,
 				// Adaptive thinking is always on; non-default sampling
 				// parameters return 400 (Anthropic's model-deprecations page).
 				// Vertex publishes no fast-mode rate, so speed is not offered.
