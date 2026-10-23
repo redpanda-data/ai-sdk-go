@@ -76,6 +76,7 @@ jobs:
           jq -c '(.VERTEX_SA_KEY_CLOUDV2 // .) | if type == "string" then fromjson else . end' \
               <<<"$VERTEX_SECRET" > "$KEY_FILE" 2>/dev/null \
             || fail "cannot be read as a JSON key file"
+          [ -s "$KEY_FILE" ] || fail "is empty"
           # The type is printed before any mask is set, so only a plain word is.
           key_type="$(jq -r 'try (.type // "missing") catch "non-object"' "$KEY_FILE")"
           [[ "$key_type" =~ ^[a-z_-]{1,40}$ ]] || key_type=unexpected
