@@ -94,7 +94,10 @@ jobs:
           [ -s "$VERTEX_KEY_FILE" ] || { echo "::error::no Vertex AI service-account key"; exit 1; }
           VERTEX_CREDENTIALS_JSON="$(cat "$VERTEX_KEY_FILE")"
           export VERTEX_CREDENTIALS_JSON
-          "$RUNNER_TEMP/vertex.test" -test.run '^TestVertexConformance_Integration$' -test.v -test.timeout 35m
+          # The OIDC request variables would let the test mint a token for
+          # any role that trusts this repo, so the test runs without them.
+          env -u ACTIONS_ID_TOKEN_REQUEST_TOKEN -u ACTIONS_ID_TOKEN_REQUEST_URL \
+            "$RUNNER_TEMP/vertex.test" -test.run '^TestVertexConformance_Integration$' -test.v -test.timeout 35m
 
       - name: Remove Vertex AI service-account key
         if: always()
