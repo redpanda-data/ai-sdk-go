@@ -150,7 +150,7 @@ func (f *VertexFixture) Catalog() *catalog.Catalog {
 		}
 		// The sweep calls only the newest model of each series, so an
 		// ungranted newer Claude model would hide a granted older one.
-		if f.publisher == catalog.PublisherAnthropic && !grantedClaudeModels[o.ID] {
+		if f.isUngranted(o.ID) {
 			continue
 		}
 
@@ -161,11 +161,46 @@ func (f *VertexFixture) Catalog() *catalog.Catalog {
 }
 
 func (f *VertexFixture) NewModel(modelName string) (llm.Model, error) {
-	if f.publisher == catalog.PublisherAnthropic && !grantedClaudeModels[modelName] {
-		return nil, fmt.Errorf("%s is not granted in %s (DEVPROD-5004)", modelName, testProject)
+	if f.isUngranted(modelName) {
+		return nil, fmt.Errorf("%s is not granted in %s", modelName, testProject)
 	}
 
 	return f.provider.NewModel(modelName)
+}
+
+// isUngranted reports whether modelName is a Claude model that testProject
+// has not enabled.
+func (f *VertexFixture) isUngranted(modelName string) bool {
+	return f.publisher == catalog.PublisherAnthropic && !grantedClaudeModels[modelName]
+}
+
+// ungrantedModels lists the current models of this half that Catalog leaves
+// out.
+func (f *VertexFixture) ungrantedModels() []string {
+	var names []string
+
+	for _, o := range f.provider.Catalog().Now().Current() {
+		if o.Facts().Publisher == f.publisher && f.isUngranted(o.ID) {
+			names = append(names, o.ID)
+		}
+	}
+
+	return names
+}
+
+// skipUngranted runs one skipped subtest per model Catalog leaves out, so
+// the test output names each one and why.
+func (f *VertexFixture) skipUngranted(t *testing.T) {
+	t.Helper()
+
+	for _, modelName := range f.ungrantedModels() {
+		t.Run("ungranted_"+modelName, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := f.NewModel(modelName)
+			t.Skipf("Skipping model %s: %v", modelName, err)
+		})
+	}
 }
 
 func (f *VertexFixture) mustNewModel(t *testing.T, modelName string, opts ...vertex.Option) llm.Model {
@@ -244,6 +279,19 @@ func TestVertexFixtureNewModel_RefusesUngrantedClaude(t *testing.T) {
 	gemini := newVertexFixture(provider, catalog.PublisherGoogle)
 	_, err = gemini.NewModel(vertex.ModelGemini36Flash)
 	require.NoError(t, err)
+}
+
+func TestVertexFixtureUngrantedModels(t *testing.T) {
+	t.Parallel()
+
+	provider := newOfflineProvider(t)
+
+	ungranted := newVertexFixture(provider, catalog.PublisherAnthropic).ungrantedModels()
+	assert.Contains(t, ungranted, vertex.ModelClaudeOpus55)
+	assert.NotContains(t, ungranted, vertex.ModelClaudeHaiku45)
+	assert.NotContains(t, ungranted, vertex.ModelClaudeSonnet5)
+
+	assert.Empty(t, newVertexFixture(provider, catalog.PublisherGoogle).ungrantedModels())
 }
 
 // skipIfStructuredOutputsDenied skips the test when the project's
@@ -356,6 +404,7 @@ func TestVertexConformance_Integration(t *testing.T) {
 			t.Parallel()
 
 			fixture := newVertexFixture(newLiveProvider(t), publisher)
+			fixture.skipUngranted(t)
 			testsuite.Run(t, conformance.NewSuite(fixture))
 		})
 	}
