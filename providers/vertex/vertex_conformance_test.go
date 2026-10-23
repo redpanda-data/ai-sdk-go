@@ -377,20 +377,26 @@ func TestVertexClaudeStandardModel_SkipsStructuredOutputsWhenDenied(t *testing.T
 
 	fixture := newVertexFixture(provider, catalog.PublisherAnthropic)
 
-	var skipped bool
+	// NewStandardModel matches the suite's method by name, so this stops
+	// the build if the suite renames it.
+	_ = (*conformance.Suite).TestStructuredOutputs
 
-	// The subtest is parallel, so it ends only after this function returns.
-	t.Cleanup(func() {
-		assert.True(t, skipped, "a denied policy must skip the structured-outputs test")
-	})
+	for name, wantSkip := range map[string]bool{"TestStructuredOutputs": true, "TestGenerate": false} {
+		var skipped bool
 
-	t.Run("TestStructuredOutputs", func(t *testing.T) {
-		t.Parallel()
+		// The subtest is parallel, so it ends only after this function returns.
+		t.Cleanup(func() {
+			assert.Equal(t, wantSkip, skipped, "a denied policy must skip only the structured-outputs test: %s", name)
+		})
 
-		defer func() { skipped = t.Skipped() }()
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 
-		fixture.NewStandardModel(t)
-	})
+			defer func() { skipped = t.Skipped() }()
+
+			fixture.NewStandardModel(t)
+		})
+	}
 }
 
 // TestVertexConformance_Integration runs the generic conformance suite on
