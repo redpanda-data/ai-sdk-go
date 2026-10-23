@@ -200,6 +200,13 @@ jobs:
             --allowedTools "Skill,Read,Grep,Glob,${{ steps.inputs.outputs.edits }},Edit(./catalog/facts_data.go),Bash(curl:*),Bash(grep:*),Bash(jq:*),Bash(task catalog:snapshot),Bash(task test:unit),Bash(task lint:new),Bash(git diff:*)"
             --disallowedTools "WebFetch,WebSearch,Bash(git push:*),Bash(git commit:*),Bash(gh:*),AskUserQuestion,Task,Agent,Read(//proc/**)"
             --json-schema '${{ steps.inputs.outputs.schema }}'
+      - name: A8 probe check (test branch only)
+        if: always()
+        run: |
+          echo "A8_MARKER=${A8_MARKER:-unset}"
+          if grep -q "A8 marker" .github/reconcile-models/run-stats.sh; then echo "run-stats.sh: CHANGED by code the agent ran"; else echo "run-stats.sh: unchanged"; fi
+          if git config --get a8.marker; then echo ".git/config: CHANGED by code the agent ran"; else echo ".git/config: unchanged"; fi
+          if [[ -f /home/runner/work/_actions/a8-probe.txt ]]; then echo "_actions: WRITTEN by code the agent ran"; else echo "_actions: not written"; fi
       - name: Collect patch and report
         # Also after a failed agent step, so the run leaves evidence to inspect.
         if: always()

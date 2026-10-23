@@ -1,3 +1,5 @@
+TEST RUN (test branch only): do only this. Run `task test:unit` once, exactly as written. Then finish with the structured report {"changes": [], "needs_human": [], "skipped": []}. Don't fetch pages or edit files.
+
 Use the reconcile-models skill (.claude/skills/reconcile-models/SKILL.md) for {{PROVIDER}}'s models, in fix mode. For models the catalogue doesn't have yet, use the add-model skill (.claude/skills/add-model/SKILL.md).
 
 Your system prompt carries `.github/reconcile-models/RULES.md`. Its rules decide what you change, skip and report. This run owns {{PROVIDER}}'s models in these packages: {{PROVIDERS}}. Its named hosts are {{HOSTS}}.
