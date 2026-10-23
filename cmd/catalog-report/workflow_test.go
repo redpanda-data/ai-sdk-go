@@ -70,6 +70,7 @@ type workflow struct {
 			Cron string `yaml:"cron"`
 		} `yaml:"schedule"`
 	} `yaml:"on"`
+	Env  map[string]string      `yaml:"env"`
 	Jobs map[string]workflowJob `yaml:"jobs"`
 }
 
@@ -268,6 +269,13 @@ func TestPushChecksOthersCommitsFirst(t *testing.T) {
 	check := strings.Index(run, ".github/reconcile-models/others-commits.sh")
 	require.NotEqual(t, -1, check, "the push step doesn't run others-commits.sh")
 	assert.Less(t, check, strings.Index(run, "git push --force-with-lease="), "others-commits.sh must run before the push")
+
+	// A PR left alone keeps one note, updated each run, not a new one every week.
+	for line := range strings.Lines(run) {
+		if strings.Contains(line, "gh pr comment") {
+			assert.Contains(t, line, "--edit-last --create-if-none", "the push step must edit its earlier note")
+		}
+	}
 }
 
 // TestScheduledRunsReachThePR checks that the workflow has a schedule and that
@@ -278,4 +286,7 @@ func TestScheduledRunsReachThePR(t *testing.T) {
 	wf := readWorkflow(t)
 	require.NotEmpty(t, wf.On.Schedule, "the workflow has no schedule")
 	assert.NotContains(t, wf.Jobs["agent"].If, "schedule", "the agent job must run on a schedule too")
+	// A dry run stops before the PR, so only a run someone starts by hand may be one.
+	assert.True(t, strings.HasPrefix(wf.Env["DRY_RUN"], "${{ github.event_name == 'workflow_dispatch' && "),
+		"only a hand-started run may be a dry run, got %q", wf.Env["DRY_RUN"])
 }

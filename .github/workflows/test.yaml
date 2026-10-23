@@ -9,27 +9,24 @@ on:
       - 'go.mod'
       - 'go.sum'
       - '.github/workflows/test.yaml'
-      - '.github/reconcile-models/RULES.md'
-      - '.github/reconcile-models/report.schema.json'
-      - '.github/reconcile-models/prompt.md'
-      - '.github/reconcile-models/decisions.yaml'
-      - '.github/reconcile-models/named-sources.json'
+      - '.github/reconcile-models/**'
+      - 'cmd/**/testdata/**'
+      - 'REVIEW.md'
       - '.claude/skills/**'
       - '.github/workflows/reconcile-models.yml'
   pull_request:
     # ready_for_review starts the full run on the reconcile bot's PRs (see the
-    # jobs below); on everyone else's PRs it does nothing.
+    # jobs below), and runs Test again on everyone else's, so the newest Test
+    # on the commit is never an all-skipped run.
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - '**.go'
       - 'go.mod'
       - 'go.sum'
       - '.github/workflows/test.yaml'
-      - '.github/reconcile-models/RULES.md'
-      - '.github/reconcile-models/report.schema.json'
-      - '.github/reconcile-models/prompt.md'
-      - '.github/reconcile-models/decisions.yaml'
-      - '.github/reconcile-models/named-sources.json'
+      - '.github/reconcile-models/**'
+      - 'cmd/**/testdata/**'
+      - 'REVIEW.md'
       - '.claude/skills/**'
       - '.github/workflows/reconcile-models.yml'
   pull_request_target:
@@ -47,7 +44,7 @@ jobs:
     # override that; the full run starts once a person marks the PR ready for
     # review. A PR someone else opens from the bot's branch also gets the job
     # below, ready or not: the bot's next force-push puts new agent code in it.
-    # Other PRs behave exactly as before.
+    # Other PRs behave as before, apart from the extra run when marked ready.
     if: >-
       (github.event_name != 'pull_request_target' ||
       github.event.label.name == 'ci:force-tests') &&
@@ -55,8 +52,6 @@ jobs:
       github.event.pull_request.draft) &&
       !(github.event.pull_request.head.repo.full_name == github.repository &&
       startsWith(github.event.pull_request.head.ref, 'bot/reconcile-models') &&
-      github.event.pull_request.user.login != 'vbotbuildovich') &&
-      !(github.event.action == 'ready_for_review' &&
       github.event.pull_request.user.login != 'vbotbuildovich')
     runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 20

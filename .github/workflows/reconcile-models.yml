@@ -350,7 +350,7 @@ jobs:
             theirs="$(.github/reconcile-models/others-commits.sh vbotbuildovich <<<"$commits")"
             if [[ -n "$theirs" ]]; then
               run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-              gh pr comment "$existing" --repo "$GITHUB_REPOSITORY" --body "This run found catalog changes but didn't update this PR, because the update would remove commits that aren't the bot's (${theirs}). Merge or close this PR to let the next run update it. [The run](${run_url}) shows what it found."
+              gh pr comment "$existing" --repo "$GITHUB_REPOSITORY" --edit-last --create-if-none --body "The latest run found catalog changes but didn't update this PR, because the update would remove commits that aren't the bot's (${theirs}). Merge or close this PR to let the next run update it. [The run](${run_url}) shows what it found."
               echo "::notice::Left #${existing} unchanged: it has commits that aren't the bot's (${theirs})."
               exit 0
             fi
