@@ -16,7 +16,7 @@ The table names Anthropic's cards. The other vendors `providers/bedrock` carries
 
 ## IDs and copies
 
-- A model is one family declaration in `providers/bedrock/models.go`. `families.go` expands it into a bare entry and one entry per profile in its `Profiles`.
+- A model is a family declaration in `providers/bedrock/models.go`, or two when it also has a `bedrock-mantle` copy, as GPT-6's models do. `families.go` expands a family into one entry per profile in its `Profiles`, and adds a bare entry only when `BareInvokable` is set (bare-id-unregistered).
 - The card's Programmatic Access table gives the exact IDs: the bare Model ID with its In-Region endpoint URL, the Geo inference IDs (`us.`, `eu.`, `au.`, `jp.` and the like) and the Global inference ID (`global.`).
 - The card's Regional Availability tables say, for each source region, whether In-Region, Geo and Global work, and list the source regions each geo profile serves.
 - Before declaring a profile, compare its prefix with RULES.md's Offered regions (new-copy-offered-region, region-not-offered). New models often start with only US and global profiles.

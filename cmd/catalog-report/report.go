@@ -156,7 +156,7 @@ func Validate(report Report, hosts []string, rules reconcile.Rules) []string {
 			problems = append(problems, where+": unknown field "+fmt.Sprintf("%q", item.Field))
 		}
 
-		for _, value := range append([]string{item.Catalogue, item.Page}, item.Values...) {
+		for _, value := range rowValues(item) {
 			checkValue(where, value)
 		}
 
@@ -259,6 +259,12 @@ func link(raw string) string {
 }
 
 // valueList renders report values as comma-separated code spans.
+// rowValues is every value a needs_human row carries: the catalogue and page
+// sides, when it has them, then the rest.
+func rowValues(item NeedsHuman) []string {
+	return slices.DeleteFunc(append([]string{item.Catalogue, item.Page}, item.Values...), func(v string) bool { return v == "" })
+}
+
 func valueList(values []string) string {
 	rendered := make([]string, 0, len(values))
 	for _, v := range values {
@@ -533,7 +539,7 @@ func (base Base) hold(report Report, provider string) (Report, []string) {
 
 	for _, item := range report.NeedsHuman {
 		if d, ok := find(item.Offering, item.Field); ok {
-			held = append(held, row(d, item.Offering, valueList(item.Values)))
+			held = append(held, row(d, item.Offering, valueList(rowValues(item))))
 		} else {
 			needs = append(needs, item)
 		}
@@ -623,7 +629,7 @@ func (base Base) changesSection(changes []Change, provider string) string {
 func suggestions(needs []NeedsHuman) []string {
 	type group struct{ rule, field string }
 
-	keys, found := groupBy(needs, func(item NeedsHuman) (group, []string) { return group{item.Rule, item.Field}, item.Values })
+	keys, found := groupBy(needs, func(item NeedsHuman) (group, []string) { return group{item.Rule, item.Field}, rowValues(item) })
 	lines := make([]string, 0, len(keys))
 
 	for _, key := range keys {

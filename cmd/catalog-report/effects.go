@@ -218,6 +218,10 @@ func (base Base) retirementNote(after map[string]any) string {
 		return "retires " + retires
 	}
 
+	if day.Before(today) {
+		return "retired " + retires
+	}
+
 	return fmt.Sprintf("retires %s, in %d days", retires, int(day.Sub(today).Hours()/24))
 }
 

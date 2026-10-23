@@ -25,21 +25,22 @@ import (
 )
 
 // rows are a report's changes and needs_human rows as "offering field", the
-// ones safe to print: a baseline report comes from an earlier run.
-func rows(report reconcile.Report) map[string]bool {
-	found := map[string]bool{}
-	add := func(offering, field string) {
+// ones safe to print: a baseline report comes from an earlier run. Each maps
+// to the row's values, which are compared but never printed.
+func rows(report reconcile.Report) map[string]string {
+	found := map[string]string{}
+	add := func(offering, field string, values ...string) {
 		if reconcile.OfferingPattern.MatchString(offering) && reconcile.OfferingPattern.MatchString(field) {
-			found[offering+" "+field] = true
+			found[offering+" "+field] += strings.Join(values, "\x00") + "\x01"
 		}
 	}
 
 	for _, change := range report.Changes {
-		add(change.Offering, change.Field)
+		add(change.Offering, change.Field, change.Old, change.New)
 	}
 
 	for _, item := range report.NeedsHuman {
-		add(item.Offering, item.Field)
+		add(item.Offering, item.Field, append([]string{item.Catalogue, item.Page}, item.Values...)...)
 	}
 
 	return found
@@ -111,11 +112,12 @@ func compareRuns(report, baselineReport []byte, pages fingerprints, same bool) (
 	}
 
 	now, before := rows(current), rows(baseline)
-	only := func(a, b map[string]bool) string {
+	// pick lists the rows of a that keep returns true for.
+	pick := func(a map[string]string, keep func(row, values string) bool) string {
 		var found []string
 
 		for _, row := range slices.Sorted(maps.Keys(a)) {
-			if !b[row] {
+			if keep(row, a[row]) {
 				found = append(found, row)
 			}
 		}
@@ -126,19 +128,28 @@ func compareRuns(report, baselineReport []byte, pages fingerprints, same bool) (
 
 		return "`" + strings.Join(found, "`, `") + "`"
 	}
+	only := func(a, b map[string]string) string {
+		return pick(a, func(row, _ string) bool { _, ok := b[row]; return !ok })
+	}
 
 	added, dropped := only(now, before), only(before, now)
-	if added == "" && dropped == "" {
+
+	changed := pick(now, func(row, values string) bool { was, ok := before[row]; return ok && was != values })
+	if added == "" && dropped == "" && changed == "" {
 		return text + "**A skip would have lost nothing:** every page and input matched the baseline run, and this run found the same rows.\n", nil
 	}
 
-	text += "**A skip would have lost findings:** every page and input matched the baseline run, but the two runs found different rows, so shadow mode stays on.\n\n"
+	text += "**A skip would have lost findings:** every page and input matched the baseline run, but the two runs found different rows or values, so shadow mode stays on.\n\n"
 	if added != "" {
 		text += "- Found now, not by the baseline run: " + added + "\n"
 	}
 
 	if dropped != "" {
 		text += "- Found by the baseline run, not now: " + dropped + "\n"
+	}
+
+	if changed != "" {
+		text += "- Found by both runs, with different values: " + changed + "\n"
 	}
 
 	return text, nil

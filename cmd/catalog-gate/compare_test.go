@@ -64,6 +64,12 @@ func TestCompareRuns(t *testing.T) {
 			contains: []string{"Found by the baseline run, not now: `claude-haiku-5-5 limit`"},
 		},
 		{
+			name: "same rows, different values", same: true,
+			baseline:    report(`{"offering": "claude-opus-5-5", "field": "price", "old": "4", "new": "6", "source_url": "https://platform.claude.com/x", "rule": "price-follow"}`, askRow),
+			contains:    []string{"**A skip would have lost findings:**", "Found by both runs, with different values: `claude-opus-5-5 price`"},
+			notContains: []string{"lost nothing", "\"6\""},
+		},
+		{
 			name: "pages or inputs changed", baseline: report("", ""), same: false,
 			contains: []string{"The pages or inputs changed since the baseline run, so the two runs' findings aren't compared."},
 		},

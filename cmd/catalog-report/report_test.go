@@ -304,6 +304,8 @@ func TestRender(t *testing.T) {
 
 	before, after := effectSnapshots(t)
 	withEffects := Base{Before: before, After: after, Today: "2026-10-15"}
+	pastRetirement := withEffects
+	pastRetirement.Today = "2027-05-01"
 	addedBefore, addedAfter := addedSnapshots(t)
 	routesBefore, err := ParseRoutes([]byte("ap-southeast-2 anthropic.claude-sonnet-5-5 global.anthropic.claude-sonnet-5-5\n" +
 		"ap-southeast-4 anthropic.claude-sonnet-5-5 global.anthropic.claude-sonnet-5-5\nus-east-1 anthropic.claude-sonnet-5-5 us.anthropic.claude-sonnet-5-5\n"))
@@ -367,6 +369,12 @@ func TestRender(t *testing.T) {
 			report:   changes(Change{Offering: "bedrock:us.anthropic.claude-sonnet-4-5", Field: "lifecycle", Old: "ga", New: "retires 2027-04-08"}),
 			base:     withEffects,
 			contains: []string{"| retires 2027-04-08, in 175 days |"},
+		},
+		{
+			name:     "retirement note after the date",
+			report:   changes(Change{Offering: "bedrock:us.anthropic.claude-sonnet-4-5", Field: "lifecycle", Old: "ga", New: "retires 2027-04-08"}),
+			base:     pastRetirement,
+			contains: []string{"| retired 2027-04-08 |"},
 		},
 		{
 			name:     "copies added per host",
@@ -499,6 +507,17 @@ func TestRender(t *testing.T) {
 				"Recorded decisions: 1, in [decisions.yaml](" + decisionsURL + "). Past their review date: none.",
 			},
 			notContains: []string{"### Resolve before merging"},
+		},
+		{
+			name: "a held two-sided question shows both sides",
+			report: Report{NeedsHuman: []NeedsHuman{{
+				Offering: "claude-sonnet-5-5", Field: "limit", Catalogue: "65535", Page: "65536", Values: []string{"providers/anthropic/models.go"},
+				Rule: "no-rule", SourceURLs: []string{"https://platform.claude.com/docs/en/about-claude/models/overview.md"},
+			}}},
+			base: Base{URL: baseURL, Decisions: []reconcile.Decision{keepLimit}, Today: "2026-10-14"},
+			contains: []string{
+				"| [DEC-001](" + decisionsURL + "#L3) | `claude-sonnet-5-5` | limit | `65535`, `65536`, `providers/anthropic/models.go` | Agreed in review. |",
+			},
 		},
 		{
 			name:        "a skipped offering under a hold is held",
@@ -962,6 +981,12 @@ func TestRenderSuggestedRules(t *testing.T) {
 			Values: values, SourceURLs: []string{"https://platform.claude.com/x"},
 		}
 	}
+	twoSided := func(geo, catalogue string) NeedsHuman {
+		return NeedsHuman{
+			Offering: "bedrock:" + geo + ".anthropic.claude-sonnet-4-5-20250929-v1:0", Field: "limit", Rule: "no-rule",
+			Catalogue: catalogue, Page: "200", Values: []string{"providers/bedrock/models.go"}, SourceURLs: []string{"https://platform.claude.com/x"},
+		}
+	}
 	held := reconcile.Decision{
 		ID: "DEC-009", Offering: "bedrock:eu.anthropic.claude-sonnet-4-5-20250929-v1:0", Field: "lifecycle", Kind: reconcile.KindKeep,
 		Reason: "Agreed in review.", ReviewBy: "2027-01-13",
@@ -981,6 +1006,13 @@ func TestRenderSuggestedRules(t *testing.T) {
 				"### Suggested rules (1)\n\nSome rows under Resolve before merging went to a person under no-rule and share a field. If the case can come back, add a Default to RULES.md: give it a slug, write When as the condition, and replace each ?.\n\n" +
 					"| Default | Field | When | Bot does | Why | Outcome |\n|---|---|---|---|---|---|\n" +
 					"| new-default | `lifecycle` | 3 rows this run, all with `Legacy 2026-10-08`, `EOL 2027-04-08`, `AWS names no replacement` | ? | ? | ? |\n",
+			},
+		},
+		{
+			name: "two-sided rows suggest the side they share",
+			asks: []NeedsHuman{twoSided("global", "100"), twoSided("us", "150")},
+			contains: []string{
+				"| new-default | `limit` | 2 rows this run, all with `200`, `providers/bedrock/models.go` | ? | ? | ? |\n",
 			},
 		},
 		{name: "one row suggests nothing", asks: []NeedsHuman{ask("global", found...)}, notContains: []string{"Suggested rules"}},
