@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -308,6 +309,50 @@ func isPartnerFeaturePolicyDenial(err error) bool {
 	}
 
 	return strings.Contains(strings.ToLower(providerErr.Message), "allowedpartnermodelfeatures")
+}
+
+// denyingTransport answers every request the way Vertex AI does when the
+// allowedPartnerModelFeatures policy denies a Claude feature.
+type denyingTransport struct{}
+
+func (denyingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	body := `{"type":"error","error":{"type":"invalid_request_error","message":"Request violates constraint constraints/vertexai.allowedPartnerModelFeatures"}}`
+
+	return &http.Response{
+		StatusCode: http.StatusBadRequest,
+		Status:     "400 Bad Request",
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Request:    req,
+	}, nil
+}
+
+func TestVertexClaudeStandardModel_SkipsStructuredOutputsWhenDenied(t *testing.T) {
+	t.Parallel()
+
+	provider, err := vertex.NewProvider(context.Background(),
+		vertex.WithProject(testProject),
+		vertex.WithLocation(vertex.LocationGlobal),
+		vertex.WithHTTPClient(&http.Client{Transport: denyingTransport{}}),
+	)
+	require.NoError(t, err)
+
+	fixture := newVertexFixture(provider, catalog.PublisherAnthropic)
+
+	var skipped bool
+
+	// The subtest is parallel, so it ends only after this function returns.
+	t.Cleanup(func() {
+		assert.True(t, skipped, "a denied policy must skip the structured-outputs test")
+	})
+
+	t.Run("TestStructuredOutputs", func(t *testing.T) {
+		t.Parallel()
+
+		defer func() { skipped = t.Skipped() }()
+
+		fixture.NewStandardModel(t)
+	})
 }
 
 // TestVertexConformance_Integration runs the generic conformance suite on
