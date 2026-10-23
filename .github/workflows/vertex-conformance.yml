@@ -92,6 +92,10 @@ jobs:
         # Without the key every live test skips, which would pass as green.
         run: |
           [ -s "$VERTEX_KEY_FILE" ] || { echo "::error::no Vertex AI service-account key"; exit 1; }
+          # A renamed test would match nothing in -test.run and pass as green.
+          "$RUNNER_TEMP/vertex.test" -test.list '^TestVertexConformance_Integration$' \
+            | grep -qx TestVertexConformance_Integration \
+            || { echo "::error::TestVertexConformance_Integration not found"; exit 1; }
           VERTEX_CREDENTIALS_JSON="$(cat "$VERTEX_KEY_FILE")"
           export VERTEX_CREDENTIALS_JSON
           # The OIDC request variables would let the test mint a token for
