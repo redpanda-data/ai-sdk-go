@@ -39,17 +39,14 @@ import (
 )
 
 const (
-	// projectEnv names the Google Cloud project the live suite bills. The
-	// names match cloudv2's nightly-external-llm-tests workflow.
+	// projectEnv names the Google Cloud project the live suite bills.
 	projectEnv = "VERTEX_PROJECT_ID"
 	// credentialsJSONEnv names the variable holding the service-account key.
 	credentialsJSONEnv = "VERTEX_CREDENTIALS_JSON" //nolint:gosec // a variable name, not a credential
 
-	// testProject is the project DEVPROD-5004 set up for live Vertex tests.
+	// testProject is the project set up for live Vertex tests.
 	testProject = "cloudv2-testing-project"
 
-	// The standard and reasoning models of each half. Sonnet 5 and Gemini 3.6
-	// Flash are the models cloudv2's live Vertex matrix calls.
 	geminiTestModel          = vertex.ModelGemini36Flash
 	claudeTestModel          = vertex.ModelClaudeHaiku45
 	claudeTestReasoningModel = vertex.ModelClaudeSonnet5
@@ -277,7 +274,7 @@ func TestIsPartnerFeaturePolicyDenial(t *testing.T) {
 
 // skipIfStructuredOutputsDenied skips the test when the project's
 // constraints/vertexai.allowedPartnerModelFeatures policy denies Claude
-// structured outputs, which it does by default (DEVPROD-5004). A project
+// structured outputs, which it does by default. A project
 // granted an exception runs the test.
 func skipIfStructuredOutputsDenied(t *testing.T, model llm.Model) {
 	t.Helper()
