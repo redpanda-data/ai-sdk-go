@@ -253,25 +253,6 @@ func TestVertexFixtureNewModel_RefusesUngrantedClaude(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestIsPartnerFeaturePolicyDenial(t *testing.T) {
-	t.Parallel()
-
-	denied := &llm.ProviderError{
-		Base:    llm.ErrInvalidInput,
-		Code:    "invalid_request_error",
-		Message: "Request violates constraint constraints/vertexai.allowedPartnerModelFeatures",
-	}
-	assert.True(t, isPartnerFeaturePolicyDenial(fmt.Errorf("generate: %w", denied)))
-
-	other := &llm.ProviderError{
-		Base:    llm.ErrInvalidInput,
-		Code:    "invalid_request_error",
-		Message: "output_config.format.schema: invalid JSON schema",
-	}
-	assert.False(t, isPartnerFeaturePolicyDenial(other))
-	assert.False(t, isPartnerFeaturePolicyDenial(errors.New("allowedPartnerModelFeatures")))
-}
-
 // skipIfStructuredOutputsDenied skips the test when the project's
 // constraints/vertexai.allowedPartnerModelFeatures policy denies Claude
 // structured outputs, which it does by default. A project
@@ -306,6 +287,25 @@ func isPartnerFeaturePolicyDenial(err error) bool {
 	}
 
 	return strings.Contains(strings.ToLower(providerErr.Message), "allowedpartnermodelfeatures")
+}
+
+func TestIsPartnerFeaturePolicyDenial(t *testing.T) {
+	t.Parallel()
+
+	denied := &llm.ProviderError{
+		Base:    llm.ErrInvalidInput,
+		Code:    "invalid_request_error",
+		Message: "Request violates constraint constraints/vertexai.allowedPartnerModelFeatures",
+	}
+	assert.True(t, isPartnerFeaturePolicyDenial(fmt.Errorf("generate: %w", denied)))
+
+	other := &llm.ProviderError{
+		Base:    llm.ErrInvalidInput,
+		Code:    "invalid_request_error",
+		Message: "output_config.format.schema: invalid JSON schema",
+	}
+	assert.False(t, isPartnerFeaturePolicyDenial(other))
+	assert.False(t, isPartnerFeaturePolicyDenial(errors.New("allowedPartnerModelFeatures")))
 }
 
 // denyingTransport answers every request the way Vertex AI does when the
