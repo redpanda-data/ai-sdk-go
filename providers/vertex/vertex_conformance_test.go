@@ -39,8 +39,6 @@ import (
 )
 
 const (
-	// projectEnv names the Google Cloud project the live suite bills.
-	projectEnv = "VERTEX_PROJECT_ID"
 	// credentialsJSONEnv names the variable holding the service-account key.
 	credentialsJSONEnv = "VERTEX_CREDENTIALS_JSON" //nolint:gosec // a variable name, not a credential
 
@@ -83,11 +81,6 @@ func newLiveProvider(t *testing.T) *vertex.Provider {
 		t.Skipf("skipping: %s is not set", credentialsJSONEnv)
 	}
 
-	project := os.Getenv(projectEnv)
-	if project == "" {
-		project = testProject
-	}
-
 	creds, err := google.CredentialsFromJSONWithType(context.Background(), []byte(key), google.ServiceAccount, "https://www.googleapis.com/auth/cloud-platform")
 	if err != nil {
 		// The error can quote the key, so it is not printed.
@@ -98,7 +91,7 @@ func newLiveProvider(t *testing.T) *vertex.Provider {
 	client.Timeout = 2 * time.Minute
 
 	provider, err := vertex.NewProvider(context.Background(),
-		vertex.WithProject(project),
+		vertex.WithProject(testProject),
 		vertex.WithLocation(vertex.LocationGlobal),
 		vertex.WithHTTPClient(client),
 	)
