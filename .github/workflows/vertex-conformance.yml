@@ -1,0 +1,101 @@
+name: Vertex AI Conformance
+
+# Runs the shared conformance suite against providers/vertex with live
+# Vertex AI calls. No pull-request trigger: a PR could change this file and
+# read the key. The key is read through the vertex-conformance environment,
+# whose deployment branch rule admits main only.
+on:
+  schedule:
+    - cron: "41 4 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: vertex-conformance
+  cancel-in-progress: false
+
+jobs:
+  conformance:
+    name: Vertex AI conformance
+    if: github.ref == 'refs/heads/main'
+    environment: vertex-conformance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16  # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+
+      # Dependencies and the test binary are built before any credential is
+      # in the job.
+      - name: Build the test binary
+        run: go test -c -o "$RUNNER_TEMP/vertex.test" ./providers/vertex/
+
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd  # v6.3.0
+        with:
+          aws-region: ${{ vars.RP_AWS_CRED_REGION }}
+          role-to-assume: arn:aws:iam::${{ secrets.RP_AWS_CRED_ACCOUNT_ID }}:role/${{ vars.RP_AWS_CRED_BASE_ROLE_NAME }}${{ github.event.repository.name }}
+
+      # The key cloudv2's nightly-external-llm-tests reads. parse-json-secrets
+      # stays off: it would split the key file into one variable per field.
+      - name: Fetch Vertex AI service-account key
+        uses: aws-actions/aws-secretsmanager-get-secrets@2297f9a879480a9e3af9b293ed15c70caf8e1c88  # v3.0.2
+        with:
+          secret-ids: |
+            VERTEX_SECRET,sdlc/prod/github/vertex_sa_key_cloudv2
+          parse-json-secrets: false
+
+      # Writes the key to a file, masks it, and clears it and the AWS
+      # credentials from the job environment, so only the test step sees it.
+      - name: Write Vertex AI service-account key
+        env:
+          KEY_FILE: ${{ runner.temp }}/vertex-sa-key.json
+        run: |
+          {
+            echo "VERTEX_SECRET="
+            echo "AWS_ACCESS_KEY_ID="
+            echo "AWS_SECRET_ACCESS_KEY="
+            echo "AWS_SESSION_TOKEN="
+            echo "VERTEX_KEY_FILE=$KEY_FILE"
+          } >> "$GITHUB_ENV"
+          fail() { echo "::error::sdlc/prod/github/vertex_sa_key_cloudv2 $1"; rm -f "$KEY_FILE"; exit 1; }
+          # Accept the key file as a string or an object under its JSON key.
+          # jq's stderr is dropped because a parse error quotes its input.
+          jq -c '(.VERTEX_SA_KEY_CLOUDV2 // .) | if type == "string" then fromjson else . end' \
+              <<<"$VERTEX_SECRET" > "$KEY_FILE" 2>/dev/null \
+            || fail "cannot be read as a JSON key file"
+          # The type is printed before any mask is set, so only a plain word is.
+          key_type="$(jq -r 'try (.type // "missing") catch "non-object"' "$KEY_FILE")"
+          [[ "$key_type" =~ ^[a-z_-]{1,40}$ ]] || key_type=unexpected
+          [ "$key_type" = service_account ] \
+            || fail "holds a key of type \"$key_type\", want service_account"
+          jq -e '.private_key | type == "string"' "$KEY_FILE" >/dev/null \
+            || fail "holds a service_account key with no private_key"
+          echo "::add-mask::$(cat "$KEY_FILE")"
+          jq -r '(.private_key_id // empty), (.private_key | split("\n")[] | select(length > 0))' "$KEY_FILE" \
+            | sed 's/^/::add-mask::/'
+
+      - name: Run the Vertex AI conformance suite
+        working-directory: providers/vertex
+        env:
+          VERTEX_PROJECT_ID: cloudv2-testing-project
+        # Without the key every live test skips, which would pass as green.
+        run: |
+          [ -s "$VERTEX_KEY_FILE" ] || { echo "::error::no Vertex AI service-account key"; exit 1; }
+          VERTEX_CREDENTIALS_JSON="$(cat "$VERTEX_KEY_FILE")"
+          export VERTEX_CREDENTIALS_JSON
+          "$RUNNER_TEMP/vertex.test" -test.run '^TestVertexConformance_Integration$' -test.v -test.timeout 35m
+
+      - name: Remove Vertex AI service-account key
+        if: always()
+        run: '[ -z "$VERTEX_KEY_FILE" ] || rm -f "$VERTEX_KEY_FILE"'
