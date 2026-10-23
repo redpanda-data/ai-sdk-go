@@ -1,0 +1,3 @@
+# Workflows can run with repository secrets, so a change to one needs an
+# owner's review.
+/.github/workflows/ @redpanda-data/team-ai
