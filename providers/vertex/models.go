@@ -205,13 +205,12 @@ var (
 //	https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing
 //
 // Capabilities and constraints mirror the same models in the Gemini-API and
-// Anthropic-direct catalogs, with five exceptions. No Claude entry offers
+// Anthropic-direct catalogs, with four exceptions. No Claude entry offers
 // speed; Vertex publishes no Claude fast-mode rate. Several Gemini entries
 // cap output at 65536 where the Gemini-API catalog says 65535. Gemini 3.7
 // and 3.8 Flash take no presence or frequency penalty, which the Gemini-API
-// catalog lists. Claude Opus 4.5, Sonnet 4.5 and Haiku 4.5 take a manual
-// thinking budget, which the Anthropic-direct catalog does not set. Claude
-// tool search can be off where Anthropic-direct has it on: a new entry
+// catalog lists. Claude tool search can be off where Anthropic-direct has
+// it on (Sonnet 5, for one): a new entry
 // starts with claudeCaps, and a person turns it on once a call on Vertex
 // returns a tool search result (RULES.md vertex-capability-one-way).
 // The four preserved-thinking models also enforce prefix checks on Google
@@ -839,9 +838,9 @@ func entries() []catalog.Entry {
 			// A thinking.type of adaptive returns 400 (Anthropic's
 			// thinking-troubleshooting page, and rawPredict at global, 2026-09-28).
 			Reasoning: catalog.ReasoningSupport{Budget: true},
-			// Claude Haiku 4.5 GA, retirement floor "not sooner than 2026-10-15" on
-			// the model page (docs.cloud.google.com/gemini-enterprise-agent-platform/
-			// models/partner-models/claude/haiku-4-5, read 2026-09-10).
+			// Claude Haiku 4.5 GA, retirement floor "not sooner than December 7,
+			// 2026" on the model page (docs.cloud.google.com/gemini-enterprise-agent-
+			// platform/models/partner-models/claude/haiku-4-5, read 2026-10-23).
 			Life:    catalog.Lifecycle{Available: catalog.MustDate("2025-10-15")},
 			Pricing: claudeHaiku45Pricing(),
 		},
