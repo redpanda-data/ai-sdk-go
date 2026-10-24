@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/redpanda-data/ai-sdk-go/catalog"
+	"github.com/redpanda-data/ai-sdk-go/internal/reconcile"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/providers/anthropic"
 	"github.com/redpanda-data/ai-sdk-go/providers/bedrock"
@@ -55,6 +56,7 @@ func TestCatalogProviderMatchesProviderName(t *testing.T) {
 		{"vertex", (*vertex.Provider)(nil), "gcp.vertex"},
 		{"meta", (*meta.Provider)(nil), "meta"},
 	}
+	require.Len(t, reconcile.PackageProviders, len(cases), "reconcile.PackageProviders names another set of packages")
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -66,6 +68,8 @@ func TestCatalogProviderMatchesProviderName(t *testing.T) {
 				"%s provider Name() drifted from its documented key", tc.name)
 			assert.Equalf(t, tc.want, tc.provider.Catalog().Provider(),
 				"%s catalog provider must equal the provider's Name() so pricing lookups by Name() hit", tc.name)
+			assert.Equalf(t, string(tc.want), reconcile.PackageProviders[tc.name],
+				"reconcile.PackageProviders must map package %s to its snapshot provider", tc.name)
 		})
 	}
 }

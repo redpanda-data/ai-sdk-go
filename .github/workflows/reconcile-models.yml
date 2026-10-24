@@ -1,16 +1,10 @@
-name: reconcile-models
-
-# Placeholder. GitHub runs workflow_dispatch only for workflows whose file is
-# on the default branch; with this file on main, the real workflow can be run
-# from its branch before it merges:
-#   gh workflow run reconcile-models.yml --ref <branch>
-# The real workflow replaces this file when it merges.
+name: Model Catalog Reconciliation
 
 on:
   workflow_dispatch:
     inputs:
       provider:
-        description: Provider to reconcile
+        description: Vendor to reconcile (its models on every provider that sells them)
         type: choice
         options: [anthropic]
         default: anthropic
@@ -18,13 +12,401 @@ on:
         description: Stop before pushing a branch or opening a PR
         type: boolean
         default: true
+      force:
+        description: Run the agent even if the gate finds nothing changed
+        type: boolean
+        default: false
+  # Weekly, a full run: the agent, and a draft PR into main when the catalog
+  # drifted. Schedules run only from the default branch.
+  schedule:
+    - cron: "17 6 * * 1"
 
 permissions: {}
 
+concurrency:
+  group: reconcile-models-${{ inputs.provider || 'anthropic' }}
+  cancel-in-progress: false
+
+env:
+  PROVIDER: ${{ inputs.provider || 'anthropic' }}
+  DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+  FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
+  # shadow: the gate reports "would skip" but the agent always runs. Switch to
+  # enforce once the record job's comparisons show skips would lose nothing.
+  GATE_MODE: shadow
+  # The oldest baseline the gate relies on: past a week, so last week's
+  # scheduled run still counts.
+  MAX_AGE: 192h
+
 jobs:
-  placeholder:
+  # No model. Fingerprints the vendor's pages and the run's inputs, and
+  # compares them with the last successful real run's, to skip the agent
+  # when nothing changed. Anything it can't prove unchanged runs the agent.
+  gate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read # to find and download the last real run's fingerprints
+    outputs:
+      run_agent: ${{ steps.gate.outputs.run_agent }}
+      verdict: ${{ steps.gate.outputs.verdict }}
     steps:
-      - name: Placeholder
-        run: echo "Placeholder only. Run this workflow from the branch that contains the real one."
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          persist-credentials: false
+      - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e  # v2.2.0
+      - name: Find the last real run's fingerprints
+        id: baseline
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NAME: reconcile-fingerprints-${{ env.PROVIDER }}
+          BRANCH: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
+          REPO_ID: ${{ github.repository_id }}
+          WORKFLOW_PATH: .github/workflows/reconcile-models.yml
+        run: .github/reconcile-models/find-baseline.sh >>"$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        if: steps.baseline.outputs.run_id != ''
+        continue-on-error: true
+        with:
+          name: reconcile-fingerprints-${{ env.PROVIDER }}
+          run-id: ${{ steps.baseline.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: out/gate/baseline
+      - name: Fingerprint the sources (no model)
+        id: gate
+        # A failed gate leaves run_agent empty, which runs the agent.
+        continue-on-error: true
+        env:
+          BASE_RUN: ${{ steps.baseline.outputs.run_id }}
+        run: |
+          task catalog:gate -- -provider "$PROVIDER" -mode "$GATE_MODE" -force="$FORCE" -max-age "$MAX_AGE" \
+            -baseline out/gate/baseline/fingerprints.json -baseline-run "$BASE_RUN" -out out/gate >>"$GITHUB_OUTPUT"
+          cat out/gate/summary.md >>"$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        if: always()
+        with:
+          name: reconcile-gate-${{ env.PROVIDER }}
+          path: out/gate/
+          retention-days: 14
+
+  agent:
+    needs: gate
+    # A failed gate runs the agent too (!cancelled() lifts the implicit
+    # success() check).
+    if: ${{ !cancelled() && needs.gate.outputs.run_agent != 'false' }}
+    runs-on: ubuntu-24.04
+    # A launch across three hosts took 17 minutes and 163 turns (run 12).
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    env:
+      CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
+      # No telemetry, error reports or update checks, so their hosts stay off
+      # the allowlist below.
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"
+    steps:
+      # Every later step reaches only these hosts; a request to any other host
+      # fails by itself without failing the job. The list is what recorded runs
+      # reached: the model, the named sources, then installs (Claude Code,
+      # GitHub, Go and its modules, apt). Harden-Runner also always allows
+      # GitHub's Actions domains, private ranges and Azure's VM address.
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            api.anthropic.com:443
+            platform.claude.com:443
+            cloud.google.com:443
+            docs.cloud.google.com:443
+            aws.amazon.com:443
+            docs.aws.amazon.com:443
+            pricing.us-east-1.amazonaws.com:443
+            downloads.claude.ai:443
+            claude.ai:443
+            registry.npmjs.org:443
+            github.com:443
+            api.github.com:443
+            release-assets.githubusercontent.com:443
+            *.githubapp.com:443
+            go.dev:443
+            dl.google.com:443
+            proxy.golang.org:443
+            sum.golang.org:443
+            storage.googleapis.com:443
+            azure.archive.ubuntu.com:80
+            packages.microsoft.com:443
+            esm.ubuntu.com:443
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          persist-credentials: false
+      - name: Check the egress block
+        run: .github/reconcile-models/check-egress.sh
+      - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e  # v2.2.0
+      # Claude Code needs bubblewrap to scrub secrets from subprocesses. The
+      # action installs it only for non-write users, so do it here, the same way.
+      - name: Install subprocess isolation
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends bubblewrap socat
+          # Ubuntu 24.04 restricts unprivileged user namespaces, which bubblewrap needs.
+          if [[ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+      # claude-code-action prints the agent's whole conversation when debug
+      # logging is on, and this repository's logs are public, so refuse it.
+      - name: Refuse debug logging
+        env:
+          STEP_DEBUG_SECRET: ${{ secrets.ACTIONS_STEP_DEBUG }}
+          STEP_DEBUG_VAR: ${{ vars.ACTIONS_STEP_DEBUG }}
+        run: |
+          if [[ "${RUNNER_DEBUG:-}" == "1" || "$STEP_DEBUG_SECRET" == "true" || "$STEP_DEBUG_VAR" == "true" ]]; then
+            echo "::error::Debug logging is on, which would print the agent's conversation into this public log. Re-run without debug logging."
+            exit 1
+          fi
+      - name: Prepare prompt and schema
+        id: inputs
+        run: |
+          {
+            echo "prompt<<EOF_PROMPT"
+            sources=.github/reconcile-models/named-sources.json
+            hosts="$(jq -r --arg p "$PROVIDER" '.[$p].hosts | join(", ")' "$sources")"
+            owned="$(jq -r --arg p "$PROVIDER" '.[$p].providers | join(", ")' "$sources")"
+            sed -e "s/{{PROVIDER}}/${PROVIDER}/g" -e "s/{{HOSTS}}/${hosts}/g" -e "s/{{PROVIDERS}}/${owned}/g" .github/reconcile-models/prompt.md
+            echo "EOF_PROMPT"
+            echo "schema=$(jq -c . .github/reconcile-models/report.schema.json)"
+            # Edit rights on the Go files of each owned provider.
+            echo "edits=$(jq -r --arg p "$PROVIDER" '.[$p].providers | map("Edit(./providers/\(.)/*.go)") | join(",")' "$sources")"
+          } >>"$GITHUB_OUTPUT"
+      # Read(//proc/**): any process's environment is readable under /proc,
+      # including this step's model key. The shell already runs without it.
+      - name: Run reconcile-models
+        id: claude
+        uses: anthropics/claude-code-action@6fed3ca145920b639991cb756090506e1bcaf515  # v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
+          prompt: ${{ steps.inputs.outputs.prompt }}
+          settings: '{"disableAllHooks": true}'
+          claude_args: >-
+            --model claude-opus-5-5
+            --max-turns 300
+            --append-system-prompt-file .github/reconcile-models/RULES.md
+            --allowedTools "Skill,Read,Grep,Glob,${{ steps.inputs.outputs.edits }},Edit(./catalog/facts_data.go),Bash(curl:*),Bash(grep:*),Bash(jq:*),Bash(task catalog:snapshot),Bash(task test:unit),Bash(task lint:new),Bash(git diff:*)"
+            --disallowedTools "WebFetch,WebSearch,Bash(git push:*),Bash(git commit:*),Bash(gh:*),AskUserQuestion,Task,Agent,Read(//proc/**)"
+            --json-schema '${{ steps.inputs.outputs.schema }}'
+      - name: Collect patch and report
+        # Also after a failed agent step, so the run leaves evidence to inspect.
+        if: always()
+        env:
+          REPORT: ${{ steps.claude.outputs.structured_output }}
+        # Start from an empty out/ and hand over only these two files, so
+        # nothing else the agent wrote reaches the PR job.
+        run: |
+          rm -rf out && mkdir out
+          printf '%s' "$REPORT" >out/report.json
+          # New files are untracked; mark them so the diff includes them.
+          # pr-job.sh rejects any file outside the run's own providers.
+          git ls-files --others --exclude-standard -- ":(glob)providers/*/*.go" | xargs -r git add -N --
+          git diff -- ":(glob)providers/*/*.go" catalog/facts_data.go >out/patch.diff
+      - name: Run stats
+        if: always()
+        # Diagnostics only: a failure here must not stop the PR job.
+        continue-on-error: true
+        env:
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+        run: .github/reconcile-models/run-stats.sh "$EXECUTION_FILE" out/report.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        if: always()
+        with:
+          name: reconcile-agent-${{ env.PROVIDER }}
+          path: |
+            out/report.json
+            out/patch.diff
+          if-no-files-found: error
+          retention-days: 7
+
+  pr:
+    needs: agent
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: read
+      id-token: write # only used outside dry runs, to read the bot token
+    env:
+      # A run from main opens the real PR into main. A run from any other
+      # branch opens a test PR into that branch, from its own bot branch, so it
+      # shows only the bot's commit and never touches the real PR.
+      BASE: ${{ github.ref_name }}
+      BRANCH: ${{ github.ref_name == 'main' && 'bot/reconcile-models' || 'bot/reconcile-models-test' }}/${{ inputs.provider || 'anthropic' }}
+    steps:
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          persist-credentials: false
+      - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e  # v2.2.0
+      # pr-job.sh runs the patched code in a bubblewrap sandbox with no network.
+      - name: Install the sandbox
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends bubblewrap
+          # Ubuntu 24.04 restricts unprivileged user namespaces, which bubblewrap needs.
+          if [[ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with:
+          name: reconcile-agent-${{ env.PROVIDER }}
+          path: out
+      - name: Check the patch (no model)
+        id: check
+        run: |
+          rm -f out/body.md out/snapshot.diff out/files.txt  # only pr-job.sh writes these
+          task install:go
+          export PATH="$(dirname "$(ls -d "$PWD"/.build/go*/bin/go | tail -1)"):$PATH"
+          GOTOOLCHAIN=local .github/reconcile-models/pr-job.sh "$PROVIDER" out
+      # A person's recent, non-draft PR on a models.go this patch changes doesn't
+      # stop the bot: the PR body names it, so the reviewer can merge theirs
+      # first, and the next run leaves out what it already contains. Drafts and
+      # PRs older than 7 days aren't named, or long-lived PRs would always be.
+      - name: Name recent PRs that touch the same models.go
+        if: steps.check.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          touched="$(grep -E '^providers/[a-z0-9]+/models\.go$' out/files.txt | tr '\n' ' ' || true)"
+          others="$(TOUCHED="$touched" gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json number,headRefName,files,isDraft,createdAt \
+            --jq '[.[] | select(.headRefName != env.BRANCH) | select(.isDraft | not)
+              | select((.createdAt | fromdateiso8601) > (now - 7 * 86400))
+              | select(any(.files[].path; . as $f | any(env.TOUCHED | split(" ")[]; . == $f)))
+              | .number] | map(tostring) | join(",")')"
+          if [[ -n "$others" ]]; then
+            echo "Recent open PRs touch ${touched}: $others"
+            note="> **Open PRs touch the same files:** $(sed -E 's/[0-9]+/#&/g; s/,/, /g' <<<"$others"). If they overlap, merge theirs first: the next run leaves out what they already contain."
+            { head -n 2 out/body.md; echo "$note"; echo; tail -n +3 out/body.md; } >out/body.next && mv out/body.next out/body.md
+          fi
+      - name: Job summary
+        if: always()
+        run: if [[ -f out/body.md ]]; then cat out/body.md >>"$GITHUB_STEP_SUMMARY"; fi
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        if: always()
+        with:
+          name: reconcile-pr-${{ env.PROVIDER }}
+          path: |
+            out/body.md
+            out/snapshot.diff
+          retention-days: 7
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd  # v6.3.0
+        if: env.DRY_RUN != 'true' && steps.check.outputs.changed == 'true'
+        with:
+          aws-region: ${{ vars.RP_AWS_CRED_REGION }}
+          role-to-assume: arn:aws:iam::${{ secrets.RP_AWS_CRED_ACCOUNT_ID }}:role/${{ vars.RP_AWS_CRED_BASE_ROLE_NAME }}${{ github.event.repository.name }}
+      - uses: aws-actions/aws-secretsmanager-get-secrets@2297f9a879480a9e3af9b293ed15c70caf8e1c88  # v3.0.2
+        if: env.DRY_RUN != 'true' && steps.check.outputs.changed == 'true'
+        with:
+          secret-ids: |
+            ,sdlc/prod/github/actions_bot_token
+          parse-json-secrets: true
+      - name: Push the rolling branch and open or update the draft PR
+        if: env.DRY_RUN != 'true' && steps.check.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ env.ACTIONS_BOT_TOKEN }}
+        run: |
+          bot_id="$(gh api users/vbotbuildovich --jq .id)"
+          git config user.name vbotbuildovich
+          git config user.email "${bot_id}+vbotbuildovich@users.noreply.github.com"
+          git switch -C "$BRANCH"
+          xargs -r -a out/files.txt git add --  # the files pr-job.sh checked
+          git -c core.hooksPath=/dev/null commit -m "chore(catalog): reconcile ${PROVIDER} models"
+          # The push below changes the code in every PR from this repo whose head
+          # is $BRANCH, so stop if anyone but the bot has one open.
+          others="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number,author,isCrossRepository \
+            --jq '[.[] | select((.isCrossRepository | not) and .author.login != "vbotbuildovich") | "#\(.number)"] | join(", ")')"
+          if [[ -n "$others" ]]; then
+            echo "::error::Open PRs from ${BRANCH} by someone other than vbotbuildovich: ${others}. The push would put new agent code in them; close them or open them from another branch, then re-run."
+            exit 1
+          fi
+          # A PR a person marked ready goes back to draft before the push, so new
+          # agent code runs only test.yaml's no-secrets job until reviewed again.
+          # Only the bot's own PR from this repo: --head matches a fork's PR
+          # from a branch with the same name too.
+          existing="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number,author,isCrossRepository \
+            --jq '[.[] | select(.author.login == "vbotbuildovich" and (.isCrossRepository | not))][0].number // empty')"
+          # The push is leased to the head read here, so it fails if anyone
+          # pushes to the branch after this point; an empty head means the
+          # branch must not exist yet.
+          head="$(git ls-remote origin "refs/heads/${BRANCH}" | cut -f1)"
+          if [[ -n "$existing" ]]; then
+            # Keep anyone else's commit on the bot PR: say what this run found
+            # instead of pushing over it.
+            commits="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${existing}/commits?per_page=100")"
+            theirs="$(.github/reconcile-models/others-commits.sh vbotbuildovich <<<"$commits")"
+            if [[ -n "$theirs" ]]; then
+              run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+              gh pr comment "$existing" --repo "$GITHUB_REPOSITORY" --edit-last --create-if-none --body "The latest run found catalog changes but didn't update this PR, because the update would remove commits that aren't the bot's (${theirs}). Merge or close this PR to let the next run update it. [The run](${run_url}) shows what it found."
+              echo "::notice::Left #${existing} unchanged: it has commits that aren't the bot's (${theirs})."
+              exit 0
+            fi
+            if [[ "$(gh pr view "$existing" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" == "false" ]]; then
+              gh pr ready "$existing" --repo "$GITHUB_REPOSITORY" --undo
+            fi
+          fi
+          git push --force-with-lease="refs/heads/${BRANCH}:${head}" "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${BRANCH}"
+          if [[ -n "$existing" ]]; then
+            # The label again on every update: a person may have removed it.
+            gh pr edit "$existing" --repo "$GITHUB_REPOSITORY" --base "$BASE" --body-file out/body.md --add-label ai-merge-skip
+          else
+            gh pr create --repo "$GITHUB_REPOSITORY" --draft --base "$BASE" --head "$BRANCH" \
+              --title "chore(catalog): reconcile ${PROVIDER} models" --body-file out/body.md \
+              --label ai-merge-skip --reviewer adamwownysz-redpanda
+          fi
+
+  # No model, on a fresh runner. After a green agent and PR job, dry runs
+  # included, it compares the run with the gate's page list and the baseline
+  # run's findings; outside dry runs it then saves this run's fingerprints as
+  # the next baseline. It runs nothing from the patch.
+  record:
+    needs: [gate, agent, pr]
+    if: needs.gate.outputs.verdict != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          persist-credentials: false
+      - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e  # v2.2.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with:
+          name: reconcile-gate-${{ env.PROVIDER }}
+          path: gate
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with:
+          name: reconcile-agent-${{ env.PROVIDER }}
+          path: gate/agent
+      - name: Compare with the page list and the baseline run
+        # A failed comparison must not stop the baseline from being saved.
+        continue-on-error: true
+        run: |
+          task catalog:gate -- -compare -gate gate -report gate/agent/report.json \
+            -baseline-report gate/baseline/report.json >>"$GITHUB_STEP_SUMMARY"
+      - name: Collect the next baseline
+        run: mkdir -p keep && cp -r gate/fingerprints.json gate/text gate/agent/report.json keep/
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        if: env.DRY_RUN != 'true'
+        with:
+          name: reconcile-fingerprints-${{ env.PROVIDER }}
+          path: keep/
+          if-no-files-found: error
+          retention-days: 90

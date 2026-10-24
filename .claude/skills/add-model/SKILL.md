@@ -14,14 +14,21 @@ description: >-
 Each provider authors `catalog.Entry` values in its `models.go` (`entries()`),
 frozen into a `catalog.Catalog` at init — `catalog.MustNew` validates every
 entry, so a broken entry fails every test run with a path-qualified error.
-Adding a model must never require editing an existing entry: generation
-ordering, succession, and price tiers are derived at read time.
+Adding a model never edits an existing entry (RULES.md principle 6,
+*Append-only*).
+
+Every run, hand runs included, follows `.github/reconcile-models/RULES.md`,
+which decides what to change, skip or ask. The host pages in
+`.claude/skills/reconcile-models/hosts/` say where each host publishes its
+facts: start with `shared.md`, then the page for each package. This skill is
+the workflow.
 
 ## Step 1 — Register facts (once per logical model)
 
 In `catalog/facts_data.go`: canonical `ModelID` constant
 (`"anthropic/claude-opus-5"` — vendor segment names the creator, not the
-host), `Publisher`, `DisplayName`, `Description` (short UI blurb),
+host), `Publisher`, `DisplayName`, `Description` (a short blurb from the
+vendor's own pages),
 `Series`, `Released`, `Knowledge`. Two providers offering the same model reference the same
 `ModelID`; never author facts twice.
 
@@ -35,22 +42,16 @@ host), `Publisher`, `DisplayName`, `Description` (short UI blurb),
 - **Series is a non-branching succession line**, not a brand: gpt, gpt-mini,
   and gpt-nano are three series — a mini is not the successor of a base
   model. Vendor renames map onto the line they succeed.
-- **Knowledge is the reliable cutoff.** When a vendor publishes both a
-  "reliable knowledge" and a broader "training data" date, use the reliable
-  one. Month-only cutoffs normalize to the last day of that month.
-- **Released** is the day this exact model ID first became callable by
-  users anywhere, including the vendor's own apps (ChatGPT, Codex), not
-  only its API. The provider's API launch day goes on that offering's
-  `Lifecycle.Available` (GPT-5.5: Released Apr 23 in ChatGPT and Codex,
-  Available Apr 24 in the API). Usually Released is the announcement day;
+- **Knowledge** follows knowledge-month-end.
+- **Released** follows released-first-callable, and the provider's API
+  launch day goes on that offering's `Lifecycle.Available`
+  (available-host-launch). GPT-5.5: Released Apr 23 in ChatGPT and Codex,
+  Available Apr 24 in the API. Usually Released is the announcement day;
   when an announcement promises a later rollout, use the rollout day. A
   preview shipped under its own ID (`gemini-3.1-flash-lite-preview`) is a
   separate model with its own date, so the GA ID's Released is its own
-  first-callable day, not the preview's. Vendors often publish only a
-  month; OpenRouter's `created` field is a day-precision fallback, but it
-  dates the OpenRouter *slug*, which can predate this ID (a slug first
-  listed for a preview) or lag it. LiteLLM has no release dates. Comment
-  the source on every Released.
+  first-callable day, not the preview's. When the vendor gives only a
+  month, follow release-month-only. Comment the source on every Released.
 - Dates are `catalog.MustDate("YYYY-MM-DD")` (midnight UTC; validated).
 
 ## Step 2 — Author the provider entry
@@ -79,60 +80,37 @@ Exported ID constant (greppable), capabilities, constraints, modalities,
   exact provider-native ID. A protocol does not identify its transport:
   Anthropic Messages through Bedrock InvokeModel needs a different envelope
   from direct Messages, runtime Messages, Mantle, or Vertex rawPredict.
-  Verify per-model API support from vendor model pages/API matrices; do not
-  infer it from publisher, model-name patterns, the SDK's current mapper, or
-  another offering's geo/profile variant. OpenAI Pro models can be
-  Responses-only while other OpenAI models support both APIs.
-  Advertise production-grade bindings, not degraded/experimental compatibility
-  layers as interchangeable native APIs. Availability does not promise feature
-  parity or account entitlement. An empty list means unknown, not a provider
-  default. The list is a set, not a preference order; catalog construction
-  sorts and copies it. No endpoint URLs, credentials, regions, or model-ID
-  remapping belong in this field.
-- **Capabilities and modalities describe the model as the provider documents
-  it**, not what this SDK's request mappers wire yet.
-- **`Constraints.MaxInputTokens` is the vendor's enforceable input cap**:
-  when the vendor publishes a separate "maximum input tokens" (OpenAI's
-  GPT-5: 272K within its 400K window), use that — the API rejects larger
-  inputs. Use the stated context window only when input is not separately
-  capped (Anthropic's 1M).
+  Verify per-model API support from vendor model pages and API matrices; do
+  not infer it from the publisher, model-name patterns, the SDK's current
+  mapper, or another offering's geo or profile variant. OpenAI Pro models can
+  be Responses-only while other OpenAI models support both APIs. Advertise
+  production-grade bindings, not degraded or experimental compatibility
+  layers. Availability does not promise feature parity or account
+  entitlement. An empty list means unknown, not a provider default. The list
+  is a set, not a preference order; catalog construction sorts and copies it.
+  No endpoint URLs, credentials, regions, or model-ID remapping belong in
+  this field.
+- **Capabilities and modalities** follow capability-follow.
+- **`Constraints.MaxInputTokens` and `MaxOutputTokens`** follow
+  limit-follow. OpenAI's GPT-5 caps input at 272K within its 400K window,
+  so its `MaxInputTokens` is 272K. Anthropic's 1M models have no separate
+  input cap, so theirs is the window.
 
 ### Pricing encoding
 
-- Constructors take **US dollars per million tokens**: `$2.50/M` is written
-  `2.50` (`pricing.NewRates`, `pricing.FlatInfo`,
-  `.WithCacheCreation(w5m, w1h, unknown)`). They convert to microcents
-  internally — never pass microcent literals; `FlatInfo(250_000_000, …)`
-  compiles and overprices by 10⁸.
-- A `0` input/output rate means *unpriced* and is rejected; a published $0
-  rate is `pricing.RateFree`.
-- Context-tiered rates use `pricing.TieredInfo(base, pricing.Bracket{...})`.
-  A bracket's rates **fully replace** the base above `MinContextTokens` —
-  author every field, not just the ones that change. Speed/tier/region
-  variation uses `Pricing.WithOverride(selector, RateCard{...})` — never
-  provider-specific fields. An override card has its **own** brackets: a
-  tiered model with a fast mode needs the bracket on the fast card too, or
-  large fast requests underbill.
-- **Encode only the rate in effect today.** Vendor tables print future rates
-  in the same cell; `pricing.Info` has no effective date, so a scheduled
-  rate is a comment, never data. Only add a bracket for a threshold the
-  vendor currently publishes.
-- Anthropic cache rates derive from published multipliers off base input:
-  5m-write 1.25x, 1h-write 2x, cache-read 0.10x.
+- Encode prices as `reconcile-models/hosts/shared.md` ("Writing prices")
+  says. Which rates to write follows price-follow.
 
 ### Lifecycle
 
-- `Life.Retires` is an **exact announced shutdown date only** (inclusive:
-  retired *on* that date). A published "not sooner than" floor is a lower
-  bound, not a shutdown date — leave `Retires` unset until an exact date is
-  announced.
-- **Lifecycle comes from the surface being catalogued**, never from another
-  host of the same model (Gemini API and Vertex schedule Gemini differently).
-- `Life.ReplacedBy` must name an offering in the same catalog; skip it when
-  the provider's recommendation isn't one we carry.
-- **The catalog is append-only**: never delete a retired model's entry — set
-  `Retires`, add a `// Deprecated:` doc comment on the ID constant naming
-  the replacement, and leave the entry so historical usage stays priceable.
+- **Dates** follow lifecycle-exact-date. `Life.Retires` is inclusive: the
+  model is retired *on* that date.
+- **Lifecycle is a host fact** (RULES.md principle 2, *Host facts*): the
+  Gemini API and Vertex schedule Gemini differently.
+- **`Life.ReplacedBy`** follows RULES.md (replacement-pick, out-of-reach).
+- **A retired model keeps its entry** (RULES.md principle 6,
+  *Append-only*); `reconcile-models/hosts/shared.md` ("Reading lifecycle
+  pages") says how to mark it.
 
 ## Step 3 — Snapshot
 
@@ -144,38 +122,11 @@ nothing else.
 
 ## Sources
 
-Authoritative (always reconcile against these):
-
-- Anthropic: platform.claude.com/docs/en/about-claude/pricing ·
-  /model-deprecations
-- OpenAI: developers.openai.com/api/docs/pricing · /docs/deprecations ·
-  per-model pages (/docs/models/<id>) for window, max input, max output
-- Google: ai.google.dev/gemini-api/docs/pricing · /docs/deprecations ·
-  /docs/models
-- Vertex (Google Cloud Agent Platform): cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing
-  (one page, per-region tabs; Claude priced by Google here, not Anthropic) ·
-  per-model pages /models/gemini/<slug> and /models/partner-models/claude/<slug>
-  for launch stage, release date, retirement floor · /models/model-versions
-  for Gemini retirement and replacement
-- Bedrock: aws.amazon.com/bedrock/pricing/ · per-model cards ·
-  `ListFoundationModels` (`modelLifecycle`)
-
-Cross-checks (fetch, compare, never cite in code comments — code references
-provider sources only):
-
-```bash
-# OpenRouter: per-model objects; /endpoints lists per-host variants.
-curl -s https://openrouter.ai/api/v1/models | jq '.data[] | select(.id=="anthropic/claude-opus-4.5")'
-# LiteLLM: one flat JSON; values are USD PER TOKEN — multiply by 1e6 for $/M.
-curl -sL https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json |
-  jq '."claude-opus-4-5"'
-```
-
-Cross-check traps: LiteLLM sometimes files "not sooner than" retirement
-floors under `deprecation_date` — never trust it for lifecycle; OpenRouter's
-API truncates `description` mid-sentence (trim to the last full sentence);
-both may lag brand-new models. When aggregators and this repo disagree, the
-provider page wins.
+- The reconcile-models skill's Sources section lists each host's pages, and
+  the host pages in `.claude/skills/reconcile-models/hosts/` say where on
+  them each fact lives.
+- Aggregators: see `reconcile-models/hosts/shared.md` ("Hand runs: LiteLLM
+  leads").
 
 ## Bedrock specifics
 
@@ -186,31 +137,38 @@ Bedrock models are one `family` declaration in `models.go`, expanded by
   the bare, geo-prefixed and global variants all report the same vendor;
   `TestPublisherMatchesBareIDVendor` pins that vendor against the namespace
   of `BareID` — `anthropic` for `anthropic.claude-opus-5`.
-- Check the model card's Programmatic Access and Regional Availability
-  tables for exact IDs. Register the bare ID (`BareInvokable`) only when the
-  bedrock-runtime row publishes an In-Region endpoint URL — otherwise the
-  bare ID returns `ValidationException` ("on-demand throughput isn't
-  supported"). A bedrock-mantle Anthropic Messages URL is NOT evidence of
-  bedrock-runtime support. This SDK's current Mantle adapter implements only
-  the OpenAI-compatible Responses surface; that implementation limit is not
-  the offering's vendor wire-API inventory.
-- Confirm uncertain IDs with a one-token `Converse` request: working IDs
-  return output; unpublished ones return `ValidationException` ("model
-  identifier is invalid"); published-but-unsubscribed ones return
-  `AccessDeniedException`. New models are often US- and global-only at first.
-- Pricing is per-profile: `global.` is cheapest; every geo/in-region rate is
-  exactly **1.10x** the global rate (pinned by `TestGeoGlobalRatio` as a
-  tripwire — a future exception is a data edit, not a schema change).
-- A new inference profile needs its prefix in `profileLabels` in
-  `families.go`; `expandFamilies` panics on a profile that is not there.
+- Take exact IDs from the model card (`reconcile-models/hosts/bedrock.md`,
+  "IDs and copies"). Register the bare ID (`BareInvokable`) only as RULES.md
+  allows (bare-id-unregistered); that host page says which endpoints
+  count.
+- `reconcile-models/hosts/bedrock.md` says how to confirm an uncertain ID
+  ("Probes"), where each rate comes from and which rate card it fills
+  ("Prices"), and how to check the geo-to-global ratio ("Self-check").
+- A profile in a region the catalogue doesn't offer yet (a new prefix,
+  e.g. `in.`) is a product decision (`region-not-offered` in
+  `.github/reconcile-models/RULES.md`). Don't add one unless a person asked
+  for it. Offering one takes every place below, in one PR:
+  - `profileLabels` in `families.go` (`expandFamilies` panics on a profile
+    that isn't there) and `geoProfilePrefixes` in `models.go`;
+    `TestModelsDiscovery_InferenceGeoMetadata` fails until both have it;
+  - `sourceRegionGeoPrefix` in `cross_region.go`, for the source regions
+    the new geography covers, and each `ProfileRegions` map that should
+    route those regions to it;
+  - the family's `Profiles`, and the prefix list passed to `hasGeoPrefix`
+    in `TestIsModelAllowedFromRegion_AllSupportedModels`
+    (`cross_region_test.go`);
+  - the *Offered regions* row in `.github/reconcile-models/RULES.md`;
+    `TestOfferedRegionsMatchCode` fails until it matches the catalogue.
 - Declare `ProfileRegions` when the model card publishes an exact
   source-region→profile map; add lookup and region-allow tests for every
   published ID.
 - Author the family's wire API bindings and explicit per-profile exceptions
   where documented. A bare Mantle ID does not imply a runtime binding, and a
-  registered runtime profile does not imply its ID works on Mantle. Do not
-  synthesize metadata for unpublished siblings. Keep the SDK's existing
-  runtime routing unchanged when updating catalog availability metadata.
+  registered runtime profile does not imply its ID works on Mantle. This
+  SDK's Mantle adapter implementing only the Responses surface is an SDK
+  limit, not the offering's wire-API inventory. Do not synthesize metadata
+  for unpublished siblings, and keep the SDK's existing runtime routing
+  unchanged when updating this metadata.
 - Invocation also requires the **account** to have accepted the model's AWS
   Marketplace agreement in every region the profile routes across. Until
   then invocation returns `AccessDeniedException`; the conformance suite's
@@ -221,8 +179,6 @@ Bedrock models are one `family` declaration in `models.go`, expanded by
 - `task test:unit` — catalog validation, pricing guards
   (`TestGeoGlobalRatio`, fast-mode guards), and conformance metadata checks
   pick the entry up automatically through `Catalog()`.
-- Don't trust the published window — probe it: send a prompt just over the
-  threshold with the raw SDK (~4 chars/token, overshoot with margin). A
-  genuine 1M model accepts >200K with no beta header; a 200K model returns
-  "prompt is too long". Disable caching when measuring, or sum
-  `BilledInputTokens()`.
+- In a hand run, don't trust the published window: probe it as
+  `reconcile-models/hosts/shared.md` ("Probes (hand runs only)") says, and
+  run the probes the host's own page lists.

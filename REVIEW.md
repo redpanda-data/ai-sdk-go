@@ -41,3 +41,22 @@ its command. Require reviewed snapshot deltas, not source-text proxy tests.
 
 Keep unresolved owner decisions visible. Do not substitute an agent's assertion
 for hosted checks, independent approval, or permission to merge.
+
+## Bot catalog PRs
+
+The reconcile-models workflow opens draft PRs from `vbotbuildovich` that change
+the model catalog, following `.github/reconcile-models/RULES.md`. The PR job
+checked the report's format and that every source is a named source, and ran
+the tests without secrets. It didn't check the values.
+
+- Check each row in "Changes" against the page it cites, and each offering in
+  "Changed with no row" in the snapshot diff, since no row explains it. Mark the
+  PR ready only when every value matches.
+- Settle each question in "Resolve before merging" before you merge: fix it on
+  the base branch or record a decision.
+- In "Held by decisions", each value should still match its entry in
+  `.github/reconcile-models/decisions.yaml`.
+- Approve a move in "Routing changes" only if every caller of that bare name
+  can take the new profile and its price.
+- Read the files in "Code changed" before marking the PR ready: that runs them
+  with secrets.
