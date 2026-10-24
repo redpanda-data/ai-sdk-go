@@ -71,7 +71,8 @@ jobs:
             echo "VERTEX_KEY_FILE=$KEY_FILE"
           } >> "$GITHUB_ENV"
           fail() { echo "::error::sdlc/prod/github/vertex_sa_key_cloudv2 $1"; rm -f "$KEY_FILE"; exit 1; }
-          # Accept the key file as a string or an object under its JSON key.
+          # Accept the key file itself, or as a string or an object under its
+          # JSON key. Any other shape fails with "cannot be read".
           # jq's stderr is dropped because a parse error quotes its input.
           jq -c '(.VERTEX_SA_KEY_CLOUDV2 // .) | if type == "string" then fromjson else . end' \
               <<<"$VERTEX_SECRET" > "$KEY_FILE" 2>/dev/null \
