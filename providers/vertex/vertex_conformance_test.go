@@ -51,9 +51,7 @@ const (
 )
 
 // grantedClaudeModels are the Claude models enabled in testProject's Model
-// Garden. Vertex answers any other Claude model with a 404 that the shared
-// suite does not read as an access gate, so the Claude catalog holds only
-// these, and NewModel refuses any other with a named reason.
+// Garden. Vertex answers any other Claude model with a 404.
 var grantedClaudeModels = map[string]bool{
 	vertex.ModelClaudeHaiku45: true,
 	vertex.ModelClaudeSonnet5: true,
@@ -114,8 +112,7 @@ func (f *VertexFixture) NewStandardModel(t *testing.T) llm.Model {
 	t.Helper()
 
 	if f.publisher == catalog.PublisherGoogle {
-		// Gemini 3 models think on every call, so the standard model sets an
-		// effort, as the Gemini-API fixture does.
+		// Gemini 3 models think on every call.
 		return f.mustNewModel(t, geminiTestModel, vertex.WithReasoningEffort(vertex.ReasoningEffortLow))
 	}
 
@@ -188,8 +185,8 @@ func (f *VertexFixture) ungrantedModels() []string {
 	return names
 }
 
-// skipUngranted runs one skipped subtest per model Catalog leaves out, so
-// the test output names each one and why.
+// skipUngranted runs one skipped subtest per model of this half that Catalog
+// leaves out, so the test output names each one and why.
 func (f *VertexFixture) skipUngranted(t *testing.T) {
 	t.Helper()
 
