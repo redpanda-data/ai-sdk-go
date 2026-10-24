@@ -532,6 +532,7 @@ func (a *LLMAgent) generateAttempt(
 		// so changing deferral after compaction leaves the prompt unchanged.
 		toolDefs = a.loader.Prepare(toolDefs, inv.Session()).Tools
 	}
+
 	req := &llm.Request{
 		Messages:   cloneMessages(messages),
 		Tools:      cloneToolDefinitions(toolDefs),

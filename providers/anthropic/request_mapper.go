@@ -135,8 +135,10 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) (anthropic.BetaMessageNewP
 	}
 
 	// Enable extended thinking if configured. On adaptive models a reasoning
-	// effort alone also requests thinking, matching the Bedrock provider.
-	if rm.config.EnableThinking || (rm.config.AdaptiveThinking && rm.config.ReasoningEffort != nil) {
+	// effort alone also requests thinking, matching the Bedrock provider,
+	// unless a sampling parameter is set that the API rejects with thinking.
+	implicitThinking := rm.config.AdaptiveThinking && rm.config.ReasoningEffort != nil && !rm.hasThinkingSamplingConflict()
+	if rm.config.EnableThinking || implicitThinking {
 		switch {
 		case rm.config.ThinkingBudget != nil:
 			// Explicit budget: manual thinking with user-specified tokens
@@ -173,6 +175,15 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) (anthropic.BetaMessageNewP
 	}
 
 	return apiReq, nil
+}
+
+// hasThinkingSamplingConflict reports whether the configured sampling
+// parameters are incompatible with thinking: the API rejects temperature
+// and top_k alongside thinking, and top_p below 0.95.
+func (rm *RequestMapper) hasThinkingSamplingConflict() bool {
+	return rm.config.Temperature != nil ||
+		rm.config.TopK != nil ||
+		(rm.config.TopP != nil && *rm.config.TopP < 0.95)
 }
 
 // mapMessages converts our unified messages to Anthropic format.

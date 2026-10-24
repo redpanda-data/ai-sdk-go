@@ -101,6 +101,7 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) (responses.ResponseNewPara
 		if req.ToolSearch {
 			tools = nativeSearchTools(req.Tools, tools)
 		}
+
 		apiReq.Tools = tools
 
 		// Apply tool choice if specified

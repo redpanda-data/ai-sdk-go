@@ -208,6 +208,10 @@ func WithThinkingBudget(tokens int64) Option {
 // Only applicable to models with "reasoning_effort" in SupportedParams.
 // The specific effort value is validated against the model's
 // SupportedReasoningEfforts in NewModel().
+//
+// On models with adaptive thinking, an effort also enables thinking unless
+// temperature, top_k, or a top_p below 0.95 is set, since the API rejects
+// those alongside thinking. In that case only the effort is sent.
 func WithReasoningEffort(effort ReasoningEffort) Option {
 	return func(cfg *Config) error {
 		err := cfg.Constraints.ValidateParameterSupport("reasoning_effort")
