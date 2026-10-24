@@ -9,12 +9,26 @@ on:
       - 'go.mod'
       - 'go.sum'
       - '.github/workflows/test.yaml'
+      - '.github/reconcile-models/**'
+      - 'cmd/**/testdata/**'
+      - 'REVIEW.md'
+      - '.claude/skills/**'
+      - '.github/workflows/reconcile-models.yml'
   pull_request:
+    # ready_for_review starts the full run on the reconcile bot's PRs (see the
+    # jobs below), and runs Test again on everyone else's, so the newest Test
+    # on the commit is never an all-skipped run.
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - '**.go'
       - 'go.mod'
       - 'go.sum'
       - '.github/workflows/test.yaml'
+      - '.github/reconcile-models/**'
+      - 'cmd/**/testdata/**'
+      - 'REVIEW.md'
+      - '.claude/skills/**'
+      - '.github/workflows/reconcile-models.yml'
   pull_request_target:
     types: [labeled]
 
@@ -25,9 +39,20 @@ permissions:
 jobs:
   test:
     name: Test
+    # The reconcile bot's draft PRs contain unreviewed, agent-written code, so
+    # they get the job below instead, and the ci:force-tests label doesn't
+    # override that; the full run starts once a person marks the PR ready for
+    # review. A PR someone else opens from the bot's branch also gets the job
+    # below, ready or not: the bot's next force-push puts new agent code in it.
+    # Other PRs behave as before, apart from the extra run when marked ready.
     if: >-
-      github.event_name != 'pull_request_target' ||
-      github.event.label.name == 'ci:force-tests'
+      (github.event_name != 'pull_request_target' ||
+      github.event.label.name == 'ci:force-tests') &&
+      !(github.event.pull_request.user.login == 'vbotbuildovich' &&
+      github.event.pull_request.draft) &&
+      !(github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.event.pull_request.head.ref, 'bot/reconcile-models') &&
+      github.event.pull_request.user.login != 'vbotbuildovich')
     runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 20
     steps:
@@ -65,3 +90,34 @@ jobs:
           CONTEXT7_API_KEY: ${{ secrets.CONTEXT7_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+
+  test-untrusted:
+    name: Test (bot draft, no secrets)
+    if: >-
+      github.event_name == 'pull_request' &&
+      ((github.event.pull_request.user.login == 'vbotbuildovich' &&
+      github.event.pull_request.draft) ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.event.pull_request.head.ref, 'bot/reconcile-models') &&
+      github.event.pull_request.user.login != 'vbotbuildovich'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # No id-token and no secrets; no caches either, so untrusted code can't
+    # poison what the trusted job restores.
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - uses: go-task/setup-task@v1
+
+      - name: Run unit tests
+        run: task test:unit
