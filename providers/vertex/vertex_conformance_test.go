@@ -288,6 +288,7 @@ func TestVertexFixtureUngrantedModels(t *testing.T) {
 	assert.Contains(t, ungranted, vertex.ModelClaudeSonnet45, "an older ungranted model must be named too")
 	assert.NotContains(t, ungranted, vertex.ModelClaudeHaiku45)
 	assert.NotContains(t, ungranted, vertex.ModelClaudeSonnet5)
+	assert.NotContains(t, ungranted, vertex.ModelGemini36Flash, "the Claude half must not name Gemini models")
 
 	assert.Empty(t, newVertexFixture(provider, catalog.PublisherGoogle).ungrantedModels())
 }
