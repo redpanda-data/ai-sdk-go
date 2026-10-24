@@ -108,6 +108,12 @@ func (f *VertexFixture) Name() string {
 	return "Vertex Gemini"
 }
 
+// structuredOutputsTest is the suite subtest NewStandardModel matches by
+// name. The method expression below stops the build if the suite renames it.
+const structuredOutputsTest = "TestStructuredOutputs"
+
+var _ = (*conformance.Suite).TestStructuredOutputs
+
 func (f *VertexFixture) NewStandardModel(t *testing.T) llm.Model {
 	t.Helper()
 
@@ -120,7 +126,7 @@ func (f *VertexFixture) NewStandardModel(t *testing.T) llm.Model {
 
 	// The suite runs structured outputs on the standard model, and an
 	// organization policy may deny that Claude feature on the project.
-	if strings.HasSuffix(t.Name(), "/TestStructuredOutputs") {
+	if strings.HasSuffix(t.Name(), "/"+structuredOutputsTest) {
 		skipIfStructuredOutputsDenied(t, model)
 	}
 
@@ -376,11 +382,7 @@ func TestVertexClaudeStandardModel_SkipsStructuredOutputsWhenDenied(t *testing.T
 
 	fixture := newVertexFixture(provider, catalog.PublisherAnthropic)
 
-	// NewStandardModel matches the suite's method by name, so this stops
-	// the build if the suite renames it.
-	_ = (*conformance.Suite).TestStructuredOutputs
-
-	for name, wantSkip := range map[string]bool{"TestStructuredOutputs": true, "TestGenerate": false} {
+	for name, wantSkip := range map[string]bool{structuredOutputsTest: true, "TestGenerate": false} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
