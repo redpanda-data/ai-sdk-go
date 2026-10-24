@@ -164,3 +164,72 @@ func TestAdaptiveThinkingRequestsSummarizedDisplay(t *testing.T) {
 		})
 	}
 }
+
+func TestReasoningEffortSkipsThinkingWithSamplingParams(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		opts         []Option
+		wantAdaptive bool
+	}{
+		{
+			name:         "effort only",
+			opts:         []Option{WithReasoningEffort(ReasoningEffortHigh)},
+			wantAdaptive: true,
+		},
+		{
+			name: "effort with temperature",
+			opts: []Option{WithReasoningEffort(ReasoningEffortHigh), WithTemperature(0.3)},
+		},
+		{
+			name: "effort with top_k",
+			opts: []Option{WithReasoningEffort(ReasoningEffortHigh), WithTopK(40)},
+		},
+		{
+			name: "effort with top_p below 0.95",
+			opts: []Option{WithReasoningEffort(ReasoningEffortHigh), WithTopP(0.9)},
+		},
+		{
+			name:         "effort with top_p at 0.95",
+			opts:         []Option{WithReasoningEffort(ReasoningEffortHigh), WithTopP(0.95)},
+			wantAdaptive: true,
+		},
+		{
+			name:         "explicit thinking with temperature",
+			opts:         []Option{WithThinking(true), WithReasoningEffort(ReasoningEffortHigh), WithTemperature(0.3)},
+			wantAdaptive: true,
+		},
+	}
+
+	provider, err := NewProvider("test-key")
+	require.NoError(t, err)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			model, err := provider.NewModel(ModelClaudeSonnet46, tt.opts...)
+			require.NoError(t, err)
+
+			m, ok := model.(*Model)
+			require.True(t, ok)
+
+			apiReq, err := m.requestMapper.ToProvider(&llm.Request{
+				Messages: []llm.Message{{Role: llm.RoleUser, Content: []llm.Part{llm.NewTextPart("hi")}}},
+			})
+			require.NoError(t, err)
+
+			assert.Equal(t, anthropic.BetaOutputConfigEffortHigh, apiReq.OutputConfig.Effort)
+
+			if !tt.wantAdaptive {
+				assert.Nil(t, apiReq.Thinking.OfAdaptive)
+				assert.Nil(t, apiReq.Thinking.OfEnabled)
+
+				return
+			}
+
+			require.NotNil(t, apiReq.Thinking.OfAdaptive)
+		})
+	}
+}

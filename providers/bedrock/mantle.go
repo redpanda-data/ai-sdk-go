@@ -211,6 +211,7 @@ func (m *mantleModel) GenerateEvents(ctx context.Context, req *llm.Request) iter
 			if end, ok := evt.(llm.StreamEndEvent); ok && err == nil && end.Error == nil && end.Response != nil && end.Response.InferenceRegion == "" {
 				end.Response.InferenceRegion = m.region
 			}
+
 			if !yield(evt, m.regionHint(err)) {
 				return
 			}
