@@ -136,17 +136,19 @@ func TestAgentEgressAllowsNamedSources(t *testing.T) {
 	}
 }
 
-// TestAgentChecksEgressBeforeClaude checks that the agent job runs
-// check-egress.sh before Claude starts.
-func TestAgentChecksEgressBeforeClaude(t *testing.T) {
+// TestAgentRunsChecksBeforeClaude checks that the agent job runs
+// check-egress.sh and stop-docker.sh before Claude starts.
+func TestAgentRunsChecksBeforeClaude(t *testing.T) {
 	t.Parallel()
 
 	steps := readJob(t, "agent").Steps
 	claude := stepIndex(t, steps, "claude-code-action", isClaude)
 
-	assert.True(t, slices.ContainsFunc(steps[:claude], func(s workflowStep) bool {
-		return strings.Contains(s.Run, ".github/reconcile-models/check-egress.sh")
-	}), "check-egress.sh must run before Claude starts")
+	for _, script := range []string{"check-egress.sh", "stop-docker.sh"} {
+		assert.True(t, slices.ContainsFunc(steps[:claude], func(s workflowStep) bool {
+			return strings.Contains(s.Run, ".github/reconcile-models/"+script)
+		}), "%s must run before Claude starts", script)
+	}
 }
 
 // TestEgressCheckWaitsForTheBlock runs check-egress.sh with a stand-in
@@ -167,15 +169,11 @@ func TestEgressCheckWaitsForTheBlock(t *testing.T) {
 		{name: "on, but the probe gets through", on: "start", curlExit: "0", passes: false},
 	}
 
-	// The stand-ins are shared, since a new executable is slow to start the
-	// first time on macOS. The sleep returns at once, writing the status if it's late.
-	stubs := t.TempDir()
-	for name, body := range map[string]string{
+	// The sleep returns at once, writing the status if it's late.
+	path := stubPath(t, map[string]string{
 		"curl":  "#!/bin/sh\nexit \"$CURL_EXIT\"\n",
 		"sleep": "#!/bin/sh\n[ -z \"$LATE_STATUS\" ] || printf Initialized >\"$LATE_STATUS\"\n",
-	} {
-		require.NoError(t, os.WriteFile(filepath.Join(stubs, name), []byte(body), 0o700)) //nolint:gosec // stand-ins must be executable
-	}
+	})
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -194,12 +192,128 @@ func TestEgressCheckWaitsForTheBlock(t *testing.T) {
 
 			cmd := exec.CommandContext(t.Context(), "bash", script, status)
 
-			cmd.Env = append(os.Environ(), "PATH="+stubs+string(os.PathListSeparator)+os.Getenv("PATH"),
-				"CURL_EXIT="+tt.curlExit, "LATE_STATUS="+late)
+			cmd.Env = append(os.Environ(), path, "CURL_EXIT="+tt.curlExit, "LATE_STATUS="+late)
 
 			out, err := cmd.CombinedOutput()
 			assert.Equal(t, tt.passes, err == nil, "%s", out)
 		})
+	}
+}
+
+// stubPath writes stand-in executables to a new directory and returns a PATH
+// entry that puts them first. Subtests share one, since a new executable is
+// slow to start the first time on macOS.
+func stubPath(t *testing.T, bodies map[string]string) string {
+	t.Helper()
+
+	dir := t.TempDir()
+	for name, body := range bodies {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(body), 0o700)) //nolint:gosec // stand-ins must be executable
+	}
+
+	return "PATH=" + dir + string(os.PathListSeparator) + os.Getenv("PATH")
+}
+
+// TestStopDockerFailsWhileDockerAnswers runs stop-docker.sh with a stand-in
+// sudo and curl.
+func TestStopDockerFailsWhileDockerAnswers(t *testing.T) {
+	t.Parallel()
+
+	script := filepath.Join("..", "..", ".github", "reconcile-models", "stop-docker.sh")
+	path := stubPath(t, map[string]string{
+		"sudo": "#!/bin/sh\nexit \"$SUDO_EXIT\"\n",
+		"curl": "#!/bin/sh\nexit \"$CURL_EXIT\"\n",
+	})
+	tests := []struct {
+		name     string
+		sudoExit string // 1 is a systemctl that found no Docker units
+		curlExit string // 7 is a refused connection; 0 and 52 mean something answered
+		passes   bool
+	}{
+		{name: "stopped", sudoExit: "0", curlExit: "7", passes: true},
+		{name: "not installed", sudoExit: "1", curlExit: "7", passes: true},
+		{name: "still answering", sudoExit: "0", curlExit: "0", passes: false},
+		{name: "something else answering", sudoExit: "0", curlExit: "52", passes: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cmd := exec.CommandContext(t.Context(), "bash", script)
+
+			cmd.Env = append(os.Environ(), path, "SUDO_EXIT="+tt.sudoExit, "CURL_EXIT="+tt.curlExit)
+
+			out, err := cmd.CombinedOutput()
+			assert.Equal(t, tt.passes, err == nil, "%s", out)
+		})
+	}
+}
+
+// TestPRJobSandboxHidesDocker checks that pr-job.sh's Linux sandbox hides
+// /run, where Docker's socket lives, and that its self-check tries the socket.
+func TestPRJobSandboxHidesDocker(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile(filepath.Join("..", "..", ".github", "reconcile-models", "pr-job.sh"))
+	require.NoError(t, err)
+
+	script := string(raw)
+	assert.Contains(t, script, "--ro-bind / / --tmpfs /run", "the bwrap sandbox must hide /run")
+	assert.Contains(t, script, "--unix-socket /var/run/docker.sock", "the sandbox self-check must try Docker's socket")
+}
+
+// TestPRJobRefusesPatchesOutsideTheCatalogue runs pr-job.sh on patches it
+// must refuse before any network step or patched code runs: the checks that
+// keep a hijacked agent's patch away from the bot token.
+func TestPRJobRefusesPatchesOutsideTheCatalogue(t *testing.T) {
+	t.Parallel()
+
+	script, err := filepath.Abs(filepath.Join("..", "..", ".github", "reconcile-models", "pr-job.sh"))
+	require.NoError(t, err)
+
+	report := `{"changes": [{"offering": "claude-opus-5-5"}], "needs_human": [], "skipped": []}`
+	tests := []struct {
+		name   string
+		path   string
+		change string // "edit", "create" or "delete"
+		want   string
+	}{
+		{name: "a workflow", path: ".github/workflows/test.yaml", change: "edit", want: "the patch touches .github/workflows/test.yaml"},
+		{name: "another vendor's provider", path: "providers/openai/models.go", change: "edit", want: "the patch touches providers/openai/models.go"},
+		{name: "a deleted file", path: "providers/anthropic/models.go", change: "delete", want: "the patch deletes, renames or copies files"},
+		{name: "a new file outside providers", path: "cmd/evil/main.go", change: "create", want: "the patch creates cmd/evil/main.go"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			out := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(out, "report.json"), []byte(report), 0o600))
+			require.NoError(t, os.WriteFile(filepath.Join(out, "patch.diff"), []byte(onePatch(tt.path, tt.change)), 0o600))
+
+			cmd := exec.CommandContext(t.Context(), "bash", script, "anthropic", out)
+			cmd.Dir = filepath.Join("..", "..")
+
+			stderr, err := cmd.CombinedOutput()
+			require.Error(t, err, "pr-job.sh accepted the patch: %s", stderr)
+			assert.Contains(t, string(stderr), "pr-job: "+tt.want)
+		})
+	}
+}
+
+// onePatch is a one-line git patch that edits, creates or deletes path.
+func onePatch(path, change string) string {
+	header := "diff --git a/" + path + " b/" + path + "\n"
+
+	switch change {
+	case "create":
+		return header + "new file mode 100644\n--- /dev/null\n+++ b/" + path + "\n@@ -0,0 +1 @@\n+x\n"
+	case "delete":
+		return header + "deleted file mode 100644\n--- a/" + path + "\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n"
+	default:
+		return header + "--- a/" + path + "\n+++ b/" + path + "\n@@ -1 +1 @@\n-x\n+y\n"
 	}
 }
 

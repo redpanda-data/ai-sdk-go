@@ -42,7 +42,7 @@ var rateNames = []struct{ key, name string }{
 // effect is a change row's note on what it does, written from the catalogue
 // before and after the patch, never from the report's values. It is empty
 // when there is nothing to add. The patched catalogue comes from code the
-// agent wrote, so every string read from it passes safeValue (see text).
+// agent wrote, so every string read from it passes safeValue (see safeText).
 func (base Base) effect(change Change, provider string) string {
 	pkg, id := packageOf(change.Offering, provider)
 	before, _ := base.Before.Offering(pkg, id)
@@ -90,7 +90,7 @@ func (base Base) unreported(report Report, provider string) []string {
 
 		for _, snapshot := range []*reconcile.Snapshot{base.Before, base.After} {
 			if o, found := snapshot.Offering(pkg, id); found {
-				models[text(o["model"])] = true
+				models[safeText(o["model"])] = true
 			}
 		}
 	}
@@ -134,7 +134,7 @@ func (base Base) unreported(report Report, provider string) []string {
 
 			switch {
 			case named[[2]string{pkg, id}] || reflect.DeepEqual(own(before), own(after)):
-			case text(id) == "":
+			case safeText(id) == "":
 				unprintable++
 			default:
 				label := pkg + ":" + id
@@ -152,7 +152,7 @@ func (base Base) unreported(report Report, provider string) []string {
 	}
 
 	for model := range base.After.Facts {
-		if !models[model] && text(model) != "" && !reflect.DeepEqual(base.Before.Facts[model], base.After.Facts[model]) {
+		if !models[model] && safeText(model) != "" && !reflect.DeepEqual(base.Before.Facts[model], base.After.Facts[model]) {
 			names = append(names, model+" (facts)")
 		}
 	}
@@ -206,7 +206,7 @@ func priceNote(before, after map[string]any) string {
 
 func (base Base) retirementNote(after map[string]any) string {
 	life, _ := after["lifecycle"].(map[string]any)
-	retires := text(life["retires"])
+	retires := safeText(life["retires"])
 
 	day, err := time.Parse(time.DateOnly, retires)
 	if err != nil {
@@ -231,8 +231,8 @@ func (base Base) retirementNote(after map[string]any) string {
 func (base Base) replacementNote(pkg string, after map[string]any) string {
 	geo := attribute(after, inferenceGeo)
 	life, _ := after["lifecycle"].(map[string]any)
-	target, found := base.After.Offering(pkg, text(life["replaced_by"]))
-	model := text(target["model"])
+	target, found := base.After.Offering(pkg, safeText(life["replaced_by"]))
+	model := safeText(target["model"])
 
 	if geo == "" || !found || model == "" || slices.ContainsFunc(base.After.Offerings(pkg), func(o map[string]any) bool {
 		return o["model"] == model && attribute(o, inferenceGeo) == geo
@@ -284,9 +284,9 @@ func lostFeatures(source, target map[string]any) []string {
 	return slices.Sorted(maps.Keys(lost))
 }
 
-// text is a snapshot value as a string, or "" when it isn't one or isn't
+// safeText is a snapshot value as a string, or "" when it isn't one or isn't
 // safe to put in the PR body.
-func text(value any) string {
+func safeText(value any) string {
 	s, _ := value.(string)
 	if !safeValue(s) {
 		return ""
@@ -303,7 +303,7 @@ func texts(offering map[string]any, object, key string) []string {
 	var values []string
 
 	for _, item := range list {
-		if value := text(item); value != "" {
+		if value := safeText(item); value != "" {
 			values = append(values, value)
 		}
 	}
@@ -318,7 +318,7 @@ func attribute(offering map[string]any, key string) string {
 	for _, item := range list {
 		pair, _ := item.(map[string]any)
 		if pair["key"] == key {
-			return text(pair["value"])
+			return safeText(pair["value"])
 		}
 	}
 

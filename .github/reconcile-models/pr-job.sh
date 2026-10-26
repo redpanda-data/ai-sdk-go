@@ -112,10 +112,13 @@ sandbox() {
   local env=(env -i PATH="$PATH" HOME="$tmp/sandbox-home" TMPDIR="$tmp"
     GOROOT="$(go env GOROOT)" GOCACHE="$gocache" GOMODCACHE="$gomodcache"
     GOFLAGS=-mod=readonly GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local GOTELEMETRY=off)
+  # The Docker socket would give patched code root, and neither a read-only
+  # mount nor --unshare-net stops a Unix socket connection, so hide /run, where
+  # it lives. The macOS profile, for local runs only, denies it by name.
   case "$(uname -s)" in
     Linux)
       "${env[@]}" bwrap --die-with-parent --new-session --unshare-net --unshare-pid \
-        --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp --dir /tmp/sandbox-home \
+        --ro-bind / / --tmpfs /run --dev /dev --proc /proc --tmpfs /tmp --dir /tmp/sandbox-home \
         --ro-bind "$repo" "$repo" --bind "$gocache" "$gocache" --bind "$gomodcache" "$gomodcache" \
         --bind "$repo/catalog/snapshot.json" "$repo/catalog/snapshot.json" \
         --ro-bind "$git_dir" "$git_dir" --ro-bind "$git_common" "$git_common" --ro-bind "$out" "$out" \
@@ -126,6 +129,7 @@ sandbox() {
         (allow default)
         (deny network-outbound)
         (allow network-outbound (remote ip \"localhost:*\") (remote unix-socket))
+        (deny network-outbound (remote unix-socket (path-regex #\"docker\\.sock$\")))
         (deny file-write*)
         (allow file-write* (subpath \"$gocache\") (subpath \"$gomodcache\")
           (subpath \"$tmp\") (subpath \"/private/tmp\") (regex #\"^/dev/\"))
@@ -142,10 +146,14 @@ sandbox() {
 }
 
 # Fail closed unless the sandbox hides the environment, blocks the network and
-# keeps the checkout, .git, OUT_DIR and the private copies read-only.
+# Docker's socket, and keeps the checkout, .git, OUT_DIR and the private copies
+# read-only.
 if ! RECONCILE_PROBE_SECRET=probe sandbox bash -c '
   [[ -z "${RECONCILE_PROBE_SECRET:-}" ]] || exit 11
   if curl -sS --max-time 5 -o /dev/null https://proxy.golang.org 2>/dev/null; then exit 12; fi
+  # 7 is a refused connection; anything else means something answers.
+  curl -sS --max-time 5 -o /dev/null --unix-socket /var/run/docker.sock http://localhost/_ping 2>/dev/null
+  [[ $? -eq 7 ]] || exit 14
   for dir in "$@"; do
     if touch "$dir/.reconcile-probe" 2>/dev/null; then exit 13; fi
   done' _ "$repo" "$repo/.build" "$git_common" "$out" "$priv"; then

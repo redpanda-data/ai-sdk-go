@@ -148,6 +148,8 @@ jobs:
           persist-credentials: false
       - name: Check the egress block
         run: .github/reconcile-models/check-egress.sh
+      - name: Stop Docker
+        run: .github/reconcile-models/stop-docker.sh
       - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e  # v2.2.0
       # Claude Code needs bubblewrap to scrub secrets from subprocesses. The
       # action installs it only for non-write users, so do it here, the same way.

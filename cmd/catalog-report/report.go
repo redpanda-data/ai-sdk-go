@@ -571,7 +571,7 @@ func (base Base) byRule(changes []Change, provider string) ([]string, map[string
 			offering, _ = base.After.Offering(pkg, id)
 		}
 
-		return pkg + " " + cmp.Or(text(offering["model"]), id) + " " + id
+		return pkg + " " + cmp.Or(safeText(offering["model"]), id) + " " + id
 	}
 
 	sorted := slices.Clone(changes)
