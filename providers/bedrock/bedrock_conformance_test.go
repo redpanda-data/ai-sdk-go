@@ -92,20 +92,23 @@ func (f *BedrockFixture) NewReasoningModel(t *testing.T) llm.Model {
 }
 
 func (f *BedrockFixture) Catalog() *catalog.Catalog {
-	// The catalog exposes one entry per inference profile (global. and each
-	// geo). Conformance runs in a single AWS region with limited IAM, so we
-	// rebuild a test-local catalog holding only the variants reachable from
-	// the test region: the matching geo profile (e.g. "us." when running in
-	// us-east-1). Other geo profiles fail with ValidationException
-	// (cross-geography from a single entry-point region) and the global.
-	// profile resolves to foundation-model ARNs that the CI's SCP explicitly
-	// denies. Per-variant catalog correctness is covered by unit tests in
-	// provider_test.go.
-	geoPrefix := bedrock.InferenceProfileRegion(f.region) + "."
+	return regionCatalog(f.provider.Catalog(), f.region)
+}
+
+// regionCatalog rebuilds full with only the variants reachable from region.
+// The catalog exposes one entry per inference profile (global. and each geo).
+// Conformance runs in a single AWS region with limited IAM, so it gets only
+// the matching geo profile (e.g. "us." when running in us-east-1). Other geo
+// profiles fail with ValidationException (cross-geography from a single
+// entry-point region) and the global. profile resolves to foundation-model
+// ARNs that the CI's SCP explicitly denies. Per-variant catalog correctness is
+// covered by unit tests in provider_test.go.
+func regionCatalog(full *catalog.Catalog, region string) *catalog.Catalog {
+	geoPrefix := bedrock.InferenceProfileRegion(region) + "."
 
 	var entries []catalog.Entry
 
-	for _, o := range f.provider.Catalog().All() {
+	for _, o := range full.All() {
 		// Fable 5 requires Bedrock provider data sharing. Keep the generic
 		// all-model conformance loop on models that CI can fully generate with;
 		// the dedicated Fable integration below still verifies Bedrock wiring by
@@ -115,11 +118,40 @@ func (f *BedrockFixture) Catalog() *catalog.Catalog {
 		}
 
 		if strings.HasPrefix(o.ID, geoPrefix) {
-			entries = append(entries, o.Entry)
+			// Conformance never reads replacements, and Bedrock's name a
+			// model's global. copy, which this subset can't hold.
+			e := o.Entry
+			e.Life.ReplacedBy = ""
+			entries = append(entries, e)
 		}
 	}
 
-	return catalog.MustNew(f.provider.Name(), entries)
+	return catalog.MustNew(full.Provider(), entries)
+}
+
+// TestRegionCatalogBuildsWithGlobalReplacement builds the conformance catalog
+// without credentials, so a catalog it can't build fails in every CI run, not
+// only in the keyed one.
+func TestRegionCatalogBuildsWithGlobalReplacement(t *testing.T) {
+	t.Parallel()
+
+	entries := make([]catalog.Entry, 0, bedrock.Catalog().Len())
+	for _, o := range bedrock.Catalog().All() {
+		if o.ID == bedrock.ModelClaudeSonnet45US {
+			o.Life.ReplacedBy = bedrock.ModelClaudeSonnet55Global
+		}
+
+		entries = append(entries, o.Entry)
+	}
+
+	full := catalog.MustNew(bedrock.ProviderName, entries)
+
+	var sub *catalog.Catalog
+
+	require.NotPanics(t, func() { sub = regionCatalog(full, bedrocktest.TestRegion) })
+
+	_, ok := sub.Lookup(bedrock.ModelClaudeSonnet45US)
+	assert.True(t, ok, "the deprecated model stays in the subset")
 }
 
 func TestModelRequiresProviderDataSharing(t *testing.T) {
