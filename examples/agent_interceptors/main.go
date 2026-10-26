@@ -70,8 +70,8 @@ func main() {
 		log.Fatalf("Failed to create provider: %v", err)
 	}
 
-	// Create model - using GPT-5
-	model, err := provider.NewModel(openai.ModelGPT5)
+	// Create model
+	model, err := provider.NewModel(openai.ModelGPT5_6Sol)
 	if err != nil {
 		log.Fatalf("Failed to create model: %v", err)
 	}
