@@ -15,10 +15,13 @@
 package bedrock
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/redpanda-data/ai-sdk-go/internal/reconcile"
 )
 
 func TestIsModelAllowedFromRegion(t *testing.T) {
@@ -243,6 +246,17 @@ func TestProfileRegionResolverLookup(t *testing.T) {
 	assert.False(t, ok)
 }
 
+// TestAWSRegionsCoverRoutingTables keeps cmd/catalog-routes' region list a superset
+// of every source region the routing tables name, so a routing change for a
+// region can't hide from the reconcile PR body.
+func TestAWSRegionsCoverRoutingTables(t *testing.T) {
+	t.Parallel()
+
+	for family, table := range profileRegionResolverRegions {
+		assert.Subset(t, reconcile.AWSRegions, table, "%s routes from a region the list lacks", family)
+	}
+}
+
 func TestProfileRegionResolversReturnCatalogedProfiles(t *testing.T) {
 	t.Parallel()
 
@@ -290,4 +304,24 @@ func hasGeoPrefix(modelID string, prefixes ...string) bool {
 	}
 
 	return false
+}
+
+// handPickedBareIDs are bare IDs registered beside profiles on purpose:
+// GPT-6's bedrock-mantle copies, added by hand.
+var handPickedBareIDs = []string{ModelGPT6Astra, ModelGPT6Luna, ModelGPT6Sol, ModelGPT61Sol}
+
+// TestNoBareIDBesideProfiles checks that no model with profiles has its
+// bare ID registered, in its own family or another one, so bare-name calls
+// keep routing to the caller's profile (RULES.md bare-id-unregistered).
+func TestNoBareIDBesideProfiles(t *testing.T) {
+	t.Parallel()
+
+	for _, f := range bedrockFamilies {
+		if len(f.Profiles) == 0 || slices.Contains(handPickedBareIDs, f.BareID) {
+			continue
+		}
+
+		_, registered := lookupModel(f.BareID)
+		assert.Falsef(t, registered, "%s has profiles, so its bare ID must stay unregistered", f.BareID)
+	}
 }
