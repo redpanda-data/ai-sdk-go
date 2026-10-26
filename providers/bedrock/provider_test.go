@@ -170,8 +170,14 @@ func TestLookupModel(t *testing.T) {
 			wantDef: ModelClaudeSonnet5Global,
 		},
 		{
-			name:   "Sonnet 5 eu profile is not published yet",
-			input:  "eu." + ModelClaudeSonnet5,
+			name:    "Sonnet 5 EU profile is its own entry",
+			input:   ModelClaudeSonnet5EU,
+			wantOK:  true,
+			wantDef: ModelClaudeSonnet5EU,
+		},
+		{
+			name:   "Sonnet 5 India profile is not offered",
+			input:  "in." + ModelClaudeSonnet5,
 			wantOK: false,
 		},
 		{

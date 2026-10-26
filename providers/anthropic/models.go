@@ -118,10 +118,9 @@ var claudeCaps = llm.ModelCapabilities{
 }
 
 // claudeCapsWithToolSearch marks the models on Anthropic's tool search
-// compatibility list as of 2026-10-08: Fable 5.1, Fable 5, Opus 5.5, Opus 5, Opus 4.8,
-// 4.7, 4.6 and 4.5, Sonnet 5.5, 4.6 and 4.5, Haiku 5.5 and 4.5. Opus 4.1 is explicitly
-// unsupported and Sonnet 5 is absent from the list, so both keep claudeCaps and
-// local discovery until native support is documented:
+// compatibility list as of 2026-10-26: Fable 5.1, Fable 5, Opus 5.5, Opus 5, Opus 4.8,
+// 4.7, 4.6 and 4.5, Sonnet 5.5, 5, 4.6 and 4.5, Haiku 5.5 and 4.5. Opus 4.1 is
+// explicitly unsupported, so it keeps claudeCaps and local discovery:
 // https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool#model-compatibility
 var claudeCapsWithToolSearch = func() llm.ModelCapabilities {
 	caps := claudeCaps
@@ -382,10 +381,13 @@ func entries() []catalog.Entry {
 			),
 		},
 		{
-			ID:           ModelClaudeSonnet5,
-			Model:        catalog.ModelClaudeSonnet5,
-			WireAPIs:     messagesWireAPIs,
-			Capabilities: claudeCaps,
+			ID:       ModelClaudeSonnet5,
+			Model:    catalog.ModelClaudeSonnet5,
+			WireAPIs: messagesWireAPIs,
+			// Tool search per the compatibility list at
+			// https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool
+			// (read 2026-10-26).
+			Capabilities: claudeCapsWithToolSearch,
 			Modalities:   claudeModalities,
 			Constraints: llm.ModelConstraints{
 				MaxInputTokens:  1000000, // 1M context window
@@ -451,8 +453,12 @@ func entries() []catalog.Entry {
 				TemperatureRange: [2]float64{0.0, 1.0},
 				MaxInputTokens:   200000, // 200K context window
 				MaxOutputTokens:  64000,  // 64K output tokens
-				SupportedParams:  []string{"temperature", "top_p", "top_k", "max_tokens"},
+				SupportedParams:  []string{"temperature", "top_p", "top_k", "max_tokens", "thinking_budget"},
 			},
+			// Thinking "Extended", effort "Not supported", per
+			// https://platform.claude.com/docs/en/models/sonnet-4-5/overview
+			// (read 2026-10-26).
+			Reasoning: catalog.ReasoningSupport{Budget: true},
 			Life: catalog.Lifecycle{
 				Available:  catalog.MustDate("2025-09-29"),
 				Deprecated: catalog.MustDate("2026-09-30"),
@@ -509,8 +515,12 @@ func entries() []catalog.Entry {
 				TemperatureRange: [2]float64{0.0, 1.0},
 				MaxInputTokens:   200000, // 200K context window
 				MaxOutputTokens:  64000,  // 64K output tokens
-				SupportedParams:  []string{"temperature", "top_p", "top_k", "max_tokens"},
+				SupportedParams:  []string{"temperature", "top_p", "top_k", "max_tokens", "thinking_budget"},
 			},
+			// Thinking "Extended", effort "Not supported", per
+			// https://platform.claude.com/docs/en/models/haiku-4-5/overview
+			// (read 2026-10-26).
+			Reasoning: catalog.ReasoningSupport{Budget: true},
 			Life: catalog.Lifecycle{
 				Available: catalog.MustDate("2025-10-15"),
 			},
@@ -555,10 +565,14 @@ func entries() []catalog.Entry {
 				TemperatureRange: [2]float64{0.0, 1.0},
 				MaxInputTokens:   200000, // 200K context window
 				MaxOutputTokens:  64000,  // 64K output tokens
-				SupportedParams:  []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort"},
+				SupportedParams:  []string{"temperature", "top_p", "top_k", "max_tokens", "reasoning_effort", "thinking_budget"},
 			},
+			// Thinking "Extended" per
+			// https://platform.claude.com/docs/en/models/opus-4-5/overview
+			// (read 2026-10-26); effort works alongside budget_tokens.
 			Reasoning: catalog.ReasoningSupport{
 				Efforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh},
+				Budget:  true,
 			},
 			Life: catalog.Lifecycle{
 				Available: catalog.MustDate("2025-11-24"),
