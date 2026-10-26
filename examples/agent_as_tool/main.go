@@ -127,7 +127,7 @@ func main() {
 	}
 
 	// Create model
-	model, err := provider.NewModel(openai.ModelGPT5_1)
+	model, err := provider.NewModel(openai.ModelGPT6Sol)
 	if err != nil {
 		log.Fatalf("failed to create model: %v", err)
 	}

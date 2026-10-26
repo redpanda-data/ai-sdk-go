@@ -143,6 +143,19 @@ func TestGPT52ReasoningEffortIntegration(t *testing.T) {
 	}
 }
 
+// reasoningEffortModels are the reasoning models TestAllModelsReasoningEffortsIntegration calls live.
+var reasoningEffortModels = []string{
+	ModelGPT5,
+	ModelGPT5Mini,
+	ModelGPT5_1,
+	ModelGPT5_2,
+	ModelGPT5_2Pro,
+	ModelGPT5_4,
+	ModelGPT5_4Mini,
+	ModelO3,
+	ModelO3Pro,
+}
+
 // TestAllModelsReasoningEffortsIntegration tests all reasoning models with all their supported reasoning efforts.
 // This makes actual API calls to validate that each model accepts its advertised reasoning efforts.
 //
@@ -161,24 +174,13 @@ func TestAllModelsReasoningEffortsIntegration(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Get all reasoning models from the provider
-	reasoningModels := []string{
-		ModelGPT5,
-		ModelGPT5Mini,
-		ModelGPT5_1,
-		ModelGPT5_2,
-		ModelGPT5_2Pro,
-		ModelGPT5_4,
-		ModelGPT5_4Mini,
-		ModelO3,
-		ModelO4Mini,
-		ModelO1Pro,
-		ModelO3Pro,
-	}
-
-	for _, modelName := range reasoningModels {
+	for _, modelName := range reasoningEffortModels {
 		t.Run(modelName, func(t *testing.T) {
 			t.Parallel()
+
+			if Catalog().Now().IsRetired(modelName) {
+				t.Skipf("Skipping %s: the catalog marks it retired, so OpenAI no longer serves it", modelName)
+			}
 
 			// Create model to get supported reasoning efforts
 			model, err := provider.NewModel(modelName)
@@ -225,6 +227,19 @@ func TestAllModelsReasoningEffortsIntegration(t *testing.T) {
 				})
 			}
 		})
+	}
+}
+
+// TestReasoningEffortModelsAreCatalogued keeps the retired-model skip in
+// TestAllModelsReasoningEffortsIntegration working: IsRetired reports false
+// for IDs the catalog doesn't know, so an uncatalogued name would still be
+// called after its shutdown date.
+func TestReasoningEffortModelsAreCatalogued(t *testing.T) {
+	t.Parallel()
+
+	for _, modelName := range reasoningEffortModels {
+		_, ok := Catalog().Lookup(modelName)
+		assert.Truef(t, ok, "%s is not an OpenAI catalog offering ID", modelName)
 	}
 }
 
