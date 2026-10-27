@@ -87,6 +87,8 @@ const (
 	ModelClaudeSonnet5       = "anthropic.claude-sonnet-5"
 	ModelClaudeSonnet5Global = "global." + ModelClaudeSonnet5
 	ModelClaudeSonnet5US     = "us." + ModelClaudeSonnet5
+	ModelClaudeSonnet5EU     = "eu." + ModelClaudeSonnet5
+	ModelClaudeSonnet5AU     = "au." + ModelClaudeSonnet5
 
 	// ModelClaudeSonnet46 is the bare Bedrock ID for Claude Sonnet 4.6
 	// (inference-profile-only — invoke via one of the prefixed variants).
@@ -95,8 +97,13 @@ const (
 	ModelClaudeSonnet46US     = "us." + ModelClaudeSonnet46
 	ModelClaudeSonnet46EU     = "eu." + ModelClaudeSonnet46
 	ModelClaudeSonnet46AU     = "au." + ModelClaudeSonnet46
+	ModelClaudeSonnet46JP     = "jp." + ModelClaudeSonnet46
 
 	// ModelClaudeSonnet45 is the bare Bedrock ID for Claude Sonnet 4.5
+	//
+	// Deprecated: AWS moved Claude Sonnet 4.5 to Legacy on 2026-10-08; it
+	// reaches end of life on Bedrock on 2027-04-08. Use
+	// [ModelClaudeSonnet55Global].
 	// (inference-profile-only — invoke via one of the prefixed variants).
 	ModelClaudeSonnet45       = "anthropic.claude-sonnet-4-5-20250929-v1:0"
 	ModelClaudeSonnet45Global = "global." + ModelClaudeSonnet45
@@ -123,6 +130,7 @@ const (
 	ModelClaudeHaiku45US     = "us." + ModelClaudeHaiku45
 	ModelClaudeHaiku45EU     = "eu." + ModelClaudeHaiku45
 	ModelClaudeHaiku45AU     = "au." + ModelClaudeHaiku45
+	ModelClaudeHaiku45JP     = "jp." + ModelClaudeHaiku45
 
 	// ModelClaudeOpus55 is the bare building block for Claude Opus 5.5 profile
 	// IDs. bedrock-runtime publishes global, US, EU, AU, and JP profiles; as
@@ -153,6 +161,7 @@ const (
 	ModelClaudeOpus48US     = "us." + ModelClaudeOpus48
 	ModelClaudeOpus48EU     = "eu." + ModelClaudeOpus48
 	ModelClaudeOpus48JP     = "jp." + ModelClaudeOpus48
+	ModelClaudeOpus48AU     = "au." + ModelClaudeOpus48
 
 	// ModelClaudeOpus47 is the bare Bedrock ID for Claude Opus 4.7
 	// (inference-profile-only — invoke via one of the prefixed variants).
@@ -161,6 +170,7 @@ const (
 	ModelClaudeOpus47US     = "us." + ModelClaudeOpus47
 	ModelClaudeOpus47EU     = "eu." + ModelClaudeOpus47
 	ModelClaudeOpus47JP     = "jp." + ModelClaudeOpus47
+	ModelClaudeOpus47AU     = "au." + ModelClaudeOpus47
 
 	// ModelClaudeOpus46 is the bare Bedrock ID for Claude Opus 4.6
 	// (inference-profile-only — invoke via one of the prefixed variants).
@@ -889,9 +899,9 @@ var (
 //     relationship is pinned by TestGeoGlobalRatio as a tripwire.
 //
 // Lifecycle: Bedrock sets its own availability and retirement schedules
-// (surfaced by ListFoundationModels' modelLifecycle); no catalogued model
-// has an announced deprecation, and per-profile availability dates are not
-// published, so Life stays empty rather than inventing dates.
+// (surfaced by ListFoundationModels' modelLifecycle). Life is set only where
+// AWS announced a Legacy or EOL date; per-profile availability dates are not
+// published, so Available stays unset rather than inventing dates.
 var bedrockFamilies = []family{
 	{
 		// Claude Fable 5.1 — inference-profile-only, no bare entry. The
@@ -971,13 +981,15 @@ var bedrockFamilies = []family{
 		ProfileRegions: claudeOpus5ProfileRegions,
 	},
 	{
-		// Claude Opus 4.8 — inference-profile-only. Geo profiles cover
-		// us, eu, jp (au is not published).
+		// Claude Opus 4.8 — inference-profile-only. Geo profiles cover us,
+		// eu, jp and au; the card's us-gov profile is not an offered region
+		// (read 2026-10-26):
+		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-4-8.html
 		BareID:       ModelClaudeOpus48,
 		WireAPIs:     claudeMessagesWireAPIs,
 		Model:        catalog.ModelClaudeOpus48,
 		DisplayName:  "Claude Opus 4.8",
-		Profiles:     []string{"global", "us", "eu", "jp"},
+		Profiles:     []string{"global", "us", "eu", "jp", "au"},
 		Capabilities: claudeNoSchemaCaps,
 		Modalities:   claudeModalities,
 		Constraints:  claudeNoSampling1MConstraints,
@@ -986,13 +998,14 @@ var bedrockFamilies = []family{
 		Rates:        pricing.RateCard{Base: pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0)},
 	},
 	{
-		// Claude Opus 4.7 — inference-profile-only. Geo profiles cover
-		// us, eu, jp (au is not published).
+		// Claude Opus 4.7 — inference-profile-only. Geo profiles cover us,
+		// eu, jp and au (read 2026-10-26):
+		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-4-7.html
 		BareID:       ModelClaudeOpus47,
 		WireAPIs:     claudeMessagesWireAPIs,
 		Model:        catalog.ModelClaudeOpus47,
 		DisplayName:  "Claude Opus 4.7",
-		Profiles:     []string{"global", "us", "eu", "jp"},
+		Profiles:     []string{"global", "us", "eu", "jp", "au"},
 		Capabilities: claudeNoSchemaCaps,
 		Modalities:   claudeModalities,
 		Constraints:  claudeNoSampling1MConstraints,
@@ -1052,13 +1065,15 @@ var bedrockFamilies = []family{
 		ProfileRegions: claudeSonnet55ProfileRegions,
 	},
 	{
-		// Claude Sonnet 5 — inference-profile-only; global and us are
-		// published so far.
+		// Claude Sonnet 5 — inference-profile-only. The model card publishes
+		// global, US, EU, AU and India profiles (read 2026-10-26); India is not
+		// an offered region:
+		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-5.html
 		BareID:       ModelClaudeSonnet5,
 		WireAPIs:     claudeMessagesWireAPIs,
 		Model:        catalog.ModelClaudeSonnet5,
 		DisplayName:  "Claude Sonnet 5",
-		Profiles:     []string{"global", "us"},
+		Profiles:     []string{"global", "us", "eu", "au"},
 		Capabilities: claudeNoSchemaCaps,
 		Modalities:   claudeModalities,
 		Constraints:  claudeNoSampling1MConstraints,
@@ -1070,12 +1085,14 @@ var bedrockFamilies = []family{
 	},
 	{
 		// Claude Sonnet 4.6 — inference-profile-only. 1M context on
-		// Bedrock as well as the first-party API.
+		// Bedrock as well as the first-party API. The card adds a jp profile
+		// (read 2026-10-26):
+		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-4-6.html
 		BareID:       ModelClaudeSonnet46,
 		WireAPIs:     claudeInvokeWireAPIs,
 		Model:        catalog.ModelClaudeSonnet46,
 		DisplayName:  "Claude Sonnet 4.6",
-		Profiles:     []string{"global", "us", "eu", "au"},
+		Profiles:     []string{"global", "us", "eu", "au", "jp"},
 		Capabilities: claudeStandardCaps,
 		Modalities:   claudeModalities,
 		Constraints:  claudeSonnet46Constraints,
@@ -1095,7 +1112,16 @@ var bedrockFamilies = []family{
 		Modalities:   claudeModalities,
 		Constraints:  claudeContext200kConstraints,
 		Reasoning:    claude45Thinking,
-		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0)},
+		// Legacy date and EOL date from
+		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html
+		// (read 2026-10-26). AWS names no replacement; claude-sonnet-5-5 is
+		// Anthropic's pick on its model-deprecations page.
+		Life: catalog.Lifecycle{
+			Deprecated: catalog.MustDate("2026-10-08"),
+			Retires:    catalog.MustDate("2027-04-08"),
+			ReplacedBy: ModelClaudeSonnet55Global,
+		},
+		GlobalRates: &pricing.RateCard{Base: pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0)},
 		Rates:        pricing.RateCard{Base: pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0)},
 	},
 	{
@@ -1133,12 +1159,14 @@ var bedrockFamilies = []family{
 		ProfileRegions: claudeHaiku55ProfileRegions,
 	},
 	{
-		// Claude Haiku 4.5 — inference-profile-only.
+		// Claude Haiku 4.5 — inference-profile-only. The card adds jp and
+		// India profiles (read 2026-10-26); India is not an offered region:
+		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-haiku-4-5.html
 		BareID:       ModelClaudeHaiku45,
 		WireAPIs:     claudeMessagesWireAPIs,
 		Model:        catalog.ModelClaudeHaiku45,
 		DisplayName:  "Claude Haiku 4.5",
-		Profiles:     []string{"global", "us", "eu", "au"},
+		Profiles:     []string{"global", "us", "eu", "au", "jp"},
 		Capabilities: claudeStandardCaps,
 		Modalities:   claudeModalities,
 		Constraints:  claudeContext200kConstraints,

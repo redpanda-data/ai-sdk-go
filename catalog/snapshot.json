@@ -684,7 +684,8 @@
               "temperature",
               "top_p",
               "top_k",
-              "max_tokens"
+              "max_tokens",
+              "thinking_budget"
             ],
             "temperature_range": [
               0,
@@ -701,7 +702,9 @@
               "text"
             ]
           },
-          "reasoning": {},
+          "reasoning": {
+            "budget": true
+          },
           "pricing": {
             "default": {
               "base": {
@@ -904,7 +907,8 @@
               "top_p",
               "top_k",
               "max_tokens",
-              "reasoning_effort"
+              "reasoning_effort",
+              "thinking_budget"
             ],
             "temperature_range": [
               0,
@@ -926,7 +930,8 @@
               "low",
               "medium",
               "high"
-            ]
+            ],
+            "budget": true
           },
           "pricing": {
             "default": {
@@ -1398,7 +1403,8 @@
               "temperature",
               "top_p",
               "top_k",
-              "max_tokens"
+              "max_tokens",
+              "thinking_budget"
             ],
             "temperature_range": [
               0,
@@ -1415,7 +1421,9 @@
               "text"
             ]
           },
-          "reasoning": {},
+          "reasoning": {
+            "budget": true
+          },
           "pricing": {
             "default": {
               "base": {
@@ -1535,7 +1543,7 @@
             "streaming": true,
             "structured_output": true,
             "system_prompts": true,
-            "tool_search": false,
+            "tool_search": true,
             "tools": true,
             "vision": true
           },
@@ -1924,6 +1932,172 @@
           }
         },
         {
+          "id": "au.anthropic.claude-opus-4-7",
+          "model": "anthropic/claude-opus-4-7",
+          "display_name": "Claude Opus 4.7 (AU)",
+          "wire_apis": [
+            {
+              "protocol": "anthropic_messages",
+              "transport": "bedrock_invoke_model"
+            },
+            {
+              "protocol": "anthropic_messages",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "bedrock_converse",
+              "transport": "bedrock_runtime"
+            }
+          ],
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": false,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "stop"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 550000000,
+                "output_microcents_per_million": 2750000000,
+                "cached_input_microcents_per_million": 55000000,
+                "cache_creation_5m_microcents_per_million": 687500000,
+                "cache_creation_1h_microcents_per_million": 1100000000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "au"
+            }
+          ],
+          "derived": {
+            "price_tier": "high",
+            "replacement": "anthropic/claude-opus-4-8"
+          }
+        },
+        {
+          "id": "au.anthropic.claude-opus-4-8",
+          "model": "anthropic/claude-opus-4-8",
+          "display_name": "Claude Opus 4.8 (AU)",
+          "wire_apis": [
+            {
+              "protocol": "anthropic_messages",
+              "transport": "bedrock_invoke_model"
+            },
+            {
+              "protocol": "anthropic_messages",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "bedrock_converse",
+              "transport": "bedrock_runtime"
+            }
+          ],
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": false,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "stop"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 550000000,
+                "output_microcents_per_million": 2750000000,
+                "cached_input_microcents_per_million": 55000000,
+                "cache_creation_5m_microcents_per_million": 687500000,
+                "cache_creation_1h_microcents_per_million": 1100000000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "au"
+            }
+          ],
+          "derived": {
+            "price_tier": "high",
+            "replacement": "anthropic/claude-opus-5"
+          }
+        },
+        {
           "id": "au.anthropic.claude-opus-5",
           "model": "anthropic/claude-opus-5",
           "display_name": "Claude Opus 5 (AU)",
@@ -2153,7 +2327,10 @@
             }
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "deprecated": "2026-10-08",
+            "retires": "2027-04-08",
+            "replaced_by": "global.anthropic.claude-sonnet-5-5"
           },
           "attributes": [
             {
@@ -2163,7 +2340,7 @@
           ],
           "derived": {
             "price_tier": "medium",
-            "replacement": "anthropic/claude-sonnet-4-6"
+            "replacement": "anthropic/claude-sonnet-5-5"
           }
         },
         {
@@ -2249,6 +2426,89 @@
           "derived": {
             "price_tier": "medium",
             "replacement": "anthropic/claude-sonnet-5"
+          }
+        },
+        {
+          "id": "au.anthropic.claude-sonnet-5",
+          "model": "anthropic/claude-sonnet-5",
+          "display_name": "Claude Sonnet 5 (AU)",
+          "wire_apis": [
+            {
+              "protocol": "anthropic_messages",
+              "transport": "bedrock_invoke_model"
+            },
+            {
+              "protocol": "anthropic_messages",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "bedrock_converse",
+              "transport": "bedrock_runtime"
+            }
+          ],
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": false,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "stop"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 220000000,
+                "output_microcents_per_million": 1100000000,
+                "cached_input_microcents_per_million": 22000000,
+                "cache_creation_5m_microcents_per_million": 275000000,
+                "cache_creation_1h_microcents_per_million": 440000000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "au"
+            }
+          ],
+          "derived": {
+            "price_tier": "medium",
+            "replacement": "anthropic/claude-sonnet-5-5"
           }
         },
         {
@@ -3211,7 +3471,10 @@
             }
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "deprecated": "2026-10-08",
+            "retires": "2027-04-08",
+            "replaced_by": "global.anthropic.claude-sonnet-5-5"
           },
           "attributes": [
             {
@@ -3221,7 +3484,7 @@
           ],
           "derived": {
             "price_tier": "medium",
-            "replacement": "anthropic/claude-sonnet-4-6"
+            "replacement": "anthropic/claude-sonnet-5-5"
           }
         },
         {
@@ -3307,6 +3570,89 @@
           "derived": {
             "price_tier": "medium",
             "replacement": "anthropic/claude-sonnet-5"
+          }
+        },
+        {
+          "id": "eu.anthropic.claude-sonnet-5",
+          "model": "anthropic/claude-sonnet-5",
+          "display_name": "Claude Sonnet 5 (EU)",
+          "wire_apis": [
+            {
+              "protocol": "anthropic_messages",
+              "transport": "bedrock_invoke_model"
+            },
+            {
+              "protocol": "anthropic_messages",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "bedrock_converse",
+              "transport": "bedrock_runtime"
+            }
+          ],
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": false,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "stop"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "adaptive": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 220000000,
+                "output_microcents_per_million": 1100000000,
+                "cached_input_microcents_per_million": 22000000,
+                "cache_creation_5m_microcents_per_million": 275000000,
+                "cache_creation_1h_microcents_per_million": 440000000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "eu"
+            }
+          ],
+          "derived": {
+            "price_tier": "medium",
+            "replacement": "anthropic/claude-sonnet-5-5"
           }
         },
         {
@@ -4369,7 +4715,10 @@
             }
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "deprecated": "2026-10-08",
+            "retires": "2027-04-08",
+            "replaced_by": "global.anthropic.claude-sonnet-5-5"
           },
           "attributes": [
             {
@@ -4379,7 +4728,7 @@
           ],
           "derived": {
             "price_tier": "medium",
-            "replacement": "anthropic/claude-sonnet-4-6"
+            "replacement": "anthropic/claude-sonnet-5-5"
           }
         },
         {
@@ -5399,6 +5748,88 @@
           }
         },
         {
+          "id": "jp.anthropic.claude-haiku-4-5-20251001-v1:0",
+          "model": "anthropic/claude-haiku-4-5",
+          "display_name": "Claude Haiku 4.5 (JP)",
+          "wire_apis": [
+            {
+              "protocol": "anthropic_messages",
+              "transport": "bedrock_invoke_model"
+            },
+            {
+              "protocol": "anthropic_messages",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "bedrock_converse",
+              "transport": "bedrock_runtime"
+            }
+          ],
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 200000,
+            "max_output_tokens": 64000,
+            "supported_params": [
+              "temperature",
+              "top_p",
+              "max_tokens",
+              "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "budget": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 110000000,
+                "output_microcents_per_million": 550000000,
+                "cached_input_microcents_per_million": 11000000,
+                "cache_creation_5m_microcents_per_million": 137500000,
+                "cache_creation_1h_microcents_per_million": 220000000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "jp"
+            }
+          ],
+          "derived": {
+            "price_tier": "low",
+            "replacement": "anthropic/claude-haiku-5-5"
+          }
+        },
+        {
           "id": "jp.anthropic.claude-haiku-5-5",
           "model": "anthropic/claude-haiku-5-5",
           "display_name": "Claude Haiku 5.5 (JP)",
@@ -5805,6 +6236,94 @@
             }
           },
           "lifecycle": {
+            "stage": "ga",
+            "deprecated": "2026-10-08",
+            "retires": "2027-04-08",
+            "replaced_by": "global.anthropic.claude-sonnet-5-5"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "jp"
+            }
+          ],
+          "derived": {
+            "price_tier": "medium",
+            "replacement": "anthropic/claude-sonnet-5-5"
+          }
+        },
+        {
+          "id": "jp.anthropic.claude-sonnet-4-6",
+          "model": "anthropic/claude-sonnet-4-6",
+          "display_name": "Claude Sonnet 4.6 (JP)",
+          "wire_apis": [
+            {
+              "protocol": "anthropic_messages",
+              "transport": "bedrock_invoke_model"
+            },
+            {
+              "protocol": "bedrock_converse",
+              "transport": "bedrock_runtime"
+            }
+          ],
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1000000,
+            "max_output_tokens": 64000,
+            "supported_params": [
+              "temperature",
+              "top_p",
+              "max_tokens",
+              "stop"
+            ],
+            "temperature_range": [
+              0,
+              1
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "max"
+            ],
+            "adaptive": true,
+            "budget": true
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 330000000,
+                "output_microcents_per_million": 1650000000,
+                "cached_input_microcents_per_million": 33000000,
+                "cache_creation_5m_microcents_per_million": 412500000,
+                "cache_creation_1h_microcents_per_million": 660000000
+              }
+            }
+          },
+          "lifecycle": {
             "stage": "ga"
           },
           "attributes": [
@@ -5815,7 +6334,7 @@
           ],
           "derived": {
             "price_tier": "medium",
-            "replacement": "anthropic/claude-sonnet-4-6"
+            "replacement": "anthropic/claude-sonnet-5"
           }
         },
         {
@@ -7600,7 +8119,10 @@
             }
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "deprecated": "2026-10-08",
+            "retires": "2027-04-08",
+            "replaced_by": "global.anthropic.claude-sonnet-5-5"
           },
           "attributes": [
             {
@@ -7610,7 +8132,7 @@
           ],
           "derived": {
             "price_tier": "medium",
-            "replacement": "anthropic/claude-sonnet-4-6"
+            "replacement": "anthropic/claude-sonnet-5-5"
           }
         },
         {

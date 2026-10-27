@@ -215,7 +215,7 @@ func TestWithThinkingBudget(t *testing.T) {
 	t.Run("rejected on model without thinking_budget support", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := provider.NewModel(ModelClaudeSonnet45, WithThinkingBudget(2048))
+		_, err := provider.NewModel(ModelClaudeOpus48, WithThinkingBudget(2048))
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "thinking_budget")
 	})
