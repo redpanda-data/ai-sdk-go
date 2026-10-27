@@ -16,10 +16,9 @@ facts="catalog/facts_data.go"
 # (e.g. Claude in anthropic, vertex and bedrock), and reads those docs sites.
 sources=.github/reconcile-models/named-sources.json
 owned="$(jq -r --arg p "$provider" '.[$p].providers // empty | join("|")' "$sources")"
-hosts="$(jq -r --arg p "$provider" '.[$p].hosts // empty | join(",")' "$sources")"
 emit() { if [[ -n "${GITHUB_OUTPUT:-}" ]]; then echo "$1" >>"$GITHUB_OUTPUT"; fi; }
 
-[[ -n "$hosts" && "$owned" =~ ^[a-z0-9|]+$ ]] || { echo "pr-job: no named sources for $provider" >&2; exit 1; }
+[[ "$owned" =~ ^[a-z0-9|]+$ ]] || { echo "pr-job: no named sources for $provider" >&2; exit 1; }
 [[ -s "$out/report.json" ]] || { echo "pr-job: no report from the agent job" >&2; exit 1; }
 
 # Work from private copies of the inputs and the tools, outside the checkout
@@ -28,7 +27,7 @@ priv="$(mktemp -d)"
 priv="$(cd "$priv" && pwd -P)"
 trap 'rm -rf "$priv"' EXIT
 cp "$out/report.json" "$priv/report.json"
-cp .github/reconcile-models/decisions.yaml .github/reconcile-models/RULES.md "$priv/"
+cp .github/reconcile-models/decisions.yaml .github/reconcile-models/RULES.md "$sources" "$priv/"
 if [[ -f "$out/patch.diff" ]]; then cp "$out/patch.diff" "$priv/patch.diff"; else : >"$priv/patch.diff"; fi
 report="$priv/report.json"
 patch="$priv/patch.diff"
@@ -39,8 +38,10 @@ base_url=""
 if [[ -n "${GITHUB_REPOSITORY:-}" ]]; then
   base_url="${GITHUB_SERVER_URL:-https://github.com}/$GITHUB_REPOSITORY/blob/$(git rev-parse HEAD)"
 fi
+# The body reads the report, and the catalogue before and after the patch
+# once both are there, from $priv: the one vendor's folder.
 render() {
-  "$priv/catalog-report" -report "$report" -provider "$provider" -hosts "$hosts" \
+  "$priv/catalog-report" -vendor "$provider=$priv" -sources "$priv/named-sources.json" \
     -rules "$priv/RULES.md" -decisions "$priv/decisions.yaml" -base-url "$base_url" -base-branch "${BASE:-main}" -out "$out/body.md" "$@"
 }
 
@@ -232,7 +233,6 @@ git diff -- catalog/snapshot.json >"$out/snapshot.diff"
 # Non-data files go into the body's "Code changed" list, so reviewers read them as code.
 for path in "${code[@]+"${code[@]}"}"; do echo "$path"; done >"$priv/code-files.txt"
 cp catalog/snapshot.json "$priv/snapshot.json"
-render -diff "$out/snapshot.diff" -code-files "$priv/code-files.txt" -base-snapshot "$priv/base-snapshot.json" -snapshot "$priv/snapshot.json" \
-  -base-routes "$priv/base-routes.txt" -routes "$priv/routes.txt"
+render -diff "$out/snapshot.diff" -code-files "$priv/code-files.txt" -base-routes "$priv/base-routes.txt" -routes "$priv/routes.txt"
 emit changed=true
 echo "pr-job: patch accepted"

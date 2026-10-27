@@ -15,7 +15,6 @@
 package main
 
 import (
-	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -36,12 +35,6 @@ type workflowStep struct {
 	With map[string]string `yaml:"with"`
 }
 
-// namedSource is one run's entry in named-sources.json.
-type namedSource struct {
-	Providers []string `json:"providers"`
-	Hosts     []string `json:"hosts"`
-}
-
 // namedSources reads named-sources.json, keyed by run.
 func namedSources(t *testing.T) map[string]namedSource {
 	t.Helper()
@@ -49,8 +42,8 @@ func namedSources(t *testing.T) map[string]namedSource {
 	raw, err := os.ReadFile(filepath.Join("..", "..", ".github", "reconcile-models", "named-sources.json"))
 	require.NoError(t, err)
 
-	var runs map[string]namedSource
-	require.NoError(t, json.Unmarshal(raw, &runs))
+	runs, err := parseSources(raw)
+	require.NoError(t, err)
 	require.NotEmpty(t, runs)
 
 	return runs
