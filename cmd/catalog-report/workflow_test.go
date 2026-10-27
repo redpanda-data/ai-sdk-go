@@ -256,6 +256,52 @@ func TestPRJobSandboxHidesDocker(t *testing.T) {
 	assert.Contains(t, script, "--unix-socket /var/run/docker.sock", "the sandbox self-check must try Docker's socket")
 }
 
+// TestPRJobRunsBaseCodeOnlyInTheSandbox checks that every `go run` in
+// pr-job.sh goes through the sandbox, the base's too: a vendor's base holds
+// the earlier vendors' unreviewed commits, and the job later gets the bot
+// token.
+func TestPRJobRunsBaseCodeOnlyInTheSandbox(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile(filepath.Join("..", "..", ".github", "reconcile-models", "pr-job.sh"))
+	require.NoError(t, err)
+
+	runs := 0
+
+	for line := range strings.Lines(string(raw)) {
+		if line = strings.TrimSpace(line); strings.HasPrefix(line, "#") || !strings.Contains(line, "go run") {
+			continue
+		}
+
+		runs++
+
+		assert.True(t, strings.HasPrefix(line, "sandbox go run "), "pr-job.sh runs code outside the sandbox: %s", line)
+	}
+
+	assert.Positive(t, runs, "pr-job.sh has no go run to check")
+}
+
+// TestPRJobToolsImportNoPatchableCode checks that the tools pr-job.sh runs
+// outside the sandbox import no package a patch can change (the catalogue
+// and the providers), so building them from a vendor's base runs none of
+// the earlier vendors' code.
+func TestPRJobToolsImportNoPatchableCode(t *testing.T) {
+	t.Parallel()
+
+	cmd := exec.CommandContext(t.Context(), "go", "list", "-deps", "./cmd/catalog-report", "./cmd/catalog-guard")
+	cmd.Dir = filepath.Join("..", "..")
+	out, err := cmd.Output()
+	require.NoError(t, err)
+
+	module := "github.com/redpanda-data/ai-sdk-go/"
+
+	for pkg := range strings.Lines(string(out)) {
+		pkg = strings.TrimSpace(pkg)
+		assert.False(t, pkg == module+"catalog" || strings.HasPrefix(pkg, module+"catalog/") || strings.HasPrefix(pkg, module+"providers/"),
+			"a tool pr-job.sh runs outside the sandbox imports %s", pkg)
+	}
+}
+
 // TestPRJobRefusesPatchesOutsideTheCatalogue runs pr-job.sh on patches it
 // must refuse before any network step or patched code runs: the checks that
 // keep a hijacked agent's patch away from the bot token.

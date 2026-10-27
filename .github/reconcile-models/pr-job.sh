@@ -165,9 +165,10 @@ fi
 
 git apply --check "$patch"
 # The catalogue and Bedrock routes before the patch, for each change's effect
-# note and the body's routing changes. This is the base code, not the agent's.
+# note and the body's routing changes. The base holds earlier vendors'
+# unreviewed commits in a run that covers several, so it runs in the sandbox too.
 git show HEAD:catalog/snapshot.json >"$priv/base-snapshot.json"
-go run ./cmd/catalog-routes >"$priv/base-routes.txt"
+sandbox go run ./cmd/catalog-routes >"$priv/base-routes.txt"
 for path in "${patched[@]}"; do
   if git cat-file -e "HEAD:$path" 2>/dev/null; then git show "HEAD:$path" >"$priv/base-${path//\//_}"; fi
 done
