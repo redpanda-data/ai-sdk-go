@@ -16,7 +16,7 @@ package openaitest
 
 const (
 	// TestModelName is the model to use for integration tests.
-	TestModelName = "gpt-5.4-mini"
+	TestModelName = "gpt-6.1-sol"
 	// TestReasoningModelName is the model for reasoning tests.
-	TestReasoningModelName = "o3"
+	TestReasoningModelName = "gpt-6-astra"
 )

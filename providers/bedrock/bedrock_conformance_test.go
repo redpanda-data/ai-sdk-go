@@ -38,6 +38,12 @@ import (
 type BedrockFixture struct {
 	provider *bedrock.Provider
 	region   string
+	// modelName is the bare model ID; the fixture invokes it through the
+	// test region's geo inference profile.
+	modelName string
+	// discovery enables the catalog-wide tests, which only need to run once
+	// rather than once per model.
+	discovery bool
 }
 
 // NewBedrockFixture creates a new Bedrock test fixture.
@@ -71,9 +77,9 @@ func (f *BedrockFixture) Name() string {
 func (f *BedrockFixture) NewStandardModel(t *testing.T) llm.Model {
 	t.Helper()
 
-	model, err := f.provider.NewModel(bedrocktest.TestModelName)
+	model, err := f.provider.NewModel(f.profileID())
 	if err != nil {
-		t.Fatalf("Failed to create standard model: %v", err)
+		t.Fatalf("Failed to create model %s: %v", f.profileID(), err)
 	}
 
 	return retry.WrapModel(model)
@@ -82,7 +88,10 @@ func (f *BedrockFixture) NewStandardModel(t *testing.T) llm.Model {
 func (f *BedrockFixture) NewReasoningModel(t *testing.T) llm.Model {
 	t.Helper()
 
-	model, err := f.provider.NewModel(bedrocktest.TestReasoningModelName, bedrock.WithThinking(8192))
+	model, err := f.provider.NewModel(f.profileID(),
+		bedrock.WithReasoningEffort(bedrock.ReasoningEffortHigh),
+		bedrock.WithMaxTokens(32768),
+	)
 	if err != nil {
 		t.Skipf("No reasoning model available: %v", err)
 		return nil
@@ -92,6 +101,10 @@ func (f *BedrockFixture) NewReasoningModel(t *testing.T) llm.Model {
 }
 
 func (f *BedrockFixture) Catalog() *catalog.Catalog {
+	if !f.discovery {
+		return nil
+	}
+
 	return regionCatalog(f.provider.Catalog(), f.region)
 }
 
@@ -299,10 +312,30 @@ func (f *BedrockFixture) NewModel(modelName string) (llm.Model, error) {
 	return f.provider.NewModel(modelName)
 }
 
+// profileID returns the geo inference profile for the fixture's model in
+// the test region, e.g. "us." + the bare ID in us-east-1.
+func (f *BedrockFixture) profileID() string {
+	return bedrock.InferenceProfileRegion(f.region) + "." + f.modelName
+}
+
 // TestBedrockConformance_Integration runs the generic conformance test suite for the Bedrock provider.
 func TestBedrockConformance_Integration(t *testing.T) {
 	t.Parallel()
 
-	fixture := NewBedrockFixture(t)
-	testsuite.Run(t, conformance.NewSuite(fixture))
+	modelsToTest := []string{
+		bedrock.ModelClaudeSonnet55,
+		bedrock.ModelClaudeOpus55,
+		bedrock.ModelClaudeHaiku55,
+	}
+
+	for i, modelName := range modelsToTest {
+		t.Run(modelName, func(t *testing.T) {
+			t.Parallel()
+
+			fixture := NewBedrockFixture(t)
+			fixture.modelName = modelName
+			fixture.discovery = i == 0
+			testsuite.Run(t, conformance.NewSuite(fixture))
+		})
+	}
 }

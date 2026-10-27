@@ -1548,6 +1548,7 @@ func TestRequestMapper_OpenAISchemaStrict(t *testing.T) {
 				require.ErrorIs(t, err, llm.ErrUnsupportedFeature)
 				assert.Equal(t, "false", offering.Attributes[ModelMetadataStructuredOutputStreaming])
 			}
+
 			member, ok := in.OutputConfig.TextFormat.Structure.(*types.OutputFormatStructureMemberJsonSchema)
 			require.True(t, ok)
 			assert.Equal(t, "answer", aws.ToString(member.Value.Name))
