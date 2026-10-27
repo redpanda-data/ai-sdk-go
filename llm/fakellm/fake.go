@@ -553,9 +553,17 @@ func (*FakeModel) endCall(_ *CallContext) {
 
 // generateFallback creates a deterministic response when no rules match.
 func (m *FakeModel) generateFallback(ctx context.Context, req *llm.Request, cc *CallContext) (*llm.Response, error) {
+	response := m.fallbackResponse(req, cc)
+
+	return m.addUsageAndLatency(ctx, req, response, response.Message.TextContent())
+}
+
+// fallbackResponse builds the deterministic response both fallback paths serve,
+// so Generate and GenerateEvents cannot drift apart.
+func (m *FakeModel) fallbackResponse(req *llm.Request, cc *CallContext) *llm.Response {
 	text, finishReason := m.fallbackContent(req)
 
-	response := &llm.Response{
+	return &llm.Response{
 		Message: llm.Message{
 			Role:    llm.RoleAssistant,
 			Content: []llm.Part{llm.NewTextPart(text)},
@@ -563,17 +571,18 @@ func (m *FakeModel) generateFallback(ctx context.Context, req *llm.Request, cc *
 		FinishReason: finishReason,
 		ID:           fmt.Sprintf("fake-%d", cc.TotalCalls),
 	}
-
-	return m.addUsageAndLatency(ctx, req, response, text)
 }
 
 // generateEventsFallback creates a streaming fallback response.
-func (m *FakeModel) generateEventsFallback(ctx context.Context, req *llm.Request, _ *CallContext) iter.Seq2[llm.Event, error] {
-	text, finishReason := m.fallbackContent(req)
+func (m *FakeModel) generateEventsFallback(ctx context.Context, req *llm.Request, cc *CallContext) iter.Seq2[llm.Event, error] {
+	resp := m.fallbackResponse(req, cc)
 
-	events := m.textToStreamEvents(text, finishReason)
+	return m.streamEvents(ctx, m.textResponseToStreamEvents(req, resp))
+}
 
-	// Return an iterator that yields events with optional delays
+// streamEvents yields pre-built events as an iterator, pausing for the
+// configured per-chunk latency and honouring cancellation between events.
+func (m *FakeModel) streamEvents(ctx context.Context, events []llm.Event) iter.Seq2[llm.Event, error] {
 	return func(yield func(llm.Event, error) bool) {
 		for i, event := range events {
 			// Simulate inter-chunk delay
@@ -660,8 +669,14 @@ func (m *FakeModel) countInputTokens(req *llm.Request) int {
 	return m.CountRequestTokens(req)
 }
 
-// textToStreamEvents converts text into streaming events with chunking.
-func (m *FakeModel) textToStreamEvents(text string, finishReason llm.FinishReason) []llm.Event {
+// textResponseToStreamEvents converts a text response into streaming events,
+// chunking the text into deltas and closing with resp itself.
+//
+// Real providers deliver the aggregated message on StreamEndEvent, which is
+// what an agent loop stores in session history; emitting the deltas alone
+// leaves the consumer with a roleless, contentless message.
+func (m *FakeModel) textResponseToStreamEvents(req *llm.Request, resp *llm.Response) []llm.Event {
+	text := resp.Message.TextContent()
 	chunks := chunkText(text, m.defaults.ChunkSize)
 
 	events := make([]llm.Event, 0, len(chunks)+1)
@@ -672,15 +687,17 @@ func (m *FakeModel) textToStreamEvents(text string, finishReason llm.FinishReaso
 		})
 	}
 
+	// Calculate usage if not already set
+	if resp.Usage == nil {
+		resp.Usage = &llm.TokenUsage{
+			InputTokens:  m.countInputTokens(req),
+			OutputTokens: m.tokenizer.Count(text),
+		}
+	}
+
 	// Add finish event
 	events = append(events, llm.StreamEndEvent{
-		Response: &llm.Response{
-			FinishReason: finishReason,
-			Usage: &llm.TokenUsage{
-				InputTokens:  0, // Calculated in stream wrapper if needed
-				OutputTokens: m.tokenizer.Count(text),
-			},
-		},
+		Response: resp,
 	})
 
 	return events
@@ -781,8 +798,10 @@ func (rb *RuleBuilder) Times(maxTimes int) *RuleBuilder {
 }
 
 // ThenRespondText configures the rule to return a simple text response.
+// This configures both Generate and GenerateEvents so the response works
+// regardless of which method the caller uses.
 func (rb *RuleBuilder) ThenRespondText(text string, opts ...ResponseOption) *FakeModel {
-	rb.rule.action.Generate = func(ctx context.Context, req *llm.Request, cc *CallContext) (*llm.Response, error) {
+	build := func(cc *CallContext) *llm.Response {
 		resp := &llm.Response{
 			Message: llm.Message{
 				Role:    llm.RoleAssistant,
@@ -797,7 +816,20 @@ func (rb *RuleBuilder) ThenRespondText(text string, opts ...ResponseOption) *Fak
 			opt(resp)
 		}
 
-		return rb.model.addUsageAndLatency(ctx, req, resp, text)
+		return resp
+	}
+
+	rb.rule.action.Generate = func(ctx context.Context, req *llm.Request, cc *CallContext) (*llm.Response, error) {
+		resp := build(cc)
+
+		return rb.model.addUsageAndLatency(ctx, req, resp, resp.Message.TextContent())
+	}
+
+	// Without this the rule matches, counts against Times, and is then
+	// discarded: GenerateEvents dispatches only actions that set it, so the
+	// stream served the fallback echo instead of the configured text.
+	rb.rule.action.GenerateEvents = func(ctx context.Context, req *llm.Request, cc *CallContext) iter.Seq2[llm.Event, error] {
+		return rb.model.streamEvents(ctx, rb.model.textResponseToStreamEvents(req, build(cc)))
 	}
 
 	rb.commit()
@@ -844,18 +876,8 @@ func (rb *RuleBuilder) ThenRespondWith(builder func(req *llm.Request, cc *CallCo
 			// Convert response to streaming events
 			events := rb.model.responseToStreamEvents(req, resp)
 
-			// Yield events with optional delays
-			for i, event := range events {
-				if rb.model.latency.PerChunk > 0 && i > 0 {
-					select {
-					case <-ctx.Done():
-						yield(nil, ctx.Err())
-						return
-					case <-time.After(rb.model.latency.PerChunk):
-					}
-				}
-
-				if !yield(event, nil) {
+			for event, err := range rb.model.streamEvents(ctx, events) {
+				if !yield(event, err) {
 					return
 				}
 			}
