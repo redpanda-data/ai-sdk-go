@@ -115,6 +115,14 @@ func TestEveryTestModelSettingIsChecked(t *testing.T) {
 	assert.ElementsMatch(t, append(checked, untrackedTestModels...), declared)
 }
 
+// liveModel is a shared live-test model setting and the host its tests call.
+type liveModel struct {
+	setting string         // e.g. "openaitest.TestModelName"
+	value   string         // the model ID the tests send
+	host    llm.ProviderID // the catalog that dates the model for this host
+	geo     string         // Bedrock only: the profile prefix NewModel adds to a bare ID
+}
+
 // liveTestModels is every shared model setting in providers/*/*test whose host
 // has a catalog (DeepSeek's have none), with the catalog of the host its tests
 // call.
@@ -229,6 +237,14 @@ func TestCheckLiveTestModels(t *testing.T) {
 				`Retires 2027-04-08, ReplacedBy global.anthropic.claude-sonnet-5-5 (as us.anthropic.claude-sonnet-4-5-20250929-v1:0). ` +
 				`In providers/bedrock/bedrocktest/constants.go set TestModelName = "anthropic.claude-sonnet-5-5"`,
 		},
+		{
+			// A prefixed setting keeps its own prefix in the swap, not the
+			// global. one Bedrock records.
+			"bedrock profile ID", bedrockModel("us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
+			`bedrocktest.TestModelName = "us.anthropic.claude-sonnet-4-5-20250929-v1:0": aws.bedrock records Deprecated 2026-10-08, ` +
+				`Retires 2027-04-08, ReplacedBy global.anthropic.claude-sonnet-5-5. ` +
+				`In providers/bedrock/bedrocktest/constants.go set TestModelName = "us.anthropic.claude-sonnet-5-5"`,
+		},
 		// NewModel calls an ID the catalog already knows as it is.
 		{"bedrock offering ID", bedrockModel("us.anthropic.claude-opus-4-5-20251101-v1:0"), ""},
 	}
@@ -243,14 +259,6 @@ func TestCheckLiveTestModels(t *testing.T) {
 	}
 }
 
-// liveModel is a shared live-test model setting and the host its tests call.
-type liveModel struct {
-	setting string         // e.g. "openaitest.TestModelName"
-	value   string         // the model ID the tests send
-	host    llm.ProviderID // the catalog that dates the model for this host
-	geo     string         // Bedrock only: the profile prefix NewModel adds to a bare ID
-}
-
 // checkLiveTestModels lists each setting whose model isn't an exact offering ID
 // in its host's catalog, or whose offering records a deprecation, shutdown or
 // replacement.
@@ -258,7 +266,7 @@ func checkLiveTestModels(models []liveModel, lifecycles map[llm.ProviderID]map[s
 	var problems []string
 
 	for _, m := range models {
-		head := fmt.Sprintf("%s = %q: ", m.setting, m.value)
+		problem := fmt.Sprintf("%s = %q: ", m.setting, m.value)
 		offerings := lifecycles[m.host]
 
 		// The exact ID first, then the test region's profile ID: the default
@@ -272,7 +280,7 @@ func checkLiveTestModels(models []liveModel, lifecycles map[llm.ProviderID]map[s
 		}
 
 		if !ok {
-			problems = append(problems, head+fmt.Sprintf("not an offering ID in the %s catalog", m.host))
+			problems = append(problems, problem+fmt.Sprintf("not an offering ID in the %s catalog", m.host))
 			continue
 		}
 
@@ -293,14 +301,22 @@ func checkLiveTestModels(models []liveModel, lifecycles map[llm.ProviderID]map[s
 			continue
 		}
 
-		head += fmt.Sprintf("%s records %s", m.host, strings.Join(recorded, ", "))
+		problem += fmt.Sprintf("%s records %s", m.host, strings.Join(recorded, ", "))
 
 		swap := life.ReplacedBy
 
 		if id != m.value {
-			head += fmt.Sprintf(" (as %s)", id)
-			// A bare setting gets its prefix from NewModel, so its swap stays bare.
+			problem += fmt.Sprintf(" (as %s)", id)
+		}
+
+		// Bedrock records global. replacements, which CI's account can't call.
+		// A bare setting's swap stays bare, so NewModel adds the test region's
+		// prefix; a prefixed setting's swap keeps that prefix.
+		if m.geo != "" && strings.HasPrefix(id, m.geo+".") {
 			_, swap, _ = strings.Cut(swap, ".")
+			if id == m.value {
+				swap = m.geo + "." + swap
+			}
 		}
 
 		// Every shared setting is declared in providers/<p>/<p>test/constants.go.
@@ -308,11 +324,11 @@ func checkLiveTestModels(models []liveModel, lifecycles map[llm.ProviderID]map[s
 		file := "providers/" + strings.TrimSuffix(pkg, "test") + "/" + pkg + "/constants.go"
 
 		if life.ReplacedBy == "" {
-			problems = append(problems, head+fmt.Sprintf(" and no replacement. Pick one for %s in %s", name, file))
+			problems = append(problems, problem+fmt.Sprintf(" and no replacement. Pick one for %s in %s", name, file))
 			continue
 		}
 
-		problems = append(problems, head+fmt.Sprintf(". In %s set %s = %q", file, name, swap))
+		problems = append(problems, problem+fmt.Sprintf(". In %s set %s = %q", file, name, swap))
 	}
 
 	return problems
