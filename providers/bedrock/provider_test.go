@@ -1531,7 +1531,7 @@ func TestRequestMapper_ResponseFormat(t *testing.T) {
 func TestRequestMapper_OpenAISchemaStrict(t *testing.T) {
 	t.Parallel()
 
-	for _, id := range []string{ModelGPT6AstraGlobal, ModelGPT6AstraUS, ModelGPT6SolGlobal, ModelGPT6SolUS, ModelGPT61SolGlobal, ModelGPT61SolUS, ModelGPT6LunaGlobal, ModelGPT6LunaUS} {
+	for _, id := range []string{ModelGPT6AstraGlobal, ModelGPT6AstraUS, ModelGPT6SolGlobal, ModelGPT6SolUS, ModelGPT61SolGlobal, ModelGPT61SolUS, ModelGPT61TerraGlobal, ModelGPT61TerraUS, ModelGPT6LunaGlobal, ModelGPT6LunaUS} {
 		t.Run(id, func(t *testing.T) {
 			t.Parallel()
 
@@ -1554,6 +1554,7 @@ func TestRequestMapper_OpenAISchemaStrict(t *testing.T) {
 				require.ErrorIs(t, err, llm.ErrUnsupportedFeature)
 				assert.Equal(t, "false", offering.Attributes[ModelMetadataStructuredOutputStreaming])
 			}
+
 			member, ok := in.OutputConfig.TextFormat.Structure.(*types.OutputFormatStructureMemberJsonSchema)
 			require.True(t, ok)
 			assert.Equal(t, "answer", aws.ToString(member.Value.Name))

@@ -266,6 +266,9 @@ func TestRequestMapper_ThinkingBlockBinding(t *testing.T) {
 
 	const bound = `{"type":"adaptive","block_binding":{"prefix_mismatch_behavior":"drop_block"}}`
 
+	// Requested thinking also asks for summarized text, which newer models omit by default.
+	const boundSummarized = `{"type":"adaptive","display":"summarized","block_binding":{"prefix_mismatch_behavior":"drop_block"}}`
+
 	bindingBeta := []string{"thinking-binding-controls-2026-08-01"}
 
 	cases := []struct {
@@ -277,7 +280,7 @@ func TestRequestMapper_ThinkingBlockBinding(t *testing.T) {
 		wantBetas    []string
 	}{
 		{name: "Sonnet 5.5 without thinking option", model: ModelClaudeSonnet55, wantThinking: bound, wantBetas: bindingBeta},
-		{name: "Sonnet 5.5 with thinking", model: ModelClaudeSonnet55, opts: []Option{WithThinking(true)}, wantThinking: bound, wantBetas: bindingBeta},
+		{name: "Sonnet 5.5 with thinking", model: ModelClaudeSonnet55, opts: []Option{WithThinking(true)}, wantThinking: boundSummarized, wantBetas: bindingBeta},
 		{name: "Opus 5.5", model: ModelClaudeOpus55, wantThinking: bound, wantBetas: bindingBeta},
 		{name: "Fable 5.1", model: ModelClaudeFable51, wantThinking: bound, wantBetas: bindingBeta},
 		{name: "Haiku 5.5", model: ModelClaudeHaiku55, wantThinking: bound, wantBetas: bindingBeta},
@@ -294,11 +297,11 @@ func TestRequestMapper_ThinkingBlockBinding(t *testing.T) {
 			name:         "opt-out keeps requested thinking",
 			model:        ModelClaudeSonnet55,
 			opts:         []Option{WithThinking(true), WithThinkingBlockBinding(false)},
-			wantThinking: `{"type":"adaptive"}`,
+			wantThinking: `{"type":"adaptive","display":"summarized"}`,
 		},
 		{name: "opting in does not bind other models", model: ModelClaudeSonnet46, opts: []Option{WithThinkingBlockBinding(true)}},
 		{name: "Sonnet 4.6 without thinking sends none", model: ModelClaudeSonnet46},
-		{name: "Sonnet 4.6 adaptive thinking is not bound", model: ModelClaudeSonnet46, opts: []Option{WithThinking(true)}, wantThinking: `{"type":"adaptive"}`},
+		{name: "Sonnet 4.6 adaptive thinking is not bound", model: ModelClaudeSonnet46, opts: []Option{WithThinking(true)}, wantThinking: `{"type":"adaptive","display":"summarized"}`},
 		{name: "Opus 5 is not bound", model: ModelClaudeOpus5},
 		{
 			name:         "explicit budget is left as is",

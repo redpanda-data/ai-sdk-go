@@ -170,6 +170,7 @@ func (m *ResponseMapper) FromProvider(r *anthropic.BetaMessage) (*llm.Response, 
 			}
 		}
 	}
+
 	if hasToolCalls && finishReason == llm.FinishReasonStop {
 		finishReason = llm.FinishReasonToolCalls
 	}

@@ -146,7 +146,7 @@ func (rm *RequestMapper) buildConverseParams(req *llm.Request) (*converseParams,
 // requiresConverseStrict limits the extra field to the documented GPT-6 contracts.
 func requiresConverseStrict(modelID string) bool {
 	offering, ok := lookupModel(modelID)
-	return ok && (offering.Model == catalog.ModelGPT6Astra || offering.Model == catalog.ModelGPT6Sol || offering.Model == catalog.ModelGPT6_1Sol || offering.Model == catalog.ModelGPT6Luna)
+	return ok && (offering.Model == catalog.ModelGPT6Astra || offering.Model == catalog.ModelGPT6Sol || offering.Model == catalog.ModelGPT6_1Sol || offering.Model == catalog.ModelGPT6_1Terra || offering.Model == catalog.ModelGPT6Luna)
 }
 
 // applyResponseFormat sets Converse's outputConfig.textFormat from a
@@ -258,9 +258,11 @@ func (rm *RequestMapper) buildThinkingFields() map[string]any {
 
 	// Otherwise thinking is adaptive: the model decides how long to think,
 	// optionally biased by the reasoning effort (WithReasoningEffort).
+	// Newer models omit the thinking text unless display is set.
 	fields := map[string]any{
 		"thinking": map[string]any{
-			"type": "adaptive",
+			"type":    "adaptive",
+			"display": "summarized",
 		},
 	}
 	if rm.config.ReasoningEffort != nil {
