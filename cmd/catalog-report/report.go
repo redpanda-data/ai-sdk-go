@@ -407,32 +407,74 @@ func (base Base) waitingLines(skipped []Skipped) []string {
 	return lines
 }
 
+// question is the needs_human rows that ask one thing, on one offering or
+// more. row is the first of them, with every row's sources.
+type question struct {
+	row       NeedsHuman
+	offerings []string
+}
+
+// questions groups needs_human rows that differ only by offering and sources,
+// in the order first seen, so one cause is one question.
+func questions(needs []NeedsHuman) []question {
+	type group struct{ rule, field, catalogue, page, values string }
+
+	keys, rows := groupBy(needs, func(item NeedsHuman) (group, NeedsHuman) {
+		return group{item.Rule, item.Field, item.Catalogue, item.Page, fmt.Sprintf("%q", item.Values)}, item
+	})
+	grouped := make([]question, 0, len(keys))
+
+	for _, key := range keys {
+		q := question{row: rows[key][0]}
+		q.row.SourceURLs = nil
+
+		for _, item := range rows[key] {
+			q.offerings = append(q.offerings, item.Offering)
+
+			for _, source := range item.SourceURLs {
+				if !slices.Contains(q.row.SourceURLs, source) {
+					q.row.SourceURLs = append(q.row.SourceURLs, source)
+				}
+			}
+		}
+
+		grouped = append(grouped, q)
+	}
+
+	return grouped
+}
+
 // resolveAlert is the alert at the top for the reviewer: how many "Resolve
-// before merging" rows block the merge, naming the first five. It shows only
-// when there is one.
-func resolveAlert(needs []NeedsHuman) string {
-	if len(needs) == 0 {
+// before merging" questions block the merge, naming the first five. It shows
+// only when there is one.
+func resolveAlert(asks []question) string {
+	if len(asks) == 0 {
 		return ""
 	}
 
-	shown := needs[:min(len(needs), 5)]
+	shown := asks[:min(len(asks), 5)]
 	named := make([]string, 0, len(shown))
 
-	for _, item := range shown {
-		named = append(named, code(item.Offering)+" "+item.Field)
+	for _, q := range shown {
+		name := code(q.row.Offering) + " " + q.row.Field
+		if len(q.offerings) > 1 {
+			name = fmt.Sprintf("%s on %d offerings", q.row.Field, len(q.offerings))
+		}
+
+		named = append(named, name)
 	}
 
 	list := strings.Join(named, ", ")
-	if more := len(needs) - len(shown); more > 0 {
+	if more := len(asks) - len(shown); more > 0 {
 		list += fmt.Sprintf(" and %d more", more)
 	}
 
-	questions := "1 question"
-	if len(needs) > 1 {
-		questions = fmt.Sprintf("%d questions", len(needs))
+	count := "1 question"
+	if len(asks) > 1 {
+		count = fmt.Sprintf("%d questions", len(asks))
 	}
 
-	return "> [!IMPORTANT]\n> **Resolve " + questions + " before merging:** " + list + ". See Resolve before merging below.\n\n"
+	return "> [!IMPORTANT]\n> **Resolve " + count + " before merging:** " + list + ". See Resolve before merging below.\n\n"
 }
 
 // waitingAlert is the alert at the top for product: each waiting host and
@@ -467,11 +509,13 @@ func (base Base) waitingAlert(waiting []Skipped) string {
 	return "> [!NOTE]\n> **" + decisions + " waiting** (" + they + " block this PR): " + strings.Join(asked, " ") + "\n\n"
 }
 
-// needsHumanBlock renders one needs_human row: its rule, the rule's fixed
-// question, what the catalogue and the page say, anything else the bot
-// found, and the sources. A no-rule row with both sides asks instead, after
-// them, to keep one or take the other.
-func (base Base) needsHumanBlock(number int, item NeedsHuman) string {
+// needsHumanBlock renders one question: its offerings, its rule, the rule's
+// fixed question, what the catalogue and the page say, anything else the bot
+// found, and the sources. A no-rule question with both sides asks instead,
+// after them, to keep one or take the other.
+func (base Base) needsHumanBlock(number int, q question) string {
+	item := q.row
+
 	why := "rule " + base.ruleLink(item.Rule)
 	if item.Rule == reconcile.JudgmentRule {
 		why = "⚠ no rule covers this (" + base.ruleLink(item.Rule) + ")"
@@ -482,11 +526,16 @@ func (base Base) needsHumanBlock(number int, item NeedsHuman) string {
 		sources = append(sources, link(source))
 	}
 
-	block := fmt.Sprintf("**%d. %s · %s · %s**\n", number, code(item.Offering), item.Field, why)
+	subject, listed := code(item.Offering), ""
+	if len(q.offerings) > 1 {
+		subject, listed = fmt.Sprintf("%d offerings", len(q.offerings)), "- **Offerings:** "+valueList(q.offerings)+"\n"
+	}
+
+	block := fmt.Sprintf("**%d. %s · %s · %s**\n%s", number, subject, item.Field, why, listed)
 
 	decide := item.Rule == reconcile.JudgmentRule && item.Catalogue != "" && item.Page != ""
-	if question := base.Rules.Questions[item.Rule]; question != "" && !decide {
-		block += "- **Question:** " + question + "\n"
+	if fixed := base.Rules.Questions[item.Rule]; fixed != "" && !decide {
+		block += "- **Question:** " + fixed + "\n"
 	}
 
 	if item.Catalogue != "" {
@@ -715,7 +764,9 @@ func Render(report Report, provider, snapshotDiff string, codeFiles []string, ba
 	}
 
 	fmt.Fprintf(&body, "Proposed by the reconcile-models workflow. The tables come from the agent's structured report; the PR job checked its format and that every source is a named source. Check each value against its source before approving. The \"Bot catalog PRs\" section of %[2]s says what else to check.\n\nEach run rebuilds this branch from %[1]s. A commit you push here stays, but runs then stop updating this PR until it's merged or closed. To settle a row, merge a fix on %[1]s or record a decision in `.github/reconcile-models/decisions.yaml`. Later runs don't read PR comments.\n\n", base.Branch, base.fileLink("REVIEW.md", "REVIEW.md#bot-catalog-prs", 0))
-	body.WriteString(resolveAlert(report.NeedsHuman) + base.waitingAlert(waiting))
+
+	asks := questions(report.NeedsHuman)
+	body.WriteString(resolveAlert(asks) + base.waitingAlert(waiting))
 	body.WriteString(base.summary())
 
 	if len(codeFiles) > 0 {
@@ -743,19 +794,19 @@ func Render(report Report, provider, snapshotDiff string, codeFiles []string, ba
 		body.WriteString(strings.Join(rows, "") + "\n")
 	}
 
-	if len(report.NeedsHuman) > 0 {
+	if len(asks) > 0 {
 		judged := 0
 
-		for _, item := range report.NeedsHuman {
-			if item.Rule == reconcile.JudgmentRule {
+		for _, q := range asks {
+			if q.row.Rule == reconcile.JudgmentRule {
 				judged++
 			}
 		}
 
-		fmt.Fprintf(&body, "### Resolve before merging (%d): %d by a rule, %d with no rule\n\n", len(report.NeedsHuman), len(report.NeedsHuman)-judged, judged)
+		fmt.Fprintf(&body, "### Resolve before merging (%d): %d by a rule, %d with no rule\n\n", len(asks), len(asks)-judged, judged)
 
-		for index, item := range report.NeedsHuman {
-			body.WriteString(base.needsHumanBlock(index+1, item))
+		for index, q := range asks {
+			body.WriteString(base.needsHumanBlock(index+1, q))
 		}
 	}
 

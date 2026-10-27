@@ -335,7 +335,8 @@ func TestRender(t *testing.T) {
 	}}
 
 	for _, model := range []string{"claude-opus-5", "claude-opus-5-5", "claude-sonnet-5", "claude-sonnet-5-5", "claude-haiku-5", "claude-haiku-5-5", "claude-fable-5"} {
-		manyAsks.NeedsHuman = append(manyAsks.NeedsHuman, NeedsHuman{Offering: model, Field: "limit", Rule: "no-rule", SourceURLs: []string{"https://platform.claude.com/a"}})
+		// Each page differs, so the rows stay seven questions.
+		manyAsks.NeedsHuman = append(manyAsks.NeedsHuman, NeedsHuman{Offering: model, Field: "limit", Rule: "no-rule", Page: model, SourceURLs: []string{"https://platform.claude.com/a"}})
 	}
 
 	changes := func(rows ...Change) Report {
@@ -946,6 +947,43 @@ func TestRenderQuestionBlock(t *testing.T) {
 			body := Render(Report{NeedsHuman: []NeedsHuman{tt.item}}, "anthropic", "", nil, Base{Rules: testRules})
 			assert.Contains(t, body, tt.want)
 		})
+	}
+}
+
+// TestRenderGroupsSameQuestion uses #287's structured-output rows, which asked
+// one question 12 times: rows that differ only by offering and sources are
+// one question, and a row with any other difference stays its own.
+func TestRenderGroupsSameQuestion(t *testing.T) {
+	t.Parallel()
+
+	ask := func(offering, page, source string) NeedsHuman {
+		return NeedsHuman{
+			Offering: "bedrock:" + offering, Field: "capability", Rule: "no-rule",
+			Catalogue: "structured_output false", Page: page,
+			Values: []string{"providers/bedrock/capabilities_test.go", "claudeNoSchemaCaps"}, SourceURLs: []string{source},
+		}
+	}
+	report := Report{NeedsHuman: []NeedsHuman{
+		ask("global.anthropic.claude-fable-5-1", "Structured outputs supported", "https://docs.aws.amazon.com/a"),
+		ask("us.anthropic.claude-fable-5-1", "Structured outputs supported", "https://docs.aws.amazon.com/a"),
+		ask("global.anthropic.claude-haiku-5-5", "Structured outputs not listed", "https://docs.aws.amazon.com/c"),
+		ask("global.anthropic.claude-opus-5-5", "Structured outputs supported", "https://docs.aws.amazon.com/b"),
+	}}
+
+	body := Render(report, "anthropic", "", nil, Base{Rules: testRules})
+
+	for _, want := range []string{
+		"> [!IMPORTANT]\n> **Resolve 2 questions before merging:** capability on 3 offerings, `bedrock:global.anthropic.claude-haiku-5-5` capability. See Resolve before merging below.\n\n",
+		"### Resolve before merging (2): 0 by a rule, 2 with no rule\n\n" +
+			"**1. 3 offerings · capability · ⚠ no rule covers this (`no-rule`)**\n" +
+			"- **Offerings:** `bedrock:global.anthropic.claude-fable-5-1`, `bedrock:us.anthropic.claude-fable-5-1`, `bedrock:global.anthropic.claude-opus-5-5`\n" +
+			"- **Catalogue:** `structured_output false`\n- **Page:** `Structured outputs supported`\n" +
+			"- **Also found:** `providers/bedrock/capabilities_test.go`, `claudeNoSchemaCaps`\n" +
+			"- **Decide:** keep `structured_output false`, or change to `Structured outputs supported`. If this can come back, add a rule.\n" +
+			"- **Sources:** [docs.aws.amazon.com](https://docs.aws.amazon.com/a), [docs.aws.amazon.com](https://docs.aws.amazon.com/b)\n\n" +
+			"**2. `bedrock:global.anthropic.claude-haiku-5-5` · capability · ⚠ no rule covers this (`no-rule`)**\n",
+	} {
+		assert.Contains(t, body, want)
 	}
 }
 
