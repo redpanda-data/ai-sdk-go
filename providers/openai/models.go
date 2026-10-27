@@ -713,7 +713,10 @@ func entries() []catalog.Entry {
 				MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 			},
 			Life: catalog.Lifecycle{
-				Available: catalog.MustDate("2025-04-14"),
+				Available:  catalog.MustDate("2025-04-14"),
+				Deprecated: catalog.MustDate("2026-10-14"),
+				Retires:    catalog.MustDate("2027-01-14"),
+				ReplacedBy: ModelGPT6Luna,
 			},
 			Pricing: pricing.FlatInfo(2.00, 8.00, 0.50).
 				WithOverride(batchTier, flatCard(1.00, 4.00, 0)).
@@ -733,7 +736,10 @@ func entries() []catalog.Entry {
 				MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 			},
 			Life: catalog.Lifecycle{
-				Available: catalog.MustDate("2025-04-14"),
+				Available:  catalog.MustDate("2025-04-14"),
+				Deprecated: catalog.MustDate("2026-10-14"),
+				Retires:    catalog.MustDate("2027-01-14"),
+				ReplacedBy: ModelGPT6Luna,
 			},
 			Pricing: pricing.FlatInfo(0.40, 1.60, 0.10).
 				WithOverride(batchTier, flatCard(0.20, 0.80, 0)).
@@ -824,7 +830,10 @@ func entries() []catalog.Entry {
 				},
 			},
 			Life: catalog.Lifecycle{
-				Available: catalog.MustDate("2024-05-13"),
+				Available:  catalog.MustDate("2024-05-13"),
+				Deprecated: catalog.MustDate("2026-10-14"),
+				Retires:    catalog.MustDate("2027-01-14"),
+				ReplacedBy: ModelGPT6Luna,
 			},
 			Pricing: pricing.FlatInfo(2.50, 10.00, 1.25).
 				WithOverride(batchTier, flatCard(1.25, 5.00, 0)).
@@ -844,7 +853,10 @@ func entries() []catalog.Entry {
 				MutuallyExclusive: [][]string{{"temperature", "top_p"}},
 			},
 			Life: catalog.Lifecycle{
-				Available: catalog.MustDate("2024-07-18"),
+				Available:  catalog.MustDate("2024-07-18"),
+				Deprecated: catalog.MustDate("2026-10-14"),
+				Retires:    catalog.MustDate("2027-01-14"),
+				ReplacedBy: ModelGPT6Luna,
 			},
 			Pricing: pricing.FlatInfo(0.15, 0.60, 0.075).
 				WithOverride(batchTier, flatCard(0.075, 0.30, 0)).

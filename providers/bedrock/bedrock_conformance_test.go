@@ -32,6 +32,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/providers/bedrock"
 	"github.com/redpanda-data/ai-sdk-go/providers/bedrock/bedrocktest"
 	"github.com/redpanda-data/ai-sdk-go/providers/conformance"
+	"github.com/redpanda-data/ai-sdk-go/providers/testutil"
 )
 
 // BedrockFixture implements the conformance.Fixture interface for the Bedrock provider.
@@ -219,6 +220,8 @@ func TestBedrockFable5Invocation_Integration(t *testing.T) {
 		region = bedrocktest.TestRegion
 	}
 
+	testutil.SkipIfRetired(t, bedrock.Catalog(), bedrock.InferenceProfileRegion(region)+"."+bedrock.ModelClaudeFable5)
+
 	provider, err := bedrock.NewProvider(context.Background(), bedrock.WithRegion(region))
 	if err != nil {
 		t.Fatalf("Failed to create provider: %v", err)
@@ -254,6 +257,8 @@ func TestBedrockAdaptiveThinking_Integration(t *testing.T) {
 	t.Parallel()
 
 	fixture := NewBedrockFixture(t)
+
+	testutil.SkipIfRetired(t, bedrock.Catalog(), bedrock.InferenceProfileRegion(fixture.region)+"."+bedrock.ModelClaudeOpus47)
 
 	model, err := fixture.provider.NewModel(
 		bedrock.ModelClaudeOpus47,

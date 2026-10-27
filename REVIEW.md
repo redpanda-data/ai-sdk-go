@@ -32,6 +32,10 @@ and optional future work.
 - State exact commands, tested versions, unavailable credentials, and skipped
   checks. A fake HTTP peer proves wire behavior, not live provider acceptance.
   Never count a skipped integration test as a passed live check.
+- A live test takes its model from a `<provider>test` setting, which
+  `TestLiveTestModelsAreCurrent` dates against the catalog, or calls
+  `testutil.SkipIfRetired` when it tests one model on purpose. A model ID written
+  into a live test goes red without warning when the vendor shuts it down.
 
 ## Generated files and delivery
 
@@ -60,3 +64,6 @@ the tests without secrets. It didn't check the values.
   can take the new profile and its price.
 - Read the files in "Code changed" before marking the PR ready: that runs them
   with secrets.
+- When `TestLiveTestModelsAreCurrent` fails once the PR is ready, push the swap
+  it prints onto this same PR, so the date and the swap merge together. Later
+  runs then stop updating the PR until it merges or closes.

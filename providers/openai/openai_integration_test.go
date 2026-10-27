@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/providers/testutil"
 )
 
 // llmFirstText returns the first TextPart's text, if any.
@@ -109,6 +110,8 @@ func TestGPT52ReasoningEffortIntegration(t *testing.T) {
 				return
 			}
 
+			testutil.SkipIfRetired(t, Catalog(), tc.model)
+
 			require.NoError(t, err, "Model creation should succeed")
 
 			// Verify supported reasoning efforts
@@ -178,9 +181,7 @@ func TestAllModelsReasoningEffortsIntegration(t *testing.T) {
 		t.Run(modelName, func(t *testing.T) {
 			t.Parallel()
 
-			if Catalog().Now().IsRetired(modelName) {
-				t.Skipf("Skipping %s: the catalog marks it retired, so OpenAI no longer serves it", modelName)
-			}
+			testutil.SkipIfRetired(t, Catalog(), modelName)
 
 			// Create model to get supported reasoning efforts
 			model, err := provider.NewModel(modelName)
@@ -230,10 +231,9 @@ func TestAllModelsReasoningEffortsIntegration(t *testing.T) {
 	}
 }
 
-// TestReasoningEffortModelsAreCatalogued keeps the retired-model skip in
-// TestAllModelsReasoningEffortsIntegration working: IsRetired reports false
-// for IDs the catalog doesn't know, so an uncatalogued name would still be
-// called after its shutdown date.
+// TestReasoningEffortModelsAreCatalogued catches an uncatalogued name in
+// TestAllModelsReasoningEffortsIntegration without an API key: SkipIfRetired
+// fails on one too, but only in a live run.
 func TestReasoningEffortModelsAreCatalogued(t *testing.T) {
 	t.Parallel()
 

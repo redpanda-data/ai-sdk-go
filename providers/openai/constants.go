@@ -104,8 +104,14 @@ const (
 	ModelGPT5_4Nano = shared.ChatModelGPT5_4Nano
 
 	// ModelGPT4O is the GPT-4o model.
+	//
+	// Deprecated: OpenAI deprecated GPT-4o on 2026-10-14; it shuts down
+	// 2027-01-14. Use [ModelGPT6Luna].
 	ModelGPT4O = shared.ChatModelGPT4o
 	// ModelGPT4OMini is the GPT-4o Mini model.
+	//
+	// Deprecated: OpenAI deprecated GPT-4o Mini on 2026-10-14; it shuts
+	// down 2027-01-14. Use [ModelGPT6Luna].
 	ModelGPT4OMini = shared.ChatModelGPT4oMini
 
 	// ModelGPT4Turbo is the legacy GPT-4 Turbo model.
@@ -120,8 +126,14 @@ const (
 	ModelGPT35Turbo = shared.ChatModelGPT3_5Turbo
 
 	// ModelGPT41 is the GPT-4.1 model.
+	//
+	// Deprecated: OpenAI deprecated GPT-4.1 on 2026-10-14; it shuts down
+	// 2027-01-14. Use [ModelGPT6Luna].
 	ModelGPT41 = shared.ChatModelGPT4_1
 	// ModelGPT41Mini is the GPT-4.1 Mini model.
+	//
+	// Deprecated: OpenAI deprecated GPT-4.1 Mini on 2026-10-14; it shuts
+	// down 2027-01-14. Use [ModelGPT6Luna].
 	ModelGPT41Mini = shared.ChatModelGPT4_1Mini
 
 	// ModelO1Pro is the O1 Pro reasoning model.

@@ -25,6 +25,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/providers/conformance"
 	"github.com/redpanda-data/ai-sdk-go/providers/google"
 	"github.com/redpanda-data/ai-sdk-go/providers/google/googletest"
+	"github.com/redpanda-data/ai-sdk-go/providers/testutil"
 )
 
 // GoogleFixture implements the conformance.Fixture interface for Google Gemini provider.
@@ -129,6 +130,8 @@ func TestGoogleConformance_Integration(t *testing.T) {
 	for _, modelName := range modelsToTest {
 		t.Run(modelName, func(t *testing.T) {
 			t.Parallel()
+
+			testutil.SkipIfRetired(t, google.Catalog(), modelName)
 
 			fixture := NewGoogleFixture(t, modelName)
 			testsuite.Run(t, conformance.NewSuite(fixture))

@@ -1,0 +1,12 @@
+# Lint config for the example modules, used by `task examples:lint`. It reports
+# only uses of deprecated identifiers (staticcheck SA1019), such as a model
+# constant whose `// Deprecated:` comment records the model's shutdown.
+version: "2"
+linters:
+  default: none
+  enable:
+    - staticcheck
+  settings:
+    staticcheck:
+      checks:
+        - SA1019

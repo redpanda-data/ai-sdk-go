@@ -12878,11 +12878,14 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2025-04-14"
+            "available": "2025-04-14",
+            "deprecated": "2026-10-14",
+            "retires": "2027-01-14",
+            "replaced_by": "gpt-6-luna"
           },
           "derived": {
             "price_tier": "medium",
-            "replacement": "openai/gpt-5"
+            "replacement": "openai/gpt-6-luna"
           }
         },
         {
@@ -12974,11 +12977,14 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2025-04-14"
+            "available": "2025-04-14",
+            "deprecated": "2026-10-14",
+            "retires": "2027-01-14",
+            "replaced_by": "gpt-6-luna"
           },
           "derived": {
             "price_tier": "low",
-            "replacement": "openai/gpt-5-mini"
+            "replacement": "openai/gpt-6-luna"
           }
         },
         {
@@ -13081,11 +13087,14 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2024-05-13"
+            "available": "2024-05-13",
+            "deprecated": "2026-10-14",
+            "retires": "2027-01-14",
+            "replaced_by": "gpt-6-luna"
           },
           "derived": {
             "price_tier": "medium",
-            "replacement": "openai/gpt-4.1"
+            "replacement": "openai/gpt-6-luna"
           }
         },
         {
@@ -13177,11 +13186,14 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2024-07-18"
+            "available": "2024-07-18",
+            "deprecated": "2026-10-14",
+            "retires": "2027-01-14",
+            "replaced_by": "gpt-6-luna"
           },
           "derived": {
             "price_tier": "low",
-            "replacement": "openai/gpt-4.1-mini"
+            "replacement": "openai/gpt-6-luna"
           }
         },
         {

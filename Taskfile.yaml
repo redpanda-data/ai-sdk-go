@@ -120,6 +120,24 @@ tasks:
           (cd "$dir" && GOROOT={{.GO_ROOT}} GOTOOLCHAIN=local {{.GO_BIN}} build ./...)
         done
 
+  examples:lint:
+    desc: Report example code that uses deprecated identifiers, such as a retiring model's constant
+    deps:
+      - install:golangci-lint
+    cmds:
+      # Every issue, not only new ones: the PR that deprecates a model changes
+      # its constant, not the example that calls it.
+      - |
+        set -eu
+        status=0
+        for mod in examples/*/go.mod; do
+          dir=$(dirname "$mod")
+          echo "==> linting $dir"
+          # Report every example before failing the task.
+          (cd "$dir" && GOROOT={{.GO_ROOT}} GOTOOLCHAIN=local PATH={{.GO_ROOT}}/bin:$PATH {{.BIN_DIR}}/golangci-lint run -c {{.ROOT_DIR}}/.golangci.examples.yaml --timeout 10m ./...) || status=1
+        done
+        exit "$status"
+
   test:conformance:
     desc: Run the Vercel AI SDK UI message stream conformance suite (requires node + bun)
     dir: adapter/vercelaisdk/uimessagestream/conformance
