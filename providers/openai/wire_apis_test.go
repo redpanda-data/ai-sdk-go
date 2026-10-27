@@ -35,7 +35,7 @@ func TestCatalogWireAPIs(t *testing.T) {
 			ids: []string{
 				"gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-5.1", "gpt-5.2",
 				"gpt-5.2-chat-latest", "gpt-5.3-chat-latest", "gpt-6-astra",
-				"gpt-6-sol", "gpt-6-luna", "gpt-6.1-sol",
+				"gpt-6-sol", "gpt-6-luna", "gpt-6.1-sol", "gpt-6.1-terra",
 				"gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.5",
 				"gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-4.1", "gpt-4.1-mini",
 				"o3", "o4-mini", "gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo",

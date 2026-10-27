@@ -186,6 +186,12 @@ func TestServiceTierPricing(t *testing.T) {
 		{"6.1 Sol fast", ModelGPT6_1Sol, fast, short, 0, 400_000_000, 20_000_000, 500_000_000, 2_000_000_000},
 		{"6.1 Sol fast long", ModelGPT6_1Sol, fast, long, long, 800_000_000, 40_000_000, 1_000_000_000, 3_000_000_000},
 
+		{"6.1 Terra batch", ModelGPT6_1Terra, batch, short, 0, 50_000_000, 2_500_000, 62_500_000, 250_000_000},
+		{"6.1 Terra batch long", ModelGPT6_1Terra, batch, long, long, 100_000_000, 5_000_000, 125_000_000, 375_000_000},
+		{"6.1 Terra flex long", ModelGPT6_1Terra, flex, long, long, 100_000_000, 5_000_000, 125_000_000, 375_000_000},
+		{"6.1 Terra fast", ModelGPT6_1Terra, fast, short, 0, 200_000_000, 10_000_000, 250_000_000, 1_000_000_000},
+		{"6.1 Terra fast long", ModelGPT6_1Terra, fast, long, long, 400_000_000, 20_000_000, 500_000_000, 1_500_000_000},
+
 		{"5.5 batch", ModelGPT5_5, batch, short, 0, 250_000_000, 25_000_000, 0, 1_500_000_000},
 		{"5.5 batch long", ModelGPT5_5, batch, long, long, 500_000_000, 50_000_000, 0, 2_250_000_000},
 		{"5.5 flex long", ModelGPT5_5, flex, long, long, 500_000_000, 50_000_000, 0, 2_250_000_000},
