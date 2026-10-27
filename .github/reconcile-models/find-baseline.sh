@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Finds the newest fingerprints artifact that a successful real run of the
-# reconcile workflow left on this branch: the gate's baseline. Only the record
-# job uploads one, after a real run's PR job finished. Prints run_id=ID for
+# reconcile workflow left on this branch: the gate's baseline. Only a real
+# run's record job uploads one, and only a green run, where the pr job pushed
+# too, counts. Prints run_id=ID for
 # $GITHUB_OUTPUT, or nothing; the workflow step continues on any error, and
 # no baseline means the agent runs.
 # Env: NAME (artifact name), BRANCH (github.ref_name), SHA (github.sha),

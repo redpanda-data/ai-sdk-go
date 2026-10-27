@@ -32,7 +32,7 @@ on:
         required: false
     outputs:
       head:
-        description: This vendor's commit, or base_sha when it changed nothing
+        description: This vendor's commit, or base_sha when it changed nothing; empty unless its check job finished
         value: ${{ jobs.check.outputs.head }}
       changed:
         value: ${{ jobs.check.outputs.changed }}
@@ -234,7 +234,7 @@ jobs:
         env:
           REPORT: ${{ steps.claude.outputs.structured_output }}
         # Start from an empty out/ and hand over only these two files, so
-        # nothing else the agent wrote reaches the PR job.
+        # nothing else the agent wrote reaches the check job.
         run: |
           rm -rf out && mkdir out
           printf '%s' "$REPORT" >out/report.json
@@ -244,7 +244,7 @@ jobs:
           git diff -- ":(glob)providers/*/*.go" catalog/facts_data.go >out/patch.diff
       - name: Run stats
         if: always()
-        # Diagnostics only: a failure here must not stop the PR job.
+        # Diagnostics only: a failure here must not stop the check job.
         continue-on-error: true
         env:
           EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
@@ -271,7 +271,7 @@ jobs:
     permissions:
       contents: read
     outputs:
-      head: ${{ steps.commit.outputs.head }}
+      head: ${{ steps.done.outputs.head }}
       changed: ${{ steps.check.outputs.changed }}
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
@@ -305,8 +305,8 @@ jobs:
       - name: Check the patch (no model)
         id: check
         run: |
-          # Only pr-job.sh writes these.
-          rm -f out/body.md out/snapshot.diff out/files.txt out/base-snapshot.json out/snapshot.json out/code-files.txt out/base-routes.txt out/routes.txt
+          # Only pr-job.sh writes the rest of the vendor's folder.
+          find out -mindepth 1 -maxdepth 1 ! -name report.json ! -name patch.diff -exec rm -rf -- {} +
           task install:go
           export PATH="$(dirname "$(ls -d "$PWD"/.build/go*/bin/go | tail -1)"):$PATH"
           GOTOOLCHAIN=local .github/reconcile-models/pr-job.sh "$PROVIDER" out
@@ -334,16 +334,7 @@ jobs:
         if: always()
         with:
           name: reconcile-pr-${{ env.PROVIDER }}
-          path: |
-            out/report.json
-            out/body.md
-            out/files.txt
-            out/snapshot.diff
-            out/base-snapshot.json
-            out/snapshot.json
-            out/code-files.txt
-            out/base-routes.txt
-            out/routes.txt
+          path: out/
           retention-days: 7
           overwrite: true
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
@@ -354,6 +345,13 @@ jobs:
           if-no-files-found: error
           retention-days: 7
           overwrite: true
+      # Last, so the next vendor and the pr job get a head only when every
+      # step above passed, the uploads included.
+      - name: Hand on this vendor's commit
+        id: done
+        env:
+          HEAD_SHA: ${{ steps.commit.outputs.head }}
+        run: echo "head=${HEAD_SHA}" >>"$GITHUB_OUTPUT"
 
   # No model, on a fresh runner. After a green agent and check job, dry runs
   # included, it compares the run with the gate's page list and the baseline

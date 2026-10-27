@@ -15,7 +15,6 @@
 package main
 
 import (
-	"cmp"
 	"fmt"
 	"maps"
 	"os"
@@ -29,11 +28,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
+
+	"github.com/redpanda-data/ai-sdk-go/internal/reconcile"
 )
 
 // workflowStep is one step of a job in reconcile-models.yml or
 // reconcile-vendor.yml.
 type workflowStep struct {
+	ID   string            `yaml:"id"`
 	If   string            `yaml:"if"`
 	Uses string            `yaml:"uses"`
 	Run  string            `yaml:"run"`
@@ -54,17 +56,60 @@ func namedSources(t *testing.T) map[string]namedSource {
 	return runs
 }
 
+// vendorOrder lists the named-sources.json keys in the file's order, the order
+// a run's chain takes the vendors in.
+func vendorOrder(t *testing.T) []string {
+	t.Helper()
+
+	raw, err := os.ReadFile(filepath.Join("..", "..", ".github", "reconcile-models", "named-sources.json"))
+	require.NoError(t, err)
+
+	// YAML reads JSON and keeps a mapping's order.
+	var doc yaml.Node
+	require.NoError(t, yaml.Unmarshal(raw, &doc))
+
+	var keys []string
+
+	for i, node := range doc.Content[0].Content {
+		if i%2 == 0 {
+			keys = append(keys, node.Value)
+		}
+	}
+
+	return keys
+}
+
+// needsOf lists the jobs a job needs.
+func needsOf(job workflowJob) []string {
+	switch needs := job.Needs.(type) {
+	case string:
+		return []string{needs}
+	case []any:
+		names := make([]string, 0, len(needs))
+		for _, name := range needs {
+			names = append(names, fmt.Sprint(name))
+		}
+
+		return names
+	}
+
+	return nil
+}
+
 // workflowJob is one job: its own steps, or a call of reconcile-vendor.yml
 // (Uses, With and Secrets).
 type workflowJob struct {
 	If          string            `yaml:"if"`
 	Env         map[string]string `yaml:"env"`
 	Permissions map[string]string `yaml:"permissions"`
+	Outputs     map[string]string `yaml:"outputs"`
 	Steps       []workflowStep    `yaml:"steps"`
 	Uses        string            `yaml:"uses"`
 	With        map[string]any    `yaml:"with"`
-	// Secrets is "inherit" or a map of the secrets passed.
+	// Secrets is "inherit" or a map of the secrets passed; Needs is one job
+	// or a list.
 	Secrets any `yaml:"secrets"`
+	Needs   any `yaml:"needs"`
 }
 
 // workflow is reconcile-models.yml or reconcile-vendor.yml: its triggers and
@@ -79,8 +124,22 @@ type workflow struct {
 				Type     string `yaml:"type"`
 				Required bool   `yaml:"required"`
 			} `yaml:"inputs"`
+			Outputs map[string]struct {
+				Value string `yaml:"value"`
+			} `yaml:"outputs"`
 		} `yaml:"workflow_call"`
+		WorkflowDispatch struct {
+			Inputs map[string]struct {
+				Options []string `yaml:"options"`
+				Default string   `yaml:"default"`
+			} `yaml:"inputs"`
+		} `yaml:"workflow_dispatch"`
 	} `yaml:"on"`
+	Concurrency struct {
+		Group            string `yaml:"group"`
+		Queue            string `yaml:"queue"`
+		CancelInProgress bool   `yaml:"cancel-in-progress"` //nolint:tagliatelle // GitHub's key
+	} `yaml:"concurrency"`
 	Env  map[string]string      `yaml:"env"`
 	Jobs map[string]workflowJob `yaml:"jobs"`
 }
@@ -91,11 +150,11 @@ const (
 	vendorWorkflow = "reconcile-vendor.yml"
 )
 
-// readWorkflow reads reconcile-models.yml, or the file named.
-func readWorkflow(t *testing.T, file ...string) workflow {
+// readWorkflow reads one of the two workflow files.
+func readWorkflow(t *testing.T, file string) workflow {
 	t.Helper()
 
-	raw, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", cmp.Or(strings.Join(file, ""), runWorkflow)))
+	raw, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", file))
 	require.NoError(t, err)
 
 	var wf workflow
@@ -104,22 +163,12 @@ func readWorkflow(t *testing.T, file ...string) workflow {
 	return wf
 }
 
-// readJob reads one job from reconcile-models.yml.
-func readJob(t *testing.T, name string) workflowJob {
+// readJob reads one job with steps from one of the two workflow files.
+func readJob(t *testing.T, file, name string) workflowJob {
 	t.Helper()
 
-	job := readWorkflow(t).Jobs[name]
-	require.NotEmpty(t, job.Steps, "the workflow has no %s job steps", name)
-
-	return job
-}
-
-// vendorJob reads one job from reconcile-vendor.yml, one vendor's part of a run.
-func vendorJob(t *testing.T, name string) workflowJob {
-	t.Helper()
-
-	job := readWorkflow(t, vendorWorkflow).Jobs[name]
-	require.NotEmpty(t, job.Steps, "%s has no %s job steps", vendorWorkflow, name)
+	job := readWorkflow(t, file).Jobs[name]
+	require.NotEmpty(t, job.Steps, "%s has no %s job steps", file, name)
 
 	return job
 }
@@ -147,7 +196,7 @@ func isClaude(s workflowStep) bool {
 func TestAgentEgressAllowsNamedSources(t *testing.T) {
 	t.Parallel()
 
-	first := vendorJob(t, "agent").Steps[0]
+	first := readJob(t, vendorWorkflow, "agent").Steps[0]
 	require.True(t, strings.HasPrefix(first.Uses, "step-security/harden-runner@"),
 		"Harden-Runner must be the agent job's first step, got %q", first.Uses)
 	assert.Equal(t, "block", first.With["egress-policy"])
@@ -168,7 +217,7 @@ func TestAgentEgressAllowsNamedSources(t *testing.T) {
 func TestAgentRunsChecksBeforeClaude(t *testing.T) {
 	t.Parallel()
 
-	steps := vendorJob(t, "agent").Steps
+	steps := readJob(t, vendorWorkflow, "agent").Steps
 	claude := stepIndex(t, steps, "claude-code-action", isClaude)
 
 	for _, script := range []string{"check-egress.sh", "stop-docker.sh"} {
@@ -336,6 +385,189 @@ func TestPRJobToolsImportNoPatchableCode(t *testing.T) {
 	}
 }
 
+// gitIn runs git in dir as a throwaway committer and returns its output.
+func gitIn(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+
+	cmd := exec.CommandContext(t.Context(), "git", append([]string{"-c", "user.name=t", "-c", "user.email=t@t", "-c", "init.defaultBranch=main"}, args...)...) //nolint:gosec // the tests' own git commands
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(out))
+
+	return strings.TrimSpace(string(out))
+}
+
+// parseOutputs reads key=value lines, as a step writes them to $GITHUB_OUTPUT.
+func parseOutputs(raw string) map[string]string {
+	got := map[string]string{}
+
+	for line := range strings.Lines(raw) {
+		key, value, _ := strings.Cut(strings.TrimSpace(line), "=")
+		got[key] = value
+	}
+
+	return got
+}
+
+// TestCombineBuildsThePRFromTheVendors runs combine.sh, the pr job's step that
+// puts the vendors' parts together with no model: the last vendor commit is
+// the PR's tip, the body covers every vendor that ran, a vendor counts once
+// its check job handed on its commit, and a failed vendor with a commit
+// waiting in the PR fails the job, or its change would drop out.
+func TestCombineBuildsThePRFromTheVendors(t *testing.T) {
+	t.Parallel()
+
+	report := buildCatalogReport(t)
+	script, err := filepath.Abs(filepath.Join("..", "..", ".github", "reconcile-models", "combine.sh"))
+	require.NoError(t, err)
+
+	// Paths under the test's temp folders and the repo's own files.
+	write := func(path, content string) {
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))     //nolint:gosec // see above
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o600)) //nolint:gosec // see above
+	}
+	copyFile := func(from, to string) {
+		raw, err := os.ReadFile(from) //nolint:gosec // see above
+		require.NoError(t, err)
+		write(to, string(raw))
+	}
+
+	// The run's base: two vendors' named sources, the real rules and an empty catalogue.
+	origin := t.TempDir()
+	write(filepath.Join(origin, ".github", "reconcile-models", "named-sources.json"), `{"anthropic": {"providers": ["anthropic"], "hosts": ["platform.claude.com"]},
+		"openai": {"providers": ["openai"], "hosts": ["developers.openai.com"]}}`)
+
+	for _, path := range []string{reconcile.RulesPath, reconcile.DecisionsPath} {
+		copyFile(filepath.Join("..", "..", path), filepath.Join(origin, path))
+	}
+
+	write(filepath.Join(origin, "catalog", "snapshot.json"), `{"providers": []}`+"\n")
+	gitIn(t, origin, "init", "-q")
+	gitIn(t, origin, "add", ".")
+	gitIn(t, origin, "commit", "-q", "-m", "main")
+	base := gitIn(t, origin, "rev-parse", "HEAD")
+
+	// Each vendor commits on the one before and bundles its commit, as its
+	// check job does, and leaves its folder.
+	work, bundles, legs, quiet := t.TempDir(), t.TempDir(), t.TempDir(), t.TempDir()
+	gitIn(t, work, "clone", "-q", "file://"+origin, ".")
+
+	catalogue := func(ids ...string) string {
+		offerings := make([]string, 0, len(ids))
+		for _, id := range ids {
+			offerings = append(offerings, `{"id": "`+id+`", "model": "x/`+id+`"}`)
+		}
+
+		return `{"providers": [{"provider": "openai", "offerings": [` + strings.Join(offerings, ", ") + `]}]}` + "\n"
+	}
+	const route = "us-east-1 anthropic.claude-sonnet-5-5 us.anthropic.claude-sonnet-5-5\n"
+	vendor := func(name, offering, host, before, after string) string {
+		write(filepath.Join(work, "catalog", "snapshot.json"), after)
+		gitIn(t, work, "commit", "-q", "-am", "chore(catalog): reconcile "+name+" models")
+		sha := gitIn(t, work, "rev-parse", "HEAD")
+		require.NoError(t, os.MkdirAll(filepath.Join(bundles, "reconcile-bundle-"+sha), 0o700))
+		gitIn(t, work, "bundle", "create", "-q", filepath.Join(bundles, "reconcile-bundle-"+sha, "reconcile.bundle"), "HEAD", "^"+base)
+
+		vendorFolder(t, filepath.Join(legs, "reconcile-pr-"+name), priced(offering, "https://"+host+"/pricing"), map[string]string{
+			"files.txt": "providers/" + name + "/models.go\ncatalog/snapshot.json\n", "code-files.txt": "",
+			"base-snapshot.json": before, "snapshot.json": after, "base-routes.txt": route, "routes.txt": route,
+		})
+		vendorFolder(t, filepath.Join(quiet, "reconcile-pr-"+name), Report{Changes: []Change{}, NeedsHuman: []NeedsHuman{}, Skipped: []Skipped{}}, nil)
+
+		return sha
+	}
+	anthropic := vendor("anthropic", "claude-opus-5-5", "platform.claude.com", catalogue(), catalogue("gpt-6-1"))
+	openai := vendor("openai", "gpt-6-1", "developers.openai.com", catalogue("gpt-6-1"), catalogue("gpt-6-1", "gpt-6-2"))
+
+	part := func(result, head, changed string) string {
+		return `{"result": "` + result + `", "outputs": {"head": "` + head + `", "changed": "` + changed + `"}}`
+	}
+	failed := `{"result": "failure", "outputs": {}}`
+
+	tests := []struct {
+		name, legs, anthropic, openai, pending, wantErr string
+		want                                            map[string]string
+		body                                            []string
+		files                                           string
+	}{
+		{
+			name: "two vendors' commits", legs: legs, anthropic: part("success", anthropic, "true"), openai: part("success", openai, "true"), pending: "[]",
+			want:  map[string]string{"tip": openai, "changed": "true"},
+			body:  []string{"## Catalogue drift: anthropic, openai\n", "\n## anthropic\n", "\n## openai\n", "<details><summary>Snapshot diff</summary>", `+{"providers": [{"provider": "openai", "offerings": [{"id": "gpt-6-1", "model": "x/gpt-6-1"}, {"id": "gpt-6-2"`},
+			files: "catalog/snapshot.json\nproviders/anthropic/models.go\nproviders/openai/models.go\n",
+		},
+		{
+			name: "a failed vendor with nothing waiting is left out", legs: legs, anthropic: part("success", anthropic, "true"), openai: failed, pending: `["anthropic"]`,
+			want:  map[string]string{"tip": anthropic, "changed": "true"},
+			body:  []string{"\n## openai\n\nThis vendor's run failed"},
+			files: "catalog/snapshot.json\nproviders/anthropic/models.go\n",
+		},
+		{
+			// Only the record job, after the check, failed: it keeps the
+			// gate's baseline, so the checked commit still goes in.
+			name: "a vendor whose check finished counts", legs: legs, anthropic: part("success", anthropic, "true"), openai: part("failure", openai, "true"), pending: "[]",
+			want:  map[string]string{"tip": openai, "changed": "true"},
+			files: "catalog/snapshot.json\nproviders/anthropic/models.go\nproviders/openai/models.go\n",
+		},
+		{
+			name: "a failed vendor with a waiting commit fails the job", legs: legs, anthropic: part("success", anthropic, "true"), openai: failed, pending: `["openai"]`,
+			wantErr: "openai failed and has a commit waiting in the PR",
+		},
+		{
+			name: "nothing changed", legs: quiet, anthropic: part("success", base, "false"), openai: part("success", base, "false"), pending: "[]",
+			want:  map[string]string{"tip": base, "changed": "false"},
+			body:  []string{"## Catalogue drift: anthropic, openai\n\nNo drift found.\n"},
+			files: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			checkout, out := t.TempDir(), t.TempDir()
+			gitIn(t, checkout, "clone", "-q", "--depth", "1", "file://"+origin, ".")
+			outputs := filepath.Join(t.TempDir(), "outputs")
+
+			cmd := exec.CommandContext(t.Context(), "bash", script, report, tt.legs, bundles, out)
+			cmd.Dir = checkout
+
+			cmd.Env = append(os.Environ(), "GITHUB_OUTPUT="+outputs, "GITHUB_SHA="+base, `RUN=["anthropic","openai"]`, "PENDING="+tt.pending,
+				`NEEDS={"plan": {"result": "success"}, "anthropic": `+tt.anthropic+`, "openai": `+tt.openai+`}`)
+			combined, err := cmd.CombinedOutput()
+
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, string(combined), tt.wantErr)
+
+				return
+			}
+
+			require.NoError(t, err, string(combined))
+
+			raw, err := os.ReadFile(outputs)
+			require.NoError(t, err)
+
+			got := parseOutputs(string(raw))
+			for key, want := range tt.want {
+				assert.Equal(t, want, got[key], key)
+			}
+
+			assert.Equal(t, got["tip"], gitIn(t, checkout, "rev-parse", "HEAD"), "the checkout is at the tip the push sends")
+
+			body, err := os.ReadFile(filepath.Join(out, "body.md"))
+			require.NoError(t, err)
+
+			for _, want := range tt.body {
+				assert.Contains(t, string(body), want)
+			}
+
+			files, err := os.ReadFile(filepath.Join(out, "files.txt"))
+			require.NoError(t, err)
+			assert.Equal(t, tt.files, string(files))
+		})
+	}
+}
+
 // TestCheckoutBaseTakesTheBundlesCommit checks how a vendor's part of the run
 // gets its base: the run's own commit as checked out, or the previous
 // vendor's commit from its bundle, never anything else.
@@ -345,28 +577,17 @@ func TestCheckoutBaseTakesTheBundlesCommit(t *testing.T) {
 	script, err := filepath.Abs(filepath.Join("..", "..", ".github", "reconcile-models", "checkout-base.sh"))
 	require.NoError(t, err)
 
-	git := func(dir string, args ...string) string {
-		t.Helper()
-
-		cmd := exec.CommandContext(t.Context(), "git", append([]string{"-c", "user.name=t", "-c", "user.email=t@t", "-c", "init.defaultBranch=main"}, args...)...)
-		cmd.Dir = dir
-		out, err := cmd.CombinedOutput()
-		require.NoError(t, err, string(out))
-
-		return strings.TrimSpace(string(out))
-	}
-
 	// origin has the run's commit; a vendor's clone adds its commit and
 	// bundles it, as the check job does.
 	origin, leg := t.TempDir(), t.TempDir()
-	git(origin, "init", "-q")
-	git(origin, "commit", "-q", "--allow-empty", "-m", "main")
-	runSHA := git(origin, "rev-parse", "HEAD")
-	git(leg, "clone", "-q", "--depth", "1", "file://"+origin, ".")
-	git(leg, "commit", "-q", "--allow-empty", "-m", "vendor")
-	legSHA := git(leg, "rev-parse", "HEAD")
+	gitIn(t, origin, "init", "-q")
+	gitIn(t, origin, "commit", "-q", "--allow-empty", "-m", "main")
+	runSHA := gitIn(t, origin, "rev-parse", "HEAD")
+	gitIn(t, leg, "clone", "-q", "--depth", "1", "file://"+origin, ".")
+	gitIn(t, leg, "commit", "-q", "--allow-empty", "-m", "vendor")
+	legSHA := gitIn(t, leg, "rev-parse", "HEAD")
 	bundle := filepath.Join(t.TempDir(), "reconcile.bundle")
-	git(leg, "bundle", "create", "-q", bundle, "HEAD", "^"+runSHA)
+	gitIn(t, leg, "bundle", "create", "-q", bundle, "HEAD", "^"+runSHA)
 
 	tests := []struct {
 		name, base, bundle, wantHead, wantErr string
@@ -381,7 +602,7 @@ func TestCheckoutBaseTakesTheBundlesCommit(t *testing.T) {
 			t.Parallel()
 
 			checkout := t.TempDir()
-			git(checkout, "clone", "-q", "--depth", "1", "file://"+origin, ".")
+			gitIn(t, checkout, "clone", "-q", "--depth", "1", "file://"+origin, ".")
 
 			cmd := exec.CommandContext(t.Context(), "bash", script, tt.base, tt.bundle)
 			cmd.Dir = checkout
@@ -390,13 +611,13 @@ func TestCheckoutBaseTakesTheBundlesCommit(t *testing.T) {
 			if tt.wantErr != "" {
 				require.Error(t, err)
 				assert.Contains(t, string(out), tt.wantErr)
-				assert.Equal(t, runSHA, git(checkout, "rev-parse", "HEAD"), "a refused base leaves the checkout as it was")
+				assert.Equal(t, runSHA, gitIn(t, checkout, "rev-parse", "HEAD"), "a refused base leaves the checkout as it was")
 
 				return
 			}
 
 			require.NoError(t, err, string(out))
-			assert.Equal(t, tt.wantHead, git(checkout, "rev-parse", "HEAD"))
+			assert.Equal(t, tt.wantHead, gitIn(t, checkout, "rev-parse", "HEAD"))
 		})
 	}
 }
@@ -460,13 +681,87 @@ func onePatch(path, change string) string {
 func TestAgentCannotReadProcessFiles(t *testing.T) {
 	t.Parallel()
 
-	job := vendorJob(t, "agent")
+	job := readJob(t, vendorWorkflow, "agent")
 	assert.Equal(t, "1", job.Env["CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"], "the agent's shell must run without the job's secrets")
 
 	args := job.Steps[stepIndex(t, job.Steps, "claude-code-action", isClaude)].With["claude_args"]
 	disallowed := regexp.MustCompile(`--disallowedTools "([^"]*)"`).FindStringSubmatch(args)
 	require.NotNil(t, disallowed, "the Claude step passes no --disallowedTools list")
 	assert.Contains(t, strings.Split(disallowed[1], ","), "Read(//proc/**)")
+}
+
+// TestPlanPicksTheVendors runs plan.sh, which decides before any agent starts
+// which vendors run, which have a commit waiting in the open PR, and whether
+// someone else's commit on the PR stops the run.
+func TestPlanPicksTheVendors(t *testing.T) {
+	t.Parallel()
+
+	script := filepath.Join("..", "..", ".github", "reconcile-models", "plan.sh")
+	bot := func(sha, vendor string) string {
+		return `{"sha": "` + sha + `", "author": {"login": "vbotbuildovich"}, "committer": {"login": "vbotbuildovich"},
+			"commit": {"message": "chore(catalog): reconcile ` + vendor + ` models\n\nReconcile-Run: 40504204648/` + vendor + `"}}`
+	}
+	person := `{"sha": "b2c3d4e5f60718293a4b5c6d7e8f900112233445", "author": {"login": "adamwownysz-redpanda"}, "committer": {"login": "web-flow"},
+		"commit": {"message": "test: swap the live test model"}}`
+	// The bot's commits from an earlier run, for Anthropic and for OpenAI.
+	waiting := "[" + bot("a1b2c3d4e5f60718293a4b5c6d7e8f9001122334", "anthropic") + "," + bot("a2b3c4d5e6f70819203a4b5c6d7e8f9001122334", "openai") + "]"
+
+	tests := []struct {
+		name, selected, dryRun, commits string
+		want                            map[string]string
+	}{
+		{
+			name: "a weekly run runs every vendor", selected: "all", dryRun: "false", commits: waiting,
+			want: map[string]string{"run": `["anthropic","openai","google"]`, "pending": `["anthropic","openai"]`, "stop": "false", "theirs": ""},
+		},
+		{
+			name: "a dry run for one vendor runs only that one", selected: "google", dryRun: "true", commits: waiting,
+			want: map[string]string{"run": `["google"]`, "stop": "false"},
+		},
+		{
+			// Every run rebuilds the PR, so a real run also runs each vendor
+			// whose commit is waiting, or its change would drop out.
+			name: "a real run for one vendor also runs the waiting ones", selected: "google", dryRun: "false", commits: waiting,
+			want: map[string]string{"run": `["anthropic","openai","google"]`, "pending": `["anthropic","openai"]`},
+		},
+		{
+			name: "no open PR", selected: "openai", dryRun: "false", commits: "[]",
+			want: map[string]string{"run": `["openai"]`, "pending": "[]", "stop": "false"},
+		},
+		{
+			name: "someone else's commit stops a real run before any agent", selected: "all", dryRun: "false", commits: "[" + bot("a1b2c3d4e5f60718293a4b5c6d7e8f9001122334", "anthropic") + "," + person + "]",
+			want: map[string]string{"run": "[]", "stop": "true", "theirs": "b2c3d4e"},
+		},
+		{
+			name: "a dry run goes on past someone else's commit", selected: "all", dryRun: "true", commits: "[" + person + "]",
+			want: map[string]string{"run": `["anthropic","openai","google"]`, "stop": "false", "theirs": "b2c3d4e"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cmd := exec.CommandContext(t.Context(), "bash", script, "vbotbuildovich", tt.selected, tt.dryRun, `["anthropic","openai","google"]`)
+			cmd.Stdin = strings.NewReader(tt.commits)
+			out, err := cmd.Output()
+			require.NoError(t, err)
+
+			got := parseOutputs(string(out))
+			for key, want := range tt.want {
+				assert.Equal(t, want, got[key], key)
+			}
+		})
+	}
+
+	t.Run("a vendor named-sources.json doesn't list", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := exec.CommandContext(t.Context(), "bash", script, "vbotbuildovich", "xai", "true", `["anthropic"]`)
+		cmd.Stdin = strings.NewReader("[]")
+		out, err := cmd.CombinedOutput()
+		require.Error(t, err)
+		assert.Contains(t, string(out), `no named sources for "xai"`)
+	})
 }
 
 // TestOthersCommitsFindsEveryNonBotCommit runs others-commits.sh on trimmed
@@ -505,29 +800,128 @@ func TestOthersCommitsFindsEveryNonBotCommit(t *testing.T) {
 	}
 }
 
-// TestPushChecksOthersCommitsFirst checks that the PR job looks for other
-// people's commits on the bot PR before it pushes, and that the push is leased
-// to the branch head it read, so a commit pushed in between isn't lost either.
-func TestPushChecksOthersCommitsFirst(t *testing.T) {
+// TestChainHasOneLegPerVendor checks that every vendor in named-sources.json
+// has its part in the run, and nothing else does, so adding a vendor's
+// sources without its job (or the other way round) fails here.
+func TestChainHasOneLegPerVendor(t *testing.T) {
 	t.Parallel()
 
-	steps := readJob(t, "pr").Steps
-	run := steps[stepIndex(t, steps, "leased push", func(s workflowStep) bool {
-		return strings.Contains(s.Run, "git push --force-with-lease=")
-	})].Run
+	found := legs(t)
+	assert.ElementsMatch(t, vendorOrder(t), slices.Collect(maps.Keys(found)))
 
-	assert.NotContains(t, run, "git push --force ", "the push must be leased, not a plain force-push")
+	for name, job := range found {
+		assert.Equal(t, name, job.With["vendor"], "the %s job runs another vendor", name)
+	}
+}
 
-	check := strings.Index(run, ".github/reconcile-models/others-commits.sh")
-	require.NotEqual(t, -1, check, "the push step doesn't run others-commits.sh")
-	assert.Less(t, check, strings.Index(run, "git push --force-with-lease="), "others-commits.sh must run before the push")
+// TestChainPassesTheBaseBySHA checks the chain: each vendor needs every vendor
+// before it, runs even after one fails, and works on the newest commit an
+// earlier vendor made, by SHA, else the run's own commit. A branch name
+// would leave a vendor on last week's PR.
+func TestChainPassesTheBaseBySHA(t *testing.T) {
+	t.Parallel()
 
-	// A PR left alone keeps one note, updated each run, not a new one every week.
-	for line := range strings.Lines(run) {
-		if strings.Contains(line, "gh pr comment") {
-			assert.Contains(t, line, "--edit-last --create-if-none", "the push step must edit its earlier note")
+	jobs := readWorkflow(t, runWorkflow).Jobs
+	order := vendorOrder(t)
+
+	for i, vendor := range order {
+		job := jobs[vendor]
+		assert.Equal(t, append([]string{"plan"}, order[:i]...), needsOf(job), "%s's needs", vendor)
+
+		heads := []string{"github.sha"}
+		for _, earlier := range order[:i] {
+			heads = slices.Insert(heads, 0, "needs."+earlier+".outputs.head")
+		}
+
+		assert.Equal(t, "${{ "+strings.Join(heads, " || ")+" }}", job.With["base_sha"], "%s's base", vendor)
+
+		for _, part := range []string{"!cancelled()", "needs.plan.result == 'success'", "contains(fromJSON(needs.plan.outputs.run), '" + vendor + "')"} {
+			assert.Contains(t, job.If, part, "%s's condition", vendor)
 		}
 	}
+
+	assert.Equal(t, append([]string{"plan"}, order...), needsOf(jobs["pr"]), "the pr job waits for every vendor")
+	assert.Contains(t, jobs["pr"].If, "!cancelled()", "the pr job runs after a vendor fails, to push the others")
+}
+
+// TestDispatchOptionsMatchNamedSources checks that a run started by hand can
+// pick every vendor, or all of them, and nothing else.
+func TestDispatchOptionsMatchNamedSources(t *testing.T) {
+	t.Parallel()
+
+	input := readWorkflow(t, runWorkflow).On.WorkflowDispatch.Inputs["vendor"]
+	assert.Equal(t, append([]string{"all"}, vendorOrder(t)...), input.Options)
+	assert.Equal(t, "all", input.Default)
+}
+
+// TestOnlyThePRJobGetsTheBotToken checks that the pr job, which runs nothing
+// from the patches, is the only one in the run that can get an OIDC token
+// and the bot token.
+func TestOnlyThePRJobGetsTheBotToken(t *testing.T) {
+	t.Parallel()
+
+	for name, job := range readWorkflow(t, runWorkflow).Jobs {
+		aws := slices.ContainsFunc(job.Steps, func(s workflowStep) bool { return strings.HasPrefix(s.Uses, "aws-actions/") })
+		if name == "pr" {
+			assert.Equal(t, "write", job.Permissions["id-token"])
+			assert.True(t, aws, "the pr job reads the bot token")
+
+			continue
+		}
+
+		assert.NotContains(t, job.Permissions, "id-token", "the %s job may not request an OIDC token", name)
+		assert.False(t, aws, "the %s job may not reach the bot token", name)
+	}
+}
+
+// TestPushIsLeasedOnThePlansHead checks that the run's one push is leased to
+// the PR head the plan job read before any agent started, after checking the
+// PR still has that head, so a commit pushed during the run is never lost
+// and a PR closed during the run stays closed.
+func TestPushIsLeasedOnThePlansHead(t *testing.T) {
+	t.Parallel()
+
+	job := readJob(t, runWorkflow, "pr")
+	assert.Equal(t, "${{ needs.plan.outputs.h0 }}", job.Env["H0"])
+
+	run := job.Steps[stepIndex(t, job.Steps, "push", func(s workflowStep) bool { return strings.Contains(s.Run, "git push") })].Run
+	assert.Contains(t, run, `git push --force-with-lease="refs/heads/${BRANCH}:${H0}"`)
+	assert.NotContains(t, run, "git push --force ", "the push must be leased, not a plain force-push")
+
+	for _, check := range []string{"headRefOid", "--json state"} {
+		at := strings.Index(run, check)
+		assert.NotEqual(t, -1, at, "the push step doesn't check the PR's %s", check)
+		assert.Less(t, at, strings.Index(run, "git push"), "the PR's %s must be checked before the push", check)
+	}
+}
+
+// TestOthersCommitsRunsBeforeTheChain checks that the plan job looks for other
+// people's commits on the bot PR before any vendor's agent starts, and that a
+// PR left alone keeps one note, updated each run.
+func TestOthersCommitsRunsBeforeTheChain(t *testing.T) {
+	t.Parallel()
+
+	plan := readJob(t, runWorkflow, "plan")
+	assert.True(t, slices.ContainsFunc(plan.Steps, func(s workflowStep) bool { return strings.Contains(s.Run, ".github/reconcile-models/plan.sh") }),
+		"the plan job must run plan.sh")
+
+	steps := readJob(t, runWorkflow, "pr").Steps
+	note := steps[stepIndex(t, steps, "note", func(s workflowStep) bool { return strings.Contains(s.Run, "gh pr comment") })]
+	assert.Contains(t, note.Run, "--edit-last --create-if-none", "the note must edit its earlier one")
+	assert.Contains(t, note.If, "env.STOP == 'true'")
+}
+
+// TestConcurrencyQueuesRuns checks that runs that push the same bot branch
+// wait in line, up to GitHub's limit, instead of a newer one cancelling the
+// one waiting: main's runs, and every other branch's, which share the test
+// bot branch.
+func TestConcurrencyQueuesRuns(t *testing.T) {
+	t.Parallel()
+
+	concurrency := readWorkflow(t, runWorkflow).Concurrency
+	assert.Equal(t, "reconcile-models-${{ github.ref_name == 'main' && 'main' || 'test' }}", concurrency.Group)
+	assert.Equal(t, "max", concurrency.Queue)
+	assert.False(t, concurrency.CancelInProgress)
 }
 
 // TestScheduledRunsReachThePR checks that the workflow has a schedule and that
@@ -535,9 +929,9 @@ func TestPushChecksOthersCommitsFirst(t *testing.T) {
 func TestScheduledRunsReachThePR(t *testing.T) {
 	t.Parallel()
 
-	wf := readWorkflow(t)
+	wf := readWorkflow(t, runWorkflow)
 	require.NotEmpty(t, wf.On.Schedule, "the workflow has no schedule")
-	assert.NotContains(t, vendorJob(t, "agent").If, "schedule", "the agent job must run on a schedule too")
+	assert.NotContains(t, readJob(t, vendorWorkflow, "agent").If, "schedule", "the agent job must run on a schedule too")
 	// A dry run stops before the PR, so only a run someone starts by hand may be one.
 	const handStarted = "${{ github.event_name == 'workflow_dispatch' && "
 	assert.True(t, strings.HasPrefix(wf.Env["DRY_RUN"], handStarted), "only a hand-started run may be a dry run, got %q", wf.Env["DRY_RUN"])
@@ -555,7 +949,7 @@ func legs(t *testing.T) map[string]workflowJob {
 
 	found := map[string]workflowJob{}
 
-	for name, job := range readWorkflow(t).Jobs {
+	for name, job := range readWorkflow(t, runWorkflow).Jobs {
 		if job.Uses == "./.github/workflows/"+vendorWorkflow {
 			found[name] = job
 		}
@@ -579,10 +973,6 @@ func TestLegGetsNoBotToken(t *testing.T) {
 
 	for name, job := range readWorkflow(t, vendorWorkflow).Jobs {
 		assert.NotContains(t, job.Permissions, "id-token", "the %s job may not request an OIDC token", name)
-	}
-
-	for name, job := range legs(t) {
-		assert.NotContains(t, job.Permissions, "id-token", "%s may not pass on OIDC rights", name)
 	}
 }
 
@@ -639,9 +1029,21 @@ func TestRealRunStepsRequireDryRunFalse(t *testing.T) {
 func TestLegCommitCarriesTheRunTrailer(t *testing.T) {
 	t.Parallel()
 
-	steps := vendorJob(t, "check").Steps
+	steps := readJob(t, vendorWorkflow, "check").Steps
 	run := steps[stepIndex(t, steps, "commit", func(s workflowStep) bool { return strings.Contains(s.Run, " commit ") })].Run
 	assert.Contains(t, run, `-m "Reconcile-Run: ${GITHUB_RUN_ID}/${PROVIDER}"`)
+}
+
+// TestLegHandsOnItsHeadLast checks that a vendor's part hands on its commit
+// from the check job's last step, so the next vendor and the pr job get one
+// only when every step before it passed, the uploads included.
+func TestLegHandsOnItsHeadLast(t *testing.T) {
+	t.Parallel()
+
+	job := readJob(t, vendorWorkflow, "check")
+	assert.Equal(t, "${{ steps.done.outputs.head }}", job.Outputs["head"])
+	assert.Equal(t, "done", job.Steps[len(job.Steps)-1].ID, "the head must come from the job's last step")
+	assert.Equal(t, "${{ jobs.check.outputs.head }}", readWorkflow(t, vendorWorkflow).On.WorkflowCall.Outputs["head"].Value)
 }
 
 // TestLegChecksOutItsBase checks that the agent and the patch check both work
@@ -654,7 +1056,7 @@ func TestLegChecksOutItsBase(t *testing.T) {
 		"agent": isClaude,
 		"check": func(s workflowStep) bool { return strings.Contains(s.Run, ".github/reconcile-models/pr-job.sh") },
 	} {
-		steps := vendorJob(t, job).Steps
+		steps := readJob(t, vendorWorkflow, job).Steps
 		checkout := stepIndex(t, steps, "checkout-base.sh", func(s workflowStep) bool {
 			return strings.Contains(s.Run, `.github/reconcile-models/checkout-base.sh "$BASE_SHA"`)
 		})

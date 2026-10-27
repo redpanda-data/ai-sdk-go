@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Applies the reconcile-models agent's patch to a clean checkout and checks
-# it with no model involved. Used by the workflow's PR job; runs locally too.
+# it with no model involved. Used by reconcile-vendor.yml's check job; runs
+# locally too.
 # Patched code runs only inside a sandbox with no network, an empty
 # environment and a read-only checkout (only catalog/snapshot.json, which it
 # regenerates, is writable), so code the agent wrote can't reach secrets or

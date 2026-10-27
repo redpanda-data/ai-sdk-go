@@ -25,6 +25,43 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// priced is a report with one price change, from source.
+func priced(offering, source string) Report {
+	return Report{
+		Changes:    []Change{{Offering: offering, Field: "price", Old: "input 2.00", New: "input 2.50", SourceURL: source, Rule: "price-follow"}},
+		NeedsHuman: []NeedsHuman{}, Skipped: []Skipped{},
+	}
+}
+
+// vendorFolder writes a vendor's folder, as its check job leaves it: the
+// report and the named files.
+func vendorFolder(t *testing.T, folder string, report Report, files map[string]string) string {
+	t.Helper()
+
+	require.NoError(t, os.MkdirAll(folder, 0o700))
+
+	raw, err := json.Marshal(report)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(folder, "report.json"), raw, 0o600))
+
+	for file, content := range files {
+		require.NoError(t, os.WriteFile(filepath.Join(folder, file), []byte(content), 0o600))
+	}
+
+	return folder
+}
+
+// buildCatalogReport builds the command, as pr-job.sh does, and returns its path.
+func buildCatalogReport(t *testing.T) string {
+	t.Helper()
+
+	bin := filepath.Join(t.TempDir(), "catalog-report")
+	out, err := exec.CommandContext(t.Context(), "go", "build", "-o", bin, ".").CombinedOutput()
+	require.NoError(t, err, string(out))
+
+	return bin
+}
+
 // TestMainReadsEachVendorsFolder checks the command's inputs: one folder per
 // vendor, each report checked against that vendor's own hosts in
 // named-sources.json (a source on another vendor's host fails the run), and
@@ -32,34 +69,14 @@ import (
 func TestMainReadsEachVendorsFolder(t *testing.T) {
 	t.Parallel()
 
-	bin := filepath.Join(t.TempDir(), "catalog-report")
-	out, err := exec.CommandContext(t.Context(), "go", "build", "-o", bin, ".").CombinedOutput()
-	require.NoError(t, err, string(out))
-
+	bin := buildCatalogReport(t)
 	dir := t.TempDir()
 	sources := filepath.Join(dir, "named-sources.json")
 	require.NoError(t, os.WriteFile(sources, []byte(`{"anthropic": {"providers": ["anthropic"], "hosts": ["platform.claude.com"]},
 		"openai": {"providers": ["openai"], "hosts": ["developers.openai.com"]}, "google": {"providers": ["google"], "hosts": ["ai.google.dev"]}}`), 0o600))
 
-	priced := func(offering, source string) Report {
-		return Report{
-			Changes:    []Change{{Offering: offering, Field: "price", Old: "input 2.00", New: "input 2.50", SourceURL: source, Rule: "price-follow"}},
-			NeedsHuman: []NeedsHuman{}, Skipped: []Skipped{},
-		}
-	}
 	folder := func(name string, report Report, files map[string]string) string {
-		folder := filepath.Join(dir, name)
-		require.NoError(t, os.MkdirAll(folder, 0o700))
-
-		raw, err := json.Marshal(report)
-		require.NoError(t, err)
-		require.NoError(t, os.WriteFile(filepath.Join(folder, "report.json"), raw, 0o600))
-
-		for file, content := range files {
-			require.NoError(t, os.WriteFile(filepath.Join(folder, file), []byte(content), 0o600))
-		}
-
-		return folder
+		return vendorFolder(t, filepath.Join(dir, name), report, files)
 	}
 	empty := `{"providers": []}`
 	both := map[string]string{"base-snapshot.json": empty, "snapshot.json": empty}
