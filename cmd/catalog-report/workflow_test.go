@@ -15,6 +15,9 @@
 package main
 
 import (
+	"cmp"
+	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -28,8 +31,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// workflowStep is one step of a job in reconcile-models.yml.
+// workflowStep is one step of a job in reconcile-models.yml or
+// reconcile-vendor.yml.
 type workflowStep struct {
+	If   string            `yaml:"if"`
 	Uses string            `yaml:"uses"`
 	Run  string            `yaml:"run"`
 	With map[string]string `yaml:"with"`
@@ -49,29 +54,48 @@ func namedSources(t *testing.T) map[string]namedSource {
 	return runs
 }
 
-// workflowJob is one job in reconcile-models.yml.
+// workflowJob is one job: its own steps, or a call of reconcile-vendor.yml
+// (Uses, With and Secrets).
 type workflowJob struct {
-	If    string            `yaml:"if"`
-	Env   map[string]string `yaml:"env"`
-	Steps []workflowStep    `yaml:"steps"`
+	If          string            `yaml:"if"`
+	Env         map[string]string `yaml:"env"`
+	Permissions map[string]string `yaml:"permissions"`
+	Steps       []workflowStep    `yaml:"steps"`
+	Uses        string            `yaml:"uses"`
+	With        map[string]any    `yaml:"with"`
+	// Secrets is "inherit" or a map of the secrets passed.
+	Secrets any `yaml:"secrets"`
 }
 
-// workflow is reconcile-models.yml: its triggers and its jobs.
+// workflow is reconcile-models.yml or reconcile-vendor.yml: its triggers and
+// its jobs.
 type workflow struct {
 	On struct {
 		Schedule []struct {
 			Cron string `yaml:"cron"`
 		} `yaml:"schedule"`
+		WorkflowCall struct {
+			Inputs map[string]struct {
+				Type     string `yaml:"type"`
+				Required bool   `yaml:"required"`
+			} `yaml:"inputs"`
+		} `yaml:"workflow_call"`
 	} `yaml:"on"`
 	Env  map[string]string      `yaml:"env"`
 	Jobs map[string]workflowJob `yaml:"jobs"`
 }
 
-// readWorkflow reads the workflow file.
-func readWorkflow(t *testing.T) workflow {
+// The run's workflow, and the one it calls for each vendor.
+const (
+	runWorkflow    = "reconcile-models.yml"
+	vendorWorkflow = "reconcile-vendor.yml"
+)
+
+// readWorkflow reads reconcile-models.yml, or the file named.
+func readWorkflow(t *testing.T, file ...string) workflow {
 	t.Helper()
 
-	raw, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", "reconcile-models.yml"))
+	raw, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", cmp.Or(strings.Join(file, ""), runWorkflow)))
 	require.NoError(t, err)
 
 	var wf workflow
@@ -80,12 +104,22 @@ func readWorkflow(t *testing.T) workflow {
 	return wf
 }
 
-// readJob reads one job from the workflow file.
+// readJob reads one job from reconcile-models.yml.
 func readJob(t *testing.T, name string) workflowJob {
 	t.Helper()
 
 	job := readWorkflow(t).Jobs[name]
 	require.NotEmpty(t, job.Steps, "the workflow has no %s job steps", name)
+
+	return job
+}
+
+// vendorJob reads one job from reconcile-vendor.yml, one vendor's part of a run.
+func vendorJob(t *testing.T, name string) workflowJob {
+	t.Helper()
+
+	job := readWorkflow(t, vendorWorkflow).Jobs[name]
+	require.NotEmpty(t, job.Steps, "%s has no %s job steps", vendorWorkflow, name)
 
 	return job
 }
@@ -113,7 +147,7 @@ func isClaude(s workflowStep) bool {
 func TestAgentEgressAllowsNamedSources(t *testing.T) {
 	t.Parallel()
 
-	first := readJob(t, "agent").Steps[0]
+	first := vendorJob(t, "agent").Steps[0]
 	require.True(t, strings.HasPrefix(first.Uses, "step-security/harden-runner@"),
 		"Harden-Runner must be the agent job's first step, got %q", first.Uses)
 	assert.Equal(t, "block", first.With["egress-policy"])
@@ -134,7 +168,7 @@ func TestAgentEgressAllowsNamedSources(t *testing.T) {
 func TestAgentRunsChecksBeforeClaude(t *testing.T) {
 	t.Parallel()
 
-	steps := readJob(t, "agent").Steps
+	steps := vendorJob(t, "agent").Steps
 	claude := stepIndex(t, steps, "claude-code-action", isClaude)
 
 	for _, script := range []string{"check-egress.sh", "stop-docker.sh"} {
@@ -302,6 +336,71 @@ func TestPRJobToolsImportNoPatchableCode(t *testing.T) {
 	}
 }
 
+// TestCheckoutBaseTakesTheBundlesCommit checks how a vendor's part of the run
+// gets its base: the run's own commit as checked out, or the previous
+// vendor's commit from its bundle, never anything else.
+func TestCheckoutBaseTakesTheBundlesCommit(t *testing.T) {
+	t.Parallel()
+
+	script, err := filepath.Abs(filepath.Join("..", "..", ".github", "reconcile-models", "checkout-base.sh"))
+	require.NoError(t, err)
+
+	git := func(dir string, args ...string) string {
+		t.Helper()
+
+		cmd := exec.CommandContext(t.Context(), "git", append([]string{"-c", "user.name=t", "-c", "user.email=t@t", "-c", "init.defaultBranch=main"}, args...)...)
+		cmd.Dir = dir
+		out, err := cmd.CombinedOutput()
+		require.NoError(t, err, string(out))
+
+		return strings.TrimSpace(string(out))
+	}
+
+	// origin has the run's commit; a vendor's clone adds its commit and
+	// bundles it, as the check job does.
+	origin, leg := t.TempDir(), t.TempDir()
+	git(origin, "init", "-q")
+	git(origin, "commit", "-q", "--allow-empty", "-m", "main")
+	runSHA := git(origin, "rev-parse", "HEAD")
+	git(leg, "clone", "-q", "--depth", "1", "file://"+origin, ".")
+	git(leg, "commit", "-q", "--allow-empty", "-m", "vendor")
+	legSHA := git(leg, "rev-parse", "HEAD")
+	bundle := filepath.Join(t.TempDir(), "reconcile.bundle")
+	git(leg, "bundle", "create", "-q", bundle, "HEAD", "^"+runSHA)
+
+	tests := []struct {
+		name, base, bundle, wantHead, wantErr string
+	}{
+		{name: "the run's own commit needs no bundle", base: runSHA, wantHead: runSHA},
+		{name: "the previous vendor's commit from its bundle", base: legSHA, bundle: bundle, wantHead: legSHA},
+		{name: "no bundle for another commit", base: legSHA, wantErr: "no bundle for " + legSHA},
+		{name: "a bundle that holds a different commit", base: strings.Repeat("0", 40), bundle: bundle, wantErr: "the bundle holds " + legSHA},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			checkout := t.TempDir()
+			git(checkout, "clone", "-q", "--depth", "1", "file://"+origin, ".")
+
+			cmd := exec.CommandContext(t.Context(), "bash", script, tt.base, tt.bundle)
+			cmd.Dir = checkout
+			out, err := cmd.CombinedOutput()
+
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, string(out), tt.wantErr)
+				assert.Equal(t, runSHA, git(checkout, "rev-parse", "HEAD"), "a refused base leaves the checkout as it was")
+
+				return
+			}
+
+			require.NoError(t, err, string(out))
+			assert.Equal(t, tt.wantHead, git(checkout, "rev-parse", "HEAD"))
+		})
+	}
+}
+
 // TestPRJobRefusesPatchesOutsideTheCatalogue runs pr-job.sh on patches it
 // must refuse before any network step or patched code runs: the checks that
 // keep a hijacked agent's patch away from the bot token.
@@ -361,7 +460,7 @@ func onePatch(path, change string) string {
 func TestAgentCannotReadProcessFiles(t *testing.T) {
 	t.Parallel()
 
-	job := readJob(t, "agent")
+	job := vendorJob(t, "agent")
 	assert.Equal(t, "1", job.Env["CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"], "the agent's shell must run without the job's secrets")
 
 	args := job.Steps[stepIndex(t, job.Steps, "claude-code-action", isClaude)].With["claude_args"]
@@ -432,14 +531,133 @@ func TestPushChecksOthersCommitsFirst(t *testing.T) {
 }
 
 // TestScheduledRunsReachThePR checks that the workflow has a schedule and that
-// the agent job doesn't skip scheduled runs.
+// neither the vendors' parts nor their agent jobs skip scheduled runs.
 func TestScheduledRunsReachThePR(t *testing.T) {
 	t.Parallel()
 
 	wf := readWorkflow(t)
 	require.NotEmpty(t, wf.On.Schedule, "the workflow has no schedule")
-	assert.NotContains(t, wf.Jobs["agent"].If, "schedule", "the agent job must run on a schedule too")
+	assert.NotContains(t, vendorJob(t, "agent").If, "schedule", "the agent job must run on a schedule too")
 	// A dry run stops before the PR, so only a run someone starts by hand may be one.
-	assert.True(t, strings.HasPrefix(wf.Env["DRY_RUN"], "${{ github.event_name == 'workflow_dispatch' && "),
-		"only a hand-started run may be a dry run, got %q", wf.Env["DRY_RUN"])
+	const handStarted = "${{ github.event_name == 'workflow_dispatch' && "
+	assert.True(t, strings.HasPrefix(wf.Env["DRY_RUN"], handStarted), "only a hand-started run may be a dry run, got %q", wf.Env["DRY_RUN"])
+
+	for name, job := range legs(t) {
+		assert.NotContains(t, job.If, "schedule", "%s must run on a schedule too", name)
+		assert.True(t, strings.HasPrefix(fmt.Sprint(job.With["dry_run"]), handStarted), "only a hand-started run may make %s a dry run, got %v", name, job.With["dry_run"])
+	}
+}
+
+// legs are the jobs of reconcile-models.yml that run one vendor's part, by
+// calling reconcile-vendor.yml.
+func legs(t *testing.T) map[string]workflowJob {
+	t.Helper()
+
+	found := map[string]workflowJob{}
+
+	for name, job := range readWorkflow(t).Jobs {
+		if job.Uses == "./.github/workflows/"+vendorWorkflow {
+			found[name] = job
+		}
+	}
+
+	require.NotEmpty(t, found, "%s calls %s for no vendor", runWorkflow, vendorWorkflow)
+
+	return found
+}
+
+// TestLegGetsNoBotToken checks that no job in a vendor's part of the run can
+// reach the bot token: no OIDC token, no AWS step, no bot token. Only the
+// run's pr job pushes, once, at the end.
+func TestLegGetsNoBotToken(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", vendorWorkflow))
+	require.NoError(t, err)
+	assert.NotContains(t, string(raw), "ACTIONS_BOT_TOKEN")
+	assert.NotContains(t, string(raw), "aws-actions/")
+
+	for name, job := range readWorkflow(t, vendorWorkflow).Jobs {
+		assert.NotContains(t, job.Permissions, "id-token", "the %s job may not request an OIDC token", name)
+	}
+
+	for name, job := range legs(t) {
+		assert.NotContains(t, job.Permissions, "id-token", "%s may not pass on OIDC rights", name)
+	}
+}
+
+// TestLegSecretsAreNamed checks that each vendor's part gets only the secrets
+// it names: the model key, and the debug-logging flag the agent job's check
+// reads. A called workflow sees no other secret, so inherit would hand it all.
+func TestLegSecretsAreNamed(t *testing.T) {
+	t.Parallel()
+
+	for name, job := range legs(t) {
+		secrets, named := job.Secrets.(map[string]any)
+		require.True(t, named, "%s must name its secrets, not inherit them", name)
+		assert.ElementsMatch(t, []string{"ANTHROPIC_API_KEY", "ACTIONS_STEP_DEBUG"}, slices.Collect(maps.Keys(secrets)), "%s's secrets", name)
+	}
+}
+
+// TestRealRunStepsRequireDryRunFalse checks that whatever only a real run does
+// checks for DRY_RUN 'false', so a missing or unexpected value is a dry run,
+// and that reconcile-vendor.yml can't be called without dry_run.
+func TestRealRunStepsRequireDryRunFalse(t *testing.T) {
+	t.Parallel()
+
+	guarded := 0
+
+	for _, file := range []string{runWorkflow, vendorWorkflow} {
+		for name, job := range readWorkflow(t, file).Jobs {
+			conditions := []string{job.If}
+			for _, step := range job.Steps {
+				conditions = append(conditions, step.If)
+			}
+
+			for _, condition := range conditions {
+				if !strings.Contains(condition, "DRY_RUN") {
+					continue
+				}
+
+				guarded++
+
+				assert.Contains(t, condition, "env.DRY_RUN == 'false'", "%s %s: a real-run step must check for 'false'", file, name)
+				assert.NotContains(t, condition, "!=", "%s %s: %q lets an unexpected value through", file, name, condition)
+			}
+		}
+	}
+
+	assert.Positive(t, guarded, "no step checks DRY_RUN")
+
+	input := readWorkflow(t, vendorWorkflow).On.WorkflowCall.Inputs["dry_run"]
+	assert.True(t, input.Required, "%s must be called with dry_run", vendorWorkflow)
+}
+
+// TestLegCommitCarriesTheRunTrailer checks that each vendor's commit names the
+// run and the vendor in a Reconcile-Run trailer, so a later run can tell
+// which commit came from which run.
+func TestLegCommitCarriesTheRunTrailer(t *testing.T) {
+	t.Parallel()
+
+	steps := vendorJob(t, "check").Steps
+	run := steps[stepIndex(t, steps, "commit", func(s workflowStep) bool { return strings.Contains(s.Run, " commit ") })].Run
+	assert.Contains(t, run, `-m "Reconcile-Run: ${GITHUB_RUN_ID}/${PROVIDER}"`)
+}
+
+// TestLegChecksOutItsBase checks that the agent and the patch check both work
+// on the commit the vendor's part was given, checked out before Claude or
+// pr-job.sh starts.
+func TestLegChecksOutItsBase(t *testing.T) {
+	t.Parallel()
+
+	for job, first := range map[string]func(workflowStep) bool{
+		"agent": isClaude,
+		"check": func(s workflowStep) bool { return strings.Contains(s.Run, ".github/reconcile-models/pr-job.sh") },
+	} {
+		steps := vendorJob(t, job).Steps
+		checkout := stepIndex(t, steps, "checkout-base.sh", func(s workflowStep) bool {
+			return strings.Contains(s.Run, `.github/reconcile-models/checkout-base.sh "$BASE_SHA"`)
+		})
+		assert.Less(t, checkout, stepIndex(t, steps, "main", first), "the %s job must check out its base first", job)
+	}
 }

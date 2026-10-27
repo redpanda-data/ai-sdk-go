@@ -234,6 +234,9 @@ git diff -- catalog/snapshot.json >"$out/snapshot.diff"
 # Non-data files go into the body's "Code changed" list, so reviewers read them as code.
 for path in "${code[@]+"${code[@]}"}"; do echo "$path"; done >"$priv/code-files.txt"
 cp catalog/snapshot.json "$priv/snapshot.json"
+# The vendor's folder for the run's combined PR body, as the one-vendor body
+# below reads it.
+cp "$priv/base-snapshot.json" "$priv/snapshot.json" "$priv/code-files.txt" "$priv/base-routes.txt" "$priv/routes.txt" "$out/"
 render -diff "$out/snapshot.diff" -code-files "$priv/code-files.txt" -base-routes "$priv/base-routes.txt" -routes "$priv/routes.txt"
 emit changed=true
 echo "pr-job: patch accepted"
