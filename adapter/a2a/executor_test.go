@@ -68,8 +68,8 @@ func TestExecutor_Integration_OpenAI(t *testing.T) {
 	provider, err := openai.NewProvider(apiKey)
 	require.NoError(t, err)
 
-	// Create model - using gpt-5
-	model, err := provider.NewModel("gpt-5")
+	// Create model
+	model, err := provider.NewModel(openaitest.TestModelName)
 	require.NoError(t, err)
 
 	// Create agent
@@ -257,7 +257,7 @@ func TestExecutor_ToolUse_MessageHistory(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create model
-	model, err := provider.NewModel("gpt-5")
+	model, err := provider.NewModel(openaitest.TestModelName)
 	require.NoError(t, err)
 
 	// Create tool registry with mock weather tool
@@ -703,7 +703,7 @@ func TestExecutor_SessionPersistence(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create model
-	model, err := provider.NewModel("gpt-5")
+	model, err := provider.NewModel(openaitest.TestModelName)
 	require.NoError(t, err)
 
 	// Create agent

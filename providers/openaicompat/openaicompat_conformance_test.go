@@ -22,6 +22,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/plugins/retry"
 	"github.com/redpanda-data/ai-sdk-go/providers/conformance"
+	"github.com/redpanda-data/ai-sdk-go/providers/openai"
 	"github.com/redpanda-data/ai-sdk-go/providers/openaicompat"
 	"github.com/redpanda-data/ai-sdk-go/providers/openaicompat/openaicompattest"
 )
@@ -57,6 +58,22 @@ func (f *OpenAICompatFixture) NewStandardModel(t *testing.T) llm.Model {
 	t.Helper()
 
 	model, err := f.provider.NewModel(openaicompattest.TestModelName)
+	if err != nil {
+		t.Fatalf("Failed to create standard model: %v", err)
+	}
+
+	// openaicompat knows no models, so its MaxInputTokens is a generic
+	// default. These tests call OpenAI: give the model its real window, so
+	// the context-overflow test sends a prompt that really overflows it.
+	offering, ok := openai.Catalog().Lookup(openaicompattest.TestModelName)
+	if !ok {
+		t.Fatalf("%s is not an offering in the openai catalog", openaicompattest.TestModelName)
+	}
+
+	constraints := model.Constraints()
+	constraints.MaxInputTokens = offering.Constraints.MaxInputTokens
+
+	model, err = f.provider.NewModel(openaicompattest.TestModelName, openaicompat.WithConstraints(constraints))
 	if err != nil {
 		t.Fatalf("Failed to create standard model: %v", err)
 	}

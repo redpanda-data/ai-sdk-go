@@ -9,6 +9,7 @@ on:
       - '**/go.mod'
       - '**/go.sum'
       - 'Taskfile.yaml'
+      - '.golangci.examples.yaml'
       - '.github/workflows/examples.yaml'
   pull_request:
     paths:
@@ -16,6 +17,7 @@ on:
       - '**/go.mod'
       - '**/go.sum'
       - 'Taskfile.yaml'
+      - '.golangci.examples.yaml'
       - '.github/workflows/examples.yaml'
 
 permissions:
@@ -52,3 +54,8 @@ jobs:
       # compiles them.
       - name: Build example modules
         run: task examples:build
+
+      # Users copy the examples, so one that calls a deprecated model fails
+      # here rather than breaking for them after the model shuts down.
+      - name: Lint example modules for deprecated identifiers
+        run: task examples:lint

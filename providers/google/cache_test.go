@@ -32,12 +32,14 @@ func TestGeminiCachedTokens_Integration(t *testing.T) {
 
 	apiKey := googletest.GetAPIKeyOrSkipTest(t)
 
+	// Use gemini-2.5-flash for caching tests: lowest token threshold (1024) for implicit caching
+	testutil.SkipIfRetired(t, google.Catalog(), google.ModelGemini25Flash)
+
 	ctx := context.Background()
 
 	provider, err := google.NewProvider(ctx, apiKey)
 	require.NoError(t, err)
 
-	// Use gemini-2.5-flash for caching tests: lowest token threshold (1024) for implicit caching
 	model, err := provider.NewModel(google.ModelGemini25Flash)
 	require.NoError(t, err)
 

@@ -15,10 +15,10 @@
 package openaicompattest
 
 const (
-	// TestModelName is the model to use for integration tests.
-	TestModelName = "gpt-4o-mini"
-	// TestReasoningModelName is the model for reasoning tests.
-	TestReasoningModelName = "o1"
+	// TestModelName is the model to use for integration tests. Not
+	// gpt-6-luna: on Chat Completions it refuses function tools unless
+	// reasoning_effort is "none", which openaicompat can't send.
+	TestModelName = "gpt-5.4-mini"
 
 	// DeepSeekDefaultBaseURL is the default API base URL for DeepSeek.
 	DeepSeekDefaultBaseURL = "https://api.deepseek.com"
@@ -35,5 +35,5 @@ const (
 	// GoogleDefaultBaseURL is the Google Gemini OpenAI-compatible endpoint.
 	GoogleDefaultBaseURL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 	// GoogleDefaultModel is the default model for Google compat tests.
-	GoogleDefaultModel = "gemini-3.5-flash"
+	GoogleDefaultModel = "gemini-3.6-flash"
 )
