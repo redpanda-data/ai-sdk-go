@@ -149,6 +149,8 @@ func TestNewModel_NoCachePointFamiliesDisableCaching(t *testing.T) {
 		ModelGPT6AstraGlobal:  false,
 		ModelGPT61SolUS:       false,
 		ModelGPT61SolGlobal:   false,
+		ModelGPT61TerraUS:     false,
+		ModelGPT61TerraGlobal: false,
 		ModelGPT6SolUS:        false,
 		ModelGPT6SolGlobal:    false,
 		ModelClaudeSonnet45US: true,
@@ -174,13 +176,16 @@ func TestNoCachePointModelIDs(t *testing.T) {
 	t.Parallel()
 
 	for id, want := range map[string]bool{
-		ModelMistralLarge3:   true,
-		ModelGPT6AstraUS:     true,
-		ModelGPT6AstraGlobal: true,
-		ModelGPT61SolUS:      true,
-		ModelGPT61SolGlobal:  true,
-		ModelGPT6Astra:       false,
-		ModelGPT61Sol:        false,
+		ModelMistralLarge3:    true,
+		ModelGPT6AstraUS:      true,
+		ModelGPT6AstraGlobal:  true,
+		ModelGPT61SolUS:       true,
+		ModelGPT61SolGlobal:   true,
+		ModelGPT61TerraUS:     true,
+		ModelGPT61TerraGlobal: true,
+		ModelGPT6Astra:        false,
+		ModelGPT61Sol:         false,
+		ModelGPT61Terra:       false,
 	} {
 		assert.Equal(t, want, noCachePointModelIDs[id], id)
 	}
@@ -201,6 +206,7 @@ func TestGPT6RoutesByID(t *testing.T) {
 		{ModelGPT6Astra, ModelGPT6AstraUS, ModelGPT6AstraGlobal, lowToMax},
 		{ModelGPT61Sol, ModelGPT61SolUS, ModelGPT61SolGlobal, lowToMax},
 		{ModelGPT6Sol, ModelGPT6SolUS, ModelGPT6SolGlobal, append([]ReasoningEffort{ReasoningEffortNone}, lowToMax...)},
+		{ModelGPT61Terra, ModelGPT61TerraUS, ModelGPT61TerraGlobal, append([]ReasoningEffort{ReasoningEffortNone}, lowToMax...)},
 	} {
 		t.Run(tt.bare, func(t *testing.T) {
 			t.Parallel()

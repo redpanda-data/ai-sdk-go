@@ -48,6 +48,8 @@ func TestIsModelAllowedFromRegion(t *testing.T) {
 		{"gpt-6-sol bare (mantle) from eu-west-1", ModelGPT6Sol, "eu-west-1", true},
 		{"gpt-6.1-sol bare (mantle) from us-east-1", ModelGPT61Sol, "us-east-1", true},
 		{"gpt-6.1-sol bare (mantle) from eu-west-1", ModelGPT61Sol, "eu-west-1", true},
+		{"gpt-6.1-terra bare (mantle) from us-east-1", ModelGPT61Terra, "us-east-1", true},
+		{"gpt-6.1-terra bare (mantle) from eu-west-1", ModelGPT61Terra, "eu-west-1", true},
 
 		// Sonnet 5 — only us. and global. are published; us. honours geo rules.
 		{"sonnet5 bare from eu", ModelClaudeSonnet5, "eu-west-1", true},
@@ -76,6 +78,10 @@ func TestIsModelAllowedFromRegion(t *testing.T) {
 		{"gpt-6.1-sol us from us-east-1", ModelGPT61SolUS, "us-east-1", true},
 		{"gpt-6.1-sol us from eu-west-1", ModelGPT61SolUS, "eu-west-1", false},
 		{"gpt-6.1-sol global from eu-west-1", ModelGPT61SolGlobal, "eu-west-1", true},
+		{"gpt-6.1-terra us from us-west-1", ModelGPT61TerraUS, "us-west-1", true},
+		{"gpt-6.1-terra us from ca-west-1", ModelGPT61TerraUS, "ca-west-1", true},
+		{"gpt-6.1-terra us from eu-west-1", ModelGPT61TerraUS, "eu-west-1", false},
+		{"gpt-6.1-terra global from eu-west-1", ModelGPT61TerraGlobal, "eu-west-1", true},
 		{"gpt-6-sol us from us-east-1", ModelGPT6SolUS, "us-east-1", true},
 		{"gpt-6-sol us from ca-west-1", ModelGPT6SolUS, "ca-west-1", true},
 		{"gpt-6-sol us from eu-west-1", ModelGPT6SolUS, "eu-west-1", false},
@@ -308,7 +314,7 @@ func hasGeoPrefix(modelID string, prefixes ...string) bool {
 
 // handPickedBareIDs are bare IDs registered beside profiles on purpose:
 // GPT-6's bedrock-mantle copies, added by hand.
-var handPickedBareIDs = []string{ModelGPT6Astra, ModelGPT6Luna, ModelGPT6Sol, ModelGPT61Sol}
+var handPickedBareIDs = []string{ModelGPT6Astra, ModelGPT6Luna, ModelGPT6Sol, ModelGPT61Sol, ModelGPT61Terra}
 
 // TestNoBareIDBesideProfiles checks that no model with profiles has its
 // bare ID registered, in its own family or another one, so bare-name calls

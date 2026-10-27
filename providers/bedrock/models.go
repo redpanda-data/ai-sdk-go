@@ -300,6 +300,14 @@ const (
 	ModelGPT61SolGlobal = "global." + ModelGPT61Sol
 	ModelGPT61SolUS     = "us." + ModelGPT61Sol
 
+	// ModelGPT61Terra is GPT-6.1 Terra's bare ID, split the same way as
+	// Astra's: on bedrock-runtime it only builds the US and global profile
+	// IDs, and invoked bare it routes to bedrock-mantle, which serves it
+	// only in us-east-1.
+	ModelGPT61Terra       = "openai.gpt-6.1-terra"
+	ModelGPT61TerraGlobal = "global." + ModelGPT61Terra
+	ModelGPT61TerraUS     = "us." + ModelGPT61Terra
+
 	// ModelGPT6Sol is GPT-6 Sol's bare ID, split the same way as Astra's: on
 	// bedrock-runtime it only builds the US and global profile IDs, and
 	// invoked bare it routes to bedrock-mantle, which serves it only in
@@ -705,6 +713,19 @@ var (
 		MaxInputTokens:  922000,
 		MaxOutputTokens: 128000,
 		SupportedParams: []string{"max_tokens", "reasoning_effort"},
+	}
+
+	// GPT-6.1 Terra on bedrock-mantle. Unlike the other GPT-6 cards, Terra's
+	// lists structured outputs only on bedrock-runtime, so the mantle copy
+	// advertises neither JSON mode nor structured output.
+	// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-1-terra.html
+	gpt61TerraMantleCaps = llm.ModelCapabilities{
+		Streaming:     true,
+		Tools:         true,
+		Vision:        true,
+		MultiTurn:     true,
+		SystemPrompts: true,
+		Reasoning:     true,
 	}
 
 	// GPT-6 Astra's Ultrafast tier (service_tier "ultrafast"), six times
@@ -1380,6 +1401,69 @@ var bedrockFamilies = []family{
 			}},
 		},
 		Overrides: gpt61SolUltrafast,
+	},
+	{
+		// OpenAI GPT-6.1 Terra — inference-profile-only on bedrock-runtime:
+		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-1-terra.html
+		// Standard tier only (launched 2026-10-26): global matches OpenAI's
+		// rates and US CRIS adds 10%, with a long-context card above 272K
+		// input tokens. 30-minute cache writes sit in the unknown-TTL bucket.
+		// Explicit caching is Responses-only, so Converse gets no cache points.
+		// JSON Schema is non-streaming only. No exact EOL; the card's
+		// October 26, 2027 date is a floor. Unprobed: the card documents
+		// Astra's Converse surface and limits (1,050,000 window, 128,000 max
+		// output), so the family reuses Astra's capabilities and constraints.
+		BareID:            ModelGPT61Terra,
+		NoStreamingSchema: true,
+		WireAPIs:          openAIRuntimeWireAPIs,
+		Model:             catalog.ModelGPT6_1Terra,
+		DisplayName:       "OpenAI GPT-6.1 Terra",
+		Profiles:          []string{"global", "us"},
+		ProfileRegions:    gpt61TerraProfileRegions,
+		NoCachePoints:     true,
+		Capabilities:      gpt6AstraCaps,
+		Modalities:        gpt56Modalities,
+		Constraints:       gpt6AstraConstraints,
+		Reasoning:         converseReasoningNoControls,
+		GlobalRates: &pricing.RateCard{
+			Base: pricing.NewRates(1.00, 5.00, 0.05).WithCacheCreation(0, 0, 1.25),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(2.00, 7.50, 0.10).WithCacheCreation(0, 0, 2.50),
+			}},
+		},
+		Rates: pricing.RateCard{
+			Base: pricing.NewRates(1.10, 5.50, 0.055).WithCacheCreation(0, 0, 1.375),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(2.20, 8.25, 0.11).WithCacheCreation(0, 0, 2.75),
+			}},
+		},
+	},
+	{
+		// OpenAI GPT-6.1 Terra on bedrock-mantle — bare in-region ID,
+		// us-east-1 only, at the card's In-Region rates, which equal the US
+		// profile's. Effort runs none through max, as on OpenAI's own
+		// gpt-6.1-terra. Unprobed.
+		BareID:        ModelGPT61Terra,
+		WireAPIs:      openAIMantleWireAPIs,
+		Model:         catalog.ModelGPT6_1Terra,
+		DisplayName:   "OpenAI GPT-6.1 Terra",
+		BareInvokable: true,
+		Mantle:        true,
+		MantleRegions: []string{"us-east-1"},
+		Capabilities:  gpt61TerraMantleCaps,
+		Modalities:    gpt56Modalities,
+		Constraints:   gpt6AstraMantleConstraints,
+		Reasoning:     catalog.ReasoningSupport{Efforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax}},
+		Life:          catalog.Lifecycle{Available: catalog.MustDate("2026-10-26")},
+		Rates: pricing.RateCard{
+			Base: pricing.NewRates(1.10, 5.50, 0.055).WithCacheCreation(0, 0, 1.375),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(2.20, 8.25, 0.11).WithCacheCreation(0, 0, 2.75),
+			}},
+		},
 	},
 	{
 		// OpenAI GPT-6 Sol — inference-profile-only on bedrock-runtime:

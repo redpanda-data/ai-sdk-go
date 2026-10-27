@@ -405,3 +405,44 @@ var gpt6SolProfileRegions = map[string]string{
 	"sa-east-1":      globalProfileRegion,
 	"mx-central-1":   globalProfileRegion,
 }
+
+// gpt61TerraProfileRegions maps every published bedrock-runtime source
+// region for GPT-6.1 Terra to its preferred profile: the US and Canada
+// regions use the US profile, the rest global. Unlike GPT-6 Sol's card,
+// Terra's lists no global source in sa-east-1.
+//
+// Source: https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-1-terra.html
+var gpt61TerraProfileRegions = map[string]string{
+	"us-east-1":    "us",
+	"us-east-2":    "us",
+	"us-west-1":    "us",
+	"us-west-2":    "us",
+	"ca-central-1": "us",
+	"ca-west-1":    "us",
+
+	"eu-central-1": globalProfileRegion,
+	"eu-central-2": globalProfileRegion,
+	"eu-north-1":   globalProfileRegion,
+	"eu-south-1":   globalProfileRegion,
+	"eu-south-2":   globalProfileRegion,
+	"eu-west-1":    globalProfileRegion,
+	"eu-west-2":    globalProfileRegion,
+	"eu-west-3":    globalProfileRegion,
+
+	"ap-east-2":      globalProfileRegion,
+	"ap-northeast-1": globalProfileRegion,
+	"ap-northeast-2": globalProfileRegion,
+	"ap-northeast-3": globalProfileRegion,
+	"ap-south-1":     globalProfileRegion,
+	"ap-south-2":     globalProfileRegion,
+	"ap-southeast-1": globalProfileRegion,
+	"ap-southeast-2": globalProfileRegion,
+	"ap-southeast-3": globalProfileRegion,
+	"ap-southeast-4": globalProfileRegion,
+	"ap-southeast-5": globalProfileRegion,
+	"ap-southeast-6": globalProfileRegion,
+	"ap-southeast-7": globalProfileRegion,
+	"il-central-1":   globalProfileRegion,
+	"af-south-1":     globalProfileRegion,
+	"mx-central-1":   globalProfileRegion,
+}

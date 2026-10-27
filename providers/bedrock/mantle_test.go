@@ -151,6 +151,9 @@ func TestNewModel_GPT6MantleEffortNone(t *testing.T) {
 	_, err = p.NewModel(ModelGPT6Sol, WithReasoningEffort(ReasoningEffortNone))
 	require.NoError(t, err)
 
+	_, err = p.NewModel(ModelGPT61Terra, WithReasoningEffort(ReasoningEffortNone))
+	require.NoError(t, err)
+
 	_, err = p.NewModel(ModelGPT61Sol, WithReasoningEffort(ReasoningEffortNone))
 	require.ErrorContains(t, err, "does not support reasoning effort")
 }
@@ -169,6 +172,8 @@ func TestNewModel_GPT6MantleRegions(t *testing.T) {
 		{ModelGPT6Sol, "eu-west-1"},
 		{ModelGPT61Sol, "us-east-1"},
 		{ModelGPT61Sol, "eu-west-1"},
+		{ModelGPT61Terra, "us-east-1"},
+		{ModelGPT61Terra, "eu-west-1"},
 	} {
 		t.Run(tt.modelID+"/"+tt.region, func(t *testing.T) {
 			t.Parallel()

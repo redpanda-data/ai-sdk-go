@@ -146,7 +146,7 @@ func (rm *RequestMapper) buildConverseParams(req *llm.Request) (*converseParams,
 // requiresConverseStrict limits the extra field to the documented GPT-6 contracts.
 func requiresConverseStrict(modelID string) bool {
 	offering, ok := lookupModel(modelID)
-	return ok && (offering.Model == catalog.ModelGPT6Astra || offering.Model == catalog.ModelGPT6Sol || offering.Model == catalog.ModelGPT6_1Sol || offering.Model == catalog.ModelGPT6Luna)
+	return ok && (offering.Model == catalog.ModelGPT6Astra || offering.Model == catalog.ModelGPT6Sol || offering.Model == catalog.ModelGPT6_1Sol || offering.Model == catalog.ModelGPT6_1Terra || offering.Model == catalog.ModelGPT6Luna)
 }
 
 // applyResponseFormat sets Converse's outputConfig.textFormat from a

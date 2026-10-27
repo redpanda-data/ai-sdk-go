@@ -473,6 +473,31 @@ func entries() []catalog.Entry {
 					pricing.NewRates(12.00, 60.00, 0.60).WithCacheCreation(0, 0, 15.00),
 					pricing.NewRates(24.00, 90.00, 1.20).WithCacheCreation(0, 0, 30.00),
 				))),
+		// https://developers.openai.com/api/docs/models/gpt-6.1-terra
+		//nolint:dupl // same rate-card shape as GPT-6 Sol, different published rates
+		gpt6Entry(ModelGPT6_1Terra, catalog.ModelGPT6_1Terra,
+			[]ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+			catalog.MustDate("2026-10-26"),
+			// Per M tokens: $1.00 input, $5.00 output, $0.05 cached input, $1.25 cache write.
+			// Above 272K: $2.00 input, $7.50 output, $0.10 cached input, $2.50 cache write.
+			// No Ultrafast tier. Rates from https://developers.openai.com/api/docs/pricing
+			// (read 2026-10-27).
+			pricing.TieredInfo(
+				pricing.NewRates(1.00, 5.00, 0.05).WithCacheCreation(0, 0, 1.25),
+				pricing.Bracket{MinContextTokens: 272_001, Rates: pricing.NewRates(2.00, 7.50, 0.10).WithCacheCreation(0, 0, 2.50)},
+			).
+				WithOverride(batchTier, tieredCard(
+					pricing.NewRates(0.50, 2.50, 0.025).WithCacheCreation(0, 0, 0.625),
+					pricing.NewRates(1.00, 3.75, 0.05).WithCacheCreation(0, 0, 1.25),
+				)).
+				WithOverride(flexTier, tieredCard(
+					pricing.NewRates(0.50, 2.50, 0.025).WithCacheCreation(0, 0, 0.625),
+					pricing.NewRates(1.00, 3.75, 0.05).WithCacheCreation(0, 0, 1.25),
+				)).
+				WithOverride(fastTier, tieredCard(
+					pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(0, 0, 2.50),
+					pricing.NewRates(4.00, 15.00, 0.20).WithCacheCreation(0, 0, 5.00),
+				))),
 
 		// GPT-5.6 Series
 		gpt56Entry(ModelGPT5_6Luna, catalog.ModelGPT5_6Luna, nil,
@@ -971,10 +996,11 @@ func gpt56Entry(id string, model catalog.ModelID, aliases []string, rates pricin
 	}
 }
 
-// gpt6Entry builds a GPT-6 Sol, GPT-6 Luna, or GPT-6.1 Sol entry. They
-// share Astra's capability surface and limits and differ in identity,
-// efforts, availability, and rates: GPT-6 Sol and Luna, unlike Astra,
-// accept reasoning effort none; GPT-6.1 Sol does not.
+// gpt6Entry builds a GPT-6 Sol, GPT-6 Luna, GPT-6.1 Sol, or GPT-6.1 Terra
+// entry. They share Astra's capability surface and limits and differ in
+// identity, efforts, availability, and rates: GPT-6 Sol, GPT-6 Luna, and
+// GPT-6.1 Terra, unlike Astra, accept reasoning effort none; GPT-6.1 Sol
+// does not.
 func gpt6Entry(id string, model catalog.ModelID, efforts []ReasoningEffort, available time.Time, rates pricing.Info) catalog.Entry {
 	return catalog.Entry{
 		ID:           id,

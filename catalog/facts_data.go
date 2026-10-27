@@ -58,6 +58,7 @@ const (
 	ModelGPT6Sol       ModelID = "openai/gpt-6-sol"
 	ModelGPT6Luna      ModelID = "openai/gpt-6-luna"
 	ModelGPT6_1Sol     ModelID = "openai/gpt-6.1-sol"
+	ModelGPT6_1Terra   ModelID = "openai/gpt-6.1-terra"
 	ModelGPT4o         ModelID = "openai/gpt-4o"
 	ModelGPT4oMini     ModelID = "openai/gpt-4o-mini"
 	ModelGPT4Turbo     ModelID = "openai/gpt-4-turbo"
@@ -224,7 +225,8 @@ var defaultRegistry = Registry{
 	// The flagship line runs gpt-3.5-turbo → gpt-4-turbo → gpt-4o →
 	// gpt-4.1 → gpt-5 → 5.1 → 5.2 → 5.4 → 5.5 → gpt-5.6-sol → gpt-6-astra; the -mini
 	// ladder runs through gpt-5.6-terra and gpt-6-sol to gpt-6.1-sol, the -nano
-	// ladder through gpt-5.6-luna to gpt-6-luna. GPT-6 moved "Sol" down a tier:
+	// ladder through gpt-5.6-luna to gpt-6-luna, and gpt-6.1-terra starts the
+	// gpt-terra line. GPT-6 moved "Sol" down a tier:
 	// Astra is the flagship, so gpt-6-sol succeeds the mid tier, not gpt-5.6-sol.
 	// The chat-tuned "instant" models and the pro models are their own lines.
 	ModelGPT5: {
@@ -349,6 +351,18 @@ var defaultRegistry = Registry{
 		DisplayName: "GPT-6.1 Sol", Series: "gpt-mini",
 		Released: MustDate("2026-09-29"), Knowledge: MustDate("2026-04-30"),
 		Description: "GPT-6.1 Sol is OpenAI's upgraded mid-tier GPT-6 model, delivering near-Astra performance at a lower cost for complex coding, computer use, and professional work.",
+	},
+	// Released per developers.openai.com/api/docs/changelog (Oct 26);
+	// cutoff per developers.openai.com/api/docs/models/gpt-6.1-terra.
+	// GPT-6.1 Terra is a new tier between Sol and Luna. OpenAI's GPT-6 guide
+	// lists it as a migration path from GPT-5.6 Terra, but gpt-mini already
+	// continues from gpt-5.6-terra to the Sol line, so Terra starts its own
+	// series rather than branching gpt-mini or succeeding gpt-6.1-sol.
+	ModelGPT6_1Terra: {
+		Publisher:   PublisherOpenAI,
+		DisplayName: "GPT-6.1 Terra", Series: "gpt-terra",
+		Released: MustDate("2026-10-26"), Knowledge: MustDate("2026-06-01"),
+		Description: "GPT-6.1 Terra is OpenAI's fast, efficient GPT-6 model for visual reasoning, precise computer use, and clear, natural writing.",
 	},
 	ModelGPT4o: {
 		Publisher:   PublisherOpenAI,

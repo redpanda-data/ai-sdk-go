@@ -470,6 +470,14 @@
       "released": "2026-09-29",
       "knowledge": "2026-04-30"
     },
+    "openai/gpt-6.1-terra": {
+      "display_name": "GPT-6.1 Terra",
+      "publisher": "openai",
+      "description": "GPT-6.1 Terra is OpenAI's fast, efficient GPT-6 model for visual reasoning, precise computer use, and clear, natural writing.",
+      "series": "gpt-terra",
+      "released": "2026-10-26",
+      "knowledge": "2026-06-01"
+    },
     "openai/o1-pro": {
       "display_name": "o1-pro",
       "publisher": "openai",
@@ -5011,6 +5019,91 @@
           }
         },
         {
+          "id": "global.openai.gpt-6.1-terra",
+          "model": "openai/gpt-6.1-terra",
+          "display_name": "OpenAI GPT-6.1 Terra (Global)",
+          "wire_apis": [
+            {
+              "protocol": "bedrock_converse",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_chat_completions",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_responses",
+              "transport": "bedrock_runtime"
+            }
+          ],
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {},
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 100000000,
+                "output_microcents_per_million": 500000000,
+                "cached_input_microcents_per_million": 5000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 125000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 200000000,
+                    "output_microcents_per_million": 750000000,
+                    "cached_input_microcents_per_million": 10000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 250000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "global"
+            },
+            {
+              "key": "structured_output_streaming",
+              "value": "false"
+            }
+          ],
+          "derived": {
+            "price_tier": "low"
+          }
+        },
+        {
           "id": "google.gemma-4-26b-a4b",
           "model": "google/gemma-4-26b-a4b",
           "display_name": "Google Gemma 4 26B-A4B",
@@ -6445,6 +6538,88 @@
           },
           "derived": {
             "price_tier": "medium"
+          }
+        },
+        {
+          "id": "openai.gpt-6.1-terra",
+          "model": "openai/gpt-6.1-terra",
+          "display_name": "OpenAI GPT-6.1 Terra",
+          "wire_apis": [
+            {
+              "protocol": "openai_chat_completions",
+              "transport": "bedrock_mantle"
+            },
+            {
+              "protocol": "openai_responses",
+              "transport": "bedrock_mantle"
+            }
+          ],
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": false,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "reasoning_effort"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 110000000,
+                "output_microcents_per_million": 550000000,
+                "cached_input_microcents_per_million": 5500000,
+                "cache_creation_unknown_ttl_microcents_per_million": 137500000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 220000000,
+                    "output_microcents_per_million": 825000000,
+                    "cached_input_microcents_per_million": 11000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 275000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-10-26"
+          },
+          "derived": {
+            "price_tier": "low"
           }
         },
         {
@@ -8072,6 +8247,91 @@
           ],
           "derived": {
             "price_tier": "medium"
+          }
+        },
+        {
+          "id": "us.openai.gpt-6.1-terra",
+          "model": "openai/gpt-6.1-terra",
+          "display_name": "OpenAI GPT-6.1 Terra (US)",
+          "wire_apis": [
+            {
+              "protocol": "bedrock_converse",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_chat_completions",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_responses",
+              "transport": "bedrock_runtime"
+            }
+          ],
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {},
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 110000000,
+                "output_microcents_per_million": 550000000,
+                "cached_input_microcents_per_million": 5500000,
+                "cache_creation_unknown_ttl_microcents_per_million": 137500000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 220000000,
+                    "output_microcents_per_million": 825000000,
+                    "cached_input_microcents_per_million": 11000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 275000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "us"
+            },
+            {
+              "key": "structured_output_streaming",
+              "value": "false"
+            }
+          ],
+          "derived": {
+            "price_tier": "low"
           }
         }
       ]
@@ -14918,6 +15178,157 @@
           },
           "derived": {
             "price_tier": "medium"
+          }
+        },
+        {
+          "id": "gpt-6.1-terra",
+          "model": "openai/gpt-6.1-terra",
+          "display_name": "GPT-6.1 Terra",
+          "wire_apis": [
+            {
+              "protocol": "openai_chat_completions",
+              "transport": "direct"
+            },
+            {
+              "protocol": "openai_responses",
+              "transport": "direct"
+            }
+          ],
+          "capabilities": {
+            "audio": false,
+            "json_mode": true,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": true,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "reasoning_effort",
+              "reasoning_summary"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 100000000,
+                "output_microcents_per_million": 500000000,
+                "cached_input_microcents_per_million": 5000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 125000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 200000000,
+                    "output_microcents_per_million": 750000000,
+                    "cached_input_microcents_per_million": 10000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 250000000
+                  }
+                }
+              ]
+            },
+            "overrides": [
+              {
+                "service_tier": "batch",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 50000000,
+                    "output_microcents_per_million": 250000000,
+                    "cached_input_microcents_per_million": 2500000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 62500000
+                  },
+                  "brackets": [
+                    {
+                      "min_context_tokens": 272001,
+                      "rates": {
+                        "input_microcents_per_million": 100000000,
+                        "output_microcents_per_million": 375000000,
+                        "cached_input_microcents_per_million": 5000000,
+                        "cache_creation_unknown_ttl_microcents_per_million": 125000000
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "service_tier": "flex",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 50000000,
+                    "output_microcents_per_million": 250000000,
+                    "cached_input_microcents_per_million": 2500000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 62500000
+                  },
+                  "brackets": [
+                    {
+                      "min_context_tokens": 272001,
+                      "rates": {
+                        "input_microcents_per_million": 100000000,
+                        "output_microcents_per_million": 375000000,
+                        "cached_input_microcents_per_million": 5000000,
+                        "cache_creation_unknown_ttl_microcents_per_million": 125000000
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "service_tier": "priority",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 200000000,
+                    "output_microcents_per_million": 1000000000,
+                    "cached_input_microcents_per_million": 10000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 250000000
+                  },
+                  "brackets": [
+                    {
+                      "min_context_tokens": 272001,
+                      "rates": {
+                        "input_microcents_per_million": 400000000,
+                        "output_microcents_per_million": 1500000000,
+                        "cached_input_microcents_per_million": 20000000,
+                        "cache_creation_unknown_ttl_microcents_per_million": 500000000
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-10-26"
+          },
+          "derived": {
+            "price_tier": "low"
           }
         },
         {
