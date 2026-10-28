@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       vendor:
-        description: Vendor to reconcile (its models on every provider that sells them), or all. A real run also reruns each vendor with a change waiting in the PR.
+        description: Vendor to reconcile (its models on every provider that sells them), or all. Every other vendor with a change waiting in the PR replays it with no model.
         type: choice
         options: [all, anthropic, openai]
         default: all
@@ -106,6 +106,15 @@ jobs:
             echo "pr=$pr"
             .github/reconcile-models/plan.sh vbotbuildovich "$SELECTED" "$DRY_RUN" "$vendors" "$record" <<<"$commits"
           } >>"$GITHUB_OUTPUT"
+      # The record the plan trusted, for the vendors that replay.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        if: steps.plan.outputs.record == 'true'
+        with:
+          name: reconcile-plan-record
+          path: ${{ runner.temp }}/record/record.json
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: true
 
   # Each vendor's part of the run, in named-sources.json's order: gate, agent,
   # patch check and record, in reconcile-vendor.yml. Each works on the newest
@@ -120,6 +129,7 @@ jobs:
       actions: read
     with:
       vendor: anthropic
+      mode: ${{ contains(fromJSON(needs.plan.outputs.replay), 'anthropic') && 'replay' || 'agent' }}
       base_sha: ${{ github.sha }}
       dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
       force: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
@@ -136,6 +146,7 @@ jobs:
       actions: read
     with:
       vendor: openai
+      mode: ${{ contains(fromJSON(needs.plan.outputs.replay), 'openai') && 'replay' || 'agent' }}
       base_sha: ${{ needs.anthropic.outputs.head || github.sha }}
       dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
       force: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}

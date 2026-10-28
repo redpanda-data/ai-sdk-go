@@ -763,11 +763,19 @@ func (base Base) summary() string {
 // Vendor is one vendor's part of the PR: its report, and the catalogue
 // before and after its commit, for effect notes and "Changed with no row".
 // Failed is a vendor whose run failed, so the PR has nothing from it.
+// Replayed is set when the vendor's change was replayed from an earlier run.
 type Vendor struct {
 	Name          string
 	Report        Report
 	Before, After *reconcile.Snapshot
 	Failed        bool
+	Replayed      Replay
+}
+
+// Replay is the agent run a replayed vendor's change and report came from:
+// its run ID and its day. Both are empty when the agent ran in this run.
+type Replay struct {
+	Run, Date string
 }
 
 // vendorPart is one vendor ready to render: base with the vendor's own
@@ -868,6 +876,10 @@ func (part vendorPart) section() string {
 
 	base, report := part.base, part.shown
 	body.WriteString("## " + part.Name + "\n\n")
+
+	if part.Replayed.Run != "" {
+		fmt.Fprintf(&body, "> Replayed with no model: this is the change the agent made in run %s on %s, checked to be exactly the same on this base.\n\n", part.Replayed.Run, part.Replayed.Date)
+	}
 
 	switch {
 	case part.Failed:

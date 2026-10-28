@@ -119,6 +119,21 @@ func TestMainReadsEachVendorsFolder(t *testing.T) {
 			want: []string{"| `global.anthropic.claude-sonnet-5-5` | `au.anthropic.claude-sonnet-5-5` | +10% | Australia |"},
 		},
 		{
+			name: "a replayed vendor names the agent run its change came from",
+			args: []string{"-vendor", "anthropic=" + anthropic, "-vendor", "openai=" + openai, "-replayed", "anthropic=40504204648@2026-10-27T06:17:00Z"},
+			want: []string{"\n## anthropic\n\n> Replayed with no model: this is the change the agent made in run 40504204648 on 2026-10-27, checked to be exactly the same on this base.\n"},
+		},
+		{
+			name:    "a replay that isn't RUN@TIME",
+			args:    []string{"-vendor", "anthropic=" + anthropic, "-replayed", "anthropic=yesterday"},
+			wantErr: `-replayed "anthropic=yesterday" isn't NAME=RUN@TIME`,
+		},
+		{
+			name:    "a replay of a vendor with no folder",
+			args:    []string{"-vendor", "anthropic=" + anthropic, "-replayed", "openai=40504204648@2026-10-27T06:17:00Z"},
+			wantErr: `-replayed names "openai", which has no -vendor folder`,
+		},
+		{
 			name:    "a source on another vendor's host",
 			args:    []string{"-vendor", "anthropic=" + anthropic, "-vendor", "openai=" + borrowed},
 			wantErr: "openai: changes[0]: source not on a named-source host",

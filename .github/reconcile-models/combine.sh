@@ -50,6 +50,9 @@ for vendor in $(jq -r '.[]' <<<"$RUN"); do
   fi
 
   args+=(-vendor "$vendor=$dir")
+  if [[ "$(need "$vendor" .outputs.replayed)" == "true" ]]; then
+    args+=(-replayed "$vendor=$(need "$vendor" .outputs.agent_run)@$(need "$vendor" .outputs.agent_at)")
+  fi
 
   if [[ "$(need "$vendor" .outputs.changed)" == "true" ]]; then
     changed=true tip="$(need "$vendor" .outputs.head)" first="${first:-$dir}" last="$dir"

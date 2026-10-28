@@ -13,7 +13,8 @@
 # was asked for. Commits after the record's head are someone else's.
 # Reads GitHub's list of the PR's commits (pulls/N/commits) on stdin, [] when
 # there's no PR. Prints run (agent and replay, in order), agent, replay,
-# pending, carry, theirs and stop for $GITHUB_OUTPUT.
+# pending, carry, theirs, stop and record (whether the record counts) for
+# $GITHUB_OUTPUT.
 # Usage: plan.sh BOT SELECTED DRY_RUN VENDORS_JSON [RECORD]
 #   SELECTED is a vendor or "all"; VENDORS_JSON lists every vendor in order;
 #   RECORD is the record's file, if the plan job found one.
@@ -78,4 +79,5 @@ if [[ "$dry_run" == "false" && ( -n "$theirs" || "$carry" != "[]" ) ]]; then
   run="[]" agent="[]" replay="[]"
 fi
 
-printf 'run=%s\nagent=%s\nreplay=%s\npending=%s\ncarry=%s\ntheirs=%s\nstop=%s\n' "$run" "$agent" "$replay" "$pending" "$carry" "$theirs" "$stop"
+printf 'run=%s\nagent=%s\nreplay=%s\npending=%s\ncarry=%s\ntheirs=%s\nstop=%s\nrecord=%s\n' \
+  "$run" "$agent" "$replay" "$pending" "$carry" "$theirs" "$stop" "$([[ "$record" != "null" ]] && echo true || echo false)"
