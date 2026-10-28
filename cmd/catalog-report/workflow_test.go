@@ -987,6 +987,70 @@ func TestCarryKeepsOthersCommits(t *testing.T) {
 	}
 }
 
+// TestSamePatchesComparesChangeForChange runs same-patches.sh, which tells
+// the push step whether this run's commits are the PR's, change for change
+// (git patch-id: messages and line numbers aside), so a run that changes
+// nothing doesn't push and dismiss approvals.
+func TestSamePatchesComparesChangeForChange(t *testing.T) {
+	t.Parallel()
+
+	script, err := filepath.Abs(filepath.Join("..", "..", ".github", "reconcile-models", "same-patches.sh"))
+	require.NoError(t, err)
+
+	repo := t.TempDir()
+	commit := func(message, path, content string) string {
+		require.NoError(t, os.WriteFile(filepath.Join(repo, path), []byte(content), 0o600))
+		gitIn(t, repo, "add", ".")
+		gitIn(t, repo, "commit", "-q", "-m", message)
+
+		return gitIn(t, repo, "rev-parse", "HEAD")
+	}
+	const lines = "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n"
+
+	// The PR's commits on main, the same changes on a newer main, and a
+	// run with a new value.
+	gitIn(t, repo, "init", "-q")
+
+	base := commit("main", "a.txt", lines)
+	old := []string{commit("anthropic", "b.txt", "b\n"), commit("openai", "a.txt", strings.Replace(lines, "2", "two", 1))}
+
+	gitIn(t, repo, "checkout", "-q", "--detach", base)
+	commit("main moves on", "a.txt", strings.Replace(lines, "9", "nine", 1))
+
+	anthropic := commit("anthropic, another run", "b.txt", "b\n")
+	same := []string{anthropic, commit("openai, another run", "a.txt", strings.Replace(strings.Replace(lines, "9", "nine", 1), "2", "two", 1))}
+
+	gitIn(t, repo, "checkout", "-q", "--detach", anthropic)
+
+	changed := []string{anthropic, commit("openai, a new value", "a.txt", strings.Replace(strings.Replace(lines, "9", "nine", 1), "2", "TWO", 1))}
+	list := func(shas ...string) string { return `["` + strings.Join(shas, `","`) + `"]` }
+
+	tests := []struct {
+		name, now string
+		same      bool
+	}{
+		{name: "the same changes on a newer base", now: list(same...), same: true},
+		{name: "a changed value", now: list(changed...)},
+		{name: "one commit fewer", now: list(same[0])},
+		{name: "the same changes in another order", now: list(same[1], same[0])},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cmd := exec.CommandContext(t.Context(), "bash", script, list(old...), tt.now)
+			cmd.Dir = repo
+			out, err := cmd.CombinedOutput()
+
+			if tt.same {
+				require.NoError(t, err, string(out))
+			} else {
+				require.Error(t, err, string(out))
+			}
+		})
+	}
+}
+
 // TestPRJobRefusesPatchesOutsideTheCatalogue runs pr-job.sh on patches it
 // must refuse before any network step or patched code runs: the checks that
 // keep a hijacked agent's patch away from the bot token.
@@ -1338,6 +1402,20 @@ func TestRerunFindsThePRItOpened(t *testing.T) {
 	require.NotEqual(t, -1, lookup, "the push step must look the PR up when the plan found none")
 	assert.Less(t, lookup, strings.Index(run, "gh pr view"))
 	assert.Less(t, lookup, strings.Index(run, "gh pr create"))
+}
+
+// TestNoPushWhenPatchIDsMatch checks that the push step compares this run's
+// commits with the PR's before it sets a ready PR back to draft or pushes,
+// so a run that changes nothing keeps the PR's state and approvals.
+func TestNoPushWhenPatchIDsMatch(t *testing.T) {
+	t.Parallel()
+
+	steps := readJob(t, runWorkflow, "pr").Steps
+	run := steps[stepIndex(t, steps, "push", func(s workflowStep) bool { return strings.Contains(s.Run, "git push") })].Run
+	same := strings.Index(run, ".github/reconcile-models/same-patches.sh")
+	require.NotEqual(t, -1, same, "the push step must compare the patches")
+	assert.Less(t, same, strings.Index(run, "gh pr ready"))
+	assert.Less(t, same, strings.Index(run, "git push"))
 }
 
 // TestOthersCommitsRunsBeforeTheChain checks that the plan job looks for other

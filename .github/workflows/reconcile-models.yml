@@ -353,6 +353,12 @@ jobs:
             echo "::error::Open PRs from ${BRANCH} by someone other than vbotbuildovich: ${others}. The push would put new agent code in them; close them or open them from another branch, then re-run."
             exit 1
           fi
+          same_as_pr() {
+            local pr_commits
+            pr_commits="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR}/commits?per_page=100" --jq '[.[].sha]')"
+            git fetch -q --no-tags --depth="$(( $(jq length <<<"$pr_commits") + 1 ))" origin "$H0"
+            .github/reconcile-models/same-patches.sh "$pr_commits" "$(git rev-list --reverse "${GITHUB_SHA}..HEAD" | jq -R . | jq -sc .)"
+          }
           # The plan's PR is from before this run; a re-run of this job after its
           # first attempt opened the PR finds it here, and edits it.
           PR="${PR:-$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number,author,isCrossRepository \
@@ -369,6 +375,10 @@ jobs:
             elif [[ "$head" != "$H0" ]]; then
               echo "::error::Someone pushed to #${PR} during the run (${head}); the next run sees it."
               exit 1
+            elif same_as_pr; then
+              # Pushing the same changes again would dismiss approvals for nothing.
+              push=false
+              echo "::notice::This run's commits make the same changes as #${PR}'s, so it updates only the body."
             elif [[ "$draft" == "false" ]]; then
               # A PR a person marked ready goes back to draft before the push, so
               # new agent code runs only test.yaml's no-secrets job until reviewed again.
