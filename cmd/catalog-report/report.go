@@ -215,7 +215,7 @@ func (base Base) ValidateAdded(report Report, provider string) []string {
 			continue
 		}
 
-		pkg, id := packageOf(change.Offering, provider)
+		pkg, id := reconcile.PackageOf(change.Offering, provider)
 
 		offering, found := base.After.Offering(pkg, id)
 		if !found {
@@ -627,7 +627,7 @@ func (base Base) hold(report Report, provider string) (Report, []string) {
 // them alike, each group sorted by package and model.
 func (base Base) byRule(changes []Change, provider string) ([]string, map[string][]Change) {
 	key := func(change Change) string {
-		pkg, id := packageOf(change.Offering, provider)
+		pkg, id := reconcile.PackageOf(change.Offering, provider)
 
 		var offering map[string]any
 		if base.After != nil {

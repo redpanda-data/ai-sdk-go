@@ -372,7 +372,7 @@ func TestPRJobRunsBaseCodeOnlyInTheSandbox(t *testing.T) {
 func TestPRJobToolsImportNoPatchableCode(t *testing.T) {
 	t.Parallel()
 
-	cmd := exec.CommandContext(t.Context(), "go", "list", "-deps", "./cmd/catalog-report", "./cmd/catalog-guard")
+	cmd := exec.CommandContext(t.Context(), "go", "list", "-deps", "./cmd/catalog-report", "./cmd/catalog-guard", "./cmd/catalog-replay")
 	cmd.Dir = filepath.Join("..", "..")
 	out, err := cmd.Output()
 	require.NoError(t, err)
@@ -382,7 +382,7 @@ func TestPRJobToolsImportNoPatchableCode(t *testing.T) {
 	for pkg := range strings.Lines(string(out)) {
 		pkg = strings.TrimSpace(pkg)
 		assert.False(t, pkg == module+"catalog" || strings.HasPrefix(pkg, module+"catalog/") || strings.HasPrefix(pkg, module+"providers/"),
-			"a tool pr-job.sh runs outside the sandbox imports %s", pkg)
+			"a reconcile tool that runs outside the sandbox imports %s", pkg)
 	}
 }
 

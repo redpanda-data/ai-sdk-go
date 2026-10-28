@@ -44,7 +44,7 @@ var rateNames = []struct{ key, name string }{
 // when there is nothing to add. The patched catalogue comes from code the
 // agent wrote, so every string read from it passes safeValue (see safeText).
 func (base Base) effect(change Change, provider string) string {
-	pkg, id := packageOf(change.Offering, provider)
+	pkg, id := reconcile.PackageOf(change.Offering, provider)
 	before, _ := base.Before.Offering(pkg, id)
 	after, found := base.After.Offering(pkg, id)
 
@@ -85,7 +85,7 @@ func (base Base) unreported(report Report, provider string) []string {
 
 	named, models := map[[2]string]bool{}, map[string]bool{}
 	name := func(offering string) {
-		pkg, id := packageOf(offering, provider)
+		pkg, id := reconcile.PackageOf(offering, provider)
 		named[[2]string{pkg, id}] = true
 
 		for _, snapshot := range []*reconcile.Snapshot{base.Before, base.After} {
@@ -107,13 +107,6 @@ func (base Base) unreported(report Report, provider string) []string {
 		name(row.Offering)
 	}
 
-	own := func(o map[string]any) map[string]any {
-		o = maps.Clone(o)
-		delete(o, "derived")
-
-		return o
-	}
-
 	var names []string
 
 	unprintable := 0
@@ -133,7 +126,7 @@ func (base Base) unreported(report Report, provider string) []string {
 			after, _ := base.After.Offering(pkg, id)
 
 			switch {
-			case named[[2]string{pkg, id}] || reflect.DeepEqual(own(before), own(after)):
+			case named[[2]string{pkg, id}] || reflect.DeepEqual(reconcile.WithoutDerived(before), reconcile.WithoutDerived(after)):
 			case safeText(id) == "":
 				unprintable++
 			default:
@@ -167,17 +160,6 @@ func (base Base) unreported(report Report, provider string) []string {
 	}
 
 	return names
-}
-
-// packageOf names a report offering's package and ID: <package>:<id>, or an
-// ID in the run's own package (RULES.md, Report values). Bedrock IDs contain ":", so only
-// a known package counts as a prefix.
-func packageOf(offering, provider string) (string, string) {
-	if pkg, id, found := strings.Cut(offering, ":"); found && reconcile.PackageProviders[pkg] != "" {
-		return pkg, id
-	}
-
-	return provider, offering
 }
 
 // priceNote names each base rate that changed, old → new in dollars per
