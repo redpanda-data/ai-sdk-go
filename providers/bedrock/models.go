@@ -658,16 +658,18 @@ var (
 	// capped at the model's documented 922K maximum input, which reserves
 	// 128K of the window for output. 272K is only the long-context pricing
 	// boundary. SupportedParams contains only options the mantle adapter serializes.
+	// Like GPT-6.1 Terra's, the GPT-5.6 cards list JSON Schema structured
+	// outputs only on bedrock-runtime, so the mantle copies advertise neither
+	// JSON mode nor structured output (cards read 2026-10-28):
+	// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-sol.html
 	gpt56Caps = llm.ModelCapabilities{
-		Streaming:        true,
-		Tools:            true,
-		JSONMode:         true,
-		StructuredOutput: true,
-		Vision:           true,
-		Audio:            false,
-		MultiTurn:        true,
-		SystemPrompts:    true,
-		Reasoning:        true,
+		Streaming:     true,
+		Tools:         true,
+		Vision:        true,
+		Audio:         false,
+		MultiTurn:     true,
+		SystemPrompts: true,
+		Reasoning:     true,
 	}
 
 	gpt56Modalities = catalog.Modalities{
@@ -724,6 +726,22 @@ var (
 		MaxOutputTokens: 128000,
 		SupportedParams: []string{"max_tokens", "reasoning_effort"},
 	}
+
+	// GPT-6.1 Sol's card lists 131,072 max output tokens, more than Astra's
+	// 128,000; otherwise its limits match Astra's on both endpoints.
+	// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-1-sol.html (read 2026-10-28)
+	gpt61SolConstraints = func() llm.ModelConstraints {
+		c := gpt6AstraConstraints
+		c.MaxOutputTokens = 131072
+
+		return c
+	}()
+	gpt61SolMantleConstraints = func() llm.ModelConstraints {
+		c := gpt6AstraMantleConstraints
+		c.MaxOutputTokens = 131072
+
+		return c
+	}()
 
 	// GPT-6.1 Terra on bedrock-mantle. Unlike the other GPT-6 cards, Terra's
 	// lists structured outputs only on bedrock-runtime, so the mantle copy
@@ -803,6 +821,11 @@ var converseReasoningNoControls = catalog.ReasoningSupport{}
 // gpt56Reasoning: the Bedrock-hosted GPT-5.6 models expose reasoning but
 // no effort control through the mantle adapter today.
 var gpt56Reasoning = catalog.ReasoningSupport{}
+
+// gpt56MantleLife is the GPT-5.6 mantle copies' launch day, the "Model
+// launch date" on each model-card-openai-gpt-56-{sol,terra,luna} card
+// (read 2026-10-28).
+var gpt56MantleLife = catalog.Lifecycle{Available: catalog.MustDate("2026-07-13")}
 
 // ProviderName is the catalog key Provider.Name() returns; see pricing.ProviderKey.
 const ProviderName = "aws.bedrock"
@@ -1290,6 +1313,8 @@ var bedrockFamilies = []family{
 		Reasoning: catalog.ReasoningSupport{
 			Efforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 		},
+		// Launch date per the card (read 2026-10-28).
+		Life: catalog.Lifecycle{Available: catalog.MustDate("2026-09-08")},
 		Rates: pricing.RateCard{
 			Base: pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(0, 0, 13.75),
 			Brackets: []pricing.Bracket{{
@@ -1371,10 +1396,9 @@ var bedrockFamilies = []family{
 		// cache points remain unsupported. Ultrafast cards also price Responses
 		// usage of these IDs; this SDK still invokes profiles via Converse.
 		// Unprobed: the card documents Astra's Converse surface, so the family
-		// reuses Astra's capability flags and conservative limits. Unlike Astra,
-		// the current card explicitly supports streaming schemas (2026-10-16).
-		// Its 131,072 max output tokens exceeds OpenAI's documented 128,000,
-		// so the lower limit stands until probed.
+		// reuses Astra's capability flags. Unlike Astra, the current card
+		// explicitly supports streaming schemas (2026-10-16), and it lists
+		// 131,072 max output tokens (read 2026-10-28).
 		BareID:      ModelGPT61Sol,
 		WireAPIs:    openAIRuntimeWireAPIs,
 		Model:       catalog.ModelGPT6_1Sol,
@@ -1384,7 +1408,7 @@ var bedrockFamilies = []family{
 		NoCachePoints: true,
 		Capabilities:  gpt6AstraCaps,
 		Modalities:    gpt56Modalities,
-		Constraints:   gpt6AstraConstraints,
+		Constraints:   gpt61SolConstraints,
 		Reasoning:     converseReasoningNoControls,
 		GlobalRates: &pricing.RateCard{
 			Base: pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(0, 0, 2.50),
@@ -1417,7 +1441,9 @@ var bedrockFamilies = []family{
 		MantleRegions: []string{"us-east-1"},
 		Capabilities:  gpt6AstraMantleCaps,
 		Modalities:    gpt56Modalities,
-		Constraints:   gpt6AstraMantleConstraints,
+		Constraints:   gpt61SolMantleConstraints,
+		// Launch date per the card (read 2026-10-28).
+		Life: catalog.Lifecycle{Available: catalog.MustDate("2026-09-29")},
 		Reasoning: catalog.ReasoningSupport{
 			Efforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 		},
@@ -1557,6 +1583,8 @@ var bedrockFamilies = []family{
 		Reasoning: catalog.ReasoningSupport{
 			Efforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 		},
+		// Launch date per the card (read 2026-10-28).
+		Life: catalog.Lifecycle{Available: catalog.MustDate("2026-09-22")},
 		Rates: pricing.RateCard{
 			Base: pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(0, 0, 2.75),
 			Brackets: []pricing.Bracket{{
@@ -1584,6 +1612,7 @@ var bedrockFamilies = []family{
 		Modalities:    gpt56Modalities,
 		Constraints:   gpt56Constraints,
 		Reasoning:     gpt56Reasoning,
+		Life:          gpt56MantleLife,
 		Rates: pricing.RateCard{
 			Base: pricing.NewRates(4.40, 22.00, 0.44).WithCacheCreation(0, 0, 5.50),
 			Brackets: []pricing.Bracket{{
@@ -1603,6 +1632,7 @@ var bedrockFamilies = []family{
 		Modalities:    gpt56Modalities,
 		Constraints:   gpt56Constraints,
 		Reasoning:     gpt56Reasoning,
+		Life:          gpt56MantleLife,
 		Rates: pricing.RateCard{
 			Base: pricing.NewRates(2.20, 13.20, 0.22).WithCacheCreation(0, 0, 2.75),
 			Brackets: []pricing.Bracket{{
@@ -1622,6 +1652,7 @@ var bedrockFamilies = []family{
 		Modalities:    gpt56Modalities,
 		Constraints:   gpt56Constraints,
 		Reasoning:     gpt56Reasoning,
+		Life:          gpt56MantleLife,
 		Rates: pricing.RateCard{
 			Base: pricing.NewRates(0.22, 1.32, 0.022).WithCacheCreation(0, 0, 0.275),
 			Brackets: []pricing.Bracket{{

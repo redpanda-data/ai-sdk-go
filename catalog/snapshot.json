@@ -5294,7 +5294,7 @@
           },
           "constraints": {
             "max_input_tokens": 922000,
-            "max_output_tokens": 128000,
+            "max_output_tokens": 131072,
             "supported_params": [
               "max_tokens"
             ]
@@ -6460,11 +6460,11 @@
           ],
           "capabilities": {
             "audio": false,
-            "json_mode": true,
+            "json_mode": false,
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": true,
+            "structured_output": false,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -6514,7 +6514,8 @@
             }
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "available": "2026-07-13"
           },
           "derived": {
             "price_tier": "low",
@@ -6537,11 +6538,11 @@
           ],
           "capabilities": {
             "audio": false,
-            "json_mode": true,
+            "json_mode": false,
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": true,
+            "structured_output": false,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -6591,7 +6592,8 @@
             }
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "available": "2026-07-13"
           },
           "derived": {
             "price_tier": "medium",
@@ -6614,11 +6616,11 @@
           ],
           "capabilities": {
             "audio": false,
-            "json_mode": true,
+            "json_mode": false,
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": true,
+            "structured_output": false,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -6668,7 +6670,8 @@
             }
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "available": "2026-07-13"
           },
           "derived": {
             "price_tier": "medium",
@@ -6773,7 +6776,8 @@
             ]
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "available": "2026-09-08"
           },
           "derived": {
             "price_tier": "high"
@@ -6942,7 +6946,8 @@
             }
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "available": "2026-09-22"
           },
           "attributes": [
             {
@@ -6983,7 +6988,7 @@
           },
           "constraints": {
             "max_input_tokens": 922000,
-            "max_output_tokens": 128000,
+            "max_output_tokens": 131072,
             "supported_params": [
               "max_tokens",
               "reasoning_effort"
@@ -7053,7 +7058,8 @@
             ]
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "available": "2026-09-29"
           },
           "derived": {
             "price_tier": "medium"
@@ -8698,7 +8704,7 @@
           },
           "constraints": {
             "max_input_tokens": 922000,
-            "max_output_tokens": 128000,
+            "max_output_tokens": 131072,
             "supported_params": [
               "max_tokens"
             ]
@@ -13569,7 +13575,7 @@
             "vision": true
           },
           "constraints": {
-            "max_input_tokens": 272000,
+            "max_input_tokens": 400000,
             "max_output_tokens": 128000,
             "supported_params": [
               "temperature",
@@ -14258,7 +14264,7 @@
           "pricing": {
             "default": {
               "base": {
-                "input_microcents_per_million": 78000000,
+                "input_microcents_per_million": 75000000,
                 "output_microcents_per_million": 450000000,
                 "cached_input_microcents_per_million": 7500000
               }
