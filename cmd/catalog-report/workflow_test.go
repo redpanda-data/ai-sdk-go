@@ -337,12 +337,19 @@ func TestStopDockerFailsWhileDockerAnswers(t *testing.T) {
 func TestPRJobSandboxHidesDocker(t *testing.T) {
 	t.Parallel()
 
-	raw, err := os.ReadFile(filepath.Join("..", "..", ".github", "reconcile-models", "pr-job.sh"))
+	raw, err := os.ReadFile(filepath.Join("..", "..", ".github", "reconcile-models", "sandbox.sh"))
 	require.NoError(t, err)
 
 	script := string(raw)
 	assert.Contains(t, script, "--ro-bind / / --tmpfs /run", "the bwrap sandbox must hide /run")
 	assert.Contains(t, script, "--unix-socket /var/run/docker.sock", "the sandbox self-check must try Docker's socket")
+
+	for _, user := range []string{"pr-job.sh", "carry.sh"} {
+		raw, err := os.ReadFile(filepath.Join("..", "..", ".github", "reconcile-models", user))
+		require.NoError(t, err)
+		assert.Contains(t, string(raw), `$(dirname "$0")/sandbox.sh`, "%s must use the shared sandbox", user)
+		assert.Contains(t, string(raw), "sandbox_check", "%s must check the sandbox first", user)
+	}
 }
 
 // TestPRJobRunsBaseCodeOnlyInTheSandbox checks that every `go run` in
@@ -485,6 +492,22 @@ func TestCombineBuildsThePRFromTheVendors(t *testing.T) {
 	anthropic := vendor("anthropic", "claude-opus-5-5", "platform.claude.com", catalogue(), catalogue("gpt-6-1"))
 	openai := vendor("openai", "gpt-6-1", "developers.openai.com", catalogue("gpt-6-1"), catalogue("gpt-6-1", "gpt-6-2"))
 
+	// A person's commit, carried onto the vendors' commits by the carry job.
+	write(filepath.Join(work, "providers", "openai", "openaitest", "constants.go"), "package openaitest\n")
+	gitIn(t, work, "add", ".")
+	gitIn(t, work, "commit", "-q", "-m", "test: swap the live test model")
+	carried := gitIn(t, work, "rev-parse", "HEAD")
+	require.NoError(t, os.MkdirAll(filepath.Join(bundles, "reconcile-bundle-"+carried), 0o700))
+	gitIn(t, work, "bundle", "create", "-q", filepath.Join(bundles, "reconcile-bundle-"+carried, "reconcile.bundle"), "HEAD", "^"+base)
+	// The same, in a run where no vendor changed anything.
+	gitIn(t, work, "checkout", "-q", "--detach", base)
+	write(filepath.Join(work, "providers", "openai", "openaitest", "constants.go"), "package openaitest\n")
+	gitIn(t, work, "add", ".")
+	gitIn(t, work, "commit", "-q", "-m", "test: swap the live test model")
+	carriedAlone := gitIn(t, work, "rev-parse", "HEAD")
+	require.NoError(t, os.MkdirAll(filepath.Join(bundles, "reconcile-bundle-"+carriedAlone), 0o700))
+	gitIn(t, work, "bundle", "create", "-q", filepath.Join(bundles, "reconcile-bundle-"+carriedAlone, "reconcile.bundle"), "HEAD", "^"+base)
+
 	part := func(result, head, changed string) string {
 		return `{"result": "` + result + `", "outputs": {"head": "` + head + `", "changed": "` + changed + `", "agent_run": "4100", "agent_at": "2026-10-28T07:00:00Z"}}`
 	}
@@ -492,9 +515,11 @@ func TestCombineBuildsThePRFromTheVendors(t *testing.T) {
 
 	tests := []struct {
 		name, legs, anthropic, openai, pending, wantErr string
-		want                                            map[string]string
-		body                                            []string
-		files                                           string
+		// carry is what the carry job had to carry, and its outputs.
+		carry []string
+		want  map[string]string
+		body  []string
+		files string
 		// record is each vendor's commit, its parent and its agent run in
 		// the record.
 		record map[string][3]string
@@ -512,6 +537,25 @@ func TestCombineBuildsThePRFromTheVendors(t *testing.T) {
 			body:   []string{"\n## openai\n\nThis vendor's run failed"},
 			files:  "catalog/snapshot.json\nproviders/anthropic/models.go\n",
 			record: map[string][3]string{"anthropic": {anthropic, base, "4100"}},
+		},
+		{
+			name: "commits carried onto the vendors'", legs: legs, anthropic: part("success", anthropic, "true"), openai: part("success", openai, "true"), pending: "[]",
+			carry:  []string{`["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]`, carried, `["` + carried + `"]`},
+			want:   map[string]string{"tip": carried, "changed": "true"},
+			files:  "catalog/snapshot.json\nproviders/anthropic/models.go\nproviders/openai/models.go\nproviders/openai/openaitest/constants.go\n",
+			record: map[string][3]string{"anthropic": {anthropic, base, "4100"}, "openai": {openai, anthropic, "4100"}},
+		},
+		{
+			name: "only carried commits", legs: quiet, anthropic: part("success", base, "false"), openai: part("success", base, "false"), pending: "[]",
+			carry:  []string{`["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]`, carriedAlone, `["` + carriedAlone + `"]`},
+			want:   map[string]string{"tip": carriedAlone, "changed": "true"},
+			files:  "providers/openai/openaitest/constants.go\n",
+			record: map[string][3]string{},
+		},
+		{
+			name: "commits to carry and no carried tip", legs: legs, anthropic: part("success", anthropic, "true"), openai: part("success", openai, "true"), pending: "[]",
+			carry:   []string{`["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]`, "", ""},
+			wantErr: "the carry job left no commits",
 		},
 		{
 			name: "a replayed vendor", legs: legs, anthropic: part("success", anthropic, "true"),
@@ -551,7 +595,9 @@ func TestCombineBuildsThePRFromTheVendors(t *testing.T) {
 			cmd := exec.CommandContext(t.Context(), "bash", script, report, tt.legs, bundles, out)
 			cmd.Dir = checkout
 
+			carry := append(tt.carry, "[]", "", "")[:3]
 			cmd.Env = append(os.Environ(), "GITHUB_OUTPUT="+outputs, "GITHUB_SHA="+base, `RUN=["anthropic","openai"]`, "PENDING="+tt.pending,
+				"CARRY="+carry[0], "CARRY_TIP="+carry[1], "CARRIED="+carry[2],
 				`NEEDS={"plan": {"result": "success"}, "anthropic": `+tt.anthropic+`, "openai": `+tt.openai+`}`)
 			combined, err := cmd.CombinedOutput()
 
@@ -596,7 +642,8 @@ func TestCombineBuildsThePRFromTheVendors(t *testing.T) {
 			require.NoError(t, err)
 
 			var record struct {
-				Head    string `json:"head"`
+				Head    string   `json:"head"`
+				Carried []string `json:"carried"`
 				Vendors map[string]struct {
 					Commit   string `json:"commit"`
 					Parent   string `json:"parent"`
@@ -607,6 +654,15 @@ func TestCombineBuildsThePRFromTheVendors(t *testing.T) {
 			}
 			require.NoError(t, json.Unmarshal(raw, &record))
 			assert.Equal(t, got["tip"], record.Head)
+
+			if len(tt.carry) > 0 {
+				var want []string
+				require.NoError(t, json.Unmarshal([]byte(tt.carry[2]), &want))
+				assert.Equal(t, want, record.Carried, "the record names what it carried")
+			} else {
+				assert.Empty(t, record.Carried)
+			}
+
 			assert.ElementsMatch(t, slices.Collect(maps.Keys(tt.record)), slices.Collect(maps.Keys(record.Vendors)))
 
 			for name, want := range tt.record {
@@ -806,6 +862,131 @@ printf ']}]}\n'
 	}
 }
 
+// TestCarryKeepsOthersCommits runs carry.sh, which carries the commits other
+// people pushed onto the bot PR onto this run's tip, in order and with their
+// authors, with no model and no agent fallback. It refuses merge commits,
+// commits that change .github/, and any commit that isn't carried exactly,
+// and then the run pushes nothing.
+func TestCarryKeepsOthersCommits(t *testing.T) {
+	t.Parallel()
+
+	script, err := filepath.Abs(filepath.Join("..", "..", ".github", "reconcile-models", "carry.sh"))
+	require.NoError(t, err)
+
+	replayBin := filepath.Join(t.TempDir(), "catalog-replay")
+	build := exec.CommandContext(t.Context(), "go", "build", "-o", replayBin, "../catalog-replay")
+	out, err := build.CombinedOutput()
+	require.NoError(t, err, string(out))
+
+	// The real sandbox needs bubblewrap; this one only runs the command.
+	stubSandbox := filepath.Join(t.TempDir(), "sandbox.sh")
+	require.NoError(t, os.WriteFile(stubSandbox, []byte("sandbox() { \"$@\"; }\nsandbox_check() { :; }\n"), 0o600))
+
+	write := func(dir, path, content string) {
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, filepath.Dir(path)), 0o700))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, path), []byte(content), 0o600))
+	}
+	// commit writes the files as the given author and commits them.
+	commit := func(dir, author, message string, files map[string]string) string {
+		for path, content := range files {
+			write(dir, path, content)
+		}
+
+		gitIn(t, dir, "add", ".")
+		gitIn(t, dir, "-c", "user.name="+author, "-c", "user.email="+author+"@example.com", "commit", "-q", "-m", message)
+
+		return gitIn(t, dir, "rev-parse", "HEAD")
+	}
+	const notes = "one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\n"
+
+	// origin: main, the bot's commit, and the commits people pushed on top.
+	origin := t.TempDir()
+	gitIn(t, origin, "init", "-q")
+	main := commit(origin, "main", "main", map[string]string{"catalog/snapshot.json": "{\"facts\": {}, \"providers\": []}\n", "notes.txt": notes})
+	commit(origin, "vbotbuildovich", "chore(catalog): reconcile anthropic models", map[string]string{"bot.txt": "bot\n"})
+	first := commit(origin, "adam", "test: swap the live test model", map[string]string{"providers/anthropic/anthropictest/constants.go": "package anthropictest\n"})
+	second := commit(origin, "adam", "docs: note two", map[string]string{"notes.txt": strings.Replace(notes, "two", "TWO", 1)})
+	gitIn(t, origin, "branch", "pr")
+	workflow := commit(origin, "adam", "ci: tweak", map[string]string{".github/workflows/x.yml": "on: push\n"})
+	gitIn(t, origin, "branch", "workflow")
+	gitIn(t, origin, "reset", "-q", "--hard", main)
+	gitIn(t, origin, "checkout", "-q", "-b", "side")
+	commit(origin, "adam", "side", map[string]string{"side.txt": "side\n"})
+	gitIn(t, origin, "checkout", "-q", "pr")
+	gitIn(t, origin, "-c", "user.name=adam", "-c", "user.email=adam@example.com", "merge", "-q", "--no-edit", "side")
+	merge := gitIn(t, origin, "rev-parse", "HEAD")
+	gitIn(t, origin, "branch", "merged")
+	gitIn(t, origin, "reset", "-q", "--hard", second)
+	gitIn(t, origin, "checkout", "-q", "--detach", main)
+
+	// This run's tip: main moved on (line eight, outside the context of
+	// their line two), and the bot's change again.
+	gitIn(t, origin, "checkout", "-q", "-b", "run")
+	commit(origin, "main", "main moves on", map[string]string{"notes.txt": strings.Replace(notes, "eight", "EIGHT", 1)})
+	tip := commit(origin, "vbotbuildovich", "chore(catalog): reconcile anthropic models", map[string]string{"bot.txt": "bot\n"})
+	gitIn(t, origin, "checkout", "-q", "-b", "close", main)
+	commit(origin, "main", "main changes line four", map[string]string{"notes.txt": strings.Replace(notes, "four", "FOUR", 1)})
+	closeTip := commit(origin, "vbotbuildovich", "chore(catalog): reconcile anthropic models", map[string]string{"bot.txt": "bot\n"})
+	gitIn(t, origin, "checkout", "-q", "--detach", main)
+
+	tests := []struct {
+		name, tip, wantErr string
+		carry              []string
+	}{
+		{name: "two commits, in order", tip: tip, carry: []string{first, second}},
+		{name: "a commit that changes .github/", tip: tip, carry: []string{first, workflow}, wantErr: workflow[:7] + " changes .github/"},
+		{name: "a merge commit", tip: tip, carry: []string{first, second, merge}, wantErr: merge[:7] + " is a merge commit"},
+		{
+			// Line four is close to their line two: it merges, but the
+			// change's context differs, so it isn't the same change.
+			name: "a commit that isn't carried exactly", tip: closeTip, carry: []string{first, second},
+			wantErr: second[:7] + " isn't carried exactly",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			checkout, outputs := t.TempDir(), filepath.Join(t.TempDir(), "outputs")
+			gitIn(t, checkout, "clone", "-q", "file://"+origin, ".")
+			gitIn(t, checkout, "checkout", "-q", "--detach", tt.tip)
+
+			cmd := exec.CommandContext(t.Context(), "bash", append([]string{script, replayBin}, tt.carry...)...) //nolint:gosec // the test's own commits
+			cmd.Dir = checkout
+
+			cmd.Env = append(os.Environ(), "GITHUB_OUTPUT="+outputs, "SANDBOX_SH="+stubSandbox, "CARRY_SNAPSHOT=true", "CARRY_CHECK=true",
+				"GIT_COMMITTER_NAME=vbotbuildovich", "GIT_COMMITTER_EMAIL=bot@example.com")
+			combined, err := cmd.CombinedOutput()
+
+			raw, readErr := os.ReadFile(outputs)
+
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, string(combined), tt.wantErr)
+				require.NoError(t, readErr)
+				assert.Contains(t, parseOutputs(string(raw))["refused"], tt.wantErr, "the reason goes to the PR's note")
+
+				return
+			}
+
+			require.NoError(t, err, string(combined))
+			require.NoError(t, readErr)
+
+			got := parseOutputs(string(raw))
+			assert.Equal(t, gitIn(t, checkout, "rev-parse", "HEAD"), got["tip"])
+
+			// Their commits on top of the tip, in order, with their authors and messages.
+			assert.Equal(t, "adam test: swap the live test model\nadam docs: note two", gitIn(t, checkout, "log", "--reverse", "--format=%an %s", tt.tip+"..HEAD"))
+			assert.Contains(t, gitIn(t, checkout, "show", "HEAD:notes.txt"), "TWO\nthree")
+			assert.Contains(t, gitIn(t, checkout, "show", "HEAD:notes.txt"), "EIGHT")
+
+			var carried []string
+			require.NoError(t, json.Unmarshal([]byte(got["carried"]), &carried))
+			assert.Equal(t, strings.Split(gitIn(t, checkout, "rev-list", "--reverse", tt.tip+"..HEAD"), "\n"), carried)
+		})
+	}
+}
+
 // TestPRJobRefusesPatchesOutsideTheCatalogue runs pr-job.sh on patches it
 // must refuse before any network step or patched code runs: the checks that
 // keep a hijacked agent's patch away from the bot token.
@@ -900,6 +1081,14 @@ func TestPlanPicksTheVendors(t *testing.T) {
 	undated := filepath.Join(t.TempDir(), "record.json")
 	require.NoError(t, os.WriteFile(undated, []byte(`{"head": "`+openai+`", "vendors": {
 		"anthropic": {"commit": "`+anthropic+`", "agent_at": "2026-10-27T06:17:00Z"}, "openai": {"commit": "`+openai+`"}}}`), 0o600))
+	// A person's commit the last run carried, then one pushed since, and a merge.
+	const carriedSHA, laterSHA = "c1c2c3c4c5c6c7c8c9c0c1c2c3c4c5c6c7c8c9c0", "e1e2e3e4e5e6e7e8e9e0e1e2e3e4e5e6e7e8e9e0"
+	carried := `{"sha": "` + carriedSHA + `", "parents": [{"sha": "` + openai + `"}], "author": {"login": "adamwownysz-redpanda"}, "committer": {"login": "vbotbuildovich"}, "commit": {"message": "test: swap"}}`
+	later := `{"sha": "` + laterSHA + `", "parents": [{"sha": "` + carriedSHA + `"}], "author": {"login": "adamwownysz-redpanda"}, "committer": {"login": "web-flow"}, "commit": {"message": "fix: a typo"}}`
+	merge := `{"sha": "d4e5f60718293a4b5c6d7e8f900112233445566a", "parents": [{"sha": "` + openai + `"}, {"sha": "9f8e7d6c5b4a39281706f5e4d3c2b1a098765432"}], "author": {"login": "adamwownysz-redpanda"}, "committer": {"login": "web-flow"}, "commit": {"message": "Merge branch 'main' into bot/reconcile-models/all"}}`
+	carriedRecord := filepath.Join(t.TempDir(), "record.json")
+	require.NoError(t, os.WriteFile(carriedRecord, []byte(`{"head": "`+carriedSHA+`", "carried": ["`+carriedSHA+`"], "vendors": {
+		"anthropic": {"commit": "`+anthropic+`", "agent_at": "2026-10-27T06:17:00Z"}, "openai": {"commit": "`+openai+`", "agent_at": "2026-10-27T06:17:00Z"}}}`), 0o600))
 	stranger := filepath.Join(t.TempDir(), "record.json")
 	require.NoError(t, os.WriteFile(stranger, []byte(`{"head": "c0ffee0000000000000000000000000000000000", "vendors": {}}`), 0o600))
 
@@ -933,10 +1122,18 @@ func TestPlanPicksTheVendors(t *testing.T) {
 			want: map[string]string{"run": `["anthropic","openai","google"]`, "agent": `["anthropic","openai","google"]`, "replay": "[]"},
 		},
 		{
-			// Until the carry job runs, a commit after the record's head
-			// stops a real run, as without a record.
+			// With a record, a person's commit after its head is carried.
 			name: "a person's commit after the record's head", selected: "google", dryRun: "false", commits: "[" + bot(anthropic, "anthropic") + "," + bot(openai, "openai") + "," + person + "]", record: record, now: now,
-			want: map[string]string{"run": "[]", "stop": "true", "theirs": "b2c3d4e", "carry": `["b2c3d4e5f60718293a4b5c6d7e8f900112233445"]`},
+			want: map[string]string{"run": `["anthropic","openai","google"]`, "replay": `["anthropic","openai"]`, "stop": "false", "theirs": "b2c3d4e", "carry": `["b2c3d4e5f60718293a4b5c6d7e8f900112233445"]`},
+		},
+		{
+			// A commit the last run carried is carried again, before newer ones.
+			name: "commits the last run carried", selected: "google", dryRun: "false", commits: "[" + bot(anthropic, "anthropic") + "," + bot(openai, "openai") + "," + carried + "," + later + "]", record: carriedRecord, now: now,
+			want: map[string]string{"stop": "false", "replay": `["anthropic","openai"]`, "carry": `["` + carriedSHA + `","` + laterSHA + `"]`},
+		},
+		{
+			name: "a merge commit stops a real run before any agent", selected: "google", dryRun: "false", commits: "[" + bot(anthropic, "anthropic") + "," + bot(openai, "openai") + "," + merge + "]", record: record, now: now,
+			want: map[string]string{"run": "[]", "stop": "true", "reason": "d4e5f60 is a merge commit, which is never carried: main reaches the PR when the run rebuilds it"},
 		},
 		{
 			name: "a vendor the record gives no agent time runs its agent", selected: "google", dryRun: "false", commits: waiting, record: undated, now: now,
@@ -962,7 +1159,7 @@ func TestPlanPicksTheVendors(t *testing.T) {
 		},
 		{
 			name: "someone else's commit stops a real run before any agent", selected: "all", dryRun: "false", commits: "[" + bot("a1b2c3d4e5f60718293a4b5c6d7e8f9001122334", "anthropic") + "," + person + "]",
-			want: map[string]string{"run": "[]", "stop": "true", "theirs": "b2c3d4e"},
+			want: map[string]string{"run": "[]", "stop": "true", "theirs": "b2c3d4e", "reason": "the update would remove commits that aren't the bot's (b2c3d4e), and no record of the last push says which commits are"},
 		},
 		{
 			name: "a dry run goes on past someone else's commit", selected: "all", dryRun: "true", commits: "[" + person + "]",
@@ -1073,7 +1270,7 @@ func TestChainPassesTheBaseBySHA(t *testing.T) {
 		}
 	}
 
-	assert.Equal(t, append([]string{"plan"}, order...), needsOf(jobs["pr"]), "the pr job waits for every vendor")
+	assert.Equal(t, append(append([]string{"plan"}, order...), "carry"), needsOf(jobs["pr"]), "the pr job waits for every vendor and the carry job")
 	assert.Contains(t, jobs["pr"].If, "!cancelled()", "the pr job runs after a vendor fails, to push the others")
 }
 
@@ -1436,6 +1633,39 @@ func TestLegsGetTheirMode(t *testing.T) {
 	for name, job := range legs(t) {
 		assert.Equal(t, "${{ contains(fromJSON(needs.plan.outputs.replay), '"+name+"') && 'replay' || 'agent' }}", job.With["mode"], "%s's mode", name)
 	}
+}
+
+// TestCarryRunsAfterTheVendors checks the carry job: it runs carry.sh after
+// every vendor's part, only when the plan has commits to carry, with read
+// access alone, and the pr job waits for it.
+func TestCarryRunsAfterTheVendors(t *testing.T) {
+	t.Parallel()
+
+	jobs := readWorkflow(t, runWorkflow).Jobs
+	carry := jobs["carry"]
+	assert.Equal(t, append([]string{"plan"}, vendorOrder(t)...), needsOf(carry))
+	assert.Contains(t, needsOf(jobs["pr"]), "carry")
+
+	for _, part := range []string{"!cancelled()", "needs.plan.outputs.carry != '[]'", "needs.plan.outputs.stop != 'true'"} {
+		assert.Contains(t, carry.If, part)
+	}
+
+	assert.Equal(t, map[string]string{"contents": "read"}, carry.Permissions)
+	stepIndex(t, carry.Steps, "carry.sh", func(s workflowStep) bool { return strings.Contains(s.Run, ".github/reconcile-models/carry.sh") })
+}
+
+// TestStoppedRunSaysWhy checks that a run that doesn't update the PR, because
+// of a commit it can't carry, says why in the PR's note, whether the plan or
+// the carry job found it.
+func TestStoppedRunSaysWhy(t *testing.T) {
+	t.Parallel()
+
+	job := readJob(t, runWorkflow, "pr")
+	assert.Equal(t, "${{ needs.plan.outputs.stop == 'true' || needs.carry.outputs.refused != '' }}", job.Env["STOP"])
+	assert.Equal(t, "${{ needs.plan.outputs.reason || needs.carry.outputs.refused }}", job.Env["REASON"])
+
+	note := job.Steps[stepIndex(t, job.Steps, "note", func(s workflowStep) bool { return strings.Contains(s.Run, "gh pr comment") })]
+	assert.Contains(t, note.Run, "because ${REASON}")
 }
 
 // TestLegChecksOutItsBase checks that the agent and the patch check both work

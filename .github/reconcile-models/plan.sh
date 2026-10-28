@@ -5,16 +5,19 @@
 # commit on the PR stops the run. Every run rebuilds the PR from its base,
 # so a vendor whose commit is waiting must run or replay, or that change
 # would drop out. A weekly run runs every agent.
-# A replay needs the record the last push left: the head it pushed and each
-# vendor's commit and agent run. It counts only when the PR's commits up to
-# that head are exactly its vendors' commits. A vendor whose agent ran more
-# than MAX_AGE_HOURS (default 192) ago runs its agent again. With no record,
-# a real run runs each waiting vendor's agent, and a dry run only what it
-# was asked for. Commits after the record's head are someone else's.
+# A replay needs the record the last push left: the head it pushed, each
+# vendor's commit and agent run, and the commits it carried. It counts only
+# when the PR's commits up to that head are exactly those. A vendor whose
+# agent ran more than MAX_AGE_HOURS (default 192) ago runs its agent again.
+# Commits after the record's head are someone else's: they and the ones the
+# last run carried are carried again (carry.sh), and only a merge commit,
+# which is never carried, stops a real run here. With no record, a real run
+# runs each waiting vendor's agent, a dry run only what it was asked for, and
+# someone else's commit stops a real run, as the push would remove it.
 # Reads GitHub's list of the PR's commits (pulls/N/commits) on stdin, [] when
 # there's no PR. Prints run (agent and replay, in order), agent, replay,
-# pending, carry, theirs, stop and record (whether the record counts) for
-# $GITHUB_OUTPUT.
+# pending, carry, theirs, stop, reason (why it stops, for the PR's note) and
+# record (whether the record counts) for $GITHUB_OUTPUT.
 # Usage: plan.sh BOT SELECTED DRY_RUN VENDORS_JSON [RECORD]
 #   SELECTED is a vendor or "all"; VENDORS_JSON lists every vendor in order;
 #   RECORD is the record's file, if the plan job found one.
@@ -40,10 +43,12 @@ record=null
 if [[ -n "$record_file" && -s "$record_file" ]]; then
   record="$(jq -c --argjson commits "$commits" '
     . as $record | ($commits | map(.sha)) as $shas | ($shas | index($record.head)) as $at
-    | if $at != null and ($shas[0:$at + 1] - [$record.vendors[].commit]) == [] then $record else null end' "$record_file" 2>/dev/null || echo null)"
+    | if $at != null and ($shas[0:$at + 1] - [$record.vendors[].commit] - ($record.carried // [])) == [] then $record else null end' "$record_file" 2>/dev/null || echo null)"
 fi
 carry="$(jq -c --argjson commits "$commits" '
-  if . == null then [] else . as $record | ($commits | map(.sha)) as $shas | $shas[($shas | index($record.head)) + 1:] end' <<<"$record")"
+  if . == null then [] else . as $record | ($commits | map(.sha)) as $shas
+  | [$shas[] | select(IN(($record.carried // [])[]))] + $shas[($shas | index($record.head)) + 1:] end' <<<"$record")"
+merges="$(jq -r --argjson carry "$carry" '[.[] | select((.sha | IN($carry[])) and (.parents | length) > 1) | .sha[0:7]] | join(", ")' <<<"$commits")"
 
 if [[ "$selected" == "all" ]]; then
   agent="$vendors"
@@ -71,13 +76,19 @@ agent="$(in_order "$agent")"
 replay="$(in_order "$replay")"
 run="$(in_order "$(jq -c --argjson replay "$replay" '. + $replay' <<<"$agent")")"
 
-# Someone else's commit stops a real run here, before any agent spends
-# money: the push would remove it.
+# Stop a real run here, before any agent spends money, when the push would
+# remove a commit it can't carry.
+reason=""
+if [[ "$record" == "null" && -n "$theirs" ]]; then
+  reason="the update would remove commits that aren't the bot's ($theirs), and no record of the last push says which commits are"
+elif [[ -n "$merges" ]]; then
+  reason="$merges is a merge commit, which is never carried: main reaches the PR when the run rebuilds it"
+fi
 stop=false
-if [[ "$dry_run" == "false" && ( -n "$theirs" || "$carry" != "[]" ) ]]; then
+if [[ "$dry_run" == "false" && -n "$reason" ]]; then
   stop=true
   run="[]" agent="[]" replay="[]"
 fi
 
-printf 'run=%s\nagent=%s\nreplay=%s\npending=%s\ncarry=%s\ntheirs=%s\nstop=%s\nrecord=%s\n' \
-  "$run" "$agent" "$replay" "$pending" "$carry" "$theirs" "$stop" "$([[ "$record" != "null" ]] && echo true || echo false)"
+printf 'run=%s\nagent=%s\nreplay=%s\npending=%s\ncarry=%s\ntheirs=%s\nstop=%s\nreason=%s\nrecord=%s\n' \
+  "$run" "$agent" "$replay" "$pending" "$carry" "$theirs" "$stop" "$reason" "$([[ "$record" != "null" ]] && echo true || echo false)"

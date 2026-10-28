@@ -10,8 +10,9 @@
 # Usage: combine.sh CATALOG_REPORT LEGS_DIR BUNDLES_DIR OUT_DIR
 #   LEGS_DIR holds each vendor's reconcile-pr-<vendor> folder, BUNDLES_DIR its
 #   reconcile-bundle-<commit> one.
-# Env: NEEDS (the pr job's needs, as JSON), RUN and PENDING (from plan.sh),
-#      GITHUB_SHA (the run's commit), BASE (the branch the PR goes into).
+# Env: NEEDS (the pr job's needs, as JSON), RUN, PENDING and CARRY (from
+#      plan.sh), CARRY_TIP and CARRIED (from carry.sh), GITHUB_SHA (the run's
+#      commit), BASE (the branch the PR goes into).
 set -euo pipefail
 
 usage="usage: combine.sh CATALOG_REPORT LEGS_DIR BUNDLES_DIR OUT_DIR"
@@ -67,28 +68,45 @@ if [[ "$blocked" == "true" ]]; then
   exit 1
 fi
 
-sort -u -o "$out/files.txt" "$out/files.txt"
-sort -u -o "$codes" "$codes"
+# Commits other people pushed onto the PR go on top, as the carry job
+# carried them.
+vendors_tip="$tip"
+if [[ "${CARRY:-[]}" != "[]" ]]; then
+  if [[ -z "${CARRY_TIP:-}" ]]; then
+    echo "::error::The carry job left no commits for the ones it had to carry, so this run doesn't push."
+    echo "combine: the carry job left no commits" >&2
+    exit 1
+  fi
+  tip="$CARRY_TIP" changed=true
+fi
 
 # The PR covers every vendor's commit, so its diff and routes run from the
 # run's commit, before the first vendor's change, to the tip, after the last.
 if [[ "$changed" == "true" ]]; then
   "$(dirname "$0")/checkout-base.sh" "$tip" "$bundles/reconcile-bundle-$tip/reconcile.bundle"
+  git diff --name-only "$vendors_tip" HEAD >>"$out/files.txt"
   git diff "$GITHUB_SHA" HEAD -- catalog/snapshot.json >"$out/snapshot.diff"
-  args+=(-diff "$out/snapshot.diff" -code-files "$codes" -base-routes "$first/base-routes.txt" -routes "$last/routes.txt")
+  args+=(-diff "$out/snapshot.diff" -code-files "$codes")
+  if [[ -n "$first" ]]; then
+    args+=(-base-routes "$first/base-routes.txt" -routes "$last/routes.txt")
+  fi
 
   # What the push holds: each vendor's commit, the commit it was made on,
   # its agent run and its report.
   vendors='{}'
-  for vendor in "${recorded[@]}"; do
+  for vendor in ${recorded[@]+"${recorded[@]}"}; do
     head="$(need "$vendor" .outputs.head)"
     vendors="$(jq -c --arg v "$vendor" --arg commit "$head" --arg parent "$(git rev-parse "$head^")" \
       --arg run "$(need "$vendor" .outputs.agent_run)" --arg at "$(need "$vendor" .outputs.agent_at)" \
       --slurpfile report "$legs/reconcile-pr-$vendor/report.json" \
       '.[$v] = {commit: $commit, parent: $parent, agent_run: $run, agent_at: $at, report: $report[0]}' <<<"$vendors")"
   done
-  jq -n --arg head "$tip" --argjson vendors "$vendors" '{head: $head, vendors: $vendors}' >"$out/record.json"
+  jq -n --arg head "$tip" --argjson carried "${CARRIED:-[]}" --argjson vendors "$vendors" \
+    '{head: $head, carried: $carried, vendors: $vendors}' >"$out/record.json"
 fi
+
+sort -u -o "$out/files.txt" "$out/files.txt"
+sort -u -o "$codes" "$codes"
 
 # The PR body links repo files at the run's commit.
 base_url=""

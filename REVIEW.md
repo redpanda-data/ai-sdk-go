@@ -67,4 +67,4 @@ the tests without secrets. It didn't check the values.
   with secrets.
 - When `TestLiveTestModelsAreCurrent` fails once the PR is ready, push the swap
   it prints onto this same PR, so the date and the swap merge together. Later
-  runs then stop updating the PR until it merges or closes.
+  runs carry it onto each rebuild while it still applies exactly.
