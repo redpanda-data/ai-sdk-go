@@ -783,7 +783,13 @@ func entries() []catalog.Entry {
 			// at global and us-east5, 2026-09-28).
 			Aliases:      []string{"claude-sonnet-4-5"},
 			Capabilities: claudeCapsWithToolSearch,
-			Modalities:   claudeModalities,
+			// The model page lists text, code and image inputs, and no PDF or
+			// document input (docs.cloud.google.com/gemini-enterprise-agent-
+			// platform/models/partner-models/claude/sonnet-4-5, read 2026-10-28).
+			Modalities: catalog.Modalities{
+				Input:  []catalog.Modality{catalog.ModalityText, catalog.ModalityImage},
+				Output: []catalog.Modality{catalog.ModalityText},
+			},
 			Constraints: llm.ModelConstraints{
 				TemperatureRange: [2]float64{0.0, 1.0},
 				// 200K is the GA window; the 1M window is a preview.

@@ -376,8 +376,10 @@ func entries() []catalog.Entry {
 			Life: catalog.Lifecycle{
 				Available: catalog.MustDate("2026-09-28"),
 			},
+			// Rates from https://platform.claude.com/docs/en/about-claude/pricing
+			// (read 2026-10-28): output is $10/MTok.
 			Pricing: pricing.FlatInfoFromRates(
-				pricing.NewRates(2.00, 12.00, 0.10).WithCacheCreation(2.50, 4.00, 0),
+				pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(2.50, 4.00, 0),
 			),
 		},
 		{
