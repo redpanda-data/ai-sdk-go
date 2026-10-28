@@ -249,6 +249,10 @@ jobs:
             echo "::error::Open PRs from ${BRANCH} by someone other than vbotbuildovich: ${others}. The push would put new agent code in them; close them or open them from another branch, then re-run."
             exit 1
           fi
+          # The plan's PR is from before this run; a re-run of this job after its
+          # first attempt opened the PR finds it here, and edits it.
+          PR="${PR:-$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number,author,isCrossRepository \
+            --jq '[.[] | select(.author.login == "vbotbuildovich" and (.isCrossRepository | not))][0].number // empty')}"
           push=true
           if [[ -n "$PR" ]]; then
             read -r state head draft <<<"$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json state,headRefOid,isDraft --jq '"\(.state) \(.headRefOid) \(.isDraft)"')"

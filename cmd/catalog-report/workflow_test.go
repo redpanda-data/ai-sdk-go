@@ -896,6 +896,21 @@ func TestPushIsLeasedOnThePlansHead(t *testing.T) {
 	}
 }
 
+// TestRerunFindsThePRItOpened checks that a re-run of the pr job, after its
+// first attempt opened the PR, edits that PR instead of trying to open it
+// again: the plan's PR output is from before the PR existed, so the push
+// step looks the bot's PR up again before it decides.
+func TestRerunFindsThePRItOpened(t *testing.T) {
+	t.Parallel()
+
+	steps := readJob(t, runWorkflow, "pr").Steps
+	run := steps[stepIndex(t, steps, "push", func(s workflowStep) bool { return strings.Contains(s.Run, "git push") })].Run
+	lookup := strings.Index(run, `PR="${PR:-$(gh pr list`)
+	require.NotEqual(t, -1, lookup, "the push step must look the PR up when the plan found none")
+	assert.Less(t, lookup, strings.Index(run, "gh pr view"))
+	assert.Less(t, lookup, strings.Index(run, "gh pr create"))
+}
+
 // TestOthersCommitsRunsBeforeTheChain checks that the plan job looks for other
 // people's commits on the bot PR before any vendor's agent starts, and that a
 // PR left alone keeps one note, updated each run.
