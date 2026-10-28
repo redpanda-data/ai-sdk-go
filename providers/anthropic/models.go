@@ -377,7 +377,7 @@ func entries() []catalog.Entry {
 				Available: catalog.MustDate("2026-09-28"),
 			},
 			Pricing: pricing.FlatInfoFromRates(
-				pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(2.50, 4.00, 0),
+				pricing.NewRates(2.00, 12.00, 0.10).WithCacheCreation(2.50, 4.00, 0),
 			),
 		},
 		{
