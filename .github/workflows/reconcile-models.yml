@@ -105,7 +105,7 @@ jobs:
       force: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      ACTIONS_STEP_DEBUG: ${{ secrets.ACTIONS_STEP_DEBUG }}
+      STEP_DEBUG: ${{ secrets.ACTIONS_STEP_DEBUG }}
 
   openai:
     needs: [plan, anthropic]
@@ -121,7 +121,7 @@ jobs:
       force: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      ACTIONS_STEP_DEBUG: ${{ secrets.ACTIONS_STEP_DEBUG }}
+      STEP_DEBUG: ${{ secrets.ACTIONS_STEP_DEBUG }}
 
   # The only job with the bot token. It puts the vendors' commits together
   # into one PR and pushes once, at the end; it runs nothing from the patches.
