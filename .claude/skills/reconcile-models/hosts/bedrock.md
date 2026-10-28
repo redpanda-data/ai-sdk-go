@@ -11,8 +11,10 @@ Where Amazon Bedrock publishes facts for the models it serves. AWS sets its own 
 | Rates | `https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrockFoundationModels/current/<region>/index.json` | AWS's public price list, one file per source region |
 | Lifecycle, older models | `https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.md` | the table of Legacy and EOL models |
 | Lifecycle, newer models | `https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle.md` | the policy for models launched on or after 2026-09-07: Legacy and EOL, and when a card gains its EOL date |
+| OpenAI's model cards | `https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards-openai.md` | a link to each OpenAI model's card |
+| One OpenAI model | the card the cards page links | Model details (launch date, EOL, context window, max output, knowledge cutoff), Endpoints and APIs supported, Capabilities and features, Pricing, Call the model (the IDs), Service tiers, Supported Regions |
 
-The table names Anthropic's cards. The other vendors `providers/bedrock` carries (Amazon Nova, Mistral, OpenAI, Google Gemma) have cards with the same sections, linked from each vendor's model-cards page, for example `https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards-openai.md`.
+The table names Anthropic's and OpenAI's cards. The other vendors `providers/bedrock` carries (Amazon Nova, Mistral, Google Gemma) have cards linked from each vendor's model-cards page. An OpenAI card's file name drops dots unevenly (`model-card-openai-gpt-56-sol.md` for GPT-5.6 Sol, `model-card-openai-gpt-6-1-sol.md` for GPT-6.1 Sol), so follow the cards page's link instead of building the name. Its "Call the model" table is what Anthropic's cards call Programmatic Access, and its Supported Regions tables are their Regional Availability.
 
 ## IDs and copies
 
@@ -37,6 +39,7 @@ The table names Anthropic's cards. The other vendors `providers/bedrock` carries
 - `long_ctx` in a usage type marks a long-context tier. Neither the price list nor the card gives its threshold.
 - Rate cards: `GlobalRates` is the `global.` card and `Rates` every other profile's. Speed or tier variation goes in the family's `Overrides` and `GlobalOverrides`, which a family with a global profile sets in pairs. The card's Service Tiers table shows which tiers the model has.
 - Copy cache rates from the price list too (price-follow).
+- OpenAI's cards print their own rates in a Pricing section: per endpoint and profile, short and long context, with the 10% premium already added. The price list holds only GPT-6 Astra (read 2026-10-28), so the card is the rate source for the other OpenAI models.
 
 ## Lifecycle
 

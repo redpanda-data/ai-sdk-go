@@ -27,20 +27,9 @@ the workflow.
 
 Facts come only from the hosts' own pages, and code cites only those.
 
-- **Anthropic API, Claude on Vertex, Bedrock:** their host pages
-  (`hosts/anthropic.md`, `hosts/vertex.md`, `hosts/bedrock.md`).
-- **OpenAI** (`providers/openai`):
-  - Pricing: `https://developers.openai.com/api/docs/pricing`
-  - **Lifecycle** (the only source for deprecation and shutdown dates):
-    `https://developers.openai.com/api/docs/deprecations`
-  - Per-model specs: `https://developers.openai.com/api/docs/models/<id>`
-    gives window, **maximum input tokens**, max output, per-tier pricing notes
-
-  Append `.md` to any of these to get clean markdown
-  (`.../deprecations.md`). Do this for the deprecations page especially:
-  it is long, and summarizing it lossily has produced flatly
-  contradictory answers about whether `o3`/`o3-pro` are deprecated at
-  all. Fetch the `.md`, then grep it: the tables are the data.
+- **Anthropic API, OpenAI API, Claude on Vertex, Bedrock:** their host
+  pages (`hosts/anthropic.md`, `hosts/openai.md`, `hosts/vertex.md`,
+  `hosts/bedrock.md`).
 - **Google** (Gemini API, `providers/google`):
   - Pricing: `https://ai.google.dev/gemini-api/docs/pricing`
   - Per-model limits: `https://ai.google.dev/gemini-api/docs/models`

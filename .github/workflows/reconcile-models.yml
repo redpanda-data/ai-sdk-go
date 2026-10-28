@@ -8,7 +8,7 @@ on:
       vendor:
         description: Vendor to reconcile (its models on every provider that sells them), or all. A real run also reruns each vendor with a change waiting in the PR.
         type: choice
-        options: [all, anthropic]
+        options: [all, anthropic, openai]
         default: all
       dry_run:
         description: Stop before pushing a branch or opening a PR
@@ -107,10 +107,26 @@ jobs:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       ACTIONS_STEP_DEBUG: ${{ secrets.ACTIONS_STEP_DEBUG }}
 
+  openai:
+    needs: [plan, anthropic]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && contains(fromJSON(needs.plan.outputs.run), 'openai') }}
+    uses: ./.github/workflows/reconcile-vendor.yml
+    permissions:
+      contents: read
+      actions: read
+    with:
+      vendor: openai
+      base_sha: ${{ needs.anthropic.outputs.head || github.sha }}
+      dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+      force: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      ACTIONS_STEP_DEBUG: ${{ secrets.ACTIONS_STEP_DEBUG }}
+
   # The only job with the bot token. It puts the vendors' commits together
   # into one PR and pushes once, at the end; it runs nothing from the patches.
   pr:
-    needs: [plan, anthropic]
+    needs: [plan, anthropic, openai]
     if: ${{ !cancelled() && needs.plan.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20

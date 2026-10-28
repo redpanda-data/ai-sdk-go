@@ -145,6 +145,7 @@ jobs:
             aws.amazon.com:443
             docs.aws.amazon.com:443
             pricing.us-east-1.amazonaws.com:443
+            developers.openai.com:443
             downloads.claude.ai:443
             claude.ai:443
             registry.npmjs.org:443
