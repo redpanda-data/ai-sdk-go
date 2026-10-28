@@ -665,7 +665,7 @@ func entries() []catalog.Entry {
 			Life: catalog.Lifecycle{
 				Available: catalog.MustDate("2026-03-17"),
 			},
-			Pricing: pricing.FlatInfo(0.80, 4.50, 0.075).
+			Pricing: pricing.FlatInfo(0.78, 4.50, 0.075).
 				WithOverride(batchTier, flatCard(0.375, 2.25, 0.0375)).
 				WithOverride(flexTier, flatCard(0.375, 2.25, 0.0375)).
 				WithOverride(fastTier, flatCard(1.50, 9.00, 0.15)),
