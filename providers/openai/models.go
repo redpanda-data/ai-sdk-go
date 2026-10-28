@@ -504,7 +504,7 @@ func entries() []catalog.Entry {
 			// Per M tokens: $0.20 input, $1.20 output, $0.02 cached input, $0.25 cache write.
 			// Above 272K: $0.40 input, $1.80 output, $0.04 cached input, $0.50 cache write.
 			pricing.TieredInfo(
-				pricing.NewRates(0.25, 1.20, 0.02).WithCacheCreation(0, 0, 0.25),
+				pricing.NewRates(0.20, 1.20, 0.02).WithCacheCreation(0, 0, 0.25),
 				pricing.Bracket{
 					MinContextTokens: 272_001,
 					Rates:            pricing.NewRates(0.40, 1.80, 0.04).WithCacheCreation(0, 0, 0.50),
@@ -665,7 +665,7 @@ func entries() []catalog.Entry {
 			Life: catalog.Lifecycle{
 				Available: catalog.MustDate("2026-03-17"),
 			},
-			Pricing: pricing.FlatInfo(0.75, 4.50, 0.075).
+			Pricing: pricing.FlatInfo(0.80, 4.50, 0.075).
 				WithOverride(batchTier, flatCard(0.375, 2.25, 0.0375)).
 				WithOverride(flexTier, flatCard(0.375, 2.25, 0.0375)).
 				WithOverride(fastTier, flatCard(1.50, 9.00, 0.15)),
