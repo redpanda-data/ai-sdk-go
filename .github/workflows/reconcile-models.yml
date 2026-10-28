@@ -79,6 +79,13 @@ jobs:
           commits='[]'
           if [[ -n "$pr" ]]; then
             commits="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${pr}/commits?per_page=100")"
+            # GitHub updates a PR's commit list a moment after a push. A plan made
+            # from a list that stops short of the leased head would push over the
+            # newest commit, so fail until the two agree.
+            if [[ "$h0" != "$(jq -r 'last.sha // empty' <<<"$commits")" ]]; then
+              echo "::error::#${pr}'s commit list doesn't end at ${h0} yet; re-run this workflow."
+              exit 1
+            fi
           fi
           vendors="$(jq -c 'keys_unsorted' .github/reconcile-models/named-sources.json)"
           {

@@ -912,6 +912,50 @@ func TestOthersCommitsRunsBeforeTheChain(t *testing.T) {
 	assert.Contains(t, note.If, "env.STOP == 'true'")
 }
 
+// TestOutputsReadAreDeclared checks that every job output a workflow reads
+// (needs.<job>.outputs.<name>, or jobs.<job>.outputs.<name> in a called
+// workflow's outputs) is one that job declares. GitHub reads an undeclared
+// output as empty without an error.
+func TestOutputsReadAreDeclared(t *testing.T) {
+	t.Parallel()
+
+	read := regexp.MustCompile(`(?:needs|jobs)\.([a-z0-9_-]+)\.outputs\.([a-z0-9_]+)`)
+	called := readWorkflow(t, vendorWorkflow).On.WorkflowCall.Outputs
+
+	for _, file := range []string{runWorkflow, vendorWorkflow} {
+		raw, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", file))
+		require.NoError(t, err)
+
+		jobs := readWorkflow(t, file).Jobs
+		for _, match := range read.FindAllStringSubmatch(string(raw), -1) {
+			job, found := jobs[match[1]]
+			require.True(t, found, "%s reads outputs of a job it doesn't have: %s", file, match[0])
+
+			if job.Uses == "./.github/workflows/"+vendorWorkflow {
+				assert.Contains(t, called, match[2], "%s reads %s, which %s doesn't output", file, match[0], vendorWorkflow)
+
+				continue
+			}
+
+			assert.Contains(t, job.Outputs, match[2], "%s reads %s, which the job doesn't declare", file, match[0])
+		}
+	}
+}
+
+// TestPlanReadsTheHeadItLeases checks that the plan job fails when the PR's
+// commit list doesn't end at the head the push is leased to: GitHub updates
+// the list after a push, so a commit pushed just before the run could be
+// left out of the plan yet pass the lease.
+func TestPlanReadsTheHeadItLeases(t *testing.T) {
+	t.Parallel()
+
+	steps := readJob(t, runWorkflow, "plan").Steps
+	run := steps[stepIndex(t, steps, "plan.sh", func(s workflowStep) bool { return strings.Contains(s.Run, "plan.sh") })].Run
+	check := strings.Index(run, `"$h0" != "$(jq -r 'last.sha // empty' <<<"$commits")"`)
+	require.NotEqual(t, -1, check, "the plan must compare the PR's last commit with the head it leases")
+	assert.Less(t, check, strings.Index(run, ".github/reconcile-models/plan.sh"))
+}
+
 // TestConcurrencyQueuesRuns checks that runs that push the same bot branch
 // wait in line, up to GitHub's limit, instead of a newer one cancelling the
 // one waiting: main's runs, and every other branch's, which share the test
