@@ -1650,7 +1650,7 @@
             "default": {
               "base": {
                 "input_microcents_per_million": 200000000,
-                "output_microcents_per_million": 1000000000,
+                "output_microcents_per_million": 1200000000,
                 "cached_input_microcents_per_million": 10000000,
                 "cache_creation_5m_microcents_per_million": 250000000,
                 "cache_creation_1h_microcents_per_million": 400000000
@@ -14259,7 +14259,7 @@
           "pricing": {
             "default": {
               "base": {
-                "input_microcents_per_million": 75000000,
+                "input_microcents_per_million": 80000000,
                 "output_microcents_per_million": 450000000,
                 "cached_input_microcents_per_million": 7500000
               }
