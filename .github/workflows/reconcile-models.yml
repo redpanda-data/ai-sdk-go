@@ -41,18 +41,23 @@ env:
   BRANCH: ${{ github.ref_name == 'main' && 'bot/reconcile-models' || 'bot/reconcile-models-test' }}/all
 
 jobs:
-  # No model, before any agent: reads the open bot PR, and decides which
-  # vendors run and whether someone else's commit on it stops the run.
+  # No model, before any agent: reads the open bot PR and the record its
+  # last push left, and decides which vendors run their agent, which replay
+  # their waiting commit, and whether someone else's commit stops the run.
   plan:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
       pull-requests: read
+      actions: read # to download the record from the run that pushed
     outputs:
       h0: ${{ steps.plan.outputs.h0 }}
       pr: ${{ steps.plan.outputs.pr }}
       run: ${{ steps.plan.outputs.run }}
+      agent: ${{ steps.plan.outputs.agent }}
+      replay: ${{ steps.plan.outputs.replay }}
+      carry: ${{ steps.plan.outputs.carry }}
       pending: ${{ steps.plan.outputs.pending }}
       theirs: ${{ steps.plan.outputs.theirs }}
       stop: ${{ steps.plan.outputs.stop }}
@@ -88,10 +93,18 @@ jobs:
             fi
           fi
           vendors="$(jq -c 'keys_unsorted' .github/reconcile-models/named-sources.json)"
+          # The record the last push left, saved by the run the newest bot
+          # commit's Reconcile-Run trailer names. Without one nothing replays.
+          record=""
+          pushed="$(jq -r '[.[] | select(.author.login == "vbotbuildovich" and .committer.login == "vbotbuildovich")
+            | .commit.message | capture("(?m)^Reconcile-Run: (?<run>[0-9]+)/").run] | last // empty' <<<"$commits")"
+          if [[ -n "$pushed" ]] && gh run download "$pushed" --repo "$GITHUB_REPOSITORY" -n reconcile-record -D "$RUNNER_TEMP/record"; then
+            record="$RUNNER_TEMP/record/record.json"
+          fi
           {
             echo "h0=$h0"
             echo "pr=$pr"
-            .github/reconcile-models/plan.sh vbotbuildovich "$SELECTED" "$DRY_RUN" "$vendors" <<<"$commits"
+            .github/reconcile-models/plan.sh vbotbuildovich "$SELECTED" "$DRY_RUN" "$vendors" "$record" <<<"$commits"
           } >>"$GITHUB_OUTPUT"
 
   # Each vendor's part of the run, in named-sources.json's order: gate, agent,
@@ -234,6 +247,15 @@ jobs:
           run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --edit-last --create-if-none --body "This run didn't update the PR, because the update would remove commits that aren't the bot's (${THEIRS}). Merge or close this PR to let the next run update it. [The run](${run_url}) stopped before any agent ran."
           echo "::notice::Left #${PR} unchanged: it has commits that aren't the bot's (${THEIRS})."
+      # What a later run replays from; saved first, so every push has one.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        if: env.DRY_RUN == 'false' && steps.combine.outputs.changed == 'true'
+        with:
+          name: reconcile-record
+          path: out/record.json
+          if-no-files-found: error
+          retention-days: 90
+          overwrite: true
       - name: Push the vendors' commits and open or update the draft PR
         if: env.DRY_RUN == 'false' && steps.combine.outputs.changed == 'true'
         env:

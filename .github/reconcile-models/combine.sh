@@ -2,7 +2,8 @@
 # Puts a reconcile run's vendor parts together into one PR, with no model:
 # the last vendor commit is the PR's tip, checked out here for the push, and
 # OUT_DIR gets the PR body for every vendor that ran, the files the vendors
-# committed and the snapshot diff against the run's commit. A vendor whose
+# committed, the snapshot diff against the run's commit, and the record a
+# later run replays from (record.json, when anything changed). A vendor whose
 # part failed gets a note in the body; if it has a commit waiting in the PR,
 # the run fails instead of pushing, or that change would drop out.
 # Runs nothing from the patches. Prints tip and changed for $GITHUB_OUTPUT.
@@ -31,7 +32,7 @@ codes="$inputs/code-files.txt"
 : >"$out/files.txt"
 
 args=()
-tip="$GITHUB_SHA" changed=false blocked=false first="" last=""
+tip="$GITHUB_SHA" changed=false blocked=false first="" last="" recorded=()
 
 for vendor in $(jq -r '.[]' <<<"$RUN"); do
   dir="$legs/reconcile-pr-$vendor"
@@ -52,6 +53,7 @@ for vendor in $(jq -r '.[]' <<<"$RUN"); do
 
   if [[ "$(need "$vendor" .outputs.changed)" == "true" ]]; then
     changed=true tip="$(need "$vendor" .outputs.head)" first="${first:-$dir}" last="$dir"
+    recorded+=("$vendor")
     cat "$dir/files.txt" >>"$out/files.txt"
     cat "$dir/code-files.txt" >>"$codes"
   fi
@@ -71,6 +73,18 @@ if [[ "$changed" == "true" ]]; then
   "$(dirname "$0")/checkout-base.sh" "$tip" "$bundles/reconcile-bundle-$tip/reconcile.bundle"
   git diff "$GITHUB_SHA" HEAD -- catalog/snapshot.json >"$out/snapshot.diff"
   args+=(-diff "$out/snapshot.diff" -code-files "$codes" -base-routes "$first/base-routes.txt" -routes "$last/routes.txt")
+
+  # What the push holds: each vendor's commit, the commit it was made on,
+  # its agent run and its report.
+  vendors='{}'
+  for vendor in "${recorded[@]}"; do
+    head="$(need "$vendor" .outputs.head)"
+    vendors="$(jq -c --arg v "$vendor" --arg commit "$head" --arg parent "$(git rev-parse "$head^")" \
+      --arg run "$(need "$vendor" .outputs.agent_run)" --arg at "$(need "$vendor" .outputs.agent_at)" \
+      --slurpfile report "$legs/reconcile-pr-$vendor/report.json" \
+      '.[$v] = {commit: $commit, parent: $parent, agent_run: $run, agent_at: $at, report: $report[0]}' <<<"$vendors")"
+  done
+  jq -n --arg head "$tip" --argjson vendors "$vendors" '{head: $head, vendors: $vendors}' >"$out/record.json"
 fi
 
 # The PR body links repo files at the run's commit.

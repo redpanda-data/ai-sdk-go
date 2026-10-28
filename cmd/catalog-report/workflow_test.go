@@ -15,6 +15,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"maps"
 	"os"
@@ -481,7 +482,7 @@ func TestCombineBuildsThePRFromTheVendors(t *testing.T) {
 	openai := vendor("openai", "gpt-6-1", "developers.openai.com", catalogue("gpt-6-1"), catalogue("gpt-6-1", "gpt-6-2"))
 
 	part := func(result, head, changed string) string {
-		return `{"result": "` + result + `", "outputs": {"head": "` + head + `", "changed": "` + changed + `"}}`
+		return `{"result": "` + result + `", "outputs": {"head": "` + head + `", "changed": "` + changed + `", "agent_run": "4100", "agent_at": "2026-10-28T07:00:00Z"}}`
 	}
 	failed := `{"result": "failure", "outputs": {}}`
 
@@ -490,25 +491,30 @@ func TestCombineBuildsThePRFromTheVendors(t *testing.T) {
 		want                                            map[string]string
 		body                                            []string
 		files                                           string
+		// record is each vendor's commit and its parent in the record.
+		record map[string][2]string
 	}{
 		{
 			name: "two vendors' commits", legs: legs, anthropic: part("success", anthropic, "true"), openai: part("success", openai, "true"), pending: "[]",
-			want:  map[string]string{"tip": openai, "changed": "true"},
-			body:  []string{"## Catalogue drift: anthropic, openai\n", "\n## anthropic\n", "\n## openai\n", "<details><summary>Snapshot diff</summary>", `+{"providers": [{"provider": "openai", "offerings": [{"id": "gpt-6-1", "model": "x/gpt-6-1"}, {"id": "gpt-6-2"`},
-			files: "catalog/snapshot.json\nproviders/anthropic/models.go\nproviders/openai/models.go\n",
+			want:   map[string]string{"tip": openai, "changed": "true"},
+			body:   []string{"## Catalogue drift: anthropic, openai\n", "\n## anthropic\n", "\n## openai\n", "<details><summary>Snapshot diff</summary>", `+{"providers": [{"provider": "openai", "offerings": [{"id": "gpt-6-1", "model": "x/gpt-6-1"}, {"id": "gpt-6-2"`},
+			files:  "catalog/snapshot.json\nproviders/anthropic/models.go\nproviders/openai/models.go\n",
+			record: map[string][2]string{"anthropic": {anthropic, base}, "openai": {openai, anthropic}},
 		},
 		{
 			name: "a failed vendor with nothing waiting is left out", legs: legs, anthropic: part("success", anthropic, "true"), openai: failed, pending: `["anthropic"]`,
-			want:  map[string]string{"tip": anthropic, "changed": "true"},
-			body:  []string{"\n## openai\n\nThis vendor's run failed"},
-			files: "catalog/snapshot.json\nproviders/anthropic/models.go\n",
+			want:   map[string]string{"tip": anthropic, "changed": "true"},
+			body:   []string{"\n## openai\n\nThis vendor's run failed"},
+			files:  "catalog/snapshot.json\nproviders/anthropic/models.go\n",
+			record: map[string][2]string{"anthropic": {anthropic, base}},
 		},
 		{
 			// Only the record job, after the check, failed: it keeps the
 			// gate's baseline, so the checked commit still goes in.
 			name: "a vendor whose check finished counts", legs: legs, anthropic: part("success", anthropic, "true"), openai: part("failure", openai, "true"), pending: "[]",
-			want:  map[string]string{"tip": openai, "changed": "true"},
-			files: "catalog/snapshot.json\nproviders/anthropic/models.go\nproviders/openai/models.go\n",
+			want:   map[string]string{"tip": openai, "changed": "true"},
+			files:  "catalog/snapshot.json\nproviders/anthropic/models.go\nproviders/openai/models.go\n",
+			record: map[string][2]string{"anthropic": {anthropic, base}, "openai": {openai, anthropic}},
 		},
 		{
 			name: "a failed vendor with a waiting commit fails the job", legs: legs, anthropic: part("success", anthropic, "true"), openai: failed, pending: `["openai"]`,
@@ -565,6 +571,39 @@ func TestCombineBuildsThePRFromTheVendors(t *testing.T) {
 			files, err := os.ReadFile(filepath.Join(out, "files.txt"))
 			require.NoError(t, err)
 			assert.Equal(t, tt.files, string(files))
+
+			// The record a later run replays from: what this run pushes.
+			raw, err = os.ReadFile(filepath.Join(out, "record.json"))
+			if tt.record == nil {
+				assert.ErrorIs(t, err, os.ErrNotExist, "a run that pushes nothing leaves no record")
+
+				return
+			}
+
+			require.NoError(t, err)
+
+			var record struct {
+				Head    string `json:"head"`
+				Vendors map[string]struct {
+					Commit   string `json:"commit"`
+					Parent   string `json:"parent"`
+					AgentRun string `json:"agent_run"`
+					AgentAt  string `json:"agent_at"`
+					Report   Report `json:"report"`
+				} `json:"vendors"`
+			}
+			require.NoError(t, json.Unmarshal(raw, &record))
+			assert.Equal(t, got["tip"], record.Head)
+			assert.ElementsMatch(t, slices.Collect(maps.Keys(tt.record)), slices.Collect(maps.Keys(record.Vendors)))
+
+			for name, commits := range tt.record {
+				vendor := record.Vendors[name]
+				assert.Equal(t, commits[0], vendor.Commit, "%s's commit", name)
+				assert.Equal(t, commits[1], vendor.Parent, "%s's parent", name)
+				assert.Equal(t, "4100", vendor.AgentRun)
+				assert.Equal(t, "2026-10-28T07:00:00Z", vendor.AgentAt)
+				assert.NotEmpty(t, vendor.Report.Changes, "%s's report", name)
+			}
 		})
 	}
 }
@@ -692,8 +731,9 @@ func TestAgentCannotReadProcessFiles(t *testing.T) {
 }
 
 // TestPlanPicksTheVendors runs plan.sh, which decides before any agent starts
-// which vendors run, which have a commit waiting in the open PR, and whether
-// someone else's commit on the PR stops the run.
+// which vendors run their agent and which replay their waiting commit, from
+// the record the last push left, and whether someone else's commit on the
+// PR stops the run.
 func TestPlanPicksTheVendors(t *testing.T) {
 	t.Parallel()
 
@@ -705,15 +745,62 @@ func TestPlanPicksTheVendors(t *testing.T) {
 	person := `{"sha": "b2c3d4e5f60718293a4b5c6d7e8f900112233445", "author": {"login": "adamwownysz-redpanda"}, "committer": {"login": "web-flow"},
 		"commit": {"message": "test: swap the live test model"}}`
 	// The bot's commits from an earlier run, for Anthropic and for OpenAI.
-	waiting := "[" + bot("a1b2c3d4e5f60718293a4b5c6d7e8f9001122334", "anthropic") + "," + bot("a2b3c4d5e6f70819203a4b5c6d7e8f9001122334", "openai") + "]"
+	const anthropic, openai = "a1b2c3d4e5f60718293a4b5c6d7e8f9001122334", "a2b3c4d5e6f70819203a4b5c6d7e8f9001122334"
+	waiting := "[" + bot(anthropic, "anthropic") + "," + bot(openai, "openai") + "]"
+	// The record that run left: the head it pushed, and each vendor's
+	// commit and agent run, 26 hours before the plan runs.
+	record := filepath.Join(t.TempDir(), "record.json")
+	require.NoError(t, os.WriteFile(record, []byte(`{"head": "`+openai+`", "vendors": {
+		"anthropic": {"commit": "`+anthropic+`", "parent": "9f8e7d6c5b4a39281706f5e4d3c2b1a098765432", "agent_run": "40504204648", "agent_at": "2026-10-27T06:17:00Z", "report": {}},
+		"openai": {"commit": "`+openai+`", "parent": "`+anthropic+`", "agent_run": "40504204648", "agent_at": "2026-10-27T06:17:00Z", "report": {}}}}`), 0o600))
+	undated := filepath.Join(t.TempDir(), "record.json")
+	require.NoError(t, os.WriteFile(undated, []byte(`{"head": "`+openai+`", "vendors": {
+		"anthropic": {"commit": "`+anthropic+`", "agent_at": "2026-10-27T06:17:00Z"}, "openai": {"commit": "`+openai+`"}}}`), 0o600))
+	stranger := filepath.Join(t.TempDir(), "record.json")
+	require.NoError(t, os.WriteFile(stranger, []byte(`{"head": "c0ffee0000000000000000000000000000000000", "vendors": {}}`), 0o600))
+
+	const now = "2026-10-28T08:00:00Z"
 
 	tests := []struct {
-		name, selected, dryRun, commits string
-		want                            map[string]string
+		name, selected, dryRun, commits, record, now string
+		want                                         map[string]string
 	}{
 		{
 			name: "a weekly run runs every vendor", selected: "all", dryRun: "false", commits: waiting,
-			want: map[string]string{"run": `["anthropic","openai","google"]`, "pending": `["anthropic","openai"]`, "stop": "false", "theirs": ""},
+			want: map[string]string{"run": `["anthropic","openai","google"]`, "agent": `["anthropic","openai","google"]`, "replay": "[]", "pending": `["anthropic","openai"]`, "stop": "false", "theirs": ""},
+		},
+		{
+			name: "a weekly run with a record runs every agent", selected: "all", dryRun: "false", commits: waiting, record: record, now: now,
+			want: map[string]string{"run": `["anthropic","openai","google"]`, "agent": `["anthropic","openai","google"]`, "replay": "[]", "carry": "[]", "stop": "false"},
+		},
+		{
+			name: "a real run for one vendor replays the waiting ones", selected: "google", dryRun: "false", commits: waiting, record: record, now: now,
+			want: map[string]string{"run": `["anthropic","openai","google"]`, "agent": `["google"]`, "replay": `["anthropic","openai"]`, "pending": `["anthropic","openai"]`, "stop": "false"},
+		},
+		{
+			// A dry run previews what a real run would push.
+			name: "a dry run for one vendor replays the others", selected: "openai", dryRun: "true", commits: waiting, record: record, now: now,
+			want: map[string]string{"run": `["anthropic","openai"]`, "agent": `["openai"]`, "replay": `["anthropic"]`},
+		},
+		{
+			// Past MAX_AGE a waiting change is stale, so its agent runs
+			// again instead of carrying it forward.
+			name: "a record older than a week runs the agents again", selected: "google", dryRun: "false", commits: waiting, record: record, now: "2026-11-05T07:00:00Z",
+			want: map[string]string{"run": `["anthropic","openai","google"]`, "agent": `["anthropic","openai","google"]`, "replay": "[]"},
+		},
+		{
+			// Until the carry job runs, a commit after the record's head
+			// stops a real run, as without a record.
+			name: "a person's commit after the record's head", selected: "google", dryRun: "false", commits: "[" + bot(anthropic, "anthropic") + "," + bot(openai, "openai") + "," + person + "]", record: record, now: now,
+			want: map[string]string{"run": "[]", "stop": "true", "theirs": "b2c3d4e", "carry": `["b2c3d4e5f60718293a4b5c6d7e8f900112233445"]`},
+		},
+		{
+			name: "a vendor the record gives no agent time runs its agent", selected: "google", dryRun: "false", commits: waiting, record: undated, now: now,
+			want: map[string]string{"agent": `["openai","google"]`, "replay": `["anthropic"]`},
+		},
+		{
+			name: "a record whose head isn't the PR's counts as none", selected: "google", dryRun: "false", commits: waiting, record: stranger, now: now,
+			want: map[string]string{"run": `["anthropic","openai","google"]`, "agent": `["anthropic","openai","google"]`, "replay": "[]"},
 		},
 		{
 			name: "a dry run for one vendor runs only that one", selected: "google", dryRun: "true", commits: waiting,
@@ -742,7 +829,8 @@ func TestPlanPicksTheVendors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			cmd := exec.CommandContext(t.Context(), "bash", script, "vbotbuildovich", tt.selected, tt.dryRun, `["anthropic","openai","google"]`)
+			cmd := exec.CommandContext(t.Context(), "bash", script, "vbotbuildovich", tt.selected, tt.dryRun, `["anthropic","openai","google"]`, tt.record)
+			cmd.Env = append(os.Environ(), "NOW="+tt.now)
 			cmd.Stdin = strings.NewReader(tt.commits)
 			out, err := cmd.Output()
 			require.NoError(t, err)
@@ -1111,6 +1199,48 @@ func TestLegHandsOnItsHeadLast(t *testing.T) {
 	assert.Equal(t, "${{ steps.done.outputs.head }}", job.Outputs["head"])
 	assert.Equal(t, "done", job.Steps[len(job.Steps)-1].ID, "the head must come from the job's last step")
 	assert.Equal(t, "${{ jobs.check.outputs.head }}", readWorkflow(t, vendorWorkflow).On.WorkflowCall.Outputs["head"].Value)
+}
+
+// TestRecordIsSavedBeforeThePush checks that a real run saves, before its
+// one push, the record a later run replays from, for 90 days, so a pushed
+// PR always has one.
+func TestRecordIsSavedBeforeThePush(t *testing.T) {
+	t.Parallel()
+
+	steps := readJob(t, runWorkflow, "pr").Steps
+	save := stepIndex(t, steps, "record upload", func(s workflowStep) bool { return s.With["name"] == "reconcile-record" })
+	assert.Less(t, save, stepIndex(t, steps, "push", func(s workflowStep) bool { return strings.Contains(s.Run, "git push") }))
+	assert.Equal(t, "90", steps[save].With["retention-days"])
+	assert.Contains(t, steps[save].If, "env.DRY_RUN == 'false'")
+}
+
+// TestPlanFindsTheRecordByTrailer checks that the plan job takes the record
+// from the run the newest bot commit's trailer names, and hands it to
+// plan.sh.
+func TestPlanFindsTheRecordByTrailer(t *testing.T) {
+	t.Parallel()
+
+	job := readJob(t, runWorkflow, "plan")
+	assert.Equal(t, "read", job.Permissions["actions"], "the plan job downloads another run's record")
+
+	run := job.Steps[stepIndex(t, job.Steps, "plan.sh", func(s workflowStep) bool { return strings.Contains(s.Run, "plan.sh") })].Run
+	for _, want := range []string{"Reconcile-Run: ", "gh run download", "-n reconcile-record"} {
+		assert.Contains(t, run, want)
+	}
+
+	assert.Less(t, strings.Index(run, "gh run download"), strings.Index(run, "plan.sh"), "the record comes before the plan")
+}
+
+// TestLegHandsOnItsAgentRun checks that each vendor's part says which run's
+// agent made its change and when, for the record.
+func TestLegHandsOnItsAgentRun(t *testing.T) {
+	t.Parallel()
+
+	outputs := readWorkflow(t, vendorWorkflow).On.WorkflowCall.Outputs
+	for _, name := range []string{"agent_run", "agent_at"} {
+		assert.Equal(t, "${{ jobs.check.outputs."+name+" }}", outputs[name].Value)
+		assert.Equal(t, "${{ steps.done.outputs."+name+" }}", readJob(t, vendorWorkflow, "check").Outputs[name])
+	}
 }
 
 // TestLegChecksOutItsBase checks that the agent and the patch check both work

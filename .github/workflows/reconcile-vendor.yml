@@ -37,6 +37,12 @@ on:
         value: ${{ jobs.check.outputs.head }}
       changed:
         value: ${{ jobs.check.outputs.changed }}
+      agent_run:
+        description: The run whose agent made the change, for the run's record
+        value: ${{ jobs.check.outputs.agent_run }}
+      agent_at:
+        description: When that agent ran (RFC 3339, UTC)
+        value: ${{ jobs.check.outputs.agent_at }}
 
 permissions: {}
 
@@ -275,6 +281,8 @@ jobs:
     outputs:
       head: ${{ steps.done.outputs.head }}
       changed: ${{ steps.check.outputs.changed }}
+      agent_run: ${{ steps.done.outputs.agent_run }}
+      agent_at: ${{ steps.done.outputs.agent_at }}
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
         with:
@@ -353,7 +361,7 @@ jobs:
         id: done
         env:
           HEAD_SHA: ${{ steps.commit.outputs.head }}
-        run: echo "head=${HEAD_SHA}" >>"$GITHUB_OUTPUT"
+        run: printf 'head=%s\nagent_run=%s\nagent_at=%s\n' "$HEAD_SHA" "$GITHUB_RUN_ID" "$(date -u +%FT%TZ)" >>"$GITHUB_OUTPUT"
 
   # No model, on a fresh runner. After a green agent and check job, dry runs
   # included, it compares the run with the gate's page list and the baseline
