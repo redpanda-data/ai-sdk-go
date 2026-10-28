@@ -127,3 +127,4 @@ Each check below fails the run, and nothing lands. They run on the agent's repor
 ## Changing this file
 
 Change this file only in a reviewed PR; the bot can't edit it. A new Outcome word goes in the legend first. The skip reasons and fields must match `cmd/catalog-report`, every Default that makes a change names its field, every Ask carries its question, and every *Not offered* region has an asked or declined date; `TestRulesFile` fails until they do.
+
