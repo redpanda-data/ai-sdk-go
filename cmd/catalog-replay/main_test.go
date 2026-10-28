@@ -97,6 +97,13 @@ func TestReplayCommand(t *testing.T) {
 		"providers/anthropic/models_test.go": strings.Replace(test, "pins 5", "pins 6", 1),
 	})
 
+	git("checkout", "-q", base)
+
+	spaced := commit("replay with other spacing", map[string]string{
+		"catalog/snapshot.json": snapshot("6", "4"), "providers/anthropic/models.go": moved,
+		"providers/anthropic/models_test.go": strings.Replace(test, "pins 5", "pins  6", 1),
+	})
+
 	report := filepath.Join(t.TempDir(), "report.json")
 	require.NoError(t, os.WriteFile(report, []byte(`{"changes": [{"offering": "claude-opus-5-5", "field": "price", "old": "5", "new": "6",
 		"source_url": "https://platform.claude.com/pricing", "rule": "price-follow"}], "needs_human": [], "skipped": []}`), 0o600))
@@ -107,6 +114,7 @@ func TestReplayCommand(t *testing.T) {
 	}{
 		{name: "an exact replay", replay: exact},
 		{name: "a replay that loses a file", replay: noTest, want: []string{"providers/anthropic/models_test.go: the replay's change to it differs from the bot's"}},
+		{name: "a replay that differs only in spacing", replay: spaced, want: []string{"providers/anthropic/models_test.go: the replay's change to it differs from the bot's"}},
 		{
 			name: "a replay on the wrong offering", replay: wrong,
 			want: []string{

@@ -15,6 +15,7 @@
 package main
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -515,42 +516,49 @@ func TestCombineBuildsThePRFromTheVendors(t *testing.T) {
 
 	tests := []struct {
 		name, legs, anthropic, openai, pending, wantErr string
-		// carry is what the carry job had to carry, and its outputs.
+		// carry is what the carry job had to carry, and its tip, carried
+		// commits and base.
 		carry []string
 		want  map[string]string
 		body  []string
 		files string
-		// record is each vendor's commit, its parent and its agent run in
-		// the record.
-		record map[string][3]string
+		// record is each vendor's commit and its agent run in the record.
+		record map[string][2]string
 	}{
 		{
 			name: "two vendors' commits", legs: legs, anthropic: part("success", anthropic, "true"), openai: part("success", openai, "true"), pending: "[]",
 			want:   map[string]string{"tip": openai, "changed": "true"},
 			body:   []string{"## Catalogue drift: anthropic, openai\n", "\n## anthropic\n", "\n## openai\n", "<details><summary>Snapshot diff</summary>", `+{"providers": [{"provider": "openai", "offerings": [{"id": "gpt-6-1", "model": "x/gpt-6-1"}, {"id": "gpt-6-2"`},
 			files:  "catalog/snapshot.json\nproviders/anthropic/models.go\nproviders/openai/models.go\n",
-			record: map[string][3]string{"anthropic": {anthropic, base, "4100"}, "openai": {openai, anthropic, "4100"}},
+			record: map[string][2]string{"anthropic": {anthropic, "4100"}, "openai": {openai, "4100"}},
 		},
 		{
 			name: "a failed vendor with nothing waiting is left out", legs: legs, anthropic: part("success", anthropic, "true"), openai: failed, pending: `["anthropic"]`,
 			want:   map[string]string{"tip": anthropic, "changed": "true"},
 			body:   []string{"\n## openai\n\nThis vendor's run failed"},
 			files:  "catalog/snapshot.json\nproviders/anthropic/models.go\n",
-			record: map[string][3]string{"anthropic": {anthropic, base, "4100"}},
+			record: map[string][2]string{"anthropic": {anthropic, "4100"}},
 		},
 		{
 			name: "commits carried onto the vendors'", legs: legs, anthropic: part("success", anthropic, "true"), openai: part("success", openai, "true"), pending: "[]",
-			carry:  []string{`["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]`, carried, `["` + carried + `"]`},
+			carry:  []string{`["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]`, carried, `["` + carried + `"]`, openai},
 			want:   map[string]string{"tip": carried, "changed": "true"},
 			files:  "catalog/snapshot.json\nproviders/anthropic/models.go\nproviders/openai/models.go\nproviders/openai/openaitest/constants.go\n",
-			record: map[string][3]string{"anthropic": {anthropic, base, "4100"}, "openai": {openai, anthropic, "4100"}},
+			record: map[string][2]string{"anthropic": {anthropic, "4100"}, "openai": {openai, "4100"}},
 		},
 		{
 			name: "only carried commits", legs: quiet, anthropic: part("success", base, "false"), openai: part("success", base, "false"), pending: "[]",
-			carry:  []string{`["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]`, carriedAlone, `["` + carriedAlone + `"]`},
+			carry:  []string{`["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]`, carriedAlone, `["` + carriedAlone + `"]`, base},
 			want:   map[string]string{"tip": carriedAlone, "changed": "true"},
 			files:  "providers/openai/openaitest/constants.go\n",
-			record: map[string][3]string{},
+			record: map[string][2]string{},
+		},
+		{
+			// The carry job must have carried onto the vendors' last commit,
+			// or the push would drop or add a vendor's commit.
+			name: "commits carried onto another commit", legs: legs, anthropic: part("success", anthropic, "true"), openai: part("success", openai, "true"), pending: "[]",
+			carry:   []string{`["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]`, carried, `["` + carried + `"]`, anthropic},
+			wantErr: "carried onto " + anthropic + ", not the vendors' last commit " + openai,
 		},
 		{
 			name: "commits to carry and no carried tip", legs: legs, anthropic: part("success", anthropic, "true"), openai: part("success", openai, "true"), pending: "[]",
@@ -563,7 +571,7 @@ func TestCombineBuildsThePRFromTheVendors(t *testing.T) {
 			want:   map[string]string{"tip": openai, "changed": "true"},
 			body:   []string{"\n## openai\n\n> Replayed with no model: this is the change the agent made in run 40504204648 on 2026-10-27"},
 			files:  "catalog/snapshot.json\nproviders/anthropic/models.go\nproviders/openai/models.go\n",
-			record: map[string][3]string{"anthropic": {anthropic, base, "4100"}, "openai": {openai, anthropic, "40504204648"}},
+			record: map[string][2]string{"anthropic": {anthropic, "4100"}, "openai": {openai, "40504204648"}},
 		},
 		{
 			// Only the record job, after the check, failed: it keeps the
@@ -571,7 +579,7 @@ func TestCombineBuildsThePRFromTheVendors(t *testing.T) {
 			name: "a vendor whose check finished counts", legs: legs, anthropic: part("success", anthropic, "true"), openai: part("failure", openai, "true"), pending: "[]",
 			want:   map[string]string{"tip": openai, "changed": "true"},
 			files:  "catalog/snapshot.json\nproviders/anthropic/models.go\nproviders/openai/models.go\n",
-			record: map[string][3]string{"anthropic": {anthropic, base, "4100"}, "openai": {openai, anthropic, "4100"}},
+			record: map[string][2]string{"anthropic": {anthropic, "4100"}, "openai": {openai, "4100"}},
 		},
 		{
 			name: "a failed vendor with a waiting commit fails the job", legs: legs, anthropic: part("success", anthropic, "true"), openai: failed, pending: `["openai"]`,
@@ -595,9 +603,9 @@ func TestCombineBuildsThePRFromTheVendors(t *testing.T) {
 			cmd := exec.CommandContext(t.Context(), "bash", script, report, tt.legs, bundles, out)
 			cmd.Dir = checkout
 
-			carry := append(tt.carry, "[]", "", "")[:3]
+			carry := append(tt.carry, "[]", "", "", "")[:4]
 			cmd.Env = append(os.Environ(), "GITHUB_OUTPUT="+outputs, "GITHUB_SHA="+base, `RUN=["anthropic","openai"]`, "PENDING="+tt.pending,
-				"CARRY="+carry[0], "CARRY_TIP="+carry[1], "CARRIED="+carry[2],
+				"CARRY="+carry[0], "CARRY_TIP="+carry[1], "CARRIED="+carry[2], "CARRY_BASE="+carry[3],
 				`NEEDS={"plan": {"result": "success"}, "anthropic": `+tt.anthropic+`, "openai": `+tt.openai+`}`)
 			combined, err := cmd.CombinedOutput()
 
@@ -646,7 +654,6 @@ func TestCombineBuildsThePRFromTheVendors(t *testing.T) {
 				Carried []string `json:"carried"`
 				Vendors map[string]struct {
 					Commit   string `json:"commit"`
-					Parent   string `json:"parent"`
 					AgentRun string `json:"agent_run"`
 					AgentAt  string `json:"agent_at"`
 					Report   Report `json:"report"`
@@ -668,8 +675,7 @@ func TestCombineBuildsThePRFromTheVendors(t *testing.T) {
 			for name, want := range tt.record {
 				vendor := record.Vendors[name]
 				assert.Equal(t, want[0], vendor.Commit, "%s's commit", name)
-				assert.Equal(t, want[1], vendor.Parent, "%s's parent", name)
-				assert.Equal(t, want[2], vendor.AgentRun, "%s's agent run", name)
+				assert.Equal(t, want[1], vendor.AgentRun, "%s's agent run", name)
 				assert.NotEmpty(t, vendor.AgentAt, "%s's agent time", name)
 				assert.NotEmpty(t, vendor.Report.Changes, "%s's report", name)
 			}
@@ -804,18 +810,22 @@ printf ']}]}\n'
 	report := `{"changes": [{"offering": "claude-opus-5-5", "field": "price", "old": "5", "new": "6", "source_url": "https://platform.claude.com/pricing", "rule": "price-follow"}], "needs_human": [], "skipped": []}`
 	asked := `{"changes": [{"offering": "claude-opus-5-5", "field": "price", "old": "5", "new": "6", "source_url": "https://platform.claude.com/pricing", "rule": "price-follow"}],
 		"needs_human": [{"offering": "claude-sonnet-5-5", "field": "price", "catalogue": "", "page": "", "values": [], "source_urls": [], "rule": "no-rule"}], "skipped": []}`
-	record := func(vendor, parent, report string) string {
-		return `{"head": "` + bot + `", "vendors": {"` + vendor + `": {"commit": "` + bot + `", "parent": "` + parent + `", "agent_run": "40504204648", "agent_at": "2026-10-27T06:17:00Z", "report": ` + report + `}}}`
+	record := func(vendor, report string) string {
+		return `{"head": "` + bot + `", "vendors": {"` + vendor + `": {"commit": "` + bot + `", "agent_run": "40504204648", "agent_at": "2026-10-27T06:17:00Z", "report": ` + report + `}}}`
 	}
 
 	tests := []struct {
-		name, base, record, wantErr string
+		name, base, record, now, wantErr string
 	}{
-		{name: "onto a base that changed another offering", base: "sonnet moved", record: record("anthropic", parent, report)},
-		{name: "onto a base that changed the same line", base: "opus moved", record: record("anthropic", parent, report), wantErr: "doesn't merge"},
-		{name: "a question about an offering the base changed", base: "sonnet moved", record: record("anthropic", parent, asked), wantErr: "a report row names it"},
-		{name: "no commit for the vendor", base: "sonnet moved", record: record("openai", parent, report), wantErr: "no commit for anthropic"},
-		{name: "a commit that isn't on its parent", base: "sonnet moved", record: record("anthropic", bases["opus moved"], report), wantErr: "isn't a commit on"},
+		{name: "onto a base that changed another offering", base: "sonnet moved", record: record("anthropic", report)},
+		{name: "onto a base that changed the same line", base: "opus moved", record: record("anthropic", report), wantErr: "doesn't merge onto"},
+		{name: "a question about an offering the base changed", base: "sonnet moved", record: record("anthropic", asked), wantErr: "a report row names it"},
+		{name: "no commit for the vendor", base: "sonnet moved", record: record("openai", report), wantErr: "no commit for anthropic"},
+		{
+			// The bound the plan applies, kept here too for the fallback after a failed agent.
+			name: "a commit whose agent ran more than 8 days ago", base: "sonnet moved", record: record("anthropic", report), now: "2026-11-05T07:00:00Z",
+			wantErr: "ran more than 192 hours ago",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -827,10 +837,10 @@ printf ']}]}\n'
 			recordFile := filepath.Join(t.TempDir(), "record.json")
 			write(filepath.Dir(recordFile), filepath.Base(recordFile), tt.record, 0o600)
 
-			cmd := exec.CommandContext(t.Context(), "bash", script, "anthropic", recordFile, out, replayBin)
+			cmd := exec.CommandContext(t.Context(), "bash", script, "anthropic", recordFile, out)
 			cmd.Dir = checkout
 
-			cmd.Env = append(os.Environ(), "PR_JOB="+prJob, "GITHUB_OUTPUT="+outputs)
+			cmd.Env = append(os.Environ(), "PR_JOB="+prJob, "CATALOG_REPLAY="+replayBin, "GITHUB_OUTPUT="+outputs, "NOW="+cmp.Or(tt.now, "2026-10-28T08:00:00Z"))
 			combined, err := cmd.CombinedOutput()
 
 			assert.Equal(t, bases[tt.base], gitIn(t, checkout, "rev-parse", "HEAD"), "the checkout is back at its base")
@@ -878,9 +888,15 @@ func TestCarryKeepsOthersCommits(t *testing.T) {
 	out, err := build.CombinedOutput()
 	require.NoError(t, err, string(out))
 
-	// The real sandbox needs bubblewrap; this one only runs the command.
-	stubSandbox := filepath.Join(t.TempDir(), "sandbox.sh")
-	require.NoError(t, os.WriteFile(stubSandbox, []byte("sandbox() { \"$@\"; }\nsandbox_check() { :; }\n"), 0o600))
+	// The real sandbox needs bubblewrap. These run nothing in it: one
+	// whose commands pass, and one whose commands fail.
+	stub := func(status string) string {
+		path := filepath.Join(t.TempDir(), "sandbox.sh")
+		require.NoError(t, os.WriteFile(path, []byte("sandbox() { return "+status+"; }\nsandbox_check() { :; }\naffected_packages() { :; }\n"), 0o600))
+
+		return path
+	}
+	passing, failing := stub("0"), stub("1")
 
 	write := func(dir, path, content string) {
 		require.NoError(t, os.MkdirAll(filepath.Join(dir, filepath.Dir(path)), 0o700))
@@ -930,12 +946,13 @@ func TestCarryKeepsOthersCommits(t *testing.T) {
 	gitIn(t, origin, "checkout", "-q", "--detach", main)
 
 	tests := []struct {
-		name, tip, wantErr string
-		carry              []string
+		name, tip, sandbox, wantErr string
+		carry                       []string
 	}{
 		{name: "two commits, in order", tip: tip, carry: []string{first, second}},
 		{name: "a commit that changes .github/", tip: tip, carry: []string{first, workflow}, wantErr: workflow[:7] + " changes .github/"},
 		{name: "a merge commit", tip: tip, carry: []string{first, second, merge}, wantErr: merge[:7] + " is a merge commit"},
+		{name: "a snapshot that doesn't regenerate", tip: tip, sandbox: failing, carry: []string{first}, wantErr: "the snapshot doesn't regenerate with " + first[:7]},
 		{
 			// Line four is close to their line two: it merges, but the
 			// change's context differs, so it isn't the same change.
@@ -954,7 +971,7 @@ func TestCarryKeepsOthersCommits(t *testing.T) {
 			cmd := exec.CommandContext(t.Context(), "bash", append([]string{script, replayBin}, tt.carry...)...) //nolint:gosec // the test's own commits
 			cmd.Dir = checkout
 
-			cmd.Env = append(os.Environ(), "GITHUB_OUTPUT="+outputs, "SANDBOX_SH="+stubSandbox, "CARRY_SNAPSHOT=true", "CARRY_CHECK=true",
+			cmd.Env = append(os.Environ(), "GITHUB_OUTPUT="+outputs, "SANDBOX_SH="+cmp.Or(tt.sandbox, passing),
 				"GIT_COMMITTER_NAME=vbotbuildovich", "GIT_COMMITTER_EMAIL=bot@example.com")
 			combined, err := cmd.CombinedOutput()
 
@@ -974,6 +991,7 @@ func TestCarryKeepsOthersCommits(t *testing.T) {
 
 			got := parseOutputs(string(raw))
 			assert.Equal(t, gitIn(t, checkout, "rev-parse", "HEAD"), got["tip"])
+			assert.Equal(t, tt.tip, got["base"], "the commit it carried onto, for the pr job to check")
 
 			// Their commits on top of the tip, in order, with their authors and messages.
 			assert.Equal(t, "adam test: swap the live test model\nadam docs: note two", gitIn(t, checkout, "log", "--reverse", "--format=%an %s", tt.tip+"..HEAD"))
@@ -1023,6 +1041,10 @@ func TestSamePatchesComparesChangeForChange(t *testing.T) {
 	gitIn(t, repo, "checkout", "-q", "--detach", anthropic)
 
 	changed := []string{anthropic, commit("openai, a new value", "a.txt", strings.Replace(strings.Replace(lines, "9", "nine", 1), "2", "TWO", 1))}
+
+	gitIn(t, repo, "checkout", "-q", "--detach", anthropic)
+
+	spaced := []string{anthropic, commit("openai, a new spacing", "a.txt", strings.Replace(strings.Replace(lines, "9", "nine", 1), "2", "t wo", 1))}
 	list := func(shas ...string) string { return `["` + strings.Join(shas, `","`) + `"]` }
 
 	tests := []struct {
@@ -1031,6 +1053,7 @@ func TestSamePatchesComparesChangeForChange(t *testing.T) {
 	}{
 		{name: "the same changes on a newer base", now: list(same...), same: true},
 		{name: "a changed value", now: list(changed...)},
+		{name: "a change only in spacing inside a line", now: list(spaced...)},
 		{name: "one commit fewer", now: list(same[0])},
 		{name: "the same changes in another order", now: list(same[1], same[0])},
 	}
@@ -1663,36 +1686,39 @@ func TestLegHandsOnItsAgentRun(t *testing.T) {
 }
 
 // TestReplayFallsBackToTheAgent checks the agent job of a vendor planned
-// for replay: replay.sh runs first, Claude runs only when it fails, and a
-// replay also stands in when Claude fails, so a vendor with a commit waiting
-// in the PR doesn't block the push. What Claude left is collected only when
-// no replay took its place.
+// for replay: replay.sh runs first, Claude runs only when it fails, and when
+// Claude fails a replay stands in, so a vendor with a commit waiting in the
+// PR doesn't block the push. What Claude left is collected before that, so
+// a failed run keeps its evidence, and the job fails when neither the agent
+// nor a replay produced a change.
 func TestReplayFallsBackToTheAgent(t *testing.T) {
 	t.Parallel()
 
 	steps := readJob(t, vendorWorkflow, "agent").Steps
-	replay := stepIndex(t, steps, "replay", func(s workflowStep) bool { return s.ID == "replay" })
-	claude := stepIndex(t, steps, "Claude", isClaude)
-	fallback := stepIndex(t, steps, "fallback", func(s workflowStep) bool { return s.ID == "fallback" })
-	collect := stepIndex(t, steps, "collect", func(s workflowStep) bool {
+	at := func(what string, match func(workflowStep) bool) int { return stepIndex(t, steps, what, match) }
+	replay := at("replay", func(s workflowStep) bool { return s.ID == "replay" })
+	claude := at("Claude", isClaude)
+	collect := at("collect", func(s workflowStep) bool {
 		return strings.Contains(s.Run, "out/patch.diff") && strings.Contains(s.Run, "git diff")
 	})
+	fallback := at("fallback", func(s workflowStep) bool { return s.ID == "fallback" })
+	fail := at("fail", func(s workflowStep) bool {
+		return s.If == "steps.claude.outcome == 'failure' && steps.fallback.outcome != 'success'"
+	})
 
-	assert.Less(t, replay, claude)
-	assert.Less(t, claude, fallback)
-	assert.Less(t, fallback, collect)
+	assert.Equal(t, []int{replay, claude, collect, fallback, fail}, slices.Sorted(slices.Values([]int{replay, claude, collect, fallback, fail})), "the steps' order")
 
-	for _, at := range []int{replay, fallback} {
-		assert.Contains(t, steps[at].Run, ".github/reconcile-models/replay.sh")
+	for _, step := range []int{replay, fallback} {
+		assert.Equal(t, `GOTOOLCHAIN=local .github/reconcile-models/replay.sh "$PROVIDER" "$RUNNER_TEMP/record/record.json" out`, strings.TrimSpace(steps[step].Run))
+		assert.Equal(t, true, steps[step].ContinueOnError, "a failed replay must not end the job by itself")
 	}
 
 	assert.Equal(t, "inputs.mode == 'replay'", steps[replay].If)
-	assert.Equal(t, true, steps[replay].ContinueOnError, "a failed replay runs the agent")
 	assert.Equal(t, "steps.replay.outcome != 'success'", steps[claude].If)
 	assert.Equal(t, true, steps[claude].ContinueOnError, "a failed agent tries the replay")
+	assert.Equal(t, "always() && steps.replay.outcome != 'success'", steps[collect].If)
 	assert.Equal(t, "steps.claude.outcome == 'failure'", steps[fallback].If)
-	assert.Nil(t, steps[fallback].ContinueOnError, "with neither a change nor a replay, the job fails")
-	assert.Equal(t, "always() && steps.replay.outcome != 'success' && steps.fallback.outcome != 'success'", steps[collect].If)
+	assert.Contains(t, steps[fail].Run, "exit 1")
 }
 
 // TestReplayedLegSavesNoFingerprints checks that a replayed vendor leaves no

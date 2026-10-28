@@ -140,11 +140,8 @@ fi
 # Test the packages the patch can affect: the patched ones and everything that
 # imports them. Tests needing Docker or the network can't run in the sandbox;
 # the full suite runs in the PR's own CI. -count=1: never reuse cached results.
-module="$(go list -m)"
 lint_pkgs="$(printf './providers/%s/... ' ${owned//|/ })"
-affected="$(go list -test -f '{{.ImportPath}} {{join .Deps " "}}' ./... |
-  awk -v a="$module/providers/$provider" -v b="$module/catalog" '{for (i = 1; i <= NF; i++) if ($i == a || $i == b) { print $1; next }}' |
-  sed -E 's/ \[.*//; s/\.test$//; s/_test$//' | sort -u | tr '\n' ' ')"
+affected="$(affected_packages "./providers/$provider" ./catalog)"
 
 # The only place patched code runs. The agent job runs with hooks off, so lint
 # here: only the patched lines (--new), and without --fix, which would change

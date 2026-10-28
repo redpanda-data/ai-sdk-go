@@ -163,6 +163,7 @@ jobs:
     permissions:
       contents: read
     outputs:
+      base: ${{ steps.carry.outputs.base }}
       tip: ${{ steps.carry.outputs.tip }}
       carried: ${{ steps.carry.outputs.carried }}
       refused: ${{ steps.carry.outputs.refused }}
@@ -270,6 +271,7 @@ jobs:
           CARRY: ${{ needs.plan.outputs.carry }}
           CARRY_TIP: ${{ needs.carry.outputs.tip }}
           CARRIED: ${{ needs.carry.outputs.carried }}
+          CARRY_BASE: ${{ needs.carry.outputs.base }}
         run: |
           task install:go
           export PATH="$(dirname "$(ls -d "$PWD"/.build/go*/bin/go | tail -1)"):$PATH"

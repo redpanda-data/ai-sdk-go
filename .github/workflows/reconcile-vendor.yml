@@ -225,15 +225,16 @@ jobs:
         with:
           name: reconcile-plan-record
           path: ${{ runner.temp }}/record
+      # Go for replay.sh, which builds catalog-replay and runs pr-job.sh.
+      - name: Install Go
+        run: |
+          task install:go
+          dirname "$(ls -d "$PWD"/.build/go*/bin/go | tail -1)" >>"$GITHUB_PATH"
       - name: Replay the vendor's waiting commit (no model)
         id: replay
         if: inputs.mode == 'replay'
         continue-on-error: true
-        run: |
-          task install:go
-          export PATH="$(dirname "$(ls -d "$PWD"/.build/go*/bin/go | tail -1)"):$PATH"
-          GOTOOLCHAIN=local go build -o "$RUNNER_TEMP/catalog-replay" ./cmd/catalog-replay
-          GOTOOLCHAIN=local .github/reconcile-models/replay.sh "$PROVIDER" "$RUNNER_TEMP/record/record.json" out "$RUNNER_TEMP/catalog-replay"
+        run: GOTOOLCHAIN=local .github/reconcile-models/replay.sh "$PROVIDER" "$RUNNER_TEMP/record/record.json" out
       - name: Prepare prompt and schema
         id: inputs
         run: |
@@ -268,22 +269,10 @@ jobs:
             --allowedTools "Skill,Read,Grep,Glob,${{ steps.inputs.outputs.edits }},Edit(./catalog/facts_data.go),Bash(curl:*),Bash(grep:*),Bash(jq:*),Bash(task catalog:snapshot),Bash(task test:unit),Bash(task lint:new),Bash(git diff:*)"
             --disallowedTools "WebFetch,WebSearch,Bash(git push:*),Bash(git commit:*),Bash(gh:*),AskUserQuestion,Task,Agent,Read(//proc/**)"
             --json-schema '${{ steps.inputs.outputs.schema }}'
-      # A selected vendor whose agent fails keeps its commit waiting in the
-      # PR, replayed, instead of blocking the push. With no commit to replay,
-      # this fails the job, as the agent's failure did.
-      - name: Replay the vendor's waiting commit after the agent failed (no model)
-        id: fallback
-        if: steps.claude.outcome == 'failure'
-        run: |
-          git reset -q --hard && git clean -fdq -- providers catalog
-          task install:go
-          export PATH="$(dirname "$(ls -d "$PWD"/.build/go*/bin/go | tail -1)"):$PATH"
-          GOTOOLCHAIN=local go build -o "$RUNNER_TEMP/catalog-replay" ./cmd/catalog-replay
-          GOTOOLCHAIN=local .github/reconcile-models/replay.sh "$PROVIDER" "$RUNNER_TEMP/record/record.json" out "$RUNNER_TEMP/catalog-replay"
       - name: Collect patch and report
         # Also after a failed agent step, so the run leaves evidence to
         # inspect, but never over a replay.
-        if: always() && steps.replay.outcome != 'success' && steps.fallback.outcome != 'success'
+        if: always() && steps.replay.outcome != 'success'
         env:
           REPORT: ${{ steps.claude.outputs.structured_output }}
         # Start from an empty out/ and hand over only these two files, so
@@ -295,6 +284,19 @@ jobs:
           # pr-job.sh rejects any file outside the run's own providers.
           git ls-files --others --exclude-standard -- ":(glob)providers/*/*.go" | xargs -r git add -N --
           git diff -- ":(glob)providers/*/*.go" catalog/facts_data.go >out/patch.diff
+      # A vendor whose agent fails keeps its commit waiting in the PR,
+      # replayed, instead of blocking the push; replay.sh replaces out/ only
+      # when it succeeds, so the agent's evidence stays otherwise.
+      - name: Replay the vendor's waiting commit after the agent failed (no model)
+        id: fallback
+        if: steps.claude.outcome == 'failure'
+        continue-on-error: true
+        run: GOTOOLCHAIN=local .github/reconcile-models/replay.sh "$PROVIDER" "$RUNNER_TEMP/record/record.json" out
+      - name: Fail when neither the agent nor a replay made the change
+        if: steps.claude.outcome == 'failure' && steps.fallback.outcome != 'success'
+        run: |
+          echo "::error::The agent failed, and this vendor has no waiting commit that replays exactly."
+          exit 1
       - name: Run stats
         if: always()
         # Diagnostics only: a failure here must not stop the check job.

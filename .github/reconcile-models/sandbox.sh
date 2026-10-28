@@ -63,6 +63,19 @@ sandbox() {
   esac
 }
 
+# affected_packages DIR... prints, space-separated, every package in the
+# module that is one of those directories' packages or imports one, test
+# imports included: the packages whose tests a change there can break. It
+# only lists packages (go list), so it runs outside the sandbox.
+affected_packages() {
+  local wanted
+  wanted="$(go list -f '{{.ImportPath}}' "$@" | tr '\n' ' ')"
+  go list -test -f '{{.ImportPath}} {{join .Deps " "}}' ./... |
+    awk -v wanted="$wanted" 'BEGIN { n = split(wanted, w, " "); for (i = 1; i <= n; i++) keep[w[i]] = 1 }
+      { for (i = 1; i <= NF; i++) if ($i in keep) { print $1; next } }' |
+    sed -E 's/ \[.*//; s/\.test$//; s/_test$//' | sort -u | tr '\n' ' '
+}
+
 # Fails unless the sandbox hides the environment, blocks the network and
 # Docker's socket, and keeps the checkout, .git and SANDBOX_RO read-only.
 sandbox_check() {

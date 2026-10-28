@@ -18,8 +18,9 @@
 // parent, the bot commit, the replay's base and the replay. The committed
 // snapshots must agree item by item (reconcile.ReplayMismatches), and every
 // other file the commits change must change by the same hunks, context
-// lines included (git patch-id). It prints each difference and exits 1, so
-// the run falls back to the vendor's agent; it runs nothing from the commits.
+// lines and whitespace included (git patch-id --verbatim). It prints each
+// difference and exits 1, so the run falls back to the vendor's agent; it
+// runs nothing from the commits.
 package main
 
 import (
@@ -90,9 +91,10 @@ func main() {
 }
 
 // patchID identifies one file's change from one commit to another by its
-// hunks, line numbers aside; empty when the file doesn't change.
+// hunks, line numbers aside but whitespace kept, since it can be data (a
+// display name); empty when the file doesn't change.
 func patchID(ctx context.Context, from, to, file string) string {
-	cmd := exec.CommandContext(ctx, "git", "patch-id", "--stable")
+	cmd := exec.CommandContext(ctx, "git", "patch-id", "--verbatim")
 	cmd.Stdin = strings.NewReader(git(ctx, "diff", from, to, "--", file))
 
 	out, err := cmd.Output()

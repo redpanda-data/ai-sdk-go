@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Puts a reconcile run's vendor parts together into one PR, with no model:
-# the last vendor commit is the PR's tip, checked out here for the push, and
+# the last vendor commit, or the carry job's tip when it carried commits onto
+# that one, is the PR's tip, checked out here for the push, and
 # OUT_DIR gets the PR body for every vendor that ran, the files the vendors
 # committed, the snapshot diff against the run's commit, and the record a
 # later run replays from (record.json, when anything changed). A vendor whose
@@ -11,7 +12,7 @@
 #   LEGS_DIR holds each vendor's reconcile-pr-<vendor> folder, BUNDLES_DIR its
 #   reconcile-bundle-<commit> one.
 # Env: NEEDS (the pr job's needs, as JSON), RUN, PENDING and CARRY (from
-#      plan.sh), CARRY_TIP and CARRIED (from carry.sh), GITHUB_SHA (the run's
+#      plan.sh), CARRY_TIP, CARRIED and CARRY_BASE (from carry.sh), GITHUB_SHA (the run's
 #      commit), BASE (the branch the PR goes into).
 set -euo pipefail
 
@@ -77,6 +78,11 @@ if [[ "${CARRY:-[]}" != "[]" ]]; then
     echo "combine: the carry job left no commits" >&2
     exit 1
   fi
+  if [[ "${CARRY_BASE:-}" != "$vendors_tip" ]]; then
+    echo "::error::The carry job carried onto ${CARRY_BASE:-nothing}, not the vendors' last commit ${vendors_tip}, so this run doesn't push."
+    echo "combine: carried onto ${CARRY_BASE:-nothing}, not the vendors' last commit $vendors_tip" >&2
+    exit 1
+  fi
   tip="$CARRY_TIP" changed=true
 fi
 
@@ -91,15 +97,14 @@ if [[ "$changed" == "true" ]]; then
     args+=(-base-routes "$first/base-routes.txt" -routes "$last/routes.txt")
   fi
 
-  # What the push holds: each vendor's commit, the commit it was made on,
-  # its agent run and its report.
+  # What the push holds: each vendor's commit, its agent run and its report.
   vendors='{}'
   for vendor in ${recorded[@]+"${recorded[@]}"}; do
     head="$(need "$vendor" .outputs.head)"
-    vendors="$(jq -c --arg v "$vendor" --arg commit "$head" --arg parent "$(git rev-parse "$head^")" \
+    vendors="$(jq -c --arg v "$vendor" --arg commit "$head" \
       --arg run "$(need "$vendor" .outputs.agent_run)" --arg at "$(need "$vendor" .outputs.agent_at)" \
       --slurpfile report "$legs/reconcile-pr-$vendor/report.json" \
-      '.[$v] = {commit: $commit, parent: $parent, agent_run: $run, agent_at: $at, report: $report[0]}' <<<"$vendors")"
+      '.[$v] = {commit: $commit, agent_run: $run, agent_at: $at, report: $report[0]}' <<<"$vendors")"
   done
   jq -n --arg head "$tip" --argjson carried "${CARRIED:-[]}" --argjson vendors "$vendors" \
     '{head: $head, carried: $carried, vendors: $vendors}' >"$out/record.json"
