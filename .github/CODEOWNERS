@@ -1,0 +1,6 @@
+# Everything under .github/ can reach repository secrets, such as the LLM
+# provider keys, and holds the AI merge bot's rules, so a change to it asks
+# Agent Experience for review. The review is required only while the main
+# ruleset sets require_code_owner_review. This file sits under .github/ too,
+# so a change to it asks the same owners.
+/.github/ @redpanda-data/team-ax
