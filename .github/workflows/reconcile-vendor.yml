@@ -26,9 +26,10 @@ on:
     secrets:
       ANTHROPIC_API_KEY:
         required: true
-      # Read by the agent job's debug-logging check: a called workflow sees
-      # only the secrets passed to it.
-      ACTIONS_STEP_DEBUG:
+      # The repo's ACTIONS_STEP_DEBUG, for the agent job's debug-logging
+      # check: a called workflow sees only the secrets passed to it, and
+      # GitHub refuses a passed secret named ACTIONS_*.
+      STEP_DEBUG:
         required: false
     outputs:
       head:
@@ -191,7 +192,7 @@ jobs:
       # logging is on, and this repository's logs are public, so refuse it.
       - name: Refuse debug logging
         env:
-          STEP_DEBUG_SECRET: ${{ secrets.ACTIONS_STEP_DEBUG }}
+          STEP_DEBUG_SECRET: ${{ secrets.STEP_DEBUG }}
           STEP_DEBUG_VAR: ${{ vars.ACTIONS_STEP_DEBUG }}
         run: |
           if [[ "${RUNNER_DEBUG:-}" == "1" || "$STEP_DEBUG_SECRET" == "true" || "$STEP_DEBUG_VAR" == "true" ]]; then

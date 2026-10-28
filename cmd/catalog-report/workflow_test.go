@@ -127,6 +127,7 @@ type workflow struct {
 			Outputs map[string]struct {
 				Value string `yaml:"value"`
 			} `yaml:"outputs"`
+			Secrets map[string]any `yaml:"secrets"`
 		} `yaml:"workflow_call"`
 		WorkflowDispatch struct {
 			Inputs map[string]struct {
@@ -979,13 +980,20 @@ func TestLegGetsNoBotToken(t *testing.T) {
 // TestLegSecretsAreNamed checks that each vendor's part gets only the secrets
 // it names: the model key, and the debug-logging flag the agent job's check
 // reads. A called workflow sees no other secret, so inherit would hand it all.
+// GitHub refuses a call whose secret names start with ACTIONS_ or GITHUB_, so
+// the flag goes in as STEP_DEBUG.
 func TestLegSecretsAreNamed(t *testing.T) {
 	t.Parallel()
 
 	for name, job := range legs(t) {
 		secrets, named := job.Secrets.(map[string]any)
 		require.True(t, named, "%s must name its secrets, not inherit them", name)
-		assert.ElementsMatch(t, []string{"ANTHROPIC_API_KEY", "ACTIONS_STEP_DEBUG"}, slices.Collect(maps.Keys(secrets)), "%s's secrets", name)
+		assert.ElementsMatch(t, []string{"ANTHROPIC_API_KEY", "STEP_DEBUG"}, slices.Collect(maps.Keys(secrets)), "%s's secrets", name)
+		assert.Equal(t, "${{ secrets.ACTIONS_STEP_DEBUG }}", secrets["STEP_DEBUG"], "%s must pass the repo's debug-logging flag", name)
+	}
+
+	for secret := range readWorkflow(t, vendorWorkflow).On.WorkflowCall.Secrets {
+		assert.False(t, strings.HasPrefix(secret, "ACTIONS_") || strings.HasPrefix(secret, "GITHUB_"), "%s takes the reserved secret name %s", vendorWorkflow, secret)
 	}
 }
 
