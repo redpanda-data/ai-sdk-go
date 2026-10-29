@@ -274,10 +274,12 @@ func valueList(values []string) string {
 	return strings.Join(rendered, ", ")
 }
 
-// Base is what Render reads besides the report: a link prefix for files at the
-// base commit (empty for no links), that commit's rules and decisions, today
-// as YYYY-MM-DD, and the catalogue before and after the patch for each
-// change's effect. Without both catalogues the Changes table has no Effect column.
+// Base is what Render reads besides the reports: a link prefix for files at
+// the base commit (empty for no links), that commit's rules and decisions,
+// today as YYYY-MM-DD, and the catalogue before and after the patch. On the
+// Base passed to Render that is the whole PR's, for the routing changes'
+// prices; inside a vendor's section it is that vendor's, for each change's
+// effect. Without both catalogues the Changes table has no Effect column.
 type Base struct {
 	URL       string
 	Rules     reconcile.Rules
@@ -445,33 +447,45 @@ func questions(needs []NeedsHuman) []question {
 }
 
 // resolveAlert is the alert at the top for the reviewer: how many "Resolve
-// before merging" questions block the merge, naming the first five. It shows
-// only when there is one.
-func resolveAlert(asks []question) string {
-	if len(asks) == 0 {
+// before merging" questions block the merge, naming the first five, with
+// their vendor when the body has more than one. It shows only when there is
+// one.
+func resolveAlert(parts []vendorPart) string {
+	var named []string
+
+	asks := 0
+
+	for _, part := range parts {
+		for _, q := range part.asks {
+			if asks++; asks > 5 {
+				continue
+			}
+
+			name := code(q.row.Offering) + " " + q.row.Field
+			if len(q.offerings) > 1 {
+				name = fmt.Sprintf("%s on %d offerings", q.row.Field, len(q.offerings))
+			}
+
+			if len(parts) > 1 {
+				name = part.Name + " " + name
+			}
+
+			named = append(named, name)
+		}
+	}
+
+	if asks == 0 {
 		return ""
 	}
 
-	shown := asks[:min(len(asks), 5)]
-	named := make([]string, 0, len(shown))
-
-	for _, q := range shown {
-		name := code(q.row.Offering) + " " + q.row.Field
-		if len(q.offerings) > 1 {
-			name = fmt.Sprintf("%s on %d offerings", q.row.Field, len(q.offerings))
-		}
-
-		named = append(named, name)
-	}
-
 	list := strings.Join(named, ", ")
-	if more := len(asks) - len(shown); more > 0 {
+	if more := asks - len(named); more > 0 {
 		list += fmt.Sprintf(" and %d more", more)
 	}
 
 	count := "1 question"
-	if len(asks) > 1 {
-		count = fmt.Sprintf("%d questions", len(asks))
+	if asks > 1 {
+		count = fmt.Sprintf("%d questions", asks)
 	}
 
 	return "> [!IMPORTANT]\n> **Resolve " + count + " before merging:** " + list + ". See Resolve before merging below.\n\n"
@@ -746,27 +760,82 @@ func (base Base) summary() string {
 		len(base.Decisions), base.fileLink("decisions.yaml", reconcile.DecisionsPath, 0), due)
 }
 
-// Render writes the PR body. Call it only on a report Validate accepted and
-// code files ValidateCodeFiles accepted. codeFiles are the files whose change
-// isn't data only, listed first so a reviewer reads them as code.
-func Render(report Report, provider, snapshotDiff string, codeFiles []string, base Base) string {
+// Vendor is one vendor's part of the PR: its report, and the catalogue
+// before and after its commit, for effect notes and "Changed with no row".
+// Failed is a vendor whose run failed, so the PR has nothing from it.
+type Vendor struct {
+	Name          string
+	Report        Report
+	Before, After *reconcile.Snapshot
+	Failed        bool
+}
+
+// vendorPart is one vendor ready to render: base with the vendor's own
+// catalogue, the rows its section shows once decisions and waiting regions
+// are taken out, and its questions grouped.
+type vendorPart struct {
+	Vendor
+
+	base    Base
+	shown   Report
+	held    []string
+	waiting []Skipped
+	asks    []question
+}
+
+func (base Base) part(vendor Vendor) vendorPart {
+	part := vendorPart{Vendor: vendor, base: base}
+	part.base.Before, part.base.After = vendor.Before, vendor.After
+	part.shown, part.held = part.base.hold(vendor.Report, vendor.Name)
+	part.shown, part.waiting = part.base.splitWaiting(part.shown)
+	part.asks = questions(part.shown.NeedsHuman)
+
+	return part
+}
+
+// rows counts the rows the vendor's section shows.
+func (part vendorPart) rows() int {
+	return len(part.shown.Changes) + len(part.shown.NeedsHuman) + len(part.shown.Skipped) + len(part.waiting) + len(part.held)
+}
+
+// Render writes the PR body: what applies to the whole PR once, then one
+// section per vendor, then the snapshot diff. Call it only on reports
+// Validate accepted and code files ValidateCodeFiles accepted. codeFiles are
+// the files whose change isn't data only, listed first so a reviewer reads
+// them as code.
+func Render(vendors []Vendor, snapshotDiff string, codeFiles []string, base Base) string {
+	top, sections := base.render(vendors, codeFiles, snapshotDiff != "")
+	return top + strings.Join(sections, "") + diffBlock(snapshotDiff)
+}
+
+// render writes the top of the body and each vendor's section.
+func (base Base) render(vendors []Vendor, codeFiles []string, hasDiff bool) (string, []string) {
 	var body strings.Builder
-	body.WriteString("## Catalogue drift: " + provider + "\n\n")
 
-	// Held and waiting rows still count as rows for "Changed with no row".
-	reported := report
-	report, held := base.hold(report, provider)
-	report, waiting := base.splitWaiting(report)
+	names := make([]string, 0, len(vendors))
+	parts := make([]vendorPart, 0, len(vendors))
+	rows, failed := 0, false
 
-	if len(report.Changes)+len(report.NeedsHuman)+len(report.Skipped)+len(waiting)+len(held) == 0 && snapshotDiff == "" {
+	var waiting []Skipped
+
+	for _, vendor := range vendors {
+		part := base.part(vendor)
+		names, parts = append(names, vendor.Name), append(parts, part)
+		waiting = append(waiting, part.waiting...)
+		rows += part.rows()
+		failed = failed || vendor.Failed
+	}
+
+	body.WriteString("## Catalogue drift: " + strings.Join(names, ", ") + "\n\n")
+
+	if rows == 0 && !failed && !hasDiff {
 		body.WriteString("No drift found.\n\n" + base.summary())
-		return body.String()
+		return body.String(), nil
 	}
 
 	fmt.Fprintf(&body, "Proposed by the reconcile-models workflow. The tables come from the agent's structured report; the PR job checked its format and that every source is a named source. Check each value against its source before approving. The \"Bot catalog PRs\" section of %[2]s says what else to check.\n\nEach run rebuilds this branch from %[1]s. A commit you push here stays, but runs then stop updating this PR until it's merged or closed. To settle a row, merge a fix on %[1]s or record a decision in `.github/reconcile-models/decisions.yaml`. Later runs don't read PR comments.\n\n", base.Branch, base.fileLink("REVIEW.md", "REVIEW.md#bot-catalog-prs", 0))
 
-	asks := questions(report.NeedsHuman)
-	body.WriteString(resolveAlert(asks) + base.waitingAlert(waiting))
+	body.WriteString(resolveAlert(parts) + base.waitingAlert(waiting))
 	body.WriteString(base.summary())
 
 	if len(codeFiles) > 0 {
@@ -779,33 +848,58 @@ func Render(report Report, provider, snapshotDiff string, codeFiles []string, ba
 		body.WriteString("\n")
 	}
 
-	if len(report.Changes) > 0 {
-		body.WriteString(base.changesSection(report.Changes, provider))
+	if moves := base.routingRows(); len(moves) > 0 {
+		fmt.Fprintf(&body, "### Routing changes (%d)\n\n⚑ Bare-name calls from these regions now go to another copy. Check the price and where the data is processed.\n\n"+
+			"| Model | Callers in | Today | After | Input price | Data processed in |\n|---|---|---|---|---|---|\n", len(moves))
+		body.WriteString(strings.Join(moves, "") + "\n")
 	}
 
-	if names := base.unreported(reported, provider); len(names) > 0 {
+	sections := make([]string, 0, len(parts))
+	for _, part := range parts {
+		sections = append(sections, part.section())
+	}
+
+	return body.String(), sections
+}
+
+// section renders one vendor's rows under its own heading.
+func (part vendorPart) section() string {
+	var body strings.Builder
+
+	base, report := part.base, part.shown
+	body.WriteString("## " + part.Name + "\n\n")
+
+	switch {
+	case part.Failed:
+		body.WriteString("This vendor's run failed, so this PR has nothing from it. The workflow run shows why.\n\n")
+		return body.String()
+	case part.rows() == 0:
+		body.WriteString("The run found nothing to change.\n\n")
+		return body.String()
+	}
+
+	if len(report.Changes) > 0 {
+		body.WriteString(base.changesSection(report.Changes, part.Name))
+	}
+
+	// Held and waiting rows still count as rows here.
+	if names := base.unreported(part.Report, part.Name); len(names) > 0 {
 		fmt.Fprintf(&body, "### Changed with no row (%d)\n\nThe patch changes these offerings, but the report has no row for them. Check them in the snapshot diff.\n\n- %s\n\n",
 			len(names), valueList(names))
 	}
 
-	if rows := base.routingRows(); len(rows) > 0 {
-		fmt.Fprintf(&body, "### Routing changes (%d)\n\n⚑ Bare-name calls from these regions now go to another copy. Check the price and where the data is processed.\n\n"+
-			"| Model | Callers in | Today | After | Input price | Data processed in |\n|---|---|---|---|---|---|\n", len(rows))
-		body.WriteString(strings.Join(rows, "") + "\n")
-	}
-
-	if len(asks) > 0 {
+	if len(part.asks) > 0 {
 		judged := 0
 
-		for _, q := range asks {
+		for _, q := range part.asks {
 			if q.row.Rule == reconcile.JudgmentRule {
 				judged++
 			}
 		}
 
-		fmt.Fprintf(&body, "### Resolve before merging (%d): %d by a rule, %d with no rule\n\n", len(asks), len(asks)-judged, judged)
+		fmt.Fprintf(&body, "### Resolve before merging (%d): %d by a rule, %d with no rule\n\n", len(part.asks), len(part.asks)-judged, judged)
 
-		for index, q := range asks {
+		for index, q := range part.asks {
 			body.WriteString(base.needsHumanBlock(index+1, q))
 		}
 	}
@@ -816,16 +910,16 @@ func Render(report Report, provider, snapshotDiff string, codeFiles []string, ba
 		body.WriteString(strings.Join(lines, "") + "\n")
 	}
 
-	if lines := base.waitingLines(waiting); len(lines) > 0 {
+	if lines := base.waitingLines(part.waiting); len(lines) > 0 {
 		fmt.Fprintf(&body, "### Waiting on a product decision (%d)\n\nModel cards list copies in regions this catalogue doesn't offer, so the bot left them out (rule %s). Nothing changes until someone decides, and they don't block the PR. "+
 			"To answer, either offer the region (move its prefix to Offered in %s, with its code, in a reviewed PR) or decline it (write it under Not offered as `` `<prefix>` (declined YYYY-MM-DD) ``, and its copies show under Skipped from then on).\n\n",
 			len(lines), base.ruleLink(regionRule), base.fileLink("RULES.md", reconcile.RulesPath, 0))
 		body.WriteString(strings.Join(lines, "") + "\n")
 	}
 
-	if len(held) > 0 {
-		fmt.Fprintf(&body, "### Held by decisions (%d)\n\nQuestions a recorded decision already answers. Nothing here changes.\n\n| Decision | Offering | Field | What the bot saw | Why it's settled |\n|---|---|---|---|---|\n", len(held))
-		body.WriteString(strings.Join(held, "") + "\n")
+	if len(part.held) > 0 {
+		fmt.Fprintf(&body, "### Held by decisions (%d)\n\nQuestions a recorded decision already answers. Nothing here changes.\n\n| Decision | Offering | Field | What the bot saw | Why it's settled |\n|---|---|---|---|---|\n", len(part.held))
+		body.WriteString(strings.Join(part.held, "") + "\n")
 	}
 
 	if len(report.Skipped) > 0 {
@@ -833,11 +927,16 @@ func Render(report Report, provider, snapshotDiff string, codeFiles []string, ba
 		body.WriteString(strings.Join(base.skippedRows(report.Skipped), "") + "\n")
 	}
 
-	if snapshotDiff != "" {
-		body.WriteString("<details><summary>Snapshot diff</summary>\n\n```diff\n" + snapshotDiff + "\n```\n</details>\n")
+	return body.String()
+}
+
+// diffBlock is the snapshot diff, folded, or nothing without one.
+func diffBlock(snapshotDiff string) string {
+	if snapshotDiff == "" {
+		return ""
 	}
 
-	return body.String()
+	return "<details><summary>Snapshot diff</summary>\n\n```diff\n" + snapshotDiff + "\n```\n</details>\n"
 }
 
 // truncatedNote ends a snapshot diff that RenderCapped shortened.
@@ -847,29 +946,57 @@ const truncatedNote = "\n… (truncated; see the workflow artifact)"
 const cutNote = "\n\n… (the rest is cut to fit GitHub's size limit; the full report is in the workflow artifacts)\n"
 
 // RenderCapped is Render, kept within limit bytes so GitHub accepts the PR
-// body. Only the snapshot diff is shortened, and only between lines.
-func RenderCapped(report Report, provider, snapshotDiff string, codeFiles []string, base Base, limit int) string {
-	body := Render(report, provider, snapshotDiff, codeFiles, base)
-	if len(body) <= limit {
+// body. The snapshot diff is shortened first; then each vendor's section
+// gets an equal share of the room left, so one big vendor can't push the
+// others out. Both are cut only between lines.
+func RenderCapped(vendors []Vendor, snapshotDiff string, codeFiles []string, base Base, limit int) string {
+	top, sections := base.render(vendors, codeFiles, snapshotDiff != "")
+
+	body, diff := top+strings.Join(sections, ""), diffBlock(snapshotDiff)
+	if len(body)+len(diff) <= limit {
+		return body + diff
+	}
+
+	if room := limit - len(body) - len(diffBlock(truncatedNote)); room > 0 {
+		return body + diffBlock(cutOnLine(snapshotDiff, room)+truncatedNote)
+	}
+
+	// The tables alone don't fit: drop the diff, and cut so no table row or
+	// fence is left half written.
+	if body = top + strings.Join(fit(sections, limit-len(top)), ""); len(body) <= limit {
 		return body
 	}
 
-	room := limit - len(Render(report, provider, truncatedNote, codeFiles, base))
-	diff := ""
+	return cutOnLine(body, limit-len(cutNote)) + cutNote
+}
 
-	if room > 0 {
-		diff = snapshotDiff[:min(room, len(snapshotDiff))]
-		diff = diff[:max(strings.LastIndexByte(diff, '\n'), 0)]
+// fit cuts sections to room bytes in all: each gets an equal share, a
+// section shorter than its share passes the rest on, and a longer one is cut
+// on a line.
+func fit(sections []string, room int) []string {
+	fitted := slices.Clone(sections)
+	order := make([]int, len(fitted))
+
+	for i := range order {
+		order[i] = i
 	}
 
-	if body = Render(report, provider, diff+truncatedNote, codeFiles, base); len(body) <= limit {
-		return body
+	slices.SortStableFunc(order, func(a, b int) int { return cmp.Compare(len(fitted[a]), len(fitted[b])) })
+
+	for done, i := range order {
+		if share := room / (len(order) - done); len(fitted[i]) > share {
+			fitted[i] = cutOnLine(fitted[i], share-len(cutNote)-1) + cutNote + "\n"
+		}
+
+		room -= len(fitted[i])
 	}
 
-	// The tables alone don't fit: drop the diff and cut the rest on a line,
-	// so no table row or fence is left half written.
-	body = Render(report, provider, "", codeFiles, base)
-	body = body[:max(limit-len(cutNote), 0)]
+	return fitted
+}
 
-	return body[:max(strings.LastIndexByte(body, '\n'), 0)] + cutNote
+// cutOnLine is the longest start of text, at most limit bytes, that ends
+// before a line break.
+func cutOnLine(text string, limit int) string {
+	text = text[:max(min(limit, len(text)), 0)]
+	return text[:max(strings.LastIndexByte(text, '\n'), 0)]
 }

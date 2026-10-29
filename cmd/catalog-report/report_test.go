@@ -49,6 +49,12 @@ var testRules = reconcile.Rules{
 	NotOffered: map[string]map[string]string{"bedrock": {"in": "asked 2026-10-15"}},
 }
 
+// oneVendor is the Anthropic-only vendor list the tests written before
+// Render took several vendors use, with base's catalogue as Anthropic's.
+func oneVendor(report Report, base Base) []Vendor {
+	return []Vendor{{Name: "anthropic", Report: report, Before: base.Before, After: base.After}}
+}
+
 func validReport() Report {
 	return Report{
 		Changes: []Change{{
@@ -605,7 +611,7 @@ func TestRender(t *testing.T) {
 			contains: []string{
 				"Later runs don't read PR comments.\n\n> [!IMPORTANT]\n> **Resolve 1 question before merging:** `claude-sonnet-5-5` limit. See Resolve before merging below.\n\n" +
 					"> [!NOTE]\n> **2 product decisions waiting** (they don't block this PR): " +
-					"offer `in` on bedrock (India, asked since 2026-10-15)? offer `ca` on bedrock (Canada, new)?\n\n### Changes (1)",
+					"offer `in` on bedrock (India, asked since 2026-10-15)? offer `ca` on bedrock (Canada, new)?\n\n## anthropic\n\n### Changes (1)",
 			},
 		},
 		{
@@ -691,7 +697,7 @@ func TestRender(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			body := Render(tt.report, "anthropic", tt.diff, tt.codeFiles, tt.base)
+			body := Render(oneVendor(tt.report, tt.base), tt.diff, tt.codeFiles, tt.base)
 			for _, want := range tt.contains {
 				assert.Contains(t, body, want)
 			}
@@ -744,7 +750,7 @@ func TestRenderCapped(t *testing.T) {
 
 	t.Run("fits: unchanged", func(t *testing.T) {
 		t.Parallel()
-		assert.Equal(t, Render(report, "anthropic", diff, nil, Base{}), RenderCapped(report, "anthropic", diff, nil, Base{}, 1<<20))
+		assert.Equal(t, Render(oneVendor(report, Base{}), diff, nil, Base{}), RenderCapped(oneVendor(report, Base{}), diff, nil, Base{}, 1<<20))
 	})
 
 	t.Run("tables alone too long: body cut on a line, within the limit", func(t *testing.T) {
@@ -760,7 +766,7 @@ func TestRenderCapped(t *testing.T) {
 			})
 		}
 
-		body := RenderCapped(long, "anthropic", diff, nil, Base{}, limit)
+		body := RenderCapped(oneVendor(long, Base{}), diff, nil, Base{}, limit)
 		assert.LessOrEqual(t, len(body), limit)
 		assert.True(t, strings.HasPrefix(body, "## Catalogue drift: anthropic"), "the top of the body stays")
 		assert.Contains(t, body, "cut to fit GitHub's size limit")
@@ -772,7 +778,7 @@ func TestRenderCapped(t *testing.T) {
 
 		const limit = 6000
 
-		body := RenderCapped(report, "anthropic", diff, nil, Base{}, limit)
+		body := RenderCapped(oneVendor(report, Base{}), diff, nil, Base{}, limit)
 		assert.LessOrEqual(t, len(body), limit)
 		assert.Contains(t, body, "### Changes (1)")
 		assert.Contains(t, body, "truncated; see the workflow artifact")
@@ -794,10 +800,154 @@ func TestRenderCapped(t *testing.T) {
 			SourceURL: "https://platform.claude.com/docs/en/about-claude/pricing",
 		}}}
 
-		body := RenderCapped(priced, "anthropic", diff, nil, Base{Before: before, After: after}, 6000)
+		body := RenderCapped(oneVendor(priced, Base{Before: before, After: after}), diff, nil, Base{}, 6000)
 		assert.Contains(t, body, "truncated; see the workflow artifact")
 		assert.Contains(t, body, "| cache read 0.2 → 0.1 (-50%) |")
 	})
+}
+
+// openaiSnapshots are an OpenAI catalogue before and after a patch that
+// raises GPT-6.1's input price from 2.00 to 2.50.
+func openaiSnapshots(t *testing.T) (*reconcile.Snapshot, *reconcile.Snapshot) {
+	t.Helper()
+
+	snapshot := func(input int) *reconcile.Snapshot {
+		snap, err := reconcile.ParseSnapshot(fmt.Appendf(nil, `{"providers": [{"provider": "openai", "offerings": [{"id": "gpt-6-1", "model": "openai/gpt-6-1",
+			"pricing": {"default": {"base": {"input_microcents_per_million": %d}}}}]}]}`, input))
+		require.NoError(t, err)
+
+		return &snap
+	}
+
+	return snapshot(200000000), snapshot(250000000)
+}
+
+// section is one vendor's part of a combined body: from its heading to the
+// next vendor's, or to the snapshot diff.
+func section(t *testing.T, body, vendor string) string {
+	t.Helper()
+
+	_, rest, found := strings.Cut(body, "\n## "+vendor+"\n")
+	require.True(t, found, "the body has no section for %s", vendor)
+
+	rest, _, _ = strings.Cut(rest, "\n## ")
+	rest, _, _ = strings.Cut(rest, "<details>")
+
+	return rest
+}
+
+// TestRenderVendors checks the combined PR body (AC4: one PR for every
+// vendor): each vendor's rows sit in its own section, and its effect notes
+// and "Changed with no row" come from its own catalogue.
+func TestRenderVendors(t *testing.T) {
+	t.Parallel()
+
+	before, after := effectSnapshots(t)
+	openaiBefore, openaiAfter := openaiSnapshots(t)
+
+	cacheRead := Report{Changes: []Change{{
+		Offering: "claude-sonnet-5-5", Field: "price", Old: "cache read 0.20", New: "cache read 0.10",
+		SourceURL: "https://platform.claude.com/docs/en/about-claude/pricing", Rule: "price-follow",
+	}}}
+	input := Report{Changes: []Change{{
+		Offering: "gpt-6-1", Field: "price", Old: "input 2.00", New: "input 2.50",
+		SourceURL: "https://developers.openai.com/api/docs/pricing", Rule: "price-follow",
+	}}}
+
+	body := Render([]Vendor{
+		{Name: "anthropic", Report: cacheRead, Before: before, After: after},
+		{Name: "openai", Report: input, Before: openaiBefore, After: openaiAfter},
+	}, "", nil, Base{})
+
+	assert.True(t, strings.HasPrefix(body, "## Catalogue drift: anthropic, openai\n"), "the title names every vendor")
+
+	anthropic, openai := section(t, body, "anthropic"), section(t, body, "openai")
+	assert.Contains(t, anthropic, "| cache read 0.2 → 0.1 (-50%) |")
+	assert.Contains(t, anthropic, "### Changed with no row", "Anthropic's catalogue also adds an AU copy no row names")
+	assert.NotContains(t, anthropic, "gpt-6-1")
+	assert.Contains(t, openai, "| `gpt-6-1` | price | `input 2.00` | `input 2.50` |")
+	assert.Contains(t, openai, "input 2 → 2.5 (+25%)")
+	assert.NotContains(t, openai, "Changed with no row", "OpenAI's catalogue changes only what its row names")
+}
+
+// TestRenderVendorsShowsThePRPartsOnce checks that what covers the whole PR
+// (code changed, routing changes, the snapshot diff) shows once, outside the
+// vendor sections, and that a vendor with nothing to change, or whose run
+// failed, still has a section that says so.
+func TestRenderVendorsShowsThePRPartsOnce(t *testing.T) {
+	t.Parallel()
+
+	routesBefore, err := ParseRoutes([]byte("ap-southeast-2 anthropic.claude-sonnet-5-5 global.anthropic.claude-sonnet-5-5\n"))
+	require.NoError(t, err)
+	routesAfter, err := ParseRoutes([]byte("ap-southeast-2 anthropic.claude-sonnet-5-5 au.anthropic.claude-sonnet-5-5\n"))
+	require.NoError(t, err)
+
+	base := Base{RoutesBefore: routesBefore, RoutesAfter: routesAfter}
+	body := Render([]Vendor{
+		{Name: "anthropic", Report: validReport()},
+		{Name: "openai", Report: Report{}},
+		{Name: "google", Failed: true},
+	}, "+  \"input\": 5", []string{"providers/bedrock/models.go", "providers/openai/models.go"}, base)
+
+	for _, once := range []string{"### Code changed (2)", "### Routing changes (1)", "<details><summary>Snapshot diff</summary>"} {
+		assert.Equal(t, 1, strings.Count(body, once), "%q shows once", once)
+	}
+
+	assert.Less(t, strings.Index(body, "### Routing changes"), strings.Index(body, "## anthropic"), "the PR's parts come before the vendors")
+	assert.Greater(t, strings.Index(body, "<details>"), strings.Index(body, "## google"), "the snapshot diff comes last")
+	assert.Equal(t, "The run found nothing to change.", strings.TrimSpace(section(t, body, "openai")))
+	assert.Contains(t, section(t, body, "google"), "This vendor's run failed, so this PR has nothing from it.")
+}
+
+// TestRenderCappedVendors checks the byte budget per vendor: a vendor too big
+// for its share is cut inside its own section, on a line, and the others,
+// the top of the body and the size limit all hold.
+func TestRenderCappedVendors(t *testing.T) {
+	t.Parallel()
+
+	const limit = 8000
+
+	big := Report{}
+	for i := range 200 {
+		big.Changes = append(big.Changes, Change{
+			Offering: fmt.Sprintf("bedrock:us.anthropic.claude-model-%03d", i), Field: "price", Old: "input 3.00", New: "input 3.30",
+			SourceURL: "https://platform.claude.com/docs/en/about-claude/pricing.md", Rule: "price-follow",
+		})
+	}
+
+	small := Report{Changes: []Change{{
+		Offering: "gpt-6-1", Field: "price", Old: "input 2.00", New: "input 2.50",
+		SourceURL: "https://developers.openai.com/api/docs/pricing", Rule: "price-follow",
+	}}}
+	vendors := []Vendor{{Name: "anthropic", Report: big}, {Name: "openai", Report: small}, {Name: "google", Report: Report{}}}
+
+	body := RenderCapped(vendors, "+  \"input\": 5", nil, Base{}, limit)
+	assert.LessOrEqual(t, len(body), limit)
+	assert.True(t, strings.HasPrefix(body, "## Catalogue drift: anthropic, openai, google\n"), "the top of the body stays")
+
+	anthropic := section(t, body, "anthropic")
+	assert.Contains(t, anthropic, "claude-model-000")
+	assert.NotContains(t, anthropic, "claude-model-199", "the rows past the vendor's share are cut")
+	assert.Contains(t, anthropic, "cut to fit GitHub's size limit")
+	assert.True(t, strings.HasSuffix(strings.TrimSpace(strings.TrimSuffix(anthropic, strings.TrimSpace(cutNote)+"\n")), "|"), "the cut ends on a whole table row")
+
+	assert.Equal(t, strings.TrimSpace(section(t, Render(vendors, "", nil, Base{}), "openai")), strings.TrimSpace(section(t, body, "openai")), "a vendor within its share stays whole")
+	assert.Contains(t, section(t, body, "google"), "The run found nothing to change.")
+}
+
+// TestRenderVendorsLabelsQuestions checks that the alert at the top names each
+// question's vendor once the body has more than one.
+func TestRenderVendorsLabelsQuestions(t *testing.T) {
+	t.Parallel()
+
+	gpt := Report{NeedsHuman: []NeedsHuman{{
+		Offering: "gpt-6-1", Field: "price", Page: "priority 4.00", Rule: "no-rule",
+		SourceURLs: []string{"https://developers.openai.com/api/docs/pricing"},
+	}}}
+	body := Render([]Vendor{{Name: "anthropic", Report: validReport()}, {Name: "openai", Report: gpt}}, "", nil, Base{})
+
+	assert.Contains(t, body, "> **Resolve 2 questions before merging:** anthropic `claude-sonnet-5-5` limit, openai `gpt-6-1` price. See Resolve before merging below.\n\n")
+	assert.Contains(t, section(t, body, "openai"), "**1. `gpt-6-1` · price ·", "each vendor numbers its own questions")
 }
 
 // The agent's schema and the validator must accept the same fields and skip
@@ -944,7 +1094,7 @@ func TestRenderQuestionBlock(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			body := Render(Report{NeedsHuman: []NeedsHuman{tt.item}}, "anthropic", "", nil, Base{Rules: testRules})
+			body := Render(oneVendor(Report{NeedsHuman: []NeedsHuman{tt.item}}, Base{}), "", nil, Base{Rules: testRules})
 			assert.Contains(t, body, tt.want)
 		})
 	}
@@ -970,7 +1120,7 @@ func TestRenderGroupsSameQuestion(t *testing.T) {
 		ask("global.anthropic.claude-opus-5-5", "Structured outputs supported", "https://docs.aws.amazon.com/b"),
 	}}
 
-	body := Render(report, "anthropic", "", nil, Base{Rules: testRules})
+	body := Render(oneVendor(report, Base{}), "", nil, Base{Rules: testRules})
 
 	for _, want := range []string{
 		"> [!IMPORTANT]\n> **Resolve 2 questions before merging:** capability on 3 offerings, `bedrock:global.anthropic.claude-haiku-5-5` capability. See Resolve before merging below.\n\n",
@@ -1000,7 +1150,7 @@ func TestRenderNotesOnce(t *testing.T) {
 		{Offering: "claude-sonnet-5-5", Field: "price", Old: "input 2.00", New: "input 2.00", Rule: "price-follow", SourceURL: source},
 	}}
 
-	body := Render(report, "anthropic", "", nil, Base{Before: before, After: after, Today: "2026-10-15"})
+	body := Render(oneVendor(report, Base{Before: before, After: after}), "", nil, Base{Today: "2026-10-15"})
 
 	t.Run("a repeated note shows once", func(t *testing.T) {
 		t.Parallel()
@@ -1110,7 +1260,7 @@ func TestRenderSuggestedRules(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			body := Render(Report{NeedsHuman: tt.asks}, "anthropic", "", nil, Base{Rules: testRules, Decisions: tt.decisions, Today: "2026-10-15"})
+			body := Render(oneVendor(Report{NeedsHuman: tt.asks}, Base{}), "", nil, Base{Rules: testRules, Decisions: tt.decisions, Today: "2026-10-15"})
 			for _, want := range tt.contains {
 				assert.Contains(t, body, want)
 			}

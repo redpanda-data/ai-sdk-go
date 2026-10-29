@@ -26,5 +26,23 @@
         {"provider": "aws.bedrock", "id": "bedrock-card-{slug}", "type": "markdown", "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-{slug}.md"}
       ]
     }
+  },
+  "openai": {
+    "providers": ["openai", "bedrock"],
+    "hosts": ["developers.openai.com", "aws.amazon.com", "docs.aws.amazon.com", "pricing.us-east-1.amazonaws.com"],
+    "gate": {
+      "model_prefix": "openai/",
+      "must_contain": "GPT",
+      "pages": [
+        {"id": "openai-pricing", "type": "markdown", "url": "https://developers.openai.com/api/docs/pricing.md"},
+        {"id": "openai-models", "type": "markdown", "url": "https://developers.openai.com/api/docs/models.md"},
+        {"id": "openai-deprecations", "type": "markdown", "url": "https://developers.openai.com/api/docs/deprecations.md"},
+        {"id": "openai-changelog", "type": "markdown", "url": "https://developers.openai.com/api/docs/changelog.md"},
+        {"id": "bedrock-model-cards", "type": "markdown", "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards-openai.md"},
+        {"id": "bedrock-lifecycle-legacy", "type": "markdown", "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.md", "must_contain": "Legacy"},
+        {"id": "bedrock-lifecycle", "type": "markdown", "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle.md", "must_contain": "Model lifecycle"},
+        {"id": "aws-price-list", "type": "pricelist", "url": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrockFoundationModels/current/index.json", "match": "^OpenAI .*\\(Amazon Bedrock Edition\\)$", "min_lines": 10}
+      ]
+    }
   }
 }

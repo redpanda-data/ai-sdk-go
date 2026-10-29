@@ -78,7 +78,7 @@ func TestRulesFile(t *testing.T) {
 func TestRulesReachTheAgent(t *testing.T) {
 	t.Parallel()
 
-	workflow, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", "reconcile-models.yml"))
+	workflow, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", vendorWorkflow))
 	require.NoError(t, err)
 	assert.Contains(t, string(workflow), "--append-system-prompt-file "+reconcile.RulesPath,
 		"the workflow must hand RULES.md to the agent")

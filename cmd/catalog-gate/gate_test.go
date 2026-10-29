@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -177,6 +178,36 @@ func TestSummary(t *testing.T) {
 	text := summary(decide(current, &hostile, opts), "")
 	assert.NotContains(t, text, "<img", "an id only the baseline has is counted, never printed")
 	assert.Contains(t, text, "1 page the baseline had is no longer listed")
+}
+
+// TestInputsCoverTheAgentsWorkflows checks that every workflow file that
+// runs the reconcile agent (it reads the agent's prompt) is one of the
+// gate's inputs: its model, tools and egress list change what the agent
+// would do, so editing them must change the fingerprint.
+func TestInputsCoverTheAgentsWorkflows(t *testing.T) {
+	t.Parallel()
+
+	files, err := filepath.Glob(filepath.Join("..", "..", ".github", "workflows", "*.yml"))
+	require.NoError(t, err)
+
+	agents := 0
+
+	for _, file := range files {
+		raw, err := os.ReadFile(file)
+		require.NoError(t, err)
+
+		if !strings.Contains(string(raw), ".github/reconcile-models/prompt.md") {
+			continue
+		}
+
+		agents++
+
+		rel := filepath.ToSlash(strings.TrimPrefix(file, filepath.Join("..", "..")+string(filepath.Separator)))
+		assert.True(t, slices.ContainsFunc(inputPaths, func(input string) bool { return rel == input || strings.HasPrefix(rel, input+"/") }),
+			"%s runs the agent but isn't among the gate's inputs", rel)
+	}
+
+	assert.Positive(t, agents, "no workflow runs the reconcile agent")
 }
 
 func TestHashInputs(t *testing.T) {

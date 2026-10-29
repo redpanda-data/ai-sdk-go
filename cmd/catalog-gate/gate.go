@@ -53,7 +53,7 @@ const (
 // a change to any file in them changes what the agent would do, so a new file
 // the prompt or a skill starts using is covered without an edit here.
 var inputPaths = []string{
-	"catalog/snapshot.json", ".github/reconcile-models", ".github/workflows/reconcile-models.yml",
+	"catalog/snapshot.json", ".github/reconcile-models", ".github/workflows/reconcile-models.yml", ".github/workflows/reconcile-vendor.yml",
 	".claude/skills/reconcile-models", ".claude/skills/add-model",
 }
 

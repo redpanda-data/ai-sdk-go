@@ -14,6 +14,7 @@ on:
       - 'REVIEW.md'
       - '.claude/skills/**'
       - '.github/workflows/reconcile-models.yml'
+      - '.github/workflows/reconcile-vendor.yml'
   pull_request:
     # ready_for_review starts the full run on the reconcile bot's PRs (see the
     # jobs below), and runs Test again on everyone else's, so the newest Test
@@ -29,6 +30,7 @@ on:
       - 'REVIEW.md'
       - '.claude/skills/**'
       - '.github/workflows/reconcile-models.yml'
+      - '.github/workflows/reconcile-vendor.yml'
   pull_request_target:
     types: [labeled]
 
