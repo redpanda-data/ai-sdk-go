@@ -27,20 +27,9 @@ the workflow.
 
 Facts come only from the hosts' own pages, and code cites only those.
 
-- **Anthropic API, Claude on Vertex, Bedrock:** their host pages
-  (`hosts/anthropic.md`, `hosts/vertex.md`, `hosts/bedrock.md`).
-- **OpenAI** (`providers/openai`):
-  - Pricing: `https://developers.openai.com/api/docs/pricing`
-  - **Lifecycle** (the only source for deprecation and shutdown dates):
-    `https://developers.openai.com/api/docs/deprecations`
-  - Per-model specs: `https://developers.openai.com/api/docs/models/<id>`
-    gives window, **maximum input tokens**, max output, per-tier pricing notes
-
-  Append `.md` to any of these to get clean markdown
-  (`.../deprecations.md`). Do this for the deprecations page especially:
-  it is long, and summarizing it lossily has produced flatly
-  contradictory answers about whether `o3`/`o3-pro` are deprecated at
-  all. Fetch the `.md`, then grep it: the tables are the data.
+- **Anthropic API, OpenAI API, Claude on Vertex, Bedrock:** their host
+  pages (`hosts/anthropic.md`, `hosts/openai.md`, `hosts/vertex.md`,
+  `hosts/bedrock.md`).
 - **Google** (Gemini API, `providers/google`):
   - Pricing: `https://ai.google.dev/gemini-api/docs/pricing`
   - Per-model limits: `https://ai.google.dev/gemini-api/docs/models`
@@ -89,14 +78,9 @@ Facts come only from the hosts' own pages, and code cites only those.
       exact date (lifecycle-exact-date).
     - Gemini on Vertex (`model-versions`): a bare date is firm →
       `Retires`; "or later" is a floor → unset.
-  - **Take the whole row, and check which batch it belongs to.** Every
-    OpenAI deprecation lives under a dated `### YYYY-MM-DD:` heading — that
-    heading is `Life.Deprecated`, the row's date is `Life.Retires`. Models
-    are easy to mis-file: `o4-mini` reads like the o3 batch but ships in the
-    earlier legacy-snapshot batch with a two-month-earlier shutdown.
-  - **Match name granularity.** OpenAI rows list `snapshot | alias`. Only
-    the aliases we key entries on count: `gpt-4o-2024-05-13` is deprecated
-    while the `gpt-4o` alias is not, so that entry stays clean.
+  - **Take the whole row, and check which batch it belongs to.** Each host
+    page says how its deprecation tables are laid out and which IDs a row
+    counts for (`hosts/openai.md` for OpenAI's dated sections and snapshots).
   - **Re-check `ReplacedBy` on every pass, not just new deprecations.**
     Vendors revise recommendations as newer models ship (the gpt-5 snapshots
     moved from the 5.4/5.5 line to 5.6). A stale target is invisible until a

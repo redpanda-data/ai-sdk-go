@@ -11,8 +11,10 @@ Where Amazon Bedrock publishes facts for the models it serves. AWS sets its own 
 | Rates | `https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrockFoundationModels/current/<region>/index.json` | AWS's public price list, one file per source region |
 | Lifecycle, older models | `https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.md` | the table of Legacy and EOL models |
 | Lifecycle, newer models | `https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle.md` | the policy for models launched on or after 2026-09-07: Legacy and EOL, and when a card gains its EOL date |
+| OpenAI's model cards | `https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards-openai.md` | a link to each OpenAI model's card |
+| One OpenAI model | the card the cards page links | Model Details (launch date, EOL, context window, max output), Endpoints and APIs supported, Capabilities and Features, Pricing, Programmatic Access (the IDs), Service Tiers, Regional Availability |
 
-The table names Anthropic's cards. The other vendors `providers/bedrock` carries (Amazon Nova, Mistral, OpenAI, Google Gemma) have cards with the same sections, linked from each vendor's model-cards page, for example `https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards-openai.md`.
+The table names Anthropic's and OpenAI's cards. The other vendors `providers/bedrock` carries (Amazon Nova, Mistral, Google Gemma) have cards linked from each vendor's model-cards page. An OpenAI card's file name drops dots unevenly (`model-card-openai-gpt-56-sol.md` for GPT-5.6 Sol, `model-card-openai-gpt-6-1-sol.md` for GPT-6.1 Sol), so follow the cards page's link instead of building the name. Most OpenAI cards use these section names; GPT-6 Sol's and GPT-6 Luna's call the ID table "Call the model" and the region tables "Supported Regions".
 
 ## IDs and copies
 
@@ -34,9 +36,10 @@ The table names Anthropic's cards. The other vendors `providers/bedrock` carries
 - That file (`AmazonBedrockFoundationModels`) holds the Claude models and some OpenAI ones (GPT-6 Astra), each under its own `servicename`; `jq -r '[.products[].attributes.servicename] | unique[]'` lists them. Amazon's own models and most other vendors' (Nova, Mistral, Gemma, GPT OSS) are in the `AmazonBedrock` offer instead (`.../offers/v1.0/aws/AmazonBedrock/current/<region>/index.json`), where `servicename` is "Amazon Bedrock" for every row and the `model` attribute names the model (read 2026-10-15).
 - Each file holds one source region's rates, per 1M tokens; `region_index.json` in the same folder lists the regions. Read `us.` and `global.` from `us-east-1`, and each other profile from one of its source regions (for example `eu-central-1`, `ap-southeast-2`, `ap-northeast-1`).
 - The usage type names the rate. Newer models use `input_tokens_standard`, `output_tokens_standard`, `cache_read_tokens_standard`, `cache_write_tokens_standard` (5 minutes) and `cache_write_tokens_1h_standard`; older ones use `InputTokenCount`, `OutputTokenCount`, `CacheReadInputTokenCount`, `CacheWriteInputTokenCount` and `CacheWrite1hInputTokenCount`. A name with `global` in it is the `global.` rate; without it, the geo and in-region rate. Ignore `Batch`, `Reserved` and provisioned-throughput rows.
-- `long_ctx` in a usage type marks a long-context tier. Neither the price list nor the card gives its threshold.
+- `long_ctx` in a usage type marks a long-context tier. Neither the price list nor an Anthropic card gives its threshold; OpenAI's cards give 272K input tokens.
 - Rate cards: `GlobalRates` is the `global.` card and `Rates` every other profile's. Speed or tier variation goes in the family's `Overrides` and `GlobalOverrides`, which a family with a global profile sets in pairs. The card's Service Tiers table shows which tiers the model has.
 - Copy cache rates from the price list too (price-follow).
+- OpenAI's cards print their own rates in a Pricing section: per endpoint and profile, short and long context, with the 10% premium already added. The price list holds only GPT-6 Astra (read 2026-10-28), so the card is the rate source for the other OpenAI models.
 
 ## Lifecycle
 
@@ -48,7 +51,7 @@ The table names Anthropic's cards. The other vendors `providers/bedrock` carries
 
 ## Limits and capabilities
 
-- The card's Model Details give the context window and max output tokens (limit-follow).
+- The card's Model Details give the context window and max output tokens (limit-follow). OpenAI's cards give no input cap.
 - Its modality table and its Capabilities and Features lists give what Bedrock supports (capability-follow).
 
 ## Self-check
