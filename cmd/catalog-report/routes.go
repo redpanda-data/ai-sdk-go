@@ -18,6 +18,7 @@ import (
 	"cmp"
 	"fmt"
 	"maps"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -54,11 +55,16 @@ func ParseRoutes(data []byte) (Routes, error) {
 	return routes, nil
 }
 
-// routingRows names each bare name whose calls from some regions now go to
-// another copy, once per name and move, with the regions, the input price
-// change and where the new copy processes data. A pair the SDK refuses, or
-// the patch removes, reads as a call that fails.
-func (base Base) routingRows() []string {
+// routeMove is one bare name whose calls from some regions now go to
+// another copy: the copy before and after ("-" for none), and the regions.
+type routeMove struct {
+	name, from, to string
+	regions        []string
+}
+
+// routeMoves names each bare name whose calls from some regions now go to
+// another copy, once per name and move.
+func (base Base) routeMoves() []routeMove {
 	type move struct{ name, from, to string }
 
 	after := func(key routeKey) string { return cmp.Or(base.RoutesAfter[key], "-") }
@@ -66,17 +72,52 @@ func (base Base) routingRows() []string {
 		return cmp.Or(cmp.Compare(a.name, b.name), cmp.Compare(a.region, b.region))
 	}), func(key routeKey) bool { return after(key) == base.RoutesBefore[key] })
 
-	moves, regions := groupBy(keys, func(key routeKey) (move, string) {
+	order, regions := groupBy(keys, func(key routeKey) (move, string) {
 		return move{key.name, base.RoutesBefore[key], after(key)}, key.region
 	})
-	rows := make([]string, 0, len(moves))
+	moves := make([]routeMove, 0, len(order))
 
-	for _, m := range moves {
-		rows = append(rows, fmt.Sprintf("| %s | %s | %s | %s | %s | %s |\n",
-			code(m.name), valueList(regions[m]), routed(m.from), routed(m.to), base.routeInputChange(m.from, m.to), processedIn(m.to)))
+	for _, m := range order {
+		moves = append(moves, routeMove{m.name, m.from, m.to, regions[m]})
 	}
 
-	return rows
+	return moves
+}
+
+// mermaidID is an ID the routing diagram can show as it is. The IDs come
+// from catalog-routes, which runs the patched code, so anything else leaves
+// the diagram out.
+var mermaidID = regexp.MustCompile(`^[A-Za-z0-9.:_/-]{1,100}$`)
+
+// routingDiagram draws each move as its bare name and callers, the copy it
+// went to before, and the copy it goes to after, with the input price change
+// and where that copy processes data; or nothing when an ID isn't safe to
+// draw.
+func (base Base) routingDiagram(moves []routeMove) string {
+	var diagram strings.Builder
+
+	diagram.WriteString("```mermaid\nflowchart LR\n")
+
+	label := func(id string) string {
+		if id == "-" {
+			return "no copy: the call fails"
+		}
+
+		return id + "<br>" + processedIn(id)
+	}
+
+	for i, m := range moves {
+		for _, id := range []string{m.name, m.from, m.to} {
+			if id != "-" && !mermaidID.MatchString(id) {
+				return ""
+			}
+		}
+
+		fmt.Fprintf(&diagram, "  n%[1]d[\"%[2]s<br>from %[3]s\"]\n  n%[1]d -. before .-> b%[1]d[\"%[4]s\"]\n  n%[1]d == \"after, input %[5]s\" ==> a%[1]d[\"%[6]s\"]\n",
+			i+1, m.name, strings.Join(m.regions, ", "), label(m.from), base.routeInputChange(m.from, m.to), label(m.to))
+	}
+
+	return diagram.String() + "```\n\n"
 }
 
 func routed(id string) string {

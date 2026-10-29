@@ -424,8 +424,8 @@ func TestRender(t *testing.T) {
 			report: changes(Change{Offering: "bedrock:au.anthropic.claude-sonnet-5-5", Field: "new_copy", New: "au.anthropic.claude-sonnet-5-5"}),
 			base:   withRoutes,
 			contains: []string{
-				"### Routing changes (1)\n\n⚑ Bare-name calls from these regions now go to another copy. Check the price and where the data is processed.\n\n" +
-					"| Model | Callers in | Today | After | Input price | Data processed in |\n|---|---|---|---|---|---|\n" +
+				"### Routing changes (1)\n\n⚑ Bare-name calls from these regions now go to another copy. Check the price and where the data is processed.\n\n",
+				"| Model | Callers in | Today | After | Input price | Data processed in |\n|---|---|---|---|---|---|\n" +
 					"| `anthropic.claude-sonnet-5-5` | `ap-southeast-2`, `ap-southeast-4` | `global.anthropic.claude-sonnet-5-5` | `au.anthropic.claude-sonnet-5-5` | +10% | Australia |\n\n",
 			},
 			notContains: []string{"us-east-1"},
@@ -1770,6 +1770,57 @@ func TestRenderImpactTable(t *testing.T) {
 	})
 
 	assert.NotContains(t, Render(oneVendor(validReport(), Base{}), "", nil, Base{}), "What changes for customers", "no catalogue, no table")
+}
+
+// routeBase is a Base whose routes move Sydney's and Melbourne's bare-name
+// Sonnet 5.5 calls from the global copy to the new AU one, which costs 10%
+// more, and keep Virginia's on the US copy; after is the AU copy's ID.
+func routeBase(t *testing.T, after string) Base {
+	t.Helper()
+
+	before, afterSnapshot := effectSnapshots(t)
+	routesBefore, err := ParseRoutes([]byte("ap-southeast-2 anthropic.claude-sonnet-5-5 global.anthropic.claude-sonnet-5-5\n" +
+		"ap-southeast-4 anthropic.claude-sonnet-5-5 global.anthropic.claude-sonnet-5-5\nus-east-1 anthropic.claude-sonnet-5-5 us.anthropic.claude-sonnet-5-5\n"))
+	require.NoError(t, err)
+	routesAfter, err := ParseRoutes([]byte("ap-southeast-2 anthropic.claude-sonnet-5-5 " + after + "\n" +
+		"ap-southeast-4 anthropic.claude-sonnet-5-5 " + after + "\nus-east-1 anthropic.claude-sonnet-5-5 us.anthropic.claude-sonnet-5-5\n"))
+	require.NoError(t, err)
+
+	return Base{Before: before, After: afterSnapshot, RoutesBefore: routesBefore, RoutesAfter: routesAfter}
+}
+
+// TestRenderRoutingDiagram checks the diagram above the Routing changes table
+// (proposal 11): each move's bare name and callers, the copy before, and the
+// copy after with the input price change and where it processes data.
+func TestRenderRoutingDiagram(t *testing.T) {
+	t.Parallel()
+
+	auCopy := Report{Changes: []Change{{
+		Offering: "bedrock:au.anthropic.claude-sonnet-5-5", Field: "new_copy", New: "au.anthropic.claude-sonnet-5-5",
+		SourceURL: "https://platform.claude.com/docs/en/about-claude/pricing", Rule: "new-copy-offered-region",
+	}}}
+	base := routeBase(t, "au.anthropic.claude-sonnet-5-5")
+
+	assert.Contains(t, Render(oneVendor(auCopy, base), "", nil, base), "Check the price and where the data is processed.\n\n"+
+		"```mermaid\nflowchart LR\n"+
+		"  n1[\"anthropic.claude-sonnet-5-5<br>from ap-southeast-2, ap-southeast-4\"]\n"+
+		"  n1 -. before .-> b1[\"global.anthropic.claude-sonnet-5-5<br>any region\"]\n"+
+		"  n1 == \"after, input +10%\" ==> a1[\"au.anthropic.claude-sonnet-5-5<br>Australia\"]\n"+
+		"```\n\n| Model | Callers in |")
+}
+
+// TestRoutingDiagramRefusesUnsafeIDs checks that the diagram is left out when
+// an ID from catalog-routes, which runs the patched code, has a character
+// other than letters, digits and .:-_/; the table still shows.
+func TestRoutingDiagramRefusesUnsafeIDs(t *testing.T) {
+	t.Parallel()
+
+	// safeValue lets + through, so ParseRoutes accepts it.
+	base := routeBase(t, "au.anthropic.claude-sonnet-5-5+x")
+	body := Render(oneVendor(validReport(), base), "", nil, base)
+
+	assert.Contains(t, body, "| `au.anthropic.claude-sonnet-5-5+x` |")
+	assert.NotContains(t, body, "```mermaid")
 }
 
 func TestPercent(t *testing.T) {

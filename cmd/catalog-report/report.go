@@ -1028,11 +1028,7 @@ func (base Base) render(vendors []Vendor, codeFiles []string, hasDiff bool) (str
 		body.WriteString("\n")
 	}
 
-	if moves := base.routingRows(); len(moves) > 0 {
-		fmt.Fprintf(&body, "### Routing changes (%d)\n\n⚑ Bare-name calls from these regions now go to another copy. Check the price and where the data is processed.\n\n"+
-			"| Model | Callers in | Today | After | Input price | Data processed in |\n|---|---|---|---|---|---|\n", len(moves))
-		body.WriteString(strings.Join(moves, "") + "\n")
-	}
+	body.WriteString(base.routingSection())
 
 	body.WriteString(impactTable(parts))
 
@@ -1049,6 +1045,29 @@ func (base Base) render(vendors []Vendor, codeFiles []string, hasDiff bool) (str
 	}
 
 	return body.String(), sections
+}
+
+// routingSection is Routing changes: a diagram of each move, then a table row
+// per move with the regions, the input price change and where the new copy
+// processes data. A pair the SDK refuses, or the patch removes, reads as a
+// call that fails.
+func (base Base) routingSection() string {
+	moves := base.routeMoves()
+	if len(moves) == 0 {
+		return ""
+	}
+
+	var section strings.Builder
+
+	fmt.Fprintf(&section, "### Routing changes (%d)\n\n⚑ Bare-name calls from these regions now go to another copy. Check the price and where the data is processed.\n\n%s"+
+		"| Model | Callers in | Today | After | Input price | Data processed in |\n|---|---|---|---|---|---|\n", len(moves), base.routingDiagram(moves))
+
+	for _, m := range moves {
+		fmt.Fprintf(&section, "| %s | %s | %s | %s | %s | %s |\n",
+			code(m.name), valueList(m.regions), routed(m.from), routed(m.to), base.routeInputChange(m.from, m.to), processedIn(m.to))
+	}
+
+	return section.String() + "\n"
 }
 
 // impactTable is "What changes for customers": one row per kind of change,
