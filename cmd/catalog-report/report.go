@@ -1011,12 +1011,6 @@ func (base Base) render(vendors []Vendor, codeFiles []string, hasDiff bool) (str
 	asks, suggested := numberQuestions(parts), suggestions(needs)
 
 	body.WriteString(summaryLine(parts) + base.checksLine(codeFiles) + base.carriedLine() + base.dontBlock(waiting, len(suggested), skipped) + base.questionsBox(asks))
-	// carry.sh builds the carried commits and runs the tests of the packages
-	// their Go files change.
-	fmt.Fprintf(&body, "Each run rebuilds this branch from %s, leaving out a clean \"Update branch\" merge. A commit you push here is carried onto each rebuild while it still applies exactly and passes its build and tests. "+
-		"Any other merge commit, a `.github/` change, or a commit that doesn't apply or fails its checks stops the updates, and the run leaves a comment saying why. Later runs don't read PR comments.\n\n", base.Branch)
-
-	body.WriteString(base.summary())
 
 	if len(codeFiles) > namedCodeFiles {
 		fmt.Fprintf(&body, "### Code changed (%d)\n\n", len(codeFiles))
@@ -1031,6 +1025,14 @@ func (base Base) render(vendors []Vendor, codeFiles []string, hasDiff bool) (str
 	body.WriteString(base.routingSection())
 
 	body.WriteString(impactTable(parts))
+
+	// How pushing works, and the recorded decisions, come after what needs a
+	// decision. carry.sh builds a carried commit and runs the tests of the
+	// packages its Go files change.
+	fmt.Fprintf(&body, "Each run rebuilds this branch from %s, leaving out a clean \"Update branch\" merge. A commit you push here is carried onto each rebuild while it still applies exactly and passes its build and tests. "+
+		"Any other merge commit, a `.github/` change, or a commit that doesn't apply or fails its checks stops the updates, and the run leaves a comment saying why. Later runs don't read PR comments.\n\n", base.Branch)
+
+	body.WriteString(base.summary())
 
 	// What the PR asks of people takes a share of the room like a vendor's
 	// section, so many questions can't push every Changes table out of a

@@ -1746,7 +1746,8 @@ func TestRenderImpactTable(t *testing.T) {
 		assert.Contains(t, body, "### What changes for customers\n\n| Change | anthropic | openai | What it means for SDK and ADP users | Easy to revert? |\n|---|---|---|---|---|\n"+
 			"| **price cut** | 1 | – | New calls cost less after the SDK upgrade or ADP deploy; past spend stays; ADP budgets fill more slowly. | yes |\n"+
 			"| **price rise** | – | 1 | New calls cost more after the SDK upgrade or ADP deploy; past spend stays; ADP budgets block sooner. | yes |\n\n"+reach)
-		assert.Less(t, strings.Index(body, "### What changes for customers"), strings.Index(body, "## anthropic"), "the table is at the top")
+		assert.Less(t, strings.Index(body, "### What changes for customers"), strings.Index(body, "Each run rebuilds"), "how pushing works comes after it")
+		assert.Less(t, strings.Index(body, "Each run rebuilds"), strings.Index(body, "## anthropic"), "the table is at the top")
 	})
 
 	t.Run("one vendor, and the Effect cell's short form", func(t *testing.T) {
