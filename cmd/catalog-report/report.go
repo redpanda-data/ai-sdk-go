@@ -215,7 +215,7 @@ func (base Base) ValidateAdded(report Report, provider string) []string {
 			continue
 		}
 
-		pkg, id := packageOf(change.Offering, provider)
+		pkg, id := reconcile.PackageOf(change.Offering, provider)
 
 		offering, found := base.After.Offering(pkg, id)
 		if !found {
@@ -627,7 +627,7 @@ func (base Base) hold(report Report, provider string) (Report, []string) {
 // them alike, each group sorted by package and model.
 func (base Base) byRule(changes []Change, provider string) ([]string, map[string][]Change) {
 	key := func(change Change) string {
-		pkg, id := packageOf(change.Offering, provider)
+		pkg, id := reconcile.PackageOf(change.Offering, provider)
 
 		var offering map[string]any
 		if base.After != nil {
@@ -763,11 +763,19 @@ func (base Base) summary() string {
 // Vendor is one vendor's part of the PR: its report, and the catalogue
 // before and after its commit, for effect notes and "Changed with no row".
 // Failed is a vendor whose run failed, so the PR has nothing from it.
+// Replayed is set when the vendor's change was replayed from an earlier run.
 type Vendor struct {
 	Name          string
 	Report        Report
 	Before, After *reconcile.Snapshot
 	Failed        bool
+	Replayed      Replay
+}
+
+// Replay is the agent run a replayed vendor's change and report came from:
+// its run ID and its day. Both are empty when the agent ran in this run.
+type Replay struct {
+	Run, Date string
 }
 
 // vendorPart is one vendor ready to render: base with the vendor's own
@@ -833,7 +841,7 @@ func (base Base) render(vendors []Vendor, codeFiles []string, hasDiff bool) (str
 		return body.String(), nil
 	}
 
-	fmt.Fprintf(&body, "Proposed by the reconcile-models workflow. The tables come from the agent's structured report; the PR job checked its format and that every source is a named source. Check each value against its source before approving. The \"Bot catalog PRs\" section of %[2]s says what else to check.\n\nEach run rebuilds this branch from %[1]s. A commit you push here stays, but runs then stop updating this PR until it's merged or closed. To settle a row, merge a fix on %[1]s or record a decision in `.github/reconcile-models/decisions.yaml`. Later runs don't read PR comments.\n\n", base.Branch, base.fileLink("REVIEW.md", "REVIEW.md#bot-catalog-prs", 0))
+	fmt.Fprintf(&body, "Proposed by the reconcile-models workflow. The tables come from the agent's structured report; the PR job checked its format and that every source is a named source. Check each value against its source before approving. The \"Bot catalog PRs\" section of %[2]s says what else to check.\n\nEach run rebuilds this branch from %[1]s, leaving out a clean \"Update branch\" merge. A commit you push here is carried onto each rebuild while it still applies exactly; if it doesn't, or it's another merge commit or changes `.github/`, runs stop updating this PR and leave a comment saying why. To settle a row, merge a fix on %[1]s or record a decision in `.github/reconcile-models/decisions.yaml`. Later runs don't read PR comments.\n\n", base.Branch, base.fileLink("REVIEW.md", "REVIEW.md#bot-catalog-prs", 0))
 
 	body.WriteString(resolveAlert(parts) + base.waitingAlert(waiting))
 	body.WriteString(base.summary())
@@ -868,6 +876,10 @@ func (part vendorPart) section() string {
 
 	base, report := part.base, part.shown
 	body.WriteString("## " + part.Name + "\n\n")
+
+	if part.Replayed.Run != "" {
+		fmt.Fprintf(&body, "> Replayed with no model: this is the change the agent made in run %s on %s, checked to be exactly the same on this base.\n\n", part.Replayed.Run, part.Replayed.Date)
+	}
 
 	switch {
 	case part.Failed:

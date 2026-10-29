@@ -23,6 +23,10 @@ on:
         description: Run the agent even if the gate finds nothing changed
         type: boolean
         required: true
+      mode:
+        description: agent, or replay to replay the vendor's commit waiting in the PR with no model, running the agent only if that fails
+        type: string
+        default: agent
     secrets:
       ANTHROPIC_API_KEY:
         required: true
@@ -37,6 +41,15 @@ on:
         value: ${{ jobs.check.outputs.head }}
       changed:
         value: ${{ jobs.check.outputs.changed }}
+      replayed:
+        description: Whether the change is a replay of an earlier run's
+        value: ${{ jobs.agent.outputs.replayed }}
+      agent_run:
+        description: The run whose agent made the change, for the run's record
+        value: ${{ jobs.check.outputs.agent_run }}
+      agent_at:
+        description: When that agent ran (RFC 3339, UTC)
+        value: ${{ jobs.check.outputs.agent_at }}
 
 permissions: {}
 
@@ -117,13 +130,18 @@ jobs:
   agent:
     needs: gate
     # A failed gate runs the agent too (!cancelled() lifts the implicit
-    # success() check).
-    if: ${{ !cancelled() && needs.gate.outputs.run_agent != 'false' }}
+    # success() check), and a replay never waits for the gate.
+    if: ${{ !cancelled() && (inputs.mode == 'replay' || needs.gate.outputs.run_agent != 'false') }}
     runs-on: ubuntu-24.04
     # A launch across three hosts took 17 minutes and 163 turns (run 12).
     timeout-minutes: 60
     permissions:
       contents: read
+    # A replay hands on the original agent's run and time.
+    outputs:
+      replayed: ${{ steps.replay.outcome == 'success' }}
+      agent_run: ${{ steps.replay.outputs.agent_run }}
+      agent_at: ${{ steps.replay.outputs.agent_at }}
     env:
       CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
       # No telemetry, error reports or update checks, so their hosts stay off
@@ -199,6 +217,24 @@ jobs:
             echo "::error::Debug logging is on, which would print the agent's conversation into this public log. Re-run without debug logging."
             exit 1
           fi
+      # A vendor planned for replay rebuilds its commit waiting in the PR with
+      # no model, from the record the plan job checked; Claude runs only when
+      # the replay doesn't fit exactly.
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        continue-on-error: true
+        with:
+          name: reconcile-plan-record
+          path: ${{ runner.temp }}/record
+      # Go for replay.sh, which builds catalog-replay and runs pr-job.sh.
+      - name: Install Go
+        run: |
+          task install:go
+          dirname "$(ls -d "$PWD"/.build/go*/bin/go | tail -1)" >>"$GITHUB_PATH"
+      - name: Replay the vendor's waiting commit (no model)
+        id: replay
+        if: inputs.mode == 'replay'
+        continue-on-error: true
+        run: GOTOOLCHAIN=local .github/reconcile-models/replay.sh "$PROVIDER" "$RUNNER_TEMP/record/record.json" out
       - name: Prepare prompt and schema
         id: inputs
         run: |
@@ -217,6 +253,7 @@ jobs:
       # including this step's model key. The shell already runs without it.
       - name: Run reconcile-models
         id: claude
+        if: steps.replay.outcome != 'success'
         uses: anthropics/claude-code-action@6fed3ca145920b639991cb756090506e1bcaf515  # v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -231,8 +268,9 @@ jobs:
             --disallowedTools "WebFetch,WebSearch,Bash(git push:*),Bash(git commit:*),Bash(gh:*),AskUserQuestion,Task,Agent,Read(//proc/**)"
             --json-schema '${{ steps.inputs.outputs.schema }}'
       - name: Collect patch and report
-        # Also after a failed agent step, so the run leaves evidence to inspect.
-        if: always()
+        # Also after a failed agent step, so the run leaves evidence to
+        # inspect, but never over a replay.
+        if: always() && steps.replay.outcome != 'success'
         env:
           REPORT: ${{ steps.claude.outputs.structured_output }}
         # Start from an empty out/ and hand over only these two files, so
@@ -275,6 +313,8 @@ jobs:
     outputs:
       head: ${{ steps.done.outputs.head }}
       changed: ${{ steps.check.outputs.changed }}
+      agent_run: ${{ steps.done.outputs.agent_run }}
+      agent_at: ${{ steps.done.outputs.agent_at }}
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
         with:
@@ -353,7 +393,9 @@ jobs:
         id: done
         env:
           HEAD_SHA: ${{ steps.commit.outputs.head }}
-        run: echo "head=${HEAD_SHA}" >>"$GITHUB_OUTPUT"
+          AGENT_RUN: ${{ needs.agent.outputs.agent_run }}
+          AGENT_AT: ${{ needs.agent.outputs.agent_at }}
+        run: printf 'head=%s\nagent_run=%s\nagent_at=%s\n' "$HEAD_SHA" "${AGENT_RUN:-$GITHUB_RUN_ID}" "${AGENT_AT:-$(date -u +%FT%TZ)}" >>"$GITHUB_OUTPUT"
 
   # No model, on a fresh runner. After a green agent and check job, dry runs
   # included, it compares the run with the gate's page list and the baseline
@@ -361,7 +403,8 @@ jobs:
   # the next baseline. It runs nothing from the patch.
   record:
     needs: [gate, agent, check]
-    if: needs.gate.outputs.verdict != ''
+    # A replayed vendor's report is an older run's, not these pages'.
+    if: needs.gate.outputs.verdict != '' && needs.agent.outputs.replayed != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
