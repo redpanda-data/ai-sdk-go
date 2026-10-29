@@ -536,14 +536,14 @@ func TestRender(t *testing.T) {
 			report:      Report{Skipped: []Skipped{{Offering: "vertex:claude-haiku-4-5", Reason: "out_of_scope"}}},
 			base:        Base{URL: baseURL, Decisions: []reconcile.Decision{holdOld}, Today: "2026-10-14"},
 			contains:    []string{"| [DEC-002](" + decisionsURL + "#L12) | `vertex:claude-haiku-4-5` | new_model | out_of_scope | Not offered to users. |"},
-			notContains: []string{"### Skipped"},
+			notContains: []string{"Skipped ("},
 		},
 		{
 			name:        "a skipped copy under a hold on new_copy is held",
 			report:      Report{Skipped: []Skipped{{Offering: "vertex:claude-haiku-4-5", Reason: "out_of_scope"}}},
 			base:        Base{URL: baseURL, Decisions: []reconcile.Decision{holdCopy}, Today: "2026-10-14"},
 			contains:    []string{"| [DEC-002](" + decisionsURL + "#L12) | `vertex:claude-haiku-4-5` | new_copy | out_of_scope | Not offered to users. |"},
-			notContains: []string{"### Skipped"},
+			notContains: []string{"Skipped ("},
 		},
 		{
 			name:     "a new model is new on its host",
@@ -572,7 +572,7 @@ func TestRender(t *testing.T) {
 			}},
 			base: Base{URL: baseURL, Rules: testRules},
 			contains: []string{
-				"### Skipped (3)\n\n| Rule | Why | Offerings |",
+				"<details><summary>Skipped (3): left out by a rule</summary>\n\n| Rule | Why | Offerings |",
 				"| [limited-availability](" + rulesURL + "#L40) | the model needs a signup (`limited_availability`) | `claude-mythos-5`, `claude-mythos-5-1` |",
 				"| ⚠ [no-rule](" + rulesURL + "#L120) | the vendor isn't tracked (`vendor_excluded`) | `claude-haiku-4-5` |",
 			},
@@ -585,12 +585,11 @@ func TestRender(t *testing.T) {
 				"### Waiting on a product decision (2)\n\nModel cards list copies in regions this catalogue doesn't offer, so the bot left them out " +
 					"(rule [region-not-offered](" + rulesURL + "#L20)). Nothing changes until someone decides, and they don't block the PR. " +
 					"To answer, either offer the region (move its prefix to Offered in [RULES.md](" + baseURL + "/" + reconcile.RulesPath + "), with its code, in a reviewed PR) " +
-					"or decline it (write it under Not offered as `` `<prefix>` (declined YYYY-MM-DD) ``, and its copies show under Skipped from then on).\n\n",
+					"or decline it (write it under Not offered as `` `in` (declined YYYY-MM-DD) ``, and its copies show under Skipped from then on).\n\n",
 				"- Offer `in` on bedrock (asked since 2026-10-15)? 3 copies: `bedrock:in.anthropic.claude-opus-5`, `bedrock:in.anthropic.claude-sonnet-5`, " +
 					"`bedrock:in.anthropic.claude-haiku-4-5-20251001-v1:0`\n",
 				"- Offer `ca` on bedrock (not in the table yet)? 1 copy: `bedrock:ca.anthropic.claude-opus-5`\n",
-				"> [!NOTE]\n> **2 product decisions waiting** (they don't block this PR): " +
-					"offer `in` on bedrock (India, asked since 2026-10-15)? offer `ca` on bedrock (Canada, new)?\n\n",
+				"> [!NOTE]\n> **Don't block this PR:**\n> - 2 product decisions: offer `in` on bedrock (India, asked since 2026-10-15)? offer `ca` on bedrock (Canada, new)?\n\n",
 			},
 			notContains: []string{"[!IMPORTANT]"},
 		},
@@ -600,8 +599,8 @@ func TestRender(t *testing.T) {
 			base:   Base{URL: baseURL, Rules: declinedCA},
 			contains: []string{
 				"### Waiting on a product decision (1)",
-				"### Skipped (1)\n\n| Rule | Why | Offerings |\n|---|---|---|\n| [region-not-offered](" + rulesURL + "#L20) | `region_not_offered` | `bedrock:ca.anthropic.claude-opus-5` |\n",
-				"> [!NOTE]\n> **1 product decision waiting** (it doesn't block this PR): offer `in` on bedrock (India, asked since 2026-10-15)?\n\n",
+				"<details><summary>Skipped (1): left out by a rule</summary>\n\n| Rule | Why | Offerings |\n|---|---|---|\n| [region-not-offered](" + rulesURL + "#L20) | `region_not_offered` | `bedrock:ca.anthropic.claude-opus-5` |\n",
+				"> [!NOTE]\n> **Don't block this PR:**\n> - 1 product decision: offer `in` on bedrock (India, asked since 2026-10-15)?\n> - 1 skipped offering\n\n",
 			},
 			notContains: []string{"Offer `ca`", "`ca` on bedrock"},
 		},
@@ -610,11 +609,11 @@ func TestRender(t *testing.T) {
 			report: withWaiting,
 			base:   Base{Rules: testRules, Branch: "main"},
 			contains: []string{
-				"has the full list.\n\n> [!IMPORTANT]\n> **1 open question,** listed under Open questions below. It doesn't block merging: merging keeps the current value, and a later run may ask again.\n>\n> 1. `claude-sonnet-5-5` · token limit\n\n**To answer a question,**",
-				"add a rule to `RULES.md` instead.\n\n> [!NOTE]\n> **2 product decisions waiting** (they don't block this PR): " +
-					"offer `in` on bedrock (India, asked since 2026-10-15)? offer `ca` on bedrock (Canada, new)?\n\nEach run rebuilds this branch",
+				"has the full list.\n\n> [!NOTE]\n> **Don't block this PR:**\n> - 2 product decisions: offer `in` on bedrock (India, asked since 2026-10-15)? offer `ca` on bedrock (Canada, new)?\n> - 1 skipped offering\n\n> [!IMPORTANT]\n> **1 open question,** listed under Open questions below. It doesn't block merging: merging keeps the current value, and a later run may ask again.\n>\n> 1. `claude-sonnet-5-5` · token limit\n\n**To answer a question,**",
+				"add a rule to `RULES.md` instead.\n\nEach run rebuilds this branch",
 				"### Open questions (1)\n\n**1. `claude-sonnet-5-5` · token limit**",
-				"- **Sources:** [platform.claude.com](https://platform.claude.com/docs/en/about-claude/models/overview.md)\n\n## anthropic\n\n### Changes (1)",
+				"- **Sources:** [platform.claude.com](https://platform.claude.com/docs/en/about-claude/models/overview.md)\n\n### Waiting on a product decision (2)",
+				"`bedrock:in.anthropic.claude-haiku-4-5-20251001-v1:0`\n- Offer `ca` on bedrock (not in the table yet)? 1 copy: `bedrock:ca.anthropic.claude-opus-5`\n\n## anthropic\n\n### Changes (1)",
 			},
 		},
 		{
@@ -622,7 +621,7 @@ func TestRender(t *testing.T) {
 			report:      twoAsks,
 			base:        Base{Decisions: []reconcile.Decision{keepLimit}, Today: "2026-10-14"},
 			contains:    []string{"> [!IMPORTANT]\n> **1 open question,** listed under Open questions below. It doesn't block merging: merging keeps the current value, and a later run may ask again.\n>\n> 1. `claude-opus-4-1` · replacement\n\n"},
-			notContains: []string{"`claude-sonnet-5-5` · token limit", "[!NOTE]"},
+			notContains: []string{"`claude-sonnet-5-5` · token limit", "product decision"},
 		},
 		{
 			name:   "every question is listed, and a region with no name shows none",
@@ -632,22 +631,21 @@ func TestRender(t *testing.T) {
 				"> [!IMPORTANT]\n> **7 open questions,** listed under Open questions below. They don't block merging: merging keeps the current values, and a later run may ask again.\n>\n" +
 					"> 1. `claude-opus-5` · token limit\n> 2. `claude-opus-5-5` · token limit\n> 3. `claude-sonnet-5` · token limit\n> 4. `claude-sonnet-5-5` · token limit\n" +
 					"> 5. `claude-haiku-5` · token limit\n> 6. `claude-haiku-5-5` · token limit\n> 7. `claude-fable-5` · token limit\n\n",
-				"> [!NOTE]\n> **2 product decisions waiting** (they don't block this PR): " +
-					"offer `us-gov` on bedrock (GovCloud (US), new)? offer `zz` on bedrock (new)?\n\n",
+				"> [!NOTE]\n> **Don't block this PR:**\n> - 2 product decisions: offer `us-gov` on bedrock (GovCloud (US), new)? offer `zz` on bedrock (new)?\n> - 1 suggested rule\n\n",
 			},
 		},
 		{
-			name:        "no questions, no alerts",
+			name:        "no questions, no box",
 			report:      Report{Skipped: waiting[2:3]},
 			base:        Base{Rules: declinedCA},
-			contains:    []string{"### Skipped (1)"},
-			notContains: []string{"[!IMPORTANT]", "[!NOTE]", "### Waiting on a product decision"},
+			contains:    []string{"<summary>Skipped (1)", "> [!NOTE]\n> **Don't block this PR:**\n> - 1 skipped offering\n\n"},
+			notContains: []string{"[!IMPORTANT]", "product decision"},
 		},
 		{
 			name:        "waiting rows aren't listed as skipped",
 			report:      Report{Skipped: append([]Skipped{{Offering: "claude-mythos-5", Reason: "limited_availability", Rule: "limited-availability"}}, waiting...)},
 			base:        Base{URL: baseURL, Rules: testRules},
-			contains:    []string{"### Skipped (1)"},
+			contains:    []string{"<summary>Skipped (1)"},
 			notContains: []string{"`region_not_offered`"},
 		},
 		{
@@ -987,7 +985,7 @@ func openaiSnapshots(t *testing.T) (*reconcile.Snapshot, *reconcile.Snapshot) {
 }
 
 // section is one vendor's part of a combined body: from its heading to the
-// next vendor's, or to the snapshot diff.
+// next vendor's, or to the snapshot diff's.
 func section(t *testing.T, body, vendor string) string {
 	t.Helper()
 
@@ -995,7 +993,6 @@ func section(t *testing.T, body, vendor string) string {
 	require.True(t, found, "the body has no section for %s", vendor)
 
 	rest, _, _ = strings.Cut(rest, "\n## ")
-	rest, _, _ = strings.Cut(rest, "<details>")
 
 	return rest
 }
@@ -1058,7 +1055,7 @@ func TestRenderVendorsShowsThePRPartsOnce(t *testing.T) {
 	}
 
 	assert.Less(t, strings.Index(body, "### Routing changes"), strings.Index(body, "## anthropic"), "the PR's parts come before the vendors")
-	assert.Greater(t, strings.Index(body, "<details>"), strings.Index(body, "## google"), "the snapshot diff comes last")
+	assert.Greater(t, strings.Index(body, "## Snapshot diff"), strings.Index(body, "## google"), "the snapshot diff comes last")
 	assert.Equal(t, "The run found nothing to change.", strings.TrimSpace(section(t, body, "openai")))
 	assert.Contains(t, section(t, body, "google"), "This vendor's run failed, so this PR has nothing from it.")
 }
@@ -1079,7 +1076,7 @@ func TestRenderKeepsEveryVendorPart(t *testing.T) {
 	}, "+  \"input\": 5", nil, Base{Decisions: []reconcile.Decision{keepLimit}, Today: "2026-10-14"})
 
 	anthropic := section(t, body, "anthropic")
-	for _, part := range []string{"> Replayed with no model", "### Changes (1)", "### Changed with no row (", "### Held by decisions (1)", "### Skipped (1)"} {
+	for _, part := range []string{"> Replayed with no model", "### Changes (1)", "### Changed with no row (", "### Held by decisions (1)", "<summary>Skipped (1)"} {
 		assert.Contains(t, anthropic, part)
 	}
 
@@ -1140,7 +1137,7 @@ func TestRenderVendorsLabelsQuestions(t *testing.T) {
 
 	assert.Contains(t, body, "> 1. anthropic · `claude-sonnet-5-5` · token limit\n> 2. openai · `gpt-6-1` · price\n\n")
 	assert.Contains(t, body, "**2. openai · `gpt-6-1` · price** ·", "the numbers run across vendors")
-	assert.Equal(t, "The run changed nothing; its questions are under Open questions above.", strings.TrimSpace(section(t, body, "openai")),
+	assert.Equal(t, "The run changed nothing; its rows are under Open questions above.", strings.TrimSpace(section(t, body, "openai")),
 		"a vendor with only questions says where they went")
 }
 
@@ -1491,16 +1488,16 @@ func TestRenderSuggestedRules(t *testing.T) {
 			name: "two no-rule rows on one field suggest a rule",
 			asks: []NeedsHuman{ask("global", found...), ask("us", found...), ask("eu", slices.Concat(found, []string{"only on eu"})...)},
 			contains: []string{
-				"### Suggested rules (1)\n\nSome questions under Open questions went to a person under no-rule and share a field. If the case can come back, add a Default to RULES.md: give it a slug, write When as the condition, and replace each ?.\n\n" +
-					"| Default | Field | When | Bot does | Why | Outcome |\n|---|---|---|---|---|---|\n" +
-					"| new-default | `lifecycle` | 3 rows this run, all with `Legacy 2026-10-08`, `EOL 2027-04-08`, `AWS names no replacement` | ? | ? | ? |\n",
+				"<details><summary>Suggested rules (1): optional</summary>\n\n" +
+					"Questions with no rule that share a field. If the case can come back, add a Default (the bot decides) or an Ask (always a person) to RULES.md.\n\n" +
+					"- `lifecycle`: 3 offerings this run, all with `Legacy 2026-10-08`, `EOL 2027-04-08`, `AWS names no replacement`\n\n</details>\n\n",
 			},
 		},
 		{
 			name: "two-sided rows suggest the side they share",
 			asks: []NeedsHuman{twoSided("global", "100"), twoSided("us", "150")},
 			contains: []string{
-				"| new-default | `limit` | 2 rows this run, all with `200`, `providers/bedrock/models.go` | ? | ? | ? |\n",
+				"- `limit`: 2 offerings this run, all with `200`, `providers/bedrock/models.go`\n",
 			},
 		},
 		{name: "one row suggests nothing", asks: []NeedsHuman{ask("global", found...)}, notContains: []string{"Suggested rules"}},
@@ -1509,17 +1506,6 @@ func TestRenderSuggestedRules(t *testing.T) {
 			notContains: []string{"Suggested rules"},
 		},
 	}
-
-	t.Run("a pasted row fails until a person fills it in", func(t *testing.T) {
-		t.Parallel()
-
-		lines := suggestions([]NeedsHuman{ask("global", found...), ask("us", found...)})
-		require.Len(t, lines, 1)
-
-		_, problems := reconcile.ParseRules([]byte("- **Outcome.** `change` (a hunk)\n\n| Field | Covers |\n|---|---|\n| `lifecycle` | dates |\n\n" +
-			"| Default | Field | When | Bot does | Why | Outcome |\n|---|---|---|---|---|---|\n" + lines[0]))
-		assert.Contains(t, problems, "new-default: unknown outcome ?")
-	})
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1535,6 +1521,66 @@ func TestRenderSuggestedRules(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestRenderDontBlockNote checks the note above the questions box (proposal
+// 6): what needs nothing from the reviewer, by name.
+func TestRenderDontBlockNote(t *testing.T) {
+	t.Parallel()
+
+	lifecycle := func(geo string) NeedsHuman {
+		return NeedsHuman{
+			Offering: "bedrock:" + geo + ".anthropic.claude-sonnet-4-5", Field: "lifecycle", Rule: "no-rule", Values: []string{"EOL 2027-04-08"},
+			SourceURLs: []string{"https://platform.claude.com/x"},
+		}
+	}
+	report := validReport()
+	report.NeedsHuman = append(report.NeedsHuman, lifecycle("global"), lifecycle("us"))
+	report.Skipped = append(report.Skipped, Skipped{Offering: "bedrock:in.anthropic.claude-opus-5", Reason: "region_not_offered", Rule: "region-not-offered"})
+
+	body := Render(oneVendor(report, Base{}), "", nil, Base{Rules: testRules})
+
+	assert.Contains(t, body, "> [!NOTE]\n> **Don't block this PR:**\n> - 1 product decision: offer `in` on bedrock (India, asked since 2026-10-15)?\n"+
+		"> - 1 suggested rule\n> - 1 skipped offering\n\n> [!IMPORTANT]")
+	assert.NotContains(t, Render(oneVendor(Report{Changes: validReport().Changes}, Base{}), "", nil, Base{}), "[!NOTE]", "no note with nothing to list")
+}
+
+// TestRenderFolded checks what sits behind <details> (proposal 6): each
+// vendor's Skipped, and Suggested rules once for every vendor, above the
+// vendor sections with Waiting.
+func TestRenderFolded(t *testing.T) {
+	t.Parallel()
+
+	limit := func(offering string) NeedsHuman {
+		return NeedsHuman{Offering: offering, Field: "limit", Rule: "no-rule", Values: []string{"65536"}, SourceURLs: []string{"https://platform.claude.com/x"}}
+	}
+	waiting := Skipped{Offering: "bedrock:in.anthropic.claude-opus-5", Reason: "region_not_offered", Rule: "region-not-offered"}
+
+	body := Render([]Vendor{
+		{Name: "anthropic", Report: Report{NeedsHuman: []NeedsHuman{limit("claude-opus-5")}, Skipped: []Skipped{waiting, {Offering: "claude-haiku-4-5", Reason: "vendor_excluded", Rule: "no-rule"}}}},
+		{Name: "openai", Report: Report{NeedsHuman: []NeedsHuman{limit("gpt-6-1")}, Changes: validReport().Changes}},
+	}, "", nil, Base{})
+
+	assert.Contains(t, section(t, body, "anthropic"), "<details><summary>Skipped (1): left out by a rule</summary>\n\n| Rule | Why | Offerings |\n|---|---|---|\n| ⚠ `no-rule` | `vendor_excluded` | `claude-haiku-4-5` |\n\n</details>\n")
+	assert.Contains(t, body, "<details><summary>Suggested rules (1): optional</summary>\n\n", "one suggestion from both vendors' rows")
+	assert.Contains(t, body, "- `limit`: 2 offerings this run, all with `65536`\n")
+
+	for _, once := range []string{"### Waiting on a product decision (1)", "<summary>Suggested rules"} {
+		assert.Equal(t, 1, strings.Count(body, once), "%q shows once", once)
+		assert.Less(t, strings.Index(body, once), strings.Index(body, "## anthropic"), "%q comes before the vendors", once)
+	}
+}
+
+// TestRenderWaitingExample checks that the Waiting section's way to decline
+// a region names one of this run's regions and today (proposal 9).
+func TestRenderWaitingExample(t *testing.T) {
+	t.Parallel()
+
+	report := Report{Skipped: []Skipped{{Offering: "bedrock:us-gov.anthropic.claude-opus-5", Reason: "region_not_offered", Rule: "region-not-offered"}}}
+	body := Render(oneVendor(report, Base{}), "", nil, Base{Today: "2026-10-30"})
+
+	assert.Contains(t, body, "write it under Not offered as `` `us-gov` (declined 2026-10-30) ``")
+	assert.Equal(t, "The run changed nothing; its rows are under Waiting on a product decision above.", strings.TrimSpace(section(t, body, "anthropic")))
 }
 
 func TestPercent(t *testing.T) {

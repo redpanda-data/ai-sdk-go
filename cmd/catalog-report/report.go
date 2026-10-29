@@ -549,15 +549,10 @@ func (base Base) questionsSection(all []numbered) string {
 	return section.String()
 }
 
-// waitingAlert is the alert at the top for product: each waiting host and
-// region, with where it processes data and since when it has been asked. It
-// shows only when there is one.
-func (base Base) waitingAlert(waiting []Skipped) string {
+// decisionNames names each waiting host and region as a question, with where
+// it processes data and since when it has been asked.
+func (base Base) decisionNames(waiting []Skipped) []string {
 	regions, _ := byRegion(waiting)
-	if len(regions) == 0 {
-		return ""
-	}
-
 	asked := make([]string, 0, len(regions))
 
 	for _, key := range regions {
@@ -573,12 +568,61 @@ func (base Base) waitingAlert(waiting []Skipped) string {
 		asked = append(asked, "offer "+code(key.prefix)+" on "+key.host+" ("+status+")?")
 	}
 
-	decisions, they := "1 product decision", "it doesn't"
-	if len(regions) > 1 {
-		decisions, they = fmt.Sprintf("%d product decisions", len(regions)), "they don't"
+	return asked
+}
+
+// dontBlock is the note above the questions box: what needs nothing from the
+// reviewer, by name. It shows only when there is something.
+func (base Base) dontBlock(waiting []Skipped, suggested, skipped int) string {
+	var items []string
+
+	if decisions := base.decisionNames(waiting); len(decisions) > 0 {
+		items = append(items, count(len(decisions), "product decision", "product decisions")+": "+strings.Join(decisions, " "))
 	}
 
-	return "> [!NOTE]\n> **" + decisions + " waiting** (" + they + " block this PR): " + strings.Join(asked, " ") + "\n\n"
+	if suggested > 0 {
+		items = append(items, count(suggested, "suggested rule", "suggested rules"))
+	}
+
+	if skipped > 0 {
+		items = append(items, count(skipped, "skipped offering", "skipped offerings"))
+	}
+
+	if len(items) == 0 {
+		return ""
+	}
+
+	return "> [!NOTE]\n> **Don't block this PR:**\n> - " + strings.Join(items, "\n> - ") + "\n\n"
+}
+
+// waitingSection lists each waiting host and region once for the PR, and how
+// to offer or decline one, with this run's first region as the example.
+func (base Base) waitingSection(waiting []Skipped) string {
+	lines := base.waitingLines(waiting)
+	if len(lines) == 0 {
+		return ""
+	}
+
+	_, example, _ := regionOf(waiting[0].Offering)
+
+	return fmt.Sprintf("### Waiting on a product decision (%d)\n\nModel cards list copies in regions this catalogue doesn't offer, so the bot left them out (rule %s). Nothing changes until someone decides, and they don't block the PR. "+
+		"To answer, either offer the region (move its prefix to Offered in %s, with its code, in a reviewed PR) or decline it (write it under Not offered as `` `%s` (declined %s) ``, and its copies show under Skipped from then on).\n\n",
+		len(lines), base.ruleLink(regionRule), base.fileLink("RULES.md", reconcile.RulesPath, 0), example, cmp.Or(base.Today, "YYYY-MM-DD")) + strings.Join(lines, "") + "\n"
+}
+
+// suggestedFold is Suggested rules, once for the PR and folded.
+func suggestedFold(lines []string) string {
+	if len(lines) == 0 {
+		return ""
+	}
+
+	return folded(fmt.Sprintf("Suggested rules (%d): optional", len(lines)),
+		"Questions with no rule that share a field. If the case can come back, add a Default (the bot decides) or an Ask (always a person) to RULES.md.\n\n"+strings.Join(lines, "")+"\n")
+}
+
+// folded puts content behind a <details> fold with summary as its label.
+func folded(summary, content string) string {
+	return "<details><summary>" + summary + "</summary>\n\n" + content + "</details>\n\n"
 }
 
 // questionBlock renders one question: its offerings, its rule, the rule's
@@ -748,9 +792,9 @@ func (base Base) changesSection(changes []Change, provider string) string {
 	return section.String()
 }
 
-// suggestions drafts a Defaults row for each field that two or more no-rule
-// rows share this run, with the values all of them found, so a person can
-// turn a repeated case into a rule. Code writes it, so it never varies.
+// suggestions writes a bullet for each field that two or more no-rule rows
+// share this run, with the values all of them found, so a person can turn a
+// repeated case into a rule. Code writes it, so it never varies.
 func suggestions(needs []NeedsHuman) []string {
 	type group struct{ rule, field string }
 
@@ -767,12 +811,12 @@ func suggestions(needs []NeedsHuman) []string {
 			shared = slices.DeleteFunc(shared, func(v string) bool { return !slices.Contains(values, v) })
 		}
 
-		when := fmt.Sprintf("%d rows this run", len(found[key]))
+		line := fmt.Sprintf("- %s: %d offerings this run", code(key.field), len(found[key]))
 		if len(shared) > 0 {
-			when += ", all with " + valueList(shared)
+			line += ", all with " + valueList(shared)
 		}
 
-		lines = append(lines, fmt.Sprintf("| new-default | %s | %s | ? | ? | ? |\n", code(key.field), when))
+		lines = append(lines, line+"\n")
 	}
 
 	return lines
@@ -890,12 +934,18 @@ func (base Base) render(vendors []Vendor, codeFiles []string, hasDiff bool) (str
 	parts := make([]vendorPart, 0, len(vendors))
 	rows, failed := 0, false
 
-	var waiting []Skipped
+	var (
+		waiting []Skipped
+		needs   []NeedsHuman
+	)
+
+	skipped := 0
 
 	for _, vendor := range vendors {
 		part := base.part(vendor)
 		names, parts = append(names, vendor.Name), append(parts, part)
-		waiting = append(waiting, part.waiting...)
+		waiting, needs = append(waiting, part.waiting...), append(needs, part.shown.NeedsHuman...)
+		skipped += len(part.shown.Skipped)
 		rows += part.rows()
 		failed = failed || vendor.Failed
 	}
@@ -907,9 +957,9 @@ func (base Base) render(vendors []Vendor, codeFiles []string, hasDiff bool) (str
 		return body.String(), nil
 	}
 
-	asks := numberQuestions(parts)
+	asks, suggested := numberQuestions(parts), suggestions(needs)
 
-	body.WriteString(summaryLine(parts) + base.checksLine(codeFiles) + base.questionsBox(asks) + base.waitingAlert(waiting))
+	body.WriteString(summaryLine(parts) + base.checksLine(codeFiles) + base.dontBlock(waiting, len(suggested), skipped) + base.questionsBox(asks))
 	fmt.Fprintf(&body, "Each run rebuilds this branch from %[1]s, leaving out a clean \"Update branch\" merge. A commit you push here is carried onto each rebuild while it still applies exactly; if it doesn't, or it's another merge commit or changes `.github/`, runs stop updating this PR and leave a comment saying why. To settle a row, merge a fix on %[1]s or record a decision in `.github/reconcile-models/decisions.yaml`. Later runs don't read PR comments.\n\n", base.Branch)
 
 	body.WriteString(base.summary())
@@ -930,11 +980,12 @@ func (base Base) render(vendors []Vendor, codeFiles []string, hasDiff bool) (str
 		body.WriteString(strings.Join(moves, "") + "\n")
 	}
 
-	// Open questions takes a share of the room like a vendor's section, so many
-	// questions can't push every Changes table out of a capped body.
+	// What the PR asks of people takes a share of the room like a vendor's
+	// section, so many questions can't push every Changes table out of a
+	// capped body.
 	sections := make([]string, 0, len(parts)+1)
-	if questions := base.questionsSection(asks); questions != "" {
-		sections = append(sections, questions)
+	if shared := base.questionsSection(asks) + base.waitingSection(waiting) + suggestedFold(suggested); shared != "" {
+		sections = append(sections, shared)
 	}
 
 	for _, part := range parts {
@@ -1086,31 +1137,28 @@ func (part vendorPart) section() string {
 			len(names), valueList(names))
 	}
 
-	if lines := suggestions(report.NeedsHuman); len(lines) > 0 {
-		fmt.Fprintf(&body, "### Suggested rules (%d)\n\nSome questions under Open questions went to a person under no-rule and share a field. If the case can come back, add a Default to RULES.md: give it a slug, write When as the condition, and replace each ?.\n\n| Default | Field | When | Bot does | Why | Outcome |\n|---|---|---|---|---|---|\n",
-			len(lines))
-		body.WriteString(strings.Join(lines, "") + "\n")
-	}
-
-	if lines := base.waitingLines(part.waiting); len(lines) > 0 {
-		fmt.Fprintf(&body, "### Waiting on a product decision (%d)\n\nModel cards list copies in regions this catalogue doesn't offer, so the bot left them out (rule %s). Nothing changes until someone decides, and they don't block the PR. "+
-			"To answer, either offer the region (move its prefix to Offered in %s, with its code, in a reviewed PR) or decline it (write it under Not offered as `` `<prefix>` (declined YYYY-MM-DD) ``, and its copies show under Skipped from then on).\n\n",
-			len(lines), base.ruleLink(regionRule), base.fileLink("RULES.md", reconcile.RulesPath, 0))
-		body.WriteString(strings.Join(lines, "") + "\n")
-	}
-
 	if len(part.held) > 0 {
 		fmt.Fprintf(&body, "### Held by decisions (%d)\n\nQuestions a recorded decision already answers. Nothing here changes.\n\n| Decision | Offering | Field | What the bot saw | Why it's settled |\n|---|---|---|---|---|\n", len(part.held))
 		body.WriteString(strings.Join(part.held, "") + "\n")
 	}
 
 	if len(report.Skipped) > 0 {
-		fmt.Fprintf(&body, "### Skipped (%d)\n\n| Rule | Why | Offerings |\n|---|---|---|\n", len(report.Skipped))
-		body.WriteString(strings.Join(base.skippedRows(report.Skipped), "") + "\n")
+		body.WriteString(folded(fmt.Sprintf("Skipped (%d): left out by a rule", len(report.Skipped)),
+			"| Rule | Why | Offerings |\n|---|---|---|\n"+strings.Join(base.skippedRows(report.Skipped), "")+"\n"))
 	}
 
+	// Its questions and waiting copies show once for the PR, above.
 	if body.Len() == head {
-		body.WriteString("The run changed nothing; its questions are under Open questions above.\n\n")
+		var above []string
+		if len(part.asks) > 0 {
+			above = append(above, "Open questions")
+		}
+
+		if len(part.waiting) > 0 {
+			above = append(above, "Waiting on a product decision")
+		}
+
+		body.WriteString("The run changed nothing; its rows are under " + strings.Join(above, " and ") + " above.\n\n")
 	}
 
 	return body.String()
@@ -1123,7 +1171,7 @@ func diffBlock(snapshotDiff string) string {
 		return ""
 	}
 
-	return "## Snapshot diff\n\n<details><summary>Snapshot diff</summary>\n\n```diff\n" + snapshotDiff + "\n```\n</details>\n"
+	return "## Snapshot diff\n\n" + folded("Snapshot diff", "```diff\n"+snapshotDiff+"\n```\n")
 }
 
 // truncatedNote ends a snapshot diff that RenderCapped shortened.
