@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -517,7 +518,7 @@ func TestRender(t *testing.T) {
 				"| [DEC-001](" + decisionsURL + "#L3) | `claude-sonnet-5-5` | limit | `65535`, `65536` | Agreed in review. |",
 				"Recorded decisions: 1, in [decisions.yaml](" + decisionsURL + "). Past their review date: none.",
 			},
-			notContains: []string{"### Resolve before merging"},
+			notContains: []string{"### Open questions"},
 		},
 		{
 			name: "a held two-sided question shows both sides",
@@ -555,11 +556,10 @@ func TestRender(t *testing.T) {
 			report: twoAsks,
 			base:   Base{URL: baseURL, Rules: testRules},
 			contains: []string{
-				"### Resolve before merging (2): 1 by a rule, 1 with no rule",
-				"**1. `claude-sonnet-5-5` · limit · ⚠ no rule covers this ([no-rule](" + rulesURL + "#L120))**\n" +
+				"### Open questions (2)\n\n**1. `claude-sonnet-5-5` · token limit** · ⚠ no rule covers this ([no-rule](" + rulesURL + "#L120))\n" +
 					"- **Question:** No rule covers this. Decide.\n- **Also found:** `65535`, `65536`\n",
 				"- **Sources:** [platform.claude.com](https://platform.claude.com/docs/en/about-claude/models/overview.md)",
-				"**2. `claude-opus-4-1` · replacement · rule [out-of-reach](" + rulesURL + "#L80)**\n- **Question:** Which replacement?\n- **Sources:**",
+				"**2. `claude-opus-4-1` · replacement** · rule [out-of-reach](" + rulesURL + "#L80)\n- **Question:** Which replacement?\n- **Sources:**",
 			},
 			notContains: []string{"| Offering | Field | Values |"},
 		},
@@ -606,29 +606,32 @@ func TestRender(t *testing.T) {
 			notContains: []string{"Offer `ca`", "`ca` on bedrock"},
 		},
 		{
-			name:   "questions for people come after the intro, before the first section",
+			name:   "questions for people come after the top lines, and Open questions before the first section",
 			report: withWaiting,
-			base:   Base{Rules: testRules},
+			base:   Base{Rules: testRules, Branch: "main"},
 			contains: []string{
-				"Later runs don't read PR comments.\n\n> [!IMPORTANT]\n> **Resolve 1 question before merging:** `claude-sonnet-5-5` limit. See Resolve before merging below.\n\n" +
-					"> [!NOTE]\n> **2 product decisions waiting** (they don't block this PR): " +
-					"offer `in` on bedrock (India, asked since 2026-10-15)? offer `ca` on bedrock (Canada, new)?\n\n## anthropic\n\n### Changes (1)",
+				"has the full list.\n\n> [!IMPORTANT]\n> **1 open question,** listed under Open questions below. It doesn't block merging: merging keeps the current value, and a later run may ask again.\n>\n> 1. `claude-sonnet-5-5` · token limit\n\n**To answer a question,**",
+				"add a rule to `RULES.md` instead.\n\n> [!NOTE]\n> **2 product decisions waiting** (they don't block this PR): " +
+					"offer `in` on bedrock (India, asked since 2026-10-15)? offer `ca` on bedrock (Canada, new)?\n\nEach run rebuilds this branch",
+				"### Open questions (1)\n\n**1. `claude-sonnet-5-5` · token limit**",
+				"- **Sources:** [platform.claude.com](https://platform.claude.com/docs/en/about-claude/models/overview.md)\n\n## anthropic\n\n### Changes (1)",
 			},
 		},
 		{
 			name:        "held rows aren't questions",
 			report:      twoAsks,
 			base:        Base{Decisions: []reconcile.Decision{keepLimit}, Today: "2026-10-14"},
-			contains:    []string{"> [!IMPORTANT]\n> **Resolve 1 question before merging:** `claude-opus-4-1` replacement. See Resolve before merging below.\n\n"},
-			notContains: []string{"`claude-sonnet-5-5` limit", "[!NOTE]"},
+			contains:    []string{"> [!IMPORTANT]\n> **1 open question,** listed under Open questions below. It doesn't block merging: merging keeps the current value, and a later run may ask again.\n>\n> 1. `claude-opus-4-1` · replacement\n\n"},
+			notContains: []string{"`claude-sonnet-5-5` · token limit", "[!NOTE]"},
 		},
 		{
-			name:   "more than five questions are cut, and a region with no name shows none",
+			name:   "every question is listed, and a region with no name shows none",
 			report: manyAsks,
 			base:   Base{Rules: testRules},
 			contains: []string{
-				"> [!IMPORTANT]\n> **Resolve 7 questions before merging:** `claude-opus-5` limit, `claude-opus-5-5` limit, `claude-sonnet-5` limit, " +
-					"`claude-sonnet-5-5` limit, `claude-haiku-5` limit and 2 more. See Resolve before merging below.\n\n",
+				"> [!IMPORTANT]\n> **7 open questions,** listed under Open questions below. They don't block merging: merging keeps the current values, and a later run may ask again.\n>\n" +
+					"> 1. `claude-opus-5` · token limit\n> 2. `claude-opus-5-5` · token limit\n> 3. `claude-sonnet-5` · token limit\n> 4. `claude-sonnet-5-5` · token limit\n" +
+					"> 5. `claude-haiku-5` · token limit\n> 6. `claude-haiku-5-5` · token limit\n> 7. `claude-fable-5` · token limit\n\n",
 				"> [!NOTE]\n> **2 product decisions waiting** (they don't block this PR): " +
 					"offer `us-gov` on bedrock (GovCloud (US), new)? offer `zz` on bedrock (new)?\n\n",
 			},
@@ -651,7 +654,7 @@ func TestRender(t *testing.T) {
 			name:        "a decision on another field holds nothing",
 			report:      validReport(),
 			base:        Base{URL: baseURL, Decisions: []reconcile.Decision{otherField}, Today: "2026-10-14"},
-			contains:    []string{"### Resolve before merging (1)"},
+			contains:    []string{"### Open questions (1)"},
 			notContains: []string{"### Held by decisions"},
 		},
 		{
@@ -931,6 +934,27 @@ func TestRenderCapped(t *testing.T) {
 		}
 	})
 
+	t.Run("many questions don't push the Changes table out", func(t *testing.T) {
+		t.Parallel()
+
+		const limit = 8000
+
+		asks := validReport()
+		for i := range 150 {
+			// Each page differs, so the rows stay 150 questions.
+			asks.NeedsHuman = append(asks.NeedsHuman, NeedsHuman{
+				Offering: fmt.Sprintf("claude-model-%03d", i), Field: "limit", Page: strconv.Itoa(i), Rule: "no-rule",
+				SourceURLs: []string{"https://platform.claude.com/a"},
+			})
+		}
+
+		body := RenderCapped(oneVendor(asks, Base{}), "", nil, Base{}, limit)
+		assert.LessOrEqual(t, len(body), limit)
+		assert.Contains(t, body, "> 10. `claude-model-008` · token limit\n> …and 141 more, under Open questions.\n\n", "the box names ten")
+		assert.Contains(t, body, "### Open questions (151)")
+		assert.Contains(t, section(t, body, "anthropic"), "| `claude-opus-5-5` | price | `4.00` | `5.00` |", "the vendor's section keeps its share")
+	})
+
 	t.Run("notes stay when the diff is cut", func(t *testing.T) {
 		t.Parallel()
 
@@ -1102,8 +1126,9 @@ func TestRenderCappedVendors(t *testing.T) {
 	assert.Contains(t, section(t, body, "google"), "The run found nothing to change.")
 }
 
-// TestRenderVendorsLabelsQuestions checks that the alert at the top names each
-// question's vendor once the body has more than one.
+// TestRenderVendorsLabelsQuestions checks that the box at the top and Open
+// questions name each question's vendor once the body has more than one, and
+// number them across vendors.
 func TestRenderVendorsLabelsQuestions(t *testing.T) {
 	t.Parallel()
 
@@ -1113,8 +1138,71 @@ func TestRenderVendorsLabelsQuestions(t *testing.T) {
 	}}}
 	body := Render([]Vendor{{Name: "anthropic", Report: validReport()}, {Name: "openai", Report: gpt}}, "", nil, Base{})
 
-	assert.Contains(t, body, "> **Resolve 2 questions before merging:** anthropic `claude-sonnet-5-5` limit, openai `gpt-6-1` price. See Resolve before merging below.\n\n")
-	assert.Contains(t, section(t, body, "openai"), "**1. `gpt-6-1` · price ·", "each vendor numbers its own questions")
+	assert.Contains(t, body, "> 1. anthropic · `claude-sonnet-5-5` · token limit\n> 2. openai · `gpt-6-1` · price\n\n")
+	assert.Contains(t, body, "**2. openai · `gpt-6-1` · price** ·", "the numbers run across vendors")
+	assert.Equal(t, "The run changed nothing; its questions are under Open questions above.", strings.TrimSpace(section(t, body, "openai")),
+		"a vendor with only questions says where they went")
+}
+
+// TestRenderQuestionsBox checks the questions at the top (proposals 1 and 5):
+// one box numbers them across vendors, names each so no two look alike, and
+// says merging is allowed; the To answer paragraph says how to settle one;
+// and Open questions repeats the numbers and names above the vendor sections.
+func TestRenderQuestionsBox(t *testing.T) {
+	t.Parallel()
+
+	// Two copies in different regions, with different rates on the page, so
+	// they are two questions.
+	copyAsk := func(prefix, page string) NeedsHuman {
+		return NeedsHuman{
+			Offering: "bedrock:" + prefix + ".openai.gpt-6-1", Field: reconcile.FieldNewCopy, Page: page, Rule: "no-rule",
+			SourceURLs: []string{"https://developers.openai.com/api/docs/pricing"},
+		}
+	}
+	openai := Report{NeedsHuman: []NeedsHuman{copyAsk("us", "input 2.20"), copyAsk("global", "input 2.00")}}
+
+	body := Render([]Vendor{{Name: "anthropic", Report: validReport()}, {Name: "openai", Report: openai}}, "", nil, Base{Branch: "main"})
+
+	assert.Contains(t, body, "> [!IMPORTANT]\n> **3 open questions,** listed under Open questions below. "+
+		"They don't block merging: merging keeps the current values, and a later run may ask again.\n>\n"+
+		"> 1. anthropic · `claude-sonnet-5-5` · token limit\n> 2. openai · us copy: `bedrock:us.openai.gpt-6-1` · new copy\n"+
+		"> 3. openai · global copy: `bedrock:global.openai.gpt-6-1` · new copy\n\n"+
+		"**To answer a question,** open a PR into main that fixes the value, or that adds an entry for each offering to `.github/reconcile-models/decisions.yaml`: "+
+		"`kind: keep` with a lock keeps a value, and `kind: hold` keeps a new model or copy out. If the case can come back, add a rule to `RULES.md` instead.\n\n")
+
+	for _, block := range []string{
+		"### Open questions (3)\n\n**1. anthropic · `claude-sonnet-5-5` · token limit** · ⚠ no rule covers this (`no-rule`)\n",
+		"**2. openai · us copy: `bedrock:us.openai.gpt-6-1` · new copy** · ⚠ no rule covers this (`no-rule`)\n",
+		"**3. openai · global copy: `bedrock:global.openai.gpt-6-1` · new copy** · ⚠ no rule covers this (`no-rule`)\n",
+	} {
+		assert.Contains(t, body, block)
+	}
+
+	assert.Less(t, strings.Index(body, "### Open questions"), strings.Index(body, "## anthropic"), "the questions come before the vendors")
+	assert.NotContains(t, section(t, body, "anthropic"), "no rule covers this")
+	assert.NotContains(t, section(t, body, "openai"), "no rule covers this")
+}
+
+// TestQuestionFile checks the file a Decide line names: the offering's
+// provider package, or the facts file for a model's facts. Each file exists.
+func TestQuestionFile(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct{ field, offering, vendor, want string }{
+		{"price", "bedrock:us.anthropic.claude-sonnet-5-5", "anthropic", "providers/bedrock/models.go"},
+		{"limit", "claude-sonnet-5-5", "anthropic", "providers/anthropic/models.go"},
+		{"capability", "gpt-6-1", "openai", "providers/openai/models.go"},
+		{"release_date", "claude-sonnet-5-5", "anthropic", "catalog/facts_data.go"},
+		{"knowledge_cutoff", "gpt-6-1", "openai", "catalog/facts_data.go"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.field+" on "+tt.offering, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, questionFile(tt.field, tt.offering, tt.vendor))
+			assert.FileExists(t, filepath.Join("..", "..", tt.want))
+		})
+	}
 }
 
 // The agent's schema and the validator must accept the same fields and skip
@@ -1206,14 +1294,14 @@ func TestSchemaValues(t *testing.T) {
 	}
 }
 
-// TestRenderQuestionBlock checks one Resolve before merging row: a rule's
-// fixed question first, then the two sides and other values, then a no-rule
-// row's keep-or-change line, then the sources.
+// TestRenderQuestionBlock checks one Open questions row: a rule's fixed
+// question first, then the two sides and other values, then a no-rule row's
+// Decide line naming the file to edit, then the sources.
 func TestRenderQuestionBlock(t *testing.T) {
 	t.Parallel()
 
 	const (
-		noRule  = "**1. `claude-sonnet-5-5` · limit · ⚠ no rule covers this (`no-rule`)**\n"
+		noRule  = "**1. `claude-sonnet-5-5` · token limit** · ⚠ no rule covers this (`no-rule`)\n"
 		sources = "- **Sources:** [platform.claude.com](https://platform.claude.com/a)\n\n"
 	)
 
@@ -1233,17 +1321,26 @@ func TestRenderQuestionBlock(t *testing.T) {
 			name: "no rule, both sides: keep or change",
 			item: ask("no-rule", "65535", "65536", "providers/anthropic/models.go"),
 			want: noRule + "- **Catalogue:** `65535`\n- **Page:** `65536`\n- **Also found:** `providers/anthropic/models.go`\n" +
-				"- **Decide:** keep `65535`, or change to `65536`. If this can come back, add a rule.\n" + sources,
+				"- **Decide:** keep `65535`, or edit `providers/anthropic/models.go` to match the page (`65536`).\n" + sources,
 		},
 		{
 			name: "both sides and nothing else found",
 			item: ask("no-rule", "65535", "65536"),
-			want: noRule + "- **Catalogue:** `65535`\n- **Page:** `65536`\n- **Decide:** keep `65535`, or change to `65536`. If this can come back, add a rule.\n" + sources,
+			want: noRule + "- **Catalogue:** `65535`\n- **Page:** `65536`\n- **Decide:** keep `65535`, or edit `providers/anthropic/models.go` to match the page (`65536`).\n" + sources,
+		},
+		{
+			name: "a new copy with both sides: leave it out or add it",
+			item: NeedsHuman{
+				Offering: "bedrock:us.anthropic.claude-sonnet-5-5", Field: reconcile.FieldNewCopy, Catalogue: "none", Page: "input 3.30",
+				Rule: "no-rule", SourceURLs: []string{"https://platform.claude.com/a"},
+			},
+			want: "**1. us copy: `bedrock:us.anthropic.claude-sonnet-5-5` · new copy** · ⚠ no rule covers this (`no-rule`)\n" +
+				"- **Catalogue:** `none`\n- **Page:** `input 3.30`\n- **Decide:** leave it out, or add it in `providers/bedrock/models.go` with the page's rates.\n" + sources,
 		},
 		{
 			name: "a rule's row keeps its question",
 			item: ask("out-of-reach", "none", "claude-opus-5"),
-			want: "**1. `claude-sonnet-5-5` · limit · rule `out-of-reach`**\n- **Question:** Which replacement?\n" +
+			want: "**1. `claude-sonnet-5-5` · token limit** · rule `out-of-reach`\n- **Question:** Which replacement?\n" +
 				"- **Catalogue:** `none`\n- **Page:** `claude-opus-5`\n" + sources,
 		},
 		{
@@ -1290,15 +1387,16 @@ func TestRenderGroupsSameQuestion(t *testing.T) {
 	body := Render(oneVendor(report, Base{}), "", nil, Base{Rules: testRules})
 
 	for _, want := range []string{
-		"> [!IMPORTANT]\n> **Resolve 2 questions before merging:** capability on 3 offerings, `bedrock:global.anthropic.claude-haiku-5-5` capability. See Resolve before merging below.\n\n",
-		"### Resolve before merging (2): 0 by a rule, 2 with no rule\n\n" +
-			"**1. 3 offerings · capability · ⚠ no rule covers this (`no-rule`)**\n" +
+		"> [!IMPORTANT]\n> **2 open questions,** listed under Open questions below. They don't block merging: merging keeps the current values, and a later run may ask again.\n>\n" +
+			"> 1. `bedrock:global.anthropic.claude-fable-5-1` and 2 more · capability\n> 2. `bedrock:global.anthropic.claude-haiku-5-5` · capability\n\n",
+		"### Open questions (2)\n\n" +
+			"**1. `bedrock:global.anthropic.claude-fable-5-1` and 2 more · capability** · ⚠ no rule covers this (`no-rule`)\n" +
 			"- **Offerings:** `bedrock:global.anthropic.claude-fable-5-1`, `bedrock:us.anthropic.claude-fable-5-1`, `bedrock:global.anthropic.claude-opus-5-5`\n" +
 			"- **Catalogue:** `structured_output false`\n- **Page:** `Structured outputs supported`\n" +
 			"- **Also found:** `providers/bedrock/capabilities_test.go`, `claudeNoSchemaCaps`\n" +
-			"- **Decide:** keep `structured_output false`, or change to `Structured outputs supported`. If this can come back, add a rule.\n" +
+			"- **Decide:** keep `structured_output false`, or edit `providers/bedrock/models.go` to match the page (`Structured outputs supported`).\n" +
 			"- **Sources:** [docs.aws.amazon.com](https://docs.aws.amazon.com/a), [docs.aws.amazon.com](https://docs.aws.amazon.com/b)\n\n" +
-			"**2. `bedrock:global.anthropic.claude-haiku-5-5` · capability · ⚠ no rule covers this (`no-rule`)**\n",
+			"**2. `bedrock:global.anthropic.claude-haiku-5-5` · capability** · ⚠ no rule covers this (`no-rule`)\n",
 	} {
 		assert.Contains(t, body, want)
 	}
@@ -1393,7 +1491,7 @@ func TestRenderSuggestedRules(t *testing.T) {
 			name: "two no-rule rows on one field suggest a rule",
 			asks: []NeedsHuman{ask("global", found...), ask("us", found...), ask("eu", slices.Concat(found, []string{"only on eu"})...)},
 			contains: []string{
-				"### Suggested rules (1)\n\nSome rows under Resolve before merging went to a person under no-rule and share a field. If the case can come back, add a Default to RULES.md: give it a slug, write When as the condition, and replace each ?.\n\n" +
+				"### Suggested rules (1)\n\nSome questions under Open questions went to a person under no-rule and share a field. If the case can come back, add a Default to RULES.md: give it a slug, write When as the condition, and replace each ?.\n\n" +
 					"| Default | Field | When | Bot does | Why | Outcome |\n|---|---|---|---|---|---|\n" +
 					"| new-default | `lifecycle` | 3 rows this run, all with `Legacy 2026-10-08`, `EOL 2027-04-08`, `AWS names no replacement` | ? | ? | ? |\n",
 			},

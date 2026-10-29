@@ -58,7 +58,7 @@ secrets.
 - Check each row in "Changes" against the page it cites, and each offering in
   "Changed with no row" in the snapshot diff, since no row explains it. Mark the
   PR ready only when every value matches.
-- Settle each question in "Resolve before merging": fix it on the base branch
+- Settle each question in "Open questions": fix it on the base branch
   or record a decision. You may also merge with a question open; the next run
   asks it again.
 - In "Held by decisions", each value should still match its entry in

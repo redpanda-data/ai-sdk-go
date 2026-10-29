@@ -446,49 +446,107 @@ func questions(needs []NeedsHuman) []question {
 	return grouped
 }
 
-// resolveAlert is the alert at the top for the reviewer: how many "Resolve
-// before merging" questions block the merge, naming the first five, with
-// their vendor when the body has more than one. It shows only when there is
-// one.
-func resolveAlert(parts []vendorPart) string {
-	var named []string
+// numbered is a question with its vendor, its number across the PR, and the
+// name the box and Open questions both show.
+type numbered struct {
+	question
 
-	asks := 0
+	vendor, name string
+	n            int
+}
+
+// numberQuestions numbers every vendor's questions in one run, 1 to N, and
+// names each so no two look alike: its vendor when the body has more than
+// one, the region of a new copy, its first offering and how many more, and
+// the field.
+func numberQuestions(parts []vendorPart) []numbered {
+	var all []numbered
 
 	for _, part := range parts {
 		for _, q := range part.asks {
-			if asks++; asks > 5 {
-				continue
+			row := q.row
+
+			name := code(row.Offering)
+			if more := len(q.offerings) - 1; more > 0 {
+				name += fmt.Sprintf(" and %d more", more)
 			}
 
-			name := code(q.row.Offering) + " " + q.row.Field
-			if len(q.offerings) > 1 {
-				name = fmt.Sprintf("%s on %d offerings", q.row.Field, len(q.offerings))
+			if _, prefix, _ := regionOf(row.Offering); row.Field == reconcile.FieldNewCopy && reconcile.PrefixNames[prefix] != "" {
+				name = prefix + plural(len(q.offerings), " copy: ", " copies: ") + name
 			}
 
 			if len(parts) > 1 {
-				name = part.Name + " " + name
+				name = part.Name + " · " + name
 			}
 
-			named = append(named, name)
+			name += " · " + kindNouns[row.Field][0]
+			all = append(all, numbered{question: q, vendor: part.Name, name: name, n: len(all) + 1})
 		}
 	}
 
-	if asks == 0 {
+	return all
+}
+
+// boxQuestions is how many questions the box names. The top of the body is
+// never cut, so the rest are only under Open questions.
+const boxQuestions = 10
+
+// questionsBox is the alert at the top, with the first open questions
+// numbered and named as in Open questions and the note that none of them
+// blocks merging, then how to answer one. It shows only when there is one.
+func (base Base) questionsBox(all []numbered) string {
+	if len(all) == 0 {
 		return ""
 	}
 
-	list := strings.Join(named, ", ")
-	if more := asks - len(named); more > 0 {
-		list += fmt.Sprintf(" and %d more", more)
+	var box strings.Builder
+
+	fmt.Fprintf(&box, "> [!IMPORTANT]\n> **%s,** listed under Open questions below. %s block merging: merging keeps the current %s, and a later run may ask again.\n>\n",
+		count(len(all), "open question", "open questions"), plural(len(all), "It doesn't", "They don't"), plural(len(all), "value", "values"))
+
+	for _, item := range all[:min(len(all), boxQuestions)] {
+		fmt.Fprintf(&box, "> %d. %s\n", item.n, item.name)
 	}
 
-	count := "1 question"
-	if asks > 1 {
-		count = fmt.Sprintf("%d questions", asks)
+	if more := len(all) - boxQuestions; more > 0 {
+		fmt.Fprintf(&box, "> …and %d more, under Open questions.\n", more)
 	}
 
-	return "> [!IMPORTANT]\n> **Resolve " + count + " before merging:** " + list + ". See Resolve before merging below.\n\n"
+	fmt.Fprintf(&box, "\n**To answer a question,** open a PR into %s that fixes the value, or that adds an entry for each offering to %s: "+
+		"`kind: %s` with a lock keeps a value, and `kind: %s` keeps a new model or copy out. If the case can come back, add a rule to %s instead.\n\n",
+		base.Branch, base.fileLink(reconcile.DecisionsPath, reconcile.DecisionsPath, 0), reconcile.KindKeep, reconcile.KindHold, base.fileLink("RULES.md", reconcile.RulesPath, 0))
+
+	return box.String()
+}
+
+// questionFile is the file a person edits to change a question's value: the
+// facts file for a model's facts, or the offering's provider package.
+func questionFile(field, offering, vendor string) string {
+	if field == "release_date" || field == "knowledge_cutoff" {
+		return "catalog/facts_data.go"
+	}
+
+	pkg, _ := reconcile.PackageOf(offering, vendor)
+
+	return "providers/" + pkg + "/models.go"
+}
+
+// questionsSection is Open questions: each question in full, with the box's
+// number and name.
+func (base Base) questionsSection(all []numbered) string {
+	if len(all) == 0 {
+		return ""
+	}
+
+	var section strings.Builder
+
+	fmt.Fprintf(&section, "### Open questions (%d)\n\n", len(all))
+
+	for _, item := range all {
+		section.WriteString(base.questionBlock(item))
+	}
+
+	return section.String()
 }
 
 // waitingAlert is the alert at the top for product: each waiting host and
@@ -523,11 +581,11 @@ func (base Base) waitingAlert(waiting []Skipped) string {
 	return "> [!NOTE]\n> **" + decisions + " waiting** (" + they + " block this PR): " + strings.Join(asked, " ") + "\n\n"
 }
 
-// needsHumanBlock renders one question: its offerings, its rule, the rule's
+// questionBlock renders one question: its offerings, its rule, the rule's
 // fixed question, what the catalogue and the page say, anything else the bot
 // found, and the sources. A no-rule question with both sides asks instead,
-// after them, to keep one or take the other.
-func (base Base) needsHumanBlock(number int, q question) string {
+// after them, to keep one or take the other, naming the file to edit.
+func (base Base) questionBlock(q numbered) string {
 	item := q.row
 
 	why := "rule " + base.ruleLink(item.Rule)
@@ -540,12 +598,10 @@ func (base Base) needsHumanBlock(number int, q question) string {
 		sources = append(sources, link(source))
 	}
 
-	subject, listed := code(item.Offering), ""
+	block := fmt.Sprintf("**%d. %s** · %s\n", q.n, q.name, why)
 	if len(q.offerings) > 1 {
-		subject, listed = fmt.Sprintf("%d offerings", len(q.offerings)), "- **Offerings:** "+valueList(q.offerings)+"\n"
+		block += "- **Offerings:** " + valueList(q.offerings) + "\n"
 	}
-
-	block := fmt.Sprintf("**%d. %s · %s · %s**\n%s", number, subject, item.Field, why, listed)
 
 	decide := item.Rule == reconcile.JudgmentRule && item.Catalogue != "" && item.Page != ""
 	if fixed := base.Rules.Questions[item.Rule]; fixed != "" && !decide {
@@ -565,7 +621,13 @@ func (base Base) needsHumanBlock(number int, q question) string {
 	}
 
 	if decide {
-		block += "- **Decide:** keep " + code(item.Catalogue) + ", or change to " + code(item.Page) + ". If this can come back, add a rule.\n"
+		file := questionFile(item.Field, item.Offering, q.vendor)
+		if item.Field == reconcile.FieldNewCopy || item.Field == reconcile.FieldNewModel {
+			them := plural(len(q.offerings), "it", "them")
+			block += "- **Decide:** leave " + them + " out, or add " + them + " in " + base.fileLink(file, file, 0) + " with the page's rates.\n"
+		} else {
+			block += "- **Decide:** keep " + code(item.Catalogue) + ", or edit " + base.fileLink(file, file, 0) + " to match the page (" + code(item.Page) + ").\n"
+		}
 	}
 
 	return block + "- **Sources:** " + strings.Join(sources, ", ") + "\n\n"
@@ -845,11 +907,11 @@ func (base Base) render(vendors []Vendor, codeFiles []string, hasDiff bool) (str
 		return body.String(), nil
 	}
 
-	body.WriteString(summaryLine(parts) + base.checksLine(codeFiles))
+	asks := numberQuestions(parts)
 
+	body.WriteString(summaryLine(parts) + base.checksLine(codeFiles) + base.questionsBox(asks) + base.waitingAlert(waiting))
 	fmt.Fprintf(&body, "Each run rebuilds this branch from %[1]s, leaving out a clean \"Update branch\" merge. A commit you push here is carried onto each rebuild while it still applies exactly; if it doesn't, or it's another merge commit or changes `.github/`, runs stop updating this PR and leave a comment saying why. To settle a row, merge a fix on %[1]s or record a decision in `.github/reconcile-models/decisions.yaml`. Later runs don't read PR comments.\n\n", base.Branch)
 
-	body.WriteString(resolveAlert(parts) + base.waitingAlert(waiting))
 	body.WriteString(base.summary())
 
 	if len(codeFiles) > namedCodeFiles {
@@ -868,7 +930,13 @@ func (base Base) render(vendors []Vendor, codeFiles []string, hasDiff bool) (str
 		body.WriteString(strings.Join(moves, "") + "\n")
 	}
 
-	sections := make([]string, 0, len(parts))
+	// Open questions takes a share of the room like a vendor's section, so many
+	// questions can't push every Changes table out of a capped body.
+	sections := make([]string, 0, len(parts)+1)
+	if questions := base.questionsSection(asks); questions != "" {
+		sections = append(sections, questions)
+	}
+
 	for _, part := range parts {
 		sections = append(sections, part.section())
 	}
@@ -889,13 +957,18 @@ var kindNouns = map[string][2]string{
 // they get their own section.
 const namedCodeFiles = 3
 
-// count is n of something, in the singular when n is 1.
-func count(n int, one, many string) string {
+// plural is one when n is 1, else many.
+func plural(n int, one, many string) string {
 	if n == 1 {
-		return "1 " + one
+		return one
 	}
 
-	return fmt.Sprintf("%d %s", n, many)
+	return many
+}
+
+// count is n of something, in the singular when n is 1.
+func count(n int, one, many string) string {
+	return fmt.Sprintf("%d %s", n, plural(n, one, many))
 }
 
 // summaryLine counts the PR's changes by kind, in the order they first
@@ -1002,6 +1075,8 @@ func (part vendorPart) section() string {
 		return body.String()
 	}
 
+	head := body.Len()
+
 	if len(report.Changes) > 0 {
 		body.WriteString(base.changesSection(report.Changes, part.Name))
 	}
@@ -1011,24 +1086,8 @@ func (part vendorPart) section() string {
 			len(names), valueList(names))
 	}
 
-	if len(part.asks) > 0 {
-		judged := 0
-
-		for _, q := range part.asks {
-			if q.row.Rule == reconcile.JudgmentRule {
-				judged++
-			}
-		}
-
-		fmt.Fprintf(&body, "### Resolve before merging (%d): %d by a rule, %d with no rule\n\n", len(part.asks), len(part.asks)-judged, judged)
-
-		for index, q := range part.asks {
-			body.WriteString(base.needsHumanBlock(index+1, q))
-		}
-	}
-
 	if lines := suggestions(report.NeedsHuman); len(lines) > 0 {
-		fmt.Fprintf(&body, "### Suggested rules (%d)\n\nSome rows under Resolve before merging went to a person under no-rule and share a field. If the case can come back, add a Default to RULES.md: give it a slug, write When as the condition, and replace each ?.\n\n| Default | Field | When | Bot does | Why | Outcome |\n|---|---|---|---|---|---|\n",
+		fmt.Fprintf(&body, "### Suggested rules (%d)\n\nSome questions under Open questions went to a person under no-rule and share a field. If the case can come back, add a Default to RULES.md: give it a slug, write When as the condition, and replace each ?.\n\n| Default | Field | When | Bot does | Why | Outcome |\n|---|---|---|---|---|---|\n",
 			len(lines))
 		body.WriteString(strings.Join(lines, "") + "\n")
 	}
@@ -1048,6 +1107,10 @@ func (part vendorPart) section() string {
 	if len(report.Skipped) > 0 {
 		fmt.Fprintf(&body, "### Skipped (%d)\n\n| Rule | Why | Offerings |\n|---|---|---|\n", len(report.Skipped))
 		body.WriteString(strings.Join(base.skippedRows(report.Skipped), "") + "\n")
+	}
+
+	if body.Len() == head {
+		body.WriteString("The run changed nothing; its questions are under Open questions above.\n\n")
 	}
 
 	return body.String()
