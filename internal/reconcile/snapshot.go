@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 )
 
@@ -78,4 +79,17 @@ func (s Snapshot) Offering(pkg, id string) (map[string]any, bool) {
 	}
 
 	return nil, false
+}
+
+// WithoutDerived is an offering without its derived values, which change with
+// their neighbours, so comparing offerings ignores them.
+func WithoutDerived(offering map[string]any) map[string]any {
+	if offering == nil {
+		return nil
+	}
+
+	offering = maps.Clone(offering)
+	delete(offering, "derived")
+
+	return offering
 }

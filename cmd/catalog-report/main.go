@@ -25,12 +25,17 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/redpanda-data/ai-sdk-go/internal/reconcile"
 )
+
+// replayPattern is a -replayed value: a vendor, a run ID and an RFC 3339
+// UTC time, whose day the body shows.
+var replayPattern = regexp.MustCompile(`^([a-z0-9]+)=([0-9]{1,20})@([0-9]{4}-[0-9]{2}-[0-9]{2})T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$`)
 
 // maxBodyBytes keeps the PR body under GitHub's limit of 65,536 characters.
 const maxBodyBytes = 64000
@@ -52,10 +57,15 @@ func parseSources(raw []byte) (map[string]namedSource, error) {
 }
 
 func main() {
-	var vendorDirs, failed []string
+	var vendorDirs, failed, replayed []string
 
 	flag.Func("vendor", "NAME=DIR, once per vendor in the order the run applied them: DIR holds its report.json and, when its patch changed the catalogue, base-snapshot.json and snapshot.json", func(v string) error {
 		vendorDirs = append(vendorDirs, v)
+		return nil
+	})
+	flag.Func("replayed", "NAME=RUN@TIME of a vendor whose change was replayed from that agent run (RFC 3339, UTC)", func(v string) error {
+		replayed = append(replayed, v)
+
 		return nil
 	})
 	flag.Func("failed", "NAME of a vendor whose run failed, once per vendor", func(v string) error {
@@ -169,6 +179,20 @@ func main() {
 		exitOn("catalog-report: "+name+":", Validate(vendor.Report, sources[name].Hosts, rules))
 		exitOn("catalog-report: "+name+":", Base{Before: vendor.Before, After: vendor.After}.ValidateAdded(vendor.Report, name))
 		vendors = append(vendors, vendor)
+	}
+
+	for _, arg := range replayed {
+		match := replayPattern.FindStringSubmatch(arg)
+		if match == nil {
+			failf("-replayed %q isn't NAME=RUN@TIME", arg)
+		}
+
+		at := slices.IndexFunc(vendors, func(v Vendor) bool { return v.Name == match[1] })
+		if at < 0 {
+			failf("-replayed names %q, which has no -vendor folder", match[1])
+		}
+
+		vendors[at].Replayed = Replay{Run: match[2], Date: match[3]}
 	}
 
 	for _, name := range failed {
