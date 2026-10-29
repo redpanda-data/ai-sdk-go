@@ -435,6 +435,7 @@ func entries() []catalog.Entry {
 			Life: catalog.Lifecycle{
 				Available: catalog.MustDate("2026-02-17"),
 			},
+			// Rates: platform.claude.com/docs/en/about-claude/pricing (test base move 1).
 			Pricing: pricing.FlatInfoFromRates(
 				pricing.NewRates(3.00, 18.00, 0.30).WithCacheCreation(3.75, 6.00, 0),
 			),
