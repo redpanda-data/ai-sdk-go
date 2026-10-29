@@ -909,6 +909,68 @@ func TestPushIsLeasedOnThePlansHead(t *testing.T) {
 	}
 }
 
+// TestPushStepChecksThePRFirst runs the push step's script with stand-in gh
+// and git: a PR closed during the run stays closed with nothing pushed, a PR
+// someone pushed to during the run fails the step, and a PR a person marked
+// ready goes back to draft before the push, so new agent code runs only the
+// no-secrets CI until reviewed again.
+func TestPushStepChecksThePRFirst(t *testing.T) {
+	t.Parallel()
+
+	steps := readJob(t, runWorkflow, "pr").Steps
+	run := steps[stepIndex(t, steps, "push", func(s workflowStep) bool { return strings.Contains(s.Run, "git push") })].Run
+
+	// Both log every call; gh prints PR_VIEW for gh pr view and lists no
+	// other PRs.
+	path := stubPath(t, map[string]string{
+		"gh":  "#!/bin/sh\necho \"gh $*\" >>\"$CALLS\"\n[ \"$1 $2\" != \"pr view\" ] || echo \"$PR_VIEW\"\n",
+		"git": "#!/bin/sh\necho \"git $*\" >>\"$CALLS\"\n",
+	})
+
+	tests := []struct {
+		name    string
+		view    string // the PR's state, head and draft flag, as the step's --jq prints them
+		passes  bool
+		calls   []string // in this order
+		noCalls []string
+	}{
+		{name: "closed during the run", view: "CLOSED h0 true", passes: true, noCalls: []string{"git push", "gh pr edit", "gh pr ready"}},
+		{name: "pushed to during the run", view: "OPEN theirs true", passes: false, noCalls: []string{"git push", "gh pr edit"}},
+		{name: "marked ready", view: "OPEN h0 false", passes: true, calls: []string{"gh pr ready 7 --repo o/r --undo", "git push", "gh pr edit 7"}},
+		{name: "a draft", view: "OPEN h0 true", passes: true, calls: []string{"git push", "gh pr edit 7"}, noCalls: []string{"gh pr ready"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			calls := filepath.Join(t.TempDir(), "calls")
+			// GitHub runs a step's script as bash -eo pipefail.
+			cmd := exec.CommandContext(t.Context(), "bash", "-eo", "pipefail", "-c", run)
+
+			cmd.Env = append(os.Environ(), path, "CALLS="+calls, "PR_VIEW="+tt.view, "PR=7", "H0=h0", "TIP=tip",
+				"BRANCH=bot/reconcile-models/all", "BASE=main", "GITHUB_REPOSITORY=o/r", "GH_TOKEN=token")
+
+			out, err := cmd.CombinedOutput()
+			assert.Equal(t, tt.passes, err == nil, "%s", out)
+
+			raw, err := os.ReadFile(calls)
+			require.NoError(t, err)
+
+			log, at := string(raw), 0
+			for _, call := range tt.calls {
+				found := strings.Index(log[at:], call)
+				require.NotEqual(t, -1, found, "no %q after the calls before it:\n%s", call, log)
+
+				at += found + len(call)
+			}
+
+			for _, call := range tt.noCalls {
+				assert.NotContains(t, log, call)
+			}
+		})
+	}
+}
+
 // TestRerunFindsThePRItOpened checks that a re-run of the pr job, after its
 // first attempt opened the PR, edits that PR instead of trying to open it
 // again: the plan's PR output is from before the PR existed, so the push
@@ -1112,6 +1174,35 @@ func TestRealRunStepsRequireDryRunFalse(t *testing.T) {
 
 	assert.Positive(t, guarded, "no step checks DRY_RUN")
 
+	// The steps a dry run must never reach, named, so one that loses its check
+	// fails here instead of dropping out of the loop above: a dry run's
+	// fingerprints would become the next real run's baseline, and a note or a
+	// push would change the bot PR.
+	realOnly := []struct {
+		file, job, what string
+		match           func(workflowStep) bool
+	}{
+		{vendorWorkflow, "record", "the fingerprints upload", func(s workflowStep) bool {
+			return s.With["name"] == "reconcile-fingerprints-${{ env.PROVIDER }}"
+		}},
+		{runWorkflow, "pr", "the bot token", func(s workflowStep) bool { return strings.HasPrefix(s.Uses, "aws-actions/") }},
+		{runWorkflow, "pr", "the note on the bot PR", func(s workflowStep) bool { return strings.Contains(s.Run, "gh pr comment") }},
+		{runWorkflow, "pr", "the push", func(s workflowStep) bool { return strings.Contains(s.Run, "git push") }},
+	}
+	for _, step := range realOnly {
+		matched := 0
+
+		for _, s := range readJob(t, step.file, step.job).Steps {
+			if step.match(s) {
+				matched++
+
+				assert.Contains(t, s.If, "env.DRY_RUN == 'false'", "%s %s: %s must run only in a real run", step.file, step.job, step.what)
+			}
+		}
+
+		assert.Positive(t, matched, "%s %s has no step for %s", step.file, step.job, step.what)
+	}
+
 	input := readWorkflow(t, vendorWorkflow).On.WorkflowCall.Inputs["dry_run"]
 	assert.True(t, input.Required, "%s must be called with dry_run", vendorWorkflow)
 }
@@ -1137,6 +1228,23 @@ func TestLegHandsOnItsHeadLast(t *testing.T) {
 	assert.Equal(t, "${{ steps.done.outputs.head }}", job.Outputs["head"])
 	assert.Equal(t, "done", job.Steps[len(job.Steps)-1].ID, "the head must come from the job's last step")
 	assert.Equal(t, "${{ jobs.check.outputs.head }}", readWorkflow(t, vendorWorkflow).On.WorkflowCall.Outputs["head"].Value)
+}
+
+// TestCheckJobClearsTheAgentsFolder checks that the check job deletes all the
+// agent job left in the vendor's folder but report.json and patch.diff before
+// pr-job.sh runs, so the patch is there to check and only pr-job.sh writes
+// the rest.
+func TestCheckJobClearsTheAgentsFolder(t *testing.T) {
+	t.Parallel()
+
+	steps := readJob(t, vendorWorkflow, "check").Steps
+	run := steps[stepIndex(t, steps, "pr-job.sh", func(s workflowStep) bool {
+		return strings.Contains(s.Run, ".github/reconcile-models/pr-job.sh")
+	})].Run
+
+	cleanup := strings.Index(run, "find out -mindepth 1 -maxdepth 1 ! -name report.json ! -name patch.diff -exec rm -rf -- {} +")
+	require.NotEqual(t, -1, cleanup, "the check job must clear the agent's folder but its report and patch")
+	assert.Less(t, cleanup, strings.Index(run, ".github/reconcile-models/pr-job.sh"), "the folder must be cleared before pr-job.sh runs")
 }
 
 // TestLegChecksOutItsBase checks that the agent and the patch check both work

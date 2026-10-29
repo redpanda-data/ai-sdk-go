@@ -97,6 +97,18 @@ func TestMainReadsEachVendorsFolder(t *testing.T) {
 	openai := folder("openai", priced("gpt-6-1", "https://developers.openai.com/api/docs/pricing"), both)
 	quiet := folder("quiet", Report{Changes: []Change{}, NeedsHuman: []NeedsHuman{}, Skipped: []Skipped{}}, nil)
 	borrowed := folder("borrowed", priced("gpt-6-1", "https://platform.claude.com/docs/en/about-claude/pricing.md"), both)
+	// The catalogue already carries Sonnet 5.5, so its AU copy is a new_copy.
+	carried := `"facts": {"anthropic/claude-sonnet-5-5": {"released": "2026-09-30"}}`
+	mislabelled := folder("mislabelled", Report{
+		Changes: []Change{{
+			Offering: "bedrock:au.anthropic.claude-sonnet-5-5", Field: "new_model", New: "au.anthropic.claude-sonnet-5-5",
+			SourceURL: "https://platform.claude.com/docs/en/about-claude/models/overview.md", Rule: "new-copy-offered-region",
+		}},
+		NeedsHuman: []NeedsHuman{}, Skipped: []Skipped{},
+	}, map[string]string{
+		"base-snapshot.json": `{` + carried + `, "providers": [{"provider": "aws.bedrock", "offerings": [` + global + `]}]}`,
+		"snapshot.json":      `{` + carried + `, "providers": [{"provider": "aws.bedrock", "offerings": [` + global + `,` + au + `]}]}`,
+	})
 	halfCatalogue := folder("half", priced("gpt-6-1", "https://developers.openai.com/api/docs/pricing"), map[string]string{"snapshot.json": empty})
 	noCatalogue := folder("none", priced("gpt-6-1", "https://developers.openai.com/api/docs/pricing"), nil)
 
@@ -132,6 +144,11 @@ func TestMainReadsEachVendorsFolder(t *testing.T) {
 			name:    "a vendor named twice",
 			args:    []string{"-vendor", "openai=" + openai, "-failed", "openai"},
 			wantErr: `vendor "openai" named twice`,
+		},
+		{
+			name:    "a new_model row for a model the catalogue carries",
+			args:    []string{"-vendor", "anthropic=" + mislabelled},
+			wantErr: `the catalogue already carries "anthropic/claude-sonnet-5-5", so the field is new_copy, not new_model`,
 		},
 		{
 			name:    "one catalogue without the other",
