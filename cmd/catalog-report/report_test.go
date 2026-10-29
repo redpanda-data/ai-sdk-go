@@ -69,6 +69,12 @@ func validReport() Report {
 	}
 }
 
+// keepLimit is a decision that answers validReport's limit question.
+var keepLimit = reconcile.Decision{
+	ID: "DEC-001", Offering: "anthropic:claude-sonnet-5-5", Field: "limit", Kind: reconcile.KindKeep,
+	Reason: "Agreed in review.", ReviewBy: "2027-01-13", Line: 3,
+}
+
 func TestValidate(t *testing.T) {
 	t.Parallel()
 
@@ -287,10 +293,6 @@ func TestRender(t *testing.T) {
 		Offering: "claude-opus-4-1", Field: "replacement", Rule: "out-of-reach",
 		SourceURLs: []string{"https://platform.claude.com/docs/en/about-claude/model-deprecations.md"},
 	})
-	keepLimit := reconcile.Decision{
-		ID: "DEC-001", Offering: "anthropic:claude-sonnet-5-5", Field: "limit", Kind: reconcile.KindKeep,
-		Reason: "Agreed in review.", ReviewBy: "2027-01-13", Line: 3,
-	}
 	holdOld := reconcile.Decision{
 		ID: "DEC-002", Offering: "vertex:claude-haiku-4-5", Field: reconcile.FieldNewModel, Kind: reconcile.KindHold,
 		Reason: "Not offered to users.", ReviewBy: "2027-01-13", Line: 12,
@@ -464,14 +466,14 @@ func TestRender(t *testing.T) {
 				"| `claude-opus-5-5` | price | `4.00` | `5.00` | [platform.claude.com](https://platform.claude.com/docs/en/about-claude/pricing.md) |",
 				"`65535`, `65536`",
 				"| ⚠ `no-rule` | `vendor_excluded` | `claude-haiku-4-5` |",
-				"```diff",
+				"\n## Snapshot diff\n\n<details><summary>Snapshot diff</summary>\n\n```diff",
 			},
 		},
 		{
 			name:        "no drift",
 			report:      Report{},
 			contains:    []string{"No drift found"},
-			notContains: []string{"```diff"},
+			notContains: []string{"```diff", "## Snapshot diff"},
 		},
 		{
 			name:        "empty report keeps diff",
@@ -488,7 +490,6 @@ func TestRender(t *testing.T) {
 			contains: []string{
 				"Each run rebuilds this branch from main, leaving out a clean \"Update branch\" merge. A commit you push here is carried onto each rebuild while it still applies exactly; if it doesn't, or it's another merge commit or changes `.github/`, runs stop updating this PR and leave a comment saying why. " +
 					"To settle a row, merge a fix on main or record a decision in `.github/reconcile-models/decisions.yaml`.",
-				`The "Bot catalog PRs" section of ` + "`REVIEW.md`" + ` says what else to check.`,
 			},
 			notContains: []string{"Don't push", "Comment on the PR instead", "Recorded decisions"},
 		},
@@ -497,7 +498,7 @@ func TestRender(t *testing.T) {
 			report:   validReport(),
 			diff:     diff,
 			base:     Base{URL: baseURL, Branch: "main"},
-			contains: []string{`The "Bot catalog PRs" section of [REVIEW.md](` + baseURL + `/REVIEW.md#bot-catalog-prs) says what else to check.`},
+			contains: []string{"[REVIEW.md](" + baseURL + "/REVIEW.md#bot-catalog-prs) has the full list."},
 		},
 		{
 			name:        "names the branch a run from another branch rebuilds from",
@@ -671,10 +672,7 @@ func TestRender(t *testing.T) {
 			report:    validReport(),
 			diff:      diff,
 			codeFiles: []string{"providers/anthropic/alias_test.go"},
-			contains: []string{
-				"### Code changed (1)", "- `providers/anthropic/alias_test.go`",
-				"marking it ready runs them with secrets",
-			},
+			contains:  []string{"read `providers/anthropic/alias_test.go` as code; marking ready runs it with secrets."},
 		},
 		{
 			name: "empty old shows none",
@@ -705,6 +703,144 @@ func TestRender(t *testing.T) {
 			for _, unwanted := range tt.notContains {
 				assert.NotContains(t, body, unwanted)
 			}
+		})
+	}
+}
+
+// TestRenderSummaryLine checks the line under the title (proposal 2): what
+// the PR changes, counted by kind across vendors, and what it leaves as it
+// is.
+func TestRenderSummaryLine(t *testing.T) {
+	t.Parallel()
+
+	price := func(offering string) Change {
+		return Change{
+			Offering: offering, Field: "price", Old: "input 2.00", New: "input 2.50", Rule: "price-follow",
+			SourceURL: "https://platform.claude.com/docs/en/about-claude/pricing.md",
+		}
+	}
+	limit := Change{
+		Offering: "claude-opus-5-5", Field: "limit", Old: "64000", New: "128000", Rule: "no-rule",
+		SourceURL: "https://platform.claude.com/docs/en/about-claude/models/overview.md",
+	}
+
+	unchanged := validReport()
+	unchanged.NeedsHuman = append(unchanged.NeedsHuman,
+		NeedsHuman{Offering: "claude-opus-4-1", Field: "replacement", Rule: "out-of-reach", SourceURLs: []string{"https://platform.claude.com/docs/en/about-claude/model-deprecations.md"}},
+		NeedsHuman{Offering: "claude-haiku-5-5", Field: "price", Page: "input 1.10", Rule: "no-rule", SourceURLs: []string{"https://platform.claude.com/docs/en/about-claude/pricing.md"}},
+	)
+	unchanged.Skipped = append(unchanged.Skipped,
+		Skipped{Offering: "claude-haiku-4", Reason: "limited_availability", Rule: "limited-availability"},
+		Skipped{Offering: "bedrock:in.anthropic.claude-sonnet-5-5", Reason: "region_not_offered", Rule: "region-not-offered"},
+		Skipped{Offering: "bedrock:in.anthropic.claude-opus-5-5", Reason: "region_not_offered", Rule: "region-not-offered"},
+	)
+
+	tests := []struct {
+		name    string
+		vendors []Vendor
+		base    Base
+		want    string
+	}{
+		{
+			name: "counts each kind of change across vendors",
+			vendors: []Vendor{
+				{Name: "anthropic", Report: Report{Changes: []Change{price("claude-opus-5-5"), price("claude-sonnet-5-5"), limit}}},
+				{Name: "openai", Report: Report{Changes: []Change{price("gpt-6-1")}}},
+			},
+			want: "**4 changes** to the catalogue: 3 prices, 1 token limit.",
+		},
+		{
+			name:    "one of a kind in the singular",
+			vendors: oneVendor(validReport(), Base{}),
+			want:    "**1 change** to the catalogue: 1 price. Not changed: 1 open question, 1 skipped offering.",
+		},
+		{
+			name:    "no changes at all",
+			vendors: oneVendor(Report{NeedsHuman: validReport().NeedsHuman}, Base{}),
+			want:    "**No changes** to the catalogue. Not changed: 1 open question.",
+		},
+		{
+			// The patch also retires both Bedrock Sonnet 4.5 copies and adds
+			// an AU copy of Sonnet 5.5, and the report names none of them.
+			name: "counts offerings changed with no row",
+			vendors: func() []Vendor {
+				before, after := effectSnapshots(t)
+				cacheRead := Change{Offering: "claude-sonnet-5-5", Field: "price", Old: "cache read 0.20", New: "cache read 0.10", Rule: "price-follow"}
+
+				return []Vendor{{Name: "anthropic", Report: Report{Changes: []Change{cacheRead}}, Before: before, After: after}}
+			}(),
+			want: "**4 changes** to the catalogue: 1 price, 3 offerings changed with no row.",
+		},
+		{
+			name:    "counts what stays as it is",
+			vendors: oneVendor(unchanged, Base{}),
+			base:    Base{Decisions: []reconcile.Decision{keepLimit}, Today: "2026-10-14"},
+			want:    "**1 change** to the catalogue: 1 price. Not changed: 2 open questions, 1 held by a decision, 2 copies waiting on a product decision, 2 skipped offerings.",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// The line is the paragraph right after the title.
+			_, rest, _ := strings.Cut(Render(tt.vendors, "", nil, tt.base), "\n\n")
+			line, _, _ := strings.Cut(rest, "\n\n")
+			assert.Equal(t, tt.want, line)
+		})
+	}
+}
+
+// TestRenderChecksLine checks the line under the summary (proposal 3): what a
+// reviewer must do before marking the PR ready, naming up to three code files,
+// and exactly what the bot checked.
+func TestRenderChecksLine(t *testing.T) {
+	t.Parallel()
+
+	// Each claim is a step of pr-job.sh: render runs catalog-report, which
+	// checks the report's format, each row's rule and the sources' hosts;
+	// allowed() limits the files; the sandbox block runs the tests and lint.
+	const checked = "Only the agent compared the values with their sources. For its own commits, the bot checked the report's format and the rule on each row, " +
+		"that sources are on named hosts and that only allowed files change, and ran unit tests and lint without secrets. `REVIEW.md` has the full list."
+
+	tests := []struct {
+		name      string
+		codeFiles []string
+		want      string
+		section   bool
+	}{
+		{
+			name: "no code files",
+			want: "**Before you mark it ready:** check each value in Changes against its source. " + checked,
+		},
+		{
+			name:      "names one code file",
+			codeFiles: []string{"providers/anthropic/alias_test.go"},
+			want:      "**Before you mark it ready:** check each value in Changes against its source, and read `providers/anthropic/alias_test.go` as code; marking ready runs it with secrets. " + checked,
+		},
+		{
+			name:      "names three code files",
+			codeFiles: []string{"providers/anthropic/models.go", "providers/bedrock/models.go", "providers/openai/models.go"},
+			want: "**Before you mark it ready:** check each value in Changes against its source, and read `providers/anthropic/models.go`, `providers/bedrock/models.go` and `providers/openai/models.go` as code; " +
+				"marking ready runs them with secrets. " + checked,
+		},
+		{
+			name:      "points to Code changed above three",
+			codeFiles: []string{"go.mod", "providers/anthropic/models.go", "providers/bedrock/models.go", "providers/openai/models.go"},
+			want:      "**Before you mark it ready:** check each value in Changes against its source, and read the 4 files under Code changed as code; marking ready runs them with secrets. " + checked,
+			section:   true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			body := Render(oneVendor(validReport(), Base{}), "", tt.codeFiles, Base{})
+
+			// The title, the summary line, then this line.
+			paragraphs := strings.SplitN(body, "\n\n", 4)
+			require.Len(t, paragraphs, 4)
+			assert.Equal(t, tt.want, paragraphs[2])
+			assert.Equal(t, tt.section, strings.Contains(body, "### Code changed"), "Code changed is a section only above three files")
 		})
 	}
 }
@@ -768,9 +904,12 @@ func TestRenderCapped(t *testing.T) {
 
 		body := RenderCapped(oneVendor(long, Base{}), diff, nil, Base{}, limit)
 		assert.LessOrEqual(t, len(body), limit)
-		assert.True(t, strings.HasPrefix(body, "## Catalogue drift: anthropic"), "the top of the body stays")
+
+		top, _, _ := strings.Cut(Render(oneVendor(long, Base{}), diff, nil, Base{}), "\n## anthropic\n")
+		assert.True(t, strings.HasPrefix(body, top), "the top of the body stays whole")
 		assert.Contains(t, body, "cut to fit GitHub's size limit")
 		assert.NotContains(t, body, "claude-model-099", "the rows past the limit are cut")
+		assert.NotContains(t, body, "## Snapshot diff", "the diff's heading goes with the diff")
 	})
 
 	t.Run("too long: diff cut on a line, body within the limit", func(t *testing.T) {
@@ -781,6 +920,7 @@ func TestRenderCapped(t *testing.T) {
 		body := RenderCapped(oneVendor(report, Base{}), diff, nil, Base{}, limit)
 		assert.LessOrEqual(t, len(body), limit)
 		assert.Contains(t, body, "### Changes (1)")
+		assert.Contains(t, body, "\n## Snapshot diff\n\n<details>", "a shortened diff keeps its heading")
 		assert.Contains(t, body, "truncated; see the workflow artifact")
 		assert.Contains(t, body, lines[0]+"\n")
 		assert.NotContains(t, body, lines[len(lines)-1])
@@ -889,7 +1029,7 @@ func TestRenderVendorsShowsThePRPartsOnce(t *testing.T) {
 		{Name: "google", Failed: true},
 	}, "+  \"input\": 5", []string{"providers/bedrock/models.go", "providers/openai/models.go"}, base)
 
-	for _, once := range []string{"### Code changed (2)", "### Routing changes (1)", "<details><summary>Snapshot diff</summary>"} {
+	for _, once := range []string{"read `providers/bedrock/models.go` and `providers/openai/models.go` as code", "### Routing changes (1)", "<details><summary>Snapshot diff</summary>"} {
 		assert.Equal(t, 1, strings.Count(body, once), "%q shows once", once)
 	}
 
@@ -897,6 +1037,31 @@ func TestRenderVendorsShowsThePRPartsOnce(t *testing.T) {
 	assert.Greater(t, strings.Index(body, "<details>"), strings.Index(body, "## google"), "the snapshot diff comes last")
 	assert.Equal(t, "The run found nothing to change.", strings.TrimSpace(section(t, body, "openai")))
 	assert.Contains(t, section(t, body, "google"), "This vendor's run failed, so this PR has nothing from it.")
+}
+
+// TestRenderKeepsEveryVendorPart checks that moving what concerns the whole
+// PR to the top leaves each vendor's own parts in its section: the replay
+// note, Changes, Changed with no row, Held by decisions and Skipped; the
+// found-nothing and failed notes; and the recorded-decisions line.
+func TestRenderKeepsEveryVendorPart(t *testing.T) {
+	t.Parallel()
+
+	before, after := effectSnapshots(t)
+
+	body := Render([]Vendor{
+		{Name: "anthropic", Report: validReport(), Before: before, After: after, Replayed: Replay{Run: "123", Date: "2026-10-28"}},
+		{Name: "openai", Report: Report{}},
+		{Name: "google", Failed: true},
+	}, "+  \"input\": 5", nil, Base{Decisions: []reconcile.Decision{keepLimit}, Today: "2026-10-14"})
+
+	anthropic := section(t, body, "anthropic")
+	for _, part := range []string{"> Replayed with no model", "### Changes (1)", "### Changed with no row (", "### Held by decisions (1)", "### Skipped (1)"} {
+		assert.Contains(t, anthropic, part)
+	}
+
+	assert.Equal(t, "The run found nothing to change.", strings.TrimSpace(section(t, body, "openai")))
+	assert.Contains(t, section(t, body, "google"), "This vendor's run failed, so this PR has nothing from it.")
+	assert.Contains(t, body, "Recorded decisions: 1, in `decisions.yaml`.")
 }
 
 // TestRenderCappedVendors checks the byte budget per vendor: a vendor too big
@@ -923,7 +1088,9 @@ func TestRenderCappedVendors(t *testing.T) {
 
 	body := RenderCapped(vendors, "+  \"input\": 5", nil, Base{}, limit)
 	assert.LessOrEqual(t, len(body), limit)
-	assert.True(t, strings.HasPrefix(body, "## Catalogue drift: anthropic, openai, google\n"), "the top of the body stays")
+
+	top, _, _ := strings.Cut(Render(vendors, "+  \"input\": 5", nil, Base{}), "\n## anthropic\n")
+	assert.True(t, strings.HasPrefix(body, top), "the top of the body stays whole")
 
 	anthropic := section(t, body, "anthropic")
 	assert.Contains(t, anthropic, "claude-model-000")

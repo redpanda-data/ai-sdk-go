@@ -780,15 +780,17 @@ type Replay struct {
 
 // vendorPart is one vendor ready to render: base with the vendor's own
 // catalogue, the rows its section shows once decisions and waiting regions
-// are taken out, and its questions grouped.
+// are taken out, its questions grouped, and the offerings its patch changes
+// with no row.
 type vendorPart struct {
 	Vendor
 
-	base    Base
-	shown   Report
-	held    []string
-	waiting []Skipped
-	asks    []question
+	base       Base
+	shown      Report
+	held       []string
+	waiting    []Skipped
+	asks       []question
+	unreported []string
 }
 
 func (base Base) part(vendor Vendor) vendorPart {
@@ -797,6 +799,8 @@ func (base Base) part(vendor Vendor) vendorPart {
 	part.shown, part.held = part.base.hold(vendor.Report, vendor.Name)
 	part.shown, part.waiting = part.base.splitWaiting(part.shown)
 	part.asks = questions(part.shown.NeedsHuman)
+	// Held and waiting rows still count as rows here.
+	part.unreported = part.base.unreported(vendor.Report, vendor.Name)
 
 	return part
 }
@@ -841,13 +845,15 @@ func (base Base) render(vendors []Vendor, codeFiles []string, hasDiff bool) (str
 		return body.String(), nil
 	}
 
-	fmt.Fprintf(&body, "Proposed by the reconcile-models workflow. The tables come from the agent's structured report; the PR job checked its format and that every source is a named source. Check each value against its source before approving. The \"Bot catalog PRs\" section of %[2]s says what else to check.\n\nEach run rebuilds this branch from %[1]s, leaving out a clean \"Update branch\" merge. A commit you push here is carried onto each rebuild while it still applies exactly; if it doesn't, or it's another merge commit or changes `.github/`, runs stop updating this PR and leave a comment saying why. To settle a row, merge a fix on %[1]s or record a decision in `.github/reconcile-models/decisions.yaml`. Later runs don't read PR comments.\n\n", base.Branch, base.fileLink("REVIEW.md", "REVIEW.md#bot-catalog-prs", 0))
+	body.WriteString(summaryLine(parts) + base.checksLine(codeFiles))
+
+	fmt.Fprintf(&body, "Each run rebuilds this branch from %[1]s, leaving out a clean \"Update branch\" merge. A commit you push here is carried onto each rebuild while it still applies exactly; if it doesn't, or it's another merge commit or changes `.github/`, runs stop updating this PR and leave a comment saying why. To settle a row, merge a fix on %[1]s or record a decision in `.github/reconcile-models/decisions.yaml`. Later runs don't read PR comments.\n\n", base.Branch)
 
 	body.WriteString(resolveAlert(parts) + base.waitingAlert(waiting))
 	body.WriteString(base.summary())
 
-	if len(codeFiles) > 0 {
-		fmt.Fprintf(&body, "### Code changed (%d)\n\nThese files change code, not only data. Review them as code before marking the PR ready: marking it ready runs them with secrets.\n\n", len(codeFiles))
+	if len(codeFiles) > namedCodeFiles {
+		fmt.Fprintf(&body, "### Code changed (%d)\n\n", len(codeFiles))
 
 		for _, file := range codeFiles {
 			body.WriteString("- " + code(file) + "\n")
@@ -868,6 +874,112 @@ func (base Base) render(vendors []Vendor, codeFiles []string, hasDiff bool) (str
 	}
 
 	return body.String(), sections
+}
+
+// kindNouns names each report field as the summary line counts it, one and
+// many. TestRulesFile holds its keys to fields.
+var kindNouns = map[string][2]string{
+	"new_model": {"new model", "new models"}, "new_copy": {"new copy", "new copies"}, "price": {"price", "prices"},
+	"limit": {"token limit", "token limits"}, "lifecycle": {"lifecycle date", "lifecycle dates"}, "replacement": {"replacement", "replacements"},
+	"knowledge_cutoff": {"knowledge cutoff", "knowledge cutoffs"}, "release_date": {"release date", "release dates"},
+	"capability": {"capability", "capabilities"}, "location": {"location", "locations"},
+}
+
+// namedCodeFiles is how many code files the checks line names; above it,
+// they get their own section.
+const namedCodeFiles = 3
+
+// count is n of something, in the singular when n is 1.
+func count(n int, one, many string) string {
+	if n == 1 {
+		return "1 " + one
+	}
+
+	return fmt.Sprintf("%d %s", n, many)
+}
+
+// summaryLine counts the PR's changes by kind, in the order they first
+// appear, and the rows that leave the catalogue as it is.
+func summaryLine(parts []vendorPart) string {
+	var changes []Change
+
+	unreported, asks, held, waiting, skipped := 0, 0, 0, 0, 0
+
+	for _, part := range parts {
+		changes = append(changes, part.shown.Changes...)
+		unreported += len(part.unreported)
+		asks += len(part.asks)
+		held += len(part.held)
+		waiting += len(part.waiting)
+		skipped += len(part.shown.Skipped)
+	}
+
+	line := "**No changes** to the catalogue."
+
+	if total := len(changes) + unreported; total > 0 {
+		order, byField := groupBy(changes, func(change Change) (string, Change) { return change.Field, change })
+		kinds := make([]string, 0, len(order)+1)
+
+		for _, field := range order {
+			noun := kindNouns[field]
+			kinds = append(kinds, count(len(byField[field]), noun[0], noun[1]))
+		}
+
+		if unreported > 0 {
+			kinds = append(kinds, count(unreported, "offering changed with no row", "offerings changed with no row"))
+		}
+
+		line = "**" + count(total, "change", "changes") + "** to the catalogue: " + strings.Join(kinds, ", ") + "."
+	}
+
+	var same []string
+
+	for _, rows := range []struct {
+		n         int
+		one, many string
+	}{
+		{asks, "open question", "open questions"},
+		{held, "held by a decision", "held by decisions"},
+		{waiting, "copy waiting on a product decision", "copies waiting on a product decision"},
+		{skipped, "skipped offering", "skipped offerings"},
+	} {
+		if rows.n > 0 {
+			same = append(same, count(rows.n, rows.one, rows.many))
+		}
+	}
+
+	if len(same) > 0 {
+		line += " Not changed: " + strings.Join(same, ", ") + "."
+	}
+
+	return line + "\n\n"
+}
+
+// checksLine is what a reviewer must do before marking the PR ready, then
+// what the bot checked: pr-job.sh's steps, which only the bot's own commits
+// go through.
+func (base Base) checksLine(codeFiles []string) string {
+	line := "**Before you mark it ready:** check each value in Changes against its source"
+
+	switch n := len(codeFiles); {
+	case n == 0:
+		line += "."
+	case n <= namedCodeFiles:
+		list, them := code(codeFiles[n-1]), "them"
+		if n == 1 {
+			them = "it"
+		} else {
+			list = valueList(codeFiles[:n-1]) + " and " + list
+		}
+
+		line += ", and read " + list + " as code; marking ready runs " + them + " with secrets."
+	default:
+		line += fmt.Sprintf(", and read the %d files under Code changed as code; marking ready runs them with secrets.", n)
+	}
+
+	return line + " Only the agent compared the values with their sources. For its own commits, the bot checked the report's format and the rule on each row, " +
+		"that sources are on named hosts and that only allowed files change, and ran unit tests and lint without secrets. " +
+		base.fileLink("REVIEW.md", "REVIEW.md#bot-catalog-prs", 0) + " has the full list.\n\n"
 }
 
 // section renders one vendor's rows under its own heading.
@@ -894,8 +1006,7 @@ func (part vendorPart) section() string {
 		body.WriteString(base.changesSection(report.Changes, part.Name))
 	}
 
-	// Held and waiting rows still count as rows here.
-	if names := base.unreported(part.Report, part.Name); len(names) > 0 {
+	if names := part.unreported; len(names) > 0 {
 		fmt.Fprintf(&body, "### Changed with no row (%d)\n\nThe patch changes these offerings, but the report has no row for them. Check them in the snapshot diff.\n\n- %s\n\n",
 			len(names), valueList(names))
 	}
@@ -942,13 +1053,14 @@ func (part vendorPart) section() string {
 	return body.String()
 }
 
-// diffBlock is the snapshot diff, folded, or nothing without one.
+// diffBlock is the snapshot diff under its own heading, so it doesn't read as
+// part of the last vendor's section, folded; or nothing without one.
 func diffBlock(snapshotDiff string) string {
 	if snapshotDiff == "" {
 		return ""
 	}
 
-	return "<details><summary>Snapshot diff</summary>\n\n```diff\n" + snapshotDiff + "\n```\n</details>\n"
+	return "## Snapshot diff\n\n<details><summary>Snapshot diff</summary>\n\n```diff\n" + snapshotDiff + "\n```\n</details>\n"
 }
 
 // truncatedNote ends a snapshot diff that RenderCapped shortened.

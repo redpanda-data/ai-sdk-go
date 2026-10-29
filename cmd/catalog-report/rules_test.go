@@ -45,6 +45,7 @@ func TestRulesFile(t *testing.T) {
 	// held to the validator by TestSchemaMatchesValidator.
 	assert.ElementsMatch(t, reasons, slices.Collect(maps.Keys(rules.Reasons)), "skip reasons in RULES.md vs report.go")
 	assert.ElementsMatch(t, fields, slices.Collect(maps.Keys(rules.Fields)), "fields in RULES.md vs report.go")
+	assert.ElementsMatch(t, fields, slices.Collect(maps.Keys(kindNouns)), "every field needs a noun for the summary line")
 
 	// ValidateAdded picks new_model or new_copy from the catalogue before the
 	// patch, so a model this run adds on one host isn't a copy on the next.

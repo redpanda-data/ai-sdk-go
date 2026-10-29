@@ -49,9 +49,11 @@ for hosted checks, independent approval, or permission to merge.
 ## Bot catalog PRs
 
 The reconcile-models workflow opens draft PRs from `vbotbuildovich` that change
-the model catalog, following `.github/reconcile-models/RULES.md`. The PR job
-checked the report's format and that every source is a named source, and ran
-the tests without secrets. It didn't check the values.
+the model catalog, following `.github/reconcile-models/RULES.md`. Only the
+agent compared the values with their sources. For its own commits, the bot
+checked the report's format and the rule on each row, that sources are on named
+hosts and that only allowed files change, and ran unit tests and lint without
+secrets.
 
 - Check each row in "Changes" against the page it cites, and each offering in
   "Changed with no row" in the snapshot diff, since no row explains it. Mark the
@@ -63,8 +65,8 @@ the tests without secrets. It didn't check the values.
   `.github/reconcile-models/decisions.yaml`.
 - Approve a move in "Routing changes" only if every caller of that bare name
   can take the new profile and its price.
-- Read the files in "Code changed" before marking the PR ready: that runs them
-  with secrets.
+- Read the files the body names as code before marking the PR ready: that runs
+  them with secrets.
 - When `TestLiveTestModelsAreCurrent` fails once the PR is ready, push the swap
   it prints onto this same PR, so the date and the swap merge together. Later
   runs carry it onto each rebuild while it still applies exactly.
