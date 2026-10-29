@@ -18,6 +18,7 @@ import (
 	"cmp"
 	"fmt"
 	"net/url"
+	"path"
 	"regexp"
 	"slices"
 	"strings"
@@ -249,13 +250,21 @@ func value(v string) string {
 	return code(v)
 }
 
+// link names a source by its page, so several links on one host can be told
+// apart: the last path segment without "model-card-" and its extension, or
+// the host when there is none or it isn't safe to print.
 func link(raw string) string {
 	parsed, err := url.Parse(raw)
 	if err != nil {
 		return code(raw)
 	}
 
-	return "[" + parsed.Hostname() + "](" + raw + ")"
+	name := strings.TrimPrefix(strings.TrimSuffix(path.Base(parsed.Path), path.Ext(parsed.Path)), "model-card-")
+	if name == "" || name == "." || name == "/" || !safeValue(name) {
+		name = parsed.Hostname()
+	}
+
+	return "[" + name + "](" + raw + ")"
 }
 
 // valueList renders report values as comma-separated code spans.
@@ -960,7 +969,10 @@ func (base Base) render(vendors []Vendor, codeFiles []string, hasDiff bool) (str
 	asks, suggested := numberQuestions(parts), suggestions(needs)
 
 	body.WriteString(summaryLine(parts) + base.checksLine(codeFiles) + base.dontBlock(waiting, len(suggested), skipped) + base.questionsBox(asks))
-	fmt.Fprintf(&body, "Each run rebuilds this branch from %[1]s, leaving out a clean \"Update branch\" merge. A commit you push here is carried onto each rebuild while it still applies exactly; if it doesn't, or it's another merge commit or changes `.github/`, runs stop updating this PR and leave a comment saying why. To settle a row, merge a fix on %[1]s or record a decision in `.github/reconcile-models/decisions.yaml`. Later runs don't read PR comments.\n\n", base.Branch)
+	// carry.sh builds the carried commits and runs the tests of the packages
+	// their Go files change.
+	fmt.Fprintf(&body, "Each run rebuilds this branch from %s, leaving out a clean \"Update branch\" merge. A commit you push here is carried onto each rebuild while it still applies exactly and passes its build and tests. "+
+		"Any other merge commit, a `.github/` change, or a commit that doesn't apply or fails its checks stops the updates, and the run leaves a comment saying why. Later runs don't read PR comments.\n\n", base.Branch)
 
 	body.WriteString(base.summary())
 
@@ -1114,7 +1126,7 @@ func (part vendorPart) section() string {
 	body.WriteString("## " + part.Name + "\n\n")
 
 	if part.Replayed.Run != "" {
-		fmt.Fprintf(&body, "> Replayed with no model: this is the change the agent made in run %s on %s, checked to be exactly the same on this base.\n\n", part.Replayed.Run, part.Replayed.Date)
+		fmt.Fprintf(&body, "This is the change the agent made in run %s on %s, replayed with no model and checked to be exactly the same on this base.\n\n", part.Replayed.Run, part.Replayed.Date)
 	}
 
 	switch {

@@ -414,8 +414,8 @@ func TestRender(t *testing.T) {
 			base: Base{URL: baseURL, Rules: testRules},
 			contains: []string{
 				"### Changes (3)\n\n**[price-follow](" + rulesURL + "#L30)** (2)\n\n| Offering | Field | Old | New | Source |\n|---|---|---|---|---|\n" +
-					"| `claude-sonnet-5-5` | price | `0.20` | `0.10` | [platform.claude.com](https://platform.claude.com/c) |\n" +
-					"| `vertex:claude-sonnet-5-5` | price | `0.22` | `0.11` | [platform.claude.com](https://platform.claude.com/a) |\n\n" +
+					"| `claude-sonnet-5-5` | price | `0.20` | `0.10` | [c](https://platform.claude.com/c) |\n" +
+					"| `vertex:claude-sonnet-5-5` | price | `0.22` | `0.11` | [a](https://platform.claude.com/a) |\n\n" +
 					"**[new-copy-offered-region](" + rulesURL + "#L32)** (1)\n\n| Offering |",
 			},
 		},
@@ -464,7 +464,7 @@ func TestRender(t *testing.T) {
 			diff:   diff,
 			contains: []string{
 				"## Catalogue drift: anthropic",
-				"| `claude-opus-5-5` | price | `4.00` | `5.00` | [platform.claude.com](https://platform.claude.com/docs/en/about-claude/pricing.md) |",
+				"| `claude-opus-5-5` | price | `4.00` | `5.00` | [pricing](https://platform.claude.com/docs/en/about-claude/pricing.md) |",
 				"`65535`, `65536`",
 				"| ⚠ `no-rule` | `vendor_excluded` | `claude-haiku-4-5` |",
 				"\n## Snapshot diff\n\n<details><summary>Snapshot diff</summary>\n\n```diff",
@@ -484,13 +484,12 @@ func TestRender(t *testing.T) {
 			notContains: []string{"No drift found"},
 		},
 		{
-			name:   "says what a pushed commit does, and how to settle a row",
+			name:   "says what a pushed commit does",
 			report: validReport(),
 			diff:   diff,
 			base:   Base{Branch: "main"},
 			contains: []string{
-				"Each run rebuilds this branch from main, leaving out a clean \"Update branch\" merge. A commit you push here is carried onto each rebuild while it still applies exactly; if it doesn't, or it's another merge commit or changes `.github/`, runs stop updating this PR and leave a comment saying why. " +
-					"To settle a row, merge a fix on main or record a decision in `.github/reconcile-models/decisions.yaml`.",
+				"Each run rebuilds this branch from main, leaving out a clean \"Update branch\" merge. A commit you push here is carried onto each rebuild while it still applies exactly and passes its build and tests. Any other merge commit, a `.github/` change, or a commit that doesn't apply or fails its checks stops the updates, and the run leaves a comment saying why. Later runs don't read PR comments.\n\n",
 			},
 			notContains: []string{"Don't push", "Comment on the PR instead", "Recorded decisions"},
 		},
@@ -506,7 +505,7 @@ func TestRender(t *testing.T) {
 			report:      validReport(),
 			diff:        diff,
 			base:        Base{Branch: "feature-x"},
-			contains:    []string{"Each run rebuilds this branch from feature-x,", "merge a fix on feature-x or record a decision"},
+			contains:    []string{"Each run rebuilds this branch from feature-x,", "open a PR into feature-x that fixes the value"},
 			notContains: []string{"from main", "on main"},
 		},
 		{
@@ -558,7 +557,7 @@ func TestRender(t *testing.T) {
 			contains: []string{
 				"### Open questions (2)\n\n**1. `claude-sonnet-5-5` · token limit** · ⚠ no rule covers this ([no-rule](" + rulesURL + "#L120))\n" +
 					"- **Question:** No rule covers this. Decide.\n- **Also found:** `65535`, `65536`\n",
-				"- **Sources:** [platform.claude.com](https://platform.claude.com/docs/en/about-claude/models/overview.md)",
+				"- **Sources:** [overview](https://platform.claude.com/docs/en/about-claude/models/overview.md)",
 				"**2. `claude-opus-4-1` · replacement** · rule [out-of-reach](" + rulesURL + "#L80)\n- **Question:** Which replacement?\n- **Sources:**",
 			},
 			notContains: []string{"| Offering | Field | Values |"},
@@ -612,7 +611,7 @@ func TestRender(t *testing.T) {
 				"has the full list.\n\n> [!NOTE]\n> **Don't block this PR:**\n> - 2 product decisions: offer `in` on bedrock (India, asked since 2026-10-15)? offer `ca` on bedrock (Canada, new)?\n> - 1 skipped offering\n\n> [!IMPORTANT]\n> **1 open question,** listed under Open questions below. It doesn't block merging: merging keeps the current value, and a later run may ask again.\n>\n> 1. `claude-sonnet-5-5` · token limit\n\n**To answer a question,**",
 				"add a rule to `RULES.md` instead.\n\nEach run rebuilds this branch",
 				"### Open questions (1)\n\n**1. `claude-sonnet-5-5` · token limit**",
-				"- **Sources:** [platform.claude.com](https://platform.claude.com/docs/en/about-claude/models/overview.md)\n\n### Waiting on a product decision (2)",
+				"- **Sources:** [overview](https://platform.claude.com/docs/en/about-claude/models/overview.md)\n\n### Waiting on a product decision (2)",
 				"`bedrock:in.anthropic.claude-haiku-4-5-20251001-v1:0`\n- Offer `ca` on bedrock (not in the table yet)? 1 copy: `bedrock:ca.anthropic.claude-opus-5`\n\n## anthropic\n\n### Changes (1)",
 			},
 		},
@@ -704,6 +703,28 @@ func TestRender(t *testing.T) {
 			for _, unwanted := range tt.notContains {
 				assert.NotContains(t, body, unwanted)
 			}
+		})
+	}
+}
+
+// TestLinkNamesThePage checks a source link's text (proposal 8): the page's
+// last path segment, without "model-card-" and its extension, or the host
+// when there is none or it isn't safe to print.
+func TestLinkNamesThePage(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct{ url, want string }{
+		{"https://platform.claude.com/docs/en/about-claude/pricing.md", "[pricing](https://platform.claude.com/docs/en/about-claude/pricing.md)"},
+		{"https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-fable-5-1.html", "[anthropic-claude-fable-5-1](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-fable-5-1.html)"},
+		{"https://developers.openai.com/api/docs/pricing", "[pricing](https://developers.openai.com/api/docs/pricing)"},
+		{"https://developers.openai.com/", "[developers.openai.com](https://developers.openai.com/)"},
+		{"https://developers.openai.com", "[developers.openai.com](https://developers.openai.com)"},
+		{"https://example.com/docs/a%5Db", "[example.com](https://example.com/docs/a%5Db)"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.url, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, link(tt.url))
 		})
 	}
 }
@@ -1076,7 +1097,7 @@ func TestRenderKeepsEveryVendorPart(t *testing.T) {
 	}, "+  \"input\": 5", nil, Base{Decisions: []reconcile.Decision{keepLimit}, Today: "2026-10-14"})
 
 	anthropic := section(t, body, "anthropic")
-	for _, part := range []string{"> Replayed with no model", "### Changes (1)", "### Changed with no row (", "### Held by decisions (1)", "<summary>Skipped (1)"} {
+	for _, part := range []string{"This is the change the agent made in run 123 on 2026-10-28, replayed with no model", "### Changes (1)", "### Changed with no row (", "### Held by decisions (1)", "<summary>Skipped (1)"} {
 		assert.Contains(t, anthropic, part)
 	}
 
@@ -1299,7 +1320,7 @@ func TestRenderQuestionBlock(t *testing.T) {
 
 	const (
 		noRule  = "**1. `claude-sonnet-5-5` · token limit** · ⚠ no rule covers this (`no-rule`)\n"
-		sources = "- **Sources:** [platform.claude.com](https://platform.claude.com/a)\n\n"
+		sources = "- **Sources:** [a](https://platform.claude.com/a)\n\n"
 	)
 
 	ask := func(rule, catalogue, page string, values ...string) NeedsHuman {
@@ -1392,7 +1413,7 @@ func TestRenderGroupsSameQuestion(t *testing.T) {
 			"- **Catalogue:** `structured_output false`\n- **Page:** `Structured outputs supported`\n" +
 			"- **Also found:** `providers/bedrock/capabilities_test.go`, `claudeNoSchemaCaps`\n" +
 			"- **Decide:** keep `structured_output false`, or edit `providers/bedrock/models.go` to match the page (`Structured outputs supported`).\n" +
-			"- **Sources:** [docs.aws.amazon.com](https://docs.aws.amazon.com/a), [docs.aws.amazon.com](https://docs.aws.amazon.com/b)\n\n" +
+			"- **Sources:** [a](https://docs.aws.amazon.com/a), [b](https://docs.aws.amazon.com/b)\n\n" +
 			"**2. `bedrock:global.anthropic.claude-haiku-5-5` · capability** · ⚠ no rule covers this (`no-rule`)\n",
 	} {
 		assert.Contains(t, body, want)

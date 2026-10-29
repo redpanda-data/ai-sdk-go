@@ -578,7 +578,7 @@ func TestCombineBuildsThePRFromTheVendors(t *testing.T) {
 			name: "a replayed vendor", legs: legs, anthropic: part("success", anthropic, "true"),
 			openai: `{"result": "success", "outputs": {"head": "` + openai + `", "changed": "true", "replayed": "true", "agent_run": "40504204648", "agent_at": "2026-10-27T06:17:00Z"}}`, pending: `["openai"]`,
 			want:   map[string]string{"tip": openai, "changed": "true"},
-			body:   []string{"\n## openai\n\n> Replayed with no model: this is the change the agent made in run 40504204648 on 2026-10-27"},
+			body:   []string{"\n## openai\n\nThis is the change the agent made in run 40504204648 on 2026-10-27, replayed with no model"},
 			files:  "catalog/snapshot.json\nproviders/anthropic/models.go\nproviders/openai/models.go\n",
 			record: map[string][2]string{"anthropic": {anthropic, "4100"}, "openai": {openai, "40504204648"}},
 		},
