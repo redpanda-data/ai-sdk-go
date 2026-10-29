@@ -707,6 +707,50 @@ func TestRender(t *testing.T) {
 	}
 }
 
+// TestRenderCarried checks the line under the checks line (proposal 12): each
+// commit people pushed that the carry job carried, and that such commits get
+// fewer checks than the bot's own (carry.sh).
+func TestRenderCarried(t *testing.T) {
+	t.Parallel()
+
+	const fewer = " These commits get fewer checks than the bot's own: a build, the catalogue check and the tests of the packages they touch, " +
+		"but no report, no lint and no limit on the files they change beyond `.github/`. Read them as code, values included: a value they change shows only in the snapshot diff."
+
+	sha := func(first string) string { return first + strings.Repeat("0", 40-len(first)) }
+
+	tests := []struct {
+		name    string
+		carried []Commit
+		want    string
+	}{
+		{
+			name:    "one commit",
+			carried: []Commit{{SHA: sha("1faeeba"), Author: "Adam Wownysz", Subject: "test(openai): say which model"}},
+			want:    "**Carried from people:** `1faeeba` by Adam Wownysz: `test(openai): say which model`." + fewer,
+		},
+		{
+			name: "an author or subject that isn't safe to print is left out",
+			carried: []Commit{
+				{SHA: sha("aaaaaaa"), Author: "Łukasz", Subject: "fix: drop the `cache`"},
+				{SHA: sha("bbbbbbb"), Author: "t", Subject: "docs: a"},
+			},
+			want: "**Carried from people:** `aaaaaaa`; `bbbbbbb` by t: `docs: a`." + fewer,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// The title, the summary line, the checks line, then this line.
+			paragraphs := strings.SplitN(Render(oneVendor(validReport(), Base{}), "", nil, Base{Carried: tt.carried}), "\n\n", 5)
+			require.Len(t, paragraphs, 5)
+			assert.Equal(t, tt.want, paragraphs[3])
+		})
+	}
+
+	assert.NotContains(t, Render(oneVendor(validReport(), Base{}), "", nil, Base{}), "Carried from people", "no line when nothing was carried")
+}
+
 // TestLinkNamesThePage checks a source link's text (proposal 8): the page's
 // last path segment, without "model-card-" and its extension, or the host
 // when there is none or it isn't safe to print.

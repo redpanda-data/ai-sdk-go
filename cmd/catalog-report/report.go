@@ -302,6 +302,47 @@ type Base struct {
 	// Branch is the branch each run rebuilds the bot branch from, named in
 	// the body.
 	Branch string
+	// Carried is each commit people pushed that the carry job carried onto
+	// the vendors' commits.
+	Carried []Commit
+}
+
+// Commit is a commit people pushed: its full SHA, its author's name and its
+// subject, as git log gives them.
+type Commit struct {
+	SHA, Author, Subject string
+}
+
+// printable is an author or subject that can go into the body: printable
+// ASCII with no backtick, so it can't leave its code span or start markup.
+var printable = regexp.MustCompile("^[ -_a-~]{1,100}$")
+
+// carriedLine lists the carried commits and says they get fewer checks than
+// the bot's own: carry.sh builds them, checks the catalogue and runs the
+// tests of the packages they touch, with no report, no lint and no file
+// limit beyond .github/. It shows only when something was carried.
+func (base Base) carriedLine() string {
+	if len(base.Carried) == 0 {
+		return ""
+	}
+
+	commits := make([]string, 0, len(base.Carried))
+
+	for _, commit := range base.Carried {
+		line := code(commit.SHA[:7])
+		if printable.MatchString(commit.Author) {
+			line += " by " + commit.Author
+		}
+
+		if printable.MatchString(commit.Subject) {
+			line += ": " + code(commit.Subject)
+		}
+
+		commits = append(commits, line)
+	}
+
+	return "**Carried from people:** " + strings.Join(commits, "; ") + ". These commits get fewer checks than the bot's own: a build, the catalogue check and the tests of the packages they touch, " +
+		"but no report, no lint and no limit on the files they change beyond `.github/`. Read them as code, values included: a value they change shows only in the snapshot diff.\n\n"
 }
 
 // fileLink links text to a repo file at the base commit, at line when it's
@@ -968,7 +1009,7 @@ func (base Base) render(vendors []Vendor, codeFiles []string, hasDiff bool) (str
 
 	asks, suggested := numberQuestions(parts), suggestions(needs)
 
-	body.WriteString(summaryLine(parts) + base.checksLine(codeFiles) + base.dontBlock(waiting, len(suggested), skipped) + base.questionsBox(asks))
+	body.WriteString(summaryLine(parts) + base.checksLine(codeFiles) + base.carriedLine() + base.dontBlock(waiting, len(suggested), skipped) + base.questionsBox(asks))
 	// carry.sh builds the carried commits and runs the tests of the packages
 	// their Go files change.
 	fmt.Fprintf(&body, "Each run rebuilds this branch from %s, leaving out a clean \"Update branch\" merge. A commit you push here is carried onto each rebuild while it still applies exactly and passes its build and tests. "+
