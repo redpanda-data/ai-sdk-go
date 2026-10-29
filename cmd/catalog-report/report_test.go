@@ -440,7 +440,6 @@ func TestRender(t *testing.T) {
 					"| `anthropic.claude-haiku-5-5` | `us-west-2` | `us.anthropic.claude-haiku-5-5` | call fails (no copy) | — | — |\n" +
 					"| `anthropic.claude-sonnet-5-5` | `us-east-1` | call fails (no copy) | `global.anthropic.claude-sonnet-5-5` | — | any region |\n\n",
 			},
-			notContains: []string{"refused"},
 		},
 		{
 			name:        "unsafe snapshot strings stay out of the body",
@@ -1646,6 +1645,131 @@ func TestRenderWaitingExample(t *testing.T) {
 
 	assert.Contains(t, body, "write it under Not offered as `` `us-gov` (declined 2026-10-30) ``")
 	assert.Equal(t, "The run changed nothing; its rows are under Waiting on a product decision above.", strings.TrimSpace(section(t, body, "anthropic")))
+}
+
+// TestChangeKinds checks the kind of each change row (proposal 4), read from
+// the catalogue before and after, never from the report's values.
+func TestChangeKinds(t *testing.T) {
+	t.Parallel()
+
+	parse := func(raw string) map[string]any {
+		decoder := json.NewDecoder(strings.NewReader(raw))
+		decoder.UseNumber()
+
+		var offering map[string]any
+		require.NoError(t, decoder.Decode(&offering))
+
+		return offering
+	}
+	rates := func(input, output int) string {
+		return fmt.Sprintf(`{"pricing": {"default": {"base": {"input_microcents_per_million": %d, "output_microcents_per_million": %d}}}}`, input, output)
+	}
+
+	tests := []struct {
+		name, field, before, after string
+		want                       []string
+	}{
+		{"a price goes down", "price", rates(300, 900), rates(200, 900), []string{"price down"}},
+		{"a price goes up", "price", rates(200, 900), rates(300, 900), []string{"price up"}},
+		{"one rate up, one down", "price", rates(300, 900), rates(200, 1000), []string{"price"}},
+		{"only a tier or bracket changes", "price", rates(300, 900), rates(300, 900), []string{"price"}},
+		{"max input", "limit", `{"constraints": {"max_input_tokens": 100}}`, `{"constraints": {"max_input_tokens": 200}}`, []string{"max input"}},
+		{"max output", "limit", `{"constraints": {"max_output_tokens": 200}}`, `{"constraints": {"max_output_tokens": 100}}`, []string{"max output"}},
+		{
+			"a flag off, and the modalities", "capability", `{"capabilities": {"tools": true}, "modalities": {"input": ["text", "image"]}}`,
+			`{"capabilities": {"tools": false}, "modalities": {"input": ["text"]}}`,
+			[]string{"flag off", "modality"},
+		},
+		{"a flag on", "capability", `{"capabilities": {"tools": false}}`, `{"capabilities": {"tools": true}}`, []string{"flag on"}},
+		{"reasoning efforts", "capability", `{"reasoning": {"efforts": ["low", "high"]}}`, `{"reasoning": {"efforts": ["low"]}}`, []string{"reasoning"}},
+		{"launch date", "lifecycle", `{"lifecycle": {"stage": "ga"}}`, `{"lifecycle": {"stage": "ga", "available": "2026-10-01"}}`, []string{"launch date"}},
+		{"deprecated date", "lifecycle", `{"lifecycle": {"stage": "ga"}}`, `{"lifecycle": {"stage": "ga", "deprecated": "2026-10-01"}}`, []string{"deprecation"}},
+		{"stage moves to deprecated", "lifecycle", `{"lifecycle": {"stage": "ga"}}`, `{"lifecycle": {"stage": "deprecated"}}`, []string{"deprecation"}},
+		{"shutdown date", "lifecycle", `{"lifecycle": {"stage": "ga"}}`, `{"lifecycle": {"stage": "ga", "retires": "2027-04-08"}}`, []string{"retirement"}},
+		{"a new model", reconcile.FieldNewModel, `{}`, `{"id": "x"}`, []string{"new offering"}},
+		{"a new copy", reconcile.FieldNewCopy, `{}`, `{"id": "x"}`, []string{"new offering"}},
+		{"replacement", "replacement", `{}`, `{"lifecycle": {"replaced_by": "y"}}`, []string{"replacement"}},
+		{"a stage the table doesn't know", "lifecycle", `{"lifecycle": {"stage": "preview"}}`, `{"lifecycle": {"stage": "ga"}}`, []string{"other"}},
+		{"a field the table doesn't know", "location", `{}`, `{"locations": ["us"]}`, []string{"other"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, kinds(tt.field, parse(tt.before), parse(tt.after)))
+		})
+	}
+}
+
+// TestEveryKindHasAnImpact checks the impact table's 15 kinds: each has a
+// name, a sentence for customers and a revert cell, and kinds() names only
+// these.
+func TestEveryKindHasAnImpact(t *testing.T) {
+	t.Parallel()
+
+	require.Len(t, impacts, 15)
+
+	for _, kind := range impacts {
+		assert.NotEmpty(t, kind.name, kind.key)
+		assert.NotEmpty(t, kind.long, kind.key)
+		assert.NotEmpty(t, kind.revert, kind.key)
+	}
+
+	for _, field := range fields {
+		for _, kind := range kinds(field, map[string]any{}, map[string]any{"id": "x"}) {
+			assert.GreaterOrEqual(t, kindIndex(kind), 0, "%s gives kind %q, which has no impact", field, kind)
+		}
+	}
+}
+
+// TestRenderImpactTable checks "What changes for customers" (proposal 4): one
+// row per kind, a count per vendor, bold where requests or money change, and
+// when any of it reaches customers; and each row's Effect cell.
+func TestRenderImpactTable(t *testing.T) {
+	t.Parallel()
+
+	const reach = "Bold: changes requests or money.\n\nNothing here reaches customers until it is on main: SDK users get it when they upgrade, " +
+		"ADP users when ADP moves to the new ai-sdk-go and redeploys.\n\n"
+
+	t.Run("a column per vendor", func(t *testing.T) {
+		t.Parallel()
+
+		before, after := effectSnapshots(t)
+		openaiBefore, openaiAfter := openaiSnapshots(t)
+		cacheRead := Report{Changes: []Change{{Offering: "claude-sonnet-5-5", Field: "price", Old: "cache read 0.20", New: "cache read 0.10", Rule: "price-follow"}}}
+		input := Report{Changes: []Change{{Offering: "gpt-6-1", Field: "price", Old: "input 2.00", New: "input 2.50", Rule: "price-follow"}}}
+
+		body := Render([]Vendor{
+			{Name: "anthropic", Report: cacheRead, Before: before, After: after},
+			{Name: "openai", Report: input, Before: openaiBefore, After: openaiAfter},
+		}, "", nil, Base{})
+
+		assert.Contains(t, body, "### What changes for customers\n\n| Change | anthropic | openai | What it means for SDK and ADP users | Easy to revert? |\n|---|---|---|---|---|\n"+
+			"| **price cut** | 1 | – | New calls cost less after the SDK upgrade or ADP deploy; past spend stays; ADP budgets fill more slowly. | yes |\n"+
+			"| **price rise** | – | 1 | New calls cost more after the SDK upgrade or ADP deploy; past spend stays; ADP budgets block sooner. | yes |\n\n"+reach)
+		assert.Less(t, strings.Index(body, "### What changes for customers"), strings.Index(body, "## anthropic"), "the table is at the top")
+	})
+
+	t.Run("one vendor, and the Effect cell's short form", func(t *testing.T) {
+		t.Parallel()
+
+		snapshot := func(maxInput int) *reconcile.Snapshot {
+			snap, err := reconcile.ParseSnapshot(fmt.Appendf(nil, `{"providers": [{"provider": "anthropic", "offerings": [{"id": "claude-opus-5-5", "model": "anthropic/claude-opus-5-5",
+				"constraints": {"max_input_tokens": %d}, "modalities": {"input": ["text"]}}]}]}`, maxInput))
+			require.NoError(t, err)
+
+			return &snap
+		}
+		limit := Report{Changes: []Change{{Offering: "claude-opus-5-5", Field: "limit", Old: "200000", New: "1000000", Rule: "price-follow"}}}
+
+		body := Render(oneVendor(limit, Base{Before: snapshot(200000), After: snapshot(1000000)}), "", nil, Base{})
+
+		assert.Contains(t, body, "| Change | Rows | What it means for SDK and ADP users | Easy to revert? |\n|---|---|---|---|\n"+
+			"| **max input tokens** | 1 | Agents compact at the new window and send requests up to it; the ADP console shows it. "+
+			"If the real limit is lower, calls fail once, then retry trimmed. Rates unchanged. | yes |\n\n"+reach)
+		assert.Contains(t, body, "| `claude-opus-5-5` | limit | `200000` | `1000000` | agents compact at the new window |")
+	})
+
+	assert.NotContains(t, Render(oneVendor(validReport(), Base{}), "", nil, Base{}), "What changes for customers", "no catalogue, no table")
 }
 
 func TestPercent(t *testing.T) {

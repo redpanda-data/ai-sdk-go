@@ -21,6 +21,7 @@ import (
 	"path"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/redpanda-data/ai-sdk-go/internal/reconcile"
@@ -827,7 +828,7 @@ func (base Base) changesSection(changes []Change, provider string) string {
 			if key := [3]string{rule, change.Offering, change.Field}; effects {
 				note := ""
 				if !noted[key] {
-					note, noted[key] = base.effect(change, provider), true
+					note, noted[key] = base.rowEffect(change, provider), true
 				}
 
 				cells = append(cells, note)
@@ -1033,6 +1034,8 @@ func (base Base) render(vendors []Vendor, codeFiles []string, hasDiff bool) (str
 		body.WriteString(strings.Join(moves, "") + "\n")
 	}
 
+	body.WriteString(impactTable(parts))
+
 	// What the PR asks of people takes a share of the room like a vendor's
 	// section, so many questions can't push every Changes table out of a
 	// capped body.
@@ -1046,6 +1049,72 @@ func (base Base) render(vendors []Vendor, codeFiles []string, hasDiff bool) (str
 	}
 
 	return body.String(), sections
+}
+
+// impactTable is "What changes for customers": one row per kind of change,
+// with how many rows of it (per vendor when there are several), what it
+// means for SDK and ADP users, and whether it is easy to revert. A row
+// without the vendor's catalogue has no kind, and isn't counted.
+func impactTable(parts []vendorPart) string {
+	var vendors []string
+
+	counts := map[string]map[string]int{}
+
+	for _, part := range parts {
+		for _, change := range part.shown.Changes {
+			for _, kind := range part.base.rowKinds(change, part.Name) {
+				if counts[kind] == nil {
+					counts[kind] = map[string]int{}
+				}
+
+				counts[kind][part.Name]++
+			}
+		}
+
+		if len(part.shown.Changes) > 0 {
+			vendors = append(vendors, part.Name)
+		}
+	}
+
+	if len(counts) == 0 {
+		return ""
+	}
+
+	header := "Rows"
+	if len(parts) > 1 {
+		header = strings.Join(vendors, " | ")
+	}
+
+	var table strings.Builder
+
+	fmt.Fprintf(&table, "### What changes for customers\n\n| Change | %s | What it means for SDK and ADP users | Easy to revert? |\n|%s\n",
+		header, strings.Repeat("---|", len(vendors)+3))
+
+	for _, kind := range impacts {
+		if counts[kind.key] == nil {
+			continue
+		}
+
+		name := kind.name
+		if kind.acts {
+			name = "**" + name + "**"
+		}
+
+		cells := make([]string, 0, len(vendors))
+
+		for _, vendor := range vendors {
+			cell := "–"
+			if n := counts[kind.key][vendor]; n > 0 {
+				cell = strconv.Itoa(n)
+			}
+
+			cells = append(cells, cell)
+		}
+
+		fmt.Fprintf(&table, "| %s | %s | %s | %s |\n", name, strings.Join(cells, " | "), kind.long, kind.revert)
+	}
+
+	return table.String() + "\nBold: changes requests or money.\n\nNothing here reaches customers until it is on main: SDK users get it when they upgrade, ADP users when ADP moves to the new ai-sdk-go and redeploys.\n\n"
 }
 
 // kindNouns names each report field as the summary line counts it, one and

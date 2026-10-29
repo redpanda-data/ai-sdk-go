@@ -351,3 +351,156 @@ func percent(from, to int64) string {
 
 	return fmt.Sprintf("%+.0f%%", change)
 }
+
+// impact is what one kind of change means for customers, traced from the
+// code that reads each field in ai-sdk-go and in ADP: its key and its name in
+// the impact table, a short form for a change row's Effect cell, a sentence
+// for the table, whether it is easy to revert, and whether it changes
+// requests or money (acts), which the table puts in bold.
+type impact struct {
+	key, name, short, long, revert string
+	acts                           bool
+}
+
+// impacts is every kind of change, in the impact table's order.
+var impacts = []impact{
+	{"price down", "price cut", "", "New calls cost less after the SDK upgrade or ADP deploy; past spend stays; ADP budgets fill more slowly.", "yes", true},
+	{"price up", "price rise", "", "New calls cost more after the SDK upgrade or ADP deploy; past spend stays; ADP budgets block sooner.", "yes", true},
+	{"price", "price change", "", "New calls cost more or less on some rates, tiers, regions or context sizes; past spend stays.", "yes", true},
+	{"max input", "max input tokens", "agents compact at the new window", "Agents compact at the new window and send requests up to it; the ADP console shows it. If the real limit is lower, calls fail once, then retry trimmed. Rates unchanged.", "yes", true},
+	{"max output", "max output tokens", "changes the largest max_tokens accepted", "Changes the largest max_tokens the Bedrock and Anthropic providers and the ADP playground accept; agents and costs unchanged, except Bedrock Claude agents.", "yes", true},
+	{"flag off", "capability turned off", "labels only", "Labels only: requests and costs unchanged; code that checks the flag stops using the feature.", "yes", false},
+	{"flag on", "capability turned on", "labels; code that checks it starts using it", "Labels only for requests; code that checks the flag starts using the feature, which the vendor may still reject.", "yes", true},
+	{"modality", "input or output kinds", "none", "None: nothing in the SDK or ADP reads modalities.", "–", false},
+	{"reasoning", "reasoning options", "setup fails for a removed effort", "Removing an effort makes SDK model setup and ADP agent saves fail for it.", "yes", true},
+	{"launch date", "launch date", "none (label)", "None: nothing reads the launch date.", "–", false},
+	{"deprecation", "deprecation date", "label only", "Label only for customers; CI's live-test check may fail.", "yes", false},
+	{"retirement", "shutdown date", "", "From that date ADP's model list hides it; calls work until the vendor shuts it down.", "yes", true},
+	{"new offering", "new offering", "new ID: callable, listed, priced", "The new ID becomes callable, listed and priced; before, the SDK refused it.", "no, once used", true},
+	{"replacement", "replacement", "", "Migration hint only; no request moves to the replacement.", "yes", false},
+	{"other", "other", "", "Not mapped yet: read the row.", "check", true},
+}
+
+// kindIndex is a kind's place in impacts.
+func kindIndex(key string) int {
+	return slices.IndexFunc(impacts, func(kind impact) bool { return kind.key == key })
+}
+
+// sub reads one of an offering's objects.
+func sub(offering map[string]any, key string) map[string]any {
+	object, _ := offering[key].(map[string]any)
+	return object
+}
+
+// kinds names what a change row changed, from the offering before and after,
+// never from the report's values, in the impact table's order.
+func kinds(field string, before, after map[string]any) []string {
+	var found []string
+
+	add := func(kind string) {
+		if !slices.Contains(found, kind) {
+			found = append(found, kind)
+		}
+	}
+
+	switch field {
+	case "price":
+		old, now := baseRates(before), baseRates(after)
+		up, down := false, false
+
+		for key, rate := range now {
+			up, down = up || rate > old[key], down || rate < old[key]
+		}
+
+		switch {
+		case up && !down:
+			add("price up")
+		case down && !up:
+			add("price down")
+		default:
+			add("price")
+		}
+	case "limit":
+		b, a := sub(before, "constraints"), sub(after, "constraints")
+		if !reflect.DeepEqual(b["max_input_tokens"], a["max_input_tokens"]) {
+			add("max input")
+		}
+
+		if !reflect.DeepEqual(b["max_output_tokens"], a["max_output_tokens"]) {
+			add("max output")
+		}
+	case "capability":
+		b, a := sub(before, "capabilities"), sub(after, "capabilities")
+		for key, now := range a {
+			switch {
+			case b[key] == true && now == false:
+				add("flag off")
+			case b[key] == false && now == true:
+				add("flag on")
+			}
+		}
+
+		if !reflect.DeepEqual(before["modalities"], after["modalities"]) {
+			add("modality")
+		}
+
+		if !reflect.DeepEqual(before["reasoning"], after["reasoning"]) {
+			add("reasoning")
+		}
+	case "lifecycle":
+		b, a := sub(before, "lifecycle"), sub(after, "lifecycle")
+		for _, date := range [][2]string{{"available", "launch date"}, {"deprecated", "deprecation"}, {"retires", "retirement"}} {
+			if !reflect.DeepEqual(b[date[0]], a[date[0]]) {
+				add(date[1])
+			}
+		}
+
+		if !reflect.DeepEqual(b["stage"], a["stage"]) && a["stage"] == "deprecated" {
+			add("deprecation")
+		}
+	case reconcile.FieldNewModel, reconcile.FieldNewCopy:
+		add("new offering")
+	case "replacement":
+		add("replacement")
+	}
+
+	if len(found) == 0 {
+		add("other")
+	}
+
+	slices.SortFunc(found, func(x, y string) int { return kindIndex(x) - kindIndex(y) })
+
+	return found
+}
+
+// rowKinds is kinds for one change row in the vendor's catalogue, or none
+// without one.
+func (base Base) rowKinds(change Change, provider string) []string {
+	if base.Before == nil || base.After == nil {
+		return nil
+	}
+
+	pkg, id := reconcile.PackageOf(change.Offering, provider)
+	before, _ := base.Before.Offering(pkg, id)
+	after, _ := base.After.Offering(pkg, id)
+
+	return kinds(change.Field, before, after)
+}
+
+// rowEffect is a change row's Effect cell: its price, date or region note
+// when it has one, else the short form of each kind.
+func (base Base) rowEffect(change Change, provider string) string {
+	if note := base.effect(change, provider); note != "" {
+		return note
+	}
+
+	var shorts []string
+
+	for _, kind := range base.rowKinds(change, provider) {
+		if short := impacts[kindIndex(kind)].short; short != "" {
+			shorts = append(shorts, short)
+		}
+	}
+
+	return strings.Join(shorts, "; ")
+}
