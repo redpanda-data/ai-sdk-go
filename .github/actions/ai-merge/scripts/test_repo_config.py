@@ -65,6 +65,10 @@ def test_real_config_excludes_credential_and_ci_defining_files():
         ".golangci.yaml",
         "LICENSE",
         "header.txt",
+        "providers/vertex/model.go",
+        "providers/vertex/conformance/vertex_conformance_test.go",
+        "providers/conformance/suite.go",
+        "internal/testsuite/testsuite.go",
     ):
         r = evaluate(cfg, _one(path), PR_OK, True, checks=CI_OK)
         assert not r["eligible"], f"{path} must be excluded: {r['reasons']}"
