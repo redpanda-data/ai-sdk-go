@@ -25,6 +25,19 @@ task security               # Run govulncheck + osv-scanner
 - Prefer table-driven tests
 - Integration tests require provider API keys (OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_API_KEY, CONTEXT7_API_KEY) — tests are skipped if keys are missing
 - Integration tests against LLM providers can be flaky due to provider behavior
+- Live tests take their model from a `<provider>test` setting or call
+  `testutil.SkipIfRetired`; a hard-coded model ID breaks when the vendor retires it
+
+## Pull requests
+
+Fill in `.github/pull_request_template.md` with exact commands, tool versions,
+skipped checks, and unavailable credentials. Before opening one:
+
+- Lint with the golangci-lint version in `.github/workflows/golangci-lint.yaml`;
+  the global or Taskfile version may differ.
+- Catalog changes: run `task catalog:snapshot`, then `task catalog:check`.
+- Public API or dependency changes: run `task examples:build`. Dependency or
+  security-sensitive changes: run `task security`.
 
 ## Hooks
 
@@ -45,8 +58,8 @@ Model work is covered by two skills — use them instead of improvising:
 
 ## Reviewing changes
 
-For pull request reviews, read [REVIEW.md](REVIEW.md) for SDK-specific failure
-modes, evidence requirements, generated-file handling, and finding criteria.
+For pull request reviews, follow [REVIEW.md](REVIEW.md): finding criteria,
+severity, what not to report, and SDK-specific failure modes.
 
 ## Project Structure
 
