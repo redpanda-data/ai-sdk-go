@@ -65,7 +65,8 @@ def test_real_config_excludes_credential_and_ci_defining_files():
         ".golangci.yaml",
         "LICENSE",
         "header.txt",
-        "providers/vertex/vertex_conformance_test.go",
+        "providers/vertex/model.go",
+        "providers/vertex/conformance/vertex_conformance_test.go",
         "providers/conformance/suite.go",
         "internal/testsuite/testsuite.go",
     ):
