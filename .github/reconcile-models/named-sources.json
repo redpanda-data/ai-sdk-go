@@ -44,5 +44,26 @@
         {"id": "aws-price-list", "type": "pricelist", "url": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrockFoundationModels/current/index.json", "match": "^OpenAI .*\\(Amazon Bedrock Edition\\)$", "min_lines": 10}
       ]
     }
+  },
+  "google": {
+    "providers": ["google", "vertex", "bedrock"],
+    "hosts": ["ai.google.dev", "cloud.google.com", "docs.cloud.google.com", "aws.amazon.com", "docs.aws.amazon.com", "pricing.us-east-1.amazonaws.com"],
+    "gate": {
+      "model_prefix": "google/",
+      "must_contain": "Gemini",
+      "pages": [
+        {"id": "gemini-pricing", "type": "markdown", "url": "https://ai.google.dev/gemini-api/docs/pricing.md.txt"},
+        {"id": "gemini-models", "type": "markdown", "url": "https://ai.google.dev/gemini-api/docs/models.md.txt"},
+        {"id": "gemini-deprecations", "type": "markdown", "url": "https://ai.google.dev/gemini-api/docs/deprecations.md.txt"},
+        {"id": "gemini-changelog", "type": "markdown", "url": "https://ai.google.dev/gemini-api/docs/changelog.md.txt"},
+        {"id": "vertex-pricing-gemini-4", "type": "html", "url": "https://cloud.google.com/model-garden/pricing?hl=en", "fragment": "gemini-4"},
+        {"id": "vertex-pricing-gemini-3", "type": "html", "url": "https://cloud.google.com/model-garden/pricing?hl=en", "fragment": "googlemodels"},
+        {"id": "vertex-model-versions", "type": "html", "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/model-versions?hl=en"},
+        {"id": "vertex-locations", "type": "html", "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/resources/locations?hl=en"},
+        {"id": "bedrock-model-cards", "type": "markdown", "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards-google.md", "must_contain": "Gemma"},
+        {"id": "bedrock-lifecycle-legacy", "type": "markdown", "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.md", "must_contain": "Legacy"},
+        {"id": "bedrock-lifecycle", "type": "markdown", "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle.md", "must_contain": "Model lifecycle"}
+      ]
+    }
   }
 }
