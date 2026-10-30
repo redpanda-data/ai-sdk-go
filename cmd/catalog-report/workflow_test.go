@@ -1992,6 +1992,89 @@ func TestPlanReadsTheHeadItLeases(t *testing.T) {
 	assert.Less(t, check, strings.Index(run, ".github/reconcile-models/plan.sh"))
 }
 
+// TestPlanTrustsOnlyTheBotsRecord runs the plan step's script with stand-in
+// gh, git and plan.sh: the record the newest bot commit's trailer names
+// reaches plan.sh only when a scheduled or by-hand run of this workflow, on
+// this run's branch and in this repo, saved it. Any other run's record counts
+// as none, so a run on someone's branch can't name commits as the bot's.
+func TestPlanTrustsOnlyTheBotsRecord(t *testing.T) {
+	t.Parallel()
+
+	steps := readJob(t, runWorkflow, "plan").Steps
+	run := steps[stepIndex(t, steps, "plan.sh", func(s workflowStep) bool { return strings.Contains(s.Run, "plan.sh") })].Run
+
+	// gh logs every call, lists PR 7 with COMMITS, describes run 123 as RUN
+	// (or fails when RUN is empty) and saves a record for it; git's PR head is
+	// the one bot commit's.
+	path := stubPath(t, map[string]string{
+		"gh": "#!/bin/sh\necho \"gh $*\" >>\"$CALLS\"\ncase \"$1 $2\" in\n" +
+			"  \"pr list\") echo 7 ;;\n" +
+			"  \"api repos/o/r/pulls/7/commits\"*) printf '%s\\n' \"$COMMITS\" ;;\n" +
+			"  \"api repos/o/r/actions/runs/123\") [ -n \"$RUN\" ] && printf '%s\\n' \"$RUN\" ;;\n" +
+			"  \"run download\") mkdir -p \"$9\" && echo '{}' >\"$9/record.json\" ;;\n" +
+			"  *) exit 1 ;;\nesac\n",
+		"git": "#!/bin/sh\n[ \"$1\" != ls-remote ] || printf 'h0\\trefs/heads/x\\n'\n",
+	})
+	commits := `[{"sha": "h0", "author": {"login": "vbotbuildovich"}, "committer": {"login": "vbotbuildovich"},
+		"commit": {"message": "chore(catalog): reconcile openai models\n\nReconcile-Run: 123/openai\n"}}]`
+	runJSON := func(path, event, branch string, headRepo int) string {
+		return fmt.Sprintf(`{"path": %q, "event": %q, "head_branch": %q, "repository": {"id": 1}, "head_repository": {"id": %d}}`,
+			path, event, branch, headRepo)
+	}
+	const workflow = ".github/workflows/" + runWorkflow
+
+	tests := []struct {
+		name, run string
+		trusted   bool
+	}{
+		{name: "a scheduled run", run: runJSON(workflow, "schedule", "main", 1), trusted: true},
+		{name: "a run started by hand", run: runJSON(workflow, "workflow_dispatch", "main", 1), trusted: true},
+		{name: "a run on another branch", run: runJSON(workflow, "workflow_dispatch", "someone/branch", 1)},
+		{name: "a pull request's run", run: runJSON(workflow, "pull_request", "main", 1)},
+		{name: "another workflow's run", run: runJSON(".github/workflows/test.yaml", "schedule", "main", 1)},
+		{name: "a fork's run", run: runJSON(workflow, "schedule", "main", 2)},
+		{name: "a run GitHub can't describe"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// plan.sh prints the record it gets.
+			checkout, temp := t.TempDir(), t.TempDir()
+			scripts := filepath.Join(checkout, ".github", "reconcile-models")
+			require.NoError(t, os.MkdirAll(scripts, 0o750))
+			require.NoError(t, os.WriteFile(filepath.Join(scripts, "plan.sh"), []byte("#!/bin/sh\necho \"record=$5\"\n"), 0o700)) //nolint:gosec // a stand-in must be executable
+			require.NoError(t, os.WriteFile(filepath.Join(scripts, "named-sources.json"), []byte(`{"anthropic": {}, "openai": {}}`), 0o600))
+
+			calls, outputs := filepath.Join(temp, "calls"), filepath.Join(temp, "outputs")
+			// GitHub runs a step's script as bash -eo pipefail.
+			cmd := exec.CommandContext(t.Context(), "bash", "-eo", "pipefail", "-c", run)
+			cmd.Dir = checkout
+
+			cmd.Env = append(os.Environ(), path, "CALLS="+calls, "COMMITS="+commits, "RUN="+tt.run, "GITHUB_OUTPUT="+outputs,
+				"RUNNER_TEMP="+temp, "BRANCH=bot/reconcile-models/all", "GITHUB_REF_NAME=main", "GITHUB_REPOSITORY=o/r",
+				"GH_TOKEN=token", "SELECTED=all", "DRY_RUN=false")
+
+			out, err := cmd.CombinedOutput()
+			require.NoError(t, err, "%s", out)
+
+			raw, err := os.ReadFile(outputs)
+			require.NoError(t, err)
+
+			want := ""
+			if tt.trusted {
+				want = filepath.Join(temp, "record", "record.json")
+			}
+
+			assert.Contains(t, string(raw), "record="+want+"\n", "the record plan.sh gets")
+
+			log, err := os.ReadFile(calls)
+			require.NoError(t, err)
+			assert.Equal(t, tt.trusted, strings.Contains(string(log), "gh run download 123"), "downloaded the record:\n%s", log)
+		})
+	}
+}
+
 // TestConcurrencyQueuesRuns checks that runs that push the same bot branch
 // wait in line, up to GitHub's limit, instead of a newer one cancelling the
 // one waiting: main's runs, and every other branch's, which share the test

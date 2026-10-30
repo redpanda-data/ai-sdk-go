@@ -102,6 +102,15 @@ jobs:
           record=""
           record_run="$(jq -r '[.[] | select(.author.login == "vbotbuildovich" and .committer.login == "vbotbuildovich")
             | .commit.message | capture("(?m)^Reconcile-Run: (?<run>[0-9]+)/").run] | last // empty' <<<"$commits")"
+          # Only a scheduled or by-hand run of this workflow, on this run's
+          # branch and in this repo, as find-baseline.sh checks a baseline's:
+          # any other run's record could name anyone's commit as the bot's.
+          if [[ -n "$record_run" ]] && ! gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${record_run}" | jq -e --arg branch "$GITHUB_REF_NAME" '
+            .path == ".github/workflows/reconcile-models.yml" and (.event == "schedule" or .event == "workflow_dispatch")
+            and .head_branch == $branch and .head_repository.id == .repository.id' >/dev/null; then
+            echo "::warning::Run ${record_run} isn't a scheduled or by-hand run of this workflow on ${GITHUB_REF_NAME}, so its record counts as none."
+            record_run=""
+          fi
           if [[ -n "$record_run" ]] && gh run download "$record_run" --repo "$GITHUB_REPOSITORY" -n reconcile-record -D "$RUNNER_TEMP/record"; then
             record="$RUNNER_TEMP/record/record.json"
           fi
