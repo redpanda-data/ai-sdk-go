@@ -26,7 +26,8 @@
       "required": ["offering", "reason", "rule"],
       "properties": {
         "offering": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._:-]{0,79}(@[0-9]{8})?$"},
-        "reason": {"enum": ["not_on_named_sources", "out_of_scope", "limited_availability", "vendor_excluded", "region_not_offered", "copy_unlisted", "fixed_fact_differs"]},
-        "rule": {"type": "string", "pattern": "^[a-z]+(-[a-z0-9]+)+$"}}}}
+        "reason": {"enum": ["not_on_named_sources", "out_of_scope", "limited_availability", "vendor_excluded", "region_not_offered", "copy_unlisted", "fixed_fact_differs", "copy_unpriced", "no_catalog_field"]},
+        "rule": {"type": "string", "pattern": "^[a-z]+(-[a-z0-9]+)+$"},
+        "values": {"type": "array", "items": {"type": "string", "pattern": "^[A-Za-z0-9 ._:/+@-]{0,64}$"}}}}}
   }
 }

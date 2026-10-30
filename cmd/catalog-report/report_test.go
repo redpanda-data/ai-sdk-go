@@ -36,14 +36,14 @@ var hosts = []string{"platform.claude.com"}
 // Defaults, one Ask, no-rule for rows no rule covers, and Bedrock's offered
 // regions, with `in` asked about.
 var testRules = reconcile.Rules{
-	Lines:      map[string]int{"price-follow": 30, "new-copy-offered-region": 32, "limited-availability": 40, "out-of-reach": 80, "no-rule": 120, "region-not-offered": 20, "copy-gone-no-eol": 22, "label-fact-differs": 24},
+	Lines:      map[string]int{"price-follow": 30, "new-copy-offered-region": 32, "limited-availability": 40, "out-of-reach": 80, "no-rule": 120, "region-not-offered": 20, "copy-gone-no-eol": 22, "label-fact-differs": 24, "copy-unpriced": 26, "no-catalog-field": 28},
 	Reasons:    map[string]string{"limited_availability": "the model needs a signup", "vendor_excluded": "the vendor isn't tracked"},
 	Questions:  map[string]string{"out-of-reach": "Which replacement?", "no-rule": "No rule covers this. Decide."},
 	RuleFields: map[string][]string{"price-follow": {"price"}, "new-copy-offered-region": {"new_copy"}},
 	Outcomes: map[string][]string{
 		"price-follow": {"change"}, "new-copy-offered-region": {"change"}, "limited-availability": {"skip:`limited_availability`"}, "out-of-reach": {"needs_human"}, "no-rule": {"needs_human"},
 		"region-not-offered": {"skip:`region_not_offered`"}, "copy-gone-no-eol": {"skip:`copy_unlisted`"},
-		"label-fact-differs": {"skip:`fixed_fact_differs`"},
+		"label-fact-differs": {"skip:`fixed_fact_differs`"}, "copy-unpriced": {"skip:`copy_unpriced`"}, "no-catalog-field": {"skip:`no_catalog_field`"},
 	},
 	Offered:    map[string][]string{"bedrock": {"global", "us", "eu", "au", "jp"}},
 	NotOffered: map[string]map[string]string{"bedrock": {"in": "asked 2026-10-15"}},
@@ -129,6 +129,24 @@ func TestValidate(t *testing.T) {
 		{"fixed fact differs", func(r *Report) {
 			r.Skipped[0] = Skipped{Offering: "claude-sonnet-5", Reason: "fixed_fact_differs", Rule: "label-fact-differs"}
 		}, ""},
+		{"copy with no rate", func(r *Report) {
+			r.Skipped[0] = Skipped{Offering: "bedrock:global.openai.gpt-5.5", Reason: "copy_unpriced", Rule: "copy-unpriced"}
+		}, ""},
+		{"fact with no catalogue field", func(r *Report) {
+			r.Skipped[0] = Skipped{Offering: "gpt-5.5", Reason: "no_catalog_field", Rule: "no-catalog-field", Values: []string{"12h cache write"}}
+		}, ""},
+		{"fact with no catalogue field that doesn't say which", func(r *Report) {
+			r.Skipped[0] = Skipped{Offering: "gpt-5.5", Reason: "no_catalog_field", Rule: "no-catalog-field"}
+		}, "skipped[0]: a no_catalog_field row names the missing fact in values"},
+		{"fact with no catalogue field whose value is blank", func(r *Report) {
+			r.Skipped[0] = Skipped{Offering: "gpt-5.5", Reason: "no_catalog_field", Rule: "no-catalog-field", Values: []string{" "}}
+		}, "skipped[0]: a no_catalog_field row names the missing fact in values"},
+		{"skipped value with a link", func(r *Report) {
+			r.Skipped[0] = Skipped{Offering: "gpt-5.5", Reason: "no_catalog_field", Rule: "no-catalog-field", Values: []string{"see https://x.test"}}
+		}, `skipped[0]: bad value "see https://x.test"`},
+		{"fact with no catalogue field under the rule for unpriced copies", func(r *Report) {
+			r.Skipped[0] = Skipped{Offering: "gpt-5.5", Reason: "no_catalog_field", Rule: "copy-unpriced"}
+		}, "skipped[0]: rule copy-unpriced doesn't produce skip:`no_catalog_field`"},
 		{"region not offered on a host with no Offered row", func(r *Report) {
 			r.Skipped[0] = Skipped{Offering: "vertex:in.claude-opus-5", Reason: "region_not_offered", Rule: "region-not-offered"}
 		}, "skipped[0]: vertex has no Offered regions row"},
@@ -577,6 +595,32 @@ func TestRender(t *testing.T) {
 			},
 		},
 		{
+			// A possible SDK feature says which fact the catalogue can't hold.
+			name: "a skipped row names what it's about",
+			report: Report{Skipped: []Skipped{
+				{Offering: "gpt-5.5", Reason: "no_catalog_field", Rule: "no-catalog-field", Values: []string{"12h cache write"}},
+				{Offering: "gpt-5.4", Reason: "no_catalog_field", Rule: "no-catalog-field", Values: []string{"12h cache write"}},
+			}},
+			base:     Base{URL: baseURL, Rules: testRules},
+			contains: []string{"| `no_catalog_field`: `12h cache write` | `gpt-5.5`, `gpt-5.4` |"},
+		},
+		{
+			// A row that names two facts still lists each fact on one line.
+			name: "each fact once, when a row names two",
+			report: Report{Skipped: []Skipped{
+				{Offering: "gpt-5.5", Reason: "no_catalog_field", Rule: "no-catalog-field", Values: []string{"12h cache write", "audio cache write"}},
+				{Offering: "gpt-5.4", Reason: "no_catalog_field", Rule: "no-catalog-field", Values: []string{"12h cache write"}},
+				{Offering: "gpt-5.6-cyber", Reason: "limited_availability", Rule: "limited-availability", Values: []string{"Daybreak access", "approval required"}},
+			}},
+			base: Base{URL: baseURL, Rules: testRules},
+			contains: []string{
+				"| `no_catalog_field`: `12h cache write` | `gpt-5.5`, `gpt-5.4` |",
+				"| `no_catalog_field`: `audio cache write` | `gpt-5.5` |",
+				// Other rows' values describe the one row, so they stay together.
+				"(`limited_availability`): `Daybreak access, approval required` | `gpt-5.6-cyber` |",
+			},
+		},
+		{
 			name:   "one waiting line per region, with since when it has been asked",
 			report: Report{Skipped: waiting},
 			base:   Base{URL: baseURL, Rules: testRules},
@@ -990,6 +1034,7 @@ func TestSchemaMatchesValidator(t *testing.T) {
 	}
 
 	assert.Equal(t, valuePattern.String(), items("needs_human").Properties["values"].Items.Pattern, "needs_human values pattern")
+	assert.Equal(t, valuePattern.String(), items("skipped").Properties["values"].Items.Pattern, "skipped values pattern")
 }
 
 // The schema takes a question's two sides as the same short values the
@@ -1182,6 +1227,11 @@ func TestUnreported(t *testing.T) {
 		base := Base{Before: snapshot("2026-09-30", "x"), After: snapshot("2026-09-29", "x")}
 		assert.Equal(t, []string{"anthropic/claude-sonnet-5-5 (facts)"}, base.unreported(Report{}, "anthropic"))
 		assert.Empty(t, base.unreported(Report{Changes: []Change{{Offering: "claude-sonnet-5-5"}}}, "anthropic"), "a row on one of its offerings covers it")
+
+		// A no_catalog_field row leaves out one fact, not the offering, so it
+		// explains nothing else the patch changed.
+		feature := Report{Skipped: []Skipped{{Offering: "claude-sonnet-5-5", Reason: "no_catalog_field", Rule: "no-catalog-field", Values: []string{"12h cache write"}}}}
+		assert.Equal(t, []string{"anthropic/claude-sonnet-5-5 (facts)"}, base.unreported(feature, "anthropic"), "a missing fact covers nothing")
 	})
 
 	t.Run("an unprintable ID is counted", func(t *testing.T) {

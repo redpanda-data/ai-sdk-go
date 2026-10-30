@@ -73,6 +73,22 @@ func TestRulesFile(t *testing.T) {
 	}}}
 	assert.Equal(t, []string{"changes[0]: a location change on bedrock re-routes callers, so it goes to a person"},
 		Validate(routed, []string{"docs.aws.amazon.com"}, rules))
+
+	// route-add is the one exception: a source region a family's map lacks is
+	// refused today, so adding it moves nobody.
+	added := Report{Changes: []Change{{
+		Offering: "bedrock:us.openai.gpt-6-astra", Field: "location", Old: "", New: "ca-west-1",
+		SourceURL: "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-astra.md", Rule: "route-add",
+	}}}
+	assert.Empty(t, Validate(added, []string{"docs.aws.amazon.com"}, rules), "a source region added under route-add")
+
+	// route-add only adds: a row that names an old region removes or
+	// re-points an entry, which moves callers.
+	repointed := added
+	repointed.Changes = []Change{added.Changes[0]}
+	repointed.Changes[0].Old = "ca-west-1"
+	assert.Equal(t, []string{"changes[0]: route-add only adds a source region, and this row has an old value"},
+		Validate(repointed, []string{"docs.aws.amazon.com"}, rules))
 }
 
 func TestRulesReachTheAgent(t *testing.T) {

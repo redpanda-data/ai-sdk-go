@@ -19,9 +19,9 @@ Where Google Cloud's Vertex (the Gemini Enterprise Agent Platform) publishes fac
 - Retirement: the model page words it "Not sooner than" a date, which is a floor (lifecycle-exact-date). Quote it in the entry's source comment.
 - Limits: the model page's Token limits, "Maximum input tokens" and "Maximum output tokens" (limit-follow).
 - Locations: `servedLocations` in `providers/vertex/locations.go` is copied from a model page's Model availability section, or from the locations table for a model whose page has none (location-follow). The table lists some locations the page leaves out, such as asia-east1 for Haiku 4.5, where calls fail. A location the page lists only under "ML processing", with no availability and no price, isn't served, so leave it out. Note the source and the day you read it in the comment above it.
-- Rates: each region tab holds that region's rates; read global and each served region. A region the model is served in with no tab: region-premium-no-tab. The code writes the two cards with `regionalPricing(global, nonGlobal, regions...)`, or with one `WithOverride` per region for a model that needs it.
+- Rates: each region tab holds that region's rates; read global and each served region. A region the model is served in with no tab: sibling-ratio, with the ratio from Anthropic's pricing page, since Anthropic sets Claude's regional premium. The code writes the two cards with `regionalPricing(global, nonGlobal, regions...)`, or with one `WithOverride` per region for a model that needs it.
 - Thinking prefix check: Anthropic's preserved-thinking page covers Google Cloud too, so `ThinkingPrefixCheck` follows the same model list as in `anthropic.md` (capability-follow). No Vertex test pins it, so check it by hand.
-- Capabilities, thinking and tool search included: Anthropic's pages cap what a Vertex entry claims, and Google's docs never mention tool search (vertex-capability-one-way).
+- Capabilities, thinking and tool search included: Anthropic's pages cap what a Vertex entry claims (capped-at-vendor). Google's docs never mention tool search, so a new Claude entry starts with it off (`claudeCaps`), and a person turns it on once a call on Vertex returns a tool search result.
 
 ## Self-check
 

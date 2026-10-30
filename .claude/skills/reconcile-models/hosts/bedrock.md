@@ -9,6 +9,7 @@ Where Amazon Bedrock publishes facts for the models it serves. AWS sets its own 
 | Model cards | `https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards-anthropic.md` | a link to each Anthropic model's card |
 | One model | `https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-{slug}.md` | Model Details, Endpoints and APIs supported, Capabilities and Features, Programmatic Access, Service Tiers, Regional Availability |
 | Rates | `https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrockFoundationModels/current/<region>/index.json` | AWS's public price list, one file per source region |
+| Profile prices | `https://docs.aws.amazon.com/bedrock/latest/userguide/global-cross-region-inference.md`, `https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.md` | Cost-efficiency: how much less a global profile costs than a geographic one, and that cross-Region routing costs no more than In-Region |
 | Lifecycle, older models | `https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.md` | the table of Legacy and EOL models |
 | Lifecycle, newer models | `https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle.md` | the policy for models launched on or after 2026-09-07: Legacy and EOL, and when a card gains its EOL date |
 | OpenAI's model cards | `https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards-openai.md` | a link to each OpenAI model's card |
@@ -23,7 +24,7 @@ The table names Anthropic's and OpenAI's cards. The other vendors `providers/bed
 - The card's Regional Availability tables say, for each source region, whether In-Region, Geo and Global work, and list the source regions each geo profile serves.
 - Before declaring a profile, compare its prefix with RULES.md's Offered regions (new-copy-offered-region, region-not-offered). New models often start with only US and global profiles.
 - Endpoints that make a bare ID callable on demand (bare-id-unregistered): an In-Region endpoint URL on `bedrock-runtime`, or `bedrock-mantle`'s Responses API. A `bedrock-mantle` Anthropic Messages URL (`.../anthropic/v1/messages`) doesn't count: this SDK's mantle transport speaks only the Responses API.
-- Routing: a family's `ProfileRegions` map, in `cross_region.go`, sends bare-name calls from each source region to one profile. Its entries come from the card's per-geo source-region tables. A new copy points its source regions there (new-copy-offered-region); any other change to the map moves or blocks existing callers, so it goes to a person (no-rule).
+- Routing: a family's `ProfileRegions` map, in `cross_region.go`, sends bare-name calls from each source region to one profile. Its entries come from the card's per-geo source-region tables. A new copy points its source regions there (new-copy-offered-region), and a source region the card lists that the map lacks is added when another family already sends it to the same profile (route-add). Removing or re-pointing an entry moves or blocks existing callers, so it goes to a person (no-rule).
 - A copy the card no longer lists shows up when you compare the card's tables with the family's `Profiles` (copy-gone-no-eol).
 
 ## Prices
@@ -39,7 +40,8 @@ The table names Anthropic's and OpenAI's cards. The other vendors `providers/bed
 - `long_ctx` in a usage type marks a long-context tier. Neither the price list nor an Anthropic card gives its threshold; OpenAI's cards give 272K input tokens.
 - Rate cards: `GlobalRates` is the `global.` card and `Rates` every other profile's. Speed or tier variation goes in the family's `Overrides` and `GlobalOverrides`, which a family with a global profile sets in pairs. The card's Service Tiers table shows which tiers the model has.
 - Copy cache rates from the price list too (price-follow).
-- OpenAI's cards print their own rates in a Pricing section: per endpoint and profile, short and long context, with the 10% premium already added. The price list holds only GPT-6 Astra (read 2026-10-28), so the card is the rate source for the other OpenAI models.
+- OpenAI's cards print their own rates in a Pricing section: per endpoint and profile, short and long context, with the 10% premium already added. The price list holds only GPT-6 Astra (read 2026-10-28), so the card is the rate source for the other OpenAI models. A profile a card lists without a rate: sibling-ratio.
+- A profile with no printed rate takes its ratio from the Profile prices pages (sibling-ratio): they state how much less a `global.` profile costs than a geographic one, and that a geographic profile costs what In-Region does. The exact ratio is the one the catalogue's copies follow, which `TestGeoGlobalRatio` checks (Self-check).
 
 ## Lifecycle
 
@@ -48,6 +50,7 @@ The table names Anthropic's and OpenAI's cards. The other vendors `providers/bed
   - launched before 2026-09-07: `model-lifecycle-legacy.md` lists only Legacy and EOL models, so a model missing from it has no announced end of life;
   - launched on or after 2026-09-07: the card's Model EOL date, which AWS adds when the Legacy period starts. `N/A` means none is announced, and "EOL no sooner than" is a floor.
 - A profile's own launch day comes only from the authenticated `ListFoundationModels` API (`modelLifecycle`), not from any page (profile-available-unset).
+- A bare ID's launch day is its card's Model launch date (available-host-launch).
 
 ## Limits and capabilities
 
