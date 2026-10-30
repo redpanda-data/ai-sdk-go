@@ -39,9 +39,10 @@ jobs:
           cache-dependency-path: go.sum
 
       # Dependencies and the test binary are built before the AWS credentials
-      # and the key are in the job.
+      # and the key are in the job. Only the conformance directory is built, so
+      # the other providers/vertex test files never run while the key is held.
       - name: Build the test binary
-        run: go test -c -o "$RUNNER_TEMP/vertex.test" ./providers/vertex/
+        run: go test -c -o "$RUNNER_TEMP/vertex.test" ./providers/vertex/conformance/
 
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd  # v6.3.0
         with:
@@ -91,7 +92,7 @@ jobs:
             | sed 's/^/::add-mask::/'
 
       - name: Run the Vertex AI conformance suite
-        working-directory: providers/vertex
+        working-directory: providers/vertex/conformance
         # Without the key every live test skips, which would pass as green.
         run: |
           [ -s "$VERTEX_KEY_FILE" ] || { echo "::error::no Vertex AI service-account key"; exit 1; }
