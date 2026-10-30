@@ -6,7 +6,7 @@ Where Google Cloud's Vertex (the Gemini Enterprise Agent Platform) publishes fac
 
 | Fact | Page | Where on it |
 |---|---|---|
-| Rates | `https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing?hl=en` | the Anthropic Claude models section (`#anthropics-claude-models`), one tab per region |
+| Rates | `https://cloud.google.com/model-garden/partner-models/pricing?hl=en` | the Anthropic Claude models section (`#anthropics-claude-models`), one tab per region |
 | One model | `https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/partner-models/claude/{slug}?hl=en` | Model ID, Launch stage, Supported inputs and outputs, Token limits, Versions (each with a launch stage and release date), Model availability, Retirement Date |
 | All Claude models | `https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/partner-models/claude?hl=en` | the list of models, with a link to each model page |
 | Locations | `https://docs.cloud.google.com/gemini-enterprise-agent-platform/resources/locations?hl=en` | the model-by-location table |
