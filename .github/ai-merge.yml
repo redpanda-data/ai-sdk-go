@@ -104,7 +104,8 @@ shadow_engines:
 #   Taskfile.yaml, taskfiles/**, .golangci.yaml   define what CI enforces (task test/lint/license)
 #   LICENSE, header.txt           license text and the header template
 #   providers/vertex/model.go     hands the caller's authenticated HTTP client to the Gemini
-#                                 and Claude clients and strips auth headers on rawPredict
+#                                 and Claude clients, and strips SDK-sourced auth headers
+#                                 from every Claude request
 #   providers/vertex/conformance/**, providers/conformance/**, internal/testsuite/**
 #                                 the nightly Vertex AI job's test and the two test-only
 #                                 packages it imports; the job runs them while it holds
