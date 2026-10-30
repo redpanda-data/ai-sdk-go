@@ -133,7 +133,17 @@ func TestMainReadsEachVendorsFolder(t *testing.T) {
 		{
 			name: "a replayed vendor names the agent run its change came from",
 			args: []string{"-vendor", "anthropic=" + anthropic, "-vendor", "openai=" + openai, "-replayed", "anthropic=40504204648@2026-10-27T06:17:00Z"},
-			want: []string{"\n## anthropic\n\n> Replayed with no model: this is the change the agent made in run 40504204648 on 2026-10-27, checked to be exactly the same on this base.\n"},
+			want: []string{"\n## anthropic\n\nThis is the change the agent made in run 40504204648 on 2026-10-27, replayed with no model and checked to be exactly the same on this base.\n"},
+		},
+		{
+			name: "a carried commit is listed under the checks line",
+			args: []string{"-vendor", "anthropic=" + anthropic, "-carried", "1faeeba000000000000000000000000000000000\tt\ttest: swap the live test model"},
+			want: []string{"**Carried from people:** `1faeeba` by `t`: `test: swap the live test model`."},
+		},
+		{
+			name:    "a carried commit that doesn't start with a full SHA",
+			args:    []string{"-vendor", "anthropic=" + anthropic, "-carried", "1faeeba\tt\ttest"},
+			wantErr: `-carried "1faeeba\tt\ttest" doesn't start with a commit's full SHA`,
 		},
 		{
 			name:    "a replay that isn't RUN@TIME",

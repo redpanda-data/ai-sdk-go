@@ -65,7 +65,7 @@ denied="$(grep '^@@DENIED@@' <<<"$stats" | sed 's/^@@DENIED@@//')"
   if [[ -s "$report" ]] && jq -e 'type == "object"' "$report" >/dev/null 2>&1; then
     jq -r '
       def safe($re): if type == "string" and test($re) then . else "other" end;
-      "| Changes | Resolve before merging | Skipped |", "|---|---|---|",
+      "| Changes | Open questions | Skipped |", "|---|---|---|",
       "| \(.changes // [] | length) | \(.needs_human // [] | length) | \(.skipped // [] | length)\(
         if (.skipped // [] | length) > 0
         then " (" + (.skipped | map(.reason | safe("^[a-z_]{1,40}$")) | group_by(.) | map("\(.[0]) \(length)") | join(", ")) + ")"

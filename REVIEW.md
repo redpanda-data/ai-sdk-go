@@ -89,22 +89,42 @@ Applies only to PRs from `vbotbuildovich`, in addition to the model catalog
 section above.
 
 The reconcile-models workflow opens draft PRs from `vbotbuildovich` that change
-the model catalog, following `.github/reconcile-models/RULES.md`. The PR job
-checked the report's format and that every source is a named source, and ran
-the tests without secrets. It didn't check the values.
+the model catalog, following `.github/reconcile-models/RULES.md`. Only the
+agent compared the values with their sources. For its own commits, the bot
+checked the report's format, each row's rule and that each source is on a named
+host. It also checked that only allowed files change, and ran unit tests and
+lint without secrets.
+
+Words the PR body uses:
+
+- An offering is one model as one host sells it: its ID there, its price and
+  its limits.
+- A copy is another offering of a model the catalog already has: on another
+  host, or in another region, such as a Bedrock `us.` profile.
+- A product decision is whether the catalog offers a region at all. Until
+  someone decides, the bot leaves that region's copies out and lists them as
+  waiting.
+- An open question is a case no rule settles, or one a rule hands to a person.
+  The bot changes nothing for it.
+- A replayed commit is a vendor's commit from an earlier run, applied again
+  with no model because it still makes exactly the same change.
+- A carried commit is one a person pushed onto the bot PR. Each run puts it
+  back on top of the rebuilt branch.
+
+To review one:
 
 - Check each row in "Changes" against the page it cites, and each offering in
   "Changed with no row" in the snapshot diff, since no row explains it. Mark the
   PR ready only when every value matches.
-- Settle each question in "Resolve before merging": fix it on the base branch
+- Settle each question in "Open questions": fix it on the base branch
   or record a decision. You may also merge with a question open; the next run
   asks it again.
 - In "Held by decisions", each value should still match its entry in
   `.github/reconcile-models/decisions.yaml`.
 - Approve a move in "Routing changes" only if every caller of that bare name
   can take the new profile and its price.
-- Read the files in "Code changed" before marking the PR ready: that runs them
-  with secrets.
+- Read the files the body names as code before marking the PR ready: that runs
+  them with secrets.
 - When `TestLiveTestModelsAreCurrent` fails once the PR is ready, push the swap
   it prints onto this same PR, so the date and the swap merge together. Later
   runs carry it onto each rebuild while it still applies exactly.
