@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       vendor:
-        description: Vendor to reconcile (its models on every provider that sells them), or all. A real run also reruns each vendor with a change waiting in the PR.
+        description: Vendor to reconcile (its models on every provider that sells them), or all. Every other vendor with a change waiting in the PR replays it with no model.
         type: choice
         options: [all, anthropic, openai]
         default: all
@@ -41,27 +41,34 @@ env:
   BRANCH: ${{ github.ref_name == 'main' && 'bot/reconcile-models' || 'bot/reconcile-models-test' }}/all
 
 jobs:
-  # No model, before any agent: reads the open bot PR, and decides which
-  # vendors run and whether someone else's commit on it stops the run.
+  # No model, before any agent: reads the open bot PR and the record its
+  # last push left, and decides which vendors run their agent, which replay
+  # their waiting commit, and whether someone else's commit stops the run.
   plan:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
       pull-requests: read
+      actions: read # to download the record from the run that pushed
     outputs:
       h0: ${{ steps.plan.outputs.h0 }}
       pr: ${{ steps.plan.outputs.pr }}
       run: ${{ steps.plan.outputs.run }}
+      replay: ${{ steps.plan.outputs.replay }}
+      carry: ${{ steps.plan.outputs.carry }}
       pending: ${{ steps.plan.outputs.pending }}
-      theirs: ${{ steps.plan.outputs.theirs }}
+      dropped: ${{ steps.plan.outputs.dropped }}
       stop: ${{ steps.plan.outputs.stop }}
+      reason: ${{ steps.plan.outputs.reason }}
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
         with:
           egress-policy: audit
+      # Every branch's whole history, for plan.sh's check of the PR's merges.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
         with:
+          fetch-depth: 0
           persist-credentials: false
       - name: Plan the run (no model)
         id: plan
@@ -86,13 +93,41 @@ jobs:
               echo "::error::#${pr}'s commit list doesn't end at ${h0} yet; re-run this workflow."
               exit 1
             fi
+            # The PR's commits, for the plan's check of its merges.
+            git fetch -q --no-tags origin "$h0"
           fi
           vendors="$(jq -c 'keys_unsorted' .github/reconcile-models/named-sources.json)"
+          # The record the last push left, saved by the run the newest bot
+          # commit's Reconcile-Run trailer names. Without one nothing replays.
+          record=""
+          record_run="$(jq -r '[.[] | select(.author.login == "vbotbuildovich" and .committer.login == "vbotbuildovich")
+            | .commit.message | capture("(?m)^Reconcile-Run: (?<run>[0-9]+)/").run] | last // empty' <<<"$commits")"
+          # Only a scheduled or by-hand run of this workflow, on this run's
+          # branch and in this repo, as find-baseline.sh checks a baseline's:
+          # any other run's record could name anyone's commit as the bot's.
+          if [[ -n "$record_run" ]] && ! gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${record_run}" | jq -e --arg branch "$GITHUB_REF_NAME" '
+            .path == ".github/workflows/reconcile-models.yml" and (.event == "schedule" or .event == "workflow_dispatch")
+            and .head_branch == $branch and .head_repository.id == .repository.id' >/dev/null; then
+            echo "::warning::Run ${record_run} isn't a scheduled or by-hand run of this workflow on ${GITHUB_REF_NAME}, so its record counts as none."
+            record_run=""
+          fi
+          if [[ -n "$record_run" ]] && gh run download "$record_run" --repo "$GITHUB_REPOSITORY" -n reconcile-record -D "$RUNNER_TEMP/record"; then
+            record="$RUNNER_TEMP/record/record.json"
+          fi
           {
             echo "h0=$h0"
             echo "pr=$pr"
-            .github/reconcile-models/plan.sh vbotbuildovich "$SELECTED" "$DRY_RUN" "$vendors" <<<"$commits"
+            .github/reconcile-models/plan.sh vbotbuildovich "$SELECTED" "$DRY_RUN" "$vendors" "$record" <<<"$commits"
           } >>"$GITHUB_OUTPUT"
+      # The record the plan trusted, for the vendors that replay.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        if: steps.plan.outputs.record == 'true'
+        with:
+          name: reconcile-plan-record
+          path: ${{ runner.temp }}/record/record.json
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: true
 
   # Each vendor's part of the run, in named-sources.json's order: gate, agent,
   # patch check and record, in reconcile-vendor.yml. Each works on the newest
@@ -107,6 +142,7 @@ jobs:
       actions: read
     with:
       vendor: anthropic
+      mode: ${{ contains(fromJSON(needs.plan.outputs.replay), 'anthropic') && 'replay' || 'agent' }}
       base_sha: ${{ github.sha }}
       dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
       force: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
@@ -123,6 +159,7 @@ jobs:
       actions: read
     with:
       vendor: openai
+      mode: ${{ contains(fromJSON(needs.plan.outputs.replay), 'openai') && 'replay' || 'agent' }}
       base_sha: ${{ needs.anthropic.outputs.head || github.sha }}
       dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
       force: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
@@ -130,10 +167,77 @@ jobs:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       STEP_DEBUG: ${{ secrets.ACTIONS_STEP_DEBUG }}
 
+  # No model and no bot token. Carries the commits other people pushed onto
+  # the bot PR onto the vendors' commits (carry.sh), checked in the sandbox.
+  carry:
+    needs: [plan, anthropic, openai]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.carry != '[]' && needs.plan.outputs.stop != 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      base: ${{ steps.carry.outputs.base }}
+      tip: ${{ steps.carry.outputs.tip }}
+      carried: ${{ steps.carry.outputs.carried }}
+      refused: ${{ steps.carry.outputs.refused }}
+    steps:
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          persist-credentials: false
+      - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e  # v2.2.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        continue-on-error: true
+        with:
+          pattern: reconcile-bundle-*
+          path: ${{ runner.temp }}/bundles
+      # The last vendor commit, as combine.sh takes it, else the run's own.
+      - name: Check out the vendors' commits
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          RUN: ${{ needs.plan.outputs.run }}
+        run: |
+          tip="$(jq -r --argjson run "$RUN" '. as $needs | [$run[] | $needs[.].outputs // {} | select(.head != "" and .changed == "true") | .head] | last // empty' <<<"$NEEDS")"
+          tip="${tip:-$GITHUB_SHA}"
+          .github/reconcile-models/checkout-base.sh "$tip" "$RUNNER_TEMP/bundles/reconcile-bundle-$tip/reconcile.bundle"
+      - name: Install the sandbox
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends bubblewrap
+          # Ubuntu 24.04 restricts unprivileged user namespaces, which bubblewrap needs.
+          if [[ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+      - name: Carry the other commits (no model)
+        id: carry
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CARRY: ${{ needs.plan.outputs.carry }}
+        run: |
+          # Everything that needs the network happens before carry.sh's sandbox.
+          task install:go
+          export PATH="$(dirname "$(ls -d "$PWD"/.build/go*/bin/go | tail -1)"):$PATH"
+          GOTOOLCHAIN=local go mod download
+          GOTOOLCHAIN=local go build -o "$RUNNER_TEMP/catalog-replay" ./cmd/catalog-replay
+          bot_id="$(gh api users/vbotbuildovich --jq .id)"
+          export GIT_COMMITTER_NAME=vbotbuildovich GIT_COMMITTER_EMAIL="${bot_id}+vbotbuildovich@users.noreply.github.com"
+          mapfile -t commits < <(jq -r '.[]' <<<"$CARRY")
+          GOTOOLCHAIN=local .github/reconcile-models/carry.sh "$RUNNER_TEMP/catalog-replay" "${commits[@]}"
+          git bundle create "$RUNNER_TEMP/reconcile.bundle" HEAD "^${GITHUB_SHA}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: reconcile-bundle-${{ steps.carry.outputs.tip }}
+          path: ${{ runner.temp }}/reconcile.bundle
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: true
+
   # The only job with the bot token. It puts the vendors' commits together
   # into one PR and pushes once, at the end; it runs nothing from the patches.
   pr:
-    needs: [plan, anthropic, openai]
+    needs: [plan, anthropic, openai, carry]
     if: ${{ !cancelled() && needs.plan.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -145,7 +249,12 @@ jobs:
       BASE: ${{ github.ref_name }}
       H0: ${{ needs.plan.outputs.h0 }}
       PR: ${{ needs.plan.outputs.pr }}
-      STOP: ${{ needs.plan.outputs.stop }}
+      # "Update branch" merges the plan left out of the rebuild.
+      DROPPED: ${{ needs.plan.outputs.dropped }}
+      # A commit on the PR that can't be carried stops the push, whether the
+      # plan found it before any agent ran or the carry job after.
+      STOP: ${{ needs.plan.outputs.stop == 'true' || needs.carry.outputs.refused != '' }}
+      REASON: ${{ needs.plan.outputs.reason || needs.carry.outputs.refused }}
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
         with:
@@ -175,6 +284,10 @@ jobs:
           NEEDS: ${{ toJSON(needs) }}
           RUN: ${{ needs.plan.outputs.run }}
           PENDING: ${{ needs.plan.outputs.pending }}
+          CARRY: ${{ needs.plan.outputs.carry }}
+          CARRY_TIP: ${{ needs.carry.outputs.tip }}
+          CARRIED: ${{ needs.carry.outputs.carried }}
+          CARRY_BASE: ${{ needs.carry.outputs.base }}
         run: |
           task install:go
           export PATH="$(dirname "$(ls -d "$PWD"/.build/go*/bin/go | tail -1)"):$PATH"
@@ -223,17 +336,26 @@ jobs:
           secret-ids: |
             ,sdlc/prod/github/actions_bot_token
           parse-json-secrets: true
-      # Keep anyone else's commit on the bot PR: say the run didn't update it
-      # instead of pushing over it. One note per PR, updated each run.
+      # Keep anyone else's commit on the bot PR that the run can't carry: say
+      # the run didn't update the PR instead of pushing over it. One note per
+      # PR, updated each run.
       - name: Leave a note instead of pushing over someone's commit
         if: env.DRY_RUN == 'false' && env.STOP == 'true'
         env:
           GH_TOKEN: ${{ env.ACTIONS_BOT_TOKEN }}
-          THEIRS: ${{ needs.plan.outputs.theirs }}
         run: |
           run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --edit-last --create-if-none --body "This run didn't update the PR, because the update would remove commits that aren't the bot's (${THEIRS}). Merge or close this PR to let the next run update it. [The run](${run_url}) stopped before any agent ran."
-          echo "::notice::Left #${PR} unchanged: it has commits that aren't the bot's (${THEIRS})."
+          gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --edit-last --create-if-none --body "This run didn't update the PR, because ${REASON}. Merge or close this PR, or remove that commit if it was pushed after the bot's last update, to let the next run update it. [The run](${run_url}) has the details."
+          echo "::notice::Left #${PR} unchanged, because ${REASON}."
+      # What a later run replays from; saved first, so every push has one.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        if: env.DRY_RUN == 'false' && steps.combine.outputs.changed == 'true'
+        with:
+          name: reconcile-record
+          path: out/record.json
+          if-no-files-found: error
+          retention-days: 90
+          overwrite: true
       - name: Push the vendors' commits and open or update the draft PR
         if: env.DRY_RUN == 'false' && steps.combine.outputs.changed == 'true'
         env:
@@ -249,6 +371,14 @@ jobs:
             echo "::error::Open PRs from ${BRANCH} by someone other than vbotbuildovich: ${others}. The push would put new agent code in them; close them or open them from another branch, then re-run."
             exit 1
           fi
+          same_as_pr() {
+            local pr_commits
+            pr_commits="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR}/commits?per_page=100" --jq '[.[].sha]')"
+            git fetch -q --no-tags --depth="$(( $(jq length <<<"$pr_commits") + 1 ))" origin "$H0"
+            # The merges the plan left out aren't the PR's changes.
+            pr_commits="$(jq -c --argjson dropped "$DROPPED" '. - $dropped' <<<"$pr_commits")"
+            .github/reconcile-models/same-patches.sh "$pr_commits" "$(git rev-list --reverse "${GITHUB_SHA}..HEAD" | jq -R . | jq -sc .)"
+          }
           # The plan's PR is from before this run; a re-run of this job after its
           # first attempt opened the PR finds it here, and edits it.
           PR="${PR:-$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number,author,isCrossRepository \
@@ -265,6 +395,10 @@ jobs:
             elif [[ "$head" != "$H0" ]]; then
               echo "::error::Someone pushed to #${PR} during the run (${head}); the next run sees it."
               exit 1
+            elif same_as_pr; then
+              # Pushing the same changes again would dismiss approvals for nothing.
+              push=false
+              echo "::notice::This run's commits make the same changes as #${PR}'s, so it updates only the body."
             elif [[ "$draft" == "false" ]]; then
               # A PR a person marked ready goes back to draft before the push, so
               # new agent code runs only test.yaml's no-secrets job until reviewed again.

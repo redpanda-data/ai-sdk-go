@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
 # Puts a reconcile run's vendor parts together into one PR, with no model:
-# the last vendor commit is the PR's tip, checked out here for the push, and
+# the last vendor commit, or the carry job's tip when it carried commits onto
+# that one, is the PR's tip, checked out here for the push, and
 # OUT_DIR gets the PR body for every vendor that ran, the files the vendors
-# committed and the snapshot diff against the run's commit. A vendor whose
+# committed, the snapshot diff against the run's commit, and the record a
+# later run replays from (record.json, when anything changed). A vendor whose
 # part failed gets a note in the body; if it has a commit waiting in the PR,
 # the run fails instead of pushing, or that change would drop out.
 # Runs nothing from the patches. Prints tip and changed for $GITHUB_OUTPUT.
 # Usage: combine.sh CATALOG_REPORT LEGS_DIR BUNDLES_DIR OUT_DIR
 #   LEGS_DIR holds each vendor's reconcile-pr-<vendor> folder, BUNDLES_DIR its
 #   reconcile-bundle-<commit> one.
-# Env: NEEDS (the pr job's needs, as JSON), RUN and PENDING (from plan.sh),
-#      GITHUB_SHA (the run's commit), BASE (the branch the PR goes into).
+# Env: NEEDS (the pr job's needs, as JSON), RUN, PENDING and CARRY (from
+#      plan.sh), CARRY_TIP, CARRIED and CARRY_BASE (from carry.sh), GITHUB_SHA (the run's
+#      commit), BASE (the branch the PR goes into).
 set -euo pipefail
 
 usage="usage: combine.sh CATALOG_REPORT LEGS_DIR BUNDLES_DIR OUT_DIR"
@@ -31,7 +34,7 @@ codes="$inputs/code-files.txt"
 : >"$out/files.txt"
 
 args=()
-tip="$GITHUB_SHA" changed=false blocked=false first="" last=""
+tip="$GITHUB_SHA" changed=false blocked=false first="" last="" recorded=()
 
 for vendor in $(jq -r '.[]' <<<"$RUN"); do
   dir="$legs/reconcile-pr-$vendor"
@@ -49,9 +52,13 @@ for vendor in $(jq -r '.[]' <<<"$RUN"); do
   fi
 
   args+=(-vendor "$vendor=$dir")
+  if [[ "$(need "$vendor" .outputs.replayed)" == "true" ]]; then
+    args+=(-replayed "$vendor=$(need "$vendor" .outputs.agent_run)@$(need "$vendor" .outputs.agent_at)")
+  fi
 
   if [[ "$(need "$vendor" .outputs.changed)" == "true" ]]; then
     changed=true tip="$(need "$vendor" .outputs.head)" first="${first:-$dir}" last="$dir"
+    recorded+=("$vendor")
     cat "$dir/files.txt" >>"$out/files.txt"
     cat "$dir/code-files.txt" >>"$codes"
   fi
@@ -62,16 +69,55 @@ if [[ "$blocked" == "true" ]]; then
   exit 1
 fi
 
-sort -u -o "$out/files.txt" "$out/files.txt"
-sort -u -o "$codes" "$codes"
+# Commits other people pushed onto the PR go on top, as the carry job
+# carried them.
+vendors_tip="$tip"
+if [[ "${CARRY:-[]}" != "[]" ]]; then
+  if [[ -z "${CARRY_TIP:-}" ]]; then
+    echo "::error::The carry job left no commits for the ones it had to carry, so this run doesn't push."
+    echo "combine: the carry job left no commits" >&2
+    exit 1
+  fi
+  if [[ "${CARRY_BASE:-}" != "$vendors_tip" ]]; then
+    echo "::error::The carry job carried onto ${CARRY_BASE:-nothing}, not the vendors' last commit ${vendors_tip}, so this run doesn't push."
+    echo "combine: carried onto ${CARRY_BASE:-nothing}, not the vendors' last commit $vendors_tip" >&2
+    exit 1
+  fi
+  # A push of people's commits alone would carry no Reconcile-Run trailer,
+  # so the next run would find no record and stop: leave the PR as it is.
+  if [[ "$changed" == "true" ]]; then
+    tip="$CARRY_TIP"
+  fi
+fi
 
 # The PR covers every vendor's commit, so its diff and routes run from the
 # run's commit, before the first vendor's change, to the tip, after the last.
 if [[ "$changed" == "true" ]]; then
   "$(dirname "$0")/checkout-base.sh" "$tip" "$bundles/reconcile-bundle-$tip/reconcile.bundle"
+  git diff --name-only "$vendors_tip" HEAD >>"$out/files.txt"
+  # People's commits are code for the reviewer to read, whatever they touch.
+  git diff --name-only "$vendors_tip" HEAD -- . ':(exclude)catalog/snapshot.json' >>"$codes"
   git diff "$GITHUB_SHA" HEAD -- catalog/snapshot.json >"$out/snapshot.diff"
-  args+=(-diff "$out/snapshot.diff" -code-files "$codes" -base-routes "$first/base-routes.txt" -routes "$last/routes.txt")
+  args+=(-diff "$out/snapshot.diff" -code-files "$codes")
+  if [[ -n "$first" ]]; then
+    args+=(-base-routes "$first/base-routes.txt" -routes "$last/routes.txt")
+  fi
+
+  # What the push holds: each vendor's commit, its agent run and its report.
+  vendors='{}'
+  for vendor in ${recorded[@]+"${recorded[@]}"}; do
+    head="$(need "$vendor" .outputs.head)"
+    vendors="$(jq -c --arg v "$vendor" --arg commit "$head" \
+      --arg run "$(need "$vendor" .outputs.agent_run)" --arg at "$(need "$vendor" .outputs.agent_at)" \
+      --slurpfile report "$legs/reconcile-pr-$vendor/report.json" \
+      '.[$v] = {commit: $commit, agent_run: $run, agent_at: $at, report: $report[0]}' <<<"$vendors")"
+  done
+  jq -n --arg head "$tip" --argjson carried "${CARRIED:-[]}" --argjson vendors "$vendors" \
+    '{head: $head, carried: $carried, vendors: $vendors}' >"$out/record.json"
 fi
+
+sort -u -o "$out/files.txt" "$out/files.txt"
+sort -u -o "$codes" "$codes"
 
 # The PR body links repo files at the run's commit.
 base_url=""
