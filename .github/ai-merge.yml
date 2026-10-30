@@ -104,8 +104,8 @@ shadow_engines:
 #   Taskfile.yaml, taskfiles/**, .golangci.yaml   define what CI enforces (task test/lint/license)
 #   LICENSE, header.txt           license text and the header template
 #   providers/vertex/vertex_conformance_test.go, providers/conformance/**, internal/testsuite/**
-#                                 code the nightly Vertex AI job runs while it holds a
-#                                 Vertex AI access token
+#                                 code the nightly Vertex AI job runs while it holds
+#                                 Vertex AI credentials
 # Guarded by .github/actions/ai-merge/scripts/test_repo_config.py.
 excluded_paths:
   - "providers/**/provider.go"
