@@ -6,7 +6,7 @@
 # Baseline exclusions always apply on top of this list: .github/**, terraform/**,
 # release/**, Dockerfiles, iam/ and auth/ dirs, *credential*, *secret*, *.pem, *.key.
 # Binary or patchless files also make a PR ineligible.
-version: 11
+version: 12
 enabled: true
 
 # Size is NOT a risk score and does not gate. The only size rule is that the
@@ -103,6 +103,9 @@ shadow_engines:
 #                                 work, and the reviewer can read it like any other text.
 #   Taskfile.yaml, taskfiles/**, .golangci.yaml   define what CI enforces (task test/lint/license)
 #   LICENSE, header.txt           license text and the header template
+#   providers/vertex/vertex_conformance_test.go, providers/conformance/**, internal/testsuite/**
+#                                 code the nightly Vertex AI job runs while it holds a
+#                                 Vertex AI access token
 # Guarded by .github/actions/ai-merge/scripts/test_repo_config.py.
 excluded_paths:
   - "providers/**/provider.go"
@@ -121,6 +124,9 @@ excluded_paths:
   - ".golangci.yaml"
   - "LICENSE"
   - "header.txt"
+  - "providers/vertex/vertex_conformance_test.go"
+  - "providers/conformance/**"
+  - "internal/testsuite/**"
 
 # Dependency changes are in scope (with supply-chain checks), root or nested.
 # This list REPLACES the mechanism defaults and is intentionally exhaustive for
