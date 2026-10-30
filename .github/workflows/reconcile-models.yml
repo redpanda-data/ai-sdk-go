@@ -100,9 +100,9 @@ jobs:
           # The record the last push left, saved by the run the newest bot
           # commit's Reconcile-Run trailer names. Without one nothing replays.
           record=""
-          pushed="$(jq -r '[.[] | select(.author.login == "vbotbuildovich" and .committer.login == "vbotbuildovich")
+          record_run="$(jq -r '[.[] | select(.author.login == "vbotbuildovich" and .committer.login == "vbotbuildovich")
             | .commit.message | capture("(?m)^Reconcile-Run: (?<run>[0-9]+)/").run] | last // empty' <<<"$commits")"
-          if [[ -n "$pushed" ]] && gh run download "$pushed" --repo "$GITHUB_REPOSITORY" -n reconcile-record -D "$RUNNER_TEMP/record"; then
+          if [[ -n "$record_run" ]] && gh run download "$record_run" --repo "$GITHUB_REPOSITORY" -n reconcile-record -D "$RUNNER_TEMP/record"; then
             record="$RUNNER_TEMP/record/record.json"
           fi
           {

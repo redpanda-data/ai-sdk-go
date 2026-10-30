@@ -102,6 +102,20 @@ func ReplayMismatches(parent, bot, base, replay Snapshot, report Report, vendor 
 		}
 	}
 
+	// modelOf is the model an offering is a copy of, from the first of parent,
+	// bot and base that has it; "" for a model's facts.
+	modelOf := func(item replayItem) string {
+		for _, snap := range snapshots[:3] {
+			if values, ok := snap.value(item).(map[string]any); ok {
+				if model, ok := values["model"].(string); ok {
+					return model
+				}
+			}
+		}
+
+		return ""
+	}
+
 	named := map[replayItem]bool{}
 
 	name := func(offering string) {
@@ -109,12 +123,8 @@ func ReplayMismatches(parent, bot, base, replay Snapshot, report Report, vendor 
 		item := replayItem{provider: PackageProviders[pkg], id: id}
 		named[item] = true
 
-		for _, snap := range snapshots[:3] {
-			if values, ok := snap.value(item).(map[string]any); ok {
-				if model, ok := values["model"].(string); ok {
-					named[replayItem{id: model}] = true
-				}
-			}
+		if model := modelOf(item); model != "" {
+			named[replayItem{id: model}] = true
 		}
 	}
 
@@ -131,19 +141,6 @@ func ReplayMismatches(parent, bot, base, replay Snapshot, report Report, vendor 
 	}
 
 	same := func(a, b Snapshot, item replayItem) bool { return reflect.DeepEqual(a.value(item), b.value(item)) }
-	// modelOf is the model an offering is a copy of, from the first of parent,
-	// bot and base that has it; "" for a model's facts.
-	modelOf := func(item replayItem) string {
-		for _, snap := range snapshots[:3] {
-			if values, ok := snap.value(item).(map[string]any); ok {
-				if model, ok := values["model"].(string); ok {
-					return model
-				}
-			}
-		}
-
-		return ""
-	}
 
 	var mismatches []string
 

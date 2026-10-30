@@ -66,10 +66,13 @@ sandbox() {
 # affected_packages DIR... prints, space-separated, every package in the
 # module that is one of those directories' packages or imports one, test
 # imports included: the packages whose tests a change there can break. It
-# only lists packages (go list), so it runs outside the sandbox.
+# only lists packages (go list), so it runs outside the sandbox. A directory
+# in another module, such as one under examples/ with its own go.mod, makes
+# go list fail for every directory given with it, so each is listed alone
+# and one outside the module is left out.
 affected_packages() {
-  local wanted
-  wanted="$(go list -f '{{.ImportPath}}' "$@" | tr '\n' ' ')"
+  local wanted dir
+  wanted="$(for dir in "$@"; do go list -f '{{.ImportPath}}' "$dir" 2>/dev/null || true; done | tr '\n' ' ')"
   go list -test -f '{{.ImportPath}} {{join .Deps " "}}' ./... |
     awk -v wanted="$wanted" 'BEGIN { n = split(wanted, w, " "); for (i = 1; i <= n; i++) keep[w[i]] = 1 }
       { for (i = 1; i <= NF; i++) if ($i in keep) { print $1; next } }' |

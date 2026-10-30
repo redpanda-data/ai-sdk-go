@@ -23,6 +23,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -777,6 +778,10 @@ printf ']}]}\n'
 	// pr-job.sh's part here: apply the patch, regenerate, list the files.
 	prJob := filepath.Join(t.TempDir(), "pr-job.sh")
 	require.NoError(t, os.WriteFile(prJob, []byte("#!/bin/sh\nset -e\ngit apply \"$2/patch.diff\"\n./gen.sh >catalog/snapshot.json\ngit diff --name-only >\"$2/files.txt\"\n"), 0o700)) //nolint:gosec // a stand-in must be executable
+	// One whose checks fail after the patch applies: the file limit, the
+	// sandbox or the tests.
+	failingJob := filepath.Join(t.TempDir(), "pr-job.sh")
+	require.NoError(t, os.WriteFile(failingJob, []byte("#!/bin/sh\ngit apply \"$2/patch.diff\"\ngit diff --name-only >\"$2/files.txt\"\nexit 1\n"), 0o700)) //nolint:gosec // a stand-in must be executable
 
 	write := func(dir, path, content string, mode os.FileMode) {
 		require.NoError(t, os.MkdirAll(filepath.Join(dir, filepath.Dir(path)), 0o700))
@@ -824,9 +829,10 @@ printf ']}]}\n'
 	}
 
 	tests := []struct {
-		name, base, record, now, wantErr string
+		name, base, record, now, prJob, wantErr string
 	}{
 		{name: "onto a base that changed another offering", base: "sonnet moved", record: record("anthropic", report)},
+		{name: "a change that fails its checks", base: "sonnet moved", record: record("anthropic", report), prJob: failingJob, wantErr: "replayed change fails its checks"},
 		{name: "onto a base that changed the same line", base: "opus moved", record: record("anthropic", report), wantErr: "doesn't merge onto"},
 		{name: "a question about an offering the base changed", base: "sonnet moved", record: record("anthropic", asked), wantErr: "a report row names it"},
 		{name: "no commit for the vendor", base: "sonnet moved", record: record("openai", report), wantErr: "no commit for anthropic"},
@@ -849,7 +855,7 @@ printf ']}]}\n'
 			cmd := exec.CommandContext(t.Context(), "bash", script, "anthropic", recordFile, out)
 			cmd.Dir = checkout
 
-			cmd.Env = append(os.Environ(), "PR_JOB="+prJob, "CATALOG_REPLAY="+replayBin, "GITHUB_OUTPUT="+outputs, "NOW="+cmp.Or(tt.now, "2026-10-28T08:00:00Z"))
+			cmd.Env = append(os.Environ(), "PR_JOB="+cmp.Or(tt.prJob, prJob), "CATALOG_REPLAY="+replayBin, "GITHUB_OUTPUT="+outputs, "NOW="+cmp.Or(tt.now, "2026-10-28T08:00:00Z"))
 			combined, err := cmd.CombinedOutput()
 
 			assert.Equal(t, bases[tt.base], gitIn(t, checkout, "rev-parse", "HEAD"), "the checkout is back at its base")
@@ -897,15 +903,23 @@ func TestCarryKeepsOthersCommits(t *testing.T) {
 	out, err := build.CombinedOutput()
 	require.NoError(t, err, string(out))
 
-	// The real sandbox needs bubblewrap. These run nothing in it: one
-	// whose commands pass, and one whose commands fail.
-	stub := func(status string) string {
+	// The real sandbox needs bubblewrap. These stand in for sandbox.sh with
+	// the given sandbox and affected_packages.
+	stub := func(sandbox, affected string) string {
 		path := filepath.Join(t.TempDir(), "sandbox.sh")
-		require.NoError(t, os.WriteFile(path, []byte("sandbox() { return "+status+"; }\nsandbox_check() { :; }\naffected_packages() { :; }\n"), 0o600))
+		require.NoError(t, os.WriteFile(path, []byte("sandbox() { "+sandbox+"; }\nsandbox_check() { :; }\naffected_packages() { "+affected+"; }\n"), 0o600))
 
 		return path
 	}
-	passing, failing := stub("0"), stub("1")
+	// One whose commands pass, one whose commands fail, and one where only
+	// the last checks fail.
+	passing, failing := stub("return 0", ":"), stub("return 1", ":")
+	checksFail := stub(`case "$*" in *catalog:check*) return 1 ;; esac`, ":")
+	// One whose snapshot regenerates differently, though it means the same,
+	// and one that records the directories whose packages it's asked for.
+	regenerates := stub(`case "$*" in *catalog:snapshot*) printf '{"facts":{},"providers":[]}\n' >catalog/snapshot.json ;; esac`, ":")
+	asked := filepath.Join(t.TempDir(), "affected")
+	recording := stub("return 0", `echo "$*" >`+asked)
 
 	write := func(dir, path, content string) {
 		require.NoError(t, os.MkdirAll(filepath.Join(dir, filepath.Dir(path)), 0o700))
@@ -927,13 +941,21 @@ func TestCarryKeepsOthersCommits(t *testing.T) {
 	// origin: main, the bot's commit, and the commits people pushed on top.
 	origin := t.TempDir()
 	gitIn(t, origin, "init", "-q")
-	main := commit(origin, "main", "main", map[string]string{"catalog/snapshot.json": "{\"facts\": {}, \"providers\": []}\n", "notes.txt": notes})
+	main := commit(origin, "main", "main", map[string]string{"catalog/snapshot.json": "{\"facts\": {}, \"providers\": []}\n", "notes.txt": notes, "providers/old/old.go": "package old\n"})
 	commit(origin, "vbotbuildovich", "chore(catalog): reconcile anthropic models", map[string]string{"bot.txt": "bot\n"})
 	first := commit(origin, "adam", "test: swap the live test model", map[string]string{"providers/anthropic/anthropictest/constants.go": "package anthropictest\n"})
 	second := commit(origin, "adam", "docs: note two", map[string]string{"notes.txt": strings.Replace(notes, "two", "TWO", 1)})
 	gitIn(t, origin, "branch", "pr")
 	workflow := commit(origin, "adam", "ci: tweak", map[string]string{".github/workflows/x.yml": "on: push\n"})
 	gitIn(t, origin, "branch", "workflow")
+	gitIn(t, origin, "reset", "-q", "--hard", second)
+	spaced := commit(origin, "adam", "docs: release notes", map[string]string{"docs/release notes.md": "notes\n"})
+	gitIn(t, origin, "branch", "spaced")
+	gitIn(t, origin, "reset", "-q", "--hard", first)
+	gitIn(t, origin, "rm", "-q", "providers/old/old.go")
+	gitIn(t, origin, "-c", "user.name=adam", "-c", "user.email=adam@example.com", "commit", "-q", "-m", "refactor: remove the old package")
+	removed := gitIn(t, origin, "rev-parse", "HEAD")
+	gitIn(t, origin, "branch", "removed")
 	gitIn(t, origin, "reset", "-q", "--hard", main)
 	gitIn(t, origin, "checkout", "-q", "-b", "side")
 	commit(origin, "adam", "side", map[string]string{"side.txt": "side\n"})
@@ -952,6 +974,9 @@ func TestCarryKeepsOthersCommits(t *testing.T) {
 	gitIn(t, origin, "checkout", "-q", "-b", "close", main)
 	commit(origin, "main", "main changes line four", map[string]string{"notes.txt": strings.Replace(notes, "four", "FOUR", 1)})
 	closeTip := commit(origin, "vbotbuildovich", "chore(catalog): reconcile anthropic models", map[string]string{"bot.txt": "bot\n"})
+	gitIn(t, origin, "checkout", "-q", "-b", "conflict", main)
+	commit(origin, "main", "main changes line two", map[string]string{"notes.txt": strings.Replace(notes, "two", "2", 1)})
+	conflictTip := commit(origin, "vbotbuildovich", "chore(catalog): reconcile anthropic models", map[string]string{"bot.txt": "bot\n"})
 	gitIn(t, origin, "checkout", "-q", "--detach", main)
 
 	tests := []struct {
@@ -960,8 +985,20 @@ func TestCarryKeepsOthersCommits(t *testing.T) {
 	}{
 		{name: "two commits, in order", tip: tip, carry: []string{first, second}},
 		{name: "a commit that changes .github/", tip: tip, carry: []string{first, workflow}, wantErr: workflow[:7] + " changes .github/"},
+		{
+			// combine.sh would hand the path to catalog-report, which refuses
+			// it on every later run with no note on the PR.
+			name: "a commit with a path the PR can't name", tip: tip, carry: []string{first, second, spaced},
+			wantErr: spaced[:7] + " changes a path the PR can't name",
+		},
 		{name: "a merge commit", tip: tip, carry: []string{first, second, merge}, wantErr: merge[:7] + " is a merge commit"},
 		{name: "a snapshot that doesn't regenerate", tip: tip, sandbox: failing, carry: []string{first}, wantErr: "the snapshot doesn't regenerate with " + first[:7]},
+		{name: "carried commits that fail their checks", tip: tip, sandbox: checksFail, carry: []string{first, second}, wantErr: "the carried commits fail their checks"},
+		{
+			// The note names the conflicting files, so a person knows what to fix.
+			name: "a commit that conflicts with this run's", tip: conflictTip, carry: []string{first, second},
+			wantErr: second[:7] + " doesn't merge onto this run's commits: notes.txt",
+		},
 		{
 			// Line four is close to their line two: it merges, but the
 			// change's context differs, so it isn't the same change.
@@ -969,36 +1006,44 @@ func TestCarryKeepsOthersCommits(t *testing.T) {
 			wantErr: second[:7] + " isn't carried exactly",
 		},
 	}
+
+	// runCarry runs carry.sh in a fresh clone checked out at tip, and returns
+	// the clone, the script's output and what it wrote to $GITHUB_OUTPUT.
+	runCarry := func(t *testing.T, tip, sandbox string, shas ...string) (string, string, map[string]string, error) {
+		t.Helper()
+
+		checkout, outputs := t.TempDir(), filepath.Join(t.TempDir(), "outputs")
+		gitIn(t, checkout, "clone", "-q", "file://"+origin, ".")
+		gitIn(t, checkout, "checkout", "-q", "--detach", tip)
+
+		cmd := exec.CommandContext(t.Context(), "bash", append([]string{script, replayBin}, shas...)...) //nolint:gosec // the test's own commits
+		cmd.Dir = checkout
+
+		cmd.Env = append(os.Environ(), "GITHUB_OUTPUT="+outputs, "SANDBOX_SH="+cmp.Or(sandbox, passing),
+			"GIT_COMMITTER_NAME=vbotbuildovich", "GIT_COMMITTER_EMAIL=bot@example.com")
+		combined, err := cmd.CombinedOutput()
+
+		raw, readErr := os.ReadFile(outputs)
+		require.NoError(t, readErr, string(combined))
+
+		return checkout, string(combined), parseOutputs(string(raw)), err
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			checkout, outputs := t.TempDir(), filepath.Join(t.TempDir(), "outputs")
-			gitIn(t, checkout, "clone", "-q", "file://"+origin, ".")
-			gitIn(t, checkout, "checkout", "-q", "--detach", tt.tip)
-
-			cmd := exec.CommandContext(t.Context(), "bash", append([]string{script, replayBin}, tt.carry...)...) //nolint:gosec // the test's own commits
-			cmd.Dir = checkout
-
-			cmd.Env = append(os.Environ(), "GITHUB_OUTPUT="+outputs, "SANDBOX_SH="+cmp.Or(tt.sandbox, passing),
-				"GIT_COMMITTER_NAME=vbotbuildovich", "GIT_COMMITTER_EMAIL=bot@example.com")
-			combined, err := cmd.CombinedOutput()
-
-			raw, readErr := os.ReadFile(outputs)
+			checkout, combined, got, err := runCarry(t, tt.tip, tt.sandbox, tt.carry...)
 
 			if tt.wantErr != "" {
 				require.Error(t, err)
-				assert.Contains(t, string(combined), tt.wantErr)
-				require.NoError(t, readErr)
-				assert.Contains(t, parseOutputs(string(raw))["refused"], tt.wantErr, "the reason goes to the PR's note")
+				assert.Contains(t, combined, tt.wantErr)
+				assert.Contains(t, got["refused"], tt.wantErr, "the reason goes to the PR's note")
 
 				return
 			}
 
-			require.NoError(t, err, string(combined))
-			require.NoError(t, readErr)
-
-			got := parseOutputs(string(raw))
+			require.NoError(t, err, combined)
 			assert.Equal(t, gitIn(t, checkout, "rev-parse", "HEAD"), got["tip"])
 			assert.Equal(t, tt.tip, got["base"], "the commit it carried onto, for the pr job to check")
 
@@ -1010,6 +1055,227 @@ func TestCarryKeepsOthersCommits(t *testing.T) {
 			var carried []string
 			require.NoError(t, json.Unmarshal([]byte(got["carried"]), &carried))
 			assert.Equal(t, strings.Split(gitIn(t, checkout, "rev-list", "--reverse", tt.tip+"..HEAD"), "\n"), carried)
+		})
+	}
+
+	t.Run("a snapshot that regenerates differently goes into their commit", func(t *testing.T) {
+		t.Parallel()
+
+		checkout, combined, _, err := runCarry(t, tip, regenerates, first)
+		require.NoError(t, err, combined)
+		assert.Equal(t, "1", gitIn(t, checkout, "rev-list", "--count", tip+"..HEAD"), "amended, not a commit of its own")
+		assert.NotEqual(t, gitIn(t, checkout, "rev-parse", tip+":catalog/snapshot.json"), gitIn(t, checkout, "rev-parse", "HEAD:catalog/snapshot.json"), "the regenerated snapshot")
+		assert.Equal(t, "adam test: swap the live test model", gitIn(t, checkout, "log", "-1", "--format=%an %s"))
+	})
+
+	t.Run("a directory a commit removes isn't tested", func(t *testing.T) {
+		t.Parallel()
+
+		_, combined, _, err := runCarry(t, tip, recording, first, removed)
+		require.NoError(t, err, combined)
+
+		got, err := os.ReadFile(asked)
+		require.NoError(t, err)
+		assert.Equal(t, "./providers/anthropic/anthropictest\n", string(got), "only directories that still exist")
+	})
+}
+
+// carry.sh refuses a path ValidateCodeFiles would refuse later, so it must
+// use the same pattern.
+func TestCarryChecksPathsAsTheReportDoes(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile(filepath.Join("..", "..", ".github", "reconcile-models", "carry.sh"))
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), `[[ "$path" =~ `+codeFilePattern.String()+` ]]`)
+}
+
+// TestAffectedPackagesSkipsOtherModules runs sandbox.sh's affected_packages
+// on a module with a directory that has its own go.mod, as examples/ does.
+func TestAffectedPackagesSkipsOtherModules(t *testing.T) {
+	t.Parallel()
+
+	script, err := filepath.Abs(filepath.Join("..", "..", ".github", "reconcile-models", "sandbox.sh"))
+	require.NoError(t, err)
+
+	repo := t.TempDir()
+	for path, content := range map[string]string{
+		"go.mod":            "module example.com/m\n\ngo 1.24\n",
+		"a/a.go":            "package a\n",
+		"b/b.go":            "package b\n\nimport _ \"example.com/m/a\"\n",
+		"c/c.go":            "package c\n",
+		"examples/x/go.mod": "module example.com/x\n\ngo 1.24\n",
+		"examples/x/x.go":   "package x\n",
+	} {
+		require.NoError(t, os.MkdirAll(filepath.Join(repo, filepath.Dir(path)), 0o700))
+		require.NoError(t, os.WriteFile(filepath.Join(repo, path), []byte(content), 0o600))
+	}
+
+	gitIn(t, repo, "init", "-q")
+
+	cmd := exec.CommandContext(t.Context(), "bash", "-c", `source "$1"; affected_packages ./a ./examples/x`, "_", script)
+	cmd.Dir = repo
+
+	cmd.Env = append(os.Environ(), "GOWORK=off", "GOFLAGS=")
+	out, err := cmd.Output()
+	require.NoError(t, err)
+	assert.Equal(t, "example.com/m/a example.com/m/b ", string(out), "a's package and its importer, despite examples/x")
+}
+
+// sandboxCheckout is a checkout for sandbox.sh's tests: a git repository
+// with a snapshot, a file of its own, and a directory for SANDBOX_RO. Paths
+// are resolved, as sandbox.sh resolves them with pwd -P.
+func sandboxCheckout(t *testing.T) (string, string) {
+	t.Helper()
+
+	repo, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	ro, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+
+	gitIn(t, repo, "init", "-q")
+	require.NoError(t, os.MkdirAll(filepath.Join(repo, "catalog"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "catalog", "snapshot.json"), []byte("{}\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "notes.txt"), []byte("notes\n"), 0o600))
+
+	return repo, ro
+}
+
+// TestSandboxKeepsTheCheckoutReadOnly checks the rules sandbox() gives
+// bubblewrap and macOS's sandbox-exec: the checkout, .git and SANDBOX_RO
+// read-only, only the snapshot writable, no network. Stand-ins record the
+// rules, so both systems are checked anywhere; where the real tool works,
+// a real run tries the writes too.
+func TestSandboxKeepsTheCheckoutReadOnly(t *testing.T) {
+	t.Parallel()
+
+	script, err := filepath.Abs(filepath.Join("..", "..", ".github", "reconcile-models", "sandbox.sh"))
+	require.NoError(t, err)
+
+	const run = `SANDBOX_RO=("$2"); source "$1"; shift 2; sandbox "$@"`
+
+	for _, system := range []string{"Linux", "Darwin"} {
+		t.Run("the "+system+" rules", func(t *testing.T) {
+			t.Parallel()
+
+			repo, ro := sandboxCheckout(t)
+			bin, rules := t.TempDir(), filepath.Join(t.TempDir(), "rules")
+
+			stubs := map[string]string{
+				"uname":        "#!/bin/sh\necho " + system + "\n",
+				"bwrap":        "#!/bin/sh\nprintf '%s\\n' \"$@\" >" + rules + "\n",
+				"sandbox-exec": "#!/bin/sh\nprintf '%s\\n' \"$2\" >" + rules + "\n",
+			}
+			for name, content := range stubs {
+				require.NoError(t, os.WriteFile(filepath.Join(bin, name), []byte(content), 0o700)) //nolint:gosec // a stand-in must be executable
+			}
+
+			cmd := exec.CommandContext(t.Context(), "bash", "-c", run, "_", script, ro, "true")
+			cmd.Dir = repo
+
+			cmd.Env = append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+			out, err := cmd.CombinedOutput()
+			require.NoError(t, err, string(out))
+
+			raw, err := os.ReadFile(rules)
+			require.NoError(t, err)
+
+			got := string(raw)
+
+			if system == "Linux" {
+				for _, rule := range []string{
+					"--unshare-net", "--tmpfs\n/run", "--ro-bind\n" + repo + "\n" + repo, "--ro-bind\n" + ro + "\n" + ro,
+					"--bind\n" + repo + "/catalog/snapshot.json\n" + repo + "/catalog/snapshot.json",
+				} {
+					assert.Contains(t, got, rule)
+				}
+
+				return
+			}
+
+			for _, rule := range []string{
+				"(deny network-outbound)", `(deny file-write* (subpath "` + repo + `"))`,
+				`(allow file-write* (literal "` + repo + `/catalog/snapshot.json")`, ` (subpath "` + ro + `"))`,
+			} {
+				assert.Contains(t, got, rule)
+			}
+		})
+	}
+
+	t.Run("a real run", func(t *testing.T) {
+		t.Parallel()
+
+		probe := map[string][]string{"linux": {"bwrap", "--ro-bind", "/", "/", "true"}, "darwin": {"sandbox-exec", "-p", "(version 1)(allow default)", "true"}}[runtime.GOOS]
+		if probe == nil || exec.CommandContext(t.Context(), probe[0], probe[1:]...).Run() != nil {
+			t.Skip("no working sandbox tool here")
+		}
+
+		repo, ro := sandboxCheckout(t)
+		write := func(path string) error {
+			cmd := exec.CommandContext(t.Context(), "bash", "-c", run, "_", script, ro, "touch", path)
+			cmd.Dir = repo
+
+			return cmd.Run()
+		}
+
+		require.NoError(t, write(filepath.Join(repo, "catalog", "snapshot.json")), "the snapshot is writable")
+
+		for _, path := range []string{filepath.Join(repo, "notes.txt"), filepath.Join(repo, ".git", "probe"), filepath.Join(ro, "probe")} {
+			assert.Error(t, write(path), "%s is read-only", path)
+		}
+	})
+}
+
+// TestSandboxCheckFailsOnEachLeak runs sandbox.sh's sandbox_check with a
+// sandbox that leaks one thing at a time: the environment, the network,
+// Docker's socket, or a writable checkout. Stand-ins for curl and touch play
+// a closed network and read-only directories.
+func TestSandboxCheckFailsOnEachLeak(t *testing.T) {
+	t.Parallel()
+
+	script, err := filepath.Abs(filepath.Join("..", "..", ".github", "reconcile-models", "sandbox.sh"))
+	require.NoError(t, err)
+
+	tests := []struct {
+		name, sandbox string
+		curl          map[string]string // the exit status for the Go proxy and for Docker's socket
+		writable      bool
+		wantOK        bool
+	}{
+		{name: "nothing leaks", sandbox: `env -u RECONCILE_PROBE_SECRET "$@"`, wantOK: true},
+		{name: "the environment", sandbox: `"$@"`},
+		{name: "the network", sandbox: `env -u RECONCILE_PROBE_SECRET "$@"`, curl: map[string]string{"net": "0"}},
+		{name: "Docker's socket", sandbox: `env -u RECONCILE_PROBE_SECRET "$@"`, curl: map[string]string{"docker": "0"}},
+		{name: "a writable checkout", sandbox: `env -u RECONCILE_PROBE_SECRET "$@"`, writable: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			repo, _ := sandboxCheckout(t)
+			bin := t.TempDir()
+			// 6 is curl's "couldn't resolve host", 7 its "couldn't connect".
+			curl := "#!/bin/sh\ncase \"$*\" in *unix-socket*) exit " + cmp.Or(tt.curl["docker"], "7") + " ;; *) exit " + cmp.Or(tt.curl["net"], "6") + " ;; esac\n"
+			require.NoError(t, os.WriteFile(filepath.Join(bin, "curl"), []byte(curl), 0o700)) //nolint:gosec // a stand-in must be executable
+
+			if !tt.writable {
+				require.NoError(t, os.WriteFile(filepath.Join(bin, "touch"), []byte("#!/bin/sh\nexit 1\n"), 0o700)) //nolint:gosec // a stand-in must be executable
+			}
+
+			cmd := exec.CommandContext(t.Context(), "bash", "-c", `source "$1"; sandbox() { `+tt.sandbox+`; }; sandbox_check`, "_", script) //nolint:gosec // the test's own stand-ins
+			cmd.Dir = repo
+
+			cmd.Env = append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+			out, err := cmd.CombinedOutput()
+
+			if tt.wantOK {
+				require.NoError(t, err, string(out))
+
+				return
+			}
+
+			require.Error(t, err, "sandbox_check must fail when %s leaks", tt.name)
+			assert.NoFileExists(t, filepath.Join(repo, ".reconcile-probe"), "the check cleans up its probe")
 		})
 	}
 }
@@ -1196,6 +1462,8 @@ func TestPlanPicksTheVendors(t *testing.T) {
 		"anthropic": {"commit": "`+anthropic+`", "agent_at": "2026-10-27T06:17:00Z"}, "openai": {"commit": "`+openai+`", "agent_at": "2026-10-27T06:17:00Z"}}}`), 0o600))
 	stranger := filepath.Join(t.TempDir(), "record.json")
 	require.NoError(t, os.WriteFile(stranger, []byte(`{"head": "c0ffee0000000000000000000000000000000000", "vendors": {}}`), 0o600))
+	broken := filepath.Join(t.TempDir(), "record.json")
+	require.NoError(t, os.WriteFile(broken, []byte(`{"head": "`+openai+`", "vendors": {`), 0o600))
 
 	const now = "2026-10-28T08:00:00Z"
 
@@ -1320,6 +1588,11 @@ func TestPlanPicksTheVendors(t *testing.T) {
 		{
 			name: "a record whose head isn't the PR's counts as none", selected: "google", dryRun: "false", commits: waiting, record: stranger, now: now,
 			want: map[string]string{"run": `["anthropic","openai","google"]`, "agent": `["anthropic","openai","google"]`, "replay": "[]", "record": "false"},
+		},
+		{
+			// A damaged record can't say which commits are the bot's.
+			name: "a record that can't be read counts as none", selected: "google", dryRun: "false", commits: waiting, record: broken, now: now,
+			want: map[string]string{"agent": `["anthropic","openai","google"]`, "replay": "[]", "carry": "[]", "record": "false"},
 		},
 		{
 			name: "a dry run for one vendor runs only that one", selected: "google", dryRun: "true", commits: waiting,

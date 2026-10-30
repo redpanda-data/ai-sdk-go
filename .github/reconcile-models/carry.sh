@@ -48,15 +48,21 @@ for sha in "$@"; do
     refuse "$short is a merge commit, which is never carried"
   parent="$(git rev-parse "$sha^")"
   [[ -z "$(git diff --name-only "$parent" "$sha" -- .github)" ]] || refuse "$short changes .github/, which is never carried"
+  # The PR names each changed path as code, and catalog-report takes only
+  # these characters (codeFilePattern). The note leaves the path out, since
+  # it could break the note.
+  while IFS= read -r -d '' path; do
+    [[ "$path" =~ ^[A-Za-z0-9_./-]{1,200}$ ]] || refuse "$short changes a path the PR can't name (only letters, digits and _./-)"
+  done < <(git diff --name-only -z "$parent" "$sha")
 
-  base="$(git rev-parse HEAD)"
-  tree="$(merge_onto "$parent" "$base" "$sha" 2>"$empty.conflicts")" ||
+  onto="$(git rev-parse HEAD)"
+  tree="$(merge_onto "$parent" "$onto" "$sha" 2>"$empty.conflicts")" ||
     refuse "$short doesn't merge onto this run's commits: $(cat "$empty.conflicts")"
 
   # Their commit on the new base, by its author, with its message.
   commit="$(git log -1 --format=%B "$sha" |
     GIT_AUTHOR_NAME="$(git log -1 --format=%an "$sha")" GIT_AUTHOR_EMAIL="$(git log -1 --format=%ae "$sha")" \
-      GIT_AUTHOR_DATE="$(git log -1 --format=%aD "$sha")" git commit-tree "$tree" -p "$base")" || refuse "$short can't be committed onto this run's commits"
+      GIT_AUTHOR_DATE="$(git log -1 --format=%aD "$sha")" git commit-tree "$tree" -p "$onto")" || refuse "$short can't be committed onto this run's commits"
   git checkout -q --detach "$commit"
   sandbox bash -c "task catalog:snapshot" || refuse "the snapshot doesn't regenerate with $short on this run's commits"
   if ! git diff --quiet -- catalog/snapshot.json; then
@@ -64,7 +70,7 @@ for sha in "$@"; do
     git -c core.hooksPath=/dev/null commit -q --amend --no-edit
   fi
 
-  "$replay_bin" -parent "$parent" -bot "$sha" -base "$base" -replay HEAD -report "$empty" -vendor carried ||
+  "$replay_bin" -parent "$parent" -bot "$sha" -base "$onto" -replay HEAD -report "$empty" -vendor carried ||
     refuse "$short isn't carried exactly onto this run's commits"
   carried+=("$(git rev-parse HEAD)")
 done
