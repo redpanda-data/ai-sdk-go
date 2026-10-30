@@ -531,8 +531,9 @@ func TestBareClaudeIDAliases(t *testing.T) {
 
 // TestVertexToolSearchNeedsAnthropic fails a Claude model whose tool search is
 // on in Vertex but not in providers/anthropic. Vertex follows Anthropic's
-// tool-search list only to turn it off; a person turns it on after a call on
-// Vertex (RULES.md, vertex-capability-one-way).
+// tool-search list only to turn it off (RULES.md, capped-at-vendor); a person
+// turns it on after a call on Vertex (the reconcile-models skill's
+// hosts/vertex.md).
 func TestVertexToolSearchNeedsAnthropic(t *testing.T) {
 	t.Parallel()
 

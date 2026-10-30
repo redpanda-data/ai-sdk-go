@@ -1,6 +1,6 @@
 # OpenAI API (`providers/openai`)
 
-Where the OpenAI API publishes each fact. OpenAI is also its models' publisher, so its pages also give the model-wide facts and the publisher's replacement pick that every host uses. Start with `shared.md`.
+Where the OpenAI API publishes each fact. OpenAI is also its models' vendor, so its pages also give the model-wide facts and the vendor's replacement pick that every host uses. Start with `shared.md`.
 
 ## Pages
 
@@ -17,7 +17,7 @@ Where the OpenAI API publishes each fact. OpenAI is also its models' publisher, 
 - Append `.md` to any page to get Markdown, then grep its tables: the tables are the data. Don't summarize the deprecations page: it is long, and summaries of it have contradicted each other about which models are deprecated.
 - IDs: the catalogue keys on the API ID as the pages write it, dots included (`gpt-6.1-sol`). A model page's Snapshots section lists its dated snapshots and aliases.
 - Rates: the Standard table is the base card. Where it has long-context columns, the whole request above the threshold uses them, so they are a bracket. The Batch, Flex, Fast and Ultrafast tables each give an override card, and a model carries one only when that table lists the model's own row. A rate a table leaves "-" stays 0 (unpriced), and a tier row whose long-context cells are all "-" gets a flat card with no bracket, as GPT-5.5's Fast card does. Copy rates as printed, rounded ones included (price-follow). The comments above `entries()` in `providers/openai/models.go` say how the tier tables map.
-- Cache writes: the 30m write column is the third argument of `WithCacheCreation` (writes with no TTL bucket), and the 12h write column has no field, so it isn't written.
+- Cache writes: the 30m write column is the third argument of `WithCacheCreation` (writes with no TTL bucket), and the 12h write column has no field, so a row names it `12h cache write` (no-catalog-field).
 - Limits: the model page's context window, maximum input tokens and max output tokens. `MaxInputTokens` is the documented maximum input, not the window (limit-follow).
 - `Knowledge`: the model page's knowledge cutoff (knowledge-month-end).
 - Lifecycle: the deprecations page is the only source for deprecation and shutdown dates, and its dates are exact. A model with no announcement carries no dates (lifecycle-exact-date). `ReplacedBy` is the recommended replacement only when the catalogue carries it (replacement-pick).

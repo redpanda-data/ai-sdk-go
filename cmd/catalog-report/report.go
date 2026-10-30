@@ -36,7 +36,7 @@ type (
 
 var (
 	fields       = []string{"new_model", "new_copy", "price", "limit", "lifecycle", "replacement", "knowledge_cutoff", "release_date", "capability", "location"}
-	reasons      = []string{"not_on_named_sources", "out_of_scope", "limited_availability", "vendor_excluded", regionNotOffered, "copy_unlisted", "fixed_fact_differs"}
+	reasons      = []string{"not_on_named_sources", "out_of_scope", "limited_availability", "vendor_excluded", regionNotOffered, "copy_unlisted", "fixed_fact_differs", "copy_unpriced", noCatalogField}
 	valuePattern = regexp.MustCompile(`^[A-Za-z0-9 ._:/+@-]{0,64}$`)
 	// sourcePattern allows only characters that can't end a markdown link,
 	// end a table cell or start HTML, so a URL always renders as one link.
@@ -59,6 +59,10 @@ const (
 	regionNotOffered = "region_not_offered"
 	regionRule       = "region-not-offered"
 )
+
+// A fact the catalogue has no field for is skipped with noCatalogField, and
+// the row names the fact in its values.
+const noCatalogField = "no_catalog_field"
 
 // regionOf splits a <package>:<prefix>.<model ID> offering into its package and
 // region prefix, and is false without a package. Bedrock IDs contain ":", so
@@ -131,9 +135,16 @@ func Validate(report Report, hosts []string, rules reconcile.Rules) []string {
 		checkSource(where, change.SourceURL)
 
 		// A Bedrock family's source regions route its bare names, so only a
-		// new copy moves them (RULES.md, location-follow).
-		if host, _, _ := regionOf(change.Offering); change.Field == "location" && host == "bedrock" {
+		// new copy moves them, and route-add adds one the map lacks (RULES.md,
+		// location-follow).
+		if host, _, _ := regionOf(change.Offering); change.Field == "location" && host == "bedrock" && change.Rule != "route-add" {
 			problems = append(problems, where+": a location change on bedrock re-routes callers, so it goes to a person")
+		}
+
+		// route-add never removes or re-points an entry, so its row has no
+		// old value.
+		if change.Rule == "route-add" && change.Old != "" {
+			problems = append(problems, where+": route-add only adds a source region, and this row has an old value")
 		}
 
 		// A change rests on a Default for its field, never on judgment, so
@@ -180,6 +191,15 @@ func Validate(report Report, hosts []string, rules reconcile.Rules) []string {
 		}
 
 		checkRule(where, item.Rule, "skip:"+code(item.Reason))
+
+		for _, value := range item.Values {
+			checkValue(where, value)
+		}
+
+		// A possible SDK feature is only useful if it says what's missing.
+		if item.Reason == noCatalogField && !slices.ContainsFunc(item.Values, func(v string) bool { return strings.TrimSpace(v) != "" }) {
+			problems = append(problems, where+": a no_catalog_field row names the missing fact in values")
+		}
 
 		// Only a host's own Offered row can show a region isn't offered.
 		if item.Reason == regionNotOffered {
@@ -350,15 +370,40 @@ func groupBy[T any, K comparable, V any](items []T, key func(T) (K, V)) ([]K, ma
 
 // skippedRows groups skipped offerings by the rule and reason that left them out.
 func (base Base) skippedRows(skipped []Skipped) []string {
-	type group struct{ rule, reason string }
+	// Rows that say the same thing share a line, so a fact many offerings
+	// lack is listed once. A no_catalog_field row's values are separate
+	// facts, so each gets its own line; other rows' values describe the row.
+	type group struct{ rule, reason, values string }
 
-	groups, offerings := groupBy(skipped, func(item Skipped) (group, string) { return group{item.Rule, item.Reason}, item.Offering })
+	var each []Skipped
+
+	for _, item := range skipped {
+		if item.Reason != noCatalogField || len(item.Values) < 2 {
+			each = append(each, item)
+
+			continue
+		}
+
+		for _, fact := range item.Values {
+			one := item
+			one.Values = []string{fact}
+			each = append(each, one)
+		}
+	}
+
+	groups, offerings := groupBy(each, func(item Skipped) (group, string) {
+		return group{item.Rule, item.Reason, strings.Join(item.Values, ", ")}, item.Offering
+	})
 	rows := make([]string, 0, len(groups))
 
 	for _, key := range groups {
 		why := code(key.reason)
 		if meaning := base.Rules.Reasons[key.reason]; meaning != "" {
 			why = meaning + " (" + why + ")"
+		}
+
+		if key.values != "" {
+			why += ": " + value(key.values)
 		}
 
 		rows = append(rows, fmt.Sprintf("| %s | %s | %s |\n", base.ruleCell(key.rule), why, valueList(offerings[key])))

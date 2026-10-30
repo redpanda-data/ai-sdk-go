@@ -121,7 +121,7 @@ Facts come only from the hosts' own pages, and code cites only those.
   programmatic-access page. Review API support separately from the SDK's
   selected transport: InvokeModel, direct runtime Messages, Mantle, and Vertex
   envelopes are not interchangeable. Reconcile exceptions per offering, not
-  by publisher or a uniform provider default. Check OpenAI Responses-only
+  by vendor or a uniform provider default. Check OpenAI Responses-only
   models and Bedrock bare-vs-profile IDs explicitly. Do not advertise
   degraded/experimental compatibility layers as native equivalents or infer
   account access, feature parity, new IDs, or runtime routing from this list.

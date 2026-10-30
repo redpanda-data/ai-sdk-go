@@ -38,6 +38,7 @@ func TestParseReport(t *testing.T) {
 		{"missing skipped", `{"changes": [], "needs_human": []}`, true},
 		{"null array", `{"changes": null, "needs_human": [], "skipped": []}`, true},
 		{"a question with both sides", `{"changes": [], "needs_human": [{"offering": "x", "catalogue": "65535", "page": "65536"}], "skipped": []}`, false},
+		{"a skipped row with values", `{"changes": [], "needs_human": [], "skipped": [{"offering": "x", "reason": "no_catalog_field", "rule": "no-catalog-field", "values": ["12h cache write"]}]}`, false},
 		{"both sides only on questions", `{"changes": [{"offering": "x", "catalogue": "65535"}], "needs_human": [], "skipped": []}`, true},
 	}
 	for _, tt := range tests {
