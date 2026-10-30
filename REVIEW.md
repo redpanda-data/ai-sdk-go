@@ -4,49 +4,89 @@ Report every diff-introduced, impactful defect, not preferences. Each finding
 needs a caller or input, consequence, and source location. Omit style-only nits
 and optional future work.
 
-## SDK failure modes
-
-- Verify provider-native model IDs, regions, capabilities, and request envelopes.
-  A first-party mapping does not prove that Bedrock or Vertex sends the same
-  controls. Catalog flags must be exercised through the serving provider.
-- Preserve opaque reasoning signatures, redacted payloads, tool IDs, and ordering
-  across plain responses, streaming, persistence, and replay. Never replay a
-  different provider's opaque payload or export it through telemetry.
-- Check pricing selectors, context boundaries, cache-write accounting, regional
-  premiums, negotiated overrides, and unknown-model behavior against independent
-  provider evidence. Do not infer partner prices from first-party prices.
-- Preserve error classification, cancellation, stream completion, and retry
-  bounds. Request rewrites must retain the rewritten body on redirects and
-  retries, without forwarding ambient credentials to another provider.
+Each section starts with the PRs it applies to. Apply a section only when the PR
+matches it and ignore it otherwise. A PR can match several sections.
 
 ## Evidence
 
-- Prefer a regression at the public model API or wire seam. Confirm it fails
-  before the fix for the intended reason; a compile failure is not that proof.
-  Use table-driven tests and parallel cases where state is isolated.
+Applies to every PR.
+
+- Prefer a regression at the public API or wire seam. Confirm it fails before
+  the fix for the intended reason; a compile failure is not that proof. Use
+  table-driven tests and parallel cases where state is isolated.
 - Run the affected Go packages and the linter version declared in
   `.github/workflows/golangci-lint.yaml`. The global or Taskfile version may differ.
-- For catalog changes, run `task catalog:snapshot` and `task catalog:check`; review
-  unrelated snapshot drift. Build affected examples after public API or dependency
-  changes. Run `task security` for dependency and security-sensitive work.
 - State exact commands, tested versions, unavailable credentials, and skipped
   checks. A fake HTTP peer proves wire behavior, not live provider acceptance.
   Never count a skipped integration test as a passed live check.
-- A live test takes its model from a `<provider>test` setting, which
-  `TestLiveTestModelsAreCurrent` dates against the catalog, or calls
-  `testutil.SkipIfRetired` when it tests one model on purpose. A model ID written
-  into a live test goes red without warning when the vendor shuts it down.
 
 ## Generated files and delivery
 
+Applies to every PR.
+
 Review authored owners rather than hand-editing protobuf output, generated
-connectors, or files marked generated. Regenerate `catalog/snapshot.json` through
-its command. Require reviewed snapshot deltas, not source-text proxy tests.
+connectors, or files marked generated.
 
 Keep unresolved owner decisions visible. Do not substitute an agent's assertion
 for hosted checks, independent approval, or permission to merge.
 
+## Model catalog and pricing
+
+Applies when the PR changes model metadata: `catalog/`, `pricing/`,
+`providers/*/models.go`, Bedrock profiles and routing
+(`providers/bedrock/families.go`, `providers/bedrock/cross_region.go`), or
+Vertex locations (`providers/vertex/locations.go`).
+
+- Verify provider-native model IDs, regions, locations, and capabilities
+  against the vendor's model card or docs. Catalog flags must be exercised
+  through the serving provider.
+- Moving a Bedrock source region to another profile moves the bare-name
+  callers in that region. Each must be able to take the new profile and its
+  price.
+- Check pricing selectors, context boundaries, cache-write accounting, regional
+  premiums, negotiated overrides, and unknown-model behavior against independent
+  provider evidence. Do not infer partner prices from first-party prices.
+- Run `task catalog:snapshot` and `task catalog:check`; review unrelated
+  snapshot drift. Regenerate `catalog/snapshot.json` through its command, and
+  require reviewed snapshot deltas, not source-text proxy tests.
+
+## Provider runtime
+
+Applies when the PR changes how requests or messages are built, sent,
+streamed, retried, persisted, converted, or replayed: `llm/`, `agent/`,
+`runner/`, `store/`, `adapter/`, `plugins/`, and files under `providers/` other
+than the model metadata files above.
+
+- Verify request envelopes per serving provider. A first-party mapping does not
+  prove that Bedrock or Vertex sends the same controls.
+- Preserve opaque reasoning signatures, redacted payloads, tool IDs, and ordering
+  across plain responses, streaming, persistence, and replay. Never replay a
+  different provider's opaque payload or export it through telemetry.
+- Preserve error classification, cancellation, stream completion, and retry
+  bounds. Request rewrites must retain the rewritten body on redirects and
+  retries, without forwarding ambient credentials to another provider.
+
+## Live tests
+
+Applies when the PR adds or changes a test that calls a live provider.
+
+A live test takes its model from a `<provider>test` setting, which
+`TestLiveTestModelsAreCurrent` dates against the catalog, or calls
+`testutil.SkipIfRetired` when it tests one model on purpose. A model ID written
+into a live test goes red without warning when the vendor shuts it down.
+
+## Dependencies and public API
+
+Applies when the PR changes a `go.mod` or `go.sum` in any module, or an exported
+identifier.
+
+Build affected examples. Run `task security` for dependency and
+security-sensitive work.
+
 ## Bot catalog PRs
+
+Applies only to PRs from `vbotbuildovich`, in addition to the model catalog
+section above.
 
 The reconcile-models workflow opens draft PRs from `vbotbuildovich` that change
 the model catalog, following `.github/reconcile-models/RULES.md`. The PR job
