@@ -32,10 +32,17 @@ for hosted checks, independent approval, or permission to merge.
 
 ## Model catalog and pricing
 
-Applies when the PR changes `catalog/`, `pricing/`, or `providers/*/models.go`.
+Applies when the PR changes model metadata: `catalog/`, `pricing/`,
+`providers/*/models.go`, Bedrock profiles and routing
+(`providers/bedrock/families.go`, `providers/bedrock/cross_region.go`), or
+Vertex locations (`providers/vertex/locations.go`).
 
-- Verify provider-native model IDs, regions, and capabilities. Catalog flags
-  must be exercised through the serving provider.
+- Verify provider-native model IDs, regions, locations, and capabilities
+  against the vendor's model card or docs. Catalog flags must be exercised
+  through the serving provider.
+- Moving a Bedrock source region to another profile moves the bare-name
+  callers in that region. Each must be able to take the new profile and its
+  price.
 - Check pricing selectors, context boundaries, cache-write accounting, regional
   premiums, negotiated overrides, and unknown-model behavior against independent
   provider evidence. Do not infer partner prices from first-party prices.
@@ -45,9 +52,10 @@ Applies when the PR changes `catalog/`, `pricing/`, or `providers/*/models.go`.
 
 ## Provider runtime
 
-Applies when the PR changes how requests are built, sent, streamed, retried, or
-replayed: other files under `providers/`, and `llm/`, `plugins/`, `store/`, or
-`agent/`.
+Applies when the PR changes how requests or messages are built, sent,
+streamed, retried, persisted, converted, or replayed: `llm/`, `agent/`,
+`runner/`, `store/`, `adapter/`, `plugins/`, and files under `providers/` other
+than the model metadata files above.
 
 - Verify request envelopes per serving provider. A first-party mapping does not
   prove that Bedrock or Vertex sends the same controls.
