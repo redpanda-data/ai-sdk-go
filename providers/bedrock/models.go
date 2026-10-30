@@ -1665,7 +1665,7 @@ var bedrockFamilies = []family{
 		Capabilities:  gemma4Caps,
 		Modalities:    gemma4Modalities,
 		Constraints:   gemma4Context256kConstraints,
-		Rates:         pricing.RateCard{Base: pricing.NewRates(0.13, 0.40, 0)},
+		Rates:         pricing.RateCard{Base: pricing.NewRates(0.13, 0.45, 0)},
 		// Published regional Standard rates, checked 2026-10-15.
 		// Other tiers use these Standard estimates with Cost.Fallbacks;
 		// unmatched regions (including US) use the base card with a fallback.

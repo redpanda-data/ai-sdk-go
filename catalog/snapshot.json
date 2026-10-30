@@ -5505,7 +5505,7 @@
             "default": {
               "base": {
                 "input_microcents_per_million": 13000000,
-                "output_microcents_per_million": 40000000
+                "output_microcents_per_million": 45000000
               }
             },
             "overrides": [
@@ -9786,7 +9786,7 @@
             "default": {
               "base": {
                 "input_microcents_per_million": 75000000,
-                "output_microcents_per_million": 375000000,
+                "output_microcents_per_million": 400000000,
                 "cached_input_microcents_per_million": 7500000
               }
             }

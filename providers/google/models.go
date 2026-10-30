@@ -233,7 +233,7 @@ func entries() []catalog.Entry {
 			// Google lists $0.75/$3.75 (cache $0.075) through 2026-12-31,
 			// rising to $1.50/$7.50/$0.15 on 2027-01-01. Only the rate in
 			// effect is tracked. No long-context tier is published.
-			Pricing: pricing.FlatInfo(0.75, 3.75, 0.075),
+			Pricing: pricing.FlatInfo(0.75, 4.00, 0.075),
 		},
 		{
 			ID:           ModelGemini37Flash,
