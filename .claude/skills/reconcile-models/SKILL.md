@@ -27,30 +27,9 @@ the workflow.
 
 Facts come only from the hosts' own pages, and code cites only those.
 
-- **Anthropic API, OpenAI API, Claude on Vertex, Bedrock:** their host
-  pages (`hosts/anthropic.md`, `hosts/openai.md`, `hosts/vertex.md`,
-  `hosts/bedrock.md`).
-- **Google** (Gemini API, `providers/google`):
-  - Pricing: `https://ai.google.dev/gemini-api/docs/pricing`
-  - Per-model limits: `https://ai.google.dev/gemini-api/docs/models`
-  - **Lifecycle**: `https://ai.google.dev/gemini-api/docs/deprecations`
-    (fetch `.../deprecations.md.txt`) plus the changelog
-    (`.../docs/changelog`). `ReplacedBy` comes from the replacement column
-    or a changelog recommendation.
-
-  **Never copy lifecycle between Google surfaces.** Vertex retired the
-  Gemini 2.5 models on 2026-10-20; the Gemini API still serves them.
-- **Gemini on Vertex** (`providers/vertex`; `hosts/vertex.md` covers only
-  its Claude models):
-  - Pricing: the Gemini sections of
-    `https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing`,
-    one tab per region. The self-check in `hosts/vertex.md` applies to
-    Gemini too.
-  - Lifecycle (release, retirement and recommended replacement in one
-    table): `https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/model-versions`.
-  - Per-model pages carry launch stage and release date:
-    `https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/<slug>`
-    (e.g. `3-6-flash`).
+- **Anthropic API, OpenAI API, Gemini API, Vertex, Bedrock:** their host
+  pages (`hosts/anthropic.md`, `hosts/openai.md`, `hosts/google.md`,
+  `hosts/vertex.md`, `hosts/bedrock.md`).
 - **Aggregators:** see `hosts/shared.md` ("Hand runs: LiteLLM leads").
 
 ## Per-entry checklist
@@ -68,16 +47,9 @@ Facts come only from the hosts' own pages, and code cites only those.
 
   Lifecycle is the field most likely to be silently stale, because nothing
   in the repo goes red when a vendor announces a date. Work the whole
-  deprecation page, not just the models you suspect. The host pages say
-  how Anthropic, Vertex's Claude pages and Bedrock word their dates; for
-  the rest:
-  - **Read each vendor's date wording before copying it**, and note that
-    each vendor words it differently:
-    - OpenAI: announces exact shutdown dates → `Retires`.
-    - Gemini API: every date is a floor → unset until Google announces an
-      exact date (lifecycle-exact-date).
-    - Gemini on Vertex (`model-versions`): a bare date is firm →
-      `Retires`; "or later" is a floor → unset.
+  deprecation page, not just the models you suspect. Each host page says
+  which of its date wordings is exact and which is a floor
+  (lifecycle-exact-date).
   - **Take the whole row, and check which batch it belongs to.** Each host
     page says how its deprecation tables are laid out and which IDs a row
     counts for (`hosts/openai.md` for OpenAI's dated sections and snapshots).
@@ -85,15 +57,6 @@ Facts come only from the hosts' own pages, and code cites only those.
     Vendors revise recommendations as newer models ship (the gpt-5 snapshots
     moved from the 5.4/5.5 line to 5.6). A stale target is invisible until a
     user follows it.
-  - **Probe when a date has passed (hand runs only; it needs a key).** For
-    Gemini, the models list shows what still exists:
-    ```bash
-    curl -s "https://generativelanguage.googleapis.com/v1beta/models?key=$GOOGLE_API_KEY&pageSize=200" \
-      | jq -r '.models[].name' | sed 's|^models/||' | sort
-    ```
-    A model absent here no longer serves (this is how `gemini-3-pro-preview`
-    was confirmed retired). `Retires` still comes only from a page's exact
-    date (lifecycle-exact-date); tell the person what the list shows.
   - Two guards in `cmd/catalog-snapshot/lifecycle_test.go` catch the
     mechanical half (deprecated-without-`ReplacedBy`, and `ReplacedBy`
     pointing at an already-retired offering). They cannot catch a wrong or
@@ -136,7 +99,7 @@ Facts come only from the hosts' own pages, and code cites only those.
 
 `hosts/shared.md` ("Probes (hand runs only)") has the context-window probe,
 and each host page lists its own, such as Bedrock's `Converse` ID check in
-`hosts/bedrock.md`.
+`hosts/bedrock.md` and the Gemini API's models list in `hosts/google.md`.
 
 ## Finish
 

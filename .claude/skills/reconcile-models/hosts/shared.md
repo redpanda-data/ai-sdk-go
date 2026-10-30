@@ -6,7 +6,7 @@ How to find a fact and write it down, whatever the host. `.github/reconcile-mode
 
 - `.github/reconcile-models/named-sources.json` lists each run's packages, its named hosts and the pages to start from. Its `per_model` entries give each host's page for one model, with `{slug}` standing for an ID such as `sonnet-5-5`.
 - Any page on a named host may be read, not only those.
-- On `platform.claude.com` and `docs.aws.amazon.com`, add `.md` to a page's path to get clean markdown. Google's pages are HTML; add `?hl=en`.
+- On `platform.claude.com` and `docs.aws.amazon.com`, add `.md` to a page's path to get clean markdown; on `docs.cloud.google.com`, add `.md.txt`. Pages on `cloud.google.com` are HTML; add `?hl=en`.
 - Deprecation pages and price lists are long tables. Fetch the page and filter it with `grep` or `jq`; a summary of a long table loses rows.
 
 ## Where facts live in the code
