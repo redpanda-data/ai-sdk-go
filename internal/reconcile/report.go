@@ -73,10 +73,13 @@ type NeedsHuman struct {
 }
 
 // Skipped is an offering the agent left alone, and the rule that left it out.
+// Values say in a few words what the row is about, such as the fact a
+// no_catalog_field row can't hold.
 type Skipped struct {
-	Offering string `json:"offering"`
-	Reason   string `json:"reason"`
-	Rule     string `json:"rule"`
+	Offering string   `json:"offering"`
+	Reason   string   `json:"reason"`
+	Rule     string   `json:"rule"`
+	Values   []string `json:"values,omitempty"`
 }
 
 // ParseReport decodes a report strictly: unknown fields are an error, and all three
