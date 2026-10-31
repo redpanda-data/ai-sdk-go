@@ -21,6 +21,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestPageKey(t *testing.T) {
+	t.Parallel()
+
+	// Each pair is one page: the address the agent cites and the gate's copy.
+	tests := []struct {
+		name, cited, gated string
+	}{
+		{"markdown ending", "https://platform.claude.com/docs/en/about-claude/pricing", "https://platform.claude.com/docs/en/about-claude/pricing.md"},
+		{"Google's .md.txt and ?hl=en", "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/model-versions.md.txt", "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/model-versions?hl=en"},
+		{"Gemini API cited without .md.txt", "https://ai.google.dev/gemini-api/docs/pricing", "https://ai.google.dev/gemini-api/docs/pricing.md.txt"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, pageKey(tt.gated), pageKey(tt.cited))
+		})
+	}
+}
+
 func TestCompareRuns(t *testing.T) {
 	t.Parallel()
 
