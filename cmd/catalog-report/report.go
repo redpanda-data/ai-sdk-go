@@ -21,7 +21,6 @@ import (
 	"path"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/redpanda-data/ai-sdk-go/internal/reconcile"
@@ -319,10 +318,10 @@ type Base struct {
 	Carried []Commit
 }
 
-// Commit is a commit people pushed: its full SHA, its author's name and its
-// subject, as git log gives them.
+// Commit is a commit people pushed: its full SHA and its author's name, as
+// git log gives them.
 type Commit struct {
-	SHA, Author, Subject string
+	SHA, Author string
 }
 
 // printable is an author or subject that can go into the body in a code
@@ -330,10 +329,9 @@ type Commit struct {
 // inside it nothing is a link, a mention or markup.
 var printable = regexp.MustCompile("^[ -_a-~]{1,100}$")
 
-// carriedLine lists the carried commits and says they get fewer checks than
-// the bot's own: carry.sh builds them, checks the catalogue and runs the
-// tests of the packages whose Go files they change, with no report, no lint
-// and no file limit beyond .github/. It shows only when something was carried.
+// carriedLine names the carried commits, so a reviewer knows the PR holds
+// commits people pushed. Their files are under Code changed like the bot's.
+// It shows only when something was carried.
 func (base Base) carriedLine() string {
 	if len(base.Carried) == 0 {
 		return ""
@@ -347,15 +345,10 @@ func (base Base) carriedLine() string {
 			line += " by " + code(commit.Author)
 		}
 
-		if printable.MatchString(commit.Subject) {
-			line += ": " + code(commit.Subject)
-		}
-
 		commits = append(commits, line)
 	}
 
-	return "**Carried from people:** " + strings.Join(commits, "; ") + ". They get fewer checks than the bot's own: no report, no lint, and no limit on files except `.github/`. " +
-		"Only the packages whose Go files they change are tested. Read them as code, values included: their value changes show only in the snapshot diff.\n\n"
+	return "**Not from the bot:** " + count(len(commits), "commit", "commits") + ": " + strings.Join(commits, "; ") + ".\n\n"
 }
 
 // fileLink links text to a repo file at the base commit, at line when it's
@@ -1027,7 +1020,7 @@ func (base Base) render(vendors []Vendor, codeFiles []string, hasDiff bool) (str
 
 	body.WriteString(base.contextLine() + summaryLine(parts) + base.checksLine(codeFiles) + base.carriedLine() + base.dontBlock(waiting, len(suggested), skipped) + base.questionsBox(asks))
 
-	if len(codeFiles) > namedCodeFiles {
+	if len(codeFiles) > 0 {
 		fmt.Fprintf(&body, "### Code changed (%d)\n\n", len(codeFiles))
 
 		for _, file := range codeFiles {
@@ -1041,11 +1034,10 @@ func (base Base) render(vendors []Vendor, codeFiles []string, hasDiff bool) (str
 
 	body.WriteString(impactTable(parts))
 
-	// How pushing works, and the recorded decisions, come after what needs a
-	// decision. carry.sh builds a carried commit and runs the tests of the
-	// packages its Go files change.
-	fmt.Fprintf(&body, "Each run rebuilds this branch from %s, leaving out a clean \"Update branch\" merge. A commit you push here is carried onto each rebuild while it still applies exactly and passes its build and tests. "+
-		"Any other merge commit stops the updates, and so does a `.github/` change or a commit that doesn't apply or fails its checks. The run then leaves a comment saying why. Later runs don't read PR comments.\n\n", base.Branch)
+	// Pushing, and the recorded decisions, come after what needs a decision.
+	// A run carries a pushed commit onto the rebuilt branch, or stops and
+	// says why (plan.sh, carry.sh); REVIEW.md has the details.
+	body.WriteString("You can push commits here: the bot never removes them. It doesn't read comments.\n\n")
 
 	body.WriteString(base.summary())
 
@@ -1088,13 +1080,10 @@ func (base Base) routingSection() string {
 }
 
 // impactTable is "What changes for customers": one row per kind of change,
-// with how many rows of it (per vendor when there are several), what it
-// means for SDK and ADP users, and whether it is easy to revert. A row
-// without the vendor's catalogue has no kind, and isn't counted.
+// with how many offerings it touches and what it means for SDK users and for
+// ADP. A row without the vendor's catalogue has no kind, and isn't counted.
 func impactTable(parts []vendorPart) string {
-	var vendors []string
-
-	counts := map[string]map[string]int{}
+	counts := map[string]int{}
 
 	for _, part := range parts {
 		// rowKinds reads the whole offering, so two rows of one offering
@@ -1104,18 +1093,10 @@ func impactTable(parts []vendorPart) string {
 		for _, change := range part.shown.Changes {
 			for _, kind := range part.base.rowKinds(change, part.Name) {
 				if key := [2]string{change.Offering, kind}; !counted[key] {
-					if counts[kind] == nil {
-						counts[kind] = map[string]int{}
-					}
-
-					counts[kind][part.Name]++
+					counts[kind]++
 					counted[key] = true
 				}
 			}
-		}
-
-		if len(part.shown.Changes) > 0 {
-			vendors = append(vendors, part.Name)
 		}
 	}
 
@@ -1123,41 +1104,17 @@ func impactTable(parts []vendorPart) string {
 		return ""
 	}
 
-	header := "Rows"
-	if len(parts) > 1 {
-		header = strings.Join(vendors, " | ")
-	}
-
 	var table strings.Builder
 
-	fmt.Fprintf(&table, "### What changes for customers\n\n| Change | %s | What it means for SDK and ADP users | Easy to revert? |\n|%s\n",
-		header, strings.Repeat("---|", len(vendors)+3))
+	table.WriteString("### What changes for customers\n\n| Change | Offerings | SDK users, once they upgrade | ADP, once it moves to this SDK and redeploys |\n|---|---|---|---|\n")
 
 	for _, kind := range impacts {
-		if counts[kind.key] == nil {
-			continue
+		if n := counts[kind.key]; n > 0 {
+			fmt.Fprintf(&table, "| %s | %d | %s | %s |\n", kind.name, n, kind.sdk, kind.adp)
 		}
-
-		name := kind.name
-		if kind.acts {
-			name = "**" + name + "**"
-		}
-
-		cells := make([]string, 0, len(vendors))
-
-		for _, vendor := range vendors {
-			cell := "–"
-			if n := counts[kind.key][vendor]; n > 0 {
-				cell = strconv.Itoa(n)
-			}
-
-			cells = append(cells, cell)
-		}
-
-		fmt.Fprintf(&table, "| %s | %s | %s | %s |\n", name, strings.Join(cells, " | "), kind.long, kind.revert)
 	}
 
-	return table.String() + "\nBold: changes requests or money.\n\nNothing here reaches customers until it is on main. SDK users get it when they upgrade. ADP users get it when ADP moves to the new ai-sdk-go and redeploys.\n\n"
+	return table.String() + "\n"
 }
 
 // kindNouns names each report field as the summary line counts it, one and
@@ -1168,10 +1125,6 @@ var kindNouns = map[string][2]string{
 	"knowledge_cutoff": {"knowledge cutoff", "knowledge cutoffs"}, "release_date": {"release date", "release dates"},
 	"capability": {"capability", "capabilities"}, "location": {"location", "locations"},
 }
-
-// namedCodeFiles is how many code files the checks line names; above it,
-// they get their own section.
-const namedCodeFiles = 3
 
 // plural is one when n is 1, else many.
 func plural(n int, one, many string) string {
@@ -1249,35 +1202,26 @@ func summaryLine(parts []vendorPart) string {
 	return line + "\n\n"
 }
 
-// checksLine is what a reviewer must do before marking the PR ready, then
-// what the bot checked: pr-job.sh's steps, which only the bot's own commits
-// go through.
+// checksLine is what a reviewer must do before marking the PR ready: check
+// the values, since pr-job.sh checks only a report's form, and read the code
+// files, which run with secrets once the PR is ready.
 func (base Base) checksLine(codeFiles []string) string {
-	line := "**Before you mark it ready:** check each value in Changes against its source."
+	line := "**Before you mark it ready:** check each value in Changes against its source, because no automated check does."
 
 	switch n := len(codeFiles); {
-	case n == 0:
-	case n <= namedCodeFiles:
-		list, them := code(codeFiles[n-1]), "them"
-		if n == 1 {
-			them = "it"
-		} else {
-			list = valueList(codeFiles[:n-1]) + " and " + list
-		}
-
-		line += " Also read " + list + " as code: marking ready runs " + them + " with secrets."
-	default:
+	case n == 1:
+		line += " Also read the file under Code changed as code: marking ready runs it with secrets."
+	case n > 1:
 		line += fmt.Sprintf(" Also read the %d files under Code changed as code: marking ready runs them with secrets.", n)
 	}
 
-	return line + " Only the agent compared the values with their sources. For its own commits, the bot checked the report's format, each row's rule and that each source is on a named host. " +
-		"It also checked that only allowed files change, and ran unit tests and lint without secrets.\n\n"
+	return line + "\n\n"
 }
 
 // contextLine says what the bot is, for a reviewer who hasn't met it, and
 // links the review guide.
 func (base Base) contextLine() string {
-	return "**Context:** every week, an AI agent per vendor checks the SDK's model catalog against the vendor's docs, and this PR holds the fixes it proposes. " +
+	return "**Context:** an AI agent per vendor checks the SDK's model catalog against the vendor's docs, and this PR holds the fixes it proposes. " +
 		base.fileLink("REVIEW.md", "REVIEW.md#bot-catalog-prs", 0) + " says how to review a bot PR.\n\n"
 }
 

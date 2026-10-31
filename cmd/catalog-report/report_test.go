@@ -488,7 +488,7 @@ func TestRender(t *testing.T) {
 			diff:   diff,
 			base:   Base{Branch: "main"},
 			contains: []string{
-				"Each run rebuilds this branch from main, leaving out a clean \"Update branch\" merge. A commit you push here is carried onto each rebuild while it still applies exactly and passes its build and tests. Any other merge commit stops the updates, and so does a `.github/` change or a commit that doesn't apply or fails its checks. The run then leaves a comment saying why. Later runs don't read PR comments.\n\n",
+				"You can push commits here: the bot never removes them. It doesn't read comments.\n\n",
 			},
 			notContains: []string{"Don't push", "Comment on the PR instead", "Recorded decisions"},
 		},
@@ -504,7 +504,7 @@ func TestRender(t *testing.T) {
 			report:      validReport(),
 			diff:        diff,
 			base:        Base{Branch: "feature-x"},
-			contains:    []string{"Each run rebuilds this branch from feature-x,", "open a PR into feature-x. It can fix the value"},
+			contains:    []string{"open a PR into feature-x. It can fix the value"},
 			notContains: []string{"from main", "on main"},
 		},
 		{
@@ -607,8 +607,8 @@ func TestRender(t *testing.T) {
 			report: withWaiting,
 			base:   Base{Rules: testRules, Branch: "main"},
 			contains: []string{
-				"ran unit tests and lint without secrets.\n\n> [!NOTE]\n> **Don't block this PR:**\n> - 2 product decisions: offer `in` on bedrock (India, asked since 2026-10-15)? offer `ca` on bedrock (Canada, new)?\n> - 1 skipped offering\n\n> [!IMPORTANT]\n> **1 open question,** listed under Open questions below. It doesn't block merging: merging keeps the current value, and a later run may ask again.\n>\n> 1. `claude-sonnet-5-5` · token limit\n\n**To answer a question,**",
-				"add a rule there instead.\n\nEach run rebuilds this branch",
+				"because no automated check does.\n\n> [!NOTE]\n> **Don't block this PR:**\n> - 2 product decisions: offer `in` on bedrock (India, asked since 2026-10-15)? offer `ca` on bedrock (Canada, new)?\n> - 1 skipped offering\n\n> [!IMPORTANT]\n> **1 open question,** listed under Open questions below. It doesn't block merging: merging keeps the current value, and a later run may ask again.\n>\n> 1. `claude-sonnet-5-5` · token limit\n\n**To answer a question,**",
+				"add a rule there instead.\n\nYou can push commits here",
 				"### Open questions (1)\n\n**1. `claude-sonnet-5-5` · token limit**",
 				"- **Sources:** [models](https://platform.claude.com/docs/en/about-claude/models/overview.md)\n\n### Waiting on a product decision (2)",
 				"`bedrock:in.anthropic.claude-haiku-4-5-20251001-v1:0`\n- Offer `ca` on bedrock (not in the table yet)? 1 copy: `bedrock:ca.anthropic.claude-opus-5`\n\n## anthropic\n\n### Changes (1)",
@@ -671,7 +671,7 @@ func TestRender(t *testing.T) {
 			report:    validReport(),
 			diff:      diff,
 			codeFiles: []string{"providers/anthropic/alias_test.go"},
-			contains:  []string{"Also read `providers/anthropic/alias_test.go` as code: marking ready runs it with secrets."},
+			contains:  []string{"Also read the file under Code changed as code: marking ready runs it with secrets.", "### Code changed (1)\n\n- `providers/anthropic/alias_test.go`\n\n"},
 		},
 		{
 			name: "empty old shows none",
@@ -712,9 +712,6 @@ func TestRender(t *testing.T) {
 func TestRenderCarried(t *testing.T) {
 	t.Parallel()
 
-	const fewer = " They get fewer checks than the bot's own: no report, no lint, and no limit on files except `.github/`. " +
-		"Only the packages whose Go files they change are tested. Read them as code, values included: their value changes show only in the snapshot diff."
-
 	sha := func(first string) string { return first + strings.Repeat("0", 40-len(first)) }
 
 	tests := []struct {
@@ -724,26 +721,26 @@ func TestRenderCarried(t *testing.T) {
 	}{
 		{
 			name:    "one commit",
-			carried: []Commit{{SHA: sha("1faeeba"), Author: "Adam Wownysz", Subject: "test(openai): say which model"}},
-			want:    "**Carried from people:** `1faeeba` by `Adam Wownysz`: `test(openai): say which model`." + fewer,
+			carried: []Commit{{SHA: sha("1faeeba"), Author: "Adam Wownysz"}},
+			want:    "**Not from the bot:** 1 commit: `1faeeba` by `Adam Wownysz`.",
 		},
 		{
 			name: "an author or subject that isn't safe to print is left out",
 			carried: []Commit{
-				{SHA: sha("aaaaaaa"), Author: "Łukasz", Subject: "fix: drop the `cache`"},
-				{SHA: sha("bbbbbbb"), Author: "t", Subject: "docs: a"},
+				{SHA: sha("aaaaaaa"), Author: "Łukasz"},
+				{SHA: sha("bbbbbbb"), Author: "t"},
 			},
-			want: "**Carried from people:** `aaaaaaa`; `bbbbbbb` by `t`: `docs: a`." + fewer,
+			want: "**Not from the bot:** 2 commits: `aaaaaaa`; `bbbbbbb` by `t`.",
 		},
 		{
 			// In a code span, a name can't link, mention or start markup.
 			name: "an author name with markup stays in its code span",
 			carried: []Commit{
-				{SHA: sha("aaaaaaa"), Author: "[Approve](https://x)", Subject: "docs: a"},
-				{SHA: sha("bbbbbbb"), Author: "www.example.com @org/team", Subject: "docs: b"},
-				{SHA: sha("ccccccc"), Author: "Mary `O'Neil`", Subject: "docs: c"},
+				{SHA: sha("aaaaaaa"), Author: "[Approve](https://x)"},
+				{SHA: sha("bbbbbbb"), Author: "www.example.com @org/team"},
+				{SHA: sha("ccccccc"), Author: "Mary `O'Neil`"},
 			},
-			want: "**Carried from people:** `aaaaaaa` by `[Approve](https://x)`: `docs: a`; `bbbbbbb` by `www.example.com @org/team`: `docs: b`; `ccccccc`: `docs: c`." + fewer,
+			want: "**Not from the bot:** 3 commits: `aaaaaaa` by `[Approve](https://x)`; `bbbbbbb` by `www.example.com @org/team`; `ccccccc`.",
 		},
 	}
 	for _, tt := range tests {
@@ -758,7 +755,7 @@ func TestRenderCarried(t *testing.T) {
 		})
 	}
 
-	assert.NotContains(t, Render(oneVendor(validReport(), Base{}), "", nil, Base{}), "Carried from people", "no line when nothing was carried")
+	assert.NotContains(t, Render(oneVendor(validReport(), Base{}), "", nil, Base{}), "Not from the bot", "no line when nothing was carried")
 }
 
 // TestLinkNamesThePage checks a source link's text (proposal 8): the page's
@@ -794,7 +791,7 @@ func TestRenderContextLine(t *testing.T) {
 
 	paragraphs := strings.SplitN(Render(oneVendor(validReport(), Base{}), "", nil, Base{URL: baseURL}), "\n\n", 3)
 	require.Len(t, paragraphs, 3)
-	assert.Equal(t, "**Context:** every week, an AI agent per vendor checks the SDK's model catalog against the vendor's docs, and this PR holds the fixes it proposes. "+
+	assert.Equal(t, "**Context:** an AI agent per vendor checks the SDK's model catalog against the vendor's docs, and this PR holds the fixes it proposes. "+
 		"[REVIEW.md]("+baseURL+"/REVIEW.md#bot-catalog-prs) says how to review a bot PR.", paragraphs[1])
 }
 
@@ -882,16 +879,12 @@ func TestRenderSummaryLine(t *testing.T) {
 }
 
 // TestRenderChecksLine checks the line under the summary (proposal 3): what a
-// reviewer must do before marking the PR ready, naming up to three code files,
-// and exactly what the bot checked.
+// reviewer must do before marking the PR ready, and why: no automated check
+// compares a value with its source.
 func TestRenderChecksLine(t *testing.T) {
 	t.Parallel()
 
-	// Each claim is a step of pr-job.sh: render runs catalog-report, which
-	// checks the report's format, each row's rule and the sources' hosts;
-	// allowed() limits the files; the sandbox block runs the tests and lint.
-	const checked = "Only the agent compared the values with their sources. For its own commits, the bot checked the report's format, each row's rule and that each source is on a named host. " +
-		"It also checked that only allowed files change, and ran unit tests and lint without secrets."
+	const check = "**Before you mark it ready:** check each value in Changes against its source, because no automated check does."
 
 	tests := []struct {
 		name      string
@@ -901,23 +894,18 @@ func TestRenderChecksLine(t *testing.T) {
 	}{
 		{
 			name: "no code files",
-			want: "**Before you mark it ready:** check each value in Changes against its source. " + checked,
+			want: check,
 		},
 		{
-			name:      "names one code file",
+			name:      "one code file",
 			codeFiles: []string{"providers/anthropic/alias_test.go"},
-			want:      "**Before you mark it ready:** check each value in Changes against its source. Also read `providers/anthropic/alias_test.go` as code: marking ready runs it with secrets. " + checked,
+			want:      check + " Also read the file under Code changed as code: marking ready runs it with secrets.",
+			section:   true,
 		},
 		{
-			name:      "names three code files",
-			codeFiles: []string{"providers/anthropic/models.go", "providers/bedrock/models.go", "providers/openai/models.go"},
-			want: "**Before you mark it ready:** check each value in Changes against its source. Also read `providers/anthropic/models.go`, `providers/bedrock/models.go` and `providers/openai/models.go` as code: " +
-				"marking ready runs them with secrets. " + checked,
-		},
-		{
-			name:      "points to Code changed above three",
+			name:      "several code files",
 			codeFiles: []string{"go.mod", "providers/anthropic/models.go", "providers/bedrock/models.go", "providers/openai/models.go"},
-			want:      "**Before you mark it ready:** check each value in Changes against its source. Also read the 4 files under Code changed as code: marking ready runs them with secrets. " + checked,
+			want:      check + " Also read the 4 files under Code changed as code: marking ready runs them with secrets.",
 			section:   true,
 		},
 	}
@@ -931,7 +919,7 @@ func TestRenderChecksLine(t *testing.T) {
 			paragraphs := strings.SplitN(body, "\n\n", 5)
 			require.Len(t, paragraphs, 5)
 			assert.Equal(t, tt.want, paragraphs[3])
-			assert.Equal(t, tt.section, strings.Contains(body, "### Code changed"), "Code changed is a section only above three files")
+			assert.Equal(t, tt.section, strings.Contains(body, "### Code changed"), "Code changed is a section whenever code changed")
 		})
 	}
 }
@@ -1163,7 +1151,7 @@ func TestRenderVendorsShowsThePRPartsOnce(t *testing.T) {
 		{Name: "google", Failed: true},
 	}, "+  \"input\": 5", []string{"providers/bedrock/models.go", "providers/openai/models.go"}, base)
 
-	for _, once := range []string{"read `providers/bedrock/models.go` and `providers/openai/models.go` as code", "### Routing changes (1)", "<details><summary>Snapshot diff</summary>"} {
+	for _, once := range []string{"### Code changed (2)", "### Routing changes (1)", "<details><summary>Snapshot diff</summary>"} {
 		assert.Equal(t, 1, strings.Count(body, once), "%q shows once", once)
 	}
 
@@ -1772,7 +1760,7 @@ func TestChangeKinds(t *testing.T) {
 }
 
 // TestEveryKindHasAnImpact checks the impact table's 16 kinds: each has a
-// name, a sentence for customers and a revert cell, and kinds() names only
+// name and a sentence each for SDK users and ADP, and kinds() names only
 // these.
 func TestEveryKindHasAnImpact(t *testing.T) {
 	t.Parallel()
@@ -1781,8 +1769,8 @@ func TestEveryKindHasAnImpact(t *testing.T) {
 
 	for _, kind := range impacts {
 		assert.NotEmpty(t, kind.name, kind.key)
-		assert.NotEmpty(t, kind.long, kind.key)
-		assert.NotEmpty(t, kind.revert, kind.key)
+		assert.NotEmpty(t, kind.sdk, kind.key)
+		assert.NotEmpty(t, kind.adp, kind.key)
 	}
 
 	for _, field := range fields {
@@ -1793,13 +1781,10 @@ func TestEveryKindHasAnImpact(t *testing.T) {
 }
 
 // TestRenderImpactTable checks "What changes for customers" (proposal 4): one
-// row per kind, a count per vendor, bold where requests or money change, and
-// when any of it reaches customers; and each row's Effect cell.
+// row per kind, how many offerings it touches, and what it means for SDK users
+// and for ADP, each once they get the new catalogue; and each row's Effect cell.
 func TestRenderImpactTable(t *testing.T) {
 	t.Parallel()
-
-	const reach = "Bold: changes requests or money.\n\nNothing here reaches customers until it is on main. SDK users get it when they upgrade. " +
-		"ADP users get it when ADP moves to the new ai-sdk-go and redeploys.\n\n"
 
 	t.Run("a column per vendor", func(t *testing.T) {
 		t.Parallel()
@@ -1814,11 +1799,12 @@ func TestRenderImpactTable(t *testing.T) {
 			{Name: "openai", Report: input, Before: openaiBefore, After: openaiAfter},
 		}, "", nil, Base{})
 
-		assert.Contains(t, body, "### What changes for customers\n\n| Change | anthropic | openai | What it means for SDK and ADP users | Easy to revert? |\n|---|---|---|---|---|\n"+
-			"| **price cut** | 1 | – | New calls cost less after the SDK upgrade or ADP deploy; past spend stays; ADP budgets fill more slowly. | yes |\n"+
-			"| **price rise** | – | 1 | New calls cost more after the SDK upgrade or ADP deploy; past spend stays; ADP budgets block sooner. | yes |\n\n"+reach)
-		assert.Less(t, strings.Index(body, "### What changes for customers"), strings.Index(body, "Each run rebuilds"), "how pushing works comes after it")
-		assert.Less(t, strings.Index(body, "Each run rebuilds"), strings.Index(body, "## anthropic"), "the table is at the top")
+		assert.Contains(t, body, "### What changes for customers\n\n| Change | Offerings | SDK users, once they upgrade | ADP, once it moves to this SDK and redeploys |\n|---|---|---|---|\n"+
+			"| price cut | 1 | Cost estimates for new calls drop. Bills don't change: vendors bill their own prices. | New calls record less spend, so budgets fill more slowly. Past spend stays. |\n"+
+			"| price rise | 1 | Cost estimates for new calls rise. Bills don't change: vendors bill their own prices. | New calls record more spend, so budgets reach their limit sooner. Past spend stays. |\n\n"+
+			"You can push commits here: the bot never removes them. It doesn't read comments.\n\n")
+		assert.Less(t, strings.Index(body, "### What changes for customers"), strings.Index(body, "You can push commits here"), "how pushing works comes after it")
+		assert.Less(t, strings.Index(body, "You can push commits here"), strings.Index(body, "## anthropic"), "the table is at the top")
 	})
 
 	t.Run("one vendor, and the Effect cell's short form", func(t *testing.T) {
@@ -1835,10 +1821,9 @@ func TestRenderImpactTable(t *testing.T) {
 
 		body := Render(oneVendor(limit, Base{Before: snapshot(200000), After: snapshot(1000000)}), "", nil, Base{})
 
-		assert.Contains(t, body, "| Change | Rows | What it means for SDK and ADP users | Easy to revert? |\n|---|---|---|---|\n"+
-			"| **max input tokens** | 1 | Agents compact at the new window and send requests up to it; the ADP console shows it. "+
-			"If the real limit is lower, calls fail once, then retry trimmed. Rates unchanged. | yes |\n\n"+reach)
-		assert.Contains(t, body, "| `claude-opus-5-5` | limit | `200000` | `1000000` | agents compact at the new window |")
+		assert.Contains(t, body, "| max input tokens | 1 | Agents trim older turns only when a conversation nears the new window, and send requests up to it. "+
+			"If the vendor's real limit is lower, a call fails once and is retried shorter. | ADP's agents are built on the SDK's, so they change the same way. The console shows the new window. |\n\n")
+		assert.Contains(t, body, "| `claude-opus-5-5` | limit | `200000` | `1000000` | agents use the new window |")
 	})
 
 	// #299: gpt-6.1-sol's input and output limits both changed, one row each,
@@ -1860,8 +1845,8 @@ func TestRenderImpactTable(t *testing.T) {
 
 		body := Render(oneVendor(limits, Base{Before: snapshot(200000, 64000), After: snapshot(1000000, 128000)}), "", nil, Base{})
 
-		assert.Contains(t, body, "| **max input tokens** | 1 |")
-		assert.Contains(t, body, "| **max output tokens** | 1 |")
+		assert.Contains(t, body, "| max input tokens | 1 |")
+		assert.Contains(t, body, "| max output tokens | 1 |")
 	})
 
 	assert.NotContains(t, Render(oneVendor(validReport(), Base{}), "", nil, Base{}), "What changes for customers", "no catalogue, no table")

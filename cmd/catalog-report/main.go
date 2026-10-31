@@ -71,7 +71,7 @@ func main() {
 
 		return nil
 	})
-	flag.Func("carried", "SHA<TAB>AUTHOR<TAB>SUBJECT of a commit people pushed that the carry job carried, once per commit; SHA is the full SHA", func(v string) error {
+	flag.Func("carried", "SHA<TAB>AUTHOR of a commit people pushed that the carry job carried, once per commit; SHA is the full SHA, and a further tab and subject are ignored", func(v string) error {
 		carried = append(carried, v)
 		return nil
 	})
@@ -208,8 +208,8 @@ func main() {
 			failf("-carried %q doesn't start with a commit's full SHA", arg)
 		}
 
-		author, subject, _ := strings.Cut(rest, "\t")
-		base.Carried = append(base.Carried, Commit{SHA: sha, Author: author, Subject: subject})
+		author, _, _ := strings.Cut(rest, "\t")
+		base.Carried = append(base.Carried, Commit{SHA: sha, Author: author})
 	}
 
 	for _, name := range failed {

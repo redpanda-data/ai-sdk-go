@@ -138,7 +138,7 @@ func TestMainReadsEachVendorsFolder(t *testing.T) {
 		{
 			name: "a carried commit is listed under the checks line",
 			args: []string{"-vendor", "anthropic=" + anthropic, "-carried", "1faeeba000000000000000000000000000000000\tt\ttest: swap the live test model"},
-			want: []string{"**Carried from people:** `1faeeba` by `t`: `test: swap the live test model`."},
+			want: []string{"**Not from the bot:** 1 commit: `1faeeba` by `t`."},
 		},
 		{
 			name:    "a carried commit that doesn't start with a full SHA",

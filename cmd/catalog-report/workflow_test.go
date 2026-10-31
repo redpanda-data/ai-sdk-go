@@ -550,7 +550,7 @@ func TestCombineBuildsThePRFromTheVendors(t *testing.T) {
 			name: "commits carried onto the vendors'", legs: legs, anthropic: part("success", anthropic, "true"), openai: part("success", openai, "true"), pending: "[]",
 			carry:  []string{`["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]`, carried, `["` + carried + `"]`, openai},
 			want:   map[string]string{"tip": carried, "changed": "true"},
-			body:   []string{"read `providers/openai/openaitest/constants.go` as code", "**Carried from people:** `" + carried[:7] + "` by `t`: `test: swap the live test model`."},
+			body:   []string{"### Code changed (1)\n\n- `providers/openai/openaitest/constants.go`\n", "**Not from the bot:** 1 commit: `" + carried[:7] + "` by `t`."},
 			files:  "catalog/snapshot.json\nproviders/anthropic/models.go\nproviders/openai/models.go\nproviders/openai/openaitest/constants.go\n",
 			record: map[string][2]string{"anthropic": {anthropic, "4100"}, "openai": {openai, "4100"}},
 		},
