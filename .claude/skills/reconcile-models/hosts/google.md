@@ -11,14 +11,17 @@ Where the Gemini API publishes each fact. Google is also its models' vendor, so 
 | One model | `https://ai.google.dev/gemini-api/docs/models/{id}.md.txt` | Model code, Supported data types, Token limits, Capabilities, Consumption options, Versions, Latest update |
 | Deprecations | `https://ai.google.dev/gemini-api/docs/deprecations.md.txt` | one table per family: model, release date, shutdown date, recommended replacement |
 | Release days | `https://ai.google.dev/gemini-api/docs/changelog.md.txt` | one heading per day |
+| PDF input | `https://ai.google.dev/gemini-api/docs/document-processing.md.txt` | the opening paragraph |
+| Gemma releases | `https://ai.google.dev/gemma/docs/releases.md.txt` | one heading per release day |
 
 ## Reading them
 
 - Append `.md.txt` to any page to get Markdown.
 - Rates: the Standard table is the base card. A cell that splits at "prompts <= 200k tokens" gives a bracket. Output prices include thinking tokens. `providers/google` has no service-tier selector, so the Batch, Flex and Priority tables have no field (no-catalog-field).
 - Limits: the model page's Token limits, "Input token limit" and "Output token limit" (limit-follow).
-- Capabilities: the model page's Capabilities and Consumption options rows (capability-follow).
-- Lifecycle: the deprecations page plus the changelog. `ReplacedBy` comes from the replacement column or a changelog recommendation (replacement-pick). Every shutdown date on the deprecations page is a floor (lifecycle-exact-date).
+- Capabilities: the model page's Supported data types, Capabilities and Consumption options rows (capability-follow). The PDF page documents PDF input for Gemini models, so it covers a model whose page leaves PDF out of its inputs (gemini-2.5-flash's does).
+- Lifecycle: the deprecations page plus the changelog. `ReplacedBy` comes from the replacement column or a changelog recommendation (replacement-pick). `Deprecated` is the day of the changelog entry that announces it (lifecycle-exact-date). Every shutdown date on the deprecations page is a floor (lifecycle-exact-date).
+- Gemma: the Gemma releases page gives each release day and Bedrock's card its launch day; `Released` is the first day callable anywhere (released-first-callable).
 - **Never copy lifecycle between Google surfaces.** Vertex retired the Gemini 2.5 models on 2026-10-20; the Gemini API still serves them. Gemini on Vertex takes its host facts from `vertex.md`.
 
 ## Probes (hand runs only)
