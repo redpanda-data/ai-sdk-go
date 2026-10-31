@@ -5294,7 +5294,7 @@
           },
           "constraints": {
             "max_input_tokens": 922000,
-            "max_output_tokens": 128000,
+            "max_output_tokens": 131072,
             "supported_params": [
               "max_tokens"
             ]
@@ -6983,7 +6983,7 @@
           },
           "constraints": {
             "max_input_tokens": 922000,
-            "max_output_tokens": 128000,
+            "max_output_tokens": 131072,
             "supported_params": [
               "max_tokens",
               "reasoning_effort"
@@ -8698,7 +8698,7 @@
           },
           "constraints": {
             "max_input_tokens": 922000,
-            "max_output_tokens": 128000,
+            "max_output_tokens": 131072,
             "supported_params": [
               "max_tokens"
             ]
@@ -13570,7 +13570,7 @@
             "vision": true
           },
           "constraints": {
-            "max_input_tokens": 272000,
+            "max_input_tokens": 400000,
             "max_output_tokens": 128000,
             "supported_params": [
               "temperature",
@@ -14259,7 +14259,7 @@
           "pricing": {
             "default": {
               "base": {
-                "input_microcents_per_million": 80000000,
+                "input_microcents_per_million": 75000000,
                 "output_microcents_per_million": 450000000,
                 "cached_input_microcents_per_million": 7500000
               }
