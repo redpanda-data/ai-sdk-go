@@ -21,6 +21,7 @@ import (
 	"path"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/redpanda-data/ai-sdk-go/internal/reconcile"
@@ -881,7 +882,7 @@ func questionNumbers(ns []int) string {
 
 	words := make([]string, 0, len(ns))
 	for _, n := range ns {
-		words = append(words, fmt.Sprint(n))
+		words = append(words, strconv.Itoa(n))
 	}
 
 	return "Questions " + strings.Join(words[:len(words)-1], ", ") + " and " + words[len(words)-1]

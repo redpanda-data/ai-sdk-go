@@ -1048,7 +1048,6 @@ func TestRenderCapped(t *testing.T) {
 			require.Equal(t, strings.Count(body, "<details>"), strings.Count(body, "</details>"), "limit %d leaves a fold open", limit)
 		}
 	})
-
 }
 
 // openaiSnapshots are an OpenAI catalogue before and after a patch that

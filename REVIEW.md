@@ -89,11 +89,13 @@ Applies only to PRs from `vbotbuildovich`, in addition to the model catalog
 section above.
 
 The reconcile-models workflow opens draft PRs from `vbotbuildovich` that change
-the model catalog, following `.github/reconcile-models/RULES.md`. Only the
-agent compared the values with their sources. For its own commits, the bot
-checked the report's format, each row's rule and that each source is on a named
-host. It also checked that only allowed files change, and ran unit tests and
-lint without secrets.
+the model catalog, following `.github/reconcile-models/RULES.md`. No automated
+check compares a value with its source: only the agent did. For its own
+commits, the bot checks the report's format, each row's rule and that each
+source is on a named host. It also checks that only allowed files change, and
+runs unit tests and lint without secrets. A commit a person pushes gets fewer
+checks: the run builds it, checks the catalog and tests the packages whose Go
+files it changes.
 
 Words the PR body uses:
 
@@ -101,30 +103,35 @@ Words the PR body uses:
   its limits.
 - A copy is another offering of a model the catalog already has: on another
   host, or in another region, such as a Bedrock `us.` profile.
-- A product decision is whether the catalog offers a region at all. Until
-  someone decides, the bot leaves that region's copies out and lists them as
-  waiting.
-- An open question is a case no rule settles, or one a rule hands to a person.
-  The bot changes nothing for it.
-- A replayed commit is a vendor's commit from an earlier run, applied again
-  with no model because it still makes exactly the same change.
-- A carried commit is one a person pushed onto the bot PR. Each run puts it
-  back on top of the rebuilt branch.
+- An open question is a case no rule settles, one a rule hands to a person, or
+  a region the catalog doesn't offer yet. The bot changes nothing for it.
+- A region question asks whether the catalog offers a region at all. Until
+  someone decides, the bot leaves that region's copies out.
+- A rule draft is the agent's wording of a rule that would settle a case seen on
+  two or more offerings. It does nothing until a person adds it to RULES.md.
+- A reused commit is a vendor's commit from an earlier agent run, applied again
+  with no model because it still makes exactly the same change. Its values were
+  checked against the pages as they were on that run's day.
+- A commit not from the bot is one a person pushed onto the bot PR. Each run
+  rebuilds the branch and puts it back on top while it still applies exactly
+  and passes its build and tests. If it doesn't, or the PR gets another merge
+  commit or a `.github/` change, the run stops updating the PR and comments
+  why. Later runs don't read PR comments.
 
 To review one:
 
 - Check each row in "Changes" against the page it cites, and each offering in
-  "Changed with no row" in the snapshot diff, since no row explains it. Mark the
-  PR ready only when every value matches.
-- Settle each question in "Open questions": fix it on the base branch
-  or record a decision. You may also merge with a question open; the next run
-  asks it again.
+  "Changed with no row" in `catalog/snapshot.json` under Files changed, since no
+  row explains it. Mark the PR ready only when every value matches.
+- Settle each question in "Open questions" as its Decide line says, in a PR to
+  the base branch. You may also merge with a question open; the next run asks
+  it again.
 - In "Held by decisions", each value should still match its entry in
   `.github/reconcile-models/decisions.yaml`.
 - Approve a move in "Routing changes" only if every caller of that bare name
   can take the new profile and its price.
-- Read the files the body names as code before marking the PR ready: that runs
-  them with secrets.
+- Read the files under "Code changed" as code before marking the PR ready: that
+  runs them with secrets.
 - When `TestLiveTestModelsAreCurrent` fails once the PR is ready, push the swap
   it prints onto this same PR, so the date and the swap merge together. Later
   runs carry it onto each rebuild while it still applies exactly.
