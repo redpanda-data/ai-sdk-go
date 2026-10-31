@@ -241,6 +241,21 @@ func TestAgentRunsChecksBeforeClaude(t *testing.T) {
 	}
 }
 
+// TestSchemaFitsItsQuotes checks that the report schema has no single quote:
+// the agent job hands it to Claude inside single quotes, so one would end
+// the argument early and Claude would refuse to start.
+func TestSchemaFitsItsQuotes(t *testing.T) {
+	t.Parallel()
+
+	steps := readJob(t, vendorWorkflow, "agent").Steps
+	claude := steps[stepIndex(t, steps, "claude-code-action", isClaude)]
+	require.Contains(t, claude.With["claude_args"], "--json-schema '${{ steps.inputs.outputs.schema }}'")
+
+	raw, err := os.ReadFile(filepath.Join("..", "..", ".github", "reconcile-models", "report.schema.json"))
+	require.NoError(t, err)
+	assert.NotContains(t, string(raw), "'", "a single quote in the schema ends --json-schema's argument")
+}
+
 // TestEgressCheckWaitsForTheBlock runs check-egress.sh with a stand-in
 // Harden-Runner status file, curl and sleep.
 func TestEgressCheckWaitsForTheBlock(t *testing.T) {

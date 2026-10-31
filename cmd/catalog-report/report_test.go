@@ -114,8 +114,9 @@ func TestValidate(t *testing.T) {
 		{"a link on the page side", func(r *Report) { r.NeedsHuman[0].Page = "https://evil.example/x" }, `needs_human[0]: bad value "https://evil.example/x"`},
 		{"a long page side", func(r *Report) { r.NeedsHuman[0].Page = strings.Repeat("9", 65) }, "needs_human[0]: bad value"},
 		{"a why in plain words", func(r *Report) {
-			r.NeedsHuman[0].Why = "AWS prints 65536 (the API's limit), but we list 65535; which is right?"
+			r.NeedsHuman[0].Why = "AWS prints 65536 (the API limit), but we list 65535; which is right?"
 		}, ""},
+		{"an apostrophe in the why", func(r *Report) { r.NeedsHuman[0].Why = "The page doesn't say" }, `needs_human[0]: bad sentence "The page doesn't say"`},
 		{"markup in the why", func(r *Report) { r.NeedsHuman[0].Why = "Safe to **approve**" }, `needs_human[0]: bad sentence "Safe to **approve**"`},
 		{"a bare link in the why", func(r *Report) { r.NeedsHuman[0].Why = "See www.evil.example for the price" }, "needs_human[0]: bad sentence"},
 		{"an issue link in the why", func(r *Report) { r.NeedsHuman[0].Why = "As agreed in GH-12" }, "needs_human[0]: bad sentence"},
