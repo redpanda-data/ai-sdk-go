@@ -47,8 +47,9 @@ var (
 	// path can't break out of its code span in the PR body.
 	codeFilePattern = regexp.MustCompile(`^[A-Za-z0-9_./-]{1,200}$`)
 	// sentencePattern is the agent's own words, shown as plain text: no
-	// character that starts markup, a link, a mention, an emoji or math.
-	sentencePattern = regexp.MustCompile(`^[A-Za-z0-9 .,;()'?%-]{0,300}$`)
+	// character that starts markup, a link, a mention, an emoji or math, and
+	// no apostrophe, which would end the schema's quoted argument to Claude.
+	sentencePattern = regexp.MustCompile(`^[A-Za-z0-9 .,;()?%-]{0,300}$`)
 	// autolinked is what GitHub links in plain text with those characters.
 	autolinked = regexp.MustCompile(`(?i)www\.|\bgh-[0-9]`)
 )
