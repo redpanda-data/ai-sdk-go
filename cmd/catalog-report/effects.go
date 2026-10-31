@@ -357,32 +357,32 @@ func percent(from, to int64) string {
 
 // impact is what one kind of change means for customers, traced from the
 // code that reads each field in ai-sdk-go and in ADP: its key and its name in
-// the impact table, a short form for a change row's Effect cell, a sentence
-// for the table, whether it is easy to revert, and whether it changes
-// requests or money (acts), which the table puts in bold.
+// the impact table, a short form for a change row's Effect cell, and a
+// sentence each for SDK users and for ADP. A catalogue price changes cost
+// estimates and recorded spend, never a vendor's bill. Each sentence must be
+// true for every change of its kind.
 type impact struct {
-	key, name, short, long, revert string
-	acts                           bool
+	key, name, short, sdk, adp string
 }
 
 // impacts is every kind of change, in the impact table's order.
 var impacts = []impact{
-	{"price down", "price cut", "", "New calls cost less after the SDK upgrade or ADP deploy; past spend stays; ADP budgets fill more slowly.", "yes", true},
-	{"price up", "price rise", "", "New calls cost more after the SDK upgrade or ADP deploy; past spend stays; ADP budgets block sooner.", "yes", true},
-	{"price", "price change", "", "New calls cost more or less on some rates, tiers, regions or context sizes; past spend stays.", "yes", true},
-	{"rate to zero", "rate set to $0", "those tokens record $0", "Those tokens record $0 in ADP and stop counting toward budgets; the SDK flags them as unpriced.", "yes", true},
-	{"max input", "max input tokens", "agents compact at the new window", "Agents compact at the new window and send requests up to it; the ADP console shows it. If the real limit is lower, calls fail once, then retry trimmed. Rates unchanged.", "yes", true},
-	{"max output", "max output tokens", "changes the largest max_tokens accepted", "Changes the largest max_tokens the Bedrock and Anthropic providers and the ADP playground accept; agents and costs unchanged, except Bedrock Claude agents, which ask for at most 16,384 tokens or this limit.", "yes", true},
-	{"flag off", "capability turned off", "labels only", "Labels only: requests and costs unchanged; code that checks the flag stops using the feature.", "yes", false},
-	{"flag on", "capability turned on", "labels; code that checks it starts using it", "Labels only for requests; code that checks the flag starts using the feature, which the vendor may still reject.", "yes", true},
-	{"modality", "input or output kinds", "none", "None: nothing in the SDK or ADP reads modalities.", "yes", false},
-	{"reasoning", "reasoning options", "setup fails for a removed effort", "Removing an effort makes SDK model setup and ADP agent saves fail for it.", "yes", true},
-	{"launch date", "launch date", "none (label)", "None: nothing reads the launch date.", "yes", false},
-	{"deprecation", "deprecation date", "label only", "Label only for customers; CI's live-test check may fail.", "yes", false},
-	{"retirement", "shutdown date", "", "From that date ADP's model list hides it; calls work until the vendor shuts it down.", "yes", true},
-	{"new offering", "new offering", "new ID: callable, listed, priced", "The new ID becomes callable, listed and priced; before, the SDK refused it.", "no, once used", true},
-	{"replacement", "replacement", "", "Migration hint only; no request moves to the replacement.", "yes", false},
-	{"other", "other", "", "Not mapped yet: read the row.", "check", true},
+	{"price down", "price cut", "", "Cost estimates for new calls drop. Bills don't change: vendors bill their own prices.", "New calls record less spend, so budgets fill more slowly. Past spend stays."},
+	{"price up", "price rise", "", "Cost estimates for new calls rise. Bills don't change: vendors bill their own prices.", "New calls record more spend, so budgets reach their limit sooner. Past spend stays."},
+	{"price", "price change", "", "Cost estimates change for calls on the rates, tiers, regions or context sizes that moved. Bills don't change: vendors bill their own prices.", "Recorded spend for new calls changes the same way. Past spend stays."},
+	{"rate to zero", "rate set to $0", "those tokens record $0", "Those tokens cost $0 in estimates, and the SDK flags them as unpriced.", "Those tokens record $0 and stop counting toward budgets."},
+	{"max input", "max input tokens", "agents use the new window", "Agents trim older turns only when a conversation nears the new window, and send requests up to it. If the vendor's real limit is lower, a call fails once and is retried shorter.", "ADP's agents are built on the SDK's, so they change the same way. The console shows the new window."},
+	{"max output", "max output tokens", "changes the largest max_tokens accepted", "The Bedrock and Anthropic providers accept max_tokens up to the new limit.", "The playground accepts up to it."},
+	{"flag off", "capability turned off", "labels only", "Requests don't change. Code that checks the flag stops using the feature.", "Labels only: the console and its API show the change."},
+	{"flag on", "capability turned on", "labels; code that checks it starts using it", "Requests don't change. Code that checks the flag starts using the feature, which the vendor may still reject.", "Labels only: the console and its API show the change."},
+	{"modality", "input or output kinds", "none", "None: the SDK doesn't read modalities.", "None: ADP doesn't read them either."},
+	{"reasoning", "reasoning options", "setup fails for a removed effort", "Removing an effort makes model setup fail for callers who set it.", "Saving an agent with a removed effort fails, and agents check it when they start."},
+	{"launch date", "launch date", "none (label)", "None: nothing reads the launch date.", "None."},
+	{"deprecation", "deprecation date", "label only", "A label only; CI's live-test check may fail.", "None visible."},
+	{"retirement", "shutdown date", "", "No warning: calls work until the vendor shuts the model down.", "From that date the console's model list hides it; calls and agents still work."},
+	{"new offering", "new offering", "new ID: callable, listed, priced", "The new ID becomes callable at its own price; before, the SDK refused it. Hard to undo once callers use it.", "It's listed, priced and usable by agents."},
+	{"replacement", "replacement", "", "A migration hint only; no request moves to the replacement.", "None visible."},
+	{"other", "other", "", "Not mapped yet: read the row.", "Not mapped yet: read the row."},
 }
 
 // kindIndex is a kind's place in impacts.
