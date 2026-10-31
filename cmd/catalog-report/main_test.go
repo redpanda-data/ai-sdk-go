@@ -133,7 +133,7 @@ func TestMainReadsEachVendorsFolder(t *testing.T) {
 		{
 			name: "a replayed vendor names the agent run its change came from",
 			args: []string{"-vendor", "anthropic=" + anthropic, "-vendor", "openai=" + openai, "-replayed", "anthropic=40504204648@2026-10-27T06:17:00Z"},
-			want: []string{"\n## anthropic\n\nThis is the change the agent made in run 40504204648 on 2026-10-27, replayed with no model and checked to be exactly the same on this base.\n"},
+			want: []string{"\n## anthropic\n\nReused from the agent's run on 2026-10-27 (run 40504204648); no new agent run this time.\n"},
 		},
 		{
 			name: "a carried commit is listed under the checks line",

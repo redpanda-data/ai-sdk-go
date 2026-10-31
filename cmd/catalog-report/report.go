@@ -376,15 +376,6 @@ func (base Base) ruleLink(id string) string {
 	return base.fileLink(id, reconcile.RulesPath, base.Rules.Lines[id])
 }
 
-// ruleCell names a row's rule, flagged when no rule covers the case.
-func (base Base) ruleCell(id string) string {
-	if id == reconcile.JudgmentRule {
-		return "⚠ " + base.ruleLink(id)
-	}
-
-	return base.ruleLink(id)
-}
-
 // groupBy collects one value per item under the item's key, keys in the
 // order first seen.
 func groupBy[T any, K comparable, V any](items []T, key func(T) (K, V)) ([]K, map[K][]V) {
@@ -417,7 +408,7 @@ func (base Base) skippedRows(skipped []Skipped) []string {
 			why = meaning + " (" + why + ")"
 		}
 
-		rows = append(rows, fmt.Sprintf("| %s | %s | %s |\n", base.ruleCell(key.rule), why, valueList(offerings[key])))
+		rows = append(rows, fmt.Sprintf("| %s | %s | %s |\n", base.ruleLink(key.rule), why, valueList(offerings[key])))
 	}
 
 	return rows
@@ -440,29 +431,6 @@ func byRegion(skipped []Skipped) ([]region, map[region][]string) {
 func (base Base) answer(key region) (string, string) {
 	answer, date, _ := strings.Cut(base.Rules.NotOffered[key.host][key.prefix], " ")
 	return answer, date
-}
-
-// waitingLines names each host and region a waiting row is in, once, with
-// since when it has been asked.
-func (base Base) waitingLines(skipped []Skipped) []string {
-	regions, offerings := byRegion(skipped)
-	lines := make([]string, 0, len(regions))
-
-	for _, key := range regions {
-		copies := fmt.Sprintf("%d copies", len(offerings[key]))
-		if len(offerings[key]) == 1 {
-			copies = "1 copy"
-		}
-
-		status := "not in the table yet"
-		if answer, date := base.answer(key); answer == "asked" {
-			status = "asked since " + date
-		}
-
-		lines = append(lines, fmt.Sprintf("- Offer %s on %s (%s)? %s: %s\n", code(key.prefix), key.host, status, copies, valueList(offerings[key])))
-	}
-
-	return lines
 }
 
 // question is the needs_human rows that ask one thing, on one offering or
@@ -503,19 +471,23 @@ func questions(needs []NeedsHuman) []question {
 }
 
 // numbered is a question with its vendor, its number across the PR, and the
-// name the box and Open questions both show.
+// name the box and Open questions both show. A region question has a place
+// and the copies waiting on it instead of a question.
 type numbered struct {
 	question
 
 	vendor, name string
 	n            int
+	place        region
+	copies       []string
 }
 
 // numberQuestions numbers every vendor's questions in one run, 1 to N, and
 // names each so no two look alike: its vendor when the body has more than
 // one, the region of a new copy, its first offering and how many more, and
-// the field.
-func numberQuestions(parts []vendorPart) []numbered {
+// the field. Then each host and region the waiting copies are in is one
+// more question, whether to offer it.
+func (base Base) numberQuestions(parts []vendorPart, waiting []Skipped) []numbered {
 	var all []numbered
 
 	for _, part := range parts {
@@ -540,7 +512,52 @@ func numberQuestions(parts []vendorPart) []numbered {
 		}
 	}
 
+	places, copies := byRegion(waiting)
+	for _, place := range places {
+		all = append(all, numbered{place: place, copies: copies[place], name: base.regionName(place, len(copies[place])), n: len(all) + 1})
+	}
+
 	return all
+}
+
+// regionName names a region question: the host, the region and its name,
+// how many copies wait on it, and since when it has been asked.
+func (base Base) regionName(place region, copies int) string {
+	where := code(place.prefix)
+	if name := reconcile.PrefixNames[place.prefix]; name != "" {
+		where += " (" + name + ")"
+	}
+
+	status := "new"
+	if answer, date := base.answer(place); answer == "asked" {
+		status = "asked since " + date
+	}
+
+	return place.host + " · offer region " + where + "? · " + count(copies, "copy", "copies") + " · " + status
+}
+
+// addModelSkill lists every place in the code that offering a new region
+// takes.
+const addModelSkill = ".claude/skills/add-model/SKILL.md"
+
+// regionBlock renders a region question: the copies waiting on it, why a
+// person decides (RULES.md, Offered regions), and how to offer or decline
+// the region, with this region and today in the decline line.
+func (base Base) regionBlock(q numbered) string {
+	these, them := plural(len(q.copies), "this copy", "these copies"), plural(len(q.copies), "it", "them")
+
+	where := "region " + code(q.place.prefix)
+	if name := reconcile.PrefixNames[q.place.prefix]; name != "" {
+		where = name
+	}
+
+	return fmt.Sprintf("**%d. %s** · rule %s\n", q.n, q.name, base.ruleLink(regionRule)) +
+		"- **Copies waiting:** " + valueList(q.copies) + "\n" +
+		"- **Why the bot asks:** The vendor's pages list " + these + " in " + where + ", a region the catalogue doesn't offer, so the bot left " + them + " out. " +
+		"A new region changes routing, price and where data is processed for callers there, so offering one is a product call.\n" +
+		"- **Decide:** offer it, or decline it? To offer it, follow the " + base.fileLink("add-model skill", addModelSkill, 0) + "'s steps for a new region: the provider's code, the copies and " +
+		base.fileLink("RULES.md", reconcile.RulesPath, 0) + "'s Offered list, in one PR. " +
+		"To decline it, list it under Not offered in RULES.md as `` " + code(q.place.prefix) + " (declined " + cmp.Or(base.Today, "YYYY-MM-DD") + ") ``.\n\n"
 }
 
 // boxQuestions is how many questions the box names. The top of the body is
@@ -557,8 +574,8 @@ func (base Base) questionsBox(all []numbered) string {
 
 	var box strings.Builder
 
-	fmt.Fprintf(&box, "> [!IMPORTANT]\n> **%s,** listed under Open questions below. %s block merging: merging keeps the current %s, and a later run may ask again.\n>\n",
-		count(len(all), "open question", "open questions"), plural(len(all), "It doesn't", "They don't"), plural(len(all), "value", "values"))
+	fmt.Fprintf(&box, "> [!IMPORTANT]\n> **%s,** listed under Open questions below. %s block merging: merging changes nothing %s about, and a later run asks again.\n>\n",
+		count(len(all), "open question", "open questions"), plural(len(all), "It doesn't", "They don't"), plural(len(all), "it asks", "they ask"))
 
 	for _, item := range all[:min(len(all), boxQuestions)] {
 		fmt.Fprintf(&box, "> %d. %s\n", item.n, item.name)
@@ -568,24 +585,10 @@ func (base Base) questionsBox(all []numbered) string {
 		fmt.Fprintf(&box, "> …and %d more, under Open questions.\n", more)
 	}
 
-	fmt.Fprintf(&box, "\n**To answer a question,** open a PR into %s. It can fix the value, or add an entry for each offering to %s. "+
-		"In that file, `kind: %s` with a lock keeps a value, and `kind: %s` keeps a new model or copy out. \"No rule covers this\" means no rule in %s settles the case. "+
-		"If the case can come back, add a rule there instead.\n\n",
-		base.Branch, base.fileLink(reconcile.DecisionsPath, reconcile.DecisionsPath, 0), reconcile.KindKeep, reconcile.KindHold, base.fileLink("RULES.md", reconcile.RulesPath, 0))
+	fmt.Fprintf(&box, "\n**To answer a question,** open a PR into %s that does what its Decide line says. If the same case can come up again, add a rule to %s instead.\n\n",
+		base.Branch, base.fileLink("RULES.md", reconcile.RulesPath, 0))
 
 	return box.String()
-}
-
-// questionFile is the file a person edits to change a question's value: the
-// facts file for a model's facts, or the offering's provider package.
-func questionFile(field, offering, vendor string) string {
-	if field == "release_date" || field == "knowledge_cutoff" {
-		return "catalog/facts_data.go"
-	}
-
-	pkg, _ := reconcile.PackageOf(offering, vendor)
-
-	return "providers/" + pkg + "/models.go"
 }
 
 // questionsSection is Open questions: each question in full, with the box's
@@ -600,71 +603,14 @@ func (base Base) questionsSection(all []numbered) string {
 	fmt.Fprintf(&section, "### Open questions (%d)\n\n", len(all))
 
 	for _, item := range all {
-		section.WriteString(base.questionBlock(item))
+		if item.place.prefix != "" {
+			section.WriteString(base.regionBlock(item))
+		} else {
+			section.WriteString(base.questionBlock(item))
+		}
 	}
 
 	return section.String()
-}
-
-// decisionNames names each waiting host and region as a question, with where
-// it processes data and since when it has been asked.
-func (base Base) decisionNames(waiting []Skipped) []string {
-	regions, _ := byRegion(waiting)
-	asked := make([]string, 0, len(regions))
-
-	for _, key := range regions {
-		status := "new"
-		if answer, date := base.answer(key); answer == "asked" {
-			status = "asked since " + date
-		}
-
-		if name := reconcile.PrefixNames[key.prefix]; name != "" {
-			status = name + ", " + status
-		}
-
-		asked = append(asked, "offer "+code(key.prefix)+" on "+key.host+" ("+status+")?")
-	}
-
-	return asked
-}
-
-// dontBlock is the note above the questions box: what needs nothing from the
-// reviewer, by name. It shows only when there is something.
-func (base Base) dontBlock(waiting []Skipped, suggested, skipped int) string {
-	var items []string
-
-	if decisions := base.decisionNames(waiting); len(decisions) > 0 {
-		items = append(items, count(len(decisions), "product decision", "product decisions")+": "+strings.Join(decisions, " "))
-	}
-
-	if suggested > 0 {
-		items = append(items, count(suggested, "suggested rule", "suggested rules"))
-	}
-
-	if skipped > 0 {
-		items = append(items, count(skipped, "skipped offering", "skipped offerings"))
-	}
-
-	if len(items) == 0 {
-		return ""
-	}
-
-	return "> [!NOTE]\n> **Don't block this PR:**\n> - " + strings.Join(items, "\n> - ") + "\n\n"
-}
-
-// waitingSection lists each waiting host and region once for the PR, and how
-// to offer or decline one, with this run's first region as the example.
-func (base Base) waitingSection(waiting []Skipped) string {
-	lines := base.waitingLines(waiting)
-	if len(lines) == 0 {
-		return ""
-	}
-
-	_, example, _ := regionOf(waiting[0].Offering)
-
-	return fmt.Sprintf("### Waiting on a product decision (%d)\n\nModel cards list copies in regions this catalogue doesn't offer, so the bot left them out (rule %s). Nothing changes until someone decides, and they don't block the PR. "+
-		"To answer, either offer the region (move its prefix to Offered in %s, with its code, in a reviewed PR) or decline it (write it under Not offered as `` `%s` (declined %s) ``, and its copies show under Skipped from then on).\n\n",
-		len(lines), base.ruleLink(regionRule), base.fileLink("RULES.md", reconcile.RulesPath, 0), example, cmp.Or(base.Today, "YYYY-MM-DD")) + strings.Join(lines, "") + "\n"
 }
 
 // suggestedFold is Suggested rules, once for the PR and folded.
@@ -682,16 +628,14 @@ func folded(summary, content string) string {
 	return "<details><summary>" + summary + "</summary>\n\n" + content + "</details>\n\n"
 }
 
-// questionBlock renders one question: its offerings, its rule, the rule's
-// fixed question, what the catalogue and the page say, anything else the bot
-// found, and the sources. A no-rule question with both sides asks instead,
-// after them, to keep one or take the other, naming the file to edit.
+// questionBlock renders one question: its offerings, its rule, the two
+// sides and the agent's notes, the Decide line, and the sources.
 func (base Base) questionBlock(q numbered) string {
 	item := q.row
 
 	why := "rule " + base.ruleLink(item.Rule)
 	if item.Rule == reconcile.JudgmentRule {
-		why = "⚠ no rule covers this (" + base.ruleLink(item.Rule) + ")"
+		why = "no rule covers this (" + base.ruleLink(item.Rule) + ")"
 	}
 
 	sources := make([]string, 0, len(item.SourceURLs))
@@ -704,34 +648,48 @@ func (base Base) questionBlock(q numbered) string {
 		block += "- **Offerings:** " + valueList(q.offerings) + "\n"
 	}
 
-	decide := item.Rule == reconcile.JudgmentRule && item.Catalogue != "" && item.Page != ""
-	if fixed := base.Rules.Questions[item.Rule]; fixed != "" && !decide {
-		block += "- **Question:** " + fixed + "\n"
-	}
-
 	if item.Catalogue != "" {
-		block += "- **Catalogue:** " + code(item.Catalogue) + "\n"
+		block += "- **We have:** " + code(item.Catalogue) + "\n"
 	}
 
 	if item.Page != "" {
-		block += "- **Page:** " + code(item.Page) + "\n"
+		block += "- **Vendor's page:** " + code(item.Page) + "\n"
 	}
 
 	if len(item.Values) > 0 {
-		block += "- **Also found:** " + valueList(item.Values) + "\n"
+		block += "- **Agent's notes:** " + valueList(item.Values) + "\n"
 	}
 
-	if decide {
-		file := questionFile(item.Field, item.Offering, q.vendor)
-		if item.Field == reconcile.FieldNewCopy || item.Field == reconcile.FieldNewModel {
-			them := plural(len(q.offerings), "it", "them")
-			block += "- **Decide:** leave " + them + " out, or add " + them + " in " + base.fileLink(file, file, 0) + " with the rates " + plural(len(q.offerings), "its page lists; a copy whose page lists none", "their pages list; a copy whose page lists none") + " can't be added.\n"
-		} else {
-			block += "- **Decide:** keep " + code(item.Catalogue) + ", or edit " + base.fileLink(file, file, 0) + " to match the page (" + code(item.Page) + ").\n"
-		}
+	if decide := base.decide(q); decide != "" {
+		block += "- **Decide:** " + decide + "\n"
 	}
 
 	return block + "- **Sources:** " + strings.Join(sources, ", ") + "\n\n"
+}
+
+// decide is a question's Decide line: the rule's fixed question, or for a
+// no-rule row add or leave out a new model or copy, and keep or change a
+// value both sides give, each with the decision that stops the question.
+func (base Base) decide(q numbered) string {
+	item, n := q.row, len(q.offerings)
+	decisions := base.fileLink("decisions.yaml", reconcile.DecisionsPath, 0)
+
+	switch {
+	case item.Rule != reconcile.JudgmentRule:
+	case item.Field == reconcile.FieldNewCopy || item.Field == reconcile.FieldNewModel:
+		what := plural(n, "this copy", "these copies")
+		if item.Field == reconcile.FieldNewModel {
+			what = plural(n, "this model", "these models")
+		}
+
+		them := plural(n, "it", "them")
+
+		return "add " + what + ", or leave " + them + " out? To leave " + them + " out and stop the question coming back, add a `" + reconcile.KindHold + "` for " + plural(n, "it", "each") + " to " + decisions + "."
+	case item.Catalogue != "" && item.Page != "":
+		return "keep what we have, or change it to match the vendor's page? To keep it and stop the question coming back, add a `" + reconcile.KindKeep + "` for " + plural(n, "it", "each") + " to " + decisions + "."
+	}
+
+	return base.Rules.Questions[item.Rule]
 }
 
 // sameOffering reports whether a report offering names a decision's. Report
@@ -976,13 +934,13 @@ func (part vendorPart) rows() int {
 }
 
 // Render writes the PR body: what applies to the whole PR once, then one
-// section per vendor, then the snapshot diff. Call it only on reports
-// Validate accepted and code files ValidateCodeFiles accepted. codeFiles are
-// the files whose change isn't data only, listed first so a reviewer reads
-// them as code.
+// section per vendor. Call it only on reports Validate accepted and code
+// files ValidateCodeFiles accepted. codeFiles are the files whose change isn't
+// data only, listed first so a reviewer reads them as code. snapshotDiff only
+// tells a changed catalogue from no drift: the diff is under Files changed.
 func Render(vendors []Vendor, snapshotDiff string, codeFiles []string, base Base) string {
 	top, sections := base.render(vendors, codeFiles, snapshotDiff != "")
-	return top + strings.Join(sections, "") + diffBlock(snapshotDiff)
+	return top + strings.Join(sections, "")
 }
 
 // render writes the top of the body and each vendor's section.
@@ -998,13 +956,10 @@ func (base Base) render(vendors []Vendor, codeFiles []string, hasDiff bool) (str
 		needs   []NeedsHuman
 	)
 
-	skipped := 0
-
 	for _, vendor := range vendors {
 		part := base.part(vendor)
 		names, parts = append(names, vendor.Name), append(parts, part)
 		waiting, needs = append(waiting, part.waiting...), append(needs, part.shown.NeedsHuman...)
-		skipped += len(part.shown.Skipped)
 		rows += part.rows()
 		failed = failed || vendor.Failed
 	}
@@ -1016,9 +971,9 @@ func (base Base) render(vendors []Vendor, codeFiles []string, hasDiff bool) (str
 		return body.String(), nil
 	}
 
-	asks, suggested := numberQuestions(parts), suggestions(needs)
+	asks, suggested := base.numberQuestions(parts, waiting), suggestions(needs)
 
-	body.WriteString(base.contextLine() + summaryLine(parts) + base.checksLine(codeFiles) + base.carriedLine() + base.dontBlock(waiting, len(suggested), skipped) + base.questionsBox(asks))
+	body.WriteString(base.contextLine() + summaryLine(parts) + base.checksLine(codeFiles) + base.carriedLine() + base.questionsBox(asks))
 
 	if len(codeFiles) > 0 {
 		fmt.Fprintf(&body, "### Code changed (%d)\n\n", len(codeFiles))
@@ -1045,7 +1000,7 @@ func (base Base) render(vendors []Vendor, codeFiles []string, hasDiff bool) (str
 	// section, so many questions can't push every Changes table out of a
 	// capped body.
 	sections := make([]string, 0, len(parts)+1)
-	if shared := base.questionsSection(asks) + base.waitingSection(waiting) + suggestedFold(suggested); shared != "" {
+	if shared := base.questionsSection(asks) + suggestedFold(suggested); shared != "" {
 		sections = append(sections, shared)
 	}
 
@@ -1185,9 +1140,8 @@ func summaryLine(parts []vendorPart) string {
 		n         int
 		one, many string
 	}{
-		{asks, "open question", "open questions"},
+		{asks + len(regions), "open question", "open questions"},
 		{held, "held by a decision", "held by decisions"},
-		{len(waiting), "copy waiting on " + count(len(regions), "product decision", "product decisions"), "copies waiting on " + count(len(regions), "product decision", "product decisions")},
 		{skipped, "skipped offering", "skipped offerings"},
 	} {
 		if rows.n > 0 {
@@ -1233,7 +1187,13 @@ func (part vendorPart) section() string {
 	body.WriteString("## " + part.Name + "\n\n")
 
 	if part.Replayed.Run != "" {
-		fmt.Fprintf(&body, "This is the change the agent made in run %s on %s, replayed with no model and checked to be exactly the same on this base.\n\n", part.Replayed.Run, part.Replayed.Date)
+		// replay.sh checked it makes exactly the same change on this base.
+		run := "run on " + part.Replayed.Date + " (run " + part.Replayed.Run + ")"
+		if repo, _, found := strings.Cut(base.URL, "/blob/"); found {
+			run = "[run on " + part.Replayed.Date + "](" + repo + "/actions/runs/" + part.Replayed.Run + ")"
+		}
+
+		fmt.Fprintf(&body, "Reused from the agent's %s; no new agent run this time.\n\n", run)
 	}
 
 	switch {
@@ -1252,7 +1212,7 @@ func (part vendorPart) section() string {
 	}
 
 	if names := part.unreported; len(names) > 0 {
-		fmt.Fprintf(&body, "### Changed with no row (%d)\n\nThe patch changes these offerings, but the report has no row for them. Check them in the snapshot diff.\n\n- %s\n\n",
+		fmt.Fprintf(&body, "### Changed with no row (%d)\n\nThe patch changes these offerings, but the report has no row for them. Check them in `catalog/snapshot.json` under Files changed.\n\n- %s\n\n",
 			len(names), valueList(names))
 	}
 
@@ -1266,57 +1226,31 @@ func (part vendorPart) section() string {
 			"| Rule | Why | Offerings |\n|---|---|---|\n"+strings.Join(base.skippedRows(report.Skipped), "")+"\n"))
 	}
 
-	// Its questions and waiting copies show once for the PR, above.
+	// Its questions, its waiting copies' regions among them, show once for
+	// the PR, above.
 	if body.Len() == head {
-		var above []string
-		if len(part.asks) > 0 {
-			above = append(above, "Open questions")
-		}
-
-		if len(part.waiting) > 0 {
-			above = append(above, "Waiting on a product decision")
-		}
-
-		body.WriteString("The run changed nothing; its rows are under " + strings.Join(above, " and ") + " above.\n\n")
+		body.WriteString("The run changed nothing; its rows are under Open questions above.\n\n")
 	}
 
 	return body.String()
 }
 
-// diffBlock is the snapshot diff under its own heading, so it doesn't read as
-// part of the last vendor's section, folded; or nothing without one.
-func diffBlock(snapshotDiff string) string {
-	if snapshotDiff == "" {
-		return ""
-	}
-
-	return "## Snapshot diff\n\n" + folded("Snapshot diff", "```diff\n"+snapshotDiff+"\n```\n")
-}
-
-// truncatedNote ends a snapshot diff that RenderCapped shortened.
-const truncatedNote = "\n… (truncated; see the workflow artifact)"
-
 // cutNote ends a body whose tables alone don't fit.
 const cutNote = "\n\n… (the rest is cut to fit GitHub's size limit; the full report is in the workflow artifacts)\n"
 
 // RenderCapped is Render, kept within limit bytes so GitHub accepts the PR
-// body. The snapshot diff is shortened first; then each vendor's section
-// gets an equal share of the room left, so one big vendor can't push the
-// others out. Both are cut only between lines.
+// body: each vendor's section gets an equal share of the room the top
+// leaves, so one big vendor can't push the others out, cut only between
+// lines.
 func RenderCapped(vendors []Vendor, snapshotDiff string, codeFiles []string, base Base, limit int) string {
 	top, sections := base.render(vendors, codeFiles, snapshotDiff != "")
 
-	body, diff := top+strings.Join(sections, ""), diffBlock(snapshotDiff)
-	if len(body)+len(diff) <= limit {
-		return body + diff
+	body := top + strings.Join(sections, "")
+	if len(body) <= limit {
+		return body
 	}
 
-	if room := limit - len(body) - len(diffBlock(truncatedNote)); room > 0 {
-		return body + diffBlock(cutOnLine(snapshotDiff, room)+truncatedNote)
-	}
-
-	// The tables alone don't fit: drop the diff, and cut so no table row or
-	// fence is left half written.
+	// Cut so no table row or fence is left half written.
 	if body = top + strings.Join(fit(sections, limit-len(top)), ""); len(body) <= limit {
 		return body
 	}

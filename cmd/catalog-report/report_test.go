@@ -465,9 +465,9 @@ func TestRender(t *testing.T) {
 				"## Catalogue drift: anthropic",
 				"| `claude-opus-5-5` | price | `4.00` | `5.00` | [pricing](https://platform.claude.com/docs/en/about-claude/pricing.md) |",
 				"`65535`, `65536`",
-				"| ⚠ `no-rule` | `vendor_excluded` | `claude-haiku-4-5` |",
-				"\n## Snapshot diff\n\n<details><summary>Snapshot diff</summary>\n\n```diff",
+				"| `no-rule` | `vendor_excluded` | `claude-haiku-4-5` |",
 			},
+			notContains: []string{"Snapshot diff", "```diff", "⚠"},
 		},
 		{
 			name:        "no drift",
@@ -476,11 +476,10 @@ func TestRender(t *testing.T) {
 			notContains: []string{"```diff", "## Snapshot diff"},
 		},
 		{
-			name:        "empty report keeps diff",
+			name:        "a diff with no rows isn't no drift, and stays in Files changed",
 			report:      Report{},
 			diff:        diff,
-			contains:    []string{"```diff", "+  \"input\": 5"},
-			notContains: []string{"No drift found"},
+			notContains: []string{"No drift found", "```diff", "+  \"input\": 5"},
 		},
 		{
 			name:   "says what a pushed commit does",
@@ -504,7 +503,7 @@ func TestRender(t *testing.T) {
 			report:      validReport(),
 			diff:        diff,
 			base:        Base{Branch: "feature-x"},
-			contains:    []string{"open a PR into feature-x. It can fix the value"},
+			contains:    []string{"open a PR into feature-x that does what its Decide line says."},
 			notContains: []string{"from main", "on main"},
 		},
 		{
@@ -554,10 +553,10 @@ func TestRender(t *testing.T) {
 			report: twoAsks,
 			base:   Base{URL: baseURL, Rules: testRules},
 			contains: []string{
-				"### Open questions (2)\n\n**1. `claude-sonnet-5-5` · token limit** · ⚠ no rule covers this ([no-rule](" + rulesURL + "#L120))\n" +
-					"- **Question:** No rule covers this. Decide.\n- **Also found:** `65535`, `65536`\n",
+				"### Open questions (2)\n\n**1. `claude-sonnet-5-5` · token limit** · no rule covers this ([no-rule](" + rulesURL + "#L120))\n" +
+					"- **Agent's notes:** `65535`, `65536`\n- **Decide:** No rule covers this. Decide.\n",
 				"- **Sources:** [models](https://platform.claude.com/docs/en/about-claude/models/overview.md)",
-				"**2. `claude-opus-4-1` · replacement** · rule [out-of-reach](" + rulesURL + "#L80)\n- **Question:** Which replacement?\n- **Sources:**",
+				"**2. `claude-opus-4-1` · replacement** · rule [out-of-reach](" + rulesURL + "#L80)\n- **Decide:** Which replacement?\n- **Sources:**",
 			},
 			notContains: []string{"| Offering | Field | Values |"},
 		},
@@ -572,53 +571,53 @@ func TestRender(t *testing.T) {
 			contains: []string{
 				"<details><summary>Skipped (3): left out by a rule</summary>\n\n| Rule | Why | Offerings |",
 				"| [limited-availability](" + rulesURL + "#L40) | the model needs a signup (`limited_availability`) | `claude-mythos-5`, `claude-mythos-5-1` |",
-				"| ⚠ [no-rule](" + rulesURL + "#L120) | the vendor isn't tracked (`vendor_excluded`) | `claude-haiku-4-5` |",
+				"| [no-rule](" + rulesURL + "#L120) | the vendor isn't tracked (`vendor_excluded`) | `claude-haiku-4-5` |",
 			},
 		},
 		{
-			name:   "one waiting line per region, with since when it has been asked",
+			name:   "a question per region, with since when it has been asked",
 			report: Report{Skipped: waiting},
 			base:   Base{URL: baseURL, Rules: testRules},
 			contains: []string{
-				"### Waiting on a product decision (2)\n\nModel cards list copies in regions this catalogue doesn't offer, so the bot left them out " +
-					"(rule [region-not-offered](" + rulesURL + "#L20)). Nothing changes until someone decides, and they don't block the PR. " +
-					"To answer, either offer the region (move its prefix to Offered in [RULES.md](" + baseURL + "/" + reconcile.RulesPath + "), with its code, in a reviewed PR) " +
-					"or decline it (write it under Not offered as `` `in` (declined YYYY-MM-DD) ``, and its copies show under Skipped from then on).\n\n",
-				"- Offer `in` on bedrock (asked since 2026-10-15)? 3 copies: `bedrock:in.anthropic.claude-opus-5`, `bedrock:in.anthropic.claude-sonnet-5`, " +
-					"`bedrock:in.anthropic.claude-haiku-4-5-20251001-v1:0`\n",
-				"- Offer `ca` on bedrock (not in the table yet)? 1 copy: `bedrock:ca.anthropic.claude-opus-5`\n",
-				"> [!NOTE]\n> **Don't block this PR:**\n> - 2 product decisions: offer `in` on bedrock (India, asked since 2026-10-15)? offer `ca` on bedrock (Canada, new)?\n\n",
+				"> [!IMPORTANT]\n> **2 open questions,** listed under Open questions below. They don't block merging: merging changes nothing they ask about, and a later run asks again.\n>\n" +
+					"> 1. bedrock · offer region `in` (India)? · 3 copies · asked since 2026-10-15\n> 2. bedrock · offer region `ca` (Canada)? · 1 copy · new\n\n",
+				"### Open questions (2)\n\n**1. bedrock · offer region `in` (India)? · 3 copies · asked since 2026-10-15** · rule [region-not-offered](" + rulesURL + "#L20)\n" +
+					"- **Copies waiting:** `bedrock:in.anthropic.claude-opus-5`, `bedrock:in.anthropic.claude-sonnet-5`, `bedrock:in.anthropic.claude-haiku-4-5-20251001-v1:0`\n" +
+					"- **Why the bot asks:** The vendor's pages list these copies in India, a region the catalogue doesn't offer, so the bot left them out. A new region changes routing, price and where data is processed for callers there, so offering one is a product call.\n" +
+					"- **Decide:** offer it, or decline it? To offer it, follow the [add-model skill](" + baseURL + "/.claude/skills/add-model/SKILL.md)'s steps for a new region: the provider's code, the copies and [RULES.md](" + baseURL + "/" + reconcile.RulesPath + ")'s Offered list, in one PR. To decline it, list it under Not offered in RULES.md as `` `in` (declined YYYY-MM-DD) ``.\n\n",
+				"**2. bedrock · offer region `ca` (Canada)? · 1 copy · new** · rule [region-not-offered](" + rulesURL + "#L20)\n- **Copies waiting:** `bedrock:ca.anthropic.claude-opus-5`\n" +
+					"- **Why the bot asks:** The vendor's pages list this copy in Canada, a region the catalogue doesn't offer, so the bot left it out.",
 			},
-			notContains: []string{"[!IMPORTANT]"},
+			notContains: []string{"[!NOTE]", "Waiting on a product decision", "product decision"},
 		},
 		{
 			name:   "a declined region's copies are skipped, not waiting",
 			report: Report{Skipped: waiting},
 			base:   Base{URL: baseURL, Rules: declinedCA},
 			contains: []string{
-				"### Waiting on a product decision (1)",
+				"### Open questions (1)\n\n**1. bedrock · offer region `in` (India)?",
 				"<details><summary>Skipped (1): left out by a rule</summary>\n\n| Rule | Why | Offerings |\n|---|---|---|\n| [region-not-offered](" + rulesURL + "#L20) | `region_not_offered` | `bedrock:ca.anthropic.claude-opus-5` |\n",
-				"> [!NOTE]\n> **Don't block this PR:**\n> - 1 product decision: offer `in` on bedrock (India, asked since 2026-10-15)?\n> - 1 skipped offering\n\n",
 			},
-			notContains: []string{"Offer `ca`", "`ca` on bedrock"},
+			notContains: []string{"offer region `ca`", "[!NOTE]"},
 		},
 		{
 			name:   "questions for people come after the top lines, and Open questions before the first section",
 			report: withWaiting,
 			base:   Base{Rules: testRules, Branch: "main"},
 			contains: []string{
-				"because no automated check does.\n\n> [!NOTE]\n> **Don't block this PR:**\n> - 2 product decisions: offer `in` on bedrock (India, asked since 2026-10-15)? offer `ca` on bedrock (Canada, new)?\n> - 1 skipped offering\n\n> [!IMPORTANT]\n> **1 open question,** listed under Open questions below. It doesn't block merging: merging keeps the current value, and a later run may ask again.\n>\n> 1. `claude-sonnet-5-5` · token limit\n\n**To answer a question,**",
-				"add a rule there instead.\n\nYou can push commits here",
-				"### Open questions (1)\n\n**1. `claude-sonnet-5-5` · token limit**",
-				"- **Sources:** [models](https://platform.claude.com/docs/en/about-claude/models/overview.md)\n\n### Waiting on a product decision (2)",
-				"`bedrock:in.anthropic.claude-haiku-4-5-20251001-v1:0`\n- Offer `ca` on bedrock (not in the table yet)? 1 copy: `bedrock:ca.anthropic.claude-opus-5`\n\n## anthropic\n\n### Changes (1)",
+				"because no automated check does.\n\n> [!IMPORTANT]\n> **3 open questions,** listed under Open questions below. They don't block merging: merging changes nothing they ask about, and a later run asks again.\n>\n" +
+					"> 1. `claude-sonnet-5-5` · token limit\n> 2. bedrock · offer region `in` (India)? · 3 copies · asked since 2026-10-15\n> 3. bedrock · offer region `ca` (Canada)? · 1 copy · new\n\n**To answer a question,**",
+				"add a rule to `RULES.md` instead.\n\nYou can push commits here",
+				"### Open questions (3)\n\n**1. `claude-sonnet-5-5` · token limit**",
+				"- **Sources:** [models](https://platform.claude.com/docs/en/about-claude/models/overview.md)\n\n**2. bedrock · offer region `in` (India)?",
+				"- **Decide:** offer it, or decline it? To offer it, follow the `add-model skill`'s steps for a new region: the provider's code, the copies and `RULES.md`'s Offered list, in one PR. To decline it, list it under Not offered in RULES.md as `` `ca` (declined YYYY-MM-DD) ``.\n\n## anthropic\n\n### Changes (1)",
 			},
 		},
 		{
 			name:        "held rows aren't questions",
 			report:      twoAsks,
 			base:        Base{Decisions: []reconcile.Decision{keepLimit}, Today: "2026-10-14"},
-			contains:    []string{"> [!IMPORTANT]\n> **1 open question,** listed under Open questions below. It doesn't block merging: merging keeps the current value, and a later run may ask again.\n>\n> 1. `claude-opus-4-1` · replacement\n\n"},
+			contains:    []string{"> [!IMPORTANT]\n> **1 open question,** listed under Open questions below. It doesn't block merging: merging changes nothing it asks about, and a later run asks again.\n>\n> 1. `claude-opus-4-1` · replacement\n\n"},
 			notContains: []string{"`claude-sonnet-5-5` · token limit", "product decision"},
 		},
 		{
@@ -626,18 +625,20 @@ func TestRender(t *testing.T) {
 			report: manyAsks,
 			base:   Base{Rules: testRules},
 			contains: []string{
-				"> [!IMPORTANT]\n> **7 open questions,** listed under Open questions below. They don't block merging: merging keeps the current values, and a later run may ask again.\n>\n" +
+				"> [!IMPORTANT]\n> **9 open questions,** listed under Open questions below. They don't block merging: merging changes nothing they ask about, and a later run asks again.\n>\n" +
 					"> 1. `claude-opus-5` · token limit\n> 2. `claude-opus-5-5` · token limit\n> 3. `claude-sonnet-5` · token limit\n> 4. `claude-sonnet-5-5` · token limit\n" +
-					"> 5. `claude-haiku-5` · token limit\n> 6. `claude-haiku-5-5` · token limit\n> 7. `claude-fable-5` · token limit\n\n",
-				"> [!NOTE]\n> **Don't block this PR:**\n> - 2 product decisions: offer `us-gov` on bedrock (GovCloud (US), new)? offer `zz` on bedrock (new)?\n> - 1 suggested rule\n\n",
+					"> 5. `claude-haiku-5` · token limit\n> 6. `claude-haiku-5-5` · token limit\n> 7. `claude-fable-5` · token limit\n" +
+					"> 8. bedrock · offer region `us-gov` (GovCloud (US))? · 1 copy · new\n> 9. bedrock · offer region `zz`? · 1 copy · new\n\n",
+				"- **Why the bot asks:** The vendor's pages list this copy in region `zz`, a region the catalogue doesn't offer,",
 			},
+			notContains: []string{"[!NOTE]"},
 		},
 		{
 			name:        "no questions, no box",
 			report:      Report{Skipped: waiting[2:3]},
 			base:        Base{Rules: declinedCA},
-			contains:    []string{"<summary>Skipped (1)", "> [!NOTE]\n> **Don't block this PR:**\n> - 1 skipped offering\n\n"},
-			notContains: []string{"[!IMPORTANT]", "product decision"},
+			contains:    []string{"<summary>Skipped (1)"},
+			notContains: []string{"[!IMPORTANT]", "[!NOTE]", "offer region"},
 		},
 		{
 			name:        "waiting rows aren't listed as skipped",
@@ -863,7 +864,7 @@ func TestRenderSummaryLine(t *testing.T) {
 			name:    "counts what stays as it is",
 			vendors: oneVendor(unchanged, Base{}),
 			base:    Base{Decisions: []reconcile.Decision{keepLimit}, Today: "2026-10-14"},
-			want:    "**1 change** to the catalogue: 1 price. Not changed: 2 open questions, 1 held by a decision, 2 copies waiting on 1 product decision, 2 skipped offerings.",
+			want:    "**1 change** to the catalogue: 1 price. Not changed: 3 open questions, 1 held by a decision, 2 skipped offerings.",
 		},
 	}
 	for _, tt := range tests {
@@ -988,26 +989,6 @@ func TestRenderCapped(t *testing.T) {
 		assert.True(t, strings.HasPrefix(body, top), "the top of the body stays whole")
 		assert.Contains(t, body, "cut to fit GitHub's size limit")
 		assert.NotContains(t, body, "claude-model-099", "the rows past the limit are cut")
-		assert.NotContains(t, body, "## Snapshot diff", "the diff's heading goes with the diff")
-	})
-
-	t.Run("too long: diff cut on a line, body within the limit", func(t *testing.T) {
-		t.Parallel()
-
-		const limit = 6000
-
-		body := RenderCapped(oneVendor(report, Base{}), diff, nil, Base{}, limit)
-		assert.LessOrEqual(t, len(body), limit)
-		assert.Contains(t, body, "### Changes (1)")
-		assert.Contains(t, body, "\n## Snapshot diff\n\n<details>", "a shortened diff keeps its heading")
-		assert.Contains(t, body, "truncated; see the workflow artifact")
-		assert.Contains(t, body, lines[0]+"\n")
-		assert.NotContains(t, body, lines[len(lines)-1])
-
-		kept := body[strings.Index(body, lines[0]):strings.Index(body, "\n… (truncated")]
-		for line := range strings.SplitSeq(kept, "\n") {
-			assert.Contains(t, lines, line, "the diff is cut only between lines")
-		}
 	})
 
 	t.Run("many questions don't push the Changes table out", func(t *testing.T) {
@@ -1054,19 +1035,6 @@ func TestRenderCapped(t *testing.T) {
 		}
 	})
 
-	t.Run("notes stay when the diff is cut", func(t *testing.T) {
-		t.Parallel()
-
-		before, after := effectSnapshots(t)
-		priced := Report{Changes: []Change{{
-			Offering: "claude-sonnet-5-5", Field: "price", Old: "cache read 0.20", New: "cache read 0.10",
-			SourceURL: "https://platform.claude.com/docs/en/about-claude/pricing",
-		}}}
-
-		body := RenderCapped(oneVendor(priced, Base{Before: before, After: after}), diff, nil, Base{}, 6000)
-		assert.Contains(t, body, "truncated; see the workflow artifact")
-		assert.Contains(t, body, "| cache read 0.2 → 0.1 (-50%) |")
-	})
 }
 
 // openaiSnapshots are an OpenAI catalogue before and after a patch that
@@ -1133,7 +1101,7 @@ func TestRenderVendors(t *testing.T) {
 }
 
 // TestRenderVendorsShowsThePRPartsOnce checks that what covers the whole PR
-// (code changed, routing changes, the snapshot diff) shows once, outside the
+// (code changed, routing changes) shows once, outside the
 // vendor sections, and that a vendor with nothing to change, or whose run
 // failed, still has a section that says so.
 func TestRenderVendorsShowsThePRPartsOnce(t *testing.T) {
@@ -1151,12 +1119,12 @@ func TestRenderVendorsShowsThePRPartsOnce(t *testing.T) {
 		{Name: "google", Failed: true},
 	}, "+  \"input\": 5", []string{"providers/bedrock/models.go", "providers/openai/models.go"}, base)
 
-	for _, once := range []string{"### Code changed (2)", "### Routing changes (1)", "<details><summary>Snapshot diff</summary>"} {
+	for _, once := range []string{"### Code changed (2)", "### Routing changes (1)"} {
 		assert.Equal(t, 1, strings.Count(body, once), "%q shows once", once)
 	}
 
 	assert.Less(t, strings.Index(body, "### Routing changes"), strings.Index(body, "## anthropic"), "the PR's parts come before the vendors")
-	assert.Greater(t, strings.Index(body, "## Snapshot diff"), strings.Index(body, "## google"), "the snapshot diff comes last")
+	assert.NotContains(t, body, "Snapshot diff", "the diff stays in Files changed")
 	assert.Equal(t, "The run found nothing to change.", strings.TrimSpace(section(t, body, "openai")))
 	assert.Contains(t, section(t, body, "google"), "This vendor's run failed, so this PR has nothing from it.")
 }
@@ -1177,7 +1145,7 @@ func TestRenderKeepsEveryVendorPart(t *testing.T) {
 	}, "+  \"input\": 5", nil, Base{Decisions: []reconcile.Decision{keepLimit}, Today: "2026-10-14"})
 
 	anthropic := section(t, body, "anthropic")
-	for _, part := range []string{"This is the change the agent made in run 123 on 2026-10-28, replayed with no model", "### Changes (1)", "### Changed with no row (", "### Held by decisions (1)", "<summary>Skipped (1)"} {
+	for _, part := range []string{"Reused from the agent's run on 2026-10-28 (run 123); no new agent run this time.", "### Changes (1)", "### Changed with no row (", "### Held by decisions (1)", "<summary>Skipped (1)"} {
 		assert.Contains(t, anthropic, part)
 	}
 
@@ -1275,17 +1243,15 @@ func TestRenderQuestionsBox(t *testing.T) {
 	body := Render([]Vendor{{Name: "anthropic", Report: validReport()}, {Name: "openai", Report: openai}}, "", nil, Base{Branch: "main"})
 
 	assert.Contains(t, body, "> [!IMPORTANT]\n> **3 open questions,** listed under Open questions below. "+
-		"They don't block merging: merging keeps the current values, and a later run may ask again.\n>\n"+
+		"They don't block merging: merging changes nothing they ask about, and a later run asks again.\n>\n"+
 		"> 1. anthropic · `claude-sonnet-5-5` · token limit\n> 2. openai · us copy: `bedrock:us.openai.gpt-6-1` · new copy\n"+
 		"> 3. openai · global copy: `bedrock:global.openai.gpt-6-1` · new copy\n\n"+
-		"**To answer a question,** open a PR into main. It can fix the value, or add an entry for each offering to `.github/reconcile-models/decisions.yaml`. "+
-		"In that file, `kind: keep` with a lock keeps a value, and `kind: hold` keeps a new model or copy out. \"No rule covers this\" means no rule in `RULES.md` settles the case. "+
-		"If the case can come back, add a rule there instead.\n\n")
+		"**To answer a question,** open a PR into main that does what its Decide line says. If the same case can come up again, add a rule to `RULES.md` instead.\n\n")
 
 	for _, block := range []string{
-		"### Open questions (3)\n\n**1. anthropic · `claude-sonnet-5-5` · token limit** · ⚠ no rule covers this (`no-rule`)\n",
-		"**2. openai · us copy: `bedrock:us.openai.gpt-6-1` · new copy** · ⚠ no rule covers this (`no-rule`)\n",
-		"**3. openai · global copy: `bedrock:global.openai.gpt-6-1` · new copy** · ⚠ no rule covers this (`no-rule`)\n",
+		"### Open questions (3)\n\n**1. anthropic · `claude-sonnet-5-5` · token limit** · no rule covers this (`no-rule`)\n",
+		"**2. openai · us copy: `bedrock:us.openai.gpt-6-1` · new copy** · no rule covers this (`no-rule`)\n",
+		"**3. openai · global copy: `bedrock:global.openai.gpt-6-1` · new copy** · no rule covers this (`no-rule`)\n",
 	} {
 		assert.Contains(t, body, block)
 	}
@@ -1293,28 +1259,6 @@ func TestRenderQuestionsBox(t *testing.T) {
 	assert.Less(t, strings.Index(body, "### Open questions"), strings.Index(body, "## anthropic"), "the questions come before the vendors")
 	assert.NotContains(t, section(t, body, "anthropic"), "no rule covers this")
 	assert.NotContains(t, section(t, body, "openai"), "no rule covers this")
-}
-
-// TestQuestionFile checks the file a Decide line names: the offering's
-// provider package, or the facts file for a model's facts. Each file exists.
-func TestQuestionFile(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct{ field, offering, vendor, want string }{
-		{"price", "bedrock:us.anthropic.claude-sonnet-5-5", "anthropic", "providers/bedrock/models.go"},
-		{"limit", "claude-sonnet-5-5", "anthropic", "providers/anthropic/models.go"},
-		{"capability", "gpt-6-1", "openai", "providers/openai/models.go"},
-		{"release_date", "claude-sonnet-5-5", "anthropic", "catalog/facts_data.go"},
-		{"knowledge_cutoff", "gpt-6-1", "openai", "catalog/facts_data.go"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.field+" on "+tt.offering, func(t *testing.T) {
-			t.Parallel()
-
-			assert.Equal(t, tt.want, questionFile(tt.field, tt.offering, tt.vendor))
-			assert.FileExists(t, filepath.Join("..", "..", tt.want))
-		})
-	}
 }
 
 // The agent's schema and the validator must accept the same fields and skip
@@ -1406,14 +1350,15 @@ func TestSchemaValues(t *testing.T) {
 	}
 }
 
-// TestRenderQuestionBlock checks one Open questions row: a rule's fixed
-// question first, then the two sides and other values, then a no-rule row's
-// Decide line naming the file to edit, then the sources.
+// TestRenderQuestionBlock checks one Open questions row: the two sides and the
+// agent's notes, then the Decide line (a rule's fixed question, or for a
+// no-rule row with both sides keep or change, and add or leave out for a new
+// model or copy, with the decision that stops the question), then the sources.
 func TestRenderQuestionBlock(t *testing.T) {
 	t.Parallel()
 
 	const (
-		noRule  = "**1. `claude-sonnet-5-5` · token limit** · ⚠ no rule covers this (`no-rule`)\n"
+		noRule  = "**1. `claude-sonnet-5-5` · token limit** · no rule covers this (`no-rule`)\n"
 		sources = "- **Sources:** [a](https://platform.claude.com/a)\n\n"
 	)
 
@@ -1432,13 +1377,13 @@ func TestRenderQuestionBlock(t *testing.T) {
 		{
 			name: "no rule, both sides: keep or change",
 			item: ask("no-rule", "65535", "65536", "providers/anthropic/models.go"),
-			want: noRule + "- **Catalogue:** `65535`\n- **Page:** `65536`\n- **Also found:** `providers/anthropic/models.go`\n" +
-				"- **Decide:** keep `65535`, or edit `providers/anthropic/models.go` to match the page (`65536`).\n" + sources,
+			want: noRule + "- **We have:** `65535`\n- **Vendor's page:** `65536`\n- **Agent's notes:** `providers/anthropic/models.go`\n" +
+				"- **Decide:** keep what we have, or change it to match the vendor's page? To keep it and stop the question coming back, add a `keep` for it to `decisions.yaml`.\n" + sources,
 		},
 		{
 			name: "both sides and nothing else found",
 			item: ask("no-rule", "65535", "65536"),
-			want: noRule + "- **Catalogue:** `65535`\n- **Page:** `65536`\n- **Decide:** keep `65535`, or edit `providers/anthropic/models.go` to match the page (`65536`).\n" + sources,
+			want: noRule + "- **We have:** `65535`\n- **Vendor's page:** `65536`\n- **Decide:** keep what we have, or change it to match the vendor's page? To keep it and stop the question coming back, add a `keep` for it to `decisions.yaml`.\n" + sources,
 		},
 		{
 			name: "a new copy with both sides: leave it out or add it",
@@ -1446,24 +1391,24 @@ func TestRenderQuestionBlock(t *testing.T) {
 				Offering: "bedrock:us.anthropic.claude-sonnet-5-5", Field: reconcile.FieldNewCopy, Catalogue: "none", Page: "input 3.30",
 				Rule: "no-rule", SourceURLs: []string{"https://platform.claude.com/a"},
 			},
-			want: "**1. us copy: `bedrock:us.anthropic.claude-sonnet-5-5` · new copy** · ⚠ no rule covers this (`no-rule`)\n" +
-				"- **Catalogue:** `none`\n- **Page:** `input 3.30`\n- **Decide:** leave it out, or add it in `providers/bedrock/models.go` with the rates its page lists; a copy whose page lists none can't be added.\n" + sources,
+			want: "**1. us copy: `bedrock:us.anthropic.claude-sonnet-5-5` · new copy** · no rule covers this (`no-rule`)\n" +
+				"- **We have:** `none`\n- **Vendor's page:** `input 3.30`\n- **Decide:** add this copy, or leave it out? To leave it out and stop the question coming back, add a `hold` for it to `decisions.yaml`.\n" + sources,
 		},
 		{
 			name: "a rule's row keeps its question",
 			item: ask("out-of-reach", "none", "claude-opus-5"),
-			want: "**1. `claude-sonnet-5-5` · token limit** · rule `out-of-reach`\n- **Question:** Which replacement?\n" +
-				"- **Catalogue:** `none`\n- **Page:** `claude-opus-5`\n" + sources,
+			want: "**1. `claude-sonnet-5-5` · token limit** · rule `out-of-reach`\n" +
+				"- **We have:** `none`\n- **Vendor's page:** `claude-opus-5`\n- **Decide:** Which replacement?\n" + sources,
 		},
 		{
 			name: "one side alone keeps the question",
 			item: ask("no-rule", "", "65536"),
-			want: noRule + "- **Question:** No rule covers this. Decide.\n- **Page:** `65536`\n" + sources,
+			want: noRule + "- **Vendor's page:** `65536`\n- **Decide:** No rule covers this. Decide.\n" + sources,
 		},
 		{
-			name: "no sides: the question, then also found",
+			name: "no sides: the notes, then the question",
 			item: ask("no-rule", "", "", "65535", "65536"),
-			want: noRule + "- **Question:** No rule covers this. Decide.\n- **Also found:** `65535`, `65536`\n" + sources,
+			want: noRule + "- **Agent's notes:** `65535`, `65536`\n- **Decide:** No rule covers this. Decide.\n" + sources,
 		},
 	}
 	for _, tt := range tests {
@@ -1499,16 +1444,16 @@ func TestRenderGroupsSameQuestion(t *testing.T) {
 	body := Render(oneVendor(report, Base{}), "", nil, Base{Rules: testRules})
 
 	for _, want := range []string{
-		"> [!IMPORTANT]\n> **2 open questions,** listed under Open questions below. They don't block merging: merging keeps the current values, and a later run may ask again.\n>\n" +
+		"> [!IMPORTANT]\n> **2 open questions,** listed under Open questions below. They don't block merging: merging changes nothing they ask about, and a later run asks again.\n>\n" +
 			"> 1. `bedrock:global.anthropic.claude-fable-5-1` and 2 more · capability\n> 2. `bedrock:global.anthropic.claude-haiku-5-5` · capability\n\n",
 		"### Open questions (2)\n\n" +
-			"**1. `bedrock:global.anthropic.claude-fable-5-1` and 2 more · capability** · ⚠ no rule covers this (`no-rule`)\n" +
+			"**1. `bedrock:global.anthropic.claude-fable-5-1` and 2 more · capability** · no rule covers this (`no-rule`)\n" +
 			"- **Offerings:** `bedrock:global.anthropic.claude-fable-5-1`, `bedrock:us.anthropic.claude-fable-5-1`, `bedrock:global.anthropic.claude-opus-5-5`\n" +
-			"- **Catalogue:** `structured_output false`\n- **Page:** `Structured outputs supported`\n" +
-			"- **Also found:** `providers/bedrock/capabilities_test.go`, `claudeNoSchemaCaps`\n" +
-			"- **Decide:** keep `structured_output false`, or edit `providers/bedrock/models.go` to match the page (`Structured outputs supported`).\n" +
+			"- **We have:** `structured_output false`\n- **Vendor's page:** `Structured outputs supported`\n" +
+			"- **Agent's notes:** `providers/bedrock/capabilities_test.go`, `claudeNoSchemaCaps`\n" +
+			"- **Decide:** keep what we have, or change it to match the vendor's page? To keep it and stop the question coming back, add a `keep` for each to `decisions.yaml`.\n" +
 			"- **Sources:** [a](https://docs.aws.amazon.com/a), [b](https://docs.aws.amazon.com/b)\n\n" +
-			"**2. `bedrock:global.anthropic.claude-haiku-5-5` · capability** · ⚠ no rule covers this (`no-rule`)\n",
+			"**2. `bedrock:global.anthropic.claude-haiku-5-5` · capability** · no rule covers this (`no-rule`)\n",
 	} {
 		assert.Contains(t, body, want)
 	}
@@ -1537,7 +1482,7 @@ func TestRenderNotesOnce(t *testing.T) {
 	t.Run("an offering changed with no row is named", func(t *testing.T) {
 		t.Parallel()
 		assert.Contains(t, body, "### Changed with no row (3)\n\nThe patch changes these offerings, but the report has no row for them. "+
-			"Check them in the snapshot diff.\n\n- `bedrock:au.anthropic.claude-sonnet-5-5`, `bedrock:jp.anthropic.claude-sonnet-4-5`, `bedrock:us.anthropic.claude-sonnet-4-5`\n")
+			"Check them in `catalog/snapshot.json` under Files changed.\n\n- `bedrock:au.anthropic.claude-sonnet-5-5`, `bedrock:jp.anthropic.claude-sonnet-4-5`, `bedrock:us.anthropic.claude-sonnet-4-5`\n")
 		assert.NotContains(t, body, "- `claude-sonnet-5-5`", "it has a row")
 	})
 }
@@ -1644,31 +1589,9 @@ func TestRenderSuggestedRules(t *testing.T) {
 	}
 }
 
-// TestRenderDontBlockNote checks the note above the questions box (proposal
-// 6): what needs nothing from the reviewer, by name.
-func TestRenderDontBlockNote(t *testing.T) {
-	t.Parallel()
-
-	lifecycle := func(geo string) NeedsHuman {
-		return NeedsHuman{
-			Offering: "bedrock:" + geo + ".anthropic.claude-sonnet-4-5", Field: "lifecycle", Rule: "no-rule", Values: []string{"EOL 2027-04-08"},
-			SourceURLs: []string{"https://platform.claude.com/x"},
-		}
-	}
-	report := validReport()
-	report.NeedsHuman = append(report.NeedsHuman, lifecycle("global"), lifecycle("us"))
-	report.Skipped = append(report.Skipped, Skipped{Offering: "bedrock:in.anthropic.claude-opus-5", Reason: "region_not_offered", Rule: "region-not-offered"})
-
-	body := Render(oneVendor(report, Base{}), "", nil, Base{Rules: testRules})
-
-	assert.Contains(t, body, "> [!NOTE]\n> **Don't block this PR:**\n> - 1 product decision: offer `in` on bedrock (India, asked since 2026-10-15)?\n"+
-		"> - 1 suggested rule\n> - 1 skipped offering\n\n> [!IMPORTANT]")
-	assert.NotContains(t, Render(oneVendor(Report{Changes: validReport().Changes}, Base{}), "", nil, Base{}), "[!NOTE]", "no note with nothing to list")
-}
-
 // TestRenderFolded checks what sits behind <details> (proposal 6): each
 // vendor's Skipped, and Suggested rules once for every vendor, above the
-// vendor sections with Waiting.
+// vendor sections with the region questions.
 func TestRenderFolded(t *testing.T) {
 	t.Parallel()
 
@@ -1682,26 +1605,27 @@ func TestRenderFolded(t *testing.T) {
 		{Name: "openai", Report: Report{NeedsHuman: []NeedsHuman{limit("gpt-6-1")}, Changes: validReport().Changes}},
 	}, "", nil, Base{})
 
-	assert.Contains(t, section(t, body, "anthropic"), "<details><summary>Skipped (1): left out by a rule</summary>\n\n| Rule | Why | Offerings |\n|---|---|---|\n| ⚠ `no-rule` | `vendor_excluded` | `claude-haiku-4-5` |\n\n</details>\n")
+	assert.Contains(t, section(t, body, "anthropic"), "<details><summary>Skipped (1): left out by a rule</summary>\n\n| Rule | Why | Offerings |\n|---|---|---|\n| `no-rule` | `vendor_excluded` | `claude-haiku-4-5` |\n\n</details>\n")
 	assert.Contains(t, body, "<details><summary>Suggested rules (1): optional</summary>\n\n", "one suggestion from both vendors' rows")
 	assert.Contains(t, body, "- `limit`: 2 offerings this run, all with `65536`\n")
 
-	for _, once := range []string{"### Waiting on a product decision (1)", "<summary>Suggested rules"} {
+	for _, once := range []string{"**3. bedrock · offer region `in` (India)?", "<summary>Suggested rules"} {
 		assert.Equal(t, 1, strings.Count(body, once), "%q shows once", once)
 		assert.Less(t, strings.Index(body, once), strings.Index(body, "## anthropic"), "%q comes before the vendors", once)
 	}
 }
 
-// TestRenderWaitingExample checks that the Waiting section's way to decline
-// a region names one of this run's regions and today (proposal 9).
-func TestRenderWaitingExample(t *testing.T) {
+// TestRenderRegionQuestion checks that a region question's way to decline the
+// region names that region and today (proposal 9).
+func TestRenderRegionQuestion(t *testing.T) {
 	t.Parallel()
 
 	report := Report{Skipped: []Skipped{{Offering: "bedrock:us-gov.anthropic.claude-opus-5", Reason: "region_not_offered", Rule: "region-not-offered"}}}
 	body := Render(oneVendor(report, Base{}), "", nil, Base{Today: "2026-10-30"})
 
-	assert.Contains(t, body, "write it under Not offered as `` `us-gov` (declined 2026-10-30) ``")
-	assert.Equal(t, "The run changed nothing; its rows are under Waiting on a product decision above.", strings.TrimSpace(section(t, body, "anthropic")))
+	assert.Contains(t, body, "list it under Not offered in RULES.md as `` `us-gov` (declined 2026-10-30) ``")
+	assert.FileExists(t, filepath.Join("..", "..", addModelSkill), "the Decide line links the add-model skill")
+	assert.Equal(t, "The run changed nothing; its rows are under Open questions above.", strings.TrimSpace(section(t, body, "anthropic")))
 }
 
 // TestChangeKinds checks the kind of each change row (proposal 4), read from
