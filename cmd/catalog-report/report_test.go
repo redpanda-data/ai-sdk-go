@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -114,6 +113,21 @@ func TestValidate(t *testing.T) {
 		{"html in the catalogue side", func(r *Report) { r.NeedsHuman[0].Catalogue = "<b>65535</b>" }, `needs_human[0]: bad value "<b>65535</b>"`},
 		{"a link on the page side", func(r *Report) { r.NeedsHuman[0].Page = "https://evil.example/x" }, `needs_human[0]: bad value "https://evil.example/x"`},
 		{"a long page side", func(r *Report) { r.NeedsHuman[0].Page = strings.Repeat("9", 65) }, "needs_human[0]: bad value"},
+		{"a why in plain words", func(r *Report) {
+			r.NeedsHuman[0].Why = "AWS prints 65536 (the API's limit), but we list 65535; which is right?"
+		}, ""},
+		{"markup in the why", func(r *Report) { r.NeedsHuman[0].Why = "Safe to **approve**" }, `needs_human[0]: bad sentence "Safe to **approve**"`},
+		{"a bare link in the why", func(r *Report) { r.NeedsHuman[0].Why = "See www.evil.example for the price" }, "needs_human[0]: bad sentence"},
+		{"an issue link in the why", func(r *Report) { r.NeedsHuman[0].Why = "As agreed in GH-12" }, "needs_human[0]: bad sentence"},
+		{"a mention in the why", func(r *Report) { r.NeedsHuman[0].Why = "Ask @admins" }, "needs_human[0]: bad sentence"},
+		{"a long why", func(r *Report) { r.NeedsHuman[0].Why = strings.Repeat("a", 301) }, "needs_human[0]: bad sentence"},
+		{"a rule draft", func(r *Report) {
+			r.NeedsHuman[0].RuleWhen, r.NeedsHuman[0].RuleDoes = "a model page lists a limit one token above ours", "keeps ours"
+		}, ""},
+		{"half a rule draft", func(r *Report) { r.NeedsHuman[0].RuleWhen = "a model page lists a limit one token above ours" }, "needs_human[0]: a rule draft needs both rule_when and rule_does"},
+		{"markup in a rule draft", func(r *Report) {
+			r.NeedsHuman[0].RuleWhen, r.NeedsHuman[0].RuleDoes = "always", "[approves](x)"
+		}, `needs_human[0]: bad sentence "[approves](x)"`},
 		{"rule RULES.md doesn't have", func(r *Report) { r.Skipped[0].Rule = "no-such-rule" }, `skipped[0]: unknown rule "no-such-rule"`},
 		{"needs_human rule that never asks a person", func(r *Report) { r.NeedsHuman[0].Rule = "limited-availability" }, "needs_human[0]: rule limited-availability doesn't produce needs_human"},
 		{"skip rule for another reason", func(r *Report) { r.Skipped[0].Rule = "limited-availability" }, "skipped[0]: rule limited-availability doesn't produce skip:`vendor_excluded`"},
@@ -1301,6 +1315,15 @@ func TestSchemaMatchesValidator(t *testing.T) {
 	}
 
 	assert.Equal(t, valuePattern.String(), items("needs_human").Properties["values"].Items.Pattern, "needs_human values pattern")
+
+	// The agent's own words: a question's why, required, and an optional
+	// rule draft.
+	for _, property := range []string{"why", "rule_when", "rule_does"} {
+		require.Contains(t, items("needs_human").Properties, property)
+		assert.Equal(t, sentencePattern.String(), items("needs_human").Properties[property].Pattern, "needs_human %s pattern", property)
+	}
+
+	assert.Contains(t, items("needs_human").Required, "why", "every question says why the bot asks")
 }
 
 // The schema takes a question's two sides as the same short values the
@@ -1319,7 +1342,7 @@ func TestSchemaValues(t *testing.T) {
 
 	question := func(field, sides string) string {
 		return `{"changes": [], "skipped": [], "needs_human": [{"offering": "claude-sonnet-5-5", "field": "` + field + `", "values": [], ` +
-			`"source_urls": ["https://platform.claude.com/a"], "rule": "no-rule"` + sides + `}]}`
+			`"source_urls": ["https://platform.claude.com/a"], "rule": "no-rule", "why": "The page and the catalogue differ."` + sides + `}]}`
 	}
 
 	tests := []struct {
@@ -1333,6 +1356,10 @@ func TestSchemaValues(t *testing.T) {
 		{"a location question", question("location", `, "catalogue": "global us-east5", "page": "global us-east5 europe-west1"`), false},
 		{"a versioned Vertex offering", strings.Replace(question("limit", `, "page": "claude-opus-4-5@20251101"`),
 			`"claude-sonnet-5-5"`, `"vertex:claude-opus-4-5@20251101"`, 1), false},
+		{"no why", strings.Replace(question("limit", ""), `, "why": "The page and the catalogue differ."`, "", 1), true},
+		{"an empty why", strings.Replace(question("limit", ""), `"The page and the catalogue differ."`, `""`, 1), true},
+		{"markup in the why", strings.Replace(question("limit", ""), `"The page and the catalogue differ."`, `"Safe to **approve**"`, 1), true},
+		{"a rule draft", question("limit", `, "rule_when": "the page lists one token more", "rule_does": "keeps ours"`), false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1360,6 +1387,7 @@ func TestRenderQuestionBlock(t *testing.T) {
 	const (
 		noRule  = "**1. `claude-sonnet-5-5` · token limit** · no rule covers this (`no-rule`)\n"
 		sources = "- **Sources:** [a](https://platform.claude.com/a)\n\n"
+		KEEP1   = "- **Decide:** keep what we have, or change it to match the vendor's page? To keep it and stop the question coming back, add a `keep` for it to `decisions.yaml`.\n"
 	)
 
 	ask := func(rule, catalogue, page string, values ...string) NeedsHuman {
@@ -1404,6 +1432,16 @@ func TestRenderQuestionBlock(t *testing.T) {
 			name: "one side alone keeps the question",
 			item: ask("no-rule", "", "65536"),
 			want: noRule + "- **Vendor's page:** `65536`\n- **Decide:** No rule covers this. Decide.\n" + sources,
+		},
+		{
+			name: "the agent's why, after the two sides",
+			item: NeedsHuman{
+				Offering: "claude-sonnet-5-5", Field: "limit", Catalogue: "65535", Page: "65536", Values: []string{"providers/anthropic/models.go"},
+				Why: "The page lists one token more than we do; it may count the stop token.", Rule: "no-rule", SourceURLs: []string{"https://platform.claude.com/a"},
+			},
+			want: noRule + "- **We have:** `65535`\n- **Vendor's page:** `65536`\n" +
+				"- **Why the bot asks:** The page lists one token more than we do; it may count the stop token.\n" +
+				"- **Agent's notes:** `providers/anthropic/models.go`\n" + KEEP1 + sources,
 		},
 		{
 			name: "no sides: the notes, then the question",
@@ -1520,56 +1558,68 @@ func TestUnreported(t *testing.T) {
 	})
 }
 
-// TestRenderSuggestedRules uses #259's three Sonnet 4.5 lifecycle rows, which
-// went to a person under no-rule before the lifecycle Defaults existed.
-func TestRenderSuggestedRules(t *testing.T) {
+// TestRenderRuleDrafts checks the agent's rule drafts (Adam, 31 Oct): a draft
+// shows once it is on two or more no-rule offerings across the PR's vendors,
+// with the questions it would settle; one offering's draft, a rule's row and
+// a held row show none.
+func TestRenderRuleDrafts(t *testing.T) {
 	t.Parallel()
 
-	found := []string{"Legacy 2026-10-08", "EOL 2027-04-08", "AWS names no replacement"}
-	ask := func(geo string, values ...string) NeedsHuman {
+	const (
+		when = "a Bedrock card prints a model's price only for calls within one region"
+		does = "leaves its us. and global. copies out until AWS prints their price"
+	)
+
+	ask := func(prefix, model, rule, ruleWhen, ruleDoes string) NeedsHuman {
 		return NeedsHuman{
-			Offering: "bedrock:" + geo + ".anthropic.claude-sonnet-4-5-20250929-v1:0", Field: "lifecycle", Rule: "no-rule",
-			Values: values, SourceURLs: []string{"https://platform.claude.com/x"},
-		}
-	}
-	twoSided := func(geo, catalogue string) NeedsHuman {
-		return NeedsHuman{
-			Offering: "bedrock:" + geo + ".anthropic.claude-sonnet-4-5-20250929-v1:0", Field: "limit", Rule: "no-rule",
-			Catalogue: catalogue, Page: "200", Values: []string{"providers/bedrock/models.go"}, SourceURLs: []string{"https://platform.claude.com/x"},
+			Offering: "bedrock:" + prefix + ".openai." + model, Field: reconcile.FieldNewCopy, Rule: rule, Page: "In-Region rate only " + prefix + " " + model,
+			Why: "AWS prints no price for this copy.", RuleWhen: ruleWhen, RuleDoes: ruleDoes, SourceURLs: []string{"https://docs.aws.amazon.com/" + model},
 		}
 	}
 	held := reconcile.Decision{
-		ID: "DEC-009", Offering: "bedrock:eu.anthropic.claude-sonnet-4-5-20250929-v1:0", Field: "lifecycle", Kind: reconcile.KindKeep,
-		Reason: "Agreed in review.", ReviewBy: "2027-01-13",
+		ID: "DEC-009", Offering: "bedrock:us.openai.gpt-5.4", Field: reconcile.FieldNewCopy, Kind: reconcile.KindHold, Reason: "Agreed in review.", ReviewBy: "2027-01-13",
 	}
+	draft := "**Rules that would settle these** (the agent's drafts, for cases on two or more offerings; to use one, add it to RULES.md in a reviewed PR):\n\n"
 
 	tests := []struct {
 		name        string
-		asks        []NeedsHuman
+		vendors     []Vendor
 		decisions   []reconcile.Decision
 		contains    []string
 		notContains []string
 	}{
 		{
-			name: "two no-rule rows on one field suggest a rule",
-			asks: []NeedsHuman{ask("global", found...), ask("us", found...), ask("eu", slices.Concat(found, []string{"only on eu"})...)},
-			contains: []string{
-				"<details><summary>Suggested rules (1): optional</summary>\n\n" +
-					"Questions with no rule that share a field. If the case can come back, add a Default (the bot decides) or an Ask (always a person) to RULES.md.\n\n" +
-					"- `lifecycle`: 3 offerings this run, all with `Legacy 2026-10-08`, `EOL 2027-04-08`, `AWS names no replacement`\n\n</details>\n\n",
+			name: "one draft on three offerings, across two vendors' questions",
+			vendors: []Vendor{
+				{Name: "openai", Report: Report{NeedsHuman: []NeedsHuman{ask("us", "gpt-5.5", "no-rule", when, does), ask("global", "gpt-5.5", "no-rule", when, does)}}},
+				{Name: "anthropic", Report: Report{NeedsHuman: []NeedsHuman{ask("us", "claude-x", "no-rule", " "+when+" ", does+".")}}},
 			},
+			contains: []string{draft + "- Questions 1-3 (3 offerings): When " + when + ", the bot " + does + ".\n\n"},
 		},
 		{
-			name: "two-sided rows suggest the side they share",
-			asks: []NeedsHuman{twoSided("global", "100"), twoSided("us", "150")},
-			contains: []string{
-				"- `limit`: 2 offerings this run, all with `200`, `providers/bedrock/models.go`\n",
-			},
+			name:        "a draft on one offering shows none",
+			vendors:     []Vendor{{Name: "openai", Report: Report{NeedsHuman: []NeedsHuman{ask("us", "gpt-5.5", "no-rule", when, does), ask("us", "gpt-5.4", "no-rule", "another case", does)}}}},
+			notContains: []string{"Rules that would settle these"},
 		},
-		{name: "one row suggests nothing", asks: []NeedsHuman{ask("global", found...)}, notContains: []string{"Suggested rules"}},
 		{
-			name: "held rows don't count", asks: []NeedsHuman{ask("global", found...), ask("eu", found...)}, decisions: []reconcile.Decision{held},
-			notContains: []string{"Suggested rules"},
+			name:        "a rule's rows show none",
+			vendors:     []Vendor{{Name: "openai", Report: Report{NeedsHuman: []NeedsHuman{ask("us", "gpt-5.5", "out-of-reach", when, does), ask("global", "gpt-5.5", "out-of-reach", when, does)}}}},
+			notContains: []string{"Rules that would settle these"},
+		},
+		{
+			name:        "held rows don't count",
+			vendors:     []Vendor{{Name: "openai", Report: Report{NeedsHuman: []NeedsHuman{ask("us", "gpt-5.5", "no-rule", when, does), ask("us", "gpt-5.4", "no-rule", when, does)}}}},
+			decisions:   []reconcile.Decision{held},
+			notContains: []string{"Rules that would settle these"},
+		},
+		{
+			name: "two drafts, each with its questions",
+			vendors: []Vendor{{Name: "openai", Report: Report{NeedsHuman: []NeedsHuman{
+				ask("us", "gpt-5.5", "no-rule", when, does), ask("us", "gpt-5.6", "no-rule", "another case", "asks a person"),
+				ask("global", "gpt-5.5", "no-rule", when, does), ask("global", "gpt-5.6", "no-rule", "another case", "asks a person"),
+			}}}},
+			contains: []string{draft + "- Questions 1 and 3 (2 offerings): When " + when + ", the bot " + does + ".\n" +
+				"- Questions 2 and 4 (2 offerings): When another case, the bot asks a person.\n\n"},
 		},
 	}
 
@@ -1577,7 +1627,7 @@ func TestRenderSuggestedRules(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			body := Render(oneVendor(Report{NeedsHuman: tt.asks}, Base{}), "", nil, Base{Rules: testRules, Decisions: tt.decisions, Today: "2026-10-15"})
+			body := Render(tt.vendors, "", nil, Base{Rules: testRules, Decisions: tt.decisions, Today: "2026-10-15"})
 			for _, want := range tt.contains {
 				assert.Contains(t, body, want)
 			}
@@ -1585,13 +1635,15 @@ func TestRenderSuggestedRules(t *testing.T) {
 			for _, unwanted := range tt.notContains {
 				assert.NotContains(t, body, unwanted)
 			}
+
+			assert.NotContains(t, body, "Suggested rules")
 		})
 	}
 }
 
 // TestRenderFolded checks what sits behind <details> (proposal 6): each
-// vendor's Skipped, and Suggested rules once for every vendor, above the
-// vendor sections with the region questions.
+// vendor's Skipped; the region questions sit once for every vendor, above
+// the vendor sections.
 func TestRenderFolded(t *testing.T) {
 	t.Parallel()
 
@@ -1606,10 +1658,9 @@ func TestRenderFolded(t *testing.T) {
 	}, "", nil, Base{})
 
 	assert.Contains(t, section(t, body, "anthropic"), "<details><summary>Skipped (1): left out by a rule</summary>\n\n| Rule | Why | Offerings |\n|---|---|---|\n| `no-rule` | `vendor_excluded` | `claude-haiku-4-5` |\n\n</details>\n")
-	assert.Contains(t, body, "<details><summary>Suggested rules (1): optional</summary>\n\n", "one suggestion from both vendors' rows")
-	assert.Contains(t, body, "- `limit`: 2 offerings this run, all with `65536`\n")
+	assert.NotContains(t, body, "Suggested rules")
 
-	for _, once := range []string{"**3. bedrock · offer region `in` (India)?", "<summary>Suggested rules"} {
+	for _, once := range []string{"**3. bedrock · offer region `in` (India)?"} {
 		assert.Equal(t, 1, strings.Count(body, once), "%q shows once", once)
 		assert.Less(t, strings.Index(body, once), strings.Index(body, "## anthropic"), "%q comes before the vendors", once)
 	}

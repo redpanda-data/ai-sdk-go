@@ -45,6 +45,11 @@ var (
 	// codeFilePattern keeps listed file paths to plain path characters, so a
 	// path can't break out of its code span in the PR body.
 	codeFilePattern = regexp.MustCompile(`^[A-Za-z0-9_./-]{1,200}$`)
+	// sentencePattern is the agent's own words, shown as plain text: no
+	// character that starts markup, a link, a mention, an emoji or math.
+	sentencePattern = regexp.MustCompile(`^[A-Za-z0-9 .,;()'?%-]{0,300}$`)
+	// autolinked is what GitHub links in plain text with those characters.
+	autolinked = regexp.MustCompile(`(?i)www\.|\bgh-[0-9]`)
 )
 
 // safeValue reports whether a value can go into the PR body as it is. "//"
@@ -60,6 +65,12 @@ const (
 	regionNotOffered = "region_not_offered"
 	regionRule       = "region-not-offered"
 )
+
+// safeSentence reports whether the agent's words can go into the PR body as
+// plain text.
+func safeSentence(s string) bool {
+	return sentencePattern.MatchString(s) && !autolinked.MatchString(s)
+}
 
 // regionOf splits a <package>:<prefix>.<model ID> offering into its package and
 // region prefix, and is false without a package. Bedrock IDs contain ":", so
@@ -159,6 +170,16 @@ func Validate(report Report, hosts []string, rules reconcile.Rules) []string {
 
 		for _, value := range rowValues(item) {
 			checkValue(where, value)
+		}
+
+		for _, sentence := range []string{item.Why, item.RuleWhen, item.RuleDoes} {
+			if !safeSentence(sentence) {
+				problems = append(problems, where+": bad sentence "+fmt.Sprintf("%q", sentence))
+			}
+		}
+
+		if (item.RuleWhen == "") != (item.RuleDoes == "") {
+			problems = append(problems, where+": a rule draft needs both rule_when and rule_does")
 		}
 
 		if len(item.SourceURLs) == 0 {
@@ -613,16 +634,6 @@ func (base Base) questionsSection(all []numbered) string {
 	return section.String()
 }
 
-// suggestedFold is Suggested rules, once for the PR and folded.
-func suggestedFold(lines []string) string {
-	if len(lines) == 0 {
-		return ""
-	}
-
-	return folded(fmt.Sprintf("Suggested rules (%d): optional", len(lines)),
-		"Questions with no rule that share a field. If the case can come back, add a Default (the bot decides) or an Ask (always a person) to RULES.md.\n\n"+strings.Join(lines, "")+"\n")
-}
-
 // folded puts content behind a <details> fold with summary as its label.
 func folded(summary, content string) string {
 	return "<details><summary>" + summary + "</summary>\n\n" + content + "</details>\n\n"
@@ -654,6 +665,11 @@ func (base Base) questionBlock(q numbered) string {
 
 	if item.Page != "" {
 		block += "- **Vendor's page:** " + code(item.Page) + "\n"
+	}
+
+	// Validate kept the agent's words to characters that can't make markup.
+	if item.Why != "" {
+		block += "- **Why the bot asks:** " + item.Why + "\n"
 	}
 
 	if len(item.Values) > 0 {
@@ -807,34 +823,68 @@ func (base Base) changesSection(changes []Change, provider string) string {
 	return section.String()
 }
 
-// suggestions writes a bullet for each field that two or more no-rule rows
-// share this run, with the values all of them found, so a person can turn a
-// repeated case into a rule. Code writes it, so it never varies.
-func suggestions(needs []NeedsHuman) []string {
-	type group struct{ rule, field string }
+// ruleDrafts lists each rule draft the agent gave two or more no-rule
+// offerings across the PR, with the questions it would settle, so a person
+// can turn a case that keeps coming into a rule. A draft on one offering
+// shows none.
+func ruleDrafts(asks []numbered, needs []NeedsHuman) string {
+	type draft struct{ when, does string }
 
-	keys, found := groupBy(needs, func(item NeedsHuman) (group, []string) { return group{item.Rule, item.Field}, rowValues(item) })
-	lines := make([]string, 0, len(keys))
+	tidy := func(s string) string { return strings.TrimRight(strings.Join(strings.Fields(s), " "), ".") }
+	of := func(item NeedsHuman) draft { return draft{tidy(item.RuleWhen), tidy(item.RuleDoes)} }
+
+	drafted := slices.DeleteFunc(slices.Clone(needs), func(item NeedsHuman) bool { return item.Rule != reconcile.JudgmentRule || item.RuleWhen == "" })
+	keys, offerings := groupBy(drafted, func(item NeedsHuman) (draft, string) { return of(item), item.Offering })
+
+	var lines []string
 
 	for _, key := range keys {
-		if key.rule != reconcile.JudgmentRule || len(found[key]) < 2 {
+		if len(offerings[key]) < 2 {
 			continue
 		}
 
-		shared := slices.Clone(found[key][0])
-		for _, values := range found[key][1:] {
-			shared = slices.DeleteFunc(shared, func(v string) bool { return !slices.Contains(values, v) })
+		var settles []int
+
+		for _, q := range asks {
+			if q.place.prefix == "" && q.row.Rule == reconcile.JudgmentRule && of(q.row) == key {
+				settles = append(settles, q.n)
+			}
 		}
 
-		line := fmt.Sprintf("- %s: %d offerings this run", code(key.field), len(found[key]))
-		if len(shared) > 0 {
-			line += ", all with " + valueList(shared)
+		which := count(len(offerings[key]), "offering", "offerings")
+		if named := questionNumbers(settles); named != "" {
+			which = named + " (" + which + ")"
 		}
 
-		lines = append(lines, line+"\n")
+		lines = append(lines, "- "+which+": When "+key.when+", the bot "+key.does+".\n")
 	}
 
-	return lines
+	if len(lines) == 0 {
+		return ""
+	}
+
+	return "**Rules that would settle these** (the agent's drafts, for cases on two or more offerings; to use one, add it to RULES.md in a reviewed PR):\n\n" +
+		strings.Join(lines, "") + "\n"
+}
+
+// questionNumbers names questions by number: "Question 2", "Questions 2-5"
+// for three or more in a row, else "Questions 1 and 3".
+func questionNumbers(ns []int) string {
+	switch {
+	case len(ns) == 0:
+		return ""
+	case len(ns) == 1:
+		return fmt.Sprintf("Question %d", ns[0])
+	case len(ns) > 2 && ns[len(ns)-1]-ns[0] == len(ns)-1:
+		return fmt.Sprintf("Questions %d-%d", ns[0], ns[len(ns)-1])
+	}
+
+	words := make([]string, 0, len(ns))
+	for _, n := range ns {
+		words = append(words, fmt.Sprint(n))
+	}
+
+	return "Questions " + strings.Join(words[:len(words)-1], ", ") + " and " + words[len(words)-1]
 }
 
 // splitWaiting takes the region_not_offered rows out of the skipped ones,
@@ -971,7 +1021,7 @@ func (base Base) render(vendors []Vendor, codeFiles []string, hasDiff bool) (str
 		return body.String(), nil
 	}
 
-	asks, suggested := base.numberQuestions(parts, waiting), suggestions(needs)
+	asks := base.numberQuestions(parts, waiting)
 
 	body.WriteString(base.contextLine() + summaryLine(parts) + base.checksLine(codeFiles) + base.carriedLine() + base.questionsBox(asks))
 
@@ -1000,7 +1050,7 @@ func (base Base) render(vendors []Vendor, codeFiles []string, hasDiff bool) (str
 	// section, so many questions can't push every Changes table out of a
 	// capped body.
 	sections := make([]string, 0, len(parts)+1)
-	if shared := base.questionsSection(asks) + suggestedFold(suggested); shared != "" {
+	if shared := base.questionsSection(asks) + ruleDrafts(asks, needs); shared != "" {
 		sections = append(sections, shared)
 	}
 

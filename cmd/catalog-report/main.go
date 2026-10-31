@@ -81,7 +81,7 @@ func main() {
 	})
 
 	sourcesPath := flag.String("sources", "", "named-sources.json, for each vendor's hosts")
-	diffPath := flag.String("diff", "", "optional snapshot diff to include")
+	diffPath := flag.String("diff", "", "optional snapshot diff; the body only says whether the catalogue changed, as the diff is under Files changed")
 	outPath := flag.String("out", "", "where to write the PR body")
 	codeFilesPath := flag.String("code-files", "", "optional file listing the non-data files the patch changes, one per line")
 	rulesPath := flag.String("rules", "", "RULES.md, for the rule each row names")
