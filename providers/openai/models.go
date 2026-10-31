@@ -235,7 +235,9 @@ func entries() []catalog.Entry {
 			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange:  [2]float64{0.0, 2.0},
-				MaxInputTokens:    272000, // documented max input; the 400K window reserves 128K for output
+				// The model page gives a 400K window and no separate input cap
+				// (https://developers.openai.com/api/docs/models/gpt-5.1, read 2026-10-31).
+				MaxInputTokens:    400000,
 				MaxOutputTokens:   128000, // 128K output tokens
 				SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed", "reasoning_effort", "reasoning_summary"},
 				MutuallyExclusive: [][]string{{"temperature", "top_p"}},
@@ -665,7 +667,8 @@ func entries() []catalog.Entry {
 			Life: catalog.Lifecycle{
 				Available: catalog.MustDate("2026-03-17"),
 			},
-			Pricing: pricing.FlatInfo(0.80, 4.50, 0.075).
+			// Input rate from https://developers.openai.com/api/docs/pricing (read 2026-10-31).
+			Pricing: pricing.FlatInfo(0.75, 4.50, 0.075).
 				WithOverride(batchTier, flatCard(0.375, 2.25, 0.0375)).
 				WithOverride(flexTier, flatCard(0.375, 2.25, 0.0375)).
 				WithOverride(fastTier, flatCard(1.50, 9.00, 0.15)),

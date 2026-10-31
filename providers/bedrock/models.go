@@ -704,7 +704,8 @@ var (
 	}
 
 	// GPT-6 Astra on bedrock-mantle (Responses API, us-east-1 and
-	// us-west-2), shared by the GPT-6 Sol and GPT-6.1 Sol mantle families.
+	// us-west-2), whose capabilities the GPT-6 Sol and GPT-6.1 Sol mantle
+	// families share.
 	// Probed 2026-09-22: json_schema output works and temperature is
 	// rejected. Efforts differ per model, so each family declares its own
 	// Reasoning.
@@ -722,6 +723,19 @@ var (
 	gpt6AstraMantleConstraints = llm.ModelConstraints{
 		MaxInputTokens:  922000,
 		MaxOutputTokens: 128000,
+		SupportedParams: []string{"max_tokens", "reasoning_effort"},
+	}
+
+	// GPT-6.1 Sol's card gives 131,072 max output tokens (read 2026-10-31):
+	// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-1-sol.html
+	gpt61SolConstraints = llm.ModelConstraints{
+		MaxInputTokens:  922000,
+		MaxOutputTokens: 131072,
+		SupportedParams: []string{"max_tokens"},
+	}
+	gpt61SolMantleConstraints = llm.ModelConstraints{
+		MaxInputTokens:  922000,
+		MaxOutputTokens: 131072,
 		SupportedParams: []string{"max_tokens", "reasoning_effort"},
 	}
 
@@ -1371,10 +1385,10 @@ var bedrockFamilies = []family{
 		// cache points remain unsupported. Ultrafast cards also price Responses
 		// usage of these IDs; this SDK still invokes profiles via Converse.
 		// Unprobed: the card documents Astra's Converse surface, so the family
-		// reuses Astra's capability flags and conservative limits. Unlike Astra,
+		// reuses Astra's capability flags and input limit. Unlike Astra,
 		// the current card explicitly supports streaming schemas (2026-10-16).
-		// Its 131,072 max output tokens exceeds OpenAI's documented 128,000,
-		// so the lower limit stands until probed.
+		// Max output is the card's 131,072 tokens (read 2026-10-31), above
+		// OpenAI's documented 128,000.
 		BareID:      ModelGPT61Sol,
 		WireAPIs:    openAIRuntimeWireAPIs,
 		Model:       catalog.ModelGPT6_1Sol,
@@ -1384,7 +1398,7 @@ var bedrockFamilies = []family{
 		NoCachePoints: true,
 		Capabilities:  gpt6AstraCaps,
 		Modalities:    gpt56Modalities,
-		Constraints:   gpt6AstraConstraints,
+		Constraints:   gpt61SolConstraints,
 		Reasoning:     converseReasoningNoControls,
 		GlobalRates: &pricing.RateCard{
 			Base: pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(0, 0, 2.50),
@@ -1417,7 +1431,7 @@ var bedrockFamilies = []family{
 		MantleRegions: []string{"us-east-1"},
 		Capabilities:  gpt6AstraMantleCaps,
 		Modalities:    gpt56Modalities,
-		Constraints:   gpt6AstraMantleConstraints,
+		Constraints:   gpt61SolMantleConstraints,
 		Reasoning: catalog.ReasoningSupport{
 			Efforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 		},
