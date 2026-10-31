@@ -76,11 +76,12 @@ func (base Base) effect(change Change, provider string) string {
 
 // unreported names each offering the patch adds, changes or removes, and
 // each model whose facts it changes, that no report row names, as the report
-// would (RULES.md, Report values). Derived values change with their
-// neighbours, so they don't count. IDs that aren't safe to print are counted.
-func (base Base) unreported(report Report, provider string) []string {
+// would (RULES.md, Report values), and counts them. Derived values change
+// with their neighbours, so they don't count. IDs that aren't safe to print
+// are counted, in one line.
+func (base Base) unreported(report Report, provider string) ([]string, int) {
 	if base.Before == nil || base.After == nil {
-		return nil
+		return nil, 0
 	}
 
 	named, models := map[[2]string]bool{}, map[string]bool{}
@@ -152,6 +153,8 @@ func (base Base) unreported(report Report, provider string) []string {
 
 	slices.Sort(names)
 
+	n := len(names) + unprintable
+
 	switch {
 	case unprintable == 1:
 		names = append(names, "1 offering with an ID that isn't safe to print")
@@ -159,7 +162,7 @@ func (base Base) unreported(report Report, provider string) []string {
 		names = append(names, fmt.Sprintf("%d offerings with IDs that aren't safe to print", unprintable))
 	}
 
-	return names
+	return names, n
 }
 
 // priceNote names each base rate that changed, old → new in dollars per
@@ -350,4 +353,174 @@ func percent(from, to int64) string {
 	}
 
 	return fmt.Sprintf("%+.0f%%", change)
+}
+
+// impact is what one kind of change means for customers, traced from the
+// code that reads each field in ai-sdk-go and in ADP: its key and its name in
+// the impact table, a short form for a change row's Effect cell, and a
+// sentence each for SDK users and for ADP. A catalogue price changes cost
+// estimates and recorded spend, never a vendor's bill. Each sentence must be
+// true for every change of its kind.
+type impact struct {
+	key, name, short, sdk, adp string
+}
+
+// impacts is every kind of change, in the impact table's order.
+var impacts = []impact{
+	{"price down", "price cut", "", "Cost estimates for new calls drop. Bills don't change: vendors bill their own prices.", "New calls record less spend, so budgets fill more slowly. Past spend stays."},
+	{"price up", "price rise", "", "Cost estimates for new calls rise. Bills don't change: vendors bill their own prices.", "New calls record more spend, so budgets reach their limit sooner. Past spend stays."},
+	{"price", "price change", "", "Cost estimates change for calls on the rates, tiers, regions or context sizes that moved. Bills don't change: vendors bill their own prices.", "Recorded spend for new calls changes the same way. Past spend stays."},
+	{"rate to zero", "rate set to $0", "those tokens record $0", "Those tokens cost $0 in estimates, and the SDK flags them as unpriced.", "Those tokens record $0 and stop counting toward budgets."},
+	{"max input", "max input tokens", "agents use the new window", "Agents trim older turns only when a conversation nears the new window, and send requests up to it. If the vendor's real limit is lower, a call fails once and is retried shorter.", "ADP's agents are built on the SDK's, so they change the same way. The console shows the new window."},
+	{"max output", "max output tokens", "changes the largest max_tokens accepted", "The Bedrock and Anthropic providers accept max_tokens up to the new limit.", "The playground accepts up to it."},
+	{"flag off", "capability turned off", "labels only", "Requests don't change. Code that checks the flag stops using the feature.", "Labels only: the console and its API show the change."},
+	{"flag on", "capability turned on", "labels; code that checks it starts using it", "Requests don't change. Code that checks the flag starts using the feature, which the vendor may still reject.", "Labels only: the console and its API show the change."},
+	{"modality", "input or output kinds", "none", "None: the SDK doesn't read modalities.", "None: ADP doesn't read them either."},
+	{"reasoning", "reasoning options", "setup fails for a removed effort", "Removing an effort makes model setup fail for callers who set it.", "Saving an agent with a removed effort fails, and agents check it when they start."},
+	{"launch date", "launch date", "none (label)", "None: nothing reads the launch date.", "None."},
+	{"deprecation", "deprecation date", "label only", "A label only; CI's live-test check may fail.", "None visible."},
+	{"retirement", "shutdown date", "", "No warning: calls work until the vendor shuts the model down.", "From that date the console's model list hides it; calls and agents still work."},
+	{"new offering", "new offering", "new ID: callable, listed, priced", "The new ID becomes callable at its own price; before, the SDK refused it. Hard to undo once callers use it.", "It's listed, priced and usable by agents."},
+	{"replacement", "replacement", "", "A migration hint only; no request moves to the replacement.", "None visible."},
+	{"other", "other", "", "Not mapped yet: read the row.", "Not mapped yet: read the row."},
+}
+
+// kindIndex is a kind's place in impacts.
+func kindIndex(key string) int {
+	return slices.IndexFunc(impacts, func(kind impact) bool { return kind.key == key })
+}
+
+// sub reads one of an offering's objects.
+func sub(offering map[string]any, key string) map[string]any {
+	object, _ := offering[key].(map[string]any)
+	return object
+}
+
+// kinds names what a change row changed, from the offering before and after,
+// never from the report's values, in the impact table's order.
+func kinds(field string, before, after map[string]any) []string {
+	var found []string
+
+	add := func(kind string) {
+		if !slices.Contains(found, kind) {
+			found = append(found, kind)
+		}
+	}
+
+	switch field {
+	case "price":
+		for _, kind := range priceKinds(before, after) {
+			add(kind)
+		}
+	case "limit":
+		b, a := sub(before, "constraints"), sub(after, "constraints")
+		if !reflect.DeepEqual(b["max_input_tokens"], a["max_input_tokens"]) {
+			add("max input")
+		}
+
+		if !reflect.DeepEqual(b["max_output_tokens"], a["max_output_tokens"]) {
+			add("max output")
+		}
+	case "capability":
+		b, a := sub(before, "capabilities"), sub(after, "capabilities")
+		for key, now := range a {
+			switch {
+			case b[key] == true && now == false:
+				add("flag off")
+			case b[key] == false && now == true:
+				add("flag on")
+			}
+		}
+
+		if !reflect.DeepEqual(before["modalities"], after["modalities"]) {
+			add("modality")
+		}
+
+		if !reflect.DeepEqual(before["reasoning"], after["reasoning"]) {
+			add("reasoning")
+		}
+	case "lifecycle":
+		b, a := sub(before, "lifecycle"), sub(after, "lifecycle")
+		for _, date := range [][2]string{{"available", "launch date"}, {"deprecated", "deprecation"}, {"retires", "retirement"}} {
+			if !reflect.DeepEqual(b[date[0]], a[date[0]]) {
+				add(date[1])
+			}
+		}
+
+		if !reflect.DeepEqual(b["stage"], a["stage"]) && a["stage"] == "deprecated" {
+			add("deprecation")
+		}
+	case reconcile.FieldNewModel, reconcile.FieldNewCopy:
+		add("new offering")
+	case "replacement":
+		add("replacement")
+	}
+
+	if len(found) == 0 {
+		add("other")
+	}
+
+	slices.SortFunc(found, func(x, y string) int { return kindIndex(x) - kindIndex(y) })
+
+	return found
+}
+
+// priceKinds names a price row's kinds from the base rates before and after:
+// up, down or mixed, and a rate set to $0, whether written as 0 or left out.
+func priceKinds(before, after map[string]any) []string {
+	old, now := baseRates(before), baseRates(after)
+	up, down := false, false
+
+	for key, rate := range now {
+		up, down = up || rate > old[key], down || rate < old[key]
+	}
+
+	kinds := []string{"price"}
+
+	switch {
+	case up && !down:
+		kinds = []string{"price up"}
+	case down && !up:
+		kinds = []string{"price down"}
+	}
+
+	for key, rate := range old {
+		if rate > 0 && now[key] == 0 {
+			return append(kinds, "rate to zero")
+		}
+	}
+
+	return kinds
+}
+
+// rowKinds is kinds for one change row in the vendor's catalogue, or none
+// without one.
+func (base Base) rowKinds(change Change, provider string) []string {
+	if base.Before == nil || base.After == nil {
+		return nil
+	}
+
+	pkg, id := reconcile.PackageOf(change.Offering, provider)
+	before, _ := base.Before.Offering(pkg, id)
+	after, _ := base.After.Offering(pkg, id)
+
+	return kinds(change.Field, before, after)
+}
+
+// rowEffect is a change row's Effect cell: its price, date or region note
+// when it has one, else the short form of each kind.
+func (base Base) rowEffect(change Change, provider string) string {
+	if note := base.effect(change, provider); note != "" {
+		return note
+	}
+
+	var shorts []string
+
+	for _, kind := range base.rowKinds(change, provider) {
+		if short := impacts[kindIndex(kind)].short; short != "" {
+			shorts = append(shorts, short)
+		}
+	}
+
+	return strings.Join(shorts, "; ")
 }

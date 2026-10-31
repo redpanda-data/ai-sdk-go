@@ -33,6 +33,9 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/internal/reconcile"
 )
 
+// shaPattern is a -carried value's commit: a full SHA.
+var shaPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
+
 // replayPattern is a -replayed value: a vendor, a run ID and an RFC 3339
 // UTC time, whose day the body shows.
 var replayPattern = regexp.MustCompile(`^([a-z0-9]+)=([0-9]{1,20})@([0-9]{4}-[0-9]{2}-[0-9]{2})T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$`)
@@ -57,7 +60,7 @@ func parseSources(raw []byte) (map[string]namedSource, error) {
 }
 
 func main() {
-	var vendorDirs, failed, replayed []string
+	var vendorDirs, failed, replayed, carried []string
 
 	flag.Func("vendor", "NAME=DIR, once per vendor in the order the run applied them: DIR holds its report.json and, when its patch changed the catalogue, base-snapshot.json and snapshot.json", func(v string) error {
 		vendorDirs = append(vendorDirs, v)
@@ -68,13 +71,17 @@ func main() {
 
 		return nil
 	})
+	flag.Func("carried", "SHA<TAB>AUTHOR of a commit people pushed that the carry job carried, once per commit; SHA is the full SHA, and a further tab and subject are ignored", func(v string) error {
+		carried = append(carried, v)
+		return nil
+	})
 	flag.Func("failed", "NAME of a vendor whose run failed, once per vendor", func(v string) error {
 		failed = append(failed, v)
 		return nil
 	})
 
 	sourcesPath := flag.String("sources", "", "named-sources.json, for each vendor's hosts")
-	diffPath := flag.String("diff", "", "optional snapshot diff to include")
+	diffPath := flag.String("diff", "", "optional snapshot diff; the body only says whether the catalogue changed, as the diff is under Files changed")
 	outPath := flag.String("out", "", "where to write the PR body")
 	codeFilesPath := flag.String("code-files", "", "optional file listing the non-data files the patch changes, one per line")
 	rulesPath := flag.String("rules", "", "RULES.md, for the rule each row names")
@@ -193,6 +200,16 @@ func main() {
 		}
 
 		vendors[at].Replayed = Replay{Run: match[2], Date: match[3]}
+	}
+
+	for _, arg := range carried {
+		sha, rest, _ := strings.Cut(arg, "\t")
+		if !shaPattern.MatchString(sha) {
+			failf("-carried %q doesn't start with a commit's full SHA", arg)
+		}
+
+		author, _, _ := strings.Cut(rest, "\t")
+		base.Carried = append(base.Carried, Commit{SHA: sha, Author: author})
 	}
 
 	for _, name := range failed {

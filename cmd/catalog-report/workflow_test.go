@@ -241,6 +241,21 @@ func TestAgentRunsChecksBeforeClaude(t *testing.T) {
 	}
 }
 
+// TestSchemaFitsItsQuotes checks that the report schema has no single quote:
+// the agent job hands it to Claude inside single quotes, so one would end
+// the argument early and Claude would refuse to start.
+func TestSchemaFitsItsQuotes(t *testing.T) {
+	t.Parallel()
+
+	steps := readJob(t, vendorWorkflow, "agent").Steps
+	claude := steps[stepIndex(t, steps, "claude-code-action", isClaude)]
+	require.Contains(t, claude.With["claude_args"], "--json-schema '${{ steps.inputs.outputs.schema }}'")
+
+	raw, err := os.ReadFile(filepath.Join("..", "..", ".github", "reconcile-models", "report.schema.json"))
+	require.NoError(t, err)
+	assert.NotContains(t, string(raw), "'", "a single quote in the schema ends --json-schema's argument")
+}
+
 // TestEgressCheckWaitsForTheBlock runs check-egress.sh with a stand-in
 // Harden-Runner status file, curl and sleep.
 func TestEgressCheckWaitsForTheBlock(t *testing.T) {
@@ -535,7 +550,7 @@ func TestCombineBuildsThePRFromTheVendors(t *testing.T) {
 		{
 			name: "two vendors' commits", legs: legs, anthropic: part("success", anthropic, "true"), openai: part("success", openai, "true"), pending: "[]",
 			want:   map[string]string{"tip": openai, "changed": "true"},
-			body:   []string{"## Catalogue drift: anthropic, openai\n", "\n## anthropic\n", "\n## openai\n", "<details><summary>Snapshot diff</summary>", `+{"providers": [{"provider": "openai", "offerings": [{"id": "gpt-6-1", "model": "x/gpt-6-1"}, {"id": "gpt-6-2"`},
+			body:   []string{"## Catalogue drift: anthropic, openai\n", "\n## anthropic\n", "\n## openai\n"},
 			files:  "catalog/snapshot.json\nproviders/anthropic/models.go\nproviders/openai/models.go\n",
 			record: map[string][2]string{"anthropic": {anthropic, "4100"}, "openai": {openai, "4100"}},
 		},
@@ -550,7 +565,7 @@ func TestCombineBuildsThePRFromTheVendors(t *testing.T) {
 			name: "commits carried onto the vendors'", legs: legs, anthropic: part("success", anthropic, "true"), openai: part("success", openai, "true"), pending: "[]",
 			carry:  []string{`["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]`, carried, `["` + carried + `"]`, openai},
 			want:   map[string]string{"tip": carried, "changed": "true"},
-			body:   []string{"### Code changed (1)", "- `providers/openai/openaitest/constants.go`"},
+			body:   []string{"### Code changed (1)\n\n- `providers/openai/openaitest/constants.go`\n", "**Not from the bot:** 1 commit: `" + carried[:7] + "` by `t`."},
 			files:  "catalog/snapshot.json\nproviders/anthropic/models.go\nproviders/openai/models.go\nproviders/openai/openaitest/constants.go\n",
 			record: map[string][2]string{"anthropic": {anthropic, "4100"}, "openai": {openai, "4100"}},
 		},
@@ -579,7 +594,7 @@ func TestCombineBuildsThePRFromTheVendors(t *testing.T) {
 			name: "a replayed vendor", legs: legs, anthropic: part("success", anthropic, "true"),
 			openai: `{"result": "success", "outputs": {"head": "` + openai + `", "changed": "true", "replayed": "true", "agent_run": "40504204648", "agent_at": "2026-10-27T06:17:00Z"}}`, pending: `["openai"]`,
 			want:   map[string]string{"tip": openai, "changed": "true"},
-			body:   []string{"\n## openai\n\n> Replayed with no model: this is the change the agent made in run 40504204648 on 2026-10-27"},
+			body:   []string{"\n## openai\n\nReused from the agent's "},
 			files:  "catalog/snapshot.json\nproviders/anthropic/models.go\nproviders/openai/models.go\n",
 			record: map[string][2]string{"anthropic": {anthropic, "4100"}, "openai": {openai, "40504204648"}},
 		},
