@@ -61,6 +61,7 @@ The table names Anthropic's, OpenAI's and Google's cards. The other vendors `pro
 
 ## Self-check
 
+- For a family with `ProfileRegions`, compare each source region its card's per-geo tables list with that map while you read the card (route-add).
 - Every geo or in-region rate, brackets and overrides included, should be 1.10x the global rate. `TestGeoGlobalRatio` checks base rates only, so check the rest by hand. Where the host publishes another ratio, follow the host (price-follow) and update the test (owned-test-update).
 
 ## Probes (hand runs only)
