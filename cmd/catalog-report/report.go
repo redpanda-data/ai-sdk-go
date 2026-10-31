@@ -1097,13 +1097,20 @@ func impactTable(parts []vendorPart) string {
 	counts := map[string]map[string]int{}
 
 	for _, part := range parts {
+		// rowKinds reads the whole offering, so two rows of one offering
+		// name the same kinds; each offering counts once per kind.
+		counted := map[[2]string]bool{}
+
 		for _, change := range part.shown.Changes {
 			for _, kind := range part.base.rowKinds(change, part.Name) {
-				if counts[kind] == nil {
-					counts[kind] = map[string]int{}
-				}
+				if key := [2]string{change.Offering, kind}; !counted[key] {
+					if counts[kind] == nil {
+						counts[kind] = map[string]int{}
+					}
 
-				counts[kind][part.Name]++
+					counts[kind][part.Name]++
+					counted[key] = true
+				}
 			}
 		}
 

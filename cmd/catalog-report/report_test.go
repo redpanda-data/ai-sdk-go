@@ -1841,6 +1841,29 @@ func TestRenderImpactTable(t *testing.T) {
 		assert.Contains(t, body, "| `claude-opus-5-5` | limit | `200000` | `1000000` | agents compact at the new window |")
 	})
 
+	// #299: gpt-6.1-sol's input and output limits both changed, one row each,
+	// and the table counted the offering twice in both kinds.
+	t.Run("an offering counts once per kind", func(t *testing.T) {
+		t.Parallel()
+
+		snapshot := func(maxInput, maxOutput int) *reconcile.Snapshot {
+			snap, err := reconcile.ParseSnapshot(fmt.Appendf(nil, `{"providers": [{"provider": "anthropic", "offerings": [{"id": "claude-opus-5-5", "model": "anthropic/claude-opus-5-5",
+				"constraints": {"max_input_tokens": %d, "max_output_tokens": %d}}]}]}`, maxInput, maxOutput))
+			require.NoError(t, err)
+
+			return &snap
+		}
+		limits := Report{Changes: []Change{
+			{Offering: "claude-opus-5-5", Field: "limit", Old: "MaxInputTokens 200000", New: "MaxInputTokens 1000000", Rule: "price-follow"},
+			{Offering: "claude-opus-5-5", Field: "limit", Old: "MaxOutputTokens 64000", New: "MaxOutputTokens 128000", Rule: "price-follow"},
+		}}
+
+		body := Render(oneVendor(limits, Base{Before: snapshot(200000, 64000), After: snapshot(1000000, 128000)}), "", nil, Base{})
+
+		assert.Contains(t, body, "| **max input tokens** | 1 |")
+		assert.Contains(t, body, "| **max output tokens** | 1 |")
+	})
+
 	assert.NotContains(t, Render(oneVendor(validReport(), Base{}), "", nil, Base{}), "What changes for customers", "no catalogue, no table")
 }
 
