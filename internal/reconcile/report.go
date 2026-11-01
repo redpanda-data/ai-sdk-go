@@ -39,9 +39,11 @@ func PackageOf(offering, vendor string) (string, string) {
 	return vendor, offering
 }
 
-// Report is the agent job's structured output. It deliberately has no
-// free-text fields: everything rendered into a PR is an ID, an enum value,
-// a short value matching valuePattern, or a URL on a named-source host.
+// Report is the agent job's structured output. Its only free text is a
+// NeedsHuman row's Why, RuleWhen and RuleDoes: short sentences in a narrow
+// character set, which the schema and catalog-report's Validate check.
+// Everything else rendered into a PR is an ID, an enum value, a short value
+// matching valuePattern, or a URL on a named-source host.
 type Report struct {
 	Changes    []Change     `json:"changes"`
 	NeedsHuman []NeedsHuman `json:"needs_human"`
@@ -61,7 +63,9 @@ type Change struct {
 // NeedsHuman is a value the agent couldn't decide. Rule is the RULES.md rule
 // that sent it to a person, or no-rule when no rule covers the case.
 // Catalogue and Page, when the case has them, are what the catalogue has now
-// and what the cited page says; Values holds any other details.
+// and what the cited page says; Values holds any other details. Why says in
+// plain words what stopped the agent, and RuleWhen and RuleDoes draft the
+// rule that would settle the case: "When RuleWhen, the bot RuleDoes".
 type NeedsHuman struct {
 	Offering   string   `json:"offering"`
 	Field      string   `json:"field"`
@@ -70,6 +74,9 @@ type NeedsHuman struct {
 	Values     []string `json:"values"`
 	SourceURLs []string `json:"source_urls"`
 	Rule       string   `json:"rule"`
+	Why        string   `json:"why,omitempty"`
+	RuleWhen   string   `json:"rule_when,omitempty"`
+	RuleDoes   string   `json:"rule_does,omitempty"`
 }
 
 // Skipped is an offering the agent left alone, and the rule that left it out.
