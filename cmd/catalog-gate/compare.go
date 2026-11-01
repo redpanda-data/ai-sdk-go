@@ -54,15 +54,18 @@ func rows(report reconcile.Report) map[string]string {
 	return found
 }
 
-// pageKey is a URL without its query, fragment and .md or .html ending, so a
-// page the agent cited matches the gate's copy of it.
+// pageKey is a URL without its query, fragment and .md, .md.txt or .html
+// ending, so a page the agent cited matches the gate's copy of it.
 func pageKey(raw string) string {
 	parsed, err := url.Parse(raw)
 	if err != nil {
 		return raw
 	}
 
-	trimmed := strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(parsed.Path, "/"), ".md"), ".html")
+	trimmed := strings.TrimSuffix(parsed.Path, "/")
+	for _, ending := range []string{".md.txt", ".md", ".html"} {
+		trimmed = strings.TrimSuffix(trimmed, ending)
+	}
 
 	return strings.ToLower(parsed.Hostname()) + trimmed
 }

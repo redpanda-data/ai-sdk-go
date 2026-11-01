@@ -141,6 +141,9 @@ func TestValidate(t *testing.T) {
 		{"fact with no catalogue field whose value is blank", func(r *Report) {
 			r.Skipped[0] = Skipped{Offering: "gpt-5.5", Reason: "no_catalog_field", Rule: "no-catalog-field", Values: []string{" "}}
 		}, "skipped[0]: a no_catalog_field row names the missing fact in values"},
+		{"fact with no catalogue field beside a blank one", func(r *Report) {
+			r.Skipped[0] = Skipped{Offering: "gpt-5.5", Reason: "no_catalog_field", Rule: "no-catalog-field", Values: []string{"12h cache write", ""}}
+		}, "skipped[0]: a no_catalog_field row names the missing fact in values"},
 		{"skipped value with a link", func(r *Report) {
 			r.Skipped[0] = Skipped{Offering: "gpt-5.5", Reason: "no_catalog_field", Rule: "no-catalog-field", Values: []string{"see https://x.test"}}
 		}, `skipped[0]: bad value "see https://x.test"`},

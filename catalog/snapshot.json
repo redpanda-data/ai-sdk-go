@@ -7079,7 +7079,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,

@@ -154,7 +154,7 @@ sandbox bash -c "
   .build/.bin/golangci-lint run --new --timeout 10m $lint_pkgs ./catalog/...
   task license:check"
 
-# Where bare Bedrock names go now: patched code, so in the sandbox. Its
+# Where Bedrock names, bare or profile IDs, go now: patched code, so in the sandbox. Its
 # output is checked line by line before the body uses it.
 sandbox go run ./cmd/catalog-routes >"$priv/routes.txt"
 

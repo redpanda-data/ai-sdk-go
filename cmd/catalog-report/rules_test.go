@@ -89,6 +89,18 @@ func TestRulesFile(t *testing.T) {
 	repointed.Changes[0].Old = "ca-west-1"
 	assert.Equal(t, []string{"changes[0]: route-add only adds a source region, and this row has an old value"},
 		Validate(repointed, []string{"docs.aws.amazon.com"}, rules))
+
+	// A source region no family routes yet goes to a person under no-rule;
+	// route-add only changes, so a question filed under it fails the run.
+	unrouted := Report{NeedsHuman: []NeedsHuman{{
+		Offering: "bedrock:us.openai.gpt-6-astra", Field: "location", Page: "mx-central-1",
+		SourceURLs: []string{"https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-astra.md"}, Rule: "route-add",
+	}}}
+	assert.Equal(t, []string{"needs_human[0]: rule route-add doesn't produce needs_human"},
+		Validate(unrouted, []string{"docs.aws.amazon.com"}, rules))
+
+	unrouted.NeedsHuman[0].Rule = "no-rule"
+	assert.Empty(t, Validate(unrouted, []string{"docs.aws.amazon.com"}, rules), "a never-routed region asked under no-rule")
 }
 
 func TestRulesReachTheAgent(t *testing.T) {

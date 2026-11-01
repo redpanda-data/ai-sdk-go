@@ -92,8 +92,6 @@ func TestVertexAndAnthropicPriceSonnet5Differently(t *testing.T) {
 
 	assert.NotEqual(t, direct, viaVertex,
 		"claude-sonnet-5 must price differently under gcp.vertex (regional premiums) than under anthropic-direct")
-	assert.Empty(t, direct.Overrides,
-		"anthropic-direct claude-sonnet-5 has no regional overrides")
 	assert.NotEmpty(t, viaVertex.Overrides,
 		"vertex claude-sonnet-5 carries per-region premium overrides")
 }

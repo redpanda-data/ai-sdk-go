@@ -200,10 +200,11 @@ var (
 )
 
 // entries returns the authored Vertex catalog. Rates are
-// USD-per-million-tokens from Google's pricing page, Claude rates included
+// USD-per-million-tokens from Google's pricing pages, Gemini's and Claude's
 // (not Anthropic's list prices):
 //
-//	https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing
+//	https://cloud.google.com/model-garden/pricing
+//	https://cloud.google.com/model-garden/partner-models/pricing
 //
 // Capabilities and constraints mirror the same models in the Gemini-API and
 // Anthropic-direct catalogs, with five exceptions. No Claude entry offers
@@ -894,7 +895,7 @@ func claudeOpus55Pricing() pricing.Info {
 // (Batch Cache Hit rows are $0.05/$0.055), verified 2026-10-16.
 // Current rates only; historical usage is not effective-dated.
 // Source:
-// https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing
+// https://cloud.google.com/model-garden/partner-models/pricing
 func claudeSonnet55Pricing() pricing.Info {
 	global := pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(2.50, 4.00, 0)
 	nonGlobal := pricing.NewRates(2.20, 11.00, 0.11).WithCacheCreation(2.75, 4.40, 0)

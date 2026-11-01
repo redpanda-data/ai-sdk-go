@@ -196,8 +196,9 @@ func Validate(report Report, hosts []string, rules reconcile.Rules) []string {
 			checkValue(where, value)
 		}
 
-		// A possible SDK feature is only useful if it says what's missing.
-		if item.Reason == noCatalogField && !slices.ContainsFunc(item.Values, func(v string) bool { return strings.TrimSpace(v) != "" }) {
+		// A possible SDK feature is only useful if it says what's missing, and
+		// each value renders as its own Skipped line.
+		if item.Reason == noCatalogField && (len(item.Values) == 0 || slices.ContainsFunc(item.Values, func(v string) bool { return strings.TrimSpace(v) == "" })) {
 			problems = append(problems, where+": a no_catalog_field row names the missing fact in values")
 		}
 

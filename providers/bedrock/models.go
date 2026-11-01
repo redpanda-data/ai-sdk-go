@@ -726,16 +726,19 @@ var (
 	}
 
 	// GPT-6.1 Terra on bedrock-mantle. Unlike the other GPT-6 cards, Terra's
-	// lists structured outputs only on bedrock-runtime, so the mantle copy
-	// advertises neither JSON mode nor structured output.
+	// lists structured outputs only on bedrock-runtime, but a Responses API
+	// call on 2026-11-01 (us-east-1, streaming and not) returned JSON that
+	// matched its schema, so the mantle copy advertises structured output.
+	// JSON mode is untested.
 	// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-1-terra.html
 	gpt61TerraMantleCaps = llm.ModelCapabilities{
-		Streaming:     true,
-		Tools:         true,
-		Vision:        true,
-		MultiTurn:     true,
-		SystemPrompts: true,
-		Reasoning:     true,
+		Streaming:        true,
+		Tools:            true,
+		StructuredOutput: true,
+		Vision:           true,
+		MultiTurn:        true,
+		SystemPrompts:    true,
+		Reasoning:        true,
 	}
 
 	// GPT-6 Astra's Ultrafast tier (service_tier "ultrafast"), six times
