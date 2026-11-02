@@ -98,6 +98,10 @@ if [[ "$changed" == "true" ]]; then
   # People's commits are code for the reviewer to read, whatever they touch.
   git diff --name-only "$vendors_tip" HEAD -- . ':(exclude)catalog/snapshot.json' >>"$codes"
   git diff "$GITHUB_SHA" HEAD -- catalog/snapshot.json >"$out/snapshot.diff"
+  # Each commit people pushed, with its author and subject, for the body.
+  for sha in $(jq -r '.[]' <<<"${CARRIED:-[]}"); do
+    args+=(-carried "$(git log -1 --format='%H%x09%an%x09%s' "$sha")")
+  done
   args+=(-diff "$out/snapshot.diff" -code-files "$codes")
   if [[ -n "$first" ]]; then
     args+=(-base-routes "$first/base-routes.txt" -routes "$last/routes.txt")
