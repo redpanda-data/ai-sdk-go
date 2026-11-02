@@ -13570,7 +13570,7 @@
             "vision": true
           },
           "constraints": {
-            "max_input_tokens": 272000,
+            "max_input_tokens": 400000,
             "max_output_tokens": 128000,
             "supported_params": [
               "temperature",

@@ -234,8 +234,10 @@ func entries() []catalog.Entry {
 			Capabilities: flagshipCaps,
 			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
-				TemperatureRange:  [2]float64{0.0, 2.0},
-				MaxInputTokens:    272000, // documented max input; the 400K window reserves 128K for output
+				TemperatureRange: [2]float64{0.0, 2.0},
+				// 400K context window; the model page publishes no separate input
+				// cap (https://developers.openai.com/api/docs/models/gpt-5.1, read 2026-11-02).
+				MaxInputTokens:    400000,
 				MaxOutputTokens:   128000, // 128K output tokens
 				SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed", "reasoning_effort", "reasoning_summary"},
 				MutuallyExclusive: [][]string{{"temperature", "top_p"}},
