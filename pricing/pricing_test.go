@@ -405,6 +405,28 @@ func TestCatalogBuilder_Errors(t *testing.T) {
 		assert.Contains(t, err.Error(), "ambiguous selectors")
 	})
 
+	t.Run("overlap covered by its intersection accepted", func(t *testing.T) {
+		t.Parallel()
+
+		// Speed fast and region us overlap at the same specificity, but the
+		// fast+us override is more specific than both, so a call matching both
+		// resolves to it and the pair is not ambiguous.
+		fastUS := RateCard{Base: NewRates(0.00000013, 0.00000024, 0.00000035)}
+		info := FlatInfo(0.00000001, 0.00000002, 0.00000003).
+			WithOverride(Selector{Speed: "fast"}, RateCard{Base: NewRates(0.0000001, 0.0000002, 0.0000003)}).
+			WithOverride(Selector{Region: "us"}, RateCard{Base: NewRates(0.00000012, 0.00000023, 0.00000034)}).
+			WithOverride(Selector{Speed: "fast", Region: "us"}, fastUS)
+
+		_, err := NewCatalog(
+			WithProvider("anthropic", map[string]Info{"m": info}),
+		)
+		require.NoError(t, err)
+
+		card, matched, _ := resolveRateCard(info, Selector{Speed: "fast", Region: "us"})
+		assert.Equal(t, Selector{Speed: "fast", Region: "us"}, matched)
+		assert.Equal(t, fastUS, card)
+	})
+
 	t.Run("all ambiguous selector pairs reported", func(t *testing.T) {
 		t.Parallel()
 

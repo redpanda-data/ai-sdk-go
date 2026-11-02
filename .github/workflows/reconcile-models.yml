@@ -8,7 +8,7 @@ on:
       vendor:
         description: Vendor to reconcile (its models on every provider that sells them), or all. Every other vendor with a change waiting in the PR replays it with no model.
         type: choice
-        options: [all, anthropic, openai]
+        options: [all, anthropic, openai, google]
         default: all
       dry_run:
         description: Stop before pushing a branch or opening a PR
@@ -167,10 +167,27 @@ jobs:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       STEP_DEBUG: ${{ secrets.ACTIONS_STEP_DEBUG }}
 
+  google:
+    needs: [plan, anthropic, openai]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && contains(fromJSON(needs.plan.outputs.run), 'google') }}
+    uses: ./.github/workflows/reconcile-vendor.yml
+    permissions:
+      contents: read
+      actions: read
+    with:
+      vendor: google
+      mode: ${{ contains(fromJSON(needs.plan.outputs.replay), 'google') && 'replay' || 'agent' }}
+      base_sha: ${{ needs.openai.outputs.head || needs.anthropic.outputs.head || github.sha }}
+      dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+      force: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      STEP_DEBUG: ${{ secrets.ACTIONS_STEP_DEBUG }}
+
   # No model and no bot token. Carries the commits other people pushed onto
   # the bot PR onto the vendors' commits (carry.sh), checked in the sandbox.
   carry:
-    needs: [plan, anthropic, openai]
+    needs: [plan, anthropic, openai, google]
     if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.carry != '[]' && needs.plan.outputs.stop != 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -237,7 +254,7 @@ jobs:
   # The only job with the bot token. It puts the vendors' commits together
   # into one PR and pushes once, at the end; it runs nothing from the patches.
   pr:
-    needs: [plan, anthropic, openai, carry]
+    needs: [plan, anthropic, openai, google, carry]
     if: ${{ !cancelled() && needs.plan.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20

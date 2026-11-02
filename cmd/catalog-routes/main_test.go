@@ -62,6 +62,23 @@ func TestRoutes(t *testing.T) {
 	}
 }
 
+// TestRoutesFollowProfileRegions pins why profile IDs are listed: a family's
+// route table decides from which regions its profile IDs may be called, so a
+// re-pointed entry changes these lines even where the bare name's route
+// doesn't (GPT-6 Astra's bare ID is registered and resolves as-is).
+func TestRoutesFollowProfileRegions(t *testing.T) {
+	t.Parallel()
+
+	assert.Contains(t, names(), bedrock.ModelGPT6AstraUS, "profile IDs are listed")
+
+	lines, err := routes([]string{"us-east-1", "eu-west-1"}, []string{bedrock.ModelGPT6AstraUS})
+	require.NoError(t, err)
+	assert.Equal(t, []string{
+		"eu-west-1 " + bedrock.ModelGPT6AstraUS + " -",
+		"us-east-1 " + bedrock.ModelGPT6AstraUS + " " + bedrock.ModelGPT6AstraUS,
+	}, lines, "the table sends us-east-1 to the US profile and eu-west-1 to global")
+}
+
 func TestBareNames(t *testing.T) {
 	t.Parallel()
 

@@ -159,9 +159,10 @@ var claudeCaps = llm.ModelCapabilities{
 // rawPredict call at global on 2026-09-29 returned a tool_search_tool_result
 // for both tool types on four models, which showed that Vertex serves tool
 // search. The other flags were copied from Anthropic's tool-search list. A
-// model leaves tool search here when Anthropic drops it; turning it on takes a
-// person's call on Vertex (TestVertexToolSearchNeedsAnthropic; RULES.md
-// vertex-capability-one-way).
+// model leaves tool search here when Anthropic drops it (RULES.md
+// capped-at-vendor); turning it on takes a person's call on Vertex
+// (TestVertexToolSearchNeedsAnthropic; the reconcile-models skill's
+// hosts/vertex.md).
 var claudeCapsWithToolSearch = func() llm.ModelCapabilities {
 	caps := claudeCaps
 	caps.ToolSearchProtocol = llm.ToolSearchProtocolAnthropic
@@ -199,10 +200,11 @@ var (
 )
 
 // entries returns the authored Vertex catalog. Rates are
-// USD-per-million-tokens from Google's pricing page, Claude rates included
+// USD-per-million-tokens from Google's pricing pages, Gemini's and Claude's
 // (not Anthropic's list prices):
 //
-//	https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing
+//	https://cloud.google.com/model-garden/pricing
+//	https://cloud.google.com/model-garden/partner-models/pricing
 //
 // Capabilities and constraints mirror the same models in the Gemini-API and
 // Anthropic-direct catalogs, with five exceptions. No Claude entry offers
@@ -213,7 +215,8 @@ var (
 // thinking budget, which the Anthropic-direct catalog does not set. Claude
 // tool search can be off where Anthropic-direct has it on: a new entry
 // starts with claudeCaps, and a person turns it on once a call on Vertex
-// returns a tool search result (RULES.md vertex-capability-one-way).
+// returns a tool search result (the reconcile-models skill's
+// hosts/vertex.md).
 // The four preserved-thinking models also enforce prefix checks on Google
 // Cloud; see platform.claude.com/docs/en/build-with-claude/preserved-thinking
 // (verified 2026-10-21). Their flags drive the shared Anthropic mapper.
@@ -892,7 +895,7 @@ func claudeOpus55Pricing() pricing.Info {
 // (Batch Cache Hit rows are $0.05/$0.055), verified 2026-10-16.
 // Current rates only; historical usage is not effective-dated.
 // Source:
-// https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing
+// https://cloud.google.com/model-garden/partner-models/pricing
 func claudeSonnet55Pricing() pricing.Info {
 	global := pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(2.50, 4.00, 0)
 	nonGlobal := pricing.NewRates(2.20, 11.00, 0.11).WithCacheCreation(2.75, 4.40, 0)

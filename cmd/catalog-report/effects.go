@@ -103,8 +103,12 @@ func (base Base) unreported(report Report, provider string) []string {
 		name(row.Offering)
 	}
 
+	// A no_catalog_field row leaves out one fact, not the offering, so it
+	// explains none of the offering's changes.
 	for _, row := range report.Skipped {
-		name(row.Offering)
+		if row.Reason != noCatalogField {
+			name(row.Offering)
+		}
 	}
 
 	var names []string

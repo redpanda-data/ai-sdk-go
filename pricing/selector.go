@@ -15,6 +15,7 @@
 package pricing
 
 import (
+	"cmp"
 	"strings"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
@@ -98,6 +99,16 @@ func selectorFieldMatches(candidate, actual string) bool {
 
 func selectorFieldsOverlap(a, b string) bool {
 	return a == "" || b == "" || a == b
+}
+
+// selectorIntersection is the selector a call must match to match both a and
+// b, which overlap: each dimension either one sets.
+func selectorIntersection(a, b Selector) Selector {
+	return Selector{
+		ServiceTier: cmp.Or(a.ServiceTier, b.ServiceTier),
+		Speed:       cmp.Or(a.Speed, b.Speed),
+		Region:      cmp.Or(a.Region, b.Region),
+	}
 }
 
 func selectorSpecificity(selector Selector) int {

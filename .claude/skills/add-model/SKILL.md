@@ -81,7 +81,7 @@ Exported ID constant (greppable), capabilities, constraints, modalities,
   Anthropic Messages through Bedrock InvokeModel needs a different envelope
   from direct Messages, runtime Messages, Mantle, or Vertex rawPredict.
   Verify per-model API support from vendor model pages and API matrices; do
-  not infer it from the publisher, model-name patterns, the SDK's current
+  not infer it from the vendor, model-name patterns, the SDK's current
   mapper, or another offering's geo or profile variant. OpenAI Pro models can
   be Responses-only while other OpenAI models support both APIs. Advertise
   production-grade bindings, not degraded or experimental compatibility

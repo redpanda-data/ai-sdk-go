@@ -322,6 +322,11 @@ func validateOverrides(overrides []Override, scope string) error {
 
 	var errs []error
 
+	declared := make(map[Selector]bool, len(overrides))
+	for _, override := range overrides {
+		declared[override.Match] = true
+	}
+
 	for i := range overrides {
 		for j := i + 1; j < len(overrides); j++ {
 			a := overrides[i].Match
@@ -331,7 +336,9 @@ func validateOverrides(overrides []Override, scope string) error {
 				continue
 			}
 
-			if selectorSpecificity(a) == selectorSpecificity(b) {
+			// A call matching both resolves to an override for their
+			// intersection when one exists, since it is more specific.
+			if selectorSpecificity(a) == selectorSpecificity(b) && !declared[selectorIntersection(a, b)] {
 				errs = append(errs,
 					fmt.Errorf("%s: ambiguous selectors %q and %q have the same specificity and overlap",
 						scope, selectorString(a), selectorString(b)))

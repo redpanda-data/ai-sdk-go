@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Command catalog-routes prints where this SDK sends each bare Bedrock model
-// name from each AWS region: one "region name model-ID" line per pair,
-// sorted, with "-" where the SDK refuses the pair. The reconcile PR job runs
+// Command catalog-routes prints where this SDK sends each Bedrock model name,
+// bare or a profile ID, from each AWS region: one "region name model-ID" line
+// per pair, sorted, with "-" where the SDK refuses the pair. The reconcile PR job runs
 // it on the code before and after a patch and compares the two, so a
 // reviewer sees which callers a change moves. It sends nothing: a recorder
 // catches each request and reads the model ID from it.
@@ -39,7 +39,7 @@ import (
 )
 
 func main() {
-	lines, err := routes(reconcile.AWSRegions, bareNames())
+	lines, err := routes(reconcile.AWSRegions, names())
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "catalog-routes:", err)
 		os.Exit(1)
@@ -49,6 +49,23 @@ func main() {
 		fmt.Fprintln(os.Stderr, "catalog-routes:", err)
 		os.Exit(1)
 	}
+}
+
+// names lists every name a caller can pass: the bare names, and each profile
+// ID, since a family's route table decides from which regions its profile IDs
+// may be called.
+func names() []string {
+	names := bareNames()
+
+	for _, o := range bedrock.Catalog().All() {
+		if o.Attributes[bedrock.ModelMetadataInferenceGeo] != "" {
+			names = append(names, o.ID)
+		}
+	}
+
+	slices.Sort(names)
+
+	return slices.Compact(names)
 }
 
 // bareNames lists the names a caller can pass without a region prefix: every
