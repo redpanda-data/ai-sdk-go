@@ -30,7 +30,10 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/internal/reconcile"
 )
 
-var hosts = []string{"platform.claude.com"}
+// claudeSource is Anthropic's named-sources entry, citing hosts.
+func claudeSource(hosts ...string) namedSource {
+	return namedSource{Providers: []string{"anthropic", "vertex", "bedrock"}, Hosts: hosts}
+}
 
 // testRules is a RULES.md with a price Default, a copy Default, four skip
 // Defaults, one Ask, no-rule for rows no rule covers, and Bedrock's offered
@@ -186,13 +189,106 @@ func TestValidate(t *testing.T) {
 			report := validReport()
 			tt.mutate(&report)
 
-			problems := Validate(report, hosts, testRules)
+			problems := Validate(report, "anthropic", claudeSource("platform.claude.com"), testRules)
 			if tt.wantErr == "" {
 				assert.Empty(t, problems)
 				return
 			}
 
 			assert.Contains(t, strings.Join(problems, "\n"), tt.wantErr)
+		})
+	}
+}
+
+// TestValidatePackages pins that every row, skipped ones too, names an
+// offering in a package its vendor's run owns, so a vendor with no package of
+// its own names each one <package>:<model ID> (RULES.md, Offerings).
+func TestValidatePackages(t *testing.T) {
+	t.Parallel()
+
+	source := "https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards.html"
+	change := func(offering string) Report {
+		return Report{Changes: []Change{{Offering: offering, Field: "price", Old: "1.00", New: "2.00", Rule: "price-follow", SourceURL: source}}}
+	}
+	asked := func(offering string) Report {
+		return Report{NeedsHuman: []NeedsHuman{{Offering: offering, Field: "limit", Values: []string{"1", "2"}, Rule: "no-rule", SourceURLs: []string{source}}}}
+	}
+	skipped := func(offering string) Report {
+		return Report{Skipped: []Skipped{{Offering: offering, Reason: "limited_availability", Rule: "limited-availability"}}}
+	}
+
+	tests := []struct {
+		name     string
+		vendor   string
+		packages []string
+		report   Report
+		wantErr  string
+	}{
+		{"a Mistral offering with its package", "mistral", []string{"bedrock"}, change("bedrock:mistral.mistral-large-3-675b-instruct"), ""},
+		{
+			"a bare Mistral ID", "mistral",
+			[]string{"bedrock"},
+			change("mistral.mistral-large-3-675b-instruct"),
+			"changes[0]: mistral.mistral-large-3-675b-instruct isn't in a package mistral's run owns (bedrock)",
+		},
+		{
+			"a bare Mistral ID asked about", "mistral",
+			[]string{"bedrock"},
+			asked("mistral.mistral-large-3-675b-instruct"),
+			"needs_human[0]: mistral.mistral-large-3-675b-instruct isn't in a package mistral's run owns (bedrock)",
+		},
+		{"an Amazon offering with its package, skipped", "amazon", []string{"bedrock"}, skipped("bedrock:us.amazon.nova-2-lite-v1:0"), ""},
+		{
+			"a bare Amazon ID, skipped", "amazon",
+			[]string{"bedrock"},
+			skipped("us.amazon.nova-2-lite-v1:0"),
+			"skipped[0]: us.amazon.nova-2-lite-v1:0 isn't in a package amazon's run owns (bedrock)",
+		},
+		{"a bare ID in the vendor's own package", "meta", []string{"meta"}, change("muse-spark-1.3"), ""},
+		{
+			"a bare Bedrock ID in a run that owns bedrock", "meta",
+			[]string{"meta", "bedrock"},
+			change("us.meta.llama4-maverick-17b-instruct-v1:0"),
+			"changes[0]: us.meta.llama4-maverick-17b-instruct-v1:0 looks like a Bedrock ID: write it as bedrock:us.meta.llama4-maverick-17b-instruct-v1:0",
+		},
+		{
+			"a bare Bedrock ID skipped", "openai",
+			[]string{"openai", "bedrock"},
+			skipped("global.openai.gpt-5.5"),
+			"skipped[0]: global.openai.gpt-5.5 looks like a Bedrock ID: write it as bedrock:global.openai.gpt-5.5",
+		},
+		{"a dotted ID in the vendor's own package", "openai", []string{"openai", "bedrock"}, change("gpt-5.5"), ""},
+		{
+			"a Bedrock ID behind the vendor's own label", "openai",
+			[]string{"openai", "bedrock"},
+			change("openai:us.openai.gpt-6-sol"),
+			"changes[0]: openai:us.openai.gpt-6-sol looks like a Bedrock ID: write it as bedrock:us.openai.gpt-6-sol",
+		},
+		{
+			"a bare us-gov Bedrock ID asked about", "meta",
+			[]string{"meta", "bedrock"},
+			asked("us-gov.meta.llama4-maverick-17b-instruct-v1:0"),
+			"needs_human[0]: us-gov.meta.llama4-maverick-17b-instruct-v1:0 looks like a Bedrock ID: write it as bedrock:us-gov.meta.llama4-maverick-17b-instruct-v1:0",
+		},
+		{"a Bedrock-shaped ID in a run that doesn't own bedrock (made up)", "openai", []string{"openai"}, change("us.openai.gpt-6-sol"), ""},
+		{
+			"a package another vendor's run owns", "openai",
+			[]string{"openai", "bedrock"},
+			change("vertex:gpt-oss-120b"),
+			"changes[0]: vertex:gpt-oss-120b isn't in a package openai's run owns (openai, bedrock)",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			problems := Validate(tt.report, tt.vendor, namedSource{Providers: tt.packages, Hosts: []string{"docs.aws.amazon.com"}}, testRules)
+			if tt.wantErr == "" {
+				assert.Empty(t, problems)
+				return
+			}
+
+			assert.Equal(t, []string{tt.wantErr}, problems)
 		})
 	}
 }

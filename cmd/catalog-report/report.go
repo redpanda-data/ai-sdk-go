@@ -46,6 +46,10 @@ var (
 	// codeFilePattern keeps listed file paths to plain path characters, so a
 	// path can't break out of its code span in the PR body.
 	codeFilePattern = regexp.MustCompile(`^[A-Za-z0-9_./-]{1,200}$`)
+	// bedrockShaped matches Bedrock model IDs, which start with a region or
+	// a provider namespace and a dot (us.anthropic.…, us-gov.…, mistral.…);
+	// no other package's IDs do.
+	bedrockShaped = regexp.MustCompile(`^[a-z-]+\.`)
 	// sentencePattern is the agent's own words, shown as plain text: no
 	// character that starts markup, a link, a mention, an emoji or math, and
 	// no apostrophe, which would end the schema's quoted argument to Claude.
@@ -108,9 +112,9 @@ func ValidateCodeFiles(files []string) []string {
 	return problems
 }
 
-// Validate lists every problem that would make the report unsafe to render,
-// including a row that names a rule RULES.md doesn't have.
-func Validate(report Report, hosts []string, rules reconcile.Rules) []string {
+// Validate lists every problem that would make vendor's report unsafe to
+// render, including a row that names a rule RULES.md doesn't have.
+func Validate(report Report, vendor string, source namedSource, rules reconcile.Rules) []string {
 	var problems []string
 	// A row's rule must exist and produce the row's outcome (RULES.md, Report values).
 	checkRule := func(where, id, outcome string) bool {
@@ -127,8 +131,8 @@ func Validate(report Report, hosts []string, rules reconcile.Rules) []string {
 		return true
 	}
 	checkOffering := func(where, offering string) {
-		if !reconcile.OfferingPattern.MatchString(offering) {
-			problems = append(problems, where+": bad offering "+fmt.Sprintf("%q", offering))
+		if problem := offeringProblem(offering, vendor, source); problem != "" {
+			problems = append(problems, where+": "+problem)
 		}
 	}
 	checkValue := func(where, value string) {
@@ -139,7 +143,7 @@ func Validate(report Report, hosts []string, rules reconcile.Rules) []string {
 
 	checkSource := func(where, raw string) {
 		parsed, err := url.Parse(raw)
-		if err != nil || !sourcePattern.MatchString(raw) || parsed.Scheme != "https" || !slices.Contains(hosts, parsed.Hostname()) {
+		if err != nil || !sourcePattern.MatchString(raw) || parsed.Scheme != "https" || !slices.Contains(source.Hosts, parsed.Hostname()) {
 			problems = append(problems, where+": source not on a named-source host: "+fmt.Sprintf("%q", raw))
 		}
 	}
@@ -192,14 +196,8 @@ func Validate(report Report, hosts []string, rules reconcile.Rules) []string {
 			checkValue(where, value)
 		}
 
-		for _, sentence := range []string{item.Why, item.RuleWhen, item.RuleDoes} {
-			if !safeSentence(sentence) {
-				problems = append(problems, where+": bad sentence "+fmt.Sprintf("%q", sentence))
-			}
-		}
-
-		if (item.RuleWhen == "") != (item.RuleDoes == "") {
-			problems = append(problems, where+": a rule draft needs both rule_when and rule_does")
+		for _, problem := range sentenceProblems(item) {
+			problems = append(problems, where+": "+problem)
 		}
 
 		if len(item.SourceURLs) == 0 {
@@ -227,24 +225,73 @@ func Validate(report Report, hosts []string, rules reconcile.Rules) []string {
 			checkValue(where, value)
 		}
 
-		// A possible SDK feature is only useful if it says what's missing, and
-		// each value renders as its own Skipped line.
-		if item.Reason == noCatalogField && (len(item.Values) == 0 || slices.ContainsFunc(item.Values, func(v string) bool { return strings.TrimSpace(v) == "" })) {
-			problems = append(problems, where+": a no_catalog_field row names the missing fact in values")
+		for _, problem := range skipProblems(item, rules) {
+			problems = append(problems, where+": "+problem)
 		}
+	}
 
-		// Only a host's own Offered row can show a region isn't offered.
-		if item.Reason == regionNotOffered {
-			host, prefix, named := regionOf(item.Offering)
+	return problems
+}
 
-			switch offered, listed := rules.Offered[host]; {
-			case !named:
-				problems = append(problems, where+": "+item.Offering+" names no package")
-			case !listed:
-				problems = append(problems, where+": "+host+" has no Offered regions row")
-			case slices.Contains(offered, prefix):
-				problems = append(problems, where+": region "+prefix+" is offered on "+host)
-			}
+// offeringProblem says what's wrong with a row's offering for vendor's run, or
+// returns "". A bare ID is in the vendor's own package, so a vendor with none
+// prefixes every offering (RULES.md, Report values). In a run that owns
+// bedrock, an ID shaped like Bedrock's under the vendor's own package is a
+// forgotten prefix, which would describe the change as the vendor's own.
+func offeringProblem(offering, vendor string, source namedSource) string {
+	if !reconcile.OfferingPattern.MatchString(offering) {
+		return "bad offering " + fmt.Sprintf("%q", offering)
+	}
+
+	switch pkg, id := reconcile.PackageOf(offering, vendor); {
+	case !slices.Contains(source.Providers, pkg):
+		return offering + " isn't in a package " + vendor + "'s run owns (" + strings.Join(source.Providers, ", ") + ")"
+	case pkg == vendor && slices.Contains(source.Providers, "bedrock") && bedrockShaped.MatchString(id):
+		return offering + " looks like a Bedrock ID: write it as bedrock:" + id
+	}
+
+	return ""
+}
+
+// sentenceProblems lists what's wrong with a needs_human row's own words:
+// a why or rule draft that isn't plain text, or a draft with one half.
+func sentenceProblems(item NeedsHuman) []string {
+	var problems []string
+
+	for _, sentence := range []string{item.Why, item.RuleWhen, item.RuleDoes} {
+		if !safeSentence(sentence) {
+			problems = append(problems, "bad sentence "+fmt.Sprintf("%q", sentence))
+		}
+	}
+
+	if (item.RuleWhen == "") != (item.RuleDoes == "") {
+		problems = append(problems, "a rule draft needs both rule_when and rule_does")
+	}
+
+	return problems
+}
+
+// skipProblems lists what a skipped row's reason needs and the row lacks.
+func skipProblems(item Skipped, rules reconcile.Rules) []string {
+	var problems []string
+
+	// A possible SDK feature is only useful if it says what's missing, and
+	// each value renders as its own Skipped line.
+	if item.Reason == noCatalogField && (len(item.Values) == 0 || slices.ContainsFunc(item.Values, func(v string) bool { return strings.TrimSpace(v) == "" })) {
+		problems = append(problems, "a no_catalog_field row names the missing fact in values")
+	}
+
+	// Only a host's own Offered row can show a region isn't offered.
+	if item.Reason == regionNotOffered {
+		host, prefix, named := regionOf(item.Offering)
+
+		switch offered, listed := rules.Offered[host]; {
+		case !named:
+			problems = append(problems, item.Offering+" names no package")
+		case !listed:
+			problems = append(problems, host+" has no Offered regions row")
+		case slices.Contains(offered, prefix):
+			problems = append(problems, "region "+prefix+" is offered on "+host)
 		}
 	}
 

@@ -72,7 +72,7 @@ func TestMainReadsEachVendorsFolder(t *testing.T) {
 	bin := buildCatalogReport(t)
 	dir := t.TempDir()
 	sources := filepath.Join(dir, "named-sources.json")
-	require.NoError(t, os.WriteFile(sources, []byte(`{"anthropic": {"providers": ["anthropic"], "hosts": ["platform.claude.com"]},
+	require.NoError(t, os.WriteFile(sources, []byte(`{"anthropic": {"providers": ["anthropic", "vertex", "bedrock"], "hosts": ["platform.claude.com"]},
 		"openai": {"providers": ["openai"], "hosts": ["developers.openai.com"]}, "google": {"providers": ["google"], "hosts": ["ai.google.dev"]}}`), 0o600))
 
 	folder := func(name string, report Report, files map[string]string) string {

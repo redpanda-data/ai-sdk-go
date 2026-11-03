@@ -58,7 +58,7 @@ func TestRulesFile(t *testing.T) {
 		Offering: "vertex:claude-sonnet-5", Field: "location", Old: "global us-east5", New: "global us-east5 europe-west1",
 		SourceURL: "https://docs.cloud.google.com/gemini-enterprise-agent-platform/resources/locations", Rule: "location-follow",
 	}}}
-	assert.Empty(t, Validate(located, []string{"docs.cloud.google.com"}, rules), "a location change under location-follow")
+	assert.Empty(t, Validate(located, "anthropic", claudeSource("docs.cloud.google.com"), rules), "a location change under location-follow")
 
 	// The locations table has listed a location the model page leaves out,
 	// so the Default must say which of the two wins.
@@ -73,7 +73,7 @@ func TestRulesFile(t *testing.T) {
 		SourceURL: "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-5-5.md", Rule: "location-follow",
 	}}}
 	assert.Equal(t, []string{"changes[0]: a location change on bedrock re-routes callers, so it goes to a person"},
-		Validate(routed, []string{"docs.aws.amazon.com"}, rules))
+		Validate(routed, "anthropic", claudeSource("docs.aws.amazon.com"), rules))
 
 	// route-add is the one exception: a source region a family's map lacks is
 	// refused today, so adding it moves nobody.
@@ -81,7 +81,7 @@ func TestRulesFile(t *testing.T) {
 		Offering: "bedrock:us.openai.gpt-6-astra", Field: "location", Old: "", New: "ca-west-1",
 		SourceURL: "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-astra.md", Rule: "route-add",
 	}}}
-	assert.Empty(t, Validate(added, []string{"docs.aws.amazon.com"}, rules), "a source region added under route-add")
+	assert.Empty(t, Validate(added, "anthropic", claudeSource("docs.aws.amazon.com"), rules), "a source region added under route-add")
 
 	// route-add only adds: a row that names an old region removes or
 	// re-points an entry, which moves callers.
@@ -89,7 +89,7 @@ func TestRulesFile(t *testing.T) {
 	repointed.Changes = []Change{added.Changes[0]}
 	repointed.Changes[0].Old = "ca-west-1"
 	assert.Equal(t, []string{"changes[0]: route-add only adds a source region, and this row has an old value"},
-		Validate(repointed, []string{"docs.aws.amazon.com"}, rules))
+		Validate(repointed, "anthropic", claudeSource("docs.aws.amazon.com"), rules))
 
 	// A source region no family routes yet goes to a person under no-rule;
 	// route-add only changes, so a question filed under it fails the run.
@@ -98,10 +98,10 @@ func TestRulesFile(t *testing.T) {
 		SourceURLs: []string{"https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-astra.md"}, Rule: "route-add",
 	}}}
 	assert.Equal(t, []string{"needs_human[0]: rule route-add doesn't produce needs_human"},
-		Validate(unrouted, []string{"docs.aws.amazon.com"}, rules))
+		Validate(unrouted, "anthropic", claudeSource("docs.aws.amazon.com"), rules))
 
 	unrouted.NeedsHuman[0].Rule = "no-rule"
-	assert.Empty(t, Validate(unrouted, []string{"docs.aws.amazon.com"}, rules), "a never-routed region asked under no-rule")
+	assert.Empty(t, Validate(unrouted, "anthropic", claudeSource("docs.aws.amazon.com"), rules), "a never-routed region asked under no-rule")
 }
 
 func TestRulesReachTheAgent(t *testing.T) {
@@ -116,8 +116,10 @@ func TestRulesReachTheAgent(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Contains(t, string(prompt), ".claude/skills/reconcile-models/hosts/", "the prompt must send the agent to the host pages")
+	assert.Contains(t, string(prompt), "hosts/{{PROVIDER}}.md", "the prompt must send the agent to its vendor's page")
 
-	// Every package a run owns has a how-to page, next to the shared one.
+	// Every package a run owns has a how-to page, next to the shared one, and
+	// so does every vendor, for its own pages.
 	runs := namedSources(t)
 	pages := map[string]string{"prompt.md": string(prompt)}
 
@@ -129,8 +131,8 @@ func TestRulesReachTheAgent(t *testing.T) {
 		pages[skill+"/SKILL.md"] = string(text)
 	}
 
-	for _, run := range runs {
-		for _, pkg := range append([]string{"shared"}, run.Providers...) {
+	for vendor, run := range runs {
+		for _, pkg := range append([]string{"shared", vendor}, run.Providers...) {
 			page, err := os.ReadFile(filepath.Join("..", "..", ".claude", "skills", "reconcile-models", "hosts", pkg+".md"))
 			require.NoError(t, err, "no host page for %s", pkg)
 

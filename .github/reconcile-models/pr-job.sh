@@ -141,7 +141,7 @@ fi
 # imports them. Tests needing Docker or the network can't run in the sandbox;
 # the full suite runs in the PR's own CI. -count=1: never reuse cached results.
 lint_pkgs="$(printf './providers/%s/... ' ${owned//|/ })"
-affected="$(affected_packages "./providers/$provider" ./catalog)"
+affected="$(affected_packages $(printf './providers/%s ' ${owned//|/ }) ./catalog)"
 
 # The only place patched code runs. The agent job runs with hooks off, so lint
 # here: only the patched lines (--new), and without --fix, which would change

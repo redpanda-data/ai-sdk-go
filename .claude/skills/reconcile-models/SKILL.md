@@ -20,16 +20,18 @@ surface** — every change must be visible and intended in
 Every run, hand runs included, follows `.github/reconcile-models/RULES.md`,
 which decides what to change, skip or ask. The host pages in
 `.claude/skills/reconcile-models/hosts/` say where each host publishes its
-facts: start with `shared.md`, then the page for each package. This skill is
-the workflow.
+facts: start with `shared.md`, then the vendor's page (`hosts/<vendor>.md`),
+then the page for each package. This skill is the workflow.
 
 ## Sources
 
 Facts come only from the hosts' own pages, and code cites only those.
 
-- **Anthropic API, OpenAI API, Gemini API, Vertex, Bedrock:** their host
-  pages (`hosts/anthropic.md`, `hosts/openai.md`, `hosts/google.md`,
-  `hosts/vertex.md`, `hosts/bedrock.md`).
+- **Anthropic API, OpenAI API, Gemini API, Meta Model API, Vertex, Bedrock:**
+  their host pages (`hosts/anthropic.md`, `hosts/openai.md`,
+  `hosts/google.md`, `hosts/meta.md`, `hosts/vertex.md`, `hosts/bedrock.md`).
+- **Amazon and Mistral AI,** which have no package of their own:
+  `hosts/amazon.md` and `hosts/mistral.md`.
 - **Aggregators:** see `hosts/shared.md` ("Hand runs: LiteLLM leads").
 
 ## Per-entry checklist

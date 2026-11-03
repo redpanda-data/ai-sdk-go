@@ -8,7 +8,7 @@ on:
       vendor:
         description: Vendor to reconcile (its models on every provider that sells them), or all. Every other vendor with a change waiting in the PR replays it with no model.
         type: choice
-        options: [all, anthropic, openai, google]
+        options: [all, anthropic, openai, google, amazon, meta, mistral]
         default: all
       dry_run:
         description: Stop before pushing a branch or opening a PR
@@ -184,10 +184,61 @@ jobs:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       STEP_DEBUG: ${{ secrets.ACTIONS_STEP_DEBUG }}
 
+  amazon:
+    needs: [plan, anthropic, openai, google]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && contains(fromJSON(needs.plan.outputs.run), 'amazon') }}
+    uses: ./.github/workflows/reconcile-vendor.yml
+    permissions:
+      contents: read
+      actions: read
+    with:
+      vendor: amazon
+      mode: ${{ contains(fromJSON(needs.plan.outputs.replay), 'amazon') && 'replay' || 'agent' }}
+      base_sha: ${{ needs.google.outputs.head || needs.openai.outputs.head || needs.anthropic.outputs.head || github.sha }}
+      dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+      force: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      STEP_DEBUG: ${{ secrets.ACTIONS_STEP_DEBUG }}
+
+  meta:
+    needs: [plan, anthropic, openai, google, amazon]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && contains(fromJSON(needs.plan.outputs.run), 'meta') }}
+    uses: ./.github/workflows/reconcile-vendor.yml
+    permissions:
+      contents: read
+      actions: read
+    with:
+      vendor: meta
+      mode: ${{ contains(fromJSON(needs.plan.outputs.replay), 'meta') && 'replay' || 'agent' }}
+      base_sha: ${{ needs.amazon.outputs.head || needs.google.outputs.head || needs.openai.outputs.head || needs.anthropic.outputs.head || github.sha }}
+      dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+      force: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      STEP_DEBUG: ${{ secrets.ACTIONS_STEP_DEBUG }}
+
+  mistral:
+    needs: [plan, anthropic, openai, google, amazon, meta]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && contains(fromJSON(needs.plan.outputs.run), 'mistral') }}
+    uses: ./.github/workflows/reconcile-vendor.yml
+    permissions:
+      contents: read
+      actions: read
+    with:
+      vendor: mistral
+      mode: ${{ contains(fromJSON(needs.plan.outputs.replay), 'mistral') && 'replay' || 'agent' }}
+      base_sha: ${{ needs.meta.outputs.head || needs.amazon.outputs.head || needs.google.outputs.head || needs.openai.outputs.head || needs.anthropic.outputs.head || github.sha }}
+      dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+      force: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      STEP_DEBUG: ${{ secrets.ACTIONS_STEP_DEBUG }}
+
   # No model and no bot token. Carries the commits other people pushed onto
   # the bot PR onto the vendors' commits (carry.sh), checked in the sandbox.
   carry:
-    needs: [plan, anthropic, openai, google]
+    needs: [plan, anthropic, openai, google, amazon, meta, mistral]
     if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.carry != '[]' && needs.plan.outputs.stop != 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -254,7 +305,7 @@ jobs:
   # The only job with the bot token. It puts the vendors' commits together
   # into one PR and pushes once, at the end; it runs nothing from the patches.
   pr:
-    needs: [plan, anthropic, openai, google, carry]
+    needs: [plan, anthropic, openai, google, amazon, meta, mistral, carry]
     if: ${{ !cancelled() && needs.plan.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20

@@ -166,6 +166,9 @@ jobs:
             pricing.us-east-1.amazonaws.com:443
             developers.openai.com:443
             ai.google.dev:443
+            dev.meta.ai:443
+            research.meta.ai:443
+            docs.mistral.ai:443
             downloads.claude.ai:443
             claude.ai:443
             registry.npmjs.org:443
