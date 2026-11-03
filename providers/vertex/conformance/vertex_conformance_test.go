@@ -68,9 +68,7 @@ func newVertexFixture(provider *vertex.Provider, publisher catalog.Publisher) *V
 	return &VertexFixture{provider: provider, publisher: publisher}
 }
 
-// newLiveProvider returns a provider at the global location that signs its
-// calls with the access token in accessTokenEnv. It skips the test when the
-// token is not set, as it is not in pull-request CI.
+// Pull-request CI has no access token, so newLiveProvider skips there.
 func newLiveProvider(t *testing.T) *vertex.Provider {
 	t.Helper()
 
@@ -171,9 +169,7 @@ func (f *VertexFixture) NewModel(modelName string) (llm.Model, error) {
 	return f.provider.NewModel(modelName)
 }
 
-// isUngranted reports whether f is the Claude half and modelName is not one
-// of the models testProject has enabled. It does not check what publisher
-// modelName belongs to.
+// isUngranted does not check which publisher modelName belongs to.
 func (f *VertexFixture) isUngranted(modelName string) bool {
 	return f.publisher == catalog.PublisherAnthropic && !grantedClaudeModels[modelName]
 }
