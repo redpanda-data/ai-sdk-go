@@ -6,7 +6,7 @@
 # Baseline exclusions always apply on top of this list: .github/**, terraform/**,
 # release/**, Dockerfiles, iam/ and auth/ dirs, *credential*, *secret*, *.pem, *.key.
 # Binary or patchless files also make a PR ineligible.
-version: 11
+version: 12
 enabled: true
 
 # Size is NOT a risk score and does not gate. The only size rule is that the
@@ -103,6 +103,13 @@ shadow_engines:
 #                                 work, and the reviewer can read it like any other text.
 #   Taskfile.yaml, taskfiles/**, .golangci.yaml   define what CI enforces (task test/lint/license)
 #   LICENSE, header.txt           license text and the header template
+#   providers/vertex/model.go     hands the caller's authenticated HTTP client to the Gemini
+#                                 and Claude clients, and strips SDK-sourced auth headers
+#                                 from every Claude request
+#   providers/vertex/conformance/**, providers/conformance/**, internal/testsuite/**
+#                                 the nightly Vertex AI job's test and the two test-only
+#                                 packages it imports; the job runs them while it holds
+#                                 Vertex AI credentials
 # Guarded by .github/actions/ai-merge/scripts/test_repo_config.py.
 excluded_paths:
   - "providers/**/provider.go"
@@ -121,6 +128,10 @@ excluded_paths:
   - ".golangci.yaml"
   - "LICENSE"
   - "header.txt"
+  - "providers/vertex/model.go"
+  - "providers/vertex/conformance/**"
+  - "providers/conformance/**"
+  - "internal/testsuite/**"
 
 # Dependency changes are in scope (with supply-chain checks), root or nested.
 # This list REPLACES the mechanism defaults and is intentionally exhaustive for
