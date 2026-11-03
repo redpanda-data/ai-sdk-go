@@ -63,8 +63,10 @@ jobs:
         # Without the token every live test skips, which would pass as green.
         run: |
           [ -n "$VERTEX_ACCESS_TOKEN" ] || { echo "::error::no Vertex AI access token"; exit 1; }
-          # The OIDC request variables would let the test binary mint a token
-          # for any role that trusts this repo, so it never starts with them.
+          # The test binary starts without the OIDC request variables, so it
+          # cannot mint a token by accident. Code set on it still could: this
+          # shell keeps them and the runner has passwordless sudo. Only reviewed
+          # code from main runs here.
           # A renamed test would match nothing in -test.run and pass as green.
           env -u ACTIONS_ID_TOKEN_REQUEST_TOKEN -u ACTIONS_ID_TOKEN_REQUEST_URL \
             "$RUNNER_TEMP/vertex.test" -test.list '^TestVertexConformance_Integration$' \
