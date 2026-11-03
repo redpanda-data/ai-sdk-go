@@ -65,5 +65,53 @@
         {"id": "bedrock-lifecycle", "type": "markdown", "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle.md", "must_contain": "Model lifecycle"}
       ]
     }
+  },
+  "amazon": {
+    "providers": ["bedrock"],
+    "hosts": ["aws.amazon.com", "docs.aws.amazon.com", "pricing.us-east-1.amazonaws.com"],
+    "gate": {
+      "model_prefix": "amazon/",
+      "must_contain": "Nova",
+      "pages": [
+        {"id": "bedrock-model-cards", "type": "markdown", "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards-amazon.md"},
+        {"id": "bedrock-lifecycle-legacy", "type": "markdown", "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.md", "must_contain": "Legacy"},
+        {"id": "bedrock-lifecycle", "type": "markdown", "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle.md", "must_contain": "Model lifecycle"}
+      ],
+      "per_model": [
+        {"provider": "aws.bedrock", "id": "bedrock-card-{slug}", "type": "markdown", "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-amazon-{slug}.md"}
+      ]
+    }
+  },
+  "meta": {
+    "providers": ["meta", "bedrock"],
+    "hosts": ["dev.meta.ai", "research.meta.ai", "aws.amazon.com", "docs.aws.amazon.com", "pricing.us-east-1.amazonaws.com"],
+    "gate": {
+      "model_prefix": "meta/",
+      "must_contain": "Muse",
+      "pages": [
+        {"id": "meta-models", "type": "markdown", "url": "https://dev.meta.ai/docs/models.md"},
+        {"id": "meta-pricing", "type": "markdown", "url": "https://dev.meta.ai/docs/pricing-rate-limits.md"},
+        {"id": "meta-reasoning", "type": "markdown", "url": "https://dev.meta.ai/docs/reasoning.md"},
+        {"id": "bedrock-model-cards", "type": "markdown", "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards-meta.md", "must_contain": "Llama"},
+        {"id": "bedrock-lifecycle-legacy", "type": "markdown", "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.md", "must_contain": "Legacy"},
+        {"id": "bedrock-lifecycle", "type": "markdown", "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle.md", "must_contain": "Model lifecycle"}
+      ]
+    }
+  },
+  "mistral": {
+    "providers": ["bedrock"],
+    "hosts": ["docs.mistral.ai", "aws.amazon.com", "docs.aws.amazon.com", "pricing.us-east-1.amazonaws.com"],
+    "gate": {
+      "model_prefix": "mistral/",
+      "must_contain": "Mistral",
+      "pages": [
+        {"id": "bedrock-model-cards", "type": "markdown", "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards-mistral-ai.md"},
+        {"id": "bedrock-lifecycle-legacy", "type": "markdown", "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.md", "must_contain": "Legacy"},
+        {"id": "bedrock-lifecycle", "type": "markdown", "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle.md", "must_contain": "Model lifecycle"}
+      ],
+      "per_model": [
+        {"provider": "aws.bedrock", "id": "bedrock-card-{slug}", "type": "markdown", "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-mistral-ai-{slug}.md"}
+      ]
+    }
   }
 }

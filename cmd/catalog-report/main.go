@@ -183,7 +183,7 @@ func main() {
 		vendor := loadVendor(name, dir)
 		// Each vendor's sources must be on its own hosts, and its patched
 		// catalogue must agree with its new_model and new_copy rows.
-		exitOn("catalog-report: "+name+":", Validate(vendor.Report, sources[name].Hosts, rules))
+		exitOn("catalog-report: "+name+":", Validate(vendor.Report, name, sources[name], rules))
 		exitOn("catalog-report: "+name+":", Base{Before: vendor.Before, After: vendor.After}.ValidateAdded(vendor.Report, name))
 		vendors = append(vendors, vendor)
 	}
