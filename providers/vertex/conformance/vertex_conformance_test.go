@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -28,7 +29,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
 
 	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/internal/testsuite"
@@ -39,8 +39,8 @@ import (
 )
 
 const (
-	// credentialsJSONEnv names the variable holding the service-account key.
-	credentialsJSONEnv = "VERTEX_CREDENTIALS_JSON" //nolint:gosec // a variable name, not a credential
+	// accessTokenEnv names the variable holding the OAuth 2.0 access token.
+	accessTokenEnv = "VERTEX_ACCESS_TOKEN" //nolint:gosec // a variable name, not a credential
 
 	// testProject is the project set up for live Vertex tests.
 	testProject = "cloudv2-testing-project"
@@ -69,35 +69,35 @@ func newVertexFixture(provider *vertex.Provider, publisher catalog.Publisher) *V
 }
 
 // newLiveProvider returns a provider at the global location that signs its
-// calls with the service-account key in credentialsJSONEnv. It skips the
-// test when the key is not set, as it is not in pull-request CI.
+// calls with the access token in accessTokenEnv. It skips the test when the
+// token is not set, as it is not in pull-request CI.
 func newLiveProvider(t *testing.T) *vertex.Provider {
 	t.Helper()
 
-	key := os.Getenv(credentialsJSONEnv)
-	if key == "" {
-		t.Skipf("skipping: %s is not set", credentialsJSONEnv)
+	token := os.Getenv(accessTokenEnv)
+	if token == "" {
+		t.Skipf("skipping: %s is not set", accessTokenEnv)
 	}
-
-	creds, err := google.CredentialsFromJSONWithType(context.Background(), []byte(key), google.ServiceAccount, "https://www.googleapis.com/auth/cloud-platform")
-	if err != nil {
-		// The error can quote the key, so it is not printed.
-		t.Fatalf("%s does not hold a usable service-account key", credentialsJSONEnv)
-	}
-
-	client := oauth2.NewClient(context.Background(), creds.TokenSource)
-	client.Timeout = 2 * time.Minute
 
 	provider, err := vertex.NewProvider(context.Background(),
 		vertex.WithProject(testProject),
 		vertex.WithLocation(vertex.LocationGlobal),
-		vertex.WithHTTPClient(client),
+		vertex.WithHTTPClient(newTokenClient(token)),
 	)
 	if err != nil {
 		t.Fatalf("Failed to create provider: %v", err)
 	}
 
 	return provider
+}
+
+// newTokenClient returns a client that sends token as a bearer token. The
+// token is not refreshed: the nightly mints it to outlast the test.
+func newTokenClient(token string) *http.Client {
+	client := oauth2.NewClient(context.Background(), oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token}))
+	client.Timeout = 2 * time.Minute
+
+	return client
 }
 
 func (f *VertexFixture) Name() string {
@@ -399,7 +399,7 @@ func TestVertexClaudeStandardModel_SkipsStructuredOutputsWhenDenied(t *testing.T
 
 // TestVertexConformance_Integration runs the generic conformance suite on
 // both halves of the Vertex provider against live Vertex AI. It needs
-// VERTEX_CREDENTIALS_JSON, which only the nightly workflow sets.
+// VERTEX_ACCESS_TOKEN, which only the nightly workflow sets.
 func TestVertexConformance_Integration(t *testing.T) {
 	t.Parallel()
 
@@ -412,4 +412,26 @@ func TestVertexConformance_Integration(t *testing.T) {
 			testsuite.Run(t, conformance.NewSuite(fixture))
 		})
 	}
+}
+
+func TestNewTokenClient_SendsBearerToken(t *testing.T) {
+	t.Parallel()
+
+	var got string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.Header.Get("Authorization")
+
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL, http.NoBody)
+	require.NoError(t, err)
+
+	resp, err := newTokenClient("ya29.test-token").Do(req)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	assert.Equal(t, "Bearer ya29.test-token", got)
 }
