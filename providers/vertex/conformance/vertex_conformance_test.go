@@ -92,7 +92,8 @@ func newLiveProvider(t *testing.T) *vertex.Provider {
 
 // newTokenClient returns a client that sends token as a bearer token. The
 // token is not refreshed: the nightly mints it to outlast the test. The
-// timeout covers a whole reasoning stream, as in the other providers' suites.
+// timeout covers a whole reasoning stream, as in the anthropic and openai
+// reasoning suites.
 func newTokenClient(token string) *http.Client {
 	client := oauth2.NewClient(context.Background(), oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token}))
 	client.Timeout = 5 * time.Minute
