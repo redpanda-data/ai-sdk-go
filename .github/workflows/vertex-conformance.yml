@@ -43,9 +43,8 @@ jobs:
       - name: Build the test binary
         run: go test -c -o "$RUNNER_TEMP/vertex.test" ./providers/vertex/conformance/
 
-      # The provider admits only jobs on main in the vertex-conformance
-      # environment. No credentials file or variables are written, so the
-      # token reaches the test step alone. The action masks it.
+      # Only the test step gets the token, through steps.auth.outputs. The
+      # action masks it.
       - name: Get a Vertex AI access token
         id: auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093  # v3.0.0
