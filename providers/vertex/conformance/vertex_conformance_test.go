@@ -36,6 +36,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/plugins/retry"
 	"github.com/redpanda-data/ai-sdk-go/providers/conformance"
 	"github.com/redpanda-data/ai-sdk-go/providers/vertex"
+	"github.com/redpanda-data/ai-sdk-go/providers/vertex/vertextest"
 )
 
 const (
@@ -45,9 +46,9 @@ const (
 	// testProject is the project set up for live Vertex tests.
 	testProject = "cloudv2-testing-project"
 
-	geminiTestModel          = vertex.ModelGemini36Flash
-	claudeTestModel          = vertex.ModelClaudeHaiku45
-	claudeTestReasoningModel = vertex.ModelClaudeSonnet5
+	geminiTestModel          = vertextest.TestGeminiModelName
+	claudeTestModel          = vertextest.TestClaudeModelName
+	claudeTestReasoningModel = vertextest.TestClaudeReasoningModelName
 )
 
 // grantedClaudeModels are the Claude models enabled in testProject's Model
