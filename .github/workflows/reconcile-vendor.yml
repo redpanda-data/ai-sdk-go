@@ -143,6 +143,8 @@ jobs:
       agent_run: ${{ steps.replay.outputs.agent_run }}
       agent_at: ${{ steps.replay.outputs.agent_at }}
     env:
+      # Root-owned copies of what the steps after Claude run; see seal-runner.sh.
+      TRUSTED: /opt/reconcile-trusted
       CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
       # No telemetry, error reports or update checks, so their hosts stay off
       # the allowlist below.
@@ -254,6 +256,10 @@ jobs:
             # Edit rights on the Go files of each owned provider.
             echo "edits=$(jq -r --arg p "$PROVIDER" '.[$p].providers | map("Edit(./providers/\(.)/*.go)") | join(",")' "$sources")"
           } >>"$GITHUB_OUTPUT"
+      # Last step before Claude: from here on nothing runs as root, and the
+      # steps after Claude use only the trusted copies it makes.
+      - name: Seal the runner
+        run: .github/reconcile-models/seal-runner.sh "$TRUSTED"
       # Read(//proc/**): any process's environment is readable under /proc,
       # including this step's model key. The shell already runs without it.
       - name: Run reconcile-models
@@ -278,22 +284,37 @@ jobs:
         if: always() && steps.replay.outcome != 'success'
         env:
           REPORT: ${{ steps.claude.outputs.structured_output }}
+          # The agent's code could rewrite .git/config, ~/.gitconfig and the
+          # environment of later steps (fsmonitor, filter and diff drivers), so
+          # git runs on a fresh copy of the sealed git directory with no other
+          # config.
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_COUNT: "0"
+          GIT_EXTERNAL_DIFF: ""
+          BASH_ENV: ""
         # Start from an empty out/ and hand over only these two files, so
         # nothing else the agent wrote reaches the check job.
         run: |
           rm -rf out && mkdir out
           printf '%s' "$REPORT" >out/report.json
+          rm -rf "$RUNNER_TEMP/git" && cp -a "$TRUSTED/git" "$RUNNER_TEMP/git"
+          export GIT_DIR="$RUNNER_TEMP/git" GIT_WORK_TREE="$PWD"
           # New files are untracked; mark them so the diff includes them.
           # pr-job.sh rejects any file outside the run's own providers.
           git ls-files --others --exclude-standard -- ":(glob)providers/*/*.go" | xargs -r git add -N --
-          git diff -- ":(glob)providers/*/*.go" catalog/facts_data.go >out/patch.diff
+          git diff --no-ext-diff --no-textconv -- ":(glob)providers/*/*.go" catalog/facts_data.go >out/patch.diff
+          # actions/checkout's post step runs git in the workspace, with the
+          # job's runtime token in its environment.
+          rm -rf .git ~/.gitconfig ~/.config/git && cp -a "$TRUSTED/git" .git
       - name: Run stats
         if: always()
         # Diagnostics only: a failure here must not stop the check job.
         continue-on-error: true
         env:
           EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
-        run: .github/reconcile-models/run-stats.sh "$EXECUTION_FILE" out/report.json
+          BASH_ENV: ""
+        run: '"$TRUSTED/run-stats.sh" "$EXECUTION_FILE" out/report.json'
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         if: always()
         with:
