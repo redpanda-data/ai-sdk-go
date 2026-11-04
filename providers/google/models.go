@@ -24,11 +24,19 @@ import (
 
 // Model ID constants for Google Gemini models.
 const (
-	ModelGemini4Argon       = "gemini-4-argon"
-	ModelGemini38Flash      = "gemini-3.8-flash"
-	ModelGemini37Flash      = "gemini-3.7-flash"
-	ModelGemini36Flash      = "gemini-3.6-flash"
-	ModelGemini35FlashLite  = "gemini-3.5-flash-lite"
+	ModelGemini4Argon  = "gemini-4-argon"
+	ModelGemini38Flash = "gemini-3.8-flash"
+	// ModelGemini37Flash is Gemini 3.7 Flash.
+	//
+	// Deprecated: deprecated by Google on 2026-10-08; requests route to
+	// gemini-3.8-flash. Use [ModelGemini38Flash].
+	ModelGemini37Flash     = "gemini-3.7-flash"
+	ModelGemini36Flash     = "gemini-3.6-flash"
+	ModelGemini35FlashLite = "gemini-3.5-flash-lite"
+	// ModelGemini35Flash is Gemini 3.5 Flash.
+	//
+	// Deprecated: deprecated by Google on 2026-10-08; requests route to
+	// gemini-3.6-flash. Use [ModelGemini36Flash].
 	ModelGemini35Flash      = "gemini-3.5-flash"
 	ModelGemini31ProPreview = "gemini-3.1-pro-preview"
 	ModelGemini31FlashLite  = "gemini-3.1-flash-lite"
@@ -39,9 +47,17 @@ const (
 	// catalog entry remains so historical usage stays priceable.
 	ModelGemini3ProPreview   = "gemini-3-pro-preview"
 	ModelGemini3FlashPreview = "gemini-3-flash-preview"
-	ModelGemini25Pro         = "gemini-2.5-pro"
-	ModelGemini25Flash       = "gemini-2.5-flash"
-	ModelGemini25FlashLite   = "gemini-2.5-flash-lite"
+	// ModelGemini25Pro is Gemini 2.5 Pro.
+	//
+	// Deprecated: deprecated by Google on 2026-11-02; from 2026-12-01
+	// requests route to gemini-3.8-flash. Use [ModelGemini38Flash].
+	ModelGemini25Pro = "gemini-2.5-pro"
+	// ModelGemini25Flash is Gemini 2.5 Flash.
+	//
+	// Deprecated: deprecated by Google on 2026-11-02; from 2026-12-01
+	// requests route to gemini-3.5-flash-lite. Use [ModelGemini35FlashLite].
+	ModelGemini25Flash     = "gemini-2.5-flash"
+	ModelGemini25FlashLite = "gemini-2.5-flash-lite"
 )
 
 // ProviderName is the catalog key Provider.Name() returns; see
@@ -250,8 +266,15 @@ func entries() []catalog.Entry {
 				MaxOutputTokens:  65536,
 				SupportedParams:  geminiParams,
 			},
+			// Deprecated 2026-10-08 per the Gemini API changelog
+			// (https://ai.google.dev/gemini-api/docs/changelog, read
+			// 2026-11-04); the endpoint is not shutting down and routes to
+			// gemini-3.8-flash (deprecations page, read 2026-11-04). The
+			// pricing page no longer lists it, so the rates stay as last read.
 			Life: catalog.Lifecycle{
-				Available: catalog.MustDate("2026-08-13"),
+				Available:  catalog.MustDate("2026-08-13"),
+				Deprecated: catalog.MustDate("2026-10-08"),
+				ReplacedBy: ModelGemini38Flash,
 			},
 			// Google lists $0.75/$3.75 (cache $0.075) through 2026-12-31,
 			// rising to $1.50/$7.50/$0.15 on 2027-01-01. Only the rate in
@@ -341,11 +364,19 @@ func entries() []catalog.Entry {
 			Constraints: llm.ModelConstraints{
 				TemperatureRange: [2]float64{0.0, 2.0},
 				MaxInputTokens:   1048576,
-				MaxOutputTokens:  65535,
+				MaxOutputTokens:  65536, // model page, read 2026-11-04
 				SupportedParams:  geminiParams,
 			},
+			// Deprecated 2026-10-08 per the Gemini API changelog
+			// (https://ai.google.dev/gemini-api/docs/changelog, read
+			// 2026-11-04); the endpoint is not shutting down and routes to
+			// gemini-3.6-flash, the deprecations page's replacement (read
+			// 2026-11-04). The pricing page no longer lists it, so the rates
+			// stay as last read.
 			Life: catalog.Lifecycle{
-				Available: catalog.MustDate("2026-05-19"),
+				Available:  catalog.MustDate("2026-05-19"),
+				Deprecated: catalog.MustDate("2026-10-08"),
+				ReplacedBy: ModelGemini36Flash,
 			},
 			Pricing: pricing.FlatInfo(1.50, 9.00, 0.15),
 		},
@@ -361,7 +392,7 @@ func entries() []catalog.Entry {
 			Constraints: llm.ModelConstraints{
 				TemperatureRange: [2]float64{0.0, 2.0},
 				MaxInputTokens:   1048576, // 1M input tokens
-				MaxOutputTokens:  65535,   // 64K output tokens
+				MaxOutputTokens:  65536,   // model page, read 2026-11-04
 				SupportedParams:  geminiParams,
 			},
 			Life: catalog.Lifecycle{
@@ -417,7 +448,7 @@ func entries() []catalog.Entry {
 			Constraints: llm.ModelConstraints{
 				TemperatureRange: [2]float64{0.0, 2.0},
 				MaxInputTokens:   1048576, // 1M input tokens
-				MaxOutputTokens:  65535,   // 65K output tokens
+				MaxOutputTokens:  65536,   // model page, read 2026-11-04
 				SupportedParams:  geminiParams,
 			},
 			Life: catalog.Lifecycle{
@@ -442,11 +473,16 @@ func entries() []catalog.Entry {
 			Constraints: llm.ModelConstraints{
 				TemperatureRange: [2]float64{0.0, 2.0},
 				MaxInputTokens:   1048576, // 1M input tokens
-				MaxOutputTokens:  65535,   // 65K output tokens
+				MaxOutputTokens:  65536,   // model page, read 2026-11-04
 				SupportedParams:  geminiParams,
 			},
+			// Deprecated 2026-11-02 per the Gemini API changelog
+			// (https://ai.google.dev/gemini-api/docs/changelog, read
+			// 2026-11-04). From 2026-12-01 requests route to gemini-3.8-flash,
+			// so Retires stays unset.
 			Life: catalog.Lifecycle{
-				Available: catalog.MustDate("2025-06-17"),
+				Available:  catalog.MustDate("2025-06-17"),
+				Deprecated: catalog.MustDate("2026-11-02"),
 				// Google recommends 3.8 Flash; no stable Pro successor exists.
 				ReplacedBy: ModelGemini38Flash,
 			},
@@ -471,12 +507,18 @@ func entries() []catalog.Entry {
 			Constraints: llm.ModelConstraints{
 				TemperatureRange: [2]float64{0.0, 2.0},
 				MaxInputTokens:   1048576, // 1M input tokens
-				MaxOutputTokens:  65535,   // 65K output tokens
+				MaxOutputTokens:  65536,   // model page, read 2026-11-04
 				SupportedParams:  geminiParams,
 			},
+			// Deprecated 2026-11-02 per the Gemini API changelog
+			// (https://ai.google.dev/gemini-api/docs/changelog, read
+			// 2026-11-04). From 2026-12-01 requests route to
+			// gemini-3.5-flash-lite, the deprecations page's replacement, so
+			// Retires stays unset.
 			Life: catalog.Lifecycle{
 				Available:  catalog.MustDate("2025-06-17"),
-				ReplacedBy: ModelGemini38Flash,
+				Deprecated: catalog.MustDate("2026-11-02"),
+				ReplacedBy: ModelGemini35FlashLite,
 			},
 			Pricing: pricing.FlatInfo(0.30, 2.50, 0.03),
 		},
@@ -493,7 +535,7 @@ func entries() []catalog.Entry {
 			Constraints: llm.ModelConstraints{
 				TemperatureRange: [2]float64{0.0, 2.0},
 				MaxInputTokens:   1048576, // 1M input tokens
-				MaxOutputTokens:  65535,   // 65K output tokens
+				MaxOutputTokens:  65536,   // model page, read 2026-11-04
 				SupportedParams:  geminiParams,
 			},
 			Life: catalog.Lifecycle{

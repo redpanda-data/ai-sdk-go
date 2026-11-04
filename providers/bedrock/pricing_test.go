@@ -492,7 +492,8 @@ func TestExpandFamiliesRejectsUnpairedOverrides(t *testing.T) {
 }
 
 // Published regional on-demand rates, not a blanket multiplier.
-// https://aws.amazon.com/bedrock/pricing/ (2026-10-15)
+// https://aws.amazon.com/bedrock/pricing/ (2026-10-15); Gemma from the AWS
+// price list (2026-11-04).
 func TestRegionalOnDemandPricing(t *testing.T) {
 	t.Parallel()
 	const (
@@ -508,9 +509,9 @@ func TestRegionalOnDemandPricing(t *testing.T) {
 		input, output int64
 	}{
 		{ModelGemma431B, regionVirginia, 14_000_000, 40_000_000},
-		{ModelGemma431B, regionFrankfurt, 17_000_000, 48_000_000},
-		{ModelGemma426BA4B, regionFrankfurt, 16_000_000, 48_000_000},
-		{ModelGemma4E2B, regionFrankfurt, 5_000_000, 10_000_000},
+		{ModelGemma431B, regionFrankfurt, 16_800_000, 48_000_000},
+		{ModelGemma426BA4B, regionFrankfurt, 15_600_000, 48_000_000},
+		{ModelGemma4E2B, regionFrankfurt, 4_800_000, 9_600_000},
 		{ModelMistralLarge3, regionOregon, 50_000_000, 150_000_000},
 		{ModelMistralLarge3, regionMumbai, 59_000_000, 176_000_000},
 		{ModelMistralLarge3, regionTokyo, 61_000_000, 182_000_000},
@@ -528,7 +529,7 @@ func TestRegionalOnDemandPricing(t *testing.T) {
 	}
 }
 
-// Regional Standard cards intentionally estimate other tiers at Standard rates.
+// Regional Standard cards estimate unpriced tiers at Standard rates.
 // Fallbacks expose that the requested tier was not priced exactly.
 func TestRegionalNonStandardPricingFallback(t *testing.T) {
 	t.Parallel()
@@ -536,12 +537,37 @@ func TestRegionalNonStandardPricingFallback(t *testing.T) {
 	prices, err := pricing.NewCatalog(pricing.WithSource(Catalog()))
 	require.NoError(t, err)
 
-	requested := pricing.Selector{Region: regionFrankfurt, ServiceTier: llm.ServiceTierPriority}
+	requested := pricing.Selector{Region: regionFrankfurt, ServiceTier: llm.ServiceTierBatch}
 	cost, err := prices.Calculate(ProviderName, ModelGemma431B, &llm.TokenUsage{InputTokens: 1_000_000}, pricing.CalcRequest{Selector: requested})
 	require.NoError(t, err)
-	assert.Equal(t, int64(17_000_000), cost.Total)
+	assert.Equal(t, int64(16_800_000), cost.Total)
 	assert.Equal(t, pricing.Selector{Region: regionFrankfurt}, cost.AppliedSelector)
 	assert.Equal(t, []pricing.Fallback{{Requested: requested, Resolved: pricing.Selector{Region: regionFrankfurt}}}, cost.Fallbacks)
+}
+
+// Gemma's Flex and Priority tiers carry their own price-list rates, per
+// region.
+func TestGemmaTierPricing(t *testing.T) {
+	t.Parallel()
+
+	prices, err := pricing.NewCatalog(pricing.WithSource(Catalog()))
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		selector pricing.Selector
+		input    int64
+	}{
+		{pricing.Selector{ServiceTier: llm.ServiceTierFlex}, 7_000_000},
+		{pricing.Selector{ServiceTier: llm.ServiceTierPriority}, 24_500_000},
+		{pricing.Selector{Region: regionFrankfurt, ServiceTier: llm.ServiceTierFlex}, 8_400_000},
+		{pricing.Selector{Region: regionFrankfurt, ServiceTier: llm.ServiceTierPriority}, 29_400_000},
+	} {
+		cost, err := prices.Calculate(ProviderName, ModelGemma431B, &llm.TokenUsage{InputTokens: 1_000_000}, pricing.CalcRequest{Selector: tt.selector})
+		require.NoError(t, err)
+		assert.Equal(t, tt.input, cost.Total, "%+v", tt.selector)
+		assert.Equal(t, tt.selector, cost.AppliedSelector)
+		assert.Empty(t, cost.Fallbacks)
+	}
 }
 
 func TestGPT6LunaPricing(t *testing.T) {

@@ -559,18 +559,24 @@ var defaultRegistry = Registry{
 	ModelGemma4E2B: {
 		Publisher:   PublisherGoogle,
 		DisplayName: "Gemma 4 E2B", Series: "gemma-e2b",
-		Released: MustDate("2026-04-02"), OpenWeights: true,
+		// Released 2026-03-31 per https://ai.google.dev/gemma/docs/releases
+		// (read 2026-11-04), also Bedrock's launch day.
+		Released: MustDate("2026-03-31"), OpenWeights: true,
 	},
 	ModelGemma431B: {
 		Publisher:   PublisherGoogle,
 		DisplayName: "Gemma 4 31B", Series: "gemma-31b",
-		Released: MustDate("2026-04-02"), OpenWeights: true,
+		// Released 2026-03-31 per https://ai.google.dev/gemma/docs/releases
+		// (read 2026-11-04), also Bedrock's launch day.
+		Released: MustDate("2026-03-31"), OpenWeights: true,
 		Description: "Gemma 4 31B Instruct is Google DeepMind's 30.7B dense multimodal model supporting text and image input with text output.",
 	},
 	ModelGemma426BA4B: {
 		Publisher:   PublisherGoogle,
 		DisplayName: "Gemma 4 26B A4B", Series: "gemma-26b-a4b",
-		Released: MustDate("2026-04-02"), OpenWeights: true,
+		// Released 2026-03-31 per https://ai.google.dev/gemma/docs/releases
+		// (read 2026-11-04), also Bedrock's launch day.
+		Released: MustDate("2026-03-31"), OpenWeights: true,
 		Description: "Gemma 4 26B A4B IT is an instruction-tuned Mixture-of-Experts (MoE) model from Google DeepMind.",
 	},
 }

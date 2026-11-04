@@ -237,7 +237,7 @@
       "publisher": "google",
       "description": "Gemma 4 26B A4B IT is an instruction-tuned Mixture-of-Experts (MoE) model from Google DeepMind.",
       "series": "gemma-26b-a4b",
-      "released": "2026-04-02",
+      "released": "2026-03-31",
       "open_weights": true
     },
     "google/gemma-4-31b": {
@@ -245,14 +245,14 @@
       "publisher": "google",
       "description": "Gemma 4 31B Instruct is Google DeepMind's 30.7B dense multimodal model supporting text and image input with text output.",
       "series": "gemma-31b",
-      "released": "2026-04-02",
+      "released": "2026-03-31",
       "open_weights": true
     },
     "google/gemma-4-e2b": {
       "display_name": "Gemma 4 E2B",
       "publisher": "google",
       "series": "gemma-e2b",
-      "released": "2026-04-02",
+      "released": "2026-03-31",
       "open_weights": true
     },
     "meta/muse-spark-1.3": {
@@ -5872,15 +5872,54 @@
                 "region": "eu-central-1",
                 "rate_card": {
                   "base": {
-                    "input_microcents_per_million": 16000000,
+                    "input_microcents_per_million": 15600000,
                     "output_microcents_per_million": 48000000
+                  }
+                }
+              },
+              {
+                "service_tier": "flex",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 6500000,
+                    "output_microcents_per_million": 20000000
+                  }
+                }
+              },
+              {
+                "service_tier": "priority",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 22750000,
+                    "output_microcents_per_million": 70000000
+                  }
+                }
+              },
+              {
+                "service_tier": "flex",
+                "region": "eu-central-1",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 7800000,
+                    "output_microcents_per_million": 24000000
+                  }
+                }
+              },
+              {
+                "service_tier": "priority",
+                "region": "eu-central-1",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 27300000,
+                    "output_microcents_per_million": 84000000
                   }
                 }
               }
             ]
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "available": "2026-03-31"
           },
           "derived": {
             "price_tier": "low"
@@ -5947,15 +5986,54 @@
                 "region": "eu-central-1",
                 "rate_card": {
                   "base": {
-                    "input_microcents_per_million": 17000000,
+                    "input_microcents_per_million": 16800000,
                     "output_microcents_per_million": 48000000
+                  }
+                }
+              },
+              {
+                "service_tier": "flex",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 7000000,
+                    "output_microcents_per_million": 20000000
+                  }
+                }
+              },
+              {
+                "service_tier": "priority",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 24500000,
+                    "output_microcents_per_million": 70000000
+                  }
+                }
+              },
+              {
+                "service_tier": "flex",
+                "region": "eu-central-1",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 8400000,
+                    "output_microcents_per_million": 24000000
+                  }
+                }
+              },
+              {
+                "service_tier": "priority",
+                "region": "eu-central-1",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 29400000,
+                    "output_microcents_per_million": 84000000
                   }
                 }
               }
             ]
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "available": "2026-03-31"
           },
           "derived": {
             "price_tier": "low"
@@ -6022,15 +6100,54 @@
                 "region": "eu-central-1",
                 "rate_card": {
                   "base": {
-                    "input_microcents_per_million": 5000000,
-                    "output_microcents_per_million": 10000000
+                    "input_microcents_per_million": 4800000,
+                    "output_microcents_per_million": 9600000
+                  }
+                }
+              },
+              {
+                "service_tier": "flex",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 2000000,
+                    "output_microcents_per_million": 4000000
+                  }
+                }
+              },
+              {
+                "service_tier": "priority",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 7000000,
+                    "output_microcents_per_million": 14000000
+                  }
+                }
+              },
+              {
+                "service_tier": "flex",
+                "region": "eu-central-1",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 2400000,
+                    "output_microcents_per_million": 4800000
+                  }
+                }
+              },
+              {
+                "service_tier": "priority",
+                "region": "eu-central-1",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 8400000,
+                    "output_microcents_per_million": 16800000
                   }
                 }
               }
             ]
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "available": "2026-03-31"
           },
           "derived": {
             "price_tier": "low"
@@ -9404,7 +9521,7 @@
           },
           "constraints": {
             "max_input_tokens": 1048576,
-            "max_output_tokens": 65535,
+            "max_output_tokens": 65536,
             "supported_params": [
               "temperature",
               "top_p",
@@ -9447,11 +9564,12 @@
           "lifecycle": {
             "stage": "ga",
             "available": "2025-06-17",
-            "replaced_by": "gemini-3.8-flash"
+            "deprecated": "2026-11-02",
+            "replaced_by": "gemini-3.5-flash-lite"
           },
           "derived": {
             "price_tier": "low",
-            "replacement": "google/gemini-3.8-flash"
+            "replacement": "google/gemini-3.5-flash-lite"
           }
         },
         {
@@ -9478,7 +9596,7 @@
           },
           "constraints": {
             "max_input_tokens": 1048576,
-            "max_output_tokens": 65535,
+            "max_output_tokens": 65536,
             "supported_params": [
               "temperature",
               "top_p",
@@ -9552,7 +9670,7 @@
           },
           "constraints": {
             "max_input_tokens": 1048576,
-            "max_output_tokens": 65535,
+            "max_output_tokens": 65536,
             "supported_params": [
               "temperature",
               "top_p",
@@ -9605,6 +9723,7 @@
           "lifecycle": {
             "stage": "ga",
             "available": "2025-06-17",
+            "deprecated": "2026-11-02",
             "replaced_by": "gemini-3.8-flash"
           },
           "derived": {
@@ -9636,7 +9755,7 @@
           },
           "constraints": {
             "max_input_tokens": 1048576,
-            "max_output_tokens": 65535,
+            "max_output_tokens": 65536,
             "supported_params": [
               "temperature",
               "top_p",
@@ -9879,7 +9998,7 @@
           },
           "constraints": {
             "max_input_tokens": 1048576,
-            "max_output_tokens": 65535,
+            "max_output_tokens": 65536,
             "supported_params": [
               "temperature",
               "top_p",
@@ -9965,7 +10084,7 @@
           },
           "constraints": {
             "max_input_tokens": 1048576,
-            "max_output_tokens": 65535,
+            "max_output_tokens": 65536,
             "supported_params": [
               "temperature",
               "top_p",
@@ -10011,7 +10130,9 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2026-05-19"
+            "available": "2026-05-19",
+            "deprecated": "2026-10-08",
+            "replaced_by": "gemini-3.6-flash"
           },
           "derived": {
             "price_tier": "medium",
@@ -10236,7 +10357,9 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2026-08-13"
+            "available": "2026-08-13",
+            "deprecated": "2026-10-08",
+            "replaced_by": "gemini-3.8-flash"
           },
           "derived": {
             "price_tier": "low",
@@ -12651,6 +12774,16 @@
                     "cached_input_microcents_per_million": 3300000
                   }
                 }
+              },
+              {
+                "region": "asia-south1",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 33000000,
+                    "output_microcents_per_million": 275000000,
+                    "cached_input_microcents_per_million": 3300000
+                  }
+                }
               }
             ]
           },
@@ -12753,6 +12886,7 @@
           "lifecycle": {
             "stage": "ga",
             "available": "2026-07-21",
+            "retires": "2026-11-19",
             "replaced_by": "gemini-3.8-flash"
           },
           "derived": {
@@ -12850,6 +12984,7 @@
           "lifecycle": {
             "stage": "ga",
             "available": "2026-08-13",
+            "retires": "2027-01-28",
             "replaced_by": "gemini-3.8-flash"
           },
           "derived": {
@@ -13029,6 +13164,26 @@
               },
               {
                 "region": "eu",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 220000000,
+                    "output_microcents_per_million": 1100000000,
+                    "cached_input_microcents_per_million": 11000000
+                  }
+                }
+              },
+              {
+                "region": "europe-west2",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 220000000,
+                    "output_microcents_per_million": 1100000000,
+                    "cached_input_microcents_per_million": 11000000
+                  }
+                }
+              },
+              {
+                "region": "asia-southeast1",
                 "rate_card": {
                   "base": {
                     "input_microcents_per_million": 220000000,

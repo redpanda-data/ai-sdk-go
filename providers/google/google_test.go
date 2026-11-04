@@ -246,13 +246,13 @@ func TestModelTokenLimits(t *testing.T) {
 			name:           "Gemini 2.5 Pro",
 			model:          ModelGemini25Pro,
 			expectedMaxIn:  1048576, // 1M
-			expectedMaxOut: 65535,   // 65K
+			expectedMaxOut: 65536,   // 64K
 		},
 		{
 			name:           "Gemini 2.5 Flash",
 			model:          ModelGemini25Flash,
 			expectedMaxIn:  1048576, // 1M
-			expectedMaxOut: 65535,   // 65K
+			expectedMaxOut: 65536,   // 64K
 		},
 	}
 

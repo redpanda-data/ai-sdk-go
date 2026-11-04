@@ -49,7 +49,9 @@ const (
 	// 2026-09-29, the claude-haiku-5-5 row, added 2026-10-08, and the
 	// gemini-4-argon row, added 2026-10-14, are their model pages' sections.
 	// The claude-fable-5, claude-opus-5 and claude-sonnet-5 rows are their
-	// model pages' sections, read 2026-10-15.
+	// model pages' sections, read 2026-10-15. The gemini-4-argon and
+	// gemini-3.5-flash-lite rows gained locations from their model pages and
+	// LocationsMatrixSource, read 2026-11-04.
 	LocationsMatrixTranscribed = "2026-09-22"
 )
 
@@ -75,9 +77,12 @@ const (
 //     no override.
 //  3. Run go test ./providers/vertex/...
 var servedLocations = map[string][]string{
+	// europe-west2 and asia-southeast1 from the model page's Provisioned
+	// Throughput row and LocationsMatrixSource, read 2026-11-04.
 	ModelGemini4Argon: {
 		LocationGlobal,
 		"us", "eu",
+		"europe-west2", "asia-southeast1",
 	},
 	ModelGemini38Flash: {
 		LocationGlobal,
@@ -99,9 +104,12 @@ var servedLocations = map[string][]string{
 		"northamerica-northeast1", "europe-west2", "europe-west3",
 		"asia-northeast1", "asia-south1", "asia-southeast1", "australia-southeast1",
 	},
+	// asia-south1 from the model page's Provisioned Throughput row and
+	// LocationsMatrixSource, read 2026-11-04.
 	ModelGemini35FlashLite: {
 		LocationGlobal,
 		"us", "eu",
+		"asia-south1",
 	},
 	ModelGemini31FlashLite: {
 		LocationGlobal,

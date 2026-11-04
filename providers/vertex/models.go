@@ -32,9 +32,13 @@ const ProviderName = "gcp.vertex"
 // Vertex model IDs are exactly the model segment of a Vertex resource path,
 // publishers/{publisher}/models/{model}.
 const (
-	ModelGemini4Argon        = "gemini-4-argon"
-	ModelGemini38Flash       = "gemini-3.8-flash"
-	ModelGemini37Flash       = "gemini-3.7-flash"
+	ModelGemini4Argon  = "gemini-4-argon"
+	ModelGemini38Flash = "gemini-3.8-flash"
+	// Deprecated: Google retires Gemini 3.7 Flash on 2027-01-28. Use
+	// [ModelGemini38Flash].
+	ModelGemini37Flash = "gemini-3.7-flash"
+	// Deprecated: Google retires Gemini 3.6 Flash on 2026-11-19. Use
+	// [ModelGemini38Flash].
 	ModelGemini36Flash       = "gemini-3.6-flash"
 	ModelGemini35Flash       = "gemini-3.5-flash"
 	ModelGemini35FlashLite   = "gemini-3.5-flash-lite"
@@ -207,9 +211,8 @@ var (
 //	https://cloud.google.com/model-garden/partner-models/pricing
 //
 // Capabilities and constraints mirror the same models in the Gemini-API and
-// Anthropic-direct catalogs, with five exceptions. No Claude entry offers
-// speed; Vertex publishes no Claude fast-mode rate. Several Gemini entries
-// cap output at 65536 where the Gemini-API catalog says 65535. Gemini 3.7
+// Anthropic-direct catalogs, with four exceptions. No Claude entry offers
+// speed; Vertex publishes no Claude fast-mode rate. Gemini 3.7
 // and 3.8 Flash take no presence or frequency penalty, which the Gemini-API
 // catalog lists. Claude Opus 4.5, Sonnet 4.5 and Haiku 4.5 take a manual
 // thinking budget, which the Anthropic-direct catalog does not set. Claude
@@ -284,11 +287,12 @@ func entries() []catalog.Entry {
 				SupportedParams:  geminiNoPenaltyParams,
 			},
 			Reasoning: catalog.ReasoningSupport{Efforts: geminiNoMinimalReasoningEfforts},
-			// Gemini 3.7 Flash GA, "No retirement date announced" on the model page
-			// (docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/
-			// 3-7-flash, read 2026-09-28).
+			// Gemini 3.7 Flash retires on January 28, 2027, a bare date on
+			// model-versions and the model page (docs.cloud.google.com/gemini-
+			// enterprise-agent-platform/models/model-versions, read 2026-11-04).
 			Life: catalog.Lifecycle{
 				Available:  catalog.MustDate("2026-08-13"),
+				Retires:    catalog.MustDate("2027-01-28"),
 				ReplacedBy: ModelGemini38Flash,
 			},
 			Pricing: geminiFlashPricing(),
@@ -306,12 +310,13 @@ func entries() []catalog.Entry {
 				SupportedParams:  geminiNoPenaltyParams,
 			},
 			Reasoning: catalog.ReasoningSupport{Efforts: geminiReasoningEfforts},
-			// Gemini 3.6 Flash GA on the model page (docs.cloud.google.com/
-			// gemini-enterprise-agent-platform/models/gemini/3-6-flash, read
-			// 2026-09-10). No retirement published.
+			// Gemini 3.6 Flash retires on November 19, 2026, a bare date on
+			// model-versions and the model page (docs.cloud.google.com/gemini-
+			// enterprise-agent-platform/models/model-versions, read 2026-11-04).
 			// model-versions names gemini-3.8-flash as the replacement.
 			Life: catalog.Lifecycle{
 				Available:  catalog.MustDate("2026-07-21"),
+				Retires:    catalog.MustDate("2026-11-19"),
 				ReplacedBy: ModelGemini38Flash,
 			},
 			Pricing: geminiFlashPricing(),
@@ -922,8 +927,10 @@ func gemini4ArgonPricing() pricing.Info {
 	nonGlobal := pricing.NewRates(2.20, 11.00, 0.11)
 
 	info := pricing.FlatInfoFromRates(global)
-	// An empty-Region selector is a wildcard that also matches global.
-	for _, region := range []string{"us", "eu"} {
+	// An empty-Region selector is a wildcard that also matches global. The
+	// pricing page's one Non-global row applies at every served non-global
+	// location, europe-west2 and asia-southeast1 included (read 2026-11-04).
+	for _, region := range []string{"us", "eu", "europe-west2", "asia-southeast1"} {
 		info = info.WithOverride(
 			pricing.Selector{Region: region},
 			pricing.RateCard{Base: nonGlobal},
@@ -1050,12 +1057,13 @@ func gemini35FlashPricing() pricing.Info {
 }
 
 // gemini35FlashLitePricing returns the Gemini 3.5 Flash-Lite rate card.
-// Standard rates from the pricing page, read 2026-09-28.
+// Standard rates from the pricing page, read 2026-09-28; its one
+// "Non-global" row applies at asia-south1 too (read 2026-11-04).
 func gemini35FlashLitePricing() pricing.Info {
 	return regionalPricing(
 		pricing.NewRates(0.30, 2.50, 0.03),
 		pricing.NewRates(0.33, 2.75, 0.033),
-		"us", "eu",
+		"us", "eu", "asia-south1",
 	)
 }
 

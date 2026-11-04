@@ -1733,13 +1733,22 @@ var bedrockFamilies = []family{
 		Capabilities:  gemma4Caps,
 		Modalities:    gemma4Modalities,
 		Constraints:   gemma4Context256kConstraints,
-		Rates:         pricing.RateCard{Base: pricing.NewRates(0.14, 0.40, 0)},
-		// Published regional Standard rates, checked 2026-10-15.
-		// Other tiers use these Standard estimates with Cost.Fallbacks;
-		// unmatched regions (including US) use the base card with a fallback.
-		// https://aws.amazon.com/bedrock/pricing/
+		// Model launch date on the model card
+		// (https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-google-gemma-4-31b.md,
+		// read 2026-11-04).
+		Life:  catalog.Lifecycle{Available: catalog.MustDate("2026-03-31")},
+		Rates: pricing.RateCard{Base: pricing.NewRates(0.14, 0.40, 0)},
+		// Standard, Flex and Priority rates (the card's Service Tiers) from the
+		// AWS price list, us-east-1 and eu-central-1 files
+		// (https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-1/index.json,
+		// read 2026-11-04). Unmatched regions use the us-east-1 rates; other
+		// tiers fall back to Standard.
 		Overrides: []pricing.Override{
-			{Match: pricing.Selector{Region: regionFrankfurt}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.17, 0.48, 0)}},
+			{Match: pricing.Selector{Region: regionFrankfurt}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.168, 0.48, 0)}},
+			{Match: pricing.Selector{ServiceTier: llm.ServiceTierFlex}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.07, 0.20, 0)}},
+			{Match: pricing.Selector{ServiceTier: llm.ServiceTierPriority}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.245, 0.70, 0)}},
+			{Match: pricing.Selector{Region: regionFrankfurt, ServiceTier: llm.ServiceTierFlex}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.084, 0.24, 0)}},
+			{Match: pricing.Selector{Region: regionFrankfurt, ServiceTier: llm.ServiceTierPriority}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.294, 0.84, 0)}},
 		},
 	},
 	{
@@ -1752,13 +1761,19 @@ var bedrockFamilies = []family{
 		Capabilities:  gemma4Caps,
 		Modalities:    gemma4Modalities,
 		Constraints:   gemma4Context256kConstraints,
-		Rates:         pricing.RateCard{Base: pricing.NewRates(0.13, 0.40, 0)},
-		// Published regional Standard rates, checked 2026-10-15.
-		// Other tiers use these Standard estimates with Cost.Fallbacks;
-		// unmatched regions (including US) use the base card with a fallback.
-		// https://aws.amazon.com/bedrock/pricing/
+		// Model launch date on the model card
+		// (https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-google-gemma-4-26b-a4b.md,
+		// read 2026-11-04).
+		Life:  catalog.Lifecycle{Available: catalog.MustDate("2026-03-31")},
+		Rates: pricing.RateCard{Base: pricing.NewRates(0.13, 0.40, 0)},
+		// Standard, Flex and Priority rates from the AWS price list, as for
+		// Gemma 4 31B (read 2026-11-04).
 		Overrides: []pricing.Override{
-			{Match: pricing.Selector{Region: regionFrankfurt}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.16, 0.48, 0)}},
+			{Match: pricing.Selector{Region: regionFrankfurt}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.156, 0.48, 0)}},
+			{Match: pricing.Selector{ServiceTier: llm.ServiceTierFlex}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.065, 0.20, 0)}},
+			{Match: pricing.Selector{ServiceTier: llm.ServiceTierPriority}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.2275, 0.70, 0)}},
+			{Match: pricing.Selector{Region: regionFrankfurt, ServiceTier: llm.ServiceTierFlex}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.078, 0.24, 0)}},
+			{Match: pricing.Selector{Region: regionFrankfurt, ServiceTier: llm.ServiceTierPriority}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.273, 0.84, 0)}},
 		},
 	},
 	{
@@ -1771,13 +1786,19 @@ var bedrockFamilies = []family{
 		Capabilities:  gemma4Caps,
 		Modalities:    gemma4Modalities,
 		Constraints:   gemma4Context128kConstraints,
-		Rates:         pricing.RateCard{Base: pricing.NewRates(0.04, 0.08, 0)},
-		// Published regional Standard rates, checked 2026-10-15.
-		// Other tiers use these Standard estimates with Cost.Fallbacks;
-		// unmatched regions (including US) use the base card with a fallback.
-		// https://aws.amazon.com/bedrock/pricing/
+		// Model launch date on the model card
+		// (https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-google-gemma-4-e2b.md,
+		// read 2026-11-04).
+		Life:  catalog.Lifecycle{Available: catalog.MustDate("2026-03-31")},
+		Rates: pricing.RateCard{Base: pricing.NewRates(0.04, 0.08, 0)},
+		// Standard, Flex and Priority rates from the AWS price list, as for
+		// Gemma 4 31B (read 2026-11-04).
 		Overrides: []pricing.Override{
-			{Match: pricing.Selector{Region: regionFrankfurt}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.05, 0.1, 0)}},
+			{Match: pricing.Selector{Region: regionFrankfurt}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.048, 0.096, 0)}},
+			{Match: pricing.Selector{ServiceTier: llm.ServiceTierFlex}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.02, 0.04, 0)}},
+			{Match: pricing.Selector{ServiceTier: llm.ServiceTierPriority}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.07, 0.14, 0)}},
+			{Match: pricing.Selector{Region: regionFrankfurt, ServiceTier: llm.ServiceTierFlex}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.024, 0.048, 0)}},
+			{Match: pricing.Selector{Region: regionFrankfurt, ServiceTier: llm.ServiceTierPriority}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.084, 0.168, 0)}},
 		},
 	},
 }
