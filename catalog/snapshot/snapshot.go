@@ -107,13 +107,15 @@ func Encode(w io.Writer, catalogs ...*catalog.Catalog) error {
 			}
 
 			prov.Offerings = append(prov.Offerings, offeringDTO{
-				ID:            o.ID,
-				Model:         string(o.Model),
-				DisplayName:   o.DisplayName,
-				Aliases:       o.Aliases,
-				WireAPIs:      wireAPIsDTO(o.WireAPIs),
-				TokenCounting: wireAPIsDTO(o.TokenCounting),
-				Capabilities:  capabilitiesDTO(o.Capabilities),
+				ID:               o.ID,
+				Model:            string(o.Model),
+				DisplayName:      o.DisplayName,
+				Aliases:          o.Aliases,
+				ResolutionPolicy: string(o.ResolutionPolicy),
+				WireAPIs:         wireAPIsDTO(o.WireAPIs),
+				TokenCounting:    wireAPIsDTO(o.TokenCounting),
+				WireAPISupport:   wireAPISupportDTOs(o.WireAPISupport),
+				Capabilities:     capabilitiesDTO(o.Capabilities),
 				Constraints: constraintsDTO{
 					MaxInputTokens:    o.Constraints.MaxInputTokens,
 					MaxOutputTokens:   o.Constraints.MaxOutputTokens,
@@ -191,21 +193,23 @@ type providerDTO struct {
 }
 
 type offeringDTO struct {
-	ID            string          `json:"id"`
-	Model         string          `json:"model"`
-	DisplayName   string          `json:"display_name"`
-	Aliases       []string        `json:"aliases,omitempty"`
-	WireAPIs      []wireAPIDTO    `json:"wire_apis,omitempty"`
-	TokenCounting []wireAPIDTO    `json:"token_counting,omitempty"`
-	Capabilities  map[string]bool `json:"capabilities"`
-	Constraints   constraintsDTO  `json:"constraints"`
-	Modalities    modalitiesDTO   `json:"modalities"`
-	Reasoning     reasoningDTO    `json:"reasoning"`
-	Speeds        []llm.Speed     `json:"speeds,omitempty"`
-	Pricing       pricingDTO      `json:"pricing"`
-	Lifecycle     lifecycleDTO    `json:"lifecycle"`
-	Attributes    []attributeDTO  `json:"attributes,omitempty"`
-	Derived       derivedDTO      `json:"derived"`
+	ID               string              `json:"id"`
+	Model            string              `json:"model"`
+	DisplayName      string              `json:"display_name"`
+	Aliases          []string            `json:"aliases,omitempty"`
+	ResolutionPolicy string              `json:"resolution_policy,omitempty"`
+	WireAPIs         []wireAPIDTO        `json:"wire_apis,omitempty"`
+	TokenCounting    []wireAPIDTO        `json:"token_counting,omitempty"`
+	WireAPISupport   []wireAPISupportDTO `json:"wire_api_support,omitempty"`
+	Capabilities     map[string]bool     `json:"capabilities"`
+	Constraints      constraintsDTO      `json:"constraints"`
+	Modalities       modalitiesDTO       `json:"modalities"`
+	Reasoning        reasoningDTO        `json:"reasoning"`
+	Speeds           []llm.Speed         `json:"speeds,omitempty"`
+	Pricing          pricingDTO          `json:"pricing"`
+	Lifecycle        lifecycleDTO        `json:"lifecycle"`
+	Attributes       []attributeDTO      `json:"attributes,omitempty"`
+	Derived          derivedDTO          `json:"derived"`
 }
 
 type wireAPIDTO struct {
@@ -221,6 +225,38 @@ func wireAPIsDTO(apis []catalog.WireAPI) []wireAPIDTO {
 	out := make([]wireAPIDTO, len(apis))
 	for i, api := range apis {
 		out[i] = wireAPIDTO{Protocol: string(api.Protocol), Transport: string(api.Transport)}
+	}
+
+	return out
+}
+
+type wireAPISupportDTO struct {
+	Protocol           string          `json:"protocol"`
+	Transport          string          `json:"transport"`
+	Capabilities       map[string]bool `json:"capabilities"`
+	ToolSearchProtocol string          `json:"tool_search_protocol,omitempty"`
+	Reasoning          reasoningDTO    `json:"reasoning"`
+}
+
+func wireAPISupportDTOs(support []catalog.WireAPISupport) []wireAPISupportDTO {
+	if len(support) == 0 {
+		return nil
+	}
+
+	out := make([]wireAPISupportDTO, len(support))
+	for i, s := range support {
+		out[i] = wireAPISupportDTO{
+			Protocol:           string(s.API.Protocol),
+			Transport:          string(s.API.Transport),
+			Capabilities:       capabilitiesDTO(s.Capabilities),
+			ToolSearchProtocol: string(s.Capabilities.ToolSearchProtocol),
+			Reasoning: reasoningDTO{
+				Efforts:             s.Reasoning.Efforts,
+				Adaptive:            s.Reasoning.Adaptive,
+				Budget:              s.Reasoning.Budget,
+				ThinkingPrefixCheck: s.Reasoning.ThinkingPrefixCheck,
+			},
+		}
 	}
 
 	return out

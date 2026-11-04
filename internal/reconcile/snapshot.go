@@ -28,6 +28,7 @@ import (
 var PackageProviders = map[string]string{
 	"anthropic": "anthropic",
 	"bedrock":   "aws.bedrock",
+	"fireworks": "fireworks",
 	"google":    "gcp.gemini",
 	"meta":      "meta",
 	"openai":    "openai",

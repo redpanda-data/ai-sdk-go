@@ -67,6 +67,11 @@ def test_real_config_excludes_credential_and_ci_defining_files():
         "header.txt",
         "providers/vertex/model.go",
         "providers/vertex/conformance/vertex_conformance_test.go",
+        "providers/fireworks/contract_test.go",
+        "providers/fireworks/contract_protocol_test.go",
+        "providers/fireworks/contract_budget_test.go",
+        "providers/fireworks/contract_recording.go",
+        "taskfiles/fireworks.yaml",
         "providers/conformance/suite.go",
         "internal/testsuite/testsuite.go",
     ):
@@ -82,10 +87,23 @@ def test_real_config_keeps_catalog_work_in_scope():
         "catalog/snapshot.json",
         "providers/bedrock/models.go",
         "providers/vertex/models.go",
+        "providers/fireworks/models.go",
+        "providers/fireworks/models_test.go",
         "providers/bedrock/cross_region.go",
     ):
         r = evaluate(cfg, _one(path), PR_OK, True, checks=CI_OK)
         assert r["eligible"], f"{path} should be eligible: {r['reasons']}"
+
+
+def test_real_config_protects_renamed_fireworks_contracts():
+    cfg = _cfg()
+    if cfg is None:
+        return
+    files = _one("providers/fireworks/models_test.go")
+    files[0]["status"] = "renamed"
+    files[0]["previous_filename"] = "providers/fireworks/contract_test.go"
+    result = evaluate(cfg, files, PR_OK, True, checks=CI_OK)
+    assert not result["eligible"], result["reasons"]
 
 
 def test_real_config_flags_dependency_changes():

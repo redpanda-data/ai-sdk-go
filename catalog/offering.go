@@ -15,6 +15,8 @@
 package catalog
 
 import (
+	"slices"
+
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/pricing"
 )
@@ -44,6 +46,21 @@ func (o Offering) Provider() llm.ProviderID {
 // Facts returns the host-independent facts of the underlying model.
 func (o Offering) Facts() Facts {
 	return o.facts
+}
+
+// SupportForWireAPI returns the explicitly declared feature subset for a
+// binding, defensively copied. False means unknown; offering-wide features
+// must not be used as a fallback.
+func (o Offering) SupportForWireAPI(api WireAPI) (WireAPISupport, bool) {
+	for _, support := range o.WireAPISupport {
+		if support.API == api {
+			support.Reasoning.Efforts = slices.Clone(support.Reasoning.Efforts)
+
+			return support, true
+		}
+	}
+
+	return WireAPISupport{}, false
 }
 
 // PriceTier is a coarse cost class for catalog UIs, derived from the

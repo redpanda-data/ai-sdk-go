@@ -21,10 +21,14 @@ package catalog
 type Publisher string
 
 const (
-	PublisherAmazon    Publisher = "amazon"
-	PublisherAnthropic Publisher = "anthropic"
-	PublisherGoogle    Publisher = "google"
-	PublisherMeta      Publisher = "meta"
-	PublisherMistral   Publisher = "mistral"
-	PublisherOpenAI    Publisher = "openai"
+	PublisherAmazon     Publisher = "amazon"
+	PublisherAnthropic  Publisher = "anthropic"
+	PublisherGoogle     Publisher = "google"
+	PublisherMeta       Publisher = "meta"
+	PublisherMistral    Publisher = "mistral"
+	PublisherOpenAI     Publisher = "openai"
+	PublisherZAI        Publisher = "zai"
+	PublisherMiniMax    Publisher = "minimax"
+	PublisherDeepSeek   Publisher = "deepseek"
+	PublisherMoonshotAI Publisher = "moonshotai"
 )

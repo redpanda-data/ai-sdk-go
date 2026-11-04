@@ -54,7 +54,8 @@ type prefixCandidate struct {
 type Option func(*config)
 
 type config struct {
-	registry Registry
+	registry         Registry
+	requiredWireAPIs bool
 }
 
 // WithRegistry overrides the Facts registry used to resolve each entry's
@@ -63,6 +64,15 @@ type config struct {
 func WithRegistry(r Registry) Option {
 	return func(c *config) {
 		c.registry = maps.Clone(r)
+	}
+}
+
+// WithRequiredWireAPIs requires every entry to explicitly declare at least
+// one wire API binding. Without it, empty bindings retain their legacy meaning
+// of unknown support.
+func WithRequiredWireAPIs() Option {
+	return func(c *config) {
+		c.requiredWireAPIs = true
 	}
 }
 
@@ -170,6 +180,10 @@ func New(provider llm.ProviderID, entries []Entry, opts ...Option) (*Catalog, er
 		// then normalize it into the exact contradiction validateShape
 		// exists to reject.
 		normalized := normalizeEntry(e, facts)
+
+		if cfg.requiredWireAPIs && len(normalized.WireAPIs) == 0 {
+			fail(i, e, "WireAPIs must declare at least one binding when WithRequiredWireAPIs is enabled")
+		}
 
 		validateLifecycle(normalized, func(format string, args ...any) { fail(i, e, format, args...) })
 		validateShape(normalized, func(format string, args ...any) { fail(i, e, format, args...) })
@@ -296,6 +310,13 @@ func validateLifecycle(e Entry, fail func(string, ...any)) {
 func validateShape(e Entry, fail func(string, ...any)) {
 	validateWireAPIs("WireAPIs", e.WireAPIs, fail)
 	validateWireAPIs("TokenCounting", e.TokenCounting, fail)
+	validateWireAPISupport(e, fail)
+
+	switch e.ResolutionPolicy {
+	case ResolutionPolicyVersionStamp, ResolutionPolicyExact:
+	default:
+		fail("ResolutionPolicy %q is not a valid resolution policy", e.ResolutionPolicy)
+	}
 
 	// Reasoning without effort knobs exists (Claude Sonnet 4.5), so only
 	// the reverse — controls without the capability — is impossible.
@@ -323,6 +344,10 @@ func normalizeEntry(e Entry, facts Facts) Entry {
 	slices.SortFunc(e.WireAPIs, compareWireAPIs)
 	e.TokenCounting = slices.Clone(e.TokenCounting)
 	slices.SortFunc(e.TokenCounting, compareWireAPIs)
+	e.WireAPISupport = slices.Clone(e.WireAPISupport)
+	slices.SortFunc(e.WireAPISupport, func(a, b WireAPISupport) int {
+		return compareWireAPIs(a.API, b.API)
+	})
 
 	if e.DisplayName == "" {
 		e.DisplayName = facts.DisplayName
@@ -391,7 +416,8 @@ func (c *Catalog) Lookup(offeringID string) (Offering, bool) {
 //
 //  1. exact offering ID
 //  2. exact alias
-//  3. longest prefix over IDs and aliases whose remainder is a version
+//  3. for offerings with ResolutionPolicyVersionStamp, longest prefix over
+//     IDs and aliases whose remainder is a version
 //     stamp, so snapshot forms resolve to their family
 //     ("claude-sonnet-4-5-20250929" → "claude-sonnet-4-5",
 //     "o3-2025-04-16" → "o3", "gemini-2.5-flash-001" → "gemini-2.5-flash")
@@ -626,11 +652,15 @@ func (c *Catalog) freeze() {
 
 	c.prefixIDs = make([]prefixCandidate, 0, len(c.byID)+len(c.byAlias))
 	for id, idx := range c.byID {
-		c.prefixIDs = append(c.prefixIDs, prefixCandidate{id: id, idx: idx})
+		if c.offerings[idx].ResolutionPolicy == ResolutionPolicyVersionStamp {
+			c.prefixIDs = append(c.prefixIDs, prefixCandidate{id: id, idx: idx})
+		}
 	}
 
 	for alias, idx := range c.byAlias {
-		c.prefixIDs = append(c.prefixIDs, prefixCandidate{id: alias, idx: idx})
+		if c.offerings[idx].ResolutionPolicy == ResolutionPolicyVersionStamp {
+			c.prefixIDs = append(c.prefixIDs, prefixCandidate{id: alias, idx: idx})
+		}
 	}
 
 	slices.SortFunc(c.prefixIDs, func(a, b prefixCandidate) int {
@@ -684,6 +714,12 @@ func cloneOffering(o Offering) Offering {
 	o.Aliases = slices.Clone(o.Aliases)
 	o.WireAPIs = slices.Clone(o.WireAPIs)
 	o.TokenCounting = slices.Clone(o.TokenCounting)
+
+	o.WireAPISupport = slices.Clone(o.WireAPISupport)
+	for i := range o.WireAPISupport {
+		o.WireAPISupport[i].Reasoning.Efforts = slices.Clone(o.WireAPISupport[i].Reasoning.Efforts)
+	}
+
 	o.Constraints.SupportedParams = slices.Clone(o.Constraints.SupportedParams)
 
 	// ConditionalRules nest a Disables slice; slices.Clone alone would

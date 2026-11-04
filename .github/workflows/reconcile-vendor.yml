@@ -170,6 +170,14 @@ jobs:
             dev.meta.ai:443
             research.meta.ai:443
             docs.mistral.ai:443
+            docs.fireworks.ai:443
+            fireworks.ai:443
+            docs.z.ai:443
+            z.ai:443
+            huggingface.co:443
+            api-docs.deepseek.com:443
+            platform.kimi.ai:443
+            www.kimi.com:443
             downloads.claude.ai:443
             claude.ai:443
             registry.npmjs.org:443

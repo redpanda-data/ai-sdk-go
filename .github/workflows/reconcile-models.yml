@@ -8,7 +8,7 @@ on:
       vendor:
         description: Vendor to reconcile (its models on every provider that sells them), or all. Every other vendor with a change waiting in the PR replays it with no model.
         type: choice
-        options: [all, anthropic, openai, google, amazon, meta, mistral]
+        options: [all, anthropic, openai, google, amazon, meta, mistral, zai, minimax, deepseek, moonshotai]
         default: all
       dry_run:
         description: Stop before pushing a branch or opening a PR
@@ -235,10 +235,78 @@ jobs:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       STEP_DEBUG: ${{ secrets.ACTIONS_STEP_DEBUG }}
 
+  zai:
+    needs: [plan, anthropic, openai, google, amazon, meta, mistral]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && contains(fromJSON(needs.plan.outputs.run), 'zai') }}
+    uses: ./.github/workflows/reconcile-vendor.yml
+    permissions:
+      contents: read
+      actions: read
+    with:
+      vendor: zai
+      mode: ${{ contains(fromJSON(needs.plan.outputs.replay), 'zai') && 'replay' || 'agent' }}
+      base_sha: ${{ needs.mistral.outputs.head || needs.meta.outputs.head || needs.amazon.outputs.head || needs.google.outputs.head || needs.openai.outputs.head || needs.anthropic.outputs.head || github.sha }}
+      dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+      force: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      STEP_DEBUG: ${{ secrets.ACTIONS_STEP_DEBUG }}
+
+  minimax:
+    needs: [plan, anthropic, openai, google, amazon, meta, mistral, zai]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && contains(fromJSON(needs.plan.outputs.run), 'minimax') }}
+    uses: ./.github/workflows/reconcile-vendor.yml
+    permissions:
+      contents: read
+      actions: read
+    with:
+      vendor: minimax
+      mode: ${{ contains(fromJSON(needs.plan.outputs.replay), 'minimax') && 'replay' || 'agent' }}
+      base_sha: ${{ needs.zai.outputs.head || needs.mistral.outputs.head || needs.meta.outputs.head || needs.amazon.outputs.head || needs.google.outputs.head || needs.openai.outputs.head || needs.anthropic.outputs.head || github.sha }}
+      dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+      force: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      STEP_DEBUG: ${{ secrets.ACTIONS_STEP_DEBUG }}
+
+  deepseek:
+    needs: [plan, anthropic, openai, google, amazon, meta, mistral, zai, minimax]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && contains(fromJSON(needs.plan.outputs.run), 'deepseek') }}
+    uses: ./.github/workflows/reconcile-vendor.yml
+    permissions:
+      contents: read
+      actions: read
+    with:
+      vendor: deepseek
+      mode: ${{ contains(fromJSON(needs.plan.outputs.replay), 'deepseek') && 'replay' || 'agent' }}
+      base_sha: ${{ needs.minimax.outputs.head || needs.zai.outputs.head || needs.mistral.outputs.head || needs.meta.outputs.head || needs.amazon.outputs.head || needs.google.outputs.head || needs.openai.outputs.head || needs.anthropic.outputs.head || github.sha }}
+      dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+      force: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      STEP_DEBUG: ${{ secrets.ACTIONS_STEP_DEBUG }}
+
+  moonshotai:
+    needs: [plan, anthropic, openai, google, amazon, meta, mistral, zai, minimax, deepseek]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && contains(fromJSON(needs.plan.outputs.run), 'moonshotai') }}
+    uses: ./.github/workflows/reconcile-vendor.yml
+    permissions:
+      contents: read
+      actions: read
+    with:
+      vendor: moonshotai
+      mode: ${{ contains(fromJSON(needs.plan.outputs.replay), 'moonshotai') && 'replay' || 'agent' }}
+      base_sha: ${{ needs.deepseek.outputs.head || needs.minimax.outputs.head || needs.zai.outputs.head || needs.mistral.outputs.head || needs.meta.outputs.head || needs.amazon.outputs.head || needs.google.outputs.head || needs.openai.outputs.head || needs.anthropic.outputs.head || github.sha }}
+      dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+      force: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      STEP_DEBUG: ${{ secrets.ACTIONS_STEP_DEBUG }}
+
   # No model and no bot token. Carries the commits other people pushed onto
   # the bot PR onto the vendors' commits (carry.sh), checked in the sandbox.
   carry:
-    needs: [plan, anthropic, openai, google, amazon, meta, mistral]
+    needs: [plan, anthropic, openai, google, amazon, meta, mistral, zai, minimax, deepseek, moonshotai]
     if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.carry != '[]' && needs.plan.outputs.stop != 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -305,7 +373,7 @@ jobs:
   # The only job with the bot token. It puts the vendors' commits together
   # into one PR and pushes once, at the end; it runs nothing from the patches.
   pr:
-    needs: [plan, anthropic, openai, google, amazon, meta, mistral, carry]
+    needs: [plan, anthropic, openai, google, amazon, meta, mistral, zai, minimax, deepseek, moonshotai, carry]
     if: ${{ !cancelled() && needs.plan.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20

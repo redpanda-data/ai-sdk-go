@@ -1,0 +1,54 @@
+[
+  {
+    "name": "qualified inventory addition",
+    "discovered_id": "accounts/fireworks/models/glm-5p3-flash",
+    "before": "const includeFlash = false",
+    "after": "const includeFlash = true",
+    "expected_snapshot_field": "model",
+    "expected_snapshot_value": "zai/glm-5.3-flash",
+    "report": {
+      "changes": [{"offering": "fireworks:accounts/fireworks/models/glm-5p3-flash", "field": "new_model", "old": "", "new": "accounts/fireworks/models/glm-5p3-flash", "source_url": "https://fireworks.ai/models/fireworks/glm-5p3-flash", "rule": "new-model-add"}],
+      "needs_human": [],
+      "skipped": []
+    }
+  },
+  {
+    "name": "rate change",
+    "discovered_id": "accounts/fireworks/models/glm-5p3",
+    "before": "const inputRate = 1.40",
+    "after": "const inputRate = 1.50",
+    "expected_snapshot_field": "pricing",
+    "expected_snapshot_value": "150000000",
+    "report": {
+      "changes": [{"offering": "fireworks:accounts/fireworks/models/glm-5p3", "field": "price", "old": "1.40", "new": "1.50", "source_url": "https://docs.fireworks.ai/serverless/pricing", "rule": "price-follow"}],
+      "needs_human": [],
+      "skipped": []
+    }
+  },
+  {
+    "name": "lifecycle change",
+    "discovered_id": "accounts/fireworks/models/glm-5p3",
+    "before": "const retires = \"\"",
+    "after": "const retires = \"2026-12-01\"",
+    "expected_snapshot_field": "lifecycle",
+    "expected_snapshot_value": "2026-12-01",
+    "report": {
+      "changes": [{"offering": "fireworks:accounts/fireworks/models/glm-5p3", "field": "lifecycle", "old": "", "new": "2026-12-01", "source_url": "https://docs.fireworks.ai/updates/changelog", "rule": "lifecycle-exact-date"}],
+      "needs_human": [],
+      "skipped": []
+    }
+  },
+  {
+    "name": "qualified alias update",
+    "discovered_id": "accounts/fireworks/models/glm-5p3",
+    "before": "const modelAlias = \"\"",
+    "after": "const modelAlias = \"accounts/fireworks/routers/glm-latest\"",
+    "expected_snapshot_field": "aliases",
+    "expected_snapshot_value": "accounts/fireworks/routers/glm-latest",
+    "report": {
+      "changes": [{"offering": "fireworks:accounts/fireworks/models/glm-5p3", "field": "capability", "old": "", "new": "accounts/fireworks/routers/glm-latest", "source_url": "https://docs.fireworks.ai/nexus/open-models", "rule": "capability-follow"}],
+      "needs_human": [],
+      "skipped": []
+    }
+  }
+]
