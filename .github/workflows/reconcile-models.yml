@@ -302,10 +302,99 @@ jobs:
           retention-days: 7
           overwrite: true
 
+  # No model. Calls each offering the vendors' commits add or change once
+  # on its host, with a tiny request, for the PR body's "Live checks": the
+  # only job with provider keys, so it runs the run's own code and reads
+  # the vendors' folders only as data. A call that fails never stops the PR.
+  probe:
+    needs: [plan, anthropic, openai, google, amazon, meta, mistral]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.stop != 'true' && contains(toJSON(needs.*.outputs.changed), 'true') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write # the Bedrock CI role, for the Bedrock calls
+    steps:
+      # Every later step reaches only these hosts: the providers' APIs (and
+      # AWS's token service), then installs (GitHub, Go and its modules).
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            api.anthropic.com:443
+            api.openai.com:443
+            generativelanguage.googleapis.com:443
+            sts.amazonaws.com:443
+            sts.us-east-1.amazonaws.com:443
+            bedrock.us-east-1.amazonaws.com:443
+            bedrock-runtime.us-east-1.amazonaws.com:443
+            bedrock.eu-central-1.amazonaws.com:443
+            bedrock-runtime.eu-central-1.amazonaws.com:443
+            bedrock.ap-southeast-2.amazonaws.com:443
+            bedrock-runtime.ap-southeast-2.amazonaws.com:443
+            bedrock.ap-northeast-1.amazonaws.com:443
+            bedrock-runtime.ap-northeast-1.amazonaws.com:443
+            github.com:443
+            api.github.com:443
+            release-assets.githubusercontent.com:443
+            *.githubapp.com:443
+            go.dev:443
+            dl.google.com:443
+            proxy.golang.org:443
+            sum.golang.org:443
+            storage.googleapis.com:443
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          persist-credentials: false
+      - name: Check the egress block
+        run: .github/reconcile-models/check-egress.sh
+      - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e  # v2.2.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        continue-on-error: true
+        with:
+          pattern: reconcile-pr-*
+          path: ${{ runner.temp }}/legs
+      - name: Build catalog-probe
+        run: |
+          task install:go
+          export PATH="$(dirname "$(ls -d "$PWD"/.build/go*/bin/go | tail -1)"):$PATH"
+          GOTOOLCHAIN=local go build -o "$RUNNER_TEMP/catalog-probe" ./cmd/catalog-probe
+      # The keyed tests' role (terraform/ai-sdk-ci), which may only call
+      # Bedrock. When it can't be assumed, the Bedrock rows say so and the
+      # other hosts are still called.
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd  # v6.3.0
+        continue-on-error: true
+        with:
+          role-to-assume: arn:aws:iam::502376765358:role/ai-sdk-go-ci-bedrock
+          aws-region: us-east-1
+      # The folder of each vendor whose change was checked and committed, as
+      # the carry job picks the vendors' commits.
+      - name: Call each new or changed offering (no model)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          NEEDS: ${{ toJSON(needs) }}
+          RUN: ${{ needs.plan.outputs.run }}
+        run: |
+          dirs=()
+          for vendor in $(jq -r --argjson run "$RUN" '. as $needs | $run[] | select(($needs[.].outputs.head // "") != "" and $needs[.].outputs.changed == "true")' <<<"$NEEDS"); do
+            dirs+=("$RUNNER_TEMP/legs/reconcile-pr-$vendor")
+          done
+          "$RUNNER_TEMP/catalog-probe" -out out/probe "${dirs[@]}"
+          cat out/probe/probes.md >>"$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: reconcile-probe
+          path: out/probe/
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: true
+
   # The only job with the bot token. It puts the vendors' commits together
   # into one PR and pushes once, at the end; it runs nothing from the patches.
   pr:
-    needs: [plan, anthropic, openai, google, amazon, meta, mistral, carry]
+    needs: [plan, anthropic, openai, google, amazon, meta, mistral, carry, probe]
     if: ${{ !cancelled() && needs.plan.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -345,6 +434,12 @@ jobs:
         with:
           pattern: reconcile-bundle-*
           path: ${{ runner.temp }}/bundles
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        if: env.STOP != 'true'
+        continue-on-error: true
+        with:
+          name: reconcile-probe
+          path: ${{ runner.temp }}/probe
       - name: Put the vendors' parts together (no model)
         id: combine
         if: env.STOP != 'true'
@@ -381,6 +476,26 @@ jobs:
             note="> **Open PRs touch the same files:** $(sed -E 's/[0-9]+/#&/g; s/,/, /g' <<<"$others"). If they overlap, merge theirs first: the next run leaves out what they already contain."
             { head -n 2 out/body.md; echo "$note"; echo; tail -n +3 out/body.md; } >out/body.next && mv out/body.next out/body.md
           fi
+      # The probe job's block goes before the first vendor's section; without
+      # it, the body says nothing was called.
+      - name: Add the live checks
+        if: steps.combine.outputs.changed == 'true'
+        env:
+          PROBES: ${{ runner.temp }}/probe/probes.md
+        run: |
+          if [[ ! -f "$PROBES" ]]; then
+            PROBES="$RUNNER_TEMP/no-probes.md"
+            cat >"$PROBES" <<EOF
+          ## Live checks
+
+          The probe job didn't finish, so nothing was called before this PR opened. [The run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) has its log.
+          EOF
+          fi
+          awk -v probes="$PROBES" '
+            NR > 1 && /^## / && !done { while ((getline line <probes) > 0) print line; print ""; done = 1 }
+            { print }
+            END { if (!done) { print ""; while ((getline line <probes) > 0) print line } }' out/body.md >out/body.next
+          mv out/body.next out/body.md
       - name: Job summary
         if: always()
         run: if [[ -f out/body.md ]]; then cat out/body.md >>"$GITHUB_STEP_SUMMARY"; fi

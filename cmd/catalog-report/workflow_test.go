@@ -45,6 +45,7 @@ type workflowStep struct {
 	Uses string            `yaml:"uses"`
 	Run  string            `yaml:"run"`
 	With map[string]string `yaml:"with"`
+	Env  map[string]string `yaml:"env"`
 	// ContinueOnError is true, or an expression.
 	ContinueOnError any `yaml:"continue-on-error"` //nolint:tagliatelle // GitHub's key
 }
@@ -1776,7 +1777,8 @@ func TestChainPassesTheBaseBySHA(t *testing.T) {
 		}
 	}
 
-	assert.Equal(t, append(append([]string{"plan"}, order...), "carry"), needsOf(jobs["pr"]), "the pr job waits for every vendor and the carry job")
+	assert.Equal(t, append([]string{"plan"}, order...), needsOf(jobs["probe"]), "the probe job waits for every vendor")
+	assert.Equal(t, append(append([]string{"plan"}, order...), "carry", "probe"), needsOf(jobs["pr"]), "the pr job waits for every vendor, the carry job and the probe job")
 	assert.Contains(t, jobs["pr"].If, "!cancelled()", "the pr job runs after a vendor fails, to push the others")
 }
 
@@ -1801,6 +1803,20 @@ func TestOnlyThePRJobGetsTheBotToken(t *testing.T) {
 		if name == "pr" {
 			assert.Equal(t, "write", job.Permissions["id-token"])
 			assert.True(t, aws, "the pr job reads the bot token")
+
+			continue
+		}
+
+		// The probe job's token is for the Bedrock CI role, never the bot's.
+		if name == "probe" {
+			assert.Equal(t, "write", job.Permissions["id-token"])
+
+			for _, s := range job.Steps {
+				if strings.HasPrefix(s.Uses, "aws-actions/") {
+					assert.True(t, strings.HasPrefix(s.Uses, "aws-actions/configure-aws-credentials@"), "the probe job may only assume a role, got %s", s.Uses)
+					assert.Equal(t, bedrockRole, s.With["role-to-assume"])
+				}
+			}
 
 			continue
 		}
@@ -2427,5 +2443,171 @@ func TestLegChecksOutItsBase(t *testing.T) {
 			return strings.Contains(s.Run, `.github/reconcile-models/checkout-base.sh "$BASE_SHA"`)
 		})
 		assert.Less(t, checkout, stepIndex(t, steps, "main", first), "the %s job must check out its base first", job)
+	}
+}
+
+// bedrockRole is the AWS role test.yaml's keyed tests use: it may call
+// Bedrock models and nothing else of this repo's (terraform/ai-sdk-ci).
+const bedrockRole = "arn:aws:iam::502376765358:role/ai-sdk-go-ci-bedrock"
+
+// TestProbeJobRunsTheRunsOwnCode checks that the probe job, which holds the
+// provider keys, builds and runs only the run's own commit: it checks out
+// no other commit, takes the vendors' folders as data, and builds
+// catalog-probe before any credential is in the job.
+func TestProbeJobRunsTheRunsOwnCode(t *testing.T) {
+	t.Parallel()
+
+	job := readJob(t, runWorkflow, "probe")
+	checkout := job.Steps[stepIndex(t, job.Steps, "checkout", func(s workflowStep) bool { return strings.HasPrefix(s.Uses, "actions/checkout@") })]
+	assert.Empty(t, checkout.With["ref"], "the probe job must check out the run's own commit")
+	assert.Equal(t, "false", checkout.With["persist-credentials"])
+
+	for _, s := range job.Steps {
+		for _, other := range []string{"checkout-base.sh", "git fetch", "git checkout", "git switch", "git bundle", "go run"} {
+			assert.NotContains(t, s.Run, other, "the probe job may run nothing from the vendors' commits")
+		}
+
+		if strings.HasPrefix(s.Uses, "actions/download-artifact@") {
+			assert.Equal(t, "reconcile-pr-*", s.With["pattern"], "the probe job reads only the vendors' checked folders")
+		}
+	}
+
+	build := stepIndex(t, job.Steps, "build", func(s workflowStep) bool {
+		return strings.Contains(s.Run, `go build -o "$RUNNER_TEMP/catalog-probe" ./cmd/catalog-probe`)
+	})
+	aws := stepIndex(t, job.Steps, "Bedrock role", func(s workflowStep) bool { return strings.HasPrefix(s.Uses, "aws-actions/") })
+	probe := stepIndex(t, job.Steps, "probe", func(s workflowStep) bool { return strings.Contains(s.Run, `"$RUNNER_TEMP/catalog-probe" -out`) })
+
+	assert.Less(t, build, aws, "catalog-probe must be built before the job has AWS credentials")
+	assert.Less(t, aws, probe)
+}
+
+// TestOnlyTheProbeStepGetsProviderKeys checks that the provider keys reach
+// one step of the run's workflow, the one that calls the hosts; the vendor
+// legs get the model key alone (TestLegSecretsAreNamed).
+func TestOnlyTheProbeStepGetsProviderKeys(t *testing.T) {
+	t.Parallel()
+
+	var holders []string
+
+	for name, job := range readWorkflow(t, runWorkflow).Jobs {
+		for key, value := range job.Env {
+			assert.NotContains(t, value, "secrets.", "the %s job hands %s to every step", name, key)
+		}
+
+		for _, s := range job.Steps {
+			for key, value := range s.Env {
+				if strings.Contains(value, "secrets.") {
+					holders = append(holders, name+" "+key+"="+value)
+				}
+			}
+		}
+	}
+
+	assert.ElementsMatch(t, []string{
+		"probe ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}",
+		"probe OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}",
+		"probe GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }}",
+	}, holders)
+}
+
+// TestProbeJobBlocksEgress checks that Harden-Runner blocks the probe job's
+// outbound traffic from its first step, and that check-egress.sh proves the
+// block is on before the job has any credential. cmd/catalog-probe's own
+// test checks that every host it calls is on the list.
+func TestProbeJobBlocksEgress(t *testing.T) {
+	t.Parallel()
+
+	steps := readJob(t, runWorkflow, "probe").Steps
+	require.True(t, strings.HasPrefix(steps[0].Uses, "step-security/harden-runner@"), "Harden-Runner must be the probe job's first step")
+	assert.Equal(t, "block", steps[0].With["egress-policy"])
+
+	check := stepIndex(t, steps, "check-egress.sh", func(s workflowStep) bool { return strings.Contains(s.Run, ".github/reconcile-models/check-egress.sh") })
+	assert.Less(t, check, stepIndex(t, steps, "Bedrock role", func(s workflowStep) bool { return strings.HasPrefix(s.Uses, "aws-actions/") }))
+}
+
+// TestProbeStepCallsTheChangedVendors runs the probe step's script with a
+// stand-in catalog-probe: it gets the folder of each vendor whose change
+// was checked and committed, in the run's order, and nothing for a vendor
+// that changed nothing or failed.
+func TestProbeStepCallsTheChangedVendors(t *testing.T) {
+	t.Parallel()
+
+	steps := readJob(t, runWorkflow, "probe").Steps
+	step := steps[stepIndex(t, steps, "probe", func(s workflowStep) bool { return strings.Contains(s.Run, `"$RUNNER_TEMP/catalog-probe" -out`) })]
+
+	temp := t.TempDir()
+	args := filepath.Join(temp, "args")
+	require.NoError(t, os.WriteFile(filepath.Join(temp, "catalog-probe"), []byte("#!/bin/sh\necho \"$*\" >"+args+"\nmkdir -p out/probe && : >out/probe/probes.md\n"), 0o700)) //nolint:gosec // a stand-in must be executable
+
+	needs := `{"plan": {"outputs": {}},
+		"anthropic": {"outputs": {"head": "a1", "changed": "true"}},
+		"openai": {"outputs": {"head": "a1", "changed": "false"}},
+		"google": {"outputs": {"head": "", "changed": ""}},
+		"amazon": {"outputs": {"head": "b2", "changed": "true"}}}`
+
+	cmd := exec.CommandContext(t.Context(), "bash", "-eo", "pipefail", "-c", step.Run) //nolint:gosec // the workflow's own step
+	cmd.Dir = t.TempDir()
+
+	cmd.Env = append(os.Environ(), "RUNNER_TEMP="+temp, "NEEDS="+needs, `RUN=["anthropic","openai","google","amazon"]`,
+		"GITHUB_STEP_SUMMARY="+filepath.Join(temp, "summary"))
+
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "%s", out)
+
+	raw, err := os.ReadFile(args)
+	require.NoError(t, err)
+	assert.Equal(t, "-out out/probe "+temp+"/legs/reconcile-pr-anthropic "+temp+"/legs/reconcile-pr-amazon\n", string(raw))
+}
+
+// TestPRBodyGetsLiveChecks runs the pr job's step that adds the probe
+// job's block to the body: it goes before the first vendor's section, after
+// the callouts, and when the probe job left no block the body says nothing
+// was called. It runs before the body is shown, saved or pushed.
+func TestPRBodyGetsLiveChecks(t *testing.T) {
+	t.Parallel()
+
+	steps := readJob(t, runWorkflow, "pr").Steps
+	at := stepIndex(t, steps, "live checks", func(s workflowStep) bool { return strings.Contains(s.Run, "## Live checks") })
+
+	for _, later := range []string{"Job summary", "push"} {
+		assert.Less(t, at, stepIndex(t, steps, later, func(s workflowStep) bool { return s.Name == later || strings.Contains(s.Run, "git push") }))
+	}
+
+	const body = "## Catalogue drift: anthropic\n\nIntro.\n\n> [!IMPORTANT]\n> Resolve.\n\n## anthropic\n\nRows.\n"
+
+	tests := []struct {
+		name, probes, want string
+	}{
+		{"block", "## Live checks\n\nAll 2 calls worked.\n", "## Catalogue drift: anthropic\n\nIntro.\n\n> [!IMPORTANT]\n> Resolve.\n\n## Live checks\n\nAll 2 calls worked.\n\n## anthropic\n\nRows.\n"},
+		{"no block", "", "## Catalogue drift: anthropic\n\nIntro.\n\n> [!IMPORTANT]\n> Resolve.\n\n## Live checks\n\nThe probe job didn't finish, so nothing was called before this PR opened. [The run](https://github.com/o/r/actions/runs/9) has its log.\n\n## anthropic\n\nRows.\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			dir, temp := t.TempDir(), t.TempDir()
+			require.NoError(t, os.MkdirAll(filepath.Join(dir, "out"), 0o700))
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "out", "body.md"), []byte(body), 0o600))
+
+			probes := filepath.Join(temp, "probe", "probes.md")
+			if tt.probes != "" {
+				require.NoError(t, os.MkdirAll(filepath.Dir(probes), 0o700))
+				require.NoError(t, os.WriteFile(probes, []byte(tt.probes), 0o600))
+			}
+
+			cmd := exec.CommandContext(t.Context(), "bash", "-eo", "pipefail", "-c", steps[at].Run) //nolint:gosec // the workflow's own step
+			cmd.Dir = dir
+
+			cmd.Env = append(os.Environ(), "PROBES="+probes, "RUNNER_TEMP="+temp,
+				"GITHUB_SERVER_URL=https://github.com", "GITHUB_REPOSITORY=o/r", "GITHUB_RUN_ID=9")
+
+			out, err := cmd.CombinedOutput()
+			require.NoError(t, err, "%s", out)
+
+			got, err := os.ReadFile(filepath.Join(dir, "out", "body.md"))
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, string(got))
+		})
 	}
 }

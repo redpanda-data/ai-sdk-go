@@ -16,13 +16,18 @@ package main
 
 import (
 	"encoding/json"
+	"maps"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 )
 
 // TestRunTriesOnceMore: a call that didn't work is sent once more and the
@@ -113,4 +118,42 @@ Before this PR opened, the run called each offering it adds or changes once on i
 
 	assert.Contains(t, markdown([]Probe{{Provider: "anthropic", ID: "claude-ok", Outcome: outcomeCallable, Detail: "200"}}), "**The 1 call worked.**")
 	assert.Contains(t, markdown([]Probe{{Provider: "vertex", ID: "claude-z", Outcome: outcomeSkipped, Detail: "no Vertex credentials in CI yet"}}), "**Nothing was called.**")
+}
+
+// TestWorkflowAllowsEveryHost: the probe job blocks every host off its
+// allowlist, so each host this command calls, in each region it calls
+// Bedrock from, must be on it; a missing one would only show as "no answer".
+func TestWorkflowAllowsEveryHost(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", "reconcile-models.yml"))
+	require.NoError(t, err)
+
+	var wf struct {
+		Jobs map[string]struct {
+			Steps []struct {
+				Uses string            `yaml:"uses"`
+				With map[string]string `yaml:"with"`
+			} `yaml:"steps"`
+		} `yaml:"jobs"`
+	}
+	require.NoError(t, yaml.Unmarshal(raw, &wf))
+
+	steps := wf.Jobs["probe"].Steps
+	require.NotEmpty(t, steps)
+	allowed := strings.Fields(steps[0].With["allowed-endpoints"])
+
+	h := realHosts()
+	targets := make([]string, 0, 3+2*(len(geoRegions)+1))
+	targets = append(targets, h.anthropicURL, h.openaiURL, h.geminiURL)
+
+	for _, region := range append(slices.Collect(maps.Values(geoRegions)), bareRegion) {
+		targets = append(targets, h.awsURL("bedrock", region), h.awsURL("bedrock-runtime", region))
+	}
+
+	for _, target := range targets {
+		u, err := url.Parse(target)
+		require.NoError(t, err)
+		assert.Contains(t, allowed, u.Host+":443", "the probe job can't reach %s", target)
+	}
 }

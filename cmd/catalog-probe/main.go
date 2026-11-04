@@ -52,13 +52,8 @@ func main() {
 	}
 
 	ctx := context.Background()
-	h := &hosts{
-		client:       &http.Client{Timeout: time.Minute},
-		anthropicURL: "https://api.anthropic.com", anthropicKey: os.Getenv("ANTHROPIC_API_KEY"),
-		openaiURL: "https://api.openai.com", openaiKey: os.Getenv("OPENAI_API_KEY"),
-		geminiURL: "https://generativelanguage.googleapis.com", geminiKey: os.Getenv("GOOGLE_API_KEY"),
-		awsURL: func(service, region string) string { return "https://" + service + "." + region + ".amazonaws.com" },
-	}
+	h := realHosts()
+	h.anthropicKey, h.openaiKey, h.geminiKey = os.Getenv("ANTHROPIC_API_KEY"), os.Getenv("OPENAI_API_KEY"), os.Getenv("GOOGLE_API_KEY")
 
 	// Without credentials every Bedrock probe is skipped, not failed.
 	if cfg, err := config.LoadDefaultConfig(ctx); err == nil {
@@ -70,6 +65,17 @@ func main() {
 	if err := run(ctx, h, flag.Args(), *out, 10*time.Second); err != nil {
 		fmt.Fprintln(os.Stderr, "catalog-probe:", err)
 		os.Exit(2)
+	}
+}
+
+// realHosts are the providers' own endpoints, without credentials.
+func realHosts() *hosts {
+	return &hosts{
+		client:       &http.Client{Timeout: time.Minute},
+		anthropicURL: "https://api.anthropic.com",
+		openaiURL:    "https://api.openai.com",
+		geminiURL:    "https://generativelanguage.googleapis.com",
+		awsURL:       func(service, region string) string { return "https://" + service + "." + region + ".amazonaws.com" },
 	}
 }
 
