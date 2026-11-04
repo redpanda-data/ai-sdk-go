@@ -31,8 +31,6 @@ on:
       - '.claude/skills/**'
       - '.github/workflows/reconcile-models.yml'
       - '.github/workflows/reconcile-vendor.yml'
-  pull_request_target:
-    types: [labeled]
 
 permissions:
   contents: read
@@ -42,14 +40,15 @@ jobs:
   test:
     name: Test
     # The reconcile bot's draft PRs contain unreviewed, agent-written code, so
-    # they get the job below instead, and the ci:force-tests label doesn't
-    # override that; the full run starts once a person marks the PR ready for
-    # review. A PR someone else opens from the bot's branch also gets the job
-    # below, ready or not: the bot's next force-push puts new agent code in it.
-    # Other PRs behave as before, apart from the extra run when marked ready.
+    # they get the job below instead; the full run starts once a person marks
+    # the PR ready for review. A PR someone else opens from the bot's branch
+    # also gets the job below, ready or not: the bot's next force-push puts new
+    # agent code in it. Fork PRs always get the job below; nothing runs fork
+    # code with secrets, OIDC or a writable cache. To run the full suite on a
+    # fork's change, push the reviewed commit to a branch in this repository.
     if: >-
-      (github.event_name != 'pull_request_target' ||
-      github.event.label.name == 'ci:force-tests') &&
+      (github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository) &&
       !(github.event.pull_request.user.login == 'vbotbuildovich' &&
       github.event.pull_request.draft) &&
       !(github.event.pull_request.head.repo.full_name == github.repository &&
@@ -94,14 +93,15 @@ jobs:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
 
   test-untrusted:
-    name: Test (bot draft, no secrets)
+    name: Test (untrusted, no secrets)
     if: >-
       github.event_name == 'pull_request' &&
-      ((github.event.pull_request.user.login == 'vbotbuildovich' &&
+      (github.event.pull_request.head.repo.full_name != github.repository ||
+      (github.event.pull_request.user.login == 'vbotbuildovich' &&
       github.event.pull_request.draft) ||
       (github.event.pull_request.head.repo.full_name == github.repository &&
       startsWith(github.event.pull_request.head.ref, 'bot/reconcile-models') &&
-      github.event.pull_request.user.login != 'vbotbuildovich'))
+      github.event.pull_request.user.login != 'vbotbuildovich')))
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     # No id-token and no secrets; no caches either, so untrusted code can't
