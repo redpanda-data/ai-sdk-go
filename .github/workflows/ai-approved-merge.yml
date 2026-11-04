@@ -380,7 +380,7 @@ jobs:
     steps:
       - name: App token (comment only)
         id: app
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547  # v1
         with:
           app-id: ${{ secrets.AI_MERGE_APP_ID }}
           private-key: ${{ secrets.AI_MERGE_APP_PRIVATE_KEY }}
@@ -424,7 +424,7 @@ jobs:
     steps:
       - name: App token (label only)
         id: app
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547  # v1
         with:
           app-id: ${{ secrets.AI_MERGE_APP_ID }}
           private-key: ${{ secrets.AI_MERGE_APP_PRIVATE_KEY }}
