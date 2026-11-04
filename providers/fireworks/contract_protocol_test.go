@@ -247,7 +247,7 @@ func contractRequest(t *testing.T, c contractCase) map[string]any {
 	maxTokens := contractMaxTokens(c)
 
 	require.LessOrEqual(t, maxTokens, 4096)
-	require.LessOrEqual(t, c.Options.CachePrefixBytes, 16*1024)
+	require.LessOrEqual(t, c.Options.CachePrefixBytes, 64*1024)
 	require.LessOrEqual(t, c.Options.CacheSettleMS, 5000)
 	request := map[string]any{"model": c.Model, "stream": c.Stream, "temperature": 0}
 

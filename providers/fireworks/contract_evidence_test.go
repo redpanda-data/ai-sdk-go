@@ -38,7 +38,7 @@ import (
 
 var (
 	contractVerify         = flag.Bool("fireworks-revalidate-recordings", false, "explicitly replay all retained captures with the current verifier; never calls Fireworks")
-	contractDiagnostic     = flag.Bool("fireworks-cache-diagnostic", false, "run exactly one approved two-request empirical cache diagnostic")
+	contractDiagnostic     = flag.Bool("fireworks-cache-diagnostic", false, "run one explicitly selected nonstream Messages cache diagnostic")
 	contractCorrectTools   = flag.Bool("fireworks-correct-tools", false, "recapture exactly the seven failed tools cases from the immutable full attempt")
 	contractCaptureSources = []string{
 		"testdata/contracts/full-matrix-v2-incomplete.json",
@@ -49,6 +49,7 @@ var (
 		"testdata/contracts/semantic-controls-v5.json",
 		"testdata/contracts/semantic-followup-v5.json",
 		"testdata/contracts/cache-crossover-v5.json",
+		"testdata/contracts/cache-diagnostic-65536.json",
 	}
 )
 
@@ -237,6 +238,11 @@ func contractCaptureRequests(t *testing.T, path string, source contractSourceRep
 	return report
 }
 
+func contractCacheDiagnosticOptions(prefix int) contractRequestOptions {
+	const session = "7a5c2e10-9b84-4f61-8c33-0d72e906ab51"
+	return contractRequestOptions{CachePrefixBytes: prefix, CacheProbeID: "cache-crossover-v5", CacheRepeatCount: 3, CacheSettleMS: 2000, MaxOutputTokens: 16, AffinityOverride: session, ClaudeSessionID: session, CacheIsolation: "sdk-cache-crossover-v5"}
+}
+
 //nolint:tparallel // The approved diagnostic has exactly one sequential, budget-reserved case.
 func TestFireworksContractCacheDiagnostic(t *testing.T) {
 	t.Parallel()
@@ -245,22 +251,23 @@ func TestFireworksContractCacheDiagnostic(t *testing.T) {
 		return
 	}
 
-	full, source := contractReadReport(t, "testdata/contracts/full-matrix-v2-incomplete.json")
-	for _, e := range full.Evidence {
-		if e.Failed && e.Case.Feature == contractCacheRepeat && !e.Case.Stream {
-			report := contractCaptureRequests(t, "testdata/contracts/cache-diagnostic.json", source, []contractCase{e.Case}, func(contractCase) contractRequestOptions {
-				return contractRequestOptions{CachePrefixBytes: 8192, CacheSettleMS: 2000, MaxOutputTokens: 16}
-			})
-			for _, captured := range report.Evidence {
-				contractObserveEvidence(t, &captured)
-				t.Logf("empirical 8KiB/2s diagnostic: cache_hit_observed=%t fresh_input_observed=%t; not a caching guarantee", captured.CacheHitObserved, captured.FreshInputObserved)
-			}
+	require.Contains(t, []int{8192, 65536}, *contractCachePrefix)
+	_, source := contractReadReport(t, "testdata/contracts/full-matrix-v2-incomplete.json")
+	c := contractCase{Model: fireworks.ModelDeepSeekV41Flash1017, API: catalog.WireProtocolAnthropicMessages, Transport: catalog.WireTransportDirect, Feature: contractCacheRepeat}
+	path := fmt.Sprintf("testdata/contracts/cache-diagnostic-%d.json", *contractCachePrefix)
 
-			return
+	report := contractCaptureRequests(t, path, source, []contractCase{c}, func(contractCase) contractRequestOptions {
+		return contractCacheDiagnosticOptions(*contractCachePrefix)
+	})
+	for _, captured := range report.Evidence {
+		contractObserveEvidence(t, &captured)
+		t.Logf("empirical %d-byte/2s diagnostic: cache_hit_observed=%t fresh_input_observed=%t; not a caching guarantee", *contractCachePrefix, captured.CacheHitObserved, captured.FreshInputObserved)
+
+		for n, exchange := range captured.Exchanges {
+			r := contractParse(t, captured.Case, exchange)
+			t.Logf("NS CACHE OBSERVATION call=%d input=%d cached=%d output=%d", n+1, r.Input, r.Cached, r.Output)
 		}
 	}
-
-	t.Fatal("no failed nonstream cache case available for the approved single diagnostic")
 }
 
 //nolint:tparallel // Paid corrective requests run sequentially with bounded per-run reservations.
@@ -467,6 +474,7 @@ func TestFireworksContractRevalidate(t *testing.T) {
 	require.Len(t, report.Evidence, len(cases), "every required case must have retained native evidence")
 
 	report.MissingCacheBranches = contractCacheGaps(t, &report, cases)
+	report.CumulativeConservativeUSD = max(report.CumulativeConservativeUSD, report.PriorConservativeUSD+report.KnownRunUSD+report.UnresolvedReservationsUSD)
 
 	report.Blocked = append(report.Blocked, "Cache zero is valid; qualification separately requires final hit/fresh evidence for each exact offering/API/mode.", "Offering-level top_p/stop declarations are vendor unions, not verified per-API client controls; those controls remain unqualified.")
 	if *contractRecord {

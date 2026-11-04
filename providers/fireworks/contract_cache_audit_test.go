@@ -29,7 +29,7 @@ import (
 var (
 	contractCacheAudit   = flag.Bool("fireworks-cache-audit", false, "controlled, billable base-versus-1017 cache characterization only")
 	contractCacheVariant = flag.String("fireworks-cache-variant", "affinity", "affinity, preferred, or preferred-isolated")
-	contractCachePrefix  = flag.Int("fireworks-cache-prefix-bytes", 8192, "empirical cache prefix bytes, bounded at 16KiB")
+	contractCachePrefix  = flag.Int("fireworks-cache-prefix-bytes", 8192, "empirical cache prefix bytes; single nonstream diagnostic supports 8KiB or 64KiB")
 )
 
 //nolint:tparallel // Paid comparisons deliberately run sequentially with bounded reservations.

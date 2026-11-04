@@ -703,7 +703,7 @@ func contractHTTPExchange(t *testing.T, client *http.Client, base, key string, c
 
 	b, err := json.Marshal(body)
 	require.NoError(t, err)
-	require.LessOrEqual(t, len(b), 32*1024, "bounded contract request exceeded limit")
+	require.LessOrEqual(t, len(b), 72*1024, "bounded contract request exceeded limit")
 
 	path := map[catalog.WireProtocol]string{catalog.WireProtocolAnthropicMessages: "/inference/v1/messages", catalog.WireProtocolOpenAIChatCompletions: "/inference/v1/chat/completions", catalog.WireProtocolOpenAIResponses: "/inference/v1/responses"}[c.API]
 	require.NotEmpty(t, path)

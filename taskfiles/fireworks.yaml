@@ -34,7 +34,7 @@ tasks:
       - |
         set -eu
         tmp=$(mktemp -d)
-        trap 'rm -rf "$tmp"' EXIT HUP INT TERM
+        trap 'rm -rf "$tmp"' EXIT
         go test -c -o "$tmp/contracts" ./providers/fireworks
         listed=$("$tmp/contracts" -test.list '^TestFireworksContract(Live|Replay|Completeness)$')
         for name in TestFireworksContractLive TestFireworksContractReplay TestFireworksContractCompleteness; do
