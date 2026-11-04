@@ -1,0 +1,201 @@
+{
+ "facts": {},
+ "providers": [
+  {
+   "provider": "anthropic",
+   "offerings": [
+    {
+     "id": "claude-haiku-4-5",
+     "wire_apis": [
+      {
+       "protocol": "anthropic_messages",
+       "transport": "direct"
+      }
+     ]
+    },
+    {
+     "id": "claude-haiku-4-5-20251001",
+     "wire_apis": [
+      {
+       "protocol": "anthropic_messages",
+       "transport": "direct"
+      }
+     ]
+    },
+    {
+     "id": "claude-nonexistent-0",
+     "wire_apis": [
+      {
+       "protocol": "anthropic_messages",
+       "transport": "direct"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "provider": "openai",
+   "offerings": [
+    {
+     "id": "gpt-5-nano",
+     "wire_apis": [
+      {
+       "protocol": "openai_responses",
+       "transport": "direct"
+      }
+     ]
+    },
+    {
+     "id": "gpt-4.1-nano",
+     "wire_apis": [
+      {
+       "protocol": "openai_responses",
+       "transport": "direct"
+      }
+     ]
+    },
+    {
+     "id": "gpt-nonexistent-0",
+     "wire_apis": [
+      {
+       "protocol": "openai_responses",
+       "transport": "direct"
+      }
+     ]
+    },
+    {
+     "id": "gpt-4o-mini",
+     "wire_apis": [
+      {
+       "protocol": "openai_chat_completions",
+       "transport": "direct"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "provider": "gcp.gemini",
+   "offerings": [
+    {
+     "id": "gemini-2.5-flash-lite",
+     "wire_apis": [
+      {
+       "protocol": "gemini_generate_content",
+       "transport": "direct"
+      }
+     ]
+    },
+    {
+     "id": "gemini-flash-lite-latest",
+     "wire_apis": [
+      {
+       "protocol": "gemini_generate_content",
+       "transport": "direct"
+      }
+     ]
+    },
+    {
+     "id": "gemini-nonexistent-0",
+     "wire_apis": [
+      {
+       "protocol": "gemini_generate_content",
+       "transport": "direct"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "provider": "aws.bedrock",
+   "offerings": [
+    {
+     "id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+     "wire_apis": [
+      {
+       "protocol": "bedrock_converse",
+       "transport": "bedrock_runtime"
+      }
+     ]
+    },
+    {
+     "id": "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+     "wire_apis": [
+      {
+       "protocol": "bedrock_converse",
+       "transport": "bedrock_runtime"
+      }
+     ]
+    },
+    {
+     "id": "au.anthropic.claude-haiku-4-5-20251001-v1:0",
+     "wire_apis": [
+      {
+       "protocol": "bedrock_converse",
+       "transport": "bedrock_runtime"
+      }
+     ]
+    },
+    {
+     "id": "jp.anthropic.claude-haiku-4-5-20251001-v1:0",
+     "wire_apis": [
+      {
+       "protocol": "bedrock_converse",
+       "transport": "bedrock_runtime"
+      }
+     ]
+    },
+    {
+     "id": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+     "wire_apis": [
+      {
+       "protocol": "bedrock_converse",
+       "transport": "bedrock_runtime"
+      }
+     ]
+    },
+    {
+     "id": "us.amazon.nova-2-lite-v1:0",
+     "wire_apis": [
+      {
+       "protocol": "bedrock_converse",
+       "transport": "bedrock_runtime"
+      }
+     ]
+    },
+    {
+     "id": "amazon.nova-micro-v1:0",
+     "wire_apis": [
+      {
+       "protocol": "bedrock_converse",
+       "transport": "bedrock_runtime"
+      }
+     ]
+    },
+    {
+     "id": "anthropic.claude-nonexistent-v9:0",
+     "wire_apis": [
+      {
+       "protocol": "bedrock_converse",
+       "transport": "bedrock_runtime"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "provider": "gcp.vertex",
+   "offerings": [
+    {
+     "id": "claude-haiku-4-5@20251001",
+     "wire_apis": [
+      {
+       "protocol": "anthropic_messages",
+       "transport": "vertex"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
