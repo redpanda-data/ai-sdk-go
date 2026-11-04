@@ -66,6 +66,20 @@ func TestRulesFile(t *testing.T) {
 	follow := strings.Split(string(raw), "\n")[rules.Lines["location-follow"]-1]
 	assert.Contains(t, follow, "wins over the locations table", "location-follow must say which source wins")
 
+	// Each source has left out a location that still answers, so a location
+	// gone from both pages goes to a person, never out of the catalogue.
+	assert.Contains(t, follow, "Never remove a location on the pages alone", "location-follow must not remove locations")
+
+	// No check compares a location-follow row's old and new lists, so the
+	// keep must be listed as something only the agent does.
+	assert.Contains(t, string(raw), "kept every Vertex location the model page or the locations table still lists", "Not checked by code must name location-follow's keep")
+
+	unlisted := Report{NeedsHuman: []NeedsHuman{{
+		Offering: "vertex:claude-sonnet-5", Field: "location", Page: "us-east5",
+		SourceURLs: []string{"https://docs.cloud.google.com/gemini-enterprise-agent-platform/resources/locations"}, Rule: "location-unlisted",
+	}}}
+	assert.Empty(t, Validate(unlisted, "anthropic", claudeSource("docs.cloud.google.com"), rules), "a location gone from both pages asked under location-unlisted")
+
 	// On Bedrock a source region routes bare names, so changing one moves
 	// callers and goes to a person.
 	routed := Report{Changes: []Change{{

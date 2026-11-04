@@ -47,7 +47,7 @@
   },
   "google": {
     "providers": ["google", "vertex", "bedrock"],
-    "hosts": ["ai.google.dev", "cloud.google.com", "docs.cloud.google.com", "aws.amazon.com", "docs.aws.amazon.com", "pricing.us-east-1.amazonaws.com"],
+    "hosts": ["ai.google.dev", "aistudio.google.com", "cloud.google.com", "docs.cloud.google.com", "aws.amazon.com", "docs.aws.amazon.com", "pricing.us-east-1.amazonaws.com"],
     "gate": {
       "model_prefix": "google/",
       "must_contain": "Gemini",
