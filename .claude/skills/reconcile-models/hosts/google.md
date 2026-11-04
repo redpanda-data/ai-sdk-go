@@ -12,7 +12,7 @@ Where the Gemini API publishes each fact. Google is also its models' vendor, so 
 | Deprecations | `https://ai.google.dev/gemini-api/docs/deprecations.md.txt` | one table per family: model, release date, shutdown date, recommended replacement |
 | Release days | `https://ai.google.dev/gemini-api/docs/changelog.md.txt` | one heading per day |
 | PDF input | `https://ai.google.dev/gemini-api/docs/document-processing.md.txt` | the opening paragraph |
-| Gemma releases | `https://ai.google.dev/gemma/docs/releases.md.txt` | one heading per release day |
+| Gemma releases | `https://ai.google.dev/gemma/docs/releases` | one heading per release day (HTML: the `.md.txt` export is gone since 2026-11-03) |
 
 ## Reading them
 
