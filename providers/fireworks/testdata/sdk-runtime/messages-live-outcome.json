@@ -1,0 +1,196 @@
+{
+  "version": 1,
+  "catalog_fingerprint": "",
+  "test_fingerprint": "",
+  "captured_at": "2026-11-04T15:47:38.76143614Z",
+  "sdk_revision": "7e120fc739771a0001ceaa01541f1b92f791bd81",
+  "scope": "sdk_generate_and_generate_events",
+  "blocked": [
+    "Post-run outcome for immutable messages-live.json, SHA256 e9619e0d2da096b18933217baaddbe22eebf952858f5ab350d14c63395641fa5: 86 actual SDK HTTP requests; known native-usage USD 0.097574574; 2 failed MiniMax schema feature assertions, not a successful SDK batch.",
+    "Only the 2 failed feature rows are repeated here; the original capture retains all 86 HTTP exchanges. No new HTTP requests were made for this outcome.",
+    "native_verified records native final-usage and price comparison with SDK usage, not SDK feature qualification.",
+    "MiniMax nonstream schema enforcement returned invalid repeated quote/braces and max_tokens at 512 outputs; streaming returned concatenated PROMPT_ONLY and SCHEMA_ACTIVE_73 objects then end_turn at 36 outputs."
+  ],
+  "known_run_usd": 0.09757457400000005,
+  "prior_conservative_usd": 0,
+  "cumulative_conservative_usd": 0,
+  "unresolved_reservations_usd": 0,
+  "evidence": [
+    {
+      "case": {
+        "model": "accounts/fireworks/models/minimax-m3",
+        "api": "anthropic_messages",
+        "transport": "direct",
+        "stream": false,
+        "feature": "sdk_schema_enforced"
+      },
+      "exchanges": [
+        {
+          "method": "POST",
+          "authorization_class": "valid",
+          "path": "/inference/v1/messages?beta=true",
+          "request_headers": {
+            "Anthropic-Version": "2023-06-01",
+            "Content-Type": "application/json"
+          },
+          "request": {
+            "max_tokens": 512,
+            "messages": [
+              {
+                "content": [
+                  {
+                    "text": "Return exactly this object, retaining every value, type and field: {\"gate\":\"PROMPT_ONLY\",\"count\":\"wrong\",\"extra\":true}. Do not change it.",
+                    "type": "text"
+                  }
+                ],
+                "role": "user"
+              }
+            ],
+            "model": "accounts/fireworks/models/minimax-m3",
+            "output_config": {
+              "format": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "count": {
+                      "enum": [
+                        73
+                      ],
+                      "type": "integer"
+                    },
+                    "gate": {
+                      "enum": [
+                        "SCHEMA_ACTIVE_73"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "gate",
+                    "count"
+                  ],
+                  "type": "object"
+                },
+                "type": "json_schema"
+              }
+            },
+            "temperature": 0,
+            "thinking": {
+              "type": "disabled"
+            }
+          },
+          "status": 200,
+          "response_headers": {
+            "Content-Type": "application/json"
+          },
+          "response": "{\"content\":[{\"text\":\"{\\\"gate\\\":\\\"PROMPT_ONLY\\\",\\\"count\\\":\\\"wrong\\\",\\\"extra\\\":true}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\\\"}\",\"type\":\"text\"}],\"id\":\"capture_38cd328dbc74abe4d1dd564d\",\"model\":\"accounts/fireworks/models/minimax-m3\",\"role\":\"assistant\",\"stop_details\":null,\"stop_reason\":\"max_tokens\",\"stop_sequence\":null,\"type\":\"message\",\"usage\":{\"cache_creation\":null,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":146,\"inference_geo\":null,\"input_tokens\":1,\"output_tokens\":512,\"service_tier\":null}}",
+          "elapsed_ms": 1618,
+          "started_at": "2026-11-04T15:51:38.159995909Z"
+        }
+      ],
+      "capture": {
+        "test_version": 0,
+        "test_fingerprint": "",
+        "captured_at": "2026-11-04T15:51:38.159995909Z",
+        "sdk_revision": "7e120fc739771a0001ceaa01541f1b92f791bd81",
+        "sanitized_request_sha256": [
+          "022641e2c918662db51825b868014324a53ce6cffbc302d5f823cdaafd7f874c"
+        ],
+        "catalog_fingerprint": ""
+      },
+      "native_verified": true,
+      "cache_hit_observed": false,
+      "fresh_input_observed": false,
+      "failed": true
+    },
+    {
+      "case": {
+        "model": "accounts/fireworks/models/minimax-m3",
+        "api": "anthropic_messages",
+        "transport": "direct",
+        "stream": true,
+        "feature": "sdk_schema_enforced"
+      },
+      "exchanges": [
+        {
+          "method": "POST",
+          "authorization_class": "valid",
+          "path": "/inference/v1/messages?beta=true",
+          "request_headers": {
+            "Anthropic-Version": "2023-06-01",
+            "Content-Type": "application/json"
+          },
+          "request": {
+            "max_tokens": 512,
+            "messages": [
+              {
+                "content": [
+                  {
+                    "text": "Return exactly this object, retaining every value, type and field: {\"gate\":\"PROMPT_ONLY\",\"count\":\"wrong\",\"extra\":true}. Do not change it.",
+                    "type": "text"
+                  }
+                ],
+                "role": "user"
+              }
+            ],
+            "model": "accounts/fireworks/models/minimax-m3",
+            "output_config": {
+              "format": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "count": {
+                      "enum": [
+                        73
+                      ],
+                      "type": "integer"
+                    },
+                    "gate": {
+                      "enum": [
+                        "SCHEMA_ACTIVE_73"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "gate",
+                    "count"
+                  ],
+                  "type": "object"
+                },
+                "type": "json_schema"
+              }
+            },
+            "stream": true,
+            "temperature": 0,
+            "thinking": {
+              "type": "disabled"
+            }
+          },
+          "status": 200,
+          "response_headers": {
+            "Content-Type": "text/event-stream"
+          },
+          "response": "event: message_start\ndata: {\"message\":{\"content\":[],\"id\":\"capture_39ed02e4cb3485eb3fdace83\",\"model\":\"accounts/fireworks/models/minimax-m3\",\"role\":\"assistant\",\"stop_details\":null,\"stop_reason\":null,\"stop_sequence\":null,\"type\":\"message\",\"usage\":{\"cache_creation\":null,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"inference_geo\":null,\"input_tokens\":0,\"output_tokens\":0,\"service_tier\":null}},\"type\":\"message_start\"}\n\nevent: ping\ndata: {\"type\":\"ping\"}\n\nevent: content_block_start\ndata: {\"content_block\":{\"text\":\"\",\"type\":\"text\"},\"index\":0,\"type\":\"content_block_start\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"{\\\"gate\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"\\\":\\\"\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"PRO\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"MPT\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"_ONLY\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"\\\",\\\"\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"count\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"\\\":\\\"\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"wrong\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"\\\",\\\"\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"extra\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"\\\":\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"true\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"}\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"{\\\"\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"gate\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"\\\":\\\"\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"S\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"CHE\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"MA\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"_A\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"C\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"TI\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"VE\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"_\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"7\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"3\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"\\\",\\\"\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"count\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"\\\":\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"7\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"3\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"}\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_stop\ndata: {\"index\":0,\"type\":\"content_block_stop\"}\n\nevent: message_delta\ndata: {\"delta\":{\"stop_details\":null,\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"type\":\"message_delta\",\"usage\":{\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":146,\"input_tokens\":1,\"output_tokens\":36}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
+          "elapsed_ms": 961,
+          "started_at": "2026-11-04T15:51:46.983799212Z"
+        }
+      ],
+      "capture": {
+        "test_version": 0,
+        "test_fingerprint": "",
+        "captured_at": "2026-11-04T15:51:46.983799212Z",
+        "sdk_revision": "7e120fc739771a0001ceaa01541f1b92f791bd81",
+        "sanitized_request_sha256": [
+          "9f2a28c8445296cb1513ad214267a10e0ec99a05dfc5309b5503e58c1afcdc31"
+        ],
+        "catalog_fingerprint": ""
+      },
+      "native_verified": true,
+      "cache_hit_observed": false,
+      "fresh_input_observed": false,
+      "failed": true
+    }
+  ],
+  "run_kind": "live_sdk_first_binding_failed"
+}

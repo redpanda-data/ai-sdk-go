@@ -17,6 +17,7 @@ package openaicompat
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
@@ -33,6 +34,7 @@ type Config struct {
 	SupportsReasoning  bool
 	CustomCapabilities *llm.ModelCapabilities // Override default capabilities if set
 	Thinking           *bool
+	AdaptiveThinking   bool
 
 	// OpenAI-specific parameters
 	Temperature      *float64
@@ -43,6 +45,7 @@ type Config struct {
 	Seed             *int
 	LogProbs         *bool
 	Stop             []string
+	ReasoningEffort  *llm.ReasoningEffort
 
 	// Track which options have been set for conflict detection with model constraints
 	setOptions map[string]bool
@@ -68,8 +71,8 @@ func WithCapabilities(caps llm.ModelCapabilities) Option {
 }
 
 // WithReasoning marks this model as supporting extended reasoning capabilities.
-// Reasoning models have different characteristics like higher latency and specialized
-// processing for complex reasoning tasks.
+// Plain reasoning parts are replayed as native reasoning_content. Parts carrying
+// opaque IDs, signatures, or metadata are never replayed through this extension.
 func WithReasoning() Option {
 	return func(cfg *Config) error {
 		cfg.SupportsReasoning = true
@@ -82,6 +85,38 @@ func WithReasoning() Option {
 func WithThinking(enabled bool) Option {
 	return func(cfg *Config) error {
 		cfg.Thinking = &enabled
+		cfg.AdaptiveThinking = false
+
+		return nil
+	}
+}
+
+// WithAdaptiveThinking lets compatible models decide whether to reason.
+// The last WithThinking or WithAdaptiveThinking option selects the mode.
+func WithAdaptiveThinking() Option {
+	return func(cfg *Config) error {
+		cfg.Thinking = nil
+		cfg.AdaptiveThinking = true
+
+		return nil
+	}
+}
+
+// WithReasoningEffort sets the provider-native reasoning_effort parameter.
+// The caller must validate the effort against the target model's vocabulary.
+func WithReasoningEffort(effort llm.ReasoningEffort) Option {
+	return func(cfg *Config) error {
+		if err := cfg.Constraints.ValidateParameterSupport("reasoning_effort"); err != nil {
+			return fmt.Errorf("%s: %w", cfg.ModelName, err)
+		}
+
+		if strings.TrimSpace(string(effort)) == "" || strings.TrimSpace(string(effort)) != string(effort) {
+			return fmt.Errorf("%s: invalid reasoning effort %q", cfg.ModelName, effort)
+		}
+
+		cfg.ReasoningEffort = &effort
+		cfg.setOptions["reasoning_effort"] = true
+
 		return nil
 	}
 }

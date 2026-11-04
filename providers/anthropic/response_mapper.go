@@ -34,7 +34,7 @@ const (
 
 // A redacted_thinking block maps to a ReasoningPart whose Signature carries
 // the block's data string verbatim, with Metadata[reasoningMetadataRedacted]
-// true and Metadata[reasoningMetadataRedactedProvider] set to ProviderName;
+// true and Metadata[reasoningMetadataRedactedProvider] set to the offering's provider;
 // Text holds a display placeholder only. These fields survive session
 // persistence, and the request mapper replays such a part as
 // redacted_thinking rather than thinking.
@@ -43,17 +43,19 @@ const (
 // stores base64 of the raw Converse redactedContent bytes in Signature (see
 // reasoningMetadataRedacted in providers/bedrock). Neither API is documented
 // to accept the other's payload, so each request mapper replays a redacted
-// part only when the stamp is its own ProviderName. It skips any other part,
+// part only when the stamp matches its own provider identity. It skips any other part,
 // including one persisted before the stamp existed: a session resumed on the
 // other provider loses that redacted reasoning instead of failing the request.
 const (
 	reasoningMetadataRedacted         = "redacted"
 	reasoningMetadataRedactedProvider = "redacted_provider"
+	reasoningMetadataProvider         = "reasoning_provider"
 	redactedThinkingText              = "[redacted thinking]"
 )
 
 // ResponseMapper converts Anthropic API payloads to llm.Response.
 type ResponseMapper struct {
+	provider llm.ProviderID
 	// offeringID, when set, is reported as InvokedModelID: the model was
 	// built from another platform's offering that pins the served model.
 	offeringID string
@@ -61,7 +63,7 @@ type ResponseMapper struct {
 
 // NewResponseMapper returns a ready-to-use mapper.
 func NewResponseMapper() *ResponseMapper {
-	return &ResponseMapper{}
+	return &ResponseMapper{provider: ProviderName}
 }
 
 // FromProvider converts an Anthropic Beta Messages API payload into llm.Response.
@@ -100,10 +102,7 @@ func (m *ResponseMapper) FromProvider(r *anthropic.BetaMessage) (*llm.Response, 
 			// so keep the block whenever either is present: Anthropic needs
 			// it back unchanged on the next request of a tool-use loop.
 			if block.Thinking != "" || block.Signature != "" {
-				content = append(content, &llm.ReasoningPart{
-					Text:      block.Thinking,
-					Signature: block.Signature,
-				})
+				content = append(content, m.thinkingPart(block.Thinking, block.Signature))
 			}
 
 		case blockTypeRedactedThinking:
@@ -113,7 +112,7 @@ func (m *ResponseMapper) FromProvider(r *anthropic.BetaMessage) (*llm.Response, 
 				Signature: block.Data,
 				Metadata: map[string]any{
 					reasoningMetadataRedacted:         true,
-					reasoningMetadataRedactedProvider: ProviderName,
+					reasoningMetadataRedactedProvider: string(m.providerID()),
 				},
 			})
 
@@ -194,6 +193,23 @@ func (m *ResponseMapper) FromProvider(r *anthropic.BetaMessage) (*llm.Response, 
 	}
 
 	return resp, nil
+}
+
+func (m *ResponseMapper) thinkingPart(text, signature string) *llm.ReasoningPart {
+	part := &llm.ReasoningPart{Text: text, Signature: signature}
+	if m.providerID() != ProviderName {
+		part.Metadata = map[string]any{reasoningMetadataProvider: string(m.providerID())}
+	}
+
+	return part
+}
+
+func (m *ResponseMapper) providerID() llm.ProviderID {
+	if m.provider == "" {
+		return ProviderName
+	}
+
+	return m.provider
 }
 
 // inputTransformations returns the response's input_transformations entries,

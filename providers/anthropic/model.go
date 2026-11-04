@@ -108,6 +108,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 		contentBlocks := make(map[int]*contentBlockAccumulator)
 
 		var finalMessage *anthropic.BetaMessage
+		stopped := false
 
 		// Process streaming events
 		for stream.Next() {
@@ -179,10 +180,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 						acc.textContent += e.Delta.Thinking
 						if !yield(llm.ContentPartEvent{
 							Index: int(e.Index),
-							Part: &llm.ReasoningPart{
-								Text:      e.Delta.Thinking,
-								Signature: acc.thinkingSignature,
-							},
+							Part:  m.responseMapper.thinkingPart(e.Delta.Thinking, acc.thinkingSignature),
 						}, nil) {
 							return
 						}
@@ -243,15 +241,15 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 				// Message-level metadata updates (usage, stop reason)
 				e := event.AsMessageDelta()
 				if finalMessage != nil {
-					finalMessage.StopReason = e.Delta.StopReason
-					if e.Usage.OutputTokens > 0 {
-						finalMessage.Usage.OutputTokens = e.Usage.OutputTokens
+					if e.Delta.JSON.StopReason.Valid() {
+						finalMessage.StopReason = e.Delta.StopReason
 					}
+
+					mergeDeltaUsage(&finalMessage.Usage, e.Usage)
 				}
 
 			case "message_stop":
-				// Stream completed successfully
-				// Will be handled after loop
+				stopped = true
 
 			default:
 				// Unknown event type - ignore.
@@ -266,6 +264,11 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 		if err := stream.Err(); err != nil {
 			// See Generate for ErrAPICall double-wrap rationale.
 			yield(nil, llm.WrapAPICall(classifyError(err)))
+			return
+		}
+
+		if !stopped || finalMessage == nil {
+			yield(nil, llm.WrapAPICall(fmt.Errorf("%w: missing message_start or message_stop", llm.ErrStreamClosed)))
 			return
 		}
 
@@ -342,6 +345,29 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 				}, nil)
 			}
 		}
+	}
+}
+
+// Delta counters are cumulative. Missing fields retain start usage; explicit
+// zero values replace it, including providers that report all input at the end.
+func mergeDeltaUsage(usage *anthropic.BetaUsage, delta anthropic.BetaMessageDeltaUsage) {
+	if delta.JSON.InputTokens.Valid() {
+		usage.InputTokens = delta.InputTokens
+	}
+
+	if delta.JSON.CacheReadInputTokens.Valid() {
+		usage.CacheReadInputTokens = delta.CacheReadInputTokens
+	}
+
+	if delta.JSON.CacheCreationInputTokens.Valid() {
+		usage.CacheCreationInputTokens = delta.CacheCreationInputTokens
+		if usage.CacheCreation.Ephemeral5mInputTokens+usage.CacheCreation.Ephemeral1hInputTokens > delta.CacheCreationInputTokens {
+			usage.CacheCreation = anthropic.BetaCacheCreation{}
+		}
+	}
+
+	if delta.JSON.OutputTokens.Valid() {
+		usage.OutputTokens = delta.OutputTokens
 	}
 }
 

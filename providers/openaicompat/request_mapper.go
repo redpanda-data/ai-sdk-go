@@ -66,6 +66,10 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) (openai.ChatCompletionNewP
 		apiReq.MaxTokens = openai.Int(int64(*rm.config.MaxTokens))
 	}
 
+	if rm.config.ReasoningEffort != nil {
+		apiReq.ReasoningEffort = shared.ReasoningEffort(*rm.config.ReasoningEffort)
+	}
+
 	if rm.config.TopP != nil {
 		apiReq.TopP = openai.Float(*rm.config.TopP)
 	}
@@ -139,6 +143,7 @@ func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]openai.ChatCompl
 			textParts     []*llm.TextPart
 			toolRequests  []*llm.ToolRequestPart
 			toolResponses []*llm.ToolResponsePart
+			reasoning     strings.Builder
 		)
 
 		for _, part := range msg.Content {
@@ -153,9 +158,9 @@ func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]openai.ChatCompl
 				continue
 
 			case *llm.ReasoningPart:
-				// Chat API doesn't have native reasoning support
-				// Skip reasoning parts
-				continue
+				if rm.config.SupportsReasoning && p.ID == "" && p.Signature == "" && len(p.Metadata) == 0 {
+					reasoning.WriteString(p.Text)
+				}
 			default:
 				return nil, fmt.Errorf("unknown part type: %T", part)
 			}
@@ -187,9 +192,9 @@ func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]openai.ChatCompl
 
 		case llm.RoleAssistant:
 			// Equivalent to the anthropic mapper's empty-content guard, by
-			// construction: an assistant turn with neither tool calls nor text
-			// (e.g. a max_tokens cut whose only block was a dropped partial
-			// tool_use, or a reasoning-only turn) emits no message at all rather
+			// construction: an assistant turn without tool calls, text, or native
+			// reasoning (e.g. a max_tokens cut whose only block was a dropped partial
+			// tool_use, or an unsupported reasoning-only turn) emits no message at all rather
 			// than an invalid content-less assistant message. OpenAI's own Chat
 			// Completion API tolerates the resulting sequence (it does not require
 			// strict user/assistant alternation), so no placeholder substitution
@@ -198,19 +203,26 @@ func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]openai.ChatCompl
 			// reject the consecutive user turns that dropping an empty assistant
 			// turn can leave behind — a pre-existing property of this mapper, not
 			// introduced by the empty-content handling.
+			var apiMsg openai.ChatCompletionMessageParamUnion
+
 			if len(toolRequests) > 0 {
-				// Assistant message with tool calls
-				apiMsg, err := rm.mapAssistantMessageWithTools(textParts, toolRequests)
+				var err error
+
+				apiMsg, err = rm.mapAssistantMessageWithTools(textParts, toolRequests)
 				if err != nil {
 					return nil, err
 				}
-
-				apiMessages = append(apiMessages, apiMsg)
-			} else if len(textParts) > 0 {
-				// Assistant message with text only
-				apiMsg := rm.mapAssistantMessage(textParts)
-				apiMessages = append(apiMessages, apiMsg)
+			} else if len(textParts) > 0 || reasoning.Len() > 0 {
+				apiMsg = rm.mapAssistantMessage(textParts)
+			} else {
+				continue
 			}
+
+			if reasoning.Len() > 0 {
+				apiMsg.OfAssistant.SetExtraFields(map[string]any{"reasoning_content": reasoning.String()})
+			}
+
+			apiMessages = append(apiMessages, apiMsg)
 
 		default:
 			return nil, fmt.Errorf("unsupported message role: %q", msg.Role)

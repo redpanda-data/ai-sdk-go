@@ -1,0 +1,192 @@
+{
+  "version": 1,
+  "catalog_fingerprint": "",
+  "test_fingerprint": "",
+  "captured_at": "2026-11-04T16:00:52.907804539Z",
+  "sdk_revision": "7e120fc739771a0001ceaa01541f1b92f791bd81",
+  "scope": "sdk_generate_and_generate_events",
+  "blocked": [
+    "native_verified records native final-usage and price comparison with SDK usage, not SDK feature qualification; a failed run or failed row does not qualify the feature",
+    "Partial corrective diagnostic only; the original 86-request messages-live.json remains a failed SDK batch, including both MiniMax schema cases."
+  ],
+  "known_run_usd": 0.00006768,
+  "prior_conservative_usd": 0,
+  "cumulative_conservative_usd": 0,
+  "unresolved_reservations_usd": 0,
+  "evidence": [
+    {
+      "case": {
+        "model": "accounts/fireworks/models/minimax-m3",
+        "api": "anthropic_messages",
+        "transport": "direct",
+        "stream": false,
+        "feature": "sdk_schema_adaptive"
+      },
+      "exchanges": [
+        {
+          "method": "POST",
+          "authorization_class": "valid",
+          "path": "/inference/v1/messages?beta=true",
+          "request_headers": {
+            "Anthropic-Version": "2023-06-01",
+            "Content-Type": "application/json"
+          },
+          "request": {
+            "max_tokens": 512,
+            "messages": [
+              {
+                "content": [
+                  {
+                    "text": "Return exactly this object, retaining every value, type and field: {\"gate\":\"PROMPT_ONLY\",\"count\":\"wrong\",\"extra\":true}. Do not change it.",
+                    "type": "text"
+                  }
+                ],
+                "role": "user"
+              }
+            ],
+            "model": "accounts/fireworks/models/minimax-m3",
+            "output_config": {
+              "format": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "count": {
+                      "enum": [
+                        73
+                      ],
+                      "type": "integer"
+                    },
+                    "gate": {
+                      "enum": [
+                        "SCHEMA_ACTIVE_73"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "gate",
+                    "count"
+                  ],
+                  "type": "object"
+                },
+                "type": "json_schema"
+              }
+            },
+            "temperature": 0,
+            "thinking": {
+              "type": "adaptive"
+            }
+          },
+          "status": 200,
+          "response_headers": {
+            "Content-Type": "application/json"
+          },
+          "response": "{\"content\":[{\"text\":\"{\\\"gate\\\":\\\"SCHEMA_ACTIVE_73\\\",\\\"count\\\":73}\",\"type\":\"text\"}],\"id\":\"capture_7c2ff79fcd03d2084616fa80\",\"model\":\"accounts/fireworks/models/minimax-m3\",\"role\":\"assistant\",\"stop_details\":null,\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"type\":\"message\",\"usage\":{\"cache_creation\":null,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":159,\"inference_geo\":null,\"input_tokens\":1,\"output_tokens\":20,\"service_tier\":null}}",
+          "elapsed_ms": 1064,
+          "started_at": "2026-11-04T16:00:52.9084561Z"
+        }
+      ],
+      "capture": {
+        "test_version": 0,
+        "test_fingerprint": "",
+        "captured_at": "2026-11-04T16:00:52.9084561Z",
+        "sdk_revision": "7e120fc739771a0001ceaa01541f1b92f791bd81",
+        "sanitized_request_sha256": [
+          "3863b300edd2e625a7fb3ed45688288d369c2703da5358c8929a5e9ba09c6d8c"
+        ],
+        "catalog_fingerprint": ""
+      },
+      "native_verified": true,
+      "cache_hit_observed": false,
+      "fresh_input_observed": false
+    },
+    {
+      "case": {
+        "model": "accounts/fireworks/models/minimax-m3",
+        "api": "anthropic_messages",
+        "transport": "direct",
+        "stream": true,
+        "feature": "sdk_schema_adaptive"
+      },
+      "exchanges": [
+        {
+          "method": "POST",
+          "authorization_class": "valid",
+          "path": "/inference/v1/messages?beta=true",
+          "request_headers": {
+            "Anthropic-Version": "2023-06-01",
+            "Content-Type": "application/json"
+          },
+          "request": {
+            "max_tokens": 512,
+            "messages": [
+              {
+                "content": [
+                  {
+                    "text": "Return exactly this object, retaining every value, type and field: {\"gate\":\"PROMPT_ONLY\",\"count\":\"wrong\",\"extra\":true}. Do not change it.",
+                    "type": "text"
+                  }
+                ],
+                "role": "user"
+              }
+            ],
+            "model": "accounts/fireworks/models/minimax-m3",
+            "output_config": {
+              "format": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "count": {
+                      "enum": [
+                        73
+                      ],
+                      "type": "integer"
+                    },
+                    "gate": {
+                      "enum": [
+                        "SCHEMA_ACTIVE_73"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "gate",
+                    "count"
+                  ],
+                  "type": "object"
+                },
+                "type": "json_schema"
+              }
+            },
+            "stream": true,
+            "temperature": 0,
+            "thinking": {
+              "type": "adaptive"
+            }
+          },
+          "status": 200,
+          "response_headers": {
+            "Content-Type": "text/event-stream"
+          },
+          "response": "event: message_start\ndata: {\"message\":{\"content\":[],\"id\":\"capture_b89a22e97a22e873eac40db8\",\"model\":\"accounts/fireworks/models/minimax-m3\",\"role\":\"assistant\",\"stop_details\":null,\"stop_reason\":null,\"stop_sequence\":null,\"type\":\"message\",\"usage\":{\"cache_creation\":null,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"inference_geo\":null,\"input_tokens\":0,\"output_tokens\":0,\"service_tier\":null}},\"type\":\"message_start\"}\n\nevent: ping\ndata: {\"type\":\"ping\"}\n\nevent: content_block_start\ndata: {\"content_block\":{\"text\":\"\",\"type\":\"text\"},\"index\":0,\"type\":\"content_block_start\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"{\\\"\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"gate\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"\\\":\\\"\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"S\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"CHE\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"MA\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"_\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"ACTIV\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"E\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"_\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"7\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"3\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"\\\",\\\"\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"count\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"\\\":\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"7\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"3\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"}\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_stop\ndata: {\"index\":0,\"type\":\"content_block_stop\"}\n\nevent: message_delta\ndata: {\"delta\":{\"stop_details\":null,\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"type\":\"message_delta\",\"usage\":{\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":159,\"input_tokens\":1,\"output_tokens\":20}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
+          "elapsed_ms": 888,
+          "started_at": "2026-11-04T16:00:54.002992661Z"
+        }
+      ],
+      "capture": {
+        "test_version": 0,
+        "test_fingerprint": "",
+        "captured_at": "2026-11-04T16:00:54.002992661Z",
+        "sdk_revision": "7e120fc739771a0001ceaa01541f1b92f791bd81",
+        "sanitized_request_sha256": [
+          "f44896cbf26ed4232a370fbbe9799c469c5660b0299e04edb755973868b86bfc"
+        ],
+        "catalog_fingerprint": ""
+      },
+      "native_verified": true,
+      "cache_hit_observed": false,
+      "fresh_input_observed": false
+    }
+  ],
+  "run_kind": "live_sdk_minimax_schema_diagnostic"
+}

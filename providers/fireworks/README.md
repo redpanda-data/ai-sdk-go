@@ -1,12 +1,35 @@
-# Fireworks catalog
+# Fireworks provider
 
-This package supplies `catalog.Provider` and published serverless token prices under the provider key `fireworks`. It does **not** implement an outbound `llm.Model`, gateway proxy, Claude Code/Codex launcher, or spending pipeline. Accepting Anthropic Messages does not make an offering Anthropic-published.
+This package supplies Fireworks serverless `llm.Model` instances, `catalog.Provider`, and published token prices under the provider key `fireworks`. It reuses the existing Messages, Responses, and Chat Completions implementations; it is not a gateway proxy, Claude Code/Codex launcher, or spending pipeline. Accepting Anthropic Messages does not make an offering Anthropic-published.
+
+```go
+provider, err := fireworks.NewProvider(ctx,
+    fireworks.WithAPIKey(key), // Fireworks key or a gateway service-account token
+    // fireworks.WithBaseURL("https://gateway.example.com/fireworks/v1"),
+    // fireworks.WithHTTPClient(client),
+)
+if err != nil {
+    return err
+}
+model, err := provider.NewModel(fireworks.ModelGLM53Flash,
+    fireworks.WithMaxTokens(4096),
+    fireworks.WithReasoningEffort(fireworks.ReasoningEffortLow),
+)
+```
+
+`NewProvider(ctx)` and the provider's zero value still support credential-free catalog discovery. Credentials are explicit; the provider never reads environment variables or credential files. `NewModel` requires a bearer credential and rejects unregistered IDs. A custom base URL is the inference API root ending in `/v1`; gateway prefixes are preserved.
+
+The factory uses exactly the resolved offering's `WireAPIs[0]`, in the catalog's normalized order, without reordering, preference knobs, or fallback. An empty, unsupported, or unqualified first binding is an error even if a later binding is usable. All seven current offerings select Messages/direct. The selected binding determines capabilities and reasoning controls, not the offering-wide union.
+
+**Runtime image restriction:** native catalog vision support remains true where qualified, but constructed SDK models report `Capabilities().Vision == false`: `llm.Part` has no image input representation. This is an SDK limitation, not an upstream unsupported claim; SDK vision is not qualified.
 
 ## Scope and identity
 
 Use exact invocation IDs. `catalog.WireAPI` is the existing shared protocol/transport contract; each supported Fireworks binding uses the `direct` transport. API-specific capabilities and reasoning controls are explicit `WireAPISupport` records, not inferred from provider names, creators, model prefixes, or the model-level capability superset. Missing API feature records mean unknown, not full feature parity. Messages has schema-based structured output but no separate schemaless JSON mode.
 
-`Constraints.SupportedParams` is intentionally empty because no SDK request transport/control-admission guarantee is supplied. `llm.ModelConstraints.ValidateParameterSupport` therefore rejects every SDK option; nil is not a tri-state validator and is never supports-all. This is **not** a claim that the upstream APIs support no controls: their truthful capabilities and per-API reasoning metadata remain present. Catalog/UI consumers must not project this absent SDK admission list into an upstream supports-none or supports-all claim. Native dialect controls require their own qualified API contract.
+Catalog `Constraints.SupportedParams` remains intentionally empty: it is not a provider-wide SDK control guarantee. Each constructed model gets a separate, narrow admission list for its selected API: `max_tokens`, `temperature`, advertised `reasoning_effort` values, and `thinking` only where adaptive reasoning is declared. The catalog is not mutated. Nil is not a tri-state validator and is never supports-all; catalog/UI consumers must not project absent SDK admission into an upstream supports-none or supports-all claim.
+
+`WithMaxTokens` defaults to a bounded 4096 tokens (including reasoning), capped at the offering's output limit. Temperature is validated against the offering's range. `WithReasoningEffort` accepts only the selected binding's exact list; DeepSeek `none` maps to disabled thinking on Messages/Chat. MiniMax exposes `WithThinking(true)` for adaptive thinking and `WithThinking(false)` to disable it, without invented budgets or Claude-specific controls. MiniMax Messages with explicit `WithThinking(false)` reports `StructuredOutput == false` and rejects schema requests before HTTP: native testing observed broken schema enforcement with that combination. Omit the thinking override or use adaptive thinking for schema output; both configurations passed actual SDK tests in both modes. The native catalog/API schema capability remains true. Foreign `Request.Options` are rejected rather than silently ignored; configure these controls at model construction. Responses always sends `store: false`. No automatic Anthropic cache markers are added; authoritative native cache usage is preserved. Priority, speed, thinking budgets, top-p, stop controls, and provider-hosted tool search are not exposed by this runtime.
 
 Resolution is exact, including exact authored aliases. An unlisted date suffix, deployment, router, shorthand, or `*-latest` alias must not inherit the base model's API support or price. No moving aliases are currently registered. Router variants, US-only capacity, custom/private/fine-tuned deployments, batch, embeddings, and decision-only models are outside this catalog's supported contract. Messages support does not advertise native count-tokens: the observed `/inference/v1/messages/count_tokens` endpoint returned 404. Hosted `ToolSearchProtocol` remains empty; ordinary tools and Fireworks' client-side deferred-tool compatibility do not establish provider-hosted tool execution.
 
@@ -46,9 +69,27 @@ Input limits use exact `context_length` values returned by the live inference mo
 | `rune` model/router | Decision API, no generated output tokens; not chat/Responses/Messages generation. |
 | US-only variants not returned in the default listing | Separate capacity and prices; deferred. |
 
+## SDK runtime qualification
+
+The explicit local SDK suite exercises `NewProvider(...).NewModel(...)`, `Generate`, and `GenerateEvents` for all seven exact offerings through the default Messages binding. It covers system/history, forced tools and tool-result replay, observable reasoning and reasoning-history replay, native schema enforcement against a conflicting plain control, output-limit termination, and authoritative SDK/native usage. Captured native exchanges are replayed offline; replay is not represented as a new live result. The factory's other two protocol branches are separately covered at the wire seam, not claimed as new all-model SDK live coverage.
+
+The initial 86-request SDK batch passed all native usage comparisons and the complete feature sweep for six models, but its two MiniMax schema cases failed upstream with explicit disabled thinking. Those failed native exchanges remain immutable in `testdata/sdk-runtime/messages-live.json`, with an explicit failed-run outcome alongside them; `native_verified` means usage/price agreement, not feature success. Four separately captured corrective SDK schema calls passed with default/omitted or adaptive thinking, in both modes. The restriction above rejects the failed configuration without silently changing it. These corrections are not represented as a new full sweep.
+
+SDK live calls are explicitly opt-in and local-only. They are not dispatched by CI and must not be given a Fireworks credential through workflows. SDK qualification does not include images.
+
+```sh
+# Build before reading credentials; execute locally only.
+go test -c -o /tmp/fireworks-sdk-live.test ./providers/fireworks
+/tmp/fireworks-sdk-live.test -test.run='^TestFireworksSDKLiveFirstBinding$' \
+  -fireworks-sdk-live -fireworks-sdk-key-file=/path/to/credential-file
+# Optional: -fireworks-sdk-cache adds at most three bounded cache probes.
+```
+
+The SDK test client enforces one upstream HTTP attempt per invocation (including vendor-SDK retries), bounds each request body and output cap, and checkpoints sanitized native exchanges. Approve a conservative paid-call bound before opting in; the test client is not a production spending policy.
+
 ## Required direct API acceptance
 
-Live API tests are local-only and explicitly opt-in; CI runs credential-free catalog, unit, and offline replay tests without a Fireworks key. Explicit acceptance is billable and must fail on a missing credential, missing evidence, absent required test, skipped required case, unsupported newly advertised feature, catalog drift, or any failed contract. It is not a gateway or CLI acceptance claim.
+The older three-protocol native acceptance matrix below is separate from SDK runtime qualification. Live API tests are local-only and explicitly opt-in; CI runs credential-free catalog, unit, and offline replay tests without a Fireworks key. Explicit acceptance is billable and must fail on a missing credential, missing evidence, absent required test, skipped required case, unsupported newly advertised feature, catalog drift, or any failed contract. It is not a gateway or CLI acceptance claim.
 
 ```sh
 # Credential-free strict replay + catalog-driven completeness:

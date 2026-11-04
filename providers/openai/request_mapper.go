@@ -70,6 +70,10 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) (responses.ResponseNewPara
 		apiReq.MaxOutputTokens = openai.Int(int64(*rm.config.MaxTokens))
 	}
 
+	if rm.config.Store != nil {
+		apiReq.Store = openai.Bool(*rm.config.Store)
+	}
+
 	// Apply reasoning parameters for reasoning models
 	// The OpenAI SDK uses awkward discriminated unions - we need to initialize
 	// the OfReasoning struct once and then set both fields on it
