@@ -140,6 +140,17 @@ var messagesWireAPIs = []catalog.WireAPI{
 	{Protocol: catalog.WireProtocolAnthropicMessages, Transport: catalog.WireTransportDirect},
 }
 
+// US-only inference (inference_geo "us") bills every rate of Claude 4.6 and
+// later at 1.1x, brackets and fast mode included; pricing selects it from the
+// response's usage.inference_geo. The pricing page prints no US rates, so the
+// override cards below are estimated at 1.1x the printed ones, per
+// https://platform.claude.com/docs/en/about-claude/pricing#data-residency-pricing
+// (read 2026-11-02).
+var (
+	usInferenceGeo     = pricing.Selector{Region: "us"}
+	fastUSInferenceGeo = pricing.Selector{Speed: SpeedFast, Region: "us"}
+)
+
 // entries returns the authored Anthropic catalog.
 //
 // Lifecycle sourcing: Anthropic's model-deprecations page
@@ -184,7 +195,9 @@ func entries() []catalog.Entry {
 			// prices Fable 5.1 hits at 0.025x base input ($0.25/MTok).
 			Pricing: pricing.FlatInfoFromRates(
 				pricing.NewRates(10.00, 50.00, 0.25).WithCacheCreation(12.50, 20.00, 0),
-			),
+			).WithOverride(usInferenceGeo, pricing.RateCard{
+				Base: pricing.NewRates(11.00, 55.00, 0.275).WithCacheCreation(13.75, 22.00, 0),
+			}),
 		},
 		{
 			ID:           ModelClaudeFable5,
@@ -212,7 +225,9 @@ func entries() []catalog.Entry {
 			// multipliers (5m-write = 1.25x input, 1h-write = 2x, read = 0.10x).
 			Pricing: pricing.FlatInfoFromRates(
 				pricing.NewRates(10.00, 50.00, 1.00).WithCacheCreation(12.50, 20.00, 0),
-			),
+			).WithOverride(usInferenceGeo, pricing.RateCard{
+				Base: pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(13.75, 22.00, 0),
+			}),
 		},
 		{
 			ID:           ModelClaudeOpus55,
@@ -253,7 +268,11 @@ func entries() []catalog.Entry {
 					Base: pricing.NewRates(8.00, 40.00, 0.40).
 						WithCacheCreation(10.00, 16.00, 0),
 				},
-			),
+			).WithOverride(usInferenceGeo, pricing.RateCard{
+				Base: pricing.NewRates(4.40, 22.00, 0.22).WithCacheCreation(5.50, 8.80, 0),
+			}).WithOverride(fastUSInferenceGeo, pricing.RateCard{
+				Base: pricing.NewRates(8.80, 44.00, 0.44).WithCacheCreation(11.00, 17.60, 0),
+			}),
 		},
 		{
 			ID:           ModelClaudeOpus5,
@@ -285,7 +304,11 @@ func entries() []catalog.Entry {
 					Base: pricing.NewRates(10.00, 50.00, 1.00).
 						WithCacheCreation(12.50, 20.00, 0),
 				},
-			),
+			).WithOverride(usInferenceGeo, pricing.RateCard{
+				Base: pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
+			}).WithOverride(fastUSInferenceGeo, pricing.RateCard{
+				Base: pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(13.75, 22.00, 0),
+			}),
 		},
 		{
 			ID:           ModelClaudeOpus48,
@@ -321,7 +344,11 @@ func entries() []catalog.Entry {
 					Base: pricing.NewRates(10.00, 50.00, 1.00).
 						WithCacheCreation(12.50, 20.00, 0),
 				},
-			),
+			).WithOverride(usInferenceGeo, pricing.RateCard{
+				Base: pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
+			}).WithOverride(fastUSInferenceGeo, pricing.RateCard{
+				Base: pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(13.75, 22.00, 0),
+			}),
 		},
 		{
 			ID:           ModelClaudeOpus47,
@@ -348,7 +375,9 @@ func entries() []catalog.Entry {
 			},
 			Pricing: pricing.FlatInfoFromRates(
 				pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
-			),
+			).WithOverride(usInferenceGeo, pricing.RateCard{
+				Base: pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
+			}),
 		},
 		{
 			// Standard cache hits: $0.10/MTok (0.05x input), verified 2026-10-16.
@@ -378,7 +407,9 @@ func entries() []catalog.Entry {
 			},
 			Pricing: pricing.FlatInfoFromRates(
 				pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(2.50, 4.00, 0),
-			),
+			).WithOverride(usInferenceGeo, pricing.RateCard{
+				Base: pricing.NewRates(2.20, 11.00, 0.11).WithCacheCreation(2.75, 4.40, 0),
+			}),
 		},
 		{
 			ID:       ModelClaudeSonnet5,
@@ -412,7 +443,9 @@ func entries() []catalog.Entry {
 			// instead uses 0.05x reads; its write multipliers are unchanged.
 			Pricing: pricing.FlatInfoFromRates(
 				pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0),
-			),
+			).WithOverride(usInferenceGeo, pricing.RateCard{
+				Base: pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(2.75, 4.40, 0),
+			}),
 		},
 		{
 			ID:           ModelClaudeSonnet46,
@@ -437,7 +470,9 @@ func entries() []catalog.Entry {
 			},
 			Pricing: pricing.FlatInfoFromRates(
 				pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0),
-			),
+			).WithOverride(usInferenceGeo, pricing.RateCard{
+				Base: pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0),
+			}),
 		},
 		{
 			// The model-deprecations page retires claude-sonnet-4-5-20250929,
@@ -503,7 +538,13 @@ func entries() []catalog.Entry {
 					MinContextTokens: 100_001,
 					Rates:            pricing.NewRates(0.50, 2.50, 0.05).WithCacheCreation(0.625, 1.00, 0),
 				},
-			),
+			).WithOverride(usInferenceGeo, pricing.RateCard{
+				Base: pricing.NewRates(0.11, 0.55, 0.011).WithCacheCreation(0.1375, 0.22, 0),
+				Brackets: []pricing.Bracket{{
+					MinContextTokens: 100_001,
+					Rates:            pricing.NewRates(0.55, 2.75, 0.055).WithCacheCreation(0.6875, 1.10, 0),
+				}},
+			}),
 		},
 		{
 			ID:           ModelClaudeHaiku45,
@@ -553,7 +594,9 @@ func entries() []catalog.Entry {
 			},
 			Pricing: pricing.FlatInfoFromRates(
 				pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0),
-			),
+			).WithOverride(usInferenceGeo, pricing.RateCard{
+				Base: pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0),
+			}),
 		},
 		{
 			ID:           ModelClaudeOpus45,

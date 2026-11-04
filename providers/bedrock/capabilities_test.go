@@ -22,24 +22,26 @@ import (
 )
 
 // TestClaudeStructuredOutputCapability pins which Claude families advertise
-// structured output; every variant of a family must agree.
+// structured output; every variant of a family must agree. Every Claude
+// model card lists Structured outputs as supported on bedrock-runtime (read
+// 2026-11-02).
 func TestClaudeStructuredOutputCapability(t *testing.T) {
 	t.Parallel()
 
 	want := map[string]bool{
-		ModelClaudeFable51:  false,
-		ModelClaudeFable5:   false,
-		ModelClaudeOpus55:   false,
-		ModelClaudeOpus5:    false,
-		ModelClaudeOpus48:   false,
-		ModelClaudeOpus47:   false,
+		ModelClaudeFable51:  true,
+		ModelClaudeFable5:   true,
+		ModelClaudeOpus55:   true,
+		ModelClaudeOpus5:    true,
+		ModelClaudeOpus48:   true,
+		ModelClaudeOpus47:   true,
 		ModelClaudeOpus46:   true,
 		ModelClaudeOpus45:   true,
-		ModelClaudeSonnet55: false,
-		ModelClaudeSonnet5:  false,
+		ModelClaudeSonnet55: true,
+		ModelClaudeSonnet5:  true,
 		ModelClaudeSonnet46: true,
 		ModelClaudeSonnet45: true,
-		ModelClaudeHaiku55:  false,
+		ModelClaudeHaiku55:  true,
 		ModelClaudeHaiku45:  true,
 	}
 

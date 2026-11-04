@@ -326,6 +326,17 @@ const (
 	ModelGPT6SolGlobal = "global." + ModelGPT6Sol
 	ModelGPT6SolUS     = "us." + ModelGPT6Sol
 
+	// ModelGPT55 is GPT-5.5's bare ID. On bedrock-runtime it only builds the
+	// US and global profile IDs; the bare ID is not registered.
+	ModelGPT55       = "openai.gpt-5.5"
+	ModelGPT55Global = "global." + ModelGPT55
+	ModelGPT55US     = "us." + ModelGPT55
+
+	// ModelGPT54 is GPT-5.4's bare ID, split the same way as GPT-5.5's.
+	ModelGPT54       = "openai.gpt-5.4"
+	ModelGPT54Global = "global." + ModelGPT54
+	ModelGPT54US     = "us." + ModelGPT54
+
 	// ModelGPT56Sol is OpenAI's flagship GPT-5.6 reasoning model.
 	ModelGPT56Sol = "openai.gpt-5.6-sol"
 
@@ -484,7 +495,11 @@ var (
 var (
 	// JSONMode is false throughout this file for Converse-path models:
 	// outputConfig.textFormat accepts only a JSON schema, so there is no
-	// schemaless JSON mode to advertise.
+	// schemaless JSON mode to advertise. Every Claude family takes structured
+	// output: Opus 4.7+, Sonnet 5+, Haiku 5.5 and Fable once had Converse
+	// reject it, but each of their model cards now lists Structured outputs
+	// as supported on bedrock-runtime (read 2026-11-02), e.g.
+	// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-haiku-5-5.html
 	claudeStandardCaps = llm.ModelCapabilities{
 		Streaming:        true,
 		Tools:            true,
@@ -495,15 +510,6 @@ var (
 		SystemPrompts:    true,
 		Reasoning:        true,
 	}
-
-	// claudeNoSchemaCaps is for Opus 4.7+, Sonnet 5+, Haiku 5.5, and Fable,
-	// whose Converse endpoint rejects structured output.
-	claudeNoSchemaCaps = func() llm.ModelCapabilities {
-		caps := claudeStandardCaps
-		caps.StructuredOutput = false
-
-		return caps
-	}()
 
 	// claudeModalities is shared by every Claude family on Bedrock: text,
 	// image and PDF document input, text output.
@@ -636,6 +642,14 @@ var (
 
 	gemma4Modalities = catalog.Modalities{
 		Input:  []catalog.Modality{catalog.ModalityText, catalog.ModalityImage, catalog.ModalityVideo},
+		Output: []catalog.Modality{catalog.ModalityText},
+	}
+
+	// Gemma 4 E2B also takes audio input: its card lists Audio as a
+	// supported input modality (Speech is not), unlike the 31B and
+	// 26B A4B cards (model-card-google-gemma-4-e2b.md, read 2026-11-04).
+	gemma4E2BModalities = catalog.Modalities{
+		Input:  []catalog.Modality{catalog.ModalityText, catalog.ModalityImage, catalog.ModalityVideo, catalog.ModalityAudio},
 		Output: []catalog.Modality{catalog.ModalityText},
 	}
 
@@ -918,7 +932,7 @@ var bedrockFamilies = []family{
 		DisplayName:    "Claude Fable 5.1",
 		Profiles:       []string{"global", "us"},
 		DataSharing:    true,
-		Capabilities:   claudeNoSchemaCaps,
+		Capabilities:   claudeStandardCaps,
 		Modalities:     claudeModalities,
 		Constraints:    claudeNoSampling1MConstraints,
 		Reasoning:      frontierClaudeThinking,
@@ -938,7 +952,7 @@ var bedrockFamilies = []family{
 		DisplayName:  "Claude Fable 5",
 		Profiles:     []string{"global", "us", "eu"},
 		DataSharing:  true,
-		Capabilities: claudeNoSchemaCaps,
+		Capabilities: claudeStandardCaps,
 		Modalities:   claudeModalities,
 		Constraints:  claudeNoSampling1MConstraints,
 		Reasoning:    frontierClaudeThinking,
@@ -957,7 +971,7 @@ var bedrockFamilies = []family{
 		Model:          catalog.ModelClaudeOpus55,
 		DisplayName:    "Claude Opus 5.5",
 		Profiles:       []string{"global", "us", "eu", "au", "jp"},
-		Capabilities:   claudeNoSchemaCaps,
+		Capabilities:   claudeStandardCaps,
 		Modalities:     claudeModalities,
 		Constraints:    claudeNoSampling1MConstraints,
 		Reasoning:      frontierClaudeThinking,
@@ -974,7 +988,7 @@ var bedrockFamilies = []family{
 		Model:        catalog.ModelClaudeOpus5,
 		DisplayName:  "Claude Opus 5",
 		Profiles:     []string{"global", "us", "eu", "au"},
-		Capabilities: claudeNoSchemaCaps,
+		Capabilities: claudeStandardCaps,
 		Modalities:   claudeModalities,
 		Constraints:  claudeNoSampling1MConstraints,
 		Reasoning:    frontierClaudeThinking,
@@ -993,7 +1007,7 @@ var bedrockFamilies = []family{
 		Model:        catalog.ModelClaudeOpus48,
 		DisplayName:  "Claude Opus 4.8",
 		Profiles:     []string{"global", "us", "eu", "jp", "au"},
-		Capabilities: claudeNoSchemaCaps,
+		Capabilities: claudeStandardCaps,
 		Modalities:   claudeModalities,
 		Constraints:  claudeNoSampling1MConstraints,
 		Reasoning:    frontierClaudeThinking,
@@ -1009,7 +1023,7 @@ var bedrockFamilies = []family{
 		Model:        catalog.ModelClaudeOpus47,
 		DisplayName:  "Claude Opus 4.7",
 		Profiles:     []string{"global", "us", "eu", "jp", "au"},
-		Capabilities: claudeNoSchemaCaps,
+		Capabilities: claudeStandardCaps,
 		Modalities:   claudeModalities,
 		Constraints:  claudeNoSampling1MConstraints,
 		Reasoning:    frontierClaudeThinking,
@@ -1059,7 +1073,7 @@ var bedrockFamilies = []family{
 		Model:          catalog.ModelClaudeSonnet55,
 		DisplayName:    "Claude Sonnet 5.5",
 		Profiles:       []string{"global", "us", "eu", "au"},
-		Capabilities:   claudeNoSchemaCaps,
+		Capabilities:   claudeStandardCaps,
 		Modalities:     claudeModalities,
 		Constraints:    claudeNoSampling1MConstraints,
 		Reasoning:      frontierClaudeThinking,
@@ -1077,7 +1091,7 @@ var bedrockFamilies = []family{
 		Model:        catalog.ModelClaudeSonnet5,
 		DisplayName:  "Claude Sonnet 5",
 		Profiles:     []string{"global", "us", "eu", "au"},
-		Capabilities: claudeNoSchemaCaps,
+		Capabilities: claudeStandardCaps,
 		Modalities:   claudeModalities,
 		Constraints:  claudeNoSampling1MConstraints,
 		Reasoning:    frontierClaudeThinking,
@@ -1125,7 +1139,7 @@ var bedrockFamilies = []family{
 			ReplacedBy: ModelClaudeSonnet55Global,
 		},
 		GlobalRates: &pricing.RateCard{Base: pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0)},
-		Rates:        pricing.RateCard{Base: pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0)},
+		Rates:       pricing.RateCard{Base: pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0)},
 	},
 	{
 		// Claude Haiku 5.5 — inference-profile-only on bedrock-runtime, with
@@ -1141,7 +1155,7 @@ var bedrockFamilies = []family{
 		Model:        catalog.ModelClaudeHaiku55,
 		DisplayName:  "Claude Haiku 5.5",
 		Profiles:     []string{"global", "us", "eu", "au", "jp"},
-		Capabilities: claudeNoSchemaCaps,
+		Capabilities: claudeStandardCaps,
 		Modalities:   claudeModalities,
 		Constraints:  claudeNoSampling1MConstraints,
 		Reasoning:    frontierClaudeThinking,
@@ -1252,6 +1266,8 @@ var bedrockFamilies = []family{
 		Modalities:    gpt56Modalities,
 		Constraints:   gpt6AstraConstraints,
 		Reasoning:     converseReasoningNoControls,
+		// Model launch date on the card (read 2026-11-04).
+		Life: catalog.Lifecycle{Available: catalog.MustDate("2026-09-08")},
 		GlobalRates: &pricing.RateCard{
 			Base: pricing.NewRates(10.00, 50.00, 1.00).WithCacheCreation(0, 0, 12.50),
 			Brackets: []pricing.Bracket{{
@@ -1293,6 +1309,7 @@ var bedrockFamilies = []family{
 		Reasoning: catalog.ReasoningSupport{
 			Efforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 		},
+		Life: catalog.Lifecycle{Available: catalog.MustDate("2026-09-08")},
 		Rates: pricing.RateCard{
 			Base: pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(0, 0, 13.75),
 			Brackets: []pricing.Bracket{{
@@ -1389,6 +1406,8 @@ var bedrockFamilies = []family{
 		Modalities:    gpt56Modalities,
 		Constraints:   gpt6AstraConstraints,
 		Reasoning:     converseReasoningNoControls,
+		// Model launch date on the card (read 2026-11-04).
+		Life: catalog.Lifecycle{Available: catalog.MustDate("2026-09-29")},
 		GlobalRates: &pricing.RateCard{
 			Base: pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(0, 0, 2.50),
 			Brackets: []pricing.Bracket{{
@@ -1424,6 +1443,7 @@ var bedrockFamilies = []family{
 		Reasoning: catalog.ReasoningSupport{
 			Efforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 		},
+		Life: catalog.Lifecycle{Available: catalog.MustDate("2026-09-29")},
 		Rates: pricing.RateCard{
 			Base: pricing.NewRates(2.20, 11.00, 0.11).WithCacheCreation(0, 0, 2.75),
 			Brackets: []pricing.Bracket{{
@@ -1525,6 +1545,8 @@ var bedrockFamilies = []family{
 		Modalities:   gpt56Modalities,
 		Constraints:  gpt6AstraConstraints,
 		Reasoning:    converseReasoningNoControls,
+		// Model launch date on the card (read 2026-11-04).
+		Life: catalog.Lifecycle{Available: catalog.MustDate("2026-09-22")},
 		GlobalRates: &pricing.RateCard{
 			Base: pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(0, 0, 2.50),
 			Brackets: []pricing.Bracket{{
@@ -1560,11 +1582,94 @@ var bedrockFamilies = []family{
 		Reasoning: catalog.ReasoningSupport{
 			Efforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 		},
+		Life: catalog.Lifecycle{Available: catalog.MustDate("2026-09-22")},
 		Rates: pricing.RateCard{
 			Base: pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(0, 0, 2.75),
 			Brackets: []pricing.Bracket{{
 				MinContextTokens: 272_001,
 				Rates:            pricing.NewRates(4.40, 16.50, 0.44).WithCacheCreation(0, 0, 5.50),
+			}},
+		},
+	},
+	{
+		// OpenAI GPT-5.5 — US and global profiles on bedrock-runtime:
+		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-55.html
+		// (read 2026-11-04). Card launched 2026-06-01; EOL no sooner than
+		// 2027-06-01, a floor, so Retires stays unset. Standard tier only.
+		// The card prints only In-Region rates ($5.50 / $33.00 / $0.55 cache
+		// read; above 272K $11.00 / $49.50 / $1.10), no cache-write rate.
+		// Estimated: the geo profile takes the In-Region rate, which
+		// https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html
+		// says cross-Region routing costs no more than, and the global
+		// profile takes the exact 1.10x geo-to-global ratio the catalogue's
+		// other OpenAI copies print. The bare ID's bedrock-mantle copy has
+		// profiles beside it, so it isn't registered. Unprobed: the card
+		// documents Astra's Converse surface and limits (1,050,000 window,
+		// 128,000 max output), so the family reuses Astra's capabilities and
+		// constraints; the 922K MaxInputTokens matches OpenAI's own gpt-5.5
+		// entry. Explicit prompt caching is unsupported.
+		BareID:         ModelGPT55,
+		WireAPIs:       openAIRuntimeWireAPIs,
+		Model:          catalog.ModelGPT5_5,
+		DisplayName:    "OpenAI GPT-5.5",
+		Profiles:       []string{"global", "us"},
+		ProfileRegions: gpt55ProfileRegions,
+		NoCachePoints:  true,
+		// Model launch date on the card (read 2026-11-04).
+		Life:         catalog.Lifecycle{Available: catalog.MustDate("2026-06-01")},
+		Capabilities: gpt6AstraCaps,
+		Modalities:   gpt56Modalities,
+		Constraints:  gpt6AstraConstraints,
+		Reasoning:    converseReasoningNoControls,
+		GlobalRates: &pricing.RateCard{
+			Base: pricing.NewRates(5.00, 30.00, 0.50),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(10.00, 45.00, 1.00),
+			}},
+		},
+		Rates: pricing.RateCard{
+			Base: pricing.NewRates(5.50, 33.00, 0.55),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(11.00, 49.50, 1.10),
+			}},
+		},
+	},
+	{
+		// OpenAI GPT-5.4 — US and global profiles on bedrock-runtime:
+		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-54.html
+		// (read 2026-11-04). Card launched 2026-06-01; EOL no sooner than
+		// 2027-06-01, a floor, so Retires stays unset. Standard tier only.
+		// The card prints only In-Region rates ($2.75 / $16.50 / $0.275 cache
+		// read; above 272K $5.50 / $24.75 / $0.55), no cache-write rate.
+		// Estimated the same way as GPT-5.5's: geo at the In-Region rate,
+		// global at the exact 1.10x ratio. Otherwise as GPT-5.5.
+		BareID:         ModelGPT54,
+		WireAPIs:       openAIRuntimeWireAPIs,
+		Model:          catalog.ModelGPT5_4,
+		DisplayName:    "OpenAI GPT-5.4",
+		Profiles:       []string{"global", "us"},
+		ProfileRegions: gpt55ProfileRegions,
+		NoCachePoints:  true,
+		// Model launch date on the card (read 2026-11-04).
+		Life:         catalog.Lifecycle{Available: catalog.MustDate("2026-06-01")},
+		Capabilities: gpt6AstraCaps,
+		Modalities:   gpt56Modalities,
+		Constraints:  gpt6AstraConstraints,
+		Reasoning:    converseReasoningNoControls,
+		GlobalRates: &pricing.RateCard{
+			Base: pricing.NewRates(2.50, 15.00, 0.25),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(5.00, 22.50, 0.50),
+			}},
+		},
+		Rates: pricing.RateCard{
+			Base: pricing.NewRates(2.75, 16.50, 0.275),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(5.50, 24.75, 0.55),
 			}},
 		},
 	},
@@ -1587,6 +1692,8 @@ var bedrockFamilies = []family{
 		Modalities:    gpt56Modalities,
 		Constraints:   gpt56Constraints,
 		Reasoning:     gpt56Reasoning,
+		// Model launch date on the card (read 2026-11-04).
+		Life: catalog.Lifecycle{Available: catalog.MustDate("2026-07-13")},
 		Rates: pricing.RateCard{
 			Base: pricing.NewRates(4.40, 22.00, 0.44).WithCacheCreation(0, 0, 5.50),
 			Brackets: []pricing.Bracket{{
@@ -1606,6 +1713,7 @@ var bedrockFamilies = []family{
 		Modalities:    gpt56Modalities,
 		Constraints:   gpt56Constraints,
 		Reasoning:     gpt56Reasoning,
+		Life:          catalog.Lifecycle{Available: catalog.MustDate("2026-07-13")},
 		Rates: pricing.RateCard{
 			Base: pricing.NewRates(2.20, 13.20, 0.22).WithCacheCreation(0, 0, 2.75),
 			Brackets: []pricing.Bracket{{
@@ -1625,6 +1733,7 @@ var bedrockFamilies = []family{
 		Modalities:    gpt56Modalities,
 		Constraints:   gpt56Constraints,
 		Reasoning:     gpt56Reasoning,
+		Life:          catalog.Lifecycle{Available: catalog.MustDate("2026-07-13")},
 		Rates: pricing.RateCard{
 			Base: pricing.NewRates(0.22, 1.32, 0.022).WithCacheCreation(0, 0, 0.275),
 			Brackets: []pricing.Bracket{{
@@ -1649,13 +1758,22 @@ var bedrockFamilies = []family{
 		Capabilities:  gemma4Caps,
 		Modalities:    gemma4Modalities,
 		Constraints:   gemma4Context256kConstraints,
-		Rates:         pricing.RateCard{Base: pricing.NewRates(0.14, 0.40, 0)},
-		// Published regional Standard rates, checked 2026-10-15.
-		// Other tiers use these Standard estimates with Cost.Fallbacks;
-		// unmatched regions (including US) use the base card with a fallback.
-		// https://aws.amazon.com/bedrock/pricing/
+		// Model launch date on the model card
+		// (https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-google-gemma-4-31b.md,
+		// read 2026-11-04).
+		Life:  catalog.Lifecycle{Available: catalog.MustDate("2026-03-31")},
+		Rates: pricing.RateCard{Base: pricing.NewRates(0.14, 0.40, 0)},
+		// Standard, Flex and Priority rates (the card's Service Tiers) from the
+		// AWS price list, us-east-1 and eu-central-1 files
+		// (https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-1/index.json,
+		// read 2026-11-04). Unmatched regions use the us-east-1 rates; other
+		// tiers fall back to Standard.
 		Overrides: []pricing.Override{
-			{Match: pricing.Selector{Region: regionFrankfurt}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.17, 0.48, 0)}},
+			{Match: pricing.Selector{Region: regionFrankfurt}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.168, 0.48, 0)}},
+			{Match: pricing.Selector{ServiceTier: llm.ServiceTierFlex}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.07, 0.20, 0)}},
+			{Match: pricing.Selector{ServiceTier: llm.ServiceTierPriority}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.245, 0.70, 0)}},
+			{Match: pricing.Selector{Region: regionFrankfurt, ServiceTier: llm.ServiceTierFlex}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.084, 0.24, 0)}},
+			{Match: pricing.Selector{Region: regionFrankfurt, ServiceTier: llm.ServiceTierPriority}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.294, 0.84, 0)}},
 		},
 	},
 	{
@@ -1668,13 +1786,19 @@ var bedrockFamilies = []family{
 		Capabilities:  gemma4Caps,
 		Modalities:    gemma4Modalities,
 		Constraints:   gemma4Context256kConstraints,
-		Rates:         pricing.RateCard{Base: pricing.NewRates(0.13, 0.40, 0)},
-		// Published regional Standard rates, checked 2026-10-15.
-		// Other tiers use these Standard estimates with Cost.Fallbacks;
-		// unmatched regions (including US) use the base card with a fallback.
-		// https://aws.amazon.com/bedrock/pricing/
+		// Model launch date on the model card
+		// (https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-google-gemma-4-26b-a4b.md,
+		// read 2026-11-04).
+		Life:  catalog.Lifecycle{Available: catalog.MustDate("2026-03-31")},
+		Rates: pricing.RateCard{Base: pricing.NewRates(0.13, 0.40, 0)},
+		// Standard, Flex and Priority rates from the AWS price list, as for
+		// Gemma 4 31B (read 2026-11-04).
 		Overrides: []pricing.Override{
-			{Match: pricing.Selector{Region: regionFrankfurt}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.16, 0.48, 0)}},
+			{Match: pricing.Selector{Region: regionFrankfurt}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.156, 0.48, 0)}},
+			{Match: pricing.Selector{ServiceTier: llm.ServiceTierFlex}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.065, 0.20, 0)}},
+			{Match: pricing.Selector{ServiceTier: llm.ServiceTierPriority}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.2275, 0.70, 0)}},
+			{Match: pricing.Selector{Region: regionFrankfurt, ServiceTier: llm.ServiceTierFlex}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.078, 0.24, 0)}},
+			{Match: pricing.Selector{Region: regionFrankfurt, ServiceTier: llm.ServiceTierPriority}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.273, 0.84, 0)}},
 		},
 	},
 	{
@@ -1685,15 +1809,21 @@ var bedrockFamilies = []family{
 		BareInvokable: true,
 		Mantle:        true,
 		Capabilities:  gemma4Caps,
-		Modalities:    gemma4Modalities,
+		Modalities:    gemma4E2BModalities,
 		Constraints:   gemma4Context128kConstraints,
-		Rates:         pricing.RateCard{Base: pricing.NewRates(0.04, 0.08, 0)},
-		// Published regional Standard rates, checked 2026-10-15.
-		// Other tiers use these Standard estimates with Cost.Fallbacks;
-		// unmatched regions (including US) use the base card with a fallback.
-		// https://aws.amazon.com/bedrock/pricing/
+		// Model launch date on the model card
+		// (https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-google-gemma-4-e2b.md,
+		// read 2026-11-04).
+		Life:  catalog.Lifecycle{Available: catalog.MustDate("2026-03-31")},
+		Rates: pricing.RateCard{Base: pricing.NewRates(0.04, 0.08, 0)},
+		// Standard, Flex and Priority rates from the AWS price list, as for
+		// Gemma 4 31B (read 2026-11-04).
 		Overrides: []pricing.Override{
-			{Match: pricing.Selector{Region: regionFrankfurt}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.05, 0.1, 0)}},
+			{Match: pricing.Selector{Region: regionFrankfurt}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.048, 0.096, 0)}},
+			{Match: pricing.Selector{ServiceTier: llm.ServiceTierFlex}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.02, 0.04, 0)}},
+			{Match: pricing.Selector{ServiceTier: llm.ServiceTierPriority}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.07, 0.14, 0)}},
+			{Match: pricing.Selector{Region: regionFrankfurt, ServiceTier: llm.ServiceTierFlex}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.024, 0.048, 0)}},
+			{Match: pricing.Selector{Region: regionFrankfurt, ServiceTier: llm.ServiceTierPriority}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.084, 0.168, 0)}},
 		},
 	},
 }
