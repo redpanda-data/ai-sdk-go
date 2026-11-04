@@ -99,14 +99,14 @@ func TestInventoryAndCreatorFacts(t *testing.T) {
 	assert.Equal(t, catalog.DefaultRegistry()[catalog.ModelGPTOSS120B], oss.Facts())
 }
 
-func TestCatalogOnlyDoesNotAdmitSDKControls(t *testing.T) {
+func TestCatalogMetadataDoesNotAdmitRuntimeControls(t *testing.T) {
 	t.Parallel()
 
 	for _, offering := range fireworks.Catalog().All() {
 		require.Nil(t, offering.Constraints.SupportedParams)
 
 		for _, param := range []string{"temperature", "top_p", "max_tokens", "stop", "tools", "reasoning_effort"} {
-			require.Error(t, offering.Constraints.ValidateParameterSupport(param), "no SDK transport admits %s", param)
+			require.Error(t, offering.Constraints.ValidateParameterSupport(param), "native catalog metadata does not admit SDK %s", param)
 		}
 
 		assert.True(t, offering.Capabilities.Tools, "SDK admission is not an upstream supports-none claim")

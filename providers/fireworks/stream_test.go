@@ -54,6 +54,13 @@ func TestFactoryStreamingDispatch(t *testing.T) {
 
 				assert.Equal(t, true, body["stream"])
 				assert.Equal(t, ModelGLM53, body["model"])
+
+				budgetField := "max_tokens"
+				if tt.protocol == catalog.WireProtocolOpenAIResponses {
+					budgetField = "max_output_tokens"
+				}
+
+				assert.InDelta(t, 4096, body[budgetField], 0)
 				w.Header().Set("Content-Type", "text/event-stream")
 				_, err := io.WriteString(w, tt.sse)
 				assert.NoError(t, err)

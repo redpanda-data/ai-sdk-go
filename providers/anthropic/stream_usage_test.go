@@ -114,6 +114,24 @@ func TestGenerateEventsFinalUsage(t *testing.T) {
 			want:   llm.TokenUsage{InputTokens: 12, CachedInputTokens: 8, CacheCreation5mTokens: 4, CacheCreation1hTokens: 5, OutputTokens: 6},
 		},
 		{
+			name:  "max tokens survives later omitted stop reason",
+			start: `{"input_tokens":2,"output_tokens":0}`,
+			deltas: []string{
+				`{"type":"message_delta","delta":{"stop_reason":"max_tokens"},"usage":{"output_tokens":3}}`,
+				`{"type":"message_delta","delta":{},"usage":{"input_tokens":5,"output_tokens":6}}`,
+			},
+			foreign: true, finish: llm.FinishReasonLength, want: llm.TokenUsage{InputTokens: 5, OutputTokens: 6},
+		},
+		{
+			name:  "max tokens survives later null stop reason",
+			start: `{"input_tokens":2,"output_tokens":0}`,
+			deltas: []string{
+				`{"type":"message_delta","delta":{"stop_reason":"max_tokens"},"usage":{"output_tokens":3}}`,
+				`{"type":"message_delta","delta":{"stop_reason":null},"usage":{"input_tokens":5,"output_tokens":6}}`,
+			},
+			foreign: true, finish: llm.FinishReasonLength, want: llm.TokenUsage{InputTokens: 5, OutputTokens: 6},
+		},
+		{
 			name:  "repeated cumulative counters replace instead of sum",
 			start: `{"input_tokens":1,"cache_read_input_tokens":4,"output_tokens":1}`,
 			deltas: []string{
@@ -121,6 +139,30 @@ func TestGenerateEventsFinalUsage(t *testing.T) {
 				`{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"input_tokens":5,"cache_read_input_tokens":7,"output_tokens":3}}`,
 			},
 			foreign: true, want: llm.TokenUsage{InputTokens: 5, CachedInputTokens: 7, OutputTokens: 3},
+		},
+		{
+			name:   "explicit zero input replaces earlier positive input",
+			start:  `{"input_tokens":12,"output_tokens":4}`,
+			deltas: []string{`{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"input_tokens":0}}`},
+			want:   llm.TokenUsage{OutputTokens: 4},
+		},
+		{
+			name:   "positive final cache writes without TTL",
+			start:  `{"input_tokens":2,"cache_creation_input_tokens":0,"output_tokens":4}`,
+			deltas: []string{`{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"cache_creation_input_tokens":9}}`},
+			want:   llm.TokenUsage{InputTokens: 2, CacheCreationUnknownTTLTokens: 9, OutputTokens: 4},
+		},
+		{
+			name:   "increased final cache writes preserve known TTL and add unknown remainder",
+			start:  `{"input_tokens":2,"cache_creation_input_tokens":9,"cache_creation":{"ephemeral_5m_input_tokens":4,"ephemeral_1h_input_tokens":5},"output_tokens":4}`,
+			deltas: []string{`{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"cache_creation_input_tokens":12}}`},
+			want:   llm.TokenUsage{InputTokens: 2, CacheCreation5mTokens: 4, CacheCreation1hTokens: 5, CacheCreationUnknownTTLTokens: 3, OutputTokens: 4},
+		},
+		{
+			name:   "smaller positive final cache writes invalidate oversized TTL breakdown",
+			start:  `{"input_tokens":2,"cache_creation_input_tokens":9,"cache_creation":{"ephemeral_5m_input_tokens":4,"ephemeral_1h_input_tokens":5},"output_tokens":4}`,
+			deltas: []string{`{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"cache_creation_input_tokens":5}}`},
+			want:   llm.TokenUsage{InputTokens: 2, CacheCreationUnknownTTLTokens: 5, OutputTokens: 4},
 		},
 		{
 			name:   "explicit zero replaces old output and cache",
@@ -171,6 +213,7 @@ func TestGenerateEventsFinalUsage(t *testing.T) {
 			require.NotNil(t, response)
 			require.NotNil(t, response.Usage)
 			assert.Equal(t, tt.want, *response.Usage)
+			assert.Equal(t, tt.want.BilledInputTokens(), response.Usage.BilledInputTokens())
 
 			finish := tt.finish
 			if finish == "" {
@@ -195,6 +238,7 @@ func TestGenerateEventsRequiresMessageStop(t *testing.T) {
 		payload string
 	}{
 		{"empty stream", ""},
+		{"message stop without message start", "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"},
 		{"EOF before final usage", messagesStream(`{"input_tokens":2,"output_tokens":0}`, nil, false)},
 		{"EOF after final usage", messagesStream(`{"input_tokens":2,"output_tokens":0}`, []string{`{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":2}}`}, false)},
 	} {

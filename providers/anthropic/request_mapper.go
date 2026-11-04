@@ -425,7 +425,11 @@ func (rm *RequestMapper) mapAssistantMessage(msg llm.Message) (anthropic.BetaMes
 				// reasoningMetadataRedactedProvider. Sessions persisted
 				// before redacted data was recorded hold only the
 				// placeholder text, so there is nothing to replay either.
-				if producer, _ := p.Metadata[reasoningMetadataRedactedProvider].(string); producer != string(rm.provider) || p.Signature == "" {
+				producer, _ := p.Metadata[reasoningMetadataRedactedProvider].(string)
+
+				// Native Claude on Vertex previously recorded Anthropic's stamp.
+				legacyVertex := rm.legacyThinking && producer == ProviderName
+				if (producer != string(rm.provider) && !legacyVertex) || p.Signature == "" {
 					continue
 				}
 

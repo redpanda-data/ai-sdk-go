@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -37,12 +38,16 @@ var (
 	sdkRuntimeKeyFile    = flag.String("fireworks-sdk-key-file", "", "credential file read only by the opted-in SDK test process")
 	sdkRuntimeCache      = flag.Bool("fireworks-sdk-cache", false, "include at most three SDK nonstream cache requests after the feature tests")
 	sdkRuntimeMiniSchema = flag.String("fireworks-sdk-mini-schema", "", "explicit MiniMax schema diagnostic: default or adaptive; two SDK HTTP requests")
+	sdkRuntimeOutputDir  = flag.String("fireworks-sdk-output-dir", "", "parent directory for unique incomplete SDK captures; defaults to the system temporary directory; fixture promotion is manual")
 )
 
 func sdkRuntimeModel(t *testing.T, provider *fireworks.Provider, wire *sdkRuntimeWire, offering catalog.Offering, maxTokens int, reasoning bool) llm.Model {
 	t.Helper()
 
-	wire.maxOutput = maxTokens
+	if wire != nil {
+		wire.maxOutput = maxTokens
+	}
+
 	api := offering.WireAPIs[0]
 	require.Equal(t, catalog.WireProtocolAnthropicMessages, api.Protocol)
 	require.Equal(t, catalog.WireTransportDirect, api.Transport)
@@ -190,6 +195,18 @@ func sdkRuntimeCacheProbe(t *testing.T, provider *fireworks.Provider, wire *sdkR
 	require.True(t, hit, "bounded actual SDK cache probe was inconclusive; zero is not a cache-hit observation")
 }
 
+func sdkRuntimeCapturePath(t *testing.T, parent, label string) string {
+	t.Helper()
+
+	dir, err := os.MkdirTemp(parent, "fireworks-sdk-") //nolint:usetesting // Paid captures must survive test cleanup for review and manual promotion.
+	require.NoError(t, err)
+
+	path := filepath.Join(dir, label+"-incomplete.json")
+	t.Logf("New SDK capture: %s; incomplete until reviewed, with manual fixture promotion only", path)
+
+	return path
+}
+
 //nolint:paralleltest,tparallel // Paid SDK calls deliberately run sequentially and reject automatic retries.
 func TestFireworksSDKLiveFirstBinding(t *testing.T) {
 	t.Parallel()
@@ -207,7 +224,7 @@ func TestFireworksSDKLiveFirstBinding(t *testing.T) {
 	require.NotEmpty(t, key)
 	require.False(t, strings.ContainsAny(key, "\r\n"))
 
-	wire := newSDKRuntimeWire(t, key, "testdata/sdk-runtime/messages-live.json", 16*1024)
+	wire := newSDKRuntimeWire(t, key, sdkRuntimeCapturePath(t, *sdkRuntimeOutputDir, "messages-live"), 16*1024)
 	defer wire.checkpoint(t)
 
 	client := &http.Client{Transport: wire, Timeout: 90 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
@@ -251,7 +268,7 @@ func TestFireworksSDKLiveMiniMaxSchema(t *testing.T) {
 	require.NotEmpty(t, key)
 	require.False(t, strings.ContainsAny(key, "\r\n"))
 
-	wire := newSDKRuntimeWire(t, key, "testdata/sdk-runtime/minimax-schema-"+*sdkRuntimeMiniSchema+".json", 2*1024)
+	wire := newSDKRuntimeWire(t, key, sdkRuntimeCapturePath(t, *sdkRuntimeOutputDir, "minimax-schema-"+*sdkRuntimeMiniSchema), 2*1024)
 	wire.maxOutput = 512
 	wire.report.RunKind = "live_sdk_minimax_schema_diagnostic"
 	wire.report.Blocked = append(wire.report.Blocked, "Partial corrective diagnostic only; the original 86-request messages-live.json remains a failed SDK batch, including both MiniMax schema cases.")

@@ -140,11 +140,18 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 		return nil, fmt.Errorf("unsupported OpenAI model: %s", modelName)
 	}
 
-	return p.NewCompatModel(modelName, CompatModelDefinition{
+	model, err := p.newCompatModel(modelName, CompatModelDefinition{
 		Capabilities: offering.Capabilities,
 		Constraints:  offering.Constraints,
 		Reasoning:    offering.Reasoning,
 	}, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	model.requestMapper.encryptedReasoning = offering.Capabilities.Reasoning
+
+	return model, nil
 }
 
 // CompatModelDefinition is the transport configuration NewCompatModel
@@ -167,9 +174,19 @@ type CompatModelDefinition struct {
 // SigV4-signing HTTP client (see providers/bedrock/mantle.go).
 //
 // modelName is sent verbatim as the API model ID. All request/response/
-// streaming behaviour is identical to NewModel — only catalog lookup
-// differs.
+// streaming behaviour is identical to NewModel, except that the native-only
+// reasoning.encrypted_content include is not requested automatically.
 func (p *Provider) NewCompatModel(modelName string, def CompatModelDefinition, opts ...Option) (llm.Model, error) {
+	return p.newCompatModel(modelName, def, opts...)
+}
+
+// Catalog implements catalog.Provider: the validated OpenAI model
+// catalog, including pricing and lifecycle metadata.
+func (*Provider) Catalog() *catalog.Catalog {
+	return Catalog()
+}
+
+func (p *Provider) newCompatModel(modelName string, def CompatModelDefinition, opts ...Option) (*Model, error) {
 	cfg := &Config{
 		ModelName:   modelName,
 		Constraints: def.Constraints,
@@ -204,10 +221,4 @@ func (p *Provider) NewCompatModel(modelName string, def CompatModelDefinition, o
 		requestMapper:  NewRequestMapper(cfg),
 		responseMapper: NewResponseMapper(),
 	}, nil
-}
-
-// Catalog implements catalog.Provider: the validated OpenAI model
-// catalog, including pricing and lifecycle metadata.
-func (*Provider) Catalog() *catalog.Catalog {
-	return Catalog()
 }

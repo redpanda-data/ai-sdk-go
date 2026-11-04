@@ -136,6 +136,9 @@ func (w *sdkRuntimeWire) checkpoint(t *testing.T) {
 		w.report.RunKind += "_failed"
 	}
 
+	report := w.report
+	report.Evidence = make([]contractEvidence, len(w.report.Evidence))
+
 	for n := range w.report.Evidence {
 		if w.bodies[n] != nil {
 			w.report.Evidence[n].Exchanges[0].Response = w.bodies[n].data.String()
@@ -144,11 +147,18 @@ func (w *sdkRuntimeWire) checkpoint(t *testing.T) {
 			}
 		}
 
-		w.report.Evidence[n].Exchanges[0] = contractSanitize(t, w.report.Evidence[n].Exchanges[0], w.key)
-		w.report.Evidence[n].Capture.RequestSHA256 = []string{contractRequestHash(w.report.Evidence[n].Exchanges[0].Request)}
+		report.Evidence[n] = w.report.Evidence[n]
+		report.Evidence[n].Exchanges = make([]contractExchange, len(w.report.Evidence[n].Exchanges))
+		report.Evidence[n].Capture.RequestSHA256 = nil
+
+		for j, exchange := range w.report.Evidence[n].Exchanges {
+			exchange.ResponseHeaders = maps.Clone(exchange.ResponseHeaders)
+			report.Evidence[n].Exchanges[j] = contractSanitize(t, exchange, w.key)
+			report.Evidence[n].Capture.RequestSHA256 = append(report.Evidence[n].Capture.RequestSHA256, contractRequestHash(report.Evidence[n].Exchanges[j].Request))
+		}
 	}
 
-	contractWriteEvidence(t, w.path, w.report, nil)
+	contractWriteEvidence(t, w.path, report, nil)
 }
 
 func newSDKRuntimeWire(t *testing.T, key, path string, limit int) *sdkRuntimeWire {

@@ -73,19 +73,20 @@ Input limits use exact `context_length` values returned by the live inference mo
 
 The explicit local SDK suite exercises `NewProvider(...).NewModel(...)`, `Generate`, and `GenerateEvents` for all seven exact offerings through the default Messages binding. It covers system/history, forced tools and tool-result replay, observable reasoning and reasoning-history replay, native schema enforcement against a conflicting plain control, output-limit termination, and authoritative SDK/native usage. Captured native exchanges are replayed offline; replay is not represented as a new live result. The factory's other two protocol branches are separately covered at the wire seam, not claimed as new all-model SDK live coverage.
 
-The initial 86-request SDK batch passed all native usage comparisons and the complete feature sweep for six models, but its two MiniMax schema cases failed upstream with explicit disabled thinking. Those failed native exchanges remain immutable in `testdata/sdk-runtime/messages-live.json`, with an explicit failed-run outcome alongside them; `native_verified` means usage/price agreement, not feature success. Four separately captured corrective SDK schema calls passed with default/omitted or adaptive thinking, in both modes. The restriction above rejects the failed configuration without silently changing it. These corrections are not represented as a new full sweep.
+The initial 86-request SDK batch passed all native usage comparisons and the complete feature sweep for six models, but its two MiniMax schema cases failed upstream with explicit disabled thinking. Those failed native exchanges remain immutable in `testdata/sdk-runtime/messages-live.json`, with an explicit failed-run outcome alongside them; `native_verified` means usage/price agreement, not feature success. Four separately captured corrective SDK schema calls passed with default/omitted or adaptive thinking, in both modes. The restriction above rejects the failed configuration without silently changing it. These corrections are not represented as a new full sweep. The original recorder repeatedly sanitized request tool IDs; offline conversation replay applies an explicitly labelled, hash-proven derived ID correction for that historical defect while retaining the original capture and every response byte unchanged.
 
 SDK live calls are explicitly opt-in and local-only. They are not dispatched by CI and must not be given a Fireworks credential through workflows. SDK qualification does not include images.
 
 ```sh
 # Build before reading credentials; execute locally only.
 go test -c -o /tmp/fireworks-sdk-live.test ./providers/fireworks
-/tmp/fireworks-sdk-live.test -test.run='^TestFireworksSDKLiveFirstBinding$' \
-  -fireworks-sdk-live -fireworks-sdk-key-file=/path/to/credential-file
+(cd providers/fireworks && /tmp/fireworks-sdk-live.test \
+  -test.run='^TestFireworksSDKLiveFirstBinding$' -test.v \
+  -fireworks-sdk-live -fireworks-sdk-key-file=/absolute/path/to/credential-file)
 # Optional: -fireworks-sdk-cache adds at most three bounded cache probes.
 ```
 
-The SDK test client enforces one upstream HTTP attempt per invocation (including vendor-SDK retries), bounds each request body and output cap, and checkpoints sanitized native exchanges. Approve a conservative paid-call bound before opting in; the test client is not a production spending policy.
+The SDK test client enforces one upstream HTTP attempt per invocation (including vendor-SDK retries), bounds each request body and output cap, and checkpoints sanitized native exchanges into a unique persistent run directory, never over the retained fixtures. `-fireworks-sdk-output-dir` selects the parent directory; otherwise the system temporary directory is used. The logged `*-incomplete.json` artifact requires explicit review and manual promotion. Repeated checkpoints sanitize fresh copies, preserving stable IDs and request hashes. Approve a conservative paid-call bound before opting in; the test client is not a production spending policy.
 
 ## Required direct API acceptance
 

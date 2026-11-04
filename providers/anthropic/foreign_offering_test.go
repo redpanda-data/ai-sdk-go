@@ -57,7 +57,7 @@ func TestForeignOfferingOpaqueHistoryReplay(t *testing.T) {
 			requests := make(chan []byte, 2)
 			const response = `{"id":"msg_foreign","type":"message","role":"assistant","model":"served-model","content":[{"type":"thinking","thinking":"plan","signature":"foreign-signature"},{"type":"redacted_thinking","data":"foreign-redacted"},{"type":"tool_use","id":"foreign-tool","name":"lookup","input":{"key":"x"}}],"stop_reason":"tool_use","usage":{"input_tokens":3,"cache_read_input_tokens":4,"output_tokens":6}}`
 			const stream = "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_foreign\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"served-model\",\"content\":[],\"stop_reason\":null,\"usage\":{\"input_tokens\":0,\"output_tokens\":0}}}\n\n" +
-				"event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"thinking\",\"thinking\":\"plan\",\"signature\":\"foreign-signature\"}}\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n" +
+				"event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"thinking\",\"thinking\":\"\",\"signature\":\"\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"pl\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"an\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"signature_delta\",\"signature\":\"foreign-signature\"}}\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n" +
 				"event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"redacted_thinking\",\"data\":\"foreign-redacted\"}}\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":1}\n\n" +
 				"event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":2,\"content_block\":{\"type\":\"tool_use\",\"id\":\"foreign-tool\",\"name\":\"lookup\",\"input\":{}}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":2,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{\\\"key\\\":\\\"x\\\"}\"}}\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":2}\n\n" +
 				"event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"tool_use\"},\"usage\":{\"input_tokens\":3,\"cache_read_input_tokens\":4,\"output_tokens\":6}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
@@ -94,9 +94,16 @@ func TestForeignOfferingOpaqueHistoryReplay(t *testing.T) {
 				}
 
 				var result *llm.Response
+				var reasoningDeltas []*llm.ReasoningPart
 
 				for event, err := range model.GenerateEvents(t.Context(), request) {
 					require.NoError(t, err)
+
+					if delta, ok := event.(llm.ContentPartEvent); ok {
+						if part, ok := delta.Part.(*llm.ReasoningPart); ok {
+							reasoningDeltas = append(reasoningDeltas, part)
+						}
+					}
 
 					if end, ok := event.(llm.StreamEndEvent); ok {
 						require.NoError(t, end.Error)
@@ -105,6 +112,14 @@ func TestForeignOfferingOpaqueHistoryReplay(t *testing.T) {
 				}
 
 				require.NotNil(t, result)
+				require.Len(t, reasoningDeltas, 2)
+				assert.Equal(t, "pl", reasoningDeltas[0].Text)
+				assert.Equal(t, "an", reasoningDeltas[1].Text)
+
+				for _, part := range reasoningDeltas {
+					assert.Equal(t, map[string]any{reasoningMetadataProvider: "foreign-host"}, part.Metadata)
+					assert.Empty(t, part.Signature, "the opaque signature arrives after the thinking deltas")
+				}
 
 				return result
 			}
@@ -195,6 +210,47 @@ func TestNewModelFromOfferingLegacyNativeThinking(t *testing.T) {
 				} else {
 					assert.JSONEq(t, `[{"type":"text","text":"keep"}]`, wireContent(t, request.Messages[1]))
 				}
+			}
+		})
+	}
+}
+
+func TestLegacyRedactedThinkingRejectsUnrelatedProvenance(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name     string
+		legacy   bool
+		producer string
+		keep     bool
+	}{
+		{"native legacy stamp", true, ProviderName, true},
+		{"native current stamp", true, "native-host", true},
+		{"unrelated explicit stamp", true, "different-host", false},
+		{"missing stamp", true, "", false},
+		{"legacy stamp on foreign binding", false, ProviderName, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mapper := NewRequestMapper(&Config{ModelName: "served-model", MaxTokens: 64})
+			mapper.provider = "native-host"
+			mapper.legacyThinking = tt.legacy
+			part := &llm.ReasoningPart{Signature: "opaque-data", Metadata: map[string]any{
+				reasoningMetadataRedacted: true, reasoningMetadataRedactedProvider: tt.producer,
+			}}
+			request, err := mapper.ToProvider(&llm.Request{Messages: []llm.Message{
+				llm.NewMessage(llm.RoleUser, llm.NewTextPart("hi")),
+				llm.NewMessage(llm.RoleAssistant, part, llm.NewTextPart("keep")),
+				llm.NewMessage(llm.RoleUser, llm.NewTextPart("continue")),
+			}})
+			require.NoError(t, err)
+
+			if tt.keep {
+				assert.Len(t, request.Messages[1].Content, 2)
+				assert.Equal(t, "opaque-data", request.Messages[1].Content[0].OfRedactedThinking.Data)
+			} else {
+				assert.JSONEq(t, `[{"type":"text","text":"keep"}]`, wireContent(t, request.Messages[1]))
 			}
 		})
 	}

@@ -20,6 +20,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -263,6 +264,17 @@ func TestFactoryWireDispatch(t *testing.T) {
 					assert.NotContains(t, string(encodedBody), "budget_tokens")
 					assert.NotContains(t, string(encodedBody), "display")
 
+					if protocol == catalog.WireProtocolOpenAIResponses {
+						switch id {
+						case ModelGLM53:
+							assert.Equal(t, map[string]any{"effort": "low"}, body["reasoning"])
+						case ModelDeepSeekV41Flash1017:
+							assert.Equal(t, map[string]any{"effort": "none"}, body["reasoning"])
+						default:
+							assert.NotContains(t, body, "reasoning")
+						}
+					}
+
 					if protocol == catalog.WireProtocolAnthropicMessages && id == ModelGLM53 {
 						assert.Equal(t, map[string]any{"effort": "low"}, body["output_config"])
 						assert.NotContains(t, body, "thinking")
@@ -290,24 +302,42 @@ func TestFactoryWireDispatch(t *testing.T) {
 
 func TestRequestAdmission(t *testing.T) {
 	t.Parallel()
-	provider, err := NewProvider(t.Context(), WithAPIKey("placeholder"))
+
+	var calls atomic.Int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		_, err := io.WriteString(w, `{"id":"m1","type":"message","role":"assistant","content":[{"type":"text","text":"OK"}],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":1}}`)
+		assert.NoError(t, err)
+	}))
+	defer server.Close()
+
+	provider, err := NewProvider(t.Context(), WithAPIKey("placeholder"), WithBaseURL(server.URL+"/v1"), WithHTTPClient(server.Client()))
 	require.NoError(t, err)
 	runtime, err := provider.NewModel(ModelGLM53)
 	require.NoError(t, err)
 
-	for _, request := range []*llm.Request{nil, {ToolSearch: true}, {Options: map[string]any{"service_tier": "priority"}}, {ResponseFormat: &llm.ResponseFormat{Type: llm.ResponseFormatJSONObject}}} {
+	messages := []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Reply OK."))}
+	for _, request := range []*llm.Request{nil, {Messages: messages, ToolSearch: true}, {Messages: messages, Options: map[string]any{"service_tier": "priority"}}, {Messages: messages, ResponseFormat: &llm.ResponseFormat{Type: llm.ResponseFormatJSONObject}}} {
+		want := llm.ErrUnsupportedFeature
+		if request == nil {
+			want = llm.ErrInvalidInput
+		}
+
 		_, err := runtime.Generate(t.Context(), request)
-		require.Error(t, err)
+		require.ErrorIs(t, err, want)
 
 		count := 0
 
 		for event, err := range runtime.GenerateEvents(t.Context(), request) {
 			assert.Nil(t, event)
-			require.Error(t, err)
+			require.ErrorIs(t, err, want)
 
 			count++
 		}
 
 		assert.Equal(t, 1, count)
+		assert.Zero(t, calls.Load(), "invalid requests must not reach HTTP")
 	}
 }
