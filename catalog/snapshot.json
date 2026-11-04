@@ -5181,6 +5181,166 @@
           }
         },
         {
+          "id": "global.openai.gpt-5.4",
+          "model": "openai/gpt-5.4",
+          "display_name": "OpenAI GPT-5.4 (Global)",
+          "wire_apis": [
+            {
+              "protocol": "bedrock_converse",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_chat_completions",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_responses",
+              "transport": "bedrock_runtime"
+            }
+          ],
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {},
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 250000000,
+                "output_microcents_per_million": 1500000000,
+                "cached_input_microcents_per_million": 25000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 500000000,
+                    "output_microcents_per_million": 2250000000,
+                    "cached_input_microcents_per_million": 50000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "global"
+            }
+          ],
+          "derived": {
+            "price_tier": "medium",
+            "replacement": "openai/gpt-5.5"
+          }
+        },
+        {
+          "id": "global.openai.gpt-5.5",
+          "model": "openai/gpt-5.5",
+          "display_name": "OpenAI GPT-5.5 (Global)",
+          "wire_apis": [
+            {
+              "protocol": "bedrock_converse",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_chat_completions",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_responses",
+              "transport": "bedrock_runtime"
+            }
+          ],
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {},
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 500000000,
+                "output_microcents_per_million": 3000000000,
+                "cached_input_microcents_per_million": 50000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 1000000000,
+                    "output_microcents_per_million": 4500000000,
+                    "cached_input_microcents_per_million": 100000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "global"
+            }
+          ],
+          "derived": {
+            "price_tier": "high",
+            "replacement": "openai/gpt-5.6-sol"
+          }
+        },
+        {
           "id": "global.openai.gpt-6-astra",
           "model": "openai/gpt-6-astra",
           "display_name": "OpenAI GPT-6 Astra (Global)",
@@ -8582,6 +8742,166 @@
           ],
           "derived": {
             "price_tier": "medium"
+          }
+        },
+        {
+          "id": "us.openai.gpt-5.4",
+          "model": "openai/gpt-5.4",
+          "display_name": "OpenAI GPT-5.4 (US)",
+          "wire_apis": [
+            {
+              "protocol": "bedrock_converse",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_chat_completions",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_responses",
+              "transport": "bedrock_runtime"
+            }
+          ],
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {},
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 275000000,
+                "output_microcents_per_million": 1650000000,
+                "cached_input_microcents_per_million": 27500000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 550000000,
+                    "output_microcents_per_million": 2475000000,
+                    "cached_input_microcents_per_million": 55000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "us"
+            }
+          ],
+          "derived": {
+            "price_tier": "medium",
+            "replacement": "openai/gpt-5.5"
+          }
+        },
+        {
+          "id": "us.openai.gpt-5.5",
+          "model": "openai/gpt-5.5",
+          "display_name": "OpenAI GPT-5.5 (US)",
+          "wire_apis": [
+            {
+              "protocol": "bedrock_converse",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_chat_completions",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_responses",
+              "transport": "bedrock_runtime"
+            }
+          ],
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {},
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 550000000,
+                "output_microcents_per_million": 3300000000,
+                "cached_input_microcents_per_million": 55000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 1100000000,
+                    "output_microcents_per_million": 4950000000,
+                    "cached_input_microcents_per_million": 110000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "us"
+            }
+          ],
+          "derived": {
+            "price_tier": "high",
+            "replacement": "openai/gpt-5.6-sol"
           }
         },
         {
@@ -13889,7 +14209,7 @@
             "vision": true
           },
           "constraints": {
-            "max_input_tokens": 400000,
+            "max_input_tokens": 272000,
             "max_output_tokens": 128000,
             "supported_params": [
               "temperature",
@@ -14088,7 +14408,7 @@
             "vision": true
           },
           "constraints": {
-            "max_input_tokens": 400000,
+            "max_input_tokens": 272000,
             "max_output_tokens": 128000,
             "supported_params": [
               "temperature",
@@ -14266,7 +14586,7 @@
             "vision": true
           },
           "constraints": {
-            "max_input_tokens": 1050000,
+            "max_input_tokens": 922000,
             "max_output_tokens": 128000,
             "supported_params": [
               "temperature",
@@ -14641,7 +14961,7 @@
             "vision": true
           },
           "constraints": {
-            "max_input_tokens": 1050000,
+            "max_input_tokens": 922000,
             "max_output_tokens": 128000,
             "supported_params": [
               "temperature",

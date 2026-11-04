@@ -326,6 +326,17 @@ const (
 	ModelGPT6SolGlobal = "global." + ModelGPT6Sol
 	ModelGPT6SolUS     = "us." + ModelGPT6Sol
 
+	// ModelGPT55 is GPT-5.5's bare ID. On bedrock-runtime it only builds the
+	// US and global profile IDs; the bare ID is not registered.
+	ModelGPT55       = "openai.gpt-5.5"
+	ModelGPT55Global = "global." + ModelGPT55
+	ModelGPT55US     = "us." + ModelGPT55
+
+	// ModelGPT54 is GPT-5.4's bare ID, split the same way as GPT-5.5's.
+	ModelGPT54       = "openai.gpt-5.4"
+	ModelGPT54Global = "global." + ModelGPT54
+	ModelGPT54US     = "us." + ModelGPT54
+
 	// ModelGPT56Sol is OpenAI's flagship GPT-5.6 reasoning model.
 	ModelGPT56Sol = "openai.gpt-5.6-sol"
 
@@ -1560,6 +1571,84 @@ var bedrockFamilies = []family{
 			Brackets: []pricing.Bracket{{
 				MinContextTokens: 272_001,
 				Rates:            pricing.NewRates(4.40, 16.50, 0.44).WithCacheCreation(0, 0, 5.50),
+			}},
+		},
+	},
+	{
+		// OpenAI GPT-5.5 — US and global profiles on bedrock-runtime:
+		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-55.html
+		// (read 2026-11-04). Card launched 2026-06-01; EOL no sooner than
+		// 2027-06-01, a floor, so Retires stays unset. Standard tier only.
+		// The card prints only In-Region rates ($5.50 / $33.00 / $0.55 cache
+		// read; above 272K $11.00 / $49.50 / $1.10), no cache-write rate.
+		// Estimated: the geo profile takes the In-Region rate, which
+		// https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html
+		// says cross-Region routing costs no more than, and the global
+		// profile takes the exact 1.10x geo-to-global ratio the catalogue's
+		// other OpenAI copies print. The bare ID's bedrock-mantle copy has
+		// profiles beside it, so it isn't registered. Unprobed: the card
+		// documents Astra's Converse surface and limits (1,050,000 window,
+		// 128,000 max output), so the family reuses Astra's capabilities and
+		// constraints; the 922K MaxInputTokens matches OpenAI's own gpt-5.5
+		// entry. Explicit prompt caching is unsupported.
+		BareID:         ModelGPT55,
+		WireAPIs:       openAIRuntimeWireAPIs,
+		Model:          catalog.ModelGPT5_5,
+		DisplayName:    "OpenAI GPT-5.5",
+		Profiles:       []string{"global", "us"},
+		ProfileRegions: gpt55ProfileRegions,
+		NoCachePoints:  true,
+		Capabilities:   gpt6AstraCaps,
+		Modalities:     gpt56Modalities,
+		Constraints:    gpt6AstraConstraints,
+		Reasoning:      converseReasoningNoControls,
+		GlobalRates: &pricing.RateCard{
+			Base: pricing.NewRates(5.00, 30.00, 0.50),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(10.00, 45.00, 1.00),
+			}},
+		},
+		Rates: pricing.RateCard{
+			Base: pricing.NewRates(5.50, 33.00, 0.55),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(11.00, 49.50, 1.10),
+			}},
+		},
+	},
+	{
+		// OpenAI GPT-5.4 — US and global profiles on bedrock-runtime:
+		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-54.html
+		// (read 2026-11-04). Card launched 2026-06-01; EOL no sooner than
+		// 2027-06-01, a floor, so Retires stays unset. Standard tier only.
+		// The card prints only In-Region rates ($2.75 / $16.50 / $0.275 cache
+		// read; above 272K $5.50 / $24.75 / $0.55), no cache-write rate.
+		// Estimated the same way as GPT-5.5's: geo at the In-Region rate,
+		// global at the exact 1.10x ratio. Otherwise as GPT-5.5.
+		BareID:         ModelGPT54,
+		WireAPIs:       openAIRuntimeWireAPIs,
+		Model:          catalog.ModelGPT5_4,
+		DisplayName:    "OpenAI GPT-5.4",
+		Profiles:       []string{"global", "us"},
+		ProfileRegions: gpt55ProfileRegions,
+		NoCachePoints:  true,
+		Capabilities:   gpt6AstraCaps,
+		Modalities:     gpt56Modalities,
+		Constraints:    gpt6AstraConstraints,
+		Reasoning:      converseReasoningNoControls,
+		GlobalRates: &pricing.RateCard{
+			Base: pricing.NewRates(2.50, 15.00, 0.25),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(5.00, 22.50, 0.50),
+			}},
+		},
+		Rates: pricing.RateCard{
+			Base: pricing.NewRates(2.75, 16.50, 0.275),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(5.50, 24.75, 0.55),
 			}},
 		},
 	},

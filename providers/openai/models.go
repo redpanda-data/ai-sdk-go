@@ -263,7 +263,10 @@ func entries() []catalog.Entry {
 			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange:  [2]float64{0.0, 2.0},
-				MaxInputTokens:    400000, // 400K context window
+				// The model page gives only the 400K window; gpt-5.4-mini's page, with
+				// the same window and 128K output, caps input at 272,000
+				// (https://developers.openai.com/api/docs/models/gpt-5.4-mini, read 2026-11-04).
+				MaxInputTokens:    272000,
 				MaxOutputTokens:   128000, // 128K output tokens
 				SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed", "reasoning_effort", "reasoning_summary"},
 				MutuallyExclusive: [][]string{{"temperature", "top_p"}},
@@ -313,7 +316,10 @@ func entries() []catalog.Entry {
 			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange:  [2]float64{0.0, 2.0},
-				MaxInputTokens:    400000, // 400K context window
+				// The model page gives only the 400K window; gpt-5.4-mini's page, with
+				// the same window and 128K output, caps input at 272,000
+				// (https://developers.openai.com/api/docs/models/gpt-5.4-mini, read 2026-11-04).
+				MaxInputTokens:    272000,
 				MaxOutputTokens:   128000, // 128K output tokens
 				SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed", "reasoning_effort", "reasoning_summary"},
 				MutuallyExclusive: [][]string{{"temperature", "top_p"}},
@@ -580,7 +586,10 @@ func entries() []catalog.Entry {
 			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange:  [2]float64{0.0, 2.0},
-				MaxInputTokens:    1_050_000, // 1.05M context window
+				// The model page gives only the 1.05M window; gpt-5.6-sol's page, with
+				// the same window and 128K output, caps input at 922,000
+				// (https://developers.openai.com/api/docs/models/gpt-5.6-sol, read 2026-11-04).
+				MaxInputTokens:    922_000,
 				MaxOutputTokens:   128000,    // 128K output tokens
 				SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed", "reasoning_effort", "reasoning_summary"},
 				MutuallyExclusive: [][]string{{"temperature", "top_p"}},
@@ -620,7 +629,10 @@ func entries() []catalog.Entry {
 			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange:  [2]float64{0.0, 2.0},
-				MaxInputTokens:    1_050_000, // 1.05M context window
+				// The model page gives only the 1.05M window; gpt-5.6-sol's page, with
+				// the same window and 128K output, caps input at 922,000
+				// (https://developers.openai.com/api/docs/models/gpt-5.6-sol, read 2026-11-04).
+				MaxInputTokens:    922_000,
 				MaxOutputTokens:   128000,    // 128K output tokens
 				SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed", "reasoning_effort", "reasoning_summary"},
 				MutuallyExclusive: [][]string{{"temperature", "top_p"}},
