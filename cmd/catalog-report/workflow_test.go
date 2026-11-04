@@ -1779,7 +1779,7 @@ func TestChainPassesTheBaseBySHA(t *testing.T) {
 		}
 	}
 
-	assert.Equal(t, append([]string{"plan"}, order...), needsOf(jobs["probe"]), "the probe job waits for every vendor")
+	assert.Equal(t, append(append([]string{"plan"}, order...), "carry"), needsOf(jobs["probe"]), "the probe job waits for every vendor and the carry job")
 	assert.Equal(t, append(append([]string{"plan"}, order...), "carry", "probe"), needsOf(jobs["pr"]), "the pr job waits for every vendor, the carry job and the probe job")
 	assert.Contains(t, jobs["pr"].If, "!cancelled()", "the pr job runs after a vendor fails, to push the others")
 }
@@ -1796,8 +1796,8 @@ func TestDispatchOptionsMatchNamedSources(t *testing.T) {
 
 // TestOnlyThePRJobGetsTheBotToken checks the run's AWS roles: the pr job,
 // which runs nothing from the patches, alone reads the bot token, and the
-// only role another job may assume is the Bedrock CI role, which can call
-// Bedrock and nothing else. A job asks for an OIDC token only to assume one.
+// probe job alone assumes the Bedrock CI role, which can call Bedrock and
+// nothing else. A job asks for an OIDC token only to assume one.
 func TestOnlyThePRJobGetsTheBotToken(t *testing.T) {
 	t.Parallel()
 
@@ -1810,6 +1810,7 @@ func TestOnlyThePRJobGetsTheBotToken(t *testing.T) {
 				assumes = true
 
 				if name != "pr" {
+					assert.Equal(t, "probe", name, "only the probe job may assume the Bedrock CI role, not the %s job", name)
 					assert.Equal(t, bedrockRole, s.With["role-to-assume"], "the %s job may assume only the Bedrock CI role", name)
 				}
 			case strings.HasPrefix(s.Uses, "aws-actions/"):
@@ -2471,7 +2472,7 @@ func TestProbeJobRunsTheRunsOwnCode(t *testing.T) {
 		}
 
 		if strings.HasPrefix(s.Uses, "actions/download-artifact@") {
-			assert.Equal(t, "reconcile-pr-*", s.With["pattern"], "the probe job reads only the vendors' checked folders")
+			assert.Contains(t, []string{"reconcile-pr-*", "reconcile-carry"}, s.With["pattern"]+s.With["name"], "the probe job reads only the vendors' and the carry job's folders")
 		}
 	}
 
@@ -2549,23 +2550,30 @@ func TestProbeStepCallsTheChangedVendors(t *testing.T) {
 		"google": {"outputs": {"head": "", "changed": ""}},
 		"amazon": {"outputs": {"head": "b2", "changed": "true"}}}`
 
-	cmd := exec.CommandContext(t.Context(), "bash", "-eo", "pipefail", "-c", step.Run) //nolint:gosec // the workflow's own step
-	cmd.Dir = t.TempDir()
+	for _, tt := range []struct{ name, carryTip, want string }{
+		{"no carried commits", "", " " + temp + "/legs/reconcile-pr-anthropic " + temp + "/legs/reconcile-pr-amazon"},
+		{"carried commits come last", "c3", " " + temp + "/legs/reconcile-pr-anthropic " + temp + "/legs/reconcile-pr-amazon " + temp + "/carry"},
+	} {
+		cmd := exec.CommandContext(t.Context(), "bash", "-eo", "pipefail", "-c", step.Run) //nolint:gosec // the workflow's own step
+		cmd.Dir = t.TempDir()
 
-	cmd.Env = append(os.Environ(), "RUNNER_TEMP="+temp, "NEEDS="+needs, `RUN=["anthropic","openai","google","amazon"]`,
-		"GITHUB_STEP_SUMMARY="+filepath.Join(temp, "summary"))
+		cmd.Env = append(os.Environ(), "RUNNER_TEMP="+temp, "NEEDS="+needs, `RUN=["anthropic","openai","google","amazon"]`,
+			"CARRY_TIP="+tt.carryTip, "GITHUB_STEP_SUMMARY="+filepath.Join(temp, "summary"))
 
-	out, err := cmd.CombinedOutput()
-	require.NoError(t, err, "%s", out)
+		out, err := cmd.CombinedOutput()
+		require.NoError(t, err, "%s: %s", tt.name, out)
 
-	raw, err := os.ReadFile(args)
-	require.NoError(t, err)
-	assert.Equal(t, "-out out/probe "+temp+"/legs/reconcile-pr-anthropic "+temp+"/legs/reconcile-pr-amazon\n", string(raw))
+		raw, err := os.ReadFile(args)
+		require.NoError(t, err)
+		assert.Equal(t, "-out out/probe"+tt.want+"\n", string(raw), tt.name)
+	}
 }
 
-// TestPRBodyGetsLiveChecks checks that the pr job hands the probe job's
-// block to combine.sh, downloaded before the body is put together; how the
-// block shows is TestCombineBuildsThePRFromTheVendors' and catalog-report's.
+// TestPRBodyGetsLiveChecks checks that the pr job hands this attempt's
+// probe block to combine.sh, downloaded before the body is put together,
+// and that a probe job that failed or left nothing never stops the PR; how
+// the block shows is TestCombineBuildsThePRFromTheVendors' and
+// catalog-report's.
 func TestPRBodyGetsLiveChecks(t *testing.T) {
 	t.Parallel()
 
@@ -2576,4 +2584,28 @@ func TestPRBodyGetsLiveChecks(t *testing.T) {
 	assert.Less(t, download, combine)
 	assert.Equal(t, "${{ runner.temp }}/probe/probes.md", steps[combine].Env["LIVE_CHECKS"])
 	assert.Equal(t, "${{ runner.temp }}/probe", steps[download].With["path"])
+	// A re-run would find an earlier attempt's block, so only this attempt's
+	// probe job counts; a missing block never fails the job.
+	assert.Contains(t, steps[download].If, "needs.probe.result == 'success'")
+	assert.Equal(t, true, steps[download].ContinueOnError, "a failed probe job must not stop the PR")
+}
+
+// TestCarryLeavesItsCatalogues checks that the carry job saves the catalogue
+// just before and just after it carries people's commits, and uploads both
+// as the folder the probe job reads, so a person's change to an offering is
+// called before the PR updates.
+func TestCarryLeavesItsCatalogues(t *testing.T) {
+	t.Parallel()
+
+	steps := readJob(t, runWorkflow, "carry").Steps
+	run := steps[stepIndex(t, steps, "carry", func(s workflowStep) bool { return s.ID == "carry" })].Run
+
+	before := strings.Index(run, `cp catalog/snapshot.json "$RUNNER_TEMP/carry/base-snapshot.json"`)
+	carry := strings.Index(run, ".github/reconcile-models/carry.sh")
+	after := strings.Index(run, `cp catalog/snapshot.json "$RUNNER_TEMP/carry/snapshot.json"`)
+
+	assert.True(t, before >= 0 && before < carry && carry < after, "the catalogue must be saved before and after carry.sh")
+
+	upload := steps[stepIndex(t, steps, "upload", func(s workflowStep) bool { return s.With["name"] == "reconcile-carry" })]
+	assert.Equal(t, "${{ runner.temp }}/carry/", upload.With["path"])
 }

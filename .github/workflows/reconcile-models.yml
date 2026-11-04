@@ -292,7 +292,11 @@ jobs:
           bot_id="$(gh api users/vbotbuildovich --jq .id)"
           export GIT_COMMITTER_NAME=vbotbuildovich GIT_COMMITTER_EMAIL="${bot_id}+vbotbuildovich@users.noreply.github.com"
           mapfile -t commits < <(jq -r '.[]' <<<"$CARRY")
+          # The catalogue before and after people's commits, for the probe job.
+          mkdir -p "$RUNNER_TEMP/carry"
+          cp catalog/snapshot.json "$RUNNER_TEMP/carry/base-snapshot.json"
           GOTOOLCHAIN=local .github/reconcile-models/carry.sh "$RUNNER_TEMP/catalog-replay" "${commits[@]}"
+          cp catalog/snapshot.json "$RUNNER_TEMP/carry/snapshot.json"
           git bundle create "$RUNNER_TEMP/reconcile.bundle" HEAD "^${GITHUB_SHA}"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
@@ -301,13 +305,21 @@ jobs:
           if-no-files-found: error
           retention-days: 7
           overwrite: true
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: reconcile-carry
+          path: ${{ runner.temp }}/carry/
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: true
 
-  # No model. Calls each offering the vendors' commits add or change once
-  # on its host, with a tiny request, for the PR body's "Live checks": the
-  # only job with provider keys, so it runs the run's own code and reads
-  # the vendors' folders only as data. A call that fails never stops the PR.
+  # No model. Calls each offering the PR's commits add or change once on
+  # its host, with a tiny request, for the PR body's "Live checks": the only
+  # job with provider keys, so it runs the run's own code and reads the
+  # vendors' and the carry job's folders only as data. A call that fails
+  # never stops the PR.
   probe:
-    needs: [plan, anthropic, openai, google, amazon, meta, mistral]
+    needs: [plan, anthropic, openai, google, amazon, meta, mistral, carry]
     if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.stop != 'true' && contains(toJSON(needs.*.outputs.changed), 'true') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -354,6 +366,11 @@ jobs:
         with:
           pattern: reconcile-pr-*
           path: ${{ runner.temp }}/legs
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        if: needs.carry.outputs.tip != ''
+        with:
+          name: reconcile-carry
+          path: ${{ runner.temp }}/carry
       - name: Build catalog-probe
         run: |
           task install:go
@@ -368,7 +385,8 @@ jobs:
           role-to-assume: arn:aws:iam::502376765358:role/ai-sdk-go-ci-bedrock
           aws-region: us-east-1
       # The folder of each vendor whose change was checked and committed, as
-      # the carry job picks the vendors' commits.
+      # the carry job picks the vendors' commits, then the carry job's, whose
+      # catalogue is the PR's when it carried people's commits.
       - name: Call each new or changed offering (no model)
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -376,11 +394,13 @@ jobs:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           NEEDS: ${{ toJSON(needs) }}
           RUN: ${{ needs.plan.outputs.run }}
+          CARRY_TIP: ${{ needs.carry.outputs.tip }}
         run: |
           dirs=()
           for vendor in $(jq -r --argjson run "$RUN" '. as $needs | $run[] | select(($needs[.].outputs.head // "") != "" and $needs[.].outputs.changed == "true")' <<<"$NEEDS"); do
             dirs+=("$RUNNER_TEMP/legs/reconcile-pr-$vendor")
           done
+          if [[ -n "$CARRY_TIP" ]]; then dirs+=("$RUNNER_TEMP/carry"); fi
           "$RUNNER_TEMP/catalog-probe" -out out/probe "${dirs[@]}"
           cat out/probe/probes.md >>"$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
@@ -434,8 +454,10 @@ jobs:
         with:
           pattern: reconcile-bundle-*
           path: ${{ runner.temp }}/bundles
+      # Only this attempt's probe job's block: a re-run could find an
+      # earlier attempt's.
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
-        if: env.STOP != 'true'
+        if: env.STOP != 'true' && needs.probe.result == 'success'
         continue-on-error: true
         with:
           name: reconcile-probe

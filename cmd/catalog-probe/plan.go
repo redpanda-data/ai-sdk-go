@@ -70,18 +70,22 @@ var geoRegions = map[string]string{
 
 const bareRegion = "us-east-1"
 
-// maxCalls caps a run's calls, so a patch listing many offerings can spend
-// only a few cents of the keys' budget.
-const maxCalls = 50
+// maxProbes caps the offerings a run checks, so a patch listing many can
+// spend only a few cents of the keys' budget: each costs at most two model
+// calls, the second only when the first didn't work.
+const maxProbes = 50
 
-// plan lists the probes for the vendor legs' folders: each offering a
-// folder's snapshot.json adds or changes against its base-snapshot.json,
-// both written by pr-job.sh after its checks. Only data is read here, never
-// the vendors' code.
+// plan lists the probes for the folders, in the order their changes apply:
+// each vendor leg's, then the carry job's for people's commits. Each holds
+// its catalogue before and after (base-snapshot.json, snapshot.json), and
+// the probes are the offerings a folder adds or changes. The last folder's
+// catalogue is the PR's, so an offering a later folder removes isn't called,
+// and the rest are routed as they end up. Only data is read here, never the
+// commits' code.
 func plan(dirs []string) ([]Probe, error) {
-	seen := map[string]bool{}
+	type change struct{ base, patched reconcile.Snapshot }
 
-	var probes []Probe
+	changes := make([]change, 0, len(dirs))
 
 	for _, dir := range dirs {
 		base, err := readSnapshot(filepath.Join(dir, "base-snapshot.json"))
@@ -94,17 +98,30 @@ func plan(dirs []string) ([]Probe, error) {
 			return nil, err
 		}
 
+		changes = append(changes, change{base, patched})
+	}
+
+	if len(changes) == 0 {
+		return nil, nil
+	}
+
+	final := changes[len(changes)-1].patched
+	seen := map[string]bool{}
+
+	var probes []Probe
+
+	for _, c := range changes {
 		for pkg := range reconcile.PackageProviders {
-			for _, o := range patched.Offerings(pkg) {
+			for _, o := range c.patched.Offerings(pkg) {
 				id, _ := o["id"].(string)
-				if before, ok := base.Offering(pkg, id); ok && reflect.DeepEqual(reconcile.WithoutDerived(before), reconcile.WithoutDerived(o)) {
+				if before, ok := c.base.Offering(pkg, id); ok && reflect.DeepEqual(reconcile.WithoutDerived(before), reconcile.WithoutDerived(o)) {
 					continue
 				}
 
-				if key := pkg + " " + id; !seen[key] {
-					seen[key] = true
+				if latest, kept := final.Offering(pkg, id); kept && !seen[pkg+" "+id] {
+					seen[pkg+" "+id] = true
 
-					probes = append(probes, route(Probe{Provider: pkg, ID: id}, o))
+					probes = append(probes, route(Probe{Provider: pkg, ID: id}, latest))
 				}
 			}
 		}
@@ -119,8 +136,8 @@ func plan(dirs []string) ([]Probe, error) {
 			continue
 		}
 
-		if called++; called > maxCalls {
-			probes[i] = skip(p, fmt.Sprintf("over the run's cap of %d calls", maxCalls))
+		if called++; called > maxProbes {
+			probes[i] = skip(p, fmt.Sprintf("over the run's cap of %d offerings", maxProbes))
 		}
 	}
 

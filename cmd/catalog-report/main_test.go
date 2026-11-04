@@ -150,7 +150,7 @@ func TestMainReadsEachVendorsFolder(t *testing.T) {
 		{
 			name: "a probe job that left no block",
 			args: []string{"-vendor", "anthropic=" + anthropic, "-live-checks", filepath.Join(dir, "none.md")},
-			want: []string{"\n## Live checks\n\nThe probe job didn't finish, so nothing was called before this PR opened. Its log in this workflow run says why.\n\n## anthropic\n"},
+			want: []string{"\n## Live checks\n\nThe probe job didn't finish, so nothing was checked before this PR opened. Its log in this workflow run says why.\n\n## anthropic\n"},
 		},
 		{
 			name:    "a carried commit that doesn't start with a full SHA",

@@ -222,3 +222,25 @@ func TestBedrockInvokesOnlyAfterThePreCheck(t *testing.T) {
 		})
 	}
 }
+
+// TestShownKeepsOnlySafeValues: a host's request ID or error code goes into
+// the public PR body only as characters a report value may hold, at most 64
+// of them, and never as a URL; markup, table pipes and line breaks are
+// dropped.
+func TestShownKeepsOnlySafeValues(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct{ in, want string }{
+		{"404 not_found_error", "404 not_found_error"},
+		{"req|`x`", "reqx"},
+		{"<b>bold</b>", "bbold/b"},
+		{"line\nbreak", "linebreak"},
+		{"r\u00e9sum\u00e9", "rsum"},
+		{"see https://example.com", ""},
+		{strings.Repeat("a", 70), strings.Repeat("a", 64)},
+	}
+
+	for _, tc := range cases {
+		assert.Equal(t, tc.want, shown(tc.in), "shown(%q)", tc.in)
+	}
+}

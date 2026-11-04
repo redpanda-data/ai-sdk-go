@@ -143,11 +143,11 @@ func markdown(probes []Probe) string {
 	probes = slices.Clone(probes)
 	slices.SortStableFunc(probes, func(a, b Probe) int { return rank(a) - rank(b) })
 
-	called, failed := 0, 0
+	checked, failed := 0, 0
 
 	for _, p := range probes {
 		if p.Outcome != outcomeSkipped {
-			called++
+			checked++
 		}
 
 		if rank(p) == 0 {
@@ -158,19 +158,21 @@ func markdown(probes []Probe) string {
 	var b strings.Builder
 
 	b.WriteString("## Live checks\n\n")
-	b.WriteString("Before this PR opened, the run called each offering the PR adds or changes once on its host, with a tiny request. " +
-		"The calls ran the workflow's own code, not this PR's. A call that didn't work was tried a second time. " +
+	b.WriteString("Before this PR opened, the run checked each offering the PR adds or changes on its host, " +
+		"using the workflow's own code, not this PR's. A check is one tiny request; on Bedrock it first asks, read-only, " +
+		"whether the account subscribes to the model, and calls nothing if not. " +
+		"A check that didn't work was tried a second time, and skipped rows weren't checked. " +
 		"Read any row that didn't work before approving, because the PR opens either way.\n\n")
 
 	switch {
-	case called == 0:
-		b.WriteString("**Nothing was called.**\n\n")
-	case failed == 0 && called == 1:
-		b.WriteString("**The 1 call worked.**\n\n")
+	case checked == 0:
+		b.WriteString("**Nothing was checked.**\n\n")
+	case failed == 0 && checked == 1:
+		b.WriteString("**The 1 checked offering worked.**\n\n")
 	case failed == 0:
-		fmt.Fprintf(&b, "**All %d calls worked.**\n\n", called)
+		fmt.Fprintf(&b, "**All %d checked offerings worked.**\n\n", checked)
 	default:
-		fmt.Fprintf(&b, "**%d of %d calls didn't work.**\n\n", failed, called)
+		fmt.Fprintf(&b, "**%d of %d checked offerings didn't work.**\n\n", failed, checked)
 	}
 
 	b.WriteString("| Offering | Host | Result | Detail | Request ID |\n|---|---|---|---|---|\n")

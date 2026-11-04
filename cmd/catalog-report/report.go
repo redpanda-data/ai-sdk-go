@@ -406,8 +406,10 @@ type Base struct {
 	// Carried is each commit people pushed that the carry job carried onto
 	// the vendors' commits.
 	Carried []Commit
-	// LiveChecks is the probe job's "Live checks" block, which catalog-probe
-	// writes from IDs OfferingPattern accepts and values SafeValue accepts.
+	// LiveChecks is the probe job's "Live checks" block, rendered as it is.
+	// catalog-probe writes it in the probe job from IDs OfferingPattern
+	// accepts, hosts' values its shown() filtered to SafeValue, and its own
+	// fixed text.
 	LiveChecks string
 }
 

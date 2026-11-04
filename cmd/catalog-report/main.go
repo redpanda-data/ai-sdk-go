@@ -46,7 +46,7 @@ const maxBodyBytes = 64000
 
 // liveChecksMissing stands in for the probe job's block when the job left
 // none, so the body never reads as if every call worked.
-const liveChecksMissing = "## Live checks\n\nThe probe job didn't finish, so nothing was called before this PR opened. Its log in this workflow run says why.\n"
+const liveChecksMissing = "## Live checks\n\nThe probe job didn't finish, so nothing was checked before this PR opened. Its log in this workflow run says why.\n"
 
 // namedSource is one vendor's entry in named-sources.json: the packages its
 // run owns and the hosts its sources may cite.

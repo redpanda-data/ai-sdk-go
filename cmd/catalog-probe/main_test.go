@@ -103,9 +103,9 @@ func TestMarkdownShowsEachProbe(t *testing.T) {
 
 	assert.Equal(t, `## Live checks
 
-Before this PR opened, the run called each offering the PR adds or changes once on its host, with a tiny request. The calls ran the workflow's own code, not this PR's. A call that didn't work was tried a second time. Read any row that didn't work before approving, because the PR opens either way.
+Before this PR opened, the run checked each offering the PR adds or changes on its host, using the workflow's own code, not this PR's. A check is one tiny request; on Bedrock it first asks, read-only, whether the account subscribes to the model, and calls nothing if not. A check that didn't work was tried a second time, and skipped rows weren't checked. Read any row that didn't work before approving, because the PR opens either way.
 
-**2 of 3 calls didn't work.**
+**2 of 3 checked offerings didn't work.**
 
 | Offering | Host | Result | Detail | Request ID |
 |---|---|---|---|---|
@@ -116,8 +116,8 @@ Before this PR opened, the run called each offering the PR adds or changes once 
 | (not shown) | anthropic | skipped | its ID doesn't fit the offering pattern, so it isn't shown or called |  |
 `, block)
 
-	assert.Contains(t, markdown([]Probe{{Provider: "anthropic", ID: "claude-ok", Outcome: outcomeCallable, Detail: "200"}}), "**The 1 call worked.**")
-	assert.Contains(t, markdown([]Probe{{Provider: "vertex", ID: "claude-z", Outcome: outcomeSkipped, Detail: "no Vertex credentials in CI yet"}}), "**Nothing was called.**")
+	assert.Contains(t, markdown([]Probe{{Provider: "anthropic", ID: "claude-ok", Outcome: outcomeCallable, Detail: "200"}}), "**The 1 checked offering worked.**")
+	assert.Contains(t, markdown([]Probe{{Provider: "vertex", ID: "claude-z", Outcome: outcomeSkipped, Detail: "no Vertex credentials in CI yet"}}), "**Nothing was checked.**")
 }
 
 // TestWorkflowAllowsEveryHost: the probe job blocks every host off its

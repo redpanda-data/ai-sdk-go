@@ -191,13 +191,13 @@ func TestPlanRefusesIDsOutsideThePattern(t *testing.T) {
 	}, planned(probes))
 }
 
-// TestPlanCapsTheCalls: a run calls at most maxCalls offerings, so a patch
-// that lists many can't spend much; the rest are listed as skipped.
+// TestPlanCapsTheCalls: a run checks at most maxProbes offerings, so a
+// patch that lists many can't spend much; the rest are listed as skipped.
 func TestPlanCapsTheCalls(t *testing.T) {
 	t.Parallel()
 
-	many := make([]map[string]any, 0, maxCalls+3)
-	for i := range maxCalls + 2 {
+	many := make([]map[string]any, 0, maxProbes+3)
+	for i := range maxProbes + 2 {
 		many = append(many, offering(fmt.Sprintf("claude-%03d", i), "anthropic_messages/direct"))
 	}
 
@@ -207,10 +207,32 @@ func TestPlanCapsTheCalls(t *testing.T) {
 	require.NoError(t, err)
 
 	lines := planned(probes)
-	assert.Equal(t, "anthropic claude-049 via anthropic_messages", lines[maxCalls-1])
+	assert.Equal(t, "anthropic claude-049 via anthropic_messages", lines[maxProbes-1])
 	assert.Equal(t, []string{
-		"anthropic claude-050 skipped: over the run's cap of 50 calls",
-		"anthropic claude-051 skipped: over the run's cap of 50 calls",
+		"anthropic claude-050 skipped: over the run's cap of 50 offerings",
+		"anthropic claude-051 skipped: over the run's cap of 50 offerings",
 		"anthropic claude-vertex-only skipped: no request for its wire APIs yet",
-	}, lines[maxCalls:])
+	}, lines[maxProbes:])
+}
+
+// TestPlanCallsWhatThePRHoldsInTheEnd: the last folder's catalogue is the
+// PR's, so an offering a later folder removes isn't called, and one it
+// changes again is routed as it ends up. Example: a person's commit,
+// carried after the vendors' (the carry job's folder comes last), fixes a
+// wrong ID the agent's commit added; only the fixed ID is called.
+func TestPlanCallsWhatThePRHoldsInTheEnd(t *testing.T) {
+	t.Parallel()
+
+	const messages = "anthropic_messages/direct"
+
+	agent := offerings{"anthropic": {offering("claude-wrong", messages), offering("claude-kept", "anthropic_messages/vertex")}}
+	carried := offerings{"anthropic": {offering("claude-right", messages), offering("claude-kept", messages)}}
+
+	probes, err := plan([]string{vendorDir(t, offerings{}, agent), vendorDir(t, agent, carried)})
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{
+		"anthropic claude-kept via anthropic_messages",
+		"anthropic claude-right via anthropic_messages",
+	}, planned(probes))
 }
