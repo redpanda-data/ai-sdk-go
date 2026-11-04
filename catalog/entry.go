@@ -61,6 +61,17 @@ type Entry struct {
 	// not select the SDK's runtime transport.
 	WireAPIs []WireAPI
 
+	// TokenCounting is the set of protocol/transport pairs on which the
+	// provider counts this offering's input tokens without running the
+	// model, sorted like WireAPIs. The protocol names the request shape
+	// the count accepts. Empty means unknown, not unsupported. It is not a
+	// subset of WireAPIs: a provider can count tokens on a transport that
+	// does not serve inference for this offering ID. The counting endpoint
+	// can also expect a different model ID. Bedrock Mantle takes the base
+	// model ID, not the inference profile ID, and the catalog does not
+	// record which ID an endpoint expects.
+	TokenCounting []WireAPI
+
 	// Modalities lists input/output content kinds. Empty normalizes to
 	// text-only.
 	Modalities Modalities

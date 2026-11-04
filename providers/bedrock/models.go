@@ -880,6 +880,26 @@ var (
 		{Protocol: catalog.WireProtocolAnthropicMessages, Transport: catalog.WireTransportBedrockRuntime},
 		{Protocol: catalog.WireProtocolBedrockConverse, Transport: catalog.WireTransportBedrockRuntime},
 	}
+	// Each Claude model card's "Bedrock Features" tables say whether Count
+	// tokens works on bedrock-runtime, bedrock-mantle or both, for example
+	// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-5.html
+	// Mantle counts with Anthropic's count_tokens at
+	// /anthropic/v1/messages/count_tokens and takes the base model ID:
+	// https://docs.aws.amazon.com/bedrock/latest/userguide/count-tokens.html#count-tokens-mantle
+	claudeMantleTokenCounting = []catalog.WireAPI{
+		{Protocol: catalog.WireProtocolAnthropicMessages, Transport: catalog.WireTransportBedrockMantle},
+	}
+	// Runtime CountTokens takes either an InvokeModel body or a Converse
+	// input: https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_CountTokens.html
+	claudeRuntimeTokenCounting = []catalog.WireAPI{
+		{Protocol: catalog.WireProtocolAnthropicMessages, Transport: catalog.WireTransportBedrockInvokeModel},
+		{Protocol: catalog.WireProtocolBedrockConverse, Transport: catalog.WireTransportBedrockRuntime},
+	}
+	claudeRuntimeAndMantleTokenCounting = []catalog.WireAPI{
+		{Protocol: catalog.WireProtocolAnthropicMessages, Transport: catalog.WireTransportBedrockInvokeModel},
+		{Protocol: catalog.WireProtocolAnthropicMessages, Transport: catalog.WireTransportBedrockMantle},
+		{Protocol: catalog.WireProtocolBedrockConverse, Transport: catalog.WireTransportBedrockRuntime},
+	}
 	converseWireAPIs = []catalog.WireAPI{
 		{Protocol: catalog.WireProtocolBedrockConverse, Transport: catalog.WireTransportBedrockRuntime},
 	}
@@ -928,6 +948,7 @@ var bedrockFamilies = []family{
 		// first-party rate), not the 0.10x the other Claude families use.
 		BareID:         ModelClaudeFable51,
 		WireAPIs:       claudeMessagesWireAPIs,
+		TokenCounting:  claudeMantleTokenCounting,
 		Model:          catalog.ModelClaudeFable51,
 		DisplayName:    "Claude Fable 5.1",
 		Profiles:       []string{"global", "us"},
@@ -947,17 +968,20 @@ var bedrockFamilies = []family{
 		WireAPIs: claudeMessagesWireAPIs,
 		// The current card publishes no EU profile; its wire support is unknown:
 		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-fable-5.html
-		WireAPIsByID: map[string][]catalog.WireAPI{ModelClaudeFable5EU: nil},
-		Model:        catalog.ModelClaudeFable5,
-		DisplayName:  "Claude Fable 5",
-		Profiles:     []string{"global", "us", "eu"},
-		DataSharing:  true,
-		Capabilities: claudeStandardCaps,
-		Modalities:   claudeModalities,
-		Constraints:  claudeNoSampling1MConstraints,
-		Reasoning:    frontierClaudeThinking,
-		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(10.00, 50.00, 1.00).WithCacheCreation(12.50, 20.00, 0)},
-		Rates:        pricing.RateCard{Base: pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(13.75, 22.00, 0)},
+		WireAPIsByID:  map[string][]catalog.WireAPI{ModelClaudeFable5EU: nil},
+		TokenCounting: claudeMantleTokenCounting,
+		// The same card is silent on EU token counting, so it stays unknown.
+		TokenCountingByID: map[string][]catalog.WireAPI{ModelClaudeFable5EU: nil},
+		Model:             catalog.ModelClaudeFable5,
+		DisplayName:       "Claude Fable 5",
+		Profiles:          []string{"global", "us", "eu"},
+		DataSharing:       true,
+		Capabilities:      claudeStandardCaps,
+		Modalities:        claudeModalities,
+		Constraints:       claudeNoSampling1MConstraints,
+		Reasoning:         frontierClaudeThinking,
+		GlobalRates:       &pricing.RateCard{Base: pricing.NewRates(10.00, 50.00, 1.00).WithCacheCreation(12.50, 20.00, 0)},
+		Rates:             pricing.RateCard{Base: pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(13.75, 22.00, 0)},
 	},
 	{
 		// Claude Opus 5.5 — inference-profile-only on bedrock-runtime. AWS
@@ -968,6 +992,7 @@ var bedrockFamilies = []family{
 		// offered on Bedrock.
 		BareID:         ModelClaudeOpus55,
 		WireAPIs:       claudeMessagesWireAPIs,
+		TokenCounting:  claudeMantleTokenCounting,
 		Model:          catalog.ModelClaudeOpus55,
 		DisplayName:    "Claude Opus 5.5",
 		Profiles:       []string{"global", "us", "eu", "au", "jp"},
@@ -983,17 +1008,18 @@ var bedrockFamilies = []family{
 		// Claude Opus 5 — inference-profile-only on bedrock-runtime. AWS
 		// publishes global, US, EU, and AU profiles:
 		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-5.html
-		BareID:       ModelClaudeOpus5,
-		WireAPIs:     claudeMessagesWireAPIs,
-		Model:        catalog.ModelClaudeOpus5,
-		DisplayName:  "Claude Opus 5",
-		Profiles:     []string{"global", "us", "eu", "au"},
-		Capabilities: claudeStandardCaps,
-		Modalities:   claudeModalities,
-		Constraints:  claudeNoSampling1MConstraints,
-		Reasoning:    frontierClaudeThinking,
-		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0)},
-		Rates:        pricing.RateCard{Base: pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0)},
+		BareID:        ModelClaudeOpus5,
+		WireAPIs:      claudeMessagesWireAPIs,
+		TokenCounting: claudeMantleTokenCounting,
+		Model:         catalog.ModelClaudeOpus5,
+		DisplayName:   "Claude Opus 5",
+		Profiles:      []string{"global", "us", "eu", "au"},
+		Capabilities:  claudeStandardCaps,
+		Modalities:    claudeModalities,
+		Constraints:   claudeNoSampling1MConstraints,
+		Reasoning:     frontierClaudeThinking,
+		GlobalRates:   &pricing.RateCard{Base: pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0)},
+		Rates:         pricing.RateCard{Base: pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0)},
 		// Opus 5 opts into exact geo routing (AU is Sydney/Melbourne only).
 		ProfileRegions: claudeOpus5ProfileRegions,
 	},
@@ -1002,61 +1028,65 @@ var bedrockFamilies = []family{
 		// eu, jp and au; the card's us-gov profile is not an offered region
 		// (read 2026-10-26):
 		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-4-8.html
-		BareID:       ModelClaudeOpus48,
-		WireAPIs:     claudeMessagesWireAPIs,
-		Model:        catalog.ModelClaudeOpus48,
-		DisplayName:  "Claude Opus 4.8",
-		Profiles:     []string{"global", "us", "eu", "jp", "au"},
-		Capabilities: claudeStandardCaps,
-		Modalities:   claudeModalities,
-		Constraints:  claudeNoSampling1MConstraints,
-		Reasoning:    frontierClaudeThinking,
-		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0)},
-		Rates:        pricing.RateCard{Base: pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0)},
+		BareID:        ModelClaudeOpus48,
+		WireAPIs:      claudeMessagesWireAPIs,
+		TokenCounting: claudeMantleTokenCounting,
+		Model:         catalog.ModelClaudeOpus48,
+		DisplayName:   "Claude Opus 4.8",
+		Profiles:      []string{"global", "us", "eu", "jp", "au"},
+		Capabilities:  claudeStandardCaps,
+		Modalities:    claudeModalities,
+		Constraints:   claudeNoSampling1MConstraints,
+		Reasoning:     frontierClaudeThinking,
+		GlobalRates:   &pricing.RateCard{Base: pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0)},
+		Rates:         pricing.RateCard{Base: pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0)},
 	},
 	{
 		// Claude Opus 4.7 — inference-profile-only. Geo profiles cover us,
 		// eu, jp and au (read 2026-10-26):
 		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-4-7.html
-		BareID:       ModelClaudeOpus47,
-		WireAPIs:     claudeMessagesWireAPIs,
-		Model:        catalog.ModelClaudeOpus47,
-		DisplayName:  "Claude Opus 4.7",
-		Profiles:     []string{"global", "us", "eu", "jp", "au"},
-		Capabilities: claudeStandardCaps,
-		Modalities:   claudeModalities,
-		Constraints:  claudeNoSampling1MConstraints,
-		Reasoning:    frontierClaudeThinking,
-		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0)},
-		Rates:        pricing.RateCard{Base: pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0)},
+		BareID:        ModelClaudeOpus47,
+		WireAPIs:      claudeMessagesWireAPIs,
+		TokenCounting: claudeMantleTokenCounting,
+		Model:         catalog.ModelClaudeOpus47,
+		DisplayName:   "Claude Opus 4.7",
+		Profiles:      []string{"global", "us", "eu", "jp", "au"},
+		Capabilities:  claudeStandardCaps,
+		Modalities:    claudeModalities,
+		Constraints:   claudeNoSampling1MConstraints,
+		Reasoning:     frontierClaudeThinking,
+		GlobalRates:   &pricing.RateCard{Base: pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0)},
+		Rates:         pricing.RateCard{Base: pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0)},
 	},
 	{
 		// Claude Opus 4.6 — inference-profile-only.
-		BareID:       ModelClaudeOpus46,
-		WireAPIs:     claudeInvokeWireAPIs,
-		Model:        catalog.ModelClaudeOpus46,
-		DisplayName:  "Claude Opus 4.6",
-		Profiles:     []string{"global", "us", "eu", "au"},
-		Capabilities: claudeStandardCaps,
-		Modalities:   claudeModalities,
-		Constraints:  claudeContext1MConstraints,
-		Reasoning:    claudeOpus46Thinking,
-		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0)},
-		Rates:        pricing.RateCard{Base: pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0)},
+		BareID:        ModelClaudeOpus46,
+		WireAPIs:      claudeInvokeWireAPIs,
+		TokenCounting: claudeRuntimeTokenCounting,
+		Model:         catalog.ModelClaudeOpus46,
+		DisplayName:   "Claude Opus 4.6",
+		Profiles:      []string{"global", "us", "eu", "au"},
+		Capabilities:  claudeStandardCaps,
+		Modalities:    claudeModalities,
+		Constraints:   claudeContext1MConstraints,
+		Reasoning:     claudeOpus46Thinking,
+		GlobalRates:   &pricing.RateCard{Base: pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0)},
+		Rates:         pricing.RateCard{Base: pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0)},
 	},
 	{
 		// Claude Opus 4.5 — inference-profile-only.
-		BareID:       ModelClaudeOpus45,
-		WireAPIs:     claudeInvokeWireAPIs,
-		Model:        catalog.ModelClaudeOpus45,
-		DisplayName:  "Claude Opus 4.5",
-		Profiles:     []string{"global", "us", "eu"},
-		Capabilities: claudeStandardCaps,
-		Modalities:   claudeModalities,
-		Constraints:  claudeContext200kConstraints,
-		Reasoning:    claude45Thinking,
-		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0)},
-		Rates:        pricing.RateCard{Base: pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0)},
+		BareID:        ModelClaudeOpus45,
+		WireAPIs:      claudeInvokeWireAPIs,
+		TokenCounting: claudeRuntimeTokenCounting,
+		Model:         catalog.ModelClaudeOpus45,
+		DisplayName:   "Claude Opus 4.5",
+		Profiles:      []string{"global", "us", "eu"},
+		Capabilities:  claudeStandardCaps,
+		Modalities:    claudeModalities,
+		Constraints:   claudeContext200kConstraints,
+		Reasoning:     claude45Thinking,
+		GlobalRates:   &pricing.RateCard{Base: pricing.NewRates(5.00, 25.00, 0.50).WithCacheCreation(6.25, 10.00, 0)},
+		Rates:         pricing.RateCard{Base: pricing.NewRates(5.50, 27.50, 0.55).WithCacheCreation(6.875, 11.00, 0)},
 	},
 	{
 		// Claude Sonnet 5.5 — inference-profile-only on bedrock-runtime. AWS
@@ -1070,6 +1100,7 @@ var bedrockFamilies = []family{
 		// https://aws.amazon.com/bedrock/pricing/
 		BareID:         ModelClaudeSonnet55,
 		WireAPIs:       claudeMessagesWireAPIs,
+		TokenCounting:  claudeMantleTokenCounting,
 		Model:          catalog.ModelClaudeSonnet55,
 		DisplayName:    "Claude Sonnet 5.5",
 		Profiles:       []string{"global", "us", "eu", "au"},
@@ -1086,15 +1117,16 @@ var bedrockFamilies = []family{
 		// global, US, EU, AU and India profiles (read 2026-10-26); India is not
 		// an offered region:
 		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-5.html
-		BareID:       ModelClaudeSonnet5,
-		WireAPIs:     claudeMessagesWireAPIs,
-		Model:        catalog.ModelClaudeSonnet5,
-		DisplayName:  "Claude Sonnet 5",
-		Profiles:     []string{"global", "us", "eu", "au"},
-		Capabilities: claudeStandardCaps,
-		Modalities:   claudeModalities,
-		Constraints:  claudeNoSampling1MConstraints,
-		Reasoning:    frontierClaudeThinking,
+		BareID:        ModelClaudeSonnet5,
+		WireAPIs:      claudeMessagesWireAPIs,
+		TokenCounting: claudeMantleTokenCounting,
+		Model:         catalog.ModelClaudeSonnet5,
+		DisplayName:   "Claude Sonnet 5",
+		Profiles:      []string{"global", "us", "eu", "au"},
+		Capabilities:  claudeStandardCaps,
+		Modalities:    claudeModalities,
+		Constraints:   claudeNoSampling1MConstraints,
+		Reasoning:     frontierClaudeThinking,
 		// $2/$10 is Sonnet 5's standard price: the increase to $3/$15 once
 		// scheduled for 2026-09-01 was cancelled.
 		GlobalRates: &pricing.RateCard{Base: pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(2.50, 4.00, 0)},
@@ -1105,30 +1137,32 @@ var bedrockFamilies = []family{
 		// Bedrock as well as the first-party API. The card adds a jp profile
 		// (read 2026-10-26):
 		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-4-6.html
-		BareID:       ModelClaudeSonnet46,
-		WireAPIs:     claudeInvokeWireAPIs,
-		Model:        catalog.ModelClaudeSonnet46,
-		DisplayName:  "Claude Sonnet 4.6",
-		Profiles:     []string{"global", "us", "eu", "au", "jp"},
-		Capabilities: claudeStandardCaps,
-		Modalities:   claudeModalities,
-		Constraints:  claudeSonnet46Constraints,
-		Reasoning:    claudeSonnet46Thinking,
-		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0)},
-		Rates:        pricing.RateCard{Base: pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0)},
+		BareID:        ModelClaudeSonnet46,
+		WireAPIs:      claudeInvokeWireAPIs,
+		TokenCounting: claudeRuntimeTokenCounting,
+		Model:         catalog.ModelClaudeSonnet46,
+		DisplayName:   "Claude Sonnet 4.6",
+		Profiles:      []string{"global", "us", "eu", "au", "jp"},
+		Capabilities:  claudeStandardCaps,
+		Modalities:    claudeModalities,
+		Constraints:   claudeSonnet46Constraints,
+		Reasoning:     claudeSonnet46Thinking,
+		GlobalRates:   &pricing.RateCard{Base: pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0)},
+		Rates:         pricing.RateCard{Base: pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0)},
 	},
 	{
 		// Claude Sonnet 4.5 — inference-profile-only; the widest geo
 		// coverage of the Claude 4.x line.
-		BareID:       ModelClaudeSonnet45,
-		WireAPIs:     claudeInvokeWireAPIs,
-		Model:        catalog.ModelClaudeSonnet45,
-		DisplayName:  "Claude Sonnet 4.5",
-		Profiles:     []string{"global", "us", "eu", "au", "jp"},
-		Capabilities: claudeStandardCaps,
-		Modalities:   claudeModalities,
-		Constraints:  claudeContext200kConstraints,
-		Reasoning:    claude45Thinking,
+		BareID:        ModelClaudeSonnet45,
+		WireAPIs:      claudeInvokeWireAPIs,
+		TokenCounting: claudeRuntimeTokenCounting,
+		Model:         catalog.ModelClaudeSonnet45,
+		DisplayName:   "Claude Sonnet 4.5",
+		Profiles:      []string{"global", "us", "eu", "au", "jp"},
+		Capabilities:  claudeStandardCaps,
+		Modalities:    claudeModalities,
+		Constraints:   claudeContext200kConstraints,
+		Reasoning:     claude45Thinking,
 		// Legacy date and EOL date from
 		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html
 		// (read 2026-10-26). AWS names no replacement; claude-sonnet-5-5 is
@@ -1150,15 +1184,16 @@ var bedrockFamilies = []family{
 		// Anthropic, AWS prices it in two tiers, but labels the higher one
 		// only "long-context" without a threshold; the bracket assumes
 		// Anthropic's 100,000-token boundary (unprobed).
-		BareID:       ModelClaudeHaiku55,
-		WireAPIs:     claudeMessagesWireAPIs,
-		Model:        catalog.ModelClaudeHaiku55,
-		DisplayName:  "Claude Haiku 5.5",
-		Profiles:     []string{"global", "us", "eu", "au", "jp"},
-		Capabilities: claudeStandardCaps,
-		Modalities:   claudeModalities,
-		Constraints:  claudeNoSampling1MConstraints,
-		Reasoning:    frontierClaudeThinking,
+		BareID:        ModelClaudeHaiku55,
+		WireAPIs:      claudeMessagesWireAPIs,
+		TokenCounting: claudeMantleTokenCounting,
+		Model:         catalog.ModelClaudeHaiku55,
+		DisplayName:   "Claude Haiku 5.5",
+		Profiles:      []string{"global", "us", "eu", "au", "jp"},
+		Capabilities:  claudeStandardCaps,
+		Modalities:    claudeModalities,
+		Constraints:   claudeNoSampling1MConstraints,
+		Reasoning:     frontierClaudeThinking,
 		GlobalRates: &pricing.RateCard{
 			Base: pricing.NewRates(0.10, 0.50, 0.01).WithCacheCreation(0.125, 0.20, 0),
 			Brackets: []pricing.Bracket{{
@@ -1179,17 +1214,18 @@ var bedrockFamilies = []family{
 		// Claude Haiku 4.5 — inference-profile-only. The card adds jp and
 		// India profiles (read 2026-10-26); India is not an offered region:
 		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-haiku-4-5.html
-		BareID:       ModelClaudeHaiku45,
-		WireAPIs:     claudeMessagesWireAPIs,
-		Model:        catalog.ModelClaudeHaiku45,
-		DisplayName:  "Claude Haiku 4.5",
-		Profiles:     []string{"global", "us", "eu", "au", "jp"},
-		Capabilities: claudeStandardCaps,
-		Modalities:   claudeModalities,
-		Constraints:  claudeContext200kConstraints,
-		Reasoning:    claude45Thinking,
-		GlobalRates:  &pricing.RateCard{Base: pricing.NewRates(1.00, 5.00, 0.10).WithCacheCreation(1.25, 2.00, 0)},
-		Rates:        pricing.RateCard{Base: pricing.NewRates(1.10, 5.50, 0.11).WithCacheCreation(1.375, 2.20, 0)},
+		BareID:        ModelClaudeHaiku45,
+		WireAPIs:      claudeMessagesWireAPIs,
+		TokenCounting: claudeRuntimeAndMantleTokenCounting,
+		Model:         catalog.ModelClaudeHaiku45,
+		DisplayName:   "Claude Haiku 4.5",
+		Profiles:      []string{"global", "us", "eu", "au", "jp"},
+		Capabilities:  claudeStandardCaps,
+		Modalities:    claudeModalities,
+		Constraints:   claudeContext200kConstraints,
+		Reasoning:     claude45Thinking,
+		GlobalRates:   &pricing.RateCard{Base: pricing.NewRates(1.00, 5.00, 0.10).WithCacheCreation(1.25, 2.00, 0)},
+		Rates:         pricing.RateCard{Base: pricing.NewRates(1.10, 5.50, 0.11).WithCacheCreation(1.375, 2.20, 0)},
 	},
 	{
 		// Amazon Nova 2 Lite. Cache WRITE is free (the AWS price list

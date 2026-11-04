@@ -76,6 +76,11 @@ type family struct {
 	// It drives request validation and discoverable catalog metadata.
 	NoStreamingSchema bool
 
+	// TokenCounting is catalog.Entry.TokenCounting for every variant.
+	// TokenCountingByID replaces it for the named registered offerings.
+	TokenCounting     []catalog.WireAPI
+	TokenCountingByID map[string][]catalog.WireAPI
+
 	WireAPIs     []catalog.WireAPI
 	WireAPIsByID map[string][]catalog.WireAPI
 	Capabilities llm.ModelCapabilities
@@ -152,16 +157,8 @@ func expandFamilies(families []family) ([]catalog.Entry, map[string]bool) {
 			panic(fmt.Sprintf("bedrock: family %s must set GlobalRates exactly when the global profile is published", f.BareID)) //nolint:forbidigo // authoring error, not runtime
 		}
 
-		for id := range f.WireAPIsByID {
-			registered := f.BareInvokable && id == f.BareID
-			for _, profile := range f.Profiles {
-				registered = registered || id == profile+"."+f.BareID
-			}
-
-			if !registered {
-				panic(fmt.Sprintf("bedrock: family %s overrides WireAPIs for unregistered offering %s", f.BareID, id)) //nolint:forbidigo // authoring error, not runtime
-			}
-		}
+		requireRegisteredOverrides(f, "WireAPIs", f.WireAPIsByID)
+		requireRegisteredOverrides(f, "TokenCounting", f.TokenCountingByID)
 
 		if !hasGlobal && len(f.GlobalOverrides) > 0 {
 			panic(fmt.Sprintf("bedrock: family %s sets GlobalOverrides without the global profile", f.BareID)) //nolint:forbidigo // authoring error, not runtime
@@ -190,23 +187,19 @@ func expandFamilies(families []family) ([]catalog.Entry, map[string]bool) {
 				}
 			}
 
-			wireAPIs := f.WireAPIs
-			if override, ok := f.WireAPIsByID[id]; ok {
-				wireAPIs = override
-			}
-
 			return catalog.Entry{
-				ID:           id,
-				WireAPIs:     slices.Clone(wireAPIs),
-				Model:        f.Model,
-				DisplayName:  f.DisplayName + labelSuffix,
-				Capabilities: f.Capabilities,
-				Constraints:  f.Constraints,
-				Modalities:   f.Modalities,
-				Reasoning:    f.Reasoning,
-				Life:         f.Life,
-				Pricing:      rateInfo(rates, overrides),
-				Attributes:   attrs,
+				ID:            id,
+				WireAPIs:      variantWireAPIs(f.WireAPIs, f.WireAPIsByID, id),
+				TokenCounting: variantWireAPIs(f.TokenCounting, f.TokenCountingByID, id),
+				Model:         f.Model,
+				DisplayName:   f.DisplayName + labelSuffix,
+				Capabilities:  f.Capabilities,
+				Constraints:   f.Constraints,
+				Modalities:    f.Modalities,
+				Reasoning:     f.Reasoning,
+				Life:          f.Life,
+				Pricing:       rateInfo(rates, overrides),
+				Attributes:    attrs,
 			}
 		}
 
@@ -286,4 +279,29 @@ func buildMantleRegions(families []family) map[string]map[string]bool {
 	}
 
 	return regions
+}
+
+// requireRegisteredOverrides panics when byID names an offering the family
+// does not register.
+func requireRegisteredOverrides(f family, field string, byID map[string][]catalog.WireAPI) {
+	for id := range byID {
+		registered := f.BareInvokable && id == f.BareID
+		for _, profile := range f.Profiles {
+			registered = registered || id == profile+"."+f.BareID
+		}
+
+		if !registered {
+			panic(fmt.Sprintf("bedrock: family %s overrides %s for unregistered offering %s", f.BareID, field, id)) //nolint:forbidigo // authoring error, not runtime
+		}
+	}
+}
+
+// variantWireAPIs returns a copy of the offering's override when byID has
+// one, and of the family-wide set otherwise.
+func variantWireAPIs(base []catalog.WireAPI, byID map[string][]catalog.WireAPI, id string) []catalog.WireAPI {
+	if override, ok := byID[id]; ok {
+		return slices.Clone(override)
+	}
+
+	return slices.Clone(base)
 }

@@ -65,7 +65,8 @@ func compareWireAPIs(a, b WireAPI) int {
 	return cmp.Compare(a.Transport, b.Transport)
 }
 
-func validateWireAPIs(apis []WireAPI, fail func(string, ...any)) {
+// validateWireAPIs checks one WireAPI set; field names it in error messages.
+func validateWireAPIs(field string, apis []WireAPI, fail func(string, ...any)) {
 	seen := make(map[WireAPI]struct{}, len(apis))
 
 	for i, api := range apis {
@@ -74,18 +75,18 @@ func validateWireAPIs(apis []WireAPI, fail func(string, ...any)) {
 			WireProtocolAnthropicMessages, WireProtocolGeminiGenerateContent,
 			WireProtocolBedrockConverse:
 		default:
-			fail("WireAPIs[%d].Protocol %q is not a valid wire protocol", i, api.Protocol)
+			fail("%s[%d].Protocol %q is not a valid wire protocol", field, i, api.Protocol)
 		}
 
 		switch api.Transport {
 		case WireTransportDirect, WireTransportBedrockRuntime, WireTransportBedrockInvokeModel,
 			WireTransportBedrockMantle, WireTransportVertex:
 		default:
-			fail("WireAPIs[%d].Transport %q is not a valid wire transport", i, api.Transport)
+			fail("%s[%d].Transport %q is not a valid wire transport", field, i, api.Transport)
 		}
 
 		if _, duplicate := seen[api]; duplicate {
-			fail("WireAPIs[%d] duplicates protocol %q and transport %q", i, api.Protocol, api.Transport)
+			fail("%s[%d] duplicates protocol %q and transport %q", field, i, api.Protocol, api.Transport)
 		}
 
 		seen[api] = struct{}{}

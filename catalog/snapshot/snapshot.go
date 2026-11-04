@@ -107,12 +107,13 @@ func Encode(w io.Writer, catalogs ...*catalog.Catalog) error {
 			}
 
 			prov.Offerings = append(prov.Offerings, offeringDTO{
-				ID:           o.ID,
-				Model:        string(o.Model),
-				DisplayName:  o.DisplayName,
-				Aliases:      o.Aliases,
-				WireAPIs:     wireAPIsDTO(o.WireAPIs),
-				Capabilities: capabilitiesDTO(o.Capabilities),
+				ID:            o.ID,
+				Model:         string(o.Model),
+				DisplayName:   o.DisplayName,
+				Aliases:       o.Aliases,
+				WireAPIs:      wireAPIsDTO(o.WireAPIs),
+				TokenCounting: wireAPIsDTO(o.TokenCounting),
+				Capabilities:  capabilitiesDTO(o.Capabilities),
 				Constraints: constraintsDTO{
 					MaxInputTokens:    o.Constraints.MaxInputTokens,
 					MaxOutputTokens:   o.Constraints.MaxOutputTokens,
@@ -190,20 +191,21 @@ type providerDTO struct {
 }
 
 type offeringDTO struct {
-	ID           string          `json:"id"`
-	Model        string          `json:"model"`
-	DisplayName  string          `json:"display_name"`
-	Aliases      []string        `json:"aliases,omitempty"`
-	WireAPIs     []wireAPIDTO    `json:"wire_apis,omitempty"`
-	Capabilities map[string]bool `json:"capabilities"`
-	Constraints  constraintsDTO  `json:"constraints"`
-	Modalities   modalitiesDTO   `json:"modalities"`
-	Reasoning    reasoningDTO    `json:"reasoning"`
-	Speeds       []llm.Speed     `json:"speeds,omitempty"`
-	Pricing      pricingDTO      `json:"pricing"`
-	Lifecycle    lifecycleDTO    `json:"lifecycle"`
-	Attributes   []attributeDTO  `json:"attributes,omitempty"`
-	Derived      derivedDTO      `json:"derived"`
+	ID            string          `json:"id"`
+	Model         string          `json:"model"`
+	DisplayName   string          `json:"display_name"`
+	Aliases       []string        `json:"aliases,omitempty"`
+	WireAPIs      []wireAPIDTO    `json:"wire_apis,omitempty"`
+	TokenCounting []wireAPIDTO    `json:"token_counting,omitempty"`
+	Capabilities  map[string]bool `json:"capabilities"`
+	Constraints   constraintsDTO  `json:"constraints"`
+	Modalities    modalitiesDTO   `json:"modalities"`
+	Reasoning     reasoningDTO    `json:"reasoning"`
+	Speeds        []llm.Speed     `json:"speeds,omitempty"`
+	Pricing       pricingDTO      `json:"pricing"`
+	Lifecycle     lifecycleDTO    `json:"lifecycle"`
+	Attributes    []attributeDTO  `json:"attributes,omitempty"`
+	Derived       derivedDTO      `json:"derived"`
 }
 
 type wireAPIDTO struct {

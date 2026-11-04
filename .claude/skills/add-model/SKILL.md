@@ -90,6 +90,13 @@ Exported ID constant (greppable), capabilities, constraints, modalities,
   is a set, not a preference order; catalog construction sorts and copies it.
   No endpoint URLs, credentials, regions, or model-ID remapping belong in
   this field.
+- **`TokenCounting` lists the pairs on which the host counts input tokens
+  without running the model.** Set it only from a page that names the model:
+  Anthropic's token-counting page, Google's Claude count-tokens page for
+  Vertex, or the "Count tokens" row in each Bedrock card's feature tables
+  (runtime CountTokens takes an InvokeModel body or a Converse input, and
+  Mantle takes Anthropic's `count_tokens` shape). It is independent of
+  `WireAPIs`, and an empty list means unknown.
 - **Capabilities and modalities** follow capability-follow.
 - **`Constraints.MaxInputTokens` and `MaxOutputTokens`** follow
   limit-follow. OpenAI's GPT-5 caps input at 272K within its 400K window,

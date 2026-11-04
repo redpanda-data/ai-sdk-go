@@ -67,6 +67,14 @@
 // or an SDK implementation. The metadata neither selects a runtime route
 // nor changes the offering ID. Set ordering is deterministic, not a preference.
 //
+// Entry.TokenCounting uses the same pairs for a narrower fact: the
+// provider counts input tokens for that offering on that protocol and
+// transport without running the model, as Anthropic's count_tokens,
+// Bedrock's CountTokens and Vertex's count-tokens endpoint do. A consumer
+// that must count before it sends picks an offering and a route from this
+// set. Empty means unknown, never unsupported. Region, quota, and the model
+// ID the counting endpoint expects are not recorded.
+//
 // # Derive, never store
 //
 // Anything that is a function of the rest of the catalog is computed at

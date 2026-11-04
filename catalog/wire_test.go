@@ -16,6 +16,7 @@ package catalog
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -61,16 +62,24 @@ func TestWireAPIsValidation(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	// TokenCounting shares the WireAPI vocabulary and its checks.
+	fields := map[string]func(*Entry, []WireAPI){
+		"WireAPIs":      func(e *Entry, apis []WireAPI) { e.WireAPIs = apis },
+		"TokenCounting": func(e *Entry, apis []WireAPI) { e.TokenCounting = apis },
+	}
 
-			e := validEntry("robin-2", "acme/robin-2")
-			e.WireAPIs = tt.apis
-			_, err := New("acme", []Entry{e}, WithRegistry(testRegistry()))
-			require.ErrorContains(t, err, tt.want)
-			require.ErrorContains(t, err, `catalog: acme: entries[0] "robin-2":`)
-		})
+	for field, set := range fields {
+		for _, tt := range tests {
+			t.Run(field+"/"+tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				e := validEntry("robin-2", "acme/robin-2")
+				set(&e, tt.apis)
+				_, err := New("acme", []Entry{e}, WithRegistry(testRegistry()))
+				require.ErrorContains(t, err, strings.Replace(tt.want, "WireAPIs", field, 1))
+				require.ErrorContains(t, err, `catalog: acme: entries[0] "robin-2":`)
+			})
+		}
 	}
 }
 
