@@ -645,6 +645,14 @@ var (
 		Output: []catalog.Modality{catalog.ModalityText},
 	}
 
+	// Gemma 4 E2B also takes audio input: its card lists Audio as a
+	// supported input modality (Speech is not), unlike the 31B and
+	// 26B A4B cards (model-card-google-gemma-4-e2b.md, read 2026-11-04).
+	gemma4E2BModalities = catalog.Modalities{
+		Input:  []catalog.Modality{catalog.ModalityText, catalog.ModalityImage, catalog.ModalityVideo, catalog.ModalityAudio},
+		Output: []catalog.Modality{catalog.ModalityText},
+	}
+
 	gemma4Context256kConstraints = llm.ModelConstraints{
 		TemperatureRange: [2]float64{0.0, 2.0},
 		MaxInputTokens:   256000,
@@ -1131,7 +1139,7 @@ var bedrockFamilies = []family{
 			ReplacedBy: ModelClaudeSonnet55Global,
 		},
 		GlobalRates: &pricing.RateCard{Base: pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0)},
-		Rates:        pricing.RateCard{Base: pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0)},
+		Rates:       pricing.RateCard{Base: pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0)},
 	},
 	{
 		// Claude Haiku 5.5 — inference-profile-only on bedrock-runtime, with
@@ -1258,6 +1266,8 @@ var bedrockFamilies = []family{
 		Modalities:    gpt56Modalities,
 		Constraints:   gpt6AstraConstraints,
 		Reasoning:     converseReasoningNoControls,
+		// Model launch date on the card (read 2026-11-04).
+		Life: catalog.Lifecycle{Available: catalog.MustDate("2026-09-08")},
 		GlobalRates: &pricing.RateCard{
 			Base: pricing.NewRates(10.00, 50.00, 1.00).WithCacheCreation(0, 0, 12.50),
 			Brackets: []pricing.Bracket{{
@@ -1299,6 +1309,7 @@ var bedrockFamilies = []family{
 		Reasoning: catalog.ReasoningSupport{
 			Efforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 		},
+		Life: catalog.Lifecycle{Available: catalog.MustDate("2026-09-08")},
 		Rates: pricing.RateCard{
 			Base: pricing.NewRates(11.00, 55.00, 1.10).WithCacheCreation(0, 0, 13.75),
 			Brackets: []pricing.Bracket{{
@@ -1395,6 +1406,8 @@ var bedrockFamilies = []family{
 		Modalities:    gpt56Modalities,
 		Constraints:   gpt6AstraConstraints,
 		Reasoning:     converseReasoningNoControls,
+		// Model launch date on the card (read 2026-11-04).
+		Life: catalog.Lifecycle{Available: catalog.MustDate("2026-09-29")},
 		GlobalRates: &pricing.RateCard{
 			Base: pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(0, 0, 2.50),
 			Brackets: []pricing.Bracket{{
@@ -1430,6 +1443,7 @@ var bedrockFamilies = []family{
 		Reasoning: catalog.ReasoningSupport{
 			Efforts: []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 		},
+		Life: catalog.Lifecycle{Available: catalog.MustDate("2026-09-29")},
 		Rates: pricing.RateCard{
 			Base: pricing.NewRates(2.20, 11.00, 0.11).WithCacheCreation(0, 0, 2.75),
 			Brackets: []pricing.Bracket{{
@@ -1531,6 +1545,8 @@ var bedrockFamilies = []family{
 		Modalities:   gpt56Modalities,
 		Constraints:  gpt6AstraConstraints,
 		Reasoning:    converseReasoningNoControls,
+		// Model launch date on the card (read 2026-11-04).
+		Life: catalog.Lifecycle{Available: catalog.MustDate("2026-09-22")},
 		GlobalRates: &pricing.RateCard{
 			Base: pricing.NewRates(2.00, 10.00, 0.20).WithCacheCreation(0, 0, 2.50),
 			Brackets: []pricing.Bracket{{
@@ -1566,6 +1582,7 @@ var bedrockFamilies = []family{
 		Reasoning: catalog.ReasoningSupport{
 			Efforts: []ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 		},
+		Life: catalog.Lifecycle{Available: catalog.MustDate("2026-09-22")},
 		Rates: pricing.RateCard{
 			Base: pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(0, 0, 2.75),
 			Brackets: []pricing.Bracket{{
@@ -1598,10 +1615,12 @@ var bedrockFamilies = []family{
 		Profiles:       []string{"global", "us"},
 		ProfileRegions: gpt55ProfileRegions,
 		NoCachePoints:  true,
-		Capabilities:   gpt6AstraCaps,
-		Modalities:     gpt56Modalities,
-		Constraints:    gpt6AstraConstraints,
-		Reasoning:      converseReasoningNoControls,
+		// Model launch date on the card (read 2026-11-04).
+		Life:         catalog.Lifecycle{Available: catalog.MustDate("2026-06-01")},
+		Capabilities: gpt6AstraCaps,
+		Modalities:   gpt56Modalities,
+		Constraints:  gpt6AstraConstraints,
+		Reasoning:    converseReasoningNoControls,
 		GlobalRates: &pricing.RateCard{
 			Base: pricing.NewRates(5.00, 30.00, 0.50),
 			Brackets: []pricing.Bracket{{
@@ -1633,10 +1652,12 @@ var bedrockFamilies = []family{
 		Profiles:       []string{"global", "us"},
 		ProfileRegions: gpt55ProfileRegions,
 		NoCachePoints:  true,
-		Capabilities:   gpt6AstraCaps,
-		Modalities:     gpt56Modalities,
-		Constraints:    gpt6AstraConstraints,
-		Reasoning:      converseReasoningNoControls,
+		// Model launch date on the card (read 2026-11-04).
+		Life:         catalog.Lifecycle{Available: catalog.MustDate("2026-06-01")},
+		Capabilities: gpt6AstraCaps,
+		Modalities:   gpt56Modalities,
+		Constraints:  gpt6AstraConstraints,
+		Reasoning:    converseReasoningNoControls,
 		GlobalRates: &pricing.RateCard{
 			Base: pricing.NewRates(2.50, 15.00, 0.25),
 			Brackets: []pricing.Bracket{{
@@ -1671,6 +1692,8 @@ var bedrockFamilies = []family{
 		Modalities:    gpt56Modalities,
 		Constraints:   gpt56Constraints,
 		Reasoning:     gpt56Reasoning,
+		// Model launch date on the card (read 2026-11-04).
+		Life: catalog.Lifecycle{Available: catalog.MustDate("2026-07-13")},
 		Rates: pricing.RateCard{
 			Base: pricing.NewRates(4.40, 22.00, 0.44).WithCacheCreation(0, 0, 5.50),
 			Brackets: []pricing.Bracket{{
@@ -1690,6 +1713,7 @@ var bedrockFamilies = []family{
 		Modalities:    gpt56Modalities,
 		Constraints:   gpt56Constraints,
 		Reasoning:     gpt56Reasoning,
+		Life:          catalog.Lifecycle{Available: catalog.MustDate("2026-07-13")},
 		Rates: pricing.RateCard{
 			Base: pricing.NewRates(2.20, 13.20, 0.22).WithCacheCreation(0, 0, 2.75),
 			Brackets: []pricing.Bracket{{
@@ -1709,6 +1733,7 @@ var bedrockFamilies = []family{
 		Modalities:    gpt56Modalities,
 		Constraints:   gpt56Constraints,
 		Reasoning:     gpt56Reasoning,
+		Life:          catalog.Lifecycle{Available: catalog.MustDate("2026-07-13")},
 		Rates: pricing.RateCard{
 			Base: pricing.NewRates(0.22, 1.32, 0.022).WithCacheCreation(0, 0, 0.275),
 			Brackets: []pricing.Bracket{{
@@ -1784,7 +1809,7 @@ var bedrockFamilies = []family{
 		BareInvokable: true,
 		Mantle:        true,
 		Capabilities:  gemma4Caps,
-		Modalities:    gemma4Modalities,
+		Modalities:    gemma4E2BModalities,
 		Constraints:   gemma4Context128kConstraints,
 		// Model launch date on the model card
 		// (https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-google-gemma-4-e2b.md,

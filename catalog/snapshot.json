@@ -5247,7 +5247,8 @@
             }
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "available": "2026-06-01"
           },
           "attributes": [
             {
@@ -5327,7 +5328,8 @@
             }
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "available": "2026-06-01"
           },
           "attributes": [
             {
@@ -5433,7 +5435,8 @@
             ]
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "available": "2026-09-08"
           },
           "attributes": [
             {
@@ -5604,7 +5607,8 @@
             }
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "available": "2026-09-22"
           },
           "attributes": [
             {
@@ -5714,7 +5718,8 @@
             ]
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "available": "2026-09-29"
           },
           "attributes": [
             {
@@ -6054,7 +6059,7 @@
             }
           ],
           "capabilities": {
-            "audio": false,
+            "audio": true,
             "json_mode": false,
             "multi_turn": true,
             "reasoning": true,
@@ -6081,7 +6086,8 @@
             "input": [
               "text",
               "image",
-              "video"
+              "video",
+              "audio"
             ],
             "output": [
               "text"
@@ -6990,7 +6996,8 @@
             }
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "available": "2026-07-13"
           },
           "derived": {
             "price_tier": "low",
@@ -7067,7 +7074,8 @@
             }
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "available": "2026-07-13"
           },
           "derived": {
             "price_tier": "medium",
@@ -7144,7 +7152,8 @@
             }
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "available": "2026-07-13"
           },
           "derived": {
             "price_tier": "medium",
@@ -7249,7 +7258,8 @@
             ]
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "available": "2026-09-08"
           },
           "derived": {
             "price_tier": "high"
@@ -7418,7 +7428,8 @@
             }
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "available": "2026-09-22"
           },
           "attributes": [
             {
@@ -7529,7 +7540,8 @@
             ]
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "available": "2026-09-29"
           },
           "derived": {
             "price_tier": "medium"
@@ -8928,7 +8940,8 @@
             }
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "available": "2026-06-01"
           },
           "attributes": [
             {
@@ -9008,7 +9021,8 @@
             }
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "available": "2026-06-01"
           },
           "attributes": [
             {
@@ -9114,7 +9128,8 @@
             ]
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "available": "2026-09-08"
           },
           "attributes": [
             {
@@ -9285,7 +9300,8 @@
             }
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "available": "2026-09-22"
           },
           "attributes": [
             {
@@ -9395,7 +9411,8 @@
             ]
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "available": "2026-09-29"
           },
           "attributes": [
             {
