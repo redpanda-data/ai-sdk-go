@@ -574,7 +574,21 @@
                 "cache_creation_5m_microcents_per_million": 1250000000,
                 "cache_creation_1h_microcents_per_million": 2000000000
               }
-            }
+            },
+            "overrides": [
+              {
+                "region": "us",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 1100000000,
+                    "output_microcents_per_million": 5500000000,
+                    "cached_input_microcents_per_million": 110000000,
+                    "cache_creation_5m_microcents_per_million": 1375000000,
+                    "cache_creation_1h_microcents_per_million": 2200000000
+                  }
+                }
+              }
+            ]
           },
           "lifecycle": {
             "stage": "ga",
@@ -645,7 +659,21 @@
                 "cache_creation_5m_microcents_per_million": 1250000000,
                 "cache_creation_1h_microcents_per_million": 2000000000
               }
-            }
+            },
+            "overrides": [
+              {
+                "region": "us",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 1100000000,
+                    "output_microcents_per_million": 5500000000,
+                    "cached_input_microcents_per_million": 27500000,
+                    "cache_creation_5m_microcents_per_million": 1375000000,
+                    "cache_creation_1h_microcents_per_million": 2200000000
+                  }
+                }
+              }
+            ]
           },
           "lifecycle": {
             "stage": "ga",
@@ -797,7 +825,33 @@
                   }
                 }
               ]
-            }
+            },
+            "overrides": [
+              {
+                "region": "us",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 11000000,
+                    "output_microcents_per_million": 55000000,
+                    "cached_input_microcents_per_million": 1100000,
+                    "cache_creation_5m_microcents_per_million": 13750000,
+                    "cache_creation_1h_microcents_per_million": 22000000
+                  },
+                  "brackets": [
+                    {
+                      "min_context_tokens": 100001,
+                      "rates": {
+                        "input_microcents_per_million": 55000000,
+                        "output_microcents_per_million": 275000000,
+                        "cached_input_microcents_per_million": 5500000,
+                        "cache_creation_5m_microcents_per_million": 68750000,
+                        "cache_creation_1h_microcents_per_million": 110000000
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
           },
           "lifecycle": {
             "stage": "ga",
@@ -1025,7 +1079,21 @@
                 "cache_creation_5m_microcents_per_million": 625000000,
                 "cache_creation_1h_microcents_per_million": 1000000000
               }
-            }
+            },
+            "overrides": [
+              {
+                "region": "us",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 550000000,
+                    "output_microcents_per_million": 2750000000,
+                    "cached_input_microcents_per_million": 55000000,
+                    "cache_creation_5m_microcents_per_million": 687500000,
+                    "cache_creation_1h_microcents_per_million": 1100000000
+                  }
+                }
+              }
+            ]
           },
           "lifecycle": {
             "stage": "ga",
@@ -1096,7 +1164,21 @@
                 "cache_creation_5m_microcents_per_million": 625000000,
                 "cache_creation_1h_microcents_per_million": 1000000000
               }
-            }
+            },
+            "overrides": [
+              {
+                "region": "us",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 550000000,
+                    "output_microcents_per_million": 2750000000,
+                    "cached_input_microcents_per_million": 55000000,
+                    "cache_creation_5m_microcents_per_million": 687500000,
+                    "cache_creation_1h_microcents_per_million": 1100000000
+                  }
+                }
+              }
+            ]
           },
           "lifecycle": {
             "stage": "ga",
@@ -1182,6 +1264,31 @@
                     "cached_input_microcents_per_million": 100000000,
                     "cache_creation_5m_microcents_per_million": 1250000000,
                     "cache_creation_1h_microcents_per_million": 2000000000
+                  }
+                }
+              },
+              {
+                "region": "us",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 550000000,
+                    "output_microcents_per_million": 2750000000,
+                    "cached_input_microcents_per_million": 55000000,
+                    "cache_creation_5m_microcents_per_million": 687500000,
+                    "cache_creation_1h_microcents_per_million": 1100000000
+                  }
+                }
+              },
+              {
+                "speed": "fast",
+                "region": "us",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 1100000000,
+                    "output_microcents_per_million": 5500000000,
+                    "cached_input_microcents_per_million": 110000000,
+                    "cache_creation_5m_microcents_per_million": 1375000000,
+                    "cache_creation_1h_microcents_per_million": 2200000000
                   }
                 }
               }
@@ -1273,6 +1380,31 @@
                     "cache_creation_1h_microcents_per_million": 2000000000
                   }
                 }
+              },
+              {
+                "region": "us",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 550000000,
+                    "output_microcents_per_million": 2750000000,
+                    "cached_input_microcents_per_million": 55000000,
+                    "cache_creation_5m_microcents_per_million": 687500000,
+                    "cache_creation_1h_microcents_per_million": 1100000000
+                  }
+                }
+              },
+              {
+                "speed": "fast",
+                "region": "us",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 1100000000,
+                    "output_microcents_per_million": 5500000000,
+                    "cached_input_microcents_per_million": 110000000,
+                    "cache_creation_5m_microcents_per_million": 1375000000,
+                    "cache_creation_1h_microcents_per_million": 2200000000
+                  }
+                }
               }
             ]
           },
@@ -1361,6 +1493,31 @@
                     "cached_input_microcents_per_million": 40000000,
                     "cache_creation_5m_microcents_per_million": 1000000000,
                     "cache_creation_1h_microcents_per_million": 1600000000
+                  }
+                }
+              },
+              {
+                "region": "us",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 440000000,
+                    "output_microcents_per_million": 2200000000,
+                    "cached_input_microcents_per_million": 22000000,
+                    "cache_creation_5m_microcents_per_million": 550000000,
+                    "cache_creation_1h_microcents_per_million": 880000000
+                  }
+                }
+              },
+              {
+                "speed": "fast",
+                "region": "us",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 880000000,
+                    "output_microcents_per_million": 4400000000,
+                    "cached_input_microcents_per_million": 44000000,
+                    "cache_creation_5m_microcents_per_million": 1100000000,
+                    "cache_creation_1h_microcents_per_million": 1760000000
                   }
                 }
               }
@@ -1514,7 +1671,21 @@
                 "cache_creation_5m_microcents_per_million": 375000000,
                 "cache_creation_1h_microcents_per_million": 600000000
               }
-            }
+            },
+            "overrides": [
+              {
+                "region": "us",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 330000000,
+                    "output_microcents_per_million": 1650000000,
+                    "cached_input_microcents_per_million": 33000000,
+                    "cache_creation_5m_microcents_per_million": 412500000,
+                    "cache_creation_1h_microcents_per_million": 660000000
+                  }
+                }
+              }
+            ]
           },
           "lifecycle": {
             "stage": "ga",
@@ -1584,7 +1755,21 @@
                 "cache_creation_5m_microcents_per_million": 250000000,
                 "cache_creation_1h_microcents_per_million": 400000000
               }
-            }
+            },
+            "overrides": [
+              {
+                "region": "us",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 220000000,
+                    "output_microcents_per_million": 1100000000,
+                    "cached_input_microcents_per_million": 22000000,
+                    "cache_creation_5m_microcents_per_million": 275000000,
+                    "cache_creation_1h_microcents_per_million": 440000000
+                  }
+                }
+              }
+            ]
           },
           "lifecycle": {
             "stage": "ga",
@@ -1655,7 +1840,21 @@
                 "cache_creation_5m_microcents_per_million": 250000000,
                 "cache_creation_1h_microcents_per_million": 400000000
               }
-            }
+            },
+            "overrides": [
+              {
+                "region": "us",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 220000000,
+                    "output_microcents_per_million": 1100000000,
+                    "cached_input_microcents_per_million": 11000000,
+                    "cache_creation_5m_microcents_per_million": 275000000,
+                    "cache_creation_1h_microcents_per_million": 440000000
+                  }
+                }
+              }
+            ]
           },
           "lifecycle": {
             "stage": "ga",
@@ -1776,7 +1975,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -1955,7 +2154,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -2038,7 +2237,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -2121,7 +2320,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -2204,7 +2403,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -2452,7 +2651,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -2535,7 +2734,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -2673,7 +2872,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -2842,7 +3041,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -3099,7 +3298,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -3182,7 +3381,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -3265,7 +3464,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -3348,7 +3547,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -3596,7 +3795,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -3679,7 +3878,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -3831,7 +4030,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -3918,7 +4117,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -4086,7 +4285,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -4343,7 +4542,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -4426,7 +4625,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -4509,7 +4708,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -4592,7 +4791,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -4840,7 +5039,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -4923,7 +5122,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -5853,7 +6052,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -5947,7 +6146,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -6030,7 +6229,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -6113,7 +6312,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -7235,7 +7434,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -7322,7 +7521,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -7490,7 +7689,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -7747,7 +7946,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -7830,7 +8029,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -7913,7 +8112,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -7996,7 +8195,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -8244,7 +8443,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -8327,7 +8526,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": false,
+            "structured_output": true,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
