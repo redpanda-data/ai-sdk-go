@@ -69,6 +69,9 @@ func snapshotFixture(t *testing.T) *catalog.Catalog {
 		{Protocol: catalog.WireProtocolOpenAIResponses, Transport: catalog.WireTransportDirect},
 		{Protocol: catalog.WireProtocolOpenAIChatCompletions, Transport: catalog.WireTransportDirect},
 	}
+	robin2.TokenCounting = []catalog.WireAPI{
+		{Protocol: catalog.WireProtocolOpenAIResponses, Transport: catalog.WireTransportDirect},
+	}
 	robin2.Capabilities.Reasoning = true
 	robin2.Capabilities.ToolSearchProtocol = "acme"
 	robin2.Reasoning = catalog.ReasoningSupport{
@@ -174,6 +177,10 @@ func TestEncodeShape(t *testing.T) {
 		map[string]any{"protocol": "openai_responses", "transport": "direct"},
 	}, second["wire_apis"])
 	assert.NotContains(t, first, "wire_apis", "nil bindings are omitted, not defaulted")
+	assert.Equal(t, []any{
+		map[string]any{"protocol": "openai_responses", "transport": "direct"},
+	}, second["token_counting"])
+	assert.NotContains(t, first, "token_counting", "unknown token counting is omitted, not defaulted")
 
 	third, ok := offerings[2].(map[string]any)
 	require.True(t, ok)

@@ -93,6 +93,10 @@ Facts come only from the hosts' own pages, and code cites only those.
   Empty metadata is unknown, never permission to guess a provider default.
   Regenerate the snapshot; unrelated prices, lifecycle, and capability fields
   must stay unchanged during a wire-only reconciliation.
+- **Token counting**: check each offering's `TokenCounting` pairs against the
+  host's page for that model, as add-model lists. A Bedrock card can count on
+  bedrock-mantle only, bedrock-runtime only, or both. Leave a model the page
+  does not list empty rather than copying a sibling.
 - **Capabilities, modalities and reasoning** (thinking mode, effort
   levels): provider-documented model facts (capability-follow). JSON mode means a schemaless mode (Anthropic has
   none); document input means the API accepts document parts.

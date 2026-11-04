@@ -294,7 +294,8 @@ func validateLifecycle(e Entry, fail func(string, ...any)) {
 // populated — declaring Vision without listing ModalityImage is an
 // authoring error even when the modality list was left implicit.
 func validateShape(e Entry, fail func(string, ...any)) {
-	validateWireAPIs(e.WireAPIs, fail)
+	validateWireAPIs("WireAPIs", e.WireAPIs, fail)
+	validateWireAPIs("TokenCounting", e.TokenCounting, fail)
 
 	// Reasoning without effort knobs exists (Claude Sonnet 4.5), so only
 	// the reverse — controls without the capability — is impossible.
@@ -320,6 +321,8 @@ func validateShape(e Entry, fail func(string, ...any)) {
 func normalizeEntry(e Entry, facts Facts) Entry {
 	e.WireAPIs = slices.Clone(e.WireAPIs)
 	slices.SortFunc(e.WireAPIs, compareWireAPIs)
+	e.TokenCounting = slices.Clone(e.TokenCounting)
+	slices.SortFunc(e.TokenCounting, compareWireAPIs)
 
 	if e.DisplayName == "" {
 		e.DisplayName = facts.DisplayName
@@ -680,6 +683,7 @@ func pricingMap(offerings []Offering) map[string]pricing.Info {
 func cloneOffering(o Offering) Offering {
 	o.Aliases = slices.Clone(o.Aliases)
 	o.WireAPIs = slices.Clone(o.WireAPIs)
+	o.TokenCounting = slices.Clone(o.TokenCounting)
 	o.Constraints.SupportedParams = slices.Clone(o.Constraints.SupportedParams)
 
 	// ConditionalRules nest a Disables slice; slices.Clone alone would

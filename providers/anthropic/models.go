@@ -140,6 +140,14 @@ var messagesWireAPIs = []catalog.WireAPI{
 	{Protocol: catalog.WireProtocolAnthropicMessages, Transport: catalog.WireTransportDirect},
 }
 
+// messagesTokenCounting is /v1/messages/count_tokens, which Anthropic
+// documents for every active model:
+// https://platform.claude.com/docs/en/build-with-claude/token-counting
+// Retired models stay empty because the page lists only active ones.
+var messagesTokenCounting = []catalog.WireAPI{
+	{Protocol: catalog.WireProtocolAnthropicMessages, Transport: catalog.WireTransportDirect},
+}
+
 // US-only inference (inference_geo "us") bills every rate of Claude 4.6 and
 // later at 1.1x, brackets and fast mode included; pricing selects it from the
 // response's usage.inference_geo. The pricing page prints no US rates, so the
@@ -167,11 +175,12 @@ var (
 func entries() []catalog.Entry {
 	return []catalog.Entry{
 		{
-			ID:           ModelClaudeFable51,
-			Model:        catalog.ModelClaudeFable51,
-			WireAPIs:     messagesWireAPIs,
-			Capabilities: claudeCapsWithToolSearch,
-			Modalities:   claudeModalities,
+			ID:            ModelClaudeFable51,
+			Model:         catalog.ModelClaudeFable51,
+			WireAPIs:      messagesWireAPIs,
+			TokenCounting: messagesTokenCounting,
+			Capabilities:  claudeCapsWithToolSearch,
+			Modalities:    claudeModalities,
 			Constraints: llm.ModelConstraints{
 				MaxInputTokens:  1000000, // 1M context window
 				MaxOutputTokens: 128000,  // 128K output tokens
@@ -200,11 +209,12 @@ func entries() []catalog.Entry {
 			}),
 		},
 		{
-			ID:           ModelClaudeFable5,
-			Model:        catalog.ModelClaudeFable5,
-			WireAPIs:     messagesWireAPIs,
-			Capabilities: claudeCapsWithToolSearch,
-			Modalities:   claudeModalities,
+			ID:            ModelClaudeFable5,
+			Model:         catalog.ModelClaudeFable5,
+			WireAPIs:      messagesWireAPIs,
+			TokenCounting: messagesTokenCounting,
+			Capabilities:  claudeCapsWithToolSearch,
+			Modalities:    claudeModalities,
 			Constraints: llm.ModelConstraints{
 				MaxInputTokens:  1000000, // 1M context window
 				MaxOutputTokens: 128000,  // 128K output tokens
@@ -230,11 +240,12 @@ func entries() []catalog.Entry {
 			}),
 		},
 		{
-			ID:           ModelClaudeOpus55,
-			Model:        catalog.ModelClaudeOpus55,
-			WireAPIs:     messagesWireAPIs,
-			Capabilities: claudeCapsWithToolSearch,
-			Modalities:   claudeModalities,
+			ID:            ModelClaudeOpus55,
+			Model:         catalog.ModelClaudeOpus55,
+			WireAPIs:      messagesWireAPIs,
+			TokenCounting: messagesTokenCounting,
+			Capabilities:  claudeCapsWithToolSearch,
+			Modalities:    claudeModalities,
 			Constraints: llm.ModelConstraints{
 				MaxInputTokens:  1000000, // 1M context window
 				MaxOutputTokens: 128000,  // 128K output tokens
@@ -275,11 +286,12 @@ func entries() []catalog.Entry {
 			}),
 		},
 		{
-			ID:           ModelClaudeOpus5,
-			Model:        catalog.ModelClaudeOpus5,
-			WireAPIs:     messagesWireAPIs,
-			Capabilities: claudeCapsWithToolSearch,
-			Modalities:   claudeModalities,
+			ID:            ModelClaudeOpus5,
+			Model:         catalog.ModelClaudeOpus5,
+			WireAPIs:      messagesWireAPIs,
+			TokenCounting: messagesTokenCounting,
+			Capabilities:  claudeCapsWithToolSearch,
+			Modalities:    claudeModalities,
 			Constraints: llm.ModelConstraints{
 				MaxInputTokens:  1000000, // 1M context window
 				MaxOutputTokens: 128000,  // 128K output tokens
@@ -311,11 +323,12 @@ func entries() []catalog.Entry {
 			}),
 		},
 		{
-			ID:           ModelClaudeOpus48,
-			Model:        catalog.ModelClaudeOpus48,
-			WireAPIs:     messagesWireAPIs,
-			Capabilities: claudeCapsWithToolSearch,
-			Modalities:   claudeModalities,
+			ID:            ModelClaudeOpus48,
+			Model:         catalog.ModelClaudeOpus48,
+			WireAPIs:      messagesWireAPIs,
+			TokenCounting: messagesTokenCounting,
+			Capabilities:  claudeCapsWithToolSearch,
+			Modalities:    claudeModalities,
 			Constraints: llm.ModelConstraints{
 				MaxInputTokens:  1000000, // 1M context window
 				MaxOutputTokens: 128000,  // 128K output tokens
@@ -351,11 +364,12 @@ func entries() []catalog.Entry {
 			}),
 		},
 		{
-			ID:           ModelClaudeOpus47,
-			Model:        catalog.ModelClaudeOpus47,
-			WireAPIs:     messagesWireAPIs,
-			Capabilities: claudeCapsWithToolSearch,
-			Modalities:   claudeModalities,
+			ID:            ModelClaudeOpus47,
+			Model:         catalog.ModelClaudeOpus47,
+			WireAPIs:      messagesWireAPIs,
+			TokenCounting: messagesTokenCounting,
+			Capabilities:  claudeCapsWithToolSearch,
+			Modalities:    claudeModalities,
 			Constraints: llm.ModelConstraints{
 				MaxInputTokens:  1000000, // 1M context window
 				MaxOutputTokens: 128000,  // 128K output tokens
@@ -383,11 +397,12 @@ func entries() []catalog.Entry {
 			// Standard cache hits: $0.10/MTok (0.05x input), verified 2026-10-16.
 			// Current rates only; historical usage is not effective-dated.
 			// https://platform.claude.com/docs/en/about-claude/pricing
-			ID:           ModelClaudeSonnet55,
-			Model:        catalog.ModelClaudeSonnet55,
-			WireAPIs:     messagesWireAPIs,
-			Capabilities: claudeCapsWithToolSearch,
-			Modalities:   claudeModalities,
+			ID:            ModelClaudeSonnet55,
+			Model:         catalog.ModelClaudeSonnet55,
+			WireAPIs:      messagesWireAPIs,
+			TokenCounting: messagesTokenCounting,
+			Capabilities:  claudeCapsWithToolSearch,
+			Modalities:    claudeModalities,
 			Constraints: llm.ModelConstraints{
 				MaxInputTokens:  1000000, // 1M context window
 				MaxOutputTokens: 128000,  // 128K output tokens
@@ -412,9 +427,10 @@ func entries() []catalog.Entry {
 			}),
 		},
 		{
-			ID:       ModelClaudeSonnet5,
-			Model:    catalog.ModelClaudeSonnet5,
-			WireAPIs: messagesWireAPIs,
+			ID:            ModelClaudeSonnet5,
+			Model:         catalog.ModelClaudeSonnet5,
+			WireAPIs:      messagesWireAPIs,
+			TokenCounting: messagesTokenCounting,
 			// Tool search per the compatibility list at
 			// https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool
 			// (read 2026-10-26).
@@ -448,11 +464,12 @@ func entries() []catalog.Entry {
 			}),
 		},
 		{
-			ID:           ModelClaudeSonnet46,
-			Model:        catalog.ModelClaudeSonnet46,
-			WireAPIs:     messagesWireAPIs,
-			Capabilities: claudeCapsWithToolSearch,
-			Modalities:   claudeModalities,
+			ID:            ModelClaudeSonnet46,
+			Model:         catalog.ModelClaudeSonnet46,
+			WireAPIs:      messagesWireAPIs,
+			TokenCounting: messagesTokenCounting,
+			Capabilities:  claudeCapsWithToolSearch,
+			Modalities:    claudeModalities,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange: [2]float64{0.0, 1.0},
 				MaxInputTokens:   1000000, // 1M context window
@@ -479,11 +496,12 @@ func entries() []catalog.Entry {
 			// the snapshot this alias resolves to, on an exact date (not a
 			// "not sooner than" floor). Bedrock and Vertex keep their own
 			// schedules.
-			ID:           ModelClaudeSonnet45,
-			Model:        catalog.ModelClaudeSonnet45,
-			WireAPIs:     messagesWireAPIs,
-			Capabilities: claudeCapsWithToolSearch,
-			Modalities:   claudeModalities,
+			ID:            ModelClaudeSonnet45,
+			Model:         catalog.ModelClaudeSonnet45,
+			WireAPIs:      messagesWireAPIs,
+			TokenCounting: messagesTokenCounting,
+			Capabilities:  claudeCapsWithToolSearch,
+			Modalities:    claudeModalities,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange: [2]float64{0.0, 1.0},
 				MaxInputTokens:   200000, // 200K context window
@@ -505,11 +523,12 @@ func entries() []catalog.Entry {
 			),
 		},
 		{
-			ID:           ModelClaudeHaiku55,
-			Model:        catalog.ModelClaudeHaiku55,
-			WireAPIs:     messagesWireAPIs,
-			Capabilities: claudeCapsWithToolSearch,
-			Modalities:   claudeModalities,
+			ID:            ModelClaudeHaiku55,
+			Model:         catalog.ModelClaudeHaiku55,
+			WireAPIs:      messagesWireAPIs,
+			TokenCounting: messagesTokenCounting,
+			Capabilities:  claudeCapsWithToolSearch,
+			Modalities:    claudeModalities,
 			Constraints: llm.ModelConstraints{
 				MaxInputTokens:  1000000, // 1M context window
 				MaxOutputTokens: 128000,  // 128K output tokens
@@ -547,11 +566,12 @@ func entries() []catalog.Entry {
 			}),
 		},
 		{
-			ID:           ModelClaudeHaiku45,
-			Model:        catalog.ModelClaudeHaiku45,
-			WireAPIs:     messagesWireAPIs,
-			Capabilities: claudeCapsWithToolSearch,
-			Modalities:   claudeModalities,
+			ID:            ModelClaudeHaiku45,
+			Model:         catalog.ModelClaudeHaiku45,
+			WireAPIs:      messagesWireAPIs,
+			TokenCounting: messagesTokenCounting,
+			Capabilities:  claudeCapsWithToolSearch,
+			Modalities:    claudeModalities,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange: [2]float64{0.0, 1.0},
 				MaxInputTokens:   200000, // 200K context window
@@ -570,11 +590,12 @@ func entries() []catalog.Entry {
 			),
 		},
 		{
-			ID:           ModelClaudeOpus46,
-			Model:        catalog.ModelClaudeOpus46,
-			WireAPIs:     messagesWireAPIs,
-			Capabilities: claudeCapsWithToolSearch,
-			Modalities:   claudeModalities,
+			ID:            ModelClaudeOpus46,
+			Model:         catalog.ModelClaudeOpus46,
+			WireAPIs:      messagesWireAPIs,
+			TokenCounting: messagesTokenCounting,
+			Capabilities:  claudeCapsWithToolSearch,
+			Modalities:    claudeModalities,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange: [2]float64{0.0, 1.0},
 				MaxInputTokens:   1000000, // 1M context window
@@ -599,11 +620,12 @@ func entries() []catalog.Entry {
 			}),
 		},
 		{
-			ID:           ModelClaudeOpus45,
-			Model:        catalog.ModelClaudeOpus45,
-			WireAPIs:     messagesWireAPIs,
-			Capabilities: claudeCapsWithToolSearch,
-			Modalities:   claudeModalities,
+			ID:            ModelClaudeOpus45,
+			Model:         catalog.ModelClaudeOpus45,
+			WireAPIs:      messagesWireAPIs,
+			TokenCounting: messagesTokenCounting,
+			Capabilities:  claudeCapsWithToolSearch,
+			Modalities:    claudeModalities,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange: [2]float64{0.0, 1.0},
 				MaxInputTokens:   200000, // 200K context window

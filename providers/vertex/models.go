@@ -201,6 +201,12 @@ var (
 	claudeWireAPIs = []catalog.WireAPI{
 		{Protocol: catalog.WireProtocolAnthropicMessages, Transport: catalog.WireTransportVertex},
 	}
+	// Vertex counts Claude tokens at publishers/anthropic/models/count-tokens:rawPredict
+	// with the model named in the body. Every Claude entry here is on Google's list:
+	// https://docs.cloud.google.com/vertex-ai/generative-ai/docs/partner-models/claude/count-tokens
+	claudeTokenCounting = []catalog.WireAPI{
+		{Protocol: catalog.WireProtocolAnthropicMessages, Transport: catalog.WireTransportVertex},
+	}
 )
 
 // entries returns the authored Vertex catalog. Rates are
@@ -531,11 +537,12 @@ func entries() []catalog.Entry {
 			Pricing: pricing.FlatInfo(0.10, 0.40, 0.01),
 		},
 		{
-			ID:           ModelClaudeFable51,
-			Model:        catalog.ModelClaudeFable51,
-			WireAPIs:     claudeWireAPIs,
-			Capabilities: claudeCapsWithToolSearch,
-			Modalities:   claudeModalities,
+			ID:            ModelClaudeFable51,
+			Model:         catalog.ModelClaudeFable51,
+			WireAPIs:      claudeWireAPIs,
+			TokenCounting: claudeTokenCounting,
+			Capabilities:  claudeCapsWithToolSearch,
+			Modalities:    claudeModalities,
 			Constraints: llm.ModelConstraints{
 				MaxInputTokens:  1000000,
 				MaxOutputTokens: 128000,
@@ -561,11 +568,12 @@ func entries() []catalog.Entry {
 			),
 		},
 		{
-			ID:           ModelClaudeFable5,
-			Model:        catalog.ModelClaudeFable5,
-			WireAPIs:     claudeWireAPIs,
-			Capabilities: claudeCapsWithToolSearch,
-			Modalities:   claudeModalities,
+			ID:            ModelClaudeFable5,
+			Model:         catalog.ModelClaudeFable5,
+			WireAPIs:      claudeWireAPIs,
+			TokenCounting: claudeTokenCounting,
+			Capabilities:  claudeCapsWithToolSearch,
+			Modalities:    claudeModalities,
 			Constraints: llm.ModelConstraints{
 				MaxInputTokens:  1000000,
 				MaxOutputTokens: 128000,
@@ -583,11 +591,12 @@ func entries() []catalog.Entry {
 			),
 		},
 		{
-			ID:           ModelClaudeOpus55,
-			Model:        catalog.ModelClaudeOpus55,
-			WireAPIs:     claudeWireAPIs,
-			Capabilities: claudeCapsWithToolSearch,
-			Modalities:   claudeModalities,
+			ID:            ModelClaudeOpus55,
+			Model:         catalog.ModelClaudeOpus55,
+			WireAPIs:      claudeWireAPIs,
+			TokenCounting: claudeTokenCounting,
+			Capabilities:  claudeCapsWithToolSearch,
+			Modalities:    claudeModalities,
 			Constraints: llm.ModelConstraints{
 				MaxInputTokens:  1000000,
 				MaxOutputTokens: 128000,
@@ -608,11 +617,12 @@ func entries() []catalog.Entry {
 			Pricing: claudeOpus55Pricing(),
 		},
 		{
-			ID:           ModelClaudeOpus5,
-			Model:        catalog.ModelClaudeOpus5,
-			WireAPIs:     claudeWireAPIs,
-			Capabilities: claudeCapsWithToolSearch,
-			Modalities:   claudeModalities,
+			ID:            ModelClaudeOpus5,
+			Model:         catalog.ModelClaudeOpus5,
+			WireAPIs:      claudeWireAPIs,
+			TokenCounting: claudeTokenCounting,
+			Capabilities:  claudeCapsWithToolSearch,
+			Modalities:    claudeModalities,
 			Constraints: llm.ModelConstraints{
 				MaxInputTokens:  1000000,
 				MaxOutputTokens: 128000,
@@ -626,11 +636,12 @@ func entries() []catalog.Entry {
 			Pricing: claudeOpusPricing("us", "eu"),
 		},
 		{
-			ID:           ModelClaudeOpus48,
-			Model:        catalog.ModelClaudeOpus48,
-			WireAPIs:     claudeWireAPIs,
-			Capabilities: claudeCapsWithToolSearch,
-			Modalities:   claudeModalities,
+			ID:            ModelClaudeOpus48,
+			Model:         catalog.ModelClaudeOpus48,
+			WireAPIs:      claudeWireAPIs,
+			TokenCounting: claudeTokenCounting,
+			Capabilities:  claudeCapsWithToolSearch,
+			Modalities:    claudeModalities,
 			Constraints: llm.ModelConstraints{
 				MaxInputTokens:  1000000,
 				MaxOutputTokens: 128000,
@@ -644,11 +655,12 @@ func entries() []catalog.Entry {
 			Pricing: claudeOpusPricing("us", "eu"),
 		},
 		{
-			ID:           ModelClaudeOpus47,
-			Model:        catalog.ModelClaudeOpus47,
-			WireAPIs:     claudeWireAPIs,
-			Capabilities: claudeCapsWithToolSearch,
-			Modalities:   claudeModalities,
+			ID:            ModelClaudeOpus47,
+			Model:         catalog.ModelClaudeOpus47,
+			WireAPIs:      claudeWireAPIs,
+			TokenCounting: claudeTokenCounting,
+			Capabilities:  claudeCapsWithToolSearch,
+			Modalities:    claudeModalities,
 			Constraints: llm.ModelConstraints{
 				MaxInputTokens:  1000000,
 				MaxOutputTokens: 128000,
@@ -662,11 +674,12 @@ func entries() []catalog.Entry {
 			Pricing: claudeOpusPricing("us", "eu"),
 		},
 		{
-			ID:           ModelClaudeOpus46,
-			Model:        catalog.ModelClaudeOpus46,
-			WireAPIs:     claudeWireAPIs,
-			Capabilities: claudeCapsWithToolSearch,
-			Modalities:   claudeModalities,
+			ID:            ModelClaudeOpus46,
+			Model:         catalog.ModelClaudeOpus46,
+			WireAPIs:      claudeWireAPIs,
+			TokenCounting: claudeTokenCounting,
+			Capabilities:  claudeCapsWithToolSearch,
+			Modalities:    claudeModalities,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange: [2]float64{0.0, 1.0},
 				MaxInputTokens:   1000000,
@@ -685,9 +698,10 @@ func entries() []catalog.Entry {
 			Pricing: claudeOpusPricing("us-east5", "europe-west1", "asia-southeast1"),
 		},
 		{
-			ID:       ModelClaudeOpus45,
-			Model:    catalog.ModelClaudeOpus45,
-			WireAPIs: claudeWireAPIs,
+			ID:            ModelClaudeOpus45,
+			Model:         catalog.ModelClaudeOpus45,
+			WireAPIs:      claudeWireAPIs,
+			TokenCounting: claudeTokenCounting,
 			// Vertex serves the bare ID as the same model version (rawPredict
 			// at global and us-east5, 2026-09-28).
 			Aliases:      []string{"claude-opus-4-5"},
@@ -713,11 +727,12 @@ func entries() []catalog.Entry {
 			Pricing: claudeOpusPricing("us-east5", "europe-west1", "asia-southeast1"),
 		},
 		{
-			ID:           ModelClaudeSonnet55,
-			Model:        catalog.ModelClaudeSonnet55,
-			WireAPIs:     claudeWireAPIs,
-			Capabilities: claudeCapsWithToolSearch,
-			Modalities:   claudeModalities,
+			ID:            ModelClaudeSonnet55,
+			Model:         catalog.ModelClaudeSonnet55,
+			WireAPIs:      claudeWireAPIs,
+			TokenCounting: claudeTokenCounting,
+			Capabilities:  claudeCapsWithToolSearch,
+			Modalities:    claudeModalities,
 			Constraints: llm.ModelConstraints{
 				MaxInputTokens:  1000000,
 				MaxOutputTokens: 128000,
@@ -734,11 +749,12 @@ func entries() []catalog.Entry {
 			Pricing: claudeSonnet55Pricing(),
 		},
 		{
-			ID:           ModelClaudeSonnet5,
-			Model:        catalog.ModelClaudeSonnet5,
-			WireAPIs:     claudeWireAPIs,
-			Capabilities: claudeCaps,
-			Modalities:   claudeModalities,
+			ID:            ModelClaudeSonnet5,
+			Model:         catalog.ModelClaudeSonnet5,
+			WireAPIs:      claudeWireAPIs,
+			TokenCounting: claudeTokenCounting,
+			Capabilities:  claudeCaps,
+			Modalities:    claudeModalities,
 			Constraints: llm.ModelConstraints{
 				MaxInputTokens:  1000000,
 				MaxOutputTokens: 128000,
@@ -757,11 +773,12 @@ func entries() []catalog.Entry {
 			Pricing: claudeSonnet5Pricing(),
 		},
 		{
-			ID:           ModelClaudeSonnet46,
-			Model:        catalog.ModelClaudeSonnet46,
-			WireAPIs:     claudeWireAPIs,
-			Capabilities: claudeCapsWithToolSearch,
-			Modalities:   claudeModalities,
+			ID:            ModelClaudeSonnet46,
+			Model:         catalog.ModelClaudeSonnet46,
+			WireAPIs:      claudeWireAPIs,
+			TokenCounting: claudeTokenCounting,
+			Capabilities:  claudeCapsWithToolSearch,
+			Modalities:    claudeModalities,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange: [2]float64{0.0, 1.0},
 				MaxInputTokens:   1000000,
@@ -784,9 +801,10 @@ func entries() []catalog.Entry {
 			),
 		},
 		{
-			ID:       ModelClaudeSonnet45,
-			Model:    catalog.ModelClaudeSonnet45,
-			WireAPIs: claudeWireAPIs,
+			ID:            ModelClaudeSonnet45,
+			Model:         catalog.ModelClaudeSonnet45,
+			WireAPIs:      claudeWireAPIs,
+			TokenCounting: claudeTokenCounting,
 			// Vertex serves the bare ID as the same model version (rawPredict
 			// at global and us-east5, 2026-09-28).
 			Aliases:      []string{"claude-sonnet-4-5"},
@@ -809,11 +827,12 @@ func entries() []catalog.Entry {
 			Pricing: claudeSonnet45Pricing(),
 		},
 		{
-			ID:           ModelClaudeHaiku55,
-			Model:        catalog.ModelClaudeHaiku55,
-			WireAPIs:     claudeWireAPIs,
-			Capabilities: claudeCapsWithToolSearch,
-			Modalities:   claudeModalities,
+			ID:            ModelClaudeHaiku55,
+			Model:         catalog.ModelClaudeHaiku55,
+			WireAPIs:      claudeWireAPIs,
+			TokenCounting: claudeTokenCounting,
+			Capabilities:  claudeCapsWithToolSearch,
+			Modalities:    claudeModalities,
 			Constraints: llm.ModelConstraints{
 				MaxInputTokens:  1000000,
 				MaxOutputTokens: 128000,
@@ -833,11 +852,12 @@ func entries() []catalog.Entry {
 			Pricing: claudeHaiku55Pricing(),
 		},
 		{
-			ID:           ModelClaudeHaiku45,
-			Model:        catalog.ModelClaudeHaiku45,
-			WireAPIs:     claudeWireAPIs,
-			Capabilities: claudeCapsWithToolSearch,
-			Modalities:   claudeModalities,
+			ID:            ModelClaudeHaiku45,
+			Model:         catalog.ModelClaudeHaiku45,
+			WireAPIs:      claudeWireAPIs,
+			TokenCounting: claudeTokenCounting,
+			Capabilities:  claudeCapsWithToolSearch,
+			Modalities:    claudeModalities,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange: [2]float64{0.0, 1.0},
 				MaxInputTokens:   200000,
