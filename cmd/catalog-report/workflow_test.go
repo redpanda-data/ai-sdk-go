@@ -551,7 +551,7 @@ func TestCombineBuildsThePRFromTheVendors(t *testing.T) {
 		{
 			name: "two vendors' commits", legs: legs, anthropic: part("success", anthropic, "true"), openai: part("success", openai, "true"), pending: "[]",
 			want:   map[string]string{"tip": openai, "changed": "true"},
-			body:   []string{"## Catalogue drift: anthropic, openai\n", "\n## anthropic\n", "\n## openai\n"},
+			body:   []string{"## Catalogue drift: anthropic, openai\n", "\n## Live checks\n\nThe probe job didn't finish", "\n## anthropic\n", "\n## openai\n"},
 			files:  "catalog/snapshot.json\nproviders/anthropic/models.go\nproviders/openai/models.go\n",
 			record: map[string][2]string{"anthropic": {anthropic, "4100"}, "openai": {openai, "4100"}},
 		},
@@ -630,7 +630,9 @@ func TestCombineBuildsThePRFromTheVendors(t *testing.T) {
 			cmd.Dir = checkout
 
 			carry := append(tt.carry, "[]", "", "", "")[:4]
+			// No probe block, so the body says the probe job didn't finish.
 			cmd.Env = append(os.Environ(), "GITHUB_OUTPUT="+outputs, "GITHUB_SHA="+base, `RUN=["anthropic","openai"]`, "PENDING="+tt.pending,
+				"LIVE_CHECKS="+filepath.Join(out, "missing", "probes.md"),
 				"CARRY="+carry[0], "CARRY_TIP="+carry[1], "CARRIED="+carry[2], "CARRY_BASE="+carry[3],
 				`NEEDS={"plan": {"result": "success"}, "anthropic": `+tt.anthropic+`, "openai": `+tt.openai+`}`)
 			combined, err := cmd.CombinedOutput()
@@ -1792,38 +1794,39 @@ func TestDispatchOptionsMatchNamedSources(t *testing.T) {
 	assert.Equal(t, "all", input.Default)
 }
 
-// TestOnlyThePRJobGetsTheBotToken checks that the pr job, which runs nothing
-// from the patches, is the only one in the run that can get an OIDC token
-// and the bot token.
+// TestOnlyThePRJobGetsTheBotToken checks the run's AWS roles: the pr job,
+// which runs nothing from the patches, alone reads the bot token, and the
+// only role another job may assume is the Bedrock CI role, which can call
+// Bedrock and nothing else. A job asks for an OIDC token only to assume one.
 func TestOnlyThePRJobGetsTheBotToken(t *testing.T) {
 	t.Parallel()
 
 	for name, job := range readWorkflow(t, runWorkflow).Jobs {
-		aws := slices.ContainsFunc(job.Steps, func(s workflowStep) bool { return strings.HasPrefix(s.Uses, "aws-actions/") })
-		if name == "pr" {
-			assert.Equal(t, "write", job.Permissions["id-token"])
-			assert.True(t, aws, "the pr job reads the bot token")
+		assumes := false
 
-			continue
-		}
+		for _, s := range job.Steps {
+			switch {
+			case strings.HasPrefix(s.Uses, "aws-actions/configure-aws-credentials@"):
+				assumes = true
 
-		// The probe job's token is for the Bedrock CI role, never the bot's.
-		if name == "probe" {
-			assert.Equal(t, "write", job.Permissions["id-token"])
-
-			for _, s := range job.Steps {
-				if strings.HasPrefix(s.Uses, "aws-actions/") {
-					assert.True(t, strings.HasPrefix(s.Uses, "aws-actions/configure-aws-credentials@"), "the probe job may only assume a role, got %s", s.Uses)
-					assert.Equal(t, bedrockRole, s.With["role-to-assume"])
+				if name != "pr" {
+					assert.Equal(t, bedrockRole, s.With["role-to-assume"], "the %s job may assume only the Bedrock CI role", name)
 				}
+			case strings.HasPrefix(s.Uses, "aws-actions/"):
+				assert.Equal(t, "pr", name, "only the pr job may read the bot token, not the %s job (%s)", name, s.Uses)
 			}
-
-			continue
 		}
 
-		assert.NotContains(t, job.Permissions, "id-token", "the %s job may not request an OIDC token", name)
-		assert.False(t, aws, "the %s job may not reach the bot token", name)
+		if assumes {
+			assert.Equal(t, "write", job.Permissions["id-token"], "the %s job assumes a role", name)
+		} else {
+			assert.NotContains(t, job.Permissions, "id-token", "the %s job may not request an OIDC token", name)
+		}
 	}
+
+	assert.True(t, slices.ContainsFunc(readJob(t, runWorkflow, "pr").Steps, func(s workflowStep) bool {
+		return strings.HasPrefix(s.Uses, "aws-actions/aws-secretsmanager-get-secrets@")
+	}), "the pr job reads the bot token")
 }
 
 // TestPushIsLeasedOnThePlansHead checks that the run's one push is leased to
@@ -2560,54 +2563,17 @@ func TestProbeStepCallsTheChangedVendors(t *testing.T) {
 	assert.Equal(t, "-out out/probe "+temp+"/legs/reconcile-pr-anthropic "+temp+"/legs/reconcile-pr-amazon\n", string(raw))
 }
 
-// TestPRBodyGetsLiveChecks runs the pr job's step that adds the probe
-// job's block to the body: it goes before the first vendor's section, after
-// the callouts, and when the probe job left no block the body says nothing
-// was called. It runs before the body is shown, saved or pushed.
+// TestPRBodyGetsLiveChecks checks that the pr job hands the probe job's
+// block to combine.sh, downloaded before the body is put together; how the
+// block shows is TestCombineBuildsThePRFromTheVendors' and catalog-report's.
 func TestPRBodyGetsLiveChecks(t *testing.T) {
 	t.Parallel()
 
 	steps := readJob(t, runWorkflow, "pr").Steps
-	at := stepIndex(t, steps, "live checks", func(s workflowStep) bool { return strings.Contains(s.Run, "## Live checks") })
+	combine := stepIndex(t, steps, "combine", func(s workflowStep) bool { return s.ID == "combine" })
+	download := stepIndex(t, steps, "probe download", func(s workflowStep) bool { return s.With["name"] == "reconcile-probe" })
 
-	for _, later := range []string{"Job summary", "push"} {
-		assert.Less(t, at, stepIndex(t, steps, later, func(s workflowStep) bool { return s.Name == later || strings.Contains(s.Run, "git push") }))
-	}
-
-	const body = "## Catalogue drift: anthropic\n\nIntro.\n\n> [!IMPORTANT]\n> Resolve.\n\n## anthropic\n\nRows.\n"
-
-	tests := []struct {
-		name, probes, want string
-	}{
-		{"block", "## Live checks\n\nAll 2 calls worked.\n", "## Catalogue drift: anthropic\n\nIntro.\n\n> [!IMPORTANT]\n> Resolve.\n\n## Live checks\n\nAll 2 calls worked.\n\n## anthropic\n\nRows.\n"},
-		{"no block", "", "## Catalogue drift: anthropic\n\nIntro.\n\n> [!IMPORTANT]\n> Resolve.\n\n## Live checks\n\nThe probe job didn't finish, so nothing was called before this PR opened. [The run](https://github.com/o/r/actions/runs/9) has its log.\n\n## anthropic\n\nRows.\n"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			dir, temp := t.TempDir(), t.TempDir()
-			require.NoError(t, os.MkdirAll(filepath.Join(dir, "out"), 0o700))
-			require.NoError(t, os.WriteFile(filepath.Join(dir, "out", "body.md"), []byte(body), 0o600))
-
-			probes := filepath.Join(temp, "probe", "probes.md")
-			if tt.probes != "" {
-				require.NoError(t, os.MkdirAll(filepath.Dir(probes), 0o700))
-				require.NoError(t, os.WriteFile(probes, []byte(tt.probes), 0o600))
-			}
-
-			cmd := exec.CommandContext(t.Context(), "bash", "-eo", "pipefail", "-c", steps[at].Run) //nolint:gosec // the workflow's own step
-			cmd.Dir = dir
-
-			cmd.Env = append(os.Environ(), "PROBES="+probes, "RUNNER_TEMP="+temp,
-				"GITHUB_SERVER_URL=https://github.com", "GITHUB_REPOSITORY=o/r", "GITHUB_RUN_ID=9")
-
-			out, err := cmd.CombinedOutput()
-			require.NoError(t, err, "%s", out)
-
-			got, err := os.ReadFile(filepath.Join(dir, "out", "body.md"))
-			require.NoError(t, err)
-			assert.Equal(t, tt.want, string(got))
-		})
-	}
+	assert.Less(t, download, combine)
+	assert.Equal(t, "${{ runner.temp }}/probe/probes.md", steps[combine].Env["LIVE_CHECKS"])
+	assert.Equal(t, "${{ runner.temp }}/probe", steps[download].With["path"])
 }

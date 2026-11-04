@@ -1208,6 +1208,24 @@ func TestRenderCapped(t *testing.T) {
 		assert.Contains(t, section(t, body, "anthropic"), "| `claude-opus-5-5` | price | `4.00` | `5.00` |", "the vendor's section keeps its share")
 	})
 
+	t.Run("the live checks share the room", func(t *testing.T) {
+		t.Parallel()
+
+		const limit = 6000
+
+		rows := make([]string, 0, 200)
+		for i := range 200 {
+			rows = append(rows, fmt.Sprintf("| `claude-model-%03d` | anthropic | callable | 200 | `req_%03d` |", i, i))
+		}
+
+		base := Base{LiveChecks: "## Live checks\n\n| Offering | Host | Result | Detail | Request ID |\n|---|---|---|---|---|\n" + strings.Join(rows, "\n") + "\n"}
+		body := RenderCapped(oneVendor(validReport(), base), "", nil, base, limit)
+		assert.LessOrEqual(t, len(body), limit)
+		assert.Less(t, strings.Index(body, "\n## Live checks\n"), strings.Index(body, "\n## anthropic\n"), "the live checks come before the vendors")
+		assert.NotContains(t, body, "claude-model-199", "the rows past their share are cut")
+		assert.Contains(t, section(t, body, "anthropic"), "| `claude-opus-5-5` | price | `4.00` | `5.00` |", "the vendor's section keeps its share")
+	})
+
 	t.Run("a cut never leaves a fold open", func(t *testing.T) {
 		t.Parallel()
 
@@ -1488,12 +1506,12 @@ func TestSchemaMatchesValidator(t *testing.T) {
 	// Values match the validator's pattern wherever a row carries them.
 	for array, properties := range map[string][]string{"changes": {"old", "new"}, "needs_human": {"catalogue", "page"}} {
 		for _, property := range properties {
-			assert.Equal(t, valuePattern.String(), items(array).Properties[property].Pattern, "%s %s pattern", array, property)
+			assert.Equal(t, reconcile.ValuePattern.String(), items(array).Properties[property].Pattern, "%s %s pattern", array, property)
 		}
 	}
 
-	assert.Equal(t, valuePattern.String(), items("needs_human").Properties["values"].Items.Pattern, "needs_human values pattern")
-	assert.Equal(t, valuePattern.String(), items("skipped").Properties["values"].Items.Pattern, "skipped values pattern")
+	assert.Equal(t, reconcile.ValuePattern.String(), items("needs_human").Properties["values"].Items.Pattern, "needs_human values pattern")
+	assert.Equal(t, reconcile.ValuePattern.String(), items("skipped").Properties["values"].Items.Pattern, "skipped values pattern")
 
 	// The agent's own words: a question's why, required, and an optional
 	// rule draft.
@@ -2203,7 +2221,7 @@ func TestRenderRoutingDiagram(t *testing.T) {
 func TestRoutingDiagramRefusesUnsafeIDs(t *testing.T) {
 	t.Parallel()
 
-	// safeValue lets + through, so ParseRoutes accepts it.
+	// reconcile.SafeValue lets + through, so ParseRoutes accepts it.
 	base := routeBase(t, "au.anthropic.claude-sonnet-5-5+x")
 	body := Render(oneVendor(validReport(), base), "", nil, base)
 

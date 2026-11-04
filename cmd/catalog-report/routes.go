@@ -40,7 +40,7 @@ func ParseRoutes(data []byte) (Routes, error) {
 
 	for i, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
 		fields := strings.Fields(line)
-		if len(fields) != 3 || !slices.Contains(reconcile.AWSRegions, fields[0]) || !safeValue(fields[1]) || !safeValue(fields[2]) {
+		if len(fields) != 3 || !slices.Contains(reconcile.AWSRegions, fields[0]) || !reconcile.SafeValue(fields[1]) || !reconcile.SafeValue(fields[2]) {
 			return nil, fmt.Errorf("route line %d: %q", i+1, line)
 		}
 

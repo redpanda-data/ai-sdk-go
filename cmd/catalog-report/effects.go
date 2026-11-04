@@ -47,7 +47,7 @@ var rateNames = []struct{ key, name string }{
 // effect is a change row's note on what it does, written from the catalogue
 // before and after the patch, never from the report's values. It is empty
 // when there is nothing to add. The patched catalogue comes from code the
-// agent wrote, so every string read from it passes safeValue (see safeText).
+// agent wrote, so every string read from it passes reconcile.SafeValue (see safeText).
 func (base Base) effect(change Change, provider string) string {
 	pkg, id := reconcile.PackageOf(change.Offering, provider)
 	before, _ := base.Before.Offering(pkg, id)
@@ -256,7 +256,7 @@ func lostFeatures(source, target map[string]any) []string {
 	targetCaps, _ := target["capabilities"].(map[string]any)
 
 	for name, on := range sourceCaps {
-		if on == true && targetCaps[name] != true && safeValue(name) {
+		if on == true && targetCaps[name] != true && reconcile.SafeValue(name) {
 			lost[name] = true
 		}
 	}
@@ -282,7 +282,7 @@ func lostFeatures(source, target map[string]any) []string {
 // safe to put in the PR body.
 func safeText(value any) string {
 	s, _ := value.(string)
-	if !safeValue(s) {
+	if !reconcile.SafeValue(s) {
 		return ""
 	}
 

@@ -28,6 +28,17 @@ import (
 // A Vertex model ID may end in its date version, as claude-opus-4-5@20251101.
 var OfferingPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._:-]{0,79}(@[0-9]{8})?$`)
 
+// ValuePattern is a short value a report may hold and a PR body may show
+// as it is: a price, a date, an ID.
+var ValuePattern = regexp.MustCompile(`^[A-Za-z0-9 ._:/+@-]{0,64}$`)
+
+// SafeValue reports whether a value can go into the PR body as it is. "//"
+// keeps a bare URL out of the tables: honest values (prices, dates, IDs,
+// "us/eu …") never contain it.
+func SafeValue(v string) bool {
+	return ValuePattern.MatchString(v) && !strings.Contains(v, "//")
+}
+
 // PackageOf names a report offering's package and ID: <package>:<id>, or an
 // ID in the run's own package (RULES.md, Report values). Bedrock IDs contain
 // ":", so only a known package counts as a prefix.

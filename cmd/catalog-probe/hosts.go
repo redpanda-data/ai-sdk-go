@@ -16,6 +16,7 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -30,6 +31,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	signerv4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 
+	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/internal/reconcile"
 )
 
@@ -46,7 +48,7 @@ type hosts struct {
 	openaiURL, openaiKey       string
 	geminiURL, geminiKey       string
 	// awsURL is a Bedrock endpoint: service "bedrock" (the control plane) or
-	// "bedrock-runtime", in region.
+	// "bedrock-runtime", in region; signed adds the path.
 	awsURL         func(service, region string) string
 	awsCredentials aws.CredentialsProvider
 }
@@ -64,28 +66,29 @@ type answer struct {
 func (h *hosts) probe(ctx context.Context, p Probe) Probe {
 	user := map[string]any{"role": "user", "content": prompt}
 
-	switch p.call {
-	case "anthropic":
+	switch p.wire.Protocol {
+	case catalog.WireProtocolAnthropicMessages:
 		if h.anthropicKey == "" {
 			return skip(p, "no Anthropic key in this run")
 		}
 
 		body := map[string]any{"model": p.ID, "max_tokens": 8, "messages": []any{user}}
 
-		return result(p, h.post(ctx, h.anthropicURL+"/v1/messages", body, "Request-Id", "X-Api-Key", h.anthropicKey, "Anthropic-Version", "2023-06-01"))
-	case "openai_responses", "openai_chat":
+		return result(p, h.post(ctx, h.anthropicURL+"/v1/messages", body, "Request-Id",
+			map[string]string{"X-Api-Key": h.anthropicKey, "Anthropic-Version": "2023-06-01"}))
+	case catalog.WireProtocolOpenAIResponses, catalog.WireProtocolOpenAIChatCompletions:
 		if h.openaiKey == "" {
 			return skip(p, "no OpenAI key in this run")
 		}
 
 		// 16 is the Responses API's smallest output cap.
 		path, body := "/v1/responses", map[string]any{"model": p.ID, "input": prompt, "max_output_tokens": 16}
-		if p.call == "openai_chat" {
+		if p.wire.Protocol == catalog.WireProtocolOpenAIChatCompletions {
 			path, body = "/v1/chat/completions", map[string]any{"model": p.ID, "messages": []any{user}, "max_completion_tokens": 16}
 		}
 
-		return result(p, h.post(ctx, h.openaiURL+path, body, "X-Request-Id", "Authorization", "Bearer "+h.openaiKey))
-	case "gemini":
+		return result(p, h.post(ctx, h.openaiURL+path, body, "X-Request-Id", map[string]string{"Authorization": "Bearer " + h.openaiKey}))
+	case catalog.WireProtocolGeminiGenerateContent:
 		if h.geminiKey == "" {
 			return skip(p, "no Gemini API key in this run")
 		}
@@ -95,12 +98,13 @@ func (h *hosts) probe(ctx context.Context, p Probe) Probe {
 			"generationConfig": map[string]any{"maxOutputTokens": 8},
 		}
 
-		return result(p, h.post(ctx, h.geminiURL+"/v1beta/models/"+url.PathEscape(p.ID)+":generateContent", body, "", "X-Goog-Api-Key", h.geminiKey))
-	case "bedrock":
+		return result(p, h.post(ctx, h.geminiURL+"/v1beta/models/"+url.PathEscape(p.ID)+":generateContent", body, "",
+			map[string]string{"X-Goog-Api-Key": h.geminiKey}))
+	case catalog.WireProtocolBedrockConverse:
 		return h.bedrock(ctx, p)
 	}
 
-	return skip(p, "no request for its wire APIs yet")
+	return skip(p, noRequest)
 }
 
 // bedrock calls a Bedrock offering only after a read-only check that the
@@ -118,7 +122,7 @@ func (h *hosts) bedrock(ctx context.Context, p Probe) Probe {
 		model = rest
 	}
 
-	check := h.signed(ctx, http.MethodGet, h.awsURL("bedrock", p.Region), "/foundation-model-availability/", model, "", nil, p.Region)
+	check := h.signed(ctx, http.MethodGet, "bedrock", p.Region, "/foundation-model-availability/"+pathLabel(model), nil)
 	if check.status != http.StatusOK {
 		outcome := classify(check.status, check.code, check.message)
 		if outcome != outcomeNotFound {
@@ -147,7 +151,7 @@ func (h *hosts) bedrock(ctx context.Context, p Probe) Probe {
 		{"authorization", available.Authorization, "AUTHORIZED"},
 	} {
 		if field.value != field.want {
-			missing = append(missing, field.name+" "+firstOf(field.value, "none"))
+			missing = append(missing, field.name+" "+cmp.Or(field.value, "none"))
 		}
 	}
 
@@ -160,54 +164,61 @@ func (h *hosts) bedrock(ctx context.Context, p Probe) Probe {
 		"inferenceConfig": map[string]any{"maxTokens": 8},
 	}
 
-	return result(p, h.signed(ctx, http.MethodPost, h.awsURL("bedrock-runtime", p.Region), "/model/", p.ID, "/converse", body, p.Region))
+	return result(p, h.signed(ctx, http.MethodPost, "bedrock-runtime", p.Region, "/model/"+pathLabel(p.ID)+"/converse", body))
 }
 
-// post sends a JSON request with the given header pairs, reading the
-// request's ID from idHeader, or from the body when that is empty.
-func (h *hosts) post(ctx context.Context, target string, body any, idHeader string, headers ...string) answer {
-	payload, err := json.Marshal(body)
-	if err != nil {
-		return answer{message: err.Error()}
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, target, bytes.NewReader(payload))
-	if err != nil {
-		return answer{message: err.Error()}
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-
-	for i := 0; i+1 < len(headers); i += 2 {
-		req.Header.Set(headers[i], headers[i+1])
-	}
-
-	return h.send(req, idHeader)
+// pathLabel escapes an ID for a Bedrock path as AWS's SDKs escape a path
+// label, ":" too; the signer escapes the path once more, as every AWS
+// service but S3 expects.
+func pathLabel(id string) string {
+	return strings.ReplaceAll(url.PathEscape(id), ":", "%3A")
 }
 
-// signed sends a SigV4-signed Bedrock request for prefix+id+suffix. The ID
-// is escaped as AWS's SDKs escape a path label (":" too), and the signer
-// escapes the path once more, as every AWS service but S3 expects.
-func (h *hosts) signed(ctx context.Context, method, base, prefix, id, suffix string, body any, region string) answer {
+// newRequest is a request with body as JSON, or with no body when it is
+// nil, and the bytes it sends.
+func newRequest(ctx context.Context, method, target string, body any) (*http.Request, []byte, error) {
 	var payload []byte
 
 	if body != nil {
 		var err error
 		if payload, err = json.Marshal(body); err != nil {
-			return answer{message: err.Error()}
+			return nil, nil, err
 		}
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, base, bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, method, target, bytes.NewReader(payload))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	return req, payload, nil
+}
+
+// post sends a JSON request with headers, reading the request's ID from
+// idHeader, or from the body when that is empty.
+func (h *hosts) post(ctx context.Context, target string, body any, idHeader string, headers map[string]string) answer {
+	req, _, err := newRequest(ctx, http.MethodPost, target, body)
 	if err != nil {
 		return answer{message: err.Error()}
 	}
 
-	req.URL.Path = prefix + id + suffix
-	req.URL.RawPath = prefix + strings.ReplaceAll(url.PathEscape(id), ":", "%3A") + suffix
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
 
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
+	return h.send(req, idHeader)
+}
+
+// signed sends a SigV4-signed request to a Bedrock service in region, for
+// an already escaped path.
+func (h *hosts) signed(ctx context.Context, method, service, region, path string, body any) answer {
+	req, payload, err := newRequest(ctx, method, h.awsURL(service, region)+path, body)
+	if err != nil {
+		return answer{message: err.Error()}
 	}
 
 	creds, err := h.awsCredentials.Retrieve(ctx)
@@ -257,20 +268,10 @@ func (h *hosts) send(req *http.Request, idHeader string) answer {
 	if resp.StatusCode >= http.StatusBadRequest {
 		code, _ := body.Error.Code.(string)
 		awsType, _, _ := strings.Cut(resp.Header.Get("X-Amzn-Errortype"), ":")
-		a.code = firstOf(awsType, body.Error.Status, code, body.Error.Type)
+		a.code = cmp.Or(awsType, body.Error.Status, code, body.Error.Type)
 	}
 
 	return a
-}
-
-func firstOf(values ...string) string {
-	for _, v := range values {
-		if v != "" {
-			return v
-		}
-	}
-
-	return ""
 }
 
 // result is a probe with the outcome of the host's answer.
@@ -294,16 +295,21 @@ func detail(a answer) string {
 	return strings.TrimSpace(fmt.Sprintf("%d %s", a.status, a.code))
 }
 
-// shown keeps a host's value to the characters and length report values
-// may have, since it goes into the public PR body.
+// shown keeps a host's value to what reconcile.SafeValue lets into the
+// public PR body: other characters dropped, cut to 64, and empty when it
+// still isn't safe.
 func shown(s string) string {
 	s = strings.Map(func(r rune) rune {
-		if r < 128 && (r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune(" ._:/+@-", r)) {
+		if reconcile.ValuePattern.MatchString(string(r)) {
 			return r
 		}
 
 		return -1
 	}, s)
 
-	return s[:min(len(s), 64)]
+	if s = s[:min(len(s), 64)]; !reconcile.SafeValue(s) {
+		return ""
+	}
+
+	return s
 }

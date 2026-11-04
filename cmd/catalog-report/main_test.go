@@ -109,6 +109,8 @@ func TestMainReadsEachVendorsFolder(t *testing.T) {
 		"base-snapshot.json": `{` + carried + `, "providers": [{"provider": "aws.bedrock", "offerings": [` + global + `]}]}`,
 		"snapshot.json":      `{` + carried + `, "providers": [{"provider": "aws.bedrock", "offerings": [` + global + `,` + au + `]}]}`,
 	})
+	liveChecks := filepath.Join(dir, "probes.md")
+	require.NoError(t, os.WriteFile(liveChecks, []byte("## Live checks\n\nAll 2 calls worked.\n"), 0o600))
 	halfCatalogue := folder("half", priced("gpt-6-1", "https://developers.openai.com/api/docs/pricing"), map[string]string{"snapshot.json": empty})
 	noCatalogue := folder("none", priced("gpt-6-1", "https://developers.openai.com/api/docs/pricing"), nil)
 
@@ -139,6 +141,16 @@ func TestMainReadsEachVendorsFolder(t *testing.T) {
 			name: "a carried commit is listed under the checks line",
 			args: []string{"-vendor", "anthropic=" + anthropic, "-carried", "1faeeba000000000000000000000000000000000\tt\ttest: swap the live test model"},
 			want: []string{"**Not from the bot:** 1 commit: `1faeeba` by `t`."},
+		},
+		{
+			name: "the probe job's block goes before the vendors' sections",
+			args: []string{"-vendor", "anthropic=" + anthropic, "-live-checks", liveChecks},
+			want: []string{"\n## Live checks\n\nAll 2 calls worked.\n\n## anthropic\n"},
+		},
+		{
+			name: "a probe job that left no block",
+			args: []string{"-vendor", "anthropic=" + anthropic, "-live-checks", filepath.Join(dir, "none.md")},
+			want: []string{"\n## Live checks\n\nThe probe job didn't finish, so nothing was called before this PR opened. Its log in this workflow run says why.\n\n## anthropic\n"},
 		},
 		{
 			name:    "a carried commit that doesn't start with a full SHA",

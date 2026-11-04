@@ -23,6 +23,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -42,6 +43,10 @@ var replayPattern = regexp.MustCompile(`^([a-z0-9]+)=([0-9]{1,20})@([0-9]{4}-[0-
 
 // maxBodyBytes keeps the PR body under GitHub's limit of 65,536 characters.
 const maxBodyBytes = 64000
+
+// liveChecksMissing stands in for the probe job's block when the job left
+// none, so the body never reads as if every call worked.
+const liveChecksMissing = "## Live checks\n\nThe probe job didn't finish, so nothing was called before this PR opened. Its log in this workflow run says why.\n"
 
 // namedSource is one vendor's entry in named-sources.json: the packages its
 // run owns and the hosts its sources may cite.
@@ -90,6 +95,7 @@ func main() {
 	routesBeforePath := flag.String("base-routes", "", "optional catalog-routes output before the patch; with -routes, the body names routing changes")
 	routesAfterPath := flag.String("routes", "", "optional catalog-routes output after the patch")
 	baseBranch := flag.String("base-branch", "main", "the branch each run rebuilds the bot branch from, named in the body")
+	liveChecksPath := flag.String("live-checks", "", "optional catalog-probe's probes.md, the Live checks block; a path with no file says the probe job didn't finish")
 
 	flag.Parse()
 
@@ -99,7 +105,7 @@ func main() {
 	}
 
 	// The branch goes into the body as plain text.
-	if *baseBranch == "" || !safeValue(*baseBranch) {
+	if *baseBranch == "" || !reconcile.SafeValue(*baseBranch) {
 		fmt.Fprintf(os.Stderr, "catalog-report: bad base branch %q\n", *baseBranch)
 		os.Exit(1)
 	}
@@ -223,6 +229,19 @@ func main() {
 		if vendor.Before != nil {
 			base.Before = cmp.Or(base.Before, vendor.Before)
 			base.After = vendor.After
+		}
+	}
+
+	if *liveChecksPath != "" {
+		raw, err := os.ReadFile(*liveChecksPath)
+
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
+			base.LiveChecks = liveChecksMissing
+		case err != nil:
+			failf("-live-checks: %v", err)
+		default:
+			base.LiveChecks = string(raw)
 		}
 	}
 

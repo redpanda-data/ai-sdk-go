@@ -123,10 +123,10 @@ To review one:
 - Check each row in "Changes" against the page it cites, and each offering in
   "Changed with no row" in `catalog/snapshot.json` under Files changed, since no
   row explains it. Mark the PR ready only when every value matches.
-- Read each row in "Live checks" that didn't work. "Not found" usually means a
-  wrong ID or a copy the host doesn't serve. A skipped row wasn't called, so
-  the keyed tests make its first call. A call that worked shows the host
-  serves the ID, not that its price or limits are right.
+- Read each row of the Live checks table that didn't work. A row marked not
+  found usually means a wrong ID or a copy the host doesn't serve. A skipped
+  row wasn't called, so the keyed tests make its first call. A call that
+  worked shows the host serves the ID, not that its price or limits are right.
 - A value under `sibling-ratio`, or a new copy's price marked "estimated" in
   its code, is worked out from a related copy's rate, so no page prints it.
   Check that rate and the ratio its page states instead.

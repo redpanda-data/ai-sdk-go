@@ -79,26 +79,34 @@ func realHosts() *hosts {
 	}
 }
 
-// run plans the probes for the vendor folders, calls each (a second time,
-// after wait, when the first didn't work) and writes the results to out.
+// run plans the probes for the vendor folders, calls each, calls once more
+// each one that didn't work, after one wait for them all, and writes the
+// results to out.
 func run(ctx context.Context, h *hosts, dirs []string, out string, wait time.Duration) error {
 	probes, err := plan(dirs)
 	if err != nil {
 		return err
 	}
 
-	for i, p := range probes {
-		if p.call == "" {
-			continue
+	// Not yet called, or called without working.
+	pending := func(p Probe) bool { return p.Outcome != outcomeCallable && p.Outcome != outcomeSkipped }
+	callPending := func() {
+		for i, p := range probes {
+			if pending(p) {
+				probes[i] = h.probe(ctx, p)
+			}
 		}
+	}
 
-		if probes[i] = h.probe(ctx, p); probes[i].Outcome != outcomeCallable && probes[i].Outcome != outcomeSkipped {
-			time.Sleep(wait)
+	callPending()
 
-			probes[i] = h.probe(ctx, p)
-		}
+	if slices.ContainsFunc(probes, pending) {
+		time.Sleep(wait)
+		callPending()
+	}
 
-		fmt.Fprintf(os.Stderr, "catalog-probe: %s %s %s: %s %s\n", p.Provider, p.ID, p.Region, probes[i].Outcome, probes[i].Detail)
+	for _, p := range probes {
+		fmt.Fprintf(os.Stderr, "catalog-probe: %s %s %s: %s %s\n", p.Provider, p.ID, p.Region, p.Outcome, p.Detail)
 	}
 
 	raw, err := json.MarshalIndent(map[string]any{"probes": probes}, "", "  ")
@@ -150,9 +158,9 @@ func markdown(probes []Probe) string {
 	var b strings.Builder
 
 	b.WriteString("## Live checks\n\n")
-	b.WriteString("Before this PR opened, the run called each offering it adds or changes once on its host, with a tiny request, " +
-		"from the run's own code rather than this PR's. A call that didn't work was sent twice. " +
-		"Read any row that didn't work before approving: the PR opens either way.\n\n")
+	b.WriteString("Before this PR opened, the run called each offering the PR adds or changes once on its host, with a tiny request. " +
+		"The calls ran the workflow's own code, not this PR's. A call that didn't work was tried a second time. " +
+		"Read any row that didn't work before approving, because the PR opens either way.\n\n")
 
 	switch {
 	case called == 0:

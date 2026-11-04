@@ -13,7 +13,8 @@
 #   reconcile-bundle-<commit> one.
 # Env: NEEDS (the pr job's needs, as JSON), RUN, PENDING and CARRY (from
 #      plan.sh), CARRY_TIP, CARRIED and CARRY_BASE (from carry.sh), GITHUB_SHA (the run's
-#      commit), BASE (the branch the PR goes into).
+#      commit), BASE (the branch the PR goes into), LIVE_CHECKS (the probe
+#      job's probes.md, which may be missing).
 set -euo pipefail
 
 usage="usage: combine.sh CATALOG_REPORT LEGS_DIR BUNDLES_DIR OUT_DIR"
@@ -103,6 +104,9 @@ if [[ "$changed" == "true" ]]; then
     args+=(-carried "$(git log -1 --format='%H%x09%an%x09%s' "$sha")")
   done
   args+=(-diff "$out/snapshot.diff" -code-files "$codes")
+  if [[ -n "${LIVE_CHECKS:-}" ]]; then
+    args+=(-live-checks "$LIVE_CHECKS")
+  fi
   if [[ -n "$first" ]]; then
     args+=(-base-routes "$first/base-routes.txt" -routes "$last/routes.txt")
   fi

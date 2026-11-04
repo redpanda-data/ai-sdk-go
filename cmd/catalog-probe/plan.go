@@ -16,17 +16,15 @@ package main
 
 import (
 	"fmt"
-	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
 
+	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/internal/reconcile"
 )
-
-const outcomeSkipped = "skipped"
 
 // Probe is one offering to call on its host, and how the call went.
 type Probe struct {
@@ -38,26 +36,27 @@ type Probe struct {
 	Detail    string `json:"detail,omitempty"`
 	RequestID string `json:"request_id,omitempty"`
 
-	// call is the request to send; empty when the plan skips the offering.
-	call string
+	// wire is the wire API the request uses; zero when the offering isn't
+	// called.
+	wire catalog.WireAPI
 }
 
-// calls are the requests this command can send, by the wire API an
-// offering lists, most preferred first.
-var calls = []struct{ pkg, wire, call string }{
-	{"anthropic", "anthropic_messages/direct", "anthropic"},
-	{"openai", "openai_responses/direct", "openai_responses"},
-	{"openai", "openai_chat_completions/direct", "openai_chat"},
-	{"google", "gemini_generate_content/direct", "gemini"},
-	{"bedrock", "bedrock_converse/bedrock_runtime", "bedrock"},
+// calls are the wire APIs this command has a request for, by provider
+// package, most preferred first. A package missing here has no CI
+// credentials yet, so its offerings are skipped.
+var calls = map[string][]catalog.WireAPI{
+	"anthropic": {{Protocol: catalog.WireProtocolAnthropicMessages, Transport: catalog.WireTransportDirect}},
+	"openai": {
+		{Protocol: catalog.WireProtocolOpenAIResponses, Transport: catalog.WireTransportDirect},
+		{Protocol: catalog.WireProtocolOpenAIChatCompletions, Transport: catalog.WireTransportDirect},
+	},
+	"google":  {{Protocol: catalog.WireProtocolGeminiGenerateContent, Transport: catalog.WireTransportDirect}},
+	"bedrock": {{Protocol: catalog.WireProtocolBedrockConverse, Transport: catalog.WireTransportBedrockRuntime}},
 }
 
-// noCredentials names the hosts CI has no credentials for, so their
-// offerings are skipped whatever they list.
-var noCredentials = map[string]string{
-	"meta":   "no Meta credentials in CI yet",
-	"vertex": "no Vertex credentials in CI yet",
-}
+// noRequest is the reason an offering with none of its package's wire APIs
+// isn't called.
+const noRequest = "no request for its wire APIs yet"
 
 // geoRegions is where a Bedrock geo profile is called from: a source region
 // every profile of that geography accepts. A bare ID is called in-region
@@ -95,7 +94,7 @@ func plan(dirs []string) ([]Probe, error) {
 			return nil, err
 		}
 
-		for _, pkg := range slices.Sorted(maps.Keys(reconcile.PackageProviders)) {
+		for pkg := range reconcile.PackageProviders {
 			for _, o := range patched.Offerings(pkg) {
 				id, _ := o["id"].(string)
 				if before, ok := base.Offering(pkg, id); ok && reflect.DeepEqual(reconcile.WithoutDerived(before), reconcile.WithoutDerived(o)) {
@@ -116,7 +115,7 @@ func plan(dirs []string) ([]Probe, error) {
 	called := 0
 
 	for i, p := range probes {
-		if p.call == "" {
+		if p.wire == (catalog.WireAPI{}) {
 			continue
 		}
 
@@ -139,8 +138,9 @@ func route(p Probe, o map[string]any) Probe {
 		return skip(p, "its ID doesn't fit the offering pattern, so it isn't shown or called")
 	}
 
-	if reason, ok := noCredentials[p.Provider]; ok {
-		return skip(p, reason)
+	wires, ok := calls[p.Provider]
+	if !ok {
+		return skip(p, "no CI credentials for this host yet")
 	}
 
 	if p.Provider == "bedrock" {
@@ -158,29 +158,31 @@ func route(p Probe, o map[string]any) Probe {
 		}
 	}
 
-	wires, _ := o["wire_apis"].([]any)
-	for _, c := range calls {
-		if c.pkg == p.Provider && slices.ContainsFunc(wires, func(w any) bool { return wireName(w) == c.wire }) {
-			p.call = c.call
+	listed, _ := o["wire_apis"].([]any)
+	for _, wire := range wires {
+		if slices.ContainsFunc(listed, func(w any) bool { return wireAPI(w) == wire }) {
+			p.wire = wire
 
 			return p
 		}
 	}
 
-	return skip(p, "no request for its wire APIs yet")
+	return skip(p, noRequest)
 }
 
 func skip(p Probe, reason string) Probe {
-	p.Region, p.Outcome, p.Detail, p.call = "", outcomeSkipped, reason, ""
+	p.Region, p.Outcome, p.Detail, p.wire = "", outcomeSkipped, reason, catalog.WireAPI{}
 
 	return p
 }
 
-// wireName is a wire API as protocol/transport.
-func wireName(w any) string {
+// wireAPI reads one of a snapshot offering's wire APIs.
+func wireAPI(w any) catalog.WireAPI {
 	m, _ := w.(map[string]any)
+	protocol, _ := m["protocol"].(string)
+	transport, _ := m["transport"].(string)
 
-	return fmt.Sprintf("%v/%v", m["protocol"], m["transport"])
+	return catalog.WireAPI{Protocol: catalog.WireProtocol(protocol), Transport: catalog.WireTransport(transport)}
 }
 
 func readSnapshot(path string) (reconcile.Snapshot, error) {

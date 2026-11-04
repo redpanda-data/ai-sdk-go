@@ -37,9 +37,8 @@ type (
 )
 
 var (
-	fields       = []string{"new_model", "new_copy", "price", "limit", "lifecycle", "replacement", "knowledge_cutoff", "release_date", "capability", "location"}
-	reasons      = []string{"not_on_named_sources", "out_of_scope", "limited_availability", "vendor_excluded", regionNotOffered, "copy_unlisted", "fixed_fact_differs", "copy_unpriced", noCatalogField, "not_callable"}
-	valuePattern = regexp.MustCompile(`^[A-Za-z0-9 ._:/+@-]{0,64}$`)
+	fields  = []string{"new_model", "new_copy", "price", "limit", "lifecycle", "replacement", "knowledge_cutoff", "release_date", "capability", "location"}
+	reasons = []string{"not_on_named_sources", "out_of_scope", "limited_availability", "vendor_excluded", regionNotOffered, "copy_unlisted", "fixed_fact_differs", "copy_unpriced", noCatalogField, "not_callable"}
 	// sourcePattern allows only characters that can't end a markdown link,
 	// end a table cell or start HTML, so a URL always renders as one link.
 	sourcePattern = regexp.MustCompile(`^https://[A-Za-z0-9.-]+(/[A-Za-z0-9._~/%#?=&+:-]*)?$`)
@@ -57,13 +56,6 @@ var (
 	// autolinked is what GitHub links in plain text with those characters.
 	autolinked = regexp.MustCompile(`(?i)www\.|\bgh-[0-9]`)
 )
-
-// safeValue reports whether a value can go into the PR body as it is. "//"
-// keeps a bare URL out of the tables: honest values (prices, dates, IDs,
-// "us/eu …") never contain it.
-func safeValue(v string) bool {
-	return valuePattern.MatchString(v) && !strings.Contains(v, "//")
-}
 
 // A copy in a region its host doesn't offer is skipped with regionNotOffered,
 // under RULES.md's regionRule.
@@ -136,7 +128,7 @@ func Validate(report Report, vendor string, source namedSource, rules reconcile.
 		}
 	}
 	checkValue := func(where, value string) {
-		if !safeValue(value) {
+		if !reconcile.SafeValue(value) {
 			problems = append(problems, where+": bad value "+fmt.Sprintf("%q", value))
 		}
 	}
@@ -369,7 +361,7 @@ func link(raw string) string {
 	}
 
 	name = strings.TrimPrefix(name, "model-card-")
-	if name == "" || name == "." || name == "/" || !safeValue(name) {
+	if name == "" || name == "." || name == "/" || !reconcile.SafeValue(name) {
 		name = parsed.Hostname()
 	}
 
@@ -414,6 +406,9 @@ type Base struct {
 	// Carried is each commit people pushed that the carry job carried onto
 	// the vendors' commits.
 	Carried []Commit
+	// LiveChecks is the probe job's "Live checks" block, which catalog-probe
+	// writes from IDs OfferingPattern accepts and values SafeValue accepts.
+	LiveChecks string
 }
 
 // Commit is a commit people pushed: its full SHA and its author's name, as
@@ -1209,9 +1204,15 @@ func (base Base) render(vendors []Vendor, codeFiles []string, hasDiff bool) (str
 	// What the PR asks of people takes a share of the room like a vendor's
 	// section, so many questions can't push every Changes table out of a
 	// capped body.
-	sections := make([]string, 0, len(parts)+1)
+	sections := make([]string, 0, len(parts)+2)
 	if shared := base.questionsSection(asks) + ruleDrafts(asks, needs); shared != "" {
 		sections = append(sections, shared)
+	}
+
+	// The live checks take a share too, so many calls can't push the body
+	// past GitHub's limit.
+	if base.LiveChecks != "" {
+		sections = append(sections, strings.TrimRight(base.LiveChecks, "\n")+"\n\n")
 	}
 
 	for _, part := range parts {

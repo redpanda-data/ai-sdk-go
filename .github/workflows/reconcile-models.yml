@@ -451,6 +451,8 @@ jobs:
           CARRY_TIP: ${{ needs.carry.outputs.tip }}
           CARRIED: ${{ needs.carry.outputs.carried }}
           CARRY_BASE: ${{ needs.carry.outputs.base }}
+          # The probe job's block; the body says so when it's missing.
+          LIVE_CHECKS: ${{ runner.temp }}/probe/probes.md
         run: |
           task install:go
           export PATH="$(dirname "$(ls -d "$PWD"/.build/go*/bin/go | tail -1)"):$PATH"
@@ -476,26 +478,6 @@ jobs:
             note="> **Open PRs touch the same files:** $(sed -E 's/[0-9]+/#&/g; s/,/, /g' <<<"$others"). If they overlap, merge theirs first: the next run leaves out what they already contain."
             { head -n 2 out/body.md; echo "$note"; echo; tail -n +3 out/body.md; } >out/body.next && mv out/body.next out/body.md
           fi
-      # The probe job's block goes before the first vendor's section; without
-      # it, the body says nothing was called.
-      - name: Add the live checks
-        if: steps.combine.outputs.changed == 'true'
-        env:
-          PROBES: ${{ runner.temp }}/probe/probes.md
-        run: |
-          if [[ ! -f "$PROBES" ]]; then
-            PROBES="$RUNNER_TEMP/no-probes.md"
-            cat >"$PROBES" <<EOF
-          ## Live checks
-
-          The probe job didn't finish, so nothing was called before this PR opened. [The run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) has its log.
-          EOF
-          fi
-          awk -v probes="$PROBES" '
-            NR > 1 && /^## / && !done { while ((getline line <probes) > 0) print line; print ""; done = 1 }
-            { print }
-            END { if (!done) { print ""; while ((getline line <probes) > 0) print line } }' out/body.md >out/body.next
-          mv out/body.next out/body.md
       - name: Job summary
         if: always()
         run: if [[ -f out/body.md ]]; then cat out/body.md >>"$GITHUB_STEP_SUMMARY"; fi

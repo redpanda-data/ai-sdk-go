@@ -114,11 +114,11 @@ func TestHostsSendATinyRequest(t *testing.T) {
 	})
 
 	probes := []Probe{
-		{Provider: "anthropic", ID: "claude-z", call: "anthropic"},
-		{Provider: "openai", ID: "gpt-z", call: "openai_responses"},
-		{Provider: "openai", ID: "gpt-old", call: "openai_chat"},
-		{Provider: "google", ID: "gemini-z", call: "gemini"},
-		{Provider: "bedrock", ID: "eu.anthropic.claude-z-v1:0", Region: "eu-central-1", call: "bedrock"},
+		{Provider: "anthropic", ID: "claude-z", wire: calls["anthropic"][0]},
+		{Provider: "openai", ID: "gpt-z", wire: calls["openai"][0]},
+		{Provider: "openai", ID: "gpt-old", wire: calls["openai"][1]},
+		{Provider: "google", ID: "gemini-z", wire: calls["google"][0]},
+		{Provider: "bedrock", ID: "eu.anthropic.claude-z-v1:0", Region: "eu-central-1", wire: calls["bedrock"][0]},
 	}
 
 	got := make([]string, 0, len(probes))
@@ -210,7 +210,7 @@ func TestBedrockInvokesOnlyAfterThePreCheck(t *testing.T) {
 				return 200, `{}`
 			})
 
-			r := h.probe(t.Context(), Probe{Provider: "bedrock", ID: "us.anthropic.claude-z", Region: "us-east-1", call: "bedrock"})
+			r := h.probe(t.Context(), Probe{Provider: "bedrock", ID: "us.anthropic.claude-z", Region: "us-east-1", wire: calls["bedrock"][0]})
 			assert.Equal(t, tc.want, r.Outcome+" "+r.Detail)
 
 			invoked := false

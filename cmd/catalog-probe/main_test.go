@@ -80,7 +80,7 @@ func TestRunTriesOnceMore(t *testing.T) {
 		"anthropic claude-flaky callable 200 req_anthropic",
 		"anthropic claude-gone not_found 404 not_found_error req_anthropic",
 		"anthropic claude-ok callable 200 req_anthropic",
-		"vertex claude-ok@20261101 skipped no Vertex credentials in CI yet ",
+		"vertex claude-ok@20261101 skipped no CI credentials for this host yet ",
 	}, got)
 
 	_, err = os.Stat(filepath.Join(out, "probes.md"))
@@ -103,7 +103,7 @@ func TestMarkdownShowsEachProbe(t *testing.T) {
 
 	assert.Equal(t, `## Live checks
 
-Before this PR opened, the run called each offering it adds or changes once on its host, with a tiny request, from the run's own code rather than this PR's. A call that didn't work was sent twice. Read any row that didn't work before approving: the PR opens either way.
+Before this PR opened, the run called each offering the PR adds or changes once on its host, with a tiny request. The calls ran the workflow's own code, not this PR's. A call that didn't work was tried a second time. Read any row that didn't work before approving, because the PR opens either way.
 
 **2 of 3 calls didn't work.**
 

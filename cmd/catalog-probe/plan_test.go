@@ -82,7 +82,7 @@ func planned(probes []Probe) []string {
 		if p.Outcome == outcomeSkipped {
 			line += " skipped: " + p.Detail
 		} else {
-			line += " via " + p.call
+			line += " via " + string(p.wire.Protocol)
 		}
 
 		out = append(out, line)
@@ -117,9 +117,9 @@ func TestPlanListsNewAndChangedOfferings(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{
-		"anthropic claude-a via anthropic",
-		"anthropic claude-c via anthropic",
-		"openai gpt-y via openai_chat",
+		"anthropic claude-a via anthropic_messages",
+		"anthropic claude-c via anthropic_messages",
+		"openai gpt-y via openai_chat_completions",
 	}, planned(probes))
 }
 
@@ -154,18 +154,18 @@ func TestPlanRoutesEachHost(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{
-		"bedrock au.anthropic.claude-z-v1:0 @ap-southeast-2 via bedrock",
+		"bedrock au.anthropic.claude-z-v1:0 @ap-southeast-2 via bedrock_converse",
 		"bedrock eu.anthropic.claude-y skipped: no request for its wire APIs yet",
-		"bedrock eu.anthropic.claude-z-v1:0 @eu-central-1 via bedrock",
+		"bedrock eu.anthropic.claude-z-v1:0 @eu-central-1 via bedrock_converse",
 		"bedrock global.anthropic.claude-z-v1:0 skipped: CI's AWS account can't call global profiles",
 		"bedrock in.anthropic.claude-z-v1:0 skipped: no source region for in profiles yet",
-		"bedrock jp.anthropic.claude-z-v1:0 @ap-northeast-1 via bedrock",
-		"bedrock mistral.large-9 @us-east-1 via bedrock",
+		"bedrock jp.anthropic.claude-z-v1:0 @ap-northeast-1 via bedrock_converse",
+		"bedrock mistral.large-9 @us-east-1 via bedrock_converse",
 		"bedrock openai.gpt-9-luna skipped: no request for its wire APIs yet",
-		"bedrock us.anthropic.claude-z-v1:0 @us-east-1 via bedrock",
-		"google gemini-9-flash via gemini",
-		"meta muse-9 skipped: no Meta credentials in CI yet",
-		"vertex claude-z@20261101 skipped: no Vertex credentials in CI yet",
+		"bedrock us.anthropic.claude-z-v1:0 @us-east-1 via bedrock_converse",
+		"google gemini-9-flash via gemini_generate_content",
+		"meta muse-9 skipped: no CI credentials for this host yet",
+		"vertex claude-z@20261101 skipped: no CI credentials for this host yet",
 	}, planned(probes))
 }
 
@@ -187,7 +187,7 @@ func TestPlanRefusesIDsOutsideThePattern(t *testing.T) {
 	assert.Equal(t, []string{
 		"anthropic  skipped: its ID doesn't fit the offering pattern, so it isn't shown or called",
 		"anthropic  skipped: its ID doesn't fit the offering pattern, so it isn't shown or called",
-		"anthropic claude-ok via anthropic",
+		"anthropic claude-ok via anthropic_messages",
 	}, planned(probes))
 }
 
@@ -207,7 +207,7 @@ func TestPlanCapsTheCalls(t *testing.T) {
 	require.NoError(t, err)
 
 	lines := planned(probes)
-	assert.Equal(t, "anthropic claude-049 via anthropic", lines[maxCalls-1])
+	assert.Equal(t, "anthropic claude-049 via anthropic_messages", lines[maxCalls-1])
 	assert.Equal(t, []string{
 		"anthropic claude-050 skipped: over the run's cap of 50 calls",
 		"anthropic claude-051 skipped: over the run's cap of 50 calls",

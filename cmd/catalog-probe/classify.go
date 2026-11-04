@@ -27,19 +27,24 @@ const (
 	outcomeNeedsCapacityOrPolicy = "needs_capacity_or_policy"
 	outcomeNotSubscribed         = "not_subscribed"
 	outcomeInconclusive          = "inconclusive"
+	outcomeSkipped               = "skipped"
 )
 
 // classify turns a host's answer into an outcome: its HTTP status first,
-// then the few error codes and messages that say more than the status
-// does. Status 0 is no answer at all.
+// then the few error codes that say more than the status does. Status 0 is
+// no answer at all. Bedrock answers both an invalid ID and a model that
+// needs a profile with ValidationException, so only there the message
+// decides; a reworded one reads as inconclusive.
 func classify(status int, code, message string) string {
+	validation := code == "ValidationException"
+
 	switch {
 	case status >= 200 && status < 300:
 		return outcomeCallable
-	case status == 404, strings.Contains(message, "model identifier is invalid"):
+	case status == 404, validation && strings.Contains(message, "model identifier is invalid"):
 		return outcomeNotFound
 	case status == 403, status == 429, code == "FAILED_PRECONDITION", code == "ServiceQuotaExceededException",
-		strings.Contains(message, "on-demand throughput isn't supported"):
+		validation && strings.Contains(message, "on-demand throughput isn't supported"):
 		return outcomeNeedsCapacityOrPolicy
 	default:
 		return outcomeInconclusive
