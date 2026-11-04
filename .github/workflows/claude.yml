@@ -41,12 +41,39 @@ jobs:
       id-token: write
       actions: read # Required for Claude to read CI results on PRs
     steps:
+      # A fork PR's code, description and comments are attacker-controlled,
+      # and Claude runs with a write-scoped App token. Don't point it at them.
+      - name: Refuse fork pull requests
+        id: trust
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          IS_PR: ${{ (github.event.pull_request || github.event.issue.pull_request) && 'true' || 'false' }}
+          NUMBER: ${{ github.event.issue.number }}
+        run: |
+          head="$EVENT_HEAD_REPO"
+          if [ -z "$head" ] && [ "$IS_PR" = true ] && [ -n "$NUMBER" ]; then
+            head=$(gh api "repos/$REPO/pulls/$NUMBER" --jq '.head.repo.full_name // ""')
+          fi
+          if [ -n "$head" ] && [ "$head" != "$REPO" ]; then
+            echo "::notice::PR head is $head, not $REPO; not running Claude on fork content."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          elif [ -z "$head" ] && [ "$IS_PR" = true ]; then
+            echo "::notice::PR head repository is gone; not running Claude."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout repository
+        if: steps.trust.outputs.run == 'true'
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
       - name: Run Claude Code
+        if: steps.trust.outputs.run == 'true'
         id: claude
         uses: anthropics/claude-code-action@v1
         with:
