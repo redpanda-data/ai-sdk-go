@@ -133,12 +133,16 @@ data "aws_iam_policy_document" "bedrock" {
     ]
   }
 
-  # ListFoundationModels / GetFoundationModel (used for model discovery)
+  # ListFoundationModels / GetFoundationModel (used for model discovery).
+  # GetFoundationModelAvailability is the reconcile workflow's read-only
+  # check that the account already subscribes to a model, before it calls
+  # one: a first call would subscribe through AWS Marketplace.
   statement {
     effect = "Allow"
     actions = [
       "bedrock:ListFoundationModels",
       "bedrock:GetFoundationModel",
+      "bedrock:GetFoundationModelAvailability",
     ]
     resources = ["*"]
   }
