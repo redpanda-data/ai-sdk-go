@@ -247,6 +247,20 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 					if e.Usage.OutputTokens > 0 {
 						finalMessage.Usage.OutputTokens = e.Usage.OutputTokens
 					}
+
+					// message_delta usage is cumulative and can exceed the
+					// message_start snapshot (e.g. after server tool use).
+					if e.Usage.InputTokens > 0 {
+						finalMessage.Usage.InputTokens = e.Usage.InputTokens
+					}
+
+					if e.Usage.CacheReadInputTokens > 0 {
+						finalMessage.Usage.CacheReadInputTokens = e.Usage.CacheReadInputTokens
+					}
+
+					if e.Usage.CacheCreationInputTokens > 0 {
+						finalMessage.Usage.CacheCreationInputTokens = e.Usage.CacheCreationInputTokens
+					}
 				}
 
 			case "message_stop":
