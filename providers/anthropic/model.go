@@ -180,7 +180,10 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 						acc.textContent += e.Delta.Thinking
 						if !yield(llm.ContentPartEvent{
 							Index: int(e.Index),
-							Part:  m.responseMapper.thinkingPart(e.Delta.Thinking, acc.thinkingSignature),
+							Part: &llm.ReasoningPart{
+								Text:      e.Delta.Thinking,
+								Signature: acc.thinkingSignature,
+							},
 						}, nil) {
 							return
 						}

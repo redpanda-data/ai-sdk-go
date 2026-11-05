@@ -251,14 +251,7 @@ func (p *Provider) NewModelFromOffering(modelName string, offering catalog.Offer
 		}
 	}
 
-	requestMapper := NewRequestMapper(cfg)
-	requestMapper.provider = offering.Provider()
-	requestMapper.legacyThinking = offering.Facts().Publisher == catalog.PublisherAnthropic && slices.Contains(offering.WireAPIs, catalog.WireAPI{
-		Protocol: catalog.WireProtocolAnthropicMessages, Transport: catalog.WireTransportVertex,
-	})
 	responseMapper := NewResponseMapper()
-
-	responseMapper.provider = offering.Provider()
 	if offering.Provider() != ProviderName {
 		responseMapper.offeringID = offering.ID
 	}
@@ -267,7 +260,7 @@ func (p *Provider) NewModelFromOffering(modelName string, offering catalog.Offer
 		config:         cfg,
 		offering:       offering,
 		client:         p.client,
-		requestMapper:  requestMapper,
+		requestMapper:  NewRequestMapper(cfg),
 		responseMapper: responseMapper,
 	}, nil
 }

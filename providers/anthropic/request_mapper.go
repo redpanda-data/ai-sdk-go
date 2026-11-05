@@ -40,16 +40,13 @@ type RequestOptions struct {
 
 // RequestMapper handles conversion from unified Request to Anthropic API format.
 type RequestMapper struct {
-	provider       llm.ProviderID
-	legacyThinking bool
-	config         *Config
-	schemaMapper   *SchemaMapper
+	config       *Config
+	schemaMapper *SchemaMapper
 }
 
 // NewRequestMapper creates a new RequestMapper with the given configuration.
 func NewRequestMapper(config *Config) *RequestMapper {
 	return &RequestMapper{
-		provider:     ProviderName,
 		config:       config,
 		schemaMapper: NewSchemaMapper(),
 	}
@@ -425,11 +422,7 @@ func (rm *RequestMapper) mapAssistantMessage(msg llm.Message) (anthropic.BetaMes
 				// reasoningMetadataRedactedProvider. Sessions persisted
 				// before redacted data was recorded hold only the
 				// placeholder text, so there is nothing to replay either.
-				producer, _ := p.Metadata[reasoningMetadataRedactedProvider].(string)
-
-				// Native Claude on Vertex previously recorded Anthropic's stamp.
-				legacyVertex := rm.legacyThinking && producer == ProviderName
-				if (producer != string(rm.provider) && !legacyVertex) || p.Signature == "" {
+				if producer, _ := p.Metadata[reasoningMetadataRedactedProvider].(string); producer != ProviderName || p.Signature == "" {
 					continue
 				}
 
@@ -440,13 +433,6 @@ func (rm *RequestMapper) mapAssistantMessage(msg llm.Message) (anthropic.BetaMes
 					},
 				})
 
-				continue
-			}
-
-			// Native Claude bindings retain legacy unstamped signatures. Other
-			// hosts need explicit provenance before replaying an opaque signature.
-			producer, _ := p.Metadata[reasoningMetadataProvider].(string)
-			if (producer != "" && producer != string(rm.provider)) || (producer == "" && rm.provider != ProviderName && !rm.legacyThinking && p.Signature != "") {
 				continue
 			}
 
