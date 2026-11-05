@@ -32,7 +32,7 @@ func TestMuseSpark13Catalog(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, llm.ProviderID("meta"), p.Name())
 	assert.Equal(t, "https://api.meta.ai/v1", p.transport.BaseURL)
-	require.Len(t, p.Catalog().All(), 1)
+	require.Len(t, p.Catalog().All(), 2)
 	o, ok := p.Catalog().Lookup("muse-spark-1.3")
 	require.True(t, ok)
 	assert.Equal(t, catalog.ModelID("meta/muse-spark-1.3"), o.Model)
