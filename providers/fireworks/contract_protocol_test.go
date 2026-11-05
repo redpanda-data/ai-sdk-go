@@ -17,14 +17,11 @@ package fireworks_test
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"image"
-	"image/color"
-	"image/png"
 	"math"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -327,16 +324,11 @@ func contractRequest(t *testing.T, c contractCase) map[string]any {
 func contractImage(t *testing.T, c contractCase, turn map[string]any, prompt string) {
 	t.Helper()
 
-	img := image.NewRGBA(image.Rect(0, 0, 32, 32))
+	// Replay matches request bodies byte for byte; png.Encode output varies across Go releases.
+	b, err := os.ReadFile("testdata/contract-image.png")
+	require.NoError(t, err)
 
-	for y := range 32 {
-		for x := range 32 {
-			img.Set(x, y, color.RGBA{R: 255, A: 255})
-		}
-	}
-	var b bytes.Buffer
-	require.NoError(t, png.Encode(&b, img))
-	encoded := base64.StdEncoding.EncodeToString(b.Bytes())
+	encoded := base64.StdEncoding.EncodeToString(b)
 
 	switch c.API {
 	case catalog.WireProtocolAnthropicMessages:

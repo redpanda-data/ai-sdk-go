@@ -20,14 +20,18 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/http/httptrace"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func contractAbort(t *testing.T, client *http.Client, req *http.Request, body []byte, headers map[string]string, key string) contractExchange {
+func contractAbort(t *testing.T, client *http.Client, req *http.Request, body []byte, headers map[string]string, key string, replayReceived ...<-chan struct{}) contractExchange {
 	t.Helper()
 
 	ctx, cancel := context.WithCancel(req.Context())
@@ -36,7 +40,19 @@ func contractAbort(t *testing.T, client *http.Client, req *http.Request, body []
 	trace := &httptrace.ClientTrace{WroteRequest: func(info httptrace.WroteRequestInfo) {
 		if info.Err == nil {
 			written.Store(true)
-			time.AfterFunc(25*time.Millisecond, cancel)
+
+			if len(replayReceived) == 0 {
+				time.AfterFunc(25*time.Millisecond, cancel)
+				return
+			}
+
+			go func() {
+				select {
+				case <-replayReceived[0]:
+					cancel()
+				case <-ctx.Done():
+				}
+			}()
 		}
 	}}
 	req = req.WithContext(httptrace.WithClientTrace(ctx, trace))
@@ -67,6 +83,54 @@ func contractAbort(t *testing.T, client *http.Client, req *http.Request, body []
 	}
 
 	return e
+}
+
+func TestFireworksReplayCancellationWaitsForReceipt(t *testing.T) {
+	t.Parallel()
+
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	received := make(chan struct{})
+
+	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
+		close(entered)
+		<-release
+
+		body, err := io.ReadAll(req.Body)
+		assert.NoError(t, err)
+		assert.JSONEq(t, `{}`, string(body))
+		close(received)
+		<-req.Context().Done()
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, server.URL, strings.NewReader(`{}`))
+	require.NoError(t, err)
+
+	done := make(chan contractExchange, 1)
+
+	go func() {
+		done <- contractAbort(t, server.Client(), req, []byte(`{}`), nil, "replay-only-not-a-credential", received)
+	}()
+
+	<-entered
+
+	select {
+	case <-done:
+		close(release)
+		t.Fatal("replay cancelled before the server received and validated its request")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	close(release)
+
+	exchange := <-done
+	require.True(t, exchange.RequestWritten)
+	require.True(t, exchange.Cancelled)
+	require.Empty(t, exchange.ErrorClass)
 }
 
 func contractCancelPrefix(raw []byte, contentType string) (string, bool) {

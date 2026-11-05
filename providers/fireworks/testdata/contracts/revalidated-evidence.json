@@ -52162,7 +52162,7 @@
       "fresh_input_observed": false
     }
   ],
-  "verifier_fingerprint": "32ca74edb6689ef684790e8ff1405a42ce0cfb2e31b4704f9df0a4772b950281",
+  "verifier_fingerprint": "d76bb36503c51ee677ffdfdaf6f9bf190a7502d168a98742ee75940e6d7b09ec",
   "run_kind": "full_matrix_with_targeted_corrections",
   "source_reports": [
     {

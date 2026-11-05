@@ -50,3 +50,6 @@ go.work.sum
 
 # Local design notes, not published
 /docs/design/
+
+# Fireworks contract recording checkpoint; promote reviewed evidence manually
+/providers/fireworks/testdata/contracts/incomplete.json

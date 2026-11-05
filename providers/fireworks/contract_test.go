@@ -396,6 +396,8 @@ func contractReplay(t *testing.T, evidence contractEvidence, chunkSize int) {
 	next := 0
 	var mu sync.Mutex
 
+	received := make(chan struct{}, len(evidence.Exchanges))
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		defer mu.Unlock()
@@ -442,7 +444,10 @@ func contractReplay(t *testing.T, evidence contractEvidence, chunkSize int) {
 		}
 
 		if e.Cancelled && e.Status == 0 {
+			received <- struct{}{}
+
 			<-r.Context().Done()
+
 			return
 		}
 
@@ -456,6 +461,8 @@ func contractReplay(t *testing.T, evidence contractEvidence, chunkSize int) {
 			if f, ok := w.(http.Flusher); ok {
 				f.Flush()
 			}
+
+			received <- struct{}{}
 
 			<-r.Context().Done()
 
@@ -487,7 +494,7 @@ func contractReplay(t *testing.T, evidence contractEvidence, chunkSize int) {
 	c.Options = evidence.Options
 	c.Options.CacheSettleMS = 0
 	contractExercise(t, c, func(request map[string]any) contractExchange {
-		e := contractHTTP(t, server.Client(), server.URL, "replay-only-not-a-credential", c, request, nil)
+		e := contractHTTP(t, server.Client(), server.URL, "replay-only-not-a-credential", c, request, nil, received)
 		observed = append(observed, e)
 
 		return e
@@ -681,7 +688,7 @@ func contractSanitizeValue(value any) {
 	}
 }
 
-func contractHTTP(t *testing.T, client *http.Client, base, key string, c contractCase, body map[string]any, spend *contractSpend) contractExchange {
+func contractHTTP(t *testing.T, client *http.Client, base, key string, c contractCase, body map[string]any, spend *contractSpend, replayReceived ...<-chan struct{}) contractExchange {
 	t.Helper()
 
 	started := time.Now().UTC()
@@ -690,7 +697,7 @@ func contractHTTP(t *testing.T, client *http.Client, base, key string, c contrac
 		c.Stream = stream
 	}
 
-	exchange := contractHTTPExchange(t, client, base, key, c, body, spend)
+	exchange := contractHTTPExchange(t, client, base, key, c, body, spend, replayReceived...)
 	exchange.StartedAt = started
 	exchange.ElapsedMS = time.Since(started).Milliseconds()
 	exchange.PromptSHA256 = contractPromptHash(body)
@@ -698,7 +705,7 @@ func contractHTTP(t *testing.T, client *http.Client, base, key string, c contrac
 	return exchange
 }
 
-func contractHTTPExchange(t *testing.T, client *http.Client, base, key string, c contractCase, body map[string]any, spend *contractSpend) contractExchange {
+func contractHTTPExchange(t *testing.T, client *http.Client, base, key string, c contractCase, body map[string]any, spend *contractSpend, replayReceived ...<-chan struct{}) contractExchange {
 	t.Helper()
 
 	b, err := json.Marshal(body)
@@ -753,7 +760,7 @@ func contractHTTPExchange(t *testing.T, client *http.Client, base, key string, c
 	}
 
 	if c.Feature == contractCancel {
-		e := contractAbort(t, client, req, b, headers, key)
+		e := contractAbort(t, client, req, b, headers, key, replayReceived...)
 		e.Response = strings.ReplaceAll(e.Response, key, "[REDACTED]")
 
 		return e
