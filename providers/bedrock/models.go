@@ -30,6 +30,9 @@ const (
 	regionTokyo     = "ap-northeast-1"
 	regionSaoPaulo  = "sa-east-1"
 	regionSydney    = "ap-southeast-2"
+	regionJakarta   = "ap-southeast-3"
+	regionStockholm = "eu-north-1"
+	regionLondon    = "eu-west-2"
 )
 
 // Model ID constants for Claude models on Bedrock.
@@ -1266,8 +1269,14 @@ var bedrockFamilies = []family{
 		Capabilities:  mistralLarge3Caps,
 		Modalities:    mistralLarge3Modalities,
 		Constraints:   mistralLarge3Constraints,
-		Rates:         pricing.RateCard{Base: pricing.NewRates(0.50, 1.50, 0)},
-		// Published regional Standard rates, checked 2026-10-15.
+		// Model launch date from the card (read 2026-11-05):
+		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-mistral-ai-mistral-large-3.md
+		Life:  catalog.Lifecycle{Available: catalog.MustDate("2025-12-02")},
+		Rates: pricing.RateCard{Base: pricing.NewRates(0.50, 1.50, 0)},
+		// Published regional Standard rates, checked 2026-10-15; London,
+		// Stockholm and Jakarta added from the AmazonBedrock price list
+		// (<region>/index.json, read 2026-11-05):
+		// https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/eu-west-2/index.json
 		// Other tiers use these Standard estimates with Cost.Fallbacks;
 		// unmatched regions (including US) use the base card with a fallback.
 		// https://aws.amazon.com/bedrock/pricing/
@@ -1276,6 +1285,9 @@ var bedrockFamilies = []family{
 			{Match: pricing.Selector{Region: regionTokyo}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.61, 1.82, 0)}},
 			{Match: pricing.Selector{Region: regionSaoPaulo}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.61, 1.82, 0)}},
 			{Match: pricing.Selector{Region: regionSydney}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.515, 1.545, 0)}},
+			{Match: pricing.Selector{Region: regionJakarta}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.60, 1.80, 0)}},
+			{Match: pricing.Selector{Region: regionStockholm}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.60, 1.80, 0)}},
+			{Match: pricing.Selector{Region: regionLondon}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.775, 2.325, 0)}},
 		},
 	},
 	{

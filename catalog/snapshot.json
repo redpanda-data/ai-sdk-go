@@ -7355,11 +7355,39 @@
                     "output_microcents_per_million": 154500000
                   }
                 }
+              },
+              {
+                "region": "ap-southeast-3",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 60000000,
+                    "output_microcents_per_million": 180000000
+                  }
+                }
+              },
+              {
+                "region": "eu-north-1",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 60000000,
+                    "output_microcents_per_million": 180000000
+                  }
+                }
+              },
+              {
+                "region": "eu-west-2",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 77500000,
+                    "output_microcents_per_million": 232500000
+                  }
+                }
               }
             ]
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "available": "2025-12-02"
           },
           "derived": {
             "price_tier": "low"

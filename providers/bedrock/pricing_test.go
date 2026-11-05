@@ -517,6 +517,9 @@ func TestRegionalOnDemandPricing(t *testing.T) {
 		{ModelMistralLarge3, regionTokyo, 61_000_000, 182_000_000},
 		{ModelMistralLarge3, regionSaoPaulo, 61_000_000, 182_000_000},
 		{ModelMistralLarge3, regionSydney, 51_500_000, 154_500_000},
+		{ModelMistralLarge3, regionJakarta, 60_000_000, 180_000_000},
+		{ModelMistralLarge3, regionStockholm, 60_000_000, 180_000_000},
+		{ModelMistralLarge3, regionLondon, 77_500_000, 232_500_000},
 	} {
 		t.Run(tt.model+"/"+tt.region, func(t *testing.T) {
 			t.Parallel()
