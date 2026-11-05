@@ -552,8 +552,11 @@ var (
 	}
 
 	// Capability/constraint shapes for Amazon Nova 2 Lite: multimodal
-	// text + image + video + document input, text output, Bedrock
-	// constrained-decoding structured outputs, and extended thinking.
+	// text + image + video + document input, text output, and extended
+	// thinking. The model card lists Structured outputs under "Not
+	// Supported" for the bedrock-runtime endpoint
+	// (https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-amazon-nova-2-lite.md,
+	// read 2026-11-05).
 	//
 	// top_k is omitted from SupportedParams because the Converse request
 	// mapper only emits temperature/top_p/max_tokens/stop.
@@ -561,7 +564,7 @@ var (
 		Streaming:        true,
 		Tools:            true,
 		JSONMode:         false,
-		StructuredOutput: true,
+		StructuredOutput: false,
 		Vision:           true,
 		Audio:            false,
 		MultiTurn:        true,
