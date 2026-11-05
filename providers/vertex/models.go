@@ -66,8 +66,10 @@ const (
 	ModelClaudeSonnet55    = "claude-sonnet-5-5"
 	ModelClaudeSonnet5     = "claude-sonnet-5"
 	ModelClaudeSonnet46    = "claude-sonnet-4-6"
-	ModelClaudeSonnet45    = "claude-sonnet-4-5@20250929"
-	ModelClaudeHaiku55     = "claude-haiku-5-5"
+	// Deprecated: Google retires Claude Sonnet 4.5 on 2026-11-30. Use
+	// [ModelClaudeSonnet55].
+	ModelClaudeSonnet45 = "claude-sonnet-4-5@20250929"
+	ModelClaudeHaiku55  = "claude-haiku-5-5"
 	ModelClaudeHaiku45     = "claude-haiku-4-5"
 )
 
@@ -819,11 +821,18 @@ func entries() []catalog.Entry {
 			},
 			// A thinking.type of adaptive returns 400.
 			Reasoning: catalog.ReasoningSupport{Budget: true},
-			// Claude Sonnet 4.5 GA, retirement floor "not sooner than: September
-			// 29, 2026" on the model page (docs.cloud.google.com/
-			// gemini-enterprise-agent-platform/models/partner-models/claude/
-			// sonnet-4-5, read 2026-09-28).
-			Life:    catalog.Lifecycle{Available: catalog.MustDate("2025-09-29")},
+			// The model page now gives launch stage Deprecated and the bare
+			// "Retirement Date: November 30, 2026", an exact date, with no
+			// deprecation date and no replacement
+			// (https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/partner-models/claude/sonnet-4-5,
+			// read 2026-11-05). ReplacedBy is Anthropic's pick on
+			// https://platform.claude.com/docs/en/about-claude/model-deprecations
+			// (read 2026-11-05).
+			Life: catalog.Lifecycle{
+				Available:  catalog.MustDate("2025-09-29"),
+				Retires:    catalog.MustDate("2026-11-30"),
+				ReplacedBy: ModelClaudeSonnet55,
+			},
 			Pricing: claudeSonnet45Pricing(),
 		},
 		{
@@ -867,9 +876,10 @@ func entries() []catalog.Entry {
 			// A thinking.type of adaptive returns 400 (Anthropic's
 			// thinking-troubleshooting page, and rawPredict at global, 2026-09-28).
 			Reasoning: catalog.ReasoningSupport{Budget: true},
-			// Claude Haiku 4.5 GA, retirement floor "not sooner than 2026-10-15" on
-			// the model page (docs.cloud.google.com/gemini-enterprise-agent-platform/
-			// models/partner-models/claude/haiku-4-5, read 2026-09-10).
+			// Claude Haiku 4.5 GA, retirement floor "not sooner than: December 7,
+			// 2026" on the model page (docs.cloud.google.com/gemini-enterprise-
+			// agent-platform/models/partner-models/claude/haiku-4-5, read
+			// 2026-11-05).
 			Life:    catalog.Lifecycle{Available: catalog.MustDate("2025-10-15")},
 			Pricing: claudeHaiku45Pricing(),
 		},

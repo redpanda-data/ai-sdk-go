@@ -90,6 +90,8 @@ const (
 
 	// ModelMuseSpark13 identifies Meta's Muse Spark 1.3.
 	ModelMuseSpark13 ModelID = "meta/muse-spark-1.3"
+	// ModelMuseWonder10 identifies Meta's Muse Wonder.
+	ModelMuseWonder10 ModelID = "meta/muse-wonder-1.0"
 
 	// Models from vendors offered only through Bedrock.
 
@@ -445,6 +447,15 @@ var defaultRegistry = Registry{
 		Released: MustDate("2026-09-02"),
 		// No knowledge cutoff published in the Meta Model API docs.
 		Description: "Muse Spark 1.3 is Meta's model for coding, long-context reasoning, and multi-step agentic workflows.",
+	},
+	// https://research.meta.ai/blog/muse-wonder (read 2026-11-05): posted
+	// 2026-10-12, "available today through the Meta Model API".
+	ModelMuseWonder10: {
+		Publisher:   PublisherMeta,
+		DisplayName: "Muse Wonder", Series: "muse-wonder",
+		Released: MustDate("2026-10-12"),
+		// No knowledge cutoff published in the Meta Model API docs.
+		Description: "Muse Wonder is Meta's most capable model, built for complex software engineering and long-horizon agentic work.",
 	},
 
 	// ---- Google ----

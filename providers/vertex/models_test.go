@@ -420,6 +420,7 @@ func TestLifecycle(t *testing.T) {
 		vertex.ModelGemini25FlashLite: "2026-10-20",
 		vertex.ModelGemini25Flash:     "2026-10-20",
 		vertex.ModelGemini25Pro:       "2026-10-20",
+		vertex.ModelClaudeSonnet45:    "2026-11-30",
 	}
 	wantPreview := map[string]bool{
 		vertex.ModelGemini31ProPreview:  true,

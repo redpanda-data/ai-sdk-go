@@ -262,6 +262,13 @@
       "series": "muse-spark",
       "released": "2026-09-02"
     },
+    "meta/muse-wonder-1.0": {
+      "display_name": "Muse Wonder",
+      "publisher": "meta",
+      "description": "Muse Wonder is Meta's most capable model, built for complex software engineering and long-horizon agentic work.",
+      "series": "muse-wonder",
+      "released": "2026-10-12"
+    },
     "mistral/mistral-large-3": {
       "display_name": "Mistral Large 3",
       "publisher": "mistral",
@@ -2978,7 +2985,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": true,
+            "structured_output": false,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -4218,7 +4225,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": true,
+            "structured_output": false,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -6549,7 +6556,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": true,
+            "structured_output": false,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -7348,11 +7355,39 @@
                     "output_microcents_per_million": 154500000
                   }
                 }
+              },
+              {
+                "region": "ap-southeast-3",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 60000000,
+                    "output_microcents_per_million": 180000000
+                  }
+                }
+              },
+              {
+                "region": "eu-north-1",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 60000000,
+                    "output_microcents_per_million": 180000000
+                  }
+                }
+              },
+              {
+                "region": "eu-west-2",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 77500000,
+                    "output_microcents_per_million": 232500000
+                  }
+                }
               }
             ]
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "available": "2025-12-02"
           },
           "derived": {
             "price_tier": "low"
@@ -8077,7 +8112,7 @@
             "multi_turn": true,
             "reasoning": true,
             "streaming": true,
-            "structured_output": true,
+            "structured_output": false,
             "system_prompts": true,
             "tool_search": false,
             "tools": true,
@@ -12331,11 +12366,13 @@
           },
           "lifecycle": {
             "stage": "ga",
-            "available": "2025-09-29"
+            "available": "2025-09-29",
+            "retires": "2026-11-30",
+            "replaced_by": "claude-sonnet-5-5"
           },
           "derived": {
             "price_tier": "medium",
-            "replacement": "anthropic/claude-sonnet-4-6"
+            "replacement": "anthropic/claude-sonnet-5-5"
           }
         },
         {
@@ -13931,6 +13968,91 @@
           ],
           "derived": {
             "price_tier": "low"
+          }
+        },
+        {
+          "id": "muse-wonder-1.0",
+          "model": "meta/muse-wonder-1.0",
+          "display_name": "Muse Wonder",
+          "wire_apis": [
+            {
+              "protocol": "openai_chat_completions",
+              "transport": "direct"
+            },
+            {
+              "protocol": "openai_responses",
+              "transport": "direct"
+            }
+          ],
+          "capabilities": {
+            "audio": true,
+            "json_mode": true,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1048576,
+            "max_output_tokens": 32768,
+            "supported_params": [
+              "temperature",
+              "max_tokens",
+              "reasoning_effort",
+              "reasoning_summary"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "audio",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "minimal",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 400000000,
+                "output_microcents_per_million": 2000000000,
+                "cached_input_microcents_per_million": 20000000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "preview",
+            "available": "2026-10-12"
+          },
+          "attributes": [
+            {
+              "key": "output_token_limit_source",
+              "value": "sdk_conservative_limit"
+            }
+          ],
+          "derived": {
+            "price_tier": "medium"
           }
         }
       ]
