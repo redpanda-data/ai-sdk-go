@@ -242,4 +242,7 @@ var (
 
 	// streamEventResponseCompleted represents the final completion event during streaming.
 	streamEventResponseCompleted = string(constant.ResponseCompleted("").Default())
+
+	// streamEventResponseFailed is the final event of a response that failed.
+	streamEventResponseFailed = string(constant.ResponseFailed("").Default())
 )
