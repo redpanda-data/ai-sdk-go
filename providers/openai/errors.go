@@ -112,6 +112,13 @@ func classifyStreamError(streamErr *ssestream.StreamError) *llm.ProviderError {
 		errType, code, message = payload.Error.Type, payload.Error.Code, payload.Error.Message
 	}
 
+	return classifyStreamPayload(errType, code, message)
+}
+
+// classifyStreamPayload classifies an error that arrived inside a stream from
+// its type, code and message. It returns nil when code and message are both
+// empty.
+func classifyStreamPayload(errType, code, message string) *llm.ProviderError {
 	if code == "" && message == "" {
 		return nil
 	}

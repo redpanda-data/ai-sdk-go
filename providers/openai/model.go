@@ -109,6 +109,10 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 		var finalResponse *responses.Response
 
+		// streamErr is the last error the stream reported in an event. If no
+		// response.completed follows it, the call ends with this error.
+		var streamErr *llm.ProviderError
+
 		// Process streaming events
 		for stream.Next() {
 			event := stream.Current()
@@ -164,6 +168,10 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 			// Recoverable errors (in-band)
 			case streamEventError:
 				e := event.AsError()
+				if pe := classifyStreamPayload("", e.Code, e.Message); pe != nil {
+					streamErr = pe
+				}
+
 				if !yield(llm.ErrorEvent{
 					Message: e.Message,
 					Code:    e.Code,
@@ -176,6 +184,18 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 				e := event.AsResponseCompleted()
 				finalResponse = &e.Response
 
+			case streamEventResponseFailed:
+				e := event.AsResponseFailed()
+
+				streamErr = classifyStreamPayload("", string(e.Response.Error.Code), e.Response.Error.Message)
+				if streamErr == nil {
+					streamErr = &llm.ProviderError{
+						Base:    llm.ErrAPICall,
+						Code:    "failed",
+						Message: "response.failed without an error payload",
+					}
+				}
+
 			// Ignore other event types
 			default:
 				continue
@@ -186,6 +206,11 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 		if err := stream.Err(); err != nil {
 			// Double-wrap: see anthropic/model.go Generate for rationale.
 			yield(nil, llm.WrapAPICall(shouldretry.Apply(classifyError(err), noRetry.Load())))
+			return
+		}
+
+		if finalResponse == nil && streamErr != nil {
+			yield(nil, llm.WrapAPICall(shouldretry.Apply(streamErr, noRetry.Load())))
 			return
 		}
 

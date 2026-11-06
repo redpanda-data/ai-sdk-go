@@ -51,5 +51,12 @@ func TestShouldRetryHeader(t *testing.T) {
 			Headers: map[string]string{"Content-Type": "application/json"},
 			Body:    []byte(`{"error":{"code":503,"message":"every member failed","status":"UNAVAILABLE"}}`),
 		},
+		shouldretrytest.Failure{
+			Name:       "error event on a 200 stream",
+			Status:     http.StatusOK,
+			Headers:    map[string]string{"Content-Type": "text/event-stream"},
+			Body:       []byte("data: {\"error\":{\"code\":503,\"message\":\"every member failed\",\"status\":\"UNAVAILABLE\"}}\n\n"),
+			StreamOnly: true,
+		},
 	)
 }

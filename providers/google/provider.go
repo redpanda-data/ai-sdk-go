@@ -26,7 +26,6 @@ import (
 	"google.golang.org/genai"
 
 	"github.com/redpanda-data/ai-sdk-go/catalog"
-	"github.com/redpanda-data/ai-sdk-go/internal/shouldretry"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -58,7 +57,7 @@ func NewProviderWithClient(ctx context.Context, client *genai.Client) (*Provider
 	// settings with the HTTP client wrapped. The settings already include an
 	// HTTP client, so genai doesn't look for credentials again.
 	cfg := client.ClientConfig()
-	cfg.HTTPClient = shouldretry.WrapClient(cfg.HTTPClient)
+	cfg.HTTPClient = wrapHTTPClient(cfg.HTTPClient)
 
 	// For the Gemini API, genai fills Project and Location from the
 	// GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION environment variables.
@@ -113,7 +112,7 @@ func NewProvider(ctx context.Context, apiKey string, opts ...ProviderOption) (*P
 
 	// Set HTTPClient if provided
 	if p.HTTPClient != nil {
-		clientConfig.HTTPClient = shouldretry.WrapClient(p.HTTPClient)
+		clientConfig.HTTPClient = wrapHTTPClient(p.HTTPClient)
 	}
 
 	// Set BaseURL via HTTPOptions if provided
