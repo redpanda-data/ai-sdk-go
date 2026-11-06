@@ -24,6 +24,7 @@ import (
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 
+	"github.com/redpanda-data/ai-sdk-go/internal/shouldretry"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -67,11 +68,13 @@ func (m *Model) Generate(ctx context.Context, req *llm.Request) (*llm.Response, 
 		return nil, fmt.Errorf("%w: %w", llm.ErrRequestMapping, err)
 	}
 
+	ctx, noRetry := shouldretry.Watch(ctx)
+
 	// Make the API call using Chat Completion API
 	response, err := m.client.Chat.Completions.New(ctx, apiReq, m.requestOptions()...)
 	if err != nil {
 		// Double-wrap: see anthropic/model.go Generate for rationale.
-		return nil, llm.WrapAPICall(classifyError(err))
+		return nil, llm.WrapAPICall(shouldretry.Apply(classifyError(err), noRetry.Load()))
 	}
 
 	// Convert Chat Completion API response back to our format
@@ -93,6 +96,8 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 		apiReq.StreamOptions = openai.ChatCompletionStreamOptionsParam{
 			IncludeUsage: openai.Bool(true),
 		}
+
+		ctx, noRetry := shouldretry.Watch(ctx)
 
 		// Create streaming request using Chat Completion API
 		stream := m.client.Chat.Completions.NewStreaming(ctx, apiReq, m.requestOptions()...)
@@ -214,7 +219,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 		// Check for stream errors
 		if err := stream.Err(); err != nil {
 			// Double-wrap: see anthropic/model.go Generate for rationale.
-			yield(nil, llm.WrapAPICall(classifyError(err)))
+			yield(nil, llm.WrapAPICall(shouldretry.Apply(classifyError(err), noRetry.Load())))
 
 			return
 		}
@@ -240,12 +245,14 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 }
 
 func (m *Model) requestOptions() []option.RequestOption {
+	opts := []option.RequestOption{option.WithMiddleware(shouldretry.Middleware)}
+
 	if m.config.AdaptiveThinking {
-		return []option.RequestOption{option.WithJSONSet("thinking.type", "adaptive")}
+		return append(opts, option.WithJSONSet("thinking.type", "adaptive"))
 	}
 
 	if m.config.Thinking == nil {
-		return nil
+		return opts
 	}
 
 	thinkingType := "disabled"
@@ -253,7 +260,7 @@ func (m *Model) requestOptions() []option.RequestOption {
 		thinkingType = "enabled"
 	}
 
-	return []option.RequestOption{option.WithJSONSet("thinking.type", thinkingType)}
+	return append(opts, option.WithJSONSet("thinking.type", thinkingType))
 }
 
 // buildStreamEndResponse constructs the final unified response for StreamEndEvent

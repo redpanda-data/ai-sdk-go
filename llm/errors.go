@@ -102,7 +102,9 @@ type ProviderError struct {
 	Message string
 
 	// Retryable indicates whether this error represents a transient condition
-	// that may succeed on retry (e.g., rate limits, server errors).
+	// that may succeed on retry (e.g., rate limits, server errors). Providers
+	// set it to false when the response has x-should-retry: false, whatever the
+	// status code.
 	Retryable bool
 }
 
