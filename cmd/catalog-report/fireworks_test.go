@@ -60,7 +60,7 @@ func TestFireworksContractExpansionNeedsQualification(t *testing.T) {
 
 	for _, rule := range []string{"model-not-callable", "reasoning-unsendable"} {
 		row := strings.Split(string(raw), "\n")[rules.Lines[rule]-1]
-		assert.Contains(t, row, "catalog-only")
+		assert.Contains(t, row, "selected-binding")
 		assert.Contains(t, row, qualification)
 	}
 

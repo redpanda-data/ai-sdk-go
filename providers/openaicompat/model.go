@@ -240,6 +240,10 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 }
 
 func (m *Model) requestOptions() []option.RequestOption {
+	if m.config.AdaptiveThinking {
+		return []option.RequestOption{option.WithJSONSet("thinking.type", "adaptive")}
+	}
+
 	if m.config.Thinking == nil {
 		return nil
 	}

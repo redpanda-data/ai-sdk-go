@@ -125,7 +125,7 @@ func serverlessEntry(id string, model catalog.ModelID, maxInput, maxOutput int, 
 		ID: id, Model: model, ResolutionPolicy: catalog.ResolutionPolicyExact, Capabilities: caps, Modalities: modalities,
 		// Input metadata: GET /inference/v1/models (read 2026-11-04).
 		// Output ceilings are independently sourced above, never inferred from input.
-		// SupportedParams intentionally admits no SDK controls: there is no SDK model transport.
+		// Runtime models admit a narrow selected-API control list separately.
 		Constraints: llm.ModelConstraints{
 			TemperatureRange: [2]float64{0, 2}, MaxInputTokens: maxInput, MaxOutputTokens: maxOutput,
 		},

@@ -40,6 +40,7 @@ type Config struct {
 	Seed             *int
 	LogProbs         *bool
 	Stop             []string
+	Store            *bool
 
 	// Reasoning model parameters (GPT-5, O-series)
 	ReasoningEffort  *ReasoningEffort  // Defaults to medium if not specified
@@ -51,6 +52,15 @@ type Config struct {
 
 	// Track which options have been set for conflict detection with model constraints
 	setOptions map[string]bool
+}
+
+// WithStore controls whether the provider stores generated responses.
+// When unset, the provider's default storage behavior is unchanged.
+func WithStore(store bool) Option {
+	return func(cfg *Config) error {
+		cfg.Store = &store
+		return nil
+	}
 }
 
 // WithTemperature sets the temperature parameter (0.0-2.0).

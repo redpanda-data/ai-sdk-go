@@ -128,6 +128,10 @@ func (m *ResponseMapper) FromProvider(r *responses.Response) (*llm.Response, err
 				encrypted = ""
 			}
 
+			if encrypted != "" {
+				content = append(content, &llm.ReasoningPart{ID: out.ID, Signature: encrypted})
+			}
+
 		default:
 			return nil, fmt.Errorf("%w: unsupported output type %q (output id: %s)",
 				llm.ErrResponseMapping, out.Type, out.ID)

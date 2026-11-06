@@ -32,8 +32,9 @@ import (
 
 // RequestMapper handles conversion from unified Request to OpenAI API format.
 type RequestMapper struct {
-	config       *Config
-	schemaMapper *SchemaMapper
+	config             *Config
+	schemaMapper       *SchemaMapper
+	encryptedReasoning bool
 }
 
 // NewRequestMapper creates a new RequestMapper with the given configuration.
@@ -68,6 +69,13 @@ func (rm *RequestMapper) ToProvider(req *llm.Request) (responses.ResponseNewPara
 
 	if rm.config.MaxTokens != nil {
 		apiReq.MaxOutputTokens = openai.Int(int64(*rm.config.MaxTokens))
+	}
+
+	if rm.config.Store != nil {
+		apiReq.Store = openai.Bool(*rm.config.Store)
+		if !*rm.config.Store && rm.encryptedReasoning {
+			apiReq.Include = []responses.ResponseIncludable{responses.ResponseIncludableReasoningEncryptedContent}
+		}
 	}
 
 	// Apply reasoning parameters for reasoning models
@@ -267,13 +275,16 @@ func appendReasoningItem(items []responses.ResponseInputItemUnionParam, part *ll
 		return items
 	}
 
-	summary := responses.ResponseReasoningItemSummaryParam{
-		Text: part.Text,
-		Type: constant.SummaryText(""),
+	summaries := []responses.ResponseReasoningItemSummaryParam{}
+	if part.Text != "" {
+		summaries = append(summaries, responses.ResponseReasoningItemSummaryParam{
+			Text: part.Text,
+			Type: constant.SummaryText(""),
+		})
 	}
 
 	if last := len(items) - 1; last >= 0 && items[last].OfReasoning != nil && items[last].OfReasoning.ID == id {
-		items[last].OfReasoning.Summary = append(items[last].OfReasoning.Summary, summary)
+		items[last].OfReasoning.Summary = append(items[last].OfReasoning.Summary, summaries...)
 		if part.Signature != "" && !items[last].OfReasoning.EncryptedContent.Valid() {
 			items[last].OfReasoning.EncryptedContent = param.NewOpt(part.Signature)
 		}
@@ -284,7 +295,7 @@ func appendReasoningItem(items []responses.ResponseInputItemUnionParam, part *ll
 	reasoning := &responses.ResponseReasoningItemParam{
 		ID:      id,
 		Type:    constant.Reasoning(""),
-		Summary: []responses.ResponseReasoningItemSummaryParam{summary},
+		Summary: summaries,
 	}
 	if part.Signature != "" {
 		reasoning.EncryptedContent = param.NewOpt(part.Signature)
