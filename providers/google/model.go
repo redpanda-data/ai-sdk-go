@@ -26,6 +26,7 @@ import (
 	"google.golang.org/genai"
 
 	"github.com/redpanda-data/ai-sdk-go/catalog"
+	"github.com/redpanda-data/ai-sdk-go/internal/shouldretry"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -84,11 +85,13 @@ func (m *Model) Generate(ctx context.Context, req *llm.Request) (*llm.Response, 
 		modelName = m.config.CustomModelName
 	}
 
+	ctx, noRetry := shouldretry.Watch(ctx)
+
 	// Make the API call
 	response, err := m.client.Models.GenerateContent(ctx, modelName, contents, config)
 	if err != nil {
 		// Double-wrap: see anthropic/model.go Generate for rationale.
-		return nil, llm.WrapAPICall(classifyError(err))
+		return nil, llm.WrapAPICall(shouldretry.Apply(classifyError(err), noRetry.Load()))
 	}
 
 	// Convert Gemini response back to our format
@@ -112,6 +115,8 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 			modelName = m.config.CustomModelName
 		}
 
+		ctx, noRetry := shouldretry.Watch(ctx)
+
 		// Create streaming request
 		stream := m.client.Models.GenerateContentStream(ctx, modelName, contents, config)
 
@@ -124,7 +129,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 		for response, err := range stream {
 			if err != nil {
 				// Double-wrap: see anthropic/model.go Generate for rationale.
-				yield(nil, llm.WrapAPICall(classifyError(err)))
+				yield(nil, llm.WrapAPICall(shouldretry.Apply(classifyError(err), noRetry.Load())))
 				return
 			}
 

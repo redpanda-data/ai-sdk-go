@@ -22,6 +22,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/genai"
 )
 
 func TestWithBaseURL(t *testing.T) {
@@ -159,4 +160,19 @@ func TestModelProvider_ReportsOfferingProvider(t *testing.T) {
 
 	_, err = NewProviderWithClient(context.Background(), nil)
 	require.Error(t, err)
+}
+
+func TestNewProvider_NilContext(t *testing.T) {
+	t.Parallel()
+
+	var ctx context.Context
+
+	_, err := NewProvider(ctx, "test-key")
+	require.ErrorContains(t, err, "context is required")
+
+	client, err := genai.NewClient(t.Context(), &genai.ClientConfig{APIKey: "test-key", Backend: genai.BackendGeminiAPI})
+	require.NoError(t, err)
+
+	_, err = NewProviderWithClient(ctx, client)
+	require.ErrorContains(t, err, "context is required")
 }

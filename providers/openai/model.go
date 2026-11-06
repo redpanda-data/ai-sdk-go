@@ -21,8 +21,10 @@ import (
 	"slices"
 
 	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/responses"
 
+	"github.com/redpanda-data/ai-sdk-go/internal/shouldretry"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -76,10 +78,12 @@ func (m *Model) Generate(ctx context.Context, req *llm.Request) (*llm.Response, 
 	}
 
 	// Make the API call using Responses API
-	response, err := m.client.Responses.New(ctx, apiReq)
+	ctx, noRetry := shouldretry.Watch(ctx)
+
+	response, err := m.client.Responses.New(ctx, apiReq, option.WithMiddleware(shouldretry.Middleware))
 	if err != nil {
 		// Double-wrap: see anthropic/model.go Generate for rationale.
-		return nil, llm.WrapAPICall(classifyError(err))
+		return nil, llm.WrapAPICall(shouldretry.Apply(classifyError(err), noRetry.Load()))
 	}
 
 	// Convert Responses API response back to our format
@@ -98,7 +102,9 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 		}
 
 		// Create streaming request using Responses API
-		stream := m.client.Responses.NewStreaming(ctx, apiReq)
+		ctx, noRetry := shouldretry.Watch(ctx)
+
+		stream := m.client.Responses.NewStreaming(ctx, apiReq, option.WithMiddleware(shouldretry.Middleware))
 		defer stream.Close() // Automatic cleanup, even on early break
 
 		var finalResponse *responses.Response
@@ -179,7 +185,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 		// Check for transport/cancellation errors
 		if err := stream.Err(); err != nil {
 			// Double-wrap: see anthropic/model.go Generate for rationale.
-			yield(nil, llm.WrapAPICall(classifyError(err)))
+			yield(nil, llm.WrapAPICall(shouldretry.Apply(classifyError(err), noRetry.Load())))
 			return
 		}
 

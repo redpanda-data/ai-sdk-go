@@ -19,6 +19,11 @@
 //
 // The interceptor retries both synchronous (Generate) and streaming (GenerateEvents)
 // calls when the error is classified as retryable (using [llm.IsRetryable]).
+// Every provider in this module marks an error as not retryable when its
+// response has x-should-retry: false, so the interceptor doesn't retry it. A
+// gateway that has already tried all its upstreams sends that header to stop
+// clients adding their own retries. A function passed to [WithRetryDecision]
+// replaces this check, so it has to call [llm.IsRetryable] to keep it.
 // For streaming, it emits [llm.StreamResetEvent] on retry so consumers can
 // discard partial content before the stream restarts.
 //

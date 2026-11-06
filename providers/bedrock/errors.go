@@ -15,14 +15,53 @@
 package bedrock
 
 import (
+	"context"
 	"errors"
 	"strings"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 	smithy "github.com/aws/smithy-go"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 
+	"github.com/redpanda-data/ai-sdk-go/internal/shouldretry"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
+
+// forbidsRetry reports whether the HTTP response behind an AWS SDK error has
+// x-should-retry: false. shouldRetryRetryer needs it because the AWS SDK gives
+// a retryer the error but not the request's context, so it can't read the
+// flag from shouldretry.Watch.
+func forbidsRetry(err error) bool {
+	respErr, ok := errors.AsType[*smithyhttp.ResponseError](err)
+	if !ok || respErr.Response == nil {
+		return false
+	}
+
+	return shouldretry.ForbiddenBy(respErr.Response.Response)
+}
+
+// shouldRetryRetryer wraps the AWS SDK's retryer so the SDK doesn't retry a
+// response with x-should-retry: false. It passes every other error to the
+// wrapped retryer.
+type shouldRetryRetryer struct {
+	aws.Retryer
+}
+
+func (r shouldRetryRetryer) IsErrorRetryable(err error) bool {
+	return !forbidsRetry(err) && r.Retryer.IsErrorRetryable(err)
+}
+
+// The SDK's retry middleware calls GetAttemptToken if the retryer has it, and
+// GetInitialToken if not. This method passes the call through to the wrapped
+// retryer.
+func (r shouldRetryRetryer) GetAttemptToken(ctx context.Context) (func(error) error, error) {
+	if v2, ok := r.Retryer.(aws.RetryerV2); ok {
+		return v2.GetAttemptToken(ctx)
+	}
+
+	return r.GetInitialToken(), nil
+}
 
 // classifyError maps AWS SDK errors to *llm.ProviderError with the
 // appropriate sentinel base and Retryable flag.

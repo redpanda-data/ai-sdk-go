@@ -22,8 +22,10 @@ import (
 	"slices"
 
 	"github.com/anthropics/anthropic-sdk-go"
+	"github.com/anthropics/anthropic-sdk-go/option"
 
 	"github.com/redpanda-data/ai-sdk-go/catalog"
+	"github.com/redpanda-data/ai-sdk-go/internal/shouldretry"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -75,12 +77,14 @@ func (m *Model) Generate(ctx context.Context, req *llm.Request) (*llm.Response, 
 		return nil, fmt.Errorf("%w: %w", llm.ErrRequestMapping, err)
 	}
 
+	ctx, noRetry := shouldretry.Watch(ctx)
+
 	// Make the API call using Beta Messages API
-	response, err := m.client.Beta.Messages.New(ctx, apiReq)
+	response, err := m.client.Beta.Messages.New(ctx, apiReq, option.WithMiddleware(shouldretry.Middleware))
 	if err != nil {
 		// Double-wrap: ErrAPICall (for backward compat) + classified error (e.g.
 		// ErrRateLimitExceeded) so both errors.Is checks work on the same error.
-		return nil, llm.WrapAPICall(classifyError(err))
+		return nil, llm.WrapAPICall(shouldretry.Apply(classifyError(err), noRetry.Load()))
 	}
 
 	// Convert Beta Messages API response back to our format
@@ -100,8 +104,10 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 			return
 		}
 
+		ctx, noRetry := shouldretry.Watch(ctx)
+
 		// Create streaming request using Beta Messages API
-		stream := m.client.Beta.Messages.NewStreaming(ctx, apiReq)
+		stream := m.client.Beta.Messages.NewStreaming(ctx, apiReq, option.WithMiddleware(shouldretry.Middleware))
 		defer stream.Close() // Automatic cleanup, even on early break
 
 		// Track content blocks for aggregation
@@ -266,7 +272,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 		// Check for transport/cancellation errors
 		if err := stream.Err(); err != nil {
 			// See Generate for ErrAPICall double-wrap rationale.
-			yield(nil, llm.WrapAPICall(classifyError(err)))
+			yield(nil, llm.WrapAPICall(shouldretry.Apply(classifyError(err), noRetry.Load())))
 			return
 		}
 

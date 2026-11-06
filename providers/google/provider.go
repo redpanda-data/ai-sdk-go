@@ -26,6 +26,7 @@ import (
 	"google.golang.org/genai"
 
 	"github.com/redpanda-data/ai-sdk-go/catalog"
+	"github.com/redpanda-data/ai-sdk-go/internal/shouldretry"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -36,44 +37,56 @@ type Provider struct {
 	HTTPClient *http.Client
 	Timeout    time.Duration
 	client     *genai.Client
-	context    context.Context //nolint:containedctx // Context required for Gemini client lifetime management
 }
 
 // NewProviderWithClient creates a provider over a genai client the caller
 // built. It takes no API key: whatever authenticates the client is already
-// on it.
-//
-//nolint:contextcheck // Context is intentionally stored for Gemini client operations
+// on it. The provider makes its own copy of client so it can read
+// x-should-retry from error responses. It doesn't change the caller's client.
 func NewProviderWithClient(ctx context.Context, client *genai.Client) (*Provider, error) {
 	if client == nil {
 		return nil, errors.New("genai client is required")
 	}
 
 	if ctx == nil {
-		ctx = context.Background()
+		return nil, errors.New("context is required")
 	}
 
-	return &Provider{client: client, context: ctx}, nil
-}
+	// genai drops response headers from its errors, so the header has to be
+	// read in the HTTP client. A genai client's HTTP client can't be replaced
+	// after the client is built, so build a new genai client from the old one's
+	// settings with the HTTP client wrapped. The settings already include an
+	// HTTP client, so genai doesn't look for credentials again.
+	cfg := client.ClientConfig()
+	cfg.HTTPClient = shouldretry.WrapClient(cfg.HTTPClient)
 
-// Name returns the provider identifier.
-func (*Provider) Name() llm.ProviderID {
-	return ProviderName
+	// For the Gemini API, genai fills Project and Location from the
+	// GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION environment variables.
+	// genai refuses to build a client that has those and an API key, so clear
+	// them. The Gemini API doesn't use them or Credentials.
+	if cfg.Backend != genai.BackendVertexAI {
+		cfg.Project, cfg.Location, cfg.Credentials = "", "", nil
+	}
+
+	wrapped, err := genai.NewClient(ctx, &cfg)
+	if err != nil {
+		return nil, fmt.Errorf("rebuild genai client: %w", err)
+	}
+
+	return &Provider{client: wrapped}, nil
 }
 
 // ProviderOption configures a Provider instance using functional options.
 type ProviderOption func(*Provider) error
 
 // NewProvider creates a new Google Gemini provider with the required API key and optional configuration.
-//
-//nolint:contextcheck // Context is intentionally stored for Gemini client operations
 func NewProvider(ctx context.Context, apiKey string, opts ...ProviderOption) (*Provider, error) {
 	if apiKey == "" {
 		return nil, errors.New("API key is required")
 	}
 
 	if ctx == nil {
-		ctx = context.Background()
+		return nil, errors.New("context is required")
 	}
 
 	timeout := 10 * time.Minute
@@ -84,7 +97,6 @@ func NewProvider(ctx context.Context, apiKey string, opts ...ProviderOption) (*P
 			Timeout: timeout,
 		},
 		Timeout: timeout,
-		context: ctx,
 	}
 
 	for _, opt := range opts {
@@ -101,7 +113,7 @@ func NewProvider(ctx context.Context, apiKey string, opts ...ProviderOption) (*P
 
 	// Set HTTPClient if provided
 	if p.HTTPClient != nil {
-		clientConfig.HTTPClient = p.HTTPClient
+		clientConfig.HTTPClient = shouldretry.WrapClient(p.HTTPClient)
 	}
 
 	// Set BaseURL via HTTPOptions if provided
@@ -117,6 +129,11 @@ func NewProvider(ctx context.Context, apiKey string, opts ...ProviderOption) (*P
 	p.client = client
 
 	return p, nil
+}
+
+// Name returns the provider identifier.
+func (*Provider) Name() llm.ProviderID {
+	return ProviderName
 }
 
 // WithBaseURL sets a custom API endpoint for the Google provider.
