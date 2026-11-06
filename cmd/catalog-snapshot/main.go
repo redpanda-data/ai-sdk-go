@@ -35,6 +35,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/catalog/snapshot"
 	"github.com/redpanda-data/ai-sdk-go/providers/anthropic"
 	"github.com/redpanda-data/ai-sdk-go/providers/bedrock"
+	"github.com/redpanda-data/ai-sdk-go/providers/fireworks"
 	"github.com/redpanda-data/ai-sdk-go/providers/google"
 	"github.com/redpanda-data/ai-sdk-go/providers/meta"
 	"github.com/redpanda-data/ai-sdk-go/providers/openai"
@@ -52,6 +53,7 @@ func main() {
 	err := snapshot.Encode(&buf,
 		anthropic.Catalog(),
 		bedrock.Catalog(),
+		fireworks.Catalog(),
 		google.Catalog(),
 		meta.Catalog(),
 		openai.Catalog(),

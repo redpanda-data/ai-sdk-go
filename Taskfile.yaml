@@ -19,6 +19,7 @@ vars:
 
 includes:
   install: taskfiles/install.yaml
+  fireworks: taskfiles/fireworks.yaml
 
 tasks:
   license:

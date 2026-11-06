@@ -6,7 +6,7 @@
     "changes": {"type": "array", "items": {"type": "object", "additionalProperties": false,
       "required": ["offering", "field", "old", "new", "source_url", "rule"],
       "properties": {
-        "offering": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._:-]{0,79}(@[0-9]{8})?$"},
+        "offering": {"type": "string", "pattern": "^([a-z0-9][a-z0-9._:-]{0,79}(@[0-9]{8})?|fireworks:accounts/fireworks/(models|routers)/[a-z0-9][a-z0-9._-]{0,79})$"},
         "field": {"enum": ["new_model", "new_copy", "price", "limit", "lifecycle", "replacement", "knowledge_cutoff", "release_date", "capability", "location"]},
         "old": {"type": "string", "pattern": "^[A-Za-z0-9 ._:/+@-]{0,64}$"},
         "new": {"type": "string", "pattern": "^[A-Za-z0-9 ._:/+@-]{0,64}$"},
@@ -15,7 +15,7 @@
     "needs_human": {"type": "array", "items": {"type": "object", "additionalProperties": false,
       "required": ["offering", "field", "values", "source_urls", "rule", "why"],
       "properties": {
-        "offering": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._:-]{0,79}(@[0-9]{8})?$"},
+        "offering": {"type": "string", "pattern": "^([a-z0-9][a-z0-9._:-]{0,79}(@[0-9]{8})?|fireworks:accounts/fireworks/(models|routers)/[a-z0-9][a-z0-9._-]{0,79})$"},
         "field": {"enum": ["new_model", "new_copy", "price", "limit", "lifecycle", "replacement", "knowledge_cutoff", "release_date", "capability", "location"]},
         "catalogue": {"type": "string", "pattern": "^[A-Za-z0-9 ._:/+@-]{0,64}$"},
         "page": {"type": "string", "pattern": "^[A-Za-z0-9 ._:/+@-]{0,64}$"},
@@ -28,7 +28,7 @@
     "skipped": {"type": "array", "items": {"type": "object", "additionalProperties": false,
       "required": ["offering", "reason", "rule"],
       "properties": {
-        "offering": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._:-]{0,79}(@[0-9]{8})?$"},
+        "offering": {"type": "string", "pattern": "^([a-z0-9][a-z0-9._:-]{0,79}(@[0-9]{8})?|fireworks:accounts/fireworks/(models|routers)/[a-z0-9][a-z0-9._-]{0,79})$"},
         "reason": {"enum": ["not_on_named_sources", "out_of_scope", "limited_availability", "vendor_excluded", "region_not_offered", "copy_unlisted", "fixed_fact_differs", "copy_unpriced", "no_catalog_field", "not_callable"]},
         "rule": {"type": "string", "pattern": "^[a-z]+(-[a-z0-9]+)+$"},
         "values": {"type": "array", "items": {"type": "string", "pattern": "^[A-Za-z0-9 ._:/+@-]{0,64}$"}}}}}

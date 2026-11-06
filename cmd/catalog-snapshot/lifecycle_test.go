@@ -26,6 +26,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/pricing"
 	"github.com/redpanda-data/ai-sdk-go/providers/anthropic"
 	"github.com/redpanda-data/ai-sdk-go/providers/bedrock"
+	"github.com/redpanda-data/ai-sdk-go/providers/fireworks"
 	"github.com/redpanda-data/ai-sdk-go/providers/google"
 	"github.com/redpanda-data/ai-sdk-go/providers/meta"
 	"github.com/redpanda-data/ai-sdk-go/providers/openai"
@@ -37,7 +38,7 @@ import (
 // forbids it there), so cross-provider invariants live here.
 func allCatalogs() []*catalog.Catalog {
 	return []*catalog.Catalog{
-		anthropic.Catalog(), bedrock.Catalog(), google.Catalog(), meta.Catalog(), openai.Catalog(), vertex.Catalog(),
+		anthropic.Catalog(), bedrock.Catalog(), fireworks.Catalog(), google.Catalog(), meta.Catalog(), openai.Catalog(), vertex.Catalog(),
 	}
 }
 
@@ -112,6 +113,9 @@ func TestDeprecatedOfferingsNameAReplacement(t *testing.T) {
 		// Google recommends Gemini 3.1 Flash-Lite or Gemma 4; the google
 		// catalog carries neither.
 		"gcp.gemini/gemini-2.5-flash-lite": "gemini-3.1-flash-lite / gemma-4",
+		// https://docs.fireworks.ai/updates/changelog announces serverless shutdown,
+		// but no replacement for the retained historical GPT-OSS offering.
+		"fireworks/accounts/fireworks/models/gpt-oss-120b": "no replacement announced",
 	}
 
 	for _, cat := range allCatalogs() {

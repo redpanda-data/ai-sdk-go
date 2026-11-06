@@ -6,7 +6,7 @@
 # Baseline exclusions always apply on top of this list: .github/**, terraform/**,
 # release/**, Dockerfiles, iam/ and auth/ dirs, *credential*, *secret*, *.pem, *.key.
 # Binary or patchless files also make a PR ineligible.
-version: 12
+version: 13
 enabled: true
 
 # Size is NOT a risk score and does not gate. The only size rule is that the
@@ -108,6 +108,9 @@ shadow_engines:
 #                                 the nightly Vertex AI job's test and the two test-only
 #                                 packages it imports; the job runs them while it holds
 #                                 Vertex AI credentials
+#   providers/fireworks/contract*.go
+#                                 live qualification, recording and helper code executed with
+#                                 Fireworks credentials; models.go stays reviewable metadata
 # Guarded by .github/actions/ai-merge/scripts/test_repo_config.py.
 excluded_paths:
   - "providers/**/provider.go"
@@ -128,6 +131,7 @@ excluded_paths:
   - "header.txt"
   - "providers/vertex/model.go"
   - "providers/vertex/conformance/**"
+  - "providers/fireworks/contract*.go"
   - "providers/conformance/**"
   - "internal/testsuite/**"
 

@@ -28,8 +28,8 @@
     }
   },
   "openai": {
-    "providers": ["openai", "bedrock"],
-    "hosts": ["developers.openai.com", "aws.amazon.com", "docs.aws.amazon.com", "pricing.us-east-1.amazonaws.com"],
+    "providers": ["openai", "bedrock", "fireworks"],
+    "hosts": ["developers.openai.com", "aws.amazon.com", "docs.aws.amazon.com", "pricing.us-east-1.amazonaws.com", "docs.fireworks.ai", "fireworks.ai"],
     "gate": {
       "model_prefix": "openai/",
       "must_contain": "GPT",
@@ -38,6 +38,9 @@
         {"id": "openai-models", "type": "markdown", "url": "https://developers.openai.com/api/docs/models.md"},
         {"id": "openai-deprecations", "type": "markdown", "url": "https://developers.openai.com/api/docs/deprecations.md"},
         {"id": "openai-changelog", "type": "markdown", "url": "https://developers.openai.com/api/docs/changelog.md"},
+        {"id": "fireworks-pricing", "type": "markdown", "url": "https://docs.fireworks.ai/serverless/pricing.md", "must_contain": "Serverless Pricing"},
+        {"id": "fireworks-changelog", "type": "markdown", "url": "https://docs.fireworks.ai/updates/changelog.md", "must_contain": "Changelog"},
+        {"id": "fireworks-gpt-oss-120b", "type": "html", "url": "https://fireworks.ai/models/fireworks/gpt-oss-120b", "must_contain": "gpt-oss-120b"},
         {"id": "bedrock-model-cards", "type": "markdown", "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards-openai.md"},
         {"id": "bedrock-lifecycle-legacy", "type": "markdown", "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.md", "must_contain": "Legacy"},
         {"id": "bedrock-lifecycle", "type": "markdown", "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle.md", "must_contain": "Model lifecycle"},
@@ -111,6 +114,68 @@
       ],
       "per_model": [
         {"provider": "aws.bedrock", "id": "bedrock-card-{slug}", "type": "markdown", "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-mistral-ai-{slug}.md"}
+      ]
+    }
+  },
+  "zai": {
+    "providers": ["fireworks"],
+    "hosts": ["docs.z.ai", "z.ai", "huggingface.co", "docs.fireworks.ai", "fireworks.ai"],
+    "gate": {
+      "model_prefix": "zai/",
+      "must_contain": "GLM",
+      "pages": [
+        {"id": "zai-glm-5-3", "type": "markdown", "url": "https://docs.z.ai/guides/llm/glm-5.3.md"},
+        {"id": "zai-glm-5-3-flash", "type": "markdown", "url": "https://docs.z.ai/guides/llm/glm-5.3-flash.md"},
+        {"id": "fireworks-pricing", "type": "markdown", "url": "https://docs.fireworks.ai/serverless/pricing.md", "must_contain": "Serverless Pricing"},
+        {"id": "fireworks-changelog", "type": "markdown", "url": "https://docs.fireworks.ai/updates/changelog.md", "must_contain": "Changelog"},
+        {"id": "fireworks-glm-5p3", "type": "html", "url": "https://fireworks.ai/models/fireworks/glm-5p3"},
+        {"id": "fireworks-glm-5p3-flash", "type": "html", "url": "https://fireworks.ai/models/fireworks/glm-5p3-flash"}
+      ]
+    }
+  },
+  "minimax": {
+    "providers": ["fireworks"],
+    "hosts": ["huggingface.co", "docs.fireworks.ai", "fireworks.ai"],
+    "gate": {
+      "model_prefix": "minimax/",
+      "must_contain": "MiniMax",
+      "pages": [
+        {"id": "fireworks-pricing", "type": "markdown", "url": "https://docs.fireworks.ai/serverless/pricing.md", "must_contain": "Serverless Pricing"},
+        {"id": "fireworks-changelog", "type": "markdown", "url": "https://docs.fireworks.ai/updates/changelog.md", "must_contain": "Changelog"},
+        {"id": "fireworks-minimax-m3", "type": "html", "url": "https://fireworks.ai/models/fireworks/minimax-m3", "must_contain": "Minimax M3"}
+      ]
+    }
+  },
+  "deepseek": {
+    "providers": ["fireworks"],
+    "hosts": ["api-docs.deepseek.com", "docs.fireworks.ai", "fireworks.ai"],
+    "gate": {
+      "model_prefix": "deepseek/",
+      "must_contain": "DeepSeek",
+      "pages": [
+        {"id": "deepseek-release-0910", "type": "html", "url": "https://api-docs.deepseek.com/news/news260910"},
+        {"id": "deepseek-release-1017", "type": "html", "url": "https://api-docs.deepseek.com/news/news261017"},
+        {"id": "deepseek-models", "type": "html", "url": "https://api-docs.deepseek.com/api/list-models"},
+        {"id": "deepseek-pricing", "type": "html", "url": "https://api-docs.deepseek.com/quick_start/pricing"},
+        {"id": "fireworks-pricing", "type": "markdown", "url": "https://docs.fireworks.ai/serverless/pricing.md", "must_contain": "Serverless Pricing"},
+        {"id": "fireworks-changelog", "type": "markdown", "url": "https://docs.fireworks.ai/updates/changelog.md", "must_contain": "Changelog"},
+        {"id": "fireworks-deepseek-v4p1-flash", "type": "html", "url": "https://fireworks.ai/models/deepseek-ai/deepseek-v4p1-flash"},
+        {"id": "fireworks-deepseek-v4p1-flash-1017", "type": "html", "url": "https://fireworks.ai/models/deepseek-ai/deepseek-v4p1-flash-1017"}
+      ]
+    }
+  },
+  "moonshotai": {
+    "providers": ["fireworks"],
+    "hosts": ["platform.kimi.ai", "www.kimi.com", "docs.fireworks.ai", "fireworks.ai"],
+    "gate": {
+      "model_prefix": "moonshotai/",
+      "must_contain": "Kimi",
+      "pages": [
+        {"id": "kimi-changelog", "type": "markdown", "url": "https://platform.kimi.ai/docs/platform-changelog.md"},
+        {"id": "kimi-k3", "type": "markdown", "url": "https://platform.kimi.ai/docs/guide/kimi-k3-quickstart.md"},
+        {"id": "fireworks-pricing", "type": "markdown", "url": "https://docs.fireworks.ai/serverless/pricing.md", "must_contain": "Serverless Pricing"},
+        {"id": "fireworks-changelog", "type": "markdown", "url": "https://docs.fireworks.ai/updates/changelog.md", "must_contain": "Changelog"},
+        {"id": "fireworks-kimi-k3", "type": "html", "url": "https://fireworks.ai/models/fireworks/kimi-k3"}
       ]
     }
   }

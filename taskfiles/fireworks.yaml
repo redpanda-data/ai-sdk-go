@@ -1,0 +1,49 @@
+version: '3'
+
+tasks:
+  replay:
+    desc: Validate strict replay and complete Fireworks catalog evidence without credentials
+    dir: '{{.TASKFILE_DIR}}/..'
+    cmds:
+      - task: run
+        vars:
+          CONTRACT_MODE: replay
+
+  record:
+    desc: Explicitly capture every active direct Fireworks case (billable; explicit per-run spend limit required)
+    dir: '{{.TASKFILE_DIR}}/..'
+    cmds:
+      - task: run
+        vars:
+          CONTRACT_MODE: record
+      - task: replay
+
+  accept:
+    desc: Mandatory direct Fireworks release acceptance; missing credentials, tests, evidence or required cases fail
+    dir: '{{.TASKFILE_DIR}}/..'
+    cmds:
+      - task: replay
+      - task: run
+        vars:
+          CONTRACT_MODE: accept
+
+  run:
+    internal: true
+    dir: '{{.TASKFILE_DIR}}/..'
+    cmds:
+      - |
+        set -eu
+        tmp=$(mktemp -d)
+        trap 'rm -rf "$tmp"' EXIT
+        go test -c -o "$tmp/contracts" ./providers/fireworks
+        listed=$("$tmp/contracts" -test.list '^TestFireworksContract(Live|Replay|Completeness)$')
+        for name in TestFireworksContractLive TestFireworksContractReplay TestFireworksContractCompleteness; do
+          printf '%s\n' "$listed" | grep -Fxq "$name" || { echo "missing required test: $name" >&2; exit 1; }
+        done
+        cd providers/fireworks
+        case '{{.CONTRACT_MODE}}' in
+          replay) "$tmp/contracts" -test.run '^TestFireworksContract(Replay|Completeness|NativeReplay|OriginalCharacterization|Synthetic.*)$' -test.short -test.timeout=10m {{.CLI_ARGS}} ;;
+          record) "$tmp/contracts" -test.run '^TestFireworksContractLive$' -test.v -test.timeout=30m -fireworks-live -fireworks-record {{.CLI_ARGS}} ;;
+          accept) "$tmp/contracts" -test.run '^TestFireworksContractLive$' -test.v -test.timeout=30m -fireworks-live {{.CLI_ARGS}} ;;
+          *) echo 'invalid contract mode' >&2; exit 1 ;;
+        esac

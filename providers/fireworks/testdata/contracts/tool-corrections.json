@@ -1,0 +1,1148 @@
+{
+  "version": 3,
+  "catalog_fingerprint": "309fcfec4e9fa518860dd8c1d5ed03723393ddf416b8e3140c243d3a7959f223",
+  "test_fingerprint": "f04a5825eed10f4e08f6a90c5e3d7156434a53dfd66f3844d08355a7a933517e",
+  "captured_at": "2026-11-04T12:50:18.592758035Z",
+  "sdk_revision": "651b3d1f82d2da5d21e449bd53ab28314d27b623",
+  "scope": "sdk_direct_upstream_only",
+  "blocked": null,
+  "known_run_usd": 0.00044627999999999996,
+  "prior_conservative_usd": 0.4185253510000009,
+  "cumulative_conservative_usd": 0.4189716310000009,
+  "unresolved_reservations_usd": 0,
+  "evidence": [
+    {
+      "case": {
+        "model": "accounts/fireworks/models/gpt-oss-120b",
+        "api": "anthropic_messages",
+        "transport": "direct",
+        "stream": false,
+        "feature": "tools"
+      },
+      "exchanges": [
+        {
+          "method": "POST",
+          "authorization_class": "valid",
+          "path": "/inference/v1/messages",
+          "request_headers": {
+            "Anthropic-Version": "2023-06-01",
+            "Content-Type": "application/json"
+          },
+          "request": {
+            "max_tokens": 512,
+            "messages": [
+              {
+                "content": "Call lookup with key x exactly once. Its response is JSON. Reply with the exact value of the result field, without inventing a value.",
+                "role": "user"
+              }
+            ],
+            "model": "accounts/fireworks/models/gpt-oss-120b",
+            "output_config": {
+              "effort": "low"
+            },
+            "stream": false,
+            "temperature": 0,
+            "tool_choice": {
+              "name": "lookup",
+              "type": "tool"
+            },
+            "tools": [
+              {
+                "description": "Look up a secret word by key.",
+                "input_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "key": {
+                      "enum": [
+                        "x"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ],
+                  "type": "object"
+                },
+                "name": "lookup"
+              }
+            ]
+          },
+          "status": 200,
+          "response_headers": {
+            "Content-Type": "application/json"
+          },
+          "response": "{\"content\":[{\"signature\":\"\",\"thinking\":\"We need to call function lookup.\",\"type\":\"thinking\"},{\"id\":\"capture_e735dc419b1ff734f026c7c7\",\"input\":{\"key\":\"x\"},\"name\":\"lookup\",\"type\":\"tool_use\"}],\"id\":\"capture_b842722e185a827aeaa09745\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"role\":\"assistant\",\"stop_details\":null,\"stop_reason\":\"tool_use\",\"stop_sequence\":null,\"type\":\"message\",\"usage\":{\"cache_creation\":null,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":48,\"inference_geo\":null,\"input_tokens\":105,\"output_tokens\":33,\"service_tier\":null}}"
+        },
+        {
+          "method": "POST",
+          "authorization_class": "valid",
+          "path": "/inference/v1/messages",
+          "request_headers": {
+            "Anthropic-Version": "2023-06-01",
+            "Content-Type": "application/json"
+          },
+          "request": {
+            "max_tokens": 512,
+            "messages": [
+              {
+                "content": "Call lookup with key x exactly once. Its response is JSON. Reply with the exact value of the result field, without inventing a value.",
+                "role": "user"
+              },
+              {
+                "content": [
+                  {
+                    "signature": "",
+                    "thinking": "We need to call function lookup.",
+                    "type": "thinking"
+                  },
+                  {
+                    "id": "capture_e735dc419b1ff734f026c7c7",
+                    "input": {
+                      "key": "x"
+                    },
+                    "name": "lookup",
+                    "type": "tool_use"
+                  }
+                ],
+                "role": "assistant"
+              },
+              {
+                "content": [
+                  {
+                    "content": "{\"result\":\"violet-lantern-zebra\"}",
+                    "tool_use_id": "capture_e735dc419b1ff734f026c7c7",
+                    "type": "tool_result"
+                  }
+                ],
+                "role": "user"
+              }
+            ],
+            "model": "accounts/fireworks/models/gpt-oss-120b",
+            "output_config": {
+              "effort": "low"
+            },
+            "stream": false,
+            "temperature": 0,
+            "tools": [
+              {
+                "description": "Look up a secret word by key.",
+                "input_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "key": {
+                      "enum": [
+                        "x"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ],
+                  "type": "object"
+                },
+                "name": "lookup"
+              }
+            ]
+          },
+          "status": 200,
+          "response_headers": {
+            "Content-Type": "application/json"
+          },
+          "response": "{\"content\":[{\"text\":\"violet-lantern-zebra\",\"type\":\"text\"}],\"id\":\"capture_76ba4831216d637732254e0c\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"role\":\"assistant\",\"stop_details\":null,\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"type\":\"message\",\"usage\":{\"cache_creation\":null,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":152,\"inference_geo\":null,\"input_tokens\":55,\"output_tokens\":11,\"service_tier\":null}}"
+        }
+      ],
+      "request_options": {
+        "user_prompt": "Call lookup with key x exactly once. Its response is JSON. Reply with the exact value of the result field, without inventing a value.",
+        "tool_result": "{\"result\":\"violet-lantern-zebra\"}",
+        "expected_tool_result": "violet-lantern-zebra"
+      },
+      "capture": {
+        "test_version": 3,
+        "test_fingerprint": "f04a5825eed10f4e08f6a90c5e3d7156434a53dfd66f3844d08355a7a933517e",
+        "captured_at": "2026-11-04T12:50:18.59280476Z",
+        "sdk_revision": "651b3d1f82d2da5d21e449bd53ab28314d27b623",
+        "sanitized_request_sha256": [
+          "17c243421cccf00a62fff128bc1d459e54d06caf3c9d176e4992e69863cdccd0",
+          "e438640e4bc4e3c3c802df4c564d909ef7bc4927c5bd87a5cd932869829ebbb4"
+        ]
+      },
+      "native_verified": true,
+      "cache_hit_observed": false,
+      "fresh_input_observed": false
+    },
+    {
+      "case": {
+        "model": "accounts/fireworks/models/gpt-oss-120b",
+        "api": "anthropic_messages",
+        "transport": "direct",
+        "stream": true,
+        "feature": "tools"
+      },
+      "exchanges": [
+        {
+          "method": "POST",
+          "authorization_class": "valid",
+          "path": "/inference/v1/messages",
+          "request_headers": {
+            "Anthropic-Version": "2023-06-01",
+            "Content-Type": "application/json"
+          },
+          "request": {
+            "max_tokens": 512,
+            "messages": [
+              {
+                "content": "Call lookup with key x exactly once. Its response is JSON. Reply with the exact value of the result field, without inventing a value.",
+                "role": "user"
+              }
+            ],
+            "model": "accounts/fireworks/models/gpt-oss-120b",
+            "output_config": {
+              "effort": "low"
+            },
+            "stream": true,
+            "temperature": 0,
+            "tool_choice": {
+              "name": "lookup",
+              "type": "tool"
+            },
+            "tools": [
+              {
+                "description": "Look up a secret word by key.",
+                "input_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "key": {
+                      "enum": [
+                        "x"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ],
+                  "type": "object"
+                },
+                "name": "lookup"
+              }
+            ]
+          },
+          "status": 200,
+          "response_headers": {
+            "Content-Type": "text/event-stream"
+          },
+          "response": "event: message_start\ndata: {\"message\":{\"content\":[],\"id\":\"capture_bc5599e1284d9534a980dce9\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"role\":\"assistant\",\"stop_details\":null,\"stop_reason\":null,\"stop_sequence\":null,\"type\":\"message\",\"usage\":{\"cache_creation\":null,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":152,\"inference_geo\":null,\"input_tokens\":1,\"output_tokens\":1,\"service_tier\":null}},\"type\":\"message_start\"}\n\nevent: ping\ndata: {\"type\":\"ping\"}\n\nevent: content_block_start\ndata: {\"content_block\":{\"signature\":\"\",\"thinking\":\"\",\"type\":\"thinking\"},\"index\":0,\"type\":\"content_block_start\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"thinking\":\"We\",\"type\":\"thinking_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"thinking\":\" need\",\"type\":\"thinking_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"thinking\":\" to\",\"type\":\"thinking_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"thinking\":\" call\",\"type\":\"thinking_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"thinking\":\" function\",\"type\":\"thinking_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"thinking\":\" lookup\",\"type\":\"thinking_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"thinking\":\".\",\"type\":\"thinking_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"signature\":\"\",\"type\":\"signature_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_stop\ndata: {\"index\":0,\"type\":\"content_block_stop\"}\n\nevent: content_block_start\ndata: {\"content_block\":{\"id\":\"capture_5b2a1df70b3e9b4748a4c55e\",\"input\":{},\"name\":\"lookup\",\"type\":\"tool_use\"},\"index\":1,\"type\":\"content_block_start\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"partial_json\":\"{\\n\",\"type\":\"input_json_delta\"},\"index\":1,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"partial_json\":\"\\\"\",\"type\":\"input_json_delta\"},\"index\":1,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"partial_json\":\"key\",\"type\":\"input_json_delta\"},\"index\":1,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"partial_json\":\"\\\":\",\"type\":\"input_json_delta\"},\"index\":1,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"partial_json\":\" \\\"\",\"type\":\"input_json_delta\"},\"index\":1,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"partial_json\":\"x\",\"type\":\"input_json_delta\"},\"index\":1,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"partial_json\":\"\\\"\\n\",\"type\":\"input_json_delta\"},\"index\":1,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"partial_json\":\"}\",\"type\":\"input_json_delta\"},\"index\":1,\"type\":\"content_block_delta\"}\n\nevent: content_block_stop\ndata: {\"index\":1,\"type\":\"content_block_stop\"}\n\nevent: message_delta\ndata: {\"delta\":{\"stop_details\":null,\"stop_reason\":\"tool_use\",\"stop_sequence\":null},\"type\":\"message_delta\",\"usage\":{\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":152,\"input_tokens\":1,\"output_tokens\":33}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
+        },
+        {
+          "method": "POST",
+          "authorization_class": "valid",
+          "path": "/inference/v1/messages",
+          "request_headers": {
+            "Anthropic-Version": "2023-06-01",
+            "Content-Type": "application/json"
+          },
+          "request": {
+            "max_tokens": 512,
+            "messages": [
+              {
+                "content": "Call lookup with key x exactly once. Its response is JSON. Reply with the exact value of the result field, without inventing a value.",
+                "role": "user"
+              },
+              {
+                "content": [
+                  {
+                    "signature": "",
+                    "thinking": "We need to call function lookup.",
+                    "type": "thinking"
+                  },
+                  {
+                    "id": "capture_5b2a1df70b3e9b4748a4c55e",
+                    "input": {
+                      "key": "x"
+                    },
+                    "name": "lookup",
+                    "type": "tool_use"
+                  }
+                ],
+                "role": "assistant"
+              },
+              {
+                "content": [
+                  {
+                    "content": "{\"result\":\"violet-lantern-zebra\"}",
+                    "tool_use_id": "capture_5b2a1df70b3e9b4748a4c55e",
+                    "type": "tool_result"
+                  }
+                ],
+                "role": "user"
+              }
+            ],
+            "model": "accounts/fireworks/models/gpt-oss-120b",
+            "output_config": {
+              "effort": "low"
+            },
+            "stream": true,
+            "temperature": 0,
+            "tools": [
+              {
+                "description": "Look up a secret word by key.",
+                "input_schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "key": {
+                      "enum": [
+                        "x"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ],
+                  "type": "object"
+                },
+                "name": "lookup"
+              }
+            ]
+          },
+          "status": 200,
+          "response_headers": {
+            "Content-Type": "text/event-stream"
+          },
+          "response": "event: message_start\ndata: {\"message\":{\"content\":[],\"id\":\"capture_58a5d4e9896e7fa00f22d418\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"role\":\"assistant\",\"stop_details\":null,\"stop_reason\":null,\"stop_sequence\":null,\"type\":\"message\",\"usage\":{\"cache_creation\":null,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":206,\"inference_geo\":null,\"input_tokens\":1,\"output_tokens\":1,\"service_tier\":null}},\"type\":\"message_start\"}\n\nevent: ping\ndata: {\"type\":\"ping\"}\n\nevent: content_block_start\ndata: {\"content_block\":{\"text\":\"\",\"type\":\"text\"},\"index\":0,\"type\":\"content_block_start\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"vio\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"let\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"-l\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"an\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"tern\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"-z\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_delta\ndata: {\"delta\":{\"text\":\"ebra\",\"type\":\"text_delta\"},\"index\":0,\"type\":\"content_block_delta\"}\n\nevent: content_block_stop\ndata: {\"index\":0,\"type\":\"content_block_stop\"}\n\nevent: message_delta\ndata: {\"delta\":{\"stop_details\":null,\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"type\":\"message_delta\",\"usage\":{\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":206,\"input_tokens\":1,\"output_tokens\":11}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
+        }
+      ],
+      "request_options": {
+        "user_prompt": "Call lookup with key x exactly once. Its response is JSON. Reply with the exact value of the result field, without inventing a value.",
+        "tool_result": "{\"result\":\"violet-lantern-zebra\"}",
+        "expected_tool_result": "violet-lantern-zebra"
+      },
+      "capture": {
+        "test_version": 3,
+        "test_fingerprint": "f04a5825eed10f4e08f6a90c5e3d7156434a53dfd66f3844d08355a7a933517e",
+        "captured_at": "2026-11-04T12:50:19.570325523Z",
+        "sdk_revision": "651b3d1f82d2da5d21e449bd53ab28314d27b623",
+        "sanitized_request_sha256": [
+          "dc65de2fd5709c20ebfbc24df8acd1f4779114b394ddd61009e03203fe4a41dc",
+          "ad4099a7b1b682d7040eed9c268f341fb23562177bd94f07b21d7e7559a12432"
+        ]
+      },
+      "native_verified": true,
+      "cache_hit_observed": false,
+      "fresh_input_observed": false
+    },
+    {
+      "case": {
+        "model": "accounts/fireworks/models/gpt-oss-120b",
+        "api": "openai_chat_completions",
+        "transport": "direct",
+        "stream": false,
+        "feature": "tools"
+      },
+      "exchanges": [
+        {
+          "method": "POST",
+          "authorization_class": "valid",
+          "path": "/inference/v1/chat/completions",
+          "request_headers": {
+            "Content-Type": "application/json"
+          },
+          "request": {
+            "max_tokens": 512,
+            "messages": [
+              {
+                "content": "Call lookup with key x exactly once. Its response is JSON. Reply with the exact value of the result field, without inventing a value.",
+                "role": "user"
+              }
+            ],
+            "model": "accounts/fireworks/models/gpt-oss-120b",
+            "reasoning_effort": "low",
+            "stream": false,
+            "temperature": 0,
+            "tool_choice": {
+              "function": {
+                "name": "lookup"
+              },
+              "type": "function"
+            },
+            "tools": [
+              {
+                "function": {
+                  "description": "Look up a secret word by key.",
+                  "name": "lookup",
+                  "parameters": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "key": {
+                        "enum": [
+                          "x"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "key"
+                    ],
+                    "type": "object"
+                  },
+                  "strict": true
+                },
+                "type": "function"
+              }
+            ]
+          },
+          "status": 200,
+          "response_headers": {
+            "Content-Type": "application/json"
+          },
+          "response": "{\"choices\":[{\"finish_reason\":\"tool_calls\",\"index\":0,\"message\":{\"reasoning_content\":\"We need to call function lookup.\",\"role\":\"assistant\",\"tool_calls\":[{\"function\":{\"arguments\":\"{\\n\\\"key\\\": \\\"x\\\"\\n}\",\"name\":\"lookup\"},\"id\":\"capture_122c02c39ab5bfb0d815577a\",\"index\":0,\"name\":null,\"type\":\"function\"}]}}],\"created\":0,\"id\":\"capture_a994548c472a6c0f7525cbc4\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"chat.completion\",\"usage\":{\"completion_tokens\":33,\"completion_tokens_details\":{\"reasoning_tokens\":7},\"output_tokens_details\":{\"reasoning_tokens\":7},\"prompt_tokens\":153,\"prompt_tokens_details\":{\"cached_tokens\":0},\"total_tokens\":186}}"
+        },
+        {
+          "method": "POST",
+          "authorization_class": "valid",
+          "path": "/inference/v1/chat/completions",
+          "request_headers": {
+            "Content-Type": "application/json"
+          },
+          "request": {
+            "max_tokens": 512,
+            "messages": [
+              {
+                "content": "Call lookup with key x exactly once. Its response is JSON. Reply with the exact value of the result field, without inventing a value.",
+                "role": "user"
+              },
+              {
+                "reasoning_content": "We need to call function lookup.",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "function": {
+                      "arguments": "{\n\"key\": \"x\"\n}",
+                      "name": "lookup"
+                    },
+                    "id": "capture_122c02c39ab5bfb0d815577a",
+                    "index": 0,
+                    "name": null,
+                    "type": "function"
+                  }
+                ]
+              },
+              {
+                "content": "{\"result\":\"violet-lantern-zebra\"}",
+                "role": "tool",
+                "tool_call_id": "capture_122c02c39ab5bfb0d815577a"
+              }
+            ],
+            "model": "accounts/fireworks/models/gpt-oss-120b",
+            "reasoning_effort": "low",
+            "stream": false,
+            "temperature": 0,
+            "tool_choice": "none",
+            "tools": [
+              {
+                "function": {
+                  "description": "Look up a secret word by key.",
+                  "name": "lookup",
+                  "parameters": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "key": {
+                        "enum": [
+                          "x"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "key"
+                    ],
+                    "type": "object"
+                  },
+                  "strict": true
+                },
+                "type": "function"
+              }
+            ]
+          },
+          "status": 200,
+          "response_headers": {
+            "Content-Type": "application/json"
+          },
+          "response": "{\"choices\":[{\"finish_reason\":\"stop\",\"index\":0,\"message\":{\"content\":\"violet-lantern-zebra\",\"role\":\"assistant\"}}],\"created\":0,\"id\":\"capture_f4c86b67a96f4663e70298de\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"chat.completion\",\"usage\":{\"completion_tokens\":11,\"completion_tokens_details\":{\"reasoning_tokens\":0},\"output_tokens_details\":{\"reasoning_tokens\":0},\"prompt_tokens\":158,\"prompt_tokens_details\":{\"cached_tokens\":48},\"total_tokens\":169}}"
+        }
+      ],
+      "request_options": {
+        "user_prompt": "Call lookup with key x exactly once. Its response is JSON. Reply with the exact value of the result field, without inventing a value.",
+        "tool_result": "{\"result\":\"violet-lantern-zebra\"}",
+        "expected_tool_result": "violet-lantern-zebra"
+      },
+      "capture": {
+        "test_version": 3,
+        "test_fingerprint": "f04a5825eed10f4e08f6a90c5e3d7156434a53dfd66f3844d08355a7a933517e",
+        "captured_at": "2026-11-04T12:50:20.20207386Z",
+        "sdk_revision": "651b3d1f82d2da5d21e449bd53ab28314d27b623",
+        "sanitized_request_sha256": [
+          "1f8f38d96e10e36e4d62844333c7265d92d2b01ee528b4faaa6a9ccd6e316bbc",
+          "468ecf0149903c90b551570043208284c7b4f1db9e8fdc99addf74a031ecd9ba"
+        ]
+      },
+      "native_verified": true,
+      "cache_hit_observed": false,
+      "fresh_input_observed": false
+    },
+    {
+      "case": {
+        "model": "accounts/fireworks/models/gpt-oss-120b",
+        "api": "openai_chat_completions",
+        "transport": "direct",
+        "stream": true,
+        "feature": "tools"
+      },
+      "exchanges": [
+        {
+          "method": "POST",
+          "authorization_class": "valid",
+          "path": "/inference/v1/chat/completions",
+          "request_headers": {
+            "Content-Type": "application/json"
+          },
+          "request": {
+            "max_tokens": 512,
+            "messages": [
+              {
+                "content": "Call lookup with key x exactly once. Its response is JSON. Reply with the exact value of the result field, without inventing a value.",
+                "role": "user"
+              }
+            ],
+            "model": "accounts/fireworks/models/gpt-oss-120b",
+            "reasoning_effort": "low",
+            "stream": true,
+            "stream_options": {
+              "include_usage": true
+            },
+            "temperature": 0,
+            "tool_choice": {
+              "function": {
+                "name": "lookup"
+              },
+              "type": "function"
+            },
+            "tools": [
+              {
+                "function": {
+                  "description": "Look up a secret word by key.",
+                  "name": "lookup",
+                  "parameters": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "key": {
+                        "enum": [
+                          "x"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "key"
+                    ],
+                    "type": "object"
+                  },
+                  "strict": true
+                },
+                "type": "function"
+              }
+            ]
+          },
+          "status": 200,
+          "response_headers": {
+            "Content-Type": "text/event-stream; charset=utf-8"
+          },
+          "response": "data: {\"choices\":[{\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null,\"index\":0}],\"created\":0,\"id\":\"capture_133f7d67fcc4c9e9daab5eed\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":1,\"prompt_tokens\":153,\"prompt_tokens_details\":{\"cached_tokens\":152},\"total_tokens\":154}}\n\ndata: {\"choices\":[{\"delta\":{\"reasoning_content\":\"We\"},\"finish_reason\":null,\"index\":0}],\"created\":0,\"id\":\"capture_133f7d67fcc4c9e9daab5eed\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":4,\"prompt_tokens\":153,\"prompt_tokens_details\":{\"cached_tokens\":152},\"total_tokens\":157}}\n\ndata: {\"choices\":[{\"delta\":{\"reasoning_content\":\" need\"},\"finish_reason\":null,\"index\":0}],\"created\":0,\"id\":\"capture_133f7d67fcc4c9e9daab5eed\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":5,\"prompt_tokens\":153,\"prompt_tokens_details\":{\"cached_tokens\":152},\"total_tokens\":158}}\n\ndata: {\"choices\":[{\"delta\":{\"reasoning_content\":\" to\"},\"finish_reason\":null,\"index\":0}],\"created\":0,\"id\":\"capture_133f7d67fcc4c9e9daab5eed\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":6,\"prompt_tokens\":153,\"prompt_tokens_details\":{\"cached_tokens\":152},\"total_tokens\":159}}\n\ndata: {\"choices\":[{\"delta\":{\"reasoning_content\":\" call\"},\"finish_reason\":null,\"index\":0}],\"created\":0,\"id\":\"capture_133f7d67fcc4c9e9daab5eed\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":7,\"prompt_tokens\":153,\"prompt_tokens_details\":{\"cached_tokens\":152},\"total_tokens\":160}}\n\ndata: {\"choices\":[{\"delta\":{\"reasoning_content\":\" function\"},\"finish_reason\":null,\"index\":0}],\"created\":0,\"id\":\"capture_133f7d67fcc4c9e9daab5eed\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":8,\"prompt_tokens\":153,\"prompt_tokens_details\":{\"cached_tokens\":152},\"total_tokens\":161}}\n\ndata: {\"choices\":[{\"delta\":{\"reasoning_content\":\" lookup\"},\"finish_reason\":null,\"index\":0}],\"created\":0,\"id\":\"capture_133f7d67fcc4c9e9daab5eed\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":9,\"prompt_tokens\":153,\"prompt_tokens_details\":{\"cached_tokens\":152},\"total_tokens\":162}}\n\ndata: {\"choices\":[{\"delta\":{\"reasoning_content\":\".\"},\"finish_reason\":null,\"index\":0}],\"created\":0,\"id\":\"capture_133f7d67fcc4c9e9daab5eed\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":10,\"prompt_tokens\":153,\"prompt_tokens_details\":{\"cached_tokens\":152},\"total_tokens\":163}}\n\ndata: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"function\":{\"name\":\"lookup\"},\"id\":\"capture_8ace79d7281ad7fecd39f357\",\"index\":0,\"type\":\"function\"}]},\"finish_reason\":null,\"index\":0}],\"created\":0,\"id\":\"capture_133f7d67fcc4c9e9daab5eed\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":24,\"prompt_tokens\":153,\"prompt_tokens_details\":{\"cached_tokens\":152},\"total_tokens\":177}}\n\ndata: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"function\":{\"arguments\":\"{\\n\"},\"id\":null,\"index\":0,\"type\":\"function\"}]},\"finish_reason\":null,\"index\":0}],\"created\":0,\"id\":\"capture_133f7d67fcc4c9e9daab5eed\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":25,\"prompt_tokens\":153,\"prompt_tokens_details\":{\"cached_tokens\":152},\"total_tokens\":178}}\n\ndata: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"function\":{\"arguments\":\"\\\"\"},\"id\":null,\"index\":0,\"type\":\"function\"}]},\"finish_reason\":null,\"index\":0}],\"created\":0,\"id\":\"capture_133f7d67fcc4c9e9daab5eed\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":26,\"prompt_tokens\":153,\"prompt_tokens_details\":{\"cached_tokens\":152},\"total_tokens\":179}}\n\ndata: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"function\":{\"arguments\":\"key\"},\"id\":null,\"index\":0,\"type\":\"function\"}]},\"finish_reason\":null,\"index\":0}],\"created\":0,\"id\":\"capture_133f7d67fcc4c9e9daab5eed\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":27,\"prompt_tokens\":153,\"prompt_tokens_details\":{\"cached_tokens\":152},\"total_tokens\":180}}\n\ndata: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"function\":{\"arguments\":\"\\\":\"},\"id\":null,\"index\":0,\"type\":\"function\"}]},\"finish_reason\":null,\"index\":0}],\"created\":0,\"id\":\"capture_133f7d67fcc4c9e9daab5eed\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":28,\"prompt_tokens\":153,\"prompt_tokens_details\":{\"cached_tokens\":152},\"total_tokens\":181}}\n\ndata: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"function\":{\"arguments\":\" \\\"\"},\"id\":null,\"index\":0,\"type\":\"function\"}]},\"finish_reason\":null,\"index\":0}],\"created\":0,\"id\":\"capture_133f7d67fcc4c9e9daab5eed\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":29,\"prompt_tokens\":153,\"prompt_tokens_details\":{\"cached_tokens\":152},\"total_tokens\":182}}\n\ndata: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"function\":{\"arguments\":\"x\"},\"id\":null,\"index\":0,\"type\":\"function\"}]},\"finish_reason\":null,\"index\":0}],\"created\":0,\"id\":\"capture_133f7d67fcc4c9e9daab5eed\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":30,\"prompt_tokens\":153,\"prompt_tokens_details\":{\"cached_tokens\":152},\"total_tokens\":183}}\n\ndata: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"function\":{\"arguments\":\"\\\"\\n\"},\"id\":null,\"index\":0,\"type\":\"function\"}]},\"finish_reason\":null,\"index\":0}],\"created\":0,\"id\":\"capture_133f7d67fcc4c9e9daab5eed\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":31,\"prompt_tokens\":153,\"prompt_tokens_details\":{\"cached_tokens\":152},\"total_tokens\":184}}\n\ndata: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"function\":{\"arguments\":\"}\"},\"id\":null,\"index\":0,\"type\":\"function\"}]},\"finish_reason\":null,\"index\":0}],\"created\":0,\"id\":\"capture_133f7d67fcc4c9e9daab5eed\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":32,\"prompt_tokens\":153,\"prompt_tokens_details\":{\"cached_tokens\":152},\"total_tokens\":185}}\n\ndata: {\"choices\":[{\"delta\":{},\"finish_reason\":\"tool_calls\",\"index\":0}],\"created\":0,\"id\":\"capture_133f7d67fcc4c9e9daab5eed\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":33,\"prompt_tokens\":153,\"prompt_tokens_details\":{\"cached_tokens\":152},\"total_tokens\":186}}\n\ndata: {\"choices\":[],\"created\":0,\"id\":\"capture_133f7d67fcc4c9e9daab5eed\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":33,\"completion_tokens_details\":{\"reasoning_tokens\":7},\"output_tokens_details\":{\"reasoning_tokens\":7},\"prompt_tokens\":153,\"prompt_tokens_details\":{\"cached_tokens\":152},\"total_tokens\":186}}\n\ndata: [DONE]\n\n"
+        },
+        {
+          "method": "POST",
+          "authorization_class": "valid",
+          "path": "/inference/v1/chat/completions",
+          "request_headers": {
+            "Content-Type": "application/json"
+          },
+          "request": {
+            "max_tokens": 512,
+            "messages": [
+              {
+                "content": "Call lookup with key x exactly once. Its response is JSON. Reply with the exact value of the result field, without inventing a value.",
+                "role": "user"
+              },
+              {
+                "content": "",
+                "reasoning_content": "We need to call function lookup.",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "function": {
+                      "arguments": "{\n\"key\": \"x\"\n}",
+                      "name": "lookup"
+                    },
+                    "id": "capture_8ace79d7281ad7fecd39f357",
+                    "type": "function"
+                  }
+                ]
+              },
+              {
+                "content": "{\"result\":\"violet-lantern-zebra\"}",
+                "role": "tool",
+                "tool_call_id": "capture_8ace79d7281ad7fecd39f357"
+              }
+            ],
+            "model": "accounts/fireworks/models/gpt-oss-120b",
+            "reasoning_effort": "low",
+            "stream": true,
+            "stream_options": {
+              "include_usage": true
+            },
+            "temperature": 0,
+            "tool_choice": "none",
+            "tools": [
+              {
+                "function": {
+                  "description": "Look up a secret word by key.",
+                  "name": "lookup",
+                  "parameters": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "key": {
+                        "enum": [
+                          "x"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "key"
+                    ],
+                    "type": "object"
+                  },
+                  "strict": true
+                },
+                "type": "function"
+              }
+            ]
+          },
+          "status": 200,
+          "response_headers": {
+            "Content-Type": "text/event-stream; charset=utf-8"
+          },
+          "response": "data: {\"choices\":[{\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null,\"index\":0}],\"created\":0,\"id\":\"capture_af5745ba019ecd68cf66c3a4\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":1,\"prompt_tokens\":158,\"prompt_tokens_details\":{\"cached_tokens\":0},\"total_tokens\":159}}\n\ndata: {\"choices\":[{\"delta\":{\"content\":\"vio\"},\"finish_reason\":null,\"index\":0}],\"created\":0,\"id\":\"capture_af5745ba019ecd68cf66c3a4\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":4,\"prompt_tokens\":158,\"prompt_tokens_details\":{\"cached_tokens\":0},\"total_tokens\":162}}\n\ndata: {\"choices\":[{\"delta\":{\"content\":\"let\"},\"finish_reason\":null,\"index\":0}],\"created\":0,\"id\":\"capture_af5745ba019ecd68cf66c3a4\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":5,\"prompt_tokens\":158,\"prompt_tokens_details\":{\"cached_tokens\":0},\"total_tokens\":163}}\n\ndata: {\"choices\":[{\"delta\":{\"content\":\"-l\"},\"finish_reason\":null,\"index\":0}],\"created\":0,\"id\":\"capture_af5745ba019ecd68cf66c3a4\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":6,\"prompt_tokens\":158,\"prompt_tokens_details\":{\"cached_tokens\":0},\"total_tokens\":164}}\n\ndata: {\"choices\":[{\"delta\":{\"content\":\"an\"},\"finish_reason\":null,\"index\":0}],\"created\":0,\"id\":\"capture_af5745ba019ecd68cf66c3a4\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":7,\"prompt_tokens\":158,\"prompt_tokens_details\":{\"cached_tokens\":0},\"total_tokens\":165}}\n\ndata: {\"choices\":[{\"delta\":{\"content\":\"tern\"},\"finish_reason\":null,\"index\":0}],\"created\":0,\"id\":\"capture_af5745ba019ecd68cf66c3a4\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":8,\"prompt_tokens\":158,\"prompt_tokens_details\":{\"cached_tokens\":0},\"total_tokens\":166}}\n\ndata: {\"choices\":[{\"delta\":{\"content\":\"-z\"},\"finish_reason\":null,\"index\":0}],\"created\":0,\"id\":\"capture_af5745ba019ecd68cf66c3a4\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":9,\"prompt_tokens\":158,\"prompt_tokens_details\":{\"cached_tokens\":0},\"total_tokens\":167}}\n\ndata: {\"choices\":[{\"delta\":{\"content\":\"ebra\"},\"finish_reason\":null,\"index\":0}],\"created\":0,\"id\":\"capture_af5745ba019ecd68cf66c3a4\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":10,\"prompt_tokens\":158,\"prompt_tokens_details\":{\"cached_tokens\":0},\"total_tokens\":168}}\n\ndata: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\",\"index\":0}],\"created\":0,\"id\":\"capture_af5745ba019ecd68cf66c3a4\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":11,\"prompt_tokens\":158,\"prompt_tokens_details\":{\"cached_tokens\":0},\"total_tokens\":169}}\n\ndata: {\"choices\":[],\"created\":0,\"id\":\"capture_af5745ba019ecd68cf66c3a4\",\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":11,\"completion_tokens_details\":{\"reasoning_tokens\":0},\"output_tokens_details\":{\"reasoning_tokens\":0},\"prompt_tokens\":158,\"prompt_tokens_details\":{\"cached_tokens\":0},\"total_tokens\":169}}\n\ndata: [DONE]\n\n"
+        }
+      ],
+      "request_options": {
+        "user_prompt": "Call lookup with key x exactly once. Its response is JSON. Reply with the exact value of the result field, without inventing a value.",
+        "tool_result": "{\"result\":\"violet-lantern-zebra\"}",
+        "expected_tool_result": "violet-lantern-zebra"
+      },
+      "capture": {
+        "test_version": 3,
+        "test_fingerprint": "f04a5825eed10f4e08f6a90c5e3d7156434a53dfd66f3844d08355a7a933517e",
+        "captured_at": "2026-11-04T12:50:21.366266595Z",
+        "sdk_revision": "651b3d1f82d2da5d21e449bd53ab28314d27b623",
+        "sanitized_request_sha256": [
+          "3ee79c7c615e2ff09d916de9760b20c7442f6aaad1a9747c4d8d36a225f11d69",
+          "61be6869590f81989ab520c526ede8aa69c82c28eda507b3b0e61705e48e2f8e"
+        ]
+      },
+      "native_verified": true,
+      "cache_hit_observed": false,
+      "fresh_input_observed": false
+    },
+    {
+      "case": {
+        "model": "accounts/fireworks/models/gpt-oss-120b",
+        "api": "openai_responses",
+        "transport": "direct",
+        "stream": false,
+        "feature": "tools"
+      },
+      "exchanges": [
+        {
+          "method": "POST",
+          "authorization_class": "valid",
+          "path": "/inference/v1/responses",
+          "request_headers": {
+            "Content-Type": "application/json"
+          },
+          "request": {
+            "input": [
+              {
+                "content": "Call lookup with key x exactly once. Its response is JSON. Reply with the exact value of the result field, without inventing a value.",
+                "role": "user"
+              }
+            ],
+            "max_output_tokens": 512,
+            "model": "accounts/fireworks/models/gpt-oss-120b",
+            "reasoning": {
+              "effort": "low"
+            },
+            "store": false,
+            "stream": false,
+            "temperature": 0,
+            "tool_choice": {
+              "name": "lookup",
+              "type": "function"
+            },
+            "tools": [
+              {
+                "description": "Look up a secret word by key.",
+                "name": "lookup",
+                "parameters": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "key": {
+                      "enum": [
+                        "x"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ],
+                  "type": "object"
+                },
+                "strict": true,
+                "type": "function"
+              }
+            ]
+          },
+          "status": 200,
+          "response_headers": {
+            "Content-Type": "application/json"
+          },
+          "response": "{\"background\":null,\"created_at\":0,\"error\":null,\"id\":\"capture_dd044f30988c23f5a0631b62\",\"incomplete_details\":null,\"instructions\":null,\"max_output_tokens\":512,\"max_tool_calls\":null,\"metadata\":{},\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"response\",\"output\":[{\"id\":\"capture_a35de92343a0d70bd111f467\",\"summary\":[{\"text\":\"We need to call function lookup.\",\"type\":\"summary_text\"}],\"type\":\"reasoning\"},{\"arguments\":\"{\\n\\\"key\\\": \\\"x\\\"\\n}\",\"call_id\":\"capture_4d69586b4b3b19f954fd6422\",\"id\":\"capture_b68145f6ceb79c95d40130a4\",\"name\":\"lookup\",\"status\":\"completed\",\"type\":\"function_call\"}],\"parallel_tool_calls\":true,\"previous_response_id\":null,\"reasoning\":{\"effort\":\"low\"},\"status\":\"completed\",\"store\":false,\"temperature\":0,\"text\":{\"format\":{\"type\":\"text\"}},\"tool_choice\":{\"name\":\"lookup\",\"type\":\"function\"},\"tools\":[{\"description\":\"Look up a secret word by key.\",\"name\":\"lookup\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"key\":{\"enum\":[\"x\"],\"type\":\"string\"}},\"required\":[\"key\"],\"type\":\"object\"},\"strict\":true,\"type\":\"function\"}],\"top_logprobs\":null,\"top_p\":1,\"truncation\":\"disabled\",\"usage\":{\"input_tokens\":153,\"input_tokens_details\":{\"cached_tokens\":48},\"output_tokens\":33,\"output_tokens_details\":{\"reasoning_tokens\":7},\"total_tokens\":186},\"user\":null}"
+        },
+        {
+          "method": "POST",
+          "authorization_class": "valid",
+          "path": "/inference/v1/responses",
+          "request_headers": {
+            "Content-Type": "application/json"
+          },
+          "request": {
+            "input": [
+              {
+                "content": "Call lookup with key x exactly once. Its response is JSON. Reply with the exact value of the result field, without inventing a value.",
+                "role": "user"
+              },
+              {
+                "id": "capture_a35de92343a0d70bd111f467",
+                "summary": [
+                  {
+                    "text": "We need to call function lookup.",
+                    "type": "summary_text"
+                  }
+                ],
+                "type": "reasoning"
+              },
+              {
+                "arguments": "{\n\"key\": \"x\"\n}",
+                "call_id": "capture_4d69586b4b3b19f954fd6422",
+                "id": "capture_b68145f6ceb79c95d40130a4",
+                "name": "lookup",
+                "status": "completed",
+                "type": "function_call"
+              },
+              {
+                "call_id": "capture_4d69586b4b3b19f954fd6422",
+                "output": "{\"result\":\"violet-lantern-zebra\"}",
+                "type": "function_call_output"
+              }
+            ],
+            "max_output_tokens": 512,
+            "model": "accounts/fireworks/models/gpt-oss-120b",
+            "reasoning": {
+              "effort": "low"
+            },
+            "store": false,
+            "stream": false,
+            "temperature": 0,
+            "tool_choice": "none",
+            "tools": [
+              {
+                "description": "Look up a secret word by key.",
+                "name": "lookup",
+                "parameters": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "key": {
+                      "enum": [
+                        "x"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ],
+                  "type": "object"
+                },
+                "strict": true,
+                "type": "function"
+              }
+            ]
+          },
+          "status": 200,
+          "response_headers": {
+            "Content-Type": "application/json"
+          },
+          "response": "{\"background\":null,\"created_at\":0,\"error\":null,\"id\":\"capture_0030023eb823f4280740a540\",\"incomplete_details\":null,\"instructions\":null,\"max_output_tokens\":512,\"max_tool_calls\":null,\"metadata\":{},\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"response\",\"output\":[{\"content\":[{\"annotations\":[],\"text\":\"violet-lantern-zebra\",\"type\":\"output_text\"}],\"id\":\"capture_da535c8781a234cb3f4c5631\",\"role\":\"assistant\",\"status\":\"completed\",\"type\":\"message\"}],\"parallel_tool_calls\":true,\"previous_response_id\":null,\"reasoning\":{\"effort\":\"low\"},\"status\":\"completed\",\"store\":false,\"temperature\":0,\"text\":{\"format\":{\"type\":\"text\"}},\"tool_choice\":\"none\",\"tools\":[{\"description\":\"Look up a secret word by key.\",\"name\":\"lookup\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"key\":{\"enum\":[\"x\"],\"type\":\"string\"}},\"required\":[\"key\"],\"type\":\"object\"},\"strict\":true,\"type\":\"function\"}],\"top_logprobs\":null,\"top_p\":1,\"truncation\":\"disabled\",\"usage\":{\"input_tokens\":158,\"input_tokens_details\":{\"cached_tokens\":65},\"output_tokens\":11,\"output_tokens_details\":{\"reasoning_tokens\":0},\"total_tokens\":169},\"user\":null}"
+        }
+      ],
+      "request_options": {
+        "user_prompt": "Call lookup with key x exactly once. Its response is JSON. Reply with the exact value of the result field, without inventing a value.",
+        "tool_result": "{\"result\":\"violet-lantern-zebra\"}",
+        "expected_tool_result": "violet-lantern-zebra"
+      },
+      "capture": {
+        "test_version": 3,
+        "test_fingerprint": "f04a5825eed10f4e08f6a90c5e3d7156434a53dfd66f3844d08355a7a933517e",
+        "captured_at": "2026-11-04T12:50:22.487670348Z",
+        "sdk_revision": "651b3d1f82d2da5d21e449bd53ab28314d27b623",
+        "sanitized_request_sha256": [
+          "dbb96354e777597760bdc1042975b7e7df14812e543a4efe8c478a123be18eb4",
+          "fc39120e7632c52bc103fc91e0233b8699fe129987a44ffac1d1810bdf49c39b"
+        ]
+      },
+      "native_verified": true,
+      "cache_hit_observed": false,
+      "fresh_input_observed": false
+    },
+    {
+      "case": {
+        "model": "accounts/fireworks/models/gpt-oss-120b",
+        "api": "openai_responses",
+        "transport": "direct",
+        "stream": true,
+        "feature": "tools"
+      },
+      "exchanges": [
+        {
+          "method": "POST",
+          "authorization_class": "valid",
+          "path": "/inference/v1/responses",
+          "request_headers": {
+            "Content-Type": "application/json"
+          },
+          "request": {
+            "input": [
+              {
+                "content": "Call lookup with key x exactly once. Its response is JSON. Reply with the exact value of the result field, without inventing a value.",
+                "role": "user"
+              }
+            ],
+            "max_output_tokens": 512,
+            "model": "accounts/fireworks/models/gpt-oss-120b",
+            "reasoning": {
+              "effort": "low"
+            },
+            "store": false,
+            "stream": true,
+            "temperature": 0,
+            "tool_choice": {
+              "name": "lookup",
+              "type": "function"
+            },
+            "tools": [
+              {
+                "description": "Look up a secret word by key.",
+                "name": "lookup",
+                "parameters": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "key": {
+                      "enum": [
+                        "x"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ],
+                  "type": "object"
+                },
+                "strict": true,
+                "type": "function"
+              }
+            ]
+          },
+          "status": 200,
+          "response_headers": {
+            "Content-Type": "text/event-stream; charset=utf-8"
+          },
+          "response": "data: {\"response\":{\"background\":null,\"created_at\":0,\"error\":null,\"id\":\"capture_2aca24d35db9ad0676c9fe82\",\"incomplete_details\":null,\"instructions\":null,\"max_output_tokens\":512,\"max_tool_calls\":null,\"metadata\":{},\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"response\",\"output\":[],\"parallel_tool_calls\":true,\"previous_response_id\":null,\"reasoning\":{\"effort\":\"low\"},\"status\":\"in_progress\",\"store\":false,\"temperature\":0,\"text\":{\"format\":{\"type\":\"text\"}},\"tool_choice\":{\"name\":\"lookup\",\"type\":\"function\"},\"tools\":[{\"description\":\"Look up a secret word by key.\",\"name\":\"lookup\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"key\":{\"enum\":[\"x\"],\"type\":\"string\"}},\"required\":[\"key\"],\"type\":\"object\"},\"strict\":true,\"type\":\"function\"}],\"top_logprobs\":null,\"top_p\":1,\"truncation\":\"disabled\",\"usage\":null,\"user\":null},\"sequence_number\":0,\"type\":\"response.created\"}\n\ndata: {\"response\":{\"background\":null,\"created_at\":0,\"error\":null,\"id\":\"capture_2aca24d35db9ad0676c9fe82\",\"incomplete_details\":null,\"instructions\":null,\"max_output_tokens\":512,\"max_tool_calls\":null,\"metadata\":{},\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"response\",\"output\":[],\"parallel_tool_calls\":true,\"previous_response_id\":null,\"reasoning\":{\"effort\":\"low\"},\"status\":\"in_progress\",\"store\":false,\"temperature\":0,\"text\":{\"format\":{\"type\":\"text\"}},\"tool_choice\":{\"name\":\"lookup\",\"type\":\"function\"},\"tools\":[{\"description\":\"Look up a secret word by key.\",\"name\":\"lookup\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"key\":{\"enum\":[\"x\"],\"type\":\"string\"}},\"required\":[\"key\"],\"type\":\"object\"},\"strict\":true,\"type\":\"function\"}],\"top_logprobs\":null,\"top_p\":1,\"truncation\":\"disabled\",\"usage\":null,\"user\":null},\"sequence_number\":1,\"type\":\"response.in_progress\"}\n\ndata: {\"item\":{\"id\":\"capture_654516b38e709612c73bae01\",\"status\":\"in_progress\",\"summary\":[],\"type\":\"reasoning\"},\"output_index\":0,\"sequence_number\":2,\"type\":\"response.output_item.added\"}\n\ndata: {\"item_id\":\"capture_654516b38e709612c73bae01\",\"output_index\":0,\"part\":{\"text\":\"\",\"type\":\"summary_text\"},\"sequence_number\":3,\"summary_index\":0,\"type\":\"response.reasoning_summary_part.added\"}\n\ndata: {\"delta\":\"We\",\"item_id\":\"capture_654516b38e709612c73bae01\",\"output_index\":0,\"sequence_number\":4,\"summary_index\":0,\"type\":\"response.reasoning_summary_text.delta\"}\n\ndata: {\"delta\":\" need\",\"item_id\":\"capture_654516b38e709612c73bae01\",\"output_index\":0,\"sequence_number\":5,\"summary_index\":0,\"type\":\"response.reasoning_summary_text.delta\"}\n\ndata: {\"delta\":\" to\",\"item_id\":\"capture_654516b38e709612c73bae01\",\"output_index\":0,\"sequence_number\":6,\"summary_index\":0,\"type\":\"response.reasoning_summary_text.delta\"}\n\ndata: {\"delta\":\" call\",\"item_id\":\"capture_654516b38e709612c73bae01\",\"output_index\":0,\"sequence_number\":7,\"summary_index\":0,\"type\":\"response.reasoning_summary_text.delta\"}\n\ndata: {\"delta\":\" function\",\"item_id\":\"capture_654516b38e709612c73bae01\",\"output_index\":0,\"sequence_number\":8,\"summary_index\":0,\"type\":\"response.reasoning_summary_text.delta\"}\n\ndata: {\"delta\":\" lookup\",\"item_id\":\"capture_654516b38e709612c73bae01\",\"output_index\":0,\"sequence_number\":9,\"summary_index\":0,\"type\":\"response.reasoning_summary_text.delta\"}\n\ndata: {\"delta\":\".\",\"item_id\":\"capture_654516b38e709612c73bae01\",\"output_index\":0,\"sequence_number\":10,\"summary_index\":0,\"type\":\"response.reasoning_summary_text.delta\"}\n\ndata: {\"item\":{\"arguments\":\"\",\"call_id\":\"capture_ee790ce45fe19f4a4d471a57\",\"id\":\"capture_477ac20465e09ae7010c6543\",\"name\":\"lookup\",\"status\":\"in_progress\",\"type\":\"function_call\"},\"output_index\":1,\"sequence_number\":11,\"type\":\"response.output_item.added\"}\n\ndata: {\"delta\":\"{\\n\",\"item_id\":\"capture_477ac20465e09ae7010c6543\",\"output_index\":1,\"sequence_number\":12,\"type\":\"response.function_call_arguments.delta\"}\n\ndata: {\"delta\":\"\\\"\",\"item_id\":\"capture_477ac20465e09ae7010c6543\",\"output_index\":1,\"sequence_number\":13,\"type\":\"response.function_call_arguments.delta\"}\n\ndata: {\"delta\":\"key\",\"item_id\":\"capture_477ac20465e09ae7010c6543\",\"output_index\":1,\"sequence_number\":14,\"type\":\"response.function_call_arguments.delta\"}\n\ndata: {\"delta\":\"\\\":\",\"item_id\":\"capture_477ac20465e09ae7010c6543\",\"output_index\":1,\"sequence_number\":15,\"type\":\"response.function_call_arguments.delta\"}\n\ndata: {\"delta\":\" \\\"\",\"item_id\":\"capture_477ac20465e09ae7010c6543\",\"output_index\":1,\"sequence_number\":16,\"type\":\"response.function_call_arguments.delta\"}\n\ndata: {\"delta\":\"x\",\"item_id\":\"capture_477ac20465e09ae7010c6543\",\"output_index\":1,\"sequence_number\":17,\"type\":\"response.function_call_arguments.delta\"}\n\ndata: {\"delta\":\"\\\"\\n\",\"item_id\":\"capture_477ac20465e09ae7010c6543\",\"output_index\":1,\"sequence_number\":18,\"type\":\"response.function_call_arguments.delta\"}\n\ndata: {\"delta\":\"}\",\"item_id\":\"capture_477ac20465e09ae7010c6543\",\"output_index\":1,\"sequence_number\":19,\"type\":\"response.function_call_arguments.delta\"}\n\ndata: {\"item_id\":\"capture_654516b38e709612c73bae01\",\"output_index\":0,\"sequence_number\":20,\"summary_index\":0,\"text\":\"We need to call function lookup.\",\"type\":\"response.reasoning_summary_text.done\"}\n\ndata: {\"item_id\":\"capture_654516b38e709612c73bae01\",\"output_index\":0,\"part\":{\"text\":\"We need to call function lookup.\",\"type\":\"summary_text\"},\"sequence_number\":21,\"summary_index\":0,\"type\":\"response.reasoning_summary_part.done\"}\n\ndata: {\"item\":{\"id\":\"capture_654516b38e709612c73bae01\",\"status\":\"completed\",\"summary\":[{\"text\":\"We need to call function lookup.\",\"type\":\"summary_text\"}],\"type\":\"reasoning\"},\"output_index\":0,\"sequence_number\":22,\"type\":\"response.output_item.done\"}\n\ndata: {\"arguments\":\"{\\n\\\"key\\\": \\\"x\\\"\\n}\",\"item_id\":\"capture_477ac20465e09ae7010c6543\",\"output_index\":1,\"sequence_number\":23,\"type\":\"response.function_call_arguments.done\"}\n\ndata: {\"item\":{\"arguments\":\"{\\n\\\"key\\\": \\\"x\\\"\\n}\",\"call_id\":\"capture_ee790ce45fe19f4a4d471a57\",\"id\":\"capture_477ac20465e09ae7010c6543\",\"name\":\"lookup\",\"status\":\"completed\",\"type\":\"function_call\"},\"output_index\":1,\"sequence_number\":24,\"type\":\"response.output_item.done\"}\n\ndata: {\"response\":{\"background\":null,\"created_at\":0,\"error\":null,\"id\":\"capture_2aca24d35db9ad0676c9fe82\",\"incomplete_details\":null,\"instructions\":null,\"max_output_tokens\":512,\"max_tool_calls\":null,\"metadata\":{},\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"response\",\"output\":[{\"id\":\"capture_654516b38e709612c73bae01\",\"summary\":[{\"text\":\"We need to call function lookup.\",\"type\":\"summary_text\"}],\"type\":\"reasoning\"},{\"arguments\":\"{\\n\\\"key\\\": \\\"x\\\"\\n}\",\"call_id\":\"capture_ee790ce45fe19f4a4d471a57\",\"id\":\"capture_477ac20465e09ae7010c6543\",\"name\":\"lookup\",\"status\":\"completed\",\"type\":\"function_call\"}],\"parallel_tool_calls\":true,\"previous_response_id\":null,\"reasoning\":{\"effort\":\"low\"},\"status\":\"completed\",\"store\":false,\"temperature\":0,\"text\":{\"format\":{\"type\":\"text\"}},\"tool_choice\":{\"name\":\"lookup\",\"type\":\"function\"},\"tools\":[{\"description\":\"Look up a secret word by key.\",\"name\":\"lookup\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"key\":{\"enum\":[\"x\"],\"type\":\"string\"}},\"required\":[\"key\"],\"type\":\"object\"},\"strict\":true,\"type\":\"function\"}],\"top_logprobs\":null,\"top_p\":1,\"truncation\":\"disabled\",\"usage\":{\"input_tokens\":153,\"input_tokens_details\":{\"cached_tokens\":152},\"output_tokens\":33,\"output_tokens_details\":{\"reasoning_tokens\":7},\"total_tokens\":186},\"user\":null},\"sequence_number\":25,\"type\":\"response.completed\"}\n\n"
+        },
+        {
+          "method": "POST",
+          "authorization_class": "valid",
+          "path": "/inference/v1/responses",
+          "request_headers": {
+            "Content-Type": "application/json"
+          },
+          "request": {
+            "input": [
+              {
+                "content": "Call lookup with key x exactly once. Its response is JSON. Reply with the exact value of the result field, without inventing a value.",
+                "role": "user"
+              },
+              {
+                "id": "capture_654516b38e709612c73bae01",
+                "summary": [
+                  {
+                    "text": "We need to call function lookup.",
+                    "type": "summary_text"
+                  }
+                ],
+                "type": "reasoning"
+              },
+              {
+                "arguments": "{\n\"key\": \"x\"\n}",
+                "call_id": "capture_ee790ce45fe19f4a4d471a57",
+                "id": "capture_477ac20465e09ae7010c6543",
+                "name": "lookup",
+                "status": "completed",
+                "type": "function_call"
+              },
+              {
+                "call_id": "capture_ee790ce45fe19f4a4d471a57",
+                "output": "{\"result\":\"violet-lantern-zebra\"}",
+                "type": "function_call_output"
+              }
+            ],
+            "max_output_tokens": 512,
+            "model": "accounts/fireworks/models/gpt-oss-120b",
+            "reasoning": {
+              "effort": "low"
+            },
+            "store": false,
+            "stream": true,
+            "temperature": 0,
+            "tool_choice": "none",
+            "tools": [
+              {
+                "description": "Look up a secret word by key.",
+                "name": "lookup",
+                "parameters": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "key": {
+                      "enum": [
+                        "x"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ],
+                  "type": "object"
+                },
+                "strict": true,
+                "type": "function"
+              }
+            ]
+          },
+          "status": 200,
+          "response_headers": {
+            "Content-Type": "text/event-stream; charset=utf-8"
+          },
+          "response": "data: {\"response\":{\"background\":null,\"created_at\":0,\"error\":null,\"id\":\"capture_00e7b38469c31d70a264ab0c\",\"incomplete_details\":null,\"instructions\":null,\"max_output_tokens\":512,\"max_tool_calls\":null,\"metadata\":{},\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"response\",\"output\":[],\"parallel_tool_calls\":true,\"previous_response_id\":null,\"reasoning\":{\"effort\":\"low\"},\"status\":\"in_progress\",\"store\":false,\"temperature\":0,\"text\":{\"format\":{\"type\":\"text\"}},\"tool_choice\":\"none\",\"tools\":[{\"description\":\"Look up a secret word by key.\",\"name\":\"lookup\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"key\":{\"enum\":[\"x\"],\"type\":\"string\"}},\"required\":[\"key\"],\"type\":\"object\"},\"strict\":true,\"type\":\"function\"}],\"top_logprobs\":null,\"top_p\":1,\"truncation\":\"disabled\",\"usage\":null,\"user\":null},\"sequence_number\":0,\"type\":\"response.created\"}\n\ndata: {\"response\":{\"background\":null,\"created_at\":0,\"error\":null,\"id\":\"capture_00e7b38469c31d70a264ab0c\",\"incomplete_details\":null,\"instructions\":null,\"max_output_tokens\":512,\"max_tool_calls\":null,\"metadata\":{},\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"response\",\"output\":[],\"parallel_tool_calls\":true,\"previous_response_id\":null,\"reasoning\":{\"effort\":\"low\"},\"status\":\"in_progress\",\"store\":false,\"temperature\":0,\"text\":{\"format\":{\"type\":\"text\"}},\"tool_choice\":\"none\",\"tools\":[{\"description\":\"Look up a secret word by key.\",\"name\":\"lookup\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"key\":{\"enum\":[\"x\"],\"type\":\"string\"}},\"required\":[\"key\"],\"type\":\"object\"},\"strict\":true,\"type\":\"function\"}],\"top_logprobs\":null,\"top_p\":1,\"truncation\":\"disabled\",\"usage\":null,\"user\":null},\"sequence_number\":1,\"type\":\"response.in_progress\"}\n\ndata: {\"item\":{\"content\":[],\"id\":\"capture_e9d4a599bab0215925fe1ca1\",\"role\":\"assistant\",\"status\":\"in_progress\",\"type\":\"message\"},\"output_index\":0,\"sequence_number\":2,\"type\":\"response.output_item.added\"}\n\ndata: {\"content_index\":0,\"item_id\":\"capture_e9d4a599bab0215925fe1ca1\",\"output_index\":0,\"part\":{\"annotations\":[],\"text\":\"\",\"type\":\"output_text\"},\"sequence_number\":3,\"type\":\"response.content_part.added\"}\n\ndata: {\"content_index\":0,\"delta\":\"vio\",\"item_id\":\"capture_e9d4a599bab0215925fe1ca1\",\"logprobs\":[],\"output_index\":0,\"sequence_number\":4,\"type\":\"response.output_text.delta\"}\n\ndata: {\"content_index\":0,\"delta\":\"let\",\"item_id\":\"capture_e9d4a599bab0215925fe1ca1\",\"logprobs\":[],\"output_index\":0,\"sequence_number\":5,\"type\":\"response.output_text.delta\"}\n\ndata: {\"content_index\":0,\"delta\":\"-l\",\"item_id\":\"capture_e9d4a599bab0215925fe1ca1\",\"logprobs\":[],\"output_index\":0,\"sequence_number\":6,\"type\":\"response.output_text.delta\"}\n\ndata: {\"content_index\":0,\"delta\":\"an\",\"item_id\":\"capture_e9d4a599bab0215925fe1ca1\",\"logprobs\":[],\"output_index\":0,\"sequence_number\":7,\"type\":\"response.output_text.delta\"}\n\ndata: {\"content_index\":0,\"delta\":\"tern\",\"item_id\":\"capture_e9d4a599bab0215925fe1ca1\",\"logprobs\":[],\"output_index\":0,\"sequence_number\":8,\"type\":\"response.output_text.delta\"}\n\ndata: {\"content_index\":0,\"delta\":\"-z\",\"item_id\":\"capture_e9d4a599bab0215925fe1ca1\",\"logprobs\":[],\"output_index\":0,\"sequence_number\":9,\"type\":\"response.output_text.delta\"}\n\ndata: {\"content_index\":0,\"delta\":\"ebra\",\"item_id\":\"capture_e9d4a599bab0215925fe1ca1\",\"logprobs\":[],\"output_index\":0,\"sequence_number\":10,\"type\":\"response.output_text.delta\"}\n\ndata: {\"content_index\":0,\"item_id\":\"capture_e9d4a599bab0215925fe1ca1\",\"logprobs\":[],\"output_index\":0,\"sequence_number\":11,\"text\":\"violet-lantern-zebra\",\"type\":\"response.output_text.done\"}\n\ndata: {\"content_index\":0,\"item_id\":\"capture_e9d4a599bab0215925fe1ca1\",\"output_index\":0,\"part\":{\"annotations\":[],\"text\":\"violet-lantern-zebra\",\"type\":\"output_text\"},\"sequence_number\":12,\"type\":\"response.content_part.done\"}\n\ndata: {\"item\":{\"content\":[{\"annotations\":[],\"text\":\"violet-lantern-zebra\",\"type\":\"output_text\"}],\"id\":\"capture_e9d4a599bab0215925fe1ca1\",\"role\":\"assistant\",\"status\":\"completed\",\"type\":\"message\"},\"output_index\":0,\"sequence_number\":13,\"type\":\"response.output_item.done\"}\n\ndata: {\"response\":{\"background\":null,\"created_at\":0,\"error\":null,\"id\":\"capture_00e7b38469c31d70a264ab0c\",\"incomplete_details\":null,\"instructions\":null,\"max_output_tokens\":512,\"max_tool_calls\":null,\"metadata\":{},\"model\":\"accounts/fireworks/models/gpt-oss-120b\",\"object\":\"response\",\"output\":[{\"content\":[{\"annotations\":[],\"text\":\"violet-lantern-zebra\",\"type\":\"output_text\"}],\"id\":\"capture_e9d4a599bab0215925fe1ca1\",\"role\":\"assistant\",\"status\":\"completed\",\"type\":\"message\"}],\"parallel_tool_calls\":true,\"previous_response_id\":null,\"reasoning\":{\"effort\":\"low\"},\"status\":\"completed\",\"store\":false,\"temperature\":0,\"text\":{\"format\":{\"type\":\"text\"}},\"tool_choice\":\"none\",\"tools\":[{\"description\":\"Look up a secret word by key.\",\"name\":\"lookup\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"key\":{\"enum\":[\"x\"],\"type\":\"string\"}},\"required\":[\"key\"],\"type\":\"object\"},\"strict\":true,\"type\":\"function\"}],\"top_logprobs\":null,\"top_p\":1,\"truncation\":\"disabled\",\"usage\":{\"input_tokens\":158,\"input_tokens_details\":{\"cached_tokens\":157},\"output_tokens\":11,\"output_tokens_details\":{\"reasoning_tokens\":0},\"total_tokens\":169},\"user\":null},\"sequence_number\":14,\"type\":\"response.completed\"}\n\n"
+        }
+      ],
+      "request_options": {
+        "user_prompt": "Call lookup with key x exactly once. Its response is JSON. Reply with the exact value of the result field, without inventing a value.",
+        "tool_result": "{\"result\":\"violet-lantern-zebra\"}",
+        "expected_tool_result": "violet-lantern-zebra"
+      },
+      "capture": {
+        "test_version": 3,
+        "test_fingerprint": "f04a5825eed10f4e08f6a90c5e3d7156434a53dfd66f3844d08355a7a933517e",
+        "captured_at": "2026-11-04T12:50:23.716405199Z",
+        "sdk_revision": "651b3d1f82d2da5d21e449bd53ab28314d27b623",
+        "sanitized_request_sha256": [
+          "d5b828548f92ecb9a7df5ad293b74a95c31f9144b8ce4e3777b8f2628133b8ba",
+          "55f6334bc4be7240bb7c28989e1341b8a704246b4193ad2293567f6252181038"
+        ]
+      },
+      "native_verified": true,
+      "cache_hit_observed": false,
+      "fresh_input_observed": false
+    },
+    {
+      "case": {
+        "model": "accounts/fireworks/models/minimax-m3",
+        "api": "openai_chat_completions",
+        "transport": "direct",
+        "stream": false,
+        "feature": "tools"
+      },
+      "exchanges": [
+        {
+          "method": "POST",
+          "authorization_class": "valid",
+          "path": "/inference/v1/chat/completions",
+          "request_headers": {
+            "Content-Type": "application/json"
+          },
+          "request": {
+            "max_tokens": 512,
+            "messages": [
+              {
+                "content": "Call lookup with key x exactly once. Its response is JSON. Reply with the exact value of the result field, without inventing a value.",
+                "role": "user"
+              }
+            ],
+            "model": "accounts/fireworks/models/minimax-m3",
+            "stream": false,
+            "temperature": 0,
+            "tool_choice": {
+              "function": {
+                "name": "lookup"
+              },
+              "type": "function"
+            },
+            "tools": [
+              {
+                "function": {
+                  "description": "Look up a secret word by key.",
+                  "name": "lookup",
+                  "parameters": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "key": {
+                        "enum": [
+                          "x"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "key"
+                    ],
+                    "type": "object"
+                  },
+                  "strict": true
+                },
+                "type": "function"
+              }
+            ]
+          },
+          "status": 200,
+          "response_headers": {
+            "Content-Type": "application/json"
+          },
+          "response": "{\"choices\":[{\"finish_reason\":\"tool_calls\",\"index\":0,\"message\":{\"reasoning_content\":\"The user wants me to call lookup with key x exactly once and return the exact value of the result field.\",\"role\":\"assistant\",\"tool_calls\":[{\"function\":{\"arguments\":\"{\\\"key\\\": \\\"x\\\"}\",\"name\":\"lookup\"},\"id\":\"capture_6cc27bc4eb188514d7ff7331\",\"index\":0,\"name\":null,\"type\":\"function\"}]}}],\"created\":0,\"id\":\"capture_eeb81d6305a8165f6bdab1d8\",\"model\":\"accounts/fireworks/models/minimax-m3\",\"object\":\"chat.completion\",\"usage\":{\"completion_tokens\":49,\"completion_tokens_details\":{\"reasoning_tokens\":22},\"output_tokens_details\":{\"reasoning_tokens\":22},\"prompt_tokens\":393,\"prompt_tokens_details\":{\"cached_tokens\":368},\"total_tokens\":442}}"
+        },
+        {
+          "method": "POST",
+          "authorization_class": "valid",
+          "path": "/inference/v1/chat/completions",
+          "request_headers": {
+            "Content-Type": "application/json"
+          },
+          "request": {
+            "max_tokens": 2048,
+            "messages": [
+              {
+                "content": "Call lookup with key x exactly once. Its response is JSON. Reply with the exact value of the result field, without inventing a value.",
+                "role": "user"
+              },
+              {
+                "reasoning_content": "The user wants me to call lookup with key x exactly once and return the exact value of the result field.",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "function": {
+                      "arguments": "{\"key\": \"x\"}",
+                      "name": "lookup"
+                    },
+                    "id": "capture_6cc27bc4eb188514d7ff7331",
+                    "index": 0,
+                    "name": null,
+                    "type": "function"
+                  }
+                ]
+              },
+              {
+                "content": "{\"result\":\"violet-lantern-zebra\"}",
+                "role": "tool",
+                "tool_call_id": "capture_6cc27bc4eb188514d7ff7331"
+              }
+            ],
+            "model": "accounts/fireworks/models/minimax-m3",
+            "stream": false,
+            "temperature": 0,
+            "tool_choice": "none",
+            "tools": [
+              {
+                "function": {
+                  "description": "Look up a secret word by key.",
+                  "name": "lookup",
+                  "parameters": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "key": {
+                        "enum": [
+                          "x"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "key"
+                    ],
+                    "type": "object"
+                  },
+                  "strict": true
+                },
+                "type": "function"
+              }
+            ]
+          },
+          "status": 200,
+          "response_headers": {
+            "Content-Type": "application/json"
+          },
+          "response": "{\"choices\":[{\"finish_reason\":\"stop\",\"index\":0,\"message\":{\"content\":\"violet-lantern-zebra\",\"reasoning_content\":\"The result is \\\"violet-lantern-zebra\\\".\",\"role\":\"assistant\"}}],\"created\":0,\"id\":\"capture_bd7ecccb60da826ea18880b5\",\"model\":\"accounts/fireworks/models/minimax-m3\",\"object\":\"chat.completion\",\"usage\":{\"completion_tokens\":22,\"completion_tokens_details\":{\"reasoning_tokens\":12},\"output_tokens_details\":{\"reasoning_tokens\":12},\"prompt_tokens\":230,\"prompt_tokens_details\":{\"cached_tokens\":130},\"total_tokens\":252}}"
+        }
+      ],
+      "request_options": {
+        "user_prompt": "Call lookup with key x exactly once. Its response is JSON. Reply with the exact value of the result field, without inventing a value.",
+        "reply_max_output_tokens": 2048,
+        "tool_result": "{\"result\":\"violet-lantern-zebra\"}",
+        "expected_tool_result": "violet-lantern-zebra"
+      },
+      "capture": {
+        "test_version": 3,
+        "test_fingerprint": "f04a5825eed10f4e08f6a90c5e3d7156434a53dfd66f3844d08355a7a933517e",
+        "captured_at": "2026-11-04T12:50:24.923690801Z",
+        "sdk_revision": "651b3d1f82d2da5d21e449bd53ab28314d27b623",
+        "sanitized_request_sha256": [
+          "eb992a04fe5a568cc3c29f7fed1b2af546d24998c64982ff1bdaf4831a1d0023",
+          "1ded926aafbd808ab6001b34551ad828cb42523b5d1d8a428276024e560bee9b"
+        ]
+      },
+      "native_verified": true,
+      "cache_hit_observed": false,
+      "fresh_input_observed": false
+    }
+  ],
+  "run_kind": "partial_targeted_correction",
+  "source_reports": [
+    {
+      "path": "testdata/contracts/full-matrix-v2-incomplete.json",
+      "sha256": "f4c090ae4dc9dfb59408ce8ff89ebcf11635f3336d894b06be0409049ca49f3c",
+      "kind": ""
+    }
+  ]
+}

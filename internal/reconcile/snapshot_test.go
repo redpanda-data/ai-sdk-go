@@ -22,6 +22,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestFireworksHostCopy(t *testing.T) {
+	t.Parallel()
+
+	const id = "accounts/fireworks/models/gpt-oss-120b"
+	snap, err := ParseSnapshot([]byte(`{"providers": [{"provider": "fireworks", "offerings": [{"id": "` + id + `", "model": "openai/gpt-oss-120b"}]}]}`))
+	require.NoError(t, err)
+
+	offering, ok := snap.Offering("fireworks", id)
+	require.True(t, ok)
+	assert.Equal(t, "openai/gpt-oss-120b", offering["model"])
+
+	for _, vendor := range []string{"openai", "zai", "minimax", "deepseek", "moonshotai"} {
+		pkg, model := PackageOf("fireworks:"+id, vendor)
+		assert.Equal(t, "fireworks", pkg)
+		assert.Equal(t, id, model)
+	}
+
+	_, ok = snap.Offering("openai", id)
+	assert.False(t, ok)
+}
+
 func TestParseSnapshot(t *testing.T) {
 	t.Parallel()
 

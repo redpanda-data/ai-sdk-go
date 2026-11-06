@@ -17,8 +17,36 @@ package reconcile
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestFireworksOfferingPattern(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		want bool
+	}{
+		{"fireworks:accounts/fireworks/models/gpt-oss-120b", true},
+		{"fireworks:accounts/fireworks/models/deepseek-v4p1-flash-1017", true},
+		{"fireworks:accounts/fireworks/routers/glm-5p3-fast", true},
+		{"accounts/fireworks/models/gpt-oss-120b", false},
+		{"openai:accounts/fireworks/models/gpt-oss-120b", false},
+		{"fireworks:accounts/private/models/model", false},
+		{"fireworks:accounts/fireworks/deployments/model", false},
+		{"fireworks:accounts/fireworks/models/../model", false},
+		{"fireworks:accounts/fireworks/models/model%2fother", false},
+		{"fireworks:accounts/fireworks/models/model`markup", false},
+		{"fireworks:accounts/fireworks/models/model\n", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, OfferingPattern.MatchString(tt.name))
+		})
+	}
+}
 
 func TestParseReport(t *testing.T) {
 	t.Parallel()

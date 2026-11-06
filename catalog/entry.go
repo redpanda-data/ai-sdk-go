@@ -49,6 +49,11 @@ type Entry struct {
 	// resolution and in PricingByID.
 	Aliases []string
 
+	// ResolutionPolicy controls whether unlisted version-stamped IDs may
+	// inherit this offering's metadata. The zero value preserves legacy
+	// version-stamp resolution; exact resolution accepts only ID and Aliases.
+	ResolutionPolicy ResolutionPolicy
+
 	// Capabilities' Vision/Audio booleans are derived from the Modalities
 	// list (image ⇒ Vision, audio ⇒ Audio); authoring them is optional,
 	// and an authored true without the matching modality is rejected.
@@ -71,6 +76,11 @@ type Entry struct {
 	// model ID, not the inference profile ID, and the catalog does not
 	// record which ID an endpoint expects.
 	TokenCounting []WireAPI
+
+	// WireAPISupport declares verified feature subsets for individual API
+	// bindings. A missing binding means its features are unknown, never an
+	// instruction to inherit offering-wide Capabilities or Reasoning.
+	WireAPISupport []WireAPISupport
 
 	// Modalities lists input/output content kinds. Empty normalizes to
 	// text-only.

@@ -26,7 +26,7 @@ import (
 // OfferingPattern is how a report names an offering: a model ID, or
 // <package>:<model ID> outside the run's own package (RULES.md, Report values).
 // A Vertex model ID may end in its date version, as claude-opus-4-5@20251101.
-var OfferingPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._:-]{0,79}(@[0-9]{8})?$`)
+var OfferingPattern = regexp.MustCompile(`^([a-z0-9][a-z0-9._:-]{0,79}(@[0-9]{8})?|fireworks:accounts/fireworks/(models|routers)/[a-z0-9][a-z0-9._-]{0,79})$`)
 
 // PackageOf names a report offering's package and ID: <package>:<id>, or an
 // ID in the run's own package (RULES.md, Report values). Bedrock IDs contain

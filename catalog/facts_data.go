@@ -69,6 +69,16 @@ const (
 	ModelO3            ModelID = "openai/o3"
 	ModelO3Pro         ModelID = "openai/o3-pro"
 	ModelO4Mini        ModelID = "openai/o4-mini"
+	ModelGPTOSS120B    ModelID = "openai/gpt-oss-120b"
+
+	// Open-weight models also hosted by Fireworks.
+
+	ModelGLM53                ModelID = "zai/glm-5.3"
+	ModelGLM53Flash           ModelID = "zai/glm-5.3-flash"
+	ModelMiniMaxM3            ModelID = "minimax/minimax-m3"
+	ModelDeepSeekV41Flash     ModelID = "deepseek/deepseek-v4.1-flash"
+	ModelDeepSeekV41Flash1017 ModelID = "deepseek/deepseek-v4.1-flash-1017"
+	ModelKimiK3               ModelID = "moonshotai/kimi-k3"
 
 	// Google models.
 
@@ -116,6 +126,49 @@ const (
 // are mapped onto the lines they succeed (sol ← gpt, terra ← gpt-mini,
 // luna ← gpt-nano), matching OpenAI's own recommended replacements.
 var defaultRegistry = Registry{
+	ModelGPTOSS120B: {
+		Publisher: PublisherOpenAI, DisplayName: "GPT OSS 120B", Series: "gpt-oss",
+		// Release: https://openai.com/index/introducing-gpt-oss/ (read 2026-11-04).
+		// Cutoff: https://developers.openai.com/api/docs/models/gpt-oss-120b (read 2026-11-04).
+		Released: MustDate("2025-08-05"), Knowledge: MustDate("2024-06-01"), OpenWeights: true,
+		Description: "OpenAI's open-weight reasoning model for agentic and general-purpose tasks.",
+	},
+	ModelGLM53: {
+		Publisher: PublisherZAI, DisplayName: "GLM 5.3", Series: "glm",
+		// https://z.ai/blog/glm-5.3 (read 2026-11-04; creator release, not resource creation).
+		Released: MustDate("2026-08-14"), OpenWeights: true,
+		Description: "Z.ai's open-weight model for coding and long-horizon agentic tasks.",
+	},
+	ModelGLM53Flash: {
+		Publisher: PublisherZAI, DisplayName: "GLM 5.3 Flash", Series: "glm-flash",
+		// https://z.ai/blog/glm-5.3-flash (read 2026-11-04).
+		Released: MustDate("2026-08-26"), OpenWeights: true,
+		Description: "Z.ai's efficient open-weight vision and reasoning model for coding workflows.",
+	},
+	ModelMiniMaxM3: {
+		Publisher: PublisherMiniMax, DisplayName: "MiniMax M3", Series: "minimax",
+		// https://fireworks.ai/models/fireworks/minimax-m3 (read 2026-11-04; model release, not resource creation).
+		Released: MustDate("2026-06-01"), OpenWeights: true,
+		Description: "MiniMax's open-weight model for coding and agentic workflows.",
+	},
+	ModelDeepSeekV41Flash: {
+		Publisher: PublisherDeepSeek, DisplayName: "DeepSeek V4.1 Flash", Series: "deepseek-flash",
+		// https://api-docs.deepseek.com/news/news260910 (read 2026-11-04).
+		Released: MustDate("2026-09-10"), OpenWeights: true,
+		Description: "DeepSeek's open-weight multimodal model for coding and agentic workflows.",
+	},
+	ModelDeepSeekV41Flash1017: {
+		Publisher: PublisherDeepSeek, DisplayName: "DeepSeek V4.1 Flash 1017", Series: "deepseek-flash",
+		// https://api-docs.deepseek.com/news/news261017 (read 2026-11-04).
+		Released: MustDate("2026-10-17"), OpenWeights: true,
+		Description: "DeepSeek's October 17 update to its open-weight multimodal coding model.",
+	},
+	ModelKimiK3: {
+		Publisher: PublisherMoonshotAI, DisplayName: "Kimi K3", Series: "kimi",
+		// https://platform.kimi.ai/docs/platform-changelog.md (read 2026-11-04); July release, day defaulted
+		Released: MustDate("2026-07-31"), OpenWeights: true,
+		Description: "Moonshot AI's open-weight multimodal model for coding and agentic tasks.",
+	},
 	// ---- Anthropic ----
 	ModelClaudeFable51: {
 		Publisher:   PublisherAnthropic,

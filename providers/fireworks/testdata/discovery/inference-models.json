@@ -1,0 +1,337 @@
+{
+  "captured_at": "2026-11-04T12:09:47.658Z",
+  "source": "https://api.fireworks.ai/inference/v1/models",
+  "scope": "credential_and_inventory_only_not_invocation_qualification",
+  "response": {
+    "data": [
+      {
+        "id": "accounts/fireworks/routers/glm-5p2-fast",
+        "object": "model",
+        "owned_by": "fireworks",
+        "created": 1781630293,
+        "kind": "HF_BASE_MODEL",
+        "supports_chat": true,
+        "supports_image_input": false,
+        "supports_tools": true,
+        "context_length": 1048576
+      },
+      {
+        "id": "accounts/fireworks/models/minimax-m3",
+        "object": "model",
+        "owned_by": "fireworks",
+        "created": 1781214748,
+        "kind": "HF_BASE_MODEL",
+        "supports_chat": true,
+        "supports_image_input": false,
+        "supports_tools": true,
+        "context_length": 512000
+      },
+      {
+        "id": "accounts/fireworks/models/gpt-oss-120b",
+        "object": "model",
+        "owned_by": "fireworks",
+        "created": 1754345600,
+        "kind": "HF_BASE_MODEL",
+        "supports_chat": true,
+        "supports_image_input": false,
+        "supports_tools": true,
+        "context_length": 131072
+      },
+      {
+        "id": "accounts/fireworks/routers/spot-deepseek-v4-flash",
+        "object": "model",
+        "owned_by": "fireworks",
+        "created": 1777003747,
+        "kind": "HF_BASE_MODEL",
+        "supports_chat": true,
+        "supports_image_input": false,
+        "supports_tools": true,
+        "context_length": 1048576
+      },
+      {
+        "id": "accounts/fireworks/models/nemotron-3-ultra-nvfp4",
+        "object": "model",
+        "owned_by": "fireworks",
+        "created": 1780415326,
+        "kind": "HF_BASE_MODEL",
+        "supports_chat": true,
+        "supports_image_input": false,
+        "supports_tools": true,
+        "context_length": 262144
+      },
+      {
+        "id": "accounts/fireworks/models/qwen3-reranker-8b",
+        "object": "model",
+        "owned_by": "fireworks",
+        "created": 1759865045,
+        "kind": "EMBEDDING_MODEL",
+        "supports_chat": true,
+        "supports_image_input": false,
+        "supports_tools": false,
+        "context_length": 40960
+      },
+      {
+        "id": "accounts/fireworks/models/qwen3-embedding-8b",
+        "object": "model",
+        "owned_by": "fireworks",
+        "created": 1755707090,
+        "kind": "EMBEDDING_MODEL",
+        "supports_chat": true,
+        "supports_image_input": false,
+        "supports_tools": false,
+        "context_length": 40960
+      },
+      {
+        "id": "accounts/fireworks/models/kimi-k3",
+        "object": "model",
+        "owned_by": "fireworks",
+        "created": 1784483409,
+        "kind": "HF_BASE_MODEL",
+        "supports_chat": true,
+        "supports_image_input": true,
+        "supports_tools": true,
+        "context_length": 1048576
+      },
+      {
+        "id": "accounts/fireworks/routers/kimi-k3-fast",
+        "object": "model",
+        "owned_by": "fireworks",
+        "created": 1784483409,
+        "kind": "HF_BASE_MODEL",
+        "supports_chat": true,
+        "supports_image_input": true,
+        "supports_tools": true,
+        "context_length": 1048576
+      },
+      {
+        "id": "accounts/fireworks/routers/kimi-k3-spot",
+        "object": "model",
+        "owned_by": "fireworks",
+        "created": 1784483409,
+        "kind": "HF_BASE_MODEL",
+        "supports_chat": true,
+        "supports_image_input": true,
+        "supports_tools": true,
+        "context_length": 1048576
+      },
+      {
+        "id": "accounts/fireworks/models/qwen3p8-max",
+        "object": "model",
+        "owned_by": "fireworks",
+        "created": 1785949040,
+        "kind": "HF_BASE_MODEL",
+        "supports_chat": true,
+        "supports_image_input": true,
+        "supports_tools": true
+      },
+      {
+        "id": "accounts/fireworks/models/glm-5p3",
+        "object": "model",
+        "owned_by": "fireworks",
+        "created": 1787895551,
+        "kind": "HF_BASE_MODEL",
+        "supports_chat": true,
+        "supports_image_input": false,
+        "supports_tools": true,
+        "context_length": 1048576
+      },
+      {
+        "id": "accounts/fireworks/routers/glm-5p3-fast",
+        "object": "model",
+        "owned_by": "fireworks",
+        "created": 1787895551,
+        "kind": "HF_BASE_MODEL",
+        "supports_chat": true,
+        "supports_image_input": false,
+        "supports_tools": true,
+        "context_length": 1048576
+      },
+      {
+        "id": "accounts/fireworks/routers/glm-5p3-spot",
+        "object": "model",
+        "owned_by": "fireworks",
+        "created": 1787895551,
+        "kind": "HF_BASE_MODEL",
+        "supports_chat": true,
+        "supports_image_input": false,
+        "supports_tools": true,
+        "context_length": 1048576
+      },
+      {
+        "id": "accounts/fireworks/models/glm-5p3-flash",
+        "object": "model",
+        "owned_by": "fireworks",
+        "created": 1787754936,
+        "kind": "HF_BASE_MODEL",
+        "supports_chat": true,
+        "supports_image_input": true,
+        "supports_tools": true,
+        "context_length": 1048576
+      },
+      {
+        "id": "accounts/fireworks/models/deepseek-v4p1-flash",
+        "object": "model",
+        "owned_by": "fireworks",
+        "created": 1789019014,
+        "kind": "HF_BASE_MODEL",
+        "supports_chat": true,
+        "supports_image_input": true,
+        "supports_tools": true,
+        "context_length": 1048576
+      },
+      {
+        "id": "accounts/fireworks/routers/deepseek-v4p1-flash-spot",
+        "object": "model",
+        "owned_by": "fireworks",
+        "created": 1789019014,
+        "kind": "HF_BASE_MODEL",
+        "supports_chat": true,
+        "supports_image_input": true,
+        "supports_tools": true,
+        "context_length": 1048576
+      },
+      {
+        "id": "accounts/fireworks/models/ember-1",
+        "object": "model",
+        "owned_by": "fireworks",
+        "created": 1790110339,
+        "kind": "HF_BASE_MODEL",
+        "supports_chat": true,
+        "supports_image_input": true,
+        "supports_tools": true,
+        "context_length": 1048576
+      },
+      {
+        "id": "accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b",
+        "object": "model",
+        "owned_by": "fireworks",
+        "created": 1786139705,
+        "kind": "HF_BASE_MODEL",
+        "supports_chat": true,
+        "supports_image_input": false,
+        "supports_tools": true,
+        "context_length": 262144
+      },
+      {
+        "id": "accounts/fireworks/models/inkling",
+        "object": "model",
+        "owned_by": "fireworks",
+        "created": 1784058124,
+        "kind": "HF_BASE_MODEL",
+        "supports_chat": true,
+        "supports_image_input": true,
+        "supports_tools": true,
+        "context_length": 1048576
+      },
+      {
+        "id": "accounts/fireworks/models/muse-spark-open",
+        "object": "model",
+        "owned_by": "fireworks",
+        "created": 1791995050,
+        "kind": "HF_BASE_MODEL",
+        "supports_chat": false,
+        "supports_image_input": true,
+        "supports_tools": true,
+        "context_length": 1048576
+      },
+      {
+        "id": "accounts/fireworks/models/deepseek-v4p1-flash-1017",
+        "object": "model",
+        "owned_by": "fireworks",
+        "created": 1792249307,
+        "kind": "HF_BASE_MODEL",
+        "supports_chat": true,
+        "supports_image_input": true,
+        "supports_tools": true,
+        "context_length": 1048576
+      },
+      {
+        "id": "accounts/fireworks/routers/deepseek-v4p1-flash-1017-spot",
+        "object": "model",
+        "owned_by": "fireworks",
+        "created": 1792249307,
+        "kind": "HF_BASE_MODEL",
+        "supports_chat": true,
+        "supports_image_input": true,
+        "supports_tools": true,
+        "context_length": 1048576
+      },
+      {
+        "id": "accounts/fireworks/routers/deepseek-v4p1-flash-1017-ultrafast",
+        "object": "model",
+        "owned_by": "fireworks",
+        "created": 1792249307,
+        "kind": "HF_BASE_MODEL",
+        "supports_chat": true,
+        "supports_image_input": true,
+        "supports_tools": true,
+        "context_length": 1048576
+      },
+      {
+        "id": "accounts/fireworks/models/minimax-m3p1-flash",
+        "object": "model",
+        "owned_by": "fireworks",
+        "created": 1792262209,
+        "kind": "HF_BASE_MODEL",
+        "supports_chat": true,
+        "supports_image_input": true,
+        "supports_tools": true,
+        "context_length": 1048576
+      },
+      {
+        "id": "accounts/fireworks/routers/rune",
+        "object": "model",
+        "owned_by": "fireworks",
+        "created": 1792518104,
+        "kind": "HF_BASE_MODEL",
+        "supports_chat": false,
+        "supports_image_input": false,
+        "supports_tools": false,
+        "context_length": 262144
+      },
+      {
+        "id": "auto",
+        "object": "model",
+        "owned_by": "fireworks",
+        "created": 1790634780,
+        "kind": "ROUTER",
+        "supports_chat": true,
+        "supports_image_input": true,
+        "supports_tools": true
+      },
+      {
+        "id": "firerouter/auto",
+        "object": "model",
+        "owned_by": "fireworks",
+        "created": 1790634780,
+        "kind": "ROUTER",
+        "supports_chat": true,
+        "supports_image_input": true,
+        "supports_tools": true
+      },
+      {
+        "id": "accounts/fireworks/models/qwen3p8-2p4t-a95b",
+        "object": "model",
+        "owned_by": "fireworks",
+        "created": 1786553734,
+        "kind": "HF_BASE_MODEL",
+        "supports_chat": true,
+        "supports_image_input": false,
+        "supports_tools": true,
+        "context_length": 262144
+      },
+      {
+        "id": "accounts/fireworks/models/rune",
+        "object": "model",
+        "owned_by": "fireworks",
+        "created": 1792518104,
+        "kind": "HF_BASE_MODEL",
+        "supports_chat": false,
+        "supports_image_input": false,
+        "supports_tools": false,
+        "context_length": 262144
+      }
+    ],
+    "object": "list"
+  }
+}

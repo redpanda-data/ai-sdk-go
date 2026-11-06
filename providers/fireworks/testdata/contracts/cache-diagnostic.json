@@ -1,0 +1,114 @@
+{
+  "version": 3,
+  "catalog_fingerprint": "309fcfec4e9fa518860dd8c1d5ed03723393ddf416b8e3140c243d3a7959f223",
+  "test_fingerprint": "f04a5825eed10f4e08f6a90c5e3d7156434a53dfd66f3844d08355a7a933517e",
+  "captured_at": "2026-11-04T12:49:28.620699177Z",
+  "sdk_revision": "651b3d1f82d2da5d21e449bd53ab28314d27b623",
+  "scope": "sdk_direct_upstream_only",
+  "blocked": null,
+  "known_run_usd": 0.001119,
+  "prior_conservative_usd": 0.4174063510000009,
+  "cumulative_conservative_usd": 0.4185253510000009,
+  "unresolved_reservations_usd": 0,
+  "evidence": [
+    {
+      "case": {
+        "model": "accounts/fireworks/models/deepseek-v4p1-flash-1017",
+        "api": "anthropic_messages",
+        "transport": "direct",
+        "stream": false,
+        "feature": "cache_repeat"
+      },
+      "exchanges": [
+        {
+          "method": "POST",
+          "authorization_class": "valid",
+          "path": "/inference/v1/messages",
+          "request_headers": {
+            "Anthropic-Version": "2023-06-01",
+            "Content-Type": "application/json",
+            "X-Session-Affinity": "sdk-contract-fc1119796e27bcd09b0d51fd"
+          },
+          "request": {
+            "max_tokens": 16,
+            "messages": [
+              {
+                "content": "Record 0000: cobalt lantern meadow 0; river stone compass 0; library index 0 preserves distinct observations.\nRecord 0001: cobalt lantern meadow 17; river stone compass 23; library index 31 preserves distinct observations.\nRecord 0002: cobalt lantern meadow 34; river stone compass 46; library index 62 preserves distinct observations.\nRecord 0003: cobalt lantern meadow 51; river stone compass 69; library index 93 preserves distinct observations.\nRecord 0004: cobalt lantern meadow 68; river stone compass 92; library index 124 preserves distinct observations.\nRecord 0005: cobalt lantern meadow 85; river stone compass 115; library index 155 preserves distinct observations.\nRecord 0006: cobalt lantern meadow 102; river stone compass 138; library index 186 preserves distinct observations.\nRecord 0007: cobalt lantern meadow 119; river stone compass 161; library index 217 preserves distinct observations.\nRecord 0008: cobalt lantern meadow 136; river stone compass 184; library index 248 preserves distinct observations.\nRecord 0009: cobalt lantern meadow 153; river stone compass 207; library index 279 preserves distinct observations.\nRecord 0010: cobalt lantern meadow 170; river stone compass 230; library index 310 preserves distinct observations.\nRecord 0011: cobalt lantern meadow 187; river stone compass 253; library index 341 preserves distinct observations.\nRecord 0012: cobalt lantern meadow 204; river stone compass 276; library index 372 preserves distinct observations.\nRecord 0013: cobalt lantern meadow 221; river stone compass 299; library index 403 preserves distinct observations.\nRecord 0014: cobalt lantern meadow 238; river stone compass 322; library index 434 preserves distinct observations.\nRecord 0015: cobalt lantern meadow 255; river stone compass 345; library index 465 preserves distinct observations.\nRecord 0016: cobalt lantern meadow 272; river stone compass 368; library index 496 preserves distinct observations.\nRecord 0017: cobalt lantern meadow 289; river stone compass 391; library index 527 preserves distinct observations.\nRecord 0018: cobalt lantern meadow 306; river stone compass 414; library index 558 preserves distinct observations.\nRecord 0019: cobalt lantern meadow 323; river stone compass 437; library index 589 preserves distinct observations.\nRecord 0020: cobalt lantern meadow 340; river stone compass 460; library index 620 preserves distinct observations.\nRecord 0021: cobalt lantern meadow 357; river stone compass 483; library index 651 preserves distinct observations.\nRecord 0022: cobalt lantern meadow 374; river stone compass 506; library index 682 preserves distinct observations.\nRecord 0023: cobalt lantern meadow 391; river stone compass 529; library index 713 preserves distinct observations.\nRecord 0024: cobalt lantern meadow 408; river stone compass 552; library index 744 preserves distinct observations.\nRecord 0025: cobalt lantern meadow 425; river stone compass 575; library index 775 preserves distinct observations.\nRecord 0026: cobalt lantern meadow 442; river stone compass 598; library index 806 preserves distinct observations.\nRecord 0027: cobalt lantern meadow 459; river stone compass 621; library index 837 preserves distinct observations.\nRecord 0028: cobalt lantern meadow 476; river stone compass 644; library index 868 preserves distinct observations.\nRecord 0029: cobalt lantern meadow 493; river stone compass 667; library index 899 preserves distinct observations.\nRecord 0030: cobalt lantern meadow 510; river stone compass 690; library index 930 preserves distinct observations.\nRecord 0031: cobalt lantern meadow 527; river stone compass 713; library index 961 preserves distinct observations.\nRecord 0032: cobalt lantern meadow 544; river stone compass 736; library index 992 preserves distinct observations.\nRecord 0033: cobalt lantern meadow 561; river stone compass 759; library index 1023 preserves distinct observations.\nRecord 0034: cobalt lantern meadow 578; river stone compass 782; library index 1054 preserves distinct observations.\nRecord 0035: cobalt lantern meadow 595; river stone compass 805; library index 1085 preserves distinct observations.\nRecord 0036: cobalt lantern meadow 612; river stone compass 828; library index 1116 preserves distinct observations.\nRecord 0037: cobalt lantern meadow 629; river stone compass 851; library index 1147 preserves distinct observations.\nRecord 0038: cobalt lantern meadow 646; river stone compass 874; library index 1178 preserves distinct observations.\nRecord 0039: cobalt lantern meadow 663; river stone compass 897; library index 1209 preserves distinct observations.\nRecord 0040: cobalt lantern meadow 680; river stone compass 920; library index 1240 preserves distinct observations.\nRecord 0041: cobalt lantern meadow 697; river stone compass 943; library index 1271 preserves distinct observations.\nRecord 0042: cobalt lantern meadow 714; river stone compass 966; library index 1302 preserves distinct observations.\nRecord 0043: cobalt lantern meadow 731; river stone compass 989; library index 1333 preserves distinct observations.\nRecord 0044: cobalt lantern meadow 748; river stone compass 1012; library index 1364 preserves distinct observations.\nRecord 0045: cobalt lantern meadow 765; river stone compass 1035; library index 1395 preserves distinct observations.\nRecord 0046: cobalt lantern meadow 782; river stone compass 1058; library index 1426 preserves distinct observations.\nRecord 0047: cobalt lantern meadow 799; river stone compass 1081; library index 1457 preserves distinct observations.\nRecord 0048: cobalt lantern meadow 816; river stone compass 1104; library index 1488 preserves distinct observations.\nRecord 0049: cobalt lantern meadow 833; river stone compass 1127; library index 1519 preserves distinct observations.\nRecord 0050: cobalt lantern meadow 850; river stone compass 1150; library index 1550 preserves distinct observations.\nRecord 0051: cobalt lantern meadow 867; river stone compass 1173; library index 1581 preserves distinct observations.\nRecord 0052: cobalt lantern meadow 884; river stone compass 1196; library index 1612 preserves distinct observations.\nRecord 0053: cobalt lantern meadow 901; river stone compass 1219; library index 1643 preserves distinct observations.\nRecord 0054: cobalt lantern meadow 918; river stone compass 1242; library index 1674 preserves distinct observations.\nRecord 0055: cobalt lantern meadow 935; river stone compass 1265; library index 1705 preserves distinct observations.\nRecord 0056: cobalt lantern meadow 952; river stone compass 1288; library index 1736 preserves distinct observations.\nRecord 0057: cobalt lantern meadow 969; river stone compass 1311; library index 1767 preserves distinct observations.\nRecord 0058: cobalt lantern meadow 986; river stone compass 1334; library index 1798 preserves distinct observations.\nRecord 0059: cobalt lantern meadow 1003; river stone compass 1357; library index 1829 preserves distinct observations.\nRecord 0060: cobalt lantern meadow 1020; river stone compass 1380; library index 1860 preserves distinct observations.\nRecord 0061: cobalt lantern meadow 1037; river stone compass 1403; library index 1891 preserves distinct observations.\nRecord 0062: cobalt lantern meadow 1054; river stone compass 1426; library index 1922 preserves distinct observations.\nRecord 0063: cobalt lantern meadow 1071; river stone compass 1449; library index 1953 preserves distinct observations.\nRecord 0064: cobalt lantern meadow 1088; river stone compass 1472; library index 1984 preserves distinct observations.\nRecord 0065: cobalt lantern meadow 1105; river stone compass 1495; library index 2015 preserves distinct observations.\nRecord 0066: cobalt lantern meadow 1122; river stone compass 1518; library index 2046 preserves distinct observations.\nRecord 0067: cobalt lantern meadow 1139; river stone compass 1541; library index 2077 preserves distinct observations.\nRecord 0068: cobalt lantern meadow 1156; river stone compass 1564; library index 2108 preserves distinct observations.\nRecord 0069: cobalt lantern meadow 1173; river stone compass 1587; library index 2139 preserves distinct observations.\nRecord 0070: cob\nProbe fc1119796e27bcd09b0d51fd. Reply with exactly OK.",
+                "role": "user"
+              }
+            ],
+            "model": "accounts/fireworks/models/deepseek-v4p1-flash-1017",
+            "output_config": {},
+            "stream": false,
+            "temperature": 0,
+            "thinking": {
+              "type": "disabled"
+            }
+          },
+          "status": 200,
+          "response_headers": {
+            "Content-Type": "application/json"
+          },
+          "response": "{\"content\":[{\"text\":\"OK\",\"type\":\"text\"}],\"id\":\"capture_bca9941bb18c4af66257680b\",\"model\":\"accounts/fireworks/models/deepseek-v4p1-flash-1017\",\"role\":\"assistant\",\"stop_details\":null,\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"type\":\"message\",\"usage\":{\"cache_creation\":null,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"inference_geo\":null,\"input_tokens\":1857,\"output_tokens\":2,\"service_tier\":null}}"
+        },
+        {
+          "method": "POST",
+          "authorization_class": "valid",
+          "path": "/inference/v1/messages",
+          "request_headers": {
+            "Anthropic-Version": "2023-06-01",
+            "Content-Type": "application/json",
+            "X-Session-Affinity": "sdk-contract-fc1119796e27bcd09b0d51fd"
+          },
+          "request": {
+            "max_tokens": 16,
+            "messages": [
+              {
+                "content": "Record 0000: cobalt lantern meadow 0; river stone compass 0; library index 0 preserves distinct observations.\nRecord 0001: cobalt lantern meadow 17; river stone compass 23; library index 31 preserves distinct observations.\nRecord 0002: cobalt lantern meadow 34; river stone compass 46; library index 62 preserves distinct observations.\nRecord 0003: cobalt lantern meadow 51; river stone compass 69; library index 93 preserves distinct observations.\nRecord 0004: cobalt lantern meadow 68; river stone compass 92; library index 124 preserves distinct observations.\nRecord 0005: cobalt lantern meadow 85; river stone compass 115; library index 155 preserves distinct observations.\nRecord 0006: cobalt lantern meadow 102; river stone compass 138; library index 186 preserves distinct observations.\nRecord 0007: cobalt lantern meadow 119; river stone compass 161; library index 217 preserves distinct observations.\nRecord 0008: cobalt lantern meadow 136; river stone compass 184; library index 248 preserves distinct observations.\nRecord 0009: cobalt lantern meadow 153; river stone compass 207; library index 279 preserves distinct observations.\nRecord 0010: cobalt lantern meadow 170; river stone compass 230; library index 310 preserves distinct observations.\nRecord 0011: cobalt lantern meadow 187; river stone compass 253; library index 341 preserves distinct observations.\nRecord 0012: cobalt lantern meadow 204; river stone compass 276; library index 372 preserves distinct observations.\nRecord 0013: cobalt lantern meadow 221; river stone compass 299; library index 403 preserves distinct observations.\nRecord 0014: cobalt lantern meadow 238; river stone compass 322; library index 434 preserves distinct observations.\nRecord 0015: cobalt lantern meadow 255; river stone compass 345; library index 465 preserves distinct observations.\nRecord 0016: cobalt lantern meadow 272; river stone compass 368; library index 496 preserves distinct observations.\nRecord 0017: cobalt lantern meadow 289; river stone compass 391; library index 527 preserves distinct observations.\nRecord 0018: cobalt lantern meadow 306; river stone compass 414; library index 558 preserves distinct observations.\nRecord 0019: cobalt lantern meadow 323; river stone compass 437; library index 589 preserves distinct observations.\nRecord 0020: cobalt lantern meadow 340; river stone compass 460; library index 620 preserves distinct observations.\nRecord 0021: cobalt lantern meadow 357; river stone compass 483; library index 651 preserves distinct observations.\nRecord 0022: cobalt lantern meadow 374; river stone compass 506; library index 682 preserves distinct observations.\nRecord 0023: cobalt lantern meadow 391; river stone compass 529; library index 713 preserves distinct observations.\nRecord 0024: cobalt lantern meadow 408; river stone compass 552; library index 744 preserves distinct observations.\nRecord 0025: cobalt lantern meadow 425; river stone compass 575; library index 775 preserves distinct observations.\nRecord 0026: cobalt lantern meadow 442; river stone compass 598; library index 806 preserves distinct observations.\nRecord 0027: cobalt lantern meadow 459; river stone compass 621; library index 837 preserves distinct observations.\nRecord 0028: cobalt lantern meadow 476; river stone compass 644; library index 868 preserves distinct observations.\nRecord 0029: cobalt lantern meadow 493; river stone compass 667; library index 899 preserves distinct observations.\nRecord 0030: cobalt lantern meadow 510; river stone compass 690; library index 930 preserves distinct observations.\nRecord 0031: cobalt lantern meadow 527; river stone compass 713; library index 961 preserves distinct observations.\nRecord 0032: cobalt lantern meadow 544; river stone compass 736; library index 992 preserves distinct observations.\nRecord 0033: cobalt lantern meadow 561; river stone compass 759; library index 1023 preserves distinct observations.\nRecord 0034: cobalt lantern meadow 578; river stone compass 782; library index 1054 preserves distinct observations.\nRecord 0035: cobalt lantern meadow 595; river stone compass 805; library index 1085 preserves distinct observations.\nRecord 0036: cobalt lantern meadow 612; river stone compass 828; library index 1116 preserves distinct observations.\nRecord 0037: cobalt lantern meadow 629; river stone compass 851; library index 1147 preserves distinct observations.\nRecord 0038: cobalt lantern meadow 646; river stone compass 874; library index 1178 preserves distinct observations.\nRecord 0039: cobalt lantern meadow 663; river stone compass 897; library index 1209 preserves distinct observations.\nRecord 0040: cobalt lantern meadow 680; river stone compass 920; library index 1240 preserves distinct observations.\nRecord 0041: cobalt lantern meadow 697; river stone compass 943; library index 1271 preserves distinct observations.\nRecord 0042: cobalt lantern meadow 714; river stone compass 966; library index 1302 preserves distinct observations.\nRecord 0043: cobalt lantern meadow 731; river stone compass 989; library index 1333 preserves distinct observations.\nRecord 0044: cobalt lantern meadow 748; river stone compass 1012; library index 1364 preserves distinct observations.\nRecord 0045: cobalt lantern meadow 765; river stone compass 1035; library index 1395 preserves distinct observations.\nRecord 0046: cobalt lantern meadow 782; river stone compass 1058; library index 1426 preserves distinct observations.\nRecord 0047: cobalt lantern meadow 799; river stone compass 1081; library index 1457 preserves distinct observations.\nRecord 0048: cobalt lantern meadow 816; river stone compass 1104; library index 1488 preserves distinct observations.\nRecord 0049: cobalt lantern meadow 833; river stone compass 1127; library index 1519 preserves distinct observations.\nRecord 0050: cobalt lantern meadow 850; river stone compass 1150; library index 1550 preserves distinct observations.\nRecord 0051: cobalt lantern meadow 867; river stone compass 1173; library index 1581 preserves distinct observations.\nRecord 0052: cobalt lantern meadow 884; river stone compass 1196; library index 1612 preserves distinct observations.\nRecord 0053: cobalt lantern meadow 901; river stone compass 1219; library index 1643 preserves distinct observations.\nRecord 0054: cobalt lantern meadow 918; river stone compass 1242; library index 1674 preserves distinct observations.\nRecord 0055: cobalt lantern meadow 935; river stone compass 1265; library index 1705 preserves distinct observations.\nRecord 0056: cobalt lantern meadow 952; river stone compass 1288; library index 1736 preserves distinct observations.\nRecord 0057: cobalt lantern meadow 969; river stone compass 1311; library index 1767 preserves distinct observations.\nRecord 0058: cobalt lantern meadow 986; river stone compass 1334; library index 1798 preserves distinct observations.\nRecord 0059: cobalt lantern meadow 1003; river stone compass 1357; library index 1829 preserves distinct observations.\nRecord 0060: cobalt lantern meadow 1020; river stone compass 1380; library index 1860 preserves distinct observations.\nRecord 0061: cobalt lantern meadow 1037; river stone compass 1403; library index 1891 preserves distinct observations.\nRecord 0062: cobalt lantern meadow 1054; river stone compass 1426; library index 1922 preserves distinct observations.\nRecord 0063: cobalt lantern meadow 1071; river stone compass 1449; library index 1953 preserves distinct observations.\nRecord 0064: cobalt lantern meadow 1088; river stone compass 1472; library index 1984 preserves distinct observations.\nRecord 0065: cobalt lantern meadow 1105; river stone compass 1495; library index 2015 preserves distinct observations.\nRecord 0066: cobalt lantern meadow 1122; river stone compass 1518; library index 2046 preserves distinct observations.\nRecord 0067: cobalt lantern meadow 1139; river stone compass 1541; library index 2077 preserves distinct observations.\nRecord 0068: cobalt lantern meadow 1156; river stone compass 1564; library index 2108 preserves distinct observations.\nRecord 0069: cobalt lantern meadow 1173; river stone compass 1587; library index 2139 preserves distinct observations.\nRecord 0070: cob\nProbe fc1119796e27bcd09b0d51fd. Reply with exactly OK.",
+                "role": "user"
+              }
+            ],
+            "model": "accounts/fireworks/models/deepseek-v4p1-flash-1017",
+            "output_config": {},
+            "stream": false,
+            "temperature": 0,
+            "thinking": {
+              "type": "disabled"
+            }
+          },
+          "status": 200,
+          "response_headers": {
+            "Content-Type": "application/json"
+          },
+          "response": "{\"content\":[{\"text\":\"OK\",\"type\":\"text\"}],\"id\":\"capture_3a02485ecc5b66106042f440\",\"model\":\"accounts/fireworks/models/deepseek-v4p1-flash-1017\",\"role\":\"assistant\",\"stop_details\":null,\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"type\":\"message\",\"usage\":{\"cache_creation\":null,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"inference_geo\":null,\"input_tokens\":1857,\"output_tokens\":2,\"service_tier\":null}}"
+        }
+      ],
+      "request_options": {
+        "cache_prefix_bytes": 8192,
+        "cache_settle_ms": 2000,
+        "max_output_tokens": 16
+      },
+      "capture": {
+        "test_version": 3,
+        "test_fingerprint": "f04a5825eed10f4e08f6a90c5e3d7156434a53dfd66f3844d08355a7a933517e",
+        "captured_at": "2026-11-04T12:49:28.620770137Z",
+        "sdk_revision": "651b3d1f82d2da5d21e449bd53ab28314d27b623",
+        "sanitized_request_sha256": [
+          "8596927b1901ed3565ff820724bc085f7279ebcfb5874a5801b6e04cb888c454",
+          "8596927b1901ed3565ff820724bc085f7279ebcfb5874a5801b6e04cb888c454"
+        ]
+      },
+      "native_verified": true,
+      "cache_hit_observed": false,
+      "fresh_input_observed": false
+    }
+  ],
+  "run_kind": "partial_targeted_correction",
+  "source_reports": [
+    {
+      "path": "testdata/contracts/full-matrix-v2-incomplete.json",
+      "sha256": "f4c090ae4dc9dfb59408ce8ff89ebcf11635f3336d894b06be0409049ca49f3c",
+      "kind": ""
+    }
+  ]
+}

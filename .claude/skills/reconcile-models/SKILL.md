@@ -27,11 +27,13 @@ then the page for each package. This skill is the workflow.
 
 Facts come only from the hosts' own pages, and code cites only those.
 
-- **Anthropic API, OpenAI API, Gemini API, Meta Model API, Vertex, Bedrock:**
+- **Anthropic API, OpenAI API, Gemini API, Meta Model API, Vertex, Bedrock, Fireworks:**
   their host pages (`hosts/anthropic.md`, `hosts/openai.md`,
-  `hosts/google.md`, `hosts/meta.md`, `hosts/vertex.md`, `hosts/bedrock.md`).
-- **Amazon and Mistral AI,** which have no package of their own:
-  `hosts/amazon.md` and `hosts/mistral.md`.
+  `hosts/google.md`, `hosts/meta.md`, `hosts/vertex.md`, `hosts/bedrock.md`,
+  `hosts/fireworks.md`).
+- **Amazon, Mistral AI, Z.ai, MiniMax, DeepSeek and Moonshot AI,** which have no package of their own:
+  `hosts/amazon.md`, `hosts/mistral.md`, `hosts/zai.md`, `hosts/minimax.md`,
+  `hosts/deepseek.md` and `hosts/moonshotai.md`.
 - **Aggregators:** see `hosts/shared.md` ("Hand runs: LiteLLM leads").
 
 ## Per-entry checklist

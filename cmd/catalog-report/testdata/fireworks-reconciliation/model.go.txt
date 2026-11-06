@@ -1,0 +1,46 @@
+package main
+
+import (
+	"os"
+
+	"github.com/redpanda-data/ai-sdk-go/catalog"
+	"github.com/redpanda-data/ai-sdk-go/catalog/snapshot"
+	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/pricing"
+)
+
+const includeFlash = false
+const inputRate = 1.40
+const retires = ""
+const modelAlias = ""
+
+func main() {
+	entry := func(id string, model catalog.ModelID) catalog.Entry {
+		return catalog.Entry{
+			ID: id, Model: model,
+			Capabilities: llm.ModelCapabilities{Streaming: true},
+			Constraints: llm.ModelConstraints{MaxInputTokens: 1000, MaxOutputTokens: 100},
+			WireAPIs: []catalog.WireAPI{{Protocol: catalog.WireProtocolOpenAIChatCompletions, Transport: catalog.WireTransportDirect}},
+			Pricing: pricing.FlatInfo(inputRate, 4.40, .26),
+			Life: catalog.Lifecycle{Stage: catalog.StageGA},
+		}
+	}
+	glm := entry("accounts/fireworks/models/glm-5p3", "zai/glm-5.3")
+	if retires != "" {
+		glm.Life.Retires = catalog.MustDate(retires)
+	}
+	if modelAlias != "" {
+		glm.Aliases = []string{modelAlias}
+	}
+	entries := []catalog.Entry{glm}
+	if includeFlash {
+		entries = append(entries, entry("accounts/fireworks/models/glm-5p3-flash", "zai/glm-5.3-flash"))
+	}
+	registry := catalog.Registry{
+		"zai/glm-5.3": {Publisher: "zai", DisplayName: "GLM", Series: "glm", Released: catalog.MustDate("2026-08-14")},
+		"zai/glm-5.3-flash": {Publisher: "zai", DisplayName: "GLM Flash", Series: "glm-flash", Released: catalog.MustDate("2026-08-26")},
+	}
+	if err := snapshot.Encode(os.Stdout, catalog.MustNew("fireworks", entries, catalog.WithRegistry(registry))); err != nil {
+		panic(err)
+	}
+}

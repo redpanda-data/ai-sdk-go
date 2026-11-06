@@ -25,6 +25,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/providers/anthropic"
 	"github.com/redpanda-data/ai-sdk-go/providers/bedrock"
+	"github.com/redpanda-data/ai-sdk-go/providers/fireworks"
 	"github.com/redpanda-data/ai-sdk-go/providers/google"
 	"github.com/redpanda-data/ai-sdk-go/providers/meta"
 	"github.com/redpanda-data/ai-sdk-go/providers/openai"
@@ -54,6 +55,7 @@ func TestCatalogProviderMatchesProviderName(t *testing.T) {
 		{"google", (*google.Provider)(nil), "gcp.gemini"},
 		{"bedrock", (*bedrock.Provider)(nil), "aws.bedrock"},
 		{"vertex", (*vertex.Provider)(nil), "gcp.vertex"},
+		{"fireworks", (*fireworks.Provider)(nil), "fireworks"},
 		{"meta", (*meta.Provider)(nil), "meta"},
 	}
 	require.Len(t, reconcile.PackageProviders, len(cases), "reconcile.PackageProviders names another set of packages")
@@ -85,6 +87,7 @@ func TestProviderKeysArePairwiseDistinct(t *testing.T) {
 		"google":    google.Catalog(),
 		"bedrock":   bedrock.Catalog(),
 		"vertex":    vertex.Catalog(),
+		"fireworks": fireworks.Catalog(),
 		"meta":      meta.Catalog(),
 	}
 
