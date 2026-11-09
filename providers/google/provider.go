@@ -31,8 +31,11 @@ import (
 
 // Provider implements the Google Gemini model provider.
 type Provider struct {
-	APIKey     string
-	BaseURL    string
+	APIKey  string
+	BaseURL string
+	// HTTPClient is the client the caller passed to WithHTTPClient. Requests
+	// go through a copy made when the provider is built, so a later change to
+	// this client doesn't reach them.
 	HTTPClient *http.Client
 	Timeout    time.Duration
 	client     *genai.Client
@@ -151,7 +154,9 @@ func WithBaseURL(url string) ProviderOption {
 	}
 }
 
-// WithHTTPClient sets a custom HTTP client for API requests.
+// WithHTTPClient sets a custom HTTP client for API requests. The provider
+// sends requests through a copy of client made at construction, so later
+// changes to client (Timeout, Transport, Jar) don't affect it.
 func WithHTTPClient(client *http.Client) ProviderOption {
 	return func(p *Provider) error {
 		if client == nil {

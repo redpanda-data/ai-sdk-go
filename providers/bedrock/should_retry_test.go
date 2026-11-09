@@ -30,32 +30,88 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
+// testAWSConfig points the provider at baseURL with fake credentials and a
+// retryer that backs off for a millisecond.
+func testAWSConfig(baseURL string) aws.Config {
+	return aws.Config{
+		Region:       "us-east-1",
+		BaseEndpoint: aws.String(baseURL),
+		Credentials: aws.CredentialsProviderFunc(func(context.Context) (aws.Credentials, error) {
+			return aws.Credentials{AccessKeyID: "test", SecretAccessKey: "test"}, nil
+		}),
+		Retryer: func() aws.Retryer {
+			return awsretry.NewStandard(func(o *awsretry.StandardOptions) {
+				o.Backoff = awsretry.BackoffDelayerFunc(func(int, error) (time.Duration, error) { return time.Millisecond, nil })
+			})
+		},
+	}
+}
+
+func newTestModel(t *testing.T, model string, opts ...ProviderOption) llm.Model {
+	t.Helper()
+
+	p, err := NewProvider(context.Background(), opts...)
+	require.NoError(t, err)
+
+	m, err := p.NewModel(model)
+	require.NoError(t, err)
+
+	return m
+}
+
 func TestShouldRetryHeader(t *testing.T) {
 	t.Parallel()
 
 	shouldretrytest.Run(t, func(t *testing.T, baseURL string) llm.Model {
 		t.Helper()
 
-		p, err := NewProvider(context.Background(), WithAWSConfig(aws.Config{
-			Region:       "us-east-1",
-			BaseEndpoint: aws.String(baseURL),
-			Credentials: aws.CredentialsProviderFunc(func(context.Context) (aws.Credentials, error) {
-				return aws.Credentials{AccessKeyID: "test", SecretAccessKey: "test"}, nil
-			}),
-			Retryer: func() aws.Retryer {
-				return awsretry.NewStandard(func(o *awsretry.StandardOptions) {
-					o.Backoff = awsretry.BackoffDelayerFunc(func(int, error) (time.Duration, error) { return time.Millisecond, nil })
-				})
-			},
-		}))
-		require.NoError(t, err)
+		return newTestModel(t, ModelClaudeSonnet55Global, WithAWSConfig(testAWSConfig(baseURL)))
+	}, converseFailures(t)...)
+}
 
-		m, err := p.NewModel(ModelClaudeSonnet55Global)
-		require.NoError(t, err)
+// The provider wraps a caller's HTTP client too. This fails if that wrap
+// moves before the option that installs the caller's client.
+func TestShouldRetryHeader_WithHTTPClient(t *testing.T) {
+	t.Parallel()
 
-		return m
+	shouldretrytest.Run(t, func(t *testing.T, baseURL string) llm.Model {
+		t.Helper()
+
+		return newTestModel(t, ModelClaudeSonnet55Global, WithAWSConfig(testAWSConfig(baseURL)), WithHTTPClient(&http.Client{}))
+	}, converseFailures(t)...)
+}
+
+// Mantle models go through the openai provider over a SigV4 transport, not
+// through the Converse client.
+func TestShouldRetryHeader_Mantle(t *testing.T) {
+	t.Parallel()
+
+	shouldretrytest.Run(t, func(t *testing.T, baseURL string) llm.Model {
+		t.Helper()
+
+		return newTestModel(t, ModelGemma431B, WithAWSConfig(testAWSConfig(baseURL)))
 	},
 		shouldretrytest.Failure{
+			Name:    "HTTP 503",
+			Status:  http.StatusServiceUnavailable,
+			Headers: map[string]string{"Content-Type": "application/json"},
+			Body:    []byte(`{"error":{"type":"server_error","code":"server_error","message":"every member failed"}}`),
+		},
+		shouldretrytest.Failure{
+			Name:       "error event on a 200 stream",
+			Status:     http.StatusOK,
+			Headers:    map[string]string{"Content-Type": "text/event-stream"},
+			Body:       []byte("data: {\"error\":{\"type\":\"server_error\",\"code\":\"server_error\",\"message\":\"every member failed\"}}\n\n"),
+			StreamOnly: true,
+		},
+	)
+}
+
+func converseFailures(t *testing.T) []shouldretrytest.Failure {
+	t.Helper()
+
+	return []shouldretrytest.Failure{
+		{
 			Name:   "HTTP 503",
 			Status: http.StatusServiceUnavailable,
 			Headers: map[string]string{
@@ -64,14 +120,14 @@ func TestShouldRetryHeader(t *testing.T) {
 			},
 			Body: []byte(`{"message":"every member failed"}`),
 		},
-		shouldretrytest.Failure{
+		{
 			Name:       "exception event on a 200 stream",
 			Status:     http.StatusOK,
 			Headers:    map[string]string{"Content-Type": "application/vnd.amazon.eventstream"},
 			Body:       exceptionEvent(t, "serviceUnavailableException", `{"message":"every member failed"}`),
 			StreamOnly: true,
 		},
-	)
+	}
 }
 
 func exceptionEvent(t *testing.T, exceptionType, payload string) []byte {

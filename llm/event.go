@@ -151,7 +151,8 @@ type StreamEndEvent struct {
 	//   - ErrRateLimitExceeded: Retryable with backoff
 	//   - ErrInvalidInput: Not retryable, fix input
 	//   - ErrContentPolicyViolation: Not retryable, policy violation
-	//   - ErrServerError: Retryable, transient provider issue
+	//   - ErrServerError: Transient provider issue, usually retryable (check
+	//     with IsRetryable)
 	//
 	// Type assert to *ProviderError to access provider-specific Code and Message.
 	Error error `json:"-"`
