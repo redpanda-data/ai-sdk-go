@@ -27,6 +27,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 
 	"github.com/redpanda-data/ai-sdk-go/catalog"
+	"github.com/redpanda-data/ai-sdk-go/internal/shouldretry"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -99,12 +100,18 @@ func NewProvider(ctx context.Context, opts ...ProviderOption) (*Provider, error)
 	}
 
 	// Build bedrockruntime client options
-	var clientOpts []func(*bedrockruntime.Options)
+	clientOpts := []func(*bedrockruntime.Options){func(o *bedrockruntime.Options) {
+		o.Retryer = shouldRetryRetryer{Retryer: o.Retryer}
+	}}
 	if cfg.httpClient != nil {
 		clientOpts = append(clientOpts, func(o *bedrockruntime.Options) {
 			o.HTTPClient = cfg.httpClient
 		})
 	}
+
+	clientOpts = append(clientOpts, func(o *bedrockruntime.Options) {
+		o.HTTPClient = shouldretry.WrapDoer(o.HTTPClient)
+	})
 
 	client := bedrockruntime.NewFromConfig(awsCfg, clientOpts...)
 

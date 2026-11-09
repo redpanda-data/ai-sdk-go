@@ -24,6 +24,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 
 	"github.com/redpanda-data/ai-sdk-go/catalog"
+	"github.com/redpanda-data/ai-sdk-go/internal/shouldretry"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -86,9 +87,11 @@ func (m *Model) Generate(ctx context.Context, req *llm.Request) (*llm.Response, 
 		return nil, fmt.Errorf("%w: %w", llm.ErrRequestMapping, err)
 	}
 
+	ctx, noRetry := shouldretry.Watch(ctx)
+
 	output, err := m.client.Converse(ctx, input)
 	if err != nil {
-		return nil, llm.WrapAPICall(classifyError(err))
+		return nil, llm.WrapAPICall(shouldretry.Apply(classifyError(err), noRetry.Load()))
 	}
 
 	return m.responseMapper.FromConverseOutput(
@@ -111,9 +114,11 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 			return
 		}
 
+		ctx, noRetry := shouldretry.Watch(ctx)
+
 		output, err := m.client.ConverseStream(ctx, input)
 		if err != nil {
-			yield(nil, llm.WrapAPICall(classifyError(err)))
+			yield(nil, llm.WrapAPICall(shouldretry.Apply(classifyError(err), noRetry.Load())))
 			return
 		}
 
@@ -212,7 +217,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 		// Check for stream errors
 		if err := stream.Err(); err != nil {
-			yield(nil, llm.WrapAPICall(classifyError(err)))
+			yield(nil, llm.WrapAPICall(shouldretry.Apply(classifyError(err), noRetry.Load())))
 			return
 		}
 
