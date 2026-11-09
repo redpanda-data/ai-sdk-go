@@ -16,6 +16,7 @@ package openai
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/openai/openai-go/v3/responses"
@@ -45,16 +46,7 @@ func (m *ResponseMapper) FromProvider(r *responses.Response) (*llm.Response, err
 	// 1. Authoritative and non-final statuses.
 	switch r.Status {
 	case responses.ResponseStatusFailed:
-		// Surface a deterministic error even if the provider omitted details.
-		if r.Error.Message == "" && r.Error.Code == "" {
-			return nil, &llm.ProviderError{
-				Base:    llm.ErrAPICall,
-				Code:    "failed",
-				Message: "provider status=failed without error payload",
-			}
-		}
-
-		return nil, m.providerErrorFrom(r.Error)
+		return nil, m.failedResponseError(r.Error)
 
 	case responses.ResponseStatusInProgress, responses.ResponseStatusQueued:
 		return nil, &llm.ProviderError{
@@ -201,6 +193,21 @@ func resolveInvokedModelID(model string) string {
 	return model
 }
 
+// failedResponseError returns the error for a response with status failed,
+// from Generate or from a response.failed stream event. It returns an error
+// even when the provider sent no error details.
+func (m *ResponseMapper) failedResponseError(e responses.ResponseError) *llm.ProviderError {
+	if e.Message == "" && e.Code == "" {
+		return &llm.ProviderError{
+			Base:    llm.ErrAPICall,
+			Code:    "failed",
+			Message: "provider status=failed without error payload",
+		}
+	}
+
+	return m.providerErrorFrom(e)
+}
+
 func (*ResponseMapper) providerErrorFrom(e responses.ResponseError) *llm.ProviderError {
 	// response.failed can carry context_length_exceeded, which the typed
 	// ResponseErrorCode enum lacks.
@@ -212,18 +219,16 @@ func (*ResponseMapper) providerErrorFrom(e responses.ResponseError) *llm.Provide
 		}
 	}
 
-	if base, ok := codeToBaseErr[e.Code]; ok {
-		return &llm.ProviderError{
-			Base:    base,
-			Code:    string(e.Code),
-			Message: e.Message,
-		}
+	base, ok := codeToBaseErr[e.Code]
+	if !ok {
+		base = llm.ErrAPICall
 	}
 
 	return &llm.ProviderError{
-		Base:    llm.ErrAPICall,
-		Code:    string(e.Code),
-		Message: e.Message,
+		Base:      base,
+		Code:      string(e.Code),
+		Message:   e.Message,
+		Retryable: errors.Is(base, llm.ErrServerError) || errors.Is(base, llm.ErrRateLimitExceeded),
 	}
 }
 

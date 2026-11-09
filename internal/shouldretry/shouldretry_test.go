@@ -93,7 +93,7 @@ func TestTransport_AnyStatusSetsTheFlag(t *testing.T) {
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, nil)
 			require.NoError(t, err)
 
-			resp, err := WrapClient(srv.Client()).Do(req)
+			resp, err := (&http.Client{Transport: Transport{Base: srv.Client().Transport}}).Do(req)
 			require.NoError(t, err)
 			require.NoError(t, resp.Body.Close())
 

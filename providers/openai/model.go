@@ -109,9 +109,28 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 		var finalResponse *responses.Response
 
+		// streamErr is the error from the stream's last error or
+		// response.failed event. If the stream never sends response.completed,
+		// the call ends with this error.
+		var streamErr *llm.ProviderError
+
+		// warning holds an error event until the stream sends something else,
+		// and then goes to the caller as an ErrorEvent. If the stream ends
+		// first, the call returns streamErr instead, so the caller sees the
+		// failure once.
+		var warning *llm.ErrorEvent
+
 		// Process streaming events
 		for stream.Next() {
 			event := stream.Current()
+
+			if warning != nil && event.Type != streamEventResponseFailed {
+				if !yield(*warning, nil) {
+					return
+				}
+
+				warning = nil
+			}
 
 			switch event.Type {
 			// Text content chunks
@@ -161,20 +180,34 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 					}
 				}
 
-			// Recoverable errors (in-band)
+			// An error event is a warning if the stream goes on, and the
+			// call's error if the stream ends without response.completed.
 			case streamEventError:
 				e := event.AsError()
-				if !yield(llm.ErrorEvent{
-					Message: e.Message,
-					Code:    e.Code,
-				}, nil) {
-					return
+
+				streamErr = classifyStreamPayload("", e.Code, e.Message)
+				if streamErr == nil {
+					streamErr = &llm.ProviderError{
+						Base:    llm.ErrAPICall,
+						Code:    "error",
+						Message: "error event without a code or message",
+					}
 				}
+
+				warning = &llm.ErrorEvent{Message: e.Message, Code: e.Code}
 
 			// Final response with usage and finish reason
 			case streamEventResponseCompleted:
 				e := event.AsResponseCompleted()
 				finalResponse = &e.Response
+
+			// A response.failed without error details keeps the code and
+			// message from an earlier error event.
+			case streamEventResponseFailed:
+				e := event.AsResponseFailed()
+				if streamErr == nil || e.Response.Error.Code != "" || e.Response.Error.Message != "" {
+					streamErr = m.responseMapper.failedResponseError(e.Response.Error)
+				}
 
 			// Ignore other event types
 			default:
@@ -184,8 +217,17 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 
 		// Check for transport/cancellation errors
 		if err := stream.Err(); err != nil {
+			if warning != nil && !yield(*warning, nil) {
+				return
+			}
+
 			// Double-wrap: see anthropic/model.go Generate for rationale.
 			yield(nil, llm.WrapAPICall(shouldretry.Apply(classifyError(err), noRetry.Load())))
+			return
+		}
+
+		if finalResponse == nil && streamErr != nil {
+			yield(nil, llm.WrapAPICall(shouldretry.Apply(streamErr, noRetry.Load())))
 			return
 		}
 

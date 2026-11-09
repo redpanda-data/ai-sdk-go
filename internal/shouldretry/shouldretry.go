@@ -142,12 +142,3 @@ func (d doer) Do(req *http.Request) (*http.Response, error) {
 
 	return resp, err
 }
-
-// WrapClient returns a copy of c that sends its requests through Transport. It
-// doesn't change c.
-func WrapClient(c *http.Client) *http.Client {
-	wrapped := *c
-	wrapped.Transport = Transport{Base: c.Transport}
-
-	return &wrapped
-}

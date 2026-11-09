@@ -26,14 +26,26 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
-// genai turns a Gemini error event on a 200 stream into an empty response
-// instead of an error, so these tests have no stream case.
 var geminiFailures = []shouldretrytest.Failure{
 	{
 		Name:    "HTTP 503",
 		Status:  http.StatusServiceUnavailable,
 		Headers: map[string]string{"Content-Type": "application/json"},
 		Body:    []byte(`{"error":{"code":503,"message":"every member failed","status":"UNAVAILABLE"}}`),
+	},
+	{
+		Name:       "error event on a 200 stream",
+		Status:     http.StatusOK,
+		Headers:    map[string]string{"Content-Type": "text/event-stream"},
+		Body:       []byte("data: {\"error\":{\"code\":503,\"message\":\"every member failed\",\"status\":\"UNAVAILABLE\"}}\n\n"),
+		StreamOnly: true,
+	},
+	{
+		Name:       "CRLF error event followed by another event",
+		Status:     http.StatusOK,
+		Headers:    map[string]string{"Content-Type": "text/event-stream"},
+		Body:       []byte("data: {\"error\":{\"code\":503,\"message\":\"every member failed\",\"status\":\"UNAVAILABLE\"}}\r\n\r\n: keep-alive\r\n\r\n"),
+		StreamOnly: true,
 	},
 }
 
