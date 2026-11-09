@@ -279,3 +279,58 @@ func TestResponseMapper_FunctionCallArgumentsNormalization(t *testing.T) {
 		})
 	}
 }
+
+func TestResponseMapper_FailedStatus(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		err           responses.ResponseError
+		wantBase      error
+		wantCode      string
+		wantRetryable bool
+	}{
+		{
+			name:          "server_error is retryable",
+			err:           responses.ResponseError{Code: responses.ResponseErrorCodeServerError, Message: "oops"},
+			wantBase:      llm.ErrServerError,
+			wantCode:      "server_error",
+			wantRetryable: true,
+		},
+		{
+			name:          "rate_limit_exceeded is retryable",
+			err:           responses.ResponseError{Code: responses.ResponseErrorCodeRateLimitExceeded, Message: "slow down"},
+			wantBase:      llm.ErrRateLimitExceeded,
+			wantCode:      "rate_limit_exceeded",
+			wantRetryable: true,
+		},
+		{
+			name:     "invalid_prompt is not retryable",
+			err:      responses.ResponseError{Code: responses.ResponseErrorCodeInvalidPrompt, Message: "bad prompt"},
+			wantBase: llm.ErrInvalidInput,
+			wantCode: "invalid_prompt",
+		},
+		{
+			name:     "no error details",
+			wantBase: llm.ErrAPICall,
+			wantCode: "failed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := NewResponseMapper().FromProvider(&responses.Response{
+				Status: responses.ResponseStatusFailed,
+				Error:  tt.err,
+			})
+			require.ErrorIs(t, err, tt.wantBase)
+
+			var pe *llm.ProviderError
+			require.ErrorAs(t, err, &pe)
+			assert.Equal(t, tt.wantCode, pe.Code)
+			assert.Equal(t, tt.wantRetryable, llm.IsRetryable(err))
+		})
+	}
+}

@@ -33,15 +33,20 @@ var geminiFailures = []shouldretrytest.Failure{
 		Headers: map[string]string{"Content-Type": "application/json"},
 		Body:    []byte(`{"error":{"code":503,"message":"every member failed","status":"UNAVAILABLE"}}`),
 	},
-	geminiStreamFailure,
-}
-
-var geminiStreamFailure = shouldretrytest.Failure{
-	Name:       "error event on a 200 stream",
-	Status:     http.StatusOK,
-	Headers:    map[string]string{"Content-Type": "text/event-stream"},
-	Body:       []byte("data: {\"error\":{\"code\":503,\"message\":\"every member failed\",\"status\":\"UNAVAILABLE\"}}\n\n"),
-	StreamOnly: true,
+	{
+		Name:       "error event on a 200 stream",
+		Status:     http.StatusOK,
+		Headers:    map[string]string{"Content-Type": "text/event-stream"},
+		Body:       []byte("data: {\"error\":{\"code\":503,\"message\":\"every member failed\",\"status\":\"UNAVAILABLE\"}}\n\n"),
+		StreamOnly: true,
+	},
+	{
+		Name:       "CRLF error event followed by another event",
+		Status:     http.StatusOK,
+		Headers:    map[string]string{"Content-Type": "text/event-stream"},
+		Body:       []byte("data: {\"error\":{\"code\":503,\"message\":\"every member failed\",\"status\":\"UNAVAILABLE\"}}\r\n\r\n: keep-alive\r\n\r\n"),
+		StreamOnly: true,
+	},
 }
 
 func TestShouldRetryHeader(t *testing.T) {

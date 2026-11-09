@@ -41,7 +41,8 @@ type Provider struct {
 // NewProviderWithClient creates a provider over a genai client the caller
 // built. It takes no API key: whatever authenticates the client is already
 // on it. The provider makes its own copy of client so it can read
-// x-should-retry from error responses. It doesn't change the caller's client.
+// x-should-retry from error responses and report stream error events that
+// genai would drop. It doesn't change the caller's client.
 func NewProviderWithClient(ctx context.Context, client *genai.Client) (*Provider, error) {
 	if client == nil {
 		return nil, errors.New("genai client is required")
@@ -52,10 +53,12 @@ func NewProviderWithClient(ctx context.Context, client *genai.Client) (*Provider
 	}
 
 	// genai drops response headers from its errors, so the header has to be
-	// read in the HTTP client. A genai client's HTTP client can't be replaced
-	// after the client is built, so build a new genai client from the old one's
-	// settings with the HTTP client wrapped. The settings already include an
-	// HTTP client, so genai doesn't look for credentials again.
+	// read in the HTTP client. The same client rewrites data: {"error": ...}
+	// stream events, which genai would otherwise drop. A genai client's HTTP
+	// client can't be replaced after the client is built, so build a new genai
+	// client from the old one's settings with the HTTP client wrapped. The
+	// settings already include an HTTP client, so genai doesn't look for
+	// credentials again.
 	cfg := client.ClientConfig()
 	cfg.HTTPClient = wrapHTTPClient(cfg.HTTPClient)
 

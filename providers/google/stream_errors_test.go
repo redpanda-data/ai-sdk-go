@@ -34,6 +34,21 @@ func TestUnwrapErrorEvent(t *testing.T) {
 			want: "{\"error\":{\"code\":503,\"status\":\"UNAVAILABLE\"}}\n",
 		},
 		{
+			name: "a CRLF error event keeps its CRLF",
+			line: "data: {\"error\":{\"code\":503}}\r\n",
+			want: "{\"error\":{\"code\":503}}\r\n",
+		},
+		{
+			name: "a chunk whose text is \"error\" is unchanged",
+			line: "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"error\"}]}}]}\n",
+			want: "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"error\"}]}}]}\n",
+		},
+		{
+			name: "a function call with an error argument is unchanged",
+			line: "data: {\"candidates\":[{\"content\":{\"parts\":[{\"functionCall\":{\"name\":\"f\",\"args\":{\"error\":\"x\"}}}]}}]}\n",
+			want: "data: {\"candidates\":[{\"content\":{\"parts\":[{\"functionCall\":{\"name\":\"f\",\"args\":{\"error\":\"x\"}}}]}}]}\n",
+		},
+		{
 			name: "a chunk whose text mentions an error is unchanged",
 			line: "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"the \\\"error\\\" key\"}]}}]}\n",
 			want: "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"the \\\"error\\\" key\"}]}}]}\n",

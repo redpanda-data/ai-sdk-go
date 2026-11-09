@@ -87,21 +87,25 @@ func (r *errorEventReader) Close() error {
 }
 
 // unwrapErrorEvent returns line without its "data:" prefix when the data is a
-// JSON object with a top-level "error". It returns any other line unchanged.
+// JSON object with a top-level "error". It keeps the line's own terminator, so
+// a CRLF stream keeps its event boundaries. It returns any other line
+// unchanged.
 func unwrapErrorEvent(line []byte) []byte {
 	data, ok := bytes.CutPrefix(line, []byte("data:"))
 	if !ok || !bytes.Contains(data, []byte(`"error"`)) {
 		return line
 	}
 
-	data = bytes.TrimSpace(data)
+	body := bytes.TrimRight(data, "\r\n")
+	eol := data[len(body):]
+	body = bytes.TrimSpace(body)
 
 	var event struct {
 		Error json.RawMessage `json:"error"`
 	}
-	if json.Unmarshal(data, &event) != nil || len(event.Error) == 0 || string(event.Error) == "null" {
+	if json.Unmarshal(body, &event) != nil || len(event.Error) == 0 || string(event.Error) == "null" {
 		return line
 	}
 
-	return append(data, '\n')
+	return append(body[:len(body):len(body)], eol...)
 }
