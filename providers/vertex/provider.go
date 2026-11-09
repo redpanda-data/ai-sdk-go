@@ -116,7 +116,9 @@ func WithBaseURL(baseURL string) ProviderOption {
 
 // WithHTTPClient sets the HTTP client models send requests with. It must
 // authenticate the requests itself: this package adds no credential, and
-// never falls back to Application Default Credentials.
+// never falls back to Application Default Credentials. Claude models use
+// client as is. Gemini models use a copy made when the model is built, so a
+// later change to client doesn't reach them.
 func WithHTTPClient(client *http.Client) ProviderOption {
 	return func(p *Provider) error {
 		if client == nil {

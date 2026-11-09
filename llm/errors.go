@@ -69,7 +69,8 @@ var (
 	ErrContextOverflow = fmt.Errorf("%w: context window exceeded", ErrInvalidInput)
 
 	// ErrServerError indicates a transient provider-side error.
-	// Retryable with backoff.
+	// Usually retryable with backoff. A *ProviderError's Retryable field
+	// decides, so use IsRetryable rather than errors.Is to check.
 	// Maps from errors such as: "server_error", "vector_store_timeout", "image_parse_error",
 	//   "failed_to_download_image", "image_file_not_found"
 	ErrServerError = errors.New("server error")
@@ -125,9 +126,11 @@ func WrapAPICall(err error) error {
 // IsRetryable checks if an error represents a transient condition that may
 // succeed on retry. It works through error wrapping chains.
 //
-// Returns true if:
-//   - The error is a *ProviderError with Retryable set to true
-//   - The error wraps ErrServerError or ErrRateLimitExceeded
+// If the chain has a *ProviderError, its Retryable field decides. Providers
+// set it to false when the response has x-should-retry: false, so a
+// *ProviderError that wraps ErrServerError can still be not retryable. Only an
+// error with no *ProviderError falls back to the sentinel: IsRetryable returns
+// true if it wraps ErrServerError or ErrRateLimitExceeded.
 func IsRetryable(err error) bool {
 	var perr *ProviderError
 	if errors.As(err, &perr) {

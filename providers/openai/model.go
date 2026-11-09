@@ -77,9 +77,9 @@ func (m *Model) Generate(ctx context.Context, req *llm.Request) (*llm.Response, 
 		return nil, fmt.Errorf("%w: %w", llm.ErrRequestMapping, err)
 	}
 
-	// Make the API call using Responses API
 	ctx, noRetry := shouldretry.Watch(ctx)
 
+	// Make the API call using Responses API
 	response, err := m.client.Responses.New(ctx, apiReq, option.WithMiddleware(shouldretry.Middleware))
 	if err != nil {
 		// Double-wrap: see anthropic/model.go Generate for rationale.
@@ -101,9 +101,9 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 			return
 		}
 
-		// Create streaming request using Responses API
 		ctx, noRetry := shouldretry.Watch(ctx)
 
+		// Create streaming request using Responses API
 		stream := m.client.Responses.NewStreaming(ctx, apiReq, option.WithMiddleware(shouldretry.Middleware))
 		defer stream.Close() // Automatic cleanup, even on early break
 

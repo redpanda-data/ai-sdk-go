@@ -133,7 +133,61 @@ func Run(t *testing.T, newModel NewModel, failures ...Failure) {
 				})
 			}
 		}
+
+		for _, c := range calls {
+			if f.StreamOnly && !c.stream {
+				continue
+			}
+
+			t.Run(f.Name+"/x-should-retry false lasts one call/"+c.name, func(t *testing.T) {
+				t.Parallel()
+				runOneCallOnly(t, newModel, f, c.call)
+			})
+		}
 	}
+}
+
+// runOneCallOnly sends two calls through one model. Only the first response
+// has x-should-retry: false, so the first call must not be retried and the
+// second must be. This fails if the flag outlives the call that got it.
+func runOneCallOnly(t *testing.T, newModel NewModel, f Failure, call func(context.Context, llm.Model) error) {
+	t.Helper()
+
+	var hits atomic.Int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		n := hits.Add(1)
+
+		for k, v := range f.Headers {
+			w.Header().Set(k, v)
+		}
+
+		w.Header().Set("Retry-After-Ms", "1")
+
+		if n == 1 {
+			w.Header().Set(shouldretry.Header, "false")
+		}
+
+		w.WriteHeader(f.Status)
+		_, _ = w.Write(f.Body)
+	}))
+	t.Cleanup(srv.Close)
+
+	model := retry.WrapModel(newModel(t, srv.URL),
+		retry.WithMaxRetries(2),
+		retry.WithInitialDelay(time.Millisecond),
+		retry.WithMaxDelay(time.Millisecond),
+	)
+
+	err := call(t.Context(), model)
+	require.Error(t, err)
+	assert.False(t, llm.IsRetryable(err), "the first call's error should not be retryable")
+	require.Equal(t, int32(1), hits.Load(), "the first call should not be retried")
+
+	err = call(t.Context(), model)
+	require.Error(t, err)
+	assert.True(t, llm.IsRetryable(err), "the second call's response has no header, so its error should be retryable")
+	assert.Greater(t, hits.Load(), int32(2), "the second call should be retried")
 }
 
 func generate(ctx context.Context, model llm.Model) error {

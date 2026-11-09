@@ -69,6 +69,8 @@ func WithMaxDelay(d time.Duration) Option {
 
 // WithRetryDecision sets a custom function to decide whether to retry an error.
 // When set, this overrides the default behavior of using llm.IsRetryable.
+// Providers report x-should-retry: false only through llm.IsRetryable, so fn
+// has to call it to keep honoring that header.
 func WithRetryDecision(fn DecisionFunc) Option {
 	return func(c *config) {
 		c.retryDecision = fn

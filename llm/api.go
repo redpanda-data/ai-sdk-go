@@ -92,7 +92,11 @@ type Generator interface {
 	//   - ErrContextOverflow: A specific ErrInvalidInput — input does not fit
 	//     the context window; shorten or restart the conversation
 	//   - ErrContentPolicyViolation: Not retryable, policy violation
-	//   - ErrServerError: Retryable, transient provider issue
+	//   - ErrServerError: Transient provider issue, usually retryable
+	//
+	// Check retryability with IsRetryable, not with these sentinels. A
+	// provider marks an error not retryable when the response has
+	// x-should-retry: false, whatever its category.
 	//
 	// SDK errors return standard errors:
 	//   - ErrRequestMapping: Request conversion failed
@@ -162,7 +166,8 @@ type EventsGenerator interface {
 	//     * ErrContextOverflow: A specific ErrInvalidInput — shorten or
 	//       restart the conversation
 	//     * ErrContentPolicyViolation: Not retryable, policy violation
-	//     * ErrServerError: Retryable, transient issue
+	//     * ErrServerError: Transient issue, usually retryable (check with
+	//       IsRetryable)
 	//
 	// 3. Fatal transport/mapping errors:
 	//   - Yielded as (nil, err)
