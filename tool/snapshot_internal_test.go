@@ -37,7 +37,9 @@ func (metadataProbe) Execute(context.Context, json.RawMessage) (json.RawMessage,
 func TestSnapshotCopiesRegistrationConfig(t *testing.T) {
 	t.Parallel()
 
-	metadata := map[string]any{"version": "original"}
+	policy := map[string]any{"scope": "original"}
+	items := []any{map[string]any{"scope": "original"}}
+	metadata := map[string]any{"version": "original", "policy": policy, "items": items}
 	source := NewRegistry(RegistryConfig{})
 	require.NoError(t, source.Register(metadataProbe{}, WithTimeout(time.Second), WithMetadata(metadata)))
 	captured, err := Snapshot(source)
@@ -46,8 +48,15 @@ func TestSnapshotCopiesRegistrationConfig(t *testing.T) {
 	native, ok := captured.(*registry)
 	require.True(t, ok)
 
-	metadata["version"] = "changed"
+	const changed = "changed"
 
-	assert.Equal(t, "original", native.tools["metadata"].config.Metadata["version"])
+	metadata["version"] = changed
+	policy["scope"] = changed
+	items[0] = changed
+
+	assert.Equal(t, map[string]any{
+		"version": "original", "policy": map[string]any{"scope": "original"},
+		"items": []any{map[string]any{"scope": "original"}},
+	}, native.tools["metadata"].config.Metadata)
 	assert.Equal(t, time.Second, native.tools["metadata"].config.Timeout)
 }

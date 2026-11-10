@@ -15,8 +15,10 @@
 package tool
 
 import (
+	"encoding/json"
 	"fmt"
 	"maps"
+	"slices"
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
@@ -24,6 +26,10 @@ import (
 // Snapshot captures and combines registries into a read-only registry, preserving
 // registration policies and executable identities. Nil inputs are ignored.
 // Duplicate names and conflicting group metadata are rejected.
+//
+// Definition and configuration metadata are copied recursively through acyclic
+// map[string]any, map[string]string, []any, []map[string]any, []string, []byte,
+// and json.RawMessage values. Other values are opaque and must be immutable.
 //
 // Custom registries must implement Snapshot() Registry. Their returned registry
 // must keep its definitions, membership, and execution policies immutable.
@@ -91,7 +97,7 @@ func (r *registry) Snapshot() Registry {
 		copied := *entry
 		definition := cloneDefinition(entry.toolDefinition())
 		copied.definition = &definition
-		copied.config.Metadata = maps.Clone(entry.config.Metadata)
+		copied.config.Metadata = cloneMetadata(entry.config.Metadata)
 		captured.tools[name] = &copied
 	}
 
@@ -146,7 +152,47 @@ func (t *snapshotTool) Definition() llm.ToolDefinition {
 
 func cloneDefinition(def llm.ToolDefinition) llm.ToolDefinition {
 	def.Parameters = append([]byte(nil), def.Parameters...)
-	def.Metadata = maps.Clone(def.Metadata)
+	def.Metadata = cloneMetadata(def.Metadata)
 
 	return def
+}
+
+func cloneMetadata(metadata map[string]any) map[string]any {
+	copied := maps.Clone(metadata)
+	for key, value := range copied {
+		copied[key] = cloneMetadataValue(value)
+	}
+
+	return copied
+}
+
+func cloneMetadataValue(value any) any {
+	switch value := value.(type) {
+	case map[string]any:
+		return cloneMetadata(value)
+	case map[string]string:
+		return maps.Clone(value)
+	case []any:
+		copied := slices.Clone(value)
+		for i, item := range copied {
+			copied[i] = cloneMetadataValue(item)
+		}
+
+		return copied
+	case []map[string]any:
+		copied := slices.Clone(value)
+		for i, item := range copied {
+			copied[i] = cloneMetadata(item)
+		}
+
+		return copied
+	case []string:
+		return slices.Clone(value)
+	case []byte:
+		return slices.Clone(value)
+	case json.RawMessage:
+		return slices.Clone(value)
+	default:
+		return value
+	}
 }

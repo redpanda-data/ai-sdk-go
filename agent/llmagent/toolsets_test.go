@@ -276,6 +276,137 @@ func TestToolsetsSnapshotDispatchSurvivesSourceReplacement(t *testing.T) {
 	assert.JSONEq(t, string(replacement.def.Parameters), string(defByName(t, calls[1].Request.Tools, "fetch").Parameters))
 }
 
+func TestToolsetsSnapshotStaticRegistryDuringModelCall(t *testing.T) {
+	t.Parallel()
+
+	original := &stubTool{def: llm.ToolDefinition{Name: "static", Description: "original static", Parameters: json.RawMessage(`{"type":"object","properties":{"old":{"type":"string"}}}`)}, result: json.RawMessage(`{"source":"original static"}`)}
+	replacement := &stubTool{def: llm.ToolDefinition{Name: "static", Description: "replacement static", Parameters: json.RawMessage(`{"type":"object","properties":{"new":{"type":"number"}}}`)}, result: json.RawMessage(`{"source":"replacement static"}`)}
+	static := tool.NewRegistry(tool.RegistryConfig{})
+	require.NoError(t, static.Register(original))
+
+	dynamic := newFixtureRegistry(t, fixtureTool{name: "dynamic"})
+	model := fakellm.NewFakeModel()
+	model.When(fakellm.FirstCall()).ThenRespondWith(func(req *llm.Request, cc *fakellm.CallContext) (*llm.Response, error) {
+		require.NoError(t, static.Unregister("static"))
+		require.NoError(t, static.Register(replacement))
+		assert.Equal(t, "original static", defByName(t, req.Tools, "static").Description)
+		assert.JSONEq(t, string(original.def.Parameters), string(defByName(t, req.Tools, "static").Parameters))
+
+		return respondWith(toolCall("old-static", "static", `{"old":"value"}`))(req, cc)
+	})
+	model.When(fakellm.CallNumber(2)).ThenRespondWithToolCall("static", map[string]any{"new": 42})
+	model.When(fakellm.Any()).ThenRespondText("done")
+	var resolutions int
+	ag, err := New("static-snapshot", "prompt", model, WithTools(static), WithToolsets(func(context.Context, *agent.InvocationMetadata) (tool.Registry, error) {
+		resolutions++
+
+		return dynamic, nil
+	}))
+	require.NoError(t, err)
+
+	sess := &session.State{ID: "static-snapshot", Messages: userMessage("run static twice")}
+	runAgent(t, ag, sess)
+
+	assert.Equal(t, 3, resolutions)
+	assert.Equal(t, int32(1), original.calls.Load())
+	assert.Equal(t, int32(1), replacement.calls.Load())
+	assert.Equal(t, []string{`{"source":"original static"}`, `{"source":"replacement static"}`}, toolResultsFor(sess.Messages, "static"))
+
+	calls := model.CallsMatching(fakellm.Any())
+	require.Len(t, calls, 3)
+	assert.Equal(t, "original static", defByName(t, calls[0].Request.Tools, "static").Description)
+	assert.JSONEq(t, string(original.def.Parameters), string(defByName(t, calls[0].Request.Tools, "static").Parameters))
+	assert.Equal(t, "replacement static", defByName(t, calls[1].Request.Tools, "static").Description)
+	assert.JSONEq(t, string(replacement.def.Parameters), string(defByName(t, calls[1].Request.Tools, "static").Parameters))
+
+	for _, call := range calls {
+		assert.Equal(t, []string{"dynamic", "static"}, requestToolNames(call.Request))
+	}
+}
+
+type toolsetCustomSnapshotRegistry struct {
+	tool.Registry
+
+	captured tool.Registry
+	calls    atomic.Int32
+}
+
+func (r *toolsetCustomSnapshotRegistry) Snapshot() tool.Registry {
+	r.calls.Add(1)
+
+	return r.captured
+}
+
+type toolsetOpaqueSnapshot struct {
+	tool.Registry
+
+	calls atomic.Int32
+}
+
+func (r *toolsetOpaqueSnapshot) Execute(ctx context.Context, req *llm.ToolRequestPart) (*llm.ToolResponsePart, error) {
+	r.calls.Add(1)
+
+	return r.Registry.Execute(ctx, req)
+}
+
+func TestToolsetsDispatchThroughCapturedCustomSnapshot(t *testing.T) {
+	t.Parallel()
+
+	original := &stubTool{def: llm.ToolDefinition{Name: "custom", Description: "original custom", Parameters: json.RawMessage(`{"type":"object","properties":{"old":{"type":"string"}}}`)}, result: fmt.Appendf(nil, `{"data":%q}`, strings.Repeat("oversized old payload ", 100))}
+	replacement := &stubTool{def: llm.ToolDefinition{Name: "custom", Description: "replacement custom", Parameters: json.RawMessage(`{"type":"object","properties":{"new":{"type":"number"}}}`)}, result: json.RawMessage(`{"source":"replacement custom"}`)}
+	source := tool.NewRegistry(tool.RegistryConfig{})
+	require.NoError(t, source.Register(original, tool.WithMaxResponseTokens(1), tool.WithResponseTooLargeMessage("Captured custom policy.")))
+
+	frozen, err := tool.Snapshot(source)
+	require.NoError(t, err)
+
+	captured := &toolsetOpaqueSnapshot{Registry: frozen}
+	custom := &toolsetCustomSnapshotRegistry{Registry: source, captured: captured}
+	var nextCaptured *toolsetOpaqueSnapshot
+	model := fakellm.NewFakeModel()
+	model.When(fakellm.FirstCall()).ThenRespondWith(func(req *llm.Request, cc *fakellm.CallContext) (*llm.Response, error) {
+		require.NoError(t, source.Unregister("custom"))
+		require.NoError(t, source.Register(replacement))
+		next, snapshotErr := tool.Snapshot(source)
+		require.NoError(t, snapshotErr)
+
+		nextCaptured = &toolsetOpaqueSnapshot{Registry: next}
+		custom.captured = nextCaptured
+
+		assert.Equal(t, "original custom", defByName(t, req.Tools, "custom").Description)
+		assert.JSONEq(t, string(original.def.Parameters), string(defByName(t, req.Tools, "custom").Parameters))
+
+		return respondWith(toolCall("old-custom", "custom", `{"old":"value"}`))(req, cc)
+	})
+	model.When(fakellm.CallNumber(2)).ThenRespondWithToolCall("custom", map[string]any{"new": 42})
+	model.When(fakellm.Any()).ThenRespondText("done")
+	ag, err := New("custom-snapshot", "prompt", model, WithToolsets(func(context.Context, *agent.InvocationMetadata) (tool.Registry, error) {
+		return custom, nil
+	}))
+	require.NoError(t, err)
+
+	sess := &session.State{ID: "custom-snapshot", Messages: userMessage("run custom twice")}
+	runAgent(t, ag, sess)
+
+	assert.Equal(t, int32(3), custom.calls.Load())
+	assert.Equal(t, int32(1), captured.calls.Load())
+	require.NotNil(t, nextCaptured)
+	assert.Equal(t, int32(1), nextCaptured.calls.Load())
+	assert.Equal(t, int32(1), original.calls.Load())
+	assert.Equal(t, int32(1), replacement.calls.Load())
+
+	results := toolResultsFor(sess.Messages, "custom")
+	require.Len(t, results, 2)
+	assert.Contains(t, results[0], "Captured custom policy.")
+	assert.NotContains(t, results[0], "oversized old payload")
+	assert.JSONEq(t, `{"source":"replacement custom"}`, results[1])
+
+	calls := model.CallsMatching(fakellm.Any())
+	require.Len(t, calls, 3)
+	assert.Equal(t, "replacement custom", defByName(t, calls[1].Request.Tools, "custom").Description)
+	assert.JSONEq(t, string(replacement.def.Parameters), string(defByName(t, calls[1].Request.Tools, "custom").Parameters))
+}
+
 type toolsetExecutionProbe struct {
 	def     llm.ToolDefinition
 	execute func(context.Context) (json.RawMessage, error)
@@ -485,6 +616,27 @@ func TestToolsetsRejectUnsnapshotableRegistryBeforeModel(t *testing.T) {
 	require.NoError(t, err)
 	err = toolsetRunError(t.Context(), ag, agent.NewInvocationMetadata(&session.State{ID: "unsupported", Messages: userMessage("hello")}, ag.Info()))
 	require.ErrorIs(t, err, tool.ErrRegistrySnapshotUnsupported)
+	assert.Empty(t, model.CallsMatching(fakellm.Any()))
+}
+
+func TestToolsetsRejectUnsnapshotableStaticRegistryBeforeModel(t *testing.T) {
+	t.Parallel()
+
+	static := toolsetUnsnapshotableRegistry{Registry: newFixtureRegistry(t, fixtureTool{name: "static"})}
+	dynamic := newFixtureRegistry(t, fixtureTool{name: "dynamic"})
+	model := fakellm.NewFakeModel()
+	var resolutions int
+	ag, err := New("unsupported-static", "prompt", model, WithTools(static), WithToolsets(func(context.Context, *agent.InvocationMetadata) (tool.Registry, error) {
+		resolutions++
+
+		return dynamic, nil
+	}))
+	require.NoError(t, err)
+
+	err = toolsetRunError(t.Context(), ag, agent.NewInvocationMetadata(&session.State{ID: "unsupported-static", Messages: userMessage("hello")}, ag.Info()))
+	require.ErrorIs(t, err, tool.ErrRegistrySnapshotUnsupported)
+	require.ErrorContains(t, err, "static tools")
+	assert.Zero(t, resolutions, "unsupported static tools must fail before resolving dynamic sets")
 	assert.Empty(t, model.CallsMatching(fakellm.Any()))
 }
 

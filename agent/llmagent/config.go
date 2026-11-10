@@ -363,7 +363,8 @@ func WithVersion(version string) Option {
 
 // WithToolLoadingConfig tunes lazy tool loading. Loading needs no option to
 // enable it: deferred tools use native hosted search when supported, or a local
-// tool_search tool otherwise. Loaded tools persist across compaction and restarts.
+// tool_search tool otherwise. Loaded names persist across compaction and restarts;
+// only tools present in the current step's registry remain available.
 func WithToolLoadingConfig(cfg ToolLoadingConfig) Option {
 	return func(c *config) {
 		c.toolLoading = cfg

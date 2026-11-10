@@ -221,15 +221,18 @@ Nothing else to switch on. The agent chooses discovery based on the model's capa
 
 - Supported Anthropic models use hosted tool search and native deferred schemas.
 - OpenAI Responses models with tool search support use native deferred functions; tool groups
-  become namespaces. Both native paths keep the tool catalog stable as tools are discovered.
+  become namespaces. For an unchanged registry, both native paths keep the tool catalog stable
+  as tools are discovered.
 - Gemini, OpenAI-compatible endpoints, Bedrock Converse, and models without native search
   support use the local `tool_search` tool. Discovered schemas join the next request's tools
   array; prefix caching can be invalidated when the set changes.
 
-Loaded tools stay available across turns and session restarts. If compaction removes native
-search references, previously loaded tools become eager in the next request. Native mode puts a
-group directory and all group instructions in the system prompt up front to keep it stable; the
-local fallback includes a name/summary manifest and activates group instructions as tools load.
+Loaded names persist across turns, compaction and session restarts; a tool is available only
+while present in the current step's registry. If compaction removes native search references,
+previously loaded tools still in the registry become eager in the next request. Native mode puts
+a group directory and all group instructions in the system prompt up front to keep it stable
+while the registry is unchanged; the local fallback includes a name/summary manifest and activates
+group instructions as tools load.
 
 `mcp.WithDeferredTools()`, `mcp.WithAlwaysLoad("search_tickets")`, and `mcp.WithToolGroup(...)`
 express the same policy per server. `tool.WithGroup` and `tool.WithDeferred` are the per-tool
@@ -240,9 +243,10 @@ on a model that supports native search, pass
 [`examples/lazy_tools`](examples/lazy_tools/) runs against public MCP servers. Its keyless dry-run
 prints the local fallback request.
 
-Loaded schemas remain in the session. If later loads exhaust its tool capacity, a fresh session
-may have room for those tools. Searches return flat lists of loaded names; explicit `select:`
-queries use the requested order when applying the load budget.
+The session remembers loaded names, not schemas or authorization. Schemas come from the current
+step's registry. If later loads exhaust its tool capacity, a fresh session may have room for
+those tools. Searches return flat lists of loaded names; explicit `select:` queries use the
+requested order when applying the load budget.
 
 Tool interceptors may edit arguments, deny execution, retry, or transform results. The request
 and response name and ID must remain those of the original call; identity changes return a tool error.

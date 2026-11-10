@@ -119,8 +119,9 @@ func (l *Loader) Prepare(defs []llm.ToolDefinition, sess *session.State) Plan {
 // Session state
 //
 
-// Commit adds names to the session on the turn goroutine. Loaded tools stay
-// available across turns, compaction, and restarts.
+// Commit adds names to the session on the turn goroutine. Loaded names persist
+// across turns, compaction, and restarts; only tools in the current registry
+// remain available.
 func (*Loader) Commit(sess *session.State, names []string) {
 	if sess == nil || len(names) == 0 {
 		return

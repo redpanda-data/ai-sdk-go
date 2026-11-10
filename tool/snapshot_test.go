@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -125,7 +126,7 @@ func TestSnapshotIsolation(t *testing.T) {
 
 	original.def.Description = "Changed"
 	original.def.Parameters[0] = 'x'
-	original.def.Metadata["version"] = "new"
+	original.def.Metadata["version"] = mutatedSnapshotValue
 
 	require.NoError(t, source.Unregister("read"))
 	require.NoError(t, source.Register(&snapshotProbe{
@@ -159,6 +160,149 @@ func TestSnapshotIsolation(t *testing.T) {
 	require.ErrorIs(t, frozen.Unregister("read"), tool.ErrRegistryReadOnly)
 	_, err = frozen.Get("added")
 	require.ErrorIs(t, err, tool.ErrToolNotFound)
+}
+
+const mutatedSnapshotValue = "new"
+
+func snapshotNestedMetadata() map[string]any {
+	return map[string]any{
+		"policy": map[string]any{"scope": "old"},
+		"items":  []any{map[string]any{"scope": "old"}, []any{"old"}},
+		"names":  []string{"old"},
+		"labels": map[string]string{"scope": "old"},
+		"groups": []map[string]any{{"items": []any{"old"}}},
+		"raw":    json.RawMessage(`"old"`),
+		"bytes":  []byte("old"),
+	}
+}
+
+func mutateSnapshotMetadata(t *testing.T, metadata map[string]any) {
+	t.Helper()
+
+	policy, ok := metadata["policy"].(map[string]any)
+	require.True(t, ok)
+
+	policy["scope"] = mutatedSnapshotValue
+
+	items, ok := metadata["items"].([]any)
+	require.True(t, ok)
+	item, ok := items[0].(map[string]any)
+	require.True(t, ok)
+
+	item["scope"] = mutatedSnapshotValue
+
+	nested, ok := items[1].([]any)
+	require.True(t, ok)
+
+	nested[0] = mutatedSnapshotValue
+	items[0] = "replaced"
+
+	names, ok := metadata["names"].([]string)
+	require.True(t, ok)
+
+	names[0] = mutatedSnapshotValue
+
+	labels, ok := metadata["labels"].(map[string]string)
+	require.True(t, ok)
+
+	labels["scope"] = mutatedSnapshotValue
+
+	groups, ok := metadata["groups"].([]map[string]any)
+	require.True(t, ok)
+	groupItems, ok := groups[0]["items"].([]any)
+	require.True(t, ok)
+
+	groupItems[0] = mutatedSnapshotValue
+	groups[0]["added"] = true
+
+	raw, ok := metadata["raw"].(json.RawMessage)
+	require.True(t, ok)
+	copy(raw, `"new"`)
+
+	bytes, ok := metadata["bytes"].([]byte)
+	require.True(t, ok)
+	copy(bytes, mutatedSnapshotValue)
+}
+
+func TestSnapshotNestedMetadataIsolation(t *testing.T) {
+	t.Parallel()
+
+	for _, mutation := range []string{"source", "List", "Get"} {
+		t.Run(mutation, func(t *testing.T) {
+			t.Parallel()
+
+			metadata := snapshotNestedMetadata()
+			source := tool.NewRegistry(tool.RegistryConfig{})
+			require.NoError(t, source.Register(&snapshotProbe{def: llm.ToolDefinition{Name: "read", Metadata: metadata}}))
+			frozen, err := tool.Snapshot(source)
+			require.NoError(t, err)
+			captured, err := frozen.Get("read")
+			require.NoError(t, err)
+
+			switch mutation {
+			case "source":
+				mutateSnapshotMetadata(t, metadata)
+			case "List":
+				mutateSnapshotMetadata(t, frozen.List()[0].Metadata)
+			case "Get":
+				mutateSnapshotMetadata(t, captured.Definition().Metadata)
+			}
+
+			assert.Equal(t, snapshotNestedMetadata(), frozen.List()[0].Metadata)
+			assert.Equal(t, snapshotNestedMetadata(), captured.Definition().Metadata)
+		})
+	}
+}
+
+func TestSnapshotNestedMetadataConcurrentIsolation(t *testing.T) {
+	t.Parallel()
+
+	for _, mutation := range []string{"source", "List", "Get"} {
+		t.Run(mutation, func(t *testing.T) {
+			t.Parallel()
+
+			metadata := snapshotNestedMetadata()
+			source := tool.NewRegistry(tool.RegistryConfig{})
+			require.NoError(t, source.Register(&snapshotProbe{def: llm.ToolDefinition{Name: "read", Metadata: metadata}}))
+			frozen, err := tool.Snapshot(source)
+			require.NoError(t, err)
+			captured, err := frozen.Get("read")
+			require.NoError(t, err)
+
+			switch mutation {
+			case "List":
+				metadata = frozen.List()[0].Metadata
+			case "Get":
+				metadata = captured.Definition().Metadata
+			}
+
+			policy, ok := metadata["policy"].(map[string]any)
+			require.True(t, ok)
+			items, ok := metadata["items"].([]any)
+			require.True(t, ok)
+
+			done := make(chan struct{})
+
+			go func() {
+				defer close(done)
+
+				for range 1000 {
+					policy["scope"] = mutatedSnapshotValue
+					items[0] = "changed"
+
+					runtime.Gosched()
+				}
+			}()
+
+			expected := snapshotNestedMetadata()
+			for range 100 {
+				assert.Equal(t, expected, frozen.List()[0].Metadata)
+				assert.Equal(t, expected, captured.Definition().Metadata)
+			}
+
+			<-done
+		})
+	}
 }
 
 func TestSnapshotComposition(t *testing.T) {
