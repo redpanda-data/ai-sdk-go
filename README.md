@@ -165,6 +165,39 @@ agent, err := llmagent.New("my-agent", "You are a helpful assistant.", model,
 
 See [`examples/`](examples/) for full working demos.
 
+### Dynamic toolsets
+
+Use `WithToolsets` for tools that depend on the caller or change during a run:
+
+```go
+callerTools := llmagent.Toolset(func(ctx context.Context, inv *agent.InvocationMetadata) (tool.Registry, error) {
+	return resolveCallerTools(ctx, inv) // Return a configured registry, or nil for no tools.
+})
+
+assistant, err := llmagent.New("my-agent", "You are a helpful assistant.", model,
+	llmagent.WithTools(registry), // Optional static tools.
+	llmagent.WithToolsets(callerTools),
+)
+```
+
+Toolsets run before **each model step**, in registration order, using the turn's context
+and invocation metadata. Each returned registry and the optional static registry are
+snapshotted before schema planning, lazy discovery and context budgeting. Execution uses
+the same captured tools and registration options, even if the source registry changes
+while the model is responding. A context-overflow retry reuses that step's snapshot;
+the next step resolves afresh. Removed tools cannot be restored by session load metadata.
+Duplicate tool names and conflicting group metadata stop the step before the model call.
+
+Return registries created by `tool.NewRegistry`. Custom registries used with toolsets
+must implement `Snapshot() tool.Registry` and return an immutable view preserving their
+execution policies; unsupported registries return an error rather than silently losing
+policy. `tool.Snapshot` can also capture and combine registries directly. Snapshots do
+not clone tool implementations or close connections. Callers own those lifetimes and
+must make tools and toolset callbacks safe for concurrent invocations; cache expiry,
+credential resolution and remote discovery remain application decisions.
+
+### Lazy tool loading
+
 For larger registries, defer tools whose schemas are only needed occasionally:
 
 ```go

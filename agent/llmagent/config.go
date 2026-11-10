@@ -119,6 +119,7 @@ type config struct {
 	version              string
 	model                llm.Model
 	tools                tool.Registry
+	toolsets             []Toolset
 	interceptors         []agent.Interceptor
 	maxTurns             int
 	toolConcurrency      int
@@ -155,6 +156,12 @@ func (c *config) validate() error {
 
 	if err := c.validateToolLoading(); err != nil {
 		return err
+	}
+
+	for i, set := range c.toolsets {
+		if set == nil {
+			return fmt.Errorf("llmagent: toolset at index %d is nil", i)
+		}
 	}
 
 	// Validate that all interceptors implement at least one interceptor interface
@@ -295,6 +302,17 @@ func WithInputSchema(schema map[string]any) Option {
 func WithDescription(description string) Option {
 	return func(c *config) {
 		c.description = description
+	}
+}
+
+// WithToolsets adds dynamic toolsets to the static tools configured by WithTools.
+// Toolsets are resolved before each model step, in option order. Their registries
+// are snapshotted before planning, budgeting, or execution. Duplicate tool names
+// and conflicting group metadata fail the step before calling the model.
+// Multiple WithToolsets options append; nil toolsets are rejected by New.
+func WithToolsets(sets ...Toolset) Option {
+	return func(c *config) {
+		c.toolsets = append(c.toolsets, sets...)
 	}
 }
 

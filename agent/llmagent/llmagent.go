@@ -276,13 +276,18 @@ func (a *LLMAgent) executeSingleTurn(
 		return agent.FinishReasonInterrupted, nil
 	}
 
+	tools, err := a.resolveTools(ctx, inv)
+	if err != nil {
+		return "", err
+	}
+
 	var toolDefs []llm.ToolDefinition
-	if a.config.tools != nil {
-		toolDefs = a.config.tools.List()
+	if tools.registry != nil {
+		toolDefs = tools.registry.List()
 	}
 
 	// Resolve schemas and group instructions together before budgeting the request.
-	plan := a.loader.Prepare(toolDefs, sess)
+	plan := tools.loader.Prepare(toolDefs, sess)
 	toolDefs, promptSection, native := plan.Tools, plan.Prompt, plan.Native
 
 	// Build working message list with system prompt (not persisted)
@@ -304,9 +309,9 @@ func (a *LLMAgent) executeSingleTurn(
 	toolDefTokens := 0
 
 	// The fixed cost also sets the lazy-loading admission line.
-	if a.config.compaction != nil || a.loader != nil {
+	if a.config.compaction != nil || tools.loader != nil {
 		sysTokens = tokens.Message(reqMessages[0])
-		toolDefTokens = a.loader.Tokens(toolDefs, sess, native)
+		toolDefTokens = tools.loader.Tokens(toolDefs, sess, native)
 		fixedTokens = sysTokens + toolDefTokens
 	}
 
@@ -334,7 +339,7 @@ func (a *LLMAgent) executeSingleTurn(
 		}
 	}
 
-	resp, sentReq, err := a.generateAttempt(ctx, inv, reqMessages, toolDefs, native, makeEnvelope, yield)
+	resp, sentReq, err := a.generateAttempt(ctx, inv, tools, reqMessages, toolDefs, native, makeEnvelope, yield)
 	if err != nil && a.config.compaction != nil && errors.Is(err, llm.ErrContextOverflow) {
 		// Reactive path: the provider rejected the request pre-flight, so
 		// nothing was emitted. Force a strictly smaller request - hard
@@ -359,7 +364,7 @@ func (a *LLMAgent) executeSingleTurn(
 
 		retryMessages := append([]llm.Message{reqMessages[0]}, sess.Messages...)
 
-		resp, sentReq, err = a.generateAttempt(ctx, inv, retryMessages, toolDefs, native, makeEnvelope, yield)
+		resp, sentReq, err = a.generateAttempt(ctx, inv, tools, retryMessages, toolDefs, native, makeEnvelope, yield)
 		if err != nil && errors.Is(err, llm.ErrContextOverflow) {
 			return "", fmt.Errorf("llmagent: request still exceeds the context window after forced compaction: %w", err)
 		}
@@ -398,7 +403,7 @@ func (a *LLMAgent) executeSingleTurn(
 
 	// Native discovery may be followed by a real tool call in the same response.
 	// Commit before MessageEvent, where runners persist the session.
-	a.loader.Record(sess, resp.Message)
+	tools.loader.Record(sess, resp.Message)
 
 	// Emit message event
 	if !yield(agent.MessageEvent{
@@ -475,7 +480,7 @@ func (a *LLMAgent) executeSingleTurn(
 	}
 
 	// Execute tools and collect results
-	if a.config.tools == nil {
+	if tools.registry == nil {
 		return "", agent.ErrToolRegistry
 	}
 
@@ -483,13 +488,13 @@ func (a *LLMAgent) executeSingleTurn(
 	// parallel burst cannot assemble an unfittable frontier and runs are
 	// reproducible regardless of completion order.
 	if native {
-		fixedTokens = sysTokens + a.loader.Tokens(sentReq.Tools, sess, native)
+		fixedTokens = sysTokens + tools.loader.Tokens(sentReq.Tools, sess, native)
 	}
 
 	countedRequest := fixedTokens + tokens.History(sess.Messages)
 	resultCap := a.effectiveResultCap(countedRequest, len(toolReqs))
 
-	toolParts := a.executeTools(ctx, inv, toolReqs, a.loader.Visible(sentReq.Tools, sess, native), resultCap, a.schemaRoom(fixedTokens), makeEnvelope, yield)
+	toolParts := a.executeTools(ctx, inv, tools, toolReqs, tools.loader.Visible(sentReq.Tools, sess, native), resultCap, a.schemaRoom(fixedTokens), makeEnvelope, yield)
 
 	// Build single message with all tool response parts
 	toolMsg := llm.NewMessage(llm.RoleUser, toolParts...)
@@ -515,6 +520,7 @@ func (a *LLMAgent) executeSingleTurn(
 func (a *LLMAgent) generateAttempt(
 	ctx context.Context,
 	inv *agent.InvocationMetadata,
+	tools *stepTools,
 	messages []llm.Message,
 	toolDefs []llm.ToolDefinition,
 	native bool,
@@ -525,7 +531,7 @@ func (a *LLMAgent) generateAttempt(
 		// Re-evaluate after either proactive compaction or an overflow retry.
 		// The native prompt depends on the full catalog, not the loaded set,
 		// so changing deferral after compaction leaves the prompt unchanged.
-		toolDefs = a.loader.Prepare(toolDefs, inv.Session()).Tools
+		toolDefs = tools.loader.Prepare(toolDefs, inv.Session()).Tools
 	}
 
 	req := &llm.Request{
@@ -718,6 +724,7 @@ func (a *LLMAgent) generateWithStreaming(
 func (a *LLMAgent) executeTools(
 	ctx context.Context,
 	inv *agent.InvocationMetadata,
+	tools *stepTools,
 	toolReqs []*llm.ToolRequestPart,
 	toolDefs []llm.ToolDefinition,
 	resultCap int,
@@ -737,8 +744,8 @@ func (a *LLMAgent) executeTools(
 	// toolDefs. Definitions the model saw take precedence.
 	definitions := make(map[string]*llm.ToolDefinition, len(toolDefs))
 
-	if a.config.tools != nil {
-		registered := a.config.tools.List()
+	if tools.registry != nil {
+		registered := tools.registry.List()
 		for i := range registered {
 			definitions[registered[i].Name] = &registered[i]
 		}
@@ -748,7 +755,7 @@ func (a *LLMAgent) executeTools(
 		definitions[toolDefs[i].Name] = &toolDefs[i]
 	}
 
-	batch := a.loader.NewBatch(toolDefs, schemaRoom)
+	batch := tools.loader.NewBatch(toolDefs, schemaRoom)
 
 	var loaderCalls, ordinary []int
 
@@ -773,7 +780,7 @@ func (a *LLMAgent) executeTools(
 	run := func(i int, batch *toolloading.Batch) {
 		req := toolReqs[i]
 
-		resp, loads, err := a.executeTool(ctx, inv, req, definitions[req.Name], batch)
+		resp, loads, err := a.executeTool(ctx, inv, tools, req, definitions[req.Name], batch)
 		results <- toolResult{idx: i, response: resp, loads: loads, err: err}
 	}
 
@@ -822,7 +829,7 @@ func (a *LLMAgent) executeTools(
 		resp := capToolResult(toolResponse(toolReqs[result.idx], result.response, result.err), resultCap)
 		parts[result.idx] = resp
 
-		a.loader.Commit(inv.Session(), result.loads)
+		tools.loader.Commit(inv.Session(), result.loads)
 
 		if !yield(agent.ToolResponseEvent{Envelope: makeEnvelope(), Response: *resp}, nil) {
 			return interruptedToolParts(parts, toolReqs)
@@ -838,6 +845,7 @@ func (a *LLMAgent) executeTools(
 func (a *LLMAgent) executeTool(
 	ctx context.Context,
 	inv *agent.InvocationMetadata,
+	tools *stepTools,
 	req *llm.ToolRequestPart,
 	definition *llm.ToolDefinition,
 	batch *toolloading.Batch,
@@ -861,14 +869,14 @@ func (a *LLMAgent) executeTool(
 		}
 
 		if batch != nil {
-			if resp, added, owned := a.loader.Resolve(batch, info.Req); owned {
+			if resp, added, owned := tools.loader.Resolve(batch, info.Req); owned {
 				loads = append(loads, added...)
 
 				return resp, nil
 			}
 		}
 
-		return a.config.tools.Execute(ctx, info.Req)
+		return tools.registry.Execute(ctx, info.Req)
 	}
 	executor := agent.ApplyToolInterceptors(a.config.interceptors, base)
 

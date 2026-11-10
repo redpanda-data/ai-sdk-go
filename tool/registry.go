@@ -83,12 +83,15 @@ type registry struct {
 	mu     sync.RWMutex
 	tools  map[string]*registeredTool
 	config RegistryConfig
+	frozen bool
 }
 
 // registeredTool wraps a tool with its configuration.
 type registeredTool struct {
-	tool   Tool
-	config Config
+	tool       Tool
+	config     Config
+	definition *llm.ToolDefinition
+	executor   Registry
 }
 
 // NewRegistry creates a new tool registry with the given configuration.
@@ -101,6 +104,10 @@ func NewRegistry(config RegistryConfig) Registry {
 
 // Register adds a tool to the registry with optional configuration.
 func (r *registry) Register(tool Tool, opts ...Option) error {
+	if r.frozen {
+		return ErrRegistryReadOnly
+	}
+
 	if tool == nil {
 		return ErrToolNil
 	}
@@ -141,6 +148,10 @@ func (r *registry) Register(tool Tool, opts ...Option) error {
 
 // Unregister removes a tool by name.
 func (r *registry) Unregister(name string) error {
+	if r.frozen {
+		return ErrRegistryReadOnly
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -163,7 +174,7 @@ func (r *registry) List() []llm.ToolDefinition {
 
 	for _, registered := range r.tools {
 		// The tool describes itself; registration decides deferral and grouping.
-		definition := registered.tool.Definition()
+		definition := registered.toolDefinition()
 		definition.Deferred = registered.config.Deferred
 		definition.Group = registered.config.Group
 
@@ -205,6 +216,10 @@ func (r *registry) Get(name string) (Tool, error) {
 		return nil, fmt.Errorf("%w: %q", ErrToolNotFound, name)
 	}
 
+	if registered.definition != nil {
+		return &snapshotTool{Tool: registered.tool, definition: *registered.definition}, nil
+	}
+
 	return registered.tool, nil
 }
 
@@ -221,6 +236,10 @@ func (r *registry) Execute(ctx context.Context, req *llm.ToolRequestPart) (*llm.
 
 	if !exists {
 		return errorToolResponse(req, fmt.Sprintf("%v: %q", ErrToolNotFound, req.Name)), nil
+	}
+
+	if registered.executor != nil {
+		return registered.executor.Execute(ctx, req)
 	}
 
 	// Apply timeout if configured
