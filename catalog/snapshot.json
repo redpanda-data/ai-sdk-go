@@ -5781,6 +5781,264 @@
           }
         },
         {
+          "id": "global.openai.gpt-5.6-luna",
+          "model": "openai/gpt-5.6-luna",
+          "display_name": "OpenAI GPT-5.6 Luna (Global)",
+          "wire_apis": [
+            {
+              "protocol": "bedrock_converse",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_chat_completions",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_responses",
+              "transport": "bedrock_runtime"
+            }
+          ],
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {},
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 20000000,
+                "output_microcents_per_million": 120000000,
+                "cached_input_microcents_per_million": 2000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 25000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 40000000,
+                    "output_microcents_per_million": 180000000,
+                    "cached_input_microcents_per_million": 4000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 50000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "global"
+            },
+            {
+              "key": "structured_output_streaming",
+              "value": "false"
+            }
+          ],
+          "derived": {
+            "price_tier": "low",
+            "replacement": "openai/gpt-6-luna"
+          }
+        },
+        {
+          "id": "global.openai.gpt-5.6-sol",
+          "model": "openai/gpt-5.6-sol",
+          "display_name": "OpenAI GPT-5.6 Sol (Global)",
+          "wire_apis": [
+            {
+              "protocol": "bedrock_converse",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_chat_completions",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_responses",
+              "transport": "bedrock_runtime"
+            }
+          ],
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {},
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 400000000,
+                "output_microcents_per_million": 2000000000,
+                "cached_input_microcents_per_million": 40000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 500000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 800000000,
+                    "output_microcents_per_million": 3000000000,
+                    "cached_input_microcents_per_million": 80000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 1000000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "global"
+            },
+            {
+              "key": "structured_output_streaming",
+              "value": "false"
+            }
+          ],
+          "derived": {
+            "price_tier": "medium",
+            "replacement": "openai/gpt-6-astra"
+          }
+        },
+        {
+          "id": "global.openai.gpt-5.6-terra",
+          "model": "openai/gpt-5.6-terra",
+          "display_name": "OpenAI GPT-5.6 Terra (Global)",
+          "wire_apis": [
+            {
+              "protocol": "bedrock_converse",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_chat_completions",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_responses",
+              "transport": "bedrock_runtime"
+            }
+          ],
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {},
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 200000000,
+                "output_microcents_per_million": 1200000000,
+                "cached_input_microcents_per_million": 20000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 250000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 400000000,
+                    "output_microcents_per_million": 1800000000,
+                    "cached_input_microcents_per_million": 40000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 500000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "global"
+            },
+            {
+              "key": "structured_output_streaming",
+              "value": "false"
+            }
+          ],
+          "derived": {
+            "price_tier": "medium",
+            "replacement": "openai/gpt-6-sol"
+          }
+        },
+        {
           "id": "global.openai.gpt-6-astra",
           "model": "openai/gpt-6-astra",
           "display_name": "OpenAI GPT-6 Astra (Global)",
@@ -9665,6 +9923,264 @@
           "derived": {
             "price_tier": "high",
             "replacement": "openai/gpt-5.6-sol"
+          }
+        },
+        {
+          "id": "us.openai.gpt-5.6-luna",
+          "model": "openai/gpt-5.6-luna",
+          "display_name": "OpenAI GPT-5.6 Luna (US)",
+          "wire_apis": [
+            {
+              "protocol": "bedrock_converse",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_chat_completions",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_responses",
+              "transport": "bedrock_runtime"
+            }
+          ],
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {},
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 22000000,
+                "output_microcents_per_million": 132000000,
+                "cached_input_microcents_per_million": 2200000,
+                "cache_creation_unknown_ttl_microcents_per_million": 27500000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 44000000,
+                    "output_microcents_per_million": 198000000,
+                    "cached_input_microcents_per_million": 4400000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 55000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "us"
+            },
+            {
+              "key": "structured_output_streaming",
+              "value": "false"
+            }
+          ],
+          "derived": {
+            "price_tier": "low",
+            "replacement": "openai/gpt-6-luna"
+          }
+        },
+        {
+          "id": "us.openai.gpt-5.6-sol",
+          "model": "openai/gpt-5.6-sol",
+          "display_name": "OpenAI GPT-5.6 Sol (US)",
+          "wire_apis": [
+            {
+              "protocol": "bedrock_converse",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_chat_completions",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_responses",
+              "transport": "bedrock_runtime"
+            }
+          ],
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {},
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 440000000,
+                "output_microcents_per_million": 2200000000,
+                "cached_input_microcents_per_million": 44000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 550000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 880000000,
+                    "output_microcents_per_million": 3300000000,
+                    "cached_input_microcents_per_million": 88000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 1100000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "us"
+            },
+            {
+              "key": "structured_output_streaming",
+              "value": "false"
+            }
+          ],
+          "derived": {
+            "price_tier": "medium",
+            "replacement": "openai/gpt-6-astra"
+          }
+        },
+        {
+          "id": "us.openai.gpt-5.6-terra",
+          "model": "openai/gpt-5.6-terra",
+          "display_name": "OpenAI GPT-5.6 Terra (US)",
+          "wire_apis": [
+            {
+              "protocol": "bedrock_converse",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_chat_completions",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_responses",
+              "transport": "bedrock_runtime"
+            }
+          ],
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {},
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 220000000,
+                "output_microcents_per_million": 1320000000,
+                "cached_input_microcents_per_million": 22000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 275000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 440000000,
+                    "output_microcents_per_million": 1980000000,
+                    "cached_input_microcents_per_million": 44000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 550000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "us"
+            },
+            {
+              "key": "structured_output_streaming",
+              "value": "false"
+            }
+          ],
+          "derived": {
+            "price_tier": "medium",
+            "replacement": "openai/gpt-6-sol"
           }
         },
         {

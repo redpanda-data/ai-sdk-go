@@ -63,9 +63,15 @@ var unknownTTLCacheModels = map[string]bool{
 	ModelGPT6LunaUS:     true,
 	ModelGPT6LunaGlobal: true,
 
-	ModelGPT56Sol:   true,
-	ModelGPT56Terra: true,
-	ModelGPT56Luna:  true,
+	ModelGPT56Sol:         true,
+	ModelGPT56SolGlobal:   true,
+	ModelGPT56SolUS:       true,
+	ModelGPT56Terra:       true,
+	ModelGPT56TerraGlobal: true,
+	ModelGPT56TerraUS:     true,
+	ModelGPT56Luna:        true,
+	ModelGPT56LunaGlobal:  true,
+	ModelGPT56LunaUS:      true,
 
 	ModelGPT6Astra:       true,
 	ModelGPT6AstraGlobal: true,
@@ -262,6 +268,36 @@ func TestGPT6Pricing(t *testing.T) {
 			modelID: ModelGPT6Sol,
 			base:    pricing.NewRates(2.20, 11.00, 0.22).WithCacheCreation(0, 0, 2.75),
 			long:    pricing.NewRates(4.40, 16.50, 0.44).WithCacheCreation(0, 0, 5.50),
+		},
+		{
+			modelID: ModelGPT56SolGlobal,
+			base:    pricing.NewRates(4.00, 20.00, 0.40).WithCacheCreation(0, 0, 5.00),
+			long:    pricing.NewRates(8.00, 30.00, 0.80).WithCacheCreation(0, 0, 10.00),
+		},
+		{
+			modelID: ModelGPT56SolUS,
+			base:    pricing.NewRates(4.40, 22.00, 0.44).WithCacheCreation(0, 0, 5.50),
+			long:    pricing.NewRates(8.80, 33.00, 0.88).WithCacheCreation(0, 0, 11.00),
+		},
+		{
+			modelID: ModelGPT56TerraGlobal,
+			base:    pricing.NewRates(2.00, 12.00, 0.20).WithCacheCreation(0, 0, 2.50),
+			long:    pricing.NewRates(4.00, 18.00, 0.40).WithCacheCreation(0, 0, 5.00),
+		},
+		{
+			modelID: ModelGPT56TerraUS,
+			base:    pricing.NewRates(2.20, 13.20, 0.22).WithCacheCreation(0, 0, 2.75),
+			long:    pricing.NewRates(4.40, 19.80, 0.44).WithCacheCreation(0, 0, 5.50),
+		},
+		{
+			modelID: ModelGPT56LunaGlobal,
+			base:    pricing.NewRates(0.20, 1.20, 0.02).WithCacheCreation(0, 0, 0.25),
+			long:    pricing.NewRates(0.40, 1.80, 0.04).WithCacheCreation(0, 0, 0.50),
+		},
+		{
+			modelID: ModelGPT56LunaUS,
+			base:    pricing.NewRates(0.22, 1.32, 0.022).WithCacheCreation(0, 0, 0.275),
+			long:    pricing.NewRates(0.44, 1.98, 0.044).WithCacheCreation(0, 0, 0.55),
 		},
 	}
 

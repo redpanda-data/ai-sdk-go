@@ -449,6 +449,53 @@ var gpt61TerraProfileRegions = map[string]string{
 	"mx-central-1":   globalProfileRegion,
 }
 
+// gpt56ProfileRegions maps every published bedrock-runtime source region
+// for the GPT-5.6 family to its preferred profile. The US and Canada regions
+// use the US profile, and the rest use global. The Sol, Terra and Luna cards publish
+// the same table (read 2026-11-10). It is GPT-5.5's without mx-central-1.
+// The in. and us-gov. profiles the Terra and Luna cards list aren't offered,
+// so ap-south-1 and ap-south-2 use global.
+//
+// Sources: https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-sol.html,
+// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-terra.html,
+// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-luna.html
+var gpt56ProfileRegions = map[string]string{
+	"us-east-1":    "us",
+	"us-east-2":    "us",
+	"us-west-1":    "us",
+	"us-west-2":    "us",
+	"ca-central-1": "us",
+	"ca-west-1":    "us",
+
+	"eu-central-1": globalProfileRegion,
+	"eu-central-2": globalProfileRegion,
+	"eu-north-1":   globalProfileRegion,
+	"eu-south-1":   globalProfileRegion,
+	"eu-south-2":   globalProfileRegion,
+	"eu-west-1":    globalProfileRegion,
+	"eu-west-2":    globalProfileRegion,
+	"eu-west-3":    globalProfileRegion,
+
+	"ap-east-2":      globalProfileRegion,
+	"ap-northeast-1": globalProfileRegion,
+	"ap-northeast-2": globalProfileRegion,
+	"ap-northeast-3": globalProfileRegion,
+	"ap-south-1":     globalProfileRegion,
+	"ap-south-2":     globalProfileRegion,
+	"ap-southeast-1": globalProfileRegion,
+	"ap-southeast-2": globalProfileRegion,
+	"ap-southeast-3": globalProfileRegion,
+	"ap-southeast-4": globalProfileRegion,
+	"ap-southeast-5": globalProfileRegion,
+	"ap-southeast-6": globalProfileRegion,
+	"ap-southeast-7": globalProfileRegion,
+	"il-central-1":   globalProfileRegion,
+	"me-central-1":   globalProfileRegion,
+	"me-south-1":     globalProfileRegion,
+	"af-south-1":     globalProfileRegion,
+	"sa-east-1":      globalProfileRegion,
+}
+
 // gpt55ProfileRegions maps every published bedrock-runtime source region
 // for GPT-5.5 and GPT-5.4 to its preferred profile: the US and Canada
 // regions use the US profile, the rest global. Both cards publish the same

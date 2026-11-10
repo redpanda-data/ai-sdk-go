@@ -341,13 +341,20 @@ const (
 	ModelGPT54US     = "us." + ModelGPT54
 
 	// ModelGPT56Sol is OpenAI's flagship GPT-5.6 reasoning model.
-	ModelGPT56Sol = "openai.gpt-5.6-sol"
+	// bedrock-mantle serves the bare ID and bedrock-runtime the profiles.
+	ModelGPT56Sol       = "openai.gpt-5.6-sol"
+	ModelGPT56SolGlobal = "global." + ModelGPT56Sol
+	ModelGPT56SolUS     = "us." + ModelGPT56Sol
 
 	// ModelGPT56Terra balances reasoning capability and cost.
-	ModelGPT56Terra = "openai.gpt-5.6-terra"
+	ModelGPT56Terra       = "openai.gpt-5.6-terra"
+	ModelGPT56TerraGlobal = "global." + ModelGPT56Terra
+	ModelGPT56TerraUS     = "us." + ModelGPT56Terra
 
 	// ModelGPT56Luna is optimized for fast, cost-efficient inference.
-	ModelGPT56Luna = "openai.gpt-5.6-luna"
+	ModelGPT56Luna       = "openai.gpt-5.6-luna"
+	ModelGPT56LunaGlobal = "global." + ModelGPT56Luna
+	ModelGPT56LunaUS     = "us." + ModelGPT56Luna
 )
 
 // ModelMetadataRequiresProviderDataSharing is set to "true" on discovery
@@ -1725,9 +1732,107 @@ var bedrockFamilies = []family{
 		},
 	},
 	{
-		// OpenAI GPT-5.6 family — mantle-only, bare in-region IDs via the
-		// Responses API; AWS publishes no Geo or Global inference IDs.
-		// In-region STANDARD-tier rates from the Bedrock model cards
+		// OpenAI GPT-5.6 Sol, US and global profiles on bedrock-runtime.
+		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-sol.html
+		// (read 2026-11-10). Standard-tier rates as the card prints them,
+		// with a long-context card above 272K input tokens. The 30-minute
+		// cache-write rate sits in the unknown-TTL bucket. The card's window
+		// and output limit match GPT-6 Sol's, so the family reuses its
+		// capabilities and constraints (unprobed). The card's JSON Schema
+		// settings cover non-streaming calls only, and explicit prompt
+		// caching is Responses-only. The Terra and Luna cards also list in.
+		// and us-gov. profiles, which the catalogue doesn't offer.
+		BareID:            ModelGPT56Sol,
+		NoStreamingSchema: true,
+		WireAPIs:          openAIRuntimeWireAPIs,
+		Model:             catalog.ModelGPT5_6Sol,
+		DisplayName:       "OpenAI GPT-5.6 Sol",
+		Profiles:          []string{"global", "us"},
+		ProfileRegions:    gpt56ProfileRegions,
+		NoCachePoints:     true,
+		Capabilities:      gpt6AstraCaps,
+		Modalities:        gpt56Modalities,
+		Constraints:       gpt6AstraConstraints,
+		Reasoning:         converseReasoningNoControls,
+		GlobalRates: &pricing.RateCard{
+			Base: pricing.NewRates(4.00, 20.00, 0.40).WithCacheCreation(0, 0, 5.00),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(8.00, 30.00, 0.80).WithCacheCreation(0, 0, 10.00),
+			}},
+		},
+		Rates: pricing.RateCard{
+			Base: pricing.NewRates(4.40, 22.00, 0.44).WithCacheCreation(0, 0, 5.50),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(8.80, 33.00, 0.88).WithCacheCreation(0, 0, 11.00),
+			}},
+		},
+	},
+	{
+		// OpenAI GPT-5.6 Terra on bedrock-runtime, as GPT-5.6 Sol's:
+		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-terra.html
+		BareID:            ModelGPT56Terra,
+		NoStreamingSchema: true,
+		WireAPIs:          openAIRuntimeWireAPIs,
+		Model:             catalog.ModelGPT5_6Terra,
+		DisplayName:       "OpenAI GPT-5.6 Terra",
+		Profiles:          []string{"global", "us"},
+		ProfileRegions:    gpt56ProfileRegions,
+		NoCachePoints:     true,
+		Capabilities:      gpt6AstraCaps,
+		Modalities:        gpt56Modalities,
+		Constraints:       gpt6AstraConstraints,
+		Reasoning:         converseReasoningNoControls,
+		GlobalRates: &pricing.RateCard{
+			Base: pricing.NewRates(2.00, 12.00, 0.20).WithCacheCreation(0, 0, 2.50),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(4.00, 18.00, 0.40).WithCacheCreation(0, 0, 5.00),
+			}},
+		},
+		Rates: pricing.RateCard{
+			Base: pricing.NewRates(2.20, 13.20, 0.22).WithCacheCreation(0, 0, 2.75),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(4.40, 19.80, 0.44).WithCacheCreation(0, 0, 5.50),
+			}},
+		},
+	},
+	{
+		// OpenAI GPT-5.6 Luna on bedrock-runtime, as GPT-5.6 Sol's:
+		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-luna.html
+		BareID:            ModelGPT56Luna,
+		NoStreamingSchema: true,
+		WireAPIs:          openAIRuntimeWireAPIs,
+		Model:             catalog.ModelGPT5_6Luna,
+		DisplayName:       "OpenAI GPT-5.6 Luna",
+		Profiles:          []string{"global", "us"},
+		ProfileRegions:    gpt56ProfileRegions,
+		NoCachePoints:     true,
+		Capabilities:      gpt6AstraCaps,
+		Modalities:        gpt56Modalities,
+		Constraints:       gpt6AstraConstraints,
+		Reasoning:         converseReasoningNoControls,
+		GlobalRates: &pricing.RateCard{
+			Base: pricing.NewRates(0.20, 1.20, 0.02).WithCacheCreation(0, 0, 0.25),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(0.40, 1.80, 0.04).WithCacheCreation(0, 0, 0.50),
+			}},
+		},
+		Rates: pricing.RateCard{
+			Base: pricing.NewRates(0.22, 1.32, 0.022).WithCacheCreation(0, 0, 0.275),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(0.44, 1.98, 0.044).WithCacheCreation(0, 0, 0.55),
+			}},
+		},
+	},
+	{
+		// OpenAI GPT-5.6 family on bedrock-mantle. The bare in-region IDs
+		// sit beside the bedrock-runtime profiles above. In-region
+		// STANDARD-tier rates from the Bedrock model cards
 		// (model-card-openai-gpt-56-{sol,terra,luna}, 2026-09-22): OpenAI's
 		// rates plus a 10% in-region fee, with a long-context card above
 		// 272K input tokens. Cache writes have a 30-minute TTL and the
@@ -1739,6 +1844,8 @@ var bedrockFamilies = []family{
 		DisplayName:   "OpenAI GPT-5.6 Sol",
 		BareInvokable: true,
 		Mantle:        true,
+		// Mantle regions from the card (read 2026-11-10).
+		MantleRegions: []string{"us-east-1", "us-east-2"},
 		Capabilities:  gpt56Caps,
 		Modalities:    gpt56Modalities,
 		Constraints:   gpt56Constraints,
@@ -1760,6 +1867,9 @@ var bedrockFamilies = []family{
 		DisplayName:   "OpenAI GPT-5.6 Terra",
 		BareInvokable: true,
 		Mantle:        true,
+		// Mantle regions from the card (read 2026-11-10). It also lists
+		// us-gov-east-1 and us-gov-west-1, which the catalogue doesn't offer.
+		MantleRegions: []string{"us-east-1", "us-east-2", "us-west-2"},
 		Capabilities:  gpt56Caps,
 		Modalities:    gpt56Modalities,
 		Constraints:   gpt56Constraints,
@@ -1780,6 +1890,9 @@ var bedrockFamilies = []family{
 		DisplayName:   "OpenAI GPT-5.6 Luna",
 		BareInvokable: true,
 		Mantle:        true,
+		// Mantle regions from the card (read 2026-11-10). It also lists
+		// us-gov-east-1 and us-gov-west-1, which the catalogue doesn't offer.
+		MantleRegions: []string{"us-east-1", "us-east-2", "us-west-2"},
 		Capabilities:  gpt56Caps,
 		Modalities:    gpt56Modalities,
 		Constraints:   gpt56Constraints,

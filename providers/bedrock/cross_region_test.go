@@ -37,7 +37,7 @@ func TestIsModelAllowedFromRegion(t *testing.T) {
 		{"bare from us", ModelClaudeSonnet45, "us-east-1", true},
 		{"bare from eu", ModelClaudeSonnet45, "eu-west-1", true},
 		{"bare from unknown region", ModelClaudeSonnet45, "xx-fake-1", true},
-		{"mantle bare without MantleRegions from eu", ModelGPT56Sol, "eu-west-1", true},
+		{"mantle bare without MantleRegions from eu", ModelGemma431B, "eu-west-1", true},
 
 		// MantleRegions is advisory: bare mantle IDs still defer to AWS
 		// outside their published regions.
@@ -88,6 +88,10 @@ func TestIsModelAllowedFromRegion(t *testing.T) {
 		{"gpt-6-sol us from GovCloud (unpublished)", ModelGPT6SolUS, "us-gov-west-1", false},
 		{"gpt-6-sol global from eu-west-1", ModelGPT6SolGlobal, "eu-west-1", true},
 		{"gpt-6-sol global from mx-central-1", ModelGPT6SolGlobal, "mx-central-1", true},
+		{"gpt-5.6-sol us from us-west-1", ModelGPT56SolUS, "us-west-1", true},
+		{"gpt-5.6-sol us from eu-west-1", ModelGPT56SolUS, "eu-west-1", false},
+		{"gpt-5.6-terra global from me-south-1", ModelGPT56TerraGlobal, "me-south-1", true},
+		{"gpt-5.6-luna global from ap-south-1", ModelGPT56LunaGlobal, "ap-south-1", true},
 		{"haiku5.5 us from ca-west-1", ModelClaudeHaiku55US, "ca-west-1", true},
 		{"haiku5.5 eu from eu-south-2", ModelClaudeHaiku55EU, "eu-south-2", true},
 		{"haiku5.5 au from ap-southeast-4", ModelClaudeHaiku55AU, "ap-southeast-4", true},
@@ -235,6 +239,9 @@ func TestProfileRegionResolverLookup(t *testing.T) {
 		ModelGPT6Sol,
 		ModelGPT6SolGlobal,
 		ModelGPT6SolUS,
+		ModelGPT56Sol,
+		ModelGPT56TerraGlobal,
+		ModelGPT56LunaUS,
 	} {
 		t.Run(modelID, func(t *testing.T) {
 			t.Parallel()
@@ -250,6 +257,28 @@ func TestProfileRegionResolverLookup(t *testing.T) {
 
 	_, ok := profileRegionResolverFor(ModelClaudeSonnet5)
 	assert.False(t, ok)
+}
+
+// GPT-5.6's cards route Europe and Asia to the global profile, and list no
+// mx-central-1 source.
+func TestProfileRegionResolver_GPT56(t *testing.T) {
+	t.Parallel()
+
+	for _, modelID := range []string{ModelGPT56Sol, ModelGPT56Terra, ModelGPT56Luna} {
+		resolver, ok := profileRegionResolverFor(modelID)
+		require.True(t, ok, modelID)
+
+		profile, known := resolver("eu-west-1")
+		assert.True(t, known, modelID)
+		assert.Equal(t, globalProfileRegion, profile, modelID)
+
+		profile, known = resolver("ap-south-1")
+		assert.True(t, known, modelID)
+		assert.Equal(t, globalProfileRegion, profile, "%s: the in. profile isn't offered", modelID)
+
+		_, known = resolver("mx-central-1")
+		assert.False(t, known, modelID)
+	}
 }
 
 // TestAWSRegionsCoverRoutingTables keeps cmd/catalog-routes' region list a superset
@@ -314,7 +343,7 @@ func hasGeoPrefix(modelID string, prefixes ...string) bool {
 
 // handPickedBareIDs are bare IDs registered beside profiles on purpose:
 // GPT-6's bedrock-mantle copies, added by hand.
-var handPickedBareIDs = []string{ModelGPT6Astra, ModelGPT6Luna, ModelGPT6Sol, ModelGPT61Sol, ModelGPT61Terra}
+var handPickedBareIDs = []string{ModelGPT6Astra, ModelGPT6Luna, ModelGPT6Sol, ModelGPT61Sol, ModelGPT61Terra, ModelGPT56Sol, ModelGPT56Terra, ModelGPT56Luna}
 
 // TestNoBareIDBesideProfiles checks that no model with profiles has its
 // bare ID registered, in its own family or another one, so bare-name calls
