@@ -204,7 +204,7 @@ func TestRegistryAgentNotificationDuringModelStep(t *testing.T) {
 
 				return registryAgentRespond(
 					llm.NewToolRequestPart("old-route", registryAgentRoutedTool, json.RawMessage(`{"old":"first-route"}`)),
-					llm.NewToolRequestPart("old-shared", registryAgentSharedTool, json.RawMessage(`{}`)),
+					llm.NewToolRequestPart("old-shared", registryAgentSharedTool, json.RawMessage(`{"value":"old-step"}`)),
 				)
 			})
 			model.When(fakellm.CallNumber(2)).ThenRespondWith(func(req *llm.Request, _ *fakellm.CallContext) (*llm.Response, error) {
@@ -216,7 +216,7 @@ func TestRegistryAgentNotificationDuringModelStep(t *testing.T) {
 
 				return registryAgentRespond(
 					llm.NewToolRequestPart("new-route", registryAgentRoutedTool, json.RawMessage(`{"new":"second-route"}`)),
-					llm.NewToolRequestPart("stale-shared", registryAgentSharedTool, json.RawMessage(`{}`)),
+					llm.NewToolRequestPart("stale-shared", registryAgentSharedTool, json.RawMessage(`{"value":"refreshed-step"}`)),
 					llm.NewToolRequestPart("new-tool", registryAgentAddedTool, json.RawMessage(`{"new":"value"}`)),
 				)
 			})
@@ -241,6 +241,10 @@ func TestRegistryAgentNotificationDuringModelStep(t *testing.T) {
 
 				if call.name == "routed" {
 					routed = append(routed, call.arguments)
+				}
+
+				if call.name == "shared" {
+					assert.JSONEq(t, `{"value":"old-step"}`, string(call.arguments), "only the old snapshot may dispatch the removed tool; the refreshed-step marker must never reach MCP")
 				}
 			}
 
