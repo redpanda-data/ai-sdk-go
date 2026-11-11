@@ -101,7 +101,10 @@ func TestRegistryModernSubscriptionContextUsesLatestValidatedCaller(t *testing.T
 	// v1.8 does not automatically resume modern POST subscriptions without
 	// event IDs. Reissue the actual SDK request with its retained context to
 	// exercise the same per-request credential resolution on the wire.
-	reissued := subscription.Clone(registryRetainedSubscriptionContext(t, subscription))
+	subscriptionContext, cancel := context.WithTimeout(registryRetainedSubscriptionContext(t, subscription), 5*time.Second)
+	defer cancel()
+
+	reissued := subscription.Clone(subscriptionContext)
 	reissued.Body, err = subscription.GetBody()
 	require.NoError(t, err)
 	response, err := registry.httpClient("alice").Do(reissued)

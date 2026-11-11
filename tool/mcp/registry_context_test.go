@@ -244,6 +244,7 @@ func TestContextRegistryPartitionKeyIsAuthoritative(t *testing.T) {
 
 	peer.addTool("alice", "alice_only", "rotated catalog", "new")
 	peer.addTool("alice", "added", "new tool", "value")
+
 	rotated := registryCaller(t.Context(), "scope-a", "alice:two")
 	cached, err := registry.List(rotated)
 	require.NoError(t, err)
@@ -497,6 +498,7 @@ func TestContextRegistryExecuteAll(t *testing.T) {
 
 	var unblock sync.Once
 	defer unblock.Do(func() { close(release) })
+
 	peer.handle = func(ctx context.Context, req *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
 		n := active.Add(1)
 		defer active.Add(-1)

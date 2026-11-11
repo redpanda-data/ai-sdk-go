@@ -168,6 +168,48 @@ func TestContextRegistryCapturedParameterHeaders(t *testing.T) {
 	}
 }
 
+func TestRegistrySnapshotRejectsInvalidParameterAnnotations(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name     string
+		property string
+		want     string
+	}{
+		{"unsupported type", `{"type":"number","x-mcp-header":"Tenant"}`, `unsupported parameter header type at "value"`},
+		{"nonstring annotation", `{"type":"string","x-mcp-header":true}`, `invalid or duplicate parameter header at "value"`},
+		{"invalid header name", `{"type":"string","x-mcp-header":"Tenant\r\nInjected"}`, `invalid or duplicate parameter header at "value"`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			peer := newRegistryPeer(t, false)
+			peer.servers["alice"].AddReceivingMiddleware(func(next sdkmcp.MethodHandler) sdkmcp.MethodHandler {
+				return func(ctx context.Context, method string, req sdkmcp.Request) (sdkmcp.Result, error) {
+					result, err := next(ctx, method, req)
+					if list, ok := result.(*sdkmcp.ListToolsResult); ok && err == nil {
+						// A valid union sibling bypasses the SDK's string-only annotation parser;
+						// the registry must still validate the malformed annotation from the wire.
+						list.Tools = []*sdkmcp.Tool{{Name: "alice_only", InputSchema: json.RawMessage(`{"type":"object","properties":{"nullable":{"type":["string","null"]},"value":` + test.property + `}}`)}}
+					}
+
+					return result, err
+				}
+			})
+			registry := newContextRegistry(t, peer)
+
+			ctx, cancel := context.WithTimeout(registryCaller(t.Context(), "alice", "alice:one"), 5*time.Second)
+			defer cancel()
+
+			snapshot, err := registry.Snapshot(ctx)
+			require.ErrorContains(t, err, test.want)
+			assert.Nil(t, snapshot, "invalid annotations must reject the entire captured catalog")
+			assert.Len(t, peer.requests(registryParameterListMethod), 1, "the invalid schema must arrive through real MCP discovery")
+			assert.Empty(t, peer.requests("tools/call"))
+		})
+	}
+}
+
 func TestRegistryParameterBindings(t *testing.T) {
 	t.Parallel()
 
