@@ -46,12 +46,6 @@ var _ agent.Agent = (*LLMAgent)(nil)
 // Events are yielded during execution to provide real-time progress updates.
 type LLMAgent struct {
 	config *config
-
-	// loader is non-nil whenever a tool registry is configured. It owns
-	// everything about deferred tools: which definitions reach the model, the
-	// manifest appended to the system prompt, and the tool_search calls the
-	// model makes. With no deferred tool registered it changes nothing.
-	loader *toolloading.Loader
 }
 
 // New creates a new LLM agent with the given name, system prompt, and model.
@@ -91,16 +85,7 @@ func New(name string, systemPrompt string, model llm.Model, opts ...Option) (*LL
 		return nil, err
 	}
 
-	llmAgent := &LLMAgent{config: cfg}
-
-	if cfg.tools != nil {
-		llmAgent.loader = toolloading.New(cfg.tools, cfg.model, toolloading.Config{
-			ForceLocal:    cfg.toolLoading.ForceLocal,
-			MaxLoadTokens: cfg.toolLoading.MaxLoadTokens,
-		})
-	}
-
-	return llmAgent, nil
+	return &LLMAgent{config: cfg}, nil
 }
 
 // Info returns the agent's identity snapshot.
@@ -276,18 +261,13 @@ func (a *LLMAgent) executeSingleTurn(
 		return agent.FinishReasonInterrupted, nil
 	}
 
-	tools, err := a.resolveTools(ctx, inv)
+	tools, err := a.resolveTools(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	var toolDefs []llm.ToolDefinition
-	if tools.registry != nil {
-		toolDefs = tools.registry.List()
-	}
-
 	// Resolve schemas and group instructions together before budgeting the request.
-	plan := tools.loader.Prepare(toolDefs, sess)
+	plan := tools.loader.Prepare(tools.definitions, sess)
 	toolDefs, promptSection, native := plan.Tools, plan.Prompt, plan.Native
 
 	// Build working message list with system prompt (not persisted)
@@ -744,11 +724,9 @@ func (a *LLMAgent) executeTools(
 	// toolDefs. Definitions the model saw take precedence.
 	definitions := make(map[string]*llm.ToolDefinition, len(toolDefs))
 
-	if tools.registry != nil {
-		registered := tools.registry.List()
-		for i := range registered {
-			definitions[registered[i].Name] = &registered[i]
-		}
+	registered := cloneToolDefinitions(tools.definitions)
+	for i := range registered {
+		definitions[registered[i].Name] = &registered[i]
 	}
 
 	for i := range toolDefs {

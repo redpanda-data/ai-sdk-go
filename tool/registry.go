@@ -44,10 +44,14 @@ type Registry interface {
 
 	// List returns tool definitions for use in llm.Request.Tools.
 	// Every member of a group carries the same resolved group metadata.
-	List() []llm.ToolDefinition
+	List(ctx context.Context) ([]llm.ToolDefinition, error)
 
-	// Get retrieves a registered tool by name
-	Get(name string) (Tool, error)
+	// Get retrieves a registered tool by name.
+	Get(ctx context.Context, name string) (Tool, error)
+
+	// Snapshot resolves this context's tools into an immutable registry. The
+	// captured definitions, membership, and execution policies must stay fixed.
+	Snapshot(ctx context.Context) (Registry, error)
 
 	// Execute runs a tool synchronously and returns the complete result.
 	// Returns (nil, error) for validation errors; otherwise returns a ToolResponse with
@@ -165,9 +169,13 @@ func (r *registry) Unregister(name string) error {
 }
 
 // List returns tool definitions for use in llm.Request.Tools.
-func (r *registry) List() []llm.ToolDefinition {
+func (r *registry) List(ctx context.Context) ([]llm.ToolDefinition, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 
 	definitions := make([]llm.ToolDefinition, 0, len(r.tools))
 	groups := make(map[string]llm.ToolGroup)
@@ -203,13 +211,21 @@ func (r *registry) List() []llm.ToolDefinition {
 		return cmp.Compare(a.Name, b.Name)
 	})
 
-	return definitions
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	return definitions, nil
 }
 
 // Get retrieves a registered tool by name.
-func (r *registry) Get(name string) (Tool, error) {
+func (r *registry) Get(ctx context.Context, name string) (Tool, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 
 	registered, exists := r.tools[name]
 	if !exists {

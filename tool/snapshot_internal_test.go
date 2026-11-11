@@ -42,7 +42,7 @@ func TestSnapshotCopiesRegistrationConfig(t *testing.T) {
 	metadata := map[string]any{"version": "original", "policy": policy, "items": items}
 	source := NewRegistry(RegistryConfig{})
 	require.NoError(t, source.Register(metadataProbe{}, WithTimeout(time.Second), WithMetadata(metadata)))
-	captured, err := Snapshot(source)
+	captured, err := Snapshot(t.Context(), source)
 	require.NoError(t, err)
 
 	native, ok := captured.(*registry)

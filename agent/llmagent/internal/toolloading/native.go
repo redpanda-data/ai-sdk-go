@@ -33,7 +33,7 @@ func (l *Loader) native() bool {
 
 	switch l.model.Capabilities().ToolSearchProtocol {
 	case llm.ToolSearchProtocolOpenAI, llm.ToolSearchProtocolAnthropic:
-		return slices.ContainsFunc(l.tools.List(), func(d llm.ToolDefinition) bool { return d.Deferred })
+		return slices.ContainsFunc(l.definitions, func(d llm.ToolDefinition) bool { return d.Deferred })
 	default:
 		return false
 	}
@@ -59,7 +59,7 @@ func (l *Loader) prepareNative(defs []llm.ToolDefinition, sess *session.State) (
 	// not the restored set, so it stays stable for the life of the registry.
 	var sections []string
 
-	if directory := renderGroupDirectory(l.tools.List()); directory != "" {
+	if directory := renderGroupDirectory(l.definitions); directory != "" {
 		sections = append(sections, directory)
 	}
 

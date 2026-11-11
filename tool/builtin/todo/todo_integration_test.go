@@ -72,7 +72,8 @@ func TestTodoTools_Integration(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get tool definitions
-	toolDefinitions := registry.List()
+	toolDefinitions, err := registry.List(t.Context())
+	require.NoError(t, err)
 	require.Len(t, toolDefinitions, 2)
 
 	t.Run("add_todos tool integration", func(t *testing.T) { //nolint:paralleltest // shares parent's provider/model/registry instances and makes external OpenAI API calls

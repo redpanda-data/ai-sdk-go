@@ -154,7 +154,16 @@ func newFixtureLoader(tb testing.TB, tools []fixtureTool, configs ...Config) *Lo
 		cfg = configs[0]
 	}
 
-	return New(newFixtureRegistry(tb, tools...), fakellm.NewFakeModel(), cfg)
+	return New(fixtureDefinitions(tb, newFixtureRegistry(tb, tools...)), fakellm.NewFakeModel(), cfg)
+}
+
+func fixtureDefinitions(tb testing.TB, registry tool.Registry) []llm.ToolDefinition {
+	tb.Helper()
+
+	defs, err := registry.List(tb.Context())
+	require.NoError(tb, err)
+
+	return defs
 }
 
 func defNames(defs []llm.ToolDefinition) []string {
@@ -169,7 +178,7 @@ func defNames(defs []llm.ToolDefinition) []string {
 // batchFor builds the batch executeTools would build for sess: the visible set
 // is exactly what prepare sends.
 func batchFor(loader *Loader, sess *session.State, schemaRoom int) *Batch {
-	sent, _ := loader.prepareLocal(loader.tools.List(), sess)
+	sent, _ := loader.prepareLocal(loader.definitions, sess)
 
 	return loader.NewBatch(sent, schemaRoom)
 }
@@ -213,14 +222,14 @@ func TestPrepare(t *testing.T) {
 		loader := newFixtureLoader(t, serviceDeskTools())
 		sess := &session.State{ID: "s"}
 
-		defs, section := loader.prepareLocal(loader.tools.List(), sess)
+		defs, section := loader.prepareLocal(loader.definitions, sess)
 		assert.Equal(t, []string{"servicenow__search_incidents", "todo_write", "tool_search"}, defNames(defs),
 			"always-on tools plus tool_search, name-sorted, before anything is loaded")
 		assert.Contains(t, section, "## Additional tools")
 
 		loader.Commit(sess, []string{"jira__create_issue", "servicenow__create_incident"})
 
-		defs, sectionAfter := loader.prepareLocal(loader.tools.List(), sess)
+		defs, sectionAfter := loader.prepareLocal(loader.definitions, sess)
 		assert.Equal(t, []string{"jira__create_issue", "servicenow__create_incident", "servicenow__search_incidents", "todo_write", "tool_search"}, defNames(defs))
 		assert.Equal(t, section, sectionAfter, "the catalog lists every deferred tool for the life of the registry")
 	})
@@ -229,7 +238,7 @@ func TestPrepare(t *testing.T) {
 		t.Parallel()
 
 		loader := newFixtureLoader(t, []fixtureTool{{name: "alpha", description: "A"}, {name: "beta", description: "B"}})
-		in := loader.tools.List()
+		in := loader.definitions
 
 		out, section := loader.prepareLocal(in, &session.State{ID: "s"})
 		assert.Equal(t, in, out)
@@ -250,8 +259,8 @@ func TestPrepare(t *testing.T) {
 		require.NoError(t, json.Unmarshal(encoded, &restored))
 		require.IsType(t, []any{}, restored.Metadata[LoadedToolsMetadataKey], "the round trip must widen the type, or this proves nothing")
 
-		before, _ := loader.prepareLocal(loader.tools.List(), live)
-		after, _ := loader.prepareLocal(loader.tools.List(), &restored)
+		before, _ := loader.prepareLocal(loader.definitions, live)
+		after, _ := loader.prepareLocal(loader.definitions, &restored)
 		assert.Equal(t, defNames(before), defNames(after))
 	})
 }
@@ -290,10 +299,10 @@ func TestLoadedSetPersistence(t *testing.T) {
 func TestManifestGolden(t *testing.T) {
 	t.Parallel()
 
-	defs := newFixtureRegistry(t, withGroupInfo(serviceDeskTools(),
+	defs := fixtureDefinitions(t, newFixtureRegistry(t, withGroupInfo(serviceDeskTools(),
 		llm.ToolGroup{Name: "servicenow", Description: "ServiceNow incidents, changes and CMDB lookups"},
 		llm.ToolGroup{Name: "jira", Description: "Jira issues and sprints"},
-	)...).List()
+	)...))
 
 	got := renderToolManifest(buildToolManifest(deferredOnly(defs)))
 
@@ -318,7 +327,7 @@ func TestManifestDeterministic(t *testing.T) {
 		shuffled := serviceDeskTools()
 		rand.Shuffle(len(shuffled), func(i, j int) { shuffled[i], shuffled[j] = shuffled[j], shuffled[i] })
 
-		defs := newFixtureRegistry(t, shuffled...).List()
+		defs := fixtureDefinitions(t, newFixtureRegistry(t, shuffled...))
 		outputs[renderToolManifest(buildToolManifest(deferredOnly(defs)))] = struct{}{}
 	}
 
@@ -436,7 +445,7 @@ func TestInstructionsFollowVisibleTools(t *testing.T) {
 				sess.Metadata = map[string]any{LoadedToolsMetadataKey: tt.loaded}
 			}
 
-			_, section := loader.prepareLocal(loader.tools.List(), sess)
+			_, section := loader.prepareLocal(loader.definitions, sess)
 
 			for _, want := range tt.want {
 				assert.Contains(t, section, want)
@@ -451,7 +460,7 @@ func TestInstructionsFollowVisibleTools(t *testing.T) {
 	// Groups render sorted by name.
 	loader := newFixtureLoader(t, withGroupInfo(serviceDeskTools(), groups...))
 	sess := &session.State{ID: "s", Metadata: map[string]any{LoadedToolsMetadataKey: []any{"jira__create_issue"}}}
-	_, section := loader.prepareLocal(loader.tools.List(), sess)
+	_, section := loader.prepareLocal(loader.definitions, sess)
 	assert.Less(t, strings.Index(section, jiraRule), strings.Index(section, snowRule))
 }
 
@@ -467,7 +476,7 @@ func TestGroupMetadataDoesNotDependOnWhichMemberIsLoaded(t *testing.T) {
 		{name: "update", group: "svc", deferred: true},
 	})
 	sess := &session.State{ID: "groups"}
-	_, prompt := loader.prepareLocal(loader.tools.List(), sess)
+	_, prompt := loader.prepareLocal(loader.definitions, sess)
 	assert.Contains(t, prompt, instructions, "an unloaded sibling can supply a visible group's instructions")
 
 	out := runSearch(t, loader, sess, "taxonomies")

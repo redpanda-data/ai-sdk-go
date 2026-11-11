@@ -36,7 +36,7 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/tool"
 )
 
-func toolsetRunError(ctx context.Context, ag *LLMAgent, inv *agent.InvocationMetadata) error {
+func toolsRunError(ctx context.Context, ag *LLMAgent, inv *agent.InvocationMetadata) error {
 	for _, err := range ag.Run(ctx, inv) {
 		if err != nil {
 			return err
@@ -46,7 +46,7 @@ func toolsetRunError(ctx context.Context, ag *LLMAgent, inv *agent.InvocationMet
 	return nil
 }
 
-func toolsetResults(sess *session.State, name string) []*llm.ToolResponsePart {
+func toolsResults(sess *session.State, name string) []*llm.ToolResponsePart {
 	var results []*llm.ToolResponsePart
 
 	for _, msg := range sess.Messages {
@@ -60,7 +60,7 @@ func toolsetResults(sess *session.State, name string) []*llm.ToolResponsePart {
 	return results
 }
 
-func TestToolsetsRefreshCatalogAndDispatchEachTurn(t *testing.T) {
+func TestToolsRefreshCatalogAndDispatchEachTurn(t *testing.T) {
 	t.Parallel()
 
 	old := &stubTool{def: llm.ToolDefinition{Name: "fetch", Description: "old fetch", Parameters: json.RawMessage(`{"type":"object","properties":{"old":{"type":"string"}}}`)}, result: json.RawMessage(`{"version":"old"}`)}
@@ -84,12 +84,13 @@ func TestToolsetsRefreshCatalogAndDispatchEachTurn(t *testing.T) {
 		toolCall("added", "added", `{}`),
 	))
 	model.When(fakellm.Any()).ThenRespondText("done")
-	ag, err := New("dynamic", "prompt", model, WithToolsets(func(_ context.Context, inv *agent.InvocationMetadata) (tool.Registry, error) {
-		turns = append(turns, inv.Turn())
-		require.Less(t, inv.Turn(), len(registries))
+	ag, err := New("dynamic", "prompt", model, toolsTurnContext(), WithTools(toolsContextRegistry{snapshot: func(ctx context.Context) (tool.Registry, error) {
+		turn := toolsContextTurn(ctx, t)
+		turns = append(turns, turn)
+		require.Less(t, turn, len(registries))
 
-		return registries[inv.Turn()], nil
-	}))
+		return tool.Snapshot(ctx, registries[turn])
+	}}))
 	require.NoError(t, err)
 
 	sess := &session.State{ID: "refresh", Messages: userMessage("fetch")}
@@ -108,39 +109,39 @@ func TestToolsetsRefreshCatalogAndDispatchEachTurn(t *testing.T) {
 	assert.Equal(t, int32(1), updated.calls.Load())
 	assert.Equal(t, int32(1), added.calls.Load())
 	assert.Zero(t, removed.calls.Load())
-	require.Len(t, toolsetResults(sess, "removed"), 1)
-	assert.True(t, toolsetResults(sess, "removed")[0].IsError)
+	require.Len(t, toolsResults(sess, "removed"), 1)
+	assert.True(t, toolsResults(sess, "removed")[0].IsError)
 	assert.Contains(t, toolResultsFor(sess.Messages, "fetch")[1], `"version":"new"`)
 }
 
-func TestToolsetsComposeStaticAndAppendOptions(t *testing.T) {
+func TestToolsComposeStaticAndAppendOptions(t *testing.T) {
 	t.Parallel()
 
 	static := newFixtureRegistry(t, fixtureTool{name: "static"})
 	one := newFixtureRegistry(t, fixtureTool{name: "one", group: "shared", groupInfo: llm.ToolGroup{Instructions: "Shared group instructions."}})
 	two := newFixtureRegistry(t, fixtureTool{name: "two", group: "shared"})
 	var order []string
-	set := func(name string, registry tool.Registry) Toolset {
-		return func(context.Context, *agent.InvocationMetadata) (tool.Registry, error) {
+	source := func(name string, registry tool.Registry) tool.Registry {
+		return toolsContextRegistry{snapshot: func(ctx context.Context) (tool.Registry, error) {
 			order = append(order, name)
 
-			return registry, nil
-		}
+			return tool.Snapshot(ctx, registry)
+		}}
 	}
 	model := fakellm.NewFakeModel()
 	model.When(fakellm.FirstCall()).ThenRespondWith(respondWith(toolCall("s", "static", `{}`), toolCall("1", "one", `{}`), toolCall("2", "two", `{}`)))
 	model.When(fakellm.Any()).ThenRespondText("done")
 	ag, err := New("composed", "prompt", model,
-		WithToolsets(set("one", one)),
-		WithTools(static),
-		WithToolsets(set("empty", nil), set("two", two)),
+		WithTools(source("one", one)),
+		WithTools(nil, source("static", static)),
+		WithTools(source("empty", nil), nil, source("two", two)),
 	)
 	require.NoError(t, err)
 
 	sess := &session.State{ID: "composition", Messages: userMessage("run all")}
 	runAgent(t, ag, sess)
 
-	assert.Equal(t, []string{"one", "empty", "two", "one", "empty", "two"}, order)
+	assert.Equal(t, []string{"one", "static", "empty", "two", "one", "static", "empty", "two"}, order)
 
 	calls := model.CallsMatching(fakellm.Any())
 	require.Len(t, calls, 2)
@@ -152,12 +153,12 @@ func TestToolsetsComposeStaticAndAppendOptions(t *testing.T) {
 	}
 
 	for _, name := range []string{"static", "one", "two"} {
-		require.Len(t, toolsetResults(sess, name), 1)
-		assert.False(t, toolsetResults(sess, name)[0].IsError)
+		require.Len(t, toolsResults(sess, name), 1)
+		assert.False(t, toolsResults(sess, name)[0].IsError)
 	}
 }
 
-func TestToolsetsIsolateConcurrentCallerIdentities(t *testing.T) {
+func TestToolsIsolateConcurrentCallerIdentities(t *testing.T) {
 	t.Parallel()
 
 	identities := []string{"alice", "bob"}
@@ -193,12 +194,17 @@ func TestToolsetsIsolateConcurrentCallerIdentities(t *testing.T) {
 
 		return respondWith(toolCall(identity, "whoami", `{}`))(req, nil)
 	})
+	type callerKey struct{}
+
 	var resolutions atomic.Int32
-	ag, err := New("shared-agent", "prompt", model, WithToolsets(func(_ context.Context, inv *agent.InvocationMetadata) (tool.Registry, error) {
+	ag, err := New("shared-agent", "prompt", model, WithTools(toolsContextRegistry{snapshot: func(ctx context.Context) (tool.Registry, error) {
 		resolutions.Add(1)
 
-		return registries[inv.Attribute(agent.AttrUserID)], nil
-	}))
+		identity, ok := ctx.Value(callerKey{}).(string)
+		require.True(t, ok)
+
+		return tool.Snapshot(ctx, registries[identity])
+	}}))
 	require.NoError(t, err)
 
 	var wg sync.WaitGroup
@@ -210,7 +216,7 @@ func TestToolsetsIsolateConcurrentCallerIdentities(t *testing.T) {
 
 		wg.Go(func() {
 			inv := agent.NewInvocationMetadata(sessions[i], ag.Info(), agent.WithAttributes(map[string]string{agent.AttrUserID: identity}))
-			errs[i] = toolsetRunError(ctx, ag, inv)
+			errs[i] = toolsRunError(context.WithValue(ctx, callerKey{}, identity), ag, inv)
 		})
 	}
 
@@ -237,7 +243,7 @@ func TestToolsetsIsolateConcurrentCallerIdentities(t *testing.T) {
 	}
 }
 
-func TestToolsetsSnapshotDispatchSurvivesSourceReplacement(t *testing.T) {
+func TestToolsSnapshotDispatchSurvivesSourceReplacement(t *testing.T) {
 	t.Parallel()
 
 	original := &stubTool{def: llm.ToolDefinition{Name: "fetch", Description: "original", Parameters: json.RawMessage(`{"type":"object","properties":{"old":{"type":"string"}}}`)}, result: json.RawMessage(`{"source":"original"}`)}
@@ -258,9 +264,7 @@ func TestToolsetsSnapshotDispatchSurvivesSourceReplacement(t *testing.T) {
 	})
 	model.When(fakellm.CallNumber(2)).ThenRespondWithToolCall("fetch", map[string]any{"new": "value"})
 	model.When(fakellm.Any()).ThenRespondText("done")
-	ag, err := New("snapshot", "prompt", model, WithToolsets(func(context.Context, *agent.InvocationMetadata) (tool.Registry, error) {
-		return registry, nil
-	}))
+	ag, err := New("snapshot", "prompt", model, WithTools(registry))
 	require.NoError(t, err)
 
 	sess := &session.State{ID: "snapshot", Messages: userMessage("fetch twice")}
@@ -276,7 +280,7 @@ func TestToolsetsSnapshotDispatchSurvivesSourceReplacement(t *testing.T) {
 	assert.JSONEq(t, string(replacement.def.Parameters), string(defByName(t, calls[1].Request.Tools, "fetch").Parameters))
 }
 
-func TestToolsetsSnapshotStaticRegistryDuringModelCall(t *testing.T) {
+func TestToolsSnapshotStaticRegistryDuringModelCall(t *testing.T) {
 	t.Parallel()
 
 	original := &stubTool{def: llm.ToolDefinition{Name: "static", Description: "original static", Parameters: json.RawMessage(`{"type":"object","properties":{"old":{"type":"string"}}}`)}, result: json.RawMessage(`{"source":"original static"}`)}
@@ -297,11 +301,11 @@ func TestToolsetsSnapshotStaticRegistryDuringModelCall(t *testing.T) {
 	model.When(fakellm.CallNumber(2)).ThenRespondWithToolCall("static", map[string]any{"new": 42})
 	model.When(fakellm.Any()).ThenRespondText("done")
 	var resolutions int
-	ag, err := New("static-snapshot", "prompt", model, WithTools(static), WithToolsets(func(context.Context, *agent.InvocationMetadata) (tool.Registry, error) {
+	ag, err := New("static-snapshot", "prompt", model, WithTools(static, toolsContextRegistry{snapshot: func(ctx context.Context) (tool.Registry, error) {
 		resolutions++
 
-		return dynamic, nil
-	}))
+		return tool.Snapshot(ctx, dynamic)
+	}}))
 	require.NoError(t, err)
 
 	sess := &session.State{ID: "static-snapshot", Messages: userMessage("run static twice")}
@@ -324,32 +328,91 @@ func TestToolsetsSnapshotStaticRegistryDuringModelCall(t *testing.T) {
 	}
 }
 
-type toolsetCustomSnapshotRegistry struct {
+type toolsContextRegistry struct {
+	tool.Registry
+
+	snapshot func(context.Context) (tool.Registry, error)
+}
+
+func (r toolsContextRegistry) Snapshot(ctx context.Context) (tool.Registry, error) {
+	return r.snapshot(ctx)
+}
+
+func TestWithToolsSnapshotsInvocationContextOncePerStep(t *testing.T) {
+	t.Parallel()
+
+	type callerKey struct{}
+	type stepKey struct{}
+
+	var snapshots []int
+	registry := toolsContextRegistry{snapshot: func(ctx context.Context) (tool.Registry, error) {
+		assert.Equal(t, "alice", ctx.Value(callerKey{}))
+
+		step, ok := ctx.Value(stepKey{}).(int)
+		require.True(t, ok, "snapshot must receive the turn interceptor's context")
+
+		snapshots = append(snapshots, step)
+
+		current := tool.NewRegistry(tool.RegistryConfig{})
+		require.NoError(t, current.Register(&stubTool{
+			def:    llm.ToolDefinition{Name: "fetch", Description: fmt.Sprintf("alice step %d", step), Parameters: json.RawMessage(`{"type":"object"}`)},
+			result: fmt.Appendf(nil, `{"caller":"alice","step":%d}`, step),
+		}))
+
+		return tool.Snapshot(ctx, current)
+	}}
+	model := fakellm.NewFakeModel()
+	model.When(fakellm.FirstCall()).ThenRespondWithToolCall("fetch", map[string]any{})
+	model.When(fakellm.CallNumber(2)).ThenRespondWithToolCall("fetch", map[string]any{})
+	model.When(fakellm.Any()).ThenRespondText("done")
+	ag, err := New("context-static", "prompt", model, WithTools(registry),
+		WithInterceptors(toolsTurnInterceptor(func(ctx context.Context, info *agent.TurnInfo, next agent.TurnNext) (agent.FinishReason, error) {
+			return next(context.WithValue(ctx, stepKey{}, info.Inv.Turn()), info)
+		})),
+	)
+	require.NoError(t, err)
+	assert.Empty(t, snapshots, "construction must not discover caller-bound tools")
+
+	sess := &session.State{ID: "context-static", Messages: userMessage("fetch twice")}
+	ctx := context.WithValue(t.Context(), callerKey{}, "alice")
+	require.NoError(t, toolsRunError(ctx, ag, agent.NewInvocationMetadata(sess, ag.Info())))
+	assert.Equal(t, []int{0, 1, 2}, snapshots)
+	assert.Equal(t, []string{`{"caller":"alice","step":0}`, `{"caller":"alice","step":1}`}, toolResultsFor(sess.Messages, "fetch"))
+
+	calls := model.CallsMatching(fakellm.Any())
+	require.Len(t, calls, 3)
+
+	for step, call := range calls {
+		assert.Equal(t, fmt.Sprintf("alice step %d", step), defByName(t, call.Request.Tools, "fetch").Description)
+	}
+}
+
+type toolsCustomSnapshotRegistry struct {
 	tool.Registry
 
 	captured tool.Registry
 	calls    atomic.Int32
 }
 
-func (r *toolsetCustomSnapshotRegistry) Snapshot() tool.Registry {
+func (r *toolsCustomSnapshotRegistry) Snapshot(context.Context) (tool.Registry, error) {
 	r.calls.Add(1)
 
-	return r.captured
+	return r.captured, nil
 }
 
-type toolsetOpaqueSnapshot struct {
+type toolsOpaqueSnapshot struct {
 	tool.Registry
 
 	calls atomic.Int32
 }
 
-func (r *toolsetOpaqueSnapshot) Execute(ctx context.Context, req *llm.ToolRequestPart) (*llm.ToolResponsePart, error) {
+func (r *toolsOpaqueSnapshot) Execute(ctx context.Context, req *llm.ToolRequestPart) (*llm.ToolResponsePart, error) {
 	r.calls.Add(1)
 
 	return r.Registry.Execute(ctx, req)
 }
 
-func TestToolsetsDispatchThroughCapturedCustomSnapshot(t *testing.T) {
+func TestToolsDispatchThroughCapturedCustomSnapshot(t *testing.T) {
 	t.Parallel()
 
 	original := &stubTool{def: llm.ToolDefinition{Name: "custom", Description: "original custom", Parameters: json.RawMessage(`{"type":"object","properties":{"old":{"type":"string"}}}`)}, result: fmt.Appendf(nil, `{"data":%q}`, strings.Repeat("oversized old payload ", 100))}
@@ -357,20 +420,20 @@ func TestToolsetsDispatchThroughCapturedCustomSnapshot(t *testing.T) {
 	source := tool.NewRegistry(tool.RegistryConfig{})
 	require.NoError(t, source.Register(original, tool.WithMaxResponseTokens(1), tool.WithResponseTooLargeMessage("Captured custom policy.")))
 
-	frozen, err := tool.Snapshot(source)
+	frozen, err := tool.Snapshot(t.Context(), source)
 	require.NoError(t, err)
 
-	captured := &toolsetOpaqueSnapshot{Registry: frozen}
-	custom := &toolsetCustomSnapshotRegistry{Registry: source, captured: captured}
-	var nextCaptured *toolsetOpaqueSnapshot
+	captured := &toolsOpaqueSnapshot{Registry: frozen}
+	custom := &toolsCustomSnapshotRegistry{Registry: source, captured: captured}
+	var nextCaptured *toolsOpaqueSnapshot
 	model := fakellm.NewFakeModel()
 	model.When(fakellm.FirstCall()).ThenRespondWith(func(req *llm.Request, cc *fakellm.CallContext) (*llm.Response, error) {
 		require.NoError(t, source.Unregister("custom"))
 		require.NoError(t, source.Register(replacement))
-		next, snapshotErr := tool.Snapshot(source)
+		next, snapshotErr := tool.Snapshot(t.Context(), source)
 		require.NoError(t, snapshotErr)
 
-		nextCaptured = &toolsetOpaqueSnapshot{Registry: next}
+		nextCaptured = &toolsOpaqueSnapshot{Registry: next}
 		custom.captured = nextCaptured
 
 		assert.Equal(t, "original custom", defByName(t, req.Tools, "custom").Description)
@@ -380,9 +443,7 @@ func TestToolsetsDispatchThroughCapturedCustomSnapshot(t *testing.T) {
 	})
 	model.When(fakellm.CallNumber(2)).ThenRespondWithToolCall("custom", map[string]any{"new": 42})
 	model.When(fakellm.Any()).ThenRespondText("done")
-	ag, err := New("custom-snapshot", "prompt", model, WithToolsets(func(context.Context, *agent.InvocationMetadata) (tool.Registry, error) {
-		return custom, nil
-	}))
+	ag, err := New("custom-snapshot", "prompt", model, WithTools(custom))
 	require.NoError(t, err)
 
 	sess := &session.State{ID: "custom-snapshot", Messages: userMessage("run custom twice")}
@@ -407,22 +468,22 @@ func TestToolsetsDispatchThroughCapturedCustomSnapshot(t *testing.T) {
 	assert.JSONEq(t, string(replacement.def.Parameters), string(defByName(t, calls[1].Request.Tools, "custom").Parameters))
 }
 
-type toolsetExecutionProbe struct {
+type toolsExecutionProbe struct {
 	def     llm.ToolDefinition
 	execute func(context.Context) (json.RawMessage, error)
 }
 
-func (p toolsetExecutionProbe) Definition() llm.ToolDefinition { return p.def }
+func (p toolsExecutionProbe) Definition() llm.ToolDefinition { return p.def }
 
-func (p toolsetExecutionProbe) Execute(ctx context.Context, _ json.RawMessage) (json.RawMessage, error) {
+func (p toolsExecutionProbe) Execute(ctx context.Context, _ json.RawMessage) (json.RawMessage, error) {
 	return p.execute(ctx)
 }
 
-func TestToolsetsPreserveRegistrationExecutionPolicies(t *testing.T) {
+func TestToolsPreserveRegistrationExecutionPolicies(t *testing.T) {
 	t.Parallel()
 
 	registry := tool.NewRegistry(tool.RegistryConfig{})
-	require.NoError(t, registry.Register(toolsetExecutionProbe{
+	require.NoError(t, registry.Register(toolsExecutionProbe{
 		def: llm.ToolDefinition{Name: "slow", Parameters: json.RawMessage(`{"type":"object"}`)},
 		execute: func(ctx context.Context) (json.RawMessage, error) {
 			deadline, ok := ctx.Deadline()
@@ -442,38 +503,36 @@ func TestToolsetsPreserveRegistrationExecutionPolicies(t *testing.T) {
 	model := fakellm.NewFakeModel()
 	model.When(fakellm.FirstCall()).ThenRespondWith(respondWith(toolCall("s", "slow", `{}`), toolCall("l", "large", `{}`)))
 	model.When(fakellm.Any()).ThenRespondText("done")
-	ag, err := New("policies", "prompt", model, WithToolsets(func(context.Context, *agent.InvocationMetadata) (tool.Registry, error) {
-		return registry, nil
-	}))
+	ag, err := New("policies", "prompt", model, WithTools(registry))
 	require.NoError(t, err)
 
 	sess := &session.State{ID: "policies", Messages: userMessage("run")}
 	runAgent(t, ag, sess)
 
-	require.Len(t, toolsetResults(sess, "slow"), 1)
-	assert.True(t, toolsetResults(sess, "slow")[0].IsError)
-	assert.Contains(t, string(toolsetResults(sess, "slow")[0].Result), tool.ErrToolExecutionTimeout.Error())
-	assert.Contains(t, string(toolsetResults(sess, "slow")[0].Result), "10ms")
+	require.Len(t, toolsResults(sess, "slow"), 1)
+	assert.True(t, toolsResults(sess, "slow")[0].IsError)
+	assert.Contains(t, string(toolsResults(sess, "slow")[0].Result), tool.ErrToolExecutionTimeout.Error())
+	assert.Contains(t, string(toolsResults(sess, "slow")[0].Result), "10ms")
 	require.Len(t, toolResultsFor(sess.Messages, "large"), 1)
 	assert.Contains(t, toolResultsFor(sess.Messages, "large")[0], "Use a smaller page.")
 	assert.NotContains(t, toolResultsFor(sess.Messages, "large")[0], strings.Repeat("large result ", 10))
 }
 
-func TestToolsetsRejectInvalidCompositionBeforeModel(t *testing.T) {
+func TestToolsRejectInvalidCompositionBeforeModel(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
 		name       string
 		static     []fixtureTool
-		sets       [][]fixtureTool
+		sources    [][]fixtureTool
 		wantErr    error
 		wantDetail string
 	}{
-		{name: "static duplicate", static: []fixtureTool{{name: "duplicate"}}, sets: [][]fixtureTool{{{name: "duplicate"}}}, wantErr: tool.ErrToolAlreadyRegistered},
-		{name: "dynamic duplicate", sets: [][]fixtureTool{{{name: "duplicate"}}, {{name: "duplicate"}}}, wantErr: tool.ErrToolAlreadyRegistered},
-		{name: "group descriptions", sets: [][]fixtureTool{{{name: "one", group: "svc", groupInfo: llm.ToolGroup{Description: "first"}}}, {{name: "two", group: "svc", groupInfo: llm.ToolGroup{Description: "second"}}}}, wantErr: tool.ErrInvalidToolConfig},
-		{name: "group instructions", static: []fixtureTool{{name: "one", group: "svc", groupInfo: llm.ToolGroup{Instructions: "first"}}}, sets: [][]fixtureTool{{{name: "two", group: "svc", groupInfo: llm.ToolGroup{Instructions: "second"}}}}, wantErr: tool.ErrInvalidToolConfig},
-		{name: "reserved search", sets: [][]fixtureTool{{{name: toolloading.SearchToolName}}, {{name: "deferred", deferred: true}}}, wantDetail: toolloading.SearchToolName},
+		{name: "static duplicate", static: []fixtureTool{{name: "duplicate"}}, sources: [][]fixtureTool{{{name: "duplicate"}}}, wantErr: tool.ErrToolAlreadyRegistered},
+		{name: "dynamic duplicate", sources: [][]fixtureTool{{{name: "duplicate"}}, {{name: "duplicate"}}}, wantErr: tool.ErrToolAlreadyRegistered},
+		{name: "group descriptions", sources: [][]fixtureTool{{{name: "one", group: "svc", groupInfo: llm.ToolGroup{Description: "first"}}}, {{name: "two", group: "svc", groupInfo: llm.ToolGroup{Description: "second"}}}}, wantErr: tool.ErrInvalidToolConfig},
+		{name: "group instructions", static: []fixtureTool{{name: "one", group: "svc", groupInfo: llm.ToolGroup{Instructions: "first"}}}, sources: [][]fixtureTool{{{name: "two", group: "svc", groupInfo: llm.ToolGroup{Instructions: "second"}}}}, wantErr: tool.ErrInvalidToolConfig},
+		{name: "reserved search", sources: [][]fixtureTool{{{name: toolloading.SearchToolName}}, {{name: "deferred", deferred: true}}}, wantDetail: toolloading.SearchToolName},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -487,18 +546,16 @@ func TestToolsetsRejectInvalidCompositionBeforeModel(t *testing.T) {
 				opts = append(opts, WithTools(newFixtureRegistry(t, tc.static...)))
 			}
 
-			for _, specs := range tc.sets {
+			for _, specs := range tc.sources {
 				registry := newFixtureRegistry(t, specs...)
 
-				opts = append(opts, WithToolsets(func(context.Context, *agent.InvocationMetadata) (tool.Registry, error) {
-					return registry, nil
-				}))
+				opts = append(opts, WithTools(registry))
 			}
 
 			ag, err := New("invalid", "prompt", model, opts...)
-			require.NoError(t, err, "dynamic collisions are checked when a turn resolves its tools")
+			require.NoError(t, err, "collisions are checked when a step snapshots its tools")
 
-			err = toolsetRunError(t.Context(), ag, agent.NewInvocationMetadata(&session.State{ID: "invalid", Messages: userMessage("run")}, ag.Info()))
+			err = toolsRunError(t.Context(), ag, agent.NewInvocationMetadata(&session.State{ID: "invalid", Messages: userMessage("run")}, ag.Info()))
 			if tc.wantErr != nil {
 				require.ErrorIs(t, err, tc.wantErr)
 			} else {
@@ -510,7 +567,7 @@ func TestToolsetsRejectInvalidCompositionBeforeModel(t *testing.T) {
 	}
 }
 
-func TestToolsetsErrorsAndCancellation(t *testing.T) {
+func TestToolsErrorsAndCancellation(t *testing.T) {
 	t.Parallel()
 
 	failure := errors.New("caller catalog unavailable")
@@ -528,16 +585,16 @@ func TestToolsetsErrorsAndCancellation(t *testing.T) {
 			model := fakellm.NewFakeModel()
 			var nextCalls int
 			ag, err := New("errors", "prompt", model,
-				WithToolsets(func(context.Context, *agent.InvocationMetadata) (tool.Registry, error) {
+				WithTools(toolsContextRegistry{snapshot: func(context.Context) (tool.Registry, error) {
 					return nil, fmt.Errorf("resolve caller: %w", tc.err)
-				}, func(context.Context, *agent.InvocationMetadata) (tool.Registry, error) {
+				}}, toolsContextRegistry{snapshot: func(ctx context.Context) (tool.Registry, error) {
 					nextCalls++
 
-					return nil, nil //nolint:nilnil // A nil registry denotes an empty toolset.
-				}),
+					return tool.Snapshot(ctx)
+				}}),
 			)
 			require.NoError(t, err)
-			err = toolsetRunError(t.Context(), ag, agent.NewInvocationMetadata(&session.State{ID: tc.name, Messages: userMessage("run")}, ag.Info()))
+			err = toolsRunError(t.Context(), ag, agent.NewInvocationMetadata(&session.State{ID: tc.name, Messages: userMessage("run")}, ag.Info()))
 			require.ErrorIs(t, err, tc.err)
 			assert.Zero(t, nextCalls)
 			assert.Empty(t, model.CallsMatching(fakellm.Any()))
@@ -551,26 +608,43 @@ func TestToolsetsErrorsAndCancellation(t *testing.T) {
 		defer cancel()
 
 		model := fakellm.NewFakeModel()
-		ag, err := New("cancel", "prompt", model, WithToolsets(func(ctx context.Context, _ *agent.InvocationMetadata) (tool.Registry, error) {
+		ag, err := New("cancel", "prompt", model, WithTools(toolsContextRegistry{snapshot: func(ctx context.Context) (tool.Registry, error) {
 			cancel()
 			<-ctx.Done()
 
 			return nil, ctx.Err()
-		}))
+		}}))
 		require.NoError(t, err)
-		err = toolsetRunError(ctx, ag, agent.NewInvocationMetadata(&session.State{ID: "cancel", Messages: userMessage("run")}, ag.Info()))
+		err = toolsRunError(ctx, ag, agent.NewInvocationMetadata(&session.State{ID: "cancel", Messages: userMessage("run")}, ag.Info()))
 		require.ErrorIs(t, err, context.Canceled)
 		assert.Empty(t, model.CallsMatching(fakellm.Any()))
 	})
 }
 
-type toolsetTurnInterceptor func(context.Context, *agent.TurnInfo, agent.TurnNext) (agent.FinishReason, error)
+type toolsTurnInterceptor func(context.Context, *agent.TurnInfo, agent.TurnNext) (agent.FinishReason, error)
 
-func (f toolsetTurnInterceptor) InterceptTurn(ctx context.Context, info *agent.TurnInfo, next agent.TurnNext) (agent.FinishReason, error) {
+func (f toolsTurnInterceptor) InterceptTurn(ctx context.Context, info *agent.TurnInfo, next agent.TurnNext) (agent.FinishReason, error) {
 	return f(ctx, info, next)
 }
 
-func TestToolsetsReceiveTurnContextAndInvocation(t *testing.T) {
+type toolsTurnKey struct{}
+
+func toolsContextTurn(ctx context.Context, t *testing.T) int {
+	t.Helper()
+
+	turn, ok := ctx.Value(toolsTurnKey{}).(int)
+	require.True(t, ok, "snapshot must receive the turn context")
+
+	return turn
+}
+
+func toolsTurnContext() Option {
+	return WithInterceptors(toolsTurnInterceptor(func(ctx context.Context, info *agent.TurnInfo, next agent.TurnNext) (agent.FinishReason, error) {
+		return next(context.WithValue(ctx, toolsTurnKey{}, info.Inv.Turn()), info)
+	}))
+}
+
+func TestToolsReceiveTurnDerivedContext(t *testing.T) {
 	t.Parallel()
 
 	type contextKey struct{}
@@ -580,80 +654,114 @@ func TestToolsetsReceiveTurnContextAndInvocation(t *testing.T) {
 	model.When(fakellm.Any()).ThenRespondText("done")
 	var resolutions int
 	ag, err := New("metadata", "prompt", model,
-		WithInterceptors(toolsetTurnInterceptor(func(ctx context.Context, info *agent.TurnInfo, next agent.TurnNext) (agent.FinishReason, error) {
+		WithInterceptors(toolsTurnInterceptor(func(ctx context.Context, info *agent.TurnInfo, next agent.TurnNext) (agent.FinishReason, error) {
+			assert.Same(t, inv, info.Inv)
+			assert.Same(t, sess, info.Inv.Session())
 			info.Inv.SetMetadata("turn_marker", "from interceptor")
 
-			return next(context.WithValue(ctx, contextKey{}, "turn context"), info)
+			return next(context.WithValue(ctx, contextKey{}, map[string]any{
+				"user": info.Inv.Attribute(agent.AttrUserID), "marker": info.Inv.GetMetadata("turn_marker"), "turn": info.Inv.Turn(),
+			}), info)
 		})),
-		WithToolsets(func(ctx context.Context, actual *agent.InvocationMetadata) (tool.Registry, error) {
+		WithTools(toolsContextRegistry{snapshot: func(ctx context.Context) (tool.Registry, error) {
 			resolutions++
 
-			assert.Same(t, inv, actual)
-			assert.Same(t, sess, actual.Session())
-			assert.Equal(t, "alice", actual.Attribute(agent.AttrUserID))
-			assert.Equal(t, "from interceptor", actual.GetMetadata("turn_marker"))
-			assert.Equal(t, "turn context", ctx.Value(contextKey{}))
+			assert.Equal(t, map[string]any{"user": "alice", "marker": "from interceptor", "turn": 0}, ctx.Value(contextKey{}))
 
-			return nil, nil //nolint:nilnil // A nil registry denotes an empty toolset.
-		}),
+			return tool.Snapshot(ctx)
+		}}),
 	)
 	require.NoError(t, err)
-	require.NoError(t, toolsetRunError(t.Context(), ag, inv))
+	require.NoError(t, toolsRunError(t.Context(), ag, inv))
 	assert.Equal(t, 1, resolutions)
 }
 
-type toolsetUnsnapshotableRegistry struct {
+type toolsFailingRegistry struct {
 	tool.Registry
+
+	snapshotErr error
+	listErr     error
 }
 
-func TestToolsetsRejectUnsnapshotableRegistryBeforeModel(t *testing.T) {
+func (r toolsFailingRegistry) Snapshot(context.Context) (tool.Registry, error) {
+	if r.snapshotErr != nil {
+		return nil, r.snapshotErr
+	}
+
+	return r, nil
+}
+
+func (r toolsFailingRegistry) List(context.Context) ([]llm.ToolDefinition, error) {
+	return nil, r.listErr
+}
+
+func TestRegistryDiscoveryErrorsAbortBeforeModel(t *testing.T) {
 	t.Parallel()
 
-	model := fakellm.NewFakeModel()
-	ag, err := New("unsupported", "prompt", model, WithToolsets(func(context.Context, *agent.InvocationMetadata) (tool.Registry, error) {
-		return toolsetUnsnapshotableRegistry{Registry: newFixtureRegistry(t, fixtureTool{name: "fetch"})}, nil
-	}))
-	require.NoError(t, err)
-	err = toolsetRunError(t.Context(), ag, agent.NewInvocationMetadata(&session.State{ID: "unsupported", Messages: userMessage("hello")}, ag.Info()))
-	require.ErrorIs(t, err, tool.ErrRegistrySnapshotUnsupported)
-	assert.Empty(t, model.CallsMatching(fakellm.Any()))
+	failure := errors.New("caller registry unavailable")
+
+	for _, source := range []string{"single", "variadic", "repeated options"} {
+		for _, operation := range []string{"Snapshot", "List"} {
+			for _, cause := range []error{failure, context.Canceled, context.DeadlineExceeded} {
+				t.Run(source+"/"+operation+"/"+cause.Error(), func(t *testing.T) {
+					t.Parallel()
+
+					registry := toolsFailingRegistry{Registry: newFixtureRegistry(t, fixtureTool{name: "fetch"})}
+					if operation == "Snapshot" {
+						registry.snapshotErr = fmt.Errorf("snapshot caller: %w", cause)
+					} else {
+						registry.listErr = fmt.Errorf("list caller: %w", cause)
+					}
+
+					model := fakellm.NewFakeModel()
+
+					var resolutions int
+					opts := make([]Option, 0, 2)
+
+					later := toolsContextRegistry{snapshot: func(ctx context.Context) (tool.Registry, error) {
+						resolutions++
+
+						return tool.Snapshot(ctx)
+					}}
+
+					switch source {
+					case "variadic":
+						opts = append(opts, WithTools(registry, later))
+					case "repeated options":
+						opts = append(opts, WithTools(registry), WithTools(later))
+					default:
+						opts = append(opts, WithTools(registry))
+					}
+
+					ag, err := New("discovery-error", "prompt", model, opts...)
+					require.NoError(t, err, "registry discovery must wait for the invocation context")
+					err = toolsRunError(t.Context(), ag, agent.NewInvocationMetadata(&session.State{ID: "discovery-error", Messages: userMessage("hello")}, ag.Info()))
+					require.ErrorIs(t, err, cause)
+
+					assert.Contains(t, err.Error(), "llmagent: tools:")
+					assert.Zero(t, resolutions, "registry discovery must fail before snapshotting later sources")
+					assert.Empty(t, model.CallsMatching(fakellm.Any()))
+				})
+			}
+		}
+	}
 }
 
-func TestToolsetsRejectUnsnapshotableStaticRegistryBeforeModel(t *testing.T) {
-	t.Parallel()
-
-	static := toolsetUnsnapshotableRegistry{Registry: newFixtureRegistry(t, fixtureTool{name: "static"})}
-	dynamic := newFixtureRegistry(t, fixtureTool{name: "dynamic"})
-	model := fakellm.NewFakeModel()
-	var resolutions int
-	ag, err := New("unsupported-static", "prompt", model, WithTools(static), WithToolsets(func(context.Context, *agent.InvocationMetadata) (tool.Registry, error) {
-		resolutions++
-
-		return dynamic, nil
-	}))
-	require.NoError(t, err)
-
-	err = toolsetRunError(t.Context(), ag, agent.NewInvocationMetadata(&session.State{ID: "unsupported-static", Messages: userMessage("hello")}, ag.Info()))
-	require.ErrorIs(t, err, tool.ErrRegistrySnapshotUnsupported)
-	require.ErrorContains(t, err, "static tools")
-	assert.Zero(t, resolutions, "unsupported static tools must fail before resolving dynamic sets")
-	assert.Empty(t, model.CallsMatching(fakellm.Any()))
-}
-
-func TestToolsetsEmptyAndNilOptions(t *testing.T) {
+func TestToolsEmptyAndNilOptions(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
 		name string
 		opts []Option
 	}{
-		{name: "no sets", opts: []Option{WithToolsets()}},
-		{name: "nil registry", opts: []Option{WithToolsets(func(context.Context, *agent.InvocationMetadata) (tool.Registry, error) {
-			return nil, nil //nolint:nilnil // A nil registry denotes an empty toolset.
-		})}},
-		{name: "empty registry", opts: []Option{WithToolsets(func(context.Context, *agent.InvocationMetadata) (tool.Registry, error) {
-			return tool.NewRegistry(tool.RegistryConfig{}), nil
-		})}},
+		{name: "no options"},
+		{name: "no sources", opts: []Option{WithTools()}},
+		{name: "nil registry", opts: []Option{WithTools(nil)}},
+		{name: "repeated nil registries", opts: []Option{WithTools(nil, nil), WithTools(nil)}},
+		{name: "empty registry", opts: []Option{WithTools(tool.NewRegistry(tool.RegistryConfig{}))}},
+		{name: "empty contextual snapshot", opts: []Option{WithTools(toolsContextRegistry{snapshot: func(ctx context.Context) (tool.Registry, error) {
+			return tool.Snapshot(ctx)
+		}})}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -670,19 +778,9 @@ func TestToolsetsEmptyAndNilOptions(t *testing.T) {
 			assert.False(t, calls[0].Request.ToolSearch)
 		})
 	}
-
-	t.Run("nil toolset", func(t *testing.T) {
-		t.Parallel()
-
-		_, err := New("nil", "prompt", fakellm.NewFakeModel(), WithToolsets(func(context.Context, *agent.InvocationMetadata) (tool.Registry, error) {
-			return nil, nil //nolint:nilnil // A nil registry denotes an empty toolset.
-		}), WithToolsets(nil))
-		require.ErrorContains(t, err, "toolset")
-		require.ErrorContains(t, err, "nil")
-	})
 }
 
-func TestToolsetsLocalDiscoveryTracksUpdatesAndRevocation(t *testing.T) {
+func TestToolsLocalDiscoveryTracksUpdatesAndRevocation(t *testing.T) {
 	t.Parallel()
 
 	first := newFixtureRegistry(t, fixtureTool{name: "fetch", deferred: true, description: "old catalog entry", group: "svc", groupInfo: llm.ToolGroup{Instructions: "Old instructions."}})
@@ -700,11 +798,12 @@ func TestToolsetsLocalDiscoveryTracksUpdatesAndRevocation(t *testing.T) {
 	))
 	model.When(fakellm.CallNumber(3)).ThenRespondWith(respondWith(toolCall("stale", "fetch", `{}`), toolCall("new", "introduced", `{}`)))
 	model.When(fakellm.Any()).ThenRespondText("done")
-	ag, err := New("lazy-dynamic", "prompt", model, WithToolsets(func(_ context.Context, inv *agent.InvocationMetadata) (tool.Registry, error) {
-		require.Less(t, inv.Turn(), len(registries))
+	ag, err := New("lazy-dynamic", "prompt", model, toolsTurnContext(), WithTools(toolsContextRegistry{snapshot: func(ctx context.Context) (tool.Registry, error) {
+		turn := toolsContextTurn(ctx, t)
+		require.Less(t, turn, len(registries))
 
-		return registries[inv.Turn()], nil
-	}))
+		return tool.Snapshot(ctx, registries[turn])
+	}}))
 	require.NoError(t, err)
 
 	sess := &session.State{ID: "lazy-dynamic", Messages: userMessage("fetch")}
@@ -727,18 +826,18 @@ func TestToolsetsLocalDiscoveryTracksUpdatesAndRevocation(t *testing.T) {
 	assert.NotContains(t, calls[3].Request.Messages[0].TextContent(), "New instructions.")
 	assert.NotContains(t, calls[3].Request.Messages[0].TextContent(), "Additional tools")
 
-	results := toolsetResults(sess, "fetch")
+	results := toolsResults(sess, "fetch")
 	require.Len(t, results, 2)
 	assert.False(t, results[0].IsError)
 	assert.True(t, results[1].IsError, "loaded-session metadata must not authorize a revoked tool")
-	require.Len(t, toolsetResults(sess, "introduced"), 1)
-	assert.False(t, toolsetResults(sess, "introduced")[0].IsError)
+	require.Len(t, toolsResults(sess, "introduced"), 1)
+	assert.False(t, toolsResults(sess, "introduced")[0].IsError)
 	searches := toolResultsFor(sess.Messages, toolloading.SearchToolName)
 	require.Len(t, searches, 2)
 	assert.Contains(t, searches[1], `"introduced"`)
 }
 
-func TestToolsetsNativeDiscoveryTracksRevocation(t *testing.T) {
+func TestToolsNativeDiscoveryTracksRevocation(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range nativeSearchCases {
@@ -760,11 +859,12 @@ func TestToolsetsNativeDiscoveryTracksRevocation(t *testing.T) {
 			fake.When(fakellm.Any()).ThenRespondText("done")
 
 			registries := []tool.Registry{first, second, nil}
-			ag, err := New("native-dynamic", "prompt", nativeSearchModel{FakeModel: fake, provider: tc.provider}, WithToolsets(func(_ context.Context, inv *agent.InvocationMetadata) (tool.Registry, error) {
-				require.Less(t, inv.Turn(), len(registries))
+			ag, err := New("native-dynamic", "prompt", nativeSearchModel{FakeModel: fake, provider: tc.provider}, toolsTurnContext(), WithTools(toolsContextRegistry{snapshot: func(ctx context.Context) (tool.Registry, error) {
+				turn := toolsContextTurn(ctx, t)
+				require.Less(t, turn, len(registries))
 
-				return registries[inv.Turn()], nil
-			}))
+				return tool.Snapshot(ctx, registries[turn])
+			}}))
 			require.NoError(t, err)
 
 			sess := &session.State{ID: "native-dynamic", Messages: userMessage("fetch")}
@@ -785,18 +885,18 @@ func TestToolsetsNativeDiscoveryTracksRevocation(t *testing.T) {
 			assert.False(t, calls[2].Request.ToolSearch)
 			assert.Empty(t, calls[2].Request.Tools)
 
-			results := toolsetResults(sess, "fetch")
+			results := toolsResults(sess, "fetch")
 			require.Len(t, results, 2)
 			assert.False(t, results[0].IsError)
 			assert.True(t, results[1].IsError)
-			require.Len(t, toolsetResults(sess, "introduced"), 1)
-			assert.False(t, toolsetResults(sess, "introduced")[0].IsError)
+			require.Len(t, toolsResults(sess, "introduced"), 1)
+			assert.False(t, toolsResults(sess, "introduced")[0].IsError)
 			assert.Empty(t, toolResultsFor(sess.Messages, toolloading.SearchToolName))
 		})
 	}
 }
 
-func TestToolsetsSchemasParticipateInPrecallBudget(t *testing.T) {
+func TestToolsSchemasParticipateInPrecallBudget(t *testing.T) {
 	t.Parallel()
 
 	for _, deferred := range []bool{false, true} {
@@ -807,13 +907,13 @@ func TestToolsetsSchemasParticipateInPrecallBudget(t *testing.T) {
 			model := fakellm.NewFakeModel(fakellm.WithContextWindow(16_000))
 			model.When(fakellm.Any()).ThenRespondText("done")
 			var resolutions int
-			ag, err := New("budget", "prompt", model, WithCompaction(CompactionConfig{}), WithToolsets(func(context.Context, *agent.InvocationMetadata) (tool.Registry, error) {
+			ag, err := New("budget", "prompt", model, WithCompaction(CompactionConfig{}), WithTools(toolsContextRegistry{snapshot: func(ctx context.Context) (tool.Registry, error) {
 				resolutions++
 
-				return registry, nil
-			}))
+				return tool.Snapshot(ctx, registry)
+			}}))
 			require.NoError(t, err)
-			err = toolsetRunError(t.Context(), ag, agent.NewInvocationMetadata(&session.State{ID: "budget", Messages: userMessage("hello")}, ag.Info()))
+			err = toolsRunError(t.Context(), ag, agent.NewInvocationMetadata(&session.State{ID: "budget", Messages: userMessage("hello")}, ag.Info()))
 			assert.Equal(t, 1, resolutions)
 
 			if !deferred {
@@ -830,7 +930,7 @@ func TestToolsetsSchemasParticipateInPrecallBudget(t *testing.T) {
 	}
 }
 
-func TestToolsetsReactiveRetryReusesSnapshot(t *testing.T) {
+func TestToolsReactiveRetryReusesSnapshot(t *testing.T) {
 	t.Parallel()
 
 	registry := tool.NewRegistry(tool.RegistryConfig{})
@@ -849,11 +949,11 @@ func TestToolsetsReactiveRetryReusesSnapshot(t *testing.T) {
 	model.When(fakellm.CallNumber(2)).ThenRespondWithToolCall("original", map[string]any{})
 	model.When(fakellm.Any()).ThenRespondText("done")
 	var turns []int
-	ag, err := New("retry", "prompt", model, WithCompaction(CompactionConfig{}), WithToolsets(func(_ context.Context, inv *agent.InvocationMetadata) (tool.Registry, error) {
-		turns = append(turns, inv.Turn())
+	ag, err := New("retry", "prompt", model, WithCompaction(CompactionConfig{}), toolsTurnContext(), WithTools(toolsContextRegistry{snapshot: func(ctx context.Context) (tool.Registry, error) {
+		turns = append(turns, toolsContextTurn(ctx, t))
 
-		return registry, nil
-	}))
+		return tool.Snapshot(ctx, registry)
+	}}))
 	require.NoError(t, err)
 
 	sess := &session.State{ID: "retry", Messages: userMessage("start")}

@@ -48,9 +48,6 @@ var (
 
 	// ErrRegistryReadOnly indicates an attempt to mutate a snapshot.
 	ErrRegistryReadOnly = errors.New("registry snapshot is read-only")
-
-	// ErrRegistrySnapshotUnsupported indicates a registry without snapshot support.
-	ErrRegistrySnapshotUnsupported = errors.New("registry does not support snapshots")
 )
 
 // ResultError is returned by Tool.Execute when the tool ran but reported a

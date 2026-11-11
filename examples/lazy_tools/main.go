@@ -119,7 +119,12 @@ func main() {
 		}
 	}
 
-	if len(registry.List()) == 0 {
+	defs, err := registry.List(ctx)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if len(defs) == 0 {
 		log.Fatal("no MCP server reachable")
 	}
 
@@ -135,7 +140,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	printRegistry(registry)
+	printRegistry(ctx, registry)
 
 	model, err := newModel()
 	if err != nil {
@@ -193,10 +198,15 @@ func main() {
 }
 
 // printRegistry shows the registration policy the agent will act on.
-func printRegistry(registry tool.Registry) {
+func printRegistry(ctx context.Context, registry tool.Registry) {
+	defs, err := registry.List(ctx)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	fmt.Println("registered tools:")
 
-	for _, def := range registry.List() {
+	for _, def := range defs {
 		state := "always loaded"
 		if def.Deferred {
 			state = "deferred"

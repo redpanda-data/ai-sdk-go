@@ -25,7 +25,6 @@ import (
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/store/session"
-	"github.com/redpanda-data/ai-sdk-go/tool"
 )
 
 const (
@@ -72,16 +71,17 @@ type Config struct {
 // Every method is safe on a nil *Loader and behaves as if nothing were
 // deferred, so an agent without a registry needs no special casing.
 type Loader struct {
-	tools         tool.Registry
+	definitions   []llm.ToolDefinition
 	model         llm.Model
 	forceLocal    bool
 	maxLoadTokens int
 }
 
-// New builds a loader over the registry for the given model.
-func New(tools tool.Registry, model llm.Model, cfg Config) *Loader {
+// New builds a loader over captured definitions for the given model. The caller
+// must keep the definitions immutable for the lifetime of the loader.
+func New(definitions []llm.ToolDefinition, model llm.Model, cfg Config) *Loader {
 	return &Loader{
-		tools:         tools,
+		definitions:   definitions,
 		model:         model,
 		forceLocal:    cfg.ForceLocal,
 		maxLoadTokens: cmp.Or(cfg.MaxLoadTokens, defaultMaxLoadTokens),

@@ -44,7 +44,8 @@ func TestGroupRegistersWithPolicy(t *testing.T) {
 		Register(registry, tool.WithTimeout(time.Second))
 	require.NoError(t, err)
 
-	defs := registry.List()
+	defs, err := registry.List(t.Context())
+	require.NoError(t, err)
 	require.Len(t, defs, 3)
 
 	deferred := map[string]bool{}
@@ -73,7 +74,8 @@ func TestGroupRegisterRollsBackOnError(t *testing.T) {
 	require.ErrorIs(t, err, tool.ErrToolAlreadyRegistered)
 	assert.Contains(t, err.Error(), `group "svc"`)
 
-	defs := registry.List()
+	defs, err := registry.List(t.Context())
+	require.NoError(t, err)
 	require.Len(t, defs, 1, "the tool registered before the failure is removed again")
 	assert.Equal(t, "taken", defs[0].Name)
 

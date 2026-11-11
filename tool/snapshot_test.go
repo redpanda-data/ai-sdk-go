@@ -92,12 +92,13 @@ func TestSnapshotPreservesPolicies(t *testing.T) {
 
 			opts := append([]tool.Option{tool.WithDeferred(), tool.WithGroup(group)}, tc.opts...)
 			require.NoError(t, source.Register(&snapshotProbe{def: llm.ToolDefinition{Name: "read"}, run: tc.run}, opts...))
-			frozen, err := tool.Snapshot(source)
+			frozen, err := tool.Snapshot(t.Context(), source)
 			require.NoError(t, err)
-			composed, err := tool.Snapshot(nil, frozen)
+			composed, err := tool.Snapshot(t.Context(), nil, frozen)
 			require.NoError(t, err)
 
-			defs := composed.List()
+			defs, err := composed.List(t.Context())
+			require.NoError(t, err)
 			require.Len(t, defs, 1)
 			assert.True(t, defs[0].Deferred)
 			assert.Equal(t, group, defs[0].Group)
@@ -121,7 +122,7 @@ func TestSnapshotIsolation(t *testing.T) {
 	}
 	source := tool.NewRegistry(tool.RegistryConfig{})
 	require.NoError(t, source.Register(original))
-	frozen, err := tool.Snapshot(source)
+	frozen, err := tool.Snapshot(t.Context(), source)
 	require.NoError(t, err)
 
 	original.def.Description = "Changed"
@@ -135,7 +136,8 @@ func TestSnapshotIsolation(t *testing.T) {
 	}))
 	require.NoError(t, source.Register(&mockTool{name: "added"}))
 
-	defs := frozen.List()
+	defs, err := frozen.List(t.Context())
+	require.NoError(t, err)
 	require.Len(t, defs, 1)
 	assert.Equal(t, "Original", defs[0].Description)
 	assert.JSONEq(t, `{"type":"object"}`, string(defs[0].Parameters))
@@ -143,10 +145,12 @@ func TestSnapshotIsolation(t *testing.T) {
 	defs[0].Parameters[0] = 'y'
 	defs[0].Metadata["version"] = "caller mutation"
 
-	assert.JSONEq(t, `{"type":"object"}`, string(frozen.List()[0].Parameters))
-	assert.Equal(t, "old", frozen.List()[0].Metadata["version"])
+	defs, err = frozen.List(t.Context())
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"type":"object"}`, string(defs[0].Parameters))
+	assert.Equal(t, "old", defs[0].Metadata["version"])
 
-	capturedTool, err := frozen.Get("read")
+	capturedTool, err := frozen.Get(t.Context(), "read")
 	require.NoError(t, err)
 	assert.Equal(t, "Original", capturedTool.Definition().Description)
 	assert.JSONEq(t, `{"type":"object"}`, string(capturedTool.Definition().Parameters))
@@ -158,7 +162,7 @@ func TestSnapshotIsolation(t *testing.T) {
 	assert.JSONEq(t, `"old"`, string(resp.Result))
 	require.ErrorIs(t, frozen.Register(&mockTool{name: "blocked"}), tool.ErrRegistryReadOnly)
 	require.ErrorIs(t, frozen.Unregister("read"), tool.ErrRegistryReadOnly)
-	_, err = frozen.Get("added")
+	_, err = frozen.Get(t.Context(), "added")
 	require.ErrorIs(t, err, tool.ErrToolNotFound)
 }
 
@@ -234,21 +238,25 @@ func TestSnapshotNestedMetadataIsolation(t *testing.T) {
 			metadata := snapshotNestedMetadata()
 			source := tool.NewRegistry(tool.RegistryConfig{})
 			require.NoError(t, source.Register(&snapshotProbe{def: llm.ToolDefinition{Name: "read", Metadata: metadata}}))
-			frozen, err := tool.Snapshot(source)
+			frozen, err := tool.Snapshot(t.Context(), source)
 			require.NoError(t, err)
-			captured, err := frozen.Get("read")
+			captured, err := frozen.Get(t.Context(), "read")
 			require.NoError(t, err)
 
 			switch mutation {
 			case "source":
 				mutateSnapshotMetadata(t, metadata)
 			case "List":
-				mutateSnapshotMetadata(t, frozen.List()[0].Metadata)
+				defs, err := frozen.List(t.Context())
+				require.NoError(t, err)
+				mutateSnapshotMetadata(t, defs[0].Metadata)
 			case "Get":
 				mutateSnapshotMetadata(t, captured.Definition().Metadata)
 			}
 
-			assert.Equal(t, snapshotNestedMetadata(), frozen.List()[0].Metadata)
+			defs, err := frozen.List(t.Context())
+			require.NoError(t, err)
+			assert.Equal(t, snapshotNestedMetadata(), defs[0].Metadata)
 			assert.Equal(t, snapshotNestedMetadata(), captured.Definition().Metadata)
 		})
 	}
@@ -264,14 +272,17 @@ func TestSnapshotNestedMetadataConcurrentIsolation(t *testing.T) {
 			metadata := snapshotNestedMetadata()
 			source := tool.NewRegistry(tool.RegistryConfig{})
 			require.NoError(t, source.Register(&snapshotProbe{def: llm.ToolDefinition{Name: "read", Metadata: metadata}}))
-			frozen, err := tool.Snapshot(source)
+			frozen, err := tool.Snapshot(t.Context(), source)
 			require.NoError(t, err)
-			captured, err := frozen.Get("read")
+			captured, err := frozen.Get(t.Context(), "read")
 			require.NoError(t, err)
 
 			switch mutation {
 			case "List":
-				metadata = frozen.List()[0].Metadata
+				defs, err := frozen.List(t.Context())
+				require.NoError(t, err)
+
+				metadata = defs[0].Metadata
 			case "Get":
 				metadata = captured.Definition().Metadata
 			}
@@ -295,8 +306,11 @@ func TestSnapshotNestedMetadataConcurrentIsolation(t *testing.T) {
 			}()
 
 			expected := snapshotNestedMetadata()
+
 			for range 100 {
-				assert.Equal(t, expected, frozen.List()[0].Metadata)
+				defs, err := frozen.List(t.Context())
+				require.NoError(t, err)
+				assert.Equal(t, expected, defs[0].Metadata)
 				assert.Equal(t, expected, captured.Definition().Metadata)
 			}
 
@@ -336,7 +350,7 @@ func TestSnapshotComposition(t *testing.T) {
 			require.NoError(t, first.Register(&mockTool{name: "a"}, firstOpts...))
 			require.NoError(t, second.Register(&mockTool{name: tc.secondName}, secondOpts...))
 
-			combined, err := tool.Snapshot(second, first)
+			combined, err := tool.Snapshot(t.Context(), second, first)
 			if tc.wantErr != nil {
 				require.ErrorIs(t, err, tc.wantErr)
 				assert.Nil(t, combined)
@@ -346,7 +360,8 @@ func TestSnapshotComposition(t *testing.T) {
 
 			require.NoError(t, err)
 
-			defs := combined.List()
+			defs, err := combined.List(t.Context())
+			require.NoError(t, err)
 			assert.Equal(t, []string{"a", "b"}, definitionNames(defs))
 
 			for _, def := range defs {
@@ -360,12 +375,18 @@ type customSnapshotRegistry struct {
 	tool.Registry
 
 	captured tool.Registry
+	err      error
 	calls    atomic.Int32
 }
 
-func (r *customSnapshotRegistry) Snapshot() tool.Registry {
+func (r *customSnapshotRegistry) Snapshot(ctx context.Context) (tool.Registry, error) {
 	r.calls.Add(1)
-	return r.captured
+
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	return r.captured, r.err
 }
 
 type opaqueRegistry struct{ tool.Registry }
@@ -377,26 +398,115 @@ func TestSnapshotCustomRegistry(t *testing.T) {
 	require.NoError(t, source.Register(&mockTool{name: "custom", execFunc: func(context.Context, json.RawMessage) (json.RawMessage, error) {
 		return json.RawMessage(`"` + strings.Repeat("x", 100004) + `"`), nil
 	}}, tool.WithMaxResponseTokens(0), tool.WithGroup(llm.ToolGroup{Name: "g"}), tool.WithDeferred()))
-	captured, err := tool.Snapshot(source)
+	captured, err := tool.Snapshot(t.Context(), source)
 	require.NoError(t, err)
 
 	custom := &customSnapshotRegistry{Registry: source, captured: &opaqueRegistry{Registry: captured}}
-	frozen, err := tool.Snapshot(custom)
+	frozen, err := tool.Snapshot(t.Context(), custom)
 	require.NoError(t, err)
 	assert.EqualValues(t, 1, custom.calls.Load())
 	require.NoError(t, source.Unregister("custom"))
-	assert.True(t, frozen.List()[0].Deferred)
-	assert.Equal(t, "g", frozen.List()[0].Group.Name)
+	defs, err := frozen.List(t.Context())
+	require.NoError(t, err)
+	assert.True(t, defs[0].Deferred)
+	assert.Equal(t, "g", defs[0].Group.Name)
 	resp, err := frozen.Execute(t.Context(), &llm.ToolRequestPart{ID: "call", Name: "custom"})
 	require.NoError(t, err)
 	assert.False(t, resp.IsError)
 	assert.Len(t, resp.Result, 100006)
 	assert.Equal(t, "call", resp.ID)
+}
 
-	_, err = tool.Snapshot(&opaqueRegistry{Registry: source})
-	require.ErrorIs(t, err, tool.ErrRegistrySnapshotUnsupported)
-	_, err = tool.Snapshot(&customSnapshotRegistry{Registry: source})
-	require.ErrorIs(t, err, tool.ErrRegistrySnapshotUnsupported)
+type failingDiscoveryRegistry struct {
+	tool.Registry
+
+	err    error
+	getErr bool
+}
+
+func (r *failingDiscoveryRegistry) List(ctx context.Context) ([]llm.ToolDefinition, error) {
+	if !r.getErr {
+		return nil, r.err
+	}
+
+	return r.Registry.List(ctx)
+}
+
+func (r *failingDiscoveryRegistry) Get(context.Context, string) (tool.Tool, error) {
+	return nil, r.err
+}
+
+func TestSnapshotCustomRegistryErrors(t *testing.T) {
+	t.Parallel()
+
+	source := tool.NewRegistry(tool.RegistryConfig{})
+	require.NoError(t, source.Register(&mockTool{name: "probe"}))
+
+	failure := errors.New("discovery failed")
+
+	for _, tc := range []struct {
+		name     string
+		registry tool.Registry
+	}{
+		{name: "Snapshot", registry: &customSnapshotRegistry{Registry: source, err: failure}},
+		{name: "List", registry: &customSnapshotRegistry{Registry: source, captured: &failingDiscoveryRegistry{Registry: source, err: failure}}},
+		{name: "Get", registry: &customSnapshotRegistry{Registry: source, captured: &failingDiscoveryRegistry{Registry: source, err: failure, getErr: true}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			captured, err := tool.Snapshot(t.Context(), source, tc.registry)
+			require.ErrorIs(t, err, failure)
+			assert.Nil(t, captured)
+		})
+	}
+
+	t.Run("nil snapshot", func(t *testing.T) {
+		t.Parallel()
+
+		captured, err := tool.Snapshot(t.Context(), &customSnapshotRegistry{Registry: source})
+		require.Error(t, err)
+		assert.Nil(t, captured)
+	})
+}
+
+func TestRegistryDiscoveryCancellation(t *testing.T) {
+	t.Parallel()
+
+	source := tool.NewRegistry(tool.RegistryConfig{})
+	require.NoError(t, source.Register(&mockTool{name: "probe"}))
+	frozen, err := source.Snapshot(t.Context())
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		name     string
+		registry tool.Registry
+	}{
+		{name: "native", registry: source},
+		{name: "frozen", registry: frozen},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithCancel(t.Context())
+			cancel()
+
+			defs, err := tc.registry.List(ctx)
+			require.ErrorIs(t, err, context.Canceled)
+			assert.Nil(t, defs)
+
+			found, err := tc.registry.Get(ctx, "probe")
+			require.ErrorIs(t, err, context.Canceled)
+			assert.Nil(t, found)
+
+			captured, err := tc.registry.Snapshot(ctx)
+			require.ErrorIs(t, err, context.Canceled)
+			assert.Nil(t, captured)
+			captured, err = tool.Snapshot(ctx, tc.registry)
+			require.ErrorIs(t, err, context.Canceled)
+			assert.Nil(t, captured)
+		})
+	}
 }
 
 func TestSnapshotBatchConcurrency(t *testing.T) {
@@ -425,7 +535,7 @@ func TestSnapshotBatchConcurrency(t *testing.T) {
 			return nil, ctx.Err()
 		}
 	}}))
-	frozen, err := tool.Snapshot(source)
+	frozen, err := tool.Snapshot(t.Context(), source)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
@@ -465,9 +575,11 @@ func TestSnapshotBatchConcurrency(t *testing.T) {
 func TestSnapshotExecutionErrors(t *testing.T) {
 	t.Parallel()
 
-	frozen, err := tool.Snapshot(nil)
+	frozen, err := tool.Snapshot(t.Context(), nil)
 	require.NoError(t, err)
-	assert.Empty(t, frozen.List())
+	defs, err := frozen.List(t.Context())
+	require.NoError(t, err)
+	assert.Empty(t, defs)
 	_, err = frozen.Execute(t.Context(), nil)
 	require.ErrorIs(t, err, tool.ErrToolRequestNil)
 	results := frozen.ExecuteAll(t.Context(), []*llm.ToolRequestPart{nil, {ID: "missing", Name: "missing"}})
@@ -485,7 +597,7 @@ func TestSnapshotExecutionErrors(t *testing.T) {
 	require.NoError(t, source.Register(&mockTool{name: "failure", execFunc: func(context.Context, json.RawMessage) (json.RawMessage, error) {
 		return nil, errors.New("execution failed")
 	}}))
-	frozen, err = tool.Snapshot(source)
+	frozen, err = tool.Snapshot(t.Context(), source)
 	require.NoError(t, err)
 	resp, err := frozen.Execute(t.Context(), &llm.ToolRequestPart{Name: "failure"})
 	require.NoError(t, err)

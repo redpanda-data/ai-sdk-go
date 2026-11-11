@@ -165,36 +165,65 @@ agent, err := llmagent.New("my-agent", "You are a helpful assistant.", model,
 
 See [`examples/`](examples/) for full working demos.
 
-### Dynamic toolsets
+### Contextual registries
 
-Use `WithToolsets` for tools that depend on the caller or change during a run:
+`tool.Registry` resolves tools with `List(ctx)` and `Get(ctx, name)`; both return errors.
+Its `Snapshot(ctx)` method captures definitions, membership and execution policies for one
+model step. `WithTools` accepts a contextual registry directly: the agent snapshots it before
+schema planning, lazy discovery or context budgeting, then uses that snapshot for dispatch.
+A context-overflow retry reuses the snapshot; the next model step resolves afresh.
+
+For caller-dependent HTTP MCP tools, use the on-demand registry:
 
 ```go
-callerTools := llmagent.Toolset(func(ctx context.Context, inv *agent.InvocationMetadata) (tool.Registry, error) {
-	return resolveCallerTools(ctx, inv) // Return a configured registry, or nil for no tools.
-})
+remote, err := mcp.NewRegistry("github", "https://example.com/mcp",
+	mcp.WithCredentials(func(ctx context.Context) (mcp.Credentials, error) {
+		caller, err := authenticatedCaller(ctx) // Application-owned identity and credential lookup.
+		if err != nil {
+			return mcp.Credentials{}, err
+		}
+		return mcp.NewCredentials(
+			mcp.WithPartitionKey(caller.AuthScope),
+			mcp.WithTokenSource(caller.TokenSource),
+		)
+	}),
+)
+if err != nil {
+	return err
+}
+defer remote.Close()
 
-assistant, err := llmagent.New("my-agent", "You are a helpful assistant.", model,
-	llmagent.WithTools(registry), // Optional static tools.
-	llmagent.WithToolsets(callerTools),
+assistant, err := llmagent.New("my-agent", "Help the caller.", model,
+	llmagent.WithTools(remote),
 )
 ```
 
-Toolsets run before **each model step**, in registration order, using the turn's context
-and invocation metadata. Each returned registry and the optional static registry are
-snapshotted before schema planning, lazy discovery and context budgeting. Execution uses
-the same captured tools and registration options, even if the source registry changes
-while the model is responding. A context-overflow retry reuses that step's snapshot;
-the next step resolves afresh. Removed tools cannot be restored by session load metadata.
-Duplicate tool names and conflicting group metadata stop the step before the model call.
+The application defines `PartitionKey`: equal keys share client-side connection/protocol
+state and the bounded tool-catalog cache. Keys are not MCP wire session IDs. Credentials
+are resolved again for execution and HTTP requests, but captured tools cannot execute under
+a different partition. The SDK does not append a header hash or automatically invalidate
+catalogs when headers change under the same key. Include an authorization version or header
+hash in the key when that should select fresh state. Server change notifications invalidate
+that partition's catalog; server TTLs are capped by `WithRegistryMaxToolCacheTTL` (default
+30 seconds, zero disables caching). There is no periodic discovery timer.
+See [`tool/mcp`](tool/mcp/README.md) for authentication options and legacy client migration.
 
-Return registries created by `tool.NewRegistry`. Custom registries used with toolsets
-must implement `Snapshot() tool.Registry` and return an immutable view preserving their
-execution policies; unsupported registries return an error rather than silently losing
-policy. `tool.Snapshot` can also capture and combine registries directly. Snapshots do
-not clone tool implementations or close connections. Callers own those lifetimes and
-must make tools and toolset callbacks safe for concurrent invocations; cache expiry,
-credential resolution and remote discovery remain application decisions.
+### Combining registries
+
+Pass multiple registries to `WithTools`; repeated options append sources. Nil sources are ignored:
+
+```go
+assistant, err := llmagent.New("my-agent", "You are a helpful assistant.", model,
+	llmagent.WithTools(staticTools, remote),
+)
+```
+
+Each source is snapshotted once before composition. Removed tools cannot be restored by session
+load metadata. Duplicate names and conflicting group metadata stop the step before the model call.
+All registry implementations provide `Snapshot(ctx) (tool.Registry, error)` and return an immutable
+view preserving execution policies. `tool.Snapshot(ctx, registries...)` captures and combines sources
+directly. Snapshots do not clone executable implementations or close their connections. Callers own
+those lifetimes and must make tools and credential callbacks concurrency-safe.
 
 ### Lazy tool loading
 

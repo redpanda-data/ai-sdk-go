@@ -607,10 +607,9 @@ func TestRegistryChangesBetweenTurns(t *testing.T) {
 	assert.Equal(t, []string{"confluence__get_page", incidentTool, "todo_write", "tool_search"}, requestToolNames(last.Request))
 }
 
-// TestToolVanishesBetweenResponseAndExecution: the registry loses a loaded tool
-// after the model decided to call it. The call fails with an ordinary error and
-// the session stays consistent.
-func TestToolVanishesBetweenResponseAndExecution(t *testing.T) {
+// TestToolRemovalDuringResponseAffectsNextStep: the captured tool still runs,
+// but its removal takes effect before the next model request and dispatch.
+func TestToolRemovalDuringResponseAffectsNextStep(t *testing.T) {
 	t.Parallel()
 
 	registry, incident := serviceDeskRegistry(t)
@@ -621,13 +620,26 @@ func TestToolVanishesBetweenResponseAndExecution(t *testing.T) {
 
 		return respondWith(toolCall("c1", incidentTool, `{}`))(nil, nil)
 	})
+	model.When(fakellm.CallNumber(3)).ThenRespondWithToolCall(incidentTool, map[string]any{})
 	model.When(fakellm.Any()).ThenRespondText("Sorry, that tool is gone.")
 
 	sess := &session.State{ID: "vanish", Messages: userMessage("open an incident")}
 	require.Equal(t, agent.FinishReasonStop, finishReason(runAgent(t, newAgent(t, model, registry), sess)))
 
-	assert.Zero(t, incident.calls.Load())
-	assert.Contains(t, toolResultsFor(sess.Messages, incidentTool)[0], "not found")
+	assert.Equal(t, int32(1), incident.calls.Load())
+
+	results := toolsResults(sess, incidentTool)
+	require.Len(t, results, 2)
+	assert.False(t, results[0].IsError, "the captured tool must run despite source removal")
+	assert.JSONEq(t, `{"number":"INC0012345"}`, string(results[0].Result))
+	assert.True(t, results[1].IsError)
+	assert.Contains(t, string(results[1].Result), "not found")
+
+	calls := model.CallsMatching(fakellm.Any())
+	require.Len(t, calls, 4)
+	assert.Contains(t, requestToolNames(calls[1].Request), incidentTool)
+	assert.NotContains(t, requestToolNames(calls[2].Request), incidentTool)
+	assert.NotContains(t, requestToolNames(calls[3].Request), incidentTool)
 	assert.Equal(t, []any{incidentTool}, sess.Metadata[toolloading.LoadedToolsMetadataKey])
 }
 
@@ -747,7 +759,7 @@ func TestInterceptorsCannotChangeCallIdentity(t *testing.T) {
 			t.Parallel()
 
 			registry, incident := serviceDeskRegistry(t)
-			ordinary, err := registry.Get("todo_write")
+			ordinary, err := registry.Get(t.Context(), "todo_write")
 			require.NoError(t, err)
 
 			ordinaryTool, ok := ordinary.(*stubTool)

@@ -235,7 +235,7 @@ func testToolLoadingLive(t *testing.T, model llm.Model, native bool) {
 	assert.Equal(t, native, firstCalls[0].ToolSearch)
 
 	if native {
-		assert.Equal(t, registry.List(), firstCalls[0].Tools)
+		assert.Equal(t, fixtureDefinitions(t, registry), firstCalls[0].Tools)
 		assert.Contains(t, toolloading.NativeLoadedTools(sess.Messages, model.Capabilities().ToolSearchProtocol), incidentTool,
 			"native discovery must expose the tool that executed")
 	} else {

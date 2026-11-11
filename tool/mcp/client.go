@@ -450,6 +450,18 @@ func (c *clientImpl) connect(ctx context.Context) (*sdkmcp.ClientSession, *sdkmc
 		},
 	})
 
+	mcpClient.AddSendingMiddleware(func(next sdkmcp.MethodHandler) sdkmcp.MethodHandler {
+		return func(ctx context.Context, method string, req sdkmcp.Request) (sdkmcp.Result, error) {
+			result, err := next(ctx, method, req)
+			if listed, ok := result.(*sdkmcp.ListToolsResult); ok && err == nil {
+				// SyncTools has always requested a fresh catalog, regardless of TTL.
+				listed.TTLMs = 0
+			}
+
+			return result, err
+		}
+	})
+
 	transport, err := c.transportFactory()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create transport: %w", err)

@@ -15,6 +15,7 @@
 package tool
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -31,26 +32,33 @@ import (
 // map[string]any, map[string]string, []any, []map[string]any, []string, []byte,
 // and json.RawMessage values. Other values are opaque and must be immutable.
 //
-// Custom registries must implement Snapshot() Registry. Their returned registry
-// must keep its definitions, membership, and execution policies immutable.
+// Each registry resolves against ctx once. Its returned snapshot must keep its
+// definitions, membership, and execution policies immutable.
 // Executable tools are shared, not cloned; their own state must be concurrency-safe.
 // Each input is captured independently, not atomically across registries.
-func Snapshot(registries ...Registry) (Registry, error) {
+func Snapshot(ctx context.Context, registries ...Registry) (Registry, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	combined := &registry{tools: make(map[string]*registeredTool), frozen: true}
 
 	for i, source := range registries {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+
 		if source == nil {
 			continue
 		}
 
-		snapshotter, ok := source.(interface{ Snapshot() Registry })
-		if !ok {
-			return nil, fmt.Errorf("%w: input %d (%T)", ErrRegistrySnapshotUnsupported, i, source)
+		captured, err := source.Snapshot(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("tool: snapshot input %d: %w", i, err)
 		}
 
-		captured := snapshotter.Snapshot()
 		if captured == nil {
-			return nil, fmt.Errorf("%w: input %d returned nil", ErrRegistrySnapshotUnsupported, i)
+			return nil, fmt.Errorf("tool: snapshot input %d returned nil", i)
 		}
 
 		if native, ok := captured.(*registry); ok {
@@ -65,8 +73,13 @@ func Snapshot(registries ...Registry) (Registry, error) {
 			continue
 		}
 
-		for _, def := range captured.List() {
-			t, err := captured.Get(def.Name)
+		defs, err := captured.List(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("tool: snapshot input %d: %w", i, err)
+		}
+
+		for _, def := range defs {
+			t, err := captured.Get(ctx, def.Name)
 			if err != nil {
 				return nil, fmt.Errorf("tool: snapshot %q: %w", def.Name, err)
 			}
@@ -83,17 +96,33 @@ func Snapshot(registries ...Registry) (Registry, error) {
 		}
 	}
 
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	return combined, nil
 }
 
 // Snapshot freezes this registry's membership, definitions, and registration
 // policies. Subsequent registration changes do not affect the returned registry.
-func (r *registry) Snapshot() Registry {
+func (r *registry) Snapshot(ctx context.Context) (Registry, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	if r.frozen {
+		return r, nil
+	}
+
 	captured := &registry{tools: make(map[string]*registeredTool, len(r.tools)), config: r.config, frozen: true}
 	for name, entry := range r.tools {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+
 		copied := *entry
 		definition := cloneDefinition(entry.toolDefinition())
 		copied.definition = &definition
@@ -101,7 +130,11 @@ func (r *registry) Snapshot() Registry {
 		captured.tools[name] = &copied
 	}
 
-	return captured
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	return captured, nil
 }
 
 func (r *registry) merge(entries map[string]*registeredTool) error {
