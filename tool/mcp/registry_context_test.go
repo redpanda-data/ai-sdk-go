@@ -227,18 +227,29 @@ func TestContextRegistryPartitionKeyIsAuthoritative(t *testing.T) {
 	t.Parallel()
 
 	peer := newRegistryPeer(t, false)
-	registry := newContextRegistry(t, peer)
+	registryAdvertiseToolTTL(peer, time.Minute, true)
+
+	clock := newRegistryTestClock()
+	registry := newContextRegistry(t, peer, WithRegistryMaxToolCacheTTL(time.Minute), func(cfg *registryConfig) { cfg.now = clock.Now })
 	first := registryCaller(t.Context(), "scope-a", "alice:one")
 	second := registryCaller(t.Context(), "scope-b", "alice:one")
 	snapshot, err := registry.Snapshot(first)
 	require.NoError(t, err)
+	original, err := snapshot.List(first)
+	require.NoError(t, err)
 	_, err = registry.List(second)
 	require.NoError(t, err)
 	assert.Len(t, peer.requests("server/discover"), 2, "identical headers must not collapse distinct authorization partitions")
+	assert.Len(t, peer.requests("tools/list"), 2)
 
+	peer.addTool("alice", "alice_only", "rotated catalog", "new")
+	peer.addTool("alice", "added", "new tool", "value")
 	rotated := registryCaller(t.Context(), "scope-a", "alice:two")
-	_, err = registry.List(rotated)
+	cached, err := registry.List(rotated)
 	require.NoError(t, err)
+	assert.Equal(t, original, cached, "header rotation must preserve the same partition's unexpired catalog")
+	assert.Len(t, peer.requests("tools/list"), 2, "header changes must not invalidate a populated catalog cache")
+
 	response, err := snapshot.Execute(rotated, registryRequest("remote__shared"))
 	require.NoError(t, err)
 	require.NotNil(t, response)
@@ -248,6 +259,14 @@ func TestContextRegistryPartitionKeyIsAuthoritative(t *testing.T) {
 	calls := peer.requests("tools/call")
 	require.Len(t, calls, 1)
 	assert.Equal(t, "Bearer alice:two", calls[0].auth)
+
+	clock.Advance(time.Minute)
+
+	fresh, err := registry.List(rotated)
+	require.NoError(t, err)
+	assert.Contains(t, registryNames(fresh), "remote__added")
+	assert.Len(t, peer.requests("tools/list"), 3, "expiry, not credential rotation, selects the updated catalog")
+	assert.Equal(t, "Bearer alice:two", peer.requests("tools/list")[2].auth)
 }
 
 func TestContextRegistryRefreshAndFrozenMembership(t *testing.T) {
@@ -472,6 +491,12 @@ func TestContextRegistryExecuteAll(t *testing.T) {
 
 	peer := newRegistryPeer(t, false)
 	var active, maximum atomic.Int32
+	var parallelPhase atomic.Bool
+	arrived := make(chan struct{}, 3)
+	release := make(chan struct{})
+
+	var unblock sync.Once
+	defer unblock.Do(func() { close(release) })
 	peer.handle = func(ctx context.Context, req *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
 		n := active.Add(1)
 		defer active.Add(-1)
@@ -482,10 +507,14 @@ func TestContextRegistryExecuteAll(t *testing.T) {
 			}
 		}
 
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-time.After(10 * time.Millisecond):
+		if parallelPhase.Load() {
+			arrived <- struct{}{}
+
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-release:
+			}
 		}
 
 		return &sdkmcp.CallToolResult{Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: req.Params.Name}}}, nil
@@ -518,7 +547,32 @@ func TestContextRegistryExecuteAll(t *testing.T) {
 	assert.Len(t, peer.requests("tools/call"), 3)
 	maximum.Store(0)
 
-	parallel := registry.ExecuteAll(ctx, []*llm.ToolRequestPart{reqs[0], reqs[2], reqs[4]}, tool.WithMaxConcurrency(2))
+	parallelPhase.Store(true)
+
+	completed := make(chan []*llm.ToolResponsePart, 1)
+
+	go func() {
+		completed <- registry.ExecuteAll(ctx, []*llm.ToolRequestPart{reqs[0], reqs[2], reqs[4]}, tool.WithMaxConcurrency(2))
+	}()
+
+	for range 2 {
+		select {
+		case <-arrived:
+		case <-time.After(5 * time.Second):
+			t.Fatal("WithMaxConcurrency(2) did not allow two real MCP handlers to enter before release")
+		}
+	}
+
+	assert.EqualValues(t, 2, active.Load())
+	unblock.Do(func() { close(release) })
+
+	var parallel []*llm.ToolResponsePart
+	select {
+	case parallel = <-completed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("parallel batch did not finish after release")
+	}
+
 	require.Len(t, parallel, 3)
 
 	for _, response := range parallel {
@@ -526,7 +580,7 @@ func TestContextRegistryExecuteAll(t *testing.T) {
 		assert.False(t, response.IsError, string(response.Result))
 	}
 
-	assert.LessOrEqual(t, maximum.Load(), int32(2))
+	assert.EqualValues(t, 2, maximum.Load())
 	assert.Len(t, peer.requests("tools/call"), 6)
 	assert.Empty(t, registry.ExecuteAll(ctx, nil))
 	response, err := registry.Execute(ctx, nil)
@@ -677,23 +731,29 @@ func TestContextRegistryDiscoveryWaitRespectsDeadline(t *testing.T) {
 	}
 }
 
-func TestContextRegistryCatalogIsNotPolled(t *testing.T) {
+func TestContextRegistryCatalogExpiryIsOnDemand(t *testing.T) {
 	t.Parallel()
 
 	peer := newRegistryPeer(t, false)
-	registry := newContextRegistry(t, peer, WithRegistryMaxToolCacheTTL(time.Millisecond))
+	registryAdvertiseToolTTL(peer, time.Minute, true)
+
+	clock := newRegistryTestClock()
+	registry := newContextRegistry(t, peer, WithRegistryMaxToolCacheTTL(time.Minute), func(cfg *registryConfig) { cfg.now = clock.Now })
 	ctx := registryCaller(t.Context(), "alice", "alice:one")
 	_, err := registry.List(ctx)
 	require.NoError(t, err)
-
-	before := len(peer.requests("tools/list"))
-
-	time.Sleep(30 * time.Millisecond)
-	assert.Len(t, peer.requests("tools/list"), before, "expiration must not start background catalog polling")
-
 	_, err = registry.List(ctx)
 	require.NoError(t, err)
-	assert.Len(t, peer.requests("tools/list"), before+1)
+	assert.Len(t, peer.requests("tools/list"), 1, "the catalog must be cached before testing expiry")
+
+	peer.addTool("alice", "added", "new tool", "value")
+	clock.Advance(time.Minute)
+	assert.Len(t, peer.requests("tools/list"), 1, "expiration alone must not discover tools")
+
+	fresh, err := registry.List(ctx)
+	require.NoError(t, err)
+	assert.Contains(t, registryNames(fresh), "remote__added")
+	assert.Len(t, peer.requests("tools/list"), 2, "an explicit operation must discover the expired catalog")
 }
 
 func TestContextRegistrySharedAgentIsolation(t *testing.T) {

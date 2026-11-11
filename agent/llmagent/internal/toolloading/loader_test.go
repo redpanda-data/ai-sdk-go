@@ -231,7 +231,7 @@ func TestPrepare(t *testing.T) {
 
 		defs, sectionAfter := loader.prepareLocal(loader.definitions, sess)
 		assert.Equal(t, []string{"jira__create_issue", "servicenow__create_incident", "servicenow__search_incidents", "todo_write", "tool_search"}, defNames(defs))
-		assert.Equal(t, section, sectionAfter, "the catalog lists every deferred tool for the life of the registry")
+		assert.Equal(t, section, sectionAfter, "the captured catalog lists every deferred tool as its loaded set changes")
 	})
 
 	t.Run("is a no-op with nothing deferred", func(t *testing.T) {

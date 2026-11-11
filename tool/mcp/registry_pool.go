@@ -31,6 +31,7 @@ type registryEntry struct {
 	leases    int
 	lastUsed  time.Time
 	retired   bool
+	identity  atomic.Pointer[registryCallerContext]
 
 	catalogGate       chan struct{}
 	generation        atomic.Uint64
@@ -62,6 +63,10 @@ func (r *Registry) signalLocked() {
 }
 
 func (r *Registry) acquire(ctx context.Context, partition string) (*registryEntry, func(), error) {
+	if _, err := r.credentials(ctx, partition); err != nil {
+		return nil, nil, err
+	}
+
 	for {
 		if err := ctx.Err(); err != nil {
 			return nil, nil, err
@@ -86,6 +91,7 @@ func (r *Registry) acquire(ctx context.Context, partition string) (*registryEntr
 		}
 
 		if entry := r.entries[partition]; entry != nil {
+			entry.rememberIdentity(ctx)
 			entry.leases++
 			r.mu.Unlock()
 
@@ -136,15 +142,20 @@ func (r *Registry) acquire(ctx context.Context, partition string) (*registryEntr
 		}
 
 		entry := &registryEntry{partition: partition, ready: make(chan struct{}), leases: 1, catalogGate: make(chan struct{}, 1)}
+		entry.rememberIdentity(ctx)
 		r.entries[partition] = entry
 		r.mu.Unlock()
 
 		_ = closeRegistryEntries(evicted)
 
-		client := r.newSDKClient(ctx, entry)
-		session, err := client.Connect(ctx, &sdkmcp.StreamableClientTransport{
-			Endpoint: r.endpoint.String(), HTTPClient: r.httpClient(partition),
-		}, nil)
+		client := r.newSDKClient(entry)
+		transport := &registryTransport{
+			StreamableClientTransport: &sdkmcp.StreamableClientTransport{
+				Endpoint: r.endpoint.String(), HTTPClient: r.httpClient(partition),
+			},
+			entry: entry,
+		}
+		session, err := client.Connect(ctx, transport, nil)
 
 		entry.session, entry.err = session, err
 

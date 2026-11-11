@@ -68,7 +68,12 @@ func (t *registryRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 		return nil, errors.New("mcp: cross-origin request refused")
 	}
 
-	credentials, err := t.registry.credentials(req.Context(), t.partition)
+	ctx, err := registryCredentialContext(req.Context())
+	if err != nil {
+		return nil, err
+	}
+
+	credentials, err := t.registry.credentials(ctx, t.partition)
 	if err != nil {
 		return nil, err
 	}
@@ -78,9 +83,22 @@ func (t *registryRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 		return nil, err
 	}
 
-	cloned := req.Clone(req.Context())
+	cloned := req.Clone(ctx)
 	for name, values := range headers {
 		cloned.Header[name] = append([]string(nil), values...)
+	}
+
+	if parameters, ok := req.Context().Value(registryParameterHeadersKey{}).(http.Header); ok && cloned.Header.Get("Mcp-Protocol-Version") >= "2026-07-28" && cloned.Header.Get("Mcp-Method") == "tools/call" {
+		// Replace, rather than merge, headers derived from the SDK's mutable cache.
+		for name := range cloned.Header {
+			if strings.HasPrefix(strings.ToLower(name), "mcp-param-") {
+				delete(cloned.Header, name)
+			}
+		}
+
+		for name, values := range parameters {
+			cloned.Header[name] = append([]string(nil), values...)
+		}
 	}
 
 	return t.base.RoundTrip(cloned)

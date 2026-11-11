@@ -114,9 +114,7 @@ func TestContextRegistryPushInvalidatesCatalog(t *testing.T) {
 			require.NoError(t, err)
 
 			before := len(peer.requests("tools/list"))
-			if !legacy {
-				assert.Equal(t, 2, before, "a live server TTL must actually cache both catalogs")
-			}
+			require.Equal(t, 2, before, "a live server TTL must actually cache both catalogs")
 
 			waitForChange := registryToolChangeBarrier(t, registry, "alice", sent)
 
@@ -148,6 +146,7 @@ func TestContextRegistryPushInvalidatesCatalog(t *testing.T) {
 			bobAfter, err := registry.List(bob)
 			require.NoError(t, err)
 			assert.Equal(t, bobBefore, bobAfter)
+			assert.Len(t, peer.requests("tools/list"), before+1, "Alice's push must not invalidate Bob's cached catalog")
 
 			if legacy {
 				assert.Len(t, peer.requests("initialize"), 2)
@@ -157,7 +156,6 @@ func TestContextRegistryPushInvalidatesCatalog(t *testing.T) {
 					assert.Contains(t, []string{"Bearer alice:one", "Bearer bob:one"}, req.auth)
 				}
 			} else {
-				assert.Len(t, peer.requests("tools/list"), before+1, "Alice's push must not invalidate Bob's cached catalog")
 				assert.Empty(t, peer.requests("initialize"))
 				assert.Len(t, peer.requests("server/discover"), 2)
 				listens := peer.requests("subscriptions/listen")

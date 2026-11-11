@@ -17,7 +17,6 @@ package llmagent
 import (
 	"context"
 	"encoding/json"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -196,8 +195,4 @@ func TestToolSearchNameIsReserved(t *testing.T) {
 	_, err = New("agent", "prompt", fakellm.NewFakeModel(), WithToolLoadingConfig(ToolLoadingConfig{MaxLoadTokens: -1}))
 	require.ErrorContains(t, err, "MaxLoadTokens")
 
-	// prepare never double-declares even if a registry gains the name later.
-	captured := fixtureDefinitions(t, registry)
-	defs := toolloading.New(captured, fakellm.NewFakeModel(), toolloading.Config{}).Prepare(captured, &session.State{ID: "s"}).Tools
-	assert.Equal(t, 1, strings.Count(strings.Join(defNames(defs), ","), toolloading.SearchToolName))
 }

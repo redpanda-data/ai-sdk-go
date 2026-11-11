@@ -228,12 +228,7 @@ func (l *Loader) prepareLocal(defs []llm.ToolDefinition, sess *session.State) ([
 	var sections []string
 
 	if len(deferred) > 0 {
-		// tool_search is a reserved name (config.validate rejects a registry that
-		// already holds it). Guard anyway: a registry is mutable, and declaring the
-		// same tool name twice is a request the provider rejects outright.
-		if !slices.ContainsFunc(scoped, func(def llm.ToolDefinition) bool { return def.Name == SearchToolName }) {
-			scoped = append(scoped, toolSearchDefinition())
-		}
+		scoped = append(scoped, toolSearchDefinition())
 
 		sections = append(sections, renderToolManifest(buildToolManifest(deferred)))
 	}

@@ -83,7 +83,10 @@ protocol negotiation.
 
 Execution re-resolves current credentials and requires the partition captured during discovery. An
 Alice snapshot cannot execute as Bob. A stable partition does not freeze credentials: newly supplied
-headers or refreshed OAuth tokens are used on outgoing requests. Client-side state survives independently
+headers or refreshed OAuth tokens are used on outgoing requests. Background notification requests use
+the latest validated caller context for that partition; active requests retain their own context. The
+pool can retain trusted context values after an operation ends, so credential providers must not rely
+on an open request body or other request-lifetime resources. Client-side state survives independently
 of whether the negotiated protocol uses a wire MCP session.
 
 Server `tools/list_changed` notifications invalidate the corresponding partition, including all pages.
@@ -91,7 +94,8 @@ The registry subscribes to modern pushes and receives legacy notifications. Serv
 `WithRegistryMaxToolCacheTTL` (default 30 seconds); zero disables catalog caching, and a nonpositive
 server TTL never becomes cacheable. Expired entries refresh on demand, not on a background timer.
 A notification received during discovery prevents an older response from restoring a stale cache.
-The current model step keeps its captured definitions; the next step resolves the changed catalog.
+The current model step keeps its captured definitions, including parameter-header annotations, even
+after a push or a newer discovery. The next step resolves the changed catalog.
 
 The pool is bounded, evicts only idle/unleased entries and expires idle entries on access. Configure it
 with `WithRegistryMaxConnections` and `WithRegistryIdleTimeout`. `Close`/`Shutdown` cancel and drain

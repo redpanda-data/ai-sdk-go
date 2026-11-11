@@ -202,8 +202,13 @@ func (r *Registry) Snapshot(ctx context.Context) (tool.Registry, error) {
 			return nil, fmt.Errorf("mcp: tool schema: %w", err)
 		}
 
+		bindings, err := registryParameterBindings(parameters)
+		if err != nil {
+			return nil, err
+		}
+
 		wrapped := &registryTool{
-			registry: r, partition: credentials.PartitionKey, rawName: remote.Name,
+			registry: r, partition: credentials.PartitionKey, rawName: remote.Name, parameterBindings: bindings,
 			definition: llm.ToolDefinition{
 				Name:        mangleHeadIfTooLong(r.serverID+"__"+remote.Name, maxToolNameLen),
 				Description: remote.Description, Parameters: parameters, Type: llm.ToolTypeExtension,
@@ -283,6 +288,11 @@ func (r *Registry) credentials(ctx context.Context, partition string) (Credentia
 		return Credentials{}, err
 	}
 
+	ctx, err := registryCredentialContext(ctx)
+	if err != nil {
+		return Credentials{}, err
+	}
+
 	credentials, err := r.config.credentials(ctx)
 	if err != nil {
 		return Credentials{}, fmt.Errorf("mcp: resolve credentials: %w", err)
@@ -302,10 +312,11 @@ func (r *Registry) credentials(ctx context.Context, partition string) (Credentia
 }
 
 type registryTool struct {
-	registry   *Registry
-	partition  string
-	rawName    string
-	definition llm.ToolDefinition
+	registry          *Registry
+	partition         string
+	rawName           string
+	definition        llm.ToolDefinition
+	parameterBindings []registryParameterBinding
 }
 
 func (t *registryTool) Definition() llm.ToolDefinition {
@@ -337,11 +348,18 @@ func (t *registryTool) Execute(ctx context.Context, args json.RawMessage) (json.
 		arguments = make(map[string]any)
 	}
 
+	headers, err := registryParameterHeaders(t.parameterBindings, arguments)
+	if err != nil {
+		return nil, err
+	}
+
 	entry, release, err := t.registry.acquire(ctx, t.partition)
 	if err != nil {
 		return nil, err
 	}
 	defer release()
+
+	ctx = context.WithValue(ctx, registryParameterHeadersKey{}, headers)
 
 	result, err := entry.session.CallTool(ctx, &sdkmcp.CallToolParams{Name: t.rawName, Arguments: arguments})
 	if err != nil {

@@ -21,21 +21,19 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func (r *Registry) newSDKClient(identity context.Context, entry *registryEntry) *sdkmcp.Client {
+func (r *Registry) newSDKClient(entry *registryEntry) *sdkmcp.Client {
 	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "redpanda-ai-agent-sdk", Version: "v1.0.0"}, &sdkmcp.ClientOptions{
 		ToolListChangedHandler: func(context.Context, *sdkmcp.ToolListChangedRequest) {
 			entry.generation.Add(1)
 		},
 	})
-	identity = context.WithoutCancel(identity)
-
 	client.AddSendingMiddleware(func(next sdkmcp.MethodHandler) sdkmcp.MethodHandler {
-		//nolint:contextcheck // The bridge inherits cancellation and all request values, adding only trusted identity values.
+		//nolint:contextcheck // The SDK owns background cancellation; values follow the latest validated partition caller.
 		return func(ctx context.Context, method string, req sdkmcp.Request) (sdkmcp.Result, error) {
 			if method == "subscriptions/listen" {
-				// The SDK roots subscriptions in Background; retain trusted identity
-				// values without borrowing the discovery operation's cancellation.
-				ctx = registryIdentityContext{Context: ctx, identity: identity}
+				// Reconnects must read the latest validated partition caller, not
+				// retain the initial caller's expired context credentials.
+				ctx = registryIdentityContext{Context: ctx, entry: entry}
 			}
 
 			result, err := next(ctx, method, req)
@@ -105,19 +103,4 @@ func (r *Registry) catalog(ctx context.Context, entry *registryEntry) ([]*sdkmcp
 
 		return fetched, nil
 	}
-}
-
-//nolint:containedctx // Bridges SDK-owned subscription cancellation and caller identity values.
-type registryIdentityContext struct {
-	context.Context
-
-	identity context.Context
-}
-
-func (c registryIdentityContext) Value(key any) any {
-	if value := c.Context.Value(key); value != nil {
-		return value
-	}
-
-	return c.identity.Value(key)
 }

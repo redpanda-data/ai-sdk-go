@@ -55,8 +55,8 @@ func (l *Loader) prepareNative(defs []llm.ToolDefinition, sess *session.State) (
 		}
 	}
 	// Deferred tools are invisible to the model until discovered, so a group
-	// directory tells it what a search can find. It is built from the registry,
-	// not the restored set, so it stays stable for the life of the registry.
+	// directory tells it what a search can find. It uses the captured catalog,
+	// not the restored set, so loading does not change it within that catalog.
 	var sections []string
 
 	if directory := renderGroupDirectory(l.definitions); directory != "" {
