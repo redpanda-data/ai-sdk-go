@@ -21,11 +21,13 @@ import (
 )
 
 // closeDetached closes sessions already detached from entries without blocking
-// the caller: go-sdk's Close sends the legacy session-termination DELETE on a
-// detached context, bounded only by its own five-second timeout. Each session
-// holds its capacity until Close returns, so these goroutines never exceed
-// maxConnections. Callers must not hold r.mu and must run while r.wg is held
-// (an operation or connect), so every Add precedes shutdown's cleanup Wait.
+// the caller. go-sdk's Close sends the legacy session-termination DELETE on a
+// detached context; its five-second timeout bounds that request only. Close
+// itself can take longer, for example while the SDK's reader holds its
+// connection lock for its own DELETE or outstanding requests drain. Each
+// session holds its capacity until Close returns, so these goroutines never
+// exceed maxConnections. Callers must not hold r.mu and must run while r.wg is
+// held (an operation or connect), so every Add precedes shutdown's cleanup Wait.
 func (r *Registry) closeDetached(entries []*registryEntry) {
 	if len(entries) == 0 {
 		return
@@ -47,7 +49,9 @@ func (r *Registry) closeDetached(entries []*registryEntry) {
 }
 
 // finishCleanup closes the remaining sessions concurrently with detached
-// closes still in flight, waits for both, and reports every failure.
+// closes still in flight, waits for both, and reports every failure. The wait
+// has no time bound of its own: Shutdown's context bounds only its caller, and
+// a later Shutdown can wait again.
 func (r *Registry) finishCleanup(entries []*registryEntry) error {
 	err := closeRegistrySessions(entries)
 
@@ -57,7 +61,8 @@ func (r *Registry) finishCleanup(entries []*registryEntry) error {
 }
 
 // closeRegistrySessions closes sessions concurrently and joins their errors in
-// input order, so shutdown waits for one DELETE timeout rather than one each.
+// input order, so shutdown overlaps their termination DELETEs rather than
+// serializing them.
 func closeRegistrySessions(entries []*registryEntry) error {
 	errs := make([]error, len(entries))
 

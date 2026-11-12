@@ -90,7 +90,9 @@ type cleanupPeerStats struct {
 // It records per-partition opens, legacy session owners and DELETEs, and can
 // hold session-termination DELETEs at the peer regardless of client deadlines.
 // Live counts legacy sessions from the initialize response that assigned them
-// until their DELETE is admitted, so it never lags the registry's capacity.
+// until their DELETE passes the peer's hold and pacing gates. The registry
+// frees a slot only after that DELETE's response, so Live never exceeds the
+// registry's occupied capacity unless go-sdk gives up on a held DELETE.
 type cleanupPeer struct {
 	url     string
 	legacy  bool
@@ -886,9 +888,10 @@ func TestRegistryEvictionReturnsWhilePeerDeleteBlocked(t *testing.T) {
 
 // TestRegistryModernEvictionReturnsWhileCancelBlocked is the modern-protocol
 // variant. Stateless sessions have no Mcp-Session-Id, so go-sdk sends no
-// DELETE; instead Close cancels the subscriptions/listen stream and waits up
-// to five seconds for its notifications/cancelled. Holding that notification
-// at the peer must not hold Bob, and the slot is not reused until Close ends.
+// DELETE; instead Close cancels the subscriptions/listen stream and waits for
+// its notifications/cancelled, whose send go-sdk times out after five seconds.
+// Holding that notification at the peer must not hold Bob, and the slot is not
+// reused until Close ends.
 func TestRegistryModernEvictionReturnsWhileCancelBlocked(t *testing.T) {
 	t.Parallel()
 

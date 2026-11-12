@@ -211,7 +211,7 @@ func (r *Registry) Snapshot(ctx context.Context) (tool.Registry, error) {
 			return nil, fmt.Errorf("mcp: server %q tool %q schema: %w", r.serverID, remote.Name, err)
 		}
 
-		bindings, err := registryParameterBindings(parameters)
+		bindings, err := registryInputSchema(parameters)
 		if err != nil {
 			return nil, fmt.Errorf("mcp: server %q tool %q: %w", r.serverID, remote.Name, err)
 		}

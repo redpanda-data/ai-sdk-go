@@ -499,7 +499,9 @@ func (f *cleanupFixture) holdCleanup() {
 // runCleanupDeadlineCohort holds cleanup at the peer, then sends fresh
 // partitions with 50ms deadlines at the full pool. They must evict idle
 // sessions in the background, never open past capacity, and each return its
-// own deadline error while every eviction is still held.
+// own deadline error while every eviction is still held. That ordering is
+// proven by registry and peer state once all callers returned, not by wall
+// time: the overrun is reported only, since it includes scheduler delay.
 func runCleanupDeadlineCohort(t *testing.T, f *cleanupFixture, c cleanupScaleCase) (int, int, float64) {
 	t.Helper()
 
@@ -557,6 +559,8 @@ func runCleanupDeadlineCohort(t *testing.T, f *cleanupFixture, c cleanupScaleCas
 		assert.Zero(t, f.peer.openCount(fmt.Sprintf("late-%02d", i)), "slots held by closing sessions must not be reused")
 	}
 
+	// Closing counts sessions whose Close has not returned, so a positive count
+	// after every caller returned shows no caller waited for its eviction.
 	evicted := cleanupPool(f.registry).Closing
 	assert.GreaterOrEqual(t, evicted, 1, "the cohort must evict at least one idle session")
 	assert.LessOrEqual(t, evicted, c.slots)
@@ -585,7 +589,6 @@ func checkCleanupScale(t *testing.T, c cleanupScaleCase, r cleanupScaleResult) {
 	assert.Zero(t, r.Errors)
 	assert.Equal(t, r.Operations, r.Verified)
 	assert.Equal(t, r.DeadlineCohort, r.DeadlineErrors)
-	assert.LessOrEqual(t, r.DeadlineOverrunMs, 2000.0, "a deadline must not wait for go-sdk's five-second cleanup")
 	assert.LessOrEqual(t, r.OccupiedPeak, c.slots)
 	assert.Equal(t, int64(min(c.workers, c.users)), r.PeakOperations, "all workers must have run concurrently")
 	assert.True(t, r.ShutdownBlocked, "Shutdown must wait for held cleanup")

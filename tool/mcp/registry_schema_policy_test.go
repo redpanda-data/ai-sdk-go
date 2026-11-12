@@ -18,6 +18,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -37,18 +42,35 @@ import (
 func TestRegistryMalformedSchemaFailsWholeAgentStep(t *testing.T) {
 	t.Parallel()
 
+	external := newRegistrySchemaExternalPeer(t)
+	unmarshalType := func(t *testing.T, err error) {
+		t.Helper()
+
+		var schemaErr *json.UnmarshalTypeError
+		require.ErrorAs(t, err, &schemaErr, "the diagnostic must preserve the underlying decode error")
+	}
+
 	for _, legacy := range []bool{false, true} {
 		for _, test := range []struct {
 			name   string
 			schema string
-			field  string
+			want   string
+			cause  func(*testing.T, error)
 		}{
-			{"properties array", `{"type":"object","properties":[]}`, "properties"},
-			{"nonobject property", `{"type":"object","properties":{"q":"string"}}`, `property "q"`},
+			{"properties array", `{"type":"object","properties":[]}`, "properties", unmarshalType},
+			{"nonobject property", `{"type":"object","properties":{"q":"string"}}`, `property "q"`, unmarshalType},
+			{"absent schema", `null`, "input schema: must be a JSON object", nil},
+			{"numeric root type", `{"type":42}`, `invalid value for "type"`, nil},
+			{"numeric nested type", `{"type":"object","properties":{"q":{"type":42}}}`, `invalid value for "type"`, nil},
+			{"string required", `{"type":"object","required":"q"}`, "required", unmarshalType},
+			{"unknown nested type", `{"type":"object","properties":{"q":{"anyOf":[{"type":"string"},{"type":"strin"}]}}}`, `unknown type "strin" at "/properties/q/anyOf/1"`, nil},
+			{"dangling local reference", `{"type":"object","properties":{"q":{"$ref":"#/$defs/missing"}}}`, `"/$defs/missing"`, nil},
+			{"external reference", `{"type":"object","properties":{"q":{"$ref":"{external}/schema.json"}}}`, "external schema references are not supported", nil},
 		} {
 			t.Run(fmt.Sprintf("legacy=%t/%s", legacy, test.name), func(t *testing.T) {
 				t.Parallel()
 
+				schema := external.expand(test.schema)
 				peer := newRegistryPeer(t, legacy)
 				var malformed atomic.Bool
 				malformed.Store(true)
@@ -57,7 +79,7 @@ func TestRegistryMalformedSchemaFailsWholeAgentStep(t *testing.T) {
 						result, err := next(ctx, method, req)
 						if listed, ok := result.(*sdkmcp.ListToolsResult); ok && err == nil && malformed.Load() {
 							listed.Tools = append(listed.Tools, &sdkmcp.Tool{
-								Name: "broken", InputSchema: json.RawMessage(test.schema),
+								Name: "broken", InputSchema: json.RawMessage(schema),
 							})
 						}
 
@@ -76,6 +98,7 @@ func TestRegistryMalformedSchemaFailsWholeAgentStep(t *testing.T) {
 				model := fakellm.NewFakeModel()
 				model.When(fakellm.Any()).ThenRespondWith(func(req *llm.Request, _ *fakellm.CallContext) (*llm.Response, error) {
 					definitions := registryNames(req.Tools)
+					assert.NotContains(t, definitions, "remote__broken", "a malformed schema must never reach the model")
 					assert.Contains(t, definitions, "local_lookup")
 
 					owner := "alice"
@@ -105,13 +128,15 @@ func TestRegistryMalformedSchemaFailsWholeAgentStep(t *testing.T) {
 
 				for range 2 {
 					errors := registrySchemaPolicyRun(ctx, ag)
-					require.NotEmpty(t, errors)
+					require.NotEmpty(t, errors, "the malformed schema must fail the agent step")
 
 					for _, err := range errors {
 						require.ErrorContains(t, err, `server "remote" tool "broken"`)
-						require.ErrorContains(t, err, test.field)
-						var schemaErr *json.UnmarshalTypeError
-						require.ErrorAs(t, err, &schemaErr, "the diagnostic must preserve the underlying error")
+						require.ErrorContains(t, err, test.want)
+
+						if test.cause != nil {
+							test.cause(t, err)
+						}
 					}
 				}
 
@@ -127,6 +152,10 @@ func TestRegistryMalformedSchemaFailsWholeAgentStep(t *testing.T) {
 				require.Empty(t, registrySchemaPolicyRun(bob, ag), "another caller's valid catalog remains usable")
 				assert.Equal(t, 1, model.CallCount())
 
+				lists := peer.requests(registryParameterListMethod)
+				require.Len(t, lists, 3)
+				assert.Equal(t, "Bearer bob:one", lists[2].auth, "bob's discovery must not reuse alice's failed partition")
+
 				malformed.Store(false)
 				require.Empty(t, registrySchemaPolicyRun(ctx, ag), "fixing the server restores the same reusable agent")
 				assert.Equal(t, 2, model.CallCount())
@@ -134,6 +163,116 @@ func TestRegistryMalformedSchemaFailsWholeAgentStep(t *testing.T) {
 			})
 		}
 	}
+}
+
+// Valid schemas that exercise references, boolean subschemas, unions, both
+// supported dialects and non-schema keyword values must reach the model unchanged.
+var registryValidComplexSchemas = map[string]string{
+	"local_refs": `{"type":"object","$defs":{"node":{"type":"object","properties":{"children":{"type":"array","items":{"$ref":"#/$defs/node"}},` +
+		`"label":{"$ref":"#label"}}},"label":{"$anchor":"label","type":["string","null"]}},` +
+		`"properties":{"root":{"$ref":"#/$defs/node"},"self":{"$ref":"#"}},"required":["root"]}`,
+	"annotations": `{"type":"object","x-extension":{"type":42,"required":"q"},"$comment":"remote","title":"Lookup",` +
+		`"properties":{"any":true,"never":false,"route":{"type":"string","x-mcp-header":"Tenant","x-vendor":{"type":42}},` +
+		`"choice":{"oneOf":[{"type":"integer","minimum":0},{"type":"null"}]},"type":{"type":"string","enum":["a","b"]},` +
+		`"literal":{"const":{"type":"bogus"},"default":{"type":42},"examples":[{"required":"q"}],"deprecated":true},` +
+		`"blob":{"type":"string","format":"byte","contentEncoding":"base64","readOnly":true}},` +
+		`"patternProperties":{"^x-":{"type":"string","pattern":"^[a-z]+$"}},"additionalProperties":false}`,
+	"draft07": `{"$schema":"http://json-schema.org/draft-07/schema#","type":"object",` +
+		`"definitions":{"pair":{"type":"array","items":[{"type":"string"},{"type":"number"}],"additionalItems":false}},` +
+		`"properties":{"pair":{"$ref":"#/definitions/pair"},"other":{"type":"integer"}},"dependencies":{"pair":["other"]}}`,
+	"applicators": `{"type":"object","properties":{"kind":{"type":"string"},"tuple":{"type":"array","prefixItems":[{"type":"string"}],` +
+		`"items":{"type":"number"},"contains":{"type":"number"},"minContains":1,"unevaluatedItems":false}},` +
+		`"if":{"properties":{"kind":{"const":"a"}}},"then":{"required":["tuple"]},"else":{"not":{"required":["tuple"]}},` +
+		`"allOf":[{"propertyNames":{"pattern":"^[a-z]+$"}}],"anyOf":[true,{"minProperties":1}],` +
+		`"dependentSchemas":{"kind":{"properties":{"kind":{"type":"string"}}}},"dependentRequired":{"tuple":["kind"]},"unevaluatedProperties":false}`,
+	"identified": `{"$id":"{external}/tool.json","type":"object","properties":{"a":{"$ref":"{external}/tool.json#/$defs/a"}},` +
+		`"$defs":{"a":{"type":"string"}}}`,
+}
+
+func TestRegistryValidComplexSchemasReachModel(t *testing.T) {
+	t.Parallel()
+
+	external := newRegistrySchemaExternalPeer(t)
+
+	for _, legacy := range []bool{false, true} {
+		t.Run(fmt.Sprintf("legacy=%t", legacy), func(t *testing.T) {
+			t.Parallel()
+
+			peer := newRegistryPeer(t, legacy)
+			peer.servers["alice"].AddReceivingMiddleware(func(next sdkmcp.MethodHandler) sdkmcp.MethodHandler {
+				return func(ctx context.Context, method string, req sdkmcp.Request) (sdkmcp.Result, error) {
+					result, err := next(ctx, method, req)
+					if listed, ok := result.(*sdkmcp.ListToolsResult); ok && err == nil {
+						for name, schema := range registryValidComplexSchemas {
+							listed.Tools = append(listed.Tools, &sdkmcp.Tool{Name: "valid_" + name, InputSchema: json.RawMessage(external.expand(schema))})
+						}
+					}
+
+					return result, err
+				}
+			})
+			remote := newContextRegistry(t, peer)
+
+			var mu sync.Mutex
+			seen := make(map[string]json.RawMessage)
+			model := fakellm.NewFakeModel()
+			model.When(fakellm.Any()).ThenRespondWith(func(req *llm.Request, _ *fakellm.CallContext) (*llm.Response, error) {
+				mu.Lock()
+				defer mu.Unlock()
+
+				for _, definition := range req.Tools {
+					seen[definition.Name] = definition.Parameters
+				}
+
+				return &llm.Response{
+					Message: llm.NewMessage(llm.RoleAssistant, llm.NewTextPart("ready")), FinishReason: llm.FinishReasonStop,
+				}, nil
+			})
+			ag, err := llmagent.New("schema-policy", "Use the available tools.", model, llmagent.WithTools(remote))
+			require.NoError(t, err)
+
+			ctx, cancel := context.WithTimeout(registryCaller(t.Context(), "alice", "alice:one"), 10*time.Second)
+			defer cancel()
+
+			require.Empty(t, registrySchemaPolicyRun(ctx, ag))
+			require.Equal(t, 1, model.CallCount())
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			assert.Contains(t, seen, "remote__alice_only")
+
+			for name, schema := range registryValidComplexSchemas {
+				parameters, ok := seen["remote__valid_"+name]
+				if assert.True(t, ok, "valid schema %q must reach the model", name) {
+					assert.JSONEq(t, external.expand(schema), string(parameters))
+				}
+			}
+		})
+	}
+}
+
+// registrySchemaExternalPeer is the target of external schema references. Discovery
+// must never fetch it.
+type registrySchemaExternalPeer struct{ url string }
+
+func newRegistrySchemaExternalPeer(t *testing.T) registrySchemaExternalPeer {
+	t.Helper()
+
+	var hits atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+
+		_, _ = io.WriteString(w, `{"type":"string"}`)
+	}))
+	t.Cleanup(server.Close)
+	t.Cleanup(func() { assert.Zero(t, hits.Load(), "schema validation must not fetch external references") })
+
+	return registrySchemaExternalPeer{url: server.URL}
+}
+
+func (p registrySchemaExternalPeer) expand(schema string) string {
+	return strings.ReplaceAll(schema, "{external}", p.url)
 }
 
 func registrySchemaPolicyRun(ctx context.Context, ag *llmagent.LLMAgent) []error {
