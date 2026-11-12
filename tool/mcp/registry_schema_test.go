@@ -90,6 +90,13 @@ func TestRegistryInputSchemaRejectsMalformedSchemas(t *testing.T) {
 		{"numeric nested type", `{"type":"object","properties":{"q":{"items":{"type":42}}}}`, `invalid value for "type"`, nil},
 		{"nonstring type member", `{"type":["string",42]}`, "cannot unmarshal", unmarshalType("")},
 		{"unknown root type", `{"type":"strin"}`, `unknown type "strin" at ""`, nil},
+		{"empty root type", `{"type":""}`, `empty type name at ""`, nil},
+		{"empty nested type", `{"type":"object","properties":{"q":{"type":""}}}`, `empty type name at "/properties/q"`, nil},
+		{"empty union member", `{"type":["string",""]}`, `empty type name at ""`, nil},
+		{"empty type of property named type", `{"properties":{"type":{"type":""}}}`, `empty type name at "/properties/type"`, nil},
+		{"empty referenced definition type", `{"properties":{"q":{"$ref":"#/$defs/q"}},"$defs":{"q":{"type":["null",""]}}}`, `empty type name at "/$defs/q"`, nil},
+		{"empty draft-07 tuple type", `{"$schema":"http://json-schema.org/draft-07/schema#","items":[{"type":"string"},{"type":""}]}`, `empty type name at "/items/1"`, nil},
+		{"empty dependency schema type", `{"dependencies":{"a":["b"],"c":{"type":""}}}`, `empty type name at "/dependencies/c"`, nil},
 		{"unknown union member", `{"properties":{"q":{"type":["string","nul"]}}}`, `unknown type "nul" at "/properties/q"`, nil},
 		{"empty type array", `{"properties":{"q":{"type":[]}}}`, `empty type array at "/properties/q"`, nil},
 		{"duplicate type", `{"type":["string","string"]}`, `duplicate type "string" at ""`, nil},
@@ -133,31 +140,35 @@ func TestRegistryInputSchemaChecksEverySubschema(t *testing.T) {
 	t.Parallel()
 
 	placements := map[string]string{
-		`{"properties":{"p":%s}}`:            "/properties/p",
-		`{"patternProperties":{"^p":%s}}`:    "/patternProperties/^p",
-		`{"additionalProperties":%s}`:        "/additionalProperties",
-		`{"propertyNames":%s}`:               "/propertyNames",
-		`{"unevaluatedProperties":%s}`:       "/unevaluatedProperties",
-		`{"dependentSchemas":{"p":%s}}`:      "/dependentSchemas/p",
-		`{"dependencies":{"p":%s}}`:          "/dependencies/p",
-		`{"items":%s}`:                       "/items",
-		`{"items":[true,%s]}`:                "/items/1",
-		`{"prefixItems":[%s]}`:               "/prefixItems/0",
-		`{"additionalItems":%s}`:             "/additionalItems",
-		`{"contains":%s}`:                    "/contains",
-		`{"unevaluatedItems":%s}`:            "/unevaluatedItems",
-		`{"allOf":[%s]}`:                     "/allOf/0",
-		`{"anyOf":[%s]}`:                     "/anyOf/0",
-		`{"oneOf":[%s]}`:                     "/oneOf/0",
-		`{"not":%s}`:                         "/not",
-		`{"if":%s}`:                          "/if",
-		`{"then":%s}`:                        "/then",
-		`{"else":%s}`:                        "/else",
-		`{"$defs":{"d":%s}}`:                 "/$defs/d",
-		`{"definitions":{"d":%s}}`:           "/definitions/d",
-		`{"contentSchema":%s}`:               "/contentSchema",
-		`{"properties":{"p":{"items":%s}}}`:  "/properties/p/items",
-		`{"allOf":[{"not":{"anyOf":[%s]}}]}`: "/allOf/0/not/anyOf/0",
+		`{"properties":{"p":%s}}`:                      "/properties/p",
+		`{"patternProperties":{"^p":%s}}`:              "/patternProperties/^p",
+		`{"additionalProperties":%s}`:                  "/additionalProperties",
+		`{"propertyNames":%s}`:                         "/propertyNames",
+		`{"unevaluatedProperties":%s}`:                 "/unevaluatedProperties",
+		`{"dependentSchemas":{"p":%s}}`:                "/dependentSchemas/p",
+		`{"dependencies":{"p":%s}}`:                    "/dependencies/p",
+		`{"items":%s}`:                                 "/items",
+		`{"items":[true,%s]}`:                          "/items/1",
+		`{"prefixItems":[%s]}`:                         "/prefixItems/0",
+		`{"additionalItems":%s}`:                       "/additionalItems",
+		`{"contains":%s}`:                              "/contains",
+		`{"unevaluatedItems":%s}`:                      "/unevaluatedItems",
+		`{"allOf":[%s]}`:                               "/allOf/0",
+		`{"anyOf":[%s]}`:                               "/anyOf/0",
+		`{"oneOf":[%s]}`:                               "/oneOf/0",
+		`{"not":%s}`:                                   "/not",
+		`{"if":%s}`:                                    "/if",
+		`{"then":%s}`:                                  "/then",
+		`{"else":%s}`:                                  "/else",
+		`{"$defs":{"d":%s}}`:                           "/$defs/d",
+		`{"definitions":{"d":%s}}`:                     "/definitions/d",
+		`{"contentSchema":%s}`:                         "/contentSchema",
+		`{"properties":{"p":{"items":%s}}}`:            "/properties/p/items",
+		`{"allOf":[{"not":{"anyOf":[%s]}}]}`:           "/allOf/0/not/anyOf/0",
+		`{"type":["string","null"],"anyOf":[true,%s]}`: "/anyOf/1",
+		`{"properties":{"q":{"$ref":"#/$defs/d"}},"$defs":{"d":{"oneOf":[%s]}}}`:                   "/$defs/d/oneOf/0",
+		`{"$schema":"http://json-schema.org/draft-07/schema#","definitions":{"d":{"items":[%s]}}}`: "/definitions/d/items/0",
+		`{"dependencies":{"a":["b"],"p":{"properties":{"q":%s}}}}`:                                 "/dependencies/p/properties/q",
 	}
 
 	covered := make(map[string]bool)
@@ -168,11 +179,20 @@ func TestRegistryInputSchemaChecksEverySubschema(t *testing.T) {
 		t.Run(pointer, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := registryInputSchema(json.RawMessage(fmt.Sprintf(template, `{"type":"bogus"}`)))
-			require.ErrorContains(t, err, fmt.Sprintf(`unknown type "bogus" at %q`, pointer))
+			for schema, want := range map[string]string{
+				`{"type":"bogus"}`:         `unknown type "bogus"`,
+				`{"type":""}`:              "empty type name",
+				`{"type":["string",""]}`:   "empty type name",
+				`{"type":["null","null"]}`: `duplicate type "null"`,
+			} {
+				_, err := registryInputSchema(json.RawMessage(fmt.Sprintf(template, schema)))
+				require.ErrorContains(t, err, fmt.Sprintf(`%s at %q`, want, pointer), schema)
+			}
 
-			_, err = registryInputSchema(json.RawMessage(fmt.Sprintf(template, `{"type":"string"}`)))
-			require.NoError(t, err)
+			for _, schema := range []string{`{"type":"string"}`, `{"type":["string","null"],"const":{"type":""},"x-meta":{"type":""}}`, `true`} {
+				_, err := registryInputSchema(json.RawMessage(fmt.Sprintf(template, schema)))
+				require.NoError(t, err, schema)
+			}
 		})
 	}
 

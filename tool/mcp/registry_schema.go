@@ -41,12 +41,13 @@ var registrySchemaTypeNames = []string{"array", "boolean", "integer", "null", "n
 var registrySchemaPointerPath = strings.NewReplacer("~", "~0", "/", "~1")
 
 type registrySchemaField struct {
-	index   []int
 	keyword string
+	named   bool // an object of named subschemas, otherwise a subschema or an array of them
 }
 
-// registrySchemaFields lists every subschema-bearing field of the library's
-// Schema, so the type check follows the library's own notion of subschemas.
+// registrySchemaFields lists the keywords of every subschema-bearing field of the
+// library's Schema, so the type check follows the library's own notion of
+// subschemas and never reads const, default, examples or extension values.
 var registrySchemaFields = func() []registrySchemaField {
 	var fields []registrySchemaField
 
@@ -55,9 +56,27 @@ var registrySchemaFields = func() []registrySchemaField {
 			continue
 		}
 
+		var entry registrySchemaField
+
 		switch field.Type {
-		case reflect.TypeFor[*jsonschema.Schema](), reflect.TypeFor[[]*jsonschema.Schema](), reflect.TypeFor[map[string]*jsonschema.Schema]():
-			fields = append(fields, registrySchemaField{index: field.Index, keyword: registrySchemaKeyword(field)})
+		case reflect.TypeFor[map[string]*jsonschema.Schema]():
+			entry.named = true
+		case reflect.TypeFor[*jsonschema.Schema](), reflect.TypeFor[[]*jsonschema.Schema]():
+		default:
+			continue
+		}
+
+		switch field.Name {
+		case "Items", "ItemsArray":
+			entry.keyword = "items"
+		case "DependencySchemas":
+			entry.keyword = "dependencies"
+		default:
+			entry.keyword, _, _ = strings.Cut(field.Tag.Get("json"), ",")
+		}
+
+		if !slices.Contains(fields, entry) {
+			fields = append(fields, entry)
 		}
 	}
 
@@ -127,8 +146,14 @@ func registryValidateSchema(raw json.RawMessage) error {
 		return err
 	}
 
-	// The library does not check type names against the meta-schema.
-	if err := registryCheckSchemaTypes(&schema); err != nil {
+	// The library neither checks type names nor keeps an explicit "" apart from
+	// an absent type, so the check reads the raw keywords.
+	var tree any
+	if err := json.Unmarshal(raw, &tree); err != nil {
+		return err
+	}
+
+	if err := registryCheckSchemaTypes(tree); err != nil {
 		return err
 	}
 
@@ -151,53 +176,57 @@ func (e *registrySchemaTypeError) Error() string {
 	return fmt.Sprintf("%s at %q", e.reason, pointer.String())
 }
 
-func registryCheckSchemaTypes(schema *jsonschema.Schema) *registrySchemaTypeError {
-	if schema == nil {
-		return nil
+// registryCheckSchemaTypes walks a schema decoded into any. The typed decode has
+// already checked each keyword's shape: type is absent, a string or an array of
+// strings, and subschemas are objects or booleans.
+func registryCheckSchemaTypes(node any) *registrySchemaTypeError {
+	schema, ok := node.(map[string]any)
+	if !ok {
+		return nil // a boolean schema or a dependencies property list
 	}
 
-	if schema.Type != "" && !slices.Contains(registrySchemaTypeNames, schema.Type) {
-		return &registrySchemaTypeError{reason: fmt.Sprintf("unknown type %q", schema.Type)}
-	}
-
-	if schema.Types != nil && len(schema.Types) == 0 {
-		return &registrySchemaTypeError{reason: "empty type array"}
-	}
-
-	for i, name := range schema.Types {
-		if !slices.Contains(registrySchemaTypeNames, name) {
-			return &registrySchemaTypeError{reason: fmt.Sprintf("unknown type %q", name)}
+	switch value := schema["type"].(type) {
+	case string:
+		if err := registryCheckSchemaTypeName(value); err != nil {
+			return err
+		}
+	case []any:
+		if len(value) == 0 {
+			return &registrySchemaTypeError{reason: "empty type array"}
 		}
 
-		if slices.Contains(schema.Types[:i], name) {
-			return &registrySchemaTypeError{reason: fmt.Sprintf("duplicate type %q", name)}
+		for i, member := range value {
+			name, _ := member.(string)
+			if err := registryCheckSchemaTypeName(name); err != nil {
+				return err
+			}
+
+			if slices.Contains(value[:i], member) {
+				return &registrySchemaTypeError{reason: fmt.Sprintf("duplicate type %q", name)}
+			}
 		}
 	}
-
-	value := reflect.ValueOf(schema).Elem()
 
 	for _, field := range registrySchemaFields {
-		child := value.FieldByIndex(field.index)
-		if child.IsNil() {
-			continue
-		}
-
 		var err *registrySchemaTypeError
 
-		switch child := child.Interface().(type) {
-		case *jsonschema.Schema:
-			err = registryCheckSchemaTypes(child)
-		case []*jsonschema.Schema:
-			for i, element := range child {
-				if err = registryCheckSchemaTypes(element); err != nil {
-					err.segments = append(err.segments, strconv.Itoa(i))
-					break
-				}
+		switch child := schema[field.keyword].(type) {
+		case map[string]any:
+			if !field.named {
+				err = registryCheckSchemaTypes(child)
+				break
 			}
-		case map[string]*jsonschema.Schema:
+
 			for _, key := range slices.Sorted(maps.Keys(child)) {
 				if err = registryCheckSchemaTypes(child[key]); err != nil {
 					err.segments = append(err.segments, registrySchemaPointerPath.Replace(key))
+					break
+				}
+			}
+		case []any:
+			for i, element := range child {
+				if err = registryCheckSchemaTypes(element); err != nil {
+					err.segments = append(err.segments, strconv.Itoa(i))
 					break
 				}
 			}
@@ -213,15 +242,13 @@ func registryCheckSchemaTypes(schema *jsonschema.Schema) *registrySchemaTypeErro
 	return nil
 }
 
-func registrySchemaKeyword(field reflect.StructField) string {
-	switch field.Name {
-	case "Items", "ItemsArray":
-		return "items"
-	case "DependencySchemas":
-		return "dependencies"
+func registryCheckSchemaTypeName(name string) *registrySchemaTypeError {
+	switch {
+	case name == "":
+		return &registrySchemaTypeError{reason: "empty type name"}
+	case !slices.Contains(registrySchemaTypeNames, name):
+		return &registrySchemaTypeError{reason: fmt.Sprintf("unknown type %q", name)}
 	}
 
-	name, _, _ := strings.Cut(field.Tag.Get("json"), ",")
-
-	return name
+	return nil
 }
