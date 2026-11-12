@@ -553,9 +553,9 @@ func entries() []catalog.Entry {
 		// "gpt-5.6" is OpenAI's official alias for Sol.
 		gpt56Entry(ModelGPT5_6Sol, catalog.ModelGPT5_6Sol, []string{ModelGPT5_6},
 			// Per M tokens: $4.00 input, $20.00 output, $0.40 cached input, $5.00 cache write.
-			// Promotional pricing, "available at least through November 21, 2026"
-			// per developers.openai.com/api/docs/pricing; the Batch, Flex, and
-			// Fast cards below are priced off the same promotional rates.
+			// Promotional pricing, "available until November 30, 2026" per
+			// developers.openai.com/api/docs/pricing (read 2026-11-12); the Batch,
+			// Flex, and Fast cards below are priced off the same promotional rates.
 			// Above 272K: $8.00 input, $30.00 output, $0.80 cached input, $10.00 cache write.
 			pricing.TieredInfo(
 				pricing.NewRates(4.00, 20.00, 0.40).WithCacheCreation(0, 0, 5.00),

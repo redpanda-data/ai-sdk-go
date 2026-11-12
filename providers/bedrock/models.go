@@ -63,6 +63,14 @@ const (
 	ModelClaudeFable5US     = "us." + ModelClaudeFable5
 	ModelClaudeFable5EU     = "eu." + ModelClaudeFable5
 
+	// ModelClaudeFable52 is the bare Bedrock ID for Claude Fable 5.2
+	// (inference-profile-only — invoke via one of the prefixed variants).
+	// AWS publishes only the us. and global. profiles:
+	// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-fable-5-2.html
+	ModelClaudeFable52       = "anthropic.claude-fable-5-2"
+	ModelClaudeFable52Global = "global." + ModelClaudeFable52
+	ModelClaudeFable52US     = "us." + ModelClaudeFable52
+
 	// ModelClaudeFable51 is the bare Bedrock ID for Claude Fable 5.1
 	// (inference-profile-only — invoke via one of the prefixed variants).
 	// AWS publishes only the us. and global. profiles:
@@ -946,6 +954,29 @@ var (
 // AWS announced a Legacy or EOL date; per-profile availability dates are not
 // published, so Available stays unset rather than inventing dates.
 var bedrockFamilies = []family{
+	{
+		// Claude Fable 5.2 — inference-profile-only on bedrock-runtime, no bare
+		// entry: the card gives no In-Region endpoint and no bedrock-mantle
+		// endpoint, publishes US geo and global profiles, and marks Count
+		// tokens as not supported (read 2026-11-12):
+		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-fable-5-2.html
+		// Rates from the AWS price list (read 2026-11-12); cache reads are
+		// 0.025x base input, as on Anthropic's first-party price:
+		// https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrockFoundationModels/current/us-east-1/index.json
+		BareID:         ModelClaudeFable52,
+		WireAPIs:       claudeMessagesWireAPIs,
+		Model:          catalog.ModelClaudeFable52,
+		DisplayName:    "Claude Fable 5.2",
+		Profiles:       []string{"global", "us"},
+		DataSharing:    true,
+		Capabilities:   claudeStandardCaps,
+		Modalities:     claudeModalities,
+		Constraints:    claudeNoSampling1MConstraints,
+		Reasoning:      frontierClaudeThinking,
+		GlobalRates:    &pricing.RateCard{Base: pricing.NewRates(8.00, 40.00, 0.20).WithCacheCreation(10.00, 16.00, 0)},
+		Rates:          pricing.RateCard{Base: pricing.NewRates(8.80, 44.00, 0.22).WithCacheCreation(11.00, 17.60, 0)},
+		ProfileRegions: claudeFable52ProfileRegions,
+	},
 	{
 		// Claude Fable 5.1 — inference-profile-only, no bare entry. The
 		// model card publishes a US geo profile and global; EU/JP/AU

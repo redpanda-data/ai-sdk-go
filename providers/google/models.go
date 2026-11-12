@@ -24,6 +24,7 @@ import (
 
 // Model ID constants for Google Gemini models.
 const (
+	ModelGemini4Carbon = "gemini-4-carbon"
 	ModelGemini4Argon  = "gemini-4-argon"
 	ModelGemini38Flash = "gemini-3.8-flash"
 	// ModelGemini37Flash is Gemini 3.7 Flash.
@@ -124,7 +125,8 @@ var (
 		ReasoningEffortHigh,
 	}
 	// Gemini 3.7 Flash, 3.8 Flash, and 4 Argon reject "minimal" ("minimal
-	// is not supported and returns an error" — model pages).
+	// is not supported and returns an error" — model pages); 4 Carbon's
+	// page lists only low, medium and high.
 	gemini37FlashReasoningEfforts = []ReasoningEffort{
 		ReasoningEffortLow,
 		ReasoningEffortMedium,
@@ -199,6 +201,42 @@ var generateContentWireAPIs = []catalog.WireAPI{
 // never from Vertex. Their dates are floors, so Retires stays unset.
 func entries() []catalog.Entry {
 	return []catalog.Entry{
+		{
+			// https://ai.google.dev/gemini-api/docs/models/gemini-4-carbon
+			// (read 2026-11-12).
+			ID:           ModelGemini4Carbon,
+			Model:        catalog.ModelGemini4Carbon,
+			WireAPIs:     generateContentWireAPIs,
+			Capabilities: geminiCaps,
+			Modalities:   geminiModalities,
+			// low, medium (default), high; no thinking budget.
+			Reasoning: catalog.ReasoningSupport{
+				Efforts: gemini37FlashReasoningEfforts,
+			},
+			// The 1M window is shared by input and output. 65536 is the
+			// synchronous output cap; long decode up to the full window
+			// needs a background request. Custom temperature, top_p, and
+			// top_k are ignored (whats-new-gemini-4-carbon, read
+			// 2026-11-12); penalties are left out as for 4 Argon.
+			Constraints: llm.ModelConstraints{
+				TemperatureRange: [2]float64{0.0, 2.0},
+				MaxInputTokens:   1048576,
+				MaxOutputTokens:  65536,
+				SupportedParams:  geminiNoPenaltyParams,
+			},
+			// GA on 2026-11-10 per the changelog and deprecations page
+			// (https://ai.google.dev/gemini-api/docs/deprecations, read
+			// 2026-11-12); no shutdown date announced.
+			Life: catalog.Lifecycle{
+				Available: catalog.MustDate("2026-11-10"),
+			},
+			// Google lists $2/$10 (cache $0.10) through 2026-11-30, rising
+			// to $4/$20/$0.20 on 2026-12-01
+			// (https://ai.google.dev/gemini-api/docs/pricing, read
+			// 2026-11-12). Only the rate in effect is tracked. No
+			// long-context tier is published.
+			Pricing: pricing.FlatInfo(2.00, 10.00, 0.10),
+		},
 		{
 			// https://ai.google.dev/gemini-api/docs/models/gemini-4-argon
 			ID:           ModelGemini4Argon,

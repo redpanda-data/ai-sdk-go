@@ -110,7 +110,7 @@ func TestServedLocationsMatrix(t *testing.T) {
 
 	want := map[string][]string{
 		vertex.ModelGemini4Argon:  {"global", "us", "eu", "europe-west2", "asia-southeast1"},
-		vertex.ModelGemini38Flash: {"global", "us", "eu"},
+		vertex.ModelGemini38Flash: {"global", "us", "eu", "northamerica-northeast1", "asia-northeast1"},
 		vertex.ModelGemini37Flash: {"global", "us", "eu"},
 		vertex.ModelGemini36Flash: {"global", "us", "eu"},
 		vertex.ModelGemini35Flash: {
@@ -135,6 +135,7 @@ func TestServedLocationsMatrix(t *testing.T) {
 		vertex.ModelGemini25FlashLite: globalPlus(usRegions,
 			[]string{"europe-central2", "europe-north1", "europe-southwest1", "europe-west1", "europe-west4", "europe-west8", "europe-west9"},
 		),
+		vertex.ModelClaudeFable52:  {"global", "us", "eu"},
 		vertex.ModelClaudeFable51:  {"global", "us", "eu"},
 		vertex.ModelClaudeFable5:   {"global", "us", "eu"},
 		vertex.ModelClaudeOpus55:   {"global", "us", "eu"},
