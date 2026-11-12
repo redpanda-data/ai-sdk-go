@@ -557,38 +557,55 @@ func (base Base) answer(key region) (string, string) {
 }
 
 // question is the needs_human rows that ask one thing, on one offering or
-// more. row is the first of them, with every row's sources.
+// more. row is the first of them, with every row's sources; rows are all of
+// them, which differ only under a one-question Ask (Rules.OneQuestion).
 type question struct {
 	row       NeedsHuman
 	offerings []string
+	rows      []NeedsHuman
+}
+
+// distinct counts the different values in values.
+func distinct(values []string) int {
+	return len(slices.Compact(slices.Sorted(slices.Values(values))))
+}
+
+// add puts rows into the question, with each source once.
+func (q *question) add(rows ...NeedsHuman) {
+	for _, item := range rows {
+		q.offerings, q.rows = append(q.offerings, item.Offering), append(q.rows, item)
+
+		for _, source := range item.SourceURLs {
+			if !slices.Contains(q.row.SourceURLs, source) {
+				q.row.SourceURLs = append(q.row.SourceURLs, source)
+			}
+		}
+	}
+}
+
+// sameCase is what a question's rows share besides their offerings and
+// sources. Rows that differ on it are separate questions, unless
+// numberQuestions merges them under a one-question Ask.
+type sameCase struct{ rule, field, catalogue, page, values string }
+
+func caseOf(item NeedsHuman) sameCase {
+	return sameCase{item.Rule, item.Field, item.Catalogue, item.Page, fmt.Sprintf("%q", item.Values)}
 }
 
 // questions groups needs_human rows that differ only by offering, sources and
 // a note naming their own offering, in the order first seen, so one cause is
 // one question.
 func questions(needs []NeedsHuman) []question {
-	type group struct{ rule, field, catalogue, page, values string }
-
-	keys, rows := groupBy(needs, func(item NeedsHuman) (group, NeedsHuman) {
+	keys, rows := groupBy(needs, func(item NeedsHuman) (sameCase, NeedsHuman) {
 		item.Values = otherNotes(item)
-		return group{item.Rule, item.Field, item.Catalogue, item.Page, fmt.Sprintf("%q", item.Values)}, item
+		return caseOf(item), item
 	})
 	grouped := make([]question, 0, len(keys))
 
 	for _, key := range keys {
 		q := question{row: rows[key][0]}
 		q.row.SourceURLs = nil
-
-		for _, item := range rows[key] {
-			q.offerings = append(q.offerings, item.Offering)
-
-			for _, source := range item.SourceURLs {
-				if !slices.Contains(q.row.SourceURLs, source) {
-					q.row.SourceURLs = append(q.row.SourceURLs, source)
-				}
-			}
-		}
-
+		q.add(rows[key]...)
 		grouped = append(grouped, q)
 	}
 
@@ -623,46 +640,69 @@ func copyRegions(offerings []string) string {
 	return strings.Join(prefixes, " and ")
 }
 
-// numbered is a question with its vendor, its number across the PR, and the
+// numbered is a question with its vendors, its number across the PR, and the
 // name the box and Open questions both show. A region question has a place
 // and the copies waiting on it instead of a question.
 type numbered struct {
 	question
 
-	vendor, name string
-	n            int
-	place        region
-	copies       []string
+	vendors []string
+	name    string
+	n       int
+	place   region
+	copies  []string
 }
 
-// numberQuestions numbers every vendor's questions in one run, 1 to N, and
-// names each so no two look alike: its vendor when the body has more than
-// one, the region of a new copy, its first offering and how many more, and
-// the field. Then each host and region the waiting copies are in is one
-// more question, whether to offer it.
+// numberQuestions numbers every vendor's questions in one run, 1 to N, with
+// one question per rule and field under an Ask RULES.md marks One question,
+// whatever the rows' vendors and values. It names each so no two look alike:
+// its vendors when the body has more than one, the region of a new copy, its
+// first offering and how many more, and the field. Then each host and region
+// the waiting copies are in is one more question, whether to offer it.
 func (base Base) numberQuestions(parts []vendorPart, waiting []Skipped) []numbered {
 	var all []numbered
 
+	merged := map[sameCase]int{}
+
 	for _, part := range parts {
 		for _, q := range part.asks {
-			row := q.row
+			key := sameCase{rule: q.row.Rule, field: q.row.Field}
+			if i, seen := merged[key]; seen {
+				if !slices.Contains(all[i].vendors, part.Name) {
+					all[i].vendors = append(all[i].vendors, part.Name)
+				}
 
-			name := code(row.Offering)
-			if more := len(q.offerings) - 1; more > 0 {
-				name += fmt.Sprintf(" and %d more", more)
+				all[i].add(q.rows...)
+
+				continue
 			}
 
-			if regions := copyRegions(q.offerings); row.Field == reconcile.FieldNewCopy && regions != "" {
-				name = regions + plural(len(q.offerings), " copy: ", " copies: ") + name
+			if base.Rules.OneQuestion[key.rule] {
+				merged[key] = len(all)
 			}
 
-			if len(parts) > 1 {
-				name = part.Name + " · " + name
-			}
-
-			name += " · " + kindNouns[row.Field][0]
-			all = append(all, numbered{question: q, vendor: part.Name, name: name, n: len(all) + 1})
+			all = append(all, numbered{question: q, vendors: []string{part.Name}, n: len(all) + 1})
 		}
+	}
+
+	for i, q := range all {
+		// One offering's rows with different values are still one offering.
+		n := distinct(q.offerings)
+
+		name := code(q.row.Offering)
+		if more := n - 1; more > 0 {
+			name += fmt.Sprintf(" and %d more", more)
+		}
+
+		if regions := copyRegions(q.offerings); q.row.Field == reconcile.FieldNewCopy && regions != "" {
+			name = regions + plural(n, " copy: ", " copies: ") + name
+		}
+
+		if len(parts) > 1 {
+			name = strings.Join(q.vendors, ", ") + " · " + name
+		}
+
+		all[i].name = name + " · " + kindNouns[q.row.Field][0]
 	}
 
 	places, copies := byRegion(waiting)
@@ -773,7 +813,8 @@ func folded(summary, content string) string {
 }
 
 // questionBlock renders one question: its offerings, its rule, the two
-// sides and the agent's notes, the Decide line, and the sources.
+// sides and the agent's notes, the Decide line, and the sources. Rows whose
+// values differ (a one-question Ask's) give each offering its own line.
 func (base Base) questionBlock(q numbered) string {
 	item := q.row
 
@@ -788,7 +829,37 @@ func (base Base) questionBlock(q numbered) string {
 	}
 
 	block := fmt.Sprintf("**%d. %s** · %s\n", q.n, q.name, why)
-	if len(q.offerings) > 1 {
+
+	apart := slices.ContainsFunc(q.rows, func(row NeedsHuman) bool { return caseOf(row) != caseOf(item) })
+	switch {
+	case apart:
+		lines := make([]string, 0, len(q.rows))
+
+		for _, row := range q.rows {
+			var sides []string
+			if row.Catalogue != "" {
+				sides = append(sides, "we have "+code(row.Catalogue))
+			}
+
+			if row.Page != "" {
+				sides = append(sides, "vendor's page "+code(row.Page))
+			}
+
+			if len(row.Values) > 0 {
+				sides = append(sides, "notes "+valueList(row.Values))
+			}
+
+			line := "  - " + code(row.Offering)
+			if len(sides) > 0 {
+				line += ": " + strings.Join(sides, "; ")
+			}
+
+			lines = append(lines, line)
+		}
+
+		block += "- **Each offering:**\n" + strings.Join(lines, "\n") + "\n"
+		item.Catalogue, item.Page, item.Values = "", "", nil
+	case len(q.offerings) > 1:
 		block += "- **Offerings:** " + valueList(q.offerings) + "\n"
 	}
 
@@ -801,8 +872,25 @@ func (base Base) questionBlock(q numbered) string {
 	}
 
 	// Validate kept the agent's words to characters that can't make markup.
-	if item.Why != "" {
-		block += "- **Why the bot asks:** " + item.Why + "\n"
+	// A one-question Ask's rows come from several agents, so each reason
+	// shows; any other question keeps its first row's.
+	rows := q.rows
+	if !base.Rules.OneQuestion[item.Rule] {
+		rows = rows[:1]
+	}
+
+	var whys []string
+	for _, row := range rows {
+		if row.Why != "" && !slices.Contains(whys, row.Why) {
+			whys = append(whys, row.Why)
+		}
+	}
+
+	switch {
+	case len(whys) == 1:
+		block += "- **Why the bot asks:** " + whys[0] + "\n"
+	case len(whys) > 1:
+		block += "- **Why the bot asks:**\n  - " + strings.Join(whys, "\n  - ") + "\n"
 	}
 
 	if len(item.Values) > 0 {
@@ -998,7 +1086,7 @@ func ruleDrafts(asks []numbered, needs []NeedsHuman) string {
 
 	for _, key := range keys {
 		// One offering's rows on two fields are still one offering.
-		n := len(slices.Compact(slices.Sorted(slices.Values(offerings[key]))))
+		n := distinct(offerings[key])
 		if n < 2 {
 			continue
 		}
@@ -1183,7 +1271,7 @@ func (base Base) render(vendors []Vendor, codeFiles []string, hasDiff bool) (str
 
 	asks := base.numberQuestions(parts, waiting)
 
-	body.WriteString(base.contextLine() + summaryLine(parts) + base.checksLine(parts, codeFiles) + base.carriedLine() + base.questionsBox(asks))
+	body.WriteString(base.contextLine() + summaryLine(parts, len(asks)) + base.checksLine(parts, codeFiles) + base.carriedLine() + base.questionsBox(asks))
 
 	if len(codeFiles) > 0 {
 		fmt.Fprintf(&body, "### Code changed (%d)\n\n", len(codeFiles))
@@ -1306,20 +1394,16 @@ func count(n int, one, many string) string {
 }
 
 // summaryLine counts the PR's changes by kind, in the order they first
-// appear, and the rows that leave the catalogue as it is.
-func summaryLine(parts []vendorPart) string {
-	var (
-		changes []Change
-		waiting []Skipped
-	)
+// appear, and the rows that leave the catalogue as it is, with the open
+// questions numberQuestions counted.
+func summaryLine(parts []vendorPart, open int) string {
+	var changes []Change
 
-	unreported, asks, held, skipped := 0, 0, 0, 0
+	unreported, held, skipped := 0, 0, 0
 
 	for _, part := range parts {
 		changes = append(changes, part.shown.Changes...)
-		waiting = append(waiting, part.waiting...)
 		unreported += part.noRow
-		asks += len(part.asks)
 		held += len(part.held)
 		skipped += len(part.shown.Skipped)
 	}
@@ -1344,13 +1428,11 @@ func summaryLine(parts []vendorPart) string {
 
 	var same []string
 
-	regions, _ := byRegion(waiting)
-
 	for _, rows := range []struct {
 		n         int
 		one, many string
 	}{
-		{asks + len(regions), "open question", "open questions"},
+		{open, "open question", "open questions"},
 		{held, "held by a decision", "held by decisions"},
 		{skipped, "skipped offering", "skipped offerings"},
 	} {
