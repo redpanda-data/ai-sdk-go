@@ -543,8 +543,9 @@ func TestThinkingPrefixCheckComesFromTheCatalog(t *testing.T) {
 	}
 
 	// platform.claude.com/docs/en/build-with-claude/preserved-thinking
-	// ("Keeping the prefix unchanged"), read 2026-10-13.
+	// ("Keeping the prefix unchanged"), read 2026-11-12.
 	assert.ElementsMatch(t, []catalog.ModelID{
+		catalog.ModelClaudeFable52,
 		catalog.ModelClaudeFable51,
 		catalog.ModelClaudeOpus55,
 		catalog.ModelClaudeSonnet55,
