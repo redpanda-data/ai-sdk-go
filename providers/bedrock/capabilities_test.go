@@ -29,6 +29,7 @@ func TestClaudeStructuredOutputCapability(t *testing.T) {
 	t.Parallel()
 
 	want := map[string]bool{
+		ModelClaudeFable52:  true,
 		ModelClaudeFable51:  true,
 		ModelClaudeFable5:   true,
 		ModelClaudeOpus55:   true,
