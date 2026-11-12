@@ -506,16 +506,67 @@ func cleanupHeld(now, before cleanupPeerStats, legacy bool) int {
 	return now.CancelInflight - before.CancelInflight
 }
 
+// cleanupDeadline is a deadline the test fires itself: Err reports
+// context.DeadlineExceeded once expire is called. It has no clock deadline, so
+// a caller can be admitted to a wait before it fires on any schedule.
+type cleanupDeadline struct {
+	done chan struct{}
+	once sync.Once
+}
+
+func newCleanupDeadline() *cleanupDeadline { return &cleanupDeadline{done: make(chan struct{})} }
+
+func (*cleanupDeadline) Deadline() (time.Time, bool) { return time.Time{}, false }
+
+func (d *cleanupDeadline) Done() <-chan struct{} { return d.done }
+
+func (d *cleanupDeadline) Err() error {
+	select {
+	case <-d.done:
+		return context.DeadlineExceeded
+	default:
+		return nil
+	}
+}
+
+func (*cleanupDeadline) Value(any) any { return nil }
+
+func (d *cleanupDeadline) expire() { d.once.Do(func() { close(d.done) }) }
+
+// cleanupAwait bounds the wait for a caller that held cleanup could block. On
+// timeout it releases the peer so the caller and the registry can finish, then
+// fails.
+func cleanupAwait(t *testing.T, f *cleanupFixture, what string, done <-chan error) error {
+	t.Helper()
+
+	timer := time.NewTimer(cleanupBarrier)
+	defer timer.Stop()
+
+	select {
+	case err := <-done:
+		return err
+	case <-timer.C:
+		f.peer.release()
+		t.Fatalf("%s never returned while cleanup was held", what)
+
+		return nil
+	}
+}
+
 // runCleanupDeadlineCohort holds cleanup at the peer and first parks a primer
 // caller behind its own eviction, so an idle session is detached and its
-// cleanup is held at the peer before any short deadline starts. Fresh
-// partitions with 50ms deadlines then hit the full pool. They must each return
-// their own deadline error, open no session and leave every held cleanup in
-// flight. That is proven by registry and peer state once all callers returned,
-// not by wall time: the overrun is reported only, since it includes scheduler
-// delay. A watchdog releases the peer and fails if a caller never returns.
-// With stall, the test holds the pool lock until every cohort deadline has
-// expired, the worst schedule, so no cohort caller reaches the pool.
+// cleanup is held at the peer before any short deadline starts. A deadline
+// waiter is then admitted to the capacity wait, proven by the registry's
+// waiting count, before its deadline can fire. Fresh partitions with 50ms
+// deadlines then hit the full pool. They must each return their own deadline
+// error, open no session and leave every held cleanup in flight, as must the
+// admitted waiter once its deadline fires afterwards. That is proven by
+// registry and peer state once callers returned, not by wall time: the
+// overrun is reported only, since it includes scheduler delay. Watchdogs
+// release the peer and fail if a caller never returns. With stall, the test
+// holds the pool lock until every 50ms deadline has expired, the worst
+// schedule, so no 50ms caller reaches the pool; the admitted waiter does not
+// depend on that schedule.
 func runCleanupDeadlineCohort(t *testing.T, f *cleanupFixture, c cleanupScaleCase, stall bool) (int, int, float64) {
 	t.Helper()
 
@@ -545,6 +596,27 @@ func runCleanupDeadlineCohort(t *testing.T, f *cleanupFixture, c cleanupScaleCas
 		return cleanupPool(f.registry) == cleanupPoolState{Resident: c.slots - 1, Closing: 1, Waiting: 1} &&
 			cleanupHeld(f.peer.snapshot(), before, c.legacy) == 1
 	})
+
+	// Only the primer and this waiter acquire here, so a waiting count of two
+	// proves the waiter is in the capacity wait before its deadline fires. It
+	// may evict one more idle session first, which is held as well.
+	const waiter = "late-waiter"
+
+	waiterDeadline := newCleanupDeadline()
+	t.Cleanup(waiterDeadline.expire)
+
+	waited := cleanupRun(waiterDeadline, func(ctx context.Context) error { return cleanupScaleExecute(ctx, f.registry, waiter) })
+
+	var admitted cleanupPoolState
+
+	cleanupEventually(t, "the deadline waiter admitted to the capacity wait", func() bool {
+		admitted = cleanupPool(f.registry)
+
+		return admitted.Waiting == 2 && admitted.Resident+admitted.Closing == c.slots &&
+			cleanupHeld(f.peer.snapshot(), before, c.legacy) == admitted.Closing
+	})
+	require.NoError(t, waiterDeadline.Err(), "the waiter's deadline must not fire before admission")
+	require.Zero(t, f.peer.openCount(waiter))
 
 	const deadline = 50 * time.Millisecond
 
@@ -614,11 +686,12 @@ func runCleanupDeadlineCohort(t *testing.T, f *cleanupFixture, c cleanupScaleCas
 	// after every caller returned shows no caller waited for its eviction. The
 	// primer's held eviction makes it positive on any schedule.
 	evicted := cleanupPool(f.registry).Closing
-	assert.GreaterOrEqual(t, evicted, 1, "the primer's eviction must still be closing")
+	assert.GreaterOrEqual(t, evicted, admitted.Closing, "the primer's and waiter's evictions must still be closing")
 	assert.LessOrEqual(t, evicted, c.slots)
+	assert.Equal(t, 2, cleanupPool(f.registry).Waiting, "the primer and the admitted deadline waiter must still wait")
 
 	if stall {
-		assert.Equal(t, 1, evicted, "a stalled cohort must not reach the pool")
+		assert.Equal(t, admitted.Closing, evicted, "a stalled cohort must not reach the pool")
 	}
 
 	// Held cleanup cannot finish, so every evicted session's cleanup request
@@ -629,8 +702,18 @@ func runCleanupDeadlineCohort(t *testing.T, f *cleanupFixture, c cleanupScaleCas
 	assert.Equal(t, evicted, cleanupPool(f.registry).Closing, "no held cleanup may complete")
 	assert.Equal(t, before.DeleteDone, f.peer.snapshot().DeleteDone)
 
+	// The admitted waiter's deadline fires only now, while it waits for
+	// capacity behind held cleanup.
+	waiterDeadline.expire()
+	require.ErrorIs(t, cleanupAwait(t, f, "the admitted deadline waiter", waited), context.DeadlineExceeded)
+	assert.Equal(t, cleanupPoolState{Resident: c.slots - evicted, Closing: evicted, Waiting: 1}, cleanupPool(f.registry),
+		"the waiter must leave on its deadline without waiting for cleanup")
+	assert.Equal(t, evicted, cleanupHeld(f.peer.snapshot(), before, c.legacy), "every eviction must still be held")
+	assert.Equal(t, before.DeleteDone, f.peer.snapshot().DeleteDone)
+	assert.Zero(t, f.peer.openCount(waiter), "the waiter must not open while its slot is closing")
+
 	stopPrimer()
-	require.ErrorIs(t, cleanupResult(t, "the primer", primerDone), context.Canceled)
+	require.ErrorIs(t, cleanupAwait(t, f, "the primer", primerDone), context.Canceled)
 	assert.Zero(t, f.peer.openCount(primer), "the primer must not open while its slot is closing")
 	assert.Equal(t, evicted, cleanupPool(f.registry).Closing, "the canceled primer must not wait for cleanup")
 
@@ -640,9 +723,10 @@ func runCleanupDeadlineCohort(t *testing.T, f *cleanupFixture, c cleanupScaleCas
 }
 
 // TestRegistryCleanupDeadlineCohortUnderPoolStall runs the deadline cohort on
-// the worst schedule: the test holds the pool lock until every cohort deadline
-// has expired, so no cohort caller evicts anything. The primer's held eviction
-// must still prove that deadlines return while cleanup is held at the peer.
+// the worst schedule: the test holds the pool lock until every 50ms deadline
+// has expired, so no 50ms caller evicts anything. The primer's held eviction
+// and the deadline waiter admitted before the stall must still prove that
+// deadlines return while cleanup is held at the peer.
 func TestRegistryCleanupDeadlineCohortUnderPoolStall(t *testing.T) {
 	t.Parallel()
 
