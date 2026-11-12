@@ -86,6 +86,37 @@ func TestMuseSpark13Options(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestOutputBudgetFollowsEachModel checks that an explicit output budget is
+// bounded by the model's own MaxOutputTokens: Muse Ember's published 524,288
+// is usable, and Spark and Wonder keep the SDK's 32,768.
+func TestOutputBudgetFollowsEachModel(t *testing.T) {
+	t.Parallel()
+
+	p, err := NewProvider("test-key")
+	require.NoError(t, err)
+
+	tests := []struct {
+		model string
+		limit int
+	}{
+		{ModelMuseSpark13, 32_768},
+		{ModelMuseWonder10, 32_768},
+		{ModelMuseEmber10, 524_288},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.model, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := p.NewModel(tt.model, openai.WithMaxTokens(tt.limit))
+			require.NoError(t, err)
+
+			_, err = p.NewModel(tt.model, openai.WithMaxTokens(tt.limit+1))
+			require.Error(t, err)
+		})
+	}
+}
+
 func TestDeclaredParametersAccepted(t *testing.T) {
 	t.Parallel()
 

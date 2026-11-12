@@ -34,8 +34,9 @@ const ModelMuseWonder10 = "muse-wonder-1.0"
 // ModelMuseEmber10 is Muse Ember; Model API serves it in Standard mode only.
 const ModelMuseEmber10 = "muse-ember-1.0"
 
-// maxOutputTokens is a conservative SDK limit, not a published vendor maximum.
-// It bounds explicitly supplied budgets; omitted budgets use the server default.
+// maxOutputTokens is a conservative SDK limit, not a published vendor maximum,
+// for the models whose pages publish none. NewModel bounds explicitly supplied
+// budgets by each model's MaxOutputTokens; omitted budgets use the server default.
 const maxOutputTokens = 32_768
 
 // ProviderName is the catalog key Provider.Name() returns; see pricing.ProviderKey.
