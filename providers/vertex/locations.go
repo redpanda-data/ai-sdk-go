@@ -52,7 +52,8 @@ const (
 	// model pages' sections, read 2026-10-15. The gemini-4-argon and
 	// gemini-3.5-flash-lite rows gained locations from their model pages and
 	// LocationsMatrixSource, read 2026-11-04. The claude-fable-5-2 row, added
-	// 2026-11-12, is its model page's section.
+	// 2026-11-12, is its model page's section. The gemini-3.8-flash row gained
+	// locations from its model page and LocationsMatrixSource, read 2026-11-12.
 	LocationsMatrixTranscribed = "2026-09-22"
 )
 
@@ -85,9 +86,12 @@ var servedLocations = map[string][]string{
 		"us", "eu",
 		"europe-west2", "asia-southeast1",
 	},
+	// northamerica-northeast1 and asia-northeast1 from the model page's
+	// Provisioned Throughput row and LocationsMatrixSource, read 2026-11-12.
 	ModelGemini38Flash: {
 		LocationGlobal,
 		"us", "eu",
+		"northamerica-northeast1", "asia-northeast1",
 	},
 	ModelGemini37Flash: {
 		LocationGlobal,

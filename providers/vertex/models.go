@@ -281,8 +281,9 @@ func entries() []catalog.Entry {
 			// gemini-enterprise-agent-platform/models/gemini/3-8-flash, read
 			// 2026-09-22). No retirement published.
 			Life: catalog.Lifecycle{Available: catalog.MustDate("2026-09-02")},
-			// Same introductory rates and regional premium as 3.6 Flash.
-			Pricing: geminiFlashPricing(),
+			// Same introductory rates and regional premium as 3.6 Flash, at
+			// each served non-global location (locations.go).
+			Pricing: geminiFlashPricing("us", "eu", "northamerica-northeast1", "asia-northeast1"),
 		},
 		{
 			ID:           ModelGemini37Flash,
@@ -305,7 +306,7 @@ func entries() []catalog.Entry {
 				Retires:    catalog.MustDate("2027-01-28"),
 				ReplacedBy: ModelGemini38Flash,
 			},
-			Pricing: geminiFlashPricing(),
+			Pricing: geminiFlashPricing("us", "eu"),
 		},
 		{
 			ID:           ModelGemini36Flash,
@@ -329,7 +330,7 @@ func entries() []catalog.Entry {
 				Retires:    catalog.MustDate("2026-11-19"),
 				ReplacedBy: ModelGemini38Flash,
 			},
-			Pricing: geminiFlashPricing(),
+			Pricing: geminiFlashPricing("us", "eu"),
 		},
 		{
 			ID:           ModelGemini35Flash,
@@ -1035,19 +1036,20 @@ func gemini4ArgonPricing() pricing.Info {
 	return info
 }
 
-func geminiFlashPricing() pricing.Info {
+func geminiFlashPricing(regions ...string) pricing.Info {
 	// Promotional net rate through 2026-12-31 (pricing page footnote, read
 	// 2026-09-28): the billing SKUs stay at the standard $1.50/$7.50/$0.15
 	// global and $1.65/$8.25 non-global, and Google returns 50% as credits
 	// back on net spend. The standard rate applies from 2027-01-01.
 	global := pricing.NewRates(0.75, 3.75, 0.075)
 	// Non-global = global x 1.10 on input, output, and cache alike, from
-	// Google's pricing page, verified live 2026-09-08.
+	// Google's pricing page, verified live 2026-09-08. Its one Non-global
+	// row applies at every served non-global location (read 2026-11-12).
 	nonGlobal := pricing.NewRates(0.825, 4.125, 0.0825)
 
 	info := pricing.FlatInfoFromRates(global)
 	// An empty-Region selector is a wildcard that also matches global.
-	for _, region := range []string{"us", "eu"} {
+	for _, region := range regions {
 		info = info.WithOverride(
 			pricing.Selector{Region: region},
 			pricing.RateCard{Base: nonGlobal},

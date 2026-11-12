@@ -83,6 +83,7 @@ const (
 
 	// Google models.
 
+	ModelGemini4Carbon       ModelID = "google/gemini-4-carbon"
 	ModelGemini4Argon        ModelID = "google/gemini-4-argon"
 	ModelGemini38Flash       ModelID = "google/gemini-3.8-flash"
 	ModelGemini37Flash       ModelID = "google/gemini-3.7-flash"
@@ -522,6 +523,15 @@ var defaultRegistry = Registry{
 	},
 
 	// ---- Google ----
+	ModelGemini4Carbon: {
+		Publisher:   PublisherGoogle,
+		DisplayName: "Gemini 4 Carbon", Series: "gemini-pro",
+		// gemini-4-carbon became generally available on 2026-11-10 per
+		// https://ai.google.dev/gemini-api/docs/changelog (read 2026-11-12), its
+		// first mention. No knowledge cutoff on the Gemini API's pages.
+		Released:    MustDate("2026-11-10"),
+		Description: "Gemini 4 Carbon is Google's strongest reasoning model, built for sustained agentic workflows across complex software engineering, multimodal knowledge work, scientific reasoning, and cybersecurity defense.",
+	},
 	ModelGemini4Argon: {
 		Publisher:   PublisherGoogle,
 		DisplayName: "Gemini 4 Argon", Series: "gemini-pro",
