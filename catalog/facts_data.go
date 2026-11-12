@@ -104,6 +104,8 @@ const (
 	ModelMuseSpark13 ModelID = "meta/muse-spark-1.3"
 	// ModelMuseWonder10 identifies Meta's Muse Wonder.
 	ModelMuseWonder10 ModelID = "meta/muse-wonder-1.0"
+	// ModelMuseEmber10 identifies Meta's Muse Ember.
+	ModelMuseEmber10 ModelID = "meta/muse-ember-1.0"
 
 	// Models from vendors offered only through Bedrock.
 
@@ -520,6 +522,15 @@ var defaultRegistry = Registry{
 		Released: MustDate("2026-10-12"),
 		// No knowledge cutoff published in the Meta Model API docs.
 		Description: "Muse Wonder is Meta's most capable model, built for complex software engineering and long-horizon agentic work.",
+	},
+	// https://research.meta.ai/blog/muse-ember (read 2026-11-12): posted
+	// 2026-11-09, "available today on the Meta Model API".
+	ModelMuseEmber10: {
+		Publisher:   PublisherMeta,
+		DisplayName: "Muse Ember", Series: "muse-ember",
+		Released: MustDate("2026-11-09"),
+		// No knowledge cutoff published in the Meta Model API docs.
+		Description: "Muse Ember is the efficient execution model in the Muse family, built for high-volume, repeated work.",
 	},
 
 	// ---- Google ----

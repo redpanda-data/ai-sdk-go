@@ -31,6 +31,9 @@ const ModelMuseSpark13 = "muse-spark-1.3"
 // Standard mode only.
 const ModelMuseWonder10 = "muse-wonder-1.0"
 
+// ModelMuseEmber10 is Muse Ember; Model API serves it in Standard mode only.
+const ModelMuseEmber10 = "muse-ember-1.0"
+
 // maxOutputTokens is a conservative SDK limit, not a published vendor maximum.
 // It bounds explicitly supplied budgets; omitted budgets use the server default.
 const maxOutputTokens = 32_768
@@ -118,5 +121,50 @@ func entries() []catalog.Entry {
 		// https://dev.meta.ai/docs/pricing-rate-limits (read 2026-11-05) — Standard
 		// mode; no long-context premium.
 		Pricing: pricing.FlatInfo(4.00, 20.00, 0.20),
+	}, {
+		ID:    ModelMuseEmber10,
+		Model: catalog.ModelMuseEmber10,
+		WireAPIs: []catalog.WireAPI{
+			{Protocol: catalog.WireProtocolOpenAIChatCompletions, Transport: catalog.WireTransportDirect},
+			{Protocol: catalog.WireProtocolOpenAIResponses, Transport: catalog.WireTransportDirect},
+		},
+		// https://dev.meta.ai/docs/muse-ember (read 2026-11-12): text, image,
+		// video, audio and PDF in, text out; tool calling and structured output.
+		// It "accepts the same request body as Muse Spark".
+		Capabilities: llm.ModelCapabilities{
+			Streaming: true, Tools: true, JSONMode: true, StructuredOutput: true,
+			Vision: true, Audio: true, MultiTurn: true, SystemPrompts: true, Reasoning: true,
+		},
+		Modalities: catalog.Modalities{
+			Input:  []catalog.Modality{catalog.ModalityText, catalog.ModalityImage, catalog.ModalityVideo, catalog.ModalityAudio, catalog.ModalityDocument},
+			Output: []catalog.Modality{catalog.ModalityText},
+		},
+		Constraints: llm.ModelConstraints{
+			TemperatureRange: [2]float64{0, 2},
+			// 1,048,576-token context window and 524,288-token max output per
+			// https://dev.meta.ai/docs/muse-ember (read 2026-11-12); no separate
+			// input cap is published.
+			MaxInputTokens:  1_048_576,
+			MaxOutputTokens: 524_288,
+			SupportedParams: []string{"temperature", "max_tokens", "reasoning_effort", "reasoning_summary"},
+		},
+		// https://dev.meta.ai/docs/reasoning (read 2026-11-12): minimal to max.
+		Reasoning: catalog.ReasoningSupport{Efforts: []llm.ReasoningEffort{
+			openai.ReasoningEffortMinimal, openai.ReasoningEffortLow, openai.ReasoningEffortMedium,
+			openai.ReasoningEffortHigh, openai.ReasoningEffortXHigh, openai.ReasoningEffortMax,
+		}},
+		// On Model API since 2026-11-09 per https://research.meta.ai/blog/muse-ember
+		// (read 2026-11-12).
+		Life: catalog.Lifecycle{Available: catalog.MustDate("2026-11-09")},
+		// https://dev.meta.ai/docs/pricing-rate-limits (read 2026-11-12) — Standard
+		// mode; a request with more than 200K input tokens, cached included, is
+		// billed in full at the long-context rates.
+		Pricing: pricing.TieredInfo(
+			pricing.NewRates(0.10, 0.50, 0.004),
+			pricing.Bracket{
+				MinContextTokens: 200_001,
+				Rates:            pricing.NewRates(0.30, 1.50, 0.012),
+			},
+		),
 	}}
 }
