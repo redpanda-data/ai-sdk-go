@@ -186,6 +186,7 @@ func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]openai.ChatCompl
 					apiMessages = append(apiMessages, apiMsg)
 				}
 			}
+
 			if len(textParts) > 0 {
 				apiMsg := rm.mapUserMessage(textParts)
 				apiMessages = append(apiMessages, apiMsg)

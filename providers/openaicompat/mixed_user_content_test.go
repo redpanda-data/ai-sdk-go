@@ -26,14 +26,18 @@ import (
 
 func TestToProviderPreservesMixedUserContent(t *testing.T) {
 	t.Parallel()
+
 	for _, textFirst := range []bool{false, true} {
 		name := "tool_first"
 		if textFirst {
 			name = "text_first"
 		}
+
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
+
 			text := llm.NewTextPart("Summarize both results concisely.")
+
 			parts := []llm.Part{
 				llm.NewToolResponsePart("call_1", "lookup", json.RawMessage(`"first"`), false),
 				llm.NewToolResponsePart("call_2", "lookup", json.RawMessage(`"second"`), false),
@@ -43,6 +47,7 @@ func TestToProviderPreservesMixedUserContent(t *testing.T) {
 			} else {
 				parts = append(parts, text)
 			}
+
 			req := &llm.Request{Messages: []llm.Message{
 				llm.NewMessage(llm.RoleAssistant,
 					llm.NewToolRequestPart("call_1", "lookup", json.RawMessage(`{}`)),
