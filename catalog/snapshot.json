@@ -260,7 +260,7 @@
       "display_name": "Gemini 4 Carbon",
       "publisher": "google",
       "description": "Gemini 4 Carbon is Google's strongest reasoning model, built for sustained agentic workflows across complex software engineering, multimodal knowledge work, scientific reasoning, and cybersecurity defense.",
-      "series": "gemini-pro",
+      "series": "gemini-carbon",
       "released": "2026-11-10"
     },
     "google/gemma-4-26b-a4b": {
@@ -12661,8 +12661,7 @@
             "available": "2026-10-13"
           },
           "derived": {
-            "price_tier": "medium",
-            "replacement": "google/gemini-4-carbon"
+            "price_tier": "medium"
           }
         },
         {
@@ -14145,6 +14144,7 @@
           "lifecycle": {
             "stage": "ga",
             "available": "2025-09-29",
+            "deprecated": "2026-09-29",
             "retires": "2026-11-30",
             "replaced_by": "claude-sonnet-5-5"
           },

@@ -854,15 +854,19 @@ func entries() []catalog.Entry {
 			},
 			// A thinking.type of adaptive returns 400.
 			Reasoning: catalog.ReasoningSupport{Budget: true},
-			// The model page now gives launch stage Deprecated and the bare
-			// "Retirement Date: November 30, 2026", an exact date, with no
-			// deprecation date and no replacement
+			// Google's partner-model deprecations page says it is "deprecated
+			// as of September 29, 2026" and will "be shut down on November 30,
+			// 2026", both exact dates
+			// (https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/deprecations/partner-models,
+			// read 2026-11-12). The model page gives launch stage Deprecated,
+			// the same retirement date and no replacement
 			// (https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/partner-models/claude/sonnet-4-5,
 			// read 2026-11-05). ReplacedBy is Anthropic's pick on
 			// https://platform.claude.com/docs/en/about-claude/model-deprecations
 			// (read 2026-11-05).
 			Life: catalog.Lifecycle{
 				Available:  catalog.MustDate("2025-09-29"),
+				Deprecated: catalog.MustDate("2026-09-29"),
 				Retires:    catalog.MustDate("2026-11-30"),
 				ReplacedBy: ModelClaudeSonnet55,
 			},

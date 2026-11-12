@@ -536,7 +536,13 @@ var defaultRegistry = Registry{
 	// ---- Google ----
 	ModelGemini4Carbon: {
 		Publisher:   PublisherGoogle,
-		DisplayName: "Gemini 4 Carbon", Series: "gemini-pro",
+		DisplayName: "Gemini 4 Carbon", Series: "gemini-carbon",
+		// Its own Series: Google sells it beside Gemini 4 Argon, not as its
+		// successor. The models page describes Argon's "lower token spend
+		// per turn compared to Gemini 4 Carbon", and the deprecations page
+		// lists both with no shutdown date or replacement
+		// (https://ai.google.dev/gemini-api/docs/models and
+		// https://ai.google.dev/gemini-api/docs/deprecations, read 2026-11-12).
 		// gemini-4-carbon became generally available on 2026-11-10 per
 		// https://ai.google.dev/gemini-api/docs/changelog (read 2026-11-12), its
 		// first mention. No knowledge cutoff on the Gemini API's pages.
