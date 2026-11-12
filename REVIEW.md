@@ -126,6 +126,11 @@ To review one:
 - A value under `sibling-ratio`, or a new copy's price marked "estimated" in
   its code, is worked out from a related copy's rate, so no page prints it.
   Check that rate and the ratio its page states instead.
+- Before you call a wrong or missing value a gap in the rules, find the
+  RULES.md row that covers it and quote it. If a row covers it and the bot
+  followed it, nothing is wrong. If a row covers it and the bot didn't follow
+  it, that's a miss: fix the value or let the next run retry. Only a case no
+  row covers needs a new rule.
 - Settle each question in "Open questions" as its Decide line says, or record a
   decision in `.github/reconcile-models/decisions.yaml`, in a PR to the base
   branch. A decision stops the question coming back. You may also merge with a

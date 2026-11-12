@@ -50,6 +50,17 @@ func TestParseRules(t *testing.T) {
 		assert.Equal(t, map[string]map[string]string{"bedrock": {"in": "asked 2026-10-15", "ca": "declined 2026-10-20"}}, rules.NotOffered)
 	})
 
+	t.Run("reads which Asks are one question", func(t *testing.T) {
+		t.Parallel()
+
+		rules, problems := ParseRules([]byte(preamble + asks +
+			"| router-new | **One question.** A router is new. | Qualify it? | Same for every router. |\n" +
+			"| profile-new | **CI.** **One question.** A profile is new. | Offer it? | Same for every profile. |\n" +
+			"| no-rule | No rule fits. | What should change? | A person decides. |\n"))
+		assert.Empty(t, problems)
+		assert.Equal(t, map[string]bool{"router-new": true, "profile-new": true}, rules.OneQuestion)
+	})
+
 	tests := []struct {
 		name        string
 		rows        string
@@ -70,6 +81,8 @@ func TestParseRules(t *testing.T) {
 		{"a region not offered needs a note", hostsTable + "| bedrock | `us` | `in` |\n", `bedrock: Not offered in: want (asked YYYY-MM-DD) or (declined YYYY-MM-DD), got ""`},
 		{"an unknown answer", hostsTable + "| bedrock | `us` | `in` (maybe 2026-10-15) |\n", `bedrock: Not offered in: want (asked YYYY-MM-DD) or (declined YYYY-MM-DD), got "(maybe 2026-10-15)"`},
 		{"an answer needs its date", hostsTable + "| bedrock | `us` | `in` (declined 20 Oct) |\n", `bedrock: Not offered in: want (asked YYYY-MM-DD) or (declined YYYY-MM-DD), got "(declined 20 Oct)"`},
+		{"a one-question mark after two spaces", asks + "| router-new | **CI.**  **One question.** A router is new. | Q? | W. |\n", "router-new: **One question.** goes at the start of the When cell, after any **CI.** mark"},
+		{"a one-question mark after a status", asks + "| router-new | *Open.* **One question.** A router is new. | Q? | W. |\n", "router-new: **One question.** goes at the start of the When cell, after any **CI.** mark"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
