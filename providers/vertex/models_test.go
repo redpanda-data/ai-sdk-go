@@ -48,7 +48,7 @@ func TestCatalogModelSet(t *testing.T) {
 		"gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite",
 		"gemini-3.1-pro-preview", "gemini-3-flash-preview",
 		"gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite",
-		"claude-fable-5-1", "claude-fable-5", "claude-opus-5-5", "claude-opus-5",
+		"claude-fable-5-2", "claude-fable-5-1", "claude-fable-5", "claude-opus-5-5", "claude-opus-5",
 		"claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6", "claude-opus-4-5@20251101",
 		"claude-sonnet-5-5", "claude-sonnet-5", "claude-sonnet-4-6", "claude-sonnet-4-5@20250929",
 		"claude-haiku-5-5", "claude-haiku-4-5",
@@ -83,6 +83,7 @@ func TestOfferingAttributes(t *testing.T) {
 		vertex.ModelGemini25Pro:         "google",
 		vertex.ModelGemini25Flash:       "google",
 		vertex.ModelGemini25FlashLite:   "google",
+		vertex.ModelClaudeFable52:       "anthropic",
 		vertex.ModelClaudeFable51:       "anthropic",
 		vertex.ModelClaudeFable5:        "anthropic",
 		vertex.ModelClaudeOpus55:        "anthropic",
@@ -328,20 +329,34 @@ var flatPriced = map[string]bool{
 // The check is the exact-integer form 11*global == 10*geo, which avoids
 // float rounding in the int64 micro-cent values pricing.NewRates produces.
 // Columns a model does not carry (Gemini has no cache-creation rate) are
-// zero on both sides and pass trivially.
+// zero on both sides and pass trivially. A speed-only override (Fable 5.2's
+// fast mode) is not regional, so it is the global card its speed's regional
+// overrides compare against.
 func TestGlobalToNonGlobalRatio(t *testing.T) {
 	t.Parallel()
 
 	for id, info := range vertex.Catalog().PricingByID() {
-		global := info.Default.Base
-
 		if flatPriced[id] {
 			continue
 		}
 
 		require.NotEmptyf(t, info.Overrides, "%s carries no non-global override to compare", id)
 
+		globalBySpeed := map[llm.Speed]pricing.Rates{"": info.Default.Base}
 		for _, ov := range info.Overrides {
+			if ov.Match.Region == "" {
+				globalBySpeed[ov.Match.Speed] = ov.RateCard.Base
+			}
+		}
+
+		for _, ov := range info.Overrides {
+			if ov.Match.Region == "" {
+				continue
+			}
+
+			global, ok := globalBySpeed[ov.Match.Speed]
+			require.Truef(t, ok, "%s/%s has no global card for speed %q", id, ov.Match.Region, ov.Match.Speed)
+
 			geo := ov.RateCard.Base
 
 			t.Run(id+"/"+ov.Match.Region, func(t *testing.T) {
@@ -384,6 +399,36 @@ func TestEveryServedRegionPriced(t *testing.T) {
 
 		assertEveryNonGlobalRegionPriced(t, vertex.LocationsForModel(id), info.Overrides)
 	}
+}
+
+// TestClaudeFable52FastMode pins Fable 5.2's fast-mode cards at the model
+// page's "2x the standard-speed token rates across all token types", at
+// global and at each served region.
+func TestClaudeFable52FastMode(t *testing.T) {
+	t.Parallel()
+
+	o, ok := vertex.Catalog().Lookup(vertex.ModelClaudeFable52)
+	require.True(t, ok)
+	assert.Contains(t, o.Speeds, llm.SpeedFast)
+	assert.Contains(t, o.Constraints.SupportedParams, "speed")
+
+	info := vertex.Catalog().PricingByID()[vertex.ModelClaudeFable52]
+	assert.Equal(t, pricing.NewRates(8.00, 40.00, 0.20).WithCacheCreation(10.00, 16.00, 0), info.Default.Base)
+
+	want := map[pricing.Selector]pricing.Rates{
+		{Speed: llm.SpeedFast}:               pricing.NewRates(16.00, 80.00, 0.40).WithCacheCreation(20.00, 32.00, 0),
+		{Region: "us"}:                       pricing.NewRates(8.80, 44.00, 0.22).WithCacheCreation(11.00, 17.60, 0),
+		{Region: "eu"}:                       pricing.NewRates(8.80, 44.00, 0.22).WithCacheCreation(11.00, 17.60, 0),
+		{Speed: llm.SpeedFast, Region: "us"}: pricing.NewRates(17.60, 88.00, 0.44).WithCacheCreation(22.00, 35.20, 0),
+		{Speed: llm.SpeedFast, Region: "eu"}: pricing.NewRates(17.60, 88.00, 0.44).WithCacheCreation(22.00, 35.20, 0),
+	}
+
+	got := make(map[pricing.Selector]pricing.Rates, len(info.Overrides))
+	for _, ov := range info.Overrides {
+		got[ov.Match] = ov.RateCard.Base
+	}
+
+	assert.Equal(t, want, got)
 }
 
 // TestSonnet45LongContextBracket checks the one Claude model Vertex bills
@@ -451,6 +496,7 @@ func TestManualThinkingBudget(t *testing.T) {
 	t.Parallel()
 
 	wantBudget := map[string]bool{
+		vertex.ModelClaudeFable52:  false,
 		vertex.ModelClaudeFable51:  false,
 		vertex.ModelClaudeFable5:   false,
 		vertex.ModelClaudeOpus5:    false,

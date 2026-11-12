@@ -51,7 +51,8 @@ const (
 	// The claude-fable-5, claude-opus-5 and claude-sonnet-5 rows are their
 	// model pages' sections, read 2026-10-15. The gemini-4-argon and
 	// gemini-3.5-flash-lite rows gained locations from their model pages and
-	// LocationsMatrixSource, read 2026-11-04.
+	// LocationsMatrixSource, read 2026-11-04. The claude-fable-5-2 row, added
+	// 2026-11-12, is its model page's section.
 	LocationsMatrixTranscribed = "2026-09-22"
 )
 
@@ -135,6 +136,13 @@ var servedLocations = map[string][]string{
 		LocationGlobal,
 		"us-central1", "us-east1", "us-east4", "us-east5", "us-south1", "us-west1", "us-west4",
 		"europe-central2", "europe-north1", "europe-southwest1", "europe-west1", "europe-west4", "europe-west8", "europe-west9",
+	},
+	// From the Fable 5.2 model page's "Model availability" section, read
+	// 2026-11-12. Its "ML processing" list names only the US and Europe
+	// multi-regions.
+	ModelClaudeFable52: {
+		LocationGlobal,
+		"us", "eu",
 	},
 	// From the Fable 5.1 model page (not yet in the matrix). Its "ML
 	// processing" list adds asia-southeast1, but Google publishes neither

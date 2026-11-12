@@ -21,6 +21,7 @@ package catalog
 const (
 	// Anthropic models.
 
+	ModelClaudeFable52  ModelID = "anthropic/claude-fable-5-2"
 	ModelClaudeFable51  ModelID = "anthropic/claude-fable-5-1"
 	ModelClaudeFable5   ModelID = "anthropic/claude-fable-5"
 	ModelClaudeOpus55   ModelID = "anthropic/claude-opus-5-5"
@@ -170,6 +171,15 @@ var defaultRegistry = Registry{
 		Description: "Moonshot AI's open-weight multimodal model for coding and agentic tasks.",
 	},
 	// ---- Anthropic ----
+	ModelClaudeFable52: {
+		Publisher:   PublisherAnthropic,
+		DisplayName: "Claude Fable 5.2", Series: "claude-fable",
+		// Released ("November 9, 2026") and reliable knowledge cutoff ("Jun
+		// 2026") per https://platform.claude.com/docs/en/models/fable-5-2/overview
+		// (read 2026-11-12).
+		Released: MustDate("2026-11-09"), Knowledge: MustDate("2026-06-30"),
+		Description: "Claude Fable 5.2 is Anthropic's model for demanding reasoning and long-horizon agentic work.",
+	},
 	ModelClaudeFable51: {
 		Publisher:   PublisherAnthropic,
 		DisplayName: "Claude Fable 5.1", Series: "claude-fable",

@@ -135,6 +135,7 @@ func TestServedLocationsMatrix(t *testing.T) {
 		vertex.ModelGemini25FlashLite: globalPlus(usRegions,
 			[]string{"europe-central2", "europe-north1", "europe-southwest1", "europe-west1", "europe-west4", "europe-west8", "europe-west9"},
 		),
+		vertex.ModelClaudeFable52:  {"global", "us", "eu"},
 		vertex.ModelClaudeFable51:  {"global", "us", "eu"},
 		vertex.ModelClaudeFable5:   {"global", "us", "eu"},
 		vertex.ModelClaudeOpus55:   {"global", "us", "eu"},

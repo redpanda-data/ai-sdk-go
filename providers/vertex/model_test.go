@@ -453,6 +453,7 @@ func TestNewModel_ClaudeThinkingBlockBinding(t *testing.T) {
 		id      string
 		checked bool
 	}{
+		{id: vertex.ModelClaudeFable52, checked: true},
 		{id: vertex.ModelClaudeFable51, checked: true},
 		{id: vertex.ModelClaudeOpus55, checked: true},
 		{id: vertex.ModelClaudeSonnet55, checked: true},

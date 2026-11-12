@@ -55,6 +55,7 @@ const (
 	// Deprecated: Google retires Gemini 2.5 Flash-Lite on 2026-10-20. Use
 	// [ModelGemini38Flash] or [ModelGemini31FlashLite].
 	ModelGemini25FlashLite = "gemini-2.5-flash-lite"
+	ModelClaudeFable52     = "claude-fable-5-2"
 	ModelClaudeFable51     = "claude-fable-5-1"
 	ModelClaudeFable5      = "claude-fable-5"
 	ModelClaudeOpus55      = "claude-opus-5-5"
@@ -219,8 +220,9 @@ var (
 //	https://cloud.google.com/model-garden/partner-models/pricing
 //
 // Capabilities and constraints mirror the same models in the Gemini-API and
-// Anthropic-direct catalogs, with four exceptions. No Claude entry offers
-// speed; Vertex publishes no Claude fast-mode rate. Gemini 3.7
+// Anthropic-direct catalogs, with four exceptions. Only Claude Fable 5.2
+// offers speed; it is the one Claude model page that documents fast mode and
+// its price. Gemini 3.7
 // and 3.8 Flash take no presence or frequency penalty, which the Gemini-API
 // catalog lists. Claude Opus 4.5, Sonnet 4.5 and Haiku 4.5 take a manual
 // thinking budget, which the Anthropic-direct catalog does not set. Claude
@@ -537,6 +539,36 @@ func entries() []catalog.Entry {
 			},
 			// Text/image/video rate only; audio input is $0.30.
 			Pricing: pricing.FlatInfo(0.10, 0.40, 0.01),
+		},
+		{
+			ID:            ModelClaudeFable52,
+			Model:         catalog.ModelClaudeFable52,
+			WireAPIs:      claudeWireAPIs,
+			TokenCounting: claudeTokenCounting,
+			// A new Claude entry starts without tool search until a call on
+			// Vertex returns a tool search result.
+			Capabilities: claudeCaps,
+			Modalities:   claudeModalities,
+			Constraints: llm.ModelConstraints{
+				MaxInputTokens:  1000000,
+				MaxOutputTokens: 128000,
+				// Thinking is always on; non-default sampling parameters
+				// return 400. The model page documents fast mode
+				// ("speed": "fast").
+				SupportedParams: []string{"max_tokens", "reasoning_effort", "speed"},
+			},
+			Reasoning: catalog.ReasoningSupport{
+				Efforts:             claudeAllEfforts,
+				Adaptive:            true,
+				ThinkingPrefixCheck: true,
+			},
+			Speeds: []llm.Speed{llm.SpeedStandard, llm.SpeedFast},
+			// Claude Fable 5.2 GA, released November 9, 2026, retirement floor
+			// "No sooner than November 9, 2027" on the model page
+			// (https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/partner-models/claude/fable-5-2,
+			// read 2026-11-12).
+			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-11-09")},
+			Pricing: claudeFable52Pricing(),
 		},
 		{
 			ID:            ModelClaudeFable51,
@@ -899,6 +931,39 @@ func geminiFlashLitePricing() pricing.Info {
 		info = info.WithOverride(
 			pricing.Selector{Region: region},
 			pricing.RateCard{Base: nonGlobal},
+		)
+	}
+
+	return info
+}
+
+// claudeFable52Pricing returns the Fable 5.2 rate card: global, plus global
+// x 1.10 for us and eu, from the pricing page's region tabs
+// (https://cloud.google.com/model-garden/partner-models/pricing, read
+// 2026-11-12). Cache hits are 0.025x input. The pricing page prints no
+// fast-mode rate; the model page says fast mode "is priced at 2x the
+// standard-speed token rates across all token types", so the fast cards are
+// estimated at 2x each standard card
+// (https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/partner-models/claude/fable-5-2,
+// read 2026-11-12). Pricing accepts a fast and a region override side by
+// side only with a card for both, so each region has one.
+func claudeFable52Pricing() pricing.Info {
+	global := pricing.NewRates(8.00, 40.00, 0.20).WithCacheCreation(10.00, 16.00, 0)
+	nonGlobal := pricing.NewRates(8.80, 44.00, 0.22).WithCacheCreation(11.00, 17.60, 0)
+	fastGlobal := pricing.NewRates(16.00, 80.00, 0.40).WithCacheCreation(20.00, 32.00, 0)
+	fastNonGlobal := pricing.NewRates(17.60, 88.00, 0.44).WithCacheCreation(22.00, 35.20, 0)
+
+	info := pricing.FlatInfoFromRates(global).WithOverride(
+		pricing.Selector{Speed: llm.SpeedFast},
+		pricing.RateCard{Base: fastGlobal},
+	)
+	for _, region := range []string{"us", "eu"} {
+		info = info.WithOverride(
+			pricing.Selector{Region: region},
+			pricing.RateCard{Base: nonGlobal},
+		).WithOverride(
+			pricing.Selector{Speed: llm.SpeedFast, Region: region},
+			pricing.RateCard{Base: fastNonGlobal},
 		)
 	}
 
