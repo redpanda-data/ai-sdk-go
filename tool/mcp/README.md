@@ -92,10 +92,17 @@ of whether the negotiated protocol uses a wire MCP session.
 Server `tools/list_changed` notifications invalidate the corresponding partition, including all pages.
 The registry subscribes to modern pushes and receives legacy notifications. Server TTLs cannot exceed
 `WithRegistryMaxToolCacheTTL` (default 30 seconds); zero disables catalog caching, and a nonpositive
-server TTL never becomes cacheable. Expired entries refresh on demand, not on a background timer.
+server TTL never becomes cacheable. Without a positive server TTL, each snapshot (and therefore
+each model step) fetches the catalog again, even when notifications are supported. Expired entries
+refresh on demand, not on a background timer.
 A notification received during discovery prevents an older response from restoring a stale cache.
 The current model step keeps its captured definitions, including parameter-header annotations, even
 after a push or a newer discovery. The next step resolves the changed catalog.
+
+Catalog resolution is strict: a schema or parameter-header validation error fails the snapshot
+with the MCP server ID, tool name and underlying cause. The registry does not silently omit the
+rejected tool. When used with `llmagent.WithTools`, a failure resolving any source stops the entire
+model step before the model is called, including when other remote or local tools are valid.
 
 The pool is bounded, evicts only idle/unleased entries and expires idle entries on access. Configure it
 with `WithRegistryMaxConnections` and `WithRegistryIdleTimeout`. `Close`/`Shutdown` cancel and drain

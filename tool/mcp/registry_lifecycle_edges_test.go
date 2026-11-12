@@ -184,7 +184,7 @@ func TestRegistryCapturedToolSurvivesPoolEviction(t *testing.T) {
 			if legacy {
 				assert.Len(t, peer.requests("initialize"), 3)
 			} else {
-				assert.Len(t, peer.requests("server/discover"), 3)
+				assert.Len(t, peer.requests(registryBenchmarkDiscoverMethod), 3)
 			}
 		})
 	}

@@ -36,7 +36,10 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/tool"
 )
 
-const registryBenchmarkListMethod = "tools/list"
+const (
+	registryBenchmarkListMethod     = "tools/list"
+	registryBenchmarkDiscoverMethod = "server/discover"
+)
 
 const registryBenchmarkParameters = `{"type":"object","properties":{"query":{"type":"string","description":"Search query"},"limit":{"type":"integer"}},"required":["query"],"additionalProperties":false}`
 
@@ -59,7 +62,7 @@ func BenchmarkMCPRegistrySnapshot(b *testing.B) {
 				}
 
 				b.ReportMetric(0, "tools/list/op")
-				b.ReportMetric(0, "server/discover/op")
+				b.ReportMetric(0, registryBenchmarkDiscoverMethod+"/op")
 			})
 
 			for _, cache := range []bool{true, false} {
@@ -196,7 +199,7 @@ func BenchmarkMCPRegistryAgentStep(b *testing.B) {
 						fixture.report(b, lists, discoveries)
 					} else {
 						b.ReportMetric(0, "tools/list/op")
-						b.ReportMetric(0, "server/discover/op")
+						b.ReportMetric(0, registryBenchmarkDiscoverMethod+"/op")
 					}
 				})
 			}
@@ -230,7 +233,7 @@ func newRegistryBenchmarkMCP(b *testing.B, size int, opts ...RegistryOption) *re
 			switch method {
 			case registryBenchmarkListMethod:
 				fixture.lists.Add(1)
-			case "server/discover":
+			case registryBenchmarkDiscoverMethod:
 				fixture.discoveries.Add(1)
 			}
 
@@ -279,7 +282,7 @@ func (f *registryBenchmarkFixture) report(b *testing.B, lists, discoveries int64
 	b.Helper()
 	b.StopTimer()
 	b.ReportMetric(float64(f.lists.Load()-lists)/float64(b.N), "tools/list/op")
-	b.ReportMetric(float64(f.discoveries.Load()-discoveries)/float64(b.N), "server/discover/op")
+	b.ReportMetric(float64(f.discoveries.Load()-discoveries)/float64(b.N), registryBenchmarkDiscoverMethod+"/op")
 }
 
 func checkRegistryBenchmarkSnapshot(ctx context.Context, b *testing.B, registry tool.Registry, size int) {

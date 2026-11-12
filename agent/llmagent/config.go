@@ -292,7 +292,8 @@ func WithDescription(description string) Option {
 // step, in option order. Multiple WithTools options append; nil registries are
 // ignored. Each source is snapshotted once before planning, budgeting, or
 // execution; reactive context-overflow retries reuse that snapshot. Duplicate
-// tool names and conflicting group metadata fail the step before the model call.
+// tool names, conflicting group metadata, and errors resolving any source fail
+// the entire step before the model call; other sources are not used as a fallback.
 // Callers manage the tools' connections, lifetimes, and concurrent access.
 func WithTools(registries ...tool.Registry) Option {
 	return func(c *config) {

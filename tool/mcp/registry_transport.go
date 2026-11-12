@@ -57,6 +57,9 @@ func (r *Registry) httpClient(partition string) *http.Client {
 	return client
 }
 
+// MCP versions are ISO dates, so lexical order identifies support for parameter headers.
+const registryParameterHeadersProtocol = "2026-07-28"
+
 type registryRoundTripper struct {
 	registry  *Registry
 	partition string
@@ -88,7 +91,7 @@ func (t *registryRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 		cloned.Header[name] = append([]string(nil), values...)
 	}
 
-	if parameters, ok := req.Context().Value(registryParameterHeadersKey{}).(http.Header); ok && cloned.Header.Get("Mcp-Protocol-Version") >= "2026-07-28" && cloned.Header.Get("Mcp-Method") == "tools/call" {
+	if parameters, ok := req.Context().Value(registryParameterHeadersKey{}).(http.Header); ok && cloned.Header.Get("Mcp-Protocol-Version") >= registryParameterHeadersProtocol && cloned.Header.Get("Mcp-Method") == "tools/call" {
 		// Replace, rather than merge, headers derived from the SDK's mutable cache.
 		for name := range cloned.Header {
 			if strings.HasPrefix(strings.ToLower(name), "mcp-param-") {

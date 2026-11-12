@@ -205,7 +205,9 @@ a different partition. The SDK does not append a header hash or automatically in
 catalogs when headers change under the same key. Include an authorization version or header
 hash in the key when that should select fresh state. Server change notifications invalidate
 that partition's catalog; server TTLs are capped by `WithRegistryMaxToolCacheTTL` (default
-30 seconds, zero disables caching). There is no periodic discovery timer.
+30 seconds, zero disables caching). A server that provides no positive TTL is rediscovered
+on each snapshot, including each model step; notifications alone do not make its catalog cacheable.
+There is no periodic discovery timer.
 See [`tool/mcp`](tool/mcp/README.md) for authentication options and legacy client migration.
 
 ### Combining registries
@@ -219,7 +221,8 @@ assistant, err := llmagent.New("my-agent", "You are a helpful assistant.", model
 ```
 
 Each source is snapshotted once before composition. Removed tools cannot be restored by session
-load metadata. Duplicate names and conflicting group metadata stop the step before the model call.
+load metadata. Duplicate names, conflicting group metadata, or an error resolving any source stop
+the entire step before the model call; valid sources are not used as a partial fallback.
 All registry implementations provide `Snapshot(ctx) (tool.Registry, error)` and return an immutable
 view preserving execution policies. `tool.Snapshot(ctx, registries...)` captures and combines sources
 directly. Snapshots do not clone executable implementations or close their connections. Callers own

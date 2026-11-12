@@ -98,15 +98,24 @@ type Registry struct {
 	endpoint *url.URL
 	config   registryConfig
 
-	mu       sync.Mutex
-	entries  map[string]*registryEntry
+	mu      sync.Mutex
+	entries map[string]*registryEntry
+	// closing counts sessions detached from entries whose Close has not
+	// returned, including retired entries still leased (draining). They hold
+	// capacity: len(entries)+closing never exceeds maxConnections.
+	closing  int
+	draining int
+	waiting  int
 	changed  chan struct{}
 	closed   bool
 	ctx      context.Context //nolint:containedctx // Owns the registry lifetime, not an individual caller.
 	cancel   context.CancelFunc
 	wg       sync.WaitGroup
-	done     chan struct{}
-	closeErr error
+	cleanup  sync.WaitGroup // detached session closes started by closeDetached
+	// cleanupErrs holds detached close failures, reported by Shutdown.
+	cleanupErrs registryCleanupErrors
+	done        chan struct{}
+	closeErr    error
 }
 
 var _ tool.Registry = (*Registry)(nil)
@@ -199,12 +208,12 @@ func (r *Registry) Snapshot(ctx context.Context) (tool.Registry, error) {
 
 		parameters, err := json.Marshal(remote.InputSchema)
 		if err != nil {
-			return nil, fmt.Errorf("mcp: tool schema: %w", err)
+			return nil, fmt.Errorf("mcp: server %q tool %q schema: %w", r.serverID, remote.Name, err)
 		}
 
 		bindings, err := registryParameterBindings(parameters)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("mcp: server %q tool %q: %w", r.serverID, remote.Name, err)
 		}
 
 		wrapped := &registryTool{

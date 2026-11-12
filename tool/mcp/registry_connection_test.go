@@ -70,7 +70,7 @@ func TestRegistrySubscriptionUnavailableRetainsTrackedSession(t *testing.T) {
 		}
 
 		switch message.Method {
-		case "server/discover":
+		case registryBenchmarkDiscoverMethod:
 			discovers.Add(1)
 		case registrySubscriptionMethod:
 			rejected.Add(1)

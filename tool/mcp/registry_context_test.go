@@ -213,7 +213,7 @@ func TestContextRegistryPartitionsAndProtocol(t *testing.T) {
 				assert.NotEqual(t, calls[0].session, calls[1].session)
 			} else {
 				assert.Empty(t, peer.requests("initialize"))
-				assert.Len(t, peer.requests("server/discover"), 2)
+				assert.Len(t, peer.requests(registryBenchmarkDiscoverMethod), 2)
 
 				for _, req := range peer.requests("") {
 					assert.Empty(t, req.session)
@@ -239,7 +239,7 @@ func TestContextRegistryPartitionKeyIsAuthoritative(t *testing.T) {
 	require.NoError(t, err)
 	_, err = registry.List(second)
 	require.NoError(t, err)
-	assert.Len(t, peer.requests("server/discover"), 2, "identical headers must not collapse distinct authorization partitions")
+	assert.Len(t, peer.requests(registryBenchmarkDiscoverMethod), 2, "identical headers must not collapse distinct authorization partitions")
 	assert.Len(t, peer.requests("tools/list"), 2)
 
 	peer.addTool("alice", "alice_only", "rotated catalog", "new")
@@ -256,7 +256,7 @@ func TestContextRegistryPartitionKeyIsAuthoritative(t *testing.T) {
 	require.NotNil(t, response)
 	assert.False(t, response.IsError, string(response.Result))
 	assert.Contains(t, string(response.Result), "Bearer alice:two")
-	assert.Len(t, peer.requests("server/discover"), 2, "header rotation alone must not choose a new SDK client")
+	assert.Len(t, peer.requests(registryBenchmarkDiscoverMethod), 2, "header rotation alone must not choose a new SDK client")
 	calls := peer.requests("tools/call")
 	require.Len(t, calls, 1)
 	assert.Equal(t, "Bearer alice:two", calls[0].auth)
@@ -632,7 +632,7 @@ func TestContextRegistryCapacityCancellationAndShutdown(t *testing.T) {
 
 	_, err = registry.Snapshot(bob)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
-	assert.Len(t, peer.requests("server/discover"), 1, "capacity wait must not create an extra client")
+	assert.Len(t, peer.requests(registryBenchmarkDiscoverMethod), 1, "capacity wait must not create an extra client")
 
 	shutdown, stop := context.WithTimeout(t.Context(), 5*time.Second)
 	defer stop()
@@ -666,7 +666,7 @@ func TestContextRegistryIdleEviction(t *testing.T) {
 
 	_, err = registry.List(alice)
 	require.NoError(t, err)
-	assert.Len(t, peer.requests("server/discover"), 2, "expired idle client must be replaced")
+	assert.Len(t, peer.requests(registryBenchmarkDiscoverMethod), 2, "expired idle client must be replaced")
 }
 
 func TestContextRegistryDiscoveryWaitRespectsDeadline(t *testing.T) {

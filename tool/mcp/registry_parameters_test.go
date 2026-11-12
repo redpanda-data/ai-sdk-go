@@ -91,7 +91,7 @@ func TestContextRegistryCapturedParameterHeaders(t *testing.T) {
 						lists.Add(1)
 					}
 
-					if message.Method == "tools/call" {
+					if message.Method == registryAgentCallMethod {
 						calls <- wireCall{header: req.Header.Clone(), name: message.Params.Name, args: message.Params.Arguments}
 
 						w.Header().Set("Content-Type", "application/json")
@@ -144,7 +144,7 @@ func TestContextRegistryCapturedParameterHeaders(t *testing.T) {
 					}
 				}
 
-				assert.Equal(t, "tools/call", call.header.Get("Mcp-Method"))
+				assert.Equal(t, registryAgentCallMethod, call.header.Get("Mcp-Method"))
 				assert.Equal(t, "routed", call.header.Get("Mcp-Name"))
 				assert.Equal(t, "Bearer alice:one", call.header.Get("Authorization"))
 				assert.Equal(t, "routed", call.name)
@@ -205,7 +205,7 @@ func TestRegistrySnapshotRejectsInvalidParameterAnnotations(t *testing.T) {
 			require.ErrorContains(t, err, test.want)
 			assert.Nil(t, snapshot, "invalid annotations must reject the entire captured catalog")
 			assert.Len(t, peer.requests(registryParameterListMethod), 1, "the invalid schema must arrive through real MCP discovery")
-			assert.Empty(t, peer.requests("tools/call"))
+			assert.Empty(t, peer.requests(registryAgentCallMethod))
 		})
 	}
 }
@@ -317,11 +317,11 @@ func TestRegistryParameterTransportOverridesOnlyModernCalls(t *testing.T) {
 		captured http.Header
 		want     http.Header
 	}{
-		{"modern", "2026-07-28", "tools/call", http.Header{"Mcp-Param-Tenant": {"captured"}}, http.Header{"Mcp-Param-Tenant": {"captured"}}},
-		{"modern unannotated snapshot", "2026-07-28", "tools/call", http.Header{}, http.Header{}},
-		{"legacy", "2025-06-18", "tools/call", http.Header{"Mcp-Param-Tenant": {"captured"}}, http.Header{"Mcp-Param-Tenant": {"SDK"}, "Mcp-Param-New": {"SDK"}}},
+		{"modern", "2026-07-28", registryAgentCallMethod, http.Header{"Mcp-Param-Tenant": {"captured"}}, http.Header{"Mcp-Param-Tenant": {"captured"}}},
+		{"modern unannotated snapshot", "2026-07-28", registryAgentCallMethod, http.Header{}, http.Header{}},
+		{"legacy", "2025-06-18", registryAgentCallMethod, http.Header{"Mcp-Param-Tenant": {"captured"}}, http.Header{"Mcp-Param-Tenant": {"SDK"}, "Mcp-Param-New": {"SDK"}}},
 		{"discovery", "2026-07-28", registryParameterListMethod, http.Header{"Mcp-Param-Tenant": {"captured"}}, http.Header{"Mcp-Param-Tenant": {"SDK"}, "Mcp-Param-New": {"SDK"}}},
-		{"no capture", "2026-07-28", "tools/call", nil, http.Header{"Mcp-Param-Tenant": {"SDK"}, "Mcp-Param-New": {"SDK"}}},
+		{"no capture", "2026-07-28", registryAgentCallMethod, nil, http.Header{"Mcp-Param-Tenant": {"SDK"}, "Mcp-Param-New": {"SDK"}}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()

@@ -269,7 +269,7 @@ func TestRegistryAgentNotificationDuringModelStep(t *testing.T) {
 			if legacy {
 				assert.Len(t, peer.requests("initialize"), 1)
 			} else {
-				assert.Len(t, peer.requests("server/discover"), 1)
+				assert.Len(t, peer.requests(registryBenchmarkDiscoverMethod), 1)
 			}
 		})
 	}

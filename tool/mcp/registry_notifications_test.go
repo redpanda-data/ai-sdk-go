@@ -157,7 +157,7 @@ func TestContextRegistryPushInvalidatesCatalog(t *testing.T) {
 				}
 			} else {
 				assert.Empty(t, peer.requests("initialize"))
-				assert.Len(t, peer.requests("server/discover"), 2)
+				assert.Len(t, peer.requests(registryBenchmarkDiscoverMethod), 2)
 				listens := peer.requests("subscriptions/listen")
 				require.Len(t, listens, 2)
 
