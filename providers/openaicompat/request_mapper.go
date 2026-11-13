@@ -175,7 +175,7 @@ func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]openai.ChatCompl
 			}
 
 		case llm.RoleUser:
-			// Handle tool responses first (takes precedence)
+			// Emit tool responses before any accompanying user text.
 			if len(toolResponses) > 0 {
 				for _, part := range toolResponses {
 					apiMsg, err := rm.mapToolMessage(part)
@@ -185,7 +185,9 @@ func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]openai.ChatCompl
 
 					apiMessages = append(apiMessages, apiMsg)
 				}
-			} else if len(textParts) > 0 {
+			}
+
+			if len(textParts) > 0 {
 				apiMsg := rm.mapUserMessage(textParts)
 				apiMessages = append(apiMessages, apiMsg)
 			}
