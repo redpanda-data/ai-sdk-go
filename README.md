@@ -165,6 +165,71 @@ agent, err := llmagent.New("my-agent", "You are a helpful assistant.", model,
 
 See [`examples/`](examples/) for full working demos.
 
+### Contextual registries
+
+`tool.Registry` resolves tools with `List(ctx)` and `Get(ctx, name)`; both return errors.
+Its `Snapshot(ctx)` method captures definitions, membership and execution policies for one
+model step. `WithTools` accepts a contextual registry directly: the agent snapshots it before
+schema planning, lazy discovery or context budgeting, then uses that snapshot for dispatch.
+A context-overflow retry reuses the snapshot; the next model step resolves afresh.
+
+For caller-dependent HTTP MCP tools, use the on-demand registry:
+
+```go
+remote, err := mcp.NewRegistry("github", "https://example.com/mcp",
+	mcp.WithCredentials(func(ctx context.Context) (mcp.Credentials, error) {
+		caller, err := authenticatedCaller(ctx) // Application-owned identity and credential lookup.
+		if err != nil {
+			return mcp.Credentials{}, err
+		}
+		return mcp.NewCredentials(
+			mcp.WithPartitionKey(caller.AuthScope),
+			mcp.WithTokenSource(caller.TokenSource),
+		)
+	}),
+)
+if err != nil {
+	return err
+}
+defer remote.Close()
+
+assistant, err := llmagent.New("my-agent", "Help the caller.", model,
+	llmagent.WithTools(remote),
+)
+```
+
+The application defines `PartitionKey`: equal keys share client-side connection/protocol
+state and the bounded tool-catalog cache. Keys are not MCP wire session IDs. Credentials
+are resolved again for execution and HTTP requests, but captured tools cannot execute under
+a different partition. The SDK does not append a header hash or automatically invalidate
+catalogs when headers change under the same key. Include an authorization version or header
+hash in the key when that should select fresh state. Server change notifications invalidate
+that partition's catalog; server TTLs are capped by `WithRegistryMaxToolCacheTTL` (default
+30 seconds, zero disables caching). A server that provides no positive TTL is rediscovered
+on each snapshot, including each model step; notifications alone do not make its catalog cacheable.
+There is no periodic discovery timer.
+See [`tool/mcp`](tool/mcp/README.md) for authentication options and legacy client migration.
+
+### Combining registries
+
+Pass multiple registries to `WithTools`; repeated options append sources. Nil sources are ignored:
+
+```go
+assistant, err := llmagent.New("my-agent", "You are a helpful assistant.", model,
+	llmagent.WithTools(staticTools, remote),
+)
+```
+
+Each source is snapshotted once before composition. Removed tools cannot be restored by session
+load metadata. Duplicate names, conflicting group metadata, or an error resolving any source stop
+the entire step before the model call; valid sources are not used as a partial fallback.
+All registry implementations provide `Snapshot(ctx) (tool.Registry, error)` and return an immutable
+view preserving execution policies. `tool.Snapshot(ctx, registries...)` captures and combines sources
+directly. Snapshots do not clone executable implementations or close their connections. Callers own
+those lifetimes and must make tools and credential callbacks concurrency-safe.
+
+### Lazy tool loading
+
 For larger registries, defer tools whose schemas are only needed occasionally:
 
 ```go
@@ -188,15 +253,18 @@ Nothing else to switch on. The agent chooses discovery based on the model's capa
 
 - Supported Anthropic models use hosted tool search and native deferred schemas.
 - OpenAI Responses models with tool search support use native deferred functions; tool groups
-  become namespaces. Both native paths keep the tool catalog stable as tools are discovered.
+  become namespaces. For an unchanged registry, both native paths keep the tool catalog stable
+  as tools are discovered.
 - Gemini, OpenAI-compatible endpoints, Bedrock Converse, and models without native search
   support use the local `tool_search` tool. Discovered schemas join the next request's tools
   array; prefix caching can be invalidated when the set changes.
 
-Loaded tools stay available across turns and session restarts. If compaction removes native
-search references, previously loaded tools become eager in the next request. Native mode puts a
-group directory and all group instructions in the system prompt up front to keep it stable; the
-local fallback includes a name/summary manifest and activates group instructions as tools load.
+Loaded names persist across turns, compaction and session restarts; a tool is available only
+while present in the current step's registry. If compaction removes native search references,
+previously loaded tools still in the registry become eager in the next request. Native mode puts
+a group directory and all group instructions in the system prompt up front to keep it stable
+while the registry is unchanged; the local fallback includes a name/summary manifest and activates
+group instructions as tools load.
 
 `mcp.WithDeferredTools()`, `mcp.WithAlwaysLoad("search_tickets")`, and `mcp.WithToolGroup(...)`
 express the same policy per server. `tool.WithGroup` and `tool.WithDeferred` are the per-tool
@@ -207,9 +275,10 @@ on a model that supports native search, pass
 [`examples/lazy_tools`](examples/lazy_tools/) runs against public MCP servers. Its keyless dry-run
 prints the local fallback request.
 
-Loaded schemas remain in the session. If later loads exhaust its tool capacity, a fresh session
-may have room for those tools. Searches return flat lists of loaded names; explicit `select:`
-queries use the requested order when applying the load budget.
+The session remembers loaded names, not schemas or authorization. Schemas come from the current
+step's registry. If later loads exhaust its tool capacity, a fresh session may have room for
+those tools. Searches return flat lists of loaded names; explicit `select:` queries use the
+requested order when applying the load budget.
 
 Tool interceptors may edit arguments, deny execution, retry, or transform results. The request
 and response name and ID must remain those of the original call; identity changes return a tool error.

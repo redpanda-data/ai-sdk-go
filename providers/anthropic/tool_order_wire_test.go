@@ -67,7 +67,10 @@ func TestRegistryToolOrderIsStableOnTheWire(t *testing.T) {
 			require.NoError(t, reg.Register(fakeTool{name: n}))
 		}
 
-		order, _ := serializedRequest(t, m, reg.List())
+		defs, err := reg.List(t.Context())
+		require.NoError(t, err)
+
+		order, _ := serializedRequest(t, m, defs)
 
 		return strings.Join(order, ",")
 	}

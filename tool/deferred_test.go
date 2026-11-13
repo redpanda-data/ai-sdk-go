@@ -100,7 +100,8 @@ func TestRegistryListOverlaysRegistrationPolicy(t *testing.T) {
 				Group:       llm.ToolGroup{Name: tt.selfGroup},
 			}}, tt.opts...))
 
-			defs := registry.List()
+			defs, err := registry.List(t.Context())
+			require.NoError(t, err)
 			require.Len(t, defs, 1)
 			assert.Equal(t, tt.wantDeferred, defs[0].Deferred)
 			assert.Equal(t, tt.wantGroup, defs[0].Group.Name)
@@ -128,16 +129,22 @@ func TestRegistryListStableWithDeferral(t *testing.T) {
 		}}, opts...))
 	}
 
-	first, err := json.Marshal(registry.List())
+	defs, err := registry.List(t.Context())
+	require.NoError(t, err)
+	first, err := json.Marshal(defs)
 	require.NoError(t, err)
 
 	for range 20 {
-		again, err := json.Marshal(registry.List())
+		defs, err := registry.List(t.Context())
+		require.NoError(t, err)
+		again, err := json.Marshal(defs)
 		require.NoError(t, err)
 		require.JSONEq(t, string(first), string(again))
 	}
 
-	defs := registry.List()
+	defs, err = registry.List(t.Context())
+	require.NoError(t, err)
+
 	got := make([]string, len(defs))
 
 	for i, def := range defs {
@@ -199,13 +206,19 @@ func TestRegistryResolvesGroupMetadataOnEveryMember(t *testing.T) {
 		}
 
 		want := llm.ToolGroup{Name: "svc", Description: "Service records", Instructions: "Confirm the tenant first."}
-		for _, def := range registry.List() {
+		defs, err := registry.List(t.Context())
+		require.NoError(t, err)
+
+		for _, def := range defs {
 			assert.Equal(t, want, def.Group, def.Name)
 		}
 
 		require.NoError(t, registry.Unregister("create"))
 
-		for _, def := range registry.List() {
+		defs, err = registry.List(t.Context())
+		require.NoError(t, err)
+
+		for _, def := range defs {
 			assert.Empty(t, def.Group.Instructions, "metadata follows the current registered members")
 			assert.Equal(t, "Service records", def.Group.Description)
 		}

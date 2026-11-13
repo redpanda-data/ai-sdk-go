@@ -18,10 +18,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 
 	"github.com/redpanda-data/ai-sdk-go/agent"
-	"github.com/redpanda-data/ai-sdk-go/agent/llmagent/internal/toolloading"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/tool"
 )
@@ -118,7 +116,7 @@ type config struct {
 	id                   string
 	version              string
 	model                llm.Model
-	tools                tool.Registry
+	registries           []tool.Registry
 	interceptors         []agent.Interceptor
 	maxTurns             int
 	toolConcurrency      int
@@ -194,19 +192,11 @@ func (c *config) validateCompaction() error {
 	return nil
 }
 
-// validateToolLoading checks the loading limits and, when a deferred tool is
-// registered, that the registry does not also hold the reserved tool_search name.
+// validateToolLoading checks the loading limits. Tool names are validated after
+// resolving the context's registry for each model step.
 func (c *config) validateToolLoading() error {
 	if c.toolLoading.MaxLoadTokens < 0 {
 		return fmt.Errorf("llmagent: MaxLoadTokens must not be negative, got %d", c.toolLoading.MaxLoadTokens)
-	}
-
-	if c.tools == nil {
-		return nil
-	}
-
-	if _, err := c.tools.Get(toolloading.SearchToolName); err == nil && slices.ContainsFunc(c.tools.List(), isDeferred) {
-		return fmt.Errorf("llmagent: lazy loading reserves the tool name %q; rename the registered tool", toolloading.SearchToolName)
 	}
 
 	return nil
@@ -298,10 +288,20 @@ func WithDescription(description string) Option {
 	}
 }
 
-// WithTools sets the registry of available tools.
-func WithTools(tools tool.Registry) Option {
+// WithTools adds registries resolved against the turn context before every model
+// step, in option order. Multiple WithTools options append; nil registries are
+// ignored. Each source is snapshotted once before planning, budgeting, or
+// execution; reactive context-overflow retries reuse that snapshot. Duplicate
+// tool names, conflicting group metadata, and errors resolving any source fail
+// the entire step before the model call; other sources are not used as a fallback.
+// Callers manage the tools' connections, lifetimes, and concurrent access.
+func WithTools(registries ...tool.Registry) Option {
 	return func(c *config) {
-		c.tools = tools
+		for _, registry := range registries {
+			if registry != nil {
+				c.registries = append(c.registries, registry)
+			}
+		}
 	}
 }
 
@@ -345,7 +345,8 @@ func WithVersion(version string) Option {
 
 // WithToolLoadingConfig tunes lazy tool loading. Loading needs no option to
 // enable it: deferred tools use native hosted search when supported, or a local
-// tool_search tool otherwise. Loaded tools persist across compaction and restarts.
+// tool_search tool otherwise. Loaded names persist across compaction and restarts;
+// only tools present in the current step's registry remain available.
 func WithToolLoadingConfig(cfg ToolLoadingConfig) Option {
 	return func(c *config) {
 		c.toolLoading = cfg

@@ -128,7 +128,7 @@ func TestToolLoadingPrefixCost(t *testing.T) {
 		t.Helper()
 
 		registry := buildMeasureRegistry(t, lazy)
-		require.Len(t, registry.List(), 61, "60 MCP tools plus one built-in")
+		require.Len(t, fixtureDefinitions(t, registry), 61, "60 MCP tools plus one built-in")
 
 		model := fakellm.NewFakeModel()
 		script(model)

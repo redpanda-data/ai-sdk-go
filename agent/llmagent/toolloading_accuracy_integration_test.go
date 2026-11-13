@@ -309,7 +309,7 @@ func buildAccuracyRegistry(tb testing.TB, groups []string, lazy bool) tool.Regis
 
 	registry := tool.NewRegistry(tool.RegistryConfig{})
 
-	for _, def := range buildMeasureRegistry(tb, lazy).List() {
+	for _, def := range fixtureDefinitions(tb, buildMeasureRegistry(tb, lazy)) {
 		if def.Group.Name != "" && !slices.Contains(groups, def.Group.Name) {
 			continue
 		}

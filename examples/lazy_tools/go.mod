@@ -8,8 +8,8 @@ require github.com/redpanda-data/ai-sdk-go v0.0.0
 
 require (
 	github.com/anthropics/anthropic-sdk-go v1.27.1 // indirect
-	github.com/google/jsonschema-go v0.4.2 // indirect
-	github.com/modelcontextprotocol/go-sdk v1.4.1 // indirect
+	github.com/google/jsonschema-go v0.4.3 // indirect
+	github.com/modelcontextprotocol/go-sdk v1.8.0 // indirect
 	github.com/openai/openai-go/v3 v3.43.0 // indirect
 	github.com/rs/xid v1.6.0 // indirect
 	github.com/segmentio/asm v1.2.1 // indirect
@@ -23,6 +23,7 @@ require (
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
+	golang.org/x/time v0.15.0 // indirect
 )
 
 replace github.com/redpanda-data/ai-sdk-go => ../..

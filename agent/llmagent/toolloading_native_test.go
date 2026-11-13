@@ -121,12 +121,14 @@ func TestNativeDiscoveryAndRestoration(t *testing.T) {
 			require.NoError(t, err)
 			var resumed session.State
 			require.NoError(t, json.Unmarshal(stored, &resumed))
-			replayed := ag.loader.Prepare(registry.List(), &resumed).Tools
+			defs := fixtureDefinitions(t, registry)
+			loader := toolloading.New(defs, model, toolloading.Config{})
+			replayed := loader.Prepare(defs, &resumed).Tools
 			require.Equal(t, calls[1].Request.Tools, replayed)
 
 			// Simulate compaction dropping native references while metadata survives.
 			sess.Messages = userMessage("continue")
-			plan := ag.loader.Prepare(registry.List(), sess)
+			plan := loader.Prepare(defs, sess)
 			restored, section := plan.Tools, plan.Prompt
 			require.False(t, defByName(t, restored, "fetch").Deferred, "a previously loaded tool is now eager")
 			require.True(t, defByName(t, restored, "other").Deferred, "undiscovered tools remain deferred")
@@ -220,8 +222,10 @@ func TestNativeDiscoverySurvivesProactiveCompaction(t *testing.T) {
 	}
 
 	sess.Messages = append(sess.Messages, llm.NewMessage(llm.RoleUser, llm.NewTextPart("continue now")))
-	ag.loader.Commit(sess, []string{"fetch"})
-	before := ag.loader.Prepare(registry.List(), sess).Tools
+	defs := fixtureDefinitions(t, registry)
+	loader := toolloading.New(defs, model, toolloading.Config{})
+	loader.Commit(sess, []string{"fetch"})
+	before := loader.Prepare(defs, sess).Tools
 	require.True(t, before[0].Deferred, "the search reference is still present before compaction")
 	events := runAgent(t, ag, sess)
 	require.Equal(t, agent.FinishReasonStop, finishReason(events))

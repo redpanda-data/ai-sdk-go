@@ -25,7 +25,6 @@ import (
 
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/store/session"
-	"github.com/redpanda-data/ai-sdk-go/tool"
 )
 
 const (
@@ -72,16 +71,17 @@ type Config struct {
 // Every method is safe on a nil *Loader and behaves as if nothing were
 // deferred, so an agent without a registry needs no special casing.
 type Loader struct {
-	tools         tool.Registry
+	definitions   []llm.ToolDefinition
 	model         llm.Model
 	forceLocal    bool
 	maxLoadTokens int
 }
 
-// New builds a loader over the registry for the given model.
-func New(tools tool.Registry, model llm.Model, cfg Config) *Loader {
+// New builds a loader over captured definitions for the given model. The caller
+// must keep the definitions immutable for the lifetime of the loader.
+func New(definitions []llm.ToolDefinition, model llm.Model, cfg Config) *Loader {
 	return &Loader{
-		tools:         tools,
+		definitions:   definitions,
 		model:         model,
 		forceLocal:    cfg.ForceLocal,
 		maxLoadTokens: cmp.Or(cfg.MaxLoadTokens, defaultMaxLoadTokens),
@@ -119,8 +119,9 @@ func (l *Loader) Prepare(defs []llm.ToolDefinition, sess *session.State) Plan {
 // Session state
 //
 
-// Commit adds names to the session on the turn goroutine. Loaded tools stay
-// available across turns, compaction, and restarts.
+// Commit adds names to the session on the turn goroutine. Loaded names persist
+// across turns, compaction, and restarts; only tools in the current registry
+// remain available.
 func (*Loader) Commit(sess *session.State, names []string) {
 	if sess == nil || len(names) == 0 {
 		return
@@ -227,12 +228,7 @@ func (l *Loader) prepareLocal(defs []llm.ToolDefinition, sess *session.State) ([
 	var sections []string
 
 	if len(deferred) > 0 {
-		// tool_search is a reserved name (config.validate rejects a registry that
-		// already holds it). Guard anyway: a registry is mutable, and declaring the
-		// same tool name twice is a request the provider rejects outright.
-		if !slices.ContainsFunc(scoped, func(def llm.ToolDefinition) bool { return def.Name == SearchToolName }) {
-			scoped = append(scoped, toolSearchDefinition())
-		}
+		scoped = append(scoped, toolSearchDefinition())
 
 		sections = append(sections, renderToolManifest(buildToolManifest(deferred)))
 	}
