@@ -245,6 +245,44 @@ func TestNewModel_ReasoningEffortReachesRequest(t *testing.T) {
 	}
 }
 
+// TestNewModel_ThinkingBudget checks WithThinkingBudget reaches a Claude
+// request as an enabled thinking block, and is refused for Gemini, for a
+// Claude model without a budget, and below Anthropic's 1024-token minimum.
+func TestNewModel_ThinkingBudget(t *testing.T) {
+	t.Parallel()
+
+	fake := newFakeVertex(t, "application/json", claudeResponse)
+
+	m, err := newGatewayProvider(t, fake).NewModel(vertex.ModelClaudeHaiku45, vertex.WithThinkingBudget(4096))
+	require.NoError(t, err)
+
+	_, err = m.Generate(context.Background(), hello())
+	require.NoError(t, err)
+
+	body := fake.only(t).Body
+	assert.Equal(t, "enabled", gjson.Get(body, "thinking.type").String())
+	assert.Equal(t, int64(4096), gjson.Get(body, "thinking.budget_tokens").Int())
+
+	for _, tc := range []struct {
+		name   string
+		model  string
+		tokens int64
+		want   string
+	}{
+		{name: "gemini", model: vertex.ModelGemini35Flash, tokens: 4096, want: "not a thinking budget"},
+		{name: "claude without a budget", model: vertex.ModelClaudeSonnet5, tokens: 4096, want: "thinking_budget"},
+		{name: "below the minimum", model: vertex.ModelClaudeHaiku45, tokens: 512, want: "at least 1024"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := newGatewayProvider(t, newFakeVertex(t, "application/json", claudeResponse)).
+				NewModel(tc.model, vertex.WithThinkingBudget(tc.tokens))
+			require.ErrorContains(t, err, tc.want)
+		})
+	}
+}
+
 type hostRecorder struct{ origin string }
 
 func (h *hostRecorder) RoundTrip(r *http.Request) (*http.Response, error) {

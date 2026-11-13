@@ -21,6 +21,7 @@ type Option func(*modelConfig) error
 
 type modelConfig struct {
 	reasoningEffort *llm.ReasoningEffort
+	thinkingBudget  *int64
 }
 
 // WithReasoningEffort sets the reasoning effort. The model's offering
@@ -28,6 +29,17 @@ type modelConfig struct {
 func WithReasoningEffort(effort ReasoningEffort) Option {
 	return func(c *modelConfig) error {
 		c.reasoningEffort = &effort
+
+		return nil
+	}
+}
+
+// WithThinkingBudget sets an explicit thinking budget in tokens for a Claude
+// model that takes a budget rather than an effort, such as Claude Haiku 4.5.
+// It is refused for Gemini and for Claude models without a budget.
+func WithThinkingBudget(tokens int64) Option {
+	return func(c *modelConfig) error {
+		c.thinkingBudget = &tokens
 
 		return nil
 	}

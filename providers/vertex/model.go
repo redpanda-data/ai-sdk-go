@@ -91,6 +91,10 @@ func (p *Provider) checkReadyForModels() error {
 const genaiAPIVersion = "v1"
 
 func (p *Provider) newGeminiModel(modelName string, offering catalog.Offering, cfg *modelConfig) (llm.Model, error) {
+	if cfg.thinkingBudget != nil {
+		return nil, fmt.Errorf("vertex: %s takes a reasoning effort, not a thinking budget", modelName)
+	}
+
 	ctx := context.Background()
 
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
@@ -147,6 +151,10 @@ func (p *Provider) newClaudeModel(modelName string, offering catalog.Offering, c
 	var opts []anthropic.Option
 	if cfg.reasoningEffort != nil {
 		opts = append(opts, anthropic.WithReasoningEffort(*cfg.reasoningEffort))
+	}
+
+	if cfg.thinkingBudget != nil {
+		opts = append(opts, anthropic.WithThinkingBudget(*cfg.thinkingBudget))
 	}
 
 	return provider.NewModelFromOffering(modelName, offering, opts...)
