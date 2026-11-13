@@ -19,9 +19,9 @@ model, err := provider.NewModel(fireworks.ModelGLM53Flash,
 
 `NewProvider(ctx)` and the provider's zero value still support credential-free catalog discovery. Credentials are explicit; the provider never reads environment variables or credential files. `NewModel` requires a bearer credential and rejects unregistered IDs. A custom base URL is the inference API root ending in `/v1`; gateway prefixes are preserved.
 
-The factory uses exactly the resolved offering's `WireAPIs[0]`, in the catalog's normalized order, without reordering, preference knobs, or fallback. An empty, unsupported, or unqualified first binding is an error even if a later binding is usable. All seven current offerings select Messages/direct. The selected binding determines capabilities and reasoning controls, not the offering-wide union.
+The factory uses exactly the resolved offering's `WireAPIs[0]`, in the catalog's normalized order, without reordering, preference knobs, or fallback. An empty, unsupported, or undeclared first binding is an error even if a later binding is usable. All seven current offerings select Messages/direct. The selected binding determines capabilities and reasoning controls, not the offering-wide union.
 
-**Runtime image restriction:** native catalog vision support remains true where qualified, but constructed SDK models report `Capabilities().Vision == false`: `llm.Part` has no image input representation. This is an SDK limitation, not an upstream unsupported claim; SDK vision is not qualified.
+**Runtime image restriction:** native catalog vision support remains true where documented, but constructed SDK models report `Capabilities().Vision == false`: `llm.Part` has no image input representation. This is an SDK limitation, not an upstream unsupported claim; SDK vision is not qualified.
 
 ## Scope and identity
 
@@ -33,7 +33,7 @@ Catalog `Constraints.SupportedParams` remains intentionally empty: it is not a p
 
 Resolution is exact, including exact authored aliases. An unlisted date suffix, deployment, router, shorthand, or `*-latest` alias must not inherit the base model's API support or price. No moving aliases are currently registered. Router variants, US-only capacity, custom/private/fine-tuned deployments, batch, embeddings, and decision-only models are outside this catalog's supported contract. Messages support does not advertise native count-tokens: the observed `/inference/v1/messages/count_tokens` endpoint returned 404. Hosted `ToolSearchProtocol` remains empty; ordinary tools and Fireworks' client-side deferred-tool compatibility do not establish provider-hosted tool execution.
 
-Candidate qualification inventory (checked 2026-11-04). A catalog row is not a passing acceptance result; only a complete passing manifest qualifies the declared contract:
+Initial inventory (checked 2026-11-04). This historical table describes the original rollout; the catalog is the current source for entries and rates. Recordings cover observed behavior, not every catalog model:
 
 | Invocation ID suffix (`accounts/fireworks/models/…`) | Creator | Role | Standard input/cache/output USD/M | Priority input/cache/output USD/M |
 | --- | --- | --- | --- | --- |
@@ -69,13 +69,13 @@ Input limits use exact `context_length` values returned by the live inference mo
 | `rune` model/router | Decision API, no generated output tokens; not chat/Responses/Messages generation. |
 | US-only variants not returned in the default listing | Separate capacity and prices; deferred. |
 
-## SDK runtime qualification
+## SDK runtime tests
 
-The explicit local SDK suite exercises `NewProvider(...).NewModel(...)`, `Generate`, and `GenerateEvents` for all seven exact offerings through the default Messages binding. It covers system/history, forced tools and tool-result replay, observable reasoning and reasoning-history replay, native schema enforcement against a conflicting plain control, output-limit termination, and authoritative SDK/native usage. Captured native exchanges are replayed offline; replay is not represented as a new live result. The factory's other two protocol branches are separately covered at the wire seam, not claimed as new all-model SDK live coverage.
+The original local SDK run exercised `NewProvider(...).NewModel(...)`, `Generate`, and `GenerateEvents` for all seven exact offerings through the default Messages binding. It covers system/history, forced tools and tool-result replay, observable reasoning and reasoning-history replay, native schema enforcement against a conflicting plain control, output-limit termination, and authoritative SDK/native usage. Captured native exchanges are replayed offline; replay is not represented as a new live result. The factory's other two protocol branches are separately covered at the wire seam, not claimed as new all-model SDK live coverage.
 
-The initial 86-request SDK batch passed all native usage comparisons and the complete feature sweep for six models, but its two MiniMax schema cases failed upstream with explicit disabled thinking. Those failed native exchanges remain immutable in `testdata/sdk-runtime/messages-live.json`, with an explicit failed-run outcome alongside them; `native_verified` means usage/price agreement, not feature success. Four separately captured corrective SDK schema calls passed with default/omitted or adaptive thinking, in both modes. The restriction above rejects the failed configuration without silently changing it. These corrections are not represented as a new full sweep. The original recorder repeatedly sanitized request tool IDs; offline conversation replay applies an explicitly labelled, hash-proven derived ID correction for that historical defect while retaining the original capture and every response byte unchanged.
+The initial 86-request SDK batch passed all native usage comparisons and the complete feature sweep for six models, but its two MiniMax schema cases failed upstream with explicit disabled thinking. Those failed native exchanges remain immutable in `testdata/sdk-runtime/messages-live.json`, with an explicit failed-run outcome alongside them; `native_verified` means usage/price agreement, not feature success. Four separately captured corrective SDK schema calls passed with default/omitted or adaptive thinking, in both modes. The restriction above rejects the failed configuration without silently changing it. These corrections are not represented as a new full sweep. The original recorder repeatedly sanitized request tool IDs; offline conversation replay applies an explicitly labelled derived ID correction for that historical defect while retaining the original capture and every response byte unchanged.
 
-SDK live calls are explicitly opt-in and local-only. They are not dispatched by CI and must not be given a Fireworks credential through workflows. SDK qualification does not include images.
+SDK live calls are explicitly opt-in and local-only. They are not dispatched by CI and must not be given a Fireworks credential through workflows. SDK tests do not include images.
 
 ```sh
 # Build before reading credentials; execute locally only.
@@ -86,34 +86,23 @@ go test -c -o /tmp/fireworks-sdk-live.test ./providers/fireworks
 # Optional: -fireworks-sdk-cache adds at most three bounded cache probes.
 ```
 
-The SDK test client enforces one upstream HTTP attempt per invocation (including vendor-SDK retries), bounds each request body and output cap, and checkpoints sanitized native exchanges into a unique persistent run directory, never over the retained fixtures. `-fireworks-sdk-output-dir` selects the parent directory; otherwise the system temporary directory is used. The logged `*-incomplete.json` artifact requires explicit review and manual promotion. Repeated checkpoints sanitize fresh copies, preserving stable IDs and request hashes. Approve a conservative paid-call bound before opting in; the test client is not a production spending policy.
+The SDK test client enforces one upstream HTTP attempt per invocation (including vendor-SDK retries), bounds each request body and output cap, and checkpoints sanitized native exchanges into a unique persistent run directory, never over the retained fixtures. `-fireworks-sdk-output-dir` selects the parent directory; otherwise the system temporary directory is used. The logged `*-incomplete.json` artifact requires explicit review and manual promotion. Repeated checkpoints sanitize fresh copies, preserving stable IDs. Approve a conservative paid-call bound before opting in; the test client is not a production spending policy.
 
-## Required direct API acceptance
+## Recorded native API tests
 
-The older three-protocol native acceptance matrix below is separate from SDK runtime qualification. Live API tests are local-only and explicitly opt-in; CI runs credential-free catalog, unit, and offline replay tests without a Fireworks key. Explicit acceptance is billable and must fail on a missing credential, missing evidence, absent required test, skipped required case, unsupported newly advertised feature, catalog drift, or any failed contract. It is not a gateway or CLI acceptance claim.
+The three-protocol native tests are offline regression tests, separate from SDK replay. They replay recorded requests and responses rather than requiring every catalog offering to have live evidence. No catalog, test-source or fixture fingerprint gates are used.
 
 ```sh
-# Credential-free strict replay + catalog-driven completeness:
 task fireworks:replay
-
-# Explicitly replace reviewed live evidence, never automatic in CI:
-task fireworks:record -- -fireworks-key-file /path/to/credential-file -fireworks-budget-usd=1
-
-# Required release acceptance: replay followed by every live required case:
-task fireworks:accept -- -fireworks-key-file /path/to/credential-file -fireworks-budget-usd=1
 ```
 
-The key is read inside the test process and used only in its HTTP authorization header. Do not put its contents in shell arguments, logs, fixtures, or reports. Responses requests always send `store: false`. Calls are sequential, output-token capped, and reserve conservative worst-case cost before sending. An explicit finite positive per-run `-fireworks-budget-usd` limit is required; it is not a persistent SDK spending policy. Recording must checkpoint sanitized exchanges before parsing so parser failures cannot lose evidence or spend reservations. Never convert an incomplete run to successful evidence by deleting failing cases.
-
-The machine-readable manifest pins exact offerings, protocol/transport, stream mode, request options, contract implementation, catalog fingerprint, capture time, and SDK revision. For these intentionally uncommitted implementation runs, the Git revision is the clean **base**, not a claim that upstream already contains Fireworks; catalog/test/request hashes identify the actual candidate. A corrected verifier is recorded separately from each immutable capture's original revision and fingerprint, and incremental repairs are labelled partial corrections rather than fresh full sweeps. Strict replay rejects unexpected method/path/headers/model/body and unmatched calls, and reruns executable assertions against real response/SSE bytes. Synthetic chunking, omitted/zero usage, and identity regressions are labelled synthetic extensions, not represented as observed Fireworks behavior. Final accounting uses presence-aware cumulative usage rather than summing repeated counters; reasoning is included in total output once.
-
-Direct SDK contracts do not certify ADP user/tenant isolation, budgets/guardrails, credential forwarding, persisted spending rollups, native CLI behavior, or end-to-end gateway behavior. Those require the separate gateway acceptance suite.
+Live calls and recording are optional, local-only and billable. Select one model with `-fireworks-model`; recording requires a separate `-fireworks-record-output` path and explicit finite positive `-fireworks-budget-usd`. See [contract.md](contract.md) for commands, fixture promotion and spend safeguards. CI never needs a Fireworks key.
 
 ## Maintenance
 
-Fireworks is a **host**, not a new publisher for OpenAI, Z.ai, MiniMax, DeepSeek, or Moonshot AI models. The existing scheduled/manual reconciliation workflow owns these entries through their creator vendor legs. Its named-source registry, authoritative Fireworks host guide, egress allowlist, package/provider mapping, snapshot/report/guard checks, and CI coverage are the update path; there is no second importer. CI has no Fireworks inference credential. It may refresh existing factual prices/limits/lifecycle, but API/feature/alias expansion requires fresh exact-offering live qualification and review, not automatic widening from the inventory listing.
+Fireworks is a **host**, not a new publisher for OpenAI, Z.ai, MiniMax, DeepSeek, or Moonshot AI models. The reconciliation workflow owns these entries through their creator vendor legs. Add documented serverless models and features through the normal reviewed catalog workflow; live recordings are additional coverage, not an admission requirement. Existing replay fixtures must still pass. Keep SDK representability and request-mapping limits separate from native metadata.
 
-Refresh the inventory, rates, aliases and lifecycle whenever those authoritative inputs change; regenerate `task catalog:snapshot`, review the JSON diff, and run required acceptance. The SDK model-catalog maintainers own that review. Do not dispatch the public reconciliation workflow with a local credential or give untrusted PR code provider secrets.
+The catalog is the only model-rate table. Update authoritative rates/limits/lifecycle, regenerate `task catalog:snapshot`, review the JSON diff, and run unit/replay tests. Numerical price changes do not invalidate recorded HTTP responses. Do not give untrusted PR code provider secrets or dispatch public reconciliation workflows with local credentials.
 
 Sources (checked 2026-11-04):
 

@@ -20,12 +20,9 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/redpanda-data/ai-sdk-go/providers/fireworks"
 )
 
 func contractOpenBudget(ctx context.Context, t *testing.T) *contractSpend {
@@ -37,6 +34,7 @@ func contractOpenBudget(ctx context.Context, t *testing.T) *contractSpend {
 	return &contractSpend{limit: *contractBudget, ctx: ctx}
 }
 
+//nolint:gosec // The local operator explicitly selects the evidence output path.
 func contractAtomicWrite(t *testing.T, path string, b []byte) {
 	t.Helper()
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
@@ -71,54 +69,7 @@ func contractCheckpoint(t *testing.T, manifest contractManifest, current *contra
 
 	b, err := json.MarshalIndent(manifest, "", "  ")
 	require.NoError(t, err)
-	contractAtomicWrite(t, "testdata/contracts/incomplete.json", append(b, '\n'))
-}
-
-type contractDollarRates struct {
-	Input       float64 `json:"input"`
-	CachedInput float64 `json:"cached_input"`
-	Output      float64 `json:"output"`
-}
-type contractRateWorksheet struct {
-	Source  string `json:"source"`
-	Checked string `json:"checked"`
-	Unit    string `json:"unit"`
-	Models  map[string]struct {
-		Standard contractDollarRates `json:"standard"`
-		Priority contractDollarRates `json:"priority"`
-	} `json:"models"`
-}
-
-var contractPublishedRates = sync.OnceValues(func() (contractRateWorksheet, error) {
-	var result contractRateWorksheet
-
-	b, err := os.ReadFile("testdata/contracts/published-rates.json")
-	if err != nil {
-		return result, err
-	}
-
-	err = json.Unmarshal(b, &result)
-
-	return result, err
-})
-
-func contractReservation(c contractCase, input, output int64) float64 {
-	bound := contractCost(c, input, 0, output)
-	for _, o := range fireworks.Catalog().All() {
-		if o.ID == c.Model {
-			rates := o.Pricing.Default.Base
-			for _, override := range o.Pricing.Overrides {
-				if c.Feature == contractPriority && override.Match.ServiceTier == contractPriority {
-					rates = override.RateCard.Base
-				}
-			}
-
-			catalogBound := (float64(input)*float64(max(rates.InputPerMillion, 0)) + float64(output)*float64(max(rates.OutputPerMillion, 0))) / 1e14
-			bound = max(bound, catalogBound)
-		}
-	}
-
-	return bound
+	contractAtomicWrite(t, *contractRecordOutput+".incomplete.json", append(b, '\n'))
 }
 
 func contractReportBudget(manifest *contractManifest, spend *contractSpend) {

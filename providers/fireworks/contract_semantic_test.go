@@ -280,7 +280,7 @@ func TestFireworksContractSemanticCorrections(t *testing.T) {
 	}
 
 	_, source := contractReadReport(t, "testdata/contracts/full-matrix-v2-incomplete.json")
-	inventory, _ := contractInventory(t)
+	inventory := contractInventory(t)
 	var cases []contractCase
 
 	for _, c := range inventory {

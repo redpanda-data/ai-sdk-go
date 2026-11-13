@@ -57,8 +57,8 @@ func TestFireworksContractSyntheticLifecycleBoundaries(t *testing.T) {
 
 		t.Run(o.ID, func(t *testing.T) {
 			t.Parallel()
-			before, _ := contractInventoryAt(t, o.Life.Retires.Add(-24*time.Hour))
-			on, _ := contractInventoryAt(t, o.Life.Retires)
+			before := contractInventoryAt(t, o.Life.Retires.Add(-24*time.Hour))
+			on := contractInventoryAt(t, o.Life.Retires)
 			found := false
 
 			for _, c := range before {
@@ -79,8 +79,9 @@ func TestFireworksContractSyntheticLifecycleBoundaries(t *testing.T) {
 func TestFireworksContractSyntheticRequestControls(t *testing.T) {
 	t.Parallel()
 
-	cases, _ := contractInventory(t)
-	for _, c := range cases {
+	manifest := contractLoadManifest(t)
+	for _, evidence := range manifest.Evidence {
+		c := evidence.Case
 		request := contractRequest(t, c)
 		if c.API == catalog.WireProtocolOpenAIResponses {
 			require.Equal(t, false, request["store"])

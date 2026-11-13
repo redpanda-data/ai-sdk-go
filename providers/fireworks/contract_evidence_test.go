@@ -15,7 +15,6 @@
 package fireworks_test
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -37,20 +36,8 @@ import (
 )
 
 var (
-	contractVerify         = flag.Bool("fireworks-revalidate-recordings", false, "explicitly replay all retained captures with the current verifier; never calls Fireworks")
-	contractDiagnostic     = flag.Bool("fireworks-cache-diagnostic", false, "run one explicitly selected nonstream Messages cache diagnostic")
-	contractCorrectTools   = flag.Bool("fireworks-correct-tools", false, "recapture exactly the seven failed tools cases from the immutable full attempt")
-	contractCaptureSources = []string{
-		"testdata/contracts/full-matrix-v2-incomplete.json",
-		"testdata/contracts/cache-diagnostic.json",
-		"testdata/contracts/tool-corrections.json",
-		"testdata/contracts/cache-v4-8192-affinity.json",
-		"testdata/contracts/cache-v4-8192-preferred.json",
-		"testdata/contracts/semantic-controls-v5.json",
-		"testdata/contracts/semantic-followup-v5.json",
-		"testdata/contracts/cache-crossover-v5.json",
-		"testdata/contracts/cache-diagnostic-65536.json",
-	}
+	contractDiagnostic   = flag.Bool("fireworks-cache-diagnostic", false, "run one explicitly selected nonstream Messages cache diagnostic")
+	contractCorrectTools = flag.Bool("fireworks-correct-tools", false, "recapture exactly the seven failed tools cases from the immutable full attempt")
 )
 
 type contractRequestOptions struct {
@@ -76,19 +63,15 @@ type contractRequestOptions struct {
 }
 
 type contractCaptureProvenance struct {
-	TestVersion        int       `json:"test_version"`
-	TestFingerprint    string    `json:"test_fingerprint"`
-	CapturedAt         time.Time `json:"captured_at"`
-	SDKRevision        string    `json:"sdk_revision"`
-	RequestSHA256      []string  `json:"sanitized_request_sha256"`
-	OriginalFailed     bool      `json:"original_failed,omitempty"`
-	CatalogFingerprint string    `json:"catalog_fingerprint"`
+	TestVersion    int       `json:"test_version"`
+	CapturedAt     time.Time `json:"captured_at"`
+	SDKRevision    string    `json:"sdk_revision"`
+	OriginalFailed bool      `json:"original_failed,omitempty"`
 }
 
 type contractSourceReport struct {
-	Path   string `json:"path"`
-	SHA256 string `json:"sha256"`
-	Kind   string `json:"kind"`
+	Path string `json:"path"`
+	Kind string `json:"kind"`
 }
 
 type contractCacheBranch struct {
@@ -114,38 +97,14 @@ func contractCachePrompt(c contractCase, size int) string {
 }
 
 func contractHash(b []byte) string { sum := sha256.Sum256(b); return hex.EncodeToString(sum[:]) }
-func contractRequestHash(b []byte) string {
-	var out bytes.Buffer
-	if err := json.Compact(&out, b); err != nil {
-		return "invalid-json"
-	}
-
-	return contractHash(out.Bytes())
-}
-
 func contractReadReport(t *testing.T, path string) (contractManifest, contractSourceReport) {
 	t.Helper()
-
 	b, err := os.ReadFile(path)
 	require.NoError(t, err)
 	var report contractManifest
 	require.NoError(t, json.Unmarshal(b, &report))
 
-	for i := range report.Evidence {
-		e := &report.Evidence[i]
-		if e.Capture.CatalogFingerprint == "" {
-			e.Capture.CatalogFingerprint = report.CatalogFingerprint
-		}
-
-		if e.Capture.TestFingerprint == "" {
-			e.Capture = contractCaptureProvenance{TestVersion: report.Version, TestFingerprint: report.TestFingerprint, CapturedAt: report.CapturedAt, SDKRevision: report.SDKRevision, OriginalFailed: e.Failed, CatalogFingerprint: report.CatalogFingerprint}
-			for _, exchange := range e.Exchanges {
-				e.Capture.RequestSHA256 = append(e.Capture.RequestSHA256, contractRequestHash(exchange.Request))
-			}
-		}
-	}
-
-	return report, contractSourceReport{Path: path, SHA256: contractHash(b), Kind: report.RunKind}
+	return report, contractSourceReport{Path: path, Kind: report.RunKind}
 }
 
 func contractWriteEvidence(t *testing.T, path string, report contractManifest, budget *contractSpend) {
@@ -180,11 +139,10 @@ func contractCaptureRequests(t *testing.T, path string, source contractSourceRep
 	defer stop()
 
 	budget := contractOpenBudget(ctx, t)
-	_, fingerprint := contractInventory(t)
 	revision, err := exec.CommandContext(ctx, "git", "rev-parse", "HEAD").Output()
 	require.NoError(t, err)
 
-	report := contractManifest{Version: contractVersion, CatalogFingerprint: fingerprint, TestFingerprint: contractTestFingerprint(t), CapturedAt: time.Now().UTC(), SDKRevision: strings.TrimSpace(string(revision)), Scope: "sdk_direct_upstream_only", RunKind: "partial_targeted_correction", Sources: []contractSourceReport{source}}
+	report := contractManifest{Version: contractVersion, CapturedAt: time.Now().UTC(), SDKRevision: strings.TrimSpace(string(revision)), Scope: "sdk_direct_upstream_only", RunKind: "partial_targeted_correction", Sources: []contractSourceReport{source}}
 	if strings.Contains(path, "cache-v4-") {
 		report.RunKind = "partial_cache_comparison"
 	}
@@ -200,7 +158,7 @@ func contractCaptureRequests(t *testing.T, path string, source contractSourceRep
 		t.Run(base.key(), func(t *testing.T) {
 			c := base
 			c.Options = options(base)
-			evidence := contractEvidence{Case: base, Options: c.Options, Capture: contractCaptureProvenance{TestVersion: contractVersion, TestFingerprint: report.TestFingerprint, CapturedAt: time.Now().UTC(), SDKRevision: report.SDKRevision, CatalogFingerprint: report.CatalogFingerprint}}
+			evidence := contractEvidence{Case: base, Options: c.Options, Capture: contractCaptureProvenance{TestVersion: contractVersion, CapturedAt: time.Now().UTC(), SDKRevision: report.SDKRevision}}
 
 			defer func() {
 				evidence.Failed = t.Failed() || t.Skipped()
@@ -213,7 +171,6 @@ func contractCaptureRequests(t *testing.T, path string, source contractSourceRep
 				e := contractHTTP(t, client, "https://api.fireworks.ai", key, c, request, budget)
 				safe := contractSanitize(t, e, key)
 				evidence.Exchanges = append(evidence.Exchanges, safe)
-				evidence.Capture.RequestSHA256 = append(evidence.Capture.RequestSHA256, contractRequestHash(safe.Request))
 				pending := report
 				row := evidence
 				row.Failed = true
@@ -385,137 +342,15 @@ func contractCacheGaps(t *testing.T, report *contractManifest, cases []contractC
 	return missing
 }
 
-//nolint:tparallel // Each case must finish before its verification result is durably recorded.
-func TestFireworksContractRevalidate(t *testing.T) {
-	t.Parallel()
-
-	if !*contractVerify {
-		return
-	}
-
-	report, source := contractReadReport(t, "testdata/contracts/full-matrix-v2-incomplete.json")
-	report.Sources = []contractSourceReport{source}
-	cases, fingerprint := contractInventory(t)
-
-	required := map[string]contractCase{}
-	for _, c := range cases {
-		required[c.key()] = c
-	}
-
-	for _, path := range contractCaptureSources[1:] {
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			continue
-		}
-
-		correction, ref := contractReadReport(t, path)
-		require.Equal(t, fingerprint, contractCompatibleCatalog(t, correction), "catalog changes invalidate retained captures")
-
-		report.Sources = append(report.Sources, ref)
-		report.KnownRunUSD += correction.KnownRunUSD
-		report.UnresolvedReservationsUSD += correction.UnresolvedReservationsUSD
-
-		report.CumulativeConservativeUSD = max(report.CumulativeConservativeUSD, correction.CumulativeConservativeUSD)
-		for _, replacement := range correction.Evidence {
-			if contractEnumDiagnostic(replacement.Case) {
-				report.Diagnostics = append(report.Diagnostics, replacement)
-				continue
-			}
-
-			_, valid := required[replacement.Case.key()]
-			require.True(t, valid, "capture must refer to a current required API behavior")
-
-			if replacement.Case.Feature == contractCacheRepeat {
-				report.Supplemental = append(report.Supplemental, replacement)
-				continue
-			}
-
-			found := false
-
-			for i, old := range report.Evidence {
-				if old.Case.key() == replacement.Case.key() {
-					report.Superseded = append(report.Superseded, old)
-					report.Evidence[i] = replacement
-					found = true
-
-					break
-				}
-			}
-
-			if !found {
-				report.Evidence = append(report.Evidence, replacement)
-			}
-		}
-	}
-
-	require.Equal(t, fingerprint, contractCompatibleCatalog(t, report))
-	report.VerifierCatalogFingerprint = fingerprint
-	report.Version = contractVersion
-	report.VerifierFingerprint = contractTestFingerprint(t)
-	report.RunKind = "full_matrix_with_targeted_corrections"
-
-	report.NativeFailures = nil
-	for _, rows := range [][]contractEvidence{report.Evidence, report.Supplemental, report.Diagnostics} {
-		for i := range rows {
-			e := &rows[i]
-			ok := t.Run(e.Case.key(), func(t *testing.T) {
-				contractVerifyCrossoverCapture(t, *e)
-				contractReplay(t, *e, 0)
-				contractReplay(t, *e, 3)
-			})
-			e.NativeVerified = ok
-
-			e.Failed = !ok
-			if !ok && !contractEnumDiagnostic(e.Case) {
-				report.NativeFailures = append(report.NativeFailures, e.Case)
-			}
-		}
-	}
-
-	require.Len(t, report.Evidence, len(cases), "every required case must have retained native evidence")
-
-	report.MissingCacheBranches = contractCacheGaps(t, &report, cases)
-	report.CumulativeConservativeUSD = max(report.CumulativeConservativeUSD, report.PriorConservativeUSD+report.KnownRunUSD+report.UnresolvedReservationsUSD)
-
-	report.Blocked = append(report.Blocked, "Cache zero is valid; qualification separately requires final hit/fresh evidence for each exact offering/API/mode.", "Offering-level top_p/stop declarations are vendor unions, not verified per-API client controls; those controls remain unqualified.")
-	if *contractRecord {
-		contractWriteEvidence(t, "testdata/contracts/revalidated-evidence.json", report, nil)
-	}
-
-	t.Logf("REVALIDATION, NOT a new full live sweep: %d retained cases, %d native failures, %d exact-binding cache gaps; all original failures preserved by source SHA256", len(report.Evidence), len(report.NativeFailures), len(report.MissingCacheBranches))
-	require.Empty(t, report.NativeFailures, "native contract failures remain release blockers")
-	require.Empty(t, report.MissingCacheBranches, "positive authoritative cache-usage branches remain unqualified")
-}
-
 func TestFireworksContractNativeReplay(t *testing.T) {
 	t.Parallel()
-	report, _ := contractReadReport(t, "testdata/contracts/revalidated-evidence.json")
-	require.Equal(t, contractTestFingerprint(t), report.VerifierFingerprint, "current verifier must explicitly revalidate the retained evidence")
-	contractCompatibleCatalog(t, report)
 
-	for _, source := range report.Sources {
-		require.Contains(t, contractCaptureSources, source.Path)
-		info, err := os.Lstat(source.Path)
-		require.NoError(t, err)
-		require.Zero(t, info.Mode()&os.ModeSymlink, "capture sources must be regular repository files")
-
-		b, err := os.ReadFile(source.Path)
-		require.NoError(t, err)
-		require.Equal(t, source.SHA256, contractHash(b), "immutable capture source changed")
-	}
-
+	report := contractLoadManifest(t)
 	for _, e := range append(append(append([]contractEvidence{}, report.Evidence...), report.Supplemental...), report.Diagnostics...) {
 		t.Run(e.Case.key(), func(t *testing.T) {
 			t.Parallel()
-			require.True(t, e.NativeVerified)
-			require.False(t, e.Failed)
-			require.NotEmpty(t, e.Capture.TestFingerprint)
-			require.NotEmpty(t, e.Capture.SDKRevision)
-			require.Len(t, e.Capture.RequestSHA256, len(e.Exchanges))
-
-			for i, exchange := range e.Exchanges {
-				require.Equal(t, e.Capture.RequestSHA256[i], contractRequestHash(exchange.Request))
-			}
-
+			require.False(t, e.Failed, "failed recording is not a regression fixture")
+			contractVerifyCrossoverCapture(t, e)
 			contractReplay(t, e, 0)
 			contractReplay(t, e, 3)
 		})

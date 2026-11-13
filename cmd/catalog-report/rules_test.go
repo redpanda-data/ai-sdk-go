@@ -40,7 +40,7 @@ func TestRulesFile(t *testing.T) {
 	assert.NotEmpty(t, rules.Lines, "RULES.md lists no rules")
 	assert.Contains(t, rules.Questions, reconcile.JudgmentRule, "rows with no rule need a question too")
 	assert.Contains(t, rules.Lines, regionRule, "the waiting section links this rule")
-	assert.Equal(t, map[string]bool{"fireworks-contract-qualification": true, "profile-beside-bare-id": true}, rules.OneQuestion,
+	assert.Equal(t, map[string]bool{"profile-beside-bare-id": true}, rules.OneQuestion,
 		"RULES.md marks these Asks One question; marking another means one answer settles all its rows, so change this list with it")
 
 	// RULES.md and the validator must list the same values; the schema is

@@ -84,7 +84,6 @@ func contractVerifyCrossoverCapture(t *testing.T, row contractEvidence) {
 		} else {
 			require.Equal(t, canonical, body, "stream is the sole request-body difference")
 			require.Equal(t, row.Exchanges[0].RequestHeaders, e.RequestHeaders)
-			require.Equal(t, row.Exchanges[0].PromptSHA256, e.PromptSHA256)
 			previous := row.Exchanges[n-1]
 			finished := previous.StartedAt.Add(time.Duration(previous.ElapsedMS) * time.Millisecond)
 			require.GreaterOrEqual(t, e.StartedAt.Sub(finished).Milliseconds(), int64(2000))

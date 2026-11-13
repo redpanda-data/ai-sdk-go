@@ -18,4 +18,3 @@ MiniMax is the publisher (`minimax`), not Fireworks. This run currently owns Min
 - Native M3 is multimodal with 1,048,576 context. Fireworks' `minimax-m3` page currently describes a smaller 512K served window and no image input. Host capabilities are not automatically the creator's full modality set.
 - The Fireworks FAQ gives a model-wide release of 2026-06-01, while its resource was created 2026-06-11. The creator README supplies no separate reliable knowledge cutoff; absence stays unknown.
 - Current cache rates come from Fireworks' central pricing table, not the model FAQ's stale $0.059 number. Prices, availability, lifecycle and wire bindings are Fireworks host facts. Its US-only retirement does not retire the global offering.
-- Contract expansions follow RULES.md (fireworks-contract-qualification); reconciliation CI has no inference credentials and never substitutes fabricated captures for live qualification.

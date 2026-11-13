@@ -39,15 +39,15 @@ func claudeSource(hosts ...string) namedSource {
 // Defaults, one Ask, no-rule for rows no rule covers, and Bedrock's offered
 // regions, with `in` asked about.
 var testRules = reconcile.Rules{
-	Lines:       map[string]int{"price-follow": 30, "new-copy-offered-region": 32, "limited-availability": 40, "out-of-reach": 80, "no-rule": 120, "region-not-offered": 20, "copy-gone-no-eol": 22, "label-fact-differs": 24, "copy-unpriced": 26, "no-catalog-field": 28, "fireworks-contract-qualification": 116, "profile-beside-bare-id": 113},
+	Lines:       map[string]int{"price-follow": 30, "new-copy-offered-region": 32, "limited-availability": 40, "out-of-reach": 80, "no-rule": 120, "region-not-offered": 20, "copy-gone-no-eol": 22, "label-fact-differs": 24, "copy-unpriced": 26, "no-catalog-field": 28, "profile-beside-bare-id": 113},
 	Reasons:     map[string]string{"limited_availability": "the model needs a signup", "vendor_excluded": "the vendor isn't tracked"},
-	Questions:   map[string]string{"out-of-reach": "Which replacement?", "no-rule": "No rule covers this. Decide.", "fireworks-contract-qualification": "Qualify it, or keep the current contract?", "profile-beside-bare-id": "Offer both?"},
-	OneQuestion: map[string]bool{"fireworks-contract-qualification": true, "profile-beside-bare-id": true},
+	Questions:   map[string]string{"out-of-reach": "Which replacement?", "no-rule": "No rule covers this. Decide.", "profile-beside-bare-id": "Offer both?"},
+	OneQuestion: map[string]bool{"profile-beside-bare-id": true},
 	RuleFields:  map[string][]string{"price-follow": {"price"}, "new-copy-offered-region": {"new_copy"}},
 	Outcomes: map[string][]string{
 		"price-follow": {"change"}, "new-copy-offered-region": {"change"}, "limited-availability": {"skip:`limited_availability`"}, "out-of-reach": {"needs_human"}, "no-rule": {"needs_human"},
-		"fireworks-contract-qualification": {"needs_human"}, "profile-beside-bare-id": {"needs_human"},
-		"region-not-offered": {"skip:`region_not_offered`"}, "copy-gone-no-eol": {"skip:`copy_unlisted`"},
+		"profile-beside-bare-id": {"needs_human"},
+		"region-not-offered":     {"skip:`region_not_offered`"}, "copy-gone-no-eol": {"skip:`copy_unlisted`"},
 		"label-fact-differs": {"skip:`fixed_fact_differs`"}, "copy-unpriced": {"skip:`copy_unpriced`"}, "no-catalog-field": {"skip:`no_catalog_field`"},
 	},
 	Offered:    map[string][]string{"bedrock": {"global", "us", "eu", "au", "jp"}},
@@ -1697,38 +1697,20 @@ func TestRenderGroupsSameQuestion(t *testing.T) {
 	}
 }
 
-// TestRenderGroupsOneAnswerAsks checks the Asks whose question is the same for
-// every offering (#329's Fireworks routers and Bedrock profiles, 12 Nov): their
-// rows are one question per field across vendors however the agent worded
-// them, each offering keeps its own values, and the counts follow the merge.
 func TestRenderGroupsOneAnswerAsks(t *testing.T) {
 	t.Parallel()
 
-	pricing := "https://docs.fireworks.ai/serverless/pricing.md"
-	router := func(id, page string, notes ...string) NeedsHuman {
+	profile := func(id, page string, notes ...string) NeedsHuman {
 		return NeedsHuman{
-			Offering: "fireworks:accounts/fireworks/routers/" + id, Field: reconcile.FieldNewCopy, Rule: "fireworks-contract-qualification",
-			Catalogue: "none", Page: page, Values: notes, Why: "A router is its own offering.", SourceURLs: []string{pricing},
+			Offering: "bedrock:" + id, Field: reconcile.FieldNewCopy, Rule: "profile-beside-bare-id",
+			Catalogue: "bare ID only", Page: page, Values: notes,
+			Why: "The card lists profiles.", SourceURLs: []string{"https://docs.aws.amazon.com/" + id},
 		}
 	}
-	model := NeedsHuman{
-		Offering: "fireworks:accounts/fireworks/models/kimi-k3p1-pro", Field: reconcile.FieldNewModel, Rule: "fireworks-contract-qualification",
-		Catalogue: "none", Page: "serverless 2.00/0.20/10.00", Why: "A new model needs a live run.", SourceURLs: []string{pricing},
-	}
-	kimi := router("kimi-k3-fast", "Fast 4.50/0.45/22.50", "no Priority tier")
-	kimi.Why = "Kimi K3 Fast has its own ID."
-	profile := func(model string) NeedsHuman {
-		return NeedsHuman{
-			Offering: "bedrock:openai." + model, Field: reconcile.FieldNewCopy, Rule: "profile-beside-bare-id",
-			Catalogue: "bare ID only", Page: "us and global profiles", Values: []string{"us.openai." + model, "global.openai." + model},
-			Why: "The card lists profiles.", SourceURLs: []string{"https://docs.aws.amazon.com/" + model},
-		}
-	}
-	feature := func(offering, page, rule, why string) NeedsHuman {
-		return NeedsHuman{
-			Offering: offering, Field: "capability", Rule: rule, Catalogue: "text", Page: page, Why: why, SourceURLs: []string{pricing},
-		}
-	}
+	sol := profile("openai.gpt-5.6-sol", "us and global profiles", "us.openai.gpt-5.6-sol", "global.openai.gpt-5.6-sol")
+	luna := profile("openai.gpt-5.6-luna", "us and global profiles", "us.openai.gpt-5.6-luna", "global.openai.gpt-5.6-luna")
+	claude := profile("anthropic.claude-sonnet-5-5", "global profile", "global.anthropic.claude-sonnet-5-5")
+	claude.Why = "The existing entry is a bare ID."
 
 	tests := []struct {
 		name          string
@@ -1736,30 +1718,26 @@ func TestRenderGroupsOneAnswerAsks(t *testing.T) {
 		want, notWant []string
 	}{
 		{
-			name: "routers across vendors",
+			name: "profiles across vendors",
 			vendors: []Vendor{
-				{Name: "zai", Report: Report{NeedsHuman: []NeedsHuman{router("glm-5p3-fast", "Fast 2.10/0.39/6.60", "no Priority tier"), router("glm-5p3-us", "US 2.10/0.39/6.60")}}},
-				{Name: "deepseek", Report: Report{NeedsHuman: []NeedsHuman{router("deepseek-v4p1-flash-us", "US-only 1.5x base")}}},
-				{Name: "moonshotai", Report: Report{NeedsHuman: []NeedsHuman{model, kimi}}},
+				{Name: "openai", Report: Report{NeedsHuman: []NeedsHuman{sol, luna}}},
+				{Name: "anthropic", Report: Report{NeedsHuman: []NeedsHuman{claude}}},
 			},
 			want: []string{
-				"**No changes** to the catalogue. Not changed: 2 open questions.",
-				"> 1. zai, deepseek, moonshotai · `fireworks:accounts/fireworks/routers/glm-5p3-fast` and 3 more · new copy\n" +
-					"> 2. moonshotai · `fireworks:accounts/fireworks/models/kimi-k3p1-pro` · new model\n\n",
-				"**1. zai, deepseek, moonshotai · `fireworks:accounts/fireworks/routers/glm-5p3-fast` and 3 more · new copy** · rule `fireworks-contract-qualification`\n" +
+				"**No changes** to the catalogue. Not changed: 1 open question.",
+				"> 1. openai, anthropic · `bedrock:openai.gpt-5.6-sol` and 2 more · new copy\n\n",
+				"**1. openai, anthropic · `bedrock:openai.gpt-5.6-sol` and 2 more · new copy** · rule `profile-beside-bare-id`\n" +
 					"- **Each offering:**\n" +
-					"  - `fireworks:accounts/fireworks/routers/glm-5p3-fast`: we have `none`; vendor's page `Fast 2.10/0.39/6.60`; notes `no Priority tier`\n" +
-					"  - `fireworks:accounts/fireworks/routers/glm-5p3-us`: we have `none`; vendor's page `US 2.10/0.39/6.60`\n" +
-					"  - `fireworks:accounts/fireworks/routers/deepseek-v4p1-flash-us`: we have `none`; vendor's page `US-only 1.5x base`\n" +
-					"  - `fireworks:accounts/fireworks/routers/kimi-k3-fast`: we have `none`; vendor's page `Fast 4.50/0.45/22.50`; notes `no Priority tier`\n" +
-					"- **Why the bot asks:**\n  - A router is its own offering.\n  - Kimi K3 Fast has its own ID.\n" +
-					"- **Decide:** Qualify it, or keep the current contract?\n" +
-					"- **Sources:** [pricing](https://docs.fireworks.ai/serverless/pricing.md)\n\n",
+					"  - `bedrock:openai.gpt-5.6-sol`: we have `bare ID only`; vendor's page `us and global profiles`; notes `us.openai.gpt-5.6-sol`, `global.openai.gpt-5.6-sol`\n" +
+					"  - `bedrock:openai.gpt-5.6-luna`: we have `bare ID only`; vendor's page `us and global profiles`; notes `us.openai.gpt-5.6-luna`, `global.openai.gpt-5.6-luna`\n" +
+					"  - `bedrock:anthropic.claude-sonnet-5-5`: we have `bare ID only`; vendor's page `global profile`; notes `global.anthropic.claude-sonnet-5-5`\n" +
+					"- **Why the bot asks:**\n  - The card lists profiles.\n  - The existing entry is a bare ID.\n" +
+					"- **Decide:** Offer both?\n",
 			},
 		},
 		{
 			name:    "profiles whose notes name their own profiles",
-			vendors: []Vendor{{Name: "openai", Report: Report{NeedsHuman: []NeedsHuman{profile("gpt-5.6-sol"), profile("gpt-5.6-luna")}}}},
+			vendors: []Vendor{{Name: "openai", Report: Report{NeedsHuman: []NeedsHuman{sol, luna}}}},
 			want: []string{
 				"> **1 open question,**",
 				"**1. `bedrock:openai.gpt-5.6-sol` and 1 more · new copy** · rule `profile-beside-bare-id`\n" +
@@ -1770,30 +1748,31 @@ func TestRenderGroupsOneAnswerAsks(t *testing.T) {
 			},
 		},
 		{
-			name:    "rows that say the same thing still share the lines",
-			vendors: []Vendor{{Name: "deepseek", Report: Report{NeedsHuman: []NeedsHuman{router("deepseek-v4p1-flash-us", "US-only 1.5x base"), router("deepseek-v4p1-flash-1017-us", "US-only 1.5x base")}}}},
+			name: "rows that say the same thing still share the lines",
+			vendors: []Vendor{{Name: "openai", Report: Report{NeedsHuman: []NeedsHuman{
+				profile("openai.gpt-5.6-sol", "us and global profiles"), profile("openai.gpt-5.6-luna", "us and global profiles"),
+			}}}},
 			want: []string{
-				"- **Offerings:** `fireworks:accounts/fireworks/routers/deepseek-v4p1-flash-us`, `fireworks:accounts/fireworks/routers/deepseek-v4p1-flash-1017-us`\n" +
-					"- **We have:** `none`\n- **Vendor's page:** `US-only 1.5x base`\n- **Why the bot asks:** A router is its own offering.\n",
+				"- **Offerings:** `bedrock:openai.gpt-5.6-sol`, `bedrock:openai.gpt-5.6-luna`\n" +
+					"- **We have:** `bare ID only`\n- **Vendor's page:** `us and global profiles`\n- **Why the bot asks:** The card lists profiles.\n",
 			},
 		},
 		{
 			name: "two rows on one offering count it once",
-			vendors: []Vendor{{Name: "zai", Report: Report{NeedsHuman: []NeedsHuman{
-				feature("fireworks:accounts/fireworks/models/glm-5p3", "vision", "fireworks-contract-qualification", "A new feature needs a live run."),
-				feature("fireworks:accounts/fireworks/models/glm-5p3", "reasoning effort", "fireworks-contract-qualification", "A new feature needs a live run."),
+			vendors: []Vendor{{Name: "openai", Report: Report{NeedsHuman: []NeedsHuman{
+				profile("openai.gpt-5.6-sol", "us profile"), profile("openai.gpt-5.6-sol", "global profile"),
 			}}}},
 			want: []string{
-				"> 1. `fireworks:accounts/fireworks/models/glm-5p3` · capability\n\n",
-				"  - `fireworks:accounts/fireworks/models/glm-5p3`: we have `text`; vendor's page `vision`\n" +
-					"  - `fireworks:accounts/fireworks/models/glm-5p3`: we have `text`; vendor's page `reasoning effort`\n",
+				"> 1. `bedrock:openai.gpt-5.6-sol` · new copy\n\n",
+				"  - `bedrock:openai.gpt-5.6-sol`: we have `bare ID only`; vendor's page `us profile`\n" +
+					"  - `bedrock:openai.gpt-5.6-sol`: we have `bare ID only`; vendor's page `global profile`\n",
 			},
 		},
 		{
 			name: "an unmarked Ask shows its first reason only",
 			vendors: []Vendor{{Name: "openai", Report: Report{NeedsHuman: []NeedsHuman{
-				feature("bedrock:us.openai.a", "reasoning effort", "out-of-reach", "First reason."),
-				feature("bedrock:us.openai.b", "reasoning effort", "out-of-reach", "Second reason."),
+				{Offering: "bedrock:us.openai.a", Field: "capability", Rule: "out-of-reach", Page: "reasoning effort", Why: "First reason."},
+				{Offering: "bedrock:us.openai.b", Field: "capability", Rule: "out-of-reach", Page: "reasoning effort", Why: "Second reason."},
 			}}}},
 			want:    []string{"- **Why the bot asks:** First reason.\n"},
 			notWant: []string{"Second reason."},

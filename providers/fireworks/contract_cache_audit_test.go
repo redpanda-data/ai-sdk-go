@@ -44,7 +44,7 @@ func TestFireworksContractCacheAudit(t *testing.T) {
 	require.GreaterOrEqual(t, *contractCachePrefix, 1024)
 	require.LessOrEqual(t, *contractCachePrefix, 16*1024)
 	_, source := contractReadReport(t, "testdata/contracts/full-matrix-v2-incomplete.json")
-	inventory, _ := contractInventory(t)
+	inventory := contractInventory(t)
 	var cases []contractCase
 
 	for _, c := range inventory {
