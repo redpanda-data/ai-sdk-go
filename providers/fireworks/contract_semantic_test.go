@@ -17,7 +17,6 @@ package fireworks_test
 import (
 	"bufio"
 	"encoding/json"
-	"flag"
 	"maps"
 	"regexp"
 	"strings"
@@ -33,11 +32,6 @@ const (
 	contractSchemaMarker   = "SCHEMA_ACTIVE_73"
 	contractAdaptiveAnswer = "73579"
 	contractAdaptiveTask   = "Find the smallest positive integer n satisfying n mod 101 = 51, n mod 103 = 37, and n mod 107 = 70. Derive the congruence reductions and verify all three remainders. Finish with the numeric result using digits."
-)
-
-var (
-	contractSemanticCorrection = flag.Bool("fireworks-correct-semantics", false, "recapture every JSON/schema/adaptive semantic proof and all required invalid-control cases")
-	contractSemanticFollowup   = flag.Bool("fireworks-semantic-followup", false, "recapture only the six refusal-blocked JSON pairs and two truncated adaptive stream pairs")
 )
 
 func contractSemanticOptions(c contractCase) contractRequestOptions {
@@ -269,33 +263,4 @@ func contractInvalidControl(c contractCase, request map[string]any) {
 			format["schema"] = bad
 		}
 	}
-}
-
-//nolint:tparallel // Paid inference requests run sequentially with bounded per-run reservations.
-func TestFireworksContractSemanticCorrections(t *testing.T) {
-	t.Parallel()
-
-	if !*contractSemanticCorrection {
-		return
-	}
-
-	_, source := contractReadReport(t, "testdata/contracts/full-matrix-v2-incomplete.json")
-	inventory := contractInventory(t)
-	var cases []contractCase
-
-	for _, c := range inventory {
-		if c.Feature == contractJSON || c.Feature == contractStructured || c.Feature == contractAdaptive || contractControlRejection(c.Feature) {
-			cases = append(cases, c)
-		}
-	}
-
-	require.NotEmpty(t, cases)
-	contractCaptureRequests(t, "testdata/contracts/semantic-controls-v5.json", source, cases, func(c contractCase) contractRequestOptions {
-		opts := contractSemanticOptions(c)
-		if contractControlRejection(c.Feature) {
-			opts.MaxOutputTokens = 16
-		}
-
-		return opts
-	})
 }

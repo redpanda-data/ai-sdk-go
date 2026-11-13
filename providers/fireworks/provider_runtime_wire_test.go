@@ -156,7 +156,7 @@ func (w *sdkRuntimeWire) checkpoint(t *testing.T) {
 		}
 	}
 
-	contractWriteEvidence(t, w.path, report, nil)
+	contractWriteEvidence(t, w.path, report)
 }
 
 func newSDKRuntimeWire(t *testing.T, key, path string, limit int) *sdkRuntimeWire {

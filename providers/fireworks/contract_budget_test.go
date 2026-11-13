@@ -15,24 +15,13 @@
 package fireworks_test
 
 import (
-	"context"
 	"encoding/json"
-	"math"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
-
-func contractOpenBudget(ctx context.Context, t *testing.T) *contractSpend {
-	t.Helper()
-
-	require.Positive(t, *contractBudget, "an explicit per-run budget is required")
-	require.False(t, math.IsInf(*contractBudget, 0) || math.IsNaN(*contractBudget), "per-run budget must be finite")
-
-	return &contractSpend{limit: *contractBudget, ctx: ctx}
-}
 
 //nolint:gosec // The local operator explicitly selects the evidence output path.
 func contractAtomicWrite(t *testing.T, path string, b []byte) {
@@ -52,10 +41,10 @@ func contractAtomicWrite(t *testing.T, path string, b []byte) {
 	require.NoError(t, os.Rename(name, path))
 }
 
-func contractCheckpoint(t *testing.T, manifest contractManifest, current *contractEvidence, spend *contractSpend) {
+func contractCheckpoint(t *testing.T, output string, manifest contractManifest, current *contractEvidence, spend *contractSpend) {
 	t.Helper()
 
-	if !*contractRecord {
+	if output == "" {
 		return
 	}
 
@@ -69,7 +58,7 @@ func contractCheckpoint(t *testing.T, manifest contractManifest, current *contra
 
 	b, err := json.MarshalIndent(manifest, "", "  ")
 	require.NoError(t, err)
-	contractAtomicWrite(t, *contractRecordOutput+".incomplete.json", append(b, '\n'))
+	contractAtomicWrite(t, output+".incomplete.json", append(b, '\n'))
 }
 
 func contractReportBudget(manifest *contractManifest, spend *contractSpend) {

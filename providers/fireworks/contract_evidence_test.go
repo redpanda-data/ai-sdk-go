@@ -18,26 +18,15 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"flag"
 	"fmt"
-	"net/http"
 	"os"
-	"os/exec"
-	"os/signal"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/redpanda-data/ai-sdk-go/catalog"
-	"github.com/redpanda-data/ai-sdk-go/providers/fireworks"
-)
-
-var (
-	contractDiagnostic   = flag.Bool("fireworks-cache-diagnostic", false, "run one explicitly selected nonstream Messages cache diagnostic")
-	contractCorrectTools = flag.Bool("fireworks-correct-tools", false, "recapture exactly the seven failed tools cases from the immutable full attempt")
 )
 
 type contractRequestOptions struct {
@@ -97,162 +86,22 @@ func contractCachePrompt(c contractCase, size int) string {
 }
 
 func contractHash(b []byte) string { sum := sha256.Sum256(b); return hex.EncodeToString(sum[:]) }
-func contractReadReport(t *testing.T, path string) (contractManifest, contractSourceReport) {
+func contractReadReport(t *testing.T, path string) contractManifest {
 	t.Helper()
 	b, err := os.ReadFile(path)
 	require.NoError(t, err)
 	var report contractManifest
 	require.NoError(t, json.Unmarshal(b, &report))
 
-	return report, contractSourceReport{Path: path, Kind: report.RunKind}
+	return report
 }
 
-func contractWriteEvidence(t *testing.T, path string, report contractManifest, budget *contractSpend) {
+func contractWriteEvidence(t *testing.T, path string, report contractManifest) {
 	t.Helper()
-
-	if budget != nil {
-		contractReportBudget(&report, budget)
-	}
 
 	b, err := json.MarshalIndent(report, "", "  ")
 	require.NoError(t, err)
 	contractAtomicWrite(t, path, append(b, '\n'))
-}
-
-func contractCaptureRequests(t *testing.T, path string, source contractSourceReport, cases []contractCase, options func(contractCase) contractRequestOptions) contractManifest {
-	t.Helper()
-	require.True(t, *contractLive && *contractRecord, "correction requires explicit live+record flags")
-
-	key := os.Getenv("FIREWORKS_API_KEY")
-
-	if *contractKeyFile != "" {
-		b, err := os.ReadFile(*contractKeyFile)
-		require.NoError(t, err)
-
-		key = strings.TrimSpace(string(b))
-	}
-
-	require.NotEmpty(t, key, "mandatory live correction requires credentials")
-	require.False(t, strings.ContainsAny(key, "\r\n"), "invalid credential format")
-
-	ctx, stop := signal.NotifyContext(t.Context(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	budget := contractOpenBudget(ctx, t)
-	revision, err := exec.CommandContext(ctx, "git", "rev-parse", "HEAD").Output()
-	require.NoError(t, err)
-
-	report := contractManifest{Version: contractVersion, CapturedAt: time.Now().UTC(), SDKRevision: strings.TrimSpace(string(revision)), Scope: "sdk_direct_upstream_only", RunKind: "partial_targeted_correction", Sources: []contractSourceReport{source}}
-	if strings.Contains(path, "cache-v4-") {
-		report.RunKind = "partial_cache_comparison"
-	}
-
-	client := &http.Client{Timeout: 90 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
-
-	for _, base := range cases {
-		if ctx.Err() != nil {
-			t.Error("correction interrupted")
-			break
-		}
-
-		t.Run(base.key(), func(t *testing.T) {
-			c := base
-			c.Options = options(base)
-			evidence := contractEvidence{Case: base, Options: c.Options, Capture: contractCaptureProvenance{TestVersion: contractVersion, CapturedAt: time.Now().UTC(), SDKRevision: report.SDKRevision}}
-
-			defer func() {
-				evidence.Failed = t.Failed() || t.Skipped()
-				evidence.NativeVerified = !evidence.Failed
-				report.Evidence = append(report.Evidence, evidence)
-				contractWriteEvidence(t, path, report, budget)
-			}()
-
-			contractExercise(t, c, func(request map[string]any) contractExchange {
-				e := contractHTTP(t, client, "https://api.fireworks.ai", key, c, request, budget)
-				safe := contractSanitize(t, e, key)
-				evidence.Exchanges = append(evidence.Exchanges, safe)
-				pending := report
-				row := evidence
-				row.Failed = true
-				pending.Evidence = append(append([]contractEvidence{}, report.Evidence...), row)
-				contractWriteEvidence(t, path, pending, budget)
-
-				wireCase := c
-				if stream, ok := request["stream"].(bool); ok {
-					wireCase.Stream = stream
-				}
-
-				budget.reconcile(t, wireCase, e)
-
-				return e
-			})
-		})
-	}
-
-	contractReportBudget(&report, budget)
-	t.Logf("PARTIAL correction only: %d cases, known new USD %.9f; cumulative conservative USD %.9f", len(report.Evidence), budget.known, budget.spent+budget.reserved)
-
-	return report
-}
-
-func contractCacheDiagnosticOptions(prefix int) contractRequestOptions {
-	const session = "7a5c2e10-9b84-4f61-8c33-0d72e906ab51"
-	return contractRequestOptions{CachePrefixBytes: prefix, CacheProbeID: "cache-crossover-v5", CacheRepeatCount: 3, CacheSettleMS: 2000, MaxOutputTokens: 16, AffinityOverride: session, ClaudeSessionID: session, CacheIsolation: "sdk-cache-crossover-v5"}
-}
-
-//nolint:tparallel // The approved diagnostic has exactly one sequential, budget-reserved case.
-func TestFireworksContractCacheDiagnostic(t *testing.T) {
-	t.Parallel()
-
-	if !*contractDiagnostic {
-		return
-	}
-
-	require.Contains(t, []int{8192, 65536}, *contractCachePrefix)
-	_, source := contractReadReport(t, "testdata/contracts/full-matrix-v2-incomplete.json")
-	c := contractCase{Model: fireworks.ModelDeepSeekV41Flash1017, API: catalog.WireProtocolAnthropicMessages, Transport: catalog.WireTransportDirect, Feature: contractCacheRepeat}
-	path := fmt.Sprintf("testdata/contracts/cache-diagnostic-%d.json", *contractCachePrefix)
-
-	report := contractCaptureRequests(t, path, source, []contractCase{c}, func(contractCase) contractRequestOptions {
-		return contractCacheDiagnosticOptions(*contractCachePrefix)
-	})
-	for _, captured := range report.Evidence {
-		contractObserveEvidence(t, &captured)
-		t.Logf("empirical %d-byte/2s diagnostic: cache_hit_observed=%t fresh_input_observed=%t; not a caching guarantee", *contractCachePrefix, captured.CacheHitObserved, captured.FreshInputObserved)
-
-		for n, exchange := range captured.Exchanges {
-			r := contractParse(t, captured.Case, exchange)
-			t.Logf("NS CACHE OBSERVATION call=%d input=%d cached=%d output=%d", n+1, r.Input, r.Cached, r.Output)
-		}
-	}
-}
-
-//nolint:tparallel // Paid corrective requests run sequentially with bounded per-run reservations.
-func TestFireworksContractToolCorrections(t *testing.T) {
-	t.Parallel()
-
-	if !*contractCorrectTools {
-		return
-	}
-
-	full, source := contractReadReport(t, "testdata/contracts/full-matrix-v2-incomplete.json")
-	cases := []contractCase{}
-
-	for _, e := range full.Evidence {
-		if e.Failed && e.Case.Feature == contractTools {
-			cases = append(cases, e.Case)
-		}
-	}
-
-	require.Len(t, cases, 7, "only the seven reviewed failed tool cases are authorized")
-	contractCaptureRequests(t, "testdata/contracts/tool-corrections.json", source, cases, func(c contractCase) contractRequestOptions {
-		opts := contractRequestOptions{UserPrompt: "Call lookup with key x exactly once. Its response is JSON. Reply with the exact value of the result field, without inventing a value.", ToolResult: `{"result":"violet-lantern-zebra"}`, ExpectedToolResult: "violet-lantern-zebra"}
-		if c.Model == fireworks.ModelMiniMaxM3 {
-			opts.ReplyMaxOutputTokens = 2048
-		}
-
-		return opts
-	})
 }
 
 func contractObserveEvidence(t *testing.T, e *contractEvidence) {

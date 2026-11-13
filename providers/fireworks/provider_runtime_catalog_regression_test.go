@@ -17,7 +17,6 @@ package fireworks_test
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/redpanda-data/ai-sdk-go/catalog"
@@ -28,27 +27,30 @@ import (
 func TestFireworksSDKReplayAllowsUncapturedCatalogOfferings(t *testing.T) {
 	t.Parallel()
 
-	report, _ := contractReadReport(t, "testdata/sdk-runtime/messages-live.json")
-	captured := sdkRuntimeCapturedCases(t, fireworks.Catalog(), report.Evidence)
-	require.NotEmpty(t, captured)
+	for _, api := range []catalog.WireProtocol{catalog.WireProtocolOpenAIResponses, catalog.WireProtocolAnthropicMessages} {
+		t.Run(string(api), func(t *testing.T) {
+			t.Parallel()
 
-	offerings := fireworks.Catalog().All()
-	entries := make([]catalog.Entry, 0, len(offerings)+1)
+			offerings := fireworks.Catalog().All()
+			entries := make([]catalog.Entry, 0, len(offerings)+1)
 
-	for _, offering := range offerings {
-		entries = append(entries, offering.Entry)
+			for _, offering := range offerings {
+				entries = append(entries, offering.Entry)
+			}
+
+			extra := entries[0]
+			extra.ID = "accounts/fireworks/models/docs-only"
+			extra.Aliases = nil
+			extra.Capabilities = llm.ModelCapabilities{}
+			extra.Reasoning = catalog.ReasoningSupport{}
+			extra.Modalities = catalog.Modalities{Input: []catalog.Modality{catalog.ModalityText}, Output: []catalog.Modality{catalog.ModalityText}}
+			extra.WireAPIs = []catalog.WireAPI{{Protocol: api, Transport: catalog.WireTransportDirect}}
+			extra.WireAPISupport = []catalog.WireAPISupport{{API: extra.WireAPIs[0]}}
+			entries = append(entries, extra)
+
+			extended, err := catalog.New(fireworks.ProviderName, entries, catalog.WithRequiredWireAPIs())
+			require.NoError(t, err)
+			sdkRuntimeReplayCapturedFeatures(t, extended)
+		})
 	}
-
-	extra := entries[0]
-	extra.ID = "accounts/fireworks/models/docs-only"
-	extra.Capabilities = llm.ModelCapabilities{}
-	extra.Reasoning = catalog.ReasoningSupport{}
-	extra.Modalities = catalog.Modalities{Input: []catalog.Modality{catalog.ModalityText}, Output: []catalog.Modality{catalog.ModalityText}}
-	extra.WireAPIs = []catalog.WireAPI{{Protocol: catalog.WireProtocolOpenAIResponses, Transport: catalog.WireTransportDirect}}
-	extra.WireAPISupport = []catalog.WireAPISupport{{API: extra.WireAPIs[0]}}
-	entries = append(entries, extra)
-
-	extended, err := catalog.New(fireworks.ProviderName, entries, catalog.WithRequiredWireAPIs())
-	require.NoError(t, err)
-	assert.Equal(t, captured, sdkRuntimeCapturedCases(t, extended, report.Evidence))
 }

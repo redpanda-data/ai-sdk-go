@@ -28,7 +28,7 @@ import (
 func contractSchemaStreamFixture(t *testing.T) (contractCase, contractExchange) {
 	t.Helper()
 
-	report, _ := contractReadReport(t, "testdata/contracts/semantic-controls-v5.json")
+	report := contractReadReport(t, "testdata/contracts/semantic-controls-v5.json")
 	for _, row := range report.Evidence {
 		if row.Case.Feature == contractInvalidSchema && row.Case.API == catalog.WireProtocolOpenAIResponses && row.Case.Stream {
 			require.Len(t, row.Exchanges, 1)
@@ -56,7 +56,7 @@ func TestFireworksContractSyntheticNativeSchemaRejection(t *testing.T) {
 		return
 	}
 
-	report, _ := contractReadReport(t, "testdata/contracts/semantic-controls-v5.json")
+	report := contractReadReport(t, "testdata/contracts/semantic-controls-v5.json")
 	count := 0
 
 	for _, row := range report.Evidence {

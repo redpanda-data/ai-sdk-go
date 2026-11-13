@@ -21,6 +21,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -110,7 +111,7 @@ func sdkRuntimeSchemaRequest() *llm.Request {
 func TestFireworksSDKRawMessagesReplay(t *testing.T) {
 	t.Parallel()
 
-	report, _ := contractReadReport(t, "testdata/contracts/revalidated-evidence.json")
+	report := contractReadReport(t, "testdata/contracts/revalidated-evidence.json")
 	for _, row := range report.Evidence {
 		if row.Case.API != catalog.WireProtocolAnthropicMessages || row.Case.Feature != contractComplete {
 			continue
@@ -159,7 +160,7 @@ func TestFireworksSDKRawMessagesReplay(t *testing.T) {
 
 func TestFireworksSDKRawPositiveCacheReplay(t *testing.T) {
 	t.Parallel()
-	report, _ := contractReadReport(t, "testdata/contracts/cache-diagnostic-65536.json")
+	report := contractReadReport(t, "testdata/contracts/cache-diagnostic-65536.json")
 	require.Len(t, report.Evidence, 1)
 	row := report.Evidence[0]
 	require.Len(t, row.Exchanges, 3)
@@ -209,7 +210,7 @@ func TestFireworksSDKMiniMaxSchemaReplay(t *testing.T) {
 	t.Parallel()
 
 	for _, mode := range []string{"default", "adaptive"} {
-		report, _ := contractReadReport(t, "testdata/sdk-runtime/minimax-schema-"+mode+".json")
+		report := contractReadReport(t, "testdata/sdk-runtime/minimax-schema-"+mode+".json")
 		require.Len(t, report.Evidence, 2)
 
 		for _, row := range report.Evidence {
@@ -263,9 +264,9 @@ func TestFireworksSDKMiniMaxSchemaReplay(t *testing.T) {
 
 func TestFireworksSDKMiniMaxDisabledSchemaRejected(t *testing.T) {
 	t.Parallel()
-	report, _ := contractReadReport(t, "testdata/sdk-runtime/messages-live-outcome.json")
+	report := contractReadReport(t, "testdata/sdk-runtime/messages-live-outcome.json")
 	require.Len(t, report.Evidence, 2)
-	original, _ := contractReadReport(t, "testdata/sdk-runtime/messages-live.json")
+	original := contractReadReport(t, "testdata/sdk-runtime/messages-live.json")
 
 	for _, row := range report.Evidence {
 		t.Run(fmt.Sprintf("stream=%t", row.Case.Stream), func(t *testing.T) {
@@ -431,6 +432,67 @@ func sdkRuntimeHistoricalHistoryCorrection(t *testing.T, first, history contract
 	return history
 }
 
+func sdkRuntimeReplayModel(t *testing.T, provider *fireworks.Provider, offering catalog.Offering, row contractEvidence) llm.Model {
+	t.Helper()
+	require.Len(t, row.Exchanges, 1)
+	require.Equal(t, offering.ID, row.Case.Model)
+	require.Equal(t, catalog.WireProtocolAnthropicMessages, row.Case.API)
+
+	var config struct {
+		Model       string   `json:"model"`
+		MaxTokens   int      `json:"max_tokens"`
+		Temperature *float64 `json:"temperature"`
+		Thinking    *struct {
+			Type string `json:"type"`
+		} `json:"thinking"`
+		OutputConfig struct {
+			Effort *llm.ReasoningEffort `json:"effort"`
+		} `json:"output_config"`
+	}
+	require.NoError(t, json.Unmarshal(row.Exchanges[0].Request, &config))
+	require.Equal(t, offering.ID, config.Model)
+	require.Positive(t, config.MaxTokens)
+	require.LessOrEqual(t, config.MaxTokens, offering.Constraints.MaxOutputTokens)
+	support, ok := offering.SupportForWireAPI(catalog.WireAPI{Protocol: row.Case.API, Transport: row.Case.Transport})
+	require.True(t, ok)
+
+	opts := []fireworks.Option{fireworks.WithMaxTokens(config.MaxTokens)}
+	if config.Temperature != nil {
+		require.NoError(t, offering.Constraints.ValidateTemperature(*config.Temperature))
+		opts = append(opts, fireworks.WithTemperature(*config.Temperature))
+	}
+
+	if config.OutputConfig.Effort != nil {
+		require.Contains(t, support.Reasoning.Efforts, *config.OutputConfig.Effort, "recorded effort must remain supported")
+		opts = append(opts, fireworks.WithReasoningEffort(*config.OutputConfig.Effort))
+	}
+
+	if config.Thinking != nil {
+		switch config.Thinking.Type {
+		case contractAdaptive:
+			require.True(t, support.Reasoning.Adaptive, "recorded adaptive thinking must remain supported")
+
+			opts = append(opts, fireworks.WithThinking(true))
+		case "disabled":
+			if slices.Contains(support.Reasoning.Efforts, fireworks.ReasoningEffortNone) {
+				opts = append(opts, fireworks.WithReasoningEffort(fireworks.ReasoningEffortNone))
+			} else {
+				require.True(t, support.Reasoning.Adaptive, "recorded disabled thinking must remain supported")
+
+				opts = append(opts, fireworks.WithThinking(false))
+			}
+		default:
+			t.Fatalf("unsupported recorded thinking mode %q", config.Thinking.Type)
+		}
+	}
+
+	model, err := provider.NewModel(offering.ID, opts...)
+	require.NoError(t, err)
+	require.False(t, model.Capabilities().Vision, "native vision support cannot be encoded by llm.Part")
+
+	return model
+}
+
 func sdkRuntimeReplayFeatureConversation(t *testing.T, offering catalog.Offering, rows []contractEvidence) {
 	t.Helper()
 
@@ -439,13 +501,13 @@ func sdkRuntimeReplayFeatureConversation(t *testing.T, offering catalog.Offering
 	provider, err := fireworks.NewProvider(t.Context(), fireworks.WithAPIKey("sdk-replay-not-a-credential"), fireworks.WithBaseURL(server.URL+"/inference/v1"), fireworks.WithHTTPClient(server.Client()))
 	require.NoError(t, err)
 
-	call := func(feature string, request *llm.Request, maxTokens int, reasoning bool) *llm.Response {
+	call := func(feature string, request *llm.Request) *llm.Response {
 		t.Helper()
 
 		n := int(calls.Load())
 		require.Less(t, n, len(rows))
 		require.Equal(t, feature, rows[n].Case.Feature)
-		model := sdkRuntimeModel(t, provider, nil, offering, maxTokens, reasoning)
+		model := sdkRuntimeReplayModel(t, provider, offering, rows[n])
 		response := sdkRuntimeGenerate(t, model, request, stream, "sdk-replay-not-a-credential")
 		require.EqualValues(t, n+1, calls.Load())
 		sdkRuntimeAssertUsage(t, rows[n].Case, rows[n].Exchanges[0], response)
@@ -459,7 +521,7 @@ func sdkRuntimeReplayFeatureConversation(t *testing.T, offering catalog.Offering
 		llm.NewMessage(llm.RoleAssistant, llm.NewTextPart("I will remember your favorite animal.")),
 		sdkRuntimeUser("What is my favorite animal?"),
 	}}
-	response := call("sdk_system_multiturn", conversation, 512, false)
+	response := call("sdk_system_multiturn", conversation)
 	require.Equal(t, llm.FinishReasonStop, response.FinishReason)
 	require.Contains(t, strings.ToLower(response.TextContent()), "otter")
 	require.Contains(t, strings.ToLower(response.TextContent()), "tulip")
@@ -467,7 +529,7 @@ func sdkRuntimeReplayFeatureConversation(t *testing.T, offering catalog.Offering
 	name := "lookup"
 	question := sdkRuntimeUser(contractAdaptiveTask + " Then call lookup with key x exactly once. Its reply is JSON data. After receiving it, state the exact result field value and finish with the computed n as a plain integer.")
 	tool := &llm.Request{Messages: []llm.Message{question}, Tools: []llm.ToolDefinition{{Name: name, Description: "Look up a word by key.", Parameters: json.RawMessage(`{"type":"object","properties":{"key":{"type":"string","enum":["x"]}},"required":["key"],"additionalProperties":false}`)}}, ToolChoice: &llm.ToolChoice{Type: llm.ToolChoiceSpecific, Name: &name}}
-	first := call("sdk_reasoning_tool", tool, 4096, true)
+	first := call("sdk_reasoning_tool", tool)
 	require.Equal(t, llm.FinishReasonToolCalls, first.FinishReason)
 	tools := first.ToolRequests()
 	require.Len(t, tools, 1)
@@ -487,7 +549,7 @@ func sdkRuntimeReplayFeatureConversation(t *testing.T, offering catalog.Offering
 	require.True(t, reasoning || first.Usage.ReasoningTokens > 0)
 	tool.Messages = []llm.Message{question, first.Message, llm.NewMessage(llm.RoleUser, llm.NewToolResponsePart(tools[0].ID, name, json.RawMessage(`{"result":"violet-lantern-zebra"}`), false))}
 	tool.ToolChoice = &llm.ToolChoice{Type: llm.ToolChoiceAuto}
-	second := call("sdk_reasoning_tool_history", tool, 4096, true)
+	second := call("sdk_reasoning_tool_history", tool)
 	require.Equal(t, llm.FinishReasonStop, second.FinishReason)
 	require.Empty(t, second.ToolRequests())
 	require.Contains(t, second.TextContent(), "violet-lantern-zebra")
@@ -496,18 +558,18 @@ func sdkRuntimeReplayFeatureConversation(t *testing.T, offering catalog.Offering
 	request := sdkRuntimeSchemaRequest()
 	format := request.ResponseFormat
 	request.ResponseFormat = nil
-	plain := call("sdk_schema_plain_control", request, 512, false)
+	plain := call("sdk_schema_plain_control", request)
 	require.Equal(t, llm.FinishReasonStop, plain.FinishReason)
 	require.JSONEq(t, `{"gate":"PROMPT_ONLY","count":"wrong","extra":true}`, plain.TextContent())
 
 	if offering.ID != fireworks.ModelMiniMaxM3 {
 		request.ResponseFormat = format
-		controlled := call("sdk_schema_enforced", request, 512, false)
+		controlled := call("sdk_schema_enforced", request)
 		require.Equal(t, llm.FinishReasonStop, controlled.FinishReason)
 		require.JSONEq(t, `{"gate":"SCHEMA_ACTIVE_73","count":73}`, controlled.TextContent())
 	}
 
-	truncated := call("sdk_length", &llm.Request{Messages: []llm.Message{sdkRuntimeUser("Write the numbers from 1 to 10000, separated by commas. Do not stop early.")}}, 1, false)
+	truncated := call("sdk_length", &llm.Request{Messages: []llm.Message{sdkRuntimeUser("Write the numbers from 1 to 10000, separated by commas. Do not stop early.")}})
 	require.Equal(t, llm.FinishReasonLength, truncated.FinishReason)
 	require.Equal(t, 1, truncated.Usage.OutputTokens+truncated.Usage.ReasoningTokens)
 	require.EqualValues(t, len(rows), calls.Load())
@@ -545,8 +607,13 @@ func sdkRuntimeCapturedCases(t *testing.T, cat *catalog.Catalog, evidence []cont
 
 func TestFireworksSDKCapturedFeatureReplay(t *testing.T) {
 	t.Parallel()
+	sdkRuntimeReplayCapturedFeatures(t, fireworks.Catalog())
+}
 
-	report, _ := contractReadReport(t, "testdata/sdk-runtime/messages-live.json")
+func sdkRuntimeReplayCapturedFeatures(t *testing.T, cat *catalog.Catalog) {
+	t.Helper()
+
+	report := contractReadReport(t, "testdata/sdk-runtime/messages-live.json")
 	require.NotEmpty(t, report.Evidence)
 	indexed := make(map[string]contractEvidence)
 	var cache []contractEvidence
@@ -566,7 +633,7 @@ func TestFireworksSDKCapturedFeatureReplay(t *testing.T) {
 	}
 
 	features := []string{"sdk_system_multiturn", "sdk_reasoning_tool", "sdk_reasoning_tool_history", "sdk_schema_plain_control", "sdk_schema_enforced", "sdk_length"}
-	cases := sdkRuntimeCapturedCases(t, fireworks.Catalog(), report.Evidence)
+	cases := sdkRuntimeCapturedCases(t, cat, report.Evidence)
 	require.NotEmpty(t, cases)
 
 	for _, replay := range cases {
@@ -593,7 +660,7 @@ func TestFireworksSDKCapturedFeatureReplay(t *testing.T) {
 
 	t.Run("actual_sdk_cache", func(t *testing.T) {
 		t.Parallel()
-		sdkRuntimeReplayCapturedCache(t, cache)
+		sdkRuntimeReplayCapturedCache(t, cat, cache)
 	})
 }
 
@@ -613,7 +680,7 @@ func (r sdkRuntimeReplayHeaders) RoundTrip(request *http.Request) (*http.Respons
 	return r.RoundTripper.RoundTrip(request)
 }
 
-func sdkRuntimeReplayCapturedCache(t *testing.T, rows []contractEvidence) {
+func sdkRuntimeReplayCapturedCache(t *testing.T, cat *catalog.Catalog, rows []contractEvidence) {
 	t.Helper()
 	require.Len(t, rows, 2)
 	server, calls := sdkRuntimeCapturedServer(t, rows)
@@ -621,8 +688,10 @@ func sdkRuntimeReplayCapturedCache(t *testing.T, rows []contractEvidence) {
 	client.Transport = sdkRuntimeReplayHeaders{RoundTripper: client.Transport, header: rows[0].Exchanges[0].RequestHeaders}
 	provider, err := fireworks.NewProvider(t.Context(), fireworks.WithAPIKey("sdk-replay-not-a-credential"), fireworks.WithBaseURL(server.URL+"/inference/v1"), fireworks.WithHTTPClient(client))
 	require.NoError(t, err)
-	model, err := provider.NewModel(fireworks.ModelDeepSeekV41Flash1017, fireworks.WithMaxTokens(16), fireworks.WithTemperature(0), fireworks.WithReasoningEffort(fireworks.ReasoningEffortNone))
-	require.NoError(t, err)
+
+	offering, ok := cat.Lookup(fireworks.ModelDeepSeekV41Flash1017)
+	require.True(t, ok)
+
 	var body map[string]any
 	require.NoError(t, json.Unmarshal(rows[0].Exchanges[0].Request, &body))
 	prompt := contractString(contractObject(contractArray(contractObject(contractArray(body["messages"])[0])["content"])[0])["text"])
@@ -631,6 +700,7 @@ func sdkRuntimeReplayCapturedCache(t *testing.T, rows []contractEvidence) {
 	for n, row := range rows {
 		require.Equal(t, fireworks.ModelDeepSeekV41Flash1017, row.Case.Model)
 		require.False(t, row.Case.Stream)
+		model := sdkRuntimeReplayModel(t, provider, offering, row)
 		response := sdkRuntimeGenerate(t, model, &llm.Request{Messages: []llm.Message{sdkRuntimeUser(prompt)}}, false, "sdk-replay-not-a-credential")
 		require.Equal(t, llm.FinishReasonStop, response.FinishReason)
 		sdkRuntimeAssertUsage(t, row.Case, row.Exchanges[0], response)

@@ -117,7 +117,7 @@ func TestFireworksContractSyntheticUsageExtensions(t *testing.T) {
 func TestFireworksContractSyntheticIdentityExtensions(t *testing.T) {
 	t.Parallel()
 
-	manifest, _ := contractReadReport(t, "testdata/contracts/full-matrix-v2-incomplete.json")
+	manifest := contractReadReport(t, "testdata/contracts/full-matrix-v2-incomplete.json")
 	for _, api := range []catalog.WireProtocol{catalog.WireProtocolAnthropicMessages, catalog.WireProtocolOpenAIChatCompletions, catalog.WireProtocolOpenAIResponses} {
 		t.Run(string(api), func(t *testing.T) {
 			t.Parallel()

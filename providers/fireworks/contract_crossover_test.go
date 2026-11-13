@@ -16,7 +16,6 @@ package fireworks_test
 
 import (
 	"encoding/json"
-	"flag"
 	"maps"
 	"testing"
 	"time"
@@ -26,8 +25,6 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/providers/fireworks"
 )
-
-var contractCacheCrossover = flag.Bool("fireworks-cache-crossover", false, "run only the approved four-call streaming/nonstreaming Messages cache crossover")
 
 func contractCacheCrossoverProof(t *testing.T, c contractCase, send func(map[string]any) contractExchange) {
 	t.Helper()
@@ -93,25 +90,5 @@ func contractVerifyCrossoverCapture(t *testing.T, row contractEvidence) {
 		require.Equal(t, row.Options.AffinityOverride, e.RequestHeaders["X-Session-Affinity"])
 		require.Equal(t, row.Options.ClaudeSessionID, e.RequestHeaders["X-Claude-Code-Session-Id"])
 		require.Equal(t, row.Options.CacheIsolation, e.RequestHeaders["X-Prompt-Cache-Isolation-Key"])
-	}
-}
-
-//nolint:tparallel // The approved crossover is one ordered, budget-reserved experiment.
-func TestFireworksContractCacheCrossover(t *testing.T) {
-	t.Parallel()
-
-	if !*contractCacheCrossover {
-		return
-	}
-
-	_, source := contractReadReport(t, "testdata/contracts/full-matrix-v2-incomplete.json")
-	c := contractCase{Model: fireworks.ModelDeepSeekV41Flash1017, API: catalog.WireProtocolAnthropicMessages, Transport: catalog.WireTransportDirect, Feature: contractCacheRepeat}
-
-	report := contractCaptureRequests(t, "testdata/contracts/cache-crossover-v5.json", source, []contractCase{c}, func(contractCase) contractRequestOptions {
-		const session = "7a5c2e10-9b84-4f61-8c33-0d72e906ab51"
-		return contractRequestOptions{CacheCrossover: true, CachePrefixBytes: 8192, CacheProbeID: "cache-crossover-v5", CacheSettleMS: 2000, MaxOutputTokens: 16, AffinityOverride: session, ClaudeSessionID: session, CacheIsolation: "sdk-cache-crossover-v5"}
-	})
-	for _, row := range report.Evidence {
-		contractVerifyCrossoverCapture(t, row)
 	}
 }
