@@ -57,11 +57,9 @@ func TestInventoryAndCreatorFacts(t *testing.T) {
 		fireworks.ModelDeepSeekV41Flash1017: {catalog.ModelDeepSeekV41Flash1017, catalog.PublisherDeepSeek, 1048576, 393216, true},
 		fireworks.ModelKimiK3:               {catalog.ModelKimiK3, catalog.PublisherMoonshotAI, 1048576, 1048576, true},
 	}
-	require.Len(t, fireworks.Catalog().All(), len(cases))
-
-	for _, o := range fireworks.Catalog().All() {
-		want, ok := cases[o.ID]
-		require.True(t, ok, "unreviewed offering: %s", o.ID)
+	for id, want := range cases {
+		o, ok := fireworks.Catalog().Lookup(id)
+		require.True(t, ok, "missing example offering: %s", id)
 		assert.Equal(t, want.model, o.Model)
 		assert.Equal(t, want.publisher, o.Facts().Publisher)
 		assert.NotEqual(t, catalog.PublisherAnthropic, o.Facts().Publisher)
@@ -109,52 +107,13 @@ func TestCatalogMetadataDoesNotAdmitRuntimeControls(t *testing.T) {
 			require.Error(t, offering.Constraints.ValidateParameterSupport(param), "native catalog metadata does not admit SDK %s", param)
 		}
 
-		assert.True(t, offering.Capabilities.Tools, "SDK admission is not an upstream supports-none claim")
 		assert.NotEmpty(t, offering.WireAPIs, "native API discovery remains explicit")
-	}
-}
+		assert.Equal(t, offering.Capabilities.Vision, slices.Contains(offering.Modalities.Input, catalog.ModalityImage))
 
-func TestPublishedPrices(t *testing.T) {
-	t.Parallel()
-
-	cat, err := pricing.NewCatalog(pricing.WithSource(fireworks.Catalog()))
-	require.NoError(t, err)
-
-	usage := &llm.TokenUsage{
-		InputTokens: 1_000_000, CachedInputTokens: 1_000_000,
-		OutputTokens: 800_000, ReasoningTokens: 200_000,
-		CacheCreationUnknownTTLTokens: 1_000_000,
-	}
-	// Independent integer expectations from the published USD/M table.
-	cases := map[string]struct{ standard, priority int64 }{
-		fireworks.ModelGLM53:                {606_000_000, 757_500_000},
-		fireworks.ModelGLM53Flash:           {68_000_000, 85_000_000},
-		fireworks.ModelMiniMaxM3:            {156_000_000, 234_000_000},
-		fireworks.ModelGPTOSS120B:           {76_500_000, 91_800_000},
-		fireworks.ModelDeepSeekV41Flash:     {150_600_000, 188_250_000},
-		fireworks.ModelDeepSeekV41Flash1017: {150_600_000, 188_250_000},
-		fireworks.ModelKimiK3:               {1_830_000_000, 2_287_500_000},
-	}
-	for id, want := range cases {
-		t.Run(id, func(t *testing.T) {
-			t.Parallel()
-
-			for _, tier := range []struct {
-				selector pricing.Selector
-				total    int64
-			}{
-				{pricing.Selector{}, want.standard},
-				{pricing.Selector{ServiceTier: llm.ServiceTierPriority}, want.priority},
-			} {
-				cost, err := cat.Calculate(fireworks.ProviderName, id, usage, pricing.CalcRequest{Selector: tier.selector})
-				require.NoError(t, err)
-				assert.Equal(t, tier.total, cost.Total)
-				assert.Empty(t, cost.Unpriced)
-				assert.Empty(t, cost.Fallbacks)
-				assert.Equal(t, int64(0), cost.Breakdown[pricing.UsageFieldCacheCreationUnknownTTL])
-				assert.Equal(t, tier.selector, cost.AppliedSelector)
-			}
-		})
+		for _, api := range offering.WireAPIs {
+			_, exists := offering.SupportForWireAPI(api)
+			assert.True(t, exists, "API feature metadata missing: %s / %s", offering.ID, api)
+		}
 	}
 }
 

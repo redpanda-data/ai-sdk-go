@@ -814,32 +814,13 @@ func (s *contractSpend) reconcile(t *testing.T, c contractCase, e contractExchan
 
 	require.LessOrEqual(t, totalInput, inputCeiling, "input exceeded conservative reservation; stop and review budget")
 	require.LessOrEqual(t, r.Output, maxOutput, "output exceeded requested cap")
-	actual := contractCost(c, r.Input, r.Cached, r.Output)
+
+	priced := c
+	priced.Model = r.Model
+	actual := contractCost(priced, r.Input, r.Cached, r.Output)
+	require.False(t, math.IsInf(actual, 0) || math.IsNaN(actual), "cannot reconcile an unknown response model price")
 	s.spent += actual
 	s.known += actual
 	s.reserved -= contractReservation(c, inputCeiling, maxOutput)
 	require.LessOrEqual(t, s.spent+s.reserved, s.limit, "spend cap exceeded")
-}
-
-func contractCost(c contractCase, input, cached, output int64) float64 {
-	worksheet, err := contractPublishedRates()
-	if err != nil {
-		return math.Inf(1)
-	}
-
-	model, ok := worksheet.Models[c.Model]
-	if !ok {
-		return math.Inf(1)
-	}
-
-	rates := model.Standard
-	if c.Feature == contractPriority {
-		rates = model.Priority
-	}
-
-	if c.API != catalog.WireProtocolAnthropicMessages {
-		input -= cached
-	}
-
-	return (float64(input)*rates.Input + float64(cached)*rates.CachedInput + float64(output)*rates.Output) / 1e6
 }

@@ -37,6 +37,8 @@ How to find a fact and write it down, whatever the host. `.github/reconcile-mode
 
 ## Probes (hand runs only)
 
+Fireworks additions do not require live probes or recordings. For optional paid verification, agree on a budget before calling the API; a full-window probe can exceed a small smoke-test budget. See `fireworks.md` for this host's docs-based workflow.
+
 - Context window: send a prompt just over the claimed size with the raw SDK (about 4 characters per token, with a margin). A real 1M model accepts it with no beta header; a 200K model answers "prompt is too long". Turn caching off while measuring, or sum `BilledInputTokens()`.
 - Each host page lists its own probes.
 

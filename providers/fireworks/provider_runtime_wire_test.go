@@ -109,7 +109,7 @@ func (w *sdkRuntimeWire) RoundTrip(request *http.Request) (*http.Response, error
 	response, err := http.DefaultTransport.RoundTrip(request)
 	e.ElapsedMS = time.Since(e.StartedAt).Milliseconds()
 
-	row := contractEvidence{Case: w.current, Exchanges: []contractExchange{e}, Capture: contractCaptureProvenance{SDKRevision: w.report.SDKRevision, CapturedAt: e.StartedAt, RequestSHA256: []string{contractRequestHash(raw)}}}
+	row := contractEvidence{Case: w.current, Exchanges: []contractExchange{e}, Capture: contractCaptureProvenance{SDKRevision: w.report.SDKRevision, CapturedAt: e.StartedAt}}
 	if err != nil {
 		row.Exchanges[0].ErrorClass = "transport"
 		w.report.Evidence = append(w.report.Evidence, row)
@@ -149,16 +149,14 @@ func (w *sdkRuntimeWire) checkpoint(t *testing.T) {
 
 		report.Evidence[n] = w.report.Evidence[n]
 		report.Evidence[n].Exchanges = make([]contractExchange, len(w.report.Evidence[n].Exchanges))
-		report.Evidence[n].Capture.RequestSHA256 = nil
 
 		for j, exchange := range w.report.Evidence[n].Exchanges {
 			exchange.ResponseHeaders = maps.Clone(exchange.ResponseHeaders)
 			report.Evidence[n].Exchanges[j] = contractSanitize(t, exchange, w.key)
-			report.Evidence[n].Capture.RequestSHA256 = append(report.Evidence[n].Capture.RequestSHA256, contractRequestHash(report.Evidence[n].Exchanges[j].Request))
 		}
 	}
 
-	contractWriteEvidence(t, w.path, report, nil)
+	contractWriteEvidence(t, w.path, report)
 }
 
 func newSDKRuntimeWire(t *testing.T, key, path string, limit int) *sdkRuntimeWire {
