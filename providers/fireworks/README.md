@@ -19,7 +19,7 @@ model, err := provider.NewModel(fireworks.ModelGLM53Flash,
 
 `NewProvider(ctx)` and the provider's zero value still support credential-free catalog discovery. Credentials are explicit; the provider never reads environment variables or credential files. `NewModel` requires a bearer credential and rejects unregistered IDs. A custom base URL is the inference API root ending in `/v1`; gateway prefixes are preserved.
 
-The factory uses exactly the resolved offering's `WireAPIs[0]`, in the catalog's normalized order, without reordering, preference knobs, or fallback. An empty, unsupported, or undeclared first binding is an error even if a later binding is usable. All seven current offerings select Messages/direct. The selected binding determines capabilities and reasoning controls, not the offering-wide union.
+The factory uses exactly the resolved offering's `WireAPIs[0]`, in the catalog's normalized order, without reordering, preference knobs, or fallback. An empty, unsupported, or undeclared first binding is an error even if a later binding is usable. The original seven recorded offerings select Messages/direct; new entries follow their own declared bindings. The selected binding determines capabilities and reasoning controls, not the offering-wide union.
 
 **Runtime image restriction:** native catalog vision support remains true where documented, but constructed SDK models report `Capabilities().Vision == false`: `llm.Part` has no image input representation. This is an SDK limitation, not an upstream unsupported claim; SDK vision is not qualified.
 

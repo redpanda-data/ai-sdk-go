@@ -188,4 +188,6 @@ Bedrock models are one `family` declaration in `models.go`, expanded by
   pick the entry up automatically through `Catalog()`.
 - In a hand run, don't trust the published window: probe it as
   `reconcile-models/hosts/shared.md` ("Probes (hand runs only)") says, and
-  run the probes the host's own page lists.
+  run the probes the host's own page lists. For Fireworks, live probes and
+  recordings are optional and budget-approved, not prerequisites for adding
+  documented models; follow `reconcile-models/hosts/fireworks.md`.
