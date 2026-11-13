@@ -1,0 +1,76 @@
+name: Vertex AI Conformance
+
+# Runs the shared conformance suite against providers/vertex with live
+# Vertex AI calls. No pull-request trigger: a PR could change this file and
+# mint a token. The token comes through Workload Identity Federation, whose
+# provider admits only the vertex-conformance environment on main. That
+# environment's deployment branch rule admits main only.
+on:
+  schedule:
+    - cron: "41 4 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: vertex-conformance
+  cancel-in-progress: false
+
+jobs:
+  conformance:
+    name: Vertex AI conformance
+    if: github.ref == 'refs/heads/main'
+    environment: vertex-conformance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16  # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+
+      # Dependencies and the test binary are built before the access token is
+      # in the job. Only the conformance directory is built, so the other
+      # providers/vertex test files never run while the token is held.
+      - name: Build the test binary
+        run: go test -c -o "$RUNNER_TEMP/vertex.test" ./providers/vertex/conformance/
+
+      # Only the test step gets the token, through steps.auth.outputs. The
+      # action masks it.
+      - name: Get a Vertex AI access token
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093  # v3.0.0
+        with:
+          workload_identity_provider: projects/606234194099/locations/global/workloadIdentityPools/rp-cicd/providers/gh-ai-sdk-go
+          service_account: gh-ai-sdk-go@devprod-cicd-infra.iam.gserviceaccount.com
+          token_format: access_token
+          access_token_lifetime: 2700s
+          create_credentials_file: false
+          export_environment_variables: false
+
+      - name: Run the Vertex AI conformance suite
+        working-directory: providers/vertex/conformance
+        env:
+          VERTEX_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        # Without the token every live test skips, which would pass as green.
+        run: |
+          [ -n "$VERTEX_ACCESS_TOKEN" ] || { echo "::error::no Vertex AI access token"; exit 1; }
+          # The test binary starts without the OIDC request variables, so it
+          # cannot mint a token by accident. Code set on it still could: this
+          # shell keeps them and the runner has passwordless sudo. Only reviewed
+          # code from main runs here.
+          # A renamed test would match nothing in -test.run and pass as green.
+          env -u ACTIONS_ID_TOKEN_REQUEST_TOKEN -u ACTIONS_ID_TOKEN_REQUEST_URL \
+            "$RUNNER_TEMP/vertex.test" -test.list '^TestVertexConformance_Integration$' \
+            | grep -qx TestVertexConformance_Integration \
+            || { echo "::error::TestVertexConformance_Integration not found"; exit 1; }
+          env -u ACTIONS_ID_TOKEN_REQUEST_TOKEN -u ACTIONS_ID_TOKEN_REQUEST_URL \
+            "$RUNNER_TEMP/vertex.test" -test.run '^TestVertexConformance_Integration$' -test.v -test.timeout 35m
