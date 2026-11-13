@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
@@ -143,10 +144,17 @@ func (rm *RequestMapper) buildConverseParams(req *llm.Request) (*converseParams,
 	return p, nil
 }
 
-// requiresConverseStrict limits the extra field to the documented GPT-6 contracts.
+// converseStrictModels are the OpenAI models whose Converse contract needs
+// strict in additionalModelRequestFields as well as outputConfig.
+var converseStrictModels = []catalog.ModelID{
+	catalog.ModelGPT6Astra, catalog.ModelGPT6Sol, catalog.ModelGPT6_1Sol, catalog.ModelGPT6_1Terra, catalog.ModelGPT6Luna,
+	catalog.ModelGPT5_6Sol, catalog.ModelGPT5_6Terra, catalog.ModelGPT5_6Luna,
+}
+
+// requiresConverseStrict limits the extra field to the documented contracts.
 func requiresConverseStrict(modelID string) bool {
 	offering, ok := lookupModel(modelID)
-	return ok && (offering.Model == catalog.ModelGPT6Astra || offering.Model == catalog.ModelGPT6Sol || offering.Model == catalog.ModelGPT6_1Sol || offering.Model == catalog.ModelGPT6_1Terra || offering.Model == catalog.ModelGPT6Luna)
+	return ok && slices.Contains(converseStrictModels, offering.Model)
 }
 
 // applyResponseFormat sets Converse's outputConfig.textFormat from a

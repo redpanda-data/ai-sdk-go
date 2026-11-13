@@ -129,6 +129,8 @@ func TestNewModel_GPT56ModelsUseMantleCatalog(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.True(t, IsMantleModel(modelID))
+			assert.False(t, IsMantleModel("us."+modelID), "the profiles run on bedrock-runtime")
+			assert.False(t, IsMantleModel("global."+modelID), "the profiles run on bedrock-runtime")
 			assert.Equal(t, llm.ProviderID("aws.bedrock"), m.Provider())
 			assert.Equal(t, modelID, m.Name())
 			assert.True(t, m.Capabilities().Streaming)
@@ -209,7 +211,8 @@ func TestMantleModelNotFoundRegionHint(t *testing.T) {
 		{"listed region", ModelGPT6Sol, "us-east-1", ""},
 		{"unlisted region, two listed", ModelGPT6Astra, "eu-west-1", "(openai.gpt-6-astra is listed for bedrock-mantle in us-east-1, us-west-2 only; it may not be available in eu-west-1.)"},
 		{"second listed region", ModelGPT6Astra, "us-west-2", ""},
-		{"no MantleRegions", ModelGPT56Sol, "eu-west-1", ""},
+		{"unlisted region, GPT-5.6", ModelGPT56Sol, "eu-west-1", "(openai.gpt-5.6-sol is listed for bedrock-mantle in us-east-1, us-east-2 only; it may not be available in eu-west-1.)"},
+		{"no MantleRegions", ModelGemma431B, "eu-west-1", ""},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
