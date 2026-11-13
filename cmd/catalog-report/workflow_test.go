@@ -234,10 +234,26 @@ func TestAgentRunsChecksBeforeClaude(t *testing.T) {
 	steps := readJob(t, vendorWorkflow, "agent").Steps
 	claude := stepIndex(t, steps, "claude-code-action", isClaude)
 
-	for _, script := range []string{"check-egress.sh", "stop-docker.sh"} {
+	for _, script := range []string{"check-egress.sh", "stop-docker.sh", "seal-runner.sh"} {
 		assert.True(t, slices.ContainsFunc(steps[:claude], func(s workflowStep) bool {
 			return strings.Contains(s.Run, ".github/reconcile-models/"+script)
 		}), "%s must run before Claude starts", script)
+	}
+}
+
+// TestAgentSealsTheRunnerLast checks that nothing runs between sealing the
+// runner and Claude, and that no step after Claude runs a script from the
+// checkout, which the agent's code can rewrite.
+func TestAgentSealsTheRunnerLast(t *testing.T) {
+	t.Parallel()
+
+	steps := readJob(t, vendorWorkflow, "agent").Steps
+	claude := stepIndex(t, steps, "claude-code-action", isClaude)
+
+	require.Positive(t, claude)
+	assert.Contains(t, steps[claude-1].Run, ".github/reconcile-models/seal-runner.sh", "sealing must be the last step before Claude")
+	for _, s := range steps[claude+1:] {
+		assert.NotContains(t, s.Run, ".github/", "a step after Claude runs a script from the checkout")
 	}
 }
 
