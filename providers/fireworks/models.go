@@ -68,6 +68,8 @@ func entries() []catalog.Entry {
 		serverlessPrice(.30, 1.20, .06, .45, 1.80, .09))
 	mini.Reasoning.Adaptive = true
 	mini.WireAPISupport = apiSupport(mini.Capabilities, mini.Reasoning)
+	// https://docs.fireworks.ai/updates/changelog (read 2026-11-16; 2026-06-12 "New models: Kimi K2.7 Code, MiniMax M3, and Qwen 3.7 Plus").
+	mini.Life.Available = catalog.MustDate("2026-06-12")
 
 	// Creator output ceiling: https://developers.openai.com/api/docs/models/gpt-oss-120b (read 2026-11-04).
 	oss := serverlessEntry(ModelGPTOSS120B, catalog.ModelGPTOSS120B, 131072, 131072, false,

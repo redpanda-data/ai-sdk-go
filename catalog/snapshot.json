@@ -11651,7 +11651,8 @@
             ]
           },
           "lifecycle": {
-            "stage": "ga"
+            "stage": "ga",
+            "available": "2026-06-12"
           },
           "attributes": [
             {
