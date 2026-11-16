@@ -27,17 +27,17 @@ const (
 	// ModelGPT5 is the GPT-5 model.
 	//
 	// Deprecated: OpenAI deprecated GPT-5 on 2026-06-11; it shuts down
-	// 2026-12-11. Use [ModelGPT5_6Sol].
+	// 2026-12-11. Use [ModelGPT6_1Sol].
 	ModelGPT5 = shared.ChatModelGPT5
 	// ModelGPT5Mini is the GPT-5 Mini model.
 	//
 	// Deprecated: OpenAI deprecated GPT-5 Mini on 2026-06-11; it shuts
-	// down 2026-12-11. Use [ModelGPT5_6Terra].
+	// down 2026-12-11. Use [ModelGPT6_1Terra].
 	ModelGPT5Mini = shared.ChatModelGPT5Mini
 	// ModelGPT5Nano is the GPT-5 Nano model.
 	//
 	// Deprecated: OpenAI deprecated GPT-5 Nano on 2026-06-11; it shuts
-	// down 2026-12-11. Use [ModelGPT5_6Luna].
+	// down 2026-12-11. Use [ModelGPT6Luna].
 	ModelGPT5Nano = shared.ChatModelGPT5Nano
 
 	// ModelGPT5_1 is the GPT-5.1 model with configurable adaptive reasoning.
@@ -144,12 +144,12 @@ const (
 	// ModelO3 is the O3 reasoning model.
 	//
 	// Deprecated: OpenAI deprecated o3 on 2026-06-11; it shuts down
-	// 2026-12-11. Use [ModelGPT5_6Sol].
+	// 2026-12-11. Use [ModelGPT6_1Sol].
 	ModelO3 = shared.ChatModelO3
 	// ModelO3Pro is the O3 Pro reasoning model.
 	//
 	// Deprecated: OpenAI deprecated o3-pro on 2026-06-11; it shuts down
-	// 2026-12-11. Use [ModelGPT5_6Sol].
+	// 2026-12-11. Use [ModelGPT6_1Sol].
 	ModelO3Pro = shared.ResponsesModelO3Pro
 	// ModelO4Mini is the O4 Mini reasoning model.
 	//

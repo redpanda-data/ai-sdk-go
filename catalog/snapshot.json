@@ -16651,11 +16651,11 @@
             "available": "2025-08-07",
             "deprecated": "2026-06-11",
             "retires": "2026-12-11",
-            "replaced_by": "gpt-5.6-sol"
+            "replaced_by": "gpt-6.1-sol"
           },
           "derived": {
             "price_tier": "medium",
-            "replacement": "openai/gpt-5.6-sol"
+            "replacement": "openai/gpt-6.1-sol"
           }
         },
         {
@@ -16770,11 +16770,11 @@
             "available": "2025-08-07",
             "deprecated": "2026-06-11",
             "retires": "2026-12-11",
-            "replaced_by": "gpt-5.6-terra"
+            "replaced_by": "gpt-6.1-terra"
           },
           "derived": {
             "price_tier": "low",
-            "replacement": "openai/gpt-5.6-terra"
+            "replacement": "openai/gpt-6.1-terra"
           }
         },
         {
@@ -16878,11 +16878,11 @@
             "available": "2025-08-07",
             "deprecated": "2026-06-11",
             "retires": "2026-12-11",
-            "replaced_by": "gpt-5.6-luna"
+            "replaced_by": "gpt-6-luna"
           },
           "derived": {
             "price_tier": "low",
-            "replacement": "openai/gpt-5.6-luna"
+            "replacement": "openai/gpt-6-luna"
           }
         },
         {
@@ -19391,11 +19391,11 @@
             "available": "2025-04-16",
             "deprecated": "2026-06-11",
             "retires": "2026-12-11",
-            "replaced_by": "gpt-5.6-sol"
+            "replaced_by": "gpt-6.1-sol"
           },
           "derived": {
             "price_tier": "medium",
-            "replacement": "openai/gpt-5.6-sol"
+            "replacement": "openai/gpt-6.1-sol"
           }
         },
         {
@@ -19474,11 +19474,11 @@
             "available": "2025-06-10",
             "deprecated": "2026-06-11",
             "retires": "2026-12-11",
-            "replaced_by": "gpt-5.6-sol"
+            "replaced_by": "gpt-6.1-sol"
           },
           "derived": {
             "price_tier": "high",
-            "replacement": "openai/gpt-5.6-sol"
+            "replacement": "openai/gpt-6.1-sol"
           }
         },
         {
