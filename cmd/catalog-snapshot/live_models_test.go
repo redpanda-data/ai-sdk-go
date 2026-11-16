@@ -38,6 +38,8 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/providers/openai"
 	"github.com/redpanda-data/ai-sdk-go/providers/openai/openaitest"
 	"github.com/redpanda-data/ai-sdk-go/providers/openaicompat/openaicompattest"
+	"github.com/redpanda-data/ai-sdk-go/providers/vertex"
+	"github.com/redpanda-data/ai-sdk-go/providers/vertex/vertextest"
 )
 
 // TestLiveTestModelsAreCurrent fails the pull request that records a
@@ -139,6 +141,9 @@ func liveTestModels() []liveModel {
 		{setting: "googletest.TestReasoningModelName", value: googletest.TestReasoningModelName, host: google.ProviderName},
 		{setting: "openaitest.TestModelName", value: openaitest.TestModelName, host: openai.ProviderName},
 		{setting: "openaitest.TestReasoningModelName", value: openaitest.TestReasoningModelName, host: openai.ProviderName},
+		{setting: "vertextest.TestGeminiModelName", value: vertextest.TestGeminiModelName, host: vertex.ProviderName},
+		{setting: "vertextest.TestClaudeModelName", value: vertextest.TestClaudeModelName, host: vertex.ProviderName},
+		{setting: "vertextest.TestClaudeReasoningModelName", value: vertextest.TestClaudeReasoningModelName, host: vertex.ProviderName},
 		// openaicompat has no catalog of its own: each setting is dated by the
 		// host its tests point the client at.
 		{setting: "openaicompattest.TestModelName", value: openaicompattest.TestModelName, host: openai.ProviderName},
