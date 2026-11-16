@@ -118,6 +118,14 @@ Words the PR body uses:
   commit or a `.github/` change, the run stops updating the PR and comments
   why. Later runs don't read PR comments.
 
+Each push to the bot PR is posted in the team's Slack channel, with the PR
+body's counts. To take a PR, react with :eyes: to its post and add yourself as
+a reviewer; the bot requests no one, so the PR is open to anyone. A failed
+run, a run that stopped before its push, and a run that pushed nothing but has
+open questions are posted there too. A run from another branch posts only its
+failures and stops, unless it was started with `post_test_pr`, and each of its
+posts opens with a note that it's a test.
+
 To review one:
 
 - Check each row in "Changes" against the page it cites, and each offering in
