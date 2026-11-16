@@ -45,6 +45,7 @@ type workflowStep struct {
 	Uses string            `yaml:"uses"`
 	Run  string            `yaml:"run"`
 	With map[string]string `yaml:"with"`
+	Env  map[string]string `yaml:"env"`
 	// ContinueOnError is true, or an expression.
 	ContinueOnError any `yaml:"continue-on-error"` //nolint:tagliatelle // GitHub's key
 }
@@ -1790,23 +1791,33 @@ func TestDispatchOptionsMatchNamedSources(t *testing.T) {
 	assert.Equal(t, "all", input.Default)
 }
 
-// TestOnlyThePRJobGetsTheBotToken checks that the pr job, which runs nothing
-// from the patches, is the only one in the run that can get an OIDC token
-// and the bot token.
-func TestOnlyThePRJobGetsTheBotToken(t *testing.T) {
+// TestOnlyTheirJobsGetTheTokens checks that only the jobs that run nothing
+// from the patches can get an OIDC token, each for its one secret: the pr job
+// the bot token, the notify job the Slack token.
+func TestOnlyTheirJobsGetTheTokens(t *testing.T) {
 	t.Parallel()
+
+	secrets := map[string]string{"pr": "sdlc/prod/github/actions_bot_token", notifyJob: slackToken}
 
 	for name, job := range readWorkflow(t, runWorkflow).Jobs {
 		aws := slices.ContainsFunc(job.Steps, func(s workflowStep) bool { return strings.HasPrefix(s.Uses, "aws-actions/") })
-		if name == "pr" {
-			assert.Equal(t, "write", job.Permissions["id-token"])
-			assert.True(t, aws, "the pr job reads the bot token")
+
+		secret, allowed := secrets[name]
+		if !allowed {
+			assert.NotContains(t, job.Permissions, "id-token", "the %s job may not request an OIDC token", name)
+			assert.False(t, aws, "the %s job may not reach a token", name)
 
 			continue
 		}
 
-		assert.NotContains(t, job.Permissions, "id-token", "the %s job may not request an OIDC token", name)
-		assert.False(t, aws, "the %s job may not reach the bot token", name)
+		assert.Equal(t, "write", job.Permissions["id-token"])
+		assert.True(t, aws, "the %s job reads its token", name)
+
+		for _, step := range job.Steps {
+			if ids := step.With["secret-ids"]; ids != "" {
+				assert.Equal(t, ","+secret, strings.TrimSpace(ids), "the %s job may read only %s", name, secret)
+			}
+		}
 	}
 }
 
@@ -1835,47 +1846,74 @@ func TestPushIsLeasedOnThePlansHead(t *testing.T) {
 // and git: a PR closed during the run stays closed with nothing pushed, a PR
 // someone pushed to during the run fails the step, and a PR a person marked
 // ready goes back to draft before the push, so new agent code runs only the
-// no-secrets CI until reviewed again.
+// no-secrets CI until reviewed again. A push asks the fallback reviewer
+// again, since GitHub drops the request once they have reviewed. The step
+// also tells the notify job whether the PR holds this run's commits, and the
+// PR, including one it just opened, before it edits the PR, so a failed edit
+// can't hide the push.
 func TestPushStepChecksThePRFirst(t *testing.T) {
 	t.Parallel()
 
-	steps := readJob(t, runWorkflow, "pr").Steps
-	run := steps[stepIndex(t, steps, "push", func(s workflowStep) bool { return strings.Contains(s.Run, "git push") })].Run
+	job := readJob(t, runWorkflow, "pr")
+	at := stepIndex(t, job.Steps, "push", func(s workflowStep) bool { return strings.Contains(s.Run, "git push") })
+	run := job.Steps[at].Run
+	assert.Equal(t, "push", job.Steps[at].ID)
+	assert.Equal(t, map[string]string{
+		"pushed": "${{ steps.push.outputs.pushed }}", "pr": "${{ steps.push.outputs.pr || env.PR }}",
+		"stop": "${{ env.STOP }}", "reason": "${{ env.REASON }}",
+	}, job.Outputs)
 
-	// Both log every call; gh prints PR_VIEW for gh pr view and lists no
+	// Both log every call; gh prints PR_VIEW for gh pr view, a new PR's URL
+	// for gh pr create, fails gh pr edit when FAIL_EDIT is set, and lists no
 	// other PRs.
 	path := stubPath(t, map[string]string{
-		"gh":  "#!/bin/sh\necho \"gh $*\" >>\"$CALLS\"\n[ \"$1 $2\" != \"pr view\" ] || echo \"$PR_VIEW\"\n",
+		"gh":  "#!/bin/sh\necho \"gh $*\" >>\"$CALLS\"\n[ \"$1 $2\" != \"pr view\" ] || echo \"$PR_VIEW\"\n[ \"$1 $2\" != \"pr create\" ] || echo https://github.com/o/r/pull/9\n[ \"$1 $2\" != \"pr edit\" ] || [ -z \"$FAIL_EDIT\" ] || exit 1\n",
 		"git": "#!/bin/sh\necho \"git $*\" >>\"$CALLS\"\n",
 	})
 
 	tests := []struct {
 		name    string
-		view    string // the PR's state, head and draft flag, as the step's --jq prints them
-		passes  bool
+		pr       string // the plan's PR; empty when there is none yet
+		view     string // the PR's state, head and draft flag, as the step's --jq prints them
+		failEdit bool
+		passes   bool
 		calls   []string // in this order
 		noCalls []string
+		outputs map[string]string // for the notify job
 	}{
-		{name: "closed during the run", view: "CLOSED h0 true", passes: true, noCalls: []string{"git push", "gh pr edit", "gh pr ready"}},
-		{name: "pushed to during the run", view: "OPEN theirs true", passes: false, noCalls: []string{"git push", "gh pr edit"}},
-		{name: "marked ready", view: "OPEN h0 false", passes: true, calls: []string{"gh pr ready 7 --repo o/r --undo", "git push", "gh pr edit 7"}},
-		{name: "a draft", view: "OPEN h0 true", passes: true, calls: []string{"git push", "gh pr edit 7"}, noCalls: []string{"gh pr ready"}},
+		{name: "closed during the run", pr: "7", view: "CLOSED h0 true", passes: true, noCalls: []string{"git push", "gh pr edit", "gh pr ready"}, outputs: map[string]string{}},
+		{name: "pushed to during the run", pr: "7", view: "OPEN theirs true", passes: false, noCalls: []string{"git push", "gh pr edit"}, outputs: map[string]string{}},
+		{name: "marked ready", pr: "7", view: "OPEN h0 false", passes: true, calls: []string{"gh pr ready 7 --repo o/r --undo", "git push", "gh pr edit 7", "--add-reviewer adamwownysz-redpanda"}, outputs: map[string]string{"pushed": "true", "pr": "7"}},
+		{name: "a draft", pr: "7", view: "OPEN h0 true", passes: true, calls: []string{"git push", "gh pr edit 7", "--add-reviewer adamwownysz-redpanda"}, noCalls: []string{"gh pr ready"}, outputs: map[string]string{"pushed": "true", "pr": "7"}},
+		{name: "a re-run after the push", pr: "7", view: "OPEN tip true", passes: true, calls: []string{"gh pr edit 7"}, noCalls: []string{"git push", "--add-reviewer"}, outputs: map[string]string{"pushed": "true", "pr": "7"}},
+		{name: "the PR edit fails after the push", pr: "7", view: "OPEN h0 true", failEdit: true, passes: false, calls: []string{"git push", "gh pr edit 7"}, outputs: map[string]string{"pushed": "true", "pr": "7"}},
+		{name: "a new PR", passes: true, calls: []string{"git push", "gh pr create", "--reviewer adamwownysz-redpanda"}, outputs: map[string]string{"pushed": "true", "pr": "9"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			calls := filepath.Join(t.TempDir(), "calls")
+			dir := t.TempDir()
+			calls, outputs := filepath.Join(dir, "calls"), filepath.Join(dir, "outputs")
+			require.NoError(t, os.WriteFile(outputs, nil, 0o600))
 			// GitHub runs a step's script as bash -eo pipefail.
 			cmd := exec.CommandContext(t.Context(), "bash", "-eo", "pipefail", "-c", run)
 
-			cmd.Env = append(os.Environ(), path, "CALLS="+calls, "PR_VIEW="+tt.view, "PR=7", "H0=h0", "TIP=tip",
-				"BRANCH=bot/reconcile-models/all", "BASE=main", "GITHUB_REPOSITORY=o/r", "GH_TOKEN=token")
+			cmd.Env = append(os.Environ(), path, "CALLS="+calls, "PR_VIEW="+tt.view, "PR="+tt.pr, "H0=h0", "TIP=tip",
+				"BRANCH=bot/reconcile-models/all", "BASE=main", "GITHUB_REPOSITORY=o/r", "GH_TOKEN=token", "GITHUB_OUTPUT="+outputs)
+			if tt.failEdit {
+				cmd.Env = append(cmd.Env, "FAIL_EDIT=1")
+			}
 
 			out, err := cmd.CombinedOutput()
 			assert.Equal(t, tt.passes, err == nil, "%s", out)
 
-			raw, err := os.ReadFile(calls)
+			raw, err := os.ReadFile(outputs)
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.outputs, parseOutputs(string(raw)))
+
+			raw, err = os.ReadFile(calls)
 			require.NoError(t, err)
 
 			log, at := string(raw), 0
@@ -2232,6 +2270,8 @@ func TestRealRunStepsRequireDryRunFalse(t *testing.T) {
 		{runWorkflow, "pr", "the bot token", func(s workflowStep) bool { return strings.HasPrefix(s.Uses, "aws-actions/") }},
 		{runWorkflow, "pr", "the note on the bot PR", func(s workflowStep) bool { return strings.Contains(s.Run, "gh pr comment") }},
 		{runWorkflow, "pr", "the push", func(s workflowStep) bool { return strings.Contains(s.Run, "git push") }},
+		{runWorkflow, notifyJob, "the Slack token", func(s workflowStep) bool { return strings.HasPrefix(s.Uses, "aws-actions/") }},
+		{runWorkflow, notifyJob, "the post", func(s workflowStep) bool { return strings.Contains(s.Run, "chat.postMessage") }},
 	}
 	for _, step := range realOnly {
 		matched := 0

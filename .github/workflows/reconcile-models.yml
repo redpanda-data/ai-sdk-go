@@ -18,6 +18,10 @@ on:
         description: Run the agent even if the gate finds nothing changed
         type: boolean
         default: false
+      post_test_pr:
+        description: From a branch other than main, also post the test PR in the team's Slack channel for review (failures post either way)
+        type: boolean
+        default: false
   # Weekly, a full run: every vendor's agent, and a draft PR into main when the
   # catalog drifted. Schedules run only from the default branch.
   schedule:
@@ -381,6 +385,13 @@ jobs:
       contents: read
       pull-requests: read
       id-token: write # only used outside dry runs, to read the bot token
+    # What the notify job tells the team's channel: whether this job pushed,
+    # the PR, and why a stopped run didn't push.
+    outputs:
+      pushed: ${{ steps.push.outputs.pushed }}
+      pr: ${{ steps.push.outputs.pr || env.PR }}
+      stop: ${{ env.STOP }}
+      reason: ${{ env.REASON }}
     env:
       BASE: ${{ github.ref_name }}
       H0: ${{ needs.plan.outputs.h0 }}
@@ -493,6 +504,7 @@ jobs:
           retention-days: 90
           overwrite: true
       - name: Push the vendors' commits and open or update the draft PR
+        id: push
         if: env.DRY_RUN == 'false' && steps.combine.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ env.ACTIONS_BOT_TOKEN }}
@@ -519,7 +531,9 @@ jobs:
           # first attempt opened the PR finds it here, and edits it.
           PR="${PR:-$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number,author,isCrossRepository \
             --jq '[.[] | select(.author.login == "vbotbuildovich" and (.isCrossRepository | not))][0].number // empty')}"
-          push=true
+          # pushed: the PR holds this run's commits, which need a reviewer.
+          push=true pushed=true
+          reviewer=adamwownysz-redpanda
           if [[ -n "$PR" ]]; then
             read -r state head draft <<<"$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json state,headRefOid,isDraft --jq '"\(.state) \(.headRefOid) \(.isDraft)"')"
             if [[ "$state" != "OPEN" ]]; then
@@ -533,7 +547,7 @@ jobs:
               exit 1
             elif same_as_pr; then
               # Pushing the same changes again would dismiss approvals for nothing.
-              push=false
+              push=false pushed=false
               echo "::notice::This run's commits make the same changes as #${PR}'s, so it updates only the body."
             elif [[ "$draft" == "false" ]]; then
               # A PR a person marked ready goes back to draft before the push, so
@@ -543,14 +557,83 @@ jobs:
           fi
           # Leased to the head the plan job read before any agent started; an
           # empty head means the branch must not exist yet.
+          again=()
           if [[ "$push" == "true" ]]; then
             git push --force-with-lease="refs/heads/${BRANCH}:${H0}" "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${BRANCH}"
+            # New commits need a review again, and GitHub drops the request
+            # once the reviewer has reviewed.
+            again=(--add-reviewer "$reviewer")
           fi
+          # For the notify job, before the PR edit, so a failed edit can't hide the push.
+          echo "pushed=${pushed}" >>"$GITHUB_OUTPUT"
           if [[ -n "$PR" ]]; then
+            echo "pr=${PR}" >>"$GITHUB_OUTPUT"
             # The label again on every update: a person may have removed it.
-            gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --base "$BASE" --body-file out/body.md --add-label ai-merge-skip
+            gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --base "$BASE" --body-file out/body.md --add-label ai-merge-skip ${again[@]+"${again[@]}"}
           else
-            gh pr create --repo "$GITHUB_REPOSITORY" --draft --base "$BASE" --head "$BRANCH" \
+            url="$(gh pr create --repo "$GITHUB_REPOSITORY" --draft --base "$BASE" --head "$BRANCH" \
               --title "chore(catalog): reconcile models" --body-file out/body.md \
-              --label ai-merge-skip --reviewer adamwownysz-redpanda
+              --label ai-merge-skip --reviewer "$reviewer")"
+            echo "pr=${url##*/}" >>"$GITHUB_OUTPUT"
+          fi
+
+  # Tells the team's channel what needs a person: the bot PR this run pushed,
+  # a job that failed, a run that stopped before the push, or the questions of
+  # a run that pushed nothing. It runs the run's own commit, never the bot PR's
+  # code, and reads no token but Slack's.
+  notify:
+    needs: [plan, anthropic, openai, google, amazon, meta, mistral, zai, minimax, deepseek, moonshotai, carry, pr]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write # only used outside dry runs, to read the Slack token
+    steps:
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        if: env.DRY_RUN == 'false'
+        with:
+          persist-credentials: false
+      # The pr job's body, for its summary line; missing when the pr job didn't run.
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        if: env.DRY_RUN == 'false'
+        continue-on-error: true
+        with:
+          name: reconcile-pr
+          path: ${{ runner.temp }}/pr
+      - name: Write the message (no model)
+        id: message
+        if: env.DRY_RUN == 'false'
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          POST_TEST_PR: ${{ github.event_name == 'workflow_dispatch' && inputs.post_test_pr }}
+        run: .github/reconcile-models/notify.sh "$RUNNER_TEMP/pr/body.md" "$RUNNER_TEMP/message.txt"
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd  # v6.3.0
+        if: env.DRY_RUN == 'false' && steps.message.outputs.post == 'true'
+        with:
+          aws-region: ${{ vars.RP_AWS_CRED_REGION }}
+          role-to-assume: arn:aws:iam::${{ secrets.RP_AWS_CRED_ACCOUNT_ID }}:role/${{ vars.RP_AWS_CRED_BASE_ROLE_NAME }}${{ github.event.repository.name }}
+      - uses: aws-actions/aws-secretsmanager-get-secrets@2297f9a879480a9e3af9b293ed15c70caf8e1c88  # v3.0.2
+        if: env.DRY_RUN == 'false' && steps.message.outputs.post == 'true'
+        with:
+          secret-ids: |
+            ,sdlc/prod/github/slack_vbot_token
+          parse-json-secrets: true
+      # Slack answers 200 with ok false when it refuses a post, so read the reply.
+      - name: Post in the team's channel
+        if: env.DRY_RUN == 'false' && steps.message.outputs.post == 'true'
+        env:
+          CHANNEL: C0BPXGJB259
+        run: |
+          jq -n --arg channel "$CHANNEL" --rawfile text "$RUNNER_TEMP/message.txt" \
+            '{channel: $channel, text: $text, unfurl_links: false, unfurl_media: false}' >"$RUNNER_TEMP/payload.json"
+          reply="$(curl -sS --max-time 30 -X POST https://slack.com/api/chat.postMessage \
+            -H "Authorization: Bearer ${SLACK_VBOT_TOKEN}" -H 'Content-Type: application/json; charset=utf-8' \
+            --data @"$RUNNER_TEMP/payload.json")"
+          if ! jq -e '.ok == true' <<<"$reply" >/dev/null 2>&1; then
+            echo "::error::Slack didn't take the post: $(jq -r '.error // "no reason given"' <<<"$reply" 2>/dev/null || echo "not a Slack reply")"
+            exit 1
           fi
