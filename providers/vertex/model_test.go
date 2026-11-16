@@ -20,6 +20,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -272,6 +273,7 @@ func TestNewModel_ThinkingBudget(t *testing.T) {
 		{name: "gemini", model: vertex.ModelGemini35Flash, tokens: 4096, want: "not a thinking budget"},
 		{name: "claude without a budget", model: vertex.ModelClaudeSonnet5, tokens: 4096, want: "thinking_budget"},
 		{name: "below the minimum", model: vertex.ModelClaudeHaiku45, tokens: 512, want: "at least 1024"},
+		{name: "no room for an answer", model: vertex.ModelClaudeHaiku45, tokens: 64000, want: "no room for an answer"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -279,6 +281,39 @@ func TestNewModel_ThinkingBudget(t *testing.T) {
 			_, err := newGatewayProvider(t, newFakeVertex(t, "application/json", claudeResponse)).
 				NewModel(tc.model, vertex.WithThinkingBudget(tc.tokens))
 			require.ErrorContains(t, err, tc.want)
+		})
+	}
+}
+
+// TestNewModel_ThinkingBudgetBelowMaxTokens checks a budget at or above the
+// default max_tokens still leaves max_tokens above the budget, as Claude
+// requires.
+func TestNewModel_ThinkingBudgetBelowMaxTokens(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		budget        int64
+		wantMaxTokens int64
+	}{
+		{budget: 4096, wantMaxTokens: 16384},
+		{budget: 16384, wantMaxTokens: 20480},
+		{budget: 62000, wantMaxTokens: 64000},
+	} {
+		t.Run(strconv.FormatInt(tc.budget, 10), func(t *testing.T) {
+			t.Parallel()
+
+			fake := newFakeVertex(t, "text/event-stream", claudeStream)
+
+			m, err := newGatewayProvider(t, fake).NewModel(vertex.ModelClaudeHaiku45, vertex.WithThinkingBudget(tc.budget))
+			require.NoError(t, err)
+
+			for _, err := range m.GenerateEvents(context.Background(), hello()) {
+				require.NoError(t, err)
+			}
+
+			body := fake.only(t).Body
+			assert.Equal(t, tc.budget, gjson.Get(body, "thinking.budget_tokens").Int())
+			assert.Equal(t, tc.wantMaxTokens, gjson.Get(body, "max_tokens").Int())
 		})
 	}
 }

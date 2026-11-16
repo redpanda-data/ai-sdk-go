@@ -154,11 +154,31 @@ func (p *Provider) newClaudeModel(modelName string, offering catalog.Offering, c
 	}
 
 	if cfg.thinkingBudget != nil {
-		opts = append(opts, anthropic.WithThinkingBudget(*cfg.thinkingBudget))
+		budget := *cfg.thinkingBudget
+		limit := int64(offering.Constraints.MaxOutputTokens)
+
+		// Claude refuses a request whose thinking budget is not below
+		// max_tokens, so the budget must leave room for an answer.
+		if budget >= limit {
+			return nil, fmt.Errorf("vertex: thinking budget %d leaves no room for an answer within %s's %d output tokens", budget, modelName, limit)
+		}
+
+		opts = append(opts, anthropic.WithThinkingBudget(budget))
+		if budget+claudeAnswerTokens > claudeDefaultMaxTokens {
+			opts = append(opts, anthropic.WithMaxTokens(int(min(budget+claudeAnswerTokens, limit))))
+		}
 	}
 
 	return provider.NewModelFromOffering(modelName, offering, opts...)
 }
+
+// claudeDefaultMaxTokens is the max_tokens the anthropic provider sends when
+// none is set (defaultMaxTokens in providers/anthropic).
+const claudeDefaultMaxTokens = 16384
+
+// claudeAnswerTokens is the room max_tokens keeps for the answer above a
+// thinking budget that would not fit under claudeDefaultMaxTokens.
+const claudeAnswerTokens = 4096
 
 // rawPredictMiddleware turns an Anthropic Messages request into a Vertex
 // publisher request. It drops any credential header the Anthropic SDK took

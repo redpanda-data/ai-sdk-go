@@ -35,8 +35,11 @@ func WithReasoningEffort(effort ReasoningEffort) Option {
 }
 
 // WithThinkingBudget sets an explicit thinking budget in tokens for a Claude
-// model that takes a budget rather than an effort, such as Claude Haiku 4.5.
-// It is refused for Gemini and for Claude models without a budget.
+// model whose offering takes one, such as Claude Haiku 4.5. A budget that does
+// not fit under the default max_tokens raises max_tokens to the budget plus
+// 4096 tokens, up to the model's output limit. NewModel refuses it for Gemini,
+// for a Claude model without a budget, below 1024 tokens, and at or above the
+// model's output limit.
 func WithThinkingBudget(tokens int64) Option {
 	return func(c *modelConfig) error {
 		c.thinkingBudget = &tokens
