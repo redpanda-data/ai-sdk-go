@@ -24,8 +24,9 @@ import (
 
 // Model ID constants for Google Gemini models.
 const (
-	ModelGemini4Carbon = "gemini-4-carbon"
-	ModelGemini4Argon  = "gemini-4-argon"
+	ModelGemini4Hydrogen = "gemini-4-hydrogen"
+	ModelGemini4Carbon   = "gemini-4-carbon"
+	ModelGemini4Argon    = "gemini-4-argon"
 	ModelGemini38Flash = "gemini-3.8-flash"
 	// ModelGemini37Flash is Gemini 3.7 Flash.
 	//
@@ -201,6 +202,43 @@ var generateContentWireAPIs = []catalog.WireAPI{
 // never from Vertex. Their dates are floors, so Retires stays unset.
 func entries() []catalog.Entry {
 	return []catalog.Entry{
+		{
+			// https://ai.google.dev/gemini-api/docs/models/gemini-4-hydrogen
+			// (read 2026-11-16).
+			ID:           ModelGemini4Hydrogen,
+			Model:        catalog.ModelGemini4Hydrogen,
+			WireAPIs:     generateContentWireAPIs,
+			Capabilities: geminiCaps,
+			Modalities:   geminiModalities,
+			// The model page lists low, medium, high (default) and xhigh; MINIMAL
+			// returns an error. xhigh is left out: this provider's request
+			// mapper has no xhigh thinking level to send.
+			Reasoning: catalog.ReasoningSupport{
+				Efforts: gemini37FlashReasoningEfforts,
+			},
+			// The 1M window is shared by input and output. 65536 is the
+			// synchronous output cap, streaming and non-streaming; long decode
+			// up to the full window needs a background request. Custom
+			// temperature, top_p, and top_k are ignored
+			// (whats-new-gemini-4-hydrogen, read 2026-11-16); penalties are left
+			// out as for 4 Argon.
+			Constraints: llm.ModelConstraints{
+				TemperatureRange: [2]float64{0.0, 2.0},
+				MaxInputTokens:   1048576,
+				MaxOutputTokens:  65536,
+				SupportedParams:  geminiNoPenaltyParams,
+			},
+			// GA on 2026-11-12 per the changelog and deprecations page
+			// (https://ai.google.dev/gemini-api/docs/deprecations, read
+			// 2026-11-16); no shutdown date announced.
+			Life: catalog.Lifecycle{
+				Available: catalog.MustDate("2026-11-12"),
+			},
+			// Standard paid tier $1.50/$7.50, implicit cache $0.075, flat across
+			// the 1M window (https://ai.google.dev/gemini-api/docs/pricing, read
+			// 2026-11-16).
+			Pricing: pricing.FlatInfo(1.50, 7.50, 0.075),
+		},
 		{
 			// https://ai.google.dev/gemini-api/docs/models/gemini-4-carbon
 			// (read 2026-11-12).

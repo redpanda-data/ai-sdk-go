@@ -32,8 +32,9 @@ const ProviderName = "gcp.vertex"
 // Vertex model IDs are exactly the model segment of a Vertex resource path,
 // publishers/{publisher}/models/{model}.
 const (
-	ModelGemini4Argon  = "gemini-4-argon"
-	ModelGemini38Flash = "gemini-3.8-flash"
+	ModelGemini4Hydrogen = "gemini-4-hydrogen"
+	ModelGemini4Argon    = "gemini-4-argon"
+	ModelGemini38Flash   = "gemini-3.8-flash"
 	// Deprecated: Google retires Gemini 3.7 Flash on 2027-01-28. Use
 	// [ModelGemini38Flash].
 	ModelGemini37Flash = "gemini-3.7-flash"
@@ -240,6 +241,34 @@ var (
 // leaves it unset.
 func entries() []catalog.Entry {
 	return []catalog.Entry{
+		{
+			ID:           ModelGemini4Hydrogen,
+			Model:        catalog.ModelGemini4Hydrogen,
+			WireAPIs:     geminiWireAPIs,
+			Capabilities: geminiCaps,
+			Modalities:   geminiModalities,
+			// The 1M window is shared by input and output. 65536 is the
+			// foreground output cap, streaming or non-streaming; long decode
+			// (v1beta1 only) extends it to the full window. Custom temperature,
+			// top_p, and top_k are ignored (docs.cloud.google.com/gemini-
+			// enterprise-agent-platform/models/gemini/4-hydrogen, read
+			// 2026-11-16).
+			Constraints: llm.ModelConstraints{
+				TemperatureRange: [2]float64{0.0, 2.0},
+				MaxInputTokens:   1048576, // 1M input tokens
+				MaxOutputTokens:  65536,   // 64K output tokens
+				SupportedParams:  geminiNoPenaltyParams,
+			},
+			// The model page lists LOW, MEDIUM, HIGH (default) and XHIGH;
+			// thinking_budget and MINIMAL return HTTP 400. XHIGH is left out:
+			// the Gemini request mapper this provider uses has no xhigh level.
+			Reasoning: catalog.ReasoningSupport{Efforts: geminiNoMinimalReasoningEfforts},
+			// Release date November 12, 2026, "No retirement date announced"
+			// (docs.cloud.google.com/gemini-enterprise-agent-platform/models/
+			// model-versions, read 2026-11-16).
+			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-11-12")},
+			Pricing: gemini4HydrogenPricing(),
+		},
 		{
 			ID:           ModelGemini4Argon,
 			Model:        catalog.ModelGemini4Argon,
@@ -1019,6 +1048,19 @@ func claudeSonnet55Pricing() pricing.Info {
 // geminiFlashPricing returns the Gemini 3.6, 3.7 and 3.8 Flash rate card.
 // gemini4ArgonPricing returns the Gemini 4 Argon rate card: the global
 // rate as default and the non-global rate as a us and eu override.
+// gemini4HydrogenPricing returns the Gemini 4 Hydrogen rate card: the
+// Standard table's Global and Non-global rows, the latter at each served
+// non-global location (https://cloud.google.com/model-garden/pricing,
+// read 2026-11-16). The page's $1.875 global and $2.0625 non-global cache
+// write rates take effect on 2027-01-12, so they are not set yet.
+func gemini4HydrogenPricing() pricing.Info {
+	return regionalPricing(
+		pricing.NewRates(1.50, 7.50, 0.075),
+		pricing.NewRates(1.65, 8.25, 0.0825),
+		"us", "eu",
+	)
+}
+
 func gemini4ArgonPricing() pricing.Info {
 	// Promotional net rate through 2026-11-30 (pricing page footnote, read
 	// 2026-10-14): 50% credits back on net spend. The $4/$20/$0.20 global

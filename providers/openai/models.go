@@ -165,7 +165,9 @@ func entries() []catalog.Entry {
 				Available:  catalog.MustDate("2025-08-07"),
 				Deprecated: catalog.MustDate("2026-06-11"),
 				Retires:    catalog.MustDate("2026-12-11"),
-				ReplacedBy: ModelGPT5_6Sol,
+				// Recommended replacement per
+				// https://developers.openai.com/api/docs/deprecations (read 2026-11-16).
+				ReplacedBy: ModelGPT6_1Sol,
 			},
 			Pricing: pricing.FlatInfo(1.25, 10.00, 0.125).
 				WithOverride(batchTier, flatCard(0.625, 5.00, 0.0625)).
@@ -192,7 +194,9 @@ func entries() []catalog.Entry {
 				Available:  catalog.MustDate("2025-08-07"),
 				Deprecated: catalog.MustDate("2026-06-11"),
 				Retires:    catalog.MustDate("2026-12-11"),
-				ReplacedBy: ModelGPT5_6Terra,
+				// Recommended replacement per
+				// https://developers.openai.com/api/docs/deprecations (read 2026-11-16).
+				ReplacedBy: ModelGPT6_1Terra,
 			},
 			// $0.25 / $2.00 / $0.025 per M (input / output / cached input).
 			Pricing: pricing.FlatInfo(0.25, 2.00, 0.025).
@@ -221,7 +225,9 @@ func entries() []catalog.Entry {
 				Available:  catalog.MustDate("2025-08-07"),
 				Deprecated: catalog.MustDate("2026-06-11"),
 				Retires:    catalog.MustDate("2026-12-11"),
-				ReplacedBy: ModelGPT5_6Luna,
+				// Recommended replacement per
+				// https://developers.openai.com/api/docs/deprecations (read 2026-11-16).
+				ReplacedBy: ModelGPT6Luna,
 			},
 			Pricing: pricing.FlatInfo(0.05, 0.40, 0.005).
 				WithOverride(batchTier, flatCard(0.025, 0.20, 0.0025)).
@@ -235,7 +241,10 @@ func entries() []catalog.Entry {
 			Modalities:   textImage,
 			Constraints: llm.ModelConstraints{
 				TemperatureRange:  [2]float64{0.0, 2.0},
-				MaxInputTokens:    272000, // documented max input; the 400K window reserves 128K for output
+				// The model page gives only the 400K window; gpt-5.4-mini's page, with
+				// the same window and 128K output, caps input at 272,000
+				// (https://developers.openai.com/api/docs/models/gpt-5.4-mini, read 2026-11-16).
+				MaxInputTokens:    272000,
 				MaxOutputTokens:   128000, // 128K output tokens
 				SupportedParams:   []string{"temperature", "top_p", "max_tokens", "frequency_penalty", "presence_penalty", "seed", "reasoning_effort", "reasoning_summary"},
 				MutuallyExclusive: [][]string{{"temperature", "top_p"}},
@@ -778,7 +787,9 @@ func entries() []catalog.Entry {
 				Available:  catalog.MustDate("2025-04-16"),
 				Deprecated: catalog.MustDate("2026-06-11"),
 				Retires:    catalog.MustDate("2026-12-11"),
-				ReplacedBy: ModelGPT5_6Sol,
+				// Recommended replacement per
+				// https://developers.openai.com/api/docs/deprecations (read 2026-11-16).
+				ReplacedBy: ModelGPT6_1Sol,
 			},
 			Pricing: pricing.FlatInfo(2.00, 8.00, 0.50).
 				WithOverride(batchTier, flatCard(1.00, 4.00, 0)).
@@ -974,7 +985,9 @@ func entries() []catalog.Entry {
 				Available:  catalog.MustDate("2025-06-10"),
 				Deprecated: catalog.MustDate("2026-06-11"),
 				Retires:    catalog.MustDate("2026-12-11"),
-				ReplacedBy: ModelGPT5_6Sol,
+				// Recommended replacement per
+				// https://developers.openai.com/api/docs/deprecations (read 2026-11-16).
+				ReplacedBy: ModelGPT6_1Sol,
 			},
 			Pricing: pricing.FlatInfo(20.00, 80.00, 0).
 				WithOverride(batchTier, flatCard(10.00, 40.00, 0)),
