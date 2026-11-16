@@ -263,6 +263,13 @@
       "series": "gemini-carbon",
       "released": "2026-11-10"
     },
+    "google/gemini-4-hydrogen": {
+      "display_name": "Gemini 4 Hydrogen",
+      "publisher": "google",
+      "description": "Gemini 4 Hydrogen brings cutting-edge intelligence to everyone, with speed and efficiency for everyday coding and agentic workflows, featuring a unified 1M-token context window and long decode up to 1M tokens.",
+      "series": "gemini-flash",
+      "released": "2026-11-12"
+    },
     "google/gemma-4-26b-a4b": {
       "display_name": "Gemma 4 26B A4B",
       "publisher": "google",
@@ -12606,7 +12613,8 @@
             "available": "2026-09-02"
           },
           "derived": {
-            "price_tier": "low"
+            "price_tier": "low",
+            "replacement": "google/gemini-4-hydrogen"
           }
         },
         {
@@ -12750,6 +12758,79 @@
           "lifecycle": {
             "stage": "ga",
             "available": "2026-11-10"
+          },
+          "derived": {
+            "price_tier": "medium"
+          }
+        },
+        {
+          "id": "gemini-4-hydrogen",
+          "model": "google/gemini-4-hydrogen",
+          "display_name": "Gemini 4 Hydrogen",
+          "wire_apis": [
+            {
+              "protocol": "gemini_generate_content",
+              "transport": "direct"
+            }
+          ],
+          "capabilities": {
+            "audio": true,
+            "json_mode": true,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1048576,
+            "max_output_tokens": 65536,
+            "supported_params": [
+              "temperature",
+              "top_p",
+              "top_k",
+              "max_tokens",
+              "stop"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 150000000,
+                "output_microcents_per_million": 750000000,
+                "cached_input_microcents_per_million": 7500000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-11-12"
           },
           "derived": {
             "price_tier": "medium"
@@ -15578,7 +15659,8 @@
             "available": "2026-09-02"
           },
           "derived": {
-            "price_tier": "low"
+            "price_tier": "low",
+            "replacement": "google/gemini-4-hydrogen"
           }
         },
         {
@@ -15691,6 +15773,101 @@
           "lifecycle": {
             "stage": "ga",
             "available": "2026-10-13"
+          },
+          "derived": {
+            "price_tier": "medium"
+          }
+        },
+        {
+          "id": "gemini-4-hydrogen",
+          "model": "google/gemini-4-hydrogen",
+          "display_name": "Gemini 4 Hydrogen",
+          "wire_apis": [
+            {
+              "protocol": "gemini_generate_content",
+              "transport": "vertex"
+            }
+          ],
+          "capabilities": {
+            "audio": true,
+            "json_mode": true,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1048576,
+            "max_output_tokens": 65536,
+            "supported_params": [
+              "temperature",
+              "top_p",
+              "top_k",
+              "max_tokens",
+              "stop"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 150000000,
+                "output_microcents_per_million": 750000000,
+                "cached_input_microcents_per_million": 7500000
+              }
+            },
+            "overrides": [
+              {
+                "region": "us",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 165000000,
+                    "output_microcents_per_million": 825000000,
+                    "cached_input_microcents_per_million": 8250000
+                  }
+                }
+              },
+              {
+                "region": "eu",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 165000000,
+                    "output_microcents_per_million": 825000000,
+                    "cached_input_microcents_per_million": 8250000
+                  }
+                }
+              }
+            ]
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-11-12"
           },
           "derived": {
             "price_tier": "medium"

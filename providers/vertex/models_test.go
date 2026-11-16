@@ -44,7 +44,7 @@ func TestCatalogModelSet(t *testing.T) {
 	}
 
 	assert.ElementsMatch(t, []string{
-		"gemini-4-argon", "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash",
+		"gemini-4-hydrogen", "gemini-4-argon", "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash",
 		"gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite",
 		"gemini-3.1-pro-preview", "gemini-3-flash-preview",
 		"gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite",
@@ -71,6 +71,7 @@ func TestOfferingAttributes(t *testing.T) {
 	t.Parallel()
 
 	wantPublisher := map[string]catalog.Publisher{
+		vertex.ModelGemini4Hydrogen:     "google",
 		vertex.ModelGemini4Argon:        "google",
 		vertex.ModelGemini38Flash:       "google",
 		vertex.ModelGemini37Flash:       "google",
@@ -124,6 +125,9 @@ func TestGeminiRegionalOverride(t *testing.T) {
 		pricing.NewRates(0.75, 3.75, 0.075), pricing.NewRates(0.825, 4.125, 0.0825),
 	}
 	cases := map[string]struct{ global, regional pricing.Rates }{
+		vertex.ModelGemini4Hydrogen: {
+			pricing.NewRates(1.50, 7.50, 0.075), pricing.NewRates(1.65, 8.25, 0.0825),
+		},
 		vertex.ModelGemini4Argon: {
 			pricing.NewRates(2.00, 10.00, 0.10), pricing.NewRates(2.20, 11.00, 0.11),
 		},
@@ -524,6 +528,7 @@ func TestGeminiPenaltyParams(t *testing.T) {
 	t.Parallel()
 
 	noPenalty := map[string]bool{
+		vertex.ModelGemini4Hydrogen:   true,
 		vertex.ModelGemini4Argon:      true,
 		vertex.ModelGemini38Flash:     true,
 		vertex.ModelGemini37Flash:     true,

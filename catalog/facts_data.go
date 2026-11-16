@@ -83,6 +83,7 @@ const (
 
 	// Google models.
 
+	ModelGemini4Hydrogen     ModelID = "google/gemini-4-hydrogen"
 	ModelGemini4Carbon       ModelID = "google/gemini-4-carbon"
 	ModelGemini4Argon        ModelID = "google/gemini-4-argon"
 	ModelGemini38Flash       ModelID = "google/gemini-3.8-flash"
@@ -534,6 +535,21 @@ var defaultRegistry = Registry{
 	},
 
 	// ---- Google ----
+	ModelGemini4Hydrogen: {
+		Publisher:   PublisherGoogle,
+		DisplayName: "Gemini 4 Hydrogen", Series: "gemini-flash",
+		// In the Flash series after Gemini 3.8 Flash: Google calls it the
+		// "Recommended upgrade from Gemini 3.8 Flash" with a "Migrate from
+		// Gemini 3.8 Flash" guide, and the models page now calls 3.8 Flash
+		// "Our previous-generation Flash model"
+		// (https://ai.google.dev/gemini-api/docs/whats-new-gemini-4-hydrogen and
+		// https://ai.google.dev/gemini-api/docs/models, read 2026-11-16).
+		// gemini-4-hydrogen became generally available on 2026-11-12 per
+		// https://ai.google.dev/gemini-api/docs/changelog (read 2026-11-16), its
+		// first mention. No knowledge cutoff on the Gemini API's pages.
+		Released:    MustDate("2026-11-12"),
+		Description: "Gemini 4 Hydrogen brings cutting-edge intelligence to everyone, with speed and efficiency for everyday coding and agentic workflows, featuring a unified 1M-token context window and long decode up to 1M tokens.",
+	},
 	ModelGemini4Carbon: {
 		Publisher:   PublisherGoogle,
 		DisplayName: "Gemini 4 Carbon", Series: "gemini-carbon",
