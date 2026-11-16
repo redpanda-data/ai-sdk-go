@@ -477,6 +477,19 @@ var (
 		Adaptive: true,
 	}
 
+	// preservedClaudeThinking is frontierClaudeThinking plus the prefix check:
+	// the Fable 5.2, Fable 5.1, Opus 5.5, Sonnet 5.5 and Haiku 5.5 model cards
+	// list "Preserved thinking" under Model Details (thinking blocks are bound
+	// to the conversation prefix; a changed prefix returns 400), read
+	// 2026-11-16, e.g.
+	// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-fable-5-2.html
+	preservedClaudeThinking = func() catalog.ReasoningSupport {
+		r := frontierClaudeThinking
+		r.ThinkingPrefixCheck = true
+
+		return r
+	}()
+
 	claudeOpus46Thinking = catalog.ReasoningSupport{
 		Efforts:  []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortMax},
 		Adaptive: true,
@@ -972,7 +985,7 @@ var bedrockFamilies = []family{
 		Capabilities:   claudeStandardCaps,
 		Modalities:     claudeModalities,
 		Constraints:    claudeNoSampling1MConstraints,
-		Reasoning:      frontierClaudeThinking,
+		Reasoning:      preservedClaudeThinking,
 		GlobalRates:    &pricing.RateCard{Base: pricing.NewRates(8.00, 40.00, 0.20).WithCacheCreation(10.00, 16.00, 0)},
 		Rates:          pricing.RateCard{Base: pricing.NewRates(8.80, 44.00, 0.22).WithCacheCreation(11.00, 17.60, 0)},
 		ProfileRegions: claudeFable52ProfileRegions,
@@ -993,7 +1006,7 @@ var bedrockFamilies = []family{
 		Capabilities:   claudeStandardCaps,
 		Modalities:     claudeModalities,
 		Constraints:    claudeNoSampling1MConstraints,
-		Reasoning:      frontierClaudeThinking,
+		Reasoning:      preservedClaudeThinking,
 		GlobalRates:    &pricing.RateCard{Base: pricing.NewRates(10.00, 50.00, 0.25).WithCacheCreation(12.50, 20.00, 0)},
 		Rates:          pricing.RateCard{Base: pricing.NewRates(11.00, 55.00, 0.275).WithCacheCreation(13.75, 22.00, 0)},
 		ProfileRegions: claudeFable51ProfileRegions,
@@ -1036,7 +1049,7 @@ var bedrockFamilies = []family{
 		Capabilities:   claudeStandardCaps,
 		Modalities:     claudeModalities,
 		Constraints:    claudeNoSampling1MConstraints,
-		Reasoning:      frontierClaudeThinking,
+		Reasoning:      preservedClaudeThinking,
 		GlobalRates:    &pricing.RateCard{Base: pricing.NewRates(4.00, 20.00, 0.20).WithCacheCreation(5.00, 8.00, 0)},
 		Rates:          pricing.RateCard{Base: pricing.NewRates(4.40, 22.00, 0.22).WithCacheCreation(5.50, 8.80, 0)},
 		ProfileRegions: claudeOpus55ProfileRegions,
@@ -1144,7 +1157,7 @@ var bedrockFamilies = []family{
 		Capabilities:   claudeStandardCaps,
 		Modalities:     claudeModalities,
 		Constraints:    claudeNoSampling1MConstraints,
-		Reasoning:      frontierClaudeThinking,
+		Reasoning:      preservedClaudeThinking,
 		GlobalRates:    &pricing.RateCard{Base: pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(2.50, 4.00, 0)},
 		Rates:          pricing.RateCard{Base: pricing.NewRates(2.20, 11.00, 0.11).WithCacheCreation(2.75, 4.40, 0)},
 		ProfileRegions: claudeSonnet55ProfileRegions,
@@ -1230,7 +1243,7 @@ var bedrockFamilies = []family{
 		Capabilities:  claudeStandardCaps,
 		Modalities:    claudeModalities,
 		Constraints:   claudeNoSampling1MConstraints,
-		Reasoning:     frontierClaudeThinking,
+		Reasoning:     preservedClaudeThinking,
 		GlobalRates: &pricing.RateCard{
 			Base: pricing.NewRates(0.10, 0.50, 0.01).WithCacheCreation(0.125, 0.20, 0),
 			Brackets: []pricing.Bracket{{
