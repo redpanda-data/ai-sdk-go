@@ -89,6 +89,8 @@ func entries() []catalog.Entry {
 		serverlessPrice(.30, 1.20, .006, .375, 1.50, .0075))
 	deepseek1017.Reasoning = deepseek.Reasoning
 	deepseek1017.WireAPISupport = apiSupport(deepseek1017.Capabilities, deepseek1017.Reasoning)
+	// https://docs.fireworks.ai/updates/changelog (read 2026-11-16; 2026-10-19 "New models on Serverless: DeepSeek V4.1 Flash 1017").
+	deepseek1017.Life.Available = catalog.MustDate("2026-10-19")
 
 	// Host FAQ explicitly permits output up to the remaining window:
 	// https://fireworks.ai/models/fireworks/kimi-k3 (read 2026-11-04).
