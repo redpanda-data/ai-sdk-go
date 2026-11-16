@@ -32,6 +32,7 @@ const (
 	ModelDeepSeekV41Flash     = "accounts/fireworks/models/deepseek-v4p1-flash"
 	ModelDeepSeekV41Flash1017 = "accounts/fireworks/models/deepseek-v4p1-flash-1017"
 	ModelKimiK3               = "accounts/fireworks/models/kimi-k3"
+	ModelKimiK31Pro           = "accounts/fireworks/models/kimi-k3p1-pro"
 
 	// Deprecated: Fireworks serverless retires this offering on 2026-11-07.
 	// No replacement is declared by the provider in this catalog.
@@ -99,7 +100,19 @@ func entries() []catalog.Entry {
 	kimi.Reasoning.Efforts = []llm.ReasoningEffort{"low", "high", "max"}
 	kimi.WireAPISupport = apiSupport(kimi.Capabilities, kimi.Reasoning)
 
-	return []catalog.Entry{glm, flash, mini, oss, deepseek, deepseek1017, kimi}
+	// Rates: https://docs.fireworks.ai/serverless/pricing (read 2026-11-16).
+	// Image input: https://fireworks.ai/models/fireworks/kimi-k3p1-pro (read 2026-11-16).
+	// Window: https://platform.kimi.ai/docs/pricing/chat.md (read 2026-11-16; 1,048,576 for all K3
+	// series models); the Fireworks page shows "1040k", as it does for Kimi K3.
+	// Output ceiling: https://platform.kimi.ai/docs/guide/kimi-k3-1-pro-quickstart.md (read 2026-11-16;
+	// max_completion_tokens up to 1048576); the Fireworks page gives no output cap.
+	// Efforts unset: Fireworks documents its effort mapping for Kimi K3 only
+	// (https://docs.fireworks.ai/api-reference/post-chatcompletions.md, read 2026-11-16).
+	kimi31Pro := serverlessEntry(ModelKimiK31Pro, catalog.ModelKimiK31Pro, 1048576, 1048576, true,
+		serverlessPrice(2, 10, .20, 3, 15, .30))
+	kimi31Pro.Attributes["pricing_checked"] = "2026-11-16"
+
+	return []catalog.Entry{glm, flash, mini, oss, deepseek, deepseek1017, kimi, kimi31Pro}
 }
 
 func serverlessPrice(input, output, cached, priorityInput, priorityOutput, priorityCached float64) pricing.Info {

@@ -56,6 +56,7 @@ func TestInventoryAndCreatorFacts(t *testing.T) {
 		fireworks.ModelDeepSeekV41Flash:     {catalog.ModelDeepSeekV41Flash, catalog.PublisherDeepSeek, 1048576, 393216, true},
 		fireworks.ModelDeepSeekV41Flash1017: {catalog.ModelDeepSeekV41Flash1017, catalog.PublisherDeepSeek, 1048576, 393216, true},
 		fireworks.ModelKimiK3:               {catalog.ModelKimiK3, catalog.PublisherMoonshotAI, 1048576, 1048576, true},
+		fireworks.ModelKimiK31Pro:           {catalog.ModelKimiK31Pro, catalog.PublisherMoonshotAI, 1048576, 1048576, true},
 	}
 	for id, want := range cases {
 		o, ok := fireworks.Catalog().Lookup(id)

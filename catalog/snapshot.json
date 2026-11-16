@@ -339,6 +339,14 @@
       "released": "2026-07-31",
       "open_weights": true
     },
+    "moonshotai/kimi-k3.1-pro": {
+      "display_name": "Kimi K3.1 Pro",
+      "publisher": "moonshotai",
+      "description": "Moonshot AI's most capable 3T-class open-weight model, post-trained from Kimi K3 for coding, 3D creation and financial research.",
+      "series": "kimi-pro",
+      "released": "2026-10-31",
+      "open_weights": true
+    },
     "openai/gpt-3.5-turbo": {
       "display_name": "GPT-3.5 Turbo",
       "publisher": "openai",
@@ -11507,6 +11515,152 @@
             {
               "key": "pricing_checked",
               "value": "2026-11-04"
+            },
+            {
+              "key": "priority_tier_status",
+              "value": "blocked_missing_effective_tier"
+            }
+          ],
+          "derived": {
+            "price_tier": "medium"
+          }
+        },
+        {
+          "id": "accounts/fireworks/models/kimi-k3p1-pro",
+          "model": "moonshotai/kimi-k3.1-pro",
+          "display_name": "Kimi K3.1 Pro",
+          "resolution_policy": "exact",
+          "wire_apis": [
+            {
+              "protocol": "anthropic_messages",
+              "transport": "direct"
+            },
+            {
+              "protocol": "openai_chat_completions",
+              "transport": "direct"
+            },
+            {
+              "protocol": "openai_responses",
+              "transport": "direct"
+            }
+          ],
+          "wire_api_support": [
+            {
+              "protocol": "anthropic_messages",
+              "transport": "direct",
+              "capabilities": {
+                "audio": false,
+                "json_mode": false,
+                "multi_turn": true,
+                "reasoning": true,
+                "streaming": true,
+                "structured_output": true,
+                "system_prompts": true,
+                "tool_search": false,
+                "tools": true,
+                "vision": true
+              },
+              "reasoning": {}
+            },
+            {
+              "protocol": "openai_chat_completions",
+              "transport": "direct",
+              "capabilities": {
+                "audio": false,
+                "json_mode": true,
+                "multi_turn": true,
+                "reasoning": true,
+                "streaming": true,
+                "structured_output": true,
+                "system_prompts": true,
+                "tool_search": false,
+                "tools": true,
+                "vision": true
+              },
+              "reasoning": {}
+            },
+            {
+              "protocol": "openai_responses",
+              "transport": "direct",
+              "capabilities": {
+                "audio": false,
+                "json_mode": true,
+                "multi_turn": true,
+                "reasoning": true,
+                "streaming": true,
+                "structured_output": true,
+                "system_prompts": true,
+                "tool_search": false,
+                "tools": true,
+                "vision": true
+              },
+              "reasoning": {}
+            }
+          ],
+          "capabilities": {
+            "audio": false,
+            "json_mode": true,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1048576,
+            "max_output_tokens": 1048576,
+            "temperature_range": [
+              0,
+              2
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {},
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 200000000,
+                "output_microcents_per_million": 1000000000,
+                "cached_input_microcents_per_million": 20000000,
+                "cache_creation_5m_microcents_per_million": -1,
+                "cache_creation_1h_microcents_per_million": -1,
+                "cache_creation_unknown_ttl_microcents_per_million": -1
+              }
+            },
+            "overrides": [
+              {
+                "service_tier": "priority",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 300000000,
+                    "output_microcents_per_million": 1500000000,
+                    "cached_input_microcents_per_million": 30000000,
+                    "cache_creation_5m_microcents_per_million": -1,
+                    "cache_creation_1h_microcents_per_million": -1,
+                    "cache_creation_unknown_ttl_microcents_per_million": -1
+                  }
+                }
+              }
+            ]
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "pricing_checked",
+              "value": "2026-11-16"
             },
             {
               "key": "priority_tier_status",

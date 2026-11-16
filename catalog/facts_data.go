@@ -80,6 +80,7 @@ const (
 	ModelDeepSeekV41Flash     ModelID = "deepseek/deepseek-v4.1-flash"
 	ModelDeepSeekV41Flash1017 ModelID = "deepseek/deepseek-v4.1-flash-1017"
 	ModelKimiK3               ModelID = "moonshotai/kimi-k3"
+	ModelKimiK31Pro           ModelID = "moonshotai/kimi-k3.1-pro"
 
 	// Google models.
 
@@ -173,6 +174,12 @@ var defaultRegistry = Registry{
 		// https://platform.kimi.ai/docs/platform-changelog.md (read 2026-11-04); July release, day defaulted
 		Released: MustDate("2026-07-31"), OpenWeights: true,
 		Description: "Moonshot AI's open-weight multimodal model for coding and agentic tasks.",
+	},
+	ModelKimiK31Pro: {
+		Publisher: PublisherMoonshotAI, DisplayName: "Kimi K3.1 Pro", Series: "kimi-pro",
+		// https://platform.kimi.ai/docs/platform-changelog.md (read 2026-11-16); October release, day defaulted
+		Released: MustDate("2026-10-31"), OpenWeights: true,
+		Description: "Moonshot AI's most capable 3T-class open-weight model, post-trained from Kimi K3 for coding, 3D creation and financial research.",
 	},
 	// ---- Anthropic ----
 	ModelClaudeFable52: {
