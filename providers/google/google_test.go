@@ -384,3 +384,69 @@ func TestGenerateEvents_InvokedModelID(t *testing.T) {
 		})
 	}
 }
+
+func TestGenerateEvents_MetadataOnlyTail(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		chunks []string
+	}{
+		{
+			name: "finish reason without content",
+			chunks: []string{
+				`{"candidates":[{"content":{"role":"model","parts":[{"text":"Hello"}]}}]}`,
+				`{"candidates":[{"finishReason":"MAX_TOKENS"}],"usageMetadata":{"promptTokenCount":5,"candidatesTokenCount":2}}`,
+			},
+		},
+		{
+			name: "usage without candidates",
+			chunks: []string{
+				`{"candidates":[{"content":{"role":"model","parts":[{"text":"Hello"}]},"finishReason":"MAX_TOKENS"}]}`,
+				`{"usageMetadata":{"promptTokenCount":5,"candidatesTokenCount":2}}`,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "text/event-stream")
+
+				for _, chunk := range tt.chunks {
+					_, _ = w.Write([]byte("data: " + chunk + "\n\n"))
+				}
+			}))
+			t.Cleanup(srv.Close)
+
+			provider, err := NewProvider(context.Background(), "test-key", WithBaseURL(srv.URL))
+			require.NoError(t, err)
+
+			model, err := provider.NewModel(ModelGemini25Flash)
+			require.NoError(t, err)
+
+			var end *llm.StreamEndEvent
+
+			for event, err := range model.GenerateEvents(context.Background(), &llm.Request{
+				Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Hi"))},
+			}) {
+				require.NoError(t, err)
+
+				if e, ok := event.(llm.StreamEndEvent); ok {
+					end = &e
+				}
+			}
+
+			require.NotNil(t, end)
+			require.NoError(t, end.Error)
+			require.NotNil(t, end.Response)
+			assert.Equal(t, llm.FinishReasonLength, end.Response.FinishReason)
+			assert.Equal(t, []llm.Part{llm.NewTextPart("Hello")}, end.Response.Message.Content)
+			require.NotNil(t, end.Response.Usage)
+			assert.Equal(t, 5, end.Response.Usage.InputTokens)
+			assert.Equal(t, 2, end.Response.Usage.OutputTokens)
+		})
+	}
+}

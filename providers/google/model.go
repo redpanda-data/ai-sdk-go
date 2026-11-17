@@ -123,6 +123,7 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 		// Track accumulated content for final response
 		var allParts []*genai.Part
 		var finalResponse *genai.GenerateContentResponse
+		var finalCandidate *genai.Candidate
 		var modelVersion string
 
 		// Process streaming events
@@ -147,6 +148,8 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 			}
 
 			candidate := response.Candidates[0]
+
+			finalCandidate = candidate
 			if candidate.Content == nil || len(candidate.Content.Parts) == 0 {
 				continue
 			}
@@ -224,12 +227,14 @@ func (m *Model) GenerateEvents(ctx context.Context, req *llm.Request) iter.Seq2[
 				ResponseID:    finalResponse.ResponseID,
 				ModelVersion:  modelVersion,
 				UsageMetadata: finalResponse.UsageMetadata,
-				Candidates:    finalResponse.Candidates,
 			}
 
-			// Replace the candidate's content with accumulated parts
-			if len(reconstructed.Candidates) > 0 && reconstructed.Candidates[0].Content != nil {
-				reconstructed.Candidates[0].Content.Parts = allParts
+			// The last chunk may contain only usage, and a finishing candidate
+			// may have no content. Rebuild from the last candidate and all parts.
+			if finalCandidate != nil {
+				candidate := *finalCandidate
+				candidate.Content = &genai.Content{Role: genai.RoleModel, Parts: allParts}
+				reconstructed.Candidates = []*genai.Candidate{&candidate}
 			}
 
 			completeResponse, err := m.responseMapper.FromProvider(reconstructed)
