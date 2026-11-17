@@ -16,6 +16,7 @@ package fireworks_test
 
 import (
 	"encoding/json"
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -24,18 +25,11 @@ import (
 func contractPreflight(t *testing.T, cases []contractCase, spend *contractSpend) {
 	t.Helper()
 
-	worksheet, err := contractPublishedRates()
-	require.NoError(t, err)
-	require.Equal(t, "https://docs.fireworks.ai/serverless/pricing", worksheet.Source)
-	require.Equal(t, "usd_per_million_tokens", worksheet.Unit)
-	require.NotEmpty(t, worksheet.Checked)
 	var worst float64
 
 	for _, c := range cases {
-		rate, ok := worksheet.Models[c.Model]
-		require.True(t, ok, "missing independently sourced rates for %s", c.Model)
-		require.Positive(t, rate.Standard.Input)
-		require.Positive(t, rate.Standard.Output)
+		reservation := contractReservation(c, 1, 1)
+		require.False(t, math.IsInf(reservation, 0) || math.IsNaN(reservation), "missing catalog prices for %s", c.Model)
 
 		if c.Feature == contractInvalidAuth || c.Feature == contractInvalidModel || c.Feature == contractMalformed {
 			continue

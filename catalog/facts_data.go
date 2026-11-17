@@ -21,6 +21,7 @@ package catalog
 const (
 	// Anthropic models.
 
+	ModelClaudeFable52  ModelID = "anthropic/claude-fable-5-2"
 	ModelClaudeFable51  ModelID = "anthropic/claude-fable-5-1"
 	ModelClaudeFable5   ModelID = "anthropic/claude-fable-5"
 	ModelClaudeOpus55   ModelID = "anthropic/claude-opus-5-5"
@@ -79,9 +80,12 @@ const (
 	ModelDeepSeekV41Flash     ModelID = "deepseek/deepseek-v4.1-flash"
 	ModelDeepSeekV41Flash1017 ModelID = "deepseek/deepseek-v4.1-flash-1017"
 	ModelKimiK3               ModelID = "moonshotai/kimi-k3"
+	ModelKimiK31Pro           ModelID = "moonshotai/kimi-k3.1-pro"
 
 	// Google models.
 
+	ModelGemini4Hydrogen     ModelID = "google/gemini-4-hydrogen"
+	ModelGemini4Carbon       ModelID = "google/gemini-4-carbon"
 	ModelGemini4Argon        ModelID = "google/gemini-4-argon"
 	ModelGemini38Flash       ModelID = "google/gemini-3.8-flash"
 	ModelGemini37Flash       ModelID = "google/gemini-3.7-flash"
@@ -102,6 +106,8 @@ const (
 	ModelMuseSpark13 ModelID = "meta/muse-spark-1.3"
 	// ModelMuseWonder10 identifies Meta's Muse Wonder.
 	ModelMuseWonder10 ModelID = "meta/muse-wonder-1.0"
+	// ModelMuseEmber10 identifies Meta's Muse Ember.
+	ModelMuseEmber10 ModelID = "meta/muse-ember-1.0"
 
 	// Models from vendors offered only through Bedrock.
 
@@ -169,7 +175,22 @@ var defaultRegistry = Registry{
 		Released: MustDate("2026-07-31"), OpenWeights: true,
 		Description: "Moonshot AI's open-weight multimodal model for coding and agentic tasks.",
 	},
+	ModelKimiK31Pro: {
+		Publisher: PublisherMoonshotAI, DisplayName: "Kimi K3.1 Pro", Series: "kimi-pro",
+		// https://platform.kimi.ai/docs/platform-changelog.md (read 2026-11-16); October release, day defaulted
+		Released: MustDate("2026-10-31"), OpenWeights: true,
+		Description: "Moonshot AI's most capable 3T-class open-weight model, post-trained from Kimi K3 for coding, 3D creation and financial research.",
+	},
 	// ---- Anthropic ----
+	ModelClaudeFable52: {
+		Publisher:   PublisherAnthropic,
+		DisplayName: "Claude Fable 5.2", Series: "claude-fable",
+		// Released ("November 9, 2026") and reliable knowledge cutoff ("Jun
+		// 2026") per https://platform.claude.com/docs/en/models/fable-5-2/overview
+		// (read 2026-11-12).
+		Released: MustDate("2026-11-09"), Knowledge: MustDate("2026-06-30"),
+		Description: "Claude Fable 5.2 is Anthropic's model for demanding reasoning and long-horizon agentic work.",
+	},
 	ModelClaudeFable51: {
 		Publisher:   PublisherAnthropic,
 		DisplayName: "Claude Fable 5.1", Series: "claude-fable",
@@ -510,8 +531,47 @@ var defaultRegistry = Registry{
 		// No knowledge cutoff published in the Meta Model API docs.
 		Description: "Muse Wonder is Meta's most capable model, built for complex software engineering and long-horizon agentic work.",
 	},
+	// https://research.meta.ai/blog/muse-ember (read 2026-11-12): posted
+	// 2026-11-09, "available today on the Meta Model API".
+	ModelMuseEmber10: {
+		Publisher:   PublisherMeta,
+		DisplayName: "Muse Ember", Series: "muse-ember",
+		Released: MustDate("2026-11-09"),
+		// No knowledge cutoff published in the Meta Model API docs.
+		Description: "Muse Ember is the efficient execution model in the Muse family, built for high-volume, repeated work.",
+	},
 
 	// ---- Google ----
+	ModelGemini4Hydrogen: {
+		Publisher:   PublisherGoogle,
+		DisplayName: "Gemini 4 Hydrogen", Series: "gemini-flash",
+		// In the Flash series after Gemini 3.8 Flash: Google calls it the
+		// "Recommended upgrade from Gemini 3.8 Flash" with a "Migrate from
+		// Gemini 3.8 Flash" guide, and the models page now calls 3.8 Flash
+		// "Our previous-generation Flash model"
+		// (https://ai.google.dev/gemini-api/docs/whats-new-gemini-4-hydrogen and
+		// https://ai.google.dev/gemini-api/docs/models, read 2026-11-16).
+		// gemini-4-hydrogen became generally available on 2026-11-12 per
+		// https://ai.google.dev/gemini-api/docs/changelog (read 2026-11-16), its
+		// first mention. No knowledge cutoff on the Gemini API's pages.
+		Released:    MustDate("2026-11-12"),
+		Description: "Gemini 4 Hydrogen brings cutting-edge intelligence to everyone, with speed and efficiency for everyday coding and agentic workflows, featuring a unified 1M-token context window and long decode up to 1M tokens.",
+	},
+	ModelGemini4Carbon: {
+		Publisher:   PublisherGoogle,
+		DisplayName: "Gemini 4 Carbon", Series: "gemini-carbon",
+		// Its own Series: Google sells it beside Gemini 4 Argon, not as its
+		// successor. The models page describes Argon's "lower token spend
+		// per turn compared to Gemini 4 Carbon", and the deprecations page
+		// lists both with no shutdown date or replacement
+		// (https://ai.google.dev/gemini-api/docs/models and
+		// https://ai.google.dev/gemini-api/docs/deprecations, read 2026-11-12).
+		// gemini-4-carbon became generally available on 2026-11-10 per
+		// https://ai.google.dev/gemini-api/docs/changelog (read 2026-11-12), its
+		// first mention. No knowledge cutoff on the Gemini API's pages.
+		Released:    MustDate("2026-11-10"),
+		Description: "Gemini 4 Carbon is Google's strongest reasoning model, built for sustained agentic workflows across complex software engineering, multimodal knowledge work, scientific reasoning, and cybersecurity defense.",
+	},
 	ModelGemini4Argon: {
 		Publisher:   PublisherGoogle,
 		DisplayName: "Gemini 4 Argon", Series: "gemini-pro",

@@ -2,7 +2,7 @@ version: '3'
 
 tasks:
   replay:
-    desc: Validate strict replay and complete Fireworks catalog evidence without credentials
+    desc: Replay recorded Fireworks regression fixtures without credentials
     dir: '{{.TASKFILE_DIR}}/..'
     cmds:
       - task: run
@@ -10,7 +10,7 @@ tasks:
           CONTRACT_MODE: replay
 
   record:
-    desc: Explicitly capture every active direct Fireworks case (billable; explicit per-run spend limit required)
+    desc: Capture live Fireworks cases for review (billable; output path and spend limit required)
     dir: '{{.TASKFILE_DIR}}/..'
     cmds:
       - task: run
@@ -19,7 +19,7 @@ tasks:
       - task: replay
 
   accept:
-    desc: Mandatory direct Fireworks release acceptance; missing credentials, tests, evidence or required cases fail
+    desc: Run offline replay and opt-in live Fireworks checks
     dir: '{{.TASKFILE_DIR}}/..'
     cmds:
       - task: replay
@@ -36,13 +36,13 @@ tasks:
         tmp=$(mktemp -d)
         trap 'rm -rf "$tmp"' EXIT
         go test -c -o "$tmp/contracts" ./providers/fireworks
-        listed=$("$tmp/contracts" -test.list '^TestFireworksContract(Live|Replay|Completeness)$')
-        for name in TestFireworksContractLive TestFireworksContractReplay TestFireworksContractCompleteness; do
+        listed=$("$tmp/contracts" -test.list '^TestFireworksContract(Live|Replay|Fixtures)$')
+        for name in TestFireworksContractLive TestFireworksContractReplay TestFireworksContractFixtures; do
           printf '%s\n' "$listed" | grep -Fxq "$name" || { echo "missing required test: $name" >&2; exit 1; }
         done
         cd providers/fireworks
         case '{{.CONTRACT_MODE}}' in
-          replay) "$tmp/contracts" -test.run '^TestFireworksContract(Replay|Completeness|NativeReplay|OriginalCharacterization|Synthetic.*)$' -test.short -test.timeout=10m {{.CLI_ARGS}} ;;
+          replay) "$tmp/contracts" -test.run '^TestFireworksContract(Replay|Fixtures|NativeReplay|OriginalCharacterization|Synthetic.*)$' -test.short -test.timeout=10m {{.CLI_ARGS}} ;;
           record) "$tmp/contracts" -test.run '^TestFireworksContractLive$' -test.v -test.timeout=30m -fireworks-live -fireworks-record {{.CLI_ARGS}} ;;
           accept) "$tmp/contracts" -test.run '^TestFireworksContractLive$' -test.v -test.timeout=30m -fireworks-live {{.CLI_ARGS}} ;;
           *) echo 'invalid contract mode' >&2; exit 1 ;;

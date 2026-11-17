@@ -47,7 +47,7 @@ func TestFireworksSDKCheckpointKeepsRawToolLinkage(t *testing.T) {
 		wire.checkpoint(t)
 		current, err := os.ReadFile(wire.path)
 		require.NoError(t, err)
-		require.Equal(t, original, current, "repeated checkpoints must not rehash existing IDs or request hashes")
+		require.Equal(t, original, current, "repeated checkpoints must not rehash existing IDs")
 	}
 
 	require.Equal(t, request, wire.report.Evidence[0].Exchanges[0].Request)
@@ -70,8 +70,9 @@ func TestFireworksSDKCheckpointKeepsRawToolLinkage(t *testing.T) {
 	require.Equal(t, id, assistant["id"])
 	require.Equal(t, id, result["tool_use_id"])
 
-	for _, row := range report.Evidence {
-		require.Equal(t, []string{contractRequestHash(row.Exchanges[0].Request)}, row.Capture.RequestSHA256)
+	for n, row := range report.Evidence {
+		safe := contractSanitize(t, wire.report.Evidence[n].Exchanges[0], wire.key)
+		require.JSONEq(t, string(safe.Request), string(row.Exchanges[0].Request))
 		require.NotContains(t, row.Exchanges[0].ResponseHeaders, "X-Test-Receipt")
 	}
 }

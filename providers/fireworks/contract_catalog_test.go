@@ -15,7 +15,6 @@
 package fireworks_test
 
 import (
-	"bytes"
 	"reflect"
 	"slices"
 	"testing"
@@ -23,37 +22,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/redpanda-data/ai-sdk-go/catalog"
-	"github.com/redpanda-data/ai-sdk-go/catalog/snapshot"
 	"github.com/redpanda-data/ai-sdk-go/llm"
-	"github.com/redpanda-data/ai-sdk-go/providers/fireworks"
 )
-
-func contractCompatibleCatalog(t *testing.T, report contractManifest) string {
-	t.Helper()
-
-	_, current := contractInventory(t)
-	if report.CatalogFingerprint == current {
-		return current
-	}
-	var previous []catalog.Entry
-
-	for _, o := range fireworks.Catalog().All() {
-		require.Empty(t, o.Constraints.SupportedParams, "only the reviewed SDK-admission withdrawal is compatible without new native calls")
-		e := o.Entry
-		// Reconstruct only the withdrawn v2 admission tuple. Matching the entire
-		// captured snapshot hash proves no API, fact, limit, capability or price changed.
-		e.Constraints.SupportedParams = []string{"temperature", "top_p", "max_tokens", "stop", "tools", "tool_choice", "response_format", "reasoning_effort"}
-		previous = append(previous, e)
-	}
-
-	old, err := catalog.New(fireworks.ProviderName, previous)
-	require.NoError(t, err)
-	var encoded bytes.Buffer
-	require.NoError(t, snapshot.Encode(&encoded, old))
-	require.Equal(t, report.CatalogFingerprint, contractHash(encoded.Bytes()), "catalog drift exceeds the explicitly reviewed SupportedParams withdrawal")
-
-	return current
-}
 
 func contractUnknownSupport(value any, known []string) []string {
 	v := reflect.ValueOf(value)

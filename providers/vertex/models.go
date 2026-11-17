@@ -32,8 +32,9 @@ const ProviderName = "gcp.vertex"
 // Vertex model IDs are exactly the model segment of a Vertex resource path,
 // publishers/{publisher}/models/{model}.
 const (
-	ModelGemini4Argon  = "gemini-4-argon"
-	ModelGemini38Flash = "gemini-3.8-flash"
+	ModelGemini4Hydrogen = "gemini-4-hydrogen"
+	ModelGemini4Argon    = "gemini-4-argon"
+	ModelGemini38Flash   = "gemini-3.8-flash"
 	// Deprecated: Google retires Gemini 3.7 Flash on 2027-01-28. Use
 	// [ModelGemini38Flash].
 	ModelGemini37Flash = "gemini-3.7-flash"
@@ -55,6 +56,7 @@ const (
 	// Deprecated: Google retires Gemini 2.5 Flash-Lite on 2026-10-20. Use
 	// [ModelGemini38Flash] or [ModelGemini31FlashLite].
 	ModelGemini25FlashLite = "gemini-2.5-flash-lite"
+	ModelClaudeFable52     = "claude-fable-5-2"
 	ModelClaudeFable51     = "claude-fable-5-1"
 	ModelClaudeFable5      = "claude-fable-5"
 	ModelClaudeOpus55      = "claude-opus-5-5"
@@ -219,8 +221,9 @@ var (
 //	https://cloud.google.com/model-garden/partner-models/pricing
 //
 // Capabilities and constraints mirror the same models in the Gemini-API and
-// Anthropic-direct catalogs, with four exceptions. No Claude entry offers
-// speed; Vertex publishes no Claude fast-mode rate. Gemini 3.7
+// Anthropic-direct catalogs, with four exceptions. Only Claude Fable 5.2
+// offers speed; it is the one Claude model page that documents fast mode and
+// its price. Gemini 3.7
 // and 3.8 Flash take no presence or frequency penalty, which the Gemini-API
 // catalog lists. Claude Opus 4.5, Sonnet 4.5 and Haiku 4.5 take a manual
 // thinking budget, which the Anthropic-direct catalog does not set. Claude
@@ -238,6 +241,34 @@ var (
 // leaves it unset.
 func entries() []catalog.Entry {
 	return []catalog.Entry{
+		{
+			ID:           ModelGemini4Hydrogen,
+			Model:        catalog.ModelGemini4Hydrogen,
+			WireAPIs:     geminiWireAPIs,
+			Capabilities: geminiCaps,
+			Modalities:   geminiModalities,
+			// The 1M window is shared by input and output. 65536 is the
+			// foreground output cap, streaming or non-streaming; long decode
+			// (v1beta1 only) extends it to the full window. Custom temperature,
+			// top_p, and top_k are ignored (docs.cloud.google.com/gemini-
+			// enterprise-agent-platform/models/gemini/4-hydrogen, read
+			// 2026-11-16).
+			Constraints: llm.ModelConstraints{
+				TemperatureRange: [2]float64{0.0, 2.0},
+				MaxInputTokens:   1048576, // 1M input tokens
+				MaxOutputTokens:  65536,   // 64K output tokens
+				SupportedParams:  geminiNoPenaltyParams,
+			},
+			// The model page lists LOW, MEDIUM, HIGH (default) and XHIGH;
+			// thinking_budget and MINIMAL return HTTP 400. XHIGH is left out:
+			// the Gemini request mapper this provider uses has no xhigh level.
+			Reasoning: catalog.ReasoningSupport{Efforts: geminiNoMinimalReasoningEfforts},
+			// Release date November 12, 2026, "No retirement date announced"
+			// (docs.cloud.google.com/gemini-enterprise-agent-platform/models/
+			// model-versions, read 2026-11-16).
+			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-11-12")},
+			Pricing: gemini4HydrogenPricing(),
+		},
 		{
 			ID:           ModelGemini4Argon,
 			Model:        catalog.ModelGemini4Argon,
@@ -279,8 +310,9 @@ func entries() []catalog.Entry {
 			// gemini-enterprise-agent-platform/models/gemini/3-8-flash, read
 			// 2026-09-22). No retirement published.
 			Life: catalog.Lifecycle{Available: catalog.MustDate("2026-09-02")},
-			// Same introductory rates and regional premium as 3.6 Flash.
-			Pricing: geminiFlashPricing(),
+			// Same introductory rates and regional premium as 3.6 Flash, at
+			// each served non-global location (locations.go).
+			Pricing: geminiFlashPricing("us", "eu", "northamerica-northeast1", "asia-northeast1"),
 		},
 		{
 			ID:           ModelGemini37Flash,
@@ -303,7 +335,7 @@ func entries() []catalog.Entry {
 				Retires:    catalog.MustDate("2027-01-28"),
 				ReplacedBy: ModelGemini38Flash,
 			},
-			Pricing: geminiFlashPricing(),
+			Pricing: geminiFlashPricing("us", "eu"),
 		},
 		{
 			ID:           ModelGemini36Flash,
@@ -327,7 +359,7 @@ func entries() []catalog.Entry {
 				Retires:    catalog.MustDate("2026-11-19"),
 				ReplacedBy: ModelGemini38Flash,
 			},
-			Pricing: geminiFlashPricing(),
+			Pricing: geminiFlashPricing("us", "eu"),
 		},
 		{
 			ID:           ModelGemini35Flash,
@@ -537,6 +569,36 @@ func entries() []catalog.Entry {
 			},
 			// Text/image/video rate only; audio input is $0.30.
 			Pricing: pricing.FlatInfo(0.10, 0.40, 0.01),
+		},
+		{
+			ID:            ModelClaudeFable52,
+			Model:         catalog.ModelClaudeFable52,
+			WireAPIs:      claudeWireAPIs,
+			TokenCounting: claudeTokenCounting,
+			// A new Claude entry starts without tool search until a call on
+			// Vertex returns a tool search result.
+			Capabilities: claudeCaps,
+			Modalities:   claudeModalities,
+			Constraints: llm.ModelConstraints{
+				MaxInputTokens:  1000000,
+				MaxOutputTokens: 128000,
+				// Thinking is always on; non-default sampling parameters
+				// return 400. The model page documents fast mode
+				// ("speed": "fast").
+				SupportedParams: []string{"max_tokens", "reasoning_effort", "speed"},
+			},
+			Reasoning: catalog.ReasoningSupport{
+				Efforts:             claudeAllEfforts,
+				Adaptive:            true,
+				ThinkingPrefixCheck: true,
+			},
+			Speeds: []llm.Speed{llm.SpeedStandard, llm.SpeedFast},
+			// Claude Fable 5.2 GA, released November 9, 2026, retirement floor
+			// "No sooner than November 9, 2027" on the model page
+			// (https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/partner-models/claude/fable-5-2,
+			// read 2026-11-12).
+			Life:    catalog.Lifecycle{Available: catalog.MustDate("2026-11-09")},
+			Pricing: claudeFable52Pricing(),
 		},
 		{
 			ID:            ModelClaudeFable51,
@@ -821,15 +883,19 @@ func entries() []catalog.Entry {
 			},
 			// A thinking.type of adaptive returns 400.
 			Reasoning: catalog.ReasoningSupport{Budget: true},
-			// The model page now gives launch stage Deprecated and the bare
-			// "Retirement Date: November 30, 2026", an exact date, with no
-			// deprecation date and no replacement
+			// Google's partner-model deprecations page says it is "deprecated
+			// as of September 29, 2026" and will "be shut down on November 30,
+			// 2026", both exact dates
+			// (https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/deprecations/partner-models,
+			// read 2026-11-12). The model page gives launch stage Deprecated,
+			// the same retirement date and no replacement
 			// (https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/partner-models/claude/sonnet-4-5,
 			// read 2026-11-05). ReplacedBy is Anthropic's pick on
 			// https://platform.claude.com/docs/en/about-claude/model-deprecations
 			// (read 2026-11-05).
 			Life: catalog.Lifecycle{
 				Available:  catalog.MustDate("2025-09-29"),
+				Deprecated: catalog.MustDate("2026-09-29"),
 				Retires:    catalog.MustDate("2026-11-30"),
 				ReplacedBy: ModelClaudeSonnet55,
 			},
@@ -905,6 +971,39 @@ func geminiFlashLitePricing() pricing.Info {
 	return info
 }
 
+// claudeFable52Pricing returns the Fable 5.2 rate card: global, plus global
+// x 1.10 for us and eu, from the pricing page's region tabs
+// (https://cloud.google.com/model-garden/partner-models/pricing, read
+// 2026-11-12). Cache hits are 0.025x input. The pricing page prints no
+// fast-mode rate; the model page says fast mode "is priced at 2x the
+// standard-speed token rates across all token types", so the fast cards are
+// estimated at 2x each standard card
+// (https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/partner-models/claude/fable-5-2,
+// read 2026-11-12). Pricing accepts a fast and a region override side by
+// side only with a card for both, so each region has one.
+func claudeFable52Pricing() pricing.Info {
+	global := pricing.NewRates(8.00, 40.00, 0.20).WithCacheCreation(10.00, 16.00, 0)
+	nonGlobal := pricing.NewRates(8.80, 44.00, 0.22).WithCacheCreation(11.00, 17.60, 0)
+	fastGlobal := pricing.NewRates(16.00, 80.00, 0.40).WithCacheCreation(20.00, 32.00, 0)
+	fastNonGlobal := pricing.NewRates(17.60, 88.00, 0.44).WithCacheCreation(22.00, 35.20, 0)
+
+	info := pricing.FlatInfoFromRates(global).WithOverride(
+		pricing.Selector{Speed: llm.SpeedFast},
+		pricing.RateCard{Base: fastGlobal},
+	)
+	for _, region := range []string{"us", "eu"} {
+		info = info.WithOverride(
+			pricing.Selector{Region: region},
+			pricing.RateCard{Base: nonGlobal},
+		).WithOverride(
+			pricing.Selector{Speed: llm.SpeedFast, Region: region},
+			pricing.RateCard{Base: fastNonGlobal},
+		)
+	}
+
+	return info
+}
+
 // claudeOpus55Pricing returns the Opus 5.5 rate card, same shape as
 // [claudeSonnet5Pricing]. Global, and non-global = global x 1.10, from the
 // pricing page's region tabs, read 2026-09-22; flat across the =< 200K and
@@ -949,6 +1048,19 @@ func claudeSonnet55Pricing() pricing.Info {
 // geminiFlashPricing returns the Gemini 3.6, 3.7 and 3.8 Flash rate card.
 // gemini4ArgonPricing returns the Gemini 4 Argon rate card: the global
 // rate as default and the non-global rate as a us and eu override.
+// gemini4HydrogenPricing returns the Gemini 4 Hydrogen rate card: the
+// Standard table's Global and Non-global rows, the latter at each served
+// non-global location (https://cloud.google.com/model-garden/pricing,
+// read 2026-11-16). The page's $1.875 global and $2.0625 non-global cache
+// write rates take effect on 2027-01-12, so they are not set yet.
+func gemini4HydrogenPricing() pricing.Info {
+	return regionalPricing(
+		pricing.NewRates(1.50, 7.50, 0.075),
+		pricing.NewRates(1.65, 8.25, 0.0825),
+		"us", "eu",
+	)
+}
+
 func gemini4ArgonPricing() pricing.Info {
 	// Promotional net rate through 2026-11-30 (pricing page footnote, read
 	// 2026-10-14): 50% credits back on net spend. The $4/$20/$0.20 global
@@ -970,19 +1082,20 @@ func gemini4ArgonPricing() pricing.Info {
 	return info
 }
 
-func geminiFlashPricing() pricing.Info {
+func geminiFlashPricing(regions ...string) pricing.Info {
 	// Promotional net rate through 2026-12-31 (pricing page footnote, read
 	// 2026-09-28): the billing SKUs stay at the standard $1.50/$7.50/$0.15
 	// global and $1.65/$8.25 non-global, and Google returns 50% as credits
 	// back on net spend. The standard rate applies from 2027-01-01.
 	global := pricing.NewRates(0.75, 3.75, 0.075)
 	// Non-global = global x 1.10 on input, output, and cache alike, from
-	// Google's pricing page, verified live 2026-09-08.
+	// Google's pricing page, verified live 2026-09-08. Its one Non-global
+	// row applies at every served non-global location (read 2026-11-12).
 	nonGlobal := pricing.NewRates(0.825, 4.125, 0.0825)
 
 	info := pricing.FlatInfoFromRates(global)
 	// An empty-Region selector is a wildcard that also matches global.
-	for _, region := range []string{"us", "eu"} {
+	for _, region := range regions {
 		info = info.WithOverride(
 			pricing.Selector{Region: region},
 			pricing.RateCard{Base: nonGlobal},

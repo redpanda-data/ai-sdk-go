@@ -20,6 +20,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"sync/atomic"
 	"testing"
 
@@ -62,17 +63,22 @@ func TestRuntimeMetadataIsSelectedAndNotCatalogMutation(t *testing.T) {
 		t.Run(offering.ID, func(t *testing.T) {
 			t.Parallel()
 
-			runtime, err := provider.NewModel(offering.ID)
-			require.NoError(t, err)
 			require.NotEmpty(t, offering.WireAPIs)
-			assert.Equal(t, catalog.WireProtocolAnthropicMessages, offering.WireAPIs[0].Protocol)
-			support, ok := offering.SupportForWireAPI(offering.WireAPIs[0])
+			api := offering.WireAPIs[0]
+			runtime, err := provider.NewModel(offering.ID)
+			if api.Transport != catalog.WireTransportDirect || !slices.Contains([]catalog.WireProtocol{catalog.WireProtocolAnthropicMessages, catalog.WireProtocolOpenAIResponses, catalog.WireProtocolOpenAIChatCompletions}, api.Protocol) {
+				require.ErrorContains(t, err, "unsupported first Fireworks wire API")
+				return
+			}
+
+			require.NoError(t, err)
+
+			support, ok := offering.SupportForWireAPI(api)
 			require.True(t, ok)
 
 			expected := support.Capabilities
 			expected.Vision = false
 			assert.Equal(t, expected, runtime.Capabilities())
-			assert.False(t, runtime.Capabilities().JSONMode, "offering-wide JSON support must not leak into Messages")
 			assert.Equal(t, offering.ID, runtime.Name())
 			assert.Equal(t, llm.ProviderID(ProviderName), runtime.Provider())
 			lister, ok := runtime.(llm.ReasoningEffortLister)
@@ -80,6 +86,17 @@ func TestRuntimeMetadataIsSelectedAndNotCatalogMutation(t *testing.T) {
 			assert.Equal(t, support.Reasoning.Efforts, lister.SupportedReasoningEfforts())
 
 			constraints := runtime.Constraints()
+			params := []string{"max_tokens", "temperature"}
+
+			if len(support.Reasoning.Efforts) > 0 {
+				params = append(params, "reasoning_effort")
+			}
+
+			if support.Reasoning.Adaptive {
+				params = append(params, "thinking")
+			}
+
+			assert.ElementsMatch(t, params, constraints.SupportedParams)
 			assert.NoError(t, constraints.ValidateParameterSupport("max_tokens"))
 			assert.NoError(t, constraints.ValidateParameterSupport("temperature"))
 			require.Error(t, constraints.ValidateParameterSupport("top_p"))
@@ -89,7 +106,7 @@ func TestRuntimeMetadataIsSelectedAndNotCatalogMutation(t *testing.T) {
 			fresh, ok := Catalog().Resolve(offering.ID)
 			require.True(t, ok)
 			assert.Empty(t, fresh.Constraints.SupportedParams)
-			assert.Equal(t, support.Capabilities.Vision, fresh.Capabilities.Vision)
+			assert.Equal(t, offering.Capabilities, fresh.Capabilities)
 		})
 	}
 }

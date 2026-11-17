@@ -41,7 +41,38 @@ func TestFireworksRunsBelongToCreators(t *testing.T) {
 	}
 }
 
-func TestFireworksContractExpansionNeedsQualification(t *testing.T) {
+func TestFireworksDocumentedChangesFollowOrdinaryRules(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile(filepath.Join("..", "..", reconcile.RulesPath))
+	require.NoError(t, err)
+
+	rules, problems := reconcile.ParseRules(raw)
+	require.Empty(t, problems)
+	sources := namedSources(t)
+
+	for _, tt := range []struct {
+		name, field, old, newValue, rule string
+	}{
+		{"new model", "new_model", "", "accounts/fireworks/models/glm-5p3-flash", "new-model-add"},
+		{"new host copy", "new_copy", "", "accounts/fireworks/models/glm-5p3-flash", "new-model-add"},
+		{"capability", "capability", "structured output false", "structured output true", "capability-follow"},
+		{"reasoning control", "capability", "", "reasoning effort low high max", "capability-follow"},
+		{"price", "price", "0.15", "0.18", "price-follow"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			report := Report{Changes: []Change{{
+				Offering: "fireworks:accounts/fireworks/models/glm-5p3-flash", Field: tt.field, Old: tt.old, New: tt.newValue,
+				SourceURL: "https://fireworks.ai/models/fireworks/glm-5p3-flash", Rule: tt.rule,
+			}}}
+			assert.Empty(t, Validate(report, "zai", sources["zai"], rules))
+		})
+	}
+}
+
+func TestFireworksRetainsRuntimeAndRouterRules(t *testing.T) {
 	t.Parallel()
 
 	raw, err := os.ReadFile(filepath.Join("..", "..", reconcile.RulesPath))
@@ -50,36 +81,33 @@ func TestFireworksContractExpansionNeedsQualification(t *testing.T) {
 	rules, problems := reconcile.ParseRules(raw)
 	require.Empty(t, problems)
 
-	const qualification = "fireworks-contract-qualification"
-	require.Contains(t, rules.Lines, qualification)
-
-	row := strings.Split(string(raw), "\n")[rules.Lines[qualification]-1]
-	for _, text := range []string{"exact offering and feature", "fresh committed live-contract evidence", "CI has no Fireworks credentials", "wire API", "capability", "reasoning control"} {
-		assert.Contains(t, row, text)
-	}
-
 	for _, rule := range []string{"model-not-callable", "reasoning-unsendable"} {
+		require.Contains(t, rules.Lines, rule)
 		row := strings.Split(string(raw), "\n")[rules.Lines[rule]-1]
 		assert.Contains(t, row, "selected-binding")
-		assert.Contains(t, row, qualification)
+		assert.Contains(t, row, "native catalog metadata")
 	}
 
 	sources := namedSources(t)
+	for _, tt := range []struct {
+		name   string
+		report Report
+	}{
+		{"unsendable controls", Report{NeedsHuman: []NeedsHuman{{
+			Offering: "fireworks:accounts/fireworks/models/glm-5p3-flash", Field: "capability",
+			SourceURLs: []string{"https://docs.fireworks.ai/api-reference/post-chatcompletions.md"}, Rule: "reasoning-unsendable",
+		}}}},
+		{"uncallable runtime", Report{Skipped: []Skipped{{
+			Offering: "fireworks:accounts/fireworks/models/glm-5p3-flash", Reason: "not_callable", Rule: "model-not-callable",
+		}}}},
+		{"unscoped router", Report{Skipped: []Skipped{{
+			Offering: "fireworks:accounts/fireworks/routers/glm-5p3-fast", Reason: "out_of_scope", Rule: "fireworks-router-unscoped",
+		}}}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	for _, field := range []string{"new_copy", "capability"} {
-		report := Report{NeedsHuman: []NeedsHuman{{
-			Offering: "fireworks:accounts/fireworks/models/gpt-oss-120b", Field: field,
-			SourceURLs: []string{"https://docs.fireworks.ai/tools-sdks/anthropic-compatibility"}, Rule: qualification,
-		}}}
-		assert.Empty(t, Validate(report, "openai", sources["openai"], rules))
+			assert.Empty(t, Validate(tt.report, "zai", sources["zai"], rules))
+		})
 	}
-
-	report := Report{Changes: []Change{{
-		Offering: "fireworks:accounts/fireworks/models/gpt-oss-120b", Field: "price", Old: "0.15", New: "0.18",
-		SourceURL: "https://docs.fireworks.ai/serverless/pricing", Rule: "price-follow",
-	}}}
-	assert.Empty(t, Validate(report, "openai", sources["openai"], rules), "qualified copies still get price maintenance")
-
-	report.Changes[0].Rule = qualification
-	assert.NotEmpty(t, Validate(report, "openai", sources["openai"], rules), "qualification is an Ask, not permission to expand the contract")
 }

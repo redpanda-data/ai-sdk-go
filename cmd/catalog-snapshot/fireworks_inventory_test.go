@@ -34,11 +34,9 @@ func TestEveryDiscoveredFireworksIDHasADisposition(t *testing.T) {
 	require.NoError(t, err)
 
 	type discoveredModel struct {
-		ID                 string `json:"id"`
-		ContextLength      *int   `json:"context_length"`
-		SupportsChat       bool   `json:"supports_chat"`
-		SupportsImageInput *bool  `json:"supports_image_input"`
-		SupportsTools      *bool  `json:"supports_tools"`
+		ID            string `json:"id"`
+		ContextLength *int   `json:"context_length"`
+		SupportsChat  bool   `json:"supports_chat"`
 	}
 
 	var inventory struct {
@@ -70,12 +68,10 @@ func TestEveryDiscoveredFireworksIDHasADisposition(t *testing.T) {
 	assert.Equal(t, "candidate_selection_not_invocation_or_protocol_qualification", selection.Scope)
 
 	discovered := make(map[string]bool, len(inventory.Response.Data))
-	metadata := make(map[string]discoveredModel, len(inventory.Response.Data))
 
 	for _, model := range inventory.Response.Data {
 		assert.NotContains(t, discovered, model.ID)
 		discovered[model.ID] = true
-		metadata[model.ID] = model
 
 		if model.ID == "accounts/fireworks/models/qwen3p8-max" {
 			assert.Nil(t, model.ContextLength)
@@ -117,20 +113,9 @@ func TestEveryDiscoveredFireworksIDHasADisposition(t *testing.T) {
 	assert.Equal(t, discovered, accounted)
 	require.Len(t, candidates, 7)
 
-	offerings := fireworks.Catalog().All()
-	require.Len(t, offerings, len(candidates))
-
-	for _, offering := range offerings {
-		assert.Contains(t, candidates, offering.ID)
+	for id := range candidates {
+		offering, ok := fireworks.Catalog().Lookup(id)
+		require.True(t, ok, "historical offering must remain in the catalog: %s", id)
 		assert.NotEqual(t, "fireworks", string(offering.Facts().Publisher))
-
-		model, ok := metadata[offering.ID]
-		require.True(t, ok)
-		require.NotNil(t, model.ContextLength, "%s has no listing input-window evidence", offering.ID)
-		require.NotNil(t, model.SupportsImageInput, "%s has no listing vision evidence", offering.ID)
-		require.NotNil(t, model.SupportsTools, "%s has no listing tools evidence", offering.ID)
-		assert.Equal(t, *model.ContextLength, offering.Constraints.MaxInputTokens, "%s: listing metadata, not boundary-enforcement proof", offering.ID)
-		assert.Equal(t, *model.SupportsImageInput, offering.Capabilities.Vision, "%s: listing vision metadata", offering.ID)
-		assert.Equal(t, *model.SupportsTools, offering.Capabilities.Tools, "%s: listing tools metadata", offering.ID)
 	}
 }

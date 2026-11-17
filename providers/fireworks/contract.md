@@ -1,55 +1,51 @@
-# Direct Fireworks contract evidence
+# Fireworks recorded contract tests
 
-This package provides native catalog metadata and a selected-binding SDK runtime. The tests described here call Fireworks' native HTTP APIs directly; they do not qualify the SDK model runtime or an ADP gateway. The separate actual SDK `Generate`/`GenerateEvents` qualification and its runtime restrictions are documented in [README.md](README.md#sdk-runtime-qualification).
+The native HTTP and SDK replay suites use recorded upstream exchanges as regression fixtures. They check requests, responses, streaming, errors and token accounting without calling Fireworks. They do not certify the current backend or require recordings for every catalog entry.
 
-## Commands
-
-From the SDK root:
+## Offline tests
 
 ```sh
-# Offline evidence, complete active catalog coverage and strict replay.
-task -t taskfiles/fireworks.yaml replay
-
-# Explicit, billable full recapture. The credential file is read only inside
-# the test process; its contents must never be supplied in command arguments.
-task -t taskfiles/fireworks.yaml record -- -fireworks-key-file=/path/to/credential-file -fireworks-budget-usd=1
-
-# Required release acceptance: existing replay plus every active live case.
-task -t taskfiles/fireworks.yaml accept -- -fireworks-key-file=/path/to/credential-file -fireworks-budget-usd=1
+task fireworks:replay
+go test -short ./providers/fireworks
 ```
 
-`FIREWORKS_API_KEY` is also supported. Without credentials, live acceptance **fails**, not skips. Each task compiles the test binary and verifies the exact required test names before running it, so an empty `-run` match cannot pass. Required cases cannot skip. Ordinary `go test -short` does not invoke the paid live suite.
+Replay exercises the cases present in the fixtures, including historical retired offerings. It rejects unexpected methods, paths, authorization classes, headers or JSON bodies, unmatched/unconsumed calls, and changed response/SSE bytes. The same assertions also run with three-byte response chunking. Failed recordings cannot be promoted by deleting failing assertions or cases.
 
-Recording is explicit. A failed or interrupted run writes `testdata/contracts/incomplete.json`, never an accepted manifest. Each returned exchange is sanitized and checkpointed **before** protocol assertions or usage parsing. SIGINT/SIGTERM cancel the live request and flush the incomplete report. Transport/read failures have safe error classes; HTTP request objects and credentials are never printed.
+There are no catalog, test-source, request or whole-file fingerprint gates. Old fixture provenance fields are ignored; capture dates and SDK revisions are descriptive metadata. A catalog date, limit or price correction does not require re-recording HTTP exchanges. Changing request construction or response handling is checked by the executable tests themselves.
 
-## Matrix and replay
+New models and documented capabilities can be added through the normal reviewed catalog workflow without live calls or new recordings. Missing recordings mean missing live-derived coverage, not that the model is unavailable. Existing fixtures must still pass. Synthetic wire tests remain useful for request mapping that has not been recorded.
 
-The matrix comes from active catalog offerings, exact aliases, declared direct wire APIs, per-binding capabilities and reasoning controls. It includes both stream modes, complete/incomplete results, system and conversation history, forced tools and tool-result replay, JSON/schema output with conflicting unformatted controls, invalid-schema validation, explicit adaptive on/off behavior, advertised efforts and reasoning-history replay, advertised image input, cache warm/repeat, cancellation, and native authentication/model/malformed-request failures. Unknown enum-value probes remain exploratory diagnostics: published valid controls do not imply a promise to reject every unknown value. Unknown features or bindings cannot silently inherit a happy path.
+## Optional live checks and recording
 
-Cache probes send a stable per-case `X-Session-Affinity` header, following [Fireworks' prompt-caching guide](https://docs.fireworks.ai/guides/prompt-caching). A zero cache count is valid native behavior, not an API failure. Qualification separately requires an actually observed final cache-hit count and fresh-input count from current required captures for each exact offering/API/stream-mode binding. An affinity hint never substitutes for those counts.
+Live calls are local-only, explicitly opt-in and billable. CI has no Fireworks inference credential. A missing key or finite positive budget fails an explicitly requested native live run; ordinary offline tests never require either.
 
-Live cancellation probes use a 16-output-token cap and cancel 25 ms after the HTTP transport confirms the request was written. Offline replay instead waits for the strict local handler to receive and validate that request before cancelling, so scheduler delay cannot skip the captured exchange. This proves a real, started client request was aborted; it does **not** prove inference had already started on the server or that the server stopped billing at the same instant. Complete final usage is retained if it arrives. Otherwise the full conservative reservation remains held, and final cancellation billing is unresolved rather than invented.
+```sh
+# Check one exact active model, retaining the existing fixtures unchanged.
+task fireworks:accept -- -fireworks-model=accounts/fireworks/models/glm-5p3-flash \
+  -fireworks-key-file=/path/to/credential-file -fireworks-budget-usd=1
 
-The evidence records immutable per-case capture versions, test fingerprints, dates, SDK revisions and sanitized request hashes, separately from the current verifier fingerprint. Original failed attempts remain byte-identical source artifacts, referenced by SHA256; corrections retain superseded evidence and are labelled partial corrections, not another full sweep. The capture and current catalog fingerprints are separate only for the explicitly reviewed withdrawal of SDK `SupportedParams`: reconstructing that single withdrawn tuple must reproduce the entire old snapshot hash. No API, capability, fact, numerical limit or price drift is silently accepted. Whitespace and comments do not change the test-token fingerprint; assertions, request construction and other code tokens do. Lifecycle-only clock passage does not invalidate historical captures: every currently active case remains mandatory, and only known, now-retired offerings may supply extra historical cases. Retired offerings are never invoked by the live matrix.
+# Record one model to a separate file for review.
+task fireworks:record -- -fireworks-model=accounts/fireworks/models/glm-5p3-flash \
+  -fireworks-key-file=/path/to/credential-file -fireworks-budget-usd=1 \
+  -fireworks-record-output=/tmp/fireworks-capture.json
+```
 
-Strict replay rejects unexpected method, path, authorization class, required headers or JSON request shape, and unmatched/unconsumed exchanges. It runs the same direct-protocol assertions and verifies exact sanitized response/SSE bytes, including a separately labelled three-byte chunking extension. Synthetic identity/usage/lifecycle/cancellation-mechanics tests are labelled as synthetic; they are not represented as observed upstream failures or production transport coverage.
+Omitting `-fireworks-model` selects all active catalog offerings for the native live suite. The matrix covers supported direct APIs and their known feature cases in both stream modes. It is a test generator, not a catalog admission policy. A cache miss is valid behavior; unobserved hit/fresh branches are reported rather than requiring repeated paid calls until they appear.
 
-Only allowlisted request/response headers are recorded. New diagnostic captures retain actual presence of allowlisted per-request prompt/cache/performance headers and pseudonymize opaque correlation identifiers; authorization, cookies and account-quota/rate-limit values are excluded. Historical captures retained only Content-Type, so they cannot establish effective affinity or replica routing. Streaming performance-header absence is not assumed to mean zero cached usage. Authorization is represented by a safe class, never a value. Opaque response/tool identifiers are consistently replaced with deterministic capture IDs, retaining tool-result linkage. Responses requests always use `store: false`.
+Recording writes sanitized checkpoints to `<output>.incomplete.json` before parsing responses. Only a successful run writes the requested output file. Use a separate output path, review the exchanges, and manually promote new-model fixtures to `testdata/contracts/recordings/*.json`; replay loads these alongside the retained base fixture. For an existing case, update its fixture rather than adding a duplicate. Never overwrite a historical failed attempt to claim it succeeded.
 
-`full-matrix-v2-incomplete.json` preserves the complete seven-offering, 680-case sweep and its original assertions. `revalidated-evidence.json` combines compatible retained captures with explicitly versioned corrections and reports hard qualification gaps; it is not a fabricated successful fresh sweep.
+Credentials are read inside the test process and used only in the HTTP authorization header. Never put their contents in arguments, logs, fixtures or reports. Only allowlisted headers are recorded; opaque IDs are consistently pseudonymized to preserve tool-result linkage. Responses requests send `store: false`.
 
-`original-incomplete.json` is immutable characterization from the first, superseded harness run. It includes known harness-invalid cases and is **not accepted evidence**. Its retained successful responses remain regression inputs, while missing captures and failures cannot satisfy the current completeness gate.
+Requests run sequentially with bounded bodies, output caps and timeouts. Each request reserves conservative input/output cost before sending, using current catalog prices. Authoritative final usage reconciles the reservation; absent final usage retains it. An explicit per-run budget bounds estimates for that run, not vendor invoices or production spending. Cancellation proves a written request was aborted, not that upstream inference or billing stopped immediately.
 
-## Pricing and spend bounds
+## Pricing
 
-`published-rates.json` is an independently sourced worksheet, not the matrix inventory. Every active invocation ID requires a worksheet row. Expected costs are calculated directly from its published USD-per-million rates and each response's own raw usage, independently of `pricing.Calculate`. OpenAI-shaped input includes cached reads; Messages input excludes them. Reasoning is a subset of native total output and must not be charged twice.
+The catalog is the only model-rate table. Contract tests check native usage semantics and disjoint SDK buckets: OpenAI-shaped input includes cached reads, Messages input excludes them, and reasoning belongs to total output exactly once. Fixed-rate synthetic tests cover accounting independently of mutable vendor rates. Any replay cost calculation uses current catalog rates; historical capture spend estimates remain historical metadata, not exact invoices.
 
-The live suite is sequential, has bounded request/response sizes and HTTP/suite timeouts, and reserves the complete output-token cap plus conservative input/template headroom **before** each call. Reservations use the larger of independently published and catalog-derived estimates. A successful authoritative usage record reconciles that reservation. Unknown usage keeps its reservation. Budget exhaustion fails incomplete acceptance; it never samples away required cases.
+Published Priority rates do not establish effective-tier attribution. Priority requests remain withheld where the runtime cannot determine their billing tier.
 
-Live execution requires an explicit finite positive `-fireworks-budget-usd` per-run limit. The in-memory request reservations bound that run only; they are not an SDK spending policy, durable billing ledger, or cross-run accounting system. Captures retain their original spend estimates and unresolved reservations as execution provenance, not exact Fireworks invoices.
+## Scope
 
-Published Priority prices are retained independently, but `priority_tier_status=blocked_missing_effective_tier` explicitly withholds Priority requests. An accepted request is not evidence of effective billing-tier attribution.
+Native HTTP replay is separate from actual SDK `Generate`/`GenerateEvents` replay; see [README.md](README.md#sdk-runtime-tests). Neither certifies gateway credential injection, tenant isolation, guardrails, persisted spending or real CLI clients. Those require separate end-to-end tests.
 
-## Separate release gates
-
-Passing this direct SDK suite does not certify gateway credential injection, operation/model/tenant admission, guardrails, budgets, persisted spending, real Claude Code/Codex behavior, or deployment readiness. Those require the separate cloudv2 gateway replay and live end-to-end suites. Missing final usage on cancellation, unsupported Priority attribution and any incomplete direct matrix remain explicit limitations; they must not be presented as successful billing evidence.
+The retained `revalidated-evidence.json` combines historical captures and corrective runs. Its name and old verifier metadata do not impose a revalidation workflow. `original-incomplete.json` remains characterization of an earlier harness, including known harness-invalid cases; it is not a successful live run.

@@ -26,6 +26,7 @@ import (
 // These are model family identifiers (non-timestamped). The Anthropic API
 // accepts them directly and resolves to the latest snapshot.
 const (
+	ModelClaudeFable52  = "claude-fable-5-2"
 	ModelClaudeFable51  = "claude-fable-5-1"
 	ModelClaudeFable5   = "claude-fable-5"
 	ModelClaudeOpus55   = "claude-opus-5-5"
@@ -118,7 +119,8 @@ var claudeCaps = llm.ModelCapabilities{
 }
 
 // claudeCapsWithToolSearch marks the models on Anthropic's tool search
-// compatibility list as of 2026-10-26: Fable 5.1, Fable 5, Opus 5.5, Opus 5, Opus 4.8,
+// compatibility list as of 2026-10-26 (Fable 5.2 added 2026-11-12): Fable 5.2,
+// Fable 5.1, Fable 5, Opus 5.5, Opus 5, Opus 4.8,
 // 4.7, 4.6 and 4.5, Sonnet 5.5, 5, 4.6 and 4.5, Haiku 5.5 and 4.5. Opus 4.1 is
 // explicitly unsupported, so it keeps claudeCaps and local discovery:
 // https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool#model-compatibility
@@ -174,6 +176,60 @@ var (
 // failure stays explainable.
 func entries() []catalog.Entry {
 	return []catalog.Entry{
+		//nolint:dupl // same entry shape as Opus 5.5, different published rates
+		{
+			ID:            ModelClaudeFable52,
+			Model:         catalog.ModelClaudeFable52,
+			WireAPIs:      messagesWireAPIs,
+			TokenCounting: messagesTokenCounting,
+			// On the tool search compatibility list at
+			// https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool
+			// (read 2026-11-12).
+			Capabilities: claudeCapsWithToolSearch,
+			Modalities:   claudeModalities,
+			Constraints: llm.ModelConstraints{
+				MaxInputTokens:  1000000, // 1M context window
+				MaxOutputTokens: 128000,  // 128K output tokens
+				// Adaptive thinking is always on, forced tool_choice returns
+				// 400, and temperature, top_p and top_k must be omitted, per
+				// https://platform.claude.com/docs/en/models/fable-5-2/overview
+				// (read 2026-11-12). Fast mode is offered.
+				SupportedParams: []string{"max_tokens", "reasoning_effort", "speed"},
+			},
+			Reasoning: catalog.ReasoningSupport{
+				// All five levels; the API default is high, per
+				// https://platform.claude.com/docs/en/build-with-claude/effort.
+				Efforts:  []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+				Adaptive: true,
+				// Replayed thinking must keep an unchanged prefix; see
+				// platform.claude.com/docs/en/build-with-claude/preserved-thinking.
+				ThinkingPrefixCheck: true,
+			},
+			Speeds: []Speed{SpeedStandard, SpeedFast},
+			// Released November 9, 2026 on the model page; retirement floor
+			// "Not sooner than November 9, 2027" on the model-deprecations page
+			// (read 2026-11-12).
+			Life: catalog.Lifecycle{
+				Available: catalog.MustDate("2026-11-09"),
+			},
+			// Rates from https://platform.claude.com/docs/en/about-claude/pricing
+			// (read 2026-11-12): cache hits are 0.025x base input. Fast mode is
+			// $16/$80 across the full window, with the cache multipliers applied
+			// on top, as the page says.
+			Pricing: pricing.FlatInfoFromRates(
+				pricing.NewRates(8.00, 40.00, 0.20).WithCacheCreation(10.00, 16.00, 0),
+			).WithOverride(
+				pricing.Selector{Speed: SpeedFast},
+				pricing.RateCard{
+					Base: pricing.NewRates(16.00, 80.00, 0.40).
+						WithCacheCreation(20.00, 32.00, 0),
+				},
+			).WithOverride(usInferenceGeo, pricing.RateCard{
+				Base: pricing.NewRates(8.80, 44.00, 0.22).WithCacheCreation(11.00, 17.60, 0),
+			}).WithOverride(fastUSInferenceGeo, pricing.RateCard{
+				Base: pricing.NewRates(17.60, 88.00, 0.44).WithCacheCreation(22.00, 35.20, 0),
+			}),
+		},
 		{
 			ID:            ModelClaudeFable51,
 			Model:         catalog.ModelClaudeFable51,

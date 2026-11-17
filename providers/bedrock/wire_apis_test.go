@@ -50,6 +50,7 @@ func TestCatalogWireAPIs(t *testing.T) {
 				ModelClaudeOpus47US, ModelClaudeOpus48JP, ModelClaudeOpus5AU, ModelClaudeOpus55EU,
 				ModelClaudeSonnet5Global, ModelClaudeSonnet55EU, ModelClaudeSonnet55AU, ModelClaudeHaiku45US, ModelClaudeHaiku55JP,
 				ModelClaudeFable5US, ModelClaudeFable5Global, ModelClaudeFable51Global,
+				ModelClaudeFable52US, ModelClaudeFable52Global,
 			},
 			want: []catalog.WireAPI{invoke, messages, converse},
 		},

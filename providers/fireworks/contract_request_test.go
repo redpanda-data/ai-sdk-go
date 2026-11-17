@@ -16,6 +16,11 @@
 package fireworks_test
 
 import (
+	"encoding/json"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
 	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/providers/fireworks"
 )
@@ -80,12 +85,48 @@ func contractOutputConfig(c contractCase, request map[string]any) {
 	}
 }
 
+func contractRecordedCase(t *testing.T, evidence contractEvidence) contractCase {
+	t.Helper()
+	require.NotEmpty(t, evidence.Exchanges)
+
+	var request map[string]any
+	require.NoError(t, json.Unmarshal(evidence.Exchanges[0].Request, &request))
+
+	var effort string
+
+	switch evidence.Case.API {
+	case catalog.WireProtocolAnthropicMessages:
+		effort = contractString(contractObject(request["output_config"])["effort"])
+		if contractObject(request["thinking"])["type"] == "disabled" {
+			effort = contractEffortNone
+		}
+	case catalog.WireProtocolOpenAIChatCompletions:
+		effort = contractString(request["reasoning_effort"])
+	case catalog.WireProtocolOpenAIResponses:
+		effort = contractString(contractObject(request[contractReasoning])["effort"])
+	}
+
+	c := evidence.Case
+	c.Options = evidence.Options
+	c.replayEffort = &effort
+
+	return c
+}
+
 func contractEffort(c contractCase) string {
+	return contractEffortForCatalog(c, fireworks.Catalog())
+}
+
+func contractEffortForCatalog(c contractCase, cat *catalog.Catalog) string {
+	if c.replayEffort != nil {
+		return *c.replayEffort
+	}
+
 	if c.Effort != "" {
 		return c.Effort
 	}
 
-	for _, o := range fireworks.Catalog().All() {
+	for _, o := range cat.All() {
 		if o.ID != c.Model {
 			continue
 		}

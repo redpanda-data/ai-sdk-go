@@ -1382,7 +1382,7 @@ func TestModelsDiscovery_ProviderDataSharingMetadata(t *testing.T) {
 		metadataByName[m.ID] = m.Attributes
 	}
 
-	for _, name := range []string{ModelClaudeFable51Global, ModelClaudeFable51US, ModelClaudeFable5Global, ModelClaudeFable5US, ModelClaudeFable5EU} {
+	for _, name := range []string{ModelClaudeFable52Global, ModelClaudeFable52US, ModelClaudeFable51Global, ModelClaudeFable51US, ModelClaudeFable5Global, ModelClaudeFable5US, ModelClaudeFable5EU} {
 		assert.Equal(t, "true", metadataByName[name][ModelMetadataRequiresProviderDataSharing])
 	}
 

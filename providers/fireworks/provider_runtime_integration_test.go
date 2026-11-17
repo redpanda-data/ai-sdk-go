@@ -41,7 +41,7 @@ var (
 	sdkRuntimeOutputDir  = flag.String("fireworks-sdk-output-dir", "", "parent directory for unique incomplete SDK captures; defaults to the system temporary directory; fixture promotion is manual")
 )
 
-func sdkRuntimeModel(t *testing.T, provider *fireworks.Provider, wire *sdkRuntimeWire, offering catalog.Offering, maxTokens int, reasoning bool) llm.Model {
+func sdkRuntimeLiveModel(t *testing.T, provider *fireworks.Provider, wire *sdkRuntimeWire, offering catalog.Offering, maxTokens int, reasoning bool) llm.Model {
 	t.Helper()
 
 	if wire != nil {
@@ -78,7 +78,7 @@ func sdkRuntimeModel(t *testing.T, provider *fireworks.Provider, wire *sdkRuntim
 
 func sdkRuntimeConversation(t *testing.T, provider *fireworks.Provider, wire *sdkRuntimeWire, offering catalog.Offering, stream bool) {
 	t.Helper()
-	model := sdkRuntimeModel(t, provider, wire, offering, 512, false)
+	model := sdkRuntimeLiveModel(t, provider, wire, offering, 512, false)
 	request := &llm.Request{Messages: []llm.Message{
 		llm.NewMessage(llm.RoleSystem, llm.NewTextPart("Include the word tulip in your final answer, alongside the answer to the user's question.")),
 		sdkRuntimeUser("My favorite animal is an otter. Remember that."),
@@ -93,7 +93,7 @@ func sdkRuntimeConversation(t *testing.T, provider *fireworks.Provider, wire *sd
 
 func sdkRuntimeReasoningTools(t *testing.T, provider *fireworks.Provider, wire *sdkRuntimeWire, offering catalog.Offering, stream bool) {
 	t.Helper()
-	model := sdkRuntimeModel(t, provider, wire, offering, 4096, true)
+	model := sdkRuntimeLiveModel(t, provider, wire, offering, 4096, true)
 	name := "lookup"
 	question := sdkRuntimeUser(contractAdaptiveTask + " Then call lookup with key x exactly once. Its reply is JSON data. After receiving it, state the exact result field value and finish with the computed n as a plain integer.")
 	request := &llm.Request{
@@ -138,7 +138,7 @@ func sdkRuntimeSchema(t *testing.T, provider *fireworks.Provider, wire *sdkRunti
 		model, err = provider.NewModel(offering.ID, fireworks.WithMaxTokens(512), fireworks.WithTemperature(0))
 		require.NoError(t, err)
 	} else {
-		model = sdkRuntimeModel(t, provider, wire, offering, 512, false)
+		model = sdkRuntimeLiveModel(t, provider, wire, offering, 512, false)
 	}
 
 	request := sdkRuntimeSchemaRequest()
@@ -156,7 +156,7 @@ func sdkRuntimeSchema(t *testing.T, provider *fireworks.Provider, wire *sdkRunti
 
 func sdkRuntimeTruncation(t *testing.T, provider *fireworks.Provider, wire *sdkRuntimeWire, offering catalog.Offering, stream bool) {
 	t.Helper()
-	model := sdkRuntimeModel(t, provider, wire, offering, 1, false)
+	model := sdkRuntimeLiveModel(t, provider, wire, offering, 1, false)
 	response := sdkRuntimeCall(t, wire, model, &llm.Request{Messages: []llm.Message{sdkRuntimeUser("Write the numbers from 1 to 10000, separated by commas. Do not stop early.")}}, stream, "sdk_length")
 	require.Equal(t, llm.FinishReasonLength, response.FinishReason)
 	require.Equal(t, 1, response.Usage.OutputTokens+response.Usage.ReasoningTokens)
@@ -164,7 +164,7 @@ func sdkRuntimeTruncation(t *testing.T, provider *fireworks.Provider, wire *sdkR
 
 func sdkRuntimeCacheProbe(t *testing.T, provider *fireworks.Provider, wire *sdkRuntimeWire) {
 	t.Helper()
-	report, _ := contractReadReport(t, "testdata/contracts/cache-diagnostic-65536.json")
+	report := contractReadReport(t, "testdata/contracts/cache-diagnostic-65536.json")
 	row := report.Evidence[0]
 	offering, ok := provider.Catalog().Lookup(row.Case.Model)
 	require.True(t, ok)
@@ -172,7 +172,7 @@ func sdkRuntimeCacheProbe(t *testing.T, provider *fireworks.Provider, wire *sdkR
 
 	wire.limit = 72 * 1024
 	wire.header = http.Header{"X-Session-Affinity": {"7a5c2e10-9b84-4f61-8c33-0d72e906ab51"}, "X-Claude-Code-Session-Id": {"7a5c2e10-9b84-4f61-8c33-0d72e906ab51"}, "X-Prompt-Cache-Isolation-Key": {"sdk-cache-crossover-v5"}}
-	model := sdkRuntimeModel(t, provider, wire, offering, 16, false)
+	model := sdkRuntimeLiveModel(t, provider, wire, offering, 16, false)
 	var body map[string]any
 	require.NoError(t, json.Unmarshal(row.Exchanges[0].Request, &body))
 	prompt := contractString(contractObject(contractArray(body["messages"])[0])["content"])

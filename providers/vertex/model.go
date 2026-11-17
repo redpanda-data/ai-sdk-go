@@ -91,6 +91,10 @@ func (p *Provider) checkReadyForModels() error {
 const genaiAPIVersion = "v1"
 
 func (p *Provider) newGeminiModel(modelName string, offering catalog.Offering, cfg *modelConfig) (llm.Model, error) {
+	if cfg.thinkingBudget != nil {
+		return nil, fmt.Errorf("vertex: %s takes a reasoning effort, not a thinking budget", modelName)
+	}
+
 	ctx := context.Background()
 
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
@@ -149,8 +153,32 @@ func (p *Provider) newClaudeModel(modelName string, offering catalog.Offering, c
 		opts = append(opts, anthropic.WithReasoningEffort(*cfg.reasoningEffort))
 	}
 
+	if cfg.thinkingBudget != nil {
+		budget := *cfg.thinkingBudget
+		limit := int64(offering.Constraints.MaxOutputTokens)
+
+		// Claude refuses a request whose thinking budget is not below
+		// max_tokens, so the budget must leave room for an answer.
+		if budget >= limit {
+			return nil, fmt.Errorf("vertex: thinking budget %d leaves no room for an answer within %s's %d output tokens", budget, modelName, limit)
+		}
+
+		opts = append(opts, anthropic.WithThinkingBudget(budget))
+		if budget+claudeAnswerTokens > claudeDefaultMaxTokens {
+			opts = append(opts, anthropic.WithMaxTokens(int(min(budget+claudeAnswerTokens, limit))))
+		}
+	}
+
 	return provider.NewModelFromOffering(modelName, offering, opts...)
 }
+
+// claudeDefaultMaxTokens is the max_tokens the anthropic provider sends when
+// none is set (defaultMaxTokens in providers/anthropic).
+const claudeDefaultMaxTokens = 16384
+
+// claudeAnswerTokens is the room max_tokens keeps for the answer above a
+// thinking budget that would not fit under claudeDefaultMaxTokens.
+const claudeAnswerTokens = 4096
 
 // rawPredictMiddleware turns an Anthropic Messages request into a Vertex
 // publisher request. It drops any credential header the Anthropic SDK took

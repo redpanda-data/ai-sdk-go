@@ -28,9 +28,9 @@ func TestCatalogWireAPIs(t *testing.T) {
 	t.Parallel()
 
 	all := meta.Catalog().All()
-	require.Len(t, all, 2)
+	require.Len(t, all, 3)
 
-	for _, id := range []string{"muse-spark-1.3", "muse-wonder-1.0"} {
+	for _, id := range []string{"muse-spark-1.3", "muse-wonder-1.0", "muse-ember-1.0"} {
 		o, ok := meta.Catalog().Lookup(id)
 		require.True(t, ok, id)
 		assert.Equal(t, id, o.ID)

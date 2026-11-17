@@ -36,7 +36,11 @@ type Rules struct {
 	Reasons    map[string]string   // skip reason: what it means
 	Fields     map[string]string   // report field: what it covers
 	Questions  map[string]string   // Ask ID: what a person decides for its needs_human rows
-	Offered    map[string][]string // host package: the region prefixes it offers
+	// OneQuestion holds the Asks whose When cell starts with oneQuestion
+	// (after any **CI.** mark): their question is the same for every
+	// offering, so the PR asks it once per field across vendors.
+	OneQuestion map[string]bool
+	Offered     map[string][]string // host package: the region prefixes it offers
 	// NotOffered is, per host package, each region prefix asked about and
 	// its note: "asked YYYY-MM-DD" or "declined YYYY-MM-DD".
 	NotOffered map[string]map[string]string
@@ -94,7 +98,7 @@ func legendWords(line string) []string {
 func ParseRules(markdown []byte) (Rules, []string) {
 	rules := Rules{
 		Lines: map[string]int{}, Outcomes: map[string][]string{}, RuleFields: map[string][]string{},
-		Reasons: map[string]string{}, Fields: map[string]string{}, Questions: map[string]string{},
+		Reasons: map[string]string{}, Fields: map[string]string{}, Questions: map[string]string{}, OneQuestion: map[string]bool{},
 		Offered: map[string][]string{}, NotOffered: map[string]map[string]string{},
 	}
 	twoColumn := map[string]map[string]string{"Skip reason": rules.Reasons, "Field": rules.Fields}
@@ -230,8 +234,12 @@ func (rules Rules) addDefault(row []string, line int, legend []string) []string 
 	return problems
 }
 
+// oneQuestion marks an Ask that the PR asks once for all its offerings.
+const oneQuestion = "**One question.**"
+
 // addAsk records an Always asks row: Ask | When | Question | Why. Its rows go
-// to a person with its fixed question.
+// to a person with its fixed question. A oneQuestion mark anywhere but the
+// start of the When cell is a problem, so a typo can't drop it unseen.
 func (rules Rules) addAsk(row []string, line int) []string {
 	if len(row) != 4 {
 		return []string{row[0] + ": an Ask row has 4 cells"}
@@ -241,5 +249,14 @@ func (rules Rules) addAsk(row []string, line int) []string {
 	rules.Outcomes[id] = []string{"needs_human"}
 	rules.Questions[id] = row[2]
 
-	return rules.addRule(row, line)
+	var problems []string
+
+	switch {
+	case strings.HasPrefix(strings.TrimPrefix(row[1], "**CI.** "), oneQuestion):
+		rules.OneQuestion[id] = true
+	case strings.Contains(row[1], "One question."):
+		problems = append(problems, id+": "+oneQuestion+" goes at the start of the When cell, after any **CI.** mark")
+	}
+
+	return append(problems, rules.addRule(row, line)...)
 }

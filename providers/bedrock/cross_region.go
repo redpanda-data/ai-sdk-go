@@ -110,6 +110,53 @@ var claudeFable51ProfileRegions = map[string]string{
 	"mx-central-1":   globalProfileRegion,
 }
 
+// claudeFable52ProfileRegions maps every published source region to its
+// preferred profile. Fable 5.2 publishes only US and global profiles, with
+// the same source regions as Fable 5.1: the US geo covers the US and Canada
+// regions, and every other published commercial region is global-only.
+// GovCloud (us-gov-*) is intentionally omitted, as us-gov is not an offered
+// region.
+//
+// Source: https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-fable-5-2.html
+// (read 2026-11-12).
+var claudeFable52ProfileRegions = map[string]string{
+	"us-east-1":    "us",
+	"us-east-2":    "us",
+	"us-west-1":    "us",
+	"us-west-2":    "us",
+	"ca-central-1": "us",
+	"ca-west-1":    "us",
+
+	"eu-central-1": globalProfileRegion,
+	"eu-central-2": globalProfileRegion,
+	"eu-north-1":   globalProfileRegion,
+	"eu-south-1":   globalProfileRegion,
+	"eu-south-2":   globalProfileRegion,
+	"eu-west-1":    globalProfileRegion,
+	"eu-west-2":    globalProfileRegion,
+	"eu-west-3":    globalProfileRegion,
+
+	"ap-east-2":      globalProfileRegion,
+	"ap-northeast-1": globalProfileRegion,
+	"ap-northeast-2": globalProfileRegion,
+	"ap-northeast-3": globalProfileRegion,
+	"ap-south-1":     globalProfileRegion,
+	"ap-south-2":     globalProfileRegion,
+	"ap-southeast-1": globalProfileRegion,
+	"ap-southeast-2": globalProfileRegion,
+	"ap-southeast-3": globalProfileRegion,
+	"ap-southeast-4": globalProfileRegion,
+	"ap-southeast-5": globalProfileRegion,
+	"ap-southeast-6": globalProfileRegion,
+	"ap-southeast-7": globalProfileRegion,
+	"il-central-1":   globalProfileRegion,
+	"me-central-1":   globalProfileRegion,
+	"me-south-1":     globalProfileRegion,
+	"af-south-1":     globalProfileRegion,
+	"sa-east-1":      globalProfileRegion,
+	"mx-central-1":   globalProfileRegion,
+}
+
 // claudeSonnet55ProfileRegions maps every published source region to its
 // preferred profile. Sonnet 5.5 publishes US, EU, AU, and global profiles: the
 // US geo covers the US and Canada regions, the EU geo the EU regions, and

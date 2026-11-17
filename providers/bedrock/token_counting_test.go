@@ -64,6 +64,13 @@ func TestCatalogTokenCounting(t *testing.T) {
 			ids:  []string{ModelClaudeFable5EU},
 			want: nil,
 		},
+		{
+			// The card marks Count tokens as not supported on bedrock-runtime,
+			// its only endpoint (read 2026-11-12).
+			name: "Fable 5.2 counts nowhere",
+			ids:  []string{ModelClaudeFable52US, ModelClaudeFable52Global},
+			want: nil,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -95,7 +102,7 @@ func TestCatalogTokenCountingCoversEveryClaudeOffering(t *testing.T) {
 		}
 	}
 
-	assert.Equal(t, []string{ModelClaudeFable5EU}, unknownClaude)
+	assert.ElementsMatch(t, []string{ModelClaudeFable5EU, ModelClaudeFable52Global, ModelClaudeFable52US}, unknownClaude)
 }
 
 func TestExpandFamiliesTokenCountingOverrides(t *testing.T) {

@@ -19,4 +19,4 @@ DeepSeek is the publisher (`deepseek`), not Fireworks. This run currently owns D
 - Keep the base and 1017 entries distinct. A creator pricing page naming the currently served version does not prove Fireworks redirects the base ID or shares a fixed pricing identity with an alias.
 - The creator publishes native 1,048,576 context and 393,216 maximum output for the current model version. Fireworks' hosted limits remain host facts, subject to RULES.md (capped-at-vendor, limit-follow).
 - Fireworks maps low to low; medium/high/xhigh to high; max to max; omitted effort to high. None disables thinking. Its numeric 1-100 effort scale is not a token budget; a documented budget is a different control. Do not inherit the earlier DeepSeek V4 mapping.
-- API compatibility and capabilities on the creator's endpoint do not qualify Fireworks' Messages, Chat or Responses bindings. Contract expansions follow RULES.md (fireworks-contract-qualification).
+- API compatibility and capabilities on the creator's endpoint do not establish Fireworks' Messages, Chat or Responses bindings. Use Fireworks' own documentation for those host facts.

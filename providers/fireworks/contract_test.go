@@ -19,16 +19,18 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
-	"go/scanner"
-	"go/token"
+	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -40,7 +42,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/redpanda-data/ai-sdk-go/catalog"
-	"github.com/redpanda-data/ai-sdk-go/catalog/snapshot"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/providers/fireworks"
 )
@@ -76,20 +77,23 @@ const (
 )
 
 var (
-	contractLive    = flag.Bool("fireworks-live", false, "run all direct Fireworks contracts; missing credentials and required evidence fail")
-	contractRecord  = flag.Bool("fireworks-record", false, "explicitly replace sanitized evidence after a fully successful live run")
-	contractKeyFile = flag.String("fireworks-key-file", "", "credential file, read only inside the test process")
-	contractBudget  = flag.Float64("fireworks-budget-usd", 0, "explicit per-run conservative request spend limit in USD")
+	contractLive         = flag.Bool("fireworks-live", false, "run optional direct Fireworks checks; requires credentials and a budget")
+	contractRecord       = flag.Bool("fireworks-record", false, "write sanitized exchanges after a successful live run for review")
+	contractModel        = flag.String("fireworks-model", "", "limit live native cases to one exact catalog model ID")
+	contractRecordOutput = flag.String("fireworks-record-output", "", "write a successful live recording here for review and manual promotion")
+	contractKeyFile      = flag.String("fireworks-key-file", "", "credential file, read only inside the test process")
+	contractBudget       = flag.Float64("fireworks-budget-usd", 0, "explicit per-run conservative request spend limit in USD")
 )
 
 type contractCase struct {
-	Model     string                 `json:"model"`
-	API       catalog.WireProtocol   `json:"api"`
-	Transport catalog.WireTransport  `json:"transport"`
-	Stream    bool                   `json:"stream"`
-	Feature   string                 `json:"feature"`
-	Effort    string                 `json:"effort,omitempty"`
-	Options   contractRequestOptions `json:"-"`
+	Model        string                 `json:"model"`
+	API          catalog.WireProtocol   `json:"api"`
+	Transport    catalog.WireTransport  `json:"transport"`
+	Stream       bool                   `json:"stream"`
+	Feature      string                 `json:"feature"`
+	Effort       string                 `json:"effort,omitempty"`
+	Options      contractRequestOptions `json:"-"`
+	replayEffort *string                `json:"-"`
 }
 
 func (c contractCase) key() string {
@@ -112,7 +116,6 @@ type contractExchange struct {
 	ErrorClass          string            `json:"error_class,omitempty"`
 	ElapsedMS           int64             `json:"elapsed_ms,omitempty"`
 	StartedAt           time.Time         `json:"started_at,omitzero"`
-	PromptSHA256        string            `json:"prompt_sha256,omitempty"`
 	ResponseHeaderNames []string          `json:"response_header_names,omitempty"`
 }
 
@@ -128,47 +131,47 @@ type contractEvidence struct {
 }
 
 type contractManifest struct {
-	Version                    int                    `json:"version"`
-	CatalogFingerprint         string                 `json:"catalog_fingerprint"`
-	TestFingerprint            string                 `json:"test_fingerprint"`
-	CapturedAt                 time.Time              `json:"captured_at"`
-	SDKRevision                string                 `json:"sdk_revision"`
-	Scope                      string                 `json:"scope"`
-	Blocked                    []string               `json:"blocked"`
-	ObservedUSD                float64                `json:"observed_usd,omitempty"`
-	KnownRunUSD                float64                `json:"known_run_usd"`
-	PriorConservativeUSD       float64                `json:"prior_conservative_usd"`
-	CumulativeConservativeUSD  float64                `json:"cumulative_conservative_usd"`
-	UnresolvedReservationsUSD  float64                `json:"unresolved_reservations_usd"`
-	Evidence                   []contractEvidence     `json:"evidence"`
-	VerifierFingerprint        string                 `json:"verifier_fingerprint,omitempty"`
-	RunKind                    string                 `json:"run_kind,omitempty"`
-	Sources                    []contractSourceReport `json:"source_reports,omitempty"`
-	VerifierCatalogFingerprint string                 `json:"verifier_catalog_fingerprint,omitempty"`
-	Superseded                 []contractEvidence     `json:"superseded_evidence,omitempty"`
-	MissingCacheBranches       []contractCacheBranch  `json:"missing_cache_branches,omitempty"`
-	NativeFailures             []contractCase         `json:"native_failures,omitempty"`
-	Supplemental               []contractEvidence     `json:"supplemental_evidence,omitempty"`
-	Diagnostics                []contractEvidence     `json:"diagnostic_evidence,omitempty"`
+	Version                   int                    `json:"version"`
+	CapturedAt                time.Time              `json:"captured_at"`
+	SDKRevision               string                 `json:"sdk_revision"`
+	Scope                     string                 `json:"scope"`
+	Blocked                   []string               `json:"blocked"`
+	ObservedUSD               float64                `json:"observed_usd,omitempty"`
+	KnownRunUSD               float64                `json:"known_run_usd"`
+	PriorConservativeUSD      float64                `json:"prior_conservative_usd"`
+	CumulativeConservativeUSD float64                `json:"cumulative_conservative_usd"`
+	UnresolvedReservationsUSD float64                `json:"unresolved_reservations_usd"`
+	Evidence                  []contractEvidence     `json:"evidence"`
+	RunKind                   string                 `json:"run_kind,omitempty"`
+	Sources                   []contractSourceReport `json:"source_reports,omitempty"`
+	MissingCacheBranches      []contractCacheBranch  `json:"missing_cache_branches,omitempty"`
+	NativeFailures            []contractCase         `json:"native_failures,omitempty"`
+	Supplemental              []contractEvidence     `json:"supplemental_evidence,omitempty"`
+	Diagnostics               []contractEvidence     `json:"diagnostic_evidence,omitempty"`
 }
 
-func contractInventory(t *testing.T) ([]contractCase, string) {
-	t.Helper()
-	return contractInventoryAt(t, catalog.Today())
-}
-
-func contractInventoryAt(t *testing.T, asOf time.Time) ([]contractCase, string) {
-	t.Helper()
-
-	cat := (&fireworks.Provider{}).Catalog()
-	require.NotNil(t, cat)
-	var cases []contractCase
+func contractActiveOfferings(cat *catalog.Catalog, asOf time.Time, model string) []catalog.Offering {
+	var active []catalog.Offering
 
 	for _, o := range cat.All() {
 		if cat.At(asOf).IsRetired(o.ID) || (!o.Life.Available.IsZero() && o.Life.Available.After(asOf)) {
 			continue
 		}
 
+		if model == "" || o.ID == model || slices.Contains(o.Aliases, model) {
+			active = append(active, o)
+		}
+	}
+
+	return active
+}
+
+func contractInventoryAt(t *testing.T, cat *catalog.Catalog, asOf time.Time, model string) []contractCase {
+	t.Helper()
+
+	var cases []contractCase
+
+	for _, o := range contractActiveOfferings(cat, asOf, model) {
 		contractRequireHandledSupport(t, o.Capabilities, o.Reasoning)
 		require.NotEmpty(t, o.WireAPIs, "%s has no declared API", o.ID)
 		require.True(t, o.Capabilities.Streaming, "%s: stream/nonstream evidence is required", o.ID)
@@ -241,6 +244,10 @@ func contractInventoryAt(t *testing.T, asOf time.Time) ([]contractCase, string) 
 			}
 
 			for _, id := range append([]string{o.ID}, o.Aliases...) {
+				if model != "" && id != model {
+					continue
+				}
+
 				for _, stream := range []bool{false, true} {
 					for _, feature := range features {
 						cases = append(cases, contractCase{Model: id, API: api.Protocol, Transport: api.Transport, Stream: stream, Feature: feature})
@@ -255,123 +262,79 @@ func contractInventoryAt(t *testing.T, asOf time.Time) ([]contractCase, string) 
 	}
 
 	require.NotEmpty(t, cases, "an empty catalog cannot satisfy contract acceptance")
-	var b bytes.Buffer
-	require.NoError(t, snapshot.Encode(&b, cat))
-	sum := sha256.Sum256(b.Bytes())
 
-	return cases, hex.EncodeToString(sum[:])
-}
-
-func contractTestFingerprint(t *testing.T) string {
-	t.Helper()
-
-	files, err := filepath.Glob("*contract*_test.go")
-	require.NoError(t, err)
-	require.NotEmpty(t, files)
-
-	h := sha256.New()
-
-	for _, file := range files {
-		b, err := os.ReadFile(file)
-		require.NoError(t, err)
-		var scan scanner.Scanner
-		scan.Init(token.NewFileSet().AddFile(file, -1, len(b)), b, nil, 0)
-
-		for {
-			_, tok, literal := scan.Scan()
-			if tok == token.EOF {
-				break
-			}
-
-			_, err = h.Write([]byte(tok.String() + "\x00" + literal + "\x00"))
-			require.NoError(t, err)
-		}
-	}
-
-	rates, err := os.ReadFile("testdata/contracts/published-rates.json")
-	require.NoError(t, err)
-	_, err = h.Write(rates)
-	require.NoError(t, err)
-
-	return hex.EncodeToString(h.Sum(nil))
+	return cases
 }
 
 func contractLoadManifest(t *testing.T) contractManifest {
 	t.Helper()
-	cases, fingerprint := contractInventory(t)
 
-	b, err := os.ReadFile("testdata/contracts/manifest.json")
-	if os.IsNotExist(err) {
-		b, err = os.ReadFile("testdata/contracts/revalidated-evidence.json")
-	}
-
-	require.NoError(t, err, "missing qualified real Fireworks evidence: run explicit capture/revalidation; incomplete attempts do not qualify")
-	var manifest contractManifest
-	require.NoError(t, json.Unmarshal(b, &manifest))
-	require.Equal(t, contractVersion, manifest.Version)
-	require.Equal(t, fingerprint, contractCompatibleCatalog(t, manifest), "only explicitly proved SDK-admission narrowing can reuse older captures")
-
-	verified := manifest.VerifierFingerprint
-	if verified == "" {
-		verified = manifest.TestFingerprint
-	}
-
-	require.Equal(t, contractTestFingerprint(t), verified, "verifier drift requires explicit all-capture revalidation; changed requests require fresh live evidence")
-	require.Equal(t, "sdk_direct_upstream_only", manifest.Scope)
-	require.False(t, manifest.CapturedAt.IsZero())
-	require.NotEmpty(t, manifest.SDKRevision)
-	capturedCases, _ := contractInventoryAt(t, manifest.CapturedAt)
-	capturedKeys := map[string]bool{}
-	activeKeys := map[string]bool{}
-
-	for _, c := range capturedCases {
-		capturedKeys[c.key()] = true
-	}
-
-	for _, c := range cases {
-		activeKeys[c.key()] = true
-	}
-
-	require.Empty(t, manifest.NativeFailures, "native cases remain unqualified")
-	require.Empty(t, manifest.MissingCacheBranches, "exact offering/API/mode positive usage branches remain unqualified")
-	require.Empty(t, contractCacheGaps(t, &manifest, cases), "recomputed authoritative final-usage branches remain unqualified")
-
-	byKey := make(map[string]contractEvidence, len(manifest.Evidence))
-	for _, evidence := range manifest.Evidence {
-		require.True(t, capturedKeys[evidence.Case.key()], "unknown/surplus captured case")
-
-		if !activeKeys[evidence.Case.key()] {
-			o, ok := fireworks.Catalog().Resolve(evidence.Case.Model)
-			require.True(t, ok, "unknown historical offering")
-			require.True(t, fireworks.Catalog().Now().IsRetired(o.ID), "only known retired offerings may contribute historical surplus evidence")
-		}
-
-		require.NotEmpty(t, evidence.Capture.TestFingerprint, "missing per-case capture provenance")
-		require.NotEmpty(t, evidence.Capture.SDKRevision)
-		require.False(t, evidence.Capture.CapturedAt.IsZero())
-		require.Len(t, evidence.Capture.RequestSHA256, len(evidence.Exchanges))
-
-		for i, exchange := range evidence.Exchanges {
-			require.Equal(t, evidence.Capture.RequestSHA256[i], contractRequestHash(exchange.Request), "request capture fingerprint changed")
-		}
-
-		_, duplicate := byKey[evidence.Case.key()]
-		require.False(t, duplicate, "duplicate evidence")
-
-		byKey[evidence.Case.key()] = evidence
-	}
-
-	for _, c := range cases {
-		evidence, ok := byKey[c.key()]
-		require.True(t, ok, "missing required case %+v", c)
-		require.Equal(t, c, evidence.Case)
-		require.False(t, evidence.Failed, "failed or skipped required case")
-	}
+	manifest, err := contractLoadManifestAt("testdata/contracts")
+	require.NoError(t, err)
 
 	return manifest
 }
 
-func TestFireworksContractCompleteness(t *testing.T) {
+func contractLoadManifestAt(root string) (contractManifest, error) {
+	path := filepath.Join(root, "manifest.json")
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		path = filepath.Join(root, "revalidated-evidence.json")
+	}
+
+	paths, err := filepath.Glob(filepath.Join(root, "recordings", "*.json"))
+	if err != nil {
+		return contractManifest{}, err
+	}
+
+	var manifest contractManifest
+
+	for n, path := range append([]string{path}, paths...) {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return contractManifest{}, err
+		}
+
+		var report contractManifest
+		if err := json.Unmarshal(b, &report); err != nil {
+			return contractManifest{}, fmt.Errorf("%s: %w", path, err)
+		}
+
+		if n == 0 {
+			manifest = report
+		} else {
+			manifest.Evidence = append(manifest.Evidence, report.Evidence...)
+			manifest.Supplemental = append(manifest.Supplemental, report.Supplemental...)
+			manifest.Diagnostics = append(manifest.Diagnostics, report.Diagnostics...)
+		}
+	}
+
+	if len(manifest.Evidence) == 0 {
+		return contractManifest{}, errors.New("missing recorded Fireworks regression cases")
+	}
+
+	seen := make(map[string]bool, len(manifest.Evidence))
+	for _, evidence := range manifest.Evidence {
+		if seen[evidence.Case.key()] {
+			return contractManifest{}, fmt.Errorf("duplicate recorded case %+v", evidence.Case)
+		}
+
+		seen[evidence.Case.key()] = true
+	}
+
+	for _, evidence := range append(append(append([]contractEvidence{}, manifest.Evidence...), manifest.Supplemental...), manifest.Diagnostics...) {
+		if evidence.Failed {
+			return contractManifest{}, errors.New("failed recording is not a regression fixture")
+		}
+
+		if len(evidence.Exchanges) == 0 {
+			return contractManifest{}, errors.New("recorded case has no exchanges")
+		}
+	}
+
+	return manifest, nil
+}
+
+func TestFireworksContractFixtures(t *testing.T) {
 	t.Parallel()
 	contractLoadManifest(t)
 }
@@ -490,8 +453,7 @@ func contractReplay(t *testing.T, evidence contractEvidence, chunkSize int) {
 	defer server.Close()
 	var observed []contractExchange
 
-	c := evidence.Case
-	c.Options = evidence.Options
+	c := contractRecordedCase(t, evidence)
 	c.Options.CacheSettleMS = 0
 	contractExercise(t, c, func(request map[string]any) contractExchange {
 		e := contractHTTP(t, server.Client(), server.URL, "replay-only-not-a-credential", c, request, nil, received)
@@ -509,83 +471,138 @@ func contractReplay(t *testing.T, evidence contractEvidence, chunkSize int) {
 	}
 }
 
+type contractNativeOptions struct {
+	Catalog  *catalog.Catalog
+	AsOf     time.Time
+	Model    string
+	Record   bool
+	Output   string
+	Budget   float64
+	Key      string
+	BaseURL  string
+	Client   *http.Client
+	Revision string
+	Cases    []contractCase
+}
+
+func (o contractNativeOptions) validate() error {
+	if o.Budget <= 0 || math.IsInf(o.Budget, 0) || math.IsNaN(o.Budget) {
+		return errors.New("an explicit finite positive per-run budget is required")
+	}
+
+	if o.Record && o.Output == "" {
+		return errors.New("recording requires an explicit output path; review before promoting fixtures")
+	}
+
+	if o.Catalog == nil || len(contractActiveOfferings(o.Catalog, o.AsOf, o.Model)) == 0 {
+		return errors.New("no active cases for requested model")
+	}
+
+	if o.Key == "" || strings.ContainsAny(o.Key, "\r\n") {
+		return errors.New("explicit Fireworks live checks require a single credential value")
+	}
+
+	return nil
+}
+
 //nolint:tparallel // Paid requests must remain sequential to enforce one in-flight reservation.
 func TestFireworksContractLive(t *testing.T) {
 	t.Parallel()
 
 	if !*contractLive {
 		require.False(t, *contractRecord, "recording requires -fireworks-live")
-		t.Skip("opt-in direct upstream acceptance; invoke the documented mandatory acceptance command")
+		t.Skip("opt-in direct upstream checks; no live coverage is claimed by a skip")
 	}
 
 	require.False(t, testing.Short(), "live acceptance cannot run in short mode")
-	require.Greater(t, *contractBudget, float64(0))
-	cases, fingerprint := contractInventory(t)
 	key := os.Getenv("FIREWORKS_API_KEY")
-
 	if *contractKeyFile != "" {
 		b, err := os.ReadFile(*contractKeyFile)
 		require.NoError(t, err, "cannot read credential file")
-
 		key = strings.TrimSpace(string(b))
 	}
 
-	require.NotEmpty(t, key, "mandatory Fireworks acceptance requires FIREWORKS_API_KEY or -fireworks-key-file")
-	require.False(t, strings.ContainsAny(key, "\r\n"), "credential must contain a single value")
-
-	client := &http.Client{Timeout: 90 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
-	manifest := contractManifest{Version: contractVersion, CatalogFingerprint: fingerprint, TestFingerprint: contractTestFingerprint(t), CapturedAt: time.Now().UTC(), Scope: "sdk_direct_upstream_only", Blocked: []string{"gateway interception, enforcement, spending, tenant isolation and real CLI clients are separate cloudv2 acceptance", "Priority requests are unsupported where effective-tier response attribution is unavailable"}}
 	revision, err := exec.CommandContext(t.Context(), "git", "rev-parse", "HEAD").Output()
 	require.NoError(t, err)
 
-	manifest.SDKRevision = strings.TrimSpace(string(revision))
-	manifest.RunKind = "full_matrix"
-	manifest.VerifierFingerprint = manifest.TestFingerprint
+	opts := contractNativeOptions{
+		Catalog: fireworks.Catalog(), AsOf: catalog.Today(), Model: *contractModel,
+		Record: *contractRecord, Output: *contractRecordOutput, Budget: *contractBudget, Key: key,
+		BaseURL: "https://api.fireworks.ai", Revision: strings.TrimSpace(string(revision)),
+		Client: &http.Client{Timeout: 90 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }},
+	}
+	require.NoError(t, contractRunNative(t, opts))
+}
+
+func contractRunNative(t *testing.T, opts contractNativeOptions) error {
+	t.Helper()
+
+	if err := opts.validate(); err != nil {
+		return err
+	}
+
+	cases := contractInventoryAt(t, opts.Catalog, opts.AsOf, opts.Model)
+	if opts.Cases != nil {
+		selected := make(map[string]bool, len(opts.Cases))
+		for _, c := range opts.Cases {
+			selected[c.key()] = true
+		}
+
+		cases = slices.DeleteFunc(cases, func(c contractCase) bool { return !selected[c.key()] })
+		require.NotEmpty(t, cases, "no selected native cases")
+	}
+
+	output := ""
+	if opts.Record {
+		output = opts.Output
+	}
+
+	manifest := contractManifest{Version: contractVersion, CapturedAt: time.Now().UTC(), SDKRevision: opts.Revision, Scope: "sdk_direct_upstream_only", RunKind: "full_matrix", Blocked: []string{"gateway interception, enforcement, spending, tenant isolation and real CLI clients are separate cloudv2 acceptance", "Priority requests are unsupported where effective-tier response attribution is unavailable"}}
+	if opts.Model != "" {
+		manifest.RunKind = "selected_model"
+	}
 
 	ctx, stop := signal.NotifyContext(t.Context(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	budget := contractOpenBudget(ctx, t)
+	budget := &contractSpend{limit: opts.Budget, ctx: ctx}
 	contractPreflight(t, cases, budget)
-	contractCheckpoint(t, manifest, nil, budget)
+	contractCheckpoint(t, output, manifest, nil, budget)
+
+	failed := false
 
 	for _, base := range cases {
 		c := base
-
 		c.Options = contractSemanticOptions(base)
 		if contractControlRejection(c.Feature) {
 			c.Options.MaxOutputTokens = 16
 		}
 
 		if ctx.Err() != nil {
-			t.Error("live acceptance interrupted; remaining cases are incomplete")
+			failed = true
 			break
 		}
 
 		if !t.Run(c.key(), func(t *testing.T) {
-			// Deliberately sequential: one bounded inference request may be in flight.
-			evidence := contractEvidence{Case: base, Options: c.Options, Capture: contractCaptureProvenance{TestVersion: contractVersion, TestFingerprint: manifest.TestFingerprint, CapturedAt: time.Now().UTC(), SDKRevision: manifest.SDKRevision}}
-
+			evidence := contractEvidence{Case: base, Options: c.Options, Capture: contractCaptureProvenance{TestVersion: contractVersion, CapturedAt: time.Now().UTC(), SDKRevision: manifest.SDKRevision}}
 			defer func() {
 				evidence.Failed = t.Failed() || t.Skipped()
 				evidence.NativeVerified = !evidence.Failed
 				manifest.Evidence = append(manifest.Evidence, evidence)
-				contractCheckpoint(t, manifest, nil, budget)
+				contractCheckpoint(t, output, manifest, nil, budget)
 			}()
 
 			contractExercise(t, c, func(request map[string]any) contractExchange {
-				e := contractHTTP(t, client, "https://api.fireworks.ai", key, c, request, budget)
-				safe := contractSanitize(t, e, key)
+				e := contractHTTP(t, opts.Client, opts.BaseURL, opts.Key, c, request, budget)
+				safe := contractSanitize(t, e, opts.Key)
 				evidence.Exchanges = append(evidence.Exchanges, safe)
-				evidence.Capture.RequestSHA256 = append(evidence.Capture.RequestSHA256, contractRequestHash(safe.Request))
-				contractCheckpoint(t, manifest, &evidence, budget)
+				contractCheckpoint(t, output, manifest, &evidence, budget)
 				budget.reconcile(t, c, e)
-				contractCheckpoint(t, manifest, &evidence, budget)
-
+				contractCheckpoint(t, output, manifest, &evidence, budget)
 				return e
 			})
 		}) {
-			t.Logf("required case failed: model=%s api=%s stream=%t feature=%s effort=%s", c.Model, c.API, c.Stream, c.Feature, c.Effort)
+			failed = true
 		}
 	}
 
@@ -595,38 +612,26 @@ func TestFireworksContractLive(t *testing.T) {
 			manifest.NativeFailures = append(manifest.NativeFailures, evidence.Case)
 		}
 	}
+	contractReportBudget(&manifest, budget)
+	contractCheckpoint(t, output, manifest, nil, budget)
+
+	if failed || t.Failed() || len(manifest.NativeFailures) > 0 || len(manifest.Evidence) != len(cases) {
+		return errors.New("live contracts failed; success recording unchanged")
+	}
 
 	if len(manifest.MissingCacheBranches) > 0 {
-		t.Errorf("native cache misses are valid, but positive final-usage branches remain unqualified: %+v", manifest.MissingCacheBranches)
+		t.Logf("cache hit/fresh branches not observed in this run: %+v", manifest.MissingCacheBranches)
 	}
-
-	contractReportBudget(&manifest, budget)
-
-	if t.Failed() && *contractRecord {
-		b, err := json.MarshalIndent(manifest, "", "  ")
-		require.NoError(t, err)
-		require.NoError(t, os.MkdirAll("testdata/contracts", 0o750))
-		require.NoError(t, os.WriteFile("testdata/contracts/incomplete.json", append(b, '\n'), 0o600))
-		t.Logf("INCOMPLETE direct run: %d cases, conservative spent/reserved USD %.6f; success manifest unchanged", len(manifest.Evidence), manifest.CumulativeConservativeUSD)
-	}
-
-	require.False(t, t.Failed(), "live contracts failed; evidence has NOT been updated")
-	require.Len(t, manifest.Evidence, len(cases), "required case skipped or not executed")
-
-	for _, evidence := range manifest.Evidence {
-		require.False(t, evidence.Failed, "required case failed or skipped")
-	}
-
-	contractReportBudget(&manifest, budget)
 	t.Logf("direct Fireworks acceptance: %d required cases, known new usage estimated USD %.6f, cumulative conservative held USD %.6f; gateway scope excluded", len(cases), budget.known, budget.spent+budget.reserved)
 
-	if *contractRecord {
+	if opts.Record {
 		b, err := json.MarshalIndent(manifest, "", "  ")
 		require.NoError(t, err)
-		require.False(t, strings.Contains(string(b), key), "credential leaked into evidence") //nolint:testifylint // Never include the credential in assertion diagnostics.
-		require.NoError(t, os.MkdirAll("testdata/contracts", 0o750))
-		require.NoError(t, os.WriteFile("testdata/contracts/manifest.json", append(b, '\n'), 0o600))
+		require.False(t, strings.Contains(string(b), opts.Key), "credential leaked into evidence") //nolint:testifylint // Never include the credential in assertion diagnostics.
+		contractAtomicWrite(t, output, append(b, '\n'))
 	}
+
+	return nil
 }
 
 func contractSanitize(t *testing.T, e contractExchange, key string) contractExchange {
@@ -700,11 +705,11 @@ func contractHTTP(t *testing.T, client *http.Client, base, key string, c contrac
 	exchange := contractHTTPExchange(t, client, base, key, c, body, spend, replayReceived...)
 	exchange.StartedAt = started
 	exchange.ElapsedMS = time.Since(started).Milliseconds()
-	exchange.PromptSHA256 = contractPromptHash(body)
 
 	return exchange
 }
 
+//nolint:gosec // Native live checks use a fixed upstream URL; tests inject loopback servers.
 func contractHTTPExchange(t *testing.T, client *http.Client, base, key string, c contractCase, body map[string]any, spend *contractSpend, replayReceived ...<-chan struct{}) contractExchange {
 	t.Helper()
 

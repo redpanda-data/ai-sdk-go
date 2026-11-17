@@ -15,7 +15,6 @@
 package fireworks_test
 
 import (
-	"encoding/json"
 	"net/http"
 	"slices"
 	"strconv"
@@ -74,18 +73,4 @@ func contractResponseMetadata(headers http.Header, key string) (map[string]strin
 	slices.Sort(names)
 
 	return kept, names
-}
-
-func contractPromptHash(body map[string]any) string {
-	turns := body["messages"]
-	if turns == nil {
-		turns = body["input"]
-	}
-
-	b, err := json.Marshal(map[string]any{"turns": turns, "system": body["system"], "tools": body["tools"]})
-	if err != nil {
-		return "invalid-prompt"
-	}
-
-	return contractHash(b)
 }

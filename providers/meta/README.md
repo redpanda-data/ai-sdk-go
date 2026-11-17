@@ -26,7 +26,9 @@ provider. The default endpoint is https://api.meta.ai/v1.
 
 ## Known limits
 
-- Meta publishes a
+- An explicitly supplied output budget must fit the model's catalog
+  `MaxOutputTokens`. Muse Ember's docs state a 524,288-token output maximum.
+  For Muse Spark and Muse Wonder, Meta publishes a
   1,048,576-token shared context window, but its docs do not state a separate
   maximum output-token value. The SDK uses a conservative **32,768-token ceiling** for explicitly supplied
   budgets rather than treating the entire shared context as output capacity.

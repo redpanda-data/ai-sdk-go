@@ -1,6 +1,6 @@
 [
   {
-    "name": "qualified inventory addition",
+    "name": "documented inventory addition",
     "discovered_id": "accounts/fireworks/models/glm-5p3-flash",
     "before": "const includeFlash = false",
     "after": "const includeFlash = true",
@@ -39,14 +39,14 @@
     }
   },
   {
-    "name": "qualified alias update",
+    "name": "documented capability addition",
     "discovered_id": "accounts/fireworks/models/glm-5p3",
-    "before": "const modelAlias = \"\"",
-    "after": "const modelAlias = \"accounts/fireworks/routers/glm-latest\"",
-    "expected_snapshot_field": "aliases",
-    "expected_snapshot_value": "accounts/fireworks/routers/glm-latest",
+    "before": "const structuredOutput = false",
+    "after": "const structuredOutput = true",
+    "expected_snapshot_field": "capabilities",
+    "expected_snapshot_value": "\"structured_output\":true",
     "report": {
-      "changes": [{"offering": "fireworks:accounts/fireworks/models/glm-5p3", "field": "capability", "old": "", "new": "accounts/fireworks/routers/glm-latest", "source_url": "https://docs.fireworks.ai/nexus/open-models", "rule": "capability-follow"}],
+      "changes": [{"offering": "fireworks:accounts/fireworks/models/glm-5p3", "field": "capability", "old": "structured output false", "new": "structured output true", "source_url": "https://fireworks.ai/models/fireworks/glm-5p3", "rule": "capability-follow"}],
       "needs_human": [],
       "skipped": []
     }

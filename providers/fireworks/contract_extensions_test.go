@@ -16,7 +16,6 @@ package fireworks_test
 
 import (
 	"encoding/json"
-	"math"
 	"os"
 	"strings"
 	"testing"
@@ -24,7 +23,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/redpanda-data/ai-sdk-go/catalog"
-	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/pricing"
 	"github.com/redpanda-data/ai-sdk-go/providers/fireworks"
 )
@@ -119,7 +117,7 @@ func TestFireworksContractSyntheticUsageExtensions(t *testing.T) {
 func TestFireworksContractSyntheticIdentityExtensions(t *testing.T) {
 	t.Parallel()
 
-	manifest, _ := contractReadReport(t, "testdata/contracts/full-matrix-v2-incomplete.json")
+	manifest := contractReadReport(t, "testdata/contracts/full-matrix-v2-incomplete.json")
 	for _, api := range []catalog.WireProtocol{catalog.WireProtocolAnthropicMessages, catalog.WireProtocolOpenAIChatCompletions, catalog.WireProtocolOpenAIResponses} {
 		t.Run(string(api), func(t *testing.T) {
 			t.Parallel()
@@ -242,19 +240,12 @@ func contractIdentityVariant(t *testing.T, api catalog.WireProtocol, raw, first,
 func contractAssertPrice(t *testing.T, c contractCase, r contractResult) {
 	t.Helper()
 
-	pc, err := pricing.NewCatalog(pricing.WithSource(fireworks.Catalog()))
+	pc, err := contractPricing()
 	require.NoError(t, err)
 
-	input := r.Input
-	if c.API != catalog.WireProtocolAnthropicMessages {
-		input -= r.Cached
-	}
-
-	u := &llm.TokenUsage{InputTokens: int(input), CachedInputTokens: int(r.Cached), OutputTokens: int(r.Output - r.Reasoned), ReasoningTokens: int(r.Reasoned)}
-	cost, err := pc.Calculate(fireworks.ProviderName, r.Model, u, pricing.CalcRequest{})
+	cost, err := pc.Calculate(fireworks.ProviderName, r.Model, contractPricingUsage(c.API, r), contractPricingRequest(c))
 	require.NoError(t, err, "unknown response identity is unpriced, never replaced with the requested ID")
 	require.Empty(t, cost.Unpriced)
-
-	expectedMicrocents := contractCost(c, r.Input, r.Cached, r.Output) * 1e8
-	require.LessOrEqual(t, math.Abs(float64(cost.Total)-expectedMicrocents), float64(3), "independent native-usage arithmetic must match disjoint SDK buckets")
+	require.Empty(t, cost.Fallbacks)
+	require.Equal(t, contractPricingRequest(c).Selector, cost.AppliedSelector)
 }

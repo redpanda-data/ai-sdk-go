@@ -60,8 +60,9 @@ func (p *Provider) NewModel(modelName string, opts ...openai.Option) (llm.Model,
 
 	options := append(slices.Clone(opts), func(cfg *openai.Config) error {
 		// https://dev.meta.ai/docs/protocols/responses — minimum output budget.
-		if cfg.MaxTokens != nil && (*cfg.MaxTokens < 16 || *cfg.MaxTokens > maxOutputTokens) {
-			return fmt.Errorf("meta: max_tokens must be between 16 and %d (SDK limit)", maxOutputTokens)
+		// The maximum is the model's own MaxOutputTokens.
+		if limit := offering.Constraints.MaxOutputTokens; cfg.MaxTokens != nil && (*cfg.MaxTokens < 16 || *cfg.MaxTokens > limit) {
+			return fmt.Errorf("meta: max_tokens for %s must be between 16 and %d", modelName, limit)
 		}
 		// These vendor parameters are not wired by the shared Responses mapper.
 		// Reject rather than silently ignoring explicitly requested controls.

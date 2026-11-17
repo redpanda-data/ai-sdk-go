@@ -12,13 +12,13 @@ import (
 const includeFlash = false
 const inputRate = 1.40
 const retires = ""
-const modelAlias = ""
+const structuredOutput = false
 
 func main() {
 	entry := func(id string, model catalog.ModelID) catalog.Entry {
 		return catalog.Entry{
 			ID: id, Model: model,
-			Capabilities: llm.ModelCapabilities{Streaming: true},
+			Capabilities: llm.ModelCapabilities{Streaming: true, StructuredOutput: structuredOutput},
 			Constraints: llm.ModelConstraints{MaxInputTokens: 1000, MaxOutputTokens: 100},
 			WireAPIs: []catalog.WireAPI{{Protocol: catalog.WireProtocolOpenAIChatCompletions, Transport: catalog.WireTransportDirect}},
 			Pricing: pricing.FlatInfo(inputRate, 4.40, .26),
@@ -28,9 +28,6 @@ func main() {
 	glm := entry("accounts/fireworks/models/glm-5p3", "zai/glm-5.3")
 	if retires != "" {
 		glm.Life.Retires = catalog.MustDate(retires)
-	}
-	if modelAlias != "" {
-		glm.Aliases = []string{modelAlias}
 	}
 	entries := []catalog.Entry{glm}
 	if includeFlash {
