@@ -60,14 +60,19 @@ func TestNotifyTellsTheChannel(t *testing.T) {
 	questions, quiet := strings.TrimSpace(summaryLine(nil, 2)), strings.TrimSpace(summaryLine(nil, 0))
 
 	// needs builds the notify job's needs: every job succeeded unless results
-	// names another result for it, and the pr job has these outputs.
-	needs := func(pr, results map[string]string) string {
+	// names another result for it, the pr job has these outputs, and each
+	// vendor in checked handed on a head before its job ended.
+	needs := func(pr, results map[string]string, checked ...string) string {
 		jobs := map[string]any{}
 
 		for _, name := range []string{"plan", "anthropic", "openai", "carry", "pr"} {
 			job := map[string]any{"result": cmp.Or(results[name], "success"), "outputs": map[string]string{}}
 			if name == "plan" && job["result"] == "success" {
 				job["outputs"] = map[string]string{"pr": "336"} // the open bot PR the plan read
+			}
+
+			if slices.Contains(checked, name) {
+				job["outputs"] = map[string]string{"head": "abc1234"}
 			}
 
 			if name == "pr" && pr != nil {
@@ -128,7 +133,7 @@ func TestNotifyTellsTheChannel(t *testing.T) {
 		},
 		{
 			name:  "changes already on the PR",
-			needs: needs(map[string]string{"pushed": "false", "pr": "336"}, nil),
+			needs: needs(map[string]string{"changed": "true", "pushed": "false", "pr": "336"}, nil),
 			body:  changes,
 			post:  true,
 			has:   []string{run, "already on " + pr336, "11 open questions"},
@@ -141,18 +146,57 @@ func TestNotifyTellsTheChannel(t *testing.T) {
 			post:  true,
 			has: []string{
 				":red_circle: The catalog reconcile " + run + " failed for: anthropic. Their catalog entries may be out of date.\n" +
-					"Open the run and click \"Re-run failed jobs\" to try again.\n",
+					"To try again, <https://github.com/o/r/actions/workflows/reconcile-models.yml|start a new run> for each failed vendor, " +
+					"with \"Stop before pushing\" unticked. Re-running this run's failed jobs can't update the PR again.\n",
 				"needs a reviewer: " + pr336, ":eyes:",
 			},
-			hasnt: []string{"openai", "wasn't updated"},
+			hasnt: []string{"openai", "wasn't updated", "Re-run failed jobs"},
 		},
 		{
 			name:  "a vendor failed and the PR didn't update",
 			needs: needs(nil, map[string]string{"anthropic": "failure", "pr": "failure"}),
 			body:  changes,
 			post:  true,
-			has:   []string{"failed for: anthropic. Their", pr336 + " wasn't updated. Open the run and click \"Re-run failed jobs\" to try again."},
-			hasnt: []string{"needs a reviewer"},
+			has: []string{
+				"failed for: anthropic. Their catalog entries may be out of date. Also failed: pr.\n",
+				pr336 + " wasn't updated. Open the run and click \"Re-run failed jobs\" to try again.",
+			},
+			hasnt: []string{"needs a reviewer", "pushed nothing", "start a new run"},
+		},
+		{
+			name:  "a vendor and the PR update failed after the push",
+			needs: needs(pushed, map[string]string{"anthropic": "failure", "carry": "failure", "pr": "failure"}),
+			body:  changes,
+			post:  true,
+			has:   []string{"failed for: anthropic. Their catalog entries may be out of date. Also failed: carry, pr.\n", "start a new run", "needs a reviewer: " + pr336},
+		},
+		{
+			name:  "a vendor failed after its check",
+			needs: needs(pushed, map[string]string{"anthropic": "failure"}, "anthropic"),
+			body:  changes,
+			post:  true,
+			has:   []string{run + " failed for: anthropic, after their changes were checked.\n", "needs a reviewer: " + pr336},
+			hasnt: []string{"out of date"},
+		},
+		{
+			name:  "one vendor failed before its check and one after",
+			needs: needs(nil, map[string]string{"anthropic": "failure", "openai": "cancelled"}, "openai"),
+			body:  quiet,
+			post:  true,
+			has:   []string{"failed for: anthropic. Their catalog entries may be out of date. Failed after their changes were checked: openai.\n"},
+		},
+		{
+			name:  "the push failed with changes waiting",
+			needs: needs(map[string]string{"changed": "true", "pr": "336"}, map[string]string{"pr": "failure"}),
+			body:  changes,
+			post:  true,
+			has:   []string{run + " failed.\n" + pr336 + " wasn't updated. Open the run"},
+			hasnt: []string{"pushed nothing", "11 open questions"},
+		},
+		{
+			name:  "the PR was closed during the run",
+			needs: needs(map[string]string{"changed": "true", "pr": "336"}, nil),
+			body:  changes,
 		},
 		{
 			name:  "a vendor's job was cancelled",

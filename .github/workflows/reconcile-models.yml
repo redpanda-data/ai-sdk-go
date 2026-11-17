@@ -385,9 +385,10 @@ jobs:
       contents: read
       pull-requests: read
       id-token: write # only used outside dry runs, to read the bot token
-    # What the notify job tells the team's channel: whether this job pushed,
-    # the PR, and why a stopped run didn't push.
+    # What the notify job tells the team's channel: whether this job had
+    # changes and pushed them, the PR, and why a stopped run didn't push.
     outputs:
+      changed: ${{ steps.combine.outputs.changed }}
       pushed: ${{ steps.push.outputs.pushed }}
       pr: ${{ steps.push.outputs.pr || env.PR }}
       stop: ${{ env.STOP }}

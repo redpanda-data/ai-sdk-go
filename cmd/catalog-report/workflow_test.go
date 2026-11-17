@@ -1859,7 +1859,8 @@ func TestPushStepChecksThePRFirst(t *testing.T) {
 	run := job.Steps[at].Run
 	assert.Equal(t, "push", job.Steps[at].ID)
 	assert.Equal(t, map[string]string{
-		"pushed": "${{ steps.push.outputs.pushed }}", "pr": "${{ steps.push.outputs.pr || env.PR }}",
+		"changed": "${{ steps.combine.outputs.changed }}",
+		"pushed":  "${{ steps.push.outputs.pushed }}", "pr": "${{ steps.push.outputs.pr || env.PR }}",
 		"stop": "${{ env.STOP }}", "reason": "${{ env.REASON }}",
 	}, job.Outputs)
 

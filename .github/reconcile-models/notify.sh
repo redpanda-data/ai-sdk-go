@@ -44,18 +44,40 @@ pr="$(need pr .outputs.pr)" pushed="$(need pr .outputs.pushed)"
 # plan, carry and pr is one vendor's.
 failed="$(jq -c '[to_entries[] | select(.value.result == "failure" or .value.result == "cancelled") | .key]' <<<"$NEEDS")"
 if [[ "$failed" != "[]" ]]; then
-  vendors="$(jq -r '[.[] | select(IN("plan", "carry", "pr") | not)] | join(", ")' <<<"$failed")"
+  # The failed jobs that match a jq test of the job's name, with $n the needs.
+  names() { jq -r --argjson failed "$failed" ". as \$n | [\$failed[] | select($1)] | join(\", \")" <<<"$NEEDS"; }
+  # A vendor's job hands on a head once its check passed. One that failed
+  # later still has its changes in this run; one that failed sooner doesn't.
+  vendor='(IN("plan", "carry", "pr") | not)' checked='(($n[.].outputs.head // "") != "")'
+  unchecked="$(names "$vendor and ($checked | not)")" late="$(names "$vendor and $checked")"
   if jq -e 'any(. == "plan")' <<<"$failed" >/dev/null; then
     lines+=(":red_circle: The catalog reconcile ${run} failed before checking any vendor.")
-  elif [[ -n "$vendors" ]]; then
-    lines+=(":red_circle: The catalog reconcile ${run} failed for: ${vendors}. Their catalog entries may be out of date.")
   else
-    lines+=(":red_circle: The catalog reconcile ${run} failed.")
+    line=":red_circle: The catalog reconcile ${run} failed"
+    if [[ -n "$unchecked" ]]; then
+      line+=" for: ${unchecked}. Their catalog entries may be out of date."
+      if [[ -n "$late" ]]; then line+=" Failed after their changes were checked: ${late}."; fi
+    elif [[ -n "$late" ]]; then
+      line+=" for: ${late}, after their changes were checked."
+    else
+      line+="."
+    fi
+    # A vendor's failure mustn't hide one in the jobs that close the run.
+    closing="$(names 'IN("carry", "pr")')"
+    if [[ -n "$unchecked$late" && -n "$closing" ]]; then line+=" Also failed: ${closing}."; fi
+    lines+=("$line")
   fi
-  # The open PR, as the pr job or else the plan found it, unless this run pushed to it.
-  open="${pr:-$(need plan .outputs.pr)}" stale=""
-  if [[ -n "$open" && "$pushed" != "true" ]]; then stale="$(pr_link "$open") wasn't updated. "; fi
-  lines+=("${stale}Open the run and click \"Re-run failed jobs\" to try again.")
+  if [[ "$pushed" == "true" && -n "$unchecked$late" ]]; then
+    # A re-run repeats the vendor but not the plan, which read the PR before
+    # this run's push, so the pr job would refuse to push again. A new run
+    # reads the PR as it is now.
+    lines+=("To try again, <${repo_url}/actions/workflows/reconcile-models.yml|start a new run> for each failed vendor, with \"Stop before pushing\" unticked. Re-running this run's failed jobs can't update the PR again.")
+  else
+    # The open PR, as the pr job or else the plan found it, unless this run pushed to it.
+    open="${pr:-$(need plan .outputs.pr)}" stale=""
+    if [[ -n "$open" && "$pushed" != "true" ]]; then stale="$(pr_link "$open") wasn't updated. "; fi
+    lines+=("${stale}Open the run and click \"Re-run failed jobs\" to try again.")
+  fi
 fi
 # A commit on the PR that the run can't carry stops the push, as the pr job
 # decided it.
@@ -82,12 +104,13 @@ elif [[ "$pushed" == "true" ]]; then
     lines+=("")
   fi
   lines+=("To take it, react with :eyes: and add yourself as a reviewer.")
-elif [[ "$summary" == *"open question"* ]]; then
-  # pushed is false when the PR already holds the same changes, and empty
-  # when the run had nothing to push.
+elif [[ "$(need pr .result)" == "success" && "$summary" == *"open question"* ]]; then
+  # pushed is false when the PR already holds the same changes. It is empty
+  # when the run had nothing to push, and also when the pr job left a closed
+  # PR alone with changes it had: that run didn't push nothing, so it's quiet.
   if [[ "$pushed" == "false" && -n "$pr" ]]; then
     lines+=("The catalog reconcile ${run} found its changes already on $(pr_link "$pr"). $(escape "$summary")")
-  else
+  elif [[ "$(need pr .outputs.changed)" != "true" ]]; then
     lines+=("The catalog reconcile ${run} pushed nothing. $(escape "$summary") The questions are in the run's summary.")
   fi
 fi
