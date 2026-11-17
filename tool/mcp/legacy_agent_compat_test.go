@@ -459,7 +459,7 @@ func TestLegacyClientAgentResultsStayContentArrays(t *testing.T) {
 			assert.JSONEq(t, `{"path":"/etc"}`, string(byName["denied"]))
 			assert.JSONEq(t, `{"mode":"fast","limit":"x"}`, string(byName["loose"]))
 
-			// Each result is the legacy content array, not the strict registry's
+			// Each result is the legacy content array, not the contextual registry's
 			// complete CallToolResult with structuredContent, _meta and isError.
 			rich := registryAgentResults(state, "old__rich")
 			require.Len(t, rich, 1)

@@ -365,8 +365,7 @@ func TestRegistryParameterBindings(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			bindings := registryParameterBindings(registryDecodedSchema(t, test.schema))
-			slices.SortFunc(bindings, func(a, b registryParameterBinding) int { return strings.Compare(a.header, b.header) })
+			bindings := registryFlattenParameterTrie(registryParameterTrie(registryDecodedSchema(t, test.schema)))
 
 			if test.want == nil {
 				assert.Empty(t, bindings)
@@ -395,12 +394,72 @@ func TestRegistryParameterBindingsDeepSchema(t *testing.T) {
 		arguments = map[string]any{path[i]: arguments}
 	}
 
-	bindings := registryParameterBindings(schema)
-	require.Equal(t, []registryParameterBinding{{path: path, header: "Mcp-Param-Deep"}}, bindings)
+	trie := registryParameterTrie(schema)
+	require.Equal(t, []registryParameterBinding{{path: path, header: "Mcp-Param-Deep"}}, registryFlattenParameterTrie(trie))
+	assert.Equal(t, depth, registryRetainedParameterElements(trie))
 
 	object, ok := arguments.(map[string]any)
 	require.True(t, ok)
-	assert.Equal(t, http.Header{"Mcp-Param-Deep": {"deep"}}, registryParameterHeaders(bindings, object))
+	assert.Equal(t, http.Header{"Mcp-Param-Deep": {"deep"}}, registryParameterHeaders(trie, object))
+}
+
+// Under go-sdk's 1000-level JSON cap a server can nest hundreds of properties
+// levels and end them in many annotated leaves. Capture must retain one element
+// per property on an annotated path, not one copy of the path per annotation.
+func TestRegistryParameterTrieIsLinearInSchema(t *testing.T) {
+	t.Parallel()
+
+	const depth, leaves = 400, 2000
+
+	schema, arguments := registryParameterAmplificationSchema(depth, leaves)
+	trie := registryParameterTrie(schema)
+	require.Equal(t, depth+leaves, registryRetainedParameterElements(trie), "retained elements must equal the properties on annotated paths")
+
+	headers := registryParameterHeaders(trie, arguments)
+	assert.Len(t, headers, leaves)
+	assert.Equal(t, "v0", headers.Get("Mcp-Param-H0"))
+	assert.Equal(t, "v1999", headers.Get("Mcp-Param-H1999"))
+
+	bottom := arguments
+	for i := range depth {
+		bottom, _ = bottom["p"+strconv.Itoa(i)].(map[string]any)
+	}
+
+	require.NotNil(t, bottom)
+	clear(bottom)
+	bottom["l7"] = "v7"
+	bottom["l8"] = map[string]any{"type": "string"}
+
+	assert.Equal(t, http.Header{"Mcp-Param-H7": {"v7"}}, registryParameterHeaders(trie, arguments), "only present, encodable leaves send headers")
+
+	arguments["p0"] = "not an object"
+	assert.Empty(t, registryParameterHeaders(trie, arguments))
+}
+
+// registryParameterAmplificationSchema nests depth properties objects, each with
+// unannotated siblings, above leaves uniquely annotated properties, and returns
+// arguments that set every leaf.
+func registryParameterAmplificationSchema(depth, leaves int) (any, map[string]any) {
+	properties := map[string]any{"plain": map[string]any{"type": "string"}}
+	arguments := map[string]any{"plain": "x"}
+
+	for i := range leaves {
+		name := "l" + strconv.Itoa(i)
+		properties[name] = map[string]any{"type": "string", "x-mcp-header": "H" + strconv.Itoa(i)}
+		arguments[name] = "v" + strconv.Itoa(i)
+	}
+
+	for i := depth - 1; i >= 0; i-- {
+		name := "p" + strconv.Itoa(i)
+		properties = map[string]any{
+			name:    map[string]any{"type": "object", "properties": properties},
+			"noise": map[string]any{"type": "object", "properties": map[string]any{"a": map[string]any{"type": "string"}}},
+			"flag":  true,
+		}
+		arguments = map[string]any{name: arguments, "noise": map[string]any{"a": "x"}}
+	}
+
+	return map[string]any{"type": "object", "properties": properties}, arguments
 }
 
 func TestRegistryParameterHeaderEncoding(t *testing.T) {
@@ -452,10 +511,10 @@ func TestRegistryParameterHeaderEncoding(t *testing.T) {
 func TestRegistryParameterHeadersSkipUnencodableValues(t *testing.T) {
 	t.Parallel()
 
-	bindings := registryParameterBindings(registryDecodedSchema(t,
+	trie := registryParameterTrie(registryDecodedSchema(t,
 		`{"properties":{"route":{"type":"string","x-mcp-header":"Tenant"},"optional":{"type":"boolean","x-mcp-header":"Optional"},`+
 			`"parent":{"properties":{"count":{"type":"integer","x-mcp-header":"Count"}}}}}`))
-	require.Len(t, bindings, 3)
+	require.Len(t, registryFlattenParameterTrie(trie), 3)
 
 	for _, test := range []struct {
 		name      string
@@ -477,10 +536,57 @@ func TestRegistryParameterHeadersSkipUnencodableValues(t *testing.T) {
 			require.NoError(t, json.Unmarshal([]byte(test.arguments), &arguments))
 			require.NoError(t, json.Unmarshal([]byte(test.arguments), &original))
 
-			assert.Equal(t, test.want, registryParameterHeaders(bindings, arguments))
+			assert.Equal(t, test.want, registryParameterHeaders(trie, arguments))
 			assert.Equal(t, original, arguments, "header encoding must not change the arguments")
 		})
 	}
+}
+
+// registryParameterBinding is one flattened trie entry, for assertions.
+type registryParameterBinding struct {
+	path   []string
+	header string
+}
+
+// registryFlattenParameterTrie lists the trie's bindings sorted by header.
+func registryFlattenParameterTrie(trie *registryParameterNode) []registryParameterBinding {
+	var (
+		bindings []registryParameterBinding
+		walk     func(*registryParameterNode, []string)
+	)
+
+	walk = func(node *registryParameterNode, path []string) {
+		for name, child := range node.children {
+			path := append(path, name)
+			if child.header != "" {
+				bindings = append(bindings, registryParameterBinding{path: slices.Clone(path), header: child.header})
+			}
+
+			walk(child, path)
+		}
+	}
+
+	if trie != nil {
+		walk(trie, nil)
+	}
+
+	slices.SortFunc(bindings, func(a, b registryParameterBinding) int { return strings.Compare(a.header, b.header) })
+
+	return bindings
+}
+
+// registryRetainedParameterElements counts the trie's property nodes.
+func registryRetainedParameterElements(trie *registryParameterNode) int {
+	if trie == nil {
+		return 0
+	}
+
+	retained := len(trie.children)
+	for _, child := range trie.children {
+		retained += registryRetainedParameterElements(child)
+	}
+
+	return retained
 }
 
 func registryDecodedSchema(t *testing.T, schema string) any {

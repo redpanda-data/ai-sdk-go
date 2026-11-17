@@ -18,56 +18,88 @@ import (
 	"encoding/base64"
 	"math"
 	"net/http"
-	"slices"
 	"strconv"
 	"strings"
 )
 
-type registryParameterBinding struct {
-	path   []string
-	header string
+// registryParameterNode is a property on the path to at least one parameter
+// header. Sharing path prefixes keeps a capture linear in the schema's size.
+type registryParameterNode struct {
+	header   string // with the Mcp-Param- prefix; empty if this property binds none
+	children map[string]*registryParameterNode
 }
 
-// registryParameterBindings captures the SEP-2243 bindings of an SDK-decoded input
+// registryParameterTrie captures the SEP-2243 bindings of an SDK-decoded input
 // schema: the SDK v1.8.0 helpers and tool-context key are private, and CallTool's
 // live discovery cache cannot govern a snapshot. Like the legacy client, it leaves
 // the rest of the schema to the model provider. A subtree of another shape binds
 // nothing, and neither does an annotation the SDK would exclude from tools/list
-// (non-primitive type, invalid or duplicate header name).
-func registryParameterBindings(schema any) []registryParameterBinding {
-	bindings := registryCollectParameterBindings(schema, nil, nil)
+// (non-primitive type, invalid or duplicate header name). It returns nil when
+// nothing binds.
+func registryParameterTrie(schema any) *registryParameterNode {
+	counts := make(map[string]int)
 
-	counts := make(map[string]int, len(bindings))
-	for _, binding := range bindings {
-		counts[strings.ToLower(binding.header)]++
-	}
-
-	bindings = slices.DeleteFunc(bindings, func(binding registryParameterBinding) bool {
-		return counts[strings.ToLower(binding.header)] > 1
-	})
-
-	for i := range bindings {
-		bindings[i].header = "Mcp-Param-" + bindings[i].header
-	}
-
-	return bindings
+	return registryPruneParameterNode(registryCollectParameterNode(schema, counts), counts)
 }
 
-func registryCollectParameterBindings(schema any, path []string, bindings []registryParameterBinding) []registryParameterBinding {
+func registryCollectParameterNode(schema any, counts map[string]int) *registryParameterNode {
 	object, _ := schema.(map[string]any)
 	properties, _ := object["properties"].(map[string]any)
 
+	var node *registryParameterNode
+
 	for name, property := range properties {
-		path := append(path, name)
+		child := registryCollectParameterNode(property, counts)
 
 		if header, ok := registryParameterHeader(property); ok {
-			bindings = append(bindings, registryParameterBinding{path: slices.Clone(path), header: header})
+			if child == nil {
+				child = new(registryParameterNode)
+			}
+
+			child.header = header
+			counts[strings.ToLower(header)]++
 		}
 
-		bindings = registryCollectParameterBindings(property, path, bindings)
+		if child == nil {
+			continue
+		}
+
+		if node == nil {
+			node = &registryParameterNode{children: make(map[string]*registryParameterNode)}
+		}
+
+		node.children[name] = child
 	}
 
-	return bindings
+	return node
+}
+
+// registryPruneParameterNode drops every header bound more than once, ignoring
+// case, and the subtrees left without a header.
+func registryPruneParameterNode(node *registryParameterNode, counts map[string]int) *registryParameterNode {
+	if node == nil {
+		return nil
+	}
+
+	for name, child := range node.children {
+		if registryPruneParameterNode(child, counts) == nil {
+			delete(node.children, name)
+		}
+	}
+
+	switch {
+	case node.header == "":
+	case counts[strings.ToLower(node.header)] > 1:
+		node.header = ""
+	default:
+		node.header = "Mcp-Param-" + node.header
+	}
+
+	if node.header == "" && len(node.children) == 0 {
+		return nil
+	}
+
+	return node
 }
 
 func registryParameterHeader(property any) (string, bool) {
@@ -90,22 +122,47 @@ type registryParameterHeadersKey struct{}
 
 // registryParameterHeaders mirrors the SDK: an absent or null argument, or one
 // without a SEP-2243 encoding, sends no header and stays in the arguments.
-func registryParameterHeaders(bindings []registryParameterBinding, arguments map[string]any) http.Header {
-	headers := make(http.Header, len(bindings))
+func registryParameterHeaders(trie *registryParameterNode, arguments map[string]any) http.Header {
+	headers := make(http.Header)
+	registryCollectParameterHeaders(trie, arguments, headers)
 
-	for _, binding := range bindings {
-		var value any = arguments
-		for _, name := range binding.path {
-			object, _ := value.(map[string]any)
-			value = object[name]
+	return headers
+}
+
+// registryCollectParameterHeaders descends only where the trie and an argument
+// object meet, iterating the smaller of the two at each level.
+func registryCollectParameterHeaders(node *registryParameterNode, arguments map[string]any, headers http.Header) {
+	if node == nil {
+		return
+	}
+
+	visit := func(child *registryParameterNode, value any) {
+		if child.header != "" {
+			if encoded, ok := registryEncodeParameterHeader(value); ok {
+				headers.Set(child.header, encoded)
+			}
 		}
 
-		if encoded, ok := registryEncodeParameterHeader(value); ok {
-			headers.Set(binding.header, encoded)
+		if object, ok := value.(map[string]any); ok {
+			registryCollectParameterHeaders(child, object, headers)
 		}
 	}
 
-	return headers
+	if len(arguments) < len(node.children) {
+		for name, value := range arguments {
+			if child, ok := node.children[name]; ok {
+				visit(child, value)
+			}
+		}
+
+		return
+	}
+
+	for name, child := range node.children {
+		if value, ok := arguments[name]; ok {
+			visit(child, value)
+		}
+	}
 }
 
 func registryEncodeParameterHeader(value any) (string, bool) {
