@@ -541,8 +541,10 @@ func entries() []catalog.Entry {
 			Life: catalog.Lifecycle{
 				Available: catalog.MustDate("2026-02-17"),
 			},
+			// Rates from https://platform.claude.com/docs/en/about-claude/pricing
+			// (read 2026-11-17): $3 input, $15 output.
 			Pricing: pricing.FlatInfoFromRates(
-				pricing.NewRates(3.00, 18.00, 0.30).WithCacheCreation(3.75, 6.00, 0),
+				pricing.NewRates(3.00, 15.00, 0.30).WithCacheCreation(3.75, 6.00, 0),
 			).WithOverride(usInferenceGeo, pricing.RateCard{
 				Base: pricing.NewRates(3.30, 16.50, 0.33).WithCacheCreation(4.125, 6.60, 0),
 			}),
