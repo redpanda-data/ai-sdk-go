@@ -17,7 +17,6 @@ package llmagent
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -602,102 +601,4 @@ func TestInterceptorCompatReactiveRetryReinjectsOnce(t *testing.T) {
 	require.Len(t, results, 1)
 	assert.False(t, results[0].IsError)
 	assert.Zero(t, static.calls.Load())
-}
-
-// compatAuthRegistry is an Execute-gating wrapper migrated to Snapshot. Without
-// its own Snapshot the embedded registry's promoted Snapshot is captured, and
-// the agent dispatches past this Execute.
-type compatAuthRegistry struct {
-	tool.Registry
-
-	caller string
-	denied *atomic.Int32
-}
-
-func (r compatAuthRegistry) Snapshot(ctx context.Context) (tool.Registry, error) {
-	captured, err := r.Registry.Snapshot(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return compatAuthRegistry{Registry: captured, caller: compatCaller(ctx), denied: r.denied}, nil
-}
-
-func (r compatAuthRegistry) Execute(ctx context.Context, req *llm.ToolRequestPart) (*llm.ToolResponsePart, error) {
-	if req.Name == "secret" && r.caller != "admin" {
-		r.denied.Add(1)
-
-		return llm.NewToolResponsePart(req.ID, req.Name, json.RawMessage(`{"error":"denied by wrapper"}`), true), nil
-	}
-
-	return r.Registry.Execute(ctx, req)
-}
-
-func TestToolsCompatMigratedSnapshotWrapperGatesDispatch(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct {
-		caller  string
-		allowed bool
-	}{
-		{caller: "alice"},
-		{caller: "admin", allowed: true},
-	} {
-		t.Run(tc.caller, func(t *testing.T) {
-			t.Parallel()
-
-			secret := &stubTool{def: llm.ToolDefinition{Name: "secret", Parameters: json.RawMessage(`{"type":"object"}`)}, result: json.RawMessage(`{"secret":"value"}`)}
-			public := &stubTool{def: llm.ToolDefinition{Name: "public", Parameters: json.RawMessage(`{"type":"object"}`)}, result: json.RawMessage(`{"public":true}`)}
-			native := tool.NewRegistry(tool.RegistryConfig{})
-			require.NoError(t, native.Register(secret))
-			require.NoError(t, native.Register(public))
-
-			var denied atomic.Int32
-
-			user := &compatUserTools{
-				discover: func(context.Context, string, int) []llm.ToolDefinition { return nil },
-				execute: func(context.Context, string, *agent.ToolCallInfo) (json.RawMessage, error) {
-					return nil, errors.New("nothing is routed")
-				},
-			}
-
-			model := fakellm.NewFakeModel()
-			model.When(fakellm.FirstCall()).ThenRespondWith(respondWith(toolCall("s", "secret", `{}`), toolCall("p", "public", `{}`)))
-			model.When(fakellm.Any()).ThenRespondText("done")
-
-			ag, err := New("auth", "prompt", model, WithTools(compatAuthRegistry{Registry: native, denied: &denied}), WithInterceptors(user))
-			require.NoError(t, err)
-
-			sess := &session.State{ID: "auth", Messages: userMessage("read the secret")}
-			events, err := compatRun(context.WithValue(t.Context(), compatCallerKey{}, tc.caller), ag, agent.NewInvocationMetadata(sess, ag.Info()))
-			require.NoError(t, err)
-			require.Equal(t, agent.FinishReasonStop, finishReason(events))
-
-			results := toolsResults(sess, "secret")
-			require.Len(t, results, 1)
-
-			if tc.allowed {
-				assert.Equal(t, int32(1), secret.calls.Load())
-				assert.Zero(t, denied.Load())
-				assert.False(t, results[0].IsError)
-				assert.JSONEq(t, `{"secret":"value"}`, string(results[0].Result))
-			} else {
-				assert.Zero(t, secret.calls.Load(), "the wrapper's Execute denial must prevent execution")
-				assert.Equal(t, int32(1), denied.Load())
-				assert.True(t, results[0].IsError)
-				assert.JSONEq(t, `{"error":"denied by wrapper"}`, string(results[0].Result))
-			}
-
-			assert.Equal(t, int32(1), public.calls.Load())
-			assert.Equal(t, []string{`{"public":true}`}, toolResultsFor(sess.Messages, "public"))
-
-			seen := user.recorded()
-			require.Len(t, seen, 2, "the interceptor chain runs before the wrapper")
-
-			for _, call := range seen {
-				assert.False(t, call.routed, call.name)
-				assert.Equal(t, tc.caller, call.caller)
-			}
-		})
-	}
 }

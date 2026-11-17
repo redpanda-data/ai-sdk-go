@@ -290,9 +290,10 @@ func WithDescription(description string) Option {
 
 // WithTools adds registries resolved against the turn context before every model
 // step, in option order. Multiple WithTools options append; nil registries are
-// ignored. Each source is snapshotted once before planning, budgeting, or
-// execution; reactive context-overflow retries reuse that snapshot. Duplicate
-// tool names, conflicting group metadata, and errors resolving any source fail
+// ignored. Sources implementing tool.SnapshotRegistry are snapshotted once before
+// planning, budgeting, or execution; plain registries keep their original executor
+// behind captured definitions. Reactive context-overflow retries reuse the capture.
+// Duplicate tool names, conflicting group metadata, and errors resolving any source fail
 // the entire step before the model call; other sources are not used as a fallback.
 // Callers manage the tools' connections, lifetimes, and concurrent access.
 func WithTools(registries ...tool.Registry) Option {

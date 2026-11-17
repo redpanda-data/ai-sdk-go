@@ -499,7 +499,10 @@ func TestRegistryDiscoveryCancellation(t *testing.T) {
 			require.ErrorIs(t, err, context.Canceled)
 			assert.Nil(t, found)
 
-			captured, err := tc.registry.Snapshot(ctx)
+			snapshotter, ok := tc.registry.(tool.SnapshotRegistry)
+			require.True(t, ok)
+
+			captured, err := snapshotter.Snapshot(ctx)
 			require.ErrorIs(t, err, context.Canceled)
 			assert.Nil(t, captured)
 			captured, err = tool.Snapshot(ctx, tc.registry)

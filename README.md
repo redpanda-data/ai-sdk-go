@@ -168,10 +168,11 @@ See [`examples/`](examples/) for full working demos.
 ### Contextual registries
 
 `tool.Registry` resolves tools with `List(ctx)` and `Get(ctx, name)`; both return errors.
-Its `Snapshot(ctx)` method captures definitions, membership and execution policies for one
-model step. `WithTools` accepts a contextual registry directly: the agent snapshots it before
-schema planning, lazy discovery or context budgeting, then uses that snapshot for dispatch.
-A context-overflow retry reuses the snapshot; the next model step resolves afresh.
+`tool.SnapshotRegistry` is an optional capability that adds `Snapshot(ctx)` to capture definitions,
+membership and execution policies for one model step. Native registries and the contextual MCP
+registry implement it. `WithTools` captures sources before schema planning, lazy discovery or
+context budgeting. A context-overflow retry reuses that step's capture; the next model step
+resolves afresh.
 
 For caller-dependent HTTP MCP tools, use the on-demand registry:
 
@@ -220,13 +221,38 @@ assistant, err := llmagent.New("my-agent", "You are a helpful assistant.", model
 )
 ```
 
-Each source is snapshotted once before composition. Removed tools cannot be restored by session
+Each source is captured once before composition. Removed tools cannot be restored by session
 load metadata. Duplicate names, conflicting group metadata, or an error resolving any source stop
 the entire step before the model call; valid sources are not used as a partial fallback.
-All registry implementations provide `Snapshot(ctx) (tool.Registry, error)` and return an immutable
-view preserving execution policies. `tool.Snapshot(ctx, registries...)` captures and combines sources
-directly. Snapshots do not clone executable implementations or close their connections. Callers own
-those lifetimes and must make tools and credential callbacks concurrency-safe.
+`tool.Snapshot(ctx, registries...)` captures and combines sources directly. For a `SnapshotRegistry`,
+it uses the returned snapshot for dispatch. For a plain `Registry`, it copies the advertised
+definitions but dispatches through the original registry, preserving its middleware and live
+execution lookup. That legacy fallback does not promise frozen executable selection or policies.
+Snapshots do not clone executable implementations or close their connections. Callers own those
+lifetimes and must make tools and credential callbacks concurrency-safe.
+
+### Registry wrappers
+
+Embedding `tool.Registry` does not inherit snapshot capability. An existing wrapper that overrides
+`Execute` for authorization or logging therefore keeps its execution path; capturing tools does not
+silently strip the wrapper. A wrapper can explicitly implement `SnapshotRegistry` by capturing its
+inner registry and returning a new wrapper around the capture:
+
+```go
+func (r *authorizedRegistry) Snapshot(ctx context.Context) (tool.Registry, error) {
+    captured, err := tool.Snapshot(ctx, r.Registry)
+    if err != nil {
+        return nil, err
+    }
+    return &authorizedRegistry{Registry: captured, authorize: r.authorize}, nil
+}
+```
+
+Keep the wrapper's `Execute` checks active on each call; do not cache an authorization decision
+at discovery time. Every layer in a snapshot-capable decorator chain must preserve its own behavior
+when it returns the wrapped capture. Wrappers around caller-scoped contextual registries should
+explicitly forward this capability to preserve captured routes and partition checks; the plain-registry
+fallback is not a substitute for contextual snapshot guarantees.
 
 ### Lazy tool loading
 

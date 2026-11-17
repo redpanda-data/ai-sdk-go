@@ -49,10 +49,6 @@ type Registry interface {
 	// Get retrieves a registered tool by name.
 	Get(ctx context.Context, name string) (Tool, error)
 
-	// Snapshot resolves this context's tools into an immutable registry. The
-	// captured definitions, membership, and execution policies must stay fixed.
-	Snapshot(ctx context.Context) (Registry, error)
-
 	// Execute runs a tool synchronously and returns the complete result.
 	// Returns (nil, error) for validation errors; otherwise returns a ToolResponse with
 	// execution errors encoded in the Error field.
@@ -63,6 +59,22 @@ type Registry interface {
 	// timeouts, cancellation) are encoded in ToolResponse.Error, never as a top-level error.
 	// This ensures callers get a uniform response shape regardless of failure mode.
 	ExecuteAll(ctx context.Context, reqs []*llm.ToolRequestPart, opts ...BatchOption) []*llm.ToolResponsePart
+}
+
+// SnapshotRegistry is a Registry with the optional capability to capture the
+// calling context's tools. Snapshot uses it when an input's dynamic type has it.
+//
+// Snapshot resolves ctx into an immutable registry. The captured definitions,
+// membership, and execution policies must stay fixed, and the returned registry
+// executes every tool it captured. A type that embeds a SnapshotRegistry, or a
+// concrete registry that has Snapshot, inherits the method: if it overrides
+// Execute, List, or Get, it must override Snapshot as well and apply its policy
+// to the captured registry, or the capture bypasses that policy. Embedding the
+// base Registry interface does not inherit Snapshot.
+type SnapshotRegistry interface {
+	Registry
+
+	Snapshot(ctx context.Context) (Registry, error)
 }
 
 // RegistryConfig configures the overall registry behavior.
@@ -99,7 +111,7 @@ type registeredTool struct {
 }
 
 // NewRegistry creates a new tool registry with the given configuration.
-func NewRegistry(config RegistryConfig) Registry {
+func NewRegistry(config RegistryConfig) SnapshotRegistry {
 	return &registry{
 		tools:  make(map[string]*registeredTool),
 		config: config,

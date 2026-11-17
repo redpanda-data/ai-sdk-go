@@ -122,10 +122,14 @@ or deferral to every discovered tool.
 
 ### Migration and result payloads
 
-`tool.Registry.List(ctx)` now returns `(definitions, error)`, `Get(ctx, name)` receives context, and every
-implementation provides `Snapshot(ctx) (tool.Registry, error)`. Consumers must make this compile-time
-migration even when a runtime flag selects the legacy client. Use `WithTools(staticTools, registry)`
-to compose multiple contextual sources; no separate toolset callback is required.
+`tool.Registry.List(ctx)` now returns `(definitions, error)` and `Get(ctx, name)` receives context.
+Consumers must make this compile-time migration even when a runtime flag selects the legacy client.
+`Snapshot(ctx) (tool.Registry, error)` belongs to the optional `tool.SnapshotRegistry` capability,
+implemented by native registries and this contextual MCP registry. Plain registry wrappers retain their
+own executor; they do not inherit snapshotting merely by embedding `tool.Registry`. A wrapper around
+this contextual registry should explicitly implement `Snapshot` and rewrap the captured inner registry,
+preserving its middleware and the captured partition checks. Use `WithTools(staticTools, registry)`
+to compose multiple sources; no separate toolset callback is required.
 
 The new registry returns the complete MCP `CallToolResult` JSON object, including `content`,
 `structuredContent` and metadata; MCP `isError` is also reflected in `ToolResponsePart.IsError`.

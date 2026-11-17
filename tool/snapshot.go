@@ -32,8 +32,18 @@ import (
 // map[string]any, map[string]string, []any, []map[string]any, []string, []byte,
 // and json.RawMessage values. Other values are opaque and must be immutable.
 //
-// Each registry resolves against ctx once. Its returned snapshot must keep its
-// definitions, membership, and execution policies immutable.
+// An input that implements SnapshotRegistry resolves against ctx once through
+// its Snapshot, which must keep its definitions, membership, and execution
+// policies immutable; the registry it returns executes the captured tools.
+//
+// Any other input is captured through List alone. Its definitions and
+// membership are fixed in the returned registry, but its tools execute through
+// the input's own Execute with the call's context, so its policies still apply
+// and it decides at call time which tool, if any, runs; a tool from Get executes
+// the same way. Such an input gains no frozen execution, lookup, or context
+// binding: the returned registry, and any capture of it, keeps the input as a
+// live executor.
+//
 // Executable tools are shared, not cloned; their own state must be concurrency-safe.
 // Each input is captured independently, not atomically across registries.
 func Snapshot(ctx context.Context, registries ...Registry) (Registry, error) {
@@ -52,13 +62,20 @@ func Snapshot(ctx context.Context, registries ...Registry) (Registry, error) {
 			continue
 		}
 
-		captured, err := source.Snapshot(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("tool: snapshot input %d: %w", i, err)
-		}
+		captured, live := source, true
+		if snapshotter, ok := source.(SnapshotRegistry); ok {
+			var err error
 
-		if captured == nil {
-			return nil, fmt.Errorf("tool: snapshot input %d returned nil", i)
+			captured, err = snapshotter.Snapshot(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("tool: snapshot input %d: %w", i, err)
+			}
+
+			if captured == nil {
+				return nil, fmt.Errorf("tool: snapshot input %d returned nil", i)
+			}
+
+			live = false
 		}
 
 		if native, ok := captured.(*registry); ok {
@@ -79,12 +96,15 @@ func Snapshot(ctx context.Context, registries ...Registry) (Registry, error) {
 		}
 
 		for _, def := range defs {
-			t, err := captured.Get(ctx, def.Name)
-			if err != nil {
+			definition := cloneDefinition(def)
+
+			var t Tool
+			if live {
+				t = &liveTool{source: captured, definition: &definition}
+			} else if t, err = captured.Get(ctx, def.Name); err != nil {
 				return nil, fmt.Errorf("tool: snapshot %q: %w", def.Name, err)
 			}
 
-			definition := cloneDefinition(def)
 			entry := &registeredTool{
 				tool: t, config: Config{Group: def.Group, Deferred: def.Deferred},
 				definition: &definition, executor: captured,
@@ -181,6 +201,32 @@ type snapshotTool struct {
 
 func (t *snapshotTool) Definition() llm.ToolDefinition {
 	return cloneDefinition(t.definition)
+}
+
+// liveTool executes a definition listed by a source without Snapshot through
+// that source's Execute, so its policies apply and it resolves the tool per call.
+type liveTool struct {
+	source     Registry
+	definition *llm.ToolDefinition
+}
+
+func (t *liveTool) Definition() llm.ToolDefinition {
+	return cloneDefinition(*t.definition)
+}
+
+func (t *liveTool) Execute(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+	resp, err := t.source.Execute(ctx, &llm.ToolRequestPart{Name: t.definition.Name, Arguments: args})
+
+	switch {
+	case err != nil:
+		return nil, err
+	case resp == nil:
+		return nil, nil
+	case resp.IsError:
+		return nil, &ResultError{Result: resp.Result}
+	default:
+		return resp.Result, nil
+	}
 }
 
 func cloneDefinition(def llm.ToolDefinition) llm.ToolDefinition {

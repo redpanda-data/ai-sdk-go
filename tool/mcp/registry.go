@@ -118,7 +118,7 @@ type Registry struct {
 	closeErr    error
 }
 
-var _ tool.Registry = (*Registry)(nil)
+var _ tool.SnapshotRegistry = (*Registry)(nil)
 
 // NewRegistry constructs a lazy HTTP MCP registry. It performs no network I/O.
 // The pinned SDK negotiates modern server/discover and legacy initialize protocols.

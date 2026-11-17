@@ -288,7 +288,7 @@ func (f *registryBenchmarkFixture) report(b *testing.B, lists, discoveries int64
 func checkRegistryBenchmarkSnapshot(ctx context.Context, b *testing.B, registry tool.Registry, size int) {
 	b.Helper()
 
-	captured, err := registry.Snapshot(ctx)
+	captured, err := tool.Snapshot(ctx, registry)
 	require.NoError(b, err)
 	definitions, err := captured.List(ctx)
 	require.NoError(b, err)
@@ -318,7 +318,7 @@ func (registryBenchmarkTool) Execute(context.Context, json.RawMessage) (json.Raw
 	return json.RawMessage(`{}`), nil
 }
 
-func newRegistryBenchmarkNative(b *testing.B, size int) tool.Registry {
+func newRegistryBenchmarkNative(b *testing.B, size int) tool.SnapshotRegistry {
 	b.Helper()
 
 	registry := tool.NewRegistry(tool.RegistryConfig{})
