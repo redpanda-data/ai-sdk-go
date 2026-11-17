@@ -69,7 +69,7 @@ elif [[ "$pushed" == "true" ]]; then
     fi
     lines+=("")
   fi
-  lines+=("To take it, react with :eyes: and add yourself as a reviewer. If nobody takes it within two working days, the fallback reviewer takes it.")
+  lines+=("To take it, react with :eyes: and add yourself as a reviewer.")
 elif [[ "$summary" == *"open question"* ]]; then
   # pushed is false when the PR already holds the same changes, and empty
   # when the run had nothing to push.

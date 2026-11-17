@@ -98,10 +98,9 @@ func TestNotifyTellsTheChannel(t *testing.T) {
 			has: []string{
 				"Reconcile bot PR needs a reviewer: " + pr336 + "\n\n" +
 					"• 28 changes to the catalogue: 18 capabilities, 5 replacements\n• 11 open questions\n• 148 skipped offerings\n\n" +
-					"To take it, react with :eyes:",
-				"two working days, the fallback reviewer takes it.",
+					"To take it, react with :eyes: and add yourself as a reviewer.\n",
 			},
-			hasnt: []string{"**", "failed", "Test", "Not changed"},
+			hasnt: []string{"**", "failed", "Test", "Not changed", "fallback", "working days"},
 		},
 		{
 			name:  "a pushed PR with no body",
