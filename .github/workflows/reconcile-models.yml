@@ -533,7 +533,6 @@ jobs:
             --jq '[.[] | select(.author.login == "vbotbuildovich" and (.isCrossRepository | not))][0].number // empty')}"
           # pushed: the PR holds this run's commits, which need a reviewer.
           push=true pushed=true
-          reviewer=adamwownysz-redpanda
           if [[ -n "$PR" ]]; then
             read -r state head draft <<<"$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json state,headRefOid,isDraft --jq '"\(.state) \(.headRefOid) \(.isDraft)"')"
             if [[ "$state" != "OPEN" ]]; then
@@ -557,23 +556,20 @@ jobs:
           fi
           # Leased to the head the plan job read before any agent started; an
           # empty head means the branch must not exist yet.
-          again=()
           if [[ "$push" == "true" ]]; then
             git push --force-with-lease="refs/heads/${BRANCH}:${H0}" "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${BRANCH}"
-            # New commits need a review again, and GitHub drops the request
-            # once the reviewer has reviewed.
-            again=(--add-reviewer "$reviewer")
           fi
           # For the notify job, before the PR edit, so a failed edit can't hide the push.
           echo "pushed=${pushed}" >>"$GITHUB_OUTPUT"
           if [[ -n "$PR" ]]; then
             echo "pr=${PR}" >>"$GITHUB_OUTPUT"
             # The label again on every update: a person may have removed it.
-            gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --base "$BASE" --body-file out/body.md --add-label ai-merge-skip ${again[@]+"${again[@]}"}
+            gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --base "$BASE" --body-file out/body.md --add-label ai-merge-skip
           else
+            # No reviewer: the notify job offers the PR in the team's channel.
             url="$(gh pr create --repo "$GITHUB_REPOSITORY" --draft --base "$BASE" --head "$BRANCH" \
               --title "chore(catalog): reconcile models" --body-file out/body.md \
-              --label ai-merge-skip --reviewer "$reviewer")"
+              --label ai-merge-skip)"
             echo "pr=${url##*/}" >>"$GITHUB_OUTPUT"
           fi
 

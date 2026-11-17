@@ -99,7 +99,7 @@ func TestNotifyTellsTheChannel(t *testing.T) {
 				"Reconcile bot PR needs a reviewer: " + pr336 + "\n\n" +
 					"• 28 changes to the catalogue: 18 capabilities, 5 replacements\n• 11 open questions\n• 148 skipped offerings\n\n" +
 					"To take it, react with :eyes:",
-				"two working days, the fallback reviewer",
+				"two working days, the fallback reviewer takes it.",
 			},
 			hasnt: []string{"**", "failed", "Test", "Not changed"},
 		},
@@ -241,7 +241,7 @@ func TestNotifyTellsTheChannel(t *testing.T) {
 
 			// A test branch's post opens with the note; main's never has it.
 			if tt.ref != "" {
-				assert.True(t, strings.HasPrefix(string(text), ":test_tube: *Test only:* a run from the `"+tt.ref+"` branch; nothing on main changes.\n"), "%s", text)
+				assert.True(t, strings.HasPrefix(string(text), ":test_tube: *Test only:* this is a test run from `"+tt.ref+"`, ignore this message.\n"), "%s", text)
 			} else {
 				assert.NotContains(t, string(text), ":test_tube:")
 			}

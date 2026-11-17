@@ -1846,9 +1846,9 @@ func TestPushIsLeasedOnThePlansHead(t *testing.T) {
 // and git: a PR closed during the run stays closed with nothing pushed, a PR
 // someone pushed to during the run fails the step, and a PR a person marked
 // ready goes back to draft before the push, so new agent code runs only the
-// no-secrets CI until reviewed again. A push asks the fallback reviewer
-// again, since GitHub drops the request once they have reviewed. The step
-// also tells the notify job whether the PR holds this run's commits, and the
+// no-secrets CI until reviewed again. No call asks for a reviewer: the
+// team's channel offers the PR, and a requested name would put others off
+// taking it. The step also tells the notify job whether the PR holds this run's commits, and the
 // PR, including one it just opened, before it edits the PR, so a failed edit
 // can't hide the push.
 func TestPushStepChecksThePRFirst(t *testing.T) {
@@ -1883,11 +1883,11 @@ func TestPushStepChecksThePRFirst(t *testing.T) {
 	}{
 		{name: "closed during the run", pr: "7", view: "CLOSED h0 true", passes: true, noCalls: []string{"git push", "gh pr edit", "gh pr ready"}, outputs: map[string]string{}},
 		{name: "pushed to during the run", pr: "7", view: "OPEN theirs true", passes: false, noCalls: []string{"git push", "gh pr edit"}, outputs: map[string]string{}},
-		{name: "marked ready", pr: "7", view: "OPEN h0 false", passes: true, calls: []string{"gh pr ready 7 --repo o/r --undo", "git push", "gh pr edit 7", "--add-reviewer adamwownysz-redpanda"}, outputs: map[string]string{"pushed": "true", "pr": "7"}},
-		{name: "a draft", pr: "7", view: "OPEN h0 true", passes: true, calls: []string{"git push", "gh pr edit 7", "--add-reviewer adamwownysz-redpanda"}, noCalls: []string{"gh pr ready"}, outputs: map[string]string{"pushed": "true", "pr": "7"}},
-		{name: "a re-run after the push", pr: "7", view: "OPEN tip true", passes: true, calls: []string{"gh pr edit 7"}, noCalls: []string{"git push", "--add-reviewer"}, outputs: map[string]string{"pushed": "true", "pr": "7"}},
+		{name: "marked ready", pr: "7", view: "OPEN h0 false", passes: true, calls: []string{"gh pr ready 7 --repo o/r --undo", "git push", "gh pr edit 7"}, outputs: map[string]string{"pushed": "true", "pr": "7"}},
+		{name: "a draft", pr: "7", view: "OPEN h0 true", passes: true, calls: []string{"git push", "gh pr edit 7"}, noCalls: []string{"gh pr ready"}, outputs: map[string]string{"pushed": "true", "pr": "7"}},
+		{name: "a re-run after the push", pr: "7", view: "OPEN tip true", passes: true, calls: []string{"gh pr edit 7"}, noCalls: []string{"git push"}, outputs: map[string]string{"pushed": "true", "pr": "7"}},
 		{name: "the PR edit fails after the push", pr: "7", view: "OPEN h0 true", failEdit: true, passes: false, calls: []string{"git push", "gh pr edit 7"}, outputs: map[string]string{"pushed": "true", "pr": "7"}},
-		{name: "a new PR", passes: true, calls: []string{"git push", "gh pr create", "--reviewer adamwownysz-redpanda"}, outputs: map[string]string{"pushed": "true", "pr": "9"}},
+		{name: "a new PR", passes: true, calls: []string{"git push", "gh pr create"}, outputs: map[string]string{"pushed": "true", "pr": "9"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1927,6 +1927,8 @@ func TestPushStepChecksThePRFirst(t *testing.T) {
 			for _, call := range tt.noCalls {
 				assert.NotContains(t, log, call)
 			}
+
+			assert.NotContains(t, log, "reviewer")
 		})
 	}
 }

@@ -69,7 +69,7 @@ elif [[ "$pushed" == "true" ]]; then
     fi
     lines+=("")
   fi
-  lines+=("To take it, react with :eyes: and add yourself as a reviewer. If nobody takes it within two working days, the fallback reviewer already on the PR reviews it.")
+  lines+=("To take it, react with :eyes: and add yourself as a reviewer. If nobody takes it within two working days, the fallback reviewer takes it.")
 elif [[ "$summary" == *"open question"* ]]; then
   # pushed is false when the PR already holds the same changes, and empty
   # when the run had nothing to push.
@@ -86,7 +86,7 @@ if [[ ${#lines[@]} -eq 0 ]]; then
 fi
 
 if [[ "${GITHUB_REF_NAME:-}" != "main" ]]; then
-  lines=(":test_tube: *Test only:* a run from the \`$(escape "${GITHUB_REF_NAME:-}")\` branch; nothing on main changes." "${lines[@]}")
+  lines=(":test_tube: *Test only:* this is a test run from \`$(escape "${GITHUB_REF_NAME:-}")\`, ignore this message." "${lines[@]}")
 fi
 
 printf '%s\n' "${lines[@]}" >"$message"
