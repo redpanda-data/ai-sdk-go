@@ -99,19 +99,17 @@ A notification received during discovery prevents an older response from restori
 The current model step keeps its captured definitions, including parameter-header annotations, even
 after a push or a newer discovery. The next step resolves the changed catalog.
 
-Catalog resolution is strict: a schema or parameter-header validation error fails the snapshot
-with the MCP server ID, tool name and underlying cause. The registry does not silently omit the
-rejected tool. When used with `llmagent.WithTools`, a failure resolving any source stops the entire
-model step before the model is called, including when other remote or local tools are valid.
+Input schemas are forwarded to the model unchanged, as with the legacy client; the model provider
+validates them. The registry reads a schema only for `x-mcp-header` annotations
+([SEP-2243](https://modelcontextprotocol.io/specification/2026-07-28/server/tools#x-mcp-header)):
+a tool call additionally sends an annotated argument as an `Mcp-Param-*` header, so gateways can
+route on it without parsing the body. The value also stays in the arguments. go-sdk logs and
+excludes tools whose annotations are invalid. Annotations the registry cannot honor are ignored,
+and an argument value that cannot be encoded is sent without its header, matching go-sdk.
 
-Input schemas must be JSON objects with at most 64 nested JSON levels. Checks use
-`jsonschema-go` v0.4.3's typed decoding and reference/pattern resolution, plus validation of
-JSON Schema type names; this is not an exhaustive JSON Schema conformance validator.
-Local references are supported; external references fail without network or filesystem access.
-The library supports draft-07 and 2020-12 and uses Go regular expressions, so otherwise valid
-ECMA-262 lookaround or backreference patterns are rejected. Other dialects and library-specific
-restrictions can also cause rejection; the error preserves the underlying cause. Validation runs
-on each snapshot, including when the remote catalog is cached.
+When used with `llmagent.WithTools`, a failure resolving any source, such as discovery or
+credential errors, stops the entire model step before the model is called, including when other
+remote or local tools are valid.
 
 The pool is bounded, evicts only idle/unleased entries and expires idle entries on access. Configure it
 with `WithRegistryMaxConnections` and `WithRegistryIdleTimeout`. `Close`/`Shutdown` cancel and drain

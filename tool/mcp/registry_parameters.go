@@ -16,11 +16,9 @@ package mcp
 
 import (
 	"encoding/base64"
-	"encoding/json"
-	"errors"
-	"fmt"
 	"math"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -30,69 +28,69 @@ type registryParameterBinding struct {
 	header string
 }
 
-type registryParameterProperty struct {
-	Type       json.RawMessage            `json:"type"`
-	Header     json.RawMessage            `json:"x-mcp-header"` //nolint:tagliatelle // MCP protocol annotation.
-	Properties map[string]json.RawMessage `json:"properties"`
+// registryParameterBindings captures the SEP-2243 bindings of an SDK-decoded input
+// schema: the SDK v1.8.0 helpers and tool-context key are private, and CallTool's
+// live discovery cache cannot govern a snapshot. Like the legacy client, it leaves
+// the rest of the schema to the model provider. A subtree of another shape binds
+// nothing, and neither does an annotation the SDK would exclude from tools/list
+// (non-primitive type, invalid or duplicate header name).
+func registryParameterBindings(schema any) []registryParameterBinding {
+	bindings := registryCollectParameterBindings(schema, nil, nil)
+
+	counts := make(map[string]int, len(bindings))
+	for _, binding := range bindings {
+		counts[strings.ToLower(binding.header)]++
+	}
+
+	bindings = slices.DeleteFunc(bindings, func(binding registryParameterBinding) bool {
+		return counts[strings.ToLower(binding.header)] > 1
+	})
+
+	for i := range bindings {
+		bindings[i].header = "Mcp-Param-" + bindings[i].header
+	}
+
+	return bindings
 }
 
-// The SDK v1.8.0 SEP-2243 helpers and tool-context key are private. Capture only
-// their parameter bindings; CallTool's live discovery cache cannot govern a snapshot.
-func registryParameterBindings(schema json.RawMessage) ([]registryParameterBinding, error) {
-	var root registryParameterProperty
-	if err := json.Unmarshal(schema, &root); err != nil {
-		return nil, fmt.Errorf("mcp: parameter header schema: %w", err)
-	}
+func registryCollectParameterBindings(schema any, path []string, bindings []registryParameterBinding) []registryParameterBinding {
+	object, _ := schema.(map[string]any)
+	properties, _ := object["properties"].(map[string]any)
 
-	var bindings []registryParameterBinding
-	seen := make(map[string]bool)
+	for name, property := range properties {
+		path := append(path, name)
 
-	var collect func(map[string]json.RawMessage, []string) error
-
-	collect = func(properties map[string]json.RawMessage, prefix []string) error {
-		for name, raw := range properties {
-			if string(raw) == "true" || string(raw) == "false" {
-				continue
-			}
-
-			var property registryParameterProperty
-			if err := json.Unmarshal(raw, &property); err != nil {
-				return fmt.Errorf("mcp: parameter header property %q: %w", name, err)
-			}
-
-			path := append(append([]string(nil), prefix...), name)
-
-			if property.Header != nil {
-				var kind, header string
-				if err := json.Unmarshal(property.Type, &kind); err != nil || (kind != "string" && kind != "integer" && kind != "boolean") {
-					return fmt.Errorf("mcp: unsupported parameter header type at %q", strings.Join(path, "."))
-				}
-
-				if err := json.Unmarshal(property.Header, &header); err != nil || !validHeaderName(header) || seen[strings.ToLower(header)] {
-					return fmt.Errorf("mcp: invalid or duplicate parameter header at %q", strings.Join(path, "."))
-				}
-
-				seen[strings.ToLower(header)] = true
-				bindings = append(bindings, registryParameterBinding{path: path, header: "Mcp-Param-" + header})
-			}
-
-			if err := collect(property.Properties, path); err != nil {
-				return err
-			}
+		if header, ok := registryParameterHeader(property); ok {
+			bindings = append(bindings, registryParameterBinding{path: slices.Clone(path), header: header})
 		}
 
-		return nil
-	}
-	if err := collect(root.Properties, nil); err != nil {
-		return nil, err
+		bindings = registryCollectParameterBindings(property, path, bindings)
 	}
 
-	return bindings, nil
+	return bindings
+}
+
+func registryParameterHeader(property any) (string, bool) {
+	object, _ := property.(map[string]any)
+
+	header, ok := object["x-mcp-header"].(string)
+	if !ok || !validHeaderName(header) {
+		return "", false
+	}
+
+	switch object["type"] {
+	case "string", "integer", "boolean":
+		return header, true
+	default:
+		return "", false
+	}
 }
 
 type registryParameterHeadersKey struct{}
 
-func registryParameterHeaders(bindings []registryParameterBinding, arguments map[string]any) (http.Header, error) {
+// registryParameterHeaders mirrors the SDK: an absent or null argument, or one
+// without a SEP-2243 encoding, sends no header and stays in the arguments.
+func registryParameterHeaders(bindings []registryParameterBinding, arguments map[string]any) http.Header {
 	headers := make(http.Header, len(bindings))
 
 	for _, binding := range bindings {
@@ -102,22 +100,15 @@ func registryParameterHeaders(bindings []registryParameterBinding, arguments map
 			value = object[name]
 		}
 
-		if value == nil {
-			continue
+		if encoded, ok := registryEncodeParameterHeader(value); ok {
+			headers.Set(binding.header, encoded)
 		}
-
-		encoded, err := registryEncodeParameterHeader(value)
-		if err != nil {
-			return nil, fmt.Errorf("mcp: parameter header at %q: %w", strings.Join(binding.path, "."), err)
-		}
-
-		headers.Set(binding.header, encoded)
 	}
 
-	return headers, nil
+	return headers
 }
 
-func registryEncodeParameterHeader(value any) (string, error) {
+func registryEncodeParameterHeader(value any) (string, bool) {
 	var text string
 
 	switch value := value.(type) {
@@ -127,12 +118,12 @@ func registryEncodeParameterHeader(value any) (string, error) {
 		text = strconv.FormatBool(value)
 	case float64:
 		if value != math.Trunc(value) || value < -(1<<53-1) || value > 1<<53-1 {
-			return "", errors.New("expected a safe integer")
+			return "", false
 		}
 
 		text = strconv.FormatInt(int64(value), 10)
 	default:
-		return "", errors.New("expected a string, boolean or safe integer")
+		return "", false
 	}
 
 	encode := strings.Trim(text, " \t") != text || (strings.HasPrefix(text, "=?base64?") && strings.HasSuffix(text, "?="))
@@ -144,8 +135,8 @@ func registryEncodeParameterHeader(value any) (string, error) {
 	}
 
 	if encode {
-		return "=?base64?" + base64.StdEncoding.EncodeToString([]byte(text)) + "?=", nil
+		return "=?base64?" + base64.StdEncoding.EncodeToString([]byte(text)) + "?=", true
 	}
 
-	return text, nil
+	return text, true
 }

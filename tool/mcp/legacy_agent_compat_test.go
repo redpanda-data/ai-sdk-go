@@ -390,12 +390,9 @@ func TestLegacyClientAgentHotReloadKeepsCapturedStep(t *testing.T) {
 func TestLegacyClientAgentResultsStayContentArrays(t *testing.T) {
 	t.Parallel()
 
-	// The strict registry rejects both type names; the legacy client forwards
-	// the schema unchanged.
+	// Neither type name is valid JSON Schema; the legacy client forwards the
+	// schema unchanged.
 	const looseSchema = `{"type":"object","properties":{"mode":{"type":"text"},"limit":{"type":""}}}`
-
-	_, err := registryInputSchema(json.RawMessage(looseSchema))
-	require.Error(t, err, "the fixture must exercise a schema the strict registry rejects")
 
 	for _, legacy := range []bool{false, true} {
 		t.Run(fmt.Sprintf("legacy=%t", legacy), func(t *testing.T) {
@@ -431,7 +428,7 @@ func TestLegacyClientAgentResultsStayContentArrays(t *testing.T) {
 			model := fakellm.NewFakeModel()
 			model.When(fakellm.FirstCall()).ThenRespondWith(func(req *llm.Request, _ *fakellm.CallContext) (*llm.Response, error) {
 				def, ok := legacyCompatDefinition(req.Tools, "old__loose")
-				assert.True(t, ok, "the legacy path must not drop a schema the strict registry rejects: %v", registryNames(req.Tools))
+				assert.True(t, ok, "the legacy path must not drop a schema with invalid type names: %v", registryNames(req.Tools))
 				assert.JSONEq(t, looseSchema, string(def.Parameters))
 
 				return registryAgentRespond(

@@ -211,13 +211,8 @@ func (r *Registry) Snapshot(ctx context.Context) (tool.Registry, error) {
 			return nil, fmt.Errorf("mcp: server %q tool %q schema: %w", r.serverID, remote.Name, err)
 		}
 
-		bindings, err := registryInputSchema(parameters)
-		if err != nil {
-			return nil, fmt.Errorf("mcp: server %q tool %q: %w", r.serverID, remote.Name, err)
-		}
-
 		wrapped := &registryTool{
-			registry: r, partition: credentials.PartitionKey, rawName: remote.Name, parameterBindings: bindings,
+			registry: r, partition: credentials.PartitionKey, rawName: remote.Name, parameterBindings: registryParameterBindings(remote.InputSchema),
 			definition: llm.ToolDefinition{
 				Name:        mangleHeadIfTooLong(r.serverID+"__"+remote.Name, maxToolNameLen),
 				Description: remote.Description, Parameters: parameters, Type: llm.ToolTypeExtension,
@@ -357,10 +352,7 @@ func (t *registryTool) Execute(ctx context.Context, args json.RawMessage) (json.
 		arguments = make(map[string]any)
 	}
 
-	headers, err := registryParameterHeaders(t.parameterBindings, arguments)
-	if err != nil {
-		return nil, err
-	}
+	headers := registryParameterHeaders(t.parameterBindings, arguments)
 
 	entry, release, err := t.registry.acquire(ctx, t.partition)
 	if err != nil {
