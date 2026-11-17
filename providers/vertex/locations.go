@@ -54,6 +54,8 @@ const (
 	// LocationsMatrixSource, read 2026-11-04. The claude-fable-5-2 row, added
 	// 2026-11-12, is its model page's section. The gemini-3.8-flash row gained
 	// locations from its model page and LocationsMatrixSource, read 2026-11-12.
+	// The gemini-4-hydrogen row, added 2026-11-16, is its model page's
+	// Standard PayGo row, which LocationsMatrixSource matches that day.
 	LocationsMatrixTranscribed = "2026-09-22"
 )
 
@@ -79,6 +81,10 @@ const (
 //     no override.
 //  3. Run go test ./providers/vertex/...
 var servedLocations = map[string][]string{
+	ModelGemini4Hydrogen: {
+		LocationGlobal,
+		"us", "eu",
+	},
 	// europe-west2 and asia-southeast1 from the model page's Provisioned
 	// Throughput row and LocationsMatrixSource, read 2026-11-04.
 	ModelGemini4Argon: {
