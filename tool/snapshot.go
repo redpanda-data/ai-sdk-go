@@ -24,9 +24,11 @@ import (
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
-// Snapshot captures and combines registries into a read-only registry, preserving
-// registration policies and executable identities. Nil inputs are ignored.
-// Duplicate names and conflicting group metadata are rejected.
+// Snapshot captures and combines registries into a read-only view of their
+// advertised definitions. SnapshotRegistry inputs preserve captured executable
+// selection and policies; plain Registry inputs retain live dispatch as described
+// below. Nil inputs are ignored. Duplicate names and conflicting group metadata
+// are rejected.
 //
 // Definition and configuration metadata are copied recursively through acyclic
 // map[string]any, map[string]string, []any, []map[string]any, []string, []byte,
