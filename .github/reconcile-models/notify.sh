@@ -4,7 +4,7 @@
 # before the push, or the open questions of a run that pushed nothing. A run
 # with none of these writes no message. A run from a branch other than main is
 # a test: it posts only failures and stops, unless POST_TEST_PR asks it to post
-# its test PR too.
+# its test PR too, and every post it makes opens with a note saying so.
 # Usage: notify.sh BODY_FILE MESSAGE_FILE
 #   BODY_FILE is the PR body the pr job uploaded; it may be missing.
 # Env: NEEDS (the notify job's needs, as JSON), POST_TEST_PR ("true" or not),
@@ -30,10 +30,10 @@ if [[ -f "$body" ]]; then
   summary="$(grep -m 1 -E '^\*\*.+\*\* to the catalogue' "$body" | sed 's/\*\*//g' || true)"
 fi
 
-# Whether the PR and the questions go to the team, and how the PR is named.
-team=true name="Catalog bot PR" from=""
+# Whether the PR and the questions go to the team.
+team=true
 if [[ "${GITHUB_REF_NAME:-}" != "main" ]]; then
-  team="${POST_TEST_PR:-false}" name="Test bot PR" from=" from $(escape "${GITHUB_REF_NAME:-}")"
+  team="${POST_TEST_PR:-false}"
 fi
 
 lines=()
@@ -57,8 +57,19 @@ elif [[ "$pushed" == "true" && -z "$pr" ]]; then
   # The push worked and opening the PR didn't.
   lines+=("The catalog reconcile ${run} pushed to the bot branch, but no PR shows it yet.")
 elif [[ "$pushed" == "true" ]]; then
-  lines+=("${name} $(pr_link "$pr")${from} needs a reviewer. $(escape "$summary")")
-  lines+=("To take it, react with :eyes: and add yourself as a reviewer. After two working days, the requested reviewer takes it.")
+  lines+=("Reconcile bot PR needs a reviewer: $(pr_link "$pr")" "")
+  if [[ -n "$summary" ]]; then
+    # A bullet for the changes, and one for each count of what didn't change.
+    changed="${summary%% Not changed: *}"
+    lines+=("• $(escape "${changed%.}")")
+    if [[ "$summary" == *" Not changed: "* ]]; then
+      same="${summary#* Not changed: }"
+      IFS=',' read -ra counts <<<"${same%.}"
+      for count in "${counts[@]}"; do lines+=("• $(escape "${count# }")"); done
+    fi
+    lines+=("")
+  fi
+  lines+=("To take it, react with :eyes: and add yourself as a reviewer. If nobody takes it within two working days, the fallback reviewer already on the PR reviews it.")
 elif [[ "$summary" == *"open question"* ]]; then
   # pushed is false when the PR already holds the same changes, and empty
   # when the run had nothing to push.
@@ -72,6 +83,10 @@ fi
 if [[ ${#lines[@]} -eq 0 ]]; then
   emit "post=false"
   exit 0
+fi
+
+if [[ "${GITHUB_REF_NAME:-}" != "main" ]]; then
+  lines=(":test_tube: *Test only:* a run from the \`$(escape "${GITHUB_REF_NAME:-}")\` branch; nothing on main changes." "${lines[@]}")
 fi
 
 printf '%s\n' "${lines[@]}" >"$message"

@@ -95,8 +95,20 @@ func TestNotifyTellsTheChannel(t *testing.T) {
 			needs: needs(pushed, nil),
 			body:  changes,
 			post:  true,
-			has:   []string{pr336, "28 changes to the catalogue", "11 open questions", ":eyes:", "two working days"},
-			hasnt: []string{"**", "failed", "Test"},
+			has: []string{
+				"Reconcile bot PR needs a reviewer: " + pr336 + "\n\n" +
+					"• 28 changes to the catalogue: 18 capabilities, 5 replacements\n• 11 open questions\n• 148 skipped offerings\n\n" +
+					"To take it, react with :eyes:",
+				"two working days, the fallback reviewer",
+			},
+			hasnt: []string{"**", "failed", "Test", "Not changed"},
+		},
+		{
+			name:  "a pushed PR with no body",
+			needs: needs(pushed, nil),
+			post:  true,
+			has:   []string{"needs a reviewer: " + pr336 + "\n\nTo take it"},
+			hasnt: []string{"•"},
 		},
 		{
 			name:  "a run that changed nothing",
@@ -192,7 +204,7 @@ func TestNotifyTellsTheChannel(t *testing.T) {
 			ref:   branch,
 			optIn: true,
 			post:  true,
-			has:   []string{"Test bot PR " + pr336 + " from " + branch + " needs a reviewer", "28 changes to the catalogue"},
+			has:   []string{"Reconcile bot PR needs a reviewer: " + pr336, "• 28 changes to the catalogue"},
 		},
 	}
 	for _, tt := range tests {
@@ -226,6 +238,13 @@ func TestNotifyTellsTheChannel(t *testing.T) {
 
 			text, err := os.ReadFile(message)
 			require.NoError(t, err)
+
+			// A test branch's post opens with the note; main's never has it.
+			if tt.ref != "" {
+				assert.True(t, strings.HasPrefix(string(text), ":test_tube: *Test only:* a run from the `"+tt.ref+"` branch; nothing on main changes.\n"), "%s", text)
+			} else {
+				assert.NotContains(t, string(text), ":test_tube:")
+			}
 
 			for _, want := range tt.has {
 				assert.Contains(t, string(text), want)
