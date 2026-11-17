@@ -554,10 +554,7 @@ func cloneToolDefinitions(defs []llm.ToolDefinition) []llm.ToolDefinition {
 		cloned[i] = def
 
 		cloned[i].Parameters = append(json.RawMessage(nil), def.Parameters...)
-		if def.Metadata != nil {
-			cloned[i].Metadata = make(map[string]any, len(def.Metadata))
-			maps.Copy(cloned[i].Metadata, def.Metadata)
-		}
+		cloned[i].Metadata = cloneToolMetadata(def.Metadata)
 	}
 
 	return cloned

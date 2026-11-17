@@ -16,7 +16,9 @@ package llmagent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 
 	"github.com/redpanda-data/ai-sdk-go/agent/llmagent/internal/toolloading"
@@ -59,4 +61,44 @@ func (a *LLMAgent) resolveTools(ctx context.Context) (*stepTools, error) {
 		ForceLocal:    a.config.toolLoading.ForceLocal,
 		MaxLoadTokens: a.config.toolLoading.MaxLoadTokens,
 	})}, nil
+}
+
+func cloneToolMetadata(metadata map[string]any) map[string]any {
+	copied := maps.Clone(metadata)
+	for key, value := range copied {
+		copied[key] = cloneToolMetadataValue(value)
+	}
+
+	return copied
+}
+
+func cloneToolMetadataValue(value any) any {
+	switch value := value.(type) {
+	case map[string]any:
+		return cloneToolMetadata(value)
+	case map[string]string:
+		return maps.Clone(value)
+	case []any:
+		copied := slices.Clone(value)
+		for i, item := range copied {
+			copied[i] = cloneToolMetadataValue(item)
+		}
+
+		return copied
+	case []map[string]any:
+		copied := slices.Clone(value)
+		for i, item := range copied {
+			copied[i] = cloneToolMetadata(item)
+		}
+
+		return copied
+	case []string:
+		return slices.Clone(value)
+	case []byte:
+		return slices.Clone(value)
+	case json.RawMessage:
+		return slices.Clone(value)
+	default:
+		return value
+	}
 }
