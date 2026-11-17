@@ -301,9 +301,60 @@ func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]anthropic.BetaMe
 		if len(apiMessages) > 0 {
 			markLastCacheableBlock(&apiMessages[len(apiMessages)-1])
 		}
+
+		markPreviousTurnTail(apiMessages)
 	}
 
 	return apiMessages, systemBlocks, nil
+}
+
+// cacheLookbackBlocks is how far back Anthropic searches from a breakpoint for
+// an already-cached prefix.
+const cacheLookbackBlocks = 20
+
+// markPreviousTurnTail adds a breakpoint on the tail of the user turn before the
+// newest assistant turn, which is where the previous request's tail breakpoint
+// wrote its cache entry. It only does so when the blocks appended since then
+// would push that entry out of the tail breakpoint's lookback window, as with a
+// wide parallel tool fan-out: one assistant turn with many tool_use blocks and a
+// user turn with as many tool_result blocks. Without it the request silently
+// misses the cache and re-bills the whole history.
+//
+// With the system and tail markers this makes three breakpoints, under
+// Anthropic's limit of four.
+func markPreviousTurnTail(msgs []anthropic.BetaMessageParam) {
+	lastAssistant := -1
+
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role == anthropic.BetaMessageParamRoleAssistant {
+			lastAssistant = i
+			break
+		}
+	}
+
+	previous := -1
+
+	for i := lastAssistant - 1; i >= 0; i-- {
+		if msgs[i].Role == anthropic.BetaMessageParamRoleUser {
+			previous = i
+			break
+		}
+	}
+
+	if previous < 0 {
+		return
+	}
+
+	appended := 0
+	for _, msg := range msgs[previous+1:] {
+		appended += len(msg.Content)
+	}
+
+	if appended < cacheLookbackBlocks {
+		return
+	}
+
+	markLastCacheableBlock(&msgs[previous])
 }
 
 // markLastCacheableBlock sets cache_control on the last block of msg that can
