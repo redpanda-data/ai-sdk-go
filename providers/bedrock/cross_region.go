@@ -415,7 +415,8 @@ var gpt6AstraProfileRegions = map[string]string{
 
 // gpt6SolProfileRegions maps every published bedrock-runtime source region
 // for GPT-6 Sol to its preferred profile: the US and Canada regions use the
-// US profile, the rest global.
+// US profile, the rest global. The GPT-6 Luna, GPT-6.2 Astra and GPT-6.2 Sol
+// cards publish the same table (GPT-6.2 read 2026-11-18).
 //
 // Source: https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-sol.html
 var gpt6SolProfileRegions = map[string]string{

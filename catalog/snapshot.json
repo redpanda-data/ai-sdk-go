@@ -554,6 +554,22 @@
       "released": "2026-10-26",
       "knowledge": "2026-06-01"
     },
+    "openai/gpt-6.2-astra": {
+      "display_name": "GPT-6.2 Astra",
+      "publisher": "openai",
+      "description": "GPT-6.2 Astra is OpenAI's most capable model for demanding reasoning, coding, and long-running projects, from start to finish.",
+      "series": "gpt",
+      "released": "2026-11-17",
+      "knowledge": "2026-05-18"
+    },
+    "openai/gpt-6.2-sol": {
+      "display_name": "GPT-6.2 Sol",
+      "publisher": "openai",
+      "description": "GPT-6.2 Sol is OpenAI's go-to model for everyday work, from coding to powering agents at scale.",
+      "series": "gpt-mini",
+      "released": "2026-11-17",
+      "knowledge": "2026-06-01"
+    },
     "openai/gpt-oss-120b": {
       "display_name": "GPT OSS 120B",
       "publisher": "openai",
@@ -6143,7 +6159,8 @@
             }
           ],
           "derived": {
-            "price_tier": "high"
+            "price_tier": "high",
+            "replacement": "openai/gpt-6.2-astra"
           }
         },
         {
@@ -6422,7 +6439,8 @@
             }
           ],
           "derived": {
-            "price_tier": "medium"
+            "price_tier": "medium",
+            "replacement": "openai/gpt-6.2-sol"
           }
         },
         {
@@ -6508,6 +6526,196 @@
           ],
           "derived": {
             "price_tier": "low"
+          }
+        },
+        {
+          "id": "global.openai.gpt-6.2-astra",
+          "model": "openai/gpt-6.2-astra",
+          "display_name": "OpenAI GPT-6.2 Astra (Global)",
+          "wire_apis": [
+            {
+              "protocol": "bedrock_converse",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_chat_completions",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_responses",
+              "transport": "bedrock_runtime"
+            }
+          ],
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {},
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 800000000,
+                "output_microcents_per_million": 4000000000,
+                "cached_input_microcents_per_million": 40000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 1000000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 1600000000,
+                    "output_microcents_per_million": 6000000000,
+                    "cached_input_microcents_per_million": 80000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 2000000000
+                  }
+                }
+              ]
+            },
+            "overrides": [
+              {
+                "service_tier": "ultrafast",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 2400000000,
+                    "output_microcents_per_million": 12000000000,
+                    "cached_input_microcents_per_million": 120000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 3000000000
+                  },
+                  "brackets": [
+                    {
+                      "min_context_tokens": 272001,
+                      "rates": {
+                        "input_microcents_per_million": 4800000000,
+                        "output_microcents_per_million": 18000000000,
+                        "cached_input_microcents_per_million": 240000000,
+                        "cache_creation_unknown_ttl_microcents_per_million": 6000000000
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "global"
+            },
+            {
+              "key": "structured_output_streaming",
+              "value": "false"
+            }
+          ],
+          "derived": {
+            "price_tier": "high"
+          }
+        },
+        {
+          "id": "global.openai.gpt-6.2-sol",
+          "model": "openai/gpt-6.2-sol",
+          "display_name": "OpenAI GPT-6.2 Sol (Global)",
+          "wire_apis": [
+            {
+              "protocol": "bedrock_converse",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_chat_completions",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_responses",
+              "transport": "bedrock_runtime"
+            }
+          ],
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {},
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 200000000,
+                "output_microcents_per_million": 1000000000,
+                "cached_input_microcents_per_million": 10000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 250000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 400000000,
+                    "output_microcents_per_million": 1500000000,
+                    "cached_input_microcents_per_million": 20000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 500000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "global"
+            }
+          ],
+          "derived": {
+            "price_tier": "medium"
           }
         },
         {
@@ -8044,7 +8252,8 @@
             "available": "2026-09-08"
           },
           "derived": {
-            "price_tier": "high"
+            "price_tier": "high",
+            "replacement": "openai/gpt-6.2-astra"
           }
         },
         {
@@ -8326,7 +8535,8 @@
             "available": "2026-09-29"
           },
           "derived": {
-            "price_tier": "medium"
+            "price_tier": "medium",
+            "replacement": "openai/gpt-6.2-sol"
           }
         },
         {
@@ -10124,7 +10334,8 @@
             }
           ],
           "derived": {
-            "price_tier": "high"
+            "price_tier": "high",
+            "replacement": "openai/gpt-6.2-astra"
           }
         },
         {
@@ -10403,7 +10614,8 @@
             }
           ],
           "derived": {
-            "price_tier": "medium"
+            "price_tier": "medium",
+            "replacement": "openai/gpt-6.2-sol"
           }
         },
         {
@@ -10489,6 +10701,196 @@
           ],
           "derived": {
             "price_tier": "low"
+          }
+        },
+        {
+          "id": "us.openai.gpt-6.2-astra",
+          "model": "openai/gpt-6.2-astra",
+          "display_name": "OpenAI GPT-6.2 Astra (US)",
+          "wire_apis": [
+            {
+              "protocol": "bedrock_converse",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_chat_completions",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_responses",
+              "transport": "bedrock_runtime"
+            }
+          ],
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {},
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 880000000,
+                "output_microcents_per_million": 4400000000,
+                "cached_input_microcents_per_million": 44000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 1100000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 1760000000,
+                    "output_microcents_per_million": 6600000000,
+                    "cached_input_microcents_per_million": 88000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 2200000000
+                  }
+                }
+              ]
+            },
+            "overrides": [
+              {
+                "service_tier": "ultrafast",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 2640000000,
+                    "output_microcents_per_million": 13200000000,
+                    "cached_input_microcents_per_million": 132000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 3300000000
+                  },
+                  "brackets": [
+                    {
+                      "min_context_tokens": 272001,
+                      "rates": {
+                        "input_microcents_per_million": 5280000000,
+                        "output_microcents_per_million": 19800000000,
+                        "cached_input_microcents_per_million": 264000000,
+                        "cache_creation_unknown_ttl_microcents_per_million": 6600000000
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "us"
+            },
+            {
+              "key": "structured_output_streaming",
+              "value": "false"
+            }
+          ],
+          "derived": {
+            "price_tier": "high"
+          }
+        },
+        {
+          "id": "us.openai.gpt-6.2-sol",
+          "model": "openai/gpt-6.2-sol",
+          "display_name": "OpenAI GPT-6.2 Sol (US)",
+          "wire_apis": [
+            {
+              "protocol": "bedrock_converse",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_chat_completions",
+              "transport": "bedrock_runtime"
+            },
+            {
+              "protocol": "openai_responses",
+              "transport": "bedrock_runtime"
+            }
+          ],
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {},
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 220000000,
+                "output_microcents_per_million": 1100000000,
+                "cached_input_microcents_per_million": 11000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 275000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 440000000,
+                    "output_microcents_per_million": 1650000000,
+                    "cached_input_microcents_per_million": 22000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 550000000
+                  }
+                }
+              ]
+            }
+          },
+          "lifecycle": {
+            "stage": "ga"
+          },
+          "attributes": [
+            {
+              "key": "inference_geo",
+              "value": "us"
+            }
+          ],
+          "derived": {
+            "price_tier": "medium"
           }
         }
       ]
@@ -18911,7 +19313,8 @@
             "available": "2026-09-03"
           },
           "derived": {
-            "price_tier": "high"
+            "price_tier": "high",
+            "replacement": "openai/gpt-6.2-astra"
           }
         },
         {
@@ -19386,7 +19789,8 @@
             "available": "2026-09-29"
           },
           "derived": {
-            "price_tier": "medium"
+            "price_tier": "medium",
+            "replacement": "openai/gpt-6.2-sol"
           }
         },
         {
@@ -19538,6 +19942,306 @@
           },
           "derived": {
             "price_tier": "low"
+          }
+        },
+        {
+          "id": "gpt-6.2-astra",
+          "model": "openai/gpt-6.2-astra",
+          "display_name": "GPT-6.2 Astra",
+          "wire_apis": [
+            {
+              "protocol": "openai_chat_completions",
+              "transport": "direct"
+            },
+            {
+              "protocol": "openai_responses",
+              "transport": "direct"
+            }
+          ],
+          "capabilities": {
+            "audio": false,
+            "json_mode": true,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": true,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "reasoning_effort",
+              "reasoning_summary"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 800000000,
+                "output_microcents_per_million": 4000000000,
+                "cached_input_microcents_per_million": 40000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 1000000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 1600000000,
+                    "output_microcents_per_million": 6000000000,
+                    "cached_input_microcents_per_million": 80000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 2000000000
+                  }
+                }
+              ]
+            },
+            "overrides": [
+              {
+                "service_tier": "batch",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 400000000,
+                    "output_microcents_per_million": 2000000000,
+                    "cached_input_microcents_per_million": 20000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 500000000
+                  },
+                  "brackets": [
+                    {
+                      "min_context_tokens": 272001,
+                      "rates": {
+                        "input_microcents_per_million": 800000000,
+                        "output_microcents_per_million": 3000000000,
+                        "cached_input_microcents_per_million": 40000000,
+                        "cache_creation_unknown_ttl_microcents_per_million": 1000000000
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "service_tier": "priority",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 1600000000,
+                    "output_microcents_per_million": 8000000000,
+                    "cached_input_microcents_per_million": 80000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 2000000000
+                  },
+                  "brackets": [
+                    {
+                      "min_context_tokens": 272001,
+                      "rates": {
+                        "input_microcents_per_million": 3200000000,
+                        "output_microcents_per_million": 12000000000,
+                        "cached_input_microcents_per_million": 160000000,
+                        "cache_creation_unknown_ttl_microcents_per_million": 4000000000
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "service_tier": "ultrafast",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 2400000000,
+                    "output_microcents_per_million": 12000000000,
+                    "cached_input_microcents_per_million": 120000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 3000000000
+                  },
+                  "brackets": [
+                    {
+                      "min_context_tokens": 272001,
+                      "rates": {
+                        "input_microcents_per_million": 4800000000,
+                        "output_microcents_per_million": 18000000000,
+                        "cached_input_microcents_per_million": 240000000,
+                        "cache_creation_unknown_ttl_microcents_per_million": 6000000000
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-11-17"
+          },
+          "derived": {
+            "price_tier": "high"
+          }
+        },
+        {
+          "id": "gpt-6.2-sol",
+          "model": "openai/gpt-6.2-sol",
+          "display_name": "GPT-6.2 Sol",
+          "wire_apis": [
+            {
+              "protocol": "openai_chat_completions",
+              "transport": "direct"
+            },
+            {
+              "protocol": "openai_responses",
+              "transport": "direct"
+            }
+          ],
+          "capabilities": {
+            "audio": false,
+            "json_mode": true,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": true,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 922000,
+            "max_output_tokens": 128000,
+            "supported_params": [
+              "max_tokens",
+              "reasoning_effort",
+              "reasoning_summary"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 200000000,
+                "output_microcents_per_million": 1000000000,
+                "cached_input_microcents_per_million": 10000000,
+                "cache_creation_unknown_ttl_microcents_per_million": 250000000
+              },
+              "brackets": [
+                {
+                  "min_context_tokens": 272001,
+                  "rates": {
+                    "input_microcents_per_million": 400000000,
+                    "output_microcents_per_million": 1500000000,
+                    "cached_input_microcents_per_million": 20000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 500000000
+                  }
+                }
+              ]
+            },
+            "overrides": [
+              {
+                "service_tier": "batch",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 100000000,
+                    "output_microcents_per_million": 500000000,
+                    "cached_input_microcents_per_million": 5000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 125000000
+                  },
+                  "brackets": [
+                    {
+                      "min_context_tokens": 272001,
+                      "rates": {
+                        "input_microcents_per_million": 200000000,
+                        "output_microcents_per_million": 750000000,
+                        "cached_input_microcents_per_million": 10000000,
+                        "cache_creation_unknown_ttl_microcents_per_million": 250000000
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "service_tier": "priority",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 400000000,
+                    "output_microcents_per_million": 2000000000,
+                    "cached_input_microcents_per_million": 20000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 500000000
+                  },
+                  "brackets": [
+                    {
+                      "min_context_tokens": 272001,
+                      "rates": {
+                        "input_microcents_per_million": 800000000,
+                        "output_microcents_per_million": 3000000000,
+                        "cached_input_microcents_per_million": 40000000,
+                        "cache_creation_unknown_ttl_microcents_per_million": 1000000000
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "service_tier": "ultrafast",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 600000000,
+                    "output_microcents_per_million": 3000000000,
+                    "cached_input_microcents_per_million": 30000000,
+                    "cache_creation_unknown_ttl_microcents_per_million": 750000000
+                  },
+                  "brackets": [
+                    {
+                      "min_context_tokens": 272001,
+                      "rates": {
+                        "input_microcents_per_million": 1200000000,
+                        "output_microcents_per_million": 4500000000,
+                        "cached_input_microcents_per_million": 60000000,
+                        "cache_creation_unknown_ttl_microcents_per_million": 1500000000
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-11-17"
+          },
+          "derived": {
+            "price_tier": "medium"
           }
         },
         {

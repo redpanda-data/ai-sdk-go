@@ -337,6 +337,19 @@ const (
 	ModelGPT6SolGlobal = "global." + ModelGPT6Sol
 	ModelGPT6SolUS     = "us." + ModelGPT6Sol
 
+	// ModelGPT62Astra is GPT-6.2 Astra's bare ID. On bedrock-runtime it only
+	// builds the US and global profile IDs; its bedrock-mantle copy has
+	// profiles beside it, so the bare ID is not registered.
+	ModelGPT62Astra       = "openai.gpt-6.2-astra"
+	ModelGPT62AstraGlobal = "global." + ModelGPT62Astra
+	ModelGPT62AstraUS     = "us." + ModelGPT62Astra
+
+	// ModelGPT62Sol is GPT-6.2 Sol's bare ID, split the same way as GPT-6.2
+	// Astra's.
+	ModelGPT62Sol       = "openai.gpt-6.2-sol"
+	ModelGPT62SolGlobal = "global." + ModelGPT62Sol
+	ModelGPT62SolUS     = "us." + ModelGPT62Sol
+
 	// ModelGPT55 is GPT-5.5's bare ID. On bedrock-runtime it only builds the
 	// US and global profile IDs; the bare ID is not registered.
 	ModelGPT55       = "openai.gpt-5.5"
@@ -827,6 +840,32 @@ var (
 			Brackets: []pricing.Bracket{{
 				MinContextTokens: 272_001,
 				Rates:            pricing.NewRates(24.00, 90.00, 1.20).WithCacheCreation(0, 0, 30.00),
+			}},
+		},
+	}}
+
+	// GPT-6.2 Astra Ultrafast: the card's promotional 3x Standard rate
+	// through 2027-02-28, moving to 6x on 2027-03-01. 30-minute cache
+	// writes sit in the unknown-TTL bucket. Rates from
+	// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-2-astra.html
+	// (read 2026-11-18; the price list has no GPT-6.2 rows yet).
+	gpt62AstraUltrafast = []pricing.Override{{
+		Match: pricing.Selector{ServiceTier: llm.ServiceTierUltrafast},
+		RateCard: pricing.RateCard{
+			Base: pricing.NewRates(26.40, 132.00, 1.32).WithCacheCreation(0, 0, 33.00),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(52.80, 198.00, 2.64).WithCacheCreation(0, 0, 66.00),
+			}},
+		},
+	}}
+	gpt62AstraUltrafastGlobal = []pricing.Override{{
+		Match: pricing.Selector{ServiceTier: llm.ServiceTierUltrafast},
+		RateCard: pricing.RateCard{
+			Base: pricing.NewRates(24.00, 120.00, 1.20).WithCacheCreation(0, 0, 30.00),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(48.00, 180.00, 2.40).WithCacheCreation(0, 0, 60.00),
 			}},
 		},
 	}}
@@ -1683,6 +1722,86 @@ var bedrockFamilies = []family{
 			Brackets: []pricing.Bracket{{
 				MinContextTokens: 272_001,
 				Rates:            pricing.NewRates(4.40, 16.50, 0.44).WithCacheCreation(0, 0, 5.50),
+			}},
+		},
+	},
+	{
+		// OpenAI GPT-6.2 Astra — inference-profile-only on bedrock-runtime:
+		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-2-astra.html
+		// (read 2026-11-18; launched 2026-11-17, EOL no sooner than
+		// 2027-11-17, a floor, so Retires stays unset). Standard rates from the
+		// card, as the price list has no GPT-6.2 rows yet: global matches
+		// OpenAI's rates and US CRIS adds 10%, with a long-context card above
+		// 272K input tokens; 30-minute cache writes sit in the unknown-TTL
+		// bucket. Ultrafast runs on both profiles. Explicit caching isn't
+		// supported with Converse, and JSON Schema output is non-streaming
+		// only. The card documents Astra's Converse surface and limits
+		// (1,050,000 window, 128,000 max output), so the family reuses
+		// Astra's capabilities and constraints. Its source-region table is
+		// GPT-6 Sol's. The bedrock-mantle bare ID (us-east-1) has profiles
+		// beside it, so it isn't registered.
+		BareID:            ModelGPT62Astra,
+		NoStreamingSchema: true,
+		WireAPIs:          openAIRuntimeWireAPIs,
+		Model:             catalog.ModelGPT6_2Astra,
+		DisplayName:       "OpenAI GPT-6.2 Astra",
+		Profiles:          []string{"global", "us"},
+		ProfileRegions:    gpt6SolProfileRegions,
+		NoCachePoints:     true,
+		Capabilities:      gpt6AstraCaps,
+		Modalities:        gpt56Modalities,
+		Constraints:       gpt6AstraConstraints,
+		Reasoning:         converseReasoningNoControls,
+		GlobalRates: &pricing.RateCard{
+			Base: pricing.NewRates(8.00, 40.00, 0.40).WithCacheCreation(0, 0, 10.00),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(16.00, 60.00, 0.80).WithCacheCreation(0, 0, 20.00),
+			}},
+		},
+		Rates: pricing.RateCard{
+			Base: pricing.NewRates(8.80, 44.00, 0.44).WithCacheCreation(0, 0, 11.00),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(17.60, 66.00, 0.88).WithCacheCreation(0, 0, 22.00),
+			}},
+		},
+		Overrides:       gpt62AstraUltrafast,
+		GlobalOverrides: gpt62AstraUltrafastGlobal,
+	},
+	{
+		// OpenAI GPT-6.2 Sol — inference-profile-only on bedrock-runtime:
+		// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-2-sol.html
+		// (read 2026-11-18; launched 2026-11-17, EOL not announced). Standard
+		// tier only, at the card's rates, as the price list has no GPT-6.2
+		// rows yet: global matches OpenAI's rates and US CRIS adds 10%, with a
+		// long-context card above 272K input tokens; 30-minute cache writes
+		// sit in the unknown-TTL bucket. Converse caching is implicit only.
+		// Unlike GPT-6.2 Astra's, the card supports JSON Schema output on
+		// streaming requests too. Otherwise as GPT-6.2 Astra.
+		BareID:         ModelGPT62Sol,
+		WireAPIs:       openAIRuntimeWireAPIs,
+		Model:          catalog.ModelGPT6_2Sol,
+		DisplayName:    "OpenAI GPT-6.2 Sol",
+		Profiles:       []string{"global", "us"},
+		ProfileRegions: gpt6SolProfileRegions,
+		NoCachePoints:  true,
+		Capabilities:   gpt6AstraCaps,
+		Modalities:     gpt56Modalities,
+		Constraints:    gpt6AstraConstraints,
+		Reasoning:      converseReasoningNoControls,
+		GlobalRates: &pricing.RateCard{
+			Base: pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(0, 0, 2.50),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(4.00, 15.00, 0.20).WithCacheCreation(0, 0, 5.00),
+			}},
+		},
+		Rates: pricing.RateCard{
+			Base: pricing.NewRates(2.20, 11.00, 0.11).WithCacheCreation(0, 0, 2.75),
+			Brackets: []pricing.Bracket{{
+				MinContextTokens: 272_001,
+				Rates:            pricing.NewRates(4.40, 16.50, 0.22).WithCacheCreation(0, 0, 5.50),
 			}},
 		},
 	},

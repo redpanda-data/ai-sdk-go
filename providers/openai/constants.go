@@ -79,6 +79,12 @@ const (
 	// ModelGPT6_1Terra is the fast, efficient GPT-6 tier between Sol and
 	// Luna. Like GPT-6 Sol, it accepts reasoning effort none.
 	ModelGPT6_1Terra = "gpt-6.1-terra"
+	// ModelGPT6_2Astra is the GPT-6.2 flagship, succeeding GPT-6 Astra. It
+	// rejects reasoning effort none.
+	ModelGPT6_2Astra = "gpt-6.2-astra"
+	// ModelGPT6_2Sol is the GPT-6.2 everyday model, succeeding GPT-6.1 Sol.
+	// It rejects reasoning effort none.
+	ModelGPT6_2Sol = "gpt-6.2-sol"
 
 	// ModelGPT5_6Luna is the cost-optimized GPT-5.6 model.
 	ModelGPT5_6Luna = shared.ChatModelGPT5_6Luna
