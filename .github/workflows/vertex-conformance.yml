@@ -1,0 +1,135 @@
+name: Vertex AI Conformance
+
+# Runs the shared conformance suite against providers/vertex with live
+# Vertex AI calls. The Workload Identity Federation provider gives a token only
+# to the vertex-conformance environment on main, and that environment admits
+# main only. The code under test never holds the token.
+on:
+  schedule:
+    - cron: "41 4 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: vertex-conformance
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build the test binary
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # No secrets, no id-token: this job runs repository code.
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16  # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+
+      # No other providers/vertex test file runs in the job that has the token.
+      - name: Build the test binary
+        run: CGO_ENABLED=0 go test -c -o vertex.test ./providers/vertex/conformance/
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: vertex-test-binary
+          path: vertex.test
+          if-no-files-found: error
+          retention-days: 1
+
+  conformance:
+    name: Vertex AI conformance
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    environment: vertex-conformance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      VERTEX_DIR: /opt/vertex-conformance
+      PROXY_PORT: "18080"
+      VERTEX_TEST_PROJECT: cloudv2-testing-project
+    steps:
+      # Harden-Runner also always allows GitHub's Actions domains. The rest is
+      # the Vertex AI host, Google's token exchange and apt.
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            aiplatform.googleapis.com:443
+            sts.googleapis.com:443
+            iamcredentials.googleapis.com:443
+            azure.archive.ubuntu.com:80
+            packages.microsoft.com:443
+            esm.ubuntu.com:443
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          persist-credentials: false
+
+      - name: Check the egress block
+        run: .github/reconcile-models/check-egress.sh
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with:
+          name: vertex-test-binary
+          path: ${{ runner.temp }}/dl
+
+      - name: Install the sandbox
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends bubblewrap socat
+          # Ubuntu 24.04 restricts unprivileged user namespaces, which bubblewrap needs.
+          if [[ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+
+      - name: Get a Vertex AI access token
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093  # v3.0.0
+        with:
+          workload_identity_provider: projects/606234194099/locations/global/workloadIdentityPools/rp-cicd/providers/gh-ai-sdk-go
+          service_account: gh-ai-sdk-go@devprod-cicd-infra.iam.gserviceaccount.com
+          token_format: access_token
+          access_token_lifetime: 2700s
+          create_credentials_file: false
+          export_environment_variables: false
+
+      # The only step that reads the token.
+      - name: Start the auth proxy
+        env:
+          VERTEX_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: .github/vertex-conformance/start-proxy.sh
+
+      - name: Stop Docker and remove sudo
+        run: .github/vertex-conformance/lock-down.sh
+
+      - name: Check the sandbox
+        run: |
+          source .github/vertex-conformance/sandbox.sh
+          sandbox_check || { echo "::error::the sandbox check failed with exit code $? (see sandbox_check in sandbox.sh)"; exit 1; }
+
+      - name: Run the Vertex AI conformance suite
+        run: |
+          source .github/vertex-conformance/sandbox.sh
+          # A renamed test would match nothing in -test.run and pass as green.
+          sandbox "$VERTEX_DIR/vertex.test" -test.list '^TestVertexConformance_Integration$' \
+            | grep -qx TestVertexConformance_Integration \
+            || { echo "::error::TestVertexConformance_Integration not found"; exit 1; }
+          sandbox "$VERTEX_DIR/vertex.test" -test.run '^TestVertexConformance_Integration$' -test.v -test.timeout 35m
+
+      - name: Show the auth proxy log
+        if: always()
+        run: cat /var/log/credproxy.log
