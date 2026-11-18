@@ -44,12 +44,17 @@ pr="$(need pr .outputs.pr)" pushed="$(need pr .outputs.pushed)"
 # plan, carry and pr is one vendor's.
 failed="$(jq -c '[to_entries[] | select(.value.result == "failure" or .value.result == "cancelled") | .key]' <<<"$NEEDS")"
 if [[ "$failed" != "[]" ]]; then
-  # The failed jobs that match a jq test of the job's name, with $n the needs.
-  names() { jq -r --argjson failed "$failed" ". as \$n | [\$failed[] | select($1)] | join(\", \")" <<<"$NEEDS"; }
-  # A vendor's job hands on a head once its check passed. One that failed
-  # later still has its changes in this run; one that failed sooner doesn't.
-  vendor='(IN("plan", "carry", "pr") | not)' checked='(($n[.].outputs.head // "") != "")'
-  unchecked="$(names "$vendor and ($checked | not)")" late="$(names "$vendor and $checked")"
+  # The failed jobs that pass a jq test of the job's name. A test can use
+  # vendor, and checked: a vendor's job hands on a head once its check passed,
+  # so one that failed later still has its changes in this run; one that
+  # failed sooner doesn't.
+  names() {
+    jq -r --argjson failed "$failed" '. as $n
+      | def vendor: IN("plan", "carry", "pr") | not;
+        def checked: ($n[.].outputs.head // "") != "";
+        [$failed[] | select('"$1"')] | join(", ")' <<<"$NEEDS"
+  }
+  unchecked="$(names 'vendor and (checked | not)')" late="$(names 'vendor and checked')"
   if jq -e 'any(. == "plan")' <<<"$failed" >/dev/null; then
     lines+=(":red_circle: The catalog reconcile ${run} failed before checking any vendor.")
   else
@@ -72,6 +77,10 @@ if [[ "$failed" != "[]" ]]; then
     # this run's push, so the pr job would refuse to push again. A new run
     # reads the PR as it is now.
     lines+=("To try again, <${repo_url}/actions/workflows/reconcile-models.yml|start a new run> for each failed vendor, with \"Stop before pushing\" unticked. Re-running this run's failed jobs can't update the PR again.")
+  elif [[ "$(need pr .outputs.moved)" == "true" ]]; then
+    # The pr job compares the PR with the head the plan read, and a re-run
+    # keeps the plan's, so it would stop the same way.
+    lines+=("Someone pushed to $(pr_link "${pr:-$(need plan .outputs.pr)}") during the run, so this run didn't update it. Re-running the failed jobs would stop the same way: <${repo_url}/actions/workflows/reconcile-models.yml|start a new run> with \"Stop before pushing\" unticked, or wait for the next scheduled run.")
   else
     # The open PR, as the pr job or else the plan found it, unless this run pushed to it.
     open="${pr:-$(need plan .outputs.pr)}" stale=""
@@ -97,8 +106,8 @@ elif [[ "$pushed" == "true" ]]; then
     changed="${summary%% Not changed: *}"
     lines+=("• $(escape "${changed%.}")")
     if [[ "$summary" == *" Not changed: "* ]]; then
-      same="${summary#* Not changed: }"
-      IFS=',' read -ra counts <<<"${same%.}"
+      unchanged="${summary#* Not changed: }"
+      IFS=',' read -ra counts <<<"${unchanged%.}"
       for count in "${counts[@]}"; do lines+=("• $(escape "${count# }")"); done
     fi
     lines+=("")

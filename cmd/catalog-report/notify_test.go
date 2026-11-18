@@ -194,6 +194,18 @@ func TestNotifyTellsTheChannel(t *testing.T) {
 			hasnt: []string{"pushed nothing", "11 open questions"},
 		},
 		{
+			name:  "someone pushed to the PR during the run",
+			needs: needs(map[string]string{"changed": "true", "moved": "true", "pr": "336"}, map[string]string{"pr": "failure"}),
+			body:  changes,
+			post:  true,
+			has: []string{
+				run + " failed.\nSomeone pushed to " + pr336 + " during the run, so this run didn't update it. " +
+					"Re-running the failed jobs would stop the same way: <https://github.com/o/r/actions/workflows/reconcile-models.yml|start a new run> " +
+					"with \"Stop before pushing\" unticked, or wait for the next scheduled run.\n",
+			},
+			hasnt: []string{"Re-run failed jobs", "wasn't updated", "pushed nothing", "needs a reviewer"},
+		},
+		{
 			name:  "the PR was closed during the run",
 			needs: needs(map[string]string{"changed": "true", "pr": "336"}, nil),
 			body:  changes,

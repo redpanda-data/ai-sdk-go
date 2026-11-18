@@ -386,11 +386,13 @@ jobs:
       pull-requests: read
       id-token: write # only used outside dry runs, to read the bot token
     # What the notify job tells the team's channel: whether this job had
-    # changes and pushed them, the PR, and why a stopped run didn't push.
+    # changes and pushed them, the PR, whether someone pushed to it during the
+    # run, and why a stopped run didn't push.
     outputs:
       changed: ${{ steps.combine.outputs.changed }}
       pushed: ${{ steps.push.outputs.pushed }}
       pr: ${{ steps.push.outputs.pr || env.PR }}
+      moved: ${{ steps.push.outputs.moved }}
       stop: ${{ env.STOP }}
       reason: ${{ env.REASON }}
     env:
@@ -544,6 +546,7 @@ jobs:
               push=false  # a re-run of this job after its push: only the body is left to do
             elif [[ "$head" != "$H0" ]]; then
               echo "::error::Someone pushed to #${PR} during the run (${head}); the next run sees it."
+              echo "moved=true" >>"$GITHUB_OUTPUT"
               exit 1
             elif same_as_pr; then
               # Pushing the same changes again would dismiss approvals for nothing.

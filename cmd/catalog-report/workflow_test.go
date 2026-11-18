@@ -1791,10 +1791,10 @@ func TestDispatchOptionsMatchNamedSources(t *testing.T) {
 	assert.Equal(t, "all", input.Default)
 }
 
-// TestOnlyTheirJobsGetTheTokens checks that only the jobs that run nothing
-// from the patches can get an OIDC token, each for its one secret: the pr job
-// the bot token, the notify job the Slack token.
-func TestOnlyTheirJobsGetTheTokens(t *testing.T) {
+// TestOnlyPRAndNotifyJobsGetTokens checks that only the pr and notify jobs,
+// which run nothing from the patches, can get an OIDC token, each for its one
+// secret: the pr job the bot token, the notify job the Slack token.
+func TestOnlyPRAndNotifyJobsGetTokens(t *testing.T) {
 	t.Parallel()
 
 	secrets := map[string]string{"pr": "sdlc/prod/github/actions_bot_token", notifyJob: slackToken}
@@ -1850,7 +1850,8 @@ func TestPushIsLeasedOnThePlansHead(t *testing.T) {
 // team's channel offers the PR, and a requested name would put others off
 // taking it. The step also tells the notify job whether the PR holds this run's commits, and the
 // PR, including one it just opened, before it edits the PR, so a failed edit
-// can't hide the push.
+// can't hide the push. It tells it too when someone pushed to the PR during
+// the run, since a re-run of the failed jobs would stop the same way.
 func TestPushStepChecksThePRFirst(t *testing.T) {
 	t.Parallel()
 
@@ -1861,7 +1862,8 @@ func TestPushStepChecksThePRFirst(t *testing.T) {
 	assert.Equal(t, map[string]string{
 		"changed": "${{ steps.combine.outputs.changed }}",
 		"pushed":  "${{ steps.push.outputs.pushed }}", "pr": "${{ steps.push.outputs.pr || env.PR }}",
-		"stop": "${{ env.STOP }}", "reason": "${{ env.REASON }}",
+		"moved": "${{ steps.push.outputs.moved }}",
+		"stop":  "${{ env.STOP }}", "reason": "${{ env.REASON }}",
 	}, job.Outputs)
 
 	// Both log every call; gh prints PR_VIEW for gh pr view, a new PR's URL
@@ -1883,7 +1885,7 @@ func TestPushStepChecksThePRFirst(t *testing.T) {
 		outputs map[string]string // for the notify job
 	}{
 		{name: "closed during the run", pr: "7", view: "CLOSED h0 true", passes: true, noCalls: []string{"git push", "gh pr edit", "gh pr ready"}, outputs: map[string]string{}},
-		{name: "pushed to during the run", pr: "7", view: "OPEN theirs true", passes: false, noCalls: []string{"git push", "gh pr edit"}, outputs: map[string]string{}},
+		{name: "pushed to during the run", pr: "7", view: "OPEN theirs true", passes: false, noCalls: []string{"git push", "gh pr edit"}, outputs: map[string]string{"moved": "true"}},
 		{name: "marked ready", pr: "7", view: "OPEN h0 false", passes: true, calls: []string{"gh pr ready 7 --repo o/r --undo", "git push", "gh pr edit 7"}, outputs: map[string]string{"pushed": "true", "pr": "7"}},
 		{name: "a draft", pr: "7", view: "OPEN h0 true", passes: true, calls: []string{"git push", "gh pr edit 7"}, noCalls: []string{"gh pr ready"}, outputs: map[string]string{"pushed": "true", "pr": "7"}},
 		{name: "a re-run after the push", pr: "7", view: "OPEN tip true", passes: true, calls: []string{"gh pr edit 7"}, noCalls: []string{"git push"}, outputs: map[string]string{"pushed": "true", "pr": "7"}},
