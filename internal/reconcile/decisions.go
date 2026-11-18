@@ -27,8 +27,8 @@ import (
 // reconcile run must not reopen (RULES.md, Principles).
 const DecisionsPath = ".github/reconcile-models/decisions.yaml"
 
-// The two kinds of decision, and the fields a hold applies to: a model the
-// catalogue doesn't carry yet, and another copy of one it does.
+// The two kinds of decision, and the two fields about an offering the
+// catalogue doesn't carry yet: a new model, and another copy of one it has.
 const (
 	KindKeep      = "keep"
 	KindHold      = "hold"
@@ -37,21 +37,31 @@ const (
 )
 
 // Decision is one entry in decisions.yaml. A keep pins one field of an offering to Lock,
-// written in that field's catalog/snapshot.json shape; a hold keeps an
-// offering out of the catalogue.
+// written in that field's catalog/snapshot.json shape, or only the parts Keys
+// names; a hold keeps an offering out of the catalogue, or on another field
+// leaves the vendor's value out while Rule still asks about it. With a Rule,
+// a decision answers only that rule's questions.
 type Decision struct {
-	ID       string `yaml:"id"`
-	Offering string `yaml:"offering"`
-	Field    string `yaml:"field"`
-	Kind     string `yaml:"kind"`
-	Lock     any    `yaml:"lock"`
-	Reason   string `yaml:"reason"`
-	Decided  string `yaml:"decided"`
-	ReviewBy string `yaml:"review_by"`
-	PR       int    `yaml:"pr"`
+	ID       string   `yaml:"id"`
+	Offering string   `yaml:"offering"`
+	Field    string   `yaml:"field"`
+	Kind     string   `yaml:"kind"`
+	Rule     string   `yaml:"rule"`
+	Keys     []string `yaml:"keys"`
+	Lock     any      `yaml:"lock"`
+	Reason   string   `yaml:"reason"`
+	Decided  string   `yaml:"decided"`
+	ReviewBy string   `yaml:"review_by"`
+	PR       int      `yaml:"pr"`
 
 	// Line is where the entry starts in the file, so a PR can link to it.
 	Line int `yaml:"-"`
+}
+
+// Answers reports whether d answers a question raised by rule on its
+// offering and field: every one when d names no rule, else its rule's.
+func (d Decision) Answers(rule string) bool {
+	return d.Rule == "" || d.Rule == rule
 }
 
 // ParseDecisions decodes decisions.yaml strictly, so an unknown key is an error.

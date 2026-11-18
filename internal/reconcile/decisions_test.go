@@ -59,6 +59,15 @@ decisions:
 		assert.Equal(t, 12, entries[1].Line)
 	})
 
+	t.Run("reads the rule a decision answers and the keys it locks", func(t *testing.T) {
+		t.Parallel()
+
+		entries, err := ParseDecisions([]byte(file + "    rule: reasoning-unsendable\n    keys: [reasoning.efforts]\n"))
+		require.NoError(t, err)
+		assert.Equal(t, "reasoning-unsendable", entries[1].Rule)
+		assert.Equal(t, []string{"reasoning.efforts"}, entries[1].Keys)
+	})
+
 	t.Run("rejects an unknown key", func(t *testing.T) {
 		t.Parallel()
 

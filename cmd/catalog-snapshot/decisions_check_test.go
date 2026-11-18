@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/redpanda-data/ai-sdk-go/catalog"
@@ -26,8 +27,9 @@ import (
 
 // lockedKeys lists, for each field in RULES.md's Field table, the snapshot
 // keys a lock covers: "key" or "key.subkey" on the offering, or "facts.key"
-// on its model. A field with one key locks that value; one with several locks
-// an object of those present, keyed by their last part.
+// on its model. A field with one key locks that value; one with several, or a
+// decision's own keys, lock an object of those present, keyed by their last
+// part.
 var lockedKeys = map[string][]string{
 	reconcile.FieldNewModel: nil,
 	reconcile.FieldNewCopy:  nil,
@@ -46,8 +48,8 @@ var lockedKeys = map[string][]string{
 var decisionID = regexp.MustCompile(`^DEC-[0-9]{3}$`)
 
 // checkDecisions returns one problem per decision that is malformed or that
-// the snapshot contradicts.
-func checkDecisions(file, snapshotJSON []byte) []string {
+// the snapshot contradicts. asks maps each RULES.md Ask to its question.
+func checkDecisions(file, snapshotJSON []byte, asks map[string]string) []string {
 	entries, err := reconcile.ParseDecisions(file)
 	if err != nil {
 		return []string{"decisions.yaml: " + err.Error()}
@@ -60,36 +62,44 @@ func checkDecisions(file, snapshotJSON []byte) []string {
 
 	var problems []string
 
-	ids, keys := map[string]bool{}, map[string]string{}
+	ids, taken := map[string]bool{}, map[string][]reconcile.Decision{}
 
 	for _, d := range entries {
 		key := d.Offering + " " + d.Field
+		// Two decisions on one offering and field clash when one answers a
+		// question the other does, so the run would pick by file order.
+		clash := slices.IndexFunc(taken[key], func(o reconcile.Decision) bool {
+			return o.Answers(d.Rule) || d.Answers(o.Rule)
+		})
 
-		switch problem := malformed(d); {
+		switch problem := malformed(d, asks); {
 		case problem != "":
 			problems = append(problems, d.ID+": "+problem)
 			continue
 		case ids[d.ID]:
 			problems = append(problems, d.ID+": duplicate ID")
 			continue
-		case keys[key] != "":
-			problems = append(problems, d.ID+": "+keys[key]+" already covers "+key)
+		case clash >= 0:
+			problems = append(problems, d.ID+": "+taken[key][clash].ID+" already covers "+key)
 			continue
 		}
 
-		ids[d.ID], keys[key] = true, d.ID
+		ids[d.ID], taken[key] = true, append(taken[key], d)
 
 		pkg, id, _ := strings.Cut(d.Offering, ":")
 		offering, exists := snap.Offering(pkg, id)
 		where := fmt.Sprintf("%s %s %s %s: ", d.ID, d.Kind, d.Offering, d.Field)
+		// A hold on new_model or new_copy keeps the offering out; every
+		// other decision is about an offering the catalogue carries.
+		out := d.Kind == reconcile.KindHold && adds(d.Field)
 
 		switch {
-		case d.Kind == reconcile.KindHold && exists:
+		case out && exists:
 			problems = append(problems, where+"the offering is in the catalogue")
-		case d.Kind == reconcile.KindKeep && !exists:
+		case !out && !exists:
 			problems = append(problems, where+"the offering is missing")
 		case d.Lock != nil:
-			if got, want := canonical(lockedPart(d.Field, offering, snap.Facts)), canonical(d.Lock); got != want {
+			if got, want := canonical(lockedPart(d, offering, snap.Facts)), canonical(d.Lock); got != want {
 				problems = append(problems, where+"got "+got+", locked "+want)
 			}
 		}
@@ -98,12 +108,10 @@ func checkDecisions(file, snapshotJSON []byte) []string {
 	return problems
 }
 
-func malformed(d reconcile.Decision) string {
+func malformed(d reconcile.Decision, asks map[string]string) string {
 	pkg, id, _ := strings.Cut(d.Offering, ":")
 	_, knownField := lockedKeys[d.Field]
-	_, decidedErr := catalog.ParseDate(d.Decided)
-	_, reviewErr := catalog.ParseDate(d.ReviewBy)
-	added := d.Field == reconcile.FieldNewModel || d.Field == reconcile.FieldNewCopy
+	added := adds(d.Field)
 
 	switch {
 	case !decisionID.MatchString(d.ID):
@@ -118,23 +126,96 @@ func malformed(d reconcile.Decision) string {
 		return "unknown field " + d.Field
 	case d.Field == "location":
 		return "location takes no decision yet: served locations are not in the snapshot"
-	case d.Kind == reconcile.KindHold && !added:
-		return "a hold applies only to new_model or new_copy"
+	case d.Kind == reconcile.KindHold && !added && d.Rule == "":
+		return "a hold on " + d.Field + " names the rule whose question it answers"
 	case added && d.Lock != nil:
 		return d.Field + " takes no lock"
-	case !added && d.Lock == nil:
+	case added && d.Rule != "":
+		// It answers every question and skip about its offering, whatever
+		// rule raised it; skipped rows name Defaults, which a decision can't.
+		return d.Field + " takes no rule"
+	case d.Kind == reconcile.KindHold && d.Rule == reconcile.JudgmentRule:
+		return "a hold can't name no-rule: it would hide every question no rule covers on " + d.Field + ", so add a rule to RULES.md"
+	case d.Kind == reconcile.KindHold && d.Lock != nil:
+		return "a hold takes no lock"
+	case d.Kind == reconcile.KindKeep && !added && d.Lock == nil:
 		return "a keep needs a lock"
+	case d.Rule != "" && asks[d.Rule] == "":
+		return "rule " + d.Rule + " asks no question"
+	case len(d.Keys) > 0 && (d.Kind != reconcile.KindKeep || added):
+		return "only a keep on a value names keys"
 	case d.Reason == "":
 		return "a decision needs a reason"
+	}
+
+	if problem := badDates(d); problem != "" {
+		return problem
+	}
+
+	return badKeys(d)
+}
+
+// badDates returns what is wrong with a decision's dates: decided and
+// review_by are dates, and review_by is at most a year after decided.
+func badDates(d reconcile.Decision) string {
+	decided, decidedErr := catalog.ParseDate(d.Decided)
+	reviewBy, reviewErr := catalog.ParseDate(d.ReviewBy)
+
+	switch {
 	case decidedErr != nil || reviewErr != nil:
 		return "decided and review_by are YYYY-MM-DD dates"
+	case !reviewBy.After(decided) || reviewBy.After(decided.AddDate(1, 0, 0)):
+		return "review_by is after decided, and at most a year after it"
 	}
 
 	return ""
 }
 
-// lockedPart returns the part of the snapshot a field locks (see lockedKeys).
-func lockedPart(field string, offering map[string]any, facts map[string]map[string]any) any {
+// badKeys returns what is wrong with a keep's keys: each is part of its
+// field, and no two lock the same name.
+func badKeys(d reconcile.Decision) string {
+	names := map[string]string{}
+
+	for _, key := range d.Keys {
+		name := key[strings.LastIndex(key, ".")+1:]
+
+		switch {
+		case !inField(d.Field, key):
+			return "key " + key + " isn't part of " + d.Field + ": name one of its snapshot keys, or one level under one"
+		case names[name] != "":
+			return "keys " + names[name] + " and " + key + " would both lock " + name
+		}
+
+		names[name] = key
+	}
+
+	return ""
+}
+
+// adds reports whether a field is about an offering the catalogue doesn't
+// carry yet: a new model, or a new copy of one.
+func adds(field string) bool {
+	return field == reconcile.FieldNewModel || field == reconcile.FieldNewCopy
+}
+
+// inField reports whether key is one of field's snapshot keys (lockedKeys),
+// or one level under one that is a whole offering key, as lockedPart's
+// lookup reads it.
+func inField(field, key string) bool {
+	parent, child, nested := strings.Cut(key, ".")
+
+	for _, path := range lockedKeys[field] {
+		if key == path || nested && parent == path && child != "" && !strings.Contains(child, ".") {
+			return true
+		}
+	}
+
+	return false
+}
+
+// lockedPart returns the part of the snapshot a decision locks: the parts
+// its keys name, or else its field's (see lockedKeys).
+func lockedPart(d reconcile.Decision, offering map[string]any, facts map[string]map[string]any) any {
 	model, _ := offering["model"].(string)
 	lookup := func(path string) (any, bool) {
 		first, rest, nested := strings.Cut(path, ".")
@@ -152,8 +233,10 @@ func lockedPart(field string, offering map[string]any, facts map[string]map[stri
 		return value, ok
 	}
 
-	paths := lockedKeys[field]
-	if len(paths) == 1 {
+	paths := lockedKeys[d.Field]
+	if len(d.Keys) > 0 {
+		paths = d.Keys
+	} else if len(paths) == 1 {
 		value, _ := lookup(paths[0])
 		return value
 	}
