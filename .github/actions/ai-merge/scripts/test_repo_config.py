@@ -66,14 +66,11 @@ def test_real_config_excludes_credential_and_ci_defining_files():
         "LICENSE",
         "header.txt",
         "providers/vertex/model.go",
-        "providers/vertex/conformance/vertex_conformance_test.go",
         "providers/fireworks/contract_test.go",
         "providers/fireworks/contract_protocol_test.go",
         "providers/fireworks/contract_budget_test.go",
         "providers/fireworks/contract_recording.go",
         "taskfiles/fireworks.yaml",
-        "providers/conformance/suite.go",
-        "internal/testsuite/testsuite.go",
     ):
         r = evaluate(cfg, _one(path), PR_OK, True, checks=CI_OK)
         assert not r["eligible"], f"{path} must be excluded: {r['reasons']}"
@@ -90,6 +87,9 @@ def test_real_config_keeps_catalog_work_in_scope():
         "providers/fireworks/models.go",
         "providers/fireworks/models_test.go",
         "providers/bedrock/cross_region.go",
+        "providers/vertex/conformance/vertex_conformance_test.go",
+        "providers/conformance/suite.go",
+        "internal/testsuite/testsuite.go",
     ):
         r = evaluate(cfg, _one(path), PR_OK, True, checks=CI_OK)
         assert r["eligible"], f"{path} should be eligible: {r['reasons']}"
