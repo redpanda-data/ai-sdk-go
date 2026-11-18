@@ -17,6 +17,7 @@ package mcp
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -460,6 +461,148 @@ func registryParameterAmplificationSchema(depth, leaves int) (any, map[string]an
 	}
 
 	return map[string]any{"type": "object", "properties": properties}, arguments
+}
+
+// The same shape through the public seam: discovery, snapshot membership, the
+// schema forwarded unchanged and every header delivered on execution. The JSON
+// nesting stays under the SDK's 1000-level cap, including the tools/list envelope.
+// The modern case is narrower: go-sdk v1.8.0 re-parses the arguments per path
+// level for every annotation while generating its own headers on each call.
+func TestRegistryLargeAnnotatedSchemaOverWire(t *testing.T) {
+	t.Parallel()
+
+	const depth = 400
+
+	for _, tc := range []struct {
+		legacy bool
+		leaves int
+	}{{legacy: false, leaves: 10}, {legacy: true, leaves: 1000}} {
+		legacy := tc.legacy
+		schema, arguments, want := registryParameterSeamFixture(t, depth, tc.leaves)
+
+		t.Run(fmt.Sprintf("legacy=%t", legacy), func(t *testing.T) {
+			t.Parallel()
+
+			peer := newRegistryPeer(t, legacy)
+			peer.servers["alice"].AddTool(&sdkmcp.Tool{Name: "deep", InputSchema: schema},
+				func(context.Context, *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
+					return &sdkmcp.CallToolResult{Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: "deep"}}}, nil
+				})
+
+			calls := registryAgentCaptureCalls(peer)
+			registry := newContextRegistry(t, peer)
+
+			ctx, cancel := context.WithTimeout(registryCaller(t.Context(), "alice", "alice:one"), 30*time.Second)
+			defer cancel()
+
+			snapshot, err := registry.Snapshot(ctx)
+			require.NoError(t, err)
+			deep, err := snapshot.Get(ctx, "remote__deep")
+			require.NoError(t, err, "the large annotated tool must be a snapshot member")
+			assert.JSONEq(t, string(schema), string(deep.Definition().Parameters))
+
+			response, err := snapshot.Execute(ctx, &llm.ToolRequestPart{ID: "deep", Name: "remote__deep", Arguments: arguments})
+			require.NoError(t, err)
+			require.NotNil(t, response)
+			assert.False(t, response.IsError, string(response.Result))
+
+			call := registryAgentReadCalls(t, calls, 1)[0]
+			assert.Equal(t, "deep", call.name)
+			assert.JSONEq(t, string(arguments), string(call.arguments))
+
+			expected := want
+			if legacy {
+				expected = http.Header{} // the 2025-06-18 protocol carries no parameter headers
+			}
+
+			received := registryParameterHeaderSubset(call.headers)
+			require.Len(t, received, len(expected))
+			assert.Equal(t, expected, received)
+		})
+	}
+}
+
+// registryParameterSeamFixture nests depth properties objects, each with an
+// unannotated sibling, above leaves annotated string, integer and boolean
+// properties. It returns arguments for every leaf and the headers SEP-2243
+// requires for them. Unlike a boolean sibling, the object sibling leaves the SDK
+// server able to check each header against the arguments.
+func registryParameterSeamFixture(t *testing.T, depth, leaves int) (json.RawMessage, json.RawMessage, http.Header) {
+	t.Helper()
+
+	properties := map[string]any{"plain": map[string]any{"type": "string"}}
+	values := map[string]any{"plain": "x"}
+	want := make(http.Header, leaves)
+
+	for i := range leaves {
+		name, header := "l"+strconv.Itoa(i), "Mcp-Param-H"+strconv.Itoa(i)
+
+		var kind string
+
+		switch i % 3 {
+		case 0:
+			kind, values[name] = "string", "v"+strconv.Itoa(i)
+			want.Set(header, "v"+strconv.Itoa(i))
+
+			if i%2 == 0 {
+				text := " \u03b1" + strconv.Itoa(i) + " "
+				values[name] = text
+				want.Set(header, "=?base64?"+base64.StdEncoding.EncodeToString([]byte(text))+"?=")
+			}
+		case 1:
+			kind, values[name] = "integer", -i
+			want.Set(header, strconv.Itoa(-i))
+		default:
+			kind, values[name] = "boolean", i%2 == 0
+			want.Set(header, strconv.FormatBool(i%2 == 0))
+		}
+
+		properties[name] = map[string]any{"type": kind, "x-mcp-header": "H" + strconv.Itoa(i)}
+	}
+
+	for i := depth - 1; i >= 0; i-- {
+		name := "p" + strconv.Itoa(i)
+		properties = map[string]any{
+			name:    map[string]any{"type": "object", "properties": properties},
+			"noise": map[string]any{"type": "object", "properties": map[string]any{"a": map[string]any{"type": "string"}}},
+		}
+		values = map[string]any{name: values, "noise": map[string]any{"a": "x"}}
+	}
+
+	schema, err := json.Marshal(map[string]any{"type": "object", "properties": properties})
+	require.NoError(t, err)
+	arguments, err := json.Marshal(values)
+	require.NoError(t, err)
+
+	return schema, arguments, want
+}
+
+// A header bound more than once binds nowhere, and a subtree left without a
+// header must not be retained.
+func TestRegistryParameterTriePrunesDuplicateHeaders(t *testing.T) {
+	t.Parallel()
+
+	duplicateOnly := `{"properties":{"a":{"type":"string","x-mcp-header":"Dup"},` +
+		`"b":{"type":"object","properties":{"c":{"type":"integer","x-mcp-header":"DUP"}}}}}`
+	assert.Nil(t, registryParameterTrie(registryDecodedSchema(t, duplicateOnly)))
+
+	mixed := `{"properties":{` +
+		`"keep":{"type":"object","properties":{"route":{"type":"string","x-mcp-header":"Route"},"plain":{"type":"string"}}},` +
+		`"dups":{"type":"object","properties":{"one":{"type":"string","x-mcp-header":"Dup"},` +
+		`"inner":{"type":"object","properties":{"two":{"type":"boolean","x-mcp-header":"dup"}}}}},` +
+		`"mid":{"type":"string","x-mcp-header":"DUP","properties":{"x":{"type":"string","x-mcp-header":"X"}}},` +
+		`"count":{"type":"integer","x-mcp-header":"Count"},` +
+		`"noise":{"type":"object","properties":{"a":{"type":"string"}}}}}`
+	trie := registryParameterTrie(registryDecodedSchema(t, mixed))
+
+	// keep, keep.route, count, and mid (unbound, kept for mid.x) with mid.x; the
+	// duplicate-only dups subtree (dups, one, inner, two) is pruned.
+	assert.Equal(t, 5, registryRetainedParameterElements(trie))
+	assert.Equal(t, []registryParameterBinding{
+		{path: []string{"count"}, header: "Mcp-Param-Count"},
+		{path: []string{"keep", "route"}, header: "Mcp-Param-Route"},
+		{path: []string{"mid", "x"}, header: "Mcp-Param-X"},
+	}, registryFlattenParameterTrie(trie))
 }
 
 func TestRegistryParameterHeaderEncoding(t *testing.T) {
