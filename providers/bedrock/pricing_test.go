@@ -82,6 +82,12 @@ var unknownTTLCacheModels = map[string]bool{
 	ModelGPT6Sol:       true,
 	ModelGPT6SolGlobal: true,
 	ModelGPT6SolUS:     true,
+
+	ModelGPT62AstraGlobal: true,
+	ModelGPT62AstraUS:     true,
+
+	ModelGPT62SolGlobal: true,
+	ModelGPT62SolUS:     true,
 }
 
 func TestAllModelsHavePricing(t *testing.T) {

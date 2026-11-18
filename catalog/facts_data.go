@@ -60,6 +60,8 @@ const (
 	ModelGPT6Luna      ModelID = "openai/gpt-6-luna"
 	ModelGPT6_1Sol     ModelID = "openai/gpt-6.1-sol"
 	ModelGPT6_1Terra   ModelID = "openai/gpt-6.1-terra"
+	ModelGPT6_2Astra   ModelID = "openai/gpt-6.2-astra"
+	ModelGPT6_2Sol     ModelID = "openai/gpt-6.2-sol"
 	ModelGPT4o         ModelID = "openai/gpt-4o"
 	ModelGPT4oMini     ModelID = "openai/gpt-4o-mini"
 	ModelGPT4Turbo     ModelID = "openai/gpt-4-turbo"
@@ -299,8 +301,8 @@ var defaultRegistry = Registry{
 	// ---- OpenAI ----
 	//
 	// The flagship line runs gpt-3.5-turbo → gpt-4-turbo → gpt-4o →
-	// gpt-4.1 → gpt-5 → 5.1 → 5.2 → 5.4 → 5.5 → gpt-5.6-sol → gpt-6-astra; the -mini
-	// ladder runs through gpt-5.6-terra and gpt-6-sol to gpt-6.1-sol, the -nano
+	// gpt-4.1 → gpt-5 → 5.1 → 5.2 → 5.4 → 5.5 → gpt-5.6-sol → gpt-6-astra → gpt-6.2-astra; the -mini
+	// ladder runs through gpt-5.6-terra, gpt-6-sol and gpt-6.1-sol to gpt-6.2-sol, the -nano
 	// ladder through gpt-5.6-luna to gpt-6-luna, and gpt-6.1-terra starts the
 	// gpt-terra line. GPT-6 moved "Sol" down a tier:
 	// Astra is the flagship, so gpt-6-sol succeeds the mid tier, not gpt-5.6-sol.
@@ -439,6 +441,24 @@ var defaultRegistry = Registry{
 		DisplayName: "GPT-6.1 Terra", Series: "gpt-terra",
 		Released: MustDate("2026-10-26"), Knowledge: MustDate("2026-06-01"),
 		Description: "GPT-6.1 Terra is OpenAI's fast, efficient GPT-6 model for visual reasoning, precise computer use, and clear, natural writing.",
+	},
+	// Released per https://developers.openai.com/api/docs/changelog (Nov 17,
+	// 2026; read 2026-11-18). Cutoffs per
+	// https://developers.openai.com/api/docs/models/gpt-6.2-astra and
+	// https://developers.openai.com/api/docs/models/gpt-6.2-sol (read 2026-11-18).
+	// Astra continues the flagship gpt line after gpt-6-astra; Sol continues
+	// gpt-mini after gpt-6.1-sol.
+	ModelGPT6_2Astra: {
+		Publisher:   PublisherOpenAI,
+		DisplayName: "GPT-6.2 Astra", Series: "gpt",
+		Released: MustDate("2026-11-17"), Knowledge: MustDate("2026-05-18"),
+		Description: "GPT-6.2 Astra is OpenAI's most capable model for demanding reasoning, coding, and long-running projects, from start to finish.",
+	},
+	ModelGPT6_2Sol: {
+		Publisher:   PublisherOpenAI,
+		DisplayName: "GPT-6.2 Sol", Series: "gpt-mini",
+		Released: MustDate("2026-11-17"), Knowledge: MustDate("2026-06-01"),
+		Description: "GPT-6.2 Sol is OpenAI's go-to model for everyday work, from coding to powering agents at scale.",
 	},
 	ModelGPT4o: {
 		Publisher:   PublisherOpenAI,

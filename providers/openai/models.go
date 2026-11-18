@@ -514,6 +514,65 @@ func entries() []catalog.Entry {
 					pricing.NewRates(4.00, 15.00, 0.20).WithCacheCreation(0, 0, 5.00),
 				))),
 
+		// https://developers.openai.com/api/docs/models/gpt-6.2-astra (read 2026-11-18).
+		// The API rejects effort none, and /api/docs/guides/latest-model says
+		// to move none or minimal to low, so efforts run low through max as on
+		// GPT-6 Astra. Available per /api/docs/changelog (Nov 17, 2026).
+		//nolint:dupl // same rate-card shape as GPT-6.2 Sol, different published rates
+		gpt6Entry(ModelGPT6_2Astra, catalog.ModelGPT6_2Astra,
+			[]ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+			catalog.MustDate("2026-11-17"),
+			// Rates from https://developers.openai.com/api/docs/pricing (read 2026-11-18).
+			// Per M tokens: $8.00 input, $40.00 output, $0.40 cached input, $10.00 cache write.
+			// Above 272K: $16.00 input, $60.00 output, $0.80 cached input, $20.00 cache write.
+			// No Flex row. Ultrafast is the promotional 3x Standard rate through
+			// 2027-02-28; from 2027-03-01 it moves to 6x ($48 / $240 / $2.40 /
+			// $60, above 272K $96 / $360 / $4.80 / $120).
+			pricing.TieredInfo(
+				pricing.NewRates(8.00, 40.00, 0.40).WithCacheCreation(0, 0, 10.00),
+				pricing.Bracket{MinContextTokens: 272_001, Rates: pricing.NewRates(16.00, 60.00, 0.80).WithCacheCreation(0, 0, 20.00)},
+			).
+				WithOverride(batchTier, tieredCard(
+					pricing.NewRates(4.00, 20.00, 0.20).WithCacheCreation(0, 0, 5.00),
+					pricing.NewRates(8.00, 30.00, 0.40).WithCacheCreation(0, 0, 10.00),
+				)).
+				WithOverride(fastTier, tieredCard(
+					pricing.NewRates(16.00, 80.00, 0.80).WithCacheCreation(0, 0, 20.00),
+					pricing.NewRates(32.00, 120.00, 1.60).WithCacheCreation(0, 0, 40.00),
+				)).
+				WithOverride(ultrafastTier, tieredCard(
+					pricing.NewRates(24.00, 120.00, 1.20).WithCacheCreation(0, 0, 30.00),
+					pricing.NewRates(48.00, 180.00, 2.40).WithCacheCreation(0, 0, 60.00),
+				))),
+		// https://developers.openai.com/api/docs/models/gpt-6.2-sol (read 2026-11-18).
+		// Efforts as GPT-6.2 Astra. Available per /api/docs/changelog (Nov 17, 2026).
+		//nolint:dupl // same rate-card shape as GPT-6.2 Astra, different published rates
+		gpt6Entry(ModelGPT6_2Sol, catalog.ModelGPT6_2Sol,
+			[]ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
+			catalog.MustDate("2026-11-17"),
+			// Rates from https://developers.openai.com/api/docs/pricing (read 2026-11-18).
+			// Per M tokens: $2.00 input, $10.00 output, $0.10 cached input, $2.50 cache write.
+			// Above 272K: $4.00 input, $15.00 output, $0.20 cached input, $5.00 cache write.
+			// No Flex row. Ultrafast is the promotional 3x Standard rate through
+			// 2027-02-28; from 2027-03-01 it moves to 6x ($12 / $60 / $0.60 /
+			// $15, above 272K $24 / $90 / $1.20 / $30).
+			pricing.TieredInfo(
+				pricing.NewRates(2.00, 10.00, 0.10).WithCacheCreation(0, 0, 2.50),
+				pricing.Bracket{MinContextTokens: 272_001, Rates: pricing.NewRates(4.00, 15.00, 0.20).WithCacheCreation(0, 0, 5.00)},
+			).
+				WithOverride(batchTier, tieredCard(
+					pricing.NewRates(1.00, 5.00, 0.05).WithCacheCreation(0, 0, 1.25),
+					pricing.NewRates(2.00, 7.50, 0.10).WithCacheCreation(0, 0, 2.50),
+				)).
+				WithOverride(fastTier, tieredCard(
+					pricing.NewRates(4.00, 20.00, 0.20).WithCacheCreation(0, 0, 5.00),
+					pricing.NewRates(8.00, 30.00, 0.40).WithCacheCreation(0, 0, 10.00),
+				)).
+				WithOverride(ultrafastTier, tieredCard(
+					pricing.NewRates(6.00, 30.00, 0.30).WithCacheCreation(0, 0, 7.50),
+					pricing.NewRates(12.00, 45.00, 0.60).WithCacheCreation(0, 0, 15.00),
+				))),
+
 		// GPT-5.6 Series
 		gpt56Entry(ModelGPT5_6Luna, catalog.ModelGPT5_6Luna, nil,
 			// Per M tokens: $0.20 input, $1.20 output, $0.02 cached input, $0.25 cache write.
@@ -1033,8 +1092,8 @@ func gpt56Entry(id string, model catalog.ModelID, aliases []string, rates pricin
 	}
 }
 
-// gpt6Entry builds a GPT-6 Sol, GPT-6 Luna, GPT-6.1 Sol, or GPT-6.1 Terra
-// entry. They share Astra's capability surface and limits and differ in
+// gpt6Entry builds a GPT-6 Sol, GPT-6 Luna, GPT-6.1 Sol, GPT-6.1 Terra,
+// GPT-6.2 Astra, or GPT-6.2 Sol entry. They share Astra's capability surface and limits and differ in
 // identity, efforts, availability, and rates: GPT-6 Sol, GPT-6 Luna, and
 // GPT-6.1 Terra, unlike Astra, accept reasoning effort none; GPT-6.1 Sol
 // does not.
