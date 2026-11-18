@@ -699,3 +699,33 @@ func TestNewModel_ClaudeIgnoresAmbientAnthropicKey(t *testing.T) {
 	assert.Empty(t, got.APIKey)
 	assert.Equal(t, "Bearer tenant-token", got.Authorization)
 }
+
+// TestNewModel_EveryListedEffortReachesRequest checks each effort a Vertex
+// entry lists reaches its request: Gemini's thinkingLevel, which goes through
+// providers/google's geminiThinkingLevels, or Claude's output_config.effort.
+// An effort the Gemini table lacks would otherwise be left off silently.
+func TestNewModel_EveryListedEffortReachesRequest(t *testing.T) {
+	t.Parallel()
+
+	for _, offering := range vertex.Catalog().All() {
+		for _, effort := range offering.Reasoning.Efforts {
+			t.Run(offering.ID+"/"+string(effort), func(t *testing.T) {
+				t.Parallel()
+
+				response, path, want := claudeResponse, "output_config.effort", string(effort)
+				if strings.HasPrefix(offering.ID, "gemini") {
+					response, path, want = geminiResponse, "generationConfig.thinkingConfig.thinkingLevel", strings.ToUpper(string(effort))
+				}
+
+				fake := newFakeVertex(t, "application/json", response)
+
+				m, err := newGatewayProvider(t, fake).NewModel(offering.ID, vertex.WithReasoningEffort(effort))
+				require.NoError(t, err)
+
+				_, err = m.Generate(context.Background(), hello())
+				require.NoError(t, err)
+				assert.Equal(t, want, gjson.Get(fake.only(t).Body, path).String())
+			})
+		}
+	}
+}

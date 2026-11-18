@@ -1116,3 +1116,20 @@ func TestMessageRoleValidation(t *testing.T) {
 		})
 	}
 }
+
+// TestEveryListedEffortPassesSetup guards WithReasoningEffort's switch: an
+// effort an entry lists but the switch lacks is refused at setup with
+// "invalid reasoning effort", although the catalogue says the model takes it.
+func TestEveryListedEffortPassesSetup(t *testing.T) {
+	t.Parallel()
+
+	provider, err := NewProvider("test-api-key")
+	require.NoError(t, err)
+
+	for _, offering := range Catalog().All() {
+		for _, effort := range offering.Reasoning.Efforts {
+			_, err := provider.NewModel(offering.ID, WithReasoningEffort(effort))
+			assert.NoError(t, err, "%s: %s", offering.ID, effort)
+		}
+	}
+}

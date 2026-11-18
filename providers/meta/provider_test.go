@@ -141,3 +141,19 @@ func TestDeclaredParametersAccepted(t *testing.T) {
 		}
 	}
 }
+
+// TestEveryListedEffortPassesSetup checks each effort a Meta entry lists
+// passes setup, including openai.WithReasoningEffort's own switch.
+func TestEveryListedEffortPassesSetup(t *testing.T) {
+	t.Parallel()
+
+	p, err := NewProvider("test-key")
+	require.NoError(t, err)
+
+	for _, offering := range Catalog().All() {
+		for _, effort := range offering.Reasoning.Efforts {
+			_, err := p.NewModel(offering.ID, openai.WithReasoningEffort(effort))
+			assert.NoError(t, err, "%s: %s", offering.ID, effort)
+		}
+	}
+}
