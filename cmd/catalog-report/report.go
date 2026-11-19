@@ -17,6 +17,7 @@ package main
 import (
 	"cmp"
 	"fmt"
+	"math/big"
 	"net/url"
 	"path"
 	"regexp"
@@ -38,7 +39,7 @@ type (
 
 var (
 	fields       = []string{"new_model", "new_copy", "price", "limit", "lifecycle", "replacement", "knowledge_cutoff", "release_date", "capability", "location"}
-	reasons      = []string{"not_on_named_sources", "out_of_scope", "limited_availability", "vendor_excluded", regionNotOffered, "copy_unlisted", "fixed_fact_differs", "copy_unpriced", noCatalogField, "not_callable"}
+	reasons      = []string{"not_on_named_sources", "out_of_scope", "limited_availability", "vendor_excluded", regionNotOffered, copyUnlisted, routeUnlisted, fixedFactDiffers, "copy_unpriced", noCatalogField, "not_callable"}
 	valuePattern = regexp.MustCompile(`^[A-Za-z0-9 ._:/+@-]{0,64}$`)
 	// sourcePattern allows only characters that can't end a markdown link,
 	// end a table cell or start HTML, so a URL always renders as one link.
@@ -75,6 +76,117 @@ const (
 // A fact the catalogue has no field for is skipped with noCatalogField, and
 // the row names the fact in its values.
 const noCatalogField = "no_catalog_field"
+
+// Under RULES.md's copy-gone-no-eol, a whole copy gone from its card is
+// skipped with copyUnlisted, and a source region gone from it with
+// routeUnlisted, whose values name each region. A kept fixed fact is
+// fixedFactDiffers.
+const (
+	copyUnlisted     = "copy_unlisted"
+	routeUnlisted    = "route_unlisted"
+	fixedFactDiffers = "fixed_fact_differs"
+)
+
+// A page's rate that is only the entry's rounded isn't a difference, under
+// RULES.md's roundingRule.
+const roundingRule = "rounding-only"
+
+// number is one plain decimal number inside a report value.
+var number = regexp.MustCompile(`[0-9]+(\.[0-9]+)?`)
+
+// roundingPreempts are the rules rounding-only comes before. A price
+// question under any other rule isn't about the page's figure alone.
+var roundingPreempts = []string{"sources-disagree", reconcile.JudgmentRule}
+
+// places counts a decimal's digits after its point.
+func places(v string) int {
+	_, fraction, _ := strings.Cut(v, ".")
+	return len(fraction)
+}
+
+// roundingOnly reports whether a page's value differs from the entry's only
+// by rounding (RULES.md, rounding-only). Bot rows label their rates ("cache
+// write 4.125"), so the words around the numbers must match, each pair of
+// numbers must be equal or rounded, and at least one must be rounded.
+func roundingOnly(ours, page string) bool {
+	if number.ReplaceAllString(ours, "#") != number.ReplaceAllString(page, "#") {
+		return false
+	}
+
+	pages := number.FindAllString(page, -1)
+	rounded := false
+
+	for i, rate := range number.FindAllString(ours, -1) {
+		switch {
+		case sameNumber(rate, pages[i]):
+		case roundedRate(rate, pages[i]):
+			rounded = true
+		default:
+			return false
+		}
+	}
+
+	return rounded
+}
+
+// sameNumber reports whether two plain decimals are one number (5.50, 5.5).
+func sameNumber(a, b string) bool {
+	x, _ := new(big.Rat).SetString(a)
+	y, _ := new(big.Rat).SetString(b)
+
+	return x.Cmp(y) == 0
+}
+
+// roundedRate reports whether a page's rate is the entry's rounded: the page
+// shows fewer places, its rate is the entry's rounded to the nearest at those
+// places (either way at an exact half), and they differ by under 1 percent of
+// the page's rate, so a real change to a round price still counts as one.
+func roundedRate(ours, page string) bool {
+	if places(page) >= places(ours) {
+		return false
+	}
+
+	o, _ := new(big.Rat).SetString(ours)
+	p, _ := new(big.Rat).SetString(page)
+	diff := new(big.Rat).Abs(new(big.Rat).Sub(o, p))
+	// Half a unit in the page's last place is 1/(2*10^places).
+	unit := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(places(page))), nil)
+	half := new(big.Rat).SetFrac(big.NewInt(1), unit.Mul(unit, big.NewInt(2)))
+	percent := new(big.Rat).Mul(p, big.NewRat(1, 100))
+
+	return diff.Cmp(half) <= 0 && diff.Cmp(percent) < 0
+}
+
+// rate is a standalone number in a row's note, such as the 5.00 in "the card
+// shows 5.00"; the 5 in "5m cache write" names a duration instead.
+var rate = regexp.MustCompile(`\b[0-9]+(\.[0-9]+)?\b`)
+
+// otherRate reports whether a row's note gives a rate that is neither the
+// entry's nor its rounding, such as a third source's competing price.
+func otherRate(ours, note string) bool {
+	return rate.MatchString(note) && note != ours && !roundingOnly(ours, note)
+}
+
+// splitRounded takes the price questions a page's rounding alone raised out
+// of the report, so the PR lists them instead of asking them. A row whose
+// notes give another rate stays a question.
+func splitRounded(report Report) (Report, []NeedsHuman) {
+	// Fresh slices, as in hold.
+	var needs, rounded []NeedsHuman
+
+	for _, item := range report.NeedsHuman {
+		competing := slices.ContainsFunc(otherNotes(item), func(note string) bool { return otherRate(item.Catalogue, note) })
+		if item.Field == priceField && slices.Contains(roundingPreempts, item.Rule) && roundingOnly(item.Catalogue, item.Page) && !competing {
+			rounded = append(rounded, item)
+		} else {
+			needs = append(needs, item)
+		}
+	}
+
+	report.NeedsHuman = needs
+
+	return report, rounded
+}
 
 // A price worked out from a related copy's rate, which no page prints, is a
 // change under RULES.md's siblingRule, or a new copy's under newCopyRule.
@@ -271,6 +383,12 @@ func sentenceProblems(item NeedsHuman) []string {
 	return problems
 }
 
+// allRegions reports whether values name at least one region, and only AWS
+// source regions.
+func allRegions(values []string) bool {
+	return len(values) > 0 && !slices.ContainsFunc(values, func(v string) bool { return !slices.Contains(reconcile.AWSRegions, v) })
+}
+
 // skipProblems lists what a skipped row's reason needs and the row lacks.
 func skipProblems(item Skipped, rules reconcile.Rules) []string {
 	var problems []string
@@ -279,6 +397,12 @@ func skipProblems(item Skipped, rules reconcile.Rules) []string {
 	// each value renders as its own Skipped line.
 	if item.Reason == noCatalogField && (len(item.Values) == 0 || slices.ContainsFunc(item.Values, func(v string) bool { return strings.TrimSpace(v) == "" })) {
 		problems = append(problems, "a no_catalog_field row names the missing fact in values")
+	}
+
+	// A kept route is one fact of its copy, so its row says which regions it
+	// keeps; a note there would make it look like a whole copy's row.
+	if item.Reason == routeUnlisted && !allRegions(item.Values) {
+		problems = append(problems, "a route_unlisted row names each source region in values")
 	}
 
 	// Only a host's own Offered row can show a region isn't offered.
@@ -1045,7 +1169,13 @@ func (base Base) changesSection(changes []Change, provider string) string {
 		fmt.Fprintf(&section, "**%s** (%d)\n\n%s", base.ruleLink(rule), len(groups[rule]), table)
 
 		for _, change := range groups[rule] {
-			cells := []string{code(change.Offering), change.Field, value(change.Old), value(change.New)}
+			newValue := value(change.New)
+			// RULES.md's rounding-only says to keep the old rate, so a reviewer checks it.
+			if change.Field == priceField && roundingOnly(change.Old, change.New) {
+				newValue += " (page rounding? " + base.ruleLink(roundingRule) + ")"
+			}
+
+			cells := []string{code(change.Offering), change.Field, value(change.Old), newValue}
 			if effects {
 				note := base.rowEffect(change, provider)
 				if key := [4]string{rule, change.Offering, change.Field, note}; noted[key] {
@@ -1265,6 +1395,7 @@ type vendorPart struct {
 	shown      Report
 	held       []string
 	answered   map[string]bool
+	rounded    []NeedsHuman
 	waiting    []Skipped
 	asks       []question
 	unreported []string
@@ -1276,6 +1407,7 @@ func (base Base) part(vendor Vendor) vendorPart {
 	part := vendorPart{Vendor: vendor, base: base}
 	part.base.Before, part.base.After = vendor.Before, vendor.After
 	part.shown, part.held, part.answered = part.base.hold(vendor.Report, vendor.Name)
+	part.shown, part.rounded = splitRounded(part.shown)
 	part.shown, part.waiting = part.base.splitWaiting(part.shown)
 	part.asks = questions(part.shown.NeedsHuman)
 	// Held and waiting rows still count as rows here.
@@ -1286,7 +1418,7 @@ func (base Base) part(vendor Vendor) vendorPart {
 
 // rows counts the rows the vendor's section shows.
 func (part vendorPart) rows() int {
-	return len(part.shown.Changes) + len(part.shown.NeedsHuman) + len(part.shown.Skipped) + len(part.waiting) + len(part.held)
+	return len(part.shown.Changes) + len(part.shown.NeedsHuman) + len(part.shown.Skipped) + len(part.waiting) + len(part.held) + len(part.rounded)
 }
 
 // Render writes the PR body: what applies to the whole PR once, then one
@@ -1457,12 +1589,13 @@ func count(n int, one, many string) string {
 func summaryLine(parts []vendorPart, open int) string {
 	var changes []Change
 
-	unreported, held, skipped := 0, 0, 0
+	unreported, held, rounded, skipped := 0, 0, 0, 0
 
 	for _, part := range parts {
 		changes = append(changes, part.shown.Changes...)
 		unreported += part.noRow
 		held += len(part.held)
+		rounded += len(part.rounded)
 		skipped += len(part.shown.Skipped)
 	}
 
@@ -1492,6 +1625,7 @@ func summaryLine(parts []vendorPart, open int) string {
 	}{
 		{open, "open question", "open questions"},
 		{held, "held by a decision", "held by decisions"},
+		{rounded, "rate the page rounds", "rates the page rounds"},
 		{skipped, "skipped offering", "skipped offerings"},
 	} {
 		if rows.n > 0 {
@@ -1579,6 +1713,23 @@ func (part vendorPart) section() string {
 	if len(part.held) > 0 {
 		fmt.Fprintf(&body, "### Held by decisions (%d)\n\nQuestions a recorded decision already answers. Nothing here changes.\n\n| Decision | Offering | Field | What the bot saw | Why it's settled |\n|---|---|---|---|---|\n", len(part.held))
 		body.WriteString(strings.Join(part.held, "") + "\n")
+	}
+
+	if len(part.rounded) > 0 {
+		fmt.Fprintf(&body, "### Not asked: page rounding (%d)\n\nThe page prints these rates rounded, so they are the rates we have (%s). Nothing here changes.\n\n",
+			len(part.rounded), base.ruleLink(roundingRule))
+
+		for _, item := range part.rounded {
+			// The notes say which of the offering's rates it is.
+			notes := ""
+			if values := otherNotes(item); len(values) > 0 {
+				notes = " (" + valueList(values) + ")"
+			}
+
+			fmt.Fprintf(&body, "- %s %s%s: we have %s, the page shows %s\n", code(item.Offering), item.Field, notes, value(item.Catalogue), value(item.Page))
+		}
+
+		body.WriteString("\n")
 	}
 
 	if len(report.Skipped) > 0 {

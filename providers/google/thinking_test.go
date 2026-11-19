@@ -17,6 +17,7 @@ package google
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -229,4 +230,36 @@ func TestNewModelRejectsReasoningEffortAndBudgetTogether(t *testing.T) {
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "reasoning effort and a thinking budget cannot be combined")
+}
+
+// TestEveryListedEffortReachesTheRequest guards geminiThinkingLevels: an
+// effort an entry lists but the table lacks passes NewModel and is then left
+// off the request, so the call quietly runs at the model's default level.
+// Gemini's thinkingLevel enum is the effort's name in capitals.
+func TestEveryListedEffortReachesTheRequest(t *testing.T) {
+	t.Parallel()
+
+	provider, err := NewProvider(context.Background(), "test-api-key")
+	require.NoError(t, err)
+
+	for _, offering := range Catalog().All() {
+		for _, effort := range offering.Reasoning.Efforts {
+			t.Run(offering.ID+"/"+string(effort), func(t *testing.T) {
+				t.Parallel()
+
+				model, err := provider.NewModel(offering.ID, WithReasoningEffort(effort))
+				require.NoError(t, err)
+
+				googleModel, ok := model.(*Model)
+				require.True(t, ok)
+
+				_, config, err := googleModel.requestMapper.ToProvider(&llm.Request{
+					Messages: []llm.Message{llm.NewMessage(llm.RoleUser, llm.NewTextPart("Solve this."))},
+				})
+				require.NoError(t, err)
+				require.NotNil(t, config.ThinkingConfig)
+				assert.Equal(t, strings.ToUpper(string(effort)), string(config.ThinkingConfig.ThinkingLevel))
+			})
+		}
+	}
 }

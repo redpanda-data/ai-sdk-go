@@ -109,10 +109,12 @@ func (base Base) unreported(report Report, provider string) ([]string, int) {
 		name(row.Offering)
 	}
 
-	// A no_catalog_field row leaves out one fact, not the offering, so it
-	// explains none of the offering's changes.
+	// A row that leaves out one fact, not the offering, explains none of the
+	// offering's changes (RULES.md principle 7): a fact with no field, a kept
+	// fixed fact, or a source region gone from a copy's card.
 	for _, row := range report.Skipped {
-		if row.Reason != noCatalogField {
+		oneFact := row.Reason == noCatalogField || row.Reason == fixedFactDiffers || row.Reason == routeUnlisted
+		if !oneFact {
 			name(row.Offering)
 		}
 	}

@@ -47,7 +47,7 @@ var testRules = reconcile.Rules{
 	Outcomes: map[string][]string{
 		"price-follow": {"change"}, "new-copy-offered-region": {"change"}, "limited-availability": {"skip:`limited_availability`"}, "out-of-reach": {"needs_human"}, "no-rule": {"needs_human"},
 		"profile-beside-bare-id": {"needs_human"},
-		"region-not-offered":     {"skip:`region_not_offered`"}, "copy-gone-no-eol": {"skip:`copy_unlisted`"},
+		"region-not-offered":     {"skip:`region_not_offered`"}, "copy-gone-no-eol": {"skip:`copy_unlisted`", "skip:`route_unlisted`"},
 		"label-fact-differs": {"skip:`fixed_fact_differs`"}, "copy-unpriced": {"skip:`copy_unpriced`"}, "no-catalog-field": {"skip:`no_catalog_field`"},
 	},
 	Offered:    map[string][]string{"bedrock": {"global", "us", "eu", "au", "jp"}},
@@ -153,6 +153,15 @@ func TestValidate(t *testing.T) {
 		{"copy unlisted", func(r *Report) {
 			r.Skipped[0] = Skipped{Offering: "bedrock:eu.anthropic.claude-fable-5", Reason: "copy_unlisted", Rule: "copy-gone-no-eol"}
 		}, ""},
+		{"source region gone from its card", func(r *Report) {
+			r.Skipped[0] = Skipped{Offering: "bedrock:global.anthropic.claude-opus-5", Reason: "route_unlisted", Rule: "copy-gone-no-eol", Values: []string{"mx-central-1"}}
+		}, ""},
+		{"source region skip that names no region", func(r *Report) {
+			r.Skipped[0] = Skipped{Offering: "bedrock:global.anthropic.claude-opus-5", Reason: "route_unlisted", Rule: "copy-gone-no-eol"}
+		}, "skipped[0]: a route_unlisted row names each source region in values"},
+		{"source region skip whose value isn't a region", func(r *Report) {
+			r.Skipped[0] = Skipped{Offering: "bedrock:global.anthropic.claude-opus-5", Reason: "route_unlisted", Rule: "copy-gone-no-eol", Values: []string{"mx-central-1", "not on card"}}
+		}, "skipped[0]: a route_unlisted row names each source region in values"},
 		{"fixed fact differs", func(r *Report) {
 			r.Skipped[0] = Skipped{Offering: "claude-sonnet-5", Reason: "fixed_fact_differs", Rule: "label-fact-differs"}
 		}, ""},
@@ -1995,6 +2004,24 @@ func TestUnreported(t *testing.T) {
 		feature := Report{Skipped: []Skipped{{Offering: "claude-sonnet-5-5", Reason: "no_catalog_field", Rule: "no-catalog-field", Values: []string{"12h cache write"}}}}
 		names, _ = base.unreported(feature, "anthropic")
 		assert.Equal(t, []string{"anthropic/claude-sonnet-5-5 (facts)"}, names, "a missing fact covers nothing")
+
+		// So do a kept fixed fact and a source region gone from a copy's
+		// card: the rest of the offering is still checked (principle 7).
+		for _, row := range []Skipped{
+			{Offering: "claude-sonnet-5-5", Reason: "fixed_fact_differs", Rule: "label-fact-differs", Values: []string{"released"}},
+			{Offering: "claude-sonnet-5-5", Reason: "route_unlisted", Rule: "copy-gone-no-eol", Values: []string{"mx-central-1"}},
+		} {
+			names, _ = base.unreported(Report{Skipped: []Skipped{row}}, "anthropic")
+			assert.Equal(t, []string{"anthropic/claude-sonnet-5-5 (facts)"}, names, "a %s skip covers one fact", row.Reason)
+		}
+
+		// A whole copy gone from its card is kept as it is, so its skip
+		// names it, with or without a note.
+		for _, values := range [][]string{nil, {"not on card"}} {
+			copyGone := Report{Skipped: []Skipped{{Offering: "claude-sonnet-5-5", Reason: "copy_unlisted", Rule: "copy-gone-no-eol", Values: values}}}
+			names, _ = base.unreported(copyGone, "anthropic")
+			assert.Empty(t, names, "a whole copy's skip covers it (values %q)", values)
+		}
 	})
 
 	t.Run("an unprintable ID is counted", func(t *testing.T) {
@@ -2450,4 +2477,105 @@ func TestRouteInputChange(t *testing.T) {
 
 	base := Base{Before: &before, After: &after}
 	assert.Equal(t, "+120%", base.routeInputChange("global.anthropic.claude-sonnet-5-5", "us.anthropic.claude-sonnet-5-5"))
+}
+
+func TestRoundingOnly(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name, ours, page string
+		want             bool
+	}{
+		{"rounded half up", "4.125", "4.13", true},
+		{"rounded half down", "4.125", "4.12", true},
+		{"a sub-cent rate shown to cents", "6.875", "6.88", true},
+		{"more than half a cent apart", "4.125", "4.14", false},
+		{"the page shows more places", "4.13", "4.125", false},
+		{"the same places", "4.13", "4.12", false},
+		{"a whole-dollar page, over 1 percent apart", "3.75", "4", false},
+		{"a small rate, over 1 percent apart", "0.0075", "0.01", false},
+		{"a real change among several numbers", "0.30 in 2.50 out", "0.30 in 2.51 out", false},
+		{"empty", "", "4.13", false},
+		// The 1 percent is of the page's rate: 0.005 is 1 percent of 0.5.
+		{"exactly 1 percent of the page's rate", "0.505", "0.5", false},
+		{"just under 1 percent of the page's rate", "0.5049", "0.50", true},
+		// Bot rows label their rates; the words around the numbers must match.
+		{"a labelled rate", "cache write 4.125", "cache write 4.13", true},
+		{"one rounded rate among equal ones", "region us 5.50 in 27.50 out 4.125 write", "region us 5.5 in 27.50 out 4.13 write", true},
+		{"equal labelled rates", "region us 5.50 in 27.50 out", "region us 5.5 in 27.5 out", false},
+		{"different labels", "cache write 4.125", "cache read 4.13", false},
+		{"a number more on one side", "cache write 4.125", "cache write 4.13 4.13", false},
+		{"a real labelled change", "northamerica-northeast1 0.75/3.75/0.075", "northamerica-northeast1 0.825/4.125/0.0825", false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, roundingOnly(tt.ours, tt.page))
+		})
+	}
+}
+
+func TestOtherRate(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name, ours, note string
+		want             bool
+	}{
+		{"a third source's higher rate", "4.125", "5.00", true},
+		{"a rate inside other words", "4.125", "the card shows 5.00", true},
+		{"a label naming a duration", "4.125", "non-global 5m cache write", false},
+		{"a label with no number", "4.125", "cache write", false},
+		{"a third source that also rounds", "4.125", "4.13", false},
+		{"a third source with our rate", "4.125", "4.125", false},
+		{"a labelled rate that also rounds", "cache write 4.125", "cache write 4.13", false},
+		{"a labelled competing rate", "cache write 4.125", "cache write 5.00", true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, otherRate(tt.ours, tt.note))
+		})
+	}
+}
+
+func TestRenderRoundingOnly(t *testing.T) {
+	t.Parallel()
+
+	source := "https://cloud.google.com/model-garden/partner-models/pricing"
+	report := Report{
+		Changes: []Change{
+			{Offering: "claude-opus-5-5", Field: "price", Old: "6.875", New: "6.88", Rule: "price-follow", SourceURL: source},
+			{Offering: "claude-sonnet-4-6", Field: "price", Old: "cache write 4.125", New: "cache write 4.13", Rule: "price-follow", SourceURL: source},
+		},
+		NeedsHuman: []NeedsHuman{
+			{Offering: "vertex:claude-sonnet-4-6", Field: "price", Catalogue: "4.125", Page: "4.13", Values: []string{"non-global 5m cache write"}, Rule: "sources-disagree", SourceURLs: []string{source}},
+			{Offering: "vertex:claude-sonnet-4-5", Field: "price", Catalogue: "4.125", Page: "4.20", Rule: "no-rule", SourceURLs: []string{source}},
+			// Only the rules rounding-only comes before give up their rows.
+			{Offering: "vertex:claude-haiku-4-5", Field: "price", Catalogue: "1.375", Page: "1.38", Rule: "out-of-reach", SourceURLs: []string{source}},
+			// A third source's rate beyond rounding keeps the question open.
+			{Offering: "vertex:claude-opus-4-5", Field: "price", Catalogue: "4.125", Page: "4.13", Values: []string{"5.00"}, Rule: "sources-disagree", SourceURLs: []string{source}},
+		},
+	}
+
+	body := Render(oneVendor(report, Base{}), "", nil, Base{Today: "2026-11-16", Rules: testRules})
+
+	t.Run("a rate the page only rounds isn't asked", func(t *testing.T) {
+		t.Parallel()
+		assert.Contains(t, body, "### Not asked: page rounding (1)\n")
+		assert.Contains(t, body, "- `vertex:claude-sonnet-4-6` price (`non-global 5m cache write`): we have `4.125`, the page shows `4.13`\n")
+		assert.NotContains(t, body, "`vertex:claude-sonnet-4-6` · price")
+	})
+
+	t.Run("a real difference is still asked", func(t *testing.T) {
+		t.Parallel()
+		assert.Contains(t, body, "`vertex:claude-sonnet-4-5` · price")
+		assert.Contains(t, body, "`vertex:claude-haiku-4-5` · price", "a question under another rule stays a question")
+		assert.Contains(t, body, "`vertex:claude-opus-4-5` · price", "a competing rate in the values stays a question")
+		assert.Contains(t, body, "Not changed: 3 open questions, 1 rate the page rounds.")
+	})
+
+	t.Run("a change that only rounds is flagged", func(t *testing.T) {
+		t.Parallel()
+		assert.Contains(t, body, "| `6.875` | `6.88` (page rounding? `rounding-only`) |")
+		assert.Contains(t, body, "| `cache write 4.125` | `cache write 4.13` (page rounding? `rounding-only`) |", "as bot rows write rates")
+	})
 }

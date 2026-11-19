@@ -439,3 +439,19 @@ func TestThinkingBudgetMapsToConverseRequest(t *testing.T) {
 		},
 	}, fields)
 }
+
+// TestEveryListedEffortPassesSetup checks each effort a Bedrock entry lists
+// passes setup. Mantle offerings also pass openai.WithReasoningEffort's own
+// switch, which would refuse an effort it lacks.
+func TestEveryListedEffortPassesSetup(t *testing.T) {
+	t.Parallel()
+
+	provider := &Provider{}
+
+	for _, offering := range Catalog().All() {
+		for _, effort := range offering.Reasoning.Efforts {
+			_, err := provider.NewModel(offering.ID, WithReasoningEffort(effort))
+			assert.NoError(t, err, "%s: %s", offering.ID, effort)
+		}
+	}
+}
