@@ -2430,6 +2430,29 @@ func TestRoundingOnly(t *testing.T) {
 	}
 }
 
+func TestOtherRate(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name, ours, note string
+		want             bool
+	}{
+		{"a third source's higher rate", "4.125", "5.00", true},
+		{"a rate inside other words", "4.125", "the card shows 5.00", true},
+		{"a label naming a duration", "4.125", "non-global 5m cache write", false},
+		{"a label with no number", "4.125", "cache write", false},
+		{"a third source that also rounds", "4.125", "4.13", false},
+		{"a third source with our rate", "4.125", "4.125", false},
+		{"a labelled rate that also rounds", "cache write 4.125", "cache write 4.13", false},
+		{"a labelled competing rate", "cache write 4.125", "cache write 5.00", true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, otherRate(tt.ours, tt.note))
+		})
+	}
+}
+
 func TestRenderRoundingOnly(t *testing.T) {
 	t.Parallel()
 
@@ -2444,6 +2467,8 @@ func TestRenderRoundingOnly(t *testing.T) {
 			{Offering: "vertex:claude-sonnet-4-5", Field: "price", Catalogue: "4.125", Page: "4.20", Rule: "no-rule", SourceURLs: []string{source}},
 			// Only the rules rounding-only comes before give up their rows.
 			{Offering: "vertex:claude-haiku-4-5", Field: "price", Catalogue: "1.375", Page: "1.38", Rule: "out-of-reach", SourceURLs: []string{source}},
+			// A third source's rate beyond rounding keeps the question open.
+			{Offering: "vertex:claude-opus-4-5", Field: "price", Catalogue: "4.125", Page: "4.13", Values: []string{"5.00"}, Rule: "sources-disagree", SourceURLs: []string{source}},
 		},
 	}
 
@@ -2460,7 +2485,8 @@ func TestRenderRoundingOnly(t *testing.T) {
 		t.Parallel()
 		assert.Contains(t, body, "`vertex:claude-sonnet-4-5` · price")
 		assert.Contains(t, body, "`vertex:claude-haiku-4-5` · price", "a question under another rule stays a question")
-		assert.Contains(t, body, "Not changed: 2 open questions, 1 rate the page rounds.")
+		assert.Contains(t, body, "`vertex:claude-opus-4-5` · price", "a competing rate in the values stays a question")
+		assert.Contains(t, body, "Not changed: 3 open questions, 1 rate the page rounds.")
 	})
 
 	t.Run("a change that only rounds is flagged", func(t *testing.T) {

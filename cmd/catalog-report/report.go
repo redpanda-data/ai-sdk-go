@@ -157,14 +157,26 @@ func roundedRate(ours, page string) bool {
 	return diff.Cmp(half) <= 0 && diff.Cmp(percent) < 0
 }
 
+// rate is a standalone number in a row's note, such as the 5.00 in "the card
+// shows 5.00"; the 5 in "5m cache write" names a duration instead.
+var rate = regexp.MustCompile(`\b[0-9]+(\.[0-9]+)?\b`)
+
+// otherRate reports whether a row's note gives a rate that is neither the
+// entry's nor its rounding, such as a third source's competing price.
+func otherRate(ours, note string) bool {
+	return rate.MatchString(note) && note != ours && !roundingOnly(ours, note)
+}
+
 // splitRounded takes the price questions a page's rounding alone raised out
-// of the report, so the PR lists them instead of asking them.
+// of the report, so the PR lists them instead of asking them. A row whose
+// notes give another rate stays a question.
 func splitRounded(report Report) (Report, []NeedsHuman) {
 	// Fresh slices, as in hold.
 	var needs, rounded []NeedsHuman
 
 	for _, item := range report.NeedsHuman {
-		if item.Field == priceField && slices.Contains(roundingPreempts, item.Rule) && roundingOnly(item.Catalogue, item.Page) {
+		competing := slices.ContainsFunc(otherNotes(item), func(note string) bool { return otherRate(item.Catalogue, note) })
+		if item.Field == priceField && slices.Contains(roundingPreempts, item.Rule) && roundingOnly(item.Catalogue, item.Page) && !competing {
 			rounded = append(rounded, item)
 		} else {
 			needs = append(needs, item)
