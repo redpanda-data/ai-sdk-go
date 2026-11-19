@@ -141,10 +141,15 @@ To review one:
   row covers needs a new rule.
 - Settle each question in "Open questions" as its Decide line says, or record a
   decision in `.github/reconcile-models/decisions.yaml`, in a PR to the base
-  branch. A decision stops the question coming back. You may also merge with a
-  question open; the next run asks it again.
+  branch. A decision stops the question coming back. For a gap the SDK can't
+  fill yet, record a `hold` that names the question's rule; the PR that adds
+  the support deletes it. You may also merge with a question open; the next
+  run asks it again.
 - In "Held by decisions", each value should still match its entry in
-  `.github/reconcile-models/decisions.yaml`.
+  `.github/reconcile-models/decisions.yaml`. The line that counts recorded
+  decisions also names any decision that names a rule, on a model the
+  catalogue carries, and answered no question this run. A run can miss a
+  question, so delete it only if its reason no longer holds.
 - Approve a move in "Routing changes" only if every caller of that name can
   take the new profile and its price.
 - Read the files under "Code changed" as code before marking the PR ready: that
