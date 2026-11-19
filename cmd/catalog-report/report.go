@@ -1035,8 +1035,9 @@ func (base Base) questionBlock(q numbered) string {
 // principle 8).
 func (base Base) decide(q numbered) string {
 	item, n := q.row, len(q.offerings)
-	// decisions.yaml takes no decision on a location, and a keep on a fact
-	// the catalogue lacks has nothing to lock, so a rule stops those too.
+	// decisions.yaml takes no decision on a location, and a fact the
+	// catalogue lacks can take neither a keep (nothing to lock) nor a hold
+	// (it can't name no-rule), so a rule stops those too.
 	added := item.Field == reconcile.FieldNewCopy || item.Field == reconcile.FieldNewModel
 	none := !added && strings.EqualFold(item.Catalogue, "none")
 	stop := func(kind string) string {
@@ -1075,11 +1076,15 @@ func sameOffering(reported, provider, decided string) bool {
 }
 
 // hold takes the needs_human and skipped rows a decision already answers out
-// of the report, and returns the rest with the held table's rows.
-func (base Base) hold(report Report, provider string) (Report, []string) {
-	find := func(offering string, wanted ...string) (reconcile.Decision, bool) {
+// of the report, and returns the rest with the held table's rows and the IDs
+// of the decisions that answered one. A decision that names a rule answers
+// only that rule's rows.
+func (base Base) hold(report Report, provider string) (Report, []string, map[string]bool) {
+	answered := map[string]bool{}
+	find := func(offering, rule string, wanted ...string) (reconcile.Decision, bool) {
 		for _, d := range base.Decisions {
-			if slices.Contains(wanted, d.Field) && sameOffering(offering, provider, d.Offering) {
+			if slices.Contains(wanted, d.Field) && sameOffering(offering, provider, d.Offering) && d.Answers(rule) {
+				answered[d.ID] = true
 				return d, true
 			}
 		}
@@ -1097,7 +1102,7 @@ func (base Base) hold(report Report, provider string) (Report, []string) {
 	var needs []NeedsHuman
 
 	for _, item := range report.NeedsHuman {
-		if d, ok := find(item.Offering, item.Field); ok {
+		if d, ok := find(item.Offering, item.Rule, item.Field); ok {
 			held = append(held, row(d, item.Offering, valueList(rowValues(item))))
 		} else {
 			needs = append(needs, item)
@@ -1107,7 +1112,7 @@ func (base Base) hold(report Report, provider string) (Report, []string) {
 	var skipped []Skipped
 
 	for _, item := range report.Skipped {
-		if d, ok := find(item.Offering, reconcile.FieldNewModel, reconcile.FieldNewCopy); ok {
+		if d, ok := find(item.Offering, item.Rule, reconcile.FieldNewModel, reconcile.FieldNewCopy); ok {
 			held = append(held, row(d, item.Offering, item.Reason))
 		} else {
 			skipped = append(skipped, item)
@@ -1116,7 +1121,7 @@ func (base Base) hold(report Report, provider string) (Report, []string) {
 
 	report.NeedsHuman, report.Skipped = needs, skipped
 
-	return report, held
+	return report, held, answered
 }
 
 // byRule groups change rows by rule, in RULES.md's order so every run lists
@@ -1286,8 +1291,10 @@ func (base Base) splitWaiting(report Report) (Report, []Skipped) {
 }
 
 // summary is one line about decisions.yaml itself: how many decisions it
-// holds, and which are past their review date. It shows on every run.
-func (base Base) summary() string {
+// holds, which are past their review date, and which of those that name a
+// rule answered no question in a run that checked them. It shows on every
+// run.
+func (base Base) summary(parts []vendorPart) string {
 	if len(base.Decisions) == 0 {
 		return ""
 	}
@@ -1305,8 +1312,58 @@ func (base Base) summary() string {
 		due = strings.Join(overdue, ", ") + " (still enforced)."
 	}
 
-	return fmt.Sprintf("Recorded decisions: %d, in %s. Past their review date: %s\n\n",
+	line := fmt.Sprintf("Recorded decisions: %d, in %s. Past their review date: %s",
 		len(base.Decisions), base.fileLink("decisions.yaml", reconcile.DecisionsPath, 0), due)
+	if ids := base.unanswered(parts); len(ids) > 0 {
+		line += fmt.Sprintf(" Answered no question this run: %s. A run can miss a question, so delete %s only if its reason no longer holds.",
+			strings.Join(ids, ", "), plural(len(ids), "it", "one"))
+	}
+
+	return line + "\n\n"
+}
+
+// unanswered names each decision that names a rule, on an offering the
+// catalogue carries, that answered no question in the run of its model's
+// publisher. Each vendor's catalogue holds every offering, so any one will
+// do; a vendor whose patch changed nothing brings none, and when none did,
+// nothing is named. A decision with no rule is never named: a keep may stop
+// a change a Default would make, which raises no question, and a hold on
+// new_model or new_copy ends when its offering is added (TestDecisionsHold
+// fails) or at its review date.
+func (base Base) unanswered(parts []vendorPart) []string {
+	var catalogue *reconcile.Snapshot
+
+	// answered holds, for each vendor whose run didn't fail, the decisions
+	// that answered one of its questions.
+	answered := map[string]map[string]bool{}
+
+	for _, part := range parts {
+		if catalogue == nil {
+			catalogue = part.Before
+		}
+
+		if !part.Failed {
+			answered[part.Name] = part.answered
+		}
+	}
+
+	if catalogue == nil {
+		return nil
+	}
+
+	var ids []string
+
+	for _, d := range base.Decisions {
+		offering, found := catalogue.Offering(reconcile.PackageOf(d.Offering, ""))
+		model, _ := offering["model"].(string)
+		publisher, _ := catalogue.Facts[model]["publisher"].(string)
+
+		if used, ran := answered[publisher]; found && ran && d.Rule != "" && !used[d.ID] {
+			ids = append(ids, d.ID)
+		}
+	}
+
+	return ids
 }
 
 // Vendor is one vendor's part of the PR: its report, and the catalogue
@@ -1337,6 +1394,7 @@ type vendorPart struct {
 	base       Base
 	shown      Report
 	held       []string
+	answered   map[string]bool
 	rounded    []NeedsHuman
 	waiting    []Skipped
 	asks       []question
@@ -1348,7 +1406,7 @@ type vendorPart struct {
 func (base Base) part(vendor Vendor) vendorPart {
 	part := vendorPart{Vendor: vendor, base: base}
 	part.base.Before, part.base.After = vendor.Before, vendor.After
-	part.shown, part.held = part.base.hold(vendor.Report, vendor.Name)
+	part.shown, part.held, part.answered = part.base.hold(vendor.Report, vendor.Name)
 	part.shown, part.rounded = splitRounded(part.shown)
 	part.shown, part.waiting = part.base.splitWaiting(part.shown)
 	part.asks = questions(part.shown.NeedsHuman)
@@ -1397,7 +1455,7 @@ func (base Base) render(vendors []Vendor, codeFiles []string, hasDiff bool) (str
 	body.WriteString("## Catalogue drift: " + strings.Join(names, ", ") + "\n\n")
 
 	if rows == 0 && !failed && !hasDiff {
-		body.WriteString("No drift found.\n\n" + base.summary())
+		body.WriteString("No drift found.\n\n" + base.summary(parts))
 		return body.String(), nil
 	}
 
@@ -1424,7 +1482,7 @@ func (base Base) render(vendors []Vendor, codeFiles []string, hasDiff bool) (str
 	// says why (plan.sh, carry.sh); REVIEW.md has the details.
 	body.WriteString("You can push commits here: the bot never removes them. It doesn't read comments.\n\n")
 
-	body.WriteString(base.summary())
+	body.WriteString(base.summary(parts))
 
 	// What the PR asks of people takes a share of the room like a vendor's
 	// section, so many questions can't push every Changes table out of a

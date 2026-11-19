@@ -44,10 +44,10 @@ type Registry interface {
 
 	// List returns tool definitions for use in llm.Request.Tools.
 	// Every member of a group carries the same resolved group metadata.
-	List() []llm.ToolDefinition
+	List(ctx context.Context) ([]llm.ToolDefinition, error)
 
-	// Get retrieves a registered tool by name
-	Get(name string) (Tool, error)
+	// Get retrieves a registered tool by name.
+	Get(ctx context.Context, name string) (Tool, error)
 
 	// Execute runs a tool synchronously and returns the complete result.
 	// Returns (nil, error) for validation errors; otherwise returns a ToolResponse with
@@ -59,6 +59,22 @@ type Registry interface {
 	// timeouts, cancellation) are encoded in ToolResponse.Error, never as a top-level error.
 	// This ensures callers get a uniform response shape regardless of failure mode.
 	ExecuteAll(ctx context.Context, reqs []*llm.ToolRequestPart, opts ...BatchOption) []*llm.ToolResponsePart
+}
+
+// SnapshotRegistry is a Registry with the optional capability to capture the
+// calling context's tools. Snapshot uses it when an input's dynamic type has it.
+//
+// Snapshot resolves ctx into an immutable registry. The captured definitions,
+// membership, and execution policies must stay fixed, and the returned registry
+// executes every tool it captured. A type that embeds a SnapshotRegistry, or a
+// concrete registry that has Snapshot, inherits the method: if it overrides
+// Execute, List, or Get, it must override Snapshot as well and apply its policy
+// to the captured registry, or the capture bypasses that policy. Embedding the
+// base Registry interface does not inherit Snapshot.
+type SnapshotRegistry interface {
+	Registry
+
+	Snapshot(ctx context.Context) (Registry, error)
 }
 
 // RegistryConfig configures the overall registry behavior.
@@ -83,16 +99,19 @@ type registry struct {
 	mu     sync.RWMutex
 	tools  map[string]*registeredTool
 	config RegistryConfig
+	frozen bool
 }
 
 // registeredTool wraps a tool with its configuration.
 type registeredTool struct {
-	tool   Tool
-	config Config
+	tool       Tool
+	config     Config
+	definition *llm.ToolDefinition
+	executor   Registry
 }
 
 // NewRegistry creates a new tool registry with the given configuration.
-func NewRegistry(config RegistryConfig) Registry {
+func NewRegistry(config RegistryConfig) SnapshotRegistry {
 	return &registry{
 		tools:  make(map[string]*registeredTool),
 		config: config,
@@ -101,6 +120,10 @@ func NewRegistry(config RegistryConfig) Registry {
 
 // Register adds a tool to the registry with optional configuration.
 func (r *registry) Register(tool Tool, opts ...Option) error {
+	if r.frozen {
+		return ErrRegistryReadOnly
+	}
+
 	if tool == nil {
 		return ErrToolNil
 	}
@@ -141,6 +164,10 @@ func (r *registry) Register(tool Tool, opts ...Option) error {
 
 // Unregister removes a tool by name.
 func (r *registry) Unregister(name string) error {
+	if r.frozen {
+		return ErrRegistryReadOnly
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -154,16 +181,20 @@ func (r *registry) Unregister(name string) error {
 }
 
 // List returns tool definitions for use in llm.Request.Tools.
-func (r *registry) List() []llm.ToolDefinition {
+func (r *registry) List(ctx context.Context) ([]llm.ToolDefinition, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 
 	definitions := make([]llm.ToolDefinition, 0, len(r.tools))
 	groups := make(map[string]llm.ToolGroup)
 
 	for _, registered := range r.tools {
 		// The tool describes itself; registration decides deferral and grouping.
-		definition := registered.tool.Definition()
+		definition := registered.toolDefinition()
 		definition.Deferred = registered.config.Deferred
 		definition.Group = registered.config.Group
 
@@ -192,17 +223,29 @@ func (r *registry) List() []llm.ToolDefinition {
 		return cmp.Compare(a.Name, b.Name)
 	})
 
-	return definitions
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	return definitions, nil
 }
 
 // Get retrieves a registered tool by name.
-func (r *registry) Get(name string) (Tool, error) {
+func (r *registry) Get(ctx context.Context, name string) (Tool, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 
 	registered, exists := r.tools[name]
 	if !exists {
 		return nil, fmt.Errorf("%w: %q", ErrToolNotFound, name)
+	}
+
+	if registered.definition != nil {
+		return &snapshotTool{Tool: registered.tool, definition: *registered.definition}, nil
 	}
 
 	return registered.tool, nil
@@ -221,6 +264,10 @@ func (r *registry) Execute(ctx context.Context, req *llm.ToolRequestPart) (*llm.
 
 	if !exists {
 		return errorToolResponse(req, fmt.Sprintf("%v: %q", ErrToolNotFound, req.Name)), nil
+	}
+
+	if registered.executor != nil {
+		return registered.executor.Execute(ctx, req)
 	}
 
 	// Apply timeout if configured

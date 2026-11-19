@@ -101,7 +101,7 @@ func (m *mockRegistry) Unregister(name string) error {
 	return nil
 }
 
-func (m *mockRegistry) Get(name string) (tool.Tool, error) {
+func (m *mockRegistry) Get(_ context.Context, name string) (tool.Tool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -113,7 +113,7 @@ func (m *mockRegistry) Get(name string) (tool.Tool, error) {
 	return t, nil
 }
 
-func (m *mockRegistry) List() []llm.ToolDefinition {
+func (m *mockRegistry) List(context.Context) ([]llm.ToolDefinition, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -122,11 +122,25 @@ func (m *mockRegistry) List() []llm.ToolDefinition {
 		defs = append(defs, t.Definition())
 	}
 
-	return defs
+	return defs, nil
+}
+
+func (m *mockRegistry) Snapshot(ctx context.Context) (tool.Registry, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	captured := tool.NewRegistry(tool.RegistryConfig{})
+	for _, registered := range m.tools {
+		if err := captured.Register(registered); err != nil {
+			return nil, err
+		}
+	}
+
+	return captured.Snapshot(ctx)
 }
 
 func (m *mockRegistry) Execute(ctx context.Context, req *llm.ToolRequestPart) (*llm.ToolResponsePart, error) {
-	t, err := m.Get(req.Name)
+	t, err := m.Get(ctx, req.Name)
 	if err != nil {
 		return nil, err
 	}

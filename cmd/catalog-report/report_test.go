@@ -445,6 +445,14 @@ func TestRender(t *testing.T) {
 	holdCopy.Field = reconcile.FieldNewCopy
 	otherField := keepLimit
 	otherField.Field = "price"
+	otherRule := keepLimit
+	otherRule.Rule = "out-of-reach"
+	sameRule := keepLimit
+	sameRule.Rule = reconcile.JudgmentRule
+	gapHold := reconcile.Decision{
+		ID: "DEC-003", Offering: "anthropic:claude-sonnet-5-5", Field: "limit", Kind: reconcile.KindHold, Rule: reconcile.JudgmentRule,
+		Reason: "The SDK can't send it yet.", ReviewBy: "2027-01-13", Line: 20,
+	}
 	// #259's copies in India, which Bedrock doesn't offer, and one in a second region.
 	waiting := []Skipped{
 		{Offering: "bedrock:in.anthropic.claude-opus-5", Reason: "region_not_offered", Rule: "region-not-offered"},
@@ -841,6 +849,26 @@ func TestRender(t *testing.T) {
 			notContains: []string{"### Held by decisions"},
 		},
 		{
+			name:        "a decision on another rule holds nothing",
+			report:      validReport(),
+			base:        Base{URL: baseURL, Decisions: []reconcile.Decision{otherRule}, Today: "2026-10-14"},
+			contains:    []string{"### Open questions (1)"},
+			notContains: []string{"### Held by decisions"},
+		},
+		{
+			name:     "a decision on the question's rule holds it",
+			report:   validReport(),
+			base:     Base{URL: baseURL, Decisions: []reconcile.Decision{sameRule}, Today: "2026-10-14"},
+			contains: []string{"### Held by decisions (1)"},
+		},
+		{
+			name:        "a hold on a field holds its rule's question",
+			report:      validReport(),
+			base:        Base{URL: baseURL, Decisions: []reconcile.Decision{gapHold}, Today: "2026-10-14"},
+			contains:    []string{"| [DEC-003](" + decisionsURL + "#L20) | `claude-sonnet-5-5` | limit | `65535`, `65536` | The SDK can't send it yet. |"},
+			notContains: []string{"### Open questions"},
+		},
+		{
 			name:     "an overdue decision is named even with no drift",
 			report:   Report{},
 			base:     Base{URL: baseURL, Decisions: []reconcile.Decision{keepLimit}, Today: "2027-02-01"},
@@ -889,6 +917,62 @@ func TestRender(t *testing.T) {
 			for _, unwanted := range tt.notContains {
 				assert.NotContains(t, body, unwanted)
 			}
+		})
+	}
+}
+
+// TestRenderUnansweredDecisions checks that the decisions line names a
+// decision that answered no question in a run of its model's vendor, so a
+// record whose case is gone gets deleted.
+func TestRenderUnansweredDecisions(t *testing.T) {
+	t.Parallel()
+
+	snap, err := reconcile.ParseSnapshot([]byte(`{
+		"facts": {"anthropic/claude-sonnet-5-5": {"publisher": "anthropic"}, "anthropic/claude-opus-5-5": {"publisher": "anthropic"}},
+		"providers": [{"provider": "anthropic", "offerings": [
+			{"id": "claude-sonnet-5-5", "model": "anthropic/claude-sonnet-5-5"},
+			{"id": "claude-opus-5-5", "model": "anthropic/claude-opus-5-5"}]}]}`))
+	require.NoError(t, err)
+
+	stale := keepLimit
+	stale.ID, stale.Offering, stale.Rule = "DEC-002", "anthropic:claude-opus-5-5", "out-of-reach"
+	// A keep with no rule may stop a Default's change, which raises no
+	// question, so answering none says nothing about it.
+	guard := keepLimit
+	guard.ID, guard.Offering, guard.Field = "DEC-003", "anthropic:claude-opus-5-5", "price"
+	base := Base{Decisions: []reconcile.Decision{keepLimit, stale, guard}, Today: "2026-10-14"}
+	const named = "Answered no question this run: DEC-002. A run can miss a question, so delete it only if its reason no longer holds."
+
+	tests := []struct {
+		name    string
+		vendors []Vendor
+		want    string
+	}{
+		{
+			"names a decision its vendor's run didn't use",
+			[]Vendor{{Name: "anthropic", Report: validReport(), Before: &snap, After: &snap}},
+			named,
+		},
+		{
+			"reads another vendor's catalogue when this one changed nothing",
+			[]Vendor{{Name: "anthropic", Report: validReport()}, {Name: "openai", Before: &snap, After: &snap}},
+			named,
+		},
+		{"names none when no vendor brings a catalogue", []Vendor{{Name: "anthropic", Report: validReport()}}, ""},
+		{"names none for a failed run", []Vendor{{Name: "anthropic", Failed: true}, {Name: "openai", Before: &snap, After: &snap}}, ""},
+		{"names none for another vendor's run", []Vendor{{Name: "openai", Report: validReport(), Before: &snap, After: &snap}}, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			body := Render(tt.vendors, "", nil, base)
+			if tt.want == "" {
+				assert.NotContains(t, body, "Answered no question")
+				return
+			}
+
+			assert.Contains(t, body, tt.want)
 		})
 	}
 }

@@ -1,7 +1,78 @@
 # Review decisions for reconcile-models runs; RULES.md (Principles) says how they work.
 # Public file: no people, customers, internal systems or ticket keys.
 # An offering is <package>:<model ID>. A keep's lock uses the field's shape in
-# catalog/snapshot.json; a hold is on new_model or new_copy with no lock.
+# catalog/snapshot.json, or only the parts its keys name. A hold takes no lock;
+# on a field other than new_model or new_copy it names the rule whose question
+# it answers, never no-rule, and on those two no rule. The PR that closes a held
+# gap deletes its hold.
+# review_by is three months after decided; a decision that records a lasting
+# choice, not a wait for a fix, gets a year, and its reason says so. The check
+# refuses a date more than a year out; the three months are the reviewer's to
+# check.
 # TestDecisionsHold fails on a contradiction and prints the current value to
 # paste as a lock.
-decisions: []
+decisions:
+  - id: DEC-001
+    offering: bedrock:global.amazon.nova-2-lite-v1:0
+    field: price
+    kind: hold
+    rule: out-of-reach
+    reason: "AWS prices Nova 2 Lite profile calls by the calling region, but the catalogue holds one rate per profile and a profile's reply doesn't name that region, so these rates wait for SDK support."
+    decided: 2026-11-17
+    review_by: 2027-02-17
+  - id: DEC-002
+    offering: bedrock:eu.amazon.nova-2-lite-v1:0
+    field: price
+    kind: hold
+    rule: out-of-reach
+    reason: "AWS prices Nova 2 Lite profile calls by the calling region, but the catalogue holds one rate per profile and a profile's reply doesn't name that region, so these rates wait for SDK support."
+    decided: 2026-11-17
+    review_by: 2027-02-17
+  - id: DEC-003
+    offering: bedrock:us.amazon.nova-2-lite-v1:0
+    field: capability
+    kind: hold
+    rule: reasoning-unsendable
+    reason: "Nova 2 Lite takes reasoning efforts through reasoningConfig, but the SDK's Bedrock code sends reasoning only in Anthropic's format, so the efforts stay out until it sends reasoningConfig."
+    decided: 2026-11-17
+    review_by: 2027-02-17
+  - id: DEC-004
+    offering: bedrock:eu.amazon.nova-2-lite-v1:0
+    field: capability
+    kind: hold
+    rule: reasoning-unsendable
+    reason: "Nova 2 Lite takes reasoning efforts through reasoningConfig, but the SDK's Bedrock code sends reasoning only in Anthropic's format, so the efforts stay out until it sends reasoningConfig."
+    decided: 2026-11-17
+    review_by: 2027-02-17
+  - id: DEC-005
+    offering: bedrock:global.amazon.nova-2-lite-v1:0
+    field: capability
+    kind: hold
+    rule: reasoning-unsendable
+    reason: "Nova 2 Lite takes reasoning efforts through reasoningConfig, but the SDK's Bedrock code sends reasoning only in Anthropic's format, so the efforts stay out until it sends reasoningConfig."
+    decided: 2026-11-17
+    review_by: 2027-02-17
+  - id: DEC-006
+    offering: bedrock:jp.amazon.nova-2-lite-v1:0
+    field: capability
+    kind: hold
+    rule: reasoning-unsendable
+    reason: "Nova 2 Lite takes reasoning efforts through reasoningConfig, but the SDK's Bedrock code sends reasoning only in Anthropic's format, so the efforts stay out until it sends reasoningConfig."
+    decided: 2026-11-17
+    review_by: 2027-02-17
+  - id: DEC-007
+    offering: fireworks:accounts/fireworks/models/deepseek-v4p1-flash
+    field: capability
+    kind: hold
+    rule: reasoning-unsendable
+    reason: "Fireworks documents a hard thinking budget for DeepSeek V4.1 only on Chat Completions, but the SDK calls these models through Messages, which has none, so the budget stays out until the SDK can send it."
+    decided: 2026-11-17
+    review_by: 2027-02-17
+  - id: DEC-008
+    offering: fireworks:accounts/fireworks/models/deepseek-v4p1-flash-1017
+    field: capability
+    kind: hold
+    rule: reasoning-unsendable
+    reason: "Fireworks documents a hard thinking budget for DeepSeek V4.1 only on Chat Completions, but the SDK calls these models through Messages, which has none, so the budget stays out until the SDK can send it."
+    decided: 2026-11-17
+    review_by: 2027-02-17

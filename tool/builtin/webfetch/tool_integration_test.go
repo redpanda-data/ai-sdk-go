@@ -153,7 +153,8 @@ func TestWebFetch_PromptInjectionFencing_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		// Get tool definitions
-		toolDefinitions := registry.List()
+		toolDefinitions, err := registry.List(t.Context())
+		require.NoError(t, err)
 		require.Len(t, toolDefinitions, 1)
 
 		// Step 1: Initial request with system prompt
@@ -287,7 +288,8 @@ func TestWebFetch_PromptInjectionFencing_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		// Get tool definitions
-		toolDefinitions := registry.List()
+		toolDefinitions, err := registry.List(t.Context())
+		require.NoError(t, err)
 		require.Len(t, toolDefinitions, 1)
 
 		// Step 1: Initial request with system prompt

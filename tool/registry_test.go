@@ -58,7 +58,9 @@ func TestRegistryListSortedAndStable(t *testing.T) {
 	sort.Strings(want)
 
 	// Order must equal the name-sorted expectation.
-	assert.Equal(t, want, definitionNames(registry.List()),
+	defs, err := registry.List(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, want, definitionNames(defs),
 		"List() must return tool definitions sorted by name")
 
 	// Order must be identical across many calls (no map-iteration randomization).
@@ -66,8 +68,12 @@ func TestRegistryListSortedAndStable(t *testing.T) {
 	const iterations = 50
 
 	orderings := make(map[string]struct{})
+
 	for range iterations {
-		orderings[strings.Join(definitionNames(registry.List()), ",")] = struct{}{}
+		defs, err := registry.List(t.Context())
+		require.NoError(t, err)
+
+		orderings[strings.Join(definitionNames(defs), ",")] = struct{}{}
 	}
 
 	assert.Lenf(t, orderings, 1,

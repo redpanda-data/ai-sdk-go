@@ -17,7 +17,6 @@ package llmagent
 import (
 	"context"
 	"encoding/json"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -144,6 +143,15 @@ func finishReason(events []agent.Event) agent.FinishReason {
 	return ""
 }
 
+func fixtureDefinitions(tb testing.TB, registry tool.Registry) []llm.ToolDefinition {
+	tb.Helper()
+
+	defs, err := registry.List(tb.Context())
+	require.NoError(tb, err)
+
+	return defs
+}
+
 func requestToolNames(req *llm.Request) []string {
 	return defNames(req.Tools)
 }
@@ -168,7 +176,7 @@ func userMessage(text string) []llm.Message {
 }
 
 // TestToolSearchNameIsReserved: a registry tool of the same name would be
-// declared twice and unreachable, so construction fails with a clear message.
+// declared twice and unreachable, so resolution fails with a clear message.
 func TestToolSearchNameIsReserved(t *testing.T) {
 	t.Parallel()
 
@@ -177,13 +185,14 @@ func TestToolSearchNameIsReserved(t *testing.T) {
 		fixtureTool{name: "svc__thing", group: "svc", deferred: true, description: "A thing."},
 	)
 
-	_, err := New("agent", "prompt", fakellm.NewFakeModel(), WithTools(registry))
+	model := fakellm.NewFakeModel()
+	ag, err := New("agent", "prompt", model, WithTools(registry))
+	require.NoError(t, err)
+	err = toolsRunError(t.Context(), ag, agent.NewInvocationMetadata(&session.State{ID: "reserved", Messages: userMessage("run")}, ag.Info()))
 	require.ErrorContains(t, err, toolloading.SearchToolName)
+	assert.Empty(t, model.CallsMatching(fakellm.Any()))
 
 	_, err = New("agent", "prompt", fakellm.NewFakeModel(), WithToolLoadingConfig(ToolLoadingConfig{MaxLoadTokens: -1}))
 	require.ErrorContains(t, err, "MaxLoadTokens")
 
-	// prepare never double-declares even if a registry gains the name later.
-	defs := toolloading.New(registry, fakellm.NewFakeModel(), toolloading.Config{}).Prepare(registry.List(), &session.State{ID: "s"}).Tools
-	assert.Equal(t, 1, strings.Count(strings.Join(defNames(defs), ","), toolloading.SearchToolName))
 }

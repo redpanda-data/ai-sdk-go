@@ -59,14 +59,15 @@ func TestRegistry_BasicOperations(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test listing
-	definitions := registry.List()
+	definitions, err := registry.List(t.Context())
+	require.NoError(t, err)
 	assert.Len(t, definitions, 1)
 	assert.Equal(t, "webfetch", definitions[0].Name)
 	assert.NotEmpty(t, definitions[0].Description)
 	assert.NotNil(t, definitions[0].Parameters)
 
 	// Test retrieval
-	retrievedTool, err := registry.Get("webfetch")
+	retrievedTool, err := registry.Get(t.Context(), "webfetch")
 	require.NoError(t, err)
 	assert.NotNil(t, retrievedTool)
 
@@ -100,9 +101,11 @@ func TestRegistry_BasicOperations(t *testing.T) {
 	// Test unregistration
 	err = registry.Unregister("webfetch")
 	require.NoError(t, err)
-	assert.Empty(t, registry.List())
+	definitions, err = registry.List(t.Context())
+	require.NoError(t, err)
+	assert.Empty(t, definitions)
 
-	_, err = registry.Get("webfetch")
+	_, err = registry.Get(t.Context(), "webfetch")
 	assert.ErrorIs(t, err, tool.ErrToolNotFound)
 }
 
@@ -140,7 +143,7 @@ func TestRegistry_ErrorConditions(t *testing.T) {
 		registry := tool.NewRegistry(tool.RegistryConfig{})
 
 		// Tool not found
-		_, err := registry.Get("nonexistent")
+		_, err := registry.Get(t.Context(), "nonexistent")
 		require.ErrorIs(t, err, tool.ErrToolNotFound)
 
 		// Unregister non-existent
@@ -319,11 +322,12 @@ func TestRegistry_ConcurrentAccess(t *testing.T) {
 			defer wg.Done()
 
 			// Test concurrent read operations
-			tool, err := registry.Get("webfetch")
+			tool, err := registry.Get(t.Context(), "webfetch")
 			assert.NoError(t, err)
 			assert.NotNil(t, tool)
 
-			definitions := registry.List()
+			definitions, err := registry.List(t.Context())
+			assert.NoError(t, err)
 			assert.Len(t, definitions, 1)
 
 			// Test concurrent execution
@@ -386,7 +390,8 @@ func TestRegistry_WebfetchToolWithLLM_Integration(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get tool definitions for LLM
-	toolDefinitions := registry.List()
+	toolDefinitions, err := registry.List(t.Context())
+	require.NoError(t, err)
 	require.Len(t, toolDefinitions, 1)
 	require.Equal(t, "webfetch", toolDefinitions[0].Name)
 

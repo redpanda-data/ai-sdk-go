@@ -82,6 +82,10 @@ func TestRulesFile(t *testing.T) {
 	// keep must be listed as something only the agent does.
 	assert.Contains(t, string(raw), "kept every Vertex location the model page or the locations table still lists", "Not checked by code must name location-follow's keep")
 
+	// A hold on a field answers one rule's question. If it stopped another
+	// rule's change, a closed SDK gap would stay out of the catalogue.
+	assert.Contains(t, string(raw), "never stops a change another rule makes", "principle 8 must keep a hold on a field to its rule")
+
 	unlisted := Report{NeedsHuman: []NeedsHuman{{
 		Offering: "vertex:claude-sonnet-5", Field: "location", Page: "us-east5",
 		SourceURLs: []string{"https://docs.cloud.google.com/gemini-enterprise-agent-platform/resources/locations"}, Rule: "location-unlisted",
