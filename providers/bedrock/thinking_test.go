@@ -108,7 +108,7 @@ func TestSignatureOnlyReasoningRoundTrips(t *testing.T) {
 	assert.Equal(t, "opaque-signature", reasoning.Signature)
 
 	requestMapper := NewRequestMapper(&Config{})
-	message, err := requestMapper.mapAssistantMessage(llm.NewMessage(llm.RoleAssistant, reasoning))
+	message, err := requestMapper.mapAssistantMessage(llm.NewMessage(llm.RoleAssistant, reasoning), nil)
 	require.NoError(t, err)
 	require.Len(t, message.Content, 1)
 
@@ -224,7 +224,7 @@ func TestRequestMapper_SkipsUnreplayableRedactedReasoning(t *testing.T) {
 			t.Parallel()
 
 			message, err := NewRequestMapper(&Config{}).mapAssistantMessage(
-				llm.NewMessage(llm.RoleAssistant, tc.part, llm.NewTextPart("hello")),
+				llm.NewMessage(llm.RoleAssistant, tc.part, llm.NewTextPart("hello")), nil,
 			)
 			require.NoError(t, err)
 			assert.Equal(t, []types.ContentBlock{&types.ContentBlockMemberText{Value: "hello"}}, message.Content)
@@ -243,7 +243,7 @@ func assertReplaysRedacted(t *testing.T, part *llm.ReasoningPart) {
 	var restored llm.Message
 	require.NoError(t, json.Unmarshal(persisted, &restored))
 
-	message, err := NewRequestMapper(&Config{}).mapAssistantMessage(restored)
+	message, err := NewRequestMapper(&Config{}).mapAssistantMessage(restored, nil)
 	require.NoError(t, err)
 	require.Len(t, message.Content, 1)
 

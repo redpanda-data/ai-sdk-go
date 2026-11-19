@@ -27,6 +27,7 @@ import (
 
 	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/internal/jsonschema"
+	"github.com/redpanda-data/ai-sdk-go/internal/toolname"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 )
 
@@ -94,7 +95,7 @@ type converseParams struct {
 
 // buildConverseParams resolves all common request parameters once.
 func (rm *RequestMapper) buildConverseParams(req *llm.Request) (*converseParams, error) {
-	messages, system, err := rm.mapMessages(req.Messages)
+	messages, system, err := rm.mapMessages(req.Messages, toolDefinitionNames(req.Tools))
 	if err != nil {
 		return nil, fmt.Errorf("%w: message mapping failed: %w", llm.ErrRequestMapping, err)
 	}
@@ -278,7 +279,7 @@ func (rm *RequestMapper) buildThinkingFields() map[string]any {
 // TODO: only text/tool/reasoning parts are mapped. The catalog
 // advertises image (and on some models audio/video/document) input
 // because the models accept it; llm.Part has no binary part yet.
-func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]types.Message, []types.SystemContentBlock, error) {
+func (rm *RequestMapper) mapMessages(messages []llm.Message, toolNames map[string]struct{}) ([]types.Message, []types.SystemContentBlock, error) {
 	var apiMessages []types.Message
 	var system []types.SystemContentBlock
 
@@ -302,7 +303,7 @@ func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]types.Message, [
 			apiMessages = append(apiMessages, apiMsg)
 
 		case llm.RoleAssistant:
-			apiMsg, err := rm.mapAssistantMessage(msg)
+			apiMsg, err := rm.mapAssistantMessage(msg, toolNames)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -329,6 +330,16 @@ func (rm *RequestMapper) mapMessages(messages []llm.Message) ([]types.Message, [
 	}
 
 	return apiMessages, system, nil
+}
+
+// toolDefinitionNames returns the names of the request's tool definitions.
+func toolDefinitionNames(tools []llm.ToolDefinition) map[string]struct{} {
+	names := make(map[string]struct{}, len(tools))
+	for _, t := range tools {
+		names[t.Name] = struct{}{}
+	}
+
+	return names
 }
 
 // mapUserMessage converts a user message to Bedrock Converse format.
@@ -358,7 +369,7 @@ func (rm *RequestMapper) mapUserMessage(msg llm.Message) (types.Message, error) 
 }
 
 // mapAssistantMessage converts an assistant message to Bedrock Converse format.
-func (rm *RequestMapper) mapAssistantMessage(msg llm.Message) (types.Message, error) {
+func (rm *RequestMapper) mapAssistantMessage(msg llm.Message, toolNames map[string]struct{}) (types.Message, error) {
 	apiMsg := types.Message{
 		Role: types.ConversationRoleAssistant,
 	}
@@ -380,8 +391,10 @@ func (rm *RequestMapper) mapAssistantMessage(msg llm.Message) (types.Message, er
 			apiMsg.Content = append(apiMsg.Content, &types.ContentBlockMemberToolUse{
 				Value: types.ToolUseBlock{
 					ToolUseId: aws.String(p.ID),
-					Name:      aws.String(p.Name),
-					Input:     document.NewLazyDocument(input),
+					// A model can emit a name that Converse rejects; replaying it
+					// verbatim would fail every later request of the session.
+					Name:  aws.String(toolname.ReplayAvoiding(p.Name, toolNames)),
+					Input: document.NewLazyDocument(input),
 				},
 			})
 

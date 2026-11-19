@@ -1,0 +1,55 @@
+{
+    "id": "sess-poisoned",
+    "messages": [
+        {
+            "role": "MESSAGE_ROLE_USER",
+            "content": [
+                {
+                    "kind": "PART_KIND_TEXT",
+                    "text": "Look up item x-1.",
+                    "metadata": null
+                }
+            ]
+        },
+        {
+            "role": "MESSAGE_ROLE_ASSISTANT",
+            "content": [
+                {
+                    "kind": "PART_KIND_TOOL_REQUEST",
+                    "toolRequest": {
+                        "id": "call-0001",
+                        "name": "inventory__get_item ",
+                        "arguments": "eyJpdGVtIjoieC0xIn0="
+                    },
+                    "metadata": null
+                }
+            ]
+        },
+        {
+            "role": "MESSAGE_ROLE_USER",
+            "content": [
+                {
+                    "kind": "PART_KIND_TOOL_RESPONSE",
+                    "toolResponse": {
+                        "id": "call-0001",
+                        "name": "inventory__get_item ",
+                        "result": "eyJlcnJvciI6InRvb2wgbm90IGZvdW5kOiBcImludmVudG9yeV9fZ2V0X2l0ZW0gXCIifQ==",
+                        "error": "{\"error\":\"tool not found: \\\"inventory__get_item \\\"\"}"
+                    },
+                    "metadata": null
+                }
+            ]
+        },
+        {
+            "role": "MESSAGE_ROLE_ASSISTANT",
+            "content": [
+                {
+                    "kind": "PART_KIND_TEXT",
+                    "text": "That tool is unavailable under that name.",
+                    "metadata": null
+                }
+            ]
+        }
+    ],
+    "metadata": {}
+}
