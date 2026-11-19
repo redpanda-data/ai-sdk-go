@@ -45,6 +45,9 @@ var (
 
 	// ErrInvalidToolConfig indicates that the tool configuration is invalid.
 	ErrInvalidToolConfig = errors.New("invalid tool configuration")
+
+	// ErrRegistryReadOnly indicates an attempt to mutate a snapshot.
+	ErrRegistryReadOnly = errors.New("registry snapshot is read-only")
 )
 
 // ResultError is returned by Tool.Execute when the tool ran but reported a

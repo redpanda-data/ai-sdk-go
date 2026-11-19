@@ -107,7 +107,8 @@ func TestRegistrationPolicy(t *testing.T) {
 				serverName: tt.serverToolName,
 			}})
 
-			defs := registry.List()
+			defs, err := registry.List(t.Context())
+			require.NoError(t, err)
 			require.Len(t, defs, 1)
 			assert.Equal(t, tt.wantDeferred, defs[0].Deferred)
 			assert.Equal(t, tt.wantGroup, defs[0].Group.Name)
@@ -149,7 +150,10 @@ func TestRegistrationPolicyAppliesToEveryToolOfAServer(t *testing.T) {
 
 	deferred := map[string]bool{}
 
-	for _, def := range registry.List() {
+	defs, err := registry.List(t.Context())
+	require.NoError(t, err)
+
+	for _, def := range defs {
 		assert.Equal(t, "jira", def.Group.Name)
 
 		deferred[def.Name] = def.Deferred

@@ -46,7 +46,7 @@ func (l *Loader) NewBatch(sent []llm.ToolDefinition, schemaRoom int) *Batch {
 		return nil
 	}
 
-	all := l.tools.List()
+	all := l.definitions
 
 	b := &Batch{
 		visible:    make(map[string]bool, len(sent)),

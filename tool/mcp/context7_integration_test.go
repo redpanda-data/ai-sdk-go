@@ -106,7 +106,8 @@ func TestContext7Integration_EndToEnd(t *testing.T) { //nolint:paralleltest // c
 	require.NoError(t, err)
 
 	// Get tool definitions for LLM
-	toolDefinitions := registry.List()
+	toolDefinitions, err := registry.List(ctx)
+	require.NoError(t, err)
 	require.NotEmpty(t, toolDefinitions)
 
 	// Create initial conversation
