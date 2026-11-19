@@ -71,6 +71,7 @@ func TestReplay(t *testing.T) {
 		{"inner space", "a b"},
 		{"trailing space", "name "},
 		{"dot", "functions.foo"},
+		{"dot inside", "a.b"},
 		{"65 chars all valid", name65()},
 		{"200 chars", strings.Repeat("x", 200)},
 		{"non-ascii", "naïve_café_ж"},
@@ -98,6 +99,21 @@ func TestReplay(t *testing.T) {
 
 	assert.NotEqual(t, "a_b", Replay("a b"), "a cleaned name must not collide with a real tool name")
 	assert.NotEqual(t, Replay("a b"), Replay("a_b "))
+}
+
+func TestReplay_HashKeepsCleanedCollisionsApart(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, clean("a b"), clean("a.b"), "precondition: both clean to the same string")
+	assert.NotEqual(t, Replay("a b"), Replay("a.b"))
+
+	// Same last 45 cleaned characters, different head.
+	shared := strings.Repeat("z", tailLen)
+	first, second := "head one "+shared, "head two."+shared
+
+	require.Greater(t, len(first), tailLen)
+	require.Equal(t, tailOf(clean(first), tailLen), tailOf(clean(second), tailLen), "precondition: same tail")
+	assert.NotEqual(t, Replay(first), Replay(second))
 }
 
 func TestReplayAvoiding_Valid(t *testing.T) {

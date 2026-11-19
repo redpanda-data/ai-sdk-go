@@ -17,11 +17,9 @@ package bedrock
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	_ "embed"
 	"encoding/json"
 	"io"
-	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -56,15 +54,6 @@ const validToolName = "inventory__get_item"
 
 func longToolName() string { return strings.Repeat("a", 30) + "__" + strings.Repeat("b", 33) }
 
-// shortenedForm reproduces the head-hash shortening applied to registered MCP
-// tool names, so a test can register the short form of a 65-character name.
-func shortenedForm(name string) string {
-	sum := sha256.Sum256([]byte(name))
-	h := new(big.Int).SetBytes(sum[:]).Text(36)[:10]
-
-	return h + "_" + name[len(name)-53:]
-}
-
 func newMapper(t *testing.T) *RequestMapper {
 	t.Helper()
 
@@ -91,10 +80,10 @@ func TestMapAssistantMessage_InvalidToolNamesAreReplayable(t *testing.T) {
 		{name: "dot", toolName: "functions.foo"},
 		{name: "65 chars all valid", toolName: long},
 		{
-			name:     "65 chars with its shortened form registered",
+			name:     "65 chars with a 64-char tool registered",
 			toolName: long,
 			tools: []llm.ToolDefinition{{
-				Name: shortenedForm(long), Description: "d", Parameters: json.RawMessage(`{"type":"object"}`),
+				Name: strings.Repeat("c", 64), Description: "d", Parameters: json.RawMessage(`{"type":"object"}`),
 			}},
 		},
 		{name: "valid name is unchanged", toolName: validToolName, wantExact: true},
@@ -129,6 +118,11 @@ func TestMapAssistantMessage_InvalidToolNamesAreReplayable(t *testing.T) {
 				use := onlyToolUse(t, msgs[1])
 
 				assert.Regexp(t, wireToolName, aws.ToString(use.Name), label)
+
+				if !tt.wantExact {
+					assert.True(t, strings.HasPrefix(aws.ToString(use.Name), "invalid_"), "%s: replay prefix", label)
+				}
+
 				assert.Equal(t, "call-1", aws.ToString(use.ToolUseId), label)
 
 				result := onlyToolResult(t, msgs[2])
@@ -228,7 +222,7 @@ type bedrockPeer struct {
 
 // The field names are the Converse wire names.
 //
-//nolint:tagliatelle
+//nolint:tagliatelle // Converse wire names
 type converseRequest struct {
 	Messages []struct {
 		Role    string `json:"role"`
@@ -276,7 +270,7 @@ func (p *bedrockPeer) serve(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("X-Amzn-Errortype", "ValidationException")
 				w.WriteHeader(http.StatusBadRequest)
 				_, _ = w.Write([]byte(`{"message":"The model returned the following errors: messages.` +
-					itoa(mi) + `.content.` + itoa(ci) + `.tool_use.name: String should match pattern '^[a-zA-Z0-9_-]{1,64}$'"}`))
+					strconv.Itoa(mi) + `.content.` + strconv.Itoa(ci) + `.tool_use.name: String should match pattern '^[a-zA-Z0-9_-]{1,64}$'"}`))
 
 				return
 			}
@@ -294,8 +288,6 @@ func (p *bedrockPeer) serve(w http.ResponseWriter, r *http.Request) {
 
 	http.Error(w, "unexpected non-streaming request", http.StatusInternalServerError)
 }
-
-func itoa(i int) string { return strings.TrimSpace(big.NewInt(int64(i)).String()) }
 
 type streamEvent struct{ name, payload string }
 

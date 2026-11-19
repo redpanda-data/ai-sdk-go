@@ -382,9 +382,6 @@ func (rm *RequestMapper) mapAssistantMessage(msg llm.Message, toolNames map[stri
 			})
 
 		case *llm.ToolRequestPart:
-			// A model can emit a name that Converse rejects; replaying it
-			// verbatim would fail every later request of the session.
-			//
 			// Parse arguments to a generic map for document.Interface
 			var input map[string]any
 			if err := json.Unmarshal(p.Arguments, &input); err != nil {
@@ -394,8 +391,10 @@ func (rm *RequestMapper) mapAssistantMessage(msg llm.Message, toolNames map[stri
 			apiMsg.Content = append(apiMsg.Content, &types.ContentBlockMemberToolUse{
 				Value: types.ToolUseBlock{
 					ToolUseId: aws.String(p.ID),
-					Name:      aws.String(toolname.ReplayAvoiding(p.Name, toolNames)),
-					Input:     document.NewLazyDocument(input),
+					// A model can emit a name that Converse rejects; replaying it
+					// verbatim would fail every later request of the session.
+					Name:  aws.String(toolname.ReplayAvoiding(p.Name, toolNames)),
+					Input: document.NewLazyDocument(input),
 				},
 			})
 
