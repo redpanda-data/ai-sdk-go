@@ -50,7 +50,7 @@ const (
 type Kind string
 
 const (
-	// Text displays a literal string.
+	// Text carries a string that the renderer may interpret as simple Markdown.
 	Text Kind = "Text"
 	// Row lays out children horizontally.
 	Row Kind = "Row"
@@ -94,8 +94,8 @@ func SupportsSnapshot(message *a2a.Message) bool {
 		return false
 	}
 
-	if caps, ok := message.Metadata[rendererCapabilitiesKey]; ok {
-		return supportsCatalog(caps)
+	if offer, ok := rendererOffer(message.Metadata); ok {
+		return supportsCatalog(offer)
 	}
 
 	if len(message.Parts) > maxOfferEntries {
@@ -111,21 +111,31 @@ func SupportsSnapshot(message *a2a.Message) bool {
 			continue
 		}
 
-		if caps, ok := part.Metadata[rendererCapabilitiesKey]; ok {
-			return supportsCatalog(caps)
+		if offer, ok := rendererOffer(part.Metadata); ok {
+			return supportsCatalog(offer)
 		}
 	}
 
 	return false
 }
 
-func supportsCatalog(caps any) bool {
+// Skip other protocol versions, but do not replace a malformed offer with
+// lower-precedence metadata.
+func rendererOffer(metadata map[string]any) (any, bool) {
+	caps, present := metadata[rendererCapabilitiesKey]
+
 	versions, ok := caps.(map[string]any)
 	if !ok {
-		return false
+		return nil, present
 	}
 
-	current, ok := versions[Version].(map[string]any)
+	offer, present := versions[Version]
+
+	return offer, present
+}
+
+func supportsCatalog(offer any) bool {
+	current, ok := offer.(map[string]any)
 	if !ok {
 		return false
 	}

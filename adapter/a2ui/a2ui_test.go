@@ -54,16 +54,15 @@ func TestSnapshotPartOverA2A(t *testing.T) {
 			reply := a2a.NewMessage(a2a.MessageRoleAgent, a2a.NewTextPart("17 orders"))
 			reply.ContextID = req.ContextID
 
-			part, err := SnapshotPart(req.Message, Snapshot{
-				SurfaceID:  req.Message.ID,
-				Components: textSnapshot().Components,
-			})
-			if err != nil {
-				yield(nil, err)
-				return
+			snapshot := textSnapshot()
+
+			snapshot.SurfaceID = req.Message.ID
+			if req.Message.Parts[0].Text() == "Invalid snapshot" {
+				snapshot.Components = nil
 			}
 
-			if part != nil {
+			part, err := SnapshotPart(req.Message, snapshot)
+			if err == nil && part != nil {
 				reply.Parts = append(reply.Parts, part)
 			}
 
@@ -105,6 +104,12 @@ func TestSnapshotPartOverA2A(t *testing.T) {
 	require.NotEmpty(t, second.ContextID)
 	second.Extensions = []string{"https://a2ui.org/a2a-extension/a2ui/v1.0"}
 	require.Len(t, send(second).Parts, 1)
+
+	// An invalid snapshot must not break the normal reply on a negotiated turn.
+	third := a2a.NewMessage(a2a.MessageRoleUser, a2a.NewTextPart("Invalid snapshot"))
+	third.ContextID = reply.ContextID
+	third.Metadata = first.Metadata
+	require.Len(t, send(third).Parts, 1)
 }
 
 func TestAgentExtension(t *testing.T) {
@@ -132,6 +137,7 @@ func TestSnapshotPartNegotiation(t *testing.T) {
 		{name: "wrong catalog", meta: offer("1.0", "https://example.com/catalog")},
 		{name: "invalid catalog list", meta: offer("1.0", basicCatalogFixture, 1)},
 		{name: "DataPart fallback", part: data, want: true},
+		{name: "ignore older message offer", meta: offer("0.9", basicCatalogFixture), part: data, want: true},
 		{name: "message takes precedence", meta: offer("1.0", "other"), part: data},
 		{name: "malformed message capability", meta: map[string]any{capabilitiesFixture: true}, part: data},
 		{name: "Go typed catalog IDs", meta: map[string]any{capabilitiesFixture: map[string]any{"1.0": map[string]any{"supportedCatalogIds": []string{basicCatalogFixture}}}}, want: true},

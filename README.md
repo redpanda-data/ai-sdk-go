@@ -341,6 +341,9 @@ returns no part. Extension activation alone does not opt a turn in.
 Build the `a2ui.Snapshot` from application data with a new surface ID and
 Basic Catalog `Text`, `Row`, and `Column` nodes. The helper validates the tree
 and emits the [A2UI-over-A2A v1.0 data part](https://a2ui.org/specification/v1.0-a2ui-extension-specification/).
+Basic Catalog `Text` may render simple Markdown. The SDK validates the
+snapshot structure, not the text markup. Sanitize untrusted strings for your
+renderer before using them as `Text`.
 This does not modify the existing A2A 0.3 adapter, prompt the model, or enable UI actions.
 
 ## License
