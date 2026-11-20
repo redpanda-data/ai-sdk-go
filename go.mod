@@ -129,11 +129,12 @@ require (
 	golang.org/x/time v0.15.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
-	google.golang.org/grpc v1.83.1 // indirect
+	google.golang.org/grpc v1.83.2 // indirect
 )
 
 require (
 	github.com/JohannesKaufmann/html-to-markdown v1.6.0
+	github.com/a2aproject/a2a-go/v2 v2.6.0
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/rs/xid v1.6.0
 	golang.org/x/net v0.62.0
