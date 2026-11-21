@@ -1531,7 +1531,7 @@ func TestRequestMapper_ResponseFormat(t *testing.T) {
 func TestRequestMapper_OpenAISchemaStrict(t *testing.T) {
 	t.Parallel()
 
-	for _, id := range []string{ModelGPT6AstraGlobal, ModelGPT6AstraUS, ModelGPT6SolGlobal, ModelGPT6SolUS, ModelGPT61SolGlobal, ModelGPT61SolUS, ModelGPT61TerraGlobal, ModelGPT61TerraUS, ModelGPT6LunaGlobal, ModelGPT6LunaUS} {
+	for _, id := range []string{ModelGPT6AstraGlobal, ModelGPT6AstraUS, ModelGPT6SolGlobal, ModelGPT6SolUS, ModelGPT61SolGlobal, ModelGPT61SolUS, ModelGPT61TerraGlobal, ModelGPT61TerraUS, ModelGPT6LunaGlobal, ModelGPT6LunaUS, ModelGPT56SolGlobal, ModelGPT56SolUS, ModelGPT56TerraGlobal, ModelGPT56TerraUS, ModelGPT56LunaGlobal, ModelGPT56LunaUS} {
 		t.Run(id, func(t *testing.T) {
 			t.Parallel()
 
