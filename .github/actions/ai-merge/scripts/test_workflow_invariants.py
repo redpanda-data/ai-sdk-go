@@ -265,6 +265,15 @@ def test_reconciler_sweep_exists_and_is_label_only():
             "github.event.action == 'labeled' && github.event.label.name == 'ai-merge-reevaluate'"
             in cond
         )
+    # the reconcile bot's agent-written PRs never reach AI approval, by author
+    # or by branch, whatever their labels or draft state
+    for jname in ("agent", "approve"):
+        cond = wf["jobs"][jname]["if"]
+        assert "github.event.pull_request.user.login != 'vbotbuildovich'" in cond, jname
+        assert (
+            "!startsWith(github.event.pull_request.head.ref, 'bot/reconcile-models')"
+            in cond
+        ), jname
 
 
 def test_audit_carries_head_marker_for_the_sweep():
