@@ -2041,3 +2041,5 @@ var bedrockFamilies = []family{
 		},
 	},
 }
+
+// ai-merge dry-run probe: trivial, reviewable change; will be closed without merging.
