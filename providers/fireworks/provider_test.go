@@ -143,6 +143,31 @@ func TestFactoryNeverFallsBackFromFirstBinding(t *testing.T) {
 	}
 }
 
+func TestFactoryRefusesDecisionsOnlyOfferings(t *testing.T) {
+	t.Parallel()
+	provider, err := NewProvider(t.Context(), WithAPIKey("placeholder"))
+	require.NoError(t, err)
+
+	base, ok := Catalog().Resolve(ModelGLM53)
+	require.True(t, ok)
+
+	decisions := []catalog.WireAPI{
+		{Protocol: catalog.WireProtocolOpenAIDecisions, Transport: catalog.WireTransportDirect},
+		{Protocol: catalog.WireProtocolTypeSafeSystemOne, Transport: catalog.WireTransportDirect},
+	}
+	offering := base
+	offering.WireAPIs = decisions
+	offering.WireAPISupport = []catalog.WireAPISupport{{API: decisions[0]}, {API: decisions[1]}}
+	_, err = provider.newModelFromOffering(base.ID, offering)
+	require.ErrorIs(t, err, catalog.ErrDecisionsOnly)
+	require.ErrorContains(t, err, base.ID)
+
+	offering.WireAPIs = append(slices.Clone(decisions), base.WireAPIs...)
+	offering.WireAPISupport = append([]catalog.WireAPISupport{{API: decisions[0]}, {API: decisions[1]}}, base.WireAPISupport...)
+	_, err = provider.newModelFromOffering(base.ID, offering)
+	require.NotErrorIs(t, err, catalog.ErrDecisionsOnly, "a generative binding keeps the first-binding rule")
+}
+
 func TestModelOptionsUseSelectedReasoningSupport(t *testing.T) {
 	t.Parallel()
 	provider, err := NewProvider(t.Context(), WithAPIKey("placeholder"))

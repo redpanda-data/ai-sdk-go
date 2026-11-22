@@ -128,6 +128,10 @@ func (p *Provider) NewModel(modelID string, opts ...Option) (llm.Model, error) {
 }
 
 func (p *Provider) newModelFromOffering(modelID string, offering catalog.Offering, opts ...Option) (llm.Model, error) {
+	if offering.DecisionsOnly() {
+		return nil, fmt.Errorf("%w: %s", catalog.ErrDecisionsOnly, modelID)
+	}
+
 	if len(offering.WireAPIs) == 0 {
 		return nil, errors.New("fireworks offering has no wire API")
 	}
