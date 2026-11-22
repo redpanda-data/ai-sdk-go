@@ -153,6 +153,13 @@
       "released": "2026-10-17",
       "open_weights": true
     },
+    "fireworks/rune-26b-a4b": {
+      "display_name": "Rune 26B-A4B",
+      "publisher": "fireworks",
+      "description": "Rune 26B-A4B is a System One decision model: it does not reason and does not generate text. It reads a document once and answers up to 256 typed questions about it, returning calibrated probabilities in that single pass.",
+      "series": "rune",
+      "released": "2026-10-27"
+    },
     "google/gemini-2.5-flash": {
       "display_name": "Gemini 2.5 Flash",
       "publisher": "google",
@@ -12226,6 +12233,106 @@
             {
               "key": "priority_tier_status",
               "value": "blocked_missing_effective_tier"
+            }
+          ],
+          "derived": {
+            "price_tier": "low"
+          }
+        },
+        {
+          "id": "accounts/fireworks/models/rune",
+          "model": "fireworks/rune-26b-a4b",
+          "display_name": "Rune 26B-A4B",
+          "resolution_policy": "exact",
+          "wire_apis": [
+            {
+              "protocol": "openai_decisions",
+              "transport": "direct"
+            },
+            {
+              "protocol": "typesafe_systemone",
+              "transport": "direct"
+            }
+          ],
+          "wire_api_support": [
+            {
+              "protocol": "openai_decisions",
+              "transport": "direct",
+              "capabilities": {
+                "audio": false,
+                "json_mode": false,
+                "multi_turn": false,
+                "reasoning": false,
+                "streaming": false,
+                "structured_output": false,
+                "system_prompts": false,
+                "tool_search": false,
+                "tools": false,
+                "vision": false
+              },
+              "reasoning": {}
+            },
+            {
+              "protocol": "typesafe_systemone",
+              "transport": "direct",
+              "capabilities": {
+                "audio": false,
+                "json_mode": false,
+                "multi_turn": false,
+                "reasoning": false,
+                "streaming": false,
+                "structured_output": false,
+                "system_prompts": false,
+                "tool_search": false,
+                "tools": false,
+                "vision": false
+              },
+              "reasoning": {}
+            }
+          ],
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": false,
+            "reasoning": false,
+            "streaming": false,
+            "structured_output": false,
+            "system_prompts": false,
+            "tool_search": false,
+            "tools": false,
+            "vision": false
+          },
+          "constraints": {
+            "max_input_tokens": 262144,
+            "max_output_tokens": 0
+          },
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": []
+          },
+          "reasoning": {},
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 4200000,
+                "output_microcents_per_million": -1,
+                "cached_input_microcents_per_million": 840000,
+                "cache_creation_5m_microcents_per_million": -1,
+                "cache_creation_1h_microcents_per_million": -1,
+                "cache_creation_unknown_ttl_microcents_per_million": -1
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-10-27"
+          },
+          "attributes": [
+            {
+              "key": "pricing_checked",
+              "value": "2026-11-22"
             }
           ],
           "derived": {

@@ -84,6 +84,10 @@ const (
 	ModelKimiK3               ModelID = "moonshotai/kimi-k3"
 	ModelKimiK31Pro           ModelID = "moonshotai/kimi-k3.1-pro"
 
+	// Fireworks models.
+
+	ModelRune26BA4B ModelID = "fireworks/rune-26b-a4b"
+
 	// Google models.
 
 	ModelGemini4Hydrogen     ModelID = "google/gemini-4-hydrogen"
@@ -183,6 +187,15 @@ var defaultRegistry = Registry{
 		// https://platform.kimi.ai/docs/platform-changelog.md (read 2026-11-16); October release, day defaulted
 		Released: MustDate("2026-10-31"), OpenWeights: true,
 		Description: "Moonshot AI's most capable 3T-class open-weight model, post-trained from Kimi K3 for coding, 3D creation and financial research.",
+	},
+	ModelRune26BA4B: {
+		// https://fireworks.ai/models/fireworks/rune (read 2026-11-22) gives Fireworks
+		// as Provider; its summary line names Surogate.
+		Publisher: PublisherFireworks, DisplayName: "Rune 26B-A4B", Series: "rune",
+		// First callable on Fireworks Serverless 2026-10-27 per
+		// https://docs.fireworks.ai/updates/changelog (read 2026-11-22).
+		Released:    MustDate("2026-10-27"),
+		Description: "Rune 26B-A4B is a System One decision model: it does not reason and does not generate text. It reads a document once and answers up to 256 typed questions about it, returning calibrated probabilities in that single pass.",
 	},
 	// ---- Anthropic ----
 	ModelClaudeFable52: {

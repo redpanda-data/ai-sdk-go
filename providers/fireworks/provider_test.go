@@ -65,7 +65,13 @@ func TestRuntimeMetadataIsSelectedAndNotCatalogMutation(t *testing.T) {
 
 			require.NotEmpty(t, offering.WireAPIs)
 			api := offering.WireAPIs[0]
+
 			runtime, err := provider.NewModel(offering.ID)
+			if offering.DecisionsOnly() {
+				require.ErrorIs(t, err, catalog.ErrDecisionsOnly)
+				return
+			}
+
 			if api.Transport != catalog.WireTransportDirect || !slices.Contains([]catalog.WireProtocol{catalog.WireProtocolAnthropicMessages, catalog.WireProtocolOpenAIResponses, catalog.WireProtocolOpenAIChatCompletions}, api.Protocol) {
 				require.ErrorContains(t, err, "unsupported first Fireworks wire API")
 				return
