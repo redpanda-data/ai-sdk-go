@@ -609,7 +609,7 @@ var defaultRegistry = Registry{
 	ModelGeminiDecision1: {
 		Publisher:   PublisherGoogle,
 		DisplayName: "Gemini Decision 1", Series: "gemini-decision",
-		// Released 2026-11-11 per https://aistudio.google.com/docs/changelog
+		// Released 2026-11-11 per https://ai.google.dev/gemini-api/docs/changelog
 		// (read 2026-11-22). No knowledge cutoff on its model page.
 		Released:    MustDate("2026-11-11"),
 		Description: "Gemini Decision 1 is a specialized multimodal model built for the Decisions API. It evaluates typed questions over text, images, video, audio, and PDFs in a single prefill pass and returns calibrated outcome probabilities with zero output tokens.",

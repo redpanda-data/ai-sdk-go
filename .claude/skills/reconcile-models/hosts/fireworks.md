@@ -8,12 +8,14 @@ Fireworks also publishes models of its own, such as Rune 26B-A4B (`fireworks/run
 
 | Fact | Page | Where on it |
 |---|---|---|
-| Serverless rates and Priority availability | `https://docs.fireworks.ai/serverless/pricing.md` | Standard and Priority columns give input / cached input / output USD per million tokens; a dash means Priority is unavailable |
+| Serverless rates and Priority availability | `https://docs.fireworks.ai/serverless/pricing.md` | Standard and Priority columns give input / cached input / output USD per million tokens; a dash means Priority is unavailable. The Decision models table prices decisions-only models the same way: input only, output $0.00 |
 | Serverless lifecycle | `https://docs.fireworks.ai/updates/changelog.md` | dated deprecation announcements, exact shutdown dates and their serverless/global/US-only scope |
 | Model IDs, serving limits and features | `https://fireworks.ai/models/<library-owner>/<model-id>` | model path, Serverless status, specifications and FAQ; use this public page rather than the login-gated `app.fireworks.ai` page |
 | Modes and router IDs | `https://docs.fireworks.ai/serverless/serverless-modes.md` | Standard, Priority, Fast and Ultra-fast are different billing selections; speed routers have their own IDs |
 | Messages API and accounting | `https://docs.fireworks.ai/tools-sdks/anthropic-compatibility.md` | supported fields, reasoning mapping, unsupported operations and Token usage |
 | Chat reasoning controls | `https://docs.fireworks.ai/api-reference/post-chatcompletions.md` | model-specific reasoning effort behaviour, not only the shared enum |
+| System One decisions API | `https://docs.fireworks.ai/api-reference/post-systemone.md` | POST `/inference/v1/systemone` (`typesafe_systemone`), the models that serve it, and the usage block (`input_tokens`, `cached_input_tokens`, `output_tokens`) |
+| OpenAI-compatible Decisions API | `https://docs.fireworks.ai/api-reference/post-decisions.md` | POST `/inference/v1/decisions` (`openai_decisions`), text only, and its OpenAI-shaped usage block |
 | Responses API | `https://docs.fireworks.ai/guides/response-api.md` | endpoint, supported options and retention |
 
 ## Reading them

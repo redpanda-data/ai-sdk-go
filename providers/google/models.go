@@ -625,12 +625,12 @@ func entries() []catalog.Entry {
 			Pricing: pricing.FlatInfo(0.10, 0.40, 0.01),
 		},
 		{
-			// https://aistudio.google.com/docs/models/gemini-decision-1 (read
+			// https://ai.google.dev/gemini-api/docs/models/gemini-decision-1 (read
 			// 2026-11-22): text, image, video, audio and PDF in; calibrated
 			// probabilities out, with 0 output tokens; function calling,
 			// structured outputs, text generation and thinking not supported.
 			// Only POST /v1beta/decisions serves it
-			// (https://aistudio.google.com/docs/decisions-api, Limitations).
+			// (https://ai.google.dev/gemini-api/docs/decisions-api, Limitations).
 			ID:       ModelGeminiDecision1,
 			Model:    catalog.ModelGeminiDecision1,
 			WireAPIs: []catalog.WireAPI{{Protocol: catalog.WireProtocolGeminiDecisions, Transport: catalog.WireTransportDirect}},
@@ -641,11 +641,11 @@ func entries() []catalog.Entry {
 				},
 			},
 			Constraints: llm.ModelConstraints{MaxInputTokens: 262144},
-			// Released 2026-11-11 per https://aistudio.google.com/docs/changelog
+			// Released 2026-11-11 per https://ai.google.dev/gemini-api/docs/changelog
 			// (read 2026-11-22).
 			Life: catalog.Lifecycle{Available: catalog.MustDate("2026-11-11")},
 			// Paid tier $0.10 input for every modality, output not applicable
-			// (https://aistudio.google.com/docs/pricing#gemini-decision, read
+			// (https://ai.google.dev/gemini-api/docs/pricing#gemini-decision, read
 			// 2026-11-22). No cached rate: the Decisions API has no context
 			// caching.
 			Pricing: pricing.FlatInfo(0.10, pricing.RateFree, 0),

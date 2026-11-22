@@ -72,7 +72,7 @@ func TestNewModelRefusesDecisionsOnly(t *testing.T) {
 
 // TestGeminiDecision1DocumentedUsagePrice prices the usage block of the
 // create-decision reference's example response
-// (https://aistudio.google.com/api-reference/decisions/create-decision, read
+// (https://ai.google.dev/api/decisions, read
 // 2026-11-22): total_input_tokens 152, total_output_tokens 0.
 func TestGeminiDecision1DocumentedUsagePrice(t *testing.T) {
 	t.Parallel()

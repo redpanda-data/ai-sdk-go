@@ -38,6 +38,7 @@
         {"id": "openai-models", "type": "markdown", "url": "https://developers.openai.com/api/docs/models.md"},
         {"id": "openai-deprecations", "type": "markdown", "url": "https://developers.openai.com/api/docs/deprecations.md"},
         {"id": "openai-changelog", "type": "markdown", "url": "https://developers.openai.com/api/docs/changelog.md"},
+        {"id": "openai-decisions", "type": "markdown", "url": "https://developers.openai.com/api/docs/guides/decisions.md", "must_contain": "Decisions"},
         {"id": "fireworks-pricing", "type": "markdown", "url": "https://docs.fireworks.ai/serverless/pricing.md", "must_contain": "Serverless Pricing"},
         {"id": "fireworks-changelog", "type": "markdown", "url": "https://docs.fireworks.ai/updates/changelog.md", "must_contain": "Changelog"},
         {"id": "fireworks-gpt-oss-120b", "type": "html", "url": "https://fireworks.ai/models/fireworks/gpt-oss-120b", "must_contain": "gpt-oss-120b"},
@@ -59,6 +60,8 @@
         {"id": "gemini-models", "type": "markdown", "url": "https://ai.google.dev/gemini-api/docs/models.md.txt"},
         {"id": "gemini-deprecations", "type": "markdown", "url": "https://ai.google.dev/gemini-api/docs/deprecations.md.txt"},
         {"id": "gemini-changelog", "type": "markdown", "url": "https://ai.google.dev/gemini-api/docs/changelog.md.txt"},
+        {"id": "gemini-decision-1", "type": "markdown", "url": "https://ai.google.dev/gemini-api/docs/models/gemini-decision-1.md.txt"},
+        {"id": "gemini-decisions-api", "type": "markdown", "url": "https://ai.google.dev/gemini-api/docs/decisions-api.md.txt"},
         {"id": "vertex-pricing-gemini-4", "type": "html", "url": "https://cloud.google.com/model-garden/pricing?hl=en", "fragment": "gemini-4"},
         {"id": "vertex-pricing-gemini-3", "type": "html", "url": "https://cloud.google.com/model-garden/pricing?hl=en", "fragment": "googlemodels"},
         {"id": "vertex-model-versions", "type": "html", "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/model-versions?hl=en"},
@@ -188,7 +191,9 @@
       "pages": [
         {"id": "fireworks-pricing", "type": "markdown", "url": "https://docs.fireworks.ai/serverless/pricing.md", "must_contain": "Serverless Pricing"},
         {"id": "fireworks-changelog", "type": "markdown", "url": "https://docs.fireworks.ai/updates/changelog.md", "must_contain": "Changelog"},
-        {"id": "fireworks-rune", "type": "html", "url": "https://fireworks.ai/models/fireworks/rune", "must_contain": "Rune 26B-A4B"}
+        {"id": "fireworks-rune", "type": "html", "url": "https://fireworks.ai/models/fireworks/rune", "must_contain": "Rune 26B-A4B"},
+        {"id": "fireworks-systemone", "type": "markdown", "url": "https://docs.fireworks.ai/api-reference/post-systemone.md", "must_contain": "System One"},
+        {"id": "fireworks-decisions", "type": "markdown", "url": "https://docs.fireworks.ai/api-reference/post-decisions.md", "must_contain": "Decisions"}
       ]
     }
   }

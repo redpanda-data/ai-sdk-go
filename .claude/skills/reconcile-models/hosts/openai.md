@@ -11,6 +11,7 @@ Where the OpenAI API publishes each fact. OpenAI is also its models' vendor, so 
 | One model | `https://developers.openai.com/api/docs/models/{id}.md` | the reasoning effort line at the top, Model details (modalities, context window, maximum input tokens, max output tokens, knowledge cutoff), Pricing, Endpoints, Supported features, Supported tools, Snapshots |
 | Deprecations | `https://developers.openai.com/api/docs/deprecations.md` | one dated section per deprecation, with its shutdown date and recommended replacement |
 | Release days | `https://developers.openai.com/api/docs/changelog.md` | one heading per day; a "Released" entry names the model |
+| Decisions API | `https://developers.openai.com/api/docs/guides/decisions.md` | the model POST `/v1/decisions` takes (its `openai_decisions` binding), and Pricing and availability: input and cache rates are the model's standard ones, output is not charged |
 
 ## Reading them
 
