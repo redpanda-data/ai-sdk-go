@@ -36,7 +36,10 @@ import (
 // TestEveryDecisionsOnlyOfferingIsRefused walks every catalogue: NewModel
 // must refuse each decisions-only offering with catalog.ErrDecisionsOnly,
 // which agent admission relies on. Each provider package also feeds its
-// constructor a synthetic decisions-only offering.
+// constructor a synthetic decisions-only offering. The exact set at the end
+// is a deliberate tripwire: an unattended reconcile run leaves decisions-only
+// models out (RULES.md, model-not-callable), so the reviewed PR that adds one
+// must list it here.
 func TestEveryDecisionsOnlyOfferingIsRefused(t *testing.T) {
 	t.Parallel()
 

@@ -103,8 +103,11 @@ Exported ID constant (greppable), capabilities, constraints, modalities,
   `gemini_decisions`, `typesafe_systemone`). Author `MaxOutputTokens` 0,
   output `pricing.RateFree`, no output modality and no generative
   capabilities; `catalog.New` enforces the first three, and every provider's
-  `NewModel` refuses it with `catalog.ErrDecisionsOnly`. RULES.md
-  (model-not-callable) catalogues such models for discovery and pricing. A
+  `NewModel` refuses it with `catalog.ErrDecisionsOnly`. An unattended run
+  leaves such a model out (RULES.md, model-not-callable); a person may add
+  one in a reviewed PR, for discovery and pricing, and lists it in
+  `TestEveryDecisionsOnlyOfferingIsRefused`. An existing one is reconciled
+  like any other entry. A
   model with a decisions API beside a generative one, such as gpt-6-luna,
   keeps its generative entry and only adds the decisions binding.
 - **`Constraints.MaxInputTokens` and `MaxOutputTokens`** follow
