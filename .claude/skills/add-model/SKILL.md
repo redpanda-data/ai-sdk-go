@@ -102,7 +102,7 @@ Exported ID constant (greppable), capabilities, constraints, modalities,
   `WireAPIs` is a decisions protocol (`openai_decisions`,
   `gemini_decisions`, `typesafe_systemone`). Author `MaxOutputTokens` 0,
   output `pricing.RateFree`, no output modality and no generative
-  capabilities; `catalog.New` enforces the first two, and every provider's
+  capabilities; `catalog.New` enforces the first three, and every provider's
   `NewModel` refuses it with `catalog.ErrDecisionsOnly`. RULES.md
   (model-not-callable) catalogues such models for discovery and pricing. A
   model with a decisions API beside a generative one, such as gpt-6-luna,
