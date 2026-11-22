@@ -98,6 +98,15 @@ Exported ID constant (greppable), capabilities, constraints, modalities,
   Mantle takes Anthropic's `count_tokens` shape). It is independent of
   `WireAPIs`, and an empty list means unknown.
 - **Capabilities and modalities** follow capability-follow.
+- **A decisions-only offering** generates nothing: every protocol in its
+  `WireAPIs` is a decisions protocol (`openai_decisions`,
+  `gemini_decisions`, `typesafe_systemone`). Author `MaxOutputTokens` 0,
+  output `pricing.RateFree`, no output modality and no generative
+  capabilities; `catalog.New` enforces the first two, and every provider's
+  `NewModel` refuses it with `catalog.ErrDecisionsOnly`. RULES.md
+  (model-not-callable) catalogues such models for discovery and pricing. A
+  model with a decisions API beside a generative one, such as gpt-6-luna,
+  keeps its generative entry and only adds the decisions binding.
 - **`Constraints.MaxInputTokens` and `MaxOutputTokens`** follow
   limit-follow. OpenAI's GPT-5 caps input at 272K within its 400K window,
   so its `MaxInputTokens` is 272K. Anthropic's 1M models have no separate

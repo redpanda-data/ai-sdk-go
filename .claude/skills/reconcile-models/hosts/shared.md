@@ -23,7 +23,7 @@ How to find a fact and write it down, whatever the host. `.github/reconcile-mode
 ## Writing prices
 
 - Rates are US dollars per million tokens: `$2.50/M` is `2.50` in `pricing.NewRates`, `pricing.FlatInfo` and `.WithCacheCreation(w5m, w1h, 0)`. Never write microcent literals: `FlatInfo(250_000_000, ...)` compiles and overprices by 10^8.
-- A 0 rate means unpriced, and `catalog.New` rejects a 0 base input or output rate: a published $0 one is `pricing.RateFree`. A 0 cache rate, bracket rate or override rate is allowed.
+- A 0 rate means unpriced, and `catalog.New` rejects a 0 base input or output rate: a published $0 one is `pricing.RateFree`, as a decisions-only offering's output rate must be. A 0 cache rate, bracket rate or override rate is allowed.
 - Context tiers are `pricing.TieredInfo(base, pricing.Bracket{...})`. A bracket's rates replace the base above `MinContextTokens`, so write every field of the bracket, not only the ones that change.
 - Variation by speed, tier or region is `Pricing.WithOverride(selector, pricing.RateCard{...})`, never a provider-specific field. An override card has its own brackets: a tiered model with a fast mode needs the bracket on the fast card too, or large fast requests underbill.
 - When a host raises a model's context window, look on its pricing page for a long-context surcharge that came with it.
