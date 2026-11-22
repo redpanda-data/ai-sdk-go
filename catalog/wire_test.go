@@ -21,6 +21,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/redpanda-data/ai-sdk-go/llm"
+	"github.com/redpanda-data/ai-sdk-go/pricing"
 )
 
 func TestWireAPIsValidation(t *testing.T) {
@@ -231,4 +234,181 @@ func TestWireAPIsDoNotResolveUnregisteredProfiles(t *testing.T) {
 		assert.False(t, ok, "%s must remain unknown", id)
 		assert.Empty(t, o.WireAPIs)
 	}
+}
+
+func TestIsDecisions(t *testing.T) {
+	t.Parallel()
+
+	for protocol, want := range map[WireProtocol]bool{
+		WireProtocolOpenAIChatCompletions: false,
+		WireProtocolOpenAIResponses:       false,
+		WireProtocolAnthropicMessages:     false,
+		WireProtocolGeminiGenerateContent: false,
+		WireProtocolBedrockConverse:       false,
+		WireProtocolOpenAIDecisions:       true,
+		WireProtocolGeminiDecisions:       true,
+		WireProtocolTypeSafeSystemOne:     true,
+		"unknown":                         false,
+	} {
+		assert.Equal(t, want, protocol.IsDecisions(), protocol)
+	}
+}
+
+func TestDecisionsOnly(t *testing.T) {
+	t.Parallel()
+
+	decisions := WireAPI{Protocol: WireProtocolOpenAIDecisions, Transport: WireTransportDirect}
+	systemOne := WireAPI{Protocol: WireProtocolTypeSafeSystemOne, Transport: WireTransportDirect}
+	responses := WireAPI{Protocol: WireProtocolOpenAIResponses, Transport: WireTransportDirect}
+
+	for name, tt := range map[string]struct {
+		apis []WireAPI
+		want bool
+	}{
+		"unknown":                  {nil, false},
+		"generative":               {[]WireAPI{responses}, false},
+		"generative and decisions": {[]WireAPI{responses, decisions}, false},
+		"decisions":                {[]WireAPI{decisions}, true},
+		"two decisions":            {[]WireAPI{systemOne, decisions}, true},
+	} {
+		assert.Equal(t, tt.want, Entry{WireAPIs: tt.apis}.DecisionsOnly(), name)
+	}
+}
+
+func decisionsEntry() Entry {
+	e := validEntry("robin-2", "acme/robin-2")
+	e.WireAPIs = []WireAPI{{Protocol: WireProtocolGeminiDecisions, Transport: WireTransportDirect}}
+	e.Capabilities = llm.ModelCapabilities{}
+	e.Constraints = llm.ModelConstraints{MaxInputTokens: 262_144}
+	e.Pricing = pricing.FlatInfo(0.10, pricing.RateFree, 0)
+
+	return e
+}
+
+func TestDecisionsOnlyValidation(t *testing.T) {
+	t.Parallel()
+
+	generativeAndDecisions := func(e *Entry) {
+		e.WireAPIs = []WireAPI{
+			{Protocol: WireProtocolOpenAIChatCompletions, Transport: WireTransportDirect},
+			{Protocol: WireProtocolOpenAIDecisions, Transport: WireTransportDirect},
+		}
+	}
+
+	tests := []struct {
+		name    string
+		entry   func() Entry
+		wantErr string
+	}{
+		{
+			name:  "decisions-only without output",
+			entry: decisionsEntry,
+		},
+		{
+			name: "decisions-only with an output limit",
+			entry: func() Entry {
+				e := decisionsEntry()
+				e.Constraints.MaxOutputTokens = 1
+
+				return e
+			},
+			wantErr: "Constraints.MaxOutputTokens must be 0: a decisions-only offering generates no output",
+		},
+		{
+			name: "decisions-only with a priced output rate",
+			entry: func() Entry {
+				e := decisionsEntry()
+				e.Pricing = pricing.FlatInfo(0.10, 0.50, 0)
+
+				return e
+			},
+			wantErr: "Pricing.Default.Base.OutputPerMillion must be pricing.RateFree: a decisions-only offering generates no output",
+		},
+		{
+			name: "decisions-only with an unpriced output rate",
+			entry: func() Entry {
+				e := decisionsEntry()
+				e.Pricing = pricing.FlatInfo(0.10, 0, 0)
+
+				return e
+			},
+			wantErr: "Pricing.Default.Base.OutputPerMillion must be pricing.RateFree: a decisions-only offering generates no output",
+		},
+		{
+			name: "generative and decisions keep a priced output",
+			entry: func() Entry {
+				e := validEntry("robin-2", "acme/robin-2")
+				generativeAndDecisions(&e)
+
+				return e
+			},
+		},
+		{
+			name: "generative and decisions without an output limit",
+			entry: func() Entry {
+				e := validEntry("robin-2", "acme/robin-2")
+				generativeAndDecisions(&e)
+				e.Constraints.MaxOutputTokens = 0
+
+				return e
+			},
+			wantErr: "Constraints.MaxOutputTokens must be > 0",
+		},
+		{
+			name: "generative and decisions with an unpriced output rate",
+			entry: func() Entry {
+				e := validEntry("robin-2", "acme/robin-2")
+				generativeAndDecisions(&e)
+				e.Pricing = pricing.FlatInfo(3.00, 0, 0.30)
+
+				return e
+			},
+			wantErr: "Pricing.Default.Base.OutputPerMillion is unpriced: author a rate or pricing.RateFree",
+		},
+		{
+			name: "unknown wire APIs without an output limit",
+			entry: func() Entry {
+				e := decisionsEntry()
+				e.WireAPIs = nil
+
+				return e
+			},
+			wantErr: "Constraints.MaxOutputTokens must be > 0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := New("acme", []Entry{tt.entry()}, WithRegistry(testRegistry()))
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+
+				return
+			}
+
+			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestDecisionsOnlyHasNoOutputModality(t *testing.T) {
+	t.Parallel()
+
+	o, ok := mustCatalog(t, decisionsEntry()).Lookup("robin-2")
+	require.True(t, ok)
+	assert.True(t, o.DecisionsOnly())
+	assert.Equal(t, []Modality{ModalityText}, o.Modalities.Input)
+	assert.Equal(t, []Modality{}, o.Modalities.Output, "explicitly empty, so encoders write a list")
+
+	generative := validEntry("robin-2", "acme/robin-2")
+	generative.WireAPIs = []WireAPI{
+		{Protocol: WireProtocolOpenAIDecisions, Transport: WireTransportDirect},
+		{Protocol: WireProtocolOpenAIResponses, Transport: WireTransportDirect},
+	}
+	o, ok = mustCatalog(t, generative).Lookup("robin-2")
+	require.True(t, ok)
+	assert.False(t, o.DecisionsOnly())
+	assert.Equal(t, []Modality{ModalityText}, o.Modalities.Output)
 }

@@ -199,7 +199,8 @@ func (p *Provider) newModelFromOffering(modelID string, offering catalog.Offerin
 		runtime, err = p.responsesModel(modelID, selected, cfg, baseURL, client)
 	case catalog.WireProtocolOpenAIChatCompletions:
 		runtime, err = p.chatModel(modelID, selected, cfg, baseURL, client)
-	case catalog.WireProtocolGeminiGenerateContent, catalog.WireProtocolBedrockConverse:
+	case catalog.WireProtocolGeminiGenerateContent, catalog.WireProtocolBedrockConverse,
+		catalog.WireProtocolOpenAIDecisions, catalog.WireProtocolGeminiDecisions, catalog.WireProtocolTypeSafeSystemOne:
 		return nil, fmt.Errorf("unsupported first Fireworks wire API: %s/%s", api.Protocol, api.Transport)
 	default:
 		return nil, fmt.Errorf("unsupported first Fireworks wire API: %s/%s", api.Protocol, api.Transport)

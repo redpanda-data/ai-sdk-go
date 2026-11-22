@@ -37,7 +37,8 @@ const (
 
 // Modalities lists what an offering consumes and produces. Empty slices
 // mean text-only; New normalizes them so resolved offerings always carry
-// explicit lists.
+// explicit lists, except that a decisions-only offering's empty Output
+// stays empty: it produces no content.
 //
 // Modalities describe the PROVIDER offering, not this SDK's transport:
 // llm.Part currently expresses text, tool, and reasoning parts only, so a

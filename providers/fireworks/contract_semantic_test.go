@@ -68,7 +68,8 @@ func contractWithoutFormat(c contractCase, request map[string]any) map[string]an
 		delete(control, "response_format")
 	case catalog.WireProtocolOpenAIResponses:
 		delete(control, "text")
-	case catalog.WireProtocolGeminiGenerateContent, catalog.WireProtocolBedrockConverse:
+	case catalog.WireProtocolGeminiGenerateContent, catalog.WireProtocolBedrockConverse,
+		catalog.WireProtocolOpenAIDecisions, catalog.WireProtocolGeminiDecisions, catalog.WireProtocolTypeSafeSystemOne:
 		return control
 	}
 
@@ -247,7 +248,8 @@ func contractInvalidControl(c contractCase, request map[string]any) {
 			format = contractObject(request["response_format"])
 		case catalog.WireProtocolOpenAIResponses:
 			format = contractObject(contractObject(request["text"])["format"])
-		case catalog.WireProtocolGeminiGenerateContent, catalog.WireProtocolBedrockConverse:
+		case catalog.WireProtocolGeminiGenerateContent, catalog.WireProtocolBedrockConverse,
+			catalog.WireProtocolOpenAIDecisions, catalog.WireProtocolGeminiDecisions, catalog.WireProtocolTypeSafeSystemOne:
 			return
 		}
 

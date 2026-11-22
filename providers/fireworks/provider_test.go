@@ -240,7 +240,8 @@ func TestFactoryWireDispatch(t *testing.T) {
 
 							_, err := io.WriteString(w, `{"id":"chat_1","object":"chat.completion","model":"native-reported-id","choices":[{"index":0,"message":{"role":"assistant","content":"OK"},"finish_reason":"stop"}],"usage":{"prompt_tokens":25,"prompt_tokens_details":{"cached_tokens":5},"completion_tokens":3,"total_tokens":28}}`)
 							assert.NoError(t, err)
-						case catalog.WireProtocolGeminiGenerateContent, catalog.WireProtocolBedrockConverse:
+						case catalog.WireProtocolGeminiGenerateContent, catalog.WireProtocolBedrockConverse,
+							catalog.WireProtocolOpenAIDecisions, catalog.WireProtocolGeminiDecisions, catalog.WireProtocolTypeSafeSystemOne:
 							t.Errorf("unsupported protocol %s", protocol)
 						default:
 							t.Errorf("unexpected protocol %s", protocol)
