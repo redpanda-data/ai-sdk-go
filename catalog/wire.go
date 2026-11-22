@@ -37,8 +37,11 @@ const (
 	WireProtocolOpenAIDecisions WireProtocol = "openai_decisions"
 	// WireProtocolGeminiDecisions is the Gemini API's POST /v1beta/decisions shape.
 	WireProtocolGeminiDecisions WireProtocol = "gemini_decisions"
-	// WireProtocolTypeSafeSystemOne is TypeSafe's System One shape
-	// (POST /v1/systemone), which other hosts serve too.
+	// WireProtocolTypeSafeSystemOne is TypeSafe's System One shape: TypeSafe's
+	// OpenAPI document (https://api.typesafe.ai/openapi.json, v0.2.0, read
+	// 2026-11-22) defines POST /v1/systemone with SystemOneRequest and
+	// SystemOneResponse. Fireworks serves it as its "System One decisions API"
+	// (https://docs.fireworks.ai/api-reference/post-systemone, read 2026-11-22).
 	WireProtocolTypeSafeSystemOne WireProtocol = "typesafe_systemone"
 )
 
