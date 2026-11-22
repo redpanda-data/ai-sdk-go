@@ -98,7 +98,8 @@ const (
 // request you ask about.
 //
 // The blend is (3*input + output) / 4, reflecting a roughly 3:1
-// input:output token ratio for agent workloads.
+// input:output token ratio for agent workloads. A decisions-only offering
+// bills input only, so its input rate is the blend.
 func (o Offering) PriceTier() PriceTier {
 	in := o.Pricing.Default.Base.InputPerMillion
 	out := o.Pricing.Default.Base.OutputPerMillion
@@ -114,6 +115,10 @@ func (o Offering) PriceTier() PriceTier {
 	// A single free bucket alongside a priced one still blends; RateFree
 	// contributes zero cost.
 	blended := (3*max(in, 0) + max(out, 0)) / 4
+	if o.DecisionsOnly() {
+		// A decisions-only offering bills input only.
+		blended = max(in, 0)
+	}
 
 	switch {
 	case blended < priceTierLowMax:
