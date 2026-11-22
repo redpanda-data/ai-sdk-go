@@ -67,6 +67,10 @@ func TestNewModelRefusesDecisionsOnly(t *testing.T) {
 
 		_, err := provider.NewModel(o.ID)
 		require.NoError(t, err, o.ID)
+
+		o.WireAPIs = []catalog.WireAPI{{Protocol: catalog.WireProtocolGeminiDecisions, Transport: catalog.WireTransportDirect}}
+		_, err = provider.NewModelFromOffering(o.ID, o)
+		require.ErrorIs(t, err, catalog.ErrDecisionsOnly, "synthetic decisions-only %s", o.ID)
 	}
 }
 
