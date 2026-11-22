@@ -20,7 +20,7 @@ Fireworks also publishes models of its own, such as Rune 26B-A4B (`fireworks/run
 
 ## Reading them
 
-- Preserve the exact `accounts/fireworks/models/...` invocation ID. A resource existing in the library does not establish serverless availability. The public GPT-OSS 20B page says serverless is unsupported.
+- Preserve the exact `accounts/fireworks/models/...` invocation ID. In a report, every run writes it as `fireworks:<ID>`, the `fireworks` run's own rows included (RULES.md, Report values). A resource existing in the library does not establish serverless availability. The public GPT-OSS 20B page says serverless is unsupported.
 - Standard prices form the default card. Published Priority prices form a service-tier override; do not assume a uniform premium. Cached reads use Fireworks' published rate. Messages reports cache creation as zero, not an Anthropic write multiplier.
 - Pricing the Priority card does not establish effective-tier attribution. Check each API's documentation for `service_tier: "priority"` support and effective-tier response metadata; Messages and Chat document the request field. Never silently treat an unknown effective tier as Standard.
 - The changelog's explicit serverless shutdown is exact. For example, GPT-OSS 120B retires on 2026-11-07; dedicated availability does not extend its serverless life. Retained historical entries stay priceable.

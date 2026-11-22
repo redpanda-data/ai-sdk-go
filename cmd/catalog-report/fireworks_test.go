@@ -114,3 +114,13 @@ func TestFireworksRetainsRuntimeAndRouterRules(t *testing.T) {
 		})
 	}
 }
+
+func TestFireworksRunPrefixesItsOwnOfferings(t *testing.T) {
+	t.Parallel()
+
+	source := namedSources(t)["fireworks"]
+
+	assert.Empty(t, offeringProblem("fireworks:accounts/fireworks/models/rune", "fireworks", source))
+	assert.Contains(t, offeringProblem("accounts/fireworks/models/rune", "fireworks", source), "bad offering")
+	assert.Empty(t, offeringProblem("fireworks:accounts/fireworks/models/glm-5p3", "zai", namedSources(t)["zai"]), "creator runs keep the prefixed form")
+}

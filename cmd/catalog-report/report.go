@@ -347,7 +347,8 @@ func Validate(report Report, vendor string, source namedSource, rules reconcile.
 
 // offeringProblem says what's wrong with a row's offering for vendor's run, or
 // returns "". A bare ID is in the vendor's own package, so a vendor with none
-// prefixes every offering (RULES.md, Report values). In a run that owns
+// prefixes every offering, and a Fireworks ID is always prefixed (RULES.md,
+// Report values). In a run that owns
 // bedrock, an ID shaped like Bedrock's under the vendor's own package is a
 // forgotten prefix, which would describe the change as the vendor's own.
 func offeringProblem(offering, vendor string, source namedSource) string {
@@ -1069,7 +1070,8 @@ func (base Base) decide(q numbered) string {
 }
 
 // sameOffering reports whether a report offering names a decision's. Report
-// offerings in the run's own package have no prefix (RULES.md, Report values); Bedrock
+// offerings in the run's own package have no prefix, a Fireworks one apart
+// (RULES.md, Report values); Bedrock
 // IDs contain ":", so the prefix can't be told apart by looking for one.
 func sameOffering(reported, provider, decided string) bool {
 	return decided == reported || decided == provider+":"+reported
