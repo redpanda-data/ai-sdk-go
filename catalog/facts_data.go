@@ -101,6 +101,7 @@ const (
 	ModelGemini25Pro         ModelID = "google/gemini-2.5-pro"
 	ModelGemini25Flash       ModelID = "google/gemini-2.5-flash"
 	ModelGemini25FlashLite   ModelID = "google/gemini-2.5-flash-lite"
+	ModelGeminiDecision1     ModelID = "google/gemini-decision-1"
 
 	// Meta models.
 
@@ -591,6 +592,14 @@ var defaultRegistry = Registry{
 		// first mention. No knowledge cutoff on the Gemini API's pages.
 		Released:    MustDate("2026-11-10"),
 		Description: "Gemini 4 Carbon is Google's strongest reasoning model, built for sustained agentic workflows across complex software engineering, multimodal knowledge work, scientific reasoning, and cybersecurity defense.",
+	},
+	ModelGeminiDecision1: {
+		Publisher:   PublisherGoogle,
+		DisplayName: "Gemini Decision 1", Series: "gemini-decision",
+		// Released 2026-11-11 per https://aistudio.google.com/docs/changelog
+		// (read 2026-11-22). No knowledge cutoff on its model page.
+		Released:    MustDate("2026-11-11"),
+		Description: "Gemini Decision 1 is a specialized multimodal model built for the Decisions API. It evaluates typed questions over text, images, video, audio, and PDFs in a single prefill pass and returns calibrated outcome probabilities with zero output tokens.",
 	},
 	ModelGemini4Argon: {
 		Publisher:   PublisherGoogle,

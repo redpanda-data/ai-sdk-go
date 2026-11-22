@@ -270,6 +270,13 @@
       "series": "gemini-flash",
       "released": "2026-11-12"
     },
+    "google/gemini-decision-1": {
+      "display_name": "Gemini Decision 1",
+      "publisher": "google",
+      "description": "Gemini Decision 1 is a specialized multimodal model built for the Decisions API. It evaluates typed questions over text, images, video, audio, and PDFs in a single prefill pass and returns calibrated outcome probabilities with zero output tokens.",
+      "series": "gemini-decision",
+      "released": "2026-11-11"
+    },
     "google/gemma-4-26b-a4b": {
       "display_name": "Gemma 4 26B A4B",
       "publisher": "google",
@@ -13392,6 +13399,59 @@
           },
           "derived": {
             "price_tier": "medium"
+          }
+        },
+        {
+          "id": "gemini-decision-1",
+          "model": "google/gemini-decision-1",
+          "display_name": "Gemini Decision 1",
+          "wire_apis": [
+            {
+              "protocol": "gemini_decisions",
+              "transport": "direct"
+            }
+          ],
+          "capabilities": {
+            "audio": true,
+            "json_mode": false,
+            "multi_turn": false,
+            "reasoning": false,
+            "streaming": false,
+            "structured_output": false,
+            "system_prompts": false,
+            "tool_search": false,
+            "tools": false,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 262144,
+            "max_output_tokens": 0
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video",
+              "document"
+            ],
+            "output": []
+          },
+          "reasoning": {},
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 10000000,
+                "output_microcents_per_million": -1
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-11-11"
+          },
+          "derived": {
+            "price_tier": "low"
           }
         }
       ]

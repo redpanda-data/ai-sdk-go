@@ -18,6 +18,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/redpanda-data/ai-sdk-go/pricing"
 )
 
 func TestAllModelsHavePricing(t *testing.T) {
@@ -31,6 +33,16 @@ func TestAllModelsHavePricing(t *testing.T) {
 			p := def.Pricing
 			assert.Positive(t, p.Default.Base.InputPerMillion,
 				"model %s missing input pricing — add Pricing to its ModelDefinition", id)
+
+			if def.DecisionsOnly() {
+				// The Decisions API bills input only and has no context caching.
+				assert.Equal(t, int64(pricing.RateFree), p.Default.Base.OutputPerMillion, "model %s output", id)
+				assert.Zero(t, p.Default.Base.CachedInputPerMillion, "model %s cached input", id)
+				assert.Empty(t, p.Default.Brackets, "model %s brackets", id)
+
+				return
+			}
+
 			assert.Positive(t, p.Default.Base.OutputPerMillion,
 				"model %s missing output pricing — add Pricing to its ModelDefinition", id)
 			assert.Positive(t, p.Default.Base.CachedInputPerMillion,

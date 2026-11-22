@@ -60,6 +60,10 @@ const (
 	// requests route to gemini-3.5-flash-lite. Use [ModelGemini35FlashLite].
 	ModelGemini25Flash     = "gemini-2.5-flash"
 	ModelGemini25FlashLite = "gemini-2.5-flash-lite"
+	// ModelGeminiDecision1 is Gemini Decision 1, served only by the
+	// Decisions API. It generates nothing, so NewModel refuses it with
+	// catalog.ErrDecisionsOnly.
+	ModelGeminiDecision1 = "gemini-decision-1"
 )
 
 // ProviderName is the catalog key Provider.Name() returns; see
@@ -619,6 +623,32 @@ func entries() []catalog.Entry {
 				ReplacedBy: ModelGemini35FlashLite,
 			},
 			Pricing: pricing.FlatInfo(0.10, 0.40, 0.01),
+		},
+		{
+			// https://aistudio.google.com/docs/models/gemini-decision-1 (read
+			// 2026-11-22): text, image, video, audio and PDF in; calibrated
+			// probabilities out, with 0 output tokens; function calling,
+			// structured outputs, text generation and thinking not supported.
+			// Only POST /v1beta/decisions serves it
+			// (https://aistudio.google.com/docs/decisions-api, Limitations).
+			ID:       ModelGeminiDecision1,
+			Model:    catalog.ModelGeminiDecision1,
+			WireAPIs: []catalog.WireAPI{{Protocol: catalog.WireProtocolGeminiDecisions, Transport: catalog.WireTransportDirect}},
+			Modalities: catalog.Modalities{
+				Input: []catalog.Modality{
+					catalog.ModalityText, catalog.ModalityImage, catalog.ModalityAudio,
+					catalog.ModalityVideo, catalog.ModalityDocument,
+				},
+			},
+			Constraints: llm.ModelConstraints{MaxInputTokens: 262144},
+			// Released 2026-11-11 per https://aistudio.google.com/docs/changelog
+			// (read 2026-11-22).
+			Life: catalog.Lifecycle{Available: catalog.MustDate("2026-11-11")},
+			// Paid tier $0.10 input for every modality, output not applicable
+			// (https://aistudio.google.com/docs/pricing#gemini-decision, read
+			// 2026-11-22). No cached rate: the Decisions API has no context
+			// caching.
+			Pricing: pricing.FlatInfo(0.10, pricing.RateFree, 0),
 		},
 	}
 }
