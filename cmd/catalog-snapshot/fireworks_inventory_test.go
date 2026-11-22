@@ -104,7 +104,7 @@ func TestEveryDiscoveredFireworksIDHasADisposition(t *testing.T) {
 			assert.Contains(t, []string{
 				"unpriced_router_contract", "separate_router_contract", "retiring_unqualified", "non_generation_surface",
 				"separate_speed_contract", "unknown_host_limit", "outside_qualification_batch", "unknown_exact_token_rates",
-				"us_only_capacity", "decision_only_surface", "dynamic_routing_contract",
+				"us_only_capacity", "dynamic_routing_contract",
 			}, model.Reason)
 		default:
 			t.Errorf("%s: unknown disposition %q", model.ID, model.Disposition)

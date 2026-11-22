@@ -27,7 +27,7 @@
     {"id": "accounts/fireworks/routers/deepseek-v4p1-flash-1017-spot", "disposition": "withheld", "reason": "separate_router_contract"},
     {"id": "accounts/fireworks/routers/deepseek-v4p1-flash-1017-ultrafast", "disposition": "withheld", "reason": "separate_speed_contract"},
     {"id": "accounts/fireworks/models/minimax-m3p1-flash", "disposition": "withheld", "reason": "unknown_exact_token_rates"},
-    {"id": "accounts/fireworks/routers/rune", "disposition": "withheld", "reason": "decision_only_surface"},
+    {"id": "accounts/fireworks/routers/rune", "disposition": "withheld", "reason": "separate_router_contract"},
     {"id": "auto", "disposition": "withheld", "reason": "dynamic_routing_contract"},
     {"id": "firerouter/auto", "disposition": "withheld", "reason": "dynamic_routing_contract"},
     {"id": "accounts/fireworks/models/qwen3p8-2p4t-a95b", "disposition": "withheld", "reason": "unknown_exact_token_rates"},
