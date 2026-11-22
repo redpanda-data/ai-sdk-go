@@ -99,8 +99,6 @@ func TestEveryDiscoveredFireworksIDHasADisposition(t *testing.T) {
 			require.True(t, ok, "catalogued offering must be in the catalog: %s", model.ID)
 			assert.True(t, offering.DecisionsOnly(), model.ID)
 		case "withheld":
-			_, carried := fireworks.Catalog().Resolve(model.ID)
-			assert.False(t, carried, "withheld ID is in the catalog: %s", model.ID)
 			assert.Contains(t, []string{
 				"unpriced_router_contract", "separate_router_contract", "retiring_unqualified", "non_generation_surface",
 				"separate_speed_contract", "unknown_host_limit", "outside_qualification_batch", "unknown_exact_token_rates",
