@@ -91,7 +91,16 @@ func TestEveryDiscoveredFireworksIDHasADisposition(t *testing.T) {
 		case "candidate":
 			assert.Contains(t, []string{"current_coding", "inexpensive_background", "historical_protocol_regression"}, model.Reason)
 			candidates[model.ID] = true
+		case "catalogued":
+			// Added after the 2026-11-04 coding selection, outside its candidates.
+			assert.Equal(t, "decisions_only_discovery_and_pricing", model.Reason)
+
+			offering, ok := fireworks.Catalog().Lookup(model.ID)
+			require.True(t, ok, "catalogued offering must be in the catalog: %s", model.ID)
+			assert.True(t, offering.DecisionsOnly(), model.ID)
 		case "withheld":
+			_, carried := fireworks.Catalog().Resolve(model.ID)
+			assert.False(t, carried, "withheld ID is in the catalog: %s", model.ID)
 			assert.Contains(t, []string{
 				"unpriced_router_contract", "separate_router_contract", "retiring_unqualified", "non_generation_surface",
 				"separate_speed_contract", "unknown_host_limit", "outside_qualification_batch", "unknown_exact_token_rates",
