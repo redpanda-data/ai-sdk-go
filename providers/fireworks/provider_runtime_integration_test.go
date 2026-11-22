@@ -232,6 +232,10 @@ func TestFireworksSDKLiveFirstBinding(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, offering := range provider.Catalog().All() {
+		if offering.DecisionsOnly() {
+			continue
+		}
+
 		for _, stream := range []bool{false, true} {
 			t.Run(offering.ID+fmt.Sprintf("/stream=%t", stream), func(t *testing.T) {
 				testutil.SkipIfRetired(t, provider.Catalog(), offering.ID)

@@ -172,6 +172,7 @@ func TestFactoryRefusesDecisionsOnlyOfferings(t *testing.T) {
 	offering.WireAPISupport = append([]catalog.WireAPISupport{{API: decisions[0]}, {API: decisions[1]}}, base.WireAPISupport...)
 	_, err = provider.newModelFromOffering(base.ID, offering)
 	require.NotErrorIs(t, err, catalog.ErrDecisionsOnly, "a generative binding keeps the first-binding rule")
+	require.ErrorContains(t, err, "unsupported first Fireworks wire API: openai_decisions/direct")
 }
 
 func TestModelOptionsUseSelectedReasoningSupport(t *testing.T) {

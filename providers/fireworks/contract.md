@@ -30,7 +30,7 @@ task fireworks:record -- -fireworks-model=accounts/fireworks/models/glm-5p3-flas
   -fireworks-record-output=/tmp/fireworks-capture.json
 ```
 
-Omitting `-fireworks-model` selects all active catalog offerings for the native live suite. The matrix covers supported direct APIs and their known feature cases in both stream modes. It is a test generator, not a catalog admission policy. A cache miss is valid behavior; unobserved hit/fresh branches are reported rather than requiring repeated paid calls until they appear.
+Omitting `-fireworks-model` selects all active catalog offerings for the native live suite, except decisions-only ones such as Rune, which have no generative contract. The matrix covers supported direct APIs and their known feature cases in both stream modes. It is a test generator, not a catalog admission policy. A cache miss is valid behavior; unobserved hit/fresh branches are reported rather than requiring repeated paid calls until they appear.
 
 Recording writes sanitized checkpoints to `<output>.incomplete.json` before parsing responses. Only a successful run writes the requested output file. Use a separate output path, review the exchanges, and manually promote new-model fixtures to `testdata/contracts/recordings/*.json`; replay loads these alongside the retained base fixture. For an existing case, update its fixture rather than adding a duplicate. Never overwrite a historical failed attempt to claim it succeeded.
 

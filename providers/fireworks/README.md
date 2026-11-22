@@ -75,7 +75,7 @@ The original local SDK run exercised `NewProvider(...).NewModel(...)`, `Generate
 
 The initial 86-request SDK batch passed all native usage comparisons and the complete feature sweep for six models, but its two MiniMax schema cases failed upstream with explicit disabled thinking. Those failed native exchanges remain immutable in `testdata/sdk-runtime/messages-live.json`, with an explicit failed-run outcome alongside them; `native_verified` means usage/price agreement, not feature success. Four separately captured corrective SDK schema calls passed with default/omitted or adaptive thinking, in both modes. The restriction above rejects the failed configuration without silently changing it. These corrections are not represented as a new full sweep. The original recorder repeatedly sanitized request tool IDs; offline conversation replay applies an explicitly labelled derived ID correction for that historical defect while retaining the original capture and every response byte unchanged.
 
-SDK live calls are explicitly opt-in and local-only. They are not dispatched by CI and must not be given a Fireworks credential through workflows. SDK tests do not include images.
+Both live suites skip decisions-only offerings such as Rune: they exercise generation, which `NewModel` refuses for them. SDK live calls are explicitly opt-in and local-only. They are not dispatched by CI and must not be given a Fireworks credential through workflows. SDK tests do not include images.
 
 ```sh
 # Build before reading credentials; execute locally only.

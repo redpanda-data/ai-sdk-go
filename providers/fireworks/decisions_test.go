@@ -91,3 +91,16 @@ func TestRuneDocumentedUsagePrice(t *testing.T) {
 	assert.Equal(t, int64(12*4_200_000/1_000_000+200*840_000/1_000_000), cached.Total, "cached input at $0.0084/M; output free")
 	assert.Empty(t, cached.Unpriced)
 }
+
+// TestLiveInventorySkipsDecisionsOnly pins the full-catalog native live
+// matrix: without -fireworks-model it must build, and Rune has no case in it.
+func TestLiveInventorySkipsDecisionsOnly(t *testing.T) {
+	t.Parallel()
+
+	cases := contractInventoryAt(t, fireworks.Catalog(), catalog.Today(), "")
+	require.NotEmpty(t, cases)
+
+	for _, c := range cases {
+		assert.NotEqual(t, fireworks.ModelRune, c.Model)
+	}
+}
