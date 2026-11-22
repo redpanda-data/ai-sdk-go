@@ -2,6 +2,8 @@
 
 Fireworks is a hosting provider, not the publisher of OpenAI, Z.ai, MiniMax, DeepSeek or Moonshot AI models. Each creator's run owns its Fireworks copies. Start with `shared.md`, the creator's page and this page.
 
+Fireworks also publishes models of its own, such as Rune 26B-A4B (`fireworks/rune-26b-a4b`): its model page gives Fireworks as Provider, the field that names MiniMax or Moonshot AI on their models' pages. The `fireworks` run owns only those, and this page is its vendor page too.
+
 ## Pages
 
 | Fact | Page | Where on it |

@@ -178,5 +178,18 @@
         {"id": "fireworks-kimi-k3", "type": "html", "url": "https://fireworks.ai/models/fireworks/kimi-k3"}
       ]
     }
+  },
+  "fireworks": {
+    "providers": ["fireworks"],
+    "hosts": ["docs.fireworks.ai", "fireworks.ai"],
+    "gate": {
+      "model_prefix": "fireworks/",
+      "must_contain": "Rune",
+      "pages": [
+        {"id": "fireworks-pricing", "type": "markdown", "url": "https://docs.fireworks.ai/serverless/pricing.md", "must_contain": "Serverless Pricing"},
+        {"id": "fireworks-changelog", "type": "markdown", "url": "https://docs.fireworks.ai/updates/changelog.md", "must_contain": "Changelog"},
+        {"id": "fireworks-rune", "type": "html", "url": "https://fireworks.ai/models/fireworks/rune", "must_contain": "Rune 26B-A4B"}
+      ]
+    }
   }
 }

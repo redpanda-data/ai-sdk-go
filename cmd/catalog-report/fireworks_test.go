@@ -30,7 +30,10 @@ func TestFireworksRunsBelongToCreators(t *testing.T) {
 	t.Parallel()
 
 	sources := namedSources(t)
-	assert.NotContains(t, sources, "fireworks", "the host is not the publisher")
+
+	own, ok := sources["fireworks"]
+	require.True(t, ok)
+	assert.Equal(t, []string{"fireworks"}, own.Providers, "Fireworks' run owns only the models Fireworks publishes")
 
 	for _, vendor := range []string{"openai", "zai", "minimax", "deepseek", "moonshotai"} {
 		run, ok := sources[vendor]
