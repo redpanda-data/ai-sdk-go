@@ -117,7 +117,9 @@ func (*Provider) Name() llm.ProviderID { return ProviderName }
 func (*Provider) Catalog() *catalog.Catalog { return Catalog() }
 
 // NewModel resolves an exact Fireworks offering and uses its first normalized
-// WireAPI. An unsupported first binding is an error, never a fallback request.
+// generative WireAPI: decisions bindings are skipped, since they cannot
+// generate. An unsupported first generative binding is an error, never a
+// fallback request.
 func (p *Provider) NewModel(modelID string, opts ...Option) (llm.Model, error) {
 	offering, ok := p.Catalog().Resolve(modelID)
 	if !ok {
@@ -132,11 +134,11 @@ func (p *Provider) newModelFromOffering(modelID string, offering catalog.Offerin
 		return nil, fmt.Errorf("%w: %s", catalog.ErrDecisionsOnly, modelID)
 	}
 
-	if len(offering.WireAPIs) == 0 {
+	api, ok := firstGenerativeWireAPI(offering)
+	if !ok {
 		return nil, errors.New("fireworks offering has no wire API")
 	}
 
-	api := offering.WireAPIs[0]
 	if api.Transport != catalog.WireTransportDirect || !slices.Contains([]catalog.WireProtocol{catalog.WireProtocolAnthropicMessages, catalog.WireProtocolOpenAIResponses, catalog.WireProtocolOpenAIChatCompletions}, api.Protocol) {
 		return nil, fmt.Errorf("unsupported first Fireworks wire API: %s/%s", api.Protocol, api.Transport)
 	}
@@ -215,6 +217,15 @@ func (p *Provider) newModelFromOffering(modelID string, offering catalog.Offerin
 	}
 
 	return &model{Model: runtime, name: modelID, offering: selected}, nil
+}
+
+func firstGenerativeWireAPI(offering catalog.Offering) (catalog.WireAPI, bool) {
+	i := slices.IndexFunc(offering.WireAPIs, func(api catalog.WireAPI) bool { return !api.Protocol.IsDecisions() })
+	if i < 0 {
+		return catalog.WireAPI{}, false
+	}
+
+	return offering.WireAPIs[i], true
 }
 
 func (p *Provider) messagesModel(modelID string, offering catalog.Offering, cfg modelConfig, baseURL string, client *http.Client) (llm.Model, error) {
