@@ -85,7 +85,9 @@ func WithRequiredWireAPIs() Option {
 //
 //   - forgotten fields that compile to harmful zeros: token limits > 0,
 //     input/output rates authored (zero means "unpriced"; free is
-//     spelled pricing.RateFree)
+//     spelled pricing.RateFree). A decisions-only entry instead requires
+//     MaxOutputTokens 0, a pricing.RateFree output rate and no output
+//     modality
 //   - the same fact authored in two fields: Capabilities.Vision/Audio
 //     must agree with Modalities.Input; Reasoning.Efforts requires
 //     Capabilities.Reasoning
@@ -159,19 +161,13 @@ func New(provider llm.ProviderID, entries []Entry, opts ...Option) (*Catalog, er
 			fail(i, e, "Constraints.MaxInputTokens must be > 0")
 		}
 
-		if e.Constraints.MaxOutputTokens <= 0 {
-			fail(i, e, "Constraints.MaxOutputTokens must be > 0")
-		}
-
 		// A zero rate means "unpriced" downstream, so core rates must be
 		// authored — a truly free rate is pricing.RateFree.
 		if e.Pricing.Default.Base.InputPerMillion == 0 {
 			fail(i, e, "Pricing.Default.Base.InputPerMillion is unpriced: author a rate or pricing.RateFree")
 		}
 
-		if e.Pricing.Default.Base.OutputPerMillion == 0 {
-			fail(i, e, "Pricing.Default.Base.OutputPerMillion is unpriced: author a rate or pricing.RateFree")
-		}
+		validateOutput(e, func(format string, args ...any) { fail(i, e, format, args...) })
 
 		// Normalize before validating: the shape checks compare the
 		// capability booleans against Modalities, and an entry that omits
@@ -261,6 +257,35 @@ func MustNew(provider llm.ProviderID, entries []Entry, opts ...Option) *Catalog 
 	}
 
 	return c
+}
+
+// validateOutput applies the output limit and rate rules. A decisions-only
+// offering generates nothing, so it must say so; every other offering must
+// author both.
+func validateOutput(e Entry, fail func(string, ...any)) {
+	if e.DecisionsOnly() {
+		if e.Constraints.MaxOutputTokens != 0 {
+			fail("Constraints.MaxOutputTokens must be 0: a decisions-only offering generates no output")
+		}
+
+		if e.Pricing.Default.Base.OutputPerMillion != pricing.RateFree {
+			fail("Pricing.Default.Base.OutputPerMillion must be pricing.RateFree: a decisions-only offering generates no output")
+		}
+
+		if len(e.Modalities.Output) > 0 {
+			fail("Modalities.Output must be empty: a decisions-only offering generates no output")
+		}
+
+		return
+	}
+
+	if e.Constraints.MaxOutputTokens <= 0 {
+		fail("Constraints.MaxOutputTokens must be > 0")
+	}
+
+	if e.Pricing.Default.Base.OutputPerMillion == 0 {
+		fail("Pricing.Default.Base.OutputPerMillion is unpriced: author a rate or pricing.RateFree")
+	}
 }
 
 // validateLifecycle checks date order and rejects authored derived
@@ -357,7 +382,11 @@ func normalizeEntry(e Entry, facts Facts) Entry {
 		e.Modalities.Input = []Modality{ModalityText}
 	}
 
-	if len(e.Modalities.Output) == 0 {
+	switch {
+	case len(e.Modalities.Output) > 0:
+	case e.DecisionsOnly():
+		e.Modalities.Output = []Modality{}
+	default:
 		e.Modalities.Output = []Modality{ModalityText}
 	}
 

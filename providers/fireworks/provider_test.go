@@ -64,10 +64,17 @@ func TestRuntimeMetadataIsSelectedAndNotCatalogMutation(t *testing.T) {
 			t.Parallel()
 
 			require.NotEmpty(t, offering.WireAPIs)
-			api := offering.WireAPIs[0]
 			runtime, err := provider.NewModel(offering.ID)
+			if offering.DecisionsOnly() {
+				require.ErrorIs(t, err, catalog.ErrDecisionsOnly)
+				return
+			}
+
+			api, ok := firstGenerativeWireAPI(offering)
+			require.True(t, ok)
+
 			if api.Transport != catalog.WireTransportDirect || !slices.Contains([]catalog.WireProtocol{catalog.WireProtocolAnthropicMessages, catalog.WireProtocolOpenAIResponses, catalog.WireProtocolOpenAIChatCompletions}, api.Protocol) {
-				require.ErrorContains(t, err, "unsupported first Fireworks wire API")
+				require.ErrorContains(t, err, "unsupported first generative Fireworks wire API")
 				return
 			}
 
@@ -126,8 +133,8 @@ func TestFactoryNeverFallsBackFromFirstBinding(t *testing.T) {
 		want    string
 	}{
 		{name: "empty", want: "no wire API"},
-		{name: "unsupported protocol before valid", apis: append([]catalog.WireAPI{{Protocol: catalog.WireProtocolGeminiGenerateContent, Transport: catalog.WireTransportDirect}}, base.WireAPIs...), support: base.WireAPISupport, want: "unsupported first"},
-		{name: "unsupported transport before valid", apis: append([]catalog.WireAPI{{Protocol: catalog.WireProtocolAnthropicMessages, Transport: catalog.WireTransportVertex}}, base.WireAPIs...), support: base.WireAPISupport, want: "unsupported first"},
+		{name: "unsupported protocol before valid", apis: append([]catalog.WireAPI{{Protocol: catalog.WireProtocolGeminiGenerateContent, Transport: catalog.WireTransportDirect}}, base.WireAPIs...), support: base.WireAPISupport, want: "unsupported first generative"},
+		{name: "unsupported transport before valid", apis: append([]catalog.WireAPI{{Protocol: catalog.WireProtocolAnthropicMessages, Transport: catalog.WireTransportVertex}}, base.WireAPIs...), support: base.WireAPISupport, want: "unsupported first generative"},
 		{name: "missing selected metadata", apis: base.WireAPIs, want: "unknown Fireworks support"},
 	}
 	for _, tt := range tests {
@@ -141,6 +148,46 @@ func TestFactoryNeverFallsBackFromFirstBinding(t *testing.T) {
 			require.ErrorContains(t, err, tt.want)
 		})
 	}
+}
+
+func TestFactoryRefusesDecisionsOnlyOfferings(t *testing.T) {
+	t.Parallel()
+	provider, err := NewProvider(t.Context(), WithAPIKey("placeholder"))
+	require.NoError(t, err)
+
+	base, ok := Catalog().Resolve(ModelGLM53)
+	require.True(t, ok)
+
+	decisions := []catalog.WireAPI{
+		{Protocol: catalog.WireProtocolOpenAIDecisions, Transport: catalog.WireTransportDirect},
+		{Protocol: catalog.WireProtocolTypeSafeSystemOne, Transport: catalog.WireTransportDirect},
+	}
+	offering := base
+	offering.WireAPIs = decisions
+	offering.WireAPISupport = []catalog.WireAPISupport{{API: decisions[0]}, {API: decisions[1]}}
+	_, err = provider.newModelFromOffering(base.ID, offering)
+	require.ErrorIs(t, err, catalog.ErrDecisionsOnly)
+	require.ErrorContains(t, err, base.ID)
+
+	responses := catalog.WireAPI{Protocol: catalog.WireProtocolOpenAIResponses, Transport: catalog.WireTransportDirect}
+	responsesSupport, ok := base.SupportForWireAPI(responses)
+	require.True(t, ok)
+
+	// Normalized order puts openai_decisions before openai_responses.
+	offering.WireAPIs = []catalog.WireAPI{decisions[0], responses, decisions[1]}
+	offering.WireAPISupport = []catalog.WireAPISupport{{API: decisions[0]}, responsesSupport, {API: decisions[1]}}
+	runtime, err := provider.newModelFromOffering(base.ID, offering)
+	require.NoError(t, err, "decisions bindings are skipped, not selected")
+
+	lister, ok := runtime.(llm.ReasoningEffortLister)
+	require.True(t, ok)
+	assert.Equal(t, responsesSupport.Reasoning.Efforts, lister.SupportedReasoningEfforts())
+
+	gemini := catalog.WireAPI{Protocol: catalog.WireProtocolGeminiGenerateContent, Transport: catalog.WireTransportDirect}
+	offering.WireAPIs = []catalog.WireAPI{decisions[0], gemini, responses}
+	offering.WireAPISupport = []catalog.WireAPISupport{{API: decisions[0]}, {API: gemini}, responsesSupport}
+	_, err = provider.newModelFromOffering(base.ID, offering)
+	require.ErrorContains(t, err, "unsupported first generative Fireworks wire API: gemini_generate_content/direct", "no fallback among generative bindings")
 }
 
 func TestModelOptionsUseSelectedReasoningSupport(t *testing.T) {
@@ -240,7 +287,8 @@ func TestFactoryWireDispatch(t *testing.T) {
 
 							_, err := io.WriteString(w, `{"id":"chat_1","object":"chat.completion","model":"native-reported-id","choices":[{"index":0,"message":{"role":"assistant","content":"OK"},"finish_reason":"stop"}],"usage":{"prompt_tokens":25,"prompt_tokens_details":{"cached_tokens":5},"completion_tokens":3,"total_tokens":28}}`)
 							assert.NoError(t, err)
-						case catalog.WireProtocolGeminiGenerateContent, catalog.WireProtocolBedrockConverse:
+						case catalog.WireProtocolGeminiGenerateContent, catalog.WireProtocolBedrockConverse,
+							catalog.WireProtocolOpenAIDecisions, catalog.WireProtocolGeminiDecisions, catalog.WireProtocolTypeSafeSystemOne:
 							t.Errorf("unsupported protocol %s", protocol)
 						default:
 							t.Errorf("unexpected protocol %s", protocol)

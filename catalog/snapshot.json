@@ -1,5 +1,5 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "facts": {
     "amazon/nova-2-lite": {
       "display_name": "Amazon Nova 2 Lite",
@@ -153,6 +153,13 @@
       "released": "2026-10-17",
       "open_weights": true
     },
+    "fireworks/rune-26b-a4b": {
+      "display_name": "Rune 26B-A4B",
+      "publisher": "fireworks",
+      "description": "Rune 26B-A4B is a System One decision model: it does not reason and does not generate text. It reads a document once and answers up to 256 typed questions about it, returning calibrated probabilities in that single pass.",
+      "series": "rune",
+      "released": "2026-10-27"
+    },
     "google/gemini-2.5-flash": {
       "display_name": "Gemini 2.5 Flash",
       "publisher": "google",
@@ -269,6 +276,13 @@
       "description": "Gemini 4 Hydrogen brings cutting-edge intelligence to everyone, with speed and efficiency for everyday coding and agentic workflows, featuring a unified 1M-token context window and long decode up to 1M tokens.",
       "series": "gemini-flash",
       "released": "2026-11-12"
+    },
+    "google/gemini-decision-1": {
+      "display_name": "Gemini Decision 1",
+      "publisher": "google",
+      "description": "Gemini Decision 1 is a specialized multimodal model built for the Decisions API. It evaluates typed questions over text, images, video, audio, and PDFs in a single prefill pass and returns calibrated outcome probabilities with zero output tokens.",
+      "series": "gemini-decision",
+      "released": "2026-11-11"
     },
     "google/gemma-4-26b-a4b": {
       "display_name": "Gemma 4 26B A4B",
@@ -12224,6 +12238,106 @@
           "derived": {
             "price_tier": "low"
           }
+        },
+        {
+          "id": "accounts/fireworks/models/rune",
+          "model": "fireworks/rune-26b-a4b",
+          "display_name": "Rune 26B-A4B",
+          "resolution_policy": "exact",
+          "wire_apis": [
+            {
+              "protocol": "openai_decisions",
+              "transport": "direct"
+            },
+            {
+              "protocol": "typesafe_systemone",
+              "transport": "direct"
+            }
+          ],
+          "wire_api_support": [
+            {
+              "protocol": "openai_decisions",
+              "transport": "direct",
+              "capabilities": {
+                "audio": false,
+                "json_mode": false,
+                "multi_turn": false,
+                "reasoning": false,
+                "streaming": false,
+                "structured_output": false,
+                "system_prompts": false,
+                "tool_search": false,
+                "tools": false,
+                "vision": false
+              },
+              "reasoning": {}
+            },
+            {
+              "protocol": "typesafe_systemone",
+              "transport": "direct",
+              "capabilities": {
+                "audio": false,
+                "json_mode": false,
+                "multi_turn": false,
+                "reasoning": false,
+                "streaming": false,
+                "structured_output": false,
+                "system_prompts": false,
+                "tool_search": false,
+                "tools": false,
+                "vision": false
+              },
+              "reasoning": {}
+            }
+          ],
+          "capabilities": {
+            "audio": false,
+            "json_mode": false,
+            "multi_turn": false,
+            "reasoning": false,
+            "streaming": false,
+            "structured_output": false,
+            "system_prompts": false,
+            "tool_search": false,
+            "tools": false,
+            "vision": false
+          },
+          "constraints": {
+            "max_input_tokens": 262144,
+            "max_output_tokens": 0
+          },
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": []
+          },
+          "reasoning": {},
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 4200000,
+                "output_microcents_per_million": -1,
+                "cached_input_microcents_per_million": 840000,
+                "cache_creation_5m_microcents_per_million": -1,
+                "cache_creation_1h_microcents_per_million": -1,
+                "cache_creation_unknown_ttl_microcents_per_million": -1
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-10-27"
+          },
+          "attributes": [
+            {
+              "key": "pricing_checked",
+              "value": "2026-11-22"
+            }
+          ],
+          "derived": {
+            "price_tier": "low"
+          }
         }
       ]
     },
@@ -13392,6 +13506,59 @@
           },
           "derived": {
             "price_tier": "medium"
+          }
+        },
+        {
+          "id": "gemini-decision-1",
+          "model": "google/gemini-decision-1",
+          "display_name": "Gemini Decision 1",
+          "wire_apis": [
+            {
+              "protocol": "gemini_decisions",
+              "transport": "direct"
+            }
+          ],
+          "capabilities": {
+            "audio": true,
+            "json_mode": false,
+            "multi_turn": false,
+            "reasoning": false,
+            "streaming": false,
+            "structured_output": false,
+            "system_prompts": false,
+            "tool_search": false,
+            "tools": false,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 262144,
+            "max_output_tokens": 0
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video",
+              "document"
+            ],
+            "output": []
+          },
+          "reasoning": {},
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 10000000,
+                "output_microcents_per_million": -1
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-11-11"
+          },
+          "derived": {
+            "price_tier": "low"
           }
         }
       ]
@@ -19324,6 +19491,10 @@
           "wire_apis": [
             {
               "protocol": "openai_chat_completions",
+              "transport": "direct"
+            },
+            {
+              "protocol": "openai_decisions",
               "transport": "direct"
             },
             {

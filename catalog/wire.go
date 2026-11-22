@@ -14,7 +14,10 @@
 
 package catalog
 
-import "cmp"
+import (
+	"cmp"
+	"errors"
+)
 
 // WireProtocol identifies a request/response API contract, independently of
 // the provider serving it. Support does not imply feature parity between APIs.
@@ -26,7 +29,43 @@ const (
 	WireProtocolAnthropicMessages     WireProtocol = "anthropic_messages"
 	WireProtocolGeminiGenerateContent WireProtocol = "gemini_generate_content"
 	WireProtocolBedrockConverse       WireProtocol = "bedrock_converse"
+
+	// Decisions protocols take shared input plus typed questions and answer
+	// with probabilities; they never generate content.
+
+	// WireProtocolOpenAIDecisions is OpenAI's POST /v1/decisions shape.
+	WireProtocolOpenAIDecisions WireProtocol = "openai_decisions"
+	// WireProtocolGeminiDecisions is the Gemini API's POST /v1beta/decisions shape.
+	WireProtocolGeminiDecisions WireProtocol = "gemini_decisions"
+	// WireProtocolTypeSafeSystemOne is TypeSafe's System One shape: TypeSafe's
+	// OpenAPI document (https://api.typesafe.ai/openapi.json, v0.2.0, read
+	// 2026-11-22) defines POST /v1/systemone with SystemOneRequest and
+	// SystemOneResponse. Fireworks serves it as its "System One decisions API"
+	// (https://docs.fireworks.ai/api-reference/post-systemone, read 2026-11-22).
+	WireProtocolTypeSafeSystemOne WireProtocol = "typesafe_systemone"
 )
+
+// ErrDecisionsOnly is returned by constructors of generative llm.Model
+// values for an offering that is DecisionsOnly.
+var ErrDecisionsOnly = errors.New("decisions-only model cannot generate")
+
+// IsDecisions reports whether p is a decisions protocol.
+func (p WireProtocol) IsDecisions() bool {
+	return p == WireProtocolOpenAIDecisions || p == WireProtocolGeminiDecisions || p == WireProtocolTypeSafeSystemOne
+}
+
+// DecisionsOnly reports whether every declared wire API is a decisions
+// protocol, so the offering generates no output. Empty WireAPIs are
+// unknown, which is not decisions-only.
+func (e Entry) DecisionsOnly() bool {
+	for _, api := range e.WireAPIs {
+		if !api.Protocol.IsDecisions() {
+			return false
+		}
+	}
+
+	return len(e.WireAPIs) > 0
+}
 
 // WireTransport identifies the provider binding for a protocol, not an SDK
 // mapper or a guarantee that the SDK implements that binding.
@@ -73,7 +112,8 @@ func validateWireAPIs(field string, apis []WireAPI, fail func(string, ...any)) {
 		switch api.Protocol {
 		case WireProtocolOpenAIChatCompletions, WireProtocolOpenAIResponses,
 			WireProtocolAnthropicMessages, WireProtocolGeminiGenerateContent,
-			WireProtocolBedrockConverse:
+			WireProtocolBedrockConverse, WireProtocolOpenAIDecisions, WireProtocolGeminiDecisions,
+			WireProtocolTypeSafeSystemOne:
 		default:
 			fail("%s[%d].Protocol %q is not a valid wire protocol", field, i, api.Protocol)
 		}

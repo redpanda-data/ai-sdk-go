@@ -212,6 +212,10 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 // It reports the offering ID as InvokedModelID when the offering is not
 // Anthropic's.
 func (p *Provider) NewModelFromOffering(modelName string, offering catalog.Offering, opts ...Option) (llm.Model, error) {
+	if offering.DecisionsOnly() {
+		return nil, fmt.Errorf("%w: %s", catalog.ErrDecisionsOnly, modelName)
+	}
+
 	cfg := &Config{
 		ModelName:        modelName,
 		Constraints:      offering.Constraints,

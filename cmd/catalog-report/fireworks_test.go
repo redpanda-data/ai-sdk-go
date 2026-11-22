@@ -30,7 +30,10 @@ func TestFireworksRunsBelongToCreators(t *testing.T) {
 	t.Parallel()
 
 	sources := namedSources(t)
-	assert.NotContains(t, sources, "fireworks", "the host is not the publisher")
+
+	own, ok := sources["fireworks"]
+	require.True(t, ok)
+	assert.Equal(t, []string{"fireworks"}, own.Providers, "Fireworks' run owns only the models Fireworks publishes")
 
 	for _, vendor := range []string{"openai", "zai", "minimax", "deepseek", "moonshotai"} {
 		run, ok := sources[vendor]
@@ -110,4 +113,14 @@ func TestFireworksRetainsRuntimeAndRouterRules(t *testing.T) {
 			assert.Empty(t, Validate(tt.report, "zai", sources["zai"], rules))
 		})
 	}
+}
+
+func TestFireworksRunPrefixesItsOwnOfferings(t *testing.T) {
+	t.Parallel()
+
+	source := namedSources(t)["fireworks"]
+
+	assert.Empty(t, offeringProblem("fireworks:accounts/fireworks/models/rune", "fireworks", source))
+	assert.Contains(t, offeringProblem("accounts/fireworks/models/rune", "fireworks", source), "bad offering")
+	assert.Empty(t, offeringProblem("fireworks:accounts/fireworks/models/glm-5p3", "zai", namedSources(t)["zai"]), "creator runs keep the prefixed form")
 }

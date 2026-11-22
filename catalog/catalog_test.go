@@ -580,6 +580,27 @@ func TestPriceTier(t *testing.T) {
 	})
 }
 
+func TestPriceTierDecisionsOnlyUsesInputRate(t *testing.T) {
+	t.Parallel()
+
+	for input, want := range map[float64]PriceTier{
+		// Blending with the free output would put $2.50 at $1.875/M, low.
+		2.49: PriceTierLow,
+		2.50: PriceTierMedium,
+		9.99: PriceTierMedium,
+		10.0: PriceTierHigh,
+	} {
+		e := validEntry("robin-2", "acme/robin-2")
+		e.WireAPIs = []WireAPI{{Protocol: WireProtocolGeminiDecisions, Transport: WireTransportDirect}}
+		e.Constraints.MaxOutputTokens = 0
+		e.Pricing = pricing.FlatInfo(input, pricing.RateFree, 0)
+
+		o, ok := mustCatalog(t, e).Lookup("robin-2")
+		require.True(t, ok)
+		assert.Equal(t, want, o.PriceTier(), "input $%.2f/M", input)
+	}
+}
+
 func TestPriceTierUnknownNeverCheap(t *testing.T) {
 	t.Parallel()
 

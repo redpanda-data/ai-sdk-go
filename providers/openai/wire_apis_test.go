@@ -35,7 +35,7 @@ func TestCatalogWireAPIs(t *testing.T) {
 			ids: []string{
 				"gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-5.1", "gpt-5.2",
 				"gpt-5.2-chat-latest", "gpt-5.3-chat-latest", "gpt-6-astra",
-				"gpt-6-sol", "gpt-6-luna", "gpt-6.1-sol", "gpt-6.1-terra",
+				"gpt-6-sol", "gpt-6.1-sol", "gpt-6.1-terra",
 				"gpt-6.2-astra", "gpt-6.2-sol",
 				"gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.5",
 				"gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-4.1", "gpt-4.1-mini",
@@ -43,6 +43,14 @@ func TestCatalogWireAPIs(t *testing.T) {
 			},
 			apis: []catalog.WireAPI{
 				{Protocol: catalog.WireProtocolOpenAIChatCompletions, Transport: catalog.WireTransportDirect},
+				{Protocol: catalog.WireProtocolOpenAIResponses, Transport: catalog.WireTransportDirect},
+			},
+		},
+		{
+			ids: []string{"gpt-6-luna"},
+			apis: []catalog.WireAPI{
+				{Protocol: catalog.WireProtocolOpenAIChatCompletions, Transport: catalog.WireTransportDirect},
+				{Protocol: catalog.WireProtocolOpenAIDecisions, Transport: catalog.WireTransportDirect},
 				{Protocol: catalog.WireProtocolOpenAIResponses, Transport: catalog.WireTransportDirect},
 			},
 		},
@@ -88,4 +96,18 @@ func TestWireAPIsResolveAliases(t *testing.T) {
 		{Protocol: catalog.WireProtocolOpenAIChatCompletions, Transport: catalog.WireTransportDirect},
 		{Protocol: catalog.WireProtocolOpenAIResponses, Transport: catalog.WireTransportDirect},
 	}, o.WireAPIs)
+}
+
+// TestGPT6LunaDecisionsKeepGenerativeOrder pins the normalized order readers
+// that take the first or last binding see: decisions sorts between them.
+func TestGPT6LunaDecisionsKeepGenerativeOrder(t *testing.T) {
+	t.Parallel()
+
+	o, ok := openai.Catalog().Lookup(openai.ModelGPT6Luna)
+	require.True(t, ok)
+	require.Len(t, o.WireAPIs, 3)
+	assert.Equal(t, catalog.WireAPI{Protocol: catalog.WireProtocolOpenAIChatCompletions, Transport: catalog.WireTransportDirect}, o.WireAPIs[0])
+	assert.Equal(t, catalog.WireAPI{Protocol: catalog.WireProtocolOpenAIResponses, Transport: catalog.WireTransportDirect}, o.WireAPIs[2])
+	assert.False(t, o.DecisionsOnly())
+	assert.Equal(t, []catalog.Modality{catalog.ModalityText}, o.Modalities.Output)
 }

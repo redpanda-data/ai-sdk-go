@@ -63,8 +63,13 @@ func TestProviderModels(t *testing.T) {
 		assert.NotEmpty(t, model.DisplayName, "Model label should not be empty")
 		assert.Positive(t, model.Constraints.MaxInputTokens,
 			"model %s missing MaxInputTokens — set Constraints on its catalog entry", model.ID)
-		assert.Positive(t, model.Constraints.MaxOutputTokens,
-			"model %s missing MaxOutputTokens — set Constraints on its catalog entry", model.ID)
+
+		if model.DecisionsOnly() {
+			assert.Zero(t, model.Constraints.MaxOutputTokens, "decisions-only model %s generates no output", model.ID)
+		} else {
+			assert.Positive(t, model.Constraints.MaxOutputTokens,
+				"model %s missing MaxOutputTokens — set Constraints on its catalog entry", model.ID)
+		}
 	}
 
 	// Verify expected models are present

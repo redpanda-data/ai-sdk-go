@@ -83,7 +83,8 @@ type Entry struct {
 	WireAPISupport []WireAPISupport
 
 	// Modalities lists input/output content kinds. Empty normalizes to
-	// text-only.
+	// text-only, except a decisions-only entry's Output, which stays empty
+	// (see Modalities).
 	Modalities Modalities
 
 	// Reasoning describes which reasoning controls the offering accepts.

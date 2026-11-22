@@ -31,4 +31,5 @@ const (
 	PublisherMiniMax    Publisher = "minimax"
 	PublisherDeepSeek   Publisher = "deepseek"
 	PublisherMoonshotAI Publisher = "moonshotai"
+	PublisherFireworks  Publisher = "fireworks"
 )

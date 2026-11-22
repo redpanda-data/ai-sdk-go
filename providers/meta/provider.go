@@ -58,6 +58,14 @@ func (p *Provider) NewModel(modelName string, opts ...openai.Option) (llm.Model,
 		return nil, fmt.Errorf("unsupported Meta model: %s", modelName)
 	}
 
+	return p.newModelFromOffering(modelName, offering, opts...)
+}
+
+func (p *Provider) newModelFromOffering(modelName string, offering catalog.Offering, opts ...openai.Option) (llm.Model, error) {
+	if offering.DecisionsOnly() {
+		return nil, fmt.Errorf("%w: %s", catalog.ErrDecisionsOnly, modelName)
+	}
+
 	options := append(slices.Clone(opts), func(cfg *openai.Config) error {
 		// https://dev.meta.ai/docs/protocols/responses — minimum output budget.
 		// The maximum is the model's own MaxOutputTokens.

@@ -84,6 +84,10 @@ const (
 	ModelKimiK3               ModelID = "moonshotai/kimi-k3"
 	ModelKimiK31Pro           ModelID = "moonshotai/kimi-k3.1-pro"
 
+	// Fireworks models.
+
+	ModelRune26BA4B ModelID = "fireworks/rune-26b-a4b"
+
 	// Google models.
 
 	ModelGemini4Hydrogen     ModelID = "google/gemini-4-hydrogen"
@@ -101,6 +105,7 @@ const (
 	ModelGemini25Pro         ModelID = "google/gemini-2.5-pro"
 	ModelGemini25Flash       ModelID = "google/gemini-2.5-flash"
 	ModelGemini25FlashLite   ModelID = "google/gemini-2.5-flash-lite"
+	ModelGeminiDecision1     ModelID = "google/gemini-decision-1"
 
 	// Meta models.
 
@@ -182,6 +187,17 @@ var defaultRegistry = Registry{
 		// https://platform.kimi.ai/docs/platform-changelog.md (read 2026-11-16); October release, day defaulted
 		Released: MustDate("2026-10-31"), OpenWeights: true,
 		Description: "Moonshot AI's most capable 3T-class open-weight model, post-trained from Kimi K3 for coding, 3D creation and financial research.",
+	},
+	ModelRune26BA4B: {
+		// https://fireworks.ai/models/fireworks/rune (read 2026-11-22): Metadata
+		// lists "Provider: Fireworks" and "Huggingface: surogate/rune-26b-a4b-GGUF".
+		// Only its meta description (the opening quote of rune.md) says "from
+		// Surogate".
+		Publisher: PublisherFireworks, DisplayName: "Rune 26B-A4B", Series: "rune",
+		// First callable on Fireworks Serverless 2026-10-27 per
+		// https://docs.fireworks.ai/updates/changelog (read 2026-11-22).
+		Released:    MustDate("2026-10-27"),
+		Description: "Rune 26B-A4B is a System One decision model: it does not reason and does not generate text. It reads a document once and answers up to 256 typed questions about it, returning calibrated probabilities in that single pass.",
 	},
 	// ---- Anthropic ----
 	ModelClaudeFable52: {
@@ -591,6 +607,14 @@ var defaultRegistry = Registry{
 		// first mention. No knowledge cutoff on the Gemini API's pages.
 		Released:    MustDate("2026-11-10"),
 		Description: "Gemini 4 Carbon is Google's strongest reasoning model, built for sustained agentic workflows across complex software engineering, multimodal knowledge work, scientific reasoning, and cybersecurity defense.",
+	},
+	ModelGeminiDecision1: {
+		Publisher:   PublisherGoogle,
+		DisplayName: "Gemini Decision 1", Series: "gemini-decision",
+		// Released 2026-11-11 per https://ai.google.dev/gemini-api/docs/changelog
+		// (read 2026-11-22). No knowledge cutoff on its model page.
+		Released:    MustDate("2026-11-11"),
+		Description: "Gemini Decision 1 is a specialized multimodal model built for the Decisions API. It evaluates typed questions over text, images, video, audio, and PDFs in a single prefill pass and returns calibrated outcome probabilities with zero output tokens.",
 	},
 	ModelGemini4Argon: {
 		Publisher:   PublisherGoogle,

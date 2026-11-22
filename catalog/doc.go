@@ -67,6 +67,12 @@
 // or an SDK implementation. The metadata neither selects a runtime route
 // nor changes the offering ID. Set ordering is deterministic, not a preference.
 //
+// Decisions protocols (WireProtocol.IsDecisions) answer typed questions
+// with probabilities and generate nothing. An offering whose WireAPIs are
+// all decisions protocols is DecisionsOnly: New requires its
+// MaxOutputTokens to be 0, its output rate pricing.RateFree and its
+// Modalities.Output empty, and constructors of generative models refuse it with ErrDecisionsOnly.
+//
 // Entry.TokenCounting uses the same pairs for a narrower fact: the
 // provider counts input tokens for that offering on that protocol and
 // transport without running the model, as Anthropic's count_tokens,

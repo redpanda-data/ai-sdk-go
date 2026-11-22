@@ -33,6 +33,10 @@ const (
 	ModelDeepSeekV41Flash1017 = "accounts/fireworks/models/deepseek-v4p1-flash-1017"
 	ModelKimiK3               = "accounts/fireworks/models/kimi-k3"
 	ModelKimiK31Pro           = "accounts/fireworks/models/kimi-k3p1-pro"
+	// ModelRune is Rune 26B-A4B, served only by the System One and
+	// Decisions APIs. It generates nothing, so NewModel refuses it with
+	// catalog.ErrDecisionsOnly.
+	ModelRune = "accounts/fireworks/models/rune"
 
 	// Deprecated: Fireworks serverless retires this offering on 2026-11-07.
 	// No replacement is declared by the provider in this catalog.
@@ -112,7 +116,33 @@ func entries() []catalog.Entry {
 		serverlessPrice(2, 10, .20, 3, 15, .30))
 	kimi31Pro.Attributes["pricing_checked"] = "2026-11-16"
 
-	return []catalog.Entry{glm, flash, mini, oss, deepseek, deepseek1017, kimi, kimi31Pro}
+	// https://fireworks.ai/models/fireworks/rune and
+	// https://docs.fireworks.ai/updates/changelog (2026-10-27), read 2026-11-22:
+	// a decision model, text only, no function calling, called through
+	// POST /inference/v1/systemone or POST /inference/v1/decisions.
+	// Rates: https://docs.fireworks.ai/serverless/pricing.md, Decision models
+	// (read 2026-11-22): input only, and "the rates below cover the full cost
+	// of a request", so cache creation is free; no Priority.
+	runeEntry := catalog.Entry{
+		ID: ModelRune, Model: catalog.ModelRune26BA4B, ResolutionPolicy: catalog.ResolutionPolicyExact,
+		// Input metadata: GET /inference/v1/models (read 2026-11-04).
+		Constraints: llm.ModelConstraints{MaxInputTokens: 262144},
+		WireAPIs: []catalog.WireAPI{
+			{Protocol: catalog.WireProtocolTypeSafeSystemOne, Transport: catalog.WireTransportDirect},
+			{Protocol: catalog.WireProtocolOpenAIDecisions, Transport: catalog.WireTransportDirect},
+		},
+		// Zero capabilities: neither API offers a generative feature.
+		WireAPISupport: []catalog.WireAPISupport{
+			{API: catalog.WireAPI{Protocol: catalog.WireProtocolTypeSafeSystemOne, Transport: catalog.WireTransportDirect}},
+			{API: catalog.WireAPI{Protocol: catalog.WireProtocolOpenAIDecisions, Transport: catalog.WireTransportDirect}},
+		},
+		Pricing: pricing.FlatInfoFromRates(pricing.NewRates(.042, pricing.RateFree, .0084).
+			WithCacheCreation(pricing.RateFree, pricing.RateFree, pricing.RateFree)),
+		Life:       catalog.Lifecycle{Available: catalog.MustDate("2026-10-27")},
+		Attributes: map[string]string{"pricing_checked": "2026-11-22"},
+	}
+
+	return []catalog.Entry{glm, flash, mini, oss, deepseek, deepseek1017, kimi, kimi31Pro, runeEntry}
 }
 
 func serverlessPrice(input, output, cached, priorityInput, priorityOutput, priorityCached float64) pricing.Info {

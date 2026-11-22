@@ -154,7 +154,8 @@ func contractActiveOfferings(cat *catalog.Catalog, asOf time.Time, model string)
 	var active []catalog.Offering
 
 	for _, o := range cat.All() {
-		if cat.At(asOf).IsRetired(o.ID) || (!o.Life.Available.IsZero() && o.Life.Available.After(asOf)) {
+		// A decisions-only offering has no generative contract to qualify.
+		if o.DecisionsOnly() || cat.At(asOf).IsRetired(o.ID) || (!o.Life.Available.IsZero() && o.Life.Available.After(asOf)) {
 			continue
 		}
 

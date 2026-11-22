@@ -255,6 +255,20 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 		return nil, fmt.Errorf("unsupported Bedrock model: %s", modelName)
 	}
 
+	return p.newModelFromOffering(modelName, apiModelID, modelDef, opts...)
+}
+
+// Catalog implements catalog.Provider: the validated Bedrock model
+// catalog, including pricing and lifecycle metadata.
+func (*Provider) Catalog() *catalog.Catalog {
+	return Catalog()
+}
+
+func (p *Provider) newModelFromOffering(modelName, apiModelID string, modelDef catalog.Offering, opts ...Option) (llm.Model, error) {
+	if modelDef.DecisionsOnly() {
+		return nil, fmt.Errorf("%w: %s", catalog.ErrDecisionsOnly, modelName)
+	}
+
 	if _, resolvedByFamily := profileRegionResolverFor(apiModelID); p.region != "" &&
 		resolvedByFamily && !IsModelAllowedFromRegion(apiModelID, p.region) {
 		return nil, fmt.Errorf("unsupported Bedrock model: %s in region %s", modelName, p.region)
@@ -307,10 +321,4 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 		requestMapper:  NewRequestMapper(cfg),
 		responseMapper: responseMapper,
 	}, nil
-}
-
-// Catalog implements catalog.Provider: the validated Bedrock model
-// catalog, including pricing and lifecycle metadata.
-func (*Provider) Catalog() *catalog.Catalog {
-	return Catalog()
 }

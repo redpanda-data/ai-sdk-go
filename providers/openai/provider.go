@@ -140,18 +140,7 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 		return nil, fmt.Errorf("unsupported OpenAI model: %s", modelName)
 	}
 
-	model, err := p.newCompatModel(modelName, CompatModelDefinition{
-		Capabilities: offering.Capabilities,
-		Constraints:  offering.Constraints,
-		Reasoning:    offering.Reasoning,
-	}, opts...)
-	if err != nil {
-		return nil, err
-	}
-
-	model.requestMapper.encryptedReasoning = offering.Capabilities.Reasoning
-
-	return model, nil
+	return p.newModelFromOffering(modelName, offering, opts...)
 }
 
 // CompatModelDefinition is the transport configuration NewCompatModel
@@ -184,6 +173,25 @@ func (p *Provider) NewCompatModel(modelName string, def CompatModelDefinition, o
 // catalog, including pricing and lifecycle metadata.
 func (*Provider) Catalog() *catalog.Catalog {
 	return Catalog()
+}
+
+func (p *Provider) newModelFromOffering(modelName string, offering catalog.Offering, opts ...Option) (llm.Model, error) {
+	if offering.DecisionsOnly() {
+		return nil, fmt.Errorf("%w: %s", catalog.ErrDecisionsOnly, modelName)
+	}
+
+	model, err := p.newCompatModel(modelName, CompatModelDefinition{
+		Capabilities: offering.Capabilities,
+		Constraints:  offering.Constraints,
+		Reasoning:    offering.Reasoning,
+	}, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	model.requestMapper.encryptedReasoning = offering.Capabilities.Reasoning
+
+	return model, nil
 }
 
 func (p *Provider) newCompatModel(modelName string, def CompatModelDefinition, opts ...Option) (*Model, error) {

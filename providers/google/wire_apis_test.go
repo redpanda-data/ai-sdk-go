@@ -15,6 +15,7 @@
 package google_test
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -34,12 +35,18 @@ func TestCatalogWireAPIs(t *testing.T) {
 		"gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite",
 	}
 
-	gotIDs := make([]string, 0, len(ids))
+	gotIDs := make([]string, 0, len(ids)+1)
 	for _, o := range google.Catalog().All() {
 		gotIDs = append(gotIDs, o.ID)
 	}
 
-	assert.ElementsMatch(t, ids, gotIDs)
+	assert.ElementsMatch(t, append(slices.Clone(ids), google.ModelGeminiDecision1), gotIDs)
+
+	decision, ok := google.Catalog().Lookup(google.ModelGeminiDecision1)
+	require.True(t, ok)
+	assert.Equal(t, []catalog.WireAPI{
+		{Protocol: catalog.WireProtocolGeminiDecisions, Transport: catalog.WireTransportDirect},
+	}, decision.WireAPIs)
 
 	for _, id := range ids {
 		t.Run(id, func(t *testing.T) {

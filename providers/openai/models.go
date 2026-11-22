@@ -118,6 +118,11 @@ var (
 	responsesOnlyWireAPIs = []catalog.WireAPI{
 		{Protocol: catalog.WireProtocolOpenAIResponses, Transport: catalog.WireTransportDirect},
 	}
+	chatResponsesAndDecisionsWireAPIs = []catalog.WireAPI{
+		{Protocol: catalog.WireProtocolOpenAIChatCompletions, Transport: catalog.WireTransportDirect},
+		{Protocol: catalog.WireProtocolOpenAIDecisions, Transport: catalog.WireTransportDirect},
+		{Protocol: catalog.WireProtocolOpenAIResponses, Transport: catalog.WireTransportDirect},
+	}
 )
 
 // entries returns the authored OpenAI catalog.
@@ -436,7 +441,12 @@ func entries() []catalog.Entry {
 					pricing.NewRates(8.00, 30.00, 0.80).WithCacheCreation(0, 0, 10.00),
 				))),
 		// https://developers.openai.com/api/docs/models/gpt-6-luna
-		gpt6Entry(ModelGPT6Luna, catalog.ModelGPT6Luna,
+		// POST /v1/decisions takes gpt-6-luna, its only model
+		// (https://developers.openai.com/api/docs/guides/decisions, read 2026-11-22).
+		// Decisions bill input at these rates and output not at all; the
+		// card is per offering, and decisions report 0 output tokens.
+		//nolint:dupl // same rate-card shape as GPT-6 Sol, different published rates
+		withWireAPIs(gpt6Entry(ModelGPT6Luna, catalog.ModelGPT6Luna,
 			[]ReasoningEffort{ReasoningEffortNone, ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh, ReasoningEffortMax},
 			catalog.MustDate("2026-09-22"),
 			// Per M tokens: $0.10 input, $0.50 output, $0.01 cached input, $0.125 cache write.
@@ -456,7 +466,7 @@ func entries() []catalog.Entry {
 				WithOverride(fastTier, tieredCard(
 					pricing.NewRates(0.20, 1.00, 0.02).WithCacheCreation(0, 0, 0.25),
 					pricing.NewRates(0.40, 1.50, 0.04).WithCacheCreation(0, 0, 0.50),
-				))),
+				))), chatResponsesAndDecisionsWireAPIs),
 		// https://developers.openai.com/api/docs/models/gpt-6.1-sol
 		// Like Astra, effort none is unsupported, so
 		// /api/docs/guides/latest-model's temperature and top_p removal
@@ -1090,6 +1100,12 @@ func gpt56Entry(id string, model catalog.ModelID, aliases []string, rates pricin
 		},
 		Pricing: rates,
 	}
+}
+
+func withWireAPIs(e catalog.Entry, apis []catalog.WireAPI) catalog.Entry {
+	e.WireAPIs = apis
+
+	return e
 }
 
 // gpt6Entry builds a GPT-6 Sol, GPT-6 Luna, GPT-6.1 Sol, GPT-6.1 Terra,
