@@ -48,6 +48,14 @@ func (p *Provider) NewModel(modelName string, opts ...Option) (llm.Model, error)
 		return nil, fmt.Errorf("vertex: unsupported model %s", modelName)
 	}
 
+	return p.newModelFromOffering(modelName, offering, opts...)
+}
+
+func (p *Provider) newModelFromOffering(modelName string, offering catalog.Offering, opts ...Option) (llm.Model, error) {
+	if offering.DecisionsOnly() {
+		return nil, fmt.Errorf("%w: %s", catalog.ErrDecisionsOnly, modelName)
+	}
+
 	cfg := &modelConfig{}
 	for _, opt := range opts {
 		err := opt(cfg)
