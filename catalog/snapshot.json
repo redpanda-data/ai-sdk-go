@@ -19327,6 +19327,10 @@
               "transport": "direct"
             },
             {
+              "protocol": "openai_decisions",
+              "transport": "direct"
+            },
+            {
               "protocol": "openai_responses",
               "transport": "direct"
             }
