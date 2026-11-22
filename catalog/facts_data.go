@@ -189,8 +189,10 @@ var defaultRegistry = Registry{
 		Description: "Moonshot AI's most capable 3T-class open-weight model, post-trained from Kimi K3 for coding, 3D creation and financial research.",
 	},
 	ModelRune26BA4B: {
-		// https://fireworks.ai/models/fireworks/rune (read 2026-11-22) gives Fireworks
-		// as Provider; its summary line names Surogate.
+		// https://fireworks.ai/models/fireworks/rune (read 2026-11-22): Metadata
+		// lists "Provider: Fireworks" and "Huggingface: surogate/rune-26b-a4b-GGUF".
+		// Only its meta description (the opening quote of rune.md) says "from
+		// Surogate".
 		Publisher: PublisherFireworks, DisplayName: "Rune 26B-A4B", Series: "rune",
 		// First callable on Fireworks Serverless 2026-10-27 per
 		// https://docs.fireworks.ai/updates/changelog (read 2026-11-22).
