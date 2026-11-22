@@ -85,7 +85,9 @@ func WithRequiredWireAPIs() Option {
 //
 //   - forgotten fields that compile to harmful zeros: token limits > 0,
 //     input/output rates authored (zero means "unpriced"; free is
-//     spelled pricing.RateFree)
+//     spelled pricing.RateFree). A decisions-only entry instead requires
+//     MaxOutputTokens 0, a pricing.RateFree output rate and no output
+//     modality
 //   - the same fact authored in two fields: Capabilities.Vision/Audio
 //     must agree with Modalities.Input; Reasoning.Efforts requires
 //     Capabilities.Reasoning
