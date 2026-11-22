@@ -140,12 +140,12 @@ func (p *Provider) newModelFromOffering(modelID string, offering catalog.Offerin
 	}
 
 	if api.Transport != catalog.WireTransportDirect || !slices.Contains([]catalog.WireProtocol{catalog.WireProtocolAnthropicMessages, catalog.WireProtocolOpenAIResponses, catalog.WireProtocolOpenAIChatCompletions}, api.Protocol) {
-		return nil, fmt.Errorf("unsupported first Fireworks wire API: %s/%s", api.Protocol, api.Transport)
+		return nil, fmt.Errorf("unsupported first generative Fireworks wire API: %s/%s", api.Protocol, api.Transport)
 	}
 
 	support, ok := offering.SupportForWireAPI(api)
 	if !ok {
-		return nil, fmt.Errorf("unknown Fireworks support for first wire API: %s/%s", api.Protocol, api.Transport)
+		return nil, fmt.Errorf("unknown Fireworks support for first generative wire API: %s/%s", api.Protocol, api.Transport)
 	}
 
 	if p.apiKey == "" {
@@ -207,9 +207,9 @@ func (p *Provider) newModelFromOffering(modelID string, offering catalog.Offerin
 		runtime, err = p.chatModel(modelID, selected, cfg, baseURL, client)
 	case catalog.WireProtocolGeminiGenerateContent, catalog.WireProtocolBedrockConverse,
 		catalog.WireProtocolOpenAIDecisions, catalog.WireProtocolGeminiDecisions, catalog.WireProtocolTypeSafeSystemOne:
-		return nil, fmt.Errorf("unsupported first Fireworks wire API: %s/%s", api.Protocol, api.Transport)
+		return nil, fmt.Errorf("unsupported first generative Fireworks wire API: %s/%s", api.Protocol, api.Transport)
 	default:
-		return nil, fmt.Errorf("unsupported first Fireworks wire API: %s/%s", api.Protocol, api.Transport)
+		return nil, fmt.Errorf("unsupported first generative Fireworks wire API: %s/%s", api.Protocol, api.Transport)
 	}
 
 	if err != nil {
