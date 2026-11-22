@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/redpanda-data/ai-sdk-go/catalog"
 	"github.com/redpanda-data/ai-sdk-go/llm"
 	"github.com/redpanda-data/ai-sdk-go/plugins/retry"
 )
@@ -1497,6 +1498,16 @@ func testAllSupportedModels(t *testing.T, fixture Fixture) { //nolint:thelper //
 		for _, m := range cat.All() {
 			assert.Positive(t, m.Constraints.MaxInputTokens,
 				"model %s missing MaxInputTokens in discovery info", m.ID)
+
+			if m.DecisionsOnly() {
+				assert.Zero(t, m.Constraints.MaxOutputTokens, "decisions-only model %s generates no output", m.ID)
+
+				_, err := fixture.NewModel(m.ID)
+				require.ErrorIs(t, err, catalog.ErrDecisionsOnly, "decisions-only model %s", m.ID)
+
+				continue
+			}
+
 			assert.Positive(t, m.Constraints.MaxOutputTokens,
 				"model %s missing MaxOutputTokens in discovery info", m.ID)
 
