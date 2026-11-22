@@ -270,6 +270,10 @@ func validateOutput(e Entry, fail func(string, ...any)) {
 			fail("Pricing.Default.Base.OutputPerMillion must be pricing.RateFree: a decisions-only offering generates no output")
 		}
 
+		if len(e.Modalities.Output) > 0 {
+			fail("Modalities.Output must be empty: a decisions-only offering generates no output")
+		}
+
 		return
 	}
 

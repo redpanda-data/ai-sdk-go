@@ -335,6 +335,16 @@ func TestDecisionsOnlyValidation(t *testing.T) {
 			wantErr: "Pricing.Default.Base.OutputPerMillion must be pricing.RateFree: a decisions-only offering generates no output",
 		},
 		{
+			name: "decisions-only with an output modality",
+			entry: func() Entry {
+				e := decisionsEntry()
+				e.Modalities.Output = []Modality{ModalityText}
+
+				return e
+			},
+			wantErr: "Modalities.Output must be empty: a decisions-only offering generates no output",
+		},
+		{
 			name: "generative and decisions keep a priced output",
 			entry: func() Entry {
 				e := validEntry("robin-2", "acme/robin-2")
