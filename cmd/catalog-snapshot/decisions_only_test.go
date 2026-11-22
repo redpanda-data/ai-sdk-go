@@ -18,6 +18,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -43,7 +44,7 @@ func TestEveryDecisionsOnlyOfferingIsRefused(t *testing.T) {
 
 	anthropicProvider, err := anthropic.NewProvider("placeholder")
 	require.NoError(t, err)
-	bedrockProvider, err := bedrock.NewProvider(ctx, bedrock.WithRegion("us-east-1"))
+	bedrockProvider, err := bedrock.NewProvider(ctx, bedrock.WithAWSConfig(aws.Config{Region: "us-east-1"}))
 	require.NoError(t, err)
 	fireworksProvider, err := fireworks.NewProvider(ctx, fireworks.WithAPIKey("placeholder"))
 	require.NoError(t, err)
