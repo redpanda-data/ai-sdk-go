@@ -73,7 +73,7 @@ func TestEncodeWireAPISupportDeterministic(t *testing.T) {
 
 	var snap snapshotDTO
 	require.NoError(t, json.Unmarshal(a.Bytes(), &snap))
-	assert.Equal(t, 3, snap.SchemaVersion, "additive optional metadata does not change the schema version")
+	assert.Equal(t, 4, snap.SchemaVersion, "additive optional metadata does not change the schema version")
 	require.Len(t, snap.Providers, 1)
 	require.Len(t, snap.Providers[0].Offerings, 1)
 	o := snap.Providers[0].Offerings[0]
@@ -123,7 +123,7 @@ func TestWireAPISupportSnapshotCompatibility(t *testing.T) {
 		} `json:"providers"`
 	}
 	require.NoError(t, json.Unmarshal(current.Bytes(), &oldReader), "tolerant existing readers ignore optional additions")
-	assert.Equal(t, 3, oldReader.SchemaVersion)
+	assert.Equal(t, 4, oldReader.SchemaVersion)
 	assert.Equal(t, "robin-2", oldReader.Providers[0].Offerings[0].ID)
 	assert.Equal(t, "acme/robin-2", oldReader.Providers[0].Offerings[0].Model)
 	assert.True(t, oldReader.Providers[0].Offerings[0].Capabilities["json_mode"], "existing field semantics must not change")

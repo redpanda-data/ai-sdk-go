@@ -48,7 +48,13 @@ import (
 // Consumers MUST key an offering by {provider, id}, never by id alone.
 // The shared "facts" map stays keyed by model ID because facts are
 // provider-independent (Encode rejects any conflict).
-const SchemaVersion = 3
+//
+// v4: the value domains of "max_output_tokens" and "modalities.output"
+// widened without the field shape changing. A decisions-only offering
+// (every "wire_apis" protocol a decisions protocol) generates nothing, so
+// its max_output_tokens is 0 and its modalities.output is empty. Consumers
+// MUST NOT read 0 as missing metadata or assume an output modality.
+const SchemaVersion = 4
 
 // Encode writes the deterministic JSON snapshot of the given catalogs:
 // providers sorted by name, offerings sorted by ID, facts sorted by

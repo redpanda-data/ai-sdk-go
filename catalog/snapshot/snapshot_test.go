@@ -291,3 +291,21 @@ func TestEncodeWireAPIsPerOffering(t *testing.T) {
 		{Protocol: "anthropic_messages", Transport: "bedrock_runtime"},
 	}, hostedOffering.WireAPIs)
 }
+
+func TestEncodeDecisionsOnlyOffering(t *testing.T) {
+	t.Parallel()
+
+	e := validEntry("robin-2", "acme/robin-2")
+	e.WireAPIs = []catalog.WireAPI{{Protocol: catalog.WireProtocolGeminiDecisions, Transport: catalog.WireTransportDirect}}
+	e.Capabilities = llm.ModelCapabilities{}
+	e.Constraints = llm.ModelConstraints{MaxInputTokens: 262144}
+	e.Pricing = pricing.FlatInfo(0.10, pricing.RateFree, 0)
+	c, err := catalog.New("acme", []catalog.Entry{e}, catalog.WithRegistry(testRegistry()))
+	require.NoError(t, err)
+
+	var buf bytes.Buffer
+	require.NoError(t, Encode(&buf, c))
+	assert.Contains(t, buf.String(), `"max_output_tokens": 0`)
+	assert.Contains(t, buf.String(), `"output": []`)
+	assert.Contains(t, buf.String(), `"schema_version": 4`)
+}

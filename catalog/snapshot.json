@@ -1,5 +1,5 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "facts": {
     "amazon/nova-2-lite": {
       "display_name": "Amazon Nova 2 Lite",
