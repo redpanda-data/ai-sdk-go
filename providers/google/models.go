@@ -24,6 +24,7 @@ import (
 
 // Model ID constants for Google Gemini models.
 const (
+	ModelGemini4Neon     = "gemini-4-neon"
 	ModelGemini4Hydrogen = "gemini-4-hydrogen"
 	ModelGemini4Carbon   = "gemini-4-carbon"
 	ModelGemini4Argon    = "gemini-4-argon"
@@ -133,6 +134,14 @@ var (
 		ReasoningEffortMedium,
 		ReasoningEffortHigh,
 	}
+	// Gemini 4 Hydrogen and 4 Neon add xhigh and reject minimal
+	// (https://ai.google.dev/gemini-api/docs/thinking, read 2026-11-23).
+	gemini4XHighReasoningEfforts = []ReasoningEffort{
+		ReasoningEffortLow,
+		ReasoningEffortMedium,
+		ReasoningEffortHigh,
+		ReasoningEffortXHigh,
+	}
 )
 
 // thinkingBudgets holds the numeric budget ranges per offering. Every
@@ -203,6 +212,42 @@ var generateContentWireAPIs = []catalog.WireAPI{
 func entries() []catalog.Entry {
 	return []catalog.Entry{
 		{
+			// https://ai.google.dev/gemini-api/docs/models/gemini-4-neon
+			// (read 2026-11-23).
+			ID:           ModelGemini4Neon,
+			Model:        catalog.ModelGemini4Neon,
+			WireAPIs:     generateContentWireAPIs,
+			Capabilities: geminiCaps,
+			Modalities:   geminiModalities,
+			// The model page lists low, medium, high (default) and xhigh; minimal
+			// returns an error (whats-new-gemini-4-neon, read 2026-11-23).
+			Reasoning: catalog.ReasoningSupport{
+				Efforts: gemini4XHighReasoningEfforts,
+			},
+			// The 1M window is shared by input and output. 65536 is the
+			// synchronous output cap, streaming and non-streaming; long decode
+			// up to the full window needs a background request. Custom
+			// temperature, top_p, and top_k are ignored
+			// (whats-new-gemini-4-neon, read 2026-11-23); penalties are left
+			// out as for 4 Argon.
+			Constraints: llm.ModelConstraints{
+				TemperatureRange: [2]float64{0.0, 2.0},
+				MaxInputTokens:   1048576,
+				MaxOutputTokens:  65536,
+				SupportedParams:  geminiNoPenaltyParams,
+			},
+			// GA on 2026-11-18 per the changelog and deprecations page
+			// (https://ai.google.dev/gemini-api/docs/deprecations, read
+			// 2026-11-23); no shutdown date announced.
+			Life: catalog.Lifecycle{
+				Available: catalog.MustDate("2026-11-18"),
+			},
+			// Standard paid tier $3.00/$15.00, implicit cache $0.15, flat across
+			// the 1M window (https://ai.google.dev/gemini-api/docs/pricing, read
+			// 2026-11-23).
+			Pricing: pricing.FlatInfo(3.00, 15.00, 0.15),
+		},
+		{
 			// https://ai.google.dev/gemini-api/docs/models/gemini-4-hydrogen
 			// (read 2026-11-16).
 			ID:           ModelGemini4Hydrogen,
@@ -211,10 +256,9 @@ func entries() []catalog.Entry {
 			Capabilities: geminiCaps,
 			Modalities:   geminiModalities,
 			// The model page lists low, medium, high (default) and xhigh; MINIMAL
-			// returns an error. xhigh is left out: this provider's request
-			// mapper has no xhigh thinking level to send.
+			// returns an error (model page and thinking page, read 2026-11-23).
 			Reasoning: catalog.ReasoningSupport{
-				Efforts: gemini37FlashReasoningEfforts,
+				Efforts: gemini4XHighReasoningEfforts,
 			},
 			// The 1M window is shared by input and output. 65536 is the
 			// synchronous output cap, streaming and non-streaming; long decode

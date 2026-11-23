@@ -33,6 +33,8 @@ const (
 	regionJakarta   = "ap-southeast-3"
 	regionStockholm = "eu-north-1"
 	regionLondon    = "eu-west-2"
+	regionIreland   = "eu-west-1"
+	regionMilan     = "eu-south-1"
 )
 
 // Model ID constants for Claude models on Bedrock.
@@ -1371,6 +1373,12 @@ var bedrockFamilies = []family{
 			{Match: pricing.Selector{Region: regionJakarta}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.60, 1.80, 0)}},
 			{Match: pricing.Selector{Region: regionStockholm}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.60, 1.80, 0)}},
 			{Match: pricing.Selector{Region: regionLondon}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.775, 2.325, 0)}},
+			// Frankfurt, Ireland and Milan Standard rates from the AmazonBedrock
+			// price list (<region>/index.json, read 2026-11-23):
+			// https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/eu-central-1/index.json
+			{Match: pricing.Selector{Region: regionFrankfurt}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.60, 1.80, 0)}},
+			{Match: pricing.Selector{Region: regionIreland}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.60, 1.80, 0)}},
+			{Match: pricing.Selector{Region: regionMilan}, RateCard: pricing.RateCard{Base: pricing.NewRates(0.60, 1.80, 0)}},
 		},
 	},
 	{

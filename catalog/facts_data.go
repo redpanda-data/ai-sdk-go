@@ -86,6 +86,7 @@ const (
 
 	// Google models.
 
+	ModelGemini4Neon         ModelID = "google/gemini-4-neon"
 	ModelGemini4Hydrogen     ModelID = "google/gemini-4-hydrogen"
 	ModelGemini4Carbon       ModelID = "google/gemini-4-carbon"
 	ModelGemini4Argon        ModelID = "google/gemini-4-argon"
@@ -562,6 +563,18 @@ var defaultRegistry = Registry{
 	},
 
 	// ---- Google ----
+	ModelGemini4Neon: {
+		Publisher:   PublisherGoogle,
+		DisplayName: "Gemini 4 Neon", Series: "gemini-neon",
+		// Its own Series: Google sells it "between Gemini 4 Hydrogen and
+		// Gemini 4 Carbon", not as either's successor
+		// (https://ai.google.dev/gemini-api/docs/whats-new-gemini-4-neon, read
+		// 2026-11-23). gemini-4-neon became generally available on 2026-11-18
+		// per https://ai.google.dev/gemini-api/docs/changelog (read 2026-11-23),
+		// its first mention. No knowledge cutoff on the Gemini API's pages.
+		Released:    MustDate("2026-11-18"),
+		Description: "Gemini 4 Neon brings frontier-level intelligence with fast end-to-end task completion across complex software engineering, knowledge work, and science workflows, featuring a unified 1M-token context window and long decode up to 1M tokens.",
+	},
 	ModelGemini4Hydrogen: {
 		Publisher:   PublisherGoogle,
 		DisplayName: "Gemini 4 Hydrogen", Series: "gemini-flash",

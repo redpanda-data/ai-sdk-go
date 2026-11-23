@@ -45,6 +45,8 @@ const (
 	ReasoningEffortMedium ReasoningEffort = "medium"
 	// ReasoningEffortHigh biases the model toward deep reasoning.
 	ReasoningEffortHigh ReasoningEffort = "high"
+	// ReasoningEffortXHigh spends the most effort (Gemini 4 Hydrogen and Neon).
+	ReasoningEffortXHigh ReasoningEffort = "xhigh"
 )
 
 // geminiThinkingLevels maps portable reasoning efforts onto Gemini's wire
@@ -55,6 +57,10 @@ var geminiThinkingLevels = map[ReasoningEffort]genai.ThinkingLevel{
 	ReasoningEffortLow:     genai.ThinkingLevelLow,
 	ReasoningEffortMedium:  genai.ThinkingLevelMedium,
 	ReasoningEffortHigh:    genai.ThinkingLevelHigh,
+	// genai v1.51.0 names no XHIGH constant; the value is the ThinkingLevel
+	// enum's XHIGH (https://ai.google.dev/api/generate-content, read
+	// 2026-11-23).
+	ReasoningEffortXHigh: genai.ThinkingLevel("XHIGH"),
 }
 
 // Config holds the configuration for a Google Gemini model instance.

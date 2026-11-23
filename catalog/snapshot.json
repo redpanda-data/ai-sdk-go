@@ -270,6 +270,13 @@
       "series": "gemini-flash",
       "released": "2026-11-12"
     },
+    "google/gemini-4-neon": {
+      "display_name": "Gemini 4 Neon",
+      "publisher": "google",
+      "description": "Gemini 4 Neon brings frontier-level intelligence with fast end-to-end task completion across complex software engineering, knowledge work, and science workflows, featuring a unified 1M-token context window and long decode up to 1M tokens.",
+      "series": "gemini-neon",
+      "released": "2026-11-18"
+    },
     "google/gemma-4-26b-a4b": {
       "display_name": "Gemma 4 26B A4B",
       "publisher": "google",
@@ -7905,6 +7912,33 @@
                     "output_microcents_per_million": 232500000
                   }
                 }
+              },
+              {
+                "region": "eu-central-1",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 60000000,
+                    "output_microcents_per_million": 180000000
+                  }
+                }
+              },
+              {
+                "region": "eu-west-1",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 60000000,
+                    "output_microcents_per_million": 180000000
+                  }
+                }
+              },
+              {
+                "region": "eu-south-1",
+                "rate_card": {
+                  "base": {
+                    "input_microcents_per_million": 60000000,
+                    "output_microcents_per_million": 180000000
+                  }
+                }
               }
             ]
           },
@@ -13374,7 +13408,8 @@
             "efforts": [
               "low",
               "medium",
-              "high"
+              "high",
+              "xhigh"
             ]
           },
           "pricing": {
@@ -13389,6 +13424,80 @@
           "lifecycle": {
             "stage": "ga",
             "available": "2026-11-12"
+          },
+          "derived": {
+            "price_tier": "medium"
+          }
+        },
+        {
+          "id": "gemini-4-neon",
+          "model": "google/gemini-4-neon",
+          "display_name": "Gemini 4 Neon",
+          "wire_apis": [
+            {
+              "protocol": "gemini_generate_content",
+              "transport": "direct"
+            }
+          ],
+          "capabilities": {
+            "audio": true,
+            "json_mode": true,
+            "multi_turn": true,
+            "reasoning": true,
+            "streaming": true,
+            "structured_output": true,
+            "system_prompts": true,
+            "tool_search": false,
+            "tools": true,
+            "vision": true
+          },
+          "constraints": {
+            "max_input_tokens": 1048576,
+            "max_output_tokens": 65536,
+            "supported_params": [
+              "temperature",
+              "top_p",
+              "top_k",
+              "max_tokens",
+              "stop"
+            ],
+            "temperature_range": [
+              0,
+              2
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video",
+              "document"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "reasoning": {
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh"
+            ]
+          },
+          "pricing": {
+            "default": {
+              "base": {
+                "input_microcents_per_million": 300000000,
+                "output_microcents_per_million": 1500000000,
+                "cached_input_microcents_per_million": 15000000
+              }
+            }
+          },
+          "lifecycle": {
+            "stage": "ga",
+            "available": "2026-11-18"
           },
           "derived": {
             "price_tier": "medium"
@@ -16389,7 +16498,8 @@
             "efforts": [
               "low",
               "medium",
-              "high"
+              "high",
+              "xhigh"
             ]
           },
           "pricing": {
