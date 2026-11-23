@@ -96,7 +96,8 @@ const (
 	// ReasoningEffortHigh biases the model toward deep reasoning. Gemini and
 	// Claude.
 	ReasoningEffortHigh ReasoningEffort = "high"
-	// ReasoningEffortXHigh spends very high effort. Claude only.
+	// ReasoningEffortXHigh spends very high effort. Gemini 4 Hydrogen and
+	// Claude.
 	ReasoningEffortXHigh ReasoningEffort = "xhigh"
 	// ReasoningEffortMax removes all effort ceilings. Claude only.
 	ReasoningEffortMax ReasoningEffort = "max"
@@ -113,6 +114,12 @@ var geminiReasoningEfforts = []llm.ReasoningEffort{
 // Flash, and 4 Argon model pages say an explicit MINIMAL returns an error.
 var geminiNoMinimalReasoningEfforts = []llm.ReasoningEffort{
 	ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh,
+}
+
+// geminiXHighReasoningEfforts adds XHIGH: the Gemini 4 Hydrogen model page
+// lists LOW, MEDIUM, HIGH and XHIGH, and MINIMAL returns HTTP 400.
+var geminiXHighReasoningEfforts = []llm.ReasoningEffort{
+	ReasoningEffortLow, ReasoningEffortMedium, ReasoningEffortHigh, ReasoningEffortXHigh,
 }
 
 // geminiCaps is the capability set shared by every catalogued Gemini
@@ -260,9 +267,10 @@ func entries() []catalog.Entry {
 				SupportedParams:  geminiNoPenaltyParams,
 			},
 			// The model page lists LOW, MEDIUM, HIGH (default) and XHIGH;
-			// thinking_budget and MINIMAL return HTTP 400. XHIGH is left out:
-			// the Gemini request mapper this provider uses has no xhigh level.
-			Reasoning: catalog.ReasoningSupport{Efforts: geminiNoMinimalReasoningEfforts},
+			// thinking_budget and MINIMAL return HTTP 400
+			// (docs.cloud.google.com/gemini-enterprise-agent-platform/models/
+			// gemini/4-hydrogen, read 2026-11-23).
+			Reasoning: catalog.ReasoningSupport{Efforts: geminiXHighReasoningEfforts},
 			// Release date November 12, 2026, "No retirement date announced"
 			// (docs.cloud.google.com/gemini-enterprise-agent-platform/models/
 			// model-versions, read 2026-11-16).
