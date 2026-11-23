@@ -66,7 +66,7 @@ jobs:
       stop: ${{ steps.plan.outputs.stop }}
       reason: ${{ steps.plan.outputs.reason }}
     steps:
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a  # v2.22.4
         with:
           egress-policy: audit
       # Every branch's whole history, for plan.sh's check of the PR's merges.
@@ -322,7 +322,7 @@ jobs:
       carried: ${{ steps.carry.outputs.carried }}
       refused: ${{ steps.carry.outputs.refused }}
     steps:
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a  # v2.22.4
         with:
           egress-policy: audit
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
@@ -406,7 +406,7 @@ jobs:
       STOP: ${{ needs.plan.outputs.stop == 'true' || needs.carry.outputs.refused != '' }}
       REASON: ${{ needs.plan.outputs.reason || needs.carry.outputs.refused }}
     steps:
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a  # v2.22.4
         with:
           egress-policy: audit
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
@@ -590,7 +590,7 @@ jobs:
       contents: read
       id-token: write # only used outside dry runs, to read the Slack token
     steps:
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a  # v2.22.4
         with:
           egress-policy: audit
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4

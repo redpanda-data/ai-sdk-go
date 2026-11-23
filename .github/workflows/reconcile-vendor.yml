@@ -81,7 +81,7 @@ jobs:
       run_agent: ${{ steps.gate.outputs.run_agent }}
       verdict: ${{ steps.gate.outputs.verdict }}
     steps:
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a  # v2.22.4
         with:
           egress-policy: audit
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
@@ -153,7 +153,7 @@ jobs:
       # reached: the model, the named sources, then installs (Claude Code,
       # GitHub, Go and its modules, apt). Harden-Runner also always allows
       # GitHub's Actions domains, private ranges and Azure's VM address.
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a  # v2.22.4
         with:
           egress-policy: block
           allowed-endpoints: >
@@ -329,7 +329,7 @@ jobs:
       agent_run: ${{ steps.done.outputs.agent_run }}
       agent_at: ${{ steps.done.outputs.agent_at }}
     steps:
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a  # v2.22.4
         with:
           egress-policy: audit
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
@@ -423,7 +423,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25  # v2.22.1
+      - uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a  # v2.22.4
         with:
           egress-policy: audit
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
