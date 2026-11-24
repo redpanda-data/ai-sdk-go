@@ -55,13 +55,12 @@ func TestNotifyTellsTheChannel(t *testing.T) {
 		pr336   = "<https://github.com/o/r/pull/336|#336>"
 		branch  = "adam/try-it"
 
-		// The parts several messages share: changes' counts, the bot PR as
-		// its own post and below a failure, the retry after a push, and the
-		// step for a stopped run.
+		// The parts several messages share: changes' counts, the bot PR with
+		// its own heading (alone or below a failure), the retry after a push,
+		// and the step for a stopped run.
 		counts   = "• 28 changes to the catalog: 18 capabilities, 5 replacements\n• 11 open questions\n• 148 model offerings skipped under catalog rules\n"
-		take     = "react with :eyes: and add yourself as a reviewer.\n\nThe PR has the report details.\n" + counts
-		reviewer = "*Reconcile Bot - bot PR needs a reviewer*\n\nTo take " + pr336 + ", " + take
-		alsoPR   = "Bot PR " + pr336 + " needs a reviewer. To take it, " + take
+		reviewer = "*Reconcile Bot - bot PR needs a reviewer*\n\nTo take " + pr336 + ", react with :eyes: and add yourself as a reviewer.\n\n" +
+			"The PR has the report details.\n" + counts
 		retryNew = "To retry the Anthropic model catalog check, " + newRun + " with \"Stop before pushing\" unticked. " +
 			"Re-running this run's failed jobs can't update the PR again.\n"
 		stopStep = "To let the next run update " + pr336 + ", merge or close it, or remove that commit if it was pushed after the bot's last update.\n"
@@ -166,7 +165,7 @@ func TestNotifyTellsTheChannel(t *testing.T) {
 			needs: needs(pushed, map[string]string{"anthropic": "failure"}),
 			body:  changes,
 			want: "*Reconcile Bot - Anthropic catalog reconciliation failed* :red_circle:\n\n" +
-				"Anthropic's catalog entries may be out of date.\n\n" + retryNew + "\n" + alsoPR,
+				"Anthropic's catalog entries may be out of date.\n\n" + retryNew + "\n" + reviewer,
 		},
 		{
 			name:  "a vendor failed and the run pushed nothing",
@@ -191,14 +190,14 @@ func TestNotifyTellsTheChannel(t *testing.T) {
 			needs: needs(pushed, map[string]string{"anthropic": "failure", "carry": "failure", "pr": "failure"}),
 			body:  changes,
 			want: "*Reconcile Bot - Anthropic catalog reconciliation failed* :red_circle:\n\n" +
-				"Anthropic's catalog entries may be out of date. Also failed: carrying people's commits and updating the bot PR.\n\n" + retryNew + "\n" + alsoPR,
+				"Anthropic's catalog entries may be out of date. Also failed: carrying people's commits and updating the bot PR.\n\n" + retryNew + "\n" + reviewer,
 		},
 		{
 			name:  "a vendor failed after its check",
 			needs: needs(pushed, map[string]string{"anthropic": "failure"}, "anthropic"),
 			body:  changes,
 			want: "*Reconcile Bot - Anthropic catalog reconciliation failed* :red_circle:\n\n" +
-				"Anthropic's changes are in this run; a later step failed.\n\n" + retryNew + "\n" + alsoPR,
+				"Anthropic's changes are in this run; a later step failed.\n\n" + retryNew + "\n" + reviewer,
 		},
 		{
 			name:  "one vendor failed before its check and one after",
@@ -216,7 +215,7 @@ func TestNotifyTellsTheChannel(t *testing.T) {
 			want: "*Reconcile Bot - Anthropic and OpenAI catalog reconciliation failed* :red_circle:\n\n" +
 				"Anthropic's and OpenAI's catalog entries may be out of date.\n\n" +
 				"To retry the Anthropic and OpenAI model catalog checks, " + newRun + " for each, with \"Stop before pushing\" unticked. " +
-				"Re-running this run's failed jobs can't update the PR again.\n\n" + alsoPR,
+				"Re-running this run's failed jobs can't update the PR again.\n\n" + reviewer,
 		},
 		{
 			name:  "the push failed with changes waiting",
@@ -286,7 +285,7 @@ func TestNotifyTellsTheChannel(t *testing.T) {
 			body:  changes,
 			want: "*Reconcile Bot - catalog reconciliation failed* :red_circle:\n\n" +
 				"Failed: updating the bot PR.\n\n" +
-				"To retry, open the " + run + " and choose \"Re-run failed jobs\".\n\n" + alsoPR,
+				"To retry, open the " + run + " and choose \"Re-run failed jobs\".\n\n" + reviewer,
 		},
 		{
 			name:  "the new PR didn't open after the push",

@@ -7,7 +7,8 @@
 # its test PR too, and every post it makes opens with a note saying so.
 # Every message has the same shape, so it reads at a glance: a bold heading
 # that says what happened, a paragraph on what it means, the step to take when
-# there is one, and the report's counts as a list.
+# there is one, and the report's counts as a list. A post that also offers
+# the bot PR gives it a heading of its own.
 # Usage: notify.sh BODY_FILE MESSAGE_FILE
 #   BODY_FILE is the PR body the pr job uploaded; it may be missing.
 # Env: NEEDS (the notify job's needs, as JSON), POST_TEST_PR ("true" or not),
@@ -39,7 +40,8 @@ steps=()
 counts=""
 # Whether a failure's part already said what the run did to the bot PR.
 told_pr=false
-title() { if [[ -z "$heading" ]]; then heading="*Reconcile Bot - $1*${2:-}"; fi; }
+bold() { echo "*Reconcile Bot - $1*${2:-}"; }
+title() { if [[ -z "$heading" ]]; then heading="$(bold "$@")"; fi; }
 
 # The body's line that counts the changes and the open questions.
 summary=""
@@ -173,13 +175,12 @@ elif [[ "$pushed" == "true" && -z "$pr" ]]; then
   title "bot PR didn't open"
   context+=("The run pushed to the bot branch, but no PR shows it yet.")
 elif [[ "$pushed" == "true" ]]; then
-  take="react with :eyes: and add yourself as a reviewer."
-  if [[ -z "$heading" ]]; then
-    title "bot PR needs a reviewer"
-    steps+=("To take $(pr_link "$pr"), ${take}")
-  else
-    steps+=("Bot PR $(pr_link "$pr") needs a reviewer. To take it, ${take}")
-  fi
+  # Below a failure's heading the bot PR gets one of its own, so someone
+  # scanning the channel for PRs to review still finds it.
+  take="To take $(pr_link "$pr"), react with :eyes: and add yourself as a reviewer."
+  if [[ -n "$heading" ]]; then take="$(bold "bot PR needs a reviewer")"$'\n\n'"$take"; fi
+  title "bot PR needs a reviewer"
+  steps+=("$take")
   list "The PR"
 elif [[ "$(need pr .result)" == "success" && "$summary" == *"open question"* ]]; then
   # pushed is false when the PR already holds the same changes. It is empty
