@@ -116,9 +116,14 @@ if [[ "$failed" != "[]" ]]; then
     what="${who:+$who }catalog reconciliation failed"
     if [[ "$unchecked" != "[]" ]]; then context+=("$(spoken "$unchecked" "'s") catalog entries may be out of date."); fi
     if [[ "$late" != "[]" ]]; then context+=("$(spoken "$late" "'s") changes are in this run; a later step failed."); fi
-    # A vendor's failure mustn't hide one in the jobs that close the run.
+    # A vendor's failure mustn't hide one in the jobs that close the run, and
+    # a run where only they failed says which.
     closing="$(spoken "$(names 'IN("carry", "pr")')")"
-    if [[ -n "$who" && -n "$closing" ]]; then context+=("Also failed: ${closing}."); fi
+    if [[ -n "$closing" && -n "$who" ]]; then
+      context+=("Also failed: ${closing}.")
+    elif [[ -n "$closing" ]]; then
+      context+=("Failed: ${closing}.")
+    fi
   fi
   title "$what" " :red_circle:"
   if [[ "$pushed" == "true" && -n "$who" ]]; then
@@ -132,6 +137,11 @@ if [[ "$failed" != "[]" ]]; then
     # vendor's changes, not only the failed ones', so the retry is a whole run.
     context+=("Someone pushed to $(pr_link "${pr:-$(need plan .outputs.pr)}") during the run, so this run didn't update it.")
     steps+=("To retry, ${new_run} with \"Stop before pushing\" unticked, or wait for the next scheduled run. Re-running the failed jobs would stop the same way.")
+  elif [[ "$stop" == "true" ]]; then
+    # A re-run keeps the plan's decision to stop, so it would stop again. The
+    # stopped run's step below is the one that helps, and the next run retries
+    # every vendor.
+    :
   else
     # What the run did to the open PR, as the pr job or else the plan found
     # it. A stopped run says it below, with its reason.

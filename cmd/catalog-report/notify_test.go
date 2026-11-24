@@ -223,7 +223,14 @@ func TestNotifyTellsTheChannel(t *testing.T) {
 			needs: needs(map[string]string{"changed": "true", "pr": "336"}, map[string]string{"pr": "failure"}),
 			body:  changes,
 			want: "*Reconcile Bot - catalog reconciliation failed* :red_circle:\n\n" +
-				"The run pushed no catalog changes, so " + pr336 + " wasn't updated.\n\n" +
+				"Failed: updating the bot PR. The run pushed no catalog changes, so " + pr336 + " wasn't updated.\n\n" +
+				"To retry, open the " + run + " and choose \"Re-run failed jobs\".\n",
+		},
+		{
+			name:  "carrying people's commits failed",
+			needs: needs(nil, map[string]string{"carry": "failure"}),
+			want: "*Reconcile Bot - catalog reconciliation failed* :red_circle:\n\n" +
+				"Failed: carrying people's commits. The run pushed no catalog changes, so " + pr336 + " wasn't updated.\n\n" +
 				"To retry, open the " + run + " and choose \"Re-run failed jobs\".\n",
 		},
 		{
@@ -231,7 +238,7 @@ func TestNotifyTellsTheChannel(t *testing.T) {
 			needs: needs(map[string]string{"changed": "true", "moved": "true", "pr": "336"}, map[string]string{"pr": "failure"}),
 			body:  changes,
 			want: "*Reconcile Bot - catalog reconciliation failed* :red_circle:\n\n" +
-				"Someone pushed to " + pr336 + " during the run, so this run didn't update it.\n\n" +
+				"Failed: updating the bot PR. Someone pushed to " + pr336 + " during the run, so this run didn't update it.\n\n" +
 				"To retry, " + newRun + " with \"Stop before pushing\" unticked, or wait for the next scheduled run. " +
 				"Re-running the failed jobs would stop the same way.\n",
 		},
@@ -278,6 +285,7 @@ func TestNotifyTellsTheChannel(t *testing.T) {
 			needs: needs(pushed, map[string]string{"pr": "failure"}),
 			body:  changes,
 			want: "*Reconcile Bot - catalog reconciliation failed* :red_circle:\n\n" +
+				"Failed: updating the bot PR.\n\n" +
 				"To retry, open the " + run + " and choose \"Re-run failed jobs\".\n\n" + alsoPR,
 		},
 		{
@@ -285,7 +293,7 @@ func TestNotifyTellsTheChannel(t *testing.T) {
 			needs: needs(map[string]string{"pushed": "true"}, map[string]string{"pr": "failure"}),
 			body:  changes,
 			want: "*Reconcile Bot - catalog reconciliation failed* :red_circle:\n\n" +
-				"The run pushed to the bot branch, but no PR shows it yet.\n\n" +
+				"Failed: updating the bot PR. The run pushed to the bot branch, but no PR shows it yet.\n\n" +
 				"To retry, open the " + run + " and choose \"Re-run failed jobs\".\n",
 		},
 		{
@@ -298,8 +306,7 @@ func TestNotifyTellsTheChannel(t *testing.T) {
 			name:  "a vendor failed and the run stopped before the push",
 			needs: needs(map[string]string{"stop": "true", "reason": "a commit x can't be carried", "pr": "336"}, map[string]string{"anthropic": "failure"}),
 			want: "*Reconcile Bot - Anthropic catalog reconciliation failed* :red_circle:\n\n" +
-				"Anthropic's catalog entries may be out of date. The run didn't update " + pr336 + ", because a commit x can't be carried.\n\n" +
-				"To retry the Anthropic model catalog check, open the " + run + " and choose \"Re-run failed jobs\".\n\n" + stopStep,
+				"Anthropic's catalog entries may be out of date. The run didn't update " + pr336 + ", because a commit x can't be carried.\n\n" + stopStep,
 		},
 		{
 			name:  "a test branch's PR",
