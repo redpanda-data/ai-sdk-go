@@ -48,7 +48,8 @@ const legacyProtocolVersion = "2025-11-25"
 // makes it dead code, not a behavior change.
 func (c *clientImpl) connectSession(ctx context.Context, mcpClient *sdkmcp.Client, transport sdkmcp.Transport) (*sdkmcp.ClientSession, error) {
 	session, err := mcpClient.Connect(ctx, transport, nil)
-	if err == nil || ctx.Err() != nil || !isDiscoverSessionMismatch(err) {
+	// go-sdk builds this error with fmt.Errorf and exports no sentinel, so match its text.
+	if err == nil || !strings.Contains(err.Error(), "mismatching session IDs") {
 		return session, err
 	}
 
@@ -71,10 +72,4 @@ func (c *clientImpl) connectSession(ctx context.Context, mcpClient *sdkmcp.Clien
 	)
 
 	return session, nil
-}
-
-// isDiscoverSessionMismatch matches the go-sdk error by its text. The SDK
-// builds it with fmt.Errorf and exports no sentinel to compare against.
-func isDiscoverSessionMismatch(err error) bool {
-	return strings.Contains(err.Error(), "mismatching session IDs")
 }

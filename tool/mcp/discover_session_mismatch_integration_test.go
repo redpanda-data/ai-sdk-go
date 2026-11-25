@@ -79,10 +79,6 @@ func newDiscoverRejectingServer(t *testing.T) string {
 		_ = json.Unmarshal(body, &envelope)
 
 		if envelope.Method == "server/discover" {
-			if len(envelope.ID) == 0 {
-				envelope.ID = json.RawMessage("null")
-			}
-
 			reject := fmt.Sprintf(
 				`{"jsonrpc":"2.0","id":%s,"error":{"code":-32600,"message":"Bad Request: Missing session ID"}}`,
 				envelope.ID,
