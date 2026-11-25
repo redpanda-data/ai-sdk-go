@@ -36,8 +36,8 @@ import (
 const discoverRejectSessionID = "session-from-the-discover-rejection"
 
 // newDiscoverRejectingServer starts an MCP server over streamable HTTP that
-// rejects server/discover the way a server behind the AI Gateway does: HTTP
-// 200, a JSON-RPC error, and a Mcp-Session-Id header. Every other request goes
+// rejects server/discover the way some servers do: HTTP 200, a JSON-RPC
+// error, and a Mcp-Session-Id header. Every other request goes
 // to a real MCP handler, which mints its own session ID on initialize.
 //
 // The two session IDs are what the client trips over, so the test needs a

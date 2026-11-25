@@ -31,9 +31,9 @@ const legacyProtocolVersion = "2025-11-25"
 // the server/discover handshake leaves the client holding two session IDs.
 //
 // go-sdk v1.8.0 keeps the Mcp-Session-Id of every response that it accepts,
-// the rejection of server/discover included. Redpanda AI Gateway rejects
-// discover with a session ID of its own, then answers the initialize fallback
-// with another one, and the client fails with "mismatching session IDs". The
+// the rejection of server/discover included. A server that rejects discover
+// with a session ID of its own, then answers the initialize fallback with
+// another one, makes the client fail with "mismatching session IDs". The
 // retry asks for the newest revision that does not send server/discover, so
 // only one session ID ever exists.
 //
