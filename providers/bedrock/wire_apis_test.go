@@ -75,6 +75,8 @@ func TestCatalogWireAPIs(t *testing.T) {
 				ModelGPT6AstraUS, ModelGPT6AstraGlobal, ModelGPT61SolUS, ModelGPT61SolGlobal,
 				ModelGPT61TerraUS, ModelGPT61TerraGlobal,
 				ModelGPT6SolUS, ModelGPT6SolGlobal, ModelGPT6LunaUS, ModelGPT6LunaGlobal,
+				ModelGPT56SolUS, ModelGPT56SolGlobal, ModelGPT56TerraUS, ModelGPT56TerraGlobal,
+				ModelGPT56LunaUS, ModelGPT56LunaGlobal,
 			},
 			want: []catalog.WireAPI{converse, chatRuntime, responsesRuntime},
 		},
@@ -123,7 +125,7 @@ func TestWireAPIsDoNotFabricateOfferingIDs(t *testing.T) {
 		"jp." + ModelClaudeFable5,
 		"eu." + ModelGPT6Astra,
 		"global." + ModelGemma431B,
-		"us." + ModelGPT56Sol,
+		"eu." + ModelGPT56Sol,
 		"us." + ModelMistralLarge3,
 	} {
 		offering, ok := Catalog().Lookup(id)

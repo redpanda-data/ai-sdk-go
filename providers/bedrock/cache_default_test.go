@@ -153,6 +153,10 @@ func TestNewModel_NoCachePointFamiliesDisableCaching(t *testing.T) {
 		ModelGPT61TerraGlobal: false,
 		ModelGPT6SolUS:        false,
 		ModelGPT6SolGlobal:    false,
+		ModelGPT56SolUS:       false,
+		ModelGPT56SolGlobal:   false,
+		ModelGPT56TerraUS:     false,
+		ModelGPT56LunaGlobal:  false,
 		ModelClaudeSonnet45US: true,
 		ModelClaudeOpus55US:   true,
 	} {
