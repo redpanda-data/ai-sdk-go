@@ -15,6 +15,7 @@
 package workload
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/url"
@@ -39,7 +40,7 @@ func (i *Issuer) Transport(audience string, base http.RoundTripper) (http.RoundT
 	}
 
 	return roundTripFunc(func(req *http.Request) (*http.Response, error) {
-		return i.roundTrip(req, audience, base)
+		return i.roundTrip(req, func(ctx context.Context) (string, error) { return i.token(ctx, audience) }, base)
 	}), nil
 }
 
@@ -48,7 +49,9 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
 
-func (i *Issuer) roundTrip(req *http.Request, audience string, base http.RoundTripper) (*http.Response, error) {
+// roundTrip sends req through base with the access token from token and a
+// DPoP proof for it.
+func (i *Issuer) roundTrip(req *http.Request, token func(context.Context) (string, error), base http.RoundTripper) (*http.Response, error) {
 	if req.Header.Get("Authorization") != "" || req.Header.Get("DPoP") != "" {
 		closeBody(req)
 
@@ -62,7 +65,7 @@ func (i *Issuer) roundTrip(req *http.Request, audience string, base http.RoundTr
 		return nil, errors.New("workload: cross-origin redirect refused")
 	}
 
-	accessToken, err := i.token(req.Context(), audience)
+	accessToken, err := token(req.Context())
 	if err != nil {
 		closeBody(req)
 

@@ -296,12 +296,18 @@ func (i *Issuer) request(ctx context.Context, audience string) (string, time.Dur
 		return "", 0, err
 	}
 
-	form := url.Values{
+	return i.send(ctx, url.Values{
 		"grant_type":            {grantType},
 		"client_assertion_type": {clientAssertionType},
 		"client_assertion":      {assertion},
 		"audience":              {audience},
-	}.Encode()
+	})
+}
+
+// send posts the token request form. It retries once when the endpoint asks
+// for a new DPoP nonce.
+func (i *Issuer) send(ctx context.Context, values url.Values) (string, time.Duration, error) {
+	form := values.Encode()
 
 	for attempt := 0; ; attempt++ {
 		status, nonce, body, err := i.post(ctx, form)

@@ -60,6 +60,10 @@ type fakeIssuer struct {
 	tokenRequests int
 	audiences     []string
 	assertions    []string
+	// subjects and scopes record the subject_token and the scope fields of
+	// each token exchange.
+	subjects      []string
+	scopes        [][]string
 	resourceCalls int
 	// bound maps each issued token to its key thumbprint (cnf.jkt).
 	bound   map[string]string
@@ -155,6 +159,25 @@ func (f *fakeIssuer) serveToken(w http.ResponseWriter, req *http.Request) {
 		"grant_type":            "client_credentials",
 		"client_assertion_type": "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
 	}
+	// An on-behalf-of exchange (RFC 8693) has the same client assertion and
+	// the token the agent received.
+	if form.Get("grant_type") == exchangeGrant {
+		want["grant_type"] = exchangeGrant
+		want["subject_token_type"] = accessTypeURN
+		want["requested_token_type"] = accessTypeURN
+
+		if len(form["subject_token"]) != 1 || form.Get("subject_token") == "" {
+			f.failf("token exchange has no single subject_token: %q", form["subject_token"])
+		}
+
+		if len(form["scope"]) > 1 {
+			f.failf("token exchange has %d scope fields", len(form["scope"]))
+		}
+
+		f.subjects = append(f.subjects, form.Get("subject_token"))
+		f.scopes = append(f.scopes, form["scope"])
+	}
+
 	for name, value := range want {
 		if got := form[name]; len(got) != 1 || got[0] != value {
 			f.failf("token form %s = %q, want %q", name, got, value)

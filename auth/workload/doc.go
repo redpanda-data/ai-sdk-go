@@ -46,4 +46,19 @@
 // The transport sends the token on every request it carries, so put it only
 // on a client for the audience's service. It refuses to follow a redirect to
 // another origin with the token.
+//
+// An agent that acts for a user exchanges the token it received for an
+// on-behalf-of token for its next hop (RFC 8693). The user stays the subject,
+// the agent becomes the current actor, and the issuer never gives the new
+// token more scope than the received one:
+//
+//	subject, err := workload.SubjectToken(req)
+//	if err != nil {
+//	    return err
+//	}
+//
+//	transport, err := issuer.OnBehalfOf(subject, "https://tools.example.com", []string{"read"}, nil)
+//	if err != nil {
+//	    return err
+//	}
 package workload
