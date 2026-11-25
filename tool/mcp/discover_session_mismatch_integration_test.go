@@ -22,6 +22,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -44,8 +45,10 @@ const discoverRejectSessionID = "session-from-the-discover-rejection"
 // server that answers discover and initialize with different ones. A plain
 // HTTP 400 rejection, which is what the MCP Python SDK sends on its own, does
 // not reproduce it: the client drops the response before it reads the header.
-func newDiscoverRejectingServer(t *testing.T) string {
+func newDiscoverRejectingServer(t *testing.T) *discoverRejectingServer {
 	t.Helper()
+
+	rec := &discoverRejectingServer{}
 
 	server := sdkmcp.NewServer(&sdkmcp.Implementation{
 		Name:    "discover-rejecting-server",
@@ -77,6 +80,7 @@ func newDiscoverRejectingServer(t *testing.T) string {
 			ID     json.RawMessage `json:"id"`
 		}
 		_ = json.Unmarshal(body, &envelope)
+		rec.record(envelope.Method, r.Header.Get("Mcp-Session-Id"))
 
 		if envelope.Method == "server/discover" {
 			reject := fmt.Sprintf(
@@ -104,8 +108,49 @@ func newDiscoverRejectingServer(t *testing.T) string {
 		handler.ServeHTTP(w, r)
 	}))
 	t.Cleanup(httpServer.Close)
+	rec.url = httpServer.URL
 
-	return httpServer.URL
+	return rec
+}
+
+// discoverRejectingServer is the stand-in server from newDiscoverRejectingServer.
+// It records each request that it gets, so the test can show which handshake
+// opened the session.
+type discoverRejectingServer struct {
+	url string
+
+	mu       sync.Mutex
+	requests []recordedRequest
+}
+
+// recordedRequest is one JSON-RPC request that the stand-in server got, with
+// the Mcp-Session-Id that the client sent on it.
+type recordedRequest struct {
+	method    string
+	sessionID string
+}
+
+func (s *discoverRejectingServer) record(method, sessionID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.requests = append(s.requests, recordedRequest{method: method, sessionID: sessionID})
+}
+
+// requestsFor returns the recorded requests for method, in order.
+func (s *discoverRejectingServer) requestsFor(method string) []recordedRequest {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var out []recordedRequest
+
+	for _, r := range s.requests {
+		if r.method == method {
+			out = append(out, r)
+		}
+	}
+
+	return out
 }
 
 // TestIntegrationConnectToDiscoverRejectingServer checks that the client
@@ -118,9 +163,9 @@ func TestIntegrationConnectToDiscoverRejectingServer(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	endpoint := newDiscoverRejectingServer(t)
+	server := newDiscoverRejectingServer(t)
 
-	client, err := NewClient("discover-rejecting-server", NewStreamableTransport(endpoint))
+	client, err := NewClient("discover-rejecting-server", NewStreamableTransport(server.url))
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -135,4 +180,14 @@ func TestIntegrationConnectToDiscoverRejectingServer(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, tools, 1)
 	assert.Equal(t, "discover-rejecting-server__ping", tools[0].Name)
+
+	// The cause, made visible. On go-sdk v1.8.0 the first initialize carries the
+	// session ID of the discover rejection and fails. The retry sends no
+	// server/discover, so the initialize that opens the working session carries
+	// no session ID. Both checks also hold on go-sdk v1.9.0, where no retry runs.
+	assert.Len(t, server.requestsFor("server/discover"), 1, "the retry must not send server/discover again")
+	initializes := server.requestsFor("initialize")
+	require.NotEmpty(t, initializes)
+	assert.Empty(t, initializes[len(initializes)-1].sessionID,
+		"the initialize that opened the session must not carry the discover rejection's session ID")
 }

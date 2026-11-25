@@ -54,6 +54,8 @@ func (c *clientImpl) connectSession(ctx context.Context, mcpClient *sdkmcp.Clien
 	}
 
 	session, retryErr := mcpClient.Connect(ctx, retryTransport, &sdkmcp.ClientSessionOptions{
+		// This is the fix. Below 2026-07-28 go-sdk sends no server/discover, so
+		// the stray session ID never arrives and initialize gives the only one.
 		ProtocolVersion: legacyProtocolVersion,
 	})
 	if retryErr != nil {
