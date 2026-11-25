@@ -437,7 +437,7 @@ func testGenerateWithReasoning(t *testing.T, fixture Fixture) { //nolint:thelper
 
 		var (
 			response     *llm.Response
-			hasReasoning bool
+			allReasoning string
 		)
 
 		for attempt := 1; attempt <= maxAttempts; attempt++ {
@@ -461,18 +461,24 @@ func testGenerateWithReasoning(t *testing.T, fixture Fixture) { //nolint:thelper
 			require.NotNil(t, response)
 			require.NotEmpty(t, response.Message.Content)
 
-			hasReasoning = false
+			// Check the length on the joined text, not on each part, as the streaming variant does.
+			// A provider can split one trace into several parts: OpenAI emits one part per summary
+			// item, and a concise summary item can be short. A part can also carry no text at all:
+			// Anthropic and Bedrock keep signature-only parts, and redacted parts hold a short
+			// placeholder. So each part must carry text or a signature, and only the total must be long.
+			var allReasoningSb strings.Builder
 
 			for _, part := range response.Message.Content {
 				if rp, ok := part.(*llm.ReasoningPart); ok {
-					hasReasoning = true
-
-					assert.NotEmpty(t, rp.Text)
-					assert.Greater(t, len(rp.Text), 30, "Should show detailed reasoning process")
+					assert.True(t, rp.Text != "" || rp.Signature != "",
+						"Reasoning part should carry text or a signature")
+					allReasoningSb.WriteString(rp.Text)
 				}
 			}
 
-			if hasReasoning {
+			allReasoning = allReasoningSb.String()
+
+			if allReasoning != "" {
 				t.Logf("Received reasoning traces on attempt %d/%d", attempt, maxAttempts)
 
 				break
@@ -482,6 +488,8 @@ func testGenerateWithReasoning(t *testing.T, fixture Fixture) { //nolint:thelper
 				t.Fatalf("Complex technical question should trigger reasoning after %d attempts", maxAttempts)
 			}
 		}
+
+		assert.Greater(t, len(allReasoning), 50, "Should show detailed reasoning process")
 
 		text := response.TextContent()
 		assert.Greater(t, len(text), 200, "Should provide detailed technical analysis")
