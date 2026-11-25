@@ -31,21 +31,15 @@ const legacyProtocolVersion = "2025-11-25"
 // the server/discover handshake leaves the client holding two session IDs.
 //
 // go-sdk v1.8.0 keeps the Mcp-Session-Id of every response that it accepts,
-// the rejection of server/discover included. A server that rejects discover
-// with a session ID of its own, and then answers the initialize fallback with
-// another session ID, makes the client fail the whole connection with
-// "mismatching session IDs". Redpanda AI Gateway puts such a server in front
-// of each remote MCP member, so the agent loses every tool on that member and
-// stops before its first model call. The retry asks for the newest revision
-// that does not send server/discover: the session then opens with initialize
-// and only one session ID ever exists.
+// the rejection of server/discover included. Redpanda AI Gateway rejects
+// discover with a session ID of its own, then answers the initialize fallback
+// with another one, and the client fails with "mismatching session IDs". The
+// retry asks for the newest revision that does not send server/discover, so
+// only one session ID ever exists.
 //
-// REMOVE THIS FILE, and its test, after go.mod carries a go-sdk release that
-// includes https://github.com/modelcontextprotocol/go-sdk/pull/1523, which is
-// v1.9.0 or newer. That release keeps the session ID of initialize only, so
-// the first Connect succeeds and this retry never runs. The retry stays
-// correct until then and after: it only reacts to the error, so an upgrade
-// makes it dead code, not a behavior change.
+// REMOVE THIS FILE, and its test, after go.mod carries go-sdk v1.9.0 or newer,
+// which includes https://github.com/modelcontextprotocol/go-sdk/pull/1523.
+// Until then the retry is harmless: it only runs on that error.
 func (c *clientImpl) connectSession(ctx context.Context, mcpClient *sdkmcp.Client, transport sdkmcp.Transport) (*sdkmcp.ClientSession, error) {
 	session, err := mcpClient.Connect(ctx, transport, nil)
 	// go-sdk builds this error with fmt.Errorf and exports no sentinel, so match its text.

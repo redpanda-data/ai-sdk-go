@@ -111,10 +111,6 @@ func newDiscoverRejectingServer(t *testing.T) string {
 // TestIntegrationConnectToDiscoverRejectingServer checks that the client
 // reaches a usable session against a server that rejects server/discover with
 // a session ID of its own.
-//
-// Without the retry in connect, Start fails with `mismatching session IDs` and
-// the agent never makes its first model call: every tool on that server is
-// unreachable.
 func TestIntegrationConnectToDiscoverRejectingServer(t *testing.T) {
 	t.Parallel()
 
