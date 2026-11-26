@@ -191,3 +191,39 @@ func TestIntegrationConnectToDiscoverRejectingServer(t *testing.T) {
 	assert.Empty(t, initializes[len(initializes)-1].sessionID,
 		"the initialize that opened the session must not carry the discover rejection's session ID")
 }
+
+// TestIntegrationRegistrySnapshotDiscoverRejectingServer checks that a
+// contextual registry reaches a usable session against a server that rejects
+// server/discover with a session ID of its own.
+func TestIntegrationRegistrySnapshotDiscoverRejectingServer(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	server := newDiscoverRejectingServer(t)
+
+	registry, err := NewRegistry("discover-rejecting-server", server.url, WithCredentials(func(context.Context) (Credentials, error) {
+		return Credentials{PartitionKey: "public"}, nil
+	}))
+	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, registry.Close()) })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	t.Cleanup(cancel)
+
+	snapshot, err := registry.Snapshot(ctx)
+	require.NoError(t, err)
+
+	tools, err := snapshot.List(ctx)
+	require.NoError(t, err)
+	require.Len(t, tools, 1)
+	assert.Equal(t, "discover-rejecting-server__ping", tools[0].Name)
+
+	assert.Len(t, server.requestsFor("server/discover"), 1, "the retry must not send server/discover again")
+	initializes := server.requestsFor("initialize")
+	require.NotEmpty(t, initializes)
+	assert.Empty(t, initializes[len(initializes)-1].sessionID,
+		"the initialize that opened the session must not carry the discover rejection's session ID")
+}
