@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package a2ui publishes opt-in, read-only A2UI 1.0 snapshots over A2A 1.0.
+// Package a2ui publishes opt-in A2UI 1.0 snapshots over A2A 1.0.
 // It does not modify the default A2A executor or interpret model output.
 package a2ui
 
@@ -34,7 +34,7 @@ const (
 	ExtensionURI = "https://a2ui.org/a2a-extension/a2ui/v1.0"
 	// MIMEType identifies A2UI messages in A2A data part metadata.
 	MIMEType = "application/a2ui+json"
-	// BasicCatalogID is the catalog used by this read-only snapshot subset.
+	// BasicCatalogID is the standard A2UI 1.0 Basic Catalog.
 	BasicCatalogID = "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
 
 	rendererCapabilitiesKey = "a2uiRendererCapabilities"
@@ -81,7 +81,7 @@ var errInvalidSnapshot = errors.New("invalid A2UI snapshot")
 func AgentExtension() *a2a.AgentExtension {
 	return &a2a.AgentExtension{
 		URI:         ExtensionURI,
-		Description: "Read-only A2UI 1.0 Text, Row and Column snapshots",
+		Description: "Opt-in A2UI 1.0 Basic Catalog snapshots",
 		Params:      map[string]any{"supportedCatalogIds": []any{BasicCatalogID}},
 	}
 }
@@ -178,10 +178,14 @@ func SnapshotPart(message *a2a.Message, snapshot Snapshot) (*a2a.Part, error) {
 		return nil, err
 	}
 
+	return snapshotPart(snapshot.SurfaceID, components)
+}
+
+func snapshotPart(surfaceID string, components []any) (*a2a.Part, error) {
 	payload := []any{map[string]any{
 		"version": Version,
 		"createSurface": map[string]any{
-			"surfaceId":  snapshot.SurfaceID,
+			"surfaceId":  surfaceID,
 			"catalogId":  BasicCatalogID,
 			"components": components,
 		},
@@ -208,7 +212,7 @@ func (snapshot Snapshot) wireComponents() ([]any, error) {
 		return nil, fmt.Errorf("%w: invalid surface ID or component count", errInvalidSnapshot)
 	}
 
-	components := make(map[string]Component, len(snapshot.Components))
+	components := make(map[string][]string, len(snapshot.Components))
 	for i, node := range snapshot.Components {
 		if !validID(node.ID) {
 			return nil, fmt.Errorf("%w: component %d has an invalid ID", errInvalidSnapshot, i)
@@ -222,7 +226,7 @@ func (snapshot Snapshot) wireComponents() ([]any, error) {
 			return nil, fmt.Errorf("%w: component %d has an unsupported kind or invalid properties", errInvalidSnapshot, i)
 		}
 
-		components[node.ID] = node
+		components[node.ID] = node.Children
 	}
 
 	if err := validateTree(components); err != nil {
@@ -274,19 +278,19 @@ func validComponent(node Component) bool {
 	}
 }
 
-func validateTree(components map[string]Component) error {
+func validateTree(components map[string][]string) error {
 	visited := make(map[string]bool, len(components))
 	var visit func(string, int) bool
 
 	visit = func(id string, depth int) bool {
-		node, exists := components[id]
+		children, exists := components[id]
 		if depth > maxDepth || !exists || visited[id] {
 			return false
 		}
 
 		visited[id] = true
 
-		for _, child := range node.Children {
+		for _, child := range children {
 			if !visit(child, depth+1) {
 				return false
 			}

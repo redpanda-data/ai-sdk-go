@@ -318,7 +318,7 @@ and response name and ID must remain those of the original call; identity change
 - [`tool`](https://pkg.go.dev/github.com/redpanda-data/ai-sdk-go/tool) — Tool registry and execution
 - [`tool/mcp`](https://pkg.go.dev/github.com/redpanda-data/ai-sdk-go/tool/mcp) — Model Context Protocol integration
 - [`adapter/a2a`](https://pkg.go.dev/github.com/redpanda-data/ai-sdk-go/adapter/a2a) — Agent-to-Agent protocol adapter
-- [`adapter/a2ui`](https://pkg.go.dev/github.com/redpanda-data/ai-sdk-go/adapter/a2ui) — Opt-in, read-only A2UI 1.0 snapshots for self-managed A2A 1.0 endpoints
+- [`adapter/a2ui`](https://pkg.go.dev/github.com/redpanda-data/ai-sdk-go/adapter/a2ui) — Opt-in A2UI 1.0 snapshots for self-managed A2A 1.0 endpoints
 - [`llm/fakellm`](https://pkg.go.dev/github.com/redpanda-data/ai-sdk-go/llm/fakellm) — Test doubles for LLM models
 
 ## Examples
@@ -345,6 +345,30 @@ Basic Catalog `Text` may render simple Markdown. The SDK validates the
 snapshot structure, not the text markup. Sanitize untrusted strings for your
 renderer before using them as `Text`.
 This does not modify the existing A2A 0.3 adapter, prompt the model, or enable UI actions.
+
+### Typed Basic Catalog snapshots
+
+Use `a2ui.BasicSnapshotPart` with `a2ui.BasicSnapshot` to build literal nodes
+for all 18 [A2UI 1.0 Basic Catalog components](https://a2ui.org/concepts/catalogs/#the-basic-catalog).
+For example, after checking the renderer's offer:
+
+```go
+snapshot := a2ui.BasicSnapshot{
+    SurfaceID: request.Message.ID,
+    Components: []a2ui.BasicComponent{
+        a2ui.NewCard("root", "summary"),
+        a2ui.NewText("summary", "17 orders"),
+    },
+}
+part, err := a2ui.BasicSnapshotPart(request.Message, snapshot)
+// Append part only if err == nil and part != nil; retain the text reply.
+```
+
+This helper encodes the standard A2A 1.0 data part, not a product-specific
+text fence. It does not expose model bindings, functions or action handling.
+The standard Button requires an event name; the application must independently
+validate and authorize any event it chooses to handle. Media URLs are limited
+to credential-free HTTPS; clients still own whether and when to load them.
 
 ## License
 
