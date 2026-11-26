@@ -319,8 +319,12 @@ client, err := mcp.NewClient(
 When the client loses its session, it reconnects in the background with exponential backoff, up to
 30 seconds between attempts. A call to `ExecuteTool` or `SyncTools` made while there is no session
 waits up to 5 seconds for the reconnect. If no session comes back in that time, the call returns an
-error that wraps `mcp.ErrNoSession` and the last reconnect error, and the client keeps reconnecting.
-The caller's own deadline still applies when it is shorter.
+error that wraps `mcp.ErrNoSession`, and the client keeps reconnecting. The error text names the
+last reconnect error once an attempt has failed. The caller's own deadline still applies when it is
+shorter.
+
+Because of the backoff, the client can take up to 30 seconds to notice that a server is back after a
+long outage. Calls in that time fail with `mcp.ErrNoSession`.
 
 Change the wait with `WithSessionWait`. Zero fails such calls at once:
 

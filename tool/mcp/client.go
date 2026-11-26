@@ -40,10 +40,12 @@ var (
 	// ErrClosed indicates the client has been closed.
 	ErrClosed = errors.New("mcp client closed")
 
-	// ErrNoSession indicates the client lost its MCP session and did not
-	// reconnect within the session wait (see WithSessionWait). The returned
-	// error also wraps the last reconnect attempt's error, when there is one.
-	// The client keeps reconnecting in the background, so a later call can
+	// ErrNoSession indicates the client had no live MCP session and none
+	// came within the session wait (see WithSessionWait): it lost its
+	// session and is reconnecting, or Start is still connecting. The error
+	// text names the last reconnect attempt's error when an attempt has
+	// failed; that error is not wrapped, so errors.Is never matches it. The
+	// client keeps reconnecting in the background, so a later call can
 	// succeed.
 	ErrNoSession = errors.New("mcp client has no live session")
 )

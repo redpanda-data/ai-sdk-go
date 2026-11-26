@@ -105,17 +105,17 @@ func WithToolTimeout(timeout time.Duration) ClientOption {
 
 // WithSessionWait sets how long ExecuteTool and SyncTools wait for the client
 // to reconnect after it loses its MCP session. When the wait ends with no
-// session, the call returns an error wrapping ErrNoSession and the last
-// reconnect error, while the client keeps reconnecting in the background.
-// Defaults to 5 seconds. Zero or a negative duration fails such calls at once.
-// A caller's own deadline still applies when it is shorter.
+// session, the call returns an error wrapping ErrNoSession, while the client
+// keeps reconnecting in the background. Defaults to 5 seconds. Zero or a
+// negative duration fails such calls at once. A caller's own deadline still
+// applies when it is shorter.
 //
 // Example:
 //
 //	client, err := NewClient(serverID, transport, WithSessionWait(15*time.Second))
 func WithSessionWait(wait time.Duration) ClientOption {
 	return func(c *clientImpl) {
-		c.sessionWait = max(wait, 0)
+		c.sessionWait = wait
 	}
 }
 

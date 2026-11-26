@@ -33,29 +33,34 @@ import (
 var errServerRefused = errors.New("HTTP 500 Internal Server Error")
 
 // refusingFactory hands each connect a fresh mock MCP server until refuse is
-// set, then fails every connect with errServerRefused.
-func refusingFactory(ctx context.Context, refuse *atomic.Bool) TransportFactory {
+// set, then hands every connect the refusal transport.
+func refusingFactory(ctx context.Context, refuse *atomic.Bool, refusal sdkmcp.Transport) TransportFactory {
 	return func() (sdkmcp.Transport, error) {
 		if refuse.Load() {
-			return &mockTransport{connectErr: errServerRefused}, nil
+			return refusal, nil
 		}
 
 		return newMockMCPServer().start(ctx)
 	}
 }
 
-// startRefusingClient starts a client against a live server, then makes the
-// server refuse reconnects and closes the client's session. It returns once
-// the client has no session and at least one reconnect attempt has failed.
-// Clearing the returned flag lets the next reconnect attempt succeed.
-func startRefusingClient(t *testing.T, opts ...ClientOption) (*clientImpl, *atomic.Bool) {
+// startRefusingClient starts a client against a live server, then makes every
+// reconnect get the refusal transport (errServerRefused when nil) and closes
+// the client's session. It returns once the client has no session and at
+// least one reconnect attempt has failed. Clearing the returned flag lets the
+// next reconnect attempt succeed.
+func startRefusingClient(t *testing.T, refusal sdkmcp.Transport, opts ...ClientOption) (*clientImpl, *atomic.Bool) {
 	t.Helper()
+
+	if refusal == nil {
+		refusal = &mockTransport{connectErr: errServerRefused}
+	}
 
 	refuse := &atomic.Bool{}
 
 	opts = append([]ClientOption{WithLogger(slog.New(slog.DiscardHandler))}, opts...)
 
-	cl, err := NewClient("refusing", refusingFactory(t.Context(), refuse), opts...)
+	cl, err := NewClient("refusing", refusingFactory(t.Context(), refuse, refusal), opts...)
 	require.NoError(t, err)
 	require.NoError(t, cl.Start(t.Context()))
 	t.Cleanup(func() { _ = cl.Close() })
@@ -82,35 +87,55 @@ func startRefusingClient(t *testing.T, opts ...ClientOption) (*clientImpl, *atom
 	return c, refuse
 }
 
+// withReconnectTimeout shortens each reconnect attempt's deadline.
+func withReconnectTimeout(timeout time.Duration) ClientOption {
+	return func(c *clientImpl) { c.reconnectTimeout = timeout }
+}
+
 func executeEcho(ctx context.Context, c *clientImpl) error {
 	_, err := c.ExecuteTool(ctx, "refusing__echo", json.RawMessage(`{"message":"hi"}`))
 	return err
 }
 
-// TestCallsFailFastWithoutSession pins the bounded wait: when the server
-// refuses every reconnect, a call returns ErrNoSession, with the reconnect
-// error, once the session wait ends instead of holding the caller until its
-// own deadline.
+func syncTools(ctx context.Context, c *clientImpl) error {
+	return c.SyncTools(ctx)
+}
+
+// TestCallsFailFastWithoutSession pins the bounded wait: when every reconnect
+// fails, a call returns ErrNoSession, naming the reconnect error, once the
+// session wait ends instead of holding the caller until its own deadline.
 func TestCallsFailFastWithoutSession(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name string
-		wait time.Duration
-		call func(context.Context, *clientImpl) error
+		name      string
+		wait      time.Duration
+		refusal   sdkmcp.Transport
+		opts      []ClientOption
+		call      func(context.Context, *clientImpl) error
+		wantCause string
 	}{
-		{name: "ExecuteTool", wait: 200 * time.Millisecond, call: executeEcho},
-		{name: "SyncTools", wait: 200 * time.Millisecond, call: func(ctx context.Context, c *clientImpl) error {
-			return c.SyncTools(ctx)
-		}},
-		{name: "ExecuteTool with no wait", wait: 0, call: executeEcho},
+		{name: "ExecuteTool", wait: 200 * time.Millisecond, call: executeEcho, wantCause: errServerRefused.Error()},
+		{name: "SyncTools", wait: 200 * time.Millisecond, call: syncTools, wantCause: errServerRefused.Error()},
+		{name: "ExecuteTool with no wait", wait: 0, call: executeEcho, wantCause: errServerRefused.Error()},
+		{name: "ExecuteTool with a negative wait", wait: -time.Second, call: executeEcho, wantCause: errServerRefused.Error()},
+		{
+			// An attempt that hits its own deadline must not read as the
+			// caller's timeout.
+			name:      "ExecuteTool after a hung reconnect",
+			wait:      200 * time.Millisecond,
+			refusal:   &hangingTransport{},
+			opts:      []ClientOption{withReconnectTimeout(50 * time.Millisecond)},
+			call:      executeEcho,
+			wantCause: context.DeadlineExceeded.Error(),
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			c, _ := startRefusingClient(t, WithSessionWait(tt.wait))
+			c, _ := startRefusingClient(t, tt.refusal, append(tt.opts, WithSessionWait(tt.wait))...)
 
 			// A deadline far beyond the wait, like a 10-minute tool timeout.
 			ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
@@ -121,26 +146,34 @@ func TestCallsFailFastWithoutSession(t *testing.T) {
 			elapsed := time.Since(start)
 
 			require.ErrorIs(t, err, ErrNoSession)
-			require.ErrorContains(t, err, errServerRefused.Error(), "the error names the reconnect failure")
 			require.ErrorContains(t, err, `server "refusing", reconnecting for`)
+			require.ErrorContains(t, err, "last reconnect attempt: "+"failed to connect to MCP server: "+tt.wantCause)
+			require.NotErrorIs(t, err, context.DeadlineExceeded)
+			require.NotErrorIs(t, err, context.Canceled)
 			assert.GreaterOrEqual(t, elapsed, tt.wait, "the call waits out the session wait")
-			assert.Less(t, elapsed, tt.wait+3*time.Second, "the call returns soon after the session wait")
+			assert.Less(t, elapsed, max(tt.wait, 0)+3*time.Second, "the call returns soon after the session wait")
 			assert.NoError(t, ctx.Err(), "the call returns before the caller's deadline")
 		})
 	}
 }
 
 // TestExecuteToolWaitsForReconnect pins what the wait is for: a call made
-// while the client reconnects goes through once the session comes back
-// within the session wait.
+// while the client reconnects waits, then goes through once the session comes
+// back within the session wait.
 func TestExecuteToolWaitsForReconnect(t *testing.T) {
 	t.Parallel()
 
-	c, refuse := startRefusingClient(t, WithSessionWait(10*time.Second))
+	c, refuse := startRefusingClient(t, nil, WithSessionWait(10*time.Second))
 
 	result := make(chan error, 1)
 
 	go func() { result <- executeEcho(t.Context(), c) }()
+
+	select {
+	case err := <-result:
+		t.Fatalf("ExecuteTool returned while the server still refused reconnects: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
 
 	refuse.Store(false)
 
@@ -152,12 +185,39 @@ func TestExecuteToolWaitsForReconnect(t *testing.T) {
 	}
 }
 
+// TestSessionWaitEndsOnClose pins that closing the client ends a waiting call
+// with ErrClosed, not ErrNoSession.
+func TestSessionWaitEndsOnClose(t *testing.T) {
+	t.Parallel()
+
+	c, _ := startRefusingClient(t, nil, WithSessionWait(time.Minute))
+
+	result := make(chan error, 1)
+
+	go func() { result <- executeEcho(t.Context(), c) }()
+
+	select {
+	case err := <-result:
+		t.Fatalf("ExecuteTool returned before the client closed: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	require.NoError(t, c.Close())
+
+	select {
+	case err := <-result:
+		require.ErrorIs(t, err, ErrClosed)
+	case <-time.After(5 * time.Second):
+		t.Fatal("ExecuteTool did not return after the client closed")
+	}
+}
+
 // TestSessionWaitHonorsCallerDeadline pins that a caller deadline shorter
 // than the session wait still ends the call with the context's error.
 func TestSessionWaitHonorsCallerDeadline(t *testing.T) {
 	t.Parallel()
 
-	c, _ := startRefusingClient(t, WithSessionWait(time.Minute))
+	c, _ := startRefusingClient(t, nil, WithSessionWait(time.Minute))
 
 	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer cancel()
@@ -176,10 +236,8 @@ func TestWithSessionWait(t *testing.T) {
 		opts []ClientOption
 		want time.Duration
 	}{
-		{name: "default", want: defaultSessionWait},
+		{name: "default", want: 5 * time.Second},
 		{name: "set", opts: []ClientOption{WithSessionWait(15 * time.Second)}, want: 15 * time.Second},
-		{name: "zero", opts: []ClientOption{WithSessionWait(0)}, want: 0},
-		{name: "negative", opts: []ClientOption{WithSessionWait(-time.Second)}, want: 0},
 	}
 
 	for _, tt := range tests {
@@ -194,6 +252,4 @@ func TestWithSessionWait(t *testing.T) {
 			assert.Equal(t, tt.want, c.sessionWait)
 		})
 	}
-
-	assert.Equal(t, 5*time.Second, defaultSessionWait)
 }
