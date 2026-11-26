@@ -17,6 +17,7 @@ package mcp
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"sync/atomic"
 	"time"
 
@@ -182,13 +183,16 @@ func (r *Registry) connectEntry(ctx context.Context, entry *registryEntry) {
 	defer r.wg.Done()
 
 	client := r.newSDKClient(entry)
-	transport := &registryTransport{
-		StreamableClientTransport: &sdkmcp.StreamableClientTransport{
-			Endpoint: r.endpoint.String(), HTTPClient: r.httpClient(entry.partition),
-		},
-		entry: entry,
+	httpClient := r.httpClient(entry.partition)
+	newTransport := func() (sdkmcp.Transport, error) {
+		return &registryTransport{
+			StreamableClientTransport: &sdkmcp.StreamableClientTransport{
+				Endpoint: r.endpoint.String(), HTTPClient: httpClient,
+			},
+			entry: entry,
+		}, nil
 	}
-	session, err := client.Connect(ctx, transport, nil)
+	session, err := connectWithDiscoverFallback(ctx, client, newTransport, slog.Default(), r.serverID)
 
 	r.mu.Lock()
 	entry.session, entry.err = session, err

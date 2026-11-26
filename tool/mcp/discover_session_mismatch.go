@@ -17,6 +17,7 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -27,7 +28,7 @@ import (
 // handshake with the stateless server/discover request (SEP-2575).
 const legacyProtocolVersion = "2025-11-25"
 
-// connectSession opens an MCP session, and retries with initialize only when
+// connectWithDiscoverFallback opens an MCP session, and retries with initialize only when
 // the server/discover handshake leaves the client holding two session IDs.
 //
 // go-sdk v1.8.0 keeps the Mcp-Session-Id of every response that it accepts,
@@ -40,7 +41,18 @@ const legacyProtocolVersion = "2025-11-25"
 // REMOVE THIS FILE, and its test, after go.mod carries go-sdk v1.9.0 or newer,
 // which includes https://github.com/modelcontextprotocol/go-sdk/pull/1523.
 // Until then the retry is harmless: it only runs on that error.
-func (c *clientImpl) connectSession(ctx context.Context, mcpClient *sdkmcp.Client, transport sdkmcp.Transport) (*sdkmcp.ClientSession, error) {
+func connectWithDiscoverFallback(
+	ctx context.Context,
+	mcpClient *sdkmcp.Client,
+	newTransport TransportFactory,
+	logger *slog.Logger,
+	serverID string,
+) (*sdkmcp.ClientSession, error) {
+	transport, err := newTransport()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create transport: %w", err)
+	}
+
 	session, err := mcpClient.Connect(ctx, transport, nil)
 	// go-sdk builds this error with fmt.Errorf and exports no sentinel, so match its text.
 	if err == nil || !strings.Contains(err.Error(), "mismatching session IDs") {
@@ -48,7 +60,7 @@ func (c *clientImpl) connectSession(ctx context.Context, mcpClient *sdkmcp.Clien
 	}
 
 	// A transport is spent after a failed Connect, so the retry needs its own.
-	retryTransport, transportErr := c.transportFactory()
+	retryTransport, transportErr := newTransport()
 	if transportErr != nil {
 		return nil, fmt.Errorf("failed to create transport for the initialize-only retry: %w (after %w)", transportErr, err)
 	}
@@ -62,8 +74,8 @@ func (c *clientImpl) connectSession(ctx context.Context, mcpClient *sdkmcp.Clien
 		return nil, fmt.Errorf("%w (after retrying with initialize only: %w)", err, retryErr)
 	}
 
-	c.logger.Warn("MCP server gave mismatching session IDs for server/discover, connected with initialize only",
-		"server_id", c.serverID,
+	logger.Warn("MCP server gave mismatching session IDs for server/discover, connected with initialize only",
+		"server_id", serverID,
 		"err", err,
 	)
 
