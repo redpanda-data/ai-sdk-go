@@ -39,6 +39,13 @@ var (
 
 	// ErrClosed indicates the client has been closed.
 	ErrClosed = errors.New("mcp client closed")
+
+	// ErrNoSession indicates the client lost its MCP session and did not
+	// reconnect within the session wait (see WithSessionWait). The returned
+	// error also wraps the last reconnect attempt's error, when there is one.
+	// The client keeps reconnecting in the background, so a later call can
+	// succeed.
+	ErrNoSession = errors.New("mcp client has no live session")
 )
 
 const (
@@ -99,6 +106,10 @@ type Client interface {
 
 	// ExecuteTool executes a tool using the namespaced name from ListTools().
 	// The client automatically strips the namespace prefix before calling the MCP server.
+	//
+	// If the client has lost its session, ExecuteTool and SyncTools wait up to
+	// the session wait (WithSessionWait, 5 seconds by default) for a reconnect,
+	// then return an error wrapping ErrNoSession.
 	ExecuteTool(ctx context.Context, toolName string, args json.RawMessage) (json.RawMessage, error)
 }
 
@@ -144,6 +155,7 @@ type clientImpl struct {
 	// reconnectTimeout bounds one reconnect handshake; defaults to
 	// reconnectAttemptTimeout (overridden only in tests).
 	reconnectTimeout time.Duration
+	sessionWait      time.Duration // bounds the wait for a lost session; see WithSessionWait
 	logger           *slog.Logger
 	toolFilter       ToolFilterFunc
 	deferTools       bool
@@ -173,6 +185,12 @@ type clientImpl struct {
 	// sessionChanged is closed and replaced whenever the session pointer is updated,
 	// allowing waitForSession to wake up and check for a new session.
 	sessionChanged chan struct{}
+	// sessionLostAt is when the reconnect loop lost the session, zero while a
+	// session is live. lastReconnectErr is the error of the latest failed
+	// reconnect attempt since then. Both are guarded by mu and only describe
+	// the outage in ErrNoSession errors.
+	sessionLostAt    time.Time
+	lastReconnectErr error
 }
 
 // NewClient creates a new MCP client. The client must be started with Start()
@@ -202,6 +220,7 @@ func NewClient(serverID string, transportFactory TransportFactory, opts ...Clien
 		serverID:         serverID,
 		transportFactory: transportFactory,
 		reconnectTimeout: reconnectAttemptTimeout,
+		sessionWait:      defaultSessionWait,
 		logger:           slog.Default(),
 		tools:            make(map[string]*toolWrapper),
 		notifyCh:         make(chan struct{}, 1),
@@ -536,42 +555,6 @@ func (c *clientImpl) replaceSessionLocked(session *sdkmcp.ClientSession, client 
 	}
 }
 
-// waitForSession blocks until a live MCP session is available or the provided
-// context (or client) is cancelled. Returns ErrClosed if the client is shutting
-// down.
-func (c *clientImpl) waitForSession(ctx context.Context) (*sdkmcp.ClientSession, context.Context, error) {
-	for {
-		ctxErr := ctx.Err()
-		if ctxErr != nil {
-			return nil, nil, ctxErr
-		}
-
-		c.mu.RLock()
-		session := c.session
-		ch := c.sessionChanged
-		bgCtx := c.bgCtx
-		closing := c.closing.Load()
-		c.mu.RUnlock()
-
-		if closing || bgCtx == nil {
-			return nil, nil, ErrClosed
-		}
-
-		if session != nil {
-			return session, bgCtx, nil
-		}
-
-		select {
-		case <-ctx.Done():
-			return nil, nil, ctx.Err()
-		case <-bgCtx.Done():
-			return nil, nil, ErrClosed
-		case <-ch:
-			// Session state changed; re-check.
-		}
-	}
-}
-
 // sessionManagerLoop monitors the active session and automatically reconnects when lost.
 // Runs for the client's lifetime, exiting only on shutdown.
 //
@@ -611,6 +594,8 @@ func (c *clientImpl) sessionManagerLoop() {
 		// Clear disconnected session
 		c.mu.Lock()
 		c.replaceSessionLocked(nil, nil)
+		c.sessionLostAt = time.Now()
+		c.lastReconnectErr = nil
 		c.mu.Unlock()
 
 		// Perform blocking reconnect with exponential backoff
@@ -634,6 +619,8 @@ func (c *clientImpl) sessionManagerLoop() {
 		}
 
 		c.replaceSessionLocked(newSession, newClient)
+		c.sessionLostAt = time.Time{}
+		c.lastReconnectErr = nil
 		c.mu.Unlock()
 
 		c.logger.Info("reconnected to MCP server", "serverID", c.serverID)
@@ -681,6 +668,11 @@ func (c *clientImpl) performReconnect(ctx context.Context) (*sdkmcp.ClientSessio
 		}
 
 		c.logger.Warn("reconnect attempt failed", "serverID", c.serverID, "attempt", attempt, "err", err)
+
+		// Callers that find no session report this error (ErrNoSession).
+		c.mu.Lock()
+		c.lastReconnectErr = err
+		c.mu.Unlock()
 
 		// Apply exponential backoff with cap
 		wait := min(delay, reconnectMaxDelay)

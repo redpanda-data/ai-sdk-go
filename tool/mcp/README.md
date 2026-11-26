@@ -15,7 +15,7 @@ there is no automatic fallback from a failed contextual credential lookup to sha
 - **OAuth 2.1 Support**: Built-in support for OAuth authentication with PKCE and Resource Indicators
 - **Contextual HTTP registry**: Discover and execute under caller-resolved credentials without a polling timer
 - **Optional legacy auto-sync**: Keep an existing client-managed registry refreshed
-- **Connection Management**: Streamable HTTP transport includes automatic reconnection with exponential backoff
+- **Connection Management**: Streamable HTTP transport includes automatic reconnection with exponential backoff, and calls fail fast while there is no session
 - **Tool Filtering**: Selectively register tools based on custom criteria
 
 ## Contextual HTTP registry
@@ -312,6 +312,29 @@ client, err := mcp.NewClient(
     mcp.WithRegistry(registry),
     mcp.WithAutoSync(5*time.Minute), // Sync every 5 minutes
 )
+```
+
+### Reconnection
+
+When the client loses its session, it reconnects in the background with exponential backoff, up to
+30 seconds between attempts. A call to `ExecuteTool` or `SyncTools` made while there is no session
+waits up to 5 seconds for the reconnect. If no session comes back in that time, the call returns an
+error that wraps `mcp.ErrNoSession` and the last reconnect error, and the client keeps reconnecting.
+The caller's own deadline still applies when it is shorter.
+
+Change the wait with `WithSessionWait`. Zero fails such calls at once:
+
+```go
+client, err := mcp.NewClient(
+    "github-mcp",
+    transport,
+    mcp.WithSessionWait(15*time.Second),
+)
+
+_, err = client.ExecuteTool(ctx, name, args)
+if errors.Is(err, mcp.ErrNoSession) {
+    // The server is unreachable or refusing reconnects; a later call can succeed.
+}
 ```
 
 ### Tool Filtering
