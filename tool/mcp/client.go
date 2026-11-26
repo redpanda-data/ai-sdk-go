@@ -467,7 +467,7 @@ func (c *clientImpl) connect(ctx context.Context) (*sdkmcp.ClientSession, *sdkmc
 		return nil, nil, fmt.Errorf("failed to create transport: %w", err)
 	}
 
-	session, err := mcpClient.Connect(ctx, transport, nil)
+	session, err := c.connectSession(ctx, mcpClient, transport)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to connect to MCP server: %w", err)
 	}
